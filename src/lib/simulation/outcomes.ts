@@ -2,6 +2,7 @@ import { MULTI_BALL_MODES, type BallStats } from "@/lib/physics/ballStats";
 import { BATTLE_WINNER_MODES, RIG_ESCAPE_MODES, neverEscapeApplies } from "@/lib/physics/rigged"; // --- odd-string-battle --- (BATTLE_WINNER_MODES)
 import type { ModeId } from "@/lib/physics/types";
 import { teamResult } from "@/lib/teams";
+import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 
 /**
  * Rigged outcomes for Find Simulation: besides a run of an exact length ("duration", the finder's classic search), the
@@ -21,9 +22,12 @@ import { teamResult } from "@/lib/teams";
  * --- orb-grid --- Bouncing Orbs adds two of its own: **never-settles** (the field is still bouncing when the clip ends – it
  * came to rest at no moment of the clip, `RunSummary.settledMs`) and **resolves-at** (the first "in phase" moment of the
  * field – the resolve detector of modes/orbGrid.ts – comes within ±0.5 s of a target time).
+ *
+ * --- fight-league --- Fight League adds **double-ko**: the fight ends with its last two sides going down together (the run
+ * is followed to its end, like a battle's winner).
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at"] as const; // --- orb-grid --- (never-settles, resolves-at)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -71,7 +75,23 @@ export interface RunSummary {
    */
   settledMs?: number;
   // --- end orb-grid ---
+  // --- fight-league ---
+  /** Fight League: the run ended with a double KO (its last sides down in the same step). */
+  doubleKo?: boolean;
+  // --- end fight-league ---
+  /** --- land-claim --- A finished battle's gap between its top two, as a share of the land (Land Claim's verdict); absent elsewhere. */
+  margin?: number;
 }
+
+// --- land-claim ---
+/**
+ * The modes whose verdict can be a close battle – the top two within `CLOSE_BATTLE_MARGIN` of the land when the run ends (Land
+ * Claim's SUCH A CLOSE BATTLE): the "close" outcome searches for one, following every run to its end.
+ */
+export const CLOSE_BATTLE_MODES: readonly ModeId[] = ["landClaim"];
+/** The gap (a share of the land) under which the top two of a battle make a close one: Land Claim's `LC_CLOSE`. */
+export const CLOSE_BATTLE_MARGIN = LC_CLOSE;
+// --- end land-claim ---
 
 /**
  * Whether the winner outcome follows a run of `mode` to its end: the battle modes (`BATTLE_WINNER_MODES`), whose winner
@@ -93,6 +113,10 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
       return clipMs;
     case "winner":
       return winnerNeedsEnd(outcome, mode) ? Math.max(clipMs, maxSimMs) : clipMs;
+    case "double-ko": // --- fight-league --- (the fight is followed to its end)
+      return Math.max(clipMs, maxSimMs);
+    case "close": // --- land-claim --- (the verdict comes at the run's end)
+      return Math.max(clipMs, maxSimMs);
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
       return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + ESCAPE_TAIL_MS;
@@ -157,6 +181,8 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       const at = run.firstResolveMs ?? -1;
       return at >= 0 && Math.abs(at - 1000 * (outcome.atSec ?? 0)) <= 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC) + 1e-6;
     }
+    case "double-ko": // --- fight-league ---
+      return run.finished && run.doubleKo === true;
     case "winner": {
       const team = outcome.team ?? -1;
       if (team < 0 || team >= run.teams.length || run.teams.length < 2) return false;
@@ -164,6 +190,9 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       const result = teamResult(run.teams, run.teams.length);
       return !result.tie && result.winner === team;
     }
+    // --- land-claim --- a finished battle whose top two ended within the margin
+    case "close":
+      return run.finished && run.margin !== undefined && run.margin <= CLOSE_BATTLE_MARGIN + 1e-9;
     default:
       return false;
   }
@@ -181,12 +210,15 @@ export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
     case "escapes-at":
       return run.firstEscapeMs < 0 ? Infinity : Math.abs(run.firstEscapeMs / 1000 - (outcome.atSec ?? 0));
     case "winner":
+    case "double-ko": // --- fight-league ---
       return outcomeMatches(outcome, run) ? 0 : 1;
     // --- orb-grid --- the seconds the field fell short of the clip (until it came to rest); the seconds between its first resolve and the target
     case "never-settles":
       return Math.max(0, outcome.clipSec - bouncingSec(run));
     case "resolves-at":
       return (run.firstResolveMs ?? -1) < 0 ? Infinity : Math.abs((run.firstResolveMs ?? 0) / 1000 - (outcome.atSec ?? 0));
+    case "close": // --- land-claim --- how far past the margin its top two ended (a run cut short: Infinity)
+      return run.finished && run.margin !== undefined ? Math.max(0, run.margin - CLOSE_BATTLE_MARGIN) : Infinity;
     default:
       return Infinity;
   }
@@ -219,6 +251,8 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
       return bouncingSec(run);
     case "resolves-at": // --- orb-grid --- (the first resolve, 0 without one)
       return (run.firstResolveMs ?? -1) >= 0 ? (run.firstResolveMs ?? 0) / 1000 : 0;
+    case "close": // --- land-claim --- the gap between its top two, in percent of the land (100 for a run cut short)
+      return run.finished && run.margin !== undefined ? 100 * run.margin : 100;
     default:
       return run.durationMs / 1000;
   }
@@ -261,6 +295,9 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (BATTLE_WINNER_MODES.includes(mode) && ctx.ballCount >= 2 && !out.includes("winner")) out.push("winner");
   // --- orb-grid --- Bouncing Orbs: still bouncing when the clip ends, the field's first resolve at a chosen second
   if (mode === "orbGrid") out.push("never-settles", "resolves-at");
+  // --- fight-league --- Fight League: the fight ends with a double KO
+  if (mode === "fightLeague") out.push("double-ko");
+  if (CLOSE_BATTLE_MODES.includes(mode) && ctx.ballCount >= 2) out.push("close"); // --- land-claim ---
   return out;
 }
 

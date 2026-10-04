@@ -6,6 +6,7 @@ import type { ControlSection } from "../Controls";
 import { MAX_TEAMS, MULTI_BALL_MODES, modeBallCap } from "@/lib/physics/ballStats";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
+import CountryPicker from "./CountryPicker"; // --- land-claim --- a country fills a roster entry (name, flag, colour)
 import {
   MAX_TEAM_NAME_LENGTH,
   SCOREBOARD_POSITIONS,
@@ -104,6 +105,7 @@ function TeamRow({ t, team, index, onChange, onRemove }: { t: Translate; team: T
         className="flex-1 min-w-0 px-3 py-2 bg-surface-2 text-ink rounded-lg border border-line-strong focus:border-accent-dim placeholder:text-ink-3 text-sm"
         style={{ boxShadow: `inset 3px 0 0 ${team.color}` }}
       />
+      <CountryPicker t={t} index={index} team={team} onPick={onChange} /* --- land-claim --- */ />
       <button type="button" onClick={onRemove} aria-label={t("teamRemove", { n })} className="shrink-0 px-2 py-1 text-ink-3 hover:text-danger transition-colors text-sm cursor-pointer">
         <IconClose size={14} />
       </button>
@@ -120,7 +122,7 @@ function TeamRow({ t, team, index, onChange, onRemove }: { t: Translate; team: T
 export default function TeamsSection({ t, search, matches, settings: s, update }: TeamsSectionProps) {
   const names = defaultTeamNames(t);
   const on = s.teams.length > 0;
-  const plays = MULTI_BALL_MODES.includes(s.mode) || s.mode === "stringBattle" || s.mode === "territory" || s.mode === "maze"; // --- odd-string-battle --- (its balls wear the roster) --- odd-territory --- (its teams do) --- odd-maze --- (so do the maze's)
+  const plays = MULTI_BALL_MODES.includes(s.mode) || s.mode === "stringBattle" || s.mode === "territory" || s.mode === "maze" || s.mode === "landClaim"; // --- odd-string-battle --- (its balls wear the roster) --- odd-territory --- (its teams do) --- odd-maze --- (so do the maze's) --- land-claim --- (and its competitors)
   // Grow takes two balls at most: a bigger roster (kept for the other modes) plays with its first teams there.
   const maxTeams = maxTeamsIn(s.mode);
   const setRoster = (roster: TeamEntry[]) => update(rosterPatch(roster));

@@ -812,6 +812,7 @@ describe("uncap-all: the guard", () => {
     rcLaps: "laps (every lap's rows together stop at RACE_SCREEN_CEILING: raceLapsWithin())",
     rcWinner: "a racer's index",
     btHp: "hit points",
+    flHp: "hit points", // --- fight-league ---
     ctfScoreToWin: "a score",
     pdMisses: "misses allowed (the HUD draws at most ten hearts)",
     byPerfect: "a shot's index",
@@ -819,6 +820,7 @@ describe("uncap-all: the guard", () => {
     tyRadius: "a reach in tiles (a blast visits at most the board's tiles, a whirl walks at most its diagonal: whirlReach())", // --- odd-territory ---
     ogElevation: "degrees", // --- orb-grid --- (the camera)
     ogRotation: "degrees", // --- orb-grid --- (the camera)
+    lcEvery: "a spawn period in blocks (the balls a run holds stop at LC_BALL_CEILING: ARENA FULL)", // --- land-claim ---
   };
 
   it("gives every whole-number setting that sizes an allocation a memory-safety ceiling", () => {

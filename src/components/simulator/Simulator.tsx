@@ -119,6 +119,8 @@ import { respawnConfigOf } from "@/lib/physics/respawn";
 import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropPlanKey } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
 import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
+import { FL_WIN_HOLD_SEC, fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
+import { landClaimClipSec, landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 // --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
 import { useVideoBeats } from "./useVideoBeats";
 import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
@@ -178,6 +180,10 @@ const RACE_RUN_PREFIX = `${Date.now().toString(36)}${Math.floor(Math.random() * 
 const ARENA_WIN_HOLD_MS = 1000 * ARENA_WIN_HOLD_SEC;
 /** --- odd-territory --- How long Territory's verdict – the frame's flash, the winner banner (or DRAW) and its confetti – plays before the end screen covers it (a recording keeps it). */
 const TERRITORY_FINISH_HOLD_MS = 3000;
+/** --- fight-league --- How long Fight League's winner banner ("Thor wins!", DRAW, DOUBLE KO) and its confetti play before the end screen covers them (a recording keeps them). */
+const FIGHT_LEAGUE_WIN_HOLD_MS = 1000 * FL_WIN_HOLD_SEC;
+/** --- land-claim --- How long Land Claim's verdict – DOMINATION / SUCH A CLOSE BATTLE / "[name] claims the most", the winner banner and its confetti – plays before the end screen covers it (a recording keeps it). */
+const LAND_CLAIM_FINISH_HOLD_MS = 3000;
 
 /** Sound preferences that survive a mode change (like the wall-break clip does). */
 function musicSettingsOf(s: SimulatorSettings): MusicSettings {
@@ -196,8 +202,12 @@ function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean): EndHolds
           ? STRING_BATTLE_FINISH_HOLD_MS // --- odd-string-battle --- the last shatter, the ring flash and the winner banner, as the page holds them
           : engine.isTerritoryMode()
             ? TERRITORY_FINISH_HOLD_MS // --- odd-territory --- the verdict's flash, banner and confetti, as the page holds them
+          : engine.isLandClaimMode()
+            ? LAND_CLAIM_FINISH_HOLD_MS // --- land-claim --- the verdict, its banner and confetti, as the page holds them
           : isArenaGameMode(engine.getCurrentModeName())
             ? ARENA_WIN_HOLD_MS // --- jdm-arena-games --- the winner banner and its confetti, as the page holds them
+          : engine.isFightLeagueMode()
+            ? FIGHT_LEAGUE_WIN_HOLD_MS // --- fight-league --- the winner banner and its confetti, as the page holds them
             : 0;
   const postMs = Math.max(teamsPlay ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0);
   return { preMs, postMs };
@@ -359,6 +369,8 @@ export default function Simulator() {
     engine.setMazeSettings(mazeSettingsOf(s)); // --- odd-maze ---
     engine.setConveyorSettings(conveyorSettingsOf(s)); // --- gerald-conveyor ---
     engine.setOrbGridSettings(orbGridSettingsOf(s)); // --- orb-grid ---
+    engine.setFightLeagueSettings(fightLeagueSettingsOf(s)); // --- fight-league ---
+    engine.setLandClaimSettings(landClaimSettingsOf(s)); // --- land-claim ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -424,6 +436,7 @@ export default function Simulator() {
       illusionRevealAtRef.current = null;
       battleFinishAtRef.current = null;
       arenaWinAtRef.current = null;
+      flWinAtRef.current = null; // --- fight-league ---
       audioRef.current?.resetCustomNoteIndex();
       audioRef.current?.getSlicer().reset();
       audioRef.current?.resetBeatGrid();
@@ -879,6 +892,26 @@ export default function Simulator() {
   }, [s.tyBadge, s.tyHud]);
   const territoryFinishAtRef = useRef<number | null>(null);
   // --- end odd-territory ---
+  // --- land-claim --- Land Claim: a change of the battle (columns, rows, arena, competitors, balls, rule, spawn period,
+  // duration) restarts it and drops a found seed; the title and the HUD only change the drawing and follow live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setLandClaimSettings(landClaimSettingsOf(s));
+    if (s.mode === "landClaim" && engine.getCurrentModeName() === "landClaim") {
+      engine.initMode("landClaim");
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.lcCols, s.lcRows, s.lcArena, s.lcTeams, s.lcBalls, s.lcRule, s.lcEvery, s.lcDuration]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.lcCols, s.lcRows, s.lcArena, s.lcTeams, s.lcBalls, s.lcRule, s.lcEvery, s.lcDuration]);
+  useEffect(() => {
+    engineRef.current?.setLandClaimSettings({ title: s.lcTitle, hud: s.lcHud });
+  }, [s.lcTitle, s.lcHud]);
+  const landClaimFinishAtRef = useRef<number | null>(null);
+  // --- end land-claim ---
   // --- gerald-vortex --- Sound Vortex: a change of the funnel or the flight (balls, stagger, rings, duration, pull, loop)
   // restarts the run and drops a found seed; the depth cue and the Sound section's scale and root (the ring notes) follow live.
   useEffect(() => {
@@ -984,6 +1017,26 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.ogElevation, s.ogRotation, s.ogOrbit, s.ogFloor, s.ogMaterial, s.ogPalette, s.ogHud, s.ogSound, s.scale, s.rootNote, s.ballColor, s.recordingDuration]);
   // --- end orb-grid ---
+  // --- fight-league --- Fight League: a change of the fighters, the match, the division rule, the HP, a multiplier, the time
+  // cap or the arena restarts the fight and drops a found seed; the HUD only changes the drawing and follows live.
+  const flFightKey = [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flMatch, s.flSameDivision, s.flHp, s.flTimeCap, s.flArena, s.flSpeedA, s.flSpeedB, s.flSpeedC, s.flSpeedD, s.flDamageA, s.flDamageB, s.flDamageC, s.flDamageD, s.flAttackA, s.flAttackB, s.flAttackC, s.flAttackD, s.flCastA, s.flCastB, s.flCastC, s.flCastD].join("|");
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setFightLeagueSettings(fightLeagueSettingsOf(s));
+    if (s.mode === "fightLeague" && engine.getCurrentModeName() === "fightLeague") {
+      engine.initFightLeague();
+      setFinished(false);
+    }
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flFightKey]);
+  useEffect(() => {
+    engineRef.current?.setFightLeagueSettings({ hud: s.flHud });
+  }, [s.flHud]);
+  const flWinAtRef = useRef<number | null>(null);
+  // --- end fight-league ---
   useEffect(() => {
     audioRef.current?.setWallBreakSound(s.wallBreakSound);
   }, [s.wallBreakSound]);
@@ -1293,7 +1346,7 @@ export default function Simulator() {
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
   const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
   const outcomeText = { duration: findDuration, escapeAt: findEscapeAt, winnerName: winnerNames[findWinnerTeam] ?? "" };
-  const riggedNote = [s.neverEscape && neverEscapeApplies(s.mode) ? t("Rigged.noteNeverEscape") : "", forcedWinnerApplies(s.mode, ballCount, s.forcedWinner, s.neverEscape) ? t("Rigged.noteWinner", { name: winnerNames[s.forcedWinner] ?? "" }) : ""].filter(Boolean).join(" · ");
+  const riggedNote = [s.neverEscape && neverEscapeApplies(s.mode) ? t("Rigged.noteNeverEscape") : "", forcedWinnerApplies(s.mode, ballCount, s.forcedWinner, s.neverEscape) ? t(s.mode === "landClaim" ? "Rigged.noteFavoured" /* --- land-claim --- (honest steering: the favourite, not a certainty) */ : "Rigged.noteWinner", { name: winnerNames[s.forcedWinner] ?? "" }) : ""].filter(Boolean).join(" · ");
   // --- end rigged ---
 
   // --- split-screen --- Split-screen races (lib/splitScreen.ts, lib/simulation/multi.ts, splitScreenCanvas.tsx): 2 or 4 arenas
@@ -1349,6 +1402,7 @@ export default function Simulator() {
         engine.setMazeSettings({ trail: arena.mzTrail, trailColor: arena.mzTrailColor, trailOwn: arena.mzTrailOwn, fog: arena.mzFog, wallColor: arena.mzWallColor, badge: arena.mzBadge, hud: arena.mzHud }); // --- odd-maze --- (the drawing follows live; the maze and the race wait for a restart)
         engine.setConveyorSettings(conveyorSettingsOf(arena)); // --- gerald-conveyor --- (the scale and root follow live; the rest waits for a restart)
         engine.setOrbGridSettings(orbGridSettingsOf(arena)); // --- orb-grid --- (the look, the sound, the scale and the clip follow live; the field waits for a restart)
+        engine.setFightLeagueSettings({ hud: arena.flHud }); // --- fight-league --- (the HUD follows live; the fight waits for a restart)
       },
     }),
     [initEngineForMode],
@@ -1589,6 +1643,16 @@ export default function Simulator() {
             audio.playOrb(ev.orb, ev.frequency, ev.chord, ev.level);
             continue;
           }
+          // --- fight-league --- a Fight League weapon hit of its kind, an ability's swell, a KO
+          if (ev.fight) {
+            audio.playFight(ev.fight, ev.frequency, ev.level);
+            continue;
+          }
+          // --- land-claim --- a knocked block's wooden click, a new ball's chime, a column's KO
+          if (ev.lcSound) {
+            audio.playLandClaim(ev.lcSound, ev.frequency, ev.level, ev.accent);
+            continue;
+          }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- wide eyes when a wall breaks
           // --- jdm-rhythm-runner --- `melody: false` accompanies the tune (a paddle's wall bounce, a runner's crash): no melody note used up
           if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
@@ -1646,6 +1710,18 @@ export default function Simulator() {
           if (territoryFinishAtRef.current === null) territoryFinishAtRef.current = now;
           if (now - territoryFinishAtRef.current < TERRITORY_FINISH_HOLD_MS) done = false;
         } else territoryFinishAtRef.current = null;
+        // --- fight-league --- the winner banner ("Thor wins!", DRAW, DOUBLE KO) and its confetti play (and record) before the end screen
+        if (done && engine.isFightLeagueMode()) {
+          const now = performance.now();
+          if (flWinAtRef.current === null) flWinAtRef.current = now;
+          if (now - flWinAtRef.current < FIGHT_LEAGUE_WIN_HOLD_MS) done = false;
+        } else flWinAtRef.current = null;
+        // --- land-claim --- the verdict (DOMINATION / SUCH A CLOSE BATTLE / "[name] claims the most", the banner, the confetti) plays (and records) before the end screen
+        if (done && engine.isLandClaimMode()) {
+          const now = performance.now();
+          if (landClaimFinishAtRef.current === null) landClaimFinishAtRef.current = now;
+          if (now - landClaimFinishAtRef.current < LAND_CLAIM_FINISH_HOLD_MS) done = false;
+        } else landClaimFinishAtRef.current = null;
         if (done && canvasRef.current?.holdsEndScreen()) done = false; // --- camera --- the escape replay plays (and records) before the end screen
         // --- teams --- hold the winner banner and its confetti on screen (and in a recording) before the end screen covers them
         // (after the camera: the banner waits for the escape replay, and its hold starts once the replay is over).
@@ -2578,6 +2654,8 @@ export default function Simulator() {
           maze: mazeSettingsOf(settings), // --- odd-maze ---
           conveyor: conveyorSettingsOf(settings), // --- gerald-conveyor ---
           orbGrid: { ...orbGridSettingsOf(settings), maxSec: 0 }, // --- orb-grid --- (a run ends when every orb is at rest: the page's clip is left out)
+          fightLeague: fightLeagueSettingsOf(settings), // --- fight-league --- (every fight ends: the last side standing, a double KO or the time cap)
+          landClaim: landClaimSettingsOf(settings), // --- land-claim --- (a run ends when the land is all taken or at its duration)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
@@ -2615,8 +2693,12 @@ export default function Simulator() {
       if (settings.mode === "stringBattle" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + STRING_BATTLE_FINISH_HOLD_MS / 1000)) }) /* --- uncap-all --- */;
       // --- odd-territory --- a found battle is recorded with its verdict's hold (the winner banner or DRAW)
       if (settings.mode === "territory" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + TERRITORY_FINISH_HOLD_MS / 1000)) }) /* --- uncap-all --- */;
+      // --- land-claim --- a found battle is recorded with its verdict's hold (and the teams banner's, with a roster); one that runs on past its clip keeps the clip that covers it
+      if (settings.mode === "landClaim") update({ recordingDuration: result.outcome && !result.finished ? Math.max(RANGES.recordingDuration.min, landClaimClipSec(settings.lcDuration)) : Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + Math.max(LAND_CLAIM_FINISH_HOLD_MS, holdMs) / 1000)) });
       // --- jdm-arena-games --- the found game plus the winner banner's hold (a capture-the-flag game that ended on time keeps its clip)
       if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
+      // --- fight-league --- a found fight is recorded with its winner banner's hold
+      if (settings.mode === "fightLeague" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + FL_WIN_HOLD_SEC)) });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
       // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
@@ -2868,10 +2950,42 @@ export default function Simulator() {
         share: (pct) => fill("Territory.canvasShare", { pct }),
         team: (n) => fill("Simulator.canvasTeamFallback", { n }),
       },
+      // --- land-claim ---
+      landClaim: {
+        title: t("LandClaim.canvasTitle"),
+        domination: t("LandClaim.canvasDomination"),
+        close: t("LandClaim.canvasClose"),
+        claims: (name) => t("LandClaim.canvasClaims").replace("[name]", () => name), // a name may hold "$&"
+        wins: (name) => t("LandClaim.canvasWins").replace("[name]", () => name),
+        share: (pct) => fill("LandClaim.canvasShare", { pct }),
+        noLand: t("LandClaim.canvasNoLand"),
+        left: (count) => fill("LandClaim.canvasLeft", { count }),
+        steals: (count) => fill("LandClaim.canvasSteals", { count }),
+        balls: (count) => fill("LandClaim.canvasBalls", { count }),
+        more: (count) => fill("LandClaim.canvasMore", { count }),
+        team: (n) => fill("Simulator.canvasTeamFallback", { n }),
+      },
       // --- uncap-all ---
       uncap: {
         speed: (speed) => fill("Uncap.canvasSpeed", { speed }),
         overflow: (count) => fill("Uncap.canvasOverflow", { count }),
+      },
+      // --- fight-league --- (fighter and ability names are proper names: they stay as they are)
+      fightLeague: {
+        vs: t("FightLeague.canvasVs"),
+        fight: t("FightLeague.canvasFight"),
+        ko: t("FightLeague.canvasKo"),
+        doubleKo: t("FightLeague.canvasDoubleKo"),
+        wins: (name) => t("FightLeague.canvasWins").replace("[name]", () => name), // a name may hold "$&"
+        winTeam: (names) => t("FightLeague.canvasWinTeam").replace("[names]", () => names),
+        draw: t("FightLeague.canvasDraw"),
+        time: t("FightLeague.canvasTime"),
+        winSub: (hp, hits) => fill("FightLeague.canvasWinSub", { hp, hits }),
+        speed: t("FightLeague.canvasSpeed"),
+        damage: t("FightLeague.canvasDamage"),
+        attack: t("FightLeague.canvasAttack"),
+        cast: t("FightLeague.canvasCast"),
+        ready: t("FightLeague.canvasReady"),
       },
     };
   }, [t]);
@@ -2899,6 +3013,7 @@ export default function Simulator() {
         kills: t("Simulator.canvasTeamKills"), // --- review fix (modes-gerald-odd) --- a String Battle's columns and banner
         win: t("Simulator.canvasTeamWin"),
         tiles: t("Territory.canvasTiles"), // --- odd-territory --- Territory's tiles column and banner line
+        blocks: t("LandClaim.canvasBlocks"), // --- land-claim --- Land Claim's blocks column
         wins: (name) => fill("Simulator.canvasTeamWins", "name", name),
         tie: t("Simulator.canvasTeamTie"),
         team: (n) => fill("Simulator.canvasTeamFallback", "n", n),
@@ -2966,7 +3081,7 @@ export default function Simulator() {
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.
   const plFinderFixedKey = settings.mode === "powerLayers" ? "Simulator.finderFixedPowerLayers" : finderFixedKey;
   // --- odd-territory --- Territory explains a fixed run length as its countdown (the seed only picks the winner).
-  const tyFinderFixedKey = settings.mode === "territory" ? "Territory.finderFixed" : plFinderFixedKey;
+  const tyFinderFixedKey = settings.mode === "territory" ? "Territory.finderFixed" : settings.mode === "landClaim" ? "LandClaim.finderFixed" /* --- land-claim --- (a steal battle lasts its duration) */ : plFinderFixedKey;
   // --- gerald-multipliers --- with a count target the multipliers board is rigged by count (within 5 %), not by duration.
   const mpCountSearch = settings.mode === "multipliers" && settings.mpTarget > 0;
   // --- obstacle-editor --- the obstacles can be dragged on the canvas while the run is not going (before the start, paused)
@@ -3230,7 +3345,7 @@ export default function Simulator() {
               <Tooltip text={t("Controls.findSimulationTip")} />
             </span>
             {/* --- rigged --- the outcome to search for */}
-            {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ />}
+            {finderOutcome !== null && <FinderOutcomeSelect outcomes={finderOutcomes} outcome={finderOutcome} onOutcome={setFindOutcome} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ landClaim={settings.mode === "landClaim"} /* --- land-claim --- */ />}
             <div className="flex min-w-[16rem] flex-1 items-center gap-2">
               <label className="eyebrow shrink-0 text-ink-3" htmlFor="find-duration">
                 {t("Controls.duration")}
@@ -3251,7 +3366,7 @@ export default function Simulator() {
             </div>
           </div>
           {/* --- rigged --- an outcome search's explanation and fields */}
-          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ />}
+          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ landClaim={settings.mode === "landClaim"} /* --- land-claim --- */ />}
           {isSearching && searchProgress && (
             <div className="space-y-1.5" data-search-arena={searchProgress.arena ?? 0 /* --- split-screen --- */}>
               <div className="h-1 w-full overflow-hidden rounded-full bg-surface-3">
@@ -3268,7 +3383,7 @@ export default function Simulator() {
               <IconWarning size={16} className="mt-0.5 shrink-0 text-danger" />
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-danger">{t("Controls.didNotFind")}</p>
-                <p className="text-xs text-ink-2">{outcomeMissText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.fixedDuration ? t(settings.mode === "doublePendulum" ? "Controls.dpFixedRunLength" : settings.mode === "powerLayers" ? "Controls.plFixedRunLength" /* --- odd-power-layers --- */ : settings.mode === "territory" ? "Territory.fixedRunLength" /* --- odd-territory --- */ : "Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Controls.mpClosestCount", { count: searchResult.count ?? 0, seeds: searchResult.seedsTested }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested }))}</p>
+                <p className="text-xs text-ink-2">{outcomeMissText(t, searchResult, outcomeText) /* --- rigged --- */ ?? (searchResult.fixedDuration ? t(settings.mode === "doublePendulum" ? "Controls.dpFixedRunLength" : settings.mode === "powerLayers" ? "Controls.plFixedRunLength" /* --- odd-power-layers --- */ : settings.mode === "territory" ? "Territory.fixedRunLength" /* --- odd-territory --- */ : settings.mode === "landClaim" ? "LandClaim.fixedRunLength" /* --- land-claim --- */ : "Controls.fixedRunLength", { duration: searchResult.duration.toFixed(1) }) : mpCountSearch ? t("Controls.mpClosestCount", { count: searchResult.count ?? 0, seeds: searchResult.seedsTested }) : t("Controls.closestDurationWithSeeds", { duration: searchResult.duration.toFixed(1), seeds: searchResult.seedsTested }))}</p>
               </div>
               <button type="button" onClick={() => setSearchResult(null)} className="-my-1 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-ink-3 hover:bg-surface-3 hover:text-ink cursor-pointer [@media(pointer:coarse)]:h-11 [@media(pointer:coarse)]:w-11" aria-label={t("Controls.clearSearch")}>
                 <IconClose size={14} />
