@@ -92,6 +92,9 @@ export const BATTLE_WINNER_MODES: readonly ModeId[] = ["stringBattle"];
 // --- odd-maze --- the Maze's winner is the first ball out (the mode's own verdict): its forced winner steers the shortest way
 // and the exit stays closed to the others until it is out
 (BATTLE_WINNER_MODES as ModeId[]).push("maze");
+// --- fight-league --- Fight League: the last fighter (or team) standing wins; its forced winner is enforced by the mode (its
+// hits land a little more, the rivals' a little less, and its side's last fighter keeps its last hit point while a rival stands)
+(BATTLE_WINNER_MODES as ModeId[]).push("fightLeague");
 
 /** Modes whose run never ends: there the other teams stay in for good, so the chosen team keeps the lead. */
 const LOCKED_FOR_GOOD: readonly ModeId[] = ["multiply"];

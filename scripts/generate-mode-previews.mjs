@@ -75,6 +75,9 @@ const MODES = {
   // --- orb-grid --- the corner-to-corner preset (44 × 43 = 1892 orbs) mid-wave: a sheet of orbs rising from one corner over the
   // blue slab, coloured by height, with the orb count
   orbGrid: { wait: 2000, query: "ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&seed=3" },
+  // --- fight-league --- mid-duel: Thor vs Loki (a pinned seed) with the hammer and the cards out, the HP in the balls, the
+  // names in the fighters' colours and the ability boxes
+  fightLeague: { wait: 8000, query: "seed=11" },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 // --- daily-gallery --- GALLERY=1 (every card) or GALLERY=<id>,<id>: gallery previews; with MODES and no GALLERY, none

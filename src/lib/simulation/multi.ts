@@ -7,6 +7,7 @@ import { exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-
 import { respawnConfigOf } from "@/lib/physics/respawn"; // --- gerald-conveyor ---
 import { riggedConfigOf } from "@/lib/physics/rigged";
 import type { ModeId, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
+import type { FightSoundKind } from "@/lib/physics/types"; // --- fight-league ---
 import type { SimulatorSettings } from "@/lib/settings";
 import { effectiveBallCount } from "@/lib/teams";
 import { engineTimelineOf } from "./timeline";
@@ -121,6 +122,8 @@ export interface ArenaSoundSink {
   /** A Bouncing Orbs voice in its own sound (sleep or metal). */
   playOrb?(kind: "sleep" | "metal", frequency?: number, chord?: readonly number[], level?: number): void;
   // --- end orb-grid ---
+  /** --- fight-league --- a Fight League weapon hit, an ability's swell or a KO. */
+  playFight?(kind: FightSoundKind, frequency?: number, level?: number): void;
 }
 
 /**
@@ -139,6 +142,7 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent) {
   if (ev.conveyor) return sink.playConveyor?.(ev.conveyor, ev.cvSec, ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- gerald-conveyor --- (machinery, not a wall hit)
   if (ev.splat) return sink.playSplat?.((ev.level ?? 0.6) * EXTRA_ARENA_LEVEL); // --- gerald-exit-splat --- (the wet splat, not a wall hit)
   if (ev.orb) return sink.playOrb?.(ev.orb, ev.frequency, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- orb-grid --- (an orb voice's own sound, not a wall hit)
+  if (ev.fight) return sink.playFight?.(ev.fight, ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- fight-league --- (a weapon's hit, not a wall hit)
   if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.melody !== false);
   else if (ev.type === "gap") sink.playGapPass();
   else if (ev.type === "multiplier") sink.playMultiplier(ev.multiplier ?? 2, ev.melody !== false);

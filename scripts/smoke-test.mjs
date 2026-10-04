@@ -10636,6 +10636,245 @@ const orbSoundRun = async (query, ms) => {
 }
 // --- end orb-grid ---
 
+// --- fight-league ---
+// Fight League: the preview image and the card under the rhythm heading of the landing page, with the arena games; URL →
+// the Fight League block of the Mode row (match type, fighters, HP, time cap, arena, HUD, a handicap), controls → URL (a
+// preset among them) and the search box; the default match is Thor vs Loki (data-fl-names) with the HUD's names, ability
+// boxes and VS card; a 1v1 on a pinned seed fought at 8× to its winner – weapon hits and ability swells heard
+// (AudioBufferSourceNode / OscillatorNode.start instrumented), the winner banner held before the end screen, a bottom question
+// caption above the ability boxes answered at the verdict; a four-way free-for-all to its end; the forced winner taking a
+// pinned seed it loses unrigged; four shooters and their projectiles keep 30+ fps; a 1080×1920 recording keeps 20+ fps and
+// downloads; and the finder finds an "A wins" seed that replays as promised.
+{
+  const res = await page.request.get(`${BASE}/modes/fightLeague.webp`);
+  check("asset /modes/fightLeague.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inRhythm = await page.evaluate(() => {
+    // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
+    const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Rhythm & polyrhythm modes");
+    const group = heading?.parentElement;
+    return !!group && !!group.querySelector('img[src$="/modes/fightLeague.webp"]') && !!group.querySelector('img[src$="/modes/ctf.webp"]');
+  });
+  const card = await page.locator('img[src$="/modes/fightLeague.webp"]').count();
+  check("the Fight League card is on the landing page under the rhythm heading, with the arena games", card === 1 && inRhythm, `(cards=${card}, in the rhythm group=${inRhythm})`);
+}
+{
+  const section = page.getByTestId("fight-league-section");
+  const flSwitch = (label) => section.getByRole("switch", { name: switchName(label) });
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=ffa3&fl1=goku&fl2=vegeta&fl3=naruto&flHp=150&flT=60&flA=circle&flH=0&flDiv=0&flS2=1.5`, { waitUntil: "networkidle" });
+  {
+    const values = {
+      ffa3: await section.getByTestId("fl-match-ffa3").getAttribute("aria-pressed"),
+      a: await section.getByTestId("fl-fighter-A").inputValue(),
+      b: await section.getByTestId("fl-fighter-B").inputValue(),
+      c: await section.getByTestId("fl-fighter-C").inputValue(),
+      slotD: await section.getByTestId("fl-fighter-D").count(),
+      hp: await section.locator('input[aria-label="HP"]').inputValue(),
+      cap: await section.locator('input[aria-label="Time Cap"]').inputValue(),
+      circle: await section.getByTestId("fl-arena-circle").getAttribute("aria-pressed"),
+      hud: await flSwitch("HUD").getAttribute("aria-checked"),
+      division: await flSwitch("Random Stays In Division").getAttribute("aria-checked"),
+      speedB: await section.locator('input[data-number-field="flSpeedB"]').inputValue(),
+      preset: await section.getByTestId("fl-preset").inputValue(),
+    };
+    const desc = await section.getByTestId("fl-fighter-desc-A").innerText().catch(() => "");
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    check(
+      "fight league loads from the URL",
+      values.ffa3 === "true" && values.a === "goku" && values.b === "vegeta" && values.c === "naruto" && values.slotD === 0 && values.hp === "150" && values.cap === "60" && values.circle === "true" && values.hud === "false" && values.division === "false" && values.speedB === "1.5" && values.preset === "" && /Ability: Kamehameha/.test(desc) && noRingControls,
+      `(${JSON.stringify(values)}, "${desc}", no ring controls=${noRingControls})`,
+    );
+  }
+  await section.getByTestId("fl-match-2v2").click();
+  await section.getByTestId("fl-fighter-D").selectOption("luffy");
+  await section.locator('input[aria-label="HP"]').evaluate(setRangeValue, "120");
+  await section.getByTestId("fl-arena-square").click();
+  await page.waitForTimeout(300);
+  const mirrored = new URLSearchParams(page.url().split("?")[1] || "");
+  await section.getByTestId("fl-preset").selectOption("thor-loki");
+  await page.waitForTimeout(300);
+  const preset = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "fight league mirrors into the URL, and a preset sets the matchup",
+    mirrored.get("mode") === "fightLeague" && mirrored.get("flM") === "2v2" && mirrored.get("fl1") === "goku" && mirrored.get("fl4") === "luffy" && mirrored.get("flHp") === "120" && mirrored.get("flT") === "60" && mirrored.get("flS2") === "1.5" && !mirrored.has("flA") &&
+      !preset.has("flM") && !preset.has("fl1") && !preset.has("fl2") && !preset.has("fl3") && !preset.has("fl4") && preset.get("flHp") === "120",
+    `(${mirrored.toString()} → after the Thor vs Loki preset: ${preset.toString()})`,
+  );
+  await page.getByPlaceholder("Search settings...").fill("time cap");
+  const found = await page.locator('input[aria-label="Time Cap"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("handicaps");
+  const handicaps = await page.getByTestId("fl-handicaps").isVisible();
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the fight league controls", found && ballSpeedHidden && handicaps, `(time cap=${found}, Ball Speed hidden=${ballSpeedHidden}, handicaps=${handicaps})`);
+}
+{
+  // The default match: Thor vs Loki, with the HUD inside the square – both names, both ability boxes and the VS card.
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague`, { waitUntil: "networkidle" });
+  const preset = await page.getByTestId("fl-preset").inputValue();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(700);
+  const intro = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-vs.png") });
+  check(
+    "fight league: the default match is Thor vs Loki, with the names, the ability boxes and the VS card drawn",
+    preset === "thor-loki" && intro.flNames === "Thor,Loki" && intro.flIds === "thor,loki" && intro.flMatch === "1v1" && intro.flArena === "square" && intro.flHud === "1" && intro.flHudNames === "2" && intro.flBoxes === "2" && intro.flVs === "1" && intro.flFighters === "2" && Number(intro.flWeapons) >= 2 && intro.flAbilities === "Thunder Strike,Illusion",
+    `(preset ${preset}, ${JSON.stringify(Object.fromEntries(Object.entries(intro).filter(([k]) => k.startsWith("fl"))))})`,
+  );
+}
+{
+  // A 1v1 on a pinned seed at 8×, with a bottom question caption: fought to its winner (weapon hits and ability swells heard),
+  // the banner held before the end screen, the caption above the ability boxes and answered at the verdict.
+  const cap = "q*b*0*0*p*1.3*ffffff*000000*Who wins?*THE BEST!";
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&seed=11&cap=${encodeURIComponent(cap)}`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = { noise: 0, saw: 0 };
+    window.__flAudio = log;
+    const startSource = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function () {
+      if (arguments.length === 3) log.noise++; // a weapon's noise burst (start(time, offset, duration))
+      return startSource.apply(this, arguments);
+    };
+    const startOsc = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.type === "sawtooth") log.saw++; // an ability's swell
+      return startOsc.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2500);
+  const early = await canvasData();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const banner = await page
+    .waitForFunction(() => {
+      const d = document.querySelector("main canvas")?.dataset;
+      return d?.flFinished === "1" && d?.flBanner === "1";
+    }, null, { timeout: 60000 })
+    .then(() => true)
+    .catch(() => false);
+  const held = !(await page.getByRole("button", { name: /Restart Simulation/ }).isVisible().catch(() => false));
+  await page.waitForTimeout(400); // (the answer pops in)
+  const verdict = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-win.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+  const audio = await page.evaluate(() => window.__flAudio);
+  const hits = (verdict.flHits || "").split(",").map(Number);
+  const casts = (verdict.flCasts || "").split(",").map(Number);
+  const alive = (verdict.flAlive || "").split(",");
+  const names = (verdict.flNames || "").split(",");
+  const winner = Number(verdict.flWinnerTeam);
+  const stackBottom = Number((early.captionStack || "").split(",")[1]);
+  check(
+    "fight league: a 1v1 is fought to its winner – hits, abilities and a KO heard, the banner held before the end screen, a question caption above the ability boxes answered at the verdict",
+    early.flFinished === "0" && (early.flHp || "").split(",").every((hp) => Number(hp) > 0) && early.captionReveal === "0" && (early.captionTexts ?? "").includes("Who wins?") && !(early.captionTexts ?? "").includes("THE BEST!") && stackBottom > 0 && stackBottom <= Number(early.flBoxesTop) + 0.5 &&
+      verdict.seed === "11" && banner && held && done && (winner === 0 || winner === 1) && verdict.flWinner === names[winner] && alive[winner] === "1" && alive[1 - winner] === "0" && verdict.flKos === "1" && hits.reduce((a, b) => a + b, 0) >= 5 && casts.reduce((a, b) => a + b, 0) >= 1 && Number(verdict.flSounds) > 10 &&
+      verdict.captionReveal === "1" && (verdict.captionTexts ?? "").includes("Who wins? → THE BEST!") && audio.noise >= 5 && audio.saw >= 2,
+    `(seed ${verdict.seed} on ${verdict.world}; at 2.5 s: HP ${early.flHp}, caption "${early.captionTexts}" reveal ${early.captionReveal}, stack bottom ${stackBottom} / boxes at ${early.flBoxesTop}; banner=${banner}, held=${held}, end screen=${done}; winner ${verdict.flWinner} at ${verdict.flFinishSec} s, HP ${verdict.flHp}, hits ${verdict.flHits}, casts ${verdict.flCasts}, KOs ${verdict.flKos}, sounds ${verdict.flSounds}; caption "${verdict.captionTexts}"; heard ${audio.noise} noise bursts, ${audio.saw} swell voices)`,
+  );
+}
+{
+  // A four-way free-for-all (the Avengers preset) at 8×, fought to its end.
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=ffa4&fl2=ironman&fl3=captainamerica&fl4=hulk&seed=1`, { waitUntil: "networkidle" });
+  const preset = await page.getByTestId("fl-preset").inputValue();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1000);
+  const start = await canvasData();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const ended = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinished === "1", null, { timeout: 90000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-ffa4.png") });
+  const names = (data.flNames || "").split(",");
+  check(
+    "fight league: a four-way free-for-all (the Avengers) is fought to its end",
+    preset === "avengers" && start.flMatch === "ffa4" && start.flFighters === "4" && start.flHudNames === "4" && start.flBoxes === "4" && ended && data.flFinished === "1" && (data.flByTime === "1" || Number(data.flKos) >= 3) && (names.includes(data.flWinner) || data.flWinner === "draw" || data.flWinner === "double-ko"),
+    `(preset ${preset}, ${data.flNames}: winner ${data.flWinner} at ${data.flFinishSec} s, KOs ${data.flKos}, by time ${data.flByTime}, HP ${data.flHp})`,
+  );
+}
+{
+  // The forced winner on a pinned seed: the seed's unrigged winner first, then the rig on the other fighter – who wins it.
+  const play = async (query) => {
+    await page.goto(`${BASE}/en/simulator/?mode=fightLeague&seed=11${query}`, { waitUntil: "networkidle" });
+    const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinished === "1", null, { timeout: 60000 }).catch(() => {});
+    return { note, data: await canvasData() };
+  };
+  const plain = await play("");
+  const loser = plain.data.flWinnerTeam === "0" ? 1 : 0;
+  const rigged = await play(`&fw=${loser}`);
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-rigged.png") });
+  const names = (plain.data.flNames || "").split(",");
+  check(
+    "fight league: the forced winner wins a pinned seed it loses unrigged",
+    plain.data.seed === "11" && rigged.data.seed === "11" && plain.data.flFinished === "1" && (plain.data.flWinnerTeam === "0" || plain.data.flWinnerTeam === "1") && plain.data.flForced === "-1" && rigged.data.flFinished === "1" && rigged.data.flForced === String(loser) && rigged.data.flWinnerTeam === String(loser) && rigged.data.flWinner === names[loser] && rigged.note.includes(`Rigged: ${"AB"[loser]} · ${names[loser]} wins`),
+    `(seed 11 on ${plain.data.world}: unrigged ${plain.data.flWinner} at ${plain.data.flFinishSec} s; forced ${names[loser]}: ${rigged.data.flWinner} at ${rigged.data.flFinishSec} s, HP ${rigged.data.flHp}, note "${rigged.note}")`,
+  );
+}
+{
+  // Four shooters at 1× (no time cap): four fighters, their weapons and a crowd of shots in the air keep 30+ fps.
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=ffa4&fl1=ironman&fl2=doomslayer&fl3=legolas&fl4=jinx&flT=0&seed=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(4000);
+  const fps = await pageFrameRates(4000);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-shooters.png") });
+  await timingCheck(
+    "fight league: four fighters with their projectiles keep 30+ fps",
+    data.flFighters === "4" && Number(data.flShots) >= 20 && data.flFinished === "0",
+    fpsOk(fps, 6, 30),
+    `(fighters ${data.flFighters}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(3000, 5, 30),
+  );
+}
+{
+  // A 1080×1920 recording (the default resolution) of the default duel.
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&dur=10`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0, low: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await pageFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `fight-league-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  await timingCheck("a 1080×1920 fight league recording keeps 20+ fps and downloads", size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
+}
+{
+  // Find Simulation: a duel A (Thor) wins – found, then played at 8× to Thor's win at the second it promised.
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("winner");
+  await page.locator("#find-winner").selectOption("0");
+  const button = page.getByRole("button", { name: /Find a Run A · Thor Wins/ });
+  const labelled = await button.isVisible();
+  await button.click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const foundSec = Number((/\(([\d.]+)s\)/.exec(text) || [])[1]);
+  let data = {};
+  if (/Found! A · Thor wins/.test(text)) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinished === "1", null, { timeout: 90_000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "Find Simulation finds a duel A (Thor) wins, and it plays out that way",
+    labelled && /Found! A · Thor wins/.test(text) && data.flWinner === "Thor" && Math.abs(Number(data.flFinishSec) - foundSec) < 0.1,
+    `("${text}", replay: winner ${data.flWinner} at ${data.flFinishSec} s)`,
+  );
+}
+// --- end fight-league ---
+
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
 const hardErrors = errors.filter((e) => !IGNORED_CONSOLE.test(e));

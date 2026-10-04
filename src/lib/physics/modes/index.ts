@@ -80,3 +80,7 @@ export type { ConveyorSettings, ConveyorView, ConveyorLayout, ConveyorArena, Con
 // --- orb-grid ---
 export { OrbGridMode } from "./orbGrid";
 export type { OrbGridSettings, OrbGridView, OrbLayout, OgProperty, OgDistribution, OgRelease, OgArrangement, OgFloor, OgMaterial, OgPalette, OgSound } from "./orbGrid";
+// --- fight-league ---
+export { FightLeagueMode } from "./fightLeague";
+export type { FightLeagueSettings, FightLeagueView, FlFighter, FlProjectile, FlMinion, FlBeam, FlTask, FlEvent, FlField, FlMatch, FlArena } from "./fightLeague";
+export type { FlFighterRow, FlDivision, FlWeaponKind, FlWeaponSpec, FlEffect, FlAbility, FlShape } from "./fightLeagueRoster";

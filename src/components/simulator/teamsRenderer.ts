@@ -7,6 +7,7 @@ import { nameLabelSize } from "./faceRenderer";
 import { SB_PALETTE, sbHudShown, stringBattleBallName } from "@/lib/physics/modes/stringBattle"; // --- odd-string-battle ---
 import { TY_PALETTE, type TerritoryView } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { MZ_PALETTE, mazeBallName } from "@/lib/physics/modes/maze"; // --- odd-maze ---
+import type { FightLeagueView } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 
 /**
  * Drawing of the "Team balls with scoreboard" feature (lib/teams.ts, physics/ballStats.ts), created once with
@@ -168,6 +169,11 @@ export class TeamLayer {
   private mazeSource: CanvasTeamOptions | null = null;
   private mazeKey = "";
   private mazeOptions: CanvasTeamOptions | null = null;
+  // --- fight-league --- the roster as Fight League's 2v2 plays it (its first two teams), rebuilt when an input changes
+  private fightSource: CanvasTeamOptions | null = null;
+  private fightOptions: CanvasTeamOptions | null = null;
+  /** The fight this frame (null in any other mode, or not a 2v2): the banner's line names the winning fighters. */
+  private fight: FightLeagueView | null = null;
 
   isActive() {
     return this.active;
@@ -210,6 +216,12 @@ export class TeamLayer {
     const maze = next && next.roster.length > 0 && engine.isMazeMode() ? engine.getMazeView() : null;
     if (maze && next) next = this.mazeTeams(next, maze.teamCount, maze.settings.hud);
     // --- end odd-maze ---
+    // --- fight-league --- Fight League's 2v2 plays the roster: its two teams take the roster's first two names and colours (the
+    // mode's HUD takes the scoreboard's and the names' place); the winner banner is this layer's, its line the winners' names
+    const fight = !battle && !territory && !maze && next && next.roster.length > 0 && engine.isFightLeagueMode() && engine.getFightLeagueView().match === "2v2" ? engine.getFightLeagueView() : null;
+    if (fight && next) next = this.fightTeams(next);
+    this.fight = fight;
+    // --- end fight-league ---
     if (next !== this.options) {
       this.options = next;
       this.layout = null;
@@ -224,8 +236,8 @@ export class TeamLayer {
     this.labelled = 0;
     this.labelsDrawn = 0;
     const mode = engine.getCurrentModeName();
-    this.active = !!next && next.roster.length > 0 && (MULTI_BALL_MODES.includes(mode) || !!battle || !!territory || !!maze); // --- odd-string-battle --- (battle) --- odd-territory --- (territory) --- odd-maze --- (maze)
-    const count = this.active ? Math.min(next!.roster.length, battle ? battle.count : territory ? territory.teams : maze ? maze.teamCount : startBallCount(engine.config, mode)) : 0;
+    this.active = !!next && next.roster.length > 0 && (MULTI_BALL_MODES.includes(mode) || !!battle || !!territory || !!maze || !!fight); // --- odd-string-battle --- (battle) --- odd-territory --- (territory) --- odd-maze --- (maze) --- fight-league --- (fight)
+    const count = this.active ? Math.min(next!.roster.length, battle ? battle.count : territory ? territory.teams : maze ? maze.teamCount : fight ? 2 : startBallCount(engine.config, mode)) : 0;
     if (count !== this.count) {
       this.count = count;
       this.layout = null;
@@ -295,6 +307,17 @@ export class TeamLayer {
     return this.mazeOptions;
   }
   // --- end odd-maze ---
+  // --- fight-league ---
+  /** The roster's first two teams (padded with the built-in pair), no scoreboard and no names over the balls: the HUD has them. */
+  private fightTeams(options: CanvasTeamOptions): CanvasTeamOptions {
+    if (this.fightOptions && this.fightSource === options) return this.fightOptions;
+    const roster = options.roster.slice(0, 2).map((t) => ({ ...t }));
+    for (let i = roster.length; i < 2; i++) roster.push({ name: "", color: i === 0 ? "#f43f5e" : "#38bdf8", emoji: "" });
+    this.fightSource = options;
+    this.fightOptions = { ...options, roster, showScoreboard: false, showNames: false };
+    return this.fightOptions;
+  }
+  // --- end fight-league ---
 
   private rebuildTexts() {
     const o = this.options;
@@ -416,6 +439,8 @@ export class TeamLayer {
       this.result = teamResult(this.frozen, this.count);
       // --- odd-maze --- a maze race won by a ball past the six teams (its seventh or eighth ball) has no team winner: the maze's banner stays
       if (engine.isMazeMode() && engine.getMazeView().winner >= this.count) this.result = { winner: -1, tie: false, leaders: [] };
+      // --- fight-league --- a fight without a winner (a double KO, a draw at the time cap): the fight's own banner says it
+      if (this.fight && this.fight.winnerTeam < 0) this.result = { winner: -1, tie: false, leaders: [] };
       this.bannerMs = 0;
       this.makeBannerTexts();
       this.confettiPending = this.result.winner >= 0;
@@ -613,6 +638,8 @@ export class TeamLayer {
     const s = this.frozen[r.winner];
     // --- review fix (modes-gerald-odd) --- a String Battle counts kills (its "walls"); nothing escaped
     this.bannerSub = this.battle ? `${L.kills} ${s.walls} · ${L.bounces} ${s.bounces}` : `${L.escapes} ${s.escapes} · ${L.walls} ${s.walls} · ${L.bounces} ${s.bounces}`;
+    // --- fight-league --- a fight's winners by name ("Naruto + Sasuke")
+    if (this.fight) this.bannerSub = this.fight.fighters.filter((f) => f.team === r.winner).map((f) => f.row.name).join(" + ");
   }
 
   private drawBanner(ctx: CanvasRenderingContext2D, cx: number, cy: number, side: number) {

@@ -70,6 +70,8 @@ export const MODE_IDS = [
   "conveyor",
   // --- orb-grid --- Bouncing Orbs (thousands of varied bouncing orbs forming a 3D wave)
   "orbGrid",
+  // --- fight-league --- Fight League (weapon-wielding fighter balls duel with HP, abilities and stats; the arena games' family)
+  "fightLeague",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -330,7 +332,20 @@ export interface SoundEvent {
    */
   orb?: "sleep" | "metal";
   // --- end orb-grid ---
+  // --- fight-league ---
+  /**
+   * A Fight League sound (lib/physics/modes/fightLeague.ts) instead of a bounce: a weapon's hit by its kind – "blade" (a
+   * metallic ring), "blunt" (a thud: hammers, flails, fists, tails), "arrow" (a twang), "gun" (a shot), "fire" (a whoosh),
+   * "magic" (a chime) – a shield's "block", an ability's "ability" swell or a "ko" (`ToneGenerator.playFight()`, lib/audio/
+   * fightTones.ts) at `frequency`, `level` loud. Sent with `melody: false`, so a page that does not know it plays an
+   * accompaniment hit, never a melody note.
+   */
+  fight?: FightSoundKind;
+  // --- end fight-league ---
 }
+
+// --- fight-league --- the sound families of Fight League's weapons, abilities and KOs
+export type FightSoundKind = "blade" | "blunt" | "arrow" | "gun" | "fire" | "magic" | "ability" | "ko" | "block";
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */
 export interface ObstacleHit {

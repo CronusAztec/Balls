@@ -45,6 +45,7 @@ import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
 import type { MazeSettings } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import type { ConveyorSettings } from "@/lib/physics/modes/conveyor"; // --- gerald-conveyor ---
 import { orbGridNeverSettles, type OrbGridSettings } from "@/lib/physics/modes/orbGrid"; // --- orb-grid ---
+import type { FightLeagueSettings } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -177,6 +178,13 @@ export interface ModeSettings {
    * the searched run is the physics, not the clip that cuts it.
    */
   orbGrid?: Partial<OrbGridSettings>;
+  // --- fight-league ---
+  /**
+   * Fight League: fighters, match type, HP, multipliers, time cap and arena (see modes/fightLeague.ts); the defaults when left
+   * out. Every fight ends – the last side standing, a double KO or the time cap – so the finder searches it by length, by
+   * winner ("A wins", "B wins") or for a double KO.
+   */
+  fightLeague?: Partial<FightLeagueSettings>;
 }
 
 // --- odd-string-battle ---
@@ -201,6 +209,9 @@ export const PAINT_FINDER_BATCH = 2;
 // --- odd-maze ---
 /** Seeds of the Maze simulated per animation frame (a seed runs until every ball is out, up to the clip limit). */
 export const MAZE_FINDER_BATCH = 6;
+// --- fight-league ---
+/** Seeds of Fight League simulated per animation frame (a seed fights a whole match, up to the time cap). */
+export const FIGHT_LEAGUE_FINDER_BATCH = 4;
 
 // --- review fix (modes-rhythm) ---
 /**
@@ -415,6 +426,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "maze") engine.setMazeSettings(settings.maze ?? {}); // --- odd-maze ---
   if (mode === "conveyor") engine.setConveyorSettings(settings.conveyor ?? {}); // --- gerald-conveyor ---
   if (mode === "orbGrid") engine.setOrbGridSettings(settings.orbGrid ?? {}); // --- orb-grid ---
+  if (mode === "fightLeague") engine.setFightLeagueSettings(settings.fightLeague ?? {}); // --- fight-league ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -651,7 +663,7 @@ export function findSimulation(
       findByCount(request, targetCount, onProgress, signal).then(resolve);
       return;
     }
-    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : request.mode === "territory" ? TERRITORY_FINDER_BATCH /* --- odd-territory --- */ : request.mode === "paint" ? PAINT_FINDER_BATCH : request.mode === "maze" ? MAZE_FINDER_BATCH /* --- odd-maze --- */ : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
+    const batchSize = request.mode === "multipliers" ? 1 : request.mode === "illusion" ? ILLUSION_FINDER_BATCH : request.mode === "race" ? RACE_FINDER_BATCH : request.mode === "stringBattle" ? STRING_BATTLE_FINDER_BATCH : request.mode === "territory" ? TERRITORY_FINDER_BATCH /* --- odd-territory --- */ : request.mode === "paint" ? PAINT_FINDER_BATCH : request.mode === "maze" ? MAZE_FINDER_BATCH /* --- odd-maze --- */ : request.mode === "fightLeague" ? FIGHT_LEAGUE_FINDER_BATCH /* --- fight-league --- */ : 50; // --- jdm-illusions --- (a painted arena costs more per seed) --- jdm-race --- (a whole race per seed) --- odd-string-battle ---
     let tested = 0;
     let bestDuration = Infinity;
     let bestSeed = 0;
@@ -783,6 +795,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   // --- odd-string-battle --- the chosen ball of a battle's winner search (−1: none to watch)
   const battleTeam = winnerNeedsEnd(outcome, request.mode) && request.mode === "stringBattle" ? (outcome.team ?? -1) : -1;
   const mazeTeam = winnerNeedsEnd(outcome, request.mode) && request.mode === "maze" ? (outcome.team ?? -1) : -1; // --- odd-maze ---
+  const fightTeam = winnerNeedsEnd(outcome, request.mode) && request.mode === "fightLeague" ? (outcome.team ?? -1) : -1; // --- fight-league ---
   const step = 1000 / 60;
   let elapsed = 0;
   let firstEscape = -1;
@@ -800,10 +813,14 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
     // --- odd-maze --- the maze's verdict is final once a ball is out: another ball's win ends the search of this seed
     if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
+    // --- fight-league --- the chosen side is out (every fighter of it knocked out): it cannot win any more
+    if (fightTeam >= 0 && !engine.getFightLeagueView().fighters.some((f) => f.team === fightTeam && f.alive)) break;
   }
-  const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : request.mode === "territory" ? engine.getTerritoryView().teams /* --- odd-territory --- */ : request.mode === "maze" ? engine.getMazeView().teamCount /* --- odd-maze --- (one team per ball, the first six) */ : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
+  const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : request.mode === "territory" ? engine.getTerritoryView().teams /* --- odd-territory --- */ : request.mode === "maze" ? engine.getMazeView().teamCount /* --- odd-maze --- (one team per ball, the first six) */ : request.mode === "fightLeague" ? engine.getFightLeagueView().teamCount /* --- fight-league --- (a side per fighter, two in 2v2) */ : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
   const teams = engine.getTeamStats().slice(0, teamCount).map((t) => ({ ...t }));
-  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(orbs ? { firstResolveMs: firstResolve } : {}) /* --- orb-grid --- */ };
+  // --- fight-league --- a finished fight that ended with every side down together: a double KO
+  const doubleKo = request.mode === "fightLeague" && finished ? engine.getFightLeagueView().doubleKo : undefined;
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(orbs ? { firstResolveMs: firstResolve } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}) };
 }
 
 /** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */

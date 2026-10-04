@@ -89,6 +89,8 @@ import { DEFAULT_MAZE_LABELS, MAZE_DATA_KEYS, MazeLayer, writeMazeDataset, type 
 import { CONVEYOR_DATA_KEYS, ConveyorDataset, ConveyorLayer, DEFAULT_CONVEYOR_LABELS, conveyorBanner, type ConveyorLabels, type ConveyorRenderOptions } from "./conveyorRenderer";
 // --- orb-grid --- Bouncing Orbs: the perspective field (floor, shadows, sprites back to front), the HUD line and the data-og-* writer
 import { DEFAULT_ORB_GRID_LABELS, ORB_GRID_DATA_KEYS, OrbGridDataset, OrbGridLayer, orbGridBanner, type OrbGridLabels } from "./orbGridRenderer";
+// --- fight-league --- Fight League: the arena, the fighters with their weapons, the projectiles and effects, the HUD and the banner
+import { DEFAULT_FIGHT_LEAGUE_LABELS, FIGHT_LEAGUE_DATA_KEYS, FightLeagueDataset, FightLeagueLayer, type FightLeagueLabels, type FightLeagueRenderOptions } from "./fightLeagueRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -202,6 +204,9 @@ export interface CanvasLabels {
   // --- orb-grid ---
   /** Bouncing Orbs: the HUD line ("1089 bouncing orbs") and the end banners. */
   orbGrid?: OrbGridLabels;
+  // --- fight-league ---
+  /** Fight League: VS, FIGHT!, KO!, the winner banner's words and the stat lines' abbreviations. */
+  fightLeague?: FightLeagueLabels;
 }
 
 export interface CanvasHandle {
@@ -386,6 +391,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   maze: DEFAULT_MAZE_LABELS, // --- odd-maze ---
   conveyor: DEFAULT_CONVEYOR_LABELS, // --- gerald-conveyor ---
   orbGrid: DEFAULT_ORB_GRID_LABELS, // --- orb-grid ---
+  fightLeague: DEFAULT_FIGHT_LEAGUE_LABELS, // --- fight-league ---
 };
 
 const TWO_PI = Math.PI * 2;
@@ -876,6 +882,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- orb-grid --- the Bouncing Orbs layer (its sprite caches and per-orb buffers) and the data-og-* writer
     const orbLayer = new OrbGridLayer();
     const orbData = new OrbGridDataset();
+    // --- fight-league --- Fight League's layer, its per-frame options and the data-fl-* writer
+    const flLayer = new FightLeagueLayer();
+    const flRender: FightLeagueRenderOptions = { dpr: 1, numbers: true, teamColors: null, teamBanner: false, labels: DEFAULT_FIGHT_LEAGUE_LABELS };
+    const flTeamColors: string[] = [];
+    const flData = new FightLeagueDataset();
     // --- beat-drop --- Beat Drop's layer and its per-frame options (the roster's colours are rebuilt only when the roster changes)
     const bdLayer = new BeatDropLayer();
     const bmLayer = new BounceMathLayer(); // --- bounce-math ---
@@ -1231,6 +1242,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- gerald-bullseye ---
       const conveyorView = engine.isConveyorMode() ? engine.getConveyorView() : null; // --- gerald-conveyor ---
       const orbView = engine.isOrbGridMode() ? engine.getOrbGridView() : null; // --- orb-grid ---
+      const flView = engine.isFightLeagueMode() ? engine.getFightLeagueView() : null; // --- fight-league ---
       const wobbleAmount = bmLayer.wobble(wobbleAmountRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wobble)
       wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmount, illusionView.intrinsicWobble) : wobbleAmount);
 
@@ -1589,6 +1601,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       // --- orb-grid --- Bouncing Orbs: the slab, the plate or the grid floor under the orbs (the field's perspective)
       if (orbView) orbLayer.drawWorld(ctx, orbView, size.width, size.height);
+      // --- fight-league --- Fight League: the arena under the fighters (the 2v2 teams wear the roster's colours)
+      if (flView) {
+        const roster = teamsRef.current?.roster ?? null;
+        flTeamColors.length = 0;
+        if (roster) for (const team of roster) flTeamColors.push(team.color);
+        flRender.dpr = scale;
+        flRender.numbers = !(characterRef.current && characterRef.current.face !== "none");
+        flRender.teamColors = flTeamColors.length >= 2 ? flTeamColors : null;
+        flRender.labels = (labelsRef.current ?? DEFAULT_LABELS).fightLeague ?? DEFAULT_FIGHT_LEAGUE_LABELS;
+        flLayer.drawStage(ctx, flView, flRender);
+      }
       // --- beat-drop --- the obstructions (flying in, settled, squashing, glowing with the beat, leaving) and the ball's trail
       if (bdView) bdLayer.drawWorld(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender);
       // --- jdm-race --- the corridor, the start gate, the rows in view, the lap lines and the finish, under the racers
@@ -2039,6 +2062,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (mazeView) mazeLayer.drawBodies(ctx, mazeView, mazeRender); // --- odd-maze --- halos, glossy bodies, names
       else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
       else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
+      else if (flView) flLayer.drawBodies(ctx, flView, flRender); // --- fight-league --- weapons, fighters, HP, projectiles, effects
       else if (rrView) rrLayer.drawBodies(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- the trail and the rotating square
       else if (orbView) orbLayer.drawOrbs(ctx, orbView, size.width, size.height, scale, orbArenasRef.current); // --- orb-grid --- thousands of orbs back to front (the placeholder ball is not drawn)
       // --- unlimited --- thousands of balls (or one too big for the sprites): plain discs, one path per colour
@@ -2244,6 +2268,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
       // --- jdm-arena-games --- faces on the squares
       if (faces.isActive() && arenaView) faces.drawOverlays(ctx, balls, arenaLayer.bodyColor, { shape: "square", countdown: false });
+      if (faces.isActive() && flView) faces.drawOverlays(ctx, balls, flLayer.bodyColor, null); // --- fight-league --- faces on the fighters
       if (faces.isActive() && rrView && rrView.alive) faces.drawOverlays(ctx, balls, jrBodyColor, { shape: "square", countdown: false }); // --- jdm-rhythm-runner --- a face on the square
 
       // --- gerald-glass --- the shards of shattered panes fly over the ball.
@@ -2441,6 +2466,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
         // (a split-screen arena: on the right too – the arena's letter badge holds the top-left corner)
         modeTopHud = Math.max(modeTopHud, orbLayer.drawOverlay(ctx, orbView, (labelsRef.current ?? DEFAULT_LABELS).orbGrid ?? DEFAULT_ORB_GRID_LABELS, size.width, size.height, teamInset, boardLeft || orbArenasRef.current > 1));
+      }
+      // --- fight-league --- the names, the time left, the VS card, the ability boxes, the KO flash and – unless the teams banner
+      // takes over (a won 2v2 with a roster) – the winner banner, inside the exported square; the names' band is what the top
+      // captions start below (the ability boxes are what the bottom ones stay above, below)
+      if (flView) {
+        flRender.teamBanner = teamLayer.isActive() && flView.winnerTeam >= 0;
+        modeTopHud = Math.max(modeTopHud, flLayer.drawOverlay(ctx, flView, flRender, { width: size.width, height: size.height, inset: 0 }));
       }
 
       // HUD: mode counters in the centre
@@ -2819,6 +2851,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // --- viral-bot --- an arena game's scoreboard band (the top HUD_BAND of the square) is the top captions' limit too
         const arenaHudBottom = arenaView?.field ? (size.height - side) / 2 + HUD_BAND * side : 0;
         edgeTextBounds(edgeLines, Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, arenaHudBottom, modeTopHud), captionView); // --- review fix (modes-gerald-odd) --- (the mode's top HUD)
+        if (flView && flLayer.boxesTop < Infinity) captionView.bottomMax = Math.min(captionView.bottomMax, flLayer.boxesTop); // --- fight-league --- (above the ability boxes)
         captionView.dtMs = !p.isPaused && p.isStarted ? frameMs : 0;
         // (--- review fix (modes-gerald-odd) --- on the run's pace: less the real time the slow motion added since Record, as the clip is extended by it)
         captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current - Math.max(0, cam.getSlowLagMs() - clipLag0Ref.current)) / 1000 : -1;
@@ -3195,6 +3228,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- orb-grid --- orbs, released (orbs and rings), bounces, landed, settled, moving, the resolve detector, quality, sound, the end (data-og-*)
       if (orbView) orbData.write(orbView, orbLayer, setCanvasData);
       else if (canvas.dataset.ogOrbs !== undefined) for (const key of ORB_GRID_DATA_KEYS) delete canvas.dataset[key];
+      // --- fight-league --- names, HP, hits, casts, KOs, the winner, the end, the HUD's names and boxes, the VS card (data-fl-*)
+      if (flView) flData.write(flView, flLayer, setCanvasData);
+      else if (canvas.dataset.flMatch !== undefined) for (const key of FIGHT_LEAGUE_DATA_KEYS) delete canvas.dataset[key];
       // (the respawn timer of Classic and Multiply: balls dropped in this run, and the balls in play – data-respawns, data-respawn-balls)
       if ((engine.config.respawnEvery ?? 0) > 0) {
         setCanvasData("respawns", String(engine.getRespawnCount()));

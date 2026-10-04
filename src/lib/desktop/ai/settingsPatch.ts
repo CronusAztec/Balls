@@ -171,6 +171,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   maze: "mz", // --- odd-maze ---
   conveyor: "cv", // --- gerald-conveyor ---
   orbGrid: "og", // --- orb-grid ---
+  fightLeague: "fl", // --- fight-league ---
 };
 
 /** The settings the assistant may change on this page: the catalog, then the scalar settings of the page's mode. */

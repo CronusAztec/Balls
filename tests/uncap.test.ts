@@ -812,6 +812,7 @@ describe("uncap-all: the guard", () => {
     rcLaps: "laps (every lap's rows together stop at RACE_SCREEN_CEILING: raceLapsWithin())",
     rcWinner: "a racer's index",
     btHp: "hit points",
+    flHp: "hit points", // --- fight-league ---
     ctfScoreToWin: "a score",
     pdMisses: "misses allowed (the HUD draws at most ten hearts)",
     byPerfect: "a shot's index",

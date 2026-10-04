@@ -15,6 +15,8 @@ import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, sc
 import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- beat-drop ---
 import { DEFAULT_HUM_FREQUENCY, scheduleConveyorClick, scheduleConveyorHum } from "./conveyorTones"; // --- gerald-conveyor ---
 import { ORB_SAMPLE_GAIN, scheduleOrbClink, scheduleOrbSleep } from "./orbTones"; // --- orb-grid ---
+import { fightDucks, scheduleFightSound } from "./fightTones"; // --- fight-league ---
+import type { FightSoundKind } from "@/lib/physics/types"; // --- fight-league ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -953,6 +955,38 @@ export class ToneGenerator {
     }
   }
   // --- end orb-grid ---
+
+  // --- fight-league ---
+  /** Fight League sounds played so far: each reads the noise from a little further on, so consecutive hits differ. */
+  private fightCount = 0;
+
+  /**
+   * A Fight League sound (fightTones.ts): a weapon hit of its kind at the hitting fighter's pitch (snapped to the scale), an
+   * ability's swell or a KO. An effect, not a note (never a melody note, a hit sample or a song slice): on the beat grid when
+   * the beat lock is on; the hits duck the music bed.
+   */
+  playFight(kind: FightSoundKind, frequency?: number, level = 1) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleFight(kind, frequency, level));
+      return;
+    }
+    this.scheduleFight(kind, frequency, level);
+  }
+
+  private scheduleFight(kind: FightSoundKind, frequency: number | undefined, level: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const ctx = this.audioContext;
+      const time = this.scheduleTime(ctx.currentTime);
+      scheduleFightSound(ctx, this.masterGain, kind, frequency ?? 440, time, this.noiseCache.get(ctx), hitLevel(level), (f) => this.snap(f), 0.0173 * this.fightCount++);
+      if (fightDucks(kind)) this.musicBed.duck(time);
+    } catch (err) {
+      console.error("Error playing the fight sound:", err);
+    }
+  }
+  // --- end fight-league ---
 
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;

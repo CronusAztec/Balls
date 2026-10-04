@@ -21,9 +21,12 @@ import { teamResult } from "@/lib/teams";
  * --- orb-grid --- Bouncing Orbs adds two of its own: **never-settles** (the field is still bouncing when the clip ends) and
  * **resolves-at** (the first "in phase" moment of the field – the resolve detector of modes/orbGrid.ts – comes within ±0.5 s
  * of a target time).
+ *
+ * --- fight-league --- Fight League adds **double-ko**: the fight ends with its last two sides going down together (the run
+ * is followed to its end, like a battle's winner).
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at"] as const; // --- orb-grid --- (never-settles, resolves-at)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -65,6 +68,10 @@ export interface RunSummary {
   /** Real time (ms) of the field's first "in phase" moment (Bouncing Orbs' resolve detector), −1 or absent when none came. */
   firstResolveMs?: number;
   // --- end orb-grid ---
+  // --- fight-league ---
+  /** Fight League: the run ended with a double KO (its last sides down in the same step). */
+  doubleKo?: boolean;
+  // --- end fight-league ---
 }
 
 /**
@@ -87,6 +94,8 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
       return clipMs;
     case "winner":
       return winnerNeedsEnd(outcome, mode) ? Math.max(clipMs, maxSimMs) : clipMs;
+    case "double-ko": // --- fight-league --- (the fight is followed to its end)
+      return Math.max(clipMs, maxSimMs);
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
       return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + ESCAPE_TAIL_MS;
@@ -149,6 +158,8 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       const at = run.firstResolveMs ?? -1;
       return at >= 0 && Math.abs(at - 1000 * (outcome.atSec ?? 0)) <= 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC) + 1e-6;
     }
+    case "double-ko": // --- fight-league ---
+      return run.finished && run.doubleKo === true;
     case "winner": {
       const team = outcome.team ?? -1;
       if (team < 0 || team >= run.teams.length || run.teams.length < 2) return false;
@@ -173,6 +184,7 @@ export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
     case "escapes-at":
       return run.firstEscapeMs < 0 ? Infinity : Math.abs(run.firstEscapeMs / 1000 - (outcome.atSec ?? 0));
     case "winner":
+    case "double-ko": // --- fight-league ---
       return outcomeMatches(outcome, run) ? 0 : 1;
     // --- orb-grid --- the seconds the field fell short of the clip; the seconds between its first resolve and the target
     case "never-settles":
@@ -243,6 +255,8 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (BATTLE_WINNER_MODES.includes(mode) && ctx.ballCount >= 2 && !out.includes("winner")) out.push("winner");
   // --- orb-grid --- Bouncing Orbs: still bouncing when the clip ends, the field's first resolve at a chosen second
   if (mode === "orbGrid") out.push("never-settles", "resolves-at");
+  // --- fight-league --- Fight League: the fight ends with a double KO
+  if (mode === "fightLeague") out.push("double-ko");
   return out;
 }
 
