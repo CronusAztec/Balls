@@ -1482,9 +1482,12 @@ still refuses) and nothing else about billing changed.
   signature with the build's public key, header, payload and expiry (`watermarkDecision()`) – and returns a frozen
   `WatermarkSeal`; its verdict lives in the module's private WeakMap and the compositor holds the seal in its frame loop's
   closure. No setter, option, flag, DOM attribute, class, `data-*` attribute, CSS variable, global, URL parameter or
-  localStorage flag reaches it, a look-alike object is marked, and editing the token makes it invalid (= marked). WebCrypto
-  and the clock are captured when the bundle loads, so `crypto.subtle.verify = async () => true` or `Date.now = () => 0`
-  typed into the console afterwards changes nothing, and a verification patched before the page loaded meets a canary: the
+  localStorage flag reaches it, a look-alike object is marked, and editing the token makes it invalid (= marked). The built-ins
+  the verdict path calls are captured when the bundle loads – WebCrypto's `importKey` / `verify`, the clock, the verdict
+  `WeakMap`'s `get` / `set`, and the licence decoding's `atob`, `JSON.parse` and `TextDecoder` / `TextEncoder` – so
+  `crypto.subtle.verify = async () => true`, `Date.now = () => 0`, `WeakMap.prototype.get = () => true` or an `atob` /
+  `JSON.parse` patched to revive an expired licence, typed into the console afterwards, changes nothing (and so flips no
+  recording already under way); a verification patched before the page loaded meets a canary: the
   same signed bytes with one signature bit flipped must not verify. The build's test mode (no `NEXT_PUBLIC_LICENSE_PUBLIC_KEY`)
   is the only switch: there the committed TEST key's licences – the smoke test's – remove the mark as they make a visitor Pro;
   no debug flag, query parameter or other environment variable does.
@@ -1497,15 +1500,19 @@ still refuses) and nothing else about billing changed.
 - **The viral bot** – without `BOT_LICENSE` (on a production build, which refuses the CLI's own test licence) it renders and
   says the clips carry the watermark; a `BOT_LICENSE` the site refuses still stops it.
 - **Honest limits** – the page's code runs on the visitor's machine. What DevTools' Elements and Application panels reach –
-  the DOM, classes, attributes, storage – changes nothing, and neither do the console patches the tests cover (WebCrypto's
-  `verify`, the clock). But code that changes the page's JavaScript or the browser functions it calls (the Sources panel's
-  local overrides or breakpoints, an extension or a userscript, a rewriting proxy, functions redefined from the console) can
-  still remove the stamp, and anyone can capture the live canvas or the screen themselves. The
-  obfuscation of the shipped JavaScript ([Obfuscation and the licence](#obfuscation-and-the-licence)) raises the bar; only
-  rendering the videos on a server would be a guarantee.
+  the DOM, classes, attributes, storage – changes nothing, and neither do the console patches the tests cover: the built-ins
+  the verdict path calls are captured at load (WebCrypto's `verify`, the clock, the verdict `WeakMap`'s `get` / `set`, the
+  licence decoding's `atob`, `JSON.parse` and `TextDecoder` / `TextEncoder`), so redefining them from the console reaches
+  nothing. This is not console-proof in general – the verdict path still calls a few other built-ins (its `String` methods,
+  `await`), and redefining one of those, or any code that changes the page's JavaScript itself (the Sources panel's local
+  overrides or breakpoints, an extension or a userscript, a rewriting proxy), can still remove the stamp; so can capturing the
+  live canvas or the screen. The obfuscation of the shipped JavaScript ([Obfuscation and the licence](#obfuscation-and-the-licence))
+  raises the bar; only rendering the videos on a server would be a guarantee.
 - **Tests** – `tests/freeWatermark.test.ts`: the decision (no licence, Pro, monthly, expired, another key, an edited exp or
   plan, a flipped signature, `alg: none`, garbage), storage flags, globals and the DOM ignored, the module's exports (no
-  setter), frozen seals and look-alikes, WebCrypto and `Date.now` patched after load, the canary for a patch before load; the
+  setter), frozen seals and look-alikes, WebCrypto and `Date.now` patched after load, the verdict `WeakMap`'s `get` / `set`
+  and the licence decoding's `atob` / `JSON.parse` / `TextDecoder` / `TextEncoder` patched after load (an earlier seal's mark
+  unchanged, a real Pro licence still clean), the canary for a patch before load; the
   6 s corner schedule; the badge inside the safe zone and the exported square of every export size, one corner each; the tiles
   covering every part of the frame, staggered and turned about the centre; the painter's two draws a frame from one sprite and
   one layer with 70 % and 4 % baked in, and blank layers refused; `drawRecordingFrame()` with a free, null, look-alike and Pro
@@ -1514,8 +1521,9 @@ still refuses) and nothing else about billing changed.
   (`tests/fakeCanvas.ts` is the stand-in canvas). The smoke test's free-watermark block decodes the downloaded videos in the
   browser: a free recording's frames carry the badge (bottom-left before 6 s, bottom-right after) and the faint tiles; a free
   recording during which the page is tampered with – every element whose id, class or data attribute names a watermark, Pro or
-  a licence removed, `data-pro="true"` and Pro classes on `<html>` and `<body>`, Pro flags and a forged licence in
-  localStorage, `crypto.subtle.verify` patched – still carries them; a Pro recording (the test licence) carries neither; a
+  a licence removed, `data-pro="true"` and Pro classes on `<html>` and `<body>`, Pro flags and an expired-then-revived licence
+  in localStorage, `crypto.subtle.verify`, `WeakMap.prototype.get` / `set` and `atob` / `JSON.parse` patched – still carries
+  them (both the recording under way and the next); a Pro recording (the test licence) carries neither; a
   free fast export and a free batch render carry them; the pricing page and the Unlock dialog show the new copy; and a free
   1080×1920 recording with the mark keeps its frame-rate floor.
 

@@ -40,6 +40,25 @@ export type LicenseCheck = { ok: true; payload: LicensePayload } | { ok: false; 
 
 const BASE64URL = /^[A-Za-z0-9_-]*$/;
 
+/*
+ * The built-ins the decode path uses, captured when this module loads. A licence's payload decides whether a video's seal is
+ * clean (lib/watermark/seal.ts), so the path that turns the token into that payload must not depend on functions a visitor
+ * can redefine later: `atob = s => …`, `JSON.parse = …` or a patched `TextDecoder` / `TextEncoder` prototype typed into
+ * DevTools reaches none of these (the method and its receiver are both grabbed here, so patching the prototype afterwards
+ * cannot reach the bound copy). `UTF8_ENCODE` makes the exact bytes the signature is verified over – its capture keeps a
+ * re-stamped payload from being verified against the original bytes.
+ */
+const ATOB: (data: string) => string = globalThis.atob.bind(globalThis);
+const PARSE: (text: string) => unknown = JSON.parse;
+const UTF8_DECODE = (() => {
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  return decoder.decode.bind(decoder);
+})();
+const UTF8_ENCODE = (() => {
+  const encoder = new TextEncoder();
+  return encoder.encode.bind(encoder);
+})();
+
 /** base64url without padding (RFC 4648 §5), as JWS uses it. */
 export function base64UrlEncode(bytes: Uint8Array): string {
   let binary = "";
@@ -52,7 +71,7 @@ export function base64UrlDecode(text: string): Uint8Array | null {
   if (typeof text !== "string" || !BASE64URL.test(text) || text.length % 4 === 1) return null;
   const padded = text.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((text.length + 3) % 4);
   try {
-    const binary = atob(padded);
+    const binary = ATOB(padded);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
     return bytes;
@@ -63,7 +82,7 @@ export function base64UrlDecode(text: string): Uint8Array | null {
 
 const utf8 = (bytes: Uint8Array): string | null => {
   try {
-    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+    return UTF8_DECODE(bytes);
   } catch {
     return null;
   }
@@ -74,7 +93,7 @@ const parseJsonObject = (part: string): Record<string, unknown> | null => {
   const text = bytes ? utf8(bytes) : null;
   if (text === null) return null;
   try {
-    const value: unknown = JSON.parse(text);
+    const value: unknown = PARSE(text);
     return value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
   } catch {
     return null;
@@ -118,7 +137,7 @@ export function decodeLicense(token: string): DecodedLicense | null {
   const payload = parseJsonObject(parts[1]);
   const signature = base64UrlDecode(parts[2]);
   if (!header || !payload || !signature) return null;
-  return { header, payload: readLicensePayload(payload), signingInput: new TextEncoder().encode(`${parts[0]}.${parts[1]}`), signature };
+  return { header, payload: readLicensePayload(payload), signingInput: UTF8_ENCODE(`${parts[0]}.${parts[1]}`), signature };
 }
 
 /** True for exactly the header the contract names: alg ES256, typ JWT, and no critical extensions to honour. */

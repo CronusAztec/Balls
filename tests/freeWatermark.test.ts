@@ -175,6 +175,72 @@ describe("the gate: the decision comes from the verified licence", () => {
     expect(sealVerdict(await sealWatermark())).toBe("marked");
   });
 
+  it("ignores the other built-ins its verdict path calls, patched in the console: WeakMap get/set and the licence's decoding", async () => {
+    // What a visitor without a licence – or holding a lapsed subscription's genuine but expired one – could type into DevTools
+    // to make the gate read clean. Each patch flips the verdict on the unhardened code; captured at load, it must reach nothing.
+    const later = Math.floor(Date.now() / 1000) + 365 * 86400;
+    const stale = signTestLicense({ days: -2 }); // a genuine, expired licence
+    const [staleHead, staleBody] = stale.split(".");
+    const restamped = tamperPayload(stale, { exp: later }); // its exp pushed a year ahead, the signature kept
+    const restampedInput = restamped.split(".").slice(0, 2).join(".");
+    const isSeal = (k: unknown) => typeof k === "object" && k !== null && (k as { kind?: unknown }).kind === "watermark-seal";
+    const aYearAhead = (text: string) => text.replace(/"exp":\d+/, `"exp":${later}`);
+    /** Redefines `key` of `target` like a console one-liner (`WeakMap.prototype.get = …`); returns the undo. */
+    const redefine = (target: object, key: PropertyKey, value: unknown) => {
+      const before = Object.getOwnPropertyDescriptor(target, key);
+      Object.defineProperty(target, key, { value, writable: true, configurable: true, enumerable: before?.enumerable ?? false });
+      return () => (before ? Object.defineProperty(target, key, before) : void delete (target as Record<PropertyKey, unknown>)[key]);
+    };
+    const realGet = WeakMap.prototype.get;
+    const realSet = WeakMap.prototype.set;
+    const realAtob = globalThis.atob.bind(globalThis);
+    const realParse = JSON.parse;
+    const realDecode = TextDecoder.prototype.decode;
+    const realEncode = TextEncoder.prototype.encode;
+    storeLicence(null);
+    const sealedBefore = await sealWatermark(); // a free recording already under way: a patch must not flip its mark either
+
+    const attacks: [string, string | null, () => () => void][] = [
+      ["WeakMap.prototype.get answers clean for every seal", null, () =>
+        redefine(WeakMap.prototype, "get", function (this: WeakMap<object, unknown>, k: object) {
+          return isSeal(k) ? true : realGet.call(this, k);
+        })],
+      ["WeakMap.prototype.set stores clean for every seal", null, () =>
+        redefine(WeakMap.prototype, "set", function (this: WeakMap<object, unknown>, k: object, v: unknown) {
+          return realSet.call(this, k, isSeal(k) ? true : v);
+        })],
+      ["atob rewrites an expired licence's exp", stale, () => redefine(globalThis, "atob", (s: string) => aYearAhead(realAtob(s)))],
+      ["JSON.parse rewrites it", stale, () =>
+        redefine(JSON, "parse", function (text: string, reviver?: (k: string, v: unknown) => unknown) {
+          const value = realParse(text, reviver);
+          if (value && typeof value === "object" && typeof (value as { exp?: unknown }).exp === "number") (value as { exp: number }).exp = later;
+          return value;
+        })],
+      ["TextDecoder.prototype.decode rewrites it", stale, () =>
+        redefine(TextDecoder.prototype, "decode", function (this: TextDecoder, ...args: Parameters<TextDecoder["decode"]>) {
+          const text = realDecode.apply(this, args);
+          return /"exp":\d+/.test(text) ? aYearAhead(text) : text;
+        })],
+      ["TextEncoder.prototype.encode feeds verify the originally signed bytes", restamped, () =>
+        redefine(TextEncoder.prototype, "encode", function (this: TextEncoder, text?: string) {
+          return realEncode.call(this, text === restampedInput ? `${staleHead}.${staleBody}` : text);
+        })],
+    ];
+    for (const [name, token, patch] of attacks) {
+      const verdicts: string[] = [];
+      const undo = patch();
+      try {
+        storeLicence(token);
+        verdicts.push(sealVerdict(await sealWatermark()), sealVerdict(sealedBefore));
+        storeLicence(signTestLicense({ days: 30 })); // a real Pro licence under the same patch: the gate still reads it clean
+        verdicts.push(sealVerdict(await sealWatermark()));
+      } finally {
+        undo();
+      }
+      expect.soft(verdicts, name).toEqual(["marked", "marked", "clean"]); // attack ignored, earlier seal unchanged, Pro still clean
+    }
+  });
+
   it("catches a WebCrypto patched before the page loaded: the canary (a broken signature must not verify)", async () => {
     const subtle = globalThis.crypto.subtle;
     const proto = Object.getPrototypeOf(subtle) as { verify: SubtleCrypto["verify"] };
