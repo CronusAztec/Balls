@@ -10847,8 +10847,9 @@ const orbBannerPixels = () =>
 // boxes and VS card; a 1v1 on a pinned seed fought at 8× to its winner – weapon hits and ability swells heard
 // (AudioBufferSourceNode / OscillatorNode.start instrumented), the winner banner held before the end screen, a bottom question
 // caption above the ability boxes answered at the verdict; a four-way free-for-all to its end; the forced winner taking a
-// pinned seed it loses unrigged; four shooters and their projectiles keep 30+ fps; a 1080×1920 recording keeps 20+ fps and
-// downloads; and the finder finds an "A wins" seed that replays as promised.
+// pinned seed it loses unrigged, and its backstop holding to the verdict (Acid Blood's reflection, a shared KO step, the KO
+// grace); four shooters and their projectiles keep 30+ fps; a 1080×1920 recording keeps 20+ fps and downloads; and the
+// finder finds an "A wins" seed that replays as promised.
 {
   const res = await page.request.get(`${BASE}/modes/fightLeague.webp`);
   check("asset /modes/fightLeague.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -11014,6 +11015,32 @@ const orbBannerPixels = () =>
     "fight league: the forced winner wins a pinned seed it loses unrigged",
     plain.data.seed === "11" && rigged.data.seed === "11" && plain.data.flFinished === "1" && (plain.data.flWinnerTeam === "0" || plain.data.flWinnerTeam === "1") && plain.data.flForced === "-1" && rigged.data.flFinished === "1" && rigged.data.flForced === String(loser) && rigged.data.flWinnerTeam === String(loser) && rigged.data.flWinner === names[loser] && rigged.note.includes(`Rigged: ${"AB"[loser]} · ${names[loser]} wins`),
     `(seed 11 on ${plain.data.world}: unrigged ${plain.data.flWinner} at ${plain.data.flFinishSec} s; forced ${names[loser]}: ${rigged.data.flWinner} at ${rigged.data.flFinishSec} s, HP ${rigged.data.flHp}, note "${rigged.note}")`,
+  );
+}
+{
+  // The rig's backstop holds to the verdict, on pinned seeds the rigged side used to lose: Gerald punching a reflecting Alien
+  // (seed 4 – the reflected damage skipped the backstop and took his last hit point), Sasuke vs Saitama (seed 8 – both ended
+  // one step at 0 HP: a double KO) and Loki vs Spider-Man (seed 3 – a shot landed in the KO grace after Spider-Man went down:
+  // a double KO). Rigged for A, A wins each one, alive, never in a double KO.
+  const rows = [];
+  for (const [query, name] of [
+    ["fl1=gerald&fl2=alien&seed=4", "Gerald"],
+    ["fl1=sasuke&fl2=saitama&seed=8", "Sasuke"],
+    ["fl1=loki&fl2=spiderman&seed=3", "Loki"],
+  ]) {
+    await page.goto(`${BASE}/en/simulator/?mode=fightLeague&${query}&fw=0`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinished === "1", null, { timeout: 60000 }).catch(() => {});
+    const d = await canvasData();
+    const ok = d.flFinished === "1" && d.flForced === "0" && d.flWinnerTeam === "0" && d.flWinner === name && d.flDoubleKo === "0" && d.flAlive === "1,0" && Number((d.flHp || "").split(",")[0]) > 0;
+    rows.push({ ok, note: `${d.flNames} seed ${d.seed} on ${d.world}: ${d.flWinner || "unfinished"} at ${d.flFinishSec} s, HP ${d.flHp}, alive ${d.flAlive}, double KO ${d.flDoubleKo}` });
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-rig-backstop.png") });
+  check(
+    "fight league: the rig's backstop holds to the verdict – against Acid Blood's reflected damage, a step both sides end at 0 HP and a shot in the KO grace (no double KO)",
+    rows.every((r) => r.ok),
+    `(${rows.map((r) => r.note).join("; ")})`,
   );
 }
 {
