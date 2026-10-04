@@ -1,4 +1,10 @@
 import type { OgMaterial, OgPalette, OrbGridView, OrbLayout } from "@/lib/physics/modes/orbGrid";
+// --- orb-rhythm --- the frame's heights at its own simulation time (analytic: smooth at any frame rate), the landing squash,
+// the visual metronome and the IN PHASE banner
+import { inPhaseBannerOn, sampleOrbHeights } from "@/lib/physics/modes/orbGrid";
+import { IN_PHASE_HOLD_MS, SQUASH_AMOUNT, SQUASH_SEC } from "@/lib/physics/modes/orbRhythm";
+import { METRO_ACCENT, METRO_BEAT, beatState, drawMetronomeBar, drawMetronomeDots, type BeatState, type MetroBox } from "./orbRhythmRenderer";
+// --- end orb-rhythm ---
 
 /**
  * Bouncing Orbs' drawing (feature orb-grid; lib/physics/modes/orbGrid.ts). A perspective view of the field: the camera looks
@@ -11,10 +17,10 @@ import type { OgMaterial, OgPalette, OrbGridView, OrbLayout } from "@/lib/physic
  * orbs" line. No per-orb work allocates: the buffers grow once and are reused every frame.
  *
  * The quality ladder (`orbQuality()`, by orb count – deterministic, so a fast export draws exactly what the page drew; the
- * thresholds are measured – see the README's Bouncing Orbs section): full (shadow + sprite + a gloss glint, 3 draws an orb)
- * up to `QUALITY_GLOSS_MAX`, then no glint (2 draws) up to `QUALITY_SHADOW_MAX`, then no shadows (1 draw) up to
- * `QUALITY_SPRITE_MAX`, then flat discs (one path per colour and depth slice) up to `QUALITY_DISC_MAX`, then points in one
- * image. Every orb is drawn at every level.
+ * thresholds are measured – see the README's Bouncing Orbs section): full (shadow + sprite + a gloss glint – --- orb-rhythm ---
+ * painted into the sprite: 2 draws an orb) up to `QUALITY_GLOSS_MAX`, then no glint (2 draws) up to `QUALITY_SHADOW_MAX`, then
+ * no shadows (1 draw) up to `QUALITY_SPRITE_MAX`, then flat discs (one path per colour and depth slice) up to
+ * `QUALITY_DISC_MAX`, then points in one image. Every orb is drawn at every level.
  */
 
 /* ------------------------------------------------------------------ camera */
@@ -325,6 +331,30 @@ export function paintOrbSprite(g: CanvasRenderingContext2D, r: number, color: re
   g.restore();
 }
 
+// --- orb-rhythm ---
+/**
+ * The gloss glint painted into a sprite of radius `r`: the soft additive bloom on the lit side that the full quality level drew
+ * over every orb as a second image (centred 0.66 r, 0.56 r from the sprite's corner, 0.62 r wide) – now part of the sprite,
+ * inside the orb's outline, so a glossy orb costs one draw.
+ */
+export function paintOrbGlint(g: CanvasRenderingContext2D, r: number) {
+  g.save();
+  g.beginPath();
+  g.arc(r, r, r, 0, Math.PI * 2);
+  g.clip();
+  g.globalCompositeOperation = "lighter";
+  const gx = 0.66 * r;
+  const gy = 0.56 * r;
+  const grad = g.createRadialGradient(gx, gy, 0, gx, gy, 0.62 * r);
+  grad.addColorStop(0, "rgba(255, 255, 255, 0.7)");
+  grad.addColorStop(0.4, "rgba(255, 255, 255, 0.22)");
+  grad.addColorStop(1, "rgba(255, 255, 255, 0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 2 * r, 2 * r);
+  g.restore();
+}
+// --- end orb-rhythm ---
+
 /** Device-px radii of the sprite sizes (an orb uses the smallest one at least as big as it is drawn). */
 export const SPRITE_RADII = [4, 8, 16, 32, 64, 128] as const;
 
@@ -344,6 +374,12 @@ export interface OrbGridLabels {
   settledSub: (count: string, seconds: string) => string;
   timeTitle: string;
   timeSub: (settled: string, count: string) => string;
+  // --- orb-rhythm ---
+  /** The IN PHASE banner (every cycle end of a rhythm field) and a rhythm clip ending between two of them. */
+  phaseTitle?: string;
+  phaseSub?: (count: string, seconds: string) => string;
+  rhythmTimeSub?: (cycle: string) => string;
+  // --- end orb-rhythm ---
 }
 
 export const DEFAULT_ORB_GRID_LABELS: OrbGridLabels = {
@@ -352,10 +388,24 @@ export const DEFAULT_ORB_GRID_LABELS: OrbGridLabels = {
   settledSub: (count, seconds) => `${count} orbs at rest after ${seconds}s`,
   timeTitle: "TIME!",
   timeSub: (settled, count) => `${settled} of ${count} orbs at rest`,
+  // --- orb-rhythm ---
+  phaseTitle: "IN PHASE",
+  phaseSub: (count, seconds) => `${count} orbs land together at ${seconds}s`,
+  rhythmTimeSub: (cycle) => `in phase every ${cycle}s`,
 };
 
-/** The end banner for a finished view. */
+/** The end banner for a finished view (--- orb-rhythm --- or a rhythm field's IN PHASE banner, at the latest cycle end). */
 export function orbGridBanner(view: OrbGridView, labels: OrbGridLabels): { title: string; sub: string } {
+  // --- orb-rhythm --- a rhythm field: IN PHASE at the latest cycle end, or – the clip ended between two – TIME! and the cycle
+  if (view.model === "rhythm") {
+    const D = DEFAULT_ORB_GRID_LABELS;
+    if (view.finishReason === "time" || view.lastResolveMs <= 0) {
+      const cycle = view.cycleMs / 1000;
+      return { title: labels.timeTitle, sub: Number.isFinite(view.periodMs) && cycle > 0 ? (labels.rhythmTimeSub ?? D.rhythmTimeSub!)(cycle.toFixed(1)) : labels.hud(String(view.count)) };
+    }
+    return { title: labels.phaseTitle ?? D.phaseTitle!, sub: (labels.phaseSub ?? D.phaseSub!)(String(view.count), (view.lastResolveMs / 1000).toFixed(1)) };
+  }
+  // --- end orb-rhythm ---
   if (view.finishReason === "time") return { title: labels.timeTitle, sub: labels.timeSub(String(view.settled), String(view.count)) };
   return { title: labels.settledTitle, sub: labels.settledSub(String(view.count), (Math.max(0, view.settledAtMs) / 1000).toFixed(1)) };
 }
@@ -430,6 +480,10 @@ const FLOOR_STEP = 0.1;
 const SLAB_LINES_MAX = 44;
 /** Shadow sprites, one per opacity step (a shadow fades with its orb's height). */
 const SHADOW_STEPS = 8;
+/** --- orb-rhythm --- Shadows kept at their drawn sizes at once (each a few hundred bytes; a field uses a few dozen sizes). */
+const SHADOW_CACHE_CAP = 1024;
+/** --- orb-rhythm --- Where along the field the orbs whose drawn heights the canvas reports sit (data-og-sample). */
+const SAMPLE_SHARES = [0, 0.37, 0.71, 1] as const;
 /** Depth slices of the flat-disc level (orbs within a slice are drawn per colour). */
 const DISC_SLICES = 16;
 
@@ -457,7 +511,7 @@ export class OrbGridLayer {
   private discColors: string[] = [];
   private packed = new Uint32Array(0);
   private shadows: HTMLCanvasElement[] = [];
-  private glint: HTMLCanvasElement | null = null;
+  private readonly shadowCache = new Map<number, HTMLCanvasElement>(); // --- orb-rhythm --- (the shadows at their drawn sizes)
   private generation = -1;
   private paletteSeen: OgPalette | "" = "";
   // Field extents (for the slab) and the points layer of the last level.
@@ -471,6 +525,23 @@ export class OrbGridLayer {
   private seenColors = new Uint8Array(HEIGHT_BUCKETS);
   /** The quality level of the last frame (data-og-quality). */
   quality: OrbQuality = 0;
+  // --- orb-rhythm ---
+  /** The sprite set, glint and size buckets `warm()` has painted every colour of (no colour's first sprite is painted mid-motion). */
+  private warmKey = "";
+  private warmGlint = false;
+  private warmLo = 0;
+  private warmHi = -1;
+  /** The frame's heights (at its own simulation time) and landing squash (0–1) per orb. */
+  private rh = new Float32Array(0);
+  private sq = new Float32Array(0);
+  /** The simulation time (ms) of the last frame drawn and the box its visual metronome covered (w = 0: none). */
+  frameTimeMs = 0;
+  readonly metroBox: MetroBox = { x: 0, y: 0, w: 0, h: 0 };
+  private readonly beat: BeatState = { index: 0, inBar: 0, since: 0, progress: 0, pulse: 0 };
+  /** The heights of a few orbs as last drawn (the smoke test's fluidity check samples them every frame): their indices and heights. */
+  readonly sampleIdx: number[] = [];
+  readonly sampleH: number[] = [];
+  // --- end orb-rhythm ---
   /** The end banner's backdrop as drawn since the last `takeBanner()` (world px; w = 0: none) – the data-og-banner attribute. */
   private readonly banner: OrbBannerBox = { x: 0, y: 0, w: 0, h: 0, r: 0 };
 
@@ -478,9 +549,9 @@ export class OrbGridLayer {
    * The end banner of a block starting at `top` (Canvas.tsx stacks it with the other HUD blocks; `orbBannerHeight()` tall):
    * the dark rounded backdrop, the lime title with its glow and the white subline, opaque whatever alpha the frame is at.
    */
-  drawBanner(ctx: CanvasRenderingContext2D, title: string, sub: string, cx: number, top: number, fs: number, sfs: number) {
+  drawBanner(ctx: CanvasRenderingContext2D, title: string, sub: string, cx: number, top: number, fs: number, sfs: number, alpha = 1 /* --- orb-rhythm --- (the IN PHASE banner fades out) */) {
     ctx.save();
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     ctx.shadowBlur = 0;
     const titleFont = `bold ${fs}px sans-serif`;
     const subFont = `${sfs}px sans-serif`;
@@ -533,6 +604,8 @@ export class OrbGridLayer {
     this.order = new Uint32Array(m);
     this.bucketOf = new Uint32Array(m);
     this.visible = new Uint8Array(m);
+    this.rh = new Float32Array(m); // --- orb-rhythm ---
+    this.sq = new Float32Array(m); // --- orb-rhythm ---
     this.generation = -1;
   }
 
@@ -559,6 +632,11 @@ export class OrbGridLayer {
     this.minY = minY - SLAB_MARGIN;
     this.maxY = maxY + SLAB_MARGIN;
     staticBuckets(view.settings.palette, L, this.fixedBucket);
+    // --- orb-rhythm --- the orbs whose drawn heights the canvas reports every frame (data-og-sample): a corner, two inside, the far corner
+    const last = Math.max(0, L.count - 1);
+    this.sampleIdx.length = 0;
+    for (const share of SAMPLE_SHARES) this.sampleIdx.push(Math.min(last, Math.round(share * last)));
+    this.sampleH.length = this.sampleIdx.length;
   }
 
   /** The sprites for the view's material, palette and ball colour (rebuilt lazily when one of them changes). */
@@ -578,8 +656,9 @@ export class OrbGridLayer {
     }
   }
 
-  private sprite(material: OgMaterial, bucket: number, size: number): HTMLCanvasElement {
-    const index = bucket * SPRITE_RADII.length + size;
+  private sprite(material: OgMaterial, bucket: number, size: number, glint = false): HTMLCanvasElement {
+    // (--- orb-rhythm --- the full-quality sprites carry the gloss glint painted in: one drawImage an orb instead of two)
+    const index = (bucket * SPRITE_RADII.length + size) * 2 + (glint ? 1 : 0);
     let sprite = this.sprites[index];
     if (!sprite) {
       const r = SPRITE_RADII[size];
@@ -587,11 +666,60 @@ export class OrbGridLayer {
       sprite.width = 2 * r;
       sprite.height = 2 * r;
       const g = sprite.getContext("2d");
-      if (g) paintOrbSprite(g, r, this.colors[bucket] ?? [255, 255, 255], material);
+      if (g) {
+        paintOrbSprite(g, r, this.colors[bucket] ?? [255, 255, 255], material);
+        if (glint) paintOrbGlint(g, r);
+      }
       this.sprites[index] = sprite;
     }
     return sprite;
   }
+
+  // --- orb-rhythm ---
+  /**
+   * Paints every colour's sprite for the size buckets `lo`–`hi` ahead. A rhythm field under the height palette walks through
+   * every colour within a bounce, so painted lazily the first seconds would paint a few dozen sprites in the middle of the
+   * motion (a hitch each); painted ahead they all land in the first frame, before the run starts – and a size bucket the
+   * camera brings in later paints its colours at once. Nothing to do while the sizes stay inside the painted range.
+   */
+  private warm(material: OgMaterial, glint: boolean, lo: number, hi: number) {
+    if (this.warmKey !== this.spriteKey || this.warmGlint !== glint) {
+      this.warmKey = this.spriteKey;
+      this.warmGlint = glint;
+      this.warmLo = 0;
+      this.warmHi = -1;
+    }
+    if (lo >= this.warmLo && hi <= this.warmHi) return;
+    const from = this.warmHi < this.warmLo ? lo : Math.min(lo, this.warmLo);
+    const to = this.warmHi < this.warmLo ? hi : Math.max(hi, this.warmHi);
+    for (let size = from; size <= to; size++) {
+      if (size >= this.warmLo && size <= this.warmHi) continue;
+      for (let b = 0; b < this.colors.length; b++) this.sprite(material, b, size, glint);
+    }
+    this.warmLo = from;
+    this.warmHi = to;
+  }
+
+  /**
+   * A shadow at its drawn size in device px (`w` × `h`), resampled once from the opacity step's blob: drawn unscaled at a whole
+   * device pixel it is the canvas' cheap blit (about half the cost of a scaled, sub-pixel draw – a shadow lies still on the
+   * floor, so the whole pixel shows nothing). Cached by (step, width, height), at most `SHADOW_CACHE_CAP` at once.
+   */
+  private nativeShadow(step: number, w: number, h: number): HTMLCanvasElement {
+    const key = (step * 2048 + w) * 2048 + h;
+    let c = this.shadowCache.get(key);
+    if (!c) {
+      if (this.shadowCache.size >= SHADOW_CACHE_CAP) this.shadowCache.clear();
+      c = document.createElement("canvas");
+      c.width = w;
+      c.height = h;
+      const g = c.getContext("2d");
+      if (g) g.drawImage(this.shadowSprite(step), 0, 0, w, h);
+      this.shadowCache.set(key, c);
+    }
+    return c;
+  }
+  // --- end orb-rhythm ---
 
   private shadowSprite(step: number): HTMLCanvasElement {
     if (this.shadows.length === 0) {
@@ -615,46 +743,71 @@ export class OrbGridLayer {
     return this.shadows[Math.max(0, Math.min(SHADOW_STEPS - 1, step))];
   }
 
-  private glintSprite(): HTMLCanvasElement {
-    if (!this.glint) {
-      const c = document.createElement("canvas");
-      c.width = 32;
-      c.height = 32;
-      const g = c.getContext("2d");
-      if (g) {
-        const grad = g.createRadialGradient(16, 16, 0, 16, 16, 16);
-        grad.addColorStop(0, "rgba(255, 255, 255, 0.7)");
-        grad.addColorStop(0.4, "rgba(255, 255, 255, 0.22)");
-        grad.addColorStop(1, "rgba(255, 255, 255, 0)");
-        g.fillStyle = grad;
-        g.fillRect(0, 0, 32, 32);
-      }
-      this.glint = c;
-    }
-    return this.glint;
-  }
-
   /** The view's camera this frame (the fit follows the field, the elevation and the world; the angle the clock). */
-  camera(view: OrbGridView, width: number, height: number): OrbCamera {
+  camera(view: OrbGridView, width: number, height: number, timeMs = view.timeMs /* --- orb-rhythm --- (the frame's own time: the orbit turns smoothly) */): OrbCamera {
     const L = view.layout;
     const s = view.settings;
     const top = view.maxDrop + 2 * view.baseRadius;
-    return orbCamera(s.elevation, cameraAngleDeg(s.rotation, s.orbit, view.timeMs / 1000), width, height, L ? L.radius + SLAB_MARGIN : 0.7, top, this.cam);
+    return orbCamera(s.elevation, cameraAngleDeg(s.rotation, s.orbit, timeMs / 1000), width, height, L ? L.radius + SLAB_MARGIN : 0.7, top, this.cam);
   }
 
   /** The floor under the orbs (the world pass): slab + grid over the blue floor, the round plate, the grid alone, or nothing. */
-  drawWorld(ctx: CanvasRenderingContext2D, view: OrbGridView, width: number, height: number) {
+  drawWorld(ctx: CanvasRenderingContext2D, view: OrbGridView, width: number, height: number, timeMs = view.timeMs /* --- orb-rhythm --- */) {
+    this.metroBox.w = 0; // --- orb-rhythm --- (a frame's metronome sets it again)
     if (!view.layout) return;
     this.prepare(view);
-    const cam = this.camera(view, width, height);
+    const cam = this.camera(view, width, height, timeMs);
     const floor = view.settings.floor;
-    if (floor === "none") return;
-    ctx.save();
-    if (floor === "slab" || floor === "grid") this.drawFloorGrid(ctx, cam, floor === "slab" ? -SLAB_THICKNESS : 0);
-    if (floor === "slab") this.drawSlab(ctx, cam, view);
-    else if (floor === "plate") this.drawPlate(ctx, cam, view);
-    ctx.restore();
+    if (floor !== "none") {
+      ctx.save();
+      if (floor === "slab" || floor === "grid") this.drawFloorGrid(ctx, cam, floor === "slab" ? -SLAB_THICKNESS : 0);
+      if (floor === "slab") this.drawSlab(ctx, cam, view);
+      else if (floor === "plate") this.drawPlate(ctx, cam, view);
+      ctx.restore();
+    }
+    // --- orb-rhythm --- the ring metronome: a ring on the floor around the field, pulsing on every beat
+    if (view.model === "rhythm" && view.metroOn && view.settings.metro === "ring") this.drawMetronomeRing(ctx, cam, view, timeMs);
   }
+
+  // --- orb-rhythm ---
+  /** The ring metronome: on the floor around the field, brighter and wider on every beat (lime on the downbeat). */
+  private drawMetronomeRing(ctx: CanvasRenderingContext2D, cam: OrbCamera, view: OrbGridView, timeMs: number) {
+    const L = view.layout;
+    if (!L) return;
+    const b = beatState(timeMs / 1000, view.beatMs / 1000, view.beats, this.beat);
+    const r = L.radius + 3 * SLAB_MARGIN;
+    const p = this.pt;
+    let minX = Infinity;
+    let maxX = -Infinity;
+    let minY = Infinity;
+    let maxY = -Infinity;
+    ctx.save();
+    ctx.globalAlpha = 1;
+    this.ring(ctx, cam, r, 0);
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.18)";
+    ctx.stroke();
+    ctx.globalAlpha = 0.25 + 0.75 * b.pulse;
+    ctx.strokeStyle = b.inBar === 0 ? METRO_ACCENT : METRO_BEAT;
+    ctx.lineWidth = 1.5 + 4.5 * b.pulse;
+    ctx.shadowColor = ctx.strokeStyle;
+    ctx.shadowBlur = 12 * b.pulse;
+    ctx.stroke();
+    ctx.restore();
+    for (let k = 0; k < 16; k++) {
+      const a = (k / 16) * TWO_PI;
+      projectPoint(cam, r * Math.cos(a), r * Math.sin(a), 0, p);
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.y < minY) minY = p.y;
+      if (p.y > maxY) maxY = p.y;
+    }
+    this.metroBox.x = minX;
+    this.metroBox.y = minY;
+    this.metroBox.w = maxX - minX;
+    this.metroBox.h = maxY - minY;
+  }
+  // --- end orb-rhythm ---
 
   private line(ctx: CanvasRenderingContext2D, cam: OrbCamera, x0: number, y0: number, x1: number, y1: number, z: number) {
     const p = this.pt;
@@ -778,12 +931,12 @@ export class OrbGridLayer {
    * The shadows and the orbs, back to front, at the count's quality level (the ball pass); `share`: the arenas drawn into the
    * same frame (split screen), whose orbs together pick the level.
    */
-  drawOrbs(ctx: CanvasRenderingContext2D, view: OrbGridView, width: number, height: number, scale: number, share = 1) {
+  drawOrbs(ctx: CanvasRenderingContext2D, view: OrbGridView, width: number, height: number, scale: number, share = 1, timeMs = view.timeMs /* --- orb-rhythm --- the frame's own simulation time */) {
     const L = view.layout;
     if (!L || view.count === 0) return;
     this.prepare(view);
     this.spriteSet(view);
-    const cam = this.camera(view, width, height);
+    const cam = this.camera(view, width, height, timeMs);
     const n = view.count;
     const quality = orbQuality(n * Math.max(1, Math.round(share)));
     this.quality = quality;
@@ -800,11 +953,19 @@ export class OrbGridLayer {
     const x = L.x;
     const y = L.y;
     const radius = view.radius;
-    const height_ = view.height;
+    // --- orb-rhythm --- the heights at the frame's own time (analytic between the engine's steps: no 60 Hz stepping, no
+    // repeated or skipped states), and a rhythm field's landing squash
+    this.frameTimeMs = timeMs;
+    const height_ = sampleOrbHeights(view, timeMs / 1000, this.rh);
+    const squash = view.model === "rhythm" && s.squash ? this.squashAt(view, timeMs / 1000) : null;
+    for (let j = 0; j < this.sampleIdx.length; j++) this.sampleH[j] = height_[this.sampleIdx[j]] ?? 0;
+    // --- end orb-rhythm ---
     const heightPalette = s.palette === "height";
     const top = view.maxDrop > 0 ? view.maxDrop : 1;
     const hb = HEIGHT_BUCKETS - 1;
     const { cosA, sinA, cosE, sinE, distance, focal, cx, cy } = cam;
+    let minR = Infinity; // --- orb-rhythm --- (the drawn radii's range: the sprite sizes to paint ahead)
+    let maxR = 0; // --- orb-rhythm ---
     for (let i = 0; i < n; i++) {
       const xr = x[i] * cosA - y[i] * sinA;
       const yr = x[i] * sinA + y[i] * cosA;
@@ -822,6 +983,8 @@ export class OrbGridLayer {
       sx[i] = cx + xr * inv;
       sy[i] = cy - (yr * sinE + z * cosE) * inv;
       sr[i] = r * inv;
+      if (sr[i] < minR) minR = sr[i]; // --- orb-rhythm ---
+      if (sr[i] > maxR) maxR = sr[i]; // --- orb-rhythm ---
       depth[i] = d;
       // The floor spot (the shadow).
       const fd = yr * cosE + distance;
@@ -842,42 +1005,69 @@ export class OrbGridLayer {
     const order = this.order;
     ctx.save();
     if (quality <= 1) {
-      // The shadows lie on the floor under every orb: all of them first.
+      // The shadows lie on the floor under every orb: all of them first (--- orb-rhythm --- each at its drawn size, on a whole
+      // device pixel: the cheap blit – the orbs themselves keep their sub-pixel positions; under the turning camera of the
+      // auto-orbit the floor moves, and its shadows keep their sub-pixel places).
       const flat = Math.max(0.15, sinE);
+      const k = scale > 0 ? scale : 1;
+      const snap = !s.orbit; // --- orb-rhythm ---
       for (let i = 0; i < n; i++) {
         if (!visible[i]) continue;
         const hn = Math.min(1, height_[i] / top);
         const w = 2.4 * fs[i] * (1 - 0.45 * hn);
         const hh = w * flat;
-        ctx.drawImage(this.shadowSprite(Math.floor(hn * (SHADOW_STEPS - 1) + 0.5)), fx[i] - w / 2, fy[i] - hh / 2, w, hh);
+        const step = Math.floor(hn * (SHADOW_STEPS - 1) + 0.5);
+        if (!snap) {
+          ctx.drawImage(this.shadowSprite(step), fx[i] - w / 2, fy[i] - hh / 2, w, hh);
+          continue;
+        }
+        const W = Math.max(1, Math.min(2047, Math.round(w * k)));
+        const Hh = Math.max(1, Math.min(2047, Math.round(hh * k)));
+        ctx.drawImage(this.nativeShadow(step, W, Hh), Math.round((fx[i] - w / 2) * k) / k, Math.round((fy[i] - hh / 2) * k) / k, W / k, Hh / k);
       }
     }
     if (quality <= 2) {
       const material = s.material;
+      // (--- orb-rhythm --- the gloss glint is painted into the full-quality sprites: one draw an orb, not two)
+      const glint = quality === 0 && material !== "matte";
+      if (maxR >= minR) this.warm(material, glint, spriteBucket(Math.max(0.15, minR) * scale), spriteBucket(maxR * scale)); // --- orb-rhythm ---
       for (let k = 0; k < n; k++) {
         const i = order[k];
         if (!visible[i]) continue;
         const r = sr[i];
         if (r < 0.15) continue;
-        ctx.drawImage(this.sprite(material, bucket[i], spriteBucket(r * scale)), sx[i] - r, sy[i] - r, 2 * r, 2 * r);
-      }
-      if (quality === 0 && material !== "matte") {
-        // The gloss glint: a soft bright bloom on every orb's lit side.
-        ctx.globalCompositeOperation = "lighter";
-        const glint = this.glintSprite();
-        for (let k = 0; k < n; k++) {
-          const i = order[k];
-          if (!visible[i]) continue;
-          const r = sr[i];
-          if (r < 0.6) continue;
-          const g = 0.62 * r;
-          ctx.drawImage(glint, sx[i] - 0.34 * r - g, sy[i] - 0.44 * r - g, 2 * g, 2 * g);
-        }
-        ctx.globalCompositeOperation = "source-over";
+        const sprite = this.sprite(material, bucket[i], spriteBucket(r * scale), glint);
+        const q = squash ? squash[i] : 0;
+        if (q > 0) {
+          // --- orb-rhythm --- the landing squash: flatter and wider, standing on its spot
+          const w = 2 * r * (1 + SQUASH_AMOUNT * q);
+          const hh = 2 * r * (1 - SQUASH_AMOUNT * q);
+          ctx.drawImage(sprite, sx[i] - w / 2, sy[i] + r - hh, w, hh);
+        } else ctx.drawImage(sprite, sx[i] - r, sy[i] - r, 2 * r, 2 * r);
       }
     } else this.drawDiscs(ctx, n);
     ctx.restore();
   }
+
+  // --- orb-rhythm ---
+  /** A rhythm field's landing squash at `timeSec` (0–1 per orb: 1 at the landing, easing out over `SQUASH_SEC`), into the layer's buffer. */
+  private squashAt(view: OrbGridView, timeSec: number): Float32Array {
+    const out = this.sq;
+    const f = view.freq;
+    const p = view.phase;
+    const n = Math.min(view.count, out.length, f.length);
+    for (let i = 0; i < n; i++) {
+      const fi = f[i];
+      const x = timeSec * fi - p[i];
+      const since = fi > 0 ? (x - Math.floor(x)) / fi : Infinity;
+      if (since < SQUASH_SEC && timeSec * fi >= p[i]) {
+        const k = 1 - since / SQUASH_SEC;
+        out[i] = k * k;
+      } else out[i] = 0;
+    }
+    return out;
+  }
+  // --- end orb-rhythm ---
 
   /** Flat discs: per depth slice, one path per colour (the order holds between slices, not inside one). */
   private drawDiscs(ctx: CanvasRenderingContext2D, n: number) {
@@ -950,8 +1140,12 @@ export class OrbGridLayer {
    * left, or on the right while the teams scoreboard holds the left corner. Returns its bottom (0 when it is off) – where the
    * top captions start.
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, view: OrbGridView, labels: OrbGridLabels, width: number, height: number, inset = 0, right = false): number {
-    if (!view.layout || !view.settings.hud) return 0;
+  drawOverlay(ctx: CanvasRenderingContext2D, view: OrbGridView, labels: OrbGridLabels, width: number, height: number, inset = 0, right = false, timeMs = view.timeMs /* --- orb-rhythm --- */): number {
+    // --- orb-rhythm --- the visual metronome (the bar at the top, the dot strip at the bottom) and the IN PHASE banner of a
+    // rhythm field's cycle end (it fades out after IN_PHASE_HOLD_MS; the end of a run shows its banner in the middle instead)
+    const metroBottom = this.drawRhythmOverlay(ctx, view, labels, width, height, inset, timeMs);
+    // --- end orb-rhythm ---
+    if (!view.layout || !view.settings.hud) return metroBottom;
     const side = Math.min(width, height);
     const left = width / 2 - side / 2;
     const top = height / 2 - side / 2 + inset;
@@ -967,14 +1161,56 @@ export class OrbGridLayer {
     ctx.fillStyle = "rgba(255, 255, 255, 0.92)";
     ctx.fillText(labels.hud(String(view.count)), right ? left + side - 0.045 * side : left + 0.045 * side, yy);
     ctx.restore();
-    return yy + 0.35 * fs;
+    return Math.max(yy + 0.35 * fs, metroBottom);
   }
+
+  // --- orb-rhythm ---
+  /**
+   * A rhythm field's screen-space extras: the bar or dot metronome (the ring is on the floor, `drawWorld()`) and the transient
+   * IN PHASE banner under the top of the square – lime title, white subline on the dark backdrop (`drawBanner()`), fading out
+   * over its last 400 ms. Returns the bottom of what sits at the top of the square (the bar), 0 without one.
+   */
+  private drawRhythmOverlay(ctx: CanvasRenderingContext2D, view: OrbGridView, labels: OrbGridLabels, width: number, height: number, inset: number, timeMs: number): number {
+    if (!view.layout || view.model !== "rhythm") return 0;
+    const side = Math.min(width, height);
+    const left = width / 2 - side / 2;
+    const top = height / 2 - side / 2 + inset;
+    const cx = width / 2;
+    let bottom = 0;
+    const metro = view.settings.metro;
+    if (view.metroOn && (metro === "bar" || metro === "dot")) {
+      const b = beatState(timeMs / 1000, view.beatMs / 1000, view.beats, this.beat);
+      if (metro === "bar") {
+        drawMetronomeBar(ctx, cx, top, side, timeMs / 1000, view.beatMs / 1000, view.beats, b, this.metroBox);
+        bottom = this.metroBox.y + this.metroBox.h;
+      } else drawMetronomeDots(ctx, left, height / 2 + side / 2, side, view.beats, b, this.metroBox);
+    }
+    if (!view.finished && inPhaseBannerOn(view, timeMs)) {
+      const since = timeMs - view.lastResolveMs;
+      const alpha = since > IN_PHASE_HOLD_MS - 400 ? Math.max(0, (IN_PHASE_HOLD_MS - since) / 400) : 1;
+      const fs = Math.max(18, 0.06 * side);
+      const banner = orbGridBanner(view, labels);
+      this.drawBanner(ctx, banner.title, banner.sub, cx, Math.max(top + 0.12 * side, bottom + 0.02 * side), fs, 0.4 * fs, alpha);
+    }
+    return bottom;
+  }
+  // --- end orb-rhythm ---
 }
 
 /* ------------------------------------------------------------------ data attributes */
 
+// --- orb-rhythm ---
+/**
+ * The rhythm model's data-og-* attributes: the model, the cycle and how often the field is in phase (ms; "never"), the groups
+ * and tempos, the metronome (tempo, beats a bar, beats so far, clicks played, the style and the box it covers this frame),
+ * the melody's notes, and – for the fluidity check – the frame count, the frame's rAF timestamp and simulation time and the
+ * drawn heights of four orbs.
+ */
+export const ORB_RHYTHM_DATA_KEYS = ["ogModel", "ogCycle", "ogPeriod", "ogGroups", "ogTempos", "ogBpm", "ogBeats", "ogBeat", "ogClicks", "ogMetro", "ogMetroBox", "ogMelodyNotes", "ogInPhase", "ogFrame", "ogFrameTs", "ogFrameT", "ogSample"];
+// --- end orb-rhythm ---
+
 /** The data-og-* attributes the canvas mirrors for tools and the smoke test. */
-export const ORB_GRID_DATA_KEYS = ["ogOrbs", "ogRequested", "ogFull", "ogArrangement", "ogReleased", "ogReleasedRings", "ogBounces", "ogLanded", "ogSettled", "ogMoving", "ogResolve", "ogResolveAt", "ogResolves", "ogResolvePlan", "ogTuned", "ogQuality", "ogSound", "ogVoices", "ogNotes", "ogPitches", "ogFinished", "ogFinishedMs", "ogFinish", "ogTime", "ogHud", "ogTempo", "ogBanner"];
+export const ORB_GRID_DATA_KEYS = ["ogOrbs", "ogRequested", "ogFull", "ogArrangement", "ogReleased", "ogReleasedRings", "ogBounces", "ogLanded", "ogSettled", "ogMoving", "ogResolve", "ogResolveAt", "ogResolves", "ogResolvePlan", "ogTuned", "ogQuality", "ogSound", "ogVoices", "ogNotes", "ogPitches", "ogFinished", "ogFinishedMs", "ogFinish", "ogTime", "ogHud", "ogTempo", "ogBanner", ...ORB_RHYTHM_DATA_KEYS /* --- orb-rhythm --- */];
 
 /** Writes the data-og-* attributes (the pitch list only when it changed; the end banner's backdrop – "x,y,w,h" in world px – while it is drawn). */
 export class OrbGridDataset {
@@ -982,7 +1218,10 @@ export class OrbGridDataset {
   private pitchText = "";
   private readonly banner: OrbBannerBox = { x: 0, y: 0, w: 0, h: 0, r: 0 };
 
-  write(view: OrbGridView, layer: OrbGridLayer, set: (key: string, value: string) => void) {
+  // --- orb-rhythm --- frames drawn (the smoke test tells a new frame from the same one read twice)
+  private frames = 0;
+
+  write(view: OrbGridView, layer: OrbGridLayer, set: (key: string, value: string) => void, frameTs = NaN /* --- orb-rhythm --- the frame's rAF timestamp */) {
     if (view.lastPitches !== this.pitches) {
       this.pitches = view.lastPitches;
       this.pitchText = view.lastPitches.map((f) => f.toFixed(1)).join(",");
@@ -1015,5 +1254,29 @@ export class OrbGridDataset {
     set("ogTempo", view.tempo.toFixed(4));
     const b = layer.takeBanner(this.banner);
     set("ogBanner", b.w > 0 ? `${b.x.toFixed(1)},${b.y.toFixed(1)},${b.w.toFixed(1)},${b.h.toFixed(1)}` : "");
+    // --- orb-rhythm ---
+    const rhythm = view.model === "rhythm";
+    set("ogModel", view.model);
+    set("ogCycle", rhythm ? String(Math.round(view.cycleMs)) : "");
+    set("ogPeriod", rhythm ? (Number.isFinite(view.periodMs) ? String(Math.round(view.periodMs)) : "never") : "");
+    set("ogGroups", rhythm ? String(view.groups) : "");
+    set("ogTempos", rhythm ? String(view.tempos) : "");
+    set("ogBpm", rhythm && view.metroOn ? String(Math.round(view.bpm * 100) / 100) : "");
+    set("ogBeats", rhythm ? String(view.beats) : "");
+    set("ogBeat", rhythm ? String(view.beatsSoFar) : "");
+    set("ogClicks", rhythm ? String(view.clicks) : "");
+    set("ogMetro", rhythm && view.metroOn ? view.settings.metro : "off");
+    const m = layer.metroBox;
+    set("ogMetroBox", m.w > 0 ? `${m.x.toFixed(1)},${m.y.toFixed(1)},${m.w.toFixed(1)},${m.h.toFixed(1)}` : "");
+    set("ogMelodyNotes", String(view.melodyNotes));
+    set("ogInPhase", inPhaseBannerOn(view, layer.frameTimeMs) || (view.finished && view.finishReason === "phase") ? "1" : "0");
+    this.frames++;
+    set("ogFrame", String(this.frames));
+    set("ogFrameTs", Number.isFinite(frameTs) ? frameTs.toFixed(3) : "");
+    set("ogFrameT", layer.frameTimeMs.toFixed(3));
+    let sample = "";
+    for (let j = 0; j < layer.sampleH.length; j++) sample += (j > 0 ? "," : "") + layer.sampleH[j].toFixed(6);
+    set("ogSample", sample);
+    // --- end orb-rhythm ---
   }
 }

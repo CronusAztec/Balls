@@ -120,7 +120,7 @@ export interface ArenaSoundSink {
   playSplat?(level?: number): void;
   // --- orb-grid ---
   /** A Bouncing Orbs voice in its own sound (sleep or metal). */
-  playOrb?(kind: "sleep" | "metal", frequency?: number, chord?: readonly number[], level?: number): void;
+  playOrb?(kind: "sleep" | "metal" | "click" /* --- orb-rhythm --- (the metronome's click) */, frequency?: number, chord?: readonly number[], level?: number): void;
   // --- end orb-grid ---
   /** --- fight-league --- a Fight League weapon hit, an ability's swell or a KO. */
   playFight?(kind: FightSoundKind, frequency?: number, level?: number): void;

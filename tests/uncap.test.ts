@@ -820,6 +820,11 @@ describe("uncap-all: the guard", () => {
     tyRadius: "a reach in tiles (a blast visits at most the board's tiles, a whirl walks at most its diagonal: whirlReach())", // --- odd-territory ---
     ogElevation: "degrees", // --- orb-grid --- (the camera)
     ogRotation: "degrees", // --- orb-grid --- (the camera)
+    // --- orb-rhythm --- the rhythm model's counts are a clock's, not an allocation's
+    ogSteps: "the Euclidean ladder's steps (a tempo picked for each group)",
+    ogBpm: "a tempo (the clicks a step plays stop at MAX_CLICKS_PER_STEP)",
+    ogBeats: "beats a bar (the beat strip draws at most MAX_BEAT_CELLS cells)",
+    ogBars: "bars a cycle",
     lcEvery: "a spawn period in blocks (the balls a run holds stop at LC_BALL_CEILING: ARENA FULL)", // --- land-claim ---
   };
 

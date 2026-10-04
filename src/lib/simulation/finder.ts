@@ -45,6 +45,7 @@ import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
 import type { MazeSettings } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import type { ConveyorSettings } from "@/lib/physics/modes/conveyor"; // --- gerald-conveyor ---
 import { orbGridNeverSettles, type OrbGridSettings } from "@/lib/physics/modes/orbGrid"; // --- orb-grid ---
+import { orbRhythmFinderAnswer } from "@/lib/physics/modes/orbGrid"; // --- orb-rhythm --- (a rhythm field's "in phase at", by the cycle maths)
 import type { FightLeagueSettings } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 import { resolveLandClaimSettings, type LandClaimSettings } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 import { MAX_TEAMS } from "@/lib/physics/ballStats"; // --- land-claim ---
@@ -249,7 +250,7 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture">): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */>): boolean {
   if (ENDLESS_MODES.includes(mode)) return true;
   // --- review fix (modes-rhythm) --- Picture Paint follows the page's picture and song: no length the finder can replay
   if (mode === "paint") return settings.paintPicture === true;
@@ -370,6 +371,10 @@ export interface FinderResult {
   /** The first "in phase" moment (seconds) of the run found – or of the closest one – when it had one (Bouncing Orbs). */
   resolveAt?: number;
   // --- end orb-grid ---
+  // --- orb-rhythm ---
+  /** A rhythm field's "in phase at", answered by the cycle maths (no seed searched): its cycle (seconds; NaN with the polyrhythm off – never in phase). */
+  orbCycle?: number;
+  // --- end orb-rhythm ---
   // --- video-beats ---
   /** On beat: the distinct beats the found run's wall hits land on, and its timed hits (set when On beat applies). */
   beatsCovered?: number;
@@ -643,6 +648,13 @@ export function findSimulation(
   schedule: FrameSchedule = nextFrame,
 ): Promise<FinderResult> {
   return new Promise((resolve) => {
+    // --- orb-rhythm --- a rhythm field falls into phase on its cycle's clock whatever the seed: "in phase at" is answered at once
+    const rhythmAnswer = request.mode === "orbGrid" && request.outcome?.kind === "resolves-at" ? orbRhythmFinderAnswer(request.modeSettings.orbGrid, request.outcome) : null;
+    if (rhythmAnswer) {
+      resolve(rhythmAnswer);
+      return;
+    }
+    // --- end orb-rhythm ---
     // --- rigged --- the other outcomes (never escapes, first escape at, winner) search by what happens, not by the length
     if (request.outcome && request.outcome.kind !== "duration") {
       findByOutcome(request, request.outcome, onProgress, signal).then(resolve);

@@ -276,6 +276,8 @@ export interface OutcomeContext {
   neverEscape: boolean;
   /** Balls the multi-ball modes start with (the team roster's size). */
   ballCount: number;
+  /** --- orb-rhythm --- Bouncing Orbs plays the rhythm model: ideal bouncers never settle (no never-settles), in phase on the cycle's clock. */
+  orbRhythm?: boolean;
 }
 
 /**
@@ -295,6 +297,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (BATTLE_WINNER_MODES.includes(mode) && ctx.ballCount >= 2 && !out.includes("winner")) out.push("winner");
   // --- orb-grid --- Bouncing Orbs: still bouncing when the clip ends, the field's first resolve at a chosen second
   if (mode === "orbGrid") out.push("never-settles", "resolves-at");
+  if (mode === "orbGrid" && ctx.orbRhythm) out.splice(out.indexOf("never-settles"), 1); // --- orb-rhythm --- (never settles: the decay model's alone)
   // --- fight-league --- Fight League: the fight ends with a double KO
   if (mode === "fightLeague") out.push("double-ko");
   if (CLOSE_BATTLE_MODES.includes(mode) && ctx.ballCount >= 2) out.push("close"); // --- land-claim ---

@@ -332,7 +332,7 @@ export interface SoundEvent {
    * `melody: false`, so a page that does not know it plays an accompaniment hit, never a melody note. (The orbs' plain notes and
    * their composed melody are ordinary hits.)
    */
-  orb?: "sleep" | "metal";
+  orb?: "sleep" | "metal" | "click" /* --- orb-rhythm --- the metronome's woodblock click (lib/audio/orbRhythmTones.ts) at `frequency`, `level` loud */;
   // --- end orb-grid ---
   // --- fight-league ---
   /**

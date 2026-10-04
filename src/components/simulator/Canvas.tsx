@@ -89,6 +89,9 @@ import { DEFAULT_MAZE_LABELS, MAZE_DATA_KEYS, MazeLayer, writeMazeDataset, type 
 import { CONVEYOR_DATA_KEYS, ConveyorDataset, ConveyorLayer, DEFAULT_CONVEYOR_LABELS, conveyorBanner, type ConveyorLabels, type ConveyorRenderOptions } from "./conveyorRenderer";
 // --- orb-grid --- Bouncing Orbs: the perspective field (floor, shadows, sprites back to front), the HUD line and the data-og-* writer
 import { DEFAULT_ORB_GRID_LABELS, ORB_GRID_DATA_KEYS, OrbGridDataset, OrbGridLayer, orbBannerHeight, orbGridBanner, type OrbGridLabels } from "./orbGridRenderer";
+// --- orb-rhythm --- the frame's own simulation time (the orbs are analytic in time: drawn between the engine's steps) and the refresh it may draw at
+import { orbRenderTimeMs } from "@/lib/physics/modes/orbRhythm";
+import { OrbFrameCost } from "./orbRhythmRenderer";
 // --- fight-league --- Fight League: the arena, the fighters with their weapons, the projectiles and effects, the HUD and the banner
 import { DEFAULT_FIGHT_LEAGUE_LABELS, FIGHT_LEAGUE_DATA_KEYS, FightLeagueDataset, FightLeagueLayer, type FightLeagueLabels, type FightLeagueRenderOptions } from "./fightLeagueRenderer";
 // --- land-claim --- Land Claim: the arena's blocks (offscreen, repainted where columns change), pops, flying blocks, badges, the HUD band and the verdict
@@ -887,6 +890,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- orb-grid --- the Bouncing Orbs layer (its sprite caches and per-orb buffers) and the data-og-* writer
     const orbLayer = new OrbGridLayer();
     const orbData = new OrbGridDataset();
+    const orbFrameCost = new OrbFrameCost(); // --- orb-rhythm ---
     // --- fight-league --- Fight League's layer, its per-frame options and the data-fl-* writer
     const flLayer = new FightLeagueLayer();
     const flRender: FightLeagueRenderOptions = { dpr: 1, numbers: true, teamColors: null, teamBanner: false, labels: DEFAULT_FIGHT_LEAGUE_LABELS };
@@ -1034,12 +1038,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- review fix (performance) --- a 60 fps budget phase-locked to the display (75 / 90 / 144 Hz draw 60 fps, not 37–55, and a
       // late 60 Hz callback is not dropped); the fast export draws every frame it asks for
       if (!offline) {
-        if (!frameGate.due(now)) {
+        // (--- orb-rhythm --- a rhythm field that draws cheaply enough takes every refresh: its heights are new at any time)
+        if (!frameGate.due(now) && !(orbFrameCost.fast && engine.isOrbGridMode() && engine.getOrbGridView().model === "rhythm")) {
           rafRef.current = requestAnimationFrame(draw);
           return;
         }
         framesDrawnRef.current++;
       }
+      const orbDrawStart = performance.now(); // --- orb-rhythm --- (the frame's cost)
       const frameMs = Math.min(now - lastTimeRef.current, 100);
       lastTimeRef.current = now;
       const p = bmLayer.props(propsRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wall thickness; the props themselves otherwise)
@@ -1252,6 +1258,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- gerald-bullseye ---
       const conveyorView = engine.isConveyorMode() ? engine.getConveyorView() : null; // --- gerald-conveyor ---
       const orbView = engine.isOrbGridMode() ? engine.getOrbGridView() : null; // --- orb-grid ---
+      // --- orb-rhythm --- the frame's simulation time: what the page has fed the engine, a step behind (the step that made the sound)
+      const orbT = orbView ? orbRenderTimeMs(engine.getElapsedMs(), engine.getStepRemainderMs(), accumulator, orbView.stepMs, orbView.finished ? orbView.finishedMs : -1) : 0;
       const flView = engine.isFightLeagueMode() ? engine.getFightLeagueView() : null; // --- fight-league ---
       const wobbleAmount = bmLayer.wobble(wobbleAmountRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wobble)
       wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmount, illusionView.intrinsicWobble) : wobbleAmount);
@@ -1622,7 +1630,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         conveyorLayer.drawWorld(ctx, conveyorView, conveyorRender);
       }
       // --- orb-grid --- Bouncing Orbs: the slab, the plate or the grid floor under the orbs (the field's perspective)
-      if (orbView) orbLayer.drawWorld(ctx, orbView, size.width, size.height);
+      if (orbView) orbLayer.drawWorld(ctx, orbView, size.width, size.height, orbT /* --- orb-rhythm --- */);
       // --- fight-league --- Fight League: the arena under the fighters (the 2v2 teams wear the roster's colours)
       if (flView) {
         const roster = teamsRef.current?.roster ?? null;
@@ -2087,7 +2095,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
       else if (flView) flLayer.drawBodies(ctx, flView, flRender); // --- fight-league --- weapons, fighters, HP, projectiles, effects
       else if (rrView) rrLayer.drawBodies(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- the trail and the rotating square
-      else if (orbView) orbLayer.drawOrbs(ctx, orbView, size.width, size.height, scale, orbArenasRef.current); // --- orb-grid --- thousands of orbs back to front (the placeholder ball is not drawn)
+      else if (orbView) orbLayer.drawOrbs(ctx, orbView, size.width, size.height, scale, orbArenasRef.current, orbT /* --- orb-rhythm --- */); // --- orb-grid --- thousands of orbs back to front (the placeholder ball is not drawn)
       // --- unlimited --- thousands of balls (or one too big for the sprites): plain discs, one path per colour
       else if (unlimitedLayer.wantsPlain(balls, unlimitedView)) unlimitedLayer.drawPlainBalls(ctx, balls, (ball) => (isColorMatch && matchColor ? matchColor : teamLayer.colorOf(ball) ?? ball.color));
       else balls.forEach((ball, index) => {
@@ -2489,7 +2497,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (orbView) {
         const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
         // (a split-screen arena: on the right too – the arena's letter badge holds the top-left corner)
-        modeTopHud = Math.max(modeTopHud, orbLayer.drawOverlay(ctx, orbView, (labelsRef.current ?? DEFAULT_LABELS).orbGrid ?? DEFAULT_ORB_GRID_LABELS, size.width, size.height, teamInset, boardLeft || orbArenasRef.current > 1));
+        modeTopHud = Math.max(modeTopHud, orbLayer.drawOverlay(ctx, orbView, (labelsRef.current ?? DEFAULT_LABELS).orbGrid ?? DEFAULT_ORB_GRID_LABELS, size.width, size.height, teamInset, boardLeft || orbArenasRef.current > 1, orbT /* --- orb-rhythm --- */));
       }
       // --- fight-league --- the names, the time left, the VS card, the ability boxes, the KO flash and – unless the teams banner
       // takes over (a won 2v2 with a roster) – the winner banner, inside the exported square; the names' band is what the top
@@ -3263,7 +3271,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (conveyorView) conveyorData.write(conveyorView, setCanvasData);
       else if (canvas.dataset.cvArena !== undefined) for (const key of CONVEYOR_DATA_KEYS) delete canvas.dataset[key];
       // --- orb-grid --- orbs, released (orbs and rings), bounces, landed, settled, moving, the resolve detector, quality, sound, the end (data-og-*)
-      if (orbView) orbData.write(orbView, orbLayer, setCanvasData);
+      if (orbView) orbData.write(orbView, orbLayer, setCanvasData, now /* --- orb-rhythm --- */);
       else if (canvas.dataset.ogOrbs !== undefined) for (const key of ORB_GRID_DATA_KEYS) delete canvas.dataset[key];
       // --- fight-league --- names, HP, hits, casts, KOs, the winner, the end, the HUD's names and boxes, the VS card (data-fl-*)
       if (flView) flData.write(flView, flLayer, setCanvasData);
@@ -3304,6 +3312,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const delta = now - lastFpsSampleRef.current;
       lastFpsSampleRef.current = now;
       if (delta > 0) fpsRef.current = 0.9 * fpsRef.current + (1000 / delta) * 0.1;
+      if (orbView && !offline) orbFrameCost.note(performance.now() - orbDrawStart); // --- orb-rhythm ---
       if (!offline) rafRef.current = requestAnimationFrame(draw); // --- fast-render --- (offline, the export calls draw() per frame)
     };
     // --- fast-render --- offline, the export draws every frame itself, on its clock from 0 (one frame per call), recording from the start

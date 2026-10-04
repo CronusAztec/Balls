@@ -77,6 +77,7 @@ import { CONVEYOR_RANGES, defaultConveyorFields, readConveyorParams, resolveConv
 import { RESPAWN_RANGES } from "@/lib/physics/respawn";
 // --- orb-grid --- Bouncing Orbs (thousands of varied bouncing orbs forming a 3D wave)
 import { ORB_GRID_PHYSICS_FIELDS, ORB_GRID_RANGES, defaultOrbGridFields, orbGridPastCeiling, readOrbGridParams, resolveOrbGridFields, writeOrbGridParams, type OgArrangement, type OgDistribution, type OgFloor, type OgMaterial, type OgPalette, type OgProperty, type OgRelease, type OgSound } from "@/lib/physics/modes/orbGrid";
+import type { OgGroup, OgMetro, OgModel, OgRhythm } from "@/lib/physics/modes/orbRhythm"; // --- orb-rhythm --- Bouncing Orbs' rhythm model, polyrhythms and metronome
 // --- fight-league --- Fight League (weapon-wielding fighter balls; the arena games' family)
 import { FIGHT_LEAGUE_RANGES, defaultFightLeagueFields, fightLeagueModeDefaults, readFightLeagueParams, resolveFightLeagueFields, writeFightLeagueParams, type FlArena, type FlMatch } from "@/lib/physics/modes/fightLeague";
 // --- land-claim --- the Land Claim mode (columns of blocks knocked off by competitors' balls)
@@ -806,6 +807,28 @@ export interface SimulatorSettings {
   ogHud: boolean;
   /** notes | sleep | music | metal | silent (URL `ogSnd`). */
   ogSound: OgSound;
+  // --- orb-rhythm --- the rhythm model, the polyrhythms and the metronome (lib/physics/modes/orbRhythm.ts; the URL keys are the field names)
+  /** rhythm (ideal bouncers forever – the default) | decay (the orbs lose energy and settle) (URL `ogModel`). */
+  ogModel: OgModel;
+  /** Every orb's apex the same (URL `ogEq`); the 10 % landing squash easing out over 60 ms (URL `ogSquash`). */
+  ogEq: boolean;
+  ogSquash: boolean;
+  /** Polyrhythm: groups with whole bounce counts a cycle (URL `ogPoly`); rows | columns | rings | diagonals | checker | each (URL `ogGroup`). */
+  ogPoly: boolean;
+  ogGroup: OgGroup;
+  /** The cycle (s) while the metronome is off (URL `ogCycle`), the rhythm preset (URL `ogRhythm`), the Euclidean ladder's steps (URL `ogSteps`). */
+  ogCycle: number;
+  ogRhythm: OgRhythm;
+  ogSteps: number;
+  /** The metronome: tempo (BPM), beats a bar, the visual (off | bar | ring | dot), the click volume, bars a cycle (URL `ogBpm`, `ogBeats`, `ogMetro`, `ogClick`, `ogBars`). */
+  ogBpm: number;
+  ogBeats: number;
+  ogMetro: OgMetro;
+  ogClick: number;
+  ogBars: number;
+  /** A pitch per group from the scale: the polyrhythm plays a tune (URL `ogMelody`). */
+  ogMelody: boolean;
+  // --- end orb-rhythm ---
   // --- end orb-grid ---
   // --- fight-league --- Fight League (lib/physics/modes/fightLeague.ts, the roster in fightLeagueRoster.ts)
   /** Fighter slots A–D: a roster id or "random" (picked by the seed) (URL `fl1`–`fl4`). */
