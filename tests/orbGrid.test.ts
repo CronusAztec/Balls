@@ -33,7 +33,7 @@ import {
 import { MAX_CHORD_NOTES, MAX_NOTES_PER_STEP, MAX_ORB_EVENTS_PER_FRAME, createOrbGroupScratch, groupOrbLandings, orbMusicNext, orbPitchHz, orbScaleIntervals, type OrbLandings, type OrbVoice } from "@/lib/audio/orbTones";
 import { CAMERA_DISTANCE, QUALITY_DISC_MAX, QUALITY_GLOSS_MAX, QUALITY_SHADOW_MAX, QUALITY_SPRITE_MAX, cameraAngleDeg, depthOrder, heightColor, orbCamera, orbQuality, projectPoint, type OrbCamera, type ProjectedPoint } from "@/components/simulator/orbGridRenderer";
 import { createEngineForSettings, runNeverFinishes, simulateOutcomeRun, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
-import { availableOutcomes, outcomeMatches, outcomeMiss, outcomeSettled } from "@/lib/simulation/outcomes";
+import { availableOutcomes, outcomeFigure, outcomeMatches, outcomeMiss, outcomeSettled } from "@/lib/simulation/outcomes";
 import { MODE_IDS, type PhysicsConfig } from "@/lib/physics/types";
 import { MODE_CARD_ORDER, MODE_CATEGORIES } from "@/lib/modes";
 import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
@@ -586,8 +586,17 @@ describe("Bouncing Orbs: Find Simulation", () => {
   it("judges never-settles by the clip and resolves-at by the first resolve (±0.5 s)", () => {
     const base = { durationMs: 20000, finished: false, firstEscapeMs: -1, teams: [] };
     expect(outcomeMatches({ kind: "never-settles", clipSec: 20 }, base)).toBe(true);
+    expect(outcomeMatches({ kind: "never-settles", clipSec: 20 }, { ...base, settledMs: -1 })).toBe(true);
     expect(outcomeMatches({ kind: "never-settles", clipSec: 20 }, { ...base, durationMs: 15000, finished: true })).toBe(false);
     expect(outcomeMiss({ kind: "never-settles", clipSec: 20 }, { ...base, durationMs: 15000, finished: true })).toBe(5);
+    // At rest before the clip is over, its end (a hold later) still to come: no match – it bounced 19.2 s of the 20.
+    const atRest = { ...base, durationMs: 19200, settledMs: 19200 };
+    expect(outcomeMatches({ kind: "never-settles", clipSec: 20 }, atRest)).toBe(false);
+    expect(outcomeMatches({ kind: "never-settles", clipSec: 20 }, { ...base, settledMs: 19200 })).toBe(false);
+    expect(outcomeMiss({ kind: "never-settles", clipSec: 20 }, atRest)).toBeCloseTo(0.8, 9);
+    expect(outcomeMiss({ kind: "never-settles", clipSec: 20 }, { ...base, settledMs: 19200 })).toBeCloseTo(0.8, 9);
+    expect(outcomeFigure({ kind: "never-settles", clipSec: 20 }, atRest)).toBeCloseTo(19.2, 9);
+    expect(outcomeFigure({ kind: "never-settles", clipSec: 20 }, base)).toBe(20);
     expect(outcomeMatches({ kind: "resolves-at", clipSec: 30, atSec: 5 }, { ...base, firstResolveMs: 5400 })).toBe(true);
     expect(outcomeMatches({ kind: "resolves-at", clipSec: 30, atSec: 5 }, { ...base, firstResolveMs: 5600 })).toBe(false);
     expect(outcomeMatches({ kind: "resolves-at", clipSec: 30, atSec: 5 }, base)).toBe(false);
@@ -595,7 +604,50 @@ describe("Bouncing Orbs: Find Simulation", () => {
     expect(outcomeSettled({ kind: "resolves-at", clipSec: 30, atSec: 5 }, 3000, -1, false, "orbGrid", -1)).toBe(false);
     expect(outcomeSettled({ kind: "resolves-at", clipSec: 30, atSec: 5 }, 3000, -1, false, "orbGrid", 2900)).toBe(true);
     expect(outcomeSettled({ kind: "never-settles", clipSec: 10 }, 9000, -1, false, "orbGrid")).toBe(false);
+    expect(outcomeSettled({ kind: "never-settles", clipSec: 10 }, 9000, -1, false, "orbGrid", -1, -1)).toBe(false);
+    expect(outcomeSettled({ kind: "never-settles", clipSec: 10 }, 9000, -1, false, "orbGrid", -1, 9000)).toBe(true); // at rest: decided
     expect(outcomeSettled({ kind: "never-settles", clipSec: 10 }, 10000, -1, false, "orbGrid")).toBe(true);
+  });
+
+  it("does not call a field still bouncing that came to rest in the clip's last SETTLE_HOLD_MS (its end falls past the clip)", () => {
+    // Seed 8 of a 12 × 12 field: every orb at rest 23.55 s in – within the 25 s clip – but the run's own end comes a hold
+    // later, past the clip: the page shows ALL SETTLED, then TIME! with every orb at rest, before the clip is over.
+    const s = settingsOf({ columns: 12, rows: 12 });
+    const outcome = { kind: "never-settles", clipSec: 25 } as const;
+    const page = engineOf({ ...s, maxSec: outcome.clipSec }, 8);
+    runTo(page, outcome.clipSec + 5);
+    const v = page.getOrbGridView();
+    expect(v.allSettled).toBe(true);
+    expect(v.settledAtMs).toBeGreaterThan(1000 * outcome.clipSec - SETTLE_HOLD_MS);
+    expect(v.settledAtMs).toBeLessThan(1000 * outcome.clipSec);
+    expect([v.finished, v.finishReason, Math.round(v.finishedMs), v.settled]).toEqual([true, "time", 25000, v.count]);
+    const run = simulateOutcomeRun(8, request(s), outcome);
+    expect(run.settledMs).toBeCloseTo(v.settledAtMs, 6);
+    expect([run.finished, run.durationMs]).toEqual([false, run.settledMs]); // followed to the moment it came to rest
+    expect(outcomeMatches(outcome, run)).toBe(false);
+    expect(outcomeMiss(outcome, run)).toBeCloseTo(outcome.clipSec - v.settledAtMs / 1000, 6);
+    expect(outcomeFigure(outcome, run)).toBeCloseTo(v.settledAtMs / 1000, 6);
+  });
+
+  it("finds never-settles exactly where the page's clip ends on a field still bouncing (seeds 1–60, a 25 s clip)", () => {
+    const s = settingsOf({ columns: 12, rows: 12 });
+    const outcome = { kind: "never-settles", clipSec: 25 } as const;
+    let matched = 0;
+    let restInHold = 0;
+    for (let seed = 1; seed <= 60; seed++) {
+      const run = simulateOutcomeRun(seed, request(s), outcome);
+      // The page plays a found run for the clip (its maxSec): still bouncing when it ends, or every orb at rest?
+      const page = engineOf({ ...s, maxSec: outcome.clipSec }, seed);
+      runTo(page, outcome.clipSec + 5);
+      const v = page.getOrbGridView();
+      const stillBouncing = v.finishReason === "time" && !v.allSettled;
+      expect(outcomeMatches(outcome, run), `seed ${seed}`).toBe(stillBouncing);
+      expect((run.settledMs ?? -1) >= 0, `seed ${seed}`).toBe(v.allSettled);
+      if (stillBouncing) matched++;
+      if (v.allSettled && v.finishReason === "time") restInHold++; // at rest within the clip's last 1.5 s: its end was cut
+    }
+    expect(matched).toBeGreaterThan(10);
+    expect(restInHold).toBeGreaterThan(5);
   });
 
   it("simulates a seed's first resolve and its end like the page plays it", () => {

@@ -10388,8 +10388,9 @@ const bdInstrument = () =>
 // and the search box; a 1089-orb run whose data-og-* counters advance, with the "1089 bouncing orbs" line drawn at the top of
 // the square; the corner-to-corner preset (the Presets group) falling into phase on its pattern clock; the octagons released
 // outside in, ring by ring (data-og-released rising in whole rings); the sleep sound (few voices) and the music variant (the
-// scale's notes) with OscillatorNode.start instrumented; the finder landing a 30 s run that settles when it promised; and the
-// frame rates: a 1089-orb run (30+ fps), a 1080×1920 recording of it (20+ fps) and a 4900-orb run (30+ fps).
+// scale's notes) with OscillatorNode.start instrumented; the finder landing a 30 s run that settles when it promised, and its
+// Never Settles search passing over a field at rest in the clip's last 1.5 s for one still bouncing when the clip ends; and
+// the frame rates: a 1089-orb run (30+ fps), a 1080×1920 recording of it (20+ fps) and a 4900-orb run (30+ fps).
 {
   const res = await page.request.get(`${BASE}/modes/orbGrid.webp`);
   check("asset /modes/orbGrid.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -10592,6 +10593,47 @@ const orbSoundRun = async (query, ms) => {
     "the finder finds a Bouncing Orbs seed that settles at 30s and the run keeps the promise",
     ready && Math.abs(promised - 30) <= 0.5 && data.ogFinished === "1" && data.ogFinish === "settled" && Math.abs(Number(data.ogFinishedMs) / 1000 - promised) < 0.1 && data.ogSettled === data.ogOrbs,
     `(ready=${ready}, "${readyText}", finished at ${data.ogFinishedMs} ms (${data.ogFinish}), settled ${data.ogSettled} of ${data.ogOrbs})`,
+  );
+}
+{
+  // --- review fix (orb-grid) --- Never settles: still bouncing when the clip ends. A field that comes to rest in the clip's
+  // last 1.5 s – the hold before the run's own end, which then falls past the clip – is no match. The search's seed base is
+  // pinned (Date.now() while the click is dispatched: the seeds are base + 0x9e3779b1 · i) so that it starts with seed 28 of a
+  // 12 × 12 field dropped from 0.44: every orb at rest 29.1 s in (the page shows ALL SETTLED, then TIME! with 144 of 144 at
+  // rest) and its own end at 30.6 s. The search passes it over and finds the next seed (2 tested), which is still bouncing
+  // at 30 s. A change that moves these runs needs a new base: a seed at rest 28.5–30 s in, followed by one still bouncing
+  // at 30 s (tests/orbGrid.test.ts runs such fields headless).
+  const query = "mode=orbGrid&ogC=12&ogR=12&ogH=0.44";
+  const NS_BASE = 28;
+  const playToEnd = async () => {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.ogFinished === "1", null, { timeout: 60000 }).catch(() => {});
+    return canvasData();
+  };
+  await page.goto(`${BASE}/en/simulator/?${query}&seed=${NS_BASE}`, { waitUntil: "networkidle" });
+  const rested = await playToEnd();
+  await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("never-settles");
+  await page.getByRole("button", { name: /Find a 30s Run That Never Settles/ }).evaluate((button, base) => {
+    const real = Date.now;
+    const pinned = base + 2 ** 32 * Math.round((real.call(Date) - base) / 2 ** 32);
+    Date.now = () => pinned;
+    try {
+      button.click();
+    } finally {
+      Date.now = real;
+    }
+  }, NS_BASE);
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 60000 }).then(() => true).catch(() => false);
+  const text = done ? await page.locator("body").innerText() : "";
+  const found = /Found! Still bouncing after 30\.0s/.test(text);
+  const hit = /Seed: (-?\d+) \((\d+) tested\)/.exec(text);
+  const still = found ? await playToEnd() : {};
+  check(
+    "Find Simulation's Never Settles passes over a field at rest in the clip's last 1.5 s (seed 28) and finds one still bouncing when the clip ends",
+    rested.ogOrbs === "144" && rested.ogFinish === "time" && rested.ogSettled === rested.ogOrbs && found && !!hit && Number(hit[1]) !== NS_BASE && Number(hit[2]) >= 2 && still.ogFinish === "time" && Math.abs(Number(still.ogFinishedMs) - 30000) < 100 && Number(still.ogSettled) < Number(still.ogOrbs),
+    `(seed ${NS_BASE}: ${rested.ogFinish} at ${rested.ogFinishedMs} ms, ${rested.ogSettled} of ${rested.ogOrbs} at rest; search: ${done ? (found ? "found" : "not found") : "timeout"}, "${hit?.[0] ?? "no seed line"}"; the found run: ${still.ogFinish} at ${still.ogFinishedMs} ms, ${still.ogSettled} of ${still.ogOrbs} at rest)`,
   );
 }
 {
