@@ -77,6 +77,13 @@ MODE_CARD_ORDER.push("journey");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "fightLeague");
 }
 
+// --- land-claim --- Land Claim joins the battle family next to Territory and the Maze (the land-claim battles: the most land wins)
+{
+  const after = MODE_CARD_ORDER.indexOf("maze");
+  const at = after >= 0 ? after : MODE_CARD_ORDER.indexOf("territory");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "landClaim");
+}
+
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
  * components/site/ModesOverview.tsx, `Headings.modes<Family>` in messages/*.json):
@@ -146,6 +153,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   orbGrid: "rhythm",
   // --- fight-league --- weapon-wielding fighter balls duel in a square arena: with the arena games (every hit a sound, every bounce a note)
   fightLeague: "rhythm",
+  // --- land-claim --- competitors knock blocks off the columns lining the arena, the most land wins: the battle family
+  landClaim: "battle",
 };
 
 /** The modes of a category in card order. */

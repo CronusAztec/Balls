@@ -10875,6 +10875,243 @@ const orbSoundRun = async (query, ms) => {
 }
 // --- end fight-league ---
 
+// --- land-claim ---
+// 35. Land Claim: the preview image and the card under the battle heading; URL → the Land Claim block of the Mode row (rule,
+// arena, competitors, balls, columns, rows, spawn period, duration, title, HUD), controls → URL (the duration moves the clip
+// length), the search box and the finder's outcomes; a four-country knock battle at 1× then 4× – the blocks knocked and the
+// land and balls per competitor rising (data-lc-*), a ball spawned at an eighth block, the knock clicks on the pentatonic
+// ladder (OscillatorNode.start instrumented), the verdict and the teams banner held before the end screen; the hexagon arena;
+// a steal battle whose blocks flip both ways and that ends at its duration; the Country picker filling a roster row (its
+// flag on the ball – or the two-letter code where the fonts have no flag glyphs); Find Simulation's winner outcome and a run
+// that ends at a chosen second, played back; and the 1144-block preset at 30+ fps, ending with about 146 balls, recorded at
+// 1080×1920 at 20+ fps.
+{
+  const res = await page.request.get(`${BASE}/modes/landClaim.webp`);
+  check("asset /modes/landClaim.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inBattle = await page.evaluate(() => {
+    // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
+    const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Battle modes");
+    const group = heading?.parentElement;
+    return !!group && !!group.querySelector('img[src$="/modes/landClaim.webp"]') && !!group.querySelector('img[src$="/modes/maze.webp"]');
+  });
+  const card = await page.locator('img[src$="/modes/landClaim.webp"]').count();
+  check("the Land Claim card is on the landing page under the battle heading", card === 1 && inBattle, `(cards=${card}, in the battle group=${inBattle})`);
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=landClaim&lcc=40&lcr=9&lca=hexagon&lct=6&lcb=2&lcm=claim&lce=5&lcd=75&lcti=${encodeURIComponent("WHO WINS?")}&lch=0`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("land-claim-section");
+  const pick = (group, name) => section.getByRole("group", { name: group, exact: true }).getByRole("button", { name: new RegExp(name) });
+  const toggle = (label) => section.getByRole("switch", { name: switchName(label) });
+  {
+    const values = { lcc: await sliderValue("Block Columns"), lcr: await sliderValue("Blocks per Column"), lct: await sliderValue("Competitors"), lcb: await sliderValue("Balls Each"), lce: await sliderValue("New Ball Every"), lcd: await sliderValue("Battle Duration") };
+    const hexagon = await pick("Arena Shape", "Hexagon").getAttribute("aria-pressed");
+    const claim = await pick("Claim Rule", "Claim").getAttribute("aria-pressed");
+    const title = await section.getByTestId("lc-title").inputValue();
+    const hud = await toggle("Land Claim HUD").getAttribute("aria-checked");
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
+    const winners = await page.locator("#find-outcome").selectOption("winner").then(() => page.locator("#find-winner option").evaluateAll((els) => els.map((e) => e.textContent))).catch(() => []);
+    await page.locator("#find-outcome").selectOption("duration").catch(() => {});
+    check(
+      "land claim loads from URL",
+      values.lcc === "40" && values.lcr === "9" && values.lct === "6" && values.lcb === "2" && values.lce === "5" && values.lcd === "75" && hexagon === "true" && claim === "true" && title === "WHO WINS?" && hud === "false" && noRingControls && options.join(",") === "duration,winner,close" && winners.join(",") === "RED,BLUE,GREEN,GOLD,PURPLE,ORANGE",
+      `(${JSON.stringify(values)}, hexagon=${hexagon}, claim=${claim}, title="${title}", hud=${hud}, finder outcomes=${options.join(",")}, winners=${winners.join(",")})`,
+    );
+  }
+  await pick("Arena Shape", "Circle").click();
+  await pick("Claim Rule", "Steal").click();
+  await page.locator('input[aria-label="Competitors"]').evaluate(setRangeValue, "3");
+  await page.locator('input[aria-label="Battle Duration"]').evaluate(setRangeValue, "50");
+  await toggle("Land Claim HUD").click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check(
+      "land claim mirrors into the URL (the duration moves the clip)",
+      query.get("mode") === "landClaim" && query.get("lca") === "circle" && query.get("lcm") === "steal" && query.get("lct") === "3" && query.get("lcd") === "50" && query.get("dur") === "54" && query.get("lcc") === "40" && !query.has("lch"),
+      `(${query.toString()})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("block columns");
+  const found = await page.locator('input[aria-label="Block Columns"]').isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the land claim controls", found && hidden, `(block columns=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // Four countries knock the default 24 × 12 wall (the 4-countries preset's roster).
+  const roster = "France*0055a4*🇫🇷,Brazil*009c3b*🇧🇷,Spain*aa151b*🇪🇸,Colombia*fcd116*🇨🇴";
+  await page.goto(`${BASE}/en/simulator/?mode=landClaim&teams=${encodeURIComponent(roster)}`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    window.__lcOsc = osc;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value > 20) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const first = await canvasData();
+  const fps = await pageFrameRates(3000);
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.lcSpawned) >= 1, null, { timeout: 20_000 }).catch(() => {});
+  const later = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-land-claim.png") });
+  const land = (d) => (d.lcBlocks || "").split(",").map(Number).reduce((a, b) => a + b, 0);
+  const balls = (later.lcBalls || "").split(",").map(Number);
+  await timingCheck(
+    "a four-country knock battle knocks blocks for the hitters, spawns a ball at an eighth block and runs at 30+ fps",
+    later.lcTeams === "4" && later.lcTotal === "288" && Number(later.lcKnocked) > Number(first.lcKnocked) && land(later) === Number(later.lcKnocked) && Number(later.lcSpawned) >= 1 && balls.length === 4 && balls.reduce((a, b) => a + b, 0) === Number(later.lcBallCount) && later.lcInArena === "1" && later.lcHud === "1" && Number(later.lcRepaints) >= 24 && (later.lcNames || "").startsWith("France|Brazil"),
+    fpsOk(fps, 4, 30),
+    `(${JSON.stringify({ knocked: [first.lcKnocked, later.lcKnocked], blocks: later.lcBlocks, balls: later.lcBalls, spawned: later.lcSpawned, repaints: later.lcRepaints, flying: later.lcFlying, badges: later.lcBadges, names: later.lcNames })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(3000, 4, 30),
+  );
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const banner = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.lcBanner === "1", null, { timeout: 60_000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(400);
+  const verdict = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-land-claim-verdict.png") });
+  const endScreen = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 15_000 }).then(() => true).catch(() => false);
+  check(
+    "the knock battle ends when the wall is bare: the verdict, its banner and the teams banner before the end screen",
+    banner && endScreen && verdict.lcFinished === "1" && verdict.lcRemaining === "0" && ["domination", "close", "plain"].includes(verdict.lcVerdict) && ["France", "Brazil", "Spain", "Colombia"].includes(verdict.lcWinnerName) && verdict.teamWinner === verdict.lcWinnerName && Number(verdict.lcKos) === 24,
+    `(${JSON.stringify({ verdict: verdict.lcVerdict, winner: verdict.lcWinnerName, team: verdict.teamWinner, share: verdict.lcShare, margin: verdict.lcMargin, blocks: verdict.lcBlocks, kos: verdict.lcKos })}, banner=${banner}, end screen=${endScreen})`,
+  );
+  const pitches = await page.evaluate(() => window.__lcOsc);
+  const ladder = [72, 74, 76, 79, 81, 84, 86, 88, 91, 93];
+  const hits = new Set(pitches.map((f) => 69 + 12 * Math.log2(f / 440)).filter((m) => Math.abs(m - Math.round(m)) < 0.05 && ladder.includes(Math.round(m))).map((m) => Math.round(m)));
+  check("land claim knocks click on the pentatonic ladder round the wall", hits.size >= 4, `(${pitches.length} oscillators, ladder notes ${[...hits].sort((a, b) => a - b).join("/")})`);
+}
+{
+  // The hexagon: six sides of six columns.
+  await page.goto(`${BASE}/en/simulator/?mode=landClaim&lca=hexagon&lcc=36&lct=6&lcb=2`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2500);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-land-claim-hexagon.png") });
+  check("the hexagon arena: 36 columns on six sides, blocks knocked, every ball inside", data.lcArena === "hexagon" && data.lcCols === "36" && data.lcTeams === "6" && Number(data.lcKnocked) > 0 && data.lcInArena === "1", `(${JSON.stringify({ arena: data.lcArena, cols: data.lcCols, knocked: data.lcKnocked, inArena: data.lcInArena })})`);
+}
+{
+  // Steal: blocks flip both ways until the duration runs out (20 s at 4×).
+  await page.goto(`${BASE}/en/simulator/?mode=landClaim&lcm=steal&lcc=16&lcr=4&lct=3&lcb=2&lcd=20`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.lcSteals) >= 15, null, { timeout: 30_000 }).catch(() => {});
+  const mid = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-land-claim-steal.png") });
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.lcFinished === "1", null, { timeout: 30_000 }).catch(() => {});
+  const end = await canvasData();
+  const both = (list) => (list || "").split(",").filter((n) => Number(n) > 0).length >= 2;
+  check(
+    "a steal battle flips blocks both ways and ends at its duration",
+    end.lcRule === "steal" && Number(mid.lcSteals) >= 15 && both(end.lcStolen) && both(end.lcLost) && end.lcFinished === "1" && Math.abs(Number(end.lcEndMs) - 20000) <= 20 && Number(mid.lcPops) >= 0,
+    `(${JSON.stringify({ steals: [mid.lcSteals, end.lcSteals], stolen: end.lcStolen, lost: end.lcLost, end: end.lcEndMs, verdict: end.lcVerdict })})`,
+  );
+}
+{
+  // The Country picker fills a roster row with a country: its name, its flag and its colour – the ball wears the flag (or its code).
+  const roster = "Red*ef4444*🔥,Blue*3b82f6*💧";
+  await page.goto(`${BASE}/en/simulator/?mode=landClaim&lct=2&teams=${encodeURIComponent(roster)}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Teams & Scoreboard/ }).click();
+  await page.getByLabel("Country of team 1", { exact: true }).selectOption("BR");
+  await page.waitForTimeout(300);
+  const names = await page.locator('[data-testid="team-row"] input[aria-label$=" name"]').evaluateAll((els) => els.map((e) => e.value));
+  const emojis = await page.locator('[data-testid="team-row"] input[aria-label$=" emoji"]').evaluateAll((els) => els.map((e) => e.value));
+  const colors = await page.locator('[data-testid="team-row"] input[type="color"]').evaluateAll((els) => els.map((e) => e.value));
+  const teamsParam = new URLSearchParams(page.url().split("?")[1] || "").get("teams") || "";
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1200);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-land-claim-country.png") });
+  check(
+    "the Country picker fills a roster row with Brazil (name, flag, colour), and the ball wears the flag – or its code",
+    names[0] === "Brazil" && emojis[0] === "🇧🇷" && colors[0] === "#009c3b" && teamsParam.startsWith("Brazil*009c3b*🇧🇷") && ["f", "c"].includes((data.lcBadges || "")[0]) && (data.lcBadges || "")[1] === "e" && (data.lcNames || "").startsWith("Brazil|Blue"),
+    `(row 1: ${names[0]} ${emojis[0]} ${colors[0]}, teams=${teamsParam}, badges=${data.lcBadges}, flag glyphs=${data.lcFlagGlyphs}, names=${data.lcNames})`,
+  );
+}
+{
+  // Find Simulation: a battle BLUE wins, then one that ends at a chosen second – 30 s ± 0.5 (a ball each and a new one every
+  // 16th block: battles of about 29–35 s) – both played back.
+  await page.goto(`${BASE}/en/simulator/?mode=landClaim`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("winner");
+  await page.locator("#find-winner").selectOption("1");
+  const button = page.getByRole("button", { name: /Find a Run BLUE Wins/ });
+  const labelled = await button.isVisible();
+  await button.click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  let data = {};
+  if (/Found! BLUE wins/.test(text)) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.lcFinished === "1", null, { timeout: 60_000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check("Find Simulation finds a land claim battle the chosen colour wins, and it plays back", labelled && /Found! BLUE wins/.test(text) && data.lcFinished === "1" && data.lcWinner === "1" && data.lcWinnerName === "BLUE", `("${text}", played: ${JSON.stringify({ finished: data.lcFinished, winner: data.lcWinner, name: data.lcWinnerName })})`);
+  await page.goto(`${BASE}/en/simulator/?mode=landClaim&lcb=1&lce=16`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("duration").catch(() => {});
+  await page.locator("#find-duration").evaluate(setRangeValue, "30");
+  await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+  const outcome = page.getByText(/Found! \d|Didn't find simulation/).first();
+  const at = await outcome.waitFor({ timeout: 150_000 }).then(() => outcome.innerText()).catch(() => "timeout");
+  let played = {};
+  if (/Found!/.test(at)) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.lcFinished === "1", null, { timeout: 60_000 }).catch(() => {});
+    played = await canvasData();
+  }
+  check("Find Simulation finds a land claim battle that ends at a chosen second (30 s), and it plays back", /Found!/.test(at) && played.lcFinished === "1" && Math.abs(Number(played.lcEndMs) / 1000 - 30) <= 0.55 && Number(played.lcWinner) >= 0, `("${at}", played: ${JSON.stringify({ finished: played.lcFinished, end: played.lcEndMs, winner: played.lcWinnerName })})`);
+}
+{
+  // The clip's numbers: the 1144-block preset (52 × 22, four countries starting with a ball each) – 30+ fps at 2× with its crowd,
+  // about 146 balls at the end, and a 1080×1920 recording at 20+ fps.
+  await page.goto(`${BASE}/en/simulator/?mode=landClaim`, { waitUntil: "networkidle" });
+  await page.getByTestId("lc-preset").selectOption("domination");
+  await page.waitForTimeout(400);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "2x", exact: true }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.lcBallCount) >= 60, null, { timeout: 30_000 }).catch(() => {});
+  const crowd = await canvasData();
+  const fps = await pageFrameRates(3000);
+  await page.screenshot({ path: path.join(outDir, "sim-land-claim-1144.png") });
+  await timingCheck(
+    "the 1144-block preset runs at 30+ fps at 2× with its crowd of balls",
+    query.get("lcc") === "52" && query.get("lcr") === "22" && crowd.lcTotal === "1144" && Number(crowd.lcBallCount) >= 60 && crowd.lcFinished === "0" && crowd.lcInArena === "1",
+    fpsOk(fps, 4, 30),
+    `(${JSON.stringify({ total: crowd.lcTotal, balls: crowd.lcBallCount, knocked: crowd.lcKnocked, lod: crowd.lcLod, runs: crowd.lcRuns })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(3000, 4, 30),
+  );
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.lcFinished === "1", null, { timeout: 60_000 }).catch(() => {});
+  const end = await canvasData();
+  check("the 1144-block battle ends with about 146 balls (four, and one more every eighth block a country knocks)", end.lcFinished === "1" && end.lcRemaining === "0" && Number(end.lcBallCount) >= 140 && Number(end.lcBallCount) <= 147, `(${JSON.stringify({ balls: end.lcBallCount, spawned: end.lcSpawned, verdict: end.lcVerdict, winner: end.lcWinnerName })})`);
+  // A 1080×1920 recording (the default resolution) of the preset's battle.
+  await page.goto(`${BASE}/en/simulator/?${query.toString()}`, { waitUntil: "networkidle" });
+  let rec = { windows: [], avg: 0, min: 0, low: 0 };
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      rec = await pageFrameRates(3500);
+      await page.getByRole("button", { name: /Stop & Export/ }).click();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `land-claim-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  await timingCheck("a 1080×1920 recording of the 1144-block battle keeps 20+ fps and downloads", size > 10000, fpsOk(rec, 5, 20), `(${size} bytes, ${fpsNote(rec)}, floor 20${loadNote()})`, recordingRetry(5, 20));
+}
+// --- end land-claim ---
+
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
 const hardErrors = errors.filter((e) => !IGNORED_CONSOLE.test(e));

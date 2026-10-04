@@ -78,6 +78,9 @@ const MODES = {
   // --- fight-league --- mid-duel: Thor vs Loki (a pinned seed) with the hammer and the cards out, the HP in the balls, the
   // names in the fighters' colours and the ability boxes
   fightLeague: { wait: 8000, query: "seed=11" },
+  // --- land-claim --- mid-battle: four countries' balls knocking the wall's top blocks off, blocks flying in their colours, the
+  // columns cut down unevenly, the title line and a bar per country
+  landClaim: { wait: 4200, query: `seed=3&teams=${encodeURIComponent("France*0055a4*🇫🇷,Brazil*009c3b*🇧🇷,Spain*aa151b*🇪🇸,Colombia*fcd116*🇨🇴")}` },
 };
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
 // --- daily-gallery --- GALLERY=1 (every card) or GALLERY=<id>,<id>: gallery previews; with MODES and no GALLERY, none

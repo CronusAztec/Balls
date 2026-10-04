@@ -91,6 +91,8 @@ import { CONVEYOR_DATA_KEYS, ConveyorDataset, ConveyorLayer, DEFAULT_CONVEYOR_LA
 import { DEFAULT_ORB_GRID_LABELS, ORB_GRID_DATA_KEYS, OrbGridDataset, OrbGridLayer, orbGridBanner, type OrbGridLabels } from "./orbGridRenderer";
 // --- fight-league --- Fight League: the arena, the fighters with their weapons, the projectiles and effects, the HUD and the banner
 import { DEFAULT_FIGHT_LEAGUE_LABELS, FIGHT_LEAGUE_DATA_KEYS, FightLeagueDataset, FightLeagueLayer, type FightLeagueLabels, type FightLeagueRenderOptions } from "./fightLeagueRenderer";
+// --- land-claim --- Land Claim: the arena's blocks (offscreen, repainted where columns change), pops, flying blocks, badges, the HUD band and the verdict
+import { DEFAULT_LAND_CLAIM_LABELS, LAND_CLAIM_DATA_KEYS, LandClaimLayer, writeLandClaimDataset, type LandClaimLabels, type LandClaimRenderOptions } from "./landClaimRenderer";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -207,6 +209,9 @@ export interface CanvasLabels {
   // --- fight-league ---
   /** Fight League: VS, FIGHT!, KO!, the winner banner's words and the stat lines' abbreviations. */
   fightLeague?: FightLeagueLabels;
+  // --- land-claim ---
+  /** Land Claim: the title line, the counters, DOMINATION / SUCH A CLOSE BATTLE / "[name] CLAIMS THE MOST" and the share of the land. */
+  landClaim?: LandClaimLabels;
 }
 
 export interface CanvasHandle {
@@ -897,6 +902,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const tyRender: TerritoryRenderOptions = { dpr: scale /* --- world --- device px per world px */, roster: NO_ROSTER, showNames: false, showTrails: true, trailThickness: 0.8, wallThickness: 2, labels: DEFAULT_TERRITORY_LABELS, nowMs: 0 };
     const tyBodyColor = (ball: Ball) => tyLayer.colorOf(ball.team ?? 0);
     const tyJolt = { x: 0, y: 0 }; // a bomber blast's jolt of the board this frame
+    // --- land-claim --- Land Claim's layer (the offscreen arena, badges, the bars' easing) and its per-frame options
+    const lcLayer = new LandClaimLayer();
+    const lcRender: LandClaimRenderOptions = { dpr: scale /* --- world --- device px per world px */, roster: NO_ROSTER, showNames: false, showTrails: true, wallThickness: 2, labels: DEFAULT_LAND_CLAIM_LABELS, nowMs: 0 };
+    const lcBodyColor = (ball: Ball) => lcLayer.colorOf(ball.team ?? 0);
     // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
     const frameBudget = new FrameBudget();
     const uncapInfo: UncapInfo = { speed: 0, bounce: 1, rescued: 0, show: false }; // --- uncap-all --- (reused every frame)
@@ -1086,6 +1095,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       plRender.dpr = scale;
       tyRender.dpr = scale; // --- odd-territory --- (the board's and trails' layers)
       mazeRender.dpr = scale; // --- odd-maze --- (the walls' and the paint's layers)
+      lcRender.dpr = scale; // --- land-claim --- (the arena's layer)
       // Background
       ctx.fillStyle = p.backgroundColor;
       ctx.fillRect(0, 0, Math.max(canvas.width, sizeRef.current.width), Math.max(canvas.height, sizeRef.current.height)); // --- split-screen --- (the whole world, also when it is drawn below 1 device px per px: a split-screen arena)
@@ -1515,6 +1525,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         tyRender.labels = (labelsRef.current ?? DEFAULT_LABELS).territory ?? DEFAULT_TERRITORY_LABELS;
         tyRender.nowMs = engine.getElapsedMs();
         tyLayer.drawStage(ctx, tyView, drawnBalls, tyRender);
+      }
+      // --- land-claim --- Land Claim: the arena's floor and blocks, the wall, the pops and the flying blocks.
+      const lcView = engine.isLandClaimMode() ? engine.getLandClaimView() : null;
+      if (lcView) {
+        const tr = teamsRef.current;
+        lcRender.roster = tr ? tr.roster : NO_ROSTER;
+        lcRender.showNames = !!tr && tr.showNames;
+        lcRender.showTrails = p.showTrails;
+        lcRender.wallThickness = p.wallThickness;
+        lcRender.labels = (labelsRef.current ?? DEFAULT_LABELS).landClaim ?? DEFAULT_LAND_CLAIM_LABELS;
+        lcRender.nowMs = engine.getElapsedMs();
+        lcLayer.drawStage(ctx, lcView, lcRender);
       }
 
       // --- odd-maze --- Maze: the near-black field, the painted trail, the glowing walls (flaring where hit) and the fog.
@@ -2060,6 +2082,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (sbView) sbLayer.drawBodies(ctx, sbView, sbRender); // --- odd-string-battle --- halos, bodies with their lives, names, shatter bursts
       else if (tyView) tyLayer.drawBodies(ctx, tyView, balls, tyRender); // --- odd-territory --- trails, halos, bodies by power, charge rings, names
       else if (mazeView) mazeLayer.drawBodies(ctx, mazeView, mazeRender); // --- odd-maze --- halos, glossy bodies, names
+      else if (lcView) lcLayer.drawBodies(ctx, lcView, balls, lcRender); // --- land-claim --- trails, glows, flag badges in rings, names
       else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
       else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
       else if (flView) flLayer.drawBodies(ctx, flView, flRender); // --- fight-league --- weapons, fighters, HP, projectiles, effects
@@ -2264,6 +2287,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbBodyColor, sbFaceLayout(sbView.settings.style));
       if (faces.isActive() && tyView) faces.drawOverlays(ctx, balls, tyBodyColor, null); // --- odd-territory --- faces on the team balls
       if (faces.isActive() && mazeView) faces.drawOverlays(ctx, balls, mazeBodyColor, null); // --- odd-maze --- faces on the maze runners
+      if (faces.isActive() && lcView) faces.drawOverlays(ctx, balls, lcBodyColor, null); // --- land-claim --- faces on the competitors' balls
       // --- jdm-race --- faces on the racers too
       if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
       // --- jdm-arena-games --- faces on the squares
@@ -2473,6 +2497,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (flView) {
         flRender.teamBanner = teamLayer.isActive() && flView.winnerTeam >= 0;
         modeTopHud = Math.max(modeTopHud, flLayer.drawOverlay(ctx, flView, flRender, { width: size.width, height: size.height, inset: 0 }));
+      }
+      // --- land-claim --- the HUD band (the title, the counters, a bar per competitor) and the verdict banner – it names the winner and throws
+      // the confetti unless the teams banner does it for a roster's winner; the band is what the top captions start below
+      if (lcView) {
+        const teamBanner = teamLayer.isActive() && lcView.verdict.winner >= 0 && lcView.verdict.winner < teamLayer.teamsInPlay();
+        modeTopHud = Math.max(modeTopHud, lcLayer.drawOverlay(ctx, lcView, engine.getBalls().length, lcRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner }));
       }
 
       // HUD: mode counters in the centre
@@ -2810,7 +2840,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           dtMs: !p.isPaused && p.isStarted ? frameMs : 0,
           inset: teamInset,
           // The mode's own banner in the middle – an escape, or --- gerald-multipliers --- OUTGREW THE ARENA – moves the winner's lower.
-          modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped()) || (isColorMatch && engine.hasColorMatchEscaped()) || multView.outgrown,
+          modeBanner: (engine.isShatterMode() && engine.hasShatterEscaped()) || (isColorMatch && engine.hasColorMatchEscaped()) || multView.outgrown || (!!lcView && lcView.finished) /* --- land-claim --- (its verdict in the middle) */,
           holdBanner: cam.holdsEndScreen(), // --- camera --- the winner banner waits for the escape replay
         });
       }
@@ -2853,6 +2883,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         edgeTextBounds(edgeLines, Math.max(teamLayer.isActive() ? teamLayer.scoreboardBottom : 0, arenaHudBottom, modeTopHud), captionView); // --- review fix (modes-gerald-odd) --- (the mode's top HUD)
         if (flView && flLayer.boxesTop < Infinity) captionView.bottomMax = Math.min(captionView.bottomMax, flLayer.boxesTop); // --- fight-league --- (above the ability boxes)
         captionView.dtMs = !p.isPaused && p.isStarted ? frameMs : 0;
+        captionView.winner = lcView && lcView.finished && lcView.verdict.winner >= 0 ? lcLayer.nameOf(lcView.verdict.winner) : ""; // --- land-claim --- a question's [winner]
         // (--- review fix (modes-gerald-odd) --- on the run's pace: less the real time the slow motion added since Record, as the clip is extended by it)
         captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current - Math.max(0, cam.getSlowLagMs() - clipLag0Ref.current)) / 1000 : -1;
         captionLayer.draw(ctx, engine, captionOptions, captionView);
@@ -3076,6 +3107,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- odd-territory --- Territory (data-ty-*): the board, counts and percentages, the powers' work, the verdict, the rig and what was drawn
       if (tyView) writeTerritoryDataset(tyView, tyLayer, engine.getBalls(), setCanvasData);
       else if (canvas.dataset.tyTeams !== undefined) for (const key of TERRITORY_DATA_KEYS) delete canvas.dataset[key];
+      // --- land-claim --- Land Claim (data-lc-*): the wall, the land and balls per competitor, knocks / spawns / steals, the verdict, the rig and what was drawn
+      if (lcView) writeLandClaimDataset(lcView, lcLayer, engine.getBalls(), setCanvasData);
+      else if (canvas.dataset.lcTeams !== undefined) for (const key of LAND_CLAIM_DATA_KEYS) delete canvas.dataset[key];
       // --- jdm-arena-games --- the arena game in play (data-arena-*): squares alive, clashes, KOs, power-ups taken, the zone, the
       // score, the flags, captures / drops / returns, notes and the result, for tools and the smoke test
       if (arenaView) {

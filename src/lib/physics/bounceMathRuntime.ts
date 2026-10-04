@@ -117,6 +117,8 @@ export const BOUNCE_MATH_BREAK_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_MO
 // --- fight-league --- Fight League reports its body clashes and its hits as ball hits (`ctx.noteCollide()`); it keeps its
 // fighters at their own cruising speeds and sizes (the ball parameters do not act on them)
 (BOUNCE_MATH_COLLIDE_MODES as ModeId[]).push("fightLeague");
+// --- land-claim --- Land Claim resolves its balls' hits on each other itself and reports them (`ctx.noteCollide()`)
+(BOUNCE_MATH_COLLIDE_MODES as ModeId[]).push("landClaim");
 
 /**
  * Whether `trigger` ever fires in `mode` (the panel marks a rule whose trigger the mode never sets off). Every mode reports

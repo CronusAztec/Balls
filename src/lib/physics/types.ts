@@ -72,6 +72,8 @@ export const MODE_IDS = [
   "orbGrid",
   // --- fight-league --- Fight League (weapon-wielding fighter balls duel with HP, abilities and stats; the arena games' family)
   "fightLeague",
+  // --- land-claim --- Land Claim (balls knock the top blocks off the columns lining the arena; every eighth block a new ball)
+  "landClaim",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -342,6 +344,15 @@ export interface SoundEvent {
    */
   fight?: FightSoundKind;
   // --- end fight-league ---
+  // --- land-claim ---
+  /**
+   * A Land Claim effect instead of a bounce (`ToneGenerator.playLandClaim()`, lib/audio/landClaimTones.ts): "knock" – a block
+   * knocked off its column, a short wooden click at `frequency` (pitched by the column) –, "spawn" – a new ball, a chime – or
+   * "ko" – a column's last block (louder with `accent`: the last block of the arena). Sent with `melody: false`, so a page
+   * that does not know it plays an accompaniment hit, never a melody note.
+   */
+  lcSound?: "knock" | "spawn" | "ko";
+  // --- end land-claim ---
 }
 
 // --- fight-league --- the sound families of Fight League's weapons, abilities and KOs

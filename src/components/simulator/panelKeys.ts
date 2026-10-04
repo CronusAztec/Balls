@@ -33,6 +33,7 @@ import { MAZE_KEYS } from "./sections/MazeSection"; // --- odd-maze ---
 import { CONVEYOR_KEYS, showsRespawn } from "./sections/ConveyorSection"; // --- gerald-conveyor ---
 import { ORB_GRID_KEYS } from "./sections/OrbGridSection"; // --- orb-grid ---
 import { FIGHT_LEAGUE_KEYS } from "./sections/FightLeagueSection"; // --- fight-league ---
+import { LAND_CLAIM_KEYS } from "./sections/LandClaimSection"; // --- land-claim ---
 import { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection";
 import { VORTEX_KEYS } from "./sections/VortexSection";
 import { WALL_WOBBLE_KEYS } from "./sections/WallWobbleSection";
@@ -52,9 +53,9 @@ export function wallControlsOf(mode: ModeId): { wallCount: boolean; thickness: b
   // --- fight-league --- Fight League has no rings: its arena (a square or a circle) and its rim are the mode's own
   if (mode === "fightLeague") return { wallCount: false, thickness: false, gapControls: false, gapSize: false };
   // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop) --- odd-territory --- (territory) --- odd-maze --- (maze)
-  const wallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "grow", "portal", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey", "bullseye", "beatDrop", "territory", "maze"].includes(mode) && !isArenaGameMode(mode) && !isJdmRhythmMode(mode);
+  const wallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "grow", "portal", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey", "bullseye", "beatDrop", "territory", "maze"].includes(mode) && !isArenaGameMode(mode) && !isJdmRhythmMode(mode) && mode !== "landClaim" /* --- land-claim --- (no rings) */;
   // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop) --- odd-territory --- (territory) --- odd-maze --- (maze)
-  const gapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "bullseye", "beatDrop", "territory", "maze"].includes(mode) && !isArenaGameMode(mode) && !isJdmRhythmMode(mode);
+  const gapControls = !["lines", "paint", "target", "colorMatch", "shatter", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "bullseye", "beatDrop", "territory", "maze"].includes(mode) && !isArenaGameMode(mode) && !isJdmRhythmMode(mode) && mode !== "landClaim" /* --- land-claim --- (no rings) */;
   // --- review fix (ui-i18n) --- Grow builds one gapless ring and Portal's gaps come only from used-up portals: no Gap Size there
   // (their Rotation toggle still applies – Grow's Spin extra, Portal's rotating gaps).
   const gapSize = gapControls && mode !== "grow" && mode !== "portal";
@@ -64,7 +65,7 @@ export function wallControlsOf(mode: ModeId): { wallCount: boolean; thickness: b
   // --- odd-string-battle --- (the ring) --- gerald-vortex --- (the sound rings) --- gerald-bullseye --- (the walls, the
   // landing line, the target's rim) --- beat-drop --- (the obstructions' outlines) --- odd-territory --- (the frame; the Maze
   // draws its own glowing walls)
-  const thickness = gapControls || ["drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "vortex", "bullseye", "beatDrop", "territory"].includes(mode) || isArenaGameMode(mode);
+  const thickness = gapControls || ["drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "vortex", "bullseye", "beatDrop", "territory"].includes(mode) || isArenaGameMode(mode) || mode === "landClaim" /* --- land-claim --- (the arena's wall) */;
   return { wallCount, thickness, gapControls, gapSize };
 }
 
@@ -104,6 +105,7 @@ export const MODE_BLOCK_KEYS: Readonly<Partial<Record<ModeId, readonly string[]>
   conveyor: CONVEYOR_KEYS, // --- gerald-conveyor ---
   orbGrid: ORB_GRID_KEYS, // --- orb-grid ---
   fightLeague: FIGHT_LEAGUE_KEYS, // --- fight-league ---
+  landClaim: LAND_CLAIM_KEYS, // --- land-claim ---
 };
 
 /** The keys of every mode's block. */
