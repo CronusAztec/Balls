@@ -18,12 +18,12 @@
   },
   "SimulatorPage": {
     "heading": "Simulador de física de pelotas",
-    "metaTitle": "Simulador de física de pelotas para TikTok y Reels – juega gratis, exporta con Pro – {siteName}",
-    "metaDescription": "Simulador de física de pelotas en el navegador con {count} modos, física personalizable y efectos arcoíris: jugar es gratis, sin registro ni instalación. La exportación MP4 en formato vertical de TikTok llega con Pro."
+    "metaTitle": "Simulador de física de pelotas para TikTok y Reels – juega y exporta gratis – {siteName}",
+    "metaDescription": "Simulador de física de pelotas en el navegador con {count} modos, física personalizable y efectos arcoíris: jugar y exportar es gratis, sin registro ni instalación. Exportación MP4 en formato vertical de TikTok; Pro quita la marca de agua."
   },
   "Layout": {
     "metaTitle": "Simulador de física de pelotas gratuito y satisfactorio para TikTok y Reels – {siteName}",
-    "metaDescription": "Simulador de física de pelotas en el navegador. Juega gratis con {count} modos únicos, física personalizable y efectos arcoíris, sin registro ni instalación, y exporta vídeos MP4 para TikTok, Reels y Shorts con Pro.",
+    "metaDescription": "Simulador de física de pelotas en el navegador. Juega gratis con {count} modos únicos, física personalizable y efectos arcoíris, sin registro ni instalación, y exporta vídeos MP4 para TikTok, Reels y Shorts (Pro quita la marca de agua).",
     "browserRequirements": "Requiere un navegador moderno con JavaScript activado",
     "featuresModes": "{count} modos de simulación",
     "features": [
@@ -1910,7 +1910,7 @@
     }
   },
   "FAQ": {
-    "q1": { "question": "¿{siteName} es gratis?", "answer": "Jugar es gratis: todos los modos, todas las opciones de personalización, el sonido y Buscar simulación, sin crear ninguna cuenta. Grabar y exportar los vídeos forma parte de Pro, por 10 $ al mes o 79 $ al año." },
+    "q1": { "question": "¿{siteName} es gratis?", "answer": "Sí: todos los modos, todas las opciones de personalización, el sonido y Buscar simulación, y también grabar y exportar los vídeos, sin crear ninguna cuenta. Los vídeos gratuitos llevan una pequeña marca de agua; Pro la quita por 10 $ al mes o 79 $ al año." },
     "q2": { "question": "¿Qué formatos y resoluciones de vídeo puedo exportar?", "answer": "Puedes grabar clips de 500×500 (cuadrado), 1280×720 (HD), 1920×1080 (Full HD) y 1080×1920 (vertical, TikTok) de entre 10 y 120 segundos. Los navegadores que admiten grabación MP4 exportan MP4; el resto exporta WebM." },
     "q3": { "question": "¿Puedo usar los vídeos exportados con fines comerciales?", "answer": "Sí. Todo lo que crees es tuyo y puedes usarlo en TikTok, YouTube, Instagram o donde quieras, sin necesidad de atribución." },
     "q4": { "question": "¿Necesito instalar algo?", "answer": "No. Toda la herramienta funciona en el navegador. Abre el sitio y empieza a crear." },
@@ -2064,7 +2064,7 @@
     "metaTitle": "Términos del servicio – {siteName}",
     "metaDescription": "Términos del servicio de {siteDomain}",
     "acceptance": { "title": "1. Aceptación de los términos", "content": "Al usar {siteDomain} («el Servicio») aceptas estos Términos del servicio. Si no estás de acuerdo con alguna parte, por favor no uses el Servicio." },
-    "description": { "title": "2. Descripción del servicio", "content": "{siteName} es una herramienta de simulación física en el navegador para crear animaciones de pelotas rebotando, personalizar su aspecto y comportamiento y exportarlas como archivos de vídeo. Usar el simulador es gratis; grabar y exportar archivos de vídeo requiere una licencia Pro (consulta Suscripciones Pro). El Servicio se ofrece «tal cual», sin garantía de disponibilidad ni de tiempo de actividad." },
+    "description": { "title": "2. Descripción del servicio", "content": "{siteName} es una herramienta de simulación física en el navegador para crear animaciones de pelotas rebotando, personalizar su aspecto y comportamiento y exportarlas como archivos de vídeo. Usar el simulador y exportar vídeos es gratis; los vídeos exportados sin una licencia Pro llevan una marca de agua (consulta Suscripciones Pro). El Servicio se ofrece «tal cual», sin garantía de disponibilidad ni de tiempo de actividad." },
     "ugc": {
       "title": "3. Contenido generado por el usuario",
       "subtitle": "Al usar el Servicio puedes:",
@@ -2092,7 +2092,7 @@
     "lastUpdated": "Última actualización",
     "metaTitle": "Aviso legal – {siteName}",
     "metaDescription": "Aviso legal de {siteName}: cómo se ofrece la herramienta, qué no garantiza y su relación con plataformas de terceros.",
-    "general": { "title": "Información general", "content": "{siteName} ({siteDomain}) es una herramienta para crear vídeos de animación basados en física en tu navegador: jugar con el simulador es gratis y exportar los vídeos forma parte de Pro. Sus funciones y contenidos se ofrecen con fines generales y de entretenimiento. Al usar la herramienta aceptas este aviso en su totalidad; si no estás de acuerdo con alguna parte, por favor no uses el sitio." },
+    "general": { "title": "Información general", "content": "{siteName} ({siteDomain}) es una herramienta para crear vídeos de animación basados en física en tu navegador: jugar con el simulador y exportar los vídeos es gratis, con una marca de agua que Pro quita. Sus funciones y contenidos se ofrecen con fines generales y de entretenimiento. Al usar la herramienta aceptas este aviso en su totalidad; si no estás de acuerdo con alguna parte, por favor no uses el sitio." },
     "noGuarantee": { "title": "Sin garantía de resultados", "content": "{siteName} te ayuda a hacer vídeos. No promete que esos vídeos se vuelvan virales ni que consigan visualizaciones, seguidores, interacción o ingresos. Las referencias a vídeos que «se vuelven virales» describen lo que el formato puede hacer, no un resultado que garanticemos. El rendimiento en TikTok, Instagram, YouTube o cualquier otra plataforma depende de factores fuera de nuestro control, como el algoritmo de cada plataforma, tu audiencia y tu contenido." },
     "noAffiliation": { "title": "Sin afiliación con plataformas de terceros", "content": "{siteName} es un proyecto independiente. No está afiliado, respaldado, patrocinado ni asociado con TikTok, Instagram, Meta, YouTube, Google ni ninguna otra plataforma mencionada en este sitio. Los nombres de productos, logos y marcas pertenecen a sus respectivos propietarios y se usan solo para describir dónde se pueden compartir los vídeos." },
     "yourContent": { "title": "Tu contenido y tu responsabilidad", "content": "Eres responsable del contenido que creas y subes, incluidas imágenes, audio, texto y logos. No uses material sobre el que no tengas derechos. También eres responsable de cumplir las normas de las plataformas donde publiques y la legislación aplicable. {siteName} no revisa ni modera lo que crean los usuarios." },
@@ -2136,19 +2136,19 @@
     "openManually": "Si no se ha abierto nada, usa este enlace."
   },
   "TikTokBallVideos": {
-    "metaTitle": "Crea vídeos de pelotas rebotando para TikTok – juega gratis, exporta con Pro – {siteName}",
-    "metaDescription": "Crea vídeos hipnóticos de pelotas rebotando para TikTok con {siteName}: una herramienta web con {count} modos y física personalizada para jugar gratis, y exportación vertical 1080×1920 con Pro. Sin registro.",
+    "metaTitle": "Crea vídeos de pelotas rebotando para TikTok – juega y exporta gratis – {siteName}",
+    "metaDescription": "Crea vídeos hipnóticos de pelotas rebotando para TikTok con {siteName}: una herramienta web con {count} modos y física personalizada, gratis para jugar y para exportar en vertical 1080×1920 (Pro quita la marca de agua). Sin registro.",
     "badge": "Contenido para TikTok",
     "navLabel": "Vídeos de pelotas para TikTok",
     "title": "Vídeos de pelotas rebotando para TikTok",
-    "p1": "Las simulaciones de pelotas rebotando son uno de los formatos más fiables de TikTok. La premisa es mínima, una pelota atrapada entre anillos con huecos estrechos intentando salir a base de rebotes, pero la recompensa es lo bastante satisfactoria como para retener la atención durante todo un clip corto. {siteName} es una herramienta web creada exactamente para este tipo de contenido: sus controles de física y efectos visuales son gratis para jugar, y Pro añade la exportación vertical con un clic.",
+    "p1": "Las simulaciones de pelotas rebotando son uno de los formatos más fiables de TikTok. La premisa es mínima, una pelota atrapada entre anillos con huecos estrechos intentando salir a base de rebotes, pero la recompensa es lo bastante satisfactoria como para retener la atención durante todo un clip corto. {siteName} es una herramienta web creada exactamente para este tipo de contenido: sus controles de física, sus efectos visuales y la exportación vertical con un clic son gratis, y Pro quita la marca de agua de los vídeos.",
     "p2": "Lo que hace funcionar el formato es su arco de tensión integrado. La pelota rebota cada vez más rápido, las paredes se cierran, el hueco parece imposiblemente pequeño, y entonces la pelota se cuela y todo estalla con confeti, una rotura o una onda expansiva. Ese bucle encaja de forma natural en 15 a 60 segundos, justo donde la interacción en TikTok alcanza su máximo.",
     "h2_1": "Por qué funciona en TikTok",
     "p3": "TikTok premia los vídeos que retienen al espectador hasta el final y se vuelven a reproducir. La física de pelotas hace ambas cosas: la gente se queda para ver si la pelota escapa y vuelve a verlo para captar los efectos que se perdió. El formato también encaja con la cultura sonora de TikTok: {siteName} puede reproducir una melodía nota a nota en cada golpe contra la pared, convirtiendo la física en una actuación musical.",
     "p4": "No hay diálogo, ni caras en pantalla, ni preparación. Solo un gancho visual limpio que funciona incluso como ruido de fondo para quien está deslizando el dedo, y por eso el formato supera con regularidad a contenido mucho más producido en el feed de descubrimiento.",
     "h2_2": "Exporta en el formato correcto",
     "p5": "La relación de aspecto preferida de TikTok es la vertical 9:16, 1080×1920 píxeles. {siteName} graba directamente a ese tamaño, así que no hay recortes, recodificación ni editor externo. Fija la duración de la grabación (10 a 120 segundos), pulsa grabar y descarga un clip listo para la plataforma.",
-    "p6": "También puedes exportar 500×500 (cuadrado), 1280×720 (HD) o 1920×1080 (Full HD) para Reels, YouTube Shorts y otras plataformas. La grabación ocurre íntegramente en tu navegador; nada se sube y no se añade ninguna marca de agua a menos que tú pongas la tuya.",
+    "p6": "También puedes exportar 500×500 (cuadrado), 1280×720 (HD) o 1920×1080 (Full HD) para Reels, YouTube Shorts y otras plataformas. La grabación ocurre íntegramente en tu navegador y nada se sube. Los vídeos gratuitos llevan una pequeña marca de agua de {siteName}, que Pro quita; tu propia marca de agua es opcional.",
     "h2_3": "Empieza con un formato probado",
     "p7": "Los mejores vídeos de pelotas en TikTok siguen una receta simple: un gancho visual claro en el primer segundo, un indicador de progreso visible como el número de paredes restantes y una recompensa satisfactoria cuando la pelota por fin escapa. La herramienta Buscar simulación encuentra una semilla que produce una ejecución de tu duración objetivo, así que puedes planificar el clip en lugar de adivinar.",
     "p8": "Cada modo, de Clásico y Multiplicar a Caída de pelotas, Gran Premio de Cuadrados y Rompecristales, tiene un ritmo distinto, así que puedes variar tu contenido sin empezar de cero. Guarda tus configuraciones favoritas como presets y publica un vídeo nuevo cada día con un clic.",
@@ -2156,13 +2156,13 @@
   },
   "About": {
     "metaTitle": "Acerca de {siteName} – creador de vídeos de física de pelotas",
-    "metaDescription": "La historia de {siteName}: una herramienta en el navegador (gratis para jugar, con Pro para exportar) para crear los vídeos de pelotas rebotando que se vuelven virales en TikTok, Reels y YouTube Shorts.",
+    "metaDescription": "La historia de {siteName}: una herramienta en el navegador (gratis para jugar y exportar, Pro sin marca de agua) para crear los vídeos de pelotas rebotando que se vuelven virales en TikTok, Reels y YouTube Shorts.",
     "metaOgTitle": "Acerca de {siteName}",
     "metaOgDescription": "Por qué existe {siteName} y para quién es.",
     "badge": "Acerca de",
     "title": "Acerca de {siteName}",
     "p1": "{siteName} nació de una frustración sencilla. Los vídeos de física de pelotas rebotando estaban por todas partes, acumulando millones de visualizaciones, y todas las formas de hacer uno eran engorrosas: aprender un motor de juegos, pagar una aplicación o republicar un clip que ya habían usado mil cuentas. Nada de eso servía para alguien que solo quería hacer un buen vídeo y publicarlo. Así que construimos la herramienta que nos habría gustado tener: abre una pestaña, haz el vídeo, descárgalo, listo.",
-    "p2": "Esa idea sigue moviendo todo el sitio. {siteName} es gratis, funciona en tu navegador y no te pide nada antes de empezar. Sin registro ni instalación: todos los modos y ajustes están a tu disposición, y Pro añade la exportación del vídeo cuando el clip está listo para publicar. Los valores por defecto ya producen algo digno de publicar; todo lo demás es adaptarlo a tu idea.",
+    "p2": "Esa idea sigue moviendo todo el sitio. {siteName} es gratis, funciona en tu navegador y no te pide nada antes de empezar. Sin registro ni instalación: todos los modos y ajustes están a tu disposición, y también la exportación del vídeo: los vídeos gratuitos llevan una pequeña marca de agua que Pro quita. Los valores por defecto ya producen algo digno de publicar; todo lo demás es adaptarlo a tu idea.",
     "h2_1": "Lo que nos importa",
     "p3": "La velocidad y el control, más que cualquier otra cosa. La velocidad, porque la distancia entre una idea y un vídeo publicado es donde muere la mayor parte del contenido; si un clip lleva veinte minutos y tres aplicaciones, dejas de hacer clips. El control, porque el contenido republicado no hace crecer una cuenta. Cuando eliges tú el modo, los colores, el ritmo y el gancho, el vídeo es tuyo y tiene una oportunidad real en un feed que ya ha visto cada clip reciclado.",
     "p4": "También nos importa no estorbar. El simulador se actualiza a medida que cambias cosas, así que aprendes haciendo en lugar de leyendo un manual. Los ajustes tienen nombres claros. La parte difícil, la física y el renderizado, ocurre en silencio en segundo plano mientras te concentras en si el vídeo es divertido de ver.",
@@ -2174,12 +2174,12 @@
     "p7": "El plan es mantener el núcleo gratuito y seguir añadiendo modos, efectos y mejoras de calidad de vida que hagan más rápido construir un buen clip. Si haces algo con ella, ese es el objetivo. Ve y haz que una pelota rompa unas cuantas paredes.",
     "cta": "Abrir el simulador",
     "toolTitle": "Qué es realmente {siteName}",
-    "toolP1": "{siteName} es una herramienta web para crear los vídeos de pelotas rebotando que llenan TikTok, Reels y YouTube Shorts. Elige un modo, ajusta unos pocos parámetros y míralo en acción: todo gratis, sin cuenta, instalación ni editor de vídeo. Cuando el clip esté listo, Pro lo graba y te deja descargarlo; todo ocurre en la pestaña que ya tienes abierta, así que una idea se convierte en un vídeo terminado en un par de minutos.",
+    "toolP1": "{siteName} es una herramienta web para crear los vídeos de pelotas rebotando que llenan TikTok, Reels y YouTube Shorts. Elige un modo, ajusta unos pocos parámetros y míralo en acción: todo gratis, sin cuenta, instalación ni editor de vídeo. Cuando el clip esté listo, grábalo y descárgalo: los vídeos gratuitos llevan una pequeña marca de agua y Pro los exporta sin ella; todo ocurre en la pestaña que ya tienes abierta, así que una idea se convierte en un vídeo terminado en un par de minutos.",
     "toolP2": "El formato funciona porque es simple. Una pelota rebota dentro de un anillo con un hueco. Cada vez que se cuela, algo se recompensa: una pared se rompe, la pelota se multiplica, el color inunda la pantalla, se acierta un objetivo. El espectador quiere saber cómo acaba, así que sigue mirando. Ese pequeño bucle de tensión y alivio es lo que genera las visualizaciones, y aquí controlas cada parte en lugar de republicar el clip de otro.",
     "tweakTitle": "Hecho para trastear",
     "tweakP": "El aspecto es tuyo. Añade anillos para alargar la tensión o quítalos para un desenlace rápido. Activa las paredes arcoíris, alterna el efecto de ruptura entre confeti, fragmentación y onda expansiva, o combina los tres. Añade púas para el peligro, brillo para el acabado y un rastro de color para que el movimiento rápido parezca deliberado. Pon tu propia imagen en la pelota, escribe un gancho como «¿escapará?» arriba y carga una melodía para que los rebotes sigan el ritmo. Los pequeños cambios importan: un anillo extra puede marcar la diferencia entre un clip que la gente salta y uno que ve dos veces.",
     "exportTitle": "Graba, exporta, publica",
-    "exportP": "Cuando la simulación se vea bien, grábala en el navegador y exporta un vídeo con el tamaño de los feeds verticales. Sin aplicaciones de captura de pantalla, sin marcas de agua no deseadas, sin recodificar en otro sitio. ¿Encontraste una combinación que te gusta? Guárdala como preset y reutilízala para toda una serie; muchas cuentas publican el mismo modo cada día con pequeñas variaciones."
+    "exportP": "Cuando la simulación se vea bien, grábala en el navegador y exporta un vídeo con el tamaño de los feeds verticales. Sin aplicaciones de captura de pantalla y sin recodificar en otro sitio; en el plan gratuito el vídeo lleva una pequeña marca de agua que Pro quita. ¿Encontraste una combinación que te gusta? Guárdala como preset y reutilízala para toda una serie; muchas cuentas publican el mismo modo cada día con pequeñas variaciones."
   },
   "Rigged": {
     "outcome": "Resultado",
@@ -3151,7 +3151,7 @@
   "DesktopLink": {
     "navLabel": "App para Windows",
     "heroButton": "Descargar para Windows",
-    "heroNote": "Descarga gratuita · renderizado en la GPU con Pro · IA integrada"
+    "heroNote": "Descarga gratuita · renderizado en la GPU · IA integrada"
   },
   "Desktop": {
     "groupTitle": "Estudio de escritorio",
@@ -3384,7 +3384,7 @@
     "libDelete": "Eliminar archivo",
     "libDeleteConfirm": "¿Mover {name} a la papelera?",
     "metaTitle": "Descarga {siteName} para Windows: vídeo renderizado en la GPU e IA integrada",
-    "metaDescription": "Todo el simulador {siteName} como aplicación de Windows: renderiza clips en tu GPU (NVENC, AMF, Quick Sync), renderiza colas enteras directamente en una carpeta y planifica vídeos con una IA integrada que funciona sin conexión. Descarga gratuita; renderizar vídeos requiere Pro.",
+    "metaDescription": "Todo el simulador {siteName} como aplicación de Windows: renderiza clips en tu GPU (NVENC, AMF, Quick Sync), renderiza colas enteras directamente en una carpeta y planifica vídeos con una IA integrada que funciona sin conexión. Descarga gratuita; los vídeos renderizados sin Pro llevan marca de agua.",
     "badge": "App para Windows",
     "title": "{siteName} para Windows",
     "intro": "Todo lo que hace el simulador en el navegador y lo que un navegador no puede: tu GPU renderiza y codifica los vídeos, una cola de renderizado procesa lotes mientras haces otra cosa y un estudio de IA –en tu PC y sin conexión– planifica clips, escribe descripciones y cambia los ajustes por ti.",
@@ -3456,7 +3456,7 @@
     "hero": {
       "eyebrow": "Estudio de física de pelotas",
       "title": "Física de pelotas hipnótica, lista para TikTok.",
-      "sub": "Ajusta la física, elige uno de los {count} modos y juega con cada ajuste: gratis, en tu navegador y sin cuenta. Exporta el clip vertical, listo para publicar, con Pro.",
+      "sub": "Ajusta la física, elige uno de los {count} modos y juega con cada ajuste: gratis, en tu navegador y sin cuenta. Exporta el clip vertical, listo para publicar; Pro quita la marca de agua.",
       "seeModes": "Ver los modos",
       "live": "En vivo",
       "preview": "Vista previa",
@@ -3526,13 +3526,13 @@
     "canvasTimeUp": "¡SE ACABÓ EL TIEMPO!"
   },
   "Billing": {
-    "metaTitle": "Precios – juega gratis, crea vídeos con Pro – {siteName}",
-    "metaDescription": "Todos los modos y ajustes de {siteName} son gratis. Pro desbloquea la grabación y la exportación de vídeos por {monthly} al mes o {yearly} al año, con tarjeta, PayPal o criptomonedas.",
+    "metaTitle": "Precios – juega y exporta gratis, Pro sin marca de agua – {siteName}",
+    "metaDescription": "Todos los modos y ajustes de {siteName} son gratis, y también exportar los vídeos, con una pequeña marca de agua. Pro quita la marca de agua por {monthly} al mes o {yearly} al año, con tarjeta, PayPal o criptomonedas.",
     "eyebrow": "Precios",
-    "title": "Juega gratis. Hazte Pro para crear los vídeos.",
-    "lede": "Todos los modos, ajustes y sonidos son gratis, sin crear una cuenta. Pro añade todo lo que convierte una partida en un archivo de vídeo: Grabar vídeo, la exportación rápida, el renderizado por lotes, los vídeos del bot viral, Publicar y la cola de renderizado de la app de escritorio.",
+    "title": "Juega y exporta gratis. Hazte Pro para quitar la marca de agua.",
+    "lede": "Todos los modos, ajustes y sonidos son gratis, sin crear una cuenta, y también crear los vídeos: Grabar vídeo, la exportación rápida, el renderizado por lotes, los vídeos del bot viral y la cola de renderizado de la app de escritorio funcionan para todos. Los vídeos del plan gratuito llevan una pequeña marca de agua; Pro los exporta sin ella y añade Publicar.",
     "testMode": "Las licencias están en modo de prueba: los pagos aún no están configurados.",
-    "why": "Grabar y exportar vídeos es una función Pro; todo lo demás es gratis.",
+    "why": "Los vídeos del plan gratuito llevan una pequeña marca de agua; Pro la quita.",
     "proTag": "Pro",
     "proFeature": "Función Pro",
     "plansTitle": "Planes Pro",
@@ -3574,7 +3574,7 @@
       "included": "Incluido",
       "notIncluded": "No incluido",
       "playTitle": "Todo lo que sirve para jugar",
-      "createTitle": "Todo lo que crea un archivo de vídeo",
+      "createTitle": "Crear vídeos",
       "play": {
         "modes": "Todos los modos y todos los ajustes",
         "sound": "Sonido, melodías y tu propio audio",
@@ -3590,7 +3590,9 @@
         "bot": "Los vídeos que renderiza el bot viral",
         "publish": "Publicar en TikTok, Instagram y YouTube",
         "desktop": "La cola de renderizado y la codificación por GPU de la app de escritorio"
-      }
+      },
+      "withWatermark": "Con marca de agua",
+      "noWatermark": "Sin marca de agua"
     },
     "claim": {
       "title": "Tu compra",
@@ -3642,22 +3644,22 @@
     "account": {
       "label": "Cuenta",
       "checking": "Comprobando tu licencia…",
-      "free": "Gratis: desbloquea la creación de vídeos",
-      "freeExpired": "Tu licencia Pro ha terminado: vuelve a desbloquear la creación de vídeos",
-      "freeInvalid": "La licencia guardada no era válida: desbloquea la creación de vídeos",
+      "free": "Gratis: tus vídeos llevan marca de agua",
+      "freeExpired": "Tu licencia Pro ha terminado: los vídeos vuelven a llevar marca de agua",
+      "freeInvalid": "La licencia guardada no era válida: los vídeos llevan marca de agua",
       "pro": "Pro – {plan} hasta el {date}",
       "renews": "Pro – {plan}, se renueva el {date}",
       "ends": "Pro – {plan}, termina el {date}",
       "grace": "Pro – {plan}, pago pendiente, funciona hasta el {date}",
-      "unlock": "Desbloquear",
+      "unlock": "Quitar marca de agua",
       "restore": "Restaurar",
       "manage": "Gestionar",
       "renewing": "Renovando tu licencia…"
     },
     "dialog": {
-      "title": "Desbloquea la creación de vídeos",
+      "title": "Quita la marca de agua",
       "feature": "{feature} forma parte de Pro.",
-      "unlocked": "Tu licencia está activa: cierra esto y vuelve a pulsar el botón.",
+      "unlocked": "Tu licencia está activa: tus próximas grabaciones y exportaciones no llevarán marca de agua.",
       "seePricing": "Comparar Gratis y Pro",
       "restore": "¿Ya pagaste? Restaurar compra",
       "close": "Cerrar"
@@ -3684,10 +3686,11 @@
       "renew": "Las suscripciones con tarjeta y PayPal se renuevan solas hasta que las canceles, cuando quieras, con Gestionar suscripción en esta página.",
       "crypto": "Con cripto pagas un periodo por adelantado (30 días con el plan mensual, 365 con el anual); nada se renueva solo.",
       "licence": "Tu licencia es una clave firmada guardada en este navegador: el sitio no necesita cuenta ni contraseña.",
-      "devices": "En otro dispositivo o navegador, restaura la compra con tu correo y la referencia del recibo que se muestra tras el pago, o pega la clave de licencia."
+      "devices": "En otro dispositivo o navegador, restaura la compra con tu correo y la referencia del recibo que se muestra tras el pago, o pega la clave de licencia.",
+      "watermark": "La marca de agua se dibuja dentro del propio vídeo. Con una licencia Pro en este navegador, cada grabación o exportación que inicies después sale limpia."
     },
     "landing": {
-      "line": "Jugar es gratis. Crear los vídeos es Pro, desde {price} al mes.",
+      "line": "Jugar y exportar es gratis, con marca de agua. Pro la quita, desde {price} al mes.",
       "link": "Ver precios"
     },
     "privacy": {
@@ -3696,7 +3699,7 @@
     },
     "terms": {
       "title": "Suscripciones Pro",
-      "content": "Jugar con el simulador es gratis. Grabar y exportar vídeos requiere una licencia Pro: 10 $ al mes o 79 $ al año. Las suscripciones con tarjeta y PayPal se renuevan automáticamente hasta que las canceles (en el portal de clientes de Stripe o en tu cuenta de PayPal); un pago con cripto compra por adelantado un periodo de 30 o 365 días que no se renueva. La licencia es válida hasta el final del periodo pagado."
+      "content": "Jugar con el simulador y grabar o exportar vídeos es gratis; los vídeos creados sin una licencia Pro llevan una marca de agua. Pro, por 10 $ al mes o 79 $ al año, los exporta sin marca de agua y añade la publicación en tus cuentas. Las suscripciones con tarjeta y PayPal se renuevan automáticamente hasta que las canceles (en el portal de clientes de Stripe o en tu cuenta de PayPal); un pago con cripto compra por adelantado un periodo de 30 o 365 días que no se renueva. La licencia es válida hasta el final del periodo pagado."
     },
     "paste": {
       "title": "Pegar una clave de licencia",
@@ -3866,5 +3869,12 @@
     "GB": "Reino Unido",
     "US": "Estados Unidos",
     "VN": "Vietnam"
+  },
+  "Watermark": {
+    "tag": "Marca de agua",
+    "tagTip": "Plan gratuito: este vídeo llevará la marca de agua; Pro la quita",
+    "note": "Plan gratuito: los vídeos que grabes o exportes aquí llevan una pequeña marca de agua de {siteName}.",
+    "noteRecording": "Grabando en el plan gratuito: este vídeo lleva la marca de agua de {siteName}.",
+    "remove": "Quitar la marca de agua"
   }
 }

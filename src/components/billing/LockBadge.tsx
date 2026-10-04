@@ -15,6 +15,9 @@ export function IconLock({ size = 20, className }: { size?: number; className?: 
 }
 
 /**
+ * --- free-watermark --- Since the watermark gate only Publish's buttons carry it (Pro only); the video-making ones carry the
+ * watermark tag (WatermarkBadge.tsx) and work for everyone.
+ *
  * --- paywall-gate --- The lock on a video-creating button for a free visitor: a padlock and a "Pro" tag, "Pro feature" as its
  * tooltip and in the button's accessible name. Nothing while the licence is being checked or for a Pro licence, so a Pro
  * user's buttons look – and are named – exactly as before. The button itself stays enabled: pressing it opens the Unlock

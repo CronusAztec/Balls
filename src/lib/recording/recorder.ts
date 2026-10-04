@@ -10,9 +10,14 @@
  * picks its formats in; otherwise WebM (VP9/VP8 with Opus) is produced and the download gets a .webm extension. Only MIME
  * types that name their codecs are tried: a bare "video/mp4" lets the browser choose them, and Chromium without an
  * H.264 encoder then writes VP9 + Opus into an .mp4 that QuickTime, iOS Photos and many editors cannot play.
+ *
+ * --- free-watermark --- Everyone may record; a recording without a verified Pro licence carries the watermark. The decision
+ * is sealed when the recording starts (lib/watermark/seal.ts: the stored licence verified again – no option of this class
+ * can change it) and the mark is drawn by the compositor (`drawRecordingFrame()`) into the recorder's own off-screen canvas –
+ * the canvas the stream is captured from, which never enters the document – so nothing on the page can take it off.
  */
 import { SITE_SLUG } from "@/lib/site";
-import { requireEntitlement, type EntitlementRefusal } from "@/lib/billing/guard"; // --- paywall-gate ---
+import { prepareStamp, sealWatermark, stampFrame, type FrameMark } from "@/lib/watermark/seal"; // --- free-watermark ---
 
 /** --- review fix (docs-consistency) --- The stem of a downloaded clip (`jumpingballslive-export.mp4`), from the site's name. */
 export const EXPORT_BASE_NAME = `${SITE_SLUG}-export`;
@@ -88,6 +93,8 @@ export function recordingTextLayout(width: number, height: number, textSize = 1,
  * One export frame, as the real-time recorder and the fast export (fastRender.ts) both draw it: the background (`bg`, then
  * the theme's `drawBackground` so the letterbox bars continue a gradient or picture), the centred square of `source`
  * scaled to fill the frame's shorter side, and the Top / Bottom Text at export resolution (`textLayout`).
+ * --- free-watermark --- Last, over everything: the watermark of a run whose seal (`mark.seal`, from `sealWatermark()` when
+ * the run started) is not a verified Pro licence's – a missing or look-alike seal counts as none.
  */
 export function drawRecordingFrame(
   ctx: CanvasRenderingContext2D,
@@ -97,6 +104,7 @@ export function drawRecordingFrame(
   bg: string,
   options: Pick<RecordingOptions, "drawBackground" | "textOverlay">,
   textLayout: RecordingTextLayout,
+  mark: FrameMark, // --- free-watermark ---
 ) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, width, height);
@@ -128,6 +136,8 @@ export function drawRecordingFrame(
     if (overlay.bottomText) ctx.fillText(overlay.bottomText, centerX, textLayout.bottomY);
     ctx.restore();
   }
+  // --- free-watermark --- the frame's pixels get the mark here, in the compositor's own canvas
+  stampFrame(ctx, mark?.seal ?? null, { width, height, clipMs: mark?.clipMs ?? 0, square: { x: dx, y: dy, width: dw, height: dh } });
 }
 // --- end fast-render ---
 
@@ -157,7 +167,6 @@ export class VideoRecorder {
   private recordingCanvas: HTMLCanvasElement | null = null;
   private animationFrameId: number | null = null;
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
-  private refusal: EntitlementRefusal | null = null; // --- paywall-gate ---
 
   constructor(sourceCanvas: HTMLCanvasElement) {
     this.sourceCanvas = sourceCanvas;
@@ -179,12 +188,9 @@ export class VideoRecorder {
    */
   async startRecording(options: RecordingOptions = {}): Promise<boolean> {
     if (!this.sourceCanvas) return false; // --- review fix (security-robustness) --- (was a throw the page did not catch)
-    // --- paywall-gate --- Record Video is a Pro feature: the guard (lib/billing/guard.ts) – the page asked it already and opened
-    // the Unlock dialog; a call that went around the page is refused here too (advisory, like every check in a browser)
-    const entitled = await requireEntitlement("record");
-    this.refusal = entitled.ok ? null : entitled;
-    if (!entitled.ok) return false;
-    // --- end paywall-gate ---
+    // --- free-watermark --- everyone records; the stored licence, verified again now, decides whether the frames get the mark
+    const seal = await sealWatermark();
+    if (!this.sourceCanvas) return false;
     this.chunks = [];
     const width = options.resolution?.width || this.sourceCanvas.width;
     const height = options.resolution?.height || this.sourceCanvas.height;
@@ -198,6 +204,7 @@ export class VideoRecorder {
       if (!ctx) throw new Error("Failed to get recording canvas context");
       const bg = options.backgroundColor ?? "#0a0a0a";
       const textLayout = recordingTextLayout(width, height, options.textOverlay?.textSize ?? 1);
+      prepareStamp(seal, { width, height }); // --- free-watermark --- (a mark that cannot be drawn stops the start here)
 
       // --- review fix (performance) --- with the source's frame count, a frame is captured on request, once per drawn frame
       const sourceFrames = options.sourceFrames;
@@ -211,13 +218,14 @@ export class VideoRecorder {
       const mimeType = VideoRecorder.getBestMimeType(options.mimeType);
 
       let copied = Number.NaN;
+      const startedAt = performance.now(); // --- free-watermark --- the clip's clock (the badge changes corner every 6 s of it)
       const drawFrame = () => {
         if (!this.sourceCanvas || !this.recordingCanvas) return;
         const drawn = sourceFrames ? sourceFrames() : Number.NaN;
         if (!sourceFrames || drawn !== copied) {
           copied = drawn;
           if (manual) track?.requestFrame?.();
-          drawRecordingFrame(ctx, this.sourceCanvas, width, height, bg, options, textLayout); // --- fast-render --- (shared with the fast export)
+          drawRecordingFrame(ctx, this.sourceCanvas, width, height, bg, options, textLayout, { seal, clipMs: performance.now() - startedAt }); // --- fast-render --- (shared with the fast export) --- free-watermark --- (the seal of this recording)
         }
         this.animationFrameId = requestAnimationFrame(drawFrame);
       };
@@ -274,11 +282,6 @@ export class VideoRecorder {
 
   isRecording() {
     return this.mediaRecorder?.state === "recording";
-  }
-
-  /** --- paywall-gate --- Why the last start was refused by the guard (no Pro licence), null when it was not. */
-  lastRefusal(): EntitlementRefusal | null {
-    return this.refusal;
   }
 
   getMimeType() {

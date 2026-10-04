@@ -18,12 +18,12 @@
   },
   "SimulatorPage": {
     "heading": "Symulator fizyki piłki",
-    "metaTitle": "Symulator fizyki piłki na TikToka i Reels – zabawa za darmo, eksport z Pro – {siteName}",
-    "metaDescription": "Przeglądarkowy symulator fizyki piłki z {count} trybami, konfigurowalną fizyką i tęczowymi efektami – zabawa jest darmowa, bez rejestracji i instalacji. Eksport MP4 w pionowym formacie TikTok daje Pro."
+    "metaTitle": "Symulator fizyki piłki na TikToka i Reels – zabawa i eksport za darmo – {siteName}",
+    "metaDescription": "Przeglądarkowy symulator fizyki piłki z {count} trybami, konfigurowalną fizyką i tęczowymi efektami – zabawa i eksport są darmowe, bez rejestracji i instalacji. Eksport MP4 w pionowym formacie TikTok; Pro usuwa znak wodny."
   },
   "Layout": {
     "metaTitle": "Darmowy satysfakcjonujący symulator fizyki piłki na TikToka i Reels – {siteName}",
-    "metaDescription": "Symulator fizyki piłki działający w przeglądarce. Baw się za darmo {count} unikalnymi trybami, konfigurowalną fizyką i tęczowymi efektami – bez rejestracji i instalacji – a filmy MP4 na TikToka, Reels i Shorts eksportuj z Pro.",
+    "metaDescription": "Symulator fizyki piłki działający w przeglądarce. Baw się za darmo {count} unikalnymi trybami, konfigurowalną fizyką i tęczowymi efektami – bez rejestracji i instalacji – i eksportuj filmy MP4 na TikToka, Reels i Shorts (Pro usuwa znak wodny).",
     "browserRequirements": "Wymaga nowoczesnej przeglądarki z włączonym JavaScriptem",
     "featuresModes": "{count, plural, one {# tryb symulacji} few {# tryby symulacji} many {# trybów symulacji} other {# trybu symulacji}}",
     "features": [
@@ -1910,7 +1910,7 @@
     }
   },
   "FAQ": {
-    "q1": { "question": "Czy {siteName} jest darmowy?", "answer": "Zabawa jest darmowa: każdy tryb, każda opcja personalizacji, dźwięk i Znajdź symulację, bez zakładania konta. Nagrywanie i eksport filmów należą do Pro – 10 $ miesięcznie lub 79 $ rocznie." },
+    "q1": { "question": "Czy {siteName} jest darmowy?", "answer": "Tak: każdy tryb, każda opcja personalizacji, dźwięk i Znajdź symulację – a także nagrywanie i eksport filmów – bez zakładania konta. Filmy tworzone za darmo mają mały znak wodny; Pro go usuwa za 10 $ miesięcznie lub 79 $ rocznie." },
     "q2": { "question": "Jakie formaty i rozdzielczości wideo mogę eksportować?", "answer": "Możesz nagrywać klipy 500×500 (kwadrat), 1280×720 (HD), 1920×1080 (Full HD) i 1080×1920 (pionowo, TikTok) o długości od 10 do 120 sekund. Przeglądarki obsługujące nagrywanie MP4 eksportują MP4, pozostałe WebM." },
     "q3": { "question": "Czy mogę używać wyeksportowanych filmów komercyjnie?", "answer": "Tak. Wszystko, co stworzysz, należy do Ciebie i możesz tego używać na TikToku, YouTube, Instagramie lub gdziekolwiek indziej, bez podawania źródła." },
     "q4": { "question": "Czy muszę coś instalować?", "answer": "Nie. Całe narzędzie działa w przeglądarce. Otwórz stronę i zacznij tworzyć." },
@@ -2064,7 +2064,7 @@
     "metaTitle": "Regulamin – {siteName}",
     "metaDescription": "Regulamin serwisu {siteDomain}",
     "acceptance": { "title": "1. Akceptacja regulaminu", "content": "Korzystając z serwisu {siteDomain} („Serwis”), akceptujesz niniejszy regulamin. Jeśli nie zgadzasz się z którymkolwiek jego punktem, nie korzystaj z Serwisu." },
-    "description": { "title": "2. Opis usługi", "content": "{siteName} to przeglądarkowe narzędzie do symulacji fizyki, służące do tworzenia animacji odbijającej się piłki, dostosowywania ich wyglądu i zachowania oraz eksportowania jako plików wideo. Korzystanie z symulatora jest darmowe; nagrywanie i eksport plików wideo wymaga licencji Pro (zob. Subskrypcje Pro). Serwis jest udostępniany „tak jak jest”, bez gwarancji dostępności ani ciągłości działania." },
+    "description": { "title": "2. Opis usługi", "content": "{siteName} to przeglądarkowe narzędzie do symulacji fizyki, służące do tworzenia animacji odbijającej się piłki, dostosowywania ich wyglądu i zachowania oraz eksportowania jako plików wideo. Korzystanie z symulatora i eksport filmów są darmowe; filmy wyeksportowane bez licencji Pro mają znak wodny (zob. Subskrypcje Pro). Serwis jest udostępniany „tak jak jest”, bez gwarancji dostępności ani ciągłości działania." },
     "ugc": {
       "title": "3. Treści użytkowników",
       "subtitle": "Korzystając z Serwisu, możesz:",
@@ -2092,7 +2092,7 @@
     "lastUpdated": "Ostatnia aktualizacja",
     "metaTitle": "Zastrzeżenia – {siteName}",
     "metaDescription": "Zastrzeżenia {siteName}: jak udostępniane jest narzędzie, czego nie gwarantuje i jaki ma związek z platformami zewnętrznymi.",
-    "general": { "title": "Informacje ogólne", "content": "{siteName} ({siteDomain}) to narzędzie do tworzenia filmów z animacjami fizycznymi w przeglądarce: zabawa symulatorem jest darmowa, a eksport filmów należy do Pro. Jego funkcje i treści służą celom ogólnym i rozrywkowym. Korzystając z narzędzia, akceptujesz te zastrzeżenia w całości; jeśli nie zgadzasz się z którymkolwiek punktem, nie korzystaj ze strony." },
+    "general": { "title": "Informacje ogólne", "content": "{siteName} ({siteDomain}) to narzędzie do tworzenia filmów z animacjami fizycznymi w przeglądarce: zabawa symulatorem i eksport filmów są darmowe, ze znakiem wodnym, który usuwa Pro. Jego funkcje i treści służą celom ogólnym i rozrywkowym. Korzystając z narzędzia, akceptujesz te zastrzeżenia w całości; jeśli nie zgadzasz się z którymkolwiek punktem, nie korzystaj ze strony." },
     "noGuarantee": { "title": "Brak gwarancji rezultatów", "content": "{siteName} pomaga tworzyć filmy. Nie obiecuje, że staną się one viralowe ani że zdobędą wyświetlenia, obserwujących, zaangażowanie czy dochód. Odniesienia do filmów „stających się viralowymi” opisują możliwości formatu, a nie gwarantowany rezultat. Wyniki na TikToku, Instagramie, YouTube lub innej platformie zależą od czynników poza naszą kontrolą, w tym algorytmu platformy, Twoich widzów i Twoich treści." },
     "noAffiliation": { "title": "Brak powiązań z platformami zewnętrznymi", "content": "{siteName} to niezależny projekt. Nie jest powiązany, wspierany, sponsorowany ani związany z TikTokiem, Instagramem, Meta, YouTube, Google ani żadną inną platformą wymienioną na tej stronie. Nazwy produktów, logo i znaki towarowe należą do ich właścicieli i są używane wyłącznie do opisania, gdzie można udostępniać filmy." },
     "yourContent": { "title": "Twoje treści i Twoja odpowiedzialność", "content": "Odpowiadasz za treści, które tworzysz i wgrywasz, w tym obrazy, dźwięki, teksty i logo. Nie używaj materiałów, do których nie masz praw. Odpowiadasz też za przestrzeganie zasad platform, na których publikujesz, i za zgodność z obowiązującym prawem. {siteName} nie sprawdza ani nie moderuje tego, co tworzą użytkownicy." },
@@ -2136,19 +2136,19 @@
     "openManually": "Jeśli nic się nie otworzyło, użyj tego linku."
   },
   "TikTokBallVideos": {
-    "metaTitle": "Twórz filmy z odbijającą się piłką na TikToka – zabawa za darmo, eksport z Pro – {siteName}",
-    "metaDescription": "Twórz hipnotyzujące filmy z odbijającą się piłką na TikToka z {siteName}: narzędzie przeglądarkowe z {count} trybami i własną fizyką do zabawy za darmo, a pionowy eksport 1080×1920 daje Pro. Bez rejestracji.",
+    "metaTitle": "Twórz filmy z odbijającą się piłką na TikToka – zabawa i eksport za darmo – {siteName}",
+    "metaDescription": "Twórz hipnotyzujące filmy z odbijającą się piłką na TikToka z {siteName}: narzędzie przeglądarkowe z {count} trybami i własną fizyką, darmowe do zabawy i do pionowego eksportu 1080×1920 (Pro usuwa znak wodny). Bez rejestracji.",
     "badge": "Treści na TikToka",
     "navLabel": "Filmy z piłką na TikToka",
     "title": "Filmy z odbijającą się piłką na TikToka",
-    "p1": "Symulacje odbijającej się piłki to jeden z najbardziej niezawodnych formatów na TikToku. Założenie jest maleńkie, piłka uwięziona w pierścieniach z wąskimi szczelinami próbuje się wydostać, ale finał jest na tyle satysfakcjonujący, że utrzymuje uwagę przez cały krótki klip. {siteName} to narzędzie przeglądarkowe stworzone dokładnie do takich treści: kontrolą fizyki i efektami wizualnymi bawisz się za darmo, a Pro dodaje pionowy eksport jednym kliknięciem.",
+    "p1": "Symulacje odbijającej się piłki to jeden z najbardziej niezawodnych formatów na TikToku. Założenie jest maleńkie, piłka uwięziona w pierścieniach z wąskimi szczelinami próbuje się wydostać, ale finał jest na tyle satysfakcjonujący, że utrzymuje uwagę przez cały krótki klip. {siteName} to narzędzie przeglądarkowe stworzone dokładnie do takich treści: kontrola fizyki, efekty wizualne i pionowy eksport jednym kliknięciem są darmowe, a Pro zdejmuje z filmów znak wodny.",
     "p2": "Format działa dzięki wbudowanemu łukowi napięcia. Piłka rykoszetuje coraz szybciej, ściany się zaciskają, szczelina wygląda na niemożliwie małą, aż w końcu piłka się prześlizguje i wszystko wybucha konfetti, rozbiciem lub falą uderzeniową. Ta pętla naturalnie mieści się w 15–60 sekundach, czyli tam, gdzie zaangażowanie na TikToku jest najwyższe.",
     "h2_1": "Dlaczego to działa na TikToku",
     "p3": "TikTok nagradza filmy oglądane do końca i odtwarzane ponownie. Fizyka piłki robi jedno i drugie: ludzie zostają, aby zobaczyć, czy piłka ucieknie, i oglądają ponownie, aby wyłapać efekty, które przegapili. Format pasuje też do kultury dźwięku na TikToku: {siteName} może odtwarzać melodię nuta po nucie przy każdym uderzeniu w ścianę, zamieniając fizykę w występ muzyczny.",
     "p4": "Nie ma dialogów, twarzy na ekranie ani przygotowań. Tylko czysty wizualny haczyk, który działa nawet jako tło dla przewijającego widza, dlatego format regularnie wygrywa z bardziej dopracowanymi treściami w feedzie odkrywania.",
     "h2_2": "Eksportuj we właściwym formacie",
     "p5": "Preferowane proporcje TikToka to pionowe 9:16, czyli 1080×1920 pikseli. {siteName} nagrywa bezpośrednio w tym rozmiarze, więc nie ma kadrowania, ponownego kodowania ani zewnętrznego edytora. Ustaw czas nagrania (10–120 sekund), naciśnij nagrywanie i pobierz gotowy klip.",
-    "p6": "Możesz też eksportować 500×500 (kwadrat), 1280×720 (HD) lub 1920×1080 (Full HD) na Reels, YouTube Shorts i inne platformy. Nagrywanie odbywa się w całości w przeglądarce; nic nie jest wgrywane i nie dodajemy znaku wodnego, chyba że sam go dodasz.",
+    "p6": "Możesz też eksportować 500×500 (kwadrat), 1280×720 (HD) lub 1920×1080 (Full HD) na Reels, YouTube Shorts i inne platformy. Nagrywanie odbywa się w całości w przeglądarce i nic nie jest wgrywane. Filmy tworzone za darmo mają mały znak wodny {siteName}, który usuwa Pro; własny znak wodny jest opcjonalny.",
     "h2_3": "Zacznij od sprawdzonego formatu",
     "p7": "Najlepsze filmy z piłką na TikToku mają prosty przepis: wyraźny wizualny haczyk w pierwszej sekundzie, widoczny wskaźnik postępu, np. liczba pozostałych ścian, i satysfakcjonujący finał, gdy piłka w końcu ucieka. Funkcja Znajdź symulację wyszukuje seed dający symulację o docelowej długości, więc możesz zaplanować klip zamiast zgadywać.",
     "p8": "Każdy tryb, od Klasycznego i Mnożenia po Spadające piłki, Wyścig kwadratów i Rozbijanie szkła, ma inny rytm, więc możesz urozmaicać treści bez zaczynania od zera. Zapisz ulubione konfiguracje jako presety i publikuj nowy film codziennie jednym kliknięciem.",
@@ -2156,13 +2156,13 @@
   },
   "About": {
     "metaTitle": "O {siteName} – kreator filmów z fizyką piłki",
-    "metaDescription": "Historia {siteName}: przeglądarkowego narzędzia – zabawa za darmo, eksport z Pro – do tworzenia filmów z odbijającą się piłką, które stają się viralowe na TikToku, Reels i YouTube Shorts.",
+    "metaDescription": "Historia {siteName}: przeglądarkowego narzędzia – zabawa i eksport za darmo, Pro bez znaku wodnego – do tworzenia filmów z odbijającą się piłką, które stają się viralowe na TikToku, Reels i YouTube Shorts.",
     "metaOgTitle": "O {siteName}",
     "metaOgDescription": "Dlaczego {siteName} istnieje i dla kogo jest.",
     "badge": "O nas",
     "title": "O {siteName}",
     "p1": "{siteName} zaczął się od prostej frustracji. Filmy z fizyką odbijającej się piłki były wszędzie i zbierały miliony wyświetleń, a każdy sposób na ich zrobienie był toporny: nauczyć się silnika gier, zapłacić za aplikację albo ponownie opublikować klip, którego użyło już tysiąc innych kont. Nic z tego nie pasowało komuś, kto po prostu chciał zrobić dobry film i go opublikować. Zbudowaliśmy więc narzędzie, którego nam brakowało: otwórz kartę, zrób film, pobierz, gotowe.",
-    "p2": "Ten pomysł nadal napędza całą stronę. {siteName} jest darmowy, działa w przeglądarce i niczego od Ciebie nie wymaga przed startem. Bez rejestracji i instalacji: każdy tryb i każde ustawienie są do Twojej dyspozycji, a Pro dodaje eksport filmu, gdy klip jest gotowy do publikacji. Domyślne ustawienia od razu dają coś wartego publikacji; reszta to Twoje dopasowanie do własnego pomysłu.",
+    "p2": "Ten pomysł nadal napędza całą stronę. {siteName} jest darmowy, działa w przeglądarce i niczego od Ciebie nie wymaga przed startem. Bez rejestracji i instalacji: każdy tryb i każde ustawienie są do Twojej dyspozycji, tak samo jak eksport filmu – darmowe filmy mają mały znak wodny, który usuwa Pro. Domyślne ustawienia od razu dają coś wartego publikacji; reszta to Twoje dopasowanie do własnego pomysłu.",
     "h2_1": "Na czym nam zależy",
     "p3": "Na szybkości i kontroli, bardziej niż na czymkolwiek innym. Na szybkości, bo odległość między pomysłem a opublikowanym filmem to miejsce, gdzie umiera większość treści; jeśli klip wymaga dwudziestu minut i trzech aplikacji, przestajesz robić klipy. Na kontroli, bo ponownie publikowane treści nie rozwijają konta. Gdy sam ustalasz tryb, kolory, tempo i haczyk, film jest Twój i ma realną szansę w feedzie, który widział już każdy przetworzony klip.",
     "p4": "Zależy nam też na tym, aby nie wchodzić Ci w drogę. Symulator aktualizuje się w miarę zmian, więc uczysz się przez działanie, a nie czytanie instrukcji. Ustawienia mają proste nazwy. Trudna część, fizyka i rendering, dzieje się po cichu w tle, a Ty skupiasz się na tym, czy film jest przyjemny do oglądania.",
@@ -2174,12 +2174,12 @@
     "p7": "Plan jest taki, aby rdzeń pozostał darmowy i aby dodawać tryby, efekty i ułatwienia, dzięki którym dobry klip powstaje szybciej. Jeśli coś dzięki niemu stworzysz, o to właśnie chodzi. Idź i spraw, żeby piłka rozbiła kilka ścian.",
     "cta": "Otwórz symulator",
     "toolTitle": "Czym właściwie jest {siteName}",
-    "toolP1": "{siteName} to narzędzie przeglądarkowe do tworzenia filmów z odbijającą się piłką, które wypełniają TikToka, Reels i YouTube Shorts. Wybierz tryb, popraw kilka ustawień i patrz, jak gra – wszystko za darmo, bez konta, instalacji i edytora wideo. Gdy klip jest gotowy, Pro go nagrywa i pozwala go pobrać; wszystko dzieje się w karcie, którą już masz otwartą, więc pomysł zamienia się w gotowy film w kilka minut.",
+    "toolP1": "{siteName} to narzędzie przeglądarkowe do tworzenia filmów z odbijającą się piłką, które wypełniają TikToka, Reels i YouTube Shorts. Wybierz tryb, popraw kilka ustawień i patrz, jak gra – wszystko za darmo, bez konta, instalacji i edytora wideo. Gdy klip jest gotowy, nagraj go i pobierz – darmowe filmy mają mały znak wodny, a Pro eksportuje je bez niego; wszystko dzieje się w karcie, którą już masz otwartą, więc pomysł zamienia się w gotowy film w kilka minut.",
     "toolP2": "Format działa, bo jest prosty. Piłka odbija się w pierścieniu ze szczeliną. Za każdym razem, gdy się prześlizgnie, coś się dzieje: ściana się rozpada, piłka się mnoży, kolor zalewa ekran, cel zostaje trafiony. Widzowie chcą wiedzieć, jak to się skończy, więc oglądają dalej. Ta mała pętla napięcia i ulgi napędza wyświetlenia, a tutaj kontrolujesz każdy jej element, zamiast publikować cudzy klip.",
     "tweakTitle": "Stworzony do majstrowania",
     "tweakP": "Wygląd należy do Ciebie. Dodaj pierścienie dla dłuższego budowania napięcia lub usuń je dla szybkiego finału. Włącz tęczowe ściany, przełączaj efekt przebicia między konfetti, rozbiciem i falą uderzeniową albo połącz wszystkie trzy. Dodaj kolce dla zagrożenia, poświatę dla szlifu i kolorowy ślad, aby szybki ruch wyglądał celowo. Umieść własny obrazek na piłce, napisz haczyk w stylu „czy ucieknie?” u góry i wgraj melodię, aby odbicia trafiały w rytm. Małe zmiany mają znaczenie: jeden dodatkowy pierścień może zdecydować o tym, czy klip zostanie przewinięty, czy obejrzany dwa razy.",
     "exportTitle": "Nagraj, wyeksportuj, opublikuj",
-    "exportP": "Gdy symulacja wygląda dobrze, nagraj ją w przeglądarce i wyeksportuj film w rozmiarze pionowych feedów. Bez aplikacji do nagrywania ekranu, bez niechcianego znaku wodnego, bez ponownego kodowania. Znalazłeś kombinację, która Ci się podoba? Zapisz ją jako preset i używaj w całej serii; wiele kont publikuje ten sam tryb codziennie z drobnymi zmianami."
+    "exportP": "Gdy symulacja wygląda dobrze, nagraj ją w przeglądarce i wyeksportuj film w rozmiarze pionowych feedów. Bez aplikacji do nagrywania ekranu i bez ponownego kodowania; w planie darmowym film ma mały znak wodny, który usuwa Pro. Znalazłeś kombinację, która Ci się podoba? Zapisz ją jako preset i używaj w całej serii; wiele kont publikuje ten sam tryb codziennie z drobnymi zmianami."
   },
   "Rigged": {
     "outcome": "Wynik",
@@ -3151,7 +3151,7 @@
   "DesktopLink": {
     "navLabel": "Aplikacja Windows",
     "heroButton": "Pobierz dla Windows",
-    "heroNote": "Pobieranie za darmo · renderowanie na GPU z Pro · wbudowana AI"
+    "heroNote": "Pobieranie za darmo · renderowanie na GPU · wbudowana AI"
   },
   "Desktop": {
     "groupTitle": "Studio desktopowe",
@@ -3384,7 +3384,7 @@
     "libDelete": "Usuń plik",
     "libDeleteConfirm": "Przenieść {name} do kosza?",
     "metaTitle": "Pobierz {siteName} dla Windows – renderowanie wideo na GPU i wbudowana AI",
-    "metaDescription": "Cały symulator {siteName} jako aplikacja Windows: renderuj klipy na GPU (NVENC, AMF, Quick Sync), renderuj całe kolejki prosto do folderu i planuj filmy z wbudowaną AI, która działa offline. Do pobrania za darmo; renderowanie filmów wymaga Pro.",
+    "metaDescription": "Cały symulator {siteName} jako aplikacja Windows: renderuj klipy na GPU (NVENC, AMF, Quick Sync), renderuj całe kolejki prosto do folderu i planuj filmy z wbudowaną AI, która działa offline. Do pobrania za darmo; filmy renderowane bez Pro mają znak wodny.",
     "badge": "Aplikacja Windows",
     "title": "{siteName} dla Windows",
     "intro": "Wszystko, co symulator robi w przeglądarce, i to, czego przeglądarka nie potrafi: Twoje GPU renderuje i koduje filmy, kolejka renderowania przerabia całe serie, gdy robisz coś innego, a studio AI – działające na Twoim komputerze, offline – planuje klipy, pisze opisy i zmienia za Ciebie ustawienia.",
@@ -3456,7 +3456,7 @@
     "hero": {
       "eyebrow": "Studio fizyki piłek",
       "title": "Hipnotyzująca fizyka piłek, gotowa na TikToka.",
-      "sub": "Dostrój fizykę, wybierz jeden z {count} trybów i baw się każdym ustawieniem – za darmo, w przeglądarce, bez konta. Pionowy klip gotowy do publikacji wyeksportujesz z Pro.",
+      "sub": "Dostrój fizykę, wybierz jeden z {count} trybów i baw się każdym ustawieniem – za darmo, w przeglądarce, bez konta. Wyeksportuj pionowy klip gotowy do publikacji – Pro usuwa znak wodny.",
       "seeModes": "Zobacz tryby",
       "live": "Na żywo",
       "preview": "Podgląd",
@@ -3526,13 +3526,13 @@
     "canvasTimeUp": "KONIEC CZASU"
   },
   "Billing": {
-    "metaTitle": "Cennik – darmowa zabawa, filmy z Pro – {siteName}",
-    "metaDescription": "Wszystkie tryby i ustawienia {siteName} są darmowe. Pro odblokowuje nagrywanie i eksport filmów za {monthly} miesięcznie lub {yearly} rocznie – kartą, przez PayPal albo w kryptowalutach.",
+    "metaTitle": "Cennik – darmowa zabawa i eksport, Pro bez znaku wodnego – {siteName}",
+    "metaDescription": "Wszystkie tryby i ustawienia {siteName} są darmowe, tak samo jak eksport filmów – z małym znakiem wodnym. Pro usuwa znak wodny za {monthly} miesięcznie lub {yearly} rocznie – kartą, przez PayPal albo w kryptowalutach.",
     "eyebrow": "Cennik",
-    "title": "Baw się za darmo. Filmy twórz z Pro.",
-    "lede": "Każdy tryb, każde ustawienie i każdy dźwięk są darmowe, bez zakładania konta. Pro dodaje wszystko, co zamienia przebieg w plik wideo: Nagraj wideo, szybki eksport, renderowanie seryjne, filmy bota, publikowanie i kolejkę renderowania w aplikacji na komputer.",
+    "title": "Baw się i eksportuj za darmo. Z Pro bez znaku wodnego.",
+    "lede": "Każdy tryb, każde ustawienie i każdy dźwięk są darmowe, bez zakładania konta – tak samo tworzenie filmów: Nagraj wideo, szybki eksport, renderowanie seryjne, filmy bota i kolejka renderowania w aplikacji na komputer działają dla wszystkich. Filmy z planu darmowego mają mały znak wodny; Pro eksportuje je bez niego i dodaje publikowanie.",
     "testMode": "Licencjonowanie działa w trybie testowym – płatności nie są jeszcze skonfigurowane.",
-    "why": "Nagrywanie i eksport filmów to funkcja Pro – cała reszta jest darmowa.",
+    "why": "Filmy z planu darmowego mają mały znak wodny – Pro go usuwa.",
     "proTag": "Pro",
     "proFeature": "Funkcja Pro",
     "plansTitle": "Plany Pro",
@@ -3574,7 +3574,7 @@
       "included": "W zestawie",
       "notIncluded": "Brak",
       "playTitle": "Wszystko, co służy zabawie",
-      "createTitle": "Wszystko, co tworzy plik wideo",
+      "createTitle": "Tworzenie filmów",
       "play": {
         "modes": "Każdy tryb i każde ustawienie",
         "sound": "Dźwięk, melodie i własne nagrania",
@@ -3590,7 +3590,9 @@
         "bot": "Filmy renderowane przez bota",
         "publish": "Publikowanie na TikToku, Instagramie i YouTube",
         "desktop": "Kolejka renderowania i kodowanie na GPU w aplikacji na komputer"
-      }
+      },
+      "withWatermark": "Ze znakiem wodnym",
+      "noWatermark": "Bez znaku wodnego"
     },
     "claim": {
       "title": "Twój zakup",
@@ -3642,22 +3644,22 @@
     "account": {
       "label": "Konto",
       "checking": "Sprawdzanie licencji…",
-      "free": "Darmowy – odblokuj tworzenie filmów",
-      "freeExpired": "Twoja licencja Pro wygasła – odblokuj tworzenie filmów ponownie",
-      "freeInvalid": "Zapisana licencja była nieprawidłowa – odblokuj tworzenie filmów",
+      "free": "Darmowy – Twoje filmy mają znak wodny",
+      "freeExpired": "Twoja licencja Pro wygasła – filmy znów mają znak wodny",
+      "freeInvalid": "Zapisana licencja była nieprawidłowa – filmy mają znak wodny",
       "pro": "Pro – {plan} do {date}",
       "renews": "Pro – {plan}, odnowienie {date}",
       "ends": "Pro – {plan}, kończy się {date}",
       "grace": "Pro – {plan}, płatność w toku, działa do {date}",
-      "unlock": "Odblokuj",
+      "unlock": "Usuń znak wodny",
       "restore": "Przywróć",
       "manage": "Zarządzaj",
       "renewing": "Odnawianie licencji…"
     },
     "dialog": {
-      "title": "Odblokuj tworzenie filmów",
+      "title": "Usuń znak wodny",
       "feature": "{feature} należy do Pro.",
-      "unlocked": "Twoja licencja jest aktywna – zamknij to okno i naciśnij przycisk jeszcze raz.",
+      "unlocked": "Twoja licencja jest aktywna – kolejne nagrania i eksporty nie będą miały znaku wodnego.",
       "seePricing": "Porównaj Darmowy i Pro",
       "restore": "Już zapłaciłeś? Przywróć zakup",
       "close": "Zamknij"
@@ -3684,10 +3686,11 @@
       "renew": "Subskrypcje kartą i przez PayPal odnawiają się same, dopóki z nich nie zrezygnujesz – w każdej chwili, przez Zarządzaj subskrypcją na tej stronie.",
       "crypto": "Kryptowaluta opłaca okres z góry (30 dni w planie miesięcznym, 365 w rocznym); nic nie odnawia się samo.",
       "licence": "Licencja to podpisany klucz zapisany w tej przeglądarce – strona nie potrzebuje konta ani hasła.",
-      "devices": "Na innym urządzeniu lub w innej przeglądarce przywróć zakup e-mailem i numerem referencyjnym pokazanym po płatności – albo wklej klucz licencji."
+      "devices": "Na innym urządzeniu lub w innej przeglądarce przywróć zakup e-mailem i numerem referencyjnym pokazanym po płatności – albo wklej klucz licencji.",
+      "watermark": "Znak wodny jest wrysowany w sam film. Z licencją Pro w tej przeglądarce każde nagranie lub eksport, które potem rozpoczniesz, jest czyste."
     },
     "landing": {
-      "line": "Zabawa jest darmowa. Tworzenie filmów to Pro, od {price} miesięcznie.",
+      "line": "Zabawa i eksport są darmowe – ze znakiem wodnym. Pro go usuwa, od {price} miesięcznie.",
       "link": "Zobacz cennik"
     },
     "privacy": {
@@ -3696,7 +3699,7 @@
     },
     "terms": {
       "title": "Subskrypcje Pro",
-      "content": "Zabawa symulatorem jest darmowa. Nagrywanie i eksport filmów wymagają licencji Pro: 10 $ miesięcznie lub 79 $ rocznie. Subskrypcje kartą i przez PayPal odnawiają się automatycznie, dopóki ich nie anulujesz (w portalu klienta Stripe lub na koncie PayPal); płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu."
+      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe; filmy utworzone bez licencji Pro mają znak wodny. Pro – 10 $ miesięcznie lub 79 $ rocznie – eksportuje je bez znaku wodnego i dodaje publikowanie na Twoich kontach. Subskrypcje kartą i przez PayPal odnawiają się automatycznie, dopóki ich nie anulujesz (w portalu klienta Stripe lub na koncie PayPal); płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu."
     },
     "paste": {
       "title": "Wklej klucz licencji",
@@ -3866,5 +3869,12 @@
     "GB": "Wielka Brytania",
     "US": "USA",
     "VN": "Wietnam"
+  },
+  "Watermark": {
+    "tag": "Znak wodny",
+    "tagTip": "Plan darmowy: ten film dostanie znak wodny – Pro go usuwa",
+    "note": "Plan darmowy: filmy nagrane lub wyeksportowane tutaj mają mały znak wodny {siteName}.",
+    "noteRecording": "Nagrywanie w planie darmowym: ten film ma znak wodny {siteName}.",
+    "remove": "Usuń znak wodny"
   }
 }

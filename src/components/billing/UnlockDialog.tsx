@@ -12,6 +12,9 @@ import TestModeNote from "./TestModeNote";
 import { pricingHref, useBilling, useLicenseRenewal, useNewTabLinks } from "./useBilling";
 
 /*
+ * --- free-watermark --- Titled "Remove the watermark" now: the account row's button, the note under the stage and the lock
+ * on Publish (the one action still refused without Pro) open it; the copy says what Free makes (watermarked videos) and Pro.
+ *
  * --- paywall-gate --- The Unlock dialog every locked action opens (through the guard's refusal, lib/billing/unlock.ts):
  * one line of why, the two plans with their pay buttons, a link to the pricing page and to Restore purchase, the test-mode
  * line; Escape, the scrim and the close button close it (components/ui/Dialog.tsx). `UnlockDialogHost` listens for the

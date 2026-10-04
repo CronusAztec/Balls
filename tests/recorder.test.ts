@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { MIME_CANDIDATES, VideoRecorder, recordingExtension } from "@/lib/recording/recorder";
 
-// --- paywall-gate --- Record Video asks the paywall's guard first; these tests are about the recorder's formats and start, so
-// the guard grants here (tests/billingEntitlement.test.ts checks that the recorder refuses without a licence).
-vi.mock("@/lib/billing/guard", () => ({ requireEntitlement: async () => ({ ok: true, feature: "record", plan: "yearly", expiresAt: Number.MAX_SAFE_INTEGER }) }));
+// --- free-watermark --- (was paywall-gate: the guard was mocked to grant) Record Video no longer asks the paywall's guard: it
+// seals the watermark decision itself (lib/watermark/seal.ts) and starts for everyone – without a licence (Node has no
+// localStorage) its frames carry the watermark, which tests/freeWatermark.test.ts checks.
 
 /*
  * --- review fix (recording-export) --- Record Video's container and codecs: MP4 only with H.264 (+ AAC), WebM otherwise –
@@ -125,9 +125,14 @@ describe("Record Video's start (review fix: security-robustness)", () => {
   });
 
   it("starts the draw loop once the capture works", async () => {
-    // A 2D context whose every method is a no-op (the first frame is drawn right away)
-    const noop = () => ({ width: 0 });
-    const ctx2d = new Proxy({}, { get: () => noop, set: () => true });
+    // A 2D context whose every method is a no-op (the first frame is drawn right away). --- free-watermark --- Deep: what a
+    // method returns (a gradient, a pattern) answers every call too, and getImageData() reads ink – the watermark's layers are
+    // built on such canvases and checked for not being blank.
+    const ctx2d: unknown = new Proxy(function () {}, {
+      get: (_target, prop) => (prop === "data" ? new Uint8ClampedArray([0, 0, 0, 255]) : prop === "width" ? 0 : ctx2d),
+      apply: () => ctx2d,
+      set: () => true,
+    });
     const pending = stubDom(() => ({ getContext: () => ctx2d, captureStream: () => ({ getVideoTracks: () => [] }) }));
     const recorder = new VideoRecorder(source);
     await expect(recorder.startRecording({ resolution: { width: 1080, height: 1920 } })).resolves.toBe(true);

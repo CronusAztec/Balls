@@ -9,6 +9,8 @@ import { IconLock } from "./LockBadge";
 import { pricingHref, useNewTabLinks } from "./useBilling";
 
 /*
+ * --- free-watermark --- "Free – your videos carry a watermark" with Remove watermark (the Unlock dialog) and Restore now.
+ *
  * --- paywall-gate --- The account row of the studio, at the top of the Recording group (where video creation and the
  * Publish block live): "Free – unlock video creation" with Unlock and Restore, or "Pro – <plan> until <date>" ("renews /
  * ends on <date>" near the end) with Manage and Restore; for a subscription's licence that ran out, "Renewing your

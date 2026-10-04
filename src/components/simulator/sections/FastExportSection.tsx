@@ -7,7 +7,7 @@ import { IconBolt } from "@/components/ui/icons"; // --- site-redesign ---
 import { Searchable, offBtn, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import { FAST_EXPORT_FPS, FAST_EXPORT_RANGES, realtimeFactor, resolveFastExportFps, type FastExportPhase } from "@/lib/recording/fastRenderPlan";
 import NumberField from "../NumberField"; // --- uncap-all ---
-import LockBadge from "@/components/billing/LockBadge"; // --- paywall-gate ---
+import WatermarkBadge from "@/components/billing/WatermarkBadge"; // --- free-watermark --- (was the paywall's lock: everyone renders, watermarked without Pro)
 import type { SimulatorSettings } from "@/lib/settings";
 
 /*
@@ -100,7 +100,7 @@ export function FastExportButton({ state, disabled, handPlay = false, onStart, o
         <button type="button" onClick={onStart} disabled={disabled || handPlay} title={t("buttonTip")} className={buttonClass({ variant: "secondary", size: "sm" })}>
           <IconBolt size={16} />
           <span className={labelClassName}>{t("button")}</span>
-          <LockBadge /* --- paywall-gate --- */ />
+          <WatermarkBadge compact /* --- free-watermark --- */ />
         </button>
       )}
     </div>

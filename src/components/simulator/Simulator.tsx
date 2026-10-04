@@ -144,12 +144,13 @@ import {
   type SimulatorSettings,
 } from "@/lib/settings";
 import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n) --- no smooth scrolling under reduced motion
-// --- paywall-gate --- video creation is Pro: the guard, the Unlock dialog and the lock on the Record button
-import { EntitlementRequiredError, requireEntitlement } from "@/lib/billing/guard";
-import { requestUnlock } from "@/lib/billing/unlock";
-import LockBadge from "@/components/billing/LockBadge";
+// --- paywall-gate --- the Unlock dialog ("Remove the watermark"; Publish is a Pro feature)
 import { UnlockDialogHost } from "@/components/billing/UnlockDialog";
 // --- end paywall-gate ---
+// --- free-watermark --- everyone records and exports; videos without a Pro licence carry the watermark (lib/watermark/seal.ts)
+import WatermarkBadge from "@/components/billing/WatermarkBadge";
+import FreeWatermarkNote from "./sections/FreeWatermarkNote";
+// --- end free-watermark ---
 
 const SPEEDS = [1, 2, 4, 8];
 /** --- review fix (site-redesign) --- the transport bar's speed choices (the kit's Segmented control). */
@@ -1838,13 +1839,7 @@ export default function Simulator() {
       await stopRecordingAndDownload();
       return;
     }
-    // --- paywall-gate --- Record Video is a Pro feature: a free visitor gets the Unlock dialog and nothing starts
-    const entitled = await requireEntitlement("record");
-    if (!entitled.ok) {
-      requestUnlock(entitled);
-      return;
-    }
-    // --- end paywall-gate ---
+    // --- free-watermark --- (was paywall-gate: Record Video is no longer refused – the recorder seals whether it is watermarked)
     // --- review fix (recording-export) --- a finished run (its end screen, or the hold before it) is recorded again from
     // its own seed, as the fast export renders it – not as half a second of the frozen end screen. restartRun() clears
     // `finished` in this same handler, so the stop-after-the-finish effect below never sees the old run's end.
@@ -1877,10 +1872,7 @@ export default function Simulator() {
     if (!ok) {
       canvasRef.current?.setRecording(false);
       setIsRecording(false);
-      // --- paywall-gate --- the recorder's own guard refused (the licence went away meanwhile): the Unlock dialog, not an error
-      const refusal = recorderRef.current?.lastRefusal() ?? null;
-      if (refusal) requestUnlock(refusal);
-      else setRecordingError(true); // --- review fix (security-robustness) --- (said under the canvas)
+      setRecordingError(true); // --- review fix (security-robustness) --- (said under the canvas) --- free-watermark --- (no refusal any more)
       return;
     }
     // --- review fix (modes-gerald-odd) --- the clip is measured on the run's pace: the camera's slow motion stretches the real time
@@ -1966,15 +1958,7 @@ export default function Simulator() {
     batchExportRef.current = null;
     const page = engineRef.current;
     if (!page || fastAbortRef.current || isRecording || isSearching) return;
-    // --- paywall-gate --- the fast export is a Pro feature: a free visitor gets the Unlock dialog and nothing starts
-    if (!batchJob) {
-      const entitled = await requireEntitlement("fastExport");
-      if (!entitled.ok) {
-        requestUnlock(entitled);
-        return;
-      }
-    }
-    // --- end paywall-gate ---
+    // --- free-watermark --- (was paywall-gate: the fast export is no longer refused – renderFast seals whether it is watermarked)
     const s = settings;
     // --- jdm-rhythm-runner --- a run played by hand needs its player: the export's fresh engine would run it with no input
     // (the button is off and says so; the batch render fails such a job with its own reason before it gets here).
@@ -2061,11 +2045,7 @@ export default function Simulator() {
       }
     } catch (err) {
       batchJob?.settle({ error: err instanceof Error ? err.message : String(err) }); // --- batch-render ---
-      if (err instanceof EntitlementRequiredError) {
-        // --- paywall-gate --- renderFast's own guard refused (the licence went away meanwhile)
-        requestUnlock(err.refusal);
-        setFastExport({ status: "idle" });
-      } else if (err instanceof FastRenderUnsupportedError) setFastExport({ status: "fallback", reason: "codecs" });
+      if (err instanceof FastRenderUnsupportedError) setFastExport({ status: "fallback", reason: "codecs" }); // --- free-watermark --- (no refusal to turn into the Unlock dialog any more)
       else {
         console.warn("Fast export failed:", err);
         setFastExport({ status: "error", message: err instanceof Error ? err.message : String(err) });
@@ -3328,7 +3308,7 @@ export default function Simulator() {
             icon={isRecording ? <IconStop size={16} /> : <IconRecord size={16} className="text-danger" />}
           >
             <span className="sr-only @[44rem]:not-sr-only">{isRecording ? t("Controls.stopExport") : t("Controls.recordVideo")}</span>
-            {!isRecording && <LockBadge /> /* --- paywall-gate --- */}
+            {!isRecording && <WatermarkBadge compact /> /* --- free-watermark --- (was the paywall's lock) */}
           </Button>
           <FastExportButton {...fastExportPanel} labelClassName="sr-only @[60rem]:not-sr-only" /* --- fast-render --- */ />
           <Button variant="ghost" size="sm" onClick={copyShareLink} icon={shareCopied ? <IconCheck size={16} className="text-accent" /> : <IconLink size={16} />}>
@@ -3427,6 +3407,7 @@ export default function Simulator() {
         {/* --- fast-render --- how the last fast export went (or why it is off) */}
         <FastExportStatus state={fastExport} supported={fastSupported} handPlay={handPlayed} />
         <p className="text-xs text-ink-3">{recordingSupported ? t("Simulator.exportFormatNote") : t("Simulator.recordingUnsupported")}</p>
+        <FreeWatermarkNote recording={isRecording} /* --- free-watermark --- videos without Pro carry the watermark */ />
         {/* --- project-files --- a ?c= share code that could not be read */}
         <ShareCodeNotice t={t} notice={shareCode.notice} onDismiss={shareCode.dismiss} />
         {/* --- review fix (security-robustness) --- counts past the soft ceilings, and a recording that could not start */}

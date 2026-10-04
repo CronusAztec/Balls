@@ -2,6 +2,11 @@ import { CLOCK_SKEW_SEC, type Plan } from "./config";
 import { getEntitlementStore, type Entitlement, type EntitlementStore } from "./entitlement";
 
 /*
+ * --- free-watermark --- Since the watermark gate, video creation is no longer refused: everyone records and exports, and a
+ * video without a verified Pro licence carries the watermark (lib/watermark/seal.ts decides that, per recording or export).
+ * This guard now decides what stays Pro beyond the watermark – Publish (`gate("publish")`, the desktop Library's targets) –
+ * and its types name the features the Unlock dialog can mention. The original design, for the record:
+ *
  * --- paywall-gate --- THE guard of video creation. Every way of making a video file asks it first: the page's Record
  * Video (Simulator.tsx `toggleRecording`) and the recorder itself (`VideoRecorder.startRecording`), the fast export
  * (Simulator.tsx `startFastExport` and `renderFast`), the batch runner (useBatchRender's start, which the viral bot's

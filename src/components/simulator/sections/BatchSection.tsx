@@ -10,7 +10,7 @@ import type { BatchJobState, BatchPanelProps } from "../useBatchRender";
 import { IconDownload } from "@/components/ui/icons"; // --- site-redesign ---
 import UncapNumberField, { type NumberFieldProps } from "../NumberField"; // --- uncap-all --- (--- review fix (uncap-all) --- the sweep's fields too)
 import { rulesForRange } from "../unlimitedSlider";
-import LockBadge from "@/components/billing/LockBadge"; // --- paywall-gate ---
+import WatermarkBadge from "@/components/billing/WatermarkBadge"; // --- free-watermark --- (was the paywall's lock: everyone renders, watermarked without Pro)
 
 export type { BatchPanelProps } from "../useBatchRender";
 
@@ -252,7 +252,7 @@ export default function BatchSection({ t, search, matches, batch }: { t: Transla
               className="w-full px-4 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 cursor-pointer border border-accent/60 text-accent bg-surface-1/40 hover:bg-accent/10 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {b("start")}
-              <LockBadge /* --- paywall-gate --- */ />
+              <WatermarkBadge /* --- free-watermark --- */ />
             </button>
             {batch.supported === false && <p className="text-xs text-warn leading-snug">{b("unsupported")}</p>}
           </div>
