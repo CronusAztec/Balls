@@ -9,6 +9,8 @@ import { riggedConfigOf } from "@/lib/physics/rigged";
 import type { ModeId, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import type { FightSoundKind } from "@/lib/physics/types"; // --- fight-league ---
 import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
+import type { LoopSoundKind } from "@/lib/physics/types"; // --- loop-foundation ---
+import { loopPlayOptions, type LoopPlayOptions } from "@/lib/audio/loopEvents"; // --- loop-foundation ---
 import type { SimulatorSettings } from "@/lib/settings";
 import { effectiveBallCount } from "@/lib/teams";
 import { engineTimelineOf } from "./timeline";
@@ -131,6 +133,8 @@ export interface ArenaSoundSink {
   playLandClaim?(kind: "knock" | "spawn" | "ko", frequency?: number, level?: number, accent?: boolean): void;
   /** --- string-circle --- the String Battle circle style's twang of the anchored strings, the snap of strings cut. */
   playStringCircle?(kind: "twang" | "snap", frequency?: number, chord?: readonly number[], level?: number): void;
+  /** --- loop-foundation --- a loop family's voice (lib/audio/loopTones.ts). */
+  playLoop?(kind: LoopSoundKind, frequency?: number, level?: number, opts?: LoopPlayOptions): void;
 }
 
 /**
@@ -152,6 +156,7 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent, arena = 0) 
   if (ev.fight || ev.flCue) return void playFightEvent(sink, ev, EXTRA_ARENA_LEVEL, arena); // --- fight-league --- (a weapon's hit, not a wall hit; --- fl-overhaul --- every cue through the one dispatch, the arena's loops apart)
   if (ev.lcSound) return sink.playLandClaim?.(ev.lcSound, ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.accent); // --- land-claim --- (a knock, a chime, a KO: not a wall hit)
   if (ev.scSound) return sink.playStringCircle?.(ev.scSound, ev.frequency, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- string-circle --- (a twang, a snap: not a wall hit)
+  if (ev.loop) return sink.playLoop?.(ev.loop, ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, loopPlayOptions(ev)); // --- loop-foundation --- (a loop voice, not a wall hit)
   if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.melody !== false);
   else if (ev.type === "gap") sink.playGapPass();
   else if (ev.type === "multiplier") sink.playMultiplier(ev.multiplier ?? 2, ev.melody !== false);

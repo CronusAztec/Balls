@@ -26,6 +26,40 @@ import { flClipLookup, parseWav16, type FlClipRecord } from "./flClips";
 // --- end fl-overhaul ---
 import { DEFAULT_KNOCK_FREQUENCY, DEFAULT_KO_FREQUENCY, lcFrequency, lcLevel, scheduleKnock, scheduleKo, scheduleSpawnChime } from "./landClaimTones"; // --- land-claim ---
 import { scLevel, scheduleSnap, scheduleTwang } from "./stringCircleTones"; // --- string-circle ---
+// --- loop-foundation --- the loop sound families (loopTones.ts), their custom clip slots (loopClips.ts)
+import {
+  LOOP_PLUCK,
+  LoopVoiceBudget,
+  pluckT60,
+  rescaleVoice,
+  scheduleBarStrike,
+  scheduleChime,
+  scheduleCompletionChord,
+  scheduleImpactAccent,
+  scheduleLandThump,
+  scheduleNoiseWash,
+  schedulePentaPluck,
+  scheduleProgressStep,
+  scheduleRatchet,
+  scheduleResetGlide,
+  scheduleRiser,
+  scheduleScanStrike,
+  startDrone,
+  startGrooveBed,
+  LOOP_CHORD,
+  LOOP_DING,
+  LOOP_KICK,
+  type DroneHandle,
+  type GrooveBedHandle,
+  type LoopVoice,
+} from "./loopTones";
+import { LoopClipSlots, type LoopClipSlotId } from "./loopClips";
+import type { LoopPlayOptions } from "./loopEvents";
+export type { LoopPlayOptions } from "./loopEvents";
+import { scheduleKick as scheduleLoopKick } from "./beatDropTones";
+import type { LoopSoundKind } from "@/lib/physics/types";
+import { frequencyToMidi } from "./scales";
+// --- end loop-foundation ---
 import { MusicBed } from "./musicBed";
 import { HitSampler, MAX_VOICES as MAX_SAMPLE_VOICES, hitSamplePlaybackRate, resolveHitSoundSource, wallHitFrequency, type HitSampleStatus, type HitSoundMode } from "./sampler";
 import { SlicePlayer } from "./slicePlayer";
@@ -104,6 +138,11 @@ export function hitPitches(wallIndex: number, pitch: number | undefined, chord: 
   }
   return [pitch !== undefined && pitch > 0 ? pitch : wallHitFrequency(wallIndex)];
 }
+
+// --- loop-foundation ---
+/** The clip slot that stands in for a loop sound's synthesis (null: none). */
+const LOOP_CLIP_OF: Partial<Record<LoopSoundKind, LoopClipSlotId>> = { pluck: "bounce", bar: "barStrike", chime: "chime", step: "progressStep", land: "land", chord: "completion", impact: "impact", glide: "reset", wash: "reset", bed: "bed", drone: "drone" };
+// --- end loop-foundation ---
 
 export class ToneGenerator {
   private audioContext: AudioContext | null = null;
@@ -1214,6 +1253,196 @@ export class ToneGenerator {
   }
   // --- end string-circle ---
 
+  // --- loop-foundation ---
+  /** The loop sounds' voice budget, the notes it can still merge into, the clip slots, the bus the hard cut empties, the bed and drone. */
+  private readonly loopBudget = new LoopVoiceBudget();
+  private readonly loopVoices: (LoopVoice | null)[] = new Array<LoopVoice | null>(12).fill(null);
+  private loopClips = new LoopClipSlots();
+  private loopSegment: GainNode | null = null;
+  private readonly loopOldSegments: GainNode[] = [];
+  private loopBed: GrooveBedHandle | null = null;
+  private loopDrone: DroneHandle | null = null;
+  private loopDroneEnergy = 1;
+
+  /** The owner's custom clips of the loop families (the panel loads, trims and clears them; the session keeps them). */
+  getLoopClips(): LoopClipSlots {
+    return this.loopClips;
+  }
+
+  /** The bus the loop voices play into: the hard cut ("cut") ramps it to silence and the next sound opens a fresh one. */
+  private loopOut(): AudioNode {
+    if (!this.audioContext || !this.masterGain) throw new Error("no audio graph");
+    if (!this.loopSegment) {
+      const seg = this.audioContext.createGain();
+      seg.gain.setValueAtTime(1, this.audioContext.currentTime);
+      seg.connect(this.masterGain);
+      this.loopSegment = seg;
+    }
+    return this.loopSegment;
+  }
+
+  /**
+   * A sound of the loop families (loopTones.ts) at the context's current time – the simulation clock in the fast export –
+   * never moved onto the beat lock's grid (the loop modes time their events onto the music themselves; delaying a sound
+   * would break the picture's sync). A loaded clip of the event's slot (loopClips.ts) plays instead of the synthesis. The
+   * notes keep the voice budget (6 new a tick, 24 at once, a same-pitch hit within 30 ms merged); plucks, bars, steps, chimes
+   * and scanned bells are snapped to the Sound section's scale. Kinds: see `LoopSoundKind` (types.ts).
+   */
+  playLoop(kind: LoopSoundKind, frequency?: number, level = 1, opts: LoopPlayOptions = {}) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleLoop(kind, frequency, level, opts));
+      return;
+    }
+    this.scheduleLoop(kind, frequency, level, opts);
+  }
+
+  private scheduleLoop(kind: LoopSoundKind, frequency: number | undefined, level: number, opts: LoopPlayOptions) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const ctx = this.audioContext;
+      const time = ctx.currentTime;
+      const l = typeof level === "number" && Number.isFinite(level) ? Math.max(0, level) : 1;
+      const f = frequency !== undefined && frequency > 0 ? frequency : undefined;
+      if (kind === "cut") {
+        // every loop voice ramped to silence in 10 ms; the next sound opens a fresh bus (the old ones are let go a few cuts later)
+        const seg = this.loopSegment;
+        if (seg) {
+          seg.gain.cancelScheduledValues(time);
+          seg.gain.setValueAtTime(1, time);
+          seg.gain.linearRampToValueAtTime(0, time + 0.01);
+          this.loopOldSegments.push(seg);
+          while (this.loopOldSegments.length > 4) {
+            try {
+              this.loopOldSegments.shift()!.disconnect();
+            } catch {
+              /* already disconnected */
+            }
+          }
+        }
+        this.loopSegment = null;
+        this.loopBudget.reset();
+        this.loopVoices.fill(null);
+        return;
+      }
+      const out = this.loopOut();
+      const slot = LOOP_CLIP_OF[kind];
+      const noise = () => this.noiseCache.get(ctx);
+      switch (kind) {
+        case "pluck":
+        case "bar":
+        case "chime":
+        case "scan":
+        case "step": {
+          const pitch = this.snap(f ?? 440);
+          const t60 = kind === "pluck" ? pluckT60(this.loopBudget.onsetRate(time), !!opts.dense) : 1.5;
+          const verdict = this.loopBudget.note(time, pitch, time + LOOP_PLUCK.attack + t60 + LOOP_PLUCK.tail);
+          if (verdict.action === "drop") return;
+          if (verdict.action === "merge") {
+            // n hits on one pitch in one tick sound √n × one; later ones are absorbed by the ringing note
+            const voice = this.loopVoices[verdict.slot % this.loopVoices.length];
+            if (verdict.sameTick && voice) rescaleVoice(voice, voice.base * Math.sqrt(verdict.count));
+            return;
+          }
+          this.loopVoices[verdict.slot % this.loopVoices.length] = null;
+          if (slot && this.loopClips.play(ctx, out, slot, time, { frequency: pitch, level: l })) return;
+          if (kind === "pluck") this.loopVoices[verdict.slot % this.loopVoices.length] = schedulePentaPluck(ctx, out, pitch, time, { level: l, t60, bright: opts.bright });
+          else if (kind === "bar") scheduleBarStrike(ctx, out, pitch, time, this.loopBudget.noise(time) ? noise() : null, { level: l });
+          else if (kind === "chime") scheduleChime(ctx, out, pitch, time, { level: l });
+          else if (kind === "scan") scheduleScanStrike(ctx, out, pitch, time, l, this.loopBudget.noise(time) ? noise() : null);
+          else scheduleProgressStep(ctx, out, pitch, time, { level: l, last: opts.last, chip: opts.chip });
+          return;
+        }
+        case "ding":
+          scheduleBarStrike(ctx, out, f ?? LOOP_CHORD.dingHz, time, null, { level: l, tone: LOOP_DING });
+          return;
+        case "land":
+          if (!this.loopBudget.thump(time)) return;
+          if (slot && this.loopClips.play(ctx, out, slot, time, { frequency: f, level: l })) return;
+          scheduleLandThump(ctx, out, time, l, f);
+          return;
+        case "kick":
+          if (!this.loopBudget.thump(time)) return;
+          if (this.loopBed) this.loopBed.kick(time, l);
+          else scheduleLoopKick(ctx, out, time, l, LOOP_KICK);
+          return;
+        case "chord":
+          if (slot && this.loopClips.play(ctx, out, slot, time, { level: l })) return;
+          scheduleCompletionChord(ctx, out, this.snap(f ?? 98), time, { level: l, minor: opts.minor, tremolo: opts.tremolo });
+          this.musicBed.duck(time);
+          return;
+        case "riser":
+          scheduleRiser(ctx, out, f ?? 220, time, opts.durationSec ?? 0.75, l);
+          return;
+        case "impact":
+          if (slot && this.loopClips.play(ctx, out, slot, time, { level: l })) return;
+          scheduleImpactAccent(ctx, out, time, this.loopBudget.noise(time) ? noise() : null, opts.chord ?? (f ? [f, 1.5 * f, 2 * f] : []), { level: l });
+          this.musicBed.duck(time);
+          return;
+        case "glide":
+          if (slot && this.loopClips.play(ctx, out, slot, time, { level: l, durationSec: opts.durationSec })) return;
+          scheduleResetGlide(ctx, out, f ?? 98, opts.toFrequency !== undefined && opts.toFrequency > 0 ? opts.toFrequency : 2 * (f ?? 98), time, opts.durationSec ?? 1, l);
+          return;
+        case "wash":
+          if (slot && this.loopClips.play(ctx, out, slot, time, { level: l, durationSec: opts.durationSec })) return;
+          if (this.loopBudget.noise(time)) scheduleNoiseWash(ctx, out, time, noise(), opts.durationSec ?? 2, l);
+          return;
+        case "ratchet":
+          scheduleRatchet(ctx, out, time, opts.durationSec ?? 1, noise(), l);
+          return;
+        case "bed": {
+          // starts the groove bed on the chord root `frequency`, or re-voices a playing one
+          const root = Math.round(frequencyToMidi(this.snap(f ?? 130.81)));
+          if (slot && this.loopClips.has(slot)) {
+            if (!this.loopBed) this.loopClips.play(ctx, this.masterGain, slot, time, { level: l });
+            return;
+          }
+          if (this.loopBed) this.loopBed.setChord(root, !!opts.minor, time);
+          else this.loopBed = startGrooveBed(ctx, this.masterGain, time, root, !!opts.minor, l, this.pluckCache);
+          return;
+        }
+        case "bedStop":
+          this.loopBed?.stop(time);
+          this.loopBed = null;
+          this.loopClips.stopLoop("bed", time);
+          return;
+        case "drone": {
+          // starts the drone on the root `frequency` or updates its energy (`level`: E / E0) and pen speed
+          if (slot && this.loopClips.has(slot)) {
+            if (!this.loopDrone) this.loopClips.play(ctx, this.masterGain, slot, time, { level: 1 });
+            this.loopClips.setLoopLevel(slot, Math.sqrt(l), time);
+            return;
+          }
+          if (!this.loopDrone) this.loopDrone = startDrone(ctx, this.masterGain, f ?? 98, time, noise());
+          this.loopDroneEnergy = l;
+          this.loopDrone.setEnergy(this.loopDroneEnergy, time);
+          if (opts.speed !== undefined) this.loopDrone.setSpeed(opts.speed, time);
+          return;
+        }
+        case "droneStop":
+          this.loopDrone?.stop(time);
+          this.loopDrone = null;
+          this.loopClips.stopLoop("drone", time);
+          return;
+      }
+    } catch (err) {
+      console.error(`Error playing the loop sound ${kind}:`, err);
+    }
+  }
+
+  /** Forgets the loop sounds' state (a run restarts): the budget, the merges, the bus, the bed and the drone. */
+  resetLoop() {
+    const time = this.audioContext?.currentTime ?? 0;
+    this.loopBudget.reset();
+    this.loopVoices.fill(null);
+    this.loopBed?.stop(time);
+    this.loopBed = null;
+    this.loopDrone?.stop(time);
+    this.loopDrone = null;
+  }
+  // --- end loop-foundation ---
+
   setWallBreakSound(url: string | null) {
     this.wallBreakSoundUrl = url;
     this.wallBreakBuffer = null;
@@ -1306,6 +1535,14 @@ export class ToneGenerator {
     this.pluckCache.clear();
     this.noiseCache.clear(); // --- odd-string-battle ---
     this.flMixer = null; // --- fl-overhaul --- (its context is closed)
+    // --- loop-foundation --- the loop sounds start over with the next context (the owner's clips stay)
+    this.loopBudget.reset();
+    this.loopVoices.fill(null);
+    this.loopSegment = null;
+    this.loopOldSegments.length = 0;
+    this.loopBed = null;
+    this.loopDrone = null;
+    // --- end loop-foundation ---
     this.lastSlotTime = -1;
     this.isInitialized = false;
     this.isPlaying = false;
@@ -1349,6 +1586,7 @@ export class ToneGenerator {
     twin.slicer.setOptions(this.slicer.getOptions());
     twin.slicer.setBuffer(this.slicer.getBuffer());
     twin.slicer.setEnabled(this.slicer.isActive());
+    twin.loopClips = this.loopClips.copy(); // --- loop-foundation --- (the owner's clips, decoded once, play in the export too)
     twin.musicBed.attach(ctx, master);
     twin.musicBed.setOptions(this.musicBed.getOptions());
     twin.musicBed.setBuffer(this.musicBed.getBuffer());
@@ -1356,6 +1594,7 @@ export class ToneGenerator {
     twin.flSettings = { ...this.flSettings };
     twin.setFightClips(this.flClipRecords);
     twin.flMixer = twin.createFlMixer(ctx, master);
+    // --- end fl-overhaul ---
     twin.isInitialized = true;
     twin.isPlaying = true;
     twin.resetBeatGrid();

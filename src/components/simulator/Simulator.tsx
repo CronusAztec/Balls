@@ -79,6 +79,16 @@ import { doublePendulumSettingsOf } from "@/lib/physics/modes/doublePendulum"; /
 import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers"; // --- odd-power-layers ---
 // --- fast-render ---
 import { FastRenderHost, FastRenderUnsupportedError, downloadExport, fastRenderSupported, pickExportFormat, renderFast } from "@/lib/recording/fastRender";
+import { loopPlayOptions } from "@/lib/audio/loopEvents"; // --- loop-foundation ---
+// --- loop-foundation --- Grow's fill and loop, the loop contract (whole loops) and the loop HUD
+import { growFillSettingsOf, growRunFinishes } from "@/lib/physics/growFill";
+import { growLookOf } from "./growRenderer";
+import { LOOP_HUD_MODE_TEXT, isLightColor, loopHudCount, loopHudFrame, type LoopHudSpec } from "@/lib/loop/hud";
+import { WholeLoopCut } from "@/lib/loop/loopContract";
+import type { LoopClipSlotId } from "@/lib/audio/loopClips";
+import type { LoopClipView, LoopClipsPanelProps } from "./sections/LoopClipsSection";
+import { barSeconds } from "@/lib/simulation/outcomes";
+// --- end loop-foundation ---
 import { resolveFastExportFps, type EndHolds } from "@/lib/recording/fastRenderPlan";
 import { FastExportButton, FastExportStatus, type FastExportState } from "./sections/FastExportSection";
 // --- project-files ---
@@ -262,6 +272,7 @@ export default function Simulator() {
   const mainRef = useRef<HTMLElement | null>(null);
   const timeLabelRef = useRef<HTMLSpanElement | null>(null);
   const recordTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopRecordingRef = useRef<(() => Promise<void>) | null>(null); // --- loop-foundation --- (the whole-loop cut ends a recording)
   const finderAbortRef = useRef<AbortController | null>(null);
   const autoPausedRef = useRef(false);
   const wallBreakObjectUrlRef = useRef<string | null>(null);
@@ -350,6 +361,7 @@ export default function Simulator() {
     engine.setGrowRate(s.growRate);
     engine.setGrowCenterDotEnabled(s.growCenterDot);
     engine.setGrowLinesEnabled(s.growLines);
+    engine.setGrowFillSettings(growFillSettingsOf(s)); // --- loop-foundation --- (before the init: the law and the start apply there)
     engine.setLinesCenterDotEnabled(s.linesCenterDot);
     engine.setDropSettings(dropSettingsOf(s));
     engine.setBoxSettings(boxSettingsOf(s));
@@ -449,6 +461,7 @@ export default function Simulator() {
       audioRef.current?.resetCustomNoteIndex();
       audioRef.current?.getSlicer().reset();
       audioRef.current?.resetBeatGrid();
+      audioRef.current?.resetLoop(); // --- loop-foundation --- (the loop voices, the ladder, the bed and the drone start over with the run)
       // The music bed starts over from its start offset with the run (the lifecycle effect below
       // cannot tell a restart from "still running", so it is done here).
       if (isStarted && !paused) audioRef.current?.getMusicBed().restart();
@@ -536,6 +549,82 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setGrowLinesEnabled(s.growLines);
   }, [s.growLines]);
+  // --- loop-foundation --- Grow's fill and loop: a change of the law, the fill, the step, the start, the hold, the shrink or the
+  // pitch restarts a Grow run and drops a found seed (the law and the start apply at the run's start); the look follows live
+  const growFillKey = [s.growLaw, s.growOnFill, s.growStep, s.growStart, s.growHold, s.growShrink, s.growPitch].join("|");
+  const growFillKeyRef = useRef(growFillKey);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setGrowFillSettings(growFillSettingsOf(s));
+    if (growFillKeyRef.current === growFillKey) return;
+    growFillKeyRef.current = growFillKey;
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+    if (s.mode === "grow" && engine.getCurrentModeName() === "grow") {
+      engine.initMode("grow");
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [growFillKey]);
+  const growLook = useMemo(() => (s.mode === "grow" ? growLookOf(s) : null), [s.mode, s.growHue, s.growRamp, s.growMarkers, s.growMarkerLife]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The loop HUD's words – the settings' own, else the mode's (translated) – read by the canvas, the recorder and the fast export
+  const hudLocale = useLocale();
+  const loopHudSpec = useMemo<LoopHudSpec | null>(() => {
+    if (!s.loopHud) return null;
+    const keys = LOOP_HUD_MODE_TEXT[s.mode];
+    const title = s.loopHudTitle || (keys ? t(`LoopHud.${keys.title}`) : t(`Modes.${s.mode}.name`));
+    const subtitle = s.loopHudSubtitle || (keys ? t(`LoopHud.${keys.subtitle}`) : "");
+    const counter = keys ? String(t.raw(`LoopHud.${keys.counter}`)) : "";
+    return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]) };
+  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t]);
+  const loopHudRef = useRef({ spec: loopHudSpec, locale: hudLocale });
+  loopHudRef.current = { spec: loopHudSpec, locale: hudLocale };
+  /** The HUD of a frame of `engine`'s run (null without the HUD), for the recorder and the fast export. */
+  const loopHudFrameOf = useCallback((engine: PhysicsEngine | null) => {
+    const { spec, locale } = loopHudRef.current;
+    return spec && engine ? loopHudFrame(spec, loopHudCount(engine), locale) : null;
+  }, []);
+  // The loop families' clip slots (the owner's own clips, decoded in this session and kept on the device)
+  const [loopClipViews, setLoopClipViews] = useState<LoopClipView[]>([]);
+  const [loopClipFailed, setLoopClipFailed] = useState<LoopClipSlotId | null>(null);
+  const refreshLoopClips = useCallback(() => {
+    const slots = audioRef.current?.getLoopClips();
+    setLoopClipViews(slots ? slots.entries().map(([slot, clip]) => ({ slot, name: clip.name, gainDb: clip.options.gainDb })) : []);
+  }, []);
+  const loopClipsPanel = useMemo<LoopClipsPanelProps>(
+    () => ({
+      clips: loopClipViews,
+      failed: loopClipFailed,
+      onLoad: (slot, file) => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        void file
+          .arrayBuffer()
+          .then((data) => audio.decodeAudio(data))
+          .then((buffer) => {
+            audio.getLoopClips().set(slot, buffer, file.name);
+            setLoopClipFailed(null);
+            refreshLoopClips();
+          })
+          .catch(() => setLoopClipFailed(slot));
+      },
+      onClear: (slot) => {
+        audioRef.current?.getLoopClips().clear(slot);
+        refreshLoopClips();
+      },
+      onGain: (slot, gainDb) => {
+        audioRef.current?.getLoopClips().setOptions(slot, { gainDb });
+        refreshLoopClips();
+      },
+    }),
+    [loopClipViews, loopClipFailed, refreshLoopClips],
+  );
+  // The whole-loop cut of a recording in progress (null: none) and when its clip started (performance.now())
+  const wholeLoopCutRef = useRef<WholeLoopCut | null>(null);
+  const loopRecordStartRef = useRef(0);
+  // --- end loop-foundation ---
   useEffect(() => {
     engineRef.current?.setLinesCenterDotEnabled(s.linesCenterDot);
   }, [s.linesCenterDot]);
@@ -1402,14 +1491,14 @@ export default function Simulator() {
   }, [s.neverEscape, s.forcedWinner]); // eslint-disable-line react-hooks/exhaustive-deps
   // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
   // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
-  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, orbGrid: orbGridSettingsOf(s) /* --- orb-rhythm --- (the model decides) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
+  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, orbGrid: orbGridSettingsOf(s) /* --- orb-rhythm --- (the model decides) */, grow: growFillSettingsOf(s) /* --- loop-foundation --- ("finish" ends at the fill) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
   const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);
-  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */ });
+  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */ });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
   const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
-  const outcomeText = { duration: findDuration, escapeAt: findEscapeAt, winnerName: winnerNames[findWinnerTeam] ?? "" };
+  const outcomeText = { duration: findDuration, escapeAt: findEscapeAt, winnerName: winnerNames[findWinnerTeam] ?? "", barSec: barSeconds(s.bpm) /* --- loop-foundation --- (fill on a bar line) */ };
   const riggedNote = [s.neverEscape && neverEscapeApplies(s.mode) ? t("Rigged.noteNeverEscape") : "", forcedWinnerApplies(s.mode, ballCount, s.forcedWinner, s.neverEscape) ? t(s.mode === "landClaim" ? "Rigged.noteFavoured" /* --- land-claim --- (honest steering: the favourite, not a certainty) */ : "Rigged.noteWinner", { name: winnerNames[s.forcedWinner] ?? "" }) : ""].filter(Boolean).join(" · ");
   // --- end rigged ---
 
@@ -1724,6 +1813,11 @@ export default function Simulator() {
             audio.playStringCircle(ev.scSound, ev.frequency, ev.chord, ev.level);
             continue;
           }
+          // --- loop-foundation --- a loop family's voice (a pitched pluck, the completion chord, the reset glide, the hard cut…)
+          if (ev.loop) {
+            audio.playLoop(ev.loop, ev.frequency, ev.level, loopPlayOptions(ev));
+            continue;
+          }
           if (ev.type === "gap") canvasRef.current?.noteWallBreak(); // --- gerald-faces --- wide eyes when a wall breaks
           // --- jdm-rhythm-runner --- `melody: false` accompanies the tune (a paddle's wall bounce, a runner's crash): no melody note used up
           if (ev.type === "hit") audio.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, ev.level, ev.melody !== false);
@@ -1732,6 +1826,13 @@ export default function Simulator() {
           else audio.playInteraction(ev.type);
         }
         canvasRef.current?.setSongProgress(audio.getSliceProgress());
+      }
+      // --- loop-foundation --- the whole-loop cut of a recording in progress: the frame that shows the seam closing its last
+      // whole cycle ends it (its state is the clip's first frame's), so the clip loops
+      const loopCut = wholeLoopCutRef.current;
+      if (loopCut && engine && loopCut.frame((performance.now() - loopRecordStartRef.current) / 1000, engine.getElapsedMs(), engine.getLoopSeams()) === "stop") {
+        wholeLoopCutRef.current = null;
+        void stopRecordingRef.current?.();
       }
       // --- split-screen --- the other arenas' sounds: heard with "every arena", else dropped (their queues empty every frame)
       splitRunnerRef.current?.drainSounds(audio && splitSoundAllRef.current ? (ev, arena) => playArenaSound(audio, ev, arena) : null); // --- fl-overhaul --- (the arena keeps its loops apart)
@@ -1897,6 +1998,7 @@ export default function Simulator() {
   /* ------------------------------------------------------------ recording */
 
   const stopRecordingAndDownload = useCallback(async () => {
+    wholeLoopCutRef.current = null; // --- loop-foundation ---
     if (recordTimerRef.current) {
       clearTimeout(recordTimerRef.current);
       recordTimerRef.current = null;
@@ -1910,6 +2012,7 @@ export default function Simulator() {
     }
     setIsRecording(false);
   }, []);
+  stopRecordingRef.current = stopRecordingAndDownload; // --- loop-foundation --- (the sound loop's whole-loop cut ends the recording through it)
 
   const toggleRecording = useCallback(async () => {
     const canvas = canvasRef.current?.getCanvas();
@@ -1925,6 +2028,9 @@ export default function Simulator() {
     const engineNow = engineRef.current;
     const runOver = isStarted && !!engineNow && (finished || (engineNow.isSimulationFinished() && (splitRunnerRef.current?.allFinished() ?? true)));
     if (runOver) restartRun(false, { sameSeed: true });
+    // --- loop-foundation --- Export whole loops: a looping run is recorded from its start (the first frame is a seam), its own seed
+    const wholeLoops = settings.exportWholeLoops && !!engineNow?.getLoopSeams();
+    if (wholeLoops && isStarted && !runOver) restartRun(false, { sameSeed: true });
     if (!isStarted) await start();
     recorderRef.current = recorderRef.current || new VideoRecorder(canvas);
     await audioRef.current?.start();
@@ -1941,6 +2047,7 @@ export default function Simulator() {
       audioStream: audioRef.current?.getAudioStream() || null,
       textOverlay: { topText: settings.topText, bottomText: settings.bottomText, textSize: settings.textSize, watermarkText: settings.watermarkText },
       sourceFrames: () => canvasRef.current?.framesDrawn() ?? -1, // --- review fix (performance) --- each frame the canvas drew, copied once
+      loopHud: () => loopHudFrameOf(engineRef.current), // --- loop-foundation --- (drawn into every frame at export resolution)
       // --- themes: the letterbox bars of the export continue the gradient / picture background
       backgroundColor: settings.backgroundColors[0],
       drawBackground: (c, width, height, crop) => canvasRef.current?.paintRecordingBackground(c, width, height, crop),
@@ -1960,7 +2067,17 @@ export default function Simulator() {
     const lag0 = canvasRef.current?.getSlowLagMs() ?? 0;
     const maxExtraMs = maxSlowLagMs(1000 * settings.recordingDuration);
     let credited = 0;
+    // --- loop-foundation --- the whole-loop cut (the sound loop feeds it every frame)
+    loopRecordStartRef.current = performance.now();
+    wholeLoopCutRef.current = wholeLoops ? new WholeLoopCut(settings.recordingDuration, 1 / 60) : null;
     const onClipEnd = () => {
+      // --- loop-foundation --- a whole-loop cut waiting for its seam just past the clip runs on to it
+      const cut = wholeLoopCutRef.current;
+      const waitMs = cut ? 1000 * cut.limitSec - (performance.now() - loopRecordStartRef.current) : 0;
+      if (cut && waitMs > 5) {
+        recordTimerRef.current = setTimeout(onClipEnd, waitMs);
+        return;
+      }
       // The run is already over and the page is still holding it (the winner banner, the escape replay, a finished
       // picture): the effect below stops the export once that hold is over instead of cutting it off here. The
       // fallback timer only matters if the hold never ends (the run paused by hand, say).
@@ -1977,7 +2094,7 @@ export default function Simulator() {
       void stopRecordingAndDownload();
     };
     recordTimerRef.current = setTimeout(onClipEnd, 1000 * settings.recordingDuration);
-  }, [isRecording, isStarted, finished, recordingSupported, settings, start, stopRecordingAndDownload, restartRun]);
+  }, [isRecording, isStarted, finished, recordingSupported, settings, start, stopRecordingAndDownload, restartRun, loopHudFrameOf]);
 
   // Stop the recording shortly after the run finishes.
   useEffect(() => {
@@ -2114,13 +2231,15 @@ export default function Simulator() {
         },
         signal: controller.signal,
         beforeFrame: videoLayerOn ? videoBeatsRef.current.exportFrame : undefined, // --- video-beats ---
+        wholeLoops: s.exportWholeLoops, // --- loop-foundation --- (a looping run: whole cycles)
+        loopHud: loopHudRef.current.spec ? loopHudFrameOf : undefined, // --- loop-foundation ---
       });
       batchJob?.settle(result ? { result } : { cancelled: true }); // --- batch-render --- the batch names, downloads and zips its files
       if (!result) setFastExport({ status: "cancelled" });
       else {
         if (!batchJob) downloadExport(result.blob, result.format.extension); // --- batch-render --- (not for a batch job)
         if (!batchJob) offerPublishClip({ blob: result.blob, name: `${EXPORT_BASE_NAME}.${result.format.extension}`, source: "fast", durationSec: result.durationSec, mode: s.mode, seed }); // --- social-publish --- (a batch job's clip is offered by the batch, under its name)
-        setFastExport({ status: "done", durationSec: result.durationSec, wallMs: result.wallMs, extension: result.format.extension, bytes: result.blob.size, digest: result.digest });
+        setFastExport({ status: "done", durationSec: result.durationSec, wallMs: result.wallMs, extension: result.format.extension, bytes: result.blob.size, digest: result.digest, loopCycles: result.loopCycles, loopCycleSec: result.loopCycleSec, loudnessGainDb: result.loudnessGainDb /* --- loop-foundation --- */ });
       }
     } catch (err) {
       batchJob?.settle({ error: err instanceof Error ? err.message : String(err) }); // --- batch-render ---
@@ -2134,7 +2253,7 @@ export default function Simulator() {
       videoBeatsRef.current.finishExport(); // --- video-beats ---
       if (resume) setIsPaused(false);
     }
-  }, [settings, isRecording, isSearching, isStarted, isPaused, activeBeats, fastRenderHost, initEngineForMode, toggleRecording, t]); // --- split-screen --- (t: a race refuses the export with the panel's note)
+  }, [settings, isRecording, isSearching, isStarted, isPaused, activeBeats, fastRenderHost, initEngineForMode, toggleRecording, t, loopHudFrameOf /* --- loop-foundation --- */]); // --- split-screen --- (t: a race refuses the export with the panel's note)
   const cancelFastExport = useCallback(() => fastAbortRef.current?.abort(), []);
   // --- end fast-render ---
   // --- mode-thumbnails --- the still camera of the mode cards' pictures and the viral bot's covers (useHeroStill.ts): the page's
@@ -2689,6 +2808,7 @@ export default function Simulator() {
     // (a first escape later than the clip gets a clip that runs a few seconds past it)
     const clipSec = finderOutcome === "escapes-at" || finderOutcome === "resolves-at" /* --- orb-grid --- (the first resolve) */ ? Math.max(findDuration, Math.ceil(findEscapeAt + 3)) : findDuration;
     const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam } : undefined;
+    if (outcome?.kind === "fill-on-bar") outcome.atSec = barSeconds(settings.bpm); // --- loop-foundation --- (a bar of four beats at the page's BPM)
     setSearchOutcome(finderOutcome ?? "duration");
     const result = await findArenaSeeds(
       uncappedEngaged(settings) ? findSimulationBudgeted : findSimulation, // (--- uncap-all --- engaged by the values) --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others') --- unlimited --- (No limits: time-sliced by whole steps, fewer seeds when heavy)
@@ -2744,6 +2864,7 @@ export default function Simulator() {
           orbGrid: { ...orbGridSettingsOf(settings), maxSec: 0 }, // --- orb-grid --- (a run ends when every orb is at rest: the page's clip is left out)
           fightLeague: fightLeagueSettingsOf(settings), // --- fight-league --- (every fight ends: the last side standing, a double KO or the time cap)
           landClaim: landClaimSettingsOf(settings), // --- land-claim --- (a run ends when the land is all taken or at its duration)
+          grow: growFillSettingsOf(settings), // --- loop-foundation --- (Grow's law, fill, hold and shrink: "finish" ends at the fill)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
@@ -3193,7 +3314,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcRacers, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.
@@ -3322,6 +3443,8 @@ export default function Simulator() {
               race={raceRender} // --- jdm-race ---
               videoBackground={videoBeats.videoLayer} // --- video-beats ---
               splitScreen={splitRender} // --- split-screen ---
+              growLook={growLook} // --- loop-foundation ---
+              loopHud={loopHudSpec} // --- loop-foundation ---
             />
           )}
           {isRecording && (
@@ -3635,6 +3758,7 @@ export default function Simulator() {
           project={projectFiles.panel} // --- project-files ---
           batch={batchRender.panel} // --- batch-render ---
           videoBeats={videoBeats.panel} // --- video-beats ---
+          loopClips={loopClipsPanel} // --- loop-foundation ---
           bot={viralBot} // --- viral-bot ---
           bounceMath={bounceMathPanel} // --- bounce-math ---
           batchRunning={batchActive} // --- review fix (recording-export) --- (no preset loads while a batch runs)

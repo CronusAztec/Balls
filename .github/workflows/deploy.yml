@@ -216,7 +216,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      actions: read # whether a newer run of this workflow superseded this one (the verdict below)
+      actions: read # this run's shard jobs, and whether a newer run of this workflow superseded it (the verdict below)
+      checks: read # a cancelled shard's annotations: did it run out of time? (the verdict below)
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -246,39 +247,22 @@ jobs:
           path: smoke-screenshots
           if-no-files-found: ignore
 
-      # The verdict the deploy waits for. A run a newer push superseded (its shards cancelled while a newer run of this workflow on
-      # this branch exists, or its build cancelled before them) deploys nothing and is not a failure; a shard that failed, ran
-      # out of time or was cancelled otherwise fails it.
+      # The verdict the deploy waits for (scripts/smoke/verdict.mjs): every shard passed and every block of the suite ran in exactly
+      # one of them. A run a newer push superseded (its build cancelled before the shards, or its shards cancelled while a newer
+      # run of this workflow on this branch exists) deploys nothing and is not a failure – but GitHub ends a shard that hits its
+      # timeout-minutes as `cancelled` too, so a cancelled shard is looked up in this run's jobs: one that ran out of time (GitHub's
+      # "exceeded the maximum execution time" annotation, or 44 of its 45 minutes) fails the verdict, newer run or not, like a
+      # shard that failed. A shard cancelled with no newer run, and a lookup that fails, fail it as well.
       - name: Every shard passed
         if: always()
         env:
           RESULT: ${{ needs.smoke.result }}
           SUMMARY: ${{ steps.summary.outcome }}
+          # the smoke job's timeout-minutes (tests/smokeShards.test.ts keeps the two equal)
+          SHARD_TIMEOUT_MINUTES: 45
           GH_TOKEN: ${{ github.token }}
           BRANCH: ${{ github.ref_name }}
-        run: |
-          case "$RESULT" in
-            success) ;;
-            skipped)
-              echo "::notice title=Smoke test::the smoke shards did not run (the build did not finish); nothing is deployed"
-              exit 0 ;;
-            cancelled)
-              newest="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy.yml/runs?branch=${BRANCH}&per_page=1" --jq '.workflow_runs[0].id' 2>/dev/null || true)"
-              if [ -n "$newest" ] && [ "$newest" != "$GITHUB_RUN_ID" ]; then
-                echo "::notice title=Smoke test::the smoke shards were cancelled: run $newest, a newer push, supersedes this run; nothing is deployed"
-                exit 0
-              fi
-              echo "::error title=Smoke test::a smoke shard was cancelled or ran out of time – see the 'smoke (shard x of 4)' jobs"
-              exit 1 ;;
-            *)
-              echo "::error title=Smoke test::a smoke shard ended with '$RESULT' – see the failing 'smoke (shard x of 4)' job"
-              exit 1 ;;
-          esac
-          if [ "$SUMMARY" != "success" ]; then
-            echo "::error title=Smoke test::every shard passed, but not every block of the suite ran in exactly one of them (see 'Slowest blocks of all shards')"
-            exit 1
-          fi
-          echo "All four smoke shards passed, every block of the suite in exactly one of them."
+        run: node scripts/smoke/verdict.mjs
 
   deploy:
     needs: [build, smoke, smoke-summary]

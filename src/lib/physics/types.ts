@@ -401,7 +401,27 @@ export interface SoundEvent {
    */
   scSound?: "twang" | "snap";
   // --- end string-circle ---
+  // --- loop-foundation ---
+  /**
+   * A sound of the loop families (lib/audio/loopTones.ts, `ToneGenerator.playLoop()`) instead of a bounce: "pluck" – the
+   * pentatonic pluck at `frequency`, `level` loud (`loopBright`: with its 3f partial) –, "chord" – the completion chord on the
+   * root `frequency` with its ding and sub –, "glide" – the reset glide from `frequency` to `loopTo` over `loopSec` –, "cut" –
+   * every loop voice ramped to silence in 10 ms –, and the other families' voices (`LoopSoundKind`). Sent with
+   * `melody: false`, so a page that does not know it plays an accompaniment hit, never a melody note.
+   */
+  loop?: LoopSoundKind;
+  /** The glide's target pitch (Hz). */
+  loopTo?: number;
+  /** Seconds a glide, a wash, a ratchet or a riser lasts. */
+  loopSec?: number;
+  /** The pluck's 3f partial: a small or fast object. */
+  loopBright?: boolean;
+  // --- end loop-foundation ---
 }
+
+// --- loop-foundation --- the voices of the loop sound families (lib/audio/loopTones.ts; `ToneGenerator.playLoop()`)
+export const LOOP_SOUND_KINDS = ["pluck", "bar", "chime", "ding", "step", "land", "chord", "riser", "impact", "kick", "glide", "wash", "ratchet", "scan", "cut", "bed", "bedStop", "drone", "droneStop"] as const;
+export type LoopSoundKind = (typeof LOOP_SOUND_KINDS)[number];
 
 // --- fight-league --- the sound families of Fight League's weapons, abilities and KOs
 export type FightSoundKind = "blade" | "blunt" | "arrow" | "gun" | "fire" | "magic" | "ability" | "ko" | "block";
@@ -470,6 +490,8 @@ export interface WallHitResult {
   suppressBounce?: boolean;
   /** Reset the "bouncier" speed multiplier instead of increasing it. */
   resetBouncier?: boolean;
+  /** --- loop-foundation --- Do not queue the engine's own "hit" sound: the mode plays its own (Grow's pitched plucks). */
+  suppressSound?: boolean;
 }
 
 /** What a mode wants done about a ball hitting an obstacle (see obstacles.ts); the rebound itself is always applied. */
@@ -640,7 +662,29 @@ export interface GameMode {
    * while its balls stay under what it used to clamp them to, so those runs replay exactly as before.
    */
   stepSpeedBound?(ctx: ModeContext, stepSec: number): number;
+  // --- loop-foundation --- the loop contract (lib/loop/loopContract.ts)
+  /**
+   * The length (s) of the mode's seamless cycle when it has one and knows it (Grow's fill-and-loop: the last whole cycle,
+   * fill to relaunch, measured on the simulation clock); null when the mode does not loop or the cycle is not known yet.
+   */
+  cycleSeconds?(ctx: ModeContext): number | null;
+  /** The seams of a looping run so far (each the start of a new cycle: the state equals the run's start), or null when it does not loop. */
+  loopSeams?(ctx: ModeContext): LoopSeams | null;
+  // --- end loop-foundation ---
 }
+
+// --- loop-foundation ---
+/**
+ * A looping run's seams: how many there were, the simulation time (ms) of the last one (−1 before the first) and of the next
+ * one once it is known (−1 until then: Grow knows it from the fill on – the hold and the shrink have fixed lengths). At a
+ * seam the state equals the run's start, so a clip cut there loops without a jump.
+ */
+export interface LoopSeams {
+  count: number;
+  lastMs: number;
+  nextMs: number;
+}
+// --- end loop-foundation ---
 
 export interface PersonalityVisuals {
   state: PersonalityState;

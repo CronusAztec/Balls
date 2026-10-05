@@ -16,13 +16,23 @@ export interface SourceLog {
   startArgs: number[];
   playbackRate: number;
 }
+// --- loop-foundation --- every automation event of every AudioParam (the glide's exponential ramp, envelopes, setTargetAtTime)
+export interface RampLog {
+  kind: "set" | "linear" | "exp" | "target" | "cancel";
+  value: number;
+  time: number;
+  /** The parameter's name: "gain", "frequency", "Q", "playbackRate", "param". */
+  param: string;
+}
+// --- end loop-foundation ---
 
 /** --- fl-overhaul --- (Stage 4) Options of the fake graph. */
 export interface FakeGraphOptions {
   /**
-   * The nodes Fight League's synthesiser and mixer use as well (lib/audio/flSynth.ts, flMixer.ts): biquad filters, stereo
-   * panners, delays, periodic waves, an oscillator's detune and `setPeriodicWave()`, `setTargetAtTime()` on every param – off
-   * by default, so every older test drives exactly the graph it was written for (sounds that need a filter stay unplayed).
+   * The nodes Fight League's synthesiser and mixer use as well (lib/audio/flSynth.ts, flMixer.ts): stereo panners, delays,
+   * periodic waves, an oscillator's detune and `setPeriodicWave()`, and a count of every node kind made (`made`; the base
+   * graph has the biquad filters and `setTargetAtTime()` already) – off by default, so every older test drives exactly the
+   * graph it was written for (a Fight League cue that needs a detune stays unplayed there).
    */
   extended?: boolean;
 }
@@ -34,13 +44,19 @@ export function fakeGraph(options: FakeGraphOptions = {}) {
   const gains: number[] = [];
   /** Every DynamicsCompressorNode made (the master bus's limiter), with its parameters. */
   const compressors: { threshold: { value: number }; knee: { value: number }; ratio: { value: number }; attack: { value: number }; release: { value: number } }[] = [];
-  const param = (value = 0) => ({
+  // --- loop-foundation --- the params log their automation (`ramps`), and a BiquadFilterNode exists (`filters`); there is still
+  // no StereoPanner: a sound that made one would throw here (the loop sounds are dual-mono)
+  const ramps: RampLog[] = [];
+  const filters: { type: string; frequency: { value: number }; Q: { value: number } }[] = [];
+  const param = (value = 0, name = "param") => ({
     value,
-    setValueAtTime: () => undefined,
-    linearRampToValueAtTime: () => undefined,
-    exponentialRampToValueAtTime: () => undefined,
-    cancelScheduledValues: () => undefined,
+    setValueAtTime: (v: number, t: number) => void ramps.push({ kind: "set", value: v, time: t, param: name }),
+    linearRampToValueAtTime: (v: number, t: number) => void ramps.push({ kind: "linear", value: v, time: t, param: name }),
+    exponentialRampToValueAtTime: (v: number, t: number) => void ramps.push({ kind: "exp", value: v, time: t, param: name }),
+    setTargetAtTime: (v: number, t: number) => void ramps.push({ kind: "target", value: v, time: t, param: name }),
+    cancelScheduledValues: (t: number) => void ramps.push({ kind: "cancel", value: Number.NaN, time: t, param: name }),
   });
+  // --- end loop-foundation ---
   const ctx = {
     state: "running",
     currentTime: 0,
@@ -49,7 +65,28 @@ export function fakeGraph(options: FakeGraphOptions = {}) {
     resume: async () => undefined,
     close: async () => undefined,
     decodeAudioData: async () => ({ duration: 0.3 }),
-    createGain: () => ({ gain: { ...param(1), setValueAtTime: (value: number) => void gains.push(value) }, connect: () => undefined, disconnect: () => undefined }),
+    createGain: () => {
+      const gain = param(1, "gain");
+      const set = gain.setValueAtTime;
+      return {
+        gain: {
+          ...gain,
+          setValueAtTime: (value: number, t = 0) => {
+            gains.push(value);
+            set(value, t); // --- loop-foundation --- (logged as a ramp too)
+          },
+        },
+        connect: () => undefined,
+        disconnect: () => undefined,
+      };
+    },
+    // --- loop-foundation ---
+    createBiquadFilter: () => {
+      const node = { type: "lowpass", frequency: param(350, "frequency"), Q: param(1, "Q"), gain: param(0, "gain"), connect: () => undefined, disconnect: () => undefined };
+      filters.push(node);
+      return node;
+    },
+    // --- end loop-foundation ---
     createDynamicsCompressor: () => {
       const node = { threshold: param(-24), knee: param(30), ratio: param(12), attack: param(0.003), release: param(0.25), connect: () => undefined, disconnect: () => undefined };
       compressors.push(node);
@@ -61,7 +98,7 @@ export function fakeGraph(options: FakeGraphOptions = {}) {
     createOscillator: () => {
       const osc = {
         type: "sine",
-        frequency: param(0),
+        frequency: param(0, "frequency"),
         connect: () => undefined,
         disconnect: () => undefined,
         onended: null as (() => void) | null,
@@ -77,7 +114,10 @@ export function fakeGraph(options: FakeGraphOptions = {}) {
       const source = {
         buffer: null as unknown,
         context: ctx,
-        playbackRate: param(1),
+        loop: false, // --- loop-foundation ---
+        loopStart: 0,
+        loopEnd: 0,
+        playbackRate: param(1, "playbackRate"),
         connect: () => undefined,
         disconnect: () => undefined,
         onended: null as (() => void) | null,
@@ -86,13 +126,13 @@ export function fakeGraph(options: FakeGraphOptions = {}) {
       };
       return source;
     },
-    createBuffer: (channels: number, length: number, sampleRate: number) => ({ duration: length / sampleRate, copyToChannel: () => undefined }),
+    createBuffer: (channels: number, length: number, sampleRate: number) => ({ duration: length / sampleRate, length, sampleRate, numberOfChannels: channels, copyToChannel: () => undefined, getChannelData: () => new Float32Array(length) }),
   };
-  // --- fl-overhaul --- (Stage 4) the extended graph: the extra node kinds, and how many of each kind were made
+  // --- fl-overhaul --- (Stage 4) the extended graph: the extra node kinds, and how many of each kind were made (every param
+  // logs its automation into `ramps` as the base graph's do; the filters stay in `filters`)
   const made: Record<string, number> = {};
   if (options.extended) {
     const count = (kind: string) => (made[kind] = (made[kind] ?? 0) + 1);
-    const xparam = (value = 0) => ({ ...param(value), setTargetAtTime: () => undefined, cancelAndHoldAtTime: () => undefined });
     const node = (kind: string) => {
       count(kind);
       return { connect: () => undefined, disconnect: () => undefined };
@@ -102,35 +142,37 @@ export function fakeGraph(options: FakeGraphOptions = {}) {
     const osc = ctx.createOscillator;
     const source = ctx.createBufferSource;
     const shaper = ctx.createWaveShaper;
+    const biquad = ctx.createBiquadFilter;
     Object.assign(ext, {
       createGain: () => {
-        const g = gain();
         count("gain");
-        Object.assign(g.gain, { setTargetAtTime: () => undefined, cancelAndHoldAtTime: () => undefined });
-        return g;
+        return gain();
       },
       createOscillator: () => {
         const o = osc();
         count("oscillator");
-        return Object.assign(o, { detune: xparam(0), setPeriodicWave: () => undefined });
+        return Object.assign(o, { detune: param(0, "detune"), setPeriodicWave: () => undefined });
       },
       createBufferSource: () => {
-        const b = source();
         count("bufferSource");
-        return Object.assign(b, { loop: false });
+        return source();
       },
       createWaveShaper: () => {
         count("waveShaper");
         return shaper();
       },
-      createBiquadFilter: () => ({ ...node("biquad"), type: "lowpass", frequency: xparam(350), Q: xparam(1), gain: xparam(0) }),
-      createStereoPanner: () => ({ ...node("stereoPanner"), pan: xparam(0) }),
-      createDelay: () => ({ ...node("delay"), delayTime: xparam(0) }),
+      createBiquadFilter: () => {
+        count("biquad");
+        return biquad();
+      },
+      createStereoPanner: () => ({ ...node("stereoPanner"), pan: param(0, "pan") }),
+      createDelay: () => ({ ...node("delay"), delayTime: param(0, "delayTime") }),
       createPeriodicWave: () => {
         count("periodicWave");
         return {};
       },
     });
   }
-  return { ctx, oscillators, sources, gains, compressors, made };
+  // --- end fl-overhaul ---
+  return { ctx, oscillators, sources, gains, compressors, ramps, filters, made };
 }

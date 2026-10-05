@@ -66,6 +66,7 @@ import { RespawnTimer } from "./respawn";
 import { OrbGridMode, type OrbGridSettings, type OrbGridView } from "./modes/orbGrid"; // --- orb-grid --- Bouncing Orbs
 import { FightLeagueMode, type FightLeagueSettings, type FightLeagueView } from "./modes/fightLeague"; // --- fight-league ---
 import { LandClaimMode, type LandClaimSettings, type LandClaimView } from "./modes/landClaim"; // --- land-claim ---
+import type { GrowFillSettings, GrowView } from "./modes/grow"; // --- loop-foundation ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -83,6 +84,7 @@ import type {
   BallInteractionConfig,
   CircularWall,
   GameMode,
+  LoopSeams, // --- loop-foundation ---
   ModeContext,
   ModeId,
   NewBall,
@@ -1146,6 +1148,19 @@ export class PhysicsEngine {
   getGrowState() {
     return this.growMode.getState() as { centerDotEnabled: boolean; centerDotRadius: number; linesEnabled: boolean };
   }
+  // --- loop-foundation --- Grow's fill-and-loop upgrade (growth law, fill / hold / shrink / relaunch, markers, pitch by size)
+  /** The growth law, what a fill does, the start size, the hold and the shrink; applied by the next `initGrow()` (the colours and markers at once). */
+  setGrowFillSettings(settings: Partial<GrowFillSettings>) {
+    this.growMode.setFillSettings(settings);
+  }
+  getGrowFillSettings(): GrowFillSettings {
+    return this.growMode.getFillSettings();
+  }
+  /** What the canvas, the finder and the smoke test read of a Grow run: the cap, the phase, the fills, the cycle and the markers. */
+  getGrowView(): GrowView {
+    return this.growMode.getView(this.ctx);
+  }
+  // --- end loop-foundation ---
   isLinesCenterDotEnabled() {
     return this.linesMode.isCenterDotEnabled();
   }
@@ -1959,6 +1974,17 @@ export class PhysicsEngine {
   getElapsedMs() {
     return this._elapsedMs;
   }
+  // --- loop-foundation --- the loop contract (lib/loop/loopContract.ts): the mode's seamless cycle and its seams
+  /** The current mode's seamless cycle length (s) when it reports one, else null (see `GameMode.cycleSeconds()`). */
+  getCycleSeconds(): number | null {
+    const sec = this.currentMode?.cycleSeconds?.(this.ctx) ?? null;
+    return sec !== null && Number.isFinite(sec) && sec > 0 ? sec : null;
+  }
+  /** The seams of a looping run (count, last one's simulation ms), or null when the mode does not loop. */
+  getLoopSeams(): LoopSeams | null {
+    return this.currentMode?.loopSeams?.(this.ctx) ?? null;
+  }
+  // --- end loop-foundation ---
   isSimulationFinished() {
     if (this.multipliers.isOutgrown()) return true; // --- gerald-multipliers --- a ball outgrew the arena
     return this.currentMode?.isFinished(this.ctx) ?? false;
@@ -2867,7 +2893,7 @@ export class PhysicsEngine {
         if (!result?.suppressGlow) this.addWallHit(w, angle, wall.radius);
         // --- rigged --- a bounce off a closed wall right beside its gap: a near miss (the camera's slow motion follows it)
         if (this.rigOn && inside && this.cinematicDirector.rig.nearMissAt(ball, w, angle, wall.radius, rotation)) this.cinematicDirector.noteRigNearMiss();
-        this.pendingSoundEvents.push(bounceHitEvent(w, ball)); // --- bounce-math --- (with the ball's pitch shift, when it has one)
+        if (!result?.suppressSound) this.pendingSoundEvents.push(bounceHitEvent(w, ball)); // --- bounce-math --- (with the ball's pitch shift, when it has one) --- loop-foundation --- (unless the mode plays its own)
         this.ballStats.bounce(ball); // --- teams ---
         if (this.bouncierEnabled && !result?.resetBouncier) {
           this.bounceSpeedMultiplier = this.bounceSpeedMultiplier + this.bouncierIncrement; // --- uncap-all --- (no ceiling: faster on every bounce, forever)

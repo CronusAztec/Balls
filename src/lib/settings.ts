@@ -87,6 +87,12 @@ import type { FlSoundOption } from "@/lib/physics/modes/fightLeague"; // --- fl-
 // --- end fl-overhaul ---
 // --- land-claim --- the Land Claim mode (columns of blocks knocked off by competitors' balls)
 import { LAND_CLAIM_RANGES, defaultLandClaimFields, landClaimModeDefaults, readLandClaimParams, resolveLandClaimFields, writeLandClaimParams, type LcArena, type LcRule } from "@/lib/physics/modes/landClaim";
+// --- loop-foundation --- Grow's fill-and-loop upgrade (growth law, fill / hold / shrink, colour by size, markers, pitch) and the
+// loop contract / HUD settings (Export whole loops, the lowercase HUD)
+import { GROW_FILL_ENGINE_KEYS, GROW_FILL_RANGES, defaultGrowFillFields, readGrowFillParams, resolveGrowFillFields, writeGrowFillParams } from "@/lib/physics/growFill";
+import type { GrowLaw, GrowOnFill } from "@/lib/physics/modes/grow";
+import { defaultLoopFields, readLoopParams, resolveLoopFields, writeLoopParams } from "@/lib/loop/loopSettings";
+// --- end loop-foundation ---
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -933,6 +939,35 @@ export interface SimulatorSettings {
   /** The HUD: the title, a bar per competitor and the counters (URL `lch`). */
   lcHud: boolean;
   // --- end land-claim ---
+  // --- loop-foundation --- Grow's fill and loop (lib/physics/growFill.ts; all off by default: the classic Grow)
+  /** approach (the classic) | multiply | add (URL `gLaw`). */
+  growLaw: GrowLaw;
+  /** stay (the classic) | loop | finish (URL `gFill`). */
+  growOnFill: GrowOnFill;
+  /** Growth per bounce: percent under multiply, px under add; 0–1000 on the slider, any number from 0 typed (URL `gStep`). */
+  growStep: number;
+  /** The new laws' start size, percent of the ring; 0.1–100 on the slider (URL `gStart`). */
+  growStart: number;
+  /** Seconds the full ball holds, and the eased shrink back to the start (URL `gHold`, `gShrink`). */
+  growHold: number;
+  growShrink: number;
+  /** Colour by size along the ramp's colour stops (URL `gHue`, `gRamp`). */
+  growHue: boolean;
+  growRamp: string;
+  /** Contact markers: a fading ring where the ball hit, for `growMarkerLife` s (URL `gMark`, `gMarkT`). */
+  growMarkers: boolean;
+  growMarkerLife: number;
+  /** Every bounce a pentatonic pluck pitched by the ball's size, bigger = lower (URL `gPitch`). */
+  growPitch: boolean;
+  // --- loop contract and HUD (lib/loop/loopSettings.ts) ---
+  /** Recordings of a looping run end at the end of their last whole cycle (URL `wl`; on by default, nothing changes in a mode that does not loop). */
+  exportWholeLoops: boolean;
+  /** The loop HUD: a bold lowercase title, a grey subtitle and one amber counter drawn into the frame (URL `lh`; off by default). */
+  loopHud: boolean;
+  /** The HUD's title and subtitle, "" = the mode's own words (URL `lht`, `lhs`). */
+  loopHudTitle: string;
+  loopHudSubtitle: string;
+  // --- end loop-foundation ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -1066,6 +1101,8 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- land-claim --- the feature's fields, and in Land Claim only no gravity and a clip that covers the longest run and its verdict
     ...defaultLandClaimFields(),
     ...landClaimModeDefaults(mode),
+    ...defaultGrowFillFields(), // --- loop-foundation --- (the classic Grow: approach, stay)
+    ...defaultLoopFields(), // --- loop-foundation --- (whole loops on, the HUD off)
   };
 }
 
@@ -1145,6 +1182,7 @@ export const RANGES = {
   ...ORB_GRID_RANGES, // --- orb-grid ---
   ...FIGHT_LEAGUE_RANGES, // --- fight-league ---
   ...LAND_CLAIM_RANGES, // --- land-claim ---
+  ...GROW_FILL_RANGES, // --- loop-foundation ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1394,6 +1432,8 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeOrbGridParams(settings, base, params); // --- orb-grid ---: ogC, ogR, ogA, ogV, ogD, ogS, ogL, ogT, ogH, ogZ, ogB, ogRes, ogE, ogRot, ogO, ogF, ogM, ogP, ogHud, ogSnd
   writeFightLeagueParams(settings, base, params); // --- fight-league ---: fl1–fl4, flM, flDiv, flHp, flT, flA, flH, flS1–4, flD1–4, flX1–4, flC1–4
   writeLandClaimParams(settings, base, params); // --- land-claim ---: lcc, lcr, lca, lct, lcb, lcm, lce, lcd, lcti, lch
+  writeGrowFillParams(settings, base, params); // --- loop-foundation ---: gLaw, gFill, gStep, gStart, gHold, gShrink, gHue, gRamp, gMark, gMarkT, gPitch
+  writeLoopParams(settings, base, params); // --- loop-foundation ---: wl, lh, lht, lhs
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1556,6 +1596,8 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readOrbGridParams(params, settings); // --- orb-grid --- (valid numbers kept, no maximum; unknown options fall back)
   readFightLeagueParams(params, settings); // --- fight-league --- (known fighters and options, valid numbers from their minimum up)
   readLandClaimParams(params, settings); // --- land-claim --- (valid numbers kept, no maximum; unknown arenas and rules fall back)
+  readGrowFillParams(params, settings); // --- loop-foundation --- (valid numbers from their minimum up, known laws, real booleans, a clean ramp)
+  readLoopParams(params, settings); // --- loop-foundation --- (real booleans, clean texts)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -1781,6 +1823,7 @@ for (const mode of SPLAT_MODES) (MODE_ENGINE_KEYS[mode] as string[]).push(...SPL
 // --- fl-overhaul --- (Stage 3) the spectacle's numbers (the screen shake) are the picture's: a shake past its slider engages nothing
 (MODE_ENGINE_KEYS as Record<ModeId, readonly string[]>).fightLeague = MODE_ENGINE_KEYS.fightLeague.filter((key) => !FIGHT_LEAGUE_VISUAL_KEYS.includes(key));
 // --- end fl-overhaul ---
+(MODE_ENGINE_KEYS.grow as string[]).push(...GROW_FILL_ENGINE_KEYS); // --- loop-foundation --- (the growth, the start, the hold and the shrink)
 
 const engineKeyCache = new Map<ModeId, readonly string[]>();
 
@@ -1983,6 +2026,8 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveOrbGridFields(merged)); // --- orb-grid --- valid numbers (no maximum), known options, real booleans
   Object.assign(merged, resolveFightLeagueFields(merged)); // --- fight-league --- known fighters and options, valid numbers from their minimum up, real booleans
   Object.assign(merged, resolveLandClaimFields(merged)); // --- land-claim --- valid numbers (no maximum), a known arena and rule, a clean title, a real boolean
+  Object.assign(merged, resolveGrowFillFields(merged)); // --- loop-foundation --- valid numbers from their minimum up, known laws, real booleans, a clean ramp
+  Object.assign(merged, resolveLoopFields(merged)); // --- loop-foundation --- real booleans, clean texts
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

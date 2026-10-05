@@ -1,3 +1,4 @@
+import { spawnSync } from "child_process";
 import fs from "fs";
 import os from "os";
 import path from "path";
@@ -23,12 +24,23 @@ import {
   slowestLines,
   unmatchedOnly,
 } from "../scripts/smoke/shards.mjs";
+import {
+  SHARD_JOB,
+  TIMEOUT_MARGIN_SECONDS,
+  commandData,
+  jobSeconds,
+  main as verdictMain,
+  smokeVerdict,
+  timeoutEvidence,
+  workflowFile,
+} from "../scripts/smoke/verdict.mjs";
 
 /**
  * --- smoke-sharding --- The split of the browser smoke suite into CI shards (scripts/smoke/shards.mjs), the block runner
  * (scripts/smoke/blocks.mjs) and the shape of the suite they rely on: every block is a top-level
  * `await smokeBlock("title", async () => { … });` that the static scan finds, no work happens outside the blocks, and – for
- * N = 1…8 with the checked-in baseline – the shards are disjoint, complete, order-stable and balanced.
+ * N = 1…8 with the checked-in baseline – the shards are disjoint, complete, order-stable and balanced. Also the verdict of
+ * deploy.yml's smoke-summary job (scripts/smoke/verdict.mjs): a shard that ran out of time fails it, newer run or not.
  */
 
 const ROOT = path.resolve(__dirname, "..");
@@ -382,5 +394,381 @@ describe("the block runner (scripts/smoke/blocks.mjs)", () => {
     await expect(smoke.block("a", () => smoke.block("b", async () => {}))).rejects.toThrow(/starts inside block "a"/);
     smoke.endBlocks();
     await expect(smoke.block("c", async () => {})).rejects.toThrow(/after smoke.endBlocks/);
+  });
+});
+
+/**
+ * --- smoke-sharding (review fix) --- The verdict of deploy.yml's smoke-summary job. GitHub ends a job that hits its
+ * timeout-minutes with the conclusion `cancelled`, the same as a shard that a newer push cancels through its concurrency group,
+ * so `needs.smoke.result` alone cannot tell a hung shard from a superseded run: the old step passed any cancelled run with a
+ * notice as soon as a newer run of deploy.yml existed – and on the default branch, where a push comes every hour or so and a
+ * timed-out shard ends some 50 minutes after its own push, one often does. The fixtures are this repository's runs as the API
+ * answers for them: run 183, whose smoke job ran 20:38:07 → 21:23:14 into its 45-minute limit ("The job has exceeded the maximum
+ * execution time of 45m0s"), and run 174, whose smoke job run 175 cancelled after 19 minutes ("Canceling since a higher
+ * priority waiting request … exists") – verbatim (one `smoke` job, before the shards) and laid out as today's four shards.
+ */
+describe("the smoke-summary verdict (scripts/smoke/verdict.mjs)", () => {
+  const REPO = "CronusAztec/Balls";
+  const BRANCH = "claude/optimistic-johnson-46x3qg";
+  const WORKFLOW_REF = `${REPO}/.github/workflows/deploy.yml@refs/heads/${BRANCH}`;
+  const RUN_174 = 37206311440;
+  const RUN_175 = 37207397522;
+  const RUN_183 = 37232540357;
+  const RUN_184 = 37236047468;
+  const RUN_200 = 37273497598;
+  const jobsPath = (run: number) => `repos/${REPO}/actions/runs/${run}/jobs?filter=latest&per_page=100`;
+  const annotationsPath = (id: number) => `repos/${REPO}/check-runs/${id}/annotations?per_page=100`;
+  const NEWEST_PATH = `repos/${REPO}/actions/workflows/deploy.yml/runs?branch=${encodeURIComponent(BRANCH)}&per_page=1`;
+  const TIMEOUT_NOTE = "The job has exceeded the maximum execution time of 45m0s";
+  const CANCEL_NOTE = "The operation was canceled.";
+  const RUNNER_NOTE = '"The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"';
+  const supersededNote = (group: string) => `Canceling since a higher priority waiting request for ${group} exists`;
+  const TIMED_OUT_MESSAGE = `smoke (shard 3 of 4) ran out of time ("${TIMEOUT_NOTE}") – a shard that times out fails the smoke test, even when a newer run supersedes this one`;
+  const supersededMessage = (run: number) => `the smoke shards were cancelled before their time limit: run ${run}, a newer push, supersedes this run; nothing is deployed`;
+  const PASSED_MESSAGE = "All the smoke shards passed, every block of the suite in exactly one of them.";
+
+  type Job = { id: number; name: string; status: string; conclusion: string | null; started_at: string | null; completed_at: string | null };
+  type Routes = Record<string, unknown>;
+  const job = (id: number, name: string, conclusion: string | null, started_at: string | null, completed_at: string | null): Job => ({
+    id,
+    name,
+    status: conclusion ? "completed" : started_at ? "in_progress" : "queued",
+    conclusion,
+    started_at,
+    completed_at,
+  });
+  const shard = (i: number) => `smoke (shard ${i} of 4)`;
+  const annotations = (...messages: string[]) =>
+    messages.map((message) => ({ path: ".github", start_line: 1, end_line: 1, annotation_level: message === RUNNER_NOTE ? "notice" : "failure", title: "", message, raw_details: "" }));
+  const newestRuns = (...ids: number[]) => ({ total_count: ids.length, workflow_runs: ids.map((id) => ({ id, head_branch: BRANCH, event: "push", path: ".github/workflows/deploy.yml" })) });
+
+  /** Run 183 verbatim: its one smoke job ran into its 45-minute limit; run 200 is the newest run on the branch now. */
+  const REAL_183: Routes = {
+    [jobsPath(RUN_183)]: {
+      total_count: 3,
+      jobs: [
+        job(111525103262, "build", "success", "2026-10-04T20:33:14Z", "2026-10-04T20:38:04Z"),
+        job(111526012579, "smoke", "cancelled", "2026-10-04T20:38:07Z", "2026-10-04T21:23:14Z"),
+        job(111534764440, "deploy", "skipped", "2026-10-04T21:23:15Z", "2026-10-04T21:23:15Z"),
+      ],
+    },
+    [annotationsPath(111526012579)]: annotations(TIMEOUT_NOTE, CANCEL_NOTE, RUNNER_NOTE),
+    [NEWEST_PATH]: newestRuns(RUN_200),
+  };
+  /** Run 174 verbatim: run 175 cancelled its one smoke job after 19 minutes. */
+  const REAL_174: Routes = {
+    [jobsPath(RUN_174)]: {
+      total_count: 3,
+      jobs: [
+        job(111448113977, "build", "success", "2026-10-04T13:38:05Z", "2026-10-04T13:42:26Z"),
+        job(111448887110, "smoke", "cancelled", "2026-10-04T13:42:28Z", "2026-10-04T14:01:32Z"),
+        job(111452352713, "deploy", "skipped", "2026-10-04T14:01:32Z", "2026-10-04T14:01:32Z"),
+      ],
+    },
+    [annotationsPath(111448887110)]: annotations(supersededNote(`smoke-refs/heads/${BRANCH}`), CANCEL_NOTE, RUNNER_NOTE),
+    [NEWEST_PATH]: newestRuns(RUN_200),
+  };
+
+  /** Run 183 as four shards: shard 3 hung into the limit (the real job's times), the other three passed; run 184 is pushed. */
+  const HUNG_SHARD = 111526012579;
+  const SHARDED_183: Job[] = [
+    job(111525103262, "build", "success", "2026-10-04T20:33:14Z", "2026-10-04T20:38:04Z"),
+    job(111526012571, shard(1), "success", "2026-10-04T20:38:07Z", "2026-10-04T20:51:12Z"),
+    job(111526012575, shard(2), "success", "2026-10-04T20:38:08Z", "2026-10-04T20:52:01Z"),
+    job(HUNG_SHARD, shard(3), "cancelled", "2026-10-04T20:38:07Z", "2026-10-04T21:23:14Z"),
+    job(111526012583, shard(4), "success", "2026-10-04T20:38:07Z", "2026-10-04T20:50:44Z"),
+    job(111534764431, "smoke-summary", null, "2026-10-04T21:23:16Z", null),
+    job(111534764440, "deploy", null, null, null),
+  ];
+  const timedOut = (over: Routes = {}, jobs: Job[] = SHARDED_183): Routes => ({
+    [jobsPath(RUN_183)]: { total_count: jobs.length, jobs },
+    [annotationsPath(HUNG_SHARD)]: annotations(TIMEOUT_NOTE, CANCEL_NOTE, RUNNER_NOTE),
+    [NEWEST_PATH]: newestRuns(RUN_184),
+    ...over,
+  });
+  /** Run 174 as four shards: shard 4 had passed when run 175's shards cancelled the other three after 19 minutes. */
+  const CANCELLED_SHARDS = [111448887101, 111448887102, 111448887103];
+  const SHARDED_174: Job[] = [
+    job(111448113977, "build", "success", "2026-10-04T13:38:05Z", "2026-10-04T13:42:26Z"),
+    ...CANCELLED_SHARDS.map((id, i) => job(id, shard(i + 1), "cancelled", "2026-10-04T13:42:28Z", "2026-10-04T14:01:32Z")),
+    job(111448887104, shard(4), "success", "2026-10-04T13:42:29Z", "2026-10-04T13:55:40Z"),
+    job(111452352700, "smoke-summary", null, "2026-10-04T14:01:34Z", null),
+    job(111452352713, "deploy", null, null, null),
+  ];
+  const superseded = (over: Routes = {}, jobs: Job[] = SHARDED_174): Routes => ({
+    [jobsPath(RUN_174)]: { total_count: jobs.length, jobs },
+    ...Object.fromEntries(CANCELLED_SHARDS.map((id, i) => [annotationsPath(id), annotations(supersededNote(`smoke-refs/heads/${BRANCH}-${i + 1}`), CANCEL_NOTE)])),
+    [NEWEST_PATH]: newestRuns(RUN_175),
+    ...over,
+  });
+
+  /** A fake `api`: the answer for a path from `routes` (a 404 for a path it has none for); every path asked in `calls`. */
+  function fakeApi(routes: Routes) {
+    const calls: string[] = [];
+    const api = async (p: string) => {
+      calls.push(p);
+      if (routes[p] === undefined) throw new Error(`gh api ${p}: gh: Not Found (HTTP 404)`);
+      return structuredClone(routes[p]);
+    };
+    return { api, calls };
+  }
+  async function verdict(routes: Routes, runId: number, result = "cancelled", summary = "success") {
+    const { api, calls } = fakeApi(routes);
+    return { ...(await smokeVerdict({ result, summary, timeoutMinutes: 45, repo: REPO, runId, branch: BRANCH, workflow: "deploy.yml", api })), calls };
+  }
+
+  it("fails a run whose shard ran out of time although a newer run exists (GitHub reports the timeout as cancelled)", async () => {
+    // run 183 as four shards with run 184 already pushed: the old step saw only the newer run and passed with a notice
+    const v = await verdict(timedOut(), RUN_183);
+    expect(v).toMatchObject({ pass: false, level: "error", message: TIMED_OUT_MESSAGE });
+    // the timeout decides before the newest run is asked for
+    expect(v.calls).toEqual([jobsPath(RUN_183), annotationsPath(HUNG_SHARD)]);
+    // every shard that hung is named
+    const allHung = SHARDED_183.map((j) => (SHARD_JOB.test(j.name) ? { ...j, conclusion: "cancelled", completed_at: "2026-10-04T21:23:14Z" } : j));
+    const all = await verdict(timedOut({}, allHung), RUN_183);
+    expect(all.pass).toBe(false);
+    for (let i = 1; i <= 4; i++) expect(all.message).toContain(`${shard(i)} ran out of time`);
+    // the real run 183 (one smoke job, before the shards) with today's newest run: a failure as well
+    const real = await verdict(REAL_183, RUN_183);
+    expect(real).toMatchObject({ pass: false, level: "error" });
+    expect(real.message).toBe(`smoke ran out of time ("${TIMEOUT_NOTE}") – a shard that times out fails the smoke test, even when a newer run supersedes this one`);
+  });
+
+  it("tells a timeout by the run time when the annotations cannot be read or do not name it: 44 of the 45 minutes", async () => {
+    // unreadable (a 404, or no checks permission): 45.1 minutes of a 45-minute limit
+    const blind = await verdict(timedOut({ [annotationsPath(HUNG_SHARD)]: undefined }), RUN_183);
+    expect(blind.pass).toBe(false);
+    expect(blind.message).toContain("smoke (shard 3 of 4) ran out of time (it ran 45.1 of its 45 minutes)");
+    expect(blind.calls).not.toContain(NEWEST_PATH);
+    // readable but without GitHub's wording (should it ever change)
+    const reworded = await verdict(timedOut({ [annotationsPath(HUNG_SHARD)]: annotations(CANCEL_NOTE) }), RUN_183);
+    expect(reworded).toMatchObject({ pass: false, message: expect.stringContaining("(it ran 45.1 of its 45 minutes)") });
+    // a shard that a newer push cancels after 44 minutes had hung all the same; one cancelled a second sooner had not
+    const endingAt = (end: string) => SHARDED_174.map((j) => (j.name === shard(2) ? { ...j, completed_at: end } : j));
+    const late = await verdict(superseded({}, endingAt("2026-10-04T14:26:28Z")), RUN_174);
+    expect(late).toMatchObject({ pass: false, level: "error" });
+    expect(late.message).toContain("smoke (shard 2 of 4) ran out of time (it ran 44.0 of its 45 minutes)");
+    expect(await verdict(superseded({}, endingAt("2026-10-04T14:26:27Z")), RUN_174)).toMatchObject({ pass: true, level: "notice" });
+  });
+
+  it("passes a run whose shards a newer push cancelled before their limit, with a notice that names the newer run", async () => {
+    const v = await verdict(superseded(), RUN_174);
+    expect(v).toMatchObject({ pass: true, level: "notice", message: supersededMessage(RUN_175) });
+    expect(v.calls).toEqual([jobsPath(RUN_174), ...CANCELLED_SHARDS.map((id) => annotationsPath(id)), NEWEST_PATH]);
+    // the same when their annotations cannot be read: 19 minutes are far from the limit
+    const blind = superseded(Object.fromEntries(CANCELLED_SHARDS.map((id) => [annotationsPath(id), undefined])));
+    expect(await verdict(blind, RUN_174)).toMatchObject({ pass: true, level: "notice" });
+    // the real run 174 (one smoke job) with today's newest run
+    expect(await verdict(REAL_174, RUN_174)).toMatchObject({ pass: true, level: "notice", message: supersededMessage(RUN_200) });
+  });
+
+  it("fails a cancelled run that no newer run supersedes, and one whose jobs or newest run cannot be read", async () => {
+    // this run is still the newest on the branch (a person cancelled it), an older one is listed first, or none is
+    for (const answer of [newestRuns(RUN_174), newestRuns(RUN_174 - 1), newestRuns()]) {
+      expect(await verdict(superseded({ [NEWEST_PATH]: answer }), RUN_174)).toMatchObject({
+        pass: false,
+        level: "error",
+        message: `a smoke shard was cancelled before its time limit, but no newer run of deploy.yml on ${BRANCH} supersedes this run – see the 'smoke (shard x of 4)' jobs`,
+      });
+    }
+    for (const answer of [undefined, { message: "Bad credentials" }]) {
+      const v = await verdict(superseded({ [NEWEST_PATH]: answer }), RUN_174);
+      expect(v.pass).toBe(false);
+      expect(v.message).toMatch(/the newest run of deploy\.yml on claude\/optimistic-johnson-46x3qg could not be read to tell whether a newer push supersedes this run \((gh api .*\(HTTP 404\)|the answer lists no runs)\)$/);
+    }
+    // this run's jobs unreadable or malformed: no telling a timeout from a newer push
+    for (const answer of [undefined, { message: "Resource not accessible by integration" }]) {
+      const v = await verdict(superseded({ [jobsPath(RUN_174)]: answer }), RUN_174);
+      expect(v).toMatchObject({ pass: false, level: "error", calls: [jobsPath(RUN_174)] });
+      expect(v.message).toMatch(/^a smoke shard was cancelled, and this run's jobs could not be read to tell a shard that ran out of time from one a newer push cancelled/);
+    }
+  });
+
+  it("fails a failed shard among cancelled ones and a cancelled result without a cancelled shard; only the smoke jobs are shards", async () => {
+    const failed = SHARDED_174.map((j) => (j.name === shard(4) ? { ...j, conclusion: "failure" } : j));
+    expect(await verdict(superseded({}, failed), RUN_174)).toMatchObject({ pass: false, level: "error", message: "smoke (shard 4 of 4) ended with 'failure' – see that job" });
+    const passed = SHARDED_174.map((j) => (SHARD_JOB.test(j.name) ? { ...j, conclusion: "success" } : j));
+    expect((await verdict(superseded({}, passed), RUN_174)).message).toMatch(/^the smoke shards ended 'cancelled', but none of this run's 4 shard jobs is cancelled/);
+    expect(SHARDED_174.filter((j) => SHARD_JOB.test(j.name)).map((j) => j.name)).toEqual([1, 2, 3, 4].map(shard));
+    for (const name of ["smoke", "smoke (shard 12 of 16)"]) expect(SHARD_JOB.test(name), name).toBe(true);
+    for (const name of ["smoke-summary", "build", "deploy", "smoke (shard x of 4)", "smoke (shard 1 of 4) ", "my smoke"]) expect(SHARD_JOB.test(name), name).toBe(false);
+  });
+
+  it("decides a run whose result needs no lookup without asking the API", async () => {
+    expect(await verdict({}, RUN_183, "success", "success")).toEqual({ pass: true, level: "info", message: PASSED_MESSAGE, calls: [] });
+    const incomplete = await verdict({}, RUN_183, "success", "failure");
+    expect(incomplete).toMatchObject({ pass: false, level: "error", calls: [] });
+    expect(incomplete.message).toMatch(/not every block of the suite ran in exactly one of them/);
+    expect(await verdict({}, RUN_183, "skipped")).toMatchObject({ pass: true, level: "notice", calls: [] });
+    for (const result of ["failure", "", "timed_out"]) {
+      expect(await verdict(timedOut(), RUN_183, result), result).toEqual({
+        pass: false,
+        level: "error",
+        message: `a smoke shard ended with '${result}' – see the failing 'smoke (shard x of 4)' job`,
+        calls: [],
+      });
+    }
+  });
+
+  it("reads a timeout from GitHub's annotation, or from a run time within a minute of the limit", () => {
+    const START = "2026-10-04T20:00:00Z";
+    const ran = (seconds: number) => job(1, shard(1), "cancelled", START, new Date(Date.parse(START) + seconds * 1000).toISOString());
+    expect(TIMEOUT_MARGIN_SECONDS).toBe(60);
+    expect(jobSeconds(ran(1144))).toBe(1144);
+    expect(jobSeconds(job(1, shard(1), "cancelled", null, START))).toBeNaN();
+    expect(jobSeconds(job(1, shard(1), "cancelled", START, null))).toBeNaN();
+    expect(timeoutEvidence(ran(44 * 60 - 1), null, 45)).toBeNull();
+    expect(timeoutEvidence(ran(44 * 60), null, 45)).toBe("it ran 44.0 of its 45 minutes");
+    expect(timeoutEvidence(ran(45 * 60 + 7), [CANCEL_NOTE], 45)).toBe("it ran 45.1 of its 45 minutes");
+    expect(timeoutEvidence(ran(29 * 60), [], 30)).toBe("it ran 29.0 of its 30 minutes"); // the limit is the workflow's
+    expect(timeoutEvidence(ran(19 * 60), [supersededNote("smoke-refs/heads/main-1"), CANCEL_NOTE], 45)).toBeNull();
+    expect(timeoutEvidence(job(1, shard(1), "cancelled", null, null), null, 45)).toBeNull();
+    // the annotation decides on its own, in today's wording and in an older one
+    expect(timeoutEvidence(ran(180), [TIMEOUT_NOTE, CANCEL_NOTE], 45)).toBe(`"${TIMEOUT_NOTE}"`);
+    const older = "The job running on runner GitHub Actions 2 has exceeded the maximum execution time of 45 minutes.";
+    expect(timeoutEvidence(ran(180), [older], 45)).toBe(`"${older}"`);
+    expect(workflowFile(WORKFLOW_REF)).toBe("deploy.yml");
+    expect(workflowFile("o/r/.github/workflows/smoke.yml@refs/pull/7/merge")).toBe("smoke.yml");
+    expect(workflowFile(undefined)).toBe("deploy.yml");
+    expect(commandData("50% done\r\nnext")).toBe("50%25 done%0D%0Anext");
+  });
+
+  it("main: the verdict on the run the step's environment describes, as a workflow command and an exit code", async () => {
+    const env = { RESULT: "cancelled", SUMMARY: "success", SHARD_TIMEOUT_MINUTES: "45", GITHUB_REPOSITORY: REPO, BRANCH, GITHUB_WORKFLOW_REF: WORKFLOW_REF };
+    const run = async (vars: Record<string, string | undefined>, routes: Routes) => {
+      const lines: string[] = [];
+      const { api, calls } = fakeApi(routes);
+      const code = await verdictMain(vars, api, (line: string) => lines.push(line));
+      return { code, lines, calls };
+    };
+    expect(await run({ ...env, GITHUB_RUN_ID: String(RUN_183) }, timedOut())).toMatchObject({ code: 1, lines: [`::error title=Smoke test::${TIMED_OUT_MESSAGE}`] });
+    expect(await run({ ...env, GITHUB_RUN_ID: String(RUN_174) }, superseded())).toMatchObject({ code: 0, lines: [`::notice title=Smoke test::${supersededMessage(RUN_175)}`] });
+    // GITHUB_REF_NAME stands in for BRANCH
+    expect((await run({ ...env, BRANCH: undefined, GITHUB_REF_NAME: BRANCH, GITHUB_RUN_ID: String(RUN_174) }, superseded())).code).toBe(0);
+    expect(await run({ ...env, RESULT: "success", GITHUB_RUN_ID: String(RUN_183) }, {})).toEqual({ code: 0, lines: [PASSED_MESSAGE], calls: [] });
+    // a message is escaped for the runner: the URL-encoded branch of a failed lookup shows as it is
+    const lookupFailed = await run({ ...env, GITHUB_RUN_ID: String(RUN_174) }, superseded({ [NEWEST_PATH]: undefined }));
+    expect(lookupFailed.code).toBe(1);
+    expect(lookupFailed.lines[0]).toContain("branch=claude%252Foptimistic-johnson-46x3qg&per_page=1");
+    // the shards' timeout-minutes is required: a run time cannot be judged without it
+    for (const bad of [undefined, "", "0", "-5", "soon"]) {
+      expect(await run({ ...env, SHARD_TIMEOUT_MINUTES: bad, GITHUB_RUN_ID: String(RUN_174) }, superseded()), String(bad)).toEqual({
+        code: 1,
+        lines: [`::error title=Smoke test::SHARD_TIMEOUT_MINUTES must be the smoke shards' timeout-minutes, got '${bad ?? ""}'`],
+        calls: [],
+      });
+    }
+  });
+
+  it.skipIf(process.platform === "win32")("runs as the workflow step runs it: node scripts/smoke/verdict.mjs, the API through gh", () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "smoke-verdict-"));
+    try {
+      // a fake GitHub CLI first on PATH: it answers `gh api <path>` from a routes file and logs its arguments and token
+      const bin = path.join(tmp, "bin");
+      fs.mkdirSync(bin);
+      fs.writeFileSync(
+        path.join(bin, "gh"),
+        [
+          "#!/usr/bin/env node",
+          'const fs = require("fs");',
+          "const args = process.argv.slice(2);",
+          'fs.appendFileSync(process.env.FAKE_GH_LOG, JSON.stringify({ args, token: process.env.GH_TOKEN ?? null }) + "\\n");',
+          'const routes = JSON.parse(fs.readFileSync(process.env.FAKE_GH_ROUTES, "utf8"));',
+          'if (args.length === 2 && args[0] === "api" && Object.prototype.hasOwnProperty.call(routes, args[1])) process.stdout.write(JSON.stringify(routes[args[1]]));',
+          'else { process.stdout.write(JSON.stringify({ message: "Not Found" })); process.stderr.write("gh: Not Found (HTTP 404)\\n"); process.exit(1); }',
+          "",
+        ].join("\n"),
+        { mode: 0o755 },
+      );
+      const step = (name: string, vars: Record<string, string>, routes: Routes) => {
+        const log = path.join(tmp, `${name}.log`);
+        const routesFile = path.join(tmp, `${name}.json`);
+        fs.writeFileSync(routesFile, JSON.stringify(routes));
+        // only what the step's env gives it (no GITHUB_* of the machine the tests run on; NODE_ENV as the test runner has it)
+        const r = spawnSync(process.execPath, [path.join(ROOT, "scripts/smoke/verdict.mjs")], {
+          cwd: ROOT,
+          encoding: "utf8",
+          timeout: 60_000,
+          env: {
+            NODE_ENV: process.env.NODE_ENV,
+            PATH: [bin, path.dirname(process.execPath), process.env.PATH ?? ""].join(path.delimiter),
+            FAKE_GH_LOG: log,
+            FAKE_GH_ROUTES: routesFile,
+            GH_TOKEN: "token-of-the-step",
+            SUMMARY: "success",
+            SHARD_TIMEOUT_MINUTES: "45",
+            GITHUB_REPOSITORY: REPO,
+            BRANCH,
+            GITHUB_WORKFLOW_REF: WORKFLOW_REF,
+            ...vars,
+          },
+        });
+        const asked = fs.existsSync(log) ? fs.readFileSync(log, "utf8").trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)) : [];
+        return { status: r.status, stdout: r.stdout.trim(), stderr: r.stderr.trim(), asked };
+      };
+      const asked = (...paths: string[]) => paths.map((p) => ({ args: ["api", p], token: "token-of-the-step" }));
+      expect(step("timed-out", { RESULT: "cancelled", GITHUB_RUN_ID: String(RUN_183) }, timedOut())).toEqual({
+        status: 1,
+        stdout: `::error title=Smoke test::${TIMED_OUT_MESSAGE}`,
+        stderr: "",
+        asked: asked(jobsPath(RUN_183), annotationsPath(HUNG_SHARD)),
+      });
+      expect(step("superseded", { RESULT: "cancelled", GITHUB_RUN_ID: String(RUN_174) }, superseded())).toEqual({
+        status: 0,
+        stdout: `::notice title=Smoke test::${supersededMessage(RUN_175)}`,
+        stderr: "",
+        asked: asked(jobsPath(RUN_174), ...CANCELLED_SHARDS.map((id) => annotationsPath(id)), NEWEST_PATH),
+      });
+      // gh fails on the annotations (no checks permission): the run time still catches the hung shard
+      const blind = step("blind", { RESULT: "cancelled", GITHUB_RUN_ID: String(RUN_183) }, timedOut({ [annotationsPath(HUNG_SHARD)]: undefined }));
+      expect(blind).toMatchObject({ status: 1, stderr: "" });
+      expect(blind.stdout).toContain("smoke (shard 3 of 4) ran out of time (it ran 45.1 of its 45 minutes)");
+      // a run whose shards all passed asks nothing
+      expect(step("passed", { RESULT: "success", GITHUB_RUN_ID: String(RUN_183) }, {})).toEqual({ status: 0, stdout: PASSED_MESSAGE, stderr: "", asked: [] });
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("is the step deploy.yml runs: the shards' timeout-minutes, the permissions it reads with, the shard job names", () => {
+    const deploy = fs.readFileSync(path.join(ROOT, ".github/workflows/deploy.yml"), "utf8");
+    /** The lines of one job of the workflow, from `  <job>:` to the next job. */
+    const jobSection = (name: string) => {
+      const lines = deploy.split("\n");
+      const start = lines.indexOf(`  ${name}:`);
+      expect(start, name).toBeGreaterThan(-1);
+      let end = start + 1;
+      while (end < lines.length && !/^ {2}[\w-]+:\s*$/.test(lines[end])) end++;
+      return lines.slice(start, end).join("\n");
+    };
+    const smokeJob = jobSection("smoke");
+    const summaryJob = jobSection("smoke-summary");
+    const limit = /\n {4}timeout-minutes: (\d+)\n/.exec(smokeJob)?.[1];
+    expect(limit, "the smoke job's timeout-minutes").toMatch(/^\d+$/);
+    const step = summaryJob.slice(summaryJob.indexOf("      - name: Every shard passed\n"));
+    expect(step).toMatch(/^ {6}- name: Every shard passed\n {8}if: always\(\)\n {8}env:\n/);
+    // the verdict judges a shard's run time by the limit the shards really have
+    expect(step).toContain(`\n          SHARD_TIMEOUT_MINUTES: ${limit}\n`);
+    for (const line of ["RESULT: ${{ needs.smoke.result }}", "SUMMARY: ${{ steps.summary.outcome }}", "GH_TOKEN: ${{ github.token }}", "BRANCH: ${{ github.ref_name }}"]) {
+      expect(step).toContain(`\n          ${line}\n`);
+    }
+    expect(step).toMatch(/\n {8}run: node scripts\/smoke\/verdict\.mjs\s*$/);
+    // this run's jobs and the newest run (actions), a cancelled shard's annotations (checks)
+    expect(summaryJob).toMatch(/\n {4}permissions:\n {6}contents: read\n {6}actions: read\b[^\n]*\n {6}checks: read\b/);
+    // the shard jobs are found by their name, and no other job of the workflow has one like it
+    const name = /\n {4}name: (.+)\n/.exec(smokeJob)?.[1] ?? "";
+    const matrix = (/\n {8}shard: \[([\d, ]+)\]\n/.exec(smokeJob)?.[1] ?? "").split(",").map((s) => s.trim());
+    expect(matrix).toEqual(["1", "2", "3", "4"]);
+    for (const i of matrix) expect(SHARD_JOB.test(name.replace("${{ matrix.shard }}", i)), name).toBe(true);
+    for (const other of ["build", "smoke-summary", "deploy"]) {
+      expect(jobSection(other), other).not.toMatch(/\n {4}name:/);
+      expect(SHARD_JOB.test(other), other).toBe(false);
+    }
+    // a newer push cancels a shard through the shard's own concurrency group
+    expect(smokeJob).toMatch(/\n {4}concurrency:\n {6}group: smoke-\$\{\{ github\.ref \}\}-\$\{\{ matrix\.shard \}\}\n {6}cancel-in-progress: true\n/);
+    // the README says the same
+    const readme = fs.readFileSync(path.join(ROOT, "README.md"), "utf8").replace(/\s+/g, " ");
+    expect(readme).toContain("a run whose shards a newer push cancelled deploys nothing and is not reported as a failure – unless one of them ran out of time");
+    expect(readme).toContain("(`scripts/smoke/verdict.mjs`)");
   });
 });
