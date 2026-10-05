@@ -3,9 +3,12 @@ import { MODE_IDS } from "@/lib/physics/types";
 import { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, RECIPES, type BotFamily, type BotPlatform, type EndingChoice, type LengthBucket } from "@/lib/bot/playbook";
 import type { ClipPlan } from "@/lib/bot/planner";
 import { copyString, type BotCopy } from "@/lib/bot/copy";
-import type { AgentTask, AgentTool } from "./agent";
+import type { AgentTask, AgentTool, AgentTurn } from "./agent";
 import type { JsonSchema } from "./jsonSchema";
-import { CATALOG, changesSchema, patchFromChanges, settingsCatalog, validateSettingsPatch, type SettingChange } from "./settingsPatch";
+import { CATALOG, changesSchema, describeSetting, patchFromChanges, validateSettingsPatch, type SettingChange } from "./settingsPatch";
+// --- desktop-ai-fix --- reply normalisers, placeholder-free recipe hooks and the settings that matter for a request
+import { CLIP_NAME_MAX, HASHTAG_MAX_CHARS, normaliseCopyResult, normaliseMakeVideosResult, withoutPlaceholders, type PlanFacts } from "./normalise";
+import { relevantAssistantSettings } from "./settingsFilter";
 
 /*
  * --- desktop-exe --- The four jobs of the AI studio, as agent tasks (prompts, tools, answer schemas and checks):
@@ -19,6 +22,13 @@ import { CATALOG, changesSchema, patchFromChanges, settingsCatalog, validateSett
  *
  * The planner and the finder run in the page (they need its world and messages); `StudioPorts` hands them in, so the tools
  * are tested with stand-ins. The plans a run makes live in a `PlanStore` for the run; the final answer may only name those.
+ *
+ * --- desktop-ai-fix --- Small local models got these jobs wrong in 1.0.2 (see agent.ts); now every string the grammar can
+ * bound is bounded (a hashtag ≤ 61 characters, a clip name ≤ 60, the copy's platforms the requested ones, one item each),
+ * Make videos offers its answer only once plan_clips has made plans and then only with their ids, each job normalises its
+ * answer before the checks (normalise.ts), the recipe hooks reach the prompt without "{placeholders}", the settings
+ * assistant sees the settings that matter for the request (settingsFilter.ts) and set_clip_settings describes its
+ * arguments in a line instead of a 2,000-token schema.
  */
 
 export interface PlanClipsRequest {
@@ -97,13 +107,16 @@ export function planSummary(plan: ClipPlan) {
 const RECIPE_IDS = RECIPES.map((r) => r.id);
 /** The value types of the common settings a tool may change on a planned clip. */
 const defaultSettingsForTools = defaultSettings("classic");
-const HASHTAG: JsonSchema = { type: "string", pattern: "^#[^\\s#]{1,60}$" };
+// --- desktop-ai-fix --- bounded, so a grammar-held model cannot run one hashtag on until the token limit (1.0.2 did)
+const HASHTAG: JsonSchema = { type: "string", minLength: 2, maxLength: HASHTAG_MAX_CHARS + 1, pattern: "^#[^\\s#]{1,60}$" };
+/** --- desktop-ai-fix --- What a short "default" hashtag set falls back to (the copy task's niche keywords). */
+export const DEFAULT_HASHTAGS: readonly string[] = ["#physics", "#satisfying", "#bouncingball"];
 
 /** The recipes for the prompt: id (family): name – hook. */
 export function recipeList(copy: BotCopy): string {
   return RECIPES.map((r) => {
     const name = copyString(copy, `recipes.${r.copyKey}.name`) || r.id;
-    const hook = copyString(copy, `recipes.${r.copyKey}.hook`);
+    const hook = withoutPlaceholders(copyString(copy, `recipes.${r.copyKey}.hook`)); // --- desktop-ai-fix --- (no "{seconds}" for a model to copy)
     return `- ${r.id} (${r.family}, ${r.modes.join("/")}): ${name}${hook ? ` – "${hook}"` : ""}`;
   }).join("\n");
 }
@@ -139,7 +152,7 @@ export const MAKE_VIDEOS_FINAL: JsonSchema = {
         type: "object",
         properties: {
           planId: { type: "string", minLength: 1 },
-          name: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9 _-]{0,59}$" },
+          name: { type: "string", minLength: 1, maxLength: CLIP_NAME_MAX, pattern: "^[A-Za-z0-9][A-Za-z0-9 _-]{0,59}$" }, // --- desktop-ai-fix --- (maxLength: the grammar can hold it)
           title: { type: "string", minLength: 1, maxLength: 100 },
           hook: { type: "string", minLength: 1, maxLength: 120 },
           caption: { type: "string", minLength: 1, maxLength: 2200 },
@@ -155,6 +168,47 @@ export const MAKE_VIDEOS_FINAL: JsonSchema = {
   required: ["clips", "summary"],
   additionalProperties: false,
 };
+
+/**
+ * --- desktop-ai-fix --- The answer once plans exist: a clip's planId is one of the run's plans (an enum, which the local
+ * model's grammar enforces), its platform one of theirs.
+ */
+export function makeVideosFinal(planIds: readonly string[], platforms: readonly BotPlatform[]): JsonSchema {
+  const clips = (MAKE_VIDEOS_FINAL.properties as Record<string, JsonSchema>).clips;
+  const item = clips.items as JsonSchema;
+  return {
+    ...MAKE_VIDEOS_FINAL,
+    properties: {
+      ...MAKE_VIDEOS_FINAL.properties,
+      clips: { ...clips, items: { ...item, properties: { ...item.properties, planId: { enum: [...planIds] }, platform: { enum: [...new Set(platforms)] } } } },
+    },
+  };
+}
+
+/** --- desktop-ai-fix --- A tool whose planId must be one of `planIds` (the grammar then cannot name another). */
+function withPlanIds(tool: AgentTool, planIds: readonly string[]): AgentTool {
+  const props = tool.args.properties ?? {};
+  return { ...tool, args: { ...tool.args, properties: { ...props, planId: { enum: [...planIds] } } } };
+}
+
+/** --- desktop-ai-fix --- What the normaliser needs of the run's plans (their order is plan_clips' order). */
+export function planFacts(store: PlanStore): PlanFacts[] {
+  return store.all().map((p) => ({ id: p.id, platform: p.platform, hashtags: p.post.hashtags, vars: { seconds: Math.round(p.timing.clipSec), episode: p.episode } }));
+}
+
+/**
+ * --- desktop-ai-fix --- Make videos' envelope for this turn: tool calls only until plan_clips has returned plans (1.0.2's
+ * small models answered on turn 1 with planIds "1", "2", "3"), then the tools with planId enums and the answer.
+ */
+export function makeVideosTurn(store: PlanStore, tools: readonly AgentTool[]): AgentTurn {
+  const ids = store.all().map((p) => p.id);
+  if (ids.length === 0) return { tools, final: null, hint: "Call plan_clips first: the answer may only name planIds that plan_clips returns." };
+  return {
+    tools: tools.map((t) => (t.name === "plan_clips" ? t : withPlanIds(t, ids))),
+    final: makeVideosFinal(ids, store.all().map((p) => p.platform)),
+    hint: `planId must be one of: ${ids.join(", ")}.`,
+  };
+}
 
 export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool[] {
   const planClips: AgentTool = {
@@ -229,6 +283,8 @@ export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool
       required: ["planId", "changes"],
       additionalProperties: false,
     },
+    // --- desktop-ai-fix --- one line in the prompt instead of the changes' JSON schema (~2,000 tokens); the grammar keeps the schema
+    argsHint: `{"planId": "<a planId plan_clips returned>", "changes": [{"setting": "<name>", "value": <value>}]} – settings: ${CATALOG.map(([key]) => key).join(", ")}`,
     check: (args) => {
       const plan = store.get(args.planId as string);
       if (!plan) return [`unknown planId "${String(args.planId)}"`];
@@ -256,10 +312,11 @@ export function makeVideosTask(request: string, options: { copy: BotCopy; locale
     "Recipes (id (family, modes): name – hook):",
     recipeList(options.copy),
   ].join("\n");
+  const tools = makeVideosTools(options.store, options.ports);
   return {
     system,
     user: request,
-    tools: makeVideosTools(options.store, options.ports),
+    tools,
     final: MAKE_VIDEOS_FINAL,
     checkFinal: (result) => {
       const errors: string[] = [];
@@ -269,6 +326,10 @@ export function makeVideosTask(request: string, options: { copy: BotCopy; locale
     maxSteps: 12,
     temperature: 0.4,
     maxTokens: 1500,
+    // --- desktop-ai-fix ---
+    name: "videos",
+    turn: () => makeVideosTurn(options.store, tools),
+    normaliseFinal: (result) => normaliseMakeVideosResult(result, planFacts(options.store)),
   };
 }
 
@@ -311,6 +372,21 @@ export const COPY_FINAL: JsonSchema = {
   additionalProperties: false,
 };
 
+/**
+ * --- desktop-ai-fix --- The copy's answer for these platforms: each item's platform one of them and exactly one item per
+ * platform (what the local model's grammar is held to; the normaliser maps a repeated or unrequested platform onto a missing
+ * one before the checks).
+ */
+export function copyFinal(platforms: readonly BotPlatform[]): JsonSchema {
+  const wanted = platforms.length ? [...new Set(platforms)] : [...BOT_PLATFORMS];
+  const items = (COPY_FINAL.properties as Record<string, JsonSchema>).items;
+  const item = items.items as JsonSchema;
+  return {
+    ...COPY_FINAL,
+    properties: { ...COPY_FINAL.properties, items: { ...items, minItems: wanted.length, maxItems: wanted.length, items: { ...item, properties: { ...item.properties, platform: { enum: wanted } } } } },
+  };
+}
+
 /** A short description of the clip on the page for the copywriter. */
 export function describeClip(s: SimulatorSettings): string {
   const parts = [`mode ${s.mode}`, `${s.recordingDuration} s`, `${s.wallCount} rings`, `ball speed ${s.ballSpeed}`, s.rainbowBall ? "rainbow ball" : `ball ${s.ballColor}`, s.themeId ? `theme ${s.themeId}` : "", s.gravity === 0 ? "no gravity" : "", s.topText ? `top text "${s.topText}"` : "", s.bottomText ? `bottom text "${s.bottomText}"` : ""];
@@ -330,7 +406,7 @@ export function copyTask(request: string, options: { locale: string; platforms: 
     system,
     user: request || "Write the copy.",
     tools: [],
-    final: COPY_FINAL,
+    final: copyFinal(options.platforms), // --- desktop-ai-fix --- (was COPY_FINAL: any platform, any number of items)
     checkFinal: (result) => {
       const wanted = new Set(options.platforms);
       return result.items.filter((i) => !wanted.has(i.platform)).map((i) => `platform "${i.platform}" was not asked for (${options.platforms.join(", ")})`);
@@ -338,6 +414,9 @@ export function copyTask(request: string, options: { locale: string; platforms: 
     maxSteps: 4,
     temperature: 0.8,
     maxTokens: 1200,
+    // --- desktop-ai-fix ---
+    name: "copy",
+    normaliseFinal: (result) => normaliseCopyResult(result, options.platforms, DEFAULT_HASHTAGS),
   };
 }
 
@@ -356,19 +435,25 @@ export const SETTINGS_FINAL: JsonSchema = {
 };
 
 export function settingsTask(request: string, current: SimulatorSettings, locale: string): AgentTask<SettingsResult> {
+  // --- desktop-ai-fix --- only the settings that matter for this request (the core ones and those it points at): the
+  // prompt was ~3,800 tokens with every setting, 40 s of reading on a CPU before the first word
+  const relevant = relevantAssistantSettings(current, request);
   const system = [
     // --- review fix (uncap-all) --- a number's slider range is a comfort range, not a limit: every value from its minimum up is valid
     "You change the settings of JumpingBallsLive, a ball-physics simulator. Answer with the changes: one {\"setting\", \"value\"} per setting to change, only those (numbers within their bounds: \"from N, no upper limit\" takes any value from N up – the slider range shown with it is only the comfortable part – and a plain range is a hard one; relative requests like 'twice as fast' are computed from the current value and never capped at a slider).",
     `Write the summary in ${languageName(locale)}.`,
     "Settings (name (type) = current value — meaning):",
-    settingsCatalog(current),
+    relevant.map(([key, d]) => describeSetting(key, current, d)).join("\n"),
   ].join("\n");
   return {
     system,
     user: request,
     tools: [],
+    name: "settings", // --- desktop-ai-fix ---
+    // --- desktop-ai-fix --- the answer's shape in a line: its JSON schema repeats the whole list above (~900 tokens)
+    finalHint: '{"changes":[{"setting":"<a setting from the list>","value":<its new value>}, …one entry per setting to change],"summary":"<one short sentence>"}',
     // The changes may only name the settings listed in the prompt (the grammar enforces it for the local model).
-    final: { ...SETTINGS_FINAL, properties: { ...SETTINGS_FINAL.properties, changes: changesSchema(current) } },
+    final: { ...SETTINGS_FINAL, properties: { ...SETTINGS_FINAL.properties, changes: changesSchema(current, relevant) } },
     checkFinal: (result) => {
       const checked = validateSettingsPatch(current, patchFromChanges(result.changes));
       return checked.ok ? [] : checked.errors;
@@ -429,5 +514,5 @@ export function ideasTask(request: string, options: { copy: BotCopy; locale: str
     "Research (virality playbook):",
     options.playbook,
   ].join("\n");
-  return { system, user: request || "Give me fresh ideas for this week.", tools: [], final: IDEAS_FINAL, maxSteps: 4, temperature: 0.9, maxTokens: 1500 };
+  return { system, user: request || "Give me fresh ideas for this week.", tools: [], final: IDEAS_FINAL, maxSteps: 4, temperature: 0.9, maxTokens: 1500, name: "ideas" /* --- desktop-ai-fix --- */ };
 }

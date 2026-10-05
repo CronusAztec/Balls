@@ -26,6 +26,13 @@ import { UpdateController } from "./updater";
 import { MENU, MENU_LABELS, menuLanguage } from "./menu";
 import { MAX_PICKED_BYTES, dialogFilters, filesInArgv, mediaKindOf, mimeOf } from "./media";
 import { registerHandlers, type HandlerTable } from "./handlers";
+// --- desktop-ai-fix --- net.fetch for every main-process request, node-llama-cpp's console lines in main.log, the AI status panel
+import os from "os";
+import type { AiDiagnoseOptions } from "@/lib/desktop/contract";
+import { describeError } from "@/lib/desktop/errors";
+import { networkDeps } from "./net";
+import { mirrorConsole } from "./consoleMirror";
+import { runAiDiagnostics, type DiagnosticsDeps } from "./ai/diagnostics";
 
 /*
  * --- desktop-exe --- The Windows app's main process: the whole simulator (the site's static export on app://), GPU video
@@ -48,6 +55,9 @@ for (const [name, value] of SWITCHES) app.commandLine.appendSwitch(name, value);
 app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
 if (SAFE_MODE) app.disableHardwareAcceleration();
 
+/** --- desktop-ai-fix --- How long quitting waits for the local model to stop and unload. */
+const QUIT_UNLOAD_MS = 8000;
+
 const gotLock = SMOKE || app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -61,6 +71,7 @@ function start() {
   logger.info(`start ${app.getName()} ${app.getVersion()} electron ${process.versions.electron} site ${locations.siteRoot}${SAFE_MODE ? " (safe mode)" : ""}`);
   process.on("uncaughtException", (err) => logger.error(`uncaught: ${err.stack ?? err.message}`));
   process.on("unhandledRejection", (err) => logger.error(`unhandled rejection: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`));
+  mirrorConsole(console, (level, message) => logger.write(level, message)); // --- desktop-ai-fix --- node-llama-cpp's backend choice and fallbacks
 
   const store = new Store<{ prefs: DesktopPrefs; window: WindowState; cloud: CloudSettings }>({ name: "config", defaults: { prefs: DEFAULT_PREFS, window: DEFAULT_WINDOW, cloud: DEFAULT_CLOUD } });
   const prefs = (): DesktopPrefs => resolvePrefs(store.get("prefs"));
@@ -134,18 +145,29 @@ function start() {
     emit: (e) => send(DESKTOP_EVENTS.renderProgress, e),
     log: logger.info,
   });
-  const models = new ModelManager({ dir: locations.modelsDir, onProgress: (e) => send(DESKTOP_EVENTS.modelProgress, e) });
+  // --- desktop-ai-fix --- every download and cloud call over Electron's net.fetch (the system proxy and certificate store)
+  const http = networkDeps((input, init) => net.fetch(input, init), globalThis.fetch, logger.warn);
+  const models = new ModelManager({ dir: locations.modelsDir, onProgress: (e) => send(DESKTOP_EVENTS.modelProgress, e), fetch: http.modelFetch });
   const local = new LocalModelRunner(() => import("node-llama-cpp") as unknown as Promise<LlamaModuleLike>, logger.info);
+  const secrets = new SecretBox(safeStorage);
+  const cloudSettings = (): CloudSettings => ({ ...DEFAULT_CLOUD, ...(store.get("cloud") ?? {}) });
   const ai = new AiService({
     prefs,
     setPrefs,
-    cloud: () => ({ ...DEFAULT_CLOUD, ...(store.get("cloud") ?? {}) }),
+    cloud: cloudSettings,
     setCloud: (cloud) => store.set("cloud", cloud),
-    secrets: new SecretBox(safeStorage),
+    secrets,
     local,
     modelPath: (id) => models.readyPath(id),
     emitToken: (requestId, text) => send(DESKTOP_EVENTS.aiToken, { requestId, text }),
+    // --- desktop-ai-fix ---
+    fetch: http.aiFetch,
+    anthropic: http.anthropic,
+    log: (level, message) => logger.write(level, message),
+    readyModels: async () => (await models.list(prefs().localModel)).filter((m) => m.state === "ready").map((m) => m.id),
   });
+  // --- desktop-ai-fix --- a 1.0.2 install whose download was never "used": the ready model is selected
+  void ai.ensureSelectedModel().catch((err: unknown) => logger.warn(`selecting a ready model: ${describeError(err)}`));
   const updater = new UpdateController(electronUpdater.autoUpdater as unknown as ConstructorParameters<typeof UpdateController>[0], {
     enabled: prefs().autoUpdate && !SMOKE,
     packaged: app.isPackaged,
@@ -174,6 +196,47 @@ function start() {
     logFile: logger.file,
     smoke: SMOKE,
   });
+
+  /* ---------------------------------------------------------------- --- desktop-ai-fix --- the AI status panel */
+  const homeDir = os.homedir();
+  const withoutHome = (text: string) => (homeDir && homeDir.length > 2 ? text.split(homeDir).join("~") : text);
+  const gbText = (bytes: number) => `${(bytes / 1024 ** 3).toFixed(1)} GB`;
+  const diagnosticsDeps: DiagnosticsDeps = {
+    prefs,
+    cloud: () => {
+      const c = cloudSettings();
+      return { provider: c.provider, baseUrl: c.baseUrl, model: c.model };
+    },
+    key: () => secrets.open(cloudSettings().keySealed),
+    encryption: () => secrets.available,
+    modelEntry: async (id) => (await models.list(id)).find((m) => m.id === id) ?? null,
+    redact: withoutHome,
+    runtime: (gpu, start) => local.runtime(gpu, start),
+    probe: (modelPath, gpu) => local.probe(modelPath, gpu),
+    localStatus: () => local.status(),
+    lastErrors: () => ai.lastFailures(),
+    netFetch: (input, init) => net.fetch(input as string, init),
+    nodeFetch: globalThis.fetch,
+    appFetch: http.aiFetch,
+    facts: () => ({
+      app: { name: app.getName(), version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node, packaged: app.isPackaged, portable: portableDir !== null, safeMode: SAFE_MODE, dataDir: withoutHome(locations.dataDir) },
+      os: { platform: process.platform, arch: process.arch, type: os.type(), release: os.release(), version: typeof os.version === "function" ? os.version() : "", cpus: `${os.cpus().length} × ${os.cpus()[0]?.model ?? "?"}`, ram: `${gbText(os.freemem())} free of ${gbText(os.totalmem())}` },
+    }),
+    gpu: async () => (await gpuStatus()).devices.map((d) => ({ name: d.name, vendor: d.vendor, driver: d.driver, active: d.active })),
+    logTail: async () => {
+      const handle = await fs.open(logger.file, "r").catch(() => null);
+      if (!handle) return [];
+      try {
+        const { size } = await handle.stat();
+        const length = Math.min(size, 64 * 1024);
+        const buf = Buffer.alloc(length);
+        await handle.read(buf, 0, length, size - length);
+        return buf.toString("utf8").split(/\r?\n/).filter(Boolean).slice(-200).map(withoutHome);
+      } finally {
+        await handle.close();
+      }
+    },
+  };
 
   /* ---------------------------------------------------------------- IPC */
   const table: HandlerTable = {
@@ -229,8 +292,12 @@ function start() {
     [IPC.aiModels]: () => models.list(prefs().localModel),
     [IPC.aiModelDownload]: (id) => {
       void models.download(id as string).then(
-        () => logger.info(`model ${String(id)} downloaded`),
-        (err: Error) => logger.warn(`model ${String(id)}: ${err.message}`),
+        // --- desktop-ai-fix --- a finished download is selected when the selected model is not ready (Run stayed disabled in 1.0.2)
+        () => {
+          logger.info(`model ${String(id)} downloaded`);
+          void ai.ensureSelectedModel(String(id)).catch((err: unknown) => logger.warn(`selecting ${String(id)}: ${describeError(err)}`));
+        },
+        (err: Error) => logger.warn(`model ${String(id)}: ${describeError(err)}`),
       );
       return models.list(prefs().localModel);
     },
@@ -260,6 +327,7 @@ function start() {
     [IPC.aiPlaybook]: () => fs.readFile(locations.playbook, "utf8").catch(() => ""),
     [IPC.updateCheck]: () => updater.check(),
     [IPC.updateInstall]: () => updater.install(),
+    [IPC.aiDiagnose]: (options) => runAiDiagnostics(diagnosticsDeps, (options ?? {}) as AiDiagnoseOptions), // --- desktop-ai-fix ---
   };
 
   /* ---------------------------------------------------------------- window, menu, tray */
@@ -516,6 +584,17 @@ function start() {
       out.localAi = llama;
       if (!llama.ok) ok = false;
       out.update = updater.status;
+      // --- desktop-ai-fix --- the AI status panel's checks answer in the package (quick: no network, no model load)
+      const diagnosis = await runAiDiagnostics(diagnosticsDeps, { deep: false });
+      out.aiDiagnose = diagnosis.checks.map((c) => `${c.id}:${c.level}:${c.code}`);
+      if (diagnosis.checks.length !== 5 || !diagnosis.report.app) ok = false;
+      // --- desktop-ai-fix --- JBL_SMOKE_MODEL: the real AI path – a Settings and a Captions job through the page's AI panel,
+      // the bridge, AiService and llama.cpp, within JBL_SMOKE_AI_TIMEOUT_MS
+      if (process.env.JBL_SMOKE_MODEL) {
+        const tasks = ok ? await smokeAiTasks() : { ok: false, error: "the page did not load" };
+        out.aiTasks = tasks;
+        if (!tasks.ok) ok = false;
+      }
     } catch (err) {
       out.error = err instanceof Error ? err.message : String(err);
       ok = false;
@@ -523,7 +602,93 @@ function start() {
     console.log(`SMOKE_RESULT ${JSON.stringify(out)}`);
     console.log(ok ? "SMOKE OK" : "SMOKE FAILED");
     quitting = true;
+    // --- desktop-ai-fix --- llama.cpp stopped before the process ends (app.exit skips before-quit)
+    await Promise.race([local.unload().catch(() => {}), new Promise((r) => setTimeout(r, QUIT_UNLOAD_MS))]);
     app.exit(ok ? 0 : 1);
+  }
+
+  /* ---------------------------------------------------------------- --- desktop-ai-fix --- the smoke run's real AI jobs */
+  let smokeModelError: string | null = null;
+  /** JBL_SMOKE_MODEL (a GGUF file) becomes the selected local model of the smoke run's data folder. */
+  async function prepareSmokeModel(file: string): Promise<void> {
+    const full = path.resolve(file);
+    const list = await models.importFile(full);
+    const entry = list.find((m) => m.path === full);
+    if (!entry) throw new Error(`${full} was not added as a model`);
+    setPrefs({ localModel: entry.id, aiProvider: "local", aiGpu: process.env.JBL_SMOKE_AI_GPU === "off" ? "off" : "auto" });
+    logger.info(`smoke: local model ${entry.id} from ${full}, run on ${prefs().aiGpu}`);
+  }
+  const SMOKE_AI_JOBS = [
+    { task: "settings", prompt: "make the ball twice as fast and rainbow, no gravity", done: '[data-testid="ai-changed"]' },
+    { task: "copy", prompt: "", done: '[data-testid="ai-copy-result"]' },
+  ] as const;
+  /** Runs each job in the AI panel the way a user does (task, prompt, Run) and waits for its result card or its error. */
+  async function smokeAiTasks(): Promise<Record<string, unknown> & { ok: boolean }> {
+    if (smokeModelError) return { ok: false, error: smokeModelError };
+    const deadline = Date.now() + Number(process.env.JBL_SMOKE_AI_TIMEOUT_MS || 900000);
+    const page = async (js: string, ms = 15000): Promise<Record<string, unknown>> => {
+      if (!win) return { probeError: "no window" };
+      const evaluation = win.webContents.executeJavaScript(js).catch((err: Error) => ({ probeError: err.message }));
+      return (await Promise.race([evaluation, new Promise((r) => setTimeout(() => r({ probeError: "page probe timed out" }), ms))])) as Record<string, unknown>;
+    };
+    await page(`document.querySelector('[data-testid="desktop-tab-ai"]')?.click(); true`);
+    const out: Record<string, unknown> = { model: prefs().localModel, runOn: prefs().aiGpu };
+    let ok = true;
+    for (const job of SMOKE_AI_JOBS) {
+      const t0 = Date.now();
+      const started = await page(
+        `(async () => {
+          const q = (s) => document.querySelector(s);
+          await new Promise((r) => setTimeout(r, 300));
+          q('[data-testid="ai-task-${job.task}"]')?.click();
+          await new Promise((r) => setTimeout(r, 300));
+          const box = q('[data-testid="ai-prompt"]');
+          if (!box) return { error: "no prompt box in the AI panel" };
+          Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value").set.call(box, ${JSON.stringify(job.prompt)});
+          box.dispatchEvent(new Event("input", { bubbles: true }));
+          for (let i = 0; i < 80; i++) {
+            const run = q('[data-testid="ai-run"]');
+            if (run && !run.disabled) { run.click(); return { started: true }; }
+            await new Promise((r) => setTimeout(r, 500));
+          }
+          return { error: "Run stayed disabled: " + (q('[data-testid="desktop-ai"]')?.innerText ?? "").slice(0, 400) };
+        })()`,
+        60000,
+      );
+      if (!started.started) {
+        out[job.task] = { ok: false, error: started.error ?? started.probeError };
+        ok = false;
+        continue;
+      }
+      let outcome: Record<string, unknown> | null = null;
+      while (!outcome && Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const state = await page(`(() => {
+          const q = (s) => document.querySelector(s);
+          const err = q('[data-testid="ai-error"]');
+          const done = q('${job.done}');
+          return { error: err ? err.innerText : null, done: done ? done.innerText.slice(0, 800) : null, running: !!q('[data-testid="ai-stop"]'), log: (q('[data-testid="ai-log"]')?.innerText ?? "").slice(-800) };
+        })()`);
+        if (state.probeError) continue;
+        if (state.error) outcome = { ok: false, error: state.error, log: state.log };
+        else if (state.done && !state.running) {
+          const text = String(state.done);
+          const hashtags = (text.match(/#[\p{L}\p{N}_]+/gu) ?? []).length;
+          const valid = job.task === "copy" ? hashtags >= 3 : text.trim().length > 0;
+          outcome = { ok: valid, result: text.slice(0, 400), log: state.log, ...(job.task === "copy" ? { hashtags } : {}) };
+        }
+      }
+      if (!outcome) {
+        await page(`document.querySelector('[data-testid="ai-stop"]')?.click(); true`);
+        outcome = { ok: false, error: `no result within JBL_SMOKE_AI_TIMEOUT_MS` };
+      }
+      out[job.task] = { ...outcome, ms: Date.now() - t0 };
+      if (!outcome.ok) ok = false;
+    }
+    const status = await ai.status();
+    out.local = status.local;
+    out.lastError = status.lastError;
+    return { ok, ...out };
   }
 
   /* ---------------------------------------------------------------- lifecycle */
@@ -535,9 +700,18 @@ function start() {
     }
     void deliverFiles(filesInArgv(argv));
   });
-  app.on("before-quit", () => {
+  // --- desktop-ai-fix --- once: stop the AI, wait (bounded) for llama.cpp to finish the stopped reply and unload, then quit –
+  // quitting mid-generation aborted the process with a Napi::Error in 1.0.2
+  let quitPrepared = false;
+  app.on("before-quit", (event) => {
     quitting = true;
     ai.cancelAll();
+    models.cancelAll();
+    if (quitPrepared) return;
+    quitPrepared = true;
+    event.preventDefault();
+    const bound = new Promise<void>((resolve) => setTimeout(resolve, QUIT_UNLOAD_MS));
+    void Promise.race([local.unload().catch((err: unknown) => logger.warn(`unloading the model: ${describeError(err)}`)), bound]).finally(() => app.quit());
   });
   app.on("window-all-closed", () => {
     if (process.platform !== "darwin") app.quit();
@@ -567,6 +741,8 @@ function start() {
       return new Response(body, { status: res.status, headers: { "content-type": contentType(res.file), "cache-control": "no-cache" } });
     });
     registerHandlers(ipcMain, table, logger.warn);
+    // --- desktop-ai-fix --- the smoke run's model (JBL_SMOKE_MODEL) is selected before the page asks for the AI status
+    if (SMOKE && process.env.JBL_SMOKE_MODEL) await prepareSmokeModel(process.env.JBL_SMOKE_MODEL).catch((err: unknown) => void (smokeModelError = describeError(err)));
     buildMenu();
     if (!SMOKE) buildTray();
     if (!existsSync(locations.siteRoot)) logger.error(`site export missing at ${locations.siteRoot} – run \`npm run site\` in desktop/`);

@@ -12,12 +12,17 @@ import { PlanStore, copyTask, ideasTask, makeVideosTask, settingsTask, type Copy
 import type { ClipPlan } from "@/lib/bot/planner";
 import type { DesktopPageHooks } from "./pageHooks";
 import { studioPorts } from "./studioPorts";
+import { messageOf, stripIpcPrefix } from "@/lib/desktop/errors"; // --- desktop-ai-fix --- the IPC prefix gone wherever it sits
 
 /*
  * --- desktop-exe --- The AI panel's state: the model manager (catalog, downloads with progress, a picked GGUF, the cloud
  * provider), and the four studio jobs run through the tool-call loop on the app's model – streaming into the panel, with
  * Stop. Results are only applied once valid: planned clips go to the render queue, a settings patch is applied with an
  * Undo (the page's settings before it, back through the preset loader).
+ *
+ * --- desktop-ai-fix --- The run's progress for the panel ("Reading the request… N s" until the first token of a turn, then
+ * "Writing… N s") and a timing line per turn; errors without Electron's IPC prefix wherever it sits; and the CPU / GPU
+ * choice (prefs.aiGpu) for the status panel.
  */
 
 export const AI_TASKS = ["videos", "copy", "settings", "ideas"] as const;
@@ -30,8 +35,22 @@ export type AiResult =
   | { kind: "ideas"; result: IdeasResult };
 
 export interface AiLogLine {
-  kind: "tool" | "result" | "invalid" | "error" | "progress" | "turn";
+  kind: "tool" | "result" | "invalid" | "error" | "progress" | "turn" | "timing";
   text: string;
+  /** --- desktop-ai-fix --- A finished turn's timing (kind "timing"): seconds to the first token and in all. */
+  timing?: { step: number; firstSec: number | null; totalSec: number };
+}
+
+/** --- desktop-ai-fix --- The model turn in progress: when it started and when its first token came (null: not yet). */
+export interface AiTurnProgress {
+  step: number;
+  startedAt: number;
+  firstTokenAt: number | null;
+}
+
+/** --- desktop-ai-fix --- An error from the bridge without Electron's "Error invoking remote method …" prefix. */
+export function aiErrorText(err: unknown): string {
+  return stripIpcPrefix(messageOf(err));
 }
 
 export interface DesktopAiApi {
@@ -59,6 +78,11 @@ export interface DesktopAiApi {
   clearKey: () => void;
   useProvider: (provider: "local" | "cloud") => void;
   message: string | null;
+  /** --- desktop-ai-fix --- The turn in progress and the clock the panel's progress line counts with. */
+  turn: AiTurnProgress | null;
+  now: number;
+  /** --- desktop-ai-fix --- Run the local model on the GPU when one works ("auto") or on the CPU only ("off"). */
+  setGpu: (mode: "auto" | "off") => void;
 }
 
 export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObject<DesktopPageHooks>, onClips: (result: MakeVideosResult, plans: ClipPlan[]) => void, onPrefsChanged: () => void): DesktopAiApi {
@@ -73,6 +97,15 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
   const [error, setError] = useState<string | null>(null);
   const [undo, setUndo] = useState<SimulatorSettings | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // --- desktop-ai-fix --- the turn in progress and a clock that ticks while a run is on
+  const [turn, setTurn] = useState<AiTurnProgress | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+  const turnRef = useRef<AiTurnProgress | null>(null);
+  useEffect(() => {
+    if (!running) return;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [running]);
   const abortRef = useRef<AbortController | null>(null);
   const playbookRef = useRef<string | null>(null);
   const model = useMemo(() => (bridge ? bridgeChatModel(bridge) : null), [bridge]);
@@ -107,7 +140,26 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
       setResult(null);
       setError(null);
       setMessage(null);
+      // --- desktop-ai-fix --- a timing line for each finished turn
+      const finishTurn = () => {
+        const t = turnRef.current;
+        if (!t) return;
+        turnRef.current = null;
+        setTurn(null); // (a tool that runs next shows its own progress lines)
+        const end = Date.now();
+        setLog((l) => [...l, { kind: "timing", text: "", timing: { step: t.step, firstSec: t.firstTokenAt === null ? null : Math.round((t.firstTokenAt - t.startedAt) / 100) / 10, totalSec: Math.round((end - t.startedAt) / 100) / 10 } }]);
+      };
       const onEvent = (e: AgentEvent) => {
+        if (e.type === "token" && turnRef.current && turnRef.current.firstTokenAt === null) {
+          turnRef.current = { ...turnRef.current, firstTokenAt: Date.now() };
+          setTurn(turnRef.current);
+        }
+        if (e.type === "turn") {
+          finishTurn();
+          turnRef.current = { step: e.step, startedAt: Date.now(), firstTokenAt: null };
+          setTurn(turnRef.current);
+          setNow(Date.now());
+        } else if (e.type === "invalid" || e.type === "tool" || e.type === "final") finishTurn();
         if (e.type === "token") setStream((s) => (s.length > 20000 ? s.slice(-15000) : s) + e.text);
         else if (e.type === "turn") setStream((s) => (s ? `${s}\n\n` : s));
         else if (e.type === "tool") setLog((l) => [...l, { kind: "tool", text: `${e.name}(${JSON.stringify(e.args)})` }]);
@@ -155,8 +207,10 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
             setResult({ kind: "ideas", result: out.result });
           }
         } catch (err) {
-          if (!controller.signal.aborted) setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") : String(err));
+          if (!controller.signal.aborted) setError(aiErrorText(err)); // --- desktop-ai-fix --- (the prefix anywhere, not only at the start)
         } finally {
+          finishTurn();
+          setTurn(null);
           abortRef.current = null;
           setRunning(false);
           refresh();
@@ -176,7 +230,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
     (fn: () => Promise<unknown>) => {
       setMessage(null);
       fn()
-        .catch((err: unknown) => setMessage(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") : String(err)))
+        .catch((err: unknown) => setMessage(aiErrorText(err))) // --- desktop-ai-fix ---
         .finally(() => {
           refresh();
           onPrefsChanged();
@@ -216,11 +270,15 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
         setStatus(await bridge.ai.setCloud(config));
         onPrefsChanged();
       } catch (err) {
-        setMessage(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") : String(err));
+        setMessage(aiErrorText(err)); // --- desktop-ai-fix ---
       }
     },
     clearKey: () => bridge && wrap(() => bridge.ai.clearCloudKey().then(setStatus)),
     useProvider: (provider) => bridge && wrap(() => bridge.prefs.set({ aiProvider: provider })),
     message,
+    // --- desktop-ai-fix ---
+    turn,
+    now,
+    setGpu: (mode) => bridge && wrap(() => bridge.prefs.set({ aiGpu: mode })),
   };
 }

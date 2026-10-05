@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { stripIpcPrefix } from "@/lib/desktop/errors"; // --- desktop-ai-fix ---
 
 /* --- desktop-exe --- Small building blocks of the Desktop group (dark theme, lime accent like the rest of the panel). */
 
@@ -53,8 +54,8 @@ export function formatSeconds(sec: number | null): string {
   return m > 0 ? `${m}:${s.toFixed(0).padStart(2, "0")}` : `${s.toFixed(1)} s`;
 }
 
-/** An IPC error without Electron's "Error invoking remote method" prefix. */
+/** An IPC error without Electron's "Error invoking remote method" prefix (--- desktop-ai-fix --- wherever it sits in the message). */
 export function errorText(err: unknown): string {
   const text = err instanceof Error ? err.message : String(err);
-  return text.replace(/^Error invoking remote method '[^']+': (Error: )?/, "");
+  return stripIpcPrefix(text);
 }
