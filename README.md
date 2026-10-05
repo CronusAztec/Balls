@@ -1546,7 +1546,8 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
   fighters' names, the HOME count –, and the camera frames out a HUD without a switch (the String Circle title, the Sound
   Vortex and Conveyor Belt counters, the race commentary, the Multipliers badges, Fight League's ability boxes). No captions or
   top / bottom text, no watermark: the stills come from the arena canvas, never the video compositor, and the generator runs
-  with a test Pro licence. The entries are below, one line per mode.
+  with a test Pro licence (`PREVIEW_LICENSE`, a real key, against a production build) – the still camera stamps a free
+  visitor's stills like a video's frames (see the still camera below). The entries are below, one line per mode.
 - **The frame** – `src/lib/thumbnails/heroFrame.ts`: a square like every card (`aspect-square`), `THUMB_SIZE` 480 × 480 (2× the
   ~240 px card), the subject with the same `THUMB_INSET` margin (4 %) on every side – past the world's edge the stage's darkest
   corner colour fills it –, the same radial vignette and a subtle inner glow along the edges in the mode's colour, encoded as
@@ -1555,7 +1556,10 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
   the fast export's hidden offline canvas with its seeded `Math.random` and clock, stepped frame by frame to the hero second and
   drawn at 2–6 device px per world px (`heroRenderScale()`), then filtered down – an entry gives the same picture on any
   machine, however busy. The moments are tuned for the 800 × 450 world of a 1400 × 900 window (`HERO_WORLD`); the generator
-  refuses another.
+  refuses another. --- watermark-everywhere --- A still is a picture of the run like a video's frame: each capture is sealed
+  when it starts (free-watermark's `sealWatermark()`) and every picture it hands back – the framed card and the raw world – is
+  stamped (`stampFrame()`) unless that seal is a verified Pro licence's, so the still camera, reachable from the console, gives a
+  visitor without Pro no clean frame; the result says so (`watermarked`), and the generator refuses to write such a picture.
 - **Regenerating** – build and serve the site, then run the generator (`npm run previews`, `scripts/generate-mode-previews.mjs`):
 
   ```bash
@@ -1675,7 +1679,11 @@ the Windows app run that same canvas –, a split-screen race's composed frame a
   (`Watermark.liveTagTip`) and the line under the stage too (`Watermark.liveNote`), in English, Polish and Spanish.
 - **The site's own images** – `scripts/generate-mode-previews.mjs` and `scripts/generate-og.mjs` render as Pro (a licence signed
   with the committed TEST key, which a test-mode build accepts; `PREVIEW_LICENSE` takes a real key for a production build), so
-  the mode cards, the gallery's pictures and the social preview stay clean.
+  the mode cards, the gallery's pictures and the social preview stay clean. The mode cards come from mode-thumbnails' still
+  camera (`window.__jumpingBallsStill`, `useHeroStill.ts`), which renders on the fast export's offline canvas – never stamped
+  live – and so stamps its pictures itself, like a compositor: sealed per capture, a free visitor's stills (the framed card and
+  the raw world) carry the badge and the tiles, and a capture that carries them says so (`watermarked`) – the generator then
+  stops rather than write a marked card.
 - **Extending** – a new canvas that plays a simulation calls `stampLiveFrame()` as its last pass (and never on a canvas a
   compositor exports from); a mode that draws HUD text in a corner of the square or along its top or bottom edge reports it to
   the frame's `LiveHud` (a band for a full-width strip, a block otherwise) before the pass.
@@ -1688,12 +1696,14 @@ the Windows app run that same canvas –, a split-screen race's composed frame a
   a licence activated and removed mid-run; storage flags, globals and the DOM ignored; the module's exports); the painter (two
   draws a frame, last, state reset; caches per canvas and size; a mark that cannot be built); one badge per video frame (the
   compositor over a marked canvas, the fast export's, a resized one, a licence activated mid-recording, the page recorder end to
-  end); the wiring (the canvas' last pass, never offline; the split-screen stage once; the landing preview; the Windows app);
-  the copy in three languages. The smoke test's watermark-everywhere block runs a free visitor in ten modes, a split-screen race,
-  a share link, the daily challenge and the landing preview (the badge within 1 s of the start, on the other side within 7 s),
-  tampers with the DOM during a live run, toggles the test licence mid-run (no mark for Pro in the same modes), counts the badge
-  regions of a free recording on a light background (exactly one, one layer deep) and measures the live and recording frame
-  rates with the mark.
+  end); the wiring (the canvas' last pass, never offline; the split-screen stage once; the landing preview; the Windows app; the
+  still camera's seal and stamps, and the generator refusing a marked still); the copy in three languages. The smoke test's
+  watermark-everywhere block runs a free visitor in ten modes, a split-screen race, a share link, the daily challenge and the
+  landing preview (the badge within 1 s of the start, on the other side within 7 s), tampers with the DOM during a live run,
+  toggles the test licence mid-run (no mark for Pro in the same modes), counts the badge regions of a free recording on a light
+  background (exactly one, one layer deep), measures the live and recording frame rates with the mark, and takes the same still
+  with the still camera as a free visitor (badge and tiles, card and raw world, reported `watermarked`) and as Pro (neither; two
+  Pro stills give the same pixels).
 
 ## Windows app
 

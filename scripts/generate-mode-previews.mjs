@@ -125,6 +125,8 @@ async function openStill(query) {
 async function capture(mode, request) {
   const result = await page.evaluate((r) => window.__jumpingBallsStill.capture(r), request);
   if (result.mode !== mode) throw new Error(`The page opened ${result.mode}, not ${mode} – does the hero query set another mode?`);
+  // --- watermark-everywhere --- the still camera stamps the stills of a visitor without a verified Pro licence: no card carries it
+  if (result.watermarked) throw new Error("The stills carry the free watermark: the served build did not accept the preview licence – a production build (NEXT_PUBLIC_LICENSE_PUBLIC_KEY set) needs PREVIEW_LICENSE, a real licence key.");
   return result;
 }
 

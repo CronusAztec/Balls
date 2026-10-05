@@ -12528,7 +12528,7 @@ const orbBoxPixels = (box) =>
 // installing it again takes it away; (d) a free recording carries exactly one badge region per frame, one layer deep (on a light
 // background, where two stacked badges would be twice as dark), in the video layout's corner; (e) a free visitor's live runs and
 // recording keep their frame-rate floors with the mark; (f) the pricing page and the Unlock dialog say that free simulations and
-// free videos carry it and Pro removes it.
+// free videos carry it and Pro removes it; (g) the still camera of the mode cards (mode-thumbnails) stamps a free visitor's stills.
 {
   const weErrors = [];
   const weContexts = [];
@@ -13149,6 +13149,91 @@ const orbBoxPixels = (box) =>
         "watermark everywhere: the pricing page (en, pl, es), the Unlock dialog, the line under the stage and the Watermark tag say that free simulations and free videos carry a small watermark and Pro removes it",
         pricingOk && opened && /Free simulations and free videos carry a small .* watermark.*Pro removes it from both/.test(dialogText) && /simulator and the videos .* watermark/.test(note) && /simulations and videos carry a small watermark/.test(tip ?? ""),
         `(${JSON.stringify({ pricing: Object.fromEntries(Object.entries(copy).map(([k, v]) => [k, v.slice(-220)])), dialog: dialogText.slice(0, 220), note, tip })})`,
+      );
+    }
+
+    // (g) --- mode-thumbnails --- The still camera (window.__jumpingBallsStill, which makes the mode cards' pictures) is sealed per
+    // capture like a video: a free visitor's still of a second – the framed card picture and the raw world – carries the badge (in
+    // the bottom-left corner before 6 s) and the faint tiles, and the capture says `watermarked`; the same still taken once the test
+    // licence is installed carries neither, and two Pro captures give the same pixels (so whatever differs from the free one is the
+    // mark). Lossless PNG stills, compared in the page.
+    {
+      const sp = await openWe(null);
+      await sp.goto(`${BASE}/en/simulator/?mode=classic&seed=1&glow=1`, { waitUntil: "networkidle" });
+      const ready = await sp.waitForFunction(() => !!window.__jumpingBallsStill?.ready(), null, { timeout: 30000 }).then(() => true).catch(() => false);
+      const shoot = (name) =>
+        sp
+          .evaluate(async (n) => {
+            const pixels = async (url) => {
+              const img = new Image();
+              img.src = url;
+              await img.decode();
+              const c = document.createElement("canvas");
+              c.width = img.naturalWidth;
+              c.height = img.naturalHeight;
+              const g = c.getContext("2d", { willReadFrequently: true });
+              g.drawImage(img, 0, 0);
+              return { w: c.width, h: c.height, data: g.getImageData(0, 0, c.width, c.height).data };
+            };
+            const r = await window.__jumpingBallsStill.capture({ times: [2], size: 480, format: "png", raw: true });
+            const f = r.frames[0];
+            window.__stills = window.__stills ?? {};
+            window.__stills[n] = { card: f ? await pixels(f.dataUrl) : null, raw: f?.raw ? await pixels(f.raw) : null };
+            return { watermarked: r.watermarked, frames: r.frames.length, raw: !!f?.raw };
+          }, name)
+          .catch((e) => ({ error: String(e?.message ?? e).slice(0, 200) }));
+      /** Where stills `a` and `b` differ: pixels off by more than 1 level, and by more than 60 per quadrant (the badge). */
+      const compareStills = (a, b, key) =>
+        sp.evaluate(
+          ([a, b, key]) => {
+            const A = window.__stills?.[a]?.[key];
+            const B = window.__stills?.[b]?.[key];
+            if (!A || !B) return { error: "no still" };
+            if (A.w !== B.w || A.h !== B.h) return { error: `size ${A.w}×${A.h} vs ${B.w}×${B.h}` };
+            const luma = (d, i) => 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+            const out = { changed: 0, topChanged: 0, strong: 0, quads: { "top-left": 0, "top-right": 0, "bottom-left": 0, "bottom-right": 0 } };
+            for (let y = 0; y < A.h; y++) {
+              for (let x = 0; x < A.w; x++) {
+                const i = 4 * (y * A.w + x);
+                const d = Math.abs(luma(A.data, i) - luma(B.data, i));
+                if (d > 1) {
+                  out.changed++;
+                  if (y < A.h / 2) out.topChanged++;
+                }
+                if (d > 60) {
+                  out.strong++;
+                  out.quads[`${y < A.h / 2 ? "top" : "bottom"}-${x < A.w / 2 ? "left" : "right"}`]++;
+                }
+              }
+            }
+            return out;
+          },
+          [a, b, key],
+        );
+      const free = ready ? await shoot("free") : { error: "no still camera" };
+      await sp.evaluate((t) => {
+        localStorage.setItem("jbl.license", t);
+        window.dispatchEvent(new StorageEvent("storage", { key: "jbl.license" }));
+      }, weLicence);
+      const pro = ready ? await shoot("pro") : { error: "no still camera" };
+      const proAgain = ready ? await shoot("pro2") : { error: "no still camera" };
+      const marked = {};
+      const same = {};
+      for (const key of ["card", "raw"]) {
+        marked[key] = await compareStills("free", "pro", key);
+        same[key] = await compareStills("pro", "pro2", key);
+      }
+      // the badge: strong differences, nearly all in the bottom-left quadrant; the tiles: faint ones in the top half too
+      const carries = (d) => !d.error && d.strong >= 40 && d.quads["bottom-left"] >= 0.9 * d.strong && d.topChanged >= 100;
+      check(
+        "watermark everywhere: a free visitor's still from the still camera (the mode cards' window.__jumpingBallsStill) carries the badge and the tiles – the card picture and the raw world – and the capture says it is watermarked",
+        ready && free.watermarked === true && free.raw === true && carries(marked.card) && carries(marked.raw),
+        `(${JSON.stringify({ ready, free, card: marked.card, raw: marked.raw })})`,
+      );
+      check(
+        "watermark everywhere: the same still taken with the test licence carries no mark and is not reported watermarked (two Pro captures give the same pixels)",
+        pro.watermarked === false && proAgain.watermarked === false && !same.card.error && !same.raw.error && same.card.strong === 0 && same.raw.strong === 0,
+        `(${JSON.stringify({ pro, proAgain, card: same.card, raw: same.raw })})`,
       );
     }
   } finally {

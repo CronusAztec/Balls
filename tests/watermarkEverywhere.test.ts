@@ -26,7 +26,8 @@ import es from "../messages/es.json";
  * - one badge per video frame: the page recorder adds none to a canvas frame that already carries the live mark, the fast
  *   export (a canvas never stamped live) keeps its own;
  * - the wiring: the studio's canvas stamps every live frame after everything else (never offline), the split-screen stage once
- *   per composed frame, the landing page's preview too; the Windows app runs the same page (no renderer of its own).
+ *   per composed frame, the landing page's preview too; the Windows app runs the same page (no renderer of its own); the still
+ *   camera of the mode cards (mode-thumbnails) seals each capture and stamps a free visitor's stills like a video's frames.
  */
 
 const ROOT = path.join(__dirname, "..");
@@ -600,6 +601,22 @@ describe("the wiring: every live canvas stamps its frames last, offline canvases
   it("the page recorder's compositor stamps only frames the live pass did not mark", () => {
     const src = strip(read("src/lib/recording/recorder.ts"));
     expect(src).toMatch(/if \(!liveMarkCovers\(source\)\) stampFrame\(ctx, mark\?\.seal/);
+  });
+
+  it("the still camera (mode-thumbnails' window.__jumpingBallsStill) seals each capture and stamps every picture it hands back – the framed card and the raw world – before encoding it", () => {
+    const src = strip(read("src/components/simulator/useHeroStill.ts"));
+    // sealed once a capture (free-watermark's gate), before the run is rendered, the mark built ahead (one that cannot be drawn stops it)
+    expect(src).toMatch(/const seal = await sealWatermark\(\);\s*prepareStamp\(seal, \{ width: size, height: size \}\);[\s\S]*?await renderStills\(/);
+    // the card: stamped right after it is framed – over everything – and before it is encoded
+    expect(src).toMatch(/drawHeroThumbnail\(ctx, canvas, [^;]*\);\s*stampFrame\(ctx, seal, \{ width: size, height: size, clipMs: sec \* 1000 \}\);/);
+    const stamped = src.indexOf("stampFrame(ctx, seal");
+    expect(src.indexOf("out.toDataURL(")).toBeGreaterThan(stamped);
+    expect(src.indexOf("encodeUnderBudget(out")).toBeGreaterThan(stamped);
+    // the raw world: stamped right after it is copied, before it is encoded
+    expect(src).toMatch(/rawCtx\.drawImage\(canvas, 0, 0, world\.width, world\.height\);\s*stampFrame\(rawCtx, seal, \{ width: world\.width, height: world\.height, clipMs: sec \* 1000 \}\);\s*\}\s*frame\.raw = raw\.toDataURL\(/);
+    // the result says whether the pictures carry the mark, and the card generator refuses pictures that do
+    expect(src).toMatch(/watermarked: sealVerdict\(seal\) === "marked"/);
+    expect(read("scripts/generate-mode-previews.mjs")).toMatch(/if \(result\.watermarked\) throw new Error\(/);
   });
 });
 
