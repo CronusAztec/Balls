@@ -47,6 +47,7 @@ export const IPC = {
   aiPlaybook: "ai:playbook",
   updateCheck: "update:check",
   updateInstall: "update:install",
+  aiDiagnose: "ai:diagnose", // --- desktop-ai-fix --- the AI status / diagnostics panel
 } as const;
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
 
@@ -293,8 +294,19 @@ export interface AiStatus {
   provider: AiProviderKind;
   /** A model is ready to answer (the local file present, or a cloud key stored). */
   ready: boolean;
-  local: { model: string | null; loaded: boolean; backend: string | null; gpuLayers: number | null; error: string | null };
+  local: {
+    model: string | null;
+    loaded: boolean;
+    backend: string | null;
+    gpuLayers: number | null;
+    error: string | null;
+    /** --- desktop-ai-fix --- The loaded context's size in tokens and the GPU llama.cpp runs on (null: none / not loaded). */
+    contextSize?: number | null;
+    gpuDevice?: string | null;
+  };
   cloud: { provider: CloudProvider; baseUrl: string; model: string; hasKey: boolean; encryption: boolean };
+  /** --- desktop-ai-fix --- The last failed request of each path (kept until the app quits). */
+  lastError?: { local: AiLastError | null; cloud: AiLastError | null };
 }
 
 /** The cloud providers' defaults (the user can change the endpoint and the model; a local OpenAI-compatible server needs no key). */
@@ -324,6 +336,8 @@ export interface AiChatRequest {
   schema?: Record<string, unknown>;
   maxTokens?: number;
   temperature?: number;
+  /** --- desktop-ai-fix --- The studio job asking ("videos", "copy", "settings", "ideas"): logged, and kept with a failure. */
+  task?: string;
 }
 
 export interface AiChatResult {
@@ -336,6 +350,50 @@ export interface AiChatResult {
 export interface AiTokenEvent {
   requestId: string;
   text: string;
+}
+
+/* ------------------------------------------------------------------ AI status / diagnostics (--- desktop-ai-fix ---) */
+
+/** A failed AI request, as the status and the report show it. */
+export interface AiLastError {
+  /** The message the page saw (with the cause codes explained). */
+  message: string;
+  /** ISO time. */
+  at: string;
+  task: string | null;
+  /** "local", "anthropic" or "openai". */
+  provider: string;
+  model: string;
+}
+
+export const AI_CHECK_IDS = ["runtime", "model", "provider", "network", "lastError"] as const;
+export type AiCheckId = (typeof AI_CHECK_IDS)[number];
+/** green / amber / red, or not tested in this run. */
+export type AiCheckLevel = "ok" | "warn" | "fail" | "skip";
+
+/** One row of the AI status panel. */
+export interface AiCheck {
+  id: AiCheckId;
+  level: AiCheckLevel;
+  /** The reason, as a message key under `DesktopAiFix.check` (the page translates it) with its values. */
+  code: string;
+  params: Record<string, string | number>;
+  /** Technical lines (backend, device, sizes, HTTP status, error codes) – shown under the row, copied into the report. */
+  details: string[];
+}
+
+export interface AiDiagnoseOptions {
+  /** Also start llama.cpp and load the model (an 8-token grammar test), and reach the network and the cloud endpoint. */
+  deep?: boolean;
+}
+
+export interface AiDiagnosis {
+  /** ISO time of the run. */
+  at: string;
+  deep: boolean;
+  checks: AiCheck[];
+  /** The copyable report: app / Electron / OS versions, RAM, GPU, backend, model, provider (never the key), the last errors and the log's tail. */
+  report: Record<string, unknown>;
 }
 
 /* ------------------------------------------------------------------ updates */
@@ -408,6 +466,8 @@ export interface DesktopApi {
     setCloud(config: CloudConfigInput): Promise<AiStatus>;
     clearCloudKey(): Promise<AiStatus>;
     playbook(): Promise<string>;
+    /** --- desktop-ai-fix --- The AI status panel's checks (and its copyable report). */
+    diagnose(options?: AiDiagnoseOptions): Promise<AiDiagnosis>;
   };
   update: {
     check(): Promise<UpdateStatus>;
@@ -465,6 +525,7 @@ export const BRIDGE_METHODS = {
   "ai.playbook": IPC.aiPlaybook,
   "update.check": IPC.updateCheck,
   "update.install": IPC.updateInstall,
+  "ai.diagnose": IPC.aiDiagnose, // --- desktop-ai-fix ---
 } as const satisfies Record<string, IpcChannel>;
 
 /** `log` is fire-and-forget (`ipcRenderer.send`); every other channel is a request. */
@@ -514,7 +575,14 @@ export function checkIpcArgs(channel: IpcChannel, args: readonly unknown[]): str
       const r = a as Partial<AiChatRequest> | null;
       if (!r || typeof r !== "object" || !isString(r.requestId) || !Array.isArray(r.messages) || r.messages.length === 0) return "ai.chat(request)";
       const ok = r.messages.every((m) => m && ["system", "user", "assistant"].includes(m.role) && isString(m.content));
+      if (r.task !== undefined && (!isString(r.task) || r.task.length > 40)) return "ai.chat: task"; // --- desktop-ai-fix ---
       return ok ? null : "ai.chat: messages";
+    }
+    // --- desktop-ai-fix --- the diagnostics' options: nothing, or { deep: boolean }
+    case IPC.aiDiagnose: {
+      if (a === undefined) return null;
+      const o = a as Partial<AiDiagnoseOptions> | null;
+      return o && typeof o === "object" && !Array.isArray(o) && (o.deep === undefined || typeof o.deep === "boolean") ? null : "ai.diagnose(options?)";
     }
     case IPC.aiSetCloud: {
       const c = a as Partial<CloudConfigInput> | null;

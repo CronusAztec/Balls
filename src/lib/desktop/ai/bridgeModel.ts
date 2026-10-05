@@ -19,7 +19,7 @@ export function bridgeChatModel(bridge: Pick<DesktopApi, "ai" | "on">): ChatMode
       const onAbort = () => void bridge.ai.cancel(requestId);
       options.signal?.addEventListener("abort", onAbort);
       try {
-        const result = await bridge.ai.chat({ requestId, messages, schema: options.schema as Record<string, unknown> | undefined, maxTokens: options.maxTokens, temperature: options.temperature });
+        const result = await bridge.ai.chat({ requestId, messages, schema: options.schema as Record<string, unknown> | undefined, maxTokens: options.maxTokens, temperature: options.temperature, ...(options.task ? { task: options.task } : {}) }); // --- desktop-ai-fix --- (the job, for the app's log)
         if (result.cancelled || options.signal?.aborted) throw new DOMException("cancelled", "AbortError");
         return result.text;
       } finally {

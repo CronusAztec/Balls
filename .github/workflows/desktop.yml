@@ -6,7 +6,8 @@ name: Windows app
 #   3. the installer and the portable EXE (electron-builder, x64) – code-signed when the WIN_CSC_LINK /
 #      WIN_CSC_KEY_PASSWORD secrets exist, unsigned otherwise (SmartScreen: "More info" → "Run anyway"),
 #   4. a smoke run of the packaged app (`--smoke`: loads the simulator, checks the bridge and that the local AI starts,
-#      reports the GPU, exits 0),
+#      reports the GPU, exits 0) – --- desktop-ai-fix --- with JBL_SMOKE_MODEL, a small GGUF (actions/cache) on which the
+#      packaged app runs one Settings and one Captions job through its AI panel, AiService and llama.cpp (GPU auto),
 #   5. the EXEs as workflow artifacts and – on a `desktop-v*` tag, or a manual run with a version and "publish" ticked –
 #      a GitHub Release with the versioned EXEs, their blockmaps, electron-updater's latest.yml and copies under fixed
 #      names (JumpingBallsLive-Setup.exe, JumpingBallsLive-portable.exe) that the site's download page links through
@@ -15,7 +16,7 @@ on:
   push:
     tags: ["desktop-v*"]
   pull_request:
-    paths: ["desktop/**", "src/lib/desktop/**", ".github/workflows/desktop.yml"]
+    paths: ["desktop/**", "src/lib/desktop/**", "src/components/simulator/desktop/**", ".github/workflows/desktop.yml"]
   workflow_dispatch:
     inputs:
       version:
@@ -41,7 +42,8 @@ concurrency:
 jobs:
   build:
     runs-on: windows-latest
-    timeout-minutes: 60
+    # --- desktop-ai-fix --- 60 → 90: the smoke run now also runs two real AI jobs on the CPU (bounded: JBL_SMOKE_AI_TIMEOUT_MS)
+    timeout-minutes: 90
     outputs:
       version: ${{ steps.version.outputs.version }}
     defaults:
@@ -114,11 +116,33 @@ jobs:
           JBL_CUDA: ${{ inputs.cuda && '1' || '0' }}
         run: npm run dist
 
+      # --- desktop-ai-fix --- the real AI path in CI: the smallest catalog model (Qwen2.5-1.5B Q4_K_M, 1.1 GB), cached, its
+      # SHA-256 the catalog's (desktop/src/models/catalog.ts)
+      - name: Smoke model (cache)
+        id: smoke-model
+        uses: actions/cache@v4
+        with:
+          path: .cache/smoke-model
+          key: smoke-gguf-qwen2.5-1.5b-instruct-q4_k_m-6a1a2eb6d156
+
+      - name: Smoke model (download on a cache miss)
+        if: steps.smoke-model.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p .cache/smoke-model
+          curl -fsSL --retry 4 --retry-delay 5 -o .cache/smoke-model/qwen2.5-1.5b-instruct-q4_k_m.gguf \
+            "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+          echo "6a1a2eb6d15622bf3c96857206351ba97e1af16c30d7a74ee38970e434e9407e  .cache/smoke-model/qwen2.5-1.5b-instruct-q4_k_m.gguf" | sha256sum -c -
+
       - name: Smoke-run the packaged app
         working-directory: desktop
+        timeout-minutes: 30
         env:
           JBL_SMOKE_DATA: ${{ runner.temp }}\jbl-smoke-data
           JBL_SMOKE_TIMEOUT_MS: "120000"
+          # --- desktop-ai-fix --- one Settings and one Captions job on this model, GPU auto (the runner has none: the CPU)
+          JBL_SMOKE_MODEL: ${{ github.workspace }}\.cache\smoke-model\qwen2.5-1.5b-instruct-q4_k_m.gguf
+          JBL_SMOKE_AI_TIMEOUT_MS: "1200000"
+          JBL_VERBOSE: "1"
         run: |
           ./release/win-unpacked/JumpingBallsLive.exe --smoke 2>&1 | tee smoke.log
           grep -q "SMOKE OK" smoke.log
@@ -165,6 +189,7 @@ jobs:
 
           - **Installer** (per user, no admin): JumpingBallsLive-Setup-$VERSION.exe – updates itself from this page.
           - **Portable**: JumpingBallsLive-$VERSION-portable.exe – runs without installing.
+          - **Coming from 1.0.2?** Its updater refuses unsigned updates: install this version once by hand (later versions update themselves).
 
           Unsigned builds: Windows SmartScreen shows \"Windows protected your PC\" – click *More info* → *Run anyway*. Checksums: SHA256SUMS.txt."
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then

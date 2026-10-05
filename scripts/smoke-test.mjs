@@ -12217,6 +12217,165 @@ const orbBoxPixels = (box) =>
 }
 // --- end orb-rhythm ---
 
+// --- desktop-ai-fix --- the Windows app's AI fix on the website's side: the download page shows the version (1.0.3) and says
+// the model is a one-time download and that 1.0.2 installs take 1.0.3 by hand; with a stand-in window.desktop that has
+// ai.diagnose, the AI tab shows the first-run card (its download button downloads the default model), the AI status panel
+// (five rows, Run checks, Copy report as JSON without the key, CPU only), a Captions run with "Reading the request… N s",
+// a timing line and the small model's hashtags without "#" / its unrequested platform normalised into a valid result, and
+// a failure shown without Electron's IPC prefix.
+{
+  const DESKTOP_VERSION = "1.0.3";
+  for (const locale of ["en", "pl", "es"]) {
+    await page.goto(`${BASE}/${locale}/download/`, { waitUntil: "networkidle" });
+    const notes = await page.evaluate(() => ({
+      version: document.querySelector('[data-testid="download-version"]')?.textContent ?? "",
+      update: document.querySelector('[data-testid="download-update-note"]')?.textContent ?? "",
+      all: document.querySelector('[data-testid="download-notes"]')?.textContent ?? "",
+    }));
+    check(
+      `desktop-ai-fix: /${locale}/download/ shows version ${DESKTOP_VERSION}, the one-time model download and the manual step for 1.0.2`,
+      notes.version.includes(DESKTOP_VERSION) && notes.update.includes("1.0.2") && notes.update.includes("1.0.3") && notes.all.length > notes.version.length + notes.update.length + 40,
+      `(version "${notes.version}", update note "${notes.update.slice(0, 80)}")`,
+    );
+  }
+
+  const FAKE_AI_FIX_BRIDGE = `(() => {
+    const listeners = {};
+    const SECRET = "sk-ant-smoke-SECRET-123456";
+    const state = { ready: false, prefs: { outputFolder: "", preferHardware: true, ffmpegPath: "", encoderOverride: "", closeToTray: true, autoUpdate: true, aiProvider: "local", localModel: "llama-3.2-3b-instruct-q4km", aiGpu: "auto" }, downloads: [], diagnoses: [], chats: [], nextChat: null, clipboard: null, journal: null };
+    const emit = (event, payload) => (listeners[event] || []).forEach((l) => l(payload));
+    const entry = () => ({ id: "llama-3.2-3b-instruct-q4km", name: "Llama 3.2 3B Instruct (Q4_K_M)", size: 2019377696, sha256: "x", licence: "Llama 3.2 Community License", licenceUrl: "https://www.llama.com/llama3_2/license/", url: "https://huggingface.co/x.gguf", state: state.ready ? "ready" : "missing", downloaded: state.ready ? 2019377696 : 0, path: state.ready ? "C:/m.gguf" : null, custom: false, selected: true });
+    const check = (id, level, code, params, details) => ({ id, level, code, params: params || {}, details: details || [] });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text) => void (state.clipboard = String(text)), readText: async () => state.clipboard || "" } });
+    window.desktop = {
+      apiVersion: 1,
+      info: async () => ({ appName: "JumpingBallsLive", version: "1.0.3", electron: "44.5.1", chrome: "146.0", platform: "win32", arch: "x64", packaged: true, dataDir: "C:/Users/smoke/AppData/Roaming/JumpingBallsLive", logFile: "main.log", smoke: false }),
+      log: () => {},
+      openLogs: async () => void (state.openedLogs = true),
+      prefs: { get: async () => state.prefs, set: async (p) => (state.prefs = { ...state.prefs, ...p }) },
+      gpu: { status: async () => ({ devices: [], features: {}, hardwareVideoEncode: false, hardwareVideoDecode: false, webgpu: false, switches: [], disabled: false }), probeEncoders: async () => ({ ffmpeg: null, encoders: [], chosen: { h264: null, hevc: null, av1: null }, error: "ffmpeg not found" }), benchmark: async () => [] },
+      dialogs: { pickFolder: async () => null, pickMedia: async () => null },
+      render: { save: async () => { throw new Error("not in this check"); }, cancel: async () => {} },
+      journal: { load: async () => state.journal, save: async (j) => void (state.journal = j) },
+      library: { list: async () => [], remove: async () => [], reveal: async () => {}, open: async () => {}, openFolder: async () => {}, read: async () => { throw new Error("none"); } },
+      ai: {
+        status: async () => ({ provider: "local", ready: state.ready, local: { model: state.ready ? "llama-3.2-3b-instruct-q4km" : null, loaded: state.ready, backend: state.ready ? "cpu" : null, gpuLayers: state.ready ? 0 : null, error: null, contextSize: state.ready ? 8192 : null, gpuDevice: null }, cloud: { provider: "anthropic", baseUrl: "https://api.anthropic.com", model: "claude-opus-5-5", hasKey: false, encryption: true }, lastError: { local: null, cloud: null } }),
+        models: async () => [entry()],
+        downloadModel: async (id) => (state.downloads.push(id), [entry()]),
+        cancelDownload: async () => {}, importModel: async () => [entry()], selectModel: async () => ({}), removeModel: async () => [entry()],
+        chat: async (req) => {
+          state.chats.push(req);
+          const next = state.nextChat || { text: '{"action":"final","result":{"items":[]}}' };
+          state.nextChat = null;
+          if (next.delayMs) await new Promise((r) => setTimeout(r, next.delayMs));
+          if (next.error) throw new Error(next.error);
+          emit("aiToken", { requestId: req.requestId, text: next.text });
+          return { text: next.text, provider: "local", model: "llama", cancelled: false };
+        },
+        cancel: async () => {}, setCloud: async () => ({}), clearCloudKey: async () => ({}), playbook: async () => "",
+        diagnose: async (options) => {
+          const deep = !!(options && options.deep);
+          state.diagnoses.push(deep);
+          const checks = deep
+            ? [check("runtime", "warn", "runtimeCpuFallback", { supported: "vulkan, cpu" }, ["backend: cpu"]), check("model", "fail", "modelMissing", { name: "Llama 3.2 3B Instruct (Q4_K_M)" }), check("provider", "skip", "providerNotSetUp"), check("network", "warn", "networkIntercepted", { code: "SELF_SIGNED_CERT_IN_CHAIN" }, ["huggingface.co through Node's fetch: failed"]), check("lastError", "ok", "lastErrorNone")]
+            : [check("runtime", "skip", "runtimeNotStarted", { supported: "vulkan, cpu" }), check("model", "fail", "modelMissing", { name: "Llama 3.2 3B Instruct (Q4_K_M)" }), check("provider", "skip", "providerNotSetUp"), check("network", "skip", "networkNotTested"), check("lastError", "ok", "lastErrorNone")];
+          return { at: new Date().toISOString(), deep, checks, report: { report: "JumpingBallsLive AI status", deep, app: { version: "1.0.3" }, cloud: { provider: "anthropic", keyStored: false }, checks } };
+        },
+      },
+      update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: async () => {} },
+      on: (event, l) => { (listeners[event] ||= []).push(l); return () => { listeners[event] = listeners[event].filter((x) => x !== l); }; },
+    };
+    window.__aiFix = { state, emit, SECRET };
+  })();`;
+  const actx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+  await actx.addInitScript(FAKE_AI_FIX_BRIDGE);
+  const ap = await actx.newPage();
+  const aiFixErrors = [];
+  ap.on("pageerror", (e) => aiFixErrors.push(e.message));
+  ap.on("console", (m) => m.type() === "error" && !/favicon|Failed to load resource/.test(m.text()) && aiFixErrors.push(m.text()));
+  try {
+    await ap.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    await ap.locator("[data-desktop-group]").waitFor({ timeout: 20000 }).catch(() => {});
+    await ap.getByTestId("desktop-tab-ai").click({ timeout: 10000 }).catch(() => {});
+    const setupShown = await ap.getByTestId("ai-setup").waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    const setupText = await ap.getByTestId("ai-setup-download").innerText().catch(() => "");
+    await ap.getByTestId("ai-setup-download").click({ timeout: 5000 }).catch(() => {});
+    await ap.waitForFunction(() => window.__aiFix.state.downloads.length > 0, null, { timeout: 5000 }).catch(() => {});
+    const downloads = await ap.evaluate(() => window.__aiFix.state.downloads.slice());
+    check(
+      "desktop-ai-fix: with no model and no key the AI tab shows the first-run card, and “Download the 2 GB model” downloads the default model",
+      setupShown && /2 GB/.test(setupText) && downloads[0] === "llama-3.2-3b-instruct-q4km",
+      `(card ${setupShown}, button "${setupText}", downloads ${JSON.stringify(downloads)})`,
+    );
+
+    // The AI status panel: the quick look on opening, then Run checks.
+    const quickRows = await ap.locator('[data-testid="ai-checks"][data-deep="0"] [data-ai-check]').count().catch(() => 0);
+    await ap.getByTestId("ai-run-checks").click({ timeout: 5000 }).catch(() => {});
+    const deep = await ap.locator('[data-testid="ai-checks"][data-deep="1"]').waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    const rows = await ap.locator("[data-ai-check]").evaluateAll((els) => els.map((el) => `${el.getAttribute("data-ai-check")}:${el.getAttribute("data-level")}`)).catch(() => []);
+    const networkText = await ap.getByTestId("ai-check-network").innerText().catch(() => "");
+    check(
+      "desktop-ai-fix: the AI status panel shows Runtime, Model, Cloud provider, Network and Last error with their level and reason, and Run checks runs the deep checks",
+      quickRows === 5 && deep && rows.join(",") === "runtime:warn,model:fail,provider:skip,network:warn,lastError:ok" && /antivirus HTTPS scan or a proxy/.test(networkText) && networkText.includes("SELF_SIGNED_CERT_IN_CHAIN"),
+      `(quick rows ${quickRows}, deep ${deep}, rows ${rows.join(",")}, network "${networkText.slice(0, 90)}")`,
+    );
+    await ap.getByTestId("ai-copy-report").click({ timeout: 5000 }).catch(() => {});
+    await ap.waitForFunction(() => !!window.__aiFix.state.clipboard, null, { timeout: 5000 }).catch(() => {});
+    const clip = await ap.evaluate(() => window.__aiFix.state.clipboard || "");
+    let parsed = null;
+    try {
+      parsed = JSON.parse(clip);
+    } catch {
+      parsed = null;
+    }
+    const copiedNote = await ap.getByTestId("ai-report-copied").innerText().catch(() => "");
+    await ap.getByTestId("ai-gpu-off").click({ timeout: 5000 }).catch(() => {});
+    await ap.waitForFunction(() => window.__aiFix.state.prefs.aiGpu === "off", null, { timeout: 5000 }).catch(() => {});
+    const gpuPref = await ap.evaluate(() => window.__aiFix.state.prefs.aiGpu);
+    const cpuPressed = await ap.getByTestId("ai-gpu-off").getAttribute("aria-pressed").catch(() => null);
+    check(
+      "desktop-ai-fix: Copy report puts the JSON report on the clipboard, and “CPU only” sets the model to run on the CPU",
+      !!parsed && parsed.report === "JumpingBallsLive AI status" && parsed.checks?.length === 5 && /copied/i.test(copiedNote) && gpuPref === "off" && cpuPressed === "true",
+      `(report ${parsed ? "JSON" : `not JSON: ${clip.slice(0, 60)}`}, note "${copiedNote}", aiGpu ${gpuPref}, chip pressed ${cpuPressed})`,
+    );
+
+    // The download finishes: the model is ready, Run is enabled; a Captions run on a slow model.
+    await ap.evaluate(() => {
+      window.__aiFix.state.ready = true;
+      window.__aiFix.emit("modelProgress", { id: "llama-3.2-3b-instruct-q4km", downloaded: 2019377696, size: 2019377696, bytesPerSec: 0, state: "ready" });
+    });
+    await ap.waitForFunction(() => !document.querySelector('[data-testid="ai-run"]')?.disabled, null, { timeout: 10000 }).catch(() => {});
+    const setupGone = (await ap.getByTestId("ai-setup").count()) === 0;
+    await ap.getByTestId("ai-task-copy").click({ timeout: 5000 }).catch(() => {});
+    await ap.evaluate(() => {
+      // Llama-3.2-3B's replies in 1.0.2: hashtags without "#" and a platform that was not asked for (reels is).
+      window.__aiFix.state.nextChat = { delayMs: 2600, text: '{"action":"final","result":{"items":[{"platform":"tiktok","title":"Ring escape","hook":"Can it escape?","caption":"Which ring breaks first?","hashtags":["physics","satisfying","bouncingball"]}]}}' };
+    });
+    await ap.getByTestId("ai-run").click({ timeout: 5000 }).catch(() => {});
+    const reading = await ap.waitForFunction(() => /Reading the request… [1-9]\d* s/.test(document.querySelector('[data-testid="ai-progress"]')?.textContent ?? ""), null, { timeout: 5000 }).then(() => true).catch(() => false);
+    const result = await ap.getByTestId("ai-copy-result").innerText({ timeout: 15000 }).catch(() => "");
+    const timing = await ap.locator('[data-log-kind="timing"]').first().innerText().catch(() => "");
+    const cpuNote = await ap.getByTestId("ai-cpu-note").count();
+    const sent = await ap.evaluate(() => window.__aiFix.state.chats.at(-1)?.task ?? null);
+    check(
+      "desktop-ai-fix: a Captions run shows “Reading the request… N s”, a timing line, the CPU note, and the small model's hashtags without “#” and unrequested platform normalised into a valid result",
+      setupGone && reading && /Reels/.test(result) && result.includes("#physics #satisfying #bouncingball") && Number(/^Step 1: first word after (\d+\.\d) s, \d+\.\d s in all$/.exec(timing)?.[1] ?? 0) >= 2.5 && cpuNote === 1 && sent === "copy",
+      `(card gone ${setupGone}, reading ${reading}, result "${result.replace(/\s+/g, " ").slice(0, 120)}", timing "${timing}", cpu note ${cpuNote}, task ${sent})`,
+    );
+    await ap.evaluate(() => {
+      window.__aiFix.state.nextChat = { error: "Error invoking remote method 'ai:chat': Error: The cloud provider answered HTTP 401: bad key" };
+    });
+    await ap.getByTestId("ai-run").click({ timeout: 5000 }).catch(() => {});
+    const failure = await ap.getByTestId("ai-error").innerText({ timeout: 10000 }).catch(() => "");
+    check("desktop-ai-fix: a failed request shows its reason without Electron's IPC prefix", failure === "model: The cloud provider answered HTTP 401: bad key", `(“${failure}”)`);
+    await ap.screenshot({ path: path.join(outDir, "desktop-ai-status.png") });
+  } finally {
+    await actx.close().catch(() => {});
+  }
+  check("desktop-ai-fix: no page errors in the AI tab", aiFixErrors.length === 0, aiFixErrors.length ? `\n   ${aiFixErrors.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end desktop-ai-fix ---
+
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
 const hardErrors = errors.filter((e) => !IGNORED_CONSOLE.test(e));

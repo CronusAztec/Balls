@@ -22,3 +22,9 @@ export function latestAssetUrl(name: string): string {
 export function versionedAssetNames(version: string): { setup: string; portable: string } {
   return { setup: `JumpingBallsLive-Setup-${version}.exe`, portable: `JumpingBallsLive-${version}-portable.exe` };
 }
+
+/**
+ * --- desktop-ai-fix --- The Windows app's current version, shown on the download page. It must equal desktop/package.json's
+ * (tests/desktopAiFix.test.ts checks it, and its lock file's), so a release bumps both.
+ */
+export const DESKTOP_VERSION = "1.0.3";

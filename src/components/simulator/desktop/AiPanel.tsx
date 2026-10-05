@@ -2,22 +2,29 @@
 
 import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { CLOUD_DEFAULTS, type CloudProvider, type DesktopPrefs } from "@/lib/desktop/contract";
+import { CLOUD_DEFAULTS, type CloudProvider, type DesktopApi, type DesktopPrefs } from "@/lib/desktop/contract";
 import { BOT_PLATFORMS, type BotPlatform } from "@/lib/bot/playbook";
 import { AI_TASKS, type DesktopAiApi } from "./useDesktopAi";
 import type { DesktopPageHooks } from "./pageHooks";
 import { Bar, Card, Chip, formatBytes, ghostBtn, inputClass, primaryBtn } from "./ui";
 import { applyCopyToPublish } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the copy goes into the Publish block's draft
+// --- desktop-ai-fix --- the AI status panel, the first-run card, the run's progress and timings
+import AiStatusPanel from "./AiStatusPanel";
+import AiSetupCard, { needsSetup } from "./AiSetupCard";
 
 /*
  * --- desktop-exe --- The AI studio panel: which model answers (a local GGUF – downloaded here with its licence shown, or a
  * file you pick – or a cloud provider with your own key), the four jobs (make videos, copy for Publish, settings assistant,
  * ideas), the reply streaming in with the tool calls and retries under it, and each job's result: planned clips (already
  * queued), copy per platform, the applied settings with Undo, ideas that plan on a click.
+ * --- desktop-ai-fix --- With the AI status panel on top, a first-run card while nothing can answer, "Reading the request…
+ * N s" / "Writing… N s" during a run with a timing line per turn, a note when the model runs on the CPU and, after a
+ * failure on the GPU, a switch to the CPU.
  */
 
-export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAiApi; prefs: DesktopPrefs; page: DesktopPageHooks; onQueueTab: () => void }) {
+export default function AiPanel({ ai, prefs, page, onQueueTab, bridge }: { ai: DesktopAiApi; prefs: DesktopPrefs; page: DesktopPageHooks; onQueueTab: () => void; bridge?: DesktopApi }) {
   const t = useTranslations("Desktop");
+  const tx = useTranslations("DesktopAiFix"); // --- desktop-ai-fix ---
   const [prompt, setPrompt] = useState("");
   const [platforms, setPlatforms] = useState<BotPlatform[]>(["reels"]);
   const [existing, setExisting] = useState("");
@@ -44,10 +51,21 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
   };
   const localReady = ai.models.some((m) => m.selected && m.state === "ready");
   const canRun = !!status?.ready;
+  // --- desktop-ai-fix --- the run's progress line (seconds of the turn in progress), and whether the model runs on the CPU
+  const turnSeconds = ai.turn ? Math.max(0, Math.floor((ai.now - ai.turn.startedAt) / 1000)) : 0;
+  const onCpu = prefs.aiProvider === "local" && !!status?.local.loaded && status.local.backend === "cpu";
+  // (a run on the GPU, or a model that failed to load with the GPU allowed: the CPU is worth a try)
+  const onGpu = prefs.aiProvider === "local" && prefs.aiGpu !== "off" && !!status && (status.local.loaded ? status.local.backend !== "cpu" : !!status.local.error);
 
   return (
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-4" data-testid="desktop-ai">
+      {bridge && (
+        <div className="xl:col-span-5">
+          <AiStatusPanel bridge={bridge} prefs={prefs} status={status} onGpu={ai.setGpu} />
+        </div>
+      )}
       <div className="xl:col-span-2 space-y-4">
+        {needsSetup(ai) && <AiSetupCard ai={ai} />}
         <Card title={t("aiModelTitle")}>
           <div className="flex gap-2">
             <Chip on={prefs.aiProvider === "local"} onClick={() => ai.useProvider("local")} testId="ai-provider-local">
@@ -197,7 +215,13 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
               </button>
             )}
             {!canRun && <span className="text-xs text-warn">{prefs.aiProvider === "local" && !localReady ? t("aiNeedModel") : t("aiNeedKey")}</span>}
+            {ai.running && ai.turn && (
+              <span className="text-xs text-ink-2" data-testid="ai-progress">
+                {ai.turn.firstTokenAt === null ? tx("reading", { seconds: turnSeconds }) : tx("writing", { seconds: turnSeconds })}
+              </span>
+            )}
           </div>
+          {onCpu && <p className="text-xs text-warn" data-testid="ai-cpu-note">{tx("cpuNote")}</p>}
           {(ai.stream || ai.running) && (
             <pre className="text-xs leading-snug text-ink-2 bg-black/40 rounded-lg p-3 max-h-48 overflow-y-auto whitespace-pre-wrap break-words" data-testid="ai-stream">
               {ai.stream || "…"}
@@ -206,14 +230,20 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
           {ai.log.length > 0 && (
             <ul className="text-xs space-y-0.5" data-testid="ai-log">
               {ai.log.map((line, i) => (
-                <li key={i} className={line.kind === "invalid" || line.kind === "error" ? "text-warn" : line.kind === "tool" ? "text-accent-strong" : "text-ink-3"}>
+                <li key={i} className={line.kind === "invalid" || line.kind === "error" ? "text-warn" : line.kind === "tool" ? "text-accent-strong" : "text-ink-3"} data-log-kind={line.kind}>
                   {line.kind === "invalid" ? `↻ ${t("aiRetried")}: ` : line.kind === "tool" ? "› " : ""}
-                  {line.text}
+                  {line.timing ? tx("turnTiming", { step: line.timing.step, first: line.timing.firstSec ?? "–", total: line.timing.totalSec }) /* --- desktop-ai-fix --- */ : line.text}
                 </li>
               ))}
             </ul>
           )}
           {ai.error && <p className="text-xs text-danger" data-testid="ai-error">{ai.error}</p>}
+          {/* --- desktop-ai-fix --- a run that failed on the GPU can go again on the CPU */}
+          {ai.error && onGpu && (
+            <button type="button" className={`${ghostBtn} self-start`} onClick={() => ai.setGpu("off")} data-testid="ai-try-cpu">
+              {tx("tryCpu")}
+            </button>
+          )}
         </Card>
 
         {ai.result?.kind === "videos" && (
@@ -237,7 +267,7 @@ export default function AiPanel({ ai, prefs, page, onQueueTab }: { ai: DesktopAi
         )}
 
         {ai.result?.kind === "copy" && (
-          <Card title={t("aiCopyTitle")}>
+          <Card title={t("aiCopyTitle")} testId="ai-copy-result">
             {ai.result.result.items.map((item) => {
               const post = `${item.caption}\n\n${item.hashtags.join(" ")}`;
               return (
