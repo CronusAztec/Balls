@@ -100,6 +100,8 @@ import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLaye
 // --- watermark-everywhere --- the live watermark of a visitor without a Pro licence: the frame's last pass (lib/watermark/live.ts)
 import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live";
 import { noteCornerReadouts, noteEdgeText, noteHomeCounter, noteJourneyHud, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare } from "./liveMarkHud";
+import { GROW_DATA_KEYS, GrowLayer, writeGrowDataset, type GrowLook } from "./growRenderer"; // --- loop-foundation ---
+import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -340,6 +342,12 @@ export interface CanvasProps {
    */
   orbArenas?: number;
   // --- end orb-grid ---
+  // --- loop-foundation ---
+  /** Grow's fill-and-loop look: colour by size along a ramp, contact markers (null = the classic look); see growRenderer.ts. */
+  growLook?: GrowLook | null;
+  /** The loop HUD's words (null = off): previewed around the ring live; the recorder draws it into every export frame. */
+  loopHud?: LoopHudSpec | null;
+  // --- end loop-foundation ---
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -481,6 +489,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     race = null, // --- jdm-race ---
     videoBackground = null, // --- video-beats ---
     orbArenas = 1, // --- orb-grid ---
+    growLook = null, // --- loop-foundation ---
+    loopHud = null, // --- loop-foundation ---
   },
   ref,
 ) {
@@ -512,6 +522,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   labelsRef.current = labels;
   const orbArenasRef = useRef(orbArenas); // --- orb-grid --- (read by the draw loop)
   orbArenasRef.current = orbArenas;
+  // --- loop-foundation --- Grow's look and the loop HUD's words, read by the draw loop
+  const growLookRef = useRef<GrowLook | null>(growLook);
+  growLookRef.current = growLook;
+  const loopHudRef = useRef<LoopHudSpec | null>(loopHud);
+  loopHudRef.current = loopHud;
   // --- gerald-faces --- the characters' options and chirp callback, read by the draw loop; the face layer lives with the loop
   const characterRef = useRef<CharacterRenderOptions | null>(character);
   characterRef.current = character;
@@ -921,6 +936,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const lcLayer = new LandClaimLayer();
     const lcRender: LandClaimRenderOptions = { dpr: scale /* --- world --- device px per world px */, roster: NO_ROSTER, showNames: false, showTrails: true, wallThickness: 2, labels: DEFAULT_LAND_CLAIM_LABELS, nowMs: 0 };
     const lcBodyColor = (ball: Ball) => lcLayer.colorOf(ball.team ?? 0);
+    const growLayer = new GrowLayer(); // --- loop-foundation --- Grow's colour by size, contact markers and the loop's solid disc
+    const loopHudLive = { top: -Infinity, bottom: Infinity }; // --- loop-foundation --- the bands of the loop HUD this frame drew (the live watermark keeps clear of them)
     // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
     const frameBudget = new FrameBudget();
     const uncapInfo: UncapInfo = { speed: 0, bounce: 1, rescued: 0, show: false }; // --- uncap-all --- (reused every frame)
@@ -2083,6 +2100,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         }
         if (isGrow && engine.getGrowState().linesEnabled) drawStrings(engine.getGrowBouncePoints());
       }
+      // --- loop-foundation --- Grow's contact markers (fading rings where the ball hit), under the balls
+      const growView = isGrow ? engine.getGrowView() : null;
+      const growLookNow = growLookRef.current;
+      if (growView && growLookNow && growLookNow.markers) {
+        const first = engine.getBalls()[0];
+        growLayer.drawMarkers(ctx, growView, growLookNow, engine.getElapsedMs(), first ? growLayer.colorOf(first, growView, growLookNow) : engine.config.ballColor || "#ffffff");
+      }
 
       // --- unlimited --- the crowd under the full-physics balls: batched discs, or points in one image past 20,000
       if (unlimitedView.crowd > 0) {
@@ -2131,6 +2155,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (flView) flLayer.drawBodies(ctx, flView, flRender); // --- fight-league --- weapons, fighters, HP, projectiles, effects
       else if (rrView) rrLayer.drawBodies(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- the trail and the rotating square
       else if (orbView) orbLayer.drawOrbs(ctx, orbView, size.width, size.height, scale, orbArenasRef.current, orbT /* --- orb-rhythm --- */); // --- orb-grid --- thousands of orbs back to front (the placeholder ball is not drawn)
+      else if (growView && growLayer.drawsBodies(growLookNow, growView)) growLayer.drawBodies(ctx, balls, growView, growLookNow); // --- loop-foundation --- (colour by size; the hold and the shrink as a solid disc)
       // --- unlimited --- thousands of balls (or one too big for the sprites): plain discs, one path per colour
       else if (unlimitedLayer.wantsPlain(balls, unlimitedView)) unlimitedLayer.drawPlainBalls(ctx, balls, (ball) => (isColorMatch && matchColor ? matchColor : teamLayer.colorOf(ball) ?? ball.color));
       else balls.forEach((ball, index) => {
@@ -2911,6 +2936,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (p.bottomText) ctx.fillText(p.bottomText, cx, edgeLines.bottomY);
         ctx.restore();
       }
+      // --- loop-foundation --- the loop HUD, previewed live around the ring (the recorder draws it into the export frame itself)
+      const hudSpec = loopHudRef.current;
+      loopHudLive.top = -Infinity;
+      loopHudLive.bottom = Infinity;
+      if (hudSpec && !recordingRef.current) {
+        const ring = engine.getCircularWalls()[0]?.radius ?? arena;
+        const liveTop = (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
+        const hudFrame = loopHudFrame(hudSpec, loopHudCount(engine));
+        const hudLayout = loopHudLiveLayout(size.width, size.height, cy, Math.min(ring, Math.min(size.width, size.height) / 2), liveTop);
+        drawLoopHud(ctx, size.width, hudFrame, hudLayout);
+        loopHudBands(hudLayout, hudFrame, loopHudLive);
+      }
 
       // --- captions --- countdown, wall counter, progress bar, question and text captions inside the exported square (so
       // recordings have them), animated on the simulation clock; live, they keep clear of the page's buttons and the scoreboard,
@@ -3329,6 +3366,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- fight-league --- names, HP, hits, casts, KOs, the winner, the end, the HUD's names and boxes, the VS card (data-fl-*)
       if (flView) flData.write(flView, flLayer, setCanvasData);
       else if (canvas.dataset.flMatch !== undefined) for (const key of FIGHT_LEAGUE_DATA_KEYS) delete canvas.dataset[key];
+      // --- loop-foundation --- Grow's run (data-grow-*) and the loop contract's cycle and seams of any looping run (data-loop-*)
+      if (growView) writeGrowDataset(growView, engine.getBalls(), setCanvasData);
+      else if (canvas.dataset.growLaw !== undefined) for (const key of GROW_DATA_KEYS) delete canvas.dataset[key];
+      const loopSeams = engine.getLoopSeams();
+      if (loopSeams) {
+        const cycle = engine.getCycleSeconds();
+        setCanvasData("loopCycle", cycle !== null ? cycle.toFixed(3) : "");
+        setCanvasData("loopSeams", String(loopSeams.count));
+      } else if (canvas.dataset.loopSeams !== undefined) for (const key of ["loopCycle", "loopSeams"]) delete canvas.dataset[key];
+      if (hudSpec) setCanvasData("loopHud", "1");
+      else if (canvas.dataset.loopHud !== undefined) delete canvas.dataset.loopHud;
       // (the respawn timer of Classic and Multiply: balls dropped in this run, and the balls in play – data-respawns, data-respawn-balls)
       if ((engine.config.respawnEvery ?? 0) > 0) {
         setCanvasData("respawns", String(engine.getRespawnCount()));
@@ -3391,6 +3439,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (captionLayer.usesTop) hud.topBand(captionLayer.stackEdges.top);
         if (captionLayer.usesBottom) hud.bottomBand(captionLayer.stackEdges.bottom);
         if (songProgressRef.current !== null) hud.bottomBand(size.height - 9);
+        // --- loop-foundation --- the loop HUD drawn live: its title along the top, its counter along the bottom (while recording
+        // the recorder draws it into the export frame, clear of the badge there)
+        hud.topBand(loopHudLive.top);
+        hud.bottomBand(loopHudLive.bottom);
         const exportSize = recording ? exportSizeRef.current : null;
         // the Top / Bottom Text: the canvas' own lines, or while recording the recorder's (it draws them into the export frame)
         if (p.topText || p.bottomText) {

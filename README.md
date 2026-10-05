@@ -15,7 +15,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 
 | Area | What you get |
 | --- | --- |
-| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow – plus Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
+| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow; collision-safe at every amplitude and speed) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Merge & split balls** | A ball-interaction setting in the Ball section: balls **bounce** (default), **merge** into one bigger ball on contact (area and momentum conserved, colours blended, a particle burst and a low tone), **split** in two every time a ball breaks through a wall (half the area each, diverging velocities, a high tone – down to a smallest size and up to a ball cap) or **pass** through each other. Works in the two-ball modes and Multiply, is deterministic (seeds and Find Simulation include it) and shared via the URL (`bi`, `smr`, `mb`) |
@@ -87,6 +87,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Windows app 1.0.3: the AI fixed, an AI status panel** | The owner's "the exe ai doesnt work" (feature desktop-ai-fix): the AI studio of the Windows app works with the small local models now and says why when it does not. Each job normalises its answer before the checks (hashtags split, given their "#", cleaned, de-duplicated and clamped to 3–15; clip names slugified; platforms mapped – `src/lib/desktop/ai/normalise.ts`), the reply grammar bounds what it can (a hashtag ≤ 61 characters, a name ≤ 60, the copy's platforms the requested ones, one item each), **Make videos** offers its answer only after `plan_clips` has made plans and then only with their ids (the reply envelope is rebuilt every turn), a retry comes as the app's note with a hint at a higher temperature, and the prompts are shorter (the settings that matter for the request, recipe hooks without placeholders). The local model keeps one chat session per load (the evaluated prefix is reused: no re-reading 3–4k tokens every turn), gets a context of at least 4,096 tokens and room for prompt + reply, falls back to fewer GPU layers and then the CPU when memory is short (then: "Not enough free memory for this model: close other apps or pick a smaller model (Qwen2.5 1.5B is the smallest)"), and unloads only after the reply in progress (also when quitting). Every download and cloud call goes through Electron's **net.fetch** (the system proxy and certificate store – antivirus HTTPS scanning and company proxies broke Node's fetch, which stays as the fallback), errors carry their cause codes explained, and everything lands in main.log (llama.cpp's own messages, every request with its timings, every failed IPC handler with its cause chain). An **AI status** panel tops the AI tab: Runtime, Model, Cloud provider, Network and Last error, green / amber / red with the reason, **Run checks** (llama.cpp started, the model loaded with an 8-token grammar test, the endpoint and Hugging Face reached), **Copy report** (JSON: versions, RAM, GPU, backend, model, provider – never the key –, the last errors, main.log's tail), **Open logs** and **Run the model on: Auto (GPU) / CPU only**. A first-run card offers the 2 GB model or a cloud key, a finished download is selected when the selected model is missing (before the page hears it is ready, so Run is enabled at once), a run shows "Reading the request… N s" and a timing line per step. Version **1.0.3**: unsigned builds no longer carry a publisher name, so 1.0.3 → 1.0.4 updates install (1.0.2 users install 1.0.3 by hand once – the download page says so), and CI's packaged smoke runs a real Settings and Captions job on a cached GGUF (see [Windows app: AI fix and status panel](#windows-app-ai-fix-and-status-panel)) |
 | **Mode thumbnails** | Every mode card – the modes wall, the studio's mode picker, the daily card – shows its mode at its **hero moment**, mid-action with the payoff on screen (feature mode-thumbnails): an entry per mode in `HERO_MOMENTS` (`src/lib/thumbnails/heroMoments.ts` – settings, pinned seed, second, camera and the mode's colour; glow and trails on, bigger balls where a 240 px card needs them, only the HUD element that is the point), rendered by the real simulator's deterministic still camera and framed the same way for every card: a 480 × 480 square (2× the ~240 px card), the same inset and vignette, a subtle edge glow in the mode's colour, WebP under 60 KB, no captions or watermark. `npm run previews` regenerates them, printing each file's size, and stops when a mode has no hero moment; the viral bot's covers use the same idea – the payoff frame of each clip, not its first frame (see [Mode thumbnails](#mode-thumbnails)) |
 | **Watermark on every free simulation** | The free-video watermark on the live canvas too (feature watermark-everywhere, `src/lib/watermark/live.ts`, `liveLayout.ts`): every frame a visitor without a verified Pro licence sees – the studio's canvas in every mode (and so share links, the gallery's presets, the daily challenge and the Windows app, which runs the same page), a split-screen race's composed frame (once, not per arena) and the landing page's live preview – carries the badge and the faint domain tiles, drawn into the canvas' own pixels as the frame's last pass: 4.5 % of the exported square tall, 1.5 % from its edges, on the other side every 6 s, clear of the mode's HUD. The decision is free-watermark's sealed gate, so a Pro licence removes it at once – mid-run too – and removing the licence brings it back; a page recording copies the marked canvas, one badge per frame in the video layout's place (see [Watermark on every free simulation](#watermark-on-every-free-simulation)) |
+| **Loop foundation & Grow: fill and loop** | The first family of the loop-clip account's simulations (feature loop-foundation). An original synthesized sound library (`src/lib/audio/loopTones.ts`, `ToneGenerator.playLoop()`: pentatonic plucks, tuned bars, a progress ladder, a groove bed, impact accents, a completion chord, reset glides and washes, a field drone – every voice scheduled on the simulation clock under a per-tick voice budget, with optional clip slots for your own sounds that never leave the device), the offline mix of the fast export and the batch render normalised to −14 LUFS with its true peak at most −1 dBTP (BS.1770), the loop contract (a mode reports its seamless cycle; **Export whole loops** cuts recordings, fast exports and batch renders to a whole number of cycles), a lowercase **loop HUD** drawn into the frames, a **Loop style** caption preset in Publish, and Grow's fill-and-loop upgrade: growth law approach / multiply / add, when it fills stay / loop / finish, hold and shrink, colour by size, contact markers, pitch by size, the presets Fill and loop, Slow burn, Instant and Classic grow, and Find Simulation's "Fills within" and "Fill on a bar line". See [Grow: fill and loop](#grow-fill-and-loop) and [Loop foundation](#loop-foundation-sounds-whole-loops-and-the-loop-hud). |
 
 ## Design
 
@@ -1704,6 +1705,76 @@ the Windows app run that same canvas –, a split-screen race's composed frame a
   background (exactly one, one layer deep), measures the live and recording frame rates with the mark, and takes the same still
   with the still camera as a free visitor (badge and tiles, card and raw world, reported `watermarked`) and as Pro (neither; two
   Pro stills give the same pixels).
+
+### Grow: fill and loop
+Feature loop-foundation – Grow's upgrade after the growing-ball clips of the loop family. Two options on top of the classic
+mode, both off by default (every old link, preset and found seed replays exactly – `tests/grow.test.ts` keeps the classic
+fingerprint):
+
+- **Growth law** (`growLaw`, URL `gLaw`): **approach** – the classic rule, each bounce closes a share of the gap to the cap
+  (Growth Rate) –, **multiply** – r ← min(cap, r · (1 + step / 100)), so r_n = r0 (1 + p)^n: slow at first, explosive at the
+  end, the bounces crowding together as the free chord shortens – or **add** – r ← min(cap, r + step px). The new laws start
+  the ball at **Start size** (`growStart`, % of the ring, URL `gStart`) in the centre and launch it at the Ball Speed in a
+  seeded direction; every bounce grows it by **Growth per bounce** (`growStep`, % or px, URL `gStep`) and rebounds it in a
+  clean chord – specular, never closer than a per-run chord angle (18–36°, from the seed) to the diameter – so every cycle of
+  a run plays the same pattern turned by its launch direction. Only a real bounce (the ball moving out) grows the ball.
+- **When it fills** (`growOnFill`, URL `gFill`): **stay** (the classic: the full ball keeps buzzing), **loop** – within half
+  a pixel of the cap the ball snaps to it in the centre and holds for **Fill hold** (`growHold`, 1.6 s, URL `gHold`), shrinks
+  back to the start size over **Shrink** (`growShrink`, 1 s, eased, URL `gShrink`) and relaunches in a seeded direction –
+  a seamless cycle: the hold, the shrink and the relaunch land on exact simulation times (fill + hold, fill + hold + shrink),
+  and the mode reports the cycle and its seams to the loop contract – or **finish**: the run ends at the fill, so Find
+  Simulation searches it: its length, **Fills within** a limit or **Fill on a bar line** (within a 60 fps frame of a bar of
+  four beats at the Sound section's BPM).
+- **The look** (render-only): **Colour by size** (`growHue`, URL `gHue`) runs the ball through the **colour stops**
+  (`growRamp`, 2–6 colours, cyan → green → yellow → orange by default, URL `gRamp`) by r / cap; **Contact markers**
+  (`growMarkers`, URL `gMark`) leave a small ring where the ball hit, fading over **Marker lifetime** (`growMarkerLife`,
+  0.3 s, URL `gMarkT`; a ring buffer of 64); the hold and the shrink draw the ball as a solid disc
+  (`components/simulator/growRenderer.ts`).
+- **Pitch by size** (`growPitch`, URL `gPitch`): every bounce plays a pentatonic pluck pitched by the size the ball hit with
+  (`degreeFromScalar()` over the log of the size, inverted – bigger is lower, about two bounces a degree at ×1.11); the fill
+  plays the completion chord on G2 (root, fifth, octave, twelfth and a soft tenth, with a ding and a sub thump), the shrink
+  cuts the loop voices and glides from the chord's root to an octave under the next cycle's first pluck.
+- **Presets** (the Grow block of the Mode row): **Fill and loop** (multiply 11 %, start 5 %, loop, colour by size, markers,
+  pitch, on a black page with a thin slate ring, no gravity or trails, no HUD), **Slow burn** (4 % a bounce), **Instant**
+  (60 % a bounce) and **Classic grow** (back to the defaults).
+- Every number is uncapped (comfort ranges in `GROW_FILL_RANGES`: Growth per bounce 0–1000, Start size 0.1–100, hold and shrink
+  0–60 s, marker lifetime 0–5 s; any value from the minimum up is typed in). Settings and URL keys live in
+  `src/lib/physics/growFill.ts`; the mode in `src/lib/physics/modes/grow.ts`.
+
+### Loop foundation: sounds, whole loops and the loop HUD
+The shared pieces every loop-family simulation builds on (feature loop-foundation):
+
+- **The loop sounds** (`src/lib/audio/loopTones.ts`, all original and synthesized – no audio file is copied): pentatonic
+  plucks (three partials, a decay that shortens as the hits come faster), tuned bars, chimes, dings, a progress ladder that
+  climbs a step per event and resets, a groove bed (pad, sub and arpeggio over a seeded progression), impact accents, the
+  completion chord, risers, reset glides, noise washes, a ratchet and a field drone whose energy and speed follow the run.
+  `ToneGenerator.playLoop(kind, frequency, level)` plays them live and in the fast export's offline twin, under a voice budget
+  (at most 6 new notes a tick, 18 oscillators, one thump and one noise voice, 24 sounding; notes of the same pitch within
+  30 ms merge at 1/√n; the bed at most 10 nodes; the drone retuned at 30 Hz). The pure pitch rules are in
+  `src/lib/audio/loopPitch.ts` (`degreeFromScalar()`), the clip slots in `src/lib/audio/loopClips.ts` (your own sounds for a
+  family's voice, kept in the page only).
+- **Loudness** (`src/lib/audio/loudness.ts`): the fast export's and the batch render's mix is measured with BS.1770-4
+  (K-weighting, 400 ms gated blocks, a 4× true-peak estimate) and given one static gain to −14 LUFS, the true peak at most
+  −1 dBTP (a silent mix is left alone); the live page keeps its limiter.
+- **Whole loops** (`src/lib/loop/loopContract.ts`): a mode with a seamless cycle reports it (`GameMode.cycleSeconds()`,
+  `loopSeams()`; the canvas mirrors it in `data-loop-cycle` and `data-loop-seams`). With **Export whole loops** on (the
+  Recording section, `exportWholeLoops`, URL `wl`, on by default) the page recorder, the fast export and the batch render end
+  the clip just before the seam that closes its last whole cycle – the largest whole number of cycles that fits in the clip
+  (a frame of slack; the recording may run a frame or two past the clip to reach that seam), whose last frame flows into its
+  first. A recording of a looping run starts at the run's start; a mode that does not loop records as before.
+- **The loop HUD** (`src/lib/loop/hud.ts`, the Recording section's **Loop HUD**, `loopHud`, URL `lh`, off by default): a bold
+  lowercase title at about 16 % of the frame, an optional grey subtitle under a thin rule, and one amber counter (`#f2c46a`,
+  grey on a light page) at about 85 % – drawn into every export frame by the compositor (`drawRecordingFrame()`), so the
+  recordings carry it, and previewed live around the ring. The words default to the mode's own (Grow: its bounces) and can be
+  typed (`loopHudTitle`, `loopHudSubtitle`, URL `lht`, `lhs`). In a portrait clip the title and the counter sit in the bars
+  above and below the arena; on a square or landscape frame the counter moves up just above the watermark's badge.
+- **Loop style captions** (`src/lib/publish/loopCaption.ts`, the Publish caption editor's **Loop style** button): a
+  lowercase hook led by a number and ending in " 🔊", a plain-English fact under it, and four or five hashtags,
+  #satisfying #oddlysatisfying first, then the topic's – no mentions, no call to action.
+- **Tests**: `tests/loopTones.test.ts`, `tests/loudness.test.ts`, `tests/loopClips.test.ts`, `tests/loopContract.test.ts`,
+  `tests/loopHud.test.ts`, `tests/loopCaption.test.ts` and `tests/grow.test.ts`; the smoke test (section 38) runs the Fill and
+  loop preset at 2× (two fills or more, every cycle within a frame of the others), checks the HUD's pixels, exports a whole
+  number of cycles and lists the Grow outcomes of Find Simulation.
 
 ## Windows app
 

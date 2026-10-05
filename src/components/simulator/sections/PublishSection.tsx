@@ -7,6 +7,7 @@ import { offBtn, onBtn, selectClass, type Matcher, type Translate } from "../Con
 import type { BotPanelProps } from "../useViralBot";
 import type { BotCopy } from "@/lib/bot/copy";
 import { composePost, editDraft, emptyDraft, fieldsFor, hasOverrides, resetPlatform, type Counter, type DraftField, type PublishDraft } from "@/lib/publish/caption";
+import { loopCaption, type LoopCaptionContext } from "@/lib/publish/loopCaption"; // --- loop-foundation ---
 import type { PublishClip } from "@/lib/publish/clips";
 import { accountViews, getPublishController, sendPlan, type AccountView, type PublishSnapshot, type SendItem } from "@/lib/publish/controller";
 import { defaultDraft } from "@/lib/publish/copy";
@@ -127,7 +128,7 @@ function ClipCard({ s, clip, p, t }: { s: PublishSnapshot; clip: PublishClip | n
   );
 }
 
-function CaptionEditor({ s, clip, p, regenerate }: { s: PublishSnapshot; clip: PublishClip; p: Translate; regenerate: () => void }) {
+function CaptionEditor({ s, clip, p, regenerate, loopStyle }: { s: PublishSnapshot; clip: PublishClip; p: Translate; regenerate: () => void; loopStyle?: () => void /* --- loop-foundation --- */ }) {
   const c = getPublishController();
   const [tab, setTab] = useState<PublishPlatform | "all">("all");
   const draft: PublishDraft = s.drafts[clip.id] ?? emptyDraft();
@@ -151,6 +152,12 @@ function CaptionEditor({ s, clip, p, regenerate }: { s: PublishSnapshot; clip: P
         <button type="button" onClick={regenerate} className={`${smallBtn} ${offBtn} ml-auto`} title={p("regenerateTip")}>
           {p("regenerate")}
         </button>
+        {/* --- loop-foundation --- the loop clips' words: a number-led lowercase hook with 🔊, a fact, #satisfying #oddlysatisfying + topic tags */}
+        {loopStyle && (
+          <button type="button" onClick={loopStyle} className={`${smallBtn} ${offBtn}`} title={p("loopStyleTip")} data-testid="publish-loop-style">
+            {p("loopStyle")}
+          </button>
+        )}
       </div>
       <label className="block text-xs text-ink-2 space-y-1">
         <span>{p("fieldTitle")}</span>
@@ -456,7 +463,7 @@ function RecentSends({ s, p, locale }: { s: PublishSnapshot; p: Translate; local
   );
 }
 
-export default function PublishSection({ t, search, matches, bot }: { t: Translate; search: string; matches: Matcher; bot?: BotPanelProps }) {
+export default function PublishSection({ t, search, matches, bot, loopCaptionOf }: { t: Translate; search: string; matches: Matcher; bot?: BotPanelProps; loopCaptionOf?: LoopCaptionContext /* --- loop-foundation --- */ }) {
   const p = useTranslations("Publish");
   const messages = useMessages() as Record<string, unknown>;
   const c = getPublishController();
@@ -476,6 +483,15 @@ export default function PublishSection({ t, search, matches, bot }: { t: Transla
   const makeDraft = (x: PublishClip): PublishDraft => {
     const botClip = x.botClipId ? (botPlan?.clips.find((b) => b.id === x.botClipId) ?? null) : null;
     return defaultDraft({ copy: (messages.ViralBot ?? {}) as BotCopy, strings: { title: String(p.raw("defaultTitle")), caption: String(p.raw("defaultCaption")) }, modeName: modeLabel(t, x.mode), mode: x.mode, site: SITE_NAME, botClip });
+  };
+  // --- loop-foundation --- the "Loop style" draft: the page's mode and numbers in the loop clips' words (LoopCaption), shared by every platform
+  const loopStyleDraft = (x: PublishClip): PublishDraft => {
+    const words = (messages.LoopCaption ?? {}) as Record<string, string>;
+    const ctx = loopCaptionOf!;
+    const mode = (x.mode as LoopCaptionContext["mode"]) ?? ctx.mode;
+    const hook = (words[ctx.hookKey] ?? "{count}").replace("{mode}", modeLabel(t, mode) ?? "");
+    const fields = loopCaption({ mode, hook, count: ctx.count, fact: ctx.factKey ? (words[ctx.factKey] ?? "") : "", locale });
+    return { ...emptyDraft(), ...fields };
   };
   useEffect(() => {
     if (clip) c.ensureDraft(clip.id, () => makeDraft(clip));
@@ -500,7 +516,7 @@ export default function PublishSection({ t, search, matches, bot }: { t: Transla
 
       <ClipCard s={s} clip={clip} p={p} t={t} />
 
-      {clip && <CaptionEditor key={clip.id} s={s} clip={clip} p={p} regenerate={() => c.setDraft(clip.id, makeDraft(clip))} />}
+      {clip && <CaptionEditor key={clip.id} s={s} clip={clip} p={p} regenerate={() => c.setDraft(clip.id, makeDraft(clip))} loopStyle={loopCaptionOf ? () => c.setDraft(clip.id, loopStyleDraft(clip)) : undefined /* --- loop-foundation --- */} />}
 
       {/* Path C: no set-up */}
       <div className="space-y-1.5" data-testid="publish-quick">
