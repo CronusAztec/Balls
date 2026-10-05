@@ -1,11 +1,20 @@
 /**
- * Renders a preview image for every game mode by running the real simulator in headless
- * Chromium and grabbing the canvas as WebP. Output: public/modes/<mode>.webp (640×360).
+ * --- mode-thumbnails --- Renders the picture of every mode card, public/modes/<mode>.webp: the mode at its hero moment – the
+ * settings, seed, second and camera of its line in HERO_MOMENTS (src/lib/thumbnails/heroMoments.ts) – rendered by the real
+ * simulator in headless Chromium through the page's still camera (window.__jumpingBallsStill: the fast export's offline,
+ * deterministic canvas, so an entry gives the same picture on any machine, however busy), and framed the same way for
+ * every card (src/lib/thumbnails/heroFrame.ts): a THUMB_SIZE square (2× the ~240 px card), the shared inset, vignette and
+ * mode-coloured edge glow, WebP under THUMB_MAX_BYTES (60 KB) – the quality steps down until it fits. Each file's size is
+ * printed; a mode of MODE_IDS without a hero moment (or a card on the served site without one) stops the run before
+ * anything is written, so a new mode must add its line.
  *
- * Requires the exported site to be served (BASE_URL, default http://localhost:3000 plus
- * NEXT_PUBLIC_BASE_PATH; see `npm start`) and Playwright.
- * Run: node scripts/generate-mode-previews.mjs
- * MODES=drop,classic renders only those modes (e.g. the card image of a new mode without re-rendering the others).
+ * Requires the exported site to be served (BASE_URL, default http://localhost:3000 plus NEXT_PUBLIC_BASE_PATH; see
+ * `npm start`) and Playwright. Run: node scripts/generate-mode-previews.mjs (npm run previews)
+ * MODES=drop,classic renders only those modes (e.g. the card picture of a new mode without re-rendering the others).
+ * Picking a hero moment: SWEEP=2:14:1 (from:to:step seconds) with MODES=<mode> and optionally SEEDS=1,2,3 writes a
+ * contact sheet per mode – a row per seed, a picture per second, framed like the cards – to OUT_DIR (default: the
+ * system's temp folder) instead of public/modes; RAW=1 adds the whole world of each second, unframed (to place a camera),
+ * EXTRA=<query> tries settings on top of the entry's and CAMERA=x,y,zoom another camera.
  *
  * --- daily-gallery --- The preset gallery's card images too: public/gallery/<id>.webp (640×360) for every card of the
  * served /en/gallery/ page (src/content/gallery.ts), each rendered from the card's query – its settings and pinned seed –
@@ -14,119 +23,211 @@
  */
 import { chromium } from "playwright";
 import fs from "fs";
+import os from "os";
 import path from "path";
+import { fileURLToPath, pathToFileURL } from "url";
 import { loadDotEnv } from "./dotenv.mjs";
+import { LICENSE_STORAGE_KEY, installLicenseScript, signTestLicense } from "./lib/test-license.mjs"; // --- mode-thumbnails ---
 
 loadDotEnv();
 const BASE = (process.env.BASE_URL || `http://localhost:3000${process.env.NEXT_PUBLIC_BASE_PATH || ""}`).replace(/\/+$/, "");
-const MODES = {
-  classic: { wait: 6000, query: "glow=1&wbreak=all" },
-  accumulation: { wait: 9000, query: "spikes=1&at=3" },
-  multiply: { wait: 7000, query: "rball=1&glow=1" },
-  lines: { wait: 9000, query: "rlines=1&ldot=1" },
-  paint: { wait: 12000, query: "r=14&g=100" },
-  target: { wait: 6000, query: "" },
-  portal: { wait: 7000, query: "glow=1" },
-  shatter: { wait: 5000, query: "" },
-  colorMatch: { wait: 8000, query: "" },
-  grow: { wait: 12000, query: "glines=1&rlines=1&glow=1" },
-  drop: { wait: 7000, query: "dbc=16&dsi=0.2&dsv=0.7&glow=1" },
-  box: { wait: 5500, query: "bxs=dvd&bxn=3&bxc=60&glow=1" },
-  pendulum: { wait: 6000, query: "pwn=20&pwk=24&pwt=40&pwtr=0.5&glow=1" },
-  polyrhythm: { wait: 4000, query: "prt=custom&prcu=3,4,5,6,7,8,9,10&prcs=12&prp=1&prnum=1&glow=1" }, // --- jdm-polyrhythm ---
-  // --- jdm-collisions ---
-  collide: { wait: 5000, query: "cpsq=1&glow=1" },
-  // --- gerald-glass --- mid-stage 3: sliding panes, holes, cracks and shards in view
-  glass: { wait: 11500, query: "face=cute&glow=1" },
-  // --- gerald-multipliers ---
-  multipliers: { wait: 3000, query: "mpsb=3&mprw=10" },
-  // --- jdm-double-pendulum --- a fixed chaotic start: a long rainbow trail over the harp
-  doublePendulum: { wait: 7000, query: "dprs=0&dpa1=150&dpa2=120&dptr=8&glow=1" },
-  // --- jdm-illusions --- the white spaces mid-reveal: the painted arena, the painters and the hidden heart emerging
-  illusion: { wait: 11000, query: "ilt=whitespace&ilpt=heart&glow=1" },
-  // --- odd-string-battle --- mid-battle: fans of threads, numbered balls, the WEB DOMINION HUD and the warning badge
-  stringBattle: { wait: 7000, query: "" },
-  // --- odd-power-layers --- right after a big hit: the shattered band's particles over a dense rainbow stack
-  powerLayers: { wait: 5650, query: "pll=400&glow=1" },
-  // --- jdm-race --- ten racers mid-race: the standings, the mini-map, swap zones, turbo pads and a pass callout in view
-  race: { wait: 8000, query: "rcn=10&glow=1" },
-  // --- jdm-arena-games --- mid-battle: squares with HP bars, a KO blast, power-ups; and a capture the flag game with a carrier
-  battle: { wait: 7000, query: "btn=12&glow=1" },
-  ctf: { wait: 5000, query: "ctfn=3&glow=1" },
-  // --- jdm-rhythm-runner --- the Beat Runner mid-course (a block with spikes on top, the square in the air with its trail, the
-  // beat markers lit) and Paddle Keep-Up mid-rally (the ball over the platform, sparks of a catch, the score and the hearts)
-  runner: { wait: 5300, query: "rrn=40&rrd=1&face=cute&glow=1" },
-  paddle: { wait: 4200, query: "pdsk=1&pdsp=1&glow=1" },
-  // --- gerald-vortex --- a full funnel mid-run: balls weaving at every depth, rings lighting up, a splash at the hole
-  vortex: { wait: 14200, query: "face=cute&glow=1" },
-  // --- gerald-journey --- a large rings stage mid-escape: the chamber bulging out of the column, the mini-map and the clock beside it
-  journey: { wait: 2400, query: "js=rings-l,glass,pegs,home&face=cute&glow=1" },
-  // --- gerald-bullseye --- a rigged second shot just in the bull: BULLSEYE!, its starburst and popup, balls stuck in the target, more in the air
-  bullseye: { wait: 3300, query: "byi=0.4&byp=2&face=cute&glow=1" },
-  // --- beat-drop --- mid-run: the ball squashed on a pad, the next obstruction flying in, a ripple and a puff, the trail
-  beatDrop: { wait: 6120, query: "face=cute&glow=1&bdd=1&bda=1" },
-  // --- odd-territory --- mid-battle: jagged borders, a whirl or a blast, the VS line and the percentage bar
-  territory: { wait: 9000, query: "tyb=3" },
-  // --- odd-maze --- mid-race: four balls in the maze, blood-red corridors behind them, the distance HUD and the warning badge
-  maze: { wait: 6500, query: "mzn=4&seed=6&glow=1" },
-  // --- gerald-conveyor --- mid-run: balls riding the belt, one sliding down the tube, others working their way out of the rings,
-  // the escaped ones riding the bottom belt away, and the counter
-  conveyor: { wait: 7600, query: "cvi=1&cvn=12&face=cute&glow=1" },
-  // --- orb-grid --- the corner-to-corner preset (44 × 43 = 1892 orbs) mid-wave: a sheet of orbs rising from one corner over the
-  // blue slab, coloured by height, with the orb count (--- orb-rhythm --- in the rhythm model: the corner-to-corner polyrhythm's
-  // travelling waves, every orb bouncing forever at its own constant height)
-  orbGrid: { wait: 1400, query: "ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&seed=3" },
-  // --- fight-league --- mid-duel: Thor vs Loki (a pinned seed) with the hammer and the cards out, the HP in the balls, the
-  // names in the fighters' colours and the ability boxes
-  fightLeague: { wait: 8000, query: "seed=11" },
-  // --- land-claim --- mid-battle: four countries' balls knocking the wall's top blocks off, blocks flying in their colours, the
-  // columns cut down unevenly, the title line and a bar per country
-  landClaim: { wait: 4200, query: `seed=3&teams=${encodeURIComponent("France*0055a4*🇫🇷,Brazil*009c3b*🇧🇷,Spain*aa151b*🇪🇸,Colombia*fcd116*🇨🇴")}` },
-};
+// --- mode-thumbnails --- the mode list and its hero moments come from the TypeScript the site and the tests use
+// (src/lib/thumbnails/heroMoments.ts; the per-mode table that used to be here – query and wait – is HERO_MOMENTS now)
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+/** Bundles the hero table, the frame constants and MODE_IDS for Node with esbuild (a vitest dependency) and imports them. */
+async function loadHeroModule() {
+  let esbuild;
+  try {
+    esbuild = await import("esbuild");
+  } catch {
+    throw new Error("esbuild is not installed – run `npm install` (it comes with the dev dependencies).");
+  }
+  const outfile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "mode-thumbnails-")), "hero.mjs");
+  await esbuild.build({
+    stdin: {
+      contents: 'export * from "./src/lib/thumbnails/heroMoments"; export * from "./src/lib/thumbnails/heroFrame"; export { MODE_IDS } from "./src/lib/physics/types";',
+      resolveDir: ROOT,
+      loader: "ts",
+    },
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    target: "node20",
+    outfile,
+    alias: { "@": path.join(ROOT, "src") },
+    logLevel: "error",
+  });
+  return import(pathToFileURL(outfile).href);
+}
+
+const hero = await loadHeroModule();
+const missing = hero.missingHeroModes();
+if (missing.length) {
+  console.error(`No hero moment for ${missing.join(", ")}: add ${missing.length === 1 ? "its line" : "their lines"} to HERO_MOMENTS in src/lib/thumbnails/heroMoments.ts (settings, seed, second, camera, tint) – every mode card needs one.`);
+  process.exit(1);
+}
 const only = process.env.MODES ? process.env.MODES.split(",").map((m) => m.trim()).filter(Boolean) : null;
-// --- daily-gallery --- GALLERY=1 (every card) or GALLERY=<id>,<id>: gallery previews; with MODES and no GALLERY, none
+const unknown = (only ?? []).filter((m) => !hero.MODE_IDS.includes(m));
+if (unknown.length) {
+  console.error(`MODES names no mode: ${unknown.join(", ")} (the modes: ${hero.MODE_IDS.join(", ")}).`);
+  process.exit(1);
+}
+const modes = hero.MODE_IDS.filter((m) => !only || only.includes(m));
+/** SWEEP=from:to:step (seconds): contact sheets for picking a hero moment instead of the card pictures. */
+function parseSweep(text) {
+  if (!text) return null;
+  const [from, to, step] = text.split(":").map(Number);
+  if (![from, to, step].every(Number.isFinite) || step <= 0 || to < from) throw new Error(`SWEEP=${text}: use from:to:step in seconds, e.g. SWEEP=2:14:1`);
+  const times = [];
+  for (let t = from; t <= to + 1e-9 && times.length < 60; t += step) times.push(Math.round(t * 1000) / 1000);
+  return times;
+}
+const sweep = parseSweep(process.env.SWEEP);
+const sweepSeeds = process.env.SEEDS ? process.env.SEEDS.split(",").map((s) => Number(s.trim())).filter(Number.isFinite) : null;
+const sweepDir = path.resolve(process.env.OUT_DIR || path.join(os.tmpdir(), "mode-thumbnails-sweep"));
+/** While sweeping, EXTRA=<query> tries settings on top of the hero query and CAMERA=x,y,zoom another camera. */
+const sweepExtra = process.env.EXTRA ? process.env.EXTRA.replace(/^[?&]+/, "") : "";
+const sweepCamera = process.env.CAMERA ? (([x, y, zoom]) => ({ x, y, zoom }))(process.env.CAMERA.split(",").map(Number)) : null;
+// --- end mode-thumbnails ---
 const galleryOnly = !!process.env.GALLERY && !process.env.MODES;
 const galleryIds = process.env.GALLERY && !["1", "all", "true"].includes(process.env.GALLERY) ? process.env.GALLERY.split(",").map((m) => m.trim()).filter(Boolean) : null;
-const renderGallery = !!process.env.GALLERY || !process.env.MODES;
+const renderGallery = (!!process.env.GALLERY || !process.env.MODES) && !sweep; // --- mode-thumbnails --- (a sweep renders no gallery)
 const outDir = path.join(process.cwd(), "public", "modes");
 fs.mkdirSync(outDir, { recursive: true });
 
 const launchOpts = { args: ["--autoplay-policy=no-user-gesture-required"] };
 if (process.env.CHROME_PATH) launchOpts.executablePath = process.env.CHROME_PATH;
 const browser = await chromium.launch(launchOpts);
-const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
+// --- mode-thumbnails --- a Pro licence (signed with the committed TEST key, which a test-mode build accepts) before any page
+// script runs, so nothing a free visitor's canvas might carry ends up in a card picture
+const context = await browser.newContext({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
+await context.addInitScript(installLicenseScript, { key: LICENSE_STORAGE_KEY, token: signTestLicense({ sub: "previews@localhost", plan: "yearly", provider: "stripe", days: 2 }) });
+const page = await context.newPage();
+page.on("pageerror", (e) => console.warn(`  page error: ${e.message}`));
 
-for (const [mode, cfg] of Object.entries(MODES)) {
-  if (galleryOnly) break; // --- daily-gallery ---
-  if (only && !only.includes(mode)) continue;
-  await page.goto(`${BASE}/en/simulator/?mode=${mode}&wm=&${cfg.query}`, { waitUntil: "networkidle" });
-  await page.getByRole("button", { name: /Start Simulator/ }).click();
-  await page.waitForTimeout(cfg.wait);
-  // Grab the canvas pixels directly (no HUD buttons) and crop to a 16:9 centre region.
-  const dataUrl = await page.evaluate(() => {
-    const canvas = document.querySelector("canvas");
-    const w = 640;
-    const h = 360;
-    const out = document.createElement("canvas");
-    out.width = w;
-    out.height = h;
-    const g = out.getContext("2d");
-    const sw = canvas.width;
-    const sh = canvas.height;
-    const targetRatio = w / h;
-    let cw = sw;
-    let ch = sw / targetRatio;
-    if (ch > sh) {
-      ch = sh;
-      cw = sh * targetRatio;
-    }
-    g.drawImage(canvas, (sw - cw) / 2, (sh - ch) / 2, cw, ch, 0, 0, w, h);
-    return out.toDataURL("image/webp", 0.85);
+// --- mode-thumbnails --- the mode cards' pictures (or, with SWEEP, contact sheets for picking a hero moment)
+/** Opens the simulator on `query`, waits for its world and its still camera, and checks the world the moments are tuned for. */
+async function openStill(query) {
+  await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+  await page.waitForFunction(() => !!window.__jumpingBallsStill?.ready() && !!document.querySelector("main canvas")?.dataset.world, null, { timeout: 30000 }).catch(() => {
+    throw new Error(`The simulator at ${BASE}/en/simulator/ has no still camera (window.__jumpingBallsStill) – build the site from this checkout and serve it first.`);
   });
-  const buf = Buffer.from(dataUrl.split(",")[1], "base64");
-  fs.writeFileSync(path.join(outDir, `${mode}.webp`), buf);
-  console.log(`wrote public/modes/${mode}.webp (${buf.length} bytes)`);
+  const world = await page.evaluate(() => document.querySelector("main canvas").dataset.world);
+  const wanted = `${hero.HERO_WORLD.width}x${hero.HERO_WORLD.height}`;
+  if (world !== wanted) throw new Error(`The stage runs a ${world} world; the hero moments are tuned for ${wanted} (a 1400 × 900 window's 16:9 stage).`);
 }
+
+/** The pictures of `request` (window.__jumpingBallsStill.capture), checked against the page's mode. */
+async function capture(mode, request) {
+  const result = await page.evaluate((r) => window.__jumpingBallsStill.capture(r), request);
+  if (result.mode !== mode) throw new Error(`The page opened ${result.mode}, not ${mode} – does the hero query set another mode?`);
+  return result;
+}
+
+/** A contact sheet (JPEG data URL) of labelled pictures, `cols` per row, drawn by the page. */
+function contactSheet(cells, cols, cell) {
+  return page.evaluate(
+    async ({ cells, cols, cell }) => {
+      const images = [];
+      for (const c of cells) {
+        const img = new Image();
+        img.src = c.dataUrl;
+        await img.decode();
+        images.push(img);
+      }
+      const rows = Math.ceil(cells.length / cols);
+      const label = 22;
+      const height = Math.round(cell * (images[0].height / images[0].width));
+      const canvas = document.createElement("canvas");
+      canvas.width = cols * cell;
+      canvas.height = rows * (height + label);
+      const g = canvas.getContext("2d");
+      g.fillStyle = "#111";
+      g.fillRect(0, 0, canvas.width, canvas.height);
+      for (let i = 0; i < cells.length; i++) {
+        const x = (i % cols) * cell;
+        const y = Math.floor(i / cols) * (height + label);
+        g.drawImage(images[i], x, y + label, cell, height);
+        g.fillStyle = "#e5e5e5";
+        g.font = "14px monospace";
+        g.fillText(cells[i].label, x + 6, y + 16);
+      }
+      return canvas.toDataURL("image/jpeg", 0.88);
+    },
+    { cells, cols, cell },
+  );
+}
+
+const writeDataUrl = (file, dataUrl) => {
+  const buf = Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
+  fs.writeFileSync(file, buf);
+  return buf.length;
+};
+
+// Every mode card of the served site needs a hero moment too (a card whose mode the table lacks stops the run).
+if (!galleryOnly) {
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const cardModes = await page.$$eval('#modes img[src*="/modes/"]', (imgs) => imgs.map((img) => (/\/modes\/([^/.]+)\.webp/.exec(img.getAttribute("src") || "") || [])[1]).filter(Boolean));
+  if (cardModes.length === 0) throw new Error(`No mode cards at ${BASE}/en/ – build the site and serve it first.`);
+  const orphans = cardModes.filter((m) => !hero.HERO_MOMENTS[m]);
+  if (orphans.length) {
+    console.error(`The served site has mode cards without a hero moment: ${orphans.join(", ")} – add them to HERO_MOMENTS (src/lib/thumbnails/heroMoments.ts).`);
+    await browser.close();
+    process.exit(1);
+  }
+}
+const results = [];
+const failures = [];
+for (const mode of galleryOnly ? [] : modes) {
+  const entry = hero.HERO_MOMENTS[mode];
+  try {
+    if (sweep) {
+      fs.mkdirSync(sweepDir, { recursive: true });
+      const cells = [];
+      const raws = [];
+      for (const seed of sweepSeeds ?? [entry.seed]) {
+        await openStill([hero.heroQuery(mode).replace(/(^|&)seed=[^&]*/, `$1seed=${seed}`), sweepExtra].filter(Boolean).join("&"));
+        const r = await capture(mode, { times: sweep, camera: sweepCamera ?? entry.camera, tint: entry.tint, size: 320, format: "png", seed, raw: process.env.RAW === "1" });
+        for (const f of r.frames) {
+          cells.push({ label: `seed ${seed} · ${f.sec}s${f.finished ? " (over)" : ""}`, dataUrl: f.dataUrl });
+          if (f.raw) raws.push({ label: `seed ${seed} · ${f.sec}s`, dataUrl: f.raw });
+        }
+      }
+      const sheet = path.join(sweepDir, `${mode}-sweep.jpg`);
+      writeDataUrl(sheet, await contactSheet(cells, Math.min(6, sweep.length), 320));
+      console.log(`wrote ${sheet} (${cells.length} pictures)`);
+      if (raws.length) {
+        const rawSheet = path.join(sweepDir, `${mode}-raw.jpg`);
+        writeDataUrl(rawSheet, await contactSheet(raws, Math.min(3, raws.length), 400));
+        console.log(`wrote ${rawSheet}`);
+      }
+      continue;
+    }
+    await openStill(hero.heroQuery(mode));
+    const r = await capture(mode, { times: [entry.atSec], camera: entry.camera, tint: entry.tint, size: hero.THUMB_SIZE, format: "webp", maxBytes: hero.THUMB_MAX_BYTES, seed: entry.seed });
+    const frame = r.frames[0];
+    if (!frame || !frame.dataUrl.startsWith("data:image/webp")) throw new Error("the page handed back no WebP picture");
+    const bytes = writeDataUrl(path.join(outDir, `${mode}.webp`), frame.dataUrl);
+    if (bytes >= hero.THUMB_MAX_BYTES) throw new Error(`${bytes} bytes, over the ${hero.THUMB_MAX_BYTES}-byte budget`);
+    results.push({ mode, bytes, quality: frame.quality });
+    console.log(`wrote public/modes/${mode}.webp (${(bytes / 1000).toFixed(1)} KB, WebP q${Math.round(100 * frame.quality)}, ${hero.THUMB_SIZE}×${hero.THUMB_SIZE}, seed ${r.seed} at ${frame.sec} s${frame.finished ? ", the run already over" : ""})`);
+  } catch (err) {
+    failures.push(mode);
+    console.error(`✗ ${mode}: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
+if (results.length) {
+  const total = results.reduce((n, r) => n + r.bytes, 0);
+  const largest = results.reduce((a, b) => (b.bytes > a.bytes ? b : a));
+  console.log(`${results.length} card picture${results.length === 1 ? "" : "s"}, ${(total / 1000).toFixed(1)} KB in all, the largest ${largest.mode} (${(largest.bytes / 1000).toFixed(1)} KB; the budget is ${hero.THUMB_MAX_BYTES / 1000} KB each).`);
+}
+if (failures.length) {
+  await browser.close();
+  console.error(`Failed: ${failures.join(", ")}.`);
+  process.exit(1);
+}
+// --- end mode-thumbnails ---
 // --- daily-gallery --- the gallery cards: read from the served gallery page, rendered from each card's query at its previewAt
 if (renderGallery) {
   const galleryDir = path.join(process.cwd(), "public", "gallery");

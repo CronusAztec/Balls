@@ -2,6 +2,7 @@ import { SITE_NAME } from "@/lib/site";
 import { copyString, fillTemplate, type BotCopy } from "./copy";
 import { recipeById, type BotPlatform } from "./playbook";
 import type { ClipPlan, ScoreReason } from "./planner";
+import { coverFrameOf, type CoverFrame } from "./cover"; // --- mode-thumbnails ---
 
 /*
  * --- viral-bot --- What a rendered (or planned) batch of clips is delivered as – the same files from the Bot section's ZIP
@@ -46,6 +47,8 @@ export interface ManifestClip {
   bucket: string;
   ending: string;
   payoff: { type: string; atSec: number | null; position: number | null; cutGapSec: number | null; winner: string | null };
+  /** --- mode-thumbnails --- The frame to post as the clip's cover (its hero moment: the payoff on screen; lib/bot/cover.ts). */
+  cover: CoverFrame;
   hook: string;
   score: number;
   reasons: { id: string; points: number; max: number; text: string }[];
@@ -86,8 +89,16 @@ export function postingStamp(plan: Pick<ClipPlan, "date" | "post">): string {
   return plan.date ? `${plan.date} ${plan.post.time}` : plan.post.time;
 }
 
-/** The caption file of a clip: the caption to paste (it ends with the hashtags), then the posting notes and the details. */
-export function captionFileText(plan: ClipPlan, copy: BotCopy): string {
+/** --- mode-thumbnails --- A clip's cover frame in words: "12.4 s – the payoff on screen". */
+export function coverText(cover: CoverFrame, copy: BotCopy): string {
+  return fillTemplate(copyString(copy, "cover.at") || "{sec} s – {why}", { sec: cover.atSec.toFixed(1), why: copyString(copy, `cover.sources.${cover.source}`) || cover.source });
+}
+
+/**
+ * The caption file of a clip: the caption to paste (it ends with the hashtags), then the posting notes and the details.
+ * --- mode-thumbnails --- `renderedSec`: the rendered clip's length, which its cover frame stays inside.
+ */
+export function captionFileText(plan: ClipPlan, copy: BotCopy, renderedSec?: number | null): string {
   const lines = [
     plan.post.caption,
     "",
@@ -96,6 +107,7 @@ export function captionFileText(plan: ClipPlan, copy: BotCopy): string {
     plan.post.note,
     `${copyString(copy, "schedule.ending") || "Ending"}: ${copyString(copy, `endings.${plan.ending}`) || plan.ending} · ${copyString(copy, "schedule.score") || "Score"}: ${plan.score}/100`,
     `${copyString(copy, "schedule.recipe") || "Recipe"}: ${plan.recipe} · seed ${plan.seed}`,
+    `${copyString(copy, "cover.label") || "Cover"}: ${coverText(coverFrameOf(plan, renderedSec), copy)}`, // --- mode-thumbnails ---
     plan.shareUrl,
     "",
     `${copyString(copy, "manual.title") || "Posting by hand"}: ${copyString(copy, "manual.steps")}`,
@@ -132,6 +144,7 @@ export function buildManifest(plans: readonly ClipPlan[], copy: BotCopy, meta: {
         bucket: plan.bucket,
         ending: plan.ending,
         payoff: { type: plan.payoff.type, atSec: plan.payoff.atSec, position: plan.payoff.position, cutGapSec: plan.payoff.cutGapSec, winner: plan.payoff.winner },
+        cover: coverFrameOf(plan, r?.durationSec ?? null), // --- mode-thumbnails ---
         hook: plan.hook,
         score: plan.score,
         reasons: plan.reasons.map((reason) => ({ id: reason.id, points: reason.points, max: reason.max, text: reasonText(copy, reason) })),
@@ -168,13 +181,18 @@ export function scheduleMarkdown(plans: readonly ClipPlan[], copy: BotCopy, meta
   }
   out.push("", `## ${copyString(copy, "manual.title") || "Posting by hand"}`, "", copyString(copy, "manual.steps"), "");
   for (const plan of plans) out.push(`- **${plan.index}.** ${cell(plan.post.note)}`);
+  // --- mode-thumbnails --- the cover frame of every clip (its hero moment), for posting by hand
+  if (plans.length) {
+    out.push("", `## ${copyString(copy, "cover.title") || "Covers"}`, "", copyString(copy, "cover.intro") || "The frame to set as each clip's cover:", "");
+    for (const plan of plans) out.push(`- **${plan.index}.** ${cell(coverText(coverFrameOf(plan, rendered.find((x) => x.id === plan.id)?.durationSec ?? null), copy))}`);
+  }
   return `${out.join("\n").trim()}\n`;
 }
 
 /** Every text file of a batch (name → contents): a caption file per clip, the manifest and the schedule. */
 export function batchTextFiles(plans: readonly ClipPlan[], copy: BotCopy, meta: { date: string | null; platform: BotPlatform; locale: string }, rendered: readonly RenderedClip[] = []): { name: string; text: string }[] {
   return [
-    ...plans.map((plan) => ({ name: captionFileName(plan), text: captionFileText(plan, copy) })),
+    ...plans.map((plan) => ({ name: captionFileName(plan), text: captionFileText(plan, copy, rendered.find((x) => x.id === plan.id)?.durationSec ?? null /* --- mode-thumbnails --- */) })),
     { name: MANIFEST_FILE, text: `${JSON.stringify(buildManifest(plans, copy, meta, rendered), null, 2)}\n` },
     { name: SCHEDULE_FILE, text: scheduleMarkdown(plans, copy, meta, rendered) },
   ];

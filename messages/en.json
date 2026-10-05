@@ -2861,7 +2861,7 @@
     },
     "manual": {
       "title": "Posting by hand",
-      "steps": "1. Open Instagram and tap + → Reel. 2. Pick the video. 3. Paste the caption from the .txt file (it ends with the hashtags). 4. Set the cover to a frame near the start. 5. Share at the suggested time – as a Trial Reel for a new hook – and reply to comments for the first hour."
+      "steps": "1. Open Instagram and tap + → Reel. 2. Pick the video. 3. Paste the caption from the .txt file (it ends with the hashtags). 4. Set the cover to the frame the .txt file names (the payoff on screen, not the first frame). 5. Share at the suggested time – as a Trial Reel for a new hook – and reply to comments for the first hour."
     },
     "schedule": {
       "title": "Posting schedule",
@@ -3053,6 +3053,18 @@
         "cliffPostQuestion": "Blaze, Wave, Volt or Moss – who's out first? 👇",
         "keywords": "Coloured balls race through rotating rings with one gap each – which one finds the exit first?",
         "hashtags": "#mazerace #ringmaze #whowillwin"
+      }
+    },
+    "cover": {
+      "label": "Cover",
+      "at": "{sec} s – {why}",
+      "title": "Covers",
+      "intro": "The frame to set as each clip's cover (the bot sends it to Instagram and TikTok itself when it posts):",
+      "sources": {
+        "payoff": "the payoff on screen",
+        "cut": "the last moment before the cut",
+        "card": "the mode's hero moment",
+        "band": "late in the clip, where a payoff would land"
       }
     }
   },

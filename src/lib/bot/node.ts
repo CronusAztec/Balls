@@ -11,4 +11,5 @@ export { INSTAGRAM_ENV, InstagramError, instagramConfigFromEnv, publicVideoUrl, 
 export { RelayClient, RelayError } from "@/lib/publish/relayClient"; // --- social-publish --- the CLI's --relay path
 // --- paywall-gate --- rendering needs a Pro licence in the page: the CLI reads BOT_LICENSE's plan and end before it starts
 export { decodeLicense, licenseExpired } from "@/lib/billing/license";
+export { coverFrameOf } from "./cover"; // --- mode-thumbnails --- the clips' cover frames (Instagram's thumb_offset, the relay's coverMs)
 export { LICENSE_STORAGE_KEY } from "@/lib/billing/config";
