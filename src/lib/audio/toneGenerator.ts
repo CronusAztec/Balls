@@ -18,6 +18,12 @@ import { ORB_SAMPLE_GAIN, scheduleOrbClink, scheduleOrbSleep } from "./orbTones"
 import { CLICK_HZ, scheduleOrbClick } from "./orbRhythmTones"; // --- orb-rhythm --- the metronome's woodblock click
 import { fightDucks, scheduleFightSound } from "./fightTones"; // --- fight-league ---
 import type { FightSoundKind } from "@/lib/physics/types"; // --- fight-league ---
+// --- fl-overhaul --- (Stage 4) Fight League's synthesized cues (flSoundResolve.ts → flMixer.ts) and the user's clips (flClips.ts)
+import type { SoundEvent } from "@/lib/physics/types";
+import { FlMixer } from "./flMixer";
+import { DEFAULT_FL_SOUND_SETTINGS, FL_SOUND_SETS, NO_FL_CLIPS, resolveFlSound, type FlClipLookup, type FlSoundSettings } from "./flSoundResolve";
+import { flClipLookup, parseWav16, type FlClipRecord } from "./flClips";
+// --- end fl-overhaul ---
 import { DEFAULT_KNOCK_FREQUENCY, DEFAULT_KO_FREQUENCY, lcFrequency, lcLevel, scheduleKnock, scheduleKo, scheduleSpawnChime } from "./landClaimTones"; // --- land-claim ---
 import { scLevel, scheduleSnap, scheduleTwang } from "./stringCircleTones"; // --- string-circle ---
 import { MusicBed } from "./musicBed";
@@ -232,6 +238,7 @@ export class ToneGenerator {
         this.sampler.setVolume(this.hitSampleVolume);
         this.sampler.setStatusListener(this.hitSampleStatusListener);
       }
+      if (!this.flMixer) this.flMixer = this.createFlMixer(this.audioContext, this.masterGain); // --- fl-overhaul --- (Stage 4)
       this.isInitialized = true;
       this.ensureHitSampleLoaded();
     } catch (err) {
@@ -998,6 +1005,138 @@ export class ToneGenerator {
   }
   // --- end fight-league ---
 
+  // --- fl-overhaul --- (Stage 4)
+  /** Fight League's mixer (created with the audio graph, and for the offline twin), its settings and the user's clips. */
+  private flMixer: FlMixer | null = null;
+  private flSettings: FlSoundSettings = { ...DEFAULT_FL_SOUND_SETTINGS };
+  private flClipRecords: readonly FlClipRecord[] = [];
+  private flClips: FlClipLookup = NO_FL_CLIPS;
+  /** The clips decoded for a context (a WAV's samples copied into an AudioBuffer of that context). */
+  private flClipBuffers = new WeakMap<object, Map<string, { buffer: AudioBuffer; peak: number }>>();
+
+  /** The sound set (signature | kinds | legacy), the announcer and the custom clips switch (presentational settings). */
+  setFightSoundSettings(settings: Partial<FlSoundSettings>) {
+    const set = settings.set && FL_SOUND_SETS.includes(settings.set) ? settings.set : this.flSettings.set;
+    this.flSettings = { set, announcer: settings.announcer ?? this.flSettings.announcer, custom: settings.custom ?? this.flSettings.custom };
+  }
+
+  getFightSoundSettings(): FlSoundSettings {
+    return { ...this.flSettings };
+  }
+
+  /** The user's clips (flClips.ts records; kept on this device only): the cues of their slots play them. */
+  setFightClips(records: readonly FlClipRecord[]) {
+    this.flClipRecords = records.slice();
+    this.flClips = flClipLookup(this.flClipRecords);
+    this.flClipBuffers = new WeakMap();
+  }
+
+  /** Fight League's mixer (null before the audio graph exists). */
+  getFightMixer(): FlMixer | null {
+    return this.flMixer;
+  }
+
+  /** Every Fight League sound off now (loops, held abilities, voices). */
+  stopFightSounds() {
+    this.flMixer?.stopEverything();
+  }
+
+  /**
+   * A Fight League cue (`SoundEvent.flCue`, dispatched by flDispatch.ts `playFightEvent()`): resolved (flSoundResolve.ts) into
+   * the fighter's clip, its signature set, its division's tint, its weapon's or ability's row, a match sting or the announcer
+   * and mixed (flMixer.ts) – or, with the legacy set (or as the last resort), the old `playFight()` kind. F is the fighter's
+   * note folded into C4–B4 and snapped to the scale, R the scale's root in C5–B5. A weapon cue keeps the beat lock (a swing
+   * pushed more than 120 ms is dropped); an ability, a sting or a call is never delayed (it waits only for its `flDelay`).
+   * `levelScale` scales its level (the other arenas'), `arena` keeps the arenas' loops apart.
+   */
+  playFightCue(ev: SoundEvent, levelScale = 1, arena = 0) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleFightCue(ev, levelScale, arena));
+      return;
+    }
+    this.scheduleFightCue(ev, levelScale, arena);
+  }
+
+  private scheduleFightCue(ev: SoundEvent, levelScale: number, arena: number) {
+    const ctx = this.audioContext;
+    if (!ctx || !this.masterGain) return;
+    try {
+      const mixer = this.flMixer ?? (this.flMixer = this.createFlMixer(ctx, this.masterGain));
+      const now = ctx.currentTime;
+      const at = now + (Number.isFinite(ev.flDelay) ? Math.max(0, ev.flDelay as number) : 0);
+      if (ev.flCue === "loopStop") {
+        const key = `${arena}:${ev.flLoop ?? -1}`;
+        if ((ev.flLoop ?? -1) < 0) mixer.stop(`${arena}:`, at, true);
+        else mixer.stop(key, at);
+      }
+      const res = resolveFlSound(ev, this.flSettings.custom ? this.flClips : NO_FL_CLIPS, this.flSettings);
+      if (!res) {
+        if (ev.fight) this.scheduleFight(ev.fight, ev.frequency, (ev.level ?? 1) * levelScale);
+        return;
+      }
+      if (res.legacy?.kind) this.scheduleFight(res.legacy.kind, res.legacy.frequency, (res.legacy.level ?? 1) * levelScale);
+      if (res.legacy?.chord) this.playWallHit(0, res.legacy.chord[0], true, res.legacy.chord, levelScale, false);
+      if (res.voices.length === 0) return;
+      let time = at;
+      const bus = res.voices[0].bus;
+      if ((bus === "swing" || bus === "shoot" || bus === "hit") && this.music.quantizeToBeat) {
+        const t = this.scheduleTime(now);
+        if (bus === "swing" && t - now > 0.12) return;
+        time = Math.max(time, t);
+      }
+      mixer.play(res, {
+        time,
+        F: this.flNote(ev.flPitch),
+        R: 523.25 * Math.pow(2, (((this.music.rootNote % 12) + 12) % 12) / 12),
+        level: (Number.isFinite(ev.flLevel) ? Math.max(0, Math.min(1, ev.flLevel as number)) : 1) * levelScale,
+        pan: Number.isFinite(ev.flPan) && ev.flCue !== "announcer" ? Math.max(-1, Math.min(1, ev.flPan as number)) : 0,
+        variant: Number.isFinite(ev.flVar) ? (ev.flVar as number) : 0.5,
+        slow: Number.isFinite(ev.flSlow) ? (ev.flSlow as number) : 1,
+        sustainSec: Number.isFinite(ev.flSec) ? (ev.flSec as number) : undefined,
+        stretch: ev.flCue === "telegraph" && Number.isFinite(ev.flSec) && (ev.flSec as number) > 0 ? (ev.flSec as number) / 0.4 : undefined,
+        fighter: `${arena}:${ev.flFighter ?? ""}`,
+        loopKey: ev.flLoop !== undefined ? `${arena}:${ev.flLoop}` : undefined,
+        swish: ev.flCue === "swing",
+      });
+    } catch (err) {
+      console.error("Error playing the fight cue:", err);
+    }
+  }
+
+  /** The fighter's note folded into C4–B4 and snapped to the scale (E4 without one). */
+  private flNote(pitch: number | undefined): number {
+    let f = pitch !== undefined && pitch > 0 && Number.isFinite(pitch) ? pitch : 329.63;
+    while (f >= 523.25) f /= 2;
+    while (f < 261.62) f *= 2;
+    return this.snap(f);
+  }
+
+  private createFlMixer(ctx: BaseAudioContext, out: AudioNode): FlMixer {
+    return new FlMixer(ctx, out, { duckBed: (time) => this.musicBed.duck(time), clip: (key) => this.flClipBuffer(ctx, key) });
+  }
+
+  /** Clip `key` as an AudioBuffer of `ctx` (decoded from its WAV once per context), with its peak. */
+  private flClipBuffer(ctx: BaseAudioContext, key: string): { buffer: AudioBuffer; peak: number } | null {
+    let byKey = this.flClipBuffers.get(ctx);
+    if (!byKey) {
+      byKey = new Map();
+      this.flClipBuffers.set(ctx, byKey);
+    }
+    const hit = byKey.get(key);
+    if (hit) return hit;
+    const rec = this.flClipRecords.find((r) => r.key === key);
+    const wav = rec ? parseWav16(rec.bytes) : null;
+    if (!rec || !wav || wav.channels[0].length === 0) return null;
+    const buffer = ctx.createBuffer(wav.channels.length, wav.channels[0].length, wav.sampleRate);
+    wav.channels.forEach((d, c) => buffer.copyToChannel(d, c));
+    const out = { buffer, peak: rec.peak };
+    byKey.set(key, out);
+    return out;
+  }
+  // --- end fl-overhaul ---
+
   // --- land-claim ---
   /**
    * A Land Claim effect (landClaimTones.ts): "knock" – a block knocked off its column, a short wooden click pitched by the
@@ -1166,6 +1305,7 @@ export class ToneGenerator {
     this.masterGain = null;
     this.pluckCache.clear();
     this.noiseCache.clear(); // --- odd-string-battle ---
+    this.flMixer = null; // --- fl-overhaul --- (its context is closed)
     this.lastSlotTime = -1;
     this.isInitialized = false;
     this.isPlaying = false;
@@ -1212,6 +1352,10 @@ export class ToneGenerator {
     twin.musicBed.attach(ctx, master);
     twin.musicBed.setOptions(this.musicBed.getOptions());
     twin.musicBed.setBuffer(this.musicBed.getBuffer());
+    // --- fl-overhaul --- (Stage 4) the fight's mixer, sound settings and clips: the export mixes the cues as the page does
+    twin.flSettings = { ...this.flSettings };
+    twin.setFightClips(this.flClipRecords);
+    twin.flMixer = twin.createFlMixer(ctx, master);
     twin.isInitialized = true;
     twin.isPlaying = true;
     twin.resetBeatGrid();

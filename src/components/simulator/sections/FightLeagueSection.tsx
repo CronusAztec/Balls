@@ -14,6 +14,9 @@ import { flRandomToken, parseFlRandom } from "@/lib/physics/modes/fightLeague";
 import { FL_CONFERENCE_IDS } from "@/lib/physics/modes/fightLeagueRoster";
 // --- fl-overhaul --- (Stage 3) the spectacle's options
 import { FL_ARENA_STYLES, FL_STAGES, FL_TAG_MODES, type FlArenaStyle, type FlStage, type FlTags } from "@/lib/physics/modes/fightLeague";
+// --- fl-overhaul --- (Stage 4) the Sound group's options and the custom clip slots
+import { FL_SOUND_OPTIONS, type FlSoundOption } from "@/lib/physics/modes/fightLeague";
+import FlCustomSoundsPanel from "./FlCustomSoundsPanel";
 
 /** --- fl-overhaul --- The list view (the native selects) is remembered per viewer; without storage it starts off. */
 const LIST_VIEW_KEY = "fl-picker-list";
@@ -47,6 +50,9 @@ FIGHT_LEAGUE_KEYS.push("flSpectacle", "flStage", "flArenaStyle", "flShake", "flS
 const STAGE_LABELS: Record<FlStage, string> = { lilac: "flStageLilac", night: "flStageNight", theme: "flStageTheme" };
 const ARENA_STYLE_LABELS: Record<FlArenaStyle, string> = { clean: "flArenaStyleClean", grid: "flArenaStyleGrid", division: "flArenaStyleDivision", neon: "flArenaStyleNeon" };
 const TAG_LABELS: Record<FlTags, string> = { auto: "flTagsAuto", on: "flTagsOn", off: "flTagsOff" };
+// --- fl-overhaul --- (Stage 4) the Sound group's labels and the clip panel (the search finds them too)
+FIGHT_LEAGUE_KEYS.push("flSoundGroup", "flSound", "flAnnouncer", "flCustomSounds", "flClipPanel");
+const SOUND_LABELS: Record<FlSoundOption, string> = { signature: "flSoundSignature", kinds: "flSoundKinds", legacy: "flSoundLegacy" };
 // --- end fl-overhaul ---
 
 const SLOT_FIELDS = ["flFighterA", "flFighterB", "flFighterC", "flFighterD"] as const;
@@ -216,6 +222,10 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
           })}
         </div>
       </Searchable>
+      {/* --- fl-overhaul --- (Stage 4) the chosen fighters' custom clip slots, under the pickers */}
+      <Searchable search={search} matches={matches} labelKey="flClipPanel">
+        <FlCustomSoundsPanel t={t} fighterIds={SLOT_FIELDS.slice(0, slots).map((f) => s[f])} enabled={s.flCustomSounds} />
+      </Searchable>
       <Searchable search={search} matches={matches} labelKey="flSameDivision">
         <Toggle t={t} labelKey="flSameDivision" tipKey="flSameDivisionTip" value={s.flSameDivision} onChange={(v) => update({ flSameDivision: v })} caseStyle="title" />
       </Searchable>
@@ -334,6 +344,35 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
             ))}
           </div>
         </div>
+      </Searchable>
+      {/* --- end fl-overhaul --- */}
+      {/* --- fl-overhaul --- (Stage 4) the Sound: how the fight sounds (each applies live, never a restart) */}
+      <Searchable search={search} matches={matches} labelKey="flSoundGroup">
+        <p className="pt-2 text-xs font-bold uppercase tracking-wide text-ink-3" data-testid="fl-sound">
+          {t("flSoundGroup")}
+          <Tooltip text={t("flSoundGroupTip")} />
+        </p>
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="flSound">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-ink-2">
+            {t("flSound")}
+            <Tooltip text={t("flSoundTip")} />
+          </label>
+          <div className="grid grid-cols-3 gap-1" role="group" aria-label={t("flSound")}>
+            {FL_SOUND_OPTIONS.map((o) => (
+              <button type="button" key={o} onClick={() => update({ flSound: o })} aria-pressed={s.flSound === o} className={pick(s.flSound === o)} data-testid={`fl-sound-${o}`}>
+                {t(SOUND_LABELS[o])}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="flAnnouncer">
+        <Toggle t={t} labelKey="flAnnouncer" tipKey="flAnnouncerTip" value={s.flAnnouncer} onChange={(v) => update({ flAnnouncer: v })} caseStyle="title" />
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="flCustomSounds">
+        <Toggle t={t} labelKey="flCustomSounds" tipKey="flCustomSoundsTip" value={s.flCustomSounds} onChange={(v) => update({ flCustomSounds: v })} caseStyle="title" />
       </Searchable>
       {/* --- end fl-overhaul --- */}
     </div>

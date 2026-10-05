@@ -252,7 +252,7 @@ describe("the settings assistant's shorter prompt", () => {
     // Fight League: 26 settings of its own, every one offered for "longer rounds" (flTimeCap), with the core ones.
     const league = defaultSettings("fightLeague");
     const leagueBlock = blockOf("fightLeague");
-    expect(leagueBlock.length).toBe(36); // --- fl-overhaul --- 26 + the overhaul's flSeek and flSuddenDeath (+ Stage 3's eight spectacle settings)
+    expect(leagueBlock.length).toBe(39); // --- fl-overhaul --- 26 + the overhaul's flSeek and flSuddenDeath (+ Stage 3's eight spectacle settings, + Stage 4's three sound settings)
     const rounds = relevantAssistantSettings(league, "longer rounds").map(([k]) => k);
     expect(rounds).toEqual(expect.arrayContaining([...leagueBlock, ...CORE_SETTING_KEYS]));
     expect(rounds).toContain("flTimeCap");

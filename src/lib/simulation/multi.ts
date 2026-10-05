@@ -8,6 +8,7 @@ import { respawnConfigOf } from "@/lib/physics/respawn"; // --- gerald-conveyor 
 import { riggedConfigOf } from "@/lib/physics/rigged";
 import type { ModeId, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import type { FightSoundKind } from "@/lib/physics/types"; // --- fight-league ---
+import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
 import type { SimulatorSettings } from "@/lib/settings";
 import { effectiveBallCount } from "@/lib/teams";
 import { engineTimelineOf } from "./timeline";
@@ -124,6 +125,8 @@ export interface ArenaSoundSink {
   // --- end orb-grid ---
   /** --- fight-league --- a Fight League weapon hit, an ability's swell or a KO. */
   playFight?(kind: FightSoundKind, frequency?: number, level?: number): void;
+  /** --- fl-overhaul --- a Fight League cue (flDispatch.ts `playFightEvent()`: resolved and mixed by the ToneGenerator). */
+  playFightCue?(ev: SoundEvent, levelScale?: number, arena?: number): void;
   /** --- land-claim --- a knocked block's click, a new ball's chime, a column's KO. */
   playLandClaim?(kind: "knock" | "spawn" | "ko", frequency?: number, level?: number, accent?: boolean): void;
   /** --- string-circle --- the String Battle circle style's twang of the anchored strings, the snap of strings cut. */
@@ -134,7 +137,7 @@ export interface ArenaSoundSink {
  * Plays one sound event of another arena the way the page plays its own (its bounces a little softer: `EXTRA_ARENA_LEVEL`;
  * an event with `melody: false` accompanies the tune without using up a melody note, as on the page).
  */
-export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent) {
+export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent, arena = 0) {
   if (ev.race) return sink.playRaceArpeggio(ev.race, ev.frequency);
   if (ev.bumper) return sink.playBumper(ev.frequency);
   if (ev.sbSound) return sink.playStringBattle(ev.sbSound, ev.frequency);
@@ -146,7 +149,7 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent) {
   if (ev.conveyor) return sink.playConveyor?.(ev.conveyor, ev.cvSec, ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- gerald-conveyor --- (machinery, not a wall hit)
   if (ev.splat) return sink.playSplat?.((ev.level ?? 0.6) * EXTRA_ARENA_LEVEL); // --- gerald-exit-splat --- (the wet splat, not a wall hit)
   if (ev.orb) return sink.playOrb?.(ev.orb, ev.frequency, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- orb-grid --- (an orb voice's own sound, not a wall hit)
-  if (ev.fight) return sink.playFight?.(ev.fight, ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- fight-league --- (a weapon's hit, not a wall hit)
+  if (ev.fight || ev.flCue) return void playFightEvent(sink, ev, EXTRA_ARENA_LEVEL, arena); // --- fight-league --- (a weapon's hit, not a wall hit; --- fl-overhaul --- every cue through the one dispatch, the arena's loops apart)
   if (ev.lcSound) return sink.playLandClaim?.(ev.lcSound, ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.accent); // --- land-claim --- (a knock, a chime, a KO: not a wall hit)
   if (ev.scSound) return sink.playStringCircle?.(ev.scSound, ev.frequency, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- string-circle --- (a twang, a snap: not a wall hit)
   if (ev.type === "hit") sink.playWallHit(ev.wallIndex, ev.frequency, ev.accent, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.melody !== false);

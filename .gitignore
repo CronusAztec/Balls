@@ -48,3 +48,7 @@ yarn-error.log*
 
 # --- fl-overhaul --- the Fight League tuner's per-division reports (scripts/fl-balance.mjs)
 /scripts/out/
+
+# --- fl-overhaul --- (Stage 4) the owner's licensed fight sounds and exported clip sets stay on the device, never in the repository
+fight-sounds/
+*.jumpingballslive.zip

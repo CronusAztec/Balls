@@ -3,6 +3,7 @@ import type { SoundEvent } from "@/lib/physics/types";
 import type { ChirpKind } from "@/lib/audio/characterVoice";
 import { FRAME_BUDGET_MS } from "@/lib/simulation/frameBudget"; // --- unlimited ---
 import { ToneGenerator } from "@/lib/audio/toneGenerator";
+import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
 import { EXPORT_BASE_NAME, drawRecordingFrame, recordingTextLayout, type RecordingCrop, type RecordingTextOverlay } from "./recorder";
 import {
   AUDIO_BITRATE,
@@ -266,9 +267,9 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playOrb(ev.orb, ev.frequency, ev.chord, ev.level);
     return;
   }
-  // --- fight-league --- a Fight League weapon hit of its kind, an ability's swell, a KO
-  if (ev.fight) {
-    audio.playFight(ev.fight, ev.frequency, ev.level);
+  // --- fight-league --- a Fight League weapon hit of its kind, an ability's swell, a KO (--- fl-overhaul --- every cue through the one dispatch)
+  if (ev.fight || ev.flCue) {
+    playFightEvent(audio, ev, 1);
     return;
   }
   // --- land-claim --- a knocked block's wooden click, a new ball's chime, a column's KO

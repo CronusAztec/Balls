@@ -24,6 +24,10 @@ import {
 } from "./fightLeagueRoster";
 // --- fl-overhaul --- (Stage 3) the finale's time warp (pure visual maths; the rules never read it)
 import { FL_COMBO_MS, FL_DAMAGE_MERGE_MS, FL_FINALE_BANNER_MS, FL_FINALE_MS, FL_IMPACT_DAMAGE, FL_IMPACT_GAP_MS, flFinaleScale } from "./fightLeagueFx";
+// --- fl-overhaul --- (Stage 4) the sound budget per 60 Hz tick and the cues (flCue, … – lib/audio/flSoundResolve.ts plays them)
+import { FL_CAT_BLOCK, FL_CAT_HIT, FL_CAT_NOTE, FL_CAT_SHOOT, FL_CAT_SWING, FL_TICK_CUES, FlTickBudget } from "./fightLeagueSound";
+import type { FlCue } from "../types";
+import type { FlPrimitive } from "./fightLeagueRoster";
 
 /**
  * Fight League ("fightLeague" mode, the arena games' family – feature fight-league; the "Ball Fight League" duels: "Thor vs
@@ -100,6 +104,12 @@ import { FL_COMBO_MS, FL_DAMAGE_MERGE_MS, FL_FINALE_BANNER_MS, FL_FINALE_MS, FL_
  * and flails, a twang for arrows, a shot for guns, a whoosh for fire, a chime for magic), an ability a swell, a KO a heavy
  * hit, all through the ToneGenerator (fightTones.ts); wall bounces are soft notes of the scale (melodies, the slicer and
  * the hit samples apply). Per rendered frame the strongest `FL_SOUNDS_PER_FRAME` play.
+ * --- fl-overhaul --- (Stage 4) Every sound is now a cue (`SoundEvent.flCue`: a weapon's swing / shoot / hit / block / …, an
+ * ability's charge / telegraph / fire / sustain / impact / end, a blade's hum, the match's stings and the announcer's calls –
+ * written in the same 60 Hz tick as the banners) that lib/audio/flSoundResolve.ts turns into the fighter's synthesized
+ * signature set (or the user's clip) – `fight` keeps the old kind for the legacy set; the budget is per SIMULATION tick
+ * (fightLeagueSound.ts: 3 hits, 2 shots, 1 swing, 1 block, 1 note, at most FL_SOUNDS_PER_FRAME, the urgent cues always), so
+ * every frame rate, the fast export and every split-screen arena pick the same cues. No cue draws a random number.
  */
 
 /* ------------------------------------------------------------------ settings */
@@ -138,6 +148,12 @@ export function isFlArenaStyle(value: unknown): value is FlArenaStyle {
 }
 export function isFlTags(value: unknown): value is FlTags {
   return typeof value === "string" && (FL_TAG_MODES as readonly string[]).includes(value);
+}
+/** --- fl-overhaul --- (Stage 4) The sound set (URL `flSnd`): the fighters' synthesized signatures, the weapon kinds' and abilities' rows, or the first release's sounds. */
+export const FL_SOUND_OPTIONS = ["signature", "kinds", "legacy"] as const;
+export type FlSoundOption = (typeof FL_SOUND_OPTIONS)[number];
+export function isFlSoundOption(value: unknown): value is FlSoundOption {
+  return typeof value === "string" && (FL_SOUND_OPTIONS as readonly string[]).includes(value);
 }
 /** A fighter slot's value: a roster id, "random" or (--- fl-overhaul ---) a random token ("random:<division>", "random:<conference>"). */
 export function isFlSlotValue(value: unknown): value is string {
@@ -227,6 +243,13 @@ export interface FightLeagueSettings {
   plates: boolean;
   /** Name tags under the balls (URL `flTg`): auto (three fighters or more), on, off. */
   tags: FlTags;
+  // (Stage 4) the sound – presentational too (the page's ToneGenerator reads it; never the fight, never `flFightKey`)
+  /** The sound set (URL `flSnd`): signature (the default), kinds, legacy. */
+  sound: FlSoundOption;
+  /** The announcer's calls (URL `flAnn`). */
+  announcer: boolean;
+  /** The user's own clips in their fighters' slots (URL `flCS`; the clips stay on the device). */
+  customSounds: boolean;
   // --- end fl-overhaul ---
 }
 
@@ -258,6 +281,10 @@ export const DEFAULT_FIGHT_LEAGUE_SETTINGS: FightLeagueSettings = {
   dmgNumbers: true,
   plates: true,
   tags: "auto",
+  // --- fl-overhaul --- (Stage 4)
+  sound: "signature",
+  announcer: true,
+  customSounds: true,
 };
 
 const MULT_RANGE = { min: 0.05, max: 3, step: 0.05 } as const;
@@ -329,6 +356,10 @@ export interface FightLeagueFields {
   flDmgNumbers: boolean;
   flPlates: boolean;
   flTags: FlTags;
+  // (Stage 4) the sound (URL `flSnd`, `flAnn`, `flCS`; the page's ToneGenerator only)
+  flSound: FlSoundOption;
+  flAnnouncer: boolean;
+  flCustomSounds: boolean;
   // --- end fl-overhaul ---
 }
 
@@ -381,6 +412,10 @@ export function resolveFightLeagueSettings(config: Partial<FightLeagueSettings> 
     dmgNumbers: typeof c.dmgNumbers === "boolean" ? c.dmgNumbers : d.dmgNumbers,
     plates: typeof c.plates === "boolean" ? c.plates : d.plates,
     tags: isFlTags(c.tags) ? c.tags : d.tags,
+    // --- fl-overhaul --- (Stage 4) the sound: a known set, real booleans
+    sound: isFlSoundOption(c.sound) ? c.sound : d.sound,
+    announcer: typeof c.announcer === "boolean" ? c.announcer : d.announcer,
+    customSounds: typeof c.customSounds === "boolean" ? c.customSounds : d.customSounds,
   };
 }
 
@@ -410,6 +445,10 @@ export function fightLeagueSettingsOf(source: FightLeagueFields): FightLeagueSet
     dmgNumbers: source.flDmgNumbers,
     plates: source.flPlates,
     tags: source.flTags,
+    // --- fl-overhaul --- (Stage 4)
+    sound: source.flSound,
+    announcer: source.flAnnouncer,
+    customSounds: source.flCustomSounds,
   };
 }
 
@@ -437,6 +476,10 @@ export function fightLeagueSettingFields(s: FightLeagueSettings): FightLeagueFie
     flDmgNumbers: s.dmgNumbers,
     flPlates: s.plates,
     flTags: s.tags,
+    // --- fl-overhaul --- (Stage 4)
+    flSound: s.sound,
+    flAnnouncer: s.announcer,
+    flCustomSounds: s.customSounds,
   } as FightLeagueFields;
   for (let i = 0; i < FL_SLOTS; i++) {
     out[multField("Speed", i)] = s.speed[i];
@@ -488,9 +531,9 @@ for (let i = 0; i < FL_SLOTS; i++) {
 NUMERIC_KEYS.flSk = "flSeek"; // --- fl-overhaul ---
 NUMERIC_KEYS.flSh = "flShake"; // --- fl-overhaul --- (Stage 3)
 /** --- fl-overhaul --- (Stage 3) The spectacle's switches (URL key → field; "1" / "0") and options (URL key → field). */
-const FL_SWITCH_KEYS: Readonly<Record<string, "flSlowMo" | "flImpact" | "flDmgNumbers" | "flPlates">> = { flSm: "flSlowMo", flIf: "flImpact", flDn: "flDmgNumbers", flPp: "flPlates" };
+const FL_SWITCH_KEYS: Readonly<Record<string, "flSlowMo" | "flImpact" | "flDmgNumbers" | "flPlates" | "flAnnouncer" | "flCustomSounds">> = { flSm: "flSlowMo", flIf: "flImpact", flDn: "flDmgNumbers", flPp: "flPlates", flAnn: "flAnnouncer" /* --- fl-overhaul --- (Stage 4) */, flCS: "flCustomSounds" };
 /** The feature's URL keys (for tools and the tests). */
-export const FIGHT_LEAGUE_URL_KEYS: readonly string[] = ["fl1", "fl2", "fl3", "fl4", "flM", "flDiv", "flA", "flH", "flSD", "flSt", "flAs", "flTg", ...Object.keys(FL_SWITCH_KEYS), ...Object.keys(NUMERIC_KEYS)];
+export const FIGHT_LEAGUE_URL_KEYS: readonly string[] = ["fl1", "fl2", "fl3", "fl4", "flM", "flDiv", "flA", "flH", "flSD", "flSt", "flAs", "flTg", "flSnd" /* --- fl-overhaul --- (Stage 4) */, ...Object.keys(FL_SWITCH_KEYS), ...Object.keys(NUMERIC_KEYS)];
 
 /**
  * --- fl-overhaul --- The value a number field of the panel commits for `field`: the settings' own normalisation (HP and the
@@ -518,6 +561,7 @@ export function writeFightLeagueParams(settings: FightLeagueFields, base: FightL
   if (settings.flStage !== base.flStage) params.set("flSt", settings.flStage);
   if (settings.flArenaStyle !== base.flArenaStyle) params.set("flAs", settings.flArenaStyle);
   if (settings.flTags !== base.flTags) params.set("flTg", settings.flTags);
+  if (settings.flSound !== base.flSound) params.set("flSnd", settings.flSound); // --- fl-overhaul --- (Stage 4)
   for (const [key, field] of Object.entries(FL_SWITCH_KEYS)) if (settings[field] !== base[field]) params.set(key, settings[field] ? "1" : "0");
   for (const [key, field] of Object.entries(NUMERIC_KEYS)) if (settings[field] !== base[field]) params.set(key, formatNumber(settings[field] as number));
 }
@@ -546,6 +590,8 @@ export function readFightLeagueParams(params: URLSearchParams, settings: FightLe
   if (isFlArenaStyle(style)) next.flArenaStyle = style;
   const tags = params.get("flTg");
   if (isFlTags(tags)) next.flTags = tags;
+  const sound = params.get("flSnd"); // --- fl-overhaul --- (Stage 4)
+  if (isFlSoundOption(sound)) next.flSound = sound;
   for (const [key, field] of Object.entries(FL_SWITCH_KEYS)) {
     const raw = params.get(key);
     if (raw === "1" || raw === "0") next[field] = raw === "1";
@@ -734,8 +780,8 @@ export function flHoldStartMs(view: Pick<FightLeagueView, "finishMs" | "finale" 
 export function flHoldEndMs(view: Pick<FightLeagueView, "finishMs" | "finale" | "byTime">): number {
   return flHoldStartMs(view) + 1000 * FL_WIN_HOLD_SEC;
 }
-/** Most fight sounds one rendered frame plays (the strongest win; KOs and abilities always sound). */
-export const FL_SOUNDS_PER_FRAME = 6;
+/** Most fight sounds one rendered frame plays (the strongest win; KOs and abilities always sound). --- fl-overhaul --- (Stage 4) now per 60 Hz simulation tick: `FL_TICK_CUES` (fightLeagueSound.ts). */
+export const FL_SOUNDS_PER_FRAME = FL_TICK_CUES;
 /**
  * Pools: projectiles, minions (decoys, summons and – --- fl-overhaul --- – traps), render events, scheduled effects, beams
  * (--- fl-overhaul --- Stage 3: projectiles 144 and tasks 32 – the heavy kits' volleys never run a pool dry – and the decals).
@@ -1593,6 +1639,15 @@ export class FlFighter {
    */
   homeSx = 0;
   homeSy = 0;
+  // (Stage 4) sound state – the cues read it, the rules never do
+  /** Cues written for it (its variation's counter), its charge cue's latch, its low-HP cue, its burst's end (ms) and primitive. */
+  sndN = 0;
+  sndCharged = false;
+  sndLowHp = false;
+  sndEndAt = -Infinity;
+  sndEndPrim: FlPrimitive | "" = "";
+  /** When its held ability sounds end (ms, by effect index; their loop keys: 64 + slot × 4 + index). */
+  readonly sndHeldUntil = new Float64Array(4).fill(-Infinity);
   // --- end fl-overhaul ---
 
   constructor(slot: number, team: number, row: FlFighterRow) {
@@ -2033,39 +2088,12 @@ function wallNote(kind: FlArena, wall: number): number {
 }
 const WIN_CHORD: readonly number[] = [261.63, 329.63, 392, 523.25];
 
-/** The per-frame sound budget: the strongest `FL_SOUNDS_PER_FRAME` fight sounds and wall notes of a frame. */
-class FightSoundBudget {
-  private readonly energy = new Float64Array(FL_SOUNDS_PER_FRAME);
-  private readonly kind: (FlSoundKind | null)[] = new Array(FL_SOUNDS_PER_FRAME).fill(null);
-  private readonly freq = new Float64Array(FL_SOUNDS_PER_FRAME);
-  private readonly level = new Float64Array(FL_SOUNDS_PER_FRAME);
-  private count = 0;
-
-  clear() {
-    this.count = 0;
-  }
-
-  /** `kind` null: a wall note (a plain hit, a note of the tune). */
-  offer(energy: number, kind: FlSoundKind | null, frequency: number, level: number) {
-    let slot = this.count;
-    if (slot >= FL_SOUNDS_PER_FRAME) {
-      slot = 0;
-      for (let i = 1; i < FL_SOUNDS_PER_FRAME; i++) if (this.energy[i] < this.energy[slot]) slot = i;
-      if (!(energy > this.energy[slot])) return;
-    } else this.count++;
-    this.energy[slot] = energy;
-    this.kind[slot] = kind;
-    this.freq[slot] = frequency;
-    this.level[slot] = level;
-  }
-
-  flush(push: (kind: FlSoundKind | null, frequency: number, level: number) => void): number {
-    const n = this.count;
-    for (let i = 0; i < n; i++) push(this.kind[i], this.freq[i], this.level[i]);
-    this.count = 0;
-    return n;
-  }
-}
+/** --- fl-overhaul --- (Stage 4) The telegraph classes in order (a cue's `flVariant`). */
+const TELEGRAPH_CLASSES = [FL_TELEGRAPH_CLASS_MS.quick, FL_TELEGRAPH_CLASS_MS.standard, FL_TELEGRAPH_CLASS_MS.area, FL_TELEGRAPH_CLASS_MS.ultimate];
+/** --- fl-overhaul --- (Stage 4) Primitives whose end has a sound (the bursts' power-down, a transform's shrink, …). */
+const END_PRIMS: ReadonlySet<FlPrimitive> = new Set(["speedBurst", "damageBurst", "attackSpeedBurst", "invulnerable", "disarm", "slowTime", "transform"]);
+/** --- fl-overhaul --- (Stage 4) A legacy kind's weapon kind (a hit without a weapon of its own). */
+const KIND_OF_SOUND: Readonly<Record<FlSoundKind, FlWeaponKind>> = { blade: "sword", blunt: "fists", arrow: "bow", gun: "gun", fire: "fire", magic: "wand", ability: "staff", ko: "hammer", block: "shield" };
 
 /* ------------------------------------------------------------------ the mode */
 
@@ -2118,8 +2146,13 @@ export class FightLeagueMode implements GameMode {
   private meleeCount = 0;
   private readonly pairClashMs = new Float64Array(64).fill(-Infinity);
   // --- end fl-overhaul ---
-  private readonly budget = new FightSoundBudget();
-  private readonly urgent: SoundEvent[] = [];
+  // --- fl-overhaul --- (Stage 4) the sound budget per 60 Hz tick (fightLeagueSound.ts); the orbiting heads' bearing to their
+  // target (a pass swings); the cap's clock (the next second to tick); the blade hums' lease; the verdict's legacy chord
+  private readonly snd = new FlTickBudget();
+  private readonly orbitPrev = new Float64Array(64).fill(Number.NaN);
+  private sndClock = 5;
+  private sndLease = 0;
+  private sndChord = false;
   private rigK = 0;
   private rigChosen = -1;
   /** The engine's context (the same object for the engine's life): the run's random numbers. */
@@ -2233,8 +2266,11 @@ export class FightLeagueMode implements GameMode {
     this.stepIndex = 0;
     this.meleeCount = 0;
     this.pairClashMs.fill(-Infinity);
-    this.budget.clear();
-    this.urgent.length = 0;
+    this.snd.clear(); // --- fl-overhaul --- (Stage 4)
+    this.orbitPrev.fill(Number.NaN);
+    this.sndClock = 5;
+    this.sndLease = 0;
+    this.sndChord = false;
     this.rigK = 0;
     this.rigChosen = v.forcedWinner;
     this.ballRadius = ctx.config.ballRadius || 8;
@@ -2321,7 +2357,9 @@ export class FightLeagueMode implements GameMode {
       f.finX = f.x;
       f.finY = f.y;
     }
+    this.snd.urgentCue(this.cue(null, "loopStop", { flLoop: -1 })); // --- fl-overhaul --- (Stage 4) the last fight's hums and holds stop
     this.stepIntroCues(0);
+    this.snd.endTick(); // --- fl-overhaul --- (Stage 4) the VS card's sting is the first tick's
   }
 
   /** Cruising speed unit (px/s): the arena side × FL_SPEED_FRAC × Ball Speed / 400. */
@@ -2480,6 +2518,7 @@ export class FightLeagueMode implements GameMode {
     b.t = t;
     b.slot = slot;
     b.value = value;
+    this.bannerCues(kind, t, slot, value); // --- fl-overhaul --- (Stage 4) its sting and its call, in the same tick
   }
 
   /** --- fl-overhaul --- (Stage 3) A decal on the floor for `ms` (a crack, a scorch, a scar from (x, y) to (x2, y2)). */
@@ -2512,11 +2551,6 @@ export class FightLeagueMode implements GameMode {
       else this.pushBanner(FB_FIGHT, at[cue]);
       v.introCue++;
     }
-  }
-
-  /** Sounds that always play (abilities, KOs): queued with the frame's budgeted ones. */
-  private urgentSound(kind: FlSoundKind, frequency: number, level: number) {
-    if (this.urgent.length < 8) this.urgent.push({ type: "hit", wallIndex: 0, frequency, level, melody: false, fight: kind });
   }
 
   private freeProjectile(): FlProjectile | null {
@@ -2815,6 +2849,7 @@ export class FightLeagueMode implements GameMode {
     ball.vx = Math.cos(a) * speed;
     ball.vy = Math.sin(a) * speed;
     f.lungeMs = now;
+    this.swingCue(f, w, 0.15); // --- fl-overhaul --- (Stage 4) the lunge's whoosh
     return true;
   }
 
@@ -2874,7 +2909,7 @@ export class FightLeagueMode implements GameMode {
         const dy = f.y - field.cy;
         const d = Math.hypot(dx, dy) || 1;
         f.kept = false;
-        this.hit(ctx, by, f, damage, dx / d, dy / d, 2.5, "magic", { unblockable: true, ignoreIframes: true });
+        this.hit(ctx, by, f, damage, dx / d, dy / d, 2.5, "magic", { unblockable: true, ignoreIframes: true, sndPrim: "choke" });
       }
       return;
     }
@@ -2883,7 +2918,7 @@ export class FightLeagueMode implements GameMode {
       const part = f.holdDamage / ticks;
       f.holdDamage -= part;
       f.holdTickMs = now + 400;
-      this.hit(ctx, by, f, part, 0, 0, 0, "magic", { unblockable: true, ignoreIframes: true });
+      this.hit(ctx, by, f, part, 0, 0, 0, "magic", { unblockable: true, ignoreIframes: true, sndPrim: "choke" });
     }
   }
 
@@ -2918,6 +2953,7 @@ export class FightLeagueMode implements GameMode {
     if (now - target.immuneMs < FL_IFRAME_MS) return;
     target.immuneMs = now;
     this.view.immunes++;
+    this.snd.offer(FL_CAT_BLOCK, 0.3, this.cue(target, "immune")); // --- fl-overhaul --- (Stage 4)
     this.pushEvent(EV_IMMUNE, now, target.x, target.y - target.r, 0, target.slot, "#fde047");
   }
 
@@ -2930,7 +2966,7 @@ export class FightLeagueMode implements GameMode {
     target.holdDamage = at === "start" ? 0 : damage;
     target.holdTickMs = now + 300;
     target.pullUntil = -Infinity;
-    if (at === "start" && damage > 0) this.hit(ctx, by, target, damage, 0, 0, 0, "magic", { unblockable: true, ignoreIframes: true });
+    if (at === "start" && damage > 0) this.hit(ctx, by, target, damage, 0, 0, 0, "magic", { unblockable: true, ignoreIframes: true, sndPrim: "choke" });
   }
 
   /** --- fl-overhaul --- The hold queued behind a pull (the Lasso of Truth) closes. */
@@ -2970,6 +3006,7 @@ export class FightLeagueMode implements GameMode {
       return;
     }
     f.meter = meterAfter(f.meter, dt * this.timeScale(f.team, now), f.cast, ability.charge);
+    this.chargeCue(f); // --- fl-overhaul --- (Stage 4) the meter crossing 0.85
     if (f.meter < 1) {
       f.fullMs = -1;
       return;
@@ -3058,7 +3095,9 @@ export class FightLeagueMode implements GameMode {
         f.lungeMs = now;
       }
     }
-    this.urgentSound("ability", fighterPitch(f.slot), 0.8);
+    // --- fl-overhaul --- (Stage 4) the telegraph's cue: its class (the sound stretches with it); the legacy swell
+    const cls = TELEGRAPH_CLASSES.findIndex((ms) => ms >= tele - 1e-6);
+    this.snd.urgentCue(this.cue(f, "telegraph", { flPrim: ability.effects[0]?.p, flSec: tele / 1000, flVariant: cls < 0 ? 3 : cls, fight: "ability", frequency: fighterPitch(f.slot), level: 0.8 }));
   }
 
   /** --- fl-overhaul --- At the cast: every foe inside the area at the telegraph's start and out of it now dodged it (EV_DODGE). */
@@ -3115,7 +3154,7 @@ export class FightLeagueMode implements GameMode {
     if (wall < 0) return;
     ctx.noteBounce?.(ball); // --- bounce-math --- a wall hit is a bounce
     v.wallHits++;
-    this.budget.offer(0.2, null, wallNote(field.kind, wall), 0.22);
+    this.snd.offer(FL_CAT_NOTE, 0.2, { type: "hit", wallIndex: 0, frequency: wallNote(field.kind, wall), level: 0.22 }); // (--- fl-overhaul --- Stage 4: a note of the tick's budget)
     this.pushEvent(EV_RIM, now, ball.x, ball.y, wall, f.slot, f.row.accent);
     if (pre > 2 * Math.max(1, f.cruise)) {
       this.pushEvent(EV_SLAM, now, ball.x, ball.y, pre / Math.max(1, f.cruise), f.slot, f.row.accent, preVx, preVy);
@@ -3358,6 +3397,7 @@ export class FightLeagueMode implements GameMode {
     w.angle = w.sweepFrom;
     w.touchMask = 0;
     w.minionMask = 0;
+    this.swingCue(f, w, w.sweepTarget >= 0 ? 0.3 : 0.2); // --- fl-overhaul --- (Stage 4)
   }
 
   private attackOf(f: FlFighter, now: number): number {
@@ -3461,7 +3501,7 @@ export class FightLeagueMode implements GameMode {
       if (o === f || !o.alive || o.team === f.team) continue;
       if (circlesTouch(f.x, f.y, f.r + 1, o.x, o.y, o.r)) {
         const d = Math.hypot(o.x - f.x, o.y - f.y) || 1;
-        this.hit(ctx, f, o, f.contactDamage, (o.x - f.x) / d, (o.y - f.y) / d, 1.2, "blunt");
+        this.hit(ctx, f, o, f.contactDamage, (o.x - f.x) / d, (o.y - f.y) / d, 1.2, "blunt", { sndPrim: "invulnerable" });
       }
     }
   }
@@ -3526,6 +3566,7 @@ export class FightLeagueMode implements GameMode {
           }
           if (w.thrown >= 0 || !armed) break;
           headShape(f.x, f.y, f.r, w.angle, reach, s.size, w.shapes[0]);
+          if (hasTarget) this.orbitPass(f, w, Math.atan2(t.y - f.y, t.x - f.x)); // --- fl-overhaul --- (Stage 4) the head passing its target swings
           let factor = 1;
           if (s.kind === "chain") {
             // Damage by momentum: the head's speed against the foe's, over the head's own speed at attack speed 1.
@@ -3600,7 +3641,7 @@ export class FightLeagueMode implements GameMode {
             w.cd = s.cooldown;
             w.inhaleUntil = now + FL_INHALE_MS;
             w.onUntil = now + FL_BREATH_MS;
-            this.budget.offer(0.5, "fire", fighterPitch(f.slot), 0.35);
+            this.weaponCue(f, w, "shoot", FL_CAT_SHOOT, 0.5, { flSec: FL_BREATH_MS / 1000, fight: "fire", frequency: fighterPitch(f.slot), level: 0.35 }); // (--- fl-overhaul --- Stage 4)
           }
           if (now < w.inhaleUntil || now >= w.onUntil || !armed) break;
           this.stepCone(ctx, f, w, now);
@@ -3637,6 +3678,7 @@ export class FightLeagueMode implements GameMode {
           w.cd = s.cooldown;
           const bearing = Math.atan2(t.y - f.y, t.x - f.x);
           w.zapMs = now;
+          this.weaponCue(f, w, "shoot", FL_CAT_SHOOT, 0.15); // --- fl-overhaul --- (Stage 4) the zap
           w.zapAngle = bearing;
           w.angle = bearing;
           w.zapX = t.x;
@@ -3659,7 +3701,7 @@ export class FightLeagueMode implements GameMode {
                 this.fireRound(f, w, hasTarget ? t : null, now, w.burstVolley, 0, 1);
                 w.burstLeft--;
                 w.burstT += FL_BURST_GAP;
-                this.budget.offer(0.12, FL_SOUND_OF_KIND[s.kind], fighterPitch(f.slot) * 1.5, 0.15);
+                this.weaponCue(f, w, "shoot", FL_CAT_SHOOT, 0.12, { fight: FL_SOUND_OF_KIND[s.kind], frequency: fighterPitch(f.slot) * 1.5, level: 0.15 }); // (--- fl-overhaul --- Stage 4)
               } else w.burstLeft = 0;
             }
           }
@@ -3705,6 +3747,7 @@ export class FightLeagueMode implements GameMode {
       w.swingFrom = rest;
       w.touchMask = 0;
       w.minionMask = 0;
+      this.swingCue(f, w, 0.25); // --- fl-overhaul --- (Stage 4)
     }
   }
 
@@ -3728,6 +3771,7 @@ export class FightLeagueMode implements GameMode {
       w.punchHit = false;
       w.punchAngle = Math.atan2(t.y - f.y, t.x - f.x) + (now < f.confusedUntil ? Math.PI : 0);
       w.angle = w.punchAngle;
+      this.swingCue(f, w, 0.25); // --- fl-overhaul --- (Stage 4)
     }
     if (w.punchT < 0 || w.punchHit || !armed) return;
     const e = whipExtension(w.punchT);
@@ -3765,6 +3809,7 @@ export class FightLeagueMode implements GameMode {
   private lassoSnag(ctx: ModeContext, f: FlFighter, o: FlFighter, w: FlWeaponState, factor: number, fromX: number, fromY: number, now: number) {
     const res = this.hit(ctx, f, o, w.spec.damage * factor, 0, 0, 0, FL_SOUND_OF_KIND.whip, { weapon: w.index, fromX, fromY, melee: true });
     if (res !== HIT_LANDED || !f.alive || !o.alive || !this.applyHardCc(o, now + FL_LASSO_PULL_MS, now)) return;
+    this.weaponCue(f, w, "snag", FL_CAT_HIT, 1, { flPan: this.panAt(o.x) }); // --- fl-overhaul --- (Stage 4)
     o.pullBy = f.slot;
     o.pullUntil = now + FL_LASSO_PULL_MS;
     o.pullSpeed = FL_LASSO_PULL_SPEED * this.unit;
@@ -3789,6 +3834,7 @@ export class FightLeagueMode implements GameMode {
         w.punchHit = false;
         w.punchSide = 1 - w.punchSide;
         w.punchAngle = Math.atan2(t.y - f.y, t.x - f.x) + (now < f.confusedUntil ? Math.PI : 0);
+        this.swingCue(f, w, 0.2); // --- fl-overhaul --- (Stage 4)
       }
     }
     if (w.punchT < 0 || w.punchHit || !armed) return;
@@ -4014,7 +4060,7 @@ export class FightLeagueMode implements GameMode {
     v.clashes2++;
     this.pushEvent(EV_CLASH, now, 0.5 * (a.x + b.x), 0.5 * (a.y + b.y), 0, a.slot, "#ffffff", b.x, b.y, (a.slot & 7) * 8 + Math.min(6, q.weapon));
     this.pushBanner(FB_CLASH, now, a.slot); // --- fl-overhaul --- (Stage 3)
-    this.budget.offer(0.6, "block", 1318.51, 0.4);
+    this.weaponCue(a, a.weapons[q.weapon] ?? null, "clash", FL_CAT_BLOCK, 0.6, { flPan: this.panAt(0.5 * (a.x + b.x)), fight: "block", frequency: 1318.51, level: 0.4 }); // (--- fl-overhaul --- Stage 4)
   }
 
   /** A breath cone: every foe inside burns (a tick per window: at most three a breath). */
@@ -4053,7 +4099,7 @@ export class FightLeagueMode implements GameMode {
     b.color = s.color ?? f.row.accent;
     w.beam = this.view.beams.indexOf(b);
     w.angle = b.angle;
-    this.budget.offer(0.4, "magic", fighterPitch(f.slot) * 2, 0.3);
+    this.weaponCue(f, w, "shoot", FL_CAT_SHOOT, 0.4, { flSec: FL_BEAM_MS / 1000, fight: "magic", frequency: fighterPitch(f.slot) * 2, level: 0.3 }); // (--- fl-overhaul --- Stage 4)
   }
 
   /** --- fl-overhaul --- A spark's arc jumps on to a second foe within 2 R of the first (free-for-alls and teams), at half damage. */
@@ -4114,7 +4160,7 @@ export class FightLeagueMode implements GameMode {
       w.burstVolley = volley;
     }
     this.view.shots++;
-    this.budget.offer(0.15, FL_SOUND_OF_KIND[s.kind], fighterPitch(f.slot) * 1.5, 0.18);
+    this.weaponCue(f, w, "shoot", FL_CAT_SHOOT, 0.15, { fight: FL_SOUND_OF_KIND[s.kind], frequency: fighterPitch(f.slot) * 1.5, level: 0.18 }); // (--- fl-overhaul --- Stage 4)
   }
 
   /** --- fl-overhaul --- One projectile of a shooter from the muzzle (its own spread draw): pellet `k` of `count`, or a round. */
@@ -4190,7 +4236,7 @@ export class FightLeagueMode implements GameMode {
     p.blink = s.style === "blink" && w.throws % 3 === 0;
     if (this.giantShot(f, p)) this.limitHoming(p, now);
     this.view.shots++;
-    this.budget.offer(0.12, "blade", fighterPitch(f.slot) * 2, 0.15);
+    this.weaponCue(f, w, "shoot", FL_CAT_SHOOT, 0.12, { fight: "blade", frequency: fighterPitch(f.slot) * 2, level: 0.15 }); // (--- fl-overhaul --- Stage 4)
   }
 
   /**
@@ -4222,7 +4268,7 @@ export class FightLeagueMode implements GameMode {
     p.target = f.targetSlot;
     w.thrown = this.view.projectiles.indexOf(p);
     this.giantShot(f, p);
-    this.budget.offer(0.2, FL_SOUND_OF_KIND[s.kind], fighterPitch(f.slot), 0.2);
+    this.weaponCue(f, w, "shoot", FL_CAT_SHOOT, 0.2, { fight: FL_SOUND_OF_KIND[s.kind], frequency: fighterPitch(f.slot), level: 0.2 }); // (--- fl-overhaul --- Stage 4)
   }
 
   /**
@@ -4286,7 +4332,7 @@ export class FightLeagueMode implements GameMode {
     p.until = now + 4 * (p.flyDur + p.fuseMs) + 1000;
     this.giantShot(f, p);
     this.view.shots++;
-    this.budget.offer(0.12, FL_SOUND_OF_KIND.bomb, fighterPitch(f.slot) * 0.75, 0.14);
+    this.weaponCue(f, w, "shoot", FL_CAT_SHOOT, 0.12, { fight: FL_SOUND_OF_KIND.bomb, frequency: fighterPitch(f.slot) * 0.75, level: 0.14 }); // (--- fl-overhaul --- Stage 4)
   }
 
   private projectileSpeed(sidesPerSec: number, field: FlField): number {
@@ -4397,6 +4443,7 @@ export class FightLeagueMode implements GameMode {
         const d = Math.hypot(dx, dy);
         const sp = Math.hypot(p.vx, p.vy);
         if (d <= owner.r + p.r || !owner.alive) {
+          if (owner.alive && p.weapon >= 0) this.weaponCue(owner, owner.weapons[p.weapon] ?? null, "return", FL_CAT_SHOOT, 0.1); // --- fl-overhaul --- (Stage 4) caught
           this.endProjectile(ctx, p, i, now);
           continue;
         }
@@ -4432,6 +4479,8 @@ export class FightLeagueMode implements GameMode {
       // --- fl-overhaul --- (Stage 2) an enemy wall stops it where its path crosses it
       if (this.wallStops(p, p.x - mx, p.y - my)) {
         this.pushEvent(EV_POP, now, p.x, p.y, 0, p.owner, p.color);
+        const wallOwner = this.sndWallOwner >= 0 ? v.fighters[this.sndWallOwner] : null; // --- fl-overhaul --- (Stage 4) the wall's thud
+        if (wallOwner) this.snd.offer(FL_CAT_HIT, 0.3, this.cue(wallOwner, "impact", { flPrim: "wall", flPan: this.panAt(p.x) }));
         this.endProjectile(ctx, p, i, now);
         continue;
       }
@@ -4455,6 +4504,7 @@ export class FightLeagueMode implements GameMode {
         if (p.bounces > 0) {
           p.bounces--;
           this.reflectProjectile(field, p);
+          if (p.weapon >= 0) this.weaponCue(owner, owner.weapons[p.weapon] ?? null, "ricochet", FL_CAT_SHOOT, 0.1, { flPan: this.panAt(p.x) }); // --- fl-overhaul --- (Stage 4)
           if (p.kind === PK_SHIELD) this.turnBack(p);
         } else if (p.ret === 1) {
           this.clampInside(field, p);
@@ -4563,6 +4613,8 @@ export class FightLeagueMode implements GameMode {
       if (p.flyT < p.flyDur) return false;
       if (p.fuseMs > 0) {
         p.fuseUntil = now + p.fuseMs;
+        const owner = this.view.fighters[p.owner]; // --- fl-overhaul --- (Stage 4) the fuse sputters
+        if (owner && p.weapon >= 0) this.weaponCue(owner, owner.weapons[p.weapon] ?? null, "fuse", FL_CAT_SHOOT, 0.1, { flSec: p.fuseMs / 1000, flPan: this.panAt(p.x) });
         return false;
       }
     }
@@ -4589,17 +4641,20 @@ export class FightLeagueMode implements GameMode {
       const edge = Math.min(1, d / Math.max(1e-6, reach));
       const nx = d > 1e-6 ? (o.x - p.x) / d : 1;
       const ny = d > 1e-6 ? (o.y - p.y) / d : 0;
-      this.hit(ctx, owner, o, p.damage * (1 - 0.4 * edge), nx, ny, p.kb, FL_SOUND_OF_KIND.bomb, { weapon: p.weapon, volley: p.volley, fromX: p.x, fromY: p.y, projectile: p });
+      this.hit(ctx, owner, o, p.damage * (1 - 0.4 * edge), nx, ny, p.kb, FL_SOUND_OF_KIND.bomb, { weapon: p.weapon, volley: p.volley, fromX: p.x, fromY: p.y, projectile: p, sndCue: "silent" });
     }
     for (const m of this.view.minions) if (m.active && m.team !== p.team && Math.hypot(m.x - p.x, m.y - p.y) <= p.splash + m.r) this.hitMinion(ctx, owner, m, now);
-    this.budget.offer(p.damage + 3, FL_SOUND_OF_KIND.bomb, 110, 0.7);
+    this.weaponCue(owner, owner.weapons[p.weapon] ?? null, "hit", FL_CAT_HIT, p.damage + 3, { flPan: this.panAt(p.x), fight: FL_SOUND_OF_KIND.bomb, frequency: 110, level: 0.7 }); // (--- fl-overhaul --- Stage 4: the burst, once)
   }
 
   /** --- fl-overhaul --- (Stage 2) Whether an enemy wall stops projectile `p` on its way from (x0, y0) to where it is (its path within its radius of the wall). */
   private wallStops(p: FlProjectile, x0: number, y0: number): boolean {
     for (const w of this.view.walls) {
       if (!w.active || w.team === p.team) continue;
-      if (segmentSegmentDistanceSq(x0, y0, p.x, p.y, w.x1, w.y1, w.x2, w.y2) <= p.r * p.r) return true;
+      if (segmentSegmentDistanceSq(x0, y0, p.x, p.y, w.x1, w.y1, w.x2, w.y2) <= p.r * p.r) {
+        this.sndWallOwner = w.owner; // --- fl-overhaul --- (Stage 4: whose wall sounds)
+        return true;
+      }
     }
     return false;
   }
@@ -4642,13 +4697,15 @@ export class FightLeagueMode implements GameMode {
     by.blocks++;
     this.view.blocks++;
     this.pushEvent(EV_BLOCK, now, p.x, p.y, 0, by.slot, "#fef9c3", 0, 0, (by.slot & 7) * 8 + 7);
-    this.budget.offer(0.6, "block", 1567.98, 0.4);
+    this.snd.offer(FL_CAT_BLOCK, 0.6, this.cue(by, "impact", { flPrim: "reflect", fight: "block", frequency: 1567.98, level: 0.4 })); // (--- fl-overhaul --- Stage 4)
   }
 
   /** --- fl-overhaul --- A projectile refused by a window: EV_GRAZE where it touched (its owner's colour, its source). */
   private graze(p: FlProjectile, owner: FlFighter, now: number) {
     this.view.grazes++;
     owner.grazes++;
+    if (p.weapon >= 0) this.weaponCue(owner, owner.weapons[p.weapon] ?? null, "graze", FL_CAT_HIT, 0.05, { flPan: this.panAt(p.x) }); // --- fl-overhaul --- (Stage 4)
+    else this.snd.offer(FL_CAT_HIT, 0.05, this.cue(owner, "graze", { flShape: p.shape, flPan: this.panAt(p.x) }));
     this.pushEvent(EV_GRAZE, now, p.x, p.y, 0, owner.slot, p.color, 0, 0, (owner.slot & 7) * 8 + (p.weapon >= 0 ? Math.min(6, p.weapon) : 7));
   }
 
@@ -4721,7 +4778,10 @@ export class FightLeagueMode implements GameMode {
   private endProjectile(ctx: ModeContext, p: FlProjectile, index: number, now: number) {
     const v = this.view;
     const owner = v.fighters[p.owner];
-    if (p.blink && owner && owner.alive && this.canAct(owner, now)) this.blinkTo(ctx, owner, p.x, p.y, now, owner.weapons[p.weapon]?.spec.damage ?? 5);
+    if (p.blink && owner && owner.alive && this.canAct(owner, now)) {
+      this.weaponCue(owner, owner.weapons[p.weapon] ?? null, "blink", FL_CAT_SHOOT, 0.5); // --- fl-overhaul --- (Stage 4)
+      this.blinkTo(ctx, owner, p.x, p.y, now, owner.weapons[p.weapon]?.spec.damage ?? 5);
+    }
     if (p.giant > 0 && owner && owner.alive && !v.finished) owner.giantLeft++;
     p.giant = 0;
     p.active = false;
@@ -4762,7 +4822,7 @@ export class FightLeagueMode implements GameMode {
       if (!o.alive || o.team === f.team) continue;
       if (circlesTouch(f.x, f.y, 1.8 * f.r, o.x, o.y, o.r)) {
         const d = Math.hypot(o.x - f.x, o.y - f.y) || 1;
-        this.hit(ctx, f, o, damage, (o.x - f.x) / d, (o.y - f.y) / d, 0.5, "blade");
+        this.hit(ctx, f, o, damage, (o.x - f.x) / d, (o.y - f.y) / d, 0.5, "blade", { sndKind: "cards" });
       }
     }
   }
@@ -4771,6 +4831,7 @@ export class FightLeagueMode implements GameMode {
   private explode(ctx: ModeContext, p: FlProjectile, now: number) {
     const owner = this.view.fighters[p.owner];
     if (!owner) return;
+    this.snd.urgentCue(this.cue(owner, "explode", { flPrim: "volley", flShape: p.shape, flPan: this.panAt(p.x), fight: "blunt", frequency: 98, level: 0.9 })); // --- fl-overhaul --- (Stage 4)
     this.shockwaveAt(ctx, owner, p.x, p.y, p.explode, p.damage, 1.6, false, now, false, 1); // (--- fl-overhaul --- Stage 3: a burst's look)
     p.explode = 0;
   }
@@ -4787,7 +4848,9 @@ export class FightLeagueMode implements GameMode {
       attacker.frozenUntil = Math.max(attacker.frozenUntil, now + 1000 * m.freezeOnTouch);
       this.pushEvent(EV_FREEZE, now, attacker.x, attacker.y, m.freezeOnTouch, attacker.slot, "#bae6fd");
     }
-    this.budget.offer(0.3, "magic", 1318.5, 0.25);
+    // --- fl-overhaul --- (Stage 4) its pop: the owner's decoy, summon or trap
+    const owner = this.view.fighters[m.owner];
+    if (owner) this.snd.offer(FL_CAT_HIT, 0.3, this.cue(owner, "impact", { flPrim: m.trap ? "trap" : m.summon ? "summon" : "decoys", flPan: this.panAt(m.x), fight: "magic", frequency: 1318.5, level: 0.25 }));
   }
 
   /** A hit on `f`'s current target (a fighter or a decoy). */
@@ -4837,7 +4900,7 @@ export class FightLeagueMode implements GameMode {
         target.blocks++;
         v.blocks++;
         this.pushEvent(EV_BLOCK, now, target.x + Math.cos(w.angle) * target.r * 1.2, target.y + Math.sin(w.angle) * target.r * 1.2, 0, target.slot, "#fef9c3", 0, 0, src);
-        this.budget.offer(0.6, "block", 1567.98, 0.4);
+        this.weaponCue(target, w, "block", FL_CAT_BLOCK, 0.6, { fight: "block", frequency: 1567.98, level: 0.4 }); // (--- fl-overhaul --- Stage 4: the blocker's shield)
         return HIT_BLOCKED;
       }
     }
@@ -4912,6 +4975,7 @@ export class FightLeagueMode implements GameMode {
       attacker.hitMs = now;
       attacker.comboCount = 0; // --- fl-overhaul --- (Stage 3: a combo breaks when its attacker takes a hit)
       this.pushEvent(EV_DAMAGE, now, attacker.x, attacker.y - attacker.r, back, attacker.slot, target.row.accent, 0, 0, (target.slot & 7) * 8 + 7, 2);
+      this.snd.offer(FL_CAT_HIT, back, this.cue(target, "impact", { flPrim: "reflect", flPan: this.panAt(attacker.x) })); // --- fl-overhaul --- (Stage 4)
     }
     const ball = this.byIndex[target.slot];
     const attackerBall = this.byIndex[attacker.slot];
@@ -4930,7 +4994,7 @@ export class FightLeagueMode implements GameMode {
     this.pushEvent(EV_DAMAGE, now, target.x, target.y - target.r, amount, target.slot, attacker.row.accent, giant > 0 ? amount / Math.max(1e-9, plain) : 0, 0, src, giant > 0 ? 1 : 0);
     if (!opts.quiet || giant > 0) this.pushEvent(EV_HIT, now, (target.x + (opts.fromX ?? attacker.x)) / 2, (target.y + (opts.fromY ?? attacker.y)) / 2, amount, attacker.slot, attacker.row.accent, hx, hy, src);
     this.noteHitVisuals(attacker, target, amount, giant > 0, weapon < 0 && (!!opts.ignoreIframes || !!opts.unblockable), opts.volley ?? 0, now);
-    this.budget.offer(amount, sound, fighterPitch(attacker.slot), Math.min(1, 0.45 + amount / 20));
+    this.hitCue(attacker, target, weapon, amount, sound, giant > 0, opts); // (--- fl-overhaul --- Stage 4)
     return HIT_LANDED;
   }
 
@@ -5016,6 +5080,7 @@ export class FightLeagueMode implements GameMode {
     const field = v.field!;
     const foe = this.nearestFoeFighter(f, now);
     const aimAt = Math.atan2(f.castY - f.y, f.castX - f.x);
+    this.castCues(f, e, now); // --- fl-overhaul --- (Stage 4) its fire (a fuse, a spin), its hold, its end
     switch (e.p) {
       case "speedBurst":
         f.speedMul = e.mult;
@@ -5043,6 +5108,7 @@ export class FightLeagueMode implements GameMode {
           if (!o.alive || o.team === f.team || !this.applyHardCc(o, now + 1000 * e.dur, now)) continue;
           o.frozenUntil = Math.max(o.frozenUntil, now + 1000 * e.dur);
           this.pushEvent(EV_FREEZE, now, o.x, o.y, e.dur, o.slot, "#bae6fd");
+          this.snd.offer(FL_CAT_HIT, 1, this.cue(f, "impact", { flPrim: "freezeAll", flPan: this.panAt(o.x) })); // --- fl-overhaul --- (Stage 4)
         }
         break;
       case "choke": {
@@ -5223,7 +5289,7 @@ export class FightLeagueMode implements GameMode {
           if (!o.alive || o.team === f.team || !this.targetable(o, now)) continue;
           this.pushEvent(EV_LIGHTNING, now, o.x, o.y, 0, f.slot, f.row.accent);
           this.pushDecal(DC_SCORCH, now, 1000, o.x, o.y + 0.6 * o.r, 0.8 * o.r, "#1e1b2e"); // --- fl-overhaul --- (Stage 3)
-          this.hit(ctx, f, o, e.damage, 0, 1, 0.3, "magic", { ignoreIframes: true, unblockable: true });
+          this.hit(ctx, f, o, e.damage, 0, 1, 0.3, "magic", { ignoreIframes: true, unblockable: true, sndPrim: "lightning" });
         }
         for (const m of v.minions) if (m.active && m.team !== f.team) this.hitMinion(ctx, f, m, now);
         break;
@@ -5408,7 +5474,7 @@ export class FightLeagueMode implements GameMode {
       if (d > radius + o.r) continue;
       const nx = d > 1e-6 ? dx / d : 1;
       const ny = d > 1e-6 ? dy / d : 0;
-      const res = this.hit(ctx, f, o, damage, nx, ny, kb, spin ? "blade" : "blunt", { ignoreIframes: true, unblockable: spin ? false : true, fromX: x, fromY: y });
+      const res = this.hit(ctx, f, o, damage, nx, ny, kb, spin ? "blade" : "blunt", { ignoreIframes: true, unblockable: spin ? false : true, fromX: x, fromY: y, sndCue: "silent" });
       if (pin && o.alive && res !== HIT_IMMUNE && res !== HIT_NONE && this.applyHardCc(o, now + 1000, now)) {
         // Pinned to the far wall: thrown there and held a moment.
         const ball = this.byIndex[o.slot];
@@ -5425,7 +5491,7 @@ export class FightLeagueMode implements GameMode {
       }
     }
     for (const m of this.view.minions) if (m.active && m.team !== f.team && Math.hypot(m.x - x, m.y - y) <= radius + m.r) this.hitMinion(ctx, f, m, now);
-    this.budget.offer(damage + 5, "blunt", 98, 0.9);
+    // (--- fl-overhaul --- Stage 4: the burst sounds as its cast's fire / spin / explode cue – the foes it hits are silent)
   }
 
   /** Scheduled effects: fused shockwaves, blink strikes, arena cuts. */
@@ -5439,6 +5505,7 @@ export class FightLeagueMode implements GameMode {
         continue;
       }
       if (task.kind === "shock") {
+        this.snd.urgentCue(this.cue(f, task.spin ? "spin" : "fire", { flPrim: "shockwave", flPan: this.panAt(task.x), fight: "blunt", frequency: 98, level: 0.9 })); // --- fl-overhaul --- (Stage 4) the fuse's burst
         this.shockwaveAt(ctx, f, task.x, task.y, task.radius, task.damage, task.kb, task.pin, now, task.spin);
         task.active = false;
       } else if (task.kind === "cut") {
@@ -5446,7 +5513,7 @@ export class FightLeagueMode implements GameMode {
         this.pushDecal(DC_SCAR, now, 1200, task.x, task.y, Math.max(2, task.radius), "#7f1d1d", task.x2, task.y2); // --- fl-overhaul --- (Stage 3)
         for (const o of v.fighters) {
           if (!o.alive || o.team === f.team) continue;
-          if (segmentHitsCircle(task.x, task.y, task.x2, task.y2, Math.max(2, task.radius), o.x, o.y, o.r)) this.hit(ctx, f, o, task.damage, 0, 0, 0.4, "blade", { ignoreIframes: true, unblockable: true });
+          if (segmentHitsCircle(task.x, task.y, task.x2, task.y2, Math.max(2, task.radius), o.x, o.y, o.r)) this.hit(ctx, f, o, task.damage, 0, 0, 0.4, "blade", { ignoreIframes: true, unblockable: true, sndPrim: "arenaCuts" });
         }
         task.active = false;
       } else if (task.kind === "blink") {
@@ -5456,9 +5523,10 @@ export class FightLeagueMode implements GameMode {
           const side = this.randomDraw() < 0.5 ? -1 : 1;
           const a = Math.atan2(f.y - t.y, f.x - t.x) + side * 0.6;
           const d = t.r + f.r + 0.2 * f.r;
+          this.snd.urgentCue(this.cue(f, "fire", { flPrim: "blinkStrike", flVariant: task.n })); // --- fl-overhaul --- (Stage 4) each blink
           this.blinkTo(ctx, f, t.x + Math.cos(a) * d, t.y + Math.sin(a) * d, now, 0);
           const dd = Math.hypot(t.x - f.x, t.y - f.y) || 1;
-          this.hit(ctx, f, t, task.damage, (t.x - f.x) / dd, (t.y - f.y) / dd, 0.8, "blade", { ignoreIframes: true });
+          this.hit(ctx, f, t, task.damage, (t.x - f.x) / dd, (t.y - f.y) / dd, 0.8, "blade", { ignoreIframes: true, sndPrim: "blinkStrike" });
         }
         task.n--;
         if (task.n <= 0) task.active = false;
@@ -5477,7 +5545,7 @@ export class FightLeagueMode implements GameMode {
         if (!o.alive || o.team === f.team) continue;
         if (!circlesTouch(f.x, f.y, f.fireRingRadius, o.x, o.y, o.r)) continue;
         const d = Math.hypot(o.x - f.x, o.y - f.y) || 1;
-        this.hit(ctx, f, o, f.fireRingDamage, (o.x - f.x) / d, (o.y - f.y) / d, 0.4, sound, { quiet: true });
+        this.hit(ctx, f, o, f.fireRingDamage, (o.x - f.x) / d, (o.y - f.y) / d, 0.4, sound, { quiet: true, sndKind: f.fireRingShape === "flames" ? "fire" : f.fireRingShape === "kicks" ? "fists" : "cards" });
       }
       for (const m of this.view.minions) if (m.active && m.team !== f.team && circlesTouch(f.x, f.y, f.fireRingRadius, m.x, m.y, m.r)) this.hitMinion(ctx, f, m, now);
     }
@@ -5492,6 +5560,8 @@ export class FightLeagueMode implements GameMode {
       if (now >= m.until || !v.fighters[m.owner]?.alive) {
         m.active = false;
         this.pushEvent(EV_POP, now, m.x, m.y, 0, m.owner, m.color);
+        const owner = v.fighters[m.owner]; // --- fl-overhaul --- (Stage 4) a summon's time is up
+        if (m.summon && owner?.alive && !v.finished) this.snd.urgentCue(this.cue(owner, "end", { flPrim: "summon" }));
         continue;
       }
       // --- fl-overhaul --- (Stage 2) a trap lies still; armed, the first foe to touch it takes its damage (unblockable) and its hold
@@ -5502,7 +5572,7 @@ export class FightLeagueMode implements GameMode {
           if (!o.alive || o.team === m.team || o.hp <= 0 || !circlesTouch(m.x, m.y, m.r, o.x, o.y, o.r)) continue;
           m.active = false;
           this.pushEvent(EV_TRAP, now, m.x, m.y, m.hold, m.owner, m.color);
-          this.hit(ctx, owner, o, m.damage, 0, 0, 0, "blunt", { unblockable: true, ignoreIframes: true, fromX: m.x, fromY: m.y });
+          this.hit(ctx, owner, o, m.damage, 0, 0, 0, "blunt", { unblockable: true, ignoreIframes: true, fromX: m.x, fromY: m.y, sndPrim: "trap" });
           if (m.hold > 0 && o.alive && o.hp > 0) this.applyHold(ctx, owner, o, m.hold, 0, "start", now);
           break;
         }
@@ -5570,7 +5640,7 @@ export class FightLeagueMode implements GameMode {
         const owner = v.fighters[m.owner];
         if (m.summon) {
           const d = Math.hypot(o.x - m.x, o.y - m.y) || 1;
-          this.hit(ctx, owner, o, m.damage, (o.x - m.x) / d, (o.y - m.y) / d, 0.5, "blunt", { fromX: m.x, fromY: m.y });
+          this.hit(ctx, owner, o, m.damage, (o.x - m.x) / d, (o.y - m.y) / d, 0.5, "blunt", { fromX: m.x, fromY: m.y, sndPrim: "summon" });
         } else if (m.freezeOnTouch > 0) {
           if (this.applyHardCc(o, now + 1000 * m.freezeOnTouch, now)) {
             o.frozenUntil = Math.max(o.frozenUntil, now + 1000 * m.freezeOnTouch);
@@ -5578,6 +5648,7 @@ export class FightLeagueMode implements GameMode {
           }
           m.active = false;
           this.pushEvent(EV_POP, now, m.x, m.y, 0, m.owner, m.color);
+          if (owner) this.snd.offer(FL_CAT_HIT, 0.5, this.cue(owner, "impact", { flPrim: "decoys", flPan: this.panAt(m.x) })); // --- fl-overhaul --- (Stage 4)
           break;
         }
       }
@@ -5616,7 +5687,7 @@ export class FightLeagueMode implements GameMode {
         if (!o.alive || o.team === b.team || o.hp <= 0) continue;
         if (!b.ability && b.hitMask & (1 << o.slot)) continue;
         if (!segmentHitsCircle(b.x0, b.y0, b.x1, b.y1, 0.5 * b.width, o.x, o.y, o.r)) continue;
-        const res = this.hit(ctx, f, o, b.damage, ux, uy, b.ability ? 0.35 : 0.4, "magic", { quiet: b.ability, unblockable: b.ability, fromX: b.x0, fromY: b.y0, weapon: b.weapon });
+        const res = this.hit(ctx, f, o, b.damage, ux, uy, b.ability ? 0.35 : 0.4, "magic", { quiet: b.ability, unblockable: b.ability, fromX: b.x0, fromY: b.y0, weapon: b.weapon, sndKind: "beam" });
         if (!b.ability && res !== HIT_WINDOW) b.hitMask |= 1 << o.slot;
       }
       for (const m of v.minions) if (m.active && m.team !== b.team && segmentHitsCircle(b.x0, b.y0, b.x1, b.y1, 0.5 * b.width, m.x, m.y, m.r)) this.hitMinion(ctx, f, m, now);
@@ -5631,6 +5702,13 @@ export class FightLeagueMode implements GameMode {
    * up to FL_SUDDEN_MS of it in the shrinking arena first; then the side with the largest share of its HP wins (`capVerdict()`).
    */
   onPostUpdate(ctx: ModeContext) {
+    this.stepPostUpdate(ctx);
+    // --- fl-overhaul --- (Stage 4) the tick's sound state (low HP, ends, the clock, the hums' lease), then the tick closes
+    this.stepSoundState(ctx.getElapsedMs());
+    this.snd.endTick();
+  }
+
+  private stepPostUpdate(ctx: ModeContext) {
     const v = this.view;
     const now = ctx.getElapsedMs();
     this.stepVisuals(now); // --- fl-overhaul --- (Stage 3: trails, the intro's banners, the finale's drift, the lead – no rule reads them)
@@ -5650,7 +5728,7 @@ export class FightLeagueMode implements GameMode {
       if (killer && killer !== f) killer.kills++;
       const koEvent = this.pushEvent(EV_KO, now, f.x, f.y, 0, f.slot, f.row.body, f.vx, f.vy); // (--- fl-overhaul --- Stage 3: its last velocity – the finale's ghost)
       if (this.koCount < 8) this.koEvents[this.koCount++] = koEvent;
-      this.urgentSound("ko", 82.41, 1);
+      this.koCues(f, now); // --- fl-overhaul --- (Stage 4) its hums retract, its holds stop (the KO sting comes with its banner)
       ctx.noteImpact?.(); // the camera's shake (no wall-break sound)
       for (const b of v.beams) if (b.active && b.owner === f.slot) b.active = false;
     }
@@ -5694,8 +5772,7 @@ export class FightLeagueMode implements GameMode {
         v.suddenMs = now;
         const field = v.field!;
         this.pushEvent(EV_SUDDEN, now, field.cx, field.cy, 0, -1, "#ef4444");
-        this.pushBanner(FB_SUDDEN, now); // --- fl-overhaul --- (Stage 3)
-        this.urgentSound("ability", 130.81, 0.9);
+        this.pushBanner(FB_SUDDEN, now); // --- fl-overhaul --- (Stage 3; Stage 4: its sting and call come with the banner)
         return;
       }
       if (now - v.suddenMs < FL_SUDDEN_MS) return;
@@ -5756,6 +5833,8 @@ export class FightLeagueMode implements GameMode {
     v.winnerTeam = winnerTeam;
     v.doubleKo = doubleKo;
     v.byTime = byTime;
+    this.sndChord = true; // --- fl-overhaul --- (Stage 4) the verdict's first sting carries the legacy win chord
+    for (const f of v.fighters) this.stopHeldCues(f, now); // (the beams, rings and holds end with the fight)
     this.verdictVisuals(winnerTeam, now, doubleKo, byTime); // --- fl-overhaul --- (Stage 3)
     for (const p of v.projectiles) p.active = false;
     for (const b of v.beams) b.active = false;
@@ -5780,7 +5859,6 @@ export class FightLeagueMode implements GameMode {
       const w = v.fighters.find((f) => f.team === winnerTeam && f.alive) ?? v.fighters.find((f) => f.team === winnerTeam);
       if (w) ctx.spawnConfetti(w.x, w.y);
     }
-    this.urgent.push({ type: "hit", wallIndex: 0, frequency: WIN_CHORD[0], accent: true, chord: [...WIN_CHORD], melody: false });
   }
 
   /* ---------------------------------------------------------------- --- fl-overhaul --- (Stage 3) the visual state */
@@ -5936,29 +6014,279 @@ export class FightLeagueMode implements GameMode {
     v.leadSide = best;
   }
 
-  /** Called once per rendered frame: the frame's strongest fight sounds, the abilities, the KOs. */
-  flushPendingSounds(ctx: ModeContext) {
+  /* ---------------------------------------------------------------- --- fl-overhaul --- (Stage 4) the sound cues */
+
+  /** The owner of the wall that stopped the last projectile (`wallStops()`), for its thud. */
+  private sndWallOwner = -1;
+
+  /** Stereo position of x: ±0.6 across the arena. */
+  private panAt(x: number): number {
+    const field = this.view.field;
+    if (!field || !(field.half > 0)) return 0;
+    return Math.max(-0.6, Math.min(0.6, (0.6 * (x - field.cx)) / field.half));
+  }
+
+  /**
+   * A cue of fighter `f` (null: the match's): its slot, id, note, position, variation (a counter of its cues – no random
+   * draw) and, on the slowed side of bullet time or in the KO finale, the slow factor 0.5 + 0.5 × the time scale.
+   */
+  private cue(f: FlFighter | null, cue: FlCue, extra?: Partial<SoundEvent>): SoundEvent {
+    const ev: SoundEvent = { type: "hit", wallIndex: 0, melody: false, flCue: cue };
+    if (extra) Object.assign(ev, extra);
+    if (f) {
+      ev.flFighter = f.slot;
+      ev.flId = f.row.id;
+      ev.flPitch = fighterPitch(f.slot);
+      if (ev.flPan === undefined) ev.flPan = this.panAt(f.x);
+      f.sndN++;
+      ev.flVar = (f.sndN * 0.6180339887498949) % 1;
+      if (cue !== "match" && cue !== "announcer" && cue !== "loopStart" && cue !== "loopStop") {
+        const v = this.view;
+        const now = this.now();
+        let ts = this.timeScale(f.team, now);
+        if (v.finished && v.finale.from >= 0) ts *= flFinaleScale(now - v.finale.from, v.finale.until - v.finale.from);
+        if (ts < 1 - 1e-6) ev.flSlow = 0.5 + 0.5 * Math.max(0, ts);
+      }
+    }
+    return ev;
+  }
+
+  /** A weapon's cue (its kind, style and colour – a glowing blade's hum is pitched by it) into the tick's `cat` budget. */
+  private weaponCue(f: FlFighter, w: FlWeaponState | null, cue: FlCue, cat: number, energy: number, extra?: Partial<SoundEvent>) {
+    const ev = this.cue(f, cue, extra);
+    if (w) {
+      ev.flWeapon = w.spec.kind;
+      if (w.spec.style !== "plain") ev.flStyle = w.spec.style;
+      ev.flColor = w.spec.color ?? f.row.accent;
+    }
+    this.snd.offer(cat, energy, ev);
+  }
+
+  private swingCue(f: FlFighter, w: FlWeaponState, energy: number) {
+    this.weaponCue(f, w, "swing", FL_CAT_SWING, energy);
+  }
+
+  /** An orbiting head (a hammer, a chain) swings as it passes its target's bearing. */
+  private orbitPass(f: FlFighter, w: FlWeaponState, bearing: number) {
+    const key = (f.slot & 7) * 8 + Math.min(7, w.index);
+    const d = angleDiff(w.angle, bearing);
+    const prev = this.orbitPrev[key];
+    if (prev < 0 && d >= 0 && d < 1) this.swingCue(f, w, 0.2);
+    this.orbitPrev[key] = d;
+  }
+
+  /** The meter crossing 0.85: the charge cue (once until it drops back). */
+  private chargeCue(f: FlFighter) {
+    if (f.meter >= 0.85) {
+      if (f.sndCharged) return;
+      f.sndCharged = true;
+      this.snd.urgentCue(this.cue(f, "charge", { flPrim: f.row.ability.effects[0]?.p }));
+    } else f.sndCharged = false;
+  }
+
+  /**
+   * A landed hit's cue: a giant hit's impact (urgent, in place of the weapon's hit), an ability's impact (`opts.sndPrim`), else
+   * the hit of its weapon's kind – or its own kind (`opts.sndKind`), or its projectile's shape (an ability's volley) –, at the
+   * victim's position, as strong as its damage; `legacy` is the old kind (`fight`) for the legacy set.
+   */
+  private hitCue(attacker: FlFighter, target: FlFighter, weapon: number, amount: number, legacy: FlSoundKind, giant: boolean, opts: HitOptions) {
+    if (opts.sndCue === "silent") return;
+    const level = Math.min(1, 0.45 + amount / 20);
+    const base: Partial<SoundEvent> = { flPan: this.panAt(target.x), flLevel: level, fight: legacy, frequency: fighterPitch(attacker.slot), level };
+    if (giant) {
+      this.snd.urgentCue(this.cue(attacker, "impact", { ...base, flPrim: "giantHit", flLevel: 1 }));
+      return;
+    }
+    if (opts.sndPrim) {
+      this.snd.offer(FL_CAT_HIT, amount, this.cue(attacker, "impact", { ...base, flPrim: opts.sndPrim }));
+      return;
+    }
+    const w = weapon >= 0 ? attacker.weapons[weapon] : undefined;
+    if (w) {
+      this.weaponCue(attacker, w, "hit", FL_CAT_HIT, amount, base);
+      return;
+    }
+    const ev = this.cue(attacker, "hit", base);
+    if (opts.sndKind) ev.flWeapon = opts.sndKind;
+    else if (opts.projectile) {
+      ev.flShape = opts.projectile.shape;
+      ev.flPrim = "volley";
+    } else ev.flWeapon = KIND_OF_SOUND[legacy];
+    this.snd.offer(FL_CAT_HIT, amount, ev);
+  }
+
+  /** The cast of effect `e`: its fire (a fused shockwave's fuse, a spin), its hold (`flSec`, a key its KO stops) and its end's time. */
+  private castCues(f: FlFighter, e: FlEffect, now: number) {
+    const idx = Math.max(0, Math.min(3, f.row.ability.effects.indexOf(e)));
+    if (e.p === "shockwave") {
+      if (e.delay && e.delay > 0) this.snd.urgentCue(this.cue(f, "fuse", { flPrim: e.p, flSec: e.delay }));
+      else this.snd.urgentCue(this.cue(f, e.spin ? "spin" : "fire", { flPrim: e.p, fight: "blunt", frequency: 98, level: 0.9 }));
+    } else if (e.p !== "blinkStrike") this.snd.urgentCue(this.cue(f, "fire", { flPrim: e.p, flShape: e.p === "volley" ? e.shape : undefined }));
+    const dur = e.p === "pull" ? 0.7 : "dur" in e && typeof e.dur === "number" ? e.dur : 0;
+    if (dur > 0 && e.p !== "summon" && e.p !== "decoys" && e.p !== "trap") {
+      // a beam's ray and a ring loop for their duration (their KO or the verdict stops them); every other hold sustains
+      const loop = e.p === "beam" || e.p === "fireRing";
+      this.snd.urgentCue(this.cue(f, loop ? "loopStart" : "sustain", { flPrim: e.p, flSec: dur, flLoop: 64 + (f.slot & 7) * 4 + idx, flVariant: loop ? 1 : undefined, flShape: e.p === "fireRing" ? (e.shape ?? "flames") : undefined }));
+      f.sndHeldUntil[idx] = now + 1000 * dur;
+    }
+    if (END_PRIMS.has(e.p) && dur > 0 && now + 1000 * dur > f.sndEndAt) {
+      f.sndEndAt = now + 1000 * dur;
+      f.sndEndPrim = e.p;
+    }
+  }
+
+  /** `f`'s held ability sounds that still run stop now (a KO, the verdict). */
+  private stopHeldCues(f: FlFighter, now: number) {
+    for (let i = 0; i < f.sndHeldUntil.length; i++) {
+      if (!(f.sndHeldUntil[i] > now)) continue;
+      f.sndHeldUntil[i] = -Infinity;
+      this.snd.urgentCue(this.cue(f, "loopStop", { flLoop: 64 + (f.slot & 7) * 4 + i }));
+    }
+  }
+
+  /** Whether weapon `w` of `f` hums (a glowing blade – the energy-blade family – or a blade of the space-opera division). */
+  private hums(f: FlFighter, w: FlWeaponState): boolean {
+    return w.spec.kind === "sword" && (w.spec.style === "glow" || f.row.division === "starWars");
+  }
+
+  /** `f`'s hums start (`ignite`: with their ignition) or renew their lease. */
+  private humCues(f: FlFighter, ignite: boolean) {
+    for (const w of f.weapons) {
+      if (!this.hums(f, w)) continue;
+      const ev = this.cue(f, "loopStart", { flLoop: (f.slot & 7) * 8 + Math.min(7, w.index), flSec: 1.5, flVariant: ignite ? 1 : 0, flWeapon: w.spec.kind, flStyle: w.spec.style === "plain" ? "glow" : w.spec.style, flColor: w.spec.color ?? f.row.accent });
+      this.snd.urgentCue(ev);
+    }
+  }
+
+  /** A KO: its hums retract, its held sounds stop. */
+  private koCues(f: FlFighter, now: number) {
+    for (const w of f.weapons) {
+      if (!this.hums(f, w)) continue;
+      this.snd.urgentCue(this.cue(f, "loopStop", { flLoop: (f.slot & 7) * 8 + Math.min(7, w.index), flVariant: 1, flWeapon: w.spec.kind, flStyle: w.spec.style === "plain" ? "glow" : w.spec.style, flColor: w.spec.color ?? f.row.accent }));
+    }
+    this.stopHeldCues(f, now);
+  }
+
+  /**
+   * A banner's sting (the match bus) and call (the announcer), written with it in its tick, `flDelay` after it when it is
+   * stamped later (a DRAW after TIME!): the VS slam and every fighter's intro, the count's rising ticks, FIGHT! (the blades
+   * ignite), first blood, a KO (the victim's own layer), the final KO (with the finale's time warp), a double KO, TIME!, a
+   * draw, the winner's fanfare (the call 0.3 s into it), PERFECT / CLUTCH after it, sudden death. The verdict's first sting
+   * carries the legacy win chord; the KO stings the legacy KO.
+   */
+  private bannerCues(kind: number, t: number, slot: number, value: number) {
     const v = this.view;
-    for (const ev of this.urgent) ctx.addPendingSoundEvent(ev);
-    v.sounds += this.urgent.length;
-    this.urgent.length = 0;
+    const now = this.now();
+    const d = Math.max(0, (t - now) / 1000);
+    const f = slot >= 0 && slot < v.fighters.length ? v.fighters[slot] : null;
+    const match = (row: string, who: FlFighter | null, extra?: Partial<SoundEvent>) => this.snd.urgentCue(this.cue(who, "match", { flRow: row, flDelay: d, flPan: 0, ...extra }));
+    const call = (row: string, delay = 0) => this.snd.urgentCue(this.cue(null, "announcer", { flRow: row, flDelay: d + delay }));
+    const chord = (): Partial<SoundEvent> => {
+      if (!this.sndChord) return {};
+      this.sndChord = false;
+      return { chord: [...WIN_CHORD], accent: true };
+    };
+    const ko: Partial<SoundEvent> = { fight: "ko", frequency: 82.41, level: 1 };
+    switch (kind) {
+      case FB_VS:
+        match("vs", null);
+        v.fighters.forEach((o, i) => this.snd.urgentCue(this.cue(o, "match", { flRow: "intro", flDelay: d + 0.25 + 0.2 * i })));
+        break;
+      case FB_COUNT:
+        match("tick", null, { flVariant: Math.max(0, Math.min(2, 3 - Math.round(value))) });
+        break;
+      case FB_FIGHT:
+        call("fight");
+        for (const o of v.fighters) if (o.alive) this.humCues(o, true);
+        break;
+      case FB_FIRST_BLOOD:
+        call("firstBlood");
+        break;
+      case FB_KO:
+        match("ko", f, ko);
+        call("ko");
+        break;
+      case FB_FINAL_KO:
+        match("finalKo", f, { ...ko, ...chord() });
+        call("finalKo");
+        if (v.settings.slowMo && f) match("timeWarp", null);
+        break;
+      case FB_DOUBLE_KO:
+        match("doubleKo", null, { ...ko, ...chord() });
+        call("doubleKo");
+        break;
+      case FB_TIME:
+        match("time", null, chord());
+        call("time");
+        break;
+      case FB_DRAW:
+        match("draw", null, chord());
+        call("draw");
+        break;
+      case FB_WIN:
+        match("win", f, chord());
+        call("wins", 0.3);
+        break;
+      case FB_PERFECT:
+        call("perfect", 1.1);
+        break;
+      case FB_CLUTCH:
+        call("clutch", 1.1);
+        break;
+      case FB_SUDDEN:
+        match("suddenDeath", null, { fight: "ability", frequency: 130.81, level: 0.9 });
+        call("suddenDeath", 0.5);
+        break;
+    }
+  }
+
+  /**
+   * Once per 60 Hz tick, after its rules: a fighter's first time under 25 % HP (never once the fight is decided), the end of a
+   * burst, the cap's clock in its last 5 s (the last one louder), the hums' lease renewed every 30 ticks.
+   */
+  private stepSoundState(now: number) {
+    const v = this.view;
+    for (const f of v.fighters) {
+      if (!f.alive) continue;
+      if (!f.sndLowHp && !v.finished && f.maxHp > 0 && f.hp > 0 && f.hp / f.maxHp < 0.25) {
+        f.sndLowHp = true;
+        this.snd.urgentCue(this.cue(f, "match", { flRow: "lowHp" }));
+      }
+      if (f.sndEndAt <= now && f.sndEndPrim) {
+        if (!v.finished) this.snd.urgentCue(this.cue(f, "end", { flPrim: f.sndEndPrim }));
+        f.sndEndAt = -Infinity;
+        f.sndEndPrim = "";
+      }
+    }
+    const cap = v.settings.timeCap;
+    if (cap > 0 && !v.finished && v.suddenMs < 0 && now >= v.introMs) {
+      const left = v.introMs + 1000 * cap - now;
+      while (this.sndClock >= 1 && left <= 1000 * this.sndClock + 1e-6) {
+        const k = this.sndClock--;
+        if (left > 1000 * (k - 1) + 1e-6) this.snd.urgentCue(this.cue(null, "match", { flRow: "clock", flVariant: k === 1 ? 1 : 0 }));
+      }
+    }
+    if (now >= v.introMs && ++this.sndLease >= 30) {
+      this.sndLease = 0;
+      for (const f of v.fighters) if (f.alive) this.humCues(f, false);
+    }
+  }
+
+  /** Called once per rendered frame: --- fl-overhaul --- (Stage 4) every closed tick's cues in order (the per-tick budget kept them). */
+  flushPendingSounds(ctx: ModeContext) {
     this.flushCtx = ctx;
-    this.budget.flush(this.pushBudgeted);
+    this.snd.drain(this.pushCue);
     this.flushCtx = null;
   }
 
   /** The context of the flush in progress, and the budget's sink (one function for the mode's life: no closure per frame). */
   private flushCtx: ModeContext | null = null;
-  private readonly pushBudgeted = (kind: FlSoundKind | null, frequency: number, level: number) => {
+  private readonly pushCue = (ev: SoundEvent) => {
     const ctx = this.flushCtx;
     if (!ctx) return;
-    if (kind === null) {
-      this.view.notes++;
-      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency, level });
-    } else {
-      this.view.sounds++;
-      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency, level, melody: false, fight: kind });
-    }
+    if (ev.flCue || ev.fight) this.view.sounds++;
+    else this.view.notes++;
+    ctx.addPendingSoundEvent(ev);
   };
 
   onWallHit() {}
@@ -6124,6 +6452,14 @@ interface HitOptions {
   projectile?: FlProjectile;
   /** --- fl-overhaul --- A share of the damage (a clash won lands at half). */
   scale?: number;
+  /**
+   * --- fl-overhaul --- (Stage 4) The hit's cue: "silent" (a burst's foes – the burst sounds once), an ability's impact
+   * (`sndPrim`: a choke's tick, a cut, a bolt, a trap's snap, …) or a weapon kind's hit for a hit without a weapon of its own
+   * (`sndKind`: a beam's ray, a ring of blades, a blink's spin).
+   */
+  sndCue?: "silent";
+  sndPrim?: FlPrimitive;
+  sndKind?: FlWeaponKind;
 }
 
 /** Spots of the formation, in arena half-sides (x, y per slot): opposite sides for two, a triangle, corners, team sides. */

@@ -11206,7 +11206,9 @@ await smokeBlock("fight-league", async () => {
     window.__flAudio = log;
     const startSource = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function () {
-      if (arguments.length === 3) log.noise++; // a weapon's noise burst (start(time, offset, duration))
+      // a weapon's noise burst: read from an offset (--- fl-overhaul --- (Stage 4) the synthesised cues' noise layers start(time,
+      // offset); the first release's bursts and a clip start(time, offset, duration))
+      if (arguments.length >= 2) log.noise++;
       return startSource.apply(this, arguments);
     };
     const startOsc = OscillatorNode.prototype.start;
@@ -11504,6 +11506,55 @@ await smokeBlock("fight-league", async () => {
   await page.waitForTimeout(600);
   const off = await canvasData();
   check("fight league: flDbg=1 draws the hit shapes (data-fl-debug=1, 0 without it)", on.flDebug === "1" && off.flDebug === "0", `(with flDbg=1: ${on.flDebug} at ${on.flTime} s; without: ${off.flDebug})`);
+}
+// --- end fl-overhaul ---
+// --- fl-overhaul --- (Stage 4) the Custom sounds panel: a tiny generated WAV through Thor's hit slot is kept (data-fl-clips lists
+// thor:hit) and plays (data-fl-clip-played), a file that is not audio is refused with its message; the clip is removed again
+{
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague`, { waitUntil: "networkidle" });
+  const panel = page.getByTestId("fl-custom-sounds");
+  const visible = await panel.isVisible().catch(() => false);
+  const rights = await page.getByTestId("fl-clip-rights").innerText().catch(() => "");
+  // 0.2 s of a 440 Hz tone as 16-bit PCM WAV, made here (no audio file in the repository)
+  const rate = 8000;
+  const n = 1600;
+  const wav = Buffer.alloc(44 + 2 * n);
+  wav.write("RIFF", 0);
+  wav.writeUInt32LE(36 + 2 * n, 4);
+  wav.write("WAVE", 8);
+  wav.write("fmt ", 12);
+  wav.writeUInt32LE(16, 16);
+  wav.writeUInt16LE(1, 20);
+  wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(rate, 24);
+  wav.writeUInt32LE(rate * 2, 28);
+  wav.writeUInt16LE(2, 32);
+  wav.writeUInt16LE(16, 34);
+  wav.write("data", 36);
+  wav.writeUInt32LE(2 * n, 40);
+  for (let i = 0; i < n; i++) wav.writeInt16LE(Math.round(12000 * Math.sin((2 * Math.PI * 440 * i) / rate)), 44 + 2 * i);
+  const clipsOf = () => page.evaluate(() => document.querySelector('[data-testid="fl-custom-sounds"]')?.getAttribute("data-fl-clips") || "");
+  await page.getByTestId("fl-clip-input-thor-hit").setInputFiles({ name: "thor-hit.wav", mimeType: "audio/wav", buffer: wav });
+  const kept = await page
+    .waitForFunction(() => (document.querySelector('[data-testid="fl-custom-sounds"]')?.getAttribute("data-fl-clips") || "").split(" ").includes("thor:hit"), null, { timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
+  await page.getByTestId("fl-clip-play-thor-hit").click();
+  const played = await page
+    .waitForFunction(() => document.querySelector('[data-testid="fl-custom-sounds"]')?.getAttribute("data-fl-clip-played") === "thor:hit", null, { timeout: 5000 })
+    .then(() => true)
+    .catch(() => false);
+  await page.getByTestId("fl-clip-input-loki-ko").setInputFiles({ name: "notes.wav", mimeType: "audio/wav", buffer: Buffer.from("these are notes, not audio") });
+  const refusal = await page.getByTestId("fl-clip-message").innerText({ timeout: 10000 }).catch(() => "");
+  const clips = await clipsOf();
+  await page.getByTestId("fl-clip-remove-thor-hit").click();
+  await page.waitForTimeout(300);
+  const after = await clipsOf();
+  check(
+    "fight league: the Custom sounds panel keeps a WAV in Thor's hit slot and plays it, refuses a file that is not audio, and removes the clip",
+    visible && /this device/.test(rights) && kept && played && /not an audio clip/.test(refusal) && clips.split(" ").includes("thor:hit") && !clips.includes("loki:ko") && !after.includes("thor:hit"),
+    `(panel ${visible}, kept ${kept}, played ${played}, refusal "${refusal}", clips "${clips}" → after removal "${after}")`,
+  );
 }
 // --- end fl-overhaul ---
 // --- end fight-league ---

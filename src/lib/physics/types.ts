@@ -344,6 +344,45 @@ export interface SoundEvent {
    */
   fight?: FightSoundKind;
   // --- end fight-league ---
+  // --- fl-overhaul --- (Stage 4)
+  /**
+   * A Fight League cue (fightLeague.ts → lib/audio/flDispatch.ts `playFightEvent()` → `ToneGenerator.playFightCue()`, which
+   * resolves it – flSoundResolve.ts – into synthesized recipes or the user's clip): a weapon's "swing", "shoot", "hit", …, an
+   * ability's "charge", "telegraph", "fire", "sustain", "impact", …, a held sound's "loopStart" / "loopStop", a "match" sting
+   * or an "announcer" call (`flRow`). Sent with `melody: false`; `fight` keeps the legacy kind of a cue that had one, so a
+   * page that only knows `fight` still plays it.
+   */
+  flCue?: FlCue;
+  /** The fighter's slot (the attacker, blocker, caster, victim or winner; absent: none) and its roster id. */
+  flFighter?: number;
+  flId?: string;
+  /** The weapon's kind, style and colour, the projectile's shape, the ability's primitive. */
+  flWeapon?: string;
+  flStyle?: string;
+  flColor?: string;
+  flShape?: string;
+  flPrim?: string;
+  /** A sting's or a call's row (FL_MATCH_SOUNDS / FL_ANNOUNCER). */
+  flRow?: string;
+  /** A row's variant (the countdown's step, a telegraph's class, a loop's ignition or retraction, the clock's last tick). */
+  flVariant?: number;
+  /** A held sound's length (s): a sustain's duration, a loop's lease, a telegraph's length. */
+  flSec?: number;
+  /** Stereo position (±0.6, from the fighter's x). */
+  flPan?: number;
+  /** 0–1, per fighter: ±40 cents and the noise's read position. */
+  flVar?: number;
+  /** The fighter's note (Hz; folded into C4–B4 and snapped to the scale when played). */
+  flPitch?: number;
+  /** A held sound's key (a fighter's loop or sustain); −1 with "loopStop": every one of the arena. */
+  flLoop?: number;
+  /** Seconds after the step that wrote it (a banner's sting on the banner's own clock). */
+  flDelay?: number;
+  /** The slowed side's factor (0.5 + 0.5 × the slow): pitch × it, lengths ÷ it. */
+  flSlow?: number;
+  /** The cue's loudness in the new mix, 0–1 (a hit's by its damage; absent: 1). `level` stays the legacy kind's. */
+  flLevel?: number;
+  // --- end fl-overhaul ---
   // --- land-claim ---
   /**
    * A Land Claim effect instead of a bounce (`ToneGenerator.playLandClaim()`, lib/audio/landClaimTones.ts): "knock" – a block
@@ -366,6 +405,8 @@ export interface SoundEvent {
 
 // --- fight-league --- the sound families of Fight League's weapons, abilities and KOs
 export type FightSoundKind = "blade" | "blunt" | "arrow" | "gun" | "fire" | "magic" | "ability" | "ko" | "block";
+// --- fl-overhaul --- (Stage 4) the cues of Fight League's sound (SoundEvent.flCue)
+export type FlCue = "swing" | "shoot" | "hit" | "block" | "return" | "ricochet" | "graze" | "immune" | "clash" | "blink" | "snag" | "fuse" | "charge" | "telegraph" | "fire" | "sustain" | "impact" | "end" | "explode" | "spin" | "ringBlades" | "loopStart" | "loopStop" | "match" | "announcer";
 
 /** Recent obstacle contact for the canvas glow (visual only, wall-clock timestamps like `WallHit`). */
 export interface ObstacleHit {

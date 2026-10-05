@@ -107,6 +107,8 @@ import { sameBeatSchedule } from "@/lib/simulation/beatSchedule";
 // --- split-screen --- 2 or 4 arenas racing on one canvas and one recording
 import { useSyncExternalStore } from "react";
 import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, type ArenaFinderProgress, type ArenaHooks } from "@/lib/simulation/multi";
+import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
+import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage 4) the custom clips, on this device only
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- gerald-vortex ---
@@ -1090,6 +1092,12 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setFightLeagueSettings({ stage: s.flStage, arenaStyle: s.flArenaStyle, shake: s.flShake, slowMo: s.flSlowMo, impact: s.flImpact, dmgNumbers: s.flDmgNumbers, plates: s.flPlates, tags: s.flTags });
   }, [s.flStage, s.flArenaStyle, s.flShake, s.flSlowMo, s.flImpact, s.flDmgNumbers, s.flPlates, s.flTags]);
+  // (Stage 4) the sound set, the announcer and the custom clips – the page's ToneGenerator only (no restart, a found seed kept);
+  // the clips come from this browser's store (lib/audio/flClips.ts) and never leave the device
+  useEffect(() => {
+    audioRef.current?.setFightSoundSettings({ set: s.flSound, announcer: s.flAnnouncer, custom: s.flCustomSounds });
+  }, [s.flSound, s.flAnnouncer, s.flCustomSounds]);
+  useEffect(() => flClipStore().subscribe((records) => audioRef.current?.setFightClips(records)), []);
   // --- end fl-overhaul ---
   const flWinAtRef = useRef<number | null>(null);
   // --- end fight-league ---
@@ -1701,9 +1709,9 @@ export default function Simulator() {
             audio.playOrb(ev.orb, ev.frequency, ev.chord, ev.level);
             continue;
           }
-          // --- fight-league --- a Fight League weapon hit of its kind, an ability's swell, a KO
-          if (ev.fight) {
-            audio.playFight(ev.fight, ev.frequency, ev.level);
+          // --- fight-league --- a Fight League weapon hit of its kind, an ability's swell, a KO (--- fl-overhaul --- every cue through the one dispatch)
+          if (ev.fight || ev.flCue) {
+            playFightEvent(audio, ev, 1);
             continue;
           }
           // --- land-claim --- a knocked block's wooden click, a new ball's chime, a column's KO
@@ -1726,7 +1734,7 @@ export default function Simulator() {
         canvasRef.current?.setSongProgress(audio.getSliceProgress());
       }
       // --- split-screen --- the other arenas' sounds: heard with "every arena", else dropped (their queues empty every frame)
-      splitRunnerRef.current?.drainSounds(audio && splitSoundAllRef.current ? (ev) => playArenaSound(audio, ev) : null);
+      splitRunnerRef.current?.drainSounds(audio && splitSoundAllRef.current ? (ev, arena) => playArenaSound(audio, ev, arena) : null); // --- fl-overhaul --- (the arena keeps its loops apart)
       if (isStarted && !isPaused && audioEnabled && audio) {
         const analyser = audio.getAnalyser();
         if (analyser) {

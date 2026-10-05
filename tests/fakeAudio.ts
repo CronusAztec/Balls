@@ -17,7 +17,17 @@ export interface SourceLog {
   playbackRate: number;
 }
 
-export function fakeGraph() {
+/** --- fl-overhaul --- (Stage 4) Options of the fake graph. */
+export interface FakeGraphOptions {
+  /**
+   * The nodes Fight League's synthesiser and mixer use as well (lib/audio/flSynth.ts, flMixer.ts): biquad filters, stereo
+   * panners, delays, periodic waves, an oscillator's detune and `setPeriodicWave()`, `setTargetAtTime()` on every param – off
+   * by default, so every older test drives exactly the graph it was written for (sounds that need a filter stay unplayed).
+   */
+  extended?: boolean;
+}
+
+export function fakeGraph(options: FakeGraphOptions = {}) {
   const oscillators: OscLog[] = [];
   const sources: SourceLog[] = [];
   /** Every value set on a gain node's AudioParam (envelopes, sample levels), so a test can see how loud a sound was. */
@@ -78,5 +88,49 @@ export function fakeGraph() {
     },
     createBuffer: (channels: number, length: number, sampleRate: number) => ({ duration: length / sampleRate, copyToChannel: () => undefined }),
   };
-  return { ctx, oscillators, sources, gains, compressors };
+  // --- fl-overhaul --- (Stage 4) the extended graph: the extra node kinds, and how many of each kind were made
+  const made: Record<string, number> = {};
+  if (options.extended) {
+    const count = (kind: string) => (made[kind] = (made[kind] ?? 0) + 1);
+    const xparam = (value = 0) => ({ ...param(value), setTargetAtTime: () => undefined, cancelAndHoldAtTime: () => undefined });
+    const node = (kind: string) => {
+      count(kind);
+      return { connect: () => undefined, disconnect: () => undefined };
+    };
+    const ext = ctx as unknown as Record<string, unknown>;
+    const gain = ctx.createGain;
+    const osc = ctx.createOscillator;
+    const source = ctx.createBufferSource;
+    const shaper = ctx.createWaveShaper;
+    Object.assign(ext, {
+      createGain: () => {
+        const g = gain();
+        count("gain");
+        Object.assign(g.gain, { setTargetAtTime: () => undefined, cancelAndHoldAtTime: () => undefined });
+        return g;
+      },
+      createOscillator: () => {
+        const o = osc();
+        count("oscillator");
+        return Object.assign(o, { detune: xparam(0), setPeriodicWave: () => undefined });
+      },
+      createBufferSource: () => {
+        const b = source();
+        count("bufferSource");
+        return Object.assign(b, { loop: false });
+      },
+      createWaveShaper: () => {
+        count("waveShaper");
+        return shaper();
+      },
+      createBiquadFilter: () => ({ ...node("biquad"), type: "lowpass", frequency: xparam(350), Q: xparam(1), gain: xparam(0) }),
+      createStereoPanner: () => ({ ...node("stereoPanner"), pan: xparam(0) }),
+      createDelay: () => ({ ...node("delay"), delayTime: xparam(0) }),
+      createPeriodicWave: () => {
+        count("periodicWave");
+        return {};
+      },
+    });
+  }
+  return { ctx, oscillators, sources, gains, compressors, made };
 }

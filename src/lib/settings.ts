@@ -83,6 +83,7 @@ import type { OgGroup, OgMetro, OgModel, OgRhythm } from "@/lib/physics/modes/or
 import { FIGHT_LEAGUE_RANGES, defaultFightLeagueFields, fightLeagueModeDefaults, readFightLeagueParams, resolveFightLeagueFields, writeFightLeagueParams, type FlArena, type FlMatch } from "@/lib/physics/modes/fightLeague";
 // --- fl-overhaul --- (Stage 3) the spectacle's options and its presentational numbers (never the engine's)
 import { FIGHT_LEAGUE_VISUAL_KEYS, type FlArenaStyle, type FlStage, type FlTags } from "@/lib/physics/modes/fightLeague";
+import type { FlSoundOption } from "@/lib/physics/modes/fightLeague"; // --- fl-overhaul --- (Stage 4) the sound set
 // --- end fl-overhaul ---
 // --- land-claim --- the Land Claim mode (columns of blocks knocked off by competitors' balls)
 import { LAND_CLAIM_RANGES, defaultLandClaimFields, landClaimModeDefaults, readLandClaimParams, resolveLandClaimFields, writeLandClaimParams, type LcArena, type LcRule } from "@/lib/physics/modes/landClaim";
@@ -900,6 +901,14 @@ export interface SimulatorSettings {
   flPlates: boolean;
   /** auto | on | off: the name tags over the balls (URL `flTg`). */
   flTags: FlTags;
+  // --- end fl-overhaul ---
+  // --- fl-overhaul --- (Stage 4) the sound – the page's ToneGenerator only, never the fight (URL `flSnd`, `flAnn`, `flCS`)
+  /** signature (the default) | kinds | legacy: the fighters' synthesized signature sets, the weapon kinds' and abilities' own rows, or the first release's sounds (URL `flSnd`). */
+  flSound: FlSoundOption;
+  /** The announcer's calls and stings (URL `flAnn`). */
+  flAnnouncer: boolean;
+  /** The user's own clips in their fighters' slots, kept on this device (URL `flCS`). */
+  flCustomSounds: boolean;
   // --- end fl-overhaul ---
   // --- end fight-league ---
   // --- land-claim --- Land Claim (lib/physics/modes/landClaim.ts): competitors' balls knock the top blocks off the columns lining the arena
