@@ -1065,7 +1065,7 @@ export default function Simulator() {
   // --- end orb-grid ---
   // --- fight-league --- Fight League: a change of the fighters, the match, the division rule, the HP, a multiplier, the time
   // cap or the arena restarts the fight and drops a found seed; the HUD only changes the drawing and follows live.
-  const flFightKey = [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flMatch, s.flSameDivision, s.flHp, s.flTimeCap, s.flArena, s.flSpeedA, s.flSpeedB, s.flSpeedC, s.flSpeedD, s.flDamageA, s.flDamageB, s.flDamageC, s.flDamageD, s.flAttackA, s.flAttackB, s.flAttackC, s.flAttackD, s.flCastA, s.flCastB, s.flCastC, s.flCastD].join("|");
+  const flFightKey = [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flMatch, s.flSameDivision, s.flHp, s.flTimeCap, s.flArena, s.flSpeedA, s.flSpeedB, s.flSpeedC, s.flSpeedD, s.flDamageA, s.flDamageB, s.flDamageC, s.flDamageD, s.flAttackA, s.flAttackB, s.flAttackC, s.flAttackD, s.flCastA, s.flCastB, s.flCastC, s.flCastD, s.flSeek, s.flSuddenDeath /* --- fl-overhaul --- */].join("|");
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -3029,6 +3029,7 @@ export default function Simulator() {
         attack: t("FightLeague.canvasAttack"),
         cast: t("FightLeague.canvasCast"),
         ready: t("FightLeague.canvasReady"),
+        sudden: t("FightLeague.canvasSudden"), // --- fl-overhaul ---
       },
     };
   }, [t]);

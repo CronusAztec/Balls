@@ -1894,7 +1894,12 @@
     "ogRunPhase": "w fazie co {seconds} s",
     "ogRunNeverPhase": "nigdy w fazie – jedna fala biegnąca",
     "ogRunMetro": "{bars, plural, one {# takt} few {# takty} many {# taktów} other {# taktu}} przy {bpm} BPM",
-    "ogPresetMetronome": "Metronom 3:2"
+    "ogPresetMetronome": "Metronom 3:2",
+    "flSeek": "Skręt ku celowi",
+    "flSeekTip": "Jak szybko zawodnik skręca w stronę odległości od celu, którą lubi jego broń (radiany na sekundę): miecze i pięści się zbliżają, strzelcy trzymają dystans, a w zasięgu każdy krąży wokół celu. 0 zostawia czyste odbijanie z pierwszej wersji – zawodnicy tylko się odbijają, a ściany kierują ich nieco ku przeciwnikowi.",
+    "flSeekOff": "Tylko odbicia",
+    "flSuddenDeath": "Nagła śmierć",
+    "flSuddenDeathTip": "Po limicie czasu, gdy na arenie zostały co najmniej dwie strony: najpierw do 10 sekund nagłej śmierci, a arena kurczy się do 60 % rozmiaru (nokaut nadal kończy walkę); potem wygrywa strona z największą częścią swoich PŻ. Wyłączone: przy limicie od razu decyduje udział PŻ."
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -3886,13 +3891,13 @@
     "fighter_naruto": "Shurikeny krążą wokół niego i lecą po kolei; Shadow Clone przywołuje dwa klony, które walczą przez cztery sekundy.",
     "fighter_sasuke": "Szybkie ostrze; Chidori cztery razy z rzędu przenosi go do najbliższego wroga.",
     "fighter_luffy": "Gumowe pięści sięgające przez pół areny; Gum-Gum Gatling przez dwie sekundy uderza cztery razy szybciej.",
-    "fighter_saitama": "Jeden powolny cios z potrójnymi obrażeniami; Serious Punch jest wart połowy maksymalnych PŻ wroga.",
+    "fighter_saitama": "Jeden powolny cios z potrójnymi obrażeniami; Serious Punch jest wart 40 % maksymalnych PŻ wroga.",
     "fighter_luke": "Zielone ostrze energii; Force Push odrzuca każdego wroga przez całą arenę.",
     "fighter_vader": "Czerwone ostrze, wolniejsze i silniejsze; Force Choke dusi najbliższego wroga przez dwie sekundy.",
     "fighter_yoda": "Mały i szybki, z krótkim zielonym ostrzem; Force Lift unosi najbliższego wroga na dwie sekundy, a potem nim uderza.",
     "fighter_maul": "Podwójne ostrze świetlne, po jednym na każdym końcu; Saber Throw leci we wroga i wraca.",
     "fighter_harrypotter": "Szybkie pociski z różdżki; Expelliarmus rozbraja najbliższego wroga na trzy sekundy.",
-    "fighter_voldemort": "Silniejsze, wolniejsze pociski; Avada Kedavra to jeden pocisk nie do zablokowania o pięciokrotnych obrażeniach.",
+    "fighter_voldemort": "Silniejsze, wolniejsze pociski; Avada Kedavra to jeden pocisk nie do zablokowania o niemal czterokrotnych obrażeniach.",
     "fighter_gandalf": "Kostur z samonaprowadzającymi kulami i miecz; You Shall Not Pass czyni go nietykalnym i przygważdża każdego wroga do dalekiej ściany.",
     "fighter_legolas": "Najszybszy łuk w lidze; Arrow Storm wypuszcza naraz dwanaście strzał.",
     "fighter_godzilla": "Długi ogon zamiatający za nim; Atomic Breath to niebieski promień.",
@@ -3909,7 +3914,8 @@
     "fighter_zuko": "Magia ognia: stożek płomieni przed nim; Lightning Redirect wystrzeliwuje trzeszczący promień.",
     "fighter_jonsnow": "Długi miecz; Ghost, jego biały wilk, dołącza do walki na cztery sekundy.",
     "fighter_nightking": "Rzuca wolnymi, ciężkimi lodowymi włóczniami; Raise the Dead przywołuje trzy upiory na cztery sekundy.",
-    "fighter_gerald": "Nasza własna kulka przebija się przez ligę główką; Mega Bounce podwaja jej prędkość i obrażenia na trzy sekundy."
+    "fighter_gerald": "Nasza własna kulka przebija się przez ligę główką; Mega Bounce podwaja jej prędkość i obrażenia na trzy sekundy.",
+    "canvasSudden": "NAGŁA ŚMIERĆ!"
   },
   "LandClaim": {
     "canvasTitle": "PODBÓJ TERENU",

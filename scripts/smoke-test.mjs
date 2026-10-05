@@ -1358,6 +1358,11 @@ check("mode card switches mode", page.url().includes("mode=portal"), `(${page.ur
 // face chirps through the ToneGenerator on a minority of the bounces (OscillatorNode.start is instrumented: the chirp is
 // the only sawtooth with the default triangle bounce voice, one triangle per bounce note).
 const canvasData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
+// --- fl-overhaul --- SMOKE_ONLY=fight-league runs only the Fight League block, then the report (the request and console checks); unset, nothing changes
+if (process.env.SMOKE_ONLY === "fight-league") {
+  await fightLeagueChecks();
+  await report();
+}
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Start Simulator/ }).click();
 await page.waitForTimeout(600);
@@ -10882,6 +10887,8 @@ const orbBannerPixels = () =>
 // pinned seed it loses unrigged, and its backstop holding to the verdict (Acid Blood's reflection, a shared KO step, the KO
 // grace); four shooters and their projectiles keep 30+ fps; a 1080×1920 recording keeps 20+ fps and downloads; and the
 // finder finds an "A wins" seed that replays as promised.
+// --- fl-overhaul --- the block is a function, called in place (and alone by SMOKE_ONLY=fight-league, after `canvasData`)
+async function fightLeagueChecks() {
 {
   const res = await page.request.get(`${BASE}/modes/fightLeague.webp`);
   check("asset /modes/fightLeague.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
@@ -11077,7 +11084,8 @@ const orbBannerPixels = () =>
 }
 {
   // Four shooters at 1× (no time cap): four fighters, their weapons and a crowd of shots in the air keep 30+ fps.
-  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=ffa4&fl1=ironman&fl2=doomslayer&fl3=legolas&fl4=jinx&flT=0&seed=1`, { waitUntil: "networkidle" });
+  // --- fl-overhaul --- (at 300 HP: the overhaul's fights engage at once, and all four must still stand through the measurement)
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=ffa4&fl1=ironman&fl2=doomslayer&fl3=legolas&fl4=jinx&flT=0&flHp=300&seed=1`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(4000);
   const fps = await pageFrameRates(4000);
@@ -11136,6 +11144,25 @@ const orbBannerPixels = () =>
     `("${text}", replay: winner ${data.flWinner} at ${data.flFinishSec} s)`,
   );
 }
+{
+  // --- fl-overhaul --- The overhaul's counters on the canvas (grazes, clashes, sudden death), and sudden death at the cap: Thor vs
+  // Loki at 300 HP with a 20 s cap on a pinned seed – nobody falls by the cap, so the arena shrinks (data-fl-sudden=1).
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flT=20&flHp=300&seed=3`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(800);
+  const early = await canvasData();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const sudden = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flSudden === "1", null, { timeout: 60000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-sudden.png") });
+  check(
+    "fight league: the canvas counts grazes, clashes and sudden death, and a 300 HP duel with a 20 s cap goes to sudden death",
+    /^\d+$/.test(early.flGrazes ?? "") && /^\d+$/.test(early.flClashes2 ?? "") && early.flSudden === "0" && sudden && data.flSudden === "1" && Number(data.flTime) >= 21.4 && (data.flHp || "").split(",").every((hp) => Number(hp) > 0),
+    `(at the start: grazes ${early.flGrazes}, clashes ${early.flClashes2}, sudden ${early.flSudden}; then sudden ${data.flSudden} at ${data.flTime} s, HP ${data.flHp}, finished ${data.flFinished})`,
+  );
+}
+}
+await fightLeagueChecks();
 // --- end fight-league ---
 
 // --- land-claim ---
@@ -12247,6 +12274,8 @@ const orbBoxPixels = (box) =>
 // --- end orb-rhythm ---
 
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
+// --- fl-overhaul --- the final report is a function (a SMOKE_ONLY run calls it right after its block)
+async function report() {
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
 const hardErrors = errors.filter((e) => !IGNORED_CONSOLE.test(e));
 check("no console/page errors", hardErrors.length === 0, hardErrors.length ? `\n   ${hardErrors.slice(0, 10).join("\n   ")}` : "");
@@ -12259,3 +12288,5 @@ if (inconclusiveResults.length) {
 }
 console.log(`\n${results.length - failed.length}/${results.length} checks passed${inconclusiveResults.length ? `, ${inconclusiveResults.length} inconclusive` : ""}`);
 process.exit(failed.length ? 1 : 0);
+}
+await report();

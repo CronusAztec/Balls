@@ -2,7 +2,7 @@ import { midiToFrequency } from "@/lib/audio/scales";
 import type { Ball, FightSoundKind, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
 import { atLeastMin } from "@/lib/uncap"; // uncap-all: no maximum
-import { MAX_NUDGE, offAxisAngle, steerToward } from "./arenaGames";
+import { MAX_NUDGE, MIN_WALL_ANGLE, offAxisAngle, steerToward } from "./arenaGames";
 import {
   FL_BY_ID,
   FL_DIVISIONS,
@@ -21,39 +21,64 @@ import {
  * Fight League ("fightLeague" mode, the arena games' family – feature fight-league; the "Ball Fight League" duels: "Thor vs
  * Loki | Game link in bio"). Fighters are balls of the engine, each carrying a WEAPON that sticks out of it as a vector
  * sprite, with HP shown inside the ball and a bar under it, in a white square arena (or a circle) inset in the square the
- * recorder exports. The balls drift and bounce at a constant speed; a weapon touching another ball deals damage; every
- * fighter's ability charges from time and hits, telegraphs for 0.4 s and fires by itself; the last ball (or team) with HP
- * wins – or, at the time cap, the side with more HP (a draw is possible).
+ * recorder exports. The balls fly and bounce at a cruising speed; a weapon touching another ball deals damage; every
+ * fighter's ability charges from time and from the damage it deals and takes, telegraphs by its class and fires by itself;
+ * the last ball (or team) with HP wins – or, at the time cap, the side with the larger share of its HP (a draw is possible).
  *
  * The roster is data (fightLeagueRoster.ts: one row per fighter). This module is the engineering the rows share:
  *
- *  - **Weapon kinds** (`FL_WEAPON_KINDS`), each a simple silhouette with its own hit geometry against the foe's circle:
- *    sword (a blade along the velocity that sweeps 120° on every bounce; a glowing or a double blade), hammer (a slow,
- *    heavy orbit with big knockback; returning: thrown at the nearest foe and flying back, hitting on both passes), fists
- *    and claws (short punches that extend toward a foe in reach), chain (a head orbiting on a chain, damage by its momentum;
- *    pull: a thrown head that drags the hit foe in), bow, gun (burst, bouncing), shotgun (a cone of pellets), wand, staff
- *    and book (fast bolts, slow homing orbs and bolts), cards (blades orbiting the ball and flying one by one), fire (a
- *    breath cone), beam (a thin ray on a cadence), spark (arcs to a foe in range), web (slows), ice (freezes), shield
- *    (blocks hits from the front, thrown every few seconds) and tail (sweeping behind the ball).
+ *  - **Weapon kinds** (`FL_WEAPON_KINDS`, each with a contract in `FL_KIND_CONTRACT`: the distance it keeps, its trigger,
+ *    cadence, hit geometry, invulnerability window, silhouette, animation and sound), each a simple silhouette with its own
+ *    hit geometry against the foe's circle: sword (a blade along the velocity that sweeps 120° at a foe in reach on its
+ *    cadence, on a bounce and on a clash of bodies; a glowing or a double blade), hammer (a slow, heavy orbit with big
+ *    knockback; returning: thrown at the nearest foe and flying back, hitting on both passes), fists and claws (short
+ *    punches that extend toward a foe in reach), chain (a head orbiting on a chain, damage by its momentum; pull: a thrown
+ *    head that drags the hit foe in), bow, gun (burst: the rounds leave the muzzle one after another; bouncing), shotgun (a
+ *    cone of pellets), wand, staff and book (fast bolts, homing orbs and pages that fizzle), cards (blades orbiting the
+ *    ball and flying one by one), fire (an inhale, then a breath cone at a foe in reach), beam (a glint that locks the aim,
+ *    then a thin ray), spark (arcs to a foe in range, on to a second one in a free-for-all), web (slows), ice (freezes),
+ *    shield (held toward the foe, blocking hits from the front – each block spends its guard –, thrown every few seconds)
+ *    and tail (trailing behind the ball, swinging at a foe in reach).
  *  - **Ability primitives** (`FL_ABILITY_PRIMITIVES`): speed / damage / attack-speed bursts, invulnerability, freezes,
  *    chokes, arena cuts, beams, volleys, shockwaves, pulls, decoys, heals, fire rings, giant hits, lightning, confusion,
- *    blink strikes, summons, reflection, disarming and slow time – each a case of `castEffect()`.
+ *    blink strikes, summons, reflection, disarming and slow time – each a case of `castEffect()`. Its telegraph lasts by
+ *    its class (`telegraphMs()`: quick, standard, area, ultimate) with the aim locked at its start; a foe inside an area
+ *    telegraph is nudged out of it (`EV_DODGE` when it escapes).
  *
- * Hits: a melee shape (a segment or a circle) or a projectile against the foe's circle; one touch is one hit (the foe's
- * short invulnerability window, `FL_IFRAME_MS` – the pellets and arrows of one volley land together), with knockback, a
- * hit flash and a floating damage number. Damage taken within a 60 Hz step is applied together and the KOs are decided at
- * its end, so no fighter wins by its slot – and two fighters can go down together: a DOUBLE KO (a projectile still in the
- * air after the last KO gets `FL_KO_GRACE_MS` to land).
+ * Engagement (--- fl-overhaul ---): at FIGHT! every fighter launches at the nearest foe (± a seeded 20°); in flight the
+ * intent steering (`seekTurn`, URL flSk – 0 is the pure bounce look) turns its velocity, never its speed, toward the
+ * distance its first weapon wants (`intentBand()`: close for blades, the orbit for hammers and chains, an arc for fire and
+ * sparks, 4–9 radii for shooters), and a melee fighter whose weapon is ready lunges at a foe in reach.
  *
- * Determinism: every random number – a "random" fighter slot, the spawn, the launch headings, every shot's spread, the arena
- * cuts – comes from `ctx.random()` in slot order, so a seed replays exactly at any frame rate and Find Simulation can search
- * it ("A wins", "B wins", the run's length, a double KO). The rigged forced winner (`config.forcedWinner`, a fighter in
- * 1v1 and the free-for-alls, a team in 2v2) steers within that replay (`updateRig()`): its hits land a little more (a
- * longer reach, homing shots, rebounds nudged toward a rival – more the further it trails) and the rivals' a little less
- * (it recovers longer from a hit), and as a backstop its side's last fighter never loses its last hit point until the
- * verdict – to a hit or to reflected damage, also when the rivals go down in the same step or a shot lands in the KO grace
- * (`absorbLethal()`, with `guardChosenSide()` before every step's KOs) – and the time cap waits while it trails: the
- * chosen side always wins, never in a double KO.
+ * Hits: a melee shape (a segment or a circle) or a projectile against the foe's circle; one touch is one hit. Each source
+ * (an attacker's weapon, or its abilities, summons and contact together) has its own invulnerability window on the foe
+ * (`flSourceWindowMs()`: light weapons by their cadence, 120–300 ms; heavy ones and abilities `FL_IFRAME_MS`; the pellets of
+ * one volley land together), so two weapons never block each other; a refused shot grazes (`EV_GRAZE`). Melee hits of a
+ * sub-step are queued and traded fairly (`resolveMelee()`: the stronger blow lands at half, even blows CLASH), fighters
+ * act in an order that flips every step, knockback goes by weight, and hard crowd control (freezes, holds, pins) leaves a
+ * second of immunity and interrupts a telegraph. Damage taken within a 60 Hz step is applied together and the KOs are
+ * decided at its end (a fighter whose last HP went strikes no more that step), so no fighter wins by its slot – and two
+ * fighters can still go down together: a DOUBLE KO (a projectile still in the air after the last KO gets
+ * `FL_KO_GRACE_MS` to land).
+ *
+ * Verdict: the time cap counts from FIGHT!; at the cap (with two sides standing) SUDDEN DEATH (`suddenDeath`, URL flSD –
+ * off restores the plain verdict) shrinks the arena to `FL_SUDDEN_MIN` of its side over `FL_SUDDEN_SHRINK_MS` for at most
+ * `FL_SUDDEN_MS`, a KO still ending it; then the larger HP fraction (Σ HP ÷ Σ max per side, a KO counting 0) wins, within
+ * `FL_DRAW_MARGIN` a draw (`capVerdict()`). At the verdict every fighter stops where it stands.
+ *
+ * Determinism: every random number comes from `ctx.random()`, so a seed replays exactly at any frame rate and Find
+ * Simulation can search it ("A wins", "B wins", the run's length, a double KO). The draws, in this order – at the init:
+ * one per "random" slot (`pickFighters()`), then per fighter in slot order its spawn jitter (x, y), then per fighter its
+ * launch heading, then per fighter its cadence jitter and its meter's head start; then every step: the casts in the step's
+ * processing order (an arena cut one draw each, a decoy or a summon two), a blink strike's side (one each, `stepTasks()`),
+ * then per sub-step a circle rebound's turn (one each, in the engine's ball order), the weapons in the processing order
+ * (one spread draw per projectile, a burst's later rounds included, in launch order) and a repeated clash's coin (one).
+ * The rigged forced winner (`config.forcedWinner`, a fighter in 1v1 and the free-for-alls, a team in 2v2) steers within
+ * that replay (`updateRig()`): its hits land a little more (a longer reach, homing shots, rebounds nudged toward a rival –
+ * more the further it trails) and the rivals' a little less (it recovers longer from a hit), and as a backstop its side's
+ * last fighter never loses its last hit point until the verdict – to a hit or to reflected damage, also when the rivals go
+ * down in the same step or a shot lands in the KO grace (`absorbLethal()`, with `guardChosenSide()` before every step's
+ * KOs) – and the time cap waits while it trails: the chosen side always wins, never in a double KO.
  *
  * Sound: every weapon hit is an effect of its kind (`SoundEvent.fight` – a metallic ring for blades, a thud for hammers
  * and flails, a twang for arrows, a shot for guns, a whoosh for fire, a chime for magic), an ability a swell, a KO a heavy
@@ -114,7 +139,17 @@ export interface FightLeagueSettings {
   arena: FlArena;
   /** The names, the VS card, the ability boxes and the stat lines (visual only). */
   hud: boolean;
+  /**
+   * --- fl-overhaul --- How fast a fighter turns its flight toward its weapon's preferred distance from the target (radians a
+   * second, `FL_SEEK_TURN` by default; 0 = the pure bounce look of the first release).
+   */
+  seekTurn: number;
+  /** --- fl-overhaul --- At the time cap with two sides or more standing: up to 10 s of sudden death in a shrinking arena first. */
+  suddenDeath: boolean;
 }
+
+/** --- fl-overhaul --- The intent steering's turn rate at the default (radians a second). */
+export const FL_SEEK_TURN = 1.1;
 
 export const DEFAULT_FIGHT_LEAGUE_SETTINGS: FightLeagueSettings = {
   fighters: ["thor", "loki", FL_RANDOM, FL_RANDOM],
@@ -128,6 +163,8 @@ export const DEFAULT_FIGHT_LEAGUE_SETTINGS: FightLeagueSettings = {
   timeCap: 90,
   arena: "square",
   hud: true,
+  seekTurn: FL_SEEK_TURN,
+  suddenDeath: true,
 };
 
 const MULT_RANGE = { min: 0.05, max: 3, step: 0.05 } as const;
@@ -152,9 +189,10 @@ export const FIGHT_LEAGUE_RANGES = {
   flCastB: { ...MULT_RANGE },
   flCastC: { ...MULT_RANGE },
   flCastD: { ...MULT_RANGE },
+  flSeek: { min: 0, max: 3, step: 0.05 }, // --- fl-overhaul --- (uncapped: any turn rate from 0 typed)
 } as const;
 
-/** The Fight League fields of the SimulatorSettings object (URL keys fl1–fl4, flM, flDiv, flHp, flT, flA, flH, flS1–4, flD1–4, flX1–4, flC1–4). */
+/** The Fight League fields of the SimulatorSettings object (URL keys fl1–fl4, flM, flDiv, flHp, flT, flA, flH, flS1–4, flD1–4, flX1–4, flC1–4, flSk, flSD). */
 export interface FightLeagueFields {
   flFighterA: string;
   flFighterB: string;
@@ -182,6 +220,10 @@ export interface FightLeagueFields {
   flCastB: number;
   flCastC: number;
   flCastD: number;
+  /** --- fl-overhaul --- The intent steering's turn rate, rad/s (URL `flSk`; 0 = the bounce look). */
+  flSeek: number;
+  /** --- fl-overhaul --- Sudden death at the time cap (URL `flSD`). */
+  flSuddenDeath: boolean;
 }
 
 const SLOT_LETTERS = ["A", "B", "C", "D"] as const;
@@ -206,6 +248,7 @@ export function resolveFightLeagueSettings(config: Partial<FightLeagueSettings> 
   const fighters = d.fighters.map((def, i) => (isFlSlotValue(c.fighters?.[i]) ? (c.fighters![i] as string) : def));
   const hp = finite(c.hp);
   const cap = finite(c.timeCap);
+  const seek = finite(c.seekTurn);
   const list = (src: readonly number[] | undefined, def: readonly number[]) => def.map((v, i) => multOf(src?.[i], v));
   return {
     fighters,
@@ -219,6 +262,9 @@ export function resolveFightLeagueSettings(config: Partial<FightLeagueSettings> 
     timeCap: Number.isFinite(cap) ? Math.round(10 * Math.max(0, cap)) / 10 : d.timeCap,
     arena: isFlArena(c.arena) ? c.arena : d.arena,
     hud: typeof c.hud === "boolean" ? c.hud : d.hud,
+    // --- fl-overhaul --- (a turn rate from 0 up, three decimals at most, no maximum)
+    seekTurn: Number.isFinite(seek) ? Math.round(1000 * atLeastMin(seek, FIGHT_LEAGUE_RANGES.flSeek)) / 1000 : d.seekTurn,
+    suddenDeath: typeof c.suddenDeath === "boolean" ? c.suddenDeath : d.suddenDeath,
   };
 }
 
@@ -237,6 +283,8 @@ export function fightLeagueSettingsOf(source: FightLeagueFields): FightLeagueSet
     timeCap: source.flTimeCap,
     arena: source.flArena,
     hud: source.flHud,
+    seekTurn: source.flSeek, // --- fl-overhaul ---
+    suddenDeath: source.flSuddenDeath, // --- fl-overhaul ---
   };
 }
 
@@ -253,6 +301,8 @@ export function fightLeagueSettingFields(s: FightLeagueSettings): FightLeagueFie
     flTimeCap: s.timeCap,
     flArena: s.arena,
     flHud: s.hud,
+    flSeek: s.seekTurn, // --- fl-overhaul ---
+    flSuddenDeath: s.suddenDeath, // --- fl-overhaul ---
   } as FightLeagueFields;
   for (let i = 0; i < FL_SLOTS; i++) {
     out[multField("Speed", i)] = s.speed[i];
@@ -301,8 +351,20 @@ for (let i = 0; i < FL_SLOTS; i++) {
   NUMERIC_KEYS[`flX${i + 1}`] = multField("Attack", i);
   NUMERIC_KEYS[`flC${i + 1}`] = multField("Cast", i);
 }
+NUMERIC_KEYS.flSk = "flSeek"; // --- fl-overhaul ---
 /** The feature's URL keys (for tools and the tests). */
-export const FIGHT_LEAGUE_URL_KEYS: readonly string[] = ["fl1", "fl2", "fl3", "fl4", "flM", "flDiv", "flA", "flH", ...Object.keys(NUMERIC_KEYS)];
+export const FIGHT_LEAGUE_URL_KEYS: readonly string[] = ["fl1", "fl2", "fl3", "fl4", "flM", "flDiv", "flA", "flH", "flSD", ...Object.keys(NUMERIC_KEYS)];
+
+/**
+ * --- fl-overhaul --- The value a number field of the panel commits for `field`: the settings' own normalisation (HP and the
+ * time cap rounded, the multipliers and the turn rate to three decimals, each from its minimum up – no maximum), so the
+ * panel, the link and the engine hold the same value (a link once carried `flHp=2.5` while the fight ran 3).
+ */
+export function flPanelValue(field: keyof FightLeagueFields, value: number): number {
+  const resolved = resolveFightLeagueFields({ [field]: value } as Partial<FightLeagueFields>);
+  const out = resolved[field];
+  return typeof out === "number" ? out : value;
+}
 
 /** Writes the fields that differ from `base` (the mode's defaults) into the URL. */
 export function writeFightLeagueParams(settings: FightLeagueFields, base: FightLeagueFields, params: URLSearchParams) {
@@ -314,6 +376,7 @@ export function writeFightLeagueParams(settings: FightLeagueFields, base: FightL
   if (settings.flSameDivision !== base.flSameDivision) params.set("flDiv", settings.flSameDivision ? "1" : "0");
   if (settings.flArena !== base.flArena) params.set("flA", settings.flArena);
   if (settings.flHud !== base.flHud) params.set("flH", settings.flHud ? "1" : "0");
+  if (settings.flSuddenDeath !== base.flSuddenDeath) params.set("flSD", settings.flSuddenDeath ? "1" : "0"); // --- fl-overhaul ---
   for (const [key, field] of Object.entries(NUMERIC_KEYS)) if (settings[field] !== base[field]) params.set(key, formatNumber(settings[field] as number));
 }
 
@@ -332,6 +395,8 @@ export function readFightLeagueParams(params: URLSearchParams, settings: FightLe
   if (isFlArena(arena)) next.flArena = arena;
   const hud = params.get("flH");
   if (hud === "1" || hud === "0") next.flHud = hud === "1";
+  const sudden = params.get("flSD"); // --- fl-overhaul ---
+  if (sudden === "1" || sudden === "0") next.flSuddenDeath = sudden === "1";
   for (const [key, field] of Object.entries(NUMERIC_KEYS)) {
     const raw = params.get(key);
     if (raw === null || raw.trim() === "") continue;
@@ -354,10 +419,12 @@ export const FL_SPEED_FRAC = 0.7;
 
 export interface FlField {
   kind: FlArena;
-  /** The arena's centre and half side (the circle: its radius). */
+  /** The arena's centre and half side (the circle: its radius) – live: sudden death shrinks it. */
   cx: number;
   cy: number;
   half: number;
+  /** --- fl-overhaul --- The half side before sudden death shrank it (= `side` / 2). */
+  fullHalf: number;
   /** The arena's side (the circle: its diameter) – the length unit of every speed. */
   side: number;
   /** The square the recorder exports: left, top and side. */
@@ -374,22 +441,34 @@ export function buildFightField(width: number, height: number, kind: FlArena): F
   const sqLeft = width / 2 - sqSide / 2;
   const sqTop = height / 2 - sqSide / 2;
   const side = FL_ARENA_FRAC * sqSide;
-  return { kind, cx: width / 2, cy: sqTop + FL_ARENA_TOP * sqSide + side / 2, half: side / 2, side, sqLeft, sqTop, sqSide, canvasWidth: width, canvasHeight: height };
+  return { kind, cx: width / 2, cy: sqTop + FL_ARENA_TOP * sqSide + side / 2, half: side / 2, fullHalf: side / 2, side, sqLeft, sqTop, sqSide, canvasWidth: width, canvasHeight: height };
 }
 
 /* ------------------------------------------------------------------ timing and rules */
 
 /** The VS card: the fighters hold still this long before they launch. */
 export const FL_INTRO_MS = 1500;
-/** A hit fighter cannot be hit again for this long (one touch = one hit; the same volley's projectiles excepted). */
+/**
+ * A source (a weapon of a fighter, or its abilities) cannot hit the same fighter again for this long (one touch = one hit;
+ * the same volley's projectiles excepted) – the heavy kinds' window; the light kinds' is shorter (`flSourceWindowMs()`).
+ */
 export const FL_IFRAME_MS = 300;
-/** An ability's telegraph: the name flashes in its box this long before it fires. */
-export const FL_TELEGRAPH_MS = 400;
+/** --- fl-overhaul --- The shortest window of a light kind (fists, claws, guns, bows, wands, webs, ice, sparks, cards). */
+export const FL_MIN_WINDOW_MS = 120;
+/** An ability's telegraph at the standard class (the audio's reference; `telegraphMs()` gives every ability's own). */
+export const FL_TELEGRAPH_MS = 450;
+/** --- fl-overhaul --- The telegraph classes: quick (buffs), standard (aimed casts), area (shockwaves, rings), ultimate. */
+export const FL_TELEGRAPH_CLASS_MS = { quick: 300, standard: 450, area: 650, ultimate: 850 } as const;
 /** After the last KO a projectile still in the air may land this long (a trade: a double KO). */
 export const FL_KO_GRACE_MS = 250;
-/** Meter an ability gains per hit dealt and per hit taken (× cast speed). */
-export const FL_HIT_CHARGE = 0.05;
-export const FL_TAKEN_CHARGE = 0.025;
+/**
+ * --- fl-overhaul --- Meter an ability gains per hit point dealt and taken (× cast speed), at most `FL_HIT_CHARGE_MAX` /
+ * `FL_TAKEN_CHARGE_MAX` a hit.
+ */
+export const FL_HIT_CHARGE = 0.006;
+export const FL_TAKEN_CHARGE = 0.004;
+export const FL_HIT_CHARGE_MAX = 0.06;
+export const FL_TAKEN_CHARGE_MAX = 0.05;
 /** Fraction of the gap to its cruising speed a fighter makes up per 60 Hz step (knockback fades in about 0.3 s). */
 export const FL_SPEED_RELAX = 0.08;
 /** No fighter flies faster than this many times its cruising speed (a safety net under stacked knockbacks). */
@@ -402,8 +481,50 @@ export const FL_NUDGE = 0.7;
 export const FL_STALEMATE_MS = 3000;
 /** How fast a weapon turns to its target (radians per second). */
 export const FL_AIM_TURN = 7;
-/** A held shield blocks hits coming from within this many degrees of its facing. */
-export const FL_SHIELD_ARC_DEG = 55;
+/** A held shield blocks hits coming from within this many degrees of its facing (it faces the target). */
+export const FL_SHIELD_ARC_DEG = 40;
+/** --- fl-overhaul --- A block spends the shield's guard: no other block for this long (the bracers' `block` style: `FL_BRACERS_GUARD_MS`). */
+export const FL_GUARD_MS = 1800;
+export const FL_BRACERS_GUARD_MS = 2400;
+/** --- fl-overhaul --- Lunges of a melee fighter: at most one per this long, at this many times its cruise (big fighters: `FL_LUNGE_SPEED_BIG`). */
+export const FL_LUNGE_EVERY_MS = 1200;
+export const FL_LUNGE_SPEED = 1.6;
+export const FL_LUNGE_SPEED_BIG = 1.3;
+/** --- fl-overhaul --- A tail's swing (s): from its rest behind the ball to the target's bearing and back. */
+export const FL_TAIL_SWING = 0.32;
+/** --- fl-overhaul --- A homing projectile homes this long, then flies straight and fizzles at `FL_FIZZLE_SEC`. */
+export const FL_HOMING_SEC = 1.8;
+export const FL_FIZZLE_SEC = 2.6;
+/** --- fl-overhaul --- After a hard crowd control (freeze, hold, pin) ends, the fighter is immune to the next one this long. */
+export const FL_CC_IMMUNE_MS = 1000;
+/** --- fl-overhaul --- Two melee hits trading in one sub-step: one at least this many times the other lands (at half damage); else a clash. */
+export const FL_CLASH_RATIO = 1.25;
+/** --- fl-overhaul --- A second clash of the same pair within this long is decided by a seeded coin. */
+export const FL_CLASH_REPEAT_MS = 2000;
+/** --- fl-overhaul --- Sudden death: at most this long after the cap, the arena shrinking to `FL_SUDDEN_MIN` of its side over `FL_SUDDEN_SHRINK_MS`. */
+export const FL_SUDDEN_MS = 10_000;
+export const FL_SUDDEN_SHRINK_MS = 8000;
+export const FL_SUDDEN_MIN = 0.6;
+/** --- fl-overhaul --- At the verdict, sides within this HP fraction of each other draw. */
+export const FL_DRAW_MARGIN = 0.005;
+/** --- fl-overhaul --- A breath: an inhale (no damage) first, then fire until `FL_BREATH_MS` from its start. */
+export const FL_INHALE_MS = 120;
+export const FL_BREATH_MS = 800;
+/** --- fl-overhaul --- A weapon beam glints (the aim locked) this long before its ray of `FL_BEAM_MS`. */
+export const FL_GLINT_MS = 150;
+export const FL_BEAM_MS = 350;
+/** --- fl-overhaul --- The rounds of a burst leave the muzzle this far apart (s, ÷ attack speed). */
+export const FL_BURST_GAP = 0.08;
+/** --- fl-overhaul --- A full meter of a ranged-limited ability (an instant shockwave, a fire ring, contact) waits at most this long for a foe in range. */
+export const FL_CAST_WAIT_MS = 2500;
+/** --- fl-overhaul --- The share of the intercept a shot, a card or a thrown weapon leads its target by (half: a strafing foe still dodges). */
+export const FL_LEAD = 0.5;
+/**
+ * --- fl-overhaul --- A foe's area telegraph (a shockwave, a fire ring, arena cuts) nudges every rival within its radius + 1 R
+ * away from the caster as it starts (a turn of up to FL_NUDGE × MAX_NUDGE and this much of its cruise added outward), and the
+ * rival keeps that heading for the rest of the telegraph (its intent steering does not bring it back in).
+ */
+export const FL_EVADE_BOOST = 0.15;
 /** The page holds the winner banner this long before the end screen (recordings keep it). */
 export const FL_WIN_HOLD_SEC = 3;
 /** Most fight sounds one rendered frame plays (the strongest win; KOs and abilities always sound). */
@@ -411,7 +532,7 @@ export const FL_SOUNDS_PER_FRAME = 6;
 /** Pools: projectiles, minions (decoys and summons), render events, scheduled effects, beams. */
 export const FL_PROJECTILE_CAP = 96;
 export const FL_MINION_CAP = 16;
-export const FL_EVENT_CAP = 96;
+export const FL_EVENT_CAP = 192;
 const FL_TASK_CAP = 24;
 const FL_BEAM_CAP = 8;
 
@@ -441,7 +562,8 @@ export const FL_SOUND_OF_KIND: Readonly<Record<FlWeaponKind, FlSoundKind>> = {
 
 /**
  * The ability meter after `sec` seconds of charging without hits from `start`, at `castSpeed` for an ability of `charge`
- * seconds (capped at 1 – full). Hits add `FL_HIT_CHARGE` (dealt) / `FL_TAKEN_CHARGE` (taken) × the cast speed.
+ * seconds (capped at 1 – full). Hits add by their damage: `FL_HIT_CHARGE` a hit point dealt (at most `FL_HIT_CHARGE_MAX` a
+ * hit) and `FL_TAKEN_CHARGE` a hit point taken (at most `FL_TAKEN_CHARGE_MAX`), × the cast speed (`hitCharge()`).
  */
 export function meterAfter(start: number, sec: number, castSpeed: number, charge: number): number {
   return Math.min(1, start + (Math.max(0, sec) * Math.max(0, castSpeed)) / Math.max(0.1, charge));
@@ -452,33 +574,165 @@ export function chargeSeconds(castSpeed: number, charge: number): number {
   return castSpeed > 0 ? Math.max(0.1, charge) / castSpeed : Infinity;
 }
 
-/**
- * The verdict at the time cap: the side with the most HP left (summed over its live fighters), or −1 for a draw (two sides
- * level at the top). `hp[i]` is fighter i's HP (≤ 0 when out), `team[i]` its side; `scratch` (at least `teams` long)
- * spares the array a sudden death would allocate on every step.
- */
-export function capVerdict(hp: readonly number[], team: readonly number[], teams: number, scratch?: number[]): number {
-  const sums = scratch ?? new Array<number>(teams);
-  for (let t = 0; t < teams; t++) sums[t] = 0;
-  for (let i = 0; i < hp.length; i++) if (hp[i] > 0 && team[i] >= 0 && team[i] < teams) sums[team[i]] += hp[i];
-  let best = -1;
-  let bestHp = -Infinity;
-  let level = false;
-  for (let t = 0; t < teams; t++) {
-    if (sums[t] > bestHp + 1e-9) {
-      best = t;
-      bestHp = sums[t];
-      level = false;
-    } else if (Math.abs(sums[t] - bestHp) <= 1e-9) level = true;
-  }
-  return level || bestHp <= 0 ? -1 : best;
+/** --- fl-overhaul --- Meter a hit of `damage` hit points adds to the one who dealt it (`taken` false) or took it, before the cast speed. */
+export function hitCharge(damage: number, taken: boolean): number {
+  const d = Math.max(0, damage) || 0;
+  return taken ? Math.min(FL_TAKEN_CHARGE_MAX, FL_TAKEN_CHARGE * d) : Math.min(FL_HIT_CHARGE_MAX, FL_HIT_CHARGE * d);
 }
 
-/** Damage of a giant hit: × `mult`, × `belowHalf` instead on a foe under half its HP, or half the foe's maximum HP. */
-export function giantDamage(base: number, mult: number, foeHp: number, foeMaxHp: number, belowHalf: number, halfMaxHp: boolean): number {
-  if (halfMaxHp) return Math.max(base, 0.5 * foeMaxHp);
+/**
+ * The verdict at the time cap (after sudden death): the side with the largest share of its HP left – Σ hp / Σ maximum HP
+ * over its fighters, a knocked-out fighter counting 0 of its maximum – or −1 for a draw (the top two within
+ * `FL_DRAW_MARGIN`, or nobody with HP). `hp[i]` is fighter i's HP (≤ 0 when out), `team[i]` its side, `maxHp[i]` its
+ * maximum (100 each when left out); `scratch` (at least 2 × `teams` long) spares the arrays a long sudden death would
+ * allocate on every step.
+ */
+export function capVerdict(hp: readonly number[], team: readonly number[], teams: number, scratch?: number[], maxHp?: readonly number[]): number {
+  const sums = scratch ?? new Array<number>(2 * teams);
+  for (let t = 0; t < 2 * teams; t++) sums[t] = 0;
+  for (let i = 0; i < hp.length; i++) {
+    const t = team[i];
+    if (!(t >= 0 && t < teams)) continue;
+    sums[t] += hp[i] > 0 ? hp[i] : 0;
+    sums[teams + t] += maxHp ? Math.max(1e-9, maxHp[i]) : 100;
+  }
+  let best = -1;
+  let bestFrac = -Infinity;
+  let second = -Infinity;
+  for (let t = 0; t < teams; t++) {
+    const frac = sums[teams + t] > 0 ? sums[t] / sums[teams + t] : 0;
+    if (frac > bestFrac) {
+      second = bestFrac;
+      bestFrac = frac;
+      best = t;
+    } else if (frac > second) second = frac;
+  }
+  if (!(bestFrac > 0)) return -1;
+  return bestFrac - second <= FL_DRAW_MARGIN ? -1 : best;
+}
+
+/**
+ * Damage of a giant hit: × `mult`, × `belowHalf` instead on a foe under half its HP, or – with `maxHpFrac` (`true`: the old
+ * half-of-maximum flag, 0.5) – that share of the foe's maximum HP (at least the plain hit).
+ */
+export function giantDamage(base: number, mult: number, foeHp: number, foeMaxHp: number, belowHalf: number, maxHpFrac: number | boolean): number {
+  const frac = maxHpFrac === true ? 0.5 : typeof maxHpFrac === "number" ? maxHpFrac : 0;
+  if (frac > 0) return Math.max(base, frac * foeMaxHp);
   if (belowHalf > 0 && foeHp < 0.5 * foeMaxHp) return base * belowHalf;
   return base * mult;
+}
+
+/* ------------------------------------------------------------------ --- fl-overhaul --- the rules of a hit (pure) */
+
+/**
+ * The window (ms) during which a source cannot hit the same fighter again: for a light kind min(`FL_IFRAME_MS`,
+ * max(`FL_MIN_WINDOW_MS`, 0.85 × cooldown ÷ attack speed)) – so a cadence faster than 0.3 s lands every hit (Jinx's
+ * minigun, the claws, Little Mac) –, `FL_IFRAME_MS` for the heavy kinds and for abilities, summons and contact (`kind`
+ * null). Where the window still binds (a heavy kind sped up past it), it caps the hits a second at 1000 ÷ the window.
+ */
+export function flSourceWindowMs(kind: FlWeaponKind | null, cooldown: number, attackSpeed: number): number {
+  if (!kind || FL_KIND_CONTRACT[kind].window !== "light") return FL_IFRAME_MS;
+  const cadence = (1000 * Math.max(0, cooldown)) / Math.max(0.05, attackSpeed);
+  return Math.min(FL_IFRAME_MS, Math.max(FL_MIN_WINDOW_MS, 0.85 * cadence));
+}
+
+/** Knockback by weight: × size^−1.5 between 0.55 (a heavyweight) and 1.6 (a lightweight). */
+export function knockbackWeight(size: number): number {
+  const k = Math.pow(Math.max(1e-3, size), -1.5);
+  return Math.max(0.55, Math.min(1.6, k));
+}
+
+/** A bound of an intent band, in ball radii of gap: `reach` × the weapon's reach + `size` × its size + `c`. */
+export interface FlBandRule {
+  reach: number;
+  size: number;
+  c: number;
+}
+
+/**
+ * The contract of a weapon kind (data: the tests, the README and the later stages read it): where its fighter keeps the
+ * target (the intent band, gap in radii – too far it heads in, inside it strafes, too close it backs off), what starts an
+ * attack, what sets its cadence, its hit geometry, its window class (`flSourceWindowMs()`), its silhouette, its attack
+ * animation and its sound role (`FL_SOUND_OF_KIND`).
+ */
+export interface FlKindContract {
+  band: { lo: FlBandRule | null; hi: FlBandRule };
+  trigger: string;
+  cadence: string;
+  geometry: string;
+  window: "light" | "heavy";
+  silhouette: string;
+  animation: string;
+  sound: FlSoundKind;
+}
+
+const band = (reach: number, size = 0, c = 0): FlBandRule => ({ reach, size, c });
+const SHOOTER_BAND = { lo: band(0, 0, 4), hi: band(0, 0, 9) };
+const ORBIT_BAND = { lo: band(1, 0, -0.7), hi: band(1, 0, 0.5) };
+const CLOSE_BAND = { lo: null, hi: band(0.8) };
+const FIST_BAND = { lo: null, hi: band(1, 1) };
+const ARC_BAND = { lo: band(0, 0, 0.5), hi: band(0.85) };
+
+export const FL_KIND_CONTRACT: Readonly<Record<FlWeaponKind, FlKindContract>> = {
+  sword: { band: CLOSE_BAND, trigger: "a bounce, a clash, or the target within reach + 0.4 R once the last sweep ended cooldown ÷ attack speed ago", cadence: "cooldown ÷ attack speed between sweeps", geometry: "a thick segment from 0.85 R to (1 + reach) R; a 120° sweep at 1.25× damage, one hit a foe a sweep", window: "heavy", silhouette: "a blade (glow: a saber; double: both ends)", animation: "the sweep's arc", sound: FL_SOUND_OF_KIND.sword },
+  hammer: { band: ORBIT_BAND, trigger: "the orbit (the head passing the target); returning: a throw every throwEvery", cadence: "an orbit of cooldown ÷ attack speed", geometry: "a circle (the head) at (1 + reach) R", window: "heavy", silhouette: "a block head on a handle", animation: "the orbit; the throw spins out and back (an empty hand)", sound: FL_SOUND_OF_KIND.hammer },
+  fists: { band: FIST_BAND, trigger: "the target within reach + 0.15 R and the cooldown over (contact: the body touching it)", cadence: "cooldown ÷ attack speed", geometry: "a fist circle along the punch (out, hold, back); one hit a punch", window: "light", silhouette: "two gloves (kicks: boots; air: curls of air)", animation: "the punch's extension", sound: FL_SOUND_OF_KIND.fists },
+  claws: { band: FIST_BAND, trigger: "the target within reach + 0.15 R and the cooldown over", cadence: "cooldown ÷ attack speed", geometry: "a claw circle along the swipe; one hit a swipe", window: "light", silhouette: "three talons", animation: "a 0.12 s swipe", sound: FL_SOUND_OF_KIND.claws },
+  chain: { band: ORBIT_BAND, trigger: "the orbit; pull: a throw every throwEvery", cadence: "an orbit of cooldown ÷ attack speed", geometry: "a circle (the head) on the chain, damage by its momentum", window: "heavy", silhouette: "a kunai or a blade on a chain", animation: "the orbit; the thrown head drags the foe in", sound: FL_SOUND_OF_KIND.chain },
+  bow: { band: SHOOTER_BAND, trigger: "the cooldown over with a target", cadence: "cooldown ÷ attack speed", geometry: "a projectile circle (one hit a pass)", window: "light", silhouette: "a bow", animation: "the shot", sound: FL_SOUND_OF_KIND.bow },
+  gun: { band: SHOOTER_BAND, trigger: "the cooldown over with a target (burst: the next rounds every 0.08 s from the muzzle)", cadence: "cooldown ÷ attack speed", geometry: "a projectile circle (bouncing: off a wall once)", window: "light", silhouette: "a pistol, a rifle, an arm cannon or an energy hand", animation: "the muzzle flash", sound: FL_SOUND_OF_KIND.gun },
+  shotgun: { band: { lo: band(0, 0, 1.5), hi: band(0, 0, 4) }, trigger: "the cooldown over with a target", cadence: "cooldown ÷ attack speed", geometry: "a fan of pellets reaching `reach` arena sides; the pellets of one volley land together", window: "heavy", silhouette: "a shotgun", animation: "the muzzle flash", sound: FL_SOUND_OF_KIND.shotgun },
+  wand: { band: SHOOTER_BAND, trigger: "the cooldown over with a target", cadence: "cooldown ÷ attack speed", geometry: "a fast bolt", window: "light", silhouette: "a wand", animation: "the bolt", sound: FL_SOUND_OF_KIND.wand },
+  staff: { band: SHOOTER_BAND, trigger: "the cooldown over with a target", cadence: "cooldown ÷ attack speed", geometry: "a homing orb (1.8 s of homing, gone at 2.6 s; return: out and back)", window: "heavy", silhouette: "a staff with an orb", animation: "the orb", sound: FL_SOUND_OF_KIND.staff },
+  book: { band: SHOOTER_BAND, trigger: "the cooldown over with a target", cadence: "cooldown ÷ attack speed", geometry: "a homing page (1.8 s of homing, gone at 2.6 s)", window: "heavy", silhouette: "an open book", animation: "the page", sound: FL_SOUND_OF_KIND.book },
+  cards: { band: SHOOTER_BAND, trigger: "a loaded blade and the cooldown over with a target", cadence: "cooldown ÷ attack speed; a reload every 1.25 cooldowns", geometry: "orbiting blade circles and thrown ones (blink: the owner follows every third)", window: "light", silhouette: "cards, daggers, batarangs or shuriken", animation: "the orbit and the throw", sound: FL_SOUND_OF_KIND.cards },
+  fire: { band: ARC_BAND, trigger: "the target within reach + 0.6 R and the cooldown over", cadence: "cooldown ÷ attack speed from the breath's start", geometry: "a cone of `spread` degrees and (1 + reach) R; a 120 ms inhale, then ticks on the window (≤ 3 a breath)", window: "heavy", silhouette: "a flame at the rim", animation: "the cone", sound: FL_SOUND_OF_KIND.fire },
+  beam: { band: SHOOTER_BAND, trigger: "the cooldown over with a target: a 150 ms glint (the aim locked), then the ray", cadence: "cooldown ÷ attack speed", geometry: "a ray from the hand to the arena's edge for 350 ms, turning ≤ 2 rad/s; one hit a foe a ray", window: "heavy", silhouette: "an energy hand", animation: "the glint and the ray", sound: FL_SOUND_OF_KIND.beam },
+  spark: { band: ARC_BAND, trigger: "the target within reach and the cooldown over", cadence: "cooldown ÷ attack speed", geometry: "an instant arc to the target (in a free-for-all or teams, on to a second foe within 2 R at half damage)", window: "light", silhouette: "an energy hand", animation: "the zap from the hand", sound: FL_SOUND_OF_KIND.spark },
+  web: { band: SHOOTER_BAND, trigger: "the cooldown over with a target", cadence: "cooldown ÷ attack speed", geometry: "a projectile that slows (the strongest slow applies)", window: "light", silhouette: "a web shooter", animation: "the web", sound: FL_SOUND_OF_KIND.web },
+  ice: { band: SHOOTER_BAND, trigger: "the cooldown over with a target", cadence: "cooldown ÷ attack speed", geometry: "a projectile that freezes (a hard crowd control)", window: "light", silhouette: "an ice shard", animation: "the shard", sound: FL_SOUND_OF_KIND.ice },
+  shield: { band: SHOOTER_BAND, trigger: "a throw every throwEvery (block: never thrown)", cadence: "throwEvery ÷ attack speed; a block spends the guard for 1.8 s (bracers 2.4 s)", geometry: "blocks hits within 40° of the target's bearing; the thrown shield a circle (out, a wall, back)", window: "heavy", silhouette: "a round shield (bracers)", animation: "the throw; the block flash", sound: FL_SOUND_OF_KIND.shield },
+  tail: { band: CLOSE_BAND, trigger: "the target within reach + 0.3 R in any direction and the cooldown over", cadence: "cooldown ÷ attack speed after each 0.32 s swing", geometry: "a thick segment swinging from its rest behind the ball to the target and back; one hit a foe a swing", window: "heavy", silhouette: "a tail (plates or a blade tip)", animation: "the swing", sound: FL_SOUND_OF_KIND.tail },
+};
+
+/** The band (gap in radii) a fighter keeps from its target with this weapon as its first: [lo, hi] (lo −Infinity: no minimum). */
+export function intentBand(spec: Pick<FlWeaponSpec, "kind"> & { reach: number; size: number }): { lo: number; hi: number } {
+  const b = FL_KIND_CONTRACT[spec.kind].band;
+  const at = (r: FlBandRule) => r.reach * spec.reach + r.size * spec.size + r.c;
+  return { lo: b.lo ? at(b.lo) : -Infinity, hi: at(b.hi) };
+}
+
+/** The telegraph of an ability (ms): the longest class among its primitives, `FL_TELEGRAPH_CLASS_MS.ultimate` for an ultimate. */
+export function telegraphMs(ability: { charge: number; ultimate?: boolean; effects: readonly { p: string }[] }): number {
+  const C = FL_TELEGRAPH_CLASS_MS;
+  if (ability.ultimate || ability.charge >= 13) return C.ultimate;
+  let ms: number = C.quick;
+  for (const e of ability.effects) {
+    switch (e.p) {
+      case "shockwave":
+      case "fireRing":
+      case "arenaCuts":
+      case "freezeAll":
+      case "slowTime":
+        ms = Math.max(ms, C.area);
+        break;
+      case "beam":
+      case "volley":
+      case "pull":
+      case "choke":
+      case "disarm":
+      case "confuse":
+      case "blinkStrike":
+      case "lightning":
+      case "trap":
+      case "wall":
+        ms = Math.max(ms, C.standard);
+        break;
+      default:
+        break;
+    }
+  }
+  return ms;
 }
 
 /* ------------------------------------------------------------------ geometry (pure) */
@@ -626,7 +880,9 @@ export const FL_PUNCH_SEC = 0.07 + 0.03 + 0.11;
 /**
  * The fighters of a run: slot by slot the chosen id, or – for "random" – a pick by the seed (`random()`, one draw per random
  * slot, in slot order): from the division of the first chosen fighter with `sameDivision` (the first random pick's when none
- * is chosen), else from the whole roster, avoiding fighters already in the match while the pool allows.
+ * is chosen), else from the whole roster, avoiding fighters already in the match while the pool allows. --- fl-overhaul ---
+ * A division that cannot supply a fighter not yet in the match – the wildcard, Gerald's own, above all – hands the pick to
+ * every other division (Gerald against a random slot once always met Gerald).
  */
 export function pickFighters(settings: Pick<FightLeagueSettings, "fighters" | "match" | "sameDivision">, random: () => number): FlFighterRow[] {
   const n = matchFighters(settings.match);
@@ -643,6 +899,11 @@ export function pickFighters(settings: Pick<FightLeagueSettings, "fighters" | "m
     let pool = settings.sameDivision && division ? FL_ROSTER.filter((r) => r.division === division) : FL_ROSTER.filter((r) => r.division !== "wildcard" || !settings.sameDivision);
     const fresh = pool.filter((r) => !out.some((o) => o && o.id === r.id));
     if (fresh.length > 0) pool = fresh;
+    else if (settings.sameDivision) {
+      // --- fl-overhaul --- (the anchor's division is used up: any fighter of another division not yet in the match)
+      const others = FL_ROSTER.filter((r) => r.division !== "wildcard" && !out.some((o) => o && o.id === r.id));
+      if (others.length > 0) pool = others;
+    }
     const pick = pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))] ?? FL_ROSTER[0];
     out[i] = pick;
     if (!division) division = pick.division;
@@ -708,6 +969,37 @@ export class FlWeaponState {
   minionMask = 0;
   /** Hits this weapon landed (thrown, shot or swung). */
   hits = 0;
+  // --- fl-overhaul ---
+  /** Damage this weapon dealt (the contract probe's DPS). */
+  dealt = 0;
+  /** A sword: when its last sweep ended (simulation ms). */
+  lastSweepEnd = -Infinity;
+  /** A burst gun: rounds still to fire, seconds to the next one (÷ attack speed) and the trigger's volley. */
+  burstLeft = 0;
+  burstT = 0;
+  burstVolley = 0;
+  /** Fire: the breath's inhale ends (ms; it burns from then until `onUntil`). */
+  inhaleUntil = -1;
+  /** A shield: no block before this (ms) – a block spends the guard. */
+  guardUntil = -Infinity;
+  /** A weapon beam: the glint's end (ms, −1 none) and the bearing of the point it locked (below). */
+  glintUntil = -1;
+  glintAim = 0;
+  /** A weapon beam: the point the glint locked (the target where it stood at the glint's start; the ray fires at it). */
+  glintX = 0;
+  glintY = 0;
+  /** A spark: the zap's angle out of the hand, and a chained second arc (ms, where it struck). */
+  zapAngle = 0;
+  zap2Ms = -Infinity;
+  zap2X = 0;
+  zap2Y = 0;
+  /** A tail: the swing's clock (s; −1 at rest) and the angle it swung from. */
+  swingT = -1;
+  swingFrom = 0;
+  /** A sword: the sweep's centre (radians; it follows the bearing of the foe the sweep started at) and that foe (−1 none). */
+  sweepCentre = 0;
+  sweepTarget = -1;
+  // --- end fl-overhaul ---
 
   constructor(spec: FlWeaponSpec, index: number) {
     this.spec = weaponOf(spec);
@@ -749,7 +1041,6 @@ export class FlFighter {
   telegraphUntil = -1;
   casts = 0;
   // statuses (simulation ms they last until; −Infinity = none)
-  iUntil = -Infinity;
   invulnUntil = -Infinity;
   untargetableUntil = -Infinity;
   contactUntil = -Infinity;
@@ -790,7 +1081,8 @@ export class FlFighter {
   giantKb = 0;
   giantFreeze = 0;
   giantBelowHalf = 0;
-  giantHalfMax = false;
+  /** --- fl-overhaul --- A giant hit worth this share of the foe's maximum HP (0: none; Saitama's 0.4). */
+  giantFrac = 0;
   giantHoming = 0;
   /** Pulled toward a fighter until (ms), by whom, at what speed (px/s). */
   pullUntil = -Infinity;
@@ -814,6 +1106,44 @@ export class FlFighter {
   /** The volley of the last hit taken and when (the pellets of one trigger land together). */
   lastVolley = 0;
   lastVolleyMs = -Infinity;
+  // --- fl-overhaul ---
+  /** The projectile of the last volley hit taken: another projectile of that volley still lands, the same one never twice. */
+  lastVolleyProj = -1;
+  /**
+   * Per-source invulnerability windows (simulation ms): index = attacker slot × 8 + weapon index (7: the attacker's abilities,
+   * summons, contact and reflected damage) – one touch of one source is one hit, while two sources may land together.
+   */
+  readonly srcUntil = new Float64Array(64).fill(-Infinity);
+  /** Immune to hard crowd control (freezes, holds, pins) until (ms); the telegraph after an interrupt cannot be interrupted. */
+  ccImmuneUntil = -Infinity;
+  uninterruptible = false;
+  /** The telegraph's start (ms, −1 none), the point its aim locked on, the area it threatens (px, 0 none) and the foes inside at its start. */
+  telegraphStart = -1;
+  castX = 0;
+  castY = 0;
+  telegraphArea = 0;
+  telegraphMask = 0;
+  /** When the meter filled (ms, −1 not full): a range-limited ability waits for a foe in range at most `FL_CAST_WAIT_MS` from it. */
+  fullMs = -1;
+  /** The last cast and the last lunge (ms; the renderer's flash and streak). */
+  lastCastMs = -Infinity;
+  lungeMs = -Infinity;
+  /** A hold queued behind a pull (the Lasso of Truth): by whom (−1 none), how long, its damage and when it bites. */
+  pendingHoldBy = -1;
+  pendingHoldDur = 0;
+  pendingHoldDamage = 0;
+  pendingHoldAt: "start" | "over" | "end" = "start";
+  /** The intent band of its first weapon (gap in radii) and its knockback weight (`knockbackWeight()` of its size). */
+  bandLo = -Infinity;
+  bandHi = Infinity;
+  weight = 1;
+  /** The last IMMUNE callout (ms; at most one every FL_IFRAME_MS). */
+  immuneMs = -Infinity;
+  /** Counters: its projectiles that grazed (refused by a window), its weapon clashes, the area casts it dodged. */
+  grazes = 0;
+  clashes = 0;
+  dodges = 0;
+  // --- end fl-overhaul ---
 
   constructor(slot: number, team: number, row: FlFighterRow) {
     this.slot = slot;
@@ -878,6 +1208,15 @@ export class FlProjectile {
   /** Drawing: spin angle. */
   spin = 0;
   born = 0;
+  // --- fl-overhaul ---
+  /** A serial id: a volley's other projectiles land together, the same one never twice in a window. */
+  id = 0;
+  /** Foes hit on the way out: they leave the hit mask only once it has separated from them (no second hit at the turn). */
+  sepMask = 0;
+  /** It homes until (ms), then flies straight; it fizzles at (ms; Infinity: never). */
+  homeUntil = Infinity;
+  fizzleAt = Infinity;
+  // --- end fl-overhaul ---
 }
 
 /** A decoy (absorbs hits; may freeze who touches it) or a summon (an allied ball that hits on contact). */
@@ -956,6 +1295,23 @@ export const EV_CAST = 9;
 export const EV_HEAL = 10;
 export const EV_POP = 11;
 export const EV_FREEZE = 12;
+// --- fl-overhaul --- the fair hit pipeline's and the new rules' events
+/** A projectile refused by a per-source window (it ends there; one carrying a giant hit passes through). */
+export const EV_GRAZE = 13;
+/** A hit refused by invulnerability, or a hard crowd control refused by the immunity after the last one. */
+export const EV_IMMUNE = 14;
+/** Two melee hits traded in one sub-step, neither the stronger by FL_CLASH_RATIO: both parried, knocked apart. */
+export const EV_CLASH = 15;
+/** A hard crowd control interrupted a telegraph (the meter back to half). */
+export const EV_INTERRUPT = 16;
+/** A foe inside an area telegraph at its start was outside it when it fired. */
+export const EV_DODGE = 17;
+/** Sudden death began. */
+export const EV_SUDDEN = 18;
+/** A wall hit above twice the fighter's cruise (`value`: the speed over the cruise). */
+export const EV_SLAM = 19;
+/** A wall bounce (`value`: the wall's index). */
+export const EV_RIM = 20;
 
 export class FlEvent {
   kind = 0;
@@ -967,7 +1323,26 @@ export class FlEvent {
   value = 0;
   slot = -1;
   color = "#fff";
+  /** --- fl-overhaul --- The source of a hit (attacker slot × 8 + weapon index, 7: abilities, summons, contact; −1 none). */
+  src = -1;
 }
+
+/** --- fl-overhaul --- A melee hit queued in a sub-step until every fighter's weapons ran (`resolveMelee()`). */
+class FlMeleeHit {
+  attacker = 0;
+  target = 0;
+  weapon = 0;
+  damage = 0;
+  kb = 0;
+  dx = 0;
+  dy = 0;
+  fromX = 0;
+  fromY = 0;
+  sound: FlSoundKind = "blade";
+  done = false;
+}
+/** Melee hits a sub-step queues at most (past it they land at once). */
+const FL_MELEE_CAP = 16;
 
 /** What the canvas, the HUD, the data attributes and the tests read; the same object every call (its arrays are replaced on a restart). */
 export interface FightLeagueView {
@@ -1015,6 +1390,19 @@ export interface FightLeagueView {
   notes: number;
   sounds: number;
   lastHitMs: number;
+  // --- fl-overhaul ---
+  /** Counters: grazes (projectiles refused by a window), refusals by invulnerability or crowd-control immunity, weapon clashes, interrupts, dodges. */
+  grazes: number;
+  immunes: number;
+  clashes2: number;
+  interrupts: number;
+  dodges: number;
+  /** Sudden death: when it began (ms, −1 not yet) and the arena's scale now (1 → FL_SUDDEN_MIN). */
+  suddenMs: number;
+  shrink: number;
+  /** The last KO (ms, −Infinity none; the renderer's flash). */
+  lastKoMs: number;
+  // --- end fl-overhaul ---
 }
 
 function createView(): FightLeagueView {
@@ -1053,6 +1441,14 @@ function createView(): FightLeagueView {
     notes: 0,
     sounds: 0,
     lastHitMs: 0,
+    grazes: 0,
+    immunes: 0,
+    clashes2: 0,
+    interrupts: 0,
+    dodges: 0,
+    suddenMs: -1,
+    shrink: 1,
+    lastKoMs: -Infinity,
   };
 }
 
@@ -1118,6 +1514,23 @@ const DEG = Math.PI / 180;
 const tmpShape: MeleeShape = { ax: 0, ay: 0, bx: 0, by: 0, half: 0 };
 const tmpSteer = { vx: 0, vy: 0 };
 
+/** --- fl-overhaul --- What `hit()` did: landed, or why it did not. */
+const HIT_NONE = 0;
+const HIT_LANDED = 1;
+/** Refused by the source's window (`FlFighter.srcUntil`). */
+const HIT_WINDOW = 2;
+/** A held shield blocked it. */
+const HIT_BLOCKED = 3;
+/** The target was invulnerable. */
+const HIT_IMMUNE = 4;
+
+/** --- fl-overhaul --- A fighter is as big as typed while it fits: at most this share of the arena's half side (a Ball Size of 180 once filled the canvas and ended the run at once). */
+export const FL_FIT_RADIUS = 0.42;
+/** --- fl-overhaul --- Melee kinds that lunge when ready (orbiting hammers and chains never do). */
+const LUNGE_KINDS: ReadonlySet<FlWeaponKind> = new Set(["sword", "fists", "claws", "tail"]);
+/** --- fl-overhaul --- Abilities whose effects all need a fighter (not a decoy) to act on. */
+const FIGHTER_ONLY: ReadonlySet<string> = new Set(["choke", "disarm", "pull"]);
+
 export class FightLeagueMode implements GameMode {
   readonly name = "fightLeague";
   /** The mode keeps the fighters at their cruising speeds itself (no engine boost). */
@@ -1136,20 +1549,32 @@ export class FightLeagueMode implements GameMode {
   private koThisStep = false;
   private graceUntil = -1;
   private volleySerial = 0;
+  // --- fl-overhaul ---
+  /** Projectile ids, and the 60 Hz steps so far: their parity orders the weapons and the casts (0 → n, then n → 0). */
+  private projSerial = 0;
+  private stepIndex = 0;
+  private readonly order: FlFighter[] = [];
+  /** Melee hits queued in the sub-step (`resolveMelee()`), and when each pair last clashed (index lower slot × 8 + higher). */
+  private readonly melee: FlMeleeHit[] = Array.from({ length: FL_MELEE_CAP }, () => new FlMeleeHit());
+  private meleeCount = 0;
+  private readonly pairClashMs = new Float64Array(64).fill(-Infinity);
+  // --- end fl-overhaul ---
   private readonly budget = new FightSoundBudget();
   private readonly urgent: SoundEvent[] = [];
   private rigK = 0;
   private rigChosen = -1;
   /** The engine's context (the same object for the engine's life): the run's random numbers. */
   private ctxRef: ModeContext | null = null;
-  /** Scratch (no allocation per step): a target's position and motion for the weapons and for the rebounds' nudge, the rig's sums. */
+  /** Scratch (no allocation per step): a target's position and motion for the weapons, the rebounds' nudge and the steering, the rig's sums. */
   private readonly tgtW = { x: 0, y: 0, vx: 0, vy: 0, r: 0 };
   private readonly tgtN = { x: 0, y: 0, vx: 0, vy: 0, r: 0 };
+  private readonly tgtS = { x: 0, y: 0, vx: 0, vy: 0, r: 0 };
   private readonly rival = new Float64Array(4);
   private readonly rivalMax = new Float64Array(4);
   private readonly capHp: number[] = [];
   private readonly capTeam: number[] = [];
-  private readonly capSums: number[] = [0, 0, 0, 0];
+  private readonly capMax: number[] = [];
+  private readonly capSums: number[] = [0, 0, 0, 0, 0, 0, 0, 0];
 
   getSettings(): FightLeagueSettings {
     return this.settings;
@@ -1198,16 +1623,31 @@ export class FightLeagueMode implements GameMode {
     v.forcedWinner = fightForcedWinner(ctx.config.forcedWinner, v.teamCount);
     v.rigAbsorbed = 0;
     v.hits = v.blocks = v.casts = v.kos = v.shots = v.clashes = v.wallHits = v.notes = v.sounds = 0;
+    v.grazes = v.immunes = v.clashes2 = v.interrupts = v.dodges = 0;
+    v.suddenMs = -1;
+    v.shrink = 1;
+    v.lastKoMs = -Infinity;
     v.lastHitMs = 0;
     v.eventSerial = 0;
-    for (const p of v.projectiles) p.active = false;
+    for (const p of v.projectiles) {
+      p.active = false;
+      p.weapon = -1;
+      p.volley = 0;
+    }
     for (const m of v.minions) m.active = false;
     for (const b of v.beams) b.active = false;
     for (const t of v.tasks) t.active = false;
-    for (const e of v.events) e.t = -Infinity;
+    for (const e of v.events) {
+      e.t = -Infinity;
+      e.src = -1;
+    }
     this.koThisStep = false;
     this.graceUntil = -1;
     this.volleySerial = 0;
+    this.projSerial = 0;
+    this.stepIndex = 0;
+    this.meleeCount = 0;
+    this.pairClashMs.fill(-Infinity);
     this.budget.clear();
     this.urgent.length = 0;
     this.rigK = 0;
@@ -1215,10 +1655,14 @@ export class FightLeagueMode implements GameMode {
     this.ballRadius = ctx.config.ballRadius || 8;
     this.unit = this.speedUnit(ctx);
 
+    // The run's random numbers, in this order (the header lists every later draw): one per random slot (pickFighters), then
+    // per fighter in slot order its spawn jitter (x, y), then per fighter its launch heading, then per fighter its cadence
+    // jitter and its meter's head start.
     const rows = pickFighters(s, () => ctx.random());
     const n = rows.length;
     const firstId = ctx.getNextId();
     const r0 = FL_BALL_FRAC * field.side * Math.max(0.25, this.ballRadius / 8);
+    const fit = FL_FIT_RADIUS * field.half;
     const spots = spawnSpots(s.match, n);
     v.fighters = [];
     this.byIndex = new Array(n).fill(null);
@@ -1231,31 +1675,57 @@ export class FightLeagueMode implements GameMode {
       f.attack = row.stats.attackSpeed * s.attack[i];
       f.damage = row.stats.damage * s.damage[i];
       f.cast = row.stats.castSpeed * s.cast[i];
-      f.r = r0 * row.stats.size;
-      // A spot of the formation, jittered a little by the seed, and a launch heading away from the axes.
+      // --- fl-overhaul --- as big as typed while it fits the arena; its weight; its weapon's intent band
+      f.r = Math.min(r0 * row.stats.size, fit);
+      f.weight = knockbackWeight(row.stats.size);
+      const lead = f.weapons[0].spec;
+      const band = row.intent ?? intentBand(lead);
+      f.bandLo = band.lo;
+      f.bandHi = band.hi;
+      // A spot of the formation (half way to the walls), jittered a little by the seed.
       const jx = (ctx.random() - 0.5) * 0.08 * field.side;
       const jy = (ctx.random() - 0.5) * 0.08 * field.side;
       const room = field.half - f.r - 2;
-      const sx = spots[2 * i] * 0.62 * field.half + jx;
-      const sy = spots[2 * i + 1] * 0.62 * field.half + jy;
+      const sx = spots[2 * i] * 0.5 * field.half + jx;
+      const sy = spots[2 * i + 1] * 0.5 * field.half + jy;
       f.x = field.cx + Math.max(-room, Math.min(room, sx));
       f.y = field.cy + Math.max(-room, Math.min(room, sy));
-      const heading = offAxisAngle(ctx.random(), ctx.random());
+      f.ballId = firstId + i;
+      v.fighters.push(f);
+    }
+    // --- fl-overhaul --- The launch: at the nearest foe, ± a seeded 20°.
+    for (const f of v.fighters) {
+      let best = Infinity;
+      let bearing = Math.atan2(field.cy - f.y, field.cx - f.x);
+      for (const o of v.fighters) {
+        if (o.team === f.team) continue;
+        const d = (o.x - f.x) ** 2 + (o.y - f.y) ** 2;
+        if (d < best) {
+          best = d;
+          bearing = Math.atan2(o.y - f.y, o.x - f.x);
+        }
+      }
+      const heading = bearing + (ctx.random() - 0.5) * 2 * 20 * DEG;
       f.keptVx = Math.cos(heading);
       f.keptVy = Math.sin(heading);
       f.kept = true;
-      f.aim = Math.atan2(field.cy - f.y, field.cx - f.x);
+      f.aim = bearing;
+    }
+    // --- fl-overhaul --- The cadence jitter: no two fighters (a mirror match above all) start their attacks in step.
+    for (const f of v.fighters) {
+      const r = ctx.random();
+      const r2 = ctx.random();
       for (const w of f.weapons) {
         w.angle = f.aim;
-        w.cd = 0.3 + 0.4 * w.index;
-        w.throwCd = w.spec.throwEvery > 0 ? 0.6 * w.spec.throwEvery : 0;
+        w.cd = 0.15 + 0.4 * w.index + r * 0.6 * w.spec.cooldown;
+        w.throwCd = w.spec.throwEvery > 0 ? 0.3 * w.spec.throwEvery + r * 0.4 * w.spec.throwEvery : 0;
+        w.phase = r * TWO_PI;
         w.loaded = w.spec.kind === "cards" ? w.spec.count : 0;
         w.orbit = f.aim;
       }
-      f.ballId = firstId + i;
-      v.fighters.push(f);
-      ctx.addBall({ x: f.x, y: f.y, vx: 0, vy: 0, radius: f.r, color: row.body, team: f.team, radiusScale: f.r / this.ballRadius });
+      f.meter = 0.08 * r2;
     }
+    for (const f of v.fighters) ctx.addBall({ x: f.x, y: f.y, vx: 0, vy: 0, radius: f.r, color: f.row.body, team: f.team, radiusScale: f.r / this.ballRadius });
     this.indexBalls(ctx);
   }
 
@@ -1291,8 +1761,9 @@ export class FightLeagueMode implements GameMode {
     return now < v.slowTimeUntil && team !== v.slowTimeTeam ? v.slowTimeFactor : 1;
   }
 
+  /** Whether `f` acts (moves its weapons, casts) – --- fl-overhaul --- not once a hit of this step took its last HP. */
   private canAct(f: FlFighter, now: number): boolean {
-    return f.alive && now >= this.view.introMs && now >= f.frozenUntil && f.heldBy < 0 && !this.view.finished;
+    return f.alive && f.hp > 0 && now >= this.view.introMs && now >= f.frozenUntil && f.heldBy < 0 && !this.view.finished;
   }
 
   private targetable(f: FlFighter, now: number): boolean {
@@ -1325,6 +1796,21 @@ export class FightLeagueMode implements GameMode {
     }
   }
 
+  /** --- fl-overhaul --- The nearest live, targetable foe FIGHTER of `f` (decoys ignored: a choke, a disarm or a pull acts on a fighter). */
+  private nearestFoeFighter(f: FlFighter, now: number): FlFighter | null {
+    let best: FlFighter | null = null;
+    let bestD = Infinity;
+    for (const o of this.view.fighters) {
+      if (o.team === f.team || !this.targetable(o, now)) continue;
+      const d = (o.x - f.x) ** 2 + (o.y - f.y) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = o;
+      }
+    }
+    return best;
+  }
+
   /** Position, velocity and radius of `f`'s target into `out`; false without one. */
   private targetOf(f: FlFighter, out: { x: number; y: number; vx: number; vy: number; r: number }): boolean {
     if (f.targetSlot >= 0) {
@@ -1349,7 +1835,7 @@ export class FightLeagueMode implements GameMode {
     return false;
   }
 
-  private pushEvent(kind: number, t: number, x: number, y: number, value = 0, slot = -1, color = "#fff", x2 = 0, y2 = 0) {
+  private pushEvent(kind: number, t: number, x: number, y: number, value = 0, slot = -1, color = "#fff", x2 = 0, y2 = 0, src = -1) {
     const v = this.view;
     const e = v.events[v.eventSerial % FL_EVENT_CAP];
     v.eventSerial++;
@@ -1362,6 +1848,7 @@ export class FightLeagueMode implements GameMode {
     e.value = value;
     e.slot = slot;
     e.color = color;
+    e.src = src;
   }
 
   /** Sounds that always play (abilities, KOs): queued with the frame's budgeted ones. */
@@ -1387,6 +1874,21 @@ export class FightLeagueMode implements GameMode {
   private freeBeam(): FlBeam | null {
     for (const b of this.view.beams) if (!b.active) return b;
     return null;
+  }
+
+  /** --- fl-overhaul --- The fighters in this step's processing order: slot order on even steps, reversed on odd ones (no slot strikes first every time). */
+  private processingOrder(): FlFighter[] {
+    const out = this.order;
+    const fs = this.view.fighters;
+    out.length = fs.length;
+    const odd = (this.stepIndex & 1) === 1;
+    for (let i = 0; i < fs.length; i++) out[i] = fs[odd ? fs.length - 1 - i : i];
+    return out;
+  }
+
+  /** --- fl-overhaul --- Gap between `f`'s body and a target circle, in `f`'s radii. */
+  private gapR(f: FlFighter, x: number, y: number, r: number): number {
+    return (Math.hypot(x - f.x, y - f.y) - f.r - r) / Math.max(1e-6, f.r);
   }
 
   /* ---------------------------------------------------------------- the rig */
@@ -1439,38 +1941,61 @@ export class FightLeagueMode implements GameMode {
     this.subIndex = 0;
     v.timeMs = now;
     this.koThisStep = false;
+    this.stepIndex++;
     const field = v.field;
     if (!field) return;
     this.indexBalls(ctx);
     this.unit = this.speedUnit(ctx);
     this.updateRig();
+    this.updateSudden(now);
     const dt = dtMs / 1000;
     const started = now >= v.introMs;
+    const live = !v.finished;
+    // Positions and targets first, the statuses that run per step (heals, chokes ticking) …
     for (const f of v.fighters) {
       const ball = this.byIndex[f.slot];
       if (!f.alive || !ball) continue;
       f.r = ball.radius;
       f.x = ball.x;
       f.y = ball.y;
-      if (!v.finished) this.pickTarget(f, now);
-      // Statuses that run per step: heals, chokes ticking, the ability meter and its telegraph.
+      if (!live) continue;
+      this.pickTarget(f, now);
       if (now < f.healUntil && f.healRate > 0) f.hp = Math.min(f.maxHp, f.hp + f.healRate * dt);
       if (f.heldBy >= 0) this.stepHold(ctx, f, now);
-      if (started && !v.finished) this.stepAbility(ctx, f, now, dt);
-      this.steer(f, ball, now, started);
+    }
+    // … then the meters, telegraphs and casts in the step's processing order, then every fighter's steering.
+    if (started && live) for (const f of this.processingOrder()) if (f.alive && this.byIndex[f.slot]) this.stepAbility(ctx, f, now, dt);
+    for (const f of v.fighters) {
+      const ball = this.byIndex[f.slot];
+      if (f.alive && ball) this.steer(f, ball, now, started, dt);
     }
     this.stepTasks(ctx, now);
   }
 
-  /** The fighter's velocity this step: launch, freeze, holds, pulls, then the speed relaxing toward its cruising speed. */
-  private steer(f: FlFighter, ball: Ball, now: number, started: boolean) {
+  /** --- fl-overhaul --- Sudden death: the arena shrinks linearly to FL_SUDDEN_MIN of its side over FL_SUDDEN_SHRINK_MS (the walls push the fighters in). */
+  private updateSudden(now: number) {
+    const v = this.view;
+    const field = v.field;
+    if (!field || v.suddenMs < 0 || v.finished) return;
+    const k = Math.max(0, Math.min(1, (now - v.suddenMs) / FL_SUDDEN_SHRINK_MS));
+    v.shrink = 1 - (1 - FL_SUDDEN_MIN) * k;
+    field.half = field.fullHalf * v.shrink;
+  }
+
+  /**
+   * The fighter's velocity this step: launch, freeze, holds, pulls (a lasso closes its hold on arrival), the speed relaxing
+   * toward the cruising speed, then – --- fl-overhaul --- – a lunge at a foe in reach, the evade from a foe's area telegraph,
+   * or the intent steering toward the weapon's preferred distance.
+   */
+  private steer(f: FlFighter, ball: Ball, now: number, started: boolean, dt: number) {
+    const v = this.view;
     const ts = this.timeScale(f.team, now);
     let cruise = this.unit * f.speed * ts;
     if (now < f.speedMulUntil) cruise *= f.speedMul;
     if (now < f.slowUntil) cruise *= f.slowFactor;
     if (now < f.confusedUntil) cruise *= 0.6;
     f.cruise = cruise;
-    const frozen = !started || now < f.frozenUntil || f.heldBy >= 0 || now < f.pinUntil;
+    const frozen = !started || now < f.frozenUntil || f.heldBy >= 0 || now < f.pinUntil || v.finished;
     if (frozen) {
       if (!f.kept) {
         const s = Math.hypot(ball.vx, ball.vy);
@@ -1489,11 +2014,11 @@ export class FightLeagueMode implements GameMode {
       f.kept = false;
     }
     if (now < f.pullUntil && f.pullBy >= 0) {
-      const by = this.view.fighters[f.pullBy];
+      const by = v.fighters[f.pullBy];
       const dx = by.x - f.x;
       const dy = by.y - f.y;
       const d = Math.hypot(dx, dy);
-      if (d > f.r + by.r + 2) {
+      if (by.alive && d > f.r + by.r + 2) {
         ball.vx = (dx / d) * f.pullSpeed;
         ball.vy = (dy / d) * f.pullSpeed;
         f.vx = ball.vx;
@@ -1502,9 +2027,18 @@ export class FightLeagueMode implements GameMode {
       }
       f.pullUntil = -Infinity;
     }
+    // --- fl-overhaul --- a hold queued behind the pull closes now: on arrival, or where the pull ran out
+    if (f.pendingHoldBy >= 0) {
+      this.landPendingHold(f, now);
+      if (f.heldBy >= 0) {
+        ball.vx = ball.vy = 0;
+        f.vx = f.vy = 0;
+        return;
+      }
+    }
     const s = Math.hypot(ball.vx, ball.vy);
     if (s < 1e-6) {
-      const a = Math.atan2(this.view.field!.cy - f.y, this.view.field!.cx - f.x) + 0.7;
+      const a = Math.atan2(v.field!.cy - f.y, v.field!.cx - f.x) + 0.7;
       ball.vx = Math.cos(a) * cruise;
       ball.vy = Math.sin(a) * cruise;
     } else {
@@ -1512,24 +2046,135 @@ export class FightLeagueMode implements GameMode {
       ball.vx *= next / s;
       ball.vy *= next / s;
     }
+    if (!v.finished && started && !this.lunge(f, ball, now)) this.intentSteer(f, ball, now, dt);
     f.vx = ball.vx;
     f.vy = ball.vy;
+  }
+
+  /** --- fl-overhaul --- A foe's area telegraph (a shockwave, a fire ring, arena cuts) `f` stands in, or null. */
+  private areaThreat(f: FlFighter): FlFighter | null {
+    for (const o of this.view.fighters) {
+      if (o.team === f.team || !o.alive || o.telegraphUntil < 0 || !(o.telegraphArea > 0)) continue;
+      if (Math.hypot(f.x - o.x, f.y - o.y) <= o.telegraphArea + f.r + o.r) return o;
+    }
+    return null;
+  }
+
+  /**
+   * --- fl-overhaul --- The evade nudge of a rival `o` as `f`'s area telegraph starts: its flight turned away from the caster
+   * by up to FL_NUDGE × MAX_NUDGE and FL_EVADE_BOOST of its cruise added outward (deterministic).
+   */
+  private evadeNudge(o: FlFighter, f: FlFighter) {
+    const ball = this.byIndex[o.slot];
+    if (!ball || this.pinned(o, this.now())) return;
+    const dx = o.x - f.x;
+    const dy = o.y - f.y;
+    const d = Math.hypot(dx, dy) || 1;
+    steerToward(ball.vx, ball.vy, dx, dy, FL_NUDGE * MAX_NUDGE, 0, 0, tmpSteer);
+    ball.vx = tmpSteer.vx + (dx / d) * FL_EVADE_BOOST * o.cruise;
+    ball.vy = tmpSteer.vy + (dy / d) * FL_EVADE_BOOST * o.cruise;
+    o.vx = ball.vx;
+    o.vy = ball.vy;
+  }
+
+  /** --- fl-overhaul --- Whether `f`'s melee weapon `w` is ready to strike (the lunge waits for it). */
+  private weaponReady(f: FlFighter, w: FlWeaponState, now: number): boolean {
+    switch (w.spec.kind) {
+      case "sword":
+        return w.sweepT <= 0 && now - w.lastSweepEnd >= (1000 * w.spec.cooldown) / this.attackOf(f, now);
+      case "fists":
+      case "claws":
+        return w.cd <= 0 && w.punchT < 0;
+      case "tail":
+        return w.cd <= 0 && w.swingT < 0;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * --- fl-overhaul --- A melee fighter whose weapon is ready lunges at a foe within (reach + 3) R: toward where it will be
+   * (lead = gap ÷ 1.6 cruise) at FL_LUNGE_SPEED × the cruise (big fighters FL_LUNGE_SPEED_BIG); the speed relax brings it back.
+   * At most one every FL_LUNGE_EVERY_MS. True when it lunged.
+   */
+  private lunge(f: FlFighter, ball: Ball, now: number): boolean {
+    const w = f.weapons[0];
+    const s = w.spec;
+    if (!LUNGE_KINDS.has(s.kind) || now - f.lungeMs < FL_LUNGE_EVERY_MS) return false;
+    if (!this.canAct(f, now) || now < f.disarmedUntil || now < f.confusedUntil || now < f.pullUntil) return false;
+    if (!this.weaponReady(f, w, now)) return false;
+    const t = this.tgtS;
+    if (!this.targetOf(f, t)) return false;
+    const gap = Math.hypot(t.x - f.x, t.y - f.y) - f.r - t.r;
+    if (gap < 0.2 * f.r || gap > (s.reach + 3) * f.r) return false;
+    if (Math.hypot(ball.vx, ball.vy) > 1.5 * f.cruise) return false;
+    const speed = (f.row.stats.size >= 1.1 ? FL_LUNGE_SPEED_BIG : FL_LUNGE_SPEED) * f.cruise;
+    const lead = gap / Math.max(1, 1.6 * f.cruise);
+    const a = Math.atan2(t.y + t.vy * lead - f.y, t.x + t.vx * lead - f.x);
+    ball.vx = Math.cos(a) * speed;
+    ball.vy = Math.sin(a) * speed;
+    f.lungeMs = now;
+    return true;
+  }
+
+  /** --- fl-overhaul --- Whether `f` wants to close in whatever its weapon: a range-limited cast waiting, its own area telegraph or ring, Super Star's touch. */
+  private wantsClose(f: FlFighter, now: number): boolean {
+    return (f.fullMs >= 0 && f.telegraphUntil < 0) || (f.telegraphUntil >= 0 && f.telegraphArea > 0) || now < f.contactUntil || now < f.fireRingUntil;
+  }
+
+  /**
+   * --- fl-overhaul --- The intent steering: the velocity turns (its length kept) toward a heading by the gap to the target in
+   * radii against the weapon's band – too far: the bearing; inside: a strafe at the bearing ± 1.4 rad (the side the flight
+   * already leans to); too close: ± 2.2 rad – at most `seekTurn` rad/s (× 1.6 after FL_STALEMATE_MS without a hit). Skipped
+   * above 1.5× the cruise, while confused and without a target; no random draws.
+   */
+  private intentSteer(f: FlFighter, ball: Ball, now: number, dt: number) {
+    const turn = this.view.settings.seekTurn;
+    if (!(turn > 0) || now < f.confusedUntil || now < f.pullUntil) return;
+    const sp = Math.hypot(ball.vx, ball.vy);
+    if (!(sp > 1e-6) || sp > 1.5 * f.cruise) return;
+    const rate = turn * dt * (now - this.view.lastHitMs >= FL_STALEMATE_MS ? 1.6 : 1);
+    const cur = Math.atan2(ball.vy, ball.vx);
+    // Inside a foe's area telegraph it keeps the heading its evade nudge gave it (it does not steer back in).
+    if (this.areaThreat(f)) return;
+    const t = this.tgtS;
+    if (!this.targetOf(f, t)) return;
+    const gap = this.gapR(f, t.x, t.y, t.r);
+    let lo = f.bandLo;
+    let hi = f.bandHi;
+    if (this.wantsClose(f, now)) {
+      lo = -Infinity;
+      hi = 0.5;
+    }
+    const bearing = Math.atan2(t.y - f.y, t.x - f.x);
+    let want = bearing;
+    if (gap <= hi) {
+      const side = angleDiff(cur, bearing) >= 0 ? 1 : -1;
+      want = bearing + side * (gap < lo ? 2.2 : 1.4);
+    }
+    const a = turnToward(cur, want, rate);
+    ball.vx = Math.cos(a) * sp;
+    ball.vy = Math.sin(a) * sp;
   }
 
   /** A choke's hold: the held fighter stays put; damage over the hold or at its end (a slam). */
   private stepHold(ctx: ModeContext, f: FlFighter, now: number) {
     const by = this.view.fighters[f.heldBy];
     if (now >= f.heldUntil || !by || !by.alive) {
-      if (f.holdMode === "end" && f.holdDamage > 0 && by) {
+      const slam = f.holdMode === "end" && f.holdDamage > 0 && !!by;
+      const damage = f.holdDamage;
+      // --- fl-overhaul --- released first: the slam's knockback throws it (a held fighter does not budge)
+      f.heldBy = -1;
+      f.holdDamage = 0;
+      if (slam) {
         // The slam: the damage and a knock toward the nearest wall.
         const field = this.view.field!;
         const dx = f.x - field.cx;
         const dy = f.y - field.cy;
         const d = Math.hypot(dx, dy) || 1;
-        this.hit(ctx, by, f, f.holdDamage, dx / d, dy / d, 2.5, "magic", { unblockable: true, ignoreIframes: true });
+        f.kept = false;
+        this.hit(ctx, by, f, damage, dx / d, dy / d, 2.5, "magic", { unblockable: true, ignoreIframes: true });
       }
-      f.heldBy = -1;
-      f.holdDamage = 0;
       return;
     }
     if (f.holdMode === "over" && f.holdDamage > 0 && now >= f.holdTickMs) {
@@ -1541,29 +2186,195 @@ export class FightLeagueMode implements GameMode {
     }
   }
 
-  /** The ability meter: charge, telegraph, cast. */
+  /**
+   * --- fl-overhaul --- A hard crowd control (a freeze, a hold, a pin) on `target` until `untilMs`: refused while it is immune
+   * after the last one (EV_IMMUNE); applied, it makes it immune until FL_CC_IMMUNE_MS after this one ends – and interrupts a
+   * telegraph (the meter back to half, EV_INTERRUPT; the next telegraph cannot be interrupted). True when it applies.
+   */
+  private applyHardCc(target: FlFighter, untilMs: number, now: number): boolean {
+    if (!target.alive) return false;
+    if (now < target.ccImmuneUntil) {
+      this.immune(target, now);
+      return false;
+    }
+    target.ccImmuneUntil = untilMs + FL_CC_IMMUNE_MS;
+    if (target.telegraphUntil >= 0 && !target.uninterruptible) {
+      target.telegraphUntil = -1;
+      target.telegraphStart = -1;
+      target.telegraphArea = 0;
+      target.telegraphMask = 0;
+      target.meter = 0.5;
+      target.fullMs = -1;
+      target.uninterruptible = true;
+      this.view.interrupts++;
+      this.pushEvent(EV_INTERRUPT, now, target.x, target.y - target.r, 0, target.slot, target.row.accent);
+    }
+    return true;
+  }
+
+  /** --- fl-overhaul --- The IMMUNE callout over `target` (at most one every FL_IFRAME_MS). */
+  private immune(target: FlFighter, now: number) {
+    if (now - target.immuneMs < FL_IFRAME_MS) return;
+    target.immuneMs = now;
+    this.view.immunes++;
+    this.pushEvent(EV_IMMUNE, now, target.x, target.y - target.r, 0, target.slot, "#fde047");
+  }
+
+  /** --- fl-overhaul --- A choke's hold of `target` by `by` for `dur` s (through applyHardCc): damage at its start, over it or at its end. */
+  private applyHold(ctx: ModeContext, by: FlFighter, target: FlFighter, dur: number, damage: number, at: "start" | "over" | "end", now: number) {
+    if (!target.alive || !by.alive || !this.applyHardCc(target, now + 1000 * dur, now)) return;
+    target.heldBy = by.slot;
+    target.heldUntil = now + 1000 * dur;
+    target.holdMode = at;
+    target.holdDamage = at === "start" ? 0 : damage;
+    target.holdTickMs = now + 300;
+    target.pullUntil = -Infinity;
+    if (at === "start" && damage > 0) this.hit(ctx, by, target, damage, 0, 0, 0, "magic", { unblockable: true, ignoreIframes: true });
+  }
+
+  /** --- fl-overhaul --- The hold queued behind a pull (the Lasso of Truth) closes. */
+  private landPendingHold(f: FlFighter, now: number) {
+    const by = f.pendingHoldBy >= 0 ? this.view.fighters[f.pendingHoldBy] : null;
+    f.pendingHoldBy = -1;
+    if (!by || !by.alive || !f.alive || this.view.finished || !this.ctxRef) return;
+    this.applyHold(this.ctxRef, by, f, f.pendingHoldDur, f.pendingHoldDamage, f.pendingHoldAt, now);
+  }
+
+  /**
+   * The ability meter: charge, telegraph, cast. --- fl-overhaul --- A full meter starts the telegraph of its class
+   * (`telegraphMs()`) once a foe fighter is there for a fighter-only ability and – for a range-limited one (an instant
+   * shockwave, a fire ring, Super Star's touch) – once the nearest foe is in range, or FL_CAST_WAIT_MS after it filled; the
+   * aim locks at the telegraph's start, and a foe inside an area telegraph at its start that is out at the cast dodged it.
+   */
   private stepAbility(ctx: ModeContext, f: FlFighter, now: number, dt: number) {
     if (now < f.frozenUntil || f.heldBy >= 0) return;
+    const v = this.view;
     const ability = f.row.ability;
     if (f.telegraphUntil >= 0) {
       if (now >= f.telegraphUntil) {
         f.telegraphUntil = -1;
         f.meter = 0;
+        f.fullMs = -1;
         f.casts++;
-        this.view.casts++;
+        f.lastCastMs = now;
+        f.uninterruptible = false;
+        v.casts++;
         this.pushEvent(EV_CAST, now, f.x, f.y, 0, f.slot, f.row.accent);
+        this.noteDodges(f, now);
         for (const effect of ability.effects) this.castEffect(ctx, f, effect, now);
+        f.telegraphStart = -1;
+        f.telegraphArea = 0;
+        f.telegraphMask = 0;
       }
       return;
     }
     f.meter = meterAfter(f.meter, dt * this.timeScale(f.team, now), f.cast, ability.charge);
-    if (f.meter >= 1 && (f.targetSlot >= 0 || f.targetMinion >= 0)) {
-      f.telegraphUntil = now + FL_TELEGRAPH_MS;
-      this.urgentSound("ability", fighterPitch(f.slot), 0.8);
+    if (f.meter < 1) {
+      f.fullMs = -1;
+      return;
+    }
+    if (f.fullMs < 0) f.fullMs = now;
+    const foe = this.nearestFoeFighter(f, now);
+    if (!foe && f.targetMinion < 0) return;
+    if (!foe && ability.effects.every((e) => FIGHTER_ONLY.has(e.p))) return;
+    const range = this.castRange(f);
+    if (range > 0 && foe && now - f.fullMs < FL_CAST_WAIT_MS && Math.hypot(foe.x - f.x, foe.y - f.y) > range + foe.r) return;
+    this.startTelegraph(f, foe, now);
+  }
+
+  /** --- fl-overhaul --- How close (px, centre to the foe's edge) a range-limited ability wants its foe before it telegraphs (0: anywhere). */
+  private castRange(f: FlFighter): number {
+    let range = Infinity;
+    for (const e of f.row.ability.effects) {
+      if (e.p === "shockwave" && !(e.delay && e.delay > 0)) range = Math.min(range, 0.85 * e.radius * f.r);
+      else if (e.p === "fireRing") range = Math.min(range, 0.9 * e.radius * f.r);
+      else if (e.p === "invulnerable" && e.contact) range = Math.min(range, 5 * f.r);
+    }
+    return Number.isFinite(range) ? range : 0;
+  }
+
+  /** --- fl-overhaul --- The area (px from the caster) an ability threatens during its telegraph: its instant shockwave or fire ring, arena cuts (0: none). */
+  private areaOf(f: FlFighter): number {
+    let area = 0;
+    for (const e of f.row.ability.effects) {
+      if (e.p === "shockwave" && !(e.delay && e.delay > 0)) area = Math.max(area, e.radius * f.r);
+      else if (e.p === "fireRing") area = Math.max(area, e.radius * f.r);
+      else if (e.p === "arenaCuts") area = Math.max(area, 3 * f.r);
+    }
+    return area;
+  }
+
+  /** --- fl-overhaul --- The telegraph starts: its class's length, the aim locked on the target (a volley's lead), the area and the foes inside it. */
+  private startTelegraph(f: FlFighter, foe: FlFighter | null, now: number) {
+    const ability = f.row.ability;
+    const tele = telegraphMs(ability);
+    f.telegraphStart = now;
+    f.telegraphUntil = now + tele;
+    const t = this.tgtS;
+    let has = false;
+    if (foe) {
+      t.x = foe.x;
+      t.y = foe.y;
+      t.vx = foe.vx;
+      t.vy = foe.vy;
+      t.r = foe.r;
+      has = true;
+    } else has = this.targetOf(f, t);
+    if (has) {
+      let lead = 0;
+      const volley = ability.effects.find((e) => e.p === "volley");
+      if (volley && volley.p === "volley") {
+        const speed = this.projectileSpeed(volley.speed ?? 1.2, this.view.field!);
+        lead = tele / 1000 + (0.5 * Math.hypot(t.x - f.x, t.y - f.y)) / speed;
+      }
+      f.castX = t.x + t.vx * lead;
+      f.castY = t.y + t.vy * lead;
+    } else {
+      f.castX = f.x + Math.cos(f.aim) * 4 * f.r;
+      f.castY = f.y + Math.sin(f.aim) * 4 * f.r;
+    }
+    f.telegraphArea = this.areaOf(f);
+    f.telegraphMask = 0;
+    if (f.telegraphArea > 0) {
+      for (const o of this.view.fighters) {
+        if (o.team === f.team || !o.alive) continue;
+        const d = Math.hypot(o.x - f.x, o.y - f.y);
+        if (d <= f.telegraphArea + o.r) f.telegraphMask |= 1 << o.slot;
+        if (d <= f.telegraphArea + o.r + f.r) this.evadeNudge(o, f);
+      }
+      // The caster goes for its foe: a lunge at where the foe will be when it fires.
+      const ball = this.byIndex[f.slot];
+      if (foe && ball && this.canAct(f, now) && !(now < f.pullUntil)) {
+        const px = foe.x + (foe.vx * tele) / 1000;
+        const py = foe.y + (foe.vy * tele) / 1000;
+        const a = Math.atan2(py - f.y, px - f.x);
+        const speed = (f.row.stats.size >= 1.1 ? FL_LUNGE_SPEED_BIG : FL_LUNGE_SPEED) * f.cruise;
+        ball.vx = Math.cos(a) * speed;
+        ball.vy = Math.sin(a) * speed;
+        f.vx = ball.vx;
+        f.vy = ball.vy;
+        f.lungeMs = now;
+      }
+    }
+    this.urgentSound("ability", fighterPitch(f.slot), 0.8);
+  }
+
+  /** --- fl-overhaul --- At the cast: every foe inside the area at the telegraph's start and out of it now dodged it (EV_DODGE). */
+  private noteDodges(f: FlFighter, now: number) {
+    if (!f.telegraphMask || !(f.telegraphArea > 0)) return;
+    for (const o of this.view.fighters) {
+      if (!(f.telegraphMask & (1 << o.slot)) || !o.alive) continue;
+      if (Math.hypot(o.x - f.x, o.y - f.y) <= f.telegraphArea + o.r) continue;
+      o.dodges++;
+      this.view.dodges++;
+      this.pushEvent(EV_DODGE, now, o.x, o.y - o.r, 0, o.slot, o.row.accent);
     }
   }
 
-  /** The engine moved a fighter: keep it in the arena, mirror its state; a real wall hit is a note, a sweep and a nudge. */
+  /**
+   * The engine moved a fighter: keep it in the arena, mirror its state; a real wall hit is a note, a sweep and a nudge
+   * (--- fl-overhaul --- an EV_RIM, an EV_SLAM above twice the cruise, and in the circle a seeded turn of 5–12°).
+   */
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number) {
     this.subDt = dtSec;
     const v = this.view;
@@ -1574,14 +2385,15 @@ export class FightLeagueMode implements GameMode {
     const f = v.fighters[i];
     if (!f.alive) return;
     const now = this.now() + dtSec * 1000;
-    // Held still: the intro, a freeze, a hold, a pin (gravity or a push must not move it).
-    if (now < v.introMs || now < f.frozenUntil || f.heldBy >= 0 || now < f.pinUntil) {
+    // Held still: the intro, a freeze, a hold, a pin, the end (gravity or a push must not move it).
+    if (now < v.introMs || now < f.frozenUntil || f.heldBy >= 0 || now < f.pinUntil || v.finished) {
       ball.x = f.x;
       ball.y = f.y;
       ball.vx = 0;
       ball.vy = 0;
       return;
     }
+    const pre = Math.hypot(ball.vx, ball.vy);
     const wall = this.wallPass(ctx, ball);
     f.x = ball.x;
     f.y = ball.y;
@@ -1591,8 +2403,39 @@ export class FightLeagueMode implements GameMode {
     ctx.noteBounce?.(ball); // --- bounce-math --- a wall hit is a bounce
     v.wallHits++;
     this.budget.offer(0.2, null, wallNote(field.kind, wall), 0.22);
-    for (const w of f.weapons) if (w.spec.kind === "sword") this.startSweep(f, w);
+    this.pushEvent(EV_RIM, now, ball.x, ball.y, wall, f.slot, f.row.accent);
+    if (pre > 2 * Math.max(1, f.cruise)) this.pushEvent(EV_SLAM, now, ball.x, ball.y, pre / Math.max(1, f.cruise), f.slot, f.row.accent);
+    if (field.kind === "circle" && !v.finished) this.rimTurn(ball);
+    for (const w of f.weapons) if (w.spec.kind === "sword") this.startSweep(f, w, now);
     if (!v.finished) this.nudge(f, ball, now);
+    f.vx = ball.vx;
+    f.vy = ball.vy;
+  }
+
+  /**
+   * --- fl-overhaul --- A circle rebound turns by a seeded 5–12° either way (one draw: its sign and size), never back into
+   * the rim: two fighters on a diameter no longer ping-pong along it forever.
+   */
+  private rimTurn(ball: Ball) {
+    const field = this.view.field!;
+    const u = this.randomDraw();
+    const sign = u < 0.5 ? -1 : 1;
+    const turn = sign * (5 + 7 * ((2 * u) % 1)) * DEG;
+    const d = Math.hypot(ball.x - field.cx, ball.y - field.cy) || 1;
+    const nx = (field.cx - ball.x) / d;
+    const ny = (field.cy - ball.y) / d;
+    const sp = Math.hypot(ball.vx, ball.vy);
+    if (!(sp > 1e-6)) return;
+    const cur = Math.atan2(ball.vy, ball.vx);
+    const minOut = Math.sin(MIN_WALL_ANGLE);
+    for (const t of [turn, -turn]) {
+      const a = cur + t;
+      if (Math.cos(a) * nx + Math.sin(a) * ny >= minOut) {
+        ball.vx = Math.cos(a) * sp;
+        ball.vy = Math.sin(a) * sp;
+        return;
+      }
+    }
   }
 
   private slotOfBall(ball: Ball): number {
@@ -1658,7 +2501,31 @@ export class FightLeagueMode implements GameMode {
     return wall;
   }
 
-  /** The director turns a rebound toward the nearest foe (full strength after a stalemate; more for the rigged side). */
+  /** --- fl-overhaul --- Puts a fighter's ball back inside the arena (no bounce): after a teleport (a pin, a blink). */
+  private clampInsideArena(f: FlFighter, ball: Ball) {
+    const field = this.view.field!;
+    const lim = Math.max(1, field.half - ball.radius - 1);
+    if (field.kind === "circle") {
+      const dx = ball.x - field.cx;
+      const dy = ball.y - field.cy;
+      const d = Math.hypot(dx, dy);
+      if (d > lim) {
+        ball.x = field.cx + (dx / d) * lim;
+        ball.y = field.cy + (dy / d) * lim;
+      }
+    } else {
+      ball.x = Math.max(field.cx - lim, Math.min(field.cx + lim, ball.x));
+      ball.y = Math.max(field.cy - lim, Math.min(field.cy + lim, ball.y));
+    }
+    f.x = ball.x;
+    f.y = ball.y;
+  }
+
+  /**
+   * The director turns a rebound toward the nearest foe (full strength after a stalemate; more for the rigged side).
+   * --- fl-overhaul --- In the circle it aims beside the foe (1.5 of its radii, on the side the rebound passes) and leaves a
+   * rebound that already points within 10° of it alone.
+   */
   private nudge(f: FlFighter, ball: Ball, now: number) {
     if (f.targetSlot < 0 && f.targetMinion < 0) return;
     const t = this.tgtN;
@@ -1668,36 +2535,54 @@ export class FightLeagueMode implements GameMode {
     const field = this.view.field!;
     let nx = 0;
     let ny = 0;
+    let tx = t.x - ball.x;
+    let ty = t.y - ball.y;
     if (field.kind === "circle") {
       const d = Math.hypot(ball.x - field.cx, ball.y - field.cy) || 1;
       nx = (field.cx - ball.x) / d;
       ny = (field.cy - ball.y) / d;
+      const cur = Math.atan2(ball.vy, ball.vx);
+      const bearing = Math.atan2(ty, tx);
+      if (Math.abs(angleDiff(cur, bearing)) <= 10 * DEG) return;
+      const dd = Math.hypot(tx, ty) || 1;
+      const side = angleDiff(cur, bearing) >= 0 ? 1 : -1;
+      const off = 1.5 * t.r * side;
+      const px = -ty / dd;
+      const py = tx / dd;
+      tx += px * off;
+      ty += py * off;
     } else {
       if (ball.x <= field.cx - field.half + ball.radius + 0.5) nx = 1;
       else if (ball.x >= field.cx + field.half - ball.radius - 0.5) nx = -1;
       if (ball.y <= field.cy - field.half + ball.radius + 0.5) ny = 1;
       else if (ball.y >= field.cy + field.half - ball.radius - 0.5) ny = -1;
     }
-    steerToward(ball.vx, ball.vy, t.x - ball.x, t.y - ball.y, strength * MAX_NUDGE, nx, ny, tmpSteer);
+    steerToward(ball.vx, ball.vy, tx, ty, strength * MAX_NUDGE, nx, ny, tmpSteer);
     ball.vx = tmpSteer.vx;
     ball.vy = tmpSteer.vy;
   }
 
   /**
-   * A bounce starts a sword's sweep: a 120° arc centred on the nearest foe when it is within the blade's reach (the blade
-   * swings at it), else on the blade's own direction; every other sweep turns the other way.
+   * A sweep of a sword: a 120° arc centred on the nearest foe when it is within the blade's reach (the blade swings at it),
+   * else on the blade's own direction; every other sweep turns the other way. A bounce, a clash or – --- fl-overhaul --- – a
+   * foe in reach once the last sweep ended cooldown ÷ attack speed ago starts one (the attack speed sets their cadence).
    */
-  private startSweep(f: FlFighter, w: FlWeaponState) {
-    const dur = Math.max(0.08, w.spec.cooldown / Math.max(0.05, this.attackOf(f, this.now())));
+  private startSweep(f: FlFighter, w: FlWeaponState, now: number) {
+    const dur = Math.max(0.08, w.spec.cooldown / this.attackOf(f, now));
     if (w.sweepT > 0.5 * dur) return;
     let centre = w.angle;
+    w.sweepTarget = -1;
     if (f.targetSlot >= 0) {
       const t = this.view.fighters[f.targetSlot];
       const reach = f.r + (w.spec.reach + 0.5) * f.r + t.r;
-      if ((t.x - f.x) ** 2 + (t.y - f.y) ** 2 <= reach * reach) centre = Math.atan2(t.y - f.y, t.x - f.x);
+      if ((t.x - f.x) ** 2 + (t.y - f.y) ** 2 <= reach * reach) {
+        centre = Math.atan2(t.y - f.y, t.x - f.x);
+        w.sweepTarget = t.slot;
+      }
     }
     w.sweepT = dur;
     w.sweepDir = -w.sweepDir;
+    w.sweepCentre = centre;
     w.sweepFrom = centre - 0.5 * FL_SWEEP_DEG * DEG * w.sweepDir;
     w.angle = w.sweepFrom;
     w.touchMask = 0;
@@ -1710,7 +2595,10 @@ export class FightLeagueMode implements GameMode {
     return Math.max(0.05, a);
   }
 
-  /** Every sub-step: bodies, weapons, projectiles, minions, beams, rings. */
+  /**
+   * Every sub-step: bodies, weapons (--- fl-overhaul --- in the step's processing order, the melee hits queued and resolved
+   * together), rings, contact, projectiles, minions, beams.
+   */
   onPostSubStep(ctx: ModeContext) {
     const v = this.view;
     const field = v.field;
@@ -1720,9 +2608,12 @@ export class FightLeagueMode implements GameMode {
     const dt = this.subDt;
     this.collideBodies(ctx, now);
     if (now >= v.introMs) {
-      for (const f of v.fighters) if (f.alive) this.stepWeapons(ctx, f, now, dt);
-      this.stepFireRings(ctx, now);
-      this.stepContact(ctx, now);
+      this.meleeCount = 0;
+      const order = this.processingOrder();
+      for (const f of order) if (f.alive) this.stepWeapons(ctx, f, now, dt);
+      for (const f of order) if (f.alive) this.stepContactFor(ctx, f, now);
+      this.resolveMelee(ctx, now);
+      this.stepFireRings(ctx, now, order);
     }
     this.stepProjectiles(ctx, now, dt);
     this.stepMinions(ctx, now, dt);
@@ -1775,8 +2666,8 @@ export class FightLeagueMode implements GameMode {
           }
           this.view.clashes++;
           ctx.noteCollide?.(ba, bb); // --- bounce-math --- a clash of bodies is a ball hit
-          for (const w of a.weapons) if (w.spec.kind === "sword") this.startSweep(a, w);
-          for (const w of b.weapons) if (w.spec.kind === "sword") this.startSweep(b, w);
+          for (const w of a.weapons) if (w.spec.kind === "sword") this.startSweep(a, w, now);
+          for (const w of b.weapons) if (w.spec.kind === "sword") this.startSweep(b, w, now);
         }
         this.wallPass(ctx, ba);
         this.wallPass(ctx, bb);
@@ -1789,20 +2680,17 @@ export class FightLeagueMode implements GameMode {
   }
 
   private pinned(f: FlFighter, now: number): boolean {
-    return now < this.view.introMs || now < f.frozenUntil || f.heldBy >= 0 || now < f.pinUntil;
+    return now < this.view.introMs || now < f.frozenUntil || f.heldBy >= 0 || now < f.pinUntil || this.view.finished;
   }
 
-  /** Super Star's contact damage. */
-  private stepContact(ctx: ModeContext, now: number) {
-    const fs = this.view.fighters;
-    for (const f of fs) {
-      if (!f.alive || now >= f.contactUntil) continue;
-      for (const o of fs) {
-        if (o === f || !o.alive || o.team === f.team) continue;
-        if (circlesTouch(f.x, f.y, f.r + 1, o.x, o.y, o.r)) {
-          const d = Math.hypot(o.x - f.x, o.y - f.y) || 1;
-          this.hit(ctx, f, o, f.contactDamage, (o.x - f.x) / d, (o.y - f.y) / d, 1.2, "blunt");
-        }
+  /** Super Star's contact damage of `f` (the abilities' source). */
+  private stepContactFor(ctx: ModeContext, f: FlFighter, now: number) {
+    if (now >= f.contactUntil) return;
+    for (const o of this.view.fighters) {
+      if (o === f || !o.alive || o.team === f.team) continue;
+      if (circlesTouch(f.x, f.y, f.r + 1, o.x, o.y, o.r)) {
+        const d = Math.hypot(o.x - f.x, o.y - f.y) || 1;
+        this.hit(ctx, f, o, f.contactDamage, (o.x - f.x) / d, (o.y - f.y) / d, 1.2, "blunt");
       }
     }
   }
@@ -1821,39 +2709,51 @@ export class FightLeagueMode implements GameMode {
       f.aim = turnToward(f.aim, want, FL_AIM_TURN * dt);
     }
     const velAngle = Math.hypot(f.vx, f.vy) > 1e-3 ? Math.atan2(f.vy, f.vx) : f.aim;
-    const disarmed = now < f.disarmedUntil;
+    const armed = acting && now >= f.disarmedUntil;
+    const gap = hasTarget ? this.gapR(f, t.x, t.y, t.r) : Infinity;
     for (const w of f.weapons) {
       const s = w.spec;
       const reach = s.reach * this.reachOf(f.team);
       switch (s.kind) {
         case "sword": {
-          // Along the velocity (turning to it), or sweeping its 120° arc after a bounce.
+          // Along the velocity (turning to it), or sweeping its 120° arc; a foe in reach starts a sweep on the weapon's cadence.
           if (w.sweepT > 0) {
             const dur = Math.max(0.08, s.cooldown / atk);
-            w.sweepT = Math.max(0, w.sweepT - dt);
-            const prog = 1 - w.sweepT / dur;
+            if (acting) w.sweepT = Math.max(0, w.sweepT - dt);
+            const prog = Math.min(1, 1 - w.sweepT / dur);
+            // --- fl-overhaul --- the arc's centre follows its foe's bearing (a sweep started on the approach still crosses it)
+            const so = w.sweepTarget >= 0 ? this.view.fighters[w.sweepTarget] : null;
+            if (acting && so && so.alive) w.sweepCentre = turnToward(w.sweepCentre, Math.atan2(so.y - f.y, so.x - f.x), 2 * FL_AIM_TURN * dt);
+            w.sweepFrom = w.sweepCentre - 0.5 * FL_SWEEP_DEG * DEG * w.sweepDir;
             w.angle = w.sweepFrom + w.sweepDir * FL_SWEEP_DEG * DEG * prog;
-          } else w.angle = turnToward(w.angle, velAngle, 0.85 * FL_AIM_TURN * dt);
-          if (!acting || disarmed) break;
+            if (w.sweepT <= 0) w.lastSweepEnd = now;
+          } else if (acting) w.angle = turnToward(w.angle, velAngle, 0.85 * FL_AIM_TURN * dt);
+          const ready = now - w.lastSweepEnd >= (1000 * s.cooldown) / atk;
+          if (armed && w.sweepT <= 0 && hasTarget && gap <= reach + 0.4 && ready) this.startSweep(f, w, now);
+          if (!armed) break;
           const blades = s.style === "double" ? 2 : 1;
           for (let k = 0; k < blades; k++) bladeShape(f.x, f.y, f.r, w.angle + k * Math.PI, reach, s.size, w.shapes[k]);
-          this.meleeContact(ctx, f, w, blades, w.sweepT > 0 ? 1.25 : 1, now);
+          // --- fl-overhaul --- a sweep hits each foe once; the resting blade stabs only on the weapon's cadence (a stab spends it)
+          if (w.sweepT > 0) this.meleeContact(ctx, f, w, blades, 1.25, now, true);
+          else if (ready && this.meleeContact(ctx, f, w, blades, 1, now, false)) w.lastSweepEnd = now;
           break;
         }
         case "hammer":
         case "chain": {
           const period = Math.max(0.1, s.cooldown / atk);
-          w.angle += (TWO_PI / period) * dt;
-          if (w.angle > TWO_PI) w.angle -= TWO_PI;
+          if (acting) {
+            w.angle += (TWO_PI / period) * dt;
+            if (w.angle > TWO_PI) w.angle -= TWO_PI;
+          }
           // A throw: the returning hammer and the pull chain's head fly at the target on their own cadence.
           if ((s.style === "returning" || s.style === "pull") && w.thrown < 0) {
             w.throwCd -= dt * atk;
-            if (w.throwCd <= 0 && acting && !disarmed && hasTarget) {
+            if (w.throwCd <= 0 && armed && hasTarget) {
               w.throwCd = s.throwEvery;
               this.throwWeapon(f, w, t, now);
             }
           }
-          if (w.thrown >= 0 || !acting || disarmed) break;
+          if (w.thrown >= 0 || !armed) break;
           headShape(f.x, f.y, f.r, w.angle, reach, s.size, w.shapes[0]);
           let factor = 1;
           if (s.kind === "chain") {
@@ -1862,48 +2762,44 @@ export class FightLeagueMode implements GameMode {
             const nominal = (TWO_PI / s.cooldown) * (f.r + s.reach * f.r);
             factor = Math.max(0.6, Math.min(1.8, headSpeed / Math.max(1, nominal)));
           }
-          this.meleeContact(ctx, f, w, 1, factor, now);
+          this.meleeContact(ctx, f, w, 1, factor, now, false);
           break;
         }
-        case "tail": {
-          const period = Math.max(0.1, s.cooldown / atk);
-          w.phase += (TWO_PI / period) * dt;
-          if (w.phase > TWO_PI) w.phase -= TWO_PI;
-          w.angle = velAngle + Math.PI + 0.9 * Math.sin(w.phase);
-          if (!acting || disarmed) break;
-          bladeShape(f.x, f.y, f.r, w.angle, reach, s.size, w.shapes[0]);
-          this.meleeContact(ctx, f, w, 1, 1, now);
+        case "tail":
+          this.stepTail(ctx, f, w, now, dt, atk, hasTarget, t, gap, reach, acting, armed, velAngle);
           break;
-        }
         case "fists":
         case "claws":
-          this.stepPunch(ctx, f, w, now, dt, atk, hasTarget, t, reach, acting && !disarmed);
+          if (s.style === "contact") this.stepContactFists(ctx, f, w, now, dt, atk, reach, armed);
+          else this.stepPunch(ctx, f, w, now, dt, atk, hasTarget, t, reach, armed);
           break;
         case "shield": {
-          // Held in front: it faces where the fighter is going (a charge is covered, a hit from behind is not).
-          w.angle = turnToward(w.angle, velAngle, 0.85 * FL_AIM_TURN * dt);
+          // Held toward the target (a hit from the side or behind gets through); a block spends its guard.
+          w.angle = turnToward(w.angle, f.aim, 0.85 * FL_AIM_TURN * dt);
           if (s.style === "block" || w.thrown >= 0) break;
           w.throwCd -= dt * atk;
-          if (w.throwCd <= 0 && acting && !disarmed && hasTarget) {
+          if (w.throwCd <= 0 && armed && hasTarget) {
             w.throwCd = s.throwEvery;
             this.throwWeapon(f, w, t, now);
           }
           break;
         }
         case "cards": {
-          w.orbit += 3 * dt * this.timeScale(f.team, now);
-          if (w.loaded < s.count) {
-            w.reloadT += dt * atk;
-            if (w.reloadT >= 1.25 * s.cooldown) {
-              w.reloadT = 0;
-              w.loaded++;
+          if (acting) {
+            w.orbit += 3 * dt * this.timeScale(f.team, now);
+            if (w.loaded < s.count) {
+              w.reloadT += dt * atk;
+              if (w.reloadT >= 1.25 * s.cooldown) {
+                w.reloadT = 0;
+                w.loaded++;
+              }
             }
           }
-          if (!acting || disarmed) break;
+          if (!armed) break;
           // Orbiting blades cut on contact.
           const blades = Math.min(w.loaded, w.shapes.length);
           for (let k = 0; k < blades; k++) headShape(f.x, f.y, f.r, w.orbit + (TWO_PI * k) / s.count, s.reach - 1, s.size, w.shapes[k]);
-          this.meleeContact(ctx, f, w, blades, 0.6, now);
+          this.meleeContact(ctx, f, w, blades, 0.6, now, false);
           w.cd -= dt * atk;
           if (w.cd <= 0 && w.loaded > 0 && hasTarget) {
             w.cd = s.cooldown;
@@ -1913,59 +2809,78 @@ export class FightLeagueMode implements GameMode {
           break;
         }
         case "fire": {
+          // A breath only at a foe within reach + 0.6 R: an inhale first, then the cone burns until FL_BREATH_MS.
           if (hasTarget) w.angle = turnToward(w.angle, f.aim, FL_AIM_TURN * dt);
           w.cd -= dt * atk;
-          if (w.cd <= 0 && acting && !disarmed && hasTarget) {
+          if (w.cd <= 0 && armed && hasTarget && now >= w.onUntil && gap <= reach + 0.6) {
             w.cd = s.cooldown;
-            w.onUntil = now + 800;
+            w.inhaleUntil = now + FL_INHALE_MS;
+            w.onUntil = now + FL_BREATH_MS;
             this.budget.offer(0.5, "fire", fighterPitch(f.slot), 0.35);
           }
-          if (now >= w.onUntil || !acting || disarmed) break;
+          if (now < w.inhaleUntil || now >= w.onUntil || !armed) break;
           this.stepCone(ctx, f, w, now);
           break;
         }
         case "beam": {
+          // The hand follows its ray, else turns to the target; a glint (the aim locked) before every ray.
+          const b = w.beam >= 0 ? this.view.beams[w.beam] : null;
+          const firing = !!b && b.active && b.owner === f.slot && b.weapon === w.index;
+          if (!firing) w.beam = -1;
+          if (firing) w.angle = b.angle;
+          else if (w.glintUntil >= 0) w.angle = w.glintAim = Math.atan2(w.glintY - f.y, w.glintX - f.x);
+          else if (hasTarget) w.angle = turnToward(w.angle, f.aim, FL_AIM_TURN * dt);
           w.cd -= dt * atk;
-          if (w.cd <= 0 && acting && !disarmed && hasTarget) {
-            w.cd = s.cooldown;
-            const b = this.freeBeam();
-            if (b) {
-              b.active = true;
-              b.owner = f.slot;
-              b.team = f.team;
-              b.born = now;
-              b.until = now + 350;
-              b.angle = Math.atan2(t.y - f.y, t.x - f.x);
-              b.width = Math.max(1.5, s.size * f.r);
-              b.damage = s.damage;
-              b.ability = false;
-              b.weapon = w.index;
-              b.hitMask = 0;
-              b.color = s.color ?? f.row.accent;
-              this.budget.offer(0.4, "magic", fighterPitch(f.slot) * 2, 0.3);
+          if (w.glintUntil >= 0) {
+            if (now >= w.glintUntil) {
+              w.glintUntil = -1;
+              if (armed) this.fireBeam(f, w, now);
             }
+          } else if (w.cd <= 0 && armed && hasTarget && !firing) {
+            w.cd = s.cooldown;
+            w.glintUntil = now + FL_GLINT_MS;
+            w.glintX = t.x;
+            w.glintY = t.y;
+            w.glintAim = Math.atan2(t.y - f.y, t.x - f.x);
+            w.angle = w.glintAim;
           }
           break;
         }
         case "spark": {
+          if (hasTarget) w.angle = turnToward(w.angle, f.aim, FL_AIM_TURN * dt);
           w.cd -= dt * atk;
-          if (w.cd > 0 || !acting || disarmed || !hasTarget) break;
-          const d = Math.hypot(t.x - f.x, t.y - f.y) - f.r - t.r;
-          if (d > reach * f.r) break;
+          if (w.cd > 0 || !armed || !hasTarget || gap > reach) break;
           w.cd = s.cooldown;
+          const bearing = Math.atan2(t.y - f.y, t.x - f.x);
           w.zapMs = now;
+          w.zapAngle = bearing;
+          w.angle = bearing;
           w.zapX = t.x;
           w.zapY = t.y;
           const dd = Math.hypot(t.x - f.x, t.y - f.y) || 1;
-          this.hitTarget(ctx, f, s.damage, (t.x - f.x) / dd, (t.y - f.y) / dd, s.knockback, "magic", { weapon: w.index });
+          const hx = f.x + Math.cos(bearing) * 1.1 * f.r;
+          const hy = f.y + Math.sin(bearing) * 1.1 * f.r;
+          this.hitTarget(ctx, f, s.damage, (t.x - f.x) / dd, (t.y - f.y) / dd, s.knockback, "magic", { weapon: w.index, fromX: hx, fromY: hy });
+          if (this.view.match !== "1v1") this.chainSpark(ctx, f, w, t.r, now);
           break;
         }
         default: {
-          // Shooters: bow, gun, shotgun, wand, staff, book, web, ice.
+          // Shooters: bow, gun, shotgun, wand, staff, book, web, ice (a burst's next rounds leave the muzzle on their gap).
           if (hasTarget) w.angle = turnToward(w.angle, f.aim, FL_AIM_TURN * dt);
           w.cd -= dt * atk;
-          if (w.cd <= 0 && acting && !disarmed && hasTarget) {
-            w.cd = s.cooldown * (s.style === "burst" ? 1 : 1);
+          if (w.burstLeft > 0) {
+            w.burstT -= dt * atk;
+            if (w.burstT <= 0) {
+              if (armed) {
+                this.fireRound(f, w, hasTarget ? t : null, now, w.burstVolley, 0, 1);
+                w.burstLeft--;
+                w.burstT += FL_BURST_GAP;
+                this.budget.offer(0.12, FL_SOUND_OF_KIND[s.kind], fighterPitch(f.slot) * 1.5, 0.15);
+              } else w.burstLeft = 0;
+            }
+          }
+          if (w.cd <= 0 && armed && hasTarget && w.burstLeft <= 0) {
+            w.cd = s.cooldown;
             this.shoot(f, w, t, now);
           }
         }
@@ -1973,8 +2888,44 @@ export class FightLeagueMode implements GameMode {
     }
   }
 
-  /** A punch (fists) or a swipe (claws) toward a foe in reach. */
-  private stepPunch(ctx: ModeContext, f: FlFighter, w: FlWeaponState, now: number, dt: number, atk: number, hasTarget: boolean, t: { x: number; y: number; r: number }, reach: number, acting: boolean) {
+  /**
+   * --- fl-overhaul --- A tail: at rest it trails behind the flight with a wobble; with the cooldown over and a foe within
+   * reach + 0.3 R in any direction it swings for FL_TAIL_SWING s from its rest to the foe's bearing and back – one hit a foe a
+   * swing – then waits a cooldown.
+   */
+  private stepTail(ctx: ModeContext, f: FlFighter, w: FlWeaponState, now: number, dt: number, atk: number, hasTarget: boolean, t: { x: number; y: number }, gap: number, reach: number, acting: boolean, armed: boolean, velAngle: number) {
+    const s = w.spec;
+    if (acting) {
+      w.phase += (TWO_PI / Math.max(0.1, s.cooldown / atk)) * dt;
+      if (w.phase > TWO_PI) w.phase -= TWO_PI;
+    }
+    const rest = velAngle + Math.PI + 0.5 * Math.sin(w.phase);
+    w.cd -= dt * atk;
+    if (w.swingT >= 0) {
+      if (acting) w.swingT += dt * Math.max(1, atk);
+      const k = Math.min(1, w.swingT / FL_TAIL_SWING);
+      const to = hasTarget ? Math.atan2(t.y - f.y, t.x - f.x) : w.swingFrom;
+      w.angle = w.swingFrom + angleDiff(to, w.swingFrom) * Math.sin(Math.PI * k);
+      if (k >= 1) {
+        w.swingT = -1;
+        w.cd = s.cooldown;
+      }
+      if (!armed) return;
+      bladeShape(f.x, f.y, f.r, w.angle, reach, s.size, w.shapes[0]);
+      this.meleeContact(ctx, f, w, 1, 1, now, true);
+      return;
+    }
+    w.angle = rest;
+    if (armed && w.cd <= 0 && hasTarget && gap <= reach + 0.3) {
+      w.swingT = 0;
+      w.swingFrom = rest;
+      w.touchMask = 0;
+      w.minionMask = 0;
+    }
+  }
+
+  /** A punch (fists) or a swipe (claws) toward a foe in reach: one hit a punch. */
+  private stepPunch(ctx: ModeContext, f: FlFighter, w: FlWeaponState, now: number, dt: number, atk: number, hasTarget: boolean, t: { x: number; y: number; r: number }, reach: number, armed: boolean) {
     const s = w.spec;
     w.cd -= dt * atk;
     if (hasTarget) w.angle = turnToward(w.angle, f.aim, FL_AIM_TURN * dt);
@@ -1984,7 +2935,7 @@ export class FightLeagueMode implements GameMode {
       w.punchT += dt * Math.max(1, atk);
       if (w.punchT >= sec) w.punchT = -1;
     }
-    if (w.punchT < 0 && w.cd <= 0 && acting && hasTarget) {
+    if (w.punchT < 0 && w.cd <= 0 && armed && hasTarget) {
       const gap = Math.hypot(t.x - f.x, t.y - f.y) - f.r - t.r;
       if (gap <= reach * f.r + 0.15 * f.r) {
         w.cd = s.cooldown;
@@ -1994,18 +2945,51 @@ export class FightLeagueMode implements GameMode {
         w.punchAngle = Math.atan2(t.y - f.y, t.x - f.x) + (now < f.confusedUntil ? Math.PI : 0);
       }
     }
-    if (w.punchT < 0 || w.punchHit || !acting) return;
+    if (w.punchT < 0 || w.punchHit || !armed) return;
     const ext = claws ? Math.min(1, w.punchT / 0.06) : punchExtension(w.punchT);
     fistShape(f.x, f.y, f.r, w.punchAngle, reach, s.size, ext, tmpShape);
     if (this.meleeOnce(ctx, f, w, tmpShape, now)) w.punchHit = true;
   }
 
+  /** --- fl-overhaul --- Contact fists (Sonic): the body (+ reach) running into a foe is the hit, once a cooldown. */
+  private stepContactFists(ctx: ModeContext, f: FlFighter, w: FlWeaponState, now: number, dt: number, atk: number, reach: number, armed: boolean) {
+    const s = w.spec;
+    w.cd -= dt * atk;
+    if (w.punchT >= 0) {
+      w.punchT += dt * Math.max(1, atk);
+      if (w.punchT >= FL_PUNCH_SEC) w.punchT = -1;
+    }
+    if (!armed || w.cd > 0) return;
+    const touch = f.r + reach * f.r;
+    for (const o of this.view.fighters) {
+      if (!o.alive || o.team === f.team || o.hp <= 0) continue;
+      if (!circlesTouch(f.x, f.y, touch, o.x, o.y, o.r)) continue;
+      const dx = o.x - f.x;
+      const dy = o.y - f.y;
+      const d = Math.hypot(dx, dy) || 1;
+      this.queueMelee(ctx, f, o, w, s.damage, s.knockback, dx / d, dy / d, f.x + (dx / d) * f.r, f.y + (dy / d) * f.r);
+      w.cd = s.cooldown;
+      w.punchT = 0;
+      w.punchAngle = Math.atan2(dy, dx);
+      w.punchHit = true;
+      return;
+    }
+    for (const m of this.view.minions) {
+      if (!m.active || m.team === f.team || !circlesTouch(f.x, f.y, touch, m.x, m.y, m.r)) continue;
+      this.hitMinion(ctx, f, m, now);
+      w.cd = s.cooldown;
+      return;
+    }
+  }
+
   /**
    * The weapon's `n` melee shapes (w.shapes) against every foe and enemy minion: a foe is hit when the contact starts – one
-   * touch is one hit (a new sweep may hit again) – on top of the foe's invulnerability window.
+   * touch is one hit; `sticky` (a sweep, a swing): one hit a foe until the next one starts, however the contact comes and
+   * goes. --- fl-overhaul --- The hits on fighters are queued for `resolveMelee()`; true when a hit was queued or a minion hit.
    */
-  private meleeContact(ctx: ModeContext, f: FlFighter, w: FlWeaponState, n: number, factor: number, now: number) {
+  private meleeContact(ctx: ModeContext, f: FlFighter, w: FlWeaponState, n: number, factor: number, now: number, sticky: boolean): boolean {
     const v = this.view;
+    let queued = false;
     for (const o of v.fighters) {
       const bit = 1 << o.slot;
       if (!o.alive || o.team === f.team || o.hp <= 0) {
@@ -2020,7 +3004,7 @@ export class FightLeagueMode implements GameMode {
         }
       }
       if (touching < 0) {
-        w.touchMask &= ~bit;
+        if (!sticky) w.touchMask &= ~bit;
         continue;
       }
       if (w.touchMask & bit) continue;
@@ -2029,7 +3013,8 @@ export class FightLeagueMode implements GameMode {
       const kx = o.x - f.x;
       const ky = o.y - f.y;
       const d = Math.hypot(kx, ky) || 1;
-      this.hit(ctx, f, o, w.spec.damage * factor, kx / d, ky / d, w.spec.knockback, FL_SOUND_OF_KIND[w.spec.kind], { weapon: w.index, fromX: sh.bx, fromY: sh.by, melee: true });
+      this.queueMelee(ctx, f, o, w, w.spec.damage * factor, w.spec.knockback, kx / d, ky / d, sh.bx, sh.by);
+      queued = true;
     }
     for (let i = 0; i < v.minions.length; i++) {
       const m = v.minions[i];
@@ -2041,16 +3026,18 @@ export class FightLeagueMode implements GameMode {
       let touching = false;
       for (let k = 0; k < n && !touching; k++) touching = shapeHitsCircle(w.shapes[k], m.x, m.y, m.r);
       if (!touching) {
-        w.minionMask &= ~bit;
+        if (!sticky) w.minionMask &= ~bit;
         continue;
       }
       if (w.minionMask & bit) continue;
       w.minionMask |= bit;
       this.hitMinion(ctx, f, m, now);
+      queued = true;
     }
+    return queued;
   }
 
-  /** A punch's fist: the first foe it touches takes the hit (true when one did). */
+  /** A punch's fist: the first foe it touches takes the hit (queued; true when one did). */
   private meleeOnce(ctx: ModeContext, f: FlFighter, w: FlWeaponState, shape: MeleeShape, now: number): boolean {
     for (const o of this.view.fighters) {
       if (!o.alive || o.team === f.team || o.hp <= 0) continue;
@@ -2058,7 +3045,7 @@ export class FightLeagueMode implements GameMode {
       const kx = o.x - f.x;
       const ky = o.y - f.y;
       const d = Math.hypot(kx, ky) || 1;
-      this.hit(ctx, f, o, w.spec.damage, kx / d, ky / d, w.spec.knockback, FL_SOUND_OF_KIND[w.spec.kind], { weapon: w.index, fromX: shape.bx, fromY: shape.by, melee: true });
+      this.queueMelee(ctx, f, o, w, w.spec.damage, w.spec.knockback, kx / d, ky / d, shape.bx, shape.by);
       return true;
     }
     return this.meleeMinions(ctx, f, shape, now);
@@ -2076,7 +3063,112 @@ export class FightLeagueMode implements GameMode {
     return any;
   }
 
-  /** A breath cone: every foe inside burns (a tick per invulnerability window). */
+  /** --- fl-overhaul --- A melee hit queued until every fighter's weapons ran this sub-step (past FL_MELEE_CAP it lands at once). */
+  private queueMelee(ctx: ModeContext, f: FlFighter, o: FlFighter, w: FlWeaponState, damage: number, kb: number, dx: number, dy: number, fromX: number, fromY: number) {
+    const sound = FL_SOUND_OF_KIND[w.spec.kind];
+    if (this.meleeCount >= FL_MELEE_CAP) {
+      this.hit(ctx, f, o, damage, dx, dy, kb, sound, { weapon: w.index, fromX, fromY, melee: true });
+      return;
+    }
+    const q = this.melee[this.meleeCount++];
+    q.attacker = f.slot;
+    q.target = o.slot;
+    q.weapon = w.index;
+    q.damage = damage;
+    q.kb = kb;
+    q.dx = dx;
+    q.dy = dy;
+    q.fromX = fromX;
+    q.fromY = fromY;
+    q.sound = sound;
+    q.done = false;
+  }
+
+  /** --- fl-overhaul --- Whether a queued melee hit would land now (both alive, no invulnerability, no disarm, its source's window over). */
+  private meleeLive(q: FlMeleeHit, now: number): boolean {
+    const fs = this.view.fighters;
+    const a = fs[q.attacker];
+    const b = fs[q.target];
+    if (!a.alive || !b.alive || a.hp <= 0 || b.hp <= 0 || this.view.finished) return false;
+    if (now < b.invulnUntil || now < a.disarmedUntil) return false;
+    return !(now < b.srcUntil[(a.slot & 7) * 8 + Math.min(6, q.weapon)]);
+  }
+
+  /** --- fl-overhaul --- A queued melee hit's impact: its damage × the attacker's damage stat, buffs and a pending giant hit. */
+  private impactOf(q: FlMeleeHit, now: number): number {
+    const a = this.view.fighters[q.attacker];
+    let x = q.damage * a.damage;
+    if (now < a.dmgMulUntil) x *= a.dmgMul;
+    if (a.giantLeft > 0) x *= Math.max(1, a.giantMult);
+    return x;
+  }
+
+  /**
+   * --- fl-overhaul --- The sub-step's melee hits: a hit A → B traded with a hit B → A in the same sub-step lands at half damage
+   * when its impact is FL_CLASH_RATIO × the other's (the other is parried); else both are parried – a CLASH (no damage, both
+   * knocked apart) – and the pair's next clash within FL_CLASH_REPEAT_MS is decided by a seeded coin (the winner lands at half
+   * damage). Unpaired hits land in queue order.
+   */
+  private resolveMelee(ctx: ModeContext, now: number) {
+    const n = this.meleeCount;
+    for (let i = 0; i < n; i++) {
+      const a = this.melee[i];
+      if (a.done) continue;
+      a.done = true;
+      let b: FlMeleeHit | null = null;
+      for (let j = i + 1; j < n; j++) {
+        const c = this.melee[j];
+        if (!c.done && c.attacker === a.target && c.target === a.attacker) {
+          b = c;
+          break;
+        }
+      }
+      if (b && this.meleeLive(a, now) && this.meleeLive(b, now)) {
+        b.done = true;
+        const ia = this.impactOf(a, now);
+        const ib = this.impactOf(b, now);
+        if (ia >= FL_CLASH_RATIO * ib) this.landMelee(ctx, a, 0.5);
+        else if (ib >= FL_CLASH_RATIO * ia) this.landMelee(ctx, b, 0.5);
+        else {
+          const lo = Math.min(a.attacker, b.attacker);
+          const hi = Math.max(a.attacker, b.attacker);
+          const key = (lo & 7) * 8 + (hi & 7);
+          if (now - this.pairClashMs[key] < FL_CLASH_REPEAT_MS) {
+            const lower = a.attacker === lo ? a : b;
+            this.landMelee(ctx, this.randomDraw() < 0.5 ? lower : lower === a ? b : a, 0.5);
+          } else this.clash(a, now);
+          this.pairClashMs[key] = now;
+        }
+        continue;
+      }
+      this.landMelee(ctx, a, 1);
+    }
+    this.meleeCount = 0;
+  }
+
+  private landMelee(ctx: ModeContext, q: FlMeleeHit, scale: number) {
+    const fs = this.view.fighters;
+    this.hit(ctx, fs[q.attacker], fs[q.target], q.damage, q.dx, q.dy, q.kb, q.sound, { weapon: q.weapon, fromX: q.fromX, fromY: q.fromY, melee: true, scale });
+  }
+
+  /** --- fl-overhaul --- Two weapons met: no damage, both fighters knocked apart (1 unit, by weight), CLASH!. */
+  private clash(q: FlMeleeHit, now: number) {
+    const v = this.view;
+    const a = v.fighters[q.attacker];
+    const b = v.fighters[q.target];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const d = Math.hypot(dx, dy) || 1;
+    this.applyKnock(a, -dx / d, -dy / d, 1, now);
+    this.applyKnock(b, dx / d, dy / d, 1, now);
+    a.clashes++;
+    b.clashes++;
+    v.clashes2++;
+    this.pushEvent(EV_CLASH, now, 0.5 * (a.x + b.x), 0.5 * (a.y + b.y), 0, a.slot, "#ffffff", b.x, b.y, (a.slot & 7) * 8 + Math.min(6, q.weapon));
+    this.budget.offer(0.6, "block", 1318.51, 0.4);
+  }
+
+  /** A breath cone: every foe inside burns (a tick per window: at most three a breath). */
   private stepCone(ctx: ModeContext, f: FlFighter, w: FlWeaponState, now: number) {
     const s = w.spec;
     const range = f.r + s.reach * this.reachOf(f.team) * f.r;
@@ -2093,53 +3185,135 @@ export class FightLeagueMode implements GameMode {
     }
   }
 
-  /** Fires a shooter's projectile(s) at the target (the bow, guns, wands, orbs, bolts, web, ice). */
+  /** --- fl-overhaul --- A weapon beam after its glint: a ray along the locked aim for FL_BEAM_MS. */
+  private fireBeam(f: FlFighter, w: FlWeaponState, now: number) {
+    const b = this.freeBeam();
+    if (!b) return;
+    const s = w.spec;
+    b.active = true;
+    b.owner = f.slot;
+    b.team = f.team;
+    b.born = now;
+    b.until = now + FL_BEAM_MS;
+    b.angle = Math.atan2(w.glintY - f.y, w.glintX - f.x);
+    b.width = Math.max(1.5, s.size * f.r);
+    b.damage = s.damage;
+    b.ability = false;
+    b.weapon = w.index;
+    b.hitMask = 0;
+    b.color = s.color ?? f.row.accent;
+    w.beam = this.view.beams.indexOf(b);
+    w.angle = b.angle;
+    this.budget.offer(0.4, "magic", fighterPitch(f.slot) * 2, 0.3);
+  }
+
+  /** --- fl-overhaul --- A spark's arc jumps on to a second foe within 2 R of the first (free-for-alls and teams), at half damage. */
+  private chainSpark(ctx: ModeContext, f: FlFighter, w: FlWeaponState, firstR: number, now: number) {
+    let best: FlFighter | null = null;
+    let bestD = Infinity;
+    for (const o of this.view.fighters) {
+      if (o.team === f.team || !this.targetable(o, now) || o.slot === f.targetSlot) continue;
+      const gap = Math.hypot(o.x - w.zapX, o.y - w.zapY) - o.r - firstR;
+      if (gap > 2 * f.r || gap >= bestD) continue;
+      bestD = gap;
+      best = o;
+    }
+    if (!best) return;
+    const d = Math.hypot(best.x - w.zapX, best.y - w.zapY) || 1;
+    w.zap2Ms = now;
+    w.zap2X = best.x;
+    w.zap2Y = best.y;
+    this.hit(ctx, f, best, 0.5 * w.spec.damage, (best.x - w.zapX) / d, (best.y - w.zapY) / d, w.spec.knockback, "magic", { weapon: w.index, fromX: w.zapX, fromY: w.zapY });
+  }
+
+  /**
+   * --- fl-overhaul --- Where to aim a projectile of `speed` (px/s) at `t`: FL_LEAD of the way to the intercept – where the
+   * target flying on would meet it (the direct bearing when it cannot be caught).
+   */
+  private leadAim(f: FlFighter, t: { x: number; y: number; vx: number; vy: number }, speed: number): number {
+    const px = t.x - f.x;
+    const py = t.y - f.y;
+    const u = Math.max(1, speed);
+    const a = t.vx * t.vx + t.vy * t.vy - u * u;
+    const b = 2 * (px * t.vx + py * t.vy);
+    const c = px * px + py * py;
+    let time = 0;
+    if (Math.abs(a) < 1e-9) time = b < 0 ? -c / b : 0;
+    else {
+      const disc = b * b - 4 * a * c;
+      if (disc >= 0) {
+        const sq = Math.sqrt(disc);
+        const t1 = (-b - sq) / (2 * a);
+        const t2 = (-b + sq) / (2 * a);
+        time = t1 > 0 && t2 > 0 ? Math.min(t1, t2) : Math.max(t1, t2, 0);
+      }
+    }
+    const lead = FL_LEAD * time;
+    return Math.atan2(py + t.vy * lead, px + t.vx * lead);
+  }
+
+  /** Fires a shooter's projectile(s) at the target (the bow, guns, wands, orbs, bolts, web, ice): a shotgun's fan; a burst's first round. */
   private shoot(f: FlFighter, w: FlWeaponState, t: { x: number; y: number; vx: number; vy: number; r: number }, now: number) {
+    const s = w.spec;
+    const count = s.kind === "shotgun" ? s.count : 1;
+    const volley = ++this.volleySerial;
+    for (let k = 0; k < count; k++) if (!this.fireRound(f, w, t, now, volley, k, count)) break;
+    // --- fl-overhaul --- a burst's other rounds leave the muzzle FL_BURST_GAP apart (never behind the shooter)
+    if (s.style === "burst" && s.count > 1) {
+      w.burstLeft = s.count - 1;
+      w.burstT = FL_BURST_GAP;
+      w.burstVolley = volley;
+    }
+    this.view.shots++;
+    this.budget.offer(0.15, FL_SOUND_OF_KIND[s.kind], fighterPitch(f.slot) * 1.5, 0.18);
+  }
+
+  /** --- fl-overhaul --- One projectile of a shooter from the muzzle (its own spread draw): pellet `k` of `count`, or a round. */
+  private fireRound(f: FlFighter, w: FlWeaponState, t: { x: number; y: number; vx: number; vy: number; r: number } | null, now: number, volley: number, k: number, count: number): boolean {
+    const p = this.freeProjectile();
+    if (!p) return false;
     const s = w.spec;
     const field = this.view.field!;
     const speed = this.projectileSpeed(s.speed, field);
     // Lead the target a little: aim at where it will be half-way through the flight.
-    const dist = Math.hypot(t.x - f.x, t.y - f.y);
-    const lead = (0.5 * dist) / speed;
-    let aim = Math.atan2(t.y + t.vy * lead - f.y, t.x + t.vx * lead - f.x);
-    if (this.view.fighters.length > 0 && now < f.confusedUntil) aim += Math.PI;
-    const count = s.kind === "shotgun" ? s.count : s.style === "burst" ? s.count : 1;
-    const volley = ++this.volleySerial;
+    let aim = t ? this.leadAim(f, t, speed) : w.angle;
+    if (t && now < f.confusedUntil) aim += Math.PI;
     let spread = s.spread;
     if (this.rigChosen >= 0 && f.team !== this.rigChosen) spread += 6 * this.rigK;
-    for (let k = 0; k < count; k++) {
-      const p = this.freeProjectile();
-      if (!p) return;
-      const jitter = (this.randomDraw() - 0.5) * spread * DEG;
-      let a = aim + jitter;
-      if (s.kind === "shotgun" && count > 1) a = aim + (k / (count - 1) - 0.5) * s.spread * DEG + 0.25 * jitter;
-      const delay = s.style === "burst" ? k * 0.08 : 0;
-      this.launch(p, f, PK_SHOT, a, speed, now, delay);
-      p.weapon = w.index;
-      p.volley = volley;
-      p.r = Math.max(1.5, s.size * f.r);
-      p.damage = s.damage;
-      p.kb = s.knockback;
-      p.shape = s.shape;
-      p.color = s.color ?? f.row.accent;
-      p.homing = Math.max(p.homing, s.homing);
-      p.target = f.targetSlot;
-      p.bounces = s.style === "bouncing" ? 1 : 0;
-      if (s.kind === "shotgun") p.until = now + (1000 * s.reach * field.side) / speed;
-      if (s.kind === "web") {
-        p.slow = s.effect;
-        p.slowSec = s.effectSec;
-      }
-      if (s.kind === "ice") p.freeze = s.effect;
-      if (s.kind === "staff" && s.style === "return") {
-        p.ret = 1;
-        p.range = s.reach * field.side;
-        p.until = now + 6000;
-      }
-      this.giantShot(f, p);
+    const jitter = (this.randomDraw() - 0.5) * spread * DEG;
+    let a = aim + jitter;
+    if (s.kind === "shotgun" && count > 1) a = aim + (k / (count - 1) - 0.5) * s.spread * DEG + 0.25 * jitter;
+    this.launch(p, f, PK_SHOT, a, speed, now);
+    p.weapon = w.index;
+    p.volley = volley;
+    p.r = Math.max(1.5, s.size * f.r);
+    p.damage = s.damage;
+    p.kb = s.knockback;
+    p.shape = s.shape;
+    p.color = s.color ?? f.row.accent;
+    p.homing = Math.max(p.homing, s.homing);
+    p.target = f.targetSlot;
+    p.bounces = s.style === "bouncing" ? 1 : 0;
+    if (s.kind === "shotgun") p.until = now + (1000 * s.reach * field.side) / speed;
+    if (s.kind === "web") {
+      p.slow = s.effect;
+      p.slowSec = s.effectSec;
     }
-    this.view.shots++;
-    this.budget.offer(0.15, FL_SOUND_OF_KIND[s.kind], fighterPitch(f.slot) * 1.5, 0.18);
+    if (s.kind === "ice") p.freeze = s.effect;
+    if (s.kind === "staff" && s.style === "return") {
+      p.ret = 1;
+      p.range = s.reach * field.side;
+      p.until = now + 6000;
+    }
+    const homedByGiant = this.giantShot(f, p);
+    if ((s.homing > 0 || homedByGiant) && p.ret === 0) this.limitHoming(p, now);
+    return true;
+  }
+
+  /** --- fl-overhaul --- A homing projectile homes FL_HOMING_SEC, then flies straight and fizzles at FL_FIZZLE_SEC. */
+  private limitHoming(p: FlProjectile, now: number) {
+    p.homeUntil = now + 1000 * FL_HOMING_SEC;
+    p.fizzleAt = now + 1000 * FL_FIZZLE_SEC;
   }
 
   /** Cards: the next loaded blade flies at the target. */
@@ -2149,14 +3323,12 @@ export class FightLeagueMode implements GameMode {
     if (!p) return;
     const field = this.view.field!;
     const speed = this.projectileSpeed(s.speed, field);
-    const dist = Math.hypot(t.x - f.x, t.y - f.y);
-    const lead = (0.5 * dist) / speed;
-    let aim = Math.atan2(t.y + t.vy * lead - f.y, t.x + t.vx * lead - f.x);
+    let aim = this.leadAim(f, t, speed);
     if (now < f.confusedUntil) aim += Math.PI;
     let spread = s.spread;
     if (this.rigChosen >= 0 && f.team !== this.rigChosen) spread += 6 * this.rigK;
     aim += (this.randomDraw() - 0.5) * spread * DEG;
-    this.launch(p, f, PK_CARD, aim, speed, now, 0);
+    this.launch(p, f, PK_CARD, aim, speed, now);
     p.weapon = w.index;
     p.volley = ++this.volleySerial;
     p.r = Math.max(1.5, s.size * f.r);
@@ -2167,21 +3339,24 @@ export class FightLeagueMode implements GameMode {
     p.target = f.targetSlot;
     w.throws++;
     p.blink = s.style === "blink" && w.throws % 3 === 0;
-    this.giantShot(f, p);
+    if (this.giantShot(f, p)) this.limitHoming(p, now);
     this.view.shots++;
     this.budget.offer(0.12, "blade", fighterPitch(f.slot) * 2, 0.15);
   }
 
-  /** The returning hammer, the pull chain's head or the shield flies at the target. */
+  /**
+   * The returning hammer, the pull chain's head or the shield flies at the target – --- fl-overhaul --- led like a shot,
+   * homing 1.2 rad/s on its way out (straight back) – and the hand is empty until it is back (`w.thrown`).
+   */
   private throwWeapon(f: FlFighter, w: FlWeaponState, t: { x: number; y: number; vx: number; vy: number; r: number }, now: number) {
     const s = w.spec;
     const p = this.freeProjectile();
     if (!p) return;
     const field = this.view.field!;
     const speed = this.projectileSpeed(s.speed, field);
-    const aim = Math.atan2(t.y - f.y, t.x - f.x) + (now < f.confusedUntil ? Math.PI : 0);
+    const aim = this.leadAim(f, t, speed) + (now < f.confusedUntil ? Math.PI : 0);
     const kind = s.kind === "hammer" ? PK_HAMMER : s.kind === "shield" ? PK_SHIELD : PK_SPEAR;
-    this.launch(p, f, kind, aim, speed, now, 0);
+    this.launch(p, f, kind, aim, speed, now);
     p.weapon = w.index;
     p.volley = ++this.volleySerial;
     p.r = Math.max(2, (kind === PK_SPEAR ? 0.3 : s.size * 0.9) * f.r);
@@ -2194,6 +3369,8 @@ export class FightLeagueMode implements GameMode {
     p.bounces = kind === PK_SHIELD ? 1 : 0;
     p.pull = kind === PK_SPEAR;
     p.until = now + 8000;
+    p.homing = Math.max(p.homing, 1.2);
+    p.target = f.targetSlot;
     w.thrown = this.view.projectiles.indexOf(p);
     this.giantShot(f, p);
     this.budget.offer(0.2, FL_SOUND_OF_KIND[s.kind], fighterPitch(f.slot), 0.2);
@@ -2203,24 +3380,29 @@ export class FightLeagueMode implements GameMode {
     return Math.max(10, sidesPerSec * field.side * (this.unit / Math.max(1e-9, field.side * FL_SPEED_FRAC)));
   }
 
-  /** A giant hit loaded on the owner travels with its next shot (and homes when it says so). */
-  private giantShot(f: FlFighter, p: FlProjectile) {
-    if (f.giantLeft <= 0) return;
+  /** A giant hit loaded on the owner travels with its next shot (and homes when it says so: true then); a miss brings it back. */
+  private giantShot(f: FlFighter, p: FlProjectile): boolean {
+    if (f.giantLeft <= 0) return false;
     f.giantLeft--;
     p.giant = f.giantMult;
     p.giantKb = f.giantKb;
     p.giantFreeze = f.giantFreeze;
-    if (f.giantHoming > 0) p.homing = Math.max(p.homing, f.giantHoming);
+    if (f.giantHoming > 0) {
+      p.homing = Math.max(p.homing, f.giantHoming);
+      return true;
+    }
+    return false;
   }
 
-  private launch(p: FlProjectile, f: FlFighter, kind: number, angle: number, speed: number, now: number, delaySec: number) {
+  /** A projectile leaves `f`'s rim along `angle` (--- fl-overhaul --- every field reset: a pooled projectile carries nothing of its last use). */
+  private launch(p: FlProjectile, f: FlFighter, kind: number, angle: number, speed: number, now: number) {
     p.active = true;
     p.kind = kind;
     p.owner = f.slot;
     p.team = f.team;
     const start = f.r + 2;
-    p.x = f.x + Math.cos(angle) * start - Math.cos(angle) * speed * delaySec;
-    p.y = f.y + Math.sin(angle) * start - Math.sin(angle) * speed * delaySec;
+    p.x = f.x + Math.cos(angle) * start;
+    p.y = f.y + Math.sin(angle) * start;
     p.vx = Math.cos(angle) * speed;
     p.vy = Math.sin(angle) * speed;
     p.until = now + 6000;
@@ -2231,6 +3413,7 @@ export class FightLeagueMode implements GameMode {
     p.ret = 0;
     p.range = 0;
     p.hitMask = 0;
+    p.sepMask = 0;
     p.unblockable = false;
     p.explode = 0;
     p.slow = 0;
@@ -2243,10 +3426,15 @@ export class FightLeagueMode implements GameMode {
     p.blink = false;
     p.spin = 0;
     p.born = now;
+    p.weapon = -1;
+    p.volley = 0;
+    p.id = ++this.projSerial;
+    p.homeUntil = Infinity;
+    p.fizzleAt = Infinity;
     if (this.rigChosen >= 0 && f.team === this.rigChosen) p.homing = 2.2 * this.rigK;
   }
 
-  /** One draw of the run's random numbers (every shot's spread, cuts, minions' headings – in slot order). */
+  /** One draw of the run's random numbers (every shot's spread, cuts, minions' headings, rim turns, clash coins – in step order). */
   private randomDraw(): number {
     return this.ctxRef ? this.ctxRef.random() : 0.5;
   }
@@ -2266,6 +3454,12 @@ export class FightLeagueMode implements GameMode {
         this.endProjectile(ctx, p, i, now);
         continue;
       }
+      // --- fl-overhaul --- a homing shot fizzles out
+      if (now >= p.fizzleAt) {
+        this.pushEvent(EV_POP, now, p.x, p.y, 0, p.owner, p.color);
+        this.endProjectile(ctx, p, i, now);
+        continue;
+      }
       // Homing: toward its target (the nearest foe when it lost it); a returning one flies back to its owner.
       if (p.ret === 2) {
         const dx = owner.x - p.x;
@@ -2278,7 +3472,7 @@ export class FightLeagueMode implements GameMode {
         }
         p.vx = (dx / d) * sp;
         p.vy = (dy / d) * sp;
-      } else if (p.homing > 0) {
+      } else if (p.homing > 0 && now < p.homeUntil) {
         let tgt = p.target >= 0 ? v.fighters[p.target] : null;
         if (!tgt || !this.targetable(tgt, now)) {
           tgt = null;
@@ -2309,6 +3503,17 @@ export class FightLeagueMode implements GameMode {
         p.range -= Math.hypot(mx, my);
         if (p.range <= 0) this.turnBack(p);
       }
+      // --- fl-overhaul --- a foe it hit on the way out leaves its mask once it has separated from it (no second hit at the turn)
+      if (p.sepMask) {
+        for (const o of v.fighters) {
+          const bit = 1 << o.slot;
+          if (!(p.sepMask & bit)) continue;
+          if (!o.alive || !circlesTouch(p.x, p.y, p.r, o.x, o.y, o.r)) {
+            p.sepMask &= ~bit;
+            p.hitMask &= ~bit;
+          }
+        }
+      }
       // Walls: a bouncing shot reflects (once), a returning weapon turns back, the rest end there.
       if (this.outside(field, p.x, p.y, p.r)) {
         if (p.bounces > 0) {
@@ -2333,12 +3538,28 @@ export class FightLeagueMode implements GameMode {
         p.hitMask |= bit;
         const sp = Math.hypot(p.vx, p.vy) || 1;
         const sound = p.kind === PK_HAMMER ? "blunt" : p.kind === PK_SHIELD || p.kind === PK_CARD ? "blade" : p.kind === PK_SPEAR ? "blunt" : p.weapon >= 0 ? FL_SOUND_OF_KIND[owner.weapons[p.weapon]?.spec.kind ?? "gun"] : "magic";
-        const landed = this.hit(ctx, owner, o, p.damage, p.vx / sp, p.vy / sp, p.kb, sound, { weapon: p.weapon, volley: p.volley, fromX: p.x - (p.vx / sp) * 4 * p.r, fromY: p.y - (p.vy / sp) * 4 * p.r, unblockable: p.unblockable, projectile: p });
-        if (landed && p.slow > 0) {
-          o.slowUntil = now + 1000 * p.slowSec;
-          o.slowFactor = p.slow;
+        const res = this.hit(ctx, owner, o, p.damage, p.vx / sp, p.vy / sp, p.kb, sound, { weapon: p.weapon, volley: p.volley, fromX: p.x - (p.vx / sp) * 4 * p.r, fromY: p.y - (p.vy / sp) * 4 * p.r, unblockable: p.unblockable, projectile: p });
+        if (res === HIT_WINDOW) {
+          // --- fl-overhaul --- refused by its source's window: a graze – it ends there (a giant hit passes through and keeps
+          // its charge; a returning weapon turns back or flies on)
+          if (p.giant > 0) continue;
+          this.graze(p, owner, now);
+          if (p.ret === 1) {
+            this.turnBack(p);
+            continue;
+          }
+          if (p.ret === 2 || p.foes) continue;
+          this.endProjectile(ctx, p, i, now);
+          break;
         }
-        if (landed && p.freeze > 0) {
+        const landed = res === HIT_LANDED;
+        if (landed && p.slow > 0) {
+          // (the strongest slow applies: another web extends it, never stacks)
+          if (now < o.slowUntil) o.slowFactor = Math.min(o.slowFactor, p.slow);
+          else o.slowFactor = p.slow;
+          o.slowUntil = Math.max(o.slowUntil, now + 1000 * p.slowSec);
+        }
+        if (landed && p.freeze > 0 && this.applyHardCc(o, now + 1000 * p.freeze, now)) {
           o.frozenUntil = Math.max(o.frozenUntil, now + 1000 * p.freeze);
           this.pushEvent(EV_FREEZE, now, o.x, o.y, p.freeze, o.slot, "#bae6fd");
         }
@@ -2385,6 +3606,13 @@ export class FightLeagueMode implements GameMode {
     }
   }
 
+  /** --- fl-overhaul --- A projectile refused by a window: EV_GRAZE where it touched (its owner's colour, its source). */
+  private graze(p: FlProjectile, owner: FlFighter, now: number) {
+    this.view.grazes++;
+    owner.grazes++;
+    this.pushEvent(EV_GRAZE, now, p.x, p.y, 0, owner.slot, p.color, 0, 0, (owner.slot & 7) * 8 + (p.weapon >= 0 ? Math.min(6, p.weapon) : 7));
+  }
+
   private nextFoe(p: FlProjectile, from: FlFighter): FlFighter | null {
     let best: FlFighter | null = null;
     let bestD = Infinity;
@@ -2399,10 +3627,10 @@ export class FightLeagueMode implements GameMode {
     return best;
   }
 
+  /** A returning projectile turns back to its owner; --- fl-overhaul --- the foes it hit stay masked until it has left them. */
   private turnBack(p: FlProjectile) {
-    if (p.ret === 0) p.ret = 1;
     p.ret = 2;
-    p.hitMask = 0;
+    p.sepMask = p.hitMask;
     p.foes = 0;
   }
 
@@ -2447,16 +3675,24 @@ export class FightLeagueMode implements GameMode {
     this.clampInside(field, p);
   }
 
-  /** A projectile ends: a thrown weapon comes back to its owner's hand; Katarina blinks to her dagger. */
+  /**
+   * A projectile ends: a thrown weapon comes back to its owner's hand; Katarina blinks to her dagger; --- fl-overhaul --- an
+   * unspent giant hit goes back to its owner (a miss loses nothing).
+   */
   private endProjectile(ctx: ModeContext, p: FlProjectile, index: number, now: number) {
     const v = this.view;
     const owner = v.fighters[p.owner];
     if (p.blink && owner && owner.alive && this.canAct(owner, now)) this.blinkTo(ctx, owner, p.x, p.y, now, owner.weapons[p.weapon]?.spec.damage ?? 5);
+    if (p.giant > 0 && owner && owner.alive && !v.finished) owner.giantLeft++;
+    p.giant = 0;
     p.active = false;
     if (owner) for (const w of owner.weapons) if (w.thrown === index) w.thrown = -1;
   }
 
-  /** Katarina's blink: to her dagger, a spin of blades around her. */
+  /**
+   * A blink: to (x, y), a spin of blades around the fighter (Katarina; `damage` 0: none). --- fl-overhaul --- The spin is an
+   * ability-like source with its own window: the dagger that just hit no longer cancels it.
+   */
   private blinkTo(ctx: ModeContext, f: FlFighter, x: number, y: number, now: number, damage: number) {
     const ball = this.byIndex[f.slot];
     const field = this.view.field!;
@@ -2482,6 +3718,7 @@ export class FightLeagueMode implements GameMode {
     this.pushEvent(EV_BLINK, now, f.x, f.y, 0, f.slot, f.row.accent, nx, ny);
     ball.x = f.x = nx;
     ball.y = f.y = ny;
+    if (!(damage > 0)) return;
     for (const o of this.view.fighters) {
       if (!o.alive || o.team === f.team) continue;
       if (circlesTouch(f.x, f.y, 1.8 * f.r, o.x, o.y, o.r)) {
@@ -2501,13 +3738,13 @@ export class FightLeagueMode implements GameMode {
 
   /* ---------------------------------------------------------------- hits */
 
-  /** A hit on a decoy or a summon: it pops (a freeze decoy freezes its attacker). */
+  /** A hit on a decoy or a summon: it pops (a freeze decoy freezes its attacker – a hard crowd control). */
   private hitMinion(ctx: ModeContext, attacker: FlFighter, m: FlMinion, now: number) {
     m.hp--;
     if (m.hp > 0) return;
     m.active = false;
     this.pushEvent(EV_POP, now, m.x, m.y, 0, m.owner, m.color);
-    if (m.freezeOnTouch > 0 && attacker.alive) {
+    if (m.freezeOnTouch > 0 && attacker.alive && this.applyHardCc(attacker, now + 1000 * m.freezeOnTouch, now)) {
       attacker.frozenUntil = Math.max(attacker.frozenUntil, now + 1000 * m.freezeOnTouch);
       this.pushEvent(EV_FREEZE, now, attacker.x, attacker.y, m.freezeOnTouch, attacker.slot, "#bae6fd");
     }
@@ -2520,35 +3757,52 @@ export class FightLeagueMode implements GameMode {
     else if (f.targetMinion >= 0 && this.view.minions[f.targetMinion].active) this.hitMinion(ctx, f, this.view.minions[f.targetMinion], this.now());
   }
 
+  /** --- fl-overhaul --- The window (ms) a hit of `attacker`'s weapon `weapon` (−1: its abilities, summons, contact) opens on its target. */
+  private windowOf(attacker: FlFighter, weapon: number, now: number): number {
+    const w = weapon >= 0 ? attacker.weapons[weapon] : undefined;
+    return w ? flSourceWindowMs(w.spec.kind, w.spec.cooldown, this.attackOf(attacker, now)) : FL_IFRAME_MS;
+  }
+
   /**
-   * `attacker` hits `target` for `damage` (before its damage stat and buffs) from direction (dx, dy): invulnerability,
-   * the target's invulnerability window, a shield block, giant hits, reflection, knockback, the counters, the meters, the
-   * events and the sound. Returns true when damage landed.
+   * `attacker` hits `target` for `damage` (before its damage stat and buffs) from direction (dx, dy): invulnerability, the
+   * window of the hit's source on the target (--- fl-overhaul --- per source: attacker × 8 + weapon, 7 its abilities – two
+   * sources may land together, one never faster than its window; a volley's other projectiles exempt), a shield block (a
+   * block spends the guard), giant hits, reflection, knockback by weight, the counters, the meters by damage, the events and
+   * the sound. Returns what happened (HIT_LANDED when damage landed).
    */
-  private hit(ctx: ModeContext, attacker: FlFighter, target: FlFighter, damage: number, dx: number, dy: number, kb: number, sound: FlSoundKind, opts: HitOptions = {}): boolean {
+  private hit(ctx: ModeContext, attacker: FlFighter, target: FlFighter, damage: number, dx: number, dy: number, kb: number, sound: FlSoundKind, opts: HitOptions = {}): number {
     const v = this.view;
     const now = this.now();
-    if (!target.alive || target.hp <= 0 || v.finished) return false;
-    if (now < target.invulnUntil) return false;
-    if (now < attacker.disarmedUntil && opts.weapon !== undefined && opts.weapon >= 0) return false;
-    const sameVolley = opts.volley !== undefined && opts.volley > 0 && target.lastVolley === opts.volley && now - target.lastVolleyMs < 400;
-    if (!opts.ignoreIframes && now < target.iUntil && !sameVolley) return false;
-    // A held shield blocks hits from its facing side.
+    if (!target.alive || target.hp <= 0 || v.finished) return HIT_NONE;
+    // --- fl-overhaul --- a fighter whose last HP went earlier this step strikes no more (its shots in the air still fly)
+    if (attacker.hp <= 0 && !opts.projectile && attacker !== target) return HIT_NONE;
+    const weapon = opts.weapon !== undefined && opts.weapon >= 0 ? opts.weapon : -1;
+    if (weapon >= 0 && now < attacker.disarmedUntil) return HIT_NONE;
+    if (now < target.invulnUntil) {
+      this.immune(target, now);
+      return HIT_IMMUNE;
+    }
+    const src = (attacker.slot & 7) * 8 + (weapon >= 0 ? Math.min(6, weapon) : 7);
+    const proj = opts.projectile;
+    const sameVolley = opts.volley !== undefined && opts.volley > 0 && target.lastVolley === opts.volley && now - target.lastVolleyMs < 400 && (!proj || proj.id !== target.lastVolleyProj);
+    if (!opts.ignoreIframes && !sameVolley && now < target.srcUntil[src]) return HIT_WINDOW;
+    // A held shield blocks hits from the side it faces (the target) while its guard is up.
     if (!opts.unblockable) {
       for (const w of target.weapons) {
-        if (w.spec.kind !== "shield" || w.thrown >= 0) continue;
+        if (w.spec.kind !== "shield" || w.thrown >= 0 || now < w.guardUntil) continue;
         const fx = opts.fromX ?? attacker.x;
         const fy = opts.fromY ?? attacker.y;
         if (!shieldBlocks(w.angle, Math.atan2(fy - target.y, fx - target.x))) continue;
-        target.iUntil = now + 0.5 * FL_IFRAME_MS;
+        w.guardUntil = now + (w.spec.style === "block" ? FL_BRACERS_GUARD_MS : FL_GUARD_MS);
+        target.srcUntil[src] = now + 0.5 * FL_IFRAME_MS;
         target.blocks++;
         v.blocks++;
-        this.pushEvent(EV_BLOCK, now, target.x + Math.cos(w.angle) * target.r * 1.2, target.y + Math.sin(w.angle) * target.r * 1.2, 0, target.slot, "#fef9c3");
+        this.pushEvent(EV_BLOCK, now, target.x + Math.cos(w.angle) * target.r * 1.2, target.y + Math.sin(w.angle) * target.r * 1.2, 0, target.slot, "#fef9c3", 0, 0, src);
         this.budget.offer(0.6, "block", 1567.98, 0.4);
-        return false;
+        return HIT_BLOCKED;
       }
     }
-    let amount = damage * attacker.damage;
+    let amount = damage * attacker.damage * (opts.scale ?? 1);
     if (now < attacker.dmgMulUntil) amount *= attacker.dmgMul;
     let knock = kb;
     if (now < attacker.dmgMulUntil) knock *= attacker.kbMul;
@@ -2556,11 +3810,11 @@ export class FightLeagueMode implements GameMode {
     let giant = 0;
     let giantKb = 0;
     let giantFreeze = 0;
-    if (opts.projectile && opts.projectile.giant > 0) {
-      giant = opts.projectile.giant;
-      giantKb = opts.projectile.giantKb;
-      giantFreeze = opts.projectile.giantFreeze;
-      opts.projectile.giant = 0;
+    if (proj && proj.giant > 0) {
+      giant = proj.giant;
+      giantKb = proj.giantKb;
+      giantFreeze = proj.giantFreeze;
+      proj.giant = 0;
     } else if (opts.melee && attacker.giantLeft > 0) {
       attacker.giantLeft--;
       giant = attacker.giantMult;
@@ -2568,40 +3822,38 @@ export class FightLeagueMode implements GameMode {
       giantFreeze = attacker.giantFreeze;
     }
     if (giant > 0) {
-      amount = giantDamage(amount, giant, target.hp, target.maxHp, attacker.giantBelowHalf, attacker.giantHalfMax);
+      amount = giantDamage(amount, giant, target.hp, target.maxHp, attacker.giantBelowHalf, attacker.giantFrac);
       knock += giantKb;
-      if (giantFreeze > 0) target.frozenUntil = Math.max(target.frozenUntil, now + 1000 * giantFreeze);
+      if (giantFreeze > 0 && this.applyHardCc(target, now + 1000 * giantFreeze, now)) target.frozenUntil = Math.max(target.frozenUntil, now + 1000 * giantFreeze);
       this.pushEvent(EV_SHOCK, now, target.x, target.y, target.r * 2.2, attacker.slot, attacker.row.accent);
     }
-    if (!(amount > 0)) return false;
+    if (!(amount > 0)) return HIT_NONE;
     const before = target.hp;
     target.hp -= amount;
     this.absorbLethal(target, before);
-    const iframe = FL_IFRAME_MS * (this.rigChosen >= 0 && target.team === this.rigChosen ? 1 + 0.8 * this.rigK : 1);
-    target.iUntil = now + iframe;
+    const rig = this.rigChosen >= 0 && target.team === this.rigChosen ? 1 + 0.8 * this.rigK : 1;
+    target.srcUntil[src] = now + this.windowOf(attacker, weapon, now) * rig;
     if (opts.volley) {
       target.lastVolley = opts.volley;
       target.lastVolleyMs = now;
+      target.lastVolleyProj = proj ? proj.id : -1;
     }
+    const dealt = before - Math.max(0, target.hp);
     target.hitMs = now;
     target.lastHitBy = attacker.slot;
     target.taken++;
     attacker.hits++;
-    if (opts.weapon !== undefined && opts.weapon >= 0 && attacker.weapons[opts.weapon]) attacker.weapons[opts.weapon].hits++;
-    attacker.dealt += before - Math.max(0, target.hp);
+    if (weapon >= 0 && attacker.weapons[weapon]) {
+      attacker.weapons[weapon].hits++;
+      attacker.weapons[weapon].dealt += dealt;
+    }
+    attacker.dealt += dealt;
     v.hits++;
     v.lastHitMs = now;
-    attacker.meter = Math.min(1, attacker.meter + FL_HIT_CHARGE * attacker.cast);
-    target.meter = Math.min(1, target.meter + FL_TAKEN_CHARGE * target.cast);
-    // Knockback (a pinned or held fighter does not budge).
-    const ball = this.byIndex[target.slot];
-    if (ball && knock > 0 && !this.pinned(target, now)) {
-      const push = knock * this.unit;
-      ball.vx += dx * push;
-      ball.vy += dy * push;
-      target.vx = ball.vx;
-      target.vy = ball.vy;
-    }
+    // --- fl-overhaul --- the meters fill by the damage (a chip barely moves them, a big hit does)
+    attacker.meter = Math.min(1, attacker.meter + hitCharge(amount, false) * attacker.cast);
+    target.meter = Math.min(1, target.meter + hitCharge(amount, true) * target.cast);
+    this.applyKnock(target, dx, dy, knock, now);
     // Reflection: the attacker takes its share back – through the same guards as a hit (none while it is invulnerable, and
     // the rig's backstop holds against it).
     if (now < target.reflectUntil && attacker !== target && attacker.alive && now >= attacker.invulnUntil) {
@@ -2610,14 +3862,26 @@ export class FightLeagueMode implements GameMode {
       attacker.hp -= back;
       this.absorbLethal(attacker, had);
       attacker.hitMs = now;
-      this.pushEvent(EV_DAMAGE, now, attacker.x, attacker.y - attacker.r, back, attacker.slot, target.row.accent);
+      this.pushEvent(EV_DAMAGE, now, attacker.x, attacker.y - attacker.r, back, attacker.slot, target.row.accent, 0, 0, (target.slot & 7) * 8 + 7);
     }
+    const ball = this.byIndex[target.slot];
     const attackerBall = this.byIndex[attacker.slot];
     if (ball && attackerBall) ctx.noteCollide?.(attackerBall, ball); // --- bounce-math --- a hit is a ball hit
-    this.pushEvent(EV_DAMAGE, now, target.x, target.y - target.r, amount, target.slot, attacker.row.accent);
-    if (!opts.quiet || giant > 0) this.pushEvent(EV_HIT, now, (target.x + (opts.fromX ?? attacker.x)) / 2, (target.y + (opts.fromY ?? attacker.y)) / 2, amount, attacker.slot, attacker.row.accent);
+    this.pushEvent(EV_DAMAGE, now, target.x, target.y - target.r, amount, target.slot, attacker.row.accent, 0, 0, src);
+    if (!opts.quiet || giant > 0) this.pushEvent(EV_HIT, now, (target.x + (opts.fromX ?? attacker.x)) / 2, (target.y + (opts.fromY ?? attacker.y)) / 2, amount, attacker.slot, attacker.row.accent, 0, 0, src);
     this.budget.offer(amount, sound, fighterPitch(attacker.slot), Math.min(1, 0.45 + amount / 20));
-    return true;
+    return HIT_LANDED;
+  }
+
+  /** --- fl-overhaul --- Knockback of `f` along (dx, dy): `kb` cruise units × its weight (a pinned or held fighter does not budge). */
+  private applyKnock(f: FlFighter, dx: number, dy: number, kb: number, now: number) {
+    const ball = this.byIndex[f.slot];
+    if (!ball || !(kb > 0) || this.pinned(f, now)) return;
+    const push = kb * this.unit * f.weight;
+    ball.vx += dx * push;
+    ball.vy += dy * push;
+    f.vx = ball.vx;
+    f.vy = ball.vy;
   }
 
   /**
@@ -2655,11 +3919,16 @@ export class FightLeagueMode implements GameMode {
 
   /* ---------------------------------------------------------------- abilities */
 
-  /** Fires one primitive of `f`'s ability. */
+  /**
+   * Fires one primitive of `f`'s ability. --- fl-overhaul --- A choke, a disarm or a pull acts on the nearest foe FIGHTER
+   * (never a decoy); beams and volleys go where the aim locked at the telegraph's start; holds, freezes and pins are hard
+   * crowd control (`applyHardCc()`); a choke cast with a pull (the Lasso of Truth) closes when the pull arrives.
+   */
   private castEffect(ctx: ModeContext, f: FlFighter, e: FlEffect, now: number) {
     const v = this.view;
     const field = v.field!;
-    const target = f.targetSlot >= 0 ? v.fighters[f.targetSlot] : null;
+    const foe = this.nearestFoeFighter(f, now);
+    const aimAt = Math.atan2(f.castY - f.y, f.castX - f.x);
     switch (e.p) {
       case "speedBurst":
         f.speedMul = e.mult;
@@ -2684,39 +3953,49 @@ export class FightLeagueMode implements GameMode {
         break;
       case "freezeAll":
         for (const o of v.fighters) {
-          if (!o.alive || o.team === f.team) continue;
+          if (!o.alive || o.team === f.team || !this.applyHardCc(o, now + 1000 * e.dur, now)) continue;
           o.frozenUntil = Math.max(o.frozenUntil, now + 1000 * e.dur);
           this.pushEvent(EV_FREEZE, now, o.x, o.y, e.dur, o.slot, "#bae6fd");
         }
         break;
       case "choke": {
-        if (!target || !target.alive) break;
-        target.heldBy = f.slot;
-        target.heldUntil = now + 1000 * e.dur;
+        if (!foe) break;
         const at = e.at ?? "start";
-        target.holdMode = at;
-        target.holdDamage = at === "start" ? 0 : e.damage;
-        target.holdTickMs = now + 300;
-        if (at === "start" && e.damage > 0) this.hit(ctx, f, target, e.damage, 0, 0, 0, "magic", { unblockable: true, ignoreIframes: true });
+        if (f.row.ability.effects.some((x) => x.p === "pull") && now < foe.pullUntil && foe.pullBy === f.slot) {
+          // The lasso: the hold waits for the pull to bring the foe in.
+          foe.pendingHoldBy = f.slot;
+          foe.pendingHoldDur = e.dur;
+          foe.pendingHoldDamage = e.damage;
+          foe.pendingHoldAt = at;
+          break;
+        }
+        this.applyHold(ctx, f, foe, e.dur, e.damage, at, now);
         break;
       }
       case "arenaCuts": {
+        // Each cut through where its foe will be when it lands, along its flight ± 30° (a timing error along the line does not
+        // matter), 0.35 of the caster's radius on either side.
         const foes = v.fighters.filter((o) => o.alive && o.team !== f.team);
         for (let k = 0; k < e.n; k++) {
           const task = this.freeTask();
           if (!task || foes.length === 0) break;
           const o = foes[k % foes.length];
-          const a = this.randomDraw() * Math.PI;
+          const heading = Math.hypot(o.vx, o.vy) > 1e-3 ? Math.atan2(o.vy, o.vx) : Math.atan2(o.y - f.y, o.x - f.x);
+          const a = heading + (this.randomDraw() - 0.5) * (Math.PI / 3);
           const len = 2 * field.half;
+          const delay = 300 + 150 * k;
+          const px = o.x + (o.vx * delay) / 1000;
+          const py = o.y + (o.vy * delay) / 1000;
           task.active = true;
           task.kind = "cut";
           task.owner = f.slot;
           task.born = now;
-          task.at = now + 300 + 150 * k;
-          task.x = o.x - Math.cos(a) * len;
-          task.y = o.y - Math.sin(a) * len;
-          task.x2 = o.x + Math.cos(a) * len;
-          task.y2 = o.y + Math.sin(a) * len;
+          task.at = now + delay;
+          task.x = px - Math.cos(a) * len;
+          task.y = py - Math.sin(a) * len;
+          task.x2 = px + Math.cos(a) * len;
+          task.y2 = py + Math.sin(a) * len;
+          task.radius = Math.max(2, 0.35 * f.r);
           task.damage = e.damage;
         }
         break;
@@ -2729,7 +4008,7 @@ export class FightLeagueMode implements GameMode {
         b.team = f.team;
         b.born = now;
         b.until = now + 1000 * e.dur;
-        b.angle = target ? Math.atan2(target.y - f.y, target.x - f.x) : f.aim;
+        b.angle = aimAt;
         b.width = Math.max(2, e.width * f.r);
         b.damage = e.damage;
         b.ability = true;
@@ -2740,14 +4019,13 @@ export class FightLeagueMode implements GameMode {
       }
       case "volley": {
         const speed = this.projectileSpeed(e.speed ?? 1.2, field);
-        const base = target ? Math.atan2(target.y - f.y, target.x - f.x) : f.aim;
         const volley = ++this.volleySerial;
         for (let k = 0; k < e.n; k++) {
           const p = this.freeProjectile();
           if (!p) break;
           const spread = (e.spread ?? 0) * DEG;
-          const a = e.n > 1 ? base + (k / (e.n - 1) - 0.5) * spread : base;
-          this.launch(p, f, PK_ABILITY, a, speed, now, 0);
+          const a = e.n > 1 ? aimAt + (k / (e.n - 1) - 0.5) * spread : aimAt;
+          this.launch(p, f, PK_ABILITY, a, speed, now);
           p.volley = volley;
           p.r = Math.max(2, (e.size ?? 0.2) * f.r);
           p.damage = e.damage;
@@ -2755,7 +4033,7 @@ export class FightLeagueMode implements GameMode {
           p.shape = e.shape ?? "bolt";
           p.color = e.color ?? f.row.accent;
           p.homing = Math.max(p.homing, e.homing ?? 0);
-          p.target = f.targetSlot;
+          p.target = foe ? foe.slot : f.targetSlot;
           p.unblockable = !!e.unblockable;
           p.explode = e.explode ? e.explode * f.r : 0;
           if (e.returning) {
@@ -2769,7 +4047,8 @@ export class FightLeagueMode implements GameMode {
             p.ret = 1;
             p.range = 3 * field.side;
           }
-          this.giantShot(f, p);
+          const homedByGiant = this.giantShot(f, p);
+          if (((e.homing ?? 0) > 0 || homedByGiant) && p.ret === 0) this.limitHoming(p, now);
         }
         this.view.shots++;
         break;
@@ -2798,7 +4077,7 @@ export class FightLeagueMode implements GameMode {
       case "pull": {
         for (const o of v.fighters) {
           if (!o.alive || o.team === f.team) continue;
-          if (!e.all && o !== target) continue;
+          if (!e.all && o !== foe) continue;
           o.pullBy = f.slot;
           o.pullUntil = now + 700;
           o.pullSpeed = e.strength * this.unit;
@@ -2847,7 +4126,7 @@ export class FightLeagueMode implements GameMode {
         f.giantKb = e.knockback ?? 0;
         f.giantFreeze = e.freeze ?? 0;
         f.giantBelowHalf = e.belowHalf ?? 0;
-        f.giantHalfMax = !!e.halfMaxHp;
+        f.giantFrac = e.maxHpFrac ?? (e.halfMaxHp ? 0.5 : 0);
         f.giantHoming = e.homing ?? 0;
         break;
       case "lightning":
@@ -2904,7 +4183,7 @@ export class FightLeagueMode implements GameMode {
         f.reflectFrac = e.frac;
         break;
       case "disarm":
-        if (target && target.alive) target.disarmedUntil = now + 1000 * e.dur;
+        if (foe && foe.alive) foe.disarmedUntil = now + 1000 * e.dur;
         break;
       case "slowTime":
         v.slowTimeUntil = now + 1000 * e.dur;
@@ -2914,7 +4193,10 @@ export class FightLeagueMode implements GameMode {
     }
   }
 
-  /** A shockwave at (x, y): damage and knockback for every foe within `radius` (pinned to the far wall with `pin`). */
+  /**
+   * A shockwave at (x, y): damage and knockback for every foe within `radius` (with `pin` thrown to the far wall and held
+   * there a second – a hard crowd control – --- fl-overhaul --- fully inside the arena).
+   */
   private shockwaveAt(ctx: ModeContext, f: FlFighter, x: number, y: number, radius: number, damage: number, kb: number, pin: boolean, now: number, spin = false) {
     this.pushEvent(EV_SHOCK, now, x, y, radius, f.slot, spin ? "#ffffff" : f.row.accent);
     for (const o of this.view.fighters) {
@@ -2925,15 +4207,16 @@ export class FightLeagueMode implements GameMode {
       if (d > radius + o.r) continue;
       const nx = d > 1e-6 ? dx / d : 1;
       const ny = d > 1e-6 ? dy / d : 0;
-      this.hit(ctx, f, o, damage, nx, ny, kb, spin ? "blade" : "blunt", { ignoreIframes: true, unblockable: spin ? false : true, fromX: x, fromY: y });
-      if (pin && o.alive) {
+      const res = this.hit(ctx, f, o, damage, nx, ny, kb, spin ? "blade" : "blunt", { ignoreIframes: true, unblockable: spin ? false : true, fromX: x, fromY: y });
+      if (pin && o.alive && res !== HIT_IMMUNE && res !== HIT_NONE && this.applyHardCc(o, now + 1000, now)) {
         // Pinned to the far wall: thrown there and held a moment.
         const ball = this.byIndex[o.slot];
         const field = this.view.field!;
         if (ball) {
           const len = rayToEdge(field, o.x, o.y, nx, ny);
-          ball.x = o.x = o.x + nx * Math.max(0, len - o.r - 1);
-          ball.y = o.y = o.y + ny * Math.max(0, len - o.r - 1);
+          ball.x = o.x + nx * Math.max(0, len - o.r - 1);
+          ball.y = o.y + ny * Math.max(0, len - o.r - 1);
+          this.clampInsideArena(o, ball);
           o.pinUntil = now + 1000;
           o.kept = false;
         }
@@ -2960,7 +4243,7 @@ export class FightLeagueMode implements GameMode {
         this.pushEvent(EV_CUT, now, task.x, task.y, 0, f.slot, "#ffffff", task.x2, task.y2);
         for (const o of v.fighters) {
           if (!o.alive || o.team === f.team) continue;
-          if (segmentHitsCircle(task.x, task.y, task.x2, task.y2, 2, o.x, o.y, o.r)) this.hit(ctx, f, o, task.damage, 0, 0, 0.4, "blade", { ignoreIframes: true, unblockable: true });
+          if (segmentHitsCircle(task.x, task.y, task.x2, task.y2, Math.max(2, task.radius), o.x, o.y, o.r)) this.hit(ctx, f, o, task.damage, 0, 0, 0.4, "blade", { ignoreIframes: true, unblockable: true });
         }
         task.active = false;
       } else if (task.kind === "blink") {
@@ -2981,22 +4264,23 @@ export class FightLeagueMode implements GameMode {
     }
   }
 
-  /** Fire rings: every foe within the ring burns (a tick per invulnerability window). */
-  private stepFireRings(ctx: ModeContext, now: number) {
+  /** Fire rings: every foe within the ring burns (a tick per window; the kicks of a spinning kick thud, blades ring). */
+  private stepFireRings(ctx: ModeContext, now: number, order: readonly FlFighter[]) {
     const fs = this.view.fighters;
-    for (const f of fs) {
+    for (const f of order) {
       if (!f.alive || now >= f.fireRingUntil) continue;
+      const sound: FlSoundKind = f.fireRingShape === "flames" ? "fire" : f.fireRingShape === "kicks" ? "blunt" : "blade";
       for (const o of fs) {
         if (!o.alive || o.team === f.team) continue;
         if (!circlesTouch(f.x, f.y, f.fireRingRadius, o.x, o.y, o.r)) continue;
         const d = Math.hypot(o.x - f.x, o.y - f.y) || 1;
-        this.hit(ctx, f, o, f.fireRingDamage, (o.x - f.x) / d, (o.y - f.y) / d, 0.4, f.fireRingShape === "flames" ? "fire" : "blade", { quiet: true });
+        this.hit(ctx, f, o, f.fireRingDamage, (o.x - f.x) / d, (o.y - f.y) / d, 0.4, sound, { quiet: true });
       }
       for (const m of this.view.minions) if (m.active && m.team !== f.team && circlesTouch(f.x, f.y, f.fireRingRadius, m.x, m.y, m.r)) this.hitMinion(ctx, f, m, now);
     }
   }
 
-  /** Decoys and summons move and bounce; summons hit the foes they touch, freeze decoys freeze them. */
+  /** Decoys and summons move and bounce; summons hit the foes they touch, freeze decoys freeze them (a hard crowd control). */
   private stepMinions(ctx: ModeContext, now: number, dt: number) {
     const v = this.view;
     const field = v.field!;
@@ -3070,8 +4354,10 @@ export class FightLeagueMode implements GameMode {
           const d = Math.hypot(o.x - m.x, o.y - m.y) || 1;
           this.hit(ctx, owner, o, m.damage, (o.x - m.x) / d, (o.y - m.y) / d, 0.5, "blunt", { fromX: m.x, fromY: m.y });
         } else if (m.freezeOnTouch > 0) {
-          o.frozenUntil = Math.max(o.frozenUntil, now + 1000 * m.freezeOnTouch);
-          this.pushEvent(EV_FREEZE, now, o.x, o.y, m.freezeOnTouch, o.slot, "#bae6fd");
+          if (this.applyHardCc(o, now + 1000 * m.freezeOnTouch, now)) {
+            o.frozenUntil = Math.max(o.frozenUntil, now + 1000 * m.freezeOnTouch);
+            this.pushEvent(EV_FREEZE, now, o.x, o.y, m.freezeOnTouch, o.slot, "#bae6fd");
+          }
           m.active = false;
           this.pushEvent(EV_POP, now, m.x, m.y, 0, m.owner, m.color);
           break;
@@ -3080,7 +4366,11 @@ export class FightLeagueMode implements GameMode {
     }
   }
 
-  /** Beams: follow their owner, turn slowly toward its target; ability beams tick, weapon beams hit each foe once. */
+  /**
+   * Beams: follow their owner (from its hand, 1.1 radii out), turn slowly toward its target – an ability beam ≤ 1.2 rad/s
+   * from where its aim locked, a weapon's ≤ 2 rad/s; ability beams tick on the window, a weapon beam hits each foe once a
+   * ray (--- fl-overhaul --- a hit refused by a window leaves it free to land later in the ray).
+   */
   private stepBeams(ctx: ModeContext, now: number, dt: number) {
     const v = this.view;
     const field = v.field!;
@@ -3097,8 +4387,8 @@ export class FightLeagueMode implements GameMode {
       }
       const ux = Math.cos(b.angle);
       const uy = Math.sin(b.angle);
-      b.x0 = f.x + ux * f.r * 0.8;
-      b.y0 = f.y + uy * f.r * 0.8;
+      b.x0 = f.x + ux * f.r * 1.1;
+      b.y0 = f.y + uy * f.r * 1.1;
       const len = rayToEdge(field, b.x0, b.y0, ux, uy);
       b.x1 = b.x0 + ux * len;
       b.y1 = b.y0 + uy * len;
@@ -3107,8 +4397,8 @@ export class FightLeagueMode implements GameMode {
         if (!o.alive || o.team === b.team || o.hp <= 0) continue;
         if (!b.ability && b.hitMask & (1 << o.slot)) continue;
         if (!segmentHitsCircle(b.x0, b.y0, b.x1, b.y1, 0.5 * b.width, o.x, o.y, o.r)) continue;
-        const landed = this.hit(ctx, f, o, b.damage, ux, uy, b.ability ? 0.35 : 0.4, "magic", { quiet: b.ability, unblockable: b.ability, fromX: b.x0, fromY: b.y0, weapon: b.weapon });
-        if (landed || !b.ability) b.hitMask |= 1 << o.slot;
+        const res = this.hit(ctx, f, o, b.damage, ux, uy, b.ability ? 0.35 : 0.4, "magic", { quiet: b.ability, unblockable: b.ability, fromX: b.x0, fromY: b.y0, weapon: b.weapon });
+        if (!b.ability && res !== HIT_WINDOW) b.hitMask |= 1 << o.slot;
       }
       for (const m of v.minions) if (m.active && m.team !== b.team && segmentHitsCircle(b.x0, b.y0, b.x1, b.y1, 0.5 * b.width, m.x, m.y, m.r)) this.hitMinion(ctx, f, m, now);
     }
@@ -3116,6 +4406,11 @@ export class FightLeagueMode implements GameMode {
 
   /* ---------------------------------------------------------------- end of a step: KOs and the verdict */
 
+  /**
+   * The end of a step: its KOs (every hit of the step counted first), then the verdict – one side left (after the grace for
+   * projectiles in the air), none (a double KO) or the time cap: --- fl-overhaul --- measured from FIGHT!; with sudden death on,
+   * up to FL_SUDDEN_MS of it in the shrinking arena first; then the side with the largest share of its HP wins (`capVerdict()`).
+   */
   onPostUpdate(ctx: ModeContext) {
     const v = this.view;
     const now = ctx.getElapsedMs();
@@ -3128,6 +4423,7 @@ export class FightLeagueMode implements GameMode {
       f.hp = 0;
       f.koMs = now;
       v.kos++;
+      v.lastKoMs = now;
       this.koThisStep = true;
       const killer = f.lastHitBy >= 0 ? v.fighters[f.lastHitBy] : null;
       if (killer && killer !== f) killer.kills++;
@@ -3143,7 +4439,6 @@ export class FightLeagueMode implements GameMode {
       }));
       this.indexBalls(ctx);
     }
-    // The verdict: one side left (after the grace for projectiles in the air), none (a double KO), or the time cap.
     let teamsAlive = 0;
     let lastTeam = -1;
     let seen = 0;
@@ -3164,29 +4459,47 @@ export class FightLeagueMode implements GameMode {
       return;
     }
     const cap = v.settings.timeCap;
-    if (cap > 0 && now >= 1000 * cap) {
-      const hp = this.capHp;
-      const team = this.capTeam;
-      hp.length = team.length = v.fighters.length;
-      for (let i = 0; i < v.fighters.length; i++) {
-        const f = v.fighters[i];
-        hp[i] = f.alive ? f.hp : 0;
-        team[i] = f.team;
-      }
-      const winner = capVerdict(hp, team, v.teamCount, this.capSums);
-      // The rig waits while its side trails (sudden death); level, the chosen side takes it.
-      if (this.rigChosen >= 0 && winner !== this.rigChosen) {
-        const sums = this.rival;
-        sums.fill(0);
-        for (const f of v.fighters) if (f.alive) sums[f.team] += f.hp;
-        let best = -Infinity;
-        for (let t = 0; t < v.teamCount; t++) if (t !== this.rigChosen) best = Math.max(best, sums[t]);
-        if (sums[this.rigChosen] < best - 1e-9) return;
-        this.finish(ctx, this.rigChosen, now, false, true);
+    if (!(cap > 0) || now - v.introMs < 1000 * cap) return;
+    // --- fl-overhaul --- sudden death first (the arena shrinks; a KO still ends it), then the HP-fraction verdict
+    if (v.settings.suddenDeath) {
+      if (v.suddenMs < 0) {
+        v.suddenMs = now;
+        const field = v.field!;
+        this.pushEvent(EV_SUDDEN, now, field.cx, field.cy, 0, -1, "#ef4444");
+        this.urgentSound("ability", 130.81, 0.9);
         return;
       }
-      this.finish(ctx, winner, now, false, true);
+      if (now - v.suddenMs < FL_SUDDEN_MS) return;
     }
+    const hp = this.capHp;
+    const team = this.capTeam;
+    const max = this.capMax;
+    hp.length = team.length = max.length = v.fighters.length;
+    for (let i = 0; i < v.fighters.length; i++) {
+      const f = v.fighters[i];
+      hp[i] = f.alive ? f.hp : 0;
+      team[i] = f.team;
+      max[i] = f.maxHp;
+    }
+    const winner = capVerdict(hp, team, v.teamCount, this.capSums, max);
+    // The rig waits while its side trails (sudden death goes on); level, the chosen side takes it.
+    if (this.rigChosen >= 0 && winner !== this.rigChosen) {
+      const fr = this.rival;
+      const mx = this.rivalMax;
+      fr.fill(0);
+      mx.fill(0);
+      for (const f of v.fighters) {
+        if (f.alive) fr[f.team] += f.hp;
+        mx[f.team] += f.maxHp;
+      }
+      let best = -Infinity;
+      for (let t = 0; t < v.teamCount; t++) if (t !== this.rigChosen && mx[t] > 0) best = Math.max(best, fr[t] / mx[t]);
+      const mine = mx[this.rigChosen] > 0 ? fr[this.rigChosen] / mx[this.rigChosen] : 0;
+      if (mine < best - 1e-9) return;
+      this.finish(ctx, this.rigChosen, now, false, true);
+      return;
+    }
+    this.finish(ctx, winner, now, false, true);
   }
 
   /** Whether a projectile of a side other than `team` is still in the air (it may still land on the last side standing). */
@@ -3195,6 +4508,7 @@ export class FightLeagueMode implements GameMode {
     return false;
   }
 
+  /** The verdict: --- fl-overhaul --- every fighter stops where it is (the renderer animates the winner), so a frame's extra step changes nothing. */
   private finish(ctx: ModeContext, winnerTeam: number, now: number, doubleKo: boolean, byTime: boolean) {
     const v = this.view;
     v.finished = true;
@@ -3205,6 +4519,16 @@ export class FightLeagueMode implements GameMode {
     for (const p of v.projectiles) p.active = false;
     for (const b of v.beams) b.active = false;
     for (const t of v.tasks) t.active = false;
+    for (const f of v.fighters) {
+      const ball = this.byIndex[f.slot];
+      if (ball) {
+        ball.vx = 0;
+        ball.vy = 0;
+      }
+      f.vx = f.vy = 0;
+      f.kept = true;
+      f.telegraphUntil = -1;
+    }
     // The win in the team stats (an "escape"), so the teams banner and the finder's winner outcome rank the fight the same.
     if (winnerTeam >= 0) {
       for (const f of v.fighters) {
@@ -3254,6 +4578,7 @@ export class FightLeagueMode implements GameMode {
     const old = v.field;
     if (!sizeChanged || !old) return true;
     const field = buildFightField(ctx.config.width, ctx.config.height, old.kind);
+    field.half = field.fullHalf * v.shrink; // --- fl-overhaul --- (sudden death's shrink kept)
     const k = field.side / old.side;
     const sx = ctx.config.width / old.canvasWidth;
     const sy = ctx.config.height / old.canvasHeight;
@@ -3282,6 +4607,15 @@ export class FightLeagueMode implements GameMode {
         f.r *= k;
       }
       f.fireRingRadius *= k;
+      f.castX = mapX(f.castX);
+      f.castY = mapY(f.castY);
+      f.telegraphArea *= k;
+      for (const w of f.weapons) {
+        w.zapX = mapX(w.zapX);
+        w.zapY = mapY(w.zapY);
+        w.zap2X = mapX(w.zap2X);
+        w.zap2Y = mapY(w.zap2Y);
+      }
     }
     for (const p of v.projectiles) {
       if (!p.active) continue;
@@ -3344,6 +4678,8 @@ interface HitOptions {
   unblockable?: boolean;
   ignoreIframes?: boolean;
   projectile?: FlProjectile;
+  /** --- fl-overhaul --- A share of the damage (a clash won lands at half). */
+  scale?: number;
 }
 
 /** Spots of the formation, in arena half-sides (x, y per slot): opposite sides for two, a triangle, corners, team sides. */

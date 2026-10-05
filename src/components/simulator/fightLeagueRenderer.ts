@@ -2,9 +2,11 @@ import {
   EV_BLINK,
   EV_BLOCK,
   EV_CAST,
+  EV_CLASH,
   EV_CUT,
   EV_DAMAGE,
   EV_FREEZE,
+  EV_GRAZE,
   EV_HEAL,
   EV_HIT,
   EV_KO,
@@ -70,6 +72,8 @@ export interface FightLeagueLabels {
   cast: string;
   /** The meter is full (waiting for a target). */
   ready: string;
+  /** --- fl-overhaul --- The time cap with two sides standing: sudden death in a shrinking arena. */
+  sudden: string;
 }
 
 export const DEFAULT_FIGHT_LEAGUE_LABELS: FightLeagueLabels = {
@@ -87,6 +91,7 @@ export const DEFAULT_FIGHT_LEAGUE_LABELS: FightLeagueLabels = {
   attack: "ATK",
   cast: "CAST",
   ready: "READY",
+  sudden: "SUDDEN DEATH!",
 };
 
 export interface FightLeagueRenderOptions {
@@ -380,6 +385,30 @@ function drawFist(g: CanvasRenderingContext2D, r: number, size: number, p: Paint
   g.beginPath();
   g.arc(-0.3 * s, -0.35 * s, 0.28 * s, 0, TWO_PI);
   g.fill();
+}
+
+/**
+ * --- fl-overhaul --- A curl of air at rest (the air fists: Gerald, Aang): a spiral in the fighter's colour – its accent, its
+ * body when the accent is too light for the white floor – with an ink outline, so the weapon shows on the near-white floor.
+ */
+function drawAirCurl(g: CanvasRenderingContext2D, s: number, p: Paint) {
+  const color = luminance(p.accent) > 0.7 ? p.body : p.accent;
+  g.lineCap = "round";
+  g.beginPath();
+  for (let k = 0; k <= 18; k++) {
+    const a = (k / 18) * 1.75 * TWO_PI;
+    const rr = s * (0.15 + 0.85 * (k / 18));
+    const x = Math.cos(a) * rr;
+    const y = Math.sin(a) * rr;
+    if (k === 0) g.moveTo(x, y);
+    else g.lineTo(x, y);
+  }
+  g.strokeStyle = INK;
+  g.lineWidth = Math.max(1.4, 0.42 * s);
+  g.stroke();
+  g.strokeStyle = color;
+  g.lineWidth = Math.max(0.8, 0.24 * s);
+  g.stroke();
 }
 
 /** Three talons fanning forward from the origin. */
@@ -1070,18 +1099,25 @@ function drawShot(g: CanvasRenderingContext2D, shape: FlShape, pr: number, color
       glowBall(g, pr, color, "#ffffff", shape !== "orb");
       return;
     case "air": {
-      g.strokeStyle = "rgba(255, 255, 255, 0.95)";
-      g.lineWidth = Math.max(0.8, 0.3 * pr);
+      // --- fl-overhaul --- the blast's arcs: an ink outline under the fighter's tint (white strokes vanished on the floor)
+      const tint = luminance(p.accent) > 0.7 ? p.body : p.accent;
       for (let k = 0; k < 3; k++) {
         g.beginPath();
         g.arc(-k * 0.7 * pr, 0, (1.4 - 0.25 * k) * pr, -1, 1);
+        g.strokeStyle = INK;
+        g.lineWidth = Math.max(1.4, 0.42 * pr);
+        g.stroke();
+        g.strokeStyle = k === 0 ? tint : "rgba(255, 255, 255, 0.95)";
+        g.lineWidth = Math.max(0.8, 0.26 * pr);
         g.stroke();
       }
-      g.strokeStyle = "rgba(100, 116, 139, 0.8)";
-      g.lineWidth = Math.max(0.5, 0.1 * pr);
-      g.beginPath();
-      g.arc(0, 0, 1.4 * pr, -1, 1);
-      g.stroke();
+      return;
+    }
+    case "kicks": {
+      // --- fl-overhaul --- a boot (the ring of a spinning kick): the sole forward
+      g.save();
+      drawFist(g, pr / 0.36, 0.36, p, true);
+      g.restore();
       return;
     }
     default: {
@@ -1189,6 +1225,8 @@ const PART_FIST = 0;
 const PART_HEAD = 1;
 const PART_CLAWS = 2;
 const PART_KICK = 3;
+/** --- fl-overhaul --- An air fist's resting curl. */
+const PART_AIR = 4;
 
 export class FightLeagueLayer {
   private generation = -1;
@@ -1476,8 +1514,8 @@ export class FightLeagueLayer {
       this.drawBody(ctx, view, f, now, o);
       drawn++;
     }
-    // Held shields go in front of their fighter.
-    for (const f of view.fighters) if (f.alive) this.drawShields(ctx, f, now);
+    // Held shields go in front of their fighter (--- fl-overhaul --- counted with the weapons drawn).
+    for (const f of view.fighters) if (f.alive) weapons += this.drawShields(ctx, f, now);
     this.projectilesDrawn = this.drawProjectiles(ctx, view, now);
     ctx.restore();
     // Bars, numbers and effects over the rim.
@@ -1494,6 +1532,7 @@ export class FightLeagueLayer {
       if (!f.alive || now >= f.fireRingUntil) continue;
       const R = f.fireRingRadius;
       const blades = f.fireRingShape !== "flames";
+      const kicks = f.fireRingShape === "kicks"; // --- fl-overhaul --- a spinning kick is a ring of boots
       ctx.save();
       ctx.translate(f.x, f.y);
       ctx.globalAlpha = 0.18;
@@ -1508,7 +1547,7 @@ export class FightLeagueLayer {
         const a = spin + (k * TWO_PI) / n;
         const flick = 0.75 + 0.25 * Math.sin(now / 55 + k * 1.7);
         if (blades) {
-          const s = this.shotSprite("dagger", 0.22 * f.r, "#e5e7eb", this.paintOf(f, null), f.slot);
+          const s = this.shotSprite(kicks ? "kicks" : "dagger", (kicks ? 0.3 : 0.22) * f.r, "#e5e7eb", this.paintOf(f, null), f.slot);
           if (s) this.drawSprite(ctx, s, Math.cos(a) * 0.8 * R, Math.sin(a) * 0.8 * R, a + Math.PI / 2);
         } else {
           ctx.fillStyle = k % 2 === 0 ? "#f97316" : "#facc15";
@@ -1642,10 +1681,30 @@ export class FightLeagueLayer {
           if (w.thrown >= 0) continue;
           break;
         case "fire":
-          if (now < w.onUntil) this.drawFlameCone(ctx, f, w, now);
+          // (--- fl-overhaul --- after the breath's inhale)
+          if (now >= w.inhaleUntil && now < w.onUntil) this.drawFlameCone(ctx, f, w, now);
           break;
-        case "spark":
-          if (now - w.zapMs < 140) this.drawZap(ctx, f.x + Math.cos(f.aim) * 1.1 * f.r, f.y + Math.sin(f.aim) * 1.1 * f.r, w.zapX, w.zapY, f.row.weapons[w.index]?.color ?? f.row.accent, now, w.zapMs);
+        case "spark": {
+          // --- fl-overhaul --- the arc leaves the hand (where it aimed), and jumps on in a free-for-all
+          const color = f.row.weapons[w.index]?.color ?? f.row.accent;
+          if (now - w.zapMs < 140) this.drawZap(ctx, f.x + Math.cos(w.zapAngle) * 1.1 * f.r, f.y + Math.sin(w.zapAngle) * 1.1 * f.r, w.zapX, w.zapY, color, now, w.zapMs);
+          if (now - w.zap2Ms < 140) this.drawZap(ctx, w.zapX, w.zapY, w.zap2X, w.zap2Y, color, now, w.zap2Ms);
+          break;
+        }
+        case "beam":
+          // --- fl-overhaul --- the glint before the ray: a white-hot point in the hand
+          if (w.glintUntil >= 0 && now < w.glintUntil) {
+            ctx.save();
+            ctx.globalAlpha = 0.6 + 0.4 * Math.sin(now / 20);
+            ctx.fillStyle = "#ffffff";
+            ctx.strokeStyle = f.row.weapons[w.index]?.color ?? f.row.accent;
+            ctx.lineWidth = Math.max(1.5, 0.08 * f.r);
+            ctx.beginPath();
+            ctx.arc(f.x + Math.cos(w.angle) * 1.1 * f.r, f.y + Math.sin(w.angle) * 1.1 * f.r, 0.28 * f.r, 0, TWO_PI);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+          }
           break;
         default:
           break;
@@ -1678,25 +1737,33 @@ export class FightLeagueLayer {
     return n;
   }
 
-  /** Held shields in front of their fighter (a block flashes them). */
-  private drawShields(ctx: CanvasRenderingContext2D, f: FlFighter, now: number) {
+  /** Held shields in front of their fighter (a block flashes them): returns how many were drawn. */
+  private drawShields(ctx: CanvasRenderingContext2D, f: FlFighter, now: number): number {
+    let n = 0;
     for (const w of f.weapons) {
       if (w.spec.kind !== "shield" || w.thrown >= 0) continue;
       const sprite = this.heldSprite(f, w);
-      if (sprite) this.drawSprite(ctx, sprite, f.x, f.y, w.angle, now < f.disarmedUntil ? 0.35 : 1);
+      if (!sprite) continue;
+      // (--- fl-overhaul --- dimmed while its guard recovers from a block)
+      this.drawSprite(ctx, sprite, f.x, f.y, w.angle, (now < f.disarmedUntil ? 0.35 : 1) * (now < w.guardUntil ? 0.55 : 1));
+      n++;
     }
+    return n;
   }
 
-  /** Fists / claws: at rest beside the facing, one thrown out along a punch (kicks: boots; air: a blast only while punching). */
+  /**
+   * Fists / claws: at rest beside the facing, one thrown out along a punch (kicks: boots; --- fl-overhaul --- air: a curl of
+   * air at rest and an outlined blast while punching; contact: gloves – the body's run is the hit).
+   */
   private drawFists(ctx: CanvasRenderingContext2D, f: FlFighter, w: FlWeaponState, alpha: number): number {
     const s = w.spec;
     const raw = f.row.weapons[w.index];
     const claws = s.kind === "claws";
-    const air = raw?.shape === "air" || s.style === "contact";
+    const air = raw?.shape === "air";
     const kick = raw?.shape === "kicks";
     const count = Math.max(1, Math.min(2, s.count));
     const fistR = s.size * f.r;
-    const sprite = air ? null : this.partSprite(f, w, claws ? PART_CLAWS : kick ? PART_KICK : PART_FIST, fistR);
+    const sprite = this.partSprite(f, w, air ? PART_AIR : claws ? PART_CLAWS : kick ? PART_KICK : PART_FIST, air ? 0.75 * fistR : fistR);
     const punching = w.punchT >= 0;
     const ext = punching ? (claws ? Math.min(1, w.punchT / 0.06) : punchExtension(w.punchT)) : 0;
     let drawn = 0;
@@ -1714,8 +1781,7 @@ export class FightLeagueLayer {
       const d = f.r + 0.6 * fistR + e * s.reach * f.r;
       const x = f.x + Math.cos(a) * d;
       const y = f.y + Math.sin(a) * d;
-      if (air) {
-        if (!active) continue;
+      if (air && active) {
         const blast = this.shotSprite("air", 0.9 * fistR, "#ffffff", this.paintOf(f, w), f.slot);
         if (blast) this.drawSprite(ctx, blast, x, y, a, alpha * Math.min(1, 0.3 + ext));
         drawn++;
@@ -1734,7 +1800,7 @@ export class FightLeagueLayer {
       list = [];
       this.held[f.slot] = list;
     }
-    const slot = 8 + w.index * 4 + part;
+    const slot = 8 + w.index * 5 + part;
     const bucket = Math.max(1, Math.round(size * this.dpr * 2));
     const h = list[slot];
     if (h && h.bucket === bucket) return h.sprite;
@@ -1744,7 +1810,8 @@ export class FightLeagueLayer {
     const R = rr / Math.max(1e-6, s.size);
     const raw = f.row.weapons[w.index];
     const sprite = this.makeSprite({ x0: -1.9 * rr, y0: -1.9 * rr, x1: 2.2 * rr, y1: 1.9 * rr }, (g) => {
-      if (part === PART_CLAWS) drawClaws(g, R, s.size, p);
+      if (part === PART_AIR) drawAirCurl(g, rr, p);
+      else if (part === PART_CLAWS) drawClaws(g, R, s.size, p);
       else if (part === PART_HEAD) drawChainHead(g, R, s.size, raw?.shape === "blades" ? "blades" : "spear", p);
       else drawFist(g, R, s.size, p, part === PART_KICK);
     });
@@ -1908,7 +1975,7 @@ export class FightLeagueLayer {
     }
     // The ability's telegraph: a ring closing in on the body.
     if (f.telegraphUntil >= 0) {
-      const k = Math.max(0, Math.min(1, 1 - (f.telegraphUntil - now) / 400));
+      const k = Math.max(0, Math.min(1, 1 - (f.telegraphUntil - now) / Math.max(1, f.telegraphUntil - f.telegraphStart)));
       ctx.strokeStyle = row.accent;
       ctx.lineWidth = Math.max(2, 0.14 * r);
       ctx.globalAlpha = 0.5 + 0.5 * k;
@@ -2185,6 +2252,39 @@ export class FightLeagueLayer {
           ctx.fill();
           break;
         }
+        case EV_CLASH: {
+          // --- fl-overhaul --- two weapons met: a white star where they did
+          if (age >= SPARK_MS * 1.4) break;
+          const t = age / (SPARK_MS * 1.4);
+          ctx.globalAlpha = 1 - t;
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = Math.max(2, 0.12 * unit * (1 - t));
+          ctx.beginPath();
+          for (let q = 0; q < 6; q++) {
+            const a = (q * TWO_PI) / 6 + 0.3;
+            ctx.moveTo(e.x + Math.cos(a) * 0.2 * unit, e.y + Math.sin(a) * 0.2 * unit);
+            ctx.lineTo(e.x + Math.cos(a) * (0.5 + 0.6 * t) * unit, e.y + Math.sin(a) * (0.5 + 0.6 * t) * unit);
+          }
+          ctx.stroke();
+          ctx.strokeStyle = INK;
+          ctx.lineWidth = Math.max(1, 0.04 * unit);
+          ctx.beginPath();
+          ctx.arc(e.x, e.y, (0.25 + 0.5 * t) * unit, 0, TWO_PI);
+          ctx.stroke();
+          break;
+        }
+        case EV_GRAZE: {
+          // --- fl-overhaul --- a shot that grazed (refused by its window): a faint puff
+          if (age >= POP_MS) break;
+          const t = age / POP_MS;
+          ctx.globalAlpha = 0.6 * (1 - t);
+          ctx.strokeStyle = "#94a3b8";
+          ctx.lineWidth = Math.max(1, 0.05 * unit);
+          ctx.beginPath();
+          ctx.arc(e.x, e.y, (0.15 + 0.35 * t) * unit, 0, TWO_PI);
+          ctx.stroke();
+          break;
+        }
         case EV_LIGHTNING: {
           if (age >= LIGHTNING_MS) break;
           const t = age / LIGHTNING_MS;
@@ -2428,6 +2528,14 @@ export class FightLeagueLayer {
       this.bannerText(ctx, L.fight, left + side / 2, top + (FL_ARENA_TOP + FL_ARENA_FRAC / 2) * side, fs, "#a3e635");
       ctx.globalAlpha = 1;
     }
+    // --- fl-overhaul --- sudden death: the banner as the arena starts to shrink
+    const suddenAge = view.suddenMs >= 0 ? now - view.suddenMs : -1;
+    if (suddenAge >= 0 && suddenAge < 1600 && !view.finished) {
+      const t = suddenAge / 1600;
+      ctx.globalAlpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
+      this.bannerText(ctx, L.sudden, left + side / 2, top + (FL_ARENA_TOP + 0.25 * FL_ARENA_FRAC) * side, 0.085 * side * (t < 0.15 ? 0.7 + 2 * t : 1), "#f87171", 0.84 * side);
+      ctx.globalAlpha = 1;
+    }
     this.drawKoFlash(ctx, view, left, top, side, now, L);
     if (view.finished && !o.teamBanner) this.drawWinner(ctx, view, left, top, side, now, L);
     ctx.restore();
@@ -2522,11 +2630,15 @@ export class FightLeagueLayer {
     return top + band;
   }
 
-  /** The time left to the cap (red in its last five seconds), centred under the band's VS. */
+  /**
+   * The time left to the cap (red in its last five seconds), centred under the band's VS – --- fl-overhaul --- counted from
+   * FIGHT! (the VS card is not fighting time), frozen at the end.
+   */
   private drawTimer(ctx: CanvasRenderingContext2D, view: FightLeagueView, left: number, top: number, side: number, now: number) {
     const cap = view.settings.timeCap;
     if (!(cap > 0)) return;
-    const remaining = Math.max(0, cap - (view.finished ? Math.min(now, view.finishMs) : now) / 1000); // (frozen at the end)
+    const at = view.finished ? Math.min(now, view.finishMs) : now;
+    const remaining = Math.max(0, Math.min(cap, cap - (at - view.introMs) / 1000));
     const secs = Math.ceil(remaining - 1e-6);
     if (secs !== this.timerSec) {
       this.timerSec = secs;
@@ -2598,6 +2710,19 @@ export class FightLeagueLayer {
         roundRect(ctx, x + pad, my, Math.max(mh, mw * meter), mh, 0.5 * mh);
         ctx.fill();
       }
+      // --- fl-overhaul --- a full meter waiting for its moment (a foe in range, a foe at all) says READY on it
+      if (!telegraph && f.alive && meter >= 1 && !view.finished) {
+        const rf = Math.max(7, Math.min(1.5 * mh, 0.9 * statFs));
+        ctx.font = this.font(rf, 900);
+        ctx.textAlign = "center";
+        ctx.lineJoin = "round";
+        ctx.lineWidth = Math.max(2, 0.22 * rf);
+        ctx.strokeStyle = INK;
+        ctx.strokeText(L.ready, x + pad + mw / 2, my + mh / 2, mw);
+        ctx.fillStyle = "#fde047";
+        ctx.fillText(L.ready, x + pad + mw / 2, my + mh / 2, mw);
+        ctx.textAlign = "left";
+      }
       // Two stat lines: damage and speed, attack speed and cast speed (buffs in lime, debuffs in red).
       const st = this.statText(view, f, now, L);
       const ly1 = my + mh + 0.75 * statFs + 0.04 * h;
@@ -2627,15 +2752,11 @@ export class FightLeagueLayer {
     return y0;
   }
 
-  /** Simulation ms since `slot` last cast its ability (Infinity when it has not). */
+  /** Simulation ms since `slot` last cast its ability (Infinity when it has not; --- fl-overhaul --- no scan of the event ring). */
   private castAge(view: FightLeagueView, slot: number, now: number): number {
-    const n = Math.min(view.eventSerial, FL_EVENT_CAP);
-    let best = Infinity;
-    for (let k = 0; k < n; k++) {
-      const e = view.events[k];
-      if (e.kind === EV_CAST && e.slot === slot && now - e.t >= 0 && now - e.t < best) best = now - e.t;
-    }
-    return best;
+    const f = view.fighters[slot];
+    const age = f ? now - f.lastCastMs : Infinity;
+    return age >= 0 ? age : Infinity;
   }
 
   /** The stat lines' texts of `f` (rebuilt only when a shown value changes). */
@@ -2712,15 +2833,8 @@ export class FightLeagueLayer {
 
   /** "KO!" over the arena and a white flash for a moment after each knockout. */
   private drawKoFlash(ctx: CanvasRenderingContext2D, view: FightLeagueView, left: number, top: number, side: number, now: number, L: FightLeagueLabels) {
-    const n = Math.min(view.eventSerial, FL_EVENT_CAP);
-    let newest = Infinity;
-    for (let k = 0; k < n; k++) {
-      const e = view.events[k];
-      if (e.kind !== EV_KO) continue;
-      const age = now - e.t;
-      if (age >= 0 && age < newest) newest = age;
-    }
-    if (!(newest < KO_FLASH_MS)) return;
+    const newest = now - view.lastKoMs; // (--- fl-overhaul --- the view keeps the last KO: no scan of the event ring)
+    if (!(newest >= 0 && newest < KO_FLASH_MS)) return;
     const t = newest / KO_FLASH_MS;
     const ax = left + (0.5 - FL_ARENA_FRAC / 2) * side;
     const ay = top + FL_ARENA_TOP * side;
@@ -2832,6 +2946,13 @@ export const FIGHT_LEAGUE_DATA_KEYS = [
   "flWeapons",
   "flProjectiles",
   "flTime",
+  // --- fl-overhaul --- the fair hit pipeline's counters and sudden death
+  "flGrazes",
+  "flClashes2",
+  "flImmunes",
+  "flInterrupts",
+  "flDodges",
+  "flSudden",
 ];
 
 /** Writes the data-fl-* attributes (the strings are rebuilt only when their values change). */
@@ -2899,5 +3020,11 @@ export class FightLeagueDataset {
     set("flWeapons", String(layer.weaponsDrawn));
     set("flProjectiles", String(layer.projectilesDrawn));
     set("flTime", (view.timeMs / 1000).toFixed(1));
+    set("flGrazes", String(view.grazes)); // --- fl-overhaul ---
+    set("flClashes2", String(view.clashes2));
+    set("flImmunes", String(view.immunes));
+    set("flInterrupts", String(view.interrupts));
+    set("flDodges", String(view.dodges));
+    set("flSudden", view.suddenMs >= 0 ? "1" : "0");
   }
 }

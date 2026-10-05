@@ -1903,7 +1903,12 @@
     "ogRunPhase": "in phase every {seconds}s",
     "ogRunNeverPhase": "never in phase – one travelling wave",
     "ogRunMetro": "{bars, plural, one {# bar} other {# bars}} at {bpm} BPM",
-    "ogPresetMetronome": "Metronome 3:2"
+    "ogPresetMetronome": "Metronome 3:2",
+    "flSeek": "Seek Turn",
+    "flSeekTip": "How fast a fighter turns its flight toward the distance its weapon likes from its target (radians a second): swords and fists close in, shooters keep away, everyone strafes in range. 0 keeps the pure bounce of the first release – the fighters only bounce, and the walls nudge them toward a foe.",
+    "flSeekOff": "Bounce only",
+    "flSuddenDeath": "Sudden Death",
+    "flSuddenDeathTip": "At the time cap with two sides or more standing: up to 10 seconds of sudden death first, the arena shrinking to 60 % of its size (a knockout still ends it); then the side with the largest share of its HP left wins. Off: the HP share decides at the cap at once."
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -4050,13 +4055,13 @@
     "fighter_naruto": "Shuriken orbit him and fly one by one; Shadow Clone summons two clones that fight for four seconds.",
     "fighter_sasuke": "A quick blade; Chidori blinks onto the nearest foe four times in a row.",
     "fighter_luffy": "Rubber fists that reach across half the ring; the Gum-Gum Gatling punches four times as fast for two seconds.",
-    "fighter_saitama": "One slow punch at triple damage; the Serious Punch is worth half of the foe's maximum HP.",
+    "fighter_saitama": "One slow punch at triple damage; the Serious Punch is worth 40 % of the foe's maximum HP.",
     "fighter_luke": "A green energy blade; the Force Push throws every foe across the ring.",
     "fighter_vader": "A red blade, slower and stronger; the Force Choke holds the nearest foe for two seconds and hurts it.",
     "fighter_yoda": "Tiny and fast with a short green blade; Force Lift holds the nearest foe up for two seconds, then slams it.",
     "fighter_maul": "A double-bladed saber, a blade at both ends; the Saber Throw flies at the foe and comes back.",
     "fighter_harrypotter": "Fast bolts from his wand; Expelliarmus disarms the nearest foe for three seconds.",
-    "fighter_voldemort": "Stronger, slower bolts; Avada Kedavra is one unblockable bolt at five times the damage.",
+    "fighter_voldemort": "Stronger, slower bolts; Avada Kedavra is one unblockable bolt at nearly four times the damage.",
     "fighter_gandalf": "A staff of homing orbs and a sword; You Shall Not Pass makes him untouchable and pins every foe to the far wall.",
     "fighter_legolas": "The fastest bow in the league; Arrow Storm looses twelve arrows at once.",
     "fighter_godzilla": "A long tail sweeping behind him; Atomic Breath is a blue beam.",
@@ -4073,7 +4078,8 @@
     "fighter_zuko": "Firebending: a cone of fire ahead; Lightning Redirect fires a crackling beam.",
     "fighter_jonsnow": "A longsword; Ghost, his white wolf, joins the fight for four seconds.",
     "fighter_nightking": "Throws slow, heavy ice spears; Raise the Dead summons three wights for four seconds.",
-    "fighter_gerald": "Our own ball headbutts its way through the league; Mega Bounce doubles its speed and damage for three seconds."
+    "fighter_gerald": "Our own ball headbutts its way through the league; Mega Bounce doubles its speed and damage for three seconds.",
+    "canvasSudden": "SUDDEN DEATH!"
   },
   "LandClaim": {
     "canvasTitle": "LAND CLAIM",

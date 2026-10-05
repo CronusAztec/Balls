@@ -49,6 +49,10 @@ import {
   slotTeam,
   type FightLeagueSettings,
   type FightLeagueView,
+  // --- fl-overhaul ---
+  EV_CAST,
+  angleDiff,
+  flPanelValue,
 } from "@/lib/physics/modes/fightLeague";
 import {
   FL_ABILITY_PRIMITIVES,
@@ -79,6 +83,8 @@ import { playArenaSound, type ArenaSoundSink } from "@/lib/simulation/multi";
 import { playSoundEvent } from "@/lib/recording/fastRender";
 import { DEFAULT_FIGHT_LEAGUE_LABELS, FIGHT_LEAGUE_DATA_KEYS, FightLeagueDataset, FightLeagueLayer, flNameColor } from "@/components/simulator/fightLeagueRenderer";
 import { fakeGraph } from "./fakeAudio";
+import { burstSpawnsBehind, dummyDuel, PROBE_INTRO_MS, PROBE_STEP, probeEngine, probeRun } from "./flProbes"; // --- fl-overhaul ---
+import en from "../messages/en.json"; // --- fl-overhaul ---
 
 /**
  * Fight League (feature fight-league): the roster and its divisions, the settings / URL / presets and the registration, the
@@ -117,10 +123,10 @@ function run(engine: PhysicsEngine, untilMs: number, frameMs = STEP, each?: (v: 
   return v;
 }
 
-/** A 1v1 of `a` and `b` played to its end (the 60 s cap of the balance runs). */
+/** A 1v1 of `a` and `b` played to its end (the 60 s cap of the balance runs; --- fl-overhaul --- counted from FIGHT!, then sudden death). */
 function duel(a: string, b: string, seed: number, fl: Partial<FightLeagueSettings> = {}) {
   const engine = fightEngine({ fighters: [a, b, "random", "random"], match: "1v1", timeCap: 60, ...fl }, seed);
-  return run(engine, 70_000);
+  return run(engine, 100_000);
 }
 
 async function withFrames<T>(body: () => Promise<T>): Promise<T> {
@@ -671,16 +677,20 @@ describe("fight league endings", () => {
   });
 
   it("decides at the time cap: more HP wins, equal HP is a draw", () => {
-    const engine = fightEngine({ fighters: ["thor", "loki", "random", "random"], hp: 100_000, timeCap: 6 }, 3);
+    // --- fl-overhaul --- the cap counts from FIGHT! (the VS card left out); sudden death off: the plain verdict at the cap
+    const engine = fightEngine({ fighters: ["thor", "loki", "random", "random"], hp: 1000, timeCap: 6, suddenDeath: false }, 3);
     const v = run(engine, 20_000);
     expect(v.finished).toBe(true);
     expect(v.byTime).toBe(true);
-    expect(v.finishMs).toBeCloseTo(6000, -2);
-    expect(v.winnerTeam).toBe(capVerdict(v.fighters.map((f) => f.hp), v.fighters.map((f) => f.team), 2));
-    expect(v.winnerTeam).toBe(v.fighters[0].hp > v.fighters[1].hp ? 0 : 1);
-    // Still in the intro at the cap: nobody was hit – a draw.
-    const draw = run(fightEngine({ fighters: ["thor", "loki", "random", "random"], timeCap: 1 }, 3), 5000);
+    expect(v.finishMs).toBeCloseTo(FL_INTRO_MS + 6000, -2);
+    expect(v.winnerTeam).toBe(capVerdict(v.fighters.map((f) => f.hp), v.fighters.map((f) => f.team), 2, undefined, v.fighters.map((f) => f.maxHp)));
+    const [fa, fb] = v.fighters.map((f) => f.hp / f.maxHp);
+    expect(Math.abs(fa - fb)).toBeGreaterThan(0.005); // (no near-draw on this seed: the shares decide)
+    expect(v.winnerTeam).toBe(fa > fb ? 0 : 1);
+    // Nobody hit by the cap (both too slow to attack or cast before it): a draw.
+    const draw = run(fightEngine({ fighters: ["thor", "loki", "random", "random"], timeCap: 1, suddenDeath: false, speed: [0.05, 0.05, 1, 1], attack: [0.05, 0.05, 1, 1], cast: [0.05, 0.05, 1, 1] }, 3), 5000);
     expect(draw).toMatchObject({ finished: true, byTime: true, winnerTeam: -1, doubleKo: false });
+    expect(draw.finishMs).toBeCloseTo(FL_INTRO_MS + 1000, -2);
   });
 
   it("plays 2v2 as teams (no friendly fire) to the last team standing", () => {
@@ -770,7 +780,7 @@ describe("fight league forced winner", () => {
     }
   });
 
-  it("never ends a rigged fight in a double KO: the backstop holds until the verdict (rivals down in the same step, a shot in the KO grace)", () => {
+  it("never ends a rigged fight in a double KO: the backstop holds until the verdict (rivals down in the same step, a shot in the KO grace)", { timeout: 60_000 }, () => {
     // Seeds that ended in a DOUBLE KO while the backstop held only as long as a rival had HP left.
     const cases: [string, string, number, number][] = [
       ["loki", "spiderman", 3, 0],
@@ -787,12 +797,28 @@ describe("fight league forced winner", () => {
       ["voldemort", "gandalf", 8, 0],
       ["godzilla", "predator", 8, 0],
     ];
+    // --- fl-overhaul --- under the overhaul's rules these seeds no longer all need the backstop (it is counted below)
+    let absorbed = 0;
     for (const [a, b, seed, forced] of cases) {
       const v = run(fightEngine({ fighters: [a, b, "random", "random"], timeCap: 60 }, seed, { forcedWinner: forced }), 70_000);
       expect([a, b, seed, v.finished, v.doubleKo, v.winnerTeam]).toEqual([a, b, seed, true, false, forced]);
       expect([a, b, seed, v.fighters[forced].alive, v.fighters[forced].hp > 0, v.fighters[1 - forced].alive]).toEqual([a, b, seed, true, true, false]);
-      expect([a, b, seed, v.rigAbsorbed > 0]).toEqual([a, b, seed, true]);
+      if (v.rigAbsorbed > 0) absorbed++;
     }
+    // --- fl-overhaul --- and the mirror matches that end in a DOUBLE KO unrigged today: rigged either way, the chosen side wins.
+    const doubles: [string, number][] = [];
+    for (const id of ["loki", "spiderman", "captainamerica", "batman", "samus", "katarina", "ahri", "alien", "predator", "johnwick", "terminator"]) {
+      for (let seed = 1; seed <= 8; seed++) if (duel(id, id, seed).doubleKo) doubles.push([id, seed]);
+    }
+    expect(doubles.length).toBeGreaterThanOrEqual(3);
+    for (const [id, seed] of doubles) {
+      for (const forced of [0, 1]) {
+        const v = run(fightEngine({ fighters: [id, id, "random", "random"], match: "1v1", timeCap: 60 }, seed, { forcedWinner: forced }), 200_000);
+        expect([id, seed, forced, v.finished, v.doubleKo, v.winnerTeam, v.fighters[forced].alive, v.fighters[forced].hp > 0]).toEqual([id, seed, forced, true, false, forced, true, true]);
+        if (v.rigAbsorbed > 0) absorbed++;
+      }
+    }
+    expect(absorbed).toBeGreaterThan(0);
   });
 
   it("guards reflected damage like a hit: none while the attacker is invulnerable, and the rig's backstop holds against it", () => {
@@ -864,9 +890,18 @@ describe("fight league replays", () => {
   /** Golden fingerprints of Thor vs Loki at 18 s (seeds 7, 42, 1234): a change of the rules shows here. */
   const GOLDEN: Record<number, string> = { 7: "4ba46054", 42: "c93e9204", 1234: "6dc67129" };
 
+  /** --- fl-overhaul --- Steps whole frames to `untilMs` of simulation time, past the fight's end (the fighters stand frozen). */
+  const runTo = (engine: PhysicsEngine, untilMs: number, frameMs: number): FightLeagueView => {
+    while (engine.getElapsedMs() < untilMs - 1e-6) {
+      engine.update(frameMs, 0);
+      engine.consumeSoundEvents();
+    }
+    return engine.getFightLeagueView();
+  };
+
   it("replays a seed exactly at 60, 144 and 30 fps (the fixed step) – three seeds", () => {
     for (const seed of [7, 42, 1234]) {
-      const prints = [STEP, 1000 / 144, 1000 / 30].map((frame) => fingerprint(run(fightEngine({}, seed), 18_000, frame)));
+      const prints = [STEP, 1000 / 144, 1000 / 30].map((frame) => fingerprint(runTo(fightEngine({}, seed), 18_000, frame)));
       expect(new Set(prints).size).toBe(1);
       expect([seed, prints[0]]).toEqual([seed, GOLDEN[seed]]);
     }
@@ -886,10 +921,12 @@ describe("fight league finder", () => {
     const replay = run(fightEngine({ fighters: ["thor", "loki", "random", "random"] }, found.seed), 100_000);
     expect(replay.winnerTeam).toBe(1);
     expect(found.duration).toBeCloseTo(replay.finishMs / 1000, 1);
-    const length = await withFrames(() => findSimulation(request(), () => undefined));
+    // --- fl-overhaul --- (the fights engage at once now: Thor vs Loki takes about 9–18 s, so the chosen length is 14 s)
+    const length = await withFrames(() => findSimulation(request({ targetDurationSec: 14 }), () => undefined));
     expect(length.found).toBe(true);
-    expect(Math.abs(length.duration - 20)).toBeLessThanOrEqual(1);
-    const mirror = { ...request(), modeSettings: settingsFor({ fighters: ["thor", "thor", "random", "random"] }).modeSettings, maxSeeds: 400 };
+    expect(Math.abs(length.duration - 14)).toBeLessThanOrEqual(1);
+    // --- fl-overhaul --- (a mirror ends in a double KO far more rarely now: the search may go deeper)
+    const mirror = { ...request(), modeSettings: settingsFor({ fighters: ["thor", "thor", "random", "random"] }).modeSettings, maxSeeds: 1500 };
     const dko = await withFrames(() => findSimulation({ ...mirror, outcome: { kind: "double-ko", clipSec: 30 } }, () => undefined));
     expect(dko.found).toBe(true);
     const twice = run(fightEngine({ fighters: ["thor", "thor", "random", "random"] }, dko.seed), 100_000);
@@ -985,11 +1022,14 @@ describe("fight league data attributes", () => {
 /** The balance runs: per division every pair over these seeds, the sides swapped every other seed (a draw is half a win). */
 const BALANCE_SEEDS = [1, 2, 3, 4, 5, 6].map((s) => ({ seed: 1000 + s * 7919, swap: s % 2 === 0 }));
 
+/** --- fl-overhaul --- The arenas the round robin is played in (QA finding 2: the circle has its own gate). */
+const BALANCE_ARENAS = ["square", "circle"] as const;
+
 describe("fight league balance (per division round robin, 6 seeds, 60 s cap)", () => {
-  for (const division of FL_DIVISIONS) {
+  for (const arena of BALANCE_ARENAS) for (const division of FL_DIVISIONS) {
     const rows = FL_ROSTER.filter((r) => r.division === division);
     if (rows.length < 2) continue;
-    it(`keeps every ${FL_DIVISION_LABELS[division]} fighter between 25 % and 75 % of its matches`, { timeout: 60_000 }, () => {
+    it(`keeps every ${FL_DIVISION_LABELS[division]} fighter between 25 % and 75 % of its matches${arena === "circle" ? " (in the circle)" : ""}`, { timeout: 60_000 }, () => {
       const wins = new Map<string, number>();
       const games = new Map<string, number>();
       for (let i = 0; i < rows.length; i++) {
@@ -997,7 +1037,7 @@ describe("fight league balance (per division round robin, 6 seeds, 60 s cap)", (
           for (const { seed, swap } of BALANCE_SEEDS) {
             const a = swap ? rows[j].id : rows[i].id;
             const b = swap ? rows[i].id : rows[j].id;
-            const v = duel(a, b, seed);
+            const v = duel(a, b, seed, { arena });
             expect(v.finished).toBe(true);
             games.set(a, (games.get(a) ?? 0) + 1);
             games.set(b, (games.get(b) ?? 0) + 1);
@@ -1011,11 +1051,448 @@ describe("fight league balance (per division round robin, 6 seeds, 60 s cap)", (
         }
       }
       const table = rows.map((r) => ({ id: r.id, rate: (wins.get(r.id) ?? 0) / (games.get(r.id) ?? 1) }));
-      console.log(`win table ${FL_DIVISION_LABELS[division]}: ${table.map((t) => `${FL_BY_ID.get(t.id)!.name} ${(100 * t.rate).toFixed(0)}%`).join(", ")}`);
+      console.log(`win table ${FL_DIVISION_LABELS[division]} (${arena}): ${table.map((t) => `${FL_BY_ID.get(t.id)!.name} ${(100 * t.rate).toFixed(0)}%`).join(", ")}`);
       for (const t of table) {
         expect([t.id, t.rate >= 0.25]).toEqual([t.id, true]);
         expect([t.id, t.rate <= 0.75]).toEqual([t.id, true]);
       }
     });
   }
+});
+
+/* ------------------------------------------------------------------ --- fl-overhaul --- QA regressions */
+
+/**
+ * --- fl-overhaul --- The QA findings of the overhaul's Stage 1 (numbered as in the QA report): each test failed on the code
+ * before the rework and passes after it (the helpers of tests/flProbes.ts run the engine headlessly at the fixed step).
+ */
+
+/** Every event of a run until `untilMs` (polled each frame), with `each` after every frame. */
+function qaRunEvents(engine: PhysicsEngine, untilMs: number, each?: (v: FightLeagueView) => boolean | void) {
+  const v = engine.getFightLeagueView();
+  let serial = 0;
+  const all: { kind: number; t: number; slot: number; value: number }[] = [];
+  probeRun(engine, untilMs, (view) => {
+    all.push(...eventsSince(view, serial));
+    serial = view.eventSerial;
+    return each?.(view);
+  });
+  return { v, events: all };
+}
+
+function qaWithAbility(ability: FlAbility, body: () => void) {
+  const row = FL_BY_ID.get("gerald")! as { ability: FlAbility };
+  const saved = row.ability;
+  row.ability = ability;
+  try {
+    body();
+  } finally {
+    row.ability = saved;
+  }
+}
+
+/** A 2D context that accepts every call (the renderer's sprites and HUD in Node). */
+function qaStubContext(log: { name: string; args: unknown[] }[] = []): CanvasRenderingContext2D {
+  const target: Record<string, unknown> = { canvas: { width: 800, height: 450 }, globalAlpha: 1 };
+  return new Proxy(target, {
+    get(t, key: string) {
+      if (key in t) return t[key];
+      if (key === "measureText") return (s: string) => ({ width: 6 * String(s).length });
+      if (key === "createLinearGradient" || key === "createRadialGradient") return () => ({ addColorStop: () => undefined });
+      return (...args: unknown[]) => {
+        log.push({ name: key, args });
+        return undefined;
+      };
+    },
+    set(t, key: string, value) {
+      t[key] = value;
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+}
+
+function qaStubDocument() {
+  vi.stubGlobal("document", { createElement: () => ({ width: 1, height: 1, getContext: () => qaStubContext() }) });
+}
+
+const QA_OPTS = { dpr: 1, numbers: true, teamColors: null, teamBanner: false, labels: DEFAULT_FIGHT_LEAGUE_LABELS };
+
+describe("fight league QA regressions", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("1: an ability volley carries no weapon – a disarmed caster's Avada Kedavra still lands (and sounds magic)", { timeout: 60_000 }, () => {
+    for (const seed of [3, 4, 5]) {
+      const engine = probeEngine({ fighters: ["voldemort", "harrypotter", "random", "random"], cast: [40, 0.05, 1, 1], speed: [1, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+      const v = engine.getFightLeagueView();
+      probeRun(engine, 20_000, () => v.projectiles.some((p) => p.active && p.kind === PK_ABILITY));
+      const bolt = v.projectiles.find((p) => p.active && p.kind === PK_ABILITY)!;
+      expect([seed, bolt.weapon]).toEqual([seed, -1]);
+      const [voldemort, harry] = v.fighters;
+      voldemort.disarmedUntil = Infinity;
+      const before = harry.hp;
+      const kinds = new Set<string>();
+      while (bolt.active && engine.getElapsedMs() < 30_000) {
+        engine.update(PROBE_STEP, 0);
+        for (const ev of engine.consumeSoundEvents() as SoundEvent[]) if (ev.fight) kinds.add(ev.fight);
+      }
+      expect([seed, before - harry.hp > 20]).toEqual([seed, true]);
+      expect([seed, kinds.has("magic")]).toEqual([seed, true]);
+    }
+  });
+
+  it("2: the circle no longer locks onto a diameter – finish times spread over the seeds", { timeout: 60_000 }, () => {
+    const times: number[] = [];
+    const winners = new Set<number>();
+    for (let seed = 1; seed <= 10; seed++) {
+      const v = probeRun(probeEngine({ fighters: ["harrypotter", "voldemort", "random", "random"], arena: "circle", timeCap: 60 }, seed), 120_000);
+      times.push(v.finishMs);
+      winners.add(v.winnerTeam);
+    }
+    expect(Math.max(...times) - Math.min(...times)).toBeGreaterThan(1000);
+    expect(winners.has(0) && winners.has(1)).toBe(true);
+  });
+
+  it("3: the Lasso of Truth pulls the foe in before its hold closes", { timeout: 60_000 }, () => {
+    for (const seed of [1, 4, 7]) {
+      const engine = probeEngine({ fighters: ["wonderwoman", "gerald", "random", "random"], cast: [40, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+      const v = engine.getFightLeagueView();
+      const [ww, gerald] = v.fighters;
+      let start = Infinity;
+      let gapAtHold = Infinity;
+      probeRun(engine, 20_000, () => {
+        if (ww.casts > 0 && start === Infinity) start = Math.hypot(gerald.x - ww.x, gerald.y - ww.y) - ww.r - gerald.r;
+        if (gerald.heldBy === 0) {
+          gapAtHold = (Math.hypot(gerald.x - ww.x, gerald.y - ww.y) - ww.r - gerald.r) / ww.r;
+          return true;
+        }
+      });
+      expect([seed, gapAtHold <= 1.2]).toEqual([seed, true]);
+    }
+  });
+
+  it("4: the Alien's tail lands next to its claws, in both arenas (each weapon of a two-weapon fighter lands)", { timeout: 60_000 }, () => {
+    for (const arena of ["square", "circle"] as const) {
+      let tail = 0;
+      for (const seed of [1, 2, 3]) {
+        const v = probeRun(probeEngine({ fighters: ["alien", "gerald", "random", "random"], hp: 1000, timeCap: 0, cast: [0.05, 0.05, 1, 1], arena }, seed), PROBE_INTRO_MS + 60_000);
+        tail += v.fighters[0].weapons[1].hits;
+      }
+      expect([arena, tail / 3 >= 10]).toEqual([arena, true]);
+    }
+    for (const row of FL_ROSTER.filter((r) => r.weapons.length === 2)) {
+      for (const arena of ["square", "circle"] as const) {
+        const hits = [0, 0];
+        for (const seed of [1, 2, 3]) {
+          const v = probeRun(dummyDuel(row.id, seed, { arena }), PROBE_INTRO_MS + 30_000);
+          hits[0] += v.fighters[0].weapons[0].hits;
+          hits[1] += v.fighters[0].weapons[1].hits;
+        }
+        for (const k of [0, 1]) if (!(row.weapons[k].kind === "shield" && row.weapons[k].style === "block")) expect([row.id, arena, k, hits[k] > 0]).toEqual([row.id, arena, k, true]);
+      }
+    }
+  });
+
+  it("5: a returning projectile hits once a pass (no second hit a sub-step later at the turn)", { timeout: 60_000 }, () => {
+    for (const id of ["ahri", "scorpion", "thor", "captainamerica"]) {
+      for (const seed of [1, 2]) {
+        const engine = probeEngine({ fighters: [id, "gerald", "random", "random"], cast: [0.05, 0.05, 1, 1], speed: [1, 0.05, 1, 1], attack: [1, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+        const { events } = qaRunEvents(engine, PROBE_INTRO_MS + 30_000);
+        const hits = events.filter((e) => e.kind === EV_DAMAGE && e.slot === 1).map((e) => e.t);
+        let close = 0;
+        for (let i = 1; i < hits.length; i++) if (hits[i] - hits[i - 1] < 50) close++;
+        expect([id, seed, hits.length > 3, close]).toEqual([id, seed, true, 0]);
+      }
+    }
+  });
+
+  it("6: a burst's rounds leave the muzzle, never from behind the shooter", { timeout: 60_000 }, () => {
+    for (const id of ["masterchief", "robocop"]) {
+      const r = burstSpawnsBehind(id);
+      expect([id, r.rounds > 30, r.behind]).toEqual([id, true, 0]);
+    }
+  });
+
+  it("7: a beam's and a spark's hand turns with its shots (the ray and the zap leave it)", { timeout: 60_000 }, () => {
+    for (const id of ["superman", "homelander"]) {
+      const engine = probeEngine({ fighters: [id, "gerald", "random", "random"], cast: [0.05, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 2);
+      const v = engine.getFightLeagueView();
+      let rays = 0;
+      probeRun(engine, PROBE_INTRO_MS + 20_000, () => {
+        const f = v.fighters[0];
+        const w = f.weapons.find((x) => x.spec.kind === "beam")!;
+        for (const b of v.beams) {
+          if (!b.active || b.ability || b.owner !== 0) continue;
+          rays++;
+          expect(Math.abs(angleDiff(w.angle, b.angle))).toBeLessThan(0.05);
+          expect(Math.hypot(b.x0 - (f.x + Math.cos(b.angle) * 1.1 * f.r), b.y0 - (f.y + Math.sin(b.angle) * 1.1 * f.r))).toBeLessThan(0.75 * f.r);
+        }
+      });
+      expect([id, rays > 5]).toEqual([id, true]);
+    }
+    const engine = probeEngine({ fighters: ["pikachu", "gerald", "random", "random"], cast: [0.05, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 2);
+    const v = engine.getFightLeagueView();
+    let zaps = 0;
+    let last = -Infinity;
+    probeRun(engine, PROBE_INTRO_MS + 20_000, () => {
+      const f = v.fighters[0];
+      const w = f.weapons[0];
+      if (w.zapMs > last) {
+        last = w.zapMs;
+        zaps++;
+        expect(Math.abs(angleDiff(w.angle, Math.atan2(w.zapY - f.y, w.zapX - f.x)))).toBeLessThan(0.35);
+      }
+    });
+    expect(zaps).toBeGreaterThan(5);
+  });
+
+  it("8: You Shall Not Pass pins the foe fully inside the arena", { timeout: 60_000 }, () => {
+    for (const arena of ["square", "circle"] as const) {
+      let pinnedFrames = 0;
+      for (const seed of [1, 2, 3]) {
+        const engine = probeEngine({ fighters: ["gandalf", "gerald", "random", "random"], cast: [3, 1, 1, 1], hp: 1000, timeCap: 0, arena }, seed);
+        const v = engine.getFightLeagueView();
+        probeRun(engine, PROBE_INTRO_MS + 40_000, () => {
+          const g = v.fighters[1];
+          const field = v.field!;
+          if (!(v.timeMs < g.pinUntil)) return;
+          pinnedFrames++;
+          if (arena === "square") {
+            expect(Math.abs(g.x - field.cx)).toBeLessThanOrEqual(field.half - g.r + 0.5);
+            expect(Math.abs(g.y - field.cy)).toBeLessThanOrEqual(field.half - g.r + 0.5);
+          } else expect(Math.hypot(g.x - field.cx, g.y - field.cy)).toBeLessThanOrEqual(field.half - g.r + 0.5);
+        });
+      }
+      expect([arena, pinnedFrames > 10]).toEqual([arena, true]);
+    }
+  });
+
+  it("9: a range-limited ability waits for its foe in range – most Spin Attacks hit", { timeout: 60_000 }, () => {
+    let casts = 0;
+    let landed = 0;
+    for (const seed of [1, 2, 3]) {
+      const engine = probeEngine({ fighters: ["link", "gerald", "random", "random"], hp: 1000, timeCap: 0, cast: [1, 0.05, 1, 1] }, seed);
+      const { events } = qaRunEvents(engine, PROBE_INTRO_MS + 60_000);
+      const castsAt = events.filter((e) => e.kind === EV_CAST && e.slot === 0).map((e) => e.t);
+      casts += castsAt.length;
+      for (const t of castsAt) if (events.some((e) => e.kind === EV_DAMAGE && e.slot === 1 && Math.abs(e.t - t) <= 20)) landed++;
+    }
+    expect(casts).toBeGreaterThan(4);
+    expect(landed / casts).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it("10: a choke cast while a decoy is nearer still takes the foe fighter", { timeout: 60_000 }, () => {
+    let casts = 0;
+    let holds = 0;
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const engine = probeEngine({ fighters: ["spiderman", "loki", "random", "random"], cast: [8, 40, 1, 1], hp: 1000, timeCap: 0 }, seed);
+      const v = engine.getFightLeagueView();
+      let lastCasts = 0;
+      probeRun(engine, PROBE_INTRO_MS + 20_000, () => {
+        const [spidey, loki] = v.fighters;
+        if (spidey.casts > lastCasts) {
+          lastCasts = spidey.casts;
+          casts++;
+          if (loki.heldBy === 0 || v.timeMs < loki.ccImmuneUntil) holds++;
+        }
+      });
+    }
+    expect(casts).toBeGreaterThan(5);
+    expect(holds).toBe(casts);
+  });
+
+  it("11: Force Lift's slam throws the foe toward the wall", { timeout: 60_000 }, () => {
+    for (const seed of [1, 4]) {
+      const engine = probeEngine({ fighters: ["yoda", "gerald", "random", "random"], cast: [40, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+      const v = engine.getFightLeagueView();
+      const g = v.fighters[1];
+      let wasHeld = false;
+      let checked = false;
+      probeRun(engine, 20_000, () => {
+        if (g.heldBy === 0) wasHeld = true;
+        else if (wasHeld) {
+          // (thrown at 2.5 cruise units, not carrying on along its old heading at its cruise)
+          expect(Math.hypot(g.vx, g.vy)).toBeGreaterThan(1.8 * g.cruise);
+          checked = true;
+          return true;
+        }
+      });
+      expect([seed, checked]).toEqual([seed, true]);
+    }
+  });
+
+  it("12: air and contact fists are drawn at rest (Gerald, Aang, Sonic)", { timeout: 60_000 }, () => {
+    qaStubDocument();
+    for (const id of ["gerald", "aang", "sonic"]) {
+      const engine = probeEngine({ fighters: [id, "thor", "random", "random"] }, 1);
+      const v = probeRun(engine, 500);
+      const layer = new FightLeagueLayer();
+      layer.drawBodies(qaStubContext(), v, QA_OPTS);
+      expect([id, layer.weaponsDrawn >= 2]).toEqual([id, true]);
+    }
+  });
+
+  it("13: a random slot next to Gerald draws from the other divisions; mirror matches rarely end in a double KO", { timeout: 60_000 }, () => {
+    for (let k = 0; k < 40; k++) {
+      const rows = pickFighters({ fighters: ["gerald", "random", "random", "random"], match: "ffa4", sameDivision: true }, () => (k * 0.137 + 0.01) % 1);
+      expect(rows[0].id).toBe("gerald");
+      for (const r of rows.slice(1)) expect(r.id).not.toBe("gerald");
+    }
+    let double = 0;
+    for (let seed = 1; seed <= 10; seed++) if (probeRun(probeEngine({ fighters: ["gerald", "gerald", "random", "random"], timeCap: 60 }, seed), 120_000).doubleKo) double++;
+    expect(double).toBeLessThanOrEqual(1);
+  });
+
+  it("14: attack speed speeds a sword up", { timeout: 60_000 }, () => {
+    const hits = (atk: number) => {
+      let n = 0;
+      for (const seed of [1, 2, 3]) n += probeRun(dummyDuel("link", seed, { attack: [atk, 0.05, 1, 1] }), PROBE_INTRO_MS + 30_000).fighters[0].hits;
+      return n;
+    };
+    expect(hits(3)).toBeGreaterThanOrEqual(1.5 * hits(1));
+  });
+
+  it("15: a minigun faster than the old window lands its hits", { timeout: 60_000 }, () => {
+    let hits = 0;
+    for (const seed of [1, 2, 3]) hits += probeRun(dummyDuel("jinx", seed), PROBE_INTRO_MS + 20_000).fighters[0].weapons[0].hits;
+    expect(hits / 60).toBeGreaterThanOrEqual(3.2);
+  });
+
+  it("16: a giant hit riding a shot that misses goes back to its owner", { timeout: 60_000 }, () => {
+    const engine = probeEngine({ fighters: ["batman", "gerald", "random", "random"], cast: [40, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 2);
+    const v = engine.getFightLeagueView();
+    const [batman, gerald] = v.fighters;
+    probeRun(engine, 20_000, () => v.projectiles.some((p) => p.active && p.giant > 0 && p.owner === 0));
+    expect(batman.giantLeft).toBe(0);
+    // (no second Smoke Bomb: only a refund can load a giant hit again)
+    batman.cast = 0;
+    batman.meter = 0;
+    batman.telegraphUntil = -1;
+    // Gerald steps out of its way: the batarang flies on into the wall.
+    const ball = engine.getBalls().find((b) => b.id === gerald.ballId)!;
+    const p = v.projectiles.find((x) => x.active && x.giant > 0)!;
+    const field = v.field!;
+    ball.x = gerald.x = 2 * field.cx - p.x;
+    ball.y = gerald.y = field.cy + (field.cy - p.y) * 0.2;
+    gerald.invulnUntil = Infinity;
+    probeRun(engine, v.timeMs + 4000, () => !p.active);
+    expect(p.active).toBe(false);
+    expect(batman.giantLeft).toBe(1);
+  });
+
+  it("17: Katarina's blink spin lands", { timeout: 60_000 }, () => {
+    let spins = 0;
+    for (const seed of [1, 2, 3]) {
+      const engine = probeEngine({ fighters: ["katarina", "gerald", "random", "random"], cast: [0.05, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+      const { events } = qaRunEvents(engine, PROBE_INTRO_MS + 60_000);
+      // (the dagger's own hit and the spin's land in the same sub-step as the blink: two damage numbers)
+      for (const e of events) if (e.kind === EV_BLINK && e.slot === 0 && events.filter((d) => d.kind === EV_DAMAGE && d.slot === 1 && d.t === e.t).length >= 2) spins++;
+    }
+    expect(spins).toBeGreaterThanOrEqual(3);
+  });
+
+  it("18: arena cuts land where their foe will be", { timeout: 60_000 }, () => {
+    qaWithAbility({ name: "Rend", charge: 5, effects: [{ p: "arenaCuts", n: 3, damage: 5 }] }, () => {
+      let cuts = 0;
+      let landed = 0;
+      for (const seed of [1, 2, 3]) {
+        const engine = probeEngine({ fighters: ["gerald", "thor", "random", "random"], cast: [3, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+        const { events } = qaRunEvents(engine, PROBE_INTRO_MS + 30_000);
+        for (const e of events) {
+          if (e.kind !== EV_CUT) continue;
+          cuts++;
+          if (events.some((d) => d.kind === EV_DAMAGE && d.slot === 1 && Math.abs(d.t - e.t) <= 20)) landed++;
+        }
+      }
+      expect(cuts).toBeGreaterThan(10);
+      expect(landed / cuts).toBeGreaterThanOrEqual(0.5);
+    });
+  });
+
+  it("19: a spinning kick's ring thuds (not blades)", { timeout: 60_000 }, () => {
+    const engine = probeEngine({ fighters: ["chunli", "gerald", "random", "random"], cast: [8, 0.05, 1, 1], hp: 1000, timeCap: 0, speed: [1, 0.05, 1, 1] }, 1);
+    const kinds = new Set<string>();
+    while (engine.getElapsedMs() < PROBE_INTRO_MS + 20_000) {
+      engine.update(PROBE_STEP, 0);
+      for (const ev of engine.consumeSoundEvents() as SoundEvent[]) if (ev.fight) kinds.add(ev.fight);
+    }
+    expect(engine.getFightLeagueView().fighters[0].casts).toBeGreaterThan(0);
+    expect(kinds.has("blade")).toBe(false);
+  });
+
+  it("20: an orbiting weapon stops while its owner is frozen", { timeout: 60_000 }, () => {
+    const engine = probeEngine({ fighters: ["kratos", "subzero", "random", "random"], cast: [0.05, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 1);
+    const v = engine.getFightLeagueView();
+    const kratos = v.fighters[0];
+    let checked = 0;
+    let angle = NaN;
+    probeRun(engine, PROBE_INTRO_MS + 40_000, () => {
+      const frozen = v.timeMs + PROBE_STEP < kratos.frozenUntil;
+      if (frozen && Number.isFinite(angle)) {
+        expect(kratos.weapons[0].angle).toBe(angle);
+        checked++;
+      }
+      angle = frozen ? kratos.weapons[0].angle : NaN;
+    });
+    expect(checked).toBeGreaterThan(5);
+  });
+
+  it("21: the time cap counts from FIGHT! (the VS card is not fighting time)", { timeout: 60_000 }, () => {
+    const v = probeRun(probeEngine({ fighters: ["thor", "loki", "random", "random"], hp: 100_000, timeCap: 10, suddenDeath: false } as Partial<FightLeagueSettings>, 3), 30_000);
+    expect(v.byTime).toBe(true);
+    expect(v.finishMs).toBeGreaterThanOrEqual(PROBE_INTRO_MS + 10_000);
+    expect(v.finishMs).toBeLessThan(PROBE_INTRO_MS + 10_000 + 20);
+  });
+
+  it("22: a full meter waiting for its moment says READY", { timeout: 60_000 }, () => {
+    qaStubDocument();
+    const engine = probeEngine({ fighters: ["link", "gerald", "random", "random"] }, 1);
+    const v = probeRun(engine, 3000);
+    v.fighters[0].meter = 1;
+    v.fighters[0].telegraphUntil = -1;
+    const log: { name: string; args: unknown[] }[] = [];
+    new FightLeagueLayer().drawOverlay(qaStubContext(log), v, QA_OPTS, { width: 800, height: 450, inset: 0 });
+    expect(log.some((c) => c.name === "fillText" && c.args[0] === "READY")).toBe(true);
+  });
+
+  it("23: a huge Ball Size fits the fighters in the arena (the run goes on)", { timeout: 60_000 }, () => {
+    const engine = probeEngine({ fighters: ["thor", "gerald", "random", "random"] }, 1, { ballRadius: 180 });
+    engine.update(PROBE_STEP, 0);
+    expect(engine.isSimulationFinished()).toBe(false);
+    const v = probeRun(engine, 20_000);
+    const field = v.field!;
+    expect(v.timeMs).toBeGreaterThan(3000);
+    expect(v.finished && (v.kos > 0 || v.byTime)).toBe(true);
+    for (const f of v.fighters) expect(f.r).toBeLessThan(field.half);
+  });
+
+  it("24: the descriptions say what the rows do", { timeout: 60_000 }, () => {
+    const v = FL_BY_ID.get("voldemort")!;
+    const avada = v.ability.effects[0] as { damage: number };
+    const ratio = avada.damage / (v.weapons[0].damage ?? 1);
+    expect(ratio).toBeGreaterThan(3.5);
+    expect(ratio).toBeLessThan(4);
+    expect(v.description).toMatch(/nearly four times/);
+    expect((en as { FightLeague: Record<string, string> }).FightLeague.fighter_voldemort).toMatch(/nearly four times/);
+    const sonic: FlFighterRow = FL_BY_ID.get("sonic")!;
+    expect(sonic.weapons[0].style).toBe("contact");
+  });
+
+  it("25: the panel commits the number the fight runs and the link carries", { timeout: 60_000 }, () => {
+    expect(flPanelValue("flHp", 2.5)).toBe(3);
+    expect(flPanelValue("flTimeCap", 0.04)).toBe(0);
+    expect(flPanelValue("flSpeedA", 1.23456)).toBe(1.235);
+    const s = { ...defaultSettings("fightLeague"), flHp: flPanelValue("flHp", 2.5) };
+    const params = settingsToSearchParams(s);
+    expect(params.get("flHp")).toBe("3");
+    expect(settingsFromSearchParams(params).flHp).toBe(3);
+  });
+
+  it("26: data-fl-weapons counts held shields", { timeout: 60_000 }, () => {
+    qaStubDocument();
+    const engine = probeEngine({ fighters: ["captainamerica", "loki", "random", "random"] }, 1);
+    const v = probeRun(engine, 500);
+    const layer = new FightLeagueLayer();
+    layer.drawBodies(qaStubContext(), v, QA_OPTS);
+    expect(layer.weaponsDrawn).toBeGreaterThanOrEqual(2);
+  });
 });

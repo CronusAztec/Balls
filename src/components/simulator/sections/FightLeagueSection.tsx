@@ -5,7 +5,7 @@ import Tooltip from "../Tooltip";
 import NumberField from "../NumberField";
 import { Searchable, Slider, Toggle, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
-import { FL_ARENAS, FL_MATCHES, FL_RANDOM, matchFighters, type FlArena, type FlMatch } from "@/lib/physics/modes/fightLeague";
+import { FL_ARENAS, FL_MATCHES, FL_RANDOM, flPanelValue, matchFighters, type FlArena, type FlMatch } from "@/lib/physics/modes/fightLeague";
 import { FL_BY_ID, FL_DIVISIONS, FL_PRESETS, fightersOf } from "@/lib/physics/modes/fightLeagueRoster";
 
 export interface FightLeagueSectionProps {
@@ -17,7 +17,7 @@ export interface FightLeagueSectionProps {
 }
 
 /** Search keys of the Fight League block (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
-export const FIGHT_LEAGUE_KEYS = ["flTitle", "flPreset", "flMatch", "flFighters", "flSameDivision", "flHp", "flTimeCap", "flArena", "flHud", "flHandicaps"];
+export const FIGHT_LEAGUE_KEYS = ["flTitle", "flPreset", "flMatch", "flFighters", "flSameDivision", "flHp", "flTimeCap", "flArena", "flHud", "flHandicaps", "flSeek", "flSuddenDeath"];
 
 const SLOT_FIELDS = ["flFighterA", "flFighterB", "flFighterC", "flFighterD"] as const;
 const SLOT_LETTERS = ["A", "B", "C", "D"] as const;
@@ -145,8 +145,14 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
       <Searchable search={search} matches={matches} labelKey="flSameDivision">
         <Toggle t={t} labelKey="flSameDivision" tipKey="flSameDivisionTip" value={s.flSameDivision} onChange={(v) => update({ flSameDivision: v })} caseStyle="title" />
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="flHp" tipKey="flHpTip" value={s.flHp} range={RANGES.flHp} onChange={(v) => update({ flHp: v })} display={String(s.flHp)} />
-      <Slider t={t} search={search} matches={matches} labelKey="flTimeCap" tipKey="flTimeCapTip" value={s.flTimeCap} range={RANGES.flTimeCap} onChange={(v) => update({ flTimeCap: v })} display={s.flTimeCap > 0 ? `${s.flTimeCap}s` : t("flTimeCapOff")} />
+      {/* --- fl-overhaul --- the panel commits the value the fight runs (and the link carries): HP whole, the cap to a tenth */}
+      <Slider t={t} search={search} matches={matches} labelKey="flHp" tipKey="flHpTip" value={s.flHp} range={RANGES.flHp} onChange={(v) => update({ flHp: flPanelValue("flHp", v) })} display={String(s.flHp)} />
+      <Slider t={t} search={search} matches={matches} labelKey="flTimeCap" tipKey="flTimeCapTip" value={s.flTimeCap} range={RANGES.flTimeCap} onChange={(v) => update({ flTimeCap: flPanelValue("flTimeCap", v) })} display={s.flTimeCap > 0 ? `${s.flTimeCap}s` : t("flTimeCapOff")} />
+      {/* --- fl-overhaul --- sudden death at the cap, and the intent steering's turn rate (0: the bounce look) */}
+      <Searchable search={search} matches={matches} labelKey="flSuddenDeath">
+        <Toggle t={t} labelKey="flSuddenDeath" tipKey="flSuddenDeathTip" value={s.flSuddenDeath} onChange={(v) => update({ flSuddenDeath: v })} caseStyle="title" />
+      </Searchable>
+      <Slider t={t} search={search} matches={matches} labelKey="flSeek" tipKey="flSeekTip" value={s.flSeek} range={RANGES.flSeek} onChange={(v) => update({ flSeek: flPanelValue("flSeek", v) })} display={s.flSeek > 0 ? s.flSeek.toFixed(2) : t("flSeekOff")} />
       <Searchable search={search} matches={matches} labelKey="flArena">
         <div className="space-y-2">
           <label className="text-sm font-medium text-ink-2">
@@ -183,7 +189,7 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
                 <span className="self-center text-ink-2">{t(stat.labelKey)}</span>
                 {Array.from({ length: slots }, (_, i) => {
                   const key = `fl${stat.key}${SLOT_LETTERS[i]}` as StatField;
-                  return <NumberField key={key} value={statValue(stat.key, i)} onCommit={(v) => update({ [key]: v } as Partial<SimulatorSettings>)} label={`${t(stat.labelKey)} ${SLOT_LETTERS[i]}`} range={RANGES[key]} rules={{ min: RANGES[key].min }} settingKey={key} className="w-full" />;
+                  return <NumberField key={key} value={statValue(stat.key, i)} onCommit={(v) => update({ [key]: flPanelValue(key, v) } as Partial<SimulatorSettings>)} label={`${t(stat.labelKey)} ${SLOT_LETTERS[i]}`} range={RANGES[key]} rules={{ min: RANGES[key].min }} settingKey={key} className="w-full" />;
                 })}
               </div>
             ))}

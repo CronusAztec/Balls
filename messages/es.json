@@ -1894,7 +1894,12 @@
     "ogRunPhase": "en fase cada {seconds} s",
     "ogRunNeverPhase": "nunca en fase: una sola ola viajera",
     "ogRunMetro": "{bars, plural, one {# compás} other {# compases}} a {bpm} BPM",
-    "ogPresetMetronome": "Metrónomo 3:2"
+    "ogPresetMetronome": "Metrónomo 3:2",
+    "flSeek": "Giro hacia el objetivo",
+    "flSeekTip": "Lo rápido que un luchador gira hacia la distancia que su arma prefiere respecto a su objetivo (radianes por segundo): espadas y puños se acercan, los tiradores se mantienen lejos y, a tiro, todos lo rodean. 0 conserva el rebote puro de la primera versión: los luchadores solo rebotan y las paredes los desvían un poco hacia un rival.",
+    "flSeekOff": "Solo rebotes",
+    "flSuddenDeath": "Muerte súbita",
+    "flSuddenDeathTip": "Al llegar al tiempo límite con dos bandos o más en pie: primero hasta 10 segundos de muerte súbita mientras la arena se encoge al 60 % de su tamaño (un KO sigue terminando el combate); después gana el bando con la mayor parte de su vida restante. Desactivada: la parte de vida decide en el límite al instante."
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -3886,13 +3891,13 @@
     "fighter_naruto": "Shurikens orbitan a su alrededor y salen uno a uno; Shadow Clone invoca dos clones que luchan cuatro segundos.",
     "fighter_sasuke": "Una hoja veloz; el Chidori lo lleva cuatro veces seguidas junto al enemigo más cercano.",
     "fighter_luffy": "Puños de goma que llegan a media arena; el Gum-Gum Gatling golpea cuatro veces más rápido durante dos segundos.",
-    "fighter_saitama": "Un único puñetazo lento con el triple de daño; el Serious Punch vale la mitad de la vida máxima del enemigo.",
+    "fighter_saitama": "Un único puñetazo lento con el triple de daño; el Serious Punch vale el 40 % de la vida máxima del enemigo.",
     "fighter_luke": "Una hoja de energía verde; el Force Push lanza a todos los enemigos al otro lado de la arena.",
     "fighter_vader": "Una hoja roja, más lenta y más fuerte; el Force Choke estrangula al enemigo más cercano durante dos segundos.",
     "fighter_yoda": "Pequeño y rápido, con una hoja verde corta; Force Lift levanta al enemigo más cercano dos segundos y luego lo estrella.",
     "fighter_maul": "Un sable de doble hoja, una en cada extremo; el Saber Throw vuela hacia el enemigo y vuelve.",
     "fighter_harrypotter": "Proyectiles rápidos desde su varita; Expelliarmus desarma al enemigo más cercano durante tres segundos.",
-    "fighter_voldemort": "Proyectiles más fuertes y más lentos; Avada Kedavra es un único proyectil imbloqueable con cinco veces el daño.",
+    "fighter_voldemort": "Proyectiles más fuertes y más lentos; Avada Kedavra es un único proyectil imbloqueable con casi cuatro veces el daño.",
     "fighter_gandalf": "Un bastón de orbes que persiguen al enemigo y una espada; You Shall Not Pass lo vuelve intocable y clava a todos los enemigos contra la pared opuesta.",
     "fighter_legolas": "El arco más rápido de la liga; Arrow Storm suelta doce flechas a la vez.",
     "fighter_godzilla": "Una cola larga que barre detrás de él; el Atomic Breath es un rayo azul.",
@@ -3909,7 +3914,8 @@
     "fighter_zuko": "Fuego control: un cono de fuego hacia delante; Lightning Redirect dispara un rayo crepitante.",
     "fighter_jonsnow": "Una espada larga; Ghost, su lobo blanco, se une a la pelea durante cuatro segundos.",
     "fighter_nightking": "Lanza lanzas de hielo lentas y pesadas; Raise the Dead invoca tres espectros durante cuatro segundos.",
-    "fighter_gerald": "Nuestra propia bola se abre paso en la liga a cabezazos; Mega Bounce duplica su velocidad y su daño durante tres segundos."
+    "fighter_gerald": "Nuestra propia bola se abre paso en la liga a cabezazos; Mega Bounce duplica su velocidad y su daño durante tres segundos.",
+    "canvasSudden": "¡MUERTE SÚBITA!"
   },
   "LandClaim": {
     "canvasTitle": "CONQUISTA DE TERRENO",

@@ -876,6 +876,10 @@ export interface SimulatorSettings {
   flCastB: number;
   flCastC: number;
   flCastD: number;
+  // --- fl-overhaul --- the intent steering's turn rate (URL `flSk`; 0 = the bounce look) and sudden death at the time cap (URL `flSD`)
+  flSeek: number;
+  flSuddenDeath: boolean;
+  // --- end fl-overhaul ---
   // --- end fight-league ---
   // --- land-claim --- Land Claim (lib/physics/modes/landClaim.ts): competitors' balls knock the top blocks off the columns lining the arena
   /** Columns round the wall, 4–96 on the slider (any number from 4 typed; a run builds at most 5,000) (URL `lcc`). */
