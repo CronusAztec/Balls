@@ -11809,8 +11809,13 @@ for (const [balls, rate] of [[5, 170], [12, 270]]) {
     for (const el of victims) el.remove();
     return { removed: victims.length };
   };
-  /** The rest of DevTools: Pro attributes, classes and a CSS variable on <html> and <body>, storage flags, a forged licence, globals, WebCrypto patched (runs in the page). */
-  const tamperPage = ({ forged }) => {
+  /**
+   * The rest of DevTools (runs in the page): Pro attributes, classes and a CSS variable on <html> and <body>, storage flags,
+   * a forged licence, globals, and the console one-liners that patch the verdict path's built-ins – WebCrypto's verify, the
+   * verdict WeakMap's get/set, and the licence decoding's atob / JSON.parse. `jbl.license` holds a genuine but EXPIRED test
+   * licence, so the atob / JSON.parse patches that push its exp a year ahead would clean the mark on the unhardened gate.
+   */
+  const tamperPage = ({ forged, expired }) => {
     for (const el of [document.documentElement, document.body]) {
       el.setAttribute("data-pro", "true");
       el.setAttribute("data-license", "valid");
@@ -11819,12 +11824,34 @@ for (const [balls, rate] of [[5, 170], [12, 270]]) {
       el.classList.remove("free");
       el.style.setProperty("--watermark-opacity", "0");
     }
-    for (const [k, v] of Object.entries({ "jbl.pro": "true", pro: "1", isPro: "true", "jbl.watermark": "off", watermark: "false", license: "valid", "jbl.license": forged })) localStorage.setItem(k, v);
+    for (const [k, v] of Object.entries({ "jbl.pro": "true", pro: "1", isPro: "true", "jbl.watermark": "off", watermark: "false", license: forged, "jbl.license": expired })) localStorage.setItem(k, v);
     window.isPro = true;
     window.__PRO__ = true;
-    // the console one-liner: every signature verifies
+    const far = Math.floor(Date.now() / 1000) + 365 * 86400;
+    // `crypto.subtle.verify = async () => true`: every signature verifies
     SubtleCrypto.prototype.verify = async () => true;
-    return { html: document.documentElement.getAttribute("data-pro"), stored: localStorage.getItem("jbl.license") === forged };
+    // `WeakMap.prototype.get = …`: the verdict store answers clean for every seal (and `.set` stores clean) – the mechanism the README names
+    const wmGet = WeakMap.prototype.get;
+    WeakMap.prototype.get = function (k) {
+      return k && k.kind === "watermark-seal" ? true : wmGet.call(this, k);
+    };
+    const wmSet = WeakMap.prototype.set;
+    WeakMap.prototype.set = function (k, v) {
+      return wmSet.call(this, k, k && k.kind === "watermark-seal" ? true : v);
+    };
+    // `atob = …` / `JSON.parse = …`: push a licence payload's exp a year ahead as it is decoded (an expired licence looks current)
+    const realAtob = window.atob.bind(window);
+    window.atob = (s) => {
+      const out = realAtob(s);
+      return /"plan"/.test(out) && /"sub"/.test(out) ? out.replace(/"exp":\s*\d+/, `"exp":${far}`) : out;
+    };
+    const realParse = JSON.parse;
+    JSON.parse = function (text, reviver) {
+      const v = realParse(text, reviver);
+      if (v && typeof v === "object" && typeof v.exp === "number" && v.plan && v.sub) v.exp = far;
+      return v;
+    };
+    return { html: document.documentElement.getAttribute("data-pro"), stored: localStorage.getItem("jbl.license") === expired };
   };
   /** A licence in the contract's shape with a random signature: what a visitor could forge (it never verifies). */
   const forgeLicence = () => {
@@ -11857,26 +11884,28 @@ for (const [balls, rate] of [[5, 170], [12, 270]]) {
 
     // (b) Tampered with during a free recording – and the next recording after the tampering.
     const forged = forgeLicence();
+    const expired = signTestLicense({ sub: "lapsed@example.com", plan: "yearly", provider: "stripe", days: -5 }); // genuine, expired: the atob / JSON.parse patches try to revive it
+    const tamperArgs = { forged, expired };
     let tamper = null;
     const bPage = await openWm(null);
     const fail = (e) => ({ error: String(e).split("\n")[0] });
     const b = await recordStill(bPage, "tampered", {
       during: async (p) => {
         await p.waitForTimeout(1200);
-        tamper = { ...(await p.evaluate(tamperDom).catch(fail)), ...(await p.evaluate(tamperPage, { forged }).catch(fail)) };
+        tamper = { ...(await p.evaluate(tamperDom).catch(fail)), ...(await p.evaluate(tamperPage, tamperArgs).catch(fail)) };
       },
     });
     const bDecoded = b.file ? await decodeVideo(bPage, b.file, [3, 8.5]) : { frames: [] };
-    // the next recording, sealed after the tampering (the forged licence stored, WebCrypto patched before Record): still marked
+    // the next recording, sealed after the tampering (the built-ins patched before Record Video): still marked
     let retamper = null;
     const next = await recordStill(bPage, "after-tamper", {
-      before: async (p) => void (retamper = await p.evaluate(tamperPage, { forged }).catch(fail)),
+      before: async (p) => void (retamper = await p.evaluate(tamperPage, tamperArgs).catch(fail)),
       during: async (p) => void Object.assign(retamper ?? {}, await p.evaluate(tamperDom).catch(fail)),
       stopAt: 7600,
     });
     const nextDecoded = next.file ? await decodeVideo(bPage, next.file, [2.5, 6.9]) : { frames: [] };
     check(
-      "free watermark: DevTools tampering (marked elements removed, data-pro=\"true\" and Pro classes on <html>/<body>, Pro flags and a forged licence in localStorage, crypto.subtle.verify patched) leaves the mark in the recording under way and in the next one",
+      "free watermark: DevTools tampering (marked elements removed, data-pro=\"true\" and Pro classes on <html>/<body>, Pro flags and an expired-then-revived licence in localStorage, crypto.subtle.verify, WeakMap.prototype.get/set and atob / JSON.parse patched) leaves the mark in the recording under way and in the next one",
       !!tamper && !tamper.error && tamper.removed >= 1 && tamper.html === "true" && tamper.stored && !!b.file && marked(bDecoded, 3, 8.5) && !!retamper && !retamper.error && retamper.stored && !!next.file && marked(nextDecoded, 2.5, 6.9),
       `(${JSON.stringify({ tamper, retamper })}, during ${brief(bDecoded)}, next ${brief(nextDecoded)})`,
     );

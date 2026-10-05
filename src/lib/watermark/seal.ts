@@ -20,13 +20,16 @@ import { paintWatermark, prepareWatermark, type WatermarkFrame } from "./paint";
  * plain localStorage flag reaches it, and an object that merely looks like a seal is marked. Editing the stored token makes
  * it invalid (= marked).
  *
- * Hardening against the console: WebCrypto's `importKey` / `verify` and the clock are captured when the bundle loads, so
- * `crypto.subtle.verify = async () => true` or `Date.now = () => 0` typed into DevTools afterwards reaches nothing; and a
- * verification patched before that is caught by a canary – the same signed bytes with one bit of the signature flipped must
- * NOT verify. What this cannot stop is code that changes the page's JavaScript or the browser functions it calls (a DevTools
- * local override or breakpoint, an extension, a userscript, functions redefined from the console), or a visitor capturing the
- * live canvas or the screen themselves: README "Free-video watermark" says so – only rendering on a server would be a
- * guarantee.
+ * Hardening against the console: the built-ins the decision path calls are captured when the bundle loads, so redefining them
+ * in DevTools afterwards reaches nothing – WebCrypto's `importKey` / `verify` and the clock here (`crypto.subtle.verify =
+ * async () => true` or `Date.now = () => 0` change no verdict), `WeakMap`'s `get` / `set` through `weakGet` / `weakSet` below
+ * (the verdict store cannot be made to answer clean), and the licence's base64url/JSON decoding through the captures in
+ * license.ts (a rewritten `exp` is not covered by the signature anyway). A verification patched before the bundle loaded is
+ * caught by a canary – the same signed bytes with one bit of the signature flipped must NOT verify. What this cannot stop is
+ * code that changes the page's JavaScript itself (a DevTools local override or breakpoint, an extension, a userscript, a
+ * rewriting proxy) or redefines a built-in the path still reaches, or a visitor capturing the live canvas or the screen: so
+ * the console captures raise the bar, they are not a guarantee – README "Free-video watermark" says what remains, and only
+ * rendering on a server would close it.
  */
 
 type Subtle = Pick<SubtleCrypto, "importKey" | "verify">;
@@ -43,6 +46,12 @@ const SUBTLE: Subtle | null = (() => {
 })();
 /** The clock as it was when the bundle loaded. */
 const NOW: () => number = Date.now.bind(Date);
+/**
+ * `WeakMap`'s own get/set as they were when the bundle loaded, bound to call against any map. The verdict store is read and
+ * written through these, so `WeakMap.prototype.get = () => true` (or `.set`) typed into DevTools later reaches nothing.
+ */
+const weakGet: <V>(map: WeakMap<object, V>, key: object) => V | undefined = Function.prototype.call.bind(WeakMap.prototype.get);
+const weakSet: <V>(map: WeakMap<object, V>, key: object, value: V) => unknown = Function.prototype.call.bind(WeakMap.prototype.set);
 
 /** The answer of the gate for one recording or export: an opaque, frozen token whose verdict only this module knows. */
 export interface WatermarkSeal {
@@ -63,7 +72,7 @@ const verdicts = new WeakMap<object, boolean>();
 
 function mint(clean: boolean): WatermarkSeal {
   const seal: WatermarkSeal = Object.freeze({ kind: "watermark-seal" as const, sealedAt: NOW() });
-  verdicts.set(seal, clean);
+  weakSet(verdicts, seal, clean);
   return seal;
 }
 
@@ -142,7 +151,7 @@ export async function sealWatermark(): Promise<WatermarkSeal> {
 
 /** "clean" only for a seal this module made from a verified, unexpired Pro licence; null, a look-alike or anything else is "marked". */
 export function sealVerdict(seal: unknown): WatermarkVerdict {
-  return typeof seal === "object" && seal !== null && verdicts.get(seal) === true ? "clean" : "marked";
+  return typeof seal === "object" && seal !== null && weakGet(verdicts, seal) === true ? "clean" : "marked";
 }
 
 /**
