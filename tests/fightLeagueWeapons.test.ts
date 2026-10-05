@@ -31,11 +31,22 @@ import {
   type FightLeagueView,
   type FlFighter,
   type FlProjectile,
+  // --- fl-overhaul --- (Stage 2)
+  EV_HEAL,
+  EV_POP,
+  EV_SHOCK,
+  EV_TRANSFORM,
+  EV_TRAP,
+  PK_BOMB,
+  rayToEdgeOrWall,
+  whipExtension,
+  type FlWall,
 } from "@/lib/physics/modes/fightLeague";
 import { FL_BY_ID, FL_PRESETS, FL_ROSTER, FL_WEAPON_KINDS, weaponOf, type FlFighterRow, type FlWeaponKind, type FlWeaponSpec, type FlWeaponStyle } from "@/lib/physics/modes/fightLeagueRoster";
 import { DEFAULT_FIGHT_LEAGUE_LABELS, FightLeagueLayer } from "@/components/simulator/fightLeagueRenderer";
 import { defaultSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { blockShare, breathsOutOfRange, burstSpawnsBehind, dummyDuel, median, meleeMedianFirstHit, mirrorStats, PROBE_INTRO_MS, PROBE_STEP, probeEngine, probeRun, weaponHitsPerSec } from "./flProbes";
+import { divisionTank, duelFirstHitSec } from "./flProbes"; // --- fl-overhaul --- (Stage 2)
 
 /**
  * --- fl-overhaul --- Fight League's weapon contract and fair hit pipeline (Stage 1 of the overhaul): a probe per weapon kind
@@ -77,6 +88,9 @@ const PROBES: { kind: FlWeaponKind; extra: Partial<FlWeaponSpec> }[] = [
       ["cards", "blink"],
       ["staff", "return"],
       ["fists", "contact"],
+      // --- fl-overhaul --- (Stage 2)
+      ["whip", "lasso"],
+      ["bomb", "fuse"],
     ] as [FlWeaponKind, FlWeaponStyle][]
   ).map(([kind, style]) => ({ kind, extra: { style, ...(style === "burst" ? { count: 3 } : {}) } })),
   { kind: "fists" as FlWeaponKind, extra: { shape: "air" as const, count: 1 } },
@@ -132,7 +146,7 @@ function probeKind(kind: FlWeaponKind, extra: Partial<FlWeaponSpec>, seconds = 2
       let prevHits = 0;
       let attackStart = { sweep: 0, punch: -1, swing: -1 };
       let attackHits = 0;
-      const perAttack = kind === "sword" || kind === "fists" || kind === "claws" || kind === "tail";
+      const perAttack = kind === "sword" || kind === "fists" || kind === "claws" || kind === "tail" || kind === "whip";
       const born = new Map<number, number>();
       probeRun(engine, PROBE_INTRO_MS + 1000 * seconds, () => {
         const now = v.timeMs;
@@ -147,7 +161,7 @@ function probeKind(kind: FlWeaponKind, extra: Partial<FlWeaponSpec>, seconds = 2
         // of a sword's resting blade (a hit while no sweep runs) is an attack of its own.
         const started =
           (kind === "sword" && w.sweepT > attackStart.sweep + 1e-9) ||
-          ((kind === "fists" || kind === "claws") && w.punchT >= 0 && w.punchT < attackStart.punch) ||
+          ((kind === "fists" || kind === "claws" || kind === "whip") && w.punchT >= 0 && w.punchT < attackStart.punch) ||
           (kind === "tail" && w.swingT >= 0 && w.swingT < attackStart.swing);
         if (perAttack && started) {
           if (attackHits > 1) r.multiPerAttack++;
@@ -284,10 +298,10 @@ function stubContext(): CanvasRenderingContext2D {
 
 /** Render events since `serial`. */
 function eventsSince(v: FightLeagueView, serial: number) {
-  const out: { kind: number; t: number; slot: number; src: number; value: number }[] = [];
+  const out: { kind: number; t: number; slot: number; src: number; value: number; x: number; y: number }[] = [];
   for (let s = Math.max(serial, v.eventSerial - FL_EVENT_CAP); s < v.eventSerial; s++) {
     const e = v.events[s % FL_EVENT_CAP];
-    out.push({ kind: e.kind, t: e.t, slot: e.slot, src: e.src, value: e.value });
+    out.push({ kind: e.kind, t: e.t, slot: e.slot, src: e.src, value: e.value, x: e.x, y: e.y });
   }
   return out;
 }
@@ -483,6 +497,19 @@ describe("fight league engagement", () => {
     }
     console.log(`first hit within 1.5 s of FIGHT!: ${fast}/${runs}`);
     expect(fast / runs).toBeGreaterThanOrEqual(0.9);
+    // --- fl-overhaul --- (Stage 2) the 1v1 presets alone: a duel's first hit
+    let duelFast = 0;
+    let duels = 0;
+    for (const p of FL_PRESETS.filter((x) => x.match === "1v1")) {
+      for (const seed of SEEDS) {
+        const v = probeRun(probeEngine({ fighters: [...p.fighters, "random", "random"].slice(0, 4), match: "1v1" }, seed), PROBE_INTRO_MS + 1500);
+        duels++;
+        if (v.hits > 0) duelFast++;
+      }
+    }
+    console.log(`first hit within 1.5 s of FIGHT! (1v1 presets): ${duelFast}/${duels}`);
+    expect(duels).toBeGreaterThanOrEqual(3 * 40);
+    expect(duelFast / duels).toBeGreaterThanOrEqual(0.9);
   });
 
   it("closes in a melee fighter fast (the median first hit against the dummy within 2 s)", { timeout: 60_000 }, () => {
@@ -499,7 +526,10 @@ describe("fight league determinism and naming gates", () => {
     const dir = path.join(ROOT, "src/lib/physics/modes");
     const files = fs.readdirSync(dir).filter((f) => /^fightLeague.*\.ts$/.test(f));
     expect(files.length).toBeGreaterThanOrEqual(2);
-    for (const file of files) {
+    // --- fl-overhaul --- (Stage 2) and every division's rows
+    const rows = fs.readdirSync(path.join(dir, "fightLeagueRows")).filter((f) => f.endsWith(".ts")).map((f) => `fightLeagueRows/${f}`);
+    expect(rows.length).toBe(20);
+    for (const file of [...files, ...rows]) {
       const text = fs.readFileSync(path.join(dir, file), "utf8");
       expect([file, /Math\.random|Date\.now|performance\.now/.test(text)]).toEqual([file, false]);
     }
@@ -571,5 +601,271 @@ describe("fight league probe table (before → after this stage's rules)", () =>
     expect(after.meleeFirstHit).toBeLessThan(BEFORE.meleeFirstHit);
     expect(after.mirrorDoubleKo).toBeLessThan(BEFORE.mirrorDoubleKo);
     expect(after.burstBehind).toBe(0);
+  });
+});
+
+/* ------------------------------------------------------------------ --- fl-overhaul --- (Stage 2) the new kinds and primitives */
+
+/** Whether segments a–b and c–d properly cross. */
+function segmentsCross(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): boolean {
+  const d1 = (dx - cx) * (ay - cy) - (dy - cy) * (ax - cx);
+  const d2 = (dx - cx) * (by - cy) - (dy - cy) * (bx - cx);
+  const d3 = (bx - ax) * (cy - ay) - (by - ay) * (cx - ax);
+  const d4 = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
+  return d1 * d2 < 0 && d3 * d4 < 0;
+}
+
+/** Keeps `wall` (the dummy's: team 1) across the line from the attacker to the dummy, `lengthR` attacker radii long, `at` of the way. */
+function holdWall(v: FightLeagueView, wall: FlWall, lengthR: number, at = 0.5, solid = false) {
+  const a = v.fighters[0];
+  const b = v.fighters[1];
+  const ang = Math.atan2(b.y - a.y, b.x - a.x);
+  const cx = a.x + (b.x - a.x) * at;
+  const cy = a.y + (b.y - a.y) * at;
+  const half = 0.5 * lengthR * a.r;
+  Object.assign(wall, { active: true, owner: 1, team: 1, born: 0, until: Infinity, solid, x1: cx - Math.sin(ang) * half, y1: cy + Math.cos(ang) * half, x2: cx + Math.sin(ang) * half, y2: cy - Math.cos(ang) * half });
+}
+
+describe("fight league Stage 2: whip, bomb, traps, walls, transforms, drain and deflect land", () => {
+  it("cracks a whip out and back: the extension, one hit a crack, and a lasso drags its foe in", () => {
+    expect([whipExtension(-0.01), whipExtension(0.06), whipExtension(0.12), whipExtension(0.21), whipExtension(0.3)]).toEqual([0, expect.closeTo(0.5, 9), 1, expect.closeTo(0.5, 9), 0]);
+    let pulls = 0;
+    for (const seed of SEEDS) {
+      const engine = probeEngine({ fighters: ["woody", "gerald", "random", "random"], cast: [0.05, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+      const v = engine.getFightLeagueView();
+      let was = false;
+      probeRun(engine, PROBE_INTRO_MS + 15_000, () => {
+        const pulled = v.fighters[1].pullBy === 0 && v.fighters[1].pullUntil > v.timeMs;
+        if (pulled && !was) pulls++;
+        was = pulled;
+      });
+      expect(v.fighters[0].weapons[0].hits).toBeGreaterThan(0);
+    }
+    expect(pulls).toBeGreaterThan(0);
+  });
+
+  it("snaps a trap on the foe that runs over it (unblockable damage and a hold), at most four an owner", () => {
+    let snaps = 0;
+    let held = 0;
+    let most = 0;
+    for (const [id, foe] of [["rambo", "gerald"], ["tom", "gerald"], ["tom", "jerry"]]) {
+      for (const seed of SEEDS) {
+        const engine = probeEngine({ fighters: [id, foe, "random", "random"], cast: [6, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+        const v = engine.getFightLeagueView();
+        let serial = 0;
+        probeRun(engine, PROBE_INTRO_MS + 20_000, () => {
+          most = Math.max(most, v.minions.filter((m) => m.active && m.trap && m.owner === 0).length);
+          for (const e of eventsSince(v, serial)) if (e.kind === EV_TRAP && e.slot === 0) snaps++;
+          if (v.fighters[1].heldBy === 0 && v.fighters[1].heldUntil > v.timeMs) held++;
+          serial = v.eventSerial;
+        });
+      }
+    }
+    console.log(`traps: ${snaps} snaps, ${held} frames held, at most ${most} an owner`);
+    expect(snaps).toBeGreaterThan(0);
+    expect(held).toBeGreaterThan(0);
+    expect(most).toBeLessThanOrEqual(4);
+  });
+
+  it("stops enemy shots at a wall and cuts beams there; bombs fly over it; a solid wall stops the foe", () => {
+    const blocked = (kind: FlWeaponKind) =>
+      withProbe(kind, {}, (id) => {
+        let hits = 0;
+        let pops = 0;
+        let through = 0;
+        for (const seed of SEEDS) {
+          const engine = dummyDuel(id, seed);
+          const v = engine.getFightLeagueView();
+          const wall = v.walls[0];
+          const last = new Map<number, [number, number]>();
+          let serial = 0;
+          probeRun(engine, PROBE_INTRO_MS + 15_000, () => {
+            for (const p of v.projectiles) {
+              if (!p.active || p.owner !== 0) continue;
+              const prev = last.get(p.id);
+              if (prev && p.kind !== PK_BOMB && segmentsCross(prev[0], prev[1], p.x, p.y, wall.x1, wall.y1, wall.x2, wall.y2)) through++;
+              last.set(p.id, [p.x, p.y]);
+            }
+            // (a ray ends on the wall: its last pixel may touch it)
+            for (const b of v.beams) if (b.active && b.owner === 0 && segmentsCross(b.x0, b.y0, b.x1 - Math.cos(b.angle), b.y1 - Math.sin(b.angle), wall.x1, wall.y1, wall.x2, wall.y2)) through++;
+            for (const e of eventsSince(v, serial)) if (e.kind === EV_POP) pops++;
+            serial = v.eventSerial;
+            holdWall(v, wall, 6);
+          });
+          hits += v.fighters[0].weapons[0].hits;
+        }
+        return { hits, pops, through };
+      });
+    const gun = blocked("gun");
+    const beam = blocked("beam");
+    const bomb = blocked("bomb");
+    console.log(`behind a wall: gun ${JSON.stringify(gun)}, beam ${JSON.stringify(beam)}, bomb ${JSON.stringify(bomb)}`);
+    expect([gun.hits, gun.through]).toEqual([0, 0]);
+    expect(gun.pops).toBeGreaterThan(0);
+    expect([beam.hits, beam.through]).toEqual([0, 0]);
+    expect(bomb.hits).toBeGreaterThan(0);
+    // The ray stops at the nearest enemy wall, never at an own one.
+    const field = { kind: "square" as const, cx: 0, cy: 0, half: 100 };
+    const w = { active: true, team: 1, x1: 50, y1: -20, x2: 50, y2: 20 };
+    expect(rayToEdgeOrWall(field, 0, 0, 1, 0, [w], 0)).toBeCloseTo(50, 9);
+    expect(rayToEdgeOrWall(field, 0, 0, 1, 0, [w], 1)).toBeCloseTo(100, 9);
+    expect(rayToEdgeOrWall(field, 0, 30, 1, 0, [w], 0)).toBeCloseTo(100, 9);
+    // A solid wall across the arena: the attacker bounces off it like off the arena's wall.
+    withProbe("sword", {}, (id) => {
+      for (const seed of SEEDS) {
+        const engine = dummyDuel(id, seed);
+        const v = engine.getFightLeagueView();
+        const f = v.fighters[0];
+        const field = v.field!;
+        const ball = engine.getBalls().find((b) => b.id === f.ballId)!;
+        ball.x = f.x = field.cx - 0.6 * field.half;
+        const wx = field.cx - 0.25 * field.half;
+        Object.assign(v.walls[0], { active: true, owner: 1, team: 1, born: 0, until: Infinity, solid: true, x1: wx, y1: field.cy - field.half, x2: wx, y2: field.cy + field.half });
+        let crossed = false;
+        probeRun(engine, PROBE_INTRO_MS + 8000, () => {
+          if (f.x + f.r > wx + 1) crossed = true;
+        });
+        expect([seed, crossed]).toEqual([seed, false]);
+      }
+    });
+  });
+
+  it("casts the walls of the roster: Wind Wall stops shots, Build Wall stands between the fighters", () => {
+    let stops = 0;
+    let walls = 0;
+    for (const [id, foe] of [["yasuo", "jinx"], ["jonesy", "masterchief"]]) {
+      for (const seed of SEEDS) {
+        const engine = probeEngine({ fighters: [id, foe, "random", "random"], cast: [6, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+        const v = engine.getFightLeagueView();
+        let serial = 0;
+        const raised = new Set<number>();
+        probeRun(engine, PROBE_INTRO_MS + 20_000, () => {
+          for (const w of v.walls) {
+            if (!w.active || w.owner !== 0 || raised.has(w.born)) continue;
+            raised.add(w.born);
+            walls++;
+          }
+          for (const e of eventsSince(v, serial)) {
+            if (e.kind !== EV_POP) continue;
+            if (v.walls.some((w) => w.active && w.owner === 0 && Math.abs((w.x2 - w.x1) * (w.y1 - e.y) - (w.x1 - e.x) * (w.y2 - w.y1)) / Math.hypot(w.x2 - w.x1, w.y2 - w.y1) < 12)) stops++;
+          }
+          serial = v.eventSerial;
+        });
+      }
+    }
+    console.log(`roster walls: ${walls} raised, ${stops} shots stopped`);
+    expect(walls).toBeGreaterThan(6);
+    expect(stops).toBeGreaterThan(0);
+  });
+
+  it("transforms: the ball grows (or shrinks) with its hitbox for the duration, then returns to its size", () => {
+    for (const [id, size] of [["bowser", 1.4], ["rick", 0.7], ["eren", 1.7], ["popeye", 1.15]] as const) {
+      const engine = probeEngine({ fighters: [id, "gerald", "random", "random"], cast: [40, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 4);
+      const v = engine.getFightLeagueView();
+      const f = v.fighters[0];
+      const base = f.r;
+      let serial = 0;
+      const seen: number[] = [];
+      probeRun(engine, 20_000, () => {
+        for (const e of eventsSince(v, serial)) if (e.kind === EV_TRANSFORM && e.slot === 0) seen.push(e.value);
+        serial = v.eventSerial;
+        return f.casts > 0;
+      });
+      f.cast = 0.05; // (no second cast in the window)
+      const ball = engine.getBalls().find((b) => b.id === f.ballId)!;
+      expect([id, f.sizeMul]).toEqual([id, size]);
+      expect(f.r).toBeCloseTo(Math.min(base * size, 0.5 * v.field!.fullHalf), 6);
+      expect(ball.radius).toBeCloseTo(f.r, 9);
+      expect(seen).toEqual([1]);
+      const until = f.transformUntil;
+      probeRun(engine, until + 100, () => {
+        for (const e of eventsSince(v, serial)) if (e.kind === EV_TRANSFORM && e.slot === 0) seen.push(e.value);
+        serial = v.eventSerial;
+      });
+      expect([id, f.sizeMul, seen]).toEqual([id, 1, [1, 0]]);
+      expect(f.r).toBeCloseTo(base, 9);
+    }
+  });
+
+  it("drains: every hit while it lasts heals its dealer by the fraction of the damage", () => {
+    for (const id of ["gengar", "jaws"]) {
+      const engine = probeEngine({ fighters: [id, "gerald", "random", "random"], cast: [40, 0.05, 1, 1], speed: [1, 0.05, 1, 1], attack: [1, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 4);
+      const v = engine.getFightLeagueView();
+      const f = v.fighters[0];
+      probeRun(engine, 20_000, () => f.casts > 0);
+      f.cast = 0.05;
+      expect(f.drainUntil).toBeGreaterThan(v.timeMs);
+      f.hp = 400;
+      const dealt = f.dealt;
+      let serial = v.eventSerial;
+      let healed = 0;
+      probeRun(engine, f.drainUntil - 1, () => {
+        for (const e of eventsSince(v, serial)) if (e.kind === EV_HEAL && e.slot === 0) healed += e.value;
+        serial = v.eventSerial;
+      });
+      expect([id, f.dealt > dealt]).toEqual([id, true]);
+      expect(healed).toBeCloseTo(f.drainFrac * (f.dealt - dealt), 6);
+      expect(f.hp).toBeGreaterThan(400);
+    }
+  });
+
+  it("deflects: shots touching Obi-Wan in Soresu turn on their shooter", () => {
+    withProbe("gun", {}, (id) => {
+      let deflected = 0;
+      let back = 0;
+      for (const seed of SEEDS) {
+        const engine = probeEngine({ fighters: ["obiwan", id, "random", "random"], cast: [40, 0.05, 1, 1], attack: [0.05, 1, 1, 1], hp: 1000, timeCap: 0 }, seed);
+        const v = engine.getFightLeagueView();
+        const mode = engine.fightLeagueMode as unknown as { hit: (ctx: unknown, a: FlFighter, t: FlFighter, ...rest: unknown[]) => number };
+        const turned = new Set<number>();
+        const hit = mode.hit.bind(mode);
+        mode.hit = (ctx, a, t, ...rest) => {
+          const res = hit(ctx, a, t, ...rest);
+          const opts = rest[5] as { projectile?: FlProjectile } | undefined;
+          if (res === 1 && t.slot === 1 && opts?.projectile && turned.has(opts.projectile.id)) back++;
+          return res;
+        };
+        const owner = new Map<number, number>();
+        probeRun(engine, PROBE_INTRO_MS + 15_000, () => {
+          for (const p of v.projectiles) {
+            if (!p.active) continue;
+            if (owner.get(p.id) === 1 && p.owner === 0) {
+              deflected++;
+              turned.add(p.id);
+            }
+            owner.set(p.id, p.owner);
+          }
+        });
+      }
+      console.log(`deflect: ${deflected} shots turned, ${back} hit their shooter`);
+      expect(deflected).toBeGreaterThan(0);
+      expect(back).toBeGreaterThan(0);
+    });
+  });
+
+  it("bursts a bomb at its landing: splash damage falling off to the edge, knockback from the centre", () => {
+    let bursts = 0;
+    for (const id of ["walterwhite", "peely", "bugsbunny"]) {
+      for (const seed of SEEDS) {
+        const engine = dummyDuel(id, seed);
+        const v = engine.getFightLeagueView();
+        let serial = 0;
+        probeRun(engine, PROBE_INTRO_MS + 10_000, () => {
+          for (const e of eventsSince(v, serial)) if (e.kind === EV_SHOCK && e.slot === 0) bursts++;
+          serial = v.eventSerial;
+        });
+        expect([id, seed, v.fighters[0].weapons[0].hits > 0]).toEqual([id, seed, true]);
+      }
+    }
+    expect(bursts).toBeGreaterThan(9);
+  });
+
+  it("lands every fighter's first hit within 10 s against Gerald and against its division's tank (3 seeds)", { timeout: 120_000 }, () => {
+    const misses: string[] = [];
+    for (const row of FL_ROSTER) {
+      if (row.id === "gerald") continue;
+      for (const foe of ["gerald", divisionTank(row).id]) for (const seed of SEEDS) if (!Number.isFinite(duelFirstHitSec(row.id, foe, seed))) misses.push(`${row.id} vs ${foe} #${seed}`);
+    }
+    expect(misses).toEqual([]);
   });
 });

@@ -45,3 +45,6 @@ yarn-error.log*
 /billing/node_modules/
 /billing/.dev.vars
 /billing/.wrangler/
+
+# --- fl-overhaul --- the Fight League tuner's per-division reports (scripts/fl-balance.mjs)
+/scripts/out/

@@ -13,7 +13,7 @@ import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { fightLeagueSettingsOf, resolveFightLeagueSettings, type FightLeagueSettings, type FightLeagueView, type FlFighter, type FlProjectile } from "@/lib/physics/modes/fightLeague";
-import { FL_ROSTER, type FlWeaponKind } from "@/lib/physics/modes/fightLeagueRoster";
+import { FL_ROSTER, type FlFighterRow, type FlWeaponKind } from "@/lib/physics/modes/fightLeagueRoster";
 
 /** The 16:9 world every desktop frame runs (lib/simulation/world.ts). */
 export const PROBE_WORLD = { width: 800, height: 450 };
@@ -78,10 +78,14 @@ export function median(values: readonly number[]): number {
   return s.length % 2 ? s[m] : 0.5 * (s[m - 1] + s[m]);
 }
 
-const MELEE: readonly FlWeaponKind[] = ["sword", "hammer", "fists", "claws", "chain", "tail"];
+const MELEE: readonly FlWeaponKind[] = ["sword", "hammer", "fists", "claws", "chain", "tail", "whip"];
 
 /** The median first hit (s after FIGHT!) of every roster fighter whose first weapon is melee, against the dummy (seeds 1–3). */
 export function meleeMedianFirstHit(): { median: number; misses: number; runs: number } {
+  return memoized("melee first hit", meleeMedianFirstHitUncached);
+}
+
+function meleeMedianFirstHitUncached(): { median: number; misses: number; runs: number } {
   const times: number[] = [];
   let misses = 0;
   for (const row of FL_ROSTER) {
@@ -100,8 +104,19 @@ export function probeDuel(a: string, b: string, seed: number, fl: Partial<FightL
   return probeRun(probeEngine({ fighters: [a, b, "random", "random"], match: "1v1", timeCap: 60, ...fl }, seed), 200_000);
 }
 
+/** --- fl-overhaul --- (Stage 2) The probes are deterministic: a file that asks twice (a check and the probe table) plays once. */
+const memo = new Map<string, unknown>();
+function memoized<T>(key: string, body: () => T): T {
+  if (!memo.has(key)) memo.set(key, body());
+  return memo.get(key) as T;
+}
+
 /** Every fighter against itself over `seeds`: the share of double KOs and slot A's share of the decided fights. */
 export function mirrorStats(seeds: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8]): { doubleKo: number; slotA: number; games: number; decided: number } {
+  return memoized(`mirror ${seeds.join(",")}`, () => mirrorStatsUncached(seeds));
+}
+
+function mirrorStatsUncached(seeds: readonly number[]): { doubleKo: number; slotA: number; games: number; decided: number } {
   let games = 0;
   let double = 0;
   let decided = 0;
@@ -184,6 +199,10 @@ export const BALANCE_SEEDS = [1, 2, 3, 4, 5, 6].map((s) => ({ seed: 1000 + s * 7
 
 /** The share of the hits aimed at `id` its shield blocked, over its division's round robin (the balance seeds). */
 export function blockShare(id: string): { share: number; blocks: number; taken: number } {
+  return memoized(`block ${id}`, () => blockShareUncached(id));
+}
+
+function blockShareUncached(id: string): { share: number; blocks: number; taken: number } {
   const row = FL_ROSTER.find((r) => r.id === id)!;
   const rows = FL_ROSTER.filter((r) => r.division === row.division && r.id !== id);
   let blocks = 0;
@@ -197,4 +216,26 @@ export function blockShare(id: string): { share: number; blocks: number; taken: 
     }
   }
   return { share: blocks / Math.max(1, blocks + taken), blocks, taken };
+}
+
+/**
+ * --- fl-overhaul --- (Stage 2) The tank of `row`'s division to test it against: the first other fighter whose role is tank,
+ * else (Fighting games has none) the other fighter with the most HP.
+ */
+export function divisionTank(row: FlFighterRow): FlFighterRow {
+  const mates = FL_ROSTER.filter((r) => r.division === row.division && r.id !== row.id);
+  return mates.find((r) => r.role === "tank") ?? [...mates].sort((a, b) => b.stats.hp - a.stats.hp)[0];
+}
+
+/** --- fl-overhaul --- (Stage 2) Seconds after FIGHT! of `a`'s first hit on `b` in a real 1v1 (both fighting), Infinity without one within `limitSec`. */
+export function duelFirstHitSec(a: string, b: string, seed: number, limitSec = 10): number {
+  const engine = probeEngine({ fighters: [a, b, "random", "random"], match: "1v1" }, seed);
+  let at = Infinity;
+  probeRun(engine, PROBE_INTRO_MS + 1000 * limitSec, (v) => {
+    if (v.fighters[0].hits > 0) {
+      at = (v.timeMs - PROBE_INTRO_MS) / 1000;
+      return true;
+    }
+  });
+  return at;
 }

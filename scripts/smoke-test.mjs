@@ -10907,13 +10907,15 @@ async function fightLeagueChecks() {
   const section = page.getByTestId("fight-league-section");
   const flSwitch = (label) => section.getByRole("switch", { name: switchName(label) });
   await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=ffa3&fl1=goku&fl2=vegeta&fl3=naruto&flHp=150&flT=60&flA=circle&flH=0&flDiv=0&flS2=1.5`, { waitUntil: "networkidle" });
+  // --- fl-overhaul --- (Stage 2) the slots are picker chips now: the native selects live behind the List view toggle
+  if ((await section.getByTestId("fl-picker-list-toggle").getAttribute("aria-pressed")) !== "true") await section.getByTestId("fl-picker-list-toggle").click();
   {
     const values = {
       ffa3: await section.getByTestId("fl-match-ffa3").getAttribute("aria-pressed"),
-      a: await section.getByTestId("fl-fighter-A").inputValue(),
-      b: await section.getByTestId("fl-fighter-B").inputValue(),
-      c: await section.getByTestId("fl-fighter-C").inputValue(),
-      slotD: await section.getByTestId("fl-fighter-D").count(),
+      a: await section.getByTestId("fl-fighter-list-A").inputValue(),
+      b: await section.getByTestId("fl-fighter-list-B").inputValue(),
+      c: await section.getByTestId("fl-fighter-list-C").inputValue(),
+      slotD: await section.getByTestId("fl-fighter-list-D").count(),
       hp: await section.locator('input[aria-label="HP"]').inputValue(),
       cap: await section.locator('input[aria-label="Time Cap"]').inputValue(),
       circle: await section.getByTestId("fl-arena-circle").getAttribute("aria-pressed"),
@@ -10931,7 +10933,7 @@ async function fightLeagueChecks() {
     );
   }
   await section.getByTestId("fl-match-2v2").click();
-  await section.getByTestId("fl-fighter-D").selectOption("luffy");
+  await section.getByTestId("fl-fighter-list-D").selectOption("luffy");
   await section.locator('input[aria-label="HP"]').evaluate(setRangeValue, "120");
   await section.getByTestId("fl-arena-square").click();
   await page.waitForTimeout(300);
@@ -11159,6 +11161,43 @@ async function fightLeagueChecks() {
     "fight league: the canvas counts grazes, clashes and sudden death, and a 300 HP duel with a 20 s cap goes to sudden death",
     /^\d+$/.test(early.flGrazes ?? "") && /^\d+$/.test(early.flClashes2 ?? "") && early.flSudden === "0" && sudden && data.flSudden === "1" && Number(data.flTime) >= 21.4 && (data.flHp || "").split(",").every((hp) => Number(hp) > 0),
     `(at the start: grazes ${early.flGrazes}, clashes ${early.flClashes2}, sudden ${early.flSudden}; then sudden ${data.flSudden} at ${data.flTime} s, HP ${data.flHp}, finished ${data.flFinished})`,
+  );
+}
+{
+  // --- fl-overhaul --- (Stage 2) the fighter picker: 'pika' ranks Pikachu first and picking it writes fl1; the Pokémon tab
+  // lists its 7 fighters; 'Random · Marvel' on slot B writes the token fl2=random%3Amarvel.
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("fight-league-section");
+  const toggle = section.getByTestId("fl-picker-list-toggle");
+  if ((await toggle.getAttribute("aria-pressed")) === "true") await toggle.click();
+  await section.getByTestId("fl-fighter-A").click();
+  let dialog = page.getByRole("dialog");
+  await dialog.getByTestId("fl-picker-search").fill("pika");
+  await page.waitForTimeout(150);
+  const first = await dialog.getByRole("option").first().getAttribute("data-testid");
+  await dialog.getByTestId("fl-picker-tile-pikachu").click();
+  await page.waitForTimeout(300);
+  const picked = new URLSearchParams(page.url().split("?")[1] || "");
+  const chipA = await section.getByTestId("fl-fighter-A").getAttribute("data-value");
+  const role = await section.getByTestId("fl-fighter-role-A").innerText().catch(() => "");
+  await section.getByTestId("fl-fighter-A").click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByTestId("fl-picker-tab-pokemon").click();
+  const pokemon = await dialog.locator('[role="option"][data-testid^="fl-picker-tile-"]:not([data-testid^="fl-picker-tile-random"])').count();
+  await page.keyboard.press("Escape");
+  await page.waitForTimeout(150);
+  const closed = (await page.getByRole("dialog").count()) === 0;
+  await section.getByTestId("fl-fighter-B").click();
+  dialog = page.getByRole("dialog");
+  await dialog.getByTestId("fl-picker-tab-marvel").click();
+  await dialog.getByRole("option", { name: "Random · Marvel" }).click();
+  await page.waitForTimeout(300);
+  const query = page.url().split("?")[1] || "";
+  const desc = await section.getByTestId("fl-fighter-desc-B").innerText().catch(() => "");
+  check(
+    "fight league picker: 'pika' ranks Pikachu first and writes fl1, the Pokémon tab lists 7, Random · Marvel writes fl2=random%3Amarvel",
+    first === "fl-picker-tile-pikachu" && picked.get("fl1") === "pikachu" && chipA === "pikachu" && /Role: /.test(role) && pokemon === 7 && closed && /(^|&)fl2=random%3Amarvel(&|$)/.test(query) && /Marvel/.test(desc),
+    `(first ${first}, fl1=${picked.get("fl1")}, chip ${chipA}, "${role}", Pokémon tiles ${pokemon}, closed by Esc ${closed}, ${query}, "${desc}")`,
   );
 }
 }

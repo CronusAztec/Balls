@@ -1,0 +1,137 @@
+import type { FlFighterRow } from "../fightLeagueRoster";
+import { S } from "./kit";
+
+/**
+ * Fight League rows – Cartoons (animated TV and classic cartoons). --- fl-overhaul --- (Stage 2: a new division; one exported
+ * FlFighterRow[] per division, at most 10 rows; the index is fightLeagueRoster.ts.)
+ *
+ * IP AVOID-LIST for every look in this file: no emblems, no letters, no web lines, no bat or bolt marks, no letter shields, no
+ * red-white split balls, no face markings (no cartoon faces, no tattoos). A body is a ball in a palette with one of our own
+ * patterns and crests; the NAME identifies the fighter, the look only adds flavour. Names, sources and move names are plain
+ * text labels of an unaffiliated fan simulation.
+ */
+
+export const FL_ROWS_CARTOONS: readonly FlFighterRow[] = [
+  {
+    id: "homer",
+    name: "Homer Simpson",
+    short: "HOMER",
+    division: "cartoons",
+    source: "The Simpsons (TV show)",
+    body: "#facc15",
+    accent: "#f8fafc",
+    weapons: [{ kind: "fists", style: "contact", reach: 0.15, cooldown: 0.6, damage: 7, knockback: 1.2, size: 0.35 }],
+    stats: S({ hp: 115, speed: 0.85, size: 1.1, damage: 0.94 }),
+    ability: {
+      name: "Donut Break",
+      charge: 10,
+      effects: [
+        { p: "heal", amount: 30, dur: 3 },
+        { p: "damageBurst", mult: 1.5, dur: 3 },
+      ],
+    },
+    description: "Bumps foes with his belly; the Donut Break heals him and makes him hit harder for three seconds.",
+    role: "tank",
+    isNew: true,
+    look: { pattern: "core", crest: "none" },
+  },
+  {
+    id: "spongebob",
+    name: "SpongeBob",
+    division: "cartoons",
+    source: "SpongeBob SquarePants (TV show)",
+    body: "#fde047",
+    accent: "#92400e",
+    weapons: [{ kind: "staff", cooldown: 1.8, damage: 6, speed: 0.75, shape: "bubble", color: "#bae6fd" }],
+    stats: S({ speed: 1.15, damage: 1.29 }),
+    ability: { name: "Jellyfishing", charge: 9, effects: [{ p: "summon", n: 3, dur: 4, damage: 4, size: 0.5, shape: "jellyfish" }] },
+    description: "Blows bubbles that chase the foe; Jellyfishing releases three stinging jellyfish.",
+    role: "summoner",
+    isNew: true,
+    look: { pattern: "dots", crest: "none" },
+  },
+  {
+    id: "rick",
+    name: "Rick Sanchez",
+    short: "RICK",
+    division: "cartoons",
+    source: "Rick and Morty (TV show)",
+    body: "#7dd3fc",
+    accent: "#84cc16",
+    weapons: [{ kind: "gun", cooldown: 1.0, damage: 5, speed: 1.5, shape: "portal", color: "#84cc16", look: "portal" }],
+    stats: S({ damage: 1.22 }),
+    ability: { name: "Pickle Rick", charge: 10, effects: [{ p: "transform", size: 0.7, speed: 1.4, damage: 1.6, dur: 5 }] },
+    description: "A portal gun that fires green bolts; Pickle Rick turns him small, fast and vicious for five seconds.",
+    role: "ranged",
+    isNew: true,
+    look: { pattern: "band", crest: "spikes" },
+  },
+  {
+    id: "bugsbunny",
+    name: "Bugs Bunny",
+    short: "BUGS",
+    division: "cartoons",
+    source: "Looney Tunes (cartoons)",
+    body: "#9ca3af",
+    accent: "#f97316",
+    weapons: [{ kind: "bomb", style: "fuse", cooldown: 1.6, damage: 7, effect: 2.2, shape: "dynamite", color: "#dc2626" }],
+    stats: S({ speed: 1.2, damage: 2.21 }),
+    ability: { name: "Rabbit Hole", charge: 9, effects: [{ p: "blinkStrike", n: 3, damage: 6 }] },
+    description: "Lobs lit dynamite; Rabbit Hole burrows away and pops up next to the foe three times.",
+    role: "ranged",
+    isNew: true,
+    look: { pattern: "core", crest: "ears" },
+  },
+  {
+    id: "tom",
+    name: "Tom",
+    division: "cartoons",
+    source: "Tom and Jerry (cartoons)",
+    body: "#64748b",
+    accent: "#f8fafc",
+    weapons: [{ kind: "hammer", cooldown: 1.6, damage: 10, knockback: 1.7, look: "pan", shape: "pan" }],
+    stats: S({ hp: 105, damage: 1.45 }),
+    ability: { name: "Mousetrap", charge: 9, effects: [{ p: "trap", n: 3, damage: 10, hold: 0.8, dur: 8, shape: "jaws" }] },
+    description: "A frying pan swung in heavy circles; Mousetrap scatters three traps across the ring.",
+    role: "control",
+    isNew: true,
+    look: { pattern: "core", crest: "ears" },
+  },
+  {
+    id: "jerry",
+    name: "Jerry",
+    division: "cartoons",
+    source: "Tom and Jerry (cartoons)",
+    body: "#b45309",
+    accent: "#fde68a",
+    weapons: [{ kind: "hammer", cooldown: 0.9, damage: 6, knockback: 1.0, size: 0.4, reach: 1.2, look: "mallet", shape: "mallet" }],
+    stats: S({ hp: 90, speed: 1.6, size: 0.7, damage: 1.85 }),
+    ability: {
+      name: "Mouse Hole",
+      charge: 9,
+      effects: [
+        { p: "invulnerable", dur: 2.5, untargetable: true },
+        { p: "giantHit", mult: 2 },
+      ],
+    },
+    description: "A tiny mallet swung at top speed; Mouse Hole hides him safe away, and his next hit doubles.",
+    role: "glass",
+    isNew: true,
+    look: { pattern: "core", crest: "ears" },
+  },
+  {
+    id: "popeye",
+    name: "Popeye",
+    division: "cartoons",
+    source: "Popeye (cartoons)",
+    body: "#1e40af",
+    accent: "#16a34a",
+    weapons: [{ kind: "fists", cooldown: 0.7, damage: 8, knockback: 1.6 }],
+    stats: S({ hp: 105, damage: 0.71 }),
+    ability: { name: "Spinach Power", charge: 10, effects: [{ p: "transform", size: 1.15, damage: 2, speed: 1.3, dur: 5 }] },
+    description: "Wind-up sailor punches; Spinach Power doubles his strength for five seconds.",
+    role: "bruiser",
+    isNew: true,
+    look: { pattern: "band", crest: "none" },
+  },
+];

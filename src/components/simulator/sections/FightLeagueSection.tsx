@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
 import NumberField from "../NumberField";
@@ -7,6 +8,27 @@ import { Searchable, Slider, Toggle, onBtn, selectClass, type Matcher, type Tran
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { FL_ARENAS, FL_MATCHES, FL_RANDOM, flPanelValue, matchFighters, type FlArena, type FlMatch } from "@/lib/physics/modes/fightLeague";
 import { FL_BY_ID, FL_DIVISIONS, FL_PRESETS, fightersOf } from "@/lib/physics/modes/fightLeagueRoster";
+// --- fl-overhaul --- (Stage 2) the fighter picker, its random tokens and the list view behind a toggle
+import FighterPicker from "./FighterPicker";
+import { flRandomToken, parseFlRandom } from "@/lib/physics/modes/fightLeague";
+import { FL_CONFERENCE_IDS } from "@/lib/physics/modes/fightLeagueRoster";
+
+/** --- fl-overhaul --- The list view (the native selects) is remembered per viewer; without storage it starts off. */
+const LIST_VIEW_KEY = "fl-picker-list";
+function readListView(): boolean {
+  try {
+    return window.localStorage.getItem(LIST_VIEW_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+function writeListView(on: boolean) {
+  try {
+    window.localStorage.setItem(LIST_VIEW_KEY, on ? "1" : "0");
+  } catch {
+    /* no storage: the choice lasts this visit */
+  }
+}
 
 export interface FightLeagueSectionProps {
   t: Translate;
@@ -58,6 +80,16 @@ function currentPreset(s: SimulatorSettings): string | null {
  */
 export default function FightLeagueSection({ t, search, matches, settings: s, update }: FightLeagueSectionProps) {
   const fl = useTranslations("FightLeague");
+  // --- fl-overhaul --- (Stage 2)
+  const [listView, setListView] = useState(false);
+  useEffect(() => {
+    if (readListView()) setListView(true);
+  }, []);
+  const scopeLabel = (value: string): string | null => {
+    const scope = parseFlRandom(value);
+    if (!scope || scope.kind === "any") return null;
+    return scope.kind === "division" ? fl(`division_${scope.id}`) : fl(`conference_${scope.id}`);
+  };
   const slots = matchFighters(s.flMatch);
   const preset = currentPreset(s);
   const applyPreset = (id: string) => {
@@ -109,11 +141,28 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
       </Searchable>
       <Searchable search={search} matches={matches} labelKey="flFighters">
         <div className="space-y-3">
+          {/* --- fl-overhaul --- (Stage 2) the picker chips, or the native selects behind the List view toggle */}
+          <div className="flex justify-end">
+            <button
+              type="button"
+              aria-pressed={listView}
+              onClick={() => {
+                writeListView(!listView);
+                setListView(!listView);
+              }}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${listView ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`}
+              data-testid="fl-picker-list-toggle"
+            >
+              {t("flPickerList")}
+            </button>
+          </div>
           {Array.from({ length: slots }, (_, i) => {
             const field = SLOT_FIELDS[i];
             const id = s[field];
             const row = FL_BY_ID.get(id);
             const team = s.flMatch === "2v2" ? (i < 2 ? "A+B" : "C+D") : null;
+            const scope = scopeLabel(id);
+            const set = (value: string) => update({ [field]: value } as Partial<SimulatorSettings>);
             return (
               <div key={field} className="space-y-1">
                 <label className="text-sm font-medium text-ink-2" htmlFor={`fl-fighter-${i}`}>
@@ -121,21 +170,38 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
                   {team && <span className="ml-1 text-xs text-ink-3">· {t("flTeamOf", { team })}</span>}
                   {i === 0 && <Tooltip text={t("flFightersTip")} />}
                 </label>
-                <select id={`fl-fighter-${i}`} value={id} onChange={(e) => update({ [field]: e.target.value } as Partial<SimulatorSettings>)} className={`${selectClass} text-sm`} data-testid={`fl-fighter-${SLOT_LETTERS[i]}`}>
-                  <option value={FL_RANDOM}>{t("flRandom")}</option>
-                  {FL_DIVISIONS.map((division) => (
-                    <optgroup key={division} label={fl(`division_${division}`)}>
-                      {fightersOf(division).map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {`${r.name} – ${r.source}`}
+                {listView ? (
+                  <select id={`fl-fighter-${i}`} value={id} onChange={(e) => set(e.target.value)} className={`${selectClass} text-sm`} data-testid={`fl-fighter-list-${SLOT_LETTERS[i]}`}>
+                    <option value={FL_RANDOM}>{t("flRandom")}</option>
+                    <optgroup label={t("flPickerRandomAny")}>
+                      {FL_CONFERENCE_IDS.map((c) => (
+                        <option key={c} value={flRandomToken(c)}>
+                          {t("flPickerRandomConference", { conference: fl(`conference_${c}`) })}
                         </option>
                       ))}
                     </optgroup>
-                  ))}
-                </select>
+                    {FL_DIVISIONS.map((division) => (
+                      <optgroup key={division} label={fl(`division_${division}`)}>
+                        {division !== "wildcard" && <option value={flRandomToken(division)}>{t("flPickerRandomDivision", { division: fl(`division_${division}`) })}</option>}
+                        {fightersOf(division).map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {`${r.name} – ${r.source}`}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
+                  </select>
+                ) : (
+                  <FighterPicker t={t} slot={i} value={id} onChange={set} />
+                )}
                 <p className="text-xs text-ink-3 leading-relaxed" data-testid={`fl-fighter-desc-${SLOT_LETTERS[i]}`}>
-                  {row ? fl(`fighter_${row.id}`) : t(s.flSameDivision ? "flRandomHintDivision" : "flRandomHint")}
+                  {row ? fl(`fighter_${row.id}`) : scope ? t("flRandomHintScope", { group: scope }) : t(s.flSameDivision ? "flRandomHintDivision" : "flRandomHint")}
                   {row && <span className="block text-ink-2">{t("flAbility", { name: row.ability.name })}</span>}
+                  {row && (
+                    <span className="block text-ink-2" data-testid={`fl-fighter-role-${SLOT_LETTERS[i]}`}>
+                      {t("flRole", { role: fl(`role_${row.role}`) })}
+                    </span>
+                  )}
                 </p>
               </div>
             );

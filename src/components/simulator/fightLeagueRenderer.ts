@@ -23,8 +23,12 @@ import {
   type FightLeagueView,
   type FlFighter,
   type FlWeaponState,
+  // --- fl-overhaul --- (Stage 2: the whip, the bomb, traps and walls – drawn as plain stand-ins until Stage 3's silhouettes)
+  PK_BOMB,
+  flBombHeight,
+  whipExtension,
 } from "@/lib/physics/modes/fightLeague";
-import type { FlShape } from "@/lib/physics/modes/fightLeagueRoster";
+import { FL_SHAPES, FL_SUMMON_SHAPES, type FlShape } from "@/lib/physics/modes/fightLeagueRoster";
 
 /**
  * Canvas drawing of Fight League (feature fight-league, see lib/physics/modes/fightLeague.ts). Created once with the canvas
@@ -1120,6 +1124,18 @@ function drawShot(g: CanvasRenderingContext2D, shape: FlShape, pr: number, color
       g.restore();
       return;
     }
+    // --- fl-overhaul --- (Stage 2) the new round shapes glow like orbs until their own silhouettes land (the rest streak below)
+    case "flask":
+    case "grenade":
+    case "balloon":
+    case "bubble":
+    case "boulder":
+    case "cannonball":
+    case "megaorb":
+    case "aura":
+    case "portal":
+      glowBall(g, pr, color, "#ffffff", false);
+      return;
     default: {
       // bolt (and anything else): a short bright streak with a white core.
       g.lineCap = "round";
@@ -1261,10 +1277,8 @@ export class FightLeagueLayer {
   private view: FightLeagueView | null = null;
 
   constructor() {
-    if (SHAPE_INDEX.size === 0) {
-      const shapes: FlShape[] = ["arrow", "bullet", "repulsor", "fireball", "plasma", "charge", "ki", "hadouken", "flamewave", "rocket", "bolt", "orb", "page", "dagger", "batarang", "card", "shuriken", "web", "ice", "icespear", "hammer", "shield", "spear", "saber", "pellet", "blades", "kicks", "flames", "air", "wolf", "wight", "clone"];
-      shapes.forEach((s, i) => SHAPE_INDEX.set(s, i));
-    }
+    // (--- fl-overhaul --- every shape of the roster's list, in its order: the first 32 keep their old slots; fewer than 64)
+    if (SHAPE_INDEX.size === 0) FL_SHAPES.forEach((s, i) => SHAPE_INDEX.set(s, i));
   }
 
   private font(px: number, weight = 800, mono = false): string {
@@ -1339,7 +1353,7 @@ export class FightLeagueLayer {
     let s = this.shots.get(key);
     if (!s) {
       const r = bucket / (2 * this.dpr);
-      if (shape === "wolf" || shape === "wight" || shape === "clone") s = this.makeSprite({ x0: -1.6 * r, y0: -1.6 * r, x1: 1.6 * r, y1: 1.6 * r }, (g) => drawSummon(g, r, shape, color)) ?? undefined;
+      if (FL_SUMMON_SHAPES.includes(shape)) s = this.makeSprite({ x0: -1.6 * r, y0: -1.6 * r, x1: 1.6 * r, y1: 1.6 * r }, (g) => drawSummon(g, r, shape, color)) ?? undefined;
       else s = this.makeSprite(shotBox(shape, r), (g) => drawShot(g, shape, r, color, p)) ?? undefined;
       if (!s) return null;
       if (this.shots.size > SPRITE_CAP) this.shots.clear();
@@ -1503,6 +1517,7 @@ export class FightLeagueLayer {
     this.drawTasks(ctx, view, now);
     this.drawBeams(ctx, view, now);
     this.drawMinions(ctx, view, now);
+    this.drawWalls(ctx, view, now); // --- fl-overhaul --- (Stage 2)
     let weapons = 0;
     let drawn = 0;
     for (const f of view.fighters) {
@@ -1642,6 +1657,28 @@ export class FightLeagueLayer {
         if (s) this.drawSprite(ctx, s, m.x, m.y, 0, born * fade);
         continue;
       }
+      if (m.trap) {
+        // --- fl-overhaul --- (Stage 2) a trap: a toothed ring in its owner's colour, dim until armed (its own jaws come later)
+        ctx.save();
+        ctx.globalAlpha = (now < m.armedAt ? 0.5 : 1) * born * fade;
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = Math.max(2, 0.4 * m.r);
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, m.r, 0, TWO_PI);
+        ctx.stroke();
+        ctx.strokeStyle = m.color;
+        ctx.lineWidth = Math.max(1.2, 0.24 * m.r);
+        ctx.stroke();
+        ctx.fillStyle = "#e5e7eb";
+        for (let k = 0; k < 6; k++) {
+          const a = (k * TWO_PI) / 6;
+          ctx.beginPath();
+          ctx.arc(m.x + Math.cos(a) * 0.62 * m.r, m.y + Math.sin(a) * 0.62 * m.r, Math.max(0.8, 0.14 * m.r), 0, TWO_PI);
+          ctx.fill();
+        }
+        ctx.restore();
+        continue;
+      }
       // A decoy: the owner's body, see-through, shimmering (icy for a freeze decoy).
       ctx.save();
       ctx.globalAlpha = 0.55 * born * fade;
@@ -1656,6 +1693,83 @@ export class FightLeagueLayer {
       ctx.stroke();
       ctx.restore();
     }
+  }
+
+  /** --- fl-overhaul --- (Stage 2) The barriers of the wall primitive: a thick line in their owner's colour (a solid one opaque and outlined). */
+  private drawWalls(ctx: CanvasRenderingContext2D, view: FightLeagueView, now: number) {
+    for (const w of view.walls) {
+      if (!w.active) continue;
+      const owner = view.fighters[w.owner];
+      const r = owner ? owner.r : 10;
+      const rise = Math.min(1, Math.max(0, (now - w.born) / 150));
+      const left = w.until - now;
+      const fade = left < 400 ? 0.4 + 0.6 * Math.abs(Math.sin(now / 60)) : 1;
+      ctx.save();
+      ctx.globalAlpha = (w.solid ? 0.95 : 0.6) * rise * fade;
+      ctx.lineCap = "round";
+      if (w.solid) {
+        ctx.strokeStyle = INK;
+        ctx.lineWidth = Math.max(3, 0.46 * r);
+        ctx.beginPath();
+        ctx.moveTo(w.x1, w.y1);
+        ctx.lineTo(w.x2, w.y2);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = w.color;
+      ctx.lineWidth = Math.max(2, (w.solid ? 0.34 : 0.24) * r);
+      ctx.beginPath();
+      ctx.moveTo(w.x1, w.y1);
+      ctx.lineTo(w.x2, w.y2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  /** --- fl-overhaul --- (Stage 2) A whip: a short curl at rest, a lash out to its tip while it cracks (a lasso's loop at the tip). */
+  private drawWhip(ctx: CanvasRenderingContext2D, f: FlFighter, w: FlWeaponState, alpha: number): number {
+    const s = w.spec;
+    const color = f.row.weapons[w.index]?.color ?? f.row.accent;
+    const cracking = w.punchT >= 0;
+    const e = cracking ? whipExtension(w.punchT) : 0;
+    const a = cracking ? w.punchAngle : w.angle;
+    const ux = Math.cos(a);
+    const uy = Math.sin(a);
+    const x0 = f.x + ux * 0.9 * f.r;
+    const y0 = f.y + uy * 0.9 * f.r;
+    const len = (0.6 + e * s.reach) * f.r;
+    const x1 = f.x + ux * (f.r + len);
+    const y1 = f.y + uy * (f.r + len);
+    const side = (1 - e) * 0.6 * f.r;
+    const cx = 0.5 * (x0 + x1) - uy * side;
+    const cy = 0.5 * (y0 + y1) + ux * side;
+    ctx.save();
+    ctx.globalAlpha *= alpha;
+    ctx.lineCap = "round";
+    ctx.strokeStyle = INK;
+    ctx.lineWidth = Math.max(2, 0.2 * f.r);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.quadraticCurveTo(cx, cy, x1, y1);
+    ctx.stroke();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1.2, 0.12 * f.r);
+    ctx.stroke();
+    if (s.style === "lasso") {
+      ctx.beginPath();
+      ctx.arc(x1, y1, Math.max(2, 0.3 * f.r), 0, TWO_PI);
+      ctx.stroke();
+    }
+    ctx.restore();
+    return 1;
+  }
+
+  /** --- fl-overhaul --- (Stage 2) A bomb in the hand (its own shape, ready to lob). */
+  private drawHeldBomb(ctx: CanvasRenderingContext2D, f: FlFighter, w: FlWeaponState, alpha: number): number {
+    const s = w.spec;
+    const sprite = this.shotSprite(s.shape, Math.max(1.5, s.size * f.r), f.row.weapons[w.index]?.color ?? f.row.accent, this.paintOf(f, w), f.slot);
+    if (!sprite) return 0;
+    this.drawSprite(ctx, sprite, f.x + Math.cos(w.angle) * 1.25 * f.r, f.y + Math.sin(w.angle) * 1.25 * f.r, 0, alpha);
+    return 1;
   }
 
   /** The weapons of `f` (shields go in front, later): returns how many were drawn. */
@@ -1676,6 +1790,12 @@ export class FightLeagueLayer {
           continue;
         case "cards":
           n += this.drawCards(ctx, f, w, alpha);
+          continue;
+        case "whip": // --- fl-overhaul --- (Stage 2)
+          n += this.drawWhip(ctx, f, w, alpha);
+          continue;
+        case "bomb":
+          n += this.drawHeldBomb(ctx, f, w, alpha);
           continue;
         case "hammer":
           if (w.thrown >= 0) continue;
@@ -2135,6 +2255,20 @@ export class FightLeagueLayer {
       const shape = p.kind === PK_HAMMER ? "hammer" : p.kind === PK_SHIELD ? "shield" : p.kind === PK_SPEAR ? (owner.row.weapons[p.weapon]?.shape === "blades" ? "blades" : "spear") : p.shape;
       const sprite = this.shotSprite(shape, p.r, p.color, paint, owner.slot);
       if (!sprite) continue;
+      if (p.kind === PK_BOMB) {
+        // --- fl-overhaul --- (Stage 2) a lobbed bomb: its shadow on the floor, the bomb lifted along its arc
+        const h = flBombHeight(p, now);
+        ctx.save();
+        ctx.globalAlpha = 0.28;
+        ctx.fillStyle = INK;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, Math.max(1, p.r * (1 - 0.35 * Math.min(1, h / Math.max(1, p.lift)))), 0, TWO_PI);
+        ctx.fill();
+        ctx.restore();
+        this.drawSprite(ctx, sprite, p.x, p.y - h, p.spin);
+        n++;
+        continue;
+      }
       const angle = spins(shape) ? p.spin : Math.atan2(p.vy, p.vx);
       if (p.giant > 0) {
         ctx.save();

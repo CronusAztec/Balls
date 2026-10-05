@@ -1,0 +1,121 @@
+import type { FlFighterRow } from "../fightLeagueRoster";
+import { S } from "./kit";
+
+/**
+ * Fight League rows – Sandbox & online games (Minecraft, Fortnite, Roblox, Among Us). --- fl-overhaul --- (Stage 2: a new
+ * division; Steve moved here from Game legends, his id unchanged. One exported FlFighterRow[] per division, at most 10 rows;
+ * the index is fightLeagueRoster.ts.)
+ *
+ * IP AVOID-LIST for every look in this file: no emblems, no letters, no web lines, no bat or bolt marks, no letter shields, no
+ * red-white split balls, no face markings (no pixel faces). A body is a ball in a palette with one of our own patterns and
+ * crests; the NAME identifies the fighter, the look only adds flavour. Names, sources and move names are plain text labels of
+ * an unaffiliated fan simulation.
+ */
+
+export const FL_ROWS_SANDBOX: readonly FlFighterRow[] = [
+  {
+    id: "steve",
+    name: "Steve",
+    division: "sandbox",
+    source: "Minecraft (video game)",
+    body: "#22a5c9",
+    accent: "#5b3a29",
+    weapons: [{ kind: "sword", damage: 8, reach: 1.7, color: "#67e8f9", look: "blade" }],
+    stats: S({ damage: 1.14 }),
+    ability: { name: "TNT", charge: 11, effects: [{ p: "shockwave", radius: 4.5, damage: 18, knockback: 2, delay: 1 }] },
+    description: "A diamond sword; TNT drops a block that explodes in a shockwave after a one-second fuse.",
+    role: "duelist",
+    isNew: false,
+    look: { pattern: "band", crest: "none" },
+  },
+  {
+    id: "creeper",
+    name: "Creeper",
+    division: "sandbox",
+    source: "Minecraft (video game)",
+    body: "#22c55e",
+    accent: "#111827",
+    weapons: [{ kind: "fists", style: "contact", reach: 0.15, cooldown: 0.6, damage: 3, size: 0.3 }],
+    stats: S({ hp: 90, speed: 1.3, size: 0.9, damage: 1.81 }),
+    ability: { name: "Explode", charge: 11, effects: [{ p: "shockwave", radius: 5.5, damage: 26, knockback: 2.5, delay: 1.5 }] },
+    description: "Creeps close and bumps; Explode blows a huge crater after a hissing one-and-a-half-second fuse.",
+    role: "glass",
+    isNew: true,
+    look: { pattern: "dots", crest: "none" },
+  },
+  {
+    id: "enderman",
+    name: "Enderman",
+    division: "sandbox",
+    source: "Minecraft (video game)",
+    body: "#111827",
+    accent: "#c084fc",
+    weapons: [{ kind: "fists", reach: 1.4, cooldown: 0.7, damage: 7 }],
+    stats: S({ hp: 105, damage: 0.7 }),
+    ability: { name: "Teleport", charge: 9, effects: [{ p: "blinkStrike", n: 3, damage: 6 }] },
+    description: "Long arms and a longer reach; Teleport blinks onto the nearest foe three times.",
+    role: "duelist",
+    isNew: true,
+    look: { pattern: "ring", crest: "none", glow: "#c084fc" },
+  },
+  {
+    id: "jonesy",
+    name: "Jonesy",
+    division: "sandbox",
+    source: "Fortnite (video game)",
+    body: "#1d4ed8",
+    accent: "#f59e0b",
+    weapons: [{ kind: "shotgun", count: 6, cooldown: 1.4, damage: 2.8 }],
+    stats: S({ hp: 115, speed: 0.85, size: 1.1, damage: 0.74 }),
+    ability: { name: "Build Wall", charge: 9, effects: [{ p: "wall", length: 4, dur: 4, solid: true, shape: "brickwall" }] },
+    description: "A pump shotgun up close; Build Wall throws up a wall between him and the foe in an instant.",
+    role: "tank",
+    isNew: true,
+    look: { pattern: "band", crest: "tuft" },
+  },
+  {
+    id: "peely",
+    name: "Peely",
+    division: "sandbox",
+    source: "Fortnite (video game)",
+    body: "#facc15",
+    accent: "#78350f",
+    weapons: [{ kind: "bomb", cooldown: 1.0, damage: 6, effect: 1.9, shape: "grenade", color: "#4d7c0f" }],
+    stats: S({ speed: 1.1, damage: 2 }),
+    ability: { name: "Boogie Bomb", charge: 9, effects: [{ p: "confuse", dur: 2.5 }] },
+    description: "Lobs grenades; the Boogie Bomb sets every foe dancing with its aim turned backwards.",
+    role: "ranged",
+    isNew: true,
+    look: { pattern: "core", crest: "points" },
+  },
+  {
+    id: "noob",
+    name: "Noob",
+    division: "sandbox",
+    source: "Roblox (video game)",
+    body: "#facc15",
+    accent: "#2563eb",
+    weapons: [{ kind: "sword", cooldown: 0.4, damage: 7, look: "blade", color: "#cbd5e1" }],
+    stats: S({ damage: 1.06 }),
+    ability: { name: "Rocket Launcher", charge: 10, effects: [{ p: "volley", n: 1, damage: 14, speed: 0.9, size: 0.45, shape: "rocket", explode: 3.5 }] },
+    description: "The classic sword and a lunge; the Rocket Launcher fires one exploding rocket.",
+    role: "duelist",
+    isNew: true,
+    look: { pattern: "split", crest: "none" },
+  },
+  {
+    id: "crewmate",
+    name: "Crewmate",
+    division: "sandbox",
+    source: "Among Us (video game)",
+    body: "#dc2626",
+    accent: "#93c5fd",
+    weapons: [{ kind: "claws", count: 1, cooldown: 0.5, reach: 0.6, damage: 6, size: 0.35 }],
+    stats: S({ speed: 1.1, size: 0.9, damage: 0.87 }),
+    ability: { name: "Emergency Meeting", charge: 12, effects: [{ p: "freezeAll", dur: 1.6 }] },
+    description: "A sneaky stab at close range; Emergency Meeting stops every foe in its tracks.",
+    role: "control",
+    isNew: true,
+    look: { pattern: "visor", crest: "none" },
+  },
+];

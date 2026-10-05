@@ -1,0 +1,138 @@
+import type { FlFighterRow } from "../fightLeagueRoster";
+import { S } from "./kit";
+
+/**
+ * Fight League rows – Horror movies. --- fl-overhaul --- (Stage 2: a new division; one exported FlFighterRow[] per division, at
+ * most 10 rows; the index is fightLeagueRoster.ts.)
+ *
+ * IP AVOID-LIST for every look in this file: no emblems, no letters, no web lines, no bat or bolt marks, no letter shields, no
+ * red-white split balls, no face markings (no masks, no painted faces, no costume patterns). A body is a ball in a palette with
+ * one of our own patterns and crests; the NAME identifies the fighter, the look only adds flavour. Names, sources and move
+ * names are plain text labels of an unaffiliated fan simulation.
+ */
+
+export const FL_ROWS_HORROR: readonly FlFighterRow[] = [
+  {
+    id: "freddy",
+    name: "Freddy Krueger",
+    short: "FREDDY",
+    division: "horror",
+    source: "A Nightmare on Elm Street (movies)",
+    body: "#7f1d1d",
+    accent: "#15803d",
+    weapons: [{ kind: "claws", cooldown: 0.24, damage: 3 }],
+    stats: S({ damage: 1.8 }),
+    ability: { name: "Dream Demon", charge: 11, effects: [{ p: "slowTime", dur: 2.5, factor: 0.4 }] },
+    description: "A bladed glove that slashes nonstop; Dream Demon drags every foe into a slow nightmare.",
+    role: "control",
+    isNew: true,
+    look: { pattern: "band", crest: "halo" },
+  },
+  {
+    id: "jason",
+    name: "Jason Voorhees",
+    short: "JASON",
+    division: "horror",
+    source: "Friday the 13th (movies)",
+    body: "#e5e7eb",
+    accent: "#1f2937",
+    weapons: [{ kind: "sword", cooldown: 0.5, damage: 10, look: "blade", color: "#d4d4d8" }],
+    stats: S({ hp: 125, speed: 0.8, size: 1.1, damage: 0.79 }),
+    ability: {
+      name: "Shift",
+      charge: 9,
+      effects: [
+        { p: "invulnerable", dur: 1.5, untargetable: true },
+        { p: "speedBurst", mult: 2, dur: 1.5 },
+      ],
+    },
+    description: "Slow, heavy machete chops; Shift turns him unseen and untouchable as he closes in.",
+    role: "tank",
+    isNew: true,
+    look: { pattern: "ring", crest: "none" },
+  },
+  {
+    id: "michaelmyers",
+    name: "Michael Myers",
+    short: "MYERS",
+    division: "horror",
+    source: "Halloween (movies)",
+    body: "#1e3a5f",
+    accent: "#f5f5f4",
+    weapons: [{ kind: "sword", cooldown: 0.6, damage: 11, reach: 1.4, look: "blade", color: "#e5e7eb" }],
+    stats: S({ hp: 120, speed: 0.75, size: 1.1, damage: 1.29 }),
+    ability: { name: "Evil Within", charge: 10, effects: [{ p: "damageBurst", mult: 2, dur: 4 }] },
+    description: "A slow walk and heavy stabs; Evil Within doubles his damage for four seconds.",
+    role: "tank",
+    isNew: true,
+    look: { pattern: "band", crest: "none" },
+  },
+  {
+    id: "ghostface",
+    name: "Ghostface",
+    division: "horror",
+    source: "Scream (movies)",
+    body: "#111827",
+    accent: "#f8fafc",
+    weapons: [{ kind: "sword", cooldown: 0.35, damage: 6, reach: 1.3, look: "blade", color: "#e5e7eb" }],
+    stats: S({ speed: 1.2, damage: 1.52 }),
+    ability: {
+      name: "Night Shroud",
+      charge: 10,
+      effects: [
+        { p: "invulnerable", dur: 2, untargetable: true },
+        { p: "giantHit", mult: 2.5 },
+      ],
+    },
+    description: "Quick knife stabs; Night Shroud hides him completely, and his next stab lands two and a half times as hard.",
+    role: "duelist",
+    isNew: true,
+    look: { pattern: "hood", crest: "none" },
+  },
+  {
+    id: "pennywise",
+    name: "Pennywise",
+    division: "horror",
+    source: "It (movies)",
+    body: "#e5e7eb",
+    accent: "#dc2626",
+    weapons: [{ kind: "staff", cooldown: 2.0, damage: 7, speed: 0.7, shape: "balloon", color: "#dc2626" }],
+    stats: S({ damage: 1.89 }),
+    ability: { name: "Deadlights", charge: 12, effects: [{ p: "freezeAll", dur: 1.6 }] },
+    description: "Red balloons float after the foe; the Deadlights freeze every foe that looks.",
+    role: "control",
+    isNew: true,
+    look: { pattern: "ring", crest: "tuft" },
+  },
+  {
+    id: "chucky",
+    name: "Chucky",
+    division: "horror",
+    source: "Child's Play (movies)",
+    body: "#2563eb",
+    accent: "#ea580c",
+    weapons: [{ kind: "sword", cooldown: 0.28, damage: 4, reach: 1.1, look: "blade", color: "#e5e7eb" }],
+    stats: S({ hp: 90, speed: 1.4, size: 0.7, damage: 2.32 }),
+    ability: { name: "Slice & Dice", charge: 9, effects: [{ p: "blinkStrike", n: 3, damage: 6 }] },
+    description: "A tiny doll with a quick knife; Slice & Dice dashes onto the nearest foe three times.",
+    role: "glass",
+    isNew: true,
+    look: { pattern: "band", crest: "tuft" },
+  },
+  {
+    id: "leatherface",
+    name: "Leatherface",
+    short: "LEATHER",
+    division: "horror",
+    source: "The Texas Chain Saw Massacre (movies)",
+    body: "#a16207",
+    accent: "#9ca3af",
+    weapons: [{ kind: "sword", cooldown: 0.22, damage: 3.5, look: "chainsaw", color: "#9ca3af" }],
+    stats: S({ hp: 120, speed: 0.85, damage: 0.92 }),
+    ability: { name: "Chainsaw Dance", charge: 9, effects: [{ p: "fireRing", radius: 2.8, damage: 6, dur: 2.5, shape: "blades" }] },
+    description: "A roaring chainsaw that chews through anything it touches; the Chainsaw Dance spins it all around him.",
+    role: "bruiser",
+    isNew: true,
+    look: { pattern: "band", crest: "none" },
+  },
+];

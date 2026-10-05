@@ -11,14 +11,44 @@
  * every weapon is our own simple silhouette drawn in canvas paths and every colour is just a palette. Character names
  * belong to their respective owners; this is an unaffiliated fan simulation.
  *
+ * --- fl-overhaul --- (Stage 2) The rows live in one file per division (`fightLeagueRows/<division>.ts`, at most 10 rows each,
+ * every file headed by the avoid-list of what a look may never show); this module is the index: the types, the divisions and
+ * their CONFERENCES, the kinds' defaults, the primitives' limits, the charge classes, the helpers, `FL_ROSTER` (the rows in
+ * division order) and `FL_BY_ID`. 147 fighters in 19 divisions: the 61 of the first release (their ids unchanged; Pikachu and
+ * Charizard moved to Pokémon, Steve to Sandbox & online games) and 86 new ones (`isNew`). Every row has a ROLE (tank,
+ * bruiser, duelist, glass, ranged, control, summoner, support – tanks and glass cannons follow the role templates the tests
+ * check), a SHORT name for tight labels (≤ 10 characters), and a LOOK (a body pattern and a crest – data only, drawn by the
+ * renderer; the name identifies, the look only adds flavour).
+ *
  * Units used by the rows: lengths in ball radii (R), times in seconds, projectile speeds in arena sides per second, spreads
  * in degrees, damage in hit points (every fighter starts with the HP setting, 100 by default, × `stats.hp` / 100). The
  * stats are multipliers (1 = the league average); a weapon field left out takes the kind's default (`FL_WEAPON_DEFAULTS`).
  */
 
+import { FL_ROWS_MARVEL } from "./fightLeagueRows/marvel";
+import { FL_ROWS_DC } from "./fightLeagueRows/dc";
+import { FL_ROWS_NINTENDO } from "./fightLeagueRows/nintendo";
+import { FL_ROWS_LEAGUE } from "./fightLeagueRows/league";
+import { FL_ROWS_FIGHTING } from "./fightLeagueRows/fighting";
+import { FL_ROWS_LEGENDS } from "./fightLeagueRows/legends";
+import { FL_ROWS_SHONEN } from "./fightLeagueRows/shonen";
+import { FL_ROWS_STAR_WARS } from "./fightLeagueRows/starWars";
+import { FL_ROWS_FANTASY } from "./fightLeagueRows/fantasy";
+import { FL_ROWS_MONSTERS } from "./fightLeagueRows/monsters";
+import { FL_ROWS_ACTION } from "./fightLeagueRows/action";
+import { FL_ROWS_TV } from "./fightLeagueRows/tv";
+import { FL_ROWS_POKEMON } from "./fightLeagueRows/pokemon";
+import { FL_ROWS_MODERN_ANIME } from "./fightLeagueRows/modernAnime";
+import { FL_ROWS_SANDBOX } from "./fightLeagueRows/sandbox";
+import { FL_ROWS_HORROR } from "./fightLeagueRows/horror";
+import { FL_ROWS_ANIMATED } from "./fightLeagueRows/animated";
+import { FL_ROWS_CARTOONS } from "./fightLeagueRows/cartoons";
+import { FL_ROWS_WILDCARD } from "./fightLeagueRows/wildcard";
+
 /* ------------------------------------------------------------------ divisions */
 
-export const FL_DIVISIONS = ["marvel", "dc", "nintendo", "league", "fighting", "legends", "shonen", "starWars", "fantasy", "monsters", "action", "tv", "wildcard"] as const;
+/** The divisions in roster order: the 13 of the first release (Wildcard last), the six of the overhaul before Wildcard. */
+export const FL_DIVISIONS = ["marvel", "dc", "nintendo", "league", "fighting", "legends", "shonen", "starWars", "fantasy", "monsters", "action", "tv", "pokemon", "modernAnime", "sandbox", "horror", "animated", "cartoons", "wildcard"] as const;
 export type FlDivision = (typeof FL_DIVISIONS)[number];
 
 export function isFlDivision(value: unknown): value is FlDivision {
@@ -39,12 +69,54 @@ export const FL_DIVISION_LABELS: Readonly<Record<FlDivision, string>> = {
   monsters: "Movie monsters",
   action: "Action movies",
   tv: "TV",
+  pokemon: "Pokémon",
+  modernAnime: "Modern anime",
+  sandbox: "Sandbox & online games",
+  horror: "Horror movies",
+  animated: "Animated movies",
+  cartoons: "Cartoons",
   wildcard: "Wildcard",
 };
 
+/* ------------------------------------------------------------------ --- fl-overhaul --- conferences */
+
+/**
+ * The CONFERENCES: genres of divisions (a random slot may stay in one; brackets draw from one). Wildcard is in none. The TV
+ * shows' conference is `shows` (TV shows and cartoons): its id must differ from the TV division's, so a random token
+ * (`random:<division>` / `random:<conference>`) always names one pool.
+ */
+export const FL_CONFERENCES = {
+  comics: ["marvel", "dc"],
+  games: ["nintendo", "league", "fighting", "legends", "pokemon", "sandbox"],
+  anime: ["shonen", "modernAnime"],
+  movies: ["starWars", "fantasy", "monsters", "action", "horror", "animated"],
+  shows: ["tv", "cartoons"],
+} as const satisfies Record<string, readonly FlDivision[]>;
+export type FlConference = keyof typeof FL_CONFERENCES;
+export const FL_CONFERENCE_IDS = Object.keys(FL_CONFERENCES) as FlConference[];
+
+export function isFlConference(value: unknown): value is FlConference {
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(FL_CONFERENCES, value);
+}
+
+/** English conference labels (the panel translates them: `FightLeague.conference_<id>`). */
+export const FL_CONFERENCE_LABELS: Readonly<Record<FlConference, string>> = {
+  comics: "Comics",
+  games: "Video games",
+  anime: "Anime",
+  movies: "Movies",
+  shows: "TV & cartoons",
+};
+
+/** The conference of `division` (null: Wildcard). */
+export function conferenceOf(division: FlDivision): FlConference | null {
+  for (const c of FL_CONFERENCE_IDS) if ((FL_CONFERENCES[c] as readonly FlDivision[]).includes(division)) return c;
+  return null;
+}
+
 /* ------------------------------------------------------------------ weapons */
 
-export const FL_WEAPON_KINDS = ["sword", "hammer", "fists", "claws", "chain", "bow", "gun", "shotgun", "wand", "staff", "book", "cards", "fire", "beam", "spark", "web", "ice", "shield", "tail"] as const;
+export const FL_WEAPON_KINDS = ["sword", "hammer", "fists", "claws", "chain", "bow", "gun", "shotgun", "wand", "staff", "book", "cards", "fire", "beam", "spark", "web", "ice", "shield", "tail", "whip", "bomb"] as const;
 export type FlWeaponKind = (typeof FL_WEAPON_KINDS)[number];
 
 /**
@@ -52,9 +124,10 @@ export type FlWeaponKind = (typeof FL_WEAPON_KINDS)[number];
  * the nearest foe and flying back); chain `pull` (a thrown head that drags the hit foe to its owner); gun `burst` (three per
  * trigger), `bouncing` (bullets bounce off a wall once); cards `blink` (the owner blinks to a thrown blade); staff `return`
  * (orbs fly out and come back); shield `block` (the bracelets: blocks only, never thrown); fists `contact` (hits on body
- * contact).
+ * contact); --- fl-overhaul --- whip `lasso` (the crack snags the foe and drags it in); bomb `fuse` (the bomb lies 0.5 s on a
+ * sparking fuse before it bursts).
  */
-export const FL_WEAPON_STYLES = ["plain", "glow", "double", "returning", "pull", "burst", "bouncing", "blink", "return", "block", "contact"] as const;
+export const FL_WEAPON_STYLES = ["plain", "glow", "double", "returning", "pull", "burst", "bouncing", "blink", "return", "block", "contact", "lasso", "fuse"] as const;
 export type FlWeaponStyle = (typeof FL_WEAPON_STYLES)[number];
 
 /** How a projectile, an orbiting blade or a thrown weapon is drawn (visual only). */
@@ -91,20 +164,59 @@ export const FL_SHAPES = [
   "wolf",
   "wight",
   "clone",
+  // --- fl-overhaul --- (Stage 2: the new kinds' and primitives' shapes, generic names; the renderer draws a fallback until its own silhouettes land)
+  "lash",
+  "lasso",
+  "flask",
+  "grenade",
+  "dynamite",
+  "pan",
+  "mallet",
+  "balloon",
+  "bubble",
+  "boulder",
+  "cannonball",
+  "car",
+  "spearbolt",
+  "megaorb",
+  "aura",
+  "portal",
+  "jaws",
+  "windwall",
+  "brickwall",
+  "shark",
+  "hyena",
+  "jellyfish",
+  "ghost",
+  "horse",
 ] as const;
 export type FlShape = (typeof FL_SHAPES)[number];
+
+/** --- fl-overhaul --- Summon silhouettes (a minion that fights: the renderer draws a body, not a projectile). */
+export const FL_SUMMON_SHAPES: readonly FlShape[] = ["wolf", "wight", "clone", "shark", "hyena", "jellyfish", "ghost", "horse"];
+
+/**
+ * --- fl-overhaul --- The look of a weapon within its kind (visual only, drawn by the renderer): a sword's blade, a hammer's
+ * head, a gun's body.
+ */
+export const FL_SWORD_LOOKS = ["blade", "saber", "double", "katana", "greatsword", "chainsaw", "trident", "rapier"] as const;
+export const FL_HAMMER_LOOKS = ["block", "pan", "mallet"] as const;
+export const FL_GUN_LOOKS = ["pistol", "rifle", "minigun", "cannon", "launcher", "blaster", "portal"] as const;
+export type FlWeaponLook = (typeof FL_SWORD_LOOKS)[number] | (typeof FL_HAMMER_LOOKS)[number] | (typeof FL_GUN_LOOKS)[number];
+/** The looks a kind may take (none: the kind has one look). */
+export const FL_WEAPON_LOOKS: Readonly<Partial<Record<FlWeaponKind, readonly FlWeaponLook[]>>> = { sword: FL_SWORD_LOOKS, hammer: FL_HAMMER_LOOKS, gun: FL_GUN_LOOKS };
 
 export interface FlWeaponSpec {
   kind: FlWeaponKind;
   style?: FlWeaponStyle;
   /**
    * Reach in ball radii: a sword's blade, a hammer's handle, a chain's length, a tail's length, a fist's extension, a fire
-   * cone's range, a spark's range from the body's surface; a returning orb's range (arena sides).
+   * cone's range, a spark's range from the body's surface, a whip's lash; a returning orb's range (arena sides).
    */
   reach?: number;
   /**
    * Seconds between two attacks at attack speed 1: a sword's sweep, a hammer's or a chain's orbit, a tail's swing, a
-   * punch, a shot, a card throw, a breath, a beam.
+   * punch, a shot, a card throw, a breath, a beam, a whip's crack, a bomb's lob.
    */
   cooldown?: number;
   /** Seconds between two throws (a returning hammer, a pull chain's head, a thrown shield). */
@@ -121,20 +233,22 @@ export interface FlWeaponSpec {
   spread?: number;
   /** Homing turn rate of the projectiles (radians per second). */
   homing?: number;
-  /** Projectile / head / fist size in ball radii. */
+  /** Projectile / head / fist size in ball radii (a whip's tip). */
   size?: number;
   /** Colour of the blade, the projectile or the glow (the fighter's accent when left out). */
   color?: string;
   /** How the projectile is drawn (the kind's own shape when left out). */
   shape?: FlShape;
-  /** web: the hit foe's speed factor; ice: seconds the hit foe stays frozen. */
+  /** web: the hit foe's speed factor; ice: seconds the hit foe stays frozen; --- fl-overhaul --- bomb: the splash radius (R). */
   effect?: number;
   /** web: seconds the slow lasts. */
   effectSec?: number;
+  /** --- fl-overhaul --- The weapon's look within its kind (`FL_WEAPON_LOOKS`; visual only). */
+  look?: FlWeaponLook;
 }
 
 /** The kinds' defaults: every field a row leaves out. */
-export const FL_WEAPON_DEFAULTS: Readonly<Record<FlWeaponKind, Required<Omit<FlWeaponSpec, "kind" | "color" | "shape">> & { shape: FlShape }>> = {
+export const FL_WEAPON_DEFAULTS: Readonly<Record<FlWeaponKind, Required<Omit<FlWeaponSpec, "kind" | "color" | "shape" | "look">> & { shape: FlShape }>> = {
   sword: { style: "plain", reach: 1.9, cooldown: 0.36, throwEvery: 0, damage: 7, knockback: 0.7, speed: 0, count: 1, spread: 0, homing: 0, size: 0.2, shape: "saber", effect: 0, effectSec: 0 },
   hammer: { style: "plain", reach: 1.4, cooldown: 1.7, throwEvery: 3.2, damage: 12, knockback: 1.7, speed: 0.95, count: 1, spread: 0, homing: 0, size: 0.55, shape: "hammer", effect: 0, effectSec: 0 },
   fists: { style: "plain", reach: 0.9, cooldown: 0.55, throwEvery: 0, damage: 6, knockback: 0.8, speed: 0, count: 2, spread: 0, homing: 0, size: 0.36, shape: "air", effect: 0, effectSec: 0 },
@@ -154,6 +268,9 @@ export const FL_WEAPON_DEFAULTS: Readonly<Record<FlWeaponKind, Required<Omit<FlW
   ice: { style: "plain", reach: 0, cooldown: 1.8, throwEvery: 0, damage: 6, knockback: 0.1, speed: 1.0, count: 1, spread: 2, homing: 0, size: 0.24, shape: "ice", effect: 1, effectSec: 0 },
   shield: { style: "plain", reach: 0, cooldown: 0, throwEvery: 2.2, damage: 8, knockback: 0.9, speed: 1.2, count: 1, spread: 0, homing: 0, size: 0.7, shape: "shield", effect: 0, effectSec: 0 },
   tail: { style: "plain", reach: 2.3, cooldown: 0.85, throwEvery: 0, damage: 7, knockback: 1.0, speed: 0, count: 1, spread: 0, homing: 0, size: 0.22, shape: "blades", effect: 0, effectSec: 0 },
+  // --- fl-overhaul --- a lash cracking at a foe in reach (its tip `size` R); a lobbed bomb bursting where it lands (`effect`: the splash, R)
+  whip: { style: "plain", reach: 2.7, cooldown: 0.9, throwEvery: 0, damage: 7, knockback: 0.6, speed: 0, count: 1, spread: 0, homing: 0, size: 0.3, shape: "lash", effect: 0, effectSec: 0 },
+  bomb: { style: "plain", reach: 0, cooldown: 2.2, throwEvery: 0, damage: 10, knockback: 1.0, speed: 0, count: 1, spread: 0, homing: 0, size: 0.3, shape: "flask", effect: 1.3, effectSec: 0 },
 };
 
 /* ------------------------------------------------------------------ abilities */
@@ -168,7 +285,8 @@ export const FL_WEAPON_DEFAULTS: Readonly<Record<FlWeaponKind, Required<Omit<FlW
  * - choke: the nearest foe held for `dur`, `damage` at the start, over the hold or at its end (a slam);
  * - arenaCuts: `n` cuts across the arena through the foes, `damage` each;
  * - beam: a wide ray (`width`) along the owner's facing for `dur`, `damage` a tick;
- * - volley: `n` projectiles at the nearest foe (homing, returning, bouncing between foes, exploding, unblockable…);
+ * - volley: `n` projectiles at the nearest foe (homing, returning, bouncing between foes, exploding, unblockable; --- fl-overhaul
+ *   --- with its own knockback, or piercing every foe on its way);
  * - shockwave: radial damage and knockback within `radius` (after a fuse: `delay`; `pin`: foes pinned to the far wall);
  * - pull: the nearest foe (or every foe) dragged to the owner;
  * - decoys: `n` copies that absorb hits for `dur` (`freezeOnTouch`: a foe touching one is frozen that long);
@@ -179,10 +297,17 @@ export const FL_WEAPON_DEFAULTS: Readonly<Record<FlWeaponKind, Required<Omit<FlW
  * - lightning: a bolt on every foe;
  * - confuse: foes slowed with reversed aim for `dur`;
  * - blinkStrike: `n` teleports to the nearest foe, each a hit;
- * - summon: `n` small allied balls for `dur`, `damage` on contact;
- * - reflect: attackers take `frac` of their damage back for `dur`;
+ * - summon: `n` small allied balls for `dur`, `damage` on contact (--- fl-overhaul --- `speed`: × the summons' speed);
+ * - reflect: attackers take `frac` of their damage back for `dur` (--- fl-overhaul --- `deflect`: enemy projectiles touching
+ *   the owner fly back at their shooter, `frac` of their damage);
  * - disarm: the nearest foe's weapon deals no damage for `dur`;
- * - slowTime: every foe and its projectiles at `factor` speed for `dur` while the owner's side keeps full speed.
+ * - slowTime: every foe and its projectiles at `factor` speed for `dur` while the owner's side keeps full speed;
+ * - --- fl-overhaul --- trap: `n` traps dropped along the owner's way (armed after 0.5 s, at most 4 an owner, `dur` each):
+ *   the first foe to touch one takes `damage` and is held `hold`; any enemy hit pops one;
+ * - wall: a barrier `length` R long, 2 R in front of the owner across the line to the nearest foe, for `dur`: enemy
+ *   projectiles and beams stop at it (`solid`: foes bounce off it too);
+ * - transform: for `dur` the owner's size, damage, speed (and attack speed) × the factors – its HP unchanged;
+ * - drain: for `dur` the owner heals `frac` of the damage it deals.
  */
 export const FL_ABILITY_PRIMITIVES = [
   "speedBurst",
@@ -207,6 +332,11 @@ export const FL_ABILITY_PRIMITIVES = [
   "reflect",
   "disarm",
   "slowTime",
+  // --- fl-overhaul ---
+  "trap",
+  "wall",
+  "transform",
+  "drain",
 ] as const;
 export type FlPrimitive = (typeof FL_ABILITY_PRIMITIVES)[number];
 
@@ -219,7 +349,7 @@ export type FlEffect =
   | { p: "choke"; dur: number; damage: number; at?: "start" | "over" | "end" }
   | { p: "arenaCuts"; n: number; damage: number }
   | { p: "beam"; dur: number; width: number; damage: number; color?: string }
-  | { p: "volley"; n: number; damage: number; speed?: number; spread?: number; size?: number; homing?: number; shape?: FlShape; color?: string; returning?: boolean; bounceFoes?: boolean; explode?: number; unblockable?: boolean }
+  | { p: "volley"; n: number; damage: number; speed?: number; spread?: number; size?: number; homing?: number; shape?: FlShape; color?: string; returning?: boolean; bounceFoes?: boolean; explode?: number; unblockable?: boolean; knockback?: number; pierce?: boolean }
   | { p: "shockwave"; radius: number; damage: number; knockback: number; delay?: number; pin?: boolean; spin?: boolean }
   | { p: "pull"; strength: number; all?: boolean }
   | { p: "decoys"; n: number; dur: number; freezeOnTouch?: number }
@@ -229,18 +359,100 @@ export type FlEffect =
   | { p: "lightning"; damage: number }
   | { p: "confuse"; dur: number }
   | { p: "blinkStrike"; n: number; damage: number; interval?: number }
-  | { p: "summon"; n: number; dur: number; damage: number; size?: number; shape?: FlShape }
-  | { p: "reflect"; dur: number; frac: number }
+  | { p: "summon"; n: number; dur: number; damage: number; size?: number; shape?: FlShape; speed?: number }
+  | { p: "reflect"; dur: number; frac: number; deflect?: boolean }
   | { p: "disarm"; dur: number }
-  | { p: "slowTime"; dur: number; factor: number };
+  | { p: "slowTime"; dur: number; factor: number }
+  // --- fl-overhaul ---
+  | { p: "trap"; n: number; damage: number; hold: number; dur?: number; shape?: FlShape }
+  | { p: "wall"; dur: number; length?: number; solid?: boolean; shape?: FlShape }
+  | { p: "transform"; size: number; damage: number; speed: number; attackSpeed?: number; dur: number }
+  | { p: "drain"; frac: number; dur: number };
 
 export interface FlAbility {
   /** The ability's name (an English proper name, shown in its box). */
   name: string;
-  /** Seconds the meter takes to fill at cast speed 1 without hits. */
+  /** Seconds the meter takes to fill at cast speed 1 without hits (its class's range: `FL_CHARGE_RANGE`). */
   charge: number;
   /** One or two primitives, fired together when the telegraph ends. */
   effects: readonly FlEffect[];
+  /** --- fl-overhaul --- A fight-ender: the ultimate charge class (13–14 s) and telegraph (0.85 s). */
+  ultimate?: boolean;
+}
+
+/**
+ * --- fl-overhaul --- The primitives' limits (data; tested on every row's every effect): `max` / `min` of a field. A freeze of
+ * every foe at most 2 s, a transform at most 6 s, a drain at most 70 %, a reflection at most 60 % for at most 4 s, a heal at
+ * most 40, a hold at most 2.5 s, slow time at most 3 s and never under 0.25, a confusion and a disarm at most 3 s, at most 4
+ * traps holding at most 1.2 s, invulnerability at most 3 s, at most 3 decoys, at most 3 summons for at most 5 s.
+ */
+export const FL_PRIMITIVE_LIMITS: Readonly<Partial<Record<FlPrimitive, Readonly<Record<string, { max?: number; min?: number }>>>>> = {
+  freezeAll: { dur: { max: 2 } },
+  transform: { dur: { max: 6 } },
+  drain: { frac: { max: 0.7 } },
+  reflect: { frac: { max: 0.6 }, dur: { max: 4 } },
+  heal: { amount: { max: 40 } },
+  choke: { dur: { max: 2.5 } },
+  slowTime: { dur: { max: 3 }, factor: { min: 0.25 } },
+  confuse: { dur: { max: 3 } },
+  disarm: { dur: { max: 3 } },
+  trap: { hold: { max: 1.2 }, n: { max: 4 } },
+  invulnerable: { dur: { max: 3 } },
+  decoys: { n: { max: 3 } },
+  summon: { n: { max: 3 }, dur: { max: 5 } },
+};
+
+/** --- fl-overhaul --- The limits `effect` breaks (`["freezeAll.dur > 2"]`; empty: within every one). */
+export function flLimitViolations(effect: FlEffect): string[] {
+  const limits = FL_PRIMITIVE_LIMITS[effect.p];
+  const out: string[] = [];
+  if (!limits) return out;
+  const values = effect as unknown as Record<string, unknown>;
+  for (const [field, bound] of Object.entries(limits)) {
+    const v = values[field];
+    if (typeof v !== "number") continue;
+    if (bound.max !== undefined && v > bound.max + 1e-9) out.push(`${effect.p}.${field} > ${bound.max}`);
+    if (bound.min !== undefined && v < bound.min - 1e-9) out.push(`${effect.p}.${field} < ${bound.min}`);
+  }
+  return out;
+}
+
+/** --- fl-overhaul --- The charge classes: an ultimate (its own flag), an area or freeze ability, every other one. */
+export type FlAbilityClass = "ultimate" | "area" | "standard";
+/** The charge (s at cast speed 1) a class allows: [min, max]. */
+export const FL_CHARGE_RANGE: Readonly<Record<FlAbilityClass, readonly [number, number]>> = { ultimate: [13, 14], area: [11, 12], standard: [8, 10] };
+
+/**
+ * --- fl-overhaul --- The charge class of an ability: `ultimate` by its flag; `area` with a freeze of every foe, slow time,
+ * arena cuts, lightning, a shockwave of 4.5 R or more, a fire ring of 3.5 R or more, a volley of 8 or more or a beam 1.2 R
+ * wide or more; else `standard`.
+ */
+export function abilityClass(ability: Pick<FlAbility, "ultimate" | "effects">): FlAbilityClass {
+  if (ability.ultimate) return "ultimate";
+  for (const e of ability.effects) {
+    switch (e.p) {
+      case "freezeAll":
+      case "slowTime":
+      case "arenaCuts":
+      case "lightning":
+        return "area";
+      case "shockwave":
+        if (e.radius >= 4.5) return "area";
+        break;
+      case "fireRing":
+        if (e.radius >= 3.5) return "area";
+        break;
+      case "volley":
+        if (e.n >= 8) return "area";
+        break;
+      case "beam":
+        if (e.width >= 1.2) return "area";
+        break;
+      default:
+        break;
+    }
+  }
+  return "standard";
 }
 
 /* ------------------------------------------------------------------ rows */
@@ -260,6 +472,25 @@ export interface FlStats {
   size: number;
 }
 
+/**
+ * --- fl-overhaul --- A fighter's role: what it does in a fight (the picker's chip). Tanks (HP 115–130, speed 0.7–0.85, size
+ * 1.1–1.3) and glass cannons (HP 90–95, speed 1.3–1.8, size 0.7–0.9) follow their templates; at most two of each a division.
+ */
+export const FL_ROLES = ["tank", "bruiser", "duelist", "glass", "ranged", "control", "summoner", "support"] as const;
+export type FlRole = (typeof FL_ROLES)[number];
+
+/** --- fl-overhaul --- A body's look (visual only): its pattern and its crest (our own shapes – no emblem, letter or face). */
+export const FL_LOOK_PATTERNS = ["ring", "band", "split", "visor", "hood", "core", "dots", "stripes"] as const;
+export const FL_LOOK_CRESTS = ["none", "ears", "horns", "spikes", "fins", "halo", "points", "tuft"] as const;
+export interface FlLook {
+  pattern: (typeof FL_LOOK_PATTERNS)[number];
+  crest: (typeof FL_LOOK_CRESTS)[number];
+  /** A glow around the body (a colour). */
+  glow?: string;
+  /** The knockback trail's colour. */
+  trail?: string;
+}
+
 export interface FlFighterRow {
   id: string;
   name: string;
@@ -277,877 +508,45 @@ export interface FlFighterRow {
   description: string;
   /** --- fl-overhaul --- The gap to its target (in its radii) it keeps instead of its first weapon's band (`intentBand()`). */
   intent?: { lo: number; hi: number };
+  // --- fl-overhaul --- (Stage 2)
+  /** A short name for tight labels (≤ 10 characters; the name itself when it fits – `flShortName()`). */
+  short?: string;
+  role: FlRole;
+  /** New in the overhaul's roster (false: one of the first release's 61). */
+  isNew: boolean;
+  /** The body's look (visual only). */
+  look?: FlLook;
 }
 
-const S = (o: Partial<FlStats> = {}): FlStats => ({ hp: 100, speed: 1, attackSpeed: 1, damage: 1, castSpeed: 1, size: 1, ...o });
-
-const MARVEL = "Marvel (comics & movies)";
-const DC = "DC (comics & movies)";
-const NINTENDO = "Nintendo (video games)";
-const SEGA = "Sega (video games)";
-const LEAGUE = "League of Legends (video game)";
-const CAPCOM = "Street Fighter (video games)";
-const MK = "Mortal Kombat (video games)";
-const ANIME = (show: string) => `${show} (anime & manga)`;
-const SW = "Star Wars (movies)";
+/** The roster: every division's rows (fightLeagueRows/<division>.ts), in `FL_DIVISIONS` order. */
+const ROWS_BY_DIVISION: Readonly<Record<FlDivision, readonly FlFighterRow[]>> = {
+  marvel: FL_ROWS_MARVEL,
+  dc: FL_ROWS_DC,
+  nintendo: FL_ROWS_NINTENDO,
+  league: FL_ROWS_LEAGUE,
+  fighting: FL_ROWS_FIGHTING,
+  legends: FL_ROWS_LEGENDS,
+  shonen: FL_ROWS_SHONEN,
+  starWars: FL_ROWS_STAR_WARS,
+  fantasy: FL_ROWS_FANTASY,
+  monsters: FL_ROWS_MONSTERS,
+  action: FL_ROWS_ACTION,
+  tv: FL_ROWS_TV,
+  pokemon: FL_ROWS_POKEMON,
+  modernAnime: FL_ROWS_MODERN_ANIME,
+  sandbox: FL_ROWS_SANDBOX,
+  horror: FL_ROWS_HORROR,
+  animated: FL_ROWS_ANIMATED,
+  cartoons: FL_ROWS_CARTOONS,
+  wildcard: FL_ROWS_WILDCARD,
+};
 
 /**
  * Every fighter, division by division (the panel's pickers group them the same way). Tuned so that within its division no
- * fighter wins more than 75 % or fewer than 25 % of a round robin (tests/fightLeague.test.ts prints the tables).
+ * fighter wins more than 75 % or fewer than 25 % of a round robin (tests/fightLeague.test.ts prints the tables; the damage
+ * stat is the tuner's – scripts/fl-balance.mjs).
  */
-export const FL_ROSTER: readonly FlFighterRow[] = [
-  /* ---------------------------------------------------------------- MARVEL (comics & movies) */
-  {
-    id: "thor",
-    name: "Thor",
-    division: "marvel",
-    source: MARVEL,
-    body: "#c9ced8",
-    accent: "#c1121f",
-    weapons: [{ kind: "hammer", style: "returning", damage: 11, throwEvery: 3.2 }],
-    stats: S({ speed: 0.95, damage: 1.64 }),
-    ability: { name: "Thunder Strike", charge: 10, effects: [{ p: "lightning", damage: 14 }] },
-    description: "God of thunder: swings his hammer, throws it at the nearest foe and calls it back, then strikes every foe with lightning.",
-  },
-  {
-    id: "loki",
-    name: "Loki",
-    division: "marvel",
-    source: MARVEL,
-    body: "#2d6a4f",
-    accent: "#e9c46a",
-    weapons: [{ kind: "cards", shape: "dagger", count: 4, damage: 5 }],
-    stats: S({ speed: 1.1, damage: 1.51 }),
-    ability: { name: "Illusion", charge: 9, effects: [{ p: "decoys", n: 2, dur: 3 }] },
-    description: "The trickster: four daggers orbit him and fly one by one; Illusion conjures two decoys that soak up the hits.",
-  },
-  {
-    id: "spiderman",
-    name: "Spider-Man",
-    division: "marvel",
-    source: MARVEL,
-    body: "#d62828",
-    accent: "#1d4ed8",
-    weapons: [{ kind: "web", cooldown: 1.1, damage: 5 }],
-    stats: S({ speed: 1.25, damage: 1.45 }),
-    ability: { name: "Web Trap", charge: 8, effects: [{ p: "choke", dur: 2, damage: 0 }] },
-    description: "Quick and slippery: web shots slow the foe they stick to, and Web Trap holds the nearest foe for two seconds.",
-  },
-  {
-    id: "ironman",
-    name: "Iron Man",
-    division: "marvel",
-    source: MARVEL,
-    body: "#b91c1c",
-    accent: "#f5c518",
-    weapons: [{ kind: "gun", shape: "repulsor", cooldown: 1.0, damage: 6, speed: 1.6 }],
-    stats: S({ damage: 1.26 }),
-    ability: { name: "Unibeam", charge: 10, effects: [{ p: "beam", dur: 1, width: 0.9, damage: 6, color: "#e0f2fe" }] },
-    description: "Repulsor blasts at the nearest foe on a steady cadence; the Unibeam fires a wide ray for a second.",
-  },
-  {
-    id: "captainamerica",
-    name: "Captain America",
-    division: "marvel",
-    source: MARVEL,
-    body: "#1e3a8a",
-    accent: "#dc2626",
-    weapons: [{ kind: "shield", throwEvery: 2.5, damage: 8 }],
-    stats: S({ hp: 105, damage: 1.21 }),
-    ability: { name: "Shield Ricochet", charge: 9, effects: [{ p: "volley", n: 1, damage: 10, speed: 1.3, size: 0.6, shape: "shield", bounceFoes: true }] },
-    description: "His shield blocks hits from the front and flies at the foe every few seconds; Shield Ricochet bounces it between every foe.",
-  },
-  {
-    id: "hulk",
-    name: "Hulk",
-    division: "marvel",
-    source: MARVEL,
-    body: "#4caf50",
-    accent: "#6b21a8",
-    weapons: [{ kind: "fists", cooldown: 1.0, damage: 12, knockback: 1.8, size: 0.5 }],
-    stats: S({ hp: 115, speed: 0.85, damage: 1.06, size: 1.15 }),
-    ability: { name: "Hulk Smash", charge: 10, effects: [{ p: "shockwave", radius: 4.5, damage: 14, knockback: 2.2 }] },
-    description: "Big, slow and heavy: every punch hurts and knocks the foe away, and Hulk Smash sends out a shockwave.",
-  },
-
-  /* ---------------------------------------------------------------- DC (comics & movies) */
-  {
-    id: "superman",
-    name: "Superman",
-    division: "dc",
-    source: DC,
-    body: "#1d4ed8",
-    accent: "#dc2626",
-    weapons: [{ kind: "beam", cooldown: 2.0, damage: 9, color: "#ef4444" }],
-    stats: S({ hp: 105, damage: 1.74 }),
-    ability: { name: "Solar Flare", charge: 12, effects: [{ p: "shockwave", radius: 5, damage: 22, knockback: 1.5 }] },
-    description: "Heat vision: a thin red ray at the nearest foe every two seconds; Solar Flare is a shockwave of heavy damage.",
-  },
-  {
-    id: "batman",
-    name: "Batman",
-    division: "dc",
-    source: DC,
-    body: "#374151",
-    accent: "#facc15",
-    weapons: [{ kind: "cards", shape: "batarang", count: 3, cooldown: 1.0, damage: 6 }],
-    stats: S({ damage: 1.21 }),
-    ability: {
-      name: "Smoke Bomb",
-      charge: 10,
-      effects: [
-        { p: "invulnerable", dur: 2 },
-        { p: "giantHit", mult: 3 },
-      ],
-    },
-    description: "Batarangs circle him and fly at the foe; Smoke Bomb makes him untouchable for two seconds and his next hit triple.",
-  },
-  {
-    id: "joker",
-    name: "Joker",
-    division: "dc",
-    source: DC,
-    body: "#7e22ce",
-    accent: "#22c55e",
-    weapons: [{ kind: "cards", shape: "card", count: 4, cooldown: 0.9, damage: 5 }],
-    stats: S({ speed: 1.05, damage: 1.76 }),
-    ability: { name: "Laughing Gas", charge: 9, effects: [{ p: "confuse", dur: 2.5 }] },
-    description: "Razor cards orbit him and fly one by one; Laughing Gas slows every foe and turns its aim backwards.",
-  },
-  {
-    id: "wonderwoman",
-    name: "Wonder Woman",
-    division: "dc",
-    source: DC,
-    body: "#b91c1c",
-    accent: "#fbbf24",
-    weapons: [{ kind: "sword", damage: 8 }, { kind: "shield", style: "block", size: 0.5 }],
-    stats: S({ speed: 1.05, damage: 0.75 }),
-    ability: {
-      name: "Lasso of Truth",
-      charge: 9,
-      effects: [
-        { p: "pull", strength: 2.2 },
-        { p: "choke", dur: 1, damage: 4 },
-      ],
-    },
-    description: "A sword, and bracelets that block hits from the front; the Lasso of Truth pulls the nearest foe in and holds it.",
-  },
-
-  /* ---------------------------------------------------------------- NINTENDO & SEGA (video games) */
-  {
-    id: "mario",
-    name: "Mario",
-    division: "nintendo",
-    source: NINTENDO,
-    body: "#e11d48",
-    accent: "#2563eb",
-    weapons: [{ kind: "gun", style: "bouncing", shape: "fireball", cooldown: 1.0, damage: 5, speed: 0.95, size: 0.22, color: "#f97316" }],
-    stats: S({ damage: 1.05 }),
-    ability: {
-      name: "Super Star",
-      charge: 11,
-      effects: [
-        { p: "invulnerable", dur: 3, contact: 8 },
-        { p: "speedBurst", mult: 1.5, dur: 3 },
-      ],
-    },
-    description: "Bouncing fireballs that ricochet off a wall once; Super Star makes him invulnerable for three seconds and every touch hurts.",
-  },
-  {
-    id: "link",
-    name: "Link",
-    division: "nintendo",
-    source: NINTENDO,
-    body: "#15803d",
-    accent: "#d4a373",
-    weapons: [{ kind: "sword", damage: 8, color: "#e2e8f0" }],
-    stats: S({ damage: 1.16 }),
-    ability: { name: "Spin Attack", charge: 8, effects: [{ p: "shockwave", radius: 2.9, damage: 16, knockback: 1, spin: true }] },
-    description: "A sword that sweeps a wide arc on every bounce; the Spin Attack whirls it all the way round at double damage.",
-  },
-  {
-    id: "samus",
-    name: "Samus",
-    division: "nintendo",
-    source: NINTENDO,
-    body: "#ea580c",
-    accent: "#84cc16",
-    weapons: [{ kind: "gun", shape: "plasma", cooldown: 1.1, damage: 6, speed: 1.5, color: "#facc15" }],
-    stats: S({ damage: 1.39 }),
-    ability: { name: "Charge Shot", charge: 10, effects: [{ p: "volley", n: 1, damage: 24, speed: 1.1, size: 0.9, shape: "charge", color: "#fde047" }] },
-    description: "Her arm cannon fires a steady stream of shots; the Charge Shot is one huge, slow projectile.",
-  },
-  {
-    id: "captainfalcon",
-    name: "Captain Falcon",
-    division: "nintendo",
-    source: NINTENDO,
-    body: "#1e40af",
-    accent: "#f59e0b",
-    weapons: [{ kind: "fists", cooldown: 0.45, damage: 5 }],
-    stats: S({ speed: 1.3, damage: 0.96 }),
-    ability: { name: "Falcon Punch", charge: 9, effects: [{ p: "giantHit", mult: 5, knockback: 3 }] },
-    description: "Fast fists and a fast car's worth of speed; the Falcon Punch makes his next hit five times as strong.",
-  },
-  {
-    id: "littlemac",
-    name: "Little Mac",
-    division: "nintendo",
-    source: NINTENDO,
-    body: "#22c55e",
-    accent: "#111827",
-    weapons: [{ kind: "fists", cooldown: 0.28, damage: 3.2, reach: 0.8 }],
-    stats: S({ speed: 1.25, damage: 1.26, size: 0.92 }),
-    ability: { name: "Star Punch", charge: 8, effects: [{ p: "giantHit", mult: 4, freeze: 1 }] },
-    description: "A blur of very fast, very light jabs; the Star Punch hits four times as hard and freezes the foe for a second.",
-  },
-  {
-    id: "sonic",
-    name: "Sonic",
-    division: "nintendo",
-    source: SEGA,
-    body: "#2563eb",
-    accent: "#ef4444",
-    weapons: [{ kind: "fists", style: "contact", reach: 0.15, cooldown: 0.3, damage: 4, size: 0.3 }],
-    stats: S({ speed: 1.8, damage: 1.24 }),
-    ability: {
-      name: "Spin Dash",
-      charge: 9,
-      effects: [
-        { p: "speedBurst", mult: 3, dur: 2 },
-        { p: "damageBurst", mult: 2, dur: 2 },
-      ],
-    },
-    description: "The fastest fighter in the league hits by running into you; the Spin Dash triples his speed and doubles his damage.",
-  },
-
-  /* ---------------------------------------------------------------- LEAGUE OF LEGENDS (video games) */
-  {
-    id: "yuumi",
-    name: "Yuumi",
-    division: "league",
-    source: LEAGUE,
-    body: "#f5f0e6",
-    accent: "#6366f1",
-    weapons: [{ kind: "book", cooldown: 1.5, damage: 6 }],
-    stats: S({ damage: 2.07, size: 0.9 }),
-    ability: { name: "Final Chapter", charge: 11, effects: [{ p: "beam", dur: 2, width: 0.8, damage: 5, color: "#c4b5fd" }] },
-    description: "Her book fires slow homing bolts; Final Chapter turns its pages into a beam that lasts two seconds.",
-  },
-  {
-    id: "katarina",
-    name: "Katarina",
-    division: "league",
-    source: LEAGUE,
-    body: "#9f1239",
-    accent: "#f43f5e",
-    weapons: [{ kind: "cards", style: "blink", shape: "dagger", count: 3, cooldown: 0.8, damage: 6 }],
-    stats: S({ speed: 1.25, damage: 0.96 }),
-    ability: { name: "Death Lotus", charge: 9, effects: [{ p: "fireRing", radius: 3, damage: 5, dur: 2.5, shape: "blades" }] },
-    description: "Throws daggers and blinks to every third one she throws; Death Lotus spins a ring of blades around her.",
-  },
-  {
-    id: "garen",
-    name: "Garen",
-    division: "league",
-    source: LEAGUE,
-    body: "#1e40af",
-    accent: "#eab308",
-    weapons: [{ kind: "sword", damage: 9, reach: 2.0, color: "#e5e7eb" }],
-    stats: S({ hp: 110, damage: 0.77 }),
-    ability: { name: "Demacian Justice", charge: 9, effects: [{ p: "giantHit", mult: 2, belowHalf: 4 }] },
-    description: "A broad sword and thick armour; Demacian Justice quadruples his next hit on a foe below half its HP.",
-  },
-  {
-    id: "jinx",
-    name: "Jinx",
-    division: "league",
-    source: LEAGUE,
-    body: "#3b82f6",
-    accent: "#ec4899",
-    weapons: [{ kind: "gun", shape: "bullet", cooldown: 0.2, damage: 1.6, spread: 12, speed: 1.6 }],
-    stats: S({ damage: 1.22 }),
-    ability: { name: "Super Mega Death Rocket", charge: 10, effects: [{ p: "volley", n: 1, damage: 14, speed: 0.9, size: 0.45, shape: "rocket", explode: 4 }] },
-    description: "Her minigun sprays fast, weak bullets; the Super Mega Death Rocket explodes in a shockwave where it lands.",
-  },
-  {
-    id: "ahri",
-    name: "Ahri",
-    division: "league",
-    source: LEAGUE,
-    body: "#fbcfe8",
-    accent: "#be123c",
-    weapons: [{ kind: "staff", style: "return", reach: 0.5, cooldown: 1.8, damage: 7, speed: 0.9, homing: 0.6, color: "#f9a8d4" }],
-    stats: S({ speed: 1.1, damage: 1.79 }),
-    ability: { name: "Spirit Rush", charge: 10, effects: [{ p: "blinkStrike", n: 3, damage: 7 }] },
-    description: "Orbs fly out, hit on the way and come back to her; Spirit Rush dashes onto the nearest foe three times.",
-  },
-
-  /* ---------------------------------------------------------------- FIGHTING GAMES (video games) */
-  {
-    id: "ryu",
-    name: "Ryu",
-    division: "fighting",
-    source: CAPCOM,
-    body: "#f3f4f6",
-    accent: "#dc2626",
-    weapons: [
-      { kind: "fists", cooldown: 0.5, damage: 6 },
-      { kind: "gun", shape: "hadouken", cooldown: 2.6, damage: 8, speed: 0.8, size: 0.55, spread: 0, color: "#60a5fa" },
-    ],
-    stats: S({ damage: 0.9 }),
-    ability: { name: "Shoryuken", charge: 9, effects: [{ p: "giantHit", mult: 3, knockback: 2.5 }] },
-    description: "Fists and a slow Hadouken fireball; the Shoryuken triples his next hit and launches the foe.",
-  },
-  {
-    id: "ken",
-    name: "Ken",
-    division: "fighting",
-    source: CAPCOM,
-    body: "#dc2626",
-    accent: "#f59e0b",
-    weapons: [
-      { kind: "fists", cooldown: 0.45, damage: 6 },
-      { kind: "gun", shape: "flamewave", cooldown: 2.8, damage: 8, speed: 0.85, size: 0.55, spread: 0, color: "#fb923c" },
-    ],
-    stats: S({ speed: 1.05, damage: 0.79 }),
-    ability: { name: "Shoryureppa", charge: 9, effects: [{ p: "giantHit", mult: 2, count: 3, knockback: 1.5 }] },
-    description: "Faster fists and a flaming Hadouken; the Shoryureppa makes his next three hits double.",
-  },
-  {
-    id: "chunli",
-    name: "Chun-Li",
-    division: "fighting",
-    source: CAPCOM,
-    body: "#2563eb",
-    accent: "#fbbf24",
-    weapons: [{ kind: "fists", shape: "kicks", cooldown: 0.32, damage: 4, reach: 1.0 }],
-    stats: S({ speed: 1.3, damage: 1.25 }),
-    ability: { name: "Spinning Bird Kick", charge: 9, effects: [{ p: "fireRing", radius: 2.6, damage: 5, dur: 2, shape: "kicks" }] },
-    description: "Lightning-fast kicks; the Spinning Bird Kick turns her into a ring of kicks for two seconds.",
-  },
-  {
-    id: "scorpion",
-    name: "Scorpion",
-    division: "fighting",
-    source: MK,
-    body: "#facc15",
-    accent: "#111827",
-    weapons: [{ kind: "chain", style: "pull", reach: 1.4, cooldown: 1.0, throwEvery: 2.2, damage: 8 }],
-    stats: S({ damage: 1.07 }),
-    ability: { name: "Hellfire", charge: 10, effects: [{ p: "fireRing", radius: 3.2, damage: 6, dur: 2.5 }] },
-    description: "His spear on a chain drags the hit foe to him; Hellfire burns everything around him.",
-  },
-  {
-    id: "subzero",
-    name: "Sub-Zero",
-    division: "fighting",
-    source: MK,
-    body: "#2563eb",
-    accent: "#bae6fd",
-    weapons: [{ kind: "ice", cooldown: 1.8, damage: 5 }],
-    stats: S({ damage: 2.22 }),
-    ability: { name: "Ice Clone", charge: 9, effects: [{ p: "decoys", n: 1, dur: 4, freezeOnTouch: 1.5 }] },
-    description: "Ice shots freeze the foe they hit for a second; the Ice Clone freezes whoever touches it.",
-  },
-
-  /* ---------------------------------------------------------------- GAME LEGENDS (video games) */
-  {
-    id: "masterchief",
-    name: "Master Chief",
-    division: "legends",
-    source: "Halo (video games)",
-    body: "#4d7c0f",
-    accent: "#f59e0b",
-    weapons: [{ kind: "gun", style: "burst", count: 3, cooldown: 1.5, damage: 3, speed: 1.7, spread: 4 }],
-    stats: S({ hp: 110, damage: 1.22 }),
-    ability: {
-      name: "Spartan Charge",
-      charge: 9,
-      effects: [
-        { p: "speedBurst", mult: 2.2, dur: 1.5 },
-        { p: "giantHit", mult: 3 },
-      ],
-    },
-    description: "A burst rifle, three shots a trigger; the Spartan Charge rushes in and triples his next hit.",
-  },
-  {
-    id: "doomslayer",
-    name: "Doom Slayer",
-    division: "legends",
-    source: "Doom (video games)",
-    body: "#3f6212",
-    accent: "#b91c1c",
-    weapons: [{ kind: "shotgun", count: 6, spread: 32, damage: 2.6, cooldown: 1.5 }],
-    stats: S({ hp: 105, damage: 1.02 }),
-    ability: { name: "BFG", charge: 12, effects: [{ p: "beam", dur: 1, width: 1.6, damage: 10, color: "#4ade80" }] },
-    description: "A shotgun cone of pellets at close range; the BFG fires a wide green beam.",
-  },
-  {
-    id: "kratos",
-    name: "Kratos",
-    division: "legends",
-    source: "God of War (video games)",
-    body: "#e5e7eb",
-    accent: "#b91c1c",
-    weapons: [{ kind: "chain", shape: "blades", reach: 2.3, cooldown: 1.2, damage: 8 }],
-    stats: S({ damage: 2.14 }),
-    ability: {
-      name: "Spartan Rage",
-      charge: 11,
-      effects: [
-        { p: "damageBurst", mult: 2, dur: 3 },
-        { p: "heal", amount: 20, dur: 3 },
-      ],
-    },
-    description: "The Blades of Chaos whirl on their chains; Spartan Rage doubles his damage and heals 20 HP over three seconds.",
-  },
-  {
-    id: "steve",
-    name: "Steve",
-    division: "legends",
-    source: "Minecraft (video game)",
-    body: "#22a5c9",
-    accent: "#5b3a29",
-    weapons: [{ kind: "sword", damage: 8, reach: 1.7, color: "#67e8f9" }],
-    stats: S({ damage: 1.36 }),
-    ability: { name: "TNT", charge: 10, effects: [{ p: "shockwave", radius: 4.5, damage: 18, knockback: 2, delay: 1 }] },
-    description: "A diamond sword; TNT drops a block that explodes in a shockwave after a one-second fuse.",
-  },
-  {
-    id: "pikachu",
-    name: "Pikachu",
-    division: "legends",
-    source: "Pokémon (video games)",
-    body: "#facc15",
-    accent: "#ef4444",
-    weapons: [{ kind: "spark", reach: 2.8, cooldown: 0.75, damage: 5, color: "#fde047" }],
-    stats: S({ speed: 1.3, damage: 1.35, size: 0.85 }),
-    ability: { name: "Thunderbolt", charge: 9, effects: [{ p: "lightning", damage: 13 }] },
-    description: "Short electric arcs at any foe in range; Thunderbolt strikes every foe with lightning.",
-  },
-  {
-    id: "charizard",
-    name: "Charizard",
-    division: "legends",
-    source: "Pokémon (video games)",
-    body: "#f97316",
-    accent: "#0f766e",
-    weapons: [{ kind: "fire", reach: 3.2, damage: 3 }],
-    stats: S({ hp: 105, damage: 1.53, size: 1.1 }),
-    ability: { name: "Blast Burn", charge: 11, effects: [{ p: "fireRing", radius: 3.6, damage: 6, dur: 2.5 }] },
-    description: "Breathes a cone of fire ahead; Blast Burn sets the ground around him ablaze.",
-  },
-
-  /* ---------------------------------------------------------------- SHONEN ANIME (TV shows) */
-  {
-    id: "goku",
-    name: "Goku",
-    division: "shonen",
-    source: ANIME("Dragon Ball"),
-    body: "#f97316",
-    accent: "#1d4ed8",
-    weapons: [
-      { kind: "fists", cooldown: 0.45, damage: 5 },
-      { kind: "gun", shape: "ki", cooldown: 1.3, damage: 4, speed: 1.4, color: "#93c5fd" },
-    ],
-    stats: S({ damage: 1.08 }),
-    ability: { name: "Kamehameha", charge: 10, effects: [{ p: "beam", dur: 1.2, width: 1, damage: 6, color: "#60a5fa" }] },
-    description: "Fists and ki blasts; the Kamehameha is a blue beam that lasts more than a second.",
-  },
-  {
-    id: "vegeta",
-    name: "Vegeta",
-    division: "shonen",
-    source: ANIME("Dragon Ball"),
-    body: "#1e3a8a",
-    accent: "#facc15",
-    weapons: [
-      { kind: "fists", cooldown: 0.45, damage: 5.5 },
-      { kind: "gun", shape: "ki", cooldown: 1.2, damage: 4, speed: 1.4, color: "#fde68a" },
-    ],
-    stats: S({ damage: 1.04 }),
-    ability: { name: "Final Flash", charge: 13, effects: [{ p: "beam", dur: 1.4, width: 1.5, damage: 7, color: "#fef08a" }] },
-    description: "Fists and ki blasts; Final Flash takes longer to charge and fires a wider beam.",
-  },
-  {
-    id: "naruto",
-    name: "Naruto",
-    division: "shonen",
-    source: ANIME("Naruto"),
-    body: "#fb923c",
-    accent: "#1e3a8a",
-    weapons: [{ kind: "cards", shape: "shuriken", count: 4, cooldown: 0.9, damage: 5 }],
-    stats: S({ speed: 1.1, damage: 1.34 }),
-    ability: { name: "Shadow Clone", charge: 9, effects: [{ p: "summon", n: 2, dur: 4, damage: 4, shape: "clone" }] },
-    description: "Shuriken orbit him and fly one by one; Shadow Clone summons two clones that fight for four seconds.",
-  },
-  {
-    id: "sasuke",
-    name: "Sasuke",
-    division: "shonen",
-    source: ANIME("Naruto"),
-    body: "#1e1b4b",
-    accent: "#60a5fa",
-    weapons: [{ kind: "sword", damage: 8, reach: 1.8, color: "#cbd5e1" }],
-    stats: S({ speed: 1.15, damage: 1.12 }),
-    ability: { name: "Chidori", charge: 11, effects: [{ p: "blinkStrike", n: 4, damage: 6 }] },
-    description: "A quick blade; Chidori blinks onto the nearest foe four times in a row.",
-  },
-  {
-    id: "luffy",
-    name: "Luffy",
-    division: "shonen",
-    source: ANIME("One Piece"),
-    body: "#dc2626",
-    accent: "#facc15",
-    weapons: [{ kind: "fists", reach: 2.4, cooldown: 0.7, damage: 6 }],
-    stats: S({ damage: 1.24 }),
-    ability: { name: "Gum-Gum Gatling", charge: 9, effects: [{ p: "attackSpeedBurst", mult: 4, dur: 2 }] },
-    description: "Rubber fists that reach across half the ring; the Gum-Gum Gatling punches four times as fast for two seconds.",
-  },
-  {
-    id: "saitama",
-    name: "Saitama",
-    division: "shonen",
-    source: ANIME("One-Punch Man"),
-    body: "#fde047",
-    accent: "#ef4444",
-    weapons: [{ kind: "fists", count: 1, cooldown: 1.8, damage: 18, knockback: 2 }],
-    stats: S({ damage: 1.38 }),
-    ability: { name: "Serious Punch", charge: 14, effects: [{ p: "giantHit", mult: 1, maxHpFrac: 0.4, knockback: 3 }] },
-    description: "One slow punch at triple damage; the Serious Punch is worth 40 % of the foe's maximum HP.",
-  },
-
-  /* ---------------------------------------------------------------- STAR WARS (movies) */
-  {
-    id: "luke",
-    name: "Luke Skywalker",
-    division: "starWars",
-    source: SW,
-    body: "#e7d8b8",
-    accent: "#16a34a",
-    weapons: [{ kind: "sword", style: "glow", damage: 8, color: "#4ade80" }],
-    stats: S({ damage: 1.17 }),
-    ability: { name: "Force Push", charge: 9, effects: [{ p: "shockwave", radius: 6, damage: 6, knockback: 3.5 }] },
-    description: "A green energy blade; the Force Push throws every foe across the ring.",
-  },
-  {
-    id: "vader",
-    name: "Darth Vader",
-    division: "starWars",
-    source: SW,
-    body: "#111827",
-    accent: "#dc2626",
-    weapons: [{ kind: "sword", style: "glow", damage: 11, cooldown: 0.5, color: "#ef4444" }],
-    stats: S({ hp: 110, speed: 0.85, damage: 0.76 }),
-    ability: { name: "Force Choke", charge: 11, effects: [{ p: "choke", dur: 2, damage: 15, at: "over" }] },
-    description: "A red blade, slower and stronger; the Force Choke holds the nearest foe for two seconds and hurts it.",
-  },
-  {
-    id: "yoda",
-    name: "Yoda",
-    division: "starWars",
-    source: SW,
-    body: "#84cc16",
-    accent: "#a16207",
-    weapons: [{ kind: "sword", style: "glow", damage: 6, reach: 1.6, color: "#86efac" }],
-    stats: S({ speed: 1.45, attackSpeed: 1.3, damage: 0.94, size: 0.75 }),
-    ability: { name: "Force Lift", charge: 10, effects: [{ p: "choke", dur: 2, damage: 14, at: "end" }] },
-    description: "Tiny and fast with a short green blade; Force Lift holds the nearest foe up for two seconds, then slams it.",
-  },
-  {
-    id: "maul",
-    name: "Darth Maul",
-    division: "starWars",
-    source: SW,
-    body: "#b91c1c",
-    accent: "#0a0a0a",
-    weapons: [{ kind: "sword", style: "double", damage: 7, reach: 1.6, color: "#f87171" }],
-    stats: S({ speed: 1.1, damage: 1.6 }),
-    ability: { name: "Saber Throw", charge: 9, effects: [{ p: "volley", n: 1, damage: 12, speed: 1.1, size: 0.5, shape: "saber", color: "#f87171", returning: true }] },
-    description: "A double-bladed saber, a blade at both ends; the Saber Throw flies at the foe and comes back.",
-  },
-
-  /* ---------------------------------------------------------------- FANTASY (movies) */
-  {
-    id: "harrypotter",
-    name: "Harry Potter",
-    division: "fantasy",
-    source: "Harry Potter (movies & books)",
-    body: "#991b1b",
-    accent: "#fbbf24",
-    weapons: [{ kind: "wand", cooldown: 1.0, damage: 5, color: "#fca5a5" }],
-    stats: S({ speed: 1.05, damage: 1.07 }),
-    ability: { name: "Expelliarmus", charge: 9, effects: [{ p: "disarm", dur: 3 }] },
-    description: "Fast bolts from his wand; Expelliarmus disarms the nearest foe for three seconds.",
-  },
-  {
-    id: "voldemort",
-    name: "Voldemort",
-    division: "fantasy",
-    source: "Harry Potter (movies & books)",
-    body: "#1f2937",
-    accent: "#4ade80",
-    weapons: [{ kind: "wand", cooldown: 1.45, damage: 8, color: "#86efac" }],
-    stats: S({ damage: 1.15 }),
-    ability: { name: "Avada Kedavra", charge: 13, effects: [{ p: "volley", n: 1, damage: 30, speed: 1.6, size: 0.3, shape: "bolt", color: "#22c55e", unblockable: true }] },
-    description: "Stronger, slower bolts; Avada Kedavra is one unblockable bolt at nearly four times the damage.",
-  },
-  {
-    id: "gandalf",
-    name: "Gandalf",
-    division: "fantasy",
-    source: "The Lord of the Rings (movies & books)",
-    body: "#a8a29e",
-    accent: "#f5f5f4",
-    weapons: [
-      { kind: "staff", cooldown: 2.3, damage: 8, color: "#fef9c3" },
-      { kind: "sword", damage: 6, reach: 1.6, color: "#e5e7eb" },
-    ],
-    stats: S({ damage: 1.22 }),
-    ability: {
-      name: "You Shall Not Pass",
-      charge: 12,
-      effects: [
-        { p: "invulnerable", dur: 2 },
-        { p: "shockwave", radius: 6, damage: 8, knockback: 3.5, pin: true },
-      ],
-    },
-    description: "A staff of homing orbs and a sword; You Shall Not Pass makes him untouchable and pins every foe to the far wall.",
-  },
-  {
-    id: "legolas",
-    name: "Legolas",
-    division: "fantasy",
-    source: "The Lord of the Rings (movies & books)",
-    body: "#4d7c0f",
-    accent: "#fde68a",
-    weapons: [{ kind: "bow", cooldown: 0.55, damage: 4, speed: 1.5 }],
-    stats: S({ speed: 1.15, damage: 1.1 }),
-    ability: { name: "Arrow Storm", charge: 10, effects: [{ p: "volley", n: 12, damage: 3, spread: 50, speed: 1.4, shape: "arrow" }] },
-    description: "The fastest bow in the league; Arrow Storm looses twelve arrows at once.",
-  },
-
-  /* ---------------------------------------------------------------- MOVIE MONSTERS (movies) */
-  {
-    id: "godzilla",
-    name: "Godzilla",
-    division: "monsters",
-    source: "Godzilla (movies)",
-    body: "#3f4b3a",
-    accent: "#22d3ee",
-    weapons: [{ kind: "tail", reach: 2.4, cooldown: 1.0, damage: 9, knockback: 1.4 }],
-    stats: S({ hp: 120, speed: 0.8, damage: 1.14, size: 1.2 }),
-    ability: { name: "Atomic Breath", charge: 11, effects: [{ p: "beam", dur: 1.3, width: 1.2, damage: 8, color: "#38bdf8" }] },
-    description: "A long tail sweeping behind him; Atomic Breath is a blue beam.",
-  },
-  {
-    id: "kingkong",
-    name: "King Kong",
-    division: "monsters",
-    source: "King Kong (movies)",
-    body: "#5b3a29",
-    accent: "#a8a29e",
-    weapons: [{ kind: "fists", cooldown: 0.9, damage: 11, knockback: 2, size: 0.5 }],
-    stats: S({ hp: 115, speed: 0.95, damage: 0.9, size: 1.15 }),
-    ability: { name: "Chest Beat", charge: 10, effects: [{ p: "damageBurst", mult: 2, dur: 3, knockback: 2 }] },
-    description: "Slow, heavy fists; the Chest Beat doubles his damage and knockback for three seconds.",
-  },
-  {
-    id: "alien",
-    name: "Alien",
-    division: "monsters",
-    source: "Alien (movies)",
-    body: "#0f172a",
-    accent: "#a3e635",
-    weapons: [
-      { kind: "claws", damage: 3 },
-      { kind: "tail", reach: 2.0, cooldown: 0.8, damage: 5 },
-    ],
-    stats: S({ speed: 1.2, damage: 1.31 }),
-    ability: { name: "Acid Blood", charge: 9, effects: [{ p: "reflect", dur: 4, frac: 0.6 }] },
-    description: "Claws in front and a tail behind; Acid Blood burns every attacker for four seconds.",
-  },
-  {
-    id: "predator",
-    name: "Predator",
-    division: "monsters",
-    source: "Predator (movies)",
-    body: "#8a7f4f",
-    accent: "#dc2626",
-    weapons: [
-      { kind: "gun", shape: "plasma", cooldown: 1.6, damage: 8, homing: 1, speed: 1.2, color: "#60a5fa" },
-      { kind: "claws", damage: 3 },
-    ],
-    stats: S({ damage: 1.1 }),
-    ability: { name: "Cloak", charge: 10, effects: [{ p: "invulnerable", dur: 2.5, untargetable: true }] },
-    description: "A shoulder plasma caster and wrist blades; Cloak makes him invulnerable and untargetable.",
-  },
-
-  /* ---------------------------------------------------------------- ACTION MOVIES (movies) */
-  {
-    id: "johnwick",
-    name: "John Wick",
-    division: "action",
-    source: "John Wick (movies)",
-    body: "#1f2937",
-    accent: "#e5e7eb",
-    weapons: [{ kind: "gun", shape: "bullet", cooldown: 0.7, damage: 5.5, spread: 0.5 }],
-    stats: S({ speed: 1.15, damage: 0.88 }),
-    ability: { name: "Baba Yaga", charge: 9, effects: [{ p: "giantHit", mult: 2, count: 5, homing: 4 }] },
-    description: "Precise pistols; Baba Yaga makes his next five shots double and homing.",
-  },
-  {
-    id: "neo",
-    name: "Neo",
-    division: "action",
-    source: "The Matrix (movies)",
-    body: "#0b0f0b",
-    accent: "#22c55e",
-    weapons: [{ kind: "fists", cooldown: 0.4, damage: 5.5, reach: 1.0 }],
-    stats: S({ speed: 1.25, damage: 1.12 }),
-    ability: { name: "Bullet Time", charge: 10, effects: [{ p: "slowTime", dur: 2.5, factor: 0.3 }] },
-    description: "Fast martial arts; Bullet Time slows every foe and every shot to a crawl while he moves at full speed.",
-  },
-  {
-    id: "terminator",
-    name: "Terminator",
-    division: "action",
-    source: "The Terminator (movies)",
-    body: "#27272a",
-    accent: "#dc2626",
-    weapons: [{ kind: "shotgun", count: 6, damage: 2.8, cooldown: 1.6 }],
-    stats: S({ hp: 120, speed: 0.85, damage: 1.22 }),
-    ability: { name: "Minigun", charge: 10, effects: [{ p: "volley", n: 12, damage: 2.5, spread: 40, speed: 1.7, shape: "bullet" }] },
-    description: "A shotgun and a lot of armour; the Minigun fires twelve bullets at once.",
-  },
-  {
-    id: "robocop",
-    name: "RoboCop",
-    division: "action",
-    source: "RoboCop (movies)",
-    body: "#a5b4c8",
-    accent: "#334155",
-    weapons: [{ kind: "gun", style: "burst", count: 3, cooldown: 1.5, damage: 3.2, speed: 1.6, spread: 4 }],
-    stats: S({ hp: 115, speed: 0.8, damage: 1.42 }),
-    ability: { name: "Targeting", charge: 9, effects: [{ p: "giantHit", mult: 1, count: 9, homing: 5 }] },
-    description: "The Auto-9 fires three-round bursts; Targeting makes his next nine shots home in.",
-  },
-
-  /* ---------------------------------------------------------------- TV (TV shows) */
-  {
-    id: "homelander",
-    name: "Homelander",
-    division: "tv",
-    source: "The Boys (TV show)",
-    body: "#1d4ed8",
-    accent: "#dc2626",
-    weapons: [
-      { kind: "beam", cooldown: 2.2, damage: 8, color: "#ef4444" },
-      { kind: "fists", cooldown: 0.55, damage: 6 },
-    ],
-    stats: S({ damage: 1.08 }),
-    ability: { name: "Laser Sweep", charge: 11, effects: [{ p: "beam", dur: 1.5, width: 0.8, damage: 6, color: "#f87171" }] },
-    description: "Laser eyes and fists; the Laser Sweep holds a red beam for a second and a half.",
-  },
-  {
-    id: "omniman",
-    name: "Omni-Man",
-    division: "tv",
-    source: "Invincible (TV show)",
-    body: "#f8fafc",
-    accent: "#dc2626",
-    weapons: [{ kind: "fists", cooldown: 0.8, damage: 10, knockback: 1.8, size: 0.45 }],
-    stats: S({ hp: 110, damage: 0.88 }),
-    ability: {
-      name: "Viltrumite Rush",
-      charge: 10,
-      effects: [
-        { p: "speedBurst", mult: 3, dur: 2 },
-        { p: "damageBurst", mult: 2, dur: 2 },
-      ],
-    },
-    description: "Heavy fists; the Viltrumite Rush triples his speed and doubles his damage for two seconds.",
-  },
-  {
-    id: "aang",
-    name: "Aang",
-    division: "tv",
-    source: "Avatar: The Last Airbender (TV show)",
-    body: "#f59e0b",
-    accent: "#38bdf8",
-    weapons: [{ kind: "fists", shape: "air", cooldown: 0.5, damage: 1.5, knockback: 2.6, reach: 1.4 }],
-    stats: S({ speed: 1.3, damage: 1.39, castSpeed: 1.3 }),
-    ability: {
-      name: "Avatar State",
-      charge: 10,
-      effects: [
-        { p: "fireRing", radius: 3, damage: 6, dur: 2 },
-        { p: "lightning", damage: 10 },
-      ],
-    },
-    description: "Airbending pushes that knock foes away but barely hurt; the Avatar State is a ring of fire and a bolt of lightning.",
-  },
-  {
-    id: "zuko",
-    name: "Zuko",
-    division: "tv",
-    source: "Avatar: The Last Airbender (TV show)",
-    body: "#b91c1c",
-    accent: "#f59e0b",
-    weapons: [{ kind: "fire", reach: 3.0, damage: 3.5 }],
-    stats: S({ damage: 1.62 }),
-    ability: { name: "Lightning Redirect", charge: 10, effects: [{ p: "beam", dur: 0.8, width: 0.6, damage: 10, color: "#a5f3fc" }] },
-    description: "Firebending: a cone of fire ahead; Lightning Redirect fires a crackling beam.",
-  },
-  {
-    id: "jonsnow",
-    name: "Jon Snow",
-    division: "tv",
-    source: "Game of Thrones (TV show)",
-    body: "#18181b",
-    accent: "#e5e7eb",
-    weapons: [{ kind: "sword", damage: 8.5, reach: 1.9, color: "#d4d4d8" }],
-    stats: S({ damage: 0.94 }),
-    ability: { name: "Ghost", charge: 9, effects: [{ p: "summon", n: 1, dur: 4, damage: 6, size: 0.7, shape: "wolf" }] },
-    description: "A longsword; Ghost, his white wolf, joins the fight for four seconds.",
-  },
-  {
-    id: "nightking",
-    name: "Night King",
-    division: "tv",
-    source: "Game of Thrones (TV show)",
-    body: "#93c5fd",
-    accent: "#e0f2fe",
-    weapons: [{ kind: "bow", shape: "icespear", cooldown: 2.0, damage: 12, speed: 0.95, size: 0.2, color: "#bae6fd" }],
-    stats: S({ speed: 0.9, damage: 1.39 }),
-    ability: { name: "Raise the Dead", charge: 11, effects: [{ p: "summon", n: 3, dur: 4, damage: 4, size: 0.55, shape: "wight" }] },
-    description: "Throws slow, heavy ice spears; Raise the Dead summons three wights for four seconds.",
-  },
-
-  /* ---------------------------------------------------------------- WILDCARD */
-  {
-    id: "gerald",
-    name: "Gerald",
-    division: "wildcard",
-    source: "This site's own ball",
-    body: "#93d119",
-    accent: "#f8fafc",
-    weapons: [{ kind: "fists", count: 1, reach: 0.45, cooldown: 0.5, damage: 7, shape: "air" }],
-    stats: S(),
-    ability: {
-      name: "Mega Bounce",
-      charge: 9,
-      effects: [
-        { p: "speedBurst", mult: 2, dur: 3 },
-        { p: "damageBurst", mult: 2, dur: 3 },
-      ],
-    },
-    description: "Our own ball headbutts its way through the league; Mega Bounce doubles its speed and damage for three seconds.",
-  },
-];
+export const FL_ROSTER: readonly FlFighterRow[] = FL_DIVISIONS.flatMap((division) => ROWS_BY_DIVISION[division]);
 
 /** The roster by id. */
 export const FL_BY_ID: ReadonlyMap<string, FlFighterRow> = new Map(FL_ROSTER.map((row) => [row.id, row]));
@@ -1162,8 +561,19 @@ export function fightersOf(division: FlDivision): FlFighterRow[] {
   return FL_ROSTER.filter((row) => row.division === division);
 }
 
+/** --- fl-overhaul --- The fighters of a conference's divisions, in roster order. */
+export function fightersOfConference(conference: FlConference): FlFighterRow[] {
+  const divisions = FL_CONFERENCES[conference] as readonly FlDivision[];
+  return FL_ROSTER.filter((row) => divisions.includes(row.division));
+}
+
+/** --- fl-overhaul --- The short name of a fighter for tight labels (upper case, ≤ 10 characters): its `short`, else its name. */
+export function flShortName(row: Pick<FlFighterRow, "name" | "short">): string {
+  return (row.short ?? row.name).toUpperCase();
+}
+
 /** The weapon spec with every default filled in. */
-export function weaponOf(spec: FlWeaponSpec): Required<Omit<FlWeaponSpec, "color">> & { color: string | undefined } {
+export function weaponOf(spec: FlWeaponSpec): Required<Omit<FlWeaponSpec, "color" | "look">> & { color: string | undefined; look: FlWeaponLook | undefined } {
   const d = FL_WEAPON_DEFAULTS[spec.kind];
   return {
     kind: spec.kind,
@@ -1182,6 +592,7 @@ export function weaponOf(spec: FlWeaponSpec): Required<Omit<FlWeaponSpec, "color
     shape: spec.shape ?? d.shape,
     effect: spec.effect ?? d.effect,
     effectSec: spec.effectSec ?? d.effectSec,
+    look: spec.look,
   };
 }
 
@@ -1195,6 +606,9 @@ export function weaponLabel(row: FlFighterRow): string {
     .join(" + ");
 }
 
+/** --- fl-overhaul --- The presets' formats: a duel (1v1), a team fight (2v2), a free-for-all (more come with the match types). */
+export type FlPresetFormat = "duel" | "team" | "ffa";
+
 /** The matchup presets of the panel (every pair in its genre); `fighters` fill the slots A–D, `match` the match type. */
 export interface FlPreset {
   id: string;
@@ -1202,21 +616,102 @@ export interface FlPreset {
   label: string;
   fighters: readonly string[];
   match: "1v1" | "2v2" | "ffa3" | "ffa4";
+  /** --- fl-overhaul --- The format (the gallery's grouping). */
+  format: FlPresetFormat;
+  /** --- fl-overhaul --- An optional hook line for a clip (English; the creator tools read it). */
+  hook?: string;
 }
 
+const duel = (id: string, label: string, a: string, b: string): FlPreset => ({ id, label, fighters: [a, b], match: "1v1", format: "duel" });
+const team = (id: string, label: string, fighters: readonly string[]): FlPreset => ({ id, label, fighters, match: "2v2", format: "team" });
+const ffa = (id: string, label: string, fighters: readonly string[]): FlPreset => ({ id, label, fighters, match: fighters.length === 3 ? "ffa3" : "ffa4", format: "ffa" });
+
+/** The 50 in-division presets (the first 14 of the first release, ids unchanged; Thor vs Loki the default). */
 export const FL_PRESETS: readonly FlPreset[] = [
-  { id: "thor-loki", label: "Thor vs Loki", fighters: ["thor", "loki"], match: "1v1" },
-  { id: "falcon-mac", label: "Captain Falcon vs Little Mac", fighters: ["captainfalcon", "littlemac"], match: "1v1" },
-  { id: "yuumi-katarina", label: "Yuumi vs Katarina", fighters: ["yuumi", "katarina"], match: "1v1" },
-  { id: "batman-joker", label: "Batman vs Joker", fighters: ["batman", "joker"], match: "1v1" },
-  { id: "goku-vegeta", label: "Goku vs Vegeta", fighters: ["goku", "vegeta"], match: "1v1" },
-  { id: "luke-vader", label: "Luke Skywalker vs Darth Vader", fighters: ["luke", "vader"], match: "1v1" },
-  { id: "mario-sonic", label: "Mario vs Sonic", fighters: ["mario", "sonic"], match: "1v1" },
-  { id: "harry-voldemort", label: "Harry Potter vs Voldemort", fighters: ["harrypotter", "voldemort"], match: "1v1" },
-  { id: "scorpion-subzero", label: "Scorpion vs Sub-Zero", fighters: ["scorpion", "subzero"], match: "1v1" },
-  { id: "godzilla-kong", label: "Godzilla vs King Kong", fighters: ["godzilla", "kingkong"], match: "1v1" },
-  { id: "alien-predator", label: "Alien vs Predator", fighters: ["alien", "predator"], match: "1v1" },
-  { id: "homelander-omniman", label: "Homelander vs Omni-Man", fighters: ["homelander", "omniman"], match: "1v1" },
-  { id: "avengers", label: "Avengers free-for-all", fighters: ["thor", "ironman", "captainamerica", "hulk"], match: "ffa4" },
-  { id: "naruto-dbz", label: "2v2: Naruto + Sasuke vs Goku + Vegeta", fighters: ["naruto", "sasuke", "goku", "vegeta"], match: "2v2" },
+  duel("thor-loki", "Thor vs Loki", "thor", "loki"),
+  duel("falcon-mac", "Captain Falcon vs Little Mac", "captainfalcon", "littlemac"),
+  duel("yuumi-katarina", "Yuumi vs Katarina", "yuumi", "katarina"),
+  duel("batman-joker", "Batman vs Joker", "batman", "joker"),
+  duel("goku-vegeta", "Goku vs Vegeta", "goku", "vegeta"),
+  duel("luke-vader", "Luke Skywalker vs Darth Vader", "luke", "vader"),
+  duel("mario-sonic", "Mario vs Sonic", "mario", "sonic"),
+  duel("harry-voldemort", "Harry Potter vs Voldemort", "harrypotter", "voldemort"),
+  duel("scorpion-subzero", "Scorpion vs Sub-Zero", "scorpion", "subzero"),
+  duel("godzilla-kong", "Godzilla vs King Kong", "godzilla", "kingkong"),
+  duel("alien-predator", "Alien vs Predator", "alien", "predator"),
+  duel("homelander-omniman", "Homelander vs Omni-Man", "homelander", "omniman"),
+  ffa("avengers", "Avengers free-for-all", ["thor", "ironman", "captainamerica", "hulk"]),
+  team("naruto-dbz", "2v2: Naruto + Sasuke vs Goku + Vegeta", ["naruto", "sasuke", "goku", "vegeta"]),
+  // --- fl-overhaul --- (Stage 2: the research's 36 more, every one inside one division)
+  duel("ryu-ken", "Ryu vs Ken", "ryu", "ken"),
+  duel("naruto-sasuke", "Naruto vs Sasuke", "naruto", "sasuke"),
+  duel("goku-frieza", "Goku vs Frieza", "goku", "frieza"),
+  duel("pikachu-charizard", "Pikachu vs Charizard", "pikachu", "charizard"),
+  duel("chief-slayer", "Master Chief vs Doom Slayer", "masterchief", "doomslayer"),
+  duel("thor-hulk", "Thor vs Hulk", "thor", "hulk"),
+  duel("spiderman-venom", "Spider-Man vs Venom", "spiderman", "venom"),
+  duel("deadpool-wolverine", "Deadpool vs Wolverine", "deadpool", "wolverine"),
+  duel("kratos-zeus", "Kratos vs Zeus", "kratos", "zeus"),
+  ffa("justice-league", "Justice League free-for-all", ["superman", "batman", "wonderwoman", "flash"]),
+  duel("batman-superman", "Batman vs Superman", "batman", "superman"),
+  team("strawhats-team7", "Straw Hats vs Team 7: Luffy + Zoro vs Naruto + Sasuke", ["luffy", "zoro", "naruto", "sasuke"]),
+  duel("gojo-sukuna", "Gojo vs Sukuna", "gojo", "sukuna"),
+  duel("deku-bakugo", "Deku vs Bakugo", "deku", "bakugo"),
+  duel("eren-levi", "Eren vs Levi", "eren", "levi"),
+  duel("mario-bowser", "Mario vs Bowser", "mario", "bowser"),
+  duel("sonic-shadow", "Sonic vs Shadow", "sonic", "shadow"),
+  duel("cloud-sephiroth", "Cloud Strife vs Sephiroth", "cloud", "sephiroth"),
+  duel("kazuya-akuma", "Kazuya vs Akuma", "kazuya", "akuma"),
+  duel("obiwan-vader", "Obi-Wan Kenobi vs Darth Vader", "obiwan", "vader"),
+  duel("yoda-palpatine", "Yoda vs Palpatine", "yoda", "palpatine"),
+  duel("gandalf-sauron", "Gandalf vs Sauron", "gandalf", "sauron"),
+  team("fellowship-darklords", "Fellowship vs Dark Lords: Gandalf + Aragorn vs Sauron + Voldemort", ["gandalf", "aragorn", "sauron", "voldemort"]),
+  duel("wick-neo", "John Wick vs Neo", "johnwick", "neo"),
+  duel("kong-trex", "King Kong vs T-Rex", "kingkong", "trex"),
+  duel("jonsnow-nightking", "Jon Snow vs Night King", "jonsnow", "nightking"),
+  duel("aang-zuko", "Aang vs Zuko", "aang", "zuko"),
+  ffa("pokemon-ffa", "Pokémon free-for-all", ["pikachu", "charizard", "greninja", "lucario"]),
+  duel("steve-creeper", "Steve vs Creeper", "steve", "creeper"),
+  ffa("sandbox-ffa", "Sandbox free-for-all", ["steve", "jonesy", "noob", "crewmate"]),
+  duel("freddy-jason", "Freddy Krueger vs Jason Voorhees", "freddy", "jason"),
+  ffa("slasher-ffa", "Slasher free-for-all", ["michaelmyers", "ghostface", "chucky", "leatherface"]),
+  duel("buzz-woody", "Buzz Lightyear vs Woody", "buzz", "woody"),
+  team("toys-vs-swamp", "Buzz Lightyear + Woody vs Shrek + Puss in Boots", ["buzz", "woody", "shrek", "pussinboots"]),
+  duel("tom-jerry", "Tom vs Jerry", "tom", "jerry"),
+  ffa("cartoons-ffa", "Cartoons free-for-all", ["homer", "spongebob", "rick", "bugsbunny"]),
 ];
+
+/* ------------------------------------------------------------------ --- fl-overhaul --- the roster's fingerprint and table */
+
+/** FNV-1a (32 bit) of a string, as 8 hex digits (the tuner's scripts/fl-balance.mjs computes the same). */
+export function flHash(text: string): string {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619) >>> 0;
+  return h.toString(16).padStart(8, "0");
+}
+
+/** The fingerprint of a division's fighting data (stats, weapons, abilities, intents – not the names or looks): the ratings' staleness check. */
+export function flDivisionHash(division: FlDivision): string {
+  return flHash(JSON.stringify(fightersOf(division).map((r) => [r.id, r.stats, r.weapons, r.ability, r.intent ?? null])));
+}
+
+/** The fingerprint of the whole roster's fighting data: the hash of the division hashes joined in `FL_DIVISIONS` order. */
+export function flRosterHash(): string {
+  return flHash(FL_DIVISIONS.map(flDivisionHash).join(","));
+}
+
+/**
+ * A Markdown table of the roster (the README's, between its `<!-- fl-roster -->` markers): division, fighter, source, weapon,
+ * the stats (HP % · speed · attack speed · damage · cast speed · size), the ability with its primitives, the role and whether it
+ * is new.
+ */
+export function rosterTableMarkdown(): string {
+  const lines = ["| Division | Fighter | Source | Weapon | HP · speed · attack · damage · cast · size | Ability (primitives) | Role | New |", "| --- | --- | --- | --- | --- | --- | --- | --- |"];
+  for (const r of FL_ROSTER) {
+    const s = r.stats;
+    const stats = [s.hp, s.speed, s.attackSpeed, s.damage, s.castSpeed, s.size].join(" · ");
+    const prims = r.ability.effects.map((e) => e.p.replace(/[A-Z]/g, (c) => ` ${c.toLowerCase()}`)).join(" + ");
+    lines.push(`| ${FL_DIVISION_LABELS[r.division]} | ${r.name} | ${r.source} | ${weaponLabel(r)} | ${stats} | ${r.ability.name} (${prims}${r.ability.ultimate ? ", ultimate" : ""}) | ${r.role} | ${r.isNew ? "new" : ""} |`);
+  }
+  return lines.join("\n");
+}

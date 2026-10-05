@@ -15,6 +15,12 @@ import {
   type FlShape,
   type FlWeaponKind,
   type FlWeaponSpec,
+  // --- fl-overhaul --- (Stage 2: conferences and random tokens)
+  fightersOf,
+  fightersOfConference,
+  isFlConference,
+  isFlDivision,
+  type FlConference,
 } from "./fightLeagueRoster";
 
 /**
@@ -103,9 +109,37 @@ export function isFlMatch(value: unknown): value is FlMatch {
 export function isFlArena(value: unknown): value is FlArena {
   return typeof value === "string" && (FL_ARENAS as readonly string[]).includes(value);
 }
-/** A fighter slot's value: a roster id or "random". */
+/** A fighter slot's value: a roster id, "random" or (--- fl-overhaul ---) a random token ("random:<division>", "random:<conference>"). */
 export function isFlSlotValue(value: unknown): value is string {
-  return value === FL_RANDOM || isFlFighterId(value);
+  return value === FL_RANDOM || isFlFighterId(value) || parseFlRandom(value) !== null;
+}
+
+/* --- fl-overhaul --- (Stage 2) random tokens: a random slot may stay in a division or a conference */
+
+/** The prefix of a scoped random slot: `random:<division>` or `random:<conference>` (division and conference ids never collide). */
+export const FL_RANDOM_PREFIX = "random:";
+
+/** Where a random slot draws from: anyone (today's rule), one division, or one conference's divisions. */
+export type FlRandomScope = { kind: "any" } | { kind: "division"; id: FlDivision } | { kind: "conference"; id: FlConference };
+
+/** The scope of a random slot value (null: not a random value). Wildcard is no scope of its own (Gerald is chosen, not drawn). */
+export function parseFlRandom(value: unknown): FlRandomScope | null {
+  if (value === FL_RANDOM) return { kind: "any" };
+  if (typeof value !== "string" || !value.startsWith(FL_RANDOM_PREFIX)) return null;
+  const id = value.slice(FL_RANDOM_PREFIX.length);
+  if (isFlDivision(id) && id !== "wildcard") return { kind: "division", id };
+  if (isFlConference(id)) return { kind: "conference", id };
+  return null;
+}
+
+/** The slot value of a random scope: "random" (null), "random:<division>" or "random:<conference>". */
+export function flRandomToken(scope: FlDivision | FlConference | null): string {
+  return scope ? `${FL_RANDOM_PREFIX}${scope}` : FL_RANDOM;
+}
+
+/** Whether a slot value is drawn by the seed (plain "random" or a token). */
+export function isFlRandom(value: unknown): boolean {
+  return parseFlRandom(value) !== null;
 }
 
 /** Fighters in play for a match type. */
@@ -122,7 +156,7 @@ export function slotTeam(match: FlMatch, slot: number): number {
 }
 
 export interface FightLeagueSettings {
-  /** Slots A–D: a roster id or "random" (picked by the seed). */
+  /** Slots A–D: a roster id or "random" (picked by the seed; --- fl-overhaul --- "random:<division>" / "random:<conference>" stay in one). */
   fighters: readonly string[];
   match: FlMatch;
   /** A "random" slot picks from the division of the first fighter chosen (an in-genre matchup); off: anyone. */
@@ -529,12 +563,35 @@ export const FL_EVADE_BOOST = 0.15;
 export const FL_WIN_HOLD_SEC = 3;
 /** Most fight sounds one rendered frame plays (the strongest win; KOs and abilities always sound). */
 export const FL_SOUNDS_PER_FRAME = 6;
-/** Pools: projectiles, minions (decoys and summons), render events, scheduled effects, beams. */
+/** Pools: projectiles, minions (decoys, summons and – --- fl-overhaul --- – traps), render events, scheduled effects, beams. */
 export const FL_PROJECTILE_CAP = 96;
-export const FL_MINION_CAP = 16;
+export const FL_MINION_CAP = 24;
 export const FL_EVENT_CAP = 192;
 const FL_TASK_CAP = 24;
 const FL_BEAM_CAP = 8;
+/** --- fl-overhaul --- (Stage 2) The barriers of the wall primitive at most in play at once (the view's `walls`). */
+export const FL_WALL_CAP = 8;
+/** --- fl-overhaul --- A whip's crack: out in FL_WHIP_OUT s, back in FL_WHIP_BACK s; its tip lands at full extension (≥ FL_WHIP_TIP_EXT). */
+export const FL_WHIP_OUT = 0.12;
+export const FL_WHIP_BACK = 0.18;
+export const FL_WHIP_SEC = FL_WHIP_OUT + FL_WHIP_BACK;
+export const FL_WHIP_TIP_EXT = 0.9;
+/** --- fl-overhaul --- A lasso's snag drags the foe in this long (ms) at this many cruise units. */
+export const FL_LASSO_PULL_MS = 500;
+export const FL_LASSO_PULL_SPEED = 1.8;
+/** --- fl-overhaul --- A bomb's arc peaks this many of its thrower's radii high (visual; no hit while it flies); a fuse lies this long (ms). */
+export const FL_BOMB_LIFT = 1.5;
+export const FL_FUSE_MS = 500;
+/** --- fl-overhaul --- A bomb lands at least this many of its thrower's radii inside the arena. */
+export const FL_BOMB_MARGIN = 1.4;
+/** --- fl-overhaul --- Traps: armed after FL_TRAP_ARM_MS, dropped FL_TRAP_GAP radii apart, at most FL_TRAPS_PER_OWNER an owner (the oldest pops), FL_TRAP_R of its radius big. */
+export const FL_TRAP_ARM_MS = 500;
+export const FL_TRAP_GAP = 1.5;
+export const FL_TRAPS_PER_OWNER = 4;
+export const FL_TRAP_R = 0.35;
+/** --- fl-overhaul --- A wall: 2 R in front of its owner, 4 R long when the effect leaves its length out. */
+export const FL_WALL_AHEAD = 2;
+export const FL_WALL_LENGTH = 4;
 
 /** A fighter's weapon kinds as a sound family. */
 export type FlSoundKind = FightSoundKind;
@@ -558,6 +615,9 @@ export const FL_SOUND_OF_KIND: Readonly<Record<FlWeaponKind, FlSoundKind>> = {
   spark: "magic",
   web: "magic",
   ice: "magic",
+  // --- fl-overhaul --- (Stage 2) a whip's crack and a bomb's burst: a sharp noise crack over a thump
+  whip: "gun",
+  bomb: "gun",
 };
 
 /**
@@ -693,7 +753,29 @@ export const FL_KIND_CONTRACT: Readonly<Record<FlWeaponKind, FlKindContract>> = 
   ice: { band: SHOOTER_BAND, trigger: "the cooldown over with a target", cadence: "cooldown ÷ attack speed", geometry: "a projectile that freezes (a hard crowd control)", window: "light", silhouette: "an ice shard", animation: "the shard", sound: FL_SOUND_OF_KIND.ice },
   shield: { band: SHOOTER_BAND, trigger: "a throw every throwEvery (block: never thrown)", cadence: "throwEvery ÷ attack speed; a block spends the guard for 1.8 s (bracers 2.4 s)", geometry: "blocks hits within 40° of the target's bearing; the thrown shield a circle (out, a wall, back)", window: "heavy", silhouette: "a round shield (bracers)", animation: "the throw; the block flash", sound: FL_SOUND_OF_KIND.shield },
   tail: { band: CLOSE_BAND, trigger: "the target within reach + 0.3 R in any direction and the cooldown over", cadence: "cooldown ÷ attack speed after each 0.32 s swing", geometry: "a thick segment swinging from its rest behind the ball to the target and back; one hit a foe a swing", window: "heavy", silhouette: "a tail (plates or a blade tip)", animation: "the swing", sound: FL_SOUND_OF_KIND.tail },
+  // --- fl-overhaul --- (Stage 2)
+  whip: { band: { lo: band(0.55), hi: band(0.95) }, trigger: "the target within reach and the cooldown over (lasso: the crack snags the foe and drags it in 0.5 s, a hard crowd control)", cadence: "cooldown ÷ attack speed", geometry: "a lash cracking out 0.12 s and back 0.18 s along the target's bearing: the tip (size R, from 90 % extension) deals full damage, the outer 40 % of the lash (0.1 R thick) half; one hit a crack", window: "light", silhouette: "a tapered lash (lasso: a loop)", animation: "the crack's extension", sound: FL_SOUND_OF_KIND.whip },
+  bomb: { band: { lo: band(0, 0, 3), hi: band(0, 0, 6.5) }, trigger: "the cooldown over with a target", cadence: "cooldown ÷ attack speed", geometry: "a lob of 0.6–0.9 s at the target's predicted spot (1.4 R inside the arena; no hit in the air, over walls); at the landing (fuse: 0.5 s later) a splash of `effect` R + the foe's radius: damage × (1 − 0.4 × the edge share), knockback from the centre", window: "heavy", silhouette: "a flask, a grenade or a stick of dynamite", animation: "the arc over its shadow; the burst", sound: FL_SOUND_OF_KIND.bomb },
 };
+
+/** --- fl-overhaul --- A whip crack's extension at `t` seconds into it: out to 1 in FL_WHIP_OUT, back to 0 in FL_WHIP_BACK. */
+export function whipExtension(t: number): number {
+  if (t < 0) return 0;
+  if (t < FL_WHIP_OUT) return t / FL_WHIP_OUT;
+  if (t < FL_WHIP_SEC) return 1 - (t - FL_WHIP_OUT) / FL_WHIP_BACK;
+  return 0;
+}
+
+/**
+ * --- fl-overhaul --- A bomb's height over its ground point at `now` (px; the renderer lifts it): 4 H u (1 − u) with u its flight's
+ * share (from `flyFrom` to `flyUntil`) and H its lift – 0 before it leaves and once it lands.
+ */
+export function flBombHeight(p: { flyFrom: number; flyUntil: number; lift: number }, now: number): number {
+  const span = p.flyUntil - p.flyFrom;
+  if (!(span > 0)) return 0;
+  const u = Math.max(0, Math.min(1, (now - p.flyFrom) / span));
+  return 4 * p.lift * u * (1 - u);
+}
 
 /** The band (gap in radii) a fighter keeps from its target with this weapon as its first: [lo, hi] (lo −Infinity: no minimum). */
 export function intentBand(spec: Pick<FlWeaponSpec, "kind"> & { reach: number; size: number }): { lo: number; hi: number } {
@@ -795,6 +877,107 @@ export function rayToEdge(field: Pick<FlField, "kind" | "cx" | "cy" | "half">, o
   return Number.isFinite(t) ? Math.max(0, t) : 0;
 }
 
+/** --- fl-overhaul --- Squared distance between the segments (ax, ay)–(bx, by) and (cx, cy)–(dx, dy) (0 when they cross). */
+export function segmentSegmentDistanceSq(ax: number, ay: number, bx: number, by: number, cx: number, cy: number, dx: number, dy: number): number {
+  const rx = bx - ax;
+  const ry = by - ay;
+  const sx = dx - cx;
+  const sy = dy - cy;
+  const den = rx * sy - ry * sx;
+  if (Math.abs(den) > 1e-12) {
+    const t = ((cx - ax) * sy - (cy - ay) * sx) / den;
+    const u = ((cx - ax) * ry - (cy - ay) * rx) / den;
+    if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return 0;
+  }
+  return Math.min(segmentDistanceSq(ax, ay, bx, by, cx, cy), segmentDistanceSq(ax, ay, bx, by, dx, dy), segmentDistanceSq(cx, cy, dx, dy, ax, ay), segmentDistanceSq(cx, cy, dx, dy, bx, by));
+}
+
+/** --- fl-overhaul --- A barrier of the wall primitive as the geometry sees it: its ends, its side and whether it is up. */
+export interface FlWallSegment {
+  active: boolean;
+  team: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/**
+ * --- fl-overhaul --- Length of the ray from (ox, oy) along the unit direction (dx, dy) to the arena's edge or to the nearest wall
+ * of a side other than `team` it meets first (a beam stops at an enemy wall; `walls` left out: `rayToEdge()`).
+ */
+export function rayToEdgeOrWall(field: Pick<FlField, "kind" | "cx" | "cy" | "half">, ox: number, oy: number, dx: number, dy: number, walls?: readonly FlWallSegment[], team = -1): number {
+  let len = rayToEdge(field, ox, oy, dx, dy);
+  if (!walls) return len;
+  for (const w of walls) {
+    if (!w.active || w.team === team) continue;
+    const sx = w.x2 - w.x1;
+    const sy = w.y2 - w.y1;
+    const den = dx * sy - dy * sx;
+    if (Math.abs(den) < 1e-12) continue;
+    const t = ((w.x1 - ox) * sy - (w.y1 - oy) * sx) / den;
+    const u = ((w.x1 - ox) * dy - (w.y1 - oy) * dx) / den;
+    if (t >= 0 && t < len && u >= 0 && u <= 1) len = t;
+  }
+  return len;
+}
+
+/**
+ * --- fl-overhaul --- (Stage 2) Where a point at (x, y) flying at (vx, vy) is after `t` seconds when it bounces off the arena's
+ * walls (`lim`: how far from the centre its centre may go – the half side minus its radius): a square folds each axis back, a
+ * circle reflects it at the rim (at most four times). Pure: a bomb's aim.
+ */
+export function foldedFlight(field: Pick<FlField, "kind" | "cx" | "cy">, x: number, y: number, vx: number, vy: number, t: number, lim: number, out: { x: number; y: number }): { x: number; y: number } {
+  const L = Math.max(1e-6, lim);
+  if (field.kind !== "circle") {
+    const fold = (p: number) => {
+      const period = 4 * L;
+      let q = (((p + L) % period) + period) % period;
+      if (q > 2 * L) q = period - q;
+      return q - L;
+    };
+    out.x = field.cx + fold(x - field.cx + vx * t);
+    out.y = field.cy + fold(y - field.cy + vy * t);
+    return out;
+  }
+  let px = x - field.cx;
+  let py = y - field.cy;
+  let dx = vx;
+  let dy = vy;
+  let left = Math.max(0, t);
+  for (let k = 0; k < 4 && left > 0; k++) {
+    // The time to the rim along (dx, dy) from inside: |p + s d| = L.
+    const a = dx * dx + dy * dy;
+    if (!(a > 1e-12)) break;
+    const b = px * dx + py * dy;
+    const c = px * px + py * py - L * L;
+    const disc = b * b - a * c;
+    const s = disc > 0 ? (-b + Math.sqrt(disc)) / a : 0;
+    if (s >= left) {
+      px += dx * left;
+      py += dy * left;
+      left = 0;
+      break;
+    }
+    px += dx * s;
+    py += dy * s;
+    left -= s;
+    const d = Math.hypot(px, py) || 1;
+    const nx = px / d;
+    const ny = py / d;
+    const vn = dx * nx + dy * ny;
+    dx -= 2 * vn * nx;
+    dy -= 2 * vn * ny;
+  }
+  if (left > 0) {
+    px += dx * left;
+    py += dy * left;
+  }
+  out.x = field.cx + px;
+  out.y = field.cy + py;
+  return out;
+}
+
 /** The difference of two angles in (−π, π]. */
 export function angleDiff(a: number, b: number): number {
   let d = a - b;
@@ -877,12 +1060,26 @@ export const FL_PUNCH_SEC = 0.07 + 0.03 + 0.11;
 
 /* ------------------------------------------------------------------ fighters picked for a run */
 
+/** --- fl-overhaul --- The divisions a random slot may draw from (every one but Wildcard: Gerald is chosen, never drawn). */
+const DRAW_DIVISIONS: readonly FlDivision[] = FL_DIVISIONS.filter((d) => d !== "wildcard");
+const NON_WILDCARD: readonly FlFighterRow[] = FL_ROSTER.filter((r) => r.division !== "wildcard");
+
+/** --- fl-overhaul --- The pick of `u` (one draw in [0, 1)) from `pool`'s fighters not yet in the match (all of `pool` when none is left). */
+function drawFresh(pool: readonly FlFighterRow[], taken: readonly (FlFighterRow | null)[], u: number): FlFighterRow {
+  const fresh = pool.filter((r) => !taken.some((o) => o && o.id === r.id));
+  const from = fresh.length > 0 ? fresh : pool;
+  return from[Math.min(from.length - 1, Math.floor(u * from.length))] ?? FL_ROSTER[0];
+}
+
 /**
- * The fighters of a run: slot by slot the chosen id, or – for "random" – a pick by the seed (`random()`, one draw per random
- * slot, in slot order): from the division of the first chosen fighter with `sameDivision` (the first random pick's when none
- * is chosen), else from the whole roster, avoiding fighters already in the match while the pool allows. --- fl-overhaul ---
- * A division that cannot supply a fighter not yet in the match – the wildcard, Gerald's own, above all – hands the pick to
- * every other division (Gerald against a random slot once always met Gerald).
+ * The fighters of a run: slot by slot the chosen id, or – for a random slot – a pick by the seed (`random()`: exactly one draw
+ * per random slot, in slot order, so old links keep their draw count), avoiding fighters already in the match while the pool
+ * allows. --- fl-overhaul --- (Stage 2) A scoped slot draws from its division (`random:<division>`) or its conference
+ * (`random:<conference>`). A plain "random" slot follows today's rule: with `sameDivision` off, anyone; on, the division of the
+ * first chosen fighter (the first pick's when none is chosen) – and when that division cannot supply a fighter not yet in the
+ * match, every other division but Wildcard; with Gerald chosen (the anchor Wildcard) every division but Wildcard (a random slot
+ * next to Gerald never draws Gerald); a fully random match first draws a division uniformly (Wildcard left out), then a fighter
+ * in it – both from the slot's one draw (its integer and fractional parts).
  */
 export function pickFighters(settings: Pick<FightLeagueSettings, "fighters" | "match" | "sameDivision">, random: () => number): FlFighterRow[] {
   const n = matchFighters(settings.match);
@@ -890,21 +1087,27 @@ export function pickFighters(settings: Pick<FightLeagueSettings, "fighters" | "m
   let division: FlDivision | null = null;
   for (let i = 0; i < n; i++) {
     const id = settings.fighters[i];
-    const row = id && id !== FL_RANDOM ? (FL_BY_ID.get(id) ?? null) : null;
+    const row = id && !isFlRandom(id) ? (FL_BY_ID.get(id) ?? null) : null;
     out.push(row);
     if (row && !division) division = row.division;
   }
   for (let i = 0; i < n; i++) {
     if (out[i]) continue;
-    let pool = settings.sameDivision && division ? FL_ROSTER.filter((r) => r.division === division) : FL_ROSTER.filter((r) => r.division !== "wildcard" || !settings.sameDivision);
-    const fresh = pool.filter((r) => !out.some((o) => o && o.id === r.id));
-    if (fresh.length > 0) pool = fresh;
-    else if (settings.sameDivision) {
-      // --- fl-overhaul --- (the anchor's division is used up: any fighter of another division not yet in the match)
-      const others = FL_ROSTER.filter((r) => r.division !== "wildcard" && !out.some((o) => o && o.id === r.id));
-      if (others.length > 0) pool = others;
+    const scope = parseFlRandom(settings.fighters[i]) ?? { kind: "any" as const };
+    const u = random();
+    let pick: FlFighterRow;
+    if (scope.kind === "division") pick = drawFresh(fightersOf(scope.id), out, u);
+    else if (scope.kind === "conference") pick = drawFresh(fightersOfConference(scope.id), out, u);
+    else if (!settings.sameDivision) pick = drawFresh(FL_ROSTER, out, u);
+    else if (division && division !== "wildcard") {
+      const pool = fightersOf(division);
+      pick = pool.some((r) => !out.some((o) => o && o.id === r.id)) ? drawFresh(pool, out, u) : drawFresh(NON_WILDCARD, out, u);
+    } else if (division === "wildcard") pick = drawFresh(NON_WILDCARD, out, u);
+    else {
+      const x = Math.min(DRAW_DIVISIONS.length - 1e-9, Math.max(0, u * DRAW_DIVISIONS.length));
+      const d = DRAW_DIVISIONS[Math.floor(x)];
+      pick = drawFresh(fightersOf(d), out, x - Math.floor(x));
     }
-    const pick = pool[Math.min(pool.length - 1, Math.floor(random() * pool.length))] ?? FL_ROSTER[0];
     out[i] = pick;
     if (!division) division = pick.division;
   }
@@ -1143,6 +1346,16 @@ export class FlFighter {
   grazes = 0;
   clashes = 0;
   dodges = 0;
+  // (Stage 2)
+  /** The ball's radius without a transform (px), the transform's size factor and its end (ms). */
+  baseR = 10;
+  sizeMul = 1;
+  transformUntil = -Infinity;
+  /** Drain: until (ms), and the share of the damage it deals that heals it back. */
+  drainUntil = -Infinity;
+  drainFrac = 0;
+  /** The reflection deflects enemy projectiles back at their shooter (Soresu) while it lasts. */
+  deflect = false;
   // --- end fl-overhaul ---
 
   constructor(slot: number, team: number, row: FlFighterRow) {
@@ -1160,6 +1373,8 @@ export const PK_SPEAR = 2;
 export const PK_SHIELD = 3;
 export const PK_CARD = 4;
 export const PK_ABILITY = 5;
+/** --- fl-overhaul --- (Stage 2) A lobbed bomb: flies over everything to its landing spot, bursts there (after its fuse). */
+export const PK_BOMB = 6;
 
 export class FlProjectile {
   active = false;
@@ -1216,6 +1431,22 @@ export class FlProjectile {
   /** It homes until (ms), then flies straight; it fizzles at (ms; Infinity: never). */
   homeUntil = Infinity;
   fizzleAt = Infinity;
+  // (Stage 2)
+  /** A volley that pierces: it flies on through every foe it hits (each once). */
+  pierce = false;
+  /** A bomb: where it left and where it lands (px), its flight (ms done, ms long), the flight's span on the clock (the renderer's arc), its lift and splash (px), its fuse (ms; 0 none) and the fuse's end (ms; −1 not lit). */
+  x0 = 0;
+  y0 = 0;
+  x1 = 0;
+  y1 = 0;
+  flyT = 0;
+  flyDur = 0;
+  flyFrom = 0;
+  flyUntil = 0;
+  lift = 0;
+  splash = 0;
+  fuseMs = 0;
+  fuseUntil = -1;
   // --- end fl-overhaul ---
 }
 
@@ -1236,6 +1467,27 @@ export class FlMinion {
   damage = 0;
   freezeOnTouch = 0;
   shape: FlShape = "clone";
+  color = "#fff";
+  // --- fl-overhaul --- (Stage 2)
+  /** A trap: lies still, armed from `armedAt` (ms); the first foe to touch it takes its damage and is held `hold` seconds. */
+  trap = false;
+  armedAt = 0;
+  hold = 0;
+}
+
+/** --- fl-overhaul --- (Stage 2) A barrier of the wall primitive: a segment that stops enemy projectiles and beams (`solid`: foes bounce off it too). */
+export class FlWall implements FlWallSegment {
+  active = false;
+  owner = 0;
+  team = 0;
+  x1 = 0;
+  y1 = 0;
+  x2 = 0;
+  y2 = 0;
+  born = 0;
+  until = 0;
+  solid = false;
+  shape: FlShape = "windwall";
   color = "#fff";
 }
 
@@ -1312,6 +1564,10 @@ export const EV_SUDDEN = 18;
 export const EV_SLAM = 19;
 /** A wall bounce (`value`: the wall's index). */
 export const EV_RIM = 20;
+/** --- fl-overhaul --- (Stage 2) A transform starts (`value` 1) or ends (0). */
+export const EV_TRANSFORM = 21;
+/** --- fl-overhaul --- (Stage 2) A trap snapped shut on a foe (at the trap; `slot`: the trap's owner). */
+export const EV_TRAP = 22;
 
 export class FlEvent {
   kind = 0;
@@ -1402,6 +1658,8 @@ export interface FightLeagueView {
   shrink: number;
   /** The last KO (ms, −Infinity none; the renderer's flash). */
   lastKoMs: number;
+  /** (Stage 2) The barriers of the wall primitive (a pool of FL_WALL_CAP). */
+  walls: FlWall[];
   // --- end fl-overhaul ---
 }
 
@@ -1449,6 +1707,7 @@ function createView(): FightLeagueView {
     suddenMs: -1,
     shrink: 1,
     lastKoMs: -Infinity,
+    walls: Array.from({ length: FL_WALL_CAP }, () => new FlWall()),
   };
 }
 
@@ -1527,7 +1786,7 @@ const HIT_IMMUNE = 4;
 /** --- fl-overhaul --- A fighter is as big as typed while it fits: at most this share of the arena's half side (a Ball Size of 180 once filled the canvas and ended the run at once). */
 export const FL_FIT_RADIUS = 0.42;
 /** --- fl-overhaul --- Melee kinds that lunge when ready (orbiting hammers and chains never do). */
-const LUNGE_KINDS: ReadonlySet<FlWeaponKind> = new Set(["sword", "fists", "claws", "tail"]);
+const LUNGE_KINDS: ReadonlySet<FlWeaponKind> = new Set(["sword", "fists", "claws", "tail", "whip"]);
 /** --- fl-overhaul --- Abilities whose effects all need a fighter (not a decoy) to act on. */
 const FIGHTER_ONLY: ReadonlySet<string> = new Set(["choke", "disarm", "pull"]);
 
@@ -1634,9 +1893,13 @@ export class FightLeagueMode implements GameMode {
       p.weapon = -1;
       p.volley = 0;
     }
-    for (const m of v.minions) m.active = false;
+    for (const m of v.minions) {
+      m.active = false;
+      m.trap = false;
+    }
     for (const b of v.beams) b.active = false;
     for (const t of v.tasks) t.active = false;
+    for (const w of v.walls) w.active = false; // --- fl-overhaul ---
     for (const e of v.events) {
       e.t = -Infinity;
       e.src = -1;
@@ -1677,6 +1940,7 @@ export class FightLeagueMode implements GameMode {
       f.cast = row.stats.castSpeed * s.cast[i];
       // --- fl-overhaul --- as big as typed while it fits the arena; its weight; its weapon's intent band
       f.r = Math.min(r0 * row.stats.size, fit);
+      f.baseR = f.r;
       f.weight = knockbackWeight(row.stats.size);
       const lead = f.weapons[0].spec;
       const band = row.intent ?? intentBand(lead);
@@ -1717,7 +1981,8 @@ export class FightLeagueMode implements GameMode {
       const r2 = ctx.random();
       for (const w of f.weapons) {
         w.angle = f.aim;
-        w.cd = 0.15 + 0.4 * w.index + r * 0.6 * w.spec.cooldown;
+        // (--- fl-overhaul --- Stage 2: a bomb's flight and fuse already delay its first burst, so its first lob comes sooner)
+        w.cd = 0.15 + 0.4 * w.index + r * (w.spec.kind === "bomb" ? 0.25 : 0.6) * w.spec.cooldown;
         w.throwCd = w.spec.throwEvery > 0 ? 0.3 * w.spec.throwEvery + r * 0.4 * w.spec.throwEvery : 0;
         w.phase = r * TWO_PI;
         w.loaded = w.spec.kind === "cards" ? w.spec.count : 0;
@@ -1786,7 +2051,7 @@ export class FightLeagueMode implements GameMode {
     }
     for (let i = 0; i < v.minions.length; i++) {
       const m = v.minions[i];
-      if (!m.active || m.summon || m.team === f.team) continue;
+      if (!m.active || m.summon || m.trap || m.team === f.team) continue; // (--- fl-overhaul --- a trap is never a target)
       const d = (m.x - f.x) ** 2 + (m.y - f.y) ** 2;
       if (d < best) {
         best = d;
@@ -1876,6 +2141,16 @@ export class FightLeagueMode implements GameMode {
     return null;
   }
 
+  /** --- fl-overhaul --- A free barrier of the wall pool (the oldest one when every one is up). */
+  private freeWall(): FlWall {
+    let oldest: FlWall | null = null;
+    for (const w of this.view.walls) {
+      if (!w.active) return w;
+      if (!oldest || w.born < oldest.born) oldest = w;
+    }
+    return oldest!;
+  }
+
   /** --- fl-overhaul --- The fighters in this step's processing order: slot order on even steps, reversed on odd ones (no slot strikes first every time). */
   private processingOrder(): FlFighter[] {
     const out = this.order;
@@ -1959,6 +2234,7 @@ export class FightLeagueMode implements GameMode {
       f.x = ball.x;
       f.y = ball.y;
       if (!live) continue;
+      if (f.sizeMul !== 1 && now >= f.transformUntil) this.endTransform(f, now); // --- fl-overhaul --- (Stage 2)
       this.pickTarget(f, now);
       if (now < f.healUntil && f.healRate > 0) f.hp = Math.min(f.maxHp, f.hp + f.healRate * dt);
       if (f.heldBy >= 0) this.stepHold(ctx, f, now);
@@ -1970,6 +2246,30 @@ export class FightLeagueMode implements GameMode {
       if (f.alive && ball) this.steer(f, ball, now, started, dt);
     }
     this.stepTasks(ctx, now);
+    // --- fl-overhaul --- (Stage 2) a wall stands its time, or until its owner falls
+    for (const w of v.walls) if (w.active && (now >= w.until || !v.fighters[w.owner]?.alive)) w.active = false;
+  }
+
+  /** --- fl-overhaul --- (Stage 2) The fighter's ball at its base size × its transform's, at most FL_FIT_RADIUS of the arena's half side. */
+  private applySize(f: FlFighter) {
+    const field = this.view.field;
+    if (!field) return;
+    const r = Math.min(f.baseR * f.sizeMul, FL_FIT_RADIUS * field.fullHalf);
+    f.r = r;
+    const ball = this.byIndex[f.slot];
+    if (ball) {
+      ball.radius = r;
+      ball.radiusScale = r / Math.max(1e-6, this.ballRadius);
+    }
+  }
+
+  /** --- fl-overhaul --- (Stage 2) A transform ends: the base size and weight back (its bursts end on their own clocks), EV_TRANSFORM 0. */
+  private endTransform(f: FlFighter, now: number) {
+    f.sizeMul = 1;
+    f.transformUntil = -Infinity;
+    f.weight = knockbackWeight(f.row.stats.size);
+    this.applySize(f);
+    this.pushEvent(EV_TRANSFORM, now, f.x, f.y, 0, f.slot, f.row.accent);
   }
 
   /** --- fl-overhaul --- Sudden death: the arena shrinks linearly to FL_SUDDEN_MIN of its side over FL_SUDDEN_SHRINK_MS (the walls push the fighters in). */
@@ -2087,6 +2387,8 @@ export class FightLeagueMode implements GameMode {
         return w.cd <= 0 && w.punchT < 0;
       case "tail":
         return w.cd <= 0 && w.swingT < 0;
+      case "whip": // --- fl-overhaul --- (Stage 2)
+        return w.cd <= 0 && w.punchT < 0;
       default:
         return false;
     }
@@ -2300,6 +2602,7 @@ export class FightLeagueMode implements GameMode {
       if (e.p === "shockwave" && !(e.delay && e.delay > 0)) area = Math.max(area, e.radius * f.r);
       else if (e.p === "fireRing") area = Math.max(area, e.radius * f.r);
       else if (e.p === "arenaCuts") area = Math.max(area, 3 * f.r);
+      else if (e.p === "trap") area = Math.max(area, (FL_TRAP_GAP * Math.max(1, e.n - 1) + FL_TRAP_R) * f.r); // --- fl-overhaul --- (a trap drop)
     }
     return area;
   }
@@ -2395,10 +2698,19 @@ export class FightLeagueMode implements GameMode {
     }
     const pre = Math.hypot(ball.vx, ball.vy);
     const wall = this.wallPass(ctx, ball);
+    // --- fl-overhaul --- (Stage 2) a solid enemy wall stops a fighter like the arena's own: a bounce (sweeps, the nudge)
+    const barrier = this.barrierPass(ctx, f, ball);
     f.x = ball.x;
     f.y = ball.y;
     f.vx = ball.vx;
     f.vy = ball.vy;
+    if (barrier) {
+      ctx.noteBounce?.(ball);
+      for (const w of f.weapons) if (w.spec.kind === "sword") this.startSweep(f, w, now);
+      if (!v.finished) this.nudge(f, ball, now, this.barrierN.x, this.barrierN.y);
+      f.vx = ball.vx;
+      f.vy = ball.vy;
+    }
     if (wall < 0) return;
     ctx.noteBounce?.(ball); // --- bounce-math --- a wall hit is a bounce
     v.wallHits++;
@@ -2501,6 +2813,57 @@ export class FightLeagueMode implements GameMode {
     return wall;
   }
 
+  /** --- fl-overhaul --- (Stage 2) The normal of the last barrier a fighter bounced off (toward the fighter); a bomb's predicted landing (scratch). */
+  private readonly barrierN = { x: 0, y: 0 };
+  private readonly tgtB = { x: 0, y: 0 };
+
+  /**
+   * --- fl-overhaul --- (Stage 2) Solid enemy walls push a fighter's ball out of them and reflect its flight (× the wall-bounciness
+   * extra) like the arena's walls; its own side's walls let it through. True when it bounced off one (`barrierN` its normal).
+   */
+  private barrierPass(ctx: ModeContext, f: FlFighter, ball: Ball): boolean {
+    let bounced = false;
+    for (const w of this.view.walls) {
+      if (!w.active || !w.solid || w.team === f.team) continue;
+      const sx = w.x2 - w.x1;
+      const sy = w.y2 - w.y1;
+      const len2 = sx * sx + sy * sy;
+      let t = len2 > 0 ? ((ball.x - w.x1) * sx + (ball.y - w.y1) * sy) / len2 : 0;
+      t = Math.max(0, Math.min(1, t));
+      const qx = w.x1 + t * sx;
+      const qy = w.y1 + t * sy;
+      let nx = ball.x - qx;
+      let ny = ball.y - qy;
+      const d = Math.hypot(nx, ny);
+      if (d >= ball.radius) continue;
+      if (d > 1e-6) {
+        nx /= d;
+        ny /= d;
+      } else {
+        // On the line: back to the side it came from.
+        const l = Math.sqrt(len2) || 1;
+        nx = -sy / l;
+        ny = sx / l;
+        if (ball.vx * nx + ball.vy * ny > 0) {
+          nx = -nx;
+          ny = -ny;
+        }
+      }
+      ball.x = qx + nx * ball.radius;
+      ball.y = qy + ny * ball.radius;
+      const vn = ball.vx * nx + ball.vy * ny;
+      if (vn < 0) {
+        const e = ctx.getPhysicsExtras().wallBounciness;
+        ball.vx -= (1 + e) * vn * nx;
+        ball.vy -= (1 + e) * vn * ny;
+        this.barrierN.x = nx;
+        this.barrierN.y = ny;
+        bounced = true;
+      }
+    }
+    return bounced;
+  }
+
   /** --- fl-overhaul --- Puts a fighter's ball back inside the arena (no bounce): after a teleport (a pin, a blink). */
   private clampInsideArena(f: FlFighter, ball: Ball) {
     const field = this.view.field!;
@@ -2526,7 +2889,7 @@ export class FightLeagueMode implements GameMode {
    * --- fl-overhaul --- In the circle it aims beside the foe (1.5 of its radii, on the side the rebound passes) and leaves a
    * rebound that already points within 10° of it alone.
    */
-  private nudge(f: FlFighter, ball: Ball, now: number) {
+  private nudge(f: FlFighter, ball: Ball, now: number, wallNx = 0, wallNy = 0) {
     if (f.targetSlot < 0 && f.targetMinion < 0) return;
     const t = this.tgtN;
     if (!this.targetOf(f, t)) return;
@@ -2537,7 +2900,11 @@ export class FightLeagueMode implements GameMode {
     let ny = 0;
     let tx = t.x - ball.x;
     let ty = t.y - ball.y;
-    if (field.kind === "circle") {
+    if (wallNx !== 0 || wallNy !== 0) {
+      // --- fl-overhaul --- (Stage 2) off a barrier: its own normal
+      nx = wallNx;
+      ny = wallNy;
+    } else if (field.kind === "circle") {
       const d = Math.hypot(ball.x - field.cx, ball.y - field.cy) || 1;
       nx = (field.cx - ball.x) / d;
       ny = (field.cy - ball.y) / d;
@@ -2768,6 +3135,19 @@ export class FightLeagueMode implements GameMode {
         case "tail":
           this.stepTail(ctx, f, w, now, dt, atk, hasTarget, t, gap, reach, acting, armed, velAngle);
           break;
+        case "whip": // --- fl-overhaul --- (Stage 2)
+          this.stepWhip(ctx, f, w, now, dt, atk, hasTarget, t, gap, reach, armed);
+          break;
+        case "bomb": {
+          // --- fl-overhaul --- (Stage 2) a lob at the target's predicted spot on the weapon's cadence
+          if (hasTarget) w.angle = turnToward(w.angle, f.aim, FL_AIM_TURN * dt);
+          w.cd -= dt * atk;
+          if (w.cd <= 0 && armed && hasTarget) {
+            w.cd = s.cooldown;
+            this.lobBomb(f, w, t, now);
+          }
+          break;
+        }
         case "fists":
         case "claws":
           if (s.style === "contact") this.stepContactFists(ctx, f, w, now, dt, atk, reach, armed);
@@ -2922,6 +3302,68 @@ export class FightLeagueMode implements GameMode {
       w.touchMask = 0;
       w.minionMask = 0;
     }
+  }
+
+  /**
+   * --- fl-overhaul --- (Stage 2) A whip: with the cooldown over and the target within reach it cracks along the target's bearing
+   * (out FL_WHIP_OUT s, back FL_WHIP_BACK s – `whipExtension()`); its tip (`size` R across, at full extension) deals the full
+   * damage, the outer 40 % of the lash half of it – one hit a crack. A lasso's crack snags the foe instead: its damage without
+   * knockback, then a drag to the owner (FL_LASSO_PULL_MS at FL_LASSO_PULL_SPEED, a hard crowd control).
+   */
+  private stepWhip(ctx: ModeContext, f: FlFighter, w: FlWeaponState, now: number, dt: number, atk: number, hasTarget: boolean, t: { x: number; y: number; r: number }, gap: number, reach: number, armed: boolean) {
+    const s = w.spec;
+    w.cd -= dt * atk;
+    if (hasTarget && w.punchT < 0) w.angle = turnToward(w.angle, f.aim, FL_AIM_TURN * dt);
+    if (w.punchT >= 0) {
+      w.punchT += dt * Math.max(1, atk);
+      if (w.punchT >= FL_WHIP_SEC) w.punchT = -1;
+    }
+    if (w.punchT < 0 && w.cd <= 0 && armed && hasTarget && gap <= reach) {
+      w.cd = s.cooldown;
+      w.punchT = 0;
+      w.punchHit = false;
+      w.punchAngle = Math.atan2(t.y - f.y, t.x - f.x) + (now < f.confusedUntil ? Math.PI : 0);
+      w.angle = w.punchAngle;
+    }
+    if (w.punchT < 0 || w.punchHit || !armed) return;
+    const e = whipExtension(w.punchT);
+    const ux = Math.cos(w.punchAngle);
+    const uy = Math.sin(w.punchAngle);
+    const tipD = f.r + e * reach * f.r;
+    const tx = f.x + ux * tipD;
+    const ty = f.y + uy * tipD;
+    const lx = f.x + ux * (f.r + 0.6 * e * reach * f.r);
+    const ly = f.y + uy * (f.r + 0.6 * e * reach * f.r);
+    const tipR = s.size * f.r;
+    const lashHalf = 0.1 * f.r;
+    for (const o of this.view.fighters) {
+      if (!o.alive || o.team === f.team || o.hp <= 0) continue;
+      let factor = 0;
+      if (e >= FL_WHIP_TIP_EXT && circlesTouch(tx, ty, tipR, o.x, o.y, o.r)) factor = 1;
+      else if (segmentHitsCircle(lx, ly, tx, ty, lashHalf, o.x, o.y, o.r)) factor = 0.5;
+      if (factor === 0) continue;
+      w.punchHit = true;
+      const d = Math.hypot(o.x - f.x, o.y - f.y) || 1;
+      if (s.style === "lasso") this.lassoSnag(ctx, f, o, w, factor, tx, ty, now);
+      else this.queueMelee(ctx, f, o, w, s.damage * factor, s.knockback, (o.x - f.x) / d, (o.y - f.y) / d, tx, ty);
+      return;
+    }
+    for (const m of this.view.minions) {
+      if (!m.active || m.team === f.team) continue;
+      if (!(e >= FL_WHIP_TIP_EXT && circlesTouch(tx, ty, tipR, m.x, m.y, m.r)) && !segmentHitsCircle(lx, ly, tx, ty, lashHalf, m.x, m.y, m.r)) continue;
+      w.punchHit = true;
+      this.hitMinion(ctx, f, m, now);
+      return;
+    }
+  }
+
+  /** --- fl-overhaul --- (Stage 2) A lasso snags `o`: the crack's damage (no knockback), then the drag to its owner when the hit landed (a hard crowd control). */
+  private lassoSnag(ctx: ModeContext, f: FlFighter, o: FlFighter, w: FlWeaponState, factor: number, fromX: number, fromY: number, now: number) {
+    const res = this.hit(ctx, f, o, w.spec.damage * factor, 0, 0, 0, FL_SOUND_OF_KIND.whip, { weapon: w.index, fromX, fromY, melee: true });
+    if (res !== HIT_LANDED || !f.alive || !o.alive || !this.applyHardCc(o, now + FL_LASSO_PULL_MS, now)) return;
+    o.pullBy = f.slot;
+    o.pullUntil = now + FL_LASSO_PULL_MS;
+    o.pullSpeed = FL_LASSO_PULL_SPEED * this.unit;
   }
 
   /** A punch (fists) or a swipe (claws) toward a foe in reach: one hit a punch. */
@@ -3376,6 +3818,68 @@ export class FightLeagueMode implements GameMode {
     this.budget.offer(0.2, FL_SOUND_OF_KIND[s.kind], fighterPitch(f.slot), 0.2);
   }
 
+  /**
+   * --- fl-overhaul --- (Stage 2) A bomb lobbed at the target's predicted spot: a flight of T = 0.6 + 0.3 × min(1, distance ÷ 0.6
+   * side) s, landing where the target will be after T (FL_BOMB_MARGIN radii inside the arena; mirrored about the thrower while
+   * confused), its ground point moving straight there, no hit in the air; it bursts on landing (a fuse: FL_FUSE_MS later).
+   */
+  private lobBomb(f: FlFighter, w: FlWeaponState, t: { x: number; y: number; vx: number; vy: number; r: number }, now: number) {
+    const p = this.freeProjectile();
+    if (!p) return;
+    const s = w.spec;
+    const field = this.view.field!;
+    const dist = Math.hypot(t.x - f.x, t.y - f.y);
+    const T = 0.6 + 0.3 * Math.min(1, dist / Math.max(1e-6, 0.6 * field.side));
+    // Where the target will be when it bursts (a fuse lies a moment longer), its flight folded off the arena's walls.
+    const ahead = T + (s.style === "fuse" ? FL_FUSE_MS / 1000 : 0);
+    const lim = Math.max(1, field.half - FL_BOMB_MARGIN * f.r);
+    const landing = foldedFlight(field, t.x, t.y, t.vx, t.vy, ahead, Math.max(1, field.half - t.r), this.tgtB);
+    let lx = landing.x;
+    let ly = landing.y;
+    if (now < f.confusedUntil) {
+      lx = 2 * f.x - lx;
+      ly = 2 * f.y - ly;
+    }
+    if (field.kind === "circle") {
+      const dx = lx - field.cx;
+      const dy = ly - field.cy;
+      const d = Math.hypot(dx, dy);
+      if (d > lim) {
+        lx = field.cx + (dx / d) * lim;
+        ly = field.cy + (dy / d) * lim;
+      }
+    } else {
+      lx = Math.max(field.cx - lim, Math.min(field.cx + lim, lx));
+      ly = Math.max(field.cy - lim, Math.min(field.cy + lim, ly));
+    }
+    this.launch(p, f, PK_BOMB, Math.atan2(ly - f.y, lx - f.x), 0, now);
+    p.weapon = w.index;
+    p.volley = ++this.volleySerial;
+    p.r = Math.max(1.5, s.size * f.r);
+    p.damage = s.damage;
+    p.kb = s.knockback;
+    p.shape = s.shape;
+    p.color = s.color ?? f.row.accent;
+    p.target = f.targetSlot;
+    p.homing = 0;
+    p.x0 = p.x;
+    p.y0 = p.y;
+    p.x1 = lx;
+    p.y1 = ly;
+    p.flyT = 0;
+    p.flyDur = 1000 * T;
+    p.flyFrom = now;
+    p.flyUntil = now + p.flyDur;
+    p.lift = FL_BOMB_LIFT * f.r;
+    p.splash = Math.max(1, s.effect * f.r);
+    p.fuseMs = s.style === "fuse" ? FL_FUSE_MS : 0;
+    p.fuseUntil = -1;
+    p.until = now + 2 * p.flyDur + p.fuseMs + 1000;
+    this.giantShot(f, p);
+    this.view.shots++;
+    this.budget.offer(0.12, FL_SOUND_OF_KIND.bomb, fighterPitch(f.slot) * 0.75, 0.14);
+  }
+
   private projectileSpeed(sidesPerSec: number, field: FlField): number {
     return Math.max(10, sidesPerSec * field.side * (this.unit / Math.max(1e-9, field.side * FL_SPEED_FRAC)));
   }
@@ -3431,6 +3935,14 @@ export class FightLeagueMode implements GameMode {
     p.id = ++this.projSerial;
     p.homeUntil = Infinity;
     p.fizzleAt = Infinity;
+    // (Stage 2)
+    p.pierce = false;
+    p.flyDur = 0;
+    p.flyT = 0;
+    p.fuseMs = 0;
+    p.fuseUntil = -1;
+    p.lift = 0;
+    p.splash = 0;
     if (this.rigChosen >= 0 && f.team === this.rigChosen) p.homing = 2.2 * this.rigK;
   }
 
@@ -3452,6 +3964,11 @@ export class FightLeagueMode implements GameMode {
       const step = dt * ts;
       if (now >= p.until || !owner) {
         this.endProjectile(ctx, p, i, now);
+        continue;
+      }
+      // --- fl-overhaul --- (Stage 2) a bomb flies its arc over everything, then bursts
+      if (p.kind === PK_BOMB) {
+        if (this.stepBomb(ctx, p, now, step)) this.endProjectile(ctx, p, i, now);
         continue;
       }
       // --- fl-overhaul --- a homing shot fizzles out
@@ -3499,6 +4016,12 @@ export class FightLeagueMode implements GameMode {
       p.x += mx;
       p.y += my;
       p.spin += 14 * step;
+      // --- fl-overhaul --- (Stage 2) an enemy wall stops it where its path crosses it
+      if (this.wallStops(p, p.x - mx, p.y - my)) {
+        this.pushEvent(EV_POP, now, p.x, p.y, 0, p.owner, p.color);
+        this.endProjectile(ctx, p, i, now);
+        continue;
+      }
       if (p.ret === 1) {
         p.range -= Math.hypot(mx, my);
         if (p.range <= 0) this.turnBack(p);
@@ -3535,6 +4058,11 @@ export class FightLeagueMode implements GameMode {
         const bit = 1 << o.slot;
         if (p.hitMask & bit) continue;
         if (!circlesTouch(p.x, p.y, p.r, o.x, o.y, o.r)) continue;
+        // --- fl-overhaul --- (Stage 2) a deflecting reflection (Soresu) sends a shot, a card or an ability's projectile back at its shooter
+        if (o.deflect && now < o.reflectUntil && !p.unblockable && (p.kind === PK_SHOT || p.kind === PK_CARD || p.kind === PK_ABILITY)) {
+          this.deflect(p, o, owner, now);
+          break;
+        }
         p.hitMask |= bit;
         const sp = Math.hypot(p.vx, p.vy) || 1;
         const sound = p.kind === PK_HAMMER ? "blunt" : p.kind === PK_SHIELD || p.kind === PK_CARD ? "blade" : p.kind === PK_SPEAR ? "blunt" : p.weapon >= 0 ? FL_SOUND_OF_KIND[owner.weapons[p.weapon]?.spec.kind ?? "gun"] : "magic";
@@ -3589,7 +4117,7 @@ export class FightLeagueMode implements GameMode {
           this.turnBack(p);
           continue;
         }
-        if (p.ret === 2) continue;
+        if (p.ret === 2 || p.pierce) continue; // (--- fl-overhaul --- a piercing volley flies on)
         this.endProjectile(ctx, p, i, now);
         break;
       }
@@ -3598,12 +4126,109 @@ export class FightLeagueMode implements GameMode {
         if (!m.active || m.team === p.team) continue;
         if (!circlesTouch(p.x, p.y, p.r, m.x, m.y, m.r)) continue;
         this.hitMinion(ctx, owner, m, now);
-        if (p.ret === 0 && !p.foes) {
+        if (p.ret === 0 && !p.foes && !p.pierce) {
           this.endProjectile(ctx, p, i, now);
           break;
         }
       }
     }
+  }
+
+  /**
+   * --- fl-overhaul --- (Stage 2) A bomb's step: its ground point on toward the landing spot (× the side's time scale; the
+   * renderer's arc follows `flyFrom`/`flyUntil`), then its fuse, then the burst. True once it burst (the caller ends it).
+   */
+  private stepBomb(ctx: ModeContext, p: FlProjectile, now: number, step: number): boolean {
+    if (p.flyT < p.flyDur) {
+      p.flyT = Math.min(p.flyDur, p.flyT + 1000 * step);
+      const u = p.flyDur > 0 ? p.flyT / p.flyDur : 1;
+      p.x = p.x0 + (p.x1 - p.x0) * u;
+      p.y = p.y0 + (p.y1 - p.y0) * u;
+      p.spin += 9 * step;
+      p.flyFrom = now - p.flyT;
+      p.flyUntil = p.flyFrom + p.flyDur;
+      if (p.flyT < p.flyDur) return false;
+      if (p.fuseMs > 0) {
+        p.fuseUntil = now + p.fuseMs;
+        return false;
+      }
+    }
+    if (p.fuseUntil >= 0 && now < p.fuseUntil) return false;
+    this.burstBomb(ctx, p, now);
+    return true;
+  }
+
+  /**
+   * --- fl-overhaul --- (Stage 2) A bomb bursts: every foe overlapping its splash (+ its own radius) takes its damage × (1 − 0.4 ×
+   * how far out it stands, 0 at the centre and 1 at the edge), knocked away from the centre; enemy minions in it (traps above all)
+   * pop. A foe that got away takes nothing.
+   */
+  private burstBomb(ctx: ModeContext, p: FlProjectile, now: number) {
+    const owner = this.view.fighters[p.owner];
+    if (!owner) return;
+    this.pushEvent(EV_SHOCK, now, p.x, p.y, p.splash, owner.slot, p.color);
+    for (const o of this.view.fighters) {
+      if (!o.alive || o.team === p.team || o.hp <= 0) continue;
+      const d = Math.hypot(o.x - p.x, o.y - p.y);
+      const reach = p.splash + o.r;
+      if (d > reach) continue;
+      const edge = Math.min(1, d / Math.max(1e-6, reach));
+      const nx = d > 1e-6 ? (o.x - p.x) / d : 1;
+      const ny = d > 1e-6 ? (o.y - p.y) / d : 0;
+      this.hit(ctx, owner, o, p.damage * (1 - 0.4 * edge), nx, ny, p.kb, FL_SOUND_OF_KIND.bomb, { weapon: p.weapon, volley: p.volley, fromX: p.x, fromY: p.y, projectile: p });
+    }
+    for (const m of this.view.minions) if (m.active && m.team !== p.team && Math.hypot(m.x - p.x, m.y - p.y) <= p.splash + m.r) this.hitMinion(ctx, owner, m, now);
+    this.budget.offer(p.damage + 3, FL_SOUND_OF_KIND.bomb, 110, 0.7);
+  }
+
+  /** --- fl-overhaul --- (Stage 2) Whether an enemy wall stops projectile `p` on its way from (x0, y0) to where it is (its path within its radius of the wall). */
+  private wallStops(p: FlProjectile, x0: number, y0: number): boolean {
+    for (const w of this.view.walls) {
+      if (!w.active || w.team === p.team) continue;
+      if (segmentSegmentDistanceSq(x0, y0, p.x, p.y, w.x1, w.y1, w.x2, w.y2) <= p.r * p.r) return true;
+    }
+    return false;
+  }
+
+  /**
+   * --- fl-overhaul --- (Stage 2) A deflection (a reflection with `deflect`): the projectile changes sides and flies back at its
+   * shooter with the reflection's share of its damage, homing 2 rad/s (FL_HOMING_SEC, then it fizzles); a giant hit it carried goes
+   * back to the shooter; sparks where it turned (EV_BLOCK).
+   */
+  private deflect(p: FlProjectile, by: FlFighter, shooter: FlFighter, now: number) {
+    if (p.giant > 0 && shooter.alive && !this.view.finished) shooter.giantLeft++;
+    p.giant = 0;
+    p.owner = by.slot;
+    p.team = by.team;
+    p.damage *= by.reflectFrac;
+    p.weapon = -1;
+    p.volley = ++this.volleySerial;
+    p.blink = false;
+    p.pull = false;
+    p.ret = 0;
+    p.foes = 0;
+    p.range = 0;
+    p.bounces = 0;
+    p.hitMask = 0;
+    p.sepMask = 0;
+    const sp = Math.max(1, Math.hypot(p.vx, p.vy));
+    const a = Math.atan2(shooter.y - p.y, shooter.x - p.x);
+    p.vx = Math.cos(a) * sp;
+    p.vy = Math.sin(a) * sp;
+    // (out of the deflector's body first: it must not touch it on its way back)
+    const d = Math.hypot(p.x - by.x, p.y - by.y) || 1;
+    const out = by.r + p.r + 1;
+    if (d < out) {
+      p.x = by.x + ((p.x - by.x) / d) * out;
+      p.y = by.y + ((p.y - by.y) / d) * out;
+    }
+    p.homing = 2;
+    p.target = shooter.slot;
+    this.limitHoming(p, now);
+    by.blocks++;
+    this.view.blocks++;
+    this.pushEvent(EV_BLOCK, now, p.x, p.y, 0, by.slot, "#fef9c3", 0, 0, (by.slot & 7) * 8 + 7);
+    this.budget.offer(0.6, "block", 1567.98, 0.4);
   }
 
   /** --- fl-overhaul --- A projectile refused by a window: EV_GRAZE where it touched (its owner's colour, its source). */
@@ -3839,6 +4464,14 @@ export class FightLeagueMode implements GameMode {
       target.lastVolleyProj = proj ? proj.id : -1;
     }
     const dealt = before - Math.max(0, target.hp);
+    // --- fl-overhaul --- (Stage 2) a drain heals its attacker a share of the damage it dealt (up to its maximum)
+    if (now < attacker.drainUntil && attacker !== target && attacker.alive && attacker.hp > 0) {
+      const heal = Math.min(attacker.maxHp - attacker.hp, attacker.drainFrac * dealt);
+      if (heal > 0) {
+        attacker.hp += heal;
+        this.pushEvent(EV_HEAL, now, attacker.x, attacker.y - attacker.r, heal, attacker.slot, "#4ade80");
+      }
+    }
     target.hitMs = now;
     target.lastHitBy = attacker.slot;
     target.taken++;
@@ -4029,7 +4662,8 @@ export class FightLeagueMode implements GameMode {
           p.volley = volley;
           p.r = Math.max(2, (e.size ?? 0.2) * f.r);
           p.damage = e.damage;
-          p.kb = e.explode ? 0.5 : 0.8;
+          p.kb = e.knockback ?? (e.explode ? 0.5 : 0.8); // (--- fl-overhaul --- a volley's own knockback)
+          p.pierce = !!e.pierce;
           p.shape = e.shape ?? "bolt";
           p.color = e.color ?? f.row.accent;
           p.homing = Math.max(p.homing, e.homing ?? 0);
@@ -4092,6 +4726,7 @@ export class FightLeagueMode implements GameMode {
           const sp = Math.max(this.unit * f.speed, 1);
           m.active = true;
           m.summon = false;
+          m.trap = false;
           m.owner = f.slot;
           m.team = f.team;
           m.x = f.x;
@@ -4158,9 +4793,10 @@ export class FightLeagueMode implements GameMode {
           const m = this.freeMinion();
           if (!m) break;
           const a = offAxisAngle(this.randomDraw(), this.randomDraw());
-          const sp = Math.max(1.2 * this.unit, 1);
+          const sp = Math.max((e.speed ?? 1.2) * this.unit, 1); // (--- fl-overhaul --- a fast summon: its own speed)
           m.active = true;
           m.summon = true;
+          m.trap = false;
           m.owner = f.slot;
           m.team = f.team;
           m.x = f.x + Math.cos(a) * f.r;
@@ -4181,6 +4817,7 @@ export class FightLeagueMode implements GameMode {
       case "reflect":
         f.reflectUntil = now + 1000 * e.dur;
         f.reflectFrac = e.frac;
+        f.deflect = !!e.deflect; // --- fl-overhaul --- (Stage 2)
         break;
       case "disarm":
         if (foe && foe.alive) foe.disarmedUntil = now + 1000 * e.dur;
@@ -4190,6 +4827,115 @@ export class FightLeagueMode implements GameMode {
         v.slowTimeTeam = f.team;
         v.slowTimeFactor = e.factor;
         break;
+      // --- fl-overhaul --- (Stage 2)
+      case "trap":
+        this.dropTraps(f, e, now);
+        break;
+      case "wall": {
+        // A barrier 2 R ahead, across the line to the nearest foe (its facing without one).
+        const wall = this.freeWall();
+        const a = foe ? Math.atan2(foe.y - f.y, foe.x - f.x) : f.aim;
+        const cx = f.x + Math.cos(a) * FL_WALL_AHEAD * f.r;
+        const cy = f.y + Math.sin(a) * FL_WALL_AHEAD * f.r;
+        const half = 0.5 * (e.length ?? FL_WALL_LENGTH) * f.r;
+        const px = -Math.sin(a);
+        const py = Math.cos(a);
+        wall.active = true;
+        wall.owner = f.slot;
+        wall.team = f.team;
+        wall.x1 = cx + px * half;
+        wall.y1 = cy + py * half;
+        wall.x2 = cx - px * half;
+        wall.y2 = cy - py * half;
+        wall.born = now;
+        wall.until = now + 1000 * e.dur;
+        wall.solid = !!e.solid;
+        wall.shape = e.shape ?? (e.solid ? "brickwall" : "windwall");
+        wall.color = f.row.accent;
+        break;
+      }
+      case "transform":
+        // Bigger or smaller (the hitbox follows), the bursts through the stats' own fields, the HP unchanged.
+        f.sizeMul = e.size;
+        f.transformUntil = now + 1000 * e.dur;
+        f.speedMul = e.speed;
+        f.speedMulUntil = f.transformUntil;
+        f.dmgMul = e.damage;
+        f.kbMul = 1;
+        f.dmgMulUntil = f.transformUntil;
+        if (e.attackSpeed) {
+          f.atkMul = e.attackSpeed;
+          f.atkMulUntil = f.transformUntil;
+        }
+        f.weight = knockbackWeight(f.row.stats.size * e.size);
+        this.applySize(f);
+        this.pushEvent(EV_TRANSFORM, now, f.x, f.y, 1, f.slot, f.row.accent);
+        break;
+      case "drain":
+        f.drainFrac = e.frac;
+        f.drainUntil = now + 1000 * e.dur;
+        break;
+    }
+  }
+
+  /**
+   * --- fl-overhaul --- (Stage 2) Traps dropped at the owner and every FL_TRAP_GAP radii along its heading (inside the arena),
+   * armed after FL_TRAP_ARM_MS for `dur` seconds; an owner keeps at most FL_TRAPS_PER_OWNER (the oldest pops).
+   */
+  private dropTraps(f: FlFighter, e: Extract<FlEffect, { p: "trap" }>, now: number) {
+    const v = this.view;
+    const field = v.field!;
+    const moving = Math.hypot(f.vx, f.vy) > 1e-3;
+    const heading = moving ? Math.atan2(f.vy, f.vx) : f.aim;
+    const r = Math.max(2, FL_TRAP_R * f.r);
+    for (let k = 0; k < e.n; k++) {
+      let count = 0;
+      let oldest: FlMinion | null = null;
+      for (const m of v.minions) {
+        if (!m.active || !m.trap || m.owner !== f.slot) continue;
+        count++;
+        if (!oldest || m.born < oldest.born) oldest = m;
+      }
+      if (count >= FL_TRAPS_PER_OWNER && oldest) {
+        oldest.active = false;
+        this.pushEvent(EV_POP, now, oldest.x, oldest.y, 0, oldest.owner, oldest.color);
+      }
+      const m = this.freeMinion();
+      if (!m) break;
+      let x = f.x + Math.cos(heading) * FL_TRAP_GAP * f.r * k;
+      let y = f.y + Math.sin(heading) * FL_TRAP_GAP * f.r * k;
+      const lim = Math.max(1, field.half - r - 1);
+      if (field.kind === "circle") {
+        const dx = x - field.cx;
+        const dy = y - field.cy;
+        const d = Math.hypot(dx, dy);
+        if (d > lim) {
+          x = field.cx + (dx / d) * lim;
+          y = field.cy + (dy / d) * lim;
+        }
+      } else {
+        x = Math.max(field.cx - lim, Math.min(field.cx + lim, x));
+        y = Math.max(field.cy - lim, Math.min(field.cy + lim, y));
+      }
+      m.active = true;
+      m.summon = false;
+      m.trap = true;
+      m.owner = f.slot;
+      m.team = f.team;
+      m.x = x;
+      m.y = y;
+      m.vx = 0;
+      m.vy = 0;
+      m.r = r;
+      m.born = now + 1e-3 * k;
+      m.until = now + 1000 * (e.dur ?? 8);
+      m.armedAt = now + FL_TRAP_ARM_MS;
+      m.hp = 1;
+      m.damage = e.damage;
+      m.hold = e.hold;
+      m.freezeOnTouch = 0;
+      m.shape = e.shape ?? "jaws";
+      m.color = f.row.accent;
     }
   }
 
@@ -4291,6 +5037,20 @@ export class FightLeagueMode implements GameMode {
         this.pushEvent(EV_POP, now, m.x, m.y, 0, m.owner, m.color);
         continue;
       }
+      // --- fl-overhaul --- (Stage 2) a trap lies still; armed, the first foe to touch it takes its damage (unblockable) and its hold
+      if (m.trap) {
+        if (now < m.armedAt || now < v.introMs || v.finished) continue;
+        const owner = v.fighters[m.owner];
+        for (const o of v.fighters) {
+          if (!o.alive || o.team === m.team || o.hp <= 0 || !circlesTouch(m.x, m.y, m.r, o.x, o.y, o.r)) continue;
+          m.active = false;
+          this.pushEvent(EV_TRAP, now, m.x, m.y, m.hold, m.owner, m.color);
+          this.hit(ctx, owner, o, m.damage, 0, 0, 0, "blunt", { unblockable: true, ignoreIframes: true, fromX: m.x, fromY: m.y });
+          if (m.hold > 0 && o.alive && o.hp > 0) this.applyHold(ctx, owner, o, m.hold, 0, "start", now);
+          break;
+        }
+        continue;
+      }
       const ts = this.timeScale(m.team, now);
       // Summons chase the nearest foe a little.
       if (m.summon) {
@@ -4389,7 +5149,7 @@ export class FightLeagueMode implements GameMode {
       const uy = Math.sin(b.angle);
       b.x0 = f.x + ux * f.r * 1.1;
       b.y0 = f.y + uy * f.r * 1.1;
-      const len = rayToEdge(field, b.x0, b.y0, ux, uy);
+      const len = rayToEdgeOrWall(field, b.x0, b.y0, ux, uy, v.walls, b.team); // --- fl-overhaul --- (an enemy wall stops it)
       b.x1 = b.x0 + ux * len;
       b.y1 = b.y0 + uy * len;
       if (now < v.introMs) continue;
@@ -4610,6 +5370,7 @@ export class FightLeagueMode implements GameMode {
       f.castX = mapX(f.castX);
       f.castY = mapY(f.castY);
       f.telegraphArea *= k;
+      f.baseR *= k; // --- fl-overhaul --- (Stage 2: a transform keeps its factor of the base radius)
       for (const w of f.weapons) {
         w.zapX = mapX(w.zapX);
         w.zapY = mapY(w.zapY);
@@ -4626,6 +5387,21 @@ export class FightLeagueMode implements GameMode {
       p.r *= k;
       p.range *= k;
       p.explode *= k;
+      // --- fl-overhaul --- (Stage 2) a bomb's arc and splash
+      p.x0 = mapX(p.x0);
+      p.y0 = mapY(p.y0);
+      p.x1 = mapX(p.x1);
+      p.y1 = mapY(p.y1);
+      p.lift *= k;
+      p.splash *= k;
+    }
+    // --- fl-overhaul --- (Stage 2) the walls, like the tasks (traps are minions: mapped below)
+    for (const w of v.walls) {
+      if (!w.active) continue;
+      w.x1 = mapX(w.x1);
+      w.y1 = mapY(w.y1);
+      w.x2 = mapX(w.x2);
+      w.y2 = mapY(w.y2);
     }
     for (const m of v.minions) {
       if (!m.active) continue;
