@@ -9,6 +9,10 @@
  * board, the Bouncing Shapes box, the Pendulum Wave rig, the sound features (hit samples, song slicer, instruments, background music bed) and Picture Paint (a
  * generated PNG revealed on the beat of a click track), records a short clip with the music bed, runs the seed
  * finder, submits the feedback form, switches language and reports console errors.
+ *
+ * --- smoke-sharding --- Every section is a block, `await smokeBlock("title", async () => { … });`, that sets up its own page:
+ * `--shard i/N` (or SMOKE_SHARD=i/N) runs one of N balanced parts, SMOKE_ONLY=<words> the blocks whose title has one of them,
+ * `--list` prints every block with its shard (scripts/smoke/blocks.mjs, README "Smoke test shards").
  */
 import { chromium } from "playwright";
 import fs from "fs";
@@ -16,8 +20,15 @@ import os from "os";
 import path from "path";
 import { loadDotEnv } from "./dotenv.mjs";
 import { LICENSE_STORAGE_KEY, installLicenseScript, signForeignLicense, signTestLicense } from "./lib/test-license.mjs"; // --- paywall-gate ---
+import { createSmokeBlocks } from "./smoke/blocks.mjs"; // --- smoke-sharding ---
 
 loadDotEnv();
+// --- smoke-sharding --- The blocks this run runs (all of them without a flag; README "Smoke test shards"). `--list` prints them
+// with their shards and exits before a browser starts.
+const smoke = createSmokeBlocks({ checks: () => results.length, outDir: () => outDir });
+if (smoke.listing) process.exit(smoke.printList());
+const smokeBlock = smoke.block;
+// --- end smoke-sharding ---
 const BASE = (process.env.BASE_URL || `http://localhost:3000${process.env.NEXT_PUBLIC_BASE_PATH || ""}`).replace(/\/+$/, "");
 const MODES = ["classic", "accumulation", "multiply", "lines", "paint", "target", "portal", "shatter", "colorMatch", "grow", "drop", "box", "pendulum"];
 const outDir = process.env.OUT_DIR || path.join(process.cwd(), "smoke-output");
@@ -292,6 +303,14 @@ const uploadMusicBed = async (seconds) => {
   return page.getByTestId("music-track").waitFor({ timeout: 15000 }).then(() => true).catch(() => false);
 };
 
+// --- smoke-sharding --- helpers blocks share, taken out of the block that defined them (a block may run alone, in a shard)
+/** A slider's value, by its aria-label. */
+const sliderValue = (label) => page.locator(`input[aria-label="${label}"]`).inputValue();
+/** The canvas' data-* attributes: what the run mirrors there for the checks. */
+const canvasData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
+// --- end smoke-sharding ---
+
+await smokeBlock("static-hosting", async () => {
 // 0. Static hosting: root redirect, 404 page, assets and sitemap under the base path
 await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
 await page.waitForURL(/\/(en|pl|es)\/$/, { timeout: 10000 }).catch(() => {});
@@ -328,7 +347,9 @@ for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/c
   const xml = await (await page.request.get(`${BASE}/sitemap.xml`)).text();
   check("sitemap uses site URL with trailing slashes", xml.includes(`${BASE}/en/simulator/`) && xml.includes(`${BASE}/es/about/`), "");
 }
+});
 
+await smokeBlock("pages", async () => {
 // 1. Static pages in every locale
 for (const locale of ["en", "pl", "es"]) {
   for (const p of ["", "/simulator" /* --- review fix (site-static) --- its sr-only heading */, "/about", "/tiktok-ball-videos", "/feedback", "/privacy", "/terms", "/disclaimer", "/gallery" /* --- daily-gallery --- */]) {
@@ -354,7 +375,9 @@ check("mode preview image loads under base path", previewLoaded, `(src=${await p
   await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
 }
 await page.screenshot({ path: path.join(outDir, "landing.png"), fullPage: true });
+});
 
+await smokeBlock("feedback-form", async () => {
 // 1b. Feedback form (static build: GitHub issue, email or endpoint channel)
 await page.goto(`${BASE}/en/feedback/`, { waitUntil: "networkidle" });
 await page.evaluate(() => {
@@ -375,7 +398,9 @@ if (submitEnabled) {
 } else {
   check("feedback form explains missing channel", await page.getByRole("status").isVisible());
 }
+});
 
+await smokeBlock("modes", async () => {
 // 2. Simulator: the original ring and rhythm modes (MODES) run for a few seconds without errors and the ball moves (the later
 // modes have their own sections below).
 for (const mode of MODES) {
@@ -387,7 +412,9 @@ for (const mode of MODES) {
   check(`simulator mode=${mode} runs`, /\d/.test(time) && time !== "0.0s", `(elapsed ${time}, mode label "${modeLabel}")`);
   await page.screenshot({ path: path.join(outDir, `sim-${mode}.png`) });
 }
+});
 
+await smokeBlock("studio-basics", async () => {
 // 3. Pause / restart shortcuts
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Start Simulator/ }).click();
@@ -511,13 +538,14 @@ await wm.press("Control+A");
 await wm.pressSequentially("hello world", { delay: 30 });
 check("typing keeps focus (watermark input)", (await wm.inputValue()) === "hello world", `(value="${await wm.inputValue()}")`);
 await page.getByLabel("Show Advanced Options").uncheck();
+});
 
+await smokeBlock("physics-extras", async () => {
 // 4b'. Physics extras (the "Advanced physics" groups of the Ball and Wall sections): URL → sliders, slider → URL,
 // the search box finds them and the run plays with all of them on
 await page.goto(`${BASE}/en/simulator/?mode=classic&drag=0.01&wx=0.2&spin=0.5&wb=0.9&bw=0.1&bws=1.5&rg=30`, { waitUntil: "networkidle" });
 await page.getByLabel("Show Advanced Options").check();
 await page.getByRole("button", { name: /Ball & Physics/ }).click();
-const sliderValue = (label) => page.locator(`input[aria-label="${label}"]`).inputValue();
 {
   const values = { drag: await sliderValue("Air Drag"), wx: await sliderValue("Wind (Horizontal)"), wy: await sliderValue("Wind (Vertical)"), spin: await sliderValue("Spin"), rg: await sliderValue("Rotating Gravity") };
   check("physics extras load from URL (ball section)", values.drag === "0.01" && values.wx === "0.2" && values.wy === "0" && values.spin === "0.5" && values.rg === "30", `(${JSON.stringify(values)})`);
@@ -543,7 +571,9 @@ await page.waitForTimeout(2500);
   check("simulator runs with the physics extras on", /\d/.test(time) && time !== "0.0s", `(elapsed ${time})`);
 }
 await page.getByLabel("Show Advanced Options").uncheck();
+});
 
+await smokeBlock("ball-interactions", async () => {
 // 4b''. Merge & split balls (the "Ball Interaction" block of the Ball section): URL → controls, controls → URL, the split
 // limits only show in split mode (but the search box still finds them) and the run plays with splitting on
 await page.goto(`${BASE}/en/simulator/?mode=classic&bi=split&smr=6&mb=12`, { waitUntil: "networkidle" });
@@ -572,7 +602,9 @@ await page.waitForTimeout(3000);
   const query = page.url().split("?")[1] || "";
   check("simulator runs with ball splitting on", /\d/.test(time) && time !== "0.0s" && /(^|&)bi=split(&|$)/.test(query), `(elapsed ${time}, ${query})`);
 }
+});
 
+await smokeBlock("ball-drop", async () => {
 // 4b'''. Ball Drop (the mode without rings): URL → the board controls in the Mode row, controls → URL, Rain hides the
 // seed finder, the search box finds the board controls, and the run plays with obstacles and size-pitched hit sounds
 // (OscillatorNode.start is instrumented: the 1 Hz keep-alive oscillator is never a bounce sound)
@@ -613,7 +645,9 @@ await page.waitForTimeout(3500);
   check("simulator runs the ball drop board with size-pitched hit sounds", /\d/.test(time) && time !== "0.0s" && distinct >= 2 && inRange, `(elapsed ${time}, ${pitches.length} tones, ${distinct} distinct pitches)`);
   await page.screenshot({ path: path.join(outDir, "sim-drop-board.png") });
 }
+});
 
+await smokeBlock("ball-drop-overfull", async () => {
 // 4b''''. An overfull Ball Drop board – 40 balls of size 30 at full size spread, more than the board can hold – still
 // finishes: the pile above the top counts as resting and a release that finds no room ends the run with the balls that
 // fit, so the finished overlay (Restart Simulation) appears; at 8× the pile settles within a few seconds of real time.
@@ -633,7 +667,9 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   check("overfull ball drop board still settles and finishes", finished, `(elapsed ${time})`);
   await page.screenshot({ path: path.join(outDir, "sim-drop-overfull.png") });
 }
+});
 
+await smokeBlock("box-arena", async () => {
 // 4b'''''. Bouncing Shapes (the box arena): URL → the Box arena controls in the Mode row, controls → URL, the countdown
 // switched off hides the seed finder, the search box finds the controls, and the run plays one of the four wall notes
 // per hit (OscillatorNode.start is instrumented again; the canvas mirrors the hit count into data-box-hits)
@@ -678,7 +714,9 @@ await page.waitForTimeout(3500);
   check("simulator runs the box arena with one note per wall", /\d/.test(time) && time !== "0.0s" && hits >= 4 && onWallNotes && distinct.size >= 2, `(elapsed ${time}, ${hits} hits, ${pitches.length} tones, pitches ${[...distinct].join("/")})`);
   await page.screenshot({ path: path.join(outDir, "sim-box-arena.png") });
 }
+});
 
+await smokeBlock("box-dvd-corner", async () => {
 // 4b''''''. A DVD logo reaches a corner in every seed (odd axis ratio + corner lock): the first corner comes within its
 // first few hits and the canvas mirrors the count into data-box-corners
 await page.goto(`${BASE}/en/simulator/?mode=box&bxs=dvd&bxn=1&bxc=0`, { waitUntil: "networkidle" });
@@ -696,7 +734,9 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   check("dvd logo reaches a corner", corners >= 1 && hits <= 12, `(${corners} corner(s) after ${hits} hits)`);
   await page.screenshot({ path: path.join(outDir, "sim-box-corner.png") });
 }
+});
 
+await smokeBlock("box-finder", async () => {
 // 4b'''''''. The seed finder works for Bouncing Shapes: the seeded tempo makes the run length continuous, so "Find 30s
 // Simulation" finds a seed once the target is inside the ±15 % band. The band scales with the box on screen (the shapes
 // move in px/s), so when 30 s is out of reach at this viewport the check does what the "closest" message tells a user
@@ -723,7 +763,9 @@ await page.goto(`${BASE}/en/simulator/?mode=box`, { waitUntil: "networkidle" });
   }
   check("find simulation finds a 30 s bouncing shapes run", /Found! (29\.[5-9]|30\.[0-5])s/.test(text), `(${text})`);
 }
+});
 
+await smokeBlock("pendulum-wave", async () => {
 // 4b''. Pendulum Wave: URL → the Pendulum wave controls in the Mode row, controls → URL, the cycles at "never" hide
 // the seed finder, the search box finds the controls, a fixed-length run makes the finder say so instead of testing seeds,
 // and the run plays scale-degree notes and chords (OscillatorNode.start is instrumented again; the canvas mirrors the
@@ -801,7 +843,9 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   const cycles = await canvas.getAttribute("data-pendulum-cycles");
   check("a finished pendulum wave holds its alignment in silence", done && cycles === "2" && notes > 0 && notesLater === notes && tonesLater === tones, `(finished=${done}, cycles ${cycles}, notes ${notes} → ${notesLater}, tones ${tones} → ${tonesLater})`);
 }
+});
 
+await smokeBlock("instruments", async () => {
 // 4c. Instruments, scales and beat lock (Sound section): URL → controls, controls → URL, and the run still plays
 await page.goto(`${BASE}/en/simulator/?mode=classic&inst=marimba&scale=minor&root=9&qz=1&bpm=140&grid=1%2F16`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Custom Sound/ }).click();
@@ -827,7 +871,9 @@ await page.waitForTimeout(2500);
 await page.getByPlaceholder("Search settings...").fill("beat");
 check("search finds the beat lock", (await page.getByText("Beat lock (BPM)").isVisible()) && (await page.locator('input[aria-label="BPM"]').isVisible()) && !(await page.locator("#instrument-select").isVisible()));
 await page.getByPlaceholder("Search settings...").fill("");
+});
 
+await smokeBlock("sound-features", async () => {
 // 4d. The three sound features together: mode-only controls stay searchable whatever the current mode is, an
 // undecodable hit sample shows an error state instead of silently playing the tones, and a melody keeps its own voice
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
@@ -860,7 +906,9 @@ await page.waitForTimeout(300);
 }
 await page.waitForTimeout(1500); // a few melody notes play through the marimba voice
 await page.getByRole("button", { name: /Custom Sound/ }).click();
+});
 
+await smokeBlock("music-bed", async () => {
 // 4e. Background music bed: upload a track in the Sound section, the panel lists it with its length, the mix controls
 // appear and the volume reaches the URL. AudioBufferSourceNode.start is instrumented: the bed is the only source
 // started as `start(0, offset)` (two arguments), so its starts show when it plays, from where, and whether it loops.
@@ -936,7 +984,9 @@ await page.getByPlaceholder("Search settings...").fill("ducking");
 check("search finds the ducking control without a track", await page.locator('input[aria-label="Ducking"]').isVisible());
 await page.getByPlaceholder("Search settings...").fill("");
 await page.getByRole("button", { name: /Custom Sound/ }).click();
+});
 
+await smokeBlock("picture-paint", async () => {
 // 4f. Picture Paint: a PNG generated in the page (canvas.toDataURL → File via DataTransfer) is uploaded as the picture
 // of Paint mode; a click-track music bed gets its tempo detected (the readout shows 120 BPM); the run reveals the
 // picture – the canvas mirrors the coverage % the HUD draws into data-paint-coverage, and the red pixels of the picture
@@ -1043,7 +1093,9 @@ await page.waitForTimeout(700);
   const paintData4 = await paintCanvasData();
   check("removing the picture mid-run releases the beat sync", paintData3.paintBeat === "0" && paintData4.paintBeat === "0" && paintData4.paintPicture === "0", `(beat ${paintData3.paintBeat} → ${paintData4.paintBeat}, picture ${paintData4.paintPicture})`);
 }
+});
 
+await smokeBlock("recording", async () => {
 // 5. Recording: 3-second clip downloads, with the music bed mixed into the audio track
 await page.goto(`${BASE}/en/simulator/?mode=classic&dur=10`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Custom Sound/ }).click();
@@ -1077,7 +1129,9 @@ check("video recorded and downloaded", size > 10000, `(${download.suggestedFilen
   const hasVp9 = bytes.includes(Buffer.from("vp09"));
   check("Record Video: an .mp4 holds H.264, anything else is a .webm", isMp4 ? hasAvc && !hasVp9 : bytes.readUInt32BE(0) === 0x1a45dfa3, `(${download.suggestedFilename()}: avc ${hasAvc}, vp09 ${hasVp9})`);
 }
+});
 
+await smokeBlock("review-fix-recording-export", async () => {
 // --- review fix (recording-export) --- links with numbers out of their slider range, Record Video on a finished run, a
 // pre-rename preset's watermark and the batch summary's clip length
 {
@@ -1176,7 +1230,9 @@ check("video recorded and downloaded", size > 10000, `(${download.suggestedFilen
   check("the batch summary of a clip-length sweep names its longest clip", /up to 120 s each/.test(sweepSummary), `("${sweepSummary}")`);
   await page.evaluate(() => localStorage.removeItem("jumpingballslive_batch_render"));
 }
+});
 
+await smokeBlock("review-fix-security-robustness", async () => {
 // --- review fix (security-robustness) --- hostile input: huge counts in a link, a stored preset list that is not an object, and a
 // project file with a crafted MIDI file (a five-byte length that looped the parser for ever), damaged pictures, a damaged
 // wall-break sound and a resolution no browser can capture
@@ -1268,7 +1324,9 @@ check("video recorded and downloaded", size > 10000, `(${download.suggestedFilen
   check("the hostile inputs cause no page errors", unexpected.length === 0, unexpected.length ? `\n   ${unexpected.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end review fix (security-robustness) ---
+});
 
+await smokeBlock("find-simulation", async () => {
 // 6. Find Simulation
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
@@ -1276,6 +1334,8 @@ await page.waitForTimeout(100);
 const found = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120000 }).then(() => true).catch(() => false);
 const resultText = found ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
 check("find simulation completes", found, `(${resultText})`);
+});
+await smokeBlock("finder-depth", async () => {
 // --- finder-depth --- A 30 s Classic search whose first 1000 seeds all miss goes on – the same seeds, in order – for up to 25 s
 // in all: the progress line says so ("Seed n · searching deeper, up to Ns more") and the result counts every seed tested. The
 // seed base is pinned (Date.now() while the click is dispatched: the finder's seeds are base + 0x9e3779b1 · i) to one whose
@@ -1333,20 +1393,26 @@ check("find simulation completes", found, `(${resultText})`);
     },
   );
 }
+});
 
+await smokeBlock("language-switcher", async () => {
 // 7. Language switcher
 await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /English/ }).click();
 await page.getByRole("button", { name: /Español/ }).click(); // --- review fix (ui-i18n) --- a disclosure list of buttons, not an ARIA menu
 await page.waitForURL(/\/es\/simulator\//);
 check("language switch to Spanish", page.url().includes("/es/simulator/"), `(${page.url()})`);
+});
 
+await smokeBlock("mode-card", async () => {
 // 8. Mode card on the simulator page switches the mode in place
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
 await pickModeCard("Portal");
 await page.waitForTimeout(500);
 check("mode card switches mode", page.url().includes("mode=portal"), `(${page.url()})`);
+});
 
+await smokeBlock("gerald-faces", async () => {
 // --- gerald-faces ---
 // 9. Ball characters: no face by default; the "Character" group at the top of the Ball section shows a live preview,
 // "Meet Gerald" sets the persona (face, name, squash) and everything mirrors into the URL; the running canvas draws the
@@ -1357,7 +1423,6 @@ check("mode card switches mode", page.url().includes("mode=portal"), `(${page.ur
 // rebounds, in Shatter the burst of segment breaks startles it now and then instead of keeping it in shock), and the cat
 // face chirps through the ToneGenerator on a minority of the bounces (OscillatorNode.start is instrumented: the chirp is
 // the only sawtooth with the default triangle bounce voice, one triangle per bounce note).
-const canvasData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
 await page.getByRole("button", { name: /Start Simulator/ }).click();
 await page.waitForTimeout(600);
@@ -1468,6 +1533,8 @@ await page.waitForTimeout(8000);
   await page.screenshot({ path: path.join(outDir, "sim-character.png") });
 }
 // --- end gerald-faces ---
+});
+await smokeBlock("themes", async () => {
 // --- themes
 // 10. Themes and backgrounds: the Theme block opens the Visual section; a theme card applies its look (URL, gradient
 // background read back from the canvas pixels, particle style handed to the engine); its colours stay editable (the
@@ -1612,6 +1679,8 @@ await page.getByRole("button", { name: /Visual Effects/ }).click();
   await page.getByPlaceholder("Search settings...").fill("");
 }
 // --- end themes
+});
+await smokeBlock("jdm-polyrhythm", async () => {
 // --- jdm-polyrhythm ---
 // 11. Metronomes & Polyrhythms: the preview image, URL → the controls in the Mode row, controls → URL,
 // the cycles at "never" hide the seed finder, the search box finds the controls, a fixed-length run makes the finder say
@@ -1712,7 +1781,9 @@ await page.getByRole("button", { name: /Visual Effects/ }).click();
   }
 }
 // --- end jdm-polyrhythm ---
+});
 
+await smokeBlock("jdm-collisions", async () => {
 // --- jdm-collisions ---
 // 12. Collision Playground: the preview image, URL → the "Collision playground" block of the Mode
 // row, controls → URL, the search box, the finder hidden for this endless mode, 300 orbs running 5 s without the frame
@@ -1849,6 +1920,8 @@ await page.waitForTimeout(2500);
   await page.screenshot({ path: path.join(outDir, "sim-collide-ring.png") });
 }
 // --- end jdm-collisions ---
+});
+await smokeBlock("rhythm-mode-characters", async () => {
 // 13. Ball characters on the bodies the newer rhythm modes draw themselves: a face and a name from the URL show on
 // every Metronomes & Polyrhythms voice and on the first MAX_CHARACTER_BALLS (80) Collision Playground orbs.
 for (const [mode, query, faces] of [["polyrhythm", "prt=custom&prcu=3%2C4%2C5&prc=0", 3], ["collide", "cpn=120", 80]]) {
@@ -1858,6 +1931,7 @@ for (const [mode, query, faces] of [["polyrhythm", "prt=custom&prcu=3%2C4%2C5&pr
   const { face, faceCount, nameLabel } = await canvasData();
   check(`a character from the URL shows on the ${mode} bodies`, face === "cute" && Number(faceCount) === faces && nameLabel === "Gerald", `(face=${face}, faces=${faceCount}, label=${nameLabel})`);
 }
+});
 
 // --- teams ---
 /**
@@ -1916,6 +1990,7 @@ const findAndRecordTeams = async (query, name) => {
   else check(name, ok && heldMs >= 2500, extra);
 };
 
+await smokeBlock("teams", async () => {
 // 14. Team balls with scoreboard: URL → the Teams section (roster rows, scoreboard corner) and the Ball Count slider, the
 // old `two=1` link as two balls, controls → URL (a fourth team renamed with its own emoji, the corner), the search box,
 // a Classic run of three teams that scores per team on the canvas (data-team-*: teams, labels, bounces/walls/escapes),
@@ -2051,6 +2126,8 @@ const findAndRecordTeams = async (query, name) => {
   await findAndRecordTeams(`teams=${encodeURIComponent(roster)}`, "Find + Record with teams keeps the winner banner in the export");
 }
 // --- end teams ---
+});
+await smokeBlock("camera", async () => {
 // --- camera ---
 // 15. Cinematic camera: URL → the Camera group of the Visual section, controls → URL, the search box; a Classic run
 // zooms toward the ball, shakes on a wall break and slows the clock on a near miss (data-camera-*); a quick Classic
@@ -2144,7 +2221,9 @@ const findAndRecordTeams = async (query, name) => {
   }
 }
 // --- end camera ---
+});
 
+await smokeBlock("teams-camera", async () => {
 // --- teams + camera ---
 // 16. Teams with the escape replay: a Classic run of three teams with Replay on Escape replays the escape first – the
 // replayed balls keep their teams (names drawn on them), the winner banner waits – then the banner is held before the
@@ -2179,6 +2258,8 @@ const findAndRecordTeams = async (query, name) => {
   await findAndRecordTeams(`teams=${encodeURIComponent(roster)}&replay=1`, "Find + Record with teams and the escape replay keeps the replay and then the winner banner in the export");
 }
 // --- end teams + camera ---
+});
+await smokeBlock("gerald-glass", async () => {
 // --- gerald-glass ---
 // 17. Glass Smash: the preview image and the glass clip, URL → the "Glass" block of the Mode row, controls → URL, the
 // search box, the finder shown (every run ends at HOME), the Sound section naming the mode's default wall-break clip,
@@ -2317,6 +2398,8 @@ await page.waitForTimeout(300);
   );
 }
 // --- end gerald-glass ---
+});
+await smokeBlock("gerald-multipliers", async () => {
 // --- gerald-multipliers ---
 // 18. Multipliers: the preview image; the "Multipliers" group of the Ball section (URL → controls); pickups in Classic
 // (three orbs per 10 s that float for 20 s) are taken and change the HUD badges – the canvas mirrors them into
@@ -2476,6 +2559,8 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   await timingCheck("Multiply with speed orbs stays within 200 balls at a steady frame rate", crowd && peak > 64 && peak <= 200 && Number(data.multBalls) <= 200, fpsOk(fr, 4, 15, 10), `(peak ${peak} balls, now ${data.multBalls}, speed x${data.multSpeed}, ${fpsNote(fr)}, floors 15/10${loadNote()})`, fpsRetry(3000, 4, 15, 10));
 }
 // --- end gerald-multipliers ---
+});
+await smokeBlock("captions", async () => {
 // --- captions ---
 // 19. Animated captions: a link with a countdown, a wall counter, a progress bar and a question fills the Captions
 // section; a caption added from the panel lands in the link; the search box finds the caption fields; a Classic
@@ -2592,7 +2677,9 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   );
 }
 // --- end captions ---
+});
 
+await smokeBlock("obstacle-editor", async () => {
 // --- obstacle-editor ---
 // 20. Obstacle editor: URL → the Obstacles section (a row per obstacle, the bumper boost) and the canvas (data-obstacles),
 // the ready screen shrinks to a bar so the obstacles stay visible and editable; a mouse drag moves a peg (the URL follows
@@ -2842,7 +2929,9 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   check("Lines with a spinner at full speed and length keeps the ball in the ring: it still hits the spinner 40 s in", hits20 > 0 && hits40 > hits20, `(spinner hits 20 s in: ${hits20}, 40 s in: ${hits40})`);
 }
 // --- end obstacle-editor ---
+});
 
+await smokeBlock("obstacle-editor-captions", async () => {
 // --- obstacle-editor + captions ---
 // 21. Obstacles and captions together: one link fills both sections and, before the start, the ready bar keeps the
 // obstacles editable; a run draws the captions over the obstacles in play (hits counted, editing off); a mode change
@@ -2877,7 +2966,9 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   check("obstacles and captions both carry over a mode change", after.get("mode") === "portal" && after.get("obs") === layout && after.get("cap") === cap, `(mode=${after.get("mode")}, obs=${after.get("obs")}, cap=${(after.get("cap") ?? "").slice(0, 60)})`);
 }
 // --- end obstacle-editor + captions ---
+});
 
+await smokeBlock("jdm-double-pendulum", async () => {
 // --- jdm-double-pendulum ---
 // 22. Double Pendulum Harp & sparring: the preview image, URL → the "Double pendulum" block of the Mode row, controls →
 // URL, the search box, the finder (Endless hides it; the clip length decides the run length, so a matching target is
@@ -3062,6 +3153,8 @@ await page.getByRole("button", { name: "8x", exact: true }).click();
   check("a light-over-heavy double pendulum holds its energy without friction", samples >= 20 && worst <= 10 && Number(data.dpPlucks) > 20 && data.dpDone !== "1", `(worst drift ${worst} ppm over ${samples} samples, ${JSON.stringify(data)})`);
 }
 // --- end jdm-double-pendulum ---
+});
+await smokeBlock("jdm-illusions", async () => {
 // --- jdm-illusions ---
 // 23. Circle Illusion and Wobbly Walls: the preview image and the card; URL → the Illusion block of the Mode row (type,
 // count, speed, tracks, reveal, cycles) and the Wobbly Walls slider of the Visual section, controls → URL, the search
@@ -3290,6 +3383,8 @@ const instrumentOscillators = () =>
   );
 }
 // --- end jdm-illusions ---
+});
+await smokeBlock("rigged", async () => {
 // --- rigged ---
 // 24. Rigged outcomes: URL → the Rigged Outcomes group under the Drama Director (advanced options) with its storytelling
 // warning and the note under the canvas, controls → URL, the search box; a Never Escape run at 8× in which the rig acts
@@ -3446,6 +3541,8 @@ const instrumentOscillators = () =>
   }
 }
 // --- end rigged ---
+});
+await smokeBlock("timeline", async () => {
 // --- timeline ---
 // 25. Timeline keyframes: a link with keyframes fills the Timeline section (a row per keyframe) and the bar under the
 // canvas (a marker per keyframe); the sliders of the automated settings show the value the run starts with, locked, with an
@@ -3636,7 +3733,9 @@ const instrumentOscillators = () =>
   }
 }
 // --- end timeline ---
+});
 
+await smokeBlock("odd-string-battle", async () => {
 // --- odd-string-battle ---
 // 26. String Battle: the preview image and the card under the battle heading; URL → the String Battle block of the Mode row
 // (rule, style, fighters, lives, threads, clip limit, finale, wobble, badge), controls → URL, the search box, the finder's
@@ -3886,7 +3985,9 @@ const instrumentOscillators = () =>
   );
 }
 // --- end odd-string-battle ---
+});
 
+await smokeBlock("world", async () => {
 // --- world --- the simulation world does not follow the screen: 800 × 450 world px in every 16:9 frame (450 × 450 in a
 // phone's square one), drawn at the canvas' scale (data-world on the canvas), so a seed, a preset, a daily challenge and a
 // found run play the same on a laptop, a big monitor and in the export – and a window resize only rescales the drawing
@@ -3927,7 +4028,9 @@ const instrumentOscillators = () =>
   check("a found seed survives a window resize (the world is the same, the drawing rescaled)", foundReady && stillReady && !!foundSeed && seedAfter === foundSeed && worldAfter === "800x450", `(found ${foundReady} seed ${foundSeed}, after the resize ready ${stillReady} seed ${seedAfter}, world ${worldAfter})`);
 }
 // --- end world ---
+});
 
+await smokeBlock("odd-power-layers", async () => {
 // --- odd-power-layers ---
 // 27. Power Layers: the preview image and the card; URL → the Power layers block of the Mode row (layers, sequence, drift,
 // bounce speed, corner badge, rule pills), controls → URL and the search box; the finder (the default run's fixed 8.8 s –
@@ -4102,7 +4205,9 @@ const plFrameRates = async (ms) => {
   await timingCheck("a 1080×1920 power layers recording keeps 20+ fps and downloads", size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
 }
 // --- end odd-power-layers ---
+});
 
+await smokeBlock("fast-render", async () => {
 // --- fast-render --- Fast export: a 500×500, 10 s Classic clip at 30 fps is rendered offline (WebCodecs) and downloads as an
 // MP4 or WebM with a video and an audio track of the clip's length, the progress bar runs meanwhile, a second export of the
 // same seed has the same frames (digest), and Cancel stops a long export without a download. Without WebCodecs the button
@@ -4190,6 +4295,8 @@ const plFrameRates = async (ms) => {
   }
 }
 // --- end fast-render ---
+});
+await smokeBlock("project-files", async () => {
 // --- project-files ---
 // 28. Project files and short share codes. Export: a setup with an obstacle, keyframes, a text and an uploaded music
 // bed downloads as <name>.jumpingballslive.json holding the settings and the track as base64. Import on a fresh page (the
@@ -4374,6 +4481,8 @@ const plFrameRates = async (ms) => {
   check("the search box finds the Project file block", foundBySearch);
 }
 // --- end project-files ---
+});
+await smokeBlock("jdm-race", async () => {
 // --- jdm-race ---
 // 29. Square Racing Grand Prix: the preview image and the card; URL → the Race block of the Mode row (racers, shape, track
 // length, laps, obstacle mix, camera, standings, mini-map, cup and its title, the staged winner with its warnings), controls →
@@ -4615,6 +4724,8 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   }
 }
 // --- end jdm-race ---
+});
+await smokeBlock("jdm-arena-games", async () => {
 // --- jdm-arena-games ---
 // 30. Battle Royale and Capture the Flag: the preview images and the cards; URL → the "Arena games" block of the Mode
 // row, controls → URL, the search box; a battle at 8× fought to the last square standing – every other square knocked
@@ -4823,7 +4934,9 @@ await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
   await timingCheck("the arena games keep 30+ fps", true, Object.values(rates).every((fps) => fps >= 30), `(${JSON.stringify(rates)}, floor 30${loadNote()})`);
 }
 // --- end jdm-arena-games ---
+});
 
+await smokeBlock("jdm-rhythm-runner", async () => {
 // --- jdm-rhythm-runner ---
 // 31. Beat Runner and Paddle Keep-Up: the preview images and both cards under the rhythm heading of the landing page; URL →
 // the Mode-row blocks and back into the URL, the search box; a Beat Runner at 1× – every landing on a beat of the 120 BPM
@@ -5303,7 +5416,9 @@ const jrSeed = async () => (await canvasData()).seed;
   }
 }
 // --- end jdm-rhythm-runner ---
+});
 
+await smokeBlock("batch-render", async () => {
 // --- batch-render --- Batch render (the Batch block at the end of the Recording section): a pasted list of two seeds and a
 // bad line renders two 500×500, 10 s Classic clips one after the other, each downloads as classic-<seed>-<duration>.mp4 /
 // .webm, "Download all as ZIP" packs exactly those files (read back entry by entry: STORE, UTF-8 flag, CRC-32, the same
@@ -5606,6 +5721,8 @@ const jrSeed = async () => (await canvasData()).seed;
   await page.evaluate((key) => localStorage.removeItem(key), BATCH_KEY);
 }
 // --- end batch-render ---
+});
+await smokeBlock("split-screen", async () => {
 // --- split-screen --- Split-screen races: 2 or 4 arenas on one canvas and one recording (lib/splitScreen.ts, lib/simulation/multi.ts)
 const splitNums = (value) => (value || "").split(",").map(Number);
 {
@@ -5851,21 +5968,9 @@ const splitNums = (value) => (value || "").split(",").map(Number);
   );
 }
 // --- end split-screen ---
+});
 
-// --- gerald-vortex ---
-// 32. Sound Vortex: the preview image and the card; URL → the Vortex block of the Mode row (balls, stagger, rings, spiral
-// time, pull, depth cue, loop, the run summary), controls → URL and the search box; the Respawn Loop hides the finder and
-// says why; a short run at 1× at 30+ fps whose ring notes climb the C-major degrees ring by ring and whose swallows pew –
-// a sweep from an octave above the innermost ring (OscillatorNode.start is instrumented) – and whose last swallow holds the
-// PEW! banner for a moment before the run finishes; the finder
-// lands a 30 s seed and the run keeps the promise at 8×; the default run at 1× keeps 30+ fps; a 1080×1920 recording
-// keeps 20+ fps (the software encoder's share of a headless frame) and downloads; and a fast export pews through its own audio.
-{
-  const res = await page.request.get(`${BASE}/modes/vortex.webp`);
-  check("asset /modes/vortex.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
-  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
-  check("the Sound Vortex card is on the landing page", (await page.locator('img[src$="/modes/vortex.webp"]').count()) === 1);
-}
+// --- smoke-sharding --- out of the gerald-vortex block below: gerald-bullseye measures its frame rates with it too
 /** Frame rates of the page over `ms` of requestAnimationFrame: the average and the worst half-second window. */
 const vxFrameRates = async (ms) => {
   const deltas = await page.evaluate(
@@ -5899,6 +6004,21 @@ const vxFrameRates = async (ms) => {
   const avg = (1000 * deltas.length) / deltas.reduce((a, b) => a + b, 0);
   return { windows, avg, min: windows.length ? Math.min(...windows) : 0, low: lowWindow(windows) };
 };
+await smokeBlock("gerald-vortex", async () => {
+// --- gerald-vortex ---
+// 32. Sound Vortex: the preview image and the card; URL → the Vortex block of the Mode row (balls, stagger, rings, spiral
+// time, pull, depth cue, loop, the run summary), controls → URL and the search box; the Respawn Loop hides the finder and
+// says why; a short run at 1× at 30+ fps whose ring notes climb the C-major degrees ring by ring and whose swallows pew –
+// a sweep from an octave above the innermost ring (OscillatorNode.start is instrumented) – and whose last swallow holds the
+// PEW! banner for a moment before the run finishes; the finder
+// lands a 30 s seed and the run keeps the promise at 8×; the default run at 1× keeps 30+ fps; a 1080×1920 recording
+// keeps 20+ fps (the software encoder's share of a headless frame) and downloads; and a fast export pews through its own audio.
+{
+  const res = await page.request.get(`${BASE}/modes/vortex.webp`);
+  check("asset /modes/vortex.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Sound Vortex card is on the landing page", (await page.locator('img[src$="/modes/vortex.webp"]').count()) === 1);
+}
 {
   const vxToggle = (label) => page.getByTestId("sound-vortex").getByRole("switch", { name: switchName(label) });
   await page.goto(`${BASE}/en/simulator/?mode=vortex&vxn=6&vxs=0.5&vxr=16&vxd=8&vxg=2&vxds=0.8`, { waitUntil: "networkidle" });
@@ -6080,7 +6200,9 @@ const vxFrameRates = async (ms) => {
   } else check("without WebCodecs the sound vortex has no fast export to check (Record Video is covered above)", true);
 }
 // --- end gerald-vortex ---
+});
 
+await smokeBlock("video-beats", async () => {
 // --- video-beats --- Beats from a video: a generated click-track WAV (120 BPM from 0.25 s, 44.1 kHz, every 4th click accented) is
 // imported in the Sound section's "Beats from a video" block – the panel detects its tempo and beats, the file becomes the music
 // bed and the Media source; the waveform strip adds and removes a marker on a click; "Use detected beats" turns the grid into
@@ -6211,6 +6333,8 @@ const vxFrameRates = async (ms) => {
   }
 }
 // --- end video-beats ---
+});
+await smokeBlock("viral-bot", async () => {
 // --- viral-bot --- Viral video bot (the Bot block after the Batch block of the Recording section): "Today's plan" plans three
 // clips in the page (recipe, hook, mode, seed, length, ending and a score with its nine reasons), the plan survives a reload
 // (localStorage), the page exposes the planner to the CLI (window.__jumpingBallsBot, whose text files hold the manifest and
@@ -6367,7 +6491,9 @@ const vxFrameRates = async (ms) => {
   await page.evaluate((key) => localStorage.removeItem(key), BOT_KEY);
 }
 // --- end viral-bot ---
+});
 
+await smokeBlock("gerald-journey", async () => {
 // --- gerald-journey ---
 // 33. Journey: the preview image and the card under its own "Journey modes" heading; URL → the Journey block of the Mode
 // row (the stage rows with their sizes, the stage code, the run line, no Wall Count), the panel's edits → URL (move with
@@ -6607,7 +6733,9 @@ const JY_WEDGE_SEEDS = [12, 14, 32, 37];
   } else check("without WebCodecs the journey has no fast export to check (Record Video is covered above)", true);
 }
 // --- end gerald-journey ---
+});
 
+await smokeBlock("gerald-bullseye", async () => {
 // --- gerald-bullseye ---
 // 34. Bullseye: the preview image and the card; URL → the Bullseye block of the Mode row (shots, interval, chaos, rings,
 // moving target, perfect shot, the run summary), controls → URL and the search box; a short rigged run at 1× (OscillatorNode
@@ -6821,7 +6949,9 @@ const JY_WEDGE_SEEDS = [12, 14, 32, 37];
   } else check("without WebCodecs the bullseye has no fast export to check (Record Video is covered above)", true);
 }
 // --- end gerald-bullseye ---
+});
 
+await smokeBlock("beat-drop", async () => {
 // --- beat-drop ---
 // 33. Beat Drop: the preview image and the card; URL → the Beat Drop block of the Mode row (the mix, drift, scrolling, bounce
 // height, fly-in time, landing sound, colours, trail, the run summary that says it cannot fail), controls → URL and the search
@@ -7046,7 +7176,9 @@ const bdInstrument = () =>
   );
 }
 // --- end beat-drop ---
+});
 
+await smokeBlock("review-fix-modes-gerald-odd", async () => {
 // --- review fix (modes-gerald-odd) ---
 // 1. The camera's slow motion stretches the real time a run takes (data-camera-slow-lag): a recording is extended by the lag it
 // adds, so it is still running when its length of wall time is up. 2. The top captions start below a mode's own top HUD
@@ -7102,7 +7234,9 @@ const bdInstrument = () =>
   check("the String Battle's warning badge moves to the top-right corner when the teams scoreboard takes the top-left one", roster.badge === "1" && roster.right === "1" && plain.badge === "1" && plain.right === "0", `(${JSON.stringify({ roster, plain })})`);
 }
 // --- end review fix (modes-gerald-odd) ---
+});
 
+await smokeBlock("daily-gallery", async () => {
 // --- daily-gallery --- the preset gallery (cards, preview images, Try it) and the daily challenge (the landing card, daily=
 // links, the Play today's seed button, the end-of-run panel that copies the challenge link, the streak)
 {
@@ -7222,7 +7356,9 @@ const bdInstrument = () =>
   await page.evaluate(() => localStorage.removeItem("jumpingballslive_daily"));
 }
 // --- end daily-gallery ---
+});
 
+await smokeBlock("pwa", async () => {
 // --- pwa --- Installable offline app: the manifest, the icons, the offline page and the worker are served and linked; the worker
 // takes over and precaches the app shell in a versioned cache; offline (a local proxy in front of the server drops every
 // connection) the simulator loads from the cache and runs, and a page never visited shows the offline page in its language; after
@@ -7392,6 +7528,8 @@ const bdInstrument = () =>
   check("pwa: no page errors while offline or across the update", offErrors.length === 0, offErrors.length ? `\n   ${offErrors.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end pwa ---
+});
+await smokeBlock("unlimited", async () => {
 // --- unlimited --- No limits: an extreme link – the switch on, 50,000 balls and a huge speed – opens with the crowd on the
 // canvas and the "x… real time" badge (the frame budget slices the run), the page stays responsive (a click registers within
 // 300 ms while the run crawls), the panel shows the switch on with the typed values, and a recording still downloads.
@@ -7502,7 +7640,9 @@ const bdInstrument = () =>
   check("no limits: a mode's own settings run past their sliders with the switch off (4,000 power layers, 40 panes a stage)", plLayers === "4000" && glassPanes === "80", `(layers ${plLayers}, panes ${glassPanes})`);
 }
 // --- end unlimited ---
+});
 
+await smokeBlock("uncap-all", async () => {
 // --- uncap-all --- Uncapped everything: every slider has a number field next to it; a value typed past the slider goes
 // into the link exactly (and invalid text never does); a Bounciness of 3 grows the rebounds with no ceiling (the canvas
 // speed readout climbs); a Ball Count of a million runs to its memory-safety ceiling (ARENA FULL) without a crash.
@@ -7716,7 +7856,9 @@ const bdInstrument = () =>
   );
 }
 // --- end uncap-all ---
+});
 
+await smokeBlock("review-fix-audio", async () => {
 // --- review fix (audio) ---
 // Leaving the simulator by an in-app link (the header's Back link: a client-side navigation, the same document) closes its
 // AudioContext – the music bed and the keep-alive oscillator stop instead of playing on under the landing page with nothing
@@ -7771,7 +7913,9 @@ const bdInstrument = () =>
   await p.close();
 }
 // --- end review fix (audio) ---
+});
 
+await smokeBlock("bounce-math", async () => {
 // --- bounce-math ---
 // Bounce math: a rule from the link fills the "Bounce math" block of the Ball & Physics section; an edit in the panel (the
 // trigger, the amount, a formula – an invalid one shows its error and stays out of the link) lands in the link (`bmr`); the
@@ -7885,6 +8029,8 @@ const bdInstrument = () =>
   );
 }
 // --- end bounce-math ---
+});
+await smokeBlock("social-publish", async () => {
 // --- social-publish --- Publish (the block after the Viral video bot block of the Recording section): with nothing set up
 // it renders, explains the three paths and offers only the quick share; on a computer "Send to TikTok" downloads the clip,
 // copies the caption and opens the TikTok upload page; on a phone (a stubbed navigator.share / canShare) the file itself
@@ -8163,7 +8309,9 @@ const bdInstrument = () =>
   check("publish: no page errors in the Publish checks", pubHard.length === 0, pubHard.length ? `\n   ${pubHard.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end social-publish ---
+});
 
+await smokeBlock("desktop-exe", async () => {
 // --- desktop-exe --- the Windows app on the website: the download page and its links, the landing button, the navbar /
 // footer / sitemap entries; the Desktop group absent on the website and working with a stand-in window.desktop (the bridge
 // the app's preload exposes): GPU panel, render queue (a real fast export saved through the bridge, with its ffmpeg pass
@@ -8357,7 +8505,9 @@ const bdInstrument = () =>
   check("desktop-exe: no page errors in the Desktop group", desktopErrors.length === 0, desktopErrors.length ? `\n   ${desktopErrors.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end desktop-exe ---
+});
 
+await smokeBlock("review-fix-ui-i18n", async () => {
 // --- review fix (ui-i18n) --- the settings search finds the escape modes' Mode-row controls, Wall Count / Gap Size only
 // where they act, named switches, the collapsed mobile menu out of the tab order, the language list closes on Escape,
 // reduced motion, the slider focus ring, the narrow-panel button rows, keyboard-placed obstacles, the localised alt
@@ -8531,7 +8681,9 @@ const bdInstrument = () =>
   }
 }
 // --- end review fix (ui-i18n) ---
+});
 
+await smokeBlock("review-fix-performance", async () => {
 // --- review fix (performance) ---
 // Runtime budgets. (1) Leaving the simulator by an in-app link mid-recording stops the recorder – no download from a page that
 // is gone – and the audio: every AudioContext closed, the music bed's looping source stopped. (2) On 75 Hz and 144 Hz displays
@@ -8783,7 +8935,9 @@ const bdInstrument = () =>
   }
 }
 // --- end review fix (performance) ---
+});
 
+await smokeBlock("odd-territory", async () => {
 // --- odd-territory ---
 // Territory: the preview image and the card under the battle heading; URL → the Territory block of the Mode row (teams,
 // balls, powers, interval, reach, columns, countdown, pegs, badge, HUD), controls → URL (the Countdown moves the clip
@@ -8980,7 +9134,9 @@ const bdInstrument = () =>
   check("Find Simulation follows a 120 s territory countdown past its 60 s horizon: the Forced Winner's run is found", /Rigged: PINK wins/.test(note) && /Found! PINK wins \(120\.0s\)/.test(text), `("${text}", note="${note}")`);
 }
 // --- end odd-territory ---
+});
 
+await smokeBlock("odd-maze", async () => {
 // --- odd-maze ---
 // Maze Escape: the preview image and the card under the battle heading; URL → the Maze block of the Mode row (brain, hand,
 // balls, size, speed, pull, trail, fog, clip limit, badge), controls → URL, the search box and the finder's outcomes; a
@@ -9190,7 +9346,9 @@ const bdInstrument = () =>
   await timingCheck("a 1080×1920 maze recording keeps 20+ fps and downloads", size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
 }
 // --- end odd-maze ---
+});
 
+await smokeBlock("review-fix-site-redesign", async () => {
 // --- review fix (site-redesign) --- the studio's review fixes: the command palette reaches a control its group does not show
 // (Show Advanced Options off, the collapsed Project file block) and offers no other mode's controls, and a rail click right
 // after it shows that group; the icon rail's hover labels are drawn on top at 1280–1535 px; picking a mode keeps the stage
@@ -9390,7 +9548,9 @@ const bdInstrument = () =>
   check("site-redesign review checks: no page errors", srErrors.length === 0, srErrors.length ? `\n   ${srErrors.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end review fix (site-redesign) ---
+});
 
+await smokeBlock("gerald-conveyor", async () => {
 // --- gerald-conveyor ---
 // Conveyor Belt and timed respawns: the preview image and the card under the escape heading; URL → the Conveyor block of the
 // Mode row (arena, drop interval, balls, freeze, variety, the run summary), controls → URL and the search box; a short rings
@@ -9659,7 +9819,9 @@ const bdInstrument = () =>
   );
 }
 // --- end gerald-conveyor ---
+});
 
+await smokeBlock("gerald-exit-splat", async () => {
 // --- gerald-exit-splat --- Moving exits and splat barriers of the ring modes: URL → the Exit Behaviour buttons (Wall
 // Settings) and the Splat Barrier switch (Visual Effects), controls → URL, the search box, where they are offered, a run with
 // a jumping exit that leaves splats (at most Most Splats standing), Flee and Shrink moving the exit, off by default, and the
@@ -9831,7 +9993,9 @@ const bdInstrument = () =>
   );
 }
 // --- end gerald-exit-splat ---
+});
 
+await smokeBlock("paywall-gate", async () => {
 // --- paywall-gate --- The paywall. A free visitor (a context without a licence) plays freely but meets the lock on every
 // video-creating action: Record Video, the fast export and the batch carry the lock and open the Unlock dialog instead of
 // starting (no recording state, no download). --- free-watermark --- Since the watermark gate they carry the watermark tag
@@ -10406,7 +10570,9 @@ const bdInstrument = () =>
   check("paywall: no page errors in the paywall checks", payHard.length === 0, payHard.length ? `\n   ${payHard.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end paywall-gate ---
+});
 
+await smokeBlock("code-obfuscation", async () => {
 // --- code-obfuscation --- the shipped simulator app chunk is obfuscated (the proprietary banner, hexadecimal-mangled
 // identifiers, and no readable PhysicsEngine / bounceMath / FinderRequest), and no source map is served for it. The
 // expectation follows the build: OBFUSCATE=0 serves a debug (un-obfuscated) build, so the check inverts there; the .map
@@ -10449,6 +10615,40 @@ const bdInstrument = () =>
   }
 }
 // --- end code-obfuscation ---
+});
+
+// --- smoke-sharding --- out of the orb-grid block below: orb-rhythm reads the end banner with it too
+/**
+ * --- review fix (orb-grid) --- The end banner on the canvas: its backdrop (data-og-banner – x,y,w,h in world px; the block is
+ * 1.92 title font sizes tall: the title, the subline at 0.4 of it and 0.22 of padding above and below) – the brightest channel
+ * in its side padding at the subline's height, where only the backdrop lies over the field (60 % black: 102 at most), the
+ * near-white pixels of the subline, and (for the log) the brightest channel just outside the backdrop at that height.
+ */
+const orbBannerPixels = () =>
+  page.evaluate(() => {
+    const canvas = document.querySelector("main canvas");
+    const box = (canvas?.dataset.ogBanner ?? "").split(",").map(Number);
+    const world = (canvas?.dataset.world ?? "").split("x").map(Number);
+    if (!canvas || box.length !== 4 || !(box[2] > 0) || !(world[0] > 0)) return null;
+    const k = canvas.width / world[0];
+    const [x, y, w, h] = box.map((v) => v * k);
+    const fs = h / 1.92;
+    const subY = y + 0.22 * fs + fs + 0.24 * fs;
+    const ctx = canvas.getContext("2d");
+    const read = (x0, y0, x1, y1) => ctx.getImageData(Math.round(x0), Math.round(y0), Math.max(1, Math.round(x1 - x0)), Math.max(1, Math.round(y1 - y0))).data;
+    const brightest = (d) => {
+      let m = 0;
+      for (let i = 0; i < d.length; i += 4) m = Math.max(m, d[i], d[i + 1], d[i + 2]);
+      return m;
+    };
+    const backdropMax = Math.max(brightest(read(x + 0.06 * fs, subY - 0.12 * fs, x + 0.22 * fs, subY + 0.12 * fs)), brightest(read(x + w - 0.22 * fs, subY - 0.12 * fs, x + w - 0.06 * fs, subY + 0.12 * fs)));
+    const sub = read(x + 0.45 * fs, subY - 0.2 * fs, x + w - 0.45 * fs, subY + 0.2 * fs);
+    let white = 0;
+    for (let i = 0; i < sub.length; i += 4) if (sub[i] >= 230 && sub[i + 1] >= 230 && sub[i + 2] >= 230) white++;
+    const outsideMax = x > 0.25 * fs ? brightest(read(x - 0.22 * fs, subY - 0.12 * fs, x - 0.06 * fs, subY + 0.12 * fs)) : -1;
+    return { box: box.map((v) => Math.round(v)).join(","), backdropMax, white, outsideMax };
+  });
+await smokeBlock("orb-grid", async () => {
 // --- orb-grid ---
 // Bouncing Orbs: the preview image and the card under the rhythm heading; URL → the Bouncing Orbs
 // block of the Mode row (columns, rows, arrangement, distribution, sound, material, auto-orbit, the run line), controls → URL
@@ -10671,36 +10871,6 @@ const orbSoundRun = async (query, ms) => {
     `(ready=${ready}, "${readyText}", finished at ${data.ogFinishedMs} ms (${data.ogFinish}), settled ${data.ogSettled} of ${data.ogOrbs})`,
   );
 }
-/**
- * --- review fix (orb-grid) --- The end banner on the canvas: its backdrop (data-og-banner – x,y,w,h in world px; the block is
- * 1.92 title font sizes tall: the title, the subline at 0.4 of it and 0.22 of padding above and below) – the brightest channel
- * in its side padding at the subline's height, where only the backdrop lies over the field (60 % black: 102 at most), the
- * near-white pixels of the subline, and (for the log) the brightest channel just outside the backdrop at that height.
- */
-const orbBannerPixels = () =>
-  page.evaluate(() => {
-    const canvas = document.querySelector("main canvas");
-    const box = (canvas?.dataset.ogBanner ?? "").split(",").map(Number);
-    const world = (canvas?.dataset.world ?? "").split("x").map(Number);
-    if (!canvas || box.length !== 4 || !(box[2] > 0) || !(world[0] > 0)) return null;
-    const k = canvas.width / world[0];
-    const [x, y, w, h] = box.map((v) => v * k);
-    const fs = h / 1.92;
-    const subY = y + 0.22 * fs + fs + 0.24 * fs;
-    const ctx = canvas.getContext("2d");
-    const read = (x0, y0, x1, y1) => ctx.getImageData(Math.round(x0), Math.round(y0), Math.max(1, Math.round(x1 - x0)), Math.max(1, Math.round(y1 - y0))).data;
-    const brightest = (d) => {
-      let m = 0;
-      for (let i = 0; i < d.length; i += 4) m = Math.max(m, d[i], d[i + 1], d[i + 2]);
-      return m;
-    };
-    const backdropMax = Math.max(brightest(read(x + 0.06 * fs, subY - 0.12 * fs, x + 0.22 * fs, subY + 0.12 * fs)), brightest(read(x + w - 0.22 * fs, subY - 0.12 * fs, x + w - 0.06 * fs, subY + 0.12 * fs)));
-    const sub = read(x + 0.45 * fs, subY - 0.2 * fs, x + w - 0.45 * fs, subY + 0.2 * fs);
-    let white = 0;
-    for (let i = 0; i < sub.length; i += 4) if (sub[i] >= 230 && sub[i + 1] >= 230 && sub[i + 2] >= 230) white++;
-    const outsideMax = x > 0.25 * fs ? brightest(read(x - 0.22 * fs, subY - 0.12 * fs, x - 0.06 * fs, subY + 0.12 * fs)) : -1;
-    return { box: box.map((v) => Math.round(v)).join(","), backdropMax, white, outsideMax };
-  });
 {
   // --- review fix (orb-grid) --- Seed 28 of a 12 × 12 field dropped from 0.44 comes to rest 29.1 s into the default 30 s clip:
   // inside the 1.5 s hold, so the clip ends the run – as settled (the banner stays ALL SETTLED; TIME! only while an orb still
@@ -10871,7 +11041,9 @@ const orbBannerPixels = () =>
   await timingCheck("a 4900-orb Bouncing Orbs run keeps 30+ fps", data.ogOrbs === "4900" && data.ogQuality === "2", fpsOk(fps, 6, 30), `(quality ${data.ogQuality}, ${fpsNote(fps)}, floor 30${loadNote()})`, fpsRetry(3000, 5, 30));
 }
 // --- end orb-grid ---
+});
 
+await smokeBlock("fight-league", async () => {
 // --- fight-league ---
 // Fight League: the preview image and the card under the rhythm heading of the landing page, with the arena games; URL →
 // the Fight League block of the Mode row (match type, fighters, HP, time cap, arena, HUD, a handicap), controls → URL (a
@@ -11137,7 +11309,9 @@ const orbBannerPixels = () =>
   );
 }
 // --- end fight-league ---
+});
 
+await smokeBlock("land-claim", async () => {
 // --- land-claim ---
 // 35. Land Claim: the preview image and the card under the battle heading; URL → the Land Claim block of the Mode row (rule,
 // arena, competitors, balls, columns, rows, spawn period, duration, title, HUD), controls → URL (the duration moves the clip
@@ -11374,7 +11548,9 @@ const orbBannerPixels = () =>
   await timingCheck("a 1080×1920 recording of the 1144-block battle keeps 20+ fps and downloads", size > 10000, fpsOk(rec, 5, 20), `(${size} bytes, ${fpsNote(rec)}, floor 20${loadNote()})`, recordingRetry(5, 20));
 }
 // --- end land-claim ---
+});
 
+await smokeBlock("string-circle", async () => {
 // --- string-circle ---
 // 36. String Circle: the String Battle's circle style. URL → the String Circle block of the String Battle (style, arena,
 // strings per second, strings per life, title line, standings strip; the rule, threads and badge controls hidden in this style),
@@ -11629,7 +11805,9 @@ for (const [balls, rate] of [[5, 170], [12, 270]]) {
   );
 }
 // --- end string-circle ---
+});
 
+await smokeBlock("free-watermark", async () => {
 // --- free-watermark --- Every video made without a verified Pro licence carries the watermark, drawn into its pixels by the
 // compositor (lib/watermark/seal.ts decides, layout.ts places, paint.ts draws). The downloaded videos are decoded in a page of
 // the site (played and sampled frame by frame: MediaRecorder's WebM has no index to seek in) and measured where the layout
@@ -11983,7 +12161,9 @@ for (const [balls, rate] of [[5, 170], [12, 270]]) {
   check("free watermark: no page errors in the watermark checks", wmHard.length === 0, wmHard.length ? `\n   ${wmHard.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end free-watermark ---
+});
 
+await smokeBlock("orb-rhythm", async () => {
 // --- orb-rhythm ---
 // Bouncing Orbs' rhythm model (the default since the orb-rhythm rework): a 12 × 12 field is the rhythm model and moves fluidly
 // – every frame drawn at its own simulation time (data-og-frame-t advancing exactly with the frame's rAF time, data-og-frame-ts),
@@ -12245,7 +12425,9 @@ const orbBoxPixels = (box) =>
   );
 }
 // --- end orb-rhythm ---
+});
 
+await smokeBlock("desktop-ai-fix", async () => {
 // --- desktop-ai-fix --- the Windows app's AI fix on the website's side: the download page shows the version (1.0.3) and says
 // the model is a one-time download and that 1.0.2 installs take 1.0.3 by hand; with a stand-in window.desktop that has
 // ai.diagnose, the AI tab shows the first-run card (its download button downloads the default model), the AI status panel
@@ -12404,7 +12586,9 @@ const orbBoxPixels = (box) =>
   check("desktop-ai-fix: no page errors in the AI tab", aiFixErrors.length === 0, aiFixErrors.length ? `\n   ${aiFixErrors.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end desktop-ai-fix ---
+});
 
+await smokeBlock("mode-thumbnails", async () => {
 // 37. Mode thumbnails: every mode card's picture (public/modes/<mode>.webp, made by scripts/generate-mode-previews.mjs from the
 // hero moments of src/lib/thumbnails/heroMoments.ts) is served as a WebP square of THUMB_SIZE under the 60 KB budget, decodes
 // to a picture with something in it (not a flat colour), and the modes wall of the landing page and the studio's mode picker
@@ -12512,7 +12696,11 @@ const orbBoxPixels = (box) =>
   );
 }
 // --- end mode-thumbnails ---
+});
 
+// --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
+// run's, a shard's too.
+smoke.endBlocks();
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
 const hardErrors = errors.filter((e) => !IGNORED_CONSOLE.test(e));
@@ -12524,5 +12712,6 @@ if (inconclusiveResults.length) {
   console.log(`\n⚠️ ${inconclusiveResults.length} timing check${inconclusiveResults.length === 1 ? "" : "s"} inconclusive (the machine was too busy to measure; not counted – SMOKE_STRICT_TIMING=1 fails them):`);
   for (const r of inconclusiveResults) console.log(`   ⚠️ ${r.name} ${r.extra}`);
 }
+smoke.report(); // --- smoke-sharding --- the 15 slowest blocks (and what a shard ran), before the count
 console.log(`\n${results.length - failed.length}/${results.length} checks passed${inconclusiveResults.length ? `, ${inconclusiveResults.length} inconclusive` : ""}`);
 process.exit(failed.length ? 1 : 0);
