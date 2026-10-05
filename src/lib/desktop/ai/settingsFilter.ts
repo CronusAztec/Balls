@@ -6,7 +6,11 @@ import { assistantSettings } from "./settingsPatch";
  * change (the catalog plus the page mode's own block) in every prompt: ~3,800 tokens for the Settings job, which a CPU reads
  * for 40 s before the first word. Now the prompt (and the reply grammar, built from the same list) carries the settings
  * most requests touch plus those the request points at – by their names, the words of their descriptions or a concept
- * ("faster", "szybciej", "más rápido" → ballSpeed). A request that names the page's mode gets that mode's block.
+ * ("faster", "szybciej", "más rápido" → ballSpeed). --- review fix (desktop-ai-fix) --- and the page mode's own block,
+ * always: its settings are described only as "<mode> setting", so no word of a request reaches them, and offering the
+ * block only to a request that named the mode left "make the panes break on the second hit" on Glass Smash (or "longer
+ * rounds" in Fight League) without a single setting of the mode – the grammar is built from the same list, so the local
+ * model could not change them and the cloud model's change was refused. 1.0.2 offered them on every request.
  */
 
 /** Always offered: what most requests change. */
@@ -31,8 +35,13 @@ export const CORE_SETTING_KEYS: readonly string[] = [
   "bottomText",
 ];
 
-/** At most this many settings in one prompt. */
-export const MAX_RELEVANT_SETTINGS = 40;
+/**
+ * At most this many settings in one prompt. --- review fix (desktop-ai-fix) --- (was 40): room for the core settings, the
+ * biggest mode block (Bouncing Orbs: 34) and the settings a request points at besides – a prompt of about 2,200 tokens at
+ * most (1,700 for a Fight League request), where 1.0.2 listed every setting for ~3,800; past it the block's settings the
+ * request does not point at give way first.
+ */
+export const MAX_RELEVANT_SETTINGS = 64;
 
 /** Concepts in a request (English, Polish and Spanish word stems) → words that settings' keys and descriptions use. */
 const CONCEPTS: readonly (readonly [RegExp, readonly string[]])[] = [
@@ -81,21 +90,29 @@ function requestWords(request: string): string[] {
 }
 
 /**
- * The settings for this request, in the assistant's order: the core ones, then the ones its words or concepts point at
- * (at most `MAX_RELEVANT_SETTINGS`). An empty request gets the core ones only.
+ * The settings for this request, in the assistant's order: the core ones, the ones its words or concepts point at and the
+ * page mode's own block (--- review fix (desktop-ai-fix) --- whether or not the request names the mode). Past
+ * `MAX_RELEVANT_SETTINGS` the block's settings the request does not point at give way first, then the last of the others.
+ * An empty request gets the core ones and the mode's block.
  */
 export function relevantAssistantSettings(current: SimulatorSettings, request: string): [key: string, description: string][] {
   const all = assistantSettings(current);
   const text = request.toLowerCase();
   const targets = CONCEPTS.filter(([pattern]) => pattern.test(text)).flatMap(([, words]) => words);
   const words = requestWords(request);
-  const mode = String(current.mode).toLowerCase();
-  const modeNamed = words.some((w) => mode.startsWith(w) || w.startsWith(mode));
-  const picked = all.filter(([key, description]) => {
-    if (CORE_SETTING_KEYS.includes(key)) return true;
+  const ownBlock = `${String(current.mode).toLowerCase()} setting`;
+  const core: string[] = [];
+  const pointed: string[] = [];
+  const block: string[] = [];
+  for (const [key, description] of all) {
+    if (CORE_SETTING_KEYS.includes(key)) {
+      core.push(key);
+      continue;
+    }
     const haystack = `${key.toLowerCase()} ${keyWords(key)} ${description.toLowerCase()}`;
-    if (modeNamed && description.toLowerCase() === `${mode} setting`) return true;
-    return targets.some((t) => haystack.includes(t)) || words.some((w) => haystack.includes(w));
-  });
-  return picked.slice(0, MAX_RELEVANT_SETTINGS);
+    if (targets.some((t) => haystack.includes(t)) || words.some((w) => haystack.includes(w))) pointed.push(key);
+    else if (description.toLowerCase() === ownBlock) block.push(key);
+  }
+  const kept = new Set([...core, ...pointed, ...block].slice(0, MAX_RELEVANT_SETTINGS));
+  return all.filter(([key]) => kept.has(key));
 }

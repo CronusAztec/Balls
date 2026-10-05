@@ -145,6 +145,47 @@ describe("model manager", () => {
     expect((await m.list(""))[0].state).toBe("partial");
   });
 
+  // --- review fix (desktop-ai-fix) --- the ready hook (main.ts selects the download there) runs before the "ready" event the
+  // page refreshes on – also for a model that was already there – and a failing hook never fails a verified download
+  it("runs the ready hook before the ready event, and a failing hook never fails the download", async () => {
+    const order: string[] = [];
+    const m: ModelManager = new ModelManager({
+      dir,
+      catalog: [spec],
+      fetch: server(payload).fetch,
+      onProgress: (e) => void (e.state === "ready" && order.push("ready event")),
+      onReady: async (id) => {
+        const state = (await m.list("")).find((e) => e.id === id)?.state;
+        order.push(`hook ${id} (${state}, ${fs.existsSync(path.join(dir, "tiny.gguf.sha256")) ? "checked" : "unchecked"})`);
+      },
+    });
+    await m.download("tiny");
+    order.push("returned");
+    await m.download("tiny"); // already there
+    order.push("returned");
+    expect(order).toEqual(["hook tiny (ready, checked)", "ready event", "returned", "hook tiny (ready, checked)", "ready event", "returned"]);
+    await m.remove("tiny", "");
+    const events: ModelProgressEvent[] = [];
+    const failing = new ModelManager({
+      dir,
+      catalog: [spec],
+      fetch: server(payload).fetch,
+      onProgress: (e) => events.push(e),
+      onReady: () => {
+        throw new Error("the settings file is locked");
+      },
+    });
+    expect((await failing.download("tiny")).state).toBe("ready");
+    expect(events.at(-1)).toMatchObject({ id: "tiny", state: "ready", downloaded: spec.size });
+    expect(events.some((e) => e.error)).toBe(false);
+    // A download that fails never runs the hook.
+    await failing.remove("tiny", "");
+    let hooked = 0;
+    const broken = new ModelManager({ dir, catalog: [spec], fetch: server(Buffer.from("GGUF not the model")).fetch, onReady: () => void hooked++ });
+    await expect(broken.download("tiny")).rejects.toThrow(/Incomplete download|Checksum mismatch/);
+    expect(hooked).toBe(0);
+  });
+
   it("marks a file that fails its check as corrupt and uses picked GGUF files in place", async () => {
     fs.writeFileSync(path.join(dir, "tiny.gguf"), payload.subarray(0, 10));
     const m = new ModelManager({ dir, catalog: [spec], fetch: server(payload).fetch });

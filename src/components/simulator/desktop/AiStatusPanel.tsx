@@ -31,14 +31,16 @@ export default function AiStatusPanel({ bridge, prefs, status, onGpu }: { bridge
   const available = typeof bridge.ai.diagnose === "function";
 
   const diagnose = useCallback(
-    async (deep: boolean): Promise<AiDiagnosis | null> => {
+    async (deep: boolean, setupChanged = false): Promise<AiDiagnosis | null> => {
       if (typeof bridge.ai.diagnose !== "function") return null;
       if (deep) setChecking(true);
       setError(null);
       try {
         const d = await bridge.ai.diagnose({ deep });
-        // A quick look after the full checks only refreshes the last error (the other rows keep what was tested).
-        setDiagnosis((prev) => (prev?.deep && !d.deep ? { ...prev, checks: prev.checks.map((c) => (c.id === "lastError" ? (d.checks.find((x) => x.id === "lastError") ?? c) : c)) } : d));
+        // A quick look after the full checks only refreshes the last error (the other rows keep what was tested) – unless
+        // the setup changed: --- review fix (desktop-ai-fix) --- the full checks tested the old one ("not downloaded yet"
+        // stayed up after the download finished and was selected).
+        setDiagnosis((prev) => (prev?.deep && !d.deep && !setupChanged ? { ...prev, checks: prev.checks.map((c) => (c.id === "lastError" ? (d.checks.find((x) => x.id === "lastError") ?? c) : c)) } : d));
         return d;
       } catch (err) {
         setError(aiErrorText(err));
@@ -50,11 +52,17 @@ export default function AiStatusPanel({ bridge, prefs, status, onGpu }: { bridge
     [bridge],
   );
 
-  // The quick look: when the tab opens, and again when a run fails (the last error changes) or the CPU / GPU choice does.
+  // The quick look: when the tab opens, and again when a run fails (the last error changes) or the setup does – the CPU / GPU
+  // choice, the provider, the selected model and (--- review fix (desktop-ai-fix) ---) whether it is ready: a finished
+  // download (selected by the app before its "ready" event) changed nothing the panel watched.
   const lastErrorKey = JSON.stringify(status?.lastError ?? null);
+  const setupKey = JSON.stringify([prefs.aiGpu, prefs.localModel, prefs.aiProvider, status?.local.model ?? null, status?.ready ?? null]);
+  const setupRef = useRef(setupKey);
   useEffect(() => {
-    void diagnose(false);
-  }, [diagnose, lastErrorKey, prefs.aiGpu, prefs.localModel, prefs.aiProvider]);
+    const setupChanged = setupRef.current !== setupKey;
+    setupRef.current = setupKey;
+    void diagnose(false, setupChanged);
+  }, [diagnose, lastErrorKey, setupKey]);
   useEffect(() => () => clearTimeout(copiedTimer.current), []);
 
   const copyReport = async () => {
