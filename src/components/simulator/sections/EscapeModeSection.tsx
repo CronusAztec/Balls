@@ -3,6 +3,7 @@
 import { ColorPicker, Searchable, Slider, Toggle, offBtn, rainbowBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import type { ModeId } from "@/lib/physics/types";
+import GrowFillSection, { GROW_FILL_KEYS } from "./GrowFillSection"; // --- loop-foundation ---
 
 export interface EscapeModeSectionProps {
   t: Translate;
@@ -24,6 +25,7 @@ export const ESCAPE_MODE_KEYS_BY_MODE: Partial<Record<ModeId, string[]>> = {
   colorMatch: ["colorCount"],
   grow: ["growthRate", "centerDot", "growLines", "lineColor"],
 };
+ESCAPE_MODE_KEYS_BY_MODE.grow?.push(...GROW_FILL_KEYS); // --- loop-foundation --- (Grow's fill and loop)
 
 /** Every search key of the escape-mode blocks. */
 export const ESCAPE_MODE_KEYS = [...new Set(Object.values(ESCAPE_MODE_KEYS_BY_MODE).flat())];
@@ -102,6 +104,7 @@ export default function EscapeModeSection({ t, search, matches, settings: s, upd
             <Toggle t={t} labelKey="growLines" tipKey="growLinesTip" value={s.growLines} onChange={(v) => update({ growLines: v })} />
           </Searchable>
           {(s.growLines || !!search) && lineColor}
+          <GrowFillSection t={t} search={search} matches={matches} settings={s} update={update} /> {/* --- loop-foundation --- */}
         </div>
       );
     default:

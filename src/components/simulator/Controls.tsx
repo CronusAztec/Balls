@@ -48,6 +48,9 @@ import StringBattleSection, { STRING_BATTLE_KEYS } from "./sections/StringBattle
 import PowerLayersSection, { POWER_LAYERS_KEYS } from "./sections/PowerLayersSection"; // --- odd-power-layers --- the Power layers block of the Mode row
 import { FAST_EXPORT_KEYS, FastExportFpsControl, type FastExportPanelProps } from "./sections/FastExportSection"; // --- fast-render ---
 import BatchSection, { BATCH_KEYS, type BatchPanelProps } from "./sections/BatchSection"; // --- batch-render ---
+import LoopSection, { LOOP_KEYS } from "./sections/LoopSection"; // --- loop-foundation ---
+import { loopCaptionContext } from "@/lib/publish/loopCaption"; // --- loop-foundation ---
+import LoopClipsSection, { LOOP_CLIP_KEYS, type LoopClipsPanelProps } from "./sections/LoopClipsSection"; // --- loop-foundation ---
 import BotSection, { BOT_KEYS, type BotPanelProps } from "./sections/BotSection"; // --- viral-bot ---
 import PublishSection, { PUBLISH_KEYS } from "./sections/PublishSection"; // --- social-publish ---
 import AccountRow from "@/components/billing/AccountRow"; // --- paywall-gate --- Free or Pro, at the top of the Recording group
@@ -189,6 +192,8 @@ export interface ControlsProps {
   /** Loads a Bouncing Orbs preset (the Presets group): the mode first when another one is on, then the preset's fields (left out without it). */
   onOrbGridPreset?: (fields: OrbGridFields) => void;
   // --- end orb-grid ---
+  /** --- loop-foundation --- The loop families' clip slots of the Sound section (the owner's own clips; left out without it). */
+  loopClips?: LoopClipsPanelProps;
 }
 
 const EMOJIS = ["😂", "🔥", "💀", "❤️", "⭐", "🎯", "🏀", "⚽", "🎱", "🌍", "🍩", "🎃"];
@@ -273,6 +278,8 @@ SECTION_KEYS.ball.push(...UNLIMITED_KEYS);
 SECTION_KEYS.ball.push(...BOUNCE_MATH_KEYS);
 // --- social-publish --- the Publish block (TikTok, Instagram, YouTube) closes the Recording section, after the Viral video bot block.
 SECTION_KEYS.recording.push(...PUBLISH_KEYS);
+SECTION_KEYS.recording.push(...LOOP_KEYS); // --- loop-foundation --- Export whole loops and the loop HUD
+SECTION_KEYS.sound.push(...LOOP_CLIP_KEYS); // --- loop-foundation --- the loop families' clip slots
 
 /**
  * --- review fix (site-redesign) --- The command palette's controls, group by group, for this panel state: the mode's own
@@ -1037,6 +1044,7 @@ export default function Controls(props: ControlsProps) {
         />
         {/* --- video-beats --- */}
         {props.videoBeats && <VideoBeatsSection t={t} search={search} matches={matches} showAdvanced={showAdvanced} settings={s} update={update} panel={props.videoBeats} />}
+        {props.loopClips && <LoopClipsSection t={t} search={search} matches={matches} panel={props.loopClips} /> /* --- loop-foundation --- */}
         <Searchable search={search} matches={matches} labelKey="wallBreakSound">
           <div className="space-y-2">
             <label className="text-sm font-medium text-ink-2" htmlFor="wallbreak-select">
@@ -1235,9 +1243,10 @@ export default function Controls(props: ControlsProps) {
       )}
       {/* --- fast-render --- the fast export's frame rate */}
       <FastExportFpsControl t={t} search={search} matches={matches} settings={s} update={update} disabled={props.fastExport?.state.status === "running"} />
+      <LoopSection t={t} search={search} matches={matches} settings={s} update={update} /> {/* --- loop-foundation --- */}
       {props.batch && <BatchSection t={t} search={search} matches={matches} batch={props.batch} /> /* --- batch-render --- */}
       {props.bot && <BotSection t={t} search={search} matches={matches} bot={props.bot} /> /* --- viral-bot --- */}
-      <PublishSection t={t} search={search} matches={matches} bot={props.bot} /> {/* --- social-publish --- */}
+      <PublishSection t={t} search={search} matches={matches} bot={props.bot} loopCaptionOf={loopCaptionContext(s) /* --- loop-foundation --- */} /> {/* --- social-publish --- */}
     </div>
   );
 

@@ -12,6 +12,7 @@ import { flSideNames } from "@/lib/physics/modes/fightLeague"; // --- fight-leag
 import { lcPaletteName } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 import { circleLineup } from "@/lib/physics/modes/stringCircle"; // --- string-circle ---
 import { ESCAPE_AT_TOLERANCE_SEC, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
+import { barLineDistanceMs } from "@/lib/simulation/outcomes"; // --- loop-foundation ---
 import type { FinderProgress, FinderResult } from "@/lib/simulation/finder";
 import NumberField from "./NumberField"; // --- uncap-all --- a number field next to every numeric control
 
@@ -34,6 +35,8 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "resolves-at": "outcomeResolvesAt",
   "double-ko": "outcomeDoubleKo", // --- fight-league ---
   close: "outcomeClose", // --- land-claim ---
+  "fills-by": "outcomeFillsBy", // --- loop-foundation ---
+  "fill-on-bar": "outcomeFillOnBar", // --- loop-foundation ---
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -46,6 +49,8 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "resolves-at": "hintResolvesAt",
   "double-ko": "hintDoubleKo", // --- fight-league ---
   close: "hintClose", // --- land-claim ---
+  "fills-by": "hintFillsBy", // --- loop-foundation ---
+  "fill-on-bar": "hintFillOnBar", // --- loop-foundation ---
 };
 
 /** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
@@ -182,6 +187,32 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
           <NumberField value={escapeAt} onCommit={onEscapeAt} label={r(outcome === "resolves-at" ? "resolveAt" : "escapeAt")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" /* --- uncap-all --- */ />
         </div>
       )}
+      {/* --- loop-foundation --- the fill's time limit (the escape slider's range and field) */}
+      {outcome === "fills-by" && (
+        <div className="space-y-1.5" data-testid="finder-fill-by">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-fill-by">
+              {r("fillBy")}
+            </label>
+            <span className="text-xs font-mono text-accent">≤ {escapeAt.toFixed(1)}s</span>
+          </div>
+          <input
+            id="find-fill-by"
+            type="range"
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={escapeAt}
+            disabled={disabled}
+            onChange={(e) => onEscapeAt(Number(e.target.value))}
+            aria-label={r("fillBy")}
+            className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
+            style={sliderStyle(escapeAt, range.min, range.max)}
+          />
+          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r("fillBy")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" />
+        </div>
+      )}
+      {/* --- end loop-foundation --- */}
       {outcome === "winner" && (
         <div className="space-y-1.5">
           <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-winner">
@@ -207,7 +238,17 @@ export interface OutcomeTextContext {
   duration: number;
   escapeAt: number;
   winnerName: string;
+  /** --- loop-foundation --- The bar's length (s) a fill-on-bar search aims at (four beats at the page's BPM). */
+  barSec?: number;
 }
+
+// --- loop-foundation ---
+/** How far (s) a fill at `fillAt` s lands from the nearest bar line, as the panel shows it. */
+function barOffsetText(fillAt: number | undefined, barSec: number | undefined): string {
+  if (fillAt === undefined || !(barSec !== undefined && barSec > 0)) return "?";
+  return (barLineDistanceMs(1000 * fillAt, 1000 * barSec) / 1000).toFixed(3);
+}
+// --- end loop-foundation ---
 
 /** The finder button's label for an outcome search; null for the classic duration search. */
 export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | null, c: OutcomeTextContext): string | null {
@@ -227,6 +268,10 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findDoubleKo");
     case "close": // --- land-claim ---
       return t("Rigged.findClose");
+    case "fills-by": // --- loop-foundation ---
+      return t("Rigged.findFillsBy", { time: c.escapeAt.toFixed(1) });
+    case "fill-on-bar": // --- loop-foundation ---
+      return t("Rigged.findFillOnBar");
     default:
       return null;
   }
@@ -250,6 +295,10 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundDoubleKo", { duration: result.duration.toFixed(1) });
     case "close": // --- land-claim ---
       return t("Rigged.foundClose", { duration: result.duration.toFixed(1) });
+    case "fills-by": // --- loop-foundation ---
+      return t("Rigged.foundFillsBy", { time: (result.fillAt ?? 0).toFixed(2) });
+    case "fill-on-bar": // --- loop-foundation ---
+      return t("Rigged.foundFillOnBar", { time: (result.fillAt ?? 0).toFixed(2) });
     default:
       return null;
   }
@@ -274,6 +323,10 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missDoubleKo", { seeds: result.seedsTested });
     case "close": // --- land-claim --- (the closest gap between the top two, in percent of the land)
       return t("Rigged.missClose", { margin: result.duration.toFixed(1), seeds: result.seedsTested });
+    case "fills-by": // --- loop-foundation ---
+      return t("Rigged.missFillsBy", { time: c.escapeAt.toFixed(1), seeds: result.seedsTested });
+    case "fill-on-bar": // --- loop-foundation ---
+      return result.fillAt === undefined ? t("Rigged.missNoFill", { seeds: result.seedsTested }) : t("Rigged.missFillOnBar", { offset: barOffsetText(result.fillAt, c.barSec), seeds: result.seedsTested });
     default:
       return null;
   }
@@ -302,6 +355,10 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayDoubleKo", { tested: result.seedsTested });
     case "close": // --- land-claim ---
       return t("Rigged.overlayClose", { tested: result.seedsTested, margin: result.duration.toFixed(1) });
+    case "fills-by": // --- loop-foundation ---
+      return t("Rigged.overlayFillsBy", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) });
+    case "fill-on-bar": // --- loop-foundation ---
+      return result.fillAt === undefined ? t("Rigged.overlayNoFill", { tested: result.seedsTested }) : t("Rigged.overlayFillOnBar", { tested: result.seedsTested, offset: barOffsetText(result.fillAt, c.barSec) });
     default:
       return null;
   }
