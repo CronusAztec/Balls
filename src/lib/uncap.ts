@@ -182,6 +182,9 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   lcTeams: 1_000,
   lcBalls: BOARD_BALL_CEILING,
   // --- end land-claim ---
+  // --- chord-stars --- Chord Stars: the balls (each an engine ball pinned to the clock, a star, a voice and a line of the chord
+  // layer; nothing is stored per chord – a cycle's chords past SC_CHORD_CEILING fade on the canvas instead)
+  scBalls: ENTITY_CEILING,
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

@@ -74,6 +74,8 @@ export const MODE_IDS = [
   "fightLeague",
   // --- land-claim --- Land Claim (balls knock the top blocks off the columns lining the arena; every eighth block a new ball)
   "landClaim",
+  // --- chord-stars --- Chord Stars (balls in a circle drawing star polygons that all close at the same moment; the loop family)
+  "starChords",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

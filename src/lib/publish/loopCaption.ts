@@ -13,6 +13,7 @@ export const LOOP_CAPTION_BASE_TAGS = ["#satisfying", "#oddlysatisfying"] as con
 /** The topic tags a mode adds after them (two or three: four or five in all). */
 export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly string[]>>> = {
   grow: ["#physics", "#bouncingball", "#exponentialgrowth"],
+  starChords: ["#math", "#geometry", "#creativecoding"], // --- chord-stars ---
 };
 /** Any other mode's topic tags. */
 export const LOOP_CAPTION_DEFAULT_TAGS = ["#physics", "#bouncingball"] as const;
@@ -106,7 +107,9 @@ export interface LoopCaptionContext {
  * The loop-style words of a run with these settings: Grow by its law – "{count}% bigger every bounce…" (multiply), "{count} px
  * bigger…" (add), "{count}% closer…" (the classic approach) –, any other mode its clip's seconds.
  */
-export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number }): LoopCaptionContext {
+export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number; scBalls?: number /* --- chord-stars --- */ }): LoopCaptionContext {
+  // --- chord-stars --- Chord Stars by its balls: "{count} balls, one circle, …" and the fact of the inner circles
+  if (s.mode === "starChords") return { mode: s.mode, hookKey: "starChords", factKey: "starChordsFact", count: s.scBalls ?? null };
   if (s.mode === "grow") {
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };
     if (s.growLaw === "add") return { mode: s.mode, hookKey: "growAdd", factKey: "", count: s.growStep ?? null };

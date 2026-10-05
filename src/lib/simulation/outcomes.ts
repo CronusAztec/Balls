@@ -29,9 +29,12 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  * --- loop-foundation --- Grow's fill and loop adds two, while a fill ends the run ("finish"): **fills-by** – the ball fills
  * the circle within a time limit (`atSec`) – and **fill-on-bar** – the fill lands within `toleranceSec` (one 60 fps frame by
  * default) of a bar line of the song's tempo (`atSec` is the bar's length), so the completion chord hits on a downbeat.
+ *
+ * --- chord-stars --- Chord Stars adds **star-set**: its stars always close together, so the search is for the best-looking
+ * star set and the drawing time that fits the clip in whole loops (starChordsFinder.ts; no seed is simulated).
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -357,6 +360,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "fightLeague") out.push("double-ko");
   if (CLOSE_BATTLE_MODES.includes(mode) && ctx.ballCount >= 2) out.push("close"); // --- land-claim ---
   if (mode === "grow" && ctx.growFinish) out.push("fills-by", "fill-on-bar"); // --- loop-foundation ---
+  if (mode === "starChords") out.push("star-set"); // --- chord-stars --- (the best star set, its loop fitted to the clip)
   return out;
 }
 

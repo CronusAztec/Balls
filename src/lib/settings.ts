@@ -89,6 +89,8 @@ import { GROW_FILL_ENGINE_KEYS, GROW_FILL_RANGES, defaultGrowFillFields, readGro
 import type { GrowLaw, GrowOnFill } from "@/lib/physics/modes/grow";
 import { defaultLoopFields, readLoopParams, resolveLoopFields, writeLoopParams } from "@/lib/loop/loopSettings";
 // --- end loop-foundation ---
+// --- chord-stars --- Chord Stars (balls in a circle drawing star polygons that all close at the same moment)
+import { SC_ENGINE_KEYS, SC_RANGES, defaultStarChordsFields, readStarChordsParams, resolveStarChordsFields, starChordsModeDefaults, writeStarChordsParams, type ScEnvelope, type ScPalette, type ScVoice } from "@/lib/physics/starChords";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -934,6 +936,28 @@ export interface SimulatorSettings {
   loopHudTitle: string;
   loopHudSubtitle: string;
   // --- end loop-foundation ---
+  // --- chord-stars --- Chord Stars (lib/physics/starChords.ts): balls drawing star polygons {n/k} that all close at once
+  /** Balls, 1–12 on the slider, any whole number typed (a run builds at most 5,000) (URL `scn`). */
+  scBalls: number;
+  /** The stars, "n/k" a ball: 5/2,7/3,8/3,9/4,12/5 (URL `scs`). */
+  scStars: string;
+  /** Seconds to close every star (1–30 on the slider), the hold and the fade after it (URL `sct`, `sch`, `scf`). */
+  scCycle: number;
+  scHold: number;
+  scFade: number;
+  /** The share of a full turn the start points spread over, 1 = round the whole rim (URL `scsp`). */
+  scSpread: number;
+  /** The chords' width (world px) (URL `scw`). */
+  scLineWidth: number;
+  /** The inner circles: closed (they appear as the stars close) | on | off (URL `sce`). */
+  scEnvelope: ScEnvelope;
+  /** pastel | rainbow | ball (the Ball Color) (URL `scp`). */
+  scPalette: ScPalette;
+  /** The bounces' voice: pluck | chime | bar | silent (URL `scv`). */
+  scVoice: ScVoice;
+  /** The completion chord and the reset glide (URL `scc`). */
+  scChord: boolean;
+  // --- end chord-stars ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -1069,6 +1093,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...landClaimModeDefaults(mode),
     ...defaultGrowFillFields(), // --- loop-foundation --- (the classic Grow: approach, stay)
     ...defaultLoopFields(), // --- loop-foundation --- (whole loops on, the HUD off)
+    // --- chord-stars --- the feature's fields, and in Chord Stars only the account's look (navy page, lavender circle, the loop HUD on)
+    ...defaultStarChordsFields(),
+    ...starChordsModeDefaults(mode),
   };
 }
 
@@ -1149,6 +1176,7 @@ export const RANGES = {
   ...FIGHT_LEAGUE_RANGES, // --- fight-league ---
   ...LAND_CLAIM_RANGES, // --- land-claim ---
   ...GROW_FILL_RANGES, // --- loop-foundation ---
+  ...SC_RANGES, // --- chord-stars ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1400,6 +1428,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeLandClaimParams(settings, base, params); // --- land-claim ---: lcc, lcr, lca, lct, lcb, lcm, lce, lcd, lcti, lch
   writeGrowFillParams(settings, base, params); // --- loop-foundation ---: gLaw, gFill, gStep, gStart, gHold, gShrink, gHue, gRamp, gMark, gMarkT, gPitch
   writeLoopParams(settings, base, params); // --- loop-foundation ---: wl, lh, lht, lhs
+  writeStarChordsParams(settings, base, params); // --- chord-stars ---: scn, scs, sct, sch, scf, scsp, scw, sce, scp, scv, scc
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1564,6 +1593,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readLandClaimParams(params, settings); // --- land-claim --- (valid numbers kept, no maximum; unknown arenas and rules fall back)
   readGrowFillParams(params, settings); // --- loop-foundation --- (valid numbers from their minimum up, known laws, real booleans, a clean ramp)
   readLoopParams(params, settings); // --- loop-foundation --- (real booleans, clean texts)
+  readStarChordsParams(params, settings); // --- chord-stars --- (valid numbers from their minimum up, clean stars, known options, a real boolean)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -1781,6 +1811,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   orbGrid: ORB_GRID_PHYSICS_FIELDS.filter((key) => key in ORB_GRID_RANGES), // --- orb-grid --- (the field and the variation; the camera is the canvas')
   fightLeague: rangeKeys(FIGHT_LEAGUE_RANGES), // --- fight-league ---
   landClaim: rangeKeys(LAND_CLAIM_RANGES), // --- land-claim ---
+  starChords: [...SC_ENGINE_KEYS], // --- chord-stars --- (the balls, the timing and the start points; the line width is the canvas')
 };
 // --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
@@ -1991,6 +2022,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveLandClaimFields(merged)); // --- land-claim --- valid numbers (no maximum), a known arena and rule, a clean title, a real boolean
   Object.assign(merged, resolveGrowFillFields(merged)); // --- loop-foundation --- valid numbers from their minimum up, known laws, real booleans, a clean ramp
   Object.assign(merged, resolveLoopFields(merged)); // --- loop-foundation --- real booleans, clean texts
+  Object.assign(merged, resolveStarChordsFields(merged)); // --- chord-stars --- valid numbers from their minimum up, clean stars, known options, a real boolean
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

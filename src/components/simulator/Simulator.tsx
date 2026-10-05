@@ -133,6 +133,7 @@ import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-
 import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { FL_WIN_HOLD_SEC, fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 import { landClaimClipSec, landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
+import { starChordsSettingsOf } from "@/lib/physics/starChords"; // --- chord-stars ---
 // --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
 import { useVideoBeats } from "./useVideoBeats";
 import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
@@ -386,6 +387,7 @@ export default function Simulator() {
     engine.setOrbGridSettings(orbGridSettingsOf(s)); // --- orb-grid ---
     engine.setFightLeagueSettings(fightLeagueSettingsOf(s)); // --- fight-league ---
     engine.setLandClaimSettings(landClaimSettingsOf(s)); // --- land-claim ---
+    engine.setStarChordsSettings(starChordsSettingsOf(s)); // --- chord-stars ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -1024,6 +1026,27 @@ export default function Simulator() {
   }, [s.lcTitle, s.lcHud]);
   const landClaimFinishAtRef = useRef<number | null>(null);
   // --- end land-claim ---
+  // --- chord-stars --- Chord Stars: a change of the run (balls, stars, drawing time, hold, fade, spread) restarts it and drops a
+  // found star set; the look (line width, inner circles, colours) and the sound (voice, chord) follow live. A found star set
+  // moves the key itself before it updates the settings (runFinder), so its own change keeps the result on the page.
+  const starChordsKey = [s.scBalls, s.scStars, s.scCycle, s.scHold, s.scFade, s.scSpread].join("|");
+  const starChordsKeyRef = useRef(starChordsKey);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setStarChordsSettings(starChordsSettingsOf(s));
+    if (starChordsKeyRef.current === starChordsKey) return;
+    starChordsKeyRef.current = starChordsKey;
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+    if (s.mode === "starChords" && engine.getCurrentModeName() === "starChords") {
+      engine.initMode("starChords");
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [starChordsKey, s.scLineWidth, s.scEnvelope, s.scPalette, s.scVoice, s.scChord]);
+  // --- end chord-stars ---
   // --- gerald-vortex --- Sound Vortex: a change of the funnel or the flight (balls, stagger, rings, duration, pull, loop)
   // restarts the run and drops a found seed; the depth cue and the Sound section's scale and root (the ring notes) follow live.
   useEffect(() => {
@@ -2837,6 +2860,7 @@ export default function Simulator() {
           fightLeague: fightLeagueSettingsOf(settings), // --- fight-league --- (every fight ends: the last side standing, a double KO or the time cap)
           landClaim: landClaimSettingsOf(settings), // --- land-claim --- (a run ends when the land is all taken or at its duration)
           grow: growFillSettingsOf(settings), // --- loop-foundation --- (Grow's law, fill, hold and shrink: "finish" ends at the fill)
+          starChords: starChordsSettingsOf(settings), // --- chord-stars --- (the balls and the timing: the search fits the loop to the clip)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
@@ -2880,8 +2904,16 @@ export default function Simulator() {
       if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
       // --- fight-league --- a found fight is recorded with its winner banner's hold
       if (settings.mode === "fightLeague" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + FL_WIN_HOLD_SEC)) });
+      // --- chord-stars --- the star set found and the drawing time that fits the clip in whole loops: the clip is the target, and
+      // the run starts over with them (the restart effect's key is moved first, so the change keeps the result on the page)
+      const foundStars = settings.mode === "starChords" && result.starChords ? { scStars: result.starChords.stars, scCycle: result.starChords.cycleSec } : null;
+      if (foundStars) {
+        starChordsKeyRef.current = [settings.scBalls, foundStars.scStars, foundStars.scCycle, settings.scHold, settings.scFade, settings.scSpread].join("|");
+        update({ ...foundStars, recordingDuration: Math.max(RANGES.recordingDuration.min, result.duration) });
+      }
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
+      if (foundStars) initEngineForMode(engine, { ...settings, ...foundStars }); // --- chord-stars ---
       // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
       if (result.arenaSeeds) update({ arenas: withArenaSeeds(settings.arenas, settings.arenaCount, result.arenaSeeds) });
     }

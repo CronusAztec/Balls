@@ -51,6 +51,8 @@ import { resolveLandClaimSettings, type LandClaimSettings } from "@/lib/physics/
 import { MAX_TEAMS } from "@/lib/physics/ballStats"; // --- land-claim ---
 import type { GrowFillSettings } from "@/lib/physics/modes/grow"; // --- loop-foundation ---
 import { growRunFinishes } from "@/lib/physics/growFill"; // --- loop-foundation ---
+import type { StarChordsSettings } from "@/lib/physics/starChords"; // --- chord-stars ---
+import { findStarChordsRun, type StarChordsFound } from "./starChordsFinder"; // --- chord-stars ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -204,6 +206,13 @@ export interface ModeSettings {
    * a fill within a time limit or a fill on a bar line.
    */
   grow?: Partial<GrowFillSettings>;
+  // --- chord-stars ---
+  /**
+   * Chord Stars: the balls, the stars, the drawing time, the hold, the fade and the look (see lib/physics/starChords.ts); the
+   * defaults when left out. The loop never ends and its stars always close together, so the finder searches star sets and the
+   * drawing time that fits the clip instead (starChordsFinder.ts).
+   */
+  starChords?: Partial<StarChordsSettings>;
 }
 
 // --- odd-string-battle ---
@@ -281,6 +290,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "vortex") return resolveVortexSettings(settings.vortex).loop;
   // --- orb-grid --- a field that never settles (the period property, an orb bouncing elastically or harder): only the clip ends it
   if (mode === "orbGrid") return orbGridNeverSettles((settings as Pick<ModeSettings, "orbGrid">).orbGrid);
+  // --- chord-stars --- the loop draws, holds, fades and starts again forever (the finder searches its star sets instead)
+  if (mode === "starChords") return true;
   return false;
 }
 
@@ -398,6 +409,9 @@ export interface FinderResult {
   // --- loop-foundation ---
   /** Grow: the first fill (seconds) of the run found – or of the closest one – when it had one. */
   fillAt?: number;
+  // --- chord-stars ---
+  /** Chord Stars: the star set found, the drawing time that fits the clip, the loops in it and the set's score. */
+  starChords?: StarChordsFound;
 }
 
 /**
@@ -465,6 +479,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "fightLeague") engine.setFightLeagueSettings(settings.fightLeague ?? {}); // --- fight-league ---
   if (mode === "landClaim") engine.setLandClaimSettings(settings.landClaim ?? {}); // --- land-claim ---
   if (mode === "grow") engine.setGrowFillSettings(settings.grow ?? {}); // --- loop-foundation --- (before the init: the law and the start apply there)
+  if (mode === "starChords") engine.setStarChordsSettings(settings.starChords ?? {}); // --- chord-stars ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -669,6 +684,11 @@ export function findSimulation(
       return;
     }
     // --- end orb-rhythm ---
+    // --- chord-stars --- every star closes on time by construction: the search is over star sets and the loop that fits the clip
+    if (request.mode === "starChords") {
+      resolve(findStarChordsRun(request));
+      return;
+    }
     // --- rigged --- the other outcomes (never escapes, first escape at, winner) search by what happens, not by the length
     if (request.outcome && request.outcome.kind !== "duration") {
       findByOutcome(request, request.outcome, onProgress, signal).then(resolve);

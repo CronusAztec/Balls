@@ -42,7 +42,26 @@ export interface LoopHudSpec {
 /** Translation keys (namespace `LoopHud`) of the modes with words of their own; any other mode's title is its name. */
 export const LOOP_HUD_MODE_TEXT: Readonly<Partial<Record<ModeId, { title: string; subtitle: string; counter: string }>>> = {
   grow: { title: "growTitle", subtitle: "growSubtitle", counter: "growCounter" },
+  starChords: { title: "starChordsTitle", subtitle: "starChordsSubtitle", counter: "starChordsCounter" }, // --- chord-stars ---
 };
+
+// --- chord-stars --- a counter toward a total ("stars closed 3/5") and a subtitle of two lines
+/** A counter with the total it counts toward: the template's `{count}` and `{total}`. */
+export interface LoopHudCount {
+  count: number;
+  total: number;
+}
+/** Where a subtitle breaks into its second line (the account's subtitles are one or two lines: "line one / line two"). */
+export const HUD_SUBTITLE_BREAK = " / ";
+/** A subtitle's lines: split at its first " / " (at most two, each trimmed; an empty half is left out). */
+export function subtitleLines(subtitle: string): string[] {
+  const at = subtitle.indexOf(HUD_SUBTITLE_BREAK);
+  if (at < 0) return subtitle ? [subtitle] : [];
+  return [subtitle.slice(0, at).trim(), subtitle.slice(at + HUD_SUBTITLE_BREAK.length).trim()].filter(Boolean);
+}
+/** The distance (font sizes) from a subtitle's first line to its second. */
+export const HUD_SUBTITLE_LEADING = 1.2;
+// --- end chord-stars ---
 
 /** The HUD's lines in a `width` × `height` frame (px): centres of the lines, font sizes, the rule and the widest a line may be. */
 export interface LoopHudLayout {
@@ -126,10 +145,10 @@ export function loopHudLiveLayout(width: number, height: number, centerY: number
 }
 
 /** The rectangles (px) the HUD's lines may cover in a frame, for a line `textWidth` px wide at most (the watermark's tests). */
-export function loopHudRects(layout: LoopHudLayout, width: number, subtitle: boolean): { x: number; y: number; width: number; height: number }[] {
+export function loopHudRects(layout: LoopHudLayout, width: number, subtitle: boolean, subtitleLineCount = 1 /* --- chord-stars --- */): { x: number; y: number; width: number; height: number }[] {
   const line = (y: number, size: number) => ({ x: (width - layout.maxWidth) / 2, y: y - HUD_LINE_HALF * size, width: layout.maxWidth, height: 2 * HUD_LINE_HALF * size });
   const out = [line(layout.titleY, layout.titleSize), line(layout.counterY, layout.counterSize)];
-  if (subtitle && layout.subtitleY >= 0) out.push(line(layout.subtitleY, layout.subtitleSize));
+  if (subtitle && layout.subtitleY >= 0) for (let i = 0; i < Math.max(1, subtitleLineCount); i++) out.push(line(layout.subtitleY + i * HUD_SUBTITLE_LEADING * layout.subtitleSize, layout.subtitleSize));
   return out;
 }
 
@@ -148,7 +167,7 @@ export function loopHudBands(layout: LoopHudLayout, frame: LoopHudFrame, out: Lo
   out.top = -Infinity;
   out.bottom = Infinity;
   if (frame.title) out.top = layout.titleY + HUD_LINE_HALF * layout.titleSize;
-  if (frame.subtitle && layout.subtitleY >= 0) out.top = Math.max(out.top, layout.subtitleY + HUD_LINE_HALF * layout.subtitleSize);
+  if (frame.subtitle && layout.subtitleY >= 0) out.top = Math.max(out.top, layout.subtitleY + (subtitleLines(frame.subtitle).length - 1) * HUD_SUBTITLE_LEADING * layout.subtitleSize + HUD_LINE_HALF * layout.subtitleSize); // --- chord-stars --- (a second line lower)
   if (frame.counter) out.bottom = layout.counterY - HUD_LINE_HALF * layout.counterSize;
   return out;
 }
@@ -178,19 +197,27 @@ export function hudText(text: string | undefined | null, locale?: string): strin
   }
 }
 
-/** The counter's line: the template with `{count}` replaced ("" without a count or a template). */
-export function hudCounterText(template: string, count: number | null, locale?: string): string {
-  if (!template || count === null || !Number.isFinite(count)) return "";
-  return hudText(template.replace("{count}", String(Math.round(count))), locale);
+/** The counter's line: the template with `{count}` replaced ("" without a count or a template) – --- chord-stars --- and `{total}`. */
+export function hudCounterText(template: string, count: number | LoopHudCount | null, locale?: string): string {
+  const value = typeof count === "number" || count === null ? count : count.count;
+  if (!template || value === null || !Number.isFinite(value)) return "";
+  let text = template.replace("{count}", String(Math.round(value)));
+  if (count !== null && typeof count === "object" && Number.isFinite(count.total)) text = text.replace("{total}", String(Math.round(count.total))); // --- chord-stars ---
+  return hudText(text, locale);
 }
 
-/** The counter of the mode's run (Grow: the bounces of the current cycle), or null when the mode has none. */
-export function loopHudCount(engine: { getCurrentModeName(): string; getGrowView(): { bounces: number } }): number | null {
+/** The counter of the mode's run (Grow: the bounces of the current cycle; --- chord-stars --- Chord Stars: the stars closed of all), or null when the mode has none. */
+export function loopHudCount(engine: { getCurrentModeName(): string; getGrowView(): { bounces: number }; getStarChordsView?(): { closed: number; count: number } }): number | LoopHudCount | null {
+  // --- chord-stars ---
+  if (engine.getCurrentModeName() === "starChords" && engine.getStarChordsView) {
+    const v = engine.getStarChordsView();
+    return { count: v.closed, total: v.count };
+  }
   return engine.getCurrentModeName() === "grow" ? engine.getGrowView().bounces : null;
 }
 
 /** One frame of the HUD from the page's words and the run's counter. */
-export function loopHudFrame(spec: LoopHudSpec, count: number | null, locale?: string): LoopHudFrame {
+export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | null, locale?: string): LoopHudFrame {
   return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudCounterText(spec.counter, count, locale), light: spec.light };
 }
 
@@ -225,7 +252,9 @@ export function drawLoopHud(ctx: CanvasRenderingContext2D, width: number, frame:
     ctx.lineTo(cx + layout.ruleWidth / 2, layout.ruleY);
     ctx.stroke();
     ctx.fillStyle = grey;
-    fitLine(ctx, frame.subtitle, cx, layout.subtitleY, layout.subtitleSize, "500", layout.maxWidth);
+    // --- chord-stars --- a subtitle of two lines ("line one / line two"): the second under the first
+    const lines = subtitleLines(frame.subtitle);
+    lines.forEach((line, i) => fitLine(ctx, line, cx, layout.subtitleY + i * HUD_SUBTITLE_LEADING * layout.subtitleSize, layout.subtitleSize, "500", layout.maxWidth));
   }
   if (frame.counter) {
     ctx.fillStyle = frame.light ? LOOP_HUD_GREY_LIGHT : LOOP_HUD_AMBER;

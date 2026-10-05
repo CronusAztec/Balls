@@ -37,6 +37,7 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   close: "outcomeClose", // --- land-claim ---
   "fills-by": "outcomeFillsBy", // --- loop-foundation ---
   "fill-on-bar": "outcomeFillOnBar", // --- loop-foundation ---
+  "star-set": "outcomeStarSet", // --- chord-stars ---
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -51,6 +52,7 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   close: "hintClose", // --- land-claim ---
   "fills-by": "hintFillsBy", // --- loop-foundation ---
   "fill-on-bar": "hintFillOnBar", // --- loop-foundation ---
+  "star-set": "hintStarSet", // --- chord-stars ---
 };
 
 /** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
@@ -272,6 +274,8 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findFillsBy", { time: c.escapeAt.toFixed(1) });
     case "fill-on-bar": // --- loop-foundation ---
       return t("Rigged.findFillOnBar");
+    case "star-set": // --- chord-stars ---
+      return t("Rigged.findStarSet", { duration: c.duration });
     default:
       return null;
   }
@@ -299,6 +303,8 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundFillsBy", { time: (result.fillAt ?? 0).toFixed(2) });
     case "fill-on-bar": // --- loop-foundation ---
       return t("Rigged.foundFillOnBar", { time: (result.fillAt ?? 0).toFixed(2) });
+    case "star-set": // --- chord-stars --- (the stars found, the loops in the clip and the drawing time of each)
+      return t("Rigged.foundStarSet", { stars: starSetText(result), loops: result.starChords?.loops ?? 0, cycle: (result.starChords?.cycleSec ?? 0).toFixed(2) });
     default:
       return null;
   }
@@ -327,6 +333,8 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missFillsBy", { time: c.escapeAt.toFixed(1), seeds: result.seedsTested });
     case "fill-on-bar": // --- loop-foundation ---
       return result.fillAt === undefined ? t("Rigged.missNoFill", { seeds: result.seedsTested }) : t("Rigged.missFillOnBar", { offset: barOffsetText(result.fillAt, c.barSec), seeds: result.seedsTested });
+    case "star-set": // --- chord-stars --- (not even one loop fits the clip: `duration` is the shortest loop)
+      return t("Rigged.missStarSet", { duration: result.duration.toFixed(1) });
     default:
       return null;
   }
@@ -359,10 +367,20 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayFillsBy", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) });
     case "fill-on-bar": // --- loop-foundation ---
       return result.fillAt === undefined ? t("Rigged.overlayNoFill", { tested: result.seedsTested }) : t("Rigged.overlayFillOnBar", { tested: result.seedsTested, offset: barOffsetText(result.fillAt, c.barSec) });
+    case "star-set": // --- chord-stars ---
+      return t("Rigged.overlayStarSet", { duration: result.duration.toFixed(1), target: c.duration });
     default:
       return null;
   }
 }
+
+// --- chord-stars ---
+/** A Chord Stars result's stars as the panel shows them ("5/2, 7/3, 8/3"; the first twelve of a bigger set, then "…"). */
+function starSetText(result: FinderResult): string {
+  const stars = (result.starChords?.stars ?? "").split(",").filter(Boolean);
+  return stars.length > 12 ? `${stars.slice(0, 12).join(", ")}, …` : stars.join(", ");
+}
+// --- end chord-stars ---
 
 // --- orb-rhythm ---
 /**

@@ -15,7 +15,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 
 | Area | What you get |
 | --- | --- |
-| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
+| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow; collision-safe at every amplitude and speed) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Merge & split balls** | A ball-interaction setting in the Ball section: balls **bounce** (default), **merge** into one bigger ball on contact (area and momentum conserved, colours blended, a particle burst and a low tone), **split** in two every time a ball breaks through a wall (half the area each, diverging velocities, a high tone – down to a smallest size and up to a ball cap) or **pass** through each other. Works in the two-ball modes and Multiply, is deterministic (seeds and Find Simulation include it) and shared via the URL (`bi`, `smr`, `mb`) |
@@ -88,6 +88,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Mode thumbnails** | Every mode card – the modes wall, the studio's mode picker, the daily card – shows its mode at its **hero moment**, mid-action with the payoff on screen (feature mode-thumbnails): an entry per mode in `HERO_MOMENTS` (`src/lib/thumbnails/heroMoments.ts` – settings, pinned seed, second, camera and the mode's colour; glow and trails on, bigger balls where a 240 px card needs them, only the HUD element that is the point), rendered by the real simulator's deterministic still camera and framed the same way for every card: a 480 × 480 square (2× the ~240 px card), the same inset and vignette, a subtle edge glow in the mode's colour, WebP under 60 KB, no captions or watermark. `npm run previews` regenerates them, printing each file's size, and stops when a mode has no hero moment; the viral bot's covers use the same idea – the payoff frame of each clip, not its first frame (see [Mode thumbnails](#mode-thumbnails)) |
 | **Watermark on every free simulation** | The free-video watermark on the live canvas too (feature watermark-everywhere, `src/lib/watermark/live.ts`, `liveLayout.ts`): every frame a visitor without a verified Pro licence sees – the studio's canvas in every mode (and so share links, the gallery's presets, the daily challenge and the Windows app, which runs the same page), a split-screen race's composed frame (once, not per arena) and the landing page's live preview – carries the badge and the faint domain tiles, drawn into the canvas' own pixels as the frame's last pass: 4.5 % of the exported square tall, 1.5 % from its edges, on the other side every 6 s, clear of the mode's HUD. The decision is free-watermark's sealed gate, so a Pro licence removes it at once – mid-run too – and removing the licence brings it back; a page recording copies the marked canvas, one badge per frame in the video layout's place (see [Watermark on every free simulation](#watermark-on-every-free-simulation)) |
 | **Loop foundation & Grow: fill and loop** | The first family of the loop-clip account's simulations (feature loop-foundation). An original synthesized sound library (`src/lib/audio/loopTones.ts`, `ToneGenerator.playLoop()`: pentatonic plucks, tuned bars, a progress ladder, a groove bed, impact accents, a completion chord, reset glides and washes, a field drone – every voice scheduled on the simulation clock under a per-tick voice budget, with optional clip slots for your own sounds that never leave the device), the offline mix of the fast export and the batch render normalised to −14 LUFS with its true peak at most −1 dBTP (BS.1770), the loop contract (a mode reports its seamless cycle; **Export whole loops** cuts recordings, fast exports and batch renders to a whole number of cycles), a lowercase **loop HUD** drawn into the frames, a **Loop style** caption preset in Publish, and Grow's fill-and-loop upgrade: growth law approach / multiply / add, when it fills stay / loop / finish, hold and shrink, colour by size, contact markers, pitch by size, the presets Fill and loop, Slow burn, Instant and Classic grow, and Find Simulation's "Fills within" and "Fill on a bar line". See [Grow: fill and loop](#grow-fill-and-loop) and [Loop foundation](#loop-foundation-sounds-whole-loops-and-the-loop-hud). |
+| **Chord Stars** | A rhythm-family mode of the loop family (`starChords`, feature chord-stars) after the loop-clip account's "five stars, all closing at once" clip: 1–12 balls (any number typed) ride inside one thin lavender circle on navy, each drawing a star polygon n/k – every bounce keeps its angle, so the contact point steps k of n points round the rim and every chord touches one inner circle of radius R·cos(πk/n). The motion is analytic (no solver: at cycle time t ball i has made ⌊t·nᵢ/T⌋ bounces), every ball moves at nᵢ·chordᵢ/T so **every star closes on the same frame** at any frame rate, then the drawing holds, fades and loops (the loop contract: whole loops of drawing + hold + fade). Stars as typed `n/k` pairs or a random coprime set, drawing time, hold, fade, start spread, line width, inner circles (when closed / always / off), pastel / rainbow / ball colours, a pentatonic pluck, chime or bar per bounce pitched by the ball's speed, a completion chord with a reset glide, the loop HUD's "stars closed 3/5" counter, the presets Five stars, Seven-point bloom and Heptagram duel, and a Find Simulation outcome that picks the best-looking star set and fits the loop to the clip. See [Chord Stars](#chord-stars). |
 
 ## Design
 
@@ -1543,7 +1544,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
   run, a camera – the subject square's centre (`x`, `y`, fractions of the world) and `zoom` (1, the default, is the centred
   square a clip records) – and the mode's colour for the edge glow. Bigger balls (`r`), thicker rings (`wt`) and trails (`tt`)
   keep a 240 px card legible; the modes' own HUD switches (`tsb=0`, `tn=0`, `lch=0`, `sbh=0`, `mzhud=0`, `mzbg=0`, `tybg=0`,
-  `rcst=0`, `rcmm=0`, `ogHud=0`, `plb=none`, `plp=0`) leave only the element that is the point – a battle's score, the
+  `rcst=0`, `rcmm=0`, `ogHud=0`, `plb=none`, `plp=0`, `lh=0`) leave only the element that is the point – a battle's score, the
   fighters' names, the HOME count –, and the camera frames out a HUD without a switch (the String Circle title, the Sound
   Vortex and Conveyor Belt counters, the race commentary, the Multipliers badges, Fight League's ability boxes). No captions or
   top / bottom text, no watermark: the stills come from the arena canvas, never the video compositor, and the generator runs
@@ -1629,6 +1630,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `orbGrid` | the orbs' wave at its peak | 3 | 14.5 s | `ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0` | x 0.506 · y 0.567 · zoom 1.25 |
 | `fightLeague` | Thor and Loki clashing, the VS card gone, hammer and daggers mid-swing | 11 | 5.25 s | – | x 0.5 · y 0.361 · zoom 1.151 |
 | `landClaim` | half the wall taken: the columns a mosaic of the four countries' colours | 3 | 5 s | `teams=France,Brazil,Spain,Colombia…&lcm=claim&lch=0&tsb=0&tn=0` | x 0.5 · y 0.587 · zoom 1.25 |
+| `starChords` | the five stars just closed together: every chord drawn, the inner circles lit, the closing flash | 1 | 12.3 s | `lh=0` | zoom 1.2 |
 
 ### Watermark on every free simulation
 Feature watermark-everywhere – the owner's request (2026-10-04): "add the watermark to all simulations made without pro". The
@@ -1775,6 +1777,58 @@ The shared pieces every loop-family simulation builds on (feature loop-foundatio
   `tests/loopHud.test.ts`, `tests/loopCaption.test.ts` and `tests/grow.test.ts`; the smoke test (section 38) runs the Fill and
   loop preset at 2× (two fills or more, every cycle within a frame of the others), checks the HUD's pixels, exports a whole
   number of cycles and lists the Grow outcomes of Find Simulation.
+
+### Chord Stars
+Feature chord-stars – the loop family's star-polygon clip ("five stars, all closing at once"), a rhythm-family mode
+(`starChords`) built on the loop foundation:
+
+- **The geometry** (`src/lib/physics/starChords.ts`, pure): a ball bouncing inside a circle meets the wall at the same angle
+  every time, so ball i moves its contact point by the central angle 2π·kᵢ/nᵢ every bounce: vertex j sits at θ0 + 2π·((j·k)
+  mod n)/n, every chord is 2R·sin(πk/n) long and lies R·cos(πk/n) from the centre – the inner circle every chord of the star
+  touches. A step that shares a factor with n traces the reduced star gcd(n, k) times (10/4 draws 5/2 twice).
+- **The timing** (`src/lib/physics/modes/starChords.ts`): the mode owns its playfield (ring layout "none") and pins ordinary
+  engine balls to the simulation clock like the Pendulum Wave: at cycle time t ball i has made bᵢ = ⌊t·nᵢ/T⌋ bounces and sits on
+  the chord from vertex bᵢ to bᵢ + 1, its speed nᵢ·chordᵢ/T, so every star closes on the same frame t = T whatever the frame
+  rate (`tests/starChords.test.ts` checks 30, 60 and 120 fps). The bounces of a step are counted from the clock, never
+  detected, so none is missed or doubled and a star of a million points costs what a pentagram costs. Then the drawing holds
+  (`scHold`), fades (`scFade`) and the next cycle starts exactly like the first: a loop of T + hold + fade that the mode reports
+  to the loop contract (`cycleSeconds()`, `loopSeams()`), so **Export whole loops** cuts every export at a seam. Nothing is
+  random: every seed plays the same run.
+- **Settings** (the Chord Stars block of the Mode row; every number uncapped from its minimum): **Balls** (`scBalls`, 1–12,
+  URL `scn`; a run builds at most `ENTITY_CEILING` = 5,000), **Stars** (`scStars`, "5/2,7/3,8/3,9/4,12/5", URL `scs`; balls
+  past the list take the next free point counts with the step nearest 0.4·n; the **Random** button draws a coprime set – a
+  different n per ball, never 6), **Drawing Time** (`scCycle`, 1–30 s, default 12, URL `sct`), **Hold** (`scHold`, 0–3 s,
+  1.2, `sch`), **Fade** (`scFade`, 0–3 s, 1.8, `scf`), **Start Spread** (`scSpread`, 0–1, `scsp`), **Line Width**
+  (`scLineWidth`, 0.5–4 px, `scw`), **Inner Circles** (`scEnvelope`: when closed / always / off, `sce`), **Colors**
+  (`scPalette`: the pastels pink, cyan, yellow, green and lavender – then more –, a rainbow or the Ball Color, `scp`),
+  **Bounce Sound** (`scVoice`: pluck, chime, bar or silent, `scv`) and **Closing Chord** (`scChord`, `scc`). A fresh Chord
+  Stars page starts on the navy page with the lavender circle and the loop HUD on. Presets: **Five stars** (the defaults),
+  **Seven-point bloom** (seven heptagrams 7/3, each a seventh of a point further round: a 49-point bloom over one inner circle)
+  and **Heptagram duel** (7/2 against 7/3 from opposite sides, 10 s).
+- **The canvas** (`src/components/simulator/starChordsRenderer.ts`): the thin circle, the inner circles, the chords drawn so
+  far in an offscreen layer that only adds the chords completed since the last frame and is cleared with every cycle (a frame
+  draws at most 20,000 new chords; past `SC_CHORD_CEILING` = 200,000 chords in a cycle the oldest fade by half every quarter of
+  the ceiling – nothing is stored per chord), the chord each ball is drawing, a glint at every bounce, the balls with a small
+  glow and a soft flash as the stars close. The loop HUD reads "stars that close together", a two-line grey subtitle (a
+  subtitle splits into two lines at " / ") and the amber counter "stars closed 3/5" (`{count}` and `{total}`). The canvas
+  mirrors the run in `data-sc-*` (cycles, phase, stars closed, chords this cycle, per cycle, last cycle and in all).
+- **Sound** (`loopTones.ts` through `ToneGenerator.playLoop()`, original synthesis): every bounce is one note on its ball's
+  pitch – the balls ranked by speed, two degrees apart on A major pentatonic from A3 (five balls: A, C♯, F♯, B, E) – at the
+  narrow velocity 0.8 + 0.2 × its speed (the fast balls with the bright third partial), 1/√n when n balls bounce in one step,
+  at most one note a ball a step and 20 a step; a star that closes before the others (its step shares a factor with n, so it
+  closes its reduced star early) rings a soft ding an octave over its note; when the stars close, the completion chord on A2
+  with its ding and sub; when the fade starts, the loop voices are cut (after a hold of 0.3 s or more) and a reset glide falls
+  from the chord's root to an octave under the next cycle's first note, silent at the seam. Every bounce is also bounce math's
+  "bounce" trigger.
+- **Find Simulation** offers **Best star set**: every star closes on time by construction, so the search draws random
+  coprime star sets (`randomStarSet()`), keeps the best-looking one (`starSetScore()`: inner circles evenly spread, none a dot
+  in the centre or a ring at the rim, about eight chords a ball) and fits the drawing time to the clip in whole loops
+  (`cycleForClip()`), so the found run's export is an exact loop of the clip (`src/lib/simulation/starChordsFinder.ts`).
+- **Tests**: `tests/starChords.test.ts` (the vertex sequence of 5/2 back at the start after exactly 5 bounces, the chord's
+  distance R·cos(πk/n) within 1e-9, every ball closing on the same frame for any T, the fingerprints at 30/60/120 fps, the URL
+  round trip, the finder, the sound scheduling through `tests/fakeAudio.ts`); the smoke test (section 39) runs three cycles
+  at 4× and checks that every cycle drew Σn chords, the URL round trip of the block, the HUD's counter and the finder's
+  outcome.
 
 ## Windows app
 
