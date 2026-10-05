@@ -13617,6 +13617,288 @@ await smokeBlock("watermark-everywhere", async () => {
 // --- end watermark-everywhere ---
 });
 
+await smokeBlock("loop-foundation", async () => {
+// --- loop-foundation ---
+// 38. Grow fill and loop and the loop foundation: the Grow block's Fill and loop preset (URL gLaw=multiply and gFill=loop; its
+// 11 % a bounce from 5 % are the defaults of gStep and gStart) runs at 2× with two fills inside 40 s of simulation and every cycle
+// within a frame of the others (data-grow-*,
+// data-loop-cycle); the loop HUD's lowercase title and counter are drawn into the canvas; a fast export with Export whole loops
+// on lasts a whole number of cycles (data-fast-seconds / data-fast-loop-cycle, within one frame), carries the HUD in its frames,
+// plucks through the export's own audio and reports the loudness normaliser's gain; Find Simulation offers the Grow outcomes with
+// Finish (Fills within, Fill on a bar line).
+{
+  await page.goto(`${BASE}/en/simulator/?mode=grow`, { waitUntil: "networkidle" });
+  await page.locator('[data-grow-preset="fillLoop"]').first().click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const loopQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "2x", exact: true }).click();
+  const cycles = [];
+  for (const n of [1, 2]) {
+    await page.waitForFunction((want) => Number(document.querySelector("main canvas")?.dataset.growSeams) >= want, n, { timeout: 45_000 }).catch(() => {});
+    const d = await canvasData();
+    if (Number(d.growSeams) >= n) cycles.push(Number(d.growCycle));
+  }
+  const run = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-grow-fill-loop.png") });
+  const firstFill = Number(run.growFirstFill);
+  const secondFillBy = cycles.length ? firstFill + cycles[0] : Infinity;
+  check(
+    "Grow's Fill and loop preset fills twice within 40 s at 2×, every cycle within a frame of the others",
+    loopQuery.get("gLaw") === "multiply" && (loopQuery.get("gStep") ?? "11") === "11" && (loopQuery.get("gStart") ?? "5") === "5" && loopQuery.get("gFill") === "loop" && run.growLaw === "multiply" && Number(run.growFills) >= 2 && secondFillBy <= 40 && cycles.length === 2 && Math.abs(cycles[0] - cycles[1]) <= 1 / 60 + 0.002 && Math.abs(Number(run.loopCycle) - cycles[1]) < 0.002,
+    `(${JSON.stringify({ query: loopQuery.toString(), fills: run.growFills, firstFill, cycles, loopCycle: run.loopCycle, seams: run.loopSeams, markers: run.growMarkers })})`,
+  );
+
+  // The loop HUD: its lowercase title and the amber counter are drawn into the canvas (the recorder's copy is checked below).
+  await page.goto(`${BASE}/en/simulator/?${loopQuery.toString()}&lh=1&lht=${encodeURIComponent("Fill And Loop")}`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const texts = [];
+    window.__loopHudTexts = texts;
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 4000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.growTotalBounces) >= 3, null, { timeout: 20_000 }).catch(() => {});
+  const hud = await page.evaluate(() => {
+    const texts = window.__loopHudTexts.splice(0);
+    return { title: texts.some((t) => t.text === "fill and loop"), counter: texts.filter((t) => /^\d+ bounces$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null, flag: document.querySelector("main canvas")?.dataset.loopHud };
+  });
+  check("the loop HUD draws its lowercase title and an amber bounce counter on the canvas", hud.title && hud.counter === "#f2c46a" && hud.flag === "1", `(${JSON.stringify(hud)})`);
+
+  // ⚡ A fast export with Export whole loops (on by default): a whole number of cycles, the HUD in its frames, plucks in its audio.
+  await page.goto(`${BASE}/en/simulator/?${loopQuery.toString()}&lh=1&lht=${encodeURIComponent("Fill And Loop")}&dur=40&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const osc = [];
+      const texts = [];
+      window.__loopOsc = osc;
+      window.__loopHudTexts = texts;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.context instanceof OfflineAudioContext) osc.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        if (texts.length < 20000 && this.canvas.width === 500 && this.canvas.height === 500) texts.push(String(text));
+        return fillText.call(this, text, ...rest);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `grow-loop-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const cycle = Number(await panel.getAttribute("data-fast-loop-cycle"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const gain = await panel.getAttribute("data-fast-gain");
+    const status = await panel.getAttribute("data-fast-export");
+    const heard = await page.evaluate(() => ({ osc: window.__loopOsc.length, hud: window.__loopHudTexts.filter((t) => t === "fill and loop").length }));
+    const off = Number.isFinite(seconds) && cycle > 0 ? Math.abs(seconds - Math.max(1, Math.round(seconds / cycle)) * cycle) : Infinity;
+    check(
+      "a Fill and loop fast export lasts a whole number of cycles (within one frame), carries the HUD and plucks through its own audio",
+      status === "done" && bytes > 10000 && loops >= 1 && Math.round(seconds / cycle) === loops && off <= 1 / 30 + 0.002 && seconds <= 40 + 2 / 30 && heard.hud >= 10 && heard.osc >= 20 && gain !== null && Number.isFinite(Number(gain)),
+      `(${JSON.stringify({ status, bytes, seconds, cycle, loops, off: Math.round(off * 1e4) / 1e4, gain, heard })})`,
+    );
+  } else check("without WebCodecs the Fill and loop fast export is not checked (Record Video is covered above)", true);
+
+  // Find Simulation: with Finish the run ends at the fill, and the outcome select offers the Grow outcomes.
+  await page.goto(`${BASE}/en/simulator/?mode=grow&gLaw=multiply&gStep=11&gStart=5&gFill=finish`, { waitUntil: "networkidle" });
+  const outcomes = await page.locator("#find-outcome option").evaluateAll((options) => options.map((o) => o.value)).catch(() => []);
+  check("Find Simulation offers Fills within and Fill on a bar line for Grow with Finish", outcomes.includes("fills-by") && outcomes.includes("fill-on-bar") && outcomes.includes("duration"), `(${JSON.stringify(outcomes)})`);
+}
+// --- end loop-foundation ---
+});
+
+await smokeBlock("chord-stars", async () => {
+// --- chord-stars ---
+// 39. Chord Stars: the preview image and the card under the rhythm heading; URL → the Chord Stars block of the Mode row (balls,
+// stars, drawing time, hold, fade, spread, line width, inner circles, colours, voice, chord) and the finder's outcome, controls →
+// URL (a preset, the drawing time), the search box; three cycles at 4× – every cycle draws Σn chords (data-sc-last-cycle-chords
+// by the run's clock and data-sc-layer-last, what the canvas' chord layer drew of the cycle, against the stars' point counts),
+// every star closes together, the loop contract's cycle – at 30+ fps; the loop HUD's title and
+// amber "stars closed N/5" counter drawn on the canvas; the plucks on the balls' pentatonic pitches and the chord on A2
+// (OscillatorNode.start instrumented); Find Simulation's Best star set (a coprime set and the loop fitted to the clip) and a fast
+// export of whole loops.
+{
+  const res = await page.request.get(`${BASE}/modes/starChords.webp`);
+  check("asset /modes/starChords.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inRhythm = await page.evaluate(() => {
+    // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
+    const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Rhythm & polyrhythm modes");
+    const group = heading?.parentElement;
+    return !!group && !!group.querySelector('img[src$="/modes/starChords.webp"]') && !!group.querySelector('img[src$="/modes/illusion.webp"]');
+  });
+  const card = await page.locator('img[src$="/modes/starChords.webp"]').count();
+  check("the Chord Stars card is on the landing page under the rhythm heading", card === 1 && inRhythm, `(cards=${card}, in the rhythm group=${inRhythm})`);
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=starChords&scn=7&scs=${encodeURIComponent("5/2,7/3")}&sct=6&sch=0.5&scf=1&scsp=0.5&scw=2&sce=on&scp=rainbow&scv=chime&scc=0`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("star-chords-section");
+  const slider = (label) => section.locator(`input[type="range"][aria-label="${label}"]`).inputValue().catch(() => "");
+  const pressed = (group, name) => section.getByRole("group", { name: group, exact: true }).getByRole("button", { name, exact: true }).getAttribute("aria-pressed").catch(() => null);
+  {
+    const values = { scn: await slider("Balls"), sct: await slider("Drawing Time"), sch: await slider("Hold"), scf: await slider("Fade"), scsp: await slider("Start Spread"), scw: await slider("Line Width") };
+    const stars = await section.getByTestId("sc-stars").inputValue().catch(() => "");
+    const chips = await section.getByTestId("sc-stars-run").locator("span.font-mono").count();
+    const options = { always: await pressed("Inner Circles", "Always"), rainbow: await pressed("Colors", "Rainbow"), chime: await pressed("Bounce Sound", "Chime") };
+    const chord = await section.getByRole("switch", { name: switchName("Closing Chord") }).getAttribute("aria-checked").catch(() => null);
+    const noRings = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    const outcomes = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+    check(
+      "chord stars loads from URL (the block, the run's stars past the typed ones and the finder's Best star set)",
+      values.scn === "7" && values.sct === "6" && values.sch === "0.5" && values.scf === "1" && values.scsp === "0.5" && values.scw === "2" && stars === "5/2, 7/3" && chips === 7 && options.always === "true" && options.rainbow === "true" && options.chime === "true" && chord === "false" && noRings && outcomes.join(",") === "star-set",
+      `(${JSON.stringify({ values, stars, chips, options, chord, noRings, outcomes })})`,
+    );
+  }
+  await section.locator('[data-sc-preset="sevenBloom"]').click();
+  await page.waitForTimeout(300);
+  await section.locator('input[type="range"][aria-label="Drawing Time"]').evaluate(setRangeValue, "8");
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check(
+      "chord stars mirrors into the URL (Seven-point bloom, then the drawing time)",
+      query.get("mode") === "starChords" && query.get("scn") === "7" && query.get("scs") === "7/3,7/3,7/3,7/3,7/3,7/3,7/3" && query.get("sce") === "on" && query.get("scv") === "chime" && query.get("sct") === "8" && !query.has("scc"),
+      `(${query.toString()})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("drawing time");
+  const found = await page.locator('input[aria-label="Drawing Time"]').first().isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the chord stars controls", found && hidden, `(drawing time=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // Three cycles of the five default stars (Σn = 41) at 4×: a 4 s drawing, 0.5 s hold and 0.5 s fade – a 5 s loop.
+  await page.goto(`${BASE}/en/simulator/?mode=starChords&sct=4&sch=0.5&scf=0.5`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    const texts = [];
+    window.__scOsc = osc;
+    window.__scHud = texts;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value > 20) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 4000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(800);
+  const early = await canvasData();
+  const fps = await pageFrameRates(2500);
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  // (per cycle: the run's chords by the clock and the chords the canvas' chord layer drew of that cycle – data-sc-layer-last)
+  const perCycle = [];
+  const drawnPerCycle = [];
+  for (const n of [1, 2, 3]) {
+    await page.waitForFunction((want) => Number(document.querySelector("main canvas")?.dataset.scCycles) >= want, n, { timeout: 30_000 }).catch(() => {});
+    const d = await canvasData();
+    if (Number(d.scCycles) >= n) {
+      perCycle.push(Number(d.scLastCycleChords));
+      drawnPerCycle.push(`${d.scLayerLastCycle}:${d.scLayerLast}`);
+    }
+  }
+  const run = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-chord-stars.png") });
+  const sigma = (run.scStars || "").split(",").map((s) => Number(s.split("/")[0])).reduce((a, b) => a + b, 0);
+  await timingCheck(
+    "chord stars draws Σn chords in every one of three cycles (the run's count and the chord layer's), every star closing together on a 5 s loop, at 30+ fps",
+    sigma === 41 && run.scCycleChords === "41" && perCycle.length === 3 && perCycle.every((c) => c === 41) && drawnPerCycle.join(",") === "0:41,1:41,2:41" && Number(run.scClosings) >= 3 && Number(run.scTotalChords) >= 3 * 41 && Math.abs(Number(run.scPeriod) - 5) < 1e-3 && Math.abs(Number(run.loopCycle) - 5) < 0.002 && Number(run.scLayerChords) <= 41 && run.scBalls === "5" && early.scPhase === "draw",
+    fpsOk(fps, 4, 30),
+    `(${JSON.stringify({ stars: run.scStars, perCycle, drawnPerCycle, closings: run.scClosings, total: run.scTotalChords, period: run.scPeriod, loopCycle: run.loopCycle, layer: run.scLayerChords, phase: early.scPhase })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(2500, 4, 30),
+  );
+  const heard = await page.evaluate(() => ({ osc: window.__scOsc.slice(), hud: window.__scHud.splice(0) }));
+  const near = (f, g) => Math.abs(f - g) / g < 0.003;
+  const pitches = [220, 277.18, 369.99, 493.88, 659.26];
+  const plucked = pitches.filter((p) => heard.osc.some((f) => near(f, p)));
+  const chord = [110, 165].every((p) => heard.osc.some((f) => near(f, p)));
+  check("chord stars plucks every ball on its own pentatonic pitch (A, C♯, F♯, B, E) and plays the chord on A2", plucked.length === 5 && chord, `(${heard.osc.length} oscillators, plucked ${plucked.join("/")}, chord=${chord})`);
+  const title = heard.hud.some((t) => t.text === "stars that close together");
+  const counter = heard.hud.filter((t) => /^stars closed \d\/5$/.test(t.text)).map((t) => t.fill);
+  check("the loop HUD draws its title and the amber 'stars closed N/5' counter", title && counter.length > 0 && counter.every((f) => f === "#f2c46a") && run.loopHud === "1", `(title=${title}, counters=${counter.length} ${counter[0] ?? ""}, flag=${run.loopHud})`);
+}
+{
+  // Find Simulation: the best of the random coprime star sets, the loop fitted to a 40 s clip (3 loops of 10.333 s drawing).
+  await page.goto(`${BASE}/en/simulator/?mode=starChords`, { waitUntil: "networkidle" });
+  await page.locator("#find-duration").evaluate(setRangeValue, "40");
+  await page.waitForTimeout(200);
+  const button = page.getByRole("button", { name: /Find Stars for a 40s Clip/ });
+  const offered = await button.count();
+  await button.click().catch(() => {});
+  await page.waitForFunction(() => /Found /.test(document.querySelector('[data-testid="finder-strip"]')?.textContent || ""), null, { timeout: 20_000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  const strip = (await page.getByTestId("finder-strip").textContent().catch(() => "")) || "";
+  const data = await canvasData();
+  const stars = (query.get("scs") || "").split(",").map((s) => s.split("/").map(Number));
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  const coprime = stars.length === 5 && new Set(stars.map((s) => s[0])).size === 5 && stars.every(([n, k]) => n >= 5 && k >= 2 && 2 * k < n && gcd(n, k) === 1);
+  check(
+    "Find Simulation's Best star set picks a coprime set with distinct points and fits 3 loops into a 40 s clip",
+    offered === 1 && coprime && query.get("sct") === "10.333" && query.get("dur") === "40" && /Found .*3 loops/.test(strip) && data.scStars === query.get("scs"),
+    `(${JSON.stringify({ offered, scs: query.get("scs"), sct: query.get("sct"), dur: query.get("dur"), canvas: data.scStars, strip: strip.slice(0, 160) })})`,
+  );
+}
+{
+  // ⚡ A fast export with Export whole loops (on by default): 10 s of a 5 s loop is exactly two loops, the HUD in its frames.
+  await page.goto(`${BASE}/en/simulator/?mode=starChords&sct=4&sch=0.5&scf=0.5&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const texts = [];
+      window.__scExportHud = texts;
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        if (texts.length < 20000 && this.canvas.width === 500 && this.canvas.height === 500) texts.push(String(text));
+        return fillText.call(this, text, ...rest);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 180_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `chord-stars-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const cycle = Number(await panel.getAttribute("data-fast-loop-cycle"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const hud = await page.evaluate(() => window.__scExportHud.filter((t) => /^stars closed \d\/5$/.test(t)).length);
+    check(
+      "a Chord Stars fast export lasts two whole 5 s loops (within one frame) and carries the HUD's counter",
+      status === "done" && bytes > 10000 && loops === 2 && Math.abs(cycle - 5) < 0.002 && Math.abs(seconds - 10) <= 1 / 30 + 0.002 && hud >= 10,
+      `(${JSON.stringify({ status, bytes, seconds, cycle, loops, hud })})`,
+    );
+  } else check("without WebCodecs the Chord Stars fast export is not checked (the loop contract is covered above)", true);
+}
+// --- end chord-stars ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

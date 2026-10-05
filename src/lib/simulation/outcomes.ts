@@ -25,9 +25,16 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  *
  * --- fight-league --- Fight League adds **double-ko**: the fight ends with its last two sides going down together (the run
  * is followed to its end, like a battle's winner).
+ *
+ * --- loop-foundation --- Grow's fill and loop adds two, while a fill ends the run ("finish"): **fills-by** – the ball fills
+ * the circle within a time limit (`atSec`) – and **fill-on-bar** – the fill lands within `toleranceSec` (one 60 fps frame by
+ * default) of a bar line of the song's tempo (`atSec` is the bar's length), so the completion chord hits on a downbeat.
+ *
+ * --- chord-stars --- Chord Stars adds **star-set**: its stars always close together, so the search is for the best-looking
+ * star set and the drawing time that fits the clip in whole loops (starChordsFinder.ts; no seed is simulated).
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -81,6 +88,8 @@ export interface RunSummary {
   // --- end fight-league ---
   /** --- land-claim --- A finished battle's gap between its top two, as a share of the land (Land Claim's verdict); absent elsewhere. */
   margin?: number;
+  /** --- loop-foundation --- Real time (ms) of Grow's first fill (the ball full), −1 or absent when none came. */
+  firstFillMs?: number;
 }
 
 // --- land-claim ---
@@ -117,6 +126,10 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
       return Math.max(clipMs, maxSimMs);
     case "close": // --- land-claim --- (the verdict comes at the run's end)
       return Math.max(clipMs, maxSimMs);
+    case "fills-by": // --- loop-foundation --- (until the limit has passed without a fill)
+      return 1000 * (outcome.atSec ?? 0) + FILL_SLACK_MS;
+    case "fill-on-bar": // --- loop-foundation --- (until the fill)
+      return Math.max(clipMs, maxSimMs);
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
       return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + ESCAPE_TAIL_MS;
@@ -135,14 +148,42 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
 export const RESOLVE_SLACK_MS = 50;
 // --- end orb-grid ---
 
+// --- loop-foundation ---
+/** How close (seconds) a fill has to land to a bar line for fill-on-bar: one frame at 60 fps. */
+export const FILL_BAR_TOLERANCE_SEC = 1 / 60;
+/** How far past the fills-by limit (ms) a run is followed: one 60 Hz step (the fill is seen at the end of its step). */
+export const FILL_SLACK_MS = 1000 / 60;
+/** The length (s) of a bar of four beats at `bpm` (2 s at 120 BPM; a bad tempo counts as 120). */
+export function barSeconds(bpm: number): number {
+  return 240 / (Number.isFinite(bpm) && bpm > 0 ? bpm : 120);
+}
+/** How far (ms) `atMs` lies from the nearest bar line of bars `barMs` long (lines at 0, barMs, 2·barMs…). */
+export function barLineDistanceMs(atMs: number, barMs: number): number {
+  if (!(barMs > 0) || !Number.isFinite(atMs)) return Infinity;
+  const k = Math.round(atMs / barMs);
+  return Math.abs(atMs - k * barMs);
+}
+/** fill-on-bar: the first fill (ms) lands on a bar line – at least the first one – within the tolerance. */
+function fillOnBar(outcome: FinderOutcome, fillMs: number): boolean {
+  const barMs = 1000 * (outcome.atSec ?? barSeconds(120));
+  const tolMs = 1000 * (outcome.toleranceSec ?? FILL_BAR_TOLERANCE_SEC);
+  return fillMs >= 0 && fillMs >= barMs - tolMs && barLineDistanceMs(fillMs, barMs) <= tolMs + 1e-6;
+}
+// --- end loop-foundation ---
+
 /**
  * Whether a run being simulated can stop now: its outcome is settled (`elapsedMs` real time so far, `firstEscapeMs`
  * the first escape or −1, `finished` the mode's own end). A battle's winner is settled only by its end (`winnerNeedsEnd()`).
  * --- orb-grid --- `firstResolveMs` / `settledMs`: the field's first "in phase" moment / the moment it came to rest (−1: not yet).
  */
-export function outcomeSettled(outcome: FinderOutcome, elapsedMs: number, firstEscapeMs: number, finished: boolean, mode?: ModeId, firstResolveMs = -1, settledMs = -1 /* --- orb-grid --- */): boolean {
+export function outcomeSettled(outcome: FinderOutcome, elapsedMs: number, firstEscapeMs: number, finished: boolean, mode?: ModeId, firstResolveMs = -1, settledMs = -1 /* --- orb-grid --- */, firstFillMs = -1 /* --- loop-foundation --- */): boolean {
   if (finished) return true;
   switch (outcome.kind) {
+    // --- loop-foundation --- the first fill has come, or (fills-by) the limit has passed without one
+    case "fills-by":
+      return firstFillMs >= 0 || elapsedMs > 1000 * (outcome.atSec ?? 0) + FILL_SLACK_MS - 1e-6;
+    case "fill-on-bar":
+      return firstFillMs >= 0;
     // --- orb-grid --- still bouncing at the clip's end (a field that came to rest has missed it – its end, a hold later, may
     // fall past the clip); the first resolve has come (in the window or not) or the window is past
     case "never-settles":
@@ -193,6 +234,13 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
     // --- land-claim --- a finished battle whose top two ended within the margin
     case "close":
       return run.finished && run.margin !== undefined && run.margin <= CLOSE_BATTLE_MARGIN + 1e-9;
+    // --- loop-foundation --- the first fill within the limit; on a bar line
+    case "fills-by": {
+      const fill = run.firstFillMs ?? -1;
+      return fill >= 0 && fill <= 1000 * (outcome.atSec ?? 0) + 1e-6;
+    }
+    case "fill-on-bar":
+      return fillOnBar(outcome, run.firstFillMs ?? -1);
     default:
       return false;
   }
@@ -219,6 +267,11 @@ export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
       return (run.firstResolveMs ?? -1) < 0 ? Infinity : Math.abs((run.firstResolveMs ?? 0) / 1000 - (outcome.atSec ?? 0));
     case "close": // --- land-claim --- how far past the margin its top two ended (a run cut short: Infinity)
       return run.finished && run.margin !== undefined ? Math.max(0, run.margin - CLOSE_BATTLE_MARGIN) : Infinity;
+    // --- loop-foundation --- the seconds past the limit; the seconds off the nearest bar line (no fill: Infinity)
+    case "fills-by":
+      return (run.firstFillMs ?? -1) < 0 ? Infinity : Math.max(0, (run.firstFillMs ?? 0) / 1000 - (outcome.atSec ?? 0));
+    case "fill-on-bar":
+      return (run.firstFillMs ?? -1) < 0 ? Infinity : barLineDistanceMs(run.firstFillMs ?? 0, 1000 * (outcome.atSec ?? barSeconds(120))) / 1000;
     default:
       return Infinity;
   }
@@ -253,6 +306,9 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
       return (run.firstResolveMs ?? -1) >= 0 ? (run.firstResolveMs ?? 0) / 1000 : 0;
     case "close": // --- land-claim --- the gap between its top two, in percent of the land (100 for a run cut short)
       return run.finished && run.margin !== undefined ? 100 * run.margin : 100;
+    case "fills-by": // --- loop-foundation --- (the first fill, 0 without one)
+    case "fill-on-bar":
+      return (run.firstFillMs ?? -1) >= 0 ? (run.firstFillMs ?? 0) / 1000 : 0;
     default:
       return run.durationMs / 1000;
   }
@@ -278,6 +334,8 @@ export interface OutcomeContext {
   ballCount: number;
   /** --- orb-rhythm --- Bouncing Orbs plays the rhythm model: ideal bouncers never settle (no never-settles), in phase on the cycle's clock. */
   orbRhythm?: boolean;
+  /** --- loop-foundation --- Grow ends at the fill ("finish"): the fill's time can be searched (fills-by, fill-on-bar). */
+  growFinish?: boolean;
 }
 
 /**
@@ -301,6 +359,8 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   // --- fight-league --- Fight League: the fight ends with a double KO
   if (mode === "fightLeague") out.push("double-ko");
   if (CLOSE_BATTLE_MODES.includes(mode) && ctx.ballCount >= 2) out.push("close"); // --- land-claim ---
+  if (mode === "grow" && ctx.growFinish) out.push("fills-by", "fill-on-bar"); // --- loop-foundation ---
+  if (mode === "starChords") out.push("star-set"); // --- chord-stars --- (the best star set, its loop fitted to the clip)
   return out;
 }
 

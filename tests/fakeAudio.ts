@@ -16,6 +16,15 @@ export interface SourceLog {
   startArgs: number[];
   playbackRate: number;
 }
+// --- loop-foundation --- every automation event of every AudioParam (the glide's exponential ramp, envelopes, setTargetAtTime)
+export interface RampLog {
+  kind: "set" | "linear" | "exp" | "target" | "cancel";
+  value: number;
+  time: number;
+  /** The parameter's name: "gain", "frequency", "Q", "playbackRate", "param". */
+  param: string;
+}
+// --- end loop-foundation ---
 
 export function fakeGraph() {
   const oscillators: OscLog[] = [];
@@ -24,13 +33,19 @@ export function fakeGraph() {
   const gains: number[] = [];
   /** Every DynamicsCompressorNode made (the master bus's limiter), with its parameters. */
   const compressors: { threshold: { value: number }; knee: { value: number }; ratio: { value: number }; attack: { value: number }; release: { value: number } }[] = [];
-  const param = (value = 0) => ({
+  // --- loop-foundation --- the params log their automation (`ramps`), and a BiquadFilterNode exists (`filters`); there is still
+  // no StereoPanner: a sound that made one would throw here (the loop sounds are dual-mono)
+  const ramps: RampLog[] = [];
+  const filters: { type: string; frequency: { value: number }; Q: { value: number } }[] = [];
+  const param = (value = 0, name = "param") => ({
     value,
-    setValueAtTime: () => undefined,
-    linearRampToValueAtTime: () => undefined,
-    exponentialRampToValueAtTime: () => undefined,
-    cancelScheduledValues: () => undefined,
+    setValueAtTime: (v: number, t: number) => void ramps.push({ kind: "set", value: v, time: t, param: name }),
+    linearRampToValueAtTime: (v: number, t: number) => void ramps.push({ kind: "linear", value: v, time: t, param: name }),
+    exponentialRampToValueAtTime: (v: number, t: number) => void ramps.push({ kind: "exp", value: v, time: t, param: name }),
+    setTargetAtTime: (v: number, t: number) => void ramps.push({ kind: "target", value: v, time: t, param: name }),
+    cancelScheduledValues: (t: number) => void ramps.push({ kind: "cancel", value: Number.NaN, time: t, param: name }),
   });
+  // --- end loop-foundation ---
   const ctx = {
     state: "running",
     currentTime: 0,
@@ -39,7 +54,28 @@ export function fakeGraph() {
     resume: async () => undefined,
     close: async () => undefined,
     decodeAudioData: async () => ({ duration: 0.3 }),
-    createGain: () => ({ gain: { ...param(1), setValueAtTime: (value: number) => void gains.push(value) }, connect: () => undefined, disconnect: () => undefined }),
+    createGain: () => {
+      const gain = param(1, "gain");
+      const set = gain.setValueAtTime;
+      return {
+        gain: {
+          ...gain,
+          setValueAtTime: (value: number, t = 0) => {
+            gains.push(value);
+            set(value, t); // --- loop-foundation --- (logged as a ramp too)
+          },
+        },
+        connect: () => undefined,
+        disconnect: () => undefined,
+      };
+    },
+    // --- loop-foundation ---
+    createBiquadFilter: () => {
+      const node = { type: "lowpass", frequency: param(350, "frequency"), Q: param(1, "Q"), gain: param(0, "gain"), connect: () => undefined, disconnect: () => undefined };
+      filters.push(node);
+      return node;
+    },
+    // --- end loop-foundation ---
     createDynamicsCompressor: () => {
       const node = { threshold: param(-24), knee: param(30), ratio: param(12), attack: param(0.003), release: param(0.25), connect: () => undefined, disconnect: () => undefined };
       compressors.push(node);
@@ -51,7 +87,7 @@ export function fakeGraph() {
     createOscillator: () => {
       const osc = {
         type: "sine",
-        frequency: param(0),
+        frequency: param(0, "frequency"),
         connect: () => undefined,
         disconnect: () => undefined,
         onended: null as (() => void) | null,
@@ -67,7 +103,10 @@ export function fakeGraph() {
       const source = {
         buffer: null as unknown,
         context: ctx,
-        playbackRate: param(1),
+        loop: false, // --- loop-foundation ---
+        loopStart: 0,
+        loopEnd: 0,
+        playbackRate: param(1, "playbackRate"),
         connect: () => undefined,
         disconnect: () => undefined,
         onended: null as (() => void) | null,
@@ -76,7 +115,7 @@ export function fakeGraph() {
       };
       return source;
     },
-    createBuffer: (channels: number, length: number, sampleRate: number) => ({ duration: length / sampleRate, copyToChannel: () => undefined }),
+    createBuffer: (channels: number, length: number, sampleRate: number) => ({ duration: length / sampleRate, length, sampleRate, numberOfChannels: channels, copyToChannel: () => undefined, getChannelData: () => new Float32Array(length) }),
   };
-  return { ctx, oscillators, sources, gains, compressors };
+  return { ctx, oscillators, sources, gains, compressors, ramps, filters };
 }

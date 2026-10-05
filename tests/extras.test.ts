@@ -140,6 +140,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   fightLeague: { samples: [[322587,392541],[479754,366913],[357342,358123],[462286,375558],[573213,379685],[357902,130849],[531836,220763],[429882,134919]], broken: [], walls: [] }, // --- fight-league ---
   // --- land-claim --- (recorded when the mode was added: no rings – the wall of columns is the mode's own)
   landClaim: { samples: [[328386,444514],[369351,237432],[436782,420717],[255355,223244],[467695,452667],[322641,326623],[561586,483469],[293545,478909]], broken: [], walls: [] },
+  // --- chord-stars --- (the balls pinned to the clock: the pentagram's and the first heptagram's ball at 2.5, 5, 7.5 and 10 s)
+  starChords: { samples: [[514893,467278],[349436,287981],[226115,232202],[424452,483190],[566459,262864],[398333,227610],[292533,411349],[249339,295602]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

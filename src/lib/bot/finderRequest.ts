@@ -26,6 +26,8 @@ import { landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land
 import { respawnConfigOf } from "@/lib/physics/respawn"; // --- gerald-conveyor ---
 import { orbGridSettingsOf } from "@/lib/physics/modes/orbGrid"; // --- orb-grid ---
 import { fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
+import { growFillSettingsOf } from "@/lib/physics/growFill"; // --- loop-foundation ---
+import { starChordsSettingsOf } from "@/lib/physics/starChords"; // --- chord-stars ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
 import { exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
@@ -149,6 +151,8 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     orbGrid: { ...orbGridSettingsOf(s), maxSec: 0 }, // --- orb-grid --- (a run ends when every orb is at rest, as on the page)
     fightLeague: fightLeagueSettingsOf(s), // --- fight-league ---
     landClaim: landClaimSettingsOf(s), // --- land-claim ---
+    grow: growFillSettingsOf(s), // --- loop-foundation --- (Grow's fill and loop: the law, the fill, the hold, the shrink)
+    starChords: starChordsSettingsOf(s), // --- chord-stars ---
   };
 }
 
