@@ -495,7 +495,8 @@ describe("fight league verdicts", () => {
 });
 
 describe("fight league engagement", () => {
-  it("lands the first hit within 1.5 s of FIGHT! in at least 90 % of the presets' fights", () => {
+  // --- fl-overhaul --- (Stage 3) a timeout of its own: the mode's visual state (trails, banners, merged numbers) costs a little per step
+  it("lands the first hit within 1.5 s of FIGHT! in at least 90 % of the presets' fights", { timeout: 60_000 }, () => {
     let fast = 0;
     let runs = 0;
     for (const p of FL_PRESETS) {

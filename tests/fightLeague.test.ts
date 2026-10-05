@@ -666,7 +666,8 @@ describe("fight league rules", () => {
 /* ------------------------------------------------------------------ fights in the engine */
 
 describe("fight league weapons in the engine", () => {
-  it("lands hits with every weapon kind (its own hit geometry: blades, heads, fists, projectiles, cones, rays, arcs, throws)", () => {
+  // --- fl-overhaul --- (Stage 3) a timeout of its own: the mode's visual state (trails, banners, merged numbers) costs a little per step
+  it("lands hits with every weapon kind (its own hit geometry: blades, heads, fists, projectiles, cones, rays, arcs, throws)", { timeout: 60_000 }, () => {
     for (const kind of FL_WEAPON_KINDS) {
       const row = FL_ROSTER.find((r) => r.weapons.some((w) => w.kind === kind))!;
       const index = row.weapons.findIndex((w) => w.kind === kind);
