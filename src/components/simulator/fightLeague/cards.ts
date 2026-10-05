@@ -1,8 +1,8 @@
 import { FB_CLUTCH, FB_DOUBLE_KO, FB_DRAW, FB_FINAL_KO, FB_FIRST_BLOOD, FB_KO, FB_PERFECT, FB_SUDDEN, FB_TIME, FB_WIN, FL_BANNER_CAP, flHoldEndMs, type FightLeagueView, type FlFighter } from "@/lib/physics/modes/fightLeague";
-import { FL_VS_COUNT_MS, FL_VS_PANELS_IN_MS, FL_VS_PANELS_OUT_MS, FL_VS_SLAM_MS, FL_VS_VEIL_MS, flBannerMs, flBannerName, flBannerSchedule, type FlBannerPick, type FlHudLayout } from "@/lib/physics/modes/fightLeagueFx";
+import { FL_VS_COUNT_MS, FL_VS_PANELS_IN_MS, FL_VS_PANELS_OUT_MS, FL_VS_SLAM_MS, FL_VS_VEIL_MS, flBannerMs, flBannerName, flBannerSchedule, flFfaChipRect, type FlBannerPick, type FlHudLayout, type FlRect } from "@/lib/physics/modes/fightLeagueFx";
 import type { FlBodiesPainter } from "./bodies";
 import type { FlFrame, FightLeagueLabels } from "./frame";
-import { GOLD, INK, greyOf } from "./palette";
+import { GOLD, INK, TEAM_COLORS, greyOf } from "./palette";
 import { TWO_PI, hash, roundRectPath } from "./sprites";
 import type { FlTextStyle } from "./text";
 import type { FlWeaponsPainter } from "./weapons";
@@ -13,7 +13,8 @@ import type { FlWeaponsPainter } from "./weapons";
  *  - the VS card 2.0 on the intro's 1500 ms – a 55 % veil, two diagonal panels sliding in (each side's body colour with an
  *    accent edge, its ball at 2.2× with its weapon, the name, division, source and role chip, a handicap's tag), VS slamming
  *    in at 300 ms with a ring burst, 3-2-1 popping under it at 450 / 800 / 1150 ms, the panels sliding out at 1350 ms and
- *    FIGHT! at 1500 ms (2v2: a panel per team; a free-for-all: four corner chips);
+ *    FIGHT! at 1500 ms (2v2: a panel per team in its team colour – the team rings' – with its members' chips stacked, each in
+ *    its fighter's colours; a free-for-all: a chip per fighter in the corner it starts in);
  *  - the centre banners, one at a time by priority (`flBannerSchedule()`): first blood's ribbon in the attacker's colours,
  *    KO! at 0.11 S, the finale's FINAL KO, TIME!, DRAW, DOUBLE KO, SUDDEN DEATH;
  *  - the winner card laid out like the VS card (the winner's side in full colour with WINS!, the loser greyed and struck
@@ -42,6 +43,8 @@ export class FlCardsPainter {
   readonly shown = new Set<string>();
   private generation = -1;
   private readonly pick: FlBannerPick = { index: -1, start: 0, kind: 0 };
+  /** A free-for-all chip's rect (reused). */
+  private readonly chip: FlRect = { x: 0, y: 0, w: 0, h: 0 };
 
   begin(view: FightLeagueView) {
     if (view.generation !== this.generation) {
@@ -59,14 +62,24 @@ export class FlCardsPainter {
     const fighters = view.fighters;
     if (fighters.length === 0) return;
     const off = (1 - slide) * A.w;
-    const sides = view.match === "2v2" ? 2 : fighters.length === 2 ? 2 : 0;
+    const teams = view.match === "2v2"; // (--- fl-overhaul --- Stage 3: a panel per team, in its team colour)
+    const sides = teams ? 2 : fighters.length === 2 ? 2 : 0;
     if (sides === 2) {
       for (let side = 0; side < 2; side++) {
-        const members = fighters.filter((f) => (view.match === "2v2" ? f.team === side : f.slot === side));
-        const lead = members[0];
+        // the side's first fighter and how many it has (no list a frame)
+        let lead: FlFighter | null = null;
+        let count = 0;
+        for (const f of fighters) {
+          if (teams ? f.team !== side : f.slot !== side) continue;
+          if (!lead) lead = f;
+          count++;
+        }
         if (!lead) continue;
-        const team = view.match === "2v2" ? side : lead.team;
+        const team = teams ? side : lead.team;
         const lost = winnerTeam !== null && winnerTeam !== team;
+        // a duel's panel in its fighter's colours; a team's in its team colour (the rings') with a white edge
+        const fill = teams ? teamColor(fr, team) : lead.row.body;
+        const edge = teams ? "#ffffff" : lead.row.accent;
         const dx = side === 0 ? -off : off;
         ctx.save();
         ctx.globalAlpha = alpha;
@@ -83,10 +96,10 @@ export class FlCardsPainter {
           ctx.lineTo(A.x + 0.44 * A.w + dx, A.y + A.h);
         }
         ctx.closePath();
-        ctx.fillStyle = lost ? greyOf(lead.row.body) : lead.row.body;
+        ctx.fillStyle = lost ? greyOf(fill) : fill;
         ctx.fill();
         // the accent edge along the diagonal
-        ctx.strokeStyle = lost ? "#52525b" : lead.row.accent;
+        ctx.strokeStyle = lost ? "#52525b" : edge;
         ctx.lineWidth = 0.012 * S;
         ctx.beginPath();
         ctx.moveTo(A.x + 0.56 * A.w + dx, A.y);
@@ -95,7 +108,7 @@ export class FlCardsPainter {
         ctx.restore();
         const cx = A.x + (side === 0 ? 0.25 : 0.75) * A.w + dx;
         const dk = view.field?.dk || 1;
-        if (members.length === 1) {
+        if (!teams || count === 1) {
           const f = lead;
           const R = 2.2 * f.r * dk;
           const by = A.y + 0.32 * A.h;
@@ -106,31 +119,28 @@ export class FlCardsPainter {
           bodies.drawPortrait(ctx, fr, f, cx, by, R, alpha * (lost ? 0.55 : 1));
           this.panelText(ctx, fr, view, L, f, cx, A.y + 0.62 * A.h, 0.42 * A.w, S, alpha, lost, winnerTeam !== null && !lost);
         } else {
-          // a team: two balls side by side and two stacked names
-          members.forEach((f, i) => {
+          // a team: its balls side by side, its members' chips stacked under them (each in its fighter's colours)
+          let i = 0;
+          let names = "";
+          for (const f of fighters) {
+            if (f.team !== side) continue;
             const R = 1.5 * f.r * dk;
-            const bx = cx + (i === 0 ? -0.09 : 0.09) * A.w;
+            const bx = cx + (i - (count - 1) / 2) * 0.18 * A.w;
             bodies.drawPortrait(ctx, fr, f, bx, A.y + 0.3 * A.h, R, alpha * (lost ? 0.55 : 1));
-            const name = fr.text.upperOf(f.row.name);
-            fr.text.draw(ctx, name, cx, A.y + (0.56 + 0.08 * i) * A.h, 0.05 * S, this.display("#ffffff"), "center", 0.42 * A.w, alpha * (lost ? 0.6 : 1));
-          });
-          if (winnerTeam !== null && !lost) {
-            const names = members.map((f) => f.row.name).join(" + ");
-            fr.text.draw(ctx, fr.text.upperOf(L.winTeam(names)), cx, A.y + 0.78 * A.h, 0.045 * S, this.display(GOLD), "center", 0.42 * A.w, alpha);
+            this.memberChip(ctx, fr, f, cx, A.y + (0.54 + 0.085 * i) * A.h, 0.42 * A.w, S, alpha, lost);
+            if (winnerTeam !== null && !lost) names = names ? `${names} + ${f.row.name}` : f.row.name;
+            i++;
           }
+          if (winnerTeam !== null && !lost) fr.text.draw(ctx, fr.text.upperOf(L.winTeam(names)), cx, A.y + (0.6 + 0.085 * count) * A.h, 0.045 * S, this.display(GOLD), "center", 0.42 * A.w, alpha);
         }
       }
       return;
     }
-    // a free-for-all: four corner chips
+    // a free-for-all: a chip per fighter, in the corner it starts in (over its own ball)
     for (const f of fighters) {
       const lost = winnerTeam !== null && winnerTeam !== f.team;
-      const right = f.slot % 2 === 1;
-      const bottom = f.slot >= 2;
-      const w = 0.42 * A.w;
-      const h = 0.2 * A.h;
-      const x = right ? A.x + A.w - w - 0.03 * A.w + off : A.x + 0.03 * A.w - off;
-      const y = bottom ? A.y + A.h - h - 0.06 * A.h : A.y + 0.06 * A.h;
+      const chip = flFfaChipRect(f.homeSx, f.homeSy, A, slide, this.chip);
+      const { x, y, w, h } = chip;
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = lost ? greyOf(f.row.body) : f.row.body;
@@ -146,6 +156,28 @@ export class FlCardsPainter {
       const tw = fr.text.draw(ctx, name, x + 0.95 * h, y + h / 2, 0.045 * S, this.display("#ffffff"), "left", w - 1.05 * h, alpha * (lost ? 0.6 : 1));
       if (lost) this.strike(ctx, x + 0.95 * h, x + 0.95 * h + tw, y + h / 2, S, alpha);
     }
+  }
+
+  /** A team member's chip on its team's panel: its name in a pill of its body colour with its accent edge (struck through when lost). */
+  private memberChip(ctx: CanvasRenderingContext2D, fr: FlFrame, f: FlFighter, cx: number, cy: number, maxW: number, S: number, alpha: number, lost: boolean) {
+    const fs = 0.04 * S;
+    const style = this.display("#ffffff");
+    const name = fr.text.upperOf(f.row.name);
+    const a = alpha * (lost ? 0.6 : 1);
+    const tw = Math.min(Math.max(1, maxW - 0.9 * fs), fr.text.width(name, fs, style));
+    const w = tw + 0.9 * fs;
+    const h = 1.45 * fs;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.fillStyle = lost ? greyOf(f.row.body) : f.row.body;
+    roundRectPath(ctx, cx - w / 2, cy - h / 2, w, h, h / 2);
+    ctx.fill();
+    ctx.strokeStyle = lost ? "#52525b" : f.row.accent;
+    ctx.lineWidth = Math.max(1.5, 0.006 * S);
+    ctx.stroke();
+    ctx.restore();
+    const drawn = fr.text.draw(ctx, name, cx, cy, fs, style, "center", tw, a);
+    if (lost) this.strike(ctx, cx - drawn / 2, cx + drawn / 2, cy, S, alpha);
   }
 
   /** A panel's texts: the name (or "[name] wins!"), the division, the source and the role chip (a handicap's tag). */
@@ -426,6 +458,12 @@ export class FlCardsPainter {
     }
     ctx.restore();
   }
+}
+
+/** A team's colour: the Teams roster's (the page hands it in), else the built-in pair – the colour of its fighters' rings. */
+function teamColor(fr: FlFrame, team: number): string {
+  const colors = fr.o && fr.o.teamColors && fr.o.teamColors.length >= 2 ? fr.o.teamColors : TEAM_COLORS;
+  return colors[team] ?? TEAM_COLORS[team & 3];
 }
 
 /** A handicap's tag (a multiplier ≠ 1 of the slot): "DMG ×1.5 · SPD ×0.8" (empty: none). */

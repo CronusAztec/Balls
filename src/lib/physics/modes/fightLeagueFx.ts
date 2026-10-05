@@ -682,6 +682,27 @@ export const FL_VS_SLAM_MS = 300;
 export const FL_VS_COUNT_MS = [450, 800, 1150] as const;
 export const FL_VS_PANELS_OUT_MS = 1350;
 
+/**
+ * A free-for-all's chip on the VS and winner cards (screen px; `a` the arena's rect): 0.42 × 0.2 of the arena in the corner its
+ * fighter starts in – `sx`, `sy` the side of its formation spot (−1 left / top, 0 centre / middle, 1 right / bottom), so the chip
+ * sits over its own fighter –, 3 % (6 % top and bottom) in from the arena's edges, sliding in from its side as `slide` goes
+ * 0 → 1 (a centred chip from the top or the bottom).
+ */
+export function flFfaChipRect(sx: number, sy: number, a: FlRect, slide: number, out: FlRect): FlRect {
+  const w = 0.42 * a.w;
+  const h = 0.2 * a.h;
+  const off = (1 - Math.max(0, Math.min(1, slide))) * a.w;
+  out.w = w;
+  out.h = h;
+  if (sx > 0) out.x = a.x + a.w - w - 0.03 * a.w + off;
+  else if (sx < 0) out.x = a.x + 0.03 * a.w - off;
+  else out.x = a.x + (a.w - w) / 2;
+  if (sy > 0) out.y = a.y + a.h - h - 0.06 * a.h + (sx === 0 ? off : 0);
+  else if (sy < 0) out.y = a.y + 0.06 * a.h - (sx === 0 ? off : 0);
+  else out.y = a.y + (a.h - h) / 2;
+  return out;
+}
+
 /* ------------------------------------------------------------------ telegraph previews */
 
 /** The aim ticks of a volley of `n` over `spread` degrees around `aim` (radians) into `out` (reused). */

@@ -1587,6 +1587,12 @@ export class FlFighter {
   finVx = 0;
   finVy = 0;
   finSpin = 0;
+  /**
+   * Its formation spot's side – x: −1 left, 0 centre, 1 right; y: −1 top, 0 middle, 1 bottom (the spot, not the seed's jitter) –:
+   * a free-for-all's VS and winner cards put its chip in that corner, over where it starts.
+   */
+  homeSx = 0;
+  homeSy = 0;
   // --- end fl-overhaul ---
 
   constructor(slot: number, team: number, row: FlFighterRow) {
@@ -2268,6 +2274,8 @@ export class FightLeagueMode implements GameMode {
       const room = field.half - f.r - 2;
       const sx = spots[2 * i] * 0.5 * field.half + jx;
       const sy = spots[2 * i + 1] * 0.5 * field.half + jy;
+      f.homeSx = Math.sign(spots[2 * i]); // --- fl-overhaul --- (Stage 3) the cards' corner (visual; no rule reads it)
+      f.homeSy = Math.sign(spots[2 * i + 1]);
       f.x = field.cx + Math.max(-room, Math.min(room, sx));
       f.y = field.cy + Math.max(-room, Math.min(room, sy));
       f.ballId = firstId + i;

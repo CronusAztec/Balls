@@ -3,6 +3,7 @@ import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_FIGHT_LEAGUE_LABELS, FIGHT_LEAGUE_DATA_KEYS, FightLeagueDataset, FightLeagueLayer, flNameColor as layerNameColor, type FightLeagueRenderOptions } from "@/components/simulator/fightLeagueRenderer";
 import { FL_PRIM_FX } from "@/components/simulator/fightLeague/fx";
+import { TEAM_COLORS } from "@/components/simulator/fightLeague/palette";
 import { drawShot, drawSummon } from "@/components/simulator/fightLeague/projectiles";
 import { drawAirCurl, drawBow, drawCaster, drawChainHead, drawClaws, drawEnergyHand, drawFist, drawGun, drawHammerHead, drawShield, drawShieldFace, drawSword, drawTail, type FlPaint } from "@/components/simulator/fightLeague/weapons";
 import {
@@ -43,6 +44,7 @@ import {
   flBoxContentBottom,
   flContrast,
   flEffectNow,
+  flFfaChipRect,
   flFinaleScale,
   flFinaleWarp,
   flFinaleZoom,
@@ -833,5 +835,67 @@ describe("the renderer's determinism, the spectacle's settings and the data attr
     expect(Number(data.flShakes)).toBeGreaterThan(0);
     expect(Number(data.flTrails)).toBeGreaterThan(0);
     expect(Number(data.flTelegraphs)).toBeGreaterThan(0);
+  });
+});
+
+/* ------------------------------------------------------------------ the VS card's chips and panels (--- fl-overhaul --- Stage 3) */
+
+describe("the VS card: a free-for-all's chips over their fighters' corners, a 2v2's panels in the team colours", () => {
+  it("puts each free-for-all chip in the corner its fighter starts in (FFA4: the diagonal formation, FFA3: the triangle), sliding in from its side", () => {
+    const A = { x: 100, y: 40, w: 330, h: 330 };
+    const box = { x: 0, y: 0, w: 0, h: 0 };
+    const side = (v: number, dead: number) => (Math.abs(v) <= dead ? 0 : Math.sign(v));
+    for (const [match, fighters] of [
+      ["ffa4", ["ironman", "doomslayer", "legolas", "jinx"]],
+      ["ffa3", ["goku", "vegeta", "naruto", "random"]],
+    ] as const) {
+      const view = probeEngine({ fighters: [...fighters], match }, 3).getFightLeagueView();
+      const field = view.field!;
+      const rects: { x: number; y: number; w: number; h: number }[] = [];
+      for (const f of view.fighters) {
+        const r = { ...flFfaChipRect(f.homeSx, f.homeSy, A, 1, box) };
+        rects.push(r);
+        // the chip's centre is on the side of the arena its fighter stands on at the start (the formation, not the jitter)
+        const chipSide = [side(r.x + r.w / 2 - (A.x + A.w / 2), 1e-6), side(r.y + r.h / 2 - (A.y + A.h / 2), 1e-6)];
+        const ballSide = [side(f.x - field.cx, 0.2 * field.half), side(f.y - field.cy, 0.2 * field.half)];
+        expect([match, f.row.id, chipSide]).toEqual([match, f.row.id, ballSide]);
+        // in place it lies inside the arena; at slide 0 it waits outside it, on its own side
+        expect(r.x >= A.x && r.x + r.w <= A.x + A.w && r.y >= A.y && r.y + r.h <= A.y + A.h).toBe(true);
+        const out = flFfaChipRect(f.homeSx, f.homeSy, A, 0, box);
+        expect(out.x + out.w <= A.x + 1e-6 || out.x >= A.x + A.w - 1e-6 || out.y + out.h <= A.y + 1e-6 || out.y >= A.y + A.h - 1e-6).toBe(true);
+      }
+      // no two chips overlap
+      for (let i = 0; i < rects.length; i++)
+        for (let j = i + 1; j < rects.length; j++) {
+          const a = rects[i];
+          const b = rects[j];
+          const overlap = Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+          expect([match, i, j, overlap]).toEqual([match, i, j, 0]);
+        }
+    }
+  });
+
+  it("fills a 2v2's panels with the team colours (the rings'), each member on a chip of its own colours; a duel's panels with its fighters' bodies", { timeout: 60_000 }, () => {
+    const fills = (fl: Partial<FightLeagueSettings>, opts: FightLeagueRenderOptions = OPTS) => {
+      stubDocument();
+      const view = probeRun(probeEngine(fl, 3), 1000, undefined, false);
+      const { ctx } = mainContext();
+      const seen = new Set<string>();
+      ctx.fill = (...args: unknown[]) => {
+        ctx.calls.push({ name: "fill", args });
+        if (typeof ctx.fillStyle === "string") seen.add(ctx.fillStyle.toLowerCase());
+      };
+      drawFrame(new FightLeagueLayer(), ctx, view, opts);
+      return { view, seen };
+    };
+    const teams = fills({ fighters: ["goku", "vegeta", "naruto", "sasuke"], match: "2v2" });
+    expect(teams.view.timeMs).toBeLessThan(PROBE_INTRO_MS);
+    for (const c of TEAM_COLORS.slice(0, 2)) expect([c, teams.seen.has(c)]).toEqual([c, true]);
+    for (const f of teams.view.fighters) expect([f.row.id, teams.seen.has(f.row.body.toLowerCase())]).toEqual([f.row.id, true]);
+    // the Teams roster's colours when the page hands them in
+    const roster = fills({ fighters: ["goku", "vegeta", "naruto", "sasuke"], match: "2v2" }, { ...OPTS, teamColors: ["#123456", "#abcdef"] });
+    expect([roster.seen.has("#123456"), roster.seen.has("#abcdef")]).toEqual([true, true]);
+    const duel = fills({ fighters: ["thor", "loki", "random", "random"], match: "1v1" });
+    for (const f of duel.view.fighters) expect([f.row.id, duel.seen.has(f.row.body.toLowerCase())]).toEqual([f.row.id, true]);
   });
 });
