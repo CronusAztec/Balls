@@ -3956,7 +3956,8 @@ await smokeBlock("odd-string-battle", async () => {
 {
   // Find Simulation with nine lives: a battle outlasts the 30 s duration, so the finder follows every one to its end (the
   // last ball standing – not whoever leads when the duration is up). The found battle, played to its end at 8×, is really
-  // ACID's, and the recording length covers all of it plus the winner banner's hold.
+  // ACID's – ACID alone standing, never a double KO's shared verdict – and the recording length covers all of it plus the
+  // winner banner's hold.
   await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbl=9`, { waitUntil: "networkidle" });
   await page.locator("#find-outcome").selectOption("winner");
   await page.locator("#find-winner").selectOption("2");
@@ -3978,7 +3979,7 @@ await smokeBlock("odd-string-battle", async () => {
   check(
     "Find Simulation follows a nine-life string battle to its end: the found battle is really ACID's, recorded whole",
     /last one standing/.test(hint) && /Found! ACID wins/.test(text) && foundSec > 0 && data.sbFinished === "1" && data.sbWinner === "2" && data.sbWinnerName === "ACID" && data.sbAlive === "1" && dur >= Math.min(120, foundSec + 3 - 0.05) && dur < foundSec + 4.05,
-    `("${text}", dur=${dur}, played: ${JSON.stringify({ finished: data.sbFinished, winner: data.sbWinner, name: data.sbWinnerName, alive: data.sbAlive, lives: data.sbLives })}, hint="${hint}")`,
+    `("${text}", dur=${dur}, played: ${JSON.stringify({ seed: data.seed, finished: data.sbFinished, winner: data.sbWinner, name: data.sbWinnerName, alive: data.sbAlive, lives: data.sbLives, kills: data.sbKills })}, hint="${hint}")`, // (the seed: a failure replays)
   );
 }
 {
