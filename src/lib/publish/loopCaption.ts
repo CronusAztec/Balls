@@ -12,6 +12,7 @@ import type { ModeId } from "@/lib/physics/types";
 export const LOOP_CAPTION_BASE_TAGS = ["#satisfying", "#oddlysatisfying"] as const;
 /** The topic tags a mode adds after them (two or three: four or five in all). */
 export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly string[]>>> = {
+  hoops: ["#physics", "#math", "#creativecoding"], // --- bead-hoops ---
   grow: ["#physics", "#bouncingball", "#exponentialgrowth"],
 };
 /** Any other mode's topic tags. */
@@ -111,6 +112,13 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };
     if (s.growLaw === "add") return { mode: s.mode, hookKey: "growAdd", factKey: "", count: s.growStep ?? null };
     return { mode: s.mode, hookKey: "growApproach", factKey: "", count: s.growRate ?? null };
+  }
+  // --- bead-hoops --- Spinning Hoops by its hoops ("{count} hoops spinning faster and faster…"; one hoop its own words) and
+  // the critical-spin fact under it (the page's settings carry `hpCount`)
+  if (s.mode === "hoops") {
+    const hoops = (s as { hpCount?: number }).hpCount;
+    const count = typeof hoops === "number" && Number.isFinite(hoops) ? hoops : null;
+    return { mode: s.mode, hookKey: count === 1 ? "hoopsOne" : "hoops", factKey: "hoopsFact", count };
   }
   return { mode: s.mode, hookKey: "seconds", factKey: "", count: Number.isFinite(s.recordingDuration) ? Math.round(s.recordingDuration) : null };
 }

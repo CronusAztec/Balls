@@ -37,11 +37,12 @@ import { midiToFrequency } from "@/lib/audio/scales";
  * faster-reacting hoop overtake its bigger neighbour; ±10 % keeps the default eight in strict size order on every seed.)
  *
  * Events (all `melody: false` loop voices, lib/audio/loopTones.ts through `ToneGenerator.playLoop()`): `spinTick` – a glock chime
- * once a turn, pitched by the spin (degree ⌊speedNorm · 8⌋ of the G major pentatonic from A5); `beadLift` – a tuned-bar strike when
- * a bead passes 5° above its bottom while ω > ω_c, pitched by the hoop's size (bigger is lower: the G pentatonic from G3, one
- * degree a hoop, at most `LOOP_SPAN`); `allUp` – the completion chord on G2 when the last bead is up; `beadSettle` – a soft pluck
- * when a bead is back within 5° on the return (ω < ω_c); and the seam's reset glide (G2 up to the outer hoop's bar note) under a
- * hard cut of the ringing voices. With `bed` a groove bed (pad and sub on G) enters with the first lift and stops at the reset.
+ * once a turn, pitched by the spin (degree ⌊speedNorm · 6⌋ of the G major pentatonic from A5: the glock register, A5–A6);
+ * `beadLift` – a tuned-bar strike when a bead passes 5° above its bottom while ω > ω_c, pitched by the hoop's size (bigger is
+ * lower: the G pentatonic from G3, one degree a hoop, at most `LOOP_SPAN`); `allUp` – the completion chord on G2 when the last
+ * bead is up; `beadSettle` – a soft pluck when a bead is back within 5° on the return (ω < ω_c); and the seam's reset glide (G2
+ * up to the outer hoop's bar note) under a hard cut of the ringing voices. With `bed` a groove bed (pad and sub on G) enters with
+ * the first lift and stops at the reset (or when its switch goes off, or a run without the return ends).
  */
 
 /* ------------------------------------------------------------------ settings */
@@ -168,6 +169,8 @@ export const HOOPS_BEAD_UNIT = 0.024;
 /** The tuned bars' key: the G major pentatonic from G3 (MIDI 55); the chimes play it from A5 (degree 1 above G5). */
 export const HOOPS_BAR_ROOT_MIDI = 55;
 export const HOOPS_CHIME_ROOT_MIDI = 79;
+/** The chime's pitches: six degrees of the pentatonic from A5 up to A6 (880–1760 Hz, the glock register), a sixth of the spin's range each. */
+export const HOOPS_CHIME_LEVELS = 6;
 /** The completion chord's and the reset glide's root: G2. */
 export const HOOPS_CHORD_HZ = 97.999;
 /** The voices' levels: the tick sits well under the bars, a settle's pluck softer than a lift. */
@@ -247,10 +250,14 @@ export function hoopBarFrequency(radius: number, minRadius: number, maxRadius: n
   return midiToFrequency(degreeToMidi(hoopDegree(radius, minRadius, maxRadius, count), HOOPS_BAR_ROOT_MIDI));
 }
 
-/** The spin tick's chime (Hz) at `speedNorm` (0 at the start speed, 1 at the top): degree 1 + ⌊speedNorm · 8⌋ from G5 (A5 …). */
+/**
+ * The spin tick's chime (Hz) at `speedNorm` (0 at the start speed, 1 at the top): degree 1 + ⌊speedNorm · 6⌋ of the pentatonic
+ * from G5 – A5, B5, D6, E6, G6, A6.
+ */
 export function hoopChimeFrequency(speedNorm: number): number {
   const s = Number.isFinite(speedNorm) ? Math.max(0, Math.min(1, speedNorm)) : 0;
-  return midiToFrequency(degreeToMidi(1 + Math.min(7, Math.floor(s * 8 + 1e-9)), HOOPS_CHIME_ROOT_MIDI));
+  const level = Math.min(HOOPS_CHIME_LEVELS - 1, Math.floor(s * HOOPS_CHIME_LEVELS + 1e-9));
+  return midiToFrequency(degreeToMidi(1 + level, HOOPS_CHIME_ROOT_MIDI));
 }
 
 /** The rainbow hue (degrees) of hoop `index` of `count`: red outside, violet inside. */
@@ -550,6 +557,8 @@ export class HoopsMode implements GameMode {
   private firstBallId = -1;
   private lastBallRadius = 0;
   private bedOn = false;
+  /** The bed was switched off while it played: its stop goes out with the next step's sounds. */
+  private bedStopPending = false;
   /** The run's fastest rate (1/s: the sub-steps) and its smallest and biggest hoop (m: the bars' pitches). */
   private rate = 0;
   private minR = 0;
@@ -603,6 +612,8 @@ export class HoopsMode implements GameMode {
     this.settings = resolveHoopsSettings({ ...this.settings, ...patch });
     this.view.settings.tick = this.settings.tick;
     this.view.settings.bed = this.settings.bed;
+    // a bed switched off mid-run stops at once (one switched on enters with the next lift)
+    if (!this.settings.bed && this.bedOn) this.bedStopPending = true;
   }
   /** Live state for the canvas, the HUD, the finder and the smoke test; the same object every call. */
   getView(): HoopsView {
@@ -719,6 +730,7 @@ export class HoopsMode implements GameMode {
     v.upCount = upCount;
     v.liftOrder.length = 0;
     this.bedOn = false;
+    this.bedStopPending = false;
   }
 
   /** The view's spin at cycle time `tau` (s). */
@@ -745,6 +757,11 @@ export class HoopsMode implements GameMode {
 
   onPreUpdate(ctx: ModeContext, dtMs: number) {
     const v = this.view;
+    if (this.bedStopPending) {
+      this.bedStopPending = false;
+      if (this.bedOn) ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "bedStop", melody: false });
+      this.bedOn = false;
+    }
     if ((ctx.config.ballRadius || 8) !== this.lastBallRadius) this.refit(ctx);
     v.stepMs = dtMs > 0 ? dtMs : v.stepMs;
     const end = ctx.getElapsedMs();
@@ -770,6 +787,9 @@ export class HoopsMode implements GameMode {
     if (!sc.loop && tau >= sc.cycle - TIME_EPS_MS / 1000) {
       v.finished = true;
       if (!v.orderDecided) v.orderDecided = true;
+      // the bed stops with the run (without the return there is no reset to stop it)
+      if (this.bedOn) ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "bedStop", melody: false });
+      this.bedOn = false;
     }
     v.timeMs = end;
     this.updateSpin(tau);

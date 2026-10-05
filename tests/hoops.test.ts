@@ -10,6 +10,7 @@ import {
   HOOPS_SETTLE_SEC,
   HOOPS_SOUND_KINDS,
   HOOPS_CHORD_HZ,
+  HOOPS_CHIME_LEVELS,
   beadAccel,
   beadRest,
   beadRk4,
@@ -46,6 +47,7 @@ import { LOOP_HUD_MODE_TEXT, hudNumber, loopHudCount, loopHudFrame } from "@/lib
 import { ToneGenerator } from "@/lib/audio/toneGenerator";
 import { playSoundEvent } from "@/lib/recording/fastRender";
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
+import { hasMentionOrCta, loopCaption, loopCaptionContext } from "@/lib/publish/loopCaption";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -640,6 +642,84 @@ describe("Spinning Hoops: settings, presets and the mode's registration", () => 
     expect(hoopsLiftRange({ ...s, hpOmegaEnd: 0.7 }).never).toBeGreaterThan(0);
     expect(speedShare({ a: 1.5, b: 0.5 }, 1)).toBeCloseTo(0.5, 12);
     expect(HOOPS_LIFT_RAD).toBeCloseTo((5 * Math.PI) / 180, 15);
+  });
+});
+
+/* ------------------------------------------------------------------ review fixes */
+
+describe("Spinning Hoops: the chime's register, the bed's switch and the loop-style caption", () => {
+  it("chimes in the glock register, A5 up to A6, one pentatonic degree a sixth of the spin's range", () => {
+    expect(HOOPS_CHIME_LEVELS).toBe(6);
+    expect(hoopChimeFrequency(0)).toBeCloseTo(880, 6);
+    expect(hoopChimeFrequency(1)).toBeCloseTo(1760, 6);
+    const heard = new Set<number>();
+    let last = 0;
+    for (let s = -0.5; s <= 1.5; s += 0.01) {
+      const f = hoopChimeFrequency(s);
+      expect(f).toBeGreaterThanOrEqual(880 - 1e-6);
+      expect(f).toBeLessThanOrEqual(1760 + 1e-6);
+      expect(f).toBeGreaterThanOrEqual(last);
+      last = f;
+      heard.add(Math.round(f));
+    }
+    // A5, B5, D6, E6, G6, A6: the G major pentatonic, so every chime sits in the bars' key
+    expect([...heard]).toEqual([880, 988, 1175, 1319, 1568, 1760]);
+    expect(hoopChimeFrequency(Number.NaN)).toBeCloseTo(880, 6);
+    // a cycle's chimes stay in the register too
+    const chimes = ofKind(run(engineOf(), hoopsSchedule(DEFAULT_HOOPS_SETTINGS).cycle), "chime");
+    expect(chimes.length).toBeGreaterThan(0);
+    for (const c of chimes) expect(c.ev.frequency! >= 880 - 1e-6 && c.ev.frequency! <= 1760 + 1e-6).toBe(true);
+  });
+
+  it("stops the groove bed at once when its switch goes off mid-run, and when a run without the return ends", () => {
+    const engine = engineOf({ bed: true });
+    const before = run(engine, 9);
+    expect(ofKind(before, "bed")).toHaveLength(1);
+    engine.setHoopsSettings({ bed: false });
+    const after = run(engine, 1);
+    const stops = ofKind(after, "bedStop");
+    expect(stops).toHaveLength(1);
+    expect(stops[0].t).toBeCloseTo(9 + STEP / 1000, 9);
+    // nothing restarts it, and the reset has no bed left to stop
+    const rest = run(engine, 20);
+    expect(ofKind(rest, "bed")).toHaveLength(0);
+    expect(ofKind(rest, "bedStop")).toHaveLength(0);
+    // switched off before it ever started: no stop at all
+    const quiet = engineOf({ bed: true });
+    run(quiet, 1);
+    quiet.setHoopsSettings({ bed: false });
+    expect(ofKind(run(quiet, 2), "bedStop")).toHaveLength(0);
+    // without the return the run ends after the top hold, and the bed with it
+    const once = engineOf({ bed: true, returnLoop: false });
+    const events = run(once, 16);
+    const [stop] = ofKind(events, "bedStop");
+    expect(once.isSimulationFinished()).toBe(true);
+    expect(stop?.t).toBeCloseTo(hoopsSchedule(resolveHoopsSettings({ returnLoop: false })).cycle, 1);
+  });
+
+  it("writes the loop-style caption: the hoop count leads the hook, the critical-spin fact under it, the physics and maths tags", () => {
+    const s = { ...defaultSettings("hoops"), recordingDuration: 24 };
+    expect(loopCaptionContext(s)).toEqual({ mode: "hoops", hookKey: "hoops", factKey: "hoopsFact", count: 8 });
+    const oneHoop: SimulatorSettings = { ...s, hpCount: 1 };
+    expect(loopCaptionContext(oneHoop)).toMatchObject({ hookKey: "hoopsOne", count: 1 });
+    const words = en.LoopCaption as Record<string, string>;
+    const draft = loopCaption({ mode: "hoops", hook: words.hoops, count: 8, fact: words.hoopsFact, locale: "en" });
+    expect(draft.caption.split("\n")[0]).toBe("8 hoops spinning faster and faster: the beads climb in order, the biggest hoop first 🔊");
+    expect(draft.caption).toContain("0.58 turns a second");
+    expect(draft.hashtags).toBe("#satisfying #oddlysatisfying #physics #math #creativecoding");
+    // every language: the count in the hook, lowercase, one speaker, no mention or call to action, a fact with its numbers
+    for (const [locale, m] of Object.entries({ en, pl, es })) {
+      const w = m.LoopCaption as Record<string, string>;
+      for (const key of ["hoops", "hoopsOne"]) {
+        expect(w[key], `${locale} ${key}`).toContain("{count}");
+        const hook = loopCaption({ mode: "hoops", hook: w[key], count: key === "hoops" ? 8 : 1, fact: w.hoopsFact, locale });
+        expect(hook.title, `${locale} ${key}`).toBe(hook.title.toLocaleLowerCase(locale));
+        expect(hook.caption.match(/🔊/gu), `${locale} ${key}`).toHaveLength(1);
+        expect(hasMentionOrCta(hook.caption), `${locale} ${key}`).toBe(false);
+      }
+      expect(w.hoopsFact, locale).toMatch(/0[.,]58/);
+      expect(w.hoopsFact, locale).toContain("√(g/R)");
+    }
   });
 });
 

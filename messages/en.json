@@ -4396,7 +4396,7 @@
     "growSubtitle": "how many bounces to fill the circle?",
     "growCounter": "{count} bounces",
     "hoopsTitle": "spin faster, and the beads climb",
-    "hoopsSubtitle": "past a critical speed the bottom stops being the lowest place – bigger hoops first",
+    "hoopsSubtitle": "the bigger the hoop, the sooner its bead lifts",
     "hoopsCounter": "{rate} turns a second · {count} of {total} beads up",
     "hoopsCounterOne": "{rate} turns a second · {count} of 1 bead up"
   },
@@ -4405,6 +4405,9 @@
     "growMultiplyFact": "Each bounce makes the ball {count}% bigger, so it grows exponentially: the size doubles every few bounces, the bounces come faster and faster, and the last few fill most of the circle.",
     "growAdd": "{count} px bigger every bounce until it fills the circle",
     "growApproach": "{count}% closer to the wall with every bounce",
-    "seconds": "{count} seconds of {mode}"
+    "seconds": "{count} seconds of {mode}",
+    "hoops": "{count} hoops spinning faster and faster: the beads climb in order, the biggest hoop first",
+    "hoopsOne": "{count} hoop spinning faster and faster, until its bead starts to climb",
+    "hoopsFact": "Why in that order? A bead on a turning hoop rests where gravity and the outward pull of the spin balance. Below a critical spin, √(g/R), that point is the bottom; above it, the balance point moves up the hoop and keeps rising as the spin grows. A hoop of 75 cm radius gets there at about 0.58 turns a second, one of 25 cm needs almost a full turn a second, so the beads leave their bottoms from the outside in."
   }
 }

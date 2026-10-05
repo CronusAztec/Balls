@@ -4232,7 +4232,7 @@
     "growSubtitle": "ile odbić, by wypełnić okrąg?",
     "growCounter": "odbicia: {count}",
     "hoopsTitle": "kręć szybciej, a koraliki się wspinają",
-    "hoopsSubtitle": "powyżej prędkości krytycznej dno przestaje być najniższym miejscem – najpierw większe obręcze",
+    "hoopsSubtitle": "im większa obręcz, tym wcześniej jej koralik się unosi",
     "hoopsCounter": "{rate} obr./s · w górze: {count} z {total} koralików",
     "hoopsCounterOne": "{rate} obr./s · w górze: {count} z 1 koralika"
   },
@@ -4241,6 +4241,9 @@
     "growMultiplyFact": "Każde odbicie powiększa piłkę o {count}%, więc rośnie wykładniczo: rozmiar podwaja się co kilka odbić, odbicia przychodzą coraz szybciej, a ostatnie kilka wypełnia większość okręgu.",
     "growAdd": "{count} px większa z każdym odbiciem, aż wypełni okrąg",
     "growApproach": "{count}% bliżej ściany z każdym odbiciem",
-    "seconds": "{count} sekund: {mode}"
+    "seconds": "{count} sekund: {mode}",
+    "hoops": "na {count} obręczach wirujących coraz szybciej koraliki wspinają się po kolei, od największej obręczy",
+    "hoopsOne": "{count} obręcz wiruje coraz szybciej, aż jej koralik zaczyna się wspinać",
+    "hoopsFact": "Skąd ta kolejność? Koralik na obracającej się obręczy spoczywa tam, gdzie grawitacja równoważy odśrodkowe pchnięcie obrotu. Poniżej obrotów krytycznych, √(g/R), tym miejscem jest dół obręczy; powyżej punkt równowagi przesuwa się w górę obręczy i wznosi się dalej, w miarę jak obroty rosną. Obręcz o promieniu 75 cm osiąga je przy około 0,58 obrotu na sekundę, a obręcz o promieniu 25 cm potrzebuje prawie pełnego obrotu na sekundę, więc koraliki odrywają się od dołu od zewnątrz do środka."
   }
 }

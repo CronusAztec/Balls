@@ -1897,16 +1897,22 @@ mode without rings (`hoops`: the physics in `src/lib/physics/modes/hoops.ts`, th
   simulation time), rainbow by hoop (Rainbow Walls; else the wall colour) in the Wall Thickness with the Wall Glow, the half
   turned away dimmer; every bead at x = R sin θ cos φ, y = R cos θ, its size and light following its depth, glowing in its
   hoop's colour; a faint vertical axis and a pivot disc under the hoops. With the loop HUD on (the presets turn it on; off
-  by default, as in every mode) the mode's words are "spin faster, and the beads climb", a grey subtitle and the amber
-  counter "0.13 turns a second · 0 of 8 beads up" (in the page's language and decimal style; "… of 1 bead up" with one
+  by default, as in every mode) the mode's words are "spin faster, and the beads climb", the grey subtitle "the bigger the
+  hoop, the sooner its bead lifts" and the amber counter "0.13 turns a second · 0 of 8 beads up" (in the page's language and decimal style; "… of 1 bead up" with one
   hoop), laid out around the hoops and clear of the watermark. The canvas reports the run in `data-hoops-*` (count, beads
   up, lifts and their order, settles, ticks, spin, phase, cycle, the all-up moment).
 - **The sounds** (the loop family's voices through `ToneGenerator.playLoop()`, so the page, the fast export, the batch render
-  and the bot sound alike): a glock chime on every turn, higher as the spin climbs (**Spin chime**, `hpTick`, on, URL
-  `hpt`); a tuned-bar strike when a bead passes 5° above its bottom while the spin is past its critical speed, pitched by its
+  and the bot sound alike): a glock chime on every turn, higher as the spin climbs – six pentatonic degrees from A5 up to A6,
+  the glock register (**Spin chime**, `hpTick`, on, URL `hpt`); a tuned-bar strike when a bead passes 5° above its bottom while the spin is past its critical speed, pitched by its
   hoop on the G pentatonic (bigger is lower); the completion chord on G2 when every bead is up; a soft pluck an octave under
   its bar as each bead settles on the return; at the reset a hard cut and a glide from G2 up to the outer hoop's bar that ends
-  exactly on the seam; and with **Groove bed** (`hpBed`, off, URL `hpb`) a pad and sub from the first lift to the reset.
+  exactly on the seam; and with **Groove bed** (`hpBed`, off, URL `hpb`) a pad and sub from the first lift to the reset
+  (or to the end of a run without the return; switched off mid-run, it stops at once).
+- **Loop-style caption** (the Publish caption editor's **Loop style**): the hoop count leads the hook – "8 hoops spinning
+  faster and faster: the beads climb in order, the biggest hoop first 🔊" ("1 hoop spinning faster and faster, until its bead
+  starts to climb" with one hoop) –, a plain-English fact under it with checkable numbers (the critical spin √(g/R): about
+  0.58 turns a second for a 75 cm radius, almost a full turn for 25 cm) and #satisfying #oddlysatisfying #physics #math
+  #creativecoding (`LoopCaption.hoops*`, `loopCaptionContext()`).
 - **Presets** (the top of the block; each brings the clip's navy page, rainbow hoops, the HUD and a clip of one whole
   cycle): **8 rainbow hoops** (the defaults), **One hoop, slow** (one hoop at 0.75, an eased 20 s ramp to 0.9 turns a
   second) and **Twin hoops** (0.75 and 0.4, the spin in two steps: one bead a step).
@@ -1916,8 +1922,8 @@ mode without rings (`hoops`: the physics in `src/lib/physics/modes/hoops.ts`, th
   whole cycle. Without the return a run's length is fixed (the ramp and the hold).
 - **Tests**: `tests/hoops.test.ts` – the stable bottom (within 1e-6) below ω_c and the balance point (within 1e-3) above
   it, the lift order on every seed, the schedule's whole turns and mirrored return, the fingerprints pinned at 30, 60 and 120
-  fps, the sound events and their scheduling on the fake Web Audio graph, the seamless cycle and the HUD counter, the finder
-  outcomes, the URL keys and the presets; the smoke test (section 39) runs the mode for 20 s and sees its eight lifts in
+  fps, the sound events and their scheduling on the fake Web Audio graph, the chime's register and the bed's stops, the
+  seamless cycle and the HUD counter, the finder outcomes, the URL keys, the presets and the loop-style caption; the smoke test (section 39) runs the mode for 20 s and sees its eight lifts in
   order, round-trips the URL and the panel, reads the HUD, finds both outcomes, fast-exports whole loops and checks that a
   free visitor's watermark stays clear of the HUD.
 

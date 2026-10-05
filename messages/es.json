@@ -4232,7 +4232,7 @@
     "growSubtitle": "¿cuántos rebotes para llenar el círculo?",
     "growCounter": "{count} rebotes",
     "hoopsTitle": "gira más rápido y las cuentas suben",
-    "hoopsSubtitle": "pasada una velocidad crítica, el fondo deja de ser el punto más bajo: primero los aros más grandes",
+    "hoopsSubtitle": "cuanto más grande el aro, antes sube su cuenta",
     "hoopsCounter": "{rate} vueltas por segundo · {count} de {total} cuentas arriba",
     "hoopsCounterOne": "{rate} vueltas por segundo · {count} de 1 cuenta arriba"
   },
@@ -4241,6 +4241,9 @@
     "growMultiplyFact": "Cada rebote hace la pelota un {count}% más grande, así que crece de forma exponencial: el tamaño se duplica cada pocos rebotes, los rebotes llegan cada vez más rápido y los últimos llenan casi todo el círculo.",
     "growAdd": "{count} px más grande en cada rebote hasta llenar el círculo",
     "growApproach": "{count}% más cerca de la pared en cada rebote",
-    "seconds": "{count} segundos de {mode}"
+    "seconds": "{count} segundos de {mode}",
+    "hoops": "{count} aros girando cada vez más rápido: las cuentas suben por orden, primero la del aro más grande",
+    "hoopsOne": "{count} aro girando cada vez más rápido, hasta que su cuenta empieza a subir",
+    "hoopsFact": "¿Por qué en ese orden? Una cuenta en un aro que gira descansa donde la gravedad equilibra el empuje hacia fuera del giro. Por debajo de un giro crítico, √(g/R), ese punto es el fondo; por encima, el punto de equilibrio sube por el aro y sigue subiendo a medida que el giro aumenta. Un aro de 75 cm de radio lo alcanza a unas 0,58 vueltas por segundo y uno de 25 cm necesita casi una vuelta por segundo, así que las cuentas dejan el fondo de fuera hacia dentro."
   }
 }
