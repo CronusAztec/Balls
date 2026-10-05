@@ -404,7 +404,7 @@ export function retargetTextFiles(out, renames, manifestFile = "manifest.json", 
   }
 }
 
-/** Posts `clips` ({ id, file, caption }) as Reels; false when anything was not posted. */
+/** Posts `clips` ({ id, file, caption, coverMs }) as Reels – --- mode-thumbnails --- each with its cover frame; false when anything was not posted. */
 async function postToInstagram(planner, clips, copy) {
   const { config, videoBaseUrl, missing } = planner.instagramConfigFromEnv(process.env);
   if (!config || !videoBaseUrl) {
@@ -427,7 +427,9 @@ async function postToInstagram(planner, clips, copy) {
     const videoUrl = planner.publicVideoUrl(videoBaseUrl, clip.file);
     console.log(`  → ${clip.file} (${videoUrl})`);
     try {
-      const result = await planner.publishReel((u, init) => fetch(u, init), config, { videoUrl, caption: clip.caption }, { onStatus: (status, poll) => console.log(`    status ${status || "…"} (${poll})`) });
+      // --- mode-thumbnails --- the cover is the clip's hero moment (the payoff on screen), not its first frame: thumb_offset
+      const cover = Number.isFinite(clip.coverMs) ? { thumbOffsetMs: clip.coverMs } : {};
+      const result = await planner.publishReel((u, init) => fetch(u, init), config, { videoUrl, caption: clip.caption, ...cover }, { onStatus: (status, poll) => console.log(`    status ${status || "…"} (${poll})`) });
       console.log(`    published: media ${result.mediaId}${result.permalink ? ` – ${result.permalink}` : ""}`);
     } catch (err) {
       ok = false;
@@ -453,7 +455,7 @@ export function captionWithoutHashtags(caption, hashtags) {
  * anything was not posted. `planner` has the relay client (bundled from src/lib/publish/relayClient.ts).
  *
  * @param {{ RelayClient: any }} planner
- * @param {{ id: string, file: string | null, caption?: string, hook?: string, hashtags?: string[] }[]} clips
+ * @param {{ id: string, file: string | null, caption?: string, hook?: string, hashtags?: string[], coverMs?: number }[]} clips (--- mode-thumbnails --- coverMs: the cover frame)
  * @param {{ relay: string, relayKey?: string | null, accounts: string[] }} opts
  * @param {string} out
  * @param {{ fetchImpl?: (url: string, init?: any) => Promise<Response>, log?: { log: (message: string) => void, warn: (message: string) => void, error: (message: string) => void }, intervalMs?: number }} [options]
@@ -501,7 +503,7 @@ export async function postViaRelay(planner, clips, opts, out, { fetchImpl = (u, 
     log.log(`  → relay: ${clip.file} to ${accounts.length} account${accounts.length === 1 ? "" : "s"}`);
     try {
       const blob = new Blob([fs.readFileSync(file)], { type });
-      const { jobId } = await client.publish({ file: blob, fileName: path.basename(clip.file), accounts, title: clip.hook || "", caption: captionWithoutHashtags(clip.caption, clip.hashtags), hashtags: clip.hashtags ?? [], visibility: "public" });
+      const { jobId } = await client.publish({ file: blob, fileName: path.basename(clip.file), accounts, title: clip.hook || "", caption: captionWithoutHashtags(clip.caption, clip.hashtags), hashtags: clip.hashtags ?? [], visibility: "public", ...(Number.isFinite(clip.coverMs) ? { coverMs: clip.coverMs } : {}) /* --- mode-thumbnails --- the cover frame */ });
       const job = await client.waitForJob(jobId, { intervalMs });
       for (const item of job.items) {
         if (item.status === "published") log.log(`    ✓ ${item.platform} ${item.name}${item.link ? ` – ${item.link}` : ""}${item.note ? ` (${item.note})` : ""}`);
@@ -552,7 +554,7 @@ export async function main(argv = process.argv.slice(2)) {
       return 1;
     }
     const manifest = JSON.parse(fs.readFileSync(file, "utf8"));
-    const clips = (manifest.clips ?? []).map((c) => ({ id: `${c.episode}-${c.recipe}-${c.seed}`, file: c.status === "done" ? c.file : null, caption: c.caption, hook: c.hook, hashtags: c.hashtags /* --- social-publish --- */ }));
+    const clips = (manifest.clips ?? []).map((c) => ({ id: `${c.episode}-${c.recipe}-${c.seed}`, file: c.status === "done" ? c.file : null, caption: c.caption, hook: c.hook, hashtags: c.hashtags /* --- social-publish --- */, coverMs: c.cover?.ms /* --- mode-thumbnails --- */ }));
     console.log(`Posting ${clips.length} clip${clips.length === 1 ? "" : "s"} from ${file}…`);
     if (opts.relay) return (await postViaRelay(planner, clips, opts, out)) ? 0 : 1; // --- social-publish --- (only through the relay)
     return (await postToInstagram(planner, clips, copy)) ? 0 : 1;
@@ -589,7 +591,7 @@ export async function main(argv = process.argv.slice(2)) {
   if (opts.relay) {
     const clips = plans.map((p) => {
       const r = rendered.find((x) => x.id === p.id);
-      return { id: p.id, file: r && r.status === "done" ? r.file : null, caption: p.post.caption, hook: p.hook, hashtags: p.post.hashtags };
+      return { id: p.id, file: r && r.status === "done" ? r.file : null, caption: p.post.caption, hook: p.hook, hashtags: p.post.hashtags, coverMs: planner.coverFrameOf(p, r?.durationSec ?? null).ms /* --- mode-thumbnails --- */ };
     });
     console.log(`\nSending ${clips.length} clip${clips.length === 1 ? "" : "s"} through the relay ${opts.relay}…`);
     relayed = await postViaRelay(planner, clips, opts, out);
@@ -602,7 +604,7 @@ export async function main(argv = process.argv.slice(2)) {
   }
   const clips = plans.map((p) => {
     const r = rendered.find((x) => x.id === p.id);
-    return { id: p.id, file: r && r.status === "done" ? r.file : null, caption: p.post.caption };
+    return { id: p.id, file: r && r.status === "done" ? r.file : null, caption: p.post.caption, coverMs: planner.coverFrameOf(p, r?.durationSec ?? null).ms /* --- mode-thumbnails --- */ };
   });
   const posted = await postToInstagram(planner, clips, copy);
   return posted && relayed && done === plans.length ? 0 : 1;

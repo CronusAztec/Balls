@@ -85,6 +85,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Free-video watermark** | Every video made without a verified Pro licence carries the watermark, drawn into its pixels by the compositor of every output path (feature free-watermark, `src/lib/watermark/`): a badge – the logo mark, the site's name and domain at 70 % opacity with a soft shadow – in a bottom corner of the exported square inside the platforms' safe zone, changing corner every 6 s, plus the domain tiled diagonally over the whole frame at 4 %. Recording, the fast export, the batch render, the viral bot and the desktop render queue now work for everyone; the decision is sealed when a recording or export starts by verifying the stored licence again, in module-private state no DOM, storage, URL or console edit reaches (see [Free-video watermark](#free-video-watermark)) |
 | **Bouncing Orbs: rhythm, polyrhythms & metronome** | The Bouncing Orbs rework (feature orb-rhythm) after the owner's "bouncing orbs is clunky and not fluid like the instagram given, add metronome and polyrythms to it": the new default **Rhythm** model (`ogModel`; **Decay** keeps the settling field) makes every orb an ideal bouncer on its spot forever – its height the parabola of an elastic bounce, h(t) = A · 4u(1 − u) with u = frac((t − φ) / T), its apex A = g · T² / 8 under the Gravity slider (faster orbs bounce lower) or all alike (**Equal Heights**, `ogEq`) – drawn at every frame's own simulation time, so the field moves smoothly at 60 or 120 Hz and in the fast export's exact frame times, with a 10 % **Landing Squash** easing out over 60 ms (`ogSquash`). **Polyrhythm** (`ogPoly`): **Groups** of rows, columns, rings, diagonals, a checkerboard or every orb (`ogGroup`), group k bouncing n_k times a **Cycle** (`ogCycle`, 30 s), so every orb lands together at every multiple of the cycle – the **IN PHASE** moment, with its banner on a dark backdrop and a chord – and the wave surface morphs in between; ten **Rhythm Presets** (`ogRhythm`): Pendulum wave (51 + k), 3 against 2, 4 against 3, 5 against 4, 7 against 5, 3:4:5, Euclidean (`ogSteps`), Corner to corner, Centre outwards and Varied. The **Metronome**: a **Tempo** (`ogBpm`, 120; the beat lock's while it is on) and **Beats per Bar** (`ogBeats`), a swinging bar at the top of the square, a ring pulsing around the field or a dot hopping along a beat strip (`ogMetro`), a woodblock **Click** with an accented downbeat (`ogClick`), the cycle snapped to whole **Bars** (`ogBars`, 16) so IN PHASE lands on a downbeat, and **Melody** (`ogMelody`): a pitch of the scale per group, the polyrhythm playing a tune. A ninth preset, Metronome 3:2; Find Simulation's In phase at answered at once by the cycle maths; a caption's question answered at the IN PHASE moment. See the Bouncing Orbs section under How to extend it |
 | **Windows app 1.0.3: the AI fixed, an AI status panel** | The owner's "the exe ai doesnt work" (feature desktop-ai-fix): the AI studio of the Windows app works with the small local models now and says why when it does not. Each job normalises its answer before the checks (hashtags split, given their "#", cleaned, de-duplicated and clamped to 3–15; clip names slugified; platforms mapped – `src/lib/desktop/ai/normalise.ts`), the reply grammar bounds what it can (a hashtag ≤ 61 characters, a name ≤ 60, the copy's platforms the requested ones, one item each), **Make videos** offers its answer only after `plan_clips` has made plans and then only with their ids (the reply envelope is rebuilt every turn), a retry comes as the app's note with a hint at a higher temperature, and the prompts are shorter (the settings that matter for the request, recipe hooks without placeholders). The local model keeps one chat session per load (the evaluated prefix is reused: no re-reading 3–4k tokens every turn), gets a context of at least 4,096 tokens and room for prompt + reply, falls back to fewer GPU layers and then the CPU when memory is short (then: "Not enough free memory for this model: close other apps or pick a smaller model (Qwen2.5 1.5B is the smallest)"), and unloads only after the reply in progress (also when quitting). Every download and cloud call goes through Electron's **net.fetch** (the system proxy and certificate store – antivirus HTTPS scanning and company proxies broke Node's fetch, which stays as the fallback), errors carry their cause codes explained, and everything lands in main.log (llama.cpp's own messages, every request with its timings, every failed IPC handler with its cause chain). An **AI status** panel tops the AI tab: Runtime, Model, Cloud provider, Network and Last error, green / amber / red with the reason, **Run checks** (llama.cpp started, the model loaded with an 8-token grammar test, the endpoint and Hugging Face reached), **Copy report** (JSON: versions, RAM, GPU, backend, model, provider – never the key –, the last errors, main.log's tail), **Open logs** and **Run the model on: Auto (GPU) / CPU only**. A first-run card offers the 2 GB model or a cloud key, a finished download is selected when the selected model is missing, a run shows "Reading the request… N s" and a timing line per step. Version **1.0.3**: unsigned builds no longer carry a publisher name, so 1.0.3 → 1.0.4 updates install (1.0.2 users install 1.0.3 by hand once – the download page says so), and CI's packaged smoke runs a real Settings and Captions job on a cached GGUF (see [Windows app: AI fix and status panel](#windows-app-ai-fix-and-status-panel)) |
+| **Mode thumbnails** | Every mode card – the modes wall, the studio's mode picker, the daily card – shows its mode at its **hero moment**, mid-action with the payoff on screen (feature mode-thumbnails): an entry per mode in `HERO_MOMENTS` (`src/lib/thumbnails/heroMoments.ts` – settings, pinned seed, second, camera and the mode's colour; glow and trails on, bigger balls where a 240 px card needs them, only the HUD element that is the point), rendered by the real simulator's deterministic still camera and framed the same way for every card: a 480 × 480 square (2× the ~240 px card), the same inset and vignette, a subtle edge glow in the mode's colour, WebP under 60 KB, no captions or watermark. `npm run previews` regenerates them, printing each file's size, and stops when a mode has no hero moment; the viral bot's covers use the same idea – the payoff frame of each clip, not its first frame (see [Mode thumbnails](#mode-thumbnails)) |
 
 ## Design
 
@@ -177,6 +178,7 @@ npm test                                   # vitest unit tests (engine, physics 
 npm run smoke                              # headless-browser end-to-end checks; build and `npm start` first (see scripts/smoke-test.mjs)
 npm run previews                           # regenerate public/modes/*.webp from the real simulator (build and `npm start` first); MODES=drop npm run previews renders one mode
 GALLERY=1 npm run previews                 # --- daily-gallery --- only the gallery cards (public/gallery/*.webp); GALLERY=neon-escape renders one
+MODES=drop SWEEP=2:14:1 npm run previews   # --- mode-thumbnails --- contact sheets for picking a hero moment (SEEDS, EXTRA, CAMERA, RAW=1, OUT_DIR)
 npm run bot -- --count 3 --platform reels   # --- viral-bot --- plan, render and caption today's clips (build and `npm start` first; --dry-run needs neither)
 python3 scripts/generate-midi.py           # regenerate the built-in melodies in public/notes
 python3 scripts/generate-sounds.py         # regenerate the wall-break and hit sound effects
@@ -329,7 +331,7 @@ src/
 1. Create `src/lib/physics/modes/<name>.ts` implementing `GameMode` (see `types.ts`; `classic.ts` is the minimal example, `portal.ts` a complete one, `drop.ts` a mode without rings built out of obstacles, `box.ts` a mode that owns its playfield entirely and folds the balls back in `onBallStep()`, `pendulum.ts` one whose motion is analytic – it overwrites every ball's position from the simulation clock in `onBallStep()` and solves its sound events inside each step). Use `ctx.random()` for randomness so the seed finder stays deterministic. Optional flags: `ballsMayRest` (no slow-ball boost), `ballsPassThrough` (no ball-to-ball collisions).
 2. Register it: add the id to `MODE_IDS` in `types.ts`, export the class from `src/lib/physics/modes/index.ts`, instantiate it in `engine.ts` and add a case to `initMode()` (`activateMode()` takes the ring layout: `"classic"`, `"single-gap"`, `"solid"`, or `"none"` for a mode that builds its own playfield), add its name to `modeNames` in `Controls.tsx` (and its block of the Mode group to `modeSpecific()` there, with the block's search keys in `MODE_BLOCK_KEYS` of `src/components/simulator/panelKeys.ts`, so the command palette offers them in this mode only) and, if it has settings, its `set<Mode>Settings()` call to `initEngineForMode()` in `Simulator.tsx` (every mode init, the fast export and the batch render go through it).
 3. Draw anything mode-specific in `Canvas.tsx` (segments, overlays, HUD counters); obstacles are drawn for every mode. A mode that draws its own entities gets a small module next to the canvas (see `boxRenderer.ts`) and a branch in the ball pass.
-4. Add the card order and the family (`MODE_CARD_ORDER`, `MODE_CATEGORIES`: `escape`, `rhythm`, `battle` or `journey`; the mode cards are grouped under a heading per family) in `src/lib/modes.ts` – a new family also needs its id in `MODE_CATEGORY_IDS`, an entry in `CATEGORY_HEADINGS` in `src/components/site/ModesOverview.tsx` and a `Headings.modes<Family>` key in every `messages/*.json` –, names/descriptions in `messages/*.json` (`Modes`, `Controls.mode<Name>`, `Editorial.mode<Name>`), and a preview image in `public/modes/<name>.webp` (add the mode to `scripts/generate-mode-previews.mjs` and run `MODES=<name> npm run previews` against the served build).
+4. Add the card order and the family (`MODE_CARD_ORDER`, `MODE_CATEGORIES`: `escape`, `rhythm`, `battle` or `journey`; the mode cards are grouped under a heading per family) in `src/lib/modes.ts` – a new family also needs its id in `MODE_CATEGORY_IDS`, an entry in `CATEGORY_HEADINGS` in `src/components/site/ModesOverview.tsx` and a `Headings.modes<Family>` key in every `messages/*.json` –, names/descriptions in `messages/*.json` (`Modes`, `Controls.mode<Name>`, `Editorial.mode<Name>`), and a preview image in `public/modes/<name>.webp` (add its hero moment to `HERO_MOMENTS` in `src/lib/thumbnails/heroMoments.ts` – the generator and the tests refuse a mode without one – and run `MODES=<name> npm run previews` against the served build; see [Mode thumbnails](#mode-thumbnails)).
 5. Mode settings that the finder needs go into `ModeSettings` in `src/lib/simulation/finder.ts` and `createEngineForSettings()`, and a fingerprint of the new mode's default run into `tests/extras.test.ts`, so the physics extras are proven not to disturb it. A mode whose run cannot finish with some settings says so in `runNeverFinishes()` (the page then hides the finder and `findSimulation()` resolves with `endless` instead of searching); a mode whose run length is fixed by its settings whatever the seed (Pendulum Wave: cycles × cycle length) reports it in `fixedRunDurationSec()`, so the finder resolves with `fixedDuration` and the page explains what to change instead of testing seeds.
 6. --- bounce-math --- A mode that resolves its own contacts reports them, so bounce math's triggers fire there too: `ctx.noteBounce?.(ball)` for every bounce off its own walls, pegs, panes or arcs (in a rhythm mode without contacts, the ball's note), `ctx.noteCollide?.(a, b)` for every ball-to-ball hit it resolves itself (both no-ops without rules). If the mode can also have ball hits, gap passes or wall breaks, add it to `BOUNCE_MATH_COLLIDE_MODES` / `BOUNCE_MATH_PASS_MODES` / `BOUNCE_MATH_BREAK_MODES` in `bounceMathRuntime.ts` – the panel marks a rule whose trigger the mode never sets off (`bounceTriggerApplies()`), and `tests/bounceMath.test.ts` checks that every mode in `MODE_IDS` fires the bounce trigger.
 
@@ -1527,6 +1529,98 @@ still refuses) and nothing else about billing changed.
   them (both the recording under way and the next); a Pro recording (the test licence) carries neither; a
   free fast export and a free batch render carry them; the pricing page and the Unlock dialog show the new copy; and a free
   1080×1920 recording with the mark keeps its frame-rate floor.
+
+### Mode thumbnails
+Feature mode-thumbnails – the owner's "change the thumbnails": every mode card (the modes wall, the studio's mode picker, the
+daily card) shows its mode at its **hero moment** – mid-action, with the payoff on screen – framed the same way for all of them.
+
+- **The hero table** – `HERO_MOMENTS` in `src/lib/thumbnails/heroMoments.ts`, an entry per id of `MODE_IDS`: the settings of a
+  link on top of glow, trails and wall glow (`HERO_BASE_QUERY`: `glow=1&trails=1&wglow=1`), a pinned seed, the second of the
+  run, a camera – the subject square's centre (`x`, `y`, fractions of the world) and `zoom` (1, the default, is the centred
+  square a clip records) – and the mode's colour for the edge glow. Bigger balls (`r`), thicker rings (`wt`) and trails (`tt`)
+  keep a 240 px card legible; the modes' own HUD switches (`tsb=0`, `tn=0`, `lch=0`, `sbh=0`, `mzhud=0`, `mzbg=0`, `tybg=0`,
+  `rcst=0`, `rcmm=0`, `ogHud=0`, `plb=none`, `plp=0`) leave only the element that is the point – a battle's score, the
+  fighters' names, the HOME count –, and the camera frames out a HUD without a switch (the String Circle title, the Sound
+  Vortex and Conveyor Belt counters, the race commentary, the Multipliers badges, Fight League's ability boxes). No captions or
+  top / bottom text, no watermark: the stills come from the arena canvas, never the video compositor, and the generator runs
+  with a test Pro licence. The entries are below, one line per mode.
+- **The frame** – `src/lib/thumbnails/heroFrame.ts`: a square like every card (`aspect-square`), `THUMB_SIZE` 480 × 480 (2× the
+  ~240 px card), the subject with the same `THUMB_INSET` margin (4 %) on every side – past the world's edge the stage's darkest
+  corner colour fills it –, the same radial vignette and a subtle inner glow along the edges in the mode's colour, encoded as
+  WebP under `THUMB_MAX_BYTES` (60 KB): the quality steps down from 0.9 until it fits (`encodeUnderBudget()`).
+- **The still camera** – `window.__jumpingBallsStill` (`src/components/simulator/useHeroStill.ts`, `src/lib/thumbnails/stillRender.ts`):
+  the fast export's hidden offline canvas with its seeded `Math.random` and clock, stepped frame by frame to the hero second and
+  drawn at 2–6 device px per world px (`heroRenderScale()`), then filtered down – an entry gives the same picture on any
+  machine, however busy. The moments are tuned for the 800 × 450 world of a 1400 × 900 window (`HERO_WORLD`); the generator
+  refuses another.
+- **Regenerating** – build and serve the site, then run the generator (`npm run previews`, `scripts/generate-mode-previews.mjs`):
+
+  ```bash
+  NEXT_PUBLIC_BASE_PATH=/Balls npm run build
+  node scripts/serve-static.mjs --port 3000 --base /Balls &
+  BASE_URL=http://localhost:3000/Balls npm run previews                       # every card (and the gallery cards)
+  BASE_URL=http://localhost:3000/Balls MODES=classic,drop npm run previews    # those cards only
+  BASE_URL=http://localhost:3000/Balls MODES=classic SWEEP=2:6:0.25 SEEDS=1,2,3 npm run previews   # pick a moment
+  ```
+
+  It stops before writing anything when a mode of `MODE_IDS` – or a card on the served site – has no hero moment
+  (`missingHeroModes()`), and prints every file's size, WebP quality and the seed and second it shows, then the total and the
+  largest. `SWEEP=from:to:step` writes a contact sheet per mode (`<mode>-sweep.jpg`, a row per seed of `SEEDS`, framed like the
+  cards) to `OUT_DIR` (default: the system's temp folder) instead of `public/modes`; `RAW=1` adds the whole world of each second
+  (to place a camera), `EXTRA=<query>` tries settings on top of the entry's (a key the entry sets keeps its value) and
+  `CAMERA=x,y,zoom` another camera. A new mode adds its line to the table and runs `MODES=<mode> npm run previews`.
+- **The viral bot's covers** – the same idea for a clip (`heroMomentSec()`, `src/lib/bot/cover.ts`): the payoff on screen (its
+  second + 0.25 s); the clip's last moment when it is cut before the payoff; else the mode's hero second when the clip reaches
+  it; else 85 % of the clip – never the first frame. The manifest's `cover` (`atSec`, `ms`, `source`), a "Cover: 12.4 s – the
+  payoff on screen" line in every caption `.txt` and a Covers list in `posting-schedule.md` carry it (translated, `ViralBot.cover`;
+  the manual posting steps say to set that frame as the cover); the CLI posts it as Instagram's `thumb_offset`, and the publish
+  relay takes it as `coverMs` – TikTok's `video_cover_timestamp_ms` (1 s without it) and Instagram's `thumb_offset`.
+- **Tests** – `tests/modeThumbnails.test.ts`: a hero moment for every `MODE_IDS` id and nothing else, complete entries, links
+  that open their mode with glow, trails and their seed and no caption, text or watermark, every own key changing the run (no
+  typo, no no-op), the frame's geometry and budget, the still schedule, the pictures on disk (WebP, 480 × 480, under 60 KB), the
+  table below against `HERO_MOMENTS`, a clip's hero second and the bot's covers (manifest, caption files, schedule, the three
+  languages); `relay/relay.test.mjs` the relay's `coverMs`. The smoke test's mode-thumbnails block fetches every card picture
+  as served (200, `image/webp`, under 60 KB, 480 × 480 in its header), decodes each on the modes wall and samples its pixels
+  (colours, contrast, something bright), and checks that the wall and the studio's mode picker show a card for every mode.
+
+| Mode | Hero moment | Seed | Second | Settings | Camera |
+| --- | --- | --- | --- | --- | --- |
+| `classic` | the ring field about to break: the inner ring bursting in a white flash, the rest still closed | 1 | 2.65 s | `wbreak=all&r=11` | – |
+| `accumulation` | frozen balls ringing the spiked arena, the live ball racing its last 0.2 s | 5 | 10.25 s | `spikes=1&at=3&r=11&wt=4` | zoom 1.1 |
+| `multiply` | the arena packed with rainbow balls, the first ones spilling out of the gap | 2 | 10 s | `rball=1&r=10&gap=0.6&msc=5` | – |
+| `lines` | the string art fanned: rainbow lines from the ball to the rim | 1 | 28 s | `rlines=1&ldot=1&r=10` | – |
+| `paint` | the circle two-thirds painted in thick rainbow strokes | 1 | 10 s | `r=14&g=100` | – |
+| `target` | the countdown at 4: a correct hit bursting a numbered segment of the ring | 6 | 18.4 s | `r=11&wt=5&tt=1.6` | zoom 1.1 |
+| `portal` | a teleport: the ball bursting out of a portal in a spray of sparks | 1 | 14.6 s | `r=11&wt=5&tt=1.6` | zoom 1.1 |
+| `shatter` | rings of rainbow segments, the ball smashing through them in a shower of shards | 1 | 16 s | `r=11` | – |
+| `colorMatch` | a colour match shattering a segment of the ring | 1 | 16 s | `r=11&wt=5&tt=1.6` | zoom 1.1 |
+| `grow` | the ball grown to fill most of its ring, the rainbow lines fanned | 1 | 46 s | `glines=1&rlines=1&rball=1` | – |
+| `drop` | balls raining through the coloured pegs | 1 | 4 s | `dbc=16&dsi=0.2&dsv=0.7` | – |
+| `box` | fat squares mid-polyrhythm, the wall they just hit lit up | 1 | 17 s | `bxa=1&bxgr=3&bxn=4` | – |
+| `pendulum` | the pendulum wave in a perfect fan | 1 | 1 s | `pwn=20&pwk=24&pwt=40&pwtr=0.5` | – |
+| `polyrhythm` | sixteen voices fanned out along their chords in a rainbow wave | 1 | 3 s | `prl=arcs` | – |
+| `collide` | squishy orbs colliding in the circle | 1 | 6 s | `cpsq=1&cpn=60` | – |
+| `glass` | a full glass smash: the pane under Gerald shattering, shards in the air | 1 | 12.75 s | `face=cute` | x 0.5 · y 0.44 · zoom 1.55 |
+| `multipliers` | a swarm of clones pouring through the gates, HOME counting up | 1 | 5.5 s | `mpsb=3&mprw=10` | x 0.5 · y 0.54 · zoom 1.205 |
+| `doublePendulum` | the double pendulum flung wide over the lit harp strings, its rainbow trail behind | 1 | 8.6 s | `dprs=0&dpa1=150&dpa2=120&dptr=8` | – |
+| `illusion` | the hidden heart emerging from the painted arena | 1 | 18 s | `ilt=whitespace&ilpt=heart` | zoom 1.1 |
+| `stringBattle` | String Circle: flag balls with their strings fanned to the rim | 1 | 14 s | `sbst=circle&sbh=0` | x 0.5 · y 0.56 · zoom 1.2 |
+| `powerLayers` | a big hit shattering a band of the rainbow stack | 1 | 5.6 s | `pll=400&plb=none&plp=0` | x 0.5 · y 0.58 · zoom 1.55 |
+| `race` | racers mid-track through the flippers and pegs, the leader crowned | 1 | 5 s | `rcn=10&rcst=0&rcmm=0` | x 0.569 · y 0.451 · zoom 1.667 |
+| `battle` | squares clashing with HP bars, a KO blast | 1 | 5.8 s | `btn=12` | – |
+| `ctf` | CAPTURE!: a flag carried home, the score ticking over | 1 | 6 s | `ctfn=3` | – |
+| `runner` | the runner in the air over the spikes, on the beat | 1 | 3.6 s | `rrn=40&rrd=1&face=cute` | x 0.43 · y 0.52 · zoom 1.8 |
+| `paddle` | a catch on the platform, sparks flying | 1 | 8.6 s | `pdsk=1&pdsp=1` | x 0.55 · y 0.756 · zoom 2.2 |
+| `vortex` | a full funnel: balls weaving down the glowing rings | 1 | 16 s | `face=cute` | zoom 1.4 |
+| `journey` | Gerald bursting the first ring of a rings stage, the field still closed around him | 1 | 2 s | `js=rings-l,glass,pegs,home&face=cute` | x 0.5 · y 0.5 · zoom 1.3 |
+| `bullseye` | BULLSEYE: a ball stuck in the bull, the starburst | 1 | 3.5 s | `byi=0.4&byp=2&face=cute` | – |
+| `beatDrop` | the ball landing on a pad on the beat in a burst of sparks | 1 | 12.6 s | `face=cute&bdd=1&bda=1` | x 0.38 · y 0.58 · zoom 1.8 |
+| `territory` | the territory map half painted, borders jagged | 1 | 14.5 s | `tyb=3&tybg=0` | – |
+| `maze` | the leader one turn from the exit, blood-red trails filling the maze behind it | 6 | 6.7 s | `mzn=4&mzbg=0&mzhud=0` | zoom 1.12 |
+| `conveyor` | balls riding the belt and dropping into the rainbow rings | 1 | 6.8 s | `cvi=1&cvn=12&face=cute` | x 0.481 · y 0.571 · zoom 1.154 |
+| `orbGrid` | the orbs' wave at its peak | 3 | 14.5 s | `ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0` | x 0.506 · y 0.567 · zoom 1.25 |
+| `fightLeague` | Thor and Loki clashing, the VS card gone, hammer and daggers mid-swing | 11 | 5.25 s | – | x 0.5 · y 0.361 · zoom 1.151 |
+| `landClaim` | half the wall taken: the columns a mosaic of the four countries' colours | 3 | 5 s | `teams=France,Brazil,Spain,Colombia…&lcm=claim&lch=0&tsb=0&tn=0` | x 0.5 · y 0.587 · zoom 1.25 |
 
 ## Windows app
 

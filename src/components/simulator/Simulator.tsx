@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useLocale, useMessages } from "next-intl"; // --- viral-bot ---
 import { useViralBot } from "./useViralBot"; // --- viral-bot ---
+import { useHeroStill } from "./useHeroStill"; // --- mode-thumbnails ---
 import { offerPublishClip } from "@/lib/publish/clips"; // --- social-publish --- finished clips go to the Publish block
 import { isBotLocale, type BotCopy } from "@/lib/bot/copy"; // --- viral-bot ---
 import { parseSeed } from "@/lib/recording/batch"; // --- viral-bot ---
@@ -2108,6 +2109,35 @@ export default function Simulator() {
   }, [settings, isRecording, isSearching, isStarted, isPaused, activeBeats, fastRenderHost, initEngineForMode, toggleRecording, t]); // --- split-screen --- (t: a race refuses the export with the panel's note)
   const cancelFastExport = useCallback(() => fastAbortRef.current?.abort(), []);
   // --- end fast-render ---
+  // --- mode-thumbnails --- the still camera of the mode cards' pictures and the viral bot's covers (useHeroStill.ts): the page's
+  // settings and seed rendered offline on the fast export's canvas, stepped to a second of the run (window.__jumpingBallsStill).
+  // The engine is set up as the fast export sets up its own (startFastExport's createEngine).
+  useHeroStill({
+    host: fastRenderHost,
+    getEngine: () => engineRef.current,
+    mode: settings.mode,
+    busy: isRecording ? "A recording is running." : isSearching ? "Find Simulation is searching." : fastRunning ? "A fast export is running." : null,
+    createEngine: (seed) => {
+      const page = engineRef.current;
+      if (!page) throw new Error("The simulator is not ready yet.");
+      const s = settings;
+      const engine = new PhysicsEngine({ ...page.config });
+      engine.setSeed(seed);
+      engine.setParticleStyle(s.particleStyle, particlePalette(s));
+      engine.setPaintOptions(page.getPaintOptions());
+      engine.setPaintBeat({
+        source: s.paintBeatSource,
+        manualBpm: s.bpm,
+        grid: activeBeats ? { bpm: activeBeats.beats.bpm, beatTimes: activeBeats.beats.beatTimes, duration: activeBeats.beats.duration } : null,
+        offset: activeBeats?.offset ?? 0,
+        loop: activeBeats?.loop ?? true,
+      });
+      engine.setOnBeat(videoBeatsRef.current.onBeatConfig);
+      initEngineForMode(engine, s);
+      return engine;
+    },
+  });
+  // --- end mode-thumbnails ---
 
   /* ------------------------------------------------------------ custom media */
 
