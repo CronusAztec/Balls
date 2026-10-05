@@ -18,6 +18,7 @@
  */
 import { SITE_SLUG } from "@/lib/site";
 import { prepareStamp, sealWatermark, stampFrame, type FrameMark } from "@/lib/watermark/seal"; // --- free-watermark ---
+import { drawLoopHud, loopHudLayout, type LoopHudFrame } from "@/lib/loop/hud"; // --- loop-foundation ---
 
 /** --- review fix (docs-consistency) --- The stem of a downloaded clip (`jumpingballslive-export.mp4`), from the site's name. */
 export const EXPORT_BASE_NAME = `${SITE_SLUG}-export`;
@@ -47,6 +48,11 @@ export interface RecordingOptions {
    * copied into a 60 fps stream, as before.
    */
   sourceFrames?: () => number;
+  /**
+   * --- loop-foundation --- The loop HUD of this frame (the title, the subtitle and the counter; null = none), drawn at export
+   * resolution over the frame and under the watermark – every recording and export carries it in its pixels.
+   */
+  loopHud?: () => LoopHudFrame | null;
 }
 
 // --- themes
@@ -102,7 +108,7 @@ export function drawRecordingFrame(
   width: number,
   height: number,
   bg: string,
-  options: Pick<RecordingOptions, "drawBackground" | "textOverlay">,
+  options: Pick<RecordingOptions, "drawBackground" | "textOverlay" | "loopHud" /* --- loop-foundation --- */>,
   textLayout: RecordingTextLayout,
   mark: FrameMark, // --- free-watermark ---
 ) {
@@ -136,6 +142,9 @@ export function drawRecordingFrame(
     if (overlay.bottomText) ctx.fillText(overlay.bottomText, centerX, textLayout.bottomY);
     ctx.restore();
   }
+  // --- loop-foundation --- the loop HUD at export resolution (the title in the bar above a portrait frame's square, the counter below)
+  const hud = options.loopHud?.();
+  if (hud) drawLoopHud(ctx, width, hud, loopHudLayout(width, height));
   // --- free-watermark --- the frame's pixels get the mark here, in the compositor's own canvas
   stampFrame(ctx, mark?.seal ?? null, { width, height, clipMs: mark?.clipMs ?? 0, square: { x: dx, y: dy, width: dw, height: dh } });
 }

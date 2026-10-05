@@ -22,7 +22,7 @@ export const FAST_EXPORT_KEYS = ["fastExportFps"];
 export type FastExportState =
   | { status: "idle" }
   | { status: "running"; phase: FastExportPhase; progress: number; frame: number; frames: number; clipSec: number; elapsedMs: number }
-  | { status: "done"; durationSec: number; wallMs: number; extension: string; bytes: number; digest: string }
+  | { status: "done"; durationSec: number; wallMs: number; extension: string; bytes: number; digest: string; loopCycles?: number; loopCycleSec?: number; loudnessGainDb?: number /* --- loop-foundation --- (whole loops; the normaliser's gain) */ }
   /** WebCodecs is missing ("webcodecs") or has no encoder the export can write ("codecs"): the real-time recorder took over. */
   | { status: "fallback"; reason: "webcodecs" | "codecs" }
   | { status: "cancelled" }
@@ -82,6 +82,10 @@ export function FastExportButton({ state, disabled, handPlay = false, onStart, o
       data-fast-export={state.status}
       data-fast-digest={state.status === "done" ? state.digest : undefined}
       data-fast-bytes={state.status === "done" ? state.bytes : undefined}
+      data-fast-seconds={state.status === "done" ? state.durationSec.toFixed(4) : undefined /* --- loop-foundation --- (the clip's exact length) */}
+      data-fast-loops={state.status === "done" && state.loopCycles !== undefined ? state.loopCycles : undefined /* --- loop-foundation --- (whole cycles) */}
+      data-fast-loop-cycle={state.status === "done" && state.loopCycleSec !== undefined ? state.loopCycleSec.toFixed(4) : undefined}
+      data-fast-gain={state.status === "done" && state.loudnessGainDb !== undefined && Number.isFinite(state.loudnessGainDb) ? state.loudnessGainDb.toFixed(2) : undefined /* --- loop-foundation --- (the loudness normaliser) */}
       data-fast-hand-play={handPlay ? "1" : undefined}
     >
       {running ? (

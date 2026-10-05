@@ -12513,6 +12513,108 @@ const orbBoxPixels = (box) =>
 }
 // --- end mode-thumbnails ---
 
+// --- loop-foundation ---
+// 38. Grow fill and loop and the loop foundation: the Grow block's Fill and loop preset (URL gLaw=multiply and gFill=loop; its
+// 11 % a bounce from 5 % are the defaults of gStep and gStart) runs at 2× with two fills inside 40 s of simulation and every cycle
+// within a frame of the others (data-grow-*,
+// data-loop-cycle); the loop HUD's lowercase title and counter are drawn into the canvas; a fast export with Export whole loops
+// on lasts a whole number of cycles (data-fast-seconds / data-fast-loop-cycle, within one frame), carries the HUD in its frames,
+// plucks through the export's own audio and reports the loudness normaliser's gain; Find Simulation offers the Grow outcomes with
+// Finish (Fills within, Fill on a bar line).
+{
+  await page.goto(`${BASE}/en/simulator/?mode=grow`, { waitUntil: "networkidle" });
+  await page.locator('[data-grow-preset="fillLoop"]').first().click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const loopQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "2x", exact: true }).click();
+  const cycles = [];
+  for (const n of [1, 2]) {
+    await page.waitForFunction((want) => Number(document.querySelector("main canvas")?.dataset.growSeams) >= want, n, { timeout: 45_000 }).catch(() => {});
+    const d = await canvasData();
+    if (Number(d.growSeams) >= n) cycles.push(Number(d.growCycle));
+  }
+  const run = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-grow-fill-loop.png") });
+  const firstFill = Number(run.growFirstFill);
+  const secondFillBy = cycles.length ? firstFill + cycles[0] : Infinity;
+  check(
+    "Grow's Fill and loop preset fills twice within 40 s at 2×, every cycle within a frame of the others",
+    loopQuery.get("gLaw") === "multiply" && (loopQuery.get("gStep") ?? "11") === "11" && (loopQuery.get("gStart") ?? "5") === "5" && loopQuery.get("gFill") === "loop" && run.growLaw === "multiply" && Number(run.growFills) >= 2 && secondFillBy <= 40 && cycles.length === 2 && Math.abs(cycles[0] - cycles[1]) <= 1 / 60 + 0.002 && Math.abs(Number(run.loopCycle) - cycles[1]) < 0.002,
+    `(${JSON.stringify({ query: loopQuery.toString(), fills: run.growFills, firstFill, cycles, loopCycle: run.loopCycle, seams: run.loopSeams, markers: run.growMarkers })})`,
+  );
+
+  // The loop HUD: its lowercase title and the amber counter are drawn into the canvas (the recorder's copy is checked below).
+  await page.goto(`${BASE}/en/simulator/?${loopQuery.toString()}&lh=1&lht=${encodeURIComponent("Fill And Loop")}`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const texts = [];
+    window.__loopHudTexts = texts;
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 4000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.growTotalBounces) >= 3, null, { timeout: 20_000 }).catch(() => {});
+  const hud = await page.evaluate(() => {
+    const texts = window.__loopHudTexts.splice(0);
+    return { title: texts.some((t) => t.text === "fill and loop"), counter: texts.filter((t) => /^\d+ bounces$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null, flag: document.querySelector("main canvas")?.dataset.loopHud };
+  });
+  check("the loop HUD draws its lowercase title and an amber bounce counter on the canvas", hud.title && hud.counter === "#f2c46a" && hud.flag === "1", `(${JSON.stringify(hud)})`);
+
+  // ⚡ A fast export with Export whole loops (on by default): a whole number of cycles, the HUD in its frames, plucks in its audio.
+  await page.goto(`${BASE}/en/simulator/?${loopQuery.toString()}&lh=1&lht=${encodeURIComponent("Fill And Loop")}&dur=40&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const osc = [];
+      const texts = [];
+      window.__loopOsc = osc;
+      window.__loopHudTexts = texts;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.context instanceof OfflineAudioContext) osc.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        if (texts.length < 20000 && this.canvas.width === 500 && this.canvas.height === 500) texts.push(String(text));
+        return fillText.call(this, text, ...rest);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `grow-loop-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const cycle = Number(await panel.getAttribute("data-fast-loop-cycle"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const gain = await panel.getAttribute("data-fast-gain");
+    const status = await panel.getAttribute("data-fast-export");
+    const heard = await page.evaluate(() => ({ osc: window.__loopOsc.length, hud: window.__loopHudTexts.filter((t) => t === "fill and loop").length }));
+    const off = Number.isFinite(seconds) && cycle > 0 ? Math.abs(seconds - Math.max(1, Math.round(seconds / cycle)) * cycle) : Infinity;
+    check(
+      "a Fill and loop fast export lasts a whole number of cycles (within one frame), carries the HUD and plucks through its own audio",
+      status === "done" && bytes > 10000 && loops >= 1 && Math.round(seconds / cycle) === loops && off <= 1 / 30 + 0.002 && seconds <= 40 + 2 / 30 && heard.hud >= 10 && heard.osc >= 20 && gain !== null && Number.isFinite(Number(gain)),
+      `(${JSON.stringify({ status, bytes, seconds, cycle, loops, off: Math.round(off * 1e4) / 1e4, gain, heard })})`,
+    );
+  } else check("without WebCodecs the Fill and loop fast export is not checked (Record Video is covered above)", true);
+
+  // Find Simulation: with Finish the run ends at the fill, and the outcome select offers the Grow outcomes.
+  await page.goto(`${BASE}/en/simulator/?mode=grow&gLaw=multiply&gStep=11&gStart=5&gFill=finish`, { waitUntil: "networkidle" });
+  const outcomes = await page.locator("#find-outcome option").evaluateAll((options) => options.map((o) => o.value)).catch(() => []);
+  check("Find Simulation offers Fills within and Fill on a bar line for Grow with Finish", outcomes.includes("fills-by") && outcomes.includes("fill-on-bar") && outcomes.includes("duration"), `(${JSON.stringify(outcomes)})`);
+}
+// --- end loop-foundation ---
+
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 check("no failed same-origin requests", badResponses.length === 0, badResponses.length ? `\n   ${badResponses.slice(0, 10).join("\n   ")}` : "");
 const hardErrors = errors.filter((e) => !IGNORED_CONSOLE.test(e));

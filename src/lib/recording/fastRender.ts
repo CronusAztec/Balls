@@ -3,6 +3,10 @@ import type { SoundEvent } from "@/lib/physics/types";
 import type { ChirpKind } from "@/lib/audio/characterVoice";
 import { FRAME_BUDGET_MS } from "@/lib/simulation/frameBudget"; // --- unlimited ---
 import { ToneGenerator } from "@/lib/audio/toneGenerator";
+import { loopPlayOptions } from "@/lib/audio/loopEvents"; // --- loop-foundation ---
+import { normaliseExportMix } from "@/lib/audio/loudness"; // --- loop-foundation ---
+import { WholeLoopCut } from "@/lib/loop/loopContract"; // --- loop-foundation ---
+import type { LoopHudFrame } from "@/lib/loop/hud"; // --- loop-foundation ---
 import { EXPORT_BASE_NAME, drawRecordingFrame, recordingTextLayout, type RecordingCrop, type RecordingTextOverlay } from "./recorder";
 import {
   AUDIO_BITRATE,
@@ -174,6 +178,12 @@ export interface FastRenderOptions {
   signal?: AbortSignal;
   /** --- video-beats --- Awaited before every exported frame with its clip time (ms): the video background seeks to it. */
   beforeFrame?: (timeMs: number) => Promise<void>;
+  // --- loop-foundation ---
+  /** Export whole loops: a looping run (its mode reports seams) ends just before the seam that closes its last whole cycle. */
+  wholeLoops?: boolean;
+  /** The loop HUD of the export's frame (its engine at that frame), drawn by the compositor; absent / null = none. */
+  loopHud?: (engine: PhysicsEngine) => LoopHudFrame | null;
+  // --- end loop-foundation ---
 }
 
 export interface FastRenderResult {
@@ -188,7 +198,17 @@ export interface FastRenderResult {
   digest: string;
   /** --- free-watermark --- True when the frames carry the watermark (no verified Pro licence when the export started). */
   watermarked: boolean;
+  // --- loop-foundation ---
+  /** A whole-loop export: the cycles the clip holds and the last one's length (s); absent for a run that does not loop. */
+  loopCycles?: number;
+  loopCycleSec?: number;
+  /** The mix's loudness before and the gain the normaliser applied (dB) – BS.1770, −14 LUFS, true peak ≤ −1 dBTP. */
+  loudnessLufs?: number;
+  loudnessGainDb?: number;
 }
+
+/** --- loop-foundation --- How much longer (s) than the clip a whole-loop export may run to end on its seam (its frames and its mix are sized for it). */
+export const LOOP_PAD_SEC = 0.1;
 
 /** Thrown when the browser has WebCodecs but no codec pair the export can write. */
 export class FastRenderUnsupportedError extends Error {
@@ -279,6 +299,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
   // --- string-circle --- the String Battle circle style's twang of the anchored strings, the snap of strings cut
   if (ev.scSound) {
     audio.playStringCircle(ev.scSound, ev.frequency, ev.chord, ev.level);
+    return;
+  }
+  // --- loop-foundation --- a loop family's voice (a pitched pluck, the completion chord, the reset glide, the hard cut…)
+  if (ev.loop) {
+    audio.playLoop(ev.loop, ev.frequency, ev.level, loopPlayOptions(ev));
     return;
   }
   if (ev.type === "gap") onWallBreak();
@@ -444,7 +469,8 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
 
   // The offline mix: a copy of the page's sound set-up scheduling into an OfflineAudioContext on the export clock.
   const stretch = Math.max(1, Number.isFinite(options.slowMoStretch) ? (options.slowMoStretch as number) : 1); // --- review fix (modes-gerald-odd) ---
-  const audioContext = new OfflineAudioContext({ numberOfChannels: EXPORT_CHANNELS, length: audioFrameCount(offlineAudioSeconds(options.durationSec, stretch)), sampleRate: EXPORT_SAMPLE_RATE });
+  const loopPadSec = options.wholeLoops ? LOOP_PAD_SEC : 0; // --- loop-foundation --- (a whole-loop cut may run a frame or two past the clip)
+  const audioContext = new OfflineAudioContext({ numberOfChannels: EXPORT_CHANNELS, length: audioFrameCount(offlineAudioSeconds(options.durationSec + loopPadSec, stretch)), sampleRate: EXPORT_SAMPLE_RATE });
   const mix = await (options.audio ?? new ToneGenerator()).createOfflineTwin(audioContext, () => clock.ms / 1000);
   if (signal?.aborted) return null;
 
@@ -491,19 +517,22 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     const thumbCtx = thumb.getContext("2d", { willReadFrequently: true });
     if (!frameCtx || !thumbCtx) throw new Error("Canvas 2D is not available");
     const textLayout = recordingTextLayout(width, height, options.textOverlay.textSize ?? 1);
-    const composeOptions = { textOverlay: options.textOverlay, drawBackground: (c: CanvasRenderingContext2D, w: number, h: number, crop: RecordingCrop) => frameRenderer.paintBackground(c, w, h, crop) };
+    const loopHudOf = options.loopHud; // --- loop-foundation ---
+    const composeOptions = { textOverlay: options.textOverlay, drawBackground: (c: CanvasRenderingContext2D, w: number, h: number, crop: RecordingCrop) => frameRenderer.paintBackground(c, w, h, crop), loopHud: loopHudOf ? () => loopHudOf(engine) : undefined /* --- loop-foundation --- */ };
     prepareStamp(seal, { width, height }); // --- free-watermark --- (a mark that cannot be drawn stops the export before its first frame)
     let digest = 0x811c9dc5;
 
     const tracker = new ExportEndTracker(clipMs, undefined, undefined, clipMs * (stretch - 1)); // --- review fix (modes-gerald-odd) --- (the slow motion's lag)
-    const lastFrame = maxSimFrames(options.durationSec, stretch);
+    const lastFrame = maxSimFrames(options.durationSec + loopPadSec, stretch); // --- loop-foundation --- (the pad: 0 without whole loops)
+    // --- loop-foundation --- the whole-loop cut of a looping run (null: the clip ends as it always did)
+    const loopCut = options.wholeLoops && engine.getLoopSeams() !== null ? new WholeLoopCut(options.durationSec, 1 / fps) : null;
     let bedStopped = false;
     let exported = 0;
     let lastYield = performance.now();
     const yieldAfterMs = engine.getUnlimitedView().on ? FRAME_BUDGET_MS : 32; // --- unlimited --- (a heavy run yields every frame budget: the page stays responsive)
     for (let simFrame = 0; simFrame < lastFrame; simFrame++) {
       const t = simFrameTimeMs(simFrame);
-      if (simFrame > 0 && t >= tracker.endMs) break;
+      if (simFrame > 0 && t >= tracker.endMs && !(loopCut && t < 1000 * loopCut.limitSec)) break; // --- loop-foundation --- (a whole-loop cut may run on to its seam)
       if (signal?.aborted) throw abortError();
       if (failure) throw failure;
       if (options.beforeFrame && exportFrameIndex(simFrame, fps) >= 0) await options.beforeFrame(t); // --- video-beats ---
@@ -520,6 +549,8 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
           bedStopped = true;
         }
       });
+      // --- loop-foundation --- a frame that shows the seam closing the last whole cycle ends the clip before it (its state is the first frame's)
+      if (loopCut && loopCut.frame(t / 1000, engine.getElapsedMs(), engine.getLoopSeams()) === "stop") break;
       // --- uncap-all --- the export frames of this simulation frame (one at 60 fps, none or one at 30, several past 60), and
       // never more than the memory-safety ceiling of one export (the muxer holds the whole file)
       const [firstIndex, endIndex] = exportFrameRange(simFrame, fps);
@@ -559,6 +590,8 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     audioEncoder.configure({ codec: format.audioCodec, sampleRate: EXPORT_SAMPLE_RATE, numberOfChannels: EXPORT_CHANNELS, bitrate: AUDIO_BITRATE });
     const total = Math.min(rendered.length, audioFrameCount(durationSec));
     const channels = Array.from({ length: EXPORT_CHANNELS }, (_, c) => rendered.getChannelData(Math.min(c, rendered.numberOfChannels - 1)));
+    // --- loop-foundation --- the offline mix normalised to −14 LUFS with its true peak at most −1 dBTP (the live page keeps its limiter)
+    const loudness = normaliseExportMix(channels, EXPORT_SAMPLE_RATE, total);
     const chunks = audioChunks(total);
     for (let i = 0; i < chunks.length; i++) {
       const { offset, frames } = chunks[i];
@@ -583,7 +616,18 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
     report("finish", 0, exported, durationSec);
     const blob = new Blob([muxer.finalize()], { type: format.mimeType });
     report("finish", 1, exported, durationSec);
-    return { blob, format, durationSec, frames: exported, wallMs: performance.now() - startedAt, digest: digest.toString(16).padStart(8, "0"), watermarked: sealVerdict(seal) === "marked" /* --- free-watermark --- */ };
+    return {
+      blob,
+      format,
+      durationSec,
+      frames: exported,
+      wallMs: performance.now() - startedAt,
+      digest: digest.toString(16).padStart(8, "0"),
+      watermarked: sealVerdict(seal) === "marked" /* --- free-watermark --- */,
+      ...(loopCut ? { loopCycles: loopCut.cycles, loopCycleSec: loopCut.cycleSec } : {}), // --- loop-foundation ---
+      loudnessLufs: loudness.inputLufs, // --- loop-foundation ---
+      loudnessGainDb: loudness.gainDb,
+    };
   } catch (err) {
     if (err instanceof DOMException && err.name === "AbortError") return null;
     throw err;
