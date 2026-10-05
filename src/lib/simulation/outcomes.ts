@@ -14,7 +14,8 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  *   escape) when the run ends – or when the clip does, for a run that goes on – with no tie. In the modes that end on
  *   an escape the first team out wins, so this is "escapes first or has the top score". In the battle modes
  *   (`BATTLE_WINNER_MODES`) the winner is the last ball standing: the run is followed past the clip to the battle's end
- *   (`winnerNeedsEnd()`), and only a finished battle whose verdict crowned the chosen ball matches.
+ *   (`winnerNeedsEnd()`), and only a finished battle whose verdict crowned the chosen ball matches – never one that ended
+ *   with nobody standing (`RunSummary.doubleKo`: String Battle's last balls shattering in the same step share the verdict).
  *
  * Everything here is pure: a headless run is boiled down to a `RunSummary` (finder.ts simulates it) and the predicates
  * judge it, so they can be tested on synthetic runs. Times are real (recording) time – what the clip shows.
@@ -87,7 +88,11 @@ export interface RunSummary {
   settledMs?: number;
   // --- end orb-grid ---
   // --- fight-league ---
-  /** Fight League: the run ended with a double KO (its last sides down in the same step). */
+  /**
+   * Fight League: the run ended with a double KO (its last sides down in the same step). --- odd-string-battle --- String
+   * Battle: its last balls shattered in the same step – nobody is left standing, and the mode shares the verdict between them
+   * (the kills, then the bounces), so it may crown one of them.
+   */
   doubleKo?: boolean;
   // --- end fight-league ---
   /** --- land-claim --- A finished battle's gap between its top two, as a share of the land (Land Claim's verdict); absent elsewhere. */
@@ -242,6 +247,9 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       const team = outcome.team ?? -1;
       if (team < 0 || team >= run.teams.length || run.teams.length < 2) return false;
       if (winnerNeedsEnd(outcome, run.mode) && !(run.finished && run.teams[team].escapes > 0)) return false;
+      // --- odd-string-battle --- a battle's winner is the last one standing: a battle that ended with nobody standing is no
+      // find, even when its shared verdict crowned the chosen ball (it shattered with its rival in the final cut)
+      if (winnerNeedsEnd(outcome, run.mode) && run.doubleKo === true) return false;
       const result = teamResult(run.teams, run.teams.length);
       return !result.tie && result.winner === team;
     }

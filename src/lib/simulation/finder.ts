@@ -918,8 +918,9 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   // --- land-claim --- the battle's first six competitors are teams; its verdict's gap between the top two (a close battle)
   const lcView = request.mode === "landClaim" ? engine.getLandClaimView() : null;
   const teams = engine.getTeamStats().slice(0, lcView ? Math.min(lcView.teams, MAX_TEAMS) : teamCount).map((t) => ({ ...t }));
-  // --- fight-league --- a finished fight that ended with every side down together: a double KO
-  const doubleKo = request.mode === "fightLeague" && finished ? engine.getFightLeagueView().doubleKo : undefined;
+  // --- fight-league --- a finished fight that ended with every side down together: a double KO (--- odd-string-battle --- and a
+  // finished battle with nobody standing: its last balls shattered in the same step)
+  const doubleKo = !finished ? undefined : request.mode === "fightLeague" ? engine.getFightLeagueView().doubleKo : request.mode === "stringBattle" ? engine.getStringBattleView().alive === 0 : undefined;
   // --- bead-hoops --- the first cycle's lift order: strict size order (and at least one lift), once it was decided
   const hv = hoopsRun ? engine.getHoopsView() : null;
   const hoopsSummary = hv ? { allUpMs: allUp, liftOrderOk: hv.orderDecided && hv.orderOk && hv.firstLifts > 0 } : {};

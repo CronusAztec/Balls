@@ -40,6 +40,7 @@ import { MODE_IDS, arenaRadius, type Ball, type ModeContext, type NewBall, type 
 import { BATTLE_WINNER_MODES, forcedWinnerApplies } from "@/lib/physics/rigged";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { createEngineForSettings, findSimulation, runNeverFinishes, simulateOutcomeRun, simulateSeed, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
+import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { availableOutcomes, outcomeClipSec, outcomeMatches } from "@/lib/simulation/outcomes";
 import { emptyStats } from "@/lib/physics/ballStats";
 import { slowViewEligible } from "@/lib/simulation/camera";
@@ -890,7 +891,54 @@ describe("Find Simulation and the forced winner", () => {
     const engine = battle(stringBattle, found.seed);
     const length = runBattle(engine, 300_000);
     expect(engine.getStringBattleView().winner).toBe(2);
+    // the last one standing: the found battle never ends in a double KO
+    expect(engine.getStringBattleView().alive).toBe(1);
+    expect(engine.getStringBattleView().fighters[2].lives).toBeGreaterThan(0);
     expect(found.duration).toBeCloseTo(length / 1000, 6); // the clip the page records: the whole battle
+  });
+
+  it("takes no battle that ended with nobody standing for the chosen ball's win, though its shared verdict crowned it", () => {
+    // ACID (slot 2) and VIOLET (slot 3) shattered in the same step: they share the win (an escape each), ACID on the kills.
+    const teams = [0, 1, 2, 3].map((i) => ({ ...emptyStats(), bounces: 20, walls: [1, 0, 2, 1][i], escapes: i >= 2 ? 1 : 0, firstEscapeMs: i >= 2 ? 29_217 : -1 }));
+    const run = { mode: "stringBattle" as const, durationMs: 29_217, finished: true, firstEscapeMs: 29_217, teams, doubleKo: true };
+    const outcome = { kind: "winner" as const, clipSec: 30, team: 2 };
+    expect(teamResult(teams, 4).winner).toBe(2);
+    expect(outcomeMatches(outcome, run)).toBe(false);
+    expect(outcomeMatches({ ...outcome, team: 3 }, run)).toBe(false);
+    // Without the double KO the same totals are ACID's win; outside the battle modes the flag changes nothing.
+    expect(outcomeMatches(outcome, { ...run, doubleKo: false })).toBe(true);
+    expect(outcomeMatches(outcome, { ...run, mode: undefined })).toBe(true);
+  });
+
+  it("never finds a battle that ended in a double KO: the found battle's chosen ball is the last one standing", { timeout: 60_000 }, async () => {
+    // The smoke test's nine-life search as the page sends it (a 16:9 frame, the 800 × 450 world): a battle ACID (slot 2) wins.
+    const page = { ...finderRequestOfSettings(settingsFromSearchParams(new URLSearchParams("mode=stringBattle&sbl=9")), { width: 800, height: 450 }, 60), targetDurationSec: 30, maxSeeds: 1000 };
+    const outcome = { kind: "winner" as const, clipSec: 30, team: 2 };
+    const replay = (seed: number) => {
+      const engine = createEngineForSettings(page.physicsConfig, page.mode, page.modeSettings, seed);
+      runBattle(engine, 60_000);
+      return engine.getStringBattleView();
+    };
+    // Seed 1461257034: ACID and VIOLET, a life each, cut each other's last thread in the same step at 29.2 s – nobody is left
+    // standing, and the shared verdict crowns ACID on the kills (2 to 1): the page's banner says ACID wins.
+    const DOUBLE_KO = 1461257034;
+    const ko = replay(DOUBLE_KO);
+    expect(ko.finished && ko.alive === 0 && ko.winner === 2, "the seed still ends in a double KO that crowns ACID").toBe(true);
+    expect(ko.fighters.map((f) => f.lives)).toEqual([0, 0, 0, 0]);
+    const run = simulateOutcomeRun(DOUBLE_KO, { ...page, outcome }, outcome);
+    expect(run.finished).toBe(true);
+    expect(run.doubleKo).toBe(true);
+    expect(teamResult(run.teams, run.teams.length).winner).toBe(2);
+    expect(outcomeMatches(outcome, run)).toBe(false);
+    // A search whose seed order starts there (at Date.now()) passes it by and finds a battle ACID ends alone.
+    const clock = vi.spyOn(Date, "now").mockReturnValue(DOUBLE_KO);
+    const found = await withFrames(() => findSimulation({ ...page, outcome }, () => undefined)).finally(() => clock.mockRestore());
+    expect(found.found).toBe(true);
+    expect(found.seed).not.toBe(DOUBLE_KO);
+    const won = replay(found.seed);
+    expect(won.winner).toBe(2);
+    expect(won.alive).toBe(1);
+    expect(won.fighters[2].lives).toBeGreaterThan(0);
   });
 
   it("the forced winner wins every battle, under every rule and with a clip limit", () => {
