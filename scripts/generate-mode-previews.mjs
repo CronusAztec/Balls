@@ -16,6 +16,7 @@ import { chromium } from "playwright";
 import fs from "fs";
 import path from "path";
 import { loadDotEnv } from "./dotenv.mjs";
+import { LICENSE_STORAGE_KEY, installLicenseScript, signTestLicense } from "./lib/test-license.mjs"; // --- watermark-everywhere ---
 
 loadDotEnv();
 const BASE = (process.env.BASE_URL || `http://localhost:3000${process.env.NEXT_PUBLIC_BASE_PATH || ""}`).replace(/\/+$/, "");
@@ -94,7 +95,12 @@ fs.mkdirSync(outDir, { recursive: true });
 const launchOpts = { args: ["--autoplay-policy=no-user-gesture-required"] };
 if (process.env.CHROME_PATH) launchOpts.executablePath = process.env.CHROME_PATH;
 const browser = await chromium.launch(launchOpts);
-const page = await browser.newPage({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
+// --- watermark-everywhere --- the live canvas of a visitor without a Pro licence carries the watermark: the previews are rendered
+// as Pro – a licence signed with the committed TEST key, which a test-mode build (no NEXT_PUBLIC_LICENSE_PUBLIC_KEY) accepts;
+// against a production build set PREVIEW_LICENSE to a real licence key (Copy licence key on the pricing page)
+const previewContext = await browser.newContext({ viewport: { width: 1400, height: 900 }, deviceScaleFactor: 1 });
+await previewContext.addInitScript(installLicenseScript, { key: LICENSE_STORAGE_KEY, token: process.env.PREVIEW_LICENSE || signTestLicense({ sub: "previews@example.com", days: 2 }) });
+const page = await previewContext.newPage();
 
 for (const [mode, cfg] of Object.entries(MODES)) {
   if (galleryOnly) break; // --- daily-gallery ---

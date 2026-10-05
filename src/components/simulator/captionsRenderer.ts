@@ -176,6 +176,8 @@ export class CaptionLayer {
   private msSinceReveal = 0;
   /** Where the top stack starts (its first caption's upper edge) and the bottom stack (its first caption's lower edge) this frame, screen px. */
   readonly starts = { top: 0, bottom: 0 };
+  /** --- watermark-everywhere --- Where the top stack ends (its last caption's lower edge) and the bottom stack (its last caption's upper edge) this frame, screen px – NaN for an empty stack: the live watermark keeps clear of both. */
+  readonly stackEdges = { top: Number.NaN, bottom: Number.NaN };
 
   /** True while a finished run should wait so the question's answer can be seen (see `holdsForAnswer()`). */
   holdsEndScreen(): boolean {
@@ -190,6 +192,7 @@ export class CaptionLayer {
     this.usesBottom = false;
     this.revealed = false;
     if (this.summary !== "") this.summary = "";
+    this.stackEdges.top = this.stackEdges.bottom = Number.NaN; // --- watermark-everywhere ---
   }
 
   draw(ctx: CanvasRenderingContext2D, engine: CaptionEngineView, options: CanvasCaptionOptions, view: CaptionView) {
@@ -342,6 +345,8 @@ export class CaptionLayer {
         centerY += room + gap * slot.frame.room;
       }
     }
+    this.stackEdges.top = this.usesTop ? topY : Number.NaN; // --- watermark-everywhere ---
+    this.stackEdges.bottom = this.usesBottom ? bottomY : Number.NaN;
 
     // Draw.
     for (let i = 0; i < count; i++) {

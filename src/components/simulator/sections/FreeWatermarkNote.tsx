@@ -19,7 +19,7 @@ export default function FreeWatermarkNote({ recording }: { recording: boolean })
   const free = status === "free";
   return (
     <p className="text-xs leading-relaxed text-ink-3" data-testid="free-watermark-note" data-recording={recording ? "1" : "0"} hidden={!free} role="note">
-      <span>{recording ? t("noteRecording", { siteName: SITE_NAME }) : t("note", { siteName: SITE_NAME })}</span>{" "}
+      <span>{recording ? t("noteRecording", { siteName: SITE_NAME }) : t("liveNote", { siteName: SITE_NAME }) /* --- watermark-everywhere --- (the simulator too) */}</span>{" "}
       <button type="button" onClick={() => requestUnlock()} className="cursor-pointer font-medium text-accent hover:text-accent-strong" data-testid="free-watermark-remove">
         {t("remove")}
       </button>
