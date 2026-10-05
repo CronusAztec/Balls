@@ -5,6 +5,7 @@ import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { FastRenderHost } from "@/lib/recording/fastRender";
 import { renderStills } from "@/lib/thumbnails/stillRender";
 import { THUMB_MAX_BYTES, THUMB_SIZE, backdropOf, dataUrlBytes, drawHeroThumbnail, encodeUnderBudget, heroRenderScale, heroSourceRect, type HeroCamera } from "@/lib/thumbnails/heroFrame";
+import { prepareStamp, sealVerdict, sealWatermark, stampFrame } from "@/lib/watermark/seal"; // --- watermark-everywhere ---
 
 /*
  * --- mode-thumbnails --- The page's still camera, for tools: `window.__jumpingBallsStill.capture()` renders the page's
@@ -13,6 +14,13 @@ import { THUMB_MAX_BYTES, THUMB_SIZE, backdropOf, dataUrlBytes, drawHeroThumbnai
  * square with the shared inset, vignette and mode-coloured edge glow (lib/thumbnails/heroFrame.ts), WebP under the byte
  * budget or a lossless PNG. scripts/generate-mode-previews.mjs makes the mode cards' pictures with it (the hero moments of
  * lib/thumbnails/heroMoments.ts). The page's own run is not touched.
+ *
+ * --- watermark-everywhere --- A still is a picture of the run like a video's frame, so it carries the free watermark like one:
+ * each capture is sealed when it starts (free-watermark's gate, `sealWatermark()`: the stored licence verified again) and
+ * every picture it hands back – the framed card and the raw world – is stamped (`stampFrame()`) unless that seal is a verified
+ * Pro licence's. The still camera thus gives a visitor without Pro no clean frame of a simulation (it is reachable from the
+ * console); the generator runs as Pro, so the cards stay clean – and refuses to write pictures a capture reports as
+ * `watermarked` (a build that did not accept its licence).
  */
 
 export interface HeroStillRequest {
@@ -50,6 +58,8 @@ export interface HeroStillResult {
   /** Device px per world px the world was drawn at. */
   scale: number;
   frames: HeroStillFrame[];
+  /** --- watermark-everywhere --- The pictures carry the free watermark (the capture's seal is not a verified Pro licence's). */
+  watermarked: boolean;
 }
 
 declare global {
@@ -111,6 +121,10 @@ export function useHeroStill(options: HeroStillOptions): void {
           out.width = out.height = size;
           const ctx = out.getContext("2d");
           if (!ctx) throw new Error("Canvas 2D is not available");
+          // --- watermark-everywhere --- sealed once per capture, like a recording or an export; a mark that cannot be drawn
+          // stops the capture before its first picture (never a clean picture instead)
+          const seal = await sealWatermark();
+          prepareStamp(seal, { width: size, height: size });
           const frames: HeroStillFrame[] = [];
           await renderStills({
             host: o.host,
@@ -121,6 +135,7 @@ export function useHeroStill(options: HeroStillOptions): void {
             times: request.times,
             onFrame: (canvas, sec, info) => {
               drawHeroThumbnail(ctx, canvas, scale, rect, size, { tint: request.tint ?? "#93d119", backdrop: stageBackdrop(canvas) });
+              stampFrame(ctx, seal, { width: size, height: size, clipMs: sec * 1000 }); // --- watermark-everywhere --- (last, over the frame)
               let frame: HeroStillFrame;
               if (request.format === "png") {
                 const dataUrl = out.toDataURL("image/png");
@@ -134,13 +149,17 @@ export function useHeroStill(options: HeroStillOptions): void {
                 const raw = document.createElement("canvas");
                 raw.width = world.width;
                 raw.height = world.height;
-                raw.getContext("2d")?.drawImage(canvas, 0, 0, world.width, world.height);
+                const rawCtx = raw.getContext("2d");
+                if (rawCtx) {
+                  rawCtx.drawImage(canvas, 0, 0, world.width, world.height);
+                  stampFrame(rawCtx, seal, { width: world.width, height: world.height, clipMs: sec * 1000 }); // --- watermark-everywhere ---
+                }
                 frame.raw = raw.toDataURL("image/png");
               }
               frames.push(frame);
             },
           });
-          return { seed, mode: o.mode, world, scale, frames };
+          return { seed, mode: o.mode, world, scale, frames, watermarked: sealVerdict(seal) === "marked" }; // --- watermark-everywhere ---
         } finally {
           running = false;
         }

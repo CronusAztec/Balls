@@ -8,6 +8,7 @@
 import { chromium } from "playwright";
 import path from "path";
 import { loadDotEnv } from "./dotenv.mjs";
+import { LICENSE_STORAGE_KEY, installLicenseScript, signTestLicense } from "./lib/test-license.mjs"; // --- watermark-everywhere ---
 
 loadDotEnv();
 const BASE = (process.env.BASE_URL || `http://localhost:3000${process.env.NEXT_PUBLIC_BASE_PATH || ""}`).replace(/\/+$/, "");
@@ -15,7 +16,11 @@ const OUT = path.resolve("public/og.png");
 
 const browser = await chromium.launch();
 try {
-  const page = await browser.newPage({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1 });
+  // --- watermark-everywhere --- rendered as Pro (the free canvas carries the watermark): a TEST-key licence for a test-mode build,
+  // PREVIEW_LICENSE (a real licence key) for a production one
+  const context = await browser.newContext({ viewport: { width: 1200, height: 630 }, deviceScaleFactor: 1 });
+  await context.addInitScript(installLicenseScript, { key: LICENSE_STORAGE_KEY, token: process.env.PREVIEW_LICENSE || signTestLicense({ sub: "previews@example.com", days: 2 }) });
+  const page = await context.newPage();
   await page.goto(`${BASE}/en/simulator/?glow=1`, { waitUntil: "networkidle" });
   await page.waitForSelector("canvas");
   const start = page.getByRole("button", { name: /Start Simulator/ });

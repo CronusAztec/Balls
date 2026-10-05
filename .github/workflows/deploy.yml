@@ -122,16 +122,25 @@ jobs:
   # recording...) gates every deploy. Feature-branch pushes skip it and stay fast; .github/workflows/smoke.yml runs it on pull
   # requests. Timing checks the runner itself was too busy to measure are reported as inconclusive and do not block a deploy
   # (smoke.yml runs them strictly).
+  # --- smoke-sharding --- The suite runs as 4 shards on 4 runners at once (SMOKE_SHARD=x/4: every block of the suite in exactly
+  # one of them, balanced by scripts/smoke-timing.json – README "Smoke test shards"); smoke-summary below gates the deploy on all
+  # four.
   smoke:
+    name: smoke (shard ${{ matrix.shard }} of 4)
     needs: build
     if: github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 45
     permissions:
       contents: read
-    # A newer push supersedes a smoke run in progress (its deploy is then skipped and the newer run deploys).
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    # A newer push supersedes a smoke run in progress (its deploy is then skipped and the newer run deploys); one group per shard,
+    # so the shards of one run do not cancel each other.
     concurrency:
-      group: smoke-${{ github.ref }}
+      group: smoke-${{ github.ref }}-${{ matrix.shard }}
       cancel-in-progress: true
     steps:
       - name: Check out
@@ -183,6 +192,8 @@ jobs:
       - name: Serve and test
         env:
           BASE_URL: http://localhost:3000/smoke
+          SMOKE_SHARD: ${{ matrix.shard }}/4
+          OUT_DIR: smoke-output/shard-${{ matrix.shard }}
         run: |
           node scripts/serve-static.mjs --port 3000 --base /smoke &
           for i in $(seq 1 30); do curl -sf http://localhost:3000/smoke/en/ > /dev/null && break; sleep 1; done
@@ -192,12 +203,85 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: smoke-output
-          path: smoke-output
+          name: smoke-screenshots-${{ matrix.shard }}
+          path: smoke-output/shard-${{ matrix.shard }}
           if-no-files-found: ignore
 
+  # --- smoke-sharding --- The four shards' screenshots in one artifact (smoke-screenshots, a folder per shard), their slowest blocks
+  # merged (and checked: every block of the suite ran in exactly one shard), and the gate: it fails unless every shard passed.
+  smoke-summary:
+    needs: smoke
+    if: always() && (github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read # whether a newer run of this workflow superseded this one (the verdict below)
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Download the shards' screenshots
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          pattern: smoke-screenshots-*
+          path: smoke-screenshots
+
+      - name: Slowest blocks of all shards
+        id: summary
+        continue-on-error: true
+        run: node scripts/smoke/summary.mjs smoke-screenshots
+
+      - name: Upload the merged screenshots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: smoke-screenshots
+          path: smoke-screenshots
+          if-no-files-found: ignore
+
+      # The verdict the deploy waits for. A run a newer push superseded (its shards cancelled while a newer run of this workflow on
+      # this branch exists, or its build cancelled before them) deploys nothing and is not a failure; a shard that failed, ran
+      # out of time or was cancelled otherwise fails it.
+      - name: Every shard passed
+        if: always()
+        env:
+          RESULT: ${{ needs.smoke.result }}
+          SUMMARY: ${{ steps.summary.outcome }}
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          case "$RESULT" in
+            success) ;;
+            skipped)
+              echo "::notice title=Smoke test::the smoke shards did not run (the build did not finish); nothing is deployed"
+              exit 0 ;;
+            cancelled)
+              newest="$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/deploy.yml/runs?branch=${BRANCH}&per_page=1" --jq '.workflow_runs[0].id' 2>/dev/null || true)"
+              if [ -n "$newest" ] && [ "$newest" != "$GITHUB_RUN_ID" ]; then
+                echo "::notice title=Smoke test::the smoke shards were cancelled: run $newest, a newer push, supersedes this run; nothing is deployed"
+                exit 0
+              fi
+              echo "::error title=Smoke test::a smoke shard was cancelled or ran out of time – see the 'smoke (shard x of 4)' jobs"
+              exit 1 ;;
+            *)
+              echo "::error title=Smoke test::a smoke shard ended with '$RESULT' – see the failing 'smoke (shard x of 4)' job"
+              exit 1 ;;
+          esac
+          if [ "$SUMMARY" != "success" ]; then
+            echo "::error title=Smoke test::every shard passed, but not every block of the suite ran in exactly one of them (see 'Slowest blocks of all shards')"
+            exit 1
+          fi
+          echo "All four smoke shards passed, every block of the suite in exactly one of them."
+
   deploy:
-    needs: [build, smoke]
+    needs: [build, smoke, smoke-summary]
     if: github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
     runs-on: ubuntu-latest
     permissions:

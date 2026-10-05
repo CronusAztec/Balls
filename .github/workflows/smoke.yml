@@ -4,6 +4,9 @@ name: Browser smoke test
 # Chromium end-to-end checks (every page and locale, every mode, recording, seed finder...)
 # on pull requests and on demand. Pushes to the default branch run the same suite as the
 # `smoke` job of deploy.yml, which gates the Pages deploy.
+# --- smoke-sharding --- The suite runs as 4 shards on 4 runners at once (SMOKE_SHARD=x/4: every block of the suite in exactly
+# one of them, balanced by scripts/smoke-timing.json – README "Smoke test shards"); smoke-summary merges their screenshots and
+# slowest blocks and fails unless every shard passed.
 on:
   pull_request:
   workflow_dispatch:
@@ -13,9 +16,14 @@ permissions:
 
 jobs:
   smoke:
+    name: smoke (shard ${{ matrix.shard }} of 4)
     runs-on: ubuntu-latest
     # --- review fix (site-static) --- the suite waits up to 120 s at a time: bound a hang instead of the 6-hour default
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - name: Check out
         uses: actions/checkout@v5
@@ -44,6 +52,8 @@ jobs:
           BASE_URL: http://localhost:3000/smoke
           # A dedicated runner: a timing check that fails twice fails, even when the runner looks busy.
           SMOKE_STRICT_TIMING: "1"
+          SMOKE_SHARD: ${{ matrix.shard }}/4
+          OUT_DIR: smoke-output/shard-${{ matrix.shard }}
         run: |
           node scripts/serve-static.mjs --port 3000 --base /smoke &
           for i in $(seq 1 30); do curl -sf http://localhost:3000/smoke/en/ > /dev/null && break; sleep 1; done
@@ -53,6 +63,58 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: smoke-output
-          path: smoke-output
+          name: smoke-screenshots-${{ matrix.shard }}
+          path: smoke-output/shard-${{ matrix.shard }}
           if-no-files-found: ignore
+
+  # --- smoke-sharding --- The four shards' screenshots in one artifact (smoke-screenshots, a folder per shard), their slowest blocks
+  # merged (and checked: every block of the suite ran in exactly one shard), and the verdict: it fails unless every shard passed.
+  smoke-summary:
+    needs: smoke
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Download the shards' screenshots
+        uses: actions/download-artifact@v7
+        continue-on-error: true
+        with:
+          pattern: smoke-screenshots-*
+          path: smoke-screenshots
+
+      - name: Slowest blocks of all shards
+        id: summary
+        continue-on-error: true
+        run: node scripts/smoke/summary.mjs smoke-screenshots
+
+      - name: Upload the merged screenshots
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: smoke-screenshots
+          path: smoke-screenshots
+          if-no-files-found: ignore
+
+      - name: Every shard passed
+        if: always()
+        env:
+          RESULT: ${{ needs.smoke.result }}
+          SUMMARY: ${{ steps.summary.outcome }}
+        run: |
+          if [ "$RESULT" != "success" ]; then
+            echo "::error title=Smoke test::the smoke shards ended with '$RESULT' – see the failing 'smoke (shard x of 4)' job"
+            exit 1
+          fi
+          if [ "$SUMMARY" != "success" ]; then
+            echo "::error title=Smoke test::every shard passed, but not every block of the suite ran in exactly one of them (see 'Slowest blocks of all shards')"
+            exit 1
+          fi
+          echo "All four smoke shards passed, every block of the suite in exactly one of them."
