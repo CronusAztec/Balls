@@ -12403,6 +12403,164 @@ const orbBoxPixels = (box) =>
   }
   check("desktop-ai-fix: no page errors in the AI tab", aiFixErrors.length === 0, aiFixErrors.length ? `\n   ${aiFixErrors.slice(0, 5).join("\n   ")}` : "");
 }
+// --- review fix (desktop-ai-fix) --- (1) a finished download of a model that was not the selected one: the app selects it
+// BEFORE its "ready" event (desktop/src/ai/modelServices.ts – 1.0.3 selected it after the download had returned, and the
+// page's one refresh on that event kept Run disabled), and the page follows it – Run enabled, the model "in use", the page's
+// copy of the app's preferences reloaded and the AI status panel's Model row looked at again, even after the full checks;
+// (2) the settings assistant on Glass Smash with a request that does not name the mode: the prompt and the reply grammar
+// carry the mode's own settings (1.0.3 offered them only when the request said "glass") and the change is applied.
+{
+  const MODELS = [
+    { id: "llama-3.2-3b-instruct-q4km", name: "Llama 3.2 3B Instruct (Q4_K_M)", size: 2019377696, licence: "Llama 3.2 Community License" },
+    { id: "qwen2.5-1.5b-instruct-q4km", name: "Qwen2.5 1.5B Instruct (Q4_K_M)", size: 1117320736, licence: "Apache-2.0" },
+  ];
+  /** A stand-in window.desktop that keeps the app's model state: what is downloaded, what is selected, what the status says. */
+  const reviewFixBridge = (initial) => `(() => {
+    const MODELS = ${JSON.stringify(MODELS)};
+    const initial = ${JSON.stringify(initial)};
+    const listeners = {};
+    const state = { prefs: { outputFolder: "", preferHardware: true, ffmpegPath: "", encoderOverride: "", closeToTray: true, autoUpdate: true, aiProvider: "local", localModel: initial.localModel, aiGpu: "auto" }, downloaded: initial.downloaded.slice(), downloads: [], diagnoses: [], prefsReads: 0, chats: [], nextChat: null, journal: null };
+    const emit = (event, payload) => (listeners[event] || []).forEach((l) => l(payload));
+    const ready = (id) => state.downloaded.includes(id);
+    const entries = () => MODELS.map((m) => ({ id: m.id, name: m.name, size: m.size, sha256: "x", licence: m.licence, licenceUrl: "", url: "https://huggingface.co/x/" + m.id + ".gguf", state: ready(m.id) ? "ready" : "missing", downloaded: ready(m.id) ? m.size : 0, path: ready(m.id) ? "C:/models/" + m.id + ".gguf" : null, custom: false, selected: m.id === state.prefs.localModel }));
+    const status = () => ({ provider: "local", ready: ready(state.prefs.localModel), local: { model: state.prefs.localModel, loaded: false, backend: null, gpuLayers: null, error: null, contextSize: null, gpuDevice: null }, cloud: { provider: "anthropic", baseUrl: "https://api.anthropic.com", model: "claude-opus-5-5", hasKey: false, encryption: true }, lastError: { local: null, cloud: null } });
+    const check = (id, level, code, params) => ({ id, level, code, params: params || {}, details: [] });
+    const modelCheck = () => {
+      const m = MODELS.find((x) => x.id === state.prefs.localModel);
+      return ready(m.id) ? check("model", "ok", "modelReady", { name: m.name }) : check("model", "fail", "modelMissing", { name: m.name });
+    };
+    window.desktop = {
+      apiVersion: 1,
+      info: async () => ({ appName: "JumpingBallsLive", version: "1.0.3", electron: "44.5.1", chrome: "146.0", platform: "win32", arch: "x64", packaged: true, dataDir: "C:/Users/smoke/AppData/Roaming/JumpingBallsLive", logFile: "main.log", smoke: false }),
+      log: () => {},
+      openLogs: async () => {},
+      prefs: { get: async () => (state.prefsReads++, state.prefs), set: async (p) => (state.prefs = { ...state.prefs, ...p }) },
+      gpu: { status: async () => ({ devices: [], features: {}, hardwareVideoEncode: false, hardwareVideoDecode: false, webgpu: false, switches: [], disabled: false }), probeEncoders: async () => ({ ffmpeg: null, encoders: [], chosen: { h264: null, hevc: null, av1: null }, error: "ffmpeg not found" }), benchmark: async () => [] },
+      dialogs: { pickFolder: async () => null, pickMedia: async () => null },
+      render: { save: async () => { throw new Error("not in this check"); }, cancel: async () => {} },
+      journal: { load: async () => state.journal, save: async (j) => void (state.journal = j) },
+      library: { list: async () => [], remove: async () => [], reveal: async () => {}, open: async () => {}, openFolder: async () => {}, read: async () => { throw new Error("none"); } },
+      ai: {
+        status: async () => status(),
+        models: async () => entries(),
+        downloadModel: async (id) => (state.downloads.push(id), entries()),
+        cancelDownload: async () => {}, importModel: async () => entries(), removeModel: async () => entries(),
+        selectModel: async (id) => ((state.prefs = { ...state.prefs, localModel: id }), status()),
+        chat: async (req) => {
+          state.chats.push(req);
+          const text = state.nextChat || '{"action":"final","result":{"changes":[{"setting":"showTrails","value":true}],"summary":"-"}}';
+          state.nextChat = null;
+          emit("aiToken", { requestId: req.requestId, text });
+          return { text, provider: "local", model: state.prefs.localModel, cancelled: false };
+        },
+        cancel: async () => {}, setCloud: async () => status(), clearCloudKey: async () => status(), playbook: async () => "",
+        diagnose: async (options) => {
+          const deep = !!(options && options.deep);
+          state.diagnoses.push(deep);
+          const checks = [check("runtime", deep ? "warn" : "skip", deep ? "runtimeCpuFallback" : "runtimeNotStarted", { supported: "vulkan, cpu" }), modelCheck(), check("provider", "skip", "providerNotSetUp"), check("network", "skip", "networkNotTested"), check("lastError", "ok", "lastErrorNone")];
+          return { at: new Date().toISOString(), deep, checks, report: { report: "JumpingBallsLive AI status", deep, checks } };
+        },
+      },
+      update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: async () => {} },
+      on: (event, l) => { (listeners[event] ||= []).push(l); return () => { listeners[event] = listeners[event].filter((x) => x !== l); }; },
+    };
+    // The app's end of a download (createModelServices): verified, selected when the selected model is not ready, THEN "ready".
+    const finish = (id) => {
+      const m = MODELS.find((x) => x.id === id);
+      emit("modelProgress", { id, downloaded: m.size, size: m.size, bytesPerSec: 0, state: "verifying" });
+      state.downloaded.push(id);
+      if (!ready(state.prefs.localModel)) state.prefs = { ...state.prefs, localModel: id };
+      emit("modelProgress", { id, downloaded: m.size, size: m.size, bytesPerSec: 0, state: "ready" });
+    };
+    window.__reviewFix = { state, emit, finish };
+  })();`;
+  const reviewErrors = [];
+  const watch = (p) => {
+    p.on("pageerror", (e) => reviewErrors.push(e.message));
+    p.on("console", (m) => m.type() === "error" && !/favicon|Failed to load resource/.test(m.text()) && reviewErrors.push(m.text()));
+  };
+
+  // (1) The small model downloaded while the preselected 2 GB one is not on this PC.
+  const rctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+  await rctx.addInitScript(reviewFixBridge({ localModel: MODELS[0].id, downloaded: [] }));
+  const rp = await rctx.newPage();
+  watch(rp);
+  try {
+    await rp.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    await rp.locator("[data-desktop-group]").waitFor({ timeout: 20000 }).catch(() => {});
+    await rp.getByTestId("desktop-tab-ai").click({ timeout: 10000 }).catch(() => {});
+    await rp.getByTestId("ai-task-settings").click({ timeout: 5000 }).catch(() => {});
+    await rp.getByTestId("ai-prompt").fill("rainbow balls", { timeout: 5000 }).catch(() => {});
+    // The full checks first: their Model row says the preselected model is not downloaded.
+    await rp.getByTestId("ai-run-checks").click({ timeout: 5000 }).catch(() => {});
+    await rp.locator('[data-testid="ai-checks"][data-deep="1"]').waitFor({ timeout: 10000 }).catch(() => {});
+    const before = await rp.evaluate(() => ({
+      disabled: !!document.querySelector('[data-testid="ai-run"]')?.disabled,
+      note: document.querySelector('[data-testid="desktop-ai"]')?.textContent?.includes("Download or pick a model first.") ?? false,
+      model: document.querySelector('[data-testid="ai-check-model"]')?.textContent ?? "",
+    }));
+    await rp.locator(`[data-model="${MODELS[1].id}"] [data-testid="ai-download"]`).click({ timeout: 5000 }).catch(() => {});
+    await rp.waitForFunction((id) => window.__reviewFix.state.downloads.includes(id), MODELS[1].id, { timeout: 5000 }).catch(() => {});
+    const readsBefore = await rp.evaluate(() => window.__reviewFix.state.prefsReads);
+    await rp.evaluate((id) => window.__reviewFix.finish(id), MODELS[1].id);
+    const enabled = await rp.waitForFunction(() => { const b = document.querySelector('[data-testid="ai-run"]'); return !!b && !b.disabled; }, null, { timeout: 10000 }).then(() => true).catch(() => false);
+    await rp.waitForFunction((name) => (document.querySelector('[data-testid="ai-check-model"]')?.textContent ?? "").includes(name), MODELS[1].name, { timeout: 10000 }).catch(() => {});
+    const after = await rp.evaluate((id) => ({
+      row: document.querySelector(`[data-model="${id}"]`)?.textContent ?? "",
+      rowState: document.querySelector(`[data-model="${id}"]`)?.getAttribute("data-model-state") ?? null,
+      note: document.querySelector('[data-testid="desktop-ai"]')?.textContent?.includes("Download or pick a model first.") ?? false,
+      setup: !!document.querySelector('[data-testid="ai-setup"]'),
+      model: document.querySelector('[data-testid="ai-check-model"]')?.textContent ?? "",
+      level: document.querySelector('[data-ai-check="model"]')?.getAttribute("data-level") ?? null,
+      deep: document.querySelector('[data-testid="ai-checks"]')?.getAttribute("data-deep") ?? null,
+      reads: window.__reviewFix.state.prefsReads,
+      selected: window.__reviewFix.state.prefs.localModel,
+    }), MODELS[1].id);
+    check(
+      "desktop-ai-fix (review fix): a finished download of a model that was not selected – selected by the app before its “ready” event – enables Run, shows the model in use, reloads the app's preferences and turns the status panel's Model row green, even after the full checks",
+      before.disabled && before.note && before.model.includes("is not downloaded yet") && enabled && after.rowState === "ready" && /in use/.test(after.row) && !after.note && !after.setup && after.level === "ok" && after.model.includes(MODELS[1].name) && after.model.includes("downloaded and verified") && after.deep === "0" && after.reads > readsBefore && after.selected === MODELS[1].id,
+      `(before: Run disabled ${before.disabled}, note ${before.note}, model row "${before.model.slice(0, 60)}"; after: Run enabled ${enabled}, row ${after.rowState} "${after.row.replace(/\s+/g, " ").slice(0, 80)}", note ${after.note}, setup card ${after.setup}, model row ${after.level} (deep ${after.deep}) "${after.model.slice(0, 80)}", prefs reads ${readsBefore} → ${after.reads})`,
+    );
+  } finally {
+    await rctx.close().catch(() => {});
+  }
+
+  // (2) Glass Smash: "make the panes break on the third hit" names no mode, and glassHp is still the model's to change.
+  const gctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+  await gctx.addInitScript(reviewFixBridge({ localModel: MODELS[1].id, downloaded: [MODELS[1].id] }));
+  const gp = await gctx.newPage();
+  watch(gp);
+  try {
+    await gp.goto(`${BASE}/en/simulator/?mode=glass`, { waitUntil: "networkidle" });
+    await gp.locator("[data-desktop-group]").waitFor({ timeout: 20000 }).catch(() => {});
+    await gp.getByTestId("desktop-tab-ai").click({ timeout: 10000 }).catch(() => {});
+    await gp.getByTestId("ai-task-settings").click({ timeout: 5000 }).catch(() => {});
+    await gp.getByTestId("ai-prompt").fill("make the panes break on the third hit", { timeout: 5000 }).catch(() => {});
+    await gp.evaluate(() => {
+      window.__reviewFix.state.nextChat = '{"action":"final","result":{"changes":[{"setting":"glassHp","value":3}],"summary":"Every pane breaks on the third hit"}}';
+    });
+    await gp.waitForFunction(() => { const b = document.querySelector('[data-testid="ai-run"]'); return !!b && !b.disabled; }, null, { timeout: 10000 }).catch(() => {});
+    await gp.getByTestId("ai-run").click({ timeout: 5000 }).catch(() => {});
+    const changed = await gp.getByTestId("ai-changed").innerText({ timeout: 20000 }).catch(() => "");
+    await gp.waitForFunction(() => /[?&]glhp=3(&|$)/.test(location.search), null, { timeout: 5000 }).catch(() => {});
+    const sent = await gp.evaluate(() => {
+      const r = window.__reviewFix.state.chats.at(-1);
+      return r ? { task: r.task ?? null, system: r.messages?.[0]?.content ?? "", schema: JSON.stringify(r.schema ?? null) } : null;
+    });
+    const search = await gp.evaluate(() => location.search);
+    const GLASS = ["glassRows", "glassHp", "glassStages", "glassMoving", "glassHoles", "glassGates"];
+    const inPrompt = sent ? GLASS.filter((k) => sent.system.includes(`\n${k} (`)) : [];
+    const inGrammar = sent ? GLASS.filter((k) => sent.schema.includes(`"const":"${k}"`)) : [];
+    check(
+      "desktop-ai-fix (review fix): on Glass Smash the settings assistant offers the mode's own settings to a request that does not name the mode (prompt and reply grammar), and the change is applied",
+      sent?.task === "settings" && inPrompt.length === GLASS.length && inGrammar.length === GLASS.length && changed.includes("glassHp") && /[?&]glhp=3(&|$)/.test(search),
+      `(task ${sent?.task}, in the prompt ${inPrompt.join(",") || "none"}, in the grammar ${inGrammar.join(",") || "none"}, changed "${changed}", url ${search.slice(0, 80)})`,
+    );
+  } finally {
+    await gctx.close().catch(() => {});
+  }
+  check("desktop-ai-fix (review fix): no page errors in these AI checks", reviewErrors.length === 0, reviewErrors.length ? `\n   ${reviewErrors.slice(0, 5).join("\n   ")}` : "");
+}
 // --- end desktop-ai-fix ---
 
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
