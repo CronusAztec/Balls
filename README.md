@@ -84,6 +84,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **String Circle** | A third style of the String Battle (`sbStyle` "circle", URL `sbst=circle`; feature string-circle) after the STRING CIRCLE country fights of an arena-battle account (the clips of Land Claim's account): flag balls fly round a thin white **circle** or a **hexagon** (`sba`) on black, each curling as it flies, and every ball anchors **Strings per Second** (`sbrt`, default 30) from itself to the rim straight ahead of it – a dense fan in its colour that sweeps the rim. A ball crossing a rival's string on its outer half cuts it; every **Strings per Life** strings of one owner cut (`sbc`, default 200) take a life and shield its fan for 2.5 s, a ball out of lives is out and its fan dissolves, and the last flag standing wins (at a clip limit: the most lives, then the most rim). The fans' share of the rim is the live score – thin arcs just outside the wall and a **Standings Strip** along the bottom (`sbh`) – under a **Title Line** (`sbti`, default STRING CIRCLE). The Teams roster (its Country picker – Land Claim's, now 47 countries – fills a row with a flag) names, colours and flags the first balls; the balls past it play the clips' countries by their two-letter codes in colours apart (TR, IN, US, IR, DE, CA, JP, CN…), so a mega fight has any number of flags. A soft plucked twang for the strings anchored (at most three team notes at a time, twenty times a second), a snap for the strings cut, the battle's shatter at a KO. Five presets (Country fight: India vs USA, Battle of countries: Turkey / India / USA / Iran, Mega country fight (12), Hexagon arena (6), String arena classic (5)), a "Which flag wins?" caption, Find Simulation's winner outcome and the Forced Winner by flag; every number uncapped (a ball keeps up to 1,024 live strings – a memory-safety ceiling). Measured by the smoke test on a shared 4-core machine with software rendering (the obfuscated build too): the four-flag default and the 12-flag mega preset at 60 fps on the page, the mega preset recorded at 1080×1920 at 46–55 fps; fans of ~400 strings on 5 and 12 balls at 60 fps on the page and 43–50 / 29–40 fps recorded. See "String Circle" below |
 | **Free-video watermark** | Every video made without a verified Pro licence carries the watermark, drawn into its pixels by the compositor of every output path (feature free-watermark, `src/lib/watermark/`): a badge – the logo mark, the site's name and domain at 70 % opacity with a soft shadow – in a bottom corner of the exported square inside the platforms' safe zone, changing corner every 6 s, plus the domain tiled diagonally over the whole frame at 4 %. Recording, the fast export, the batch render, the viral bot and the desktop render queue now work for everyone; the decision is sealed when a recording or export starts by verifying the stored licence again, in module-private state no DOM, storage, URL or console edit reaches (see [Free-video watermark](#free-video-watermark)) |
 | **Bouncing Orbs: rhythm, polyrhythms & metronome** | The Bouncing Orbs rework (feature orb-rhythm) after the owner's "bouncing orbs is clunky and not fluid like the instagram given, add metronome and polyrythms to it": the new default **Rhythm** model (`ogModel`; **Decay** keeps the settling field) makes every orb an ideal bouncer on its spot forever – its height the parabola of an elastic bounce, h(t) = A · 4u(1 − u) with u = frac((t − φ) / T), its apex A = g · T² / 8 under the Gravity slider (faster orbs bounce lower) or all alike (**Equal Heights**, `ogEq`) – drawn at every frame's own simulation time, so the field moves smoothly at 60 or 120 Hz and in the fast export's exact frame times, with a 10 % **Landing Squash** easing out over 60 ms (`ogSquash`). **Polyrhythm** (`ogPoly`): **Groups** of rows, columns, rings, diagonals, a checkerboard or every orb (`ogGroup`), group k bouncing n_k times a **Cycle** (`ogCycle`, 30 s), so every orb lands together at every multiple of the cycle – the **IN PHASE** moment, with its banner on a dark backdrop and a chord – and the wave surface morphs in between; ten **Rhythm Presets** (`ogRhythm`): Pendulum wave (51 + k), 3 against 2, 4 against 3, 5 against 4, 7 against 5, 3:4:5, Euclidean (`ogSteps`), Corner to corner, Centre outwards and Varied. The **Metronome**: a **Tempo** (`ogBpm`, 120; the beat lock's while it is on) and **Beats per Bar** (`ogBeats`), a swinging bar at the top of the square, a ring pulsing around the field or a dot hopping along a beat strip (`ogMetro`), a woodblock **Click** with an accented downbeat (`ogClick`), the cycle snapped to whole **Bars** (`ogBars`, 16) so IN PHASE lands on a downbeat, and **Melody** (`ogMelody`): a pitch of the scale per group, the polyrhythm playing a tune. A ninth preset, Metronome 3:2; Find Simulation's In phase at answered at once by the cycle maths; a caption's question answered at the IN PHASE moment. See the Bouncing Orbs section under How to extend it |
+| **Windows app 1.0.3: the AI fixed, an AI status panel** | The owner's "the exe ai doesnt work" (feature desktop-ai-fix): the AI studio of the Windows app works with the small local models now and says why when it does not. Each job normalises its answer before the checks (hashtags split, given their "#", cleaned, de-duplicated and clamped to 3–15; clip names slugified; platforms mapped – `src/lib/desktop/ai/normalise.ts`), the reply grammar bounds what it can (a hashtag ≤ 61 characters, a name ≤ 60, the copy's platforms the requested ones, one item each), **Make videos** offers its answer only after `plan_clips` has made plans and then only with their ids (the reply envelope is rebuilt every turn), a retry comes as the app's note with a hint at a higher temperature, and the prompts are shorter (the settings that matter for the request, recipe hooks without placeholders). The local model keeps one chat session per load (the evaluated prefix is reused: no re-reading 3–4k tokens every turn), gets a context of at least 4,096 tokens and room for prompt + reply, falls back to fewer GPU layers and then the CPU when memory is short (then: "Not enough free memory for this model: close other apps or pick a smaller model (Qwen2.5 1.5B is the smallest)"), and unloads only after the reply in progress (also when quitting). Every download and cloud call goes through Electron's **net.fetch** (the system proxy and certificate store – antivirus HTTPS scanning and company proxies broke Node's fetch, which stays as the fallback), errors carry their cause codes explained, and everything lands in main.log (llama.cpp's own messages, every request with its timings, every failed IPC handler with its cause chain). An **AI status** panel tops the AI tab: Runtime, Model, Cloud provider, Network and Last error, green / amber / red with the reason, **Run checks** (llama.cpp started, the model loaded with an 8-token grammar test, the endpoint and Hugging Face reached), **Copy report** (JSON: versions, RAM, GPU, backend, model, provider – never the key –, the last errors, main.log's tail), **Open logs** and **Run the model on: Auto (GPU) / CPU only**. A first-run card offers the 2 GB model or a cloud key, a finished download is selected when the selected model is missing, a run shows "Reading the request… N s" and a timing line per step. Version **1.0.3**: unsigned builds no longer carry a publisher name, so 1.0.3 → 1.0.4 updates install (1.0.2 users install 1.0.3 by hand once – the download page says so), and CI's packaged smoke runs a real Settings and Captions job on a cached GGUF (see [Windows app: AI fix and status panel](#windows-app-ai-fix-and-status-panel)) |
 | **Watermark on every free simulation** | The free-video watermark on the live canvas too (feature watermark-everywhere, `src/lib/watermark/live.ts`, `liveLayout.ts`): every frame a visitor without a verified Pro licence sees – the studio's canvas in every mode (and so share links, the gallery's presets, the daily challenge and the Windows app, which runs the same page), a split-screen race's composed frame (once, not per arena) and the landing page's live preview – carries the badge and the faint domain tiles, drawn into the canvas' own pixels as the frame's last pass: 4.5 % of the exported square tall, 1.5 % from its edges, on the other side every 6 s, clear of the mode's HUD. The decision is free-watermark's sealed gate, so a Pro licence removes it at once – mid-run too – and removing the licence brings it back; a page recording copies the marked canvas, one badge per frame in the video layout's place (see [Watermark on every free simulation](#watermark-on-every-free-simulation)) |
 
 ## Design
@@ -1776,7 +1777,7 @@ electron-builder, which signs both EXEs. Never commit certificates, keys, models
 - The site's smoke test checks the download page and its links, the navbar / footer / landing button, and the Desktop group
   with a stand-in `window.desktop` (GPU panel, queue, AI panel, Library with its Publish buttons, the Publish block's
   app-only YouTube note) – and that the group is absent on the website.
-- **Verified on Linux** (the development machine – no Windows, no GPU): `tsc` and the 56 app tests, the site's type check,
+- **Verified on Linux** (the development machine – no Windows, no GPU): `tsc` and the app tests (56, then 75 with desktop-ai-fix), the site's type check,
   lint, unit tests and smoke test; `npm run pack` (electron-builder `--dir`, Linux x64) and `--smoke` under Xvfb both from the
   checkout and from the packaged `release/linux-unpacked` app – the export loads over `app://` (a secure context,
   WebCodecs present, missing paths answer 404, no service worker), `window.desktop` answers, the Desktop group renders
@@ -1793,6 +1794,77 @@ electron-builder, which signs both EXEs. Never commit certificates, keys, models
   `prefer-hardware` (need the GPU and its driver – on a PC without one the app falls back to software and says so in the GPU
   panel); CUDA / Vulkan offload in llama.cpp; DPAPI behind `safeStorage` (on this Linux box without a keyring the app
   correctly refuses to store a key); electron-updater against a real `desktop-v*` release; code signing and SmartScreen.
+
+### Windows app: AI fix and status panel
+
+Feature desktop-ai-fix, release **1.0.3** – the owner's "the exe ai doesnt work". A diagnosis of the shipped 1.0.2 (its own
+packaged code, real GGUF models on CPU) found 11 causes; what each one changed:
+
+- **Reply protocol (small local models)** – `src/lib/desktop/ai/normalise.ts` fixes each job's answer before it is checked
+  (`AgentTask.normaliseFinal`): hashtags split / given their "#" / cleaned / de-duplicated / clamped to 3–15 (topped up from
+  the plan's own), clip names slugified, platform names mapped, placeholders a model copied filled from the plan, Make
+  videos' "1", "2", "3" mapped to the run's plans, a copy item for a platform nobody asked for moved to a missing one. The
+  grammar gets every bound it can hold (`toGrammarSchema()` keeps lengths and enums, not patterns): a hashtag ≤ 61
+  characters, a clip name ≤ 60, the copy's `platform` an enum of the requested platforms with exactly one item each. With
+  Qwen2.5-1.5B on a 4-core CPU, Captions went from "failed after 227 s" to valid on the first reply (20–45 s in our runs).
+- **Per-turn envelope** – `runAgent()` asks the task for the envelope of every turn (`AgentTask.turn`): Make videos offers
+  only tool calls until `plan_clips` has returned plans, then its answer with `planId` an enum of those plans (and the find /
+  settings tools with the same enum); the prompt itself never changes, so the local model reuses what it read. A retry is the
+  app's note (a `system` message every transport folds into the next user turn, `conversation.ts`) with the turn's hint,
+  and the temperature rises 0.1 per invalid reply in a row.
+- **Shorter prompts** – the settings assistant lists the core settings and those the request points at
+  (`settingsFilter.ts`: names, description words and English / Polish / Spanish concept stems; the page mode's block when the
+  request names the mode), the answer's shape is one line (`AgentTask.finalHint`, `AgentTool.argsHint` for
+  set_clip_settings) instead of a 2,000-token schema, and recipe hooks reach the prompt without `{placeholders}`
+  (`withoutPlaceholders()`). The Settings prompt fell from ~3,800 to under 1,000 tokens (976 for the default clip).
+- **Local runner** (`desktop/src/ai/local.ts`) – one chat session on one context sequence while the model stays loaded
+  (node-llama-cpp keeps the evaluated prefix); `contextSizeFor()`: a context of at least 4,096 tokens and room for prompt +
+  reply (`{ min, max: 8192 }` unless a request needs more), grown for a longer conversation; on `InsufficientMemoryError`
+  the model loads again with half its GPU layers, then on the CPU, then the request fails with "Not enough free memory for
+  this model: close other apps or pick a smaller model (Qwen2.5 1.5B is the smallest)"; `getLlama({ logger })` writes
+  llama.cpp's messages into main.log, every load logs the backend, the GPU, its free VRAM, the layers and the context;
+  `unload()` queues behind the reply in progress, and `before-quit` stops the AI, waits (≤ 8 s) for the unload, then quits
+  (1.0.2 aborted with a Napi::Error).
+- **Network** (`desktop/src/net.ts`) – the model manager, the OpenAI-compatible adapter and `new Anthropic({ fetch })` all
+  use Electron's **net.fetch**: Chromium's stack with the system proxy / PAC and the Windows certificate store. Node's fetch
+  failed with a bare "fetch failed" behind antivirus HTTPS scanning or a company proxy; it stays as the fallback for a
+  request net.fetch gets no answer for (`withFallback()`: a CA only Node knows – this Linux development box's re-signing
+  proxy, for one – still works, and the log says which path answered). `src/lib/desktop/errors.ts`
+  explains the cause codes in every message ("fetch failed (SELF_SIGNED_CERT_IN_CHAIN: the TLS certificate is not trusted –
+  an antivirus HTTPS scan or a proxy is intercepting the connection)") and strips Electron's IPC prefix wherever it sits.
+- **Logs** – every IPC handler that rejects is logged with its channel, message, cause chain and stack (`registerHandlers`),
+  AiService logs every request (job, provider, model, size, time to the first token and in all) and every failure, and
+  node-llama-cpp's console lines (its backend choice and fallbacks) are mirrored into main.log (`consoleMirror.ts`).
+- **AI status panel** (top of the AI tab, `AiStatusPanel.tsx`, IPC `ai:diagnose` → `desktop/src/ai/diagnostics.ts`) – rows
+  Runtime (node-llama-cpp loads; the GPU types this PC supports; the backend, GPU, free VRAM), Model (the selected file, its
+  checksum note; deep: loaded with the real context and an 8-token grammar test with tokens/s), Cloud provider (the endpoint
+  through the app's connection with the stored key: the HTTP status or the error; key stored; secure storage), Network
+  (huggingface.co through net.fetch and through Node's fetch – Node's failing on its certificate is TLS interception the
+  app gets past; net.fetch failing where Node's works means the fallback carries the downloads) and Last error
+  (`AiService` keeps the last failure of each path and returns it in `ai:status`). A quick look runs when the tab opens;
+  **Run checks** runs everything. **Copy report** copies JSON with the app / Electron / OS versions, RAM, GPU, backend,
+  model, provider (never the key – it is scrubbed from the report and the log tail), the last errors and main.log's last 200
+  lines; **Open logs**; **Run the model on: Auto (GPU) / CPU only** (`prefs.aiGpu`). Strings: the `DesktopAiFix` namespace.
+- **First run** – a card while no model is ready and no key stored ("Download the 2 GB model" / "Use a cloud key"); a
+  finished download is selected when the selected model is not ready (also at start, for a 1.0.2 install whose download was
+  never "used"); a run shows "Reading the request… N s" until the first token, then "Writing… N s", and a timing line per step.
+- **1.0.3 and updates** – `signtoolOptions.publisherName` is set only when `WIN_CSC_LINK` is present: electron-updater
+  demands a signature from that publisher, which is why the unsigned 1.0.2 cannot update itself to 1.0.3 (its users install
+  1.0.3 by hand once – the download page and the release notes say so); from 1.0.3, unsigned builds update each other. The
+  download page shows the version (`DESKTOP_VERSION` in `src/lib/desktop/release.ts`, tested against desktop/package.json
+  and its lock). files / asarUnpack / extraResources are unchanged.
+- **CI** – `desktop.yml` caches the smallest catalog model (Qwen2.5-1.5B Q4_K_M, checked against the catalog's SHA-256)
+  and runs the packaged `--smoke` with `JBL_SMOKE_MODEL`: the smoke selects that file, opens the AI panel and runs one
+  Settings and one Captions job the way a user does, through the bridge, AiService and llama.cpp with GPU auto, within
+  `JBL_SMOKE_AI_TIMEOUT_MS`; it also runs a quick `ai:diagnose`. Locally: `JBL_SMOKE_MODEL=/path/model.gguf npm run smoke`
+  (or the packed app with `--smoke`), and `node desktop/scripts/e2e-ai-panel.mjs` drives the packed app's AI panel with
+  Playwright (status rows, Copy report, a Captions run on `JBL_SMOKE_MODEL`). On this Linux box (4 CPU cores, no GPU) the
+  packed app's smoke with the cached 1.5B model ran Settings in 37–45 s and Captions in 43–59 s (10–12 hashtags) over three
+  runs, and the Playwright run passed 7/7.
+
+To add a studio job: give its task a `name`, bound its strings in the answer schema (`minLength` / `maxLength`, enums), a
+`normaliseFinal` for what a small model gets wrong, and a `finalHint` when its schema is long. To add a status check: a row
+in `runAiDiagnostics()` with its codes, and their texts under `DesktopAiFix.check` in every messages file (tested).
 
 ## Browser support
 

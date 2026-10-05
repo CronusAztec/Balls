@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { CLOUD_DEFAULTS, type AiMessage } from "@/lib/desktop/contract";
+import { foldSystemNotes } from "@/lib/desktop/ai/conversation"; // --- desktop-ai-fix ---
+import { describeError } from "@/lib/desktop/errors"; // --- desktop-ai-fix ---
 
 export { CLOUD_DEFAULTS };
 
@@ -8,6 +10,11 @@ export { CLOUD_DEFAULTS };
  * OpenAI-compatible endpoint (streamed chat completions over SSE – OpenAI itself, or a local server such as Ollama or LM
  * Studio). The API key is the one the user typed; the main process keeps it encrypted (secrets.ts) and it never reaches
  * the page. Replies are plain text; the page's validator checks the JSON in them like a local model's.
+ *
+ * --- desktop-ai-fix --- Both go over the `fetch` main.ts hands in – Electron's net.fetch, Chromium's network stack with the
+ * system proxy and the Windows certificate store, instead of Node's fetch, which failed with a bare "fetch failed" behind an
+ * antivirus HTTPS scan or a company proxy. A network failure says what happened (describeError: the cause codes explained),
+ * and the app's notes later in the conversation (system messages) become user turns (conversation.ts).
  */
 
 /** Anthropic models that take the server-side refusal fallback (`fallbacks: "default"`). */
@@ -21,10 +28,11 @@ export interface CloudRequest {
   onToken?: (text: string) => void;
 }
 
-/** System messages become the system prompt; the rest keep their order. */
+/** The leading system messages become the system prompt; the rest keep their order (--- desktop-ai-fix --- a later system note is a user turn). */
 export function splitSystem(messages: readonly AiMessage[]): { system: string; turns: { role: "user" | "assistant"; content: string }[] } {
-  const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
-  const turns = messages.filter((m) => m.role !== "system").map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
+  const folded = foldSystemNotes(messages);
+  const system = folded.filter((m) => m.role === "system").map((m) => m.content).join("\n\n");
+  const turns = folded.filter((m) => m.role !== "system").map((m) => ({ role: m.role as "user" | "assistant", content: m.content }));
   return { system, turns };
 }
 
@@ -65,11 +73,21 @@ export async function completeAnthropic(client: AnthropicLike, model: string, re
   return message.content.filter((b) => b.type === "text" && typeof b.text === "string").map((b) => b.text).join("");
 }
 
-export function anthropicClient(apiKey: string, baseUrl: string): AnthropicLike {
-  return new Anthropic({ apiKey, baseURL: baseUrl || CLOUD_DEFAULTS.anthropic.baseUrl, maxRetries: 2 }) as unknown as AnthropicLike;
+/** The SDK's client; --- desktop-ai-fix --- over `fetchImpl` when given (main.ts: Electron's net.fetch). */
+export function anthropicClient(apiKey: string, baseUrl: string, fetchImpl?: typeof fetch): AnthropicLike {
+  return new Anthropic({ apiKey, baseURL: baseUrl || CLOUD_DEFAULTS.anthropic.baseUrl, maxRetries: 2, ...(fetchImpl ? { fetch: fetchImpl } : {}) }) as unknown as AnthropicLike;
 }
 
 /* ------------------------------------------------------------------ OpenAI-compatible */
+
+/** --- desktop-ai-fix --- The host of a URL for a message ("" when it is not one). */
+export function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
 
 /** Splits an SSE buffer into complete `data:` payloads and the unfinished rest. */
 export function parseSse(buffer: string): { data: string[]; rest: string } {
@@ -84,17 +102,25 @@ export function parseSse(buffer: string): { data: string[]; rest: string } {
 }
 
 export function openAiBody(model: string, request: CloudRequest): Record<string, unknown> {
-  return { model, messages: request.messages.map((m) => ({ role: m.role, content: m.content })), stream: true, temperature: request.temperature ?? 0.4, max_tokens: request.maxTokens ?? 1500 };
+  // --- desktop-ai-fix --- a late system note as a user turn: some local servers' chat templates reject a system message mid-conversation
+  return { model, messages: foldSystemNotes(request.messages).map((m) => ({ role: m.role, content: m.content })), stream: true, temperature: request.temperature ?? 0.4, max_tokens: request.maxTokens ?? 1500 };
 }
 
 export async function completeOpenAi(fetchImpl: typeof fetch, baseUrl: string, apiKey: string, model: string, request: CloudRequest): Promise<string> {
   const url = `${(baseUrl || CLOUD_DEFAULTS.openai.baseUrl).replace(/\/+$/, "")}/chat/completions`;
-  const response = await fetchImpl(url, {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "text/event-stream", ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
-    body: JSON.stringify(openAiBody(model, request)),
-    signal: request.signal,
-  });
+  let response: Response;
+  try {
+    response = await fetchImpl(url, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "text/event-stream", ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
+      body: JSON.stringify(openAiBody(model, request)),
+      signal: request.signal,
+    });
+  } catch (err) {
+    if (request.signal?.aborted) throw err;
+    // --- desktop-ai-fix --- "fetch failed" alone said nothing: the cause codes, explained, and where it was going
+    throw new Error(`Could not reach the cloud provider at ${hostOf(url)}: ${describeError(err)}`, { cause: err });
+  }
   if (!response.ok || !response.body) {
     const detail = await response.text().catch(() => "");
     throw new Error(`The cloud provider answered HTTP ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ""}`);

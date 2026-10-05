@@ -14,8 +14,15 @@
  * Code signing: unsigned unless WIN_CSC_LINK (base64 .pfx or a path/URL) and WIN_CSC_KEY_PASSWORD are set – electron-builder
  * reads them from the environment (see .github/workflows/desktop.yml). Unsigned builds trigger SmartScreen
  * ("More info" → "Run anyway").
+ *
+ * --- desktop-ai-fix --- `signtoolOptions.publisherName` only with a certificate: electron-builder writes it into the app's
+ * app-update.yml, and electron-updater then refuses every update that is not signed by that publisher
+ * (ERR_UPDATER_INVALID_SIGNATURE). 1.0.2 shipped it unsigned with the name set, so it cannot update itself to an unsigned
+ * 1.0.3 (its users install 1.0.3 by hand once); from 1.0.3 on, unsigned builds carry no publisher name and update each other.
  */
 const withCuda = process.env.JBL_CUDA === "1";
+/** --- desktop-ai-fix --- A code-signing certificate is configured (the workflow sets WIN_CSC_LINK only when the secret exists). */
+const signed = !!process.env.WIN_CSC_LINK;
 
 module.exports = {
   appId: "com.jumpingballslive.desktop",
@@ -55,7 +62,7 @@ module.exports = {
       { target: "portable", arch: ["x64"] },
     ],
     icon: "../public/icons/icon-512.png",
-    signtoolOptions: { publisherName: "JumpingBallsLive" },
+    ...(signed ? { signtoolOptions: { publisherName: "JumpingBallsLive" } } : {}), // --- desktop-ai-fix --- (see above)
   },
   nsis: {
     oneClick: false,

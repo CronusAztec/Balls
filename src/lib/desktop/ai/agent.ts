@@ -1,5 +1,6 @@
 import type { AiMessage } from "../contract";
 import { extractJson, validateJson, type JsonSchema } from "./jsonSchema";
+import { describeError } from "../errors"; // --- desktop-ai-fix --- the IPC prefix stripped, the cause codes explained
 
 /*
  * --- desktop-exe --- The AI studio's tool-call loop. Pure: the model and the tools are injected, so the loop is tested
@@ -11,6 +12,17 @@ import { extractJson, validateJson, type JsonSchema } from "./jsonSchema";
  * reply is never acted on – the errors go back to the model and it tries again, at most `maxRetries` times in a row;
  * then the run fails and nothing is applied. A tool's result (or its error) goes back as the next message, and the loop
  * goes on until a valid final answer or `maxSteps` model turns.
+ *
+ * --- desktop-ai-fix --- What 1.0.2's small local models got wrong, and what the loop does about it now:
+ *  - The reply envelope is rebuilt on every turn from the run's state (`AgentTask.turn`): Make videos offers no answer until
+ *    plan_clips has returned plans, then its planIds are an enum of those plans – a grammar-held model can no longer answer
+ *    on turn 1 with invented ids.
+ *  - A task's normaliser fixes obvious slips before the checks (`normaliseFinal`, `AgentTool.normalise`: hashtags without
+ *    "#", a slugless file name…), so they cost no retry.
+ *  - A retry differs from the try before: the errors come as the app's note (a `system` message, which every transport
+ *    folds into the next user turn – conversation.ts) with the turn's hint, and the temperature goes up 0.1 per invalid
+ *    reply in a row (identical replies kept repeating at a fixed temperature).
+ *  - A tool may describe its arguments in a line (`argsHint`) instead of printing its JSON schema into the prompt.
  */
 
 export interface ChatOptions {
@@ -20,6 +32,8 @@ export interface ChatOptions {
   signal?: AbortSignal;
   maxTokens?: number;
   temperature?: number;
+  /** --- desktop-ai-fix --- The job ("videos", "copy"…): the app logs it and keeps it with the last error. */
+  task?: string;
 }
 
 /** A chat model: the messages so far in, the reply text out. */
@@ -40,6 +54,20 @@ export interface AgentTool {
   /** Checks beyond the schema (an id that must exist…): error messages, empty when fine. */
   check?: (args: Record<string, unknown>) => string[];
   run: (args: Record<string, unknown>, ctx: ToolContext) => Promise<unknown>;
+  /** --- desktop-ai-fix --- The arguments in a line for the prompt, instead of their JSON schema (a big oneOf costs thousands of prompt tokens; the grammar and the checks still use `args`). */
+  argsHint?: string;
+  /** --- desktop-ai-fix --- Fixes obvious slips in the arguments before they are checked. */
+  normalise?: (args: Record<string, unknown>) => Record<string, unknown>;
+}
+
+/** --- desktop-ai-fix --- What the model may answer on one turn. */
+export interface AgentTurn {
+  /** The tools it may call (default: all of the task's). */
+  tools?: readonly AgentTool[];
+  /** The answer's schema this turn; null: no answer yet (default: the task's `final`). */
+  final?: JsonSchema | null;
+  /** One line added to the note after an invalid reply ("call plan_clips first"). */
+  hint?: string;
 }
 
 export interface AgentTask<F> {
@@ -54,6 +82,14 @@ export interface AgentTask<F> {
   maxRetries?: number;
   maxTokens?: number;
   temperature?: number;
+  /** --- desktop-ai-fix --- The job's name, sent with every request (the app logs it). */
+  name?: string;
+  /** --- desktop-ai-fix --- The envelope of each turn from the run's state (default: every tool and the answer, every turn). */
+  turn?: () => AgentTurn;
+  /** --- desktop-ai-fix --- Fixes the answer's obvious slips before the checks (normalise.ts). */
+  normaliseFinal?: (result: unknown) => unknown;
+  /** --- desktop-ai-fix --- The answer's shape in a line for the prompt, instead of its JSON schema (the grammar and the checks still use `final`). */
+  finalHint?: string;
 }
 
 export type AgentEvent =
@@ -70,20 +106,25 @@ export type AgentOutcome<F> = { ok: true; result: F; steps: number; retries: num
 
 export const DEFAULT_MAX_STEPS = 8;
 export const DEFAULT_MAX_RETRIES = 3;
+/** --- desktop-ai-fix --- The transports' temperature when a task sets none, the step a retry adds and the ceiling. */
+export const DEFAULT_TEMPERATURE = 0.4;
+export const RETRY_TEMPERATURE_STEP = 0.1;
+export const MAX_TEMPERATURE = 1.5;
 /** Tool results are cut to this many characters before they go back to the model. */
 export const MAX_TOOL_RESULT_CHARS = 4000;
 
-/** The reply envelope: a tool call or the final answer, for this task's tools and answer. */
-export function replySchema(tools: readonly AgentTool[], final: JsonSchema): JsonSchema {
+/** The reply envelope: a tool call or the final answer, for this task's tools and answer (--- desktop-ai-fix --- `final` null: tool calls only). */
+export function replySchema(tools: readonly AgentTool[], final: JsonSchema | null): JsonSchema {
   const note: JsonSchema = { type: "string", maxLength: 400 };
-  const alternatives: JsonSchema[] = [
-    {
+  const alternatives: JsonSchema[] = [];
+  if (final || tools.length === 0) {
+    alternatives.push({
       type: "object",
-      properties: { action: { const: "final" }, note, result: final },
+      properties: { action: { const: "final" }, note, result: final ?? {} },
       required: ["action", "result"],
       additionalProperties: false,
-    },
-  ];
+    });
+  }
   for (const tool of tools) {
     alternatives.push({
       type: "object",
@@ -95,19 +136,18 @@ export function replySchema(tools: readonly AgentTool[], final: JsonSchema): Jso
   return alternatives.length === 1 ? alternatives[0] : { oneOf: alternatives };
 }
 
-/** The protocol and the tools, appended to the task's system prompt. */
-export function protocolPrompt(tools: readonly AgentTool[], final: JsonSchema): string {
+/** The protocol and the tools, appended to the task's system prompt (--- desktop-ai-fix --- `finalHint`: the answer's shape in a line). */
+export function protocolPrompt(tools: readonly AgentTool[], final: JsonSchema, finalHint?: string): string {
   const lines = [
     "Reply with ONE JSON object and nothing else.",
     tools.length
       ? 'To use a tool: {"action":"tool","tool":"<name>","args":{...},"note":"<why, one short sentence>"}. You will get its result, then reply again.'
       : "You have no tools.",
-    'To answer: {"action":"final","result":{...}} where result follows this JSON schema:',
-    JSON.stringify(final),
+    ...(finalHint ? [`To answer: {"action":"final","result":${finalHint}}`] : ['To answer: {"action":"final","result":{...}} where result follows this JSON schema:', JSON.stringify(final)]),
   ];
   if (tools.length) {
     lines.push("Tools:");
-    for (const tool of tools) lines.push(`- ${tool.name}: ${tool.description} Args schema: ${JSON.stringify(tool.args)}`);
+    for (const tool of tools) lines.push(`- ${tool.name}: ${tool.description} ${tool.argsHint ? `Args: ${tool.argsHint}` : `Args schema: ${JSON.stringify(tool.args)}`}`); // --- desktop-ai-fix --- (argsHint)
   }
   return lines.join("\n");
 }
@@ -126,6 +166,18 @@ export function normaliseReply(value: unknown): unknown {
   return value;
 }
 
+/** --- desktop-ai-fix --- The task's normalisers on a reply in the envelope's shape (the answer's, or the called tool's arguments). */
+function normaliseFields(value: unknown, task: Pick<AgentTask<unknown>, "normaliseFinal">, tools: readonly AgentTool[]): unknown {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return value;
+  const v = value as Record<string, unknown>;
+  if (v.action === "final" && task.normaliseFinal) return { ...v, result: task.normaliseFinal(v.result) };
+  if (v.action === "tool") {
+    const tool = tools.find((t) => t.name === v.tool);
+    if (tool?.normalise && v.args && typeof v.args === "object" && !Array.isArray(v.args)) return { ...v, args: tool.normalise(v.args as Record<string, unknown>) };
+  }
+  return value;
+}
+
 /** Runs the loop. Never throws for the model's mistakes: the outcome says what went wrong. */
 export async function runAgent<F>(model: ChatModel, task: AgentTask<F>, hooks: { onEvent?: (e: AgentEvent) => void; signal?: AbortSignal } = {}): Promise<AgentOutcome<F>> {
   const { onEvent, signal } = hooks;
@@ -133,10 +185,10 @@ export async function runAgent<F>(model: ChatModel, task: AgentTask<F>, hooks: {
   const maxSteps = task.maxSteps ?? DEFAULT_MAX_STEPS;
   const maxRetries = task.maxRetries ?? DEFAULT_MAX_RETRIES;
   // The envelope is also what the model is constrained to (the app turns it into a llama.cpp grammar; a cloud model gets
-  // it in the prompt) – replies are validated against it all the same.
-  const envelope = replySchema(task.tools, task.final);
+  // it in the prompt) – replies are validated against it all the same. --- desktop-ai-fix --- rebuilt every turn (`task.turn`);
+  // the prompt keeps describing every tool and the answer, so the conversation's prefix stays the same from turn to turn.
   const messages: AiMessage[] = [
-    { role: "system", content: `${task.system}\n\n${protocolPrompt(task.tools, task.final)}` },
+    { role: "system", content: `${task.system}\n\n${protocolPrompt(task.tools, task.final, task.finalHint)}` },
     { role: "user", content: task.user },
   ];
   let steps = 0;
@@ -147,12 +199,18 @@ export async function runAgent<F>(model: ChatModel, task: AgentTask<F>, hooks: {
     if (signal?.aborted) return cancelled();
     steps++;
     emit({ type: "turn", step: steps });
+    // --- desktop-ai-fix --- this turn's envelope, and a temperature that rises with every invalid reply in a row
+    const spec = task.turn?.() ?? {};
+    const turnTools = spec.tools ?? task.tools;
+    const turnFinal = spec.final === undefined ? task.final : spec.final;
+    const envelope = replySchema(turnTools, turnFinal);
+    const temperature = invalidInARow > 0 ? Math.min(MAX_TEMPERATURE, (task.temperature ?? DEFAULT_TEMPERATURE) + RETRY_TEMPERATURE_STEP * invalidInARow) : task.temperature;
     let text: string;
     try {
-      text = await model.complete(messages, { schema: envelope, onToken: (t) => emit({ type: "token", text: t }), signal, maxTokens: task.maxTokens, temperature: task.temperature });
+      text = await model.complete(messages, { schema: envelope, onToken: (t) => emit({ type: "token", text: t }), signal, maxTokens: task.maxTokens, temperature, ...(task.name ? { task: task.name } : {}) });
     } catch (err) {
       if (signal?.aborted) return cancelled();
-      return { ok: false, error: `model: ${err instanceof Error ? err.message : String(err)}`, cancelled: false, steps, retries };
+      return { ok: false, error: `model: ${describeError(err)}`, cancelled: false, steps, retries };
     }
     if (signal?.aborted) return cancelled();
     messages.push({ role: "assistant", content: text });
@@ -163,12 +221,12 @@ export async function runAgent<F>(model: ChatModel, task: AgentTask<F>, hooks: {
     let reply: Record<string, unknown> | null = null;
     if (!parsed.ok) errors = [parsed.error];
     else {
-      const value = normaliseReply(parsed.value);
+      const value = normaliseFields(normaliseReply(parsed.value), task, turnTools);
       errors = validateJson(envelope, value);
       if (errors.length === 0) {
         reply = value as Record<string, unknown>;
         if (reply.action === "tool") {
-          const tool = task.tools.find((t) => t.name === reply?.tool);
+          const tool = turnTools.find((t) => t.name === reply?.tool);
           errors = tool?.check ? tool.check(reply.args as Record<string, unknown>) : [];
         } else if (task.checkFinal) errors = task.checkFinal(reply.result as F);
       }
@@ -178,7 +236,8 @@ export async function runAgent<F>(model: ChatModel, task: AgentTask<F>, hooks: {
       invalidInARow++;
       emit({ type: "invalid", attempt: invalidInARow, errors });
       if (invalidInARow > maxRetries) return { ok: false, error: `the model's replies were invalid ${invalidInARow} times in a row: ${errors.slice(0, 3).join("; ")}`, cancelled: false, steps, retries };
-      messages.push({ role: "user", content: `Your reply was not valid:\n- ${errors.slice(0, 8).join("\n- ")}\nReply again with ONE JSON object in the required format.` });
+      // --- desktop-ai-fix --- the app's note (a system message, folded into the next user turn by every transport), with the turn's hint
+      messages.push({ role: "system", content: `Your reply was not valid:\n- ${errors.slice(0, 8).join("\n- ")}\n${spec.hint ? `${spec.hint}\n` : ""}Reply again with ONE JSON object in the required format – not the same reply as before.` });
       continue;
     }
     invalidInARow = 0;
@@ -190,7 +249,7 @@ export async function runAgent<F>(model: ChatModel, task: AgentTask<F>, hooks: {
     }
 
     // 3. A tool call: run it, hand its result (or error) back.
-    const tool = task.tools.find((t) => t.name === reply?.tool) as AgentTool;
+    const tool = turnTools.find((t) => t.name === reply?.tool) as AgentTool; // --- desktop-ai-fix --- (this turn's version of the tool)
     const args = (reply.args ?? {}) as Record<string, unknown>;
     emit({ type: "tool", name: tool.name, args });
     try {

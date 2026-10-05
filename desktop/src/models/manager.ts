@@ -5,6 +5,7 @@ import path from "path";
 import type { ModelEntry, ModelProgressEvent } from "@/lib/desktop/contract";
 import { JsonFileStore } from "../journal";
 import { MODEL_CATALOG, type ModelSpec } from "./catalog";
+import { describeError } from "@/lib/desktop/errors"; // --- desktop-ai-fix ---
 
 /*
  * --- desktop-exe --- The model manager: downloads a catalog model into the data folder on first use, resumably (a
@@ -12,7 +13,8 @@ import { MODEL_CATALOG, type ModelSpec } from "./catalog";
  * ignores it), verifies its size and SHA-256 before it is used (a `<file>.sha256` note records the verified hash, so the
  * 2 GB file is not hashed again on every start), and keeps GGUF files the user picked (checked for the GGUF magic, used
  * where they are – never copied). `fetch` and the progress callback are injected; tests/models.test.ts drives it with a
- * fake server.
+ * fake server. --- desktop-ai-fix --- main.ts injects Electron's net.fetch (the system proxy and certificate store: Node's own
+ * fetch failed behind antivirus HTTPS scanning with a bare "fetch failed"), and a failed request says why (its cause codes).
  */
 
 export interface ManagerOptions {
@@ -171,7 +173,11 @@ export class ModelManager {
         have = 0;
       }
       if (have < spec.size) {
-        const response = await this.fetchImpl(spec.url, { headers: have > 0 ? { Range: `bytes=${have}-` } : {}, signal: controller.signal, redirect: "follow" });
+        // --- desktop-ai-fix --- a network failure says why (the cause codes explained)
+        const response = await this.fetchImpl(spec.url, { headers: have > 0 ? { Range: `bytes=${have}-` } : {}, signal: controller.signal, redirect: "follow" }).catch((err: unknown) => {
+          if (controller.signal.aborted) throw err;
+          throw new Error(`Download failed: ${describeError(err)}`, { cause: err });
+        });
         if (response.status === 416 && have > 0) {
           // The server says the range is past the end: the part is complete (or wrong – the checksum decides).
         } else if (!response.ok || !response.body) throw new Error(`Download failed: HTTP ${response.status}`);
@@ -228,7 +234,7 @@ export class ModelManager {
       return entry;
     } catch (err) {
       const cancelled = controller.signal.aborted;
-      const message = cancelled ? "cancelled" : err instanceof Error ? err.message : String(err);
+      const message = cancelled ? "cancelled" : describeError(err); // --- desktop-ai-fix --- (was err.message: the cause was lost)
       const partial = (await sizeOf(part)) ?? 0;
       this.emit({ id, downloaded: partial, size: spec.size, bytesPerSec: 0, state: partial > 0 ? "partial" : "missing", error: message });
       throw new Error(message);
@@ -241,6 +247,11 @@ export class ModelManager {
   /** Stops a download; the part stays for a resume. */
   cancel(id: string): void {
     this.downloads.get(id)?.abort();
+  }
+
+  /** --- desktop-ai-fix --- Stops every download (the app is quitting); the parts stay for a resume. */
+  cancelAll(): void {
+    for (const controller of this.downloads.values()) controller.abort();
   }
 
   /** Adds a GGUF file the user picked (used in place). */
