@@ -104,10 +104,15 @@ describe("AI through the app", () => {
     expect(out).toMatchObject({ ok: true, retries: 1 });
     expect(seen.gpu).toEqual(["auto"]); // GPU offload asked for, CPU fallback is node-llama-cpp's
     expect(tokens.join("")).toContain('"action":"tool"');
-    // The reply grammar: a oneOf of the final answer and each tool call, patterns dropped.
-    const grammar = seen.grammars[0] as { oneOf: { properties: { action: unknown } }[] };
+    // The reply grammar: a oneOf of the final answer and each tool call, patterns dropped. --- desktop-ai-fix --- rebuilt per
+    // turn: before plan_clips has made plans the answer is not on offer (the 3 tool calls only); after it, the answer joins
+    // with its planIds an enum of the plans made.
+    const first = seen.grammars[0] as { oneOf: { properties: { action: { const: string } } }[] };
+    expect(first.oneOf.map((g) => g.properties.action.const)).toEqual(["tool", "tool", "tool"]);
+    const grammar = seen.grammars[1] as { oneOf: { properties: { action: unknown } }[] };
     expect(grammar.oneOf.length).toBe(4);
     expect(JSON.stringify(grammar)).not.toContain("pattern");
+    expect(JSON.stringify(grammar)).toContain(`"planId":{"enum":["${plan.id}"]}`);
     expect((await svc.status()).local).toMatchObject({ loaded: true, backend: "vulkan", gpuLayers: 29 });
   });
 
