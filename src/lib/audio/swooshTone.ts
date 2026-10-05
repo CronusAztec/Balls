@@ -25,12 +25,22 @@ export interface SwooshTone {
 
 export const SWOOSH_TONE: SwooshTone = { duration: 0.42, gain: 0.5, peakAt: 0.45, bandFrom: 420, bandTo: 3600, q: 1.4, glideFrom: 180, glideTo: 720, glideGain: 0.05 };
 
-/** Builds and starts the swoosh at `time` (AudioContext seconds) into `destination`, from the noise in `noise`. */
-export function scheduleSwooshTone(ctx: BaseAudioContext, destination: AudioNode, time: number, noise: AudioBuffer, tone: SwooshTone = SWOOSH_TONE) {
+/**
+ * Builds and starts the swoosh at `time` (AudioContext seconds) into `destination`, from the noise in `noise`. --- loop-foundation ---
+ * `durationSec` stretches it (the loop sounds' 2 s noise wash, lib/audio/loopTones.ts): the sweep, the swell and the fade
+ * follow the new length and the noise loops when it outlasts the buffer. Left out, the swoosh is exactly the Journey's;
+ * a tone with `glideGain` 0 plays no sine glide.
+ */
+export function scheduleSwooshTone(ctx: BaseAudioContext, destination: AudioNode, time: number, noise: AudioBuffer, tone: SwooshTone = SWOOSH_TONE, durationSec?: number) {
+  // --- loop-foundation --- the length: the tone's own unless a duration is given
+  const length = durationSec !== undefined && Number.isFinite(durationSec) && durationSec > 0 ? durationSec : tone.duration;
+  if (length !== tone.duration) tone = { ...tone, duration: length };
+  // --- end loop-foundation ---
   const end = time + tone.duration;
   const peak = time + tone.duration * tone.peakAt;
   const source = ctx.createBufferSource();
   source.buffer = noise;
+  if (durationSec !== undefined && tone.duration + 0.02 > noise.duration) source.loop = true; // --- loop-foundation --- (a long wash loops the noise)
   const band = ctx.createBiquadFilter();
   band.type = "bandpass";
   band.Q.value = tone.q;
@@ -43,9 +53,10 @@ export function scheduleSwooshTone(ctx: BaseAudioContext, destination: AudioNode
   source.connect(band);
   band.connect(gain);
   gain.connect(destination);
-  source.start(time, 0, Math.min(noise.duration, tone.duration + 0.02));
+  source.start(time, 0, source.loop ? tone.duration + 0.02 : Math.min(noise.duration, tone.duration + 0.02)); // --- loop-foundation --- (a looping wash plays its whole length)
   source.stop(end + 0.02);
 
+  if (!(tone.glideGain > 0) || !(tone.glideFrom > 0) || !(tone.glideTo > 0)) return; // --- loop-foundation --- (a wash without the sine glide)
   const glide = ctx.createOscillator();
   const glideGain = ctx.createGain();
   glide.type = "sine";

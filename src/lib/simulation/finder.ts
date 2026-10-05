@@ -49,6 +49,8 @@ import { orbRhythmFinderAnswer } from "@/lib/physics/modes/orbGrid"; // --- orb-
 import type { FightLeagueSettings } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 import { resolveLandClaimSettings, type LandClaimSettings } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 import { MAX_TEAMS } from "@/lib/physics/ballStats"; // --- land-claim ---
+import type { GrowFillSettings } from "@/lib/physics/modes/grow"; // --- loop-foundation ---
+import { growRunFinishes } from "@/lib/physics/growFill"; // --- loop-foundation ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -195,6 +197,13 @@ export interface ModeSettings {
    * a steal battle always at the duration; the finder searches the length, the winner and a close battle.
    */
   landClaim?: Partial<LandClaimSettings>;
+  // --- loop-foundation ---
+  /**
+   * Grow's fill and loop: the growth law, what a fill does, the step, the start, the hold, the shrink and the pitch (see
+   * modes/grow.ts); the classic Grow when left out. With "finish" the run ends at the fill, so the finder searches its length,
+   * a fill within a time limit or a fill on a bar line.
+   */
+  grow?: Partial<GrowFillSettings>;
 }
 
 // --- odd-string-battle ---
@@ -250,7 +259,8 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */>): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */): boolean {
+  if (mode === "grow" && growRunFinishes(settings.grow)) return false; // --- loop-foundation --- ("finish": the run ends at the fill)
   if (ENDLESS_MODES.includes(mode)) return true;
   // --- review fix (modes-rhythm) --- Picture Paint follows the page's picture and song: no length the finder can replay
   if (mode === "paint") return settings.paintPicture === true;
@@ -385,6 +395,9 @@ export interface FinderResult {
   // --- uncap-all ---
   /** Not one tested seed ended within the search's horizon: with these values the run never ends (the page says so). */
   neverEnded?: boolean;
+  // --- loop-foundation ---
+  /** Grow: the first fill (seconds) of the run found – or of the closest one – when it had one. */
+  fillAt?: number;
 }
 
 /**
@@ -451,6 +464,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "orbGrid") engine.setOrbGridSettings(settings.orbGrid ?? {}); // --- orb-grid ---
   if (mode === "fightLeague") engine.setFightLeagueSettings(settings.fightLeague ?? {}); // --- fight-league ---
   if (mode === "landClaim") engine.setLandClaimSettings(settings.landClaim ?? {}); // --- land-claim ---
+  if (mode === "grow") engine.setGrowFillSettings(settings.grow ?? {}); // --- loop-foundation --- (before the init: the law and the start apply there)
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -839,6 +853,8 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   // itself ends a hold (SETTLE_HOLD_MS) later, so a field at rest within the clip's last 1.5 s is not over before the clip is
   let settledAt = -1;
   const orbs = request.mode === "orbGrid"; // --- orb-grid ---
+  const growRun = request.mode === "grow"; // --- loop-foundation --- (Grow's first fill, real time)
+  let firstFill = -1;
   while (elapsed < horizonMs - 1e-6) {
     engine.update(step, 0);
     elapsed += step;
@@ -846,8 +862,9 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     if (firstEscape < 0 && engine.getFirstEscapeMs() >= 0) firstEscape = elapsed;
     if (orbs && firstResolve < 0 && engine.getOrbGridView().resolveAtMs >= 0) firstResolve = elapsed; // --- orb-grid ---
     if (orbs && settledAt < 0 && engine.getOrbGridView().allSettled) settledAt = elapsed; // --- orb-grid ---
+    if (growRun && firstFill < 0 && engine.getGrowView().fills > 0) firstFill = elapsed; // --- loop-foundation ---
     finished = engine.isSimulationFinished();
-    if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode, firstResolve, settledAt)) break;
+    if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode, firstResolve, settledAt, firstFill)) break;
     if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
     // --- odd-maze --- the maze's verdict is final once a ball is out: another ball's win ends the search of this seed
     if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
@@ -860,7 +877,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   const teams = engine.getTeamStats().slice(0, lcView ? Math.min(lcView.teams, MAX_TEAMS) : teamCount).map((t) => ({ ...t }));
   // --- fight-league --- a finished fight that ended with every side down together: a double KO
   const doubleKo = request.mode === "fightLeague" && finished ? engine.getFightLeagueView().doubleKo : undefined;
-  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}) };
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */ };
 }
 
 /** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */
@@ -879,6 +896,7 @@ function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgres
       finished: run?.finished ?? false,
       ...(run && run.firstEscapeMs >= 0 ? { escapeAt: run.firstEscapeMs / 1000 } : {}),
       ...(run && (run.firstResolveMs ?? -1) >= 0 ? { resolveAt: (run.firstResolveMs ?? 0) / 1000 } : {}), // --- orb-grid ---
+      ...(run && (run.firstFillMs ?? -1) >= 0 ? { fillAt: (run.firstFillMs ?? 0) / 1000 } : {}), // --- loop-foundation ---
     });
     const runBatch = () => {
       if (signal?.aborted) {
