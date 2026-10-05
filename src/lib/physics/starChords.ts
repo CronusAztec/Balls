@@ -392,8 +392,11 @@ export function cycleForClip(clipSec: number, holdSec: number, fadeSec: number, 
 export const SC_ROOT_MIDI = 57;
 /** The completion chord's root: A2, the key's tonic (110 Hz – the measured 98–110 Hz chord register). */
 export const SC_CHORD_HZ = 110;
-/** The widest span of the balls' pitches, in pentatonic degrees (2.8 octaves). */
-export const SC_PITCH_SPAN = 14;
+/**
+ * The widest span of the balls' pitches, in pentatonic degrees: 11 (2.2 octaves, A3 to B5), so a crowd of balls stays inside the
+ * pluck register C3–C6 (130–1050 Hz) – the next degree up, C♯6, would leave it.
+ */
+export const SC_PITCH_SPAN = 11;
 
 /**
  * Every ball's pitch (Hz): its speed's rank among the balls (the slowest lowest) as a degree of the A major pentatonic, two

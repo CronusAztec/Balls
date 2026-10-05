@@ -1983,7 +1983,7 @@
     "scStarsRandomTip": "A random coprime set for the balls: a different point count for each (5 and up, never 6), each with a random step that makes a real star.",
     "scStarsRun": "The stars of the run",
     "scStarsMore": "+{count} more",
-    "scStarsExtended": "Balls past the {typed} typed stars draw the next free point counts, each with the step nearest 0.4 of it.",
+    "scStarsExtended": "Balls past the {typed, plural, one {# typed star} other {# typed stars}} draw the next free point counts, each with the step nearest 0.4 of it.",
     "scCycle": "Drawing Time",
     "scCycleTip": "Seconds every star takes to close (any number from 1; the slider goes to 30). Each ball moves at its own speed – its n chords in this time – so all of them close together.",
     "scHold": "Hold",
@@ -2642,7 +2642,7 @@
     "outcomeStarSet": "Best star set",
     "hintStarSet": "Every star closes on time by construction, so this searches random coprime star sets (a different point count for each ball) for the best-looking one – inner circles evenly spread – and fits the drawing time so the clip holds whole loops.",
     "findStarSet": "Find Stars for a {duration}s Clip",
-    "foundStarSet": "Found {stars}: {loops} loops of {cycle}s drawing fill the clip",
+    "foundStarSet": "Found {stars}: {loops, plural, one {# loop of {cycle}s drawing fills the clip} other {# loops of {cycle}s drawing fill the clip}}",
     "missStarSet": "Not even one loop fits this clip: the shortest loop lasts {duration}s. Shorten the hold or the fade, or lengthen the clip.",
     "overlayStarSet": "No whole loop fits a {target}s clip: the shortest loop lasts {duration}s. Shorten the hold or the fade, or lengthen the clip."
   },

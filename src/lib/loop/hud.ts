@@ -61,6 +61,8 @@ export function subtitleLines(subtitle: string): string[] {
 }
 /** The distance (font sizes) from a subtitle's first line to its second. */
 export const HUD_SUBTITLE_LEADING = 1.2;
+/** How far through Chord Stars' fade (0–1) its "stars closed" counter goes back to 0 (`loopHudCount()`). */
+export const STAR_CHORDS_HUD_RESET = 0.5;
 // --- end chord-stars ---
 
 /** The HUD's lines in a `width` × `height` frame (px): centres of the lines, font sizes, the rule and the widest a line may be. */
@@ -207,11 +209,12 @@ export function hudCounterText(template: string, count: number | LoopHudCount | 
 }
 
 /** The counter of the mode's run (Grow: the bounces of the current cycle; --- chord-stars --- Chord Stars: the stars closed of all), or null when the mode has none. */
-export function loopHudCount(engine: { getCurrentModeName(): string; getGrowView(): { bounces: number }; getStarChordsView?(): { closed: number; count: number } }): number | LoopHudCount | null {
-  // --- chord-stars ---
+export function loopHudCount(engine: { getCurrentModeName(): string; getGrowView(): { bounces: number }; getStarChordsView?(): { closed: number; count: number; phase: string; phaseProgress: number } }): number | LoopHudCount | null {
+  // --- chord-stars --- (the fade is the loop's reset: halfway through it the counter is back at 0, so the clip's last frames
+  // read like its first – the payoff's "5/5" still shows through the hold and the first half of the fade, a hold of 0 too)
   if (engine.getCurrentModeName() === "starChords" && engine.getStarChordsView) {
     const v = engine.getStarChordsView();
-    return { count: v.closed, total: v.count };
+    return { count: v.phase === "fade" && v.phaseProgress >= STAR_CHORDS_HUD_RESET ? 0 : v.closed, total: v.count };
   }
   return engine.getCurrentModeName() === "grow" ? engine.getGrowView().bounces : null;
 }

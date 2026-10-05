@@ -32,7 +32,7 @@ export interface StarChordsRenderOptions {
 }
 
 /** The canvas' data-sc-* attributes (the smoke test and tools read the run there). */
-export const STAR_CHORDS_DATA_KEYS = ["scBalls", "scCycles", "scPhase", "scClosed", "scChords", "scCycleChords", "scLastCycleChords", "scTotalChords", "scClosings", "scStars", "scEnvelope", "scPeriod", "scLayerChords", "scFaded"] as const;
+export const STAR_CHORDS_DATA_KEYS = ["scBalls", "scCycles", "scPhase", "scClosed", "scChords", "scCycleChords", "scLastCycleChords", "scTotalChords", "scClosings", "scStars", "scEnvelope", "scPeriod", "scLayerChords", "scFaded", "scLayerLast", "scLayerLastCycle"] as const;
 
 /** Chords the layer draws in one frame at most (the newest of them when a frame brings more). */
 export const SC_FRAME_CHORDS = 20_000;
@@ -71,6 +71,12 @@ export class StarChordsLayer {
   /** Chords on the layer this cycle, and the fades the ceiling made. */
   layerChords = 0;
   faded = 0;
+  /**
+   * The chords the layer took in the last cycle it saw to its end (−1 before one ended), and that cycle's index: what the
+   * picture drew, counted apart from the run's clock (Σn when no chord was skipped – the smoke test's three-cycle check).
+   */
+  lastCycleLayerChords = -1;
+  lastLayerCycle = -1;
   private readonly glowSprites = new Map<string, HTMLCanvasElement>();
 
   /** World space, under the balls: the circle, the inner circles, the chords (faded with the loop), the chords being drawn, the glints. */
@@ -245,7 +251,8 @@ export class StarChordsLayer {
     const f = view.field;
     const half = f.radius + 4 + 2 * view.lineWidth;
     const size = Math.max(1, Math.ceil(2 * half * dpr));
-    const fresh = view.generation !== this.gen || size !== this.size || dpr !== this.dpr || f.cx !== this.cx || f.cy !== this.cy || f.chordRadius !== this.chordRadius || view.lineWidth !== this.lineWidth || view.colorVersion !== this.colorVersion || view.count !== this.drawn.length;
+    const newRun = view.generation !== this.gen;
+    const fresh = newRun || size !== this.size || dpr !== this.dpr || f.cx !== this.cx || f.cy !== this.cy || f.chordRadius !== this.chordRadius || view.lineWidth !== this.lineWidth || view.colorVersion !== this.colorVersion || view.count !== this.drawn.length;
     if (fresh || !this.layer || !this.g) {
       if (!this.layer) this.layer = document.createElement("canvas");
       if (this.layer.width !== size) this.layer.width = size;
@@ -262,10 +269,20 @@ export class StarChordsLayer {
       this.colorVersion = view.colorVersion;
       if (this.drawn.length !== view.count) this.drawn = new Float64Array(view.count);
       this.cycle = -1;
+      // (a new run forgets the last cycle's count; a repaint for a new size, line or colours keeps it)
+      if (newRun) {
+        this.lastCycleLayerChords = -1;
+        this.lastLayerCycle = -1;
+      }
     }
     const g = this.g;
     if (!g) return;
     if (view.cycleIndex !== this.cycle) {
+      // the cycle the layer held is over (the run went on from it): its count is what the picture drew of it
+      if (this.cycle >= 0 && view.cycleIndex > this.cycle) {
+        this.lastCycleLayerChords = this.layerChords;
+        this.lastLayerCycle = this.cycle;
+      }
       g.setTransform(1, 0, 0, 1, 0, 0);
       g.clearRect(0, 0, size, size);
       this.drawn.fill(0);
@@ -356,7 +373,7 @@ export class StarChordsLayer {
   }
 }
 
-/** Mirrors the run onto the canvas (data-sc-*): the balls, the cycles, the phase, the stars closed, the chords, the layer. */
+/** Mirrors the run onto the canvas (data-sc-*): the balls, the cycles, the phase, the stars closed, the chords, the layer (this cycle's and the last finished one's). */
 export function writeStarChordsDataset(view: StarChordsView, layer: StarChordsLayer, set: (key: string, value: string) => void) {
   set("scBalls", String(view.count));
   set("scCycles", String(view.cycles));
@@ -372,4 +389,7 @@ export function writeStarChordsDataset(view: StarChordsView, layer: StarChordsLa
   set("scPeriod", view.periodSec.toFixed(3));
   set("scLayerChords", String(layer.layerChords));
   set("scFaded", String(layer.faded));
+  // the chords the layer drew in the last cycle it saw end, and that cycle (−1 before one ended)
+  set("scLayerLast", String(layer.lastCycleLayerChords));
+  set("scLayerLastCycle", String(layer.lastLayerCycle));
 }

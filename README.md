@@ -1896,10 +1896,13 @@ Feature chord-stars – the loop family's star-polygon clip ("five stars, all cl
   draws at most 20,000 new chords; past `SC_CHORD_CEILING` = 200,000 chords in a cycle the oldest fade by half every quarter of
   the ceiling – nothing is stored per chord), the chord each ball is drawing, a glint at every bounce, the balls with a small
   glow and a soft flash as the stars close. The loop HUD reads "stars that close together", a two-line grey subtitle (a
-  subtitle splits into two lines at " / ") and the amber counter "stars closed 3/5" (`{count}` and `{total}`). The canvas
-  mirrors the run in `data-sc-*` (cycles, phase, stars closed, chords this cycle, per cycle, last cycle and in all).
+  subtitle splits into two lines at " / ") and the amber counter "stars closed 3/5" (`{count}` and `{total}`; back at 0/5
+  halfway through the fade, so a clip's last frames read like its first). The canvas
+  mirrors the run in `data-sc-*` (cycles, phase, stars closed, chords this cycle, per cycle, last cycle and in all) and what
+  its chord layer drew (this cycle, and of the last cycle it saw end: `data-sc-layer-last`, `data-sc-layer-last-cycle`).
 - **Sound** (`loopTones.ts` through `ToneGenerator.playLoop()`, original synthesis): every bounce is one note on its ball's
-  pitch – the balls ranked by speed, two degrees apart on A major pentatonic from A3 (five balls: A, C♯, F♯, B, E) – at the
+  pitch – the balls ranked by speed, two degrees apart on A major pentatonic from A3 (five balls: A, C♯, F♯, B, E; a crowd
+  closer together, never past B5, so every pluck stays inside the C3–C6 register) – at the
   narrow velocity 0.8 + 0.2 × its speed (the fast balls with the bright third partial), 1/√n when n balls bounce in one step,
   at most one note a ball a step and 20 a step; a star that closes before the others (its step shares a factor with n, so it
   closes its reduced star early) rings a soft ding an octave over its note; when the stars close, the completion chord on A2
@@ -1913,8 +1916,8 @@ Feature chord-stars – the loop family's star-polygon clip ("five stars, all cl
 - **Tests**: `tests/starChords.test.ts` (the vertex sequence of 5/2 back at the start after exactly 5 bounces, the chord's
   distance R·cos(πk/n) within 1e-9, every ball closing on the same frame for any T, the fingerprints at 30/60/120 fps, the URL
   round trip, the finder, the sound scheduling through `tests/fakeAudio.ts`); the smoke test (section 39) runs three cycles
-  at 4× and checks that every cycle drew Σn chords, the URL round trip of the block, the HUD's counter and the finder's
-  outcome.
+  at 4× and checks that every cycle drew Σn chords – by the run's clock and on the canvas' chord layer –, the URL round trip
+  of the block, the HUD's counter, the plucks' pitches, the finder's outcome and a fast export of whole loops.
 
 ## Windows app
 

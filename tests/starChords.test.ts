@@ -317,9 +317,15 @@ describe("Chord Stars: sound", () => {
     const pitches = ballPitches([9.5, 13.6, 14.8, 17.7, 23.2]);
     expect([...pitches].map((f) => Math.round(f * 100) / 100)).toEqual([0, 2, 4, 6, 8].map((d) => Math.round(midiToFrequency(degreeToMidi(d, 57, "majorPentatonic")) * 100) / 100));
     expect(pitches[0]).toBeCloseTo(220, 6);
-    // equal speeds keep their order; 30 balls still fit the 14-degree span
+    // equal speeds keep their order; 12 and 30 balls still fit the 11-degree span, inside the pluck register C3–C6 (B5 on top)
     const many = ballPitches(new Array(30).fill(1).map((_, i) => i));
-    expect(many[29]).toBeLessThanOrEqual(midiToFrequency(degreeToMidi(14, 57, "majorPentatonic")) + 1e-9);
+    expect(many[29]).toBeLessThanOrEqual(midiToFrequency(degreeToMidi(11, 57, "majorPentatonic")) + 1e-9);
+    const twelve = ballPitches(new Array(12).fill(1).map((_, i) => i));
+    expect(new Set([...twelve].map((f) => Math.round(f * 100))).size).toBe(12);
+    for (const f of [...many, ...twelve]) {
+      expect(f).toBeGreaterThanOrEqual(130);
+      expect(f).toBeLessThanOrEqual(1050);
+    }
   });
 
   it("queues a pluck per bounce, the chord when the stars close, the cut and the glide when the fade starts", () => {
@@ -521,6 +527,21 @@ describe("Chord Stars: the loop HUD and the caption", () => {
     expect(loopHudCount(engine)).toEqual({ count: 0, total: 5 });
     frameLoop(engine, 12 * 60, STEP_MS);
     expect(loopHudCount(engine)).toEqual({ count: 5, total: 5 });
+    // through the hold (12–13.2 s) and the first half of the fade (13.2–14.1 s) it reads 5/5; then back at 0/5 – the clip's
+    // last frames read like its first (the run itself still counts its five closed stars until the seam)
+    frameLoop(engine, 2 * 60 - 6, STEP_MS); // 13.9 s
+    expect(engine.getStarChordsView().phase).toBe("fade");
+    expect(loopHudCount(engine)).toEqual({ count: 5, total: 5 });
+    frameLoop(engine, 30, STEP_MS); // 14.4 s
+    expect(loopHudCount(engine)).toEqual({ count: 0, total: 5 });
+    expect(engine.getStarChordsView().closed).toBe(5);
+    frameLoop(engine, 36, STEP_MS); // 15.0 s: the seam, the next cycle's first frame
+    expect(engine.getStarChordsView()).toMatchObject({ cycles: 1, phase: "draw", closed: 0 });
+    expect(loopHudCount(engine)).toEqual({ count: 0, total: 5 });
+    // with no hold the payoff still shows: 5/5 at the closing, 0/5 halfway through the fade
+    const noHold = starEngine({ holdSec: 0 });
+    frameLoop(noHold, 12 * 60, STEP_MS);
+    expect(loopHudCount(noHold)).toEqual({ count: 5, total: 5 });
     expect(hudCounterText(String(en.LoopHud.starChordsCounter), { count: 3, total: 5 })).toBe("stars closed 3/5");
     for (const locale of [en, pl, es]) expect(subtitleLines(String(locale.LoopHud.starChordsSubtitle))).toHaveLength(2);
     expect(subtitleLines("one line")).toEqual(["one line"]);

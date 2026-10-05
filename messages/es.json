@@ -1974,7 +1974,7 @@
     "scStarsRandomTip": "Un conjunto aleatorio de estrellas coprimas para las bolas: un número de puntas distinto para cada una (desde 5, nunca 6), cada una con un paso aleatorio que da una estrella de verdad.",
     "scStarsRun": "Las estrellas de la partida",
     "scStarsMore": "+{count} más",
-    "scStarsExtended": "Las bolas que pasan de las {typed} estrellas escritas dibujan los siguientes números de puntas libres, cada uno con el paso más cercano a 0,4 de él.",
+    "scStarsExtended": "Las bolas que pasan de {typed, plural, one {la # estrella escrita} other {las # estrellas escritas}} dibujan los siguientes números de puntas libres, cada uno con el paso más cercano a 0,4 de él.",
     "scCycle": "Tiempo de dibujo",
     "scCycleTip": "Segundos que tarda cada estrella en cerrarse (cualquier número desde 1; el deslizador llega a 30). Cada bola se mueve a su propia velocidad – sus n cuerdas en este tiempo – así que todas se cierran a la vez.",
     "scHold": "Pausa",
@@ -2478,7 +2478,7 @@
     "outcomeStarSet": "Mejor conjunto de estrellas",
     "hintStarSet": "Cada estrella se cierra a tiempo por construcción, así que se buscan conjuntos aleatorios de estrellas coprimas (un número de puntas distinto para cada bola), se elige el más bonito – con los círculos interiores bien repartidos – y se ajusta el tiempo de dibujo para que el clip contenga bucles completos.",
     "findStarSet": "Buscar estrellas para un clip de {duration}s",
-    "foundStarSet": "Encontrado {stars}: {loops} bucles de {cycle}s de dibujo llenan el clip",
+    "foundStarSet": "Encontrado {stars}: {loops, plural, one {# bucle de {cycle}s de dibujo llena el clip} other {# bucles de {cycle}s de dibujo llenan el clip}}",
     "missStarSet": "En este clip no cabe ni un bucle: el más corto dura {duration}s. Acorta la pausa o el desvanecimiento, o alarga el clip.",
     "overlayStarSet": "En un clip de {target}s no cabe ningún bucle completo: el más corto dura {duration}s. Acorta la pausa o el desvanecimiento, o alarga el clip."
   },

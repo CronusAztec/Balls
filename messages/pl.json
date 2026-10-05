@@ -1974,14 +1974,14 @@
     "scStarsRandomTip": "Losowy zestaw względnie pierwszych gwiazd dla kulek: każda z inną liczbą punktów (od 5, nigdy 6) i losowym krokiem, który daje prawdziwą gwiazdę.",
     "scStarsRun": "Gwiazdy przebiegu",
     "scStarsMore": "+{count} więcej",
-    "scStarsExtended": "Kulki ponad {typed} wpisanych gwiazd rysują kolejne wolne liczby punktów, każda z krokiem najbliższym 0,4 tej liczby.",
+    "scStarsExtended": "Kulki, dla których zabrakło wpisanych gwiazd (wpisano {typed, plural, one {# gwiazdę} few {# gwiazdy} many {# gwiazd} other {# gwiazdy}}), rysują kolejne wolne liczby punktów, każda z krokiem najbliższym 0,4 tej liczby.",
     "scCycle": "Czas rysowania",
     "scCycleTip": "Sekundy, po których każda gwiazda się domyka (dowolna liczba od 1; suwak sięga 30). Każda kulka porusza się z własną prędkością – swoje n cięciw w tym czasie – więc wszystkie domykają się razem.",
     "scHold": "Zatrzymanie",
     "scHoldTip": "Sekundy, przez które domknięty rysunek trwa, zanim zacznie gasnąć (0 – gaśnie od razu).",
     "scFade": "Wygaszanie",
     "scFadeTip": "Sekundy, w których rysunek gaśnie, zanim następna pętla zacznie się od pustego okręgu (0 – natychmiastowe cięcie). Pętla trwa czas rysowania + zatrzymanie + wygaszanie.",
-    "scLoopNote": "Jedna pętla trwa {loop} s i rysuje {chords} cięciw. Znajdź symulację wybiera zestaw gwiazd i dopasowuje pętlę do klipu; Eksport całych pętli dba o płynne zapętlenie.",
+    "scLoopNote": "Jedna pętla trwa {loop} s i rysuje {chords, plural, one {# cięciwę} few {# cięciwy} many {# cięciw} other {# cięciwy}}. Znajdź symulację wybiera zestaw gwiazd i dopasowuje pętlę do klipu; Eksport całych pętli dba o płynne zapętlenie.",
     "scSpread": "Rozłożenie startu",
     "scSpreadTip": "Jak daleko wokół obwodu rozkładają się punkty startowe kulek: 100% dzieli cały obwód równo, 0% startuje każdą kulką z góry.",
     "scLineWidth": "Grubość linii",
@@ -2003,7 +2003,7 @@
     "scVoiceBar": "Sztabka",
     "scVoiceSilent": "Cisza",
     "scChord": "Akord domknięcia",
-    "scChordTip": "Gdy wszystkie gwiazdy się domkną: ciepły otwarty akord z dźwiękiem dzwonka. Gdy rysunek gaśnie: miękki glissando, które kończy się pod pierwszą nutą następnej pętli, więc klip zapętla się bez trzasku."
+    "scChordTip": "Gdy wszystkie gwiazdy się domkną: ciepły otwarty akord z dźwiękiem dzwonka. Gdy rysunek gaśnie: miękkie glissando, które kończy się pod pierwszą nutą następnej pętli, więc klip zapętla się bez trzasku."
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -2478,7 +2478,7 @@
     "outcomeStarSet": "Najlepszy zestaw gwiazd",
     "hintStarSet": "Każda gwiazda domyka się na czas z samej konstrukcji, więc wyszukiwanie przegląda losowe zestawy względnie pierwszych gwiazd (inna liczba punktów dla każdej kulki), wybiera najładniejszy – z równo rozłożonymi wewnętrznymi okręgami – i dopasowuje czas rysowania tak, by klip mieścił całe pętle.",
     "findStarSet": "Znajdź gwiazdy do klipu {duration}s",
-    "foundStarSet": "Znaleziono {stars}: {loops} pętle po {cycle}s rysowania wypełniają klip",
+    "foundStarSet": "Znaleziono {stars}: {loops, plural, one {# pętla po {cycle}s rysowania wypełnia klip} few {# pętle po {cycle}s rysowania wypełniają klip} many {# pętli po {cycle}s rysowania wypełnia klip} other {# pętli po {cycle}s rysowania wypełnia klip}}",
     "missStarSet": "W tym klipie nie mieści się nawet jedna pętla: najkrótsza trwa {duration}s. Skróć zatrzymanie albo wygaszanie lub wydłuż klip.",
     "overlayStarSet": "W klipie {target}s nie mieści się żadna cała pętla: najkrótsza trwa {duration}s. Skróć zatrzymanie albo wygaszanie lub wydłuż klip."
   },

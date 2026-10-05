@@ -13726,7 +13726,8 @@ await smokeBlock("chord-stars", async () => {
 // 39. Chord Stars: the preview image and the card under the rhythm heading; URL → the Chord Stars block of the Mode row (balls,
 // stars, drawing time, hold, fade, spread, line width, inner circles, colours, voice, chord) and the finder's outcome, controls →
 // URL (a preset, the drawing time), the search box; three cycles at 4× – every cycle draws Σn chords (data-sc-last-cycle-chords
-// against the stars' point counts), every star closes together, the loop contract's cycle – at 30+ fps; the loop HUD's title and
+// by the run's clock and data-sc-layer-last, what the canvas' chord layer drew of the cycle, against the stars' point counts),
+// every star closes together, the loop contract's cycle – at 30+ fps; the loop HUD's title and
 // amber "stars closed N/5" counter drawn on the canvas; the plucks on the balls' pentatonic pitches and the chord on A2
 // (OscillatorNode.start instrumented); Find Simulation's Best star set (a coprime set and the loop fitted to the clip) and a fast
 // export of whole loops.
@@ -13805,20 +13806,25 @@ await smokeBlock("chord-stars", async () => {
   const early = await canvasData();
   const fps = await pageFrameRates(2500);
   await page.getByRole("button", { name: "4x", exact: true }).click();
+  // (per cycle: the run's chords by the clock and the chords the canvas' chord layer drew of that cycle – data-sc-layer-last)
   const perCycle = [];
+  const drawnPerCycle = [];
   for (const n of [1, 2, 3]) {
     await page.waitForFunction((want) => Number(document.querySelector("main canvas")?.dataset.scCycles) >= want, n, { timeout: 30_000 }).catch(() => {});
     const d = await canvasData();
-    if (Number(d.scCycles) >= n) perCycle.push(Number(d.scLastCycleChords));
+    if (Number(d.scCycles) >= n) {
+      perCycle.push(Number(d.scLastCycleChords));
+      drawnPerCycle.push(`${d.scLayerLastCycle}:${d.scLayerLast}`);
+    }
   }
   const run = await canvasData();
   await page.screenshot({ path: path.join(outDir, "sim-chord-stars.png") });
   const sigma = (run.scStars || "").split(",").map((s) => Number(s.split("/")[0])).reduce((a, b) => a + b, 0);
   await timingCheck(
-    "chord stars draws Σn chords in every one of three cycles, every star closing together on a 5 s loop, at 30+ fps",
-    sigma === 41 && run.scCycleChords === "41" && perCycle.length === 3 && perCycle.every((c) => c === 41) && Number(run.scClosings) >= 3 && Number(run.scTotalChords) >= 3 * 41 && Math.abs(Number(run.scPeriod) - 5) < 1e-3 && Math.abs(Number(run.loopCycle) - 5) < 0.002 && Number(run.scLayerChords) <= 41 && run.scBalls === "5" && early.scPhase === "draw",
+    "chord stars draws Σn chords in every one of three cycles (the run's count and the chord layer's), every star closing together on a 5 s loop, at 30+ fps",
+    sigma === 41 && run.scCycleChords === "41" && perCycle.length === 3 && perCycle.every((c) => c === 41) && drawnPerCycle.join(",") === "0:41,1:41,2:41" && Number(run.scClosings) >= 3 && Number(run.scTotalChords) >= 3 * 41 && Math.abs(Number(run.scPeriod) - 5) < 1e-3 && Math.abs(Number(run.loopCycle) - 5) < 0.002 && Number(run.scLayerChords) <= 41 && run.scBalls === "5" && early.scPhase === "draw",
     fpsOk(fps, 4, 30),
-    `(${JSON.stringify({ stars: run.scStars, perCycle, closings: run.scClosings, total: run.scTotalChords, period: run.scPeriod, loopCycle: run.loopCycle, layer: run.scLayerChords, phase: early.scPhase })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    `(${JSON.stringify({ stars: run.scStars, perCycle, drawnPerCycle, closings: run.scClosings, total: run.scTotalChords, period: run.scPeriod, loopCycle: run.loopCycle, layer: run.scLayerChords, phase: early.scPhase })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
     fpsRetry(2500, 4, 30),
   );
   const heard = await page.evaluate(() => ({ osc: window.__scOsc.slice(), hud: window.__scHud.splice(0) }));
