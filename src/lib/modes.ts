@@ -89,6 +89,11 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("illusion");
   MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "starChords");
 }
+// --- bead-hoops --- Spinning Hoops joins the rhythm family right after Pendulum Wave (the same family of maths, in a spinning frame)
+{
+  const at = MODE_CARD_ORDER.indexOf("pendulum");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "hoops");
+}
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -163,6 +168,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   landClaim: "battle",
   // --- chord-stars --- every bounce off the circle is a pluck and the stars close on a chord: the sound-first family
   starChords: "rhythm",
+  // --- bead-hoops --- every turn is a chime and every bead that climbs a bar note pitched by its hoop: the sound-first family
+  hoops: "rhythm",
 };
 
 /** The modes of a category in card order. */

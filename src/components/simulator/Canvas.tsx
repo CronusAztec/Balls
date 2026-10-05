@@ -102,6 +102,7 @@ import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/l
 import { noteCornerReadouts, noteEdgeText, noteHomeCounter, noteJourneyHud, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare } from "./liveMarkHud";
 import { GROW_DATA_KEYS, GrowLayer, writeGrowDataset, type GrowLook } from "./growRenderer"; // --- loop-foundation ---
 import { STAR_CHORDS_DATA_KEYS, StarChordsLayer, writeStarChordsDataset, type StarChordsRenderOptions } from "./starChordsRenderer"; // --- chord-stars ---
+import { HOOPS_DATA_KEYS, HoopsLayer, hoopsExtentPx, hoopsRenderTimeMs, type HoopsRenderOptions } from "./hoopsRenderer"; // --- bead-hoops ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -941,6 +942,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- chord-stars --- Chord Stars: the chord layer (offscreen, a cycle at a time) and the look it is drawn with, refreshed per frame
     const starLayer = new StarChordsLayer();
     const starRender: StarChordsRenderOptions = { dpr: scale, wallColor: () => "#fff", rainbow: false, wallThickness: 2, showGlow: false, showWallGlow: true };
+    // --- bead-hoops --- Spinning Hoops' layer (the glow sprites, the hoops' colours) and its per-frame options
+    const hoopsLayer = new HoopsLayer();
+    const hoopsRender: HoopsRenderOptions = { wallThickness: 2, rainbow: true, wallColor: "#ffffff", wallGlow: true };
     const loopHudLive = { top: -Infinity, bottom: Infinity }; // --- loop-foundation --- the bands of the loop HUD this frame drew (the live watermark keeps clear of them)
     // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
     const frameBudget = new FrameBudget();
@@ -1307,6 +1311,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- orb-rhythm --- the frame's simulation time: what the page has fed the engine, a step behind (the step that made the sound)
       const orbT = orbView ? orbRenderTimeMs(engine.getElapsedMs(), engine.getStepRemainderMs(), accumulator, orbView.stepMs, orbView.finished ? orbView.finishedMs : -1) : 0;
       const flView = engine.isFightLeagueMode() ? engine.getFightLeagueView() : null; // --- fight-league ---
+      const hoopsView = engine.isHoopsMode() ? engine.getHoopsView() : null; // --- bead-hoops ---
       const wobbleAmount = bmLayer.wobble(wobbleAmountRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wobble)
       wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmount, illusionView.intrinsicWobble) : wobbleAmount);
 
@@ -2172,6 +2177,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (rrView) rrLayer.drawBodies(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- the trail and the rotating square
       else if (orbView) orbLayer.drawOrbs(ctx, orbView, size.width, size.height, scale, orbArenasRef.current, orbT /* --- orb-rhythm --- */); // --- orb-grid --- thousands of orbs back to front (the placeholder ball is not drawn)
       else if (growView && growLayer.drawsBodies(growLookNow, growView)) growLayer.drawBodies(ctx, balls, growView, growLookNow); // --- loop-foundation --- (colour by size; the hold and the shrink as a solid disc)
+      // --- bead-hoops --- the spinning hoops and their beads at the frame's own simulation time (the placeholder balls are the beads: not drawn)
+      else if (hoopsView) {
+        hoopsRender.wallThickness = p.wallThickness;
+        hoopsRender.rainbow = p.rainbowWalls;
+        hoopsRender.wallColor = p.circleColor;
+        hoopsRender.wallGlow = p.showWallGlow;
+        hoopsLayer.draw(ctx, hoopsView, hoopsRenderTimeMs(engine.getElapsedMs(), engine.getStepRemainderMs(), accumulator, hoopsView.stepMs), hoopsRender);
+      }
       // --- unlimited --- thousands of balls (or one too big for the sprites): plain discs, one path per colour
       else if (unlimitedLayer.wantsPlain(balls, unlimitedView)) unlimitedLayer.drawPlainBalls(ctx, balls, (ball) => (isColorMatch && matchColor ? matchColor : teamLayer.colorOf(ball) ?? ball.color));
       else balls.forEach((ball, index) => {
@@ -2958,7 +2971,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       loopHudLive.top = -Infinity;
       loopHudLive.bottom = Infinity;
       if (hudSpec && !recordingRef.current) {
-        const ring = engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena);
+        const ring = hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
         const liveTop = (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
         const hudFrame = loopHudFrame(hudSpec, loopHudCount(engine));
         const hudLayout = loopHudLiveLayout(size.width, size.height, cy, Math.min(ring, Math.min(size.width, size.height) / 2), liveTop);
@@ -3389,6 +3402,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- chord-stars --- Chord Stars' run (data-sc-*: the balls, the cycles, the stars closed, the chords, the layer)
       if (starView) writeStarChordsDataset(starView, starLayer, setCanvasData);
       else if (canvas.dataset.scBalls !== undefined) for (const key of STAR_CHORDS_DATA_KEYS) delete canvas.dataset[key];
+      // --- bead-hoops --- Spinning Hoops' run (data-hoops-*): beads up, lifts in order, the spin, the cycle
+      if (hoopsView) hoopsLayer.writeData(setCanvasData, hoopsView);
+      else if (canvas.dataset.hoopsCount !== undefined) for (const key of HOOPS_DATA_KEYS) delete canvas.dataset[key];
       const loopSeams = engine.getLoopSeams();
       if (loopSeams) {
         const cycle = engine.getCycleSeconds();

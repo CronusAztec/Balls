@@ -32,9 +32,13 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  *
  * --- chord-stars --- Chord Stars adds **star-set**: its stars always close together, so the search is for the best-looking
  * star set and the drawing time that fits the clip in whole loops (starChordsFinder.ts; no seed is simulated).
+ *
+ * --- bead-hoops --- Spinning Hoops adds two: **lift-order** – the first cycle's beads leave their bottoms in strict size order,
+ * the biggest hoop's first (at least one lift; a bigger hoop's bead never comes after a smaller one's) – and **all-up-by** –
+ * every bead is up within a time limit (`atSec`).
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -90,6 +94,12 @@ export interface RunSummary {
   margin?: number;
   /** --- loop-foundation --- Real time (ms) of Grow's first fill (the ball full), −1 or absent when none came. */
   firstFillMs?: number;
+  // --- bead-hoops ---
+  /** Spinning Hoops: real time (ms) every bead was first up, −1 or absent when that never came. */
+  allUpMs?: number;
+  /** Spinning Hoops: the first cycle's beads lifted in strict size order (decided, at least one lift). */
+  liftOrderOk?: boolean;
+  // --- end bead-hoops ---
 }
 
 // --- land-claim ---
@@ -130,6 +140,10 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
       return 1000 * (outcome.atSec ?? 0) + FILL_SLACK_MS;
     case "fill-on-bar": // --- loop-foundation --- (until the fill)
       return Math.max(clipMs, maxSimMs);
+    case "lift-order": // --- bead-hoops --- (until the first cycle's order is decided)
+      return Math.max(clipMs, maxSimMs);
+    case "all-up-by": // --- bead-hoops --- (until the limit has passed without every bead up)
+      return 1000 * (outcome.atSec ?? 0) + FILL_SLACK_MS;
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
       return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + ESCAPE_TAIL_MS;
@@ -241,6 +255,13 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
     }
     case "fill-on-bar":
       return fillOnBar(outcome, run.firstFillMs ?? -1);
+    // --- bead-hoops --- the first cycle in strict size order; every bead up within the limit
+    case "lift-order":
+      return run.liftOrderOk === true;
+    case "all-up-by": {
+      const at = run.allUpMs ?? -1;
+      return at >= 0 && at <= 1000 * (outcome.atSec ?? 0) + 1e-6;
+    }
     default:
       return false;
   }
@@ -272,6 +293,11 @@ export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
       return (run.firstFillMs ?? -1) < 0 ? Infinity : Math.max(0, (run.firstFillMs ?? 0) / 1000 - (outcome.atSec ?? 0));
     case "fill-on-bar":
       return (run.firstFillMs ?? -1) < 0 ? Infinity : barLineDistanceMs(run.firstFillMs ?? 0, 1000 * (outcome.atSec ?? barSeconds(120))) / 1000;
+    // --- bead-hoops --- 0 / 1 for the order; the seconds past the limit (never all up: Infinity)
+    case "lift-order":
+      return run.liftOrderOk === true ? 0 : 1;
+    case "all-up-by":
+      return (run.allUpMs ?? -1) < 0 ? Infinity : Math.max(0, (run.allUpMs ?? 0) / 1000 - (outcome.atSec ?? 0));
     default:
       return Infinity;
   }
@@ -309,6 +335,8 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
     case "fills-by": // --- loop-foundation --- (the first fill, 0 without one)
     case "fill-on-bar":
       return (run.firstFillMs ?? -1) >= 0 ? (run.firstFillMs ?? 0) / 1000 : 0;
+    case "all-up-by": // --- bead-hoops --- (every bead up, 0 when that never came)
+      return (run.allUpMs ?? -1) >= 0 ? (run.allUpMs ?? 0) / 1000 : 0;
     default:
       return run.durationMs / 1000;
   }
@@ -361,8 +389,21 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (CLOSE_BATTLE_MODES.includes(mode) && ctx.ballCount >= 2) out.push("close"); // --- land-claim ---
   if (mode === "grow" && ctx.growFinish) out.push("fills-by", "fill-on-bar"); // --- loop-foundation ---
   if (mode === "starChords") out.push("star-set"); // --- chord-stars --- (the best star set, its loop fitted to the clip)
+  if (mode === "hoops") out.push("lift-order", "all-up-by"); // --- bead-hoops ---
   return out;
 }
+
+// --- bead-hoops ---
+/**
+ * Whether a Spinning Hoops run being simulated can stop for its outcome: the first cycle's lift order is decided (every bead
+ * up, the order broken, or the ramp back down – no lift can come any more), or every bead is up / the limit passed without it.
+ */
+export function hoopsOutcomeSettled(outcome: FinderOutcome, elapsedMs: number, allUpMs: number, orderDecided: boolean): boolean {
+  if (outcome.kind === "lift-order") return orderDecided;
+  if (outcome.kind === "all-up-by") return allUpMs >= 0 || elapsedMs > 1000 * (outcome.atSec ?? 0) + FILL_SLACK_MS - 1e-6;
+  return false;
+}
+// --- end bead-hoops ---
 
 /** The outcome to search for: the one picked when it is available, else the first one available (null: none). */
 export function effectiveOutcome(picked: FinderOutcomeKind, available: readonly FinderOutcomeKind[]): FinderOutcomeKind | null {

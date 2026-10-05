@@ -90,3 +90,6 @@ export type { LandClaimSettings, LandClaimView, LandClaimField, LcArena, LcRule,
 // --- chord-stars ---
 export { StarChordsMode } from "./starChords";
 export type { StarChordsView, StarChordsField } from "./starChords";
+// --- bead-hoops ---
+export { HoopsMode } from "./hoops";
+export type { HoopsSettings, HoopsView, HoopsSchedule, HoopsPhase, HoopsRampShape } from "./hoops";

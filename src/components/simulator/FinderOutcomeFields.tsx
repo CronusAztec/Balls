@@ -38,6 +38,8 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "fills-by": "outcomeFillsBy", // --- loop-foundation ---
   "fill-on-bar": "outcomeFillOnBar", // --- loop-foundation ---
   "star-set": "outcomeStarSet", // --- chord-stars ---
+  "lift-order": "outcomeLiftOrder", // --- bead-hoops ---
+  "all-up-by": "outcomeAllUpBy", // --- bead-hoops ---
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -53,6 +55,8 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "fills-by": "hintFillsBy", // --- loop-foundation ---
   "fill-on-bar": "hintFillOnBar", // --- loop-foundation ---
   "star-set": "hintStarSet", // --- chord-stars ---
+  "lift-order": "hintLiftOrder", // --- bead-hoops ---
+  "all-up-by": "hintAllUpBy", // --- bead-hoops ---
 };
 
 /** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
@@ -215,6 +219,32 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
         </div>
       )}
       {/* --- end loop-foundation --- */}
+      {/* --- bead-hoops --- every bead up within a time limit (the escape slider's range and field) */}
+      {outcome === "all-up-by" && (
+        <div className="space-y-1.5" data-testid="finder-all-up-by">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-all-up-by">
+              {r("allUpBy")}
+            </label>
+            <span className="text-xs font-mono text-accent">≤ {escapeAt.toFixed(1)}s</span>
+          </div>
+          <input
+            id="find-all-up-by"
+            type="range"
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={escapeAt}
+            disabled={disabled}
+            onChange={(e) => onEscapeAt(Number(e.target.value))}
+            aria-label={r("allUpBy")}
+            className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
+            style={sliderStyle(escapeAt, range.min, range.max)}
+          />
+          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r("allUpBy")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" />
+        </div>
+      )}
+      {/* --- end bead-hoops --- */}
       {outcome === "winner" && (
         <div className="space-y-1.5">
           <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-winner">
@@ -276,6 +306,10 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findFillOnBar");
     case "star-set": // --- chord-stars ---
       return t("Rigged.findStarSet", { duration: c.duration });
+    case "lift-order": // --- bead-hoops ---
+      return t("Rigged.findLiftOrder");
+    case "all-up-by": // --- bead-hoops ---
+      return t("Rigged.findAllUpBy", { time: c.escapeAt.toFixed(1) });
     default:
       return null;
   }
@@ -305,6 +339,10 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundFillOnBar", { time: (result.fillAt ?? 0).toFixed(2) });
     case "star-set": // --- chord-stars --- (the stars found, the loops in the clip and the drawing time of each)
       return t("Rigged.foundStarSet", { stars: starSetText(result), loops: result.starChords?.loops ?? 0, cycle: (result.starChords?.cycleSec ?? 0).toFixed(2) });
+    case "lift-order": // --- bead-hoops ---
+      return t("Rigged.foundLiftOrder");
+    case "all-up-by": // --- bead-hoops ---
+      return t("Rigged.foundAllUpBy", { time: (result.allUpAt ?? 0).toFixed(2) });
     default:
       return null;
   }
@@ -335,6 +373,10 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return result.fillAt === undefined ? t("Rigged.missNoFill", { seeds: result.seedsTested }) : t("Rigged.missFillOnBar", { offset: barOffsetText(result.fillAt, c.barSec), seeds: result.seedsTested });
     case "star-set": // --- chord-stars --- (not even one loop fits the clip: `duration` is the shortest loop)
       return t("Rigged.missStarSet", { duration: result.duration.toFixed(1) });
+    case "lift-order": // --- bead-hoops ---
+      return t("Rigged.missLiftOrder", { seeds: result.seedsTested });
+    case "all-up-by": // --- bead-hoops ---
+      return result.allUpAt === undefined ? t("Rigged.missNoAllUp", { seeds: result.seedsTested }) : t("Rigged.missAllUpBy", { time: result.allUpAt.toFixed(1), seeds: result.seedsTested });
     default:
       return null;
   }
@@ -369,6 +411,10 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return result.fillAt === undefined ? t("Rigged.overlayNoFill", { tested: result.seedsTested }) : t("Rigged.overlayFillOnBar", { tested: result.seedsTested, offset: barOffsetText(result.fillAt, c.barSec) });
     case "star-set": // --- chord-stars ---
       return t("Rigged.overlayStarSet", { duration: result.duration.toFixed(1), target: c.duration });
+    case "lift-order": // --- bead-hoops ---
+      return t("Rigged.overlayLiftOrder", { tested: result.seedsTested });
+    case "all-up-by": // --- bead-hoops ---
+      return t("Rigged.overlayAllUpBy", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) });
     default:
       return null;
   }
@@ -403,5 +449,6 @@ export function outcomeProgressText(t: Translate, outcome: FinderOutcomeKind | n
   if (outcome === "never-settles") return t("Rigged.progressNeverSettles", { duration: progress.bestDuration.toFixed(1) });
   if (outcome === "resolves-at") return progress.bestDuration > 0 ? t("Rigged.progressResolvesAt", { time: progress.bestDuration.toFixed(1) }) : null;
   if (outcome === "close") return progress.bestDuration < 100 ? t("Rigged.progressClose", { margin: progress.bestDuration.toFixed(1) }) : null; // --- land-claim ---
+  if (outcome === "all-up-by") return progress.bestDuration > 0 ? t("Rigged.progressAllUpBy", { time: progress.bestDuration.toFixed(1) }) : null; // --- bead-hoops ---
   return null;
 }

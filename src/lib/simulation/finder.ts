@@ -18,6 +18,7 @@ import { countTolerance, resolveMultipliersSettings, type MultipliersSettings } 
 import { startBallCount } from "@/lib/physics/ballStats";
 import { rigNeverFinishes } from "@/lib/physics/rigged";
 import { outcomeClipSec, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcomeMiss, outcomeSettled, winnerNeedsEnd, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "./outcomes";
+import { hoopsOutcomeSettled } from "./outcomes"; // --- bead-hoops ---
 // --- jdm-double-pendulum ---
 import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions ---
@@ -53,6 +54,7 @@ import type { GrowFillSettings } from "@/lib/physics/modes/grow"; // --- loop-fo
 import { growRunFinishes } from "@/lib/physics/growFill"; // --- loop-foundation ---
 import type { StarChordsSettings } from "@/lib/physics/starChords"; // --- chord-stars ---
 import { findStarChordsRun, type StarChordsFound } from "./starChordsFinder"; // --- chord-stars ---
+import { hoopsSchedule, resolveHoopsSettings, type HoopsSettings } from "@/lib/physics/modes/hoops"; // --- bead-hoops ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -213,6 +215,13 @@ export interface ModeSettings {
    * drawing time that fits the clip instead (starChordsFinder.ts).
    */
   starChords?: Partial<StarChordsSettings>;
+  // --- bead-hoops ---
+  /**
+   * Spinning Hoops: the hoops, the spin, the beads and the return (see modes/hoops.ts); the defaults when left out. With the
+   * return a run loops forever (no length to search: the lift order and "all up within" still are); without it the run lasts
+   * its ramp and top hold, whatever the seed.
+   */
+  hoops?: Partial<HoopsSettings>;
 }
 
 // --- odd-string-battle ---
@@ -268,8 +277,9 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */ & Partial<Pick<ModeSettings, "hoops">> /* --- bead-hoops --- */): boolean {
   if (mode === "grow" && growRunFinishes(settings.grow)) return false; // --- loop-foundation --- ("finish": the run ends at the fill)
+  if (mode === "hoops") return resolveHoopsSettings(settings.hoops).returnLoop; // --- bead-hoops --- (the return loops forever)
   if (ENDLESS_MODES.includes(mode)) return true;
   // --- review fix (modes-rhythm) --- Picture Paint follows the page's picture and song: no length the finder can replay
   if (mode === "paint") return settings.paintPicture === true;
@@ -323,6 +333,11 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
   if (mode === "landClaim") {
     const lc = resolveLandClaimSettings((settings as Pick<ModeSettings, "landClaim">).landClaim);
     return lc.rule === "steal" ? lc.duration : null;
+  }
+  // --- bead-hoops --- without the return a run lasts its ramp and its top hold, whatever the seed (with it, it never ends)
+  if (mode === "hoops") {
+    const h = resolveHoopsSettings((settings as Partial<Pick<ModeSettings, "hoops">>).hoops);
+    return h.returnLoop ? null : hoopsSchedule(h).cycle;
   }
   if (mode !== "pendulum") return null;
   const p = resolvePendulumSettings(settings.pendulum);
@@ -412,6 +427,9 @@ export interface FinderResult {
   // --- chord-stars ---
   /** Chord Stars: the star set found, the drawing time that fits the clip, the loops in it and the set's score. */
   starChords?: StarChordsFound;
+  // --- bead-hoops ---
+  /** Spinning Hoops: when every bead was first up (seconds) in the run found – or in the closest one – when that came. */
+  allUpAt?: number;
 }
 
 /**
@@ -480,6 +498,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "landClaim") engine.setLandClaimSettings(settings.landClaim ?? {}); // --- land-claim ---
   if (mode === "grow") engine.setGrowFillSettings(settings.grow ?? {}); // --- loop-foundation --- (before the init: the law and the start apply there)
   if (mode === "starChords") engine.setStarChordsSettings(settings.starChords ?? {}); // --- chord-stars ---
+  if (mode === "hoops") engine.setHoopsSettings(settings.hoops ?? {}); // --- bead-hoops ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -875,6 +894,8 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   const orbs = request.mode === "orbGrid"; // --- orb-grid ---
   const growRun = request.mode === "grow"; // --- loop-foundation --- (Grow's first fill, real time)
   let firstFill = -1;
+  const hoopsRun = request.mode === "hoops"; // --- bead-hoops --- (the first moment every bead is up, real time; the first cycle's lift order)
+  let allUp = -1;
   while (elapsed < horizonMs - 1e-6) {
     engine.update(step, 0);
     elapsed += step;
@@ -883,8 +904,10 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     if (orbs && firstResolve < 0 && engine.getOrbGridView().resolveAtMs >= 0) firstResolve = elapsed; // --- orb-grid ---
     if (orbs && settledAt < 0 && engine.getOrbGridView().allSettled) settledAt = elapsed; // --- orb-grid ---
     if (growRun && firstFill < 0 && engine.getGrowView().fills > 0) firstFill = elapsed; // --- loop-foundation ---
+    if (hoopsRun && allUp < 0 && engine.getHoopsView().firstAllUpMs >= 0) allUp = elapsed; // --- bead-hoops ---
     finished = engine.isSimulationFinished();
     if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode, firstResolve, settledAt, firstFill)) break;
+    if (hoopsRun && hoopsOutcomeSettled(outcome, elapsed, allUp, engine.getHoopsView().orderDecided)) break; // --- bead-hoops ---
     if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
     // --- odd-maze --- the maze's verdict is final once a ball is out: another ball's win ends the search of this seed
     if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
@@ -897,7 +920,10 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   const teams = engine.getTeamStats().slice(0, lcView ? Math.min(lcView.teams, MAX_TEAMS) : teamCount).map((t) => ({ ...t }));
   // --- fight-league --- a finished fight that ended with every side down together: a double KO
   const doubleKo = request.mode === "fightLeague" && finished ? engine.getFightLeagueView().doubleKo : undefined;
-  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */ };
+  // --- bead-hoops --- the first cycle's lift order: strict size order (and at least one lift), once it was decided
+  const hv = hoopsRun ? engine.getHoopsView() : null;
+  const hoopsSummary = hv ? { allUpMs: allUp, liftOrderOk: hv.orderDecided && hv.orderOk && hv.firstLifts > 0 } : {};
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...hoopsSummary /* --- bead-hoops --- */ };
 }
 
 /** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */
@@ -917,6 +943,7 @@ function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgres
       ...(run && run.firstEscapeMs >= 0 ? { escapeAt: run.firstEscapeMs / 1000 } : {}),
       ...(run && (run.firstResolveMs ?? -1) >= 0 ? { resolveAt: (run.firstResolveMs ?? 0) / 1000 } : {}), // --- orb-grid ---
       ...(run && (run.firstFillMs ?? -1) >= 0 ? { fillAt: (run.firstFillMs ?? 0) / 1000 } : {}), // --- loop-foundation ---
+      ...(run && (run.allUpMs ?? -1) >= 0 ? { allUpAt: (run.allUpMs ?? 0) / 1000 } : {}), // --- bead-hoops ---
     });
     const runBatch = () => {
       if (signal?.aborted) {

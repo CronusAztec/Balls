@@ -15,7 +15,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 
 | Area | What you get |
 | --- | --- |
-| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
+| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow; collision-safe at every amplitude and speed) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Merge & split balls** | A ball-interaction setting in the Ball section: balls **bounce** (default), **merge** into one bigger ball on contact (area and momentum conserved, colours blended, a particle burst and a low tone), **split** in two every time a ball breaks through a wall (half the area each, diverging velocities, a high tone – down to a smallest size and up to a ball cap) or **pass** through each other. Works in the two-ball modes and Multiply, is deterministic (seeds and Find Simulation include it) and shared via the URL (`bi`, `smr`, `mb`) |
@@ -90,6 +90,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Sharded smoke test** | The browser smoke test (`scripts/smoke-test.mjs`, some 750 checks, ~45 minutes on one runner) runs in CI as **four shards on four runners at once**, about 12 minutes each (feature smoke-sharding): the suite is a list of blocks – `await smokeBlock("title", async () => { … })`, each setting up its own page – split at block level, never at check level, by a greedy longest-first balance over the blocks' wall times in `scripts/smoke-timing.json` (a block the file does not know weighs the median, so a new block gets a shard by itself). `--shard i/N` / `SMOKE_SHARD=i/N` runs one part, `SMOKE_ONLY=<title>` single blocks, `--list` prints the split, `--write-timing` refreshes the baseline, every run prints its 15 slowest blocks, and a narrowed run starts every block from a clean page. The `smoke` job of deploy.yml and smoke.yml is a matrix of the four shards; `smoke-summary` merges their screenshots and slowest blocks and gates the deploy (see [Smoke test shards](#smoke-test-shards)) |
 | **Loop foundation & Grow: fill and loop** | The first family of the loop-clip account's simulations (feature loop-foundation). An original synthesized sound library (`src/lib/audio/loopTones.ts`, `ToneGenerator.playLoop()`: pentatonic plucks, tuned bars, a progress ladder, a groove bed, impact accents, a completion chord, reset glides and washes, a field drone – every voice scheduled on the simulation clock under a per-tick voice budget, with optional clip slots for your own sounds that never leave the device), the offline mix of the fast export and the batch render normalised to −14 LUFS with its true peak at most −1 dBTP (BS.1770), the loop contract (a mode reports its seamless cycle; **Export whole loops** cuts recordings, fast exports and batch renders to a whole number of cycles), a lowercase **loop HUD** drawn into the frames, a **Loop style** caption preset in Publish, and Grow's fill-and-loop upgrade: growth law approach / multiply / add, when it fills stay / loop / finish, hold and shrink, colour by size, contact markers, pitch by size, the presets Fill and loop, Slow burn, Instant and Classic grow, and Find Simulation's "Fills within" and "Fill on a bar line". See [Grow: fill and loop](#grow-fill-and-loop) and [Loop foundation](#loop-foundation-sounds-whole-loops-and-the-loop-hud). |
 | **Chord Stars** | A rhythm-family mode of the loop family (`starChords`, feature chord-stars) after the loop-clip account's "five stars, all closing at once" clip: 1–12 balls (any number typed) ride inside one thin lavender circle on navy, each drawing a star polygon n/k – every bounce keeps its angle, so the contact point steps k of n points round the rim and every chord touches one inner circle of radius R·cos(πk/n). The motion is analytic (no solver: at cycle time t ball i has made ⌊t·nᵢ/T⌋ bounces), every ball moves at nᵢ·chordᵢ/T so **every star closes on the same frame** at any frame rate, then the drawing holds, fades and loops (the loop contract: whole loops of drawing + hold + fade). Stars as typed `n/k` pairs or a random coprime set, drawing time, hold, fade, start spread, line width, inner circles (when closed / always / off), pastel / rainbow / ball colours, a pentatonic pluck, chime or bar per bounce pitched by the ball's speed, a completion chord with a reset glide, the loop HUD's "stars closed 3/5" counter, the presets Five stars, Seven-point bloom and Heptagram duel, and a Find Simulation outcome that picks the best-looking star set and fits the loop to the clip. See [Chord Stars](#chord-stars). |
+| **Spinning Hoops** | A rhythm-family mode without rings (`hoops`, feature bead-hoops) after the loop-clip account's bifurcation reel ("the biggest hoop's bead lifts first"): 1–16 concentric rainbow hoops (eight by default, red outside, violet inside) spin together about their vertical diameter, drawn face-on and squashed sideways by the cosine of their turn so they read as 3D, each with one bead sliding on it (θ″ = sin θ (ω² cos θ − g/R) − c θ′, RK4 in 8+ sub-steps a 60 Hz step). The spin ramps from 0.13 to 1.2 turns a second – linear, eased or one step a hoop – and past each hoop's critical spin √(g/R) its bead climbs to arccos(g/(Rω²)), the biggest hoop's first: every lift a tuned bar note pitched by its hoop, a glock chime every turn, a chord when all are up. The return ramps the spin back down until every bead rests again – a seamless loop of whole turns for **Export whole loops**. The presets **8 rainbow hoops**, **One hoop, slow** and **Twin hoops** bring the clip's navy page and the loop HUD ("spin faster, and the beads climb", the amber counter "0.13 turns a second · 0 of 8 beads up"); Find Simulation searches **Lifts in size order** and **All up within**. See [Spinning Hoops](#spinning-hoops-the-loop-clip-family). |
 
 ## Design
 
@@ -1691,6 +1692,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `fightLeague` | Thor and Loki clashing, the VS card gone, hammer and daggers mid-swing | 11 | 5.25 s | – | x 0.5 · y 0.361 · zoom 1.151 |
 | `landClaim` | half the wall taken: the columns a mosaic of the four countries' colours | 3 | 5 s | `teams=France,Brazil,Spain,Colombia…&lcm=claim&lch=0&tsb=0&tn=0` | x 0.5 · y 0.587 · zoom 1.25 |
 | `starChords` | the five stars just closed together: every chord drawn, the inner circles lit, the closing flash | 1 | 12.3 s | `lh=0` | zoom 1.2 |
+| `hoops` | all eight beads up at the top spin, lined up level across the face-on rainbow hoops (g/ω² under the centre) | 1 | 12.9 s | `bg1=0b1020&bg2=0b1020` | – |
 
 ### Watermark on every free simulation
 Feature watermark-everywhere – the owner's request (2026-10-04): "add the watermark to all simulations made without pro". The
@@ -1918,6 +1920,69 @@ Feature chord-stars – the loop family's star-polygon clip ("five stars, all cl
   round trip, the finder, the sound scheduling through `tests/fakeAudio.ts`); the smoke test (section 39) runs three cycles
   at 4× and checks that every cycle drew Σn chords – by the run's clock and on the canvas' chord layer –, the URL round trip
   of the block, the HUD's counter, the plucks' pitches, the finder's outcome and a fast export of whole loops.
+
+### Spinning Hoops (the loop-clip family)
+Feature bead-hoops – the loop-clip account's bifurcation reel ("the biggest hoop's bead lifts first 🔊") as a rhythm-family
+mode without rings (`hoops`: the physics in `src/lib/physics/modes/hoops.ts`, the settings, URL keys and presets in
+`src/lib/physics/hoopsFields.ts`, the picture in `src/components/simulator/hoopsRenderer.ts`, the panel block in
+`src/components/simulator/sections/HoopsSection.tsx`):
+
+- **The physics**: **Hoops** (`hpCount`, 1–16 on the slider, URL `hpn`; any count typed, built up to the memory ceiling)
+  with radii evenly spaced from **Outer hoop** to **Inner hoop** (`hpRadiusMax` 0.75 and `hpRadiusMin` 0.25 of the half
+  field, which is one metre – the rig leaves the loop HUD its margins; URL `hprx`, `hprn`) spin together about their vertical
+  diameter, one bead sliding on each:
+  θ″ = ω² sin θ cos θ − (g/R) sin(θ − α) − c θ′ (with α = 0 the textbook sin θ (ω² cos θ − g/R) − c θ′), integrated with
+  classic RK4 in at least 8 sub-steps a 60 Hz step – more for stiff hoops, counted from the simulation time alone, so 30, 60
+  and 120 fps replay the same run; a bead past the sub-steps' reach rests on its balance point instead of blowing up. Below a
+  hoop's critical spin ω_c = √(g/R) its bottom is stable; past it the bead climbs to θ* = arccos(g/(Rω²)), higher the faster
+  the spin (a pitchfork bifurcation): bigger hoops lift first, and every bead that is up sits the same g/ω² under the centre,
+  so the beads line up level across the hoops and rise together as the spin climbs. **Hoop gravity** (`hpGravity`, 9.81 m/s², URL `hpg`),
+  **Bead damping** (`hpDamping`, 1/s, URL `hpd`) and the **Axis tilt** α (`hpJitter`, 0.004 rad, URL `hpj`) – the
+  imperfection that keeps the symmetric bottom from being a fixed point, so a bead climbs promptly once past ω_c (at 0 it may
+  balance on its bottom: an extreme, not a bug). The only random draws, in this order, from the run's seed: the side the axis
+  tilts to, then each hoop's tilt factor in [0.9, 1.1], outermost first.
+- **The spin**: **Start spin** (`hpOmegaStart`, 0.13 turns a second, URL `hpw0`) to **Top spin** (`hpOmegaEnd`, 1.2, URL
+  `hpw1`) over **Ramp up** (`hpRamp`, 12 s, URL `hpr`) in a **Ramp shape** (`hpRampShape`, URL `hps`: linear, ease – a cubic
+  in and out – or steps, one equal step a hoop with eased risers), a **Top hold** (`hpHold`, 2 s, URL `hph`), and with
+  **Return and loop** (`hpReturn`, on, URL `hprt`) the ramp mirrored over the **Return ramp** (`hpReturnSec`, 6 s, URL
+  `hprs`), then 3 s at the start spin while the beads settle. The schedule is closed-form (the spin and its turns at any
+  time); the hold is stretched by less than a turn so a cycle holds whole turns, and the last second before the seam eases
+  every bead onto its exact rest state, so the clip's last frame flows into its first: the mode reports its cycle and seams to
+  the loop contract (**Export whole loops**, `data-loop-cycle`). Without the return the run ends after the hold. The block
+  names the spins the outer and the inner bead lift at, and warns when the top spin leaves beads at the bottom.
+- **The picture**: every hoop an ellipse 2R |cos φ| wide and 2R tall (φ = 2π × the schedule's turns at the frame's own
+  simulation time), rainbow by hoop (Rainbow Walls; else the wall colour) in the Wall Thickness with the Wall Glow, the half
+  turned away dimmer; every bead at x = R sin θ cos φ, y = R cos θ, its size and light following its depth, glowing in its
+  hoop's colour; a faint vertical axis and a pivot disc under the hoops. With the loop HUD on (the presets turn it on; off
+  by default, as in every mode) the mode's words are "spin faster, and the beads climb", the grey subtitle "the bigger the
+  hoop, the sooner its bead lifts" and the amber counter "0.13 turns a second · 0 of 8 beads up" (in the page's language and decimal style; "… of 1 bead up" with one
+  hoop), laid out around the hoops and clear of the watermark. The canvas reports the run in `data-hoops-*` (count, beads
+  up, lifts and their order, settles, ticks, spin, phase, cycle, the all-up moment).
+- **The sounds** (the loop family's voices through `ToneGenerator.playLoop()`, so the page, the fast export, the batch render
+  and the bot sound alike): a glock chime on every turn, higher as the spin climbs – six pentatonic degrees from A5 up to A6,
+  the glock register (**Spin chime**, `hpTick`, on, URL `hpt`); a tuned-bar strike when a bead passes 5° above its bottom while the spin is past its critical speed, pitched by its
+  hoop on the G pentatonic (bigger is lower); the completion chord on G2 when every bead is up; a soft pluck an octave under
+  its bar as each bead settles on the return; at the reset a hard cut and a glide from G2 up to the outer hoop's bar that ends
+  exactly on the seam; and with **Groove bed** (`hpBed`, off, URL `hpb`) a pad and sub from the first lift to the reset
+  (or to the end of a run without the return; switched off mid-run, it stops at once).
+- **Loop-style caption** (the Publish caption editor's **Loop style**): the hoop count leads the hook – "8 hoops spinning
+  faster and faster: the beads climb in order, the biggest hoop first 🔊" ("1 hoop spinning faster and faster, until its bead
+  starts to climb" with one hoop) –, a plain-English fact under it with checkable numbers (the critical spin √(g/R): about
+  0.58 turns a second for a 75 cm radius, almost a full turn for 25 cm) and #satisfying #oddlysatisfying #physics #math
+  #creativecoding (`LoopCaption.hoops*`, `loopCaptionContext()`).
+- **Presets** (the top of the block; each brings the clip's navy page, rainbow hoops, the HUD and a clip of one whole
+  cycle): **8 rainbow hoops** (the defaults), **One hoop, slow** (one hoop at 0.75, an eased 20 s ramp to 0.9 turns a
+  second) and **Twin hoops** (0.75 and 0.4, the spin in two steps: one bead a step).
+- **Find Simulation**: a looping run has no length to find, but **Lifts in size order** (the first cycle's beads leave
+  their bottoms in strict size order – true by physics unless the tilt or the damping is extreme; close twin hoops on a steep
+  tilt split the seeds) and **All up within** (every bead up within a time limit) are searched, and a found run records one
+  whole cycle. Without the return a run's length is fixed (the ramp and the hold).
+- **Tests**: `tests/hoops.test.ts` – the stable bottom (within 1e-6) below ω_c and the balance point (within 1e-3) above
+  it, the lift order on every seed, the schedule's whole turns and mirrored return, the fingerprints pinned at 30, 60 and 120
+  fps, the sound events and their scheduling on the fake Web Audio graph, the chime's register and the bed's stops, the
+  seamless cycle and the HUD counter, the finder outcomes, the URL keys, the presets and the loop-style caption; the smoke test (section 40, the `bead-hoops` block) runs the mode for 20 s and sees its eight lifts in
+  order, round-trips the URL and the panel, reads the HUD, finds both outcomes, fast-exports whole loops and checks that a
+  free visitor's watermark stays clear of the HUD.
 
 ## Windows app
 

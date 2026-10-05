@@ -142,6 +142,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   landClaim: { samples: [[328386,444514],[369351,237432],[436782,420717],[255355,223244],[467695,452667],[322641,326623],[561586,483469],[293545,478909]], broken: [], walls: [] },
   // --- chord-stars --- (the balls pinned to the clock: the pentagram's and the first heptagram's ball at 2.5, 5, 7.5 and 10 s)
   starChords: { samples: [[514893,467278],[349436,287981],[226115,232202],[424452,483190],[566459,262864],[398333,227610],[292533,411349],[249339,295602]], broken: [], walls: [] },
+  // --- bead-hoops --- (recorded when the mode was added: no rings – the beads ride the mode's own hoops, the outer two sampled)
+  hoops: { samples: [[398959,524996],[399063,503568],[400439,524949],[400329,503540],[190985,380152],[247202,433490],[411377,358020],[409929,373831]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {
