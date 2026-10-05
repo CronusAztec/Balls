@@ -182,6 +182,9 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   lcTeams: 1_000,
   lcBalls: BOARD_BALL_CEILING,
   // --- end land-claim ---
+  // --- bead-hoops --- Spinning Hoops: the hoops a run builds (a bead each: an engine ball, a dozen numbers and an RK4 integration
+  // a sub-step; every frame draws each hoop as an ellipse)
+  hpCount: ENTITY_CEILING,
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

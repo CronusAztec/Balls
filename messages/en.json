@@ -1967,7 +1967,50 @@
     "loopClipReplace": "Replace",
     "loopClipClear": "Clear",
     "loopClipGain": "{slot} clip level",
-    "loopClipFailed": "This file could not be decoded – try an MP3, WAV, OGG or M4A."
+    "loopClipFailed": "This file could not be decoded – try an MP3, WAV, OGG or M4A.",
+    "modeHoops": "Spinning Hoops",
+    "hpPresets": "Hoop presets",
+    "hpPresetsTip": "One click sets the hoops, the spin and the clip's look (the navy page, rainbow hoops, the title and the counter) and a clip of one whole cycle: eight rainbow hoops, one big hoop on a slow eased ramp, or two hoops climbing in two steps.",
+    "hpPresetRainbow8": "8 rainbow hoops",
+    "hpPresetOneSlow": "One hoop, slow",
+    "hpPresetTwin": "Twin hoops",
+    "hpCount": "Hoops",
+    "hpCountTip": "How many concentric hoops spin together, one bead on each, evenly spaced from the outer to the inner radius. 1–16 on the slider; type any count (thousands are built).",
+    "hpRadiusMax": "Outer hoop",
+    "hpRadiusMaxTip": "The biggest hoop's radius as a share of the half field (the half field is one metre). A bigger hoop lifts its bead at a slower spin.",
+    "hpRadiusMin": "Inner hoop",
+    "hpRadiusMinTip": "The smallest hoop's radius as a share of the half field. A smaller hoop needs a faster spin before its bead climbs.",
+    "hpOmegaStart": "Start spin",
+    "hpOmegaStartTip": "The spin at the start of every cycle, in turns a second (0.13 in the clip). Below a hoop's critical spin its bead sits at the bottom.",
+    "hpOmegaEnd": "Top spin",
+    "hpOmegaEndTip": "The spin the ramp reaches, in turns a second. Every hoop whose critical spin is below it lifts its bead, and a bead climbs higher the faster the spin.",
+    "hpCritical": "The outer bead lifts past {outer} turns a second, the inner one past {inner}.",
+    "hpCriticalOne": "The bead lifts past {outer} turns a second.",
+    "hpNeverLifts": "{count, plural, one {# bead never lifts at this top spin.} other {# beads never lift at this top spin.}}",
+    "hpRamp": "Ramp up",
+    "hpRampTip": "Seconds the spin takes to climb from the start spin to the top spin. A slow ramp spaces the lifts out.",
+    "hpRampShape": "Ramp shape",
+    "hpRampShapeTip": "Linear climbs at a steady rate; Ease starts and ends gently; Steps climbs in as many equal steps as there are hoops – one bead a step.",
+    "hpShapeLinear": "Linear",
+    "hpShapeEase": "Ease",
+    "hpShapeSteps": "Steps",
+    "hpHold": "Top hold",
+    "hpHoldTip": "Seconds at the top spin before the spin comes back down (or the run ends). It is stretched by less than a turn so every cycle holds whole turns.",
+    "hpReturn": "Return and loop",
+    "hpReturnTip": "Ramp the spin back down until every bead rests at its bottom again, then start over: a seamless loop (Export whole loops cuts the clip on the seam). Off: the run ends after the top hold.",
+    "hpReturnSec": "Return ramp",
+    "hpReturnSecTip": "Seconds the spin takes to come back down to the start spin; the beads drop back in reverse order.",
+    "hpGravity": "Hoop gravity",
+    "hpGravityTip": "Gravity pulling the beads down, in m/s² (9.81 on Earth). Stronger gravity raises every hoop's critical spin, √(g/R).",
+    "hpDamping": "Bead damping",
+    "hpDampingTip": "How quickly a bead's swing dies down, per second. 0 lets the beads swing around their balance points forever; more keeps them calm.",
+    "hpJitter": "Axis tilt",
+    "hpJitterTip": "A tiny tilt of the spin axis in radians – the imperfection every real hoop has – to a side the seed picks, so the beads climb promptly to that side. At 0 a bead can balance on its bottom past the critical spin.",
+    "hpTick": "Spin chime",
+    "hpTickTip": "A glock chime every turn, pitched higher as the spin climbs.",
+    "hpBed": "Groove bed",
+    "hpBedTip": "A soft pad and sub on G that enters with the first lift and stops at the reset.",
+    "hpTurnsUnit": "turns/s"
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -2114,6 +2157,10 @@
     "landClaim": {
       "name": "Land Claim",
       "description": "Columns of blocks line a square, hexagon or circle arena; colour balls knock the top blocks off, every eighth block spawns another ball, and the most blocks wins – DOMINATION or SUCH A CLOSE BATTLE."
+    },
+    "hoops": {
+      "name": "Spinning Hoops",
+      "description": "Rainbow hoops spin faster and faster about their vertical axis, a bead on each. Past each hoop's critical speed the bottom stops being the lowest place and its bead climbs – the biggest hoop's first, one hoop at a time – every lift a tuned bar note; then the spin comes back down and the loop starts over."
     }
   },
   "FAQ": {
@@ -2233,7 +2280,8 @@
     "modeConveyor": "A conveyor belt runs across the top of the field and drops a ball into the arena below every few seconds – Gerald respawns, again and again. Pick the arena: concentric rings with rotating gaps that every ball has to escape on its own (the rings never break, and a second belt carries the escaped balls out of the field), a bowl that fills up until it spills over, or a peg field that sorts the balls into bins. Freeze on Landing turns every ball that lands into an obstacle for the next one, so the pile grows; Variety mixes sizes and colours. Every bounce is a note of your scale, the belt hums and clicks, and the counter keeps score – Loaded 17 / Escaped 4. In Classic and Multiply the same respawn timer drops in a new ball every few seconds. Seeded and deterministic, so Find Simulation can pick a run of your clip length.",
     "modeOrbGrid": "A field of orbs – a square grid, a disc, octagon rings or a hex grid, 33 × 33 = 1089 by default and no upper limit – seen in perspective on a slab or a round plate, every orb bouncing straight up and down on its own spot. In the rhythm model (the default) each orb is an ideal bouncer that keeps its height forever: the field splits into groups – rows, columns, rings, diagonals, a checkerboard or every orb alone – that bounce a whole number of times per cycle: a pendulum wave, 3 against 2, 4 against 3, 3:4:5, a Euclidean ladder, corner to corner or centre outwards. The heights form a travelling wave that morphs through ripples and groups, and at the end of every cycle every orb lands together – IN PHASE. A metronome keeps the beat with a woodblock click and a swinging bar, a pulsing ring or a hopping dot, the cycle snapping to whole bars, and with Melody on every group plays its own note of the scale. The decay model lets the orbs lose energy instead: one property varies across the field – bounciness, drop height, release delay, size, gravity or period – they drift in and out of phase until they rest, and Find Simulation can pick a run of your clip length. Colour them by height, make them glossy, metallic, matte or glass; every landing is a soft note, a sleep sound, a melody composed by the bounces or metal clinks.",
     "modeFightLeague": "Fighters from video games, comics, TV shows and movies – Thor, Loki, Captain Falcon, Little Mac, Yuumi, Katarina and fifty-odd more, grouped into divisions so a matchup stays in its genre – duel as balls in a square or round arena. Every fighter carries its own weapon, drawn as a simple vector silhouette: swords sweep on every bounce, hammers fly at the foe and come back, fists punch, guns, bows and wands fire, breath and beams burn. A hit takes HP – the number inside the ball and the bar under it – knocks the foe back and charges the ability meter in the box at the bottom; when it is full, the ability's name flashes for 0.4 s and it fires by itself: lightning, decoys, beams, chokes, shockwaves, summons, bullet time. Play 1v1, 2v2 or a free-for-all; the last fighter or team standing wins, or the side with more HP at the time cap. Seeded and deterministic: Find Simulation finds a run A or B wins, a double KO or a fight of your clip length – and the Forced Winner rigs it.",
-    "modeLandClaim": "A land-claim battle: columns of blocks stand on the inside of a square, hexagon or circle wall, and two or more competitors – a Teams roster of countries gives them their flags, names and colours – bounce their balls around inside at a constant speed. Under the knock rule a ball that hits a column takes its top block: the block flies off in the hitter's colour and counts for it, and every eighth block a competitor knocks adds another ball of its colour at the knock point, so a lead snowballs into a swarm. The claim rule paints the blocks where they stand instead, and the steal rule lets a hit take a rival's block back – the land sways until the clock runs out. The battle ends when the wall is taken or at its duration, and the most blocks wins: DOMINATION past 60% of the land, SUCH A CLOSE BATTLE when the top two are within 5%. Every seed replays exactly, Find Simulation searches for a chosen winner, a close battle or a run that ends at a chosen second, and the Forced Winner favours a colour by aiming its rebounds at the land still to take."
+    "modeLandClaim": "A land-claim battle: columns of blocks stand on the inside of a square, hexagon or circle wall, and two or more competitors – a Teams roster of countries gives them their flags, names and colours – bounce their balls around inside at a constant speed. Under the knock rule a ball that hits a column takes its top block: the block flies off in the hitter's colour and counts for it, and every eighth block a competitor knocks adds another ball of its colour at the knock point, so a lead snowballs into a swarm. The claim rule paints the blocks where they stand instead, and the steal rule lets a hit take a rival's block back – the land sways until the clock runs out. The battle ends when the wall is taken or at its duration, and the most blocks wins: DOMINATION past 60% of the land, SUCH A CLOSE BATTLE when the top two are within 5%. Every seed replays exactly, Find Simulation searches for a chosen winner, a close battle or a run that ends at a chosen second, and the Forced Winner favours a colour by aiming its rebounds at the land still to take.",
+    "modeHoops": "No rings: 1–16 concentric hoops (eight by default, red outside, violet inside) spin together about their vertical diameter, drawn face-on and squashed by the spin so they read as 3D, each carrying one bead that slides without friction. The spin ramps up – steadily, eased or in steps – and every hoop has a critical speed, √(g/R): below it gravity keeps the bead at the bottom, past it the bead climbs to its balance point arccos(g/(Rω²)), higher the faster the spin. Bigger hoops lift first, so the beads climb in strict size order, each lift a tuned bar note pitched by its hoop; a chime ticks every turn, a chord lands when every bead is up, and the counter reads the spin and the beads up. With Return on the spin ramps back down until every bead rests again and the loop starts over seamlessly, ready for Export whole loops; Find Simulation searches for a run in strict size order or one with every bead up within a time."
   },
   "Footer": {
     "navLabel": "Footer",
@@ -2588,7 +2636,22 @@
     "missFillOnBar": "Closest fill: {offset}s off a bar line ({seeds} seeds)",
     "overlayFillsBy": "Tested {tested} seeds: none filled the circle within {target}s. Try a bigger growth per bounce, a bigger start size or a faster ball.",
     "overlayNoFill": "Tested {tested} seeds: none filled the circle within the search. Try a bigger growth per bounce.",
-    "overlayFillOnBar": "Tested {tested} seeds: the closest fill landed {offset}s off a bar line. Try another BPM or growth per bounce."
+    "overlayFillOnBar": "Tested {tested} seeds: the closest fill landed {offset}s off a bar line. Try another BPM or growth per bounce.",
+    "outcomeLiftOrder": "Lifts in size order",
+    "outcomeAllUpBy": "All up within",
+    "hintLiftOrder": "The first cycle's beads leave their bottoms in strict size order – the biggest hoop's first, never a smaller hoop's bead before a bigger one's (true by physics unless the axis tilt or the damping is extreme).",
+    "hintAllUpBy": "Every bead is up within the chosen time limit.",
+    "allUpBy": "All up within",
+    "findLiftOrder": "Find a Run in Strict Size Order",
+    "findAllUpBy": "Find All Up within {time}s",
+    "foundLiftOrder": "Found! The beads lift in strict size order",
+    "foundAllUpBy": "Found! All up at {time}s",
+    "missLiftOrder": "No run lifted in strict size order ({seeds} seeds)",
+    "missNoAllUp": "No run had every bead up ({seeds} seeds)",
+    "missAllUpBy": "Closest: all up at {time}s ({seeds} seeds)",
+    "overlayLiftOrder": "Tested {tested} seeds and none lifted in strict size order. Try a smaller axis tilt, less damping or hoops further apart.",
+    "overlayAllUpBy": "Tested {tested} seeds: none had every bead up within {target}s. Try a faster top spin, a shorter ramp or a later limit.",
+    "progressAllUpBy": "Closest all up: {time}s"
   },
   "FastExport": {
     "button": "Fast export",
@@ -4331,7 +4394,11 @@
   "LoopHud": {
     "growTitle": "it grows with every bounce",
     "growSubtitle": "how many bounces to fill the circle?",
-    "growCounter": "{count} bounces"
+    "growCounter": "{count} bounces",
+    "hoopsTitle": "spin faster, and the beads climb",
+    "hoopsSubtitle": "past a critical speed the bottom stops being the lowest place – bigger hoops first",
+    "hoopsCounter": "{rate} turns a second · {count} of {total} beads up",
+    "hoopsCounterOne": "{rate} turns a second · {count} of 1 bead up"
   },
   "LoopCaption": {
     "growMultiply": "{count}% bigger every bounce until it fills the circle",

@@ -83,6 +83,11 @@ MODE_CARD_ORDER.push("journey");
   const at = after >= 0 ? after : MODE_CARD_ORDER.indexOf("territory");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "landClaim");
 }
+// --- bead-hoops --- Spinning Hoops joins the rhythm family right after Pendulum Wave (the same family of maths, in a spinning frame)
+{
+  const at = MODE_CARD_ORDER.indexOf("pendulum");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "hoops");
+}
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -155,6 +160,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   fightLeague: "rhythm",
   // --- land-claim --- competitors knock blocks off the columns lining the arena, the most land wins: the battle family
   landClaim: "battle",
+  // --- bead-hoops --- every turn is a chime and every bead that climbs a bar note pitched by its hoop: the sound-first family
+  hoops: "rhythm",
 };
 
 /** The modes of a category in card order. */

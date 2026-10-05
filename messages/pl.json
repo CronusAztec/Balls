@@ -1958,7 +1958,50 @@
     "loopClipReplace": "Zamień",
     "loopClipClear": "Usuń",
     "loopClipGain": "Poziom klipu: {slot}",
-    "loopClipFailed": "Nie udało się zdekodować pliku – spróbuj MP3, WAV, OGG albo M4A."
+    "loopClipFailed": "Nie udało się zdekodować pliku – spróbuj MP3, WAV, OGG albo M4A.",
+    "modeHoops": "Wirujące obręcze",
+    "hpPresets": "Gotowe obręcze",
+    "hpPresetsTip": "Jedno kliknięcie ustawia obręcze, obroty i wygląd klipu (granatowe tło, tęczowe obręcze, tytuł i licznik) oraz klip długości jednego pełnego cyklu: osiem tęczowych obręczy, jedna duża obręcz na wolnej, łagodnej rampie albo dwie obręcze wspinające się w dwóch krokach.",
+    "hpPresetRainbow8": "8 tęczowych obręczy",
+    "hpPresetOneSlow": "Jedna obręcz, wolno",
+    "hpPresetTwin": "Dwie obręcze",
+    "hpCount": "Obręcze",
+    "hpCountTip": "Ile współśrodkowych obręczy wiruje razem – na każdej jeden koralik – w równych odstępach od promienia zewnętrznego do wewnętrznego. Na suwaku 1–16; wpisz dowolną liczbę (powstaną nawet tysiące).",
+    "hpRadiusMax": "Obręcz zewnętrzna",
+    "hpRadiusMaxTip": "Promień największej obręczy jako część połowy pola (połowa pola to jeden metr). Większa obręcz unosi koralik przy wolniejszych obrotach.",
+    "hpRadiusMin": "Obręcz wewnętrzna",
+    "hpRadiusMinTip": "Promień najmniejszej obręczy jako część połowy pola. Mniejsza obręcz potrzebuje szybszych obrotów, zanim jej koralik się wespnie.",
+    "hpOmegaStart": "Obroty na starcie",
+    "hpOmegaStartTip": "Obroty na początku każdego cyklu, w obrotach na sekundę (w klipie 0,13). Poniżej obrotów krytycznych obręczy jej koralik leży na dnie.",
+    "hpOmegaEnd": "Obroty szczytowe",
+    "hpOmegaEndTip": "Obroty, do których dochodzi rampa, w obrotach na sekundę. Każda obręcz o niższych obrotach krytycznych unosi koralik, a im szybsze obroty, tym wyżej się on wspina.",
+    "hpCritical": "Zewnętrzny koralik unosi się powyżej {outer} obr./s, wewnętrzny powyżej {inner} obr./s.",
+    "hpCriticalOne": "Koralik unosi się powyżej {outer} obr./s.",
+    "hpNeverLifts": "{count, plural, one {# koralik nie uniesie się przy tych obrotach szczytowych.} few {# koraliki nie uniosą się przy tych obrotach szczytowych.} many {# koralików nie uniesie się przy tych obrotach szczytowych.} other {# koralika nie uniesie się przy tych obrotach szczytowych.}}",
+    "hpRamp": "Rozpędzanie",
+    "hpRampTip": "Ile sekund obroty rosną od startowych do szczytowych. Wolna rampa rozkłada uniesienia w czasie.",
+    "hpRampShape": "Kształt rampy",
+    "hpRampShapeTip": "Liniowa rośnie równo; Łagodna zaczyna i kończy delikatnie; Schodki rosną w tylu równych krokach, ile jest obręczy – jeden koralik na krok.",
+    "hpShapeLinear": "Liniowa",
+    "hpShapeEase": "Łagodna",
+    "hpShapeSteps": "Schodki",
+    "hpHold": "Utrzymanie szczytu",
+    "hpHoldTip": "Ile sekund obroty trzymają się szczytu, zanim zwolnią (albo przebieg się skończy). Wydłużane o mniej niż obrót, żeby każdy cykl miał pełne obroty.",
+    "hpReturn": "Powrót i pętla",
+    "hpReturnTip": "Zwalnia obroty, aż każdy koralik znów spocznie na dnie, i zaczyna od nowa: płynna pętla (Eksportuj całe pętle tnie klip na szwie). Wyłączone: przebieg kończy się po utrzymaniu szczytu.",
+    "hpReturnSec": "Rampa powrotu",
+    "hpReturnSecTip": "Ile sekund obroty wracają do startowych; koraliki opadają w odwrotnej kolejności.",
+    "hpGravity": "Grawitacja obręczy",
+    "hpGravityTip": "Grawitacja ciągnąca koraliki w dół, w m/s² (na Ziemi 9,81). Silniejsza grawitacja podnosi obroty krytyczne każdej obręczy, √(g/R).",
+    "hpDamping": "Tłumienie koralików",
+    "hpDampingTip": "Jak szybko gaśnie kołysanie koralika, na sekundę. Przy 0 koraliki kołyszą się wokół punktów równowagi bez końca; więcej je uspokaja.",
+    "hpJitter": "Przechył osi",
+    "hpJitterTip": "Drobny przechył osi obrotu w radianach – niedoskonałość każdej prawdziwej obręczy – na stronę wybraną przez seed, więc koraliki od razu wspinają się na tę stronę. Przy 0 koralik może balansować na dnie mimo przekroczenia obrotów krytycznych.",
+    "hpTick": "Dzwonek obrotów",
+    "hpTickTip": "Dzwonek glockenspielu co obrót, coraz wyższy wraz z obrotami.",
+    "hpBed": "Podkład",
+    "hpBedTip": "Miękki pad i sub na G, które wchodzą z pierwszym uniesieniem i milkną przy resecie.",
+    "hpTurnsUnit": "obr./s"
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -2066,6 +2109,10 @@
     "landClaim": {
       "name": "Podbój terenu",
       "description": "Kolumny bloków obstawiają ścianę kwadratowej, sześciokątnej lub okrągłej areny; kolorowe kulki strącają górne bloki, co ósmy blok dodaje kolejną kulkę, a wygrywa ten, kto ma najwięcej bloków – DOMINACJA albo CO ZA WYRÓWNANA BITWA."
+    },
+    "hoops": {
+      "name": "Wirujące obręcze",
+      "description": "Tęczowe obręcze wirują coraz szybciej wokół pionowej osi, na każdej koralik. Po przekroczeniu prędkości krytycznej obręczy dno przestaje być najniższym miejscem i jej koralik się wspina – najpierw na największej obręczy, jedna obręcz po drugiej – a każde uniesienie to nuta strojonej sztabki; potem obroty zwalniają i pętla zaczyna się od nowa."
     }
   },
   "FAQ": {
@@ -2152,7 +2199,8 @@
     "modeConveyor": "Taśmociąg biegnie górą pola i co kilka sekund zrzuca piłkę na arenę poniżej – Gerald odradza się raz za razem. Wybierz arenę: koncentryczne pierścienie z obracającymi się szczelinami, z których każda piłka musi uciec sama (pierścienie nigdy nie pękają, a druga taśma wywozi poza pole piłki, które uciekły), misę, która zapełnia się, aż się przeleje, albo pole kołków, które rozdziela piłki do przegródek. Zamrażanie po lądowaniu zamienia każdą piłkę, która wyląduje, w przeszkodę dla następnej, więc stos rośnie; Różnorodność miesza rozmiary i kolory. Każde odbicie to nuta z Twojej skali, taśma buczy i klika, a licznik prowadzi rachunek – Załadowano 17 / Uciekło 4. W trybach Klasyczny i Mnożenie ten sam licznik odradzania co kilka sekund wrzuca nową piłkę. Wszystko jest deterministyczne dla danego ziarna, więc Znajdź symulację dobierze przebieg o długości Twojego klipu.",
     "modeOrbGrid": "Pole kul – kwadratowa siatka, dysk, pierścienie ośmiokątne albo siatka heksagonalna, domyślnie 33 × 33 = 1089 i bez górnej granicy – w perspektywie, na płycie albo okrągłym talerzu; każda kula podskakuje w górę i w dół na swoim miejscu. W modelu rytmu (domyślnym) każda kula to idealnie sprężysta piłka, która zawsze wybija się na tę samą wysokość: pole dzieli się na grupy – rzędy, kolumny, pierścienie, przekątne, szachownicę albo pojedyncze kule – odbijające się w cyklu całkowitą liczbę razy: fala wahadeł, 3 na 2, 4 na 3, 3:4:5, drabina euklidesowa, od rogu do rogu albo od środka. Wysokości tworzą falę biegnącą, która przechodzi przez zmarszczki i grupy, a na końcu każdego cyklu wszystkie kule lądują razem – W FAZIE. Metronom wybija rytm drewnianym klikiem i kołyszącym się wahadłem, pulsującym pierścieniem albo skaczącą kropką, cykl dopasowuje się do pełnych taktów, a z włączoną Melodią każda grupa gra własną nutę ze skali. Model wygasania pozwala kulom tracić energię: jedna cecha zmienia się w poprzek pola – sprężystość, wysokość zrzutu, opóźnienie puszczenia, rozmiar, grawitacja albo okres – kule rozchodzą się i zgrywają w fazie, aż spoczną, a Znajdź symulację może wybrać przebieg o długości Twojego klipu. Kolor według wysokości, kule błyszczące, metaliczne, matowe albo szklane; każde lądowanie to cicha nuta, dźwięk do snu, melodia skomponowana przez odbicia albo metaliczne brzęknięcia.",
     "modeFightLeague": "Zawodnicy z gier wideo, komiksów, seriali i filmów – Thor, Loki, Captain Falcon, Little Mac, Yuumi, Katarina i ponad pięćdziesięciu innych, pogrupowanych w dywizje, by pojedynek został w swoim gatunku – walczą jako kulki na kwadratowej albo okrągłej arenie. Każdy ma własną broń, narysowaną jako prosta wektorowa sylwetka: miecze tną przy każdym odbiciu, młoty lecą we wroga i wracają, pięści uderzają, pistolety, łuki i różdżki strzelają, ogień i promienie palą. Trafienie zabiera PŻ – liczbę w środku kulki i pasek pod nią – odrzuca wroga i ładuje miernik zdolności w polu na dole; gdy jest pełny, nazwa zdolności miga przez 0,4 s, a zdolność odpala sama: pioruny, kopie, promienie, duszenie, fale uderzeniowe, przywołańcy, bullet time. Graj 1 na 1, 2 na 2 albo każdy na każdego; wygrywa ostatni zawodnik lub drużyna na placu boju albo strona z większą liczbą PŻ przy limicie czasu. Deterministyczne i oparte na seedzie: Znajdź symulację znajdzie przebieg, w którym wygrywa A albo B, podwójny nokaut albo walkę o długości Twojego klipu – a wymuszony zwycięzca ją ustawi.",
-    "modeLandClaim": "Bitwa o teren: kolumny bloków stoją po wewnętrznej stronie kwadratowej, sześciokątnej lub okrągłej ściany, a dwóch lub więcej zawodników – skład drużyn z krajami daje im flagi, nazwy i barwy – odbija swoje kulki w środku ze stałą prędkością. W zasadzie strącania kulka, która trafi w kolumnę, zabiera jej górny blok: blok odlatuje w kolorze uderzającego i liczy się dla niego, a co ósmy blok strącony przez zawodnika dodaje kolejną kulkę w jego kolorze w miejscu uderzenia, więc prowadzenie rośnie jak kula śnieżna w cały rój. Zasada zajmowania zamiast tego maluje bloki na miejscu, a zasada kradzieży pozwala odebrać rywalowi blok – teren przechodzi z rąk do rąk, aż skończy się czas. Bitwa kończy się, gdy ściana zostanie zdobyta albo po upływie czasu trwania, a wygrywa ten, kto ma najwięcej bloków: DOMINACJA powyżej 60% terenu, CO ZA WYRÓWNANA BITWA, gdy dwóch najlepszych dzieli najwyżej 5%. Każde ziarno odtwarza się dokładnie, Znajdź symulację szuka wybranego zwycięzcy, wyrównanej bitwy albo przebiegu kończącego się w wybranej sekundzie, a Wymuszony zwycięzca faworyzuje kolor, kierując jego odbicia w stronę terenu do zdobycia."
+    "modeLandClaim": "Bitwa o teren: kolumny bloków stoją po wewnętrznej stronie kwadratowej, sześciokątnej lub okrągłej ściany, a dwóch lub więcej zawodników – skład drużyn z krajami daje im flagi, nazwy i barwy – odbija swoje kulki w środku ze stałą prędkością. W zasadzie strącania kulka, która trafi w kolumnę, zabiera jej górny blok: blok odlatuje w kolorze uderzającego i liczy się dla niego, a co ósmy blok strącony przez zawodnika dodaje kolejną kulkę w jego kolorze w miejscu uderzenia, więc prowadzenie rośnie jak kula śnieżna w cały rój. Zasada zajmowania zamiast tego maluje bloki na miejscu, a zasada kradzieży pozwala odebrać rywalowi blok – teren przechodzi z rąk do rąk, aż skończy się czas. Bitwa kończy się, gdy ściana zostanie zdobyta albo po upływie czasu trwania, a wygrywa ten, kto ma najwięcej bloków: DOMINACJA powyżej 60% terenu, CO ZA WYRÓWNANA BITWA, gdy dwóch najlepszych dzieli najwyżej 5%. Każde ziarno odtwarza się dokładnie, Znajdź symulację szuka wybranego zwycięzcy, wyrównanej bitwy albo przebiegu kończącego się w wybranej sekundzie, a Wymuszony zwycięzca faworyzuje kolor, kierując jego odbicia w stronę terenu do zdobycia.",
+    "modeHoops": "Bez pierścieni: 1–16 współśrodkowych obręczy (domyślnie osiem, czerwona na zewnątrz, fioletowa w środku) wiruje razem wokół pionowej średnicy, rysowanych na wprost i spłaszczanych przez obrót, więc wyglądają trójwymiarowo, a na każdej jeden koralik ślizga się bez tarcia. Obroty rosną – równo, łagodnie albo schodkami – a każda obręcz ma prędkość krytyczną √(g/R): poniżej niej grawitacja trzyma koralik na dnie, powyżej koralik wspina się do punktu równowagi arccos(g/(Rω²)), tym wyżej, im szybsze obroty. Większe obręcze unoszą koraliki pierwsze, więc koraliki wspinają się ściśle według rozmiaru, a każde uniesienie to nuta strojonej sztabki o wysokości zależnej od obręczy; dzwonek dźwięczy co obrót, akord pada, gdy wszystkie są w górze, a licznik pokazuje obroty i uniesione koraliki. Z włączonym powrotem obroty zwalniają, aż każdy koralik znów spocznie, a pętla zaczyna się płynnie od nowa – gotowa na eksport całych pętli; Znajdź symulację szuka przebiegu ściśle według rozmiaru albo takiego, w którym wszystkie koraliki są w górze przed wybranym czasem."
   },
   "Footer": {
     "navLabel": "Stopka",
@@ -2424,7 +2472,22 @@
     "missFillOnBar": "Najbliższe wypełnienie: {offset}s od taktu ({seeds} seedów)",
     "overlayFillsBy": "Sprawdzono {tested} seedów: żaden nie wypełnił okręgu w {target}s. Spróbuj większego wzrostu na odbicie, większego rozmiaru startowego albo szybszej piłki.",
     "overlayNoFill": "Sprawdzono {tested} seedów: żaden nie wypełnił okręgu w czasie wyszukiwania. Spróbuj większego wzrostu na odbicie.",
-    "overlayFillOnBar": "Sprawdzono {tested} seedów: najbliższe wypełnienie wypadło {offset}s od taktu. Spróbuj innego BPM albo wzrostu na odbicie."
+    "overlayFillOnBar": "Sprawdzono {tested} seedów: najbliższe wypełnienie wypadło {offset}s od taktu. Spróbuj innego BPM albo wzrostu na odbicie.",
+    "outcomeLiftOrder": "Uniesienia według rozmiaru",
+    "outcomeAllUpBy": "Wszystkie w górze w czasie",
+    "hintLiftOrder": "W pierwszym cyklu koraliki odrywają się od dna ściśle według rozmiaru – najpierw na największej obręczy, nigdy koralik mniejszej obręczy przed koralikiem większej (tak wynika z fizyki, chyba że przechył osi albo tłumienie są skrajne).",
+    "hintAllUpBy": "Wszystkie koraliki są w górze w wybranym limicie czasu.",
+    "allUpBy": "Wszystkie w górze w ciągu",
+    "findLiftOrder": "Znajdź przebieg ściśle według rozmiaru",
+    "findAllUpBy": "Znajdź wszystkie w górze w {time}s",
+    "foundLiftOrder": "Znaleziono! Koraliki unoszą się ściśle według rozmiaru",
+    "foundAllUpBy": "Znaleziono! Wszystkie w górze po {time}s",
+    "missLiftOrder": "Żaden przebieg nie uniósł koralików ściśle według rozmiaru ({seeds} seedów)",
+    "missNoAllUp": "W żadnym przebiegu nie było wszystkich koralików w górze ({seeds} seedów)",
+    "missAllUpBy": "Najbliżej: wszystkie w górze po {time}s ({seeds} seedów)",
+    "overlayLiftOrder": "Sprawdzono {tested} seedów i w żadnym koraliki nie uniosły się ściśle według rozmiaru. Spróbuj mniejszego przechyłu osi, mniejszego tłumienia albo obręczy bardziej od siebie oddalonych.",
+    "overlayAllUpBy": "Sprawdzono {tested} seedów: w żadnym wszystkie koraliki nie były w górze w {target}s. Spróbuj szybszych obrotów szczytowych, krótszej rampy albo późniejszego limitu.",
+    "progressAllUpBy": "Najbliżej wszystkich w górze: {time}s"
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -4167,7 +4230,11 @@
   "LoopHud": {
     "growTitle": "rośnie z każdym odbiciem",
     "growSubtitle": "ile odbić, by wypełnić okrąg?",
-    "growCounter": "odbicia: {count}"
+    "growCounter": "odbicia: {count}",
+    "hoopsTitle": "kręć szybciej, a koraliki się wspinają",
+    "hoopsSubtitle": "powyżej prędkości krytycznej dno przestaje być najniższym miejscem – najpierw większe obręcze",
+    "hoopsCounter": "{rate} obr./s · w górze: {count} z {total} koralików",
+    "hoopsCounterOne": "{rate} obr./s · w górze: {count} z 1 koralika"
   },
   "LoopCaption": {
     "growMultiply": "{count}% większa z każdym odbiciem, aż wypełni okrąg",

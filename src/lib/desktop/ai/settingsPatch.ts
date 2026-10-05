@@ -173,6 +173,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   orbGrid: "og", // --- orb-grid ---
   fightLeague: "fl", // --- fight-league ---
   landClaim: "lc", // --- land-claim ---
+  hoops: "hp", // --- bead-hoops ---
 };
 
 /** The settings the assistant may change on this page: the catalog, then the scalar settings of the page's mode. */

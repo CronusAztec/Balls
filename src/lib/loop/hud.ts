@@ -37,11 +37,14 @@ export interface LoopHudSpec {
   subtitle: string;
   counter: string;
   light: boolean;
+  /** --- bead-hoops --- The page's language: the counter's decimals in its style on the live canvas too ("0,13" in Polish). */
+  locale?: string;
 }
 
 /** Translation keys (namespace `LoopHud`) of the modes with words of their own; any other mode's title is its name. */
-export const LOOP_HUD_MODE_TEXT: Readonly<Partial<Record<ModeId, { title: string; subtitle: string; counter: string }>>> = {
+export const LOOP_HUD_MODE_TEXT: Readonly<Partial<Record<ModeId, { title: string; subtitle: string; counter: string; counterOne?: string /* --- bead-hoops --- (the counter of a run with one of its things) */ }>>> = {
   grow: { title: "growTitle", subtitle: "growSubtitle", counter: "growCounter" },
+  hoops: { title: "hoopsTitle", subtitle: "hoopsSubtitle", counter: "hoopsCounter", counterOne: "hoopsCounterOne" }, // --- bead-hoops ---
 };
 
 /** The HUD's lines in a `width` × `height` frame (px): centres of the lines, font sizes, the rule and the widest a line may be. */
@@ -178,20 +181,62 @@ export function hudText(text: string | undefined | null, locale?: string): strin
   }
 }
 
-/** The counter's line: the template with `{count}` replaced ("" without a count or a template). */
-export function hudCounterText(template: string, count: number | null, locale?: string): string {
+/** The counter's line: the template with `{count}` replaced ("" without a count or a template); --- bead-hoops --- and `values`' placeholders. */
+export function hudCounterText(template: string, count: number | null, locale?: string, values?: Readonly<Record<string, number>>): string {
   if (!template || count === null || !Number.isFinite(count)) return "";
-  return hudText(template.replace("{count}", String(Math.round(count))), locale);
+  let text = template.replace("{count}", String(Math.round(count)));
+  if (values) for (const key in values) text = text.replace(`{${key}}`, hudNumber(values[key], locale)); // --- bead-hoops ---
+  return hudText(text, locale);
 }
 
+// --- bead-hoops ---
+/** A counter with values besides `{count}` (Spinning Hoops: "{rate} turns a second · {count} of {total} beads up"). */
+export interface LoopHudCounter {
+  count: number;
+  /** The template's other placeholders: a whole number as it is, any other with two decimals in the page's style. */
+  values: Readonly<Record<string, number>>;
+}
+
+const hudNumberFormats = new Map<string, Intl.NumberFormat>();
+/** A HUD value: a whole number as it is, any other with two decimals ("0.13"; with a language its separator: "0,13"). */
+export function hudNumber(value: number, locale?: string): string {
+  if (!Number.isFinite(value)) return "";
+  if (Number.isInteger(value)) return String(value);
+  if (!locale) return value.toFixed(2);
+  let format = hudNumberFormats.get(locale);
+  if (!format) {
+    try {
+      format = new Intl.NumberFormat(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false });
+    } catch {
+      return value.toFixed(2);
+    }
+    hudNumberFormats.set(locale, format);
+  }
+  return format.format(value);
+}
+
+/** The hoops' counter, reused every frame: the beads up, the spin (turns a second) and the hoop count. */
+const HOOPS_COUNTER = { count: 0, values: { rate: 0, total: 0 } };
+// --- end bead-hoops ---
+
 /** The counter of the mode's run (Grow: the bounces of the current cycle), or null when the mode has none. */
-export function loopHudCount(engine: { getCurrentModeName(): string; getGrowView(): { bounces: number } }): number | null {
+export function loopHudCount(engine: { getCurrentModeName(): string; getGrowView(): { bounces: number }; getHoopsView?(): { upCount: number; count: number; omega: number } /* --- bead-hoops --- */ }): number | LoopHudCounter | null {
+  // --- bead-hoops --- Spinning Hoops: the beads up of its hoops, at the spin's turns a second
+  if (engine.getCurrentModeName() === "hoops" && engine.getHoopsView) {
+    const view = engine.getHoopsView();
+    HOOPS_COUNTER.count = view.upCount;
+    HOOPS_COUNTER.values.rate = view.omega;
+    HOOPS_COUNTER.values.total = view.count;
+    return HOOPS_COUNTER;
+  }
   return engine.getCurrentModeName() === "grow" ? engine.getGrowView().bounces : null;
 }
 
 /** One frame of the HUD from the page's words and the run's counter. */
-export function loopHudFrame(spec: LoopHudSpec, count: number | null, locale?: string): LoopHudFrame {
-  return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudCounterText(spec.counter, count, locale), light: spec.light };
+export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCounter | null, locale?: string): LoopHudFrame {
+  const counter = count !== null && typeof count === "object" ? count : null; // --- bead-hoops --- (a counter with values)
+  const value = counter ? counter.count : (count as number | null);
+  return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values), light: spec.light };
 }
 
 /** Draws one line centred at (`x`, `y`), shrunk to `maxWidth` when it is wider. */

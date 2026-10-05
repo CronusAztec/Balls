@@ -93,7 +93,11 @@ describe("the loop contract: whole cycles", () => {
       expect(engine.getLoopSeams()).toBeNull();
       expect(engine.getCycleSeconds()).toBeNull();
     }
-    for (const mode of MODE_IDS) if (mode !== "grow") expect([mode, createEngineForSettings(config, mode, modeSettings, 3).getLoopSeams()]).toEqual([mode, null]);
+    for (const mode of MODE_IDS) if (mode !== "grow" && mode !== "hoops" /* --- bead-hoops --- (it loops by default: below) */) expect([mode, createEngineForSettings(config, mode, modeSettings, 3).getLoopSeams()]).toEqual([mode, null]);
+    // --- bead-hoops --- Spinning Hoops loops by default (its return ramp: a seamless cycle of whole turns); without the return it
+    // reports no seams, like every mode that does not loop
+    expect(createEngineForSettings(config, "hoops", modeSettings, 3).getLoopSeams()).toMatchObject({ count: 0, lastMs: -1 });
+    expect(createEngineForSettings(config, "hoops", { ...modeSettings, hoops: { returnLoop: false } }, 3).getLoopSeams()).toBeNull();
   });
 });
 

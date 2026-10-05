@@ -87,3 +87,6 @@ export type { FlFighterRow, FlDivision, FlWeaponKind, FlWeaponSpec, FlEffect, Fl
 // --- land-claim ---
 export { LandClaimMode } from "./landClaim";
 export type { LandClaimSettings, LandClaimView, LandClaimField, LcArena, LcRule, LcVerdict, LcVerdictKind } from "./landClaim";
+// --- bead-hoops ---
+export { HoopsMode } from "./hoops";
+export type { HoopsSettings, HoopsView, HoopsSchedule, HoopsPhase, HoopsRampShape } from "./hoops";

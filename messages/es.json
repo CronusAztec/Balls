@@ -1958,7 +1958,50 @@
     "loopClipReplace": "Cambiar",
     "loopClipClear": "Quitar",
     "loopClipGain": "Nivel del clip: {slot}",
-    "loopClipFailed": "No se pudo decodificar el archivo: prueba con MP3, WAV, OGG o M4A."
+    "loopClipFailed": "No se pudo decodificar el archivo: prueba con MP3, WAV, OGG o M4A.",
+    "modeHoops": "Aros giratorios",
+    "hpPresets": "Aros preparados",
+    "hpPresetsTip": "Un clic ajusta los aros, el giro y el aspecto del clip (el fondo azul marino, los aros arcoíris, el título y el contador) y un clip de un ciclo entero: ocho aros arcoíris, un aro grande en una rampa lenta y suave, o dos aros que suben en dos escalones.",
+    "hpPresetRainbow8": "8 aros arcoíris",
+    "hpPresetOneSlow": "Un aro, lento",
+    "hpPresetTwin": "Aros gemelos",
+    "hpCount": "Aros",
+    "hpCountTip": "Cuántos aros concéntricos giran juntos, con una cuenta en cada uno, espaciados por igual del radio exterior al interior. 1–16 en el control; escribe cualquier número (se construyen miles).",
+    "hpRadiusMax": "Aro exterior",
+    "hpRadiusMaxTip": "El radio del aro más grande como fracción de medio campo (medio campo mide un metro). Un aro más grande levanta su cuenta con un giro más lento.",
+    "hpRadiusMin": "Aro interior",
+    "hpRadiusMinTip": "El radio del aro más pequeño como fracción de medio campo. Un aro más pequeño necesita un giro más rápido para que su cuenta suba.",
+    "hpOmegaStart": "Giro inicial",
+    "hpOmegaStartTip": "El giro al empezar cada ciclo, en vueltas por segundo (0,13 en el clip). Por debajo del giro crítico de un aro, su cuenta se queda en el fondo.",
+    "hpOmegaEnd": "Giro máximo",
+    "hpOmegaEndTip": "El giro al que llega la rampa, en vueltas por segundo. Cada aro con un giro crítico menor levanta su cuenta, y cuanto más rápido el giro, más sube.",
+    "hpCritical": "La cuenta exterior sube a partir de {outer} vueltas por segundo; la interior, a partir de {inner}.",
+    "hpCriticalOne": "La cuenta sube a partir de {outer} vueltas por segundo.",
+    "hpNeverLifts": "{count, plural, one {# cuenta nunca sube con este giro máximo.} other {# cuentas nunca suben con este giro máximo.}}",
+    "hpRamp": "Aceleración",
+    "hpRampTip": "Segundos que tarda el giro en pasar del inicial al máximo. Una rampa lenta separa las subidas.",
+    "hpRampShape": "Forma de la rampa",
+    "hpRampShapeTip": "Lineal sube a ritmo constante; Suave empieza y termina con delicadeza; Escalones sube en tantos escalones iguales como aros hay: una cuenta por escalón.",
+    "hpShapeLinear": "Lineal",
+    "hpShapeEase": "Suave",
+    "hpShapeSteps": "Escalones",
+    "hpHold": "Pausa arriba",
+    "hpHoldTip": "Segundos al giro máximo antes de que el giro baje (o termine la partida). Se alarga menos de una vuelta para que cada ciclo tenga vueltas enteras.",
+    "hpReturn": "Regreso y bucle",
+    "hpReturnTip": "Baja el giro hasta que todas las cuentas reposen de nuevo en el fondo y vuelve a empezar: un bucle sin costuras (Exportar bucles completos corta el clip en la costura). Desactivado: la partida termina tras la pausa arriba.",
+    "hpReturnSec": "Rampa de regreso",
+    "hpReturnSecTip": "Segundos que tarda el giro en volver al inicial; las cuentas bajan en orden inverso.",
+    "hpGravity": "Gravedad de los aros",
+    "hpGravityTip": "La gravedad que tira de las cuentas hacia abajo, en m/s² (9,81 en la Tierra). Más gravedad sube el giro crítico de cada aro, √(g/R).",
+    "hpDamping": "Amortiguación de las cuentas",
+    "hpDampingTip": "Qué tan rápido se apaga el balanceo de una cuenta, por segundo. Con 0 las cuentas se balancean sin fin alrededor de su equilibrio; más las calma.",
+    "hpJitter": "Inclinación del eje",
+    "hpJitterTip": "Una pequeñísima inclinación del eje de giro en radianes –la imperfección de todo aro real– hacia un lado que elige la semilla, para que las cuentas suban enseguida hacia ese lado. Con 0 una cuenta puede quedarse en equilibrio en el fondo aunque pase su giro crítico.",
+    "hpTick": "Campanilla de giro",
+    "hpTickTip": "Una campanilla de glockenspiel en cada vuelta, más aguda a medida que sube el giro.",
+    "hpBed": "Base rítmica",
+    "hpBedTip": "Un pad suave y un sub en sol que entran con la primera subida y se detienen en el reinicio.",
+    "hpTurnsUnit": "vueltas/s"
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -2066,6 +2109,10 @@
     "landClaim": {
       "name": "Conquista de terreno",
       "description": "Columnas de bloques recubren la pared de una arena cuadrada, hexagonal o circular; las bolas de colores derriban los bloques superiores, cada octavo bloque añade otra bola y gana quien tenga más bloques: DOMINACIÓN o QUÉ BATALLA TAN REÑIDA."
+    },
+    "hoops": {
+      "name": "Aros giratorios",
+      "description": "Aros arcoíris giran cada vez más rápido alrededor de su eje vertical, con una cuenta en cada uno. Pasada la velocidad crítica de cada aro, el fondo deja de ser el punto más bajo y su cuenta sube –primero la del aro más grande, un aro tras otro–, cada subida una nota de lámina afinada; luego el giro baja y el bucle vuelve a empezar."
     }
   },
   "FAQ": {
@@ -2152,7 +2199,8 @@
     "modeConveyor": "Una cinta transportadora recorre lo alto del campo y deja caer una pelota en la arena de abajo cada pocos segundos: Gerald reaparece una y otra vez. Elige la arena: anillos concéntricos con huecos que giran, de los que cada pelota tiene que escapar por su cuenta (los anillos nunca se rompen y una segunda cinta saca del campo las pelotas que escapan), un cuenco que se llena hasta desbordarse o un campo de clavos que reparte las pelotas en casillas. Congelar al aterrizar convierte cada pelota que aterriza en un obstáculo para la siguiente, así que el montón crece; Variedad mezcla tamaños y colores. Cada rebote es una nota de tu escala, la cinta zumba y hace clic, y el contador lleva la cuenta: Cargadas 17 / Escapadas 4. En Clásico y Multiplicar, el mismo temporizador de reaparición deja caer una pelota nueva cada pocos segundos. Todo es determinista para cada semilla, así que Buscar simulación puede elegir una partida de la duración de tu clip.",
     "modeOrbGrid": "Un campo de esferas (una cuadrícula, un disco, anillos octogonales o una cuadrícula hexagonal, 33 × 33 = 1089 por defecto y sin límite superior) visto en perspectiva sobre una losa o un plato redondo, cada esfera rebotando arriba y abajo en su propio sitio. En el modelo de ritmo (el predeterminado) cada esfera es un rebote ideal que mantiene su altura para siempre: el campo se divide en grupos (filas, columnas, anillos, diagonales, un tablero o cada esfera por su cuenta) que rebotan un número entero de veces por ciclo: una ola de péndulos, 3 contra 2, 4 contra 3, 3:4:5, una escalera euclidiana, de esquina a esquina o del centro hacia fuera. Las alturas forman una ola viajera que se transforma en ondas y grupos, y al final de cada ciclo todas aterrizan a la vez: EN FASE. Un metrónomo marca el pulso con un clic de madera y un péndulo que oscila, un anillo que late o un punto que salta, el ciclo se ajusta a compases enteros y, con Melodía activada, cada grupo toca su propia nota de la escala. El modelo de decaimiento deja que las esferas pierdan energía: una propiedad varía a lo largo del campo (elasticidad, altura de caída, retraso al soltar, tamaño, gravedad o periodo), entran y salen de fase hasta quedar en reposo, y Buscar simulación puede elegir una partida de la duración de tu clip. Coloréalas por altura y hazlas brillantes, metálicas, mate o de cristal; cada aterrizaje es una nota suave, un sonido para dormir, una melodía compuesta por los rebotes o tintineos metálicos.",
     "modeFightLeague": "Luchadores de videojuegos, cómics, series y películas – Thor, Loki, Captain Falcon, Little Mac, Yuumi, Katarina y más de cincuenta más, agrupados en divisiones para que cada enfrentamiento se quede en su género – se enfrentan como bolas en una arena cuadrada o redonda. Cada luchador lleva su propia arma, dibujada como una silueta vectorial sencilla: las espadas barren en cada rebote, los martillos vuelan hacia el enemigo y vuelven, los puños golpean, las pistolas, los arcos y las varitas disparan, el aliento y los rayos queman. Un golpe quita vida – el número dentro de la bola y la barra bajo ella –, aparta al enemigo y carga el medidor de habilidad de la casilla inferior; cuando se llena, el nombre de la habilidad parpadea 0,4 s y se lanza sola: rayos, señuelos, haces, estrangulamientos, ondas expansivas, invocaciones, tiempo bala. Juega 1 contra 1, 2 contra 2 o todos contra todos; gana el último luchador o equipo en pie, o el bando con más vida al llegar al límite de tiempo. Con semilla y determinista: Buscar simulación encuentra una partida en la que gana A o B, un doble KO o una pelea de la duración de tu clip – y el ganador forzado la amaña.",
-    "modeLandClaim": "Una batalla por el terreno: columnas de bloques se alzan en el interior de una pared cuadrada, hexagonal o circular, y dos o más competidores (una plantilla de equipos de países les da sus banderas, nombres y colores) hacen rebotar sus bolas dentro a velocidad constante. Con la regla de derribar, una bola que golpea una columna se lleva su bloque superior: el bloque sale volando del color de quien golpea y cuenta para él, y cada octavo bloque que derriba un competidor añade otra bola de su color en el punto del golpe, así que una ventaja crece como una bola de nieve hasta ser un enjambre. La regla de conquistar pinta los bloques donde están, y la de robar permite quitarle un bloque a un rival: el terreno cambia de manos hasta que se acaba el tiempo. La batalla termina cuando la pared está tomada o al cumplirse su duración, y gana quien tenga más bloques: DOMINACIÓN por encima del 60% del terreno, QUÉ BATALLA TAN REÑIDA cuando los dos primeros están a menos de un 5%. Cada semilla se reproduce exactamente, Buscar simulación busca un ganador elegido, una batalla reñida o una partida que termine en un segundo elegido, y el Ganador forzado favorece a un color dirigiendo sus rebotes hacia el terreno que queda por tomar."
+    "modeLandClaim": "Una batalla por el terreno: columnas de bloques se alzan en el interior de una pared cuadrada, hexagonal o circular, y dos o más competidores (una plantilla de equipos de países les da sus banderas, nombres y colores) hacen rebotar sus bolas dentro a velocidad constante. Con la regla de derribar, una bola que golpea una columna se lleva su bloque superior: el bloque sale volando del color de quien golpea y cuenta para él, y cada octavo bloque que derriba un competidor añade otra bola de su color en el punto del golpe, así que una ventaja crece como una bola de nieve hasta ser un enjambre. La regla de conquistar pinta los bloques donde están, y la de robar permite quitarle un bloque a un rival: el terreno cambia de manos hasta que se acaba el tiempo. La batalla termina cuando la pared está tomada o al cumplirse su duración, y gana quien tenga más bloques: DOMINACIÓN por encima del 60% del terreno, QUÉ BATALLA TAN REÑIDA cuando los dos primeros están a menos de un 5%. Cada semilla se reproduce exactamente, Buscar simulación busca un ganador elegido, una batalla reñida o una partida que termine en un segundo elegido, y el Ganador forzado favorece a un color dirigiendo sus rebotes hacia el terreno que queda por tomar.",
+    "modeHoops": "Sin anillos: 1–16 aros concéntricos (ocho por defecto, rojo por fuera, violeta por dentro) giran juntos alrededor de su diámetro vertical, dibujados de frente y aplastados por el giro para que se vean en 3D, cada uno con una cuenta que se desliza sin rozamiento. El giro acelera –de forma constante, suave o por escalones– y cada aro tiene una velocidad crítica, √(g/R): por debajo, la gravedad mantiene la cuenta en el fondo; por encima, la cuenta sube hasta su punto de equilibrio arccos(g/(Rω²)), más alto cuanto más rápido el giro. Los aros más grandes levantan primero, así que las cuentas suben en estricto orden de tamaño, cada subida una nota de lámina afinada según su aro; una campanilla suena en cada vuelta, un acorde llega cuando todas están arriba y el contador muestra el giro y las cuentas arriba. Con el regreso activado, el giro baja hasta que todas las cuentas reposan y el bucle vuelve a empezar sin costuras, listo para exportar bucles completos; Buscar simulación encuentra una partida en estricto orden de tamaño o una con todas las cuentas arriba dentro de un tiempo."
   },
   "Footer": {
     "navLabel": "Pie de página",
@@ -2424,7 +2472,22 @@
     "missFillOnBar": "Llenado más cercano: a {offset}s de un compás ({seeds} semillas)",
     "overlayFillsBy": "Se probaron {tested} semillas: ninguna llenó el círculo en {target}s. Prueba más crecimiento por rebote, un tamaño inicial mayor o una bola más rápida.",
     "overlayNoFill": "Se probaron {tested} semillas: ninguna llenó el círculo durante la búsqueda. Prueba más crecimiento por rebote.",
-    "overlayFillOnBar": "Se probaron {tested} semillas: el llenado más cercano cayó a {offset}s de un compás. Prueba otro BPM u otro crecimiento por rebote."
+    "overlayFillOnBar": "Se probaron {tested} semillas: el llenado más cercano cayó a {offset}s de un compás. Prueba otro BPM u otro crecimiento por rebote.",
+    "outcomeLiftOrder": "Suben por tamaño",
+    "outcomeAllUpBy": "Todas arriba en",
+    "hintLiftOrder": "En el primer ciclo las cuentas dejan el fondo en estricto orden de tamaño: primero la del aro más grande, nunca la cuenta de un aro menor antes que la de uno mayor (así lo dicta la física, salvo con una inclinación del eje o una amortiguación extremas).",
+    "hintAllUpBy": "Todas las cuentas están arriba dentro del límite de tiempo elegido.",
+    "allUpBy": "Todas arriba en",
+    "findLiftOrder": "Buscar una partida en estricto orden de tamaño",
+    "findAllUpBy": "Buscar todas arriba en {time}s",
+    "foundLiftOrder": "¡Encontrada! Las cuentas suben en estricto orden de tamaño",
+    "foundAllUpBy": "¡Encontrada! Todas arriba a los {time}s",
+    "missLiftOrder": "Ninguna partida subió en estricto orden de tamaño ({seeds} semillas)",
+    "missNoAllUp": "En ninguna partida estuvieron todas las cuentas arriba ({seeds} semillas)",
+    "missAllUpBy": "Lo más cerca: todas arriba a los {time}s ({seeds} semillas)",
+    "overlayLiftOrder": "Se probaron {tested} semillas y en ninguna las cuentas subieron en estricto orden de tamaño. Prueba una inclinación del eje menor, menos amortiguación o aros más separados.",
+    "overlayAllUpBy": "Se probaron {tested} semillas: en ninguna estuvieron todas las cuentas arriba en {target}s. Prueba un giro máximo más rápido, una rampa más corta o un límite más tardío.",
+    "progressAllUpBy": "Lo más cerca de todas arriba: {time}s"
   },
   "FastExport": {
     "button": "Exportación rápida",
@@ -4167,7 +4230,11 @@
   "LoopHud": {
     "growTitle": "crece con cada rebote",
     "growSubtitle": "¿cuántos rebotes para llenar el círculo?",
-    "growCounter": "{count} rebotes"
+    "growCounter": "{count} rebotes",
+    "hoopsTitle": "gira más rápido y las cuentas suben",
+    "hoopsSubtitle": "pasada una velocidad crítica, el fondo deja de ser el punto más bajo: primero los aros más grandes",
+    "hoopsCounter": "{rate} vueltas por segundo · {count} de {total} cuentas arriba",
+    "hoopsCounterOne": "{rate} vueltas por segundo · {count} de 1 cuenta arriba"
   },
   "LoopCaption": {
     "growMultiply": "{count}% más grande en cada rebote hasta llenar el círculo",
