@@ -30,7 +30,9 @@
  *   GET    /connect/:platform?state=…    starts the OAuth sign-in (redirects to the platform)
  *   GET    /oauth/:platform/callback     stores the account, tells the opener (postMessage) and closes the popup
  *   POST   /api/publish                  multipart: file, accounts (ids, comma-separated), title, caption, hashtags,
- *                                        posts (JSON per platform: title, text, tags), visibility → { jobId, job }
+ *                                        posts (JSON per platform: title, text, tags), visibility, coverMs (--- mode-thumbnails ---
+ *                                        the cover frame, ms into the clip; TikTok's cover timestamp, Instagram's thumb_offset)
+ *                                        → { jobId, job }
  *   GET    /api/jobs/:id                 per-account status, progress, links, errors
  *   GET    /media/:id.:ext               the uploaded clip at a public URL (Range requests; Instagram and TikTok pull it)
  *
@@ -397,6 +399,20 @@ export function youtubeTags(hashtags, budget = 500) {
   return out;
 }
 
+// --- mode-thumbnails ---
+/**
+ * The cover frame a sender asked for (the `coverMs` field: ms into the clip – the viral bot's hero moment), as whole ms
+ * inside the clip when its length is known; null without one (the platforms' default cover then).
+ */
+export function coverMsOf(value, durationSec = null) {
+  if (value === undefined || value === null || String(value).trim() === "") return null;
+  const ms = Number(value);
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const end = Number.isFinite(durationSec) && durationSec > 0 ? Math.max(0, Math.floor(durationSec * 1000) - 1) : Infinity;
+  return Math.round(Math.min(ms, end));
+}
+// --- end mode-thumbnails ---
+
 const cut = (text, max) => [...String(text)].slice(0, max).join("");
 
 /**
@@ -578,7 +594,7 @@ async function tiktokPublish(ctx, account, post, media, visibility, update) {
   const chunks = tiktokChunks(media.size);
   const init = async (level) => {
     const body = {
-      post_info: { title: post.text, privacy_level: level, disable_duet: false, disable_comment: false, disable_stitch: false, video_cover_timestamp_ms: 1000 },
+      post_info: { title: post.text, privacy_level: level, disable_duet: false, disable_comment: false, disable_stitch: false, video_cover_timestamp_ms: Number.isFinite(media.coverMs) ? media.coverMs : 1000 /* --- mode-thumbnails --- the sender's cover frame */ },
       source_info: pull ? { source: "PULL_FROM_URL", video_url: media.url } : { source: "FILE_UPLOAD", video_size: media.size, chunk_size: chunks.chunkSize, total_chunk_count: chunks.total },
     };
     const res = await platformCall(ctx, TIKTOK.init, { method: "POST", headers: auth, body: JSON.stringify(body) }, { what: "the TikTok upload start" });
@@ -754,7 +770,7 @@ async function instagramPublish(ctx, account, post, media, visibility, update) {
   if (media.ext === "webm") throw new PlatformError("Instagram takes MP4 (H.264 + AAC) and this clip is WebM – export it as MP4 (Chrome or Safari) or convert it.", { code: "format" });
   const config = { userId: account.meta?.igUserId || account.providerId, accessToken: account.tokens.access, base: igBase(ctx.cfg) };
   update({ status: "uploading", progress: 0.2 });
-  const created = await igSend(ctx, igContainerRequest(config, { videoUrl: media.url, caption: post.text }), "the Instagram container");
+  const created = await igSend(ctx, igContainerRequest(config, { videoUrl: media.url, caption: post.text, ...(Number.isFinite(media.coverMs) ? { thumbOffsetMs: media.coverMs } : {}) /* --- mode-thumbnails --- */ }), "the Instagram container");
   const containerId = created.id !== undefined ? String(created.id) : "";
   if (!containerId) throw new PlatformError("Instagram returned no container id.");
   update({ status: "processing", progress: 0.4 });
@@ -1206,7 +1222,7 @@ export function createRelay(options = {}) {
       }
       const visibility = VISIBILITIES.includes(fields.visibility) ? fields.visibility : "public";
       const saved = media.save(file.data, file.filename, file.type);
-      const item = { ...saved, url: `${cfg.publicUrl}/media/${saved.id}.${saved.ext}`, durationSec: Number(fields.durationSec) || null };
+      const item = { ...saved, url: `${cfg.publicUrl}/media/${saved.id}.${saved.ext}`, durationSec: Number(fields.durationSec) || null, coverMs: coverMsOf(fields.coverMs, Number(fields.durationSec) || null) /* --- mode-thumbnails --- */ };
       const job = {
         id: `j_${randomHex(8)}`,
         keyId: key.id,

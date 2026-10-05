@@ -586,7 +586,7 @@ describe("output files", () => {
     expect(manifest.version).toBe(1);
     expect(manifest.date).toBe("2026-10-03");
     expect(manifest.clips).toHaveLength(3);
-    const fields = ["episode", "day", "index", "recipe", "family", "mode", "seed", "planSeed", "status", "file", "captionFile", "durationSec", "recordingDuration", "bucket", "ending", "payoff", "hook", "score", "reasons", "shareUrl", "caption", "hashtags", "postingTime", "postingNote", "melody"];
+    const fields = ["episode", "day", "index", "recipe", "family", "mode", "seed", "planSeed", "status", "file", "captionFile", "durationSec", "recordingDuration", "bucket", "ending", "payoff", "hook", "score", "reasons", "shareUrl", "caption", "hashtags", "postingTime", "postingNote", "melody", "cover" /* --- mode-thumbnails --- */];
     for (const clip of manifest.clips) {
       expect(Object.keys(clip).sort()).toEqual([...fields].sort());
       expect(clip.shareUrl).toContain(`seed=${clip.seed}`);

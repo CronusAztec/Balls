@@ -86,6 +86,8 @@ export interface RelayPublishInput {
   visibility?: Visibility;
   /** The clip's length (s), when known: the relay checks it against TikTok's limit for the account. */
   durationSec?: number | null;
+  /** --- mode-thumbnails --- The cover frame (ms into the clip; the viral bot's hero moment): TikTok's cover timestamp, Instagram's thumb_offset. */
+  coverMs?: number | null;
 }
 
 export type RelayErrorCode = "badUrl" | "network" | "unauthorized" | "forbidden" | "notFound" | "tooLarge" | "badRequest" | "server" | "notConfigured" | "timeout" | "cancelled" | "unknown";
@@ -293,6 +295,7 @@ export class RelayClient {
     if (input.posts) form.append("posts", JSON.stringify(input.posts));
     form.append("visibility", input.visibility ?? "public");
     if (input.durationSec && Number.isFinite(input.durationSec)) form.append("durationSec", String(Math.round(100 * input.durationSec) / 100));
+    if (typeof input.coverMs === "number" && Number.isFinite(input.coverMs) && input.coverMs >= 0) form.append("coverMs", String(Math.round(input.coverMs))); // --- mode-thumbnails ---
     form.append("file", input.file, input.fileName);
     let answer: { status: number; json: unknown };
     try {

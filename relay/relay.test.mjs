@@ -22,6 +22,7 @@ import {
   TIKTOK_WHOLE_MAX,
   tiktokChunks,
   tiktokErrorMessage,
+  coverMsOf, // --- mode-thumbnails ---
 } from "./server.mjs";
 
 /*
@@ -610,3 +611,52 @@ describe("the HTTP API", () => {
     expect(job.items[0].error).toMatch(/Instagram takes MP4/);
   });
 });
+
+// --- mode-thumbnails --- the sender's cover frame (the viral bot's hero moment) reaches TikTok and Instagram
+describe("the cover frame", () => {
+  it("reads coverMs as whole milliseconds inside the clip, or none", () => {
+    expect(coverMsOf("12400")).toBe(12400);
+    expect(coverMsOf("12400.6")).toBe(12401);
+    expect(coverMsOf("90000", 20)).toBe(19999);
+    expect(coverMsOf(undefined)).toBeNull();
+    expect(coverMsOf("")).toBeNull();
+    expect(coverMsOf("-5")).toBeNull();
+    expect(coverMsOf("soon")).toBeNull();
+  });
+
+  it("posts the cover as TikTok's cover timestamp and Instagram's thumb_offset (1 s and none without one)", async () => {
+    const { fetchImpl, calls } = platformMock([
+      { method: "POST", url: "https://open.tiktokapis.com/v2/post/publish/creator_info/query/", reply: { body: { data: { creator_username: "tok", privacy_level_options: ["PUBLIC_TO_EVERYONE", "SELF_ONLY"], max_video_post_duration_sec: 600 }, error: { code: "ok" } } } },
+      { method: "POST", url: "https://open.tiktokapis.com/v2/post/publish/video/init/", reply: { body: { data: { publish_id: "p1", upload_url: "https://open-upload.tiktokapis.com/video/?upload_id=1" }, error: { code: "ok" } } } },
+      { method: "PUT", url: "https://open-upload.tiktokapis.com/video/", reply: { status: 201, body: "" } },
+      { method: "POST", url: "https://open.tiktokapis.com/v2/post/publish/status/fetch/", reply: { body: { data: { status: "PUBLISH_COMPLETE", publicaly_available_post_id: [1] }, error: { code: "ok" } } } },
+      { method: "POST", url: /graph\.facebook\.com\/v23\.0\/1784001\/media$/, reply: { body: { id: "cont-1" } } },
+      { method: "GET", url: /graph\.facebook\.com\/v23\.0\/cont-1\?/, reply: { body: { status_code: "FINISHED" } } },
+      { method: "POST", url: "https://graph.facebook.com/v23.0/1784001/media_publish", reply: { body: { id: "media-1" } } },
+      { method: "GET", url: "https://graph.facebook.com/v23.0/media-1?", reply: { body: { permalink: "https://www.instagram.com/reel/X/" } } },
+    ]);
+    const { relay, base } = await startRelay({ fetchImpl });
+    const alice = await adminKey(base, "Alice");
+    const keyId = relay.store.keyFor(alice.key).id;
+    const tt = relay.store.upsertAccount(keyId, "tiktok", "open-1", { name: "Tok", handle: "@tok", tokens: { access: "tt", refresh: "r", expiresAt: Date.now() + 86400e3 } });
+    const ig = relay.store.upsertAccount(keyId, "instagram", "1784001", { name: "IG", handle: "@ig", tokens: { access: "page" }, meta: { login: "facebook", igUserId: "1784001" } });
+    const send = async (extra) => {
+      const fd = new FormData();
+      fd.append("accounts", `${tt.id},${ig.id}`);
+      fd.append("caption", "Can it escape?");
+      fd.append("durationSec", "21.5");
+      for (const [k, v] of Object.entries(extra)) fd.append(k, v);
+      fd.append("file", new Blob([Buffer.alloc(1000, 1)], { type: "video/mp4" }), "clip.mp4");
+      const started = await api(base, "/api/publish", { method: "POST", key: alice.key, body: fd });
+      expect(started.status).toBe(202);
+      const job = await waitJob(base, alice.key, started.json.jobId);
+      expect(job.items.map((i) => i.status)).toEqual(["published", "published"]);
+      const init = JSON.parse(calls.filter((c) => c.url.endsWith("/video/init/")).pop().body);
+      const container = new URLSearchParams(calls.filter((c) => c.url.endsWith("/1784001/media")).pop().body);
+      return { cover: init.post_info.video_cover_timestamp_ms, thumb: container.get("thumb_offset") };
+    };
+    expect(await send({ coverMs: "18250" })).toEqual({ cover: 18250, thumb: "18250" });
+    expect(await send({})).toEqual({ cover: 1000, thumb: null });
+  });
+});
+// --- end mode-thumbnails ---
