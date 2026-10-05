@@ -3985,7 +3985,8 @@
       "success": "Installed – you are Pro until {date}.",
       "failed": "The key could not be used: {message}",
       "empty": "Paste the licence key first."
-    }
+    },
+    "liveMark": "Free simulations and free videos carry a small {siteName} watermark – in a corner of the canvas while you play and in every clip you make. Pro removes it from both."
   },
   "OrbGrid": {
     "canvasHud": "{n, plural, one {{count} bouncing orb} other {{count} bouncing orbs}}",
@@ -4164,7 +4165,9 @@
     "tagTip": "Free: this video carries the watermark – Pro removes it",
     "note": "Free: the videos you record or export here carry a small {siteName} watermark.",
     "noteRecording": "Recording on Free: this video carries the {siteName} watermark.",
-    "remove": "Remove the watermark"
+    "remove": "Remove the watermark",
+    "liveTagTip": "Free: simulations and videos carry a small watermark – Pro removes it",
+    "liveNote": "Free: the simulator and the videos you record or export here carry a small {siteName} watermark."
   },
   "DesktopAiFix": {
     "statusTitle": "AI status",

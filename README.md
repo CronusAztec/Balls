@@ -86,6 +86,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Bouncing Orbs: rhythm, polyrhythms & metronome** | The Bouncing Orbs rework (feature orb-rhythm) after the owner's "bouncing orbs is clunky and not fluid like the instagram given, add metronome and polyrythms to it": the new default **Rhythm** model (`ogModel`; **Decay** keeps the settling field) makes every orb an ideal bouncer on its spot forever – its height the parabola of an elastic bounce, h(t) = A · 4u(1 − u) with u = frac((t − φ) / T), its apex A = g · T² / 8 under the Gravity slider (faster orbs bounce lower) or all alike (**Equal Heights**, `ogEq`) – drawn at every frame's own simulation time, so the field moves smoothly at 60 or 120 Hz and in the fast export's exact frame times, with a 10 % **Landing Squash** easing out over 60 ms (`ogSquash`). **Polyrhythm** (`ogPoly`): **Groups** of rows, columns, rings, diagonals, a checkerboard or every orb (`ogGroup`), group k bouncing n_k times a **Cycle** (`ogCycle`, 30 s), so every orb lands together at every multiple of the cycle – the **IN PHASE** moment, with its banner on a dark backdrop and a chord – and the wave surface morphs in between; ten **Rhythm Presets** (`ogRhythm`): Pendulum wave (51 + k), 3 against 2, 4 against 3, 5 against 4, 7 against 5, 3:4:5, Euclidean (`ogSteps`), Corner to corner, Centre outwards and Varied. The **Metronome**: a **Tempo** (`ogBpm`, 120; the beat lock's while it is on) and **Beats per Bar** (`ogBeats`), a swinging bar at the top of the square, a ring pulsing around the field or a dot hopping along a beat strip (`ogMetro`), a woodblock **Click** with an accented downbeat (`ogClick`), the cycle snapped to whole **Bars** (`ogBars`, 16) so IN PHASE lands on a downbeat, and **Melody** (`ogMelody`): a pitch of the scale per group, the polyrhythm playing a tune. A ninth preset, Metronome 3:2; Find Simulation's In phase at answered at once by the cycle maths; a caption's question answered at the IN PHASE moment. See the Bouncing Orbs section under How to extend it |
 | **Windows app 1.0.3: the AI fixed, an AI status panel** | The owner's "the exe ai doesnt work" (feature desktop-ai-fix): the AI studio of the Windows app works with the small local models now and says why when it does not. Each job normalises its answer before the checks (hashtags split, given their "#", cleaned, de-duplicated and clamped to 3–15; clip names slugified; platforms mapped – `src/lib/desktop/ai/normalise.ts`), the reply grammar bounds what it can (a hashtag ≤ 61 characters, a name ≤ 60, the copy's platforms the requested ones, one item each), **Make videos** offers its answer only after `plan_clips` has made plans and then only with their ids (the reply envelope is rebuilt every turn), a retry comes as the app's note with a hint at a higher temperature, and the prompts are shorter (the settings that matter for the request, recipe hooks without placeholders). The local model keeps one chat session per load (the evaluated prefix is reused: no re-reading 3–4k tokens every turn), gets a context of at least 4,096 tokens and room for prompt + reply, falls back to fewer GPU layers and then the CPU when memory is short (then: "Not enough free memory for this model: close other apps or pick a smaller model (Qwen2.5 1.5B is the smallest)"), and unloads only after the reply in progress (also when quitting). Every download and cloud call goes through Electron's **net.fetch** (the system proxy and certificate store – antivirus HTTPS scanning and company proxies broke Node's fetch, which stays as the fallback), errors carry their cause codes explained, and everything lands in main.log (llama.cpp's own messages, every request with its timings, every failed IPC handler with its cause chain). An **AI status** panel tops the AI tab: Runtime, Model, Cloud provider, Network and Last error, green / amber / red with the reason, **Run checks** (llama.cpp started, the model loaded with an 8-token grammar test, the endpoint and Hugging Face reached), **Copy report** (JSON: versions, RAM, GPU, backend, model, provider – never the key –, the last errors, main.log's tail), **Open logs** and **Run the model on: Auto (GPU) / CPU only**. A first-run card offers the 2 GB model or a cloud key, a finished download is selected when the selected model is missing (before the page hears it is ready, so Run is enabled at once), a run shows "Reading the request… N s" and a timing line per step. Version **1.0.3**: unsigned builds no longer carry a publisher name, so 1.0.3 → 1.0.4 updates install (1.0.2 users install 1.0.3 by hand once – the download page says so), and CI's packaged smoke runs a real Settings and Captions job on a cached GGUF (see [Windows app: AI fix and status panel](#windows-app-ai-fix-and-status-panel)) |
 | **Mode thumbnails** | Every mode card – the modes wall, the studio's mode picker, the daily card – shows its mode at its **hero moment**, mid-action with the payoff on screen (feature mode-thumbnails): an entry per mode in `HERO_MOMENTS` (`src/lib/thumbnails/heroMoments.ts` – settings, pinned seed, second, camera and the mode's colour; glow and trails on, bigger balls where a 240 px card needs them, only the HUD element that is the point), rendered by the real simulator's deterministic still camera and framed the same way for every card: a 480 × 480 square (2× the ~240 px card), the same inset and vignette, a subtle edge glow in the mode's colour, WebP under 60 KB, no captions or watermark. `npm run previews` regenerates them, printing each file's size, and stops when a mode has no hero moment; the viral bot's covers use the same idea – the payoff frame of each clip, not its first frame (see [Mode thumbnails](#mode-thumbnails)) |
+| **Watermark on every free simulation** | The free-video watermark on the live canvas too (feature watermark-everywhere, `src/lib/watermark/live.ts`, `liveLayout.ts`): every frame a visitor without a verified Pro licence sees – the studio's canvas in every mode (and so share links, the gallery's presets, the daily challenge and the Windows app, which runs the same page), a split-screen race's composed frame (once, not per arena) and the landing page's live preview – carries the badge and the faint domain tiles, drawn into the canvas' own pixels as the frame's last pass: 4.5 % of the exported square tall, 1.5 % from its edges, on the other side every 6 s, clear of the mode's HUD. The decision is free-watermark's sealed gate, so a Pro licence removes it at once – mid-run too – and removing the licence brings it back; a page recording copies the marked canvas, one badge per frame in the video layout's place (see [Watermark on every free simulation](#watermark-on-every-free-simulation)) |
 | **Sharded smoke test** | The browser smoke test (`scripts/smoke-test.mjs`, some 750 checks, ~45 minutes on one runner) runs in CI as **four shards on four runners at once**, about 12 minutes each (feature smoke-sharding): the suite is a list of blocks – `await smokeBlock("title", async () => { … })`, each setting up its own page – split at block level, never at check level, by a greedy longest-first balance over the blocks' wall times in `scripts/smoke-timing.json` (a block the file does not know weighs the median, so a new block gets a shard by itself). `--shard i/N` / `SMOKE_SHARD=i/N` runs one part, `SMOKE_ONLY=<title>` single blocks, `--list` prints the split, `--write-timing` refreshes the baseline, every run prints its 15 slowest blocks, and a narrowed run starts every block from a clean page. The `smoke` job of deploy.yml and smoke.yml is a matrix of the four shards; `smoke-summary` merges their screenshots and slowest blocks and gates the deploy (see [Smoke test shards](#smoke-test-shards)) |
 
 ## Design
@@ -374,7 +375,7 @@ src/
   lib/settings.ts       the single settings object, defaults, ranges, URL + preset serialisation
   lib/site.ts           site name (SITE_NAME, SITE_SLUG) and accent – see "Rebrand"; the domain derived from the site URL; base-path and URL helpers
   lib/billing/          --- paywall-gate --- the licence contract (license.ts), the entitlement store, THE guard, the billing API client, plans and wording
-  lib/watermark/        --- free-watermark --- the gate (seal.ts: the licence verified again, the sealed decision), the placement (layout.ts) and the painter (paint.ts) of the free videos' watermark
+  lib/watermark/        --- free-watermark --- the gate (seal.ts: the licence verified again, the sealed decision), the placement (layout.ts) and the painter (paint.ts) of the free videos' watermark · --- watermark-everywhere --- the live canvas' watermark: live.ts (the live gate on the sealed decision, the frame's last pass) and liveLayout.ts (its placement, clear of the HUD)
   lib/project.ts        project files (.jumpingballslive.json): build, versioning / migration, validation · shareCode.ts (short ?c= share codes) · base64.ts
 ```
 
@@ -1539,7 +1540,9 @@ still refuses) and nothing else about billing changed.
   renders and the desktop render queue all export through the fast export, split-screen races record through the page
   recorder, and the desktop app's ffmpeg only scales and pads the rendered file, so every output path carries it. The live
   canvas on the page stays clean (the recorder captures its own composed frames, not the page's canvas: drawing the mark there
-  too would put it into the clip twice); the line under the stage says that a free recording carries the mark.
+  too would put it into the clip twice); the line under the stage says that a free recording carries the mark. --- watermark-everywhere ---
+  No longer: the live canvas carries the mark too, and the page recorder adds no badge of its own to a frame that already
+  carries it – see [Watermark on every free simulation](#watermark-on-every-free-simulation).
 - **The gate** (`src/lib/watermark/seal.ts`) – when a recording or export starts, `sealWatermark()` waits for a licence check
   or a renewal in flight (at most `ENTITLEMENT_WAIT_MS`), reads the stored token (`jbl.license`), verifies it again –
   signature with the build's public key, header, payload and expiry (`watermarkDecision()`) – and returns a frozen
@@ -1603,7 +1606,8 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
   fighters' names, the HOME count –, and the camera frames out a HUD without a switch (the String Circle title, the Sound
   Vortex and Conveyor Belt counters, the race commentary, the Multipliers badges, Fight League's ability boxes). No captions or
   top / bottom text, no watermark: the stills come from the arena canvas, never the video compositor, and the generator runs
-  with a test Pro licence. The entries are below, one line per mode.
+  with a test Pro licence (`PREVIEW_LICENSE`, a real key, against a production build) – the still camera stamps a free
+  visitor's stills like a video's frames (see the still camera below). The entries are below, one line per mode.
 - **The frame** – `src/lib/thumbnails/heroFrame.ts`: a square like every card (`aspect-square`), `THUMB_SIZE` 480 × 480 (2× the
   ~240 px card), the subject with the same `THUMB_INSET` margin (4 %) on every side – past the world's edge the stage's darkest
   corner colour fills it –, the same radial vignette and a subtle inner glow along the edges in the mode's colour, encoded as
@@ -1612,7 +1616,10 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
   the fast export's hidden offline canvas with its seeded `Math.random` and clock, stepped frame by frame to the hero second and
   drawn at 2–6 device px per world px (`heroRenderScale()`), then filtered down – an entry gives the same picture on any
   machine, however busy. The moments are tuned for the 800 × 450 world of a 1400 × 900 window (`HERO_WORLD`); the generator
-  refuses another.
+  refuses another. --- watermark-everywhere --- A still is a picture of the run like a video's frame: each capture is sealed
+  when it starts (free-watermark's `sealWatermark()`) and every picture it hands back – the framed card and the raw world – is
+  stamped (`stampFrame()`) unless that seal is a verified Pro licence's, so the still camera, reachable from the console, gives a
+  visitor without Pro no clean frame; the result says so (`watermarked`), and the generator refuses to write such a picture.
 - **Regenerating** – build and serve the site, then run the generator (`npm run previews`, `scripts/generate-mode-previews.mjs`):
 
   ```bash
@@ -1681,6 +1688,82 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `orbGrid` | the orbs' wave at its peak | 3 | 14.5 s | `ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0` | x 0.506 · y 0.567 · zoom 1.25 |
 | `fightLeague` | Thor and Loki clashing, the VS card gone, hammer and daggers mid-swing | 11 | 5.25 s | – | x 0.5 · y 0.361 · zoom 1.151 |
 | `landClaim` | half the wall taken: the columns a mosaic of the four countries' colours | 3 | 5 s | `teams=France,Brazil,Spain,Colombia…&lcm=claim&lch=0&tsb=0&tn=0` | x 0.5 · y 0.587 · zoom 1.25 |
+
+### Watermark on every free simulation
+Feature watermark-everywhere – the owner's request (2026-10-04): "add the watermark to all simulations made without pro". The
+free-video watermark (above) marked the videos; now every frame of a live simulation a visitor without a verified Pro licence
+sees carries it too: the studio's canvas in every mode – share links (`?c=`), the gallery's presets, the daily challenge and
+the Windows app run that same canvas –, a split-screen race's composed frame and the landing page's live preview.
+
+- **The mark** – the free-watermark one, reused, not a second implementation: the badge sprite (`buildBadgeSprite()`) and the
+  diagonal domain tiles at 4 % (`buildTileLayer()`) of `src/lib/watermark/paint.ts`, and its 6 s corner schedule
+  (`badgeCorner()`). On the live canvas (`src/lib/watermark/liveLayout.ts`) the badge is 4.5 % of the exported square's side tall
+  (`LIVE_BADGE_HEIGHT`, at least 18 px), 1.5 % of it from the edges (`LIVE_MARGIN`), in a corner of the exported square (the
+  centred square the page recorder crops), on the left for 0–6 s, on the right for 6–12 s and so on. The landing page's preview
+  places it in its whole phone frame.
+- **Clear of the HUD** – after drawing, the canvas reports the HUD of the frame (`LiveHud`, in world px, no allocation): bands
+  along the top and the bottom of the square – the modes' top HUD (`modeTopHud`: Fight League's names, Land Claim's, Territory's
+  and the Maze's HUD bands, the Bouncing Orbs line, the String Battle's badge, Power Layers' pills, the multiplier badges), Fight
+  League's ability boxes, the String Circle's standings strip, the arena games' scoreboard band, the captions' stacks, the song
+  bar – and blocks: the teams' scoreboard, the bounce-math values, the No limits and speed readouts, Journey's clock and
+  mini-map, a race's standings and mini-map, the title blocks of the Sound Vortex, Beat Drop, Bullseye and Conveyor Belt, the
+  Top / Bottom Text, a split-screen race's arena labels (`src/components/simulator/liveMarkHud.ts` holds the geometry of the
+  ones whose renderers do not report it). The badge takes the bottom corner of its side inside the free band between the bands;
+  when a block holds it, the top corner of the same side (so it still changes side every 6 s); when both are held, the other
+  side's; only when the HUD holds every corner does it go over it, in its bottom corner (`placeLiveBadge()`).
+- **Where it is drawn** – into the canvas' own pixels as the frame's last pass (`stampLiveFrame()`): `Canvas.tsx` calls it at
+  the end of its draw routine, after everything else, for its live canvas only (`if (!offline)`: the fast export's hidden canvas
+  and a split-screen race's arena canvases are composed elsewhere); `splitScreenCanvas.tsx` once per composed frame, after the
+  labels, banner, text and captions; `LivePreview.tsx` after each preview frame. Never a DOM overlay, a CSS pseudo-element or a
+  second canvas: deleting elements, classes or styles in DevTools leaves the pixels as they are.
+- **The gate** – free-watermark's, not a second one: the live gate (`live.ts`) holds a `WatermarkSeal` from `sealWatermark()`
+  (the stored licence verified again, with the built-ins captured at load) in module-private state and asks `sealVerdict()`
+  every frame; until the first verification answers there is no seal, which is marked. It seals again whenever the licence can
+  have changed – the entitlement store reports a change (a licence pasted, restored or removed, another tab's storage event, the
+  focus, a licence that ran out), the stored licence is not the one verified (checked every second: marked at once until the new
+  one verifies) – and every minute. So a Pro licence removes the mark from the next frames, mid-run too, and removing it brings
+  the mark back on the very next frame. No setter, option, flag, DOM or `data-*` attribute, class, CSS variable, global or storage
+  flag reaches it, and the canvas' `data-*` attributes say nothing about it.
+- **One badge per video frame** – the page recorder copies the live canvas, which already carries the mark, so its compositor
+  adds no badge (and no tiles) of its own to a frame the live pass marked (`liveMarkCovers()` in `drawRecordingFrame()`); while it
+  records, the live pass puts the badge where the video layout puts it in the export frame (inside the platforms' safe zone, 5.2 %
+  of the exported square), so the clip looks as before. A frame the live pass did not mark – the fast export's, the batch
+  render's, the viral bot's and the desktop queue's offline canvases, a canvas resized since, a free recording during which a Pro
+  licence was activated – is stamped by the compositor as before.
+- **Cost** – one badge sprite (per badge height: the live one and a recording's) and one tile layer per canvas size, cached per
+  canvas: a frame costs two `drawImage()` calls, and the live and recording frame-rate floors of the smoke test hold. A mark that
+  cannot be built (a canvas that draws nothing) never breaks the frame loop: it is tried again a second later, and meanwhile the
+  frame counts as unmarked, so a recording gets the compositor's mark.
+- **The copy** – the pricing page (under its lede) and the Unlock dialog (under its reason) say that free simulations and free
+  videos carry a small watermark and Pro removes it from both (`Billing.liveMark`), the video buttons' tag says so in its tooltip
+  (`Watermark.liveTagTip`) and the line under the stage too (`Watermark.liveNote`), in English, Polish and Spanish.
+- **The site's own images** – `scripts/generate-mode-previews.mjs` and `scripts/generate-og.mjs` render as Pro (a licence signed
+  with the committed TEST key, which a test-mode build accepts; `PREVIEW_LICENSE` takes a real key for a production build), so
+  the mode cards, the gallery's pictures and the social preview stay clean. The mode cards come from mode-thumbnails' still
+  camera (`window.__jumpingBallsStill`, `useHeroStill.ts`), which renders on the fast export's offline canvas – never stamped
+  live – and so stamps its pictures itself, like a compositor: sealed per capture, a free visitor's stills (the framed card and
+  the raw world) carry the badge and the tiles, and a capture that carries them says so (`watermarked`) – the generator then
+  stops rather than write a marked card.
+- **Extending** – a new canvas that plays a simulation calls `stampLiveFrame()` as its last pass (and never on a canvas a
+  compositor exports from); a mode that draws HUD text in a corner of the square or along its top or bottom edge reports it to
+  the frame's `LiveHud` (a band for a full-width strip, a block otherwise) before the pass.
+- **Honest limits** – as for the videos: code that changes the page's JavaScript (an override, an extension, a userscript) or a
+  console that draws over the canvas after the live pass can hide the badge from the screen – and so from a page recording, which
+  copies the canvas – and capturing the screen records whatever it shows; only rendering on a server would be a guarantee.
+- **Tests** – `tests/watermarkEverywhere.test.ts`: the sizes and margins, the 6 s side change, the HUD bands and blocks (a held
+  corner, both held, all held, a band with no room), the HUD geometry of the modes, the recording's placement against the video
+  layout of four export sizes; the gate (no licence, Pro, monthly, expired, another key, garbage; marked from the first frame;
+  a licence activated and removed mid-run; storage flags, globals and the DOM ignored; the module's exports); the painter (two
+  draws a frame, last, state reset; caches per canvas and size; a mark that cannot be built); one badge per video frame (the
+  compositor over a marked canvas, the fast export's, a resized one, a licence activated mid-recording, the page recorder end to
+  end); the wiring (the canvas' last pass, never offline; the split-screen stage once; the landing preview; the Windows app; the
+  still camera's seal and stamps, and the generator refusing a marked still); the copy in three languages. The smoke test's
+  watermark-everywhere block runs a free visitor in ten modes, a split-screen race, a share link, the daily challenge and the
+  landing preview (the badge within 1 s of the start, on the other side within 7 s), tampers with the DOM during a live run,
+  toggles the test licence mid-run (no mark for Pro in the same modes), counts the badge regions of a free recording on a light
+  background (exactly one, one layer deep), measures the live and recording frame rates with the mark, and takes the same still
+  with the still camera as a free visitor (badge and tiles, card and raw world, reported `watermarked`) and as Pro (neither; two
+  Pro stills give the same pixels).
 
 ### Add a smoke-test block
 

@@ -3821,7 +3821,8 @@
       "success": "Zainstalowano – masz Pro do {date}.",
       "failed": "Nie udało się użyć klucza: {message}",
       "empty": "Najpierw wklej klucz licencji."
-    }
+    },
+    "liveMark": "Darmowe symulacje i darmowe filmy mają mały znak wodny {siteName} – w rogu płótna podczas zabawy i w każdym klipie, który zrobisz. Pro usuwa go z obu."
   },
   "OrbGrid": {
     "canvasHud": "{n, plural, one {{count} skacząca kula} few {{count} skaczące kule} many {{count} skaczących kul} other {{count} skaczącej kuli}}",
@@ -4000,7 +4001,9 @@
     "tagTip": "Plan darmowy: ten film dostanie znak wodny – Pro go usuwa",
     "note": "Plan darmowy: filmy nagrane lub wyeksportowane tutaj mają mały znak wodny {siteName}.",
     "noteRecording": "Nagrywanie w planie darmowym: ten film ma znak wodny {siteName}.",
-    "remove": "Usuń znak wodny"
+    "remove": "Usuń znak wodny",
+    "liveTagTip": "Plan darmowy: symulacje i filmy mają mały znak wodny – Pro go usuwa",
+    "liveNote": "Plan darmowy: symulator oraz filmy nagrane lub wyeksportowane tutaj mają mały znak wodny {siteName}."
   },
   "DesktopAiFix": {
     "statusTitle": "Stan AI",

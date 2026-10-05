@@ -18,6 +18,7 @@
  */
 import { SITE_SLUG } from "@/lib/site";
 import { prepareStamp, sealWatermark, stampFrame, type FrameMark } from "@/lib/watermark/seal"; // --- free-watermark ---
+import { liveMarkCovers } from "@/lib/watermark/live"; // --- watermark-everywhere --- (the page's canvas carries the mark itself)
 
 /** --- review fix (docs-consistency) --- The stem of a downloaded clip (`jumpingballslive-export.mp4`), from the site's name. */
 export const EXPORT_BASE_NAME = `${SITE_SLUG}-export`;
@@ -137,7 +138,10 @@ export function drawRecordingFrame(
     ctx.restore();
   }
   // --- free-watermark --- the frame's pixels get the mark here, in the compositor's own canvas
-  stampFrame(ctx, mark?.seal ?? null, { width, height, clipMs: mark?.clipMs ?? 0, square: { x: dx, y: dy, width: dw, height: dh } });
+  // --- watermark-everywhere --- unless the copied source is the page's live canvas and its frame already carries the live
+  // mark (lib/watermark/live.ts places it where the video layout does while it is recorded): one badge per frame, never two.
+  // The fast export's canvas never does (the canvas skips the live pass offline), so its frames are stamped here as before.
+  if (!liveMarkCovers(source)) stampFrame(ctx, mark?.seal ?? null, { width, height, clipMs: mark?.clipMs ?? 0, square: { x: dx, y: dy, width: dw, height: dh } });
 }
 // --- end fast-render ---
 
