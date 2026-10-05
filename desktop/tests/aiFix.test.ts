@@ -13,6 +13,7 @@ import { SecretBox, type SafeStorageLike } from "../src/ai/secrets";
 import { DEFAULT_PREFS } from "../src/prefs";
 import { ModelManager } from "../src/models/manager";
 import type { ModelSpec } from "../src/models/catalog";
+import { createModelServices } from "../src/ai/modelServices"; // --- review fix (desktop-ai-fix) ---
 import { networkDeps, withFallback } from "../src/net";
 import { NETWORK_TEST_URL, runAiDiagnostics, scrubSecrets, type DiagnosticsDeps } from "../src/ai/diagnostics";
 import { describeHandlerFailure, registerHandlers, type HandlerTable } from "../src/handlers";
@@ -377,6 +378,114 @@ describe("AiService: logs, the last error in ai:status, the model auto-select", 
     const c = serviceWith({ readyModels: async () => [] });
     expect(await c.svc.ensureSelectedModel()).toBeNull();
     expect(c.prefs().localModel).toBe(DEFAULT_PREFS.localModel);
+  });
+});
+
+/* ------------------------------------------------------------------ --- review fix (desktop-ai-fix) --- a download, as the page sees it */
+
+describe("a finished download reaches the page already selected", () => {
+  const payload = Buffer.concat([Buffer.from("GGUF"), Buffer.alloc(40_000, 5)]);
+  const small: ModelSpec = { id: "qwen2.5-1.5b-instruct-q4km", name: "Qwen2.5 1.5B", file: "qwen.gguf", url: "https://huggingface.co/x/qwen.gguf", size: payload.length, sha256: createHash("sha256").update(payload).digest("hex"), licence: "Apache-2.0", licenceUrl: "", commercial: true, params: "1.5B" };
+  const preselected: ModelSpec = { ...small, id: DEFAULT_PREFS.localModel, name: "Llama 3.2 3B", file: "llama.gguf" };
+  const serve = (async () => new Response(new Uint8Array(payload), { status: 200 })) as unknown as typeof fetch;
+
+  interface PageView {
+    event: string;
+    /** The app's selection when the event left it. */
+    selectedAtEvent: string;
+    ready?: boolean;
+    model?: string | null;
+    inUse?: string[];
+  }
+
+  /**
+   * The app's model services exactly as main.ts wires them (createModelServices), and the page: on a model's "ready" (or
+   * failed) event it refreshes once – ai:status and ai:models, answered by the main process the moment they arrive.
+   */
+  function appWithPage(dir: string, fetchImpl: typeof fetch = serve, setPrefsFails = false) {
+    let prefs: DesktopPrefs = { ...DEFAULT_PREFS };
+    let cloud: CloudSettings = { ...DEFAULT_CLOUD };
+    const logs: string[] = [];
+    const views: PageView[] = [];
+    const refreshes: Promise<unknown>[] = [];
+    const { models, ai } = createModelServices({
+      manager: {
+        dir,
+        catalog: [preselected, small],
+        fetch: fetchImpl,
+        onProgress: (e) => {
+          if (e.state !== "ready" && !e.error) return;
+          const view: PageView = { event: `${e.id} ${e.error ? `failed: ${e.error}` : e.state}`, selectedAtEvent: prefs.localModel };
+          views.push(view);
+          refreshes.push(
+            Promise.all([ai.status(), models.list(prefs.localModel)]).then(([status, list]) => {
+              view.ready = status.ready;
+              view.model = status.local.model;
+              view.inUse = list.filter((m) => m.selected && m.state === "ready").map((m) => m.id);
+            }),
+          );
+        },
+      },
+      service: {
+        prefs: () => prefs,
+        setPrefs: (p) => {
+          if (setPrefsFails) throw new Error("the settings file is locked");
+          prefs = { ...prefs, ...p };
+        },
+        cloud: () => cloud,
+        setCloud: (c) => (cloud = c),
+        secrets: new SecretBox(plainStorage),
+        local: Object.assign(fakeLlamaModule().runner, { unload: async () => {} }) as LocalModelRunner,
+        emitToken: () => {},
+        log: (level, message) => logs.push(`${level}: ${message}`),
+      },
+    });
+    return { models, ai, views, logs, settled: () => Promise.all(refreshes), prefs: () => prefs, select: (id: string) => (prefs = { ...prefs, localModel: id }) };
+  }
+
+  let dir: string;
+  beforeEach(() => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-select-"));
+  });
+  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
+
+  it("selects a download of another model before its ready event, so the page's one refresh enables Run", async () => {
+    const app = appWithPage(dir);
+    expect((await app.ai.status()).ready).toBe(false); // the preselected 2 GB model is not on this PC
+    // The IPC handler's download: the event goes out, then the download returns (1.0.3 selected only after the return).
+    const entry = await app.models.download(small.id);
+    await app.settled();
+    expect(entry.state).toBe("ready");
+    expect(app.views).toEqual([{ event: `${small.id} ready`, selectedAtEvent: small.id, ready: true, model: small.id, inUse: [small.id] }]);
+    expect(app.logs).toContain(`info: selected the local model ${small.id}: the selected ${preselected.id} is not downloaded`);
+    // A model already on disk (a second click on a list that was not refreshed): selected the same way, and the page told.
+    app.select(preselected.id);
+    await app.models.download(small.id);
+    await app.settled();
+    expect(app.views.at(-1)).toEqual({ event: `${small.id} ready`, selectedAtEvent: small.id, ready: true, model: small.id, inUse: [small.id] });
+    // A ready selection stays: another download does not take it over.
+    await app.models.download(preselected.id);
+    await app.settled();
+    expect(app.views.at(-1)).toEqual({ event: `${preselected.id} ready`, selectedAtEvent: small.id, ready: true, model: small.id, inUse: [small.id] });
+  });
+
+  it("enables Run for the preselected model's own download, keeps a verified model when the selection fails, and selects nothing for a failed one", async () => {
+    const own = appWithPage(dir);
+    await own.models.download(preselected.id);
+    await own.settled();
+    expect(own.views).toEqual([{ event: `${preselected.id} ready`, selectedAtEvent: preselected.id, ready: true, model: preselected.id, inUse: [preselected.id] }]);
+    // The selection fails (the settings file cannot be written): the download is still verified and ready, the log says why.
+    const locked = appWithPage(fs.mkdtempSync(path.join(dir, "locked-")), serve, true);
+    expect((await locked.models.download(small.id)).state).toBe("ready");
+    await locked.settled();
+    expect(locked.views).toEqual([{ event: `${small.id} ready`, selectedAtEvent: preselected.id, ready: false, model: preselected.id, inUse: [] }]);
+    expect(locked.logs).toContain(`warn: selecting ${small.id}: the settings file is locked`);
+    // A failed download: the page hears the error and nothing is selected.
+    const failed = appWithPage(fs.mkdtempSync(path.join(dir, "failed-")), (async () => new Response("", { status: 503 })) as unknown as typeof fetch);
+    await expect(failed.models.download(small.id)).rejects.toThrow(/HTTP 503/);
+    await failed.settled();
+    expect(failed.views).toEqual([{ event: `${small.id} failed: Download failed: HTTP 503`, selectedAtEvent: preselected.id, ready: false, model: preselected.id, inUse: [] }]);
+    expect(failed.prefs().localModel).toBe(preselected.id);
   });
 });
 

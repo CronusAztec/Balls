@@ -18,10 +18,10 @@ import { RenderSaver } from "./render";
 import { probeEncoders } from "./ffmpeg/encoders";
 import { buildBenchmarkArgs } from "./ffmpeg/args";
 import { bundledFfmpegPath, ffmpegRunner, resolveFfmpeg, runFfmpeg } from "./ffmpeg/run";
-import { ModelManager } from "./models/manager";
 import { LocalModelRunner, checkLocalAi, type LlamaModuleLike } from "./ai/local";
 import { SecretBox } from "./ai/secrets";
-import { AiService, DEFAULT_CLOUD, type CloudSettings } from "./ai/service";
+import { DEFAULT_CLOUD, type AiService, type CloudSettings } from "./ai/service";
+import { createModelServices } from "./ai/modelServices"; // --- review fix (desktop-ai-fix) --- a finished download selected before the page hears "ready"
 import { UpdateController } from "./updater";
 import { MENU, MENU_LABELS, menuLanguage } from "./menu";
 import { MAX_PICKED_BYTES, dialogFilters, filesInArgv, mediaKindOf, mimeOf } from "./media";
@@ -147,24 +147,27 @@ function start() {
   });
   // --- desktop-ai-fix --- every download and cloud call over Electron's net.fetch (the system proxy and certificate store)
   const http = networkDeps((input, init) => net.fetch(input, init), globalThis.fetch, logger.warn);
-  const models = new ModelManager({ dir: locations.modelsDir, onProgress: (e) => send(DESKTOP_EVENTS.modelProgress, e), fetch: http.modelFetch });
   const local = new LocalModelRunner(() => import("node-llama-cpp") as unknown as Promise<LlamaModuleLike>, logger.info);
   const secrets = new SecretBox(safeStorage);
   const cloudSettings = (): CloudSettings => ({ ...DEFAULT_CLOUD, ...(store.get("cloud") ?? {}) });
-  const ai = new AiService({
-    prefs,
-    setPrefs,
-    cloud: cloudSettings,
-    setCloud: (cloud) => store.set("cloud", cloud),
-    secrets,
-    local,
-    modelPath: (id) => models.readyPath(id),
-    emitToken: (requestId, text) => send(DESKTOP_EVENTS.aiToken, { requestId, text }),
-    // --- desktop-ai-fix ---
-    fetch: http.aiFetch,
-    anthropic: http.anthropic,
-    log: (level, message) => logger.write(level, message),
-    readyModels: async () => (await models.list(prefs().localModel)).filter((m) => m.state === "ready").map((m) => m.id),
+  // --- review fix (desktop-ai-fix) --- the model manager and the AI service wired together (ai/modelServices.ts): a finished
+  // download is selected, when the selected model is not ready, before its "ready" event – the page's refresh on that event
+  // came before 1.0.3's selection (started after the download returned) and kept Run disabled
+  const { models, ai } = createModelServices({
+    manager: { dir: locations.modelsDir, onProgress: (e) => send(DESKTOP_EVENTS.modelProgress, e), fetch: http.modelFetch },
+    service: {
+      prefs,
+      setPrefs,
+      cloud: cloudSettings,
+      setCloud: (cloud) => store.set("cloud", cloud),
+      secrets,
+      local,
+      emitToken: (requestId, text) => send(DESKTOP_EVENTS.aiToken, { requestId, text }),
+      // --- desktop-ai-fix ---
+      fetch: http.aiFetch,
+      anthropic: http.anthropic,
+      log: (level, message) => logger.write(level, message),
+    },
   });
   // --- desktop-ai-fix --- a 1.0.2 install whose download was never "used": the ready model is selected
   void ai.ensureSelectedModel().catch((err: unknown) => logger.warn(`selecting a ready model: ${describeError(err)}`));
@@ -291,12 +294,10 @@ function start() {
     [IPC.aiStatus]: () => ai.status(),
     [IPC.aiModels]: () => models.list(prefs().localModel),
     [IPC.aiModelDownload]: (id) => {
+      // --- desktop-ai-fix --- a finished download is selected when the selected model is not ready (Run stayed disabled in
+      // 1.0.2) – --- review fix (desktop-ai-fix) --- inside the download, before its "ready" event (createModelServices)
       void models.download(id as string).then(
-        // --- desktop-ai-fix --- a finished download is selected when the selected model is not ready (Run stayed disabled in 1.0.2)
-        () => {
-          logger.info(`model ${String(id)} downloaded`);
-          void ai.ensureSelectedModel(String(id)).catch((err: unknown) => logger.warn(`selecting ${String(id)}: ${describeError(err)}`));
-        },
+        () => logger.info(`model ${String(id)} downloaded`),
         (err: Error) => logger.warn(`model ${String(id)}: ${describeError(err)}`),
       );
       return models.list(prefs().localModel);
