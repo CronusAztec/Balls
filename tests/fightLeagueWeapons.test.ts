@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   EV_CLASH,
   EV_DAMAGE,
+  EV_HIT, // --- fl-overhaul --- (Stage 3: damage numbers merge, so the hits are counted)
   EV_DODGE,
   EV_IMMUNE,
   EV_INTERRUPT,
@@ -321,7 +322,9 @@ describe("fight league fair hit pipeline", () => {
       let lastAny = -Infinity;
       probeRun(engine, PROBE_INTRO_MS + 30_000, () => {
         for (const e of eventsSince(v, serial)) {
-          if (e.kind !== EV_DAMAGE || e.slot !== 1 || e.src < 0) continue;
+          // (--- fl-overhaul --- Stage 3: one damage number gathers an attacker's hits within 150 ms, so each hit is read from
+          // EV_HIT – the attacker's slot, the same source)
+          if (e.kind !== EV_HIT || e.slot !== 0 || e.src < 0) continue;
           const f = v.fighters[e.src >> 3];
           const w = f.weapons[e.src & 7];
           const window = w ? flSourceWindowMs(w.spec.kind, w.spec.cooldown, Math.max(f.attack, 1)) : FL_IFRAME_MS;
@@ -341,15 +344,22 @@ describe("fight league fair hit pipeline", () => {
     let serial = 0;
     let lastT = -Infinity;
     let volley = 0;
+    let hits = 0; // --- fl-overhaul --- (Stage 3)
+    let numbers = 0; // --- fl-overhaul --- (Stage 3)
     probeRun(engine, PROBE_INTRO_MS + 20_000, () => {
       for (const e of eventsSince(v, serial)) {
-        if (e.kind !== EV_DAMAGE || e.slot !== 1) continue;
+        if (e.kind === EV_DAMAGE && e.slot === 1) numbers++; // --- fl-overhaul --- (Stage 3)
+        if (e.kind !== EV_HIT || e.slot !== 0) continue; // (--- fl-overhaul --- Stage 3: the hits, not the merged numbers)
+        hits++;
         if (e.t - lastT < FL_IFRAME_MS) volley++;
         lastT = e.t;
       }
       serial = v.eventSerial;
     });
     expect(volley).toBeGreaterThan(0);
+    // --- fl-overhaul --- (Stage 3) a volley's pellets add into one damage number: fewer numbers than hits
+    expect(numbers).toBeGreaterThan(0);
+    expect(numbers).toBeLessThan(hits);
   });
 
   it("trades melee hits fairly: a clash parries both, and mirror matches rarely end in a double KO, slot A winning about half", { timeout: 120_000 }, async () => {

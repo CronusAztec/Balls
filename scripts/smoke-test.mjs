@@ -10969,6 +10969,40 @@ async function fightLeagueChecks() {
     `(preset ${preset}, ${JSON.stringify(Object.fromEntries(Object.entries(intro).filter(([k]) => k.startsWith("fl"))))})`,
   );
 }
+// --- fl-overhaul --- (Stage 3) the lilac stage and the VS card's banners on the intro's clock
+{
+  // The default stage is lilac (data-fl-stage, a lilac pixel in the canvas's margin beside the square – flSt=night a dark
+  // one), and the VS card's banners come on the intro's clock: 'count' (3-2-1) by 1.3 s, 'fight' after 1.5 s (data-fl-banners).
+  const margin = () =>
+    page.evaluate(() => {
+      const c = document.querySelector("main canvas");
+      const g = c.getContext("2d");
+      return [0.3, 0.7].map((fy) => [...g.getImageData(Math.round(0.03 * c.width), Math.round(fy * c.height), 1, 1).data.slice(0, 3)]);
+    });
+  const at = (sec) => page.waitForFunction((s) => Number(document.querySelector("main canvas")?.dataset.flTime) >= s, sec, { timeout: 20000 }).catch(() => {});
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&seed=5`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await at(1.3);
+  const early = await canvasData();
+  const lilac = await margin();
+  await at(1.6);
+  const later = await canvasData();
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flSt=night&seed=5`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await at(0.8);
+  const night = await canvasData();
+  const dark = await margin();
+  const isLilac = (px) => px[2] >= 215 && px[0] >= 170 && px[1] >= 155 && px[2] - px[1] >= 25;
+  const isDark = (px) => px.every((v) => v <= 45);
+  const early13 = (early.flBanners || "").split(",");
+  const later16 = (later.flBanners || "").split(",");
+  check(
+    "fight league: the lilac stage (a dark one with flSt=night), and the VS card's 3-2-1 by 1.3 s and FIGHT! after 1.5 s",
+    early.flStage === "lilac" && lilac.every(isLilac) && night.flStage === "night" && dark.every(isDark) && early13.includes("vs") && early13.includes("count") && later16.includes("fight"),
+    `(stage ${early.flStage}, margin ${JSON.stringify(lilac)}; night: stage ${night.flStage}, margin ${JSON.stringify(dark)}; banners at ${early.flTime} s "${early.flBanners}", at ${later.flTime} s "${later.flBanners}")`,
+  );
+}
+// --- end fl-overhaul ---
 {
   // A 1v1 on a pinned seed at 8×, with a bottom question caption: fought to its winner (weapon hits and ability swells heard),
   // the banner held before the end screen, the caption above the ability boxes and answered at the verdict.
@@ -11019,6 +11053,53 @@ async function fightLeagueChecks() {
     `(seed ${verdict.seed} on ${verdict.world}; at 2.5 s: HP ${early.flHp}, caption "${early.captionTexts}" reveal ${early.captionReveal}, stack bottom ${stackBottom} / boxes at ${early.flBoxesTop}; banner=${banner}, held=${held}, end screen=${done}; winner ${verdict.flWinner} at ${verdict.flFinishSec} s, HP ${verdict.flHp}, hits ${verdict.flHits}, casts ${verdict.flCasts}, KOs ${verdict.flKos}, sounds ${verdict.flSounds}; caption "${verdict.captionTexts}"; heard ${audio.noise} noise bursts, ${audio.saw} swell voices)`,
   );
 }
+// --- fl-overhaul --- (Stage 3) that fight's spectacle on the canvas, and the KO finale at 1×
+{
+  // The fight just played (seed 11 at 8×): first blood named once it happened, the callouts it showed (the ability's name rising
+  // at its cast among them), the centre banners (first blood, the winner) and the shakes it counted.
+  const d = await canvasData();
+  const banners = (d.flBanners || "").split(",");
+  const callouts = (d.flCallouts || "").split(",");
+  check(
+    "fight league: that fight's first blood, callouts, banners and shakes are on the canvas (data-fl-first-blood, -callouts, -banners, -shakes)",
+    (d.flNames || "").split(",").includes(d.flFirstBlood) && callouts.includes("cast") && ["vs", "count", "fight", "firstBlood", "win"].every((b) => banners.includes(b)) && Number(d.flShakes) > 0,
+    `(first blood ${d.flFirstBlood}, callouts "${d.flCallouts}", banners "${d.flBanners}", shakes ${d.flShakes})`,
+  );
+}
+{
+  // The KO finale at 1×: a 40 HP duel rigged for A (a KO verdict, never a double KO) – data-fl-finale 1 while it plays (the
+  // slow motion, the push-in, the speed lines: the screenshot), then 0, and the winner's card held ≥ 3 s before the end screen
+  // (timed in the page, frame by frame: from the card's first frame – data-fl-banner 1 – to the end screen's first one).
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flHp=40&seed=2&fw=0`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const hold = (window.__flHold = { shown: 0, end: 0 });
+    const frame = () => {
+      const c = document.querySelector("main canvas");
+      const now = performance.now();
+      if (!hold.shown && c?.dataset.flFinished === "1" && c.dataset.flBanner === "1") hold.shown = now;
+      if (hold.shown && [...document.querySelectorAll("button")].some((b) => /Restart Simulation/.test(b.textContent || "") && b.getClientRects().length > 0)) {
+        hold.end = now;
+        return;
+      }
+      requestAnimationFrame(frame);
+    };
+    requestAnimationFrame(frame);
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const finale = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinale === "1", null, { timeout: 90000 }).then(() => true).catch(() => false);
+  if (finale) await page.screenshot({ path: path.join(outDir, "sim-fight-league-finale.png") });
+  const over = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinale === "0", null, { timeout: 15000 }).then(() => true).catch(() => false);
+  const ended = await page.waitForFunction(() => window.__flHold?.end > 0, null, { timeout: 30000 }).then(() => true).catch(() => false);
+  const hold = await page.evaluate(() => window.__flHold ?? { shown: 0, end: 0 });
+  const d = await canvasData();
+  const heldSec = ended && hold.shown > 0 ? (hold.end - hold.shown) / 1000 : 0;
+  check(
+    "fight league: a KO verdict plays the finale (data-fl-finale 1, then 0) and the winner's card holds ≥ 3 s before the end screen",
+    finale && over && d.flFinished === "1" && d.flWinnerTeam === "0" && heldSec >= 3,
+    `(finale ${finale} → over ${over}; ${d.flNames}: winner ${d.flWinner} at ${d.flFinishSec} s, banners "${d.flBanners}"; the card held ${heldSec.toFixed(2)} s)`,
+  );
+}
+// --- end fl-overhaul ---
 {
   // A four-way free-for-all (the Avengers preset) at 8×, fought to its end.
   await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=ffa4&fl2=ironman&fl3=captainamerica&fl4=hulk&seed=1`, { waitUntil: "networkidle" });
@@ -11101,6 +11182,19 @@ async function fightLeagueChecks() {
     fpsRetry(3000, 5, 30),
   );
 }
+// --- fl-overhaul --- (Stage 3) the four shooters' render cost and spectacle
+{
+  // data-fl-render-ms: the page's moving average of the layer's drawBodies + drawOverlay (logged); the knockback ribbons
+  // (data-fl-trails) and the callouts of those 8 s of fighting.
+  const d = await canvasData();
+  console.log(`  fight league render cost: ${d.flRenderMs} ms a frame (four shooters, ${d.flShots} shots, ${d.flProjectiles} projectiles drawn)`);
+  check(
+    "fight league: the four shooters' render cost is measured (data-fl-render-ms), knockback ribbons and callouts drawn",
+    Number(d.flRenderMs) > 0 && d.flFighters === "4" && Number(d.flTrails) >= 1 && (d.flCallouts || "").length > 0,
+    `(render ${d.flRenderMs} ms a frame, trails ${d.flTrails}, callouts "${d.flCallouts}", telegraphs ${d.flTelegraphs})`,
+  );
+}
+// --- end fl-overhaul ---
 {
   // A 1080×1920 recording (the default resolution) of the default duel.
   await page.goto(`${BASE}/en/simulator/?mode=fightLeague&dur=10`, { waitUntil: "networkidle" });
@@ -11122,6 +11216,12 @@ async function fightLeagueChecks() {
   }
   await timingCheck("a 1080×1920 fight league recording keeps 20+ fps and downloads", size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
 }
+// --- fl-overhaul --- (Stage 3) that 9:16 recording drew the plates in its bars
+{
+  const d = await canvasData();
+  check("fight league: the 1080×1920 recording draws the 9:16 plates in its bars (data-fl-plates=1)", d.flPlates === "1", `(plates ${d.flPlates}, stage ${d.flStage})`);
+}
+// --- end fl-overhaul ---
 {
   // Find Simulation: a duel A (Thor) wins – found, then played at 8× to Thor's win at the second it promised.
   await page.goto(`${BASE}/en/simulator/?mode=fightLeague`, { waitUntil: "networkidle" });
@@ -11200,6 +11300,19 @@ async function fightLeagueChecks() {
     `(first ${first}, fl1=${picked.get("fl1")}, chip ${chipA}, "${role}", Pokémon tiles ${pokemon}, closed by Esc ${closed}, ${query}, "${desc}")`,
   );
 }
+// --- fl-overhaul --- (Stage 3) the hit shapes: flDbg=1 (URL only) turns them on (data-fl-debug=1); without it they are off
+{
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flDbg=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.flTime) >= 2, null, { timeout: 20000 }).catch(() => {});
+  const on = await canvasData();
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(600);
+  const off = await canvasData();
+  check("fight league: flDbg=1 draws the hit shapes (data-fl-debug=1, 0 without it)", on.flDebug === "1" && off.flDebug === "0", `(with flDbg=1: ${on.flDebug} at ${on.flTime} s; without: ${off.flDebug})`);
+}
+// --- end fl-overhaul ---
 }
 await fightLeagueChecks();
 // --- end fight-league ---

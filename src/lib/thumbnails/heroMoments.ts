@@ -65,7 +65,7 @@ export const HERO_MOMENTS: Record<ModeId, HeroMoment> = {
   maze: { moment: "the leader one turn from the exit, blood-red trails filling the maze behind it", query: "mzn=4&mzbg=0&mzhud=0", seed: 6, atSec: 6.7, camera: { zoom: 1.12 }, tint: "#38b000" },
   conveyor: { moment: "balls riding the belt and dropping into the rainbow rings", query: "cvi=1&cvn=12&face=cute", seed: 1, atSec: 6.8, camera: { x: 0.481, y: 0.571, zoom: 1.154 }, tint: "#f4a261" },
   orbGrid: { moment: "the orbs' wave at its peak", query: "ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0", seed: 3, atSec: 14.5, camera: { x: 0.506, y: 0.567, zoom: 1.25 }, tint: "#4cc9f0" },
-  fightLeague: { moment: "Thor and Loki clashing, the VS card gone, hammer and daggers mid-swing", query: "", seed: 11, atSec: 5.25, camera: { x: 0.5, y: 0.361, zoom: 1.151 }, tint: "#ffd166" },
+  fightLeague: { moment: "Thor's Thunder Strike crashing down on Loki on the lilac stage, the HP bars ticking under the names", query: "", seed: 1, atSec: 9.45, camera: { x: 0.5, y: 0.361, zoom: 1.151 }, tint: "#ffd166" }, // --- fl-overhaul --- (Stage 3: the lilac stage, an ability firing over the foe; the final stage regenerates the picture)
   landClaim: { moment: "half the wall taken: the columns a mosaic of the four countries' colours", query: "teams=France*0055a4*%F0%9F%87%AB%F0%9F%87%B7,Brazil*009c3b*%F0%9F%87%A7%F0%9F%87%B7,Spain*aa151b*%F0%9F%87%AA%F0%9F%87%B8,Colombia*fcd116*%F0%9F%87%A8%F0%9F%87%B4&lcm=claim&lch=0&tsb=0&tn=0", seed: 3, atSec: 5, camera: { x: 0.5, y: 0.587, zoom: 1.25 }, tint: "#2a9d8f" },
 };
 

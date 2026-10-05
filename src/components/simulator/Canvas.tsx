@@ -94,6 +94,10 @@ import { orbRenderTimeMs } from "@/lib/physics/modes/orbRhythm";
 import { OrbFrameCost } from "./orbRhythmRenderer";
 // --- fight-league --- Fight League: the arena, the fighters with their weapons, the projectiles and effects, the HUD and the banner
 import { DEFAULT_FIGHT_LEAGUE_LABELS, FIGHT_LEAGUE_DATA_KEYS, FightLeagueDataset, FightLeagueLayer, type FightLeagueLabels, type FightLeagueRenderOptions } from "./fightLeagueRenderer";
+// --- fl-overhaul --- (Stage 3) the fonts the fast export waits for, the page's reduced motion
+import { flFontsLoaded } from "./fightLeague/text";
+import { prefersReducedMotion } from "@/lib/reducedMotion";
+// --- end fl-overhaul ---
 // --- land-claim --- Land Claim: the arena's blocks (offscreen, repainted where columns change), pops, flying blocks, badges, the HUD band and the verdict
 import { DEFAULT_LAND_CLAIM_LABELS, LAND_CLAIM_DATA_KEYS, LandClaimLayer, writeLandClaimDataset, type LandClaimLabels, type LandClaimRenderOptions } from "./landClaimRenderer";
 import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLayer, writeStringCircleDataset, type StringCircleLabels, type StringCircleRenderOptions } from "./stringCircleRenderer"; // --- string-circle ---
@@ -494,6 +498,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   /** --- review fix (modes-gerald-odd) --- the camera's slow-motion lag when the recording started (the clip clock subtracts what it adds since). */
   const clipLag0Ref = useRef(0);
   const exportSizeRef = useRef<{ width: number; height: number } | null>(null);
+  // --- fl-overhaul --- (Stage 3) Fight League's layer while it draws (the recorder's background hook paints its stage and plates)
+  const flLayerRef = useRef<FightLeagueLayer | null>(null);
   const labelsRef = useRef<CanvasLabels | undefined>(labels);
   const sizeRef = useRef({ width: 800, height: 600 });
   const fpsRef = useRef(60);
@@ -693,6 +699,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- themes
     paintRecordingBackground: (c: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => {
       bgPainter().paintExport(c, width, height, crop, backgroundLook());
+      flLayerRef.current?.paintExportBackdrop(c, width, height, crop); // --- fl-overhaul --- (Stage 3) the stage in the bars, the 9:16 plates
     },
     // --- end themes
     holdsEndScreen: () => (cinematicRef.current?.holdsEndScreen() ?? false) || (captionLayerRef.current?.holdsEndScreen() ?? false), // --- camera --- (--- captions --- and the question's answer)
@@ -904,6 +911,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const flRender: FightLeagueRenderOptions = { dpr: 1, numbers: true, teamColors: null, teamBanner: false, labels: DEFAULT_FIGHT_LEAGUE_LABELS };
     const flTeamColors: string[] = [];
     const flData = new FightLeagueDataset();
+    // --- fl-overhaul --- (Stage 3) the hit shapes (flDbg=1 in the URL only), reduced motion, the page's lite tier (never while
+    // recording or exporting), the render time measured around drawBodies + drawOverlay (data-fl-render-ms)
+    const flDebug = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("flDbg") === "1";
+    const flReduced = prefersReducedMotion();
+    let flLite = false;
+    let flBodiesMs = 0;
+    // --- end fl-overhaul ---
     // --- beat-drop --- Beat Drop's layer and its per-frame options (the roster's colours are rebuilt only when the roster changes)
     const bdLayer = new BeatDropLayer();
     const bmLayer = new BounceMathLayer(); // --- bounce-math ---
@@ -1121,6 +1135,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       setCanvasData("background", themeLook.backgroundType === "image" && !bgImageRef.current ? "solid" : themeLook.backgroundType);
       setCanvasData("particleStyle", engine.getParticleStyle());
       // --- end themes
+      // --- fl-overhaul --- (Stage 3) Fight League's stage over the background (lilac or night; the theme stage keeps the theme)
+      if (engine.isFightLeagueMode()) flLayer.drawBackdrop(ctx, engine.getFightLeagueView(), size.width, size.height, scale);
+      flLayerRef.current = engine.isFightLeagueMode() ? flLayer : null;
+      // --- end fl-overhaul ---
       // --- video-beats --- the imported video, dimmed, over the background and under everything else (on the simulation clock)
       // (--- beat-drop --- Beat Drop paints its own nearly opaque scene first: there the video goes over that backdrop, below)
       const videoLayer = videoLayerRef.current;
@@ -1270,6 +1288,22 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- orb-rhythm --- the frame's simulation time: what the page has fed the engine, a step behind (the step that made the sound)
       const orbT = orbView ? orbRenderTimeMs(engine.getElapsedMs(), engine.getStepRemainderMs(), accumulator, orbView.stepMs, orbView.finished ? orbView.finishedMs : -1) : 0;
       const flView = engine.isFightLeagueMode() ? engine.getFightLeagueView() : null; // --- fight-league ---
+      // --- fl-overhaul --- (Stage 3) Fight League's world: the mode's own shake (none while the camera's Screen Shake is on) and
+      // the field drawn at its display scale; the options the layer reads this frame (full every recording and export)
+      if (flView) {
+        const recordingNow = recordingRef.current || !!offline;
+        if (recordingNow) flLite = false;
+        else if (!flLite && fpsRef.current < 38) flLite = true;
+        else if (flLite && fpsRef.current > 52) flLite = false;
+        flRender.dpr = scale;
+        flRender.quality = flLite ? "lite" : "full";
+        flRender.reducedMotion = flReduced;
+        flRender.cameraShake = cam.settings.screenShake > 0;
+        flRender.debug = flDebug;
+        flRender.labels = (labelsRef.current ?? DEFAULT_LABELS).fightLeague ?? DEFAULT_FIGHT_LEAGUE_LABELS;
+        flLayer.applyWorld(ctx, flView, flRender, Math.min(size.width, size.height));
+      }
+      // --- end fl-overhaul ---
       const wobbleAmount = bmLayer.wobble(wobbleAmountRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wobble)
       wobble.beginFrame(engine.getWallContacts(), engine.getElapsedMs(), illusionView ? Math.max(wobbleAmount, illusionView.intrinsicWobble) : wobbleAmount);
 
@@ -2113,7 +2147,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (lcView) lcLayer.drawBodies(ctx, lcView, balls, lcRender); // --- land-claim --- trails, glows, flag badges in rings, names
       else if (raceView) raceLayer.drawRacers(ctx, balls, raceView, raceRender, raceRef.current); // --- jdm-race --- rolling squares / circles in their colours
       else if (arenaView) arenaLayer.drawBodies(ctx, balls, arenaView, arenaRender); // --- jdm-arena-games --- squares, HP bars, flags, KO blasts
-      else if (flView) flLayer.drawBodies(ctx, flView, flRender); // --- fight-league --- weapons, fighters, HP, projectiles, effects
+      else if (flView) {
+        // --- fight-league --- weapons, fighters, HP, projectiles, effects (--- fl-overhaul --- timed: data-fl-render-ms)
+        const t0 = performance.now();
+        flLayer.drawBodies(ctx, flView, flRender);
+        flBodiesMs = performance.now() - t0;
+      }
       else if (rrView) rrLayer.drawBodies(ctx, rrView, jrRender); // --- jdm-rhythm-runner --- the trail and the rotating square
       else if (orbView) orbLayer.drawOrbs(ctx, orbView, size.width, size.height, scale, orbArenasRef.current, orbT /* --- orb-rhythm --- */); // --- orb-grid --- thousands of orbs back to front (the placeholder ball is not drawn)
       // --- unlimited --- thousands of balls (or one too big for the sprites): plain discs, one path per colour
@@ -2320,7 +2359,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
       // --- jdm-arena-games --- faces on the squares
       if (faces.isActive() && arenaView) faces.drawOverlays(ctx, balls, arenaLayer.bodyColor, { shape: "square", countdown: false });
-      if (faces.isActive() && flView) faces.drawOverlays(ctx, balls, flLayer.bodyColor, null); // --- fight-league --- faces on the fighters
+      if (faces.isActive() && flView) faces.drawOverlays(ctx, flLayer.faceBalls(balls, flView), flLayer.bodyColor, null); // --- fight-league --- faces on the fighters (--- fl-overhaul --- where they are drawn)
       if (faces.isActive() && rrView && rrView.alive) faces.drawOverlays(ctx, balls, jrBodyColor, { shape: "square", countdown: false }); // --- jdm-rhythm-runner --- a face on the square
 
       // --- gerald-glass --- the shards of shattered panes fly over the ball.
@@ -2529,7 +2568,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // captions start below (the ability boxes are what the bottom ones stay above, below)
       if (flView) {
         flRender.teamBanner = teamLayer.isActive() && flView.winnerTeam >= 0;
-        modeTopHud = Math.max(modeTopHud, flLayer.drawOverlay(ctx, flView, flRender, { width: size.width, height: size.height, inset: 0 }));
+        const t1 = performance.now(); // --- fl-overhaul --- (Stage 3) data-fl-render-ms; a 9:16 export keeps the square's right 10 % free of text
+        const flExport = recordingRef.current ? exportSizeRef.current : null;
+        modeTopHud = Math.max(modeTopHud, flLayer.drawOverlay(ctx, flView, flRender, { width: size.width, height: size.height, inset: 0, portrait: !!flExport && flExport.height > flExport.width }));
+        flLayer.noteRenderMs(flBodiesMs + performance.now() - t1);
       }
       // --- land-claim --- the HUD band (the title, the counters, a bar per competitor) and the verdict banner – it names the winner and throws
       // the confetti unless the teams banner does it for a roster's winner; the band is what the top captions start below
@@ -3370,10 +3412,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         },
         holdsEndScreen: () => cam.holdsEndScreen() || captionLayer.holdsEndScreen(),
         slowLagMs: () => cam.getSlowLagMs(), // --- review fix (modes-gerald-odd) ---
-        paintBackground: (c, width, height, crop) => bgPainter().paintExport(c, width, height, crop, backgroundLook()),
+        paintBackground: (c, width, height, crop) => {
+          bgPainter().paintExport(c, width, height, crop, backgroundLook());
+          if (engine.isFightLeagueMode()) flLayer.paintExportBackdrop(c, width, height, crop); // --- fl-overhaul --- (Stage 3) the stage in the bars, the 9:16 plates
+        },
         ready: () => {
           const pics = picturesRef.current;
-          return (!pics.ballImage || imageLoadedRef.current) && (!pics.paintPicture || !!paintImageRef.current) && (!pics.backgroundImage || !!bgImageRef.current);
+          return (!pics.ballImage || imageLoadedRef.current) && (!pics.paintPicture || !!paintImageRef.current) && (!pics.backgroundImage || !!bgImageRef.current) && (!engine.isFightLeagueMode() || flFontsLoaded()); // (--- fl-overhaul --- Fight League's fonts)
         },
       });
     } else draw();

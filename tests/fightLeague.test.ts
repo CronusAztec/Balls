@@ -60,6 +60,12 @@ import {
   isFlRandom,
   isFlSlotValue,
   parseFlRandom,
+  // --- fl-overhaul --- (Stage 3)
+  EV_HIT,
+  FL_FIELD_FRAC,
+  FL_FIELD_TOP,
+  flDisplayX,
+  flDisplayY,
 } from "@/lib/physics/modes/fightLeague";
 import {
   FL_ABILITY_PRIMITIVES,
@@ -495,10 +501,17 @@ describe("fight league settings, URL and presets", () => {
 
   it("lays the arena out under the names' band, inset in the exported square", () => {
     const f = buildFightField(800, 450, "square");
-    expect(f.side).toBeCloseTo(FL_ARENA_FRAC * 450, 9);
+    // --- fl-overhaul --- (Stage 3) the physics field keeps its size and place (the replays hold) and is drawn larger: the
+    // arena of FL_ARENA_FRAC under the names' band of FL_ARENA_TOP
+    expect(f.side).toBeCloseTo(FL_FIELD_FRAC * 450, 9);
     expect(f.cx).toBe(400);
-    expect(f.cy - f.half).toBeCloseTo(FL_ARENA_TOP * 450, 9);
+    expect(f.cy - f.half).toBeCloseTo(FL_FIELD_TOP * 450, 9);
     expect(f.cy + f.half).toBeLessThan(450);
+    expect(f.side * f.dk).toBeCloseTo(FL_ARENA_FRAC * 450, 9);
+    expect(flDisplayX(f, f.cx)).toBe(400);
+    expect(flDisplayY(f, f.cy - f.half)).toBeCloseTo(FL_ARENA_TOP * 450, 9);
+    expect(flDisplayY(f, f.cy + f.half)).toBeLessThan(450);
+    // --- end fl-overhaul ---
     expect(buildFightField(450, 800, "circle")).toMatchObject({ kind: "circle", cx: 225 });
   });
 });
@@ -687,6 +700,7 @@ describe("fight league weapons in the engine", () => {
       expect([a, b, damages > 5]).toEqual([a, b, true]);
     }
     // A shotgun's pellets share their volley: several land on the foe within the window.
+    // (--- fl-overhaul --- Stage 3: a volley's damage numbers add into one, so the hits are counted – EV_HIT, the attacker's slot)
     const engine = fightEngine({ fighters: ["doomslayer", "gerald", "random", "random"], cast: [0.05, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 2);
     const v = engine.getFightLeagueView();
     let serial = 0;
@@ -694,7 +708,7 @@ describe("fight league weapons in the engine", () => {
     let together = 0;
     run(engine, 30_000, STEP, () => {
       for (const e of eventsSince(v, serial)) {
-        if (e.kind !== EV_DAMAGE || e.slot !== 1) continue;
+        if (e.kind !== EV_HIT || e.slot !== 0) continue;
         if (e.t - lastT < FL_IFRAME_MS) together++;
         lastT = e.t;
       }
@@ -1345,8 +1359,9 @@ function qaStubContext(log: { name: string; args: unknown[] }[] = []): CanvasRen
   }) as unknown as CanvasRenderingContext2D;
 }
 
-function qaStubDocument() {
-  vi.stubGlobal("document", { createElement: () => ({ width: 1, height: 1, getContext: () => qaStubContext() }) });
+function qaStubDocument(log?: { name: string; args: unknown[] }[]) {
+  // (--- fl-overhaul --- Stage 3: the letters are drawn on text sprites – with `log`, their canvases' calls are logged too)
+  vi.stubGlobal("document", { createElement: () => ({ width: 1, height: 1, getContext: () => qaStubContext(log) }) });
 }
 
 const QA_OPTS = { dpr: 1, numbers: true, teamColors: null, teamBanner: false, labels: DEFAULT_FIGHT_LEAGUE_LABELS };
@@ -1508,7 +1523,8 @@ describe("fight league QA regressions", () => {
       const { events } = qaRunEvents(engine, PROBE_INTRO_MS + 60_000);
       const castsAt = events.filter((e) => e.kind === EV_CAST && e.slot === 0).map((e) => e.t);
       casts += castsAt.length;
-      for (const t of castsAt) if (events.some((e) => e.kind === EV_DAMAGE && e.slot === 1 && Math.abs(e.t - t) <= 20)) landed++;
+      // (--- fl-overhaul --- Stage 3: damage numbers merge and move to their last hit, so the hits are counted – EV_HIT, the attacker's slot)
+      for (const t of castsAt) if (events.some((e) => e.kind === EV_HIT && e.slot === 0 && Math.abs(e.t - t) <= 20)) landed++;
     }
     expect(casts).toBeGreaterThan(4);
     expect(landed / casts).toBeGreaterThanOrEqual(0.6);
@@ -1618,8 +1634,9 @@ describe("fight league QA regressions", () => {
     for (const seed of [1, 2, 3]) {
       const engine = probeEngine({ fighters: ["katarina", "gerald", "random", "random"], cast: [0.05, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
       const { events } = qaRunEvents(engine, PROBE_INTRO_MS + 60_000);
-      // (the dagger's own hit and the spin's land in the same sub-step as the blink: two damage numbers)
-      for (const e of events) if (e.kind === EV_BLINK && e.slot === 0 && events.filter((d) => d.kind === EV_DAMAGE && d.slot === 1 && d.t === e.t).length >= 2) spins++;
+      // (the dagger's own hit and the spin's land in the same sub-step as the blink: two hits – --- fl-overhaul --- Stage 3: one
+      // damage number now, the two add into it, so the hits are counted: EV_HIT, the attacker's slot)
+      for (const e of events) if (e.kind === EV_BLINK && e.slot === 0 && events.filter((d) => d.kind === EV_HIT && d.slot === 0 && d.t === e.t).length >= 2) spins++;
     }
     expect(spins).toBeGreaterThanOrEqual(3);
   });
@@ -1678,12 +1695,12 @@ describe("fight league QA regressions", () => {
   });
 
   it("22: a full meter waiting for its moment says READY", { timeout: 60_000 }, () => {
-    qaStubDocument();
+    const log: { name: string; args: unknown[] }[] = [];
+    qaStubDocument(log);
     const engine = probeEngine({ fighters: ["link", "gerald", "random", "random"] }, 1);
     const v = probeRun(engine, 3000);
     v.fighters[0].meter = 1;
     v.fighters[0].telegraphUntil = -1;
-    const log: { name: string; args: unknown[] }[] = [];
     new FightLeagueLayer().drawOverlay(qaStubContext(log), v, QA_OPTS, { width: 800, height: 450, inset: 0 });
     expect(log.some((c) => c.name === "fillText" && c.args[0] === "READY")).toBe(true);
   });

@@ -122,6 +122,10 @@ import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropP
 import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { FL_WIN_HOLD_SEC, fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
+// --- fl-overhaul --- (Stage 3) the verdict's card comes in the KO finale or after TIME!: the holds count from the finale's end or the card
+import { flHoldEndMs, flHoldStartMs } from "@/lib/physics/modes/fightLeague";
+import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
+// --- end fl-overhaul ---
 import { landClaimClipSec, landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 // --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
 import { useVideoBeats } from "./useVideoBeats";
@@ -210,7 +214,7 @@ function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean): EndHolds
           : isArenaGameMode(engine.getCurrentModeName())
             ? ARENA_WIN_HOLD_MS // --- jdm-arena-games --- the winner banner and its confetti, as the page holds them
           : engine.isFightLeagueMode()
-            ? FIGHT_LEAGUE_WIN_HOLD_MS // --- fight-league --- the winner banner and its confetti, as the page holds them
+            ? Math.max(FIGHT_LEAGUE_WIN_HOLD_MS, flHoldEndMs(engine.getFightLeagueView()) - engine.getFightLeagueView().finishMs) // --- fight-league --- the winner banner and its confetti, as the page holds them (--- fl-overhaul --- from the finale's end, or the card's appearance after TIME!)
             : 0;
   const postMs = Math.max(teamsPlay ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0);
   return { preMs, postMs };
@@ -1082,6 +1086,11 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setFightLeagueSettings({ hud: s.flHud });
   }, [s.flHud]);
+  // --- fl-overhaul --- (Stage 3) the spectacle follows live too – the drawing only: no restart, a found seed kept
+  useEffect(() => {
+    engineRef.current?.setFightLeagueSettings({ stage: s.flStage, arenaStyle: s.flArenaStyle, shake: s.flShake, slowMo: s.flSlowMo, impact: s.flImpact, dmgNumbers: s.flDmgNumbers, plates: s.flPlates, tags: s.flTags });
+  }, [s.flStage, s.flArenaStyle, s.flShake, s.flSlowMo, s.flImpact, s.flDmgNumbers, s.flPlates, s.flTags]);
+  // --- end fl-overhaul ---
   const flWinAtRef = useRef<number | null>(null);
   // --- end fight-league ---
   useEffect(() => {
@@ -1450,6 +1459,7 @@ export default function Simulator() {
         engine.setConveyorSettings(conveyorSettingsOf(arena)); // --- gerald-conveyor --- (the scale and root follow live; the rest waits for a restart)
         engine.setOrbGridSettings(orbGridSettingsOf(arena)); // --- orb-grid --- (the look, the sound, the scale and the clip follow live; the field waits for a restart)
         engine.setFightLeagueSettings({ hud: arena.flHud }); // --- fight-league --- (the HUD follows live; the fight waits for a restart)
+        engine.setFightLeagueSettings({ stage: arena.flStage, arenaStyle: arena.flArenaStyle, shake: arena.flShake, slowMo: arena.flSlowMo, impact: arena.flImpact, dmgNumbers: arena.flDmgNumbers, plates: arena.flPlates, tags: arena.flTags }); // --- fl-overhaul --- (Stage 3: the spectacle too)
       },
     }),
     [initEngineForMode],
@@ -1524,6 +1534,7 @@ export default function Simulator() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = settingsToSearchParams(settings);
+    if (new URLSearchParams(window.location.search).get("flDbg") === "1") params.set("flDbg", "1"); // --- fl-overhaul --- (Stage 3) Fight League's hit shapes: a URL-only switch the mirror keeps (the canvas reads it once it mounts)
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
   }, [settings]);
 
@@ -1765,8 +1776,17 @@ export default function Simulator() {
         // --- fight-league --- the winner banner ("Thor wins!", DRAW, DOUBLE KO) and its confetti play (and record) before the end screen
         if (done && engine.isFightLeagueMode()) {
           const now = performance.now();
-          if (flWinAtRef.current === null) flWinAtRef.current = now;
-          if (now - flWinAtRef.current < FIGHT_LEAGUE_WIN_HOLD_MS) done = false;
+          // --- fl-overhaul --- (Stage 3) the hold starts at the end of the KO finale (the card is up from 900 ms into it), else
+          // when the verdict's card appears (after TIME!, or at once)
+          const flv = engine.getFightLeagueView();
+          if (flv.timeMs < flHoldStartMs(flv) - 1e-6) {
+            flWinAtRef.current = null;
+            done = false;
+          } else {
+            // --- end fl-overhaul ---
+            if (flWinAtRef.current === null) flWinAtRef.current = now;
+            if (now - flWinAtRef.current < FIGHT_LEAGUE_WIN_HOLD_MS) done = false;
+          }
         } else flWinAtRef.current = null;
         // --- land-claim --- the verdict (DOMINATION / SUCH A CLOSE BATTLE / "[name] claims the most", the banner, the confetti) plays (and records) before the end screen
         if (done && engine.isLandClaimMode()) {
@@ -2758,7 +2778,7 @@ export default function Simulator() {
       // --- jdm-arena-games --- the found game plus the winner banner's hold (a capture-the-flag game that ended on time keeps its clip)
       if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
       // --- fight-league --- a found fight is recorded with its winner banner's hold
-      if (settings.mode === "fightLeague" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + FL_WIN_HOLD_SEC)) });
+      if (settings.mode === "fightLeague" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + FL_FINALE_SEC + FL_WIN_HOLD_SEC)) }); // (--- fl-overhaul --- Stage 3: + the KO finale)
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
       // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
@@ -3060,6 +3080,22 @@ export default function Simulator() {
         cast: t("FightLeague.canvasCast"),
         ready: t("FightLeague.canvasReady"),
         sudden: t("FightLeague.canvasSudden"), // --- fl-overhaul ---
+        // --- fl-overhaul --- (Stage 3) the banners, the callouts and the plates (a division's and a role's names: the picker's own)
+        firstBlood: t("FightLeague.canvasFirstBlood"),
+        perfect: t("FightLeague.canvasPerfect"),
+        clutch: t("FightLeague.canvasClutch"),
+        blocked: t("FightLeague.canvasBlocked"),
+        dodge: t("FightLeague.canvasDodge"),
+        immune: t("FightLeague.canvasImmune"),
+        interrupted: t("FightLeague.canvasInterrupted"),
+        clash: t("FightLeague.canvasClash"),
+        combo: (n) => t("FightLeague.canvasCombo").replace("[n]", () => String(n)),
+        suddenDeath: t("FightLeague.canvasSuddenDeath"),
+        whoWins: t("FightLeague.canvasWhoWins"),
+        winsPlate: (name) => t("FightLeague.canvasWinsPlate").replace("[name]", () => name),
+        division: (id) => t(`FightLeague.division_${id}`),
+        role: (id) => t(`FightLeague.role_${id}`),
+        // --- end fl-overhaul ---
       },
     };
   }, [t]);

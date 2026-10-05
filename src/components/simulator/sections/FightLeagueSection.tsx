@@ -12,6 +12,8 @@ import { FL_BY_ID, FL_DIVISIONS, FL_PRESETS, fightersOf } from "@/lib/physics/mo
 import FighterPicker from "./FighterPicker";
 import { flRandomToken, parseFlRandom } from "@/lib/physics/modes/fightLeague";
 import { FL_CONFERENCE_IDS } from "@/lib/physics/modes/fightLeagueRoster";
+// --- fl-overhaul --- (Stage 3) the spectacle's options
+import { FL_ARENA_STYLES, FL_STAGES, FL_TAG_MODES, type FlArenaStyle, type FlStage, type FlTags } from "@/lib/physics/modes/fightLeague";
 
 /** --- fl-overhaul --- The list view (the native selects) is remembered per viewer; without storage it starts off. */
 const LIST_VIEW_KEY = "fl-picker-list";
@@ -40,6 +42,12 @@ export interface FightLeagueSectionProps {
 
 /** Search keys of the Fight League block (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
 export const FIGHT_LEAGUE_KEYS = ["flTitle", "flPreset", "flMatch", "flFighters", "flSameDivision", "flHp", "flTimeCap", "flArena", "flHud", "flHandicaps", "flSeek", "flSuddenDeath"];
+// --- fl-overhaul --- (Stage 3) the Spectacle group's labels (the search finds them too)
+FIGHT_LEAGUE_KEYS.push("flSpectacle", "flStage", "flArenaStyle", "flShake", "flSlowMo", "flImpact", "flDmgNumbers", "flPlates", "flTags");
+const STAGE_LABELS: Record<FlStage, string> = { lilac: "flStageLilac", night: "flStageNight", theme: "flStageTheme" };
+const ARENA_STYLE_LABELS: Record<FlArenaStyle, string> = { clean: "flArenaStyleClean", grid: "flArenaStyleGrid", division: "flArenaStyleDivision", neon: "flArenaStyleNeon" };
+const TAG_LABELS: Record<FlTags, string> = { auto: "flTagsAuto", on: "flTagsOn", off: "flTagsOff" };
+// --- end fl-overhaul ---
 
 const SLOT_FIELDS = ["flFighterA", "flFighterB", "flFighterC", "flFighterD"] as const;
 const SLOT_LETTERS = ["A", "B", "C", "D"] as const;
@@ -262,6 +270,72 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
           </div>
         </div>
       </Searchable>
+      {/* --- fl-overhaul --- (Stage 3) the Spectacle: how the fight looks, never what happens in it (each applies live) */}
+      <Searchable search={search} matches={matches} labelKey="flSpectacle">
+        <p className="pt-2 text-xs font-bold uppercase tracking-wide text-ink-3" data-testid="fl-spectacle">
+          {t("flSpectacle")}
+          <Tooltip text={t("flSpectacleTip")} />
+        </p>
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="flStage">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-ink-2">
+            {t("flStage")}
+            <Tooltip text={t("flStageTip")} />
+          </label>
+          <div className="grid grid-cols-3 gap-1" role="group" aria-label={t("flStage")}>
+            {FL_STAGES.map((st) => (
+              <button type="button" key={st} onClick={() => update({ flStage: st })} aria-pressed={s.flStage === st} className={pick(s.flStage === st)} data-testid={`fl-stage-${st}`}>
+                {t(STAGE_LABELS[st])}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="flArenaStyle">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-ink-2">
+            {t("flArenaStyle")}
+            <Tooltip text={t("flArenaStyleTip")} />
+          </label>
+          <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("flArenaStyle")}>
+            {FL_ARENA_STYLES.map((st) => (
+              <button type="button" key={st} onClick={() => update({ flArenaStyle: st })} aria-pressed={s.flArenaStyle === st} className={pick(s.flArenaStyle === st)} data-testid={`fl-arena-style-${st}`}>
+                {t(ARENA_STYLE_LABELS[st])}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Searchable>
+      <Slider t={t} search={search} matches={matches} labelKey="flShake" tipKey="flShakeTip" value={s.flShake} range={RANGES.flShake} onChange={(v) => update({ flShake: flPanelValue("flShake", v) })} display={s.flShake.toFixed(2)} />
+      <Searchable search={search} matches={matches} labelKey="flSlowMo">
+        <Toggle t={t} labelKey="flSlowMo" tipKey="flSlowMoTip" value={s.flSlowMo} onChange={(v) => update({ flSlowMo: v })} caseStyle="title" />
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="flImpact">
+        <Toggle t={t} labelKey="flImpact" tipKey="flImpactTip" value={s.flImpact} onChange={(v) => update({ flImpact: v })} caseStyle="title" />
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="flDmgNumbers">
+        <Toggle t={t} labelKey="flDmgNumbers" tipKey="flDmgNumbersTip" value={s.flDmgNumbers} onChange={(v) => update({ flDmgNumbers: v })} caseStyle="title" />
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="flPlates">
+        <Toggle t={t} labelKey="flPlates" tipKey="flPlatesTip" value={s.flPlates} onChange={(v) => update({ flPlates: v })} caseStyle="title" />
+      </Searchable>
+      <Searchable search={search} matches={matches} labelKey="flTags">
+        <div className="space-y-2">
+          <label className="text-sm font-medium text-ink-2">
+            {t("flTags")}
+            <Tooltip text={t("flTagsTip")} />
+          </label>
+          <div className="grid grid-cols-3 gap-1" role="group" aria-label={t("flTags")}>
+            {FL_TAG_MODES.map((m) => (
+              <button type="button" key={m} onClick={() => update({ flTags: m })} aria-pressed={s.flTags === m} className={pick(s.flTags === m)} data-testid={`fl-tags-${m}`}>
+                {t(TAG_LABELS[m])}
+              </button>
+            ))}
+          </div>
+        </div>
+      </Searchable>
+      {/* --- end fl-overhaul --- */}
     </div>
   );
 }

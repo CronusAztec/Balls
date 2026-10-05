@@ -22,6 +22,8 @@ import {
   isFlDivision,
   type FlConference,
 } from "./fightLeagueRoster";
+// --- fl-overhaul --- (Stage 3) the finale's time warp (pure visual maths; the rules never read it)
+import { FL_COMBO_MS, FL_DAMAGE_MERGE_MS, FL_FINALE_BANNER_MS, FL_FINALE_MS, FL_IMPACT_DAMAGE, FL_IMPACT_GAP_MS, flFinaleScale } from "./fightLeagueFx";
 
 /**
  * Fight League ("fightLeague" mode, the arena games' family – feature fight-league; the "Ball Fight League" duels: "Thor vs
@@ -117,6 +119,26 @@ export function isFlMatch(value: unknown): value is FlMatch {
 export function isFlArena(value: unknown): value is FlArena {
   return typeof value === "string" && (FL_ARENAS as readonly string[]).includes(value);
 }
+/**
+ * --- fl-overhaul --- (Stage 3) The spectacle's options (presentational: they change the drawing only, live, never the fight):
+ * the stage around the arena (lilac by default; night; theme – the page's background, the first release's look), the arena's
+ * style, the name tags (auto: with three fighters or more).
+ */
+export const FL_STAGES = ["lilac", "night", "theme"] as const;
+export type FlStage = (typeof FL_STAGES)[number];
+export const FL_ARENA_STYLES = ["clean", "grid", "division", "neon"] as const;
+export type FlArenaStyle = (typeof FL_ARENA_STYLES)[number];
+export const FL_TAG_MODES = ["auto", "on", "off"] as const;
+export type FlTags = (typeof FL_TAG_MODES)[number];
+export function isFlStage(value: unknown): value is FlStage {
+  return typeof value === "string" && (FL_STAGES as readonly string[]).includes(value);
+}
+export function isFlArenaStyle(value: unknown): value is FlArenaStyle {
+  return typeof value === "string" && (FL_ARENA_STYLES as readonly string[]).includes(value);
+}
+export function isFlTags(value: unknown): value is FlTags {
+  return typeof value === "string" && (FL_TAG_MODES as readonly string[]).includes(value);
+}
 /** A fighter slot's value: a roster id, "random" or (--- fl-overhaul ---) a random token ("random:<division>", "random:<conference>"). */
 export function isFlSlotValue(value: unknown): value is string {
   return value === FL_RANDOM || isFlFighterId(value) || parseFlRandom(value) !== null;
@@ -188,10 +210,30 @@ export interface FightLeagueSettings {
   seekTurn: number;
   /** --- fl-overhaul --- At the time cap with two sides or more standing: up to 10 s of sudden death in a shrinking arena first. */
   suddenDeath: boolean;
+  // --- fl-overhaul --- (Stage 3) the spectacle: presentational only (the drawing follows live; never part of the fight)
+  /** The stage around the arena (URL `flSt`): lilac, night, or theme (the page's background – the first release's look). */
+  stage: FlStage;
+  /** The arena's look (URL `flAs`): clean, grid, division (its genre's colours and motif), neon. */
+  arenaStyle: FlArenaStyle;
+  /** The screen shake's strength (URL `flSh`; 0 = none, uncapped). */
+  shake: number;
+  /** The KO finale's slow motion after a KO verdict (URL `flSm`). */
+  slowMo: boolean;
+  /** Impact frames: a big hit holds its fighters a moment (URL `flIf`). */
+  impact: boolean;
+  /** The floating damage numbers (URL `flDn`). */
+  dmgNumbers: boolean;
+  /** The plates in a 9:16 export's bars (URL `flPp`). */
+  plates: boolean;
+  /** Name tags under the balls (URL `flTg`): auto (three fighters or more), on, off. */
+  tags: FlTags;
+  // --- end fl-overhaul ---
 }
 
 /** --- fl-overhaul --- The intent steering's turn rate at the default (radians a second). */
 export const FL_SEEK_TURN = 1.1;
+/** --- fl-overhaul --- (Stage 3) The screen shake's default strength. */
+export const FL_SHAKE = 0.6;
 
 export const DEFAULT_FIGHT_LEAGUE_SETTINGS: FightLeagueSettings = {
   fighters: ["thor", "loki", FL_RANDOM, FL_RANDOM],
@@ -207,6 +249,15 @@ export const DEFAULT_FIGHT_LEAGUE_SETTINGS: FightLeagueSettings = {
   hud: true,
   seekTurn: FL_SEEK_TURN,
   suddenDeath: true,
+  // --- fl-overhaul --- (Stage 3)
+  stage: "lilac",
+  arenaStyle: "clean",
+  shake: FL_SHAKE,
+  slowMo: true,
+  impact: true,
+  dmgNumbers: true,
+  plates: true,
+  tags: "auto",
 };
 
 const MULT_RANGE = { min: 0.05, max: 3, step: 0.05 } as const;
@@ -232,7 +283,10 @@ export const FIGHT_LEAGUE_RANGES = {
   flCastC: { ...MULT_RANGE },
   flCastD: { ...MULT_RANGE },
   flSeek: { min: 0, max: 3, step: 0.05 }, // --- fl-overhaul --- (uncapped: any turn rate from 0 typed)
+  flShake: { min: 0, max: 2, step: 0.05 }, // --- fl-overhaul --- (Stage 3: the screen shake's comfort range; uncapped from 0)
 } as const;
+/** --- fl-overhaul --- (Stage 3) The presentational number fields (the drawing reads them; the engine never does). */
+export const FIGHT_LEAGUE_VISUAL_KEYS: readonly string[] = ["flShake"];
 
 /** The Fight League fields of the SimulatorSettings object (URL keys fl1–fl4, flM, flDiv, flHp, flT, flA, flH, flS1–4, flD1–4, flX1–4, flC1–4, flSk, flSD). */
 export interface FightLeagueFields {
@@ -266,6 +320,16 @@ export interface FightLeagueFields {
   flSeek: number;
   /** --- fl-overhaul --- Sudden death at the time cap (URL `flSD`). */
   flSuddenDeath: boolean;
+  // --- fl-overhaul --- (Stage 3) the spectacle (URL `flSt`, `flAs`, `flSh`, `flSm`, `flIf`, `flDn`, `flPp`, `flTg`; the drawing only)
+  flStage: FlStage;
+  flArenaStyle: FlArenaStyle;
+  flShake: number;
+  flSlowMo: boolean;
+  flImpact: boolean;
+  flDmgNumbers: boolean;
+  flPlates: boolean;
+  flTags: FlTags;
+  // --- end fl-overhaul ---
 }
 
 const SLOT_LETTERS = ["A", "B", "C", "D"] as const;
@@ -291,6 +355,7 @@ export function resolveFightLeagueSettings(config: Partial<FightLeagueSettings> 
   const hp = finite(c.hp);
   const cap = finite(c.timeCap);
   const seek = finite(c.seekTurn);
+  const shake = finite(c.shake); // --- fl-overhaul --- (Stage 3)
   const list = (src: readonly number[] | undefined, def: readonly number[]) => def.map((v, i) => multOf(src?.[i], v));
   return {
     fighters,
@@ -307,6 +372,15 @@ export function resolveFightLeagueSettings(config: Partial<FightLeagueSettings> 
     // --- fl-overhaul --- (a turn rate from 0 up, three decimals at most, no maximum)
     seekTurn: Number.isFinite(seek) ? Math.round(1000 * atLeastMin(seek, FIGHT_LEAGUE_RANGES.flSeek)) / 1000 : d.seekTurn,
     suddenDeath: typeof c.suddenDeath === "boolean" ? c.suddenDeath : d.suddenDeath,
+    // --- fl-overhaul --- (Stage 3) the spectacle: known options, a shake from 0 up (three decimals, no maximum), real booleans
+    stage: isFlStage(c.stage) ? c.stage : d.stage,
+    arenaStyle: isFlArenaStyle(c.arenaStyle) ? c.arenaStyle : d.arenaStyle,
+    shake: Number.isFinite(shake) ? Math.round(1000 * atLeastMin(shake, FIGHT_LEAGUE_RANGES.flShake)) / 1000 : d.shake,
+    slowMo: typeof c.slowMo === "boolean" ? c.slowMo : d.slowMo,
+    impact: typeof c.impact === "boolean" ? c.impact : d.impact,
+    dmgNumbers: typeof c.dmgNumbers === "boolean" ? c.dmgNumbers : d.dmgNumbers,
+    plates: typeof c.plates === "boolean" ? c.plates : d.plates,
+    tags: isFlTags(c.tags) ? c.tags : d.tags,
   };
 }
 
@@ -327,6 +401,15 @@ export function fightLeagueSettingsOf(source: FightLeagueFields): FightLeagueSet
     hud: source.flHud,
     seekTurn: source.flSeek, // --- fl-overhaul ---
     suddenDeath: source.flSuddenDeath, // --- fl-overhaul ---
+    // --- fl-overhaul --- (Stage 3)
+    stage: source.flStage,
+    arenaStyle: source.flArenaStyle,
+    shake: source.flShake,
+    slowMo: source.flSlowMo,
+    impact: source.flImpact,
+    dmgNumbers: source.flDmgNumbers,
+    plates: source.flPlates,
+    tags: source.flTags,
   };
 }
 
@@ -345,6 +428,15 @@ export function fightLeagueSettingFields(s: FightLeagueSettings): FightLeagueFie
     flHud: s.hud,
     flSeek: s.seekTurn, // --- fl-overhaul ---
     flSuddenDeath: s.suddenDeath, // --- fl-overhaul ---
+    // --- fl-overhaul --- (Stage 3)
+    flStage: s.stage,
+    flArenaStyle: s.arenaStyle,
+    flShake: s.shake,
+    flSlowMo: s.slowMo,
+    flImpact: s.impact,
+    flDmgNumbers: s.dmgNumbers,
+    flPlates: s.plates,
+    flTags: s.tags,
   } as FightLeagueFields;
   for (let i = 0; i < FL_SLOTS; i++) {
     out[multField("Speed", i)] = s.speed[i];
@@ -394,8 +486,11 @@ for (let i = 0; i < FL_SLOTS; i++) {
   NUMERIC_KEYS[`flC${i + 1}`] = multField("Cast", i);
 }
 NUMERIC_KEYS.flSk = "flSeek"; // --- fl-overhaul ---
+NUMERIC_KEYS.flSh = "flShake"; // --- fl-overhaul --- (Stage 3)
+/** --- fl-overhaul --- (Stage 3) The spectacle's switches (URL key → field; "1" / "0") and options (URL key → field). */
+const FL_SWITCH_KEYS: Readonly<Record<string, "flSlowMo" | "flImpact" | "flDmgNumbers" | "flPlates">> = { flSm: "flSlowMo", flIf: "flImpact", flDn: "flDmgNumbers", flPp: "flPlates" };
 /** The feature's URL keys (for tools and the tests). */
-export const FIGHT_LEAGUE_URL_KEYS: readonly string[] = ["fl1", "fl2", "fl3", "fl4", "flM", "flDiv", "flA", "flH", "flSD", ...Object.keys(NUMERIC_KEYS)];
+export const FIGHT_LEAGUE_URL_KEYS: readonly string[] = ["fl1", "fl2", "fl3", "fl4", "flM", "flDiv", "flA", "flH", "flSD", "flSt", "flAs", "flTg", ...Object.keys(FL_SWITCH_KEYS), ...Object.keys(NUMERIC_KEYS)];
 
 /**
  * --- fl-overhaul --- The value a number field of the panel commits for `field`: the settings' own normalisation (HP and the
@@ -419,6 +514,11 @@ export function writeFightLeagueParams(settings: FightLeagueFields, base: FightL
   if (settings.flArena !== base.flArena) params.set("flA", settings.flArena);
   if (settings.flHud !== base.flHud) params.set("flH", settings.flHud ? "1" : "0");
   if (settings.flSuddenDeath !== base.flSuddenDeath) params.set("flSD", settings.flSuddenDeath ? "1" : "0"); // --- fl-overhaul ---
+  // --- fl-overhaul --- (Stage 3) the spectacle, only where it differs from the default
+  if (settings.flStage !== base.flStage) params.set("flSt", settings.flStage);
+  if (settings.flArenaStyle !== base.flArenaStyle) params.set("flAs", settings.flArenaStyle);
+  if (settings.flTags !== base.flTags) params.set("flTg", settings.flTags);
+  for (const [key, field] of Object.entries(FL_SWITCH_KEYS)) if (settings[field] !== base[field]) params.set(key, settings[field] ? "1" : "0");
   for (const [key, field] of Object.entries(NUMERIC_KEYS)) if (settings[field] !== base[field]) params.set(key, formatNumber(settings[field] as number));
 }
 
@@ -439,6 +539,17 @@ export function readFightLeagueParams(params: URLSearchParams, settings: FightLe
   if (hud === "1" || hud === "0") next.flHud = hud === "1";
   const sudden = params.get("flSD"); // --- fl-overhaul ---
   if (sudden === "1" || sudden === "0") next.flSuddenDeath = sudden === "1";
+  // --- fl-overhaul --- (Stage 3) the spectacle (unknown values keep the defaults)
+  const stage = params.get("flSt");
+  if (isFlStage(stage)) next.flStage = stage;
+  const style = params.get("flAs");
+  if (isFlArenaStyle(style)) next.flArenaStyle = style;
+  const tags = params.get("flTg");
+  if (isFlTags(tags)) next.flTags = tags;
+  for (const [key, field] of Object.entries(FL_SWITCH_KEYS)) {
+    const raw = params.get(key);
+    if (raw === "1" || raw === "0") next[field] = raw === "1";
+  }
   for (const [key, field] of Object.entries(NUMERIC_KEYS)) {
     const raw = params.get(key);
     if (raw === null || raw.trim() === "") continue;
@@ -450,10 +561,18 @@ export function readFightLeagueParams(params: URLSearchParams, settings: FightLe
 
 /* ------------------------------------------------------------------ the field */
 
-/** Arena side over the side of the square the recorder exports (the rest is the HUD: names above, ability boxes below). */
-export const FL_ARENA_FRAC = 0.7;
-/** The arena's top edge below the square's top (the names' band). */
-export const FL_ARENA_TOP = 0.12;
+/**
+ * Arena side over the side of the square the recorder exports (the rest is the HUD: names above, ability boxes below) –
+ * --- fl-overhaul --- (Stage 3) as DRAWN: the names band is 0.10 of the square and the arena 0.74 under it. The rules play
+ * in the physics field of `FL_FIELD_FRAC` / `FL_FIELD_TOP` (the layout of the first release, so every seed replays exactly
+ * as before); the renderer maps that field onto the drawn arena (`FlField.dk`, `dcx`, `dcy`) – the physics is in arena units.
+ */
+export const FL_ARENA_FRAC = 0.74;
+/** The arena's top edge below the square's top (the names' band), as drawn. */
+export const FL_ARENA_TOP = 0.1;
+/** --- fl-overhaul --- (Stage 3) The physics field's side and top over the square (the rules' px; drawn scaled to FL_ARENA_FRAC). */
+export const FL_FIELD_FRAC = 0.7;
+export const FL_FIELD_TOP = 0.12;
 /** A fighter's ball radius over the arena side (at Ball Size 8 and size 1). */
 export const FL_BALL_FRAC = 0.065;
 /** Cruising speed at speed 1 and Ball Speed 400, arena sides per second. */
@@ -475,6 +594,13 @@ export interface FlField {
   sqSide: number;
   canvasWidth: number;
   canvasHeight: number;
+  /**
+   * --- fl-overhaul --- (Stage 3) How the field is drawn: scaled by `dk` about its centre, which lands at (`dcx`, `dcy`) – the
+   * arena of FL_ARENA_FRAC under the names band of FL_ARENA_TOP (display px = (p − c) · dk + dc).
+   */
+  dk: number;
+  dcx: number;
+  dcy: number;
 }
 
 /** The playfield for a canvas of `width` × `height`: the arena inset in the centred square under the names' band. */
@@ -482,14 +608,26 @@ export function buildFightField(width: number, height: number, kind: FlArena): F
   const sqSide = Math.max(40, Math.min(width, height));
   const sqLeft = width / 2 - sqSide / 2;
   const sqTop = height / 2 - sqSide / 2;
-  const side = FL_ARENA_FRAC * sqSide;
-  return { kind, cx: width / 2, cy: sqTop + FL_ARENA_TOP * sqSide + side / 2, half: side / 2, fullHalf: side / 2, side, sqLeft, sqTop, sqSide, canvasWidth: width, canvasHeight: height };
+  const side = FL_FIELD_FRAC * sqSide; // --- fl-overhaul --- (Stage 3) the physics field (drawn at FL_ARENA_FRAC: dk)
+  const dk = FL_ARENA_FRAC / FL_FIELD_FRAC;
+  const dcy = sqTop + FL_ARENA_TOP * sqSide + (FL_ARENA_FRAC * sqSide) / 2;
+  return { kind, cx: width / 2, cy: sqTop + FL_FIELD_TOP * sqSide + side / 2, half: side / 2, fullHalf: side / 2, side, sqLeft, sqTop, sqSide, canvasWidth: width, canvasHeight: height, dk, dcx: width / 2, dcy };
+}
+
+/** --- fl-overhaul --- (Stage 3) A field point (px) where it is drawn (display px). */
+export function flDisplayX(field: Pick<FlField, "cx" | "dk" | "dcx">, x: number): number {
+  return field.dcx + (x - field.cx) * field.dk;
+}
+export function flDisplayY(field: Pick<FlField, "cy" | "dk" | "dcy">, y: number): number {
+  return field.dcy + (y - field.cy) * field.dk;
 }
 
 /* ------------------------------------------------------------------ timing and rules */
 
 /** The VS card: the fighters hold still this long before they launch. */
 export const FL_INTRO_MS = 1500;
+/** --- fl-overhaul --- (Stage 3) The VS card's cues (ms): VS, the count 3-2-1 and FIGHT! (FL_INTRO_MS stays 1500). */
+export const FL_INTRO_CUES_MS: readonly number[] = [0, 450, 800, 1150, FL_INTRO_MS];
 /**
  * A source (a weapon of a fighter, or its abilities) cannot hit the same fighter again for this long (one touch = one hit;
  * the same volley's projectiles excepted) – the heavy kinds' window; the light kinds' is shorter (`flSourceWindowMs()`).
@@ -569,14 +707,73 @@ export const FL_LEAD = 0.5;
 export const FL_EVADE_BOOST = 0.15;
 /** The page holds the winner banner this long before the end screen (recordings keep it). */
 export const FL_WIN_HOLD_SEC = 3;
+/** --- fl-overhaul --- (Stage 3) After a verdict at the time cap, TIME! plays this long before the winner's banner (or DRAW). */
+export const FL_TIME_BANNER_MS = 900;
+
+/**
+ * --- fl-overhaul --- (Stage 3) When the verdict's card – the winner, DRAW, DOUBLE KO – appears (simulation ms): 900 ms into a KO
+ * finale, after TIME! at the cap, else at the verdict. The page holds it from flHoldStartMs() (recordings keep it).
+ */
+export function flWinnerShownMs(view: Pick<FightLeagueView, "finishMs" | "finale" | "byTime">): number {
+  if (view.finale.from >= 0) return view.finishMs + FL_FINALE_BANNER_MS;
+  if (view.byTime) return view.finishMs + FL_TIME_BANNER_MS;
+  return view.finishMs;
+}
+
+/**
+ * --- fl-overhaul --- (Stage 3) When the page's hold of the verdict's card starts (simulation ms): at the end of a KO finale (the
+ * card is up from 900 ms into it), else when the card appears – so the card stays at least FL_WIN_HOLD_SEC in every recording,
+ * and a recording of a found fight lasts its duration + FL_FINALE_SEC + FL_WIN_HOLD_SEC.
+ */
+export function flHoldStartMs(view: Pick<FightLeagueView, "finishMs" | "finale" | "byTime">): number {
+  if (view.finale.from >= 0) return Math.max(view.finale.until, flWinnerShownMs(view));
+  return flWinnerShownMs(view);
+}
+
+/** --- fl-overhaul --- (Stage 3) When the page's hold of the verdict's card ends (simulation ms): FL_WIN_HOLD_SEC after it starts. */
+export function flHoldEndMs(view: Pick<FightLeagueView, "finishMs" | "finale" | "byTime">): number {
+  return flHoldStartMs(view) + 1000 * FL_WIN_HOLD_SEC;
+}
 /** Most fight sounds one rendered frame plays (the strongest win; KOs and abilities always sound). */
 export const FL_SOUNDS_PER_FRAME = 6;
-/** Pools: projectiles, minions (decoys, summons and – --- fl-overhaul --- – traps), render events, scheduled effects, beams. */
-export const FL_PROJECTILE_CAP = 96;
+/**
+ * Pools: projectiles, minions (decoys, summons and – --- fl-overhaul --- – traps), render events, scheduled effects, beams
+ * (--- fl-overhaul --- Stage 3: projectiles 144 and tasks 32 – the heavy kits' volleys never run a pool dry – and the decals).
+ */
+export const FL_PROJECTILE_CAP = 144;
 export const FL_MINION_CAP = 24;
 export const FL_EVENT_CAP = 192;
-const FL_TASK_CAP = 24;
+const FL_TASK_CAP = 32;
 const FL_BEAM_CAP = 8;
+// --- fl-overhaul --- (Stage 3) the visual state the mode writes once per 60 Hz step (the renderer reads it; the rules never do)
+/** Points of a fighter's trail ring (x, y each) and of a projectile's. */
+export const FL_TRAIL_LEN = 10;
+export const FL_PROJ_TRAIL_LEN = 6;
+/** The banners ring (vs, the count, FIGHT!, first blood, the KOs, the verdicts …) and the decals ring (cracks, scorches, scars). */
+export const FL_BANNER_CAP = 16;
+export const FL_DECAL_CAP = 24;
+/** The KO finale's length (ms; `flFinaleScale()`): defined with its curve in fightLeagueFx.ts, re-exported here. */
+export { FL_FINALE_MS };
+/** The banners' kinds (`FlBanner.kind`; their names: fightLeagueFx.ts' FL_BANNER_NAMES). */
+export const FB_VS = 1;
+export const FB_COUNT = 2;
+export const FB_FIGHT = 3;
+export const FB_FIRST_BLOOD = 4;
+export const FB_KO = 5;
+export const FB_FINAL_KO = 6;
+export const FB_DOUBLE_KO = 7;
+export const FB_DRAW = 8;
+export const FB_TIME = 9;
+export const FB_WIN = 10;
+export const FB_PERFECT = 11;
+export const FB_CLUTCH = 12;
+export const FB_SUDDEN = 13;
+export const FB_CLASH = 14;
+/** The decals' kinds: a crack (a slam into a wall, a pin), a scorch (a beam's end, a bomb, a lightning bolt), a scar (an arena cut). */
+export const DC_CRACK = 1;
+export const DC_SCORCH = 2;
+export const DC_SCAR = 3;
+// --- end fl-overhaul ---
 /** --- fl-overhaul --- (Stage 2) The barriers of the wall primitive at most in play at once (the view's `walls`). */
 export const FL_WALL_CAP = 8;
 /** --- fl-overhaul --- A whip's crack: out in FL_WHIP_OUT s, back in FL_WHIP_BACK s; its tip lands at full extension (≥ FL_WHIP_TIP_EXT). */
@@ -1210,6 +1407,9 @@ export class FlWeaponState {
   /** A sword: the sweep's centre (radians; it follows the bearing of the foe the sweep started at) and that foe (−1 none). */
   sweepCentre = 0;
   sweepTarget = -1;
+  /** (Stage 3) The last melee test: how many of `shapes` it used and when (simulation ms) – the debug overlay's view; no rule reads it. */
+  shapesN = 0;
+  shapesMs = -Infinity;
   // --- end fl-overhaul ---
 
   constructor(spec: FlWeaponSpec, index: number) {
@@ -1364,6 +1564,29 @@ export class FlFighter {
   drainFrac = 0;
   /** The reflection deflects enemy projectiles back at their shooter (Soresu) while it lasts. */
   deflect = false;
+  // (Stage 3) visual state, written once per 60 Hz step and by the hits – the renderer reads it, the rules never do
+  /** The trail ring: the last FL_TRAIL_LEN positions (x, y), one a step; the next write and how many it holds. */
+  readonly trail = new Float32Array(2 * FL_TRAIL_LEN);
+  trailHead = 0;
+  trailCount = 0;
+  /** The lowest HP fraction it has stood at (a PERFECT win: 1). */
+  lowestHpFrac = 1;
+  /** Its combo: hits in a row on the same foe (`comboOn`), the last at `comboMs`, none taken in between; the volley of the last one. */
+  comboCount = 0;
+  comboMs = -Infinity;
+  comboOn = -1;
+  comboVolley = -1;
+  /** Its last impact frame (a hit-stop: at most one every FL_IMPACT_GAP_MS). */
+  impactMs = -Infinity;
+  /** The last hit's direction (the squash and stretch). */
+  hitDx = 1;
+  hitDy = 0;
+  /** The KO finale: where it is drawn (it drifts on at the finale's time scale), its velocity then, its weapons' spin. */
+  finX = 0;
+  finY = 0;
+  finVx = 0;
+  finVy = 0;
+  finSpin = 0;
   // --- end fl-overhaul ---
 
   constructor(slot: number, team: number, row: FlFighterRow) {
@@ -1455,6 +1678,10 @@ export class FlProjectile {
   splash = 0;
   fuseMs = 0;
   fuseUntil = -1;
+  // (Stage 3) visual: the last FL_PROJ_TRAIL_LEN positions (written once a step), the next write, how many it holds
+  readonly trail = new Float32Array(2 * FL_PROJ_TRAIL_LEN);
+  trailHead = 0;
+  trailCount = 0;
   // --- end fl-overhaul ---
 }
 
@@ -1576,6 +1803,11 @@ export const EV_RIM = 20;
 export const EV_TRANSFORM = 21;
 /** --- fl-overhaul --- (Stage 2) A trap snapped shut on a foe (at the trap; `slot`: the trap's owner). */
 export const EV_TRAP = 22;
+/**
+ * --- fl-overhaul --- (Stage 3) An impact frame (a visual hit-stop): a hit of FL_IMPACT_DAMAGE or more, a giant or an ability
+ * hit holds the target (x, y; `slot`) and the attacker (x2, y2; `src` >> 3) where they were for 50 ms (80 ms: `value` 1).
+ */
+export const EV_IMPACT = 23;
 
 export class FlEvent {
   kind = 0;
@@ -1589,6 +1821,33 @@ export class FlEvent {
   color = "#fff";
   /** --- fl-overhaul --- The source of a hit (attacker slot × 8 + weapon index, 7: abilities, summons, contact; −1 none). */
   src = -1;
+  /**
+   * --- fl-overhaul --- (Stage 3) A visual detail of the event: EV_DAMAGE 1 a giant hit (x2: its multiplier), 2 damage reflected
+   * back; EV_SHOCK 0 a shockwave, 1 a bomb's or a rocket's burst, 2 a giant hit's ring; EV_KO 1 the final KO; EV_CAST 1 an
+   * area ability. (EV_HIT's x2, y2: the hit's direction; EV_KO's: the fighter's last velocity; EV_SLAM's: its flight into the wall.)
+   */
+  aux = 0;
+}
+
+/** --- fl-overhaul --- (Stage 3) A banner of the match (`FB_*`), written in the same 60 Hz tick as its cue: when, about whom, a value (the count's digit). */
+export class FlBanner {
+  kind = 0;
+  t = -Infinity;
+  slot = -1;
+  value = 0;
+}
+
+/** --- fl-overhaul --- (Stage 3) A decal on the floor (`DC_*`): from `t` to `until`, at (x, y) – a scar from (x, y) to (x2, y2) – `r` big. */
+export class FlDecal {
+  kind = 0;
+  t = -Infinity;
+  until = -Infinity;
+  x = 0;
+  y = 0;
+  x2 = 0;
+  y2 = 0;
+  r = 0;
+  color = "#000";
 }
 
 /** --- fl-overhaul --- A melee hit queued in a sub-step until every fighter's weapons ran (`resolveMelee()`). */
@@ -1668,6 +1927,22 @@ export interface FightLeagueView {
   lastKoMs: number;
   /** (Stage 2) The barriers of the wall primitive (a pool of FL_WALL_CAP). */
   walls: FlWall[];
+  // (Stage 3) the visual state the renderer reads (written once per 60 Hz step and by the hits; the rules never read it)
+  /** The fighter that drew first blood (−1: nobody yet). */
+  firstBloodSlot: number;
+  /** The banners ring (FL_BANNER_CAP; the newest at (bannerSerial − 1) % FL_BANNER_CAP) and the decals ring (FL_DECAL_CAP). */
+  banners: FlBanner[];
+  bannerSerial: number;
+  decals: FlDecal[];
+  decalSerial: number;
+  /** The KO finale: from the verdict (ms, −1 none) to `until`, around the KO point (x, y) of fighter `slot`. */
+  finale: { from: number; until: number; x: number; y: number; slot: number };
+  /** The side leading on HP share (−1: level) and when the lead last changed (ms; the lead bar's flash). */
+  leadSide: number;
+  leadMs: number;
+  /** The intro's next banner (0 vs, 1–3 the count, 4 FIGHT!, 5 done) and whether the winner's banners were written. */
+  introCue: number;
+  winCue: boolean;
   // --- end fl-overhaul ---
 }
 
@@ -1716,6 +1991,17 @@ function createView(): FightLeagueView {
     shrink: 1,
     lastKoMs: -Infinity,
     walls: Array.from({ length: FL_WALL_CAP }, () => new FlWall()),
+    // --- fl-overhaul --- (Stage 3)
+    firstBloodSlot: -1,
+    banners: Array.from({ length: FL_BANNER_CAP }, () => new FlBanner()),
+    bannerSerial: 0,
+    decals: Array.from({ length: FL_DECAL_CAP }, () => new FlDecal()),
+    decalSerial: 0,
+    finale: { from: -1, until: -1, x: 0, y: 0, slot: -1 },
+    leadSide: -1,
+    leadMs: -Infinity,
+    introCue: 0,
+    winCue: false,
   };
 }
 
@@ -1842,6 +2128,12 @@ export class FightLeagueMode implements GameMode {
   private readonly capTeam: number[] = [];
   private readonly capMax: number[] = [];
   private readonly capSums: number[] = [0, 0, 0, 0, 0, 0, 0, 0];
+  // --- fl-overhaul --- (Stage 3) the visual state's scratch: the step's length, the HP shares per side, this step's KO events
+  private stepMs = 1000 / 60;
+  private readonly leadHp = new Float64Array(8);
+  private readonly leadMax = new Float64Array(8);
+  private readonly koEvents: FlEvent[] = [];
+  private koCount = 0;
 
   getSettings(): FightLeagueSettings {
     return this.settings;
@@ -1849,7 +2141,9 @@ export class FightLeagueMode implements GameMode {
   /** Applied on the next init (the Simulator restarts the fight when one changes); the HUD at once. */
   setSettings(patch: Partial<FightLeagueSettings>) {
     this.settings = resolveFightLeagueSettings({ ...this.settings, ...patch });
-    this.view.settings = { ...this.view.settings, hud: this.settings.hud };
+    // (--- fl-overhaul --- Stage 3: the spectacle follows live too – the drawing only)
+    const s = this.settings;
+    this.view.settings = { ...this.view.settings, hud: s.hud, stage: s.stage, arenaStyle: s.arenaStyle, shake: s.shake, slowMo: s.slowMo, impact: s.impact, dmgNumbers: s.dmgNumbers, plates: s.plates, tags: s.tags };
   }
   /** Live state for the canvas and the HUD; the same object every call. */
   getView(): FightLeagueView {
@@ -1911,7 +2205,21 @@ export class FightLeagueMode implements GameMode {
     for (const e of v.events) {
       e.t = -Infinity;
       e.src = -1;
+      e.aux = 0; // --- fl-overhaul --- (Stage 3)
     }
+    // --- fl-overhaul --- (Stage 3) the visual state starts over: banners, decals, the finale, the lead; the VS card's banner at 0 ms
+    for (const b of v.banners) b.t = -Infinity;
+    for (const d of v.decals) d.until = -Infinity;
+    v.bannerSerial = 0;
+    v.decalSerial = 0;
+    v.firstBloodSlot = -1;
+    v.finale.from = -1;
+    v.finale.until = -1;
+    v.finale.slot = -1;
+    v.leadSide = -1;
+    v.leadMs = -Infinity;
+    v.introCue = 0;
+    v.winCue = false;
     this.koThisStep = false;
     this.graceUntil = -1;
     this.volleySerial = 0;
@@ -2000,6 +2308,12 @@ export class FightLeagueMode implements GameMode {
     }
     for (const f of v.fighters) ctx.addBall({ x: f.x, y: f.y, vx: 0, vy: 0, radius: f.r, color: f.row.body, team: f.team, radiusScale: f.r / this.ballRadius });
     this.indexBalls(ctx);
+    // --- fl-overhaul --- (Stage 3) the finale's drift starts where each fighter stands; the VS card's banner (no random draw)
+    for (const f of v.fighters) {
+      f.finX = f.x;
+      f.finY = f.y;
+    }
+    this.stepIntroCues(0);
   }
 
   /** Cruising speed unit (px/s): the arena side × FL_SPEED_FRAC × Ball Speed / 400. */
@@ -2108,8 +2422,14 @@ export class FightLeagueMode implements GameMode {
     return false;
   }
 
-  private pushEvent(kind: number, t: number, x: number, y: number, value = 0, slot = -1, color = "#fff", x2 = 0, y2 = 0, src = -1) {
+  private pushEvent(kind: number, t: number, x: number, y: number, value = 0, slot = -1, color = "#fff", x2 = 0, y2 = 0, src = -1, aux = 0): FlEvent {
     const v = this.view;
+    // --- fl-overhaul --- (Stage 3) damage on the same target from the same attacker within FL_DAMAGE_MERGE_MS adds into its last
+    // number (one '-15' a shotgun volley): the number's value grows and it pops again from now
+    if (kind === EV_DAMAGE && src >= 0) {
+      const merged = this.mergeDamage(t, x, y, value, slot, src, aux);
+      if (merged) return merged;
+    }
     const e = v.events[v.eventSerial % FL_EVENT_CAP];
     v.eventSerial++;
     e.kind = kind;
@@ -2122,6 +2442,68 @@ export class FightLeagueMode implements GameMode {
     e.slot = slot;
     e.color = color;
     e.src = src;
+    e.aux = aux; // --- fl-overhaul --- (Stage 3)
+    return e;
+  }
+
+  /** --- fl-overhaul --- (Stage 3) The recent damage number this one adds into (same target, same attacker, same look, ≤ FL_DAMAGE_MERGE_MS old), or null. */
+  private mergeDamage(t: number, x: number, y: number, value: number, slot: number, src: number, aux: number): FlEvent | null {
+    const v = this.view;
+    const back = Math.min(12, v.eventSerial);
+    for (let k = 1; k <= back; k++) {
+      const e = v.events[(v.eventSerial - k) % FL_EVENT_CAP];
+      if (t - e.t > FL_DAMAGE_MERGE_MS) break;
+      if (e.kind !== EV_DAMAGE || e.slot !== slot || e.src < 0 || e.src >> 3 !== src >> 3 || e.aux !== aux || aux === 1) continue;
+      e.value += value;
+      e.t = t;
+      e.x = x;
+      e.y = y;
+      return e;
+    }
+    return null;
+  }
+
+  /** --- fl-overhaul --- (Stage 3) A banner of the match, written in the same 60 Hz tick as its cue. */
+  private pushBanner(kind: number, t: number, slot = -1, value = 0) {
+    const v = this.view;
+    const b = v.banners[v.bannerSerial % FL_BANNER_CAP];
+    v.bannerSerial++;
+    b.kind = kind;
+    b.t = t;
+    b.slot = slot;
+    b.value = value;
+  }
+
+  /** --- fl-overhaul --- (Stage 3) A decal on the floor for `ms` (a crack, a scorch, a scar from (x, y) to (x2, y2)). */
+  private pushDecal(kind: number, t: number, ms: number, x: number, y: number, r: number, color = "#000", x2 = x, y2 = y) {
+    const v = this.view;
+    const d = v.decals[v.decalSerial % FL_DECAL_CAP];
+    v.decalSerial++;
+    d.kind = kind;
+    d.t = t;
+    d.until = t + ms;
+    d.x = x;
+    d.y = y;
+    d.x2 = x2;
+    d.y2 = y2;
+    d.r = r;
+    d.color = color;
+  }
+
+  /**
+   * --- fl-overhaul --- (Stage 3) The VS card's banners on its clock (the same ticks as its cues): VS at 0 ms, the count 3-2-1 at
+   * 450 / 800 / 1150 ms, FIGHT! at FL_INTRO_MS (each stamped with its own moment, whatever the step's rounding).
+   */
+  private stepIntroCues(now: number) {
+    const v = this.view;
+    const at = FL_INTRO_CUES_MS;
+    while (v.introCue < at.length && now >= at[v.introCue] - 1e-6) {
+      const cue = v.introCue;
+      if (cue === 0) this.pushBanner(FB_VS, 0);
+      else if (cue <= 3) this.pushBanner(FB_COUNT, at[cue], -1, 4 - cue);
+      else this.pushBanner(FB_FIGHT, at[cue]);
+      v.introCue++;
+    }
   }
 
   /** Sounds that always play (abilities, KOs): queued with the frame's budgeted ones. */
@@ -2223,6 +2605,7 @@ export class FightLeagueMode implements GameMode {
     this.stepStartMs = now - dtMs;
     this.subIndex = 0;
     v.timeMs = now;
+    this.stepMs = dtMs; // --- fl-overhaul --- (Stage 3: the visual state's step)
     this.koThisStep = false;
     this.stepIndex++;
     const field = v.field;
@@ -2569,7 +2952,7 @@ export class FightLeagueMode implements GameMode {
         f.lastCastMs = now;
         f.uninterruptible = false;
         v.casts++;
-        this.pushEvent(EV_CAST, now, f.x, f.y, 0, f.slot, f.row.accent);
+        this.pushEvent(EV_CAST, now, f.x, f.y, 0, f.slot, f.row.accent, 0, 0, -1, f.telegraphArea > 0 ? 1 : 0); // (--- fl-overhaul --- Stage 3: aux 1 an area cast)
         this.noteDodges(f, now);
         for (const effect of ability.effects) this.castEffect(ctx, f, effect, now);
         f.telegraphStart = -1;
@@ -2705,6 +3088,8 @@ export class FightLeagueMode implements GameMode {
       return;
     }
     const pre = Math.hypot(ball.vx, ball.vy);
+    const preVx = ball.vx; // --- fl-overhaul --- (Stage 3: a slam's direction, visual)
+    const preVy = ball.vy;
     const wall = this.wallPass(ctx, ball);
     // --- fl-overhaul --- (Stage 2) a solid enemy wall stops a fighter like the arena's own: a bounce (sweeps, the nudge)
     const barrier = this.barrierPass(ctx, f, ball);
@@ -2724,7 +3109,10 @@ export class FightLeagueMode implements GameMode {
     v.wallHits++;
     this.budget.offer(0.2, null, wallNote(field.kind, wall), 0.22);
     this.pushEvent(EV_RIM, now, ball.x, ball.y, wall, f.slot, f.row.accent);
-    if (pre > 2 * Math.max(1, f.cruise)) this.pushEvent(EV_SLAM, now, ball.x, ball.y, pre / Math.max(1, f.cruise), f.slot, f.row.accent);
+    if (pre > 2 * Math.max(1, f.cruise)) {
+      this.pushEvent(EV_SLAM, now, ball.x, ball.y, pre / Math.max(1, f.cruise), f.slot, f.row.accent, preVx, preVy);
+      this.pushDecal(DC_CRACK, now, 1500, ball.x + (preVx / Math.max(1e-6, pre)) * f.r, ball.y + (preVy / Math.max(1e-6, pre)) * f.r, 0.9 * f.r, "#1e1b2e"); // --- fl-overhaul --- (Stage 3)
+    }
     if (field.kind === "circle" && !v.finished) this.rimTurn(ball);
     for (const w of f.weapons) if (w.spec.kind === "sword") this.startSweep(f, w, now);
     if (!v.finished) this.nudge(f, ball, now);
@@ -3440,6 +3828,8 @@ export class FightLeagueMode implements GameMode {
   private meleeContact(ctx: ModeContext, f: FlFighter, w: FlWeaponState, n: number, factor: number, now: number, sticky: boolean): boolean {
     const v = this.view;
     let queued = false;
+    w.shapesN = n; // --- fl-overhaul --- (Stage 3) the shapes this test used (the debug overlay draws them)
+    w.shapesMs = now;
     for (const o of v.fighters) {
       const bit = 1 << o.slot;
       if (!o.alive || o.team === f.team || o.hp <= 0) {
@@ -3615,6 +4005,7 @@ export class FightLeagueMode implements GameMode {
     b.clashes++;
     v.clashes2++;
     this.pushEvent(EV_CLASH, now, 0.5 * (a.x + b.x), 0.5 * (a.y + b.y), 0, a.slot, "#ffffff", b.x, b.y, (a.slot & 7) * 8 + Math.min(6, q.weapon));
+    this.pushBanner(FB_CLASH, now, a.slot); // --- fl-overhaul --- (Stage 3)
     this.budget.offer(0.6, "block", 1318.51, 0.4);
   }
 
@@ -3953,6 +4344,10 @@ export class FightLeagueMode implements GameMode {
     p.fuseUntil = -1;
     p.lift = 0;
     p.splash = 0;
+    // --- fl-overhaul --- (Stage 3) a fresh shot starts a fresh trail
+    p.trailHead = 0;
+    p.trailCount = 0;
+    // --- end fl-overhaul ---
     if (this.rigChosen >= 0 && f.team === this.rigChosen) p.homing = 2.2 * this.rigK;
   }
 
@@ -4176,7 +4571,8 @@ export class FightLeagueMode implements GameMode {
   private burstBomb(ctx: ModeContext, p: FlProjectile, now: number) {
     const owner = this.view.fighters[p.owner];
     if (!owner) return;
-    this.pushEvent(EV_SHOCK, now, p.x, p.y, p.splash, owner.slot, p.color);
+    this.pushEvent(EV_SHOCK, now, p.x, p.y, p.splash, owner.slot, p.color, 0, 0, -1, 1);
+    this.pushDecal(DC_SCORCH, now, 1500, p.x, p.y, 0.7 * p.splash, "#1e1b2e"); // --- fl-overhaul --- (Stage 3)
     for (const o of this.view.fighters) {
       if (!o.alive || o.team === p.team || o.hp <= 0) continue;
       const d = Math.hypot(o.x - p.x, o.y - p.y);
@@ -4367,7 +4763,7 @@ export class FightLeagueMode implements GameMode {
   private explode(ctx: ModeContext, p: FlProjectile, now: number) {
     const owner = this.view.fighters[p.owner];
     if (!owner) return;
-    this.shockwaveAt(ctx, owner, p.x, p.y, p.explode, p.damage, 1.6, false, now);
+    this.shockwaveAt(ctx, owner, p.x, p.y, p.explode, p.damage, 1.6, false, now, false, 1); // (--- fl-overhaul --- Stage 3: a burst's look)
     p.explode = 0;
   }
 
@@ -4456,11 +4852,12 @@ export class FightLeagueMode implements GameMode {
       giantKb = attacker.giantKb;
       giantFreeze = attacker.giantFreeze;
     }
+    const plain = amount; // --- fl-overhaul --- (Stage 3: the giant hit's '×N')
     if (giant > 0) {
       amount = giantDamage(amount, giant, target.hp, target.maxHp, attacker.giantBelowHalf, attacker.giantFrac);
       knock += giantKb;
       if (giantFreeze > 0 && this.applyHardCc(target, now + 1000 * giantFreeze, now)) target.frozenUntil = Math.max(target.frozenUntil, now + 1000 * giantFreeze);
-      this.pushEvent(EV_SHOCK, now, target.x, target.y, target.r * 2.2, attacker.slot, attacker.row.accent);
+      this.pushEvent(EV_SHOCK, now, target.x, target.y, target.r * 2.2, attacker.slot, attacker.row.accent, 0, 0, -1, 2);
     }
     if (!(amount > 0)) return HIT_NONE;
     const before = target.hp;
@@ -4505,15 +4902,54 @@ export class FightLeagueMode implements GameMode {
       attacker.hp -= back;
       this.absorbLethal(attacker, had);
       attacker.hitMs = now;
-      this.pushEvent(EV_DAMAGE, now, attacker.x, attacker.y - attacker.r, back, attacker.slot, target.row.accent, 0, 0, (target.slot & 7) * 8 + 7);
+      attacker.comboCount = 0; // --- fl-overhaul --- (Stage 3: a combo breaks when its attacker takes a hit)
+      this.pushEvent(EV_DAMAGE, now, attacker.x, attacker.y - attacker.r, back, attacker.slot, target.row.accent, 0, 0, (target.slot & 7) * 8 + 7, 2);
     }
     const ball = this.byIndex[target.slot];
     const attackerBall = this.byIndex[attacker.slot];
     if (ball && attackerBall) ctx.noteCollide?.(attackerBall, ball); // --- bounce-math --- a hit is a ball hit
-    this.pushEvent(EV_DAMAGE, now, target.x, target.y - target.r, amount, target.slot, attacker.row.accent, 0, 0, src);
-    if (!opts.quiet || giant > 0) this.pushEvent(EV_HIT, now, (target.x + (opts.fromX ?? attacker.x)) / 2, (target.y + (opts.fromY ?? attacker.y)) / 2, amount, attacker.slot, attacker.row.accent, 0, 0, src);
+    // --- fl-overhaul --- (Stage 3) the hit's look: its direction, the number (a giant's '×N'), first blood, the combo, an impact frame
+    let hx = dx;
+    let hy = dy;
+    if (!(Math.abs(hx) + Math.abs(hy) > 1e-9)) {
+      const d = Math.hypot(target.x - attacker.x, target.y - attacker.y) || 1;
+      hx = (target.x - attacker.x) / d;
+      hy = (target.y - attacker.y) / d;
+    }
+    target.hitDx = hx;
+    target.hitDy = hy;
+    target.comboCount = 0;
+    this.pushEvent(EV_DAMAGE, now, target.x, target.y - target.r, amount, target.slot, attacker.row.accent, giant > 0 ? amount / Math.max(1e-9, plain) : 0, 0, src, giant > 0 ? 1 : 0);
+    if (!opts.quiet || giant > 0) this.pushEvent(EV_HIT, now, (target.x + (opts.fromX ?? attacker.x)) / 2, (target.y + (opts.fromY ?? attacker.y)) / 2, amount, attacker.slot, attacker.row.accent, hx, hy, src);
+    this.noteHitVisuals(attacker, target, amount, giant > 0, weapon < 0 && (!!opts.ignoreIframes || !!opts.unblockable), opts.volley ?? 0, now);
     this.budget.offer(amount, sound, fighterPitch(attacker.slot), Math.min(1, 0.45 + amount / 20));
     return HIT_LANDED;
+  }
+
+  /**
+   * --- fl-overhaul --- (Stage 3) What a landed hit shows (visual state only – no rule reads it): first blood (the first hit of 1
+   * damage or more), the attacker's combo (3+ hits in a row on the same foe, each within FL_COMBO_MS, none taken in between; a
+   * volley's pellets count once) and an impact frame (a hit of FL_IMPACT_DAMAGE or more, a giant or an ability hit: at most one
+   * a fighter every FL_IMPACT_GAP_MS).
+   */
+  private noteHitVisuals(attacker: FlFighter, target: FlFighter, amount: number, giant: boolean, ability: boolean, volley: number, now: number) {
+    const v = this.view;
+    if (v.firstBloodSlot < 0 && amount >= 1 && attacker !== target) {
+      v.firstBloodSlot = attacker.slot;
+      this.pushBanner(FB_FIRST_BLOOD, now, attacker.slot, amount);
+    }
+    if (attacker !== target && !(volley > 0 && volley === attacker.comboVolley)) {
+      if (attacker.comboOn === target.slot && now - attacker.comboMs <= FL_COMBO_MS && attacker.comboCount > 0) attacker.comboCount++;
+      else attacker.comboCount = 1;
+      attacker.comboOn = target.slot;
+      attacker.comboMs = now;
+      attacker.comboVolley = volley;
+    }
+    if ((amount >= FL_IMPACT_DAMAGE || giant || (ability && amount >= 4)) && now - target.impactMs >= FL_IMPACT_GAP_MS && now - attacker.impactMs >= FL_IMPACT_GAP_MS) {
+      target.impactMs = now;
+      attacker.impactMs = now;
+      this.pushEvent(EV_IMPACT, now, target.x, target.y, giant || ability ? 1 : 0, target.slot, attacker.row.accent, attacker.x, attacker.y, (attacker.slot & 7) * 8 + 7);
+    }
   }
 
   /** --- fl-overhaul --- Knockback of `f` along (dx, dy): `kb` cruise units × its weight (a pinned or held fighter does not budge). */
@@ -4778,6 +5214,7 @@ export class FightLeagueMode implements GameMode {
         for (const o of v.fighters) {
           if (!o.alive || o.team === f.team || !this.targetable(o, now)) continue;
           this.pushEvent(EV_LIGHTNING, now, o.x, o.y, 0, f.slot, f.row.accent);
+          this.pushDecal(DC_SCORCH, now, 1000, o.x, o.y + 0.6 * o.r, 0.8 * o.r, "#1e1b2e"); // --- fl-overhaul --- (Stage 3)
           this.hit(ctx, f, o, e.damage, 0, 1, 0.3, "magic", { ignoreIframes: true, unblockable: true });
         }
         for (const m of v.minions) if (m.active && m.team !== f.team) this.hitMinion(ctx, f, m, now);
@@ -4953,8 +5390,8 @@ export class FightLeagueMode implements GameMode {
    * A shockwave at (x, y): damage and knockback for every foe within `radius` (with `pin` thrown to the far wall and held
    * there a second – a hard crowd control – --- fl-overhaul --- fully inside the arena).
    */
-  private shockwaveAt(ctx: ModeContext, f: FlFighter, x: number, y: number, radius: number, damage: number, kb: number, pin: boolean, now: number, spin = false) {
-    this.pushEvent(EV_SHOCK, now, x, y, radius, f.slot, spin ? "#ffffff" : f.row.accent);
+  private shockwaveAt(ctx: ModeContext, f: FlFighter, x: number, y: number, radius: number, damage: number, kb: number, pin: boolean, now: number, spin = false, aux = 0) {
+    this.pushEvent(EV_SHOCK, now, x, y, radius, f.slot, spin ? "#ffffff" : f.row.accent, 0, 0, -1, aux); // (--- fl-overhaul --- Stage 3: aux 1 a burst)
     for (const o of this.view.fighters) {
       if (!o.alive || o.team === f.team) continue;
       const dx = o.x - x;
@@ -4975,6 +5412,7 @@ export class FightLeagueMode implements GameMode {
           this.clampInsideArena(o, ball);
           o.pinUntil = now + 1000;
           o.kept = false;
+          this.pushDecal(DC_CRACK, now, 1500, o.x + nx * o.r, o.y + ny * o.r, 1.1 * o.r, "#1e1b2e"); // --- fl-overhaul --- (Stage 3)
         }
       }
     }
@@ -4997,6 +5435,7 @@ export class FightLeagueMode implements GameMode {
         task.active = false;
       } else if (task.kind === "cut") {
         this.pushEvent(EV_CUT, now, task.x, task.y, 0, f.slot, "#ffffff", task.x2, task.y2);
+        this.pushDecal(DC_SCAR, now, 1200, task.x, task.y, Math.max(2, task.radius), "#7f1d1d", task.x2, task.y2); // --- fl-overhaul --- (Stage 3)
         for (const o of v.fighters) {
           if (!o.alive || o.team === f.team) continue;
           if (segmentHitsCircle(task.x, task.y, task.x2, task.y2, Math.max(2, task.radius), o.x, o.y, o.r)) this.hit(ctx, f, o, task.damage, 0, 0, 0.4, "blade", { ignoreIframes: true, unblockable: true });
@@ -5061,7 +5500,8 @@ export class FightLeagueMode implements GameMode {
         }
         continue;
       }
-      const ts = this.timeScale(m.team, now);
+      // (--- fl-overhaul --- Stage 3: after a KO verdict the finale slows them with the survivors – the fight is decided)
+      const ts = this.timeScale(m.team, now) * (v.finished && v.finale.from >= 0 ? flFinaleScale(now - v.finale.from, v.finale.until - v.finale.from) : 1);
       // Summons chase the nearest foe a little.
       if (m.summon) {
         let best = Infinity;
@@ -5148,6 +5588,7 @@ export class FightLeagueMode implements GameMode {
       if (!b.active) continue;
       const f = v.fighters[b.owner];
       if (!f || !f.alive || now >= b.until || v.finished) {
+        if (f && now >= b.until && !v.finished) this.pushDecal(DC_SCORCH, now, 1000, b.x1, b.y1, Math.max(2, 0.9 * b.width), "#1e1b2e"); // --- fl-overhaul --- (Stage 3: a ray's end scorches the floor)
         b.active = false;
         continue;
       }
@@ -5184,9 +5625,11 @@ export class FightLeagueMode implements GameMode {
   onPostUpdate(ctx: ModeContext) {
     const v = this.view;
     const now = ctx.getElapsedMs();
+    this.stepVisuals(now); // --- fl-overhaul --- (Stage 3: trails, the intro's banners, the finale's drift, the lead – no rule reads them)
     if (v.finished) return;
     if (this.rigChosen >= 0) this.guardChosenSide();
     // KOs of this step (every hit of the step counted first: no fighter wins by its slot).
+    this.koCount = 0; // --- fl-overhaul --- (Stage 3: this step's KO events, for their banners below)
     for (const f of v.fighters) {
       if (!f.alive || f.hp > 0) continue;
       f.alive = false;
@@ -5197,7 +5640,8 @@ export class FightLeagueMode implements GameMode {
       this.koThisStep = true;
       const killer = f.lastHitBy >= 0 ? v.fighters[f.lastHitBy] : null;
       if (killer && killer !== f) killer.kills++;
-      this.pushEvent(EV_KO, now, f.x, f.y, 0, f.slot, f.row.body);
+      const koEvent = this.pushEvent(EV_KO, now, f.x, f.y, 0, f.slot, f.row.body, f.vx, f.vy); // (--- fl-overhaul --- Stage 3: its last velocity – the finale's ghost)
+      if (this.koCount < 8) this.koEvents[this.koCount++] = koEvent;
       this.urgentSound("ko", 82.41, 1);
       ctx.noteImpact?.(); // the camera's shake (no wall-break sound)
       for (const b of v.beams) if (b.active && b.owner === f.slot) b.active = false;
@@ -5219,6 +5663,12 @@ export class FightLeagueMode implements GameMode {
         lastTeam = f.team;
       }
     }
+    // --- fl-overhaul --- (Stage 3) a KO with two sides still standing gets its KO! banner; the one that leaves one side (or none) is final
+    for (let k = 0; k < this.koCount; k++) {
+      const e = this.koEvents[k];
+      if (teamsAlive >= 2) this.pushBanner(FB_KO, now, e.slot);
+      else e.aux = 1;
+    }
     if (teamsAlive === 0) {
       this.finish(ctx, -1, now, true, false);
       return;
@@ -5236,6 +5686,7 @@ export class FightLeagueMode implements GameMode {
         v.suddenMs = now;
         const field = v.field!;
         this.pushEvent(EV_SUDDEN, now, field.cx, field.cy, 0, -1, "#ef4444");
+        this.pushBanner(FB_SUDDEN, now); // --- fl-overhaul --- (Stage 3)
         this.urgentSound("ability", 130.81, 0.9);
         return;
       }
@@ -5281,11 +5732,23 @@ export class FightLeagueMode implements GameMode {
   /** The verdict: --- fl-overhaul --- every fighter stops where it is (the renderer animates the winner), so a frame's extra step changes nothing. */
   private finish(ctx: ModeContext, winnerTeam: number, now: number, doubleKo: boolean, byTime: boolean) {
     const v = this.view;
+    // --- fl-overhaul --- (Stage 3) the finale's drift starts where every survivor flies, at the velocity it had (before the freeze)
+    // – no faster than its cruise: one knocked flying at the verdict drifts at the finale's pace, not the knockback's
+    for (const f of v.fighters) {
+      f.finX = f.x;
+      f.finY = f.y;
+      const sp = Math.hypot(f.vx, f.vy);
+      const k = sp > f.cruise && sp > 1e-9 ? Math.max(0, f.cruise) / sp : 1;
+      f.finVx = f.alive ? f.vx * k : 0;
+      f.finVy = f.alive ? f.vy * k : 0;
+      f.finSpin = 0;
+    }
     v.finished = true;
     v.finishMs = now;
     v.winnerTeam = winnerTeam;
     v.doubleKo = doubleKo;
     v.byTime = byTime;
+    this.verdictVisuals(winnerTeam, now, doubleKo, byTime); // --- fl-overhaul --- (Stage 3)
     for (const p of v.projectiles) p.active = false;
     for (const b of v.beams) b.active = false;
     for (const t of v.tasks) t.active = false;
@@ -5310,6 +5773,159 @@ export class FightLeagueMode implements GameMode {
       if (w) ctx.spawnConfetti(w.x, w.y);
     }
     this.urgent.push({ type: "hit", wallIndex: 0, frequency: WIN_CHORD[0], accent: true, chord: [...WIN_CHORD], melody: false });
+  }
+
+  /* ---------------------------------------------------------------- --- fl-overhaul --- (Stage 3) the visual state */
+
+  /**
+   * The verdict's banners – FINAL KO, DOUBLE KO, DRAW, TIME – and, after a KO verdict with the slow motion on, the KO finale
+   * (FL_FINALE_MS from now, around the last KO). The winner's banner comes later (`stepVisuals()`): with the finale's banner.
+   */
+  private verdictVisuals(winnerTeam: number, now: number, doubleKo: boolean, byTime: boolean) {
+    const v = this.view;
+    if (doubleKo) this.pushBanner(FB_DOUBLE_KO, now);
+    else if (byTime) {
+      this.pushBanner(FB_TIME, now);
+      if (winnerTeam < 0) this.pushBanner(FB_DRAW, now + FL_TIME_BANNER_MS);
+    } else if (winnerTeam < 0) this.pushBanner(FB_DRAW, now);
+    else {
+      // the last fighter to go down and where it fell
+      let ko: FlFighter | null = null;
+      for (const f of v.fighters) if (!f.alive && (!ko || f.koMs >= ko.koMs)) ko = f;
+      this.pushBanner(FB_FINAL_KO, now, ko ? ko.slot : -1);
+      if (v.settings.slowMo && ko) {
+        v.finale.from = now;
+        v.finale.until = now + FL_FINALE_MS;
+        v.finale.x = ko.x;
+        v.finale.y = ko.y;
+        v.finale.slot = ko.slot;
+      }
+    }
+  }
+
+  /**
+   * Once per 60 Hz step (also after the verdict): the intro's banners on their clock, every fighter's and projectile's trail
+   * point (a fighter's drawn one – the finale's drift after a KO verdict), the lowest HP fraction, the side in the lead and,
+   * once it is due, the winner's banner with PERFECT (never hit, nothing absorbed by the rig) or CLUTCH (≤ 10 % of the side's
+   * HP left). Visual state only: nothing here draws a random number or feeds back into the rules.
+   */
+  private stepVisuals(now: number) {
+    const v = this.view;
+    if (v.introCue < FL_INTRO_CUES_MS.length) this.stepIntroCues(now);
+    const fin = v.finished && v.finale.from >= 0;
+    if (fin) this.stepFinale(now);
+    for (const f of v.fighters) {
+      if (!f.alive) continue;
+      const h = f.trailHead;
+      f.trail[2 * h] = fin ? f.finX : f.x;
+      f.trail[2 * h + 1] = fin ? f.finY : f.y;
+      f.trailHead = (h + 1) % FL_TRAIL_LEN;
+      if (f.trailCount < FL_TRAIL_LEN) f.trailCount++;
+      const frac = f.maxHp > 0 ? Math.max(0, f.hp) / f.maxHp : 0;
+      if (frac < f.lowestHpFrac) f.lowestHpFrac = frac;
+    }
+    for (const p of v.projectiles) {
+      if (!p.active) continue;
+      const h = p.trailHead;
+      p.trail[2 * h] = p.x;
+      p.trail[2 * h + 1] = p.y;
+      p.trailHead = (h + 1) % FL_PROJ_TRAIL_LEN;
+      if (p.trailCount < FL_PROJ_TRAIL_LEN) p.trailCount++;
+    }
+    if (!v.finished) this.stepLead(now);
+    if (v.finished && !v.winCue && v.winnerTeam >= 0 && now >= flWinnerShownMs(v) - 1e-6) {
+      v.winCue = true;
+      let hp = 0;
+      let max = 0;
+      let perfect = v.rigAbsorbed === 0;
+      let lead: FlFighter | null = null;
+      for (const f of v.fighters) {
+        if (f.team !== v.winnerTeam) continue;
+        hp += f.alive ? Math.max(0, f.hp) : 0;
+        max += f.maxHp;
+        if (f.lowestHpFrac < 1 - 1e-9) perfect = false;
+        if (!lead || (f.alive && !lead.alive)) lead = f;
+      }
+      const t = flWinnerShownMs(v);
+      this.pushBanner(FB_WIN, t, lead ? lead.slot : -1);
+      if (perfect) this.pushBanner(FB_PERFECT, t, lead ? lead.slot : -1);
+      else if (max > 0 && hp / max <= 0.1) this.pushBanner(FB_CLUTCH, t, lead ? lead.slot : -1, hp / max);
+    }
+  }
+
+  /** The KO finale's drift: the survivors fly on at the finale's time scale (off the arena's walls), their orbiting weapons spin with it. */
+  private stepFinale(now: number) {
+    const v = this.view;
+    const field = v.field;
+    const fin = v.finale;
+    if (!field) return;
+    const t = now - fin.from;
+    const total = fin.until - fin.from;
+    if (!(t > 0) || t > total + this.stepMs) return;
+    const s = flFinaleScale(t, total);
+    const dt = this.stepMs / 1000;
+    for (const f of v.fighters) {
+      if (!f.alive) continue;
+      f.finX += f.finVx * s * dt;
+      f.finY += f.finVy * s * dt;
+      const lim = Math.max(1, field.half - f.r);
+      if (field.kind === "circle") {
+        const dx = f.finX - field.cx;
+        const dy = f.finY - field.cy;
+        const d = Math.hypot(dx, dy);
+        if (d > lim) {
+          const nx = dx / d;
+          const ny = dy / d;
+          f.finX = field.cx + nx * lim;
+          f.finY = field.cy + ny * lim;
+          const vn = f.finVx * nx + f.finVy * ny;
+          if (vn > 0) {
+            f.finVx -= 2 * vn * nx;
+            f.finVy -= 2 * vn * ny;
+          }
+        }
+      } else {
+        if (Math.abs(f.finX - field.cx) > lim) {
+          f.finX = field.cx + Math.sign(f.finX - field.cx) * lim;
+          f.finVx = -f.finVx;
+        }
+        if (Math.abs(f.finY - field.cy) > lim) {
+          f.finY = field.cy + Math.sign(f.finY - field.cy) * lim;
+          f.finVy = -f.finVy;
+        }
+      }
+      const w = f.weapons[0];
+      const orbit = w && (w.spec.kind === "hammer" || w.spec.kind === "chain") ? TWO_PI / Math.max(0.1, w.spec.cooldown / Math.max(0.05, f.attack)) : w && w.spec.kind === "cards" ? 3 : 0;
+      f.finSpin += orbit * s * dt;
+    }
+  }
+
+  /** The side in the lead on HP share (Σ hp ÷ Σ max HP; a new leader 5 % clear of the last one) and when it changed (the lead bar's flash). */
+  private stepLead(now: number) {
+    const v = this.view;
+    const hp = this.leadHp;
+    const max = this.leadMax;
+    hp.fill(0);
+    max.fill(0);
+    for (const f of v.fighters) {
+      if (f.team < 0 || f.team >= hp.length) continue;
+      hp[f.team] += f.alive ? Math.max(0, f.hp) : 0;
+      max[f.team] += f.maxHp;
+    }
+    let best = -1;
+    let bestShare = -1;
+    for (let t = 0; t < v.teamCount && t < hp.length; t++) {
+      const share = max[t] > 0 ? hp[t] / max[t] : 0;
+      if (share > bestShare + 1e-12) {
+        bestShare = share;
+        best = t;
+      }
+    }
+    if (best < 0 || best === v.leadSide || bestShare >= 1 - 1e-9) return;
+    const cur = v.leadSide >= 0 && max[v.leadSide] > 0 ? hp[v.leadSide] / max[v.leadSide] : -1;
+    if (v.leadSide >= 0 && bestShare < cur + 0.05) return;
+    if (v.leadSide >= 0) v.leadMs = now; // (the first lead is no change)
+    v.leadSide = best;
   }
 
   /** Called once per rendered frame: the frame's strongest fight sounds, the abilities, the KOs. */
@@ -5433,9 +6049,43 @@ export class FightLeagueMode implements GameMode {
     for (const e of v.events) {
       e.x = mapX(e.x);
       e.y = mapY(e.y);
+      // (--- fl-overhaul --- Stage 3: a hit's direction, a KO's or a slam's velocity are vectors, not points)
+      if (e.kind === EV_HIT || e.kind === EV_KO || e.kind === EV_SLAM || (e.kind === EV_DAMAGE && e.aux === 1)) {
+        if (e.kind !== EV_HIT && e.kind !== EV_DAMAGE) {
+          e.x2 *= k;
+          e.y2 *= k;
+        }
+        continue;
+      }
       e.x2 = mapX(e.x2);
       e.y2 = mapY(e.y2);
     }
+    // --- fl-overhaul --- (Stage 3) the visual state: trails, the finale's drift, decals
+    for (const f of v.fighters) {
+      for (let i = 0; i < FL_TRAIL_LEN; i++) {
+        f.trail[2 * i] = mapX(f.trail[2 * i]);
+        f.trail[2 * i + 1] = mapY(f.trail[2 * i + 1]);
+      }
+      f.finX = mapX(f.finX);
+      f.finY = mapY(f.finY);
+      f.finVx *= k;
+      f.finVy *= k;
+    }
+    for (const p of v.projectiles) {
+      for (let i = 0; i < FL_PROJ_TRAIL_LEN; i++) {
+        p.trail[2 * i] = mapX(p.trail[2 * i]);
+        p.trail[2 * i + 1] = mapY(p.trail[2 * i + 1]);
+      }
+    }
+    for (const d of v.decals) {
+      d.x = mapX(d.x);
+      d.y = mapY(d.y);
+      d.x2 = mapX(d.x2);
+      d.y2 = mapY(d.y2);
+      d.r *= k;
+    }
+    v.finale.x = mapX(v.finale.x);
+    v.finale.y = mapY(v.finale.y);
     v.field = field;
     this.unit = this.speedUnit(ctx);
     return true;

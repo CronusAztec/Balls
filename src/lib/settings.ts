@@ -81,6 +81,9 @@ import { ORB_GRID_PHYSICS_FIELDS, ORB_GRID_RANGES, defaultOrbGridFields, orbGrid
 import type { OgGroup, OgMetro, OgModel, OgRhythm } from "@/lib/physics/modes/orbRhythm"; // --- orb-rhythm --- Bouncing Orbs' rhythm model, polyrhythms and metronome
 // --- fight-league --- Fight League (weapon-wielding fighter balls; the arena games' family)
 import { FIGHT_LEAGUE_RANGES, defaultFightLeagueFields, fightLeagueModeDefaults, readFightLeagueParams, resolveFightLeagueFields, writeFightLeagueParams, type FlArena, type FlMatch } from "@/lib/physics/modes/fightLeague";
+// --- fl-overhaul --- (Stage 3) the spectacle's options and its presentational numbers (never the engine's)
+import { FIGHT_LEAGUE_VISUAL_KEYS, type FlArenaStyle, type FlStage, type FlTags } from "@/lib/physics/modes/fightLeague";
+// --- end fl-overhaul ---
 // --- land-claim --- the Land Claim mode (columns of blocks knocked off by competitors' balls)
 import { LAND_CLAIM_RANGES, defaultLandClaimFields, landClaimModeDefaults, readLandClaimParams, resolveLandClaimFields, writeLandClaimParams, type LcArena, type LcRule } from "@/lib/physics/modes/landClaim";
 
@@ -879,6 +882,24 @@ export interface SimulatorSettings {
   // --- fl-overhaul --- the intent steering's turn rate (URL `flSk`; 0 = the bounce look) and sudden death at the time cap (URL `flSD`)
   flSeek: number;
   flSuddenDeath: boolean;
+  // --- end fl-overhaul ---
+  // --- fl-overhaul --- (Stage 3) the spectacle – the drawing only, never the fight (URL `flSt`, `flAs`, `flSh`, `flSm`, `flIf`, `flDn`, `flPp`, `flTg`)
+  /** lilac (the default) | night | theme: the backdrop and the arena's palette (URL `flSt`). */
+  flStage: FlStage;
+  /** clean | grid | division | neon: the arena floor's pattern (URL `flAs`). */
+  flArenaStyle: FlArenaStyle;
+  /** The screen shake's strength, 0.6 by default, any number from 0 typed (URL `flSh`). */
+  flShake: number;
+  /** The KO finale's slow motion (URL `flSm`). */
+  flSlowMo: boolean;
+  /** The impact frames of heavy hits (URL `flIf`). */
+  flImpact: boolean;
+  /** The floating damage numbers (URL `flDn`). */
+  flDmgNumbers: boolean;
+  /** The portrait plates above and below the arena in tall exports (URL `flPp`). */
+  flPlates: boolean;
+  /** auto | on | off: the name tags over the balls (URL `flTg`). */
+  flTags: FlTags;
   // --- end fl-overhaul ---
   // --- end fight-league ---
   // --- land-claim --- Land Claim (lib/physics/modes/landClaim.ts): competitors' balls knock the top blocks off the columns lining the arena
@@ -1748,6 +1769,9 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
 for (const mode of MOVING_EXIT_MODES) (MODE_ENGINE_KEYS[mode] as string[]).push(...EXIT_ENGINE_KEYS);
 for (const mode of SPLAT_MODES) (MODE_ENGINE_KEYS[mode] as string[]).push(...SPLAT_ENGINE_KEYS);
+// --- fl-overhaul --- (Stage 3) the spectacle's numbers (the screen shake) are the picture's: a shake past its slider engages nothing
+(MODE_ENGINE_KEYS as Record<ModeId, readonly string[]>).fightLeague = MODE_ENGINE_KEYS.fightLeague.filter((key) => !FIGHT_LEAGUE_VISUAL_KEYS.includes(key));
+// --- end fl-overhaul ---
 
 const engineKeyCache = new Map<ModeId, readonly string[]>();
 
