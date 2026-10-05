@@ -97,6 +97,9 @@ import { DEFAULT_FIGHT_LEAGUE_LABELS, FIGHT_LEAGUE_DATA_KEYS, FightLeagueDataset
 // --- land-claim --- Land Claim: the arena's blocks (offscreen, repainted where columns change), pops, flying blocks, badges, the HUD band and the verdict
 import { DEFAULT_LAND_CLAIM_LABELS, LAND_CLAIM_DATA_KEYS, LandClaimLayer, writeLandClaimDataset, type LandClaimLabels, type LandClaimRenderOptions } from "./landClaimRenderer";
 import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLayer, writeStringCircleDataset, type StringCircleLabels, type StringCircleRenderOptions } from "./stringCircleRenderer"; // --- string-circle ---
+// --- watermark-everywhere --- the live watermark of a visitor without a Pro licence: the frame's last pass (lib/watermark/live.ts)
+import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live";
+import { noteCornerReadouts, noteEdgeText, noteHomeCounter, noteJourneyHud, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare } from "./liveMarkHud";
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -1034,6 +1037,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       alphaCache.set(key, out);
       return out;
     };
+
+    // --- watermark-everywhere --- the live watermark's state for the life of the loop (nothing is allocated per frame): the HUD
+    // report, the square, the recorder's text lines mapped onto the canvas while it records, and the frame handed over
+    const liveHud = new LiveHud();
+    const liveBoard = { x: 0, y: 0, w: 0, h: 0 };
+    const liveSquare: HudSquare = { x0: 0, y0: 0, side: 0 };
+    const liveText = { fontSize: 0, topY: 0, bottomY: 0 };
+    const liveEdge = emptyEdgeTextLines();
+    const liveRecording = { startMs: 0, width: 0, height: 0 };
+    const liveFrame: LiveFrame = { canvas, ctx, nowMs: 0, recording: null, hud: liveHud };
+    if (!offline) void primeLiveWatermark();
+    // --- end watermark-everywhere ---
 
     const draw = (ts?: number) => {
       const now = offline ? offline.now() : (ts ?? performance.now()); // --- fast-render --- (offline: the export's clock) --- review fix (performance) --- (the rAF timestamp: vsync-aligned)
@@ -3344,6 +3359,57 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const bmData = engine.getBounceMathView();
       if (bmData.active) writeBounceMathDataset(bmData, bmLayer, setCanvasData, engine.getElapsedMs());
       else if (canvas.dataset.bmRules !== undefined) for (const key of BOUNCE_MATH_DATA_KEYS) delete canvas.dataset[key];
+
+      // --- watermark-everywhere --- The frame's last pass: the watermark of a visitor without a Pro licence, drawn into this
+      // canvas' own pixels after everything else (lib/watermark/live.ts: free-watermark's sealed gate decides, nothing on the
+      // page does) – clear of the HUD this frame drew, reported here in world px. Never offline: the fast export's frames are
+      // stamped by its compositor and a split-screen race's by the stage that composes the arenas (once per frame).
+      if (!offline) {
+        const hud = liveHud.reset(scale);
+        const sq = Math.min(size.width, size.height);
+        liveSquare.x0 = cx - sq / 2;
+        liveSquare.y0 = cy - sq / 2;
+        liveSquare.side = sq;
+        const recording = recordingRef.current;
+        const titleInset = !recording && (size.width - sq) / 2 < 170 ? 52 : 0;
+        hud.topBand(modeTopHud);
+        if (teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, liveBoard)) hud.block(liveBoard.x, liveBoard.y, liveBoard.w, liveBoard.h);
+        if (arenaView?.field) hud.topBand(liveSquare.y0 + HUD_BAND * sq);
+        if (flView && flLayer.boxesTop < Infinity) hud.bottomBand(flLayer.boxesTop);
+        if (sbView && sbView.circle && scLayer.stripTop < Infinity) hud.bottomBand(scLayer.stripTop);
+        if (bmLayer.drawn) hud.block(bmLayer.rect.x, bmLayer.rect.y, bmLayer.rect.w, bmLayer.rect.h);
+        if (unlimitedView.on) noteCornerReadouts(hud, liveSquare, true, (unlimitedView.full ? 1 : 0) + (frameBudget.slow ? 1 : 0) + (unlimitedView.crowd > 0 ? 1 : 0), recording ? 0 : 52);
+        if (uncapInfo.show) noteCornerReadouts(hud, liveSquare, false, uncapInfo.rescued > 0 ? 2 : 1, recording ? 0 : 52);
+        if (journeyView) noteJourneyHud(hud, journeyView.field);
+        if (raceView) noteRaceHud(hud, raceView, raceRef.current, titleInset);
+        if (multBoard) noteHomeCounter(hud, liveSquare);
+        if (vortexView || bdView) noteTitleBlock(hud, liveSquare, titleInset, bdView ? 4 : 2, "left");
+        if (conveyorView) noteTitleBlock(hud, liveSquare, titleInset, 3, "right");
+        if (bullseyeView) noteTitleBlock(hud, liveSquare, titleInset, 2, "both");
+        if (rrView) noteRhythmBand(hud, liveSquare, !recording && (size.width - sq) / 2 < 170 ? 40 : 0, "runner");
+        if (pdView) noteRhythmBand(hud, liveSquare, 0, "paddle");
+        if (captionLayer.usesTop) hud.topBand(captionLayer.stackEdges.top);
+        if (captionLayer.usesBottom) hud.bottomBand(captionLayer.stackEdges.bottom);
+        if (songProgressRef.current !== null) hud.bottomBand(size.height - 9);
+        const exportSize = recording ? exportSizeRef.current : null;
+        // the Top / Bottom Text: the canvas' own lines, or while recording the recorder's (it draws them into the export frame)
+        if (p.topText || p.bottomText) {
+          if (exportSize) {
+            recordingTextLayout(exportSize.width, exportSize.height, p.textSize, liveText);
+            exportEdgeTextLines(liveText, exportSize.width, exportSize.height, sq, liveSquare.y0, !!p.topText, !!p.bottomText, liveEdge);
+            noteEdgeText(hud, cx, liveEdge, p.topText, p.bottomText);
+          } else noteEdgeText(hud, cx, edgeLines, p.topText, p.bottomText);
+        }
+        liveFrame.nowMs = now;
+        if (exportSize) {
+          liveRecording.startMs = clipStartRef.current;
+          liveRecording.width = exportSize.width;
+          liveRecording.height = exportSize.height;
+          liveFrame.recording = liveRecording;
+        } else liveFrame.recording = null;
+        stampLiveFrame(liveFrame);
+      }
+      // --- end watermark-everywhere ---
 
       // FPS estimate
       if (lastFpsSampleRef.current === 0) lastFpsSampleRef.current = now;

@@ -10,6 +10,7 @@ import { IconLock } from "./LockBadge";
 import PlanCards from "./PlanCards";
 import TestModeNote from "./TestModeNote";
 import { pricingHref, useBilling, useLicenseRenewal, useNewTabLinks } from "./useBilling";
+import { SITE_NAME } from "@/lib/site"; // --- watermark-everywhere ---
 
 /*
  * --- free-watermark --- Titled "Remove the watermark" now: the account row's button, the note under the stage and the lock
@@ -50,6 +51,7 @@ export default function UnlockDialog({ feature, onClose }: { feature: ProFeature
           {/* the focus lands on the reason, not on the email field (a phone would open its keyboard at once) */}
           <div className="min-w-0 space-y-1" data-autofocus="" data-no-ring="" tabIndex={-1}>
             <p className="text-md font-medium text-ink">{t("why")}</p>
+            <p className="text-sm text-ink-2">{t("liveMark", { siteName: SITE_NAME }) /* --- watermark-everywhere --- (the live canvas carries it too) */}</p>
             {feature && <p className="text-sm text-ink-2">{t("dialog.feature", { feature: t(`features.${feature}`) })}</p>}
           </div>
         </div>
