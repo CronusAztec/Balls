@@ -137,7 +137,7 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   conveyor: { samples: [[392830,299930],[405963,324324],[359936,292702],[332380,173434],[408332,258889],[589499,316456],[357295,354065]], broken: [], walls: [50112,79344,108576,137808,167040] },
   // --- orb-grid --- (the placeholder ball stays pinned at the centre: the orbs are not engine balls)
   orbGrid: { samples: [[400000,300000],[400000,300000],[400000,300000],[400000,300000]], broken: [], walls: [] },
-  fightLeague: { samples: [[409438,402812],[441267,352765],[529713,295708],[400895,330592],[363697,447754],[534088,400134],[486690,291265],[536074,433884]], broken: [], walls: [] }, // --- fight-league --- (--- fl-overhaul --- re-recorded for Stage 1's rules)
+  fightLeague: { samples: [[409438,402812],[441267,352765],[529713,295708],[400895,330592],[360142,450608],[534088,400134],[476561,353481],[395499,430989]], broken: [], walls: [] }, // --- fight-league --- (--- fl-overhaul --- re-recorded for Stage 2's roster)
   // --- land-claim --- (recorded when the mode was added: no rings – the wall of columns is the mode's own)
   landClaim: { samples: [[328386,444514],[369351,237432],[436782,420717],[255355,223244],[467695,452667],[322641,326623],[561586,483469],[293545,478909]], broken: [], walls: [] },
 };
