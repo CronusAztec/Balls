@@ -2715,7 +2715,7 @@
     },
     "manual": {
       "title": "Publikowanie ręczne",
-      "steps": "1. Otwórz Instagram i stuknij + → Rolka. 2. Wybierz film. 3. Wklej opis z pliku .txt (kończy się hasztagami). 4. Jako okładkę ustaw klatkę z początku. 5. Udostępnij o proponowanej godzinie – nowy hook jako próbną rolkę – i odpowiadaj na komentarze przez pierwszą godzinę."
+      "steps": "1. Otwórz Instagram i stuknij + → Rolka. 2. Wybierz film. 3. Wklej opis z pliku .txt (kończy się hasztagami). 4. Jako okładkę ustaw klatkę wskazaną w pliku .txt (moment rozstrzygnięcia, nie pierwszą klatkę). 5. Udostępnij o proponowanej godzinie – nowy hook jako próbną rolkę – i odpowiadaj na komentarze przez pierwszą godzinę."
     },
     "schedule": {
       "title": "Harmonogram publikacji",
@@ -2907,6 +2907,18 @@
         "cliffPostQuestion": "Blaze, Wave, Volt czy Moss – kto pierwszy na zewnątrz? 👇",
         "keywords": "Kolorowe piłki ścigają się przez obracające się pierścienie z jedną szczeliną – która pierwsza znajdzie wyjście?",
         "hashtags": "#wysciglabirynt #labiryntpierscieni #ktowygra"
+      }
+    },
+    "cover": {
+      "label": "Okładka",
+      "at": "{sec} s – {why}",
+      "title": "Okładki",
+      "intro": "Klatka, którą warto ustawić jako okładkę każdego klipu (publikując, bot sam przekazuje ją Instagramowi i TikTokowi):",
+      "sources": {
+        "payoff": "rozstrzygnięcie na ekranie",
+        "cut": "ostatnia chwila przed cięciem",
+        "card": "najlepszy moment trybu",
+        "band": "końcówka klipu, gdzie wypadłoby rozstrzygnięcie"
       }
     }
   },

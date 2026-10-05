@@ -12471,6 +12471,114 @@ const orbBoxPixels = (box) =>
 }
 // --- end desktop-ai-fix ---
 
+// 37. Mode thumbnails: every mode card's picture (public/modes/<mode>.webp, made by scripts/generate-mode-previews.mjs from the
+// hero moments of src/lib/thumbnails/heroMoments.ts) is served as a WebP square of THUMB_SIZE under the 60 KB budget, decodes
+// to a picture with something in it (not a flat colour), and the modes wall of the landing page and the studio's mode picker
+// (the Mode row's Change mode) show a card for every mode of MODE_IDS.
+// --- mode-thumbnails ---
+{
+  const typesSource = fs.readFileSync(path.join(process.cwd(), "src", "lib", "physics", "types.ts"), "utf8");
+  const modeIds = [...(/export const MODE_IDS = \[([\s\S]*?)\] as const;/.exec(typesSource)?.[1] ?? "").matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]);
+  const frameSource = fs.readFileSync(path.join(process.cwd(), "src", "lib", "thumbnails", "heroFrame.ts"), "utf8");
+  const thumbSize = 2 * Number(/export const THUMB_CSS_SIZE = (\d+);/.exec(frameSource)?.[1] ?? 240);
+  const maxBytes = Number((/export const THUMB_MAX_BYTES = ([\d_]+);/.exec(frameSource)?.[1] ?? "60000").replace(/_/g, ""));
+  /** The width and height in a WebP header (lossy VP8, lossless VP8L or extended VP8X), or null. */
+  const webpSize = (buf) => {
+    if (buf.length < 30 || buf.toString("ascii", 0, 4) !== "RIFF" || buf.toString("ascii", 8, 12) !== "WEBP") return null;
+    const chunk = buf.toString("ascii", 12, 16);
+    if (chunk === "VP8 ") return { width: buf.readUInt16LE(26) & 0x3fff, height: buf.readUInt16LE(28) & 0x3fff };
+    if (chunk === "VP8L") {
+      const bits = buf.readUInt32LE(21);
+      return { width: (bits & 0x3fff) + 1, height: ((bits >> 14) & 0x3fff) + 1 };
+    }
+    if (chunk === "VP8X") return { width: buf.readUIntLE(24, 3) + 1, height: buf.readUIntLE(27, 3) + 1 };
+    return null;
+  };
+  const served = [];
+  for (const mode of modeIds) {
+    const res = await page.request.get(`${BASE}/modes/${mode}.webp`);
+    const body = res.ok() ? await res.body() : Buffer.alloc(0);
+    served.push({ mode, status: res.status(), type: res.headers()["content-type"] ?? "", bytes: body.length, size: webpSize(body) });
+  }
+  const badServed = served.filter((x) => x.status !== 200 || !/^image\/webp/.test(x.type) || x.bytes === 0 || x.bytes >= maxBytes || !x.size || x.size.width !== thumbSize || x.size.height !== thumbSize);
+  const largest = served.reduce((a, b) => (b.bytes > a.bytes ? b : a), served[0] ?? { mode: "-", bytes: 0 });
+  check(
+    `mode thumbnails: every mode's card picture is served as a ${thumbSize} × ${thumbSize} WebP under ${maxBytes / 1000} KB`,
+    modeIds.length >= 30 && badServed.length === 0,
+    `(${modeIds.length} modes, the largest ${largest.mode} at ${largest.bytes} bytes${badServed.length ? `; wrong: ${badServed.map((x) => `${x.mode} ${x.status} ${x.type} ${x.bytes} B ${x.size ? `${x.size.width}×${x.size.height}` : "no WebP header"}`).join(", ")}` : ""})`,
+  );
+
+  // The landing page's modes wall: a card per mode, each picture decoded at its size and visually non-empty (sampled pixels).
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  await page.locator("#modes").scrollIntoViewIfNeeded().catch(() => {});
+  const wall = await page.evaluate(
+    async ({ modeIds, thumbSize }) => {
+      const out = [];
+      for (const mode of modeIds) {
+        const img = document.querySelector(`#modes img[src$="/modes/${mode}.webp"]`);
+        if (!img) {
+          out.push({ mode, card: false });
+          continue;
+        }
+        img.scrollIntoView({ block: "center" });
+        // a lazy picture loads once it is near the viewport
+        const loaded = await new Promise((resolve) => {
+          if (img.complete && img.naturalWidth > 0) return resolve(true);
+          const done = (ok) => () => resolve(ok);
+          img.addEventListener("load", done(true), { once: true });
+          img.addEventListener("error", done(false), { once: true });
+          setTimeout(() => resolve(img.complete && img.naturalWidth > 0), 8000);
+        });
+        let distinct = 0;
+        let spread = 0;
+        let brightest = 0;
+        if (loaded) {
+          const c = document.createElement("canvas");
+          c.width = c.height = 24;
+          const g = c.getContext("2d", { willReadFrequently: true });
+          g.drawImage(img, 0, 0, 24, 24);
+          const d = g.getImageData(0, 0, 24, 24).data;
+          const colours = new Set();
+          const lum = [];
+          for (let i = 0; i < d.length; i += 4) {
+            colours.add(`${d[i] >> 4},${d[i + 1] >> 4},${d[i + 2] >> 4}`);
+            lum.push(0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]);
+          }
+          const mean = lum.reduce((a, b) => a + b, 0) / lum.length;
+          spread = Math.sqrt(lum.reduce((a, b) => a + (b - mean) ** 2, 0) / lum.length);
+          distinct = colours.size;
+          brightest = Math.max(...lum);
+        }
+        out.push({ mode, card: true, loaded, width: img.naturalWidth, height: img.naturalHeight, distinct, spread: Math.round(spread * 10) / 10, brightest: Math.round(brightest), alt: img.getAttribute("alt") ?? "" });
+      }
+      return { cards: document.querySelectorAll('#modes img[src*="/modes/"]').length, out };
+    },
+    { modeIds, thumbSize },
+  );
+  const missingCards = wall.out.filter((x) => !x.card).map((x) => x.mode);
+  const badPictures = wall.out.filter((x) => x.card && (!x.loaded || x.width !== thumbSize || x.height !== thumbSize || x.distinct < 12 || x.spread < 6 || x.brightest < 60 || !x.alt));
+  const flattest = wall.out.filter((x) => x.card && x.loaded).reduce((a, b) => (b.distinct < a.distinct ? b : a), wall.out.find((x) => x.loaded) ?? { mode: "-", distinct: 0, spread: 0 });
+  check(
+    "mode thumbnails: the modes wall renders a card for every mode, each picture loaded at full size and visually non-empty",
+    missingCards.length === 0 && wall.cards === modeIds.length && badPictures.length === 0,
+    `(${wall.cards} cards for ${modeIds.length} modes; the flattest ${flattest.mode}: ${flattest.distinct} colours, luminance spread ${flattest.spread}${missingCards.length ? `; no card: ${missingCards.join(", ")}` : ""}${badPictures.length ? `; bad: ${badPictures.map((x) => `${x.mode} loaded=${x.loaded} ${x.width}×${x.height} ${x.distinct} colours spread ${x.spread} max ${x.brightest}`).join(", ")}` : ""})`,
+  );
+
+  // The Mode row of the studio: Change mode opens the picker with the same cards, one per mode.
+  await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+  await page.locator('#studio-block-mode button[aria-haspopup="dialog"]').first().click({ timeout: 10000 }).catch(() => {});
+  await page.locator('dialog img[src*="/modes/"]').first().waitFor({ timeout: 10000 }).catch(() => {});
+  const picker = await page.$$eval('dialog img[src*="/modes/"]', (imgs) => imgs.map((img) => (/\/modes\/([^/.]+)\.webp$/.exec(img.getAttribute("src") ?? "") ?? [])[1] ?? ""));
+  const pickerMissing = modeIds.filter((m) => !picker.includes(m));
+  await page.keyboard.press("Escape").catch(() => {});
+  check(
+    "mode thumbnails: the Mode row's mode picker shows the card picture of every mode",
+    picker.length === modeIds.length && pickerMissing.length === 0,
+    `(${picker.length} pictures in the picker for ${modeIds.length} modes${pickerMissing.length ? `; missing: ${pickerMissing.join(", ")}` : ""})`,
+  );
+}
+// --- end mode-thumbnails ---
+
 // --- review fix (site-static) --- every same-origin request that failed (the response listener), then the console
 // --- fl-overhaul --- the final report is a function (a SMOKE_ONLY run calls it right after its block)
 async function report() {
