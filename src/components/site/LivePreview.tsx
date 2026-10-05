@@ -6,6 +6,7 @@ import { Link } from "@/i18n/navigation";
 import { assetPath } from "@/lib/site";
 import type { ModeId } from "@/lib/physics/types";
 import { cx } from "@/components/ui/cx";
+import type { LiveFrame } from "@/lib/watermark/live"; // --- watermark-everywhere ---
 
 /*
  * --- site-redesign --- The hero's live, muted mini simulation in a 9:16 phone frame: the real engine with a fixed seed
@@ -68,8 +69,9 @@ export default function LivePreview() {
       last = 0;
       schedule();
     };
-    import("./livePreviewEngine")
-      .then(({ createPreviewEngine, drawPreview, stepPreview }) => {
+    // (--- watermark-everywhere --- with the live watermark's module, loaded with the engine after the page is up)
+    Promise.all([import("./livePreviewEngine"), import("@/lib/watermark/live")])
+      .then(([{ createPreviewEngine, drawPreview, stepPreview }, { stampLiveFrame }]) => {
         if (cancelled) return;
         const ctx = canvas.getContext("2d");
         if (!ctx) throw new Error("no 2d context");
@@ -86,7 +88,11 @@ export default function LivePreview() {
           ballAlt: styles.getPropertyValue("--color-ink").trim() || "#f2f2ed",
         };
         const state = { acc: 0 };
+        // --- watermark-everywhere --- a free visitor's preview carries the watermark too, drawn into its pixels after each frame
+        // (lib/watermark/live.ts – the same gate and mark as the studio's canvas; the whole phone frame is its area)
+        const mark: LiveFrame = { canvas, ctx, nowMs: performance.now(), area: { x: 0, y: 0, width: canvas.width, height: canvas.height } };
         drawPreview(ctx, engine, FRAME_W, FRAME_H, palette);
+        stampLiveFrame(mark);
         tick = (now: number) => {
           raf = 0;
           if (cancelled || !visible || document.visibilityState !== "visible") return;
@@ -94,6 +100,8 @@ export default function LivePreview() {
           last = now;
           stepPreview(engine, state, frameMs);
           drawPreview(ctx, engine, FRAME_W, FRAME_H, palette);
+          mark.nowMs = now;
+          stampLiveFrame(mark); // --- watermark-everywhere --- (the frame's last pass)
           schedule();
         };
         observer.observe(frame);

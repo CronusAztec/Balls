@@ -15,6 +15,9 @@ import { describeError } from "@/lib/desktop/errors"; // --- desktop-ai-fix ---
  * where they are – never copied). `fetch` and the progress callback are injected; tests/models.test.ts drives it with a
  * fake server. --- desktop-ai-fix --- main.ts injects Electron's net.fetch (the system proxy and certificate store: Node's own
  * fetch failed behind antivirus HTTPS scanning with a bare "fetch failed"), and a failed request says why (its cause codes).
+ * --- review fix (desktop-ai-fix) --- `onReady` runs once the model is on disk and verified and BEFORE its "ready" event
+ * (ai/modelServices.ts selects the finished download there): the page refreshes its AI status on that event, so whatever
+ * the hook changes is what the page sees.
  */
 
 export interface ManagerOptions {
@@ -22,6 +25,11 @@ export interface ManagerOptions {
   catalog?: readonly ModelSpec[];
   fetch?: typeof fetch;
   onProgress?: (event: ModelProgressEvent) => void;
+  /**
+   * --- review fix (desktop-ai-fix) --- Runs when a download is verified (or was already there), before its "ready" event;
+   * awaited, and its failure never fails the download (the hook reports its own errors).
+   */
+  onReady?: (id: string) => unknown;
   now?: () => number;
 }
 
@@ -150,13 +158,26 @@ export class ModelManager {
     this.options.onProgress?.(event);
   }
 
+  /** --- review fix (desktop-ai-fix) --- The ready hook, then the "ready" event: the page's refresh on it sees the hook's work. */
+  private async announceReady(spec: ModelSpec): Promise<void> {
+    try {
+      await this.options.onReady?.(spec.id);
+    } catch {
+      // (the hook logs its own failures; a verified model stays ready)
+    }
+    this.emit({ id: spec.id, downloaded: spec.size, size: spec.size, bytesPerSec: 0, state: "ready" });
+  }
+
   /** Downloads (or resumes) a catalog model and verifies it. Resolves with its entry; rejects on failure or cancel. */
   async download(id: string): Promise<ModelEntry> {
     const spec = this.catalog.find((m) => m.id === id);
     if (!spec) throw new Error(`Unknown model ${id}`);
     if (this.downloads.has(id)) throw new Error("This model is already downloading");
     const current = await this.entryOf(spec, "");
-    if (current.state === "ready") return current;
+    if (current.state === "ready") {
+      await this.announceReady(spec); // --- review fix (desktop-ai-fix) --- (selected like a fresh download, and the page told)
+      return current;
+    }
     await fs.mkdir(this.options.dir, { recursive: true });
     const file = this.fileOf(spec);
     const part = `${file}.part`;
@@ -230,7 +251,7 @@ export class ModelManager {
       await fs.writeFile(`${file}.sha256`, digest, "utf8");
       this.verifying.delete(id);
       const entry = await this.entryOf(spec, "");
-      this.emit({ id, downloaded: spec.size, size: spec.size, bytesPerSec: 0, state: "ready" });
+      await this.announceReady(spec); // --- review fix (desktop-ai-fix) --- (was a bare emit: the selection came after it, too late for the page)
       return entry;
     } catch (err) {
       const cancelled = controller.signal.aborted;

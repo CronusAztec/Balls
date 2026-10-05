@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LOOP_HUD_AMBER, LOOP_HUD_COUNTER_Y, LOOP_HUD_GREY_LIGHT, LOOP_HUD_MODE_TEXT, LOOP_HUD_TITLE_Y, drawLoopHud, hudCounterText, hudText, isLightColor, loopHudCount, loopHudFrame, loopHudLayout, loopHudLiveLayout, loopHudRects } from "@/lib/loop/hud";
+import { LOOP_HUD_AMBER, LOOP_HUD_COUNTER_Y, LOOP_HUD_GREY_LIGHT, LOOP_HUD_MODE_TEXT, LOOP_HUD_TITLE_Y, drawLoopHud, hudCounterText, hudText, isLightColor, loopHudBands, loopHudCount, loopHudFrame, loopHudLayout, loopHudLiveLayout, loopHudRects } from "@/lib/loop/hud";
 import { badgeMetrics, badgeRect, exportSquare, intersect } from "@/lib/watermark/layout";
+import { LiveHud, liveBadgeBox, placeLiveBadge, type LivePlacement } from "@/lib/watermark/liveLayout";
 import { RESOLUTIONS, resolutionToSize } from "@/lib/settings";
 import { drawRecordingFrame, recordingTextLayout } from "@/lib/recording/recorder";
 import { fakeCanvas, fakeDocument } from "./fakeCanvas";
@@ -102,6 +103,31 @@ describe("loop HUD: layout", () => {
     const inset = loopHudLiveLayout(500, 500, 250, 187.5, 52);
     expect(inset.titleY - 0.5 * inset.titleSize).toBeGreaterThanOrEqual(52 - 1e-9);
     expect(inset.subtitleY).toBe(-1); // no room for the subtitle in a phone's square margin
+  });
+
+  it("keeps the live watermark's badge clear of the live HUD (its title a top band, its counter a bottom band)", () => {
+    const frame = { title: "it grows with every bounce", subtitle: "how many bounces to fill the circle?", counter: "12 bounces", light: false };
+    for (const [w, h] of [[800, 450], [1280, 720], [500, 500], [450, 450], [390, 844], [1080, 1920]]) {
+      const side = Math.min(w, h);
+      const layout = loopHudLiveLayout(w, h, h / 2, 0.375 * side, (w - side) / 2 < 170 ? 52 : 0);
+      const bands = loopHudBands(layout, frame);
+      const hud = new LiveHud().reset(1);
+      hud.topBand(bands.top);
+      hud.bottomBand(bands.bottom);
+      const box = liveBadgeBox({ area: { x: (w - side) / 2, y: (h - side) / 2, width: side, height: side } });
+      for (const clipMs of [0, 6000]) {
+        const out: LivePlacement = { x: 0, y: 0, width: 0, height: 0, corner: "bottom-left", free: false };
+        const place = placeLiveBadge(box, Math.round(0.42 * side), box.height, clipMs, hud, out); // a long domain: the widest badge
+        expect(place.free).toBe(true);
+        for (const r of loopHudRects(layout, w, true)) {
+          const o = intersect(place, r);
+          expect(o.width * o.height, `${w}x${h} at ${clipMs} ms`).toBe(0);
+        }
+      }
+    }
+    const none = loopHudBands(loopHudLiveLayout(800, 450, 225, 168.75, 0), { title: "", subtitle: "", counter: "", light: false });
+    expect(none.top).toBe(-Infinity);
+    expect(none.bottom).toBe(Infinity);
   });
 });
 

@@ -14,6 +14,8 @@ import { DEFAULT_BACKGROUND_COLORS } from "@/lib/themes";
 import { ACCENT } from "@/lib/site";
 import { FrameGate } from "./renderBudget"; // --- review fix (performance) ---
 import { liveWorldOf } from "@/lib/simulation/world"; // --- world ---
+import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live"; // --- watermark-everywhere ---
+import { noteEdgeText } from "./liveMarkHud"; // --- watermark-everywhere ---
 
 /*
  * --- split-screen --- The page's canvas during a split-screen race (lib/splitScreen.ts, lib/simulation/multi.ts). Every
@@ -253,6 +255,14 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
       if (canvas.dataset[key] !== value) canvas.dataset[key] = value;
     };
 
+    // --- watermark-everywhere --- the composed frame's live watermark (one per frame, never per arena): its HUD report, the
+    // recorder's text lines mapped onto the stage while it records, and the frame handed over (nothing allocated per frame)
+    const liveHud = new LiveHud();
+    const liveText = { fontSize: 0, topY: 0, bottomY: 0 };
+    const liveEdge = emptyEdgeTextLines();
+    const liveRecording = { startMs: 0, width: 0, height: 0 };
+    const liveFrame: LiveFrame = { canvas, ctx, nowMs: 0, recording: null, hud: liveHud };
+    void primeLiveWatermark();
     const gate = new FrameGate(); // --- review fix (performance) ---
     const frame = (ts?: number) => {
       raf = requestAnimationFrame(frame);
@@ -280,6 +290,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
 
       // The frame: the background (the canvas' sides show it), the arenas, their borders and labels.
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      liveHud.reset(dpr); // --- watermark-everywhere --- (the labels, the text lines and the captions below report themselves)
       ctx.fillStyle = p.backgroundColor ?? "#0a0a0a";
       ctx.fillRect(0, 0, W, H);
       painter.paint(ctx, W, H, lookOf(p, bgImageRef.current), dpr);
@@ -350,6 +361,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         const h = 1.6 * fs;
         const x = vp.x + 0.35 * fs;
         const y = bottomRow ? vp.y + vp.height - 0.35 * fs - h - (live ? 56 : 0) : vp.y + 0.35 * fs + (live && vp.y <= oy + 1 ? 52 : 0);
+        liveHud.block(x, y, w, h); // --- watermark-everywhere --- (the badge keeps clear of the arena labels)
         roundRect(ctx, x, y, w, h, h / 2);
         ctx.fillStyle = "rgba(0, 0, 0, 0.55)";
         ctx.fill();
@@ -447,6 +459,31 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
         captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current - Math.max(0, slowLagOf(slots, n) - clipLag0Ref.current)) / 1000 : -1; // --- review fix (modes-gerald-odd) --- (on the run's pace)
         captionLayer.draw(ctx, sp.engines[0], captionOptions, captionView);
       } else captionLayer.clear();
+
+      // --- watermark-everywhere --- The composed frame's last pass: the watermark of a visitor without a Pro licence, once for
+      // the whole race (lib/watermark/live.ts – the arenas' own canvases are offline and carry none), clear of the arena labels,
+      // the Top / Bottom Text (the recorder's lines while it records) and the captions; the recorder copies it with the frame.
+      {
+        const recExport = recordingRef.current ? exportSizeRef.current : null;
+        if (hasTop || hasBottom) {
+          if (recExport) {
+            recordingTextLayout(recExport.width, recExport.height, p.textSize ?? 1, liveText);
+            exportEdgeTextLines(liveText, recExport.width, recExport.height, side, oy, hasTop, hasBottom, liveEdge);
+            noteEdgeText(liveHud, W / 2, liveEdge, p.topText ?? "", p.bottomText ?? "");
+          } else noteEdgeText(liveHud, W / 2, edgeLines, p.topText ?? "", p.bottomText ?? "");
+        }
+        if (captionLayer.usesTop) liveHud.topBand(captionLayer.stackEdges.top);
+        if (captionLayer.usesBottom) liveHud.bottomBand(captionLayer.stackEdges.bottom);
+        liveFrame.nowMs = now;
+        if (recExport) {
+          liveRecording.startMs = clipStartRef.current;
+          liveRecording.width = recExport.width;
+          liveRecording.height = recExport.height;
+          liveFrame.recording = liveRecording;
+        } else liveFrame.recording = null;
+        stampLiveFrame(liveFrame);
+      }
+      // --- end watermark-everywhere ---
 
       // The race's numbers on the element, for tools and the smoke test.
       if (now - lastData >= DATASET_MS) {

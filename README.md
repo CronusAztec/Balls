@@ -84,8 +84,9 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **String Circle** | A third style of the String Battle (`sbStyle` "circle", URL `sbst=circle`; feature string-circle) after the STRING CIRCLE country fights of an arena-battle account (the clips of Land Claim's account): flag balls fly round a thin white **circle** or a **hexagon** (`sba`) on black, each curling as it flies, and every ball anchors **Strings per Second** (`sbrt`, default 30) from itself to the rim straight ahead of it – a dense fan in its colour that sweeps the rim. A ball crossing a rival's string on its outer half cuts it; every **Strings per Life** strings of one owner cut (`sbc`, default 200) take a life and shield its fan for 2.5 s, a ball out of lives is out and its fan dissolves, and the last flag standing wins (at a clip limit: the most lives, then the most rim). The fans' share of the rim is the live score – thin arcs just outside the wall and a **Standings Strip** along the bottom (`sbh`) – under a **Title Line** (`sbti`, default STRING CIRCLE). The Teams roster (its Country picker – Land Claim's, now 47 countries – fills a row with a flag) names, colours and flags the first balls; the balls past it play the clips' countries by their two-letter codes in colours apart (TR, IN, US, IR, DE, CA, JP, CN…), so a mega fight has any number of flags. A soft plucked twang for the strings anchored (at most three team notes at a time, twenty times a second), a snap for the strings cut, the battle's shatter at a KO. Five presets (Country fight: India vs USA, Battle of countries: Turkey / India / USA / Iran, Mega country fight (12), Hexagon arena (6), String arena classic (5)), a "Which flag wins?" caption, Find Simulation's winner outcome and the Forced Winner by flag; every number uncapped (a ball keeps up to 1,024 live strings – a memory-safety ceiling). Measured by the smoke test on a shared 4-core machine with software rendering (the obfuscated build too): the four-flag default and the 12-flag mega preset at 60 fps on the page, the mega preset recorded at 1080×1920 at 46–55 fps; fans of ~400 strings on 5 and 12 balls at 60 fps on the page and 43–50 / 29–40 fps recorded. See "String Circle" below |
 | **Free-video watermark** | Every video made without a verified Pro licence carries the watermark, drawn into its pixels by the compositor of every output path (feature free-watermark, `src/lib/watermark/`): a badge – the logo mark, the site's name and domain at 70 % opacity with a soft shadow – in a bottom corner of the exported square inside the platforms' safe zone, changing corner every 6 s, plus the domain tiled diagonally over the whole frame at 4 %. Recording, the fast export, the batch render, the viral bot and the desktop render queue now work for everyone; the decision is sealed when a recording or export starts by verifying the stored licence again, in module-private state no DOM, storage, URL or console edit reaches (see [Free-video watermark](#free-video-watermark)) |
 | **Bouncing Orbs: rhythm, polyrhythms & metronome** | The Bouncing Orbs rework (feature orb-rhythm) after the owner's "bouncing orbs is clunky and not fluid like the instagram given, add metronome and polyrythms to it": the new default **Rhythm** model (`ogModel`; **Decay** keeps the settling field) makes every orb an ideal bouncer on its spot forever – its height the parabola of an elastic bounce, h(t) = A · 4u(1 − u) with u = frac((t − φ) / T), its apex A = g · T² / 8 under the Gravity slider (faster orbs bounce lower) or all alike (**Equal Heights**, `ogEq`) – drawn at every frame's own simulation time, so the field moves smoothly at 60 or 120 Hz and in the fast export's exact frame times, with a 10 % **Landing Squash** easing out over 60 ms (`ogSquash`). **Polyrhythm** (`ogPoly`): **Groups** of rows, columns, rings, diagonals, a checkerboard or every orb (`ogGroup`), group k bouncing n_k times a **Cycle** (`ogCycle`, 30 s), so every orb lands together at every multiple of the cycle – the **IN PHASE** moment, with its banner on a dark backdrop and a chord – and the wave surface morphs in between; ten **Rhythm Presets** (`ogRhythm`): Pendulum wave (51 + k), 3 against 2, 4 against 3, 5 against 4, 7 against 5, 3:4:5, Euclidean (`ogSteps`), Corner to corner, Centre outwards and Varied. The **Metronome**: a **Tempo** (`ogBpm`, 120; the beat lock's while it is on) and **Beats per Bar** (`ogBeats`), a swinging bar at the top of the square, a ring pulsing around the field or a dot hopping along a beat strip (`ogMetro`), a woodblock **Click** with an accented downbeat (`ogClick`), the cycle snapped to whole **Bars** (`ogBars`, 16) so IN PHASE lands on a downbeat, and **Melody** (`ogMelody`): a pitch of the scale per group, the polyrhythm playing a tune. A ninth preset, Metronome 3:2; Find Simulation's In phase at answered at once by the cycle maths; a caption's question answered at the IN PHASE moment. See the Bouncing Orbs section under How to extend it |
-| **Windows app 1.0.3: the AI fixed, an AI status panel** | The owner's "the exe ai doesnt work" (feature desktop-ai-fix): the AI studio of the Windows app works with the small local models now and says why when it does not. Each job normalises its answer before the checks (hashtags split, given their "#", cleaned, de-duplicated and clamped to 3–15; clip names slugified; platforms mapped – `src/lib/desktop/ai/normalise.ts`), the reply grammar bounds what it can (a hashtag ≤ 61 characters, a name ≤ 60, the copy's platforms the requested ones, one item each), **Make videos** offers its answer only after `plan_clips` has made plans and then only with their ids (the reply envelope is rebuilt every turn), a retry comes as the app's note with a hint at a higher temperature, and the prompts are shorter (the settings that matter for the request, recipe hooks without placeholders). The local model keeps one chat session per load (the evaluated prefix is reused: no re-reading 3–4k tokens every turn), gets a context of at least 4,096 tokens and room for prompt + reply, falls back to fewer GPU layers and then the CPU when memory is short (then: "Not enough free memory for this model: close other apps or pick a smaller model (Qwen2.5 1.5B is the smallest)"), and unloads only after the reply in progress (also when quitting). Every download and cloud call goes through Electron's **net.fetch** (the system proxy and certificate store – antivirus HTTPS scanning and company proxies broke Node's fetch, which stays as the fallback), errors carry their cause codes explained, and everything lands in main.log (llama.cpp's own messages, every request with its timings, every failed IPC handler with its cause chain). An **AI status** panel tops the AI tab: Runtime, Model, Cloud provider, Network and Last error, green / amber / red with the reason, **Run checks** (llama.cpp started, the model loaded with an 8-token grammar test, the endpoint and Hugging Face reached), **Copy report** (JSON: versions, RAM, GPU, backend, model, provider – never the key –, the last errors, main.log's tail), **Open logs** and **Run the model on: Auto (GPU) / CPU only**. A first-run card offers the 2 GB model or a cloud key, a finished download is selected when the selected model is missing, a run shows "Reading the request… N s" and a timing line per step. Version **1.0.3**: unsigned builds no longer carry a publisher name, so 1.0.3 → 1.0.4 updates install (1.0.2 users install 1.0.3 by hand once – the download page says so), and CI's packaged smoke runs a real Settings and Captions job on a cached GGUF (see [Windows app: AI fix and status panel](#windows-app-ai-fix-and-status-panel)) |
+| **Windows app 1.0.3: the AI fixed, an AI status panel** | The owner's "the exe ai doesnt work" (feature desktop-ai-fix): the AI studio of the Windows app works with the small local models now and says why when it does not. Each job normalises its answer before the checks (hashtags split, given their "#", cleaned, de-duplicated and clamped to 3–15; clip names slugified; platforms mapped – `src/lib/desktop/ai/normalise.ts`), the reply grammar bounds what it can (a hashtag ≤ 61 characters, a name ≤ 60, the copy's platforms the requested ones, one item each), **Make videos** offers its answer only after `plan_clips` has made plans and then only with their ids (the reply envelope is rebuilt every turn), a retry comes as the app's note with a hint at a higher temperature, and the prompts are shorter (the settings that matter for the request, recipe hooks without placeholders). The local model keeps one chat session per load (the evaluated prefix is reused: no re-reading 3–4k tokens every turn), gets a context of at least 4,096 tokens and room for prompt + reply, falls back to fewer GPU layers and then the CPU when memory is short (then: "Not enough free memory for this model: close other apps or pick a smaller model (Qwen2.5 1.5B is the smallest)"), and unloads only after the reply in progress (also when quitting). Every download and cloud call goes through Electron's **net.fetch** (the system proxy and certificate store – antivirus HTTPS scanning and company proxies broke Node's fetch, which stays as the fallback), errors carry their cause codes explained, and everything lands in main.log (llama.cpp's own messages, every request with its timings, every failed IPC handler with its cause chain). An **AI status** panel tops the AI tab: Runtime, Model, Cloud provider, Network and Last error, green / amber / red with the reason, **Run checks** (llama.cpp started, the model loaded with an 8-token grammar test, the endpoint and Hugging Face reached), **Copy report** (JSON: versions, RAM, GPU, backend, model, provider – never the key –, the last errors, main.log's tail), **Open logs** and **Run the model on: Auto (GPU) / CPU only**. A first-run card offers the 2 GB model or a cloud key, a finished download is selected when the selected model is missing (before the page hears it is ready, so Run is enabled at once), a run shows "Reading the request… N s" and a timing line per step. Version **1.0.3**: unsigned builds no longer carry a publisher name, so 1.0.3 → 1.0.4 updates install (1.0.2 users install 1.0.3 by hand once – the download page says so), and CI's packaged smoke runs a real Settings and Captions job on a cached GGUF (see [Windows app: AI fix and status panel](#windows-app-ai-fix-and-status-panel)) |
 | **Mode thumbnails** | Every mode card – the modes wall, the studio's mode picker, the daily card – shows its mode at its **hero moment**, mid-action with the payoff on screen (feature mode-thumbnails): an entry per mode in `HERO_MOMENTS` (`src/lib/thumbnails/heroMoments.ts` – settings, pinned seed, second, camera and the mode's colour; glow and trails on, bigger balls where a 240 px card needs them, only the HUD element that is the point), rendered by the real simulator's deterministic still camera and framed the same way for every card: a 480 × 480 square (2× the ~240 px card), the same inset and vignette, a subtle edge glow in the mode's colour, WebP under 60 KB, no captions or watermark. `npm run previews` regenerates them, printing each file's size, and stops when a mode has no hero moment; the viral bot's covers use the same idea – the payoff frame of each clip, not its first frame (see [Mode thumbnails](#mode-thumbnails)) |
+| **Watermark on every free simulation** | The free-video watermark on the live canvas too (feature watermark-everywhere, `src/lib/watermark/live.ts`, `liveLayout.ts`): every frame a visitor without a verified Pro licence sees – the studio's canvas in every mode (and so share links, the gallery's presets, the daily challenge and the Windows app, which runs the same page), a split-screen race's composed frame (once, not per arena) and the landing page's live preview – carries the badge and the faint domain tiles, drawn into the canvas' own pixels as the frame's last pass: 4.5 % of the exported square tall, 1.5 % from its edges, on the other side every 6 s, clear of the mode's HUD. The decision is free-watermark's sealed gate, so a Pro licence removes it at once – mid-run too – and removing the licence brings it back; a page recording copies the marked canvas, one badge per frame in the video layout's place (see [Watermark on every free simulation](#watermark-on-every-free-simulation)) |
 | **Loop foundation & Grow: fill and loop** | The first family of the loop-clip account's simulations (feature loop-foundation). An original synthesized sound library (`src/lib/audio/loopTones.ts`, `ToneGenerator.playLoop()`: pentatonic plucks, tuned bars, a progress ladder, a groove bed, impact accents, a completion chord, reset glides and washes, a field drone – every voice scheduled on the simulation clock under a per-tick voice budget, with optional clip slots for your own sounds that never leave the device), the offline mix of the fast export and the batch render normalised to −14 LUFS with its true peak at most −1 dBTP (BS.1770), the loop contract (a mode reports its seamless cycle; **Export whole loops** cuts recordings, fast exports and batch renders to a whole number of cycles), a lowercase **loop HUD** drawn into the frames, a **Loop style** caption preset in Publish, and Grow's fill-and-loop upgrade: growth law approach / multiply / add, when it fills stay / loop / finish, hold and shrink, colour by size, contact markers, pitch by size, the presets Fill and loop, Slow burn, Instant and Classic grow, and Find Simulation's "Fills within" and "Fill on a bar line". See [Grow: fill and loop](#grow-fill-and-loop) and [Loop foundation](#loop-foundation-sounds-whole-loops-and-the-loop-hud). |
 
 ## Design
@@ -315,7 +316,7 @@ src/
   lib/settings.ts       the single settings object, defaults, ranges, URL + preset serialisation
   lib/site.ts           site name (SITE_NAME, SITE_SLUG) and accent – see "Rebrand"; the domain derived from the site URL; base-path and URL helpers
   lib/billing/          --- paywall-gate --- the licence contract (license.ts), the entitlement store, THE guard, the billing API client, plans and wording
-  lib/watermark/        --- free-watermark --- the gate (seal.ts: the licence verified again, the sealed decision), the placement (layout.ts) and the painter (paint.ts) of the free videos' watermark
+  lib/watermark/        --- free-watermark --- the gate (seal.ts: the licence verified again, the sealed decision), the placement (layout.ts) and the painter (paint.ts) of the free videos' watermark · --- watermark-everywhere --- the live canvas' watermark: live.ts (the live gate on the sealed decision, the frame's last pass) and liveLayout.ts (its placement, clear of the HUD)
   lib/project.ts        project files (.jumpingballslive.json): build, versioning / migration, validation · shareCode.ts (short ?c= share codes) · base64.ts
 ```
 
@@ -1480,7 +1481,9 @@ still refuses) and nothing else about billing changed.
   renders and the desktop render queue all export through the fast export, split-screen races record through the page
   recorder, and the desktop app's ffmpeg only scales and pads the rendered file, so every output path carries it. The live
   canvas on the page stays clean (the recorder captures its own composed frames, not the page's canvas: drawing the mark there
-  too would put it into the clip twice); the line under the stage says that a free recording carries the mark.
+  too would put it into the clip twice); the line under the stage says that a free recording carries the mark. --- watermark-everywhere ---
+  No longer: the live canvas carries the mark too, and the page recorder adds no badge of its own to a frame that already
+  carries it – see [Watermark on every free simulation](#watermark-on-every-free-simulation).
 - **The gate** (`src/lib/watermark/seal.ts`) – when a recording or export starts, `sealWatermark()` waits for a licence check
   or a renewal in flight (at most `ENTITLEMENT_WAIT_MS`), reads the stored token (`jbl.license`), verifies it again –
   signature with the build's public key, header, payload and expiry (`watermarkDecision()`) – and returns a frozen
@@ -1544,7 +1547,8 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
   fighters' names, the HOME count –, and the camera frames out a HUD without a switch (the String Circle title, the Sound
   Vortex and Conveyor Belt counters, the race commentary, the Multipliers badges, Fight League's ability boxes). No captions or
   top / bottom text, no watermark: the stills come from the arena canvas, never the video compositor, and the generator runs
-  with a test Pro licence. The entries are below, one line per mode.
+  with a test Pro licence (`PREVIEW_LICENSE`, a real key, against a production build) – the still camera stamps a free
+  visitor's stills like a video's frames (see the still camera below). The entries are below, one line per mode.
 - **The frame** – `src/lib/thumbnails/heroFrame.ts`: a square like every card (`aspect-square`), `THUMB_SIZE` 480 × 480 (2× the
   ~240 px card), the subject with the same `THUMB_INSET` margin (4 %) on every side – past the world's edge the stage's darkest
   corner colour fills it –, the same radial vignette and a subtle inner glow along the edges in the mode's colour, encoded as
@@ -1553,7 +1557,10 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
   the fast export's hidden offline canvas with its seeded `Math.random` and clock, stepped frame by frame to the hero second and
   drawn at 2–6 device px per world px (`heroRenderScale()`), then filtered down – an entry gives the same picture on any
   machine, however busy. The moments are tuned for the 800 × 450 world of a 1400 × 900 window (`HERO_WORLD`); the generator
-  refuses another.
+  refuses another. --- watermark-everywhere --- A still is a picture of the run like a video's frame: each capture is sealed
+  when it starts (free-watermark's `sealWatermark()`) and every picture it hands back – the framed card and the raw world – is
+  stamped (`stampFrame()`) unless that seal is a verified Pro licence's, so the still camera, reachable from the console, gives a
+  visitor without Pro no clean frame; the result says so (`watermarked`), and the generator refuses to write such a picture.
 - **Regenerating** – build and serve the site, then run the generator (`npm run previews`, `scripts/generate-mode-previews.mjs`):
 
   ```bash
@@ -1622,6 +1629,82 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `orbGrid` | the orbs' wave at its peak | 3 | 14.5 s | `ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0` | x 0.506 · y 0.567 · zoom 1.25 |
 | `fightLeague` | Thor and Loki clashing, the VS card gone, hammer and daggers mid-swing | 11 | 5.25 s | – | x 0.5 · y 0.361 · zoom 1.151 |
 | `landClaim` | half the wall taken: the columns a mosaic of the four countries' colours | 3 | 5 s | `teams=France,Brazil,Spain,Colombia…&lcm=claim&lch=0&tsb=0&tn=0` | x 0.5 · y 0.587 · zoom 1.25 |
+
+### Watermark on every free simulation
+Feature watermark-everywhere – the owner's request (2026-10-04): "add the watermark to all simulations made without pro". The
+free-video watermark (above) marked the videos; now every frame of a live simulation a visitor without a verified Pro licence
+sees carries it too: the studio's canvas in every mode – share links (`?c=`), the gallery's presets, the daily challenge and
+the Windows app run that same canvas –, a split-screen race's composed frame and the landing page's live preview.
+
+- **The mark** – the free-watermark one, reused, not a second implementation: the badge sprite (`buildBadgeSprite()`) and the
+  diagonal domain tiles at 4 % (`buildTileLayer()`) of `src/lib/watermark/paint.ts`, and its 6 s corner schedule
+  (`badgeCorner()`). On the live canvas (`src/lib/watermark/liveLayout.ts`) the badge is 4.5 % of the exported square's side tall
+  (`LIVE_BADGE_HEIGHT`, at least 18 px), 1.5 % of it from the edges (`LIVE_MARGIN`), in a corner of the exported square (the
+  centred square the page recorder crops), on the left for 0–6 s, on the right for 6–12 s and so on. The landing page's preview
+  places it in its whole phone frame.
+- **Clear of the HUD** – after drawing, the canvas reports the HUD of the frame (`LiveHud`, in world px, no allocation): bands
+  along the top and the bottom of the square – the modes' top HUD (`modeTopHud`: Fight League's names, Land Claim's, Territory's
+  and the Maze's HUD bands, the Bouncing Orbs line, the String Battle's badge, Power Layers' pills, the multiplier badges), Fight
+  League's ability boxes, the String Circle's standings strip, the arena games' scoreboard band, the captions' stacks, the song
+  bar – and blocks: the teams' scoreboard, the bounce-math values, the No limits and speed readouts, Journey's clock and
+  mini-map, a race's standings and mini-map, the title blocks of the Sound Vortex, Beat Drop, Bullseye and Conveyor Belt, the
+  Top / Bottom Text, a split-screen race's arena labels (`src/components/simulator/liveMarkHud.ts` holds the geometry of the
+  ones whose renderers do not report it). The badge takes the bottom corner of its side inside the free band between the bands;
+  when a block holds it, the top corner of the same side (so it still changes side every 6 s); when both are held, the other
+  side's; only when the HUD holds every corner does it go over it, in its bottom corner (`placeLiveBadge()`).
+- **Where it is drawn** – into the canvas' own pixels as the frame's last pass (`stampLiveFrame()`): `Canvas.tsx` calls it at
+  the end of its draw routine, after everything else, for its live canvas only (`if (!offline)`: the fast export's hidden canvas
+  and a split-screen race's arena canvases are composed elsewhere); `splitScreenCanvas.tsx` once per composed frame, after the
+  labels, banner, text and captions; `LivePreview.tsx` after each preview frame. Never a DOM overlay, a CSS pseudo-element or a
+  second canvas: deleting elements, classes or styles in DevTools leaves the pixels as they are.
+- **The gate** – free-watermark's, not a second one: the live gate (`live.ts`) holds a `WatermarkSeal` from `sealWatermark()`
+  (the stored licence verified again, with the built-ins captured at load) in module-private state and asks `sealVerdict()`
+  every frame; until the first verification answers there is no seal, which is marked. It seals again whenever the licence can
+  have changed – the entitlement store reports a change (a licence pasted, restored or removed, another tab's storage event, the
+  focus, a licence that ran out), the stored licence is not the one verified (checked every second: marked at once until the new
+  one verifies) – and every minute. So a Pro licence removes the mark from the next frames, mid-run too, and removing it brings
+  the mark back on the very next frame. No setter, option, flag, DOM or `data-*` attribute, class, CSS variable, global or storage
+  flag reaches it, and the canvas' `data-*` attributes say nothing about it.
+- **One badge per video frame** – the page recorder copies the live canvas, which already carries the mark, so its compositor
+  adds no badge (and no tiles) of its own to a frame the live pass marked (`liveMarkCovers()` in `drawRecordingFrame()`); while it
+  records, the live pass puts the badge where the video layout puts it in the export frame (inside the platforms' safe zone, 5.2 %
+  of the exported square), so the clip looks as before. A frame the live pass did not mark – the fast export's, the batch
+  render's, the viral bot's and the desktop queue's offline canvases, a canvas resized since, a free recording during which a Pro
+  licence was activated – is stamped by the compositor as before.
+- **Cost** – one badge sprite (per badge height: the live one and a recording's) and one tile layer per canvas size, cached per
+  canvas: a frame costs two `drawImage()` calls, and the live and recording frame-rate floors of the smoke test hold. A mark that
+  cannot be built (a canvas that draws nothing) never breaks the frame loop: it is tried again a second later, and meanwhile the
+  frame counts as unmarked, so a recording gets the compositor's mark.
+- **The copy** – the pricing page (under its lede) and the Unlock dialog (under its reason) say that free simulations and free
+  videos carry a small watermark and Pro removes it from both (`Billing.liveMark`), the video buttons' tag says so in its tooltip
+  (`Watermark.liveTagTip`) and the line under the stage too (`Watermark.liveNote`), in English, Polish and Spanish.
+- **The site's own images** – `scripts/generate-mode-previews.mjs` and `scripts/generate-og.mjs` render as Pro (a licence signed
+  with the committed TEST key, which a test-mode build accepts; `PREVIEW_LICENSE` takes a real key for a production build), so
+  the mode cards, the gallery's pictures and the social preview stay clean. The mode cards come from mode-thumbnails' still
+  camera (`window.__jumpingBallsStill`, `useHeroStill.ts`), which renders on the fast export's offline canvas – never stamped
+  live – and so stamps its pictures itself, like a compositor: sealed per capture, a free visitor's stills (the framed card and
+  the raw world) carry the badge and the tiles, and a capture that carries them says so (`watermarked`) – the generator then
+  stops rather than write a marked card.
+- **Extending** – a new canvas that plays a simulation calls `stampLiveFrame()` as its last pass (and never on a canvas a
+  compositor exports from); a mode that draws HUD text in a corner of the square or along its top or bottom edge reports it to
+  the frame's `LiveHud` (a band for a full-width strip, a block otherwise) before the pass.
+- **Honest limits** – as for the videos: code that changes the page's JavaScript (an override, an extension, a userscript) or a
+  console that draws over the canvas after the live pass can hide the badge from the screen – and so from a page recording, which
+  copies the canvas – and capturing the screen records whatever it shows; only rendering on a server would be a guarantee.
+- **Tests** – `tests/watermarkEverywhere.test.ts`: the sizes and margins, the 6 s side change, the HUD bands and blocks (a held
+  corner, both held, all held, a band with no room), the HUD geometry of the modes, the recording's placement against the video
+  layout of four export sizes; the gate (no licence, Pro, monthly, expired, another key, garbage; marked from the first frame;
+  a licence activated and removed mid-run; storage flags, globals and the DOM ignored; the module's exports); the painter (two
+  draws a frame, last, state reset; caches per canvas and size; a mark that cannot be built); one badge per video frame (the
+  compositor over a marked canvas, the fast export's, a resized one, a licence activated mid-recording, the page recorder end to
+  end); the wiring (the canvas' last pass, never offline; the split-screen stage once; the landing preview; the Windows app; the
+  still camera's seal and stamps, and the generator refusing a marked still); the copy in three languages. The smoke test's
+  watermark-everywhere block runs a free visitor in ten modes, a split-screen race, a share link, the daily challenge and the
+  landing preview (the badge within 1 s of the start, on the other side within 7 s), tampers with the DOM during a live run,
+  toggles the test licence mid-run (no mark for Pro in the same modes), counts the badge regions of a free recording on a light
+  background (exactly one, one layer deep), measures the live and recording frame rates with the mark, and takes the same still
+  with the still camera as a free visitor (badge and tiles, card and raw world, reported `watermarked`) and as Pro (neither; two
+  Pro stills give the same pixels).
 
 ### Grow: fill and loop
 Feature loop-foundation – Grow's upgrade after the growing-ball clips of the loop family. Two options on top of the classic
@@ -1854,7 +1937,8 @@ electron-builder, which signs both EXEs. Never commit certificates, keys, models
 - `desktop/tests/` (Vitest, node environment, `npm test` in `desktop/`): encoder selection from a mocked `ffmpeg -encoders`
   output and a scripted runner, the ffmpeg arguments per preset, the GPU switches and read-out, `app://` resolution, the
   model manager against a fake download server (progress, Range resume, a server that ignores ranges, checksum mismatch,
-  cancel, picked GGUF files), the render queue with the crash-safe journal across a simulated restart, the AI loop through
+  cancel, picked GGUF files, the ready hook before the "ready" event), the render queue with the crash-safe journal across
+  a simulated restart, the AI loop through
   the app's AI service with a mocked node-llama-cpp (plan validation, retries, settings patches, the reply grammar), the
   Anthropic and OpenAI-compatible adapters and the sealed key, the IPC contract (the preload's bridge against a mocked
   Electron, every channel registered, origin and argument checks), the updater (offline and failing checks never throw),
@@ -1869,7 +1953,7 @@ electron-builder, which signs both EXEs. Never commit certificates, keys, models
 - The site's smoke test checks the download page and its links, the navbar / footer / landing button, and the Desktop group
   with a stand-in `window.desktop` (GPU panel, queue, AI panel, Library with its Publish buttons, the Publish block's
   app-only YouTube note) – and that the group is absent on the website.
-- **Verified on Linux** (the development machine – no Windows, no GPU): `tsc` and the app tests (56, then 75 with desktop-ai-fix), the site's type check,
+- **Verified on Linux** (the development machine – no Windows, no GPU): `tsc` and the app tests (56, then 75 with desktop-ai-fix, 78 with its review fixes), the site's type check,
   lint, unit tests and smoke test; `npm run pack` (electron-builder `--dir`, Linux x64) and `--smoke` under Xvfb both from the
   checkout and from the packaged `release/linux-unpacked` app – the export loads over `app://` (a secure context,
   WebCodecs present, missing paths answer 404, no service worker), `window.desktop` answers, the Desktop group renders
@@ -1905,10 +1989,16 @@ packaged code, real GGUF models on CPU) found 11 causes; what each one changed:
   app's note (a `system` message every transport folds into the next user turn, `conversation.ts`) with the turn's hint,
   and the temperature rises 0.1 per invalid reply in a row.
 - **Shorter prompts** – the settings assistant lists the core settings and those the request points at
-  (`settingsFilter.ts`: names, description words and English / Polish / Spanish concept stems; the page mode's block when the
-  request names the mode), the answer's shape is one line (`AgentTask.finalHint`, `AgentTool.argsHint` for
-  set_clip_settings) instead of a 2,000-token schema, and recipe hooks reach the prompt without `{placeholders}`
-  (`withoutPlaceholders()`). The Settings prompt fell from ~3,800 to under 1,000 tokens (976 for the default clip).
+  (`settingsFilter.ts`: names, description words and English / Polish / Spanish concept stems) plus the page mode's own
+  block, always – review fix: it was offered only to a request that named the mode, and as its settings are described only
+  as "<mode> setting", "make the panes break on the second hit" on Glass Smash or "longer rounds" in Fight League reached
+  none of them (the reply grammar is built from the same list, so the model could not change them). At most
+  `MAX_RELEVANT_SETTINGS` (64: the core 18, the biggest block – Bouncing Orbs, 34 – and what the request points at besides;
+  past it the block's settings the request does not point at give way first). The answer's shape is one line
+  (`AgentTask.finalHint`, `AgentTool.argsHint` for set_clip_settings) instead of a 2,000-token schema, and recipe hooks reach
+  the prompt without `{placeholders}` (`withoutPlaceholders()`). The Settings prompt fell from ~3,800 to under 1,000 tokens
+  (976 for the default clip); a mode page adds its block (6 settings on Glass Smash: ~1,100 tokens; 26 in Fight League:
+  ~1,700), about 2,200 at the very most.
 - **Local runner** (`desktop/src/ai/local.ts`) – one chat session on one context sequence while the model stays loaded
   (node-llama-cpp keeps the evaluated prefix); `contextSizeFor()`: a context of at least 4,096 tokens and room for prompt +
   reply (`{ min, max: 8192 }` unless a request needs more), grown for a longer conversation; on `InsufficientMemoryError`
@@ -1933,13 +2023,21 @@ packaged code, real GGUF models on CPU) found 11 causes; what each one changed:
   through the app's connection with the stored key: the HTTP status or the error; key stored; secure storage), Network
   (huggingface.co through net.fetch and through Node's fetch – Node's failing on its certificate is TLS interception the
   app gets past; net.fetch failing where Node's works means the fallback carries the downloads) and Last error
-  (`AiService` keeps the last failure of each path and returns it in `ai:status`). A quick look runs when the tab opens;
-  **Run checks** runs everything. **Copy report** copies JSON with the app / Electron / OS versions, RAM, GPU, backend,
-  model, provider (never the key – it is scrubbed from the report and the log tail), the last errors and main.log's last 200
-  lines; **Open logs**; **Run the model on: Auto (GPU) / CPU only** (`prefs.aiGpu`). Strings: the `DesktopAiFix` namespace.
+  (`AiService` keeps the last failure of each path and returns it in `ai:status`). A quick look runs when the tab opens and
+  whenever the setup changes – the selected model, whether it is ready, the provider, CPU / GPU – and then replaces the full
+  checks' rows, which tested the old setup (review fix: "not downloaded yet" stayed up after the download finished); a run
+  that fails refreshes only the Last error row. **Run checks** runs everything. **Copy report** copies JSON with the app /
+  Electron / OS versions, RAM, GPU, backend, model, provider (never the key – it is scrubbed from the report and the log
+  tail), the last errors and main.log's last 200 lines; **Open logs**; **Run the model on: Auto (GPU) / CPU only**
+  (`prefs.aiGpu`). Strings: the `DesktopAiFix` namespace.
 - **First run** – a card while no model is ready and no key stored ("Download the 2 GB model" / "Use a cloud key"); a
   finished download is selected when the selected model is not ready (also at start, for a 1.0.2 install whose download was
-  never "used"); a run shows "Reading the request… N s" until the first token, then "Writing… N s", and a timing line per step.
+  never "used") – inside the download, before its "ready" event (`ModelManager`'s `onReady` hook, wired with the AI service
+  in `desktop/src/ai/modelServices.ts`, which main.ts uses): the page refreshes its AI status once, on that event, and the
+  review found 1.0.3's first cut selecting only after the download had returned, so the page kept Run disabled ("Download or
+  pick a model first."). On that event the page also reloads the app's preferences; `desktop/tests/aiFix.test.ts` drives a
+  real download through the same wiring and answers the page's refresh the moment the event arrives. A run shows "Reading
+  the request… N s" until the first token, then "Writing… N s", and a timing line per step.
 - **1.0.3 and updates** – `signtoolOptions.publisherName` is set only when `WIN_CSC_LINK` is present: electron-updater
   demands a signature from that publisher, which is why the unsigned 1.0.2 cannot update itself to 1.0.3 (its users install
   1.0.3 by hand once – the download page and the release notes say so); from 1.0.3, unsigned builds update each other. The

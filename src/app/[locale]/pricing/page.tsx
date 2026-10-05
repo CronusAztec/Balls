@@ -98,6 +98,8 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
             </p>
             <h1 className="mt-3 text-2xl font-bold text-ink lg:text-3xl">{t("title")}</h1>
             <p className="mt-4 text-lg leading-relaxed text-ink-2">{t("lede")}</p>
+            {/* --- watermark-everywhere --- free simulations carry the mark on the canvas too, and Pro removes it from both */}
+            <p className="mt-3 text-md leading-relaxed text-ink-2">{t("liveMark", { siteName: SITE_NAME })}</p>
           </header>
           <PricingTestMode />
           <ClaimPanel />

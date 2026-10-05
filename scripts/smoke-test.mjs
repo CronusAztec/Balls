@@ -12403,6 +12403,164 @@ const orbBoxPixels = (box) =>
   }
   check("desktop-ai-fix: no page errors in the AI tab", aiFixErrors.length === 0, aiFixErrors.length ? `\n   ${aiFixErrors.slice(0, 5).join("\n   ")}` : "");
 }
+// --- review fix (desktop-ai-fix) --- (1) a finished download of a model that was not the selected one: the app selects it
+// BEFORE its "ready" event (desktop/src/ai/modelServices.ts – 1.0.3 selected it after the download had returned, and the
+// page's one refresh on that event kept Run disabled), and the page follows it – Run enabled, the model "in use", the page's
+// copy of the app's preferences reloaded and the AI status panel's Model row looked at again, even after the full checks;
+// (2) the settings assistant on Glass Smash with a request that does not name the mode: the prompt and the reply grammar
+// carry the mode's own settings (1.0.3 offered them only when the request said "glass") and the change is applied.
+{
+  const MODELS = [
+    { id: "llama-3.2-3b-instruct-q4km", name: "Llama 3.2 3B Instruct (Q4_K_M)", size: 2019377696, licence: "Llama 3.2 Community License" },
+    { id: "qwen2.5-1.5b-instruct-q4km", name: "Qwen2.5 1.5B Instruct (Q4_K_M)", size: 1117320736, licence: "Apache-2.0" },
+  ];
+  /** A stand-in window.desktop that keeps the app's model state: what is downloaded, what is selected, what the status says. */
+  const reviewFixBridge = (initial) => `(() => {
+    const MODELS = ${JSON.stringify(MODELS)};
+    const initial = ${JSON.stringify(initial)};
+    const listeners = {};
+    const state = { prefs: { outputFolder: "", preferHardware: true, ffmpegPath: "", encoderOverride: "", closeToTray: true, autoUpdate: true, aiProvider: "local", localModel: initial.localModel, aiGpu: "auto" }, downloaded: initial.downloaded.slice(), downloads: [], diagnoses: [], prefsReads: 0, chats: [], nextChat: null, journal: null };
+    const emit = (event, payload) => (listeners[event] || []).forEach((l) => l(payload));
+    const ready = (id) => state.downloaded.includes(id);
+    const entries = () => MODELS.map((m) => ({ id: m.id, name: m.name, size: m.size, sha256: "x", licence: m.licence, licenceUrl: "", url: "https://huggingface.co/x/" + m.id + ".gguf", state: ready(m.id) ? "ready" : "missing", downloaded: ready(m.id) ? m.size : 0, path: ready(m.id) ? "C:/models/" + m.id + ".gguf" : null, custom: false, selected: m.id === state.prefs.localModel }));
+    const status = () => ({ provider: "local", ready: ready(state.prefs.localModel), local: { model: state.prefs.localModel, loaded: false, backend: null, gpuLayers: null, error: null, contextSize: null, gpuDevice: null }, cloud: { provider: "anthropic", baseUrl: "https://api.anthropic.com", model: "claude-opus-5-5", hasKey: false, encryption: true }, lastError: { local: null, cloud: null } });
+    const check = (id, level, code, params) => ({ id, level, code, params: params || {}, details: [] });
+    const modelCheck = () => {
+      const m = MODELS.find((x) => x.id === state.prefs.localModel);
+      return ready(m.id) ? check("model", "ok", "modelReady", { name: m.name }) : check("model", "fail", "modelMissing", { name: m.name });
+    };
+    window.desktop = {
+      apiVersion: 1,
+      info: async () => ({ appName: "JumpingBallsLive", version: "1.0.3", electron: "44.5.1", chrome: "146.0", platform: "win32", arch: "x64", packaged: true, dataDir: "C:/Users/smoke/AppData/Roaming/JumpingBallsLive", logFile: "main.log", smoke: false }),
+      log: () => {},
+      openLogs: async () => {},
+      prefs: { get: async () => (state.prefsReads++, state.prefs), set: async (p) => (state.prefs = { ...state.prefs, ...p }) },
+      gpu: { status: async () => ({ devices: [], features: {}, hardwareVideoEncode: false, hardwareVideoDecode: false, webgpu: false, switches: [], disabled: false }), probeEncoders: async () => ({ ffmpeg: null, encoders: [], chosen: { h264: null, hevc: null, av1: null }, error: "ffmpeg not found" }), benchmark: async () => [] },
+      dialogs: { pickFolder: async () => null, pickMedia: async () => null },
+      render: { save: async () => { throw new Error("not in this check"); }, cancel: async () => {} },
+      journal: { load: async () => state.journal, save: async (j) => void (state.journal = j) },
+      library: { list: async () => [], remove: async () => [], reveal: async () => {}, open: async () => {}, openFolder: async () => {}, read: async () => { throw new Error("none"); } },
+      ai: {
+        status: async () => status(),
+        models: async () => entries(),
+        downloadModel: async (id) => (state.downloads.push(id), entries()),
+        cancelDownload: async () => {}, importModel: async () => entries(), removeModel: async () => entries(),
+        selectModel: async (id) => ((state.prefs = { ...state.prefs, localModel: id }), status()),
+        chat: async (req) => {
+          state.chats.push(req);
+          const text = state.nextChat || '{"action":"final","result":{"changes":[{"setting":"showTrails","value":true}],"summary":"-"}}';
+          state.nextChat = null;
+          emit("aiToken", { requestId: req.requestId, text });
+          return { text, provider: "local", model: state.prefs.localModel, cancelled: false };
+        },
+        cancel: async () => {}, setCloud: async () => status(), clearCloudKey: async () => status(), playbook: async () => "",
+        diagnose: async (options) => {
+          const deep = !!(options && options.deep);
+          state.diagnoses.push(deep);
+          const checks = [check("runtime", deep ? "warn" : "skip", deep ? "runtimeCpuFallback" : "runtimeNotStarted", { supported: "vulkan, cpu" }), modelCheck(), check("provider", "skip", "providerNotSetUp"), check("network", "skip", "networkNotTested"), check("lastError", "ok", "lastErrorNone")];
+          return { at: new Date().toISOString(), deep, checks, report: { report: "JumpingBallsLive AI status", deep, checks } };
+        },
+      },
+      update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: async () => {} },
+      on: (event, l) => { (listeners[event] ||= []).push(l); return () => { listeners[event] = listeners[event].filter((x) => x !== l); }; },
+    };
+    // The app's end of a download (createModelServices): verified, selected when the selected model is not ready, THEN "ready".
+    const finish = (id) => {
+      const m = MODELS.find((x) => x.id === id);
+      emit("modelProgress", { id, downloaded: m.size, size: m.size, bytesPerSec: 0, state: "verifying" });
+      state.downloaded.push(id);
+      if (!ready(state.prefs.localModel)) state.prefs = { ...state.prefs, localModel: id };
+      emit("modelProgress", { id, downloaded: m.size, size: m.size, bytesPerSec: 0, state: "ready" });
+    };
+    window.__reviewFix = { state, emit, finish };
+  })();`;
+  const reviewErrors = [];
+  const watch = (p) => {
+    p.on("pageerror", (e) => reviewErrors.push(e.message));
+    p.on("console", (m) => m.type() === "error" && !/favicon|Failed to load resource/.test(m.text()) && reviewErrors.push(m.text()));
+  };
+
+  // (1) The small model downloaded while the preselected 2 GB one is not on this PC.
+  const rctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+  await rctx.addInitScript(reviewFixBridge({ localModel: MODELS[0].id, downloaded: [] }));
+  const rp = await rctx.newPage();
+  watch(rp);
+  try {
+    await rp.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    await rp.locator("[data-desktop-group]").waitFor({ timeout: 20000 }).catch(() => {});
+    await rp.getByTestId("desktop-tab-ai").click({ timeout: 10000 }).catch(() => {});
+    await rp.getByTestId("ai-task-settings").click({ timeout: 5000 }).catch(() => {});
+    await rp.getByTestId("ai-prompt").fill("rainbow balls", { timeout: 5000 }).catch(() => {});
+    // The full checks first: their Model row says the preselected model is not downloaded.
+    await rp.getByTestId("ai-run-checks").click({ timeout: 5000 }).catch(() => {});
+    await rp.locator('[data-testid="ai-checks"][data-deep="1"]').waitFor({ timeout: 10000 }).catch(() => {});
+    const before = await rp.evaluate(() => ({
+      disabled: !!document.querySelector('[data-testid="ai-run"]')?.disabled,
+      note: document.querySelector('[data-testid="desktop-ai"]')?.textContent?.includes("Download or pick a model first.") ?? false,
+      model: document.querySelector('[data-testid="ai-check-model"]')?.textContent ?? "",
+    }));
+    await rp.locator(`[data-model="${MODELS[1].id}"] [data-testid="ai-download"]`).click({ timeout: 5000 }).catch(() => {});
+    await rp.waitForFunction((id) => window.__reviewFix.state.downloads.includes(id), MODELS[1].id, { timeout: 5000 }).catch(() => {});
+    const readsBefore = await rp.evaluate(() => window.__reviewFix.state.prefsReads);
+    await rp.evaluate((id) => window.__reviewFix.finish(id), MODELS[1].id);
+    const enabled = await rp.waitForFunction(() => { const b = document.querySelector('[data-testid="ai-run"]'); return !!b && !b.disabled; }, null, { timeout: 10000 }).then(() => true).catch(() => false);
+    await rp.waitForFunction((name) => (document.querySelector('[data-testid="ai-check-model"]')?.textContent ?? "").includes(name), MODELS[1].name, { timeout: 10000 }).catch(() => {});
+    const after = await rp.evaluate((id) => ({
+      row: document.querySelector(`[data-model="${id}"]`)?.textContent ?? "",
+      rowState: document.querySelector(`[data-model="${id}"]`)?.getAttribute("data-model-state") ?? null,
+      note: document.querySelector('[data-testid="desktop-ai"]')?.textContent?.includes("Download or pick a model first.") ?? false,
+      setup: !!document.querySelector('[data-testid="ai-setup"]'),
+      model: document.querySelector('[data-testid="ai-check-model"]')?.textContent ?? "",
+      level: document.querySelector('[data-ai-check="model"]')?.getAttribute("data-level") ?? null,
+      deep: document.querySelector('[data-testid="ai-checks"]')?.getAttribute("data-deep") ?? null,
+      reads: window.__reviewFix.state.prefsReads,
+      selected: window.__reviewFix.state.prefs.localModel,
+    }), MODELS[1].id);
+    check(
+      "desktop-ai-fix (review fix): a finished download of a model that was not selected – selected by the app before its “ready” event – enables Run, shows the model in use, reloads the app's preferences and turns the status panel's Model row green, even after the full checks",
+      before.disabled && before.note && before.model.includes("is not downloaded yet") && enabled && after.rowState === "ready" && /in use/.test(after.row) && !after.note && !after.setup && after.level === "ok" && after.model.includes(MODELS[1].name) && after.model.includes("downloaded and verified") && after.deep === "0" && after.reads > readsBefore && after.selected === MODELS[1].id,
+      `(before: Run disabled ${before.disabled}, note ${before.note}, model row "${before.model.slice(0, 60)}"; after: Run enabled ${enabled}, row ${after.rowState} "${after.row.replace(/\s+/g, " ").slice(0, 80)}", note ${after.note}, setup card ${after.setup}, model row ${after.level} (deep ${after.deep}) "${after.model.slice(0, 80)}", prefs reads ${readsBefore} → ${after.reads})`,
+    );
+  } finally {
+    await rctx.close().catch(() => {});
+  }
+
+  // (2) Glass Smash: "make the panes break on the third hit" names no mode, and glassHp is still the model's to change.
+  const gctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+  await gctx.addInitScript(reviewFixBridge({ localModel: MODELS[1].id, downloaded: [MODELS[1].id] }));
+  const gp = await gctx.newPage();
+  watch(gp);
+  try {
+    await gp.goto(`${BASE}/en/simulator/?mode=glass`, { waitUntil: "networkidle" });
+    await gp.locator("[data-desktop-group]").waitFor({ timeout: 20000 }).catch(() => {});
+    await gp.getByTestId("desktop-tab-ai").click({ timeout: 10000 }).catch(() => {});
+    await gp.getByTestId("ai-task-settings").click({ timeout: 5000 }).catch(() => {});
+    await gp.getByTestId("ai-prompt").fill("make the panes break on the third hit", { timeout: 5000 }).catch(() => {});
+    await gp.evaluate(() => {
+      window.__reviewFix.state.nextChat = '{"action":"final","result":{"changes":[{"setting":"glassHp","value":3}],"summary":"Every pane breaks on the third hit"}}';
+    });
+    await gp.waitForFunction(() => { const b = document.querySelector('[data-testid="ai-run"]'); return !!b && !b.disabled; }, null, { timeout: 10000 }).catch(() => {});
+    await gp.getByTestId("ai-run").click({ timeout: 5000 }).catch(() => {});
+    const changed = await gp.getByTestId("ai-changed").innerText({ timeout: 20000 }).catch(() => "");
+    await gp.waitForFunction(() => /[?&]glhp=3(&|$)/.test(location.search), null, { timeout: 5000 }).catch(() => {});
+    const sent = await gp.evaluate(() => {
+      const r = window.__reviewFix.state.chats.at(-1);
+      return r ? { task: r.task ?? null, system: r.messages?.[0]?.content ?? "", schema: JSON.stringify(r.schema ?? null) } : null;
+    });
+    const search = await gp.evaluate(() => location.search);
+    const GLASS = ["glassRows", "glassHp", "glassStages", "glassMoving", "glassHoles", "glassGates"];
+    const inPrompt = sent ? GLASS.filter((k) => sent.system.includes(`\n${k} (`)) : [];
+    const inGrammar = sent ? GLASS.filter((k) => sent.schema.includes(`"const":"${k}"`)) : [];
+    check(
+      "desktop-ai-fix (review fix): on Glass Smash the settings assistant offers the mode's own settings to a request that does not name the mode (prompt and reply grammar), and the change is applied",
+      sent?.task === "settings" && inPrompt.length === GLASS.length && inGrammar.length === GLASS.length && changed.includes("glassHp") && /[?&]glhp=3(&|$)/.test(search),
+      `(task ${sent?.task}, in the prompt ${inPrompt.join(",") || "none"}, in the grammar ${inGrammar.join(",") || "none"}, changed "${changed}", url ${search.slice(0, 80)})`,
+    );
+  } finally {
+    await gctx.close().catch(() => {});
+  }
+  check("desktop-ai-fix (review fix): no page errors in these AI checks", reviewErrors.length === 0, reviewErrors.length ? `\n   ${reviewErrors.slice(0, 5).join("\n   ")}` : "");
+}
 // --- end desktop-ai-fix ---
 
 // 37. Mode thumbnails: every mode card's picture (public/modes/<mode>.webp, made by scripts/generate-mode-previews.mjs from the
@@ -12512,6 +12670,737 @@ const orbBoxPixels = (box) =>
   );
 }
 // --- end mode-thumbnails ---
+
+// --- watermark-everywhere --- Every frame of a live simulation a visitor without a Pro licence sees carries the watermark,
+// drawn into the canvas' own pixels as the frame's last pass (lib/watermark/live.ts: free-watermark's sealed gate decides,
+// liveLayout.ts places it). The canvas is read with getImageData, and the mark is told apart from the frame by switching the
+// test licence on or off on a paused frame – the way a licence pasted in another tab arrives (localStorage + the storage event):
+// whatever differs between the two frames is the mark, and the badge is the one badge-sized block of it, anchored 1–2 % in from
+// a side of the exported square. (a) A free visitor in ten modes (the default classic, Ball Drop, Fight League, Land Claim,
+// Bouncing Orbs, String Battle's circle style, Journey, the Maze, Beat Drop, Territory), a split-screen race, a share link and the
+// daily challenge: the badge is in a corner of the exported square within 1 s of the start, 4–5 % of it tall, and on the other
+// side within 7 s; the landing page's live preview carries it too; (b) tampering with the page during a live run (every element
+// whose id, class or data attribute names a watermark, Pro or a licence removed, data-pro="true" and Pro classes on <html> and
+// <body>, Pro flags and a forged licence in localStorage, the built-ins patched, the canvas' CSS overridden) leaves it in the
+// pixels; (c) with the test licence there is no mark in the same modes, removing the licence mid-run brings it at once and
+// installing it again takes it away; (d) a free recording carries exactly one badge region per frame, one layer deep (on a light
+// background, where two stacked badges would be twice as dark), in the video layout's corner; (e) a free visitor's live runs and
+// recording keep their frame-rate floors with the mark; (f) the pricing page and the Unlock dialog say that free simulations and
+// free videos carry it and Pro removes it; (g) the still camera of the mode cards (mode-thumbnails) stamps a free visitor's stills.
+{
+  const weErrors = [];
+  const weContexts = [];
+  const openWe = async (license, viewport = { width: 1400, height: 900 }) => {
+    const c = await browser.newContext({ viewport, acceptDownloads: true, license });
+    weContexts.push(c);
+    const p = await c.newPage();
+    p.on("pageerror", (e) => weErrors.push(`pageerror: ${e.message}`));
+    p.on("console", (m) => m.type() === "error" && !IGNORED_CONSOLE.test(m.text()) && weErrors.push(`console: ${m.text()}`));
+    return p;
+  };
+  const weLicence = signTestLicense({ sub: "everywhere@example.com", plan: "yearly", provider: "stripe", days: 30 });
+  /**
+   * In-page tools: canvas snapshots, where two of them differ (per corner zone of the exported square), the licence as another
+   * tab sets it, and looks at the run timed by the page's own clock from the click on Start Simulator.
+   */
+  const installWe = () => {
+    const luma = (d, i) => 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+    window.__we = {
+      snaps: {},
+      canvas: null,
+      /** The page's clock at the click on Start Simulator (a capture listener sets it; NaN before). */
+      t0: Number.NaN,
+      pick(selector) {
+        this.canvas = document.querySelector(selector);
+        return !!this.canvas && this.canvas.width > 0;
+      },
+      snap(name) {
+        const c = this.canvas;
+        if (!c || !(c.width > 0)) return null;
+        this.snaps[name] = { w: c.width, h: c.height, data: c.getContext("2d").getImageData(0, 0, c.width, c.height).data };
+        return { w: c.width, h: c.height };
+      },
+      /**
+       * Waits until `ms` after the click on Start Simulator by the page's clock, pauses the run with its own Pause button, lets
+       * the paused frames draw and snapshots one as `name`; returns when (ms after the start click) and whether it paused. The
+       * page's timers, unlike the harness' clicks (hundreds of ms late on a busy machine), keep the looks on time.
+       */
+      async pausedSnap(name, ms) {
+        const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve()));
+        const transport = (label) => [...document.querySelectorAll(".studio-transport button")].find((b) => (b.textContent || "").trim() === label) ?? null;
+        if (!Number.isFinite(this.t0)) this.t0 = performance.now();
+        const left = this.t0 + ms - performance.now();
+        if (left > 0) await new Promise((resolve) => setTimeout(resolve, left));
+        let button = transport("Pause");
+        for (let i = 0; !button && i < 60; i++) {
+          await frame();
+          button = transport("Pause");
+        }
+        button?.click();
+        for (let i = 0; button && !transport("Resume") && i < 60; i++) await frame();
+        for (let i = 0; i < 3; i++) await frame();
+        const at = performance.now() - this.t0;
+        this.snap(name);
+        return { at, paused: !!button && !!transport("Resume") };
+      },
+      /**
+       * Where snapshots `a` and `b` differ by more than 60 brightness levels, in the strips along the left and right edges of the
+       * exported square (`full`: of the whole canvas), top and bottom halves: per zone the densest band one live badge tall
+       * (4.5 % of the square, at least 18 px) and the box of its changed columns and rows.
+       */
+      diff(a, b, full = false) {
+        const A = this.snaps[a];
+        const B = this.snaps[b];
+        if (!A || !B) return { error: "no snapshot" };
+        if (A.w !== B.w || A.h !== B.h) return { error: `size ${A.w}×${A.h} vs ${B.w}×${B.h}` };
+        const W = A.w;
+        const side = Math.min(W, A.h);
+        const area = full ? { x: 0, y: 0, w: W, h: A.h } : { x: (W - side) / 2, y: (A.h - side) / 2, w: side, h: side };
+        const S = Math.min(area.w, area.h);
+        const h = Math.max(18, Math.round(0.045 * S));
+        const zones = {
+          "bottom-left": [area.x, area.y + 0.5 * area.h, area.x + 0.42 * area.w, area.y + area.h],
+          "bottom-right": [area.x + 0.58 * area.w, area.y + 0.5 * area.h, area.x + area.w, area.y + area.h],
+          "top-left": [area.x, area.y, area.x + 0.42 * area.w, area.y + 0.5 * area.h],
+          "top-right": [area.x + 0.58 * area.w, area.y, area.x + area.w, area.y + 0.5 * area.h],
+        };
+        const out = {};
+        for (const [name, [fx0, fy0, fx1, fy1]] of Object.entries(zones)) {
+          const x0 = Math.floor(fx0);
+          const y0 = Math.floor(fy0);
+          const zw = Math.ceil(fx1) - x0;
+          const zh = Math.ceil(fy1) - y0;
+          const hot = new Uint8Array(zw * zh);
+          const rows = new Int32Array(zh);
+          for (let y = 0; y < zh; y++) {
+            for (let x = 0; x < zw; x++) {
+              const i = 4 * ((y + y0) * W + (x + x0));
+              if (Math.abs(luma(A.data, i) - luma(B.data, i)) > 60) {
+                hot[y * zw + x] = 1;
+                rows[y]++;
+              }
+            }
+          }
+          const band = Math.min(zh, h + 2);
+          let sum = 0;
+          for (let y = 0; y < band; y++) sum += rows[y];
+          let best = sum;
+          let bestY = 0;
+          for (let y = band; y < zh; y++) {
+            sum += rows[y] - rows[y - band];
+            if (sum > best) {
+              best = sum;
+              bestY = y - band + 1;
+            }
+          }
+          let minX = -1;
+          let maxX = -1;
+          let minY = -1;
+          let maxY = -1;
+          for (let x = 0; x < zw; x++) {
+            let c = 0;
+            for (let y = bestY; y < bestY + band; y++) c += hot[y * zw + x];
+            if (c >= 2) {
+              if (minX < 0) minX = x;
+              maxX = x;
+            }
+          }
+          for (let y = bestY; y < bestY + band; y++) {
+            if (rows[y] >= 3) {
+              if (minY < 0) minY = y;
+              maxY = y;
+            }
+          }
+          out[name] = { n: best, box: minX >= 0 && minY >= 0 ? [x0 + minX, y0 + minY, maxX - minX + 1, maxY - minY + 1] : null };
+        }
+        return { side: S, h, area, zones: out };
+      },
+      /** How many pixels of the whole canvas changed by more than 30 levels between `a` and `b` (a live run moves). */
+      moved(a, b) {
+        const A = this.snaps[a];
+        const B = this.snaps[b];
+        if (!A || !B || A.w !== B.w || A.h !== B.h) return -1;
+        let n = 0;
+        for (let i = 0; i < A.data.length; i += 4) if (Math.abs(luma(A.data, i) - luma(B.data, i)) > 30) n++;
+        return n;
+      },
+      licence(token) {
+        if (token) localStorage.setItem("jbl.license", token);
+        else localStorage.removeItem("jbl.license");
+        window.dispatchEvent(new StorageEvent("storage", { key: "jbl.license" }));
+      },
+    };
+    document.addEventListener(
+      "click",
+      (e) => {
+        const b = e.target instanceof Element ? e.target.closest("button") : null;
+        if (b && /Start Simulator/.test(b.textContent || "")) window.__we.t0 = performance.now();
+      },
+      true,
+    );
+  };
+  /** A zone's band that is the live badge: dense enough, one badge tall, at least a badge wide, 0.4–3.5 % in from its side. */
+  const badgeLike = (d, corner) => {
+    const z = d?.zones?.[corner];
+    if (!z || !z.box) return false;
+    const [bx, , bw, bh] = z.box;
+    const gap = corner.endsWith("left") ? bx - d.area.x : d.area.x + d.area.w - (bx + bw);
+    return z.n >= Math.max(30, 0.15 * d.h * d.h) && bh >= 0.5 * d.h && bh <= 1.6 * d.h + 4 && bw >= 1.2 * d.h && bw <= 0.62 * d.side && gap >= 0.004 * d.side && gap <= 0.035 * d.side;
+  };
+  /** The one corner whose difference is the badge (null: none, or more than one). */
+  const badgeCorner = (d) => {
+    if (!d || d.error) return null;
+    const found = Object.keys(d.zones).filter((c) => badgeLike(d, c));
+    return found.length === 1 ? found[0] : null;
+  };
+  const noBadge = (d) => !!d && !d.error && Object.keys(d.zones).every((c) => !badgeLike(d, c));
+  const brief = (d) => (!d ? "none" : d.error ? d.error : Object.entries(d.zones).map(([k, z]) => `${k} ${z.n}${z.box ? `@${z.box.join(",")}` : ""}`).join("; "));
+  const pause = (p) => p.getByRole("button", { name: "Pause", exact: true }).first().click({ timeout: 5000 }).then(() => true).catch(() => false);
+  const resume = (p) => p.getByRole("button", { name: "Resume", exact: true }).first().click({ timeout: 5000 }).then(() => true).catch(() => false);
+  const snap = (p, name) => p.evaluate((n) => window.__we.snap(n), name);
+  const diffOf = (p, a, b, full = false) => p.evaluate(([x, y, f]) => window.__we.diff(x, y, f), [a, b, full]);
+  const setLicence = (p, token) => p.evaluate((t) => window.__we.licence(t), token);
+  /** Waits (≤ 3 s) until the canvas, against snapshot `base`, shows (`appear`) or loses the badge; returns the last difference. */
+  const awaitMark = async (p, base, name, appear, full = false) => {
+    let d = null;
+    for (let i = 0; i < 20; i++) {
+      await p.waitForTimeout(150);
+      await snap(p, name);
+      d = await diffOf(p, base, name, full);
+      if (badgeCorner(d)) return d;
+    }
+    return d;
+  };
+  /** Opens a simulator view and starts it; resolves with the start time once the run is going. */
+  const startView = async (p, query, selector = "main canvas") => {
+    await p.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+    await p.waitForTimeout(500);
+    await p.evaluate(installWe);
+    await p.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 10000 });
+    const t0 = Date.now();
+    const picked = await p.evaluate((s) => window.__we.pick(s), selector);
+    return { t0, picked };
+  };
+  const views = [
+    ["classic (the default)", "mode=classic"],
+    ["drop", "mode=drop"],
+    ["fightLeague", "mode=fightLeague&seed=11"],
+    ["landClaim", "mode=landClaim&seed=3"],
+    ["orbGrid", "mode=orbGrid"],
+    ["stringBattle circle", "mode=stringBattle&sbst=circle"],
+    ["journey", "mode=journey"],
+    ["maze", "mode=maze&mzn=4&seed=6"],
+    ["beatDrop", "mode=beatDrop"],
+    ["territory", "mode=territory"],
+  ];
+  const { deflateRawSync } = await import("zlib");
+  const shareCode = deflateRawSync(Buffer.from(JSON.stringify({ mode: "landClaim", seed: 5, g: 320 }))).toString("base64url");
+  const extraViews = [
+    ["a split-screen race", "mode=classic&ac=2"],
+    ["a share link", `c=${shareCode}`],
+    ["the daily challenge", "daily=1"],
+  ];
+  try {
+    // (a) A free visitor: the badge within 1 s of the start, then on the other side within 7 s; and the licence toggled mid-run.
+    // The two looks at the run are timed by the page's clock from the click on Start, the run paused by the page itself
+    // (pausedSnap). The mark's part of the verdict is never excused; its timing part, on a machine too busy to look in time, is
+    // measured once more and then left inconclusive like every timing check.
+    const free = await openWe(null);
+    const runView = async (name, query) => {
+      const r = { name, query };
+      try {
+        const { picked } = await startView(free, query);
+        r.picked = picked;
+        const first = await free.evaluate(() => window.__we.pausedSnap("A1", 300));
+        r.paused = first.paused;
+        r.at = Math.round(first.at);
+        await setLicence(free, weLicence);
+        const d1 = await awaitMark(free, "A1", "P1", false);
+        r.first = badgeCorner(d1);
+        r.firstBox = d1?.zones?.[r.first]?.box ?? null;
+        r.h = d1?.h;
+        r.side = d1?.side;
+        if (!r.first) r.why = brief(d1);
+        // removing the licence brings it back at once (the very next frames)
+        await setLicence(free, null);
+        await free.waitForTimeout(250);
+        await snap(free, "A2");
+        r.back = badgeCorner(await diffOf(free, "A2", "P1"));
+        await resume(free);
+        const later = await free.evaluate((ms) => window.__we.pausedSnap("A3", ms), Math.max(r.at + 6050, 6450));
+        r.atLater = Math.round(later.at);
+        await setLicence(free, weLicence);
+        const d3 = await awaitMark(free, "A3", "P3", false);
+        r.later = badgeCorner(d3);
+        if (!r.later) r.whyLater = brief(d3);
+      } catch (e) {
+        r.error = String(e).split("\n")[0];
+      } finally {
+        await setLicence(free, null).catch(() => {});
+      }
+      return r;
+    };
+    const seen = [];
+    for (const [name, query] of [...views, ...extraViews]) seen.push(await runView(name, query));
+    const sizeOk = (r) => !!r.firstBox && r.firstBox[3] >= 0.04 * r.side - 2 && r.firstBox[3] <= 0.05 * r.side + 3;
+    // the mark: in a corner of the paused run, 4–5 % of the square, back at once without the licence, then on the other side
+    const markOk = (r) => !r.error && r.picked && r.paused && !!r.first && sizeOk(r) && r.back === r.first && !!r.later && r.later !== r.first;
+    // its timing: the first look within 1 s of the start, the second within 7 s and at least 6 s after it
+    const timely = (r) => r.at <= 1000 && r.atLater <= 7000 && r.atLater - r.at >= 6000;
+    const describe = (rows) =>
+      rows.map((r) => `${r.name} ${r.first ?? "-"}@${r.at}ms→${r.later ?? "-"}@${r.atLater}ms${r.firstBox ? ` h${r.firstBox[3]}/${r.side}` : ""}${r.error ? ` ERROR ${r.error}` : ""}${r.why ? ` [${r.why}]` : ""}${r.whyLater ? ` [later: ${r.whyLater}]` : ""}`).join(" | ");
+    /** The views whose mark was right but whose looks came late, looked at once more (a wrong mark then fails on its own). */
+    const lookAgain = (rows) => async () => {
+      const again = [];
+      for (const r of rows.filter((x) => markOk(x) && !timely(x))) again.push(await runView(r.name, r.query));
+      const wrong = again.filter((r) => !markOk(r));
+      if (wrong.length) check("watermark everywhere: the views looked at again carry the badge", false, `(${describe(wrong)})`);
+      return { timingOk: again.every((r) => markOk(r) && timely(r)), extra: `(${describe(again)})` };
+    };
+    const modeRows = seen.slice(0, views.length);
+    await timingCheck(
+      `watermark everywhere: a free visitor's canvas carries the badge within 1 s of the start (4–5 % of the square, 1–2 % in from its side) and on the other side within 7 s, in ${views.length} modes`,
+      modeRows.every(markOk),
+      modeRows.every(timely),
+      `(${modeRows.filter((r) => markOk(r) && timely(r)).length}/${views.length}: ${describe(modeRows)})`,
+      lookAgain(modeRows),
+    );
+    const extra = seen.slice(views.length);
+    await timingCheck(
+      "watermark everywhere: a split-screen race (one badge on the composed frame), a share link and the daily challenge carry it too, and switch sides",
+      extra.every(markOk),
+      extra.every(timely),
+      `(${describe(extra)})`,
+      lookAgain(extra),
+    );
+    check(
+      "watermark everywhere: installing the test licence mid-run takes the mark away from the next frames, removing it brings it back at once",
+      seen.every((r) => !r.error && !!r.first && r.back === r.first),
+      `(${seen.map((r) => `${r.name}: ${r.first ?? "-"} → back ${r.back ?? "-"}`).join(", ")})`,
+    );
+    // ... and the landing page's live preview (it never pauses: read where the badge goes, the frame's bottom corners)
+    {
+      const previewMark = async (p) =>
+        p.evaluate(async () => {
+          const c = document.querySelector('[data-testid="live-preview"] canvas');
+          if (!c || !(c.width > 0)) return null;
+          const g = c.getContext("2d");
+          const S = Math.min(c.width, c.height);
+          const h = Math.max(18, Math.round(0.045 * S));
+          const m = Math.max(1, Math.round(0.015 * S));
+          const stats = (x, y, w, hh) => {
+            const d = g.getImageData(Math.round(x), Math.round(y), Math.round(w), Math.round(hh)).data;
+            let bright = 0;
+            let lime = 0;
+            for (let i = 0; i < d.length; i += 4) {
+              const l = 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+              if (l > 110) bright++;
+              if (d[i + 1] > 110 && d[i + 2] < 120 && d[i + 1] - d[i + 2] > 50) lime++;
+            }
+            const n = d.length / 4;
+            return bright / n >= 0.03 && lime / n >= 0.01;
+          };
+          const out = [];
+          for (let k = 0; k < 6; k++) {
+            const y = c.height - m - h + 0.1 * h;
+            out.push({ left: stats(m + 0.1 * h, y, 3 * h, 0.8 * h), right: stats(c.width - m - 3.1 * h, y, 3 * h, 0.8 * h) });
+            await new Promise((r) => setTimeout(r, 150));
+          }
+          return { size: `${c.width}×${c.height}`, marked: out.filter((o) => o.left || o.right).length, samples: out.length };
+        });
+      const fp = await openWe(null);
+      await fp.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+      await fp.locator('[data-testid="live-preview"] canvas').waitFor({ timeout: 15000 }).catch(() => {});
+      await fp.waitForTimeout(1500);
+      const freePreview = await previewMark(fp).catch((e) => ({ error: String(e).split("\n")[0] }));
+      const pp = await openWe(weLicence);
+      await pp.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+      await pp.locator('[data-testid="live-preview"] canvas').waitFor({ timeout: 15000 }).catch(() => {});
+      await pp.waitForTimeout(1500);
+      const proPreview = await previewMark(pp).catch((e) => ({ error: String(e).split("\n")[0] }));
+      check(
+        "watermark everywhere: the landing page's live preview carries the badge for a free visitor and none with the test licence",
+        !!freePreview && freePreview.marked >= 5 && !!proPreview && proPreview.marked === 0,
+        `(free ${JSON.stringify(freePreview)}, Pro ${JSON.stringify(proPreview)})`,
+      );
+    }
+
+    // (b) DOM tampering during a live run leaves the mark in the pixels. The clean frame to compare with is taken first (the
+    // licence on and off on a paused frame): after the tampering nothing may switch the licence – React would re-render the
+    // Watermark tags the tampering deleted and trip over them.
+    {
+      const tp = await openWe(null);
+      const { picked } = await startView(tp, "mode=classic");
+      await tp.waitForTimeout(500);
+      const refPaused = await pause(tp);
+      await snap(tp, "T0");
+      await setLicence(tp, weLicence);
+      const ref = badgeCorner(await awaitMark(tp, "T0", "P0", false)); // P0: the clean frame
+      await setLicence(tp, null);
+      await tp.waitForTimeout(300);
+      await resume(tp);
+      await tp.waitForTimeout(400);
+      const removed = await tp.evaluate(() => {
+        const names = /watermark|licen[cs]e|(^|[^a-z])pro([^a-z]|$)/i;
+        const victims = [...document.querySelectorAll("*")].filter((el) => {
+          if (el === document.documentElement || el === document.body) return false;
+          if (names.test(el.id || "")) return true;
+          if ([...el.classList].some((c) => names.test(c))) return true;
+          return [...el.attributes].some((a) => a.name.startsWith("data-") && (names.test(a.name.slice(5)) || names.test(a.value)));
+        });
+        for (const el of victims) el.remove();
+        for (const el of [document.documentElement, document.body]) {
+          el.setAttribute("data-pro", "true");
+          el.setAttribute("data-license", "valid");
+          el.setAttribute("data-watermark", "off");
+          el.classList.add("pro", "is-pro", "licensed", "no-watermark");
+          el.classList.remove("free");
+          el.style.setProperty("--watermark-opacity", "0");
+        }
+        for (const [k, v] of Object.entries({ "jbl.pro": "true", pro: "1", isPro: "true", "jbl.watermark": "off", watermark: "false", license: "valid" })) localStorage.setItem(k, v);
+        window.isPro = true;
+        window.__PRO__ = true;
+        // the canvas' CSS: no filter, full opacity, no pseudo-elements anywhere
+        const style = document.createElement("style");
+        style.textContent = "canvas { filter: none !important; opacity: 1 !important; mix-blend-mode: normal !important; } *::before, *::after { content: none !important; display: none !important; }";
+        document.head.appendChild(style);
+        const c = window.__we.canvas;
+        c.style.cssText += "filter: none !important; opacity: 1 !important;";
+        c.classList.add("pro", "is-pro", "no-watermark");
+        for (const k of Object.keys(c.dataset)) delete c.dataset[k];
+        c.dataset.pro = "true";
+        c.dataset.watermark = "off";
+        // the console one-liners against the verdict path
+        SubtleCrypto.prototype.verify = async () => true;
+        const get = WeakMap.prototype.get;
+        WeakMap.prototype.get = function (k) {
+          return k && k.kind === "watermark-seal" ? true : get.call(this, k);
+        };
+        return victims.length;
+      });
+      await tp.waitForTimeout(1500); // the gate's re-check (every second) and many frames
+      await snap(tp, "L1");
+      await tp.waitForTimeout(300);
+      await snap(tp, "L2");
+      const live = await tp.evaluate(() => window.__we.moved("L1", "L2")); // still running after the tampering
+      const tamperPaused = await pause(tp);
+      await snap(tp, "T1");
+      const d = await diffOf(tp, "T1", "P0");
+      const corner = badgeCorner(d);
+      check(
+        "watermark everywhere: DOM tampering during a live run (marked elements removed, data-pro=\"true\" and Pro classes on <html>/<body>, Pro flags in localStorage, the canvas' classes, data attributes and CSS overridden, crypto.subtle.verify and WeakMap.prototype.get patched) leaves the badge in the pixels",
+        picked && refPaused && !!ref && removed >= 1 && live > 0 && tamperPaused && !!corner,
+        `(reference badge ${ref ?? "none"}, removed ${removed}, still live ${live} px moved, badge after ${corner ?? "none"}: ${brief(d)})`,
+      );
+    }
+
+    // (c) The test licence: no mark in the same modes; removing it mid-run brings the mark, installing it again takes it away.
+    {
+      const pro = await openWe(weLicence);
+      const rows = [];
+      for (const [name, query] of views) {
+        const r = { name };
+        try {
+          await startView(pro, query);
+          await pro.waitForTimeout(700);
+          r.paused = await pause(pro);
+          await snap(pro, "P1");
+          await setLicence(pro, null);
+          const d1 = await awaitMark(pro, "P1", "A1", true);
+          r.removed = badgeCorner(d1); // the mark appears: P1 had none
+          if (!r.removed) r.why = brief(d1);
+          await setLicence(pro, weLicence);
+          let d2 = null;
+          for (let i = 0; i < 20; i++) {
+            await pro.waitForTimeout(150);
+            await snap(pro, "P2");
+            d2 = await diffOf(pro, "P2", "P1");
+            if (noBadge(d2)) break;
+          }
+          r.clean = noBadge(d2); // installed again: the frame is the Pro frame again, no badge anywhere
+          if (!r.clean) r.whyClean = brief(d2);
+        } catch (e) {
+          r.error = String(e).split("\n")[0];
+        }
+        rows.push(r);
+      }
+      check(
+        `watermark everywhere: with the test licence the live canvas carries no mark in the same ${views.length} modes; removing the licence mid-run brings it, installing it again takes it away`,
+        rows.every((r) => !r.error && r.paused && !!r.removed && r.clean),
+        `(${rows.map((r) => `${r.name}: ${r.removed ?? "-"}${r.clean ? " clean" : " NOT clean"}${r.error ? ` ERROR ${r.error}` : ""}${r.why ? ` [${r.why}]` : ""}${r.whyClean ? ` [${r.whyClean}]` : ""}`).join(" | ")})`,
+      );
+    }
+
+    // (d) A free recording: exactly one badge region per frame, one layer deep, in the video layout's corner.
+    {
+      const rp = await openWe(null);
+      await rp.goto(`${BASE}/en/simulator/?mode=classic&dur=10&bg1=%23f2f2f2`, { waitUntil: "networkidle" });
+      await rp.waitForTimeout(800);
+      const download = await Promise.all([
+        rp.waitForEvent("download", { timeout: 90000 }).catch(() => null),
+        (async () => {
+          await rp.getByRole("button", { name: /Record Video/ }).click();
+          await rp.getByRole("button", { name: /Stop & Export/ }).waitFor({ timeout: 10000 }).catch(() => {});
+          await rp.getByRole("button", { name: "Pause", exact: true }).first().click({ timeout: 5000 }).catch(() => {});
+          await rp.waitForTimeout(7400);
+          await rp.getByRole("button", { name: /Stop & Export/ }).click({ timeout: 5000 }).catch(() => {});
+        })(),
+      ]).then(([dl]) => dl);
+      let file = null;
+      if (download) {
+        file = path.join(outDir, `watermark-everywhere-${download.suggestedFilename()}`);
+        await download.saveAs(file);
+        if (fs.statSync(file).size <= 10000) file = null;
+      }
+      let decoded = { frames: [] };
+      if (file) {
+        const url = `${ORIGIN}${BASE_PATH}/__watermark-everywhere/${encodeURIComponent(path.basename(file))}`;
+        await rp.route(url, (route) => route.fulfill({ path: file, contentType: file.endsWith(".mp4") ? "video/mp4" : "video/webm" }));
+        await rp.goto(`${BASE}/en/privacy/`, { waitUntil: "domcontentloaded" });
+        decoded = await rp
+          .evaluate(
+            async ({ url, times }) => {
+              const v = document.createElement("video");
+              v.muted = true;
+              v.preload = "auto";
+              v.src = url;
+              await new Promise((res, rej) => {
+                v.onloadeddata = res;
+                v.onerror = () => rej(new Error(`the video does not decode: ${v.error?.message ?? "?"}`));
+              });
+              const c = document.createElement("canvas");
+              c.width = v.videoWidth;
+              c.height = v.videoHeight;
+              const g = c.getContext("2d", { willReadFrequently: true });
+              const W = c.width;
+              const H = c.height;
+              const side = Math.min(W, H);
+              const sq = { x: (W - side) / 2, y: (H - side) / 2 };
+              // the video layout (layout.ts): the exported square inside the platforms' safe zone, the badge 5.2 % tall, 2.5 % in
+              const zone = H > W ? { x: Math.max(0.06 * W, sq.x), y: Math.max(0.08 * H, sq.y), r: Math.min(0.875 * W, sq.x + side), b: Math.min(0.8 * H, sq.y + side) } : { x: Math.max(0.05 * W, sq.x), y: Math.max(0.05 * H, sq.y), r: Math.min(0.95 * W, sq.x + side), b: Math.min(0.95 * H, sq.y + side) };
+              const bh = Math.max(18, Math.round(0.052 * side));
+              const inset = Math.round(0.025 * side);
+              const regions = {
+                "bottom-left": { x: zone.x + inset, y: zone.b - inset - bh, w: 0.2 * side, h: bh },
+                "bottom-right": { x: zone.r - inset - 0.2 * side, y: zone.b - inset - bh, w: 0.2 * side, h: bh },
+                "top-left": { x: zone.x + inset, y: zone.y + inset, w: 0.2 * side, h: bh },
+                "top-right": { x: zone.r - inset - 0.2 * side, y: zone.y + inset, w: 0.2 * side, h: bh },
+              };
+              const dark = (r) => {
+                const d = g.getImageData(Math.round(r.x), Math.round(r.y), Math.round(r.w), Math.round(r.h)).data;
+                let n = 0;
+                for (let i = 0; i < d.length; i += 4) if (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2] < 150) n++;
+                return n / (d.length / 4);
+              };
+              // the pill's own fill, left of the logo (one 70 % layer over the light background: about 100; two stacked: about 45)
+              const pill = (r) => {
+                const d = g.getImageData(Math.round(r.x + 0.08 * bh), Math.round(r.y + 0.36 * bh), Math.max(1, Math.round(0.16 * bh)), Math.max(1, Math.round(0.28 * bh))).data;
+                let s = 0;
+                for (let i = 0; i < d.length; i += 4) s += 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+                return s / (d.length / 4);
+              };
+              const frames = [];
+              const targets = [...times].sort((a, b) => a - b);
+              await new Promise((resolve) => {
+                const timer = setTimeout(resolve, 60000);
+                const done = () => {
+                  clearTimeout(timer);
+                  resolve();
+                };
+                const step = (_now, meta) => {
+                  while (targets.length && meta.mediaTime >= targets[0]) {
+                    targets.shift();
+                    g.drawImage(v, 0, 0);
+                    const found = Object.entries(regions).filter(([, r]) => dark(r) >= 0.2).map(([k]) => k);
+                    frames.push({ t: +meta.mediaTime.toFixed(2), found, pill: found.length === 1 ? +pill(regions[found[0]]).toFixed(1) : null, darks: Object.fromEntries(Object.entries(regions).map(([k, r]) => [k, +dark(r).toFixed(3)])) });
+                  }
+                  if (targets.length && !v.ended) v.requestVideoFrameCallback(step);
+                  else done();
+                };
+                v.requestVideoFrameCallback(step);
+                v.onended = done;
+                v.playbackRate = 2;
+                v.play().catch(done);
+              });
+              return { width: W, height: H, frames };
+            },
+            { url, times: [1.5, 2.5, 4.5, 6.9] },
+          )
+          .catch((e) => ({ frames: [], error: String(e).split("\n")[0] }));
+      }
+      const at = (t) => decoded.frames.find((f) => Math.abs(f.t - t) < 0.6);
+      const one = (t, corner) => {
+        const f = at(t);
+        return !!f && f.found.length === 1 && f.found[0] === corner && f.pill !== null && f.pill >= 70 && f.pill <= 170;
+      };
+      check(
+        "watermark everywhere: a free recording carries exactly one badge region per frame, one layer deep (not two stacked), bottom-left before 6 s and bottom-right after – the live canvas' own, the compositor adds none",
+        !!file && decoded.width === 1080 && decoded.height === 1920 && one(1.5, "bottom-left") && one(2.5, "bottom-left") && one(4.5, "bottom-left") && one(6.9, "bottom-right"),
+        `(${file ? path.basename(file) : "no download"}, ${JSON.stringify(decoded.error ? decoded : { size: `${decoded.width}×${decoded.height}`, frames: decoded.frames })})`,
+      );
+    }
+
+    // (e) The frame-rate floors with the mark: a free visitor's 1089-orb run and Fight League at 30+ fps, and a 1080×1920 recording at 20+.
+    {
+      const fpsPage = await openWe(null);
+      const runRates = async (query) => {
+        await startView(fpsPage, query);
+        await fpsPage.waitForTimeout(1200);
+        return fpsStats(await fpsPage.evaluate(rafDeltas, 3000));
+      };
+      for (const [name, query] of [["a 1089-orb Bouncing Orbs run", "mode=orbGrid"], ["a Fight League run", "mode=fightLeague&seed=11"]]) {
+        const fr = await runRates(query);
+        const marked = (await fpsPage.evaluate(() => window.__we.snap("F")).then((s) => !!s).catch(() => false)) && (await fpsPage.locator("[data-watermark-tag]").count()) > 0;
+        await timingCheck(`watermark everywhere: a free visitor's ${name} with the mark keeps 30+ fps`, marked, fpsOk(fr, 5, 30), `(${fpsNote(fr)}, floor 30${loadNote()})`, async () => {
+          const again = fpsStats(await fpsPage.evaluate(rafDeltas, 3000));
+          return { timingOk: fpsOk(again, 5, 30), extra: `(${fpsNote(again)})` };
+        });
+      }
+      await fpsPage.goto(`${BASE}/en/simulator/?mode=fightLeague&seed=11&dur=10`, { waitUntil: "networkidle" });
+      await fpsPage.waitForTimeout(800);
+      let rec = { windows: [], avg: 0, min: 0, low: 0 };
+      const recDownload = await Promise.all([
+        fpsPage.waitForEvent("download", { timeout: 90000 }).catch(() => null),
+        (async () => {
+          await fpsPage.getByRole("button", { name: /Record Video/ }).click();
+          await fpsPage.getByRole("button", { name: /Stop & Export/ }).waitFor({ timeout: 10000 }).catch(() => {});
+          rec = fpsStats(await fpsPage.evaluate(rafDeltas, 3500));
+          await fpsPage.getByRole("button", { name: /Stop & Export/ }).click({ timeout: 5000 }).catch(() => {});
+        })(),
+      ]).then(([dl]) => dl);
+      await timingCheck("watermark everywhere: a free 1080×1920 fight league recording with the live mark keeps 20+ fps and downloads", !!recDownload, fpsOk(rec, 5, 20), `(${fpsNote(rec)}, floor 20${loadNote()})`, async () => {
+        let again = { windows: [], avg: 0, min: 0, low: 0 };
+        await Promise.all([
+          fpsPage.waitForEvent("download", { timeout: 90000 }).catch(() => null),
+          (async () => {
+            await fpsPage.getByRole("button", { name: /Record Video/ }).click({ timeout: 10000 });
+            await fpsPage.waitForTimeout(300);
+            again = fpsStats(await fpsPage.evaluate(rafDeltas, 3500));
+            await fpsPage.getByRole("button", { name: /Stop & Export/ }).click({ timeout: 10000 }).catch(() => {});
+          })(),
+        ]);
+        return { timingOk: fpsOk(again, 5, 20), extra: `(recorded again: ${fpsNote(again)})` };
+      });
+    }
+
+    // (f) The copy: the pricing page in three languages and the studio's Unlock dialog.
+    {
+      const cp = await openWe(null);
+      const copy = {};
+      for (const locale of ["en", "pl", "es"]) {
+        await cp.goto(`${BASE}/${locale}/pricing/`, { waitUntil: "networkidle" });
+        copy[locale] = await cp.evaluate(() => document.querySelector("main header")?.textContent ?? "");
+      }
+      const pricingOk =
+        /Free simulations and free videos carry a small .* watermark.*Pro removes it/.test(copy.en) &&
+        /Darmowe symulacje i darmowe filmy mają mały znak wodny.*Pro usuwa go/.test(copy.pl) &&
+        /Las simulaciones gratuitas y los vídeos gratuitos llevan una pequeña marca de agua.*Pro la quita/.test(copy.es);
+      await cp.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+      const note = await cp.getByTestId("free-watermark-note").innerText({ timeout: 10000 }).catch(() => "");
+      const tip = await cp.getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").getAttribute("title").catch(() => null);
+      await cp.getByTestId("free-watermark-remove").click().catch(() => {});
+      const dialog = cp.getByTestId("unlock-dialog");
+      const opened = await dialog.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+      const dialogText = await dialog.innerText().catch(() => "");
+      await cp.keyboard.press("Escape").catch(() => {});
+      check(
+        "watermark everywhere: the pricing page (en, pl, es), the Unlock dialog, the line under the stage and the Watermark tag say that free simulations and free videos carry a small watermark and Pro removes it",
+        pricingOk && opened && /Free simulations and free videos carry a small .* watermark.*Pro removes it from both/.test(dialogText) && /simulator and the videos .* watermark/.test(note) && /simulations and videos carry a small watermark/.test(tip ?? ""),
+        `(${JSON.stringify({ pricing: Object.fromEntries(Object.entries(copy).map(([k, v]) => [k, v.slice(-220)])), dialog: dialogText.slice(0, 220), note, tip })})`,
+      );
+    }
+
+    // (g) --- mode-thumbnails --- The still camera (window.__jumpingBallsStill, which makes the mode cards' pictures) is sealed per
+    // capture like a video: a free visitor's still of a second – the framed card picture and the raw world – carries the badge (in
+    // the bottom-left corner before 6 s) and the faint tiles, and the capture says `watermarked`; the same still taken once the test
+    // licence is installed carries neither, and two Pro captures give the same pixels (so whatever differs from the free one is the
+    // mark). Lossless PNG stills, compared in the page.
+    {
+      const sp = await openWe(null);
+      await sp.goto(`${BASE}/en/simulator/?mode=classic&seed=1&glow=1`, { waitUntil: "networkidle" });
+      const ready = await sp.waitForFunction(() => !!window.__jumpingBallsStill?.ready(), null, { timeout: 30000 }).then(() => true).catch(() => false);
+      const shoot = (name) =>
+        sp
+          .evaluate(async (n) => {
+            const pixels = async (url) => {
+              const img = new Image();
+              img.src = url;
+              await img.decode();
+              const c = document.createElement("canvas");
+              c.width = img.naturalWidth;
+              c.height = img.naturalHeight;
+              const g = c.getContext("2d", { willReadFrequently: true });
+              g.drawImage(img, 0, 0);
+              return { w: c.width, h: c.height, data: g.getImageData(0, 0, c.width, c.height).data };
+            };
+            const r = await window.__jumpingBallsStill.capture({ times: [2], size: 480, format: "png", raw: true });
+            const f = r.frames[0];
+            window.__stills = window.__stills ?? {};
+            window.__stills[n] = { card: f ? await pixels(f.dataUrl) : null, raw: f?.raw ? await pixels(f.raw) : null };
+            return { watermarked: r.watermarked, frames: r.frames.length, raw: !!f?.raw };
+          }, name)
+          .catch((e) => ({ error: String(e?.message ?? e).slice(0, 200) }));
+      /** Where stills `a` and `b` differ: pixels off by more than 1 level, and by more than 60 per quadrant (the badge). */
+      const compareStills = (a, b, key) =>
+        sp.evaluate(
+          ([a, b, key]) => {
+            const A = window.__stills?.[a]?.[key];
+            const B = window.__stills?.[b]?.[key];
+            if (!A || !B) return { error: "no still" };
+            if (A.w !== B.w || A.h !== B.h) return { error: `size ${A.w}×${A.h} vs ${B.w}×${B.h}` };
+            const luma = (d, i) => 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+            const out = { changed: 0, topChanged: 0, strong: 0, quads: { "top-left": 0, "top-right": 0, "bottom-left": 0, "bottom-right": 0 } };
+            for (let y = 0; y < A.h; y++) {
+              for (let x = 0; x < A.w; x++) {
+                const i = 4 * (y * A.w + x);
+                const d = Math.abs(luma(A.data, i) - luma(B.data, i));
+                if (d > 1) {
+                  out.changed++;
+                  if (y < A.h / 2) out.topChanged++;
+                }
+                if (d > 60) {
+                  out.strong++;
+                  out.quads[`${y < A.h / 2 ? "top" : "bottom"}-${x < A.w / 2 ? "left" : "right"}`]++;
+                }
+              }
+            }
+            return out;
+          },
+          [a, b, key],
+        );
+      const free = ready ? await shoot("free") : { error: "no still camera" };
+      await sp.evaluate((t) => {
+        localStorage.setItem("jbl.license", t);
+        window.dispatchEvent(new StorageEvent("storage", { key: "jbl.license" }));
+      }, weLicence);
+      const pro = ready ? await shoot("pro") : { error: "no still camera" };
+      const proAgain = ready ? await shoot("pro2") : { error: "no still camera" };
+      const marked = {};
+      const same = {};
+      for (const key of ["card", "raw"]) {
+        marked[key] = await compareStills("free", "pro", key);
+        same[key] = await compareStills("pro", "pro2", key);
+      }
+      // the badge: strong differences, nearly all in the bottom-left quadrant; the tiles: faint ones in the top half too
+      const carries = (d) => !d.error && d.strong >= 40 && d.quads["bottom-left"] >= 0.9 * d.strong && d.topChanged >= 100;
+      check(
+        "watermark everywhere: a free visitor's still from the still camera (the mode cards' window.__jumpingBallsStill) carries the badge and the tiles – the card picture and the raw world – and the capture says it is watermarked",
+        ready && free.watermarked === true && free.raw === true && carries(marked.card) && carries(marked.raw),
+        `(${JSON.stringify({ ready, free, card: marked.card, raw: marked.raw })})`,
+      );
+      check(
+        "watermark everywhere: the same still taken with the test licence carries no mark and is not reported watermarked (two Pro captures give the same pixels)",
+        pro.watermarked === false && proAgain.watermarked === false && !same.card.error && !same.raw.error && same.card.strong === 0 && same.raw.strong === 0,
+        `(${JSON.stringify({ pro, proAgain, card: same.card, raw: same.raw })})`,
+      );
+    }
+  } finally {
+    for (const c of weContexts) await c.close().catch(() => {});
+  }
+  const weHard = weErrors.filter((e) => !/favicon|ERR_INTERNET|net::ERR|fonts.googleapis|fonts.gstatic|Failed to load resource/.test(e));
+  check("watermark everywhere: no page errors in the checks", weHard.length === 0, weHard.length ? `\n   ${weHard.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end watermark-everywhere ---
 
 // --- loop-foundation ---
 // 38. Grow fill and loop and the loop foundation: the Grow block's Fill and loop preset (URL gLaw=multiply and gFill=loop; its

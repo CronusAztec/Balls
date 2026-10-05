@@ -3902,7 +3902,8 @@
       "success": "Instalada: eres Pro hasta el {date}.",
       "failed": "No se pudo usar la clave: {message}",
       "empty": "Primero pega la clave de licencia."
-    }
+    },
+    "liveMark": "Las simulaciones gratuitas y los vídeos gratuitos llevan una pequeña marca de agua de {siteName}: en una esquina del lienzo mientras juegas y en cada clip que haces. Pro la quita de ambos."
   },
   "OrbGrid": {
     "canvasHud": "{n, plural, one {{count} esfera rebotando} other {{count} esferas rebotando}}",
@@ -4081,7 +4082,9 @@
     "tagTip": "Plan gratuito: este vídeo llevará la marca de agua; Pro la quita",
     "note": "Plan gratuito: los vídeos que grabes o exportes aquí llevan una pequeña marca de agua de {siteName}.",
     "noteRecording": "Grabando en el plan gratuito: este vídeo lleva la marca de agua de {siteName}.",
-    "remove": "Quitar la marca de agua"
+    "remove": "Quitar la marca de agua",
+    "liveTagTip": "Plan gratuito: las simulaciones y los vídeos llevan una pequeña marca de agua; Pro la quita",
+    "liveNote": "Plan gratuito: el simulador y los vídeos que grabes o exportes aquí llevan una pequeña marca de agua de {siteName}."
   },
   "DesktopAiFix": {
     "statusTitle": "Estado de la IA",

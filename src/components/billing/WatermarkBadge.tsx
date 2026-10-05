@@ -29,10 +29,11 @@ export default function WatermarkBadge({ className, tone = "accent", compact = f
   const t = useTranslations("Watermark");
   const { status } = useEntitlement();
   if (status !== "free") return null;
+  const tip = t("liveTagTip"); // --- watermark-everywhere --- (free simulations carry the mark too, not only the videos)
   return (
     <span
       data-watermark-tag=""
-      title={t("tagTip")}
+      title={tip}
       className={cx(
         "inline-flex shrink-0 items-center gap-0.5 rounded-sm border px-1 font-mono text-[10px] font-medium uppercase leading-4 tracking-wide",
         tone === "accent" ? "border-accent-dim/60 text-accent" : "border-current text-current opacity-80",
@@ -41,7 +42,7 @@ export default function WatermarkBadge({ className, tone = "accent", compact = f
     >
       <IconWatermark size={11} />
       {!compact && <span aria-hidden="true">{t("tag")}</span>}
-      <span className="sr-only">{` – ${t("tagTip")}`}</span>
+      <span className="sr-only">{` – ${tip}`}</span>
     </span>
   );
 }

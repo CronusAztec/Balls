@@ -5,6 +5,7 @@ import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
 import { defaultSettings } from "@/lib/settings";
+import { MODE_IDS } from "@/lib/physics/types";
 import { RECIPES } from "@/lib/bot/playbook";
 import { planClip } from "@/lib/bot/planner";
 import type { BotCopy } from "@/lib/bot/copy";
@@ -14,7 +15,7 @@ import { validateJson } from "@/lib/desktop/ai/jsonSchema";
 import { DEFAULT_TEMPERATURE, RETRY_TEMPERATURE_STEP, replySchema, runAgent, type ChatModel, type ChatOptions } from "@/lib/desktop/ai/agent";
 import { PlanStore, copyFinal, copyTask, makeVideosTask, recipeList, settingsTask, type CopyResult, type MakeVideosResult, type StudioPorts } from "@/lib/desktop/ai/studio";
 import { fitText, normaliseCopyResult, normaliseHashtags, normaliseMakeVideosResult, normalisePlatform, resolvePlanId, slugifyClipName, withoutPlaceholders } from "@/lib/desktop/ai/normalise";
-import { CORE_SETTING_KEYS, relevantAssistantSettings } from "@/lib/desktop/ai/settingsFilter";
+import { CORE_SETTING_KEYS, MAX_RELEVANT_SETTINGS, relevantAssistantSettings } from "@/lib/desktop/ai/settingsFilter";
 import { assistantSettings, settingsCatalog } from "@/lib/desktop/ai/settingsPatch";
 import { foldSystemNotes } from "@/lib/desktop/ai/conversation";
 import { describeError, errorChain, errorCodes, stripIpcPrefix } from "@/lib/desktop/errors";
@@ -229,7 +230,52 @@ describe("the settings assistant's shorter prompt", () => {
     // A request about the page's mode gets the mode's own block.
     const glass = defaultSettings("glass");
     expect(relevantAssistantSettings(glass, "more glass floors, harder glass").map(([k]) => k)).toEqual(expect.arrayContaining(["glassRows", "glassHp"]));
-    expect(relevantAssistantSettings(glass, "faster").map(([k]) => k)).not.toContain("glassHp");
+  });
+
+  // --- review fix (desktop-ai-fix) --- the page mode's block is offered whether or not the request names the mode: its
+  // settings are described only as "<mode> setting", so no word of "more floors" reached glassRows and the grammar (built
+  // from the same list) left the model no way to change them
+  const blockOf = (mode: (typeof MODE_IDS)[number]) => assistantSettings(defaultSettings(mode)).filter(([, d]) => d === `${mode} setting`).map(([k]) => k);
+  it("offers the page mode's own settings to a request that does not name the mode", () => {
+    const glass = defaultSettings("glass");
+    const glassBlock = blockOf("glass");
+    expect(glassBlock).toEqual(["glassRows", "glassHp", "glassStages", "glassMoving", "glassHoles", "glassGates"]);
+    for (const request of ["make the panes break on the second hit", "more floors", "twice as many layers to smash through", "faster"]) {
+      const keys = relevantAssistantSettings(glass, request).map(([k]) => k);
+      expect(keys, request).toEqual(expect.arrayContaining(glassBlock));
+      // ...and so the reply's grammar may name them
+      const task = settingsTask(request, glass, "en");
+      const named = ((task.final.properties?.changes as { items: { oneOf: { properties: { setting: { const: string } } }[] } }).items.oneOf).map((a) => a.properties.setting.const);
+      expect(named, request).toEqual(expect.arrayContaining(glassBlock));
+      expect(task.system).toContain("glassHp (");
+    }
+    // Fight League: 26 settings of its own, every one offered for "longer rounds" (flTimeCap), with the core ones.
+    const league = defaultSettings("fightLeague");
+    const leagueBlock = blockOf("fightLeague");
+    expect(leagueBlock.length).toBe(26);
+    const rounds = relevantAssistantSettings(league, "longer rounds").map(([k]) => k);
+    expect(rounds).toEqual(expect.arrayContaining([...leagueBlock, ...CORE_SETTING_KEYS]));
+    expect(rounds).toContain("flTimeCap");
+    // A mode without a block of its own lists the core settings and what the request points at, as before.
+    expect(relevantAssistantSettings(defaultSettings("classic"), "longer rounds").map(([k]) => k).every((k) => !k.startsWith("fl"))).toBe(true);
+  });
+
+  it("fits every mode's block with the core settings, and the settings a request points at never give way to it", () => {
+    for (const mode of MODE_IDS) {
+      const block = blockOf(mode);
+      const keys = relevantAssistantSettings(defaultSettings(mode), "").map(([k]) => k);
+      expect(keys, mode).toEqual(expect.arrayContaining([...CORE_SETTING_KEYS, ...block]));
+      expect(keys.length, mode).toBeLessThanOrEqual(MAX_RELEVANT_SETTINGS);
+    }
+    // A request that points at many settings on the page with the biggest block (Bouncing Orbs, 34): the cap holds, and
+    // what it points at outside the block is all there – the block's settings it does not point at give way first.
+    const busy = "faster and bigger, rainbow colours, wind and drag, thicker trails, glow, a piano melody, camera shake, a face and a name, bigger text, thicker rings that rotate and pulse";
+    const orbs = relevantAssistantSettings(defaultSettings("orbGrid"), busy).map(([k]) => k);
+    expect(blockOf("orbGrid").length).toBe(34);
+    expect(orbs.length).toBe(MAX_RELEVANT_SETTINGS);
+    for (const [key] of relevantAssistantSettings(defaultSettings("classic"), busy)) expect(orbs).toContain(key);
+    expect(orbs).toContain("ogOrbSize"); // a block setting the request points at ("bigger") stays
+    expect(blockOf("orbGrid").some((k) => !orbs.includes(k))).toBe(true);
   });
 
   it("builds a much shorter prompt and a grammar over the same settings", () => {

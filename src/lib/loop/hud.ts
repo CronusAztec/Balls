@@ -133,6 +133,26 @@ export function loopHudRects(layout: LoopHudLayout, width: number, subtitle: boo
   return out;
 }
 
+/** The HUD's edges as bands of the frame (px): `top`, the lowest edge of the lines at the top; `bottom`, the counter's top edge. */
+export interface LoopHudBands {
+  top: number;
+  bottom: number;
+}
+
+/**
+ * The bands a frame of the HUD covers – the title (and the subtitle under it) along the top, the counter along the bottom;
+ * −Infinity / Infinity for lines the frame leaves out. The live canvas reports them to the live watermark (watermark-
+ * everywhere's `LiveHud`: a mode's title line is a top band), so its badge sits in the free band between them. Writes into `out`.
+ */
+export function loopHudBands(layout: LoopHudLayout, frame: LoopHudFrame, out: LoopHudBands = { top: -Infinity, bottom: Infinity }): LoopHudBands {
+  out.top = -Infinity;
+  out.bottom = Infinity;
+  if (frame.title) out.top = layout.titleY + HUD_LINE_HALF * layout.titleSize;
+  if (frame.subtitle && layout.subtitleY >= 0) out.top = Math.max(out.top, layout.subtitleY + HUD_LINE_HALF * layout.subtitleSize);
+  if (frame.counter) out.bottom = layout.counterY - HUD_LINE_HALF * layout.counterSize;
+  return out;
+}
+
 /** True for a light colour (relative luminance above one half): the HUD's dark-on-light colours. */
 export function isLightColor(color: string | undefined | null): boolean {
   const m = typeof color === "string" ? /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(color.trim()) : null;
