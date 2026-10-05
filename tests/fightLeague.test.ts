@@ -1073,8 +1073,13 @@ describe("fight league forced winner", () => {
     }
     // --- fl-overhaul --- and the mirror matches that end in a DOUBLE KO unrigged today: rigged either way, the chosen side wins.
     const doubles: [string, number][] = [];
-    for (const id of ["loki", "spiderman", "captainamerica", "batman", "samus", "katarina", "ahri", "alien", "predator", "johnwick", "terminator"]) {
-      for (let seed = 1; seed <= 8; seed++) if (duel(id, id, seed).doubleKo) doubles.push([id, seed]);
+    // (--- fl-overhaul --- Stage 2: the first release's candidates first, then the rest of the 147 – re-tuned damage stats move
+    // the rare double KOs around – until four are found)
+    const first = ["loki", "spiderman", "captainamerica", "batman", "samus", "katarina", "ahri", "alien", "predator", "johnwick", "terminator"];
+    const candidates = [...first, ...FL_ROSTER.map((r) => r.id).filter((id) => !first.includes(id))];
+    for (const id of candidates) {
+      for (let seed = 1; seed <= 8 && doubles.length < 4; seed++) if (duel(id, id, seed).doubleKo) doubles.push([id, seed]);
+      if (doubles.length >= 4) break;
     }
     expect(doubles.length).toBeGreaterThanOrEqual(3);
     for (const [id, seed] of doubles) {

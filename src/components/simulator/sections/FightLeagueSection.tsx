@@ -173,7 +173,7 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
                 {listView ? (
                   <select id={`fl-fighter-${i}`} value={id} onChange={(e) => set(e.target.value)} className={`${selectClass} text-sm`} data-testid={`fl-fighter-list-${SLOT_LETTERS[i]}`}>
                     <option value={FL_RANDOM}>{t("flRandom")}</option>
-                    <optgroup label={t("flPickerRandomAny")}>
+                    <optgroup label={t("flPickerGenres")}>
                       {FL_CONFERENCE_IDS.map((c) => (
                         <option key={c} value={flRandomToken(c)}>
                           {t("flPickerRandomConference", { conference: fl(`conference_${c}`) })}

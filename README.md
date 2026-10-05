@@ -647,92 +647,211 @@ Character names belong to their respective owners; this is an unaffiliated fan s
 - **Find Simulation** – "A wins", "B wins" … (each side by its letter and name, a 2v2 by its team), a fight that ends at a chosen second, and a double KO (`double-ko`, a new finder outcome).
 - **Canvas data** – `data-fl-*`: the match and the arena, names, ids, abilities, HP and maximum HP, hits, casts, alive, KOs, shots, blocks, clashes, sounds, the winner (names, `draw` or `double-ko`), the winning side, finished and its second, decided by time, double KO, forced, the HUD with its names and boxes drawn (and where the boxes start, which the bottom captions keep above), the VS card, the banner, fighters, weapons (held shields included) and projectiles drawn, the clock, and the overhaul's counters: grazes, weapon clashes (`data-fl-clashes2`), crowd-control immunities, interrupts, dodges and sudden death (`data-fl-sudden`).
 - **Files** – new: `src/lib/physics/modes/fightLeague.ts`, `fightLeagueRoster.ts` (Stage 2: with `fightLeagueRows/<division>.ts` and `fightLeagueRows/kit.ts`, the pure search `fightLeagueSearch.ts` and the tuner's generated `fightLeagueRatings.ts`; the picker `sections/FighterPicker.tsx`; the tuner `scripts/fl-balance.mjs` with its tool test `tests/tools/flBalanceTune.test.ts`; the balance gate `tests/flBalance.ts` with `tests/fightLeagueBalance{ComicsAnimeShows,Games,Movies}.test.ts`), `src/components/simulator/fightLeagueRenderer.ts`, `sections/FightLeagueSection.tsx`, `src/lib/audio/fightTones.ts`, `tests/fightLeague.test.ts`, `tests/fightLeagueWeapons.test.ts` with its helper `tests/flProbes.ts` (the overhaul) and `public/modes/fightLeague.webp`; small blocks marked `// --- fight-league ---` (and `// --- fl-overhaul ---`) in the shared files (the types, the engine and the mode registry, `lib/modes.ts`, settings, the finder and its outcomes, teams, the rig, bounce math, Canvas, Controls, the panel keys, the finder's outcome fields, the teams layer, Simulator, the ToneGenerator, the fast export, split screen, the bot's finder request and the desktop AI's prefixes).
-- **Tests and checks** – `tests/fightLeague.test.ts`: the roster and its divisions, the settings, URL and presets; the hit geometry of every weapon kind (and every kind landing hits in a fight); the invulnerability window; the charge maths and the telegraph; each ability primitive's effect; the time cap's verdict and the draw; 1v1, 2v2 (no friendly fire), three- and four-way endings and a double KO; the forced winner (both sides of a duel over six seeds, a 2v2 team, a free-for-all side, replays unchanged; both sides against a reflecting Alien over twelve seeds, the seeds that once ended rigged fights in a double KO, reflected damage through the hit's guards and the guard before the KOs); exact replay fingerprints of three seeds at 30, 60 and 144 fps; the finder's outcomes; the sounds and their routing; the data attributes; and the balance below. The smoke test checks the card and the preview, the URL ↔ panel round trip and the search box, the default Thor vs Loki with the HUD's names and ability boxes, a 1v1 fought to its winner (with a question caption answered), a four-way free-for-all to its end, the forced winner on a pinned seed it would otherwise lose, the rig's backstop holding to the verdict on three pinned seeds the rigged side used to lose (to Acid Blood's reflected damage, and in double KOs: a step both sides end at 0 HP, a shot landing in the KO grace), the frame rate of four fighters with their projectiles, a 1080×1920 recording, and an "A wins" seed from the finder that replays as promised. **The overhaul (Stage 1)** adds `tests/fightLeagueWeapons.test.ts` – a contract probe per weapon kind and style against an inert dummy (a Gerald copy at speed, attack and cast speed 0.05 with 1000 HP at the centre: a hit on every seed within 10 s, the median first hit within 2 s, the kinds' DPS at damage stat 1 within 0.5–2× their median, no shot starting outside the arena, a thrown weapon back in hand within 8 s, one hit per sweep, punch, swing and pass, breaths only in reach, no burst round behind its muzzle, homing shots gone by 2.6 s, the tail's rate, the shields' block share, the weapon drawn on every frame it is held), the per-source windows, mirror matches (every fighter against itself over 8 seeds: a double KO in at most 6 %, slot A winning 45–55 % of the decided ones), crowd-control immunity and interrupts, the telegraph classes and dodges, the HP-fraction verdict, sudden death, the frozen finish, the first hit of the presets (within 1.5 s of FIGHT! in at least 90 % of the 14 presets × 3 seeds), the determinism and naming greps and the before → after probe table below – and the QA regressions in `tests/fightLeague.test.ts` (one test per finding, each failing on the code before the overhaul). The smoke test adds the overhaul's counters and sudden death on a pinned seed (300 HP, a 20 s cap); `SMOKE_ONLY=fight-league npm run smoke` runs only the Fight League block (with the request and console checks), and without it nothing changes.
+- **Tests and checks** – `tests/fightLeague.test.ts`: the roster and its divisions, the settings, URL and presets; the hit geometry of every weapon kind (and every kind landing hits in a fight); the invulnerability window; the charge maths and the telegraph; each ability primitive's effect; the time cap's verdict and the draw; 1v1, 2v2 (no friendly fire), three- and four-way endings and a double KO; the forced winner (both sides of a duel over six seeds, a 2v2 team, a free-for-all side, replays unchanged; both sides against a reflecting Alien over twelve seeds, the seeds that once ended rigged fights in a double KO, reflected damage through the hit's guards and the guard before the KOs); exact replay fingerprints of three seeds at 30, 60 and 144 fps; the finder's outcomes; the sounds and their routing; the data attributes; and the balance below. The smoke test checks the card and the preview, the URL ↔ panel round trip and the search box, the default Thor vs Loki with the HUD's names and ability boxes, a 1v1 fought to its winner (with a question caption answered), a four-way free-for-all to its end, the forced winner on a pinned seed it would otherwise lose, the rig's backstop holding to the verdict on three pinned seeds the rigged side used to lose (to Acid Blood's reflected damage, and in double KOs: a step both sides end at 0 HP, a shot landing in the KO grace), the frame rate of four fighters with their projectiles, a 1080×1920 recording, and an "A wins" seed from the finder that replays as promised. **The overhaul (Stage 1)** adds `tests/fightLeagueWeapons.test.ts` – a contract probe per weapon kind and style against an inert dummy (a Gerald copy at speed, attack and cast speed 0.05 with 1000 HP at the centre: a hit on every seed within 10 s, the median first hit within 2 s, the kinds' DPS at damage stat 1 within 0.5–2× their median, no shot starting outside the arena, a thrown weapon back in hand within 8 s, one hit per sweep, punch, swing and pass, breaths only in reach, no burst round behind its muzzle, homing shots gone by 2.6 s, the tail's rate, the shields' block share, the weapon drawn on every frame it is held), the per-source windows, mirror matches (every fighter against itself over 8 seeds: a double KO in at most 6 %, slot A winning 45–55 % of the decided ones), crowd-control immunity and interrupts, the telegraph classes and dodges, the HP-fraction verdict, sudden death, the frozen finish, the first hit of the presets (within 1.5 s of FIGHT! in at least 90 % of the 14 presets × 3 seeds), the determinism and naming greps and the before → after probe table below – and the QA regressions in `tests/fightLeague.test.ts` (one test per finding, each failing on the code before the overhaul). The smoke test adds the overhaul's counters and sudden death on a pinned seed (300 HP, a 20 s cap); `SMOKE_ONLY=fight-league npm run smoke` runs only the Fight League block (with the request and console checks), and without it nothing changes. **Stage 2** adds to `tests/fightLeague.test.ts` the 147 names by division (19 keys, Gerald alone in Wildcard), the 61 first-release ids kept and 86 new, 6–10 fighters a division, the role templates (at most two tanks and two glass cannons a division, every HP 90–130), `FL_PRIMITIVE_LIMITS` and the charge class of every row's ability, the conferences, the 50 in-division presets with their formats, the random tokens through the settings and the URL (`fl2=random%3Amarvel`), 1000 seeded draws of `random:pokemon` staying in Pokémon, one draw a random slot, a random slot next to Gerald never drawing him, a fully random match drawing its division uniformly, the picker's search (the first three letters of a name's sort key rank that fighter first for at least 95 % of the roster; names, short names, ids, sources, abilities, weapons and divisions, case- and diacritic-insensitive), the ratings' staleness warning, the FightLeague / Controls fl* key parity in en, pl and es, and that those strings name neither the reference account nor its game; `tests/fightLeagueWeapons.test.ts` adds a probe each for the whip (one hit a crack, the lasso's drag), traps (snaps and holds, at most four an owner), walls (enemy shots and beams stopped, bombs over them, a solid wall stopping the foe; Wind Wall and Build Wall in real fights), transforms (the ball and its hitbox resized and back), drain (the heal is the fraction of the damage dealt), deflection (Obi-Wan's Soresu turning shots on their shooter) and bombs (a splash on landing), every fighter's first hit within 10 s against Gerald and against its division's tank on 3 seeds, and the first hit of the 1v1 presets within 1.5 s of FIGHT! in at least 90 % of their fights; the balance gate is below. The smoke test opens the picker (search 'pika' → Pikachu first, the pick writes `fl1`, the Pokémon tab lists its 7, 'Random · Marvel' on slot B writes `fl2=random%3Amarvel`) and runs the existing checks through the List view's selects.
 
 **The overhaul's probes** (`tests/fightLeagueWeapons.test.ts` prints them; before = the rules before Stage 1, measured with the same probes): the median first hit of the melee fighters against the dummy 2.10 s → 0.25 s; mirror matches ending in a double KO 34.2 % → 2.9 % (slot A winning 56.4 % → 47.2 % of the decided ones); the Alien's tail 0.16 → 0.52 hits/s in the square (0.23 → 0.73 in the circle); Charizard's breaths started out of reach 56.1 % → 0 %; burst rounds spawned behind the muzzle (Master Chief and RoboCop, 3 × 30 s) 240 → 0; Captain America's share of blocked hits 30.7 % → 45.4 % (Wonder Woman 33.6 % → 35.9 %); the presets' first hit within 1.5 s of FIGHT! in 40 of 42 fights.
 
-**Roster** (the stats as HP % · speed · attack speed · damage · cast speed · size; the damage column carries the balance pass's tuning):
+**Roster** (the table between the `fl-roster` markers is `rosterTableMarkdown()` of `fightLeagueRoster.ts`, pasted as it prints; the stats as HP % · speed · attack speed · damage · cast speed · size – the damage column is the tuner's, `scripts/fl-balance.mjs`):
 
-| Division | Fighter | Source | Weapon | HP · speed · attack · damage · cast · size | Ability (primitives) |
-| --- | --- | --- | --- | --- | --- |
-| Marvel | Thor | Marvel (comics & movies) | returning hammer | 100 · 0.95 · 1 · 1.64 · 1 · 1 | Thunder Strike (lightning) |
-| Marvel | Loki | Marvel (comics & movies) | cards | 100 · 1.1 · 1 · 1.51 · 1 · 1 | Illusion (decoys) |
-| Marvel | Spider-Man | Marvel (comics & movies) | web | 100 · 1.25 · 1 · 1.45 · 1 · 1 | Web Trap (choke) |
-| Marvel | Iron Man | Marvel (comics & movies) | gun | 100 · 1 · 1 · 1.26 · 1 · 1 | Unibeam (beam) |
-| Marvel | Captain America | Marvel (comics & movies) | shield | 105 · 1 · 1 · 1.21 · 1 · 1 | Shield Ricochet (volley) |
-| Marvel | Hulk | Marvel (comics & movies) | fists | 115 · 0.85 · 1 · 1.06 · 1 · 1.15 | Hulk Smash (shockwave) |
-| DC | Superman | DC (comics & movies) | beam | 105 · 1 · 1 · 1.74 · 1 · 1 | Solar Flare (shockwave) |
-| DC | Batman | DC (comics & movies) | cards | 100 · 1 · 1 · 1.21 · 1 · 1 | Smoke Bomb (invulnerable + giant hit) |
-| DC | Joker | DC (comics & movies) | cards | 100 · 1.05 · 1 · 1.76 · 1 · 1 | Laughing Gas (confuse) |
-| DC | Wonder Woman | DC (comics & movies) | sword + block shield | 100 · 1.05 · 1 · 0.75 · 1 · 1 | Lasso of Truth (pull + choke) |
-| Nintendo & Sega | Mario | Nintendo (video games) | bouncing gun | 100 · 1 · 1 · 1.05 · 1 · 1 | Super Star (invulnerable + speed burst) |
-| Nintendo & Sega | Link | Nintendo (video games) | sword | 100 · 1 · 1 · 1.16 · 1 · 1 | Spin Attack (shockwave) |
-| Nintendo & Sega | Samus | Nintendo (video games) | gun | 100 · 1 · 1 · 1.39 · 1 · 1 | Charge Shot (volley) |
-| Nintendo & Sega | Captain Falcon | Nintendo (video games) | fists | 100 · 1.3 · 1 · 0.96 · 1 · 1 | Falcon Punch (giant hit) |
-| Nintendo & Sega | Little Mac | Nintendo (video games) | fists | 100 · 1.25 · 1 · 1.26 · 1 · 0.92 | Star Punch (giant hit) |
-| Nintendo & Sega | Sonic | Sega (video games) | contact fists | 100 · 1.8 · 1 · 1.24 · 1 · 1 | Spin Dash (speed burst + damage burst) |
-| League of Legends | Yuumi | League of Legends (video game) | book | 100 · 1 · 1 · 2.07 · 1 · 0.9 | Final Chapter (beam) |
-| League of Legends | Katarina | League of Legends (video game) | blink cards | 100 · 1.25 · 1 · 0.96 · 1 · 1 | Death Lotus (fire ring) |
-| League of Legends | Garen | League of Legends (video game) | sword | 110 · 1 · 1 · 0.77 · 1 · 1 | Demacian Justice (giant hit) |
-| League of Legends | Jinx | League of Legends (video game) | gun | 100 · 1 · 1 · 1.22 · 1 · 1 | Super Mega Death Rocket (volley) |
-| League of Legends | Ahri | League of Legends (video game) | return staff | 100 · 1.1 · 1 · 1.79 · 1 · 1 | Spirit Rush (blink strike) |
-| Fighting games | Ryu | Street Fighter (video games) | fists + gun | 100 · 1 · 1 · 0.9 · 1 · 1 | Shoryuken (giant hit) |
-| Fighting games | Ken | Street Fighter (video games) | fists + gun | 100 · 1.05 · 1 · 0.79 · 1 · 1 | Shoryureppa (giant hit) |
-| Fighting games | Chun-Li | Street Fighter (video games) | fists | 100 · 1.3 · 1 · 1.25 · 1 · 1 | Spinning Bird Kick (fire ring) |
-| Fighting games | Scorpion | Mortal Kombat (video games) | pull chain | 100 · 1 · 1 · 1.07 · 1 · 1 | Hellfire (fire ring) |
-| Fighting games | Sub-Zero | Mortal Kombat (video games) | ice | 100 · 1 · 1 · 2.22 · 1 · 1 | Ice Clone (decoys) |
-| Game legends | Master Chief | Halo (video games) | burst gun | 110 · 1 · 1 · 1.22 · 1 · 1 | Spartan Charge (speed burst + giant hit) |
-| Game legends | Doom Slayer | Doom (video games) | shotgun | 105 · 1 · 1 · 1.02 · 1 · 1 | BFG (beam) |
-| Game legends | Kratos | God of War (video games) | chain | 100 · 1 · 1 · 2.14 · 1 · 1 | Spartan Rage (damage burst + heal) |
-| Game legends | Steve | Minecraft (video game) | sword | 100 · 1 · 1 · 1.36 · 1 · 1 | TNT (shockwave) |
-| Game legends | Pikachu | Pokémon (video games) | spark | 100 · 1.3 · 1 · 1.35 · 1 · 0.85 | Thunderbolt (lightning) |
-| Game legends | Charizard | Pokémon (video games) | fire | 105 · 1 · 1 · 1.53 · 1 · 1.1 | Blast Burn (fire ring) |
-| Shonen anime | Goku | Dragon Ball (anime & manga) | fists + gun | 100 · 1 · 1 · 1.08 · 1 · 1 | Kamehameha (beam) |
-| Shonen anime | Vegeta | Dragon Ball (anime & manga) | fists + gun | 100 · 1 · 1 · 1.04 · 1 · 1 | Final Flash (beam) |
-| Shonen anime | Naruto | Naruto (anime & manga) | cards | 100 · 1.1 · 1 · 1.34 · 1 · 1 | Shadow Clone (summon) |
-| Shonen anime | Sasuke | Naruto (anime & manga) | sword | 100 · 1.15 · 1 · 1.12 · 1 · 1 | Chidori (blink strike) |
-| Shonen anime | Luffy | One Piece (anime & manga) | fists | 100 · 1 · 1 · 1.24 · 1 · 1 | Gum-Gum Gatling (attack speed burst) |
-| Shonen anime | Saitama | One-Punch Man (anime & manga) | fists | 100 · 1 · 1 · 1.38 · 1 · 1 | Serious Punch (giant hit) |
-| Star Wars | Luke Skywalker | Star Wars (movies) | glow sword | 100 · 1 · 1 · 1.17 · 1 · 1 | Force Push (shockwave) |
-| Star Wars | Darth Vader | Star Wars (movies) | glow sword | 110 · 0.85 · 1 · 0.76 · 1 · 1 | Force Choke (choke) |
-| Star Wars | Yoda | Star Wars (movies) | glow sword | 100 · 1.45 · 1.3 · 0.94 · 1 · 0.75 | Force Lift (choke) |
-| Star Wars | Darth Maul | Star Wars (movies) | double sword | 100 · 1.1 · 1 · 1.6 · 1 · 1 | Saber Throw (volley) |
-| Fantasy | Harry Potter | Harry Potter (movies & books) | wand | 100 · 1.05 · 1 · 1.07 · 1 · 1 | Expelliarmus (disarm) |
-| Fantasy | Voldemort | Harry Potter (movies & books) | wand | 100 · 1 · 1 · 1.15 · 1 · 1 | Avada Kedavra (volley) |
-| Fantasy | Gandalf | The Lord of the Rings (movies & books) | staff + sword | 100 · 1 · 1 · 1.22 · 1 · 1 | You Shall Not Pass (invulnerable + shockwave) |
-| Fantasy | Legolas | The Lord of the Rings (movies & books) | bow | 100 · 1.15 · 1 · 1.1 · 1 · 1 | Arrow Storm (volley) |
-| Movie monsters | Godzilla | Godzilla (movies) | tail | 120 · 0.8 · 1 · 1.14 · 1 · 1.2 | Atomic Breath (beam) |
-| Movie monsters | King Kong | King Kong (movies) | fists | 115 · 0.95 · 1 · 0.9 · 1 · 1.15 | Chest Beat (damage burst) |
-| Movie monsters | Alien | Alien (movies) | claws + tail | 100 · 1.2 · 1 · 1.31 · 1 · 1 | Acid Blood (reflect) |
-| Movie monsters | Predator | Predator (movies) | gun + claws | 100 · 1 · 1 · 1.1 · 1 · 1 | Cloak (invulnerable) |
-| Action movies | John Wick | John Wick (movies) | gun | 100 · 1.15 · 1 · 0.88 · 1 · 1 | Baba Yaga (giant hit) |
-| Action movies | Neo | The Matrix (movies) | fists | 100 · 1.25 · 1 · 1.12 · 1 · 1 | Bullet Time (slow time) |
-| Action movies | Terminator | The Terminator (movies) | shotgun | 120 · 0.85 · 1 · 1.22 · 1 · 1 | Minigun (volley) |
-| Action movies | RoboCop | RoboCop (movies) | burst gun | 115 · 0.8 · 1 · 1.42 · 1 · 1 | Targeting (giant hit) |
-| TV | Homelander | The Boys (TV show) | beam + fists | 100 · 1 · 1 · 1.08 · 1 · 1 | Laser Sweep (beam) |
-| TV | Omni-Man | Invincible (TV show) | fists | 110 · 1 · 1 · 0.88 · 1 · 1 | Viltrumite Rush (speed burst + damage burst) |
-| TV | Aang | Avatar: The Last Airbender (TV show) | fists | 100 · 1.3 · 1 · 1.39 · 1.3 · 1 | Avatar State (fire ring + lightning) |
-| TV | Zuko | Avatar: The Last Airbender (TV show) | fire | 100 · 1 · 1 · 1.62 · 1 · 1 | Lightning Redirect (beam) |
-| TV | Jon Snow | Game of Thrones (TV show) | sword | 100 · 1 · 1 · 0.94 · 1 · 1 | Ghost (summon) |
-| TV | Night King | Game of Thrones (TV show) | bow | 100 · 0.9 · 1 · 1.39 · 1 · 1 | Raise the Dead (summon) |
-| Wildcard | Gerald | This site's own ball | fists | 100 · 1 · 1 · 1 · 1 · 1 | Mega Bounce (speed burst + damage burst) |
+<!-- fl-roster -->
+| Division | Fighter | Source | Weapon | HP · speed · attack · damage · cast · size | Ability (primitives) | Role | New |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Marvel | Thor | Marvel (comics & movies) | returning hammer | 100 · 0.95 · 1 · 1.34 · 1 · 1 | Thunder Strike (lightning) | bruiser |  |
+| Marvel | Loki | Marvel (comics & movies) | cards | 100 · 1.1 · 1 · 1.34 · 1 · 1 | Illusion (decoys) | control |  |
+| Marvel | Spider-Man | Marvel (comics & movies) | web | 95 · 1.3 · 1 · 1.06 · 1 · 0.9 | Web Trap (choke) | glass |  |
+| Marvel | Iron Man | Marvel (comics & movies) | gun | 100 · 1 · 1 · 1.12 · 1 · 1 | Unibeam (beam) | ranged |  |
+| Marvel | Captain America | Marvel (comics & movies) | shield | 105 · 1 · 1 · 1.13 · 1 · 1 | Shield Ricochet (volley) | duelist |  |
+| Marvel | Hulk | Marvel (comics & movies) | fists | 115 · 0.85 · 1 · 0.88 · 1 · 1.15 | Hulk Smash (shockwave) | tank |  |
+| Marvel | Venom | Marvel (comics & movies) | whip | 105 · 1 · 1 · 1.96 · 1 · 1 | Tendril Grab (pull + choke) | control | new |
+| Marvel | Thanos | Marvel (comics & movies) | fists | 125 · 0.8 · 1 · 0.84 · 1 · 1.15 | The Snap (lightning, ultimate) | tank | new |
+| Marvel | Deadpool | Marvel (comics & movies) | double sword + gun | 100 · 1 · 1 · 0.65 · 1 · 1 | Healing Factor (heal) | bruiser | new |
+| Marvel | Wolverine | Marvel (comics & movies) | claws | 110 · 1 · 1 · 2 · 1 · 1 | Berserker Rage (attack speed burst + damage burst) | bruiser | new |
+| DC | Superman | DC (comics & movies) | beam | 105 · 1 · 1 · 1.32 · 1 · 1 | Solar Flare (shockwave) | ranged |  |
+| DC | Batman | DC (comics & movies) | cards | 100 · 1 · 1 · 0.95 · 1 · 1 | Smoke Bomb (invulnerable + giant hit) | duelist |  |
+| DC | Joker | DC (comics & movies) | cards | 100 · 1.05 · 1 · 1.34 · 1 · 1 | Laughing Gas (confuse) | control |  |
+| DC | Wonder Woman | DC (comics & movies) | sword + block shield | 100 · 1.05 · 1 · 0.57 · 1 · 1 | Lasso of Truth (pull + choke) | duelist |  |
+| DC | The Flash | DC (comics & movies) | contact fists | 90 · 1.7 · 1 · 1.45 · 1 · 0.9 | Speed Force (slow time) | glass | new |
+| DC | Aquaman | DC (comics & movies) | sword | 110 · 1 · 1 · 0.8 · 1 · 1 | Marine Telepathy (summon) | summoner | new |
+| DC | Harley Quinn | DC (comics & movies) | hammer | 100 · 1.15 · 1 · 1.41 · 1 · 1 | Bud and Lou (summon) | summoner | new |
+| DC | Darkseid | DC (comics & movies) | beam | 125 · 0.8 · 1 · 1.37 · 1 · 1.15 | Omega Effect (volley) | tank | new |
+| Nintendo & Sega | Mario | Nintendo (video games) | bouncing gun | 100 · 1 · 1 · 0.73 · 1 · 1 | Super Star (invulnerable + speed burst) | ranged |  |
+| Nintendo & Sega | Link | Nintendo (video games) | sword | 100 · 1 · 1 · 0.9 · 1 · 1 | Spin Attack (shockwave) | duelist |  |
+| Nintendo & Sega | Samus | Nintendo (video games) | gun | 100 · 1 · 1 · 1.02 · 1 · 1 | Charge Shot (volley) | ranged |  |
+| Nintendo & Sega | Captain Falcon | Nintendo (video games) | fists | 100 · 1.3 · 1 · 0.82 · 1 · 1 | Falcon Punch (giant hit) | bruiser |  |
+| Nintendo & Sega | Little Mac | Nintendo (video games) | fists | 100 · 1.25 · 1 · 1.1 · 1 · 0.92 | Star Punch (giant hit) | duelist |  |
+| Nintendo & Sega | Sonic | Sega (video games) | contact fists | 100 · 1.8 · 1 · 0.97 · 1 · 1 | Spin Dash (speed burst + damage burst) | duelist |  |
+| Nintendo & Sega | Kirby | Nintendo (video games) | hammer | 95 · 1.3 · 1 · 1.54 · 1 · 0.8 | Inhale (pull + choke) | glass | new |
+| Nintendo & Sega | Donkey Kong | Nintendo (video games) | fists | 115 · 0.85 · 1 · 0.75 · 1 · 1.15 | Hand Slap (shockwave) | tank | new |
+| Nintendo & Sega | Bowser | Nintendo (video games) | fire | 125 · 0.8 · 1 · 1.01 · 1 · 1.2 | Giga Bowser (transform, ultimate) | tank | new |
+| Nintendo & Sega | Shadow | Sega (video games) | gun | 100 · 1.5 · 1 · 0.82 · 1 · 1 | Chaos Control (freeze all) | ranged | new |
+| League of Legends | Yuumi | League of Legends (video game) | book | 110 · 1 · 1 · 1.06 · 1 · 0.9 | Final Chapter (beam) | support |  |
+| League of Legends | Katarina | League of Legends (video game) | blink cards | 95 · 1.3 · 1 · 0.63 · 1 · 0.9 | Death Lotus (fire ring) | glass |  |
+| League of Legends | Garen | League of Legends (video game) | sword | 115 · 0.85 · 1 · 0.5 · 1 · 1.1 | Demacian Justice (giant hit) | tank |  |
+| League of Legends | Jinx | League of Legends (video game) | gun | 95 · 1 · 1 · 0.82 · 1 · 1 | Super Mega Death Rocket (volley) | ranged |  |
+| League of Legends | Ahri | League of Legends (video game) | return staff | 100 · 1.1 · 1 · 1.04 · 1 · 1 | Spirit Rush (blink strike) | ranged |  |
+| League of Legends | Lux | League of Legends (video game) | wand | 95 · 1 · 1 · 0.88 · 1 · 1 | Final Spark (beam) | ranged | new |
+| League of Legends | Yasuo | League of Legends (video game) | sword | 100 · 1.15 · 1 · 0.81 · 1 · 1 | Wind Wall (wall) | duelist | new |
+| League of Legends | Lee Sin | League of Legends (video game) | fists | 100 · 1.15 · 1 · 0.85 · 1 · 1 | Dragon's Rage (giant hit) | duelist | new |
+| Fighting games | Ryu | Street Fighter (video games) | fists + gun | 100 · 1 · 1 · 0.68 · 1 · 1 | Shoryuken (giant hit) | duelist |  |
+| Fighting games | Ken | Street Fighter (video games) | fists + gun | 100 · 1.05 · 1 · 0.6 · 1 · 1 | Shoryureppa (giant hit) | duelist |  |
+| Fighting games | Chun-Li | Street Fighter (video games) | fists | 100 · 1.3 · 1 · 0.91 · 1 · 1 | Spinning Bird Kick (fire ring) | duelist |  |
+| Fighting games | Scorpion | Mortal Kombat (video games) | pull chain | 100 · 1 · 1 · 0.81 · 1 · 1 | Hellfire (fire ring) | control |  |
+| Fighting games | Sub-Zero | Mortal Kombat (video games) | ice | 100 · 1 · 1 · 1.57 · 1 · 1 | Ice Clone (decoys) | control |  |
+| Fighting games | Akuma | Street Fighter (video games) | fists + gun | 95 · 1 · 1 · 0.58 · 1 · 1 | Raging Demon (blink strike) | duelist | new |
+| Fighting games | Liu Kang | Mortal Kombat (video games) | fists + gun | 100 · 1 · 1 · 0.66 · 1 · 1 | Bicycle Kick (attack speed burst + speed burst) | duelist | new |
+| Fighting games | Raiden | Mortal Kombat (video games) | spark | 100 · 1 · 1 · 1.34 · 1 · 1 | Electric Fly (speed burst + giant hit) | duelist | new |
+| Fighting games | Kazuya | Tekken (video games) | fists | 105 · 0.9 · 1 · 0.72 · 1 · 1 | Electric Wind God Fist (giant hit) | bruiser | new |
+| Game legends | Master Chief | Halo (video games) | burst gun | 115 · 0.85 · 1 · 1.03 · 1 · 1.1 | Spartan Charge (speed burst + giant hit) | tank |  |
+| Game legends | Doom Slayer | Doom (video games) | shotgun | 105 · 1 · 1 · 0.97 · 1 · 1 | BFG (beam) | bruiser |  |
+| Game legends | Kratos | God of War (video games) | chain | 100 · 1 · 1 · 1.59 · 1 · 1 | Spartan Rage (damage burst + heal) | bruiser |  |
+| Game legends | Zeus | God of War (video games) | gun | 110 · 1 · 1 · 1.02 · 1 · 1 | Zeus' Fury (lightning) | ranged | new |
+| Game legends | Lara Croft | Tomb Raider (video games) | burst gun | 100 · 1.15 · 1 · 0.88 · 1 · 1 | Survival Instinct (giant hit) | ranged | new |
+| Game legends | Cloud Strife | Final Fantasy VII (video games) | sword | 105 · 1 · 1 · 0.6 · 1 · 1 | Omnislash (blink strike) | bruiser | new |
+| Game legends | Sephiroth | Final Fantasy VII (video games) | sword | 100 · 1 · 1 · 1.1 · 1 · 1 | Octaslash (arena cuts) | duelist | new |
+| Game legends | Arthur Morgan | Red Dead Redemption 2 (video game) | gun | 100 · 1 · 1 · 0.9 · 1 · 1 | Dead Eye (slow time) | ranged | new |
+| Game legends | Pac-Man | Pac-Man (video games) | contact fists | 95 · 1.35 · 1 · 0.69 · 1 · 0.85 | Power Pellet (invulnerable) | glass | new |
+| Shonen anime | Goku | Dragon Ball (anime & manga) | fists + gun | 100 · 1 · 1 · 0.68 · 1 · 1 | Kamehameha (beam) | duelist |  |
+| Shonen anime | Vegeta | Dragon Ball (anime & manga) | fists + gun | 100 · 1 · 1 · 0.64 · 1 · 1 | Final Flash (beam, ultimate) | duelist |  |
+| Shonen anime | Naruto | Naruto (anime & manga) | cards | 100 · 1.1 · 1 · 0.77 · 1 · 1 | Shadow Clone (summon) | summoner |  |
+| Shonen anime | Sasuke | Naruto (anime & manga) | sword | 100 · 1.15 · 1 · 0.63 · 1 · 1 | Chidori (blink strike) | duelist |  |
+| Shonen anime | Luffy | One Piece (anime & manga) | fists | 100 · 1 · 1 · 0.7 · 1 · 1 | Gum-Gum Gatling (attack speed burst) | bruiser |  |
+| Shonen anime | Saitama | One-Punch Man (anime & manga) | fists | 120 · 0.85 · 1 · 0.47 · 1 · 1.1 | Serious Punch (giant hit, ultimate) | tank |  |
+| Shonen anime | Zoro | One Piece (anime & manga) | sword | 100 · 1 · 1 · 0.7 · 1 · 1 | Oni Giri (arena cuts) | duelist | new |
+| Shonen anime | Itachi | Naruto (anime & manga) | gun | 90 · 1.3 · 1 · 1.21 · 1 · 0.9 | Tsukuyomi (freeze all) | glass | new |
+| Shonen anime | Frieza | Dragon Ball (anime & manga) | beam | 100 · 1 · 1 · 1.06 · 1 · 1 | Death Ball (volley, ultimate) | ranged | new |
+| Star Wars | Luke Skywalker | Star Wars (movies) | glow sword | 100 · 1 · 1 · 1.17 · 1 · 1 | Force Push (shockwave) | duelist |  |
+| Star Wars | Darth Vader | Star Wars (movies) | glow sword | 115 · 0.85 · 1 · 0.63 · 1 · 1.1 | Force Choke (choke) | tank |  |
+| Star Wars | Yoda | Star Wars (movies) | glow sword | 95 · 1.45 · 1.3 · 1.05 · 1 · 0.75 | Force Lift (choke) | glass |  |
+| Star Wars | Darth Maul | Star Wars (movies) | double sword | 100 · 1.1 · 1 · 1.6 · 1 · 1 | Saber Throw (volley) | duelist |  |
+| Star Wars | Obi-Wan Kenobi | Star Wars (movies) | glow sword | 100 · 1 · 1 · 1.13 · 1 · 1 | Soresu (reflect) | support | new |
+| Star Wars | Kylo Ren | Star Wars (movies) | glow sword | 105 · 1 · 1 · 0.93 · 1 · 1 | Force Freeze (freeze all) | bruiser | new |
+| Star Wars | Palpatine | Star Wars (movies) | spark | 95 · 0.9 · 1 · 1.8 · 1 · 1 | Force Storm (lightning) | ranged | new |
+| Star Wars | The Mandalorian | Star Wars (TV shows) | gun | 110 · 1 · 1 · 1.03 · 1 · 1 | Whistling Birds (volley) | ranged | new |
+| Fantasy | Harry Potter | Harry Potter (movies & books) | wand | 100 · 1.05 · 1 · 1.01 · 1 · 1 | Expelliarmus (disarm) | control |  |
+| Fantasy | Voldemort | Harry Potter (movies & books) | wand | 100 · 1 · 1 · 1.13 · 1 · 1 | Avada Kedavra (volley, ultimate) | ranged |  |
+| Fantasy | Gandalf | The Lord of the Rings (movies & books) | staff + sword | 100 · 1 · 1 · 0.94 · 1 · 1 | You Shall Not Pass (invulnerable + shockwave) | control |  |
+| Fantasy | Legolas | The Lord of the Rings (movies & books) | bow | 95 · 1.3 · 1 · 0.99 · 1 · 0.9 | Arrow Storm (volley) | glass |  |
+| Fantasy | Hermione Granger | Harry Potter (movies & books) | wand | 95 · 1.1 · 1 · 1.09 · 1 · 1 | Petrificus Totalus (choke) | control | new |
+| Fantasy | Dumbledore | Harry Potter (movies & books) | wand | 95 · 1 · 1 · 1.08 · 1 · 1 | Firestorm (fire ring) | ranged | new |
+| Fantasy | Aragorn | The Lord of the Rings (movies & books) | sword | 100 · 1 · 1 · 0.74 · 1 · 1 | Army of the Dead (summon) | summoner | new |
+| Fantasy | Sauron | The Lord of the Rings (movies & books) | hammer | 125 · 0.8 · 1 · 1.22 · 1 · 1.15 | Eye of Sauron (beam) | tank | new |
+| Fantasy | Geralt | The Witcher (games & books) | sword | 100 · 1 · 1 · 0.94 · 1 · 1 | Aard (shockwave) | duelist | new |
+| Movie monsters | Godzilla | Godzilla (movies) | tail | 120 · 0.8 · 1 · 0.87 · 1 · 1.2 | Atomic Breath (beam) | tank |  |
+| Movie monsters | King Kong | King Kong (movies) | fists | 115 · 0.95 · 1 · 0.66 · 1 · 1.15 | Chest Beat (damage burst) | bruiser |  |
+| Movie monsters | Alien | Alien (movies) | claws + tail | 95 · 1.3 · 1 · 1.13 · 1 · 0.9 | Acid Blood (reflect) | glass |  |
+| Movie monsters | Predator | Predator (movies) | gun + claws | 100 · 1 · 1 · 0.76 · 1 · 1 | Cloak (invulnerable) | ranged |  |
+| Movie monsters | T-Rex | Jurassic Park (movies) | claws | 115 · 0.85 · 1 · 0.77 · 1 · 1.15 | Roar (freeze all) | tank | new |
+| Movie monsters | Jaws | Jaws (movies) | claws | 105 · 1.2 · 1 · 0.86 · 1 · 1 | Feeding Frenzy (drain + attack speed burst) | bruiser | new |
+| Action movies | John Wick | John Wick (movies) | gun | 100 · 1.15 · 1 · 0.58 · 1 · 1 | Baba Yaga (giant hit) | ranged |  |
+| Action movies | Neo | The Matrix (movies) | fists | 95 · 1.3 · 1 · 0.88 · 1 · 0.9 | Bullet Time (slow time) | glass |  |
+| Action movies | Terminator | The Terminator (movies) | shotgun | 120 · 0.85 · 1 · 0.82 · 1 · 1.1 | Minigun (volley) | tank |  |
+| Action movies | RoboCop | RoboCop (movies) | burst gun | 115 · 0.8 · 1 · 0.93 · 1 · 1.1 | Targeting (giant hit) | tank |  |
+| Action movies | Indiana Jones | Indiana Jones (movies) | whip | 100 · 1 · 1 · 1.85 · 1 · 1 | Rolling Boulder (volley) | duelist | new |
+| Action movies | James Bond | James Bond (movies) | gun | 100 · 1 · 1 · 0.81 · 1 · 1 | Laser Watch (beam) | ranged | new |
+| Action movies | Rambo | Rambo (movies) | bow | 105 · 1 · 1 · 0.81 · 1 · 1 | Booby Trap (trap) | control | new |
+| Action movies | Jack Sparrow | Pirates of the Caribbean (movies) | sword + gun | 100 · 1.1 · 1 · 0.83 · 1 · 1 | Broadside (volley) | duelist | new |
+| TV | Homelander | The Boys (TV show) | beam + fists | 100 · 1 · 1 · 0.69 · 1 · 1 | Laser Sweep (beam) | ranged |  |
+| TV | Omni-Man | Invincible (TV show) | fists | 110 · 1 · 1 · 0.54 · 1 · 1 | Viltrumite Rush (speed burst + damage burst) | bruiser |  |
+| TV | Aang | Avatar: The Last Airbender (TV show) | fists | 95 · 1.3 · 1 · 1.14 · 1.3 · 0.85 | Avatar State (fire ring + lightning) | glass |  |
+| TV | Zuko | Avatar: The Last Airbender (TV show) | fire | 100 · 1 · 1 · 1.05 · 1 · 1 | Lightning Redirect (beam) | ranged |  |
+| TV | Jon Snow | Game of Thrones (TV show) | sword | 100 · 1 · 1 · 0.62 · 1 · 1 | Ghost (summon) | summoner |  |
+| TV | Night King | Game of Thrones (TV show) | bow | 115 · 0.85 · 1 · 0.77 · 1 · 1.1 | Raise the Dead (summon) | tank |  |
+| TV | Walter White | Breaking Bad (TV show) | bomb | 90 · 1 · 1 · 2.18 · 1 · 1 | Fulminated Mercury (shockwave) | ranged | new |
+| TV | Eleven | Stranger Things (TV show) | spark | 90 · 1 · 1 · 0.91 · 1 · 1 | Telekinesis (choke) | control | new |
+| TV | Daenerys Targaryen | Game of Thrones (TV show) | fire | 95 · 1 · 1 · 1.17 · 1 · 1 | Dracarys (beam) | ranged | new |
+| Pokémon | Pikachu | Pokémon (video games) | spark | 95 · 1.3 · 1 · 1.19 · 1 · 0.85 | Thunderbolt (lightning) | glass |  |
+| Pokémon | Charizard | Pokémon (video games) | fire | 105 · 1 · 1 · 1.19 · 1 · 1.1 | Blast Burn (fire ring) | bruiser |  |
+| Pokémon | Mewtwo | Pokémon (video games) | staff | 100 · 0.95 · 1 · 1.36 · 1 · 1 | Psystrike (beam) | ranged | new |
+| Pokémon | Lucario | Pokémon (video games) | fists | 100 · 1.1 · 1 · 1.06 · 1 · 1 | Aura Sphere (volley) | duelist | new |
+| Pokémon | Greninja | Pokémon (video games) | cards | 95 · 1.3 · 1 · 1.01 · 1 · 1 | Hydro Pump (beam) | ranged | new |
+| Pokémon | Gengar | Pokémon (video games) | claws | 100 · 1 · 1 · 1.71 · 1 · 1 | Dream Eater (drain + confuse) | control | new |
+| Pokémon | Snorlax | Pokémon (video games) | contact fists | 130 · 0.7 · 1 · 0.66 · 1 · 1.3 | Rest (heal) | tank | new |
+| Modern anime | Gojo | Jujutsu Kaisen (anime & manga) | staff | 100 · 1 · 1 · 1.25 · 1 · 1 | Infinite Void (freeze all, ultimate) | control | new |
+| Modern anime | Sukuna | Jujutsu Kaisen (anime & manga) | claws | 100 · 1.1 · 1 · 1.25 · 1 · 1 | Malevolent Shrine (arena cuts, ultimate) | duelist | new |
+| Modern anime | Tanjiro | Demon Slayer (anime & manga) | sword | 100 · 1 · 1 · 0.51 · 1 · 1 | Hinokami Kagura (damage burst + fire ring) | duelist | new |
+| Modern anime | Nezuko | Demon Slayer (anime & manga) | fists | 95 · 1.3 · 1 · 0.7 · 1 · 0.85 | Exploding Blood (fire ring) | glass | new |
+| Modern anime | Levi | Attack on Titan (anime & manga) | double sword | 95 · 1.4 · 1 · 0.74 · 1 · 0.9 | Spinning Slash (blink strike) | glass | new |
+| Modern anime | Eren | Attack on Titan (anime & manga) | double sword | 100 · 1 · 1 · 0.72 · 1 · 1 | Titan Shift (transform, ultimate) | bruiser | new |
+| Modern anime | Deku | My Hero Academia (anime & manga) | fists | 115 · 0.85 · 1 · 0.64 · 1 · 1.1 | Detroit Smash (giant hit) | tank | new |
+| Modern anime | Bakugo | My Hero Academia (anime & manga) | fire | 100 · 1 · 1 · 0.92 · 1 · 1 | Howitzer Impact (shockwave) | bruiser | new |
+| Sandbox & online games | Steve | Minecraft (video game) | sword | 100 · 1 · 1 · 1.14 · 1 · 1 | TNT (shockwave) | duelist |  |
+| Sandbox & online games | Creeper | Minecraft (video game) | contact fists | 90 · 1.3 · 1 · 1.81 · 1 · 0.9 | Explode (shockwave) | glass | new |
+| Sandbox & online games | Enderman | Minecraft (video game) | fists | 105 · 1 · 1 · 0.7 · 1 · 1 | Teleport (blink strike) | duelist | new |
+| Sandbox & online games | Jonesy | Fortnite (video game) | shotgun | 115 · 0.85 · 1 · 0.74 · 1 · 1.1 | Build Wall (wall) | tank | new |
+| Sandbox & online games | Peely | Fortnite (video game) | bomb | 100 · 1.1 · 1 · 2 · 1 · 1 | Boogie Bomb (confuse) | ranged | new |
+| Sandbox & online games | Noob | Roblox (video game) | sword | 100 · 1 · 1 · 1.06 · 1 · 1 | Rocket Launcher (volley) | duelist | new |
+| Sandbox & online games | Crewmate | Among Us (video game) | claws | 100 · 1.1 · 1 · 0.87 · 1 · 0.9 | Emergency Meeting (freeze all) | control | new |
+| Horror movies | Freddy Krueger | A Nightmare on Elm Street (movies) | claws | 100 · 1 · 1 · 1.8 · 1 · 1 | Dream Demon (slow time) | control | new |
+| Horror movies | Jason Voorhees | Friday the 13th (movies) | sword | 125 · 0.8 · 1 · 0.79 · 1 · 1.1 | Shift (invulnerable + speed burst) | tank | new |
+| Horror movies | Michael Myers | Halloween (movies) | sword | 120 · 0.75 · 1 · 1.29 · 1 · 1.1 | Evil Within (damage burst) | tank | new |
+| Horror movies | Ghostface | Scream (movies) | sword | 100 · 1.2 · 1 · 1.52 · 1 · 1 | Night Shroud (invulnerable + giant hit) | duelist | new |
+| Horror movies | Pennywise | It (movies) | staff | 100 · 1 · 1 · 1.89 · 1 · 1 | Deadlights (freeze all) | control | new |
+| Horror movies | Chucky | Child's Play (movies) | sword | 90 · 1.4 · 1 · 2.32 · 1 · 0.7 | Slice & Dice (blink strike) | glass | new |
+| Horror movies | Leatherface | The Texas Chain Saw Massacre (movies) | sword | 120 · 0.85 · 1 · 0.92 · 1 · 1 | Chainsaw Dance (fire ring) | bruiser | new |
+| Animated movies | Buzz Lightyear | Toy Story (animated movies) | beam | 100 · 1 · 1 · 1.71 · 1 · 1 | Karate Chop Action (giant hit) | ranged | new |
+| Animated movies | Woody | Toy Story (animated movies) | lasso whip | 100 · 1 · 1 · 1.84 · 1 · 1 | Bullseye (summon) | summoner | new |
+| Animated movies | Shrek | Shrek (animated movies) | fists | 120 · 0.85 · 1 · 0.76 · 1 · 1.15 | Ogre Roar (shockwave) | tank | new |
+| Animated movies | Puss in Boots | Shrek (animated movies) | sword | 90 · 1.4 · 1 · 1.83 · 1 · 0.75 | Big Eyes (disarm) | glass | new |
+| Animated movies | Toothless | How to Train Your Dragon (animated movies) | gun | 100 · 1.2 · 1 · 0.86 · 1 · 1 | Plasma Blast (volley) | ranged | new |
+| Animated movies | Elsa | Frozen (animated movies) | ice | 100 · 1 · 1 · 2.14 · 1 · 1 | Eternal Winter (freeze all) | control | new |
+| Animated movies | Mr. Incredible | The Incredibles (animated movies) | fists | 115 · 0.85 · 1 · 0.86 · 1 · 1.1 | Car Throw (volley) | tank | new |
+| Cartoons | Homer Simpson | The Simpsons (TV show) | contact fists | 115 · 0.85 · 1 · 0.94 · 1 · 1.1 | Donut Break (heal + damage burst) | tank | new |
+| Cartoons | SpongeBob | SpongeBob SquarePants (TV show) | staff | 100 · 1.15 · 1 · 1.29 · 1 · 1 | Jellyfishing (summon) | summoner | new |
+| Cartoons | Rick Sanchez | Rick and Morty (TV show) | gun | 100 · 1 · 1 · 1.22 · 1 · 1 | Pickle Rick (transform) | ranged | new |
+| Cartoons | Bugs Bunny | Looney Tunes (cartoons) | fuse bomb | 100 · 1.2 · 1 · 2.21 · 1 · 1 | Rabbit Hole (blink strike) | ranged | new |
+| Cartoons | Tom | Tom and Jerry (cartoons) | hammer | 105 · 1 · 1 · 1.45 · 1 · 1 | Mousetrap (trap) | control | new |
+| Cartoons | Jerry | Tom and Jerry (cartoons) | hammer | 90 · 1.6 · 1 · 1.85 · 1 · 0.7 | Mouse Hole (invulnerable + giant hit) | glass | new |
+| Cartoons | Popeye | Popeye (cartoons) | fists | 105 · 1 · 1 · 0.71 · 1 · 1 | Spinach Power (transform) | bruiser | new |
+| Wildcard | Gerald | This site's own ball | fists | 100 · 1 · 1 · 1 · 1 · 1 | Mega Bounce (speed burst + damage burst) | duelist |  |
+<!-- /fl-roster -->
 
-**Balance** – `tests/fightLeague.test.ts` plays every pair of a division over 6 seeds (three with the sides swapped; headless, fixed 60 Hz steps, a 60 s cap, a draw counting half) – one test per division and arena (the circle has its own gate since the overhaul's QA finding 2), the whole round robin in about 30 s – and fails if a fighter wins more than 75 % or fewer than 25 % of its division's matches in either arena; the rows' damage stat was re-tuned for the overhaul's rules until every division held in both arenas (balanced over 14 seeds per pair first, then fitted to the gate's seeds). The win rates (the fights took 11–23 s on average per division in the square and 10–28 s in the circle, none reached the cap; Gerald, the wildcard, has no division to play):
+**Balance** – the gate (`tests/fightLeagueBalance{ComicsAnimeShows,Games,Movies}.test.ts` with its helper `tests/flBalance.ts`: one test per division, 18 in three files that vitest runs in parallel) plays every pair of a division over the six balance seeds of `tests/flProbes.ts` (three with the sides swapped; headless, fixed 60 Hz steps, a 60 s cap from FIGHT! and then sudden death, a draw counting half) in the square and in the circle, and fails if a fighter wins more than 75 % or fewer than 25 % of its matches in either arena, if the division's median fight after FIGHT! is outside 12–25 s or if more than 2 % of its duels reach the cap. The damage stats are the **tuner's** (`node scripts/fl-balance.mjs`, `--apply` to write them; one child per division, `FL_TUNE=1 FL_TUNE_DIVISIONS=<division> npx vitest run tests/tools/flBalanceTune.test.ts` – the tool test is skipped without `FL_TUNE`, which CI never sets): on 16 train seeds disjoint from the gate's (50000 + k·104729), in both arenas, every fighter's damage stat is multiplied by clamp((0.5 / its win share)^(0.4 · 0.85^iteration + 0.12), 0.75, 1.33) × clamp((median fight / 17 s)^0.7, 0.85, 1.18) – the exponent halved for a fighter whose share crossed 50 % since its last update, down to an eighth: a melee trade is won or lost outright at 1.25× (`FL_CLASH_RATIO`), so a fist-heavy division (Fighting games) overshoots back and forth on the plain rule – kept in 0.3–2.6, for at most 18 iterations, until every fighter wins 40–60 % with a median fight of 12–25 s. Each child writes `scripts/out/fl-balance/<division>.json` (git-ignored): the patch, the train and test tables (both arenas and each), the median fights, the share at the cap, the pinned fighters (a damage at a clamp or a train share outside 40–60 %: none) and, as a diagnosis, the lopsided ones (a train share outside 35–65 % in one arena – the damage stat moves both arenas alike, so only the kit can fix that: starWars/vader (square 44.2 %, circle 66.1 %); fantasy/legolas (square 65.6 %, circle 44.5 %); tv/homelander (square 65.6 %, circle 50.8 %)); the parent prints the patch and the table below, and `--apply` writes the damage stats into the rows and `src/lib/physics/modes/fightLeagueRatings.ts` (`FL_STRENGTH`: every fighter's test-seed win share and a Bradley–Terry strength, geometric mean 1 per division, with the roster's fingerprint – `tests/fightLeague.test.ts` warns, without failing, once the rows change after it). Run on the tuned roster it converges at iteration 0, so the patch it prints is the one already applied. Nine kits were adjusted by hand where one arena favoured them (the tuner's per-arena diagnosis, probed fighter by fighter against the division before the re-tune): Bugs Bunny's dynamite (a splash of 1.7 radii instead of 2.2, a lob every 1.4 s instead of 1.6 – the fuse made it far stronger in the circle), Neo (a punch every 0.36 s instead of 0.4), Spider-Man (a web every 0.9 s instead of 1.1), Aquaman (a trident of 2.0 radii instead of 2.3), Luffy (fists of 2.2 radii instead of 2.4), Kylo Ren (a sweep every 0.4 s instead of 0.45), Levi (blades of 2.1 radii instead of 1.9), Homelander (fists of 1.2 radii instead of 0.9) and Yuumi (110 HP instead of 100).
 
-| Division | Square | Circle |
-| --- | --- | --- |
-| Marvel | Thor 50 %, Loki 40 %, Spider-Man 60 %, Iron Man 53 %, Captain America 43 %, Hulk 53 % | Thor 33 %, Loki 62 %, Spider-Man 33 %, Iron Man 52 %, Captain America 60 %, Hulk 60 % |
-| DC | Superman 56 %, Batman 33 %, Joker 56 %, Wonder Woman 56 % | Superman 61 %, Batman 39 %, Joker 56 %, Wonder Woman 44 % |
-| Nintendo & Sega | Mario 63 %, Link 47 %, Samus 57 %, Captain Falcon 60 %, Little Mac 37 %, Sonic 37 % | Mario 50 %, Link 47 %, Samus 53 %, Captain Falcon 63 %, Little Mac 37 %, Sonic 50 % |
-| League of Legends | Yuumi 65 %, Katarina 44 %, Garen 42 %, Jinx 33 %, Ahri 67 % | Yuumi 33 %, Katarina 63 %, Garen 58 %, Jinx 38 %, Ahri 58 % |
-| Fighting games | Ryu 42 %, Ken 63 %, Chun-Li 42 %, Scorpion 54 %, Sub-Zero 50 % | Ryu 54 %, Ken 54 %, Chun-Li 38 %, Scorpion 58 %, Sub-Zero 46 % |
-| Game legends | Master Chief 40 %, Doom Slayer 57 %, Kratos 57 %, Steve 37 %, Pikachu 50 %, Charizard 60 % | Master Chief 55 %, Doom Slayer 42 %, Kratos 43 %, Steve 47 %, Pikachu 67 %, Charizard 47 % |
-| Shonen anime | Goku 53 %, Vegeta 47 %, Naruto 40 %, Sasuke 47 %, Luffy 67 %, Saitama 47 % | Goku 37 %, Vegeta 43 %, Naruto 63 %, Sasuke 57 %, Luffy 63 %, Saitama 37 % |
-| Star Wars | Luke Skywalker 50 %, Darth Vader 33 %, Yoda 50 %, Darth Maul 67 % | Luke Skywalker 56 %, Darth Vader 56 %, Yoda 39 %, Darth Maul 50 % |
-| Fantasy | Harry Potter 44 %, Voldemort 33 %, Gandalf 67 %, Legolas 56 % | Harry Potter 56 %, Voldemort 47 %, Gandalf 36 %, Legolas 61 % |
-| Movie monsters | Godzilla 47 %, King Kong 36 %, Alien 50 %, Predator 67 % | Godzilla 61 %, King Kong 44 %, Alien 50 %, Predator 44 % |
-| Action movies | John Wick 56 %, Neo 33 %, Terminator 61 %, RoboCop 50 % | John Wick 50 %, Neo 58 %, Terminator 44 %, RoboCop 47 % |
-| TV | Homelander 57 %, Omni-Man 47 %, Aang 33 %, Zuko 67 %, Jon Snow 47 %, Night King 50 % | Homelander 50 %, Omni-Man 52 %, Aang 50 %, Zuko 43 %, Jon Snow 50 %, Night King 55 % |
+The tuner (train: both arenas; test: the gate's seeds, per arena):
+
+| Division | Fighters | Iterations | Damage range | Train win % (min–max) | Test win % square (min–max) | Test win % circle (min–max) | Median TTK square / circle | At the cap | Pinned |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| marvel | 10 | 0 | 0.65–2 | 45–54 | 35–59 | 37–60 | 18.1 s / 16.8 s | 0.0 % | – |
+| dc | 8 | 0 | 0.57–1.45 | 44–54 | 41–64 | 41–71 | 18.5 s / 17 s | 0.0 % | – |
+| nintendo | 10 | 0 | 0.73–1.54 | 43–56 | 39–69 | 37–61 | 17.4 s / 15.8 s | 0.0 % | – |
+| league | 8 | 0 | 0.5–1.06 | 45–60 | 32–71 | 31–62 | 17.4 s / 17.1 s | 0.0 % | – |
+| fighting | 9 | 0 | 0.58–1.57 | 42–59 | 40–65 | 33–71 | 18.8 s / 15.8 s | 0.0 % | – |
+| legends | 9 | 0 | 0.6–1.59 | 43–54 | 37–65 | 35–58 | 17 s / 16.3 s | 0.0 % | – |
+| shonen | 9 | 0 | 0.47–1.21 | 45–56 | 30–73 | 38–67 | 17.4 s / 16.7 s | 0.0 % | – |
+| starWars | 8 | 0 | 0.63–1.8 | 41–56 | 36–62 | 33–62 | 16.6 s / 17.1 s | 0.0 % | – |
+| fantasy | 9 | 0 | 0.74–1.22 | 41–60 | 37–71 | 38–60 | 16.9 s / 16 s | 0.0 % | – |
+| monsters | 6 | 0 | 0.66–1.13 | 44–59 | 33–68 | 43–60 | 17.7 s / 16.5 s | 0.0 % | – |
+| action | 8 | 0 | 0.58–1.85 | 43–53 | 36–64 | 37–62 | 17 s / 16.8 s | 0.0 % | – |
+| tv | 9 | 0 | 0.54–2.18 | 42–58 | 38–73 | 38–63 | 18 s / 16.9 s | 0.0 % | – |
+| pokemon | 7 | 0 | 0.66–1.71 | 43–55 | 33–64 | 35–58 | 16.7 s / 16.7 s | 1.6 % | – |
+| modernAnime | 8 | 0 | 0.51–1.25 | 46–55 | 41–62 | 41–62 | 18.4 s / 16.2 s | 0.0 % | – |
+| sandbox | 7 | 0 | 0.7–2 | 46–56 | 39–58 | 36–58 | 17 s / 16.3 s | 0.0 % | – |
+| horror | 7 | 0 | 0.79–2.32 | 44–56 | 33–58 | 36–72 | 19.6 s / 16.4 s | 0.0 % | – |
+| animated | 7 | 0 | 0.76–2.14 | 48–53 | 36–69 | 39–56 | 18.3 s / 18.1 s | 0.0 % | – |
+| cartoons | 7 | 0 | 0.71–2.21 | 45–56 | 36–67 | 32–64 | 17.7 s / 15.6 s | 0.0 % | – |
+
+The gate's win tables (as `npx vitest run tests/fightLeagueBalance*.test.ts` prints them; the fights after FIGHT!; Gerald, the wildcard, has no division to play):
+
+| Division | Median fight | At the cap | Square | Circle |
+| --- | --- | --- | --- | --- |
+| Marvel | 17.2 s | 0/540 | Thor 57%, Loki 54%, Spider-Man 59%, Iron Man 56%, Captain America 48%, Hulk 48%, Venom 44%, Thanos 41%, Deadpool 57%, Wolverine 35% | Thor 43%, Loki 60%, Spider-Man 37%, Iron Man 58%, Captain America 44%, Hulk 54%, Venom 52%, Thanos 56%, Deadpool 48%, Wolverine 48% |
+| DC | 17.7 s | 0/336 | Superman 64%, Batman 57%, Joker 51%, Wonder Woman 40%, The Flash 52%, Aquaman 49%, Harley Quinn 40%, Darkseid 45% | Superman 52%, Batman 45%, Joker 54%, Wonder Woman 43%, The Flash 71%, Aquaman 40%, Harley Quinn 49%, Darkseid 45% |
+| Nintendo & Sega | 16.6 s | 0/540 | Mario 46%, Link 50%, Samus 44%, Captain Falcon 54%, Little Mac 46%, Sonic 43%, Kirby 69%, Donkey Kong 57%, Bowser 53%, Shadow 39% | Mario 52%, Link 46%, Samus 50%, Captain Falcon 52%, Little Mac 37%, Sonic 54%, Kirby 54%, Donkey Kong 61%, Bowser 48%, Shadow 46% |
+| League of Legends | 17.3 s | 0/336 | Yuumi 56%, Katarina 64%, Garen 71%, Jinx 40%, Ahri 32%, Lux 52%, Yasuo 40%, Lee Sin 43% | Yuumi 31%, Katarina 62%, Garen 57%, Jinx 36%, Ahri 60%, Lux 52%, Yasuo 52%, Lee Sin 50% |
+| Fighting games | 17.0 s | 0/432 | Ryu 54%, Ken 65%, Chun-Li 40%, Scorpion 50%, Sub-Zero 40%, Akuma 56%, Liu Kang 45%, Raiden 51%, Kazuya 50% | Ryu 49%, Ken 43%, Chun-Li 56%, Scorpion 33%, Sub-Zero 49%, Akuma 58%, Liu Kang 41%, Raiden 71%, Kazuya 50% |
+| Game legends | 16.8 s | 0/432 | Master Chief 58%, Doom Slayer 65%, Kratos 52%, Zeus 36%, Lara Croft 54%, Cloud Strife 44%, Sephiroth 43%, Arthur Morgan 56%, Pac-Man 42% | Master Chief 57%, Doom Slayer 42%, Kratos 48%, Zeus 35%, Lara Croft 49%, Cloud Strife 56%, Sephiroth 58%, Arthur Morgan 56%, Pac-Man 48% |
+| Shonen anime | 17.1 s | 0/432 | Goku 57%, Vegeta 50%, Naruto 30%, Sasuke 42%, Luffy 44%, Saitama 46%, Zoro 56%, Itachi 52%, Frieza 73% | Goku 50%, Vegeta 40%, Naruto 65%, Sasuke 44%, Luffy 54%, Saitama 38%, Zoro 42%, Itachi 52%, Frieza 67% |
+| Star Wars | 16.9 s | 0/336 | Luke Skywalker 61%, Darth Vader 50%, Yoda 43%, Darth Maul 51%, Obi-Wan Kenobi 62%, Kylo Ren 36%, Palpatine 43%, The Mandalorian 55% | Luke Skywalker 52%, Darth Vader 62%, Yoda 60%, Darth Maul 57%, Obi-Wan Kenobi 52%, Kylo Ren 43%, Palpatine 40%, The Mandalorian 33% |
+| Fantasy | 16.6 s | 0/432 | Harry Potter 49%, Voldemort 36%, Gandalf 47%, Legolas 71%, Hermione Granger 54%, Dumbledore 48%, Aragorn 36%, Sauron 52%, Geralt 56% | Harry Potter 58%, Voldemort 49%, Gandalf 38%, Legolas 39%, Hermione Granger 42%, Dumbledore 60%, Aragorn 54%, Sauron 50%, Geralt 60% |
+| Movie monsters | 17.4 s | 0/180 | Godzilla 68%, King Kong 33%, Alien 57%, Predator 50%, T-Rex 43%, Jaws 48% | Godzilla 60%, King Kong 48%, Alien 55%, Predator 43%, T-Rex 43%, Jaws 50% |
+| Action movies | 16.9 s | 0/336 | John Wick 61%, Neo 43%, Terminator 52%, RoboCop 40%, Indiana Jones 48%, James Bond 56%, Rambo 64%, Jack Sparrow 36% | John Wick 49%, Neo 57%, Terminator 42%, RoboCop 54%, Indiana Jones 50%, James Bond 50%, Rambo 37%, Jack Sparrow 62% |
+| TV | 17.5 s | 0/432 | Homelander 73%, Omni-Man 38%, Aang 40%, Zuko 58%, Jon Snow 56%, Night King 51%, Walter White 49%, Eleven 44%, Daenerys Targaryen 42% | Homelander 46%, Omni-Man 56%, Aang 52%, Zuko 38%, Jon Snow 48%, Night King 42%, Walter White 63%, Eleven 56%, Daenerys Targaryen 50% |
+| Pokémon | 16.7 s | 2/252 | Pikachu 53%, Charizard 50%, Mewtwo 33%, Lucario 56%, Greninja 50%, Gengar 44%, Snorlax 64% | Pikachu 56%, Charizard 56%, Mewtwo 49%, Lucario 47%, Greninja 35%, Gengar 58%, Snorlax 50% |
+| Modern anime | 17.1 s | 0/336 | Gojo 60%, Sukuna 40%, Tanjiro 40%, Nezuko 43%, Levi 62%, Eren 43%, Deku 52%, Bakugo 60% | Gojo 44%, Sukuna 60%, Tanjiro 48%, Nezuko 62%, Levi 40%, Eren 54%, Deku 45%, Bakugo 48% |
+| Sandbox & online games | 16.5 s | 0/252 | Steve 58%, Creeper 53%, Enderman 50%, Jonesy 56%, Peely 39%, Noob 56%, Crewmate 39% | Steve 58%, Creeper 56%, Enderman 50%, Jonesy 53%, Peely 44%, Noob 53%, Crewmate 36% |
+| Horror movies | 18.4 s | 0/252 | Freddy Krueger 53%, Jason Voorhees 33%, Michael Myers 42%, Ghostface 56%, Pennywise 53%, Chucky 58%, Leatherface 56% | Freddy Krueger 53%, Jason Voorhees 58%, Michael Myers 72%, Ghostface 44%, Pennywise 36%, Chucky 39%, Leatherface 47% |
+| Animated movies | 18.2 s | 0/252 | Buzz Lightyear 50%, Woody 44%, Shrek 36%, Puss in Boots 47%, Toothless 69%, Elsa 47%, Mr. Incredible 56% | Buzz Lightyear 49%, Woody 50%, Shrek 56%, Puss in Boots 47%, Toothless 56%, Elsa 54%, Mr. Incredible 39% |
+| Cartoons | 16.7 s | 0/252 | Homer Simpson 67%, SpongeBob 39%, Rick Sanchez 47%, Bugs Bunny 61%, Tom 56%, Jerry 44%, Popeye 36% | Homer Simpson 47%, SpongeBob 32%, Rick Sanchez 58%, Bugs Bunny 61%, Tom 43%, Jerry 64%, Popeye 44% |
 
 ### Beat Runner and Paddle Keep-Up (rhythm runner)
 Feature jdm-rhythm-runner: two modes without rings that own their playfields (the `"none"` ring layout; each moves one ordinary engine ball – `gravityScale` 0, `ballsMayRest`, `ballsPassThrough` – so pause, playback speed, restart, the recorder and the fast export work unchanged; only a run played by hand – a Beat Runner without Auto Jump, a Paddle Keep-Up without Auto Platform, `jdmRhythmPlayedByHand()` – is left to Record Video, since the export's fresh engine has no player: the ⚡ Fast export is off for it with a note (`FastExport.handPlayNote`) and a batch job of one fails as "played by hand" (`BatchRender.errorHandPlay`)) and draw their own entities through a small renderer module and a few `Canvas.tsx` hooks, like the race and the arena games. `src/lib/physics/modes/jdmRhythm.ts` holds what they share (`isJdmRhythmMode()`, the scale-degree notes `rhythmPitch()` / `rhythmChord()`); `jdmRhythmFields.ts` glues their SimulatorSettings fields, ranges, URL keys and validation into `settings.ts` and their finder settings into `finder.ts`.

@@ -88,7 +88,7 @@ export const FL_ROWS_MODERN_ANIME: readonly FlFighterRow[] = [
     source: ANIME("Attack on Titan"),
     body: "#1f2937",
     accent: "#15803d",
-    weapons: [{ kind: "sword", style: "double", cooldown: 0.3, damage: 6, look: "double", color: "#e5e7eb" }],
+    weapons: [{ kind: "sword", style: "double", cooldown: 0.3, damage: 6, reach: 2.1, look: "double", color: "#e5e7eb" }],
     stats: S({ hp: 95, speed: 1.4, size: 0.9, damage: 0.74 }),
     ability: { name: "Spinning Slash", charge: 10, effects: [{ p: "blinkStrike", n: 5, damage: 5 }] },
     description: "Dual blades and grappling speed; the Spinning Slash zips through the nearest foe five times.",

@@ -14,10 +14,15 @@ import { BALANCE_SEEDS, median, probeDuel } from "../flProbes";
  *   dmg ×= clamp((0.5 / rate)^(0.4 · 0.85^it + 0.12), 0.75, 1.33) × clamp((median TTK / 17 s)^0.7, 0.85, 1.18)
  *
  * (rate: its train win share, a draw half; TTK: the fights' length after FIGHT!), the damage kept in [0.3, 2.6] and rounded to
- * two decimals, for at most 18 iterations – stopping as soon as every fighter wins 40–60 % with a median TTK of 12–25 s. It
+ * two decimals, for at most 18 iterations – stopping as soon as every fighter wins 40–60 % with a median TTK of 12–25 s. A
+ * fighter whose rate crossed 50 % since its last update has its exponent halved (down to an eighth): a melee trade is won or
+ * lost outright at FL_CLASH_RATIO, so in a fist-heavy division (Fighting games) a small change can flip whole matchups, and the
+ * plain rule overshoots back and forth instead of settling. It
  * then plays the TEST seeds (the balance test's) and writes scripts/out/fl-balance/<division>.json: the patch, the train and
  * test win tables, the median TTKs, the share of fights at the cap, the pinned fighters (a damage at a clamp, or a train rate
- * outside 40–60 %), a Bradley–Terry strength per fighter (test seeds, geometric mean 1) and the divisions' fingerprints.
+ * outside 40–60 %), a Bradley–Terry strength per fighter (test seeds, geometric mean 1) and the divisions' fingerprints – and,
+ * as a diagnosis, the train rates of each arena on its own and the LOPSIDED fighters (outside 35–65 % in one arena: the balance
+ * test gates the arenas apart, and the damage stat moves both alike, so such a kit needs a hand).
  */
 
 const TUNE = process.env.FL_TUNE === "1";
@@ -31,6 +36,8 @@ const clamp = (x: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, x
 
 interface RoundRobin {
   rate: Map<string, number>;
+  /** The win share in each arena on its own (the balance test gates the arenas apart). */
+  byArena: Map<string, Map<string, number>>;
   ttk: number[];
   capped: number;
   games: number;
@@ -38,16 +45,22 @@ interface RoundRobin {
   pairs: Map<string, [number, number]>;
 }
 
+/** A per-arena train share outside this band marks a fighter LOPSIDED (its kit, not its damage, favours one arena). */
+const LOPSIDED = [0.35, 0.65] as const;
+
 /** A turn of the event loop: the worker answers vitest's calls between pairs (a long synchronous run times its RPC out). */
 const breathe = () => new Promise<void>((resolve) => setImmediate(resolve));
 
 async function roundRobin(rows: FlFighterRow[], seeds: readonly { seed: number; swap: boolean }[], arenas: readonly ("square" | "circle")[]): Promise<RoundRobin> {
   const wins = new Map<string, number>();
   const games = new Map<string, number>();
+  const arenaWins = new Map<string, number>();
+  const arenaGames = new Map<string, number>();
   const pairs = new Map<string, [number, number]>();
   const ttk: number[] = [];
   let capped = 0;
   let total = 0;
+  const add = (m: Map<string, number>, k: string, x: number) => m.set(k, (m.get(k) ?? 0) + x);
   for (let i = 0; i < rows.length; i++) {
     for (let j = i + 1; j < rows.length; j++) {
       const key = `${rows[i].id}|${rows[j].id}`;
@@ -60,11 +73,15 @@ async function roundRobin(rows: FlFighterRow[], seeds: readonly { seed: number; 
           total++;
           ttk.push(Math.max(0, v.finishMs - FL_INTRO_MS) / 1000);
           if (v.byTime) capped++;
-          games.set(a, (games.get(a) ?? 0) + 1);
-          games.set(b, (games.get(b) ?? 0) + 1);
+          add(games, a, 1);
+          add(games, b, 1);
           const share = v.winnerTeam === 0 ? [1, 0] : v.winnerTeam === 1 ? [0, 1] : [0.5, 0.5];
-          wins.set(a, (wins.get(a) ?? 0) + share[0]);
-          wins.set(b, (wins.get(b) ?? 0) + share[1]);
+          add(wins, a, share[0]);
+          add(wins, b, share[1]);
+          add(arenaGames, `${arena}|${a}`, 1);
+          add(arenaGames, `${arena}|${b}`, 1);
+          add(arenaWins, `${arena}|${a}`, share[0]);
+          add(arenaWins, `${arena}|${b}`, share[1]);
           pair[swap ? 1 : 0] += share[0];
           pair[swap ? 0 : 1] += share[1];
         }
@@ -74,7 +91,8 @@ async function roundRobin(rows: FlFighterRow[], seeds: readonly { seed: number; 
     }
   }
   const rate = new Map(rows.map((r) => [r.id, (wins.get(r.id) ?? 0) / Math.max(1, games.get(r.id) ?? 0)]));
-  return { rate, ttk, capped, games: total, pairs };
+  const byArena = new Map(arenas.map((arena) => [arena, new Map(rows.map((r) => [r.id, (arenaWins.get(`${arena}|${r.id}`) ?? 0) / Math.max(1, arenaGames.get(`${arena}|${r.id}`) ?? 0)]))]));
+  return { rate, byArena, ttk, capped, games: total, pairs };
 }
 
 /** Bradley–Terry strengths from pairwise wins (a half win each way as a prior), normalised to a geometric mean of 1. */
@@ -119,6 +137,9 @@ describe.skipIf(!TUNE)("fight league balance tuner (a tool: FL_TUNE=1, scripts/f
       const log: string[] = [];
       let it = 0;
       let train: RoundRobin = await roundRobin(rows, TRAIN_SEEDS, ARENAS);
+      // (the oscillation damping: per fighter the side of 50 % it was on at its last update and its exponent's factor)
+      const side = new Map<string, number>();
+      const damp = new Map(rows.map((r) => [r.id, 1]));
       for (;;) {
         const med = median(train.ttk);
         const rates = rows.map((r) => train.rate.get(r.id)!);
@@ -129,7 +150,10 @@ describe.skipIf(!TUNE)("fight league balance tuner (a tool: FL_TUNE=1, scripts/f
         const ttkFactor = clamp((med / 17) ** 0.7, 0.85, 1.18);
         for (const r of rows) {
           const rate = train.rate.get(r.id)!;
-          const k = clamp((0.5 / Math.max(1e-9, rate)) ** exp, 0.75, 1.33) * ttkFactor;
+          const now = Math.sign(rate - 0.5);
+          if (now !== 0 && side.has(r.id) && side.get(r.id) !== now) damp.set(r.id, Math.max(0.125, 0.5 * damp.get(r.id)!));
+          if (now !== 0) side.set(r.id, now);
+          const k = clamp((0.5 / Math.max(1e-9, rate)) ** (exp * damp.get(r.id)!), 0.75, 1.33) * ttkFactor;
           (r.stats as { damage: number }).damage = Math.round(100 * clamp(r.stats.damage * k, DMG_MIN, DMG_MAX)) / 100;
         }
         it++;
@@ -152,6 +176,9 @@ describe.skipIf(!TUNE)("fight league balance tuner (a tool: FL_TUNE=1, scripts/f
       const bt = bradleyTerry(rows, allPairs);
       const pinned = rows.filter((r) => r.stats.damage <= DMG_MIN || r.stats.damage >= DMG_MAX || train.rate.get(r.id)! < 0.4 || train.rate.get(r.id)! > 0.6).map((r) => r.id);
       const testWin = Object.fromEntries(rows.map((r) => [r.id, pct((test.square[r.id] + test.circle[r.id]) / 2)]));
+      // (a diagnosis, not a rule of the update: the damage stat moves both arenas alike, so a lopsided kit needs a hand)
+      const trainByArena = Object.fromEntries([...train.byArena].map(([arena, m]) => [arena, Object.fromEntries(rows.map((r) => [r.id, pct(m.get(r.id)!)]))]));
+      const lopsided = rows.filter((r) => [...train.byArena.values()].some((m) => m.get(r.id)! < LOPSIDED[0] || m.get(r.id)! > LOPSIDED[1])).map((r) => r.id);
       const report = {
         division,
         arenas: ARENAS,
@@ -160,6 +187,8 @@ describe.skipIf(!TUNE)("fight league balance tuner (a tool: FL_TUNE=1, scripts/f
         before,
         patch: Object.fromEntries(rows.map((r) => [r.id, r.stats.damage])),
         train: Object.fromEntries(rows.map((r) => [r.id, pct(train.rate.get(r.id)!)])),
+        trainByArena,
+        lopsided,
         trainTtk: Math.round(10 * median(train.ttk)) / 10,
         trainCap: pct(train.capped / Math.max(1, train.games)),
         test,

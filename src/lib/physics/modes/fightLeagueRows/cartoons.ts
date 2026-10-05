@@ -74,7 +74,7 @@ export const FL_ROWS_CARTOONS: readonly FlFighterRow[] = [
     source: "Looney Tunes (cartoons)",
     body: "#9ca3af",
     accent: "#f97316",
-    weapons: [{ kind: "bomb", style: "fuse", cooldown: 1.6, damage: 7, effect: 2.2, shape: "dynamite", color: "#dc2626" }],
+    weapons: [{ kind: "bomb", style: "fuse", cooldown: 1.4, damage: 7, effect: 1.7, shape: "dynamite", color: "#dc2626" }],
     stats: S({ speed: 1.2, damage: 2.21 }),
     ability: { name: "Rabbit Hole", charge: 9, effects: [{ p: "blinkStrike", n: 3, damage: 6 }] },
     description: "Lobs lit dynamite; Rabbit Hole burrows away and pops up next to the foe three times.",

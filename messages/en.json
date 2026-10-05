@@ -1921,7 +1921,8 @@
     "flPickerNew": "NEW",
     "flPickerClose": "Close",
     "flRole": "Role: {role}",
-    "flRandomHintScope": "Picked by the seed from {group}."
+    "flRandomHintScope": "Picked by the seed from {group}.",
+    "flPickerGenres": "Random by genre"
   },
   "Modes": {
     "previewAlt": "{name} mode preview",

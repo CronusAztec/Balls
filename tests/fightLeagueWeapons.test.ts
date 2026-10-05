@@ -46,7 +46,7 @@ import { FL_BY_ID, FL_PRESETS, FL_ROSTER, FL_WEAPON_KINDS, weaponOf, type FlFigh
 import { DEFAULT_FIGHT_LEAGUE_LABELS, FightLeagueLayer } from "@/components/simulator/fightLeagueRenderer";
 import { defaultSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { blockShare, breathsOutOfRange, burstSpawnsBehind, dummyDuel, median, meleeMedianFirstHit, mirrorStats, PROBE_INTRO_MS, PROBE_STEP, probeEngine, probeRun, weaponHitsPerSec } from "./flProbes";
-import { divisionTank, duelFirstHitSec } from "./flProbes"; // --- fl-overhaul --- (Stage 2)
+import { breathe, divisionTank, duelFirstHitSec } from "./flProbes"; // --- fl-overhaul --- (Stage 2)
 
 /**
  * --- fl-overhaul --- Fight League's weapon contract and fair hit pipeline (Stage 1 of the overhaul): a probe per weapon kind
@@ -252,10 +252,12 @@ describe("fight league weapon contract (a probe per kind against the dummy)", ()
     }
   });
 
-  it("draws every fighter's weapon on every frame it is held", () => {
+  // (--- fl-overhaul --- Stage 2: 147 fighters – a timeout of its own, and a turn of the event loop between them)
+  it("draws every fighter's weapon on every frame it is held", { timeout: 120_000 }, async () => {
     vi.stubGlobal("document", { createElement: () => ({ width: 1, height: 1, getContext: () => stubContext() }) });
     try {
       for (const row of FL_ROSTER) {
+        await breathe();
         const engine = probeEngine({ fighters: [row.id, "gerald", "random", "random"], hp: 1000, timeCap: 0 }, 1);
         const v = engine.getFightLeagueView();
         const layer = new FightLeagueLayer();
@@ -350,8 +352,8 @@ describe("fight league fair hit pipeline", () => {
     expect(volley).toBeGreaterThan(0);
   });
 
-  it("trades melee hits fairly: a clash parries both, and mirror matches rarely end in a double KO, slot A winning about half", { timeout: 120_000 }, () => {
-    const m = mirrorStats();
+  it("trades melee hits fairly: a clash parries both, and mirror matches rarely end in a double KO, slot A winning about half", { timeout: 120_000 }, async () => {
+    const m = await mirrorStats();
     console.log(`mirror matches: ${m.games} games, double KO ${(100 * m.doubleKo).toFixed(1)} %, slot A ${(100 * m.slotA).toFixed(1)} % of ${m.decided} decided`);
     expect(m.doubleKo).toBeLessThanOrEqual(0.06);
     expect(m.slotA).toBeGreaterThanOrEqual(0.45);
@@ -571,9 +573,9 @@ const BEFORE = {
 };
 
 describe("fight league probe table (before → after this stage's rules)", () => {
-  it("prints the probe numbers the golden re-record quotes", { timeout: 120_000 }, () => {
+  it("prints the probe numbers the golden re-record quotes", { timeout: 120_000 }, async () => {
     const melee = meleeMedianFirstHit();
-    const mirror = mirrorStats();
+    const mirror = await mirrorStats();
     const after = {
       meleeFirstHit: melee.median,
       mirrorDoubleKo: mirror.doubleKo,

@@ -9,14 +9,14 @@
 import { describe, expect, it } from "vitest";
 import { FL_INTRO_MS } from "@/lib/physics/modes/fightLeague";
 import { FL_DIVISION_LABELS, fightersOf, type FlDivision } from "@/lib/physics/modes/fightLeagueRoster";
-import { BALANCE_SEEDS, median, probeDuel } from "./flProbes";
+import { BALANCE_SEEDS, breathe, median, probeDuel } from "./flProbes";
 
 const ARENAS = ["square", "circle"] as const;
 
 export function defineBalanceTests(divisions: readonly FlDivision[]) {
   describe("fight league balance (per division round robin, 6 seeds, both arenas, a 60 s cap)", () => {
     for (const division of divisions) {
-      it(`keeps every ${FL_DIVISION_LABELS[division]} fighter between 25 % and 75 % of its matches in both arenas, the median fight 12–25 s, at most 2 % at the cap`, { timeout: 120_000 }, () => {
+      it(`keeps every ${FL_DIVISION_LABELS[division]} fighter between 25 % and 75 % of its matches in both arenas, the median fight 12–25 s, at most 2 % at the cap`, { timeout: 120_000 }, async () => {
         const rows = fightersOf(division);
         const ttk: number[] = [];
         let capped = 0;
@@ -42,6 +42,7 @@ export function defineBalanceTests(divisions: readonly FlDivision[]) {
                 wins.set(a, (wins.get(a) ?? 0) + wa);
                 wins.set(b, (wins.get(b) ?? 0) + wb);
               }
+              await breathe(); // (a turn of the event loop between pairs: the worker keeps answering its runner)
             }
           }
           const table = rows.map((r) => ({ name: r.name, id: r.id, rate: (wins.get(r.id) ?? 0) / Math.max(1, played.get(r.id) ?? 0) }));

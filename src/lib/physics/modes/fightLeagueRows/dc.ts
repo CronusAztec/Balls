@@ -112,7 +112,7 @@ export const FL_ROWS_DC: readonly FlFighterRow[] = [
     source: DC,
     body: "#f59e0b",
     accent: "#15803d",
-    weapons: [{ kind: "sword", reach: 2.3, cooldown: 0.5, damage: 9, look: "trident", color: "#fbbf24" }],
+    weapons: [{ kind: "sword", reach: 2.0, cooldown: 0.5, damage: 9, look: "trident", color: "#fbbf24" }],
     stats: S({ hp: 110, damage: 0.8 }),
     ability: { name: "Marine Telepathy", charge: 9, effects: [{ p: "summon", n: 2, dur: 4, damage: 5, size: 0.6, shape: "shark" }] },
     description: "A long trident keeps foes at a distance; Marine Telepathy calls two sharks into the ring.",

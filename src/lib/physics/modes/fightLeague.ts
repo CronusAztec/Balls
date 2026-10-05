@@ -43,13 +43,20 @@ import {
  *    cone of pellets), wand, staff and book (fast bolts, homing orbs and pages that fizzle), cards (blades orbiting the
  *    ball and flying one by one), fire (an inhale, then a breath cone at a foe in reach), beam (a glint that locks the aim,
  *    then a thin ray), spark (arcs to a foe in range, on to a second one in a free-for-all), web (slows), ice (freezes),
- *    shield (held toward the foe, blocking hits from the front – each block spends its guard –, thrown every few seconds)
- *    and tail (trailing behind the ball, swinging at a foe in reach).
+ *    shield (held toward the foe, blocking hits from the front – each block spends its guard –, thrown every few seconds),
+ *    tail (trailing behind the ball, swinging at a foe in reach) and – --- fl-overhaul --- Stage 2 – whip (a crack out and
+ *    back at a foe in reach: the tip at full damage, the outer lash at half, one hit a crack; lasso: a snag that drags the
+ *    foe in, `stepWhip()`) and bomb (a lob over everything at where the foe will be, bursting on landing – after a fuse –
+ *    in a splash that falls off to its edge, `lobBomb()` / `stepBomb()` / `burstBomb()`).
  *  - **Ability primitives** (`FL_ABILITY_PRIMITIVES`): speed / damage / attack-speed bursts, invulnerability, freezes,
  *    chokes, arena cuts, beams, volleys, shockwaves, pulls, decoys, heals, fire rings, giant hits, lightning, confusion,
- *    blink strikes, summons, reflection, disarming and slow time – each a case of `castEffect()`. Its telegraph lasts by
- *    its class (`telegraphMs()`: quick, standard, area, ultimate) with the aim locked at its start; a foe inside an area
- *    telegraph is nudged out of it (`EV_DODGE` when it escapes).
+ *    blink strikes, summons, reflection (with `deflect`: enemy shots turned back at their shooter), disarming, slow time and
+ *    – Stage 2 – traps (minions that lie in wait: unblockable damage and a hold), walls (`FlWall`: enemy shots end on them,
+ *    beams stop at them, solid ones stop foes), transforms (the ball resized with its hitbox, the stats through the bursts'
+ *    fields) and drain (the dealer heals a share of its damage) – each a case of `castEffect()`, inside the limits of
+ *    `FL_PRIMITIVE_LIMITS`, charged by its class (`abilityClass()`). Its telegraph lasts by its class (`telegraphMs()`:
+ *    quick, standard, area, ultimate) with the aim locked at its start; a foe inside an area telegraph is nudged out of it
+ *    (`EV_DODGE` when it escapes).
  *
  * Engagement (--- fl-overhaul ---): at FIGHT! every fighter launches at the nearest foe (± a seeded 20°); in flight the
  * intent steering (`seekTurn`, URL flSk – 0 is the pure bounce look) turns its velocity, never its speed, toward the
@@ -74,8 +81,9 @@ import {
  *
  * Determinism: every random number comes from `ctx.random()`, so a seed replays exactly at any frame rate and Find
  * Simulation can search it ("A wins", "B wins", the run's length, a double KO). The draws, in this order – at the init:
- * one per "random" slot (`pickFighters()`), then per fighter in slot order its spawn jitter (x, y), then per fighter its
- * launch heading, then per fighter its cadence jitter and its meter's head start; then every step: the casts in the step's
+ * one per random slot – "random" or a token, in slot order (`pickFighters()`) –, then per fighter in slot order its spawn
+ * jitter (x, y), then per fighter its launch heading, then per fighter its cadence jitter and its meter's head start (the
+ * Stage 2 kinds and primitives draw nothing of their own); then every step: the casts in the step's
  * processing order (an arena cut one draw each, a decoy or a summon two), a blink strike's side (one each, `stepTasks()`),
  * then per sub-step a circle rebound's turn (one each, in the engine's ball order), the weapons in the processing order
  * (one spread draw per projectile, a burst's later rounds included, in launch order) and a repeated clash's coin (one).
@@ -3874,7 +3882,9 @@ export class FightLeagueMode implements GameMode {
     p.splash = Math.max(1, s.effect * f.r);
     p.fuseMs = s.style === "fuse" ? FL_FUSE_MS : 0;
     p.fuseUntil = -1;
-    p.until = now + 2 * p.flyDur + p.fuseMs + 1000;
+    // (a safety net only: the flight runs on its side's time scale – down to the slow-time floor of FL_PRIMITIVE_LIMITS, 0.25
+    // – so the bomb always lands and bursts long before)
+    p.until = now + 4 * (p.flyDur + p.fuseMs) + 1000;
     this.giantShot(f, p);
     this.view.shots++;
     this.budget.offer(0.12, FL_SOUND_OF_KIND.bomb, fighterPitch(f.slot) * 0.75, 0.14);

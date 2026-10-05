@@ -11,8 +11,10 @@
  * One child per division: `npx vitest run tests/tools/flBalanceTune.test.ts` with FL_TUNE=1 FL_TUNE_DIVISIONS=<division> (the
  * tool test is skipped without FL_TUNE, which CI never sets). Each child tunes its division's damage stats on the 16 train
  * seeds and writes scripts/out/fl-balance/<division>.json (see the test file for the update rule); this parent merges them,
- * prints the patch, the README table and the pinned fighters, and with --apply rewrites `damage:` inside the matching
- * `id: "<id>"` row of src/lib/physics/modes/fightLeagueRows/<division>.ts and writes src/lib/physics/modes/fightLeagueRatings.ts
+ * prints the patch (with every fighter's train share in both arenas and in each, and its test shares square / circle), the
+ * README table, the pinned fighters and the lopsided ones (one arena outside 35–65 %), and with --apply rewrites `damage:`
+ * inside the matching `id: "<id>"` row of src/lib/physics/modes/fightLeagueRows/<division>.ts and writes
+ * src/lib/physics/modes/fightLeagueRatings.ts
  * (FL_STRENGTH: every fighter's test-seed win % and Bradley–Terry strength, with the roster fingerprint the tests compare).
  * A run from an already tuned roster converges at iteration 0, so its patch is already applied.
  */
@@ -214,17 +216,22 @@ async function main() {
   }
   let changed = 0;
   const patchLines = [];
-  const table = ["| Division | Fighters | Iterations | Damage range | Test win % (min–max) | Median TTK square / circle | At the cap | Pinned |", "| --- | --- | --- | --- | --- | --- | --- | --- |"];
+  const table = [
+    "| Division | Fighters | Iterations | Damage range | Train win % (min–max) | Test win % square (min–max) | Test win % circle (min–max) | Median TTK square / circle | At the cap | Pinned |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+  ];
   const pinnedAll = [];
+  const lopsidedAll = [];
+  const range = (xs) => `${(100 * Math.min(...xs)).toFixed(0)}–${(100 * Math.max(...xs)).toFixed(0)}`;
   for (const d of TUNABLE) {
     const r = reports.get(d);
     if (!r) continue;
     const ids = Object.keys(r.patch);
-    const wins = ids.map((id) => r.testWin[id]);
     const dmg = ids.map((id) => r.patch[id]);
     const cap = Math.max(r.testCap.square ?? 0, r.testCap.circle ?? 0);
-    table.push(`| ${d} | ${ids.length} | ${r.iterations} | ${Math.min(...dmg)}–${Math.max(...dmg)} | ${(100 * Math.min(...wins)).toFixed(0)}–${(100 * Math.max(...wins)).toFixed(0)} | ${r.testTtk.square} s / ${r.testTtk.circle} s | ${fmtPct(cap)} | ${r.pinned.length ? r.pinned.join(", ") : "–"} |`);
+    table.push(`| ${d} | ${ids.length} | ${r.iterations} | ${Math.min(...dmg)}–${Math.max(...dmg)} | ${range(ids.map((id) => r.train[id]))} | ${range(ids.map((id) => r.test.square[id]))} | ${range(ids.map((id) => r.test.circle[id]))} | ${r.testTtk.square} s / ${r.testTtk.circle} s | ${fmtPct(cap)} | ${r.pinned.length ? r.pinned.join(", ") : "–"} |`);
     for (const id of r.pinned) pinnedAll.push(`${d}/${id}`);
+    for (const id of r.lopsided ?? []) lopsidedAll.push(`${d}/${id} (${Object.entries(r.trainByArena ?? {}).map(([arena, m]) => `${arena} ${fmtPct(m[id])}`).join(", ")})`);
     patchLines.push(`${d} (${r.iterations} iterations, train TTK ${r.trainTtk} s, ${r.seconds} s):`);
     const src = fs.readFileSync(rowsFile(d), "utf8");
     let out = src;
@@ -233,16 +240,18 @@ async function main() {
       const after = r.patch[id];
       out = patchRow(out, id, after);
       const mark = before === after ? " " : "*";
-      patchLines.push(`  ${mark} ${id.padEnd(14)} damage ${String(before).padStart(4)} -> ${String(after).padStart(4)}   train ${fmtPct(r.train[id]).padStart(7)}   test ${fmtPct(r.testWin[id]).padStart(7)}   strength ${r.strength[id]}`);
+      const arenas = r.trainByArena ? ` (${Object.entries(r.trainByArena).map(([arena, m]) => `${arena[0]} ${fmtPct(m[id])}`).join(", ")})` : "";
+      patchLines.push(`  ${mark} ${id.padEnd(14)} damage ${String(before).padStart(4)} -> ${String(after).padStart(4)}   train ${fmtPct(r.train[id]).padStart(7)}${arenas}   test ${fmtPct(r.test.square[id])} / ${fmtPct(r.test.circle[id])}   strength ${r.strength[id]}`);
     }
     changed += ids.filter((id) => patchRow(src, id, r.patch[id]) !== src).length;
     if (APPLY && out !== src) fs.writeFileSync(rowsFile(d), out);
   }
-  console.log("\nPatch (* = a changed damage stat):");
+  console.log("\nPatch (* = a changed damage stat; train: both arenas, then each; test: square / circle):");
   console.log(patchLines.join("\n"));
   console.log("\nREADME table:\n");
   console.log(table.join("\n"));
   console.log(`\nPinned (a damage at a clamp or a train win share outside 40–60 %): ${pinnedAll.length ? pinnedAll.join(", ") : "none"}`);
+  console.log(`Lopsided (a train win share outside 35–65 % in one arena – the kit, not the damage, favours it): ${lopsidedAll.length ? lopsidedAll.join("; ") : "none"}`);
   console.log(changed === 0 ? "\nThe patch is already applied: every damage stat in the rows equals the tuner's." : `\n${changed} row(s) differ from the tuner's damage stat${APPLY ? " – rewritten" : " (run with --apply to write them)"}.`);
   if (APPLY) {
     fs.writeFileSync(RATINGS_FILE, ratingsSource(reports));

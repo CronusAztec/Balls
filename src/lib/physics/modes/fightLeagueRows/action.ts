@@ -34,7 +34,7 @@ export const FL_ROWS_ACTION: readonly FlFighterRow[] = [
     source: "The Matrix (movies)",
     body: "#0b0f0b",
     accent: "#22c55e",
-    weapons: [{ kind: "fists", cooldown: 0.4, damage: 5.5, reach: 1.0 }],
+    weapons: [{ kind: "fists", cooldown: 0.36, damage: 5.5, reach: 1.0 }],
     stats: S({ hp: 95, speed: 1.3, damage: 0.88, size: 0.9 }),
     ability: { name: "Bullet Time", charge: 11, effects: [{ p: "slowTime", dur: 2.5, factor: 0.3 }] },
     description: "Fast martial arts; Bullet Time slows every foe and every shot to a crawl while he moves at full speed.",

@@ -24,7 +24,7 @@ export const FL_ROWS_TV: readonly FlFighterRow[] = [
     accent: "#dc2626",
     weapons: [
       { kind: "beam", cooldown: 2.2, damage: 8, color: "#ef4444" },
-      { kind: "fists", cooldown: 0.55, damage: 6 },
+      { kind: "fists", cooldown: 0.55, damage: 6, reach: 1.2 },
     ],
     stats: S({ damage: 0.69 }),
     ability: { name: "Laser Sweep", charge: 10, effects: [{ p: "beam", dur: 1.5, width: 0.8, damage: 6, color: "#f87171" }] },

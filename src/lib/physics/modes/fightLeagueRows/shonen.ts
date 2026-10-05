@@ -87,7 +87,7 @@ export const FL_ROWS_SHONEN: readonly FlFighterRow[] = [
     source: ANIME("One Piece"),
     body: "#dc2626",
     accent: "#facc15",
-    weapons: [{ kind: "fists", reach: 2.4, cooldown: 0.7, damage: 6 }],
+    weapons: [{ kind: "fists", reach: 2.2, cooldown: 0.7, damage: 6 }],
     stats: S({ damage: 0.7 }),
     ability: { name: "Gum-Gum Gatling", charge: 9, effects: [{ p: "attackSpeedBurst", mult: 4, dur: 2 }] },
     description: "Rubber fists that reach across half the ring; the Gum-Gum Gatling punches four times as fast for two seconds.",

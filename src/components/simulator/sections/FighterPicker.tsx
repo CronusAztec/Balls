@@ -338,7 +338,7 @@ function PickerDialog({ t, letter, value, onClose, onPick, tokenLabel }: { t: Tr
 
   const recentItems = recent.map((v) => ({ value: v, row: FL_BY_ID.get(v) ?? null, label: FL_BY_ID.get(v)?.name ?? tokenLabel(v) }));
   return (
-    <Dialog title={t("flPickerOpen", { slot: letter })} closeLabel={t("flPickerClose")} onClose={onClose} placement={wide ? "top" : "bottom"} initialFocus={inputRef} className={wide ? "max-h-[min(640px,calc(100dvh-24vh))]" : "max-h-[70dvh]"} bodyClassName="flex flex-col">
+    <Dialog title={t("flPickerOpen", { slot: letter })} closeLabel={t("flPickerClose")} onClose={onClose} placement={wide ? "top" : "bottom"} initialFocus={inputRef} className={wide ? "max-h-[min(640px,calc(100dvh-24vh))]" : "max-h-[70dvh]!"} bodyClassName="flex flex-col">
       <div className="shrink-0 space-y-2 border-b border-line p-3">
         <input
           ref={inputRef}

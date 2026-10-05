@@ -1912,7 +1912,8 @@
     "flPickerNew": "NUEVO",
     "flPickerClose": "Cerrar",
     "flRole": "Rol: {role}",
-    "flRandomHintScope": "Lo elige la semilla en {group}."
+    "flRandomHintScope": "Lo elige la semilla en {group}.",
+    "flPickerGenres": "Al azar por género"
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",

@@ -111,12 +111,19 @@ function memoized<T>(key: string, body: () => T): T {
   return memo.get(key) as T;
 }
 
-/** Every fighter against itself over `seeds`: the share of double KOs and slot A's share of the decided fights. */
-export function mirrorStats(seeds: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8]): { doubleKo: number; slotA: number; games: number; decided: number } {
+/**
+ * --- fl-overhaul --- (Stage 2) A turn of the event loop: a long probe yields now and then, so the vitest worker answers its
+ * runner's calls (a run blocked for a minute – the 147 fighters on a busy machine – times them out: "Timeout calling
+ * onTaskUpdate").
+ */
+export const breathe = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+/** Every fighter against itself over `seeds`: the share of double KOs and slot A's share of the decided fights (yields between fighters). */
+export function mirrorStats(seeds: readonly number[] = [1, 2, 3, 4, 5, 6, 7, 8]): Promise<{ doubleKo: number; slotA: number; games: number; decided: number }> {
   return memoized(`mirror ${seeds.join(",")}`, () => mirrorStatsUncached(seeds));
 }
 
-function mirrorStatsUncached(seeds: readonly number[]): { doubleKo: number; slotA: number; games: number; decided: number } {
+async function mirrorStatsUncached(seeds: readonly number[]): Promise<{ doubleKo: number; slotA: number; games: number; decided: number }> {
   let games = 0;
   let double = 0;
   let decided = 0;
@@ -131,6 +138,7 @@ function mirrorStatsUncached(seeds: readonly number[]): { doubleKo: number; slot
         if (v.winnerTeam === 0) aWins++;
       }
     }
+    await breathe();
   }
   return { doubleKo: double / Math.max(1, games), slotA: aWins / Math.max(1, decided), games, decided };
 }
