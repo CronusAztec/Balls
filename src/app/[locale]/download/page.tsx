@@ -5,7 +5,7 @@ import Footer from "@/components/site/Footer";
 import JsonLd from "@/components/site/JsonLd";
 import { SITE_NAME, absoluteUrl, pageUrl } from "@/lib/site";
 import { localeAlternates } from "@/i18n/alternates";
-import { LATEST_RELEASE_URL, PORTABLE_ASSET, RELEASES_URL, SETUP_ASSET, latestAssetUrl } from "@/lib/desktop/release";
+import { DESKTOP_VERSION, LATEST_RELEASE_URL, PORTABLE_ASSET, RELEASES_URL, SETUP_ASSET, latestAssetUrl } from "@/lib/desktop/release";
 import { buttonClass } from "@/components/ui/Button";
 import { IconBolt, IconDesktop, IconDownload, IconExternal, IconFolder, IconSparkle, IconVideo, IconWarning, type IconProps } from "@/components/ui/icons";
 
@@ -14,6 +14,8 @@ import { IconBolt, IconDesktop, IconDownload, IconExternal, IconFolder, IconSpar
  * requirements, the SmartScreen note (the EXE is unsigned until a code-signing certificate is set up) and what the app adds.
  * --- site-redesign --- the two downloads side by side (the installer first, in the accent), then the requirements and the
  * SmartScreen note, what the app adds as a ruled list with icons, and the privacy note.
+ * --- desktop-ai-fix --- the current version under the downloads, that the AI model is a one-time download, and that 1.0.2
+ * installs (whose updater refuses unsigned updates) take 1.0.3 by hand once.
  */
 
 const REQUIREMENTS = ["os", "gpu", "disk", "ram"] as const;
@@ -42,6 +44,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "Desktop" });
+  const fix = await getTranslations({ locale, namespace: "DesktopAiFix" }); // --- desktop-ai-fix ---
   const v = { siteName: SITE_NAME };
   const appJsonLd = {
     "@context": "https://schema.org",
@@ -50,6 +53,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
     operatingSystem: "Windows 10, Windows 11",
     applicationCategory: "MultimediaApplication",
     downloadUrl: latestAssetUrl(SETUP_ASSET),
+    softwareVersion: DESKTOP_VERSION, // --- desktop-ai-fix ---
     url: pageUrl(locale, "/download"),
     description: t("metaDescription", v),
     offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
@@ -99,6 +103,16 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
             GitHub Releases
           </a>
         </p>
+        {/* --- desktop-ai-fix --- the version, the one-time model download, and the manual step for 1.0.2 installs */}
+        <div className="mt-4 max-w-[680px] space-y-1.5 text-sm text-ink-2" data-testid="download-notes">
+          <p className="font-medium text-ink" data-testid="download-version">
+            {fix("downloadVersion", { version: DESKTOP_VERSION })}
+          </p>
+          <p>{fix("downloadModelNote")}</p>
+          <p className="text-warn" data-testid="download-update-note">
+            {fix("downloadUpdateNote")}
+          </p>
+        </div>
 
         <div className="mt-16 grid grid-cols-1 gap-x-12 gap-y-10 border-t border-line pt-10 lg:grid-cols-2">
           <section aria-labelledby="dl-requirements">

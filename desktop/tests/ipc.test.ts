@@ -91,4 +91,19 @@ describe("main process handlers", () => {
     await expect(guarded(IPC.aiSetCloud as IpcChannel, handler, page.senderFrame.url, [{ provider: "openai", baseUrl: "http://attacker.example", model: "m", use: true }])).rejects.toThrow(/https/);
     expect(handler).not.toHaveBeenCalled();
   });
+
+  // --- desktop-ai-fix --- the AI status panel's channel: in the bridge's method table, registered, its options checked
+  it("carries ai.diagnose on ai:diagnose and checks its options", async () => {
+    expect(BRIDGE_METHODS["ai.diagnose"]).toBe("ai:diagnose");
+    expect(Object.values(IPC)).toContain("ai:diagnose");
+    const handled: string[] = [];
+    registerHandlers({ handle: (c) => handled.push(c), on: () => {} }, table);
+    expect(handled).toContain(IPC.aiDiagnose);
+    const handler = vi.fn(async () => ({ checks: [] }));
+    await expect(guarded(IPC.aiDiagnose as IpcChannel, handler, page.senderFrame.url, [{ deep: "yes" }])).rejects.toThrow(/invalid arguments/);
+    await expect(guarded(IPC.aiDiagnose as IpcChannel, handler, "https://evil.example/", [])).rejects.toThrow(/not from the app/);
+    await expect(guarded(IPC.aiDiagnose as IpcChannel, handler, page.senderFrame.url, [{ deep: true }])).resolves.toEqual({ checks: [] });
+    await expect(guarded(IPC.aiDiagnose as IpcChannel, handler, page.senderFrame.url, [])).resolves.toEqual({ checks: [] });
+    expect(handler.mock.calls).toEqual([[{ deep: true }], []]);
+  });
 });
