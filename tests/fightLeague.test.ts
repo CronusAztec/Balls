@@ -888,7 +888,7 @@ function fingerprint(v: FightLeagueView): string {
 
 describe("fight league replays", () => {
   /** Golden fingerprints of Thor vs Loki at 18 s (seeds 7, 42, 1234): a change of the rules shows here. */
-  const GOLDEN: Record<number, string> = { 7: "4ba46054", 42: "c93e9204", 1234: "6dc67129" };
+  const GOLDEN: Record<number, string> = { 7: "94a96224", 42: "afa437eb", 1234: "af9708b1" }; // --- fl-overhaul --- re-recorded for Stage 1
 
   /** --- fl-overhaul --- Steps whole frames to `untilMs` of simulation time, past the fight's end (the fighters stand frozen). */
   const runTo = (engine: PhysicsEngine, untilMs: number, frameMs: number): FightLeagueView => {
