@@ -282,7 +282,12 @@ run runs:
   `smoke-summary` job (`needs: smoke`, `if: always()`) downloads the four artifacts into one folder and uploads it as
   `smoke-screenshots`, prints the merged table of the slowest blocks (`node scripts/smoke/summary.mjs <folder>`, also on the
   run's summary page), checks that every block ran in exactly one shard and fails unless every shard passed; `deploy` needs it.
-  In `deploy.yml` a run whose shards a newer push cancelled deploys nothing and is not reported as a failure.
+  In `deploy.yml` a run whose shards a newer push cancelled deploys nothing and is not reported as a failure – unless one of them
+  ran out of time. GitHub ends a shard that hits its 45 minutes as `cancelled` too, just like one a newer push cancelled, so the
+  verdict (`scripts/smoke/verdict.mjs`, proven by `tests/smokeShards.test.ts`) looks every cancelled shard up in the run's jobs:
+  one with GitHub's "exceeded the maximum execution time" annotation, or one that ran to within a minute of its limit, fails
+  `smoke-summary` like a failed shard, newer run or not. Only when every cancelled shard stopped short of its limit and a newer
+  run of `deploy.yml` on the branch exists is the run superseded (a notice); a lookup that fails fails the verdict.
 - **Rebalancing**: the summary also writes `smoke-timing.merged.json` into the merged artifact – every block's time on the CI
   runners, as a ready baseline. Copy it over `scripts/smoke-timing.json` (or run the suite locally with `--write-timing`) when
   the shards drift apart; a few new blocks at the median weight do not need it.
@@ -355,7 +360,7 @@ public/
   wallBreak/*.wav       built-in wall-break sounds (generated)
   hitSounds/*.wav       built-in hit samples: click, pluck, kick (generated)
   og.png                social preview image – Open Graph / Twitter card of every page (generated: scripts/generate-og.mjs)
-scripts/                asset generators, postexport.mjs (404.html/.nojekyll), obfuscate.mjs (the export's obfuscation step), serve-static.mjs (GitHub-Pages-like server), smoke test (smoke-test.mjs; smoke/ splits it into shards, balanced by smoke-timing.json)
+scripts/                asset generators, postexport.mjs (404.html/.nojekyll), obfuscate.mjs (the export's obfuscation step), serve-static.mjs (GitHub-Pages-like server), smoke test (smoke-test.mjs; smoke/ splits it into shards, balanced by smoke-timing.json, and judges a CI run's shards: verdict.mjs)
 .github/workflows/      deploy.yml (lint · test · build · smoke shards · publish to GitHub Pages) · smoke.yml (browser test, four shards)
 src/
   app/[locale]/         pages (landing, simulator, about, tiktok-ball-videos, feedback, privacy, terms, disclaimer, not-found)
