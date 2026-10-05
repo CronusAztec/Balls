@@ -121,9 +121,12 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
     return bridge.on("modelProgress", (e) => {
       setProgress((p) => ({ ...p, [e.id]: e }));
       if (e.state === "ready" || e.error) refresh();
+      // --- review fix (desktop-ai-fix) --- the app selects a finished download (when the selected model is not ready) before
+      // this event, so the page's copy of the app's preferences follows it too (the AI status panel looks again)
+      if (e.state === "ready") onPrefsChanged();
       if (e.error && e.error !== "cancelled") setMessage(e.error);
     });
-  }, [bridge, refresh]);
+  }, [bridge, refresh, onPrefsChanged]);
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
   useEffect(() => () => abortRef.current?.abort(), []);
