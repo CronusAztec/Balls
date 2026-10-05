@@ -11,8 +11,8 @@
  * finder, submits the feedback form, switches language and reports console errors.
  *
  * --- smoke-sharding --- Every section is a block, `await smokeBlock("title", async () => { … });`, that sets up its own page:
- * `--shard i/N` (or SMOKE_SHARD=i/N) runs one of N balanced parts, SMOKE_ONLY=<words> the blocks whose title has one of them,
- * `--list` prints every block with its shard (scripts/smoke/blocks.mjs, README "Smoke test shards").
+ * `--shard i/N` (or SMOKE_SHARD=i/N) runs one of N balanced parts, SMOKE_ONLY=<title>[,<title>…] (`*` for any characters) only
+ * those blocks, `--list` prints every block with its shard (scripts/smoke/blocks.mjs, README "Smoke test shards").
  */
 import { chromium } from "playwright";
 import fs from "fs";
@@ -24,8 +24,15 @@ import { createSmokeBlocks } from "./smoke/blocks.mjs"; // --- smoke-sharding --
 
 loadDotEnv();
 // --- smoke-sharding --- The blocks this run runs (all of them without a flag; README "Smoke test shards"). `--list` prints them
-// with their shards and exits before a browser starts.
-const smoke = createSmokeBlocks({ checks: () => results.length, outDir: () => outDir });
+// with their shards and exits before a browser starts. A narrowed run (a shard, SMOKE_ONLY) starts every block but its first
+// from a clean page (isolateBlock below).
+const smoke = createSmokeBlocks({
+  checks: () => results.length,
+  failures: () => results.filter((r) => !r.ok).length,
+  inconclusive: () => inconclusiveResults.length,
+  outDir: () => outDir,
+  isolate: () => isolateBlock(),
+});
 if (smoke.listing) process.exit(smoke.printList());
 const smokeBlock = smoke.block;
 // --- end smoke-sharding ---
@@ -308,6 +315,27 @@ const uploadMusicBed = async (seconds) => {
 const sliderValue = (label) => page.locator(`input[aria-label="${label}"]`).inputValue();
 /** The canvas' data-* attributes: what the run mirrors there for the checks. */
 const canvasData = () => page.evaluate(() => ({ ...document.querySelector("main canvas").dataset }));
+/**
+ * The clean slate between two blocks of a narrowed run (a shard, SMOKE_ONLY; the full suite never calls it): the pages and
+ * contexts a block left open are closed, the main page leaves its document (its run, its audio, whatever a check instrumented
+ * in it), the origin's localStorage and sessionStorage are emptied (the licence init script puts the Pro licence back on the
+ * next page), the clipboard permissions some blocks grant are taken back and the viewport is the main context's again. So what
+ * a block finds at its start does not depend on which blocks ran before it in this shard.
+ */
+const isolateBlock = async () => {
+  for (const other of ctx.pages()) if (other !== page) await other.close().catch(() => {});
+  for (const context of browser.contexts()) if (context !== ctx) await context.close().catch(() => {});
+  await page.goto(`${BASE}/robots.txt`, { waitUntil: "load", timeout: 15000 }).catch(() => {});
+  await page
+    .evaluate(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+    })
+    .catch(() => {});
+  await page.goto("about:blank").catch(() => {});
+  await ctx.clearPermissions().catch(() => {});
+  await page.setViewportSize({ width: 1400, height: 900 }).catch(() => {});
+};
 // --- end smoke-sharding ---
 
 await smokeBlock("static-hosting", async () => {

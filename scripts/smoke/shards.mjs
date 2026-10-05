@@ -33,7 +33,8 @@ export function parseShardSpec(spec) {
 }
 
 /**
- * SMOKE_ONLY: comma-separated words, lower-cased (empty: no filter).
+ * SMOKE_ONLY: comma-separated block titles, lower-cased (empty: no filter). A title may hold `*` for any run of characters
+ * (`*watermark*`, `gerald-*`).
  * @param {string | undefined} value
  * @returns {string[]}
  */
@@ -44,8 +45,12 @@ export function parseOnly(value) {
     .filter(Boolean);
 }
 
+/** A SMOKE_ONLY pattern as an anchored regular expression (`*` → any characters, everything else literal). */
+const onlyPattern = (pattern) => new RegExp(`^${pattern.split("*").map((part) => part.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join(".*")}$`);
+
 /**
- * Whether a block passes the SMOKE_ONLY words: its title contains one of them (no words: every block).
+ * Whether a block passes the SMOKE_ONLY patterns: its title is one of them (or matches one with `*`); no patterns: every
+ * block. `SMOKE_ONLY=fight-league` runs the fight-league block and no other.
  * @param {string} title
  * @param {string[]} only
  * @returns {boolean}
@@ -53,7 +58,17 @@ export function parseOnly(value) {
 export function matchesOnly(title, only) {
   if (!only.length) return true;
   const t = title.toLowerCase();
-  return only.some((word) => t.includes(word));
+  return only.some((pattern) => onlyPattern(pattern).test(t));
+}
+
+/**
+ * The SMOKE_ONLY patterns that match none of the titles (a typo, or a block that is gone).
+ * @param {string[]} titles
+ * @param {string[]} only
+ * @returns {string[]}
+ */
+export function unmatchedOnly(titles, only) {
+  return only.filter((pattern) => !titles.some((t) => matchesOnly(t, [pattern])));
 }
 
 /**
