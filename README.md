@@ -86,6 +86,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Bouncing Orbs: rhythm, polyrhythms & metronome** | The Bouncing Orbs rework (feature orb-rhythm) after the owner's "bouncing orbs is clunky and not fluid like the instagram given, add metronome and polyrythms to it": the new default **Rhythm** model (`ogModel`; **Decay** keeps the settling field) makes every orb an ideal bouncer on its spot forever – its height the parabola of an elastic bounce, h(t) = A · 4u(1 − u) with u = frac((t − φ) / T), its apex A = g · T² / 8 under the Gravity slider (faster orbs bounce lower) or all alike (**Equal Heights**, `ogEq`) – drawn at every frame's own simulation time, so the field moves smoothly at 60 or 120 Hz and in the fast export's exact frame times, with a 10 % **Landing Squash** easing out over 60 ms (`ogSquash`). **Polyrhythm** (`ogPoly`): **Groups** of rows, columns, rings, diagonals, a checkerboard or every orb (`ogGroup`), group k bouncing n_k times a **Cycle** (`ogCycle`, 30 s), so every orb lands together at every multiple of the cycle – the **IN PHASE** moment, with its banner on a dark backdrop and a chord – and the wave surface morphs in between; ten **Rhythm Presets** (`ogRhythm`): Pendulum wave (51 + k), 3 against 2, 4 against 3, 5 against 4, 7 against 5, 3:4:5, Euclidean (`ogSteps`), Corner to corner, Centre outwards and Varied. The **Metronome**: a **Tempo** (`ogBpm`, 120; the beat lock's while it is on) and **Beats per Bar** (`ogBeats`), a swinging bar at the top of the square, a ring pulsing around the field or a dot hopping along a beat strip (`ogMetro`), a woodblock **Click** with an accented downbeat (`ogClick`), the cycle snapped to whole **Bars** (`ogBars`, 16) so IN PHASE lands on a downbeat, and **Melody** (`ogMelody`): a pitch of the scale per group, the polyrhythm playing a tune. A ninth preset, Metronome 3:2; Find Simulation's In phase at answered at once by the cycle maths; a caption's question answered at the IN PHASE moment. See the Bouncing Orbs section under How to extend it |
 | **Windows app 1.0.3: the AI fixed, an AI status panel** | The owner's "the exe ai doesnt work" (feature desktop-ai-fix): the AI studio of the Windows app works with the small local models now and says why when it does not. Each job normalises its answer before the checks (hashtags split, given their "#", cleaned, de-duplicated and clamped to 3–15; clip names slugified; platforms mapped – `src/lib/desktop/ai/normalise.ts`), the reply grammar bounds what it can (a hashtag ≤ 61 characters, a name ≤ 60, the copy's platforms the requested ones, one item each), **Make videos** offers its answer only after `plan_clips` has made plans and then only with their ids (the reply envelope is rebuilt every turn), a retry comes as the app's note with a hint at a higher temperature, and the prompts are shorter (the settings that matter for the request, recipe hooks without placeholders). The local model keeps one chat session per load (the evaluated prefix is reused: no re-reading 3–4k tokens every turn), gets a context of at least 4,096 tokens and room for prompt + reply, falls back to fewer GPU layers and then the CPU when memory is short (then: "Not enough free memory for this model: close other apps or pick a smaller model (Qwen2.5 1.5B is the smallest)"), and unloads only after the reply in progress (also when quitting). Every download and cloud call goes through Electron's **net.fetch** (the system proxy and certificate store – antivirus HTTPS scanning and company proxies broke Node's fetch, which stays as the fallback), errors carry their cause codes explained, and everything lands in main.log (llama.cpp's own messages, every request with its timings, every failed IPC handler with its cause chain). An **AI status** panel tops the AI tab: Runtime, Model, Cloud provider, Network and Last error, green / amber / red with the reason, **Run checks** (llama.cpp started, the model loaded with an 8-token grammar test, the endpoint and Hugging Face reached), **Copy report** (JSON: versions, RAM, GPU, backend, model, provider – never the key –, the last errors, main.log's tail), **Open logs** and **Run the model on: Auto (GPU) / CPU only**. A first-run card offers the 2 GB model or a cloud key, a finished download is selected when the selected model is missing (before the page hears it is ready, so Run is enabled at once), a run shows "Reading the request… N s" and a timing line per step. Version **1.0.3**: unsigned builds no longer carry a publisher name, so 1.0.3 → 1.0.4 updates install (1.0.2 users install 1.0.3 by hand once – the download page says so), and CI's packaged smoke runs a real Settings and Captions job on a cached GGUF (see [Windows app: AI fix and status panel](#windows-app-ai-fix-and-status-panel)) |
 | **Mode thumbnails** | Every mode card – the modes wall, the studio's mode picker, the daily card – shows its mode at its **hero moment**, mid-action with the payoff on screen (feature mode-thumbnails): an entry per mode in `HERO_MOMENTS` (`src/lib/thumbnails/heroMoments.ts` – settings, pinned seed, second, camera and the mode's colour; glow and trails on, bigger balls where a 240 px card needs them, only the HUD element that is the point), rendered by the real simulator's deterministic still camera and framed the same way for every card: a 480 × 480 square (2× the ~240 px card), the same inset and vignette, a subtle edge glow in the mode's colour, WebP under 60 KB, no captions or watermark. `npm run previews` regenerates them, printing each file's size, and stops when a mode has no hero moment; the viral bot's covers use the same idea – the payoff frame of each clip, not its first frame (see [Mode thumbnails](#mode-thumbnails)) |
+| **Sharded smoke test** | The browser smoke test (`scripts/smoke-test.mjs`, some 750 checks, ~45 minutes on one runner) runs in CI as **four shards on four runners at once**, about 12 minutes each (feature smoke-sharding): the suite is a list of blocks – `await smokeBlock("title", async () => { … })`, each setting up its own page – split at block level, never at check level, by a greedy longest-first balance over the blocks' wall times in `scripts/smoke-timing.json` (a block the file does not know weighs the median, so a new block gets a shard by itself). `--shard i/N` / `SMOKE_SHARD=i/N` runs one part, `SMOKE_ONLY=<title>` single blocks, `--list` prints the split, `--write-timing` refreshes the baseline, every run prints its 15 slowest blocks, and a narrowed run starts every block from a clean page. The `smoke` job of deploy.yml and smoke.yml is a matrix of the four shards; `smoke-summary` merges their screenshots and slowest blocks and gates the deploy (see [Smoke test shards](#smoke-test-shards)) |
 
 ## Design
 
@@ -176,6 +177,8 @@ npm run typecheck                          # tsc --noEmit
 npm run lint                               # eslint
 npm test                                   # vitest unit tests (engine, physics extras, ball interactions, obstacles, Ball Drop, Bouncing Shapes, MIDI parser, settings, hit samples, song slicer, scales, instruments, music bed, beat detection, beat clock, Picture Paint)
 npm run smoke                              # headless-browser end-to-end checks; build and `npm start` first (see scripts/smoke-test.mjs)
+npm run smoke -- --shard 2/4               # --- smoke-sharding --- one of four balanced parts (SMOKE_SHARD=2/4 too); --list prints the split
+SMOKE_ONLY=fight-league npm run smoke      # --- smoke-sharding --- single blocks by title (comma-separated, * for any characters)
 npm run previews                           # regenerate public/modes/*.webp from the real simulator (build and `npm start` first); MODES=drop npm run previews renders one mode
 GALLERY=1 npm run previews                 # --- daily-gallery --- only the gallery cards (public/gallery/*.webp); GALLERY=neon-escape renders one
 MODES=drop SWEEP=2:14:1 npm run previews   # --- mode-thumbnails --- contact sheets for picking a hero moment (SEEDS, EXTRA, CAMERA, RAW=1, OUT_DIR)
@@ -218,13 +221,70 @@ and builds for the domain root (no base path) on the next run.
 **Other static hosts** (Netlify, Cloudflare Pages, S3, nginx…): run `npm run build` with `NEXT_PUBLIC_SITE_URL`
 set and upload `out/`. Point the host's "not found" page at `404.html`.
 
-The browser smoke test (`scripts/smoke-test.mjs`, ~45 minutes at most) gates every deploy: the `smoke` job of
-`deploy.yml` builds the site under a base path, serves it with `scripts/serve-static.mjs` and runs the suite before the
-`deploy` job may publish. `.github/workflows/smoke.yml` runs the same suite on pull requests and on demand, with
+The browser smoke test (`scripts/smoke-test.mjs`, ~45 minutes on one runner) gates every deploy: the `smoke` job of
+`deploy.yml` – --- smoke-sharding --- a matrix of four shards that run at once, about 12 minutes each (see
+[Smoke test shards](#smoke-test-shards)) – builds the site under a base path, serves it with `scripts/serve-static.mjs` and
+runs its part of the suite, and the `deploy` job may publish once the `smoke-summary` job has seen every shard pass.
+`.github/workflows/smoke.yml` runs the same four shards on pull requests and on demand, with
 `SMOKE_STRICT_TIMING=1`. Frame-rate and timing checks retry once; when they still fail while the page itself, with the run
 paused, gets below 50 fps – an idle machine gives it 60 – (the machine, not the run, is short of CPU), they are reported as *inconclusive* and listed apart
 instead of failing the run – unless `SMOKE_STRICT_TIMING=1`. The suite also fails on any same-origin request that answers 4xx/5xx (a
 missing asset, a URL without the base path).
+
+### Smoke test shards
+
+--- smoke-sharding --- The suite (some 750 checks) is a list of over 80 **blocks**, the sections of related checks that share a
+page, a recording or a state. Each one is
+
+```js
+await smokeBlock("feature-key", async () => {
+// --- feature-key --- what the block checks
+…its checks, starting with its own page.goto() / browser.newContext()…
+});
+```
+
+(the body left unindented, so a block's diff stays the lines it changes), and `scripts/smoke/blocks.mjs` decides which blocks a
+run runs:
+
+| Command | What runs |
+| --- | --- |
+| `npm run smoke` (no flag) | every block, in order – the whole suite exactly as before, with the same output (the ✅ / ❌ / ⚠️ lines, the inconclusive list, the final `N/M checks passed` line) |
+| `npm run smoke -- --shard 2/4` or `SMOKE_SHARD=2/4 npm run smoke` | shard 2 of 4 (1-based; the flag wins over the variable) |
+| `SMOKE_ONLY=fight-league npm run smoke` | the named blocks – comma-separated titles, `*` for any characters (`SMOKE_ONLY='*watermark*'`); with a shard, the named blocks of that shard. A name no block has stops the run |
+| `npm run smoke -- --list` | every block with its shard (N from `--shard`, else 4 – the CI matrix) and weight, one line each and nothing else; no browser starts |
+| `npm run smoke -- --write-timing` | the suite (or the shard), then `scripts/smoke-timing.json` rewritten with this run's wall times (blocks it did not run keep theirs) |
+
+- **The split** (`scripts/smoke/shards.mjs`, pure functions, proven by `tests/smokeShards.test.ts`): a block runs in exactly one
+  shard, the shards together are the whole suite, and checks are never split from their block. The blocks' weights are their wall
+  times in `scripts/smoke-timing.json` (block title → seconds; a block the file does not know weighs the median of the ones it
+  does), and the blocks, sorted by weight (heaviest first) and title, each go to the shard with the smallest total so far (the
+  lowest index on a tie) – a greedy longest-processing-time split. No list of blocks is kept anywhere: a new block gets a shard as
+  soon as it is in the suite, and the split is the same on every machine for a given baseline and N. A shard runs its blocks in
+  the suite's order. The test checks for N = 1…8 that the shards are disjoint, complete, order-stable and balanced (the heaviest
+  at most 1.6 × the mean with the checked-in baseline), and that the suite has the shape the split relies on.
+- **Every run reports** its blocks: `OUT_DIR/smoke-timing.json` (title → seconds of the blocks it ran) and
+  `OUT_DIR/smoke-blocks.json` (each block's shard, seconds, checks, failed checks and inconclusive timing checks), rewritten
+  after every block, and the 15 slowest blocks printed just before the final count; a shard or a `SMOKE_ONLY` run also says
+  which blocks it ran.
+- **Blocks are self-contained**: a block starts with its own navigation (or its own browser context) and needs nothing an
+  earlier block did. A narrowed run (a shard, `SMOKE_ONLY`) makes sure of it: before every block but its first it closes the
+  pages and contexts the previous block left open, empties the site's localStorage and sessionStorage (the test licence comes
+  back with the next page), takes back the clipboard permissions, restores the 1400 × 900 viewport and leaves the page on
+  `about:blank` – so a block passes or fails the same whichever blocks share its shard. The full suite runs as before, without
+  it. The checks after `smoke.endBlocks()` (failed same-origin requests, console and page errors) run in every shard, over that
+  shard's pages.
+- **CI**: in `deploy.yml` and `smoke.yml` the `smoke` job is a matrix of four shards (`strategy.fail-fast: false`,
+  `matrix.shard: [1, 2, 3, 4]`, named `smoke (shard x of 4)`, 45 minutes each) running the steps the single job ran (deploy.yml
+  keeps its Chromium and Next build caches and their keys) with `SMOKE_SHARD=x/4`, its own `OUT_DIR` and its own artifact
+  `smoke-screenshots-x`; with the checked-in baseline each shard's part of the suite takes 10–11 minutes on GitHub's runners
+  (CI run 191's check times mapped onto the blocks), plus about two minutes of set-up and build. The
+  `smoke-summary` job (`needs: smoke`, `if: always()`) downloads the four artifacts into one folder and uploads it as
+  `smoke-screenshots`, prints the merged table of the slowest blocks (`node scripts/smoke/summary.mjs <folder>`, also on the
+  run's summary page), checks that every block ran in exactly one shard and fails unless every shard passed; `deploy` needs it.
+  In `deploy.yml` a run whose shards a newer push cancelled deploys nothing and is not reported as a failure.
+- **Rebalancing**: the summary also writes `smoke-timing.merged.json` into the merged artifact – every block's time on the CI
+  runners, as a ready baseline. Copy it over `scripts/smoke-timing.json` (or run the suite locally with `--write-timing`) when
+  the shards drift apart; a few new blocks at the median weight do not need it.
 
 ### How the static export works
 
@@ -294,8 +354,8 @@ public/
   wallBreak/*.wav       built-in wall-break sounds (generated)
   hitSounds/*.wav       built-in hit samples: click, pluck, kick (generated)
   og.png                social preview image – Open Graph / Twitter card of every page (generated: scripts/generate-og.mjs)
-scripts/                asset generators, postexport.mjs (404.html/.nojekyll), obfuscate.mjs (the export's obfuscation step), serve-static.mjs (GitHub-Pages-like server), smoke test
-.github/workflows/      deploy.yml (lint · test · build · publish to GitHub Pages) · smoke.yml (browser test)
+scripts/                asset generators, postexport.mjs (404.html/.nojekyll), obfuscate.mjs (the export's obfuscation step), serve-static.mjs (GitHub-Pages-like server), smoke test (smoke-test.mjs; smoke/ splits it into shards, balanced by smoke-timing.json)
+.github/workflows/      deploy.yml (lint · test · build · smoke shards · publish to GitHub Pages) · smoke.yml (browser test, four shards)
 src/
   app/[locale]/         pages (landing, simulator, about, tiktok-ball-videos, feedback, privacy, terms, disclaimer, not-found)
   app/(static)/         locale-less pages of the static export: "/" (language redirect) and "/404"
@@ -1621,6 +1681,32 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `orbGrid` | the orbs' wave at its peak | 3 | 14.5 s | `ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0` | x 0.506 · y 0.567 · zoom 1.25 |
 | `fightLeague` | Thor and Loki clashing, the VS card gone, hammer and daggers mid-swing | 11 | 5.25 s | – | x 0.5 · y 0.361 · zoom 1.151 |
 | `landClaim` | half the wall taken: the columns a mosaic of the four countries' colours | 3 | 5 s | `teams=France,Brazil,Spain,Colombia…&lcm=claim&lch=0&tsb=0&tn=0` | x 0.5 · y 0.587 · zoom 1.25 |
+
+### Add a smoke-test block
+
+--- smoke-sharding --- A feature's browser checks go into a block of their own, appended just above `smoke.endBlocks()` in
+`scripts/smoke-test.mjs` (see [Smoke test shards](#smoke-test-shards)):
+
+```js
+await smokeBlock("my-feature", async () => {
+// --- my-feature --- what the block checks
+{
+  await page.goto(`${BASE}/en/simulator/?mode=classic&…`, { waitUntil: "networkidle" });
+  check("…", ok, extra);
+}
+});
+```
+
+- **The title** is the block's key – unique, kebab-case (the feature key) and a plain double-quoted string: the split, the timing
+  baseline and `SMOKE_ONLY` know a block by it. A renamed block weighs the median until the baseline is refreshed.
+- **Self-contained**: start with your own `page.goto()` (or `browser.newContext()`) and count on nothing an earlier block set
+  up – a page, localStorage, a permission, a helper declared inside another block (a helper two blocks share goes above the
+  first of them, outside both). Put back what you change for the blocks after yours (Show Advanced Options, the viewport, a
+  listener). `SMOKE_ONLY=my-feature npm run smoke` runs the block alone, the way a shard may run it.
+- **Nothing outside the blocks**: code between two blocks would run in every shard; `tests/smokeShards.test.ts` fails on a
+  statement there that does work (an `await`, a check).
+- A new block weighs the median of the baseline; a long one (minutes) is worth a refresh of `scripts/smoke-timing.json`, so the
+  four shards stay even.
 
 ## Windows app
 
