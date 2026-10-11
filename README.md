@@ -2019,7 +2019,9 @@ block of the Mode row (its labels in the `ColourSort` namespace of `messages/*.j
   frame-0 packing (and the next cycle replaying the first), the speed in a spinning arc's frame kept by a reflection, the settings
   and URL round trip, the presets, the pitch, the sound events and their playback, the finder's outcomes and fingerprints at 30, 60
   and 120 fps. The smoke test (section 39, block `colour-sort`) runs `?mode=colourSort` at 8× to 360 / 360 sorted, sees the remix
-  and the seam, finds no ball past the outer wall and checks the HUD, the block and the outcomes.
+  and the seam, finds no ball past the outer wall and checks the HUD, the block and the outcomes; it also fast-exports a quick
+  sort cut to whole loops (the HUD in its frames, the plucks and the chord in its audio) and checks that a free visitor's
+  watermark badge stays clear of the HUD's title and counter.
 
 ### Add a smoke-test block
 
