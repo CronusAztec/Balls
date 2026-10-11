@@ -6,6 +6,8 @@
  *   node scripts/fl-balance.mjs --apply             … and write the damage patch into the rows and the ratings file
  *   node scripts/fl-balance.mjs --divisions=dc,tv   only these divisions (the others' last reports are merged when present)
  *   node scripts/fl-balance.mjs --reuse --apply     skip the runs: merge the reports already in scripts/out/fl-balance/
+ *   node scripts/fl-balance.mjs --reuse --readme    (--- fl-overhaul --- Stage 7) write the README table between its
+ *                                                   `<!-- fl-balance -->` markers (--apply writes it too)
  *   --jobs=N (parallel children, default min(4, CPUs)), --max-it=N (iterations, default 18), --arenas=square,circle
  *
  * One child per division: `npx vitest run tests/tools/flBalanceTune.test.ts` with FL_TUNE=1 FL_TUNE_DIVISIONS=<division> (the
@@ -43,6 +45,7 @@ if (flag("help") || flag("h")) {
   process.exit(0);
 }
 const APPLY = flag("apply");
+const README_TABLE = APPLY || flag("readme"); // --- fl-overhaul --- (Stage 7)
 const REUSE = flag("reuse");
 const JOBS = Math.max(1, Number(option("jobs") ?? Math.min(4, os.cpus().length)) || 1);
 
@@ -257,6 +260,22 @@ async function main() {
     fs.writeFileSync(RATINGS_FILE, ratingsSource(reports));
     console.log(`Wrote ${path.relative(ROOT, RATINGS_FILE)}.`);
   }
+  // --- fl-overhaul --- (Stage 7) the README's balance table, between its markers
+  if (README_TABLE) {
+    const readme = path.join(ROOT, "README.md");
+    const text = fs.readFileSync(readme, "utf8");
+    const open = "<!-- fl-balance -->\n";
+    const close = "<!-- /fl-balance -->";
+    const a = text.indexOf(open);
+    const b = a < 0 ? -1 : text.indexOf(close, a + open.length);
+    if (a < 0 || b < 0) console.error("README.md has no <!-- fl-balance --> … <!-- /fl-balance --> block: the table is not written.");
+    else {
+      const next = `${text.slice(0, a + open.length)}${table.join("\n")}\n${text.slice(b)}`;
+      if (next !== text) fs.writeFileSync(readme, next);
+      console.log(next !== text ? "Wrote the README's balance table." : "The README's balance table is already the tuner's.");
+    }
+  }
+  // --- end fl-overhaul ---
 }
 
 main().catch((err) => {

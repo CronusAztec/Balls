@@ -749,16 +749,16 @@ export function flRosterHash(): string {
 
 /**
  * A Markdown table of the roster (the README's, between its `<!-- fl-roster -->` markers): division, fighter, source, weapon,
- * the stats (HP % · speed · attack speed · damage · cast speed · size), the ability with its primitives, the role and whether it
- * is new.
+ * the stats (HP % · speed · attack speed · damage · cast speed · size), the ability with its primitives, the role, whether it
+ * is new and (--- fl-overhaul --- Stage 7) its look (the body's pattern · crest; "–" for a row without one).
  */
 export function rosterTableMarkdown(): string {
-  const lines = ["| Division | Fighter | Source | Weapon | HP · speed · attack · damage · cast · size | Ability (primitives) | Role | New |", "| --- | --- | --- | --- | --- | --- | --- | --- |"];
+  const lines = ["| Division | Fighter | Source | Weapon | HP · speed · attack · damage · cast · size | Ability (primitives) | Role | New | Look |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"];
   for (const r of FL_ROSTER) {
     const s = r.stats;
     const stats = [s.hp, s.speed, s.attackSpeed, s.damage, s.castSpeed, s.size].join(" · ");
     const prims = r.ability.effects.map((e) => e.p.replace(/[A-Z]/g, (c) => ` ${c.toLowerCase()}`)).join(" + ");
-    lines.push(`| ${FL_DIVISION_LABELS[r.division]} | ${r.name} | ${r.source} | ${weaponLabel(r)} | ${stats} | ${r.ability.name} (${prims}${r.ability.ultimate ? ", ultimate" : ""}) | ${r.role} | ${r.isNew ? "new" : ""} |`);
+    lines.push(`| ${FL_DIVISION_LABELS[r.division]} | ${r.name} | ${r.source} | ${weaponLabel(r)} | ${stats} | ${r.ability.name} (${prims}${r.ability.ultimate ? ", ultimate" : ""}) | ${r.role} | ${r.isNew ? "new" : ""} | ${r.look ? `${r.look.pattern} · ${r.look.crest}` : "–"} |`);
   }
   return lines.join("\n");
 }

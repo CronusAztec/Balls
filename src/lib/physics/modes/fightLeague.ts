@@ -721,6 +721,11 @@ NUMERIC_KEYS.flCard = "flCardSec";
 const FL_SWITCH_KEYS: Readonly<Record<string, "flSlowMo" | "flImpact" | "flDmgNumbers" | "flPlates" | "flAnnouncer" | "flCustomSounds" | "flOdds">> = { flSm: "flSlowMo", flIf: "flImpact", flDn: "flDmgNumbers", flPp: "flPlates", flAnn: "flAnnouncer" /* --- fl-overhaul --- (Stage 4) */, flCS: "flCustomSounds", flOd: "flOdds" /* --- fl-overhaul --- (Stage 5) */ };
 /** The feature's URL keys (for tools and the tests). */
 export const FIGHT_LEAGUE_URL_KEYS: readonly string[] = ["fl1", "fl2", "fl3", "fl4", "flM", "flDiv", "flA", "flH", "flSD", "flSt", "flAs", "flTg", "flSnd" /* --- fl-overhaul --- (Stage 4) */, "fl5", "fl6", "flE", "flSd" /* --- fl-overhaul --- (Stage 5) */, ...Object.keys(FL_SWITCH_KEYS), ...Object.keys(NUMERIC_KEYS)];
+// --- fl-overhaul --- (Stage 7) the URL key → field maps of the number fields and the switches, read-only (the README's settings
+// table, lib/physics/modes/fightLeagueDocs.ts)
+export const FL_NUMERIC_URL_FIELDS: Readonly<Record<string, keyof FightLeagueFields>> = NUMERIC_KEYS;
+export const FL_SWITCH_URL_FIELDS: Readonly<Record<string, keyof FightLeagueFields>> = FL_SWITCH_KEYS;
+// --- end fl-overhaul ---
 
 /**
  * --- fl-overhaul --- The value a number field of the panel commits for `field`: the settings' own normalisation (HP and the

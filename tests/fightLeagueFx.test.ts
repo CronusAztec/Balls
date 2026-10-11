@@ -23,6 +23,7 @@ import {
   FL_STAGES,
   FL_TIME_BANNER_MS,
   FL_WIN_HOLD_SEC,
+  PK_BOMB, // (--- fl-overhaul --- Stage 7)
   flHoldEndMs,
   flHoldStartMs,
   flWinnerShownMs,
@@ -897,5 +898,37 @@ describe("the VS card: a free-for-all's chips over their fighters' corners, a 2v
     expect([roster.seen.has("#123456"), roster.seen.has("#abcdef")]).toEqual([true, true]);
     const duel = fills({ fighters: ["thor", "loki", "random", "random"], match: "1v1" });
     for (const f of duel.view.fighters) expect([f.row.id, duel.seen.has(f.row.body.toLowerCase())]).toEqual([f.row.id, true]);
+  });
+});
+
+/* ------------------------------------------------------------------ --- fl-overhaul --- (Stage 7) the performance pass's heavy kit */
+
+describe("the final stage's heavy kit: Venom's whip, Walter White's bombs, Jonesy's wall and shotgun, Jinx's minigun", () => {
+  const STAGE7_KIT: Partial<FightLeagueSettings> = { fighters: ["venom", "walterwhite", "jonesy", "jinx"], match: "ffa4", hp: 300, timeCap: 0 };
+
+  it("keeps the render contract for 20 s of fighting and counts its walls and ground hazards (data-fl-walls, data-fl-traps)", { timeout: 60_000 }, () => {
+    const r = contractRun(STAGE7_KIT, 1, OPTS, 20_000);
+    expect(r.worst).toMatchObject({ gradients: 0, patterns: 0, unbalanced: 0, foreign: 0 });
+    expect(r.blur).toBe(0);
+    expect(r.worst.drawImage).toBeLessThanOrEqual(450);
+    expect(r.worst.fillText).toBeLessThanOrEqual(40);
+    console.log(`Stage 7 heavy kit: ${r.frames} frames, worst drawImage ${r.worst.drawImage}, fillText ${r.worst.fillText}, canvases made after the warm-up ${r.madeAfterWarmUp}`);
+    // the peaks are the dataset's: written once a frame along a run, they keep the run's most walls and hazards at once
+    const engine = probeEngine(STAGE7_KIT, 1);
+    const dataset = new FightLeagueDataset();
+    const layer = new FightLeagueLayer();
+    const data: Record<string, string> = {};
+    let walls = 0;
+    let hazards = 0;
+    probeRun(engine, 20_000, (v) => {
+      dataset.write(v, layer, (k, value) => (data[k] = value));
+      walls = Math.max(walls, v.walls.filter((w) => w.active).length);
+      hazards = Math.max(hazards, v.minions.filter((m) => m.active && m.trap).length + v.projectiles.filter((p) => p.active && p.kind === PK_BOMB).length);
+    });
+    expect(Number(data.flWalls)).toBe(walls);
+    expect(Number(data.flTraps)).toBe(hazards);
+    expect(walls).toBeGreaterThan(0); // Jonesy's Build Wall
+    expect(hazards).toBeGreaterThan(0); // Walter White's flasks on their way down
+    expect(Number(data.flShots)).toBeGreaterThan(0);
   });
 });

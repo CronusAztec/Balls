@@ -32,7 +32,7 @@ import { FlWeaponsPainter } from "./fightLeague/weapons";
 // --- fl-overhaul --- (Stage 5) the shows' overlays (series, brackets, boss rushes), the win chance and the story's words
 import { FlShowsPainter } from "./fightLeague/shows";
 import { DEFAULT_FL_SHOW_LABELS } from "./fightLeague/frame";
-import { FB_DOUBLE_KO, FB_DRAW, FB_WIN, flWinnerShownMs } from "@/lib/physics/modes/fightLeague";
+import { FB_DOUBLE_KO, FB_DRAW, FB_WIN, PK_BOMB, flWinnerShownMs } from "@/lib/physics/modes/fightLeague"; // (--- fl-overhaul --- Stage 7: PK_BOMB)
 import { flRoundShort } from "@/lib/physics/modes/fightLeagueShow";
 
 /**
@@ -567,6 +567,11 @@ export const FIGHT_LEAGUE_DATA_KEYS = [
   "flBracketShown",
   "flChampionShown",
   "flBossBar",
+  // --- fl-overhaul --- (Stage 7) the heavy kit's ground layer: the most walls standing at once this run, and the most ground
+  // hazards marked at once (traps lying in wait and the landing zones of lobbed bombs – both drawn on the arena floor)
+  "flWalls",
+  "flTraps",
+  // --- end fl-overhaul ---
 ];
 
 /** Writes the data-fl-* attributes (the strings are rebuilt only when their values change). */
@@ -588,6 +593,9 @@ export class FightLeagueDataset {
   private matchSerial = -1;
   private bracketKey = -1;
   private bracket = "";
+  // --- fl-overhaul --- (Stage 7) the run's peaks of walls standing and of ground hazards marked (data-fl-walls, data-fl-traps)
+  private wallsPeak = 0;
+  private trapsPeak = 0;
 
   write(view: FightLeagueView, layer: FightLeagueLayer, set: (key: string, value: string) => void) {
     if (view.generation !== this.generation || view.matchSerial !== this.matchSerial || this.names === "") {
@@ -604,6 +612,8 @@ export class FightLeagueDataset {
         this.bannersSize = -1;
         this.calloutsSize = -1;
         this.bracketKey = -1;
+        this.wallsPeak = 0; // --- fl-overhaul --- (Stage 7)
+        this.trapsPeak = 0;
       }
     }
     let key = "";
@@ -733,5 +743,16 @@ export class FightLeagueDataset {
     set("flBracketShown", layer.shows.bracketShown ? "1" : "0");
     set("flChampionShown", layer.shows.championShown ? "1" : "0");
     set("flBossBar", layer.shows.bossBarShown ? "1" : "0");
+    // --- fl-overhaul --- (Stage 7) the ground layer's peaks (fixed pools scanned in place: no allocation)
+    let walls = 0;
+    for (const w of view.walls) if (w.active) walls++;
+    let traps = 0;
+    for (const m of view.minions) if (m.active && m.trap) traps++;
+    for (const p of view.projectiles) if (p.active && p.kind === PK_BOMB) traps++;
+    if (walls > this.wallsPeak) this.wallsPeak = walls;
+    if (traps > this.trapsPeak) this.trapsPeak = traps;
+    set("flWalls", String(this.wallsPeak));
+    set("flTraps", String(this.trapsPeak));
+    // --- end fl-overhaul ---
   }
 }

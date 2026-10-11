@@ -11595,7 +11595,7 @@ await smokeBlock("fight-league", async () => {
   await page.screenshot({ path: path.join(outDir, "sim-fight-league-champion.png") });
   check(
     "fight league: an 8-bracket at 8× draws its bracket card and reaches its champion after 7 bouts (data-fl-bout 7/7)",
-    d.flShow === "bracket" && d.flFinished === "1" && !!d.flChampion && d.flBout === "7/7" && card && d.flBracketShown === "1" && crowned && (d.flBracket || "").split(",").length === 7,
+    d.flShow === "bracket" && d.flFinished === "1" && !!d.flChampion && d.flBout === "7/7" && card && d.flBracketShown === "1" && crowned && (d.flBracket || "").split(",").length === 7 && /(^|,)F:/.test(d.flBracket || "") /* --- fl-overhaul --- (Stage 7: the final's round seen) */,
     `(show ${d.flShow}, finished ${d.flFinished}, champion "${d.flChampion}", bout ${d.flBout}, round ${d.flRound}, card ${card}, champion card ${crowned}, bracket "${d.flBracket}")`,
   );
 }
@@ -11613,8 +11613,8 @@ await smokeBlock("fight-league", async () => {
   await page.screenshot({ path: path.join(outDir, "sim-fight-league-boss.png") });
   check(
     "fight league: a boss rush at 8× reaches its verdict (data-fl-boss n/6, the boss bar drawn)",
-    d.flShow === "boss" && d.flFinished === "1" && /^[1-6]\/6$/.test(d.flBoss || "") && d.flBossBar === "1" && verdict,
-    `(show ${d.flShow}, finished ${d.flFinished}, boss ${d.flBoss}, boss HP ${d.flBossHp}, bar ${d.flBossBar}, banners "${d.flBanners}")`,
+    d.flShow === "boss" && d.flFinished === "1" && /^[1-6]\/6$/.test(d.flBoss || "") && d.flBossBar === "1" && verdict && /^[1-6]$/.test(d.flWave || "") /* --- fl-overhaul --- (Stage 7: data-fl-wave) */,
+    `(show ${d.flShow}, finished ${d.flFinished}, boss ${d.flBoss}, wave ${d.flWave}, boss HP ${d.flBossHp}, bar ${d.flBossBar}, banners "${d.flBanners}")`,
   );
 }
 {
@@ -11627,9 +11627,9 @@ await smokeBlock("fight-league", async () => {
   await page.screenshot({ path: path.join(outDir, "sim-fight-league-3v3.png") });
   await timingCheck(
     "fight league: a 3v3 of six shooters keeps 30+ fps",
-    data.flMatch === "3v3" && data.flFighters === "6" && Number(data.flShots) >= 20 && data.flFinished === "0",
+    data.flMatch === "3v3" && data.flFighters === "6" && data.flBoxes === "6" /* --- fl-overhaul --- (Stage 7) */ && Number(data.flShots) >= 20 && data.flFinished === "0",
     fpsOk(fps, 5, 30),
-    `(fighters ${data.flFighters}, names ${data.flNames}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    `(fighters ${data.flFighters}, boxes ${data.flBoxes}, names ${data.flNames}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, ${fpsNote(fps)}, floor 30${loadNote()})`,
     fpsRetry(3000, 5, 30),
   );
 }
@@ -11749,6 +11749,113 @@ await smokeBlock("fight-league", async () => {
   const tier = await block.getAttribute("data-fl-tier");
   const tierSize = await block.getAttribute("data-fl-tier-size");
   check("fight league: the Tier list action downloads Marvel's 1080×1350 PNG card (> 20 kB) and data-fl-tier names the division", size > 20_000 && /fight-league-tier-marvel-1080x1350\.png$/.test(name) && tier === "marvel" && tierSize === "1080x1350", `(${name}, ${size} bytes, data-fl-tier ${tier}, size ${tierSize})`);
+}
+// --- end fl-overhaul ---
+// --- fl-overhaul --- (Stage 7) the final verification, lean: the heavy kit – a four-way of Venom's whip, Walter White's bombs,
+// Jonesy's wall and shotgun and Jinx's minigun – live at 1× (30+ fps with its walls, ground hazards and shots, the render cost
+// logged against its 4 ms budget) and its 10 s 1080×1920 recording (20+ fps, the only added recording); the four shooters'
+// render cost against the budget; the roster's ids for a random:pokemon slot over three seeds; the rigged bracket's forced
+// entrant; and the block's screenshots on disk
+const FL_HEAVY = "mode=fightLeague&flM=ffa4&fl1=venom&fl2=walterwhite&fl3=jonesy&fl4=jinx&flT=0&flHp=300&seed=1";
+{
+  // The heavy kit live: Jonesy's Build Wall charges in about 9 s of fighting, so the measurement starts at the first wall
+  // (20 s at most); 300 HP and no time cap keep all four standing through it.
+  await page.goto(`${BASE}/en/simulator/?${FL_HEAVY}`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.flWalls) > 0, null, { timeout: 20_000 }).catch(() => {});
+  const fps = await pageFrameRates(3500);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-heavy.png") });
+  console.log(`  fight league render cost: ${data.flRenderMs} ms a frame (the heavy kit: walls ${data.flWalls}, ground hazards ${data.flTraps}, ${data.flShots} shots, ${data.flProjectiles} projectiles drawn; budget 4 ms)`);
+  await timingCheck(
+    "fight league: the heavy kit (Venom, Walter White, Jonesy, Jinx) keeps 30+ fps live with its walls, ground hazards and shots (data-fl-walls, -traps, -shots)",
+    data.flIds === "venom,walterwhite,jonesy,jinx" && data.flFighters === "4" && Number(data.flWalls) > 0 && Number(data.flTraps) > 0 && Number(data.flShots) > 0 && data.flFinished === "0",
+    fpsOk(fps, 5, 30),
+    `(ids ${data.flIds}, fighters ${data.flFighters}, walls ${data.flWalls}, ground hazards ${data.flTraps}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, at ${data.flTime} s, render ${data.flRenderMs} ms, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(3000, 5, 30),
+  );
+}
+{
+  // The heavy kit's 10 s recording at 1080×1920 (the default resolution): 20+ fps over 3.5 s windows, then the whole clip –
+  // the recording stops by itself at its 10 s – downloaded.
+  await page.goto(`${BASE}/en/simulator/?${FL_HEAVY}&dur=10`, { waitUntil: "networkidle" });
+  let fps = { windows: [], avg: 0, min: 0, low: 0 };
+  let during = {};
+  const download = await Promise.all([
+    page.waitForEvent("download", { timeout: 60000 }).catch(() => null),
+    (async () => {
+      await page.getByRole("button", { name: /Record Video/ }).click();
+      await page.waitForTimeout(300);
+      fps = await pageFrameRates(3500);
+      during = await canvasData();
+    })(),
+  ]).then(([d]) => d);
+  let size = 0;
+  if (download) {
+    const file = path.join(outDir, `fight-league-heavy-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  console.log(`  fight league render cost while recording 1080×1920: ${during.flRenderMs} ms a frame (the heavy kit; budget 4 ms)`);
+  await timingCheck(
+    "a 10 s 1080×1920 recording of the fight league heavy kit keeps 20+ fps and downloads",
+    size > 10000 && during.flFighters === "4",
+    fpsOk(fps, 5, 20),
+    `(${size} bytes, fighters ${during.flFighters}, plates ${during.flPlates}, render ${during.flRenderMs} ms, ${fpsNote(fps)}, floor 20${loadNote()})`,
+    recordingRetry(5, 20),
+  );
+}
+{
+  // The four shooters' render cost (drawBodies + drawOverlay, data-fl-render-ms) against its 4 ms budget, measured after 6 s of
+  // fighting (the moving average settled; logged either way).
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=ffa4&fl1=ironman&fl2=doomslayer&fl3=legolas&fl4=jinx&flT=0&flHp=300&seed=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.flTime) >= 6, null, { timeout: 30_000 }).catch(() => {});
+  const cost = async () => {
+    const d = await canvasData();
+    return { ms: Number(d.flRenderMs), d };
+  };
+  const first = await cost();
+  console.log(`  fight league render cost: ${first.d.flRenderMs} ms a frame (four shooters at ${first.d.flTime} s, ${first.d.flShots} shots; budget 4 ms)`);
+  await timingCheck(
+    "fight league: the four shooters' render cost stays within its 4 ms budget (data-fl-render-ms)",
+    first.d.flFighters === "4" && first.ms > 0,
+    first.ms <= 4,
+    `(render ${first.d.flRenderMs} ms a frame at ${first.d.flTime} s, ${first.d.flShots} shots, ${first.d.flProjectiles} projectiles drawn${loadNote()})`,
+    async () => {
+      await page.waitForTimeout(1500);
+      const again = await cost();
+      return { timingOk: again.ms > 0 && again.ms <= 4, extra: `(render ${again.d.flRenderMs} ms a frame at ${again.d.flTime} s)` };
+    },
+  );
+}
+{
+  // The roster behind the ids: a random:pokemon slot draws a Pokémon on three different seeds (data-fl-ids), and the rigged
+  // bracket's chosen entrant is the forced one (data-fl-forced 0: Thor, pinned as entrant A).
+  const POKEMON = ["pikachu", "charizard", "mewtwo", "lucario", "greninja", "gengar", "snorlax"];
+  const drawn = [];
+  for (const seed of [2, 7, 13]) {
+    await page.goto(`${BASE}/en/simulator/?mode=fightLeague&fl1=random%3Apokemon&fl2=thor&seed=${seed}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.flIds, null, { timeout: 15_000 }).catch(() => {});
+    const d = await canvasData();
+    drawn.push({ seed, id: (d.flIds || "").split(",")[0], name: (d.flNames || "").split(",")[0], b: (d.flIds || "").split(",")[1] });
+  }
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=bracket&fl1=thor&fw=0&seed=3`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flShow === "bracket", null, { timeout: 15_000 }).catch(() => {});
+  const rigged = await canvasData();
+  check(
+    "fight league: a random:pokemon slot draws a Pokémon on three seeds (data-fl-ids), and the rigged bracket forces its pinned entrant (data-fl-forced)",
+    drawn.every((r) => POKEMON.includes(r.id) && r.b === "thor") && rigged.flShow === "bracket" && rigged.flForced === "0",
+    `(${drawn.map((r) => `seed ${r.seed}: ${r.name} (${r.id}) vs ${r.b}`).join("; ")}; rigged bracket: show ${rigged.flShow}, forced ${rigged.flForced}, bout ${rigged.flBout}, round ${rigged.flRound})`,
+  );
+}
+{
+  // The block's screenshots (the clip's moments, the shows and the rigs) are on disk for the artifact.
+  const shots = ["vs", "finale", "bracket", "3v3", "shooters", "win", "ffa4", "rigged", "rig-backstop"].map((n) => `sim-fight-league-${n}.png`);
+  const missing = shots.filter((f) => !fs.existsSync(path.join(outDir, f)) || fs.statSync(path.join(outDir, f)).size < 10_000);
+  check("fight league: the block's screenshots are written (vs, finale, bracket, 3v3, shooters, win, ffa4, rigged, rig-backstop)", missing.length === 0, `(missing or empty: ${missing.join(", ") || "none"})`);
 }
 // --- end fl-overhaul ---
 // --- end fight-league ---
