@@ -1958,7 +1958,64 @@
     "loopClipReplace": "Zamień",
     "loopClipClear": "Usuń",
     "loopClipGain": "Poziom klipu: {slot}",
-    "loopClipFailed": "Nie udało się zdekodować pliku – spróbuj MP3, WAV, OGG albo M4A."
+    "loopClipFailed": "Nie udało się zdekodować pliku – spróbuj MP3, WAV, OGG albo M4A.",
+    "modeEllipseFoci": "Strzał w ognisko",
+    "efDesc": "Eliptyczny stół i salwa piłek wystrzelona naraz z jednego ogniska: każdy strzał odbija się od ściany prosto przez drugie ognisko, a każda taka droga ma tę samą długość, więc cała salwa dociera tam jednocześnie – w każdym przejściu, w rytm.",
+    "efPreset": "Presety strzału w ognisko",
+    "efPresetTip": "Punkty wyjścia: szepcząca galeria z klipu, jeden strzał bilardowy z torem, salwa tysiąca piłek, kontrolny okrąg i wachlarz 90°. Preset ustawia ustawienia trybu i jego wygląd.",
+    "efPresetGallery": "Szepcząca galeria",
+    "efPresetBilliard": "Bilardowy strzał w ognisko",
+    "efPresetThousand": "Salwa tysiąca piłek",
+    "efPresetCircle": "Kontrolny okrąg",
+    "efPresetFan": "Wachlarz 90°",
+    "efCount": "Piłki",
+    "efCountTip": "Piłki wystrzelone naraz z ogniska startowego, rozłożone równo na kąt rozrzutu. Można wpisać dowolną liczbę całkowitą; przebieg buduje najwyżej limit piłek silnika.",
+    "efEccentricity": "Mimośród",
+    "efEccentricityTip": "Jak bardzo wydłużony jest stół: 0 to okrąg (oba ogniska w środku, każda piłka tam wraca), 0,99 to długi, wąski stół. Klip używa 0,65.",
+    "efFlatNote": "Mimośród 1 lub większy nie ma wnętrza: przebieg używa {max}.",
+    "efSize": "Rozmiar stołu",
+    "efSizeTip": "Długa półoś stołu jako część bezpiecznego promienia (100% wypełnia wyśrodkowany kwadrat nagrania jak arena trybów z pierścieniami).",
+    "efTransit": "Czas przejścia",
+    "efTransitTip": "Sekundy, w których piłka leci z jednego ogniska do ściany i dalej do drugiego. Każda droga ma długość 2a, więc prędkość to 2a / T, a każda salwa zbiega się dokładnie po T. Ustaw całe takty tempa (T = takty × 4 × 60 / BPM), a zbieżności wypadną w rytm.",
+    "efPasses": "Przejścia w pętli",
+    "efPassesTip": "Przejścia w jednej pętli: przy Ponownym strzale nowa salwa wylatuje z ogniska startowego co tyle przejść, a klip zapętla się bez szwu (długość pętli = przejścia × T).",
+    "efLoopNote": "Zbieżność co {transit} s (podkład w {bpm} BPM: dwa takty na przejście) – pętla trwa {loop} s.",
+    "efLoopNoteCollapse": "Zbieżność co {transit} s (podkład w {bpm} BPM) – bez pętli: rój dalej zapada się na długą oś.",
+    "efSpread": "Kąt rozrzutu",
+    "efSpreadTip": "Rozrzut salwy: 360° strzela we wszystkie strony, mniej – wachlarzem skierowanym w drugie ognisko.",
+    "efAim": "Kąt startowy",
+    "efAimTip": "Obraca całą salwę (0° wystrzeliwuje jedną piłkę prosto w drugie ognisko i zachowuje lustrzaną symetrię salwy). Najdłuższe zapadanie w Znajdź symulację przeszukuje właśnie ten kąt.",
+    "efLaunch": "Ognisko startowe",
+    "efLaunchTip": "Ognisko, z którego wylatuje salwa: górne albo dolne (lewe albo prawe, gdy stół leży).",
+    "efLaunchTop": "Górne",
+    "efLaunchBottom": "Dolne",
+    "efLaunchLeft": "Lewe",
+    "efLaunchRight": "Prawe",
+    "efOrientation": "Orientacja",
+    "efOrientationTip": "Długa oś stołu: pionowo (jak w klipie) albo poziomo.",
+    "efOrientationVertical": "Pionowo",
+    "efOrientationHorizontal": "Poziomo",
+    "efReset": "Przy zbieżności",
+    "efResetTip": "Co się dzieje, gdy rój się zbiega: nowa salwa z ogniska startowego co tyle przejść, ile ma pętla (pętla bez szwu), dalsze zapadanie się albo nowa salwa przy każdym przejściu.",
+    "efResetRefire": "Ponowny strzał",
+    "efResetCollapse": "Zapadanie",
+    "efResetEvery": "Co przejście",
+    "efResetRefireHint": "Nowa salwa wylatuje z ogniska startowego w każdej pętli, pod błyskiem zbieżności – pętla nie ma szwu.",
+    "efResetCollapseHint": "Jedna salwa na cały przebieg: każde przejście ją zwęża, aż sunie wzdłuż długiej osi jak ciasna kometa.",
+    "efResetEveryHint": "Nowa salwa przy każdej zbieżności, z ogniska, w którym wylądował rój: łuk nigdy się nie zapada.",
+    "efSkin": "Wygląd stołu",
+    "efSkinTip": "Wygląd stołu: stół bilardowy (drewniana banda, miedziana listwa, zielone sukno), neonowy kontur w Kolorze ścian albo cienka linia.",
+    "efSkinTable": "Stół",
+    "efSkinNeon": "Neon",
+    "efSkinMinimal": "Minimalny",
+    "efTrail": "Długość smugi",
+    "efTrailTip": "Ile sekund lotu pokazuje kometowa smuga każdej piłki, która zwęża się i zanika (0 = bez smug).",
+    "efPaths": "Tory",
+    "efPathsTip": "Rysuje blado na suknie cięciwy każdej piłki od jej salwy (w budżecie linii trybu Linie: duża salwa pokazuje najnowsze odbicia).",
+    "efBed": "Podkład rytmiczny",
+    "efBedTip": "Miękki pad, sub i stopa na każde uderzenie w 8 · 60 / T BPM pod szarpnięciami strun, ze zmianą akordu w każdym przejściu – zbieżność zawsze wypada na kresce taktowej.",
+    "efCounter": "Licznik przejść",
+    "efCounterTip": "Pokazuje przejścia bieżącej pętli pod stołem w HUD-zie pętli („przejścia: 3”; klip go nie ma). Włączenie licznika włącza HUD pętli."
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -2066,6 +2123,10 @@
     "landClaim": {
       "name": "Podbój terenu",
       "description": "Kolumny bloków obstawiają ścianę kwadratowej, sześciokątnej lub okrągłej areny; kolorowe kulki strącają górne bloki, co ósmy blok dodaje kolejną kulkę, a wygrywa ten, kto ma najwięcej bloków – DOMINACJA albo CO ZA WYRÓWNANA BITWA."
+    },
+    "ellipseFoci": {
+      "name": "Strzał w ognisko",
+      "description": "Eliptyczny stół: salwa tęczowych piłek wystrzelona z jednego ogniska odbija się od ściany i przechodzi przez drugie ognisko naraz, w każdym przejściu – a rój zapada się przy tym na długą oś."
     }
   },
   "FAQ": {
@@ -2152,7 +2213,8 @@
     "modeConveyor": "Taśmociąg biegnie górą pola i co kilka sekund zrzuca piłkę na arenę poniżej – Gerald odradza się raz za razem. Wybierz arenę: koncentryczne pierścienie z obracającymi się szczelinami, z których każda piłka musi uciec sama (pierścienie nigdy nie pękają, a druga taśma wywozi poza pole piłki, które uciekły), misę, która zapełnia się, aż się przeleje, albo pole kołków, które rozdziela piłki do przegródek. Zamrażanie po lądowaniu zamienia każdą piłkę, która wyląduje, w przeszkodę dla następnej, więc stos rośnie; Różnorodność miesza rozmiary i kolory. Każde odbicie to nuta z Twojej skali, taśma buczy i klika, a licznik prowadzi rachunek – Załadowano 17 / Uciekło 4. W trybach Klasyczny i Mnożenie ten sam licznik odradzania co kilka sekund wrzuca nową piłkę. Wszystko jest deterministyczne dla danego ziarna, więc Znajdź symulację dobierze przebieg o długości Twojego klipu.",
     "modeOrbGrid": "Pole kul – kwadratowa siatka, dysk, pierścienie ośmiokątne albo siatka heksagonalna, domyślnie 33 × 33 = 1089 i bez górnej granicy – w perspektywie, na płycie albo okrągłym talerzu; każda kula podskakuje w górę i w dół na swoim miejscu. W modelu rytmu (domyślnym) każda kula to idealnie sprężysta piłka, która zawsze wybija się na tę samą wysokość: pole dzieli się na grupy – rzędy, kolumny, pierścienie, przekątne, szachownicę albo pojedyncze kule – odbijające się w cyklu całkowitą liczbę razy: fala wahadeł, 3 na 2, 4 na 3, 3:4:5, drabina euklidesowa, od rogu do rogu albo od środka. Wysokości tworzą falę biegnącą, która przechodzi przez zmarszczki i grupy, a na końcu każdego cyklu wszystkie kule lądują razem – W FAZIE. Metronom wybija rytm drewnianym klikiem i kołyszącym się wahadłem, pulsującym pierścieniem albo skaczącą kropką, cykl dopasowuje się do pełnych taktów, a z włączoną Melodią każda grupa gra własną nutę ze skali. Model wygasania pozwala kulom tracić energię: jedna cecha zmienia się w poprzek pola – sprężystość, wysokość zrzutu, opóźnienie puszczenia, rozmiar, grawitacja albo okres – kule rozchodzą się i zgrywają w fazie, aż spoczną, a Znajdź symulację może wybrać przebieg o długości Twojego klipu. Kolor według wysokości, kule błyszczące, metaliczne, matowe albo szklane; każde lądowanie to cicha nuta, dźwięk do snu, melodia skomponowana przez odbicia albo metaliczne brzęknięcia.",
     "modeFightLeague": "Zawodnicy z gier wideo, komiksów, seriali i filmów – Thor, Loki, Captain Falcon, Little Mac, Yuumi, Katarina i ponad pięćdziesięciu innych, pogrupowanych w dywizje, by pojedynek został w swoim gatunku – walczą jako kulki na kwadratowej albo okrągłej arenie. Każdy ma własną broń, narysowaną jako prosta wektorowa sylwetka: miecze tną przy każdym odbiciu, młoty lecą we wroga i wracają, pięści uderzają, pistolety, łuki i różdżki strzelają, ogień i promienie palą. Trafienie zabiera PŻ – liczbę w środku kulki i pasek pod nią – odrzuca wroga i ładuje miernik zdolności w polu na dole; gdy jest pełny, nazwa zdolności miga przez 0,4 s, a zdolność odpala sama: pioruny, kopie, promienie, duszenie, fale uderzeniowe, przywołańcy, bullet time. Graj 1 na 1, 2 na 2 albo każdy na każdego; wygrywa ostatni zawodnik lub drużyna na placu boju albo strona z większą liczbą PŻ przy limicie czasu. Deterministyczne i oparte na seedzie: Znajdź symulację znajdzie przebieg, w którym wygrywa A albo B, podwójny nokaut albo walkę o długości Twojego klipu – a wymuszony zwycięzca ją ustawi.",
-    "modeLandClaim": "Bitwa o teren: kolumny bloków stoją po wewnętrznej stronie kwadratowej, sześciokątnej lub okrągłej ściany, a dwóch lub więcej zawodników – skład drużyn z krajami daje im flagi, nazwy i barwy – odbija swoje kulki w środku ze stałą prędkością. W zasadzie strącania kulka, która trafi w kolumnę, zabiera jej górny blok: blok odlatuje w kolorze uderzającego i liczy się dla niego, a co ósmy blok strącony przez zawodnika dodaje kolejną kulkę w jego kolorze w miejscu uderzenia, więc prowadzenie rośnie jak kula śnieżna w cały rój. Zasada zajmowania zamiast tego maluje bloki na miejscu, a zasada kradzieży pozwala odebrać rywalowi blok – teren przechodzi z rąk do rąk, aż skończy się czas. Bitwa kończy się, gdy ściana zostanie zdobyta albo po upływie czasu trwania, a wygrywa ten, kto ma najwięcej bloków: DOMINACJA powyżej 60% terenu, CO ZA WYRÓWNANA BITWA, gdy dwóch najlepszych dzieli najwyżej 5%. Każde ziarno odtwarza się dokładnie, Znajdź symulację szuka wybranego zwycięzcy, wyrównanej bitwy albo przebiegu kończącego się w wybranej sekundzie, a Wymuszony zwycięzca faworyzuje kolor, kierując jego odbicia w stronę terenu do zdobycia."
+    "modeLandClaim": "Bitwa o teren: kolumny bloków stoją po wewnętrznej stronie kwadratowej, sześciokątnej lub okrągłej ściany, a dwóch lub więcej zawodników – skład drużyn z krajami daje im flagi, nazwy i barwy – odbija swoje kulki w środku ze stałą prędkością. W zasadzie strącania kulka, która trafi w kolumnę, zabiera jej górny blok: blok odlatuje w kolorze uderzającego i liczy się dla niego, a co ósmy blok strącony przez zawodnika dodaje kolejną kulkę w jego kolorze w miejscu uderzenia, więc prowadzenie rośnie jak kula śnieżna w cały rój. Zasada zajmowania zamiast tego maluje bloki na miejscu, a zasada kradzieży pozwala odebrać rywalowi blok – teren przechodzi z rąk do rąk, aż skończy się czas. Bitwa kończy się, gdy ściana zostanie zdobyta albo po upływie czasu trwania, a wygrywa ten, kto ma najwięcej bloków: DOMINACJA powyżej 60% terenu, CO ZA WYRÓWNANA BITWA, gdy dwóch najlepszych dzieli najwyżej 5%. Każde ziarno odtwarza się dokładnie, Znajdź symulację szuka wybranego zwycięzcy, wyrównanej bitwy albo przebiegu kończącego się w wybranej sekundzie, a Wymuszony zwycięzca faworyzuje kolor, kierując jego odbicia w stronę terenu do zdobycia.",
+    "modeEllipseFoci": "Eliptyczny stół bilardowy z dwoma zaznaczonymi ogniskami. Salwa piłek – domyślnie 72, pokolorowanych kołem barw według kąta wystrzału – wylatuje z jednego ogniska w tej samej chwili, we wszystkie strony. Elipsa kieruje każdy strzał z jednego ogniska po odbiciu od ściany prosto przez drugie, a każda taka droga ma tę samą długość, więc cała salwa zbiega się w drugim ognisku jedno przejście później, potem z powrotem w pierwszym, za każdym razem z białym rozbłyskiem, a każde przejście zwęża rój ku długiej osi. Ponowny strzał wypuszcza nową salwę pod błyskiem co kilka przejść, więc klip zapętla się bez szwu; odbicia od ściany schodzą po pentatonicznej drabinie, każda zbieżność ląduje na kresce taktowej ze stopą, trzaskiem i akordem, a Znajdź symulację ustawia zbieżności w rytm strony albo znajduje kąt startowy najdłuższego zapadania."
   },
   "Footer": {
     "navLabel": "Stopka",
@@ -2424,7 +2486,17 @@
     "missFillOnBar": "Najbliższe wypełnienie: {offset}s od taktu ({seeds} seedów)",
     "overlayFillsBy": "Sprawdzono {tested} seedów: żaden nie wypełnił okręgu w {target}s. Spróbuj większego wzrostu na odbicie, większego rozmiaru startowego albo szybszej piłki.",
     "overlayNoFill": "Sprawdzono {tested} seedów: żaden nie wypełnił okręgu w czasie wyszukiwania. Spróbuj większego wzrostu na odbicie.",
-    "overlayFillOnBar": "Sprawdzono {tested} seedów: najbliższe wypełnienie wypadło {offset}s od taktu. Spróbuj innego BPM albo wzrostu na odbicie."
+    "overlayFillOnBar": "Sprawdzono {tested} seedów: najbliższe wypełnienie wypadło {offset}s od taktu. Spróbuj innego BPM albo wzrostu na odbicie.",
+    "outcomeConvergeOnBeat": "Zbieżność w rytm",
+    "outcomeLongestCollapse": "Najdłuższe zapadanie",
+    "hintConvergeOnBeat": "Każda salwa zbiega się na czas (własność odbicia ognisk): czas przejścia staje się najbliższą całkowitą liczbą taktów przy BPM ustawionym w Dźwięku, więc każda zbieżność wypada na kresce taktowej, a klip to całe pętle przebiegu.",
+    "hintLongestCollapse": "Szuka kąta startowego (w obrębie jednego kroku salwy), którego rój potrzebuje najwięcej przejść, by zwęzić się poniżej dwóch promieni piłki; znaleziony przebieg zapada się bez ponownego strzału, a klip obejmuje te przejścia i przejście komety.",
+    "findConvergeOnBeat": "Ustaw zbieżności w rytm",
+    "findLongestCollapse": "Znajdź najdłuższe zapadanie",
+    "foundConvergeOnBeat": "Znaleziono! Zbieżność co {transit}s ({bars, plural, one {# takt} few {# takty} many {# taktów} other {# taktu}}), w klipie {loops, plural, one {# pełna pętla} few {# pełne pętle} many {# pełnych pętli} other {# pełnej pętli}}",
+    "foundLongestCollapse": "Znaleziono! Kąt startowy {aim}°: rój staje się kometą po {passes}. przejściu",
+    "missLongestCollapse": "Rój nigdy nie zwęził się poniżej dwóch promieni piłki (sprawdzone kąty startowe: {seeds})",
+    "overlayLongestCollapse": "Sprawdzono kąty startowe ({tested}): rój nie zwęził się poniżej dwóch promieni piłki w czasie wyszukiwania. Okrąg nigdy się nie zapada – spróbuj większego mimośrodu."
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -4174,6 +4246,13 @@
     "growMultiplyFact": "Każde odbicie powiększa piłkę o {count}%, więc rośnie wykładniczo: rozmiar podwaja się co kilka odbić, odbicia przychodzą coraz szybciej, a ostatnie kilka wypełnia większość okręgu.",
     "growAdd": "{count} px większa z każdym odbiciem, aż wypełni okrąg",
     "growApproach": "{count}% bliżej ściany z każdym odbiciem",
-    "seconds": "{count} sekund: {mode}"
+    "seconds": "{count} sekund: {mode}",
+    "ellipseFoci": "{count} × strzał z jednego ogniska, wszystkie naraz przez drugie",
+    "ellipseFociFact": "Elipsa ma dwa ogniska. Strzał z jednego odbija się od ściany prosto przez drugie, w którąkolwiek stronę poleci, a każda taka droga ma tę samą długość – więc cała salwa wystrzelona naraz dociera do drugiego ogniska w tej samej chwili. Dlatego szept w jednym ognisku eliptycznej sali słychać wyraźnie w drugim."
+  },
+  "EllipseFoci": {
+    "canvasTitle": "strzel z jednej kropki, traf w drugą",
+    "canvasSubtitle": "każda droga z ogniska przez ścianę do drugiego ma tę samą długość",
+    "canvasPasses": "przejścia: {count}"
   }
 }

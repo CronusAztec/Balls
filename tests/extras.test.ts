@@ -140,6 +140,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   fightLeague: { samples: [[322587,392541],[479754,366913],[357342,358123],[462286,375558],[573213,379685],[357902,130849],[531836,220763],[429882,134919]], broken: [], walls: [] }, // --- fight-league ---
   // --- land-claim --- (recorded when the mode was added: no rings – the wall of columns is the mode's own)
   landClaim: { samples: [[328386,444514],[369351,237432],[436782,420717],[255355,223244],[467695,452667],[322641,326623],[561586,483469],[293545,478909]], broken: [], walls: [] },
+  // --- ellipse-foci --- (recorded when the mode was added: no rings – the pool is the mode's own; ball 0 flies along the long axis)
+  ellipseFoci: { samples: [[400000,453000],[427781,451787],[400000,338250],[349647,348614],[400000,70500],[336279,132331],[400000,389250],[506404,234010]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

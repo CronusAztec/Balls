@@ -89,6 +89,8 @@ import { GROW_FILL_ENGINE_KEYS, GROW_FILL_RANGES, defaultGrowFillFields, readGro
 import type { GrowLaw, GrowOnFill } from "@/lib/physics/modes/grow";
 import { defaultLoopFields, readLoopParams, resolveLoopFields, writeLoopParams } from "@/lib/loop/loopSettings";
 // --- end loop-foundation ---
+// --- ellipse-foci --- Focus Shot (an elliptical pool: a volley from one focus converges on the other every transit)
+import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDefaults, readEllipseFociParams, resolveEllipseFociFields, writeEllipseFociParams, type EfLaunch, type EfOrientation, type EfReset, type EfSkin } from "@/lib/physics/ellipseFoci";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -934,6 +936,34 @@ export interface SimulatorSettings {
   loopHudTitle: string;
   loopHudSubtitle: string;
   // --- end loop-foundation ---
+  // --- ellipse-foci --- Focus Shot (lib/physics/ellipseFoci.ts): a volley fired from one focus of an elliptical pool
+  /** Balls in the volley, 1–720 on the slider, any whole number typed (a run builds at most 2,000) (URL `efN`). */
+  efCount: number;
+  /** Eccentricity, 0 (a circle) – 0.99 on the slider (URL `efE`). */
+  efEccentricity: number;
+  /** The major semi-axis, % of the safe radius (50–140 on the slider) (URL `efS`). */
+  efSize: number;
+  /** Seconds a transit lasts, focus to wall to focus (0.5–20 on the slider): the speed is 2a / T (URL `efT`). */
+  efTransit: number;
+  /** Transits in a loop (1–16 on the slider) (URL `efP`). */
+  efPasses: number;
+  /** The volley's spread in degrees, 360 = every way, less = a fan (URL `efA`); the start angle that turns it (URL `efAim`). */
+  efSpread: number;
+  efAim: number;
+  /** The launch focus: top | bottom (left | right lying down) (URL `efF`); the long axis: vertical | horizontal (URL `efO`). */
+  efLaunch: EfLaunch;
+  efOrientation: EfOrientation;
+  /** The comet trails' length in seconds (URL `efTr`). */
+  efTrail: number;
+  /** At a convergence: refire | collapse | every (URL `efR`). */
+  efReset: EfReset;
+  /** table | neon | minimal (URL `efK`). */
+  efSkin: EfSkin;
+  /** The paths overlay (URL `efPa`), the groove bed (URL `efB`) and the loop HUD's pass counter (URL `efC`). */
+  efPaths: boolean;
+  efBed: boolean;
+  efCounter: boolean;
+  // --- end ellipse-foci ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -1069,6 +1099,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...landClaimModeDefaults(mode),
     ...defaultGrowFillFields(), // --- loop-foundation --- (the classic Grow: approach, stay)
     ...defaultLoopFields(), // --- loop-foundation --- (whole loops on, the HUD off)
+    // --- ellipse-foci --- the feature's fields, and in Focus Shot only the clip's look (the navy page, the loop HUD on)
+    ...defaultEllipseFociFields(),
+    ...ellipseFociModeDefaults(mode),
   };
 }
 
@@ -1149,6 +1182,7 @@ export const RANGES = {
   ...FIGHT_LEAGUE_RANGES, // --- fight-league ---
   ...LAND_CLAIM_RANGES, // --- land-claim ---
   ...GROW_FILL_RANGES, // --- loop-foundation ---
+  ...EF_RANGES, // --- ellipse-foci ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1400,6 +1434,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeLandClaimParams(settings, base, params); // --- land-claim ---: lcc, lcr, lca, lct, lcb, lcm, lce, lcd, lcti, lch
   writeGrowFillParams(settings, base, params); // --- loop-foundation ---: gLaw, gFill, gStep, gStart, gHold, gShrink, gHue, gRamp, gMark, gMarkT, gPitch
   writeLoopParams(settings, base, params); // --- loop-foundation ---: wl, lh, lht, lhs
+  writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1564,6 +1599,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readLandClaimParams(params, settings); // --- land-claim --- (valid numbers kept, no maximum; unknown arenas and rules fall back)
   readGrowFillParams(params, settings); // --- loop-foundation --- (valid numbers from their minimum up, known laws, real booleans, a clean ramp)
   readLoopParams(params, settings); // --- loop-foundation --- (real booleans, clean texts)
+  readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -1781,6 +1817,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   orbGrid: ORB_GRID_PHYSICS_FIELDS.filter((key) => key in ORB_GRID_RANGES), // --- orb-grid --- (the field and the variation; the camera is the canvas')
   fightLeague: rangeKeys(FIGHT_LEAGUE_RANGES), // --- fight-league ---
   landClaim: rangeKeys(LAND_CLAIM_RANGES), // --- land-claim ---
+  ellipseFoci: [...EF_ENGINE_KEYS], // --- ellipse-foci --- (the volley, the pool and the timing; the trail is the canvas')
 };
 // --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
@@ -1991,6 +2028,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveLandClaimFields(merged)); // --- land-claim --- valid numbers (no maximum), a known arena and rule, a clean title, a real boolean
   Object.assign(merged, resolveGrowFillFields(merged)); // --- loop-foundation --- valid numbers from their minimum up, known laws, real booleans, a clean ramp
   Object.assign(merged, resolveLoopFields(merged)); // --- loop-foundation --- real booleans, clean texts
+  Object.assign(merged, resolveEllipseFociFields(merged)); // --- ellipse-foci --- valid numbers from their minimum up, known options, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

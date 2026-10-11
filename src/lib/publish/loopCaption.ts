@@ -13,6 +13,7 @@ export const LOOP_CAPTION_BASE_TAGS = ["#satisfying", "#oddlysatisfying"] as con
 /** The topic tags a mode adds after them (two or three: four or five in all). */
 export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly string[]>>> = {
   grow: ["#physics", "#bouncingball", "#exponentialgrowth"],
+  ellipseFoci: ["#math", "#geometry", "#creativecoding"], // --- ellipse-foci ---
 };
 /** Any other mode's topic tags. */
 export const LOOP_CAPTION_DEFAULT_TAGS = ["#physics", "#bouncingball"] as const;
@@ -106,7 +107,9 @@ export interface LoopCaptionContext {
  * The loop-style words of a run with these settings: Grow by its law – "{count}% bigger every bounce…" (multiply), "{count} px
  * bigger…" (add), "{count}% closer…" (the classic approach) –, any other mode its clip's seconds.
  */
-export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number }): LoopCaptionContext {
+export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number; efCount?: number /* --- ellipse-foci --- */ }): LoopCaptionContext {
+  // --- ellipse-foci --- Focus Shot by its volley: "{count} balls fired from one focus…" and the whispering-gallery fact
+  if (s.mode === "ellipseFoci") return { mode: s.mode, hookKey: "ellipseFoci", factKey: "ellipseFociFact", count: typeof s.efCount === "number" && Number.isFinite(s.efCount) ? s.efCount : null };
   if (s.mode === "grow") {
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };
     if (s.growLaw === "add") return { mode: s.mode, hookKey: "growAdd", factKey: "", count: s.growStep ?? null };

@@ -12,6 +12,7 @@ import CharacterSection, { CHARACTER_KEYS } from "./sections/CharacterSection"; 
 import HitSampleSection, { HIT_SAMPLE_KEYS } from "./sections/HitSampleSection";
 import MusicSection, { MUSIC_BED_KEYS, type MusicTrackInfo } from "./sections/MusicSection";
 import PendulumWaveSection, { PENDULUM_WAVE_KEYS } from "./sections/PendulumWaveSection";
+import EllipseFociSection, { ELLIPSE_FOCI_KEYS } from "./sections/EllipseFociSection"; // --- ellipse-foci --- the Focus Shot block of the Mode row
 import { BALL_PHYSICS_EXTRA_KEYS, BallPhysicsExtras, WALL_PHYSICS_EXTRA_KEYS, WallPhysicsExtras } from "./sections/PhysicsExtrasSection";
 import PicturePaintSection, { PICTURE_PAINT_KEYS, type PaintBeatInfo, type PaintPictureInfo } from "./sections/PicturePaintSection";
 import PolyrhythmSection, { POLYRHYTHM_KEYS } from "./sections/PolyrhythmSection"; // --- jdm-polyrhythm ---
@@ -268,6 +269,7 @@ SECTION_KEYS.ball.push(...MAZE_KEYS);
 SECTION_KEYS.ball.push(...CONVEYOR_KEYS, ...RESPAWN_KEYS);
 // --- orb-grid --- the Bouncing Orbs block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...ORB_GRID_KEYS);
+SECTION_KEYS.ball.push(...ELLIPSE_FOCI_KEYS); // --- ellipse-foci --- the Focus Shot block of the Mode row
 // --- fight-league --- the Fight League block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...FIGHT_LEAGUE_KEYS);
 // --- land-claim --- the Land Claim block of the Mode row is searched with the Ball section too.
@@ -363,6 +365,7 @@ export default function Controls(props: ControlsProps) {
     drop: t("modeDrop"),
     box: t("modeBox"),
     pendulum: t("modePendulum"),
+    ellipseFoci: t("modeEllipseFoci"), // --- ellipse-foci ---
     polyrhythm: t("modePolyrhythm"), // --- jdm-polyrhythm ---
     // --- jdm-collisions ---
     collide: t("modeCollide"),
@@ -469,6 +472,7 @@ export default function Controls(props: ControlsProps) {
       {ESCAPE_MODE_KEYS_BY_MODE[s.mode] && !!search && <EscapeModeSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {s.mode === "box" && !!search && <BoxArenaSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {s.mode === "pendulum" && !!search && <PendulumWaveSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {s.mode === "ellipseFoci" && !!search && <EllipseFociSection t={t} search={search} matches={matches} settings={s} update={update} /> /* --- ellipse-foci --- */}
       {s.mode === "polyrhythm" && !!search && <PolyrhythmSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- jdm-collisions --- */}
       {s.mode === "collide" && !!search && <CollisionPlaygroundSection t={t} search={search} matches={matches} settings={s} update={update} />}
@@ -1297,6 +1301,8 @@ export default function Controls(props: ControlsProps) {
         return <BoxArenaSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "pendulum":
         return <PendulumWaveSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      case "ellipseFoci": // --- ellipse-foci ---
+        return <EllipseFociSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "polyrhythm": // --- jdm-polyrhythm ---
         return <PolyrhythmSection t={t} search={search} matches={matches} settings={s} update={update} />;
       // --- jdm-collisions ---

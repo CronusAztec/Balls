@@ -13721,6 +13721,131 @@ await smokeBlock("loop-foundation", async () => {
 // --- end loop-foundation ---
 });
 
+await smokeBlock("ellipse-foci", async () => {
+// --- ellipse-foci ---
+// 39. Focus Shot (the loop family's whispering-gallery shot): ?mode=ellipseFoci runs 20 s of simulation at 4× with no NaN
+// position (data-ef-nan), at least four convergences on time (data-ef-convergences; the worst arrival, data-ef-conv-error, under
+// 1e-6 of the long semi-axis), comet trails (data-ef-trail-points), the white convergence bloom and the loop HUD's lowercase
+// title and pass counter on the canvas; a preset travels in the link (efN, efAim, efTr, efPa) and rebuilds the run; Find
+// Simulation offers Converges on the beat and Longest collapse and puts a 100 BPM page's convergences on its bar lines (efT=4.8);
+// and a fast export of a 20 s clip – one whole 16 s loop – emits exactly the sound events live play emitted up to that seam
+// (data-ef-conv-sounds of the export's hidden canvas against the page's: the sounds after each convergence, cumulative).
+{
+  await page.goto(`${BASE}/en/simulator/?mode=ellipseFoci&efC=1`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("ellipse-foci-section");
+  const sectionInfo = { visible: await section.isVisible().catch(() => false), loop: await section.getAttribute("data-ef-loop").catch(() => null), bpm: await section.getAttribute("data-ef-bpm").catch(() => null) };
+  await page.evaluate(() => {
+    const texts = [];
+    window.__efHud = { texts, white: 0 };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 4000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+    // the bloom: a radial gradient from white on the focus (the felt's stops are green)
+    const addColorStop = CanvasGradient.prototype.addColorStop;
+    CanvasGradient.prototype.addColorStop = function (offset, color) {
+      if (offset === 0 && /^rgba\(255, 255, 255, /.test(String(color))) window.__efHud.white++;
+      return addColorStop.call(this, offset, color);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  let trail = 0;
+  let nan = 0;
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline) {
+    const d = await canvasData();
+    trail = Math.max(trail, Number(d.efTrailPoints) || 0);
+    nan = Math.max(nan, Number(d.efNan) || 0);
+    if (Number(d.efTime) >= 20) break;
+    await page.waitForTimeout(150);
+  }
+  const run = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-ellipse-foci.png") });
+  const hud = await page.evaluate(() => {
+    const { texts, white } = window.__efHud;
+    return { title: texts.some((t) => t.text === "fire from one dot, hit the other"), counter: texts.filter((t) => /^\d+ passes$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null, white };
+  });
+  const live = (run.efConvSounds || "").split(",").filter(Boolean).map(Number);
+  check(
+    "Focus Shot runs 20 s at 4×: no NaN, a convergence on time every 4 s, comet trails, the bloom and the loop HUD's title and pass counter",
+    sectionInfo.visible && sectionInfo.loop === "16" && sectionInfo.bpm === "120" && Number(run.efTime) >= 20 && run.efNan === "0" && nan === 0 && Number(run.efConvergences) >= 4 && Number(run.efConvError) < 1e-6 && run.efBalls === "72" && run.efSkin === "table" && trail > 72 && hud.white > 0 && hud.title && hud.counter === "#f2c46a" && run.loopHud === "1" && live.length >= 4,
+    `(${JSON.stringify({ section: sectionInfo, time: run.efTime, nan: run.efNan, conv: run.efConvergences, err: run.efConvError, balls: run.efBalls, skin: run.efSkin, trail, hud, live, seams: run.efSeams, loop: run.efLoop })})`,
+  );
+
+  // ⚡ The fast export of a 20 s clip with Export whole loops (on by default): one 16 s loop, and the sound events the export's
+  // engine emitted by its seam – read off its hidden canvas while it renders – are exactly the live run's by the same convergence.
+  await page.goto(`${BASE}/en/simulator/?mode=ellipseFoci&dur=20&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const seen = { sounds: -1, conv: "", time: 0 };
+      window.__efExport = seen;
+      new MutationObserver((records) => {
+        for (const r of records) {
+          const el = r.target;
+          if (!(el instanceof HTMLCanvasElement) || el.style.display !== "none") continue;
+          seen.sounds = Number(el.dataset.efSounds);
+          seen.conv = el.dataset.efConvSounds || "";
+          seen.time = Number(el.dataset.efTime);
+        }
+      }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-ef-sounds", "data-ef-conv-sounds", "data-ef-time"] });
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `ellipse-foci-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const exported = await page.evaluate(() => window.__efExport);
+    const conv = exported.conv.split(",").filter(Boolean).map(Number);
+    check(
+      "a Focus Shot fast export of a 20 s clip is one whole 16 s loop and emits exactly the sound events live play emitted by that seam",
+      status === "done" && bytes > 10000 && loops === 1 && Math.abs(seconds - 16) <= 1 / 30 + 0.002 && conv.length >= 4 && conv.slice(0, 4).every((n, i) => n === live[i]) && exported.sounds === conv[conv.length - 1] && exported.sounds === live[conv.length - 1],
+      `(${JSON.stringify({ status, bytes, seconds, loops, exported, live })})`,
+    );
+  } else check("without WebCodecs the Focus Shot fast export is not checked (the live run is covered above)", true);
+
+  // A preset travels in the link and rebuilds the run: Billiard focus shot – one ball at 50°, a 2 s trail, its path drawn.
+  await page.goto(`${BASE}/en/simulator/?mode=ellipseFoci`, { waitUntil: "networkidle" });
+  await page.locator('[data-ef-preset="billiard"]').first().click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  const presetQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  const presetRun = await canvasData();
+  check(
+    "a Focus Shot preset travels in the link (efN, efAim, efTr, efPa) and rebuilds the run",
+    presetQuery.get("efN") === "1" && presetQuery.get("efAim") === "50" && presetQuery.get("efTr") === "2" && presetQuery.get("efPa") === "1" && presetRun.efBalls === "1" && presetRun.efTrail === "2",
+    `(${JSON.stringify({ query: presetQuery.toString(), balls: presetRun.efBalls, trail: presetRun.efTrail })})`,
+  );
+
+  // Find Simulation: the two outcomes; on the beat at 100 BPM a 4.1 s transit becomes two bars (4.8 s), the clip whole loops.
+  await page.goto(`${BASE}/en/simulator/?mode=ellipseFoci&bpm=100&efT=4.1`, { waitUntil: "networkidle" });
+  const outcomes = await page.locator("#find-outcome option").evaluateAll((options) => options.map((o) => o.value)).catch(() => []);
+  await page.locator("#find-outcome").selectOption("converge-on-beat").catch(() => {});
+  const findButton = page.getByRole("button", { name: /Put the Convergences on the Beat/ });
+  const labelled = await findButton.isVisible().catch(() => false);
+  await findButton.click().catch(() => {});
+  const foundText = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 30_000 }).then(() => page.getByText(/Found!|Didn't find simulation/).first().innerText()).catch(() => "timeout");
+  await page.waitForTimeout(400);
+  const foundQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "Find Simulation offers Converges on the beat and Longest collapse, and puts a 100 BPM page's convergences on its bar lines (4.8 s, two bars)",
+    outcomes.join(",") === "converge-on-beat,longest-collapse" && labelled && /Found! A convergence every 4\.80s \(2 bars\)/.test(foundText) && foundQuery.get("efT") === "4.8" && foundQuery.get("dur") === "20",
+    `(${JSON.stringify({ outcomes, labelled, foundText, query: foundQuery.toString() })})`,
+  );
+}
+// --- end ellipse-foci ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

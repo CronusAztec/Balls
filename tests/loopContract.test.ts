@@ -93,14 +93,17 @@ describe("the loop contract: whole cycles", () => {
       expect(engine.getLoopSeams()).toBeNull();
       expect(engine.getCycleSeconds()).toBeNull();
     }
-    for (const mode of MODE_IDS) if (mode !== "grow") expect([mode, createEngineForSettings(config, mode, modeSettings, 3).getLoopSeams()]).toEqual([mode, null]);
+    for (const mode of MODE_IDS) if (mode !== "grow" && mode !== "ellipseFoci" /* --- ellipse-foci --- (a refire run loops from its start: below) */) expect([mode, createEngineForSettings(config, mode, modeSettings, 3).getLoopSeams()]).toEqual([mode, null]);
+    // --- ellipse-foci --- Focus Shot loops from its start (a fresh volley every 4 passes of 4 s); a swarm left to collapse never does
+    expect(createEngineForSettings(config, "ellipseFoci", modeSettings, 3).getLoopSeams()).toMatchObject({ count: 0, lastMs: -1, nextMs: 16000 });
+    expect(createEngineForSettings(config, "ellipseFoci", { ...modeSettings, ellipseFoci: { reset: "collapse" } }, 3).getLoopSeams()).toBeNull();
   });
 });
 
 describe("the loop settings: Export whole loops and the loop HUD", () => {
   it("defaults to whole loops on and the HUD off, and round-trips through links and presets", () => {
     expect(DEFAULT_LOOP_FIELDS).toEqual({ exportWholeLoops: true, loopHud: false, loopHudTitle: "", loopHudSubtitle: "" });
-    for (const mode of MODE_IDS) expect(defaultSettings(mode)).toMatchObject(DEFAULT_LOOP_FIELDS);
+    for (const mode of MODE_IDS) expect(defaultSettings(mode)).toMatchObject(mode === "ellipseFoci" ? { ...DEFAULT_LOOP_FIELDS, loopHud: true } : DEFAULT_LOOP_FIELDS); // --- ellipse-foci --- (its look starts with the HUD on)
     const s = { ...defaultSettings("grow"), exportWholeLoops: false, loopHud: true, loopHudTitle: "Every bounce, bigger", loopHudSubtitle: "watch the end" };
     const params = settingsToSearchParams(s);
     expect([params.get("wl"), params.get("lh"), params.get("lht"), params.get("lhs")]).toEqual(["0", "1", "Every bounce, bigger", "watch the end"]);

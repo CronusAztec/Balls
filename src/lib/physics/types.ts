@@ -74,6 +74,8 @@ export const MODE_IDS = [
   "fightLeague",
   // --- land-claim --- Land Claim (balls knock the top blocks off the columns lining the arena; every eighth block a new ball)
   "landClaim",
+  // --- ellipse-foci --- Focus Shot (an elliptical pool: a volley fired from one focus converges on the other every transit; the loop family)
+  "ellipseFoci",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -378,6 +380,10 @@ export interface SoundEvent {
   /** The pluck's 3f partial: a small or fast object. */
   loopBright?: boolean;
   // --- end loop-foundation ---
+  // --- ellipse-foci ---
+  /** A loop "bed" event's chord is minor (the groove bed's ii, iii and vi: `ToneGenerator.playLoop()`'s `minor`). */
+  loopMinor?: boolean;
+  // --- end ellipse-foci ---
 }
 
 // --- loop-foundation --- the voices of the loop sound families (lib/audio/loopTones.ts; `ToneGenerator.playLoop()`)

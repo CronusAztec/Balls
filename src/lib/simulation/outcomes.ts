@@ -29,9 +29,14 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  * --- loop-foundation --- Grow's fill and loop adds two, while a fill ends the run ("finish"): **fills-by** – the ball fills
  * the circle within a time limit (`atSec`) – and **fill-on-bar** – the fill lands within `toleranceSec` (one 60 fps frame by
  * default) of a bar line of the song's tempo (`atSec` is the bar's length), so the completion chord hits on a downbeat.
+ *
+ * --- ellipse-foci --- Focus Shot adds two (no seed's length to search: its loop goes on forever): **converge-on-beat** – every
+ * convergence on a bar line: the transit becomes a whole number of bars of the song's tempo (`atSec` is the bar's length) and
+ * the clip a whole number of loops – and **longest-collapse** – the start angle whose swarm takes the most passes to narrow under
+ * two ball radii (ellipseFociFinder.ts; no seed is simulated, the seed only colours the run).
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "converge-on-beat", "longest-collapse"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- ellipse-foci --- (converge-on-beat, longest-collapse)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -357,6 +362,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "fightLeague") out.push("double-ko");
   if (CLOSE_BATTLE_MODES.includes(mode) && ctx.ballCount >= 2) out.push("close"); // --- land-claim ---
   if (mode === "grow" && ctx.growFinish) out.push("fills-by", "fill-on-bar"); // --- loop-foundation ---
+  if (mode === "ellipseFoci") out.push("converge-on-beat", "longest-collapse"); // --- ellipse-foci --- (the transit on the tempo; the start angle)
   return out;
 }
 

@@ -87,3 +87,6 @@ export type { FlFighterRow, FlDivision, FlWeaponKind, FlWeaponSpec, FlEffect, Fl
 // --- land-claim ---
 export { LandClaimMode } from "./landClaim";
 export type { LandClaimSettings, LandClaimView, LandClaimField, LcArena, LcRule, LcVerdict, LcVerdictKind } from "./landClaim";
+// --- ellipse-foci ---
+export { EllipseFociMode } from "./ellipseFoci";
+export type { EllipseFociView } from "./ellipseFoci";

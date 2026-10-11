@@ -42,7 +42,15 @@ export interface LoopHudSpec {
 /** Translation keys (namespace `LoopHud`) of the modes with words of their own; any other mode's title is its name. */
 export const LOOP_HUD_MODE_TEXT: Readonly<Partial<Record<ModeId, { title: string; subtitle: string; counter: string }>>> = {
   grow: { title: "growTitle", subtitle: "growSubtitle", counter: "growCounter" },
+  ellipseFoci: { title: "EllipseFoci.canvasTitle", subtitle: "EllipseFoci.canvasSubtitle", counter: "EllipseFoci.canvasPasses" }, // --- ellipse-foci --- (its own namespace)
 };
+
+// --- ellipse-foci ---
+/** The full message key of a LOOP_HUD_MODE_TEXT entry: under `LoopHud`, or – a key that names its namespace ("EllipseFoci.canvasTitle") – as it is. */
+export function loopHudMessageKey(key: string): string {
+  return key.includes(".") ? key : `LoopHud.${key}`;
+}
+// --- end ellipse-foci ---
 
 /** The HUD's lines in a `width` × `height` frame (px): centres of the lines, font sizes, the rule and the widest a line may be. */
 export interface LoopHudLayout {
@@ -185,7 +193,8 @@ export function hudCounterText(template: string, count: number | null, locale?: 
 }
 
 /** The counter of the mode's run (Grow: the bounces of the current cycle), or null when the mode has none. */
-export function loopHudCount(engine: { getCurrentModeName(): string; getGrowView(): { bounces: number } }): number | null {
+export function loopHudCount(engine: { getCurrentModeName(): string; getGrowView(): { bounces: number }; getEllipseFociHudCount?(): number | null /* --- ellipse-foci --- */ }): number | null {
+  if (engine.getCurrentModeName() === "ellipseFoci") return engine.getEllipseFociHudCount?.() ?? null; // --- ellipse-foci --- (the pass counter, when it is on)
   return engine.getCurrentModeName() === "grow" ? engine.getGrowView().bounces : null;
 }
 
