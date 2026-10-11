@@ -15,6 +15,7 @@ export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly s
   hoops: ["#physics", "#math", "#creativecoding"], // --- bead-hoops ---
   grow: ["#physics", "#bouncingball", "#exponentialgrowth"],
   starChords: ["#math", "#geometry", "#creativecoding"], // --- chord-stars ---
+  doublePendulum: ["#physics", "#pendulum", "#creativecoding"], // --- chaos-fan --- (the harp and the fan alike: a pendulum, not a bouncing ball)
 };
 /** Any other mode's topic tags. */
 export const LOOP_CAPTION_DEFAULT_TAGS = ["#physics", "#bouncingball"] as const;
@@ -122,6 +123,12 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     const hoops = (s as { hpCount?: number }).hpCount;
     const count = typeof hoops === "number" && Number.isFinite(hoops) ? hoops : null;
     return { mode: s.mode, hookKey: count === 1 ? "hoopsOne" : "hoops", factKey: "hoopsFact", count };
+  }
+  // --- chaos-fan --- the Double Pendulum's chaos fan by its pendulums ("{count} pendulums released less than a thousandth of a
+  // degree apart…"), the butterfly-effect fact and the film run backwards under it
+  if (s.mode === "doublePendulum" && (s as { dpFan?: boolean }).dpFan) {
+    const pendulums = (s as { dpFanCount?: number }).dpFanCount;
+    return { mode: s.mode, hookKey: "chaosFan", factKey: "chaosFanFact", count: typeof pendulums === "number" && Number.isFinite(pendulums) ? pendulums : null };
   }
   return { mode: s.mode, hookKey: "seconds", factKey: "", count: Number.isFinite(s.recordingDuration) ? Math.round(s.recordingDuration) : null };
 }

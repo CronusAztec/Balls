@@ -1,4 +1,5 @@
 import { TRAIL_CAPACITY, type DoublePendulumView } from "@/lib/physics/modes/doublePendulum";
+import { drawChaosFan } from "./chaosFanRenderer"; // --- chaos-fan ---
 
 /**
  * Canvas drawing of the Double Pendulum mode (lib/physics/modes/doublePendulum.ts): the harp strings (vertical or radial,
@@ -229,6 +230,11 @@ export function drawDoublePendulumTrails(ctx: CanvasRenderingContext2D, view: Do
 /** Rods, pivots and bobs (rainbow at the trail's head hue, brightened for a moment after a pluck), and the sparring hit flashes. */
 export function drawDoublePendulumBodies(ctx: CanvasRenderingContext2D, view: DoublePendulumView, o: DoublePendulumRenderOptions) {
   const f = view.field;
+  // --- chaos-fan --- the fan draws itself (chaosFanRenderer.ts): the reach, the batched lines and bobs, the pivot
+  if (view.fan && f) {
+    drawChaosFan(ctx, view.fan, f, o);
+    return;
+  }
   if (!f || view.pendulums.length === 0) return;
   const s = f.scale;
   const now = view.timeSec;

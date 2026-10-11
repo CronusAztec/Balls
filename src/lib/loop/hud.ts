@@ -29,6 +29,8 @@ export interface LoopHudFrame {
   counter: string;
   /** A light page: a dark title and a grey counter. */
   light: boolean;
+  /** --- chaos-fan --- The counter line is a state label (the chaos fan's "running forwards"): grey, not amber. */
+  counterGrey?: boolean;
 }
 
 /** The HUD's static words for a page: the title, the subtitle and the counter's template ("{count} bounces"). */
@@ -39,6 +41,8 @@ export interface LoopHudSpec {
   light: boolean;
   /** --- bead-hoops --- The page's language: the counter's decimals in its style on the live canvas too ("0,13" in Polish). */
   locale?: string;
+  /** --- chaos-fan --- The state labels a run's counter line may show instead of a count (`LoopHudState`), by state. */
+  states?: Readonly<Record<string, string>>;
 }
 
 /** Translation keys (namespace `LoopHud`) of the modes with words of their own; any other mode's title is its name. */
@@ -243,6 +247,15 @@ export function hudNumber(value: number, locale?: string): string {
 const HOOPS_COUNTER = { count: 0, values: { rate: 0, total: 0 } };
 // --- end bead-hoops ---
 
+// --- chaos-fan ---
+/** A state instead of a count (the Double Pendulum's chaos fan: "forwards" / "backwards"), shown by its label (`LoopHudSpec.states`), in grey. */
+export interface LoopHudState {
+  state: string;
+}
+/** The fan's state, reused every frame. */
+const FAN_STATE: LoopHudState = { state: "forwards" };
+// --- end chaos-fan ---
+
 /** The counter of the mode's run (Grow: the bounces of the current cycle; --- chord-stars --- Chord Stars: the stars closed of all;
  * --- bead-hoops --- Spinning Hoops: the beads up, with the spin and the hoop count), or null when the mode has none. */
 export function loopHudCount(engine: {
@@ -250,7 +263,16 @@ export function loopHudCount(engine: {
   getGrowView(): { bounces: number };
   getStarChordsView?(): { closed: number; count: number; phase: string; phaseProgress: number }; // --- chord-stars ---
   getHoopsView?(): { upCount: number; count: number; omega: number }; // --- bead-hoops ---
-}): number | LoopHudCount | LoopHudCounter | null {
+  getDoublePendulumView?(): { fan: { running: string } | null }; // --- chaos-fan ---
+}): number | LoopHudCount | LoopHudCounter | LoopHudState | null {
+  // --- chaos-fan --- the Double Pendulum's chaos fan: running forwards, or its tape backwards
+  if (engine.getCurrentModeName() === "doublePendulum" && engine.getDoublePendulumView) {
+    const fan = engine.getDoublePendulumView().fan;
+    if (fan) {
+      FAN_STATE.state = fan.running;
+      return FAN_STATE;
+    }
+  }
   // --- chord-stars --- (the fade is the loop's reset: halfway through it the counter is back at 0, so the clip's last frames
   // read like its first – the payoff's "5/5" still shows through the hold and the first half of the fade, a hold of 0 too)
   if (engine.getCurrentModeName() === "starChords" && engine.getStarChordsView) {
@@ -269,7 +291,9 @@ export function loopHudCount(engine: {
 }
 
 /** One frame of the HUD from the page's words and the run's counter. */
-export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | LoopHudCounter | null, locale?: string): LoopHudFrame {
+export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | LoopHudCounter | LoopHudState | null, locale?: string): LoopHudFrame {
+  // --- chaos-fan --- a state: its label from the spec, grey (nothing without a label)
+  if (count !== null && typeof count === "object" && "state" in count) return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudText(spec.states?.[count.state] ?? "", locale ?? spec.locale), light: spec.light, counterGrey: true };
   const counter = count !== null && typeof count === "object" && "values" in count ? count : null; // --- bead-hoops --- (a counter with values)
   const value = counter ? counter.count : (count as number | LoopHudCount | null);
   return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values), light: spec.light };
@@ -311,7 +335,7 @@ export function drawLoopHud(ctx: CanvasRenderingContext2D, width: number, frame:
     lines.forEach((line, i) => fitLine(ctx, line, cx, layout.subtitleY + i * HUD_SUBTITLE_LEADING * layout.subtitleSize, layout.subtitleSize, "500", layout.maxWidth));
   }
   if (frame.counter) {
-    ctx.fillStyle = frame.light ? LOOP_HUD_GREY_LIGHT : LOOP_HUD_AMBER;
+    ctx.fillStyle = frame.light ? LOOP_HUD_GREY_LIGHT : frame.counterGrey ? LOOP_HUD_GREY /* --- chaos-fan --- (a state label) */ : LOOP_HUD_AMBER;
     fitLine(ctx, frame.counter, cx, layout.counterY, layout.counterSize, "700", layout.maxWidth);
   }
   ctx.restore();

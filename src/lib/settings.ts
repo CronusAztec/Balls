@@ -33,6 +33,7 @@ import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTi
 import { DEFAULT_FAST_EXPORT_SETTINGS, FAST_EXPORT_RANGES, resolveFastExportSettings } from "@/lib/recording/fastRenderPlan"; // --- fast-render ---
 // --- jdm-double-pendulum ---
 import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulumSettingFields, readDoublePendulumParams, resolveDoublePendulumFields, writeDoublePendulumParams, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
+import type { DpColourBy } from "@/lib/physics/chaosFan"; // --- chaos-fan ---
 // --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
 import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllusionFields, writeIllusionParams, type IllusionPatternChoice, type IllusionType } from "@/lib/physics/modes/illusion";
 import { WOBBLE_RANGES } from "@/lib/physics/wobble";
@@ -492,6 +493,22 @@ export interface SimulatorSettings {
   dpSpar: boolean;
   /** Keep swinging after the clip length (URL `dpen`). */
   dpEndless: boolean;
+  // --- chaos-fan --- the chaos fan (lib/physics/chaosFan.ts): many double pendulums a hair apart, a palindrome loop
+  /** The fan instead of the harp rig (URL `dpf`). */
+  dpFan: boolean;
+  /** Pendulums in the fan, 1–500 on the slider, any count from 1 typed (at most 5,000 built) (URL `dpfn`). */
+  dpFanCount: number;
+  /** Total start spread across the fan in degrees, 0–1 on the slider (URL `dpfs`). */
+  dpSpreadDeg: number;
+  /** index (a rainbow by index once apart) | single (the Ball Color) (URL `dpfc`). */
+  dpColourBy: DpColourBy;
+  /** Record the forward run and play it backwards: a seamless loop (URL `dpfp`). */
+  dpPalindrome: boolean;
+  /** Seconds of the forward run, 1–30 on the slider (URL `dpff`). */
+  dpForwardSec: number;
+  /** The split: a bob this far (px of a 1080-px frame) from the leader's, 1–200 on the slider (URL `dpfd`). */
+  dpDivergePx: number;
+  // --- end chaos-fan ---
   // --- end jdm-double-pendulum ---
   // --- jdm-illusions --- Circle Illusion (lib/physics/modes/illusion.ts) and Wobbly Walls (lib/physics/wobble.ts, render-only)
   /** lines | rings | nested | whitespace (URL `ilt`). */

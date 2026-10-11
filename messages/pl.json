@@ -2046,7 +2046,33 @@
     "hpTickTip": "Dzwonek glockenspielu co obrót, coraz wyższy wraz z obrotami.",
     "hpBed": "Podkład",
     "hpBedTip": "Miękki pad i sub na G, które wchodzą z pierwszym uniesieniem i milkną przy resecie.",
-    "hpTurnsUnit": "obr./s"
+    "hpTurnsUnit": "obr./s",
+    "dpFanGroup": "Wachlarz chaosu",
+    "dpFan": "Wachlarz chaosu",
+    "dpFanTip": "Wiele podwójnych wahadeł na wspólnym zawieszeniu, wypuszczonych o włos od siebie: przez kilka sekund poruszają się jak jedna linia, a potem rozpryskują się w tęczowy wachlarz. Gdy wachlarz jest włączony, harfa, sparing i ślad odpoczywają.",
+    "dpFanDesc": "Każde wahadło startuje odrobinę dalej na dolnym ramieniu. Różnice podwajają się mniej więcej co ułamek sekundy, więc wachlarz trzyma się razem przez kilka sekund, a potem nagle się rozpada.",
+    "dpFanPresets": "Gotowe wachlarze",
+    "dpFanPresetsTip": "Jedno kliknięcie ustawia wachlarz, jego wahadła, wygląd klipu (granatowe tło, tytuł, podtytuł i napis stanu) oraz klip długości jednej pełnej pętli.",
+    "dpFanPresetHairApart": "200 wahadeł o włos od siebie",
+    "dpFanPresetThreads": "1000 nitek",
+    "dpFanPresetTwoApart": "Dwa, które się rozchodzą",
+    "dpFanCount": "Wahadła w wachlarzu",
+    "dpFanCountTip": "Ile podwójnych wahadeł wisi na wspólnym zawieszeniu. Można wpisać dowolną liczbę od 1; zbudowanych zostanie najwyżej 5000 (tyle, ile mieści budżet jednego kroku).",
+    "dpSpreadDeg": "Rozrzut startu",
+    "dpSpreadDegTip": "Łączna różnica kąta startowego dolnego ramienia w całym wachlarzu, w stopniach. Przy 0 wszystkie wahadła pozostają identyczne na zawsze; większy rozrzut szybciej rozdziela wachlarz.",
+    "dpSpreadPicks": "Szybki wybór rozrzutu startu",
+    "dpColourBy": "Kolory",
+    "dpColourByTip": "Tęcza według numeru: każde wahadło przybiera własny odcień, gdy oddala się od prowadzącego (białe linie i różowa kulka, dopóki są jednością). Jeden kolor: wszystkie wahadła w kolorze piłki.",
+    "dpColourByIndex": "Tęcza według numeru",
+    "dpColourBySingle": "Jeden kolor",
+    "dpPalindrome": "Puść od tyłu",
+    "dpPalindromeTip": "Nagraj bieg do przodu, a potem odtwórz go wstecz, tak aby każde wahadło wróciło po własnych śladach do domu, a klip zapętlał się bez szwu.",
+    "dpFanLoopLine": "Pętla trwa {cycle} s: {forward} s do przodu, potem ten sam film od tyłu.",
+    "dpFanForwardOnly": "Wachlarz biegnie tylko do przodu: przebieg kończy się wraz z długością klipu.",
+    "dpForwardSec": "Bieg do przodu",
+    "dpForwardSecTip": "Ile sekund wachlarz biegnie do przodu, zanim zacznie się cofać. Pętla trwa dwa razy dłużej.",
+    "dpDivergePx": "Rozdzielenie przy",
+    "dpDivergePxTip": "Wachlarz uznaje się za rozdzielony, gdy któraś kulka odsunie się na tyle od kulki prowadzącej (w pikselach filmu szerokiego na 1080 pikseli). Od tego zależą sygnał rozdzielenia, kolory i chwila rozdzielenia w Znajdź symulację."
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -2543,7 +2569,17 @@
     "missAllUpBy": "Najbliżej: wszystkie w górze po {time}s ({seeds} seedów)",
     "overlayLiftOrder": "Sprawdzono {tested} seedów i w żadnym koraliki nie uniosły się ściśle według rozmiaru. Spróbuj mniejszego przechyłu osi, mniejszego tłumienia albo obręczy bardziej od siebie oddalonych.",
     "overlayAllUpBy": "Sprawdzono {tested} seedów: w żadnym wszystkie koraliki nie były w górze w {target}s. Spróbuj szybszych obrotów szczytowych, krótszej rampy albo późniejszego limitu.",
-    "progressAllUpBy": "Najbliżej wszystkich w górze: {time}s"
+    "progressAllUpBy": "Najbliżej wszystkich w górze: {time}s",
+    "outcomeDivergesAt": "Rozdzielenie w",
+    "hintDivergesAt": "Wachlarz po raz pierwszy się rozdziela – któraś kulka oddala się od prowadzącej na odległość „Rozdzielenie przy” – w granicach ±0,5 s od wybranej sekundy.",
+    "divergeAt": "Wachlarz rozdziela się w",
+    "findDivergesAt": "Znajdź przebieg z rozdzieleniem w {time}s",
+    "foundDivergesAt": "Znaleziono! Wachlarz rozdziela się w {time}s",
+    "missDivergesAt": "Najbliższe rozdzielenie: {time}s ({seeds} seedów)",
+    "missNoDiverge": "Żaden przebieg nie rozdzielił się na czas ({seeds} seedów)",
+    "overlayDivergesAt": "Sprawdzono {tested} seedów. Najbliższe rozdzielenie nastąpiło w {closest}s (cel: {target}s ±{tolerance}s). Większy rozrzut startu rozdziela wcześniej, mniejszy później.",
+    "overlayNoDiverge": "Sprawdzono {tested} seedów: żaden nie rozdzielił się do {target}s. Spróbuj większego rozrzutu startu, mniejszej odległości „Rozdzielenie przy” albo późniejszego celu.",
+    "progressDivergesAt": "Najbliższe rozdzielenie: {time}s"
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -4293,7 +4329,11 @@
     "hoopsTitle": "kręć szybciej, a koraliki się wspinają",
     "hoopsSubtitle": "im większa obręcz, tym wcześniej jej koralik się unosi",
     "hoopsCounter": "{rate} obr./s · w górze: {count} z {total} koralików",
-    "hoopsCounterOne": "{rate} obr./s · w górze: {count} z 1 koralika"
+    "hoopsCounterOne": "{rate} obr./s · w górze: {count} z 1 koralika",
+    "chaosFanTitle": "{count, plural, one {# wahadło} few {# wahadła} many {# wahadeł} other {# wahadła}} o włos od siebie",
+    "chaosFanSubtitle": "drobne różnice wciąż się podwajają / aż żadne dwa nie kołyszą się tak samo",
+    "chaosFanForwards": "biegnie naprzód",
+    "chaosFanBackwards": "biegnie wstecz"
   },
   "LoopCaption": {
     "growMultiply": "{count}% większa z każdym odbiciem, aż wypełni okrąg",
@@ -4305,6 +4345,8 @@
     "starChordsFact": "Wielokąt gwiaździsty to to, co rysuje kulka, gdy każde odbicie przesuwa ją o tyle samo punktów wokół obwodu. Każda prosta leży w tej samej odległości od środka, więc pośrodku pojawia się okrąg, którego żadna kulka nigdy nie dotyka. Każda kulka porusza się tu z jedyną prędkością, która kończy jej gwiazdę w tym samym czasie co pozostałe.",
     "hoops": "na {count} obręczach wirujących coraz szybciej koraliki wspinają się po kolei, od największej obręczy",
     "hoopsOne": "{count} obręcz wiruje coraz szybciej, aż jej koralik zaczyna się wspinać",
-    "hoopsFact": "Skąd ta kolejność? Koralik na obracającej się obręczy spoczywa tam, gdzie grawitacja równoważy odśrodkowe pchnięcie obrotu. Poniżej obrotów krytycznych, √(g/R), tym miejscem jest dół obręczy; powyżej punkt równowagi przesuwa się w górę obręczy i wznosi się dalej, w miarę jak obroty rosną. Obręcz o promieniu 75 cm osiąga je przy około 0,58 obrotu na sekundę, a obręcz o promieniu 25 cm potrzebuje prawie pełnego obrotu na sekundę, więc koraliki odrywają się od dołu od zewnątrz do środka."
+    "hoopsFact": "Skąd ta kolejność? Koralik na obracającej się obręczy spoczywa tam, gdzie grawitacja równoważy odśrodkowe pchnięcie obrotu. Poniżej obrotów krytycznych, √(g/R), tym miejscem jest dół obręczy; powyżej punkt równowagi przesuwa się w górę obręczy i wznosi się dalej, w miarę jak obroty rosną. Obręcz o promieniu 75 cm osiąga je przy około 0,58 obrotu na sekundę, a obręcz o promieniu 25 cm potrzebuje prawie pełnego obrotu na sekundę, więc koraliki odrywają się od dołu od zewnątrz do środka.",
+    "chaosFan": "start o włos od siebie dla {count} wahadeł, a potem ten sam film od tyłu",
+    "chaosFanFact": "Dlaczego się rozchodzą? W podwójnym wahadle każda drobna różnica startu rośnie wykładniczo, podwajając się mniej więcej co ułamek sekundy, więc wahadła puszczone niemal razem trzymają się razem tylko przez kilka sekund. Edward Lorenz nazwał to efektem motyla. Droga powrotna to nagranie odtworzone od tyłu: gdyby zamiast tego liczyć fizykę wstecz od końca, najmniejszy błąd zaokrąglenia rósłby równie szybko i żadne wahadło nie wróciłoby do domu."
   }
 }
