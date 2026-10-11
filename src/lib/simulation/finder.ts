@@ -19,6 +19,7 @@ import { startBallCount } from "@/lib/physics/ballStats";
 import { rigNeverFinishes } from "@/lib/physics/rigged";
 import { outcomeClipSec, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcomeMiss, outcomeSettled, winnerNeedsEnd, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "./outcomes";
 import { hoopsOutcomeSettled } from "./outcomes"; // --- bead-hoops ---
+import { fanOutcomeSettled } from "./outcomes"; // --- chaos-fan ---
 // --- jdm-double-pendulum ---
 import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions ---
@@ -307,8 +308,11 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "pendulum") return resolvePendulumSettings(settings.pendulum).cycles === 0;
   // --- jdm-polyrhythm --- (cycles at "never")
   if (mode === "polyrhythm") return resolvePolyrhythmSettings(settings.polyrhythm).cycles === 0;
-  // --- jdm-double-pendulum --- (endless: it swings until it is stopped)
-  if (mode === "doublePendulum") return resolveDoublePendulumSettings(settings.doublePendulum).endless;
+  // --- jdm-double-pendulum --- (endless: it swings until it is stopped; --- chaos-fan --- a fan's palindrome loops forever)
+  if (mode === "doublePendulum") {
+    const dp = resolveDoublePendulumSettings(settings.doublePendulum);
+    return dp.endless || (dp.fan && dp.palindrome);
+  }
   // --- jdm-illusions --- the nested circles bounce forever; lines and rings with the cycles at "never"
   if (mode === "illusion") return illusionRunNeverFinishes(settings.illusion);
   // --- jdm-rhythm-runner --- the runner played by hand (the finder cannot play), the paddle played by hand or perfectly
@@ -342,7 +346,7 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
   // --- jdm-double-pendulum --- (it finishes at the clip length, whatever the seed)
   if (mode === "doublePendulum") {
     const dp = resolveDoublePendulumSettings(settings.doublePendulum);
-    return dp.endless ? null : dp.clipSeconds;
+    return dp.endless || (dp.fan && dp.palindrome) /* --- chaos-fan --- (it loops) */ ? null : dp.clipSeconds;
   }
   // --- jdm-illusions --- lines and rings: cycles × the cycle length, whatever the seed
   if (mode === "illusion") return illusionFixedDurationSec(settings.illusion);
@@ -457,6 +461,8 @@ export interface FinderResult {
   // --- bead-hoops ---
   /** Spinning Hoops: when every bead was first up (seconds) in the run found – or in the closest one – when that came. */
   allUpAt?: number;
+  /** --- chaos-fan --- The chaos fan: when it first split (seconds) in the run found – or in the closest one – when that came. */
+  divergeAt?: number;
   // --- ellipse-foci ---
   /** Focus Shot: the transit on the tempo and the loops in the clip, or the start angle and its collapse. */
   ellipseFoci?: EllipseFociFound;
@@ -933,6 +939,8 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   let firstFill = -1;
   const hoopsRun = request.mode === "hoops"; // --- bead-hoops --- (the first moment every bead is up, real time; the first cycle's lift order)
   let allUp = -1;
+  const fanRun = request.mode === "doublePendulum" && outcome.kind === "diverges-at"; // --- chaos-fan --- (the fan's first split, real time)
+  let diverge = -1;
   // --- colour-sort --- the first sort decides every outcome of it: the run is followed until it ends (every ball sorted, or
   // the mode's time limit – the horizon of the colour and the bar line) and no further
   const csRun = request.mode === "colourSort";
@@ -946,9 +954,11 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     if (orbs && settledAt < 0 && engine.getOrbGridView().allSettled) settledAt = elapsed; // --- orb-grid ---
     if (growRun && firstFill < 0 && engine.getGrowView().fills > 0) firstFill = elapsed; // --- loop-foundation ---
     if (hoopsRun && allUp < 0 && engine.getHoopsView().firstAllUpMs >= 0) allUp = elapsed; // --- bead-hoops ---
+    if (fanRun && diverge < 0 && (engine.getDoublePendulumView().fan?.divergeMs ?? -1) >= 0) diverge = elapsed; // --- chaos-fan ---
     finished = engine.isSimulationFinished();
     if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode, firstResolve, settledAt, firstFill)) break;
     if (hoopsRun && hoopsOutcomeSettled(outcome, elapsed, allUp, engine.getHoopsView().orderDecided)) break; // --- bead-hoops ---
+    if (fanRun && fanOutcomeSettled(outcome, elapsed, diverge)) break; // --- chaos-fan ---
     if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
     // --- odd-maze --- the maze's verdict is final once a ball is out: another ball's win ends the search of this seed
     if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
@@ -966,7 +976,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   // --- bead-hoops --- the first cycle's lift order: strict size order (and at least one lift), once it was decided
   const hv = hoopsRun ? engine.getHoopsView() : null;
   const hoopsSummary = hv ? { allUpMs: allUp, liftOrderOk: hv.orderDecided && hv.orderOk && hv.firstLifts > 0 } : {};
-  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...hoopsSummary /* --- bead-hoops --- */, ...(csRun ? colourSortRunFields(engine) : {}) /* --- colour-sort --- */ };
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...hoopsSummary /* --- bead-hoops --- */, ...(fanRun ? { divergeMs: diverge } : {}) /* --- chaos-fan --- */, ...(csRun ? colourSortRunFields(engine) : {}) /* --- colour-sort --- */ };
 }
 
 // --- colour-sort ---
@@ -1002,6 +1012,7 @@ function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgres
       ...(run && (run.firstFillMs ?? -1) >= 0 ? { fillAt: (run.firstFillMs ?? 0) / 1000 } : {}), // --- loop-foundation ---
       ...(run && (run.sortedMs ?? -1) >= 0 ? { sortedAt: (run.sortedMs ?? 0) / 1000, lastColour: run.lastColour ?? -1 } : {}), // --- colour-sort ---
       ...(run && (run.allUpMs ?? -1) >= 0 ? { allUpAt: (run.allUpMs ?? 0) / 1000 } : {}), // --- bead-hoops ---
+      ...(run && (run.divergeMs ?? -1) >= 0 ? { divergeAt: (run.divergeMs ?? 0) / 1000 } : {}), // --- chaos-fan ---
     });
     const runBatch = () => {
       if (signal?.aborted) {

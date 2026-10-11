@@ -9,6 +9,7 @@ import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulum
 import { ELLIPSE_FOCI_DATA_KEYS, EllipseFociLayer, ellipseFociExtentPx, writeEllipseFociDataset, type EllipseFociRenderOptions } from "./ellipseFociRenderer"; // --- ellipse-foci ---
 // --- jdm-polyrhythm ---
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
+import { inLinePercent } from "@/lib/physics/phaseSpiral"; // --- phase-spiral ---
 // --- jdm-collisions ---
 import { drawCollideArena, drawCollideBodies, drawCollideOverlay, type CollideRenderOptions } from "./collideRenderer";
 // --- gerald-glass ---
@@ -105,6 +106,7 @@ import { GROW_DATA_KEYS, GrowLayer, writeGrowDataset, type GrowLook } from "./gr
 import { COLOUR_SORT_DATA_KEYS, ColourSortLayer, writeColourSortDataset, type ColourSortRenderOptions } from "./colourSortRenderer"; // --- colour-sort ---
 import { STAR_CHORDS_DATA_KEYS, StarChordsLayer, writeStarChordsDataset, type StarChordsRenderOptions } from "./starChordsRenderer"; // --- chord-stars ---
 import { HOOPS_DATA_KEYS, HoopsLayer, hoopsExtentPx, hoopsRenderTimeMs, type HoopsRenderOptions } from "./hoopsRenderer"; // --- bead-hoops ---
+import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -137,6 +139,8 @@ export interface CanvasLabels {
   /** Metronomes & Polyrhythms: every voice back in phase after the last cycle. */
   polyrhythmDone: string;
   polyrhythmAligned: (n: number, cycles: number) => string;
+  /** --- phase-spiral --- The in-line meter under the disc ("in line 87%"; English without it). */
+  polyrhythmInLine?: (pct: number) => string;
   /** Picture Paint HUD hints: the schedule state and the beat the ball moves to. */
   paintOnSchedule: string;
   paintBehind: string;
@@ -1562,6 +1566,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         polyRender.wallColor = wallColor;
         polyRender.wallThickness = p.wallThickness;
         polyRender.showGlow = p.showGlow;
+        polyRender.inLineLabel = (labelsRef.current ?? DEFAULT_LABELS).polyrhythmInLine; // --- phase-spiral ---
+        polyRender.meterInHud = !!loopHudRef.current; // --- phase-spiral --- (the loop HUD's counter and bar show the meter instead)
         drawPolyrhythmStage(ctx, engine.getPolyrhythmView(), polyRender);
       }
 
@@ -3164,8 +3170,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("polyAlignments", String(view.alignCount));
         setCanvasData("polyCycles", String(view.cyclesDone));
         setCanvasData("polyLayout", view.settings.layout);
+        // --- phase-spiral --- arms, dots, the in-line meter (%), its riser crossings, the loop sounds and the palette
+        setCanvasData("polyArms", String(view.arms));
+        setCanvasData("polyDots", String(view.dotCount));
+        setCanvasData("polyInLine", String(inLinePercent(view.inLine)));
+        setCanvasData("polyCrossings", String(view.progressCrossings));
+        setCanvasData("polyLoopSound", view.settings.loopSound ? "1" : "0");
+        setCanvasData("polyPalette", view.settings.palette);
       } else if (canvas.dataset.polyTicks !== undefined) {
         for (const key of ["polyVoices", "polyTicks", "polyAlignments", "polyCycles", "polyLayout"]) delete canvas.dataset[key];
+        for (const key of ["polyArms", "polyDots", "polyInLine", "polyCrossings", "polyLoopSound", "polyPalette"]) delete canvas.dataset[key]; // --- phase-spiral ---
       }
 
       // --- gerald-faces --- the characters (face style, the first ball's expression, faces drawn, label) as data-face-* for tools and the smoke test
@@ -3199,7 +3213,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("dpHits", String(view.hitCount));
         setCanvasData("dpDrift", String(Math.round(1e6 * engine.getDoublePendulumEnergyDrift())));
         setCanvasData("dpDone", view.finished ? "1" : "0");
+        writeChaosFanData(view.fan, setCanvasData, canvas.dataset); // --- chaos-fan --- (data-dp-fan-*: the spread, forwards / backwards, the split, the step budget)
       } else if (canvas.dataset.dpPendulums !== undefined) {
+        writeChaosFanData(null, setCanvasData, canvas.dataset); // --- chaos-fan ---
         for (const key of ["dpPendulums", "dpSegments", "dpStrings", "dpLayout", "dpSpar", "dpPlucks", "dpHits", "dpDrift", "dpDone"]) delete canvas.dataset[key];
       }
       // --- jdm-illusions --- Circle Illusion (data-illusion-*) and the wobbly walls (data-wobble: walls wobbling this frame) for tools and the smoke test

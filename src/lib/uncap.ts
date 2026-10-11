@@ -196,6 +196,12 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   // --- bead-hoops --- Spinning Hoops: the hoops a run builds (a bead each: an engine ball, a dozen numbers and an RK4 integration
   // a sub-step; every frame draws each hoop as an ellipse)
   hpCount: ENTITY_CEILING,
+  // --- chaos-fan --- the Double Pendulum's chaos fan: its pendulums (a batch of typed arrays stepped together; the runtime step
+  // budget, FAN_STEP_BUDGET of lib/physics/chaosFan.ts, holds this many at the fewest sub-steps)
+  dpFanCount: ENTITY_CEILING,
+  // --- phase-spiral --- Metronomes & Polyrhythms' arms: the dots of a ring (each an engine ball pinned to the clock; rings ×
+  // arms stop at the same ceiling in the mode, `DOT_CEILING` of lib/physics/phaseSpiral.ts)
+  prArms: ENTITY_CEILING,
   // --- ellipse-foci --- Focus Shot: the volley's balls (full engine balls pinned to the clock – the board's ball ceiling – each with a
   // ring of EF_VERTEX_CAP corners for its trail and path)
   efCount: BOARD_BALL_CEILING,

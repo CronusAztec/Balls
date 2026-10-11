@@ -18,6 +18,8 @@ export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly s
   grow: ["#physics", "#bouncingball", "#exponentialgrowth"],
   colourSort: ["#sorting", "#physics", "#simulation"], // --- colour-sort ---
   starChords: ["#math", "#geometry", "#creativecoding"], // --- chord-stars ---
+  doublePendulum: ["#physics", "#pendulum", "#creativecoding"], // --- chaos-fan --- (the harp and the fan alike: a pendulum, not a bouncing ball)
+  polyrhythm: ["#math", "#polyrhythm", "#creativecoding"], // --- phase-spiral ---
   ellipseFoci: ["#math", "#geometry", "#creativecoding"], // --- ellipse-foci ---
 };
 /** Any other mode's topic tags. */
@@ -115,6 +117,12 @@ export interface LoopCaptionContext {
 export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number; scBalls?: number /* --- chord-stars --- */; efCount?: number /* --- ellipse-foci --- */ }): LoopCaptionContext {
   // --- chord-stars --- Chord Stars by its balls: "{count} balls, one circle, …" and the fact of the inner circles
   if (s.mode === "starChords") return { mode: s.mode, hookKey: "starChords", factKey: "starChordsFact", count: s.scBalls ?? null };
+  // --- phase-spiral --- Metronomes & Polyrhythms' harmonic rings by their count ("{count} rings, each one lap ahead of the next…")
+  // and the fact of the spiral that straightens (any other polyrhythm keeps its clip's seconds)
+  if (s.mode === "polyrhythm") {
+    const p = s as { prLayout?: string; prTempos?: string; prCount?: number };
+    if (p.prLayout === "rings" && p.prTempos === "harmonic") return { mode: s.mode, hookKey: "phaseSpiral", factKey: "phaseSpiralFact", count: typeof p.prCount === "number" && Number.isFinite(p.prCount) ? p.prCount : null };
+  }
   // --- ellipse-foci --- Focus Shot by its volley: "{count} balls fired from one focus…" and the whispering-gallery fact
   if (s.mode === "ellipseFoci") return { mode: s.mode, hookKey: "ellipseFoci", factKey: "ellipseFociFact", count: typeof s.efCount === "number" && Number.isFinite(s.efCount) ? s.efCount : null };
   if (s.mode === "grow") {
@@ -134,6 +142,12 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     const hoops = (s as { hpCount?: number }).hpCount;
     const count = typeof hoops === "number" && Number.isFinite(hoops) ? hoops : null;
     return { mode: s.mode, hookKey: count === 1 ? "hoopsOne" : "hoops", factKey: "hoopsFact", count };
+  }
+  // --- chaos-fan --- the Double Pendulum's chaos fan by its pendulums ("{count} pendulums released less than a thousandth of a
+  // degree apart…"), the butterfly-effect fact and the film run backwards under it
+  if (s.mode === "doublePendulum" && (s as { dpFan?: boolean }).dpFan) {
+    const pendulums = (s as { dpFanCount?: number }).dpFanCount;
+    return { mode: s.mode, hookKey: "chaosFan", factKey: "chaosFanFact", count: typeof pendulums === "number" && Number.isFinite(pendulums) ? pendulums : null };
   }
   return { mode: s.mode, hookKey: "seconds", factKey: "", count: Number.isFinite(s.recordingDuration) ? Math.round(s.recordingDuration) : null };
 }

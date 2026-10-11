@@ -77,6 +77,7 @@ import TimelineBar from "./TimelineBar";
 import { useTimelineLivePublisher } from "./timelineLive";
 import { engineTimelineOf, serializeKeyframes, timelineCarryOver } from "@/lib/simulation/timeline";
 import { doublePendulumSettingsOf } from "@/lib/physics/modes/doublePendulum"; // --- jdm-double-pendulum ---
+import { chaosFanClipSec } from "@/lib/physics/chaosFan"; // --- chaos-fan ---
 import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers"; // --- odd-power-layers ---
 // --- fast-render ---
 import { FastRenderHost, FastRenderUnsupportedError, downloadExport, fastRenderSupported, pickExportFormat, renderFast } from "@/lib/recording/fastRender";
@@ -599,6 +600,13 @@ export default function Simulator() {
   const hudLocale = useLocale();
   const loopHudSpec = useMemo<LoopHudSpec | null>(() => {
     if (!s.loopHud) return null;
+    // --- chaos-fan --- the fan's own words ("200 pendulums, a hair apart") and its grey state label instead of a counter
+    if (s.mode === "doublePendulum" && s.dpFan) {
+      const title = s.loopHudTitle || t("LoopHud.chaosFanTitle", { count: s.dpFanCount });
+      const subtitle = s.loopHudSubtitle || t("LoopHud.chaosFanSubtitle");
+      return { title, subtitle, counter: "", states: { forwards: t("LoopHud.chaosFanForwards"), backwards: t("LoopHud.chaosFanBackwards") }, light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
+    }
+    // --- end chaos-fan ---
     // --- colour-sort --- the rule as the title, "n / total sorted" under the rings and "mixing again" while the remix runs
     if (s.mode === "colourSort") {
       const words = COLOUR_SORT_HUD_KEYS[s.csRule];
@@ -612,7 +620,7 @@ export default function Simulator() {
     const counterKey = keys?.counterOne && s.mode === "hoops" && s.hpCount === 1 ? keys.counterOne : keys?.counter; // --- bead-hoops --- (one hoop: "the bead up")
     const counter = counterKey ? String(t.raw(loopHudMessageKey(counterKey))) : "";
     return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]), locale: hudLocale /* --- bead-hoops --- (the counter's decimals on the live canvas) */ };
-  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */]);
+  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */]);
   const loopHudRef = useRef({ spec: loopHudSpec, locale: hudLocale });
   loopHudRef.current = { spec: loopHudSpec, locale: hudLocale };
   /** The HUD of a frame of `engine`'s run (null without the HUD), for the recorder and the fast export. */
@@ -739,6 +747,12 @@ export default function Simulator() {
     engineRef.current?.setPolyrhythmSettings(polyrhythmSettingsOf(s));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.prLayout, s.prArcStyle, s.prPolygon, s.prAccentEvery, s.prPitchBy, s.prNumbers, s.prCustom]);
+  // --- phase-spiral --- the arms, the in-line meter, the comet tails, the loop sounds and the palette apply live too (a new dot
+  // count builds the dots again on the next step; positions follow the clock, so the rhythm carries on)
+  useEffect(() => {
+    engineRef.current?.setPolyrhythmSettings(polyrhythmSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.prArms, s.prAlignMeter, s.prTrail, s.prLoopSound, s.prPalette]);
   // --- end jdm-polyrhythm ---
   // --- jdm-collisions --- Collision Playground: a change of the playground (count, sizes, container, physics, variants) restarts it.
   useEffect(() => {
@@ -817,6 +831,27 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.dpTrailSeconds, s.dpStrings, s.dpStringLayout, s.dpOctaves, s.dpEndless, s.recordingDuration, s.scale, s.rootNote]);
   // --- end jdm-double-pendulum ---
+  // --- chaos-fan --- the chaos fan (its pendulums, start spread, palindrome, forward run and split measure) restarts a Double
+  // Pendulum run and drops a found seed (they apply at the run's start, the split decides the finder's outcome); the colours
+  // follow live
+  const chaosFanKey = [s.dpFan, s.dpFanCount, s.dpSpreadDeg, s.dpPalindrome, s.dpForwardSec, s.dpDivergePx].join("|");
+  const chaosFanKeyRef = useRef(chaosFanKey);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setDoublePendulumSettings(doublePendulumSettingsOf(s));
+    if (chaosFanKeyRef.current === chaosFanKey) return;
+    chaosFanKeyRef.current = chaosFanKey;
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+    if (s.mode === "doublePendulum" && engine.getCurrentModeName() === "doublePendulum") {
+      engine.initDoublePendulum();
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chaosFanKey, s.dpColourBy]);
+  // --- end chaos-fan ---
   // --- obstacle-editor --- the creator's obstacles and the bumper boost travel in the physics config (so the seed finder copies
   // them with it); a new layout invalidates a found seed. A drag on the canvas shows live through the engine and lands here on release.
   useEffect(() => {
@@ -1592,7 +1627,7 @@ export default function Simulator() {
   const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, orbGrid: orbGridSettingsOf(s) /* --- orb-rhythm --- (the model decides) */, grow: growFillSettingsOf(s) /* --- loop-foundation --- ("finish" ends at the fill) */, hoops: hoopsSettingsOf(s) /* --- bead-hoops --- (the return loops forever) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
   const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);
-  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, colourSortSettles: s.mode === "colourSort" && csSortSettles(s.csRule) /* --- colour-sort --- */ });
+  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, dpFan: s.mode === "doublePendulum" && s.dpFan /* --- chaos-fan --- */, colourSortSettles: s.mode === "colourSort" && csSortSettles(s.csRule) /* --- colour-sort --- */ });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
   const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
@@ -3033,6 +3068,8 @@ export default function Simulator() {
       }
       // --- bead-hoops --- a found Spinning Hoops run is recorded for one whole cycle (the climb, the hold, the return and the reset)
       if (settings.mode === "hoops") update({ recordingDuration: Math.max(RANGES.recordingDuration.min, hoopsClipSec(settings)) });
+      // --- chaos-fan --- a found palindrome is recorded for one whole loop (forwards and back)
+      if (settings.mode === "doublePendulum" && settings.dpFan && settings.dpPalindrome) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, chaosFanClipSec(settings)) });
       // --- ellipse-foci --- the transit of whole bars (on the beat) or the start angle (the longest collapse, left to collapse) found,
       // and the clip: whole loops of the run on the beat, the passes until the swarm is a comet and one more for the collapse (the
       // restart effect's key is moved first, so the change keeps the result on the page)
@@ -3094,6 +3131,7 @@ export default function Simulator() {
       pendulumInLine: (n, cycles) => fill("Simulator.canvasPendulumInLine", { count: n, cycles }),
       polyrhythmDone: t("Simulator.canvasPolyrhythmDone"), // --- jdm-polyrhythm ---
       polyrhythmAligned: (n, cycles) => fill("Simulator.canvasPolyrhythmAligned", { count: n, cycles }),
+      polyrhythmInLine: (pct) => fill("Simulator.canvasPolyrhythmInLine", { count: pct }), // --- phase-spiral ---
       paintOnSchedule: t("Simulator.canvasPaintOnSchedule"),
       paintBehind: t("Simulator.canvasPaintBehind"),
       paintAhead: t("Simulator.canvasPaintAhead"),
@@ -3432,7 +3470,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcRacers, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "ellipseFoci" /* --- ellipse-foci --- (the convergences on the beat, the longest collapse) */ || (settings.mode === "colourSort" && !csSortSettles(settings.csRule)) /* --- colour-sort --- (its first sort's outcomes; a rule that lets balls back in only settles: nothing to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */, hoops: hoopsSettingsOf(settings) /* --- bead-hoops --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || (settings.mode === "doublePendulum" && settings.dpFan) /* --- chaos-fan --- (a looping fan still has its split to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "ellipseFoci" /* --- ellipse-foci --- (the convergences on the beat, the longest collapse) */ || (settings.mode === "colourSort" && !csSortSettles(settings.csRule)) /* --- colour-sort --- (its first sort's outcomes; a rule that lets balls back in only settles: nothing to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */, hoops: hoopsSettingsOf(settings) /* --- bead-hoops --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.

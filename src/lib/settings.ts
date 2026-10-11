@@ -33,6 +33,7 @@ import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTi
 import { DEFAULT_FAST_EXPORT_SETTINGS, FAST_EXPORT_RANGES, resolveFastExportSettings } from "@/lib/recording/fastRenderPlan"; // --- fast-render ---
 // --- jdm-double-pendulum ---
 import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulumSettingFields, readDoublePendulumParams, resolveDoublePendulumFields, writeDoublePendulumParams, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
+import type { DpColourBy } from "@/lib/physics/chaosFan"; // --- chaos-fan ---
 // --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
 import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllusionFields, writeIllusionParams, type IllusionPatternChoice, type IllusionType } from "@/lib/physics/modes/illusion";
 import { WOBBLE_RANGES } from "@/lib/physics/wobble";
@@ -98,6 +99,8 @@ import { SC_ENGINE_KEYS, SC_RANGES, defaultStarChordsFields, readStarChordsParam
 import { HOOPS_RANGES, type HoopsRampShape } from "@/lib/physics/modes/hoops";
 import { defaultHoopsFields, readHoopsParams, resolveHoopsFields, writeHoopsParams } from "@/lib/physics/hoopsFields";
 // --- end bead-hoops ---
+// --- phase-spiral --- Metronomes & Polyrhythms' Phase Spiral: arms, the in-line meter, comet tails, the loop sounds, the spiral palette
+import { PHASE_SPIRAL_PICTURE_RANGES, readPhaseSpiralParams, writePhaseSpiralParams, type PolyPalette } from "@/lib/physics/phaseSpiral";
 // --- ellipse-foci --- Focus Shot (an elliptical pool: a volley from one focus converges on the other every transit)
 import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDefaults, readEllipseFociParams, resolveEllipseFociFields, writeEllipseFociParams, type EfLaunch, type EfOrientation, type EfReset, type EfSkin } from "@/lib/physics/ellipseFoci";
 
@@ -497,6 +500,22 @@ export interface SimulatorSettings {
   dpSpar: boolean;
   /** Keep swinging after the clip length (URL `dpen`). */
   dpEndless: boolean;
+  // --- chaos-fan --- the chaos fan (lib/physics/chaosFan.ts): many double pendulums a hair apart, a palindrome loop
+  /** The fan instead of the harp rig (URL `dpf`). */
+  dpFan: boolean;
+  /** Pendulums in the fan, 1–500 on the slider, any count from 1 typed (at most 5,000 built) (URL `dpfn`). */
+  dpFanCount: number;
+  /** Total start spread across the fan in degrees, 0–1 on the slider (URL `dpfs`). */
+  dpSpreadDeg: number;
+  /** index (a rainbow by index once apart) | single (the Ball Color) (URL `dpfc`). */
+  dpColourBy: DpColourBy;
+  /** Record the forward run and play it backwards: a seamless loop (URL `dpfp`). */
+  dpPalindrome: boolean;
+  /** Seconds of the forward run, 1–30 on the slider (URL `dpff`). */
+  dpForwardSec: number;
+  /** The split: a bob this far (px of a 1080-px frame) from the leader's, 1–200 on the slider (URL `dpfd`). */
+  dpDivergePx: number;
+  // --- end chaos-fan ---
   // --- end jdm-double-pendulum ---
   // --- jdm-illusions --- Circle Illusion (lib/physics/modes/illusion.ts) and Wobbly Walls (lib/physics/wobble.ts, render-only)
   /** lines | rings | nested | whitespace (URL `ilt`). */
@@ -1020,6 +1039,18 @@ export interface SimulatorSettings {
   hpTick: boolean;
   hpBed: boolean;
   // --- end bead-hoops ---
+  // --- phase-spiral --- Metronomes & Polyrhythms' Phase Spiral (lib/physics/phaseSpiral.ts; resolved with the mode's settings)
+  /** Dots a ring of the rings and spiral layouts, evenly spaced; 1–8 on the slider, any whole number from 1 typed (URL `prar`). */
+  prArms: number;
+  /** The "in line N %" meter: the arms-fold resultant of the dot angles (URL `prm`). */
+  prAlignMeter: boolean;
+  /** Comet tails: seconds of motion a dot's tail reaches back, 0–1 on the slider (URL `prtl`). */
+  prTrail: number;
+  /** The loop family's voices: plucks, the completion chord on every alignment, risers into it (URL `prls`). */
+  prLoopSound: boolean;
+  /** rainbow | spiral: the dots' colours (URL `prco`). */
+  prPalette: PolyPalette;
+  // --- end phase-spiral ---
   // --- ellipse-foci --- Focus Shot (lib/physics/ellipseFoci.ts): a volley fired from one focus of an elliptical pool
   /** Balls in the volley, 1–720 on the slider, any whole number typed (a run builds at most 2,000) (URL `efN`). */
   efCount: number;
@@ -1276,6 +1307,7 @@ export const RANGES = {
   ...COLOUR_SORT_RANGES, // --- colour-sort ---
   ...SC_RANGES, // --- chord-stars ---
   ...HOOPS_RANGES, // --- bead-hoops ---
+  ...PHASE_SPIRAL_PICTURE_RANGES, // --- phase-spiral --- (the tails; the arms are in POLYRHYTHM_RANGES)
   ...EF_RANGES, // --- ellipse-foci ---
 } as const;
 
@@ -1531,6 +1563,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeColourSortParams(settings, base, params); // --- colour-sort ---: csc, csn, csg, csw, css, csf, csa, csv, csr, csx, csm, csu, csl, csh
   writeStarChordsParams(settings, base, params); // --- chord-stars ---: scn, scs, sct, sch, scf, scsp, scw, sce, scp, scv, scc
   writeHoopsParams(settings, base, params); // --- bead-hoops ---: hpn, hprx, hprn, hpg, hpw0, hpw1, hpr, hps, hph, hprt, hprs, hpd, hpj, hpt, hpb
+  writePhaseSpiralParams(settings, base, params); // --- phase-spiral ---: prar, prm, prtl, prls, prco
   writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
@@ -1699,6 +1732,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readColourSortParams(params, settings); // --- colour-sort --- (valid numbers from their minimum up, a known rule, real booleans)
   readStarChordsParams(params, settings); // --- chord-stars --- (valid numbers from their minimum up, clean stars, known options, a real boolean)
   readHoopsParams(params, settings); // --- bead-hoops --- (valid numbers from their minimum up, a known ramp shape, real booleans)
+  readPhaseSpiralParams(params, settings); // --- phase-spiral --- (whole arms from 1 up, a tail from 0 up, real booleans, a known palette)
   readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)

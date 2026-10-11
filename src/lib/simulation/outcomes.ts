@@ -38,6 +38,9 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  * the biggest hoop's first (at least one lift; a bigger hoop's bead never comes after a smaller one's) – and **all-up-by** –
  * every bead is up within a time limit (`atSec`).
  *
+ * --- chaos-fan --- The Double Pendulum's chaos fan adds **diverges-at**: the fan first splits – a bob `divergePx` from the
+ * leader's – within ±`toleranceSec` (0.5 s) of a target second, the window [a, b] the split must land in.
+ *
  * --- ellipse-foci --- Focus Shot adds two (no seed's length to search: its loop goes on forever): **converge-on-beat** – every
  * convergence on a bar line: the transit becomes a whole number of bars of the song's tempo (`atSec` is the bar's length) and
  * the clip a whole number of loops – and **longest-collapse** – the start angle whose swarm takes the most passes to narrow under
@@ -49,7 +52,7 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  * a bar line of the song's tempo (`atSec` is the bar's length), so the completion chord lands on a downbeat.
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -115,6 +118,8 @@ export interface RunSummary {
   /** Spinning Hoops: the first cycle's beads lifted in strict size order (decided, at least one lift). */
   liftOrderOk?: boolean;
   // --- end bead-hoops ---
+  /** --- chaos-fan --- The chaos fan: real time (ms) it first split (a bob `divergePx` from the leader's), −1 or absent when it never did. */
+  divergeMs?: number;
   // --- colour-sort ---
   /** Colour Sort: real time (ms) its first sort was complete (every ball in its own band), −1 when the time limit or the equilibrium ended it first or it has not ended. */
   sortedMs?: number;
@@ -167,6 +172,8 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
       return Math.max(clipMs, maxSimMs);
     case "all-up-by": // --- bead-hoops --- (until the limit has passed without every bead up)
       return 1000 * (outcome.atSec ?? 0) + FILL_SLACK_MS;
+    case "diverges-at": // --- chaos-fan --- (until the window has passed without a split)
+      return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + FILL_SLACK_MS;
     case "sorted-by": // --- colour-sort --- (until the limit has passed without a complete sort)
       return 1000 * (outcome.atSec ?? 0) + SORT_SLACK_MS;
     case "last-colour": // --- colour-sort --- (until the first sort ends: the finder adds the mode's time limit)
@@ -306,6 +313,11 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       const at = run.allUpMs ?? -1;
       return at >= 0 && at <= 1000 * (outcome.atSec ?? 0) + 1e-6;
     }
+    // --- chaos-fan --- the first split inside the window [target − tolerance, target + tolerance]
+    case "diverges-at": {
+      const at = run.divergeMs ?? -1;
+      return at >= 0 && Math.abs(at - 1000 * (outcome.atSec ?? 0)) <= 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC) + 1e-6;
+    }
     // --- colour-sort --- every ball sorted within the limit; the chosen colour's ball the final one sorted; the final ball on a bar line
     case "sorted-by": {
       const sorted = run.sortedMs ?? -1;
@@ -351,6 +363,8 @@ export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
       return run.liftOrderOk === true ? 0 : 1;
     case "all-up-by":
       return (run.allUpMs ?? -1) < 0 ? Infinity : Math.max(0, (run.allUpMs ?? 0) / 1000 - (outcome.atSec ?? 0));
+    case "diverges-at": // --- chaos-fan --- the seconds between the split and the target (never split: Infinity)
+      return (run.divergeMs ?? -1) < 0 ? Infinity : Math.abs((run.divergeMs ?? 0) / 1000 - (outcome.atSec ?? 0));
     // --- colour-sort --- the seconds past the limit; 0 / 1 for the last colour; the seconds off the nearest bar line (no complete sort: Infinity)
     case "sorted-by":
       return (run.sortedMs ?? -1) < 0 ? Infinity : Math.max(0, (run.sortedMs ?? 0) / 1000 - (outcome.atSec ?? 0));
@@ -397,6 +411,8 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
       return (run.firstFillMs ?? -1) >= 0 ? (run.firstFillMs ?? 0) / 1000 : 0;
     case "all-up-by": // --- bead-hoops --- (every bead up, 0 when that never came)
       return (run.allUpMs ?? -1) >= 0 ? (run.allUpMs ?? 0) / 1000 : 0;
+    case "diverges-at": // --- chaos-fan --- (the split, 0 when it never came)
+      return (run.divergeMs ?? -1) >= 0 ? (run.divergeMs ?? 0) / 1000 : 0;
     case "sorted-by": // --- colour-sort --- (the first complete sort, 0 without one)
     case "last-colour":
     case "sorted-on-bar":
@@ -434,6 +450,8 @@ export interface OutcomeContext {
    * equilibrium instead of completing, so there is no first sort to search (no sorted-by, last-colour, sorted-on-bar).
    */
   colourSortSettles?: boolean;
+  /** --- chaos-fan --- The Double Pendulum runs its chaos fan: the split's time can be searched (diverges-at). */
+  dpFan?: boolean;
 }
 
 /**
@@ -460,6 +478,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "grow" && ctx.growFinish) out.push("fills-by", "fill-on-bar"); // --- loop-foundation ---
   if (mode === "starChords") out.push("star-set"); // --- chord-stars --- (the best star set, its loop fitted to the clip)
   if (mode === "hoops") out.push("lift-order", "all-up-by"); // --- bead-hoops ---
+  if (mode === "doublePendulum" && ctx.dpFan) out.push("diverges-at"); // --- chaos-fan --- (the split at a chosen second)
   if (mode === "ellipseFoci") out.push("converge-on-beat", "longest-collapse"); // --- ellipse-foci --- (the transit on the tempo; the start angle)
   if (mode === "colourSort" && !ctx.colourSortSettles) out.push("sorted-by", "last-colour", "sorted-on-bar"); // --- colour-sort --- (its first sort: the run loops forever; none when the sort only settles)
   return out;
@@ -476,6 +495,14 @@ export function hoopsOutcomeSettled(outcome: FinderOutcome, elapsedMs: number, a
   return false;
 }
 // --- end bead-hoops ---
+
+// --- chaos-fan ---
+/** Whether a chaos-fan run being simulated can stop for diverges-at: the fan has split (in the window or not), or the window passed without it. */
+export function fanOutcomeSettled(outcome: FinderOutcome, elapsedMs: number, divergeMs: number): boolean {
+  if (outcome.kind !== "diverges-at") return false;
+  return divergeMs >= 0 || elapsedMs > 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + FILL_SLACK_MS - 1e-6;
+}
+// --- end chaos-fan ---
 
 /** The outcome to search for: the one picked when it is available, else the first one available (null: none). */
 export function effectiveOutcome(picked: FinderOutcomeKind, available: readonly FinderOutcomeKind[]): FinderOutcomeKind | null {

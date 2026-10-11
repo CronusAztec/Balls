@@ -33,6 +33,10 @@ export interface LoopHudFrame {
   counter: string;
   /** A light page: a dark title and a grey counter. */
   light: boolean;
+  /** --- chaos-fan --- The counter line is a state label (the chaos fan's "running forwards"): grey, not amber. */
+  counterGrey?: boolean;
+  /** --- phase-spiral --- A thin bar under the counter filled to this share (0–1; Metronomes & Polyrhythms' "in line 87%"); none when left out. */
+  bar?: number;
 }
 
 /** The HUD's static words for a page: the title, the subtitle and the counter's template ("{count} bounces"). */
@@ -45,6 +49,8 @@ export interface LoopHudSpec {
   alt?: string;
   /** --- bead-hoops --- The page's language: the counter's decimals in its style on the live canvas too ("0,13" in Polish). */
   locale?: string;
+  /** --- chaos-fan --- The state labels a run's counter line may show instead of a count (`LoopHudState`), by state. */
+  states?: Readonly<Record<string, string>>;
 }
 
 /** Translation keys (namespace `LoopHud`) of the modes with words of their own; any other mode's title is its name. */
@@ -52,6 +58,7 @@ export const LOOP_HUD_MODE_TEXT: Readonly<Partial<Record<ModeId, { title: string
   grow: { title: "growTitle", subtitle: "growSubtitle", counter: "growCounter" },
   starChords: { title: "starChordsTitle", subtitle: "starChordsSubtitle", counter: "starChordsCounter" }, // --- chord-stars ---
   hoops: { title: "hoopsTitle", subtitle: "hoopsSubtitle", counter: "hoopsCounter", counterOne: "hoopsCounterOne" }, // --- bead-hoops ---
+  polyrhythm: { title: "polyrhythmTitle", subtitle: "polyrhythmSubtitle", counter: "polyrhythmCounter" }, // --- phase-spiral --- (the counter: the in-line meter)
   ellipseFoci: { title: "EllipseFoci.canvasTitle", subtitle: "EllipseFoci.canvasSubtitle", counter: "EllipseFoci.canvasPasses" }, // --- ellipse-foci --- (its own namespace)
 };
 
@@ -268,17 +275,54 @@ export function hudNumber(value: number, locale?: string): string {
 const HOOPS_COUNTER = { count: 0, values: { rate: 0, total: 0 } };
 // --- end bead-hoops ---
 
+// --- chaos-fan ---
+/** A state instead of a count (the Double Pendulum's chaos fan: "forwards" / "backwards"), shown by its label (`LoopHudSpec.states`), in grey. */
+export interface LoopHudState {
+  state: string;
+}
+/** The fan's state, reused every frame. */
+const FAN_STATE: LoopHudState = { state: "forwards" };
+// --- end chaos-fan ---
+// --- phase-spiral ---
+/** A counter with a bar under it (Metronomes & Polyrhythms' in-line meter: the percentage and its share). */
+export interface LoopHudBarCount extends LoopHudCount {
+  bar: number;
+}
+/** The meter's counter, reused every frame. */
+const POLY_METER_COUNTER: LoopHudBarCount = { count: 0, total: 100, bar: 0 };
+// --- end phase-spiral ---
+
 /** The counter of the mode's run (Grow: the bounces of the current cycle; --- chord-stars --- Chord Stars: the stars closed of all;
- * --- bead-hoops --- Spinning Hoops: the beads up, with the spin and the hoop count; --- ellipse-foci --- Focus Shot: the passes of
- * the current loop, with its counter on), or null when the mode has none. */
+ * --- bead-hoops --- Spinning Hoops: the beads up, with the spin and the hoop count; --- phase-spiral --- Metronomes & Polyrhythms
+ * with its meter on: "in line N%" over a bar; --- ellipse-foci --- Focus Shot: the passes of the current loop, with its counter
+ * on; --- chaos-fan --- the Double Pendulum's chaos fan: its state, forwards or backwards), or null when the mode has none. */
 export function loopHudCount(engine: {
   getCurrentModeName(): string;
   getGrowView(): { bounces: number };
   getStarChordsView?(): { closed: number; count: number; phase: string; phaseProgress: number }; // --- chord-stars ---
   getHoopsView?(): { upCount: number; count: number; omega: number }; // --- bead-hoops ---
+  getDoublePendulumView?(): { fan: { running: string } | null }; // --- chaos-fan ---
+  getPolyrhythmView?(): { inLine: number; settings: { alignMeter: boolean } }; // --- phase-spiral ---
   getEllipseFociHudCount?(): number | null; // --- ellipse-foci ---
   getColourSortView?(): { sorted: number; phase: string }; // --- colour-sort ---
-}): number | LoopHudCount | LoopHudCounter | null {
+}): number | LoopHudCount | LoopHudCounter | LoopHudState | null {
+  // --- chaos-fan --- the Double Pendulum's chaos fan: running forwards, or its tape backwards
+  if (engine.getCurrentModeName() === "doublePendulum" && engine.getDoublePendulumView) {
+    const fan = engine.getDoublePendulumView().fan;
+    if (fan) {
+      FAN_STATE.state = fan.running;
+      return FAN_STATE;
+    }
+  }
+  // --- phase-spiral --- the in-line meter (a whole percentage, the bar its share); no counter with the meter off
+  if (engine.getCurrentModeName() === "polyrhythm" && engine.getPolyrhythmView) {
+    const view = engine.getPolyrhythmView();
+    if (!view.settings.alignMeter) return null;
+    const share = view.inLine > 1 ? 1 : view.inLine < 0 ? 0 : view.inLine;
+    POLY_METER_COUNTER.count = Math.round(100 * share);
+    POLY_METER_COUNTER.bar = share;
+    return POLY_METER_COUNTER;
+  }
   // --- chord-stars --- (the fade is the loop's reset: halfway through it the counter is back at 0, so the clip's last frames
   // read like its first – the payoff's "5/5" still shows through the hold and the first half of the fade, a hold of 0 too)
   if (engine.getCurrentModeName() === "starChords" && engine.getStarChordsView) {
@@ -304,10 +348,15 @@ export function loopHudCount(engine: {
 }
 
 /** One frame of the HUD from the page's words and the run's counter. */
-export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | LoopHudCounter | null, locale?: string): LoopHudFrame {
+export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | LoopHudCounter | LoopHudState | null, locale?: string): LoopHudFrame {
+  // --- chaos-fan --- a state: its label from the spec, grey (nothing without a label)
+  if (count !== null && typeof count === "object" && "state" in count) return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudText(spec.states?.[count.state] ?? "", locale ?? spec.locale), light: spec.light, counterGrey: true };
   const counter = count !== null && typeof count === "object" && "values" in count ? count : null; // --- bead-hoops --- (a counter with values)
   const value = counter ? counter.count : (count as number | LoopHudCount | null);
-  return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: count === null && spec.alt ? hudText(spec.alt, locale ?? spec.locale) /* --- colour-sort --- */ : hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values), light: spec.light };
+  const frame: LoopHudFrame = { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: count === null && spec.alt ? hudText(spec.alt, locale ?? spec.locale) /* --- colour-sort --- */ : hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values), light: spec.light };
+  const bar = count !== null && typeof count === "object" && "bar" in count ? (count as LoopHudBarCount).bar : NaN; // --- phase-spiral --- (the meter's bar)
+  if (frame.counter && Number.isFinite(bar)) frame.bar = bar;
+  return frame;
 }
 
 /** Draws one line centred at (`x`, `y`), shrunk to `maxWidth` when it is wider. */
@@ -347,8 +396,24 @@ export function drawLoopHud(ctx: CanvasRenderingContext2D, width: number, frame:
     lines.forEach((line, i) => fitLine(ctx, line, cx, layout.subtitleY + i * HUD_SUBTITLE_LEADING * layout.subtitleSize, layout.subtitleSize, "500", layout.maxWidth));
   }
   if (frame.counter && layout.counterY >= 0) {
-    ctx.fillStyle = frame.light ? LOOP_HUD_GREY_LIGHT : LOOP_HUD_AMBER;
+    ctx.fillStyle = frame.light ? LOOP_HUD_GREY_LIGHT : frame.counterGrey ? LOOP_HUD_GREY /* --- chaos-fan --- (a state label) */ : LOOP_HUD_AMBER;
     fitLine(ctx, frame.counter, cx, layout.counterY, layout.counterSize, "700", layout.maxWidth);
+    // --- phase-spiral --- a thin bar under the counter, filled to its share (inside the counter line's band)
+    if (typeof frame.bar === "number" && Number.isFinite(frame.bar)) {
+      const bar = hudBarRect(layout);
+      ctx.fillStyle = frame.light ? "rgba(0, 0, 0, 0.14)" : "rgba(255, 255, 255, 0.16)";
+      ctx.fillRect(cx - bar.width / 2, bar.y, bar.width, bar.height);
+      ctx.fillStyle = frame.light ? LOOP_HUD_GREY_LIGHT : LOOP_HUD_AMBER;
+      ctx.fillRect(cx - bar.width / 2, bar.y, bar.width * Math.max(0, Math.min(1, frame.bar)), bar.height);
+    }
   }
   ctx.restore();
 }
+
+// --- phase-spiral ---
+/** The counter's bar: the rule's width, a thin line just under the counter's text, inside the band the counter's line covers. */
+export function hudBarRect(layout: LoopHudLayout): { y: number; width: number; height: number } {
+  const height = Math.max(2, Math.round(0.07 * layout.counterSize));
+  return { y: layout.counterY + (HUD_LINE_HALF - 0.02) * layout.counterSize - height, width: layout.ruleWidth, height };
+}
+// --- end phase-spiral ---
