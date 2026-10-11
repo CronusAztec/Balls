@@ -4,6 +4,7 @@ import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { DP_STRING_LAYOUTS, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
+import ChaosFanSection, { CHAOS_FAN_KEYS } from "./ChaosFanSection"; // --- chaos-fan ---
 
 export interface DoublePendulumSectionProps {
   t: Translate;
@@ -35,6 +36,7 @@ export const DOUBLE_PENDULUM_KEYS = [
   "dpStringLayout",
   "dpOctaves",
   "dpEndless",
+  ...CHAOS_FAN_KEYS, // --- chaos-fan ---
 ];
 
 const LAYOUT_OPTIONS: Record<DpStringLayout, { labelKey: string }> = {
@@ -61,7 +63,9 @@ function GroupTitle({ children }: { children: string }) {
  * them to the engine (see lib/physics/modes/doublePendulum.ts), restarting the rig when the swing changes.
  */
 export default function DoublePendulumSection({ t, search, matches, settings: s, update }: DoublePendulumSectionProps) {
-  const triple = s.dpSegments >= 3;
+  // --- chaos-fan --- with the fan on, the harp rig's own controls rest (the fan swings double pendulums, no strings, no sparring, no trail)
+  const fan = s.dpFan && !search;
+  const triple = s.dpSegments >= 3 && !fan;
   const showThird = triple || !!search;
   const showAngles = !s.dpRandomStart || !!search;
   const pct = (v: number) => `${Math.round(100 * v)}%`;
@@ -70,26 +74,32 @@ export default function DoublePendulumSection({ t, search, matches, settings: s,
   return (
     <div className="space-y-3 pt-2" data-testid="double-pendulum">
       {!search && <p className="text-xs text-ink-3 leading-relaxed">{t("dpDesc")}</p>}
-      {!search && <GroupTitle>{t("dpGroupRig")}</GroupTitle>}
-      <Searchable search={search} matches={matches} labelKey="dpSegments">
-        <div className="space-y-2">
-          <label className="text-sm font-medium text-ink-2">
-            {t("dpSegments")}
-            <Tooltip text={t("dpSegmentsTip")} />
-          </label>
-          <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("dpSegments")}>
-            {[2, 3].map((n) => (
-              <button type="button" key={n} onClick={() => update({ dpSegments: n })} aria-pressed={s.dpSegments === n} className={pick(s.dpSegments === n)}>
-                {t(n === 2 ? "dpSegmentsDouble" : "dpSegmentsTriple")}
-              </button>
-            ))}
+      {!search && <GroupTitle>{t("dpFanGroup")}</GroupTitle>}
+      <ChaosFanSection t={t} search={search} matches={matches} settings={s} update={update} /> {/* --- chaos-fan --- */}
+      {!search && !fan && <GroupTitle>{t("dpGroupRig")}</GroupTitle>}
+      {!fan && (
+        <Searchable search={search} matches={matches} labelKey="dpSegments">
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-ink-2">
+              {t("dpSegments")}
+              <Tooltip text={t("dpSegmentsTip")} />
+            </label>
+            <div className="grid grid-cols-2 gap-1" role="group" aria-label={t("dpSegments")}>
+              {[2, 3].map((n) => (
+                <button type="button" key={n} onClick={() => update({ dpSegments: n })} aria-pressed={s.dpSegments === n} className={pick(s.dpSegments === n)}>
+                  {t(n === 2 ? "dpSegmentsDouble" : "dpSegmentsTriple")}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
-      </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="dpCount" tipKey="dpCountTip" value={s.dpSpar ? 2 : s.dpCount} range={RANGES.dpCount} onChange={(v) => update({ dpCount: v })} display={s.dpSpar ? t("dpSparCount") : String(s.dpCount)} disabled={s.dpSpar} />
-      <Searchable search={search} matches={matches} labelKey="dpSpar">
-        <Toggle t={t} labelKey="dpSpar" tipKey="dpSparTip" value={s.dpSpar} onChange={(v) => update({ dpSpar: v })} />
-      </Searchable>
+        </Searchable>
+      )}
+      {!fan && <Slider t={t} search={search} matches={matches} labelKey="dpCount" tipKey="dpCountTip" value={s.dpSpar ? 2 : s.dpCount} range={RANGES.dpCount} onChange={(v) => update({ dpCount: v })} display={s.dpSpar ? t("dpSparCount") : String(s.dpCount)} disabled={s.dpSpar} />}
+      {!fan && (
+        <Searchable search={search} matches={matches} labelKey="dpSpar">
+          <Toggle t={t} labelKey="dpSpar" tipKey="dpSparTip" value={s.dpSpar} onChange={(v) => update({ dpSpar: v })} />
+        </Searchable>
+      )}
       {!search && <GroupTitle>{t("dpGroupStart")}</GroupTitle>}
       <Searchable search={search} matches={matches} labelKey="dpRandomStart">
         <Toggle t={t} labelKey="dpRandomStart" tipKey="dpRandomStartTip" value={s.dpRandomStart} onChange={(v) => update({ dpRandomStart: v })} />
@@ -110,10 +120,10 @@ export default function DoublePendulumSection({ t, search, matches, settings: s,
       {showThird && <Slider t={t} search={search} matches={matches} labelKey="dpMass3" tipKey="dpMassTip" value={s.dpMass3} range={RANGES.dpMass3} onChange={(v) => update({ dpMass3: v })} display={s.dpMass3.toFixed(1)} />}
       <Slider t={t} search={search} matches={matches} labelKey="dpGravity" tipKey="dpGravityTip" value={s.dpGravity} range={RANGES.dpGravity} onChange={(v) => update({ dpGravity: v })} display={`×${s.dpGravity.toFixed(2)}`} />
       <Slider t={t} search={search} matches={matches} labelKey="dpDamping" tipKey="dpDampingTip" value={s.dpDamping} range={RANGES.dpDamping} onChange={(v) => update({ dpDamping: v })} display={damping} />
-      {!search && <GroupTitle>{t("dpGroupHarp")}</GroupTitle>}
-      <Slider t={t} search={search} matches={matches} labelKey="dpTrailSeconds" tipKey="dpTrailSecondsTip" value={s.dpTrailSeconds} range={RANGES.dpTrailSeconds} onChange={(v) => update({ dpTrailSeconds: v })} display={s.dpTrailSeconds > 0 ? `${s.dpTrailSeconds}s` : t("dpOff")} />
-      <Slider t={t} search={search} matches={matches} labelKey="dpStrings" tipKey="dpStringsTip" value={s.dpStrings} range={RANGES.dpStrings} onChange={(v) => update({ dpStrings: v })} display={s.dpStrings > 0 ? String(s.dpStrings) : t("dpOff")} />
-      {(s.dpStrings > 0 || !!search) && (
+      {!search && !fan && <GroupTitle>{t("dpGroupHarp")}</GroupTitle>}
+      {!fan && <Slider t={t} search={search} matches={matches} labelKey="dpTrailSeconds" tipKey="dpTrailSecondsTip" value={s.dpTrailSeconds} range={RANGES.dpTrailSeconds} onChange={(v) => update({ dpTrailSeconds: v })} display={s.dpTrailSeconds > 0 ? `${s.dpTrailSeconds}s` : t("dpOff")} />}
+      {!fan && <Slider t={t} search={search} matches={matches} labelKey="dpStrings" tipKey="dpStringsTip" value={s.dpStrings} range={RANGES.dpStrings} onChange={(v) => update({ dpStrings: v })} display={s.dpStrings > 0 ? String(s.dpStrings) : t("dpOff")} />}
+      {((s.dpStrings > 0 && !fan) || !!search) && (
         <>
           <Searchable search={search} matches={matches} labelKey="dpStringLayout">
             <div className="space-y-2">
@@ -133,15 +143,17 @@ export default function DoublePendulumSection({ t, search, matches, settings: s,
           <Slider t={t} search={search} matches={matches} labelKey="dpOctaves" tipKey="dpOctavesTip" value={s.dpOctaves} range={RANGES.dpOctaves} onChange={(v) => update({ dpOctaves: v })} display={String(s.dpOctaves)} />
         </>
       )}
-      {!search && <GroupTitle>{t("dpGroupRun")}</GroupTitle>}
-      <Searchable search={search} matches={matches} labelKey="dpEndless">
-        <div className="space-y-1">
-          <Toggle t={t} labelKey="dpEndless" tipKey="dpEndlessTip" value={s.dpEndless} onChange={(v) => update({ dpEndless: v })} />
-          <p className="text-xs text-ink-3" data-testid="dp-run-length">
-            {s.dpEndless ? t("dpRunEndless") : t("dpRunLength", { duration: s.recordingDuration })}
-          </p>
-        </div>
-      </Searchable>
+      {!search && !(fan && s.dpPalindrome) && <GroupTitle>{t("dpGroupRun")}</GroupTitle>}
+      {!(fan && s.dpPalindrome) /* --- chaos-fan --- (a palindrome loops forever) */ && (
+        <Searchable search={search} matches={matches} labelKey="dpEndless">
+          <div className="space-y-1">
+            <Toggle t={t} labelKey="dpEndless" tipKey="dpEndlessTip" value={s.dpEndless} onChange={(v) => update({ dpEndless: v })} />
+            <p className="text-xs text-ink-3" data-testid="dp-run-length">
+              {s.dpEndless ? t("dpRunEndless") : t("dpRunLength", { duration: s.recordingDuration })}
+            </p>
+          </div>
+        </Searchable>
+      )}
     </div>
   );
 }

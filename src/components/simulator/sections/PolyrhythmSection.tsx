@@ -18,6 +18,7 @@ import {
   type PolyPitchBy,
   type PolyTempos,
 } from "@/lib/physics/modes/polyrhythm";
+import PhaseSpiralSection, { PHASE_SPIRAL_KEYS } from "./PhaseSpiralSection"; // --- phase-spiral ---
 
 export interface PolyrhythmSectionProps {
   t: Translate;
@@ -28,7 +29,7 @@ export interface PolyrhythmSectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
-export const POLYRHYTHM_KEYS = ["prLayout", "prArcStyle", "prPolygon", "prTempos", "prCount", "prCycleSeconds", "prBaseBpm", "prBpmStep", "prCustom", "prAccentEvery", "prPitchBy", "prNumbers", "prCycles"];
+export const POLYRHYTHM_KEYS = ["prLayout", "prArcStyle", "prPolygon", "prTempos", "prCount", "prCycleSeconds", "prBaseBpm", "prBpmStep", "prCustom", "prAccentEvery", "prPitchBy", "prNumbers", "prCycles", ...PHASE_SPIRAL_KEYS /* --- phase-spiral --- */];
 
 const LAYOUT_OPTIONS: Record<PolyLayout, { labelKey: string }> = {
   rings: { labelKey: "prLayoutRings" },
@@ -153,6 +154,7 @@ export default function PolyrhythmSection({ t, search, matches, settings: s, upd
         <Toggle t={t} labelKey="prNumbers" tipKey="prNumbersTip" value={s.prNumbers} onChange={(v) => update({ prNumbers: v })} />
       </Searchable>
       <Slider t={t} search={search} matches={matches} labelKey="prCycles" tipKey="prCyclesTip" value={s.prCycles} range={RANGES.prCycles} onChange={(v) => update({ prCycles: v })} display={s.prCycles === 0 ? t("prCyclesNever") : String(s.prCycles)} />
+      <PhaseSpiralSection t={t} search={search} matches={matches} settings={s} update={update} /> {/* --- phase-spiral --- */}
     </div>
   );
 }

@@ -15040,8 +15040,10 @@ await smokeBlock("ellipse-foci", async () => {
 await smokeBlock("colour-sort", async () => {
 // --- colour-sort ---
 // 39. Colour Sort: the preview image and the card under the escape heading; URL → the Colour Sort block of the Mode row (colours,
-// gates, gate width, rule, contacts, flashes; no ring controls) and Find Simulation's three outcomes (the colour picker naming the
-// palette), controls → URL (a preset too), the search box; the reference sort at 8× – 360 / 360 sorted (data-cs-*), the remix and
+// gates, gate width, rule, contacts, flashes; no ring controls) – Both ways hiding Find Simulation (its sort only settles) and its
+// hint saying so – then a one-way rule bringing back the three outcomes (the colour picker naming the palette), controls → URL (a
+// preset too), the search box; a Both ways run at 8× settling at its equilibrium long before the time limit on the minor chord
+// (data-cs-first-end) and looping on; the reference sort at 8× – 360 / 360 sorted (data-cs-*), the remix and
 // the seam back to frame 0 (data-loop-cycle, data-loop-seams), no ball past the outer wall, the gate plucks on A major pentatonic
 // and the completion chord on A2 (OscillatorNode.start instrumented), the HUD's lowercase title, the amber counter and "mixing
 // again" drawn into the canvas; the default sort at 30+ fps; Find Simulation's "all sorted within", played back to the second;
@@ -15069,19 +15071,27 @@ await smokeBlock("colour-sort", async () => {
   const contacts = await section.getByRole("switch", { name: switchName("Ball contacts") }).getAttribute("aria-checked").catch(() => null);
   const flashes = await section.getByRole("switch", { name: switchName("Refusal flashes") }).getAttribute("aria-checked").catch(() => null);
   const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
-  const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
-  const colours = await page.locator("#find-outcome").selectOption("last-colour").then(() => page.locator("#find-last-colour option").evaluateAll((els) => els.map((e) => e.textContent))).catch(() => []);
+  // Both ways only settles (a sorted ball wanders back in): no first sort to find, so no finder strip, and the hint says why
+  const bothFinder = { strip: await page.getByTestId("finder-strip").count(), outcome: await page.locator("#find-outcome").count() };
+  const bothHint = await section.innerText().then((text) => /settles at an equilibrium/.test(text) && /Find Simulation has no sort to search/.test(text)).catch(() => false);
   check(
     "colour sort loads from URL",
-    values.csc === "5" && values.csg === "3" && values.csw === "20" && both === "true" && contacts === "true" && flashes === "true" && noRingControls && options.join(",") === "sorted-by,last-colour,sorted-on-bar" && colours.join(",") === "RED,AMBER,YELLOW,GREEN,BLUE",
-    `(${JSON.stringify(values)}, both ways=${both}, contacts=${contacts}, flashes=${flashes}, ring controls hidden=${noRingControls}, finder outcomes=${options.join(",")}, colours=${colours.join(",")})`,
+    values.csc === "5" && values.csg === "3" && values.csw === "20" && both === "true" && contacts === "true" && flashes === "true" && noRingControls,
+    `(${JSON.stringify(values)}, both ways=${both}, contacts=${contacts}, flashes=${flashes}, ring controls hidden=${noRingControls})`,
   );
+  check("Both ways hides Find Simulation (its sort settles, it never completes) and its hint says so", bothFinder.strip === 0 && bothFinder.outcome === 0 && bothHint, `(${JSON.stringify({ ...bothFinder, hint: bothHint })})`);
   await section.getByTestId("cs-rule").getByRole("button", { name: /Out, own only/ }).click();
   await section.locator('input[type="range"][aria-label="Gates per ring"]').evaluate(setRangeValue, "6");
   await page.waitForTimeout(300);
   {
     const query = new URLSearchParams(page.url().split("?")[1] || "");
     check("colour sort mirrors into the URL", query.get("mode") === "colourSort" && query.get("csu") === "outwardOwnOnly" && query.get("csg") === "6" && query.get("csc") === "5" && query.get("csx") === "1", `(${query.toString()})`);
+  }
+  {
+    // a one-way rule sorts completely: Find Simulation's three outcomes are back, the colour picker naming the palette
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+    const colours = options.includes("last-colour") ? await page.locator("#find-outcome").selectOption("last-colour").then(() => page.locator("#find-last-colour option").evaluateAll((els) => els.map((e) => e.textContent))).catch(() => []) : [];
+    check("a one-way rule offers Find Simulation's three colour sort outcomes", options.join(",") === "sorted-by,last-colour,sorted-on-bar" && colours.join(",") === "RED,AMBER,YELLOW,GREEN,BLUE", `(finder outcomes=${options.join(",")}, colours=${colours.join(",")})`);
   }
   await section.getByTestId("cs-preset").selectOption("rainbow7");
   await page.waitForTimeout(300);
@@ -15093,6 +15103,33 @@ await smokeBlock("colour-sort", async () => {
   const found = await page.locator('input[type="range"][aria-label="Gate width"]').isVisible().catch(() => false);
   await page.getByPlaceholder("Search settings...").fill("");
   check("search finds the colour sort controls", found, `(gate width=${found})`);
+}
+{
+  // Both ways at 8× (4 × 90, a 60 s time limit): a sorted ball can wander back in, so the census settles at its equilibrium and
+  // the sort ends there – "settled", well before the limit, on the minor chord (the minor 10th, C4, is not in the plucks' A major
+  // pentatonic) – and the loop goes on (the remix, the seam).
+  await page.goto(`${BASE}/en/simulator/?mode=colourSort&csu=bothWaysNotOwn`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    window.__csBothOsc = osc;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value > 20 && osc.length < 20000) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.csCompletions) >= 1, null, { timeout: 120_000 }).catch(() => {});
+  const ended = await canvasData();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.csSeams) >= 1, null, { timeout: 30_000 }).catch(() => {});
+  const looped = await canvasData();
+  const heard = await page.evaluate(() => ({ root: window.__csBothOsc.some((f) => Math.abs(f - 110) < 0.5), minorTenth: window.__csBothOsc.some((f) => Math.abs(f - 261.63) < 0.5) }));
+  check(
+    "colour sort's Both ways settles at its equilibrium well before the time limit (on the minor chord) and loops on",
+    ended.csRule === "bothWaysNotOwn" && ended.csFirstEnd === "settled" && Number(ended.csFirstEndSec) >= 12 && Number(ended.csFirstEndSec) < 45 && ended.csFirstSort === "" && ended.csLastColour === "-1" && Number(looped.csSeams) >= 1 && looped.csEscaped === "0" && heard.root && heard.minorTenth,
+    `(${JSON.stringify({ end: ended.csFirstEnd, endSec: ended.csFirstEndSec, sorted: ended.csSorted, total: ended.csTotal, firstSort: ended.csFirstSort, seams: looped.csSeams, cycle: looped.loopCycle, escaped: looped.csEscaped, heard })})`,
+  );
 }
 {
   // The reference sort (4 × 90) at 8×: every ball sorted, the chord, "mixing again", the seam back to frame 0.
@@ -15138,7 +15175,7 @@ await smokeBlock("colour-sort", async () => {
   });
   check(
     "colour sort sorts 360 / 360 at 8×, mixes again and loops back to frame 0 with no ball past the outer wall",
-    atStart.csTotal === "360" && atStart.csSorted === "90" && Number(sorted.csCompletions) >= 1 && Number(sorted.csFirstSort) > 3 && sorted.csLastColour !== "-1" && (remix.csPhase === "remix" || Number(remix.csSeams) >= 1) && Number(seam.csSeams) >= 1 && Number(seam.loopCycle) > Number(sorted.csFirstSort) && Number(seam.loopSeams) >= 1 && seam.csEscaped === "0" && sorted.csEscaped === "0",
+    atStart.csTotal === "360" && atStart.csSorted === "90" && atStart.csFirstEnd === "" && Number(sorted.csCompletions) >= 1 && sorted.csFirstEnd === "sorted" && Number(sorted.csFirstSort) > 3 && sorted.csLastColour !== "-1" && (remix.csPhase === "remix" || Number(remix.csSeams) >= 1) && Number(seam.csSeams) >= 1 && Number(seam.loopCycle) > Number(sorted.csFirstSort) && Number(seam.loopSeams) >= 1 && seam.csEscaped === "0" && sorted.csEscaped === "0",
     `(${JSON.stringify({ start: atStart.csSorted, total: atStart.csTotal, firstSort: sorted.csFirstSort, sortedNow: sorted.csSorted, last: sorted.csLastColour, phase: remix.csPhase, seams: seam.csSeams, cycle: seam.loopCycle, loopSeams: seam.loopSeams, escaped: seam.csEscaped, passes: sorted.csPasses })})`,
   );
   check("the gate passes pluck A major pentatonic, the sort ends on the chord, and the HUD says it (title, amber counter, mixing again)", heard.plucks >= 2 && heard.chord && heard.title && heard.counter === "#f2c46a" && heard.full && heard.remix, `(${JSON.stringify(heard)})`);
@@ -15284,6 +15321,374 @@ await smokeBlock("colour-sort", async () => {
   }
 }
 // --- end colour-sort ---
+});
+
+await smokeBlock("chaos-fan", async () => {
+// --- chaos-fan ---
+// 42. The Double Pendulum's chaos fan: the 200 pendulums, a hair apart preset (the fan, the navy page, the loop HUD, a clip of one
+// whole loop) run at 4× through a whole palindrome – the split, the turn, the way home and the seam (data-dp-fan-*, the loop
+// contract's 20 s cycle) – under the lowercase title and the grey "running forwards" / "running backwards" label, the single swing
+// voice (A3) heard while the fan is together (OscillatorNode.start instrumented); a 500-pendulum run at 1× whose steps stay under
+// the runtime step budget (data-dp-fan-evals ≤ data-dp-fan-budget) at 30+ fps; URL → the Chaos fan block (pendulums, spread,
+// colours, the palindrome, the split) → URL and the search box; Find Simulation's "Splits at", found and played back with the
+// split inside the window; a fast export with Export whole loops of one whole loop with the HUD and the swings in its own audio;
+// and a free visitor's page – the watermark tag on Record Video and Fast export, the live badge clear of the HUD.
+{
+  await page.goto(`${BASE}/en/simulator/?mode=doublePendulum`, { waitUntil: "networkidle" });
+  await page.locator('[data-dp-fan-preset="hairApart"]').first().click();
+  await page.waitForTimeout(400);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.evaluate(() => {
+    const osc = [];
+    const texts = [];
+    window.__fanOsc = osc;
+    window.__fanTexts = texts;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (!(this.context instanceof OfflineAudioContext) && osc.length < 20000) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 6000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const early = await canvasData();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const looped = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.dpFanCycles) >= 1, null, { timeout: 45_000 }).then(() => true).catch(() => false);
+  const after = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-chaos-fan.png") });
+  const heard = await page.evaluate(() => ({ osc: window.__fanOsc.slice(), texts: window.__fanTexts.splice(0) }));
+  const title = heard.texts.some((t) => t.text === "200 pendulums, a hair apart");
+  const labels = [...new Set(heard.texts.filter((t) => /^running (forwards|backwards)$/.test(t.text)).map((t) => `${t.text}|${t.fill}`))];
+  const single = heard.osc.filter((f) => Math.abs(f - 220) < 0.5).length;
+  check(
+    "the 200 pendulums, a hair apart preset: the fan, the navy page, the HUD and a clip of one whole loop; a whole palindrome at 4× – split, turn, home, seam – under the title and the grey forwards / backwards label, the single swing voice heard",
+    query.get("dpf") === "1" && query.get("lh") === "1" && query.get("bg1") === "#0b1020" && query.get("dur") === "20" && early.dpFan === "1" && early.dpFanCount === "200" && early.dpFanRunning === "forwards" && looped && Number(after.dpFanSplits) >= 1 && Number(after.dpFanReverses) >= 1 && Number(after.dpFanHomes) >= 1 && Math.abs(Number(after.loopCycle) - 20) < 0.002 && Number(after.loopSeams) >= 1 && after.dpFanTape === "1" && title && labels.includes("running forwards|#9a9a9a") && labels.includes("running backwards|#9a9a9a") && single >= 1,
+    `(${query.toString()}, ${JSON.stringify({ early: { fan: early.dpFan, count: early.dpFanCount, running: early.dpFanRunning }, splits: after.dpFanSplits, reverses: after.dpFanReverses, homes: after.dpFanHomes, cycles: after.dpFanCycles, cycle: after.loopCycle, seams: after.loopSeams, tape: after.dpFanTape, title, labels, single, osc: heard.osc.length })})`,
+  );
+}
+{
+  // 500 pendulums at 1×: every step under the runtime step budget, the page at 30+ fps.
+  await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpf=1&dpfn=500&lh=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1000);
+  const fps = await pageFrameRates(3000);
+  const d = await canvasData();
+  await timingCheck(
+    "a 500-pendulum chaos fan keeps every step under the runtime step budget at 30+ fps",
+    d.dpFanCount === "500" && Number(d.dpFanEvals) > 0 && Number(d.dpFanEvals) <= Number(d.dpFanBudget) && Number(d.dpFanSubsteps) >= 8,
+    fpsOk(fps, 4, 30),
+    `(${JSON.stringify({ count: d.dpFanCount, evals: d.dpFanEvals, budget: d.dpFanBudget, substeps: d.dpFanSubsteps })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(3000, 4, 30),
+  );
+}
+{
+  // URL → the Chaos fan block → URL, and the search box.
+  await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpf=1&dpfn=350&dpfs=0.0001&dpfc=single&dpfp=0&dpfd=45`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("chaos-fan-section");
+  const toggle = (label) => section.getByRole("switch", { name: switchName(label) });
+  {
+    const values = { dpfn: await sliderValue("Fan pendulums"), dpfs: await sliderValue("Start spread"), dpfd: await sliderValue("Split at") };
+    const single = await section.locator('[data-dp-colour-by="single"]').getAttribute("aria-pressed");
+    const fan = await toggle("Chaos fan").getAttribute("aria-checked");
+    const backwards = await toggle("Run backwards").getAttribute("aria-checked");
+    const forwardHidden = (await page.locator('input[aria-label="Forward run"]').count()) === 0;
+    const harpHidden = (await page.locator('input[aria-label="Harp Strings"]').count()) === 0;
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+    check(
+      "the chaos fan loads from the URL (the block, the harp's controls resting, the finder's outcomes of a fan that runs forwards)",
+      values.dpfn === "350" && values.dpfs === "0.0001" && values.dpfd === "45" && single === "true" && fan === "true" && backwards === "false" && forwardHidden && harpHidden && options.join(",") === "duration,diverges-at",
+      `(${JSON.stringify({ values, single, fan, backwards, forwardHidden, harpHidden, options })})`,
+    );
+  }
+  await toggle("Run backwards").click();
+  await page.waitForTimeout(200);
+  await page.locator('input[aria-label="Forward run"]').evaluate(setRangeValue, "8");
+  await section.locator('[data-dp-colour-by="index"]').click();
+  await section.locator('[data-dp-spread-pick="0.000001"]').click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check("the chaos fan mirrors into the URL (the palindrome back on, the forward run, the colours, a millionth of a degree)", query.get("dpf") === "1" && !query.has("dpfp") && query.get("dpff") === "8" && !query.has("dpfc") && query.get("dpfs") === "0.000001" && query.get("dpfn") === "350", `(${query.toString()})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("start spread");
+  const found = await page.locator('input[aria-label="Start spread"]').isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the chaos fan controls", found && hidden, `(start spread=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // Find Simulation on a looping fan: the split at a chosen second (±0.5 s), found and played back.
+  await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpf=1&dpfn=60`, { waitUntil: "networkidle" });
+  const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+  await page.locator("#find-diverge-at").evaluate(setRangeValue, "7").catch(() => {});
+  await page.getByRole("button", { name: /Find a Run That Splits at 7\.0s/ }).click();
+  const found = page.getByText(/Found! The fan splits at|Didn't find simulation/).first();
+  const text = await found.waitFor({ timeout: 90_000 }).then(() => found.innerText()).catch(() => "timeout");
+  const dur = new URLSearchParams(page.url().split("?")[1] || "").get("dur");
+  let played = {};
+  if (/Found!/.test(text)) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "4x", exact: true }).click();
+    await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.dpFanSplit, null, { timeout: 30_000 }).catch(() => {});
+    played = await canvasData();
+  }
+  check(
+    "Find Simulation offers Splits at for a looping chaos fan and finds a run that splits at 7 s ± 0.5 s (a clip of one whole loop), and it plays back",
+    options.join(",") === "diverges-at" && /Found! The fan splits at \d/.test(text) && dur === "20" && Math.abs(Number(played.dpFanSplit) - 7) <= 0.5 + 1 / 60,
+    `(${JSON.stringify({ options, text, dur, split: played.dpFanSplit })})`,
+  );
+}
+{
+  // ⚡ A fast export with Export whole loops (on by default) of a 10 s clip of an 8 s palindrome: one whole loop, the HUD in its
+  // frames, the swings through its own audio.
+  await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpf=1&dpfn=100&dpff=4&lh=1&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const osc = [];
+      const texts = [];
+      window.__fanOfflineOsc = osc;
+      window.__fanFrameTexts = texts;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.context instanceof OfflineAudioContext) osc.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        if (texts.length < 20000 && this.canvas.width === 500 && this.canvas.height === 500) texts.push(String(text));
+        return fillText.call(this, text, ...rest);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `chaos-fan-loop-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const cycle = Number(await panel.getAttribute("data-fast-loop-cycle"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const heard = await page.evaluate(() => ({ osc: window.__fanOfflineOsc.length, swings: window.__fanOfflineOsc.filter((f) => Math.abs(f - 220) < 0.5).length, hud: window.__fanFrameTexts.filter((t) => t === "100 pendulums, a hair apart").length, label: window.__fanFrameTexts.filter((t) => t === "running backwards").length }));
+    check(
+      "a chaos fan fast export with Export whole loops lasts one whole loop (8 s within a frame), carries the HUD and its state label and plays the swings through its own audio",
+      status === "done" && bytes > 10000 && loops === 1 && Math.abs(seconds - 8) <= 1 / 30 + 0.002 && Math.abs(cycle - 8) < 0.002 && heard.hud >= 10 && heard.label >= 10 && heard.swings >= 1,
+      `(${JSON.stringify({ status, bytes, seconds, cycle, loops, heard })})`,
+    );
+  } else check("without WebCodecs the chaos fan fast export is not checked (the live loop is covered above)", true);
+}
+{
+  // A free visitor (no licence): Record Video and Fast export carry the watermark tag, and the live badge never covers the HUD's
+  // title or its state label.
+  const freeContext = await browser.newContext({ license: null, viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  try {
+    const fp = await freeContext.newPage();
+    await fp.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpf=1&lh=1`, { waitUntil: "networkidle" });
+    await fp.evaluate(() => {
+      const log = { draws: [], texts: [] };
+      window.__fanMark = log;
+      const main = () => document.querySelector("main canvas");
+      const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+      CanvasRenderingContext2D.prototype.drawImage = function (img, ...rest) {
+        if (this.canvas === main() && log.draws.length < 20000) log.draws.push({ w: img.width, h: img.height, x: rest[0], y: rest[1], cw: this.canvas.width, ch: this.canvas.height });
+        return drawImage.call(this, img, ...rest);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+        if (this.canvas === main() && log.texts.length < 20000 && (text === "200 pendulums, a hair apart" || /^running (forwards|backwards)$/.test(String(text)))) {
+          const m = this.getTransform();
+          const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 10) * m.d;
+          log.texts.push({ x: m.a * x + m.e, y: m.d * y + m.f, size, width: this.measureText(String(text)).width * m.a });
+        }
+        return fillText.call(this, text, x, y, ...rest);
+      };
+    });
+    await fp.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+    const tags = { record: await fp.getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").count(), fast: await fp.getByRole("button", { name: /Fast export/ }).locator("[data-watermark-tag]").count() };
+    await fp.getByRole("button", { name: /Start Simulator/ }).click();
+    await fp.waitForTimeout(7500);
+    const mark = await fp.evaluate(() => {
+      const { draws, texts } = window.__fanMark;
+      const badges = [];
+      for (let i = 1; i < draws.length; i++) {
+        const p = draws[i - 1];
+        if (p.x === 0 && p.y === 0 && p.w === p.cw && p.h === p.ch) badges.push(draws[i]);
+      }
+      const spots = [...new Map(badges.map((b) => [`${Math.round(b.x)},${Math.round(b.y)}`, b])).values()];
+      const lines = texts.slice(-8).map((t) => ({ x0: t.x - t.width / 2, x1: t.x + t.width / 2, y0: t.y - 0.6 * t.size, y1: t.y + 0.6 * t.size }));
+      const pill = (b) => ({ x: b.x + 0.2 * b.h, y: b.y + 0.2 * b.h, w: b.w - 0.4 * b.h, h: 0.6 * b.h });
+      const overlaps = spots.map(pill).filter((b) => lines.some((l) => b.x < l.x1 && b.x + b.w > l.x0 && b.y < l.y1 && b.y + b.h > l.y0)).length;
+      const inside = lines.every((l) => l.y0 >= 0 && l.y1 <= (draws[0]?.ch ?? Infinity));
+      return { spots: spots.map((b) => [Math.round(b.x), Math.round(b.y), b.w, b.h]), overlaps, inside, count: texts.length };
+    });
+    check(
+      "a free visitor's chaos fan page: the watermark tag on Record Video and Fast export, the live badge clear of the HUD's title and state label, the HUD inside the canvas",
+      tags.record >= 1 && tags.fast >= 1 && mark.spots.length >= 1 && mark.overlaps === 0 && mark.count >= 2 && mark.inside,
+      `(${JSON.stringify({ tags, ...mark })})`,
+    );
+  } finally {
+    await freeContext.close().catch(() => {});
+  }
+}
+// --- end chaos-fan ---
+});
+
+await smokeBlock("phase-spiral", async () => {
+// --- phase-spiral ---
+// 43. Phase Spiral (Metronomes & Polyrhythms): URL → the Phase Spiral controls at the end of the polyrhythm block (arms, the
+// in-line meter, comet tails, loop sounds, colours), controls → URL and the search box; one 4 s cycle of 20 rings × 3 arms –
+// 60 dots, the alignment firing once a cycle (alignments = cycles + 1 with the start's, never at T / 3), three riser crossings
+// a cycle, "in line N%" drawn in amber under the disc, the loop voices (OscillatorNode.start instrumented: the chord's A2 root
+// and plucks on A major pentatonic) and the loop cycle reported; a live arms change (no restart); the "20 rings × 3 arms"
+// preset (the navy page, the loop HUD's lowercase title and amber counter, a 20 s loop); and a fast export with Export whole
+// loops (three whole 3 s cycles of a 10 s clip, the loop voices in its own audio).
+{
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prn=20&prar=3&prcs=4&prc=0&prm=1&prtl=0.6&prls=1&prco=spiral`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("phase-spiral-section");
+  const values = { prar: await sliderValue("Arms"), prtl: await sliderValue("Comet Tails") };
+  const meter = await section.getByRole("switch", { name: switchName("In-Line Meter") }).getAttribute("aria-checked");
+  const sound = await section.getByRole("switch", { name: switchName("Loop Sounds") }).getAttribute("aria-checked");
+  const spiral = await section.getByRole("group", { name: "Colours", exact: true }).getByRole("button", { name: "Spiral", exact: true }).getAttribute("aria-pressed");
+  const arms = await section.getAttribute("data-ps-arms");
+  const preset = await section.locator('[data-ps-preset="phaseSpiral"]').count();
+  check("phase spiral loads from URL (arms, tails, the in-line meter, loop sounds and the spiral colours in the polyrhythm block)", values.prar === "3" && values.prtl === "0.6" && meter === "true" && sound === "true" && spiral === "true" && arms === "3" && preset === 1, `(${JSON.stringify({ values, meter, sound, spiral, arms, preset })})`);
+  await page.locator('input[aria-label="Arms"]').evaluate(setRangeValue, "5");
+  await section.getByRole("switch", { name: switchName("In-Line Meter") }).click();
+  await section.getByRole("group", { name: "Colours", exact: true }).getByRole("button", { name: "Rainbow", exact: true }).click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check("phase spiral mirrors into the URL (5 arms, the meter off, the rainbow back to its default)", query.get("mode") === "polyrhythm" && query.get("prar") === "5" && !query.has("prm") && !query.has("prco") && query.get("prls") === "1" && query.get("prtl") === "0.6", `(${query.toString()})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("comet tails");
+  const found = await page.locator('input[aria-label="Comet Tails"]').isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the phase spiral controls", found && hidden, `(comet tails=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // One 4 s cycle of 20 rings × 3 arms with the meter and the loop sounds.
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prn=20&prar=3&prcs=4&prc=0&prm=1&prtl=0.6&prls=1&prco=spiral`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    const texts = [];
+    window.__psOsc = osc;
+    window.__psTexts = texts;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (!(this.context instanceof OfflineAudioContext) && osc.length < 20000) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 4000 && /^in line \d+%$/.test(String(text))) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const cycled = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.polyCycles) >= 1, null, { timeout: 30_000 }).then(() => true).catch(() => false);
+  // (the cycle counts at T, the alignment with the step from T – as the start's comes with the first step: read a moment later)
+  await page.waitForTimeout(400);
+  const run = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-phase-spiral.png") });
+  const heard = await page.evaluate(() => ({ osc: window.__psOsc.slice(), texts: window.__psTexts.splice(0) }));
+  const cycles = Number(run.polyCycles);
+  const crossings = Number(run.polyCrossings);
+  // the plucks' fundamentals: A major pentatonic from A3 over 12 degrees (A3 … B5)
+  const pentatonic = [57, 59, 61, 64, 66, 69, 71, 73, 76, 78, 81, 83].map((m) => 440 * 2 ** ((m - 69) / 12));
+  const plucks = heard.osc.filter((f) => pentatonic.some((p) => Math.abs(f - p) < 0.5)).length;
+  const root = heard.osc.some((f) => Math.abs(f - 110) < 0.5);
+  const meterTexts = heard.texts.map((t) => Number(/\d+/.exec(t.text)[0]));
+  const amber = heard.texts.length > 0 && heard.texts.every((t) => t.fill === "#f2c46a");
+  check(
+    "a phase spiral cycle: 60 dots on 3 arms, the alignment once a cycle (with the start's), three riser crossings a cycle, the amber in-line meter rising past 90 %, the loop voices and a 4 s loop",
+    cycled && run.polyArms === "3" && run.polyDots === "60" && Number(run.polyAlignments) === cycles + 1 && crossings >= 3 * cycles && crossings <= 3 * cycles + 3 && run.polyLoopSound === "1" && run.polyPalette === "spiral" && Math.abs(Number(run.loopCycle) - 4) < 0.002 && amber && Math.max(...meterTexts) >= 90 && Math.min(...meterTexts) < 30 && root && plucks >= 10,
+    `(${JSON.stringify({ cycles, alignments: run.polyAlignments, crossings, dots: run.polyDots, arms: run.polyArms, inLine: run.polyInLine, loopCycle: run.loopCycle, meter: [Math.min(...meterTexts), Math.max(...meterTexts), heard.texts.length], amber, root, plucks, osc: heard.osc.length })})`,
+  );
+  // a live arms change: the dots are built again and the rhythm carries on (no restart)
+  const before = await canvasData();
+  await page.locator('input[aria-label="Arms"]').evaluate(setRangeValue, "2");
+  await page.waitForTimeout(800);
+  const after = await canvasData();
+  check("the arms change live without restarting the rhythm (40 dots, the ticks carry on)", after.polyDots === "40" && after.polyArms === "2" && Number(after.polyTicks) > Number(before.polyTicks) && Number(after.polyAlignments) >= Number(before.polyAlignments), `(${JSON.stringify({ before: { dots: before.polyDots, ticks: before.polyTicks, alignments: before.polyAlignments }, after: { dots: after.polyDots, ticks: after.polyTicks, alignments: after.polyAlignments } })})`);
+}
+{
+  // The "20 rings × 3 arms" preset: the account's clip – the navy page, the loop HUD (lowercase title, amber "in line N%").
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm`, { waitUntil: "networkidle" });
+  await page.locator('[data-ps-preset="phaseSpiral"]').first().click();
+  await page.waitForTimeout(400);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.evaluate(() => {
+    const texts = [];
+    window.__psHud = texts;
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 4000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const run = await canvasData();
+  const texts = await page.evaluate(() => window.__psHud.splice(0));
+  const title = texts.some((t) => t.text === "each ring gains one lap on the next");
+  const counter = texts.filter((t) => /^in line \d+%$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null;
+  check(
+    "the Phase spiral preset: 20 rings × 3 arms, an endless 20 s loop with the meter, tails, loop sounds and spiral colours on the navy page, under the loop HUD's title and amber counter",
+    query.get("prn") === "20" && query.get("prar") === "3" && query.get("prcs") === "20" && query.get("prc") === "0" && query.get("prm") === "1" && query.get("prls") === "1" && query.get("prco") === "spiral" && query.get("lh") === "1" && query.get("bg1") === "#0b1020" && run.polyDots === "60" && run.loopHud === "1" && Math.abs(Number(run.loopCycle) - 20) < 0.002 && title && counter === "#f2c46a",
+    `(${query.toString()}, ${JSON.stringify({ dots: run.polyDots, loopHud: run.loopHud, loopCycle: run.loopCycle, title, counter })})`,
+  );
+}
+{
+  // ⚡ A fast export with Export whole loops (on by default) of a 10 s clip of 3 s cycles: three whole loops (9 s), the loop
+  // voices through its own audio.
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prn=20&prar=3&prcs=3&prc=0&prm=1&prls=1&prco=spiral&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const osc = [];
+      window.__psOfflineOsc = osc;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.context instanceof OfflineAudioContext) osc.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `phase-spiral-loop-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const cycle = Number(await panel.getAttribute("data-fast-loop-cycle"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const heard = await page.evaluate(() => ({ osc: window.__psOfflineOsc.length, roots: window.__psOfflineOsc.filter((f) => Math.abs(f - 110) < 0.5).length }));
+    check(
+      "a Phase Spiral fast export with Export whole loops keeps three whole 3 s cycles (9 s within a frame) and plays the loop voices through its own audio",
+      status === "done" && bytes > 10000 && loops === 3 && Math.abs(seconds - 9) <= 1 / 30 + 0.002 && Math.abs(cycle - 3) < 0.002 && heard.osc >= 20 && heard.roots >= 1,
+      `(${JSON.stringify({ status, bytes, seconds, cycle, loops, heard })})`,
+    );
+  } else check("without WebCodecs the Phase Spiral fast export is not checked (the live run is covered above)", true);
+}
+// --- end phase-spiral ---
 });
 
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every

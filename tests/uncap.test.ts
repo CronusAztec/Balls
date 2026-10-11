@@ -519,6 +519,7 @@ describe("uncap-all review fixes: only the settings a run's engine reads engage 
   NOT_ENGINE.add("flShake"); // --- fl-overhaul --- (Stage 3) Fight League's screen shake is the picture's (the canvas draws it; the fight never reads it)
   NOT_ENGINE.add("growMarkerLife"); // --- loop-foundation --- Grow's contact markers are the picture's (the canvas draws them)
   NOT_ENGINE.add("scLineWidth"); // --- chord-stars --- the chords' width is the picture's (the canvas draws them)
+  NOT_ENGINE.add("prTrail"); // --- phase-spiral --- Metronomes & Polyrhythms' comet tails are the picture's (the canvas draws them)
   NOT_ENGINE.add("efTrail"); // --- ellipse-foci --- Focus Shot's comet trails are the picture's (the canvas cuts them from the corners)
 
   it("classifies every setting: read by some mode's engine, or the clip's, the text's, the sound's or the picture's", () => {

@@ -21,13 +21,22 @@ import { ENTITY_CEILING, atLeastMin, memoryCeiling } from "@/lib/uncap";
  * the core, orange stops at the orange ring, green at the green one and blue reaches the outer band – so the balls sort
  * themselves into a bullseye. A ball counts as sorted while its centre is in its own band; the counter is that census.
  *
- * The loop: when every ball is sorted (or at the sort's time limit) the completion chord plays; half a second later the remix
- * starts ("mixing again", `remix` s): the gates stop filtering, the contacts switch off and a critically damped spring pulls
- * every ball back to its own place of the frame-0 packing (`remixOffset()`, exact at the remix's end), while each ring is
- * eased onto an angle its gates repeat at (a whole number of gate periods from its frame-0 angle). At the seam – the first
- * step at or after the remix's end – every ball takes its frame-0 place and launch velocity again and the rings their frame-0
- * angles: the state is the run's first frame, so the next cycle replays the first exactly and a recording of whole cycles
- * loops without a seam (the loop contract: `cycleSeconds()`, `loopSeams()`). All times are on the simulation clock.
+ * A rule that lets balls back in (both ways: `csSortSettles()`) cannot complete that sort: colour c passes inward through
+ * every ring but its own, so a sorted ball wanders back into any band inside its own and the census settles at an equilibrium
+ * (about 200 of the reference 360) – every ball home at once is a fluctuation that practically never comes for more than a
+ * handful of balls. Under such a rule the sort also ends once it has settled (`settledCensus()`: the census's mean over the
+ * last `CS_SETTLE_BLOCKS` × `CS_SETTLE_BLOCK_SEC` s no higher than over the same span before it) – on the minor chord, like a
+ * time-out, since not every ball made it – so a cycle lasts ~20–40 s, not the whole time limit. The one-way rules end only
+ * sorted or at the time limit (a stalled tail is still a sort to finish).
+ *
+ * The loop: when every ball is sorted (or the sort has settled, or at the sort's time limit) the completion chord plays; half
+ * a second later the remix starts ("mixing again", `remix` s): the gates stop filtering, the contacts switch off and a
+ * critically damped spring pulls every ball back to its own place of the frame-0 packing (`remixOffset()`, exact at the
+ * remix's end), while each ring is eased onto an angle its gates repeat at (a whole number of gate periods from its frame-0
+ * angle). At the seam – the first step at or after the remix's end – every ball takes its frame-0 place and launch velocity
+ * again and the rings their frame-0 angles: the state is the run's first frame, so the next cycle replays the first exactly
+ * and a recording of whole cycles loops without a seam (the loop contract: `cycleSeconds()`, `loopSeams()`). All times are
+ * on the simulation clock.
  *
  * Units: sizes and speeds are given in px of the 720 × 1280 reference clip, whose outer ring is `CS_REF_RING` (304) px – the
  * arena is drawn at `CS_ARENA_FACTOR` of the shorter world side, so the look is the same at every size.
@@ -40,13 +49,15 @@ import { ENTITY_CEILING, atLeastMin, memoryCeiling } from "@/lib/uncap";
  *
  * Sound (the loop sound library, `ToneGenerator.playLoop()`): every gate pass a pentatonic pluck at its colour's fixed degree
  * of A major pentatonic (`colourSortPitch()`; at most `LOOP_NOTES_PER_TICK` colours a step, a colour's passes of a step in one
- * note at √n), the completion the chord on A2 with its 1.7 Hz tremolo, ding and sub (minor when the time limit ended the sort),
- * the remix a noise wash over its length, and the seam the loop voices' hard cut.
+ * note at √n), the completion the chord on A2 with its 1.7 Hz tremolo, ding and sub (minor when the time limit or the
+ * equilibrium ended the sort), the remix a noise wash over its length, and the seam the loop voices' hard cut.
  */
 
 export const CS_RULES = ["outwardNotOwn", "outwardOwnOnly", "bothWaysNotOwn"] as const;
 export type CsRule = (typeof CS_RULES)[number];
 export type CsPhase = "sort" | "hold" | "remix";
+/** How the cycle's sort ended ("" while it runs): every ball sorted, settled at its equilibrium (a rule that lets balls back in), or at the time limit. */
+export type CsEnd = "" | "sorted" | "settled" | "limit";
 
 export function isCsRule(value: unknown): value is CsRule {
   return typeof value === "string" && (CS_RULES as readonly string[]).includes(value);
@@ -75,7 +86,7 @@ export interface ColourSortSettings {
   remix: number;
   /** Which balls a gate lets through, which way. */
   rule: CsRule;
-  /** The sort's time limit (s): the remix starts when every ball is sorted or this long into the cycle. */
+  /** The sort's time limit (s): the remix starts when every ball is sorted (or the sort has settled) or this long into the cycle. */
   limit: number;
   /** Render-only: a short flash where a ring refuses a ball. */
   flashes: boolean;
@@ -148,6 +159,11 @@ export const CS_TOP_DEGREE = 15;
 export const CS_DEGREE_SPAN = 10;
 /** The completion chord's root (A2, the key's tonic). */
 export const CS_CHORD_HZ = 110;
+/** The settle test of a rule that lets balls back in (`csSortSettles()`): the census averaged over blocks of this many seconds
+ * of the cycle, and the sort settled once the last `CS_SETTLE_BLOCKS` blocks average no higher than the `CS_SETTLE_BLOCKS` before
+ * them (6 s against 6 s: the earliest settle is 12 s in; the reference 360 settle at 18–36 s, median ~24 s, 51–63 % sorted). */
+export const CS_SETTLE_BLOCK_SEC = 2;
+export const CS_SETTLE_BLOCKS = 3;
 /** A ball contact is a "ball hit" (bounce math, the impact count) from this approach speed (× the set speed). */
 const CS_HIT_SPEED = 0.15;
 /** Floating-point slack of the phase times (ms). */
@@ -221,6 +237,33 @@ export function gatePasses(rule: CsRule, outward: boolean, colour: number, ring:
     default:
       return outward && colour !== ring;
   }
+}
+
+/**
+ * Whether `rule` lets a ball back in through a gate (both ways): then a ball in its own band can leave it again inward, so
+ * "every ball in its own band at once" is not an end state but a rare fluctuation – the sort settles at an equilibrium, and
+ * the run ends it there (`settledCensus()`) instead of waiting for the time limit. The one-way rules sort monotonically.
+ */
+export function csSortSettles(rule: CsRule): boolean {
+  // an inward pass of a ball of the ring's own colour or of another one
+  return gatePasses(rule, false, 0, 0) || gatePasses(rule, false, 1, 0);
+}
+
+/**
+ * Whether a census averaged in blocks (`means`, oldest first, the last `count` of them valid in a ring of `means.length` from
+ * `head` – the next slot to write) has settled: at least 2 × `window` blocks, and the last `window` of them average no higher
+ * than the `window` before them (the count has stopped rising).
+ */
+export function settledCensus(means: Float64Array, head: number, count: number, window: number): boolean {
+  const size = means.length;
+  if (!(window >= 1) || count < 2 * window || size < 2 * window) return false;
+  let last = 0;
+  let before = 0;
+  for (let j = 1; j <= window; j++) {
+    last += means[(head - j + 2 * size) % size];
+    before += means[(head - window - j + 2 * size) % size];
+  }
+  return last <= before;
 }
 
 /**
@@ -416,11 +459,18 @@ export interface ColourSortView {
   cycleStartMs: number;
   completeMs: number;
   completeOk: boolean;
-  /** The colour of the cycle's last ball sorted (the one that completed it; −1 before / after a time-out). */
+  /** How the cycle's sort ended ("" while it runs): sorted, settled (a rule that lets balls back in) or at the time limit. */
+  endReason: CsEnd;
+  /** Whether the run's rule lets balls back in, so its sort settles at an equilibrium (`csSortSettles()`). */
+  settles: boolean;
+  /** The colour of the cycle's last ball sorted (the one that completed it; −1 before / after a time-out or a settle). */
   lastColour: number;
-  /** The first cycle's completion (s; −1 before or when it timed out) and its last colour. */
+  /** The first cycle's completion (s; −1 before or when it timed out or settled) and its last colour. */
   firstSortSec: number;
   firstLastColour: number;
+  /** How the first cycle's sort ended ("" before) and when (s into the cycle; −1 before): kept through the later cycles. */
+  firstEnd: CsEnd;
+  firstEndSec: number;
   /** Completions, seams (the loop's restarts), the last seam (simulation ms) and the last whole cycle (s; 0 before). */
   completions: number;
   seams: number;
@@ -485,9 +535,13 @@ export class ColourSortMode implements GameMode {
     cycleStartMs: 0,
     completeMs: -1,
     completeOk: false,
+    endReason: "",
+    settles: false,
     lastColour: -1,
     firstSortSec: -1,
     firstLastColour: -1,
+    firstEnd: "",
+    firstEndSec: -1,
     completions: 0,
     seams: 0,
     lastSeamMs: 0,
@@ -542,6 +596,13 @@ export class ColourSortMode implements GameMode {
   private subSec = 1 / 240;
   private sawBall = false;
   private lastConfigRadius = 8;
+  // The settle test (a rule that lets balls back in): the census × ms of the block being summed and its length, and a ring
+  // of the last 2 × CS_SETTLE_BLOCKS blocks' means (the next slot to write, how many are valid).
+  private settleSum = 0;
+  private settleSpanMs = 0;
+  private readonly settleMeans = new Float64Array(2 * CS_SETTLE_BLOCKS);
+  private settleHead = 0;
+  private settleCount = 0;
   // The step's gate passes per colour (the plucks), and their speeds.
   private passCount = EMPTY_I32;
   private passSpeed = EMPTY_F64;
@@ -615,6 +676,7 @@ export class ColourSortMode implements GameMode {
     v.palette = colourSortPalette(K);
     v.target = new Int32Array(K);
     for (let c = 0; c < K; c++) v.target[c] = targetBand(s.rule, c, K);
+    v.settles = csSortSettles(s.rule);
     v.gates = Math.max(1, Math.min(memoryCeiling("csGates", s.gates), CS_GATE_CEILING));
     v.gatePeriod = TWO_PI / v.gates;
     v.gateWidth = Math.min(v.gatePeriod, (s.gateWidth * Math.PI) / 180);
@@ -687,6 +749,8 @@ export class ColourSortMode implements GameMode {
     v.cycleSec = 0;
     v.firstSortSec = -1;
     v.firstLastColour = -1;
+    v.firstEnd = "";
+    v.firstEndSec = -1;
     v.contacts = 0;
     v.escaped = 0;
     v.flashCount = 0;
@@ -705,8 +769,13 @@ export class ColourSortMode implements GameMode {
     this.cycleSubMs = 0;
     v.completeMs = -1;
     v.completeOk = false;
+    v.endReason = "";
     v.lastColour = -1;
     v.passes = 0;
+    this.settleSum = 0;
+    this.settleSpanMs = 0;
+    this.settleHead = 0;
+    this.settleCount = 0;
     v.refusals = 0;
     this.holdEndMs = -1;
     this.seamMs = -1;
@@ -1180,20 +1249,42 @@ export class ColourSortMode implements GameMode {
     if (v.phase !== "sort") return;
     const done = v.sorted >= v.total;
     const timedOut = !done && now - v.cycleStartMs >= 1000 * this.settings.limit - PHASE_EPS_MS;
-    if (done || timedOut) this.complete(ctx, now, done);
+    const settled = !done && !timedOut && v.settles && this.sampleSettle();
+    if (done || timedOut || settled) this.complete(ctx, now, done ? "sorted" : timedOut ? "limit" : "settled");
   }
 
-  /** The sort is over (every ball sorted, or the time limit): the chord, then the hold and the remix on whole steps. */
-  private complete(ctx: ModeContext, now: number, ok: boolean) {
+  /**
+   * The settle test's step (a rule that lets balls back in): the census summed over the step into the current block on the
+   * cycle's own clock; at a block's end its mean joins the ring and the test runs (`settledCensus()`). Every cycle replays it.
+   */
+  private sampleSettle(): boolean {
+    this.settleSum += this.view.sorted * this.stepMs;
+    this.settleSpanMs += this.stepMs;
+    if (this.settleSpanMs < 1000 * CS_SETTLE_BLOCK_SEC - PHASE_EPS_MS) return false;
+    const means = this.settleMeans;
+    means[this.settleHead] = this.settleSum / this.settleSpanMs;
+    this.settleHead = (this.settleHead + 1) % means.length;
+    if (this.settleCount < means.length) this.settleCount++;
+    this.settleSum = 0;
+    this.settleSpanMs = 0;
+    return settledCensus(means, this.settleHead, this.settleCount, CS_SETTLE_BLOCKS);
+  }
+
+  /** The sort is over (every ball sorted, settled at its equilibrium, or the time limit): the chord, then the hold and the remix on whole steps. */
+  private complete(ctx: ModeContext, now: number, reason: Exclude<CsEnd, "">) {
     const v = this.view;
+    const ok = reason === "sorted";
     v.phase = "hold";
     v.completeMs = now;
     v.completeOk = ok;
+    v.endReason = reason;
     if (!ok) v.lastColour = -1;
     v.completions++;
     if (v.completions === 1) {
       v.firstSortSec = ok ? (now - v.cycleStartMs) / 1000 : -1;
       v.firstLastColour = ok ? v.lastColour : -1;
+      v.firstEnd = reason;
+      v.firstEndSec = (now - v.cycleStartMs) / 1000;
     }
     const step = this.stepMs > 0 ? this.stepMs : 1000 / 60;
     const holdSteps = Math.ceil((1000 * CS_HOLD_SEC) / step - 1e-9);
@@ -1369,6 +1460,6 @@ export class ColourSortMode implements GameMode {
   }
   getState() {
     const v = this.view;
-    return { phase: v.phase, sorted: v.sorted, total: v.total, passes: v.passes, completions: v.completions, seams: v.seams };
+    return { phase: v.phase, sorted: v.sorted, total: v.total, passes: v.passes, completions: v.completions, seams: v.seams, end: v.endReason };
   }
 }

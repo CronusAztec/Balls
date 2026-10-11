@@ -26,7 +26,7 @@ const PIN_SHARE = 0.85;
 const TWO_PI = Math.PI * 2;
 
 /** The data-cs-* attributes the smoke test and tools read (Canvas.tsx writes them in Colour Sort). */
-export const COLOUR_SORT_DATA_KEYS = ["csPhase", "csSorted", "csTotal", "csColours", "csGates", "csCompletions", "csSeams", "csCycle", "csFirstSort", "csLastColour", "csEscaped", "csPasses", "csRefusals", "csRemix", "csRule"] as const;
+export const COLOUR_SORT_DATA_KEYS = ["csPhase", "csSorted", "csTotal", "csColours", "csGates", "csCompletions", "csSeams", "csCycle", "csFirstSort", "csLastColour", "csEscaped", "csPasses", "csRefusals", "csRemix", "csRule", "csEnd", "csFirstEnd", "csFirstEndSec"] as const;
 
 export class ColourSortLayer {
   /** The colour each band is tinted with (its first target colour; −1: no colour ends there), per run. */
@@ -176,4 +176,8 @@ export function writeColourSortDataset(view: ColourSortView, set: (key: string, 
   set("csRefusals", String(view.refusals));
   set("csRemix", view.remixProgress.toFixed(2));
   set("csRule", view.settings.rule);
+  // how this cycle's sort ended (sorted / settled / limit; "" while it runs), and the first cycle's (kept: when, s into it)
+  set("csEnd", view.endReason);
+  set("csFirstEnd", view.firstEnd);
+  set("csFirstEndSec", view.firstEndSec >= 0 ? view.firstEndSec.toFixed(3) : "");
 }

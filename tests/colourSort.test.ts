@@ -11,6 +11,8 @@ import {
   CS_HOLD_SEC,
   CS_PER_COLOUR_CEILING,
   CS_RULES,
+  CS_SETTLE_BLOCKS,
+  CS_SETTLE_BLOCK_SEC,
   DEFAULT_COLOUR_SORT,
   colourSortColourNames,
   colourSortCounts,
@@ -18,11 +20,13 @@ import {
   colourSortPitch,
   csRingOmega,
   csRingRadius,
+  csSortSettles,
   gatePasses,
   inGate,
   reflectInMovingFrame,
   remixOffset,
   resolveColourSortSettings,
+  settledCensus,
   targetBand,
   type ColourSortSettings,
   type ColourSortView,
@@ -57,6 +61,7 @@ import { playSoundEvent } from "@/lib/recording/fastRender";
 import { loopCaptionContext } from "@/lib/publish/loopCaption";
 import { MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { HERO_MOMENTS } from "@/lib/thumbnails/heroMoments";
+import { writeColourSortDataset } from "@/components/simulator/colourSortRenderer";
 
 /*
  * --- colour-sort --- Colour Sort (lib/physics/modes/colourSort.ts): the rule, the one-way sort, the census, the remix back
@@ -121,6 +126,22 @@ describe("Colour Sort: the rule", () => {
     expect([0, 1, 2, 3].map((c) => targetBand("bothWaysNotOwn", c, 4))).toEqual([0, 1, 2, 3]);
     expect([0, 1, 2, 3].map((c) => targetBand("outwardOwnOnly", c, 4))).toEqual([1, 0, 0, 0]);
     expect([...CS_RULES]).toEqual(["outwardNotOwn", "outwardOwnOnly", "bothWaysNotOwn"]);
+    // only both ways lets a ball back in (an inward pass): its sort settles at an equilibrium instead of completing
+    expect(CS_RULES.map((rule) => csSortSettles(rule))).toEqual([false, false, true]);
+  });
+
+  it("calls a census settled once its last blocks average no higher than the blocks before them (a ring of block means)", () => {
+    const ring = (values: number[]) => Float64Array.from(values);
+    // rising: not settled; flat or falling: settled; too few blocks: not yet
+    expect(settledCensus(ring([1, 2, 3, 4, 5, 6]), 0, 6, 3)).toBe(false);
+    expect(settledCensus(ring([5, 5, 5, 5, 5, 5]), 0, 6, 3)).toBe(true);
+    expect(settledCensus(ring([9, 8, 7, 6, 5, 4]), 0, 6, 3)).toBe(true);
+    expect(settledCensus(ring([5, 5, 5, 5, 5, 0]), 5, 5, 3)).toBe(false);
+    // the ring wraps: with head 2 the blocks run oldest first from slot 2 to slot 1 (slots 2, 3, 4 before, 5, 0, 1 last)
+    expect(settledCensus(ring([8, 9, 4, 5, 6, 7]), 2, 6, 3)).toBe(false); // 4, 5, 6 then 7, 8, 9: still rising
+    expect(settledCensus(ring([2, 1, 6, 5, 4, 3]), 2, 6, 3)).toBe(true); // 6, 5, 4 then 3, 2, 1: falling
+    expect(settledCensus(ring([5, 5, 6, 5, 5, 5]), 2, 6, 3)).toBe(true); // 16 then 15: no higher
+    expect([CS_SETTLE_BLOCK_SEC, CS_SETTLE_BLOCKS]).toEqual([2, 3]);
   });
 
   it("finds the gates of a turning ring: centred at the phase plus the ring's angle, half a width either side", () => {
@@ -254,7 +275,7 @@ describe("Colour Sort: the sort", () => {
       step++;
       if (step % 180 === 0) marks.push(view.sorted);
     });
-    expect(v.completeOk).toBe(true);
+    expect([v.completeOk, v.endReason, v.settles]).toEqual([true, "sorted", false]);
     expect(v.firstSortSec).toBeGreaterThan(5);
     expect(v.firstSortSec).toBeLessThan(30);
     // fast at first, then a long tail: more than half sorted within 3 s, the last 2 % taking a good share of the run
@@ -267,10 +288,80 @@ describe("Colour Sort: the sort", () => {
     const engine = engineOf({ limit: 2 }, 1);
     const v = engine.getColourSortView();
     const events = runUntil(engine, (view) => view.completions > 0, 5);
-    expect([v.completions, v.completeOk, v.firstSortSec, v.firstLastColour]).toEqual([1, false, -1, -1]);
+    expect([v.completions, v.completeOk, v.firstSortSec, v.firstLastColour, v.endReason]).toEqual([1, false, -1, -1, "limit"]);
     expect(v.completeMs).toBeCloseTo(2000, 6);
     const chord = events.find((e) => e.loop === "chord");
     expect(chord).toMatchObject({ loopMinor: true, loopTremolo: true, frequency: CS_CHORD_HZ });
+    // a one-way sort that stalls (one 10° gate a ring) is still a sort to finish: no settling, it runs to its limit
+    const stalled = engineOf({ gates: 1, gateWidth: 10, limit: 30 }, 1);
+    const sv = stalled.getColourSortView();
+    runUntil(stalled, (view) => view.completions > 0, 35);
+    expect([sv.settles, sv.endReason, sv.completeOk]).toEqual([false, "limit", false]);
+    expect(sv.completeMs).toBeCloseTo(30_000, 6);
+  });
+
+  it("settles the both-ways rule at its equilibrium – well before the time limit, on the minor chord – since a sorted ball can wander back in", () => {
+    for (const seed of [1, 2, 3]) {
+      const engine = engineOf({ rule: "bothWaysNotOwn" }, seed);
+      const v = engine.getColourSortView();
+      expect([v.settles, v.settings.limit, Array.from(v.target).join()]).toEqual([true, 60, "0,1,2,3"]);
+      // a sorted ball leaving its band inward: why "every ball home at once" is not an end state under this rule
+      let leftHome = 0;
+      const prev = Int32Array.from(v.band);
+      const events = runUntil(engine, (view) => view.completions > 0, 61, (view) => {
+        for (let k = 0; k < view.total; k++) {
+          if (prev[k] === view.target[view.colourOf[k]] && view.band[k] < prev[k]) leftHome++;
+          prev[k] = view.band[k];
+        }
+      });
+      const endSec = v.completeMs / 1000;
+      expect([seed, v.completions, v.endReason, v.completeOk, v.firstSortSec, v.firstLastColour]).toEqual([seed, 1, "settled", false, -1, -1]);
+      expect(leftHome).toBeGreaterThan(50);
+      // settled on a block's end, at least two windows in and far from the 60 s limit; the census at its equilibrium (about 56 %)
+      expect(endSec).toBeGreaterThanOrEqual(2 * CS_SETTLE_BLOCKS * CS_SETTLE_BLOCK_SEC);
+      expect(endSec).toBeLessThan(40);
+      expect(Math.abs(endSec / CS_SETTLE_BLOCK_SEC - Math.round(endSec / CS_SETTLE_BLOCK_SEC))).toBeLessThan(1e-6);
+      expect(v.sorted).toBeGreaterThan(0.45 * v.total);
+      expect(v.sorted).toBeLessThan(0.7 * v.total);
+      expect(v.sorted).toBeGreaterThan(v.sortedAtStart);
+      expect(events.find((e) => e.loop === "chord")).toMatchObject({ loopMinor: true, loopTremolo: true, frequency: CS_CHORD_HZ });
+      // the canvas says how and when it ended
+      const data: Record<string, string> = {};
+      writeColourSortDataset(v, (key, value) => (data[key] = value));
+      expect([data.csEnd, data.csFirstEnd, Number(data.csFirstEndSec), data.csFirstSort, data.csRule]).toEqual(["settled", "settled", Number(endSec.toFixed(3)), "", "bothWaysNotOwn"]);
+      // the loop goes on: the remix, the seam after hold + remix, and the next cycle settles at the same second (an exact replay)
+      runUntil(engine, (view) => view.completions > 1, 61);
+      expect(engine.getCycleSeconds()).toBeCloseTo(endSec + CS_HOLD_SEC + DEFAULT_COLOUR_SORT.remix, 1);
+      expect([v.seams, v.completions, v.endReason, v.firstEnd]).toEqual([1, 2, "settled", "settled"]);
+      expect((v.completeMs - v.cycleStartMs) / 1000).toBeCloseTo(endSec, 6);
+      expect(v.firstEndSec).toBeCloseTo(endSec, 9);
+    }
+  });
+
+  it("still ends a tiny both-ways run sorted (on the major chord) when every ball happens to be home before it settles", () => {
+    for (const seed of [1, 2, 3]) {
+      const engine = engineOf({ rule: "bothWaysNotOwn", colours: 2, perColour: 1 }, seed);
+      const v = engine.getColourSortView();
+      const events = runUntil(engine, (view) => view.completions > 0, 61);
+      expect([seed, v.endReason, v.completeOk, v.sorted]).toEqual([seed, "sorted", true, 2]);
+      expect(v.firstSortSec).toBeLessThan(2 * CS_SETTLE_BLOCKS * CS_SETTLE_BLOCK_SEC);
+      expect(events.find((e) => e.loop === "chord")).toMatchObject({ loopMinor: false });
+    }
+  });
+
+  it("settles a both-ways run at the same second at 30, 60 and 120 fps", () => {
+    const ends = [30, 60, 120].map((fps) => {
+      const engine = engineOf({ rule: "bothWaysNotOwn" }, 4);
+      const v = engine.getColourSortView();
+      for (let f = 0; f < 61 * fps && v.completions === 0; f++) {
+        engine.update(1000 / fps, 0);
+        engine.consumeSoundEvents();
+      }
+      return [v.endReason, Math.round(v.completeMs)];
+    });
+    expect(ends[0][0]).toBe("settled");
+    expect(ends[1]).toEqual(ends[0]);
+    expect(ends[2]).toEqual(ends[0]);
   });
 
   it("sorts the reverse rule (own colour only) – colour 0 one ring out, the others in the core – and every colour of the rainbow preset", () => {
@@ -533,6 +624,9 @@ describe("Colour Sort: Find Simulation", () => {
     expect(runNeverFinishes("colourSort", {} as Parameters<typeof runNeverFinishes>[1])).toBe(true);
     expect(availableOutcomes("colourSort", { endless: true, neverEscape: false, ballCount: 1 })).toEqual(["sorted-by", "last-colour", "sorted-on-bar"]);
     expect(availableOutcomes("classic", { endless: false, neverEscape: false, ballCount: 1 })).not.toContain("sorted-by");
+    // both ways only settles: no first sort to search, so no outcome at all (the page hides the finder)
+    expect(availableOutcomes("colourSort", { endless: true, neverEscape: false, ballCount: 1, colourSortSettles: true })).toEqual([]);
+    expect(availableOutcomes("colourSort", { endless: true, neverEscape: false, ballCount: 1, colourSortSettles: false })).toEqual(["sorted-by", "last-colour", "sorted-on-bar"]);
     const run: RunSummary = { mode: "colourSort", durationMs: 14_000, finished: false, firstEscapeMs: -1, teams: [], sortedMs: 13_990, lastColour: 3, cycleMs: 17_300 };
     expect(outcomeMatches({ kind: "sorted-by", clipSec: 30, atSec: 14 }, run)).toBe(true);
     expect(outcomeMatches({ kind: "sorted-by", clipSec: 30, atSec: 13.9 }, run)).toBe(false);
@@ -570,6 +664,11 @@ describe("Colour Sort: Find Simulation", () => {
     // all sorted within a limit too short: given up right after it
     const tight: FinderOutcome = { kind: "sorted-by", clipSec: 30, atSec: 2 };
     expect(simulateOutcomeRun(5, request(tight), tight).durationMs).toBeLessThan(2100);
+    // both ways settles: a seed asked for anyway is followed to its settle (not the whole 60 s limit) and sorts nothing
+    const settled = simulateOutcomeRun(5, request(outcome, { rule: "bothWaysNotOwn" }), outcome);
+    expect([settled.sortedMs, settled.lastColour]).toEqual([-1, -1]);
+    expect(settled.durationMs).toBeLessThan(40_000);
+    expect(outcomeMatches(outcome, settled)).toBe(false);
   });
 });
 

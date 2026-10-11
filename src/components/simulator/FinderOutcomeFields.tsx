@@ -41,6 +41,7 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "star-set": "outcomeStarSet", // --- chord-stars ---
   "lift-order": "outcomeLiftOrder", // --- bead-hoops ---
   "all-up-by": "outcomeAllUpBy", // --- bead-hoops ---
+  "diverges-at": "outcomeDivergesAt", // --- chaos-fan ---
   "converge-on-beat": "outcomeConvergeOnBeat", // --- ellipse-foci ---
   "longest-collapse": "outcomeLongestCollapse", // --- ellipse-foci ---
   // --- colour-sort ---
@@ -76,6 +77,7 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "star-set": "hintStarSet", // --- chord-stars ---
   "lift-order": "hintLiftOrder", // --- bead-hoops ---
   "all-up-by": "hintAllUpBy", // --- bead-hoops ---
+  "diverges-at": "hintDivergesAt", // --- chaos-fan ---
   "converge-on-beat": "hintConvergeOnBeat", // --- ellipse-foci ---
   "longest-collapse": "hintLongestCollapse", // --- ellipse-foci ---
   // --- colour-sort ---
@@ -319,6 +321,34 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
         </div>
       )}
       {/* --- end bead-hoops --- */}
+      {/* --- chaos-fan --- the fan's split at a chosen second ± 0.5 s (the escape slider's range and field) */}
+      {outcome === "diverges-at" && (
+        <div className="space-y-1.5" data-testid="finder-diverge-at">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-diverge-at">
+              {r("divergeAt")}
+            </label>
+            <span className="text-xs font-mono text-accent">
+              {escapeAt.toFixed(1)}s ±{ESCAPE_AT_TOLERANCE_SEC}s
+            </span>
+          </div>
+          <input
+            id="find-diverge-at"
+            type="range"
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={escapeAt}
+            disabled={disabled}
+            onChange={(e) => onEscapeAt(Number(e.target.value))}
+            aria-label={r("divergeAt")}
+            className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
+            style={sliderStyle(escapeAt, range.min, range.max)}
+          />
+          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r("divergeAt")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" />
+        </div>
+      )}
+      {/* --- end chaos-fan --- */}
       {/* --- colour-sort --- the sort's time limit (the escape slider's range and field) and the colour to be sorted last */}
       {outcome === "sorted-by" && (
         <div className="space-y-1.5" data-testid="finder-sorted-by">
@@ -439,6 +469,8 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
     case "sudden":
     case "boss-falls-at":
       return t("Rigged.findStory", { story: t(`Rigged.${OUTCOME_LABELS[outcome]}`) });
+    case "diverges-at": // --- chaos-fan ---
+      return t("Rigged.findDivergesAt", { time: c.escapeAt.toFixed(1) });
     case "converge-on-beat": // --- ellipse-foci ---
       return t("Rigged.findConvergeOnBeat");
     case "longest-collapse": // --- ellipse-foci ---
@@ -496,6 +528,8 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
     case "champion":
     case "boss-falls-at":
       return t("Rigged.foundStory", { story: t(`Rigged.${OUTCOME_LABELS[result.outcome]}`), duration: result.duration.toFixed(1) });
+    case "diverges-at": // --- chaos-fan ---
+      return t("Rigged.foundDivergesAt", { time: (result.divergeAt ?? 0).toFixed(2) });
     case "converge-on-beat": // --- ellipse-foci --- (the transit of whole bars, the loops in the clip)
       return t("Rigged.foundConvergeOnBeat", { transit: (result.ellipseFoci?.transitSec ?? 0).toFixed(2), bars: result.ellipseFoci?.bars ?? 0, loops: result.ellipseFoci?.loops ?? 0 });
     case "longest-collapse": // --- ellipse-foci --- (the start angle and the passes until the swarm is a comet)
@@ -554,6 +588,8 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
     case "champion":
     case "boss-falls-at":
       return t("Rigged.missStory", { story: t(`Rigged.${OUTCOME_LABELS[result.outcome]}`), seeds: result.seedsTested });
+    case "diverges-at": // --- chaos-fan ---
+      return result.divergeAt === undefined ? t("Rigged.missNoDiverge", { seeds: result.seedsTested }) : t("Rigged.missDivergesAt", { time: result.divergeAt.toFixed(1), seeds: result.seedsTested });
     case "converge-on-beat": // --- ellipse-foci --- (never: every volley converges on time)
     case "longest-collapse": // --- ellipse-foci --- (a circle, or a swarm still wide at the horizon)
       return t("Rigged.missLongestCollapse", { seeds: result.seedsTested });
@@ -615,6 +651,10 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
     case "champion":
     case "boss-falls-at":
       return t("Rigged.overlayStory", { tested: result.seedsTested, story: t(`Rigged.${OUTCOME_LABELS[result.outcome]}`) });
+    case "diverges-at": // --- chaos-fan ---
+      return result.divergeAt === undefined
+        ? t("Rigged.overlayNoDiverge", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) })
+        : t("Rigged.overlayDivergesAt", { tested: result.seedsTested, closest: result.divergeAt.toFixed(1), target: c.escapeAt.toFixed(1), tolerance: ESCAPE_AT_TOLERANCE_SEC });
     case "converge-on-beat": // --- ellipse-foci ---
     case "longest-collapse": // --- ellipse-foci ---
       return t("Rigged.overlayLongestCollapse", { tested: result.seedsTested });
@@ -661,5 +701,6 @@ export function outcomeProgressText(t: Translate, outcome: FinderOutcomeKind | n
   if (outcome === "resolves-at") return progress.bestDuration > 0 ? t("Rigged.progressResolvesAt", { time: progress.bestDuration.toFixed(1) }) : null;
   if (outcome === "close") return progress.bestDuration < 100 ? t("Rigged.progressClose", { margin: progress.bestDuration.toFixed(1) }) : null; // --- land-claim ---
   if (outcome === "all-up-by") return progress.bestDuration > 0 ? t("Rigged.progressAllUpBy", { time: progress.bestDuration.toFixed(1) }) : null; // --- bead-hoops ---
+  if (outcome === "diverges-at") return progress.bestDuration > 0 ? t("Rigged.progressDivergesAt", { time: progress.bestDuration.toFixed(1) }) : null; // --- chaos-fan ---
   return null;
 }
