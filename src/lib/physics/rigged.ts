@@ -56,6 +56,8 @@ export const RIGGED_RANGES = {
   forcedWinner: { min: -1, max: MAX_TEAMS - 1, step: 1 },
   /** Find Simulation's "escapes at" target, seconds (the clip runs a few seconds past it, within the 120 s a recording may last). */
   findEscapeAt: { min: 1, max: 115, step: 0.5 },
+  /** --- fl-overhaul --- (Stage 5) Find Simulation's count: Fight League's fewest lead changes, the wave its boss falls at (a whole number from 1; no maximum typed). */
+  findCount: { min: 1, max: 20, step: 1 },
 } as const;
 
 /** Validates the rigged settings (URL parameters and presets alike): a non-boolean flag is off, a bad team slot is −1. */

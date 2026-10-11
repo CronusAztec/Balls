@@ -3,6 +3,8 @@ import { BATTLE_WINNER_MODES, RIG_ESCAPE_MODES, neverEscapeApplies } from "@/lib
 import type { ModeId } from "@/lib/physics/types";
 import { teamResult } from "@/lib/teams";
 import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
+import { FL_CLOSE } from "@/lib/physics/modes/fightLeagueShow"; // --- fl-overhaul --- (Stage 5)
+import type { FlRunSummary } from "@/lib/physics/modes/fightLeague"; // --- fl-overhaul --- (Stage 5)
 
 /**
  * Rigged outcomes for Find Simulation: besides a run of an exact length ("duration", the finder's classic search), the
@@ -37,9 +39,20 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  * --- bead-hoops --- Spinning Hoops adds two: **lift-order** – the first cycle's beads leave their bottoms in strict size order,
  * the biggest hoop's first (at least one lift; a bigger hoop's bead never comes after a smaller one's) – and **all-up-by** –
  * every bead is up within a time limit (`atSec`).
+ *
+ * --- fl-overhaul --- (Stage 5) Fight League's story adds its own, judged on the run's deciding match (`RunSummary.fl`, the run
+ * followed to its end like a double KO): **upset** (the winner's simulated win chance under 40 % at the bout's start),
+ * **clutch** (the winner ends at ≤ 10 % of its HP), **perfect** (no HP lost, nothing absorbed by the rig), **comeback** (the winner
+ * trailed by 40 % of HP share), **ability-finish** (the final KO by an ability), **lead-changes** (at least `count` flips of the
+ * lead), **both-low-at** (the cliffhanger: every side at ≤ 25 % with the fight still on within ±0.5 s of `atSec` – the clip is
+ * cut there), **decider** (a series goes the distance), **sudden** (decided in sudden death), **champion** (a bracket won by the
+ * pinned entrant `team`) and **boss-falls-at** (the boss falls at wave `count`); **close** takes the winner's HP share as its
+ * margin (≤ FL_CLOSE).
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by)
+/** --- fl-overhaul --- (Stage 5) Fight League's story outcomes (judged on `RunSummary.fl`; the run followed to its end, both-low-at to its window). */
+export const FL_STORY_OUTCOMES: readonly FinderOutcomeKind[] = ["upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at"];
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -63,6 +76,8 @@ export interface FinderOutcome {
   toleranceSec?: number;
   /** winner: the team slot that must win. */
   team?: number;
+  /** --- fl-overhaul --- (Stage 5) lead-changes: the fewest lead changes (from 1); boss-falls-at: the wave the boss falls at (from 1). */
+  count?: number;
 }
 
 /** What a headless run of one seed amounted to (see `simulateOutcomeRun()` in finder.ts). */
@@ -105,6 +120,8 @@ export interface RunSummary {
   /** Spinning Hoops: the first cycle's beads lifted in strict size order (decided, at least one lift). */
   liftOrderOk?: boolean;
   // --- end bead-hoops ---
+  /** --- fl-overhaul --- (Stage 5) Fight League's story of the run (`flRunSummary()`): the deciding match's and the show's. */
+  fl?: FlRunSummary;
 }
 
 // --- land-claim ---
@@ -112,9 +129,13 @@ export interface RunSummary {
  * The modes whose verdict can be a close battle – the top two within `CLOSE_BATTLE_MARGIN` of the land when the run ends (Land
  * Claim's SUCH A CLOSE BATTLE): the "close" outcome searches for one, following every run to its end.
  */
-export const CLOSE_BATTLE_MODES: readonly ModeId[] = ["landClaim"];
+export const CLOSE_BATTLE_MODES: readonly ModeId[] = ["landClaim", "fightLeague" /* --- fl-overhaul --- (Stage 5: the winner's HP share) */];
 /** The gap (a share of the land) under which the top two of a battle make a close one: Land Claim's `LC_CLOSE`. */
 export const CLOSE_BATTLE_MARGIN = LC_CLOSE;
+/** --- fl-overhaul --- (Stage 5) A close battle's margin in `mode`: Fight League's winner's HP share at most FL_CLOSE, Land Claim's gap CLOSE_BATTLE_MARGIN. */
+export function closeBattleMargin(mode: ModeId | undefined): number {
+  return mode === "fightLeague" ? FL_CLOSE : CLOSE_BATTLE_MARGIN;
+}
 // --- end land-claim ---
 
 /**
@@ -149,6 +170,20 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
       return Math.max(clipMs, maxSimMs);
     case "all-up-by": // --- bead-hoops --- (until the limit has passed without every bead up)
       return 1000 * (outcome.atSec ?? 0) + FILL_SLACK_MS;
+    // --- fl-overhaul --- (Stage 5) the story is judged at the run's end; the cliffhanger until its window has passed
+    case "both-low-at":
+      return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + FILL_SLACK_MS;
+    case "upset":
+    case "clutch":
+    case "perfect":
+    case "comeback":
+    case "ability-finish":
+    case "lead-changes":
+    case "decider":
+    case "sudden":
+    case "champion":
+    case "boss-falls-at":
+      return Math.max(clipMs, maxSimMs);
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
       return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + ESCAPE_TAIL_MS;
@@ -220,6 +255,43 @@ export function outcomeSettled(outcome: FinderOutcome, elapsedMs: number, firstE
     }
     case "winner":
       return !winnerNeedsEnd(outcome, mode) && elapsedMs >= 1000 * outcome.clipSec;
+    case "both-low-at": // --- fl-overhaul --- (Stage 5) the window has passed (a moment in it stops the run in finder.ts)
+      return elapsedMs > 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + FILL_SLACK_MS - 1e-6;
+    default:
+      return false;
+  }
+}
+
+/** --- fl-overhaul --- (Stage 5) Whether a Fight League run's story achieved `outcome` (the run finished; both-low-at in its window). */
+function flStoryMatches(outcome: FinderOutcome, run: RunSummary): boolean {
+  const fl = run.fl;
+  if (!fl) return false;
+  if (outcome.kind === "both-low-at") {
+    const tol = 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC);
+    return fl.bothLowMs >= 0 && Math.abs(fl.bothLowMs - 1000 * (outcome.atSec ?? 0)) <= tol + 1e-6;
+  }
+  if (!run.finished) return false;
+  switch (outcome.kind) {
+    case "upset":
+      return fl.upset;
+    case "clutch":
+      return fl.clutch;
+    case "perfect":
+      return fl.perfect;
+    case "comeback":
+      return fl.comeback;
+    case "ability-finish":
+      return fl.abilityFinish;
+    case "lead-changes":
+      return fl.leadChanges >= Math.max(1, Math.round(outcome.count ?? 1));
+    case "decider":
+      return fl.decider;
+    case "sudden":
+      return fl.sudden;
+    case "champion":
+      return (outcome.team ?? -1) >= 0 && fl.championSide === outcome.team;
+    case "boss-falls-at":
+      return fl.bossDefeated > 0 && fl.bossDefeated === Math.max(1, Math.round(outcome.count ?? 1));
     default:
       return false;
   }
@@ -243,6 +315,19 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
     }
     case "double-ko": // --- fight-league ---
       return run.finished && run.doubleKo === true;
+    // --- fl-overhaul --- (Stage 5) the story's outcomes
+    case "upset":
+    case "clutch":
+    case "perfect":
+    case "comeback":
+    case "ability-finish":
+    case "lead-changes":
+    case "both-low-at":
+    case "decider":
+    case "sudden":
+    case "champion":
+    case "boss-falls-at":
+      return flStoryMatches(outcome, run);
     case "winner": {
       const team = outcome.team ?? -1;
       if (team < 0 || team >= run.teams.length || run.teams.length < 2) return false;
@@ -255,7 +340,7 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
     }
     // --- land-claim --- a finished battle whose top two ended within the margin
     case "close":
-      return run.finished && run.margin !== undefined && run.margin <= CLOSE_BATTLE_MARGIN + 1e-9;
+      return run.finished && run.margin !== undefined && run.margin <= closeBattleMargin(run.mode) + 1e-9; // (--- fl-overhaul --- Stage 5: per mode)
     // --- loop-foundation --- the first fill within the limit; on a bar line
     case "fills-by": {
       const fill = run.firstFillMs ?? -1;
@@ -295,7 +380,23 @@ export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
     case "resolves-at":
       return (run.firstResolveMs ?? -1) < 0 ? Infinity : Math.abs((run.firstResolveMs ?? 0) / 1000 - (outcome.atSec ?? 0));
     case "close": // --- land-claim --- how far past the margin its top two ended (a run cut short: Infinity)
-      return run.finished && run.margin !== undefined ? Math.max(0, run.margin - CLOSE_BATTLE_MARGIN) : Infinity;
+      return run.finished && run.margin !== undefined ? Math.max(0, run.margin - closeBattleMargin(run.mode)) : Infinity;
+    // --- fl-overhaul --- (Stage 5) the lead changes short of the count; the seconds off the cliffhanger's target; the waves off; else 0 / 1
+    case "lead-changes":
+      return run.fl && run.finished ? Math.max(0, Math.max(1, Math.round(outcome.count ?? 1)) - run.fl.leadChanges) : Infinity;
+    case "both-low-at":
+      return run.fl && run.fl.bothLowMs >= 0 ? Math.abs(run.fl.bothLowMs / 1000 - (outcome.atSec ?? 0)) : Infinity;
+    case "boss-falls-at":
+      return run.fl && run.finished && run.fl.bossDefeated > 0 ? Math.abs(run.fl.bossDefeated - Math.max(1, Math.round(outcome.count ?? 1))) : Infinity;
+    case "upset":
+    case "clutch":
+    case "perfect":
+    case "comeback":
+    case "ability-finish":
+    case "decider":
+    case "sudden":
+    case "champion":
+      return outcomeMatches(outcome, run) ? 0 : 1;
     // --- loop-foundation --- the seconds past the limit; the seconds off the nearest bar line (no fill: Infinity)
     case "fills-by":
       return (run.firstFillMs ?? -1) < 0 ? Infinity : Math.max(0, (run.firstFillMs ?? 0) / 1000 - (outcome.atSec ?? 0));
@@ -345,6 +446,8 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
       return (run.firstFillMs ?? -1) >= 0 ? (run.firstFillMs ?? 0) / 1000 : 0;
     case "all-up-by": // --- bead-hoops --- (every bead up, 0 when that never came)
       return (run.allUpMs ?? -1) >= 0 ? (run.allUpMs ?? 0) / 1000 : 0;
+    case "both-low-at": // --- fl-overhaul --- (Stage 5) the cliffhanger's moment (0 without one)
+      return run.fl && run.fl.bothLowMs >= 0 ? run.fl.bothLowMs / 1000 : 0;
     default:
       return run.durationMs / 1000;
   }
@@ -357,6 +460,7 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
 export function outcomeClipSec(outcome: FinderOutcome, run: RunSummary): number {
   if (outcome.kind === "never-escapes") return outcome.clipSec;
   if (outcome.kind === "never-settles") return outcome.clipSec; // --- orb-grid --- (the field bounces through the whole clip)
+  if (outcome.kind === "both-low-at" && run.fl && run.fl.bothLowMs >= 0) return run.fl.bothLowMs / 1000; // --- fl-overhaul --- (Stage 5: the clip is cut at the cliffhanger)
   if (run.finished) return run.durationMs / 1000;
   return outcome.clipSec;
 }
@@ -372,6 +476,11 @@ export interface OutcomeContext {
   orbRhythm?: boolean;
   /** --- loop-foundation --- Grow ends at the fill ("finish"): the fill's time can be searched (fills-by, fill-on-bar). */
   growFinish?: boolean;
+  /** --- fl-overhaul --- (Stage 5) Fight League's show: a series (decider), a bracket (champion – its pinned entrants), a boss rush (boss-falls-at); absent: one match. */
+  flShow?: "single" | "series" | "bracket" | "boss";
+  /** --- fl-overhaul --- (Stage 5) Fight League's sides the finder can name (a bracket's pinned entrants) and whether a best-of is on (a series, a bracket's final). */
+  flSides?: number;
+  flDecider?: boolean;
 }
 
 /**
@@ -393,8 +502,15 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "orbGrid") out.push("never-settles", "resolves-at");
   if (mode === "orbGrid" && ctx.orbRhythm) out.splice(out.indexOf("never-settles"), 1); // --- orb-rhythm --- (never settles: the decay model's alone)
   // --- fight-league --- Fight League: the fight ends with a double KO
-  if (mode === "fightLeague") out.push("double-ko");
+  if (mode === "fightLeague" && (ctx.flShow ?? "single") === "single") out.push("double-ko"); // (--- fl-overhaul --- Stage 5: a show replays its double KOs)
   if (CLOSE_BATTLE_MODES.includes(mode) && ctx.ballCount >= 2) out.push("close"); // --- land-claim ---
+  // --- fl-overhaul --- (Stage 5) Fight League's story; a series' decider, a bracket's champion (instead of a winner among its pinned entrants), a boss rush's fall
+  if (mode === "fightLeague") {
+    out.push("upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "sudden");
+    if (ctx.flShow === "series" || (ctx.flShow === "bracket" && ctx.flDecider)) out.push("decider");
+    if (ctx.flShow === "bracket" && (ctx.flSides ?? ctx.ballCount) >= 1) out.push("champion");
+    if (ctx.flShow === "boss") out.push("boss-falls-at");
+  }
   if (mode === "grow" && ctx.growFinish) out.push("fills-by", "fill-on-bar"); // --- loop-foundation ---
   if (mode === "starChords") out.push("star-set"); // --- chord-stars --- (the best star set, its loop fitted to the clip)
   if (mode === "hoops") out.push("lift-order", "all-up-by"); // --- bead-hoops ---

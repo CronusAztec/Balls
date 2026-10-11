@@ -81,6 +81,7 @@ import { ORB_GRID_PHYSICS_FIELDS, ORB_GRID_RANGES, defaultOrbGridFields, orbGrid
 import type { OgGroup, OgMetro, OgModel, OgRhythm } from "@/lib/physics/modes/orbRhythm"; // --- orb-rhythm --- Bouncing Orbs' rhythm model, polyrhythms and metronome
 // --- fight-league --- Fight League (weapon-wielding fighter balls; the arena games' family)
 import { FIGHT_LEAGUE_RANGES, defaultFightLeagueFields, fightLeagueModeDefaults, readFightLeagueParams, resolveFightLeagueFields, writeFightLeagueParams, type FlArena, type FlMatch } from "@/lib/physics/modes/fightLeague";
+import type { FlSeeding } from "@/lib/physics/modes/fightLeagueShow"; // --- fl-overhaul --- (Stage 5)
 // --- fl-overhaul --- (Stage 3) the spectacle's options and its presentational numbers (never the engine's)
 import { FIGHT_LEAGUE_VISUAL_KEYS, type FlArenaStyle, type FlStage, type FlTags } from "@/lib/physics/modes/fightLeague";
 import type { FlSoundOption } from "@/lib/physics/modes/fightLeague"; // --- fl-overhaul --- (Stage 4) the sound set
@@ -921,6 +922,36 @@ export interface SimulatorSettings {
   flAnnouncer: boolean;
   /** The user's own clips in their fighters' slots, kept on this device (URL `flCS`). */
   flCustomSounds: boolean;
+  // --- end fl-overhaul ---
+  // --- fl-overhaul --- (Stage 5) slots E and F (a 3v3's D + E + F, a bracket's pinned entrants) and the shows (fightLeagueShow.ts)
+  /** Fighter slots E and F (URL `fl5`, `fl6`). */
+  flFighterE: string;
+  flFighterF: string;
+  /** Slots E and F's multipliers (URL `flS5`–6, `flD5`–6, `flX5`–6, `flC5`–6). */
+  flSpeedE: number;
+  flSpeedF: number;
+  flDamageE: number;
+  flDamageF: number;
+  flAttackE: number;
+  flAttackF: number;
+  flCastE: number;
+  flCastF: number;
+  /** A best-of-N series on 1v1 / 2v2 / 3v3 and a bracket's final: a whole number from 1, an even one rounds up (URL `flBo`). */
+  flBestOf: number;
+  /** A bracket's entrants or a boss rush's challengers: ids and tokens, comma-separated ("" the format's default pool) (URL `flE`). */
+  flEntrants: string;
+  /** A bracket's entrants, from 2 (no maximum; a run builds at most 256) (URL `flBr`). */
+  flBracketSize: number;
+  /** rating | random | listed (URL `flSd`). */
+  flSeeding: FlSeeding;
+  /** A boss rush's challengers, from 1 (URL `flBw`); the boss's HP multiplier (URL `flBoss`) and its heal per interlude (URL `flBh`). */
+  flBossWaves: number;
+  flBossHp: number;
+  flBossHeal: number;
+  /** A show's interlude card (s, from 0) (URL `flCard`). */
+  flCardSec: number;
+  /** The VS card's win chance (simulated) (URL `flOd`). */
+  flOdds: boolean;
   // --- end fl-overhaul ---
   // --- end fight-league ---
   // --- land-claim --- Land Claim (lib/physics/modes/landClaim.ts): competitors' balls knock the top blocks off the columns lining the arena

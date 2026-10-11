@@ -907,12 +907,14 @@ export class FlWeaponsPainter {
   private readonly parts = new Map<number, Sprite | null>();
   private readonly flames = new Map<number, Sprite | null>();
   private generation = -1;
+  private matchSerial = -1;
   private px = 0;
 
-  /** Once per frame: a new run or a new scale drops the sprites. */
+  /** Once per frame: a new run or a new scale drops the sprites (--- fl-overhaul --- Stage 5: a show's new match too – its slots hold other fighters). */
   begin(view: FightLeagueView, px: number) {
-    if (view.generation !== this.generation || Math.abs(px - this.px) > 1e-6) {
+    if (view.generation !== this.generation || view.matchSerial !== this.matchSerial || Math.abs(px - this.px) > 1e-6) {
       this.generation = view.generation;
+      this.matchSerial = view.matchSerial;
       this.px = px;
       this.held.clear();
       this.parts.clear();
@@ -1115,7 +1117,7 @@ export class FlWeaponsPainter {
       // the motion under the weapon
       if (s.kind === "sword" && w.sweepT > 0) this.drawSweep(ctx, f, w, x, y, alpha);
       else if (s.kind === "tail" && w.swingT >= 0) this.drawSwing(ctx, f, w, x, y, alpha);
-      else if (s.kind === "hammer" && !finale && now >= view.introMs && !view.finished) this.drawGhostHeads(ctx, f, w, x, y, sprite, alpha);
+      else if (s.kind === "hammer" && !finale && now >= view.introMs && !view.matchOver) this.drawGhostHeads(ctx, f, w, x, y, sprite, alpha);
       // recoil: a gun kicks back 0.15 R for 80 ms after a shot
       let rx = x;
       let ry = y;
@@ -1130,7 +1132,7 @@ export class FlWeaponsPainter {
       if (s.kind === "staff") this.drawStaffOrb(ctx, fr, f, w, rx, ry, angle, alpha);
       if (s.kind === "wand") this.drawSparkle(ctx, f, w, rx, ry, angle, now, alpha);
       if ((s.kind === "gun" || s.kind === "shotgun") && since >= 0 && since < 0.3) this.drawShotFx(ctx, fr, f, w, rx, ry, angle, since, alpha);
-      if (f.meter >= 0.85 && f.telegraphUntil < 0 && !view.finished) this.drawWeaponGlint(ctx, fr, f, w, rx, ry, angle, now, alpha);
+      if (f.meter >= 0.85 && f.telegraphUntil < 0 && !view.matchOver) this.drawWeaponGlint(ctx, fr, f, w, rx, ry, angle, now, alpha);
       n++;
     }
     return n;

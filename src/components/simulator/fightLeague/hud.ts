@@ -5,7 +5,9 @@ import type { FlFrame, FightLeagueLabels } from "./frame";
 import { INK } from "./palette";
 import { SpriteCache, TWO_PI, makeSprite, roundRectPath, starPath } from "./sprites";
 import { NUM_TEXT, type FlTextStyle } from "./text";
+import { flShortName } from "@/lib/physics/modes/fightLeagueRoster";
 import type { FlWeaponsPainter } from "./weapons";
+import type { FlShowsPainter } from "./shows"; // --- fl-overhaul --- (Stage 5)
 
 /**
  * --- fl-overhaul --- (Stage 3) Fight League's HUD inside the exported square (screen px): the names band – each name in
@@ -182,7 +184,7 @@ export class FlHudPainter {
   }
 
   /** The names band (names, HP bars, source lines), the centre column and the lead bar. Returns the band's bottom (screen y). */
-  drawBand(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, L: FightLeagueLabels, lay: FlHudLayout, ox: number, oy: number, bodies: FlBodiesPainter): number {
+  drawBand(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, L: FightLeagueLabels, lay: FlHudLayout, ox: number, oy: number, bodies: FlBodiesPainter, shows?: FlShowsPainter): number {
     const fighters = view.fighters;
     const n = fighters.length;
     this.namesDrawn = 0;
@@ -191,8 +193,10 @@ export class FlHudPainter {
     const stacked = n > 2;
     const now = fr.now;
     for (const f of fighters) {
-      const right = view.match === "2v2" ? f.team === 1 : f.slot % 2 === 1;
-      const row = view.match === "2v2" ? f.slot % 2 : Math.floor(f.slot / 2);
+      // (--- fl-overhaul --- Stage 5: a 3v3's teams in three rows a side)
+      const teams = view.match === "2v2" || view.match === "3v3";
+      const right = teams ? f.team === 1 : f.slot % 2 === 1;
+      const row = view.match === "3v3" ? f.slot % 3 : view.match === "2v2" ? f.slot % 2 : Math.floor(f.slot / 2);
       const ny = oy + (lay.nameY[Math.min(row, lay.nameY.length - 1)] ?? lay.nameY[0]);
       const by = oy + (lay.hpBarY[Math.min(row, lay.hpBarY.length - 1)] ?? lay.hpBarY[0]);
       const edge = right ? ox + lay.right : ox + lay.left;
@@ -211,8 +215,9 @@ export class FlHudPainter {
       ctx.stroke();
       ctx.restore();
       const tx = right ? edge - 2.6 * dot : edge + 2.6 * dot;
-      const maxW = (stacked ? 0.3 : 0.4) * lay.side;
-      const w = fr.text.draw(ctx, f.row.name, tx, ny, lay.nameFs, this.nameStyle(fr, f), right ? "right" : "left", maxW, alpha);
+      const inline = !!lay.inlineBars; // (--- fl-overhaul --- Stage 5: a 3v3 – the short name, its bar beside it)
+      const maxW = (inline ? 0.17 : stacked ? 0.3 : 0.4) * lay.side;
+      const w = fr.text.draw(ctx, inline ? flShortName(f.row) : f.row.name, tx, ny, lay.nameFs, this.nameStyle(fr, f), right ? "right" : "left", maxW, alpha);
       if (!f.alive) {
         ctx.save();
         ctx.strokeStyle = "#ef4444";
@@ -226,10 +231,10 @@ export class FlHudPainter {
       // the HP bar under the name (the ghost white), the HP in mono at its inner end
       const bw = lay.hpBarW;
       const bh = lay.hpBarH;
-      const bx = right ? edge - bw : edge;
+      const bx = inline ? (right ? tx - w - 0.012 * lay.side - bw : tx + w + 0.012 * lay.side) : right ? edge - bw : edge;
       const frac = Math.max(0, Math.min(1, f.hp / Math.max(1e-9, f.maxHp)));
       const ghost = Math.max(frac, Math.min(1, bodies.ghostHp(f, now) / Math.max(1e-9, f.maxHp)));
-      const blink = f.alive && frac < 0.25 && !view.finished && Math.floor(now / 125) % 2 === 0;
+      const blink = f.alive && frac < 0.25 && !view.matchOver && Math.floor(now / 125) % 2 === 0; // (--- fl-overhaul --- Stage 5: the match's)
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = hud.barTrack;
@@ -254,7 +259,9 @@ export class FlHudPainter {
     }
     // the centre column: the small VS (a duel) and the timer pill
     const cx = ox + lay.side / 2;
-    if (n === 2 && now >= view.introMs) fr.text.draw(ctx, fr.text.upperOf(L.vs), cx, oy + lay.vsY, lay.vsFs, { role: "display", color: hud.muted, stroke: null }, "center");
+    // (--- fl-overhaul --- Stage 5: a show's column instead – a series' score and pips, a bracket's round, a boss rush's wave)
+    const showColumn = !!shows && view.show && view.show.kind !== "single" && shows.drawBandColumn(ctx, fr, view, L, lay, ox, oy);
+    if (!showColumn && n === 2 && now >= view.introMs) fr.text.draw(ctx, fr.text.upperOf(L.vs), cx, oy + lay.vsY, lay.vsFs, { role: "display", color: hud.muted, stroke: null }, "center");
     this.drawTimer(ctx, fr, view, lay, cx, oy);
     this.drawLeadBar(ctx, fr, view, lay, ox, oy);
     return oy + lay.band;
@@ -262,10 +269,10 @@ export class FlHudPainter {
 
   /** The time left to the cap (from FIGHT!; frozen at the end) in a pill – red and popping each second of the last five. */
   private drawTimer(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, lay: FlHudLayout, cx: number, oy: number) {
-    const cap = view.settings.timeCap;
+    const cap = view.capSec ?? view.settings.timeCap; // (--- fl-overhaul --- Stage 5: the match's – a bracket's bout min(flT, 45 s))
     if (!(cap > 0)) return;
     const now = fr.now;
-    const at = view.finished ? Math.min(now, view.finishMs) : now;
+    const at = view.matchOver ? Math.min(now, view.finishMs) : now;
     const remaining = Math.max(0, Math.min(cap, cap - (at - view.introMs) / 1000));
     const secs = Math.ceil(remaining - 1e-6);
     if (secs !== this.timerSec) {
@@ -273,7 +280,7 @@ export class FlHudPainter {
       this.timerText = `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
     }
     const hud = fr.pal.hud;
-    const hot = secs <= 5 && !view.finished && now >= view.introMs;
+    const hot = secs <= 5 && !view.matchOver && now >= view.introMs;
     const frac = remaining - Math.floor(remaining);
     const pop = hot ? 1 + 0.25 * Math.max(0, frac - 0.75) * 4 : 1;
     const fs = lay.timerFs;
@@ -391,7 +398,7 @@ export class FlHudPainter {
     ctx.stroke();
     // a ready ultimate: marching ants round the card
     const meter = telegraph ? 1 : Math.max(0, Math.min(1, f.meter));
-    if (ult && meter >= 1 && f.alive && !view.finished) {
+    if (ult && meter >= 1 && f.alive && !view.matchOver) {
       ctx.strokeStyle = f.row.accent;
       ctx.lineWidth = Math.max(1.5, 0.035 * h);
       ctx.setLineDash([0.12 * h, 0.08 * h]);
@@ -443,7 +450,7 @@ export class FlHudPainter {
       }
     }
     ctx.restore();
-    if (!telegraph && f.alive && meter >= 1 && !view.finished) {
+    if (!telegraph && f.alive && meter >= 1 && !view.matchOver) {
       const shimmer = 0.75 + 0.25 * Math.sin(now / 90);
       fr.text.draw(ctx, L.ready, mx + m.w / 2, my + m.h / 2, Math.max(7, Math.min(1.9 * m.h, 0.9 * b.statFs)), { role: "display", color: "#fde047", stroke: INK, strokeK: 0.14 }, "center", m.w, shimmer);
     }

@@ -29,6 +29,11 @@ import { FlStagePainter } from "./fightLeague/stage";
 import { TWO_PI } from "./fightLeague/sprites";
 import { flFontsReady } from "./fightLeague/text";
 import { FlWeaponsPainter } from "./fightLeague/weapons";
+// --- fl-overhaul --- (Stage 5) the shows' overlays (series, brackets, boss rushes), the win chance and the story's words
+import { FlShowsPainter } from "./fightLeague/shows";
+import { DEFAULT_FL_SHOW_LABELS } from "./fightLeague/frame";
+import { FB_DOUBLE_KO, FB_DRAW, FB_WIN, flWinnerShownMs } from "@/lib/physics/modes/fightLeague";
+import { flRoundShort } from "@/lib/physics/modes/fightLeagueShow";
 
 /**
  * Canvas drawing of Fight League (feature fight-league, see lib/physics/modes/fightLeague.ts) – --- fl-overhaul --- (Stage 3)
@@ -89,6 +94,7 @@ export const DEFAULT_FIGHT_LEAGUE_LABELS: FightLeagueLabels = {
   winsPlate: (name) => `${name} WINS`,
   division: (id) => FL_DIVISION_LABELS[id as FlDivision] ?? id,
   role: (id) => cap(id),
+  shows: DEFAULT_FL_SHOW_LABELS, // --- fl-overhaul --- (Stage 5)
 };
 
 /** The arena unit's share of the field (the effects' size), as the mode uses it. */
@@ -103,6 +109,8 @@ export class FightLeagueLayer {
   private readonly fx = new FlFxPainter();
   private readonly hud = new FlHudPainter();
   private readonly cards = new FlCardsPainter();
+  /** --- fl-overhaul --- (Stage 5) The shows' overlays (the data attributes read what it drew). */
+  readonly shows = new FlShowsPainter();
   private view: FightLeagueView | null = null;
   private labels: FightLeagueLabels = DEFAULT_FIGHT_LEAGUE_LABELS;
   private frameKey = "";
@@ -198,6 +206,7 @@ export class FightLeagueLayer {
     this.fx.begin(view);
     this.hud.begin(view);
     this.cards.begin(view);
+    this.shows.begin(view); // --- fl-overhaul --- (Stage 5)
     // where each fighter is drawn: the finale's drift, held by an impact frame (50 / 80 ms) and catching up (60 ms)
     const now = fr.now;
     const fin = view.finale.from >= 0 && now >= view.finale.from;
@@ -405,16 +414,26 @@ export class FightLeagueLayer {
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
     if (view.settings.hud) {
-      hudBottom = this.hud.drawBand(ctx, fr, view, L, lay, ox, oy + frame.inset, this.bodies);
+      hudBottom = this.hud.drawBand(ctx, fr, view, L, lay, ox, oy + frame.inset, this.bodies, this.shows);
       this.boxesTop = this.hud.drawBoxes(ctx, fr, view, L, lay, ox, oy, this.bodies, this.weapons);
       this.namesDrawn = this.hud.namesDrawn;
       this.boxesDrawn = this.hud.boxesDrawn;
+      // --- fl-overhaul --- (Stage 5) a boss rush's boss bar across the top of the arena and its challengers' queue
+      if (view.show.kind === "boss") this.shows.drawBossBar(ctx, fr, view, L, lay, ox, oy);
     }
-    this.cards.drawVs(ctx, fr, view, L, lay, ox, oy, this.bodies, this.weapons, view.settings.hud);
+    this.cards.drawVs(ctx, fr, view, L, lay, ox, oy, this.bodies, this.weapons, view.settings.hud, this.shows);
     this.cards.drawKoFlash(ctx, fr, view, lay, ox, oy);
     this.fx.drawSuperFlash(ctx, fr, view, ox + lay.arena.x, oy + lay.arena.y, lay.arena.w, lay.arena.h, ox, oy, side);
     const kind = this.cards.drawCentre(ctx, fr, view, L, lay, ox, oy);
-    if (view.finished && !o.teamBanner) this.cards.drawVerdict(ctx, fr, view, L, lay, ox, oy, this.bodies, this.weapons, kind);
+    // (--- fl-overhaul --- Stage 5: a show's interludes get their card – the score, the bracket, the boss –, a bracket's end its champion)
+    const show = view.show;
+    if (view.finished && !o.teamBanner) {
+      if (show.kind === "bracket" && show.champion >= 0 && (kind === FB_WIN || kind === FB_DRAW || kind === FB_DOUBLE_KO)) {
+        this.shows.drawChampion(ctx, fr, view, L, lay, ox, oy, Math.max(0, fr.now - flWinnerShownMs(view)), 1);
+        this.cards.bannerShown = true;
+        this.cards.shown.add("champion");
+      } else this.cards.drawVerdict(ctx, fr, view, L, lay, ox, oy, this.bodies, this.weapons, kind, this.shows);
+    } else if (view.matchOver && !view.finished && show.phase === "card") this.shows.drawInterlude(ctx, fr, view, L, lay, ox, oy);
     ctx.restore();
     this.vsShown = this.cards.vsShown;
     this.bannerShown = this.cards.bannerShown;
@@ -524,6 +543,30 @@ export const FIGHT_LEAGUE_DATA_KEYS = [
   "flPlates",
   "flDebug",
   "flCallouts",
+  // --- fl-overhaul --- (Stage 5) the shows and the story: the show's kind, the bout ('5/7'), a bracket's round, a series' score,
+  // the champion, the boss's wave ('3/6'), the win chance shown ('62,38'; "" hidden), the handicap tags, the story's flags, the
+  // lead changes, the finisher, the combo peak, the match index, the scores, the bracket's results, the boss's wave and HP, and
+  // what the overlays drew (the bracket card, the champion card, the boss bar)
+  "flShow",
+  "flBout",
+  "flRound",
+  "flSeries",
+  "flChampion",
+  "flBoss",
+  "flOdds",
+  "flHcTags",
+  "flStory",
+  "flLeadChanges",
+  "flFinisher",
+  "flCombos",
+  "flMatchIndex",
+  "flScores",
+  "flBracket",
+  "flWave",
+  "flBossHp",
+  "flBracketShown",
+  "flChampionShown",
+  "flBossBar",
 ];
 
 /** Writes the data-fl-* attributes (the strings are rebuilt only when their values change). */
@@ -541,18 +584,27 @@ export class FightLeagueDataset {
   private banners = "";
   private calloutsSize = -1;
   private callouts = "";
+  // --- fl-overhaul --- (Stage 5) the match the names belong to, the bracket's results (rebuilt when a result changes)
+  private matchSerial = -1;
+  private bracketKey = -1;
+  private bracket = "";
 
   write(view: FightLeagueView, layer: FightLeagueLayer, set: (key: string, value: string) => void) {
-    if (view.generation !== this.generation || this.names === "") {
+    if (view.generation !== this.generation || view.matchSerial !== this.matchSerial || this.names === "") {
+      const newRun = view.generation !== this.generation;
       this.generation = view.generation;
+      this.matchSerial = view.matchSerial;
       this.names = view.fighters.map((f) => f.row.name).join(",");
       this.ids = view.fighters.map((f) => f.row.id).join(",");
       this.abilities = view.fighters.map((f) => f.row.ability.name).join(",");
       this.maxHp = view.fighters.map((f) => String(Math.round(f.maxHp * 10) / 10)).join(",");
       this.hpKey = "";
-      this.vsSeen = false;
-      this.bannersSize = -1;
-      this.calloutsSize = -1;
+      if (newRun) {
+        this.vsSeen = false;
+        this.bannersSize = -1;
+        this.calloutsSize = -1;
+        this.bracketKey = -1;
+      }
     }
     let key = "";
     for (const f of view.fighters) key += `${Math.round(Math.max(0, f.hp) * 10)}/${f.hits}/${f.casts}/${f.alive ? 1 : 0};`;
@@ -637,5 +689,49 @@ export class FightLeagueDataset {
       this.callouts = [...callouts].join(",");
     }
     set("flCallouts", this.callouts);
+    // --- fl-overhaul --- (Stage 5) the shows and the story
+    const sh = view.show;
+    const st = view.story;
+    set("flShow", sh.kind);
+    set("flMatchIndex", String(sh.matchIndex));
+    set("flBout", sh.kind === "series" ? `${Math.min(sh.games + (view.matchOver ? 0 : 1), sh.maxGames)}/${sh.bouts}` : sh.kind === "single" ? "1/1" : `${sh.bout}/${sh.bouts}`);
+    set("flRound", sh.kind === "bracket" && sh.round >= 0 ? flRoundShort(sh.rounds, sh.round) : "");
+    set("flSeries", sh.kind === "series" || sh.maxGames > 1 ? `${sh.score[0]}-${sh.score[1]}` : "");
+    set("flChampion", sh.kind === "bracket" && sh.champion >= 0 ? (sh.entrants[sh.champion]?.row.name ?? "") : "");
+    set("flBoss", sh.kind === "boss" ? `${sh.wave}/${sh.waves}` : "");
+    set("flWave", sh.kind === "boss" ? String(sh.wave) : "");
+    let bossHp = sh.bossHp;
+    for (const f of view.fighters) if (f.boss) bossHp = Math.max(0, f.alive ? f.hp : 0);
+    set("flBossHp", sh.kind === "boss" ? String(Math.round(10 * bossHp) / 10) : "");
+    const oddsOn = view.settings.odds !== false && !st.handicapped && st.chances.length >= 2;
+    set("flOdds", oddsOn ? st.chances.map((c) => String(Math.round(100 * c))).join(",") : "");
+    set("flHcTags", layer.shows.hcTags); // (the BUFFED / NERFED tags the VS card drew this run)
+    const flags: string[] = [];
+    if (st.perfect) flags.push("perfect");
+    if (st.upset) flags.push("upset");
+    if (st.comeback) flags.push("comeback");
+    if (st.clutch) flags.push("clutch");
+    if (st.abilityFinish) flags.push("ability-finish");
+    if (st.sudden && st.decided) flags.push("sudden");
+    set("flStory", flags.join(","));
+    set("flLeadChanges", String(st.leadChanges));
+    set("flFinisher", st.finisher);
+    set("flCombos", String(st.comboPeak));
+    set("flScores", sh.kind === "boss" ? `${sh.wins[0] ?? 0}-${sh.wins[1] ?? 0}` : `${sh.score[0]}-${sh.score[1]}`);
+    if (sh.kind === "bracket" && sh.resultSerial !== this.bracketKey) {
+      this.bracketKey = sh.resultSerial;
+      const parts: string[] = [];
+      sh.rounds.forEach((round, r) => {
+        for (const b of round) {
+          if (b.winner < 0 || b.a < 0 || b.b < 0) continue;
+          parts.push(`${flRoundShort(sh.rounds, r)}:${sh.entrants[b.a]?.row.id}v${sh.entrants[b.b]?.row.id}>${sh.entrants[b.winner]?.row.id}`);
+        }
+      });
+      this.bracket = parts.join(",");
+    }
+    set("flBracket", sh.kind === "bracket" ? this.bracket : "");
+    set("flBracketShown", layer.shows.bracketShown ? "1" : "0");
+    set("flChampionShown", layer.shows.championShown ? "1" : "0");
+    set("flBossBar", layer.shows.bossBarShown ? "1" : "0");
   }
 }

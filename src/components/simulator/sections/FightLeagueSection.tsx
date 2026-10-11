@@ -6,7 +6,7 @@ import Tooltip from "../Tooltip";
 import NumberField from "../NumberField";
 import { Searchable, Slider, Toggle, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
-import { FL_ARENAS, FL_MATCHES, FL_RANDOM, flPanelValue, matchFighters, type FlArena, type FlMatch } from "@/lib/physics/modes/fightLeague";
+import { FL_ARENAS, FL_MATCHES, FL_RANDOM, flPanelValue, type FlArena, type FlMatch } from "@/lib/physics/modes/fightLeague";
 import { FL_BY_ID, FL_DIVISIONS, FL_PRESETS, fightersOf } from "@/lib/physics/modes/fightLeagueRoster";
 // --- fl-overhaul --- (Stage 2) the fighter picker, its random tokens and the list view behind a toggle
 import FighterPicker from "./FighterPicker";
@@ -17,6 +17,9 @@ import { FL_ARENA_STYLES, FL_STAGES, FL_TAG_MODES, type FlArenaStyle, type FlSta
 // --- fl-overhaul --- (Stage 4) the Sound group's options and the custom clip slots
 import { FL_SOUND_OPTIONS, type FlSoundOption } from "@/lib/physics/modes/fightLeague";
 import FlCustomSoundsPanel from "./FlCustomSoundsPanel";
+// --- fl-overhaul --- (Stage 5) the shows (series, brackets, boss rushes), the preset gallery and slots E and F
+import FightLeagueShowsSection, { FIGHT_LEAGUE_SHOW_KEYS, FightLeaguePresetGallery } from "./FightLeagueShowsSection";
+import { flCurrentPreset, flPanelSlots, flPresetPatch } from "./fightLeaguePresetMatch";
 
 /** --- fl-overhaul --- The list view (the native selects) is remembered per viewer; without storage it starts off. */
 const LIST_VIEW_KEY = "fl-picker-list";
@@ -53,33 +56,28 @@ const TAG_LABELS: Record<FlTags, string> = { auto: "flTagsAuto", on: "flTagsOn",
 // --- fl-overhaul --- (Stage 4) the Sound group's labels and the clip panel (the search finds them too)
 FIGHT_LEAGUE_KEYS.push("flSoundGroup", "flSound", "flAnnouncer", "flCustomSounds", "flClipPanel");
 const SOUND_LABELS: Record<FlSoundOption, string> = { signature: "flSoundSignature", kinds: "flSoundKinds", legacy: "flSoundLegacy" };
+// (Stage 5) the shows' controls and the gallery (the search finds them too)
+FIGHT_LEAGUE_KEYS.push(...FIGHT_LEAGUE_SHOW_KEYS);
 // --- end fl-overhaul ---
 
-const SLOT_FIELDS = ["flFighterA", "flFighterB", "flFighterC", "flFighterD"] as const;
-const SLOT_LETTERS = ["A", "B", "C", "D"] as const;
+const SLOT_FIELDS = ["flFighterA", "flFighterB", "flFighterC", "flFighterD", "flFighterE", "flFighterF"] as const; // (--- fl-overhaul --- Stage 5: A–F)
+const SLOT_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 const STATS = [
   { key: "Speed", labelKey: "flStatSpeed" },
   { key: "Damage", labelKey: "flStatDamage" },
   { key: "Attack", labelKey: "flStatAttack" },
   { key: "Cast", labelKey: "flStatCast" },
 ] as const;
-type StatField = `fl${"Speed" | "Damage" | "Attack" | "Cast"}${"A" | "B" | "C" | "D"}`;
+type StatField = `fl${"Speed" | "Damage" | "Attack" | "Cast"}${(typeof SLOT_LETTERS)[number]}`;
 
-const MATCH_LABELS: Record<FlMatch, string> = { "1v1": "flMatch1v1", "2v2": "flMatch2v2", ffa3: "flMatchFfa3", ffa4: "flMatchFfa4" };
+const MATCH_LABELS: Record<FlMatch, string> = { "1v1": "flMatch1v1", "2v2": "flMatch2v2", ffa3: "flMatchFfa3", ffa4: "flMatchFfa4", "3v3": "flMatch3v3" /* --- fl-overhaul --- (Stage 5) */, bracket: "flMatchBracket", boss: "flMatchBoss" };
 const ARENA_LABELS: Record<FlArena, string> = { square: "flArenaSquare", circle: "flArenaCircle" };
 
 const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
-/** The preset whose fighters and match the settings hold (null: a custom matchup). */
+/** The preset whose fighters and match the settings hold (null: a custom matchup) – --- fl-overhaul --- (Stage 5) its series length, entrants and a rework's handicaps too. */
 function currentPreset(s: SimulatorSettings): string | null {
-  for (const p of FL_PRESETS) {
-    if (p.match !== s.flMatch) continue;
-    const n = matchFighters(p.match);
-    let same = true;
-    for (let i = 0; i < n && same; i++) same = s[SLOT_FIELDS[i]] === p.fighters[i];
-    if (same) return p.id;
-  }
-  return null;
+  return flCurrentPreset(s)?.id ?? null;
 }
 
 /**
@@ -104,15 +102,15 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
     if (!scope || scope.kind === "any") return null;
     return scope.kind === "division" ? fl(`division_${scope.id}`) : fl(`conference_${scope.id}`);
   };
-  const slots = matchFighters(s.flMatch);
+  const slots = flPanelSlots(s.flMatch); // (--- fl-overhaul --- Stage 5: a 3v3's six, a bracket's and a boss rush's six pinned slots)
   const preset = currentPreset(s);
   const applyPreset = (id: string) => {
     const p = FL_PRESETS.find((x) => x.id === id);
     if (!p) return;
-    const patch: Partial<SimulatorSettings> = { flMatch: p.match };
-    for (let i = 0; i < 4; i++) patch[SLOT_FIELDS[i]] = p.fighters[i] ?? FL_RANDOM;
-    update(patch);
+    update(flPresetPatch(p, s)); // (--- fl-overhaul --- Stage 5: slots A–F, a series' length, entrants, a rework's handicaps)
   };
+  // --- fl-overhaul --- (Stage 5) a boss rush's handicaps: slot A the boss's, slot B every challenger's
+  const handicapSlots = s.flMatch === "boss" ? 2 : slots;
   const statValue = (stat: (typeof STATS)[number]["key"], slot: number) => s[`fl${stat}${SLOT_LETTERS[slot]}` as StatField];
   return (
     <div className="space-y-3 pt-2" data-testid="fight-league-section">
@@ -138,6 +136,8 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
           </select>
         </div>
       </Searchable>
+      {/* --- fl-overhaul --- (Stage 5) the preset gallery: format chips, cards, Surprise me */}
+      <FightLeaguePresetGallery t={t} search={search} matches={matches} settings={s} update={update} />
       <Searchable search={search} matches={matches} labelKey="flMatch">
         <div className="space-y-2">
           <label className="text-sm font-medium text-ink-2">
@@ -146,13 +146,15 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
           </label>
           <div className="grid grid-cols-4 gap-1" role="group" aria-label={t("flMatch")}>
             {FL_MATCHES.map((m) => (
-              <button type="button" key={m} onClick={() => update({ flMatch: m })} aria-pressed={s.flMatch === m} className={pick(s.flMatch === m)} data-testid={`fl-match-${m}`}>
+              <button type="button" key={m} onClick={() => update(m === "boss" && (s.flFighterA === "thor" || parseFlRandom(s.flFighterA)) ? { flMatch: m, flFighterA: "gerald" } /* --- fl-overhaul --- (Stage 5: Gerald is the boss unless one is chosen) */ : { flMatch: m })} aria-pressed={s.flMatch === m} className={pick(s.flMatch === m)} data-testid={`fl-match-${m}`}>
                 {t(MATCH_LABELS[m])}
               </button>
             ))}
           </div>
         </div>
       </Searchable>
+      {/* --- fl-overhaul --- (Stage 5) the shows' settings: a series, a bracket, a boss rush; the win chance */}
+      <FightLeagueShowsSection t={t} search={search} matches={matches} settings={s} update={update} />
       <Searchable search={search} matches={matches} labelKey="flFighters">
         <div className="space-y-3">
           {/* --- fl-overhaul --- (Stage 2) the picker chips, or the native selects behind the List view toggle */}
@@ -170,11 +172,16 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
               {t("flPickerList")}
             </button>
           </div>
+          {(s.flMatch === "bracket" || s.flMatch === "boss") && (
+            <p className="text-xs text-ink-3 leading-relaxed" data-testid="fl-pinned-hint">
+              {t(s.flMatch === "boss" ? "flBossPinnedHint" : "flPinnedHint")}
+            </p>
+          )}
           {Array.from({ length: slots }, (_, i) => {
             const field = SLOT_FIELDS[i];
             const id = s[field];
             const row = FL_BY_ID.get(id);
-            const team = s.flMatch === "2v2" ? (i < 2 ? "A+B" : "C+D") : null;
+            const team = s.flMatch === "2v2" ? (i < 2 ? "A+B" : "C+D") : s.flMatch === "3v3" ? (i < 3 ? "A+B+C" : "D+E+F") /* --- fl-overhaul --- (Stage 5) */ : null;
             const scope = scopeLabel(id);
             const set = (value: string) => update({ [field]: value } as Partial<SimulatorSettings>);
             return (
@@ -182,6 +189,7 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
                 <label className="text-sm font-medium text-ink-2" htmlFor={`fl-fighter-${i}`}>
                   {t("flFighterN", { slot: SLOT_LETTERS[i] })}
                   {team && <span className="ml-1 text-xs text-ink-3">· {t("flTeamOf", { team })}</span>}
+                  {s.flMatch === "boss" && i === 0 && <span className="ml-1 text-xs text-ink-3">· {t("flBossSlot")}</span>}
                   {i === 0 && <Tooltip text={t("flFightersTip")} />}
                 </label>
                 {listView ? (
@@ -261,9 +269,9 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
             {t("flHandicaps")}
             <Tooltip text={t("flHandicapsTip")} />
           </label>
-          <div className="grid gap-1.5 text-xs" style={{ gridTemplateColumns: `minmax(4.5rem, auto) repeat(${slots}, minmax(0, 1fr))` }}>
+          <div className="grid gap-1.5 text-xs" style={{ gridTemplateColumns: `minmax(4.5rem, auto) repeat(${handicapSlots}, minmax(0, 1fr))` }}>
             <span />
-            {Array.from({ length: slots }, (_, i) => (
+            {Array.from({ length: handicapSlots }, (_, i) => (
               <span key={i} className="text-center font-bold text-ink-3">
                 {SLOT_LETTERS[i]}
               </span>
@@ -271,7 +279,7 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
             {STATS.map((stat) => (
               <div key={stat.key} className="contents">
                 <span className="self-center text-ink-2">{t(stat.labelKey)}</span>
-                {Array.from({ length: slots }, (_, i) => {
+                {Array.from({ length: handicapSlots }, (_, i) => {
                   const key = `fl${stat.key}${SLOT_LETTERS[i]}` as StatField;
                   return <NumberField key={key} value={statValue(stat.key, i)} onCommit={(v) => update({ [key]: flPanelValue(key, v) } as Partial<SimulatorSettings>)} label={`${t(stat.labelKey)} ${SLOT_LETTERS[i]}`} range={RANGES[key]} rules={{ min: RANGES[key].min }} settingKey={key} className="w-full" />;
                 })}

@@ -188,6 +188,11 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   // --- bead-hoops --- Spinning Hoops: the hoops a run builds (a bead each: an engine ball, a dozen numbers and an RK4 integration
   // a sub-step; every frame draws each hoop as an ellipse)
   hpCount: ENTITY_CEILING,
+  // --- fl-overhaul --- (Stage 5) Fight League's shows: a bracket's entrants and a boss rush's challengers (a row and a bout each;
+  // `FL_ENTRANT_CEILING` of lib/physics/modes/fightLeagueShow.ts – a test keeps them equal)
+  flBracketSize: 256,
+  flBossWaves: 256,
+  // --- end fl-overhaul ---
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

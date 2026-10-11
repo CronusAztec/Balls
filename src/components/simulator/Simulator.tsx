@@ -138,6 +138,8 @@ import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { FL_WIN_HOLD_SEC, fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 // --- fl-overhaul --- (Stage 3) the verdict's card comes in the KO finale or after TIME!: the holds count from the finale's end or the card
 import { flHoldEndMs, flHoldStartMs } from "@/lib/physics/modes/fightLeague";
+import { flShowHorizonMs, flShowKind, flSideCount } from "@/lib/physics/modes/fightLeague"; // (Stage 5) the shows
+import { flBestOfGames } from "@/lib/physics/modes/fightLeagueShow";
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
 // --- end fl-overhaul ---
 import { landClaimClipSec, landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
@@ -340,6 +342,7 @@ export default function Simulator() {
   const [findOutcome, setFindOutcome] = useState<FinderOutcomeKind>("duration");
   const [findEscapeAt, setFindEscapeAt] = useState(10);
   const [findWinner, setFindWinner] = useState(0);
+  const [findCount, setFindCount] = useState(1); // --- fl-overhaul --- (Stage 5) the fewest lead changes, the wave the boss falls at
   const [searchOutcome, setSearchOutcome] = useState<FinderOutcomeKind>("duration");
   const [shareCopied, setShareCopied] = useState(false);
   // --- site-redesign --- read after hydration (the server has no MediaRecorder), so the server-rendered page and the
@@ -1208,7 +1211,7 @@ export default function Simulator() {
   // --- end orb-grid ---
   // --- fight-league --- Fight League: a change of the fighters, the match, the division rule, the HP, a multiplier, the time
   // cap or the arena restarts the fight and drops a found seed; the HUD only changes the drawing and follows live.
-  const flFightKey = [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flMatch, s.flSameDivision, s.flHp, s.flTimeCap, s.flArena, s.flSpeedA, s.flSpeedB, s.flSpeedC, s.flSpeedD, s.flDamageA, s.flDamageB, s.flDamageC, s.flDamageD, s.flAttackA, s.flAttackB, s.flAttackC, s.flAttackD, s.flCastA, s.flCastB, s.flCastC, s.flCastD, s.flSeek, s.flSuddenDeath /* --- fl-overhaul --- */].join("|");
+  const flFightKey = [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flMatch, s.flSameDivision, s.flHp, s.flTimeCap, s.flArena, s.flSpeedA, s.flSpeedB, s.flSpeedC, s.flSpeedD, s.flDamageA, s.flDamageB, s.flDamageC, s.flDamageD, s.flAttackA, s.flAttackB, s.flAttackC, s.flAttackD, s.flCastA, s.flCastB, s.flCastC, s.flCastD, s.flSeek, s.flSuddenDeath /* --- fl-overhaul --- */, s.flFighterE, s.flFighterF, s.flSpeedE, s.flSpeedF, s.flDamageE, s.flDamageF, s.flAttackE, s.flAttackF, s.flCastE, s.flCastF, s.flBestOf, s.flEntrants, s.flBracketSize, s.flSeeding, s.flBossWaves, s.flBossHp, s.flBossHeal, s.flCardSec /* --- fl-overhaul --- (Stage 5: slots E and F, the shows) */].join("|");
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -1224,6 +1227,10 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setFightLeagueSettings({ hud: s.flHud });
   }, [s.flHud]);
+  // --- fl-overhaul --- (Stage 5) the VS card's win chance follows live (the drawing only: no restart, a found seed kept)
+  useEffect(() => {
+    engineRef.current?.setFightLeagueSettings({ odds: s.flOdds });
+  }, [s.flOdds]);
   // --- fl-overhaul --- (Stage 3) the spectacle follows live too – the drawing only: no restart, a found seed kept
   useEffect(() => {
     engineRef.current?.setFightLeagueSettings({ stage: s.flStage, arenaStyle: s.flArenaStyle, shake: s.flShake, slowMo: s.flSlowMo, impact: s.flImpact, dmgNumbers: s.flDmgNumbers, plates: s.flPlates, tags: s.flTags });
@@ -1541,12 +1548,13 @@ export default function Simulator() {
   const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, orbGrid: orbGridSettingsOf(s) /* --- orb-rhythm --- (the model decides) */, grow: growFillSettingsOf(s) /* --- loop-foundation --- ("finish" ends at the fill) */, hoops: hoopsSettingsOf(s) /* --- bead-hoops --- (the return loops forever) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
   const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);
-  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */ });
+  const flShow = s.mode === "fightLeague" ? flShowKind({ match: s.flMatch, bestOf: s.flBestOf }) : undefined; // --- fl-overhaul --- (Stage 5) the show's own outcomes
+  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, flShow, flSides: s.mode === "fightLeague" ? flSideCount(s.flMatch, [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flFighterE, s.flFighterF]) : 0, flDecider: flBestOfGames(s.flBestOf) > 1 /* --- fl-overhaul --- (Stage 5) */ });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
-  const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
+  const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }), t("Rigged.challengers") /* --- fl-overhaul --- (Stage 5: a boss rush's side 1) */);
   const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
   const outcomeText = { duration: findDuration, escapeAt: findEscapeAt, winnerName: winnerNames[findWinnerTeam] ?? "", barSec: barSeconds(s.bpm) /* --- loop-foundation --- (fill on a bar line) */ };
-  const riggedNote = [s.neverEscape && neverEscapeApplies(s.mode) ? t("Rigged.noteNeverEscape") : "", forcedWinnerApplies(s.mode, ballCount, s.forcedWinner, s.neverEscape) ? t(s.mode === "landClaim" ? "Rigged.noteFavoured" /* --- land-claim --- (honest steering: the favourite, not a certainty) */ : "Rigged.noteWinner", { name: winnerNames[s.forcedWinner] ?? "" }) : ""].filter(Boolean).join(" · ");
+  const riggedNote = [s.neverEscape && neverEscapeApplies(s.mode) ? t("Rigged.noteNeverEscape") : "", forcedWinnerApplies(s.mode, ballCount, s.forcedWinner, s.neverEscape) ? t(s.mode === "landClaim" ? "Rigged.noteFavoured" /* --- land-claim --- (honest steering: the favourite, not a certainty) */ : flShow && flShow !== "single" ? "Rigged.noteShow" /* --- fl-overhaul --- (Stage 5: the format named) */ : "Rigged.noteWinner", { name: winnerNames[s.forcedWinner] ?? "", format: flShow && flShow !== "single" ? t(`Rigged.showFormat_${flShow}`) : "" }) : ""].filter(Boolean).join(" · ");
   // --- end rigged ---
 
   // --- split-screen --- Split-screen races (lib/splitScreen.ts, lib/simulation/multi.ts, splitScreenCanvas.tsx): 2 or 4 arenas
@@ -1603,7 +1611,7 @@ export default function Simulator() {
         engine.setConveyorSettings(conveyorSettingsOf(arena)); // --- gerald-conveyor --- (the scale and root follow live; the rest waits for a restart)
         engine.setOrbGridSettings(orbGridSettingsOf(arena)); // --- orb-grid --- (the look, the sound, the scale and the clip follow live; the field waits for a restart)
         engine.setFightLeagueSettings({ hud: arena.flHud }); // --- fight-league --- (the HUD follows live; the fight waits for a restart)
-        engine.setFightLeagueSettings({ stage: arena.flStage, arenaStyle: arena.flArenaStyle, shake: arena.flShake, slowMo: arena.flSlowMo, impact: arena.flImpact, dmgNumbers: arena.flDmgNumbers, plates: arena.flPlates, tags: arena.flTags }); // --- fl-overhaul --- (Stage 3: the spectacle too)
+        engine.setFightLeagueSettings({ stage: arena.flStage, arenaStyle: arena.flArenaStyle, shake: arena.flShake, slowMo: arena.flSlowMo, impact: arena.flImpact, dmgNumbers: arena.flDmgNumbers, plates: arena.flPlates, tags: arena.flTags, odds: arena.flOdds }); // --- fl-overhaul --- (Stage 3: the spectacle too; Stage 5: the win chance)
       },
     }),
     [initEngineForMode],
@@ -2854,7 +2862,7 @@ export default function Simulator() {
     // --- rigged --- an outcome search (never escapes, escapes at, winner) instead of the run length
     // (a first escape later than the clip gets a clip that runs a few seconds past it)
     const clipSec = finderOutcome === "escapes-at" || finderOutcome === "resolves-at" /* --- orb-grid --- (the first resolve) */ ? Math.max(findDuration, Math.ceil(findEscapeAt + 3)) : findDuration;
-    const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam } : undefined;
+    const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam, count: findCount /* --- fl-overhaul --- (Stage 5) */ } : undefined;
     if (outcome?.kind === "fill-on-bar") outcome.atSec = barSeconds(settings.bpm); // --- loop-foundation --- (a bar of four beats at the page's BPM)
     setSearchOutcome(finderOutcome ?? "duration");
     const result = await findArenaSeeds(
@@ -2864,7 +2872,7 @@ export default function Simulator() {
         toleranceSec: findTolerance,
         maxSeeds: findMaxSeeds,
         depthBudgetMs: FINDER_DEPTH_BUDGET_MS, // --- finder-depth --- (nothing in the first 1,000 seeds: on while the budget lasts, when seeds are cheap)
-        maxSimTimeSec: findDuration + (settings.mode === "colorMatch" ? 90 : 30),
+        maxSimTimeSec: Math.max(findDuration + (settings.mode === "colorMatch" ? 90 : 30), settings.mode === "fightLeague" && flShowKind({ match: settings.flMatch, bestOf: settings.flBestOf }) !== "single" ? flShowHorizonMs(fightLeagueSettingsOf(settings)) / 1000 : 0) /* --- fl-overhaul --- (Stage 5: a show, FL_SHOW_BOUT_SEC a match) */,
         physicsConfig: { ...engine.config },
         mode: settings.mode,
         modeSettings: {
@@ -2972,7 +2980,7 @@ export default function Simulator() {
       // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
       if (result.arenaSeeds) update({ arenas: withArenaSeeds(settings.arenas, settings.arenaCount, result.arenaSeeds) });
     }
-  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam, paintPicture]); // --- rigged --- (the outcome) --- review fix (modes-rhythm) --- (paintPicture)
+  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam, paintPicture, findCount]); // --- rigged --- (the outcome) --- review fix (modes-rhythm) --- (paintPicture) --- fl-overhaul --- (findCount)
 
   const cancelFinder = useCallback(() => finderAbortRef.current?.abort(), []);
 
@@ -3284,6 +3292,30 @@ export default function Simulator() {
         division: (id) => t(`FightLeague.division_${id}`),
         role: (id) => t(`FightLeague.role_${id}`),
         // --- end fl-overhaul ---
+        // --- fl-overhaul --- (Stage 5) the story's tags, the shows' banners and cards, the win chance (a name may hold "$&")
+        shows: {
+          upset: t("FightLeague.canvasUpset"),
+          comeback: t("FightLeague.canvasComeback"),
+          finish: (ability) => t("FightLeague.canvasFinish").replace("[ability]", () => ability),
+          game: (n) => t("FightLeague.canvasGame").replace("[n]", () => String(n)),
+          seriesPoint: t("FightLeague.canvasSeriesPoint"),
+          seriesWin: (name, a, b) => t("FightLeague.canvasSeriesWin").replace("[name]", () => name).replace("[a]", () => String(a)).replace("[b]", () => String(b)),
+          rematch: t("FightLeague.canvasRematch"),
+          round: (code) => t(`FightLeague.canvasRound_${code}`),
+          champion: t("FightLeague.canvasChampion"),
+          bossFalls: (name) => t("FightLeague.canvasBossFalls").replace("[name]", () => name),
+          bossSurvives: (n, total) => t("FightLeague.canvasBossSurvives").replace("[n]", () => String(n)).replace("[total]", () => String(total)),
+          wave: (n, m) => t("FightLeague.canvasWave").replace("[n]", () => String(n)).replace("[m]", () => String(m)),
+          phase2: t("FightLeague.canvasPhase2"),
+          challenger: t("FightLeague.canvasChallenger"),
+          underdog: t("FightLeague.canvasUnderdog"),
+          buffed: t("FightLeague.canvasBuffed"),
+          nerfed: t("FightLeague.canvasNerfed"),
+          winChance: t("FightLeague.canvasWinChance"),
+          est: t("FightLeague.canvasEst"),
+          decider: t("FightLeague.canvasDecider"),
+          beat: (names) => t("FightLeague.canvasBeat").replace("[names]", () => names),
+        },
       },
     };
   }, [t]);
@@ -3666,7 +3698,7 @@ export default function Simulator() {
             </div>
           </div>
           {/* --- rigged --- an outcome search's explanation and fields */}
-          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ landClaim={settings.mode === "landClaim"} /* --- land-claim --- */ />}
+          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ landClaim={settings.mode === "landClaim"} /* --- land-claim --- */ count={findCount} onCount={(n) => setFindCount(Math.max(1, Math.round(n)))} /* --- fl-overhaul --- (Stage 5) */ />}
           {isSearching && searchProgress && (
             <div className="space-y-1.5" data-search-arena={searchProgress.arena ?? 0 /* --- split-screen --- */}>
               <div className="h-1 w-full overflow-hidden rounded-full bg-surface-3">

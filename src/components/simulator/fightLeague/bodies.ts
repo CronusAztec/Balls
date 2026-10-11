@@ -1,4 +1,5 @@
 import type { FightLeagueView, FlFighter } from "@/lib/physics/modes/fightLeague";
+import { drawCrown } from "./shows"; // --- fl-overhaul --- (Stage 5)
 import { FL_FAST_STAT, FL_FLASH_TINT_MS, FL_FLASH_WHITE_MS, FL_MAX_SLOTS, FL_SPEED_LINES_AT, FL_TRAIL_AT, bodyRimWidth, flNameColor, flSquashK } from "@/lib/physics/modes/fightLeagueFx";
 import { flShortName, type FlFighterRow } from "@/lib/physics/modes/fightLeagueRoster";
 import type { FlFrame } from "./frame";
@@ -255,6 +256,8 @@ function drawSilhouette(g: CanvasRenderingContext2D, R: number, row: FlFighterRo
 export class FlBodiesPainter {
   private readonly sprites = new Map<string, Sprite | null>();
   private generation = -1;
+  /** --- fl-overhaul --- (Stage 5) The match the ghosts belong to (a show's every match starts them over). */
+  private matchSerial = -1;
   /** The HP bars' ghost ("just lost"): where it drains from, since when, the last hit seen, the HP last frame. */
   private readonly gFrom = new Float64Array(FL_MAX_SLOTS);
   private readonly gAt = new Float64Array(FL_MAX_SLOTS);
@@ -264,10 +267,13 @@ export class FlBodiesPainter {
   trails = 0;
 
   begin(view: FightLeagueView) {
-    if (view.generation !== this.generation) {
+    if (view.generation !== this.generation || view.matchSerial !== this.matchSerial) {
+      if (view.generation !== this.generation) {
+        this.sprites.clear();
+        this.trails = 0;
+      }
       this.generation = view.generation;
-      this.sprites.clear();
-      this.trails = 0;
+      this.matchSerial = view.matchSerial;
       for (let i = 0; i < FL_MAX_SLOTS; i++) {
         const f = view.fighters[i];
         this.gFrom[i] = f ? f.maxHp : 0;
@@ -324,7 +330,7 @@ export class FlBodiesPainter {
       const vy = fin ? f.finVy : f.vy;
       const speed = Math.hypot(vx, vy);
       const ratio = speed / Math.max(1, f.cruise);
-      const fast = f.row.stats.speed >= FL_FAST_STAT && now >= view.introMs && !view.finished;
+      const fast = f.row.stats.speed >= FL_FAST_STAT && now >= view.introMs && !view.matchOver;
       const strong = ratio > FL_TRAIL_AT && now >= view.introMs;
       if ((strong || fast) && f.trailCount >= 3 && !fr.lite) {
         this.ribbon(ctx, fr, f, strong ? 0.35 : 0.14);
@@ -431,7 +437,7 @@ export class FlBodiesPainter {
     const base = ghost ? 0.35 : 1;
     // the look's glow, the winner's glow, the buffs' auras (glow sprites: no shadow, no gradient per frame)
     if (row.look?.glow) fr.glow.draw(ctx, row.look.glow, x, y, 1.9 * r, 0.42 * base);
-    const winner = view.finished && view.winnerTeam >= 0 && f.team === view.winnerTeam;
+    const winner = view.matchOver && view.winnerTeam >= 0 && f.team === view.winnerTeam; // (--- fl-overhaul --- Stage 5: the match's winner)
     if (winner) fr.glow.draw(ctx, row.accent, x, y, 2.3 * r, 0.5 + 0.2 * Math.sin(now / 160));
     if (now < f.speedMulUntil && f.speedMul > 1) {
       const sp = Math.hypot(f.vx, f.vy);
@@ -466,7 +472,7 @@ export class FlBodiesPainter {
     // a held fighter trembles (0.06 R)
     let bx = x;
     let by = y;
-    if (f.heldBy >= 0 && !view.finished) {
+    if (f.heldBy >= 0 && !view.matchOver) {
       bx += (hash(Math.floor(now / 30), f.slot) - 0.5) * 0.12 * r;
       by += (hash(Math.floor(now / 30), f.slot + 5) - 0.5) * 0.12 * r;
     }
@@ -477,6 +483,7 @@ export class FlBodiesPainter {
     if (hitAge >= 0 && hitAge < FL_FLASH_WHITE_MS) this.drawBodyAt(ctx, fr, row, bx, by, r, fr.px, 1, 0.9 * base, squash, dir);
     else if (hitAge >= FL_FLASH_WHITE_MS && hitAge < FL_FLASH_TINT_MS) this.drawBodyAt(ctx, fr, row, bx, by, r, fr.px, 2, 0.4 * base * (1 - (hitAge - FL_FLASH_WHITE_MS) / (FL_FLASH_TINT_MS - FL_FLASH_WHITE_MS)), squash, dir);
     this.drawStatuses(ctx, fr, view, f, bx, by, base);
+    if (f.boss) drawCrown(ctx, bx, by, r, base); // --- fl-overhaul --- (Stage 5) a boss rush's boss: our own vector crown
   }
 
   private drawEchoes(ctx: CanvasRenderingContext2D, fr: FlFrame, f: FlFighter, base: number) {
@@ -506,7 +513,7 @@ export class FlBodiesPainter {
     const colors = o && o.teamColors && o.teamColors.length >= 2 ? o.teamColors : TEAM_COLORS;
     const r = f.r;
     ctx.save();
-    ctx.strokeStyle = colors[f.team] ?? TEAM_COLORS[f.team & 3];
+    ctx.strokeStyle = colors[f.team] ?? TEAM_COLORS[f.team % TEAM_COLORS.length];
     ctx.lineWidth = Math.max(2, 0.16 * r);
     if (f.team === 1) ctx.setLineDash([0.45 * r, 0.3 * r]);
     else if (f.team === 2) ctx.setLineDash([0.12 * r, 0.25 * r]);
@@ -749,7 +756,7 @@ export class FlBodiesPainter {
     }
     // low HP: the rim beats like a heart (1.2 Hz)
     const frac = f.hp / Math.max(1e-9, f.maxHp);
-    if (f.alive && frac < 0.25 && !view.finished) {
+    if (f.alive && frac < 0.25 && !view.matchOver) {
       const ph = ((now / 1000) * 1.2) % 1;
       const beat = Math.max(Math.exp(-((ph - 0.1) ** 2) / 0.003), 0.7 * Math.exp(-((ph - 0.3) ** 2) / 0.003));
       ctx.globalAlpha = 0.85 * beat * base;
@@ -803,7 +810,7 @@ export class FlBodiesPainter {
     const w = 2.2 * r;
     const h = Math.max(3, 0.3 * r);
     const top = y + 1.24 * r;
-    const blink = frac < 0.25 && !view.finished && Math.floor(now / 125) % 2 === 0;
+    const blink = frac < 0.25 && !view.matchOver && Math.floor(now / 125) % 2 === 0;
     ctx.globalAlpha = 1;
     ctx.fillStyle = fr.pal.hud.barTrack;
     ctx.fillRect(x - w / 2 - 1.5, top - 1.5, w + 3, h + 3);

@@ -816,6 +816,7 @@ describe("uncap-all: the guard", () => {
     rcWinner: "a racer's index",
     btHp: "hit points",
     flHp: "hit points", // --- fight-league ---
+    flBestOf: "games of a series (played one after another: a run holds two scores)", // --- fl-overhaul --- (Stage 5; flBracketSize and flBossWaves size the entrants: MEMORY_CEILINGS, FL_ENTRANT_CEILING)
     ctfScoreToWin: "a score",
     pdMisses: "misses allowed (the HUD draws at most ten hearts)",
     byPerfect: "a shot's index",

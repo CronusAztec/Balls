@@ -133,7 +133,7 @@ export interface FighterPickerProps {
 
 export default function FighterPicker({ t, slot, value, onChange }: FighterPickerProps) {
   const fl = useTranslations("FightLeague");
-  const letter = "ABCD"[slot] ?? "A";
+  const letter = "ABCDEF"[slot] ?? "A"; // (--- fl-overhaul --- Stage 5: slots E and F)
   const [open, setOpen] = useState(false);
   const row = FL_BY_ID.get(value) ?? null;
   const divisionLabel = (d: FlDivision) => fl(`division_${d}`);

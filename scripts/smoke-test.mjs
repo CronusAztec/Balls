@@ -11558,6 +11558,145 @@ await smokeBlock("fight-league", async () => {
   );
 }
 // --- end fl-overhaul ---
+// --- fl-overhaul --- (Stage 5) the shows, lean (8× playback, 3.5 s fps windows): a Bo3 series, an 8-bracket (its card between
+// bouts), a boss rush, a 3v3 of six shooters, the VS card's win chance (hidden under a handicap, BUFFED instead), the preset
+// gallery, the finder's 'clutch' and the rigged bracket's note
+{
+  // A Bo3 of Thor vs Loki at 8× to its series verdict: 2-1 or 2-0 (the winner's two first), a second game at least.
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flBo=3&seed=3`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinished === "1", null, { timeout: 150_000 }).catch(() => {});
+  const verdict = await page.waitForFunction(() => (document.querySelector("main canvas")?.dataset.flBanners || "").split(",").includes("seriesWin"), null, { timeout: 15_000 }).then(() => true).catch(() => false);
+  const d = await canvasData();
+  const score = (d.flSeries || "").split("-").map(Number).sort((a, b) => b - a).join("-");
+  check(
+    "fight league: a Bo3 of Thor vs Loki at 8× reaches its series verdict (2-1 or 2-0, a second game at least)",
+    d.flShow === "series" && d.flFinished === "1" && (score === "2-1" || score === "2-0") && Number(d.flMatchIndex) >= 1 && verdict,
+    `(show ${d.flShow}, finished ${d.flFinished}, series ${d.flSeries}, match index ${d.flMatchIndex}, bout ${d.flBout}, banners "${d.flBanners}")`,
+  );
+}
+{
+  // An 8-bracket of Thor's division at 8×: the bracket card between two bouts (played at 1× for its screenshot), then the
+  // champion after 7 bouts (data-fl-bout 7/7, seven results in data-fl-bracket) and its card.
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=bracket&fl1=thor&seed=3`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const card = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flBracketShown === "1", null, { timeout: 90_000 }).then(() => true).catch(() => false);
+  if (card) {
+    await page.getByRole("button", { name: "1x", exact: true }).click();
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(outDir, "sim-fight-league-bracket.png") });
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+  }
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinished === "1", null, { timeout: 300_000 }).catch(() => {});
+  const crowned = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flChampionShown === "1", null, { timeout: 15_000 }).then(() => true).catch(() => false);
+  const d = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-champion.png") });
+  check(
+    "fight league: an 8-bracket at 8× draws its bracket card and reaches its champion after 7 bouts (data-fl-bout 7/7)",
+    d.flShow === "bracket" && d.flFinished === "1" && !!d.flChampion && d.flBout === "7/7" && card && d.flBracketShown === "1" && crowned && (d.flBracket || "").split(",").length === 7,
+    `(show ${d.flShow}, finished ${d.flFinished}, champion "${d.flChampion}", bout ${d.flBout}, round ${d.flRound}, card ${card}, champion card ${crowned}, bracket "${d.flBracket}")`,
+  );
+}
+{
+  // A boss rush (slot A the boss, six Marvel challengers) at 8× to its verdict: THE BOSS FALLS at a wave, or BOSS SURVIVES 6/6.
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=boss&seed=3`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinished === "1", null, { timeout: 240_000 }).catch(() => {});
+  const verdict = await page
+    .waitForFunction(() => /(^|,)(bossFalls|bossSurvives)(,|$)/.test(document.querySelector("main canvas")?.dataset.flBanners || ""), null, { timeout: 15_000 })
+    .then(() => true)
+    .catch(() => false);
+  const d = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-boss.png") });
+  check(
+    "fight league: a boss rush at 8× reaches its verdict (data-fl-boss n/6, the boss bar drawn)",
+    d.flShow === "boss" && d.flFinished === "1" && /^[1-6]\/6$/.test(d.flBoss || "") && d.flBossBar === "1" && verdict,
+    `(show ${d.flShow}, finished ${d.flFinished}, boss ${d.flBoss}, boss HP ${d.flBossHp}, bar ${d.flBossBar}, banners "${d.flBanners}")`,
+  );
+}
+{
+  // A 3v3 of six shooters at 1× (no time cap, 300 HP: everyone stands through the measurement) keeps 30+ fps.
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=3v3&fl1=ironman&fl2=doomslayer&fl3=legolas&fl4=jinx&fl5=masterchief&fl6=samus&flT=0&flHp=300&seed=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(3000);
+  const fps = await pageFrameRates(3500);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-3v3.png") });
+  await timingCheck(
+    "fight league: a 3v3 of six shooters keeps 30+ fps",
+    data.flMatch === "3v3" && data.flFighters === "6" && Number(data.flShots) >= 20 && data.flFinished === "0",
+    fpsOk(fps, 5, 30),
+    `(fighters ${data.flFighters}, names ${data.flNames}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(3000, 5, 30),
+  );
+}
+{
+  // The VS card's win chance ('62 %' / '38 %'): shown at the defaults, hidden with a handicap (flD2=1.25), where BUFFED shows.
+  const vs = async (query) => {
+    await page.goto(`${BASE}/en/simulator/?mode=fightLeague&seed=5${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.flTime) >= 0.9, null, { timeout: 20_000 }).catch(() => {});
+    return canvasData();
+  };
+  const shown = await vs("");
+  const hidden = await vs("&flD2=1.25");
+  await page.screenshot({ path: path.join(outDir, "sim-fight-league-buffed.png") });
+  const odds = (shown.flOdds || "").split(",").map(Number);
+  check(
+    "fight league: the VS card shows the win chances (data-fl-odds), hidden with flD2=1.25 where the BUFFED tag shows",
+    shown.flVs === "1" && odds.length === 2 && Math.abs(odds[0] + odds[1] - 100) <= 1 && !shown.flHcTags && hidden.flVs === "1" && hidden.flOdds === "" && (hidden.flHcTags || "").split(",").includes("buffed"),
+    `(defaults: odds "${shown.flOdds}", tags "${shown.flHcTags}"; flD2=1.25: odds "${hidden.flOdds}", tags "${hidden.flHcTags}")`,
+  );
+}
+{
+  // The preset gallery: the bracket chip lists the five brackets, a card applies its format (flM=bracket, the size, the pool).
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague`, { waitUntil: "networkidle" });
+  const gallery = page.getByTestId("fl-preset-gallery");
+  await gallery.getByTestId("fl-preset-format-bracket").click();
+  const cards = await gallery.locator('[data-testid^="fl-preset-card-"]').count();
+  await gallery.getByTestId("fl-preset-card-games-16").click();
+  await page.waitForTimeout(300);
+  const q = new URLSearchParams(page.url().split("?")[1] || "");
+  const shows = await page.getByTestId("fl-shows").getAttribute("data-fl-show-kind").catch(() => "");
+  check(
+    "fight league: the preset gallery's bracket chip lists five brackets, and a card applies its format",
+    cards === 5 && q.get("flM") === "bracket" && q.get("flBr") === "16" && q.get("flE") === "random:games" && shows === "bracket",
+    `(cards ${cards}, ${q.toString()}, shows panel ${shows})`,
+  );
+}
+{
+  // Find Simulation: a 'clutch' win of Thor vs Loki, played at 8× – the replay shows CLUTCH! (data-fl-banners, data-fl-story).
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("clutch");
+  const button = page.getByRole("button", { name: /Find: Clutch win/ });
+  const labelled = await button.isVisible();
+  await button.click();
+  const done = await page.getByText(/Found!|No “|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|No “|Didn't find simulation/).first().innerText() : "timeout";
+  let data = {};
+  if (/Found! Clutch win/.test(text)) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinished === "1", null, { timeout: 90_000 }).catch(() => {});
+    await page.waitForFunction(() => (document.querySelector("main canvas")?.dataset.flBanners || "").split(",").includes("clutch"), null, { timeout: 15_000 }).catch(() => {});
+    data = await canvasData();
+  }
+  check(
+    "Find Simulation finds a 'clutch' Thor vs Loki, and the replay shows CLUTCH!",
+    labelled && /Found! Clutch win/.test(text) && (data.flBanners || "").split(",").includes("clutch") && (data.flStory || "").split(",").includes("clutch"),
+    `("${text}", replay: winner ${data.flWinner}, HP ${data.flHp}, story "${data.flStory}", banners "${data.flBanners}")`,
+  );
+}
+{
+  // The rigged note names the format: a bracket rigged for its pinned Thor.
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=bracket&fl1=thor&fw=0`, { waitUntil: "networkidle" });
+  const note = await page.getByTestId("rigged-note").innerText().catch(() => "");
+  check("fight league: the rigged bracket's note names the format", /Rigged \(bracket\): A · Thor wins/.test(note), `("${note}")`);
+}
+// --- end fl-overhaul ---
 // --- end fight-league ---
 });
 

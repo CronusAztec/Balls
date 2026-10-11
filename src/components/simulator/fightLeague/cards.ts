@@ -6,6 +6,7 @@ import { GOLD, INK, TEAM_COLORS, greyOf } from "./palette";
 import { TWO_PI, hash, roundRectPath } from "./sprites";
 import type { FlTextStyle } from "./text";
 import type { FlWeaponsPainter } from "./weapons";
+import { drawHandicapTags, flTeamMatch, type FlShowsPainter } from "./shows"; // --- fl-overhaul --- (Stage 5)
 
 /**
  * --- fl-overhaul --- (Stage 3) Fight League's cards and banners (screen space, inside the exported square):
@@ -62,7 +63,7 @@ export class FlCardsPainter {
     const fighters = view.fighters;
     if (fighters.length === 0) return;
     const off = (1 - slide) * A.w;
-    const teams = view.match === "2v2"; // (--- fl-overhaul --- Stage 3: a panel per team, in its team colour)
+    const teams = flTeamMatch(view.match); // (--- fl-overhaul --- Stage 3: a panel per team, in its team colour; Stage 5: a 3v3's too)
     const sides = teams ? 2 : fighters.length === 2 ? 2 : 0;
     if (sides === 2) {
       for (let side = 0; side < 2; side++) {
@@ -125,7 +126,7 @@ export class FlCardsPainter {
           for (const f of fighters) {
             if (f.team !== side) continue;
             const R = 1.5 * f.r * dk;
-            const bx = cx + (i - (count - 1) / 2) * 0.18 * A.w;
+            const bx = cx + (i - (count - 1) / 2) * (count > 2 ? 0.13 : 0.18) * A.w; // (--- fl-overhaul --- Stage 5: three a side)
             bodies.drawPortrait(ctx, fr, f, bx, A.y + 0.3 * A.h, R, alpha * (lost ? 0.55 : 1));
             this.memberChip(ctx, fr, f, cx, A.y + (0.54 + 0.085 * i) * A.h, 0.42 * A.w, S, alpha, lost);
             if (winnerTeam !== null && !lost) names = names ? `${names} + ${f.row.name}` : f.row.name;
@@ -201,9 +202,8 @@ export class FlCardsPainter {
     ctx.fill();
     ctx.restore();
     fr.text.draw(ctx, role, cx, y + 0.115 * S + 0.75 * chipFs, chipFs, style, "center", w, a);
-    // a handicap ≠ 1: its tag
-    const tag = handicapTag(view, f, L);
-    if (tag) fr.text.draw(ctx, tag, cx, y + 0.158 * S, 0.018 * S, { role: "mono", color: "#fde047", stroke: INK, strokeK: 0.14 }, "center", maxW, a);
+    // a handicap ≠ 1: its BUFFED / NERFED tags (--- fl-overhaul --- Stage 5: in lime and red with their arrows; the win chance hides)
+    drawHandicapTags(ctx, fr, f, L, cx, y + 0.158 * S, maxW, S, a);
   }
 
   private strike(ctx: CanvasRenderingContext2D, x0: number, x1: number, y: number, S: number, alpha: number) {
@@ -219,12 +219,14 @@ export class FlCardsPainter {
   }
 
   /** The VS card on the intro's clock (and FIGHT! as the fighters launch). */
-  drawVs(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, L: FightLeagueLabels, lay: FlHudLayout, ox: number, oy: number, bodies: FlBodiesPainter, weapons: FlWeaponsPainter, hud: boolean) {
-    const now = fr.now;
+  drawVs(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, L: FightLeagueLabels, lay: FlHudLayout, ox: number, oy: number, bodies: FlBodiesPainter, weapons: FlWeaponsPainter, hud: boolean, shows?: FlShowsPainter) {
+    // (--- fl-overhaul --- Stage 5: every match of a show plays its card from its own start – the clock below is the match's)
+    const t0 = view.show ? view.show.matchStartMs : 0;
+    const now = fr.now - t0;
     const S = lay.side;
     const A: Rect = { x: ox + lay.arena.x, y: oy + lay.arena.y, w: lay.arena.w, h: lay.arena.h };
-    const intro = view.introMs;
-    if (hud && now < intro) {
+    const intro = view.introMs - t0;
+    if (hud && now < intro && now >= 0) {
       const veil = now < FL_VS_VEIL_MS ? now / FL_VS_VEIL_MS : now > FL_VS_PANELS_OUT_MS ? Math.max(0, 1 - (now - FL_VS_PANELS_OUT_MS) / Math.max(1, intro - FL_VS_PANELS_OUT_MS)) : 1;
       ctx.save();
       ctx.globalAlpha = 0.55 * veil;
@@ -265,10 +267,12 @@ export class FlCardsPainter {
       }
       this.vsShown = true;
       this.shown.add("vs");
+      // --- fl-overhaul --- (Stage 5) the show's line and the win chance (simulated) under the names
+      if (shows) shows.drawVsExtras(ctx, fr, view, L, lay, A, now, 1 - Math.max(0, Math.min(1, (now - FL_VS_PANELS_OUT_MS) / Math.max(1, intro - FL_VS_PANELS_OUT_MS))));
     }
     // FIGHT! as the fighters launch
     const fightAge = now - intro;
-    if (fightAge >= 0 && fightAge < FIGHT_FLASH_MS && !view.finished) {
+    if (fightAge >= 0 && fightAge < FIGHT_FLASH_MS && !view.matchOver /* --- fl-overhaul --- (Stage 5) */) {
       const t = fightAge / FIGHT_FLASH_MS;
       const pop = t < 0.2 ? 0.7 + 1.5 * t : 1;
       fr.text.draw(ctx, fr.text.upperOf(L.fight), A.x + A.w / 2, A.y + A.h / 2, 0.11 * S, this.display("#a3e635", "rgba(163, 230, 53, 0.55)"), "center", 0.9 * A.w, t < 0.6 ? 1 : 1 - (t - 0.6) / 0.4, pop);
@@ -354,7 +358,7 @@ export class FlCardsPainter {
    * The verdict's card – the winner's, or DRAW / DOUBLE KO – with the confetti, from the moment the schedule shows it; in the
    * last 0.4 s of the page's hold it crossfades toward the VS split (the clip loops).
    */
-  drawVerdict(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, L: FightLeagueLabels, lay: FlHudLayout, ox: number, oy: number, bodies: FlBodiesPainter, weapons: FlWeaponsPainter, kind: number) {
+  drawVerdict(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, L: FightLeagueLabels, lay: FlHudLayout, ox: number, oy: number, bodies: FlBodiesPainter, weapons: FlWeaponsPainter, kind: number, shows?: FlShowsPainter) {
     if (!view.finished || (kind !== FB_WIN && kind !== FB_DRAW && kind !== FB_DOUBLE_KO)) return;
     const now = fr.now;
     const S = lay.side;
@@ -375,7 +379,7 @@ export class FlCardsPainter {
     ctx.restore();
     const slide = ease(age / FL_VS_PANELS_IN_MS);
     const winnerTeam = kind === FB_WIN && lead ? view.winnerTeam : -2;
-    if (view.fighters.length === 2 || view.match === "2v2") this.drawPanels(ctx, fr, view, L, A, S, slide, a, bodies, weapons, winnerTeam);
+    if (view.fighters.length === 2 || flTeamMatch(view.match)) this.drawPanels(ctx, fr, view, L, A, S, slide, a, bodies, weapons, winnerTeam);
     else {
       this.drawPanels(ctx, fr, view, L, A, S, slide, a * 0.85, bodies, weapons, winnerTeam);
       if (lead && kind === FB_WIN) {
@@ -394,18 +398,23 @@ export class FlCardsPainter {
       fr.text.draw(ctx, fr.text.upperOf(title), cx, cy, lay.bannerFs * 1.1, this.display("#e4e4e7"), "center", 0.86 * A.w, a, pop);
       if (view.byTime) fr.text.draw(ctx, fr.text.upperOf(L.time), cx, cy + 0.09 * S, 0.035 * S, this.display("#fca5a5"), "center", 0.8 * A.w, a);
     } else {
-      let ty = view.fighters.length === 2 || view.match === "2v2" ? cy - 0.04 * S : A.y + 0.82 * A.h;
-      let tags = 0;
-      for (let s = Math.max(0, view.bannerSerial - FL_BANNER_CAP); s < view.bannerSerial && tags < 2; s++) {
-        const bn = view.banners[s % FL_BANNER_CAP];
-        if (bn.kind !== FB_PERFECT && bn.kind !== FB_CLUTCH) continue;
-        if (now < bn.t) continue;
-        const text = bn.kind === FB_PERFECT ? L.perfect : L.clutch;
-        const pop = now - bn.t < 150 ? 0.7 + 0.3 * ease((now - bn.t) / 150) : 1;
-        fr.text.draw(ctx, fr.text.upperOf(text), cx, ty, 0.05 * S, this.display(bn.kind === FB_PERFECT ? GOLD : "#f87171", null, 0.12), "center", 0.4 * A.w, a, pop);
-        this.shown.add(bn.kind === FB_PERFECT ? "perfect" : "clutch");
-        ty += 0.06 * S;
-        tags++;
+      const ty = view.fighters.length === 2 || flTeamMatch(view.match) ? cy - 0.04 * S : A.y + 0.82 * A.h;
+      // --- fl-overhaul --- (Stage 5) the story's tags (PERFECT! > UPSET! > COMEBACK! > CLUTCH!, two at most) and '[ability] finish!'
+      if (shows) shows.drawTags(ctx, fr, view, L, cx, ty, S, 0.4 * A.w, a, this.shown);
+      else {
+        let y = ty;
+        let tags = 0;
+        for (let s = Math.max(0, view.bannerSerial - FL_BANNER_CAP); s < view.bannerSerial && tags < 2; s++) {
+          const bn = view.banners[s % FL_BANNER_CAP];
+          if (bn.kind !== FB_PERFECT && bn.kind !== FB_CLUTCH) continue;
+          if (now < bn.t) continue;
+          const text = bn.kind === FB_PERFECT ? L.perfect : L.clutch;
+          const pop = now - bn.t < 150 ? 0.7 + 0.3 * ease((now - bn.t) / 150) : 1;
+          fr.text.draw(ctx, fr.text.upperOf(text), cx, y, 0.05 * S, this.display(bn.kind === FB_PERFECT ? GOLD : "#f87171", null, 0.12), "center", 0.4 * A.w, a, pop);
+          this.shown.add(bn.kind === FB_PERFECT ? "perfect" : "clutch");
+          y += 0.06 * S;
+          tags++;
+        }
       }
       let hp = 0;
       let hits = 0;
@@ -415,7 +424,7 @@ export class FlCardsPainter {
       }
       const secs = Math.max(0, (view.finishMs - view.introMs) / 1000);
       const line = `${L.winSub(Math.ceil(hp - 1e-6), hits)} · ${secs.toFixed(1)} s`;
-      fr.text.draw(ctx, view.byTime ? `${L.time} · ${line}` : line, cx, view.fighters.length === 2 || view.match === "2v2" ? A.y + 0.9 * A.h : A.y + 0.92 * A.h, 0.026 * S, { role: "ui", color: "#f4f4f5", stroke: INK, strokeK: 0.14, weight: 700 }, "center", 0.9 * A.w, a);
+      fr.text.draw(ctx, view.byTime ? `${L.time} · ${line}` : line, cx, view.fighters.length === 2 || flTeamMatch(view.match) ? A.y + 0.9 * A.h : A.y + 0.92 * A.h, 0.026 * S, { role: "ui", color: "#f4f4f5", stroke: INK, strokeK: 0.14, weight: 700 }, "center", 0.9 * A.w, a);
       this.shown.add("win");
     }
     // the loop: the VS split fading in over the last 0.4 s of the hold
@@ -428,6 +437,8 @@ export class FlCardsPainter {
       this.drawPanels(ctx, fr, view, L, A, S, 1, fadeOut, bodies, weapons, null);
       fr.text.draw(ctx, fr.text.upperOf(L.vs), cx, cy, 0.14 * S, this.display("#a3e635", "rgba(163, 230, 53, 0.55)"), "center", 0, fadeOut);
     }
+    // --- fl-overhaul --- (Stage 5) a show's verdict over the winner's card: the series, the boss rush
+    if (shows && view.show && view.show.kind !== "single") shows.drawShowLine(ctx, fr, view, L, lay, ox, oy, a, this.shown);
     this.bannerShown = true;
   }
 
@@ -463,20 +474,5 @@ export class FlCardsPainter {
 /** A team's colour: the Teams roster's (the page hands it in), else the built-in pair – the colour of its fighters' rings. */
 function teamColor(fr: FlFrame, team: number): string {
   const colors = fr.o && fr.o.teamColors && fr.o.teamColors.length >= 2 ? fr.o.teamColors : TEAM_COLORS;
-  return colors[team] ?? TEAM_COLORS[team & 3];
-}
-
-/** A handicap's tag (a multiplier ≠ 1 of the slot): "DMG ×1.5 · SPD ×0.8" (empty: none). */
-function handicapTag(view: FightLeagueView, f: FlFighter, L: FightLeagueLabels): string {
-  const s = view.settings;
-  const i = f.slot;
-  const parts: string[] = [];
-  const add = (v: number | undefined, word: string) => {
-    if (v !== undefined && Math.abs(v - 1) > 1e-9) parts.push(`${word} ×${Math.round(v * 100) / 100}`);
-  };
-  add(s.damage?.[i], L.damage);
-  add(s.speed?.[i], L.speed);
-  add(s.attack?.[i], L.attack);
-  add(s.cast?.[i], L.cast);
-  return parts.join(" · ");
+  return colors[team] ?? TEAM_COLORS[team % TEAM_COLORS.length];
 }

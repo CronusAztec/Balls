@@ -57,7 +57,68 @@ export interface FightLeagueLabels {
   /** A division's and a role's display names (the VS card's chips). */
   division: (id: string) => string;
   role: (id: string) => string;
+  /** --- fl-overhaul --- (Stage 5) the story's and the shows' words (absent: the English defaults, `DEFAULT_FL_SHOW_LABELS`). */
+  shows?: FlShowLabels;
 }
+
+/** --- fl-overhaul --- (Stage 5) The story's tags, the shows' banners and cards, the win chance's words. */
+export interface FlShowLabels {
+  upset: string;
+  comeback: string;
+  /** "[ability] finish!" */
+  finish: (ability: string) => string;
+  /** "GAME [n]" */
+  game: (n: number) => string;
+  seriesPoint: string;
+  /** "[name] wins the series [a]–[b]!" */
+  seriesWin: (name: string, a: number, b: number) => string;
+  rematch: string;
+  /** A bracket's round: the round of 16 (and earlier rounds), the quarter-final, the semi-final, the final. */
+  round: (code: "r16" | "qf" | "sf" | "final") => string;
+  champion: string;
+  /** "THE BOSS FALLS – [name]" */
+  bossFalls: (name: string) => string;
+  /** "BOSS SURVIVES [n]/[total]" */
+  bossSurvives: (n: number, total: number) => string;
+  /** "WAVE [n]/[m]" */
+  wave: (n: number, m: number) => string;
+  phase2: string;
+  challenger: string;
+  underdog: string;
+  buffed: string;
+  nerfed: string;
+  /** "win chance (simulated)" and its estimate mark ("est."). */
+  winChance: string;
+  est: string;
+  decider: string;
+  /** The champion's path: "beat [names]". */
+  beat: (names: string) => string;
+}
+
+/** --- fl-overhaul --- (Stage 5) The English defaults of the shows' words (the page hands in its translations). */
+export const DEFAULT_FL_SHOW_LABELS: FlShowLabels = {
+  upset: "UPSET!",
+  comeback: "COMEBACK!",
+  finish: (ability) => `${ability} finish!`,
+  game: (n) => `GAME ${n}`,
+  seriesPoint: "SERIES POINT",
+  seriesWin: (name, a, b) => `${name} wins the series ${a}–${b}!`,
+  rematch: "REMATCH!",
+  round: (code) => (code === "final" ? "FINAL" : code === "sf" ? "SEMI-FINAL" : code === "qf" ? "QUARTER-FINAL" : "ROUND OF 16"),
+  champion: "CHAMPION",
+  bossFalls: (name) => `THE BOSS FALLS – ${name}`,
+  bossSurvives: (n, total) => `BOSS SURVIVES ${n}/${total}`,
+  wave: (n, m) => `WAVE ${n}/${m}`,
+  phase2: "PHASE 2",
+  challenger: "CHALLENGER",
+  underdog: "UNDERDOG",
+  buffed: "BUFFED",
+  nerfed: "NERFED",
+  winChance: "win chance (simulated)",
+  est: "est.",
+  decider: "DECIDER",
+  beat: (names) => `beat ${names}`,
+};
 
 export interface FightLeagueRenderOptions {
   /** Device pixels per CSS pixel: the sprites are rasterised at it. */

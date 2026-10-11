@@ -130,6 +130,7 @@ export class FlFxPainter {
   telegraphs = 0;
   private readonly seenTelegraph = new Float64Array(8).fill(-1);
   private generation = -1;
+  private matchSerial = -1;
   private vignette: Sprite | null = null;
 
   begin(view: FightLeagueView) {
@@ -137,6 +138,11 @@ export class FlFxPainter {
       this.generation = view.generation;
       this.callouts.clear();
       this.telegraphs = 0;
+      this.seenTelegraph.fill(-1);
+    }
+    // --- fl-overhaul --- (Stage 5) a show's new match: its slots' telegraphs start over
+    if (view.matchSerial !== this.matchSerial) {
+      this.matchSerial = view.matchSerial;
       this.seenTelegraph.fill(-1);
     }
   }

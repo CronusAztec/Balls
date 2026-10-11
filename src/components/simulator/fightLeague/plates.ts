@@ -26,7 +26,7 @@ export function drawPlates(ctx: CanvasRenderingContext2D, text: FlTextCache, vie
   const fs = lay.fontSize;
   // the top plate: the names in their colours, joined by "vs" (a team's names by "+")
   const sides: { names: string; color: string }[] = [];
-  if (view.match === "2v2") {
+  if (view.match === "2v2" || view.match === "3v3") { // (--- fl-overhaul --- Stage 5: a 3v3's teams too)
     for (let t = 0; t < 2; t++) {
       const members = view.fighters.filter((f) => f.team === t);
       if (members.length === 0) continue;

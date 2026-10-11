@@ -27,6 +27,8 @@ import {
   type FightLeagueView,
   type FlBanner,
 } from "./fightLeague";
+// --- fl-overhaul --- (Stage 5) the story's and the shows' banners (their names for data-fl-banners; PHASE 2 a centre banner)
+import { FB_BOSS_FALLS, FB_BOSS_SURVIVES, FB_CHALLENGER, FB_CHAMPION, FB_COMEBACK, FB_FINAL, FB_FINISH, FB_GAME, FB_MATCH_POINT, FB_PHASE2, FB_QUARTER_FINAL, FB_REMATCH, FB_ROUND_OF_16, FB_SEMI_FINAL, FB_SERIES_POINT, FB_SERIES_WIN, FB_UPSET, FB_WAVE } from "./fightLeague";
 
 /**
  * --- fl-overhaul --- (Stage 3) Fight League's visual maths: pure functions (no DOM, no clock, no random numbers) that the mode,
@@ -419,6 +421,8 @@ export interface FlHudLayout {
   /** The names' centre lines (1v1: one; stacked: two rows a side), the HP bars' tops, the source line's centre. */
   nameY: number[];
   hpBarY: number[];
+  /** --- fl-overhaul --- (Stage 5) A 3v3's HP bars sit beside their names (three rows a side), not under them. */
+  inlineBars?: boolean;
   sourceY: number;
   hpBarH: number;
   hpBarW: number;
@@ -444,6 +448,7 @@ export interface FlHudLayout {
 
 /** Whether `match` keeps the full ability boxes (two stat lines): the duel and the 2v2; the free-for-alls use compact ones. */
 export function flFullBoxes(match: string, n: number): boolean {
+  // (--- fl-overhaul --- Stage 5: a 3v3's six boxes are compact – one stat line each, like the free-for-alls')
   return n <= 2 || match === "2v2";
 }
 
@@ -467,12 +472,14 @@ export function flHudLayout(side: number, n: number, match: string, portrait: bo
   const left = 0.035 * S;
   const right = (portrait ? 0.88 : 0.965) * S;
   const stacked = n > 2;
+  // --- fl-overhaul --- (Stage 5) a 3v3: three rows a side (A B C left, D E F right), each name with its HP bar beside it
+  const trio = match === "3v3";
   const nameFs = (stacked ? 0.028 : 0.052) * S;
   const unit = 0.065 * arena.w;
   // the band, top down (1v1): name 0.024 S, HP bar 0.047–0.059 S, source 0.068 S, lead bar 0.077–0.089 S, the rim from 0.091 S
-  const nameY = stacked ? [0.017 * S, 0.052 * S] : [0.024 * S];
-  const hpBarH = (stacked ? 0.006 : 0.012) * S;
-  const hpBarY = stacked ? [0.032 * S, 0.067 * S] : [0.047 * S];
+  const nameY = trio ? [0.016 * S, 0.044 * S, 0.072 * S] : stacked ? [0.017 * S, 0.052 * S] : [0.024 * S];
+  const hpBarH = (trio ? 0.008 : stacked ? 0.006 : 0.012) * S;
+  const hpBarY = trio ? nameY.map((y) => y - 0.004 * S) : stacked ? [0.032 * S, 0.067 * S] : [0.047 * S];
   const boxesTop = (FL_ARENA_TOP + FL_ARENA_FRAC) * S + 0.002 * S;
   // the boxes end a badge's height and inset (and a hair) above the square's bottom
   const boxesBottom = S * (1 - BADGE_INSET - BADGE_HEIGHT) - 0.002 * S;
@@ -514,13 +521,14 @@ export function flHudLayout(side: number, n: number, match: string, portrait: bo
     hpBarY,
     sourceY: 0.068 * S,
     hpBarH,
-    hpBarW: (stacked ? 0.2 : 0.34) * S,
+    hpBarW: (trio ? 0.1 : stacked ? 0.2 : 0.34) * S,
+    inlineBars: trio,
     sourceFs: 0.018 * S,
     timerFs: 0.026 * S,
     vsY: 0.022 * S,
     pillY: stacked ? 0.042 * S : 0.058 * S,
     pillH: 0.032 * S,
-    leadBar: { x: left, y: 0.077 * S, w: right - left, h: 0.012 * S },
+    leadBar: trio ? { x: left, y: 0.0895 * S, w: right - left, h: 0.007 * S } : { x: left, y: 0.077 * S, w: right - left, h: 0.012 * S },
     vsFs: 0.026 * S,
     bannerFs: 0.085 * S,
     unit,
@@ -577,6 +585,43 @@ export function flBannerName(kind: number): string | null {
       return "suddenDeath";
     case FB_CLASH:
       return "clash";
+    // --- fl-overhaul --- (Stage 5)
+    case FB_UPSET:
+      return "upset";
+    case FB_COMEBACK:
+      return "comeback";
+    case FB_FINISH:
+      return "finish";
+    case FB_GAME:
+      return "game";
+    case FB_SERIES_POINT:
+      return "seriesPoint";
+    case FB_SERIES_WIN:
+      return "seriesWin";
+    case FB_REMATCH:
+      return "rematch";
+    case FB_MATCH_POINT:
+      return "decider";
+    case FB_ROUND_OF_16:
+      return "roundOf16";
+    case FB_QUARTER_FINAL:
+      return "quarterFinal";
+    case FB_SEMI_FINAL:
+      return "semiFinal";
+    case FB_FINAL:
+      return "final";
+    case FB_CHAMPION:
+      return "champion";
+    case FB_BOSS_FALLS:
+      return "bossFalls";
+    case FB_BOSS_SURVIVES:
+      return "bossSurvives";
+    case FB_PHASE2:
+      return "phase2";
+    case FB_WAVE:
+      return "wave";
+    case FB_CHALLENGER:
+      return "challenger";
     default:
       return null;
   }
@@ -595,6 +640,7 @@ export function flBannerPriority(kind: number): number {
     case FB_KO:
       return 3;
     case FB_FIRST_BLOOD:
+    case FB_PHASE2: // --- fl-overhaul --- (Stage 5) a boss at half its HP, mid-fight
       return 2;
     case FB_SUDDEN:
       return 1;
@@ -614,6 +660,8 @@ export function flBannerMs(kind: number): number {
       return FL_FINALE_BANNER_MS;
     case FB_SUDDEN:
       return 1600;
+    case FB_PHASE2: // --- fl-overhaul --- (Stage 5)
+      return 1200;
     case FB_DOUBLE_KO:
     case FB_DRAW:
     case FB_TIME:

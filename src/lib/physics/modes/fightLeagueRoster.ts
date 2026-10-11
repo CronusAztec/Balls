@@ -606,27 +606,46 @@ export function weaponLabel(row: FlFighterRow): string {
     .join(" + ");
 }
 
-/** --- fl-overhaul --- The presets' formats: a duel (1v1), a team fight (2v2), a free-for-all (more come with the match types). */
-export type FlPresetFormat = "duel" | "team" | "ffa";
+/**
+ * --- fl-overhaul --- The presets' formats: a duel (1v1), a team fight (2v2, --- Stage 5 --- 3v3), a free-for-all, and (Stage 5) a
+ * best-of series, a bracket, a boss rush and a "rework" (a matchup with handicaps: a buffed or nerfed fighter).
+ */
+export type FlPresetFormat = "duel" | "team" | "ffa" | "series" | "bracket" | "boss" | "rework";
+/** --- fl-overhaul --- (Stage 5) The gallery's format chips, in order. */
+export const FL_PRESET_FORMATS: readonly FlPresetFormat[] = ["duel", "series", "team", "ffa", "bracket", "boss", "rework"];
 
-/** The matchup presets of the panel (every pair in its genre); `fighters` fill the slots A–D, `match` the match type. */
+/** The matchup presets of the panel (every pair in its genre); `fighters` fill the slots A–D (--- fl-overhaul --- Stage 5: A–F), `match` the match type. */
 export interface FlPreset {
   id: string;
   /** English label (fighter names are proper names; the panel shows it as is). */
   label: string;
   fighters: readonly string[];
-  match: "1v1" | "2v2" | "ffa3" | "ffa4";
+  match: "1v1" | "2v2" | "ffa3" | "ffa4" | "3v3" | "bracket" | "boss";
   /** --- fl-overhaul --- The format (the gallery's grouping). */
   format: FlPresetFormat;
   /** --- fl-overhaul --- An optional hook line for a clip (English; the creator tools read it). */
   hook?: string;
+  // --- fl-overhaul --- (Stage 5) the shows and the reworks
+  /** A best-of series (3: a Bo3); absent: one match. */
+  bestOf?: number;
+  /** A bracket's entrants or a boss rush's challengers (`flEntrants`: ids and tokens) and their count. */
+  entrants?: string;
+  size?: number;
+  /** Per-slot handicaps (a rework): the multipliers of slots A, B, … (absent or 1: none). */
+  handicaps?: { speed?: readonly number[]; damage?: readonly number[]; attack?: readonly number[]; cast?: readonly number[] };
 }
 
 const duel = (id: string, label: string, a: string, b: string): FlPreset => ({ id, label, fighters: [a, b], match: "1v1", format: "duel" });
 const team = (id: string, label: string, fighters: readonly string[]): FlPreset => ({ id, label, fighters, match: "2v2", format: "team" });
 const ffa = (id: string, label: string, fighters: readonly string[]): FlPreset => ({ id, label, fighters, match: fighters.length === 3 ? "ffa3" : "ffa4", format: "ffa" });
+// --- fl-overhaul --- (Stage 5) a best-of-3 rivalry, a 3v3, a bracket (its pinned stars and its pool), a boss rush (the boss and its pool), a rework
+const series = (id: string, label: string, a: string, b: string): FlPreset => ({ id, label, fighters: [a, b], match: "1v1", format: "series", bestOf: 3 });
+const trio = (id: string, label: string, fighters: readonly string[]): FlPreset => ({ id, label, fighters, match: "3v3", format: "team" });
+const bracket = (id: string, label: string, pinned: readonly string[], entrants: string, size: number): FlPreset => ({ id, label, fighters: pinned, match: "bracket", format: "bracket", entrants, size });
+const boss = (id: string, label: string, bossId: string, entrants: string, waves: number): FlPreset => ({ id, label, fighters: [bossId], match: "boss", format: "boss", entrants, size: waves });
+const rework = (id: string, label: string, a: string, b: string, handicaps: NonNullable<FlPreset["handicaps"]>): FlPreset => ({ id, label, fighters: [a, b], match: "1v1", format: "rework", handicaps });
 
-/** The 50 in-division presets (the first 14 of the first release, ids unchanged; Thor vs Loki the default). */
+/** The 50 in-division presets (the first 14 of the first release, ids unchanged; Thor vs Loki the default) – --- fl-overhaul --- (Stage 5) and 26 more: series, 3v3s, brackets, boss rushes and reworks (76 in all). */
 export const FL_PRESETS: readonly FlPreset[] = [
   duel("thor-loki", "Thor vs Loki", "thor", "loki"),
   duel("falcon-mac", "Captain Falcon vs Little Mac", "captainfalcon", "littlemac"),
@@ -679,6 +698,34 @@ export const FL_PRESETS: readonly FlPreset[] = [
   team("toys-vs-swamp", "Buzz Lightyear + Woody vs Shrek + Puss in Boots", ["buzz", "woody", "shrek", "pussinboots"]),
   duel("tom-jerry", "Tom vs Jerry", "tom", "jerry"),
   ffa("cartoons-ffa", "Cartoons free-for-all", ["homer", "spongebob", "rick", "bugsbunny"]),
+  // --- fl-overhaul --- (Stage 5) the research's additions: ten best-of-3 rivalries, three in-division 3v3s, five brackets (a
+  // division or a conference each), four boss rushes (Gerald against one division) and four reworks (a handicap that tells a story)
+  series("thor-loki-bo3", "Bo3: Thor vs Loki", "thor", "loki"),
+  series("batman-joker-bo3", "Bo3: Batman vs Joker", "batman", "joker"),
+  series("goku-vegeta-bo3", "Bo3: Goku vs Vegeta", "goku", "vegeta"),
+  series("luke-vader-bo3", "Bo3: Luke Skywalker vs Darth Vader", "luke", "vader"),
+  series("mario-sonic-bo3", "Bo3: Mario vs Sonic", "mario", "sonic"),
+  series("ryu-ken-bo3", "Bo3: Ryu vs Ken", "ryu", "ken"),
+  series("pikachu-charizard-bo3", "Bo3: Pikachu vs Charizard", "pikachu", "charizard"),
+  series("freddy-jason-bo3", "Bo3: Freddy Krueger vs Jason Voorhees", "freddy", "jason"),
+  series("tom-jerry-bo3", "Bo3: Tom vs Jerry", "tom", "jerry"),
+  series("gojo-sukuna-bo3", "Bo3: Gojo vs Sukuna", "gojo", "sukuna"),
+  trio("avengers-3v3", "3v3: Thor + Iron Man + Captain America vs Thanos + Loki + Venom", ["thor", "ironman", "captainamerica", "thanos", "loki", "venom"]),
+  trio("shonen-3v3", "3v3: Goku + Naruto + Luffy vs Frieza + Itachi + Sasuke", ["goku", "naruto", "luffy", "frieza", "itachi", "sasuke"]),
+  trio("starwars-3v3", "3v3: Luke + Obi-Wan + Yoda vs Vader + Palpatine + Kylo Ren", ["luke", "obiwan", "yoda", "vader", "palpatine", "kyloren"]),
+  bracket("marvel-8", "Marvel bracket (8)", ["thor", "loki"], "random:marvel", 8),
+  bracket("shonen-8", "Shonen bracket (8)", ["goku", "naruto"], "random:shonen", 8),
+  bracket("games-16", "Video games bracket (16)", ["mario", "masterchief"], "random:games", 16),
+  bracket("anime-16", "Anime bracket (16)", ["goku", "gojo"], "random:anime", 16),
+  bracket("movies-16", "Movies bracket (16)", ["luke", "johnwick"], "random:movies", 16),
+  boss("gerald-marvel", "Boss rush: Gerald vs Marvel", "gerald", "random:marvel", 6),
+  boss("gerald-starwars", "Boss rush: Gerald vs Star Wars", "gerald", "random:starWars", 6),
+  boss("gerald-horror", "Boss rush: Gerald vs Horror movies", "gerald", "random:horror", 6),
+  boss("gerald-cartoons", "Boss rush: Gerald vs Cartoons", "gerald", "random:cartoons", 6),
+  rework("loki-buffed", "Rework: Loki buffed vs Thor", "thor", "loki", { damage: [1, 1.25] }),
+  rework("hulk-nerfed", "Rework: Hulk nerfed vs Thor", "hulk", "thor", { speed: [0.8, 1] }),
+  rework("mac-buffed", "Rework: Little Mac buffed vs Captain Falcon", "littlemac", "captainfalcon", { attack: [1.25, 1] }),
+  rework("vader-nerfed", "Rework: Darth Vader nerfed vs Obi-Wan Kenobi", "vader", "obiwan", { damage: [0.8, 1] }),
 ];
 
 /* ------------------------------------------------------------------ --- fl-overhaul --- the roster's fingerprint and table */

@@ -40,6 +40,18 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "star-set": "outcomeStarSet", // --- chord-stars ---
   "lift-order": "outcomeLiftOrder", // --- bead-hoops ---
   "all-up-by": "outcomeAllUpBy", // --- bead-hoops ---
+  // --- fl-overhaul --- (Stage 5) Fight League's story
+  upset: "outcomeUpset",
+  clutch: "outcomeClutch",
+  perfect: "outcomePerfect",
+  comeback: "outcomeComeback",
+  "ability-finish": "outcomeAbilityFinish",
+  "lead-changes": "outcomeLeadChanges",
+  "both-low-at": "outcomeBothLowAt",
+  decider: "outcomeDecider",
+  sudden: "outcomeSudden",
+  champion: "outcomeChampion",
+  "boss-falls-at": "outcomeBossFallsAt",
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -57,7 +69,24 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "star-set": "hintStarSet", // --- chord-stars ---
   "lift-order": "hintLiftOrder", // --- bead-hoops ---
   "all-up-by": "hintAllUpBy", // --- bead-hoops ---
+  // --- fl-overhaul --- (Stage 5) Fight League's story
+  upset: "hintUpset",
+  clutch: "hintClutch",
+  perfect: "hintPerfect",
+  comeback: "hintComeback",
+  "ability-finish": "hintAbilityFinish",
+  "lead-changes": "hintLeadChanges",
+  "both-low-at": "hintBothLowAt",
+  decider: "hintDecider",
+  sudden: "hintSudden",
+  champion: "hintChampion",
+  "boss-falls-at": "hintBossFallsAt",
 };
+
+/** --- fl-overhaul --- (Stage 5) An outcome's label key (`Rigged.*`): the story outcomes' generic texts name it. */
+export function outcomeLabelKey(outcome: FinderOutcomeKind): string {
+  return OUTCOME_LABELS[outcome];
+}
 
 /** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
 function hintKey(outcome: FinderOutcomeKind, battle: boolean | undefined, territory?: boolean, landClaim?: boolean): string {
@@ -70,9 +99,10 @@ function hintKey(outcome: FinderOutcomeKind, battle: boolean | undefined, territ
  * The names of the balls that can win (one per start slot): the team roster's names ("Team 3" for an unnamed team), or
  * "Ball 1", "Ball 2" … without a roster. `name(kind, n)` translates the fallbacks.
  */
-export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number; tyTeams?: number; mzBalls?: number /* --- odd-maze --- */; lcTeams?: number /* --- land-claim --- */; sbStyle?: string /* --- string-circle --- */ } & Partial<Pick<SimulatorSettings, "flMatch" | "flFighterA" | "flFighterB" | "flFighterC" | "flFighterD">> /* --- fight-league --- */, name: (kind: "team" | "ball", n: number) => string): string[] {
+export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ballCount" | "twoBalls" | "teams"> & { sbBalls?: number; tyTeams?: number; mzBalls?: number /* --- odd-maze --- */; lcTeams?: number /* --- land-claim --- */; sbStyle?: string /* --- string-circle --- */ } & Partial<Pick<SimulatorSettings, "flMatch" | "flFighterA" | "flFighterB" | "flFighterC" | "flFighterD" | "flFighterE" | "flFighterF">> /* --- fight-league --- */, name: (kind: "team" | "ball", n: number) => string, challengers?: string /* --- fl-overhaul --- (Stage 5: a boss rush's side 1, translated) */): string[] {
   // --- fight-league --- Fight League's sides: "A · Thor", "B · Loki" (a random slot "A · ?"), in 2v2 "A+B · Naruto + Sasuke"
-  if (settings.mode === "fightLeague") return flSideNames(settings.flMatch, [settings.flFighterA, settings.flFighterB, settings.flFighterC, settings.flFighterD]);
+  // (--- fl-overhaul --- Stage 5: slots A–F – a 3v3's teams, a bracket's pinned entrants, a boss rush's boss and challengers)
+  if (settings.mode === "fightLeague") return flSideNames(settings.flMatch, [settings.flFighterA, settings.flFighterB, settings.flFighterC, settings.flFighterD, settings.flFighterE, settings.flFighterF], challengers);
   const count = effectiveBallCount(settings);
   // --- string-circle --- the circle style's balls past the roster play the line-up's countries, named by their codes (TR, IN…) as on the canvas
   if (settings.mode === "stringBattle" && settings.sbStyle === "circle") return circleLineup(settings.teams.slice(0, count), count).map((l, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : l.name));
@@ -157,21 +187,50 @@ export interface FinderOutcomeFieldsProps {
   territory?: boolean;
   /** --- land-claim --- Land Claim: the winner is the competitor with the most land when the run ends. */
   landClaim?: boolean;
+  /** --- fl-overhaul --- (Stage 5) lead-changes: the fewest lead changes; boss-falls-at: the wave (both whole numbers from 1). */
+  count?: number;
+  onCount?: (n: number) => void;
 }
 
 /** An outcome search's one-line explanation and its own field (the escape second, the team to win); nothing for the classic run-length search. */
-export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, winner, onWinner, teamNames, disabled, battle, territory, landClaim }: FinderOutcomeFieldsProps) {
+export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, winner, onWinner, teamNames, disabled, battle, territory, landClaim, count = 1, onCount }: FinderOutcomeFieldsProps) {
   const r = useTranslations("Rigged");
   if (outcome === "duration") return null;
   const range = RANGES.findEscapeAt;
+  const countRange = RANGES.findCount; // --- fl-overhaul --- (Stage 5)
   return (
     <div className="space-y-3" data-testid="finder-outcome-fields">
       <p className="text-xs text-ink-3 leading-relaxed" data-testid="finder-outcome-hint">{r(hintKey(outcome, battle, territory, landClaim))}</p>
-      {(outcome === "escapes-at" || outcome === "resolves-at") /* --- orb-grid --- */ && (
+      {/* --- fl-overhaul --- (Stage 5) the fewest lead changes, the wave the boss falls at */}
+      {(outcome === "lead-changes" || outcome === "boss-falls-at") && (
+        <div className="space-y-1.5" data-testid="finder-count">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-count">
+              {r(outcome === "lead-changes" ? "leadChangesCount" : "bossWave")}
+            </label>
+            <span className="text-xs font-mono text-accent">{outcome === "lead-changes" ? `≥ ${count}` : count}</span>
+          </div>
+          <input
+            id="find-count"
+            type="range"
+            min={countRange.min}
+            max={countRange.max}
+            step={countRange.step}
+            value={count}
+            disabled={disabled}
+            onChange={(e) => onCount?.(Number(e.target.value))}
+            aria-label={r(outcome === "lead-changes" ? "leadChangesCount" : "bossWave")}
+            className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
+            style={sliderStyle(count, countRange.min, countRange.max)}
+          />
+          <NumberField value={count} onCommit={(n) => onCount?.(Math.max(1, Math.round(n)))} label={r(outcome === "lead-changes" ? "leadChangesCount" : "bossWave")} range={countRange} rules={{ min: countRange.min, integer: true }} disabled={disabled} settingKey="findCount" />
+        </div>
+      )}
+      {(outcome === "escapes-at" || outcome === "resolves-at" || outcome === "both-low-at") /* --- orb-grid --- (--- fl-overhaul --- Stage 5: the cliffhanger's second) */ && (
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-escape-at">
-              {r(outcome === "resolves-at" ? "resolveAt" : "escapeAt")}
+              {r(outcome === "resolves-at" ? "resolveAt" : outcome === "both-low-at" ? "bothLowAt" : "escapeAt")}
             </label>
             <span className="text-xs font-mono text-accent">
               {escapeAt.toFixed(1)}s ±{ESCAPE_AT_TOLERANCE_SEC}s
@@ -186,11 +245,11 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
             value={escapeAt}
             disabled={disabled}
             onChange={(e) => onEscapeAt(Number(e.target.value))}
-            aria-label={r(outcome === "resolves-at" ? "resolveAt" : "escapeAt")}
+            aria-label={r(outcome === "resolves-at" ? "resolveAt" : outcome === "both-low-at" ? "bothLowAt" : "escapeAt")}
             className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
             style={sliderStyle(escapeAt, range.min, range.max)}
           />
-          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r(outcome === "resolves-at" ? "resolveAt" : "escapeAt")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" /* --- uncap-all --- */ />
+          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r(outcome === "resolves-at" ? "resolveAt" : outcome === "both-low-at" ? "bothLowAt" : "escapeAt")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" /* --- uncap-all --- */ />
         </div>
       )}
       {/* --- loop-foundation --- the fill's time limit (the escape slider's range and field) */}
@@ -245,10 +304,10 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
         </div>
       )}
       {/* --- end bead-hoops --- */}
-      {outcome === "winner" && (
+      {(outcome === "winner" || outcome === "champion") /* (--- fl-overhaul --- Stage 5: a bracket's champion among its pinned entrants) */ && (
         <div className="space-y-1.5">
           <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-winner">
-            {r("winnerTeam")}
+            {r(outcome === "champion" ? "championPick" : "winnerTeam")}
           </label>
           <select id="find-winner" value={Math.min(winner, teamNames.length - 1)} disabled={disabled} onChange={(e) => onWinner(Number(e.target.value))} className={`${selectClass} text-sm disabled:opacity-50`}>
             {teamNames.map((name, i) => (
@@ -310,6 +369,21 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findLiftOrder");
     case "all-up-by": // --- bead-hoops ---
       return t("Rigged.findAllUpBy", { time: c.escapeAt.toFixed(1) });
+    // --- fl-overhaul --- (Stage 5) the story's outcomes (one wording, the outcome's own label); the cliffhanger's second; the champion's name
+    case "both-low-at":
+      return t("Rigged.findBothLowAt", { time: c.escapeAt.toFixed(1) });
+    case "champion":
+      return t("Rigged.findChampion", { name: c.winnerName });
+    case "upset":
+    case "clutch":
+    case "perfect":
+    case "comeback":
+    case "ability-finish":
+    case "lead-changes":
+    case "decider":
+    case "sudden":
+    case "boss-falls-at":
+      return t("Rigged.findStory", { story: t(`Rigged.${OUTCOME_LABELS[outcome]}`) });
     default:
       return null;
   }
@@ -343,6 +417,19 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundLiftOrder");
     case "all-up-by": // --- bead-hoops ---
       return t("Rigged.foundAllUpBy", { time: (result.allUpAt ?? 0).toFixed(2) });
+    // --- fl-overhaul --- (Stage 5)
+    case "upset":
+    case "clutch":
+    case "perfect":
+    case "comeback":
+    case "ability-finish":
+    case "lead-changes":
+    case "both-low-at":
+    case "decider":
+    case "sudden":
+    case "champion":
+    case "boss-falls-at":
+      return t("Rigged.foundStory", { story: t(`Rigged.${OUTCOME_LABELS[result.outcome]}`), duration: result.duration.toFixed(1) });
     default:
       return null;
   }
@@ -377,6 +464,19 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missLiftOrder", { seeds: result.seedsTested });
     case "all-up-by": // --- bead-hoops ---
       return result.allUpAt === undefined ? t("Rigged.missNoAllUp", { seeds: result.seedsTested }) : t("Rigged.missAllUpBy", { time: result.allUpAt.toFixed(1), seeds: result.seedsTested });
+    // --- fl-overhaul --- (Stage 5)
+    case "upset":
+    case "clutch":
+    case "perfect":
+    case "comeback":
+    case "ability-finish":
+    case "lead-changes":
+    case "both-low-at":
+    case "decider":
+    case "sudden":
+    case "champion":
+    case "boss-falls-at":
+      return t("Rigged.missStory", { story: t(`Rigged.${OUTCOME_LABELS[result.outcome]}`), seeds: result.seedsTested });
     default:
       return null;
   }
@@ -415,6 +515,19 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayLiftOrder", { tested: result.seedsTested });
     case "all-up-by": // --- bead-hoops ---
       return t("Rigged.overlayAllUpBy", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) });
+    // --- fl-overhaul --- (Stage 5)
+    case "upset":
+    case "clutch":
+    case "perfect":
+    case "comeback":
+    case "ability-finish":
+    case "lead-changes":
+    case "both-low-at":
+    case "decider":
+    case "sudden":
+    case "champion":
+    case "boss-falls-at":
+      return t("Rigged.overlayStory", { tested: result.seedsTested, story: t(`Rigged.${OUTCOME_LABELS[result.outcome]}`) });
     default:
       return null;
   }

@@ -334,7 +334,7 @@ describe("fight league roster", () => {
   });
 
   it("offers in-genre presets (Thor vs Loki the default) and every fighter of a preset is in one division", () => {
-    expect(FL_PRESETS.map((p) => p.label)).toEqual([
+    expect(FL_PRESETS.slice(0, 50).map((p) => p.label)).toEqual([
       "Thor vs Loki",
       "Captain Falcon vs Little Mac",
       "Yuumi vs Katarina",
@@ -387,7 +387,8 @@ describe("fight league roster", () => {
       "Tom vs Jerry",
       "Cartoons free-for-all",
     ]);
-    for (const p of FL_PRESETS) {
+    // --- fl-overhaul --- (Stage 5) the first 50 as they were (the shows' 26 after them: tests/fightLeagueMatches.test.ts)
+    for (const p of FL_PRESETS.slice(0, 50)) {
       expect(p.fighters).toHaveLength(matchFighters(p.match));
       const divisions = new Set(p.fighters.map((id) => FL_BY_ID.get(id)!.division));
       expect([p.id, divisions.size]).toEqual([p.id, 1]);
@@ -399,8 +400,8 @@ describe("fight league roster", () => {
     expect(FL_PRESETS.find((p) => p.id === "naruto-dbz")!.match).toBe("2v2");
     // --- fl-overhaul --- (Stage 2) the 14 ids of before kept first, 50 in all, every id once
     expect(FL_PRESETS.slice(0, 14).map((p) => p.id)).toEqual(["thor-loki", "falcon-mac", "yuumi-katarina", "batman-joker", "goku-vegeta", "luke-vader", "mario-sonic", "harry-voldemort", "scorpion-subzero", "godzilla-kong", "alien-predator", "homelander-omniman", "avengers", "naruto-dbz"]);
-    expect(FL_PRESETS).toHaveLength(50);
-    expect(new Set(FL_PRESETS.map((p) => p.id)).size).toBe(50);
+    expect(FL_PRESETS).toHaveLength(76); // (--- fl-overhaul --- Stage 5: 26 shows and reworks after the 50)
+    expect(new Set(FL_PRESETS.map((p) => p.id)).size).toBe(76);
   });
 });
 
@@ -418,11 +419,11 @@ describe("fight league settings, URL and presets", () => {
 
   it("validates: known fighters and options, uncapped numbers from their minimum up", () => {
     const r = resolveFightLeagueSettings({ fighters: ["thor", "nobody", "random", "goku"], match: "ffa9" as never, hp: -5, timeCap: Number.NaN, speed: [0, 7.5, Number.NaN, 2], arena: "hex" as never, hud: "yes" as never });
-    expect(r.fighters).toEqual(["thor", "loki", "random", "goku"]);
+    expect(r.fighters).toEqual(["thor", "loki", "random", "goku", "random", "random"]); // (--- fl-overhaul --- Stage 5: slots A–F)
     expect(r.match).toBe("1v1");
     expect(r.hp).toBe(FIGHT_LEAGUE_RANGES.flHp.min);
     expect(r.timeCap).toBe(90);
-    expect(r.speed).toEqual([0.05, 7.5, 1, 2]);
+    expect(r.speed).toEqual([0.05, 7.5, 1, 2, 1, 1]);
     expect(r.arena).toBe("square");
     expect(r.hud).toBe(true);
     expect(resolveFightLeagueSettings({ hp: 1e6, timeCap: 1e5 })).toMatchObject({ hp: 1e6, timeCap: 1e5 });
@@ -467,7 +468,7 @@ describe("fight league settings, URL and presets", () => {
     // An unknown token reads back as the slot's default, like an unknown fighter.
     const bad = settingsFromSearchParams(new URLSearchParams("mode=fightLeague&fl1=random:nope&fl2=random:wildcard"));
     expect([bad.flFighterA, bad.flFighterB]).toEqual(["thor", "loki"]);
-    expect(resolveFightLeagueSettings({ fighters: ["random:horror", "random:nope", "random:shows", "random"] }).fighters).toEqual(["random:horror", "loki", "random:shows", "random"]);
+    expect(resolveFightLeagueSettings({ fighters: ["random:horror", "random:nope", "random:shows", "random"] }).fighters).toEqual(["random:horror", "loki", "random:shows", "random", "random", "random"]);
   });
 
   it("resolves presets and every fl field of a stored preset", () => {
@@ -490,7 +491,8 @@ describe("fight league settings, URL and presets", () => {
     expect(BATTLE_WINNER_MODES).toContain("fightLeague");
     expect(forcedWinnerApplies("fightLeague", 2, 1)).toBe(true);
     expect(forcedWinnerApplies("fightLeague", 2, 2)).toBe(false);
-    expect(availableOutcomes("fightLeague", { endless: false, neverEscape: false, ballCount: 2 })).toEqual(["duration", "winner", "double-ko"]);
+    // (--- fl-overhaul --- Stage 5: the story's outcomes after the first release's three – one match: no decider, champion or boss)
+    expect(availableOutcomes("fightLeague", { endless: false, neverEscape: false, ballCount: 2 })).toEqual(["duration", "winner", "double-ko", "close", "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "sudden"]);
     expect(availableOutcomes("classic", { endless: false, neverEscape: false, ballCount: 1 })).not.toContain("double-ko");
     expect(flSideNames("1v1", ["thor", "loki"])).toEqual(["A · Thor", "B · Loki"]);
     expect(flSideNames("2v2", ["naruto", "sasuke", "goku", "random"])).toEqual(["A+B · Naruto + Sasuke", "C+D · Goku + ?"]);

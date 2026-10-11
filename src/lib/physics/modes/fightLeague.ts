@@ -28,6 +28,45 @@ import { FL_COMBO_MS, FL_DAMAGE_MERGE_MS, FL_FINALE_BANNER_MS, FL_FINALE_MS, FL_
 import { FL_CAT_BLOCK, FL_CAT_HIT, FL_CAT_NOTE, FL_CAT_SHOOT, FL_CAT_SWING, FL_TICK_CUES, FlTickBudget } from "./fightLeagueSound";
 import type { FlCue } from "../types";
 import type { FlPrimitive } from "./fightLeagueRoster";
+// --- fl-overhaul --- (Stage 5) the match types as shows (series, brackets, boss rush), the win chance and the story's thresholds
+import {
+  FL_3V3_SIZE,
+  FL_BOSS,
+  FL_BOSS_WAVES,
+  FL_BOUT_CAP_SEC,
+  FL_BRACKET_SIZE,
+  FL_BOTH_LOW,
+  FL_CARD_SEC,
+  FL_LEAD_HYSTERESIS,
+  FL_CLUTCH_FRAC,
+  FL_COMEBACK_DEFICIT,
+  FL_ENTRANT_CEILING,
+  FL_INTERLUDE_FINALE_MS,
+  FL_REMATCHES,
+  FL_SHOW_BOUT_SEC,
+  FL_UNDERDOG,
+  drawFlEntrants,
+  flAdvanceBracket,
+  flBestOfGames,
+  flBracketBouts,
+  flBuildBracket,
+  flNextBout,
+  flRoundCode,
+  flSeedOrder,
+  flSeriesMaxGames,
+  flSeriesNeed,
+  flStoryTags,
+  flWinChances,
+  isFlSeeding,
+  parseFlEntrants,
+  sanitizeFlEntrants,
+  type FlBout,
+  type FlPool,
+  type FlSeeding,
+  type FlShowKind,
+  type FlShowPhase,
+  type FlStoryTag,
+} from "./fightLeagueShow";
 
 /**
  * Fight League ("fightLeague" mode, the arena games' family – feature fight-league; the "Ball Fight League" duels: "Thor vs
@@ -110,18 +149,38 @@ import type { FlPrimitive } from "./fightLeagueRoster";
  * signature set (or the user's clip) – `fight` keeps the old kind for the legacy set; the budget is per SIMULATION tick
  * (fightLeagueSound.ts: 3 hits, 2 shots, 1 swing, 1 block, 1 note, at most FL_SOUNDS_PER_FRAME, the urgent cues always), so
  * every frame rate, the fast export and every split-screen arena pick the same cues. No cue draws a random number.
+ * --- fl-overhaul --- (Stage 5) Match types: 1v1, 2v2, 3v3 (A + B + C against D + E + F, 0.85× the size) and the free-for-alls
+ * play one match; a best-of-N (`bestOf`, URL flBo) on 1v1 / 2v2 / 3v3, a bracket (`match` "bracket") and a boss rush ("boss")
+ * are SHOWS – one deterministic run of matches (`view.show`: its kind, the match index, the phase – intro, fight, finale,
+ * card, done –, the wins, the rematches, the entrants, the bracket's rounds, the boss's HP and wave, the champion). Between two
+ * matches an interlude (an 800 ms finale, then a card of `cardSec`) and `startMatch()`: the old balls go, the projectiles,
+ * minions, beams, tasks, walls, events, banners and decals are cleared, the fighters spawn again (the sides swapped every
+ * match), the counters and statuses start over, the VS card plays again from `matchStartMs` and `matchSerial` grows (the
+ * renderer's per-match caches key on it; `generation` stays the run's). `view.matchOver` freezes a match at its verdict;
+ * `view.finished` (and `isFinished()`) only at the show's end. The random numbers, in this order – at the init the ENTRANTS
+ * in entrant order (`pickFighters()` for a single match or a series; a bracket's and a boss rush's drawn entrants – one draw
+ * each – then a random seeding's shuffle), then PER MATCH the draws listed above for the init's spawns (the spawn jitter, the
+ * launch heading, the cadence jitter and the meter, fighter by fighter in slot order), and every step's as above; the
+ * interludes draw nothing. The story (`view.story`: first blood, lead changes, the comeback, clutch, perfect, the upset, the
+ * finisher, the combo peak, the cliffhanger's both-low moment) and the win chance (`flWinChances()` from the tuner's ratings,
+ * at a bout's start) are read by the HUD, the finder and the data attributes – never by the rules.
  */
 
 /* ------------------------------------------------------------------ settings */
 
-export const FL_MATCHES = ["1v1", "2v2", "ffa3", "ffa4"] as const;
+/** The match types (--- fl-overhaul --- Stage 5: 3v3, a bracket and a boss rush after the first release's four). */
+export const FL_MATCHES = ["1v1", "2v2", "ffa3", "ffa4", "3v3", "bracket", "boss"] as const;
 export type FlMatch = (typeof FL_MATCHES)[number];
 export const FL_ARENAS = ["square", "circle"] as const;
 export type FlArena = (typeof FL_ARENAS)[number];
 /** A slot that picks its fighter by the seed. */
 export const FL_RANDOM = "random";
-/** Fighter slots A–D. */
-export const FL_SLOTS = 4;
+/** --- fl-overhaul --- (Stage 5) Fighter slots A–F: a 3v3 plays six, a bracket pins up to six entrants (every per-slot array is this long). */
+export const FL_MAX_SLOTS = 6;
+/** Fighter slots A–F (--- fl-overhaul --- Stage 5: six, from four). */
+export const FL_SLOTS = FL_MAX_SLOTS;
+/** --- fl-overhaul --- (Stage 5) The slots' letters (A–F). */
+export const FL_SLOT_LETTERS = ["A", "B", "C", "D", "E", "F"] as const;
 
 export function isFlMatch(value: unknown): value is FlMatch {
   return typeof value === "string" && (FL_MATCHES as readonly string[]).includes(value);
@@ -188,17 +247,34 @@ export function isFlRandom(value: unknown): boolean {
   return parseFlRandom(value) !== null;
 }
 
-/** Fighters in play for a match type. */
+/** Fighters in play for a match type (--- fl-overhaul --- Stage 5: a 3v3 six; a bracket's and a boss rush's bouts are duels). */
 export function matchFighters(match: FlMatch): number {
-  return match === "1v1" ? 2 : match === "ffa3" ? 3 : 4;
+  return match === "1v1" || match === "bracket" || match === "boss" ? 2 : match === "ffa3" ? 3 : match === "3v3" ? 6 : 4;
 }
-/** Sides (teams) of a match type: 2v2 has two teams of two, the others one team per fighter. */
+/** Sides (teams) of a match type: 2v2 has two teams of two (--- fl-overhaul --- a 3v3 two of three), the others one team per fighter. */
 export function matchTeams(match: FlMatch): number {
-  return match === "2v2" ? 2 : matchFighters(match);
+  return match === "2v2" || match === "3v3" ? 2 : matchFighters(match);
 }
-/** The team of slot `slot` (2v2: A + B against C + D). */
+/** The team of slot `slot` (2v2: A + B against C + D; --- fl-overhaul --- 3v3: A + B + C against D + E + F). */
 export function slotTeam(match: FlMatch, slot: number): number {
-  return match === "2v2" ? (slot < 2 ? 0 : 1) : slot;
+  return match === "2v2" ? (slot < 2 ? 0 : 1) : match === "3v3" ? (slot < 3 ? 0 : 1) : slot;
+}
+/** --- fl-overhaul --- (Stage 5) The match type a format's bouts play: a bracket's and a boss rush's are duels, the rest their own. */
+export function boutMatch(match: FlMatch): FlMatch {
+  return match === "bracket" || match === "boss" ? "1v1" : match;
+}
+/** --- fl-overhaul --- (Stage 5) Whether a match type plays teams (2v2, 3v3). */
+export function isTeamMatch(match: FlMatch): boolean {
+  return match === "2v2" || match === "3v3";
+}
+/**
+ * --- fl-overhaul --- (Stage 5) The show a run of these settings plays: a bracket, a boss rush, a best-of-N series (`bestOf` > 1
+ * on 1v1, 2v2 or 3v3), else one match.
+ */
+export function flShowKind(s: Pick<FightLeagueSettings, "match" | "bestOf">): FlShowKind {
+  if (s.match === "bracket") return "bracket";
+  if (s.match === "boss") return "boss";
+  return flBestOfGames(s.bestOf) > 1 && (s.match === "1v1" || s.match === "2v2" || s.match === "3v3") ? "series" : "single";
 }
 
 export interface FightLeagueSettings {
@@ -250,6 +326,24 @@ export interface FightLeagueSettings {
   announcer: boolean;
   /** The user's own clips in their fighters' slots (URL `flCS`; the clips stay on the device). */
   customSounds: boolean;
+  // (Stage 5) the shows: a best-of-N series, a bracket, a boss rush (their rules, so part of the fight), and the win chance's display
+  /** A series' length on 1v1 / 2v2 / 3v3 and a bracket's final (URL `flBo`): a whole number from 1, an even one rounds up; 1 = one match. */
+  bestOf: number;
+  /** A bracket's entrants or a boss rush's challengers (URL `flE`): comma-separated ids and tokens ("" = the format's default pool). */
+  entrants: string;
+  /** A bracket's entrants (URL `flBr`): from 2 (no maximum; a run builds at most FL_ENTRANT_CEILING), byes to the top seeds. */
+  bracketSize: number;
+  /** A bracket's seeding (URL `flSd`): by rating, random or as listed. */
+  seeding: FlSeeding;
+  /** A boss rush's challengers (URL `flBw`): from 1 (a run builds at most FL_ENTRANT_CEILING). */
+  bossWaves: number;
+  /** The boss's HP multiplier (URL `flBoss`, from 0.05) and the share of its maximum HP it heals in each interlude (URL `flBh`, from 0). */
+  bossHp: number;
+  bossHeal: number;
+  /** A show's interlude card (s, URL `flCard`, from 0). */
+  cardSec: number;
+  /** The VS card's win chance (URL `flOd`; presentational). */
+  odds: boolean;
   // --- end fl-overhaul ---
 }
 
@@ -259,14 +353,14 @@ export const FL_SEEK_TURN = 1.1;
 export const FL_SHAKE = 0.6;
 
 export const DEFAULT_FIGHT_LEAGUE_SETTINGS: FightLeagueSettings = {
-  fighters: ["thor", "loki", FL_RANDOM, FL_RANDOM],
+  fighters: ["thor", "loki", FL_RANDOM, FL_RANDOM, FL_RANDOM, FL_RANDOM], // (--- fl-overhaul --- Stage 5: slots E and F random)
   match: "1v1",
   sameDivision: true,
   hp: 100,
-  speed: [1, 1, 1, 1],
-  damage: [1, 1, 1, 1],
-  attack: [1, 1, 1, 1],
-  cast: [1, 1, 1, 1],
+  speed: [1, 1, 1, 1, 1, 1],
+  damage: [1, 1, 1, 1, 1, 1],
+  attack: [1, 1, 1, 1, 1, 1],
+  cast: [1, 1, 1, 1, 1, 1],
   timeCap: 90,
   arena: "square",
   hud: true,
@@ -285,6 +379,16 @@ export const DEFAULT_FIGHT_LEAGUE_SETTINGS: FightLeagueSettings = {
   sound: "signature",
   announcer: true,
   customSounds: true,
+  // --- fl-overhaul --- (Stage 5) one match (best of 1), the formats' default pools, a seeding by rating, the boss's numbers
+  bestOf: 1,
+  entrants: "",
+  bracketSize: FL_BRACKET_SIZE,
+  seeding: "rating",
+  bossWaves: FL_BOSS_WAVES,
+  bossHp: FL_BOSS.hp,
+  bossHeal: FL_BOSS.heal,
+  cardSec: FL_CARD_SEC,
+  odds: true,
 };
 
 const MULT_RANGE = { min: 0.05, max: 3, step: 0.05 } as const;
@@ -311,16 +415,34 @@ export const FIGHT_LEAGUE_RANGES = {
   flCastD: { ...MULT_RANGE },
   flSeek: { min: 0, max: 3, step: 0.05 }, // --- fl-overhaul --- (uncapped: any turn rate from 0 typed)
   flShake: { min: 0, max: 2, step: 0.05 }, // --- fl-overhaul --- (Stage 3: the screen shake's comfort range; uncapped from 0)
+  // --- fl-overhaul --- (Stage 5) slots E and F's handicaps, and the shows' numbers (comfort ranges; every one uncapped from its minimum)
+  flSpeedE: { ...MULT_RANGE },
+  flSpeedF: { ...MULT_RANGE },
+  flDamageE: { ...MULT_RANGE },
+  flDamageF: { ...MULT_RANGE },
+  flAttackE: { ...MULT_RANGE },
+  flAttackF: { ...MULT_RANGE },
+  flCastE: { ...MULT_RANGE },
+  flCastF: { ...MULT_RANGE },
+  flBestOf: { min: 1, max: 7, step: 2 },
+  flBracketSize: { min: 2, max: 16, step: 1 },
+  flBossWaves: { min: 1, max: 10, step: 1 },
+  flBossHp: { min: 0.05, max: 6, step: 0.05 },
+  flBossHeal: { min: 0, max: 1, step: 0.05 },
+  flCardSec: { min: 0, max: 5, step: 0.1 },
 } as const;
 /** --- fl-overhaul --- (Stage 3) The presentational number fields (the drawing reads them; the engine never does). */
 export const FIGHT_LEAGUE_VISUAL_KEYS: readonly string[] = ["flShake"];
 
-/** The Fight League fields of the SimulatorSettings object (URL keys fl1–fl4, flM, flDiv, flHp, flT, flA, flH, flS1–4, flD1–4, flX1–4, flC1–4, flSk, flSD). */
+/** The Fight League fields of the SimulatorSettings object (URL keys fl1–fl4, flM, flDiv, flHp, flT, flA, flH, flS1–4, flD1–4, flX1–4, flC1–4, flSk, flSD; --- fl-overhaul --- Stage 5: fl5–fl6 and the rest below). */
 export interface FightLeagueFields {
   flFighterA: string;
   flFighterB: string;
   flFighterC: string;
   flFighterD: string;
+  /** --- fl-overhaul --- (Stage 5) Slots E and F (URL `fl5`, `fl6`): a 3v3's D + E + F, a bracket's pinned entrants. */
+  flFighterE: string;
+  flFighterF: string;
   flMatch: FlMatch;
   flSameDivision: boolean;
   flHp: number;
@@ -360,10 +482,28 @@ export interface FightLeagueFields {
   flSound: FlSoundOption;
   flAnnouncer: boolean;
   flCustomSounds: boolean;
+  // (Stage 5) slots E and F's handicaps (URL `flS5`–6, `flD5`–6, `flX5`–6, `flC5`–6) and the shows (URL `flBo`, `flE`, `flBr`, `flSd`, `flBw`, `flBoss`, `flBh`, `flCard`, `flOd`)
+  flSpeedE: number;
+  flSpeedF: number;
+  flDamageE: number;
+  flDamageF: number;
+  flAttackE: number;
+  flAttackF: number;
+  flCastE: number;
+  flCastF: number;
+  flBestOf: number;
+  flEntrants: string;
+  flBracketSize: number;
+  flSeeding: FlSeeding;
+  flBossWaves: number;
+  flBossHp: number;
+  flBossHeal: number;
+  flCardSec: number;
+  flOdds: boolean;
   // --- end fl-overhaul ---
 }
 
-const SLOT_LETTERS = ["A", "B", "C", "D"] as const;
+const SLOT_LETTERS = FL_SLOT_LETTERS; // (--- fl-overhaul --- Stage 5: A–F)
 type SlotLetter = (typeof SLOT_LETTERS)[number];
 const fighterField = (i: number) => `flFighter${SLOT_LETTERS[i]}` as `flFighter${SlotLetter}`;
 const multField = (stat: "Speed" | "Damage" | "Attack" | "Cast", i: number) => `fl${stat}${SLOT_LETTERS[i]}` as `fl${"Speed" | "Damage" | "Attack" | "Cast"}${SlotLetter}`;
@@ -387,6 +527,14 @@ export function resolveFightLeagueSettings(config: Partial<FightLeagueSettings> 
   const cap = finite(c.timeCap);
   const seek = finite(c.seekTurn);
   const shake = finite(c.shake); // --- fl-overhaul --- (Stage 3)
+  // --- fl-overhaul --- (Stage 5) the shows' numbers: each from its minimum up (no maximum), whole numbers where they count
+  const bestOf = finite(c.bestOf);
+  const bracketSize = finite(c.bracketSize);
+  const bossWaves = finite(c.bossWaves);
+  const bossHp = finite(c.bossHp);
+  const bossHeal = finite(c.bossHeal);
+  const cardSec = finite(c.cardSec);
+  const R = FIGHT_LEAGUE_RANGES;
   const list = (src: readonly number[] | undefined, def: readonly number[]) => def.map((v, i) => multOf(src?.[i], v));
   return {
     fighters,
@@ -416,14 +564,24 @@ export function resolveFightLeagueSettings(config: Partial<FightLeagueSettings> 
     sound: isFlSoundOption(c.sound) ? c.sound : d.sound,
     announcer: typeof c.announcer === "boolean" ? c.announcer : d.announcer,
     customSounds: typeof c.customSounds === "boolean" ? c.customSounds : d.customSounds,
+    // --- fl-overhaul --- (Stage 5) an odd series length, the known entrant tokens, whole bracket and wave counts, the rest to three decimals
+    bestOf: Number.isFinite(bestOf) ? flBestOfGames(atLeastMin(bestOf, R.flBestOf)) : d.bestOf,
+    entrants: typeof c.entrants === "string" ? sanitizeFlEntrants(c.entrants) : d.entrants,
+    bracketSize: Number.isFinite(bracketSize) ? Math.round(atLeastMin(bracketSize, R.flBracketSize)) : d.bracketSize,
+    seeding: isFlSeeding(c.seeding) ? c.seeding : d.seeding,
+    bossWaves: Number.isFinite(bossWaves) ? Math.round(atLeastMin(bossWaves, R.flBossWaves)) : d.bossWaves,
+    bossHp: Number.isFinite(bossHp) ? Math.round(1000 * atLeastMin(bossHp, R.flBossHp)) / 1000 : d.bossHp,
+    bossHeal: Number.isFinite(bossHeal) ? Math.round(1000 * atLeastMin(bossHeal, R.flBossHeal)) / 1000 : d.bossHeal,
+    cardSec: Number.isFinite(cardSec) ? Math.round(1000 * atLeastMin(cardSec, R.flCardSec)) / 1000 : d.cardSec,
+    odds: typeof c.odds === "boolean" ? c.odds : d.odds,
   };
 }
 
 /** Picks the Fight League settings out of a bigger object (the SimulatorSettings, a preset…) for `engine.setFightLeagueSettings()`. */
 export function fightLeagueSettingsOf(source: FightLeagueFields): FightLeagueSettings {
-  const pick = (stat: "Speed" | "Damage" | "Attack" | "Cast") => [0, 1, 2, 3].map((i) => source[multField(stat, i)]);
+  const pick = (stat: "Speed" | "Damage" | "Attack" | "Cast") => SLOT_LETTERS.map((_, i) => source[multField(stat, i)]); // (--- fl-overhaul --- Stage 5: A–F)
   return {
-    fighters: [source.flFighterA, source.flFighterB, source.flFighterC, source.flFighterD],
+    fighters: [source.flFighterA, source.flFighterB, source.flFighterC, source.flFighterD, source.flFighterE, source.flFighterF],
     match: source.flMatch,
     sameDivision: source.flSameDivision,
     hp: source.flHp,
@@ -449,6 +607,16 @@ export function fightLeagueSettingsOf(source: FightLeagueFields): FightLeagueSet
     sound: source.flSound,
     announcer: source.flAnnouncer,
     customSounds: source.flCustomSounds,
+    // --- fl-overhaul --- (Stage 5)
+    bestOf: source.flBestOf,
+    entrants: source.flEntrants,
+    bracketSize: source.flBracketSize,
+    seeding: source.flSeeding,
+    bossWaves: source.flBossWaves,
+    bossHp: source.flBossHp,
+    bossHeal: source.flBossHeal,
+    cardSec: source.flCardSec,
+    odds: source.flOdds,
   };
 }
 
@@ -459,6 +627,8 @@ export function fightLeagueSettingFields(s: FightLeagueSettings): FightLeagueFie
     flFighterB: s.fighters[1],
     flFighterC: s.fighters[2],
     flFighterD: s.fighters[3],
+    flFighterE: s.fighters[4], // --- fl-overhaul --- (Stage 5)
+    flFighterF: s.fighters[5],
     flMatch: s.match,
     flSameDivision: s.sameDivision,
     flHp: s.hp,
@@ -480,6 +650,16 @@ export function fightLeagueSettingFields(s: FightLeagueSettings): FightLeagueFie
     flSound: s.sound,
     flAnnouncer: s.announcer,
     flCustomSounds: s.customSounds,
+    // --- fl-overhaul --- (Stage 5)
+    flBestOf: s.bestOf,
+    flEntrants: s.entrants,
+    flBracketSize: s.bracketSize,
+    flSeeding: s.seeding,
+    flBossWaves: s.bossWaves,
+    flBossHp: s.bossHp,
+    flBossHeal: s.bossHeal,
+    flCardSec: s.cardSec,
+    flOdds: s.odds,
   } as FightLeagueFields;
   for (let i = 0; i < FL_SLOTS; i++) {
     out[multField("Speed", i)] = s.speed[i];
@@ -530,10 +710,17 @@ for (let i = 0; i < FL_SLOTS; i++) {
 }
 NUMERIC_KEYS.flSk = "flSeek"; // --- fl-overhaul ---
 NUMERIC_KEYS.flSh = "flShake"; // --- fl-overhaul --- (Stage 3)
+// --- fl-overhaul --- (Stage 5) the shows' numbers (slots E and F's handicaps came with the loop above: flS5–6, flD5–6, flX5–6, flC5–6)
+NUMERIC_KEYS.flBo = "flBestOf";
+NUMERIC_KEYS.flBr = "flBracketSize";
+NUMERIC_KEYS.flBw = "flBossWaves";
+NUMERIC_KEYS.flBoss = "flBossHp";
+NUMERIC_KEYS.flBh = "flBossHeal";
+NUMERIC_KEYS.flCard = "flCardSec";
 /** --- fl-overhaul --- (Stage 3) The spectacle's switches (URL key → field; "1" / "0") and options (URL key → field). */
-const FL_SWITCH_KEYS: Readonly<Record<string, "flSlowMo" | "flImpact" | "flDmgNumbers" | "flPlates" | "flAnnouncer" | "flCustomSounds">> = { flSm: "flSlowMo", flIf: "flImpact", flDn: "flDmgNumbers", flPp: "flPlates", flAnn: "flAnnouncer" /* --- fl-overhaul --- (Stage 4) */, flCS: "flCustomSounds" };
+const FL_SWITCH_KEYS: Readonly<Record<string, "flSlowMo" | "flImpact" | "flDmgNumbers" | "flPlates" | "flAnnouncer" | "flCustomSounds" | "flOdds">> = { flSm: "flSlowMo", flIf: "flImpact", flDn: "flDmgNumbers", flPp: "flPlates", flAnn: "flAnnouncer" /* --- fl-overhaul --- (Stage 4) */, flCS: "flCustomSounds", flOd: "flOdds" /* --- fl-overhaul --- (Stage 5) */ };
 /** The feature's URL keys (for tools and the tests). */
-export const FIGHT_LEAGUE_URL_KEYS: readonly string[] = ["fl1", "fl2", "fl3", "fl4", "flM", "flDiv", "flA", "flH", "flSD", "flSt", "flAs", "flTg", "flSnd" /* --- fl-overhaul --- (Stage 4) */, ...Object.keys(FL_SWITCH_KEYS), ...Object.keys(NUMERIC_KEYS)];
+export const FIGHT_LEAGUE_URL_KEYS: readonly string[] = ["fl1", "fl2", "fl3", "fl4", "flM", "flDiv", "flA", "flH", "flSD", "flSt", "flAs", "flTg", "flSnd" /* --- fl-overhaul --- (Stage 4) */, "fl5", "fl6", "flE", "flSd" /* --- fl-overhaul --- (Stage 5) */, ...Object.keys(FL_SWITCH_KEYS), ...Object.keys(NUMERIC_KEYS)];
 
 /**
  * --- fl-overhaul --- The value a number field of the panel commits for `field`: the settings' own normalisation (HP and the
@@ -562,6 +749,9 @@ export function writeFightLeagueParams(settings: FightLeagueFields, base: FightL
   if (settings.flArenaStyle !== base.flArenaStyle) params.set("flAs", settings.flArenaStyle);
   if (settings.flTags !== base.flTags) params.set("flTg", settings.flTags);
   if (settings.flSound !== base.flSound) params.set("flSnd", settings.flSound); // --- fl-overhaul --- (Stage 4)
+  // --- fl-overhaul --- (Stage 5) a bracket's or a boss rush's entrant list and the seeding, only where they differ
+  if (settings.flEntrants !== base.flEntrants) params.set("flE", settings.flEntrants);
+  if (settings.flSeeding !== base.flSeeding) params.set("flSd", settings.flSeeding);
   for (const [key, field] of Object.entries(FL_SWITCH_KEYS)) if (settings[field] !== base[field]) params.set(key, settings[field] ? "1" : "0");
   for (const [key, field] of Object.entries(NUMERIC_KEYS)) if (settings[field] !== base[field]) params.set(key, formatNumber(settings[field] as number));
 }
@@ -592,6 +782,11 @@ export function readFightLeagueParams(params: URLSearchParams, settings: FightLe
   if (isFlTags(tags)) next.flTags = tags;
   const sound = params.get("flSnd"); // --- fl-overhaul --- (Stage 4)
   if (isFlSoundOption(sound)) next.flSound = sound;
+  // --- fl-overhaul --- (Stage 5) the entrant list (the known tokens kept) and the seeding (an unknown one keeps the default)
+  const entrants = params.get("flE");
+  if (entrants !== null) next.flEntrants = sanitizeFlEntrants(entrants);
+  const seeding = params.get("flSd");
+  if (isFlSeeding(seeding)) next.flSeeding = seeding;
   for (const [key, field] of Object.entries(FL_SWITCH_KEYS)) {
     const raw = params.get(key);
     if (raw === "1" || raw === "0") next[field] = raw === "1";
@@ -761,7 +956,7 @@ export const FL_TIME_BANNER_MS = 900;
  * finale, after TIME! at the cap, else at the verdict. The page holds it from flHoldStartMs() (recordings keep it).
  */
 export function flWinnerShownMs(view: Pick<FightLeagueView, "finishMs" | "finale" | "byTime">): number {
-  if (view.finale.from >= 0) return view.finishMs + FL_FINALE_BANNER_MS;
+  if (view.finale.from >= 0) return view.finishMs + Math.min(FL_FINALE_BANNER_MS, view.finale.until - view.finale.from); // (--- fl-overhaul --- Stage 5: an interlude's shorter finale)
   if (view.byTime) return view.finishMs + FL_TIME_BANNER_MS;
   return view.finishMs;
 }
@@ -789,6 +984,22 @@ export const FL_SOUNDS_PER_FRAME = FL_TICK_CUES;
 export const FL_PROJECTILE_CAP = 144;
 export const FL_MINION_CAP = 24;
 export const FL_EVENT_CAP = 192;
+/** --- fl-overhaul --- (Stage 4) An ability's effects that may hold a sound at once (an ability has at most this many – `castCues()`). */
+export const FL_HELD_SOUNDS = 4;
+/**
+ * --- fl-overhaul --- (Stage 5) How a hit landed (`FlFighter.lastVia`: the story's finisher – the rules never read it): a weapon, an
+ * ability (its volley, beam, shockwave, cut, bolt, choke, blink strike, giant hit…), damage reflected back, a summon, a trap, a ring
+ * of fire or blades, Super Star's contact.
+ */
+export const FL_VIA_WEAPON = 1;
+export const FL_VIA_ABILITY = 2;
+export const FL_VIA_REFLECT = 3;
+export const FL_VIA_SUMMON = 4;
+export const FL_VIA_TRAP = 5;
+export const FL_VIA_BURN = 6;
+export const FL_VIA_CONTACT = 7;
+/** The finisher's name of a `FL_VIA_*` (a weapon's: its kind instead – `FlStory.finisher`). */
+export const FL_VIA_NAMES: readonly string[] = ["", "weapon", "ability", "reflect", "summon", "trap", "burn", "contact"];
 const FL_TASK_CAP = 32;
 const FL_BEAM_CAP = 8;
 // --- fl-overhaul --- (Stage 3) the visual state the mode writes once per 60 Hz step (the renderer reads it; the rules never do)
@@ -815,6 +1026,34 @@ export const FB_PERFECT = 11;
 export const FB_CLUTCH = 12;
 export const FB_SUDDEN = 13;
 export const FB_CLASH = 14;
+// --- fl-overhaul --- (Stage 5) the story's and the shows' banners (their names and stings: fightLeagueFx.ts, flRecipes.ts' FL_BANNER_SOUNDS)
+/** The winner card's UPSET! and COMEBACK! tags and its '<ability> finish!' (slot: the finisher). */
+export const FB_UPSET = 15;
+export const FB_COMEBACK = 16;
+/** A series: 'GAME n' on the VS card (value n), SERIES POINT (slot: a fighter of the side that can clinch), the series' verdict. */
+export const FB_GAME = 17;
+export const FB_SERIES_POINT = 18;
+export const FB_SERIES_WIN = 19;
+/** A draw or a double KO inside a bracket or a boss rush: the pairing again. */
+export const FB_REMATCH = 20;
+/** The decider (gold): the series' last game, a bracket final's. */
+export const FB_MATCH_POINT = 21;
+/** A bracket's round on the VS card. */
+export const FB_ROUND_OF_16 = 22;
+export const FB_QUARTER_FINAL = 23;
+export const FB_SEMI_FINAL = 24;
+export const FB_FINAL = 25;
+/** The show's verdicts: a bracket's CHAMPION, a boss rush's THE BOSS FALLS (slot: the challenger) or BOSS SURVIVES (value: the waves). */
+export const FB_CHAMPION = 26;
+export const FB_BOSS_FALLS = 27;
+export const FB_BOSS_SURVIVES = 28;
+/** A boss rush: PHASE 2 (the boss at half its HP), WAVE n/m on the VS card (value n), the next challenger's call. */
+export const FB_PHASE2 = 29;
+export const FB_WAVE = 30;
+export const FB_CHALLENGER = 31;
+export const FB_FINISH = 32;
+/** The last banner kind (the tests walk FB_VS … FB_LAST). */
+export const FB_LAST = FB_FINISH;
 /** The decals' kinds: a crack (a slam into a wall, a pin), a scorch (a beam's end, a bomb, a lightning bolt), a scar (an arena cut). */
 export const DC_CRACK = 1;
 export const DC_SCORCH = 2;
@@ -1369,11 +1608,58 @@ export function pickFighters(settings: Pick<FightLeagueSettings, "fighters" | "m
  * The sides' names for the finder's winner picker and the forced winner (fighter names are proper names, the slots letters):
  * "A · Thor", "B · Loki" ("A · ?" for a random slot); in 2v2 "A+B · Naruto + Sasuke".
  */
-export function flSideNames(match: string | undefined, fighters: readonly (string | undefined)[]): string[] {
+export function flSideNames(match: string | undefined, fighters: readonly (string | undefined)[], challengers = "Challengers"): string[] {
   const m: FlMatch = isFlMatch(match) ? match : "1v1";
   const nameOf = (i: number) => FL_BY_ID.get(fighters[i] ?? "")?.name ?? "?";
   if (m === "2v2") return [`A+B · ${nameOf(0)} + ${nameOf(1)}`, `C+D · ${nameOf(2)} + ${nameOf(3)}`];
-  return Array.from({ length: matchFighters(m) }, (_, i) => `${"ABCD"[i]} · ${nameOf(i)}`);
+  // --- fl-overhaul --- (Stage 5) a 3v3's two teams; a bracket's pinned entrants ("A · Thor" … – the finder's and the rig's sides);
+  // a boss rush's boss and its challengers (`challengers`: the label, translated by the page)
+  if (m === "3v3") return [`A+B+C · ${nameOf(0)} + ${nameOf(1)} + ${nameOf(2)}`, `D+E+F · ${nameOf(3)} + ${nameOf(4)} + ${nameOf(5)}`];
+  if (m === "bracket") return flPinnedSlots(fighters).map((i) => `${FL_SLOT_LETTERS[i]} · ${nameOf(i)}`);
+  if (m === "boss") return [`A · ${flBossRow(fighters[0]).name}`, challengers];
+  return Array.from({ length: matchFighters(m) }, (_, i) => `${FL_SLOT_LETTERS[i]} · ${nameOf(i)}`);
+}
+
+/**
+ * --- fl-overhaul --- (Stage 5) A bracket's PINNED slots: the slots A–F that name a fighter (a random slot pins nothing), each
+ * fighter once (its first slot) – seeds 1–6 when listed, and the finder's and the rig's sides ("A · Thor" …) in this order.
+ */
+export function flPinnedSlots(fighters: readonly (string | undefined)[]): number[] {
+  const out: number[] = [];
+  const seen = new Set<string>();
+  for (let i = 0; i < Math.min(FL_SLOTS, fighters.length); i++) {
+    const id = fighters[i];
+    if (!id || isFlRandom(id) || !FL_BY_ID.has(id) || seen.has(id)) continue;
+    seen.add(id);
+    out.push(i);
+  }
+  return out;
+}
+
+/** --- fl-overhaul --- (Stage 5) A boss rush's boss: slot A's fighter, Gerald – the site's own ball – when slot A is random. */
+export function flBossRow(id: string | undefined): FlFighterRow {
+  const row = id && !isFlRandom(id) ? FL_BY_ID.get(id) : undefined;
+  return row ?? FL_BY_ID.get("gerald") ?? FL_ROSTER[FL_ROSTER.length - 1];
+}
+
+/** --- fl-overhaul --- (Stage 5) The pool Gerald's shows draw from (alone in Wildcard, he takes on Marvel: 'random:marvel'). */
+export const FL_GERALD_POOL: FlPool = { kind: "division", id: "marvel" };
+
+/**
+ * --- fl-overhaul --- (Stage 5) The default pool of a show anchored on `row` – a boss rush's challengers, a bracket's draws: its
+ * own division (one genre – never a cross-genre featured format), Gerald's FL_GERALD_POOL.
+ */
+export function flBossPool(row: Pick<FlFighterRow, "division">): FlPool {
+  return row.division === "wildcard" ? FL_GERALD_POOL : { kind: "division", id: row.division };
+}
+
+/**
+ * --- fl-overhaul --- (Stage 5) The sides of a run for the finder's winner, the rig and the panel (at most six – never a bracket's 8
+ * to 16 entrants): a fighter each (1v1, the free-for-alls), two teams (2v2, 3v3), a bracket's pinned entrants, a boss rush's boss
+ * and its challengers.
+ */
+export function flSideCount(match: string | undefined, fighters: readonly (string | undefined)[]): number {
+  return flSideNames(match, fighters).length;
 }
 
 /** The ids of the divisions in roster order (for the panel's grouped pickers). */
@@ -1647,7 +1933,26 @@ export class FlFighter {
   sndEndAt = -Infinity;
   sndEndPrim: FlPrimitive | "" = "";
   /** When its held ability sounds end (ms, by effect index; their loop keys: 64 + slot × 4 + index). */
-  readonly sndHeldUntil = new Float64Array(4).fill(-Infinity);
+  readonly sndHeldUntil = new Float64Array(FL_HELD_SOUNDS).fill(-Infinity);
+  // (Stage 5) the shows: a format's size factor (a boss 1.5, a 3v3's fighters 0.85 – its weight follows), its entrant in a
+  // bracket or a boss rush (an index into `view.show.entrants`; −1 otherwise), the boss (its PHASE 2 – the one rule here), the
+  // handicaps it plays with (its slot's: the VS card's BUFFED / NERFED tags and the win chance's hiding)
+  sizeScale = 1;
+  entrant = -1;
+  boss = false;
+  hcSpeed = 1;
+  hcDamage = 1;
+  hcAttack = 1;
+  hcCast = 1;
+  // (Stage 5) the story – the HUD, the finder and the data read it, the rules never do
+  /** Its HP fraction at the match's start (a boss carries its HP: its PERFECT is "no HP lost this bout"). */
+  startFrac = 1;
+  /** The last hit it took: how (`FL_VIA_*`), the attacker's weapon (−1 none) and the attacker (slot; −1 none) – a KO's finisher. */
+  lastVia = 0;
+  lastViaWeapon = -1;
+  lastViaBy = -1;
+  /** Its best combo this match (the story's combo peak). */
+  comboPeak = 0;
   // --- end fl-overhaul ---
 
   constructor(slot: number, team: number, row: FlFighterRow) {
@@ -1743,6 +2048,8 @@ export class FlProjectile {
   readonly trail = new Float32Array(2 * FL_PROJ_TRAIL_LEN);
   trailHead = 0;
   trailCount = 0;
+  /** (Stage 5) How its hit lands for the story (`FL_VIA_*`; 0: by its weapon or ability – a deflected shot FL_VIA_REFLECT). */
+  via = 0;
   // --- end fl-overhaul ---
 }
 
@@ -1911,6 +2218,119 @@ export class FlDecal {
   color = "#000";
 }
 
+/**
+ * --- fl-overhaul --- (Stage 5) A show's entrant (a bracket's, a boss rush's: the boss first, its challengers in wave order): its
+ * fighter, its pinned slot (A–F: 0–5; −1 listed or drawn – the finder's and the rig's sides are the pinned ones), its seed (1 the
+ * top; a challenger its wave) and whether it is out (a bracket's loser, a beaten challenger).
+ */
+export interface FlShowEntrant {
+  row: FlFighterRow;
+  slot: number;
+  seed: number;
+  out: boolean;
+}
+
+/**
+ * --- fl-overhaul --- (Stage 5) The show a run plays (`view.show`; the mode writes it, the renderer, the finder and the data read
+ * it): one match, a best-of-N series, a bracket or a boss rush.
+ */
+export interface FlShow {
+  kind: FlShowKind;
+  /** The match in play (0 first: a game, a bout, a rematch) and its phase; when the phase ends (ms; Infinity during a fight). */
+  matchIndex: number;
+  phase: FlShowPhase;
+  phaseUntil: number;
+  /** When the match in play began (its VS card) and when the interlude before it began (−1 the first). */
+  matchStartMs: number;
+  interludeMs: number;
+  /** The series' wins per side; a boss rush's: [the boss's bouts, the challengers' wins]; a bracket's per entrant. */
+  wins: number[];
+  /** Rematches of the pairing in play so far (a draw or a double KO inside a bracket or a boss rush; FL_REMATCHES at most). */
+  rematches: number;
+  /** A bracket's entrants (pinned first) and a boss rush's (the boss at 0, the challengers after it); empty otherwise. */
+  entrants: FlShowEntrant[];
+  /** A bracket's rounds (pairs of entrant indices: FL_BYE, FL_PENDING; their winner) and the bout in play (round, pair). */
+  rounds: FlBout[][];
+  round: number;
+  pair: number;
+  /** The pairing in play: the entrants in slots A and B (a bracket, a boss rush; −1 otherwise). */
+  a: number;
+  b: number;
+  /** The bouts played to their verdict so far (rematches not counted) and the show's bouts (a bracket n − 1, a boss rush its waves, a series n). */
+  bout: number;
+  bouts: number;
+  /**
+   * The best-of in play (a series; a bracket's final with flBo > 1; 1 otherwise): the games played (draws included), the wins it
+   * takes, the most games, the wins of slot A's and slot B's side so far ('Thor 1 – 0 Loki'), their HP shares summed over the games.
+   */
+  games: number;
+  need: number;
+  maxGames: number;
+  score: number[];
+  shareSum: number[];
+  /** A boss rush: the boss's HP now (carried between bouts, healed in the interludes) and its maximum, the wave in play (1 first), PHASE 2. */
+  bossHp: number;
+  bossMaxHp: number;
+  /** The boss's HP before the interlude's heal (the card fills the bar from it to `bossHp`). */
+  healFrom: number;
+  wave: number;
+  waves: number;
+  phase2: boolean;
+  /** The show's winner: a bracket's champion (an entrant), a boss rush's – 0 the boss, 1 the challengers; −1 not yet. */
+  champion: number;
+  /** The show's winning side for the finder, the rig and the teams' stats (≤ 6 sides: a bracket's pinned entrant, −1 another one). */
+  winnerSide: number;
+  /** The last match's verdict for the interlude's card: its winning bout side (−1 a draw or a double KO) and whether a rematch follows. */
+  lastWinner: number;
+  rematchNext: boolean;
+  /** When a bracket result last changed (ms; the card's line animation) and how many results so far (the overlay's cache key). */
+  resultMs: number;
+  resultSerial: number;
+  /** The first moment in the run every side standing was at or under FL_BOTH_LOW (ms, −1 never: the cliffhanger's cut). */
+  bothLowMs: number;
+}
+
+/**
+ * --- fl-overhaul --- (Stage 5) The story of the match in play (`view.story`): live counters during the fight, the verdict's
+ * fields at its end (`decided`). Read by the HUD, the winner card, the finder (RunSummary.fl) and the data – never the rules.
+ */
+export interface FlStory {
+  /** First blood: when (ms, −1 none) and by whom (slot). */
+  firstBloodMs: number;
+  firstBloodSlot: number;
+  /** Lead changes on HP share (the lead bar's, FL_LEAD_HYSTERESIS clear). */
+  leadChanges: number;
+  /** Each bout side's deepest deficit: the leader's HP share minus its own (0–1). */
+  deficit: number[];
+  /** The first moment every side standing was at or under FL_BOTH_LOW of its HP (ms, −1 never). */
+  bothLowMs: number;
+  /** The best combo of the match. */
+  comboPeak: number;
+  /** The win chance of every bout side at its start (the VS card's bar), whether it is an estimate, and whether the card shows it. */
+  chances: number[];
+  est: boolean;
+  oddsShown: boolean;
+  /** A fighter plays with a handicap ≠ 1 (the card then shows BUFFED / NERFED tags, never the chance). */
+  handicapped: boolean;
+  /** The verdict's story, written at the match's end. */
+  decided: boolean;
+  upset: boolean;
+  comeback: boolean;
+  clutch: boolean;
+  perfect: boolean;
+  /** Decided in sudden death. */
+  sudden: boolean;
+  /** The winner's HP share at the verdict (−1 no winner). */
+  winnerHpFrac: number;
+  /** The KO hit (FL_VIA_*, 0 none), its attacker (slot), what landed it (a weapon kind, "ability", "reflect", "summon", "trap", "burn", "contact"), an ability's finish. */
+  finisherVia: number;
+  finisherSlot: number;
+  finisher: string;
+  abilityFinish: boolean;
+  /** The winner card's tags (at most two, `flStoryTags()`). */
+  tags: FlStoryTag[];
+}
+
 /** --- fl-overhaul --- A melee hit queued in a sub-step until every fighter's weapons ran (`resolveMelee()`). */
 class FlMeleeHit {
   attacker = 0;
@@ -2004,7 +2424,87 @@ export interface FightLeagueView {
   /** The intro's next banner (0 vs, 1–3 the count, 4 FIGHT!, 5 done) and whether the winner's banners were written. */
   introCue: number;
   winCue: boolean;
+  // (Stage 5) the shows and the story
+  /** The format the settings chose (`match` is the bout's: a bracket's and a boss rush's bouts are duels). */
+  format: FlMatch;
+  /** The run's sides for the finder, the rig and the panel (≤ 6: `flSideCount()`); `teamCount` is the bout's. */
+  sides: number;
+  /** The match in play is decided (its verdict; then its finale and, inside a show, the interlude) – `finished` only at the show's end. */
+  matchOver: boolean;
+  /** Bumped at every match's start, the first included (the renderer's per-match caches key on it; `generation` per run). */
+  matchSerial: number;
+  /** The match's time cap (s; 0 none) and whether sudden death plays (a bracket's bouts: min(flT, 45 s), always sudden death). */
+  capSec: number;
+  suddenOn: boolean;
+  show: FlShow;
+  story: FlStory;
   // --- end fl-overhaul ---
+}
+
+function createShow(): FlShow {
+  return {
+    kind: "single",
+    matchIndex: 0,
+    phase: "intro",
+    phaseUntil: Infinity,
+    matchStartMs: 0,
+    interludeMs: -1,
+    wins: [],
+    rematches: 0,
+    entrants: [],
+    rounds: [],
+    round: -1,
+    pair: -1,
+    a: -1,
+    b: -1,
+    bout: 0,
+    bouts: 1,
+    games: 0,
+    need: 1,
+    maxGames: 1,
+    score: [0, 0],
+    shareSum: [0, 0],
+    bossHp: 0,
+    bossMaxHp: 0,
+    healFrom: 0,
+    wave: 0,
+    waves: 0,
+    phase2: false,
+    champion: -1,
+    winnerSide: -1,
+    lastWinner: -1,
+    rematchNext: false,
+    resultMs: -Infinity,
+    resultSerial: 0,
+    bothLowMs: -1,
+  };
+}
+
+function createStory(): FlStory {
+  return {
+    firstBloodMs: -1,
+    firstBloodSlot: -1,
+    leadChanges: 0,
+    deficit: [],
+    bothLowMs: -1,
+    comboPeak: 0,
+    chances: [],
+    est: true,
+    oddsShown: false,
+    handicapped: false,
+    decided: false,
+    upset: false,
+    comeback: false,
+    clutch: false,
+    perfect: false,
+    sudden: false,
+    winnerHpFrac: -1,
+    finisherVia: 0,
+    finisherSlot: -1,
+    finisher: "",
+    abilityFinish: false,
+    tags: [],
+  };
 }
 
 function createView(): FightLeagueView {
@@ -2063,7 +2563,128 @@ function createView(): FightLeagueView {
     leadMs: -Infinity,
     introCue: 0,
     winCue: false,
+    // --- fl-overhaul --- (Stage 5)
+    format: "1v1",
+    sides: 2,
+    matchOver: false,
+    matchSerial: 0,
+    capSec: 90,
+    suddenOn: true,
+    show: createShow(),
+    story: createStory(),
   };
+}
+
+/**
+ * --- fl-overhaul --- (Stage 5) The finder's summary of a Fight League run (`RunSummary.fl`): the story of its deciding match
+ * (a single match's, a series' last game, a bracket's final, the boss rush's last bout) and the show's own figures.
+ */
+export interface FlRunSummary {
+  show: FlShowKind;
+  upset: boolean;
+  comeback: boolean;
+  perfect: boolean;
+  clutch: boolean;
+  leadChanges: number;
+  /** The final KO's source (a weapon kind, "ability", "reflect", "summon", "trap", "burn", "contact"; "" none) and whether an ability landed it. */
+  finisher: string;
+  abilityFinish: boolean;
+  /** The cliffhanger: the moment every side standing was at or under FL_BOTH_LOW with the fight on (ms; the finder's window's, else the run's first; −1 never). */
+  bothLowMs: number;
+  /** A bracket's champion: its entrant (−1 none) and its pinned side (−1 not one of the pinned). */
+  championEntrant: number;
+  championSide: number;
+  /** The matches played (games, bouts, rematches). */
+  gamesPlayed: number;
+  /** The wave the boss fell at (0: it survived, or no boss rush). */
+  bossDefeated: number;
+  /** A best-of went the distance (its last game the decider: a series 2–1, 3–2 …). */
+  decider: boolean;
+  /** Decided in sudden death. */
+  sudden: boolean;
+  /** The winner's HP share at the verdict (−1 none). */
+  winnerHpFrac: number;
+}
+
+/** --- fl-overhaul --- (Stage 5) The run's `FlRunSummary` from its view (`bothLowMs`: the finder's cliffhanger moment when it saw one). */
+export function flRunSummary(v: FightLeagueView, bothLowMs = -1): FlRunSummary {
+  const sh = v.show;
+  const st = v.story;
+  const champion = sh.kind === "bracket" ? sh.champion : -1;
+  return {
+    show: sh.kind,
+    upset: st.upset,
+    comeback: st.comeback,
+    perfect: st.perfect,
+    clutch: st.clutch,
+    leadChanges: st.leadChanges,
+    finisher: st.finisher,
+    abilityFinish: st.abilityFinish,
+    bothLowMs: bothLowMs >= 0 ? bothLowMs : sh.bothLowMs,
+    championEntrant: champion,
+    championSide: champion >= 0 ? sh.winnerSide : -1,
+    gamesPlayed: sh.matchIndex + 1,
+    bossDefeated: sh.kind === "boss" && sh.champion === 1 ? sh.wave : 0,
+    decider: sh.maxGames > 1 && Math.min(sh.score[0], sh.score[1]) === sh.need - 1 && Math.max(sh.score[0], sh.score[1]) === sh.need,
+    sudden: st.sudden,
+    winnerHpFrac: st.winnerHpFrac,
+  };
+}
+
+/** --- fl-overhaul --- (Stage 5) The cliffhanger now: every side still standing at or under FL_BOTH_LOW of its HP, two at least, the fight on. */
+export function flBothLowNow(v: FightLeagueView): boolean {
+  if (v.matchOver || v.timeMs < v.introMs) return false;
+  let standing = 0;
+  for (let t = 0; t < v.teamCount; t++) {
+    let hp = 0;
+    let max = 0;
+    for (const f of v.fighters) {
+      if (f.team !== t) continue;
+      hp += f.alive ? Math.max(0, f.hp) : 0;
+      max += f.maxHp;
+    }
+    if (hp <= 0) continue;
+    standing++;
+    if (max > 0 && hp / max > FL_BOTH_LOW + 1e-9) return false;
+  }
+  return standing >= 2;
+}
+
+/**
+ * --- fl-overhaul --- (Stage 5) Whether the run's side `side` (the finder's and the rig's) is out of the show – it can win no more:
+ * one match's side with nobody standing, a bracket's pinned entrant knocked out, a boss rush's fallen boss. A series' lost game or
+ * a boss rush's beaten challenger is no elimination.
+ */
+export function flSideEliminated(v: FightLeagueView, side: number): boolean {
+  const sh = v.show;
+  if (sh.kind === "single") return !v.fighters.some((f) => f.team === side && f.alive);
+  if (sh.kind === "bracket") {
+    const slot = flPinnedSlots(v.settings.fighters)[side];
+    const e = sh.entrants.find((x) => x.slot === slot);
+    return !!e && e.out;
+  }
+  if (sh.kind === "boss") return side === 0 && sh.entrants[0]?.out === true;
+  return false;
+}
+
+/** --- fl-overhaul --- (Stage 5) The matches a run of these settings plays at most, its rematches aside: one, a series' n + 2, a bracket's n − 1 (its final's best-of), a boss rush's waves. */
+export function flShowBouts(s: Pick<FightLeagueSettings, "match" | "bestOf" | "bracketSize" | "bossWaves">): number {
+  const kind = flShowKind(s);
+  if (kind === "series") return flSeriesMaxGames(s.bestOf);
+  if (kind === "bracket") return flBracketBouts(Math.max(2, Math.min(FL_ENTRANT_CEILING, Math.round(s.bracketSize)))) + (flBestOfGames(s.bestOf) > 1 ? flSeriesMaxGames(s.bestOf) - 1 : 0);
+  if (kind === "boss") return Math.max(1, Math.min(FL_ENTRANT_CEILING, Math.round(s.bossWaves)));
+  return 1;
+}
+
+/** --- fl-overhaul --- (Stage 5) How long the finder follows a run of these settings at least (ms): FL_SHOW_BOUT_SEC a match. */
+export function flShowHorizonMs(s: Pick<FightLeagueSettings, "match" | "bestOf" | "bracketSize" | "bossWaves">): number {
+  return 1000 * FL_SHOW_BOUT_SEC * flShowBouts(s);
+}
+
+/** --- fl-overhaul --- (Stage 5) The finder's seeds a frame (the duration search): 4 single matches, 2 series, 1 bracket or boss rush. */
+export function flFinderBatch(s: Pick<FightLeagueSettings, "match" | "bestOf">): number {
+  const kind = flShowKind(s);
+  return kind === "single" ? 4 : kind === "series" ? 2 : 1;
 }
 
 /** The forced winner of a run: the rigged side when it plays, else −1. */
@@ -2082,11 +2703,12 @@ export function fighterPitch(slot: number): number {
 }
 /** The four walls play C5 E5 G5 C6 (the circle's octants climb the pentatonic scale). */
 function wallNote(kind: FlArena, wall: number): number {
-  if (kind === "square") return [523.25, 659.25, 783.99, 1046.5][wall & 3];
+  if (kind === "square") return SQUARE_WALL_NOTES[((wall % 4) + 4) % 4]; // (--- fl-overhaul --- Stage 5: no bit masks of four slots)
   const d = wall & 7;
   return midiToFrequency(72 + 12 * Math.floor(d / 5) + PENTATONIC[d % 5]);
 }
 const WIN_CHORD: readonly number[] = [261.63, 329.63, 392, 523.25];
+const SQUARE_WALL_NOTES: readonly number[] = [523.25, 659.25, 783.99, 1046.5];
 
 /** --- fl-overhaul --- (Stage 4) The telegraph classes in order (a cue's `flVariant`). */
 const TELEGRAPH_CLASSES = [FL_TELEGRAPH_CLASS_MS.quick, FL_TELEGRAPH_CLASS_MS.standard, FL_TELEGRAPH_CLASS_MS.area, FL_TELEGRAPH_CLASS_MS.ultimate];
@@ -2161,12 +2783,13 @@ export class FightLeagueMode implements GameMode {
   private readonly tgtW = { x: 0, y: 0, vx: 0, vy: 0, r: 0 };
   private readonly tgtN = { x: 0, y: 0, vx: 0, vy: 0, r: 0 };
   private readonly tgtS = { x: 0, y: 0, vx: 0, vy: 0, r: 0 };
-  private readonly rival = new Float64Array(4);
-  private readonly rivalMax = new Float64Array(4);
+  // (--- fl-overhaul --- Stage 5: as long as the slots – six sides at most)
+  private readonly rival = new Float64Array(FL_MAX_SLOTS);
+  private readonly rivalMax = new Float64Array(FL_MAX_SLOTS);
   private readonly capHp: number[] = [];
   private readonly capTeam: number[] = [];
   private readonly capMax: number[] = [];
-  private readonly capSums: number[] = [0, 0, 0, 0, 0, 0, 0, 0];
+  private readonly capSums: number[] = new Array<number>(2 * FL_MAX_SLOTS).fill(0);
   // --- fl-overhaul --- (Stage 3) the visual state's scratch: the step's length, the HP shares per side, this step's KO events
   private stepMs = 1000 / 60;
   private readonly leadHp = new Float64Array(8);
@@ -2182,7 +2805,7 @@ export class FightLeagueMode implements GameMode {
     this.settings = resolveFightLeagueSettings({ ...this.settings, ...patch });
     // (--- fl-overhaul --- Stage 3: the spectacle follows live too – the drawing only)
     const s = this.settings;
-    this.view.settings = { ...this.view.settings, hud: s.hud, stage: s.stage, arenaStyle: s.arenaStyle, shake: s.shake, slowMo: s.slowMo, impact: s.impact, dmgNumbers: s.dmgNumbers, plates: s.plates, tags: s.tags };
+    this.view.settings = { ...this.view.settings, hud: s.hud, stage: s.stage, arenaStyle: s.arenaStyle, shake: s.shake, slowMo: s.slowMo, impact: s.impact, dmgNumbers: s.dmgNumbers, plates: s.plates, tags: s.tags, odds: s.odds /* --- fl-overhaul --- (Stage 5: the VS card's win chance) */ };
   }
   /** Live state for the canvas and the HUD; the same object every call. */
   getView(): FightLeagueView {
@@ -2192,7 +2815,10 @@ export class FightLeagueMode implements GameMode {
     const v = this.view;
     let alive = 0;
     for (const f of v.fighters) if (f.alive) alive++;
-    return { fighters: v.fighters.length, alive, hits: v.hits, casts: v.casts, kos: v.kos, finished: v.finished, winner: v.winnerTeam, doubleKo: v.doubleKo, byTime: v.byTime, time: v.timeMs };
+    // (--- fl-overhaul --- Stage 5: the show's winning side once it is over – a bracket's pinned champion –, its kind and match, the story)
+    const sh = v.show;
+    const st = v.story;
+    return { fighters: v.fighters.length, alive, hits: v.hits, casts: v.casts, kos: v.kos, finished: v.finished, winner: v.finished ? sh.winnerSide : v.winnerTeam, doubleKo: v.doubleKo, byTime: v.byTime, time: v.timeMs, show: sh.kind, matchIndex: sh.matchIndex, matchOver: v.matchOver, story: st.tags.join(" "), firstBloodMs: st.firstBloodMs, leadChanges: st.leadChanges, comboPeak: st.comboPeak, bothLowMs: st.bothLowMs, finisher: st.finisher };
   }
 
   /* ---------------------------------------------------------------- init */
@@ -2206,29 +2832,205 @@ export class FightLeagueMode implements GameMode {
     const v = this.view;
     v.generation++;
     v.settings = s;
-    v.match = s.match;
-    v.teamCount = matchTeams(s.match);
+    // --- fl-overhaul --- (Stage 5) the format (its show), the match type its bouts play and the run's sides (≤ 6)
+    v.format = s.match;
+    v.match = boutMatch(s.match);
+    v.teamCount = matchTeams(v.match);
+    v.sides = flSideCount(s.match, s.fighters);
     const field = buildFightField(ctx.config.width, ctx.config.height, s.arena);
     v.field = field;
     v.timeMs = 0;
-    v.introMs = FL_INTRO_MS;
+    v.finished = false;
+    v.forcedWinner = fightForcedWinner(ctx.config.forcedWinner, v.sides);
+    v.rigAbsorbed = 0;
+    v.hits = v.blocks = v.casts = v.kos = v.shots = v.clashes = v.wallHits = v.notes = v.sounds = 0;
+    v.grazes = v.immunes = v.clashes2 = v.interrupts = v.dodges = 0;
+    v.eventSerial = 0;
+    // --- fl-overhaul --- (Stage 3) the visual state starts over (the match's own part in `startMatch()`)
+    v.bannerSerial = 0;
+    v.decalSerial = 0;
+    this.volleySerial = 0;
+    this.projSerial = 0;
+    this.stepIndex = 0;
+    this.snd.clear(); // --- fl-overhaul --- (Stage 4)
+    this.ballRadius = ctx.config.ballRadius || 8;
+    this.unit = this.speedUnit(ctx);
+    // The run's random numbers, in this order (the header lists every later draw): the show's entrants (`buildShow()`: one per
+    // random slot – pickFighters – for a match or a series; a bracket's or a boss rush's draws), then the first match's spawn
+    // (`startMatch()`: per fighter in slot order its spawn jitter (x, y), then per fighter its launch heading, then per fighter
+    // its cadence jitter and its meter's head start).
+    this.buildShow(ctx);
+    this.startMatch(ctx, 0, true);
+    this.snd.endTick(); // --- fl-overhaul --- (Stage 4) the VS card's sting is the first tick's
+  }
+
+  /* ---------------------------------------------------------------- --- fl-overhaul --- (Stage 5) the shows */
+
+  /** The rows a match or a series plays (drawn once at the init), a pairing's damage dealt (a rematch's tie-break), whether the next match keeps the pairing. */
+  private showRows: FlFighterRow[] = [];
+  private readonly pairDealt = [0, 0];
+  private samePair = false;
+  /** The rig's absorbed lethal hits when the match began (a match's PERFECT needs none of its own). */
+  private rigAbsorbedAtStart = 0;
+  /** A boss rush's boss HP when the bout began (a REMATCH! replays the bout from it). */
+  private bossHpAtStart = 0;
+
+  /**
+   * The run's show and its entrants – the run's first random numbers: one per random slot (`pickFighters()`) for a match or a
+   * series; for a bracket the default pool's division (one draw – only when no pinned fighter or slot A's scope names one), its
+   * drawn entrants (one draw each, in entrant order: `drawFlEntrants()`) and a random seeding's shuffle (`flSeedOrder()`); for a
+   * boss rush its drawn challengers (one draw each).
+   */
+  private buildShow(ctx: ModeContext) {
+    const s = this.settings;
+    const v = this.view;
+    const sh = v.show;
+    const random = () => ctx.random();
+    sh.kind = flShowKind(s);
+    sh.matchIndex = 0;
+    sh.phase = "intro";
+    sh.phaseUntil = Infinity;
+    sh.matchStartMs = 0;
+    sh.interludeMs = -1;
+    sh.rematches = 0;
+    sh.entrants = [];
+    sh.rounds = [];
+    sh.round = sh.pair = sh.a = sh.b = -1;
+    sh.bout = 1;
+    sh.bouts = 1;
+    sh.wins = [];
+    sh.bossHp = sh.bossMaxHp = 0;
+    sh.wave = sh.waves = 0;
+    sh.phase2 = false;
+    sh.champion = -1;
+    sh.winnerSide = -1;
+    sh.lastWinner = -1;
+    sh.rematchNext = false;
+    sh.resultMs = -Infinity;
+    sh.resultSerial = 0;
+    sh.bothLowMs = -1;
+    this.beginBestOf(1);
+    this.newPairing();
+    this.showRows = [];
+    if (sh.kind === "single" || sh.kind === "series") {
+      this.showRows = pickFighters({ fighters: s.fighters, match: v.match, sameDivision: s.sameDivision }, random);
+      sh.wins = new Array(v.teamCount).fill(0);
+      if (sh.kind === "series") {
+        this.beginBestOf(s.bestOf);
+        sh.bouts = flBestOfGames(s.bestOf);
+      }
+      return;
+    }
+    const pinnedSlots = flPinnedSlots(s.fighters);
+    const tokens = parseFlEntrants(s.entrants);
+    const pinnedOf = (slots: readonly number[]) => slots.map((slot) => ({ row: FL_BY_ID.get(s.fighters[slot])!, slot }));
+    if (sh.kind === "bracket") {
+      const fill = this.bracketPool(random);
+      const size = Math.max(2, Math.min(FL_ENTRANT_CEILING, Math.round(s.bracketSize)));
+      const drawn = drawFlEntrants({ pinned: pinnedOf(pinnedSlots), tokens, size, fill }, random);
+      const order = flSeedOrder(drawn, s.seeding, random);
+      sh.entrants = drawn.map((e) => ({ row: e.row, slot: e.slot, seed: e.seed, out: false }));
+      sh.rounds = flBuildBracket(order);
+      sh.wins = new Array(drawn.length).fill(0);
+      sh.bouts = flBracketBouts(drawn.length);
+      sh.bout = 0;
+      this.nextBracketBout();
+      return;
+    }
+    // a boss rush: the boss (slot A; Gerald when it is random), then its challengers – slots B–F's fighters first, the list, the pool
+    const boss = flBossRow(s.fighters[0]);
+    const waves = Math.max(1, Math.min(FL_ENTRANT_CEILING, Math.round(s.bossWaves)));
+    const drawn = drawFlEntrants({ pinned: pinnedOf(pinnedSlots.filter((slot) => slot > 0)), tokens, size: waves, fill: flBossPool(boss), exclude: [boss.id] }, random);
+    sh.entrants = [{ row: boss, slot: 0, seed: 0, out: false }, ...drawn.map((e, i) => ({ row: e.row, slot: e.slot, seed: i + 1, out: false }))];
+    sh.waves = drawn.length;
+    sh.bouts = drawn.length;
+    sh.wins = [0, 0];
+    sh.bossMaxHp = Math.max(1, (s.hp * boss.stats.hp) / 100) * s.bossHp;
+    sh.bossHp = sh.healFrom = sh.bossMaxHp;
+    sh.a = 0;
+    sh.b = 1;
+    sh.wave = 1;
+    sh.bout = 1;
+  }
+
+  /** A bracket's default pool: the first pinned fighter's division (Gerald's: FL_GERALD_POOL), else slot A's random scope, else a division drawn (one draw). */
+  private bracketPool(random: () => number): FlPool {
+    const s = this.settings;
+    for (const slot of flPinnedSlots(s.fighters)) {
+      const row = FL_BY_ID.get(s.fighters[slot]);
+      if (row) return flBossPool(row);
+    }
+    const scope = parseFlRandom(s.fighters[0]);
+    if (scope && scope.kind !== "any") return scope;
+    const u = random();
+    return { kind: "division", id: DRAW_DIVISIONS[Math.min(DRAW_DIVISIONS.length - 1, Math.floor(u * DRAW_DIVISIONS.length))] };
+  }
+
+  /** The bracket's next bout (`flNextBout()`): its round and pair, its entrants (the better seed in slot A), a new pairing; false once the final is decided. */
+  private nextBracketBout(): boolean {
+    const sh = this.view.show;
+    const next = flNextBout(sh.rounds);
+    if (!next) return false;
+    const bout = sh.rounds[next.r][next.p];
+    sh.round = next.r;
+    sh.pair = next.p;
+    const swap = sh.entrants[bout.b].seed < sh.entrants[bout.a].seed;
+    sh.a = swap ? bout.b : bout.a;
+    sh.b = swap ? bout.a : bout.b;
+    sh.bout++;
+    this.newPairing();
+    // the best-of applies to the final only
+    this.beginBestOf(next.r === sh.rounds.length - 1 ? this.settings.bestOf : 1);
+    return true;
+  }
+
+  /** A new pairing: no rematch yet, no damage dealt. */
+  private newPairing() {
+    this.view.show.rematches = 0;
+    this.pairDealt[0] = this.pairDealt[1] = 0;
+  }
+
+  /** A best-of-`n` begins (a series, a bracket's final; 1: one match): no game played, its wins needed, its most games. */
+  private beginBestOf(n: number) {
+    const sh = this.view.show;
+    const games = flBestOfGames(n);
+    sh.games = 0;
+    sh.need = flSeriesNeed(games);
+    sh.maxGames = games > 1 ? flSeriesMaxGames(games) : 1;
+    sh.score = [0, 0];
+    sh.shareSum = [0, 0];
+  }
+
+  /**
+   * A match starts at `now` (the init's at 0, `first`): the last match's balls go, its projectiles, minions, beams, tasks, walls,
+   * events, banners and decals are cleared, the match's counters, statuses, sudden death, story and win chance start over, the
+   * fighters spawn – the init's spawn code and draws, the sides swapped every other match – and the VS card plays again
+   * (`matchSerial` grows; `generation` stays the run's). The show's own banners on the card: GAME n, the round, WAVE n/m,
+   * REMATCH!, SERIES POINT, the decider.
+   */
+  private startMatch(ctx: ModeContext, now: number, first = false) {
+    const s = this.settings;
+    const v = this.view;
+    const sh = v.show;
+    const field = v.field!;
+    if (!first && v.fighters.length > 0) {
+      const ids = new Set(v.fighters.map((f) => f.ballId));
+      ctx.setBalls(ctx.getBalls().filter((b) => !ids.has(b.id)));
+    }
+    v.introMs = now + FL_INTRO_MS;
     v.slowTimeUntil = -Infinity;
     v.slowTimeTeam = -1;
     v.slowTimeFactor = 1;
-    v.finished = false;
+    v.matchOver = false;
     v.finishMs = -Infinity;
     v.winnerTeam = -1;
     v.doubleKo = false;
     v.byTime = false;
-    v.forcedWinner = fightForcedWinner(ctx.config.forcedWinner, v.teamCount);
-    v.rigAbsorbed = 0;
-    v.hits = v.blocks = v.casts = v.kos = v.shots = v.clashes = v.wallHits = v.notes = v.sounds = 0;
-    v.grazes = v.immunes = v.clashes2 = v.interrupts = v.dodges = 0;
     v.suddenMs = -1;
     v.shrink = 1;
+    field.half = field.fullHalf;
     v.lastKoMs = -Infinity;
-    v.lastHitMs = 0;
-    v.eventSerial = 0;
+    v.lastHitMs = now;
     for (const p of v.projectiles) {
       p.active = false;
       p.weapon = -1;
@@ -2242,15 +3044,17 @@ export class FightLeagueMode implements GameMode {
     for (const t of v.tasks) t.active = false;
     for (const w of v.walls) w.active = false; // --- fl-overhaul ---
     for (const e of v.events) {
+      if (!first) e.kind = 0;
       e.t = -Infinity;
       e.src = -1;
       e.aux = 0; // --- fl-overhaul --- (Stage 3)
     }
-    // --- fl-overhaul --- (Stage 3) the visual state starts over: banners, decals, the finale, the lead; the VS card's banner at 0 ms
-    for (const b of v.banners) b.t = -Infinity;
+    // --- fl-overhaul --- (Stage 3) the visual state starts over: banners, decals, the finale, the lead; the VS card's banner at the match's start
+    for (const b of v.banners) {
+      if (!first) b.kind = 0;
+      b.t = -Infinity;
+    }
     for (const d of v.decals) d.until = -Infinity;
-    v.bannerSerial = 0;
-    v.decalSerial = 0;
     v.firstBloodSlot = -1;
     v.finale.from = -1;
     v.finale.until = -1;
@@ -2261,45 +3065,91 @@ export class FightLeagueMode implements GameMode {
     v.winCue = false;
     this.koThisStep = false;
     this.graceUntil = -1;
-    this.volleySerial = 0;
-    this.projSerial = 0;
-    this.stepIndex = 0;
     this.meleeCount = 0;
     this.pairClashMs.fill(-Infinity);
-    this.snd.clear(); // --- fl-overhaul --- (Stage 4)
-    this.orbitPrev.fill(Number.NaN);
+    this.orbitPrev.fill(Number.NaN); // --- fl-overhaul --- (Stage 4)
     this.sndClock = 5;
     this.sndLease = 0;
     this.sndChord = false;
     this.rigK = 0;
-    this.rigChosen = v.forcedWinner;
-    this.ballRadius = ctx.config.ballRadius || 8;
-    this.unit = this.speedUnit(ctx);
+    this.rigAbsorbedAtStart = v.rigAbsorbed;
+    this.bossHpAtStart = sh.bossHp;
+    // --- fl-overhaul --- (Stage 5) the match in the show: its start, its phase, its serial, its cap (a bracket's and a boss rush's bouts: min(flT, 45 s) with sudden death)
+    sh.matchStartMs = now;
+    sh.phase = "intro";
+    sh.phaseUntil = Infinity;
+    v.matchSerial++;
+    const bout = sh.kind === "bracket" || sh.kind === "boss";
+    v.capSec = bout ? (s.timeCap > 0 ? Math.min(s.timeCap, FL_BOUT_CAP_SEC) : FL_BOUT_CAP_SEC) : s.timeCap;
+    v.suddenOn = bout ? true : s.suddenDeath;
+    this.rigChosen = this.matchRig();
+    this.spawnFighters(ctx);
+    this.resetStory();
+    // the finale's drift starts where each fighter stands; the hums and holds of the last match stop; the VS card's banners
+    for (const f of v.fighters) {
+      f.finX = f.x;
+      f.finY = f.y;
+    }
+    this.snd.urgentCue(this.cue(null, "loopStop", { flLoop: -1 })); // --- fl-overhaul --- (Stage 4) the last fight's hums and holds stop
+    this.stepIntroCues(now);
+    this.showIntroBanners(now);
+  }
 
-    // The run's random numbers, in this order (the header lists every later draw): one per random slot (pickFighters), then
-    // per fighter in slot order its spawn jitter (x, y), then per fighter its launch heading, then per fighter its cadence
-    // jitter and its meter's head start.
-    const rows = pickFighters(s, () => ctx.random());
+  /**
+   * The match's fighters – the init's spawn, unchanged for one match: per fighter in slot order its spot (half way to the walls)
+   * jittered by the seed (x, y), then per fighter its launch heading (at the nearest foe ± 20°), then per fighter its cadence
+   * jitter and its meter's head start. A show's entrants carry their slot's handicaps (a drawn entrant none; a boss rush's boss
+   * slot A's, its challengers slot B's); a boss is FL_BOSS bigger and stronger and carries its HP; a 3v3's fighters are
+   * FL_3V3_SIZE the size; every other match the sides swap.
+   */
+  private spawnFighters(ctx: ModeContext) {
+    const s = this.settings;
+    const v = this.view;
+    const sh = v.show;
+    const field = v.field!;
+    const rows = this.matchRows();
     const n = rows.length;
     const firstId = ctx.getNextId();
     const r0 = FL_BALL_FRAC * field.side * Math.max(0.25, this.ballRadius / 8);
     const fit = FL_FIT_RADIUS * field.half;
-    const spots = spawnSpots(s.match, n);
+    const spots = spawnSpots(v.match, n);
+    const mirror = sh.matchIndex % 2 === 1 ? -1 : 1;
     v.fighters = [];
     this.byIndex = new Array(n).fill(null);
     for (let i = 0; i < n; i++) {
       const row = rows[i];
-      const f = new FlFighter(i, slotTeam(s.match, i), row);
+      const f = new FlFighter(i, slotTeam(v.match, i), row);
+      // (Stage 5) the show's part: the entrant, the boss, the handicaps of its slot, the format's size
+      const boss = sh.kind === "boss" && i === 0;
+      const hc = sh.kind === "bracket" ? sh.entrants[i === 0 ? sh.a : sh.b]?.slot ?? -1 : sh.kind === "boss" ? (boss ? 0 : 1) : i;
+      f.entrant = sh.kind === "bracket" ? (i === 0 ? sh.a : sh.b) : sh.kind === "boss" ? (boss ? 0 : sh.b) : -1;
+      f.boss = boss;
+      f.hcSpeed = hc >= 0 ? s.speed[hc] : 1;
+      f.hcDamage = hc >= 0 ? s.damage[hc] : 1;
+      f.hcAttack = hc >= 0 ? s.attack[hc] : 1;
+      f.hcCast = hc >= 0 ? s.cast[hc] : 1;
+      f.sizeScale = boss ? FL_BOSS.size : v.match === "3v3" ? FL_3V3_SIZE : 1;
       f.maxHp = Math.max(1, (s.hp * row.stats.hp) / 100);
       f.hp = f.maxHp;
-      f.speed = row.stats.speed * s.speed[i];
-      f.attack = row.stats.attackSpeed * s.attack[i];
-      f.damage = row.stats.damage * s.damage[i];
-      f.cast = row.stats.castSpeed * s.cast[i];
+      f.speed = row.stats.speed * f.hcSpeed;
+      f.attack = row.stats.attackSpeed * f.hcAttack;
+      f.damage = row.stats.damage * f.hcDamage;
+      f.cast = row.stats.castSpeed * f.hcCast;
+      if (boss) {
+        f.maxHp = sh.bossMaxHp;
+        f.hp = Math.max(Math.min(1, f.maxHp), Math.min(f.maxHp, sh.bossHp));
+        f.damage *= FL_BOSS.damage;
+        if (sh.phase2) {
+          f.speed *= FL_BOSS.phase2Speed;
+          f.cast *= FL_BOSS.phase2Cast;
+        }
+      }
+      f.startFrac = f.maxHp > 0 ? f.hp / f.maxHp : 1;
+      f.lowestHpFrac = f.startFrac;
       // --- fl-overhaul --- as big as typed while it fits the arena; its weight; its weapon's intent band
-      f.r = Math.min(r0 * row.stats.size, fit);
+      f.r = Math.min(r0 * row.stats.size * f.sizeScale, fit);
       f.baseR = f.r;
-      f.weight = knockbackWeight(row.stats.size);
+      f.weight = knockbackWeight(row.stats.size * f.sizeScale);
       const lead = f.weapons[0].spec;
       const band = row.intent ?? intentBand(lead);
       f.bandLo = band.lo;
@@ -2308,9 +3158,9 @@ export class FightLeagueMode implements GameMode {
       const jx = (ctx.random() - 0.5) * 0.08 * field.side;
       const jy = (ctx.random() - 0.5) * 0.08 * field.side;
       const room = field.half - f.r - 2;
-      const sx = spots[2 * i] * 0.5 * field.half + jx;
+      const sx = mirror * spots[2 * i] * 0.5 * field.half + jx;
       const sy = spots[2 * i + 1] * 0.5 * field.half + jy;
-      f.homeSx = Math.sign(spots[2 * i]); // --- fl-overhaul --- (Stage 3) the cards' corner (visual; no rule reads it)
+      f.homeSx = Math.sign(mirror * spots[2 * i]); // --- fl-overhaul --- (Stage 3) the cards' corner (visual; no rule reads it)
       f.homeSy = Math.sign(spots[2 * i + 1]);
       f.x = field.cx + Math.max(-room, Math.min(room, sx));
       f.y = field.cy + Math.max(-room, Math.min(room, sy));
@@ -2352,14 +3202,99 @@ export class FightLeagueMode implements GameMode {
     }
     for (const f of v.fighters) ctx.addBall({ x: f.x, y: f.y, vx: 0, vy: 0, radius: f.r, color: f.row.body, team: f.team, radiusScale: f.r / this.ballRadius });
     this.indexBalls(ctx);
-    // --- fl-overhaul --- (Stage 3) the finale's drift starts where each fighter stands; the VS card's banner (no random draw)
+  }
+
+  /** The rows of the match in play: a match's or a series' (drawn at the init), a bracket bout's or a boss rush's pairing. */
+  private matchRows(): FlFighterRow[] {
+    const sh = this.view.show;
+    if (sh.kind === "bracket" || sh.kind === "boss") return [sh.entrants[sh.a].row, sh.entrants[sh.b].row];
+    return this.showRows;
+  }
+
+  /**
+   * The rig of the match in play (a bout side, −1 none) – the forced winner whenever its side plays: a single match; a series'
+   * games the rival could clinch, the decider and the last game the series allows (a rigged series comes back 2–1, not always
+   * 2–0); a bracket's bouts of the chosen pinned entrant (its final's games like a series'); a boss rush's every bout for the
+   * boss, the last wave for the challengers (the boss falls by the end at the latest).
+   */
+  private matchRig(): number {
+    const v = this.view;
+    const sh = v.show;
+    const chosen = v.forcedWinner;
+    if (chosen < 0) return -1;
+    if (sh.kind === "single") return chosen;
+    if (sh.kind === "boss") return chosen === 0 ? 0 : sh.wave >= sh.waves ? 1 : -1;
+    const side = sh.kind === "series" ? chosen : this.bracketSideOf(chosen);
+    if (side < 0) return -1;
+    if (sh.maxGames <= 1) return side;
+    return sh.score[1 - side] >= sh.need - 1 || sh.games + 1 >= sh.maxGames ? side : -1;
+  }
+
+  /** The bout side (0 slot A, 1 slot B) of a bracket's pinned side `side` in the bout in play; −1 when it does not play. */
+  private bracketSideOf(side: number): number {
+    const sh = this.view.show;
+    const slot = flPinnedSlots(this.settings.fighters)[side];
+    if (slot === undefined) return -1;
+    if (sh.entrants[sh.a]?.slot === slot) return 0;
+    if (sh.entrants[sh.b]?.slot === slot) return 1;
+    return -1;
+  }
+
+  /** The story of the new match: nothing yet; the win chance of its sides at its start (hidden with the setting off or a handicap ≠ 1). */
+  private resetStory() {
+    const v = this.view;
+    const st = v.story;
+    st.firstBloodMs = -1;
+    st.firstBloodSlot = -1;
+    st.leadChanges = 0;
+    st.deficit = new Array(v.teamCount).fill(0);
+    st.bothLowMs = -1;
+    st.comboPeak = 0;
+    st.decided = false;
+    st.upset = st.comeback = st.clutch = st.perfect = st.sudden = false;
+    st.winnerHpFrac = -1;
+    st.finisherVia = 0;
+    st.finisherSlot = -1;
+    st.finisher = "";
+    st.abilityFinish = false;
+    st.tags = [];
+    const sides: FlFighterRow[][] = Array.from({ length: v.teamCount }, () => []);
+    let handicapped = false;
     for (const f of v.fighters) {
-      f.finX = f.x;
-      f.finY = f.y;
+      sides[f.team]?.push(f.row);
+      if (f.hcSpeed !== 1 || f.hcDamage !== 1 || f.hcAttack !== 1 || f.hcCast !== 1) handicapped = true;
     }
-    this.snd.urgentCue(this.cue(null, "loopStop", { flLoop: -1 })); // --- fl-overhaul --- (Stage 4) the last fight's hums and holds stop
-    this.stepIntroCues(0);
-    this.snd.endTick(); // --- fl-overhaul --- (Stage 4) the VS card's sting is the first tick's
+    const odds = flWinChances(sides);
+    st.chances = odds.chances;
+    // a boss's numbers are no rating's: its chance is an estimate
+    st.est = odds.est || v.show.kind === "boss";
+    st.oddsShown = v.settings.odds && !handicapped;
+    st.handicapped = handicapped;
+  }
+
+  /** The show's banners on the VS card (stamped at the match's start; no random draw): GAME n, the round's name, WAVE n/m, REMATCH!, SERIES POINT, the decider. */
+  private showIntroBanners(now: number) {
+    const v = this.view;
+    const sh = v.show;
+    if (sh.rematchNext) this.pushBanner(FB_REMATCH, now);
+    if (sh.kind === "bracket" && !sh.rematchNext) {
+      const code = flRoundCode(sh.rounds, sh.round);
+      this.pushBanner(code === "final" ? FB_FINAL : code === "sf" ? FB_SEMI_FINAL : code === "qf" ? FB_QUARTER_FINAL : FB_ROUND_OF_16, now, -1, sh.round);
+    }
+    if (sh.kind === "boss" && !sh.rematchNext) {
+      this.pushBanner(FB_WAVE, now, 1, sh.wave);
+      if (sh.wave > 1) this.pushBanner(FB_CHALLENGER, now, 1, sh.wave);
+    }
+    if (sh.maxGames > 1) {
+      this.pushBanner(FB_GAME, now, -1, sh.games + 1);
+      const last = sh.score[0] >= sh.need - 1 && sh.score[1] >= sh.need - 1;
+      if (last) this.pushBanner(FB_MATCH_POINT, now, -1, sh.games + 1);
+      else if (sh.score[0] >= sh.need - 1 || sh.score[1] >= sh.need - 1) {
+        const side = sh.score[0] >= sh.need - 1 ? 0 : 1;
+        const lead = v.fighters.find((f) => f.team === side);
+        this.pushBanner(FB_SERIES_POINT, now, lead ? lead.slot : -1, side);
+      }
+    }
   }
 
   /** Cruising speed unit (px/s): the arena side × FL_SPEED_FRAC × Ball Speed / 400. */
@@ -2396,7 +3331,7 @@ export class FightLeagueMode implements GameMode {
 
   /** Whether `f` acts (moves its weapons, casts) – --- fl-overhaul --- not once a hit of this step took its last HP. */
   private canAct(f: FlFighter, now: number): boolean {
-    return f.alive && f.hp > 0 && now >= this.view.introMs && now >= f.frozenUntil && f.heldBy < 0 && !this.view.finished;
+    return f.alive && f.hp > 0 && now >= this.view.introMs && now >= f.frozenUntil && f.heldBy < 0 && !this.view.matchOver;
   }
 
   private targetable(f: FlFighter, now: number): boolean {
@@ -2539,16 +3474,18 @@ export class FightLeagueMode implements GameMode {
 
   /**
    * --- fl-overhaul --- (Stage 3) The VS card's banners on its clock (the same ticks as its cues): VS at 0 ms, the count 3-2-1 at
-   * 450 / 800 / 1150 ms, FIGHT! at FL_INTRO_MS (each stamped with its own moment, whatever the step's rounding).
+   * 450 / 800 / 1150 ms, FIGHT! at FL_INTRO_MS (each stamped with its own moment, whatever the step's rounding) – (Stage 5) from
+   * the match's start (a show's every match plays its card).
    */
   private stepIntroCues(now: number) {
     const v = this.view;
     const at = FL_INTRO_CUES_MS;
-    while (v.introCue < at.length && now >= at[v.introCue] - 1e-6) {
+    const t0 = v.show.matchStartMs;
+    while (v.introCue < at.length && now >= t0 + at[v.introCue] - 1e-6) {
       const cue = v.introCue;
-      if (cue === 0) this.pushBanner(FB_VS, 0);
-      else if (cue <= 3) this.pushBanner(FB_COUNT, at[cue], -1, 4 - cue);
-      else this.pushBanner(FB_FIGHT, at[cue]);
+      if (cue === 0) this.pushBanner(FB_VS, t0);
+      else if (cue <= 3) this.pushBanner(FB_COUNT, t0 + at[cue], -1, 4 - cue);
+      else this.pushBanner(FB_FIGHT, t0 + at[cue]);
       v.introCue++;
     }
   }
@@ -2626,7 +3563,7 @@ export class FightLeagueMode implements GameMode {
       }
     }
     let best = 0;
-    for (let t = 0; t < 4; t++) if (rivalMax[t] > 0) best = Math.max(best, rival[t] / rivalMax[t]);
+    for (let t = 0; t < rival.length; t++) if (rivalMax[t] > 0) best = Math.max(best, rival[t] / rivalMax[t]);
     const share = mineMax > 0 ? mine / mineMax : 0;
     const behind = Math.max(0, Math.min(1, (best - share + 0.1) / 0.5));
     this.rigK = 0.3 + 0.7 * behind;
@@ -2658,7 +3595,7 @@ export class FightLeagueMode implements GameMode {
     this.updateSudden(now);
     const dt = dtMs / 1000;
     const started = now >= v.introMs;
-    const live = !v.finished;
+    const live = !v.matchOver;
     // Positions and targets first, the statuses that run per step (heals, chokes ticking) …
     for (const f of v.fighters) {
       const ball = this.byIndex[f.slot];
@@ -2700,7 +3637,7 @@ export class FightLeagueMode implements GameMode {
   private endTransform(f: FlFighter, now: number) {
     f.sizeMul = 1;
     f.transformUntil = -Infinity;
-    f.weight = knockbackWeight(f.row.stats.size);
+    f.weight = knockbackWeight(f.row.stats.size * f.sizeScale); // (--- fl-overhaul --- Stage 5: a boss's, a 3v3's size)
     this.applySize(f);
     this.pushEvent(EV_TRANSFORM, now, f.x, f.y, 0, f.slot, f.row.accent);
   }
@@ -2709,7 +3646,7 @@ export class FightLeagueMode implements GameMode {
   private updateSudden(now: number) {
     const v = this.view;
     const field = v.field;
-    if (!field || v.suddenMs < 0 || v.finished) return;
+    if (!field || v.suddenMs < 0 || v.matchOver) return;
     const k = Math.max(0, Math.min(1, (now - v.suddenMs) / FL_SUDDEN_SHRINK_MS));
     v.shrink = 1 - (1 - FL_SUDDEN_MIN) * k;
     field.half = field.fullHalf * v.shrink;
@@ -2728,7 +3665,7 @@ export class FightLeagueMode implements GameMode {
     if (now < f.slowUntil) cruise *= f.slowFactor;
     if (now < f.confusedUntil) cruise *= 0.6;
     f.cruise = cruise;
-    const frozen = !started || now < f.frozenUntil || f.heldBy >= 0 || now < f.pinUntil || v.finished;
+    const frozen = !started || now < f.frozenUntil || f.heldBy >= 0 || now < f.pinUntil || v.matchOver;
     if (frozen) {
       if (!f.kept) {
         const s = Math.hypot(ball.vx, ball.vy);
@@ -2779,7 +3716,7 @@ export class FightLeagueMode implements GameMode {
       ball.vx *= next / s;
       ball.vy *= next / s;
     }
-    if (!v.finished && started && !this.lunge(f, ball, now)) this.intentSteer(f, ball, now, dt);
+    if (!v.matchOver && started && !this.lunge(f, ball, now)) this.intentSteer(f, ball, now, dt);
     f.vx = ball.vx;
     f.vy = ball.vy;
   }
@@ -2973,7 +3910,7 @@ export class FightLeagueMode implements GameMode {
   private landPendingHold(f: FlFighter, now: number) {
     const by = f.pendingHoldBy >= 0 ? this.view.fighters[f.pendingHoldBy] : null;
     f.pendingHoldBy = -1;
-    if (!by || !by.alive || !f.alive || this.view.finished || !this.ctxRef) return;
+    if (!by || !by.alive || !f.alive || this.view.matchOver || !this.ctxRef) return;
     this.applyHold(this.ctxRef, by, f, f.pendingHoldDur, f.pendingHoldDamage, f.pendingHoldAt, now);
   }
 
@@ -3127,7 +4064,7 @@ export class FightLeagueMode implements GameMode {
     if (!f.alive) return;
     const now = this.now() + dtSec * 1000;
     // Held still: the intro, a freeze, a hold, a pin, the end (gravity or a push must not move it).
-    if (now < v.introMs || now < f.frozenUntil || f.heldBy >= 0 || now < f.pinUntil || v.finished) {
+    if (now < v.introMs || now < f.frozenUntil || f.heldBy >= 0 || now < f.pinUntil || v.matchOver) {
       ball.x = f.x;
       ball.y = f.y;
       ball.vx = 0;
@@ -3147,7 +4084,7 @@ export class FightLeagueMode implements GameMode {
     if (barrier) {
       ctx.noteBounce?.(ball);
       for (const w of f.weapons) if (w.spec.kind === "sword") this.startSweep(f, w, now);
-      if (!v.finished) this.nudge(f, ball, now, this.barrierN.x, this.barrierN.y);
+      if (!v.matchOver) this.nudge(f, ball, now, this.barrierN.x, this.barrierN.y);
       f.vx = ball.vx;
       f.vy = ball.vy;
     }
@@ -3160,9 +4097,9 @@ export class FightLeagueMode implements GameMode {
       this.pushEvent(EV_SLAM, now, ball.x, ball.y, pre / Math.max(1, f.cruise), f.slot, f.row.accent, preVx, preVy);
       this.pushDecal(DC_CRACK, now, 1500, ball.x + (preVx / Math.max(1e-6, pre)) * f.r, ball.y + (preVy / Math.max(1e-6, pre)) * f.r, 0.9 * f.r, "#1e1b2e"); // --- fl-overhaul --- (Stage 3)
     }
-    if (field.kind === "circle" && !v.finished) this.rimTurn(ball);
+    if (field.kind === "circle" && !v.matchOver) this.rimTurn(ball);
     for (const w of f.weapons) if (w.spec.kind === "sword") this.startSweep(f, w, now);
-    if (!v.finished) this.nudge(f, ball, now);
+    if (!v.matchOver) this.nudge(f, ball, now);
     f.vx = ball.vx;
     f.vy = ball.vy;
   }
@@ -3491,7 +4428,7 @@ export class FightLeagueMode implements GameMode {
   }
 
   private pinned(f: FlFighter, now: number): boolean {
-    return now < this.view.introMs || now < f.frozenUntil || f.heldBy >= 0 || now < f.pinUntil || this.view.finished;
+    return now < this.view.introMs || now < f.frozenUntil || f.heldBy >= 0 || now < f.pinUntil || this.view.matchOver;
   }
 
   /** Super Star's contact damage of `f` (the abilities' source). */
@@ -3983,7 +4920,7 @@ export class FightLeagueMode implements GameMode {
     const fs = this.view.fighters;
     const a = fs[q.attacker];
     const b = fs[q.target];
-    if (!a.alive || !b.alive || a.hp <= 0 || b.hp <= 0 || this.view.finished) return false;
+    if (!a.alive || !b.alive || a.hp <= 0 || b.hp <= 0 || this.view.matchOver) return false;
     if (now < b.invulnUntil || now < a.disarmedUntil) return false;
     return !(now < b.srcUntil[(a.slot & 7) * 8 + Math.min(6, q.weapon)]);
   }
@@ -4401,6 +5338,7 @@ export class FightLeagueMode implements GameMode {
     // --- fl-overhaul --- (Stage 3) a fresh shot starts a fresh trail
     p.trailHead = 0;
     p.trailCount = 0;
+    p.via = 0; // --- fl-overhaul --- (Stage 5)
     // --- end fl-overhaul ---
     if (this.rigChosen >= 0 && f.team === this.rigChosen) p.homing = 2.2 * this.rigK;
   }
@@ -4665,12 +5603,13 @@ export class FightLeagueMode implements GameMode {
    * back to the shooter; sparks where it turned (EV_BLOCK).
    */
   private deflect(p: FlProjectile, by: FlFighter, shooter: FlFighter, now: number) {
-    if (p.giant > 0 && shooter.alive && !this.view.finished) shooter.giantLeft++;
+    if (p.giant > 0 && shooter.alive && !this.view.matchOver) shooter.giantLeft++;
     p.giant = 0;
     p.owner = by.slot;
     p.team = by.team;
     p.damage *= by.reflectFrac;
     p.weapon = -1;
+    p.via = FL_VIA_REFLECT; // --- fl-overhaul --- (Stage 5) the story: a deflected shot lands as a reflection
     p.volley = ++this.volleySerial;
     p.blink = false;
     p.pull = false;
@@ -4782,7 +5721,7 @@ export class FightLeagueMode implements GameMode {
       this.weaponCue(owner, owner.weapons[p.weapon] ?? null, "blink", FL_CAT_SHOOT, 0.5); // --- fl-overhaul --- (Stage 4)
       this.blinkTo(ctx, owner, p.x, p.y, now, owner.weapons[p.weapon]?.spec.damage ?? 5);
     }
-    if (p.giant > 0 && owner && owner.alive && !v.finished) owner.giantLeft++;
+    if (p.giant > 0 && owner && owner.alive && !v.matchOver) owner.giantLeft++;
     p.giant = 0;
     p.active = false;
     if (owner) for (const w of owner.weapons) if (w.thrown === index) w.thrown = -1;
@@ -4875,7 +5814,7 @@ export class FightLeagueMode implements GameMode {
   private hit(ctx: ModeContext, attacker: FlFighter, target: FlFighter, damage: number, dx: number, dy: number, kb: number, sound: FlSoundKind, opts: HitOptions = {}): number {
     const v = this.view;
     const now = this.now();
-    if (!target.alive || target.hp <= 0 || v.finished) return HIT_NONE;
+    if (!target.alive || target.hp <= 0 || v.matchOver) return HIT_NONE;
     // --- fl-overhaul --- a fighter whose last HP went earlier this step strikes no more (its shots in the air still fly)
     if (attacker.hp <= 0 && !opts.projectile && attacker !== target) return HIT_NONE;
     const weapon = opts.weapon !== undefined && opts.weapon >= 0 ? opts.weapon : -1;
@@ -4934,6 +5873,10 @@ export class FightLeagueMode implements GameMode {
     const before = target.hp;
     target.hp -= amount;
     this.absorbLethal(target, before);
+    // --- fl-overhaul --- (Stage 5) the story: how the hit landed (a KO's finisher) – a giant hit is its ability's, a deflected shot a reflection
+    target.lastVia = opts.via ?? (giant > 0 ? FL_VIA_ABILITY : proj && proj.via > 0 ? proj.via : weapon >= 0 ? FL_VIA_WEAPON : opts.sndPrim === "trap" ? FL_VIA_TRAP : opts.sndPrim === "summon" ? FL_VIA_SUMMON : opts.sndPrim === "invulnerable" ? FL_VIA_CONTACT : FL_VIA_ABILITY);
+    target.lastViaWeapon = weapon;
+    target.lastViaBy = attacker.slot;
     const rig = this.rigChosen >= 0 && target.team === this.rigChosen ? 1 + 0.8 * this.rigK : 1;
     target.srcUntil[src] = now + this.windowOf(attacker, weapon, now) * rig;
     if (opts.volley) {
@@ -4972,6 +5915,9 @@ export class FightLeagueMode implements GameMode {
       const had = attacker.hp;
       attacker.hp -= back;
       this.absorbLethal(attacker, had);
+      attacker.lastVia = FL_VIA_REFLECT; // --- fl-overhaul --- (Stage 5) the story's finisher: damage reflected back
+      attacker.lastViaWeapon = -1;
+      attacker.lastViaBy = target.slot;
       attacker.hitMs = now;
       attacker.comboCount = 0; // --- fl-overhaul --- (Stage 3: a combo breaks when its attacker takes a hit)
       this.pushEvent(EV_DAMAGE, now, attacker.x, attacker.y - attacker.r, back, attacker.slot, target.row.accent, 0, 0, (target.slot & 7) * 8 + 7, 2);
@@ -5008,6 +5954,8 @@ export class FightLeagueMode implements GameMode {
     const v = this.view;
     if (v.firstBloodSlot < 0 && amount >= 1 && attacker !== target) {
       v.firstBloodSlot = attacker.slot;
+      v.story.firstBloodMs = now; // --- fl-overhaul --- (Stage 5) the story's first blood (once a match)
+      v.story.firstBloodSlot = attacker.slot;
       this.pushBanner(FB_FIRST_BLOOD, now, attacker.slot, amount);
     }
     if (attacker !== target && !(volley > 0 && volley === attacker.comboVolley)) {
@@ -5016,6 +5964,9 @@ export class FightLeagueMode implements GameMode {
       attacker.comboOn = target.slot;
       attacker.comboMs = now;
       attacker.comboVolley = volley;
+      // --- fl-overhaul --- (Stage 5) the story's combo peak
+      if (attacker.comboCount > attacker.comboPeak) attacker.comboPeak = attacker.comboCount;
+      if (attacker.comboCount > v.story.comboPeak) v.story.comboPeak = attacker.comboCount;
     }
     if ((amount >= FL_IMPACT_DAMAGE || giant || (ability && amount >= 4)) && now - target.impactMs >= FL_IMPACT_GAP_MS && now - attacker.impactMs >= FL_IMPACT_GAP_MS) {
       target.impactMs = now;
@@ -5041,7 +5992,7 @@ export class FightLeagueMode implements GameMode {
    * air after the last KO (`FL_KO_GRACE_MS`), so a rigged fight never ends in a double KO.
    */
   private absorbLethal(f: FlFighter, before: number) {
-    if (f.hp > 0 || this.rigChosen < 0 || f.team !== this.rigChosen || this.view.finished || !this.lastOfTeam(f)) return;
+    if (f.hp > 0 || this.rigChosen < 0 || f.team !== this.rigChosen || this.view.matchOver || !this.lastOfTeam(f)) return;
     f.hp = Math.min(before, 1);
     this.view.rigAbsorbed++;
   }
@@ -5062,6 +6013,23 @@ export class FightLeagueMode implements GameMode {
       if (f.team !== this.rigChosen || !f.alive) continue;
       if (f.hp > 0) return;
       if (!keep || f.hp > keep.hp) keep = f;
+    }
+    if (!keep) return;
+    keep.hp = Math.min(keep.maxHp, 1);
+    this.view.rigAbsorbed++;
+  }
+
+  /**
+   * --- fl-overhaul --- (Stage 5) A rigged show's match the chosen side does not steer (a series' early game, another pairing of
+   * the bracket): should every fighter still standing be at 0 HP at the step's end, the one that dealt the most damage this
+   * match (then the lower slot) keeps 1 HP – a rigged show never ends a match in a double KO. Deterministic, like the guard above.
+   */
+  private guardNoDoubleKo() {
+    let keep: FlFighter | null = null;
+    for (const f of this.view.fighters) {
+      if (!f.alive) continue;
+      if (f.hp > 0) return;
+      if (!keep || f.dealt > keep.dealt + 1e-9) keep = f;
     }
     if (!keep) return;
     keep.hp = Math.min(keep.maxHp, 1);
@@ -5388,7 +6356,7 @@ export class FightLeagueMode implements GameMode {
           f.atkMul = e.attackSpeed;
           f.atkMulUntil = f.transformUntil;
         }
-        f.weight = knockbackWeight(f.row.stats.size * e.size);
+        f.weight = knockbackWeight(f.row.stats.size * f.sizeScale * e.size); // (--- fl-overhaul --- Stage 5: a boss's, a 3v3's size)
         this.applySize(f);
         this.pushEvent(EV_TRANSFORM, now, f.x, f.y, 1, f.slot, f.row.accent);
         break;
@@ -5500,7 +6468,7 @@ export class FightLeagueMode implements GameMode {
     for (const task of v.tasks) {
       if (!task.active || now < task.at) continue;
       const f = v.fighters[task.owner];
-      if (!f || !f.alive || v.finished) {
+      if (!f || !f.alive || v.matchOver) {
         task.active = false;
         continue;
       }
@@ -5545,7 +6513,7 @@ export class FightLeagueMode implements GameMode {
         if (!o.alive || o.team === f.team) continue;
         if (!circlesTouch(f.x, f.y, f.fireRingRadius, o.x, o.y, o.r)) continue;
         const d = Math.hypot(o.x - f.x, o.y - f.y) || 1;
-        this.hit(ctx, f, o, f.fireRingDamage, (o.x - f.x) / d, (o.y - f.y) / d, 0.4, sound, { quiet: true, sndKind: f.fireRingShape === "flames" ? "fire" : f.fireRingShape === "kicks" ? "fists" : "cards" });
+        this.hit(ctx, f, o, f.fireRingDamage, (o.x - f.x) / d, (o.y - f.y) / d, 0.4, sound, { quiet: true, sndKind: f.fireRingShape === "flames" ? "fire" : f.fireRingShape === "kicks" ? "fists" : "cards", via: FL_VIA_BURN });
       }
       for (const m of this.view.minions) if (m.active && m.team !== f.team && circlesTouch(f.x, f.y, f.fireRingRadius, m.x, m.y, m.r)) this.hitMinion(ctx, f, m, now);
     }
@@ -5561,12 +6529,12 @@ export class FightLeagueMode implements GameMode {
         m.active = false;
         this.pushEvent(EV_POP, now, m.x, m.y, 0, m.owner, m.color);
         const owner = v.fighters[m.owner]; // --- fl-overhaul --- (Stage 4) a summon's time is up
-        if (m.summon && owner?.alive && !v.finished) this.snd.urgentCue(this.cue(owner, "end", { flPrim: "summon" }));
+        if (m.summon && owner?.alive && !v.matchOver) this.snd.urgentCue(this.cue(owner, "end", { flPrim: "summon" }));
         continue;
       }
       // --- fl-overhaul --- (Stage 2) a trap lies still; armed, the first foe to touch it takes its damage (unblockable) and its hold
       if (m.trap) {
-        if (now < m.armedAt || now < v.introMs || v.finished) continue;
+        if (now < m.armedAt || now < v.introMs || v.matchOver) continue;
         const owner = v.fighters[m.owner];
         for (const o of v.fighters) {
           if (!o.alive || o.team === m.team || o.hp <= 0 || !circlesTouch(m.x, m.y, m.r, o.x, o.y, o.r)) continue;
@@ -5579,7 +6547,7 @@ export class FightLeagueMode implements GameMode {
         continue;
       }
       // (--- fl-overhaul --- Stage 3: after a KO verdict the finale slows them with the survivors – the fight is decided)
-      const ts = this.timeScale(m.team, now) * (v.finished && v.finale.from >= 0 ? flFinaleScale(now - v.finale.from, v.finale.until - v.finale.from) : 1);
+      const ts = this.timeScale(m.team, now) * (v.matchOver && v.finale.from >= 0 ? flFinaleScale(now - v.finale.from, v.finale.until - v.finale.from) : 1);
       // Summons chase the nearest foe a little.
       if (m.summon) {
         let best = Infinity;
@@ -5666,8 +6634,8 @@ export class FightLeagueMode implements GameMode {
     for (const b of v.beams) {
       if (!b.active) continue;
       const f = v.fighters[b.owner];
-      if (!f || !f.alive || now >= b.until || v.finished) {
-        if (f && now >= b.until && !v.finished) this.pushDecal(DC_SCORCH, now, 1000, b.x1, b.y1, Math.max(2, 0.9 * b.width), "#1e1b2e"); // --- fl-overhaul --- (Stage 3: a ray's end scorches the floor)
+      if (!f || !f.alive || now >= b.until || v.matchOver) {
+        if (f && now >= b.until && !v.matchOver) this.pushDecal(DC_SCORCH, now, 1000, b.x1, b.y1, Math.max(2, 0.9 * b.width), "#1e1b2e"); // --- fl-overhaul --- (Stage 3: a ray's end scorches the floor)
         b.active = false;
         continue;
       }
@@ -5712,8 +6680,14 @@ export class FightLeagueMode implements GameMode {
     const v = this.view;
     const now = ctx.getElapsedMs();
     this.stepVisuals(now); // --- fl-overhaul --- (Stage 3: trails, the intro's banners, the finale's drift, the lead – no rule reads them)
-    if (v.finished) return;
+    // --- fl-overhaul --- (Stage 5) a decided match: the show's interlude runs to the next match (the show's end: nothing more)
+    if (v.matchOver) {
+      if (!v.finished) this.stepInterlude(ctx, now);
+      return;
+    }
     if (this.rigChosen >= 0) this.guardChosenSide();
+    else if (v.forcedWinner >= 0 && v.show.kind !== "single") this.guardNoDoubleKo(); // (a rigged show's other matches: no double KO either)
+    this.stepBossPhase(now); // --- fl-overhaul --- (Stage 5) a boss at half its HP: PHASE 2
     // KOs of this step (every hit of the step counted first: no fighter wins by its slot).
     this.koCount = 0; // --- fl-overhaul --- (Stage 3: this step's KO events, for their banners below)
     for (const f of v.fighters) {
@@ -5764,10 +6738,10 @@ export class FightLeagueMode implements GameMode {
       if (now >= this.graceUntil || !this.projectilesInAir(lastTeam)) this.finish(ctx, lastTeam, now, false, false);
       return;
     }
-    const cap = v.settings.timeCap;
+    const cap = v.capSec; // (--- fl-overhaul --- Stage 5: the match's – a bracket's bout min(flT, 45 s))
     if (!(cap > 0) || now - v.introMs < 1000 * cap) return;
     // --- fl-overhaul --- sudden death first (the arena shrinks; a KO still ends it), then the HP-fraction verdict
-    if (v.settings.suddenDeath) {
+    if (v.suddenOn) {
       if (v.suddenMs < 0) {
         v.suddenMs = now;
         const field = v.field!;
@@ -5814,7 +6788,11 @@ export class FightLeagueMode implements GameMode {
     return false;
   }
 
-  /** The verdict: --- fl-overhaul --- every fighter stops where it is (the renderer animates the winner), so a frame's extra step changes nothing. */
+  /**
+   * The verdict: --- fl-overhaul --- every fighter stops where it is (the renderer animates the winner), so a frame's extra step
+   * changes nothing. (Stage 5) It decides the MATCH (`matchOver`); the show then decides whether it is over (`finished`, the team
+   * stats' win, the confetti) or an interlude leads to the next match.
+   */
   private finish(ctx: ModeContext, winnerTeam: number, now: number, doubleKo: boolean, byTime: boolean) {
     const v = this.view;
     // --- fl-overhaul --- (Stage 3) the finale's drift starts where every survivor flies, at the velocity it had (before the freeze)
@@ -5828,14 +6806,17 @@ export class FightLeagueMode implements GameMode {
       f.finVy = f.alive ? f.vy * k : 0;
       f.finSpin = 0;
     }
-    v.finished = true;
+    v.matchOver = true;
     v.finishMs = now;
     v.winnerTeam = winnerTeam;
     v.doubleKo = doubleKo;
     v.byTime = byTime;
     this.sndChord = true; // --- fl-overhaul --- (Stage 4) the verdict's first sting carries the legacy win chord
     for (const f of v.fighters) this.stopHeldCues(f, now); // (the beams, rings and holds end with the fight)
-    this.verdictVisuals(winnerTeam, now, doubleKo, byTime); // --- fl-overhaul --- (Stage 3)
+    // --- fl-overhaul --- (Stage 5) the story's verdict, then the show: over, or an interlude (a shorter finale) before the next match
+    this.storyVerdict(winnerTeam, byTime);
+    const over = this.decideShow(winnerTeam, now);
+    this.verdictVisuals(winnerTeam, now, doubleKo, byTime, over); // --- fl-overhaul --- (Stage 3)
     for (const p of v.projectiles) p.active = false;
     for (const b of v.beams) b.active = false;
     for (const t of v.tasks) t.active = false;
@@ -5849,16 +6830,279 @@ export class FightLeagueMode implements GameMode {
       f.kept = true;
       f.telegraphUntil = -1;
     }
+    const sh = v.show;
+    if (!over) {
+      sh.phase = "finale";
+      sh.phaseUntil = now + FL_INTERLUDE_FINALE_MS;
+      sh.interludeMs = now;
+      return;
+    }
+    v.finished = true;
+    sh.phase = "done";
+    sh.phaseUntil = Infinity;
     // The win in the team stats (an "escape"), so the teams banner and the finder's winner outcome rank the fight the same.
-    if (winnerTeam >= 0) {
-      for (const f of v.fighters) {
-        if (f.team !== winnerTeam) continue;
-        const ball = this.byIndex[f.slot];
-        ctx.creditEscape?.(ball ?? { id: f.ballId, team: f.team });
+    // (--- fl-overhaul --- Stage 5: the show's winning side – a bracket's champion when pinned –, credited to its last match's fighters)
+    const boutWinner = this.showWinnerBoutSide(winnerTeam);
+    if (boutWinner >= 0) {
+      const side = sh.winnerSide;
+      if (side >= 0) {
+        for (const f of v.fighters) {
+          if (f.team !== boutWinner) continue;
+          const ball = this.byIndex[f.slot];
+          ctx.creditEscape?.(side === f.team ? (ball ?? { id: f.ballId, team: f.team }) : { id: ball ? ball.id : f.ballId, team: side });
+        }
       }
-      const w = v.fighters.find((f) => f.team === winnerTeam && f.alive) ?? v.fighters.find((f) => f.team === winnerTeam);
+      const w = v.fighters.find((f) => f.team === boutWinner && f.alive) ?? v.fighters.find((f) => f.team === boutWinner);
       if (w) ctx.spawnConfetti(w.x, w.y);
     }
+  }
+
+  /* ---------------------------------------------------------------- --- fl-overhaul --- (Stage 5) the show's verdicts */
+
+  /** The bout side (0 slot A, 1 slot B; a team) of the show's winner in its last match (the match's own winner, or a tie-break's / an HP-share fallback's); −1 none. */
+  private showWinnerBoutSide(winnerTeam: number): number {
+    const sh = this.view.show;
+    if (sh.kind === "single") return winnerTeam;
+    if (sh.kind === "bracket") return sh.champion < 0 ? -1 : sh.champion === sh.a ? 0 : 1;
+    return sh.winnerSide;
+  }
+
+  /**
+   * A match's verdict inside its show: true when the show is over (its winner written), false when an interlude and another
+   * match follow – a series' next game, a REMATCH! (a draw or a double KO in a bracket or a boss rush, FL_REMATCHES at most), the
+   * bracket's next bout, the next wave. The pairing's damage dealt adds up (a rematch's tie-break).
+   */
+  private decideShow(winnerTeam: number, now: number): boolean {
+    const v = this.view;
+    const sh = v.show;
+    sh.lastWinner = winnerTeam;
+    sh.rematchNext = false;
+    this.samePair = false;
+    for (const f of v.fighters) if (f.team === 0 || f.team === 1) this.pairDealt[f.team] += f.dealt;
+    if (sh.kind === "single") {
+      sh.winnerSide = winnerTeam;
+      sh.champion = winnerTeam;
+      if (winnerTeam >= 0 && winnerTeam < sh.wins.length) sh.wins[winnerTeam]++;
+      return true;
+    }
+    if (sh.kind === "series") {
+      const side = this.bestOfGame(winnerTeam);
+      sh.wins[0] = sh.score[0];
+      sh.wins[1] = sh.score[1];
+      if (side < 0) {
+        this.samePair = true;
+        sh.rematchNext = winnerTeam < 0; // a draw or a double KO counts for nobody: the game is played again (REMATCH!)
+        return false;
+      }
+      sh.winnerSide = side;
+      sh.champion = side;
+      return true;
+    }
+    if (sh.kind === "bracket") return this.decideBracket(winnerTeam, now);
+    return this.decideBoss(winnerTeam, now);
+  }
+
+  /**
+   * A game of the best-of in play (a series, a bracket's final): its point (a draw counts for nobody); the best-of's winner (a bout
+   * side) once a side has `need` wins – or after `maxGames` games the higher total HP share (the rig's side when it is rigged; then
+   * more wins, then slot A) –, −1 while it goes on.
+   */
+  private bestOfGame(winnerTeam: number): number {
+    const v = this.view;
+    const sh = v.show;
+    sh.games++;
+    const hp = [0, 0];
+    const max = [0, 0];
+    for (const f of v.fighters) {
+      if (f.team !== 0 && f.team !== 1) continue;
+      hp[f.team] += f.alive ? Math.max(0, f.hp) : 0;
+      max[f.team] += f.maxHp;
+    }
+    for (let t = 0; t < 2; t++) sh.shareSum[t] += max[t] > 0 ? hp[t] / max[t] : 0;
+    if (winnerTeam === 0 || winnerTeam === 1) {
+      sh.score[winnerTeam]++;
+      if (sh.score[winnerTeam] >= sh.need) return winnerTeam;
+    }
+    if (sh.games < sh.maxGames) return -1;
+    const chosen = sh.kind === "series" ? v.forcedWinner : v.forcedWinner >= 0 ? this.bracketSideOf(v.forcedWinner) : -1;
+    if (chosen === 0 || chosen === 1) return chosen;
+    const d = sh.shareSum[0] - sh.shareSum[1];
+    if (Math.abs(d) > 1e-9) return d > 0 ? 0 : 1;
+    return sh.score[1] > sh.score[0] ? 1 : 0;
+  }
+
+  /** A pairing still level after its rematches: more damage dealt over its matches, then the higher HP share at the verdict, then slot A (the better seed, the boss). */
+  private tieBreak(): number {
+    const d = this.pairDealt;
+    if (Math.abs(d[0] - d[1]) > 1e-9) return d[0] > d[1] ? 0 : 1;
+    const hp = [0, 0];
+    const max = [0, 0];
+    for (const f of this.view.fighters) {
+      if (f.team !== 0 && f.team !== 1) continue;
+      hp[f.team] += Math.max(0, f.hp);
+      max[f.team] += f.maxHp;
+    }
+    const a = max[0] > 0 ? hp[0] / max[0] : 0;
+    const b = max[1] > 0 ? hp[1] / max[1] : 0;
+    if (Math.abs(a - b) > 1e-9) return a > b ? 0 : 1;
+    return 0;
+  }
+
+  /** A bracket bout's verdict: its winner goes through (the final's: the CHAMPION – its pinned side, if it is one, the show's winner). */
+  private decideBracket(winnerTeam: number, now: number): boolean {
+    const v = this.view;
+    const sh = v.show;
+    const final = sh.round === sh.rounds.length - 1;
+    let side: number;
+    if (sh.maxGames > 1) {
+      side = this.bestOfGame(winnerTeam);
+      if (side < 0) {
+        this.samePair = true;
+        sh.rematchNext = winnerTeam < 0; // (a void game of the final's best-of: REMATCH!)
+        return false;
+      }
+    } else if (winnerTeam === 0 || winnerTeam === 1) side = winnerTeam;
+    else if (sh.rematches < FL_REMATCHES) {
+      sh.rematches++;
+      sh.rematchNext = true;
+      this.samePair = true;
+      return false;
+    } else side = this.tieBreak();
+    const win = side === 0 ? sh.a : sh.b;
+    const lose = side === 0 ? sh.b : sh.a;
+    flAdvanceBracket(sh.rounds, sh.round, sh.pair, win);
+    sh.entrants[lose].out = true;
+    sh.wins[win]++;
+    sh.resultMs = now;
+    sh.resultSerial++;
+    if (!final) return false;
+    sh.champion = win;
+    sh.winnerSide = flPinnedSlots(this.settings.fighters).indexOf(sh.entrants[win].slot);
+    return true;
+  }
+
+  /** A boss rush bout's verdict: a challenger's win – THE BOSS FALLS; the boss's – its HP carries (healed in the interlude) to the next wave, or BOSS SURVIVES after the last. */
+  private decideBoss(winnerTeam: number, now: number): boolean {
+    const v = this.view;
+    const sh = v.show;
+    let side = winnerTeam;
+    if (side !== 0 && side !== 1) {
+      if (sh.rematches < FL_REMATCHES) {
+        sh.rematches++;
+        sh.rematchNext = true;
+        this.samePair = true;
+        sh.bossHp = this.bossHpAtStart; // the pairing again: the boss as it came into the bout
+        return false;
+      }
+      side = this.tieBreak();
+    }
+    sh.resultMs = now;
+    sh.resultSerial++;
+    if (side === 1) {
+      sh.wins[1]++;
+      sh.entrants[0].out = true;
+      sh.bossHp = 0;
+      sh.champion = 1;
+      sh.winnerSide = 1;
+      return true;
+    }
+    sh.wins[0]++;
+    if (sh.entrants[sh.b]) sh.entrants[sh.b].out = true;
+    const boss = v.fighters.find((f) => f.boss);
+    sh.bossHp = Math.max(Math.min(1, sh.bossMaxHp), boss && boss.alive ? Math.max(0, boss.hp) : 0);
+    if (sh.wave >= sh.waves) {
+      sh.champion = 0;
+      sh.winnerSide = 0;
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * The interlude between two matches of a show (once per 60 Hz step after a verdict that does not end it): the finale's
+   * FL_INTERLUDE_FINALE_MS, then the card's `cardSec` (0: none), then the next match – the same pairing (a series' next game, a
+   * rematch) or the next one (the bracket's next bout, the next wave). Draws no random number until the match's spawn.
+   */
+  private stepInterlude(ctx: ModeContext, now: number) {
+    const v = this.view;
+    const sh = v.show;
+    if (sh.phase === "finale" && now >= sh.phaseUntil - 1e-6) {
+      sh.phase = "card";
+      sh.phaseUntil = now + 1000 * Math.max(0, this.settings.cardSec);
+      // a boss rush's boss heals `bossHeal` of its maximum HP in every interlude (shown on the card: the bar fills)
+      if (sh.kind === "boss") {
+        sh.healFrom = sh.bossHp;
+        sh.bossHp = Math.min(sh.bossMaxHp, sh.bossHp + Math.max(0, this.settings.bossHeal) * sh.bossMaxHp);
+      }
+    }
+    if (sh.phase !== "card" || now < sh.phaseUntil - 1e-6) return;
+    sh.matchIndex++;
+    if (!this.samePair) {
+      if (sh.kind === "bracket") this.nextBracketBout();
+      else if (sh.kind === "boss") {
+        sh.wave++;
+        sh.b = sh.wave;
+        sh.bout = sh.wave;
+        this.newPairing();
+      }
+    } else if (sh.kind === "series") sh.bout = sh.games + 1;
+    this.startMatch(ctx, now);
+  }
+
+  /** A boss at FL_BOSS.phase2 of its HP or less: PHASE 2 – its speed and cast speed up for the rest of the rush (a rule: in the step, deterministic). */
+  private stepBossPhase(now: number) {
+    const v = this.view;
+    const sh = v.show;
+    if (sh.kind !== "boss" || sh.phase2) return;
+    const boss = v.fighters[0];
+    if (!boss || !boss.boss || !boss.alive || boss.hp <= 0 || boss.hp > FL_BOSS.phase2 * boss.maxHp) return;
+    sh.phase2 = true;
+    boss.speed *= FL_BOSS.phase2Speed;
+    boss.cast *= FL_BOSS.phase2Cast;
+    this.pushBanner(FB_PHASE2, now, boss.slot);
+  }
+
+  /**
+   * The story's verdict of the match (visual state: no rule reads it): the finisher (a KO verdict's last KO – its last hit's source),
+   * the winner's HP share, CLUTCH (≤ FL_CLUTCH_FRAC), PERFECT (no HP lost, nothing absorbed by the rig), the UPSET (a win chance
+   * under FL_UNDERDOG at the bout's start – never with a handicap), the COMEBACK (a deficit of FL_COMEBACK_DEFICIT or more), sudden
+   * death, the tags (`flStoryTags()`).
+   */
+  private storyVerdict(winnerTeam: number, byTime: boolean) {
+    const v = this.view;
+    const st = v.story;
+    st.decided = true;
+    st.sudden = v.suddenMs >= 0;
+    let ko: FlFighter | null = null;
+    if (!byTime) for (const f of v.fighters) if (f.hp <= 0 && (!ko || f.koMs >= ko.koMs)) ko = f;
+    if (ko && ko.lastVia > 0) {
+      const by = ko.lastViaBy >= 0 ? v.fighters[ko.lastViaBy] : undefined;
+      st.finisherVia = ko.lastVia;
+      st.finisherSlot = ko.lastViaBy;
+      // the source: "weapon:<kind>" (":<style>" unless plain), "ability:<its name>", or "reflect", "summon", "trap", "burn", "contact"
+      const spec = ko.lastVia === FL_VIA_WEAPON ? by?.weapons[ko.lastViaWeapon]?.spec : undefined;
+      st.finisher = ko.lastVia === FL_VIA_WEAPON ? (spec ? `weapon:${spec.kind}${spec.style !== "plain" ? `:${spec.style}` : ""}` : "weapon") : ko.lastVia === FL_VIA_ABILITY ? `ability:${by?.row.ability.name ?? ""}` : (FL_VIA_NAMES[ko.lastVia] ?? "");
+      st.abilityFinish = ko.lastVia !== FL_VIA_WEAPON && winnerTeam >= 0 && !!by && by.team === winnerTeam;
+    }
+    if (winnerTeam < 0) {
+      st.tags = [];
+      return;
+    }
+    let hp = 0;
+    let max = 0;
+    let perfect = v.rigAbsorbed === this.rigAbsorbedAtStart;
+    for (const f of v.fighters) {
+      if (f.team !== winnerTeam) continue;
+      hp += f.alive ? Math.max(0, f.hp) : 0;
+      max += f.maxHp;
+      if (f.lowestHpFrac < f.startFrac - 1e-9) perfect = false;
+    }
+    st.winnerHpFrac = max > 0 ? hp / max : 0;
+    st.perfect = perfect;
+    st.clutch = !perfect && max > 0 && st.winnerHpFrac <= FL_CLUTCH_FRAC + 1e-9;
+    st.upset = !st.handicapped && (st.chances[winnerTeam] ?? 1) < FL_UNDERDOG - 1e-9;
+    st.comeback = (st.deficit[winnerTeam] ?? 0) >= FL_COMEBACK_DEFICIT - 1e-9;
+    st.tags = flStoryTags(st);
   }
 
   /* ---------------------------------------------------------------- --- fl-overhaul --- (Stage 3) the visual state */
@@ -5867,7 +7111,7 @@ export class FightLeagueMode implements GameMode {
    * The verdict's banners – FINAL KO, DOUBLE KO, DRAW, TIME – and, after a KO verdict with the slow motion on, the KO finale
    * (FL_FINALE_MS from now, around the last KO). The winner's banner comes later (`stepVisuals()`): with the finale's banner.
    */
-  private verdictVisuals(winnerTeam: number, now: number, doubleKo: boolean, byTime: boolean) {
+  private verdictVisuals(winnerTeam: number, now: number, doubleKo: boolean, byTime: boolean, showOver = true) {
     const v = this.view;
     if (doubleKo) this.pushBanner(FB_DOUBLE_KO, now);
     else if (byTime) {
@@ -5881,7 +7125,7 @@ export class FightLeagueMode implements GameMode {
       this.pushBanner(FB_FINAL_KO, now, ko ? ko.slot : -1);
       if (v.settings.slowMo && ko) {
         v.finale.from = now;
-        v.finale.until = now + FL_FINALE_MS;
+        v.finale.until = now + (showOver ? FL_FINALE_MS : FL_INTERLUDE_FINALE_MS); // (--- fl-overhaul --- Stage 5: an interlude's finale is shorter)
         v.finale.x = ko.x;
         v.finale.y = ko.y;
         v.finale.slot = ko.slot;
@@ -5898,7 +7142,7 @@ export class FightLeagueMode implements GameMode {
   private stepVisuals(now: number) {
     const v = this.view;
     if (v.introCue < FL_INTRO_CUES_MS.length) this.stepIntroCues(now);
-    const fin = v.finished && v.finale.from >= 0;
+    const fin = v.matchOver && v.finale.from >= 0;
     if (fin) this.stepFinale(now);
     for (const f of v.fighters) {
       if (!f.alive) continue;
@@ -5918,25 +7162,36 @@ export class FightLeagueMode implements GameMode {
       p.trailHead = (h + 1) % FL_PROJ_TRAIL_LEN;
       if (p.trailCount < FL_PROJ_TRAIL_LEN) p.trailCount++;
     }
-    if (!v.finished) this.stepLead(now);
-    if (v.finished && !v.winCue && v.winnerTeam >= 0 && now >= flWinnerShownMs(v) - 1e-6) {
+    if (!v.matchOver) this.stepLead(now);
+    // --- fl-overhaul --- (Stage 5) the winner's banners from the story's verdict: WIN, at most two tags (PERFECT > UPSET >
+    // COMEBACK > CLUTCH), an ability's finish; at a show's end its own verdict (the series, the CHAMPION, the boss)
+    if (v.matchOver && !v.winCue && now >= flWinnerShownMs(v) - 1e-6) {
       v.winCue = true;
-      let hp = 0;
-      let max = 0;
-      let perfect = v.rigAbsorbed === 0;
-      let lead: FlFighter | null = null;
-      for (const f of v.fighters) {
-        if (f.team !== v.winnerTeam) continue;
-        hp += f.alive ? Math.max(0, f.hp) : 0;
-        max += f.maxHp;
-        if (f.lowestHpFrac < 1 - 1e-9) perfect = false;
-        if (!lead || (f.alive && !lead.alive)) lead = f;
-      }
       const t = flWinnerShownMs(v);
-      this.pushBanner(FB_WIN, t, lead ? lead.slot : -1);
-      if (perfect) this.pushBanner(FB_PERFECT, t, lead ? lead.slot : -1);
-      else if (max > 0 && hp / max <= 0.1) this.pushBanner(FB_CLUTCH, t, lead ? lead.slot : -1, hp / max);
+      const st = v.story;
+      if (v.winnerTeam >= 0) {
+        let lead: FlFighter | null = null;
+        for (const f of v.fighters) if (f.team === v.winnerTeam && (!lead || (f.alive && !lead.alive))) lead = f;
+        const slot = lead ? lead.slot : -1;
+        this.pushBanner(FB_WIN, t, slot);
+        for (const tag of st.tags) this.pushBanner(tag === "perfect" ? FB_PERFECT : tag === "upset" ? FB_UPSET : tag === "comeback" ? FB_COMEBACK : FB_CLUTCH, t, slot, tag === "clutch" ? st.winnerHpFrac : 0);
+        if (st.abilityFinish) this.pushBanner(FB_FINISH, t, st.finisherSlot);
+      }
+      if (v.finished) this.showVerdictBanner(t);
     }
+  }
+
+  /** --- fl-overhaul --- (Stage 5) A show's own verdict, with its sting: the series' winner, the bracket's CHAMPION, THE BOSS FALLS or BOSS SURVIVES. */
+  private showVerdictBanner(t: number) {
+    const v = this.view;
+    const sh = v.show;
+    const side = this.showWinnerBoutSide(v.winnerTeam);
+    const lead = side >= 0 ? (v.fighters.find((f) => f.team === side && f.alive) ?? v.fighters.find((f) => f.team === side)) : undefined;
+    const slot = lead ? lead.slot : -1;
+    if (sh.kind === "series") this.pushBanner(FB_SERIES_WIN, t, slot, side);
+    else if (sh.kind === "bracket" && sh.champion >= 0) this.pushBanner(FB_CHAMPION, t, slot, sh.champion);
+    else if (sh.kind === "boss" && sh.champion === 1) this.pushBanner(FB_BOSS_FALLS, t, slot, sh.wave);
+    else if (sh.kind === "boss" && sh.champion === 0) this.pushBanner(FB_BOSS_SURVIVES, t, slot, sh.waves);
   }
 
   /** The KO finale's drift: the survivors fly on at the finale's time scale (off the arena's walls), their orbiting weapons spin with it. */
@@ -6007,10 +7262,30 @@ export class FightLeagueMode implements GameMode {
         best = t;
       }
     }
+    // --- fl-overhaul --- (Stage 5) the story: every side's deficit to the leader (a COMEBACK's), the cliffhanger's moment –
+    // every side still standing at or under FL_BOTH_LOW of its HP (the first in the match, and the run's first)
+    const st = v.story;
+    let standing = 0;
+    let low = 0;
+    for (let t = 0; t < v.teamCount && t < hp.length; t++) {
+      const share = max[t] > 0 ? hp[t] / max[t] : 0;
+      if (bestShare - share > (st.deficit[t] ?? 0)) st.deficit[t] = bestShare - share;
+      if (hp[t] > 0) {
+        standing++;
+        if (share <= FL_BOTH_LOW + 1e-9) low++;
+      }
+    }
+    if (st.bothLowMs < 0 && standing >= 2 && low === standing && now >= v.introMs) {
+      st.bothLowMs = now;
+      if (v.show.bothLowMs < 0) v.show.bothLowMs = now;
+    }
     if (best < 0 || best === v.leadSide || bestShare >= 1 - 1e-9) return;
     const cur = v.leadSide >= 0 && max[v.leadSide] > 0 ? hp[v.leadSide] / max[v.leadSide] : -1;
-    if (v.leadSide >= 0 && bestShare < cur + 0.05) return;
-    if (v.leadSide >= 0) v.leadMs = now; // (the first lead is no change)
+    if (v.leadSide >= 0 && bestShare < cur + FL_LEAD_HYSTERESIS) return;
+    if (v.leadSide >= 0) {
+      v.leadMs = now; // (the first lead is no change)
+      st.leadChanges++; // --- fl-overhaul --- (Stage 5)
+    }
     v.leadSide = best;
   }
 
@@ -6044,7 +7319,7 @@ export class FightLeagueMode implements GameMode {
         const v = this.view;
         const now = this.now();
         let ts = this.timeScale(f.team, now);
-        if (v.finished && v.finale.from >= 0) ts *= flFinaleScale(now - v.finale.from, v.finale.until - v.finale.from);
+        if (v.matchOver && v.finale.from >= 0) ts *= flFinaleScale(now - v.finale.from, v.finale.until - v.finale.from);
         if (ts < 1 - 1e-6) ev.flSlow = 0.5 + 0.5 * Math.max(0, ts);
       }
     }
@@ -6237,6 +7512,65 @@ export class FightLeagueMode implements GameMode {
         match("suddenDeath", null, { fight: "ability", frequency: 130.81, level: 0.9 });
         call("suddenDeath", 0.5);
         break;
+      // --- fl-overhaul --- (Stage 5) the story's and the shows' banners: Stage 4's rows (flRecipes.ts' FL_BANNER_SOUNDS)
+      case FB_UPSET:
+        match("upset", null);
+        call("upset", 1.1);
+        break;
+      case FB_COMEBACK:
+        match("comeback", null);
+        call("comeback", 1.1);
+        break;
+      case FB_FINISH:
+        call("finish", 1.6);
+        break;
+      case FB_GAME:
+        match("game", null);
+        call("game", 0.1);
+        break;
+      case FB_SERIES_POINT:
+        match("seriesPoint", null);
+        call("seriesPoint", 0.6);
+        break;
+      case FB_MATCH_POINT:
+        match("matchPoint", null);
+        call("matchPoint", 0.6);
+        break;
+      case FB_REMATCH:
+        match("rematch", null);
+        call("rematch");
+        break;
+      case FB_ROUND_OF_16:
+      case FB_QUARTER_FINAL:
+      case FB_SEMI_FINAL:
+      case FB_FINAL:
+        match("round", null);
+        call(kind === FB_FINAL ? "final" : kind === FB_SEMI_FINAL ? "semiFinal" : kind === FB_QUARTER_FINAL ? "quarterFinal" : "roundOf16", 0.1);
+        break;
+      case FB_WAVE:
+        match("round", null);
+        break;
+      case FB_CHALLENGER:
+        match("advance", null);
+        break;
+      case FB_PHASE2:
+        call("phase2");
+        break;
+      case FB_SERIES_WIN:
+        match("win", f, chord());
+        call("wins", 0.3);
+        break;
+      case FB_CHAMPION:
+        match("champion", f, chord());
+        call("champion", 0.3);
+        break;
+      case FB_BOSS_FALLS:
+        match("bossDefeated", f, chord());
+        call("bossDefeated", 0.3);
+        break;
+      case FB_BOSS_SURVIVES:
+        call("bossSurvives", 0.3);
+        break;
     }
   }
 
@@ -6248,18 +7582,18 @@ export class FightLeagueMode implements GameMode {
     const v = this.view;
     for (const f of v.fighters) {
       if (!f.alive) continue;
-      if (!f.sndLowHp && !v.finished && f.maxHp > 0 && f.hp > 0 && f.hp / f.maxHp < 0.25) {
+      if (!f.sndLowHp && !v.matchOver && f.maxHp > 0 && f.hp > 0 && f.hp / f.maxHp < 0.25) {
         f.sndLowHp = true;
         this.snd.urgentCue(this.cue(f, "match", { flRow: "lowHp" }));
       }
       if (f.sndEndAt <= now && f.sndEndPrim) {
-        if (!v.finished) this.snd.urgentCue(this.cue(f, "end", { flPrim: f.sndEndPrim }));
+        if (!v.matchOver) this.snd.urgentCue(this.cue(f, "end", { flPrim: f.sndEndPrim }));
         f.sndEndAt = -Infinity;
         f.sndEndPrim = "";
       }
     }
-    const cap = v.settings.timeCap;
-    if (cap > 0 && !v.finished && v.suddenMs < 0 && now >= v.introMs) {
+    const cap = v.capSec; // (--- fl-overhaul --- Stage 5: the match's)
+    if (cap > 0 && !v.matchOver && v.suddenMs < 0 && now >= v.introMs) {
       const left = v.introMs + 1000 * cap - now;
       while (this.sndClock >= 1 && left <= 1000 * this.sndClock + 1e-6) {
         const k = this.sndClock--;
@@ -6460,11 +7794,15 @@ interface HitOptions {
   sndCue?: "silent";
   sndPrim?: FlPrimitive;
   sndKind?: FlWeaponKind;
+  /** --- fl-overhaul --- (Stage 5) How it landed for the story (`FL_VIA_*`) when its options do not tell (a ring of fire or blades). */
+  via?: number;
 }
 
 /** Spots of the formation, in arena half-sides (x, y per slot): opposite sides for two, a triangle, corners, team sides. */
 function spawnSpots(match: FlMatch, n: number): number[] {
   if (match === "2v2") return [-1, -0.55, -1, 0.55, 1, -0.55, 1, 0.55];
+  // --- fl-overhaul --- (Stage 5) a 3v3: two columns at ±0.85 of the half side, rows at −0.6, 0, +0.6 (A B C left, D E F right)
+  if (match === "3v3") return [-1.7, -1.2, -1.7, 0, -1.7, 1.2, 1.7, -1.2, 1.7, 0, 1.7, 1.2];
   if (n === 3) return [-0.9, 0.6, 0.9, 0.6, 0, -0.95];
   if (n >= 4) return [-0.85, -0.85, 0.85, 0.85, 0.85, -0.85, -0.85, 0.85];
   return [-1, 0, 1, 0];
