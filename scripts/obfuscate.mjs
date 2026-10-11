@@ -18,11 +18,14 @@
  * transforms (control-flow flattening, dead-code injection, self-defending) stay off. The spec's string array was also
  * turned OFF after measurement: its wrapper (a call per string access) de-optimised the engine's tight step loop and
  * made the finder ~28x slower (4.7 vs 133 seeds/s) – a timing check that failed only under obfuscation – and turning the
- * array's rotate/shuffle off did not help, while the hot code sits in the simulator page chunk (so excluding it would
- * un-obfuscate the chunk the smoke must find obfuscated). Hexadecimal identifier renaming stays on for every chunk, so
- * the logic (every local, function and class name, including the engine's) is still unreadable, at native speed; see
- * obfuscatorOptions. `seed` is a stable hash of the file name, so a given source builds to the same obfuscated output
- * every time (reproducible builds, stable PWA version).
+ * array's rotate/shuffle off did not help. --- low-findings --- The hot code (the PhysicsEngine and the seed finder) sits in a
+ * shared numbered chunk (`<n>-<hash>.js`, loaded by the simulator pages only), the renderer and the recorder in the
+ * simulator page chunk; the string array on every other chunk (identifier renaming only on those) was measured too and
+ * still cost ~15 % of the finder's throughput (~108 → ~92 seeds/s, interleaved runs) for +0.25 MB of JavaScript, so the
+ * array is off for every chunk. Hexadecimal identifier renaming stays on for every chunk, so the logic (every local,
+ * function and class name, including the engine's) is still unreadable, at native speed; see obfuscatorOptions. `seed` is
+ * a stable hash of the file name, so a given source builds to the same obfuscated output every time (reproducible builds,
+ * stable PWA version).
  *
  * OBFUSCATE=0 skips the whole step (debug builds); the default for `npm run build` is ON. This file is not linted
  * (scripts/** is ignored by ESLint) and is covered by tests/obfuscate.test.ts.
@@ -101,8 +104,10 @@ export function obfuscatorOptions(seed, overrides = {}) {
     // re-runs the engine for thousands of seeds, that was ~28x slower than the un-obfuscated build (4.7 vs 133 seeds/s)
     // and the finder's 120 s checks timed out – a check that fails only under obfuscation. The string-array WRAPPER
     // (a function call per string access) de-optimises the engine's tight step loop; turning rotate/shuffle off did not
-    // help (same 4.7 seeds/s), and the hot code lives in the simulator page chunk, so excluding "the physics chunk"
-    // would un-obfuscate the very chunk the smoke must find obfuscated. So the string array is OFF: every chunk still
+    // help (same 4.7 seeds/s). --- low-findings --- The engine and the finder live in a shared numbered chunk (`<n>-*.js`,
+    // loaded by the simulator pages), not in the simulator page chunk (the renderer, the recorder); keeping the array for
+    // every other chunk was measured as well: ~15 % fewer finder seeds a second (~108 → ~92) for +0.25 MB. So the string
+    // array is OFF for every chunk: every chunk still
     // gets hexadecimal identifier renaming (PhysicsEngine / bounceMath / FinderRequest and all locals become _0x… – the
     // logic stays unreadable) and compacting, at native speed. The heavier transforms stay off for the same reason, and
     // debugProtection is off on purpose (hostile to real users). `seed` is a stable hash of the file name, so a build is

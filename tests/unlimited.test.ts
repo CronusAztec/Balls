@@ -56,6 +56,18 @@ import {
 // Whole runs of the engine with extreme values: generous timeouts, so a busy machine does not fail them.
 vi.setConfig({ testTimeout: 120_000 });
 
+/**
+ * --- low-findings --- What a step costs: the CPU time (ms) `fn` takes in this process – its own work, on a slow machine too –
+ * and not the wall time, which also counts the time a busy machine (load past the cores: a build next to the tests) kept the
+ * process waiting for a core. The 400 ms budgets below hold the step's work to it; they failed now and then under load only.
+ */
+function cpuMsOf(fn: () => void): number {
+  const before = process.cpuUsage();
+  fn();
+  const used = process.cpuUsage(before);
+  return (used.user + used.system) / 1000;
+}
+
 const config: PhysicsConfig = {
   width: 800,
   height: 600,
@@ -284,6 +296,7 @@ describe("No limits: the engine", () => {
     const budget = new FrameBudget();
     budget.enabled = true;
     let worstStep = 0;
+    let worstStepCpu = 0; // --- low-findings ---
     let frames = 0;
     let slowestFrame = 0;
     let simulated = 0;
@@ -294,9 +307,12 @@ describe("No limits: the engine", () => {
       budget.begin(start);
       while (accumulator >= 16.666) {
         const t0 = performance.now();
-        engine.update(16.666, 0);
-        engine.consumeSoundEvents();
+        const cpu = cpuMsOf(() => {
+          engine.update(16.666, 0);
+          engine.consumeSoundEvents();
+        });
         worstStep = Math.max(worstStep, performance.now() - t0);
+        worstStepCpu = Math.max(worstStepCpu, cpu);
         accumulator -= 16.666;
         simulated += 16.666;
         if (budget.exceeded(performance.now())) accumulator = 0;
@@ -311,8 +327,8 @@ describe("No limits: the engine", () => {
     expect(engine.getElapsedMs() - before).toBeLessThanOrEqual(simulated + 1);
     expect(budget.slicedFrames).toBeGreaterThan(0);
     expect(allFinite(engine)).toBe(true);
-    // A step of the crowd stays far from a frozen tab even on a slow machine.
-    expect(worstStep).toBeLessThan(400);
+    // A step of the crowd stays far from a frozen tab even on a slow machine (--- low-findings --- its work: CPU time, see cpuMsOf()).
+    expect(worstStepCpu, `worst step ${worstStepCpu.toFixed(1)} ms of CPU, ${worstStep.toFixed(1)} ms of wall time`).toBeLessThan(400);
   });
 
   it("gives the same run for a seed at any budget (slicing happens between whole steps)", () => {
@@ -477,15 +493,19 @@ describe("No limits: the engine", () => {
     engine.getMultiplierRuntime().cloneBall(engine.ctx, ball, 500, objectLimitFor(LIVE_WALL_LIMIT));
     expect(engine.getBalls()).toHaveLength(objectLimitFor(LIVE_WALL_LIMIT));
     let worst = 0;
+    let worstWall = 0; // --- low-findings --- (reported only: a busy machine's waits for a core are not the step's)
     for (let i = 0; i < 30; i++) {
       const t0 = performance.now();
-      engine.update(1000 / 60, 0);
-      engine.consumeSoundEvents();
-      worst = Math.max(worst, performance.now() - t0);
+      const cpu = cpuMsOf(() => {
+        engine.update(1000 / 60, 0);
+        engine.consumeSoundEvents();
+      });
+      worstWall = Math.max(worstWall, performance.now() - t0);
+      worst = Math.max(worst, cpu);
     }
     expect(engine.getCrowd().spawned).toBe(500 - objectLimitFor(LIVE_WALL_LIMIT));
     expect(allFinite(engine)).toBe(true);
-    expect(worst).toBeLessThan(400); // packed rings: one rebound a pass (DENSE_RINGS_FROM), bounded sub-steps
+    expect(worst, `worst step ${worst.toFixed(1)} ms of CPU, ${worstWall.toFixed(1)} ms of wall time`).toBeLessThan(400); // packed rings: one rebound a pass (DENSE_RINGS_FROM), bounded sub-steps
     expect(engine.getCircularWalls().length).toBeGreaterThanOrEqual(DENSE_RINGS_FROM);
     expect(engine.getWallHits().length).toBeLessThanOrEqual(WALL_HITS_KEPT);
   });
