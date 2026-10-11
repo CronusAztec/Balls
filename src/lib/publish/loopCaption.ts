@@ -16,6 +16,7 @@ export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly s
   grow: ["#physics", "#bouncingball", "#exponentialgrowth"],
   starChords: ["#math", "#geometry", "#creativecoding"], // --- chord-stars ---
   doublePendulum: ["#physics", "#pendulum", "#creativecoding"], // --- chaos-fan --- (the harp and the fan alike: a pendulum, not a bouncing ball)
+  polyrhythm: ["#math", "#polyrhythm", "#creativecoding"], // --- phase-spiral ---
 };
 /** Any other mode's topic tags. */
 export const LOOP_CAPTION_DEFAULT_TAGS = ["#physics", "#bouncingball"] as const;
@@ -112,6 +113,12 @@ export interface LoopCaptionContext {
 export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number; scBalls?: number /* --- chord-stars --- */ }): LoopCaptionContext {
   // --- chord-stars --- Chord Stars by its balls: "{count} balls, one circle, …" and the fact of the inner circles
   if (s.mode === "starChords") return { mode: s.mode, hookKey: "starChords", factKey: "starChordsFact", count: s.scBalls ?? null };
+  // --- phase-spiral --- Metronomes & Polyrhythms' harmonic rings by their count ("{count} rings, each one lap ahead of the next…")
+  // and the fact of the spiral that straightens (any other polyrhythm keeps its clip's seconds)
+  if (s.mode === "polyrhythm") {
+    const p = s as { prLayout?: string; prTempos?: string; prCount?: number };
+    if (p.prLayout === "rings" && p.prTempos === "harmonic") return { mode: s.mode, hookKey: "phaseSpiral", factKey: "phaseSpiralFact", count: typeof p.prCount === "number" && Number.isFinite(p.prCount) ? p.prCount : null };
+  }
   if (s.mode === "grow") {
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };
     if (s.growLaw === "add") return { mode: s.mode, hookKey: "growAdd", factKey: "", count: s.growStep ?? null };

@@ -14366,6 +14366,153 @@ await smokeBlock("chaos-fan", async () => {
 // --- end chaos-fan ---
 });
 
+await smokeBlock("phase-spiral", async () => {
+// --- phase-spiral ---
+// 42. Phase Spiral (Metronomes & Polyrhythms): URL → the Phase Spiral controls at the end of the polyrhythm block (arms, the
+// in-line meter, comet tails, loop sounds, colours), controls → URL and the search box; one 4 s cycle of 20 rings × 3 arms –
+// 60 dots, the alignment firing once a cycle (alignments = cycles + 1 with the start's, never at T / 3), three riser crossings
+// a cycle, "in line N%" drawn in amber under the disc, the loop voices (OscillatorNode.start instrumented: the chord's A2 root
+// and plucks on A major pentatonic) and the loop cycle reported; a live arms change (no restart); the "20 rings × 3 arms"
+// preset (the navy page, the loop HUD's lowercase title and amber counter, a 20 s loop); and a fast export with Export whole
+// loops (three whole 3 s cycles of a 10 s clip, the loop voices in its own audio).
+{
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prn=20&prar=3&prcs=4&prc=0&prm=1&prtl=0.6&prls=1&prco=spiral`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("phase-spiral-section");
+  const values = { prar: await sliderValue("Arms"), prtl: await sliderValue("Comet Tails") };
+  const meter = await section.getByRole("switch", { name: switchName("In-Line Meter") }).getAttribute("aria-checked");
+  const sound = await section.getByRole("switch", { name: switchName("Loop Sounds") }).getAttribute("aria-checked");
+  const spiral = await section.getByRole("group", { name: "Colours", exact: true }).getByRole("button", { name: "Spiral", exact: true }).getAttribute("aria-pressed");
+  const arms = await section.getAttribute("data-ps-arms");
+  const preset = await section.locator('[data-ps-preset="phaseSpiral"]').count();
+  check("phase spiral loads from URL (arms, tails, the in-line meter, loop sounds and the spiral colours in the polyrhythm block)", values.prar === "3" && values.prtl === "0.6" && meter === "true" && sound === "true" && spiral === "true" && arms === "3" && preset === 1, `(${JSON.stringify({ values, meter, sound, spiral, arms, preset })})`);
+  await page.locator('input[aria-label="Arms"]').evaluate(setRangeValue, "5");
+  await section.getByRole("switch", { name: switchName("In-Line Meter") }).click();
+  await section.getByRole("group", { name: "Colours", exact: true }).getByRole("button", { name: "Rainbow", exact: true }).click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check("phase spiral mirrors into the URL (5 arms, the meter off, the rainbow back to its default)", query.get("mode") === "polyrhythm" && query.get("prar") === "5" && !query.has("prm") && !query.has("prco") && query.get("prls") === "1" && query.get("prtl") === "0.6", `(${query.toString()})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("comet tails");
+  const found = await page.locator('input[aria-label="Comet Tails"]').isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the phase spiral controls", found && hidden, `(comet tails=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // One 4 s cycle of 20 rings × 3 arms with the meter and the loop sounds.
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prn=20&prar=3&prcs=4&prc=0&prm=1&prtl=0.6&prls=1&prco=spiral`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    const texts = [];
+    window.__psOsc = osc;
+    window.__psTexts = texts;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (!(this.context instanceof OfflineAudioContext) && osc.length < 20000) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 4000 && /^in line \d+%$/.test(String(text))) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const cycled = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.polyCycles) >= 1, null, { timeout: 30_000 }).then(() => true).catch(() => false);
+  // (the cycle counts at T, the alignment with the step from T – as the start's comes with the first step: read a moment later)
+  await page.waitForTimeout(400);
+  const run = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-phase-spiral.png") });
+  const heard = await page.evaluate(() => ({ osc: window.__psOsc.slice(), texts: window.__psTexts.splice(0) }));
+  const cycles = Number(run.polyCycles);
+  const crossings = Number(run.polyCrossings);
+  // the plucks' fundamentals: A major pentatonic from A3 over 12 degrees (A3 … B5)
+  const pentatonic = [57, 59, 61, 64, 66, 69, 71, 73, 76, 78, 81, 83].map((m) => 440 * 2 ** ((m - 69) / 12));
+  const plucks = heard.osc.filter((f) => pentatonic.some((p) => Math.abs(f - p) < 0.5)).length;
+  const root = heard.osc.some((f) => Math.abs(f - 110) < 0.5);
+  const meterTexts = heard.texts.map((t) => Number(/\d+/.exec(t.text)[0]));
+  const amber = heard.texts.length > 0 && heard.texts.every((t) => t.fill === "#f2c46a");
+  check(
+    "a phase spiral cycle: 60 dots on 3 arms, the alignment once a cycle (with the start's), three riser crossings a cycle, the amber in-line meter rising past 90 %, the loop voices and a 4 s loop",
+    cycled && run.polyArms === "3" && run.polyDots === "60" && Number(run.polyAlignments) === cycles + 1 && crossings >= 3 * cycles && crossings <= 3 * cycles + 3 && run.polyLoopSound === "1" && run.polyPalette === "spiral" && Math.abs(Number(run.loopCycle) - 4) < 0.002 && amber && Math.max(...meterTexts) >= 90 && Math.min(...meterTexts) < 30 && root && plucks >= 10,
+    `(${JSON.stringify({ cycles, alignments: run.polyAlignments, crossings, dots: run.polyDots, arms: run.polyArms, inLine: run.polyInLine, loopCycle: run.loopCycle, meter: [Math.min(...meterTexts), Math.max(...meterTexts), heard.texts.length], amber, root, plucks, osc: heard.osc.length })})`,
+  );
+  // a live arms change: the dots are built again and the rhythm carries on (no restart)
+  const before = await canvasData();
+  await page.locator('input[aria-label="Arms"]').evaluate(setRangeValue, "2");
+  await page.waitForTimeout(800);
+  const after = await canvasData();
+  check("the arms change live without restarting the rhythm (40 dots, the ticks carry on)", after.polyDots === "40" && after.polyArms === "2" && Number(after.polyTicks) > Number(before.polyTicks) && Number(after.polyAlignments) >= Number(before.polyAlignments), `(${JSON.stringify({ before: { dots: before.polyDots, ticks: before.polyTicks, alignments: before.polyAlignments }, after: { dots: after.polyDots, ticks: after.polyTicks, alignments: after.polyAlignments } })})`);
+}
+{
+  // The "20 rings × 3 arms" preset: the account's clip – the navy page, the loop HUD (lowercase title, amber "in line N%").
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm`, { waitUntil: "networkidle" });
+  await page.locator('[data-ps-preset="phaseSpiral"]').first().click();
+  await page.waitForTimeout(400);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.evaluate(() => {
+    const texts = [];
+    window.__psHud = texts;
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 4000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1500);
+  const run = await canvasData();
+  const texts = await page.evaluate(() => window.__psHud.splice(0));
+  const title = texts.some((t) => t.text === "each ring gains one lap on the next");
+  const counter = texts.filter((t) => /^in line \d+%$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null;
+  check(
+    "the Phase spiral preset: 20 rings × 3 arms, an endless 20 s loop with the meter, tails, loop sounds and spiral colours on the navy page, under the loop HUD's title and amber counter",
+    query.get("prn") === "20" && query.get("prar") === "3" && query.get("prcs") === "20" && query.get("prc") === "0" && query.get("prm") === "1" && query.get("prls") === "1" && query.get("prco") === "spiral" && query.get("lh") === "1" && query.get("bg1") === "#0b1020" && run.polyDots === "60" && run.loopHud === "1" && Math.abs(Number(run.loopCycle) - 20) < 0.002 && title && counter === "#f2c46a",
+    `(${query.toString()}, ${JSON.stringify({ dots: run.polyDots, loopHud: run.loopHud, loopCycle: run.loopCycle, title, counter })})`,
+  );
+}
+{
+  // ⚡ A fast export with Export whole loops (on by default) of a 10 s clip of 3 s cycles: three whole loops (9 s), the loop
+  // voices through its own audio.
+  await page.goto(`${BASE}/en/simulator/?mode=polyrhythm&prn=20&prar=3&prcs=3&prc=0&prm=1&prls=1&prco=spiral&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const osc = [];
+      window.__psOfflineOsc = osc;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.context instanceof OfflineAudioContext) osc.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `phase-spiral-loop-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const cycle = Number(await panel.getAttribute("data-fast-loop-cycle"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const heard = await page.evaluate(() => ({ osc: window.__psOfflineOsc.length, roots: window.__psOfflineOsc.filter((f) => Math.abs(f - 110) < 0.5).length }));
+    check(
+      "a Phase Spiral fast export with Export whole loops keeps three whole 3 s cycles (9 s within a frame) and plays the loop voices through its own audio",
+      status === "done" && bytes > 10000 && loops === 3 && Math.abs(seconds - 9) <= 1 / 30 + 0.002 && Math.abs(cycle - 3) < 0.002 && heard.osc >= 20 && heard.roots >= 1,
+      `(${JSON.stringify({ status, bytes, seconds, cycle, loops, heard })})`,
+    );
+  } else check("without WebCodecs the Phase Spiral fast export is not checked (the live run is covered above)", true);
+}
+// --- end phase-spiral ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

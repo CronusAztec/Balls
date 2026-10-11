@@ -180,7 +180,8 @@
     "canvasRacePlace3": "3.º",
     "canvasRacePlaceN": "[n].º",
     "canvasRaceNumber": "Carrera [n]",
-    "canvasRacePoints": "pts"
+    "canvasRacePoints": "pts",
+    "canvasPolyrhythmInLine": "en línea [count] %"
   },
   "HowItWorks": {
     "step1": { "title": "Elige un modo", "description": "Elige uno de los {count} modos: anillos de escape, máquinas de ritmo, duelos y viajes." },
@@ -2072,7 +2073,23 @@
     "dpForwardSec": "Ida",
     "dpForwardSecTip": "Segundos que el abanico avanza antes de rebobinar. El bucle dura el doble.",
     "dpDivergePx": "Se separa a",
-    "dpDivergePxTip": "El abanico cuenta como separado en cuanto una bola está así de lejos de la bola del líder (píxeles en un vídeo de 1080 píxeles de ancho). Marca la señal de separación, los colores y la separación de Buscar simulación."
+    "dpDivergePxTip": "El abanico cuenta como separado en cuanto una bola está así de lejos de la bola del líder (píxeles en un vídeo de 1080 píxeles de ancho). Marca la señal de separación, los colores y la separación de Buscar simulación.",
+    "prSpiralDesc": "Espiral de fase: da a cada anillo varios puntos y se enroscan en una espiral, pasan por patrones de interferencia y se enderezan en radios exactamente una vez por ciclo; el medidor «en línea» cuenta hacia ese momento.",
+    "prSpiralPreset": "Espiral de fase",
+    "prSpiralPresetTip": "El clip en bucle con un clic: 20 anillos de 3 brazos cada uno, un bucle de 20 s que nunca termina, el medidor «en línea», colas de cometa, los sonidos de bucle y los colores en espiral sobre un fondo azul marino con el HUD de bucle.",
+    "prSpiralPresetButton": "20 anillos × 3 brazos",
+    "prArms": "Brazos",
+    "prArmsTip": "Puntos en cada anillo (diseños Anillos y Espiral), repartidos por igual. Un punto avanza un radio por golpe, así que el ritmo no cambia y la imagen se vuelve una espiral con tantos brazos que se endereza en sus radios una vez por ciclo. Se puede escribir cualquier número entero desde 1.",
+    "prAlignMeter": "Medidor «en línea»",
+    "prAlignMeterTip": "Muestra «en línea N %» sobre una barra fina: cuánto se acercan los puntos a alinearse en sus radios, 100 % en cada alineación y casi 0 entre medias. Bajo el disco, o como contador del HUD de bucle cuando el HUD está activo.",
+    "prTrail": "Colas de cometa",
+    "prTrailTip": "Hasta dónde llega la cola de un punto, en segundos de su movimiento (0 = sin cola). Las colas largas dibujan los brazos de la espiral.",
+    "prLoopSound": "Sonidos de bucle",
+    "prLoopSoundTip": "Voces de bucle originales y sintetizadas en lugar del instrumento: un pulsado pentatónico en cada golpe (anillos interiores graves, exteriores agudos), subidas cuando el medidor pasa del 50, 75 y 90 %, y un acorde abierto con una campana en cada alineación.",
+    "prPalette": "Colores",
+    "prPaletteTip": "Arcoíris alrededor del círculo cromático, o el aspecto en espiral: azul y cian dentro, pasando por verde y amarillo hasta naranja y rojo fuera, sobre un disco oscuro.",
+    "prPaletteRainbow": "Arcoíris",
+    "prPaletteSpiral": "Espiral"
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -4333,7 +4350,10 @@
     "chaosFanTitle": "{count, plural, one {# péndulo} other {# péndulos}} a un pelo de distancia",
     "chaosFanSubtitle": "las pequeñas diferencias se duplican sin parar / hasta que no hay dos que oscilen igual",
     "chaosFanForwards": "hacia delante",
-    "chaosFanBackwards": "hacia atrás"
+    "chaosFanBackwards": "hacia atrás",
+    "polyrhythmTitle": "cada anillo le saca una vuelta al siguiente",
+    "polyrhythmSubtitle": "mira cómo la espiral se endereza en una sola línea",
+    "polyrhythmCounter": "en línea {count} %"
   },
   "LoopCaption": {
     "growMultiply": "{count}% más grande en cada rebote hasta llenar el círculo",
@@ -4347,6 +4367,8 @@
     "hoopsOne": "{count} aro girando cada vez más rápido, hasta que su cuenta empieza a subir",
     "hoopsFact": "¿Por qué en ese orden? Una cuenta en un aro que gira descansa donde la gravedad equilibra el empuje hacia fuera del giro. Por debajo de un giro crítico, √(g/R), ese punto es el fondo; por encima, el punto de equilibrio sube por el aro y sigue subiendo a medida que el giro aumenta. Un aro de 75 cm de radio lo alcanza a unas 0,58 vueltas por segundo y uno de 25 cm necesita casi una vuelta por segundo, así que las cuentas dejan el fondo de fuera hacia dentro.",
     "chaosFan": "{count} péndulos salen a un pelo de distancia y luego la película va hacia atrás",
-    "chaosFanFact": "¿Por qué se separan? En un péndulo doble cualquier pequeña diferencia en la salida crece de forma exponencial, duplicándose más o menos cada fracción de segundo, así que péndulos soltados casi a la vez solo siguen juntos unos segundos. Edward Lorenz lo llamó el efecto mariposa. La vuelta es la grabación reproducida al revés: si en cambio se calculara la física hacia atrás desde el final, el más mínimo error de redondeo crecería igual de rápido y ningún péndulo volvería a casa."
+    "chaosFanFact": "¿Por qué se separan? En un péndulo doble cualquier pequeña diferencia en la salida crece de forma exponencial, duplicándose más o menos cada fracción de segundo, así que péndulos soltados casi a la vez solo siguen juntos unos segundos. Edward Lorenz lo llamó el efecto mariposa. La vuelta es la grabación reproducida al revés: si en cambio se calculara la física hacia atrás desde el final, el más mínimo error de redondeo crecería igual de rápido y ningún péndulo volvería a casa.",
+    "phaseSpiral": "{count} anillos, cada uno le saca una vuelta al siguiente: mira cómo la espiral se endereza en una sola línea",
+    "phaseSpiralFact": "El anillo n da n vueltas por ciclo, así que cada anillo le saca exactamente una vuelta a su vecino. Entre medias, los puntos se enroscan en una espiral y pasan por patrones de interferencia; al final del ciclo todas las vueltas son números enteros en el mismo instante y la espiral se endereza en una sola línea. Es la misma aritmética que la de una onda de péndulos."
   }
 }

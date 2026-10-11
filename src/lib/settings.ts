@@ -96,6 +96,8 @@ import { SC_ENGINE_KEYS, SC_RANGES, defaultStarChordsFields, readStarChordsParam
 import { HOOPS_RANGES, type HoopsRampShape } from "@/lib/physics/modes/hoops";
 import { defaultHoopsFields, readHoopsParams, resolveHoopsFields, writeHoopsParams } from "@/lib/physics/hoopsFields";
 // --- end bead-hoops ---
+// --- phase-spiral --- Metronomes & Polyrhythms' Phase Spiral: arms, the in-line meter, comet tails, the loop sounds, the spiral palette
+import { PHASE_SPIRAL_PICTURE_RANGES, readPhaseSpiralParams, writePhaseSpiralParams, type PolyPalette } from "@/lib/physics/phaseSpiral";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -1006,6 +1008,18 @@ export interface SimulatorSettings {
   hpTick: boolean;
   hpBed: boolean;
   // --- end bead-hoops ---
+  // --- phase-spiral --- Metronomes & Polyrhythms' Phase Spiral (lib/physics/phaseSpiral.ts; resolved with the mode's settings)
+  /** Dots a ring of the rings and spiral layouts, evenly spaced; 1–8 on the slider, any whole number from 1 typed (URL `prar`). */
+  prArms: number;
+  /** The "in line N %" meter: the arms-fold resultant of the dot angles (URL `prm`). */
+  prAlignMeter: boolean;
+  /** Comet tails: seconds of motion a dot's tail reaches back, 0–1 on the slider (URL `prtl`). */
+  prTrail: number;
+  /** The loop family's voices: plucks, the completion chord on every alignment, risers into it (URL `prls`). */
+  prLoopSound: boolean;
+  /** rainbow | spiral: the dots' colours (URL `prco`). */
+  prPalette: PolyPalette;
+  // --- end phase-spiral ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -1227,6 +1241,7 @@ export const RANGES = {
   ...GROW_FILL_RANGES, // --- loop-foundation ---
   ...SC_RANGES, // --- chord-stars ---
   ...HOOPS_RANGES, // --- bead-hoops ---
+  ...PHASE_SPIRAL_PICTURE_RANGES, // --- phase-spiral --- (the tails; the arms are in POLYRHYTHM_RANGES)
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1480,6 +1495,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeLoopParams(settings, base, params); // --- loop-foundation ---: wl, lh, lht, lhs
   writeStarChordsParams(settings, base, params); // --- chord-stars ---: scn, scs, sct, sch, scf, scsp, scw, sce, scp, scv, scc
   writeHoopsParams(settings, base, params); // --- bead-hoops ---: hpn, hprx, hprn, hpg, hpw0, hpw1, hpr, hps, hph, hprt, hprs, hpd, hpj, hpt, hpb
+  writePhaseSpiralParams(settings, base, params); // --- phase-spiral ---: prar, prm, prtl, prls, prco
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1646,6 +1662,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readLoopParams(params, settings); // --- loop-foundation --- (real booleans, clean texts)
   readStarChordsParams(params, settings); // --- chord-stars --- (valid numbers from their minimum up, clean stars, known options, a real boolean)
   readHoopsParams(params, settings); // --- bead-hoops --- (valid numbers from their minimum up, a known ramp shape, real booleans)
+  readPhaseSpiralParams(params, settings); // --- phase-spiral --- (whole arms from 1 up, a tail from 0 up, real booleans, a known palette)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)

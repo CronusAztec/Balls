@@ -191,6 +191,9 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   // --- chaos-fan --- the Double Pendulum's chaos fan: its pendulums (a batch of typed arrays stepped together; the runtime step
   // budget, FAN_STEP_BUDGET of lib/physics/chaosFan.ts, holds this many at the fewest sub-steps)
   dpFanCount: ENTITY_CEILING,
+  // --- phase-spiral --- Metronomes & Polyrhythms' arms: the dots of a ring (each an engine ball pinned to the clock; rings ×
+  // arms stop at the same ceiling in the mode, `DOT_CEILING` of lib/physics/phaseSpiral.ts)
+  prArms: ENTITY_CEILING,
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

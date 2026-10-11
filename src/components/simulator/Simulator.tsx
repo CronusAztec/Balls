@@ -733,6 +733,12 @@ export default function Simulator() {
     engineRef.current?.setPolyrhythmSettings(polyrhythmSettingsOf(s));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.prLayout, s.prArcStyle, s.prPolygon, s.prAccentEvery, s.prPitchBy, s.prNumbers, s.prCustom]);
+  // --- phase-spiral --- the arms, the in-line meter, the comet tails, the loop sounds and the palette apply live too (a new dot
+  // count builds the dots again on the next step; positions follow the clock, so the rhythm carries on)
+  useEffect(() => {
+    engineRef.current?.setPolyrhythmSettings(polyrhythmSettingsOf(s));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.prArms, s.prAlignMeter, s.prTrail, s.prLoopSound, s.prPalette]);
   // --- end jdm-polyrhythm ---
   // --- jdm-collisions --- Collision Playground: a change of the playground (count, sizes, container, physics, variants) restarts it.
   useEffect(() => {
@@ -3021,6 +3027,7 @@ export default function Simulator() {
       pendulumInLine: (n, cycles) => fill("Simulator.canvasPendulumInLine", { count: n, cycles }),
       polyrhythmDone: t("Simulator.canvasPolyrhythmDone"), // --- jdm-polyrhythm ---
       polyrhythmAligned: (n, cycles) => fill("Simulator.canvasPolyrhythmAligned", { count: n, cycles }),
+      polyrhythmInLine: (pct) => fill("Simulator.canvasPolyrhythmInLine", { count: pct }), // --- phase-spiral ---
       paintOnSchedule: t("Simulator.canvasPaintOnSchedule"),
       paintBehind: t("Simulator.canvasPaintBehind"),
       paintAhead: t("Simulator.canvasPaintAhead"),

@@ -180,7 +180,8 @@
     "canvasRacePlace3": "3.",
     "canvasRacePlaceN": "[n].",
     "canvasRaceNumber": "Wyścig [n]",
-    "canvasRacePoints": "pkt"
+    "canvasRacePoints": "pkt",
+    "canvasPolyrhythmInLine": "w linii [count]%"
   },
   "HowItWorks": {
     "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z {count} trybów: pierścienie do ucieczki, rytmiczne maszyny, pojedynki i podróże." },
@@ -2072,7 +2073,23 @@
     "dpForwardSec": "Bieg do przodu",
     "dpForwardSecTip": "Ile sekund wachlarz biegnie do przodu, zanim zacznie się cofać. Pętla trwa dwa razy dłużej.",
     "dpDivergePx": "Rozdzielenie przy",
-    "dpDivergePxTip": "Wachlarz uznaje się za rozdzielony, gdy któraś kulka odsunie się na tyle od kulki prowadzącej (w pikselach filmu szerokiego na 1080 pikseli). Od tego zależą sygnał rozdzielenia, kolory i chwila rozdzielenia w Znajdź symulację."
+    "dpDivergePxTip": "Wachlarz uznaje się za rozdzielony, gdy któraś kulka odsunie się na tyle od kulki prowadzącej (w pikselach filmu szerokiego na 1080 pikseli). Od tego zależą sygnał rozdzielenia, kolory i chwila rozdzielenia w Znajdź symulację.",
+    "prSpiralDesc": "Spirala faz: daj każdemu pierścieniowi kilka kropek, a skręcą się w spiralę, przejdą przez wzory interferencyjne i dokładnie raz na cykl wyprostują się w szprychy – miernik „w linii” odlicza do tej chwili.",
+    "prSpiralPreset": "Spirala faz",
+    "prSpiralPresetTip": "Klip pętli jednym kliknięciem: 20 pierścieni po 3 ramiona, 20-sekundowa pętla bez końca, miernik „w linii”, ogony komet, dźwięki pętli i kolory spirali na granatowym tle z HUD-em pętli.",
+    "prSpiralPresetButton": "20 pierścieni × 3 ramiona",
+    "prArms": "Ramiona",
+    "prArmsTip": "Kropki na każdym pierścieniu (układy Pierścienie i Spirala), rozmieszczone równo. Kropka przeskakuje o jedną szprychę na uderzenie, więc rytm się nie zmienia, a obraz staje się spiralą o tylu ramionach, która raz na cykl prostuje się w szprychy. Można wpisać dowolną liczbę całkowitą od 1.",
+    "prAlignMeter": "Miernik „w linii”",
+    "prAlignMeterTip": "Pokazuje „w linii N%” nad cienkim paskiem: jak blisko kropki są ustawienia na swoich szprychach – 100% przy każdym zrównaniu, prawie 0 pomiędzy. Pod tarczą albo jako licznik HUD-u pętli, gdy HUD jest włączony.",
+    "prTrail": "Ogony komet",
+    "prTrailTip": "Jak daleko sięga ogon kropki – w sekundach jej ruchu (0 = bez ogona). Dłuższe ogony rysują ramiona spirali.",
+    "prLoopSound": "Dźwięki pętli",
+    "prLoopSoundTip": "Oryginalne, syntezowane głosy pętli zamiast instrumentu: pentatoniczne szarpnięcie przy każdym uderzeniu (wewnętrzne pierścienie nisko, zewnętrzne wysoko), narastające tony, gdy miernik mija 50, 75 i 90%, oraz otwarty akord z dzwonkiem przy każdym zrównaniu.",
+    "prPalette": "Kolory",
+    "prPaletteTip": "Tęcza dookoła koła barw albo wygląd spirali: niebieski i cyjan w środku, przez zieleń i żółć do pomarańczowego i czerwieni na zewnątrz, na ciemnej tarczy.",
+    "prPaletteRainbow": "Tęcza",
+    "prPaletteSpiral": "Spirala"
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -4333,7 +4350,10 @@
     "chaosFanTitle": "{count, plural, one {# wahadło} few {# wahadła} many {# wahadeł} other {# wahadła}} o włos od siebie",
     "chaosFanSubtitle": "drobne różnice wciąż się podwajają / aż żadne dwa nie kołyszą się tak samo",
     "chaosFanForwards": "biegnie naprzód",
-    "chaosFanBackwards": "biegnie wstecz"
+    "chaosFanBackwards": "biegnie wstecz",
+    "polyrhythmTitle": "każdy pierścień robi o jedno okrążenie więcej niż poprzedni",
+    "polyrhythmSubtitle": "patrz, jak spirala prostuje się w jedną linię",
+    "polyrhythmCounter": "w linii {count}%"
   },
   "LoopCaption": {
     "growMultiply": "{count}% większa z każdym odbiciem, aż wypełni okrąg",
@@ -4347,6 +4367,8 @@
     "hoopsOne": "{count} obręcz wiruje coraz szybciej, aż jej koralik zaczyna się wspinać",
     "hoopsFact": "Skąd ta kolejność? Koralik na obracającej się obręczy spoczywa tam, gdzie grawitacja równoważy odśrodkowe pchnięcie obrotu. Poniżej obrotów krytycznych, √(g/R), tym miejscem jest dół obręczy; powyżej punkt równowagi przesuwa się w górę obręczy i wznosi się dalej, w miarę jak obroty rosną. Obręcz o promieniu 75 cm osiąga je przy około 0,58 obrotu na sekundę, a obręcz o promieniu 25 cm potrzebuje prawie pełnego obrotu na sekundę, więc koraliki odrywają się od dołu od zewnątrz do środka.",
     "chaosFan": "start o włos od siebie dla {count} wahadeł, a potem ten sam film od tyłu",
-    "chaosFanFact": "Dlaczego się rozchodzą? W podwójnym wahadle każda drobna różnica startu rośnie wykładniczo, podwajając się mniej więcej co ułamek sekundy, więc wahadła puszczone niemal razem trzymają się razem tylko przez kilka sekund. Edward Lorenz nazwał to efektem motyla. Droga powrotna to nagranie odtworzone od tyłu: gdyby zamiast tego liczyć fizykę wstecz od końca, najmniejszy błąd zaokrąglenia rósłby równie szybko i żadne wahadło nie wróciłoby do domu."
+    "chaosFanFact": "Dlaczego się rozchodzą? W podwójnym wahadle każda drobna różnica startu rośnie wykładniczo, podwajając się mniej więcej co ułamek sekundy, więc wahadła puszczone niemal razem trzymają się razem tylko przez kilka sekund. Edward Lorenz nazwał to efektem motyla. Droga powrotna to nagranie odtworzone od tyłu: gdyby zamiast tego liczyć fizykę wstecz od końca, najmniejszy błąd zaokrąglenia rósłby równie szybko i żadne wahadło nie wróciłoby do domu.",
+    "phaseSpiral": "pierścienie: {count}, każdy o jedno okrążenie szybszy od poprzedniego – patrz, jak spirala prostuje się w jedną linię",
+    "phaseSpiralFact": "Pierścień numer n okrąża środek n razy na cykl, więc każdy zyskuje dokładnie jedno okrążenie na sąsiedzie. W międzyczasie kropki skręcają się w spiralę i przechodzą przez wzory interferencyjne; pod koniec cyklu wszystkie liczby okrążeń są w tej samej chwili całkowite i spirala prostuje się w jedną linię. To ta sama arytmetyka co w fali wahadeł."
   }
 }
