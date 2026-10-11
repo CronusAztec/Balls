@@ -48,6 +48,7 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "sorted-by": "outcomeSortedBy",
   "last-colour": "outcomeLastColour",
   "sorted-on-bar": "outcomeSortedOnBar",
+  "ring-on-bar": "outcomeRingOnBar", // --- funnel-spin ---
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -72,6 +73,7 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "sorted-by": "hintSortedBy",
   "last-colour": "hintLastColour",
   "sorted-on-bar": "hintSortedOnBar",
+  "ring-on-bar": "hintRingOnBar", // --- funnel-spin ---
 };
 
 /** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
@@ -408,6 +410,8 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findLastColour", { name: c.winnerName });
     case "sorted-on-bar":
       return t("Rigged.findSortedOnBar");
+    case "ring-on-bar": // --- funnel-spin ---
+      return t("Rigged.findRingOnBar");
     default:
       return null;
   }
@@ -454,6 +458,8 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundLastColour", { name: c.winnerName, time: (result.sortedAt ?? 0).toFixed(2) });
     case "sorted-on-bar":
       return t("Rigged.foundSortedOnBar", { time: (result.sortedAt ?? 0).toFixed(2) });
+    case "ring-on-bar": // --- funnel-spin --- (the interval and the friction found, the vanish, its bars and the loops in the clip)
+      return t("Rigged.foundRingOnBar", { interval: (result.funnelSpin?.interval ?? 0).toFixed(2), friction: (result.funnelSpin?.friction ?? 0).toFixed(4), time: (result.funnelSpin?.vanishSec ?? 0).toFixed(2), bars: result.funnelSpin?.bars ?? 0, loops: result.funnelSpin?.loops ?? 0 });
     default:
       return null;
   }
@@ -500,6 +506,8 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missLastColour", { name: c.winnerName, seeds: result.seedsTested });
     case "sorted-on-bar":
       return result.sortedAt === undefined ? t("Rigged.missNoSort", { seeds: result.seedsTested }) : t("Rigged.missSortedOnBar", { offset: barOffsetText(result.sortedAt, c.barSec), seeds: result.seedsTested });
+    case "ring-on-bar": // --- funnel-spin --- (no friction to slip down with, or no interval and friction within reach)
+      return t("Rigged.missRingOnBar", { tested: result.seedsTested });
     default:
       return null;
   }
@@ -552,6 +560,8 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayLastColour", { tested: result.seedsTested, name: c.winnerName });
     case "sorted-on-bar":
       return result.sortedAt === undefined ? t("Rigged.overlayNoSort", { tested: result.seedsTested }) : t("Rigged.overlaySortedOnBar", { tested: result.seedsTested, offset: barOffsetText(result.sortedAt, c.barSec) });
+    case "ring-on-bar": // --- funnel-spin ---
+      return t("Rigged.missRingOnBar", { tested: result.seedsTested });
     default:
       return null;
   }

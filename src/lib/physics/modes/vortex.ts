@@ -1,6 +1,10 @@
 import { SCALE_INTERVALS, isScaleId, midiToFrequency, normalizeRootNote, type ScaleId } from "@/lib/audio/scales";
 import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
+// --- funnel-spin --- the ring release and the perspective view (lib/physics/funnelSpin.ts, lib/physics/funnelRun.ts)
+import { DEFAULT_FUNNEL_SPIN_SETTINGS, funnelSpinSettingsOf, funnelTiming, resolveFunnelSpinFields, resolveFunnelSpinSettings, type FunnelSpinFields, type FunnelSpinSettings } from "../funnelSpin";
+import { FunnelRingRun, createFunnelView, placeFunnelPerspective, updateFunnelFrame, type FunnelView } from "../funnelRun";
+import type { LoopSeams } from "../types";
 
 /**
  * Sound Vortex ("vortex" mode, feature gerald-vortex – the geraldbounces "sound vortex, pew" clips). No rings to escape:
@@ -36,7 +40,7 @@ import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /* ------------------------------------------------------------------ settings */
 
-export interface VortexSettings {
+export interface VortexSettings extends FunnelSpinSettings /* --- funnel-spin --- */ {
   /** Balls that go down the vortex, 1–30. */
   balls: number;
   /** Seconds between two balls entering at the rim, 0–3 (0 = all at once). */
@@ -54,6 +58,8 @@ export interface VortexSettings {
   /** The Sound section's scale and root: ring i plays degree i of it (live). */
   scale: ScaleId;
   rootNote: number;
+  /** --- funnel-spin --- The Sound section's tempo: the ring release's groove bed (live). */
+  bpm: number;
 }
 
 export const DEFAULT_VORTEX_SETTINGS: VortexSettings = {
@@ -66,6 +72,10 @@ export const DEFAULT_VORTEX_SETTINGS: VortexSettings = {
   depthScale: 0.5,
   scale: "chromatic",
   rootNote: 0,
+  // --- funnel-spin --- (the stagger release and the top view: the Sound Vortex as it was)
+  ...DEFAULT_FUNNEL_SPIN_SETTINGS,
+  waves: [...DEFAULT_FUNNEL_SPIN_SETTINGS.waves],
+  bpm: 120,
 };
 
 /** Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
@@ -113,12 +123,18 @@ export function resolveVortexSettings(config: Partial<VortexSettings> | null | u
   if (config.depthScale !== undefined) out.depthScale = Math.round(onStep(clampNumber(config.depthScale, R.vxDepthScale, out.depthScale), 0.05) * 100) / 100;
   if (isScaleId(config.scale)) out.scale = config.scale;
   if (config.rootNote !== undefined) out.rootNote = normalizeRootNote(config.rootNote);
+  // --- funnel-spin --- the ring release and the perspective view (valid values from their minimum up), the bed's tempo
+  Object.assign(out, resolveFunnelSpinSettings(config));
+  const bpm = Number(config.bpm);
+  if (config.bpm !== undefined && Number.isFinite(bpm) && bpm > 0) out.bpm = bpm;
   return out;
 }
 
 /** Picks the Sound Vortex settings (and the Sound section's scale and root) out of a bigger object for `engine.setVortexSettings()`. */
-export function vortexSettingsOf(source: VortexFields & { scale?: ScaleId; rootNote?: number }): VortexSettings {
+export function vortexSettingsOf(source: VortexFields & { scale?: ScaleId; rootNote?: number } & Partial<FunnelSpinFields> & { bpm?: number } /* --- funnel-spin --- */): VortexSettings {
   return {
+    ...funnelSpinSettingsOf(resolveFunnelSpinFields(source)), // --- funnel-spin --- (the defaults without them)
+    bpm: source.bpm ?? DEFAULT_VORTEX_SETTINGS.bpm,
     balls: source.vxBalls,
     stagger: source.vxStagger,
     rings: source.vxRings,
@@ -390,6 +406,11 @@ export const MAX_PEWS_PER_STEP = 2;
 export function vortexNominalRunSec(settings: Partial<VortexSettings> | null | undefined): number | null {
   const s = resolveVortexSettings(settings);
   if (s.loop) return null;
+  // --- funnel-spin --- the ring release ends a cycle after its start, whatever the seed (none without friction)
+  if (s.release === "rings") {
+    const cycle = funnelTiming(s).cycleSec;
+    return Number.isFinite(cycle) ? cycle : null;
+  }
   return (s.balls - 1) * s.stagger + s.duration + SWALLOW_HOLD_SEC;
 }
 
@@ -397,6 +418,11 @@ export function vortexNominalRunSec(settings: Partial<VortexSettings> | null | u
 export function vortexRunRangeSec(settings: Partial<VortexSettings> | null | undefined): { min: number; max: number } | null {
   const s = resolveVortexSettings(settings);
   if (s.loop) return null;
+  // --- funnel-spin --- (the seed does not move a ring run)
+  if (s.release === "rings") {
+    const nominal = vortexNominalRunSec(s);
+    return nominal === null ? null : { min: nominal, max: nominal };
+  }
   const lead = (s.balls - 1) * s.stagger + SWALLOW_HOLD_SEC;
   // A ball entering at ENTRY_SPEED_MIN × v_c sinks around a guiding radius that much smaller: a little sooner in.
   const early = 1 + Math.log(ENTRY_SPEED_MIN) / Math.log(ENTRY_AT / HOLE_AT);
@@ -461,6 +487,8 @@ export interface VortexView {
   finished: boolean;
   /** Simulation time (ms) the run finished at (−1 while it has not). */
   finishedMs: number;
+  /** --- funnel-spin --- The ring release and the perspective view (lib/physics/funnelRun.ts). */
+  funnel: FunnelView;
 }
 
 function createView(): VortexView {
@@ -498,6 +526,7 @@ function createView(): VortexView {
     allSwallowed: false,
     finished: false,
     finishedMs: -1,
+    funnel: createFunnelView(), // --- funnel-spin ---
   };
 }
 
@@ -545,6 +574,8 @@ export class VortexMode implements GameMode {
   /** Balls swallowed during the current step (their engine ids), removed from the engine at its end. */
   private readonly swallowedIds: number[] = [];
   private readonly state: SpiralState = { r: 0, vr: 0, theta: 0, L: 0 };
+  /** --- funnel-spin --- The ring release (waves of evenly spaced marbles, the loop's refill, the funnel's sounds). */
+  private readonly rings = new FunnelRingRun();
 
   getSettings(): VortexSettings {
     return this.settings;
@@ -556,6 +587,13 @@ export class VortexMode implements GameMode {
     live.depthScale = this.settings.depthScale;
     live.scale = this.settings.scale;
     live.rootNote = this.settings.rootNote;
+    // --- funnel-spin --- the view, the camera, the drawn depth, the lap readout and the bed's tempo follow live
+    live.view = this.settings.view;
+    live.elevation = this.settings.elevation;
+    live.funnelDepth = this.settings.funnelDepth;
+    live.lapReadout = this.settings.lapReadout;
+    live.bpm = this.settings.bpm;
+    if (this.view.field.rim > 0) updateFunnelFrame(this.view.funnel, this.view.field, live);
   }
   /** Live state for the canvas and the HUD; the same object every call. */
   getView(): VortexView {
@@ -622,6 +660,11 @@ export class VortexMode implements GameMode {
       v.slotColor[i] = vortexBallColor(i, ctx.config.ballColor);
     }
     this.layout(ctx.config.width, ctx.config.height);
+    // --- funnel-spin --- the ring release: waves of evenly spaced marbles (lib/physics/funnelRun.ts)
+    if (s.release === "rings") {
+      this.rings.init(ctx, v, v.settings, v.dir, this.phase);
+      return;
+    }
     // The balls due at 0 s enter now (the first always: the engine then adds no default ball).
     for (let i = 0; i < s.balls; i++) if (this.entryAt[i] <= 1e-9) this.enter(ctx, i);
   }
@@ -668,6 +711,13 @@ export class VortexMode implements GameMode {
     v.circularSpeed = circularSpeed(v.field.rim, this.settings.gravity);
     v.spiralSec = this.settings.duration / v.tempo;
     v.drag = dragRate(v.field.entry, v.field.hole, v.spiralSec);
+    // --- funnel-spin --- the ring release's own hole (its rings spaced down to it) and the perspective's layout
+    if (v.settings.release === "rings") {
+      const f = v.field;
+      f.hole = (Math.max(0, v.settings.holeSize) / 100) * f.rim;
+      ringRadii(f.entry, f.hole, f.ringCount, f.rings);
+    }
+    updateFunnelFrame(v.funnel, v.field, v.settings);
   }
 
   /** Slot `slot` enters at the rim: its seeded speed factor and angle are drawn, its ball is created. */
@@ -715,6 +765,12 @@ export class VortexMode implements GameMode {
     const f = v.field;
     const r = this.r[slot];
     const th = this.theta[slot];
+    // --- funnel-spin --- the perspective view: the ball at its projection (the first ball keeps wearing the Ball Colour)
+    if (v.settings.view === "perspective") {
+      if (slot === 0) v.slotColor[0] = ctx.config.ballColor || "#ffffff";
+      placeFunnelPerspective(v, ball, slot, r, th, this.vr[slot], (v.dir * this.L[slot]) / r, ctx.config.ballRadius || 8);
+      return;
+    }
     const c = Math.cos(th);
     const sn = Math.sin(th);
     const vt = (v.dir * this.L[slot]) / r;
@@ -735,6 +791,11 @@ export class VortexMode implements GameMode {
   }
 
   onPreUpdate(ctx: ModeContext, dtMs: number) {
+    // --- funnel-spin --- the ring release releases its waves (lib/physics/funnelRun.ts)
+    if (this.view.settings.release === "rings") {
+      this.rings.preUpdate(ctx, this.view, this.view.settings, dtMs);
+      return;
+    }
     this.stepStartMs = this.clockMs;
     this.clockMs += dtMs;
     this.view.timeMs = this.clockMs;
@@ -745,6 +806,7 @@ export class VortexMode implements GameMode {
   }
 
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number) {
+    if (this.view.settings.release === "rings") return; // --- funnel-spin --- (a ring's marbles are placed from its state at the step's end)
     const slot = this.slotOfId.get(ball.id);
     const v = this.view;
     if (slot === undefined || v.slotState[slot] !== FLYING) return;
@@ -814,6 +876,11 @@ export class VortexMode implements GameMode {
     const v = this.view;
     const s = v.settings;
     const f = v.field;
+    // --- funnel-spin --- the ring release advances its waves, plays its laps and its bed, and loops
+    if (s.release === "rings") {
+      this.rings.postUpdate(ctx, v, s);
+      return;
+    }
     // The ring notes of this step: one note, or the distinct rings crossed together as one chord (rising with depth).
     if (this.stepRingCount > 0) {
       let first = -1;
@@ -867,6 +934,12 @@ export class VortexMode implements GameMode {
   onConfigChange(ctx: ModeContext, sizeChanged: boolean) {
     if (!sizeChanged) return true;
     const v = this.view;
+    // --- funnel-spin --- a ring run is in rim units: the funnel follows the canvas and every marble is placed again
+    if (v.settings.release === "rings") {
+      this.layout(ctx.config.width, ctx.config.height);
+      this.rings.configChange(ctx, v, v.settings);
+      return true;
+    }
     const oldRim = v.field.rim;
     this.layout(ctx.config.width, ctx.config.height);
     const k = oldRim > 0 ? v.field.rim / oldRim : 1;
@@ -892,6 +965,17 @@ export class VortexMode implements GameMode {
   }
   isFinished() {
     return this.view.finished;
+  }
+  // --- funnel-spin --- the loop contract of the ring release with the loop on (the refill: lib/loop/loopContract.ts); none otherwise
+  cycleSeconds(): number | null {
+    return this.view.settings.release === "rings" ? this.rings.cycleSeconds(this.view, this.view.settings) : null;
+  }
+  loopSeams(): LoopSeams | null {
+    return this.view.settings.release === "rings" ? this.rings.loopSeams(this.view, this.view.settings) : null;
+  }
+  /** The page resumed a paused ring run: the groove bed and the hiss come back with the next step. */
+  refreshFunnelBed() {
+    this.rings.refreshBed();
   }
   getState() {
     const v = this.view;

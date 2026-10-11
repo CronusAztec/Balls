@@ -68,6 +68,7 @@ import { DEFAULT_JDM_RHYTHM_LABELS, PADDLE_DATA_KEYS, PaddleLayer, RUNNER_DATA_K
 import { withSplitScreen, type SplitScreenCanvasOptions } from "./splitScreenCanvas";
 // --- gerald-vortex --- the Sound Vortex: funnel, whirlpool, sound rings, hole, splashes and the counter
 import { DEFAULT_VORTEX_LABELS, VORTEX_DATA_KEYS, VortexLayer, writeVortexDataset, type VortexLabels, type VortexRenderOptions } from "./vortexRenderer";
+import { funnelExtentPx } from "./funnelRenderer"; // --- funnel-spin --- (the live loop HUD keeps clear of the funnel)
 // --- gerald-journey --- the Journey: the stages in view, the banner, the mini-map, the clock and score
 import { DEFAULT_JOURNEY_LABELS, JOURNEY_DATA_KEYS, JourneyLayer, writeJourneyDataset, type JourneyLabels, type JourneyRenderOptions } from "./journeyRenderer";
 // --- gerald-bullseye --- Bullseye: the target, the launcher, bumper rings, score popups, the HUD and BULLSEYE!
@@ -2213,6 +2214,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (isPendulum) drawPendulumBobs(ctx, balls, engine.getPendulumView(), pendulumRender);
       else if (starView) starLayer.drawBodies(ctx, starView, starRender); // --- chord-stars --- the balls with their glow
       else if (efView) efLayer.drawBodies(ctx, efView, efRender); // --- ellipse-foci --- the volley by hue, the convergence bloom
+      else if (vortexView && vortexLayer.drawsBodies(vortexView)) vortexLayer.drawBodies(ctx, vortexView, vortexRender); // --- funnel-spin --- the perspective's glossy marbles, far to near, under the front lip
       else if (isPoly) drawPolyrhythmVoices(ctx, engine.getPolyrhythmView(), polyRender); // --- jdm-polyrhythm ---
       // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
       else if (isCollide) drawCollideBodies(ctx, balls, engine.getCollideView(), collideRender);
@@ -2569,7 +2571,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- odd-power-layers --- Power Layers: the corner badge, the rule pills and the layers left (screen space, part of the recording).
       if (plView) modeTopHud = Math.max(modeTopHud, plLayer.drawOverlay(ctx, plView, (labelsRef.current ?? DEFAULT_LABELS).powerLayers ?? DEFAULT_POWER_LAYERS_LABELS)); // --- review fix (modes-gerald-odd) --- (the pills' bottom)
       // --- gerald-vortex --- Sound Vortex: the title and the swallowed counter (screen space, part of the recording).
-      if (vortexView) vortexLayer.drawOverlay(ctx, vortexView, (labelsRef.current ?? DEFAULT_LABELS).vortex ?? DEFAULT_VORTEX_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
+      if (vortexView) vortexLayer.drawOverlay(ctx, vortexView, (labelsRef.current ?? DEFAULT_LABELS).vortex ?? DEFAULT_VORTEX_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0, !!loopHudRef.current /* --- funnel-spin --- (the ring release's words are the HUD's) */);
       // --- gerald-journey --- Journey: the stage banner, the mini-map, the clock and the score (screen space, part of the recording).
       if (journeyView) journeyLayer.drawOverlay(ctx, journeyView, (labelsRef.current ?? DEFAULT_LABELS).journey ?? DEFAULT_JOURNEY_LABELS);
       // --- gerald-bullseye --- Bullseye: the shot counter, the running total and BULLSEYE! (screen space, part of the recording).
@@ -3028,7 +3030,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       loopHudLive.bottom = Infinity;
       loopHudLiveText = "";
       if (hudSpec && !recordingRef.current) {
-        const ring = efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
+        const ring = efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : vortexView && vortexView.funnel.view === "perspective" ? funnelExtentPx(vortexView) /* --- funnel-spin --- (the perspective's whole funnel) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
         const liveTop = (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
         const hudFrame = loopHudFrame(hudSpec, loopHudCount(engine));
         const hudLayout = loopHudLiveLayout(size.width, size.height, cy, Math.min(ring, Math.min(size.width, size.height) / 2), liveTop);

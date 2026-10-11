@@ -291,6 +291,8 @@ export interface LoopHudBarCount extends LoopHudCount {
 /** The meter's counter, reused every frame. */
 const POLY_METER_COUNTER: LoopHudBarCount = { count: 0, total: 100, bar: 0 };
 // --- end phase-spiral ---
+/** --- funnel-spin --- The ring release's lap readout, reused every frame: the newest ring's laps and its lap (s). */
+const FUNNEL_LAP_COUNTER = { count: 0, values: { lap: 0 } };
 
 /** The counter of the mode's run (Grow: the bounces of the current cycle; --- chord-stars --- Chord Stars: the stars closed of all;
  * --- bead-hoops --- Spinning Hoops: the beads up, with the spin and the hoop count; --- phase-spiral --- Metronomes & Polyrhythms
@@ -305,6 +307,7 @@ export function loopHudCount(engine: {
   getPolyrhythmView?(): { inLine: number; settings: { alignMeter: boolean } }; // --- phase-spiral ---
   getEllipseFociHudCount?(): number | null; // --- ellipse-foci ---
   getColourSortView?(): { sorted: number; phase: string }; // --- colour-sort ---
+  getVortexView?(): { funnel: { release: string; lapReadout: boolean; newestWave: number; lapSec: number; waveLaps: ArrayLike<number> } }; // --- funnel-spin ---
 }): number | LoopHudCount | LoopHudCounter | LoopHudState | null {
   // --- chaos-fan --- the Double Pendulum's chaos fan: running forwards, or its tape backwards
   if (engine.getCurrentModeName() === "doublePendulum" && engine.getDoublePendulumView) {
@@ -344,6 +347,14 @@ export function loopHudCount(engine: {
     return view.phase === "remix" ? null : view.sorted;
   }
   // --- end colour-sort ---
+  // --- funnel-spin --- the Sound Vortex's ring release with the lap readout: the newest ring's lap ("lap 1.23 s"); none while the funnel is empty
+  if (engine.getCurrentModeName() === "vortex" && engine.getVortexView) {
+    const f = engine.getVortexView().funnel;
+    if (f.release !== "rings" || !f.lapReadout || f.newestWave < 0 || !Number.isFinite(f.lapSec)) return null;
+    FUNNEL_LAP_COUNTER.count = f.waveLaps[f.newestWave] ?? 0;
+    FUNNEL_LAP_COUNTER.values.lap = Math.round(100 * f.lapSec) / 100;
+    return FUNNEL_LAP_COUNTER;
+  }
   return engine.getCurrentModeName() === "grow" ? engine.getGrowView().bounces : null;
 }
 

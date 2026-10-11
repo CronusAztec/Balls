@@ -59,6 +59,8 @@ import { findStarChordsRun, type StarChordsFound } from "./starChordsFinder"; //
 import { hoopsSchedule, resolveHoopsSettings, type HoopsSettings } from "@/lib/physics/modes/hoops"; // --- bead-hoops ---
 import type { EllipseFociSettings } from "@/lib/physics/ellipseFoci"; // --- ellipse-foci ---
 import { findEllipseFociRun, type EllipseFociFound } from "./ellipseFociFinder"; // --- ellipse-foci ---
+import { findFunnelSpinRun, type FunnelSpinFound } from "./funnelSpinFinder"; // --- funnel-spin ---
+import { funnelTiming } from "@/lib/physics/funnelSpin"; // --- funnel-spin ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -318,7 +320,11 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   // --- jdm-rhythm-runner --- the runner played by hand (the finder cannot play), the paddle played by hand or perfectly
   if (mode === "runner" || mode === "paddle") return jdmRhythmNeverFinishes(mode, settings);
   // --- gerald-vortex --- with the loop on every swallowed ball comes back: the vortex never ends
-  if (mode === "vortex") return resolveVortexSettings(settings.vortex).loop;
+  // (--- funnel-spin --- a ring run without friction never slips down: its rings orbit the rim forever)
+  if (mode === "vortex") {
+    const vx = resolveVortexSettings(settings.vortex);
+    return vx.loop || (vx.release === "rings" && !Number.isFinite(funnelTiming(vx).cycleSec));
+  }
   // --- orb-grid --- a field that never settles (the period property, an orb bouncing elastically or harder): only the clip ends it
   if (mode === "orbGrid") return orbGridNeverSettles((settings as Pick<ModeSettings, "orbGrid">).orbGrid);
   // --- colour-sort --- it sorts, mixes again and sorts again forever: no length (its outcomes search the first sort)
@@ -363,6 +369,13 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
   if (mode === "hoops") {
     const h = resolveHoopsSettings((settings as Partial<Pick<ModeSettings, "hoops">>).hoops);
     return h.returnLoop ? null : hoopsSchedule(h).cycle;
+  }
+  // --- funnel-spin --- a ring run without the loop lasts one cycle (its waves, the descents, the refill gap), whatever the seed
+  if (mode === "vortex") {
+    const vx = resolveVortexSettings((settings as Partial<Pick<ModeSettings, "vortex">>).vortex);
+    if (vx.release !== "rings" || vx.loop) return null;
+    const cycle = funnelTiming(vx).cycleSec;
+    return Number.isFinite(cycle) ? cycle : null;
   }
   if (mode !== "pendulum") return null;
   const p = resolvePendulumSettings(settings.pendulum);
@@ -466,6 +479,8 @@ export interface FinderResult {
   // --- ellipse-foci ---
   /** Focus Shot: the transit on the tempo and the loops in the clip, or the start angle and its collapse. */
   ellipseFoci?: EllipseFociFound;
+  /** --- funnel-spin --- The Sound Vortex's ring release: the wave interval and the friction that put the last ring's vanish on a bar line. */
+  funnelSpin?: FunnelSpinFound;
 }
 
 /**
@@ -749,6 +764,11 @@ export function findSimulation(
     // --- ellipse-foci --- every volley converges on time by construction: the search fits the transit to the tempo or the start angle
     if (request.mode === "ellipseFoci") {
       resolve(findEllipseFociRun(request));
+      return;
+    }
+    // --- funnel-spin --- a ring run does not depend on the seed: the search fits the wave interval and the friction to the bar lines
+    if (request.mode === "vortex" && request.outcome?.kind === "ring-on-bar") {
+      resolve(findFunnelSpinRun(request));
       return;
     }
     // --- rigged --- the other outcomes (never escapes, first escape at, winner) search by what happens, not by the length

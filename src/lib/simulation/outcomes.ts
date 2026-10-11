@@ -46,13 +46,17 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  * the clip a whole number of loops – and **longest-collapse** – the start angle whose swarm takes the most passes to narrow under
  * two ball radii (ellipseFociFinder.ts; no seed is simulated, the seed only colours the run).
  *
+ * --- funnel-spin --- The Sound Vortex's ring release adds **ring-on-bar**: the last ring of a cycle vanishes into the hole within
+ * `toleranceSec` (±20 ms by default) of a bar line of the song's tempo (`atSec` is the bar's length); the wave interval and the
+ * spin friction are searched, not seeds (funnelSpinFinder.ts).
+ *
  * --- colour-sort --- Colour Sort adds three of its first sort (the run itself loops forever): **sorted-by** – every ball is
  * sorted within a time limit (`atSec`) –, **last-colour** – the final ball sorted is of the chosen colour (`team`: its index,
  * the core's colour 0 outward) – and **sorted-on-bar** – the final ball is sorted within `toleranceSec` (±20 ms by default) of
  * a bar line of the song's tempo (`atSec` is the bar's length), so the completion chord lands on a downbeat.
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", "ring-on-bar" /* --- funnel-spin --- */] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -452,6 +456,8 @@ export interface OutcomeContext {
   colourSortSettles?: boolean;
   /** --- chaos-fan --- The Double Pendulum runs its chaos fan: the split's time can be searched (diverges-at). */
   dpFan?: boolean;
+  /** --- funnel-spin --- The Sound Vortex releases ring waves: the last ring's vanish can be put on a bar line (ring-on-bar). */
+  vortexRings?: boolean;
 }
 
 /**
@@ -481,6 +487,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "doublePendulum" && ctx.dpFan) out.push("diverges-at"); // --- chaos-fan --- (the split at a chosen second)
   if (mode === "ellipseFoci") out.push("converge-on-beat", "longest-collapse"); // --- ellipse-foci --- (the transit on the tempo; the start angle)
   if (mode === "colourSort" && !ctx.colourSortSettles) out.push("sorted-by", "last-colour", "sorted-on-bar"); // --- colour-sort --- (its first sort: the run loops forever; none when the sort only settles)
+  if (mode === "vortex" && ctx.vortexRings) out.push("ring-on-bar"); // --- funnel-spin --- (the wave interval and the friction searched, no seed)
   return out;
 }
 
