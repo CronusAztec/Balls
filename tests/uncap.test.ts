@@ -516,6 +516,7 @@ describe("uncap-all review fixes: only the settings a run's engine reads engage 
   /** The settings no mode's engine reads: the clip's, the text's, the sound's and the picture's. */
   const NOT_ENGINE = new Set(["wallThickness", "trailThickness", "backgroundDim", "textSize", "recordingDuration", "hitSampleVolume", "sliceMs", "sliceFadeMs", "musicVolume", "musicDucking", "musicDuckRelease", "musicStartOffset", "rootNote", "bpm", "ballSquash", "cameraZoom", "screenShake", "slowMoFactor", "slowMoMs", "fastExportFps", "beatDownbeat", "videoBgOpacity"]);
   for (const key of ["ogElevation", "ogRotation"]) NOT_ENGINE.add(key); // --- orb-grid --- the Bouncing Orbs camera is the picture's (the canvas draws it)
+  NOT_ENGINE.add("flShake"); // --- fl-overhaul --- (Stage 3) Fight League's screen shake is the picture's (the canvas draws it; the fight never reads it)
   NOT_ENGINE.add("growMarkerLife"); // --- loop-foundation --- Grow's contact markers are the picture's (the canvas draws them)
   NOT_ENGINE.add("scLineWidth"); // --- chord-stars --- the chords' width is the picture's (the canvas draws them)
   NOT_ENGINE.add("prTrail"); // --- phase-spiral --- Metronomes & Polyrhythms' comet tails are the picture's (the canvas draws them)
@@ -818,6 +819,7 @@ describe("uncap-all: the guard", () => {
     rcWinner: "a racer's index",
     btHp: "hit points",
     flHp: "hit points", // --- fight-league ---
+    flBestOf: "games of a series (played one after another: a run holds two scores)", // --- fl-overhaul --- (Stage 5; flBracketSize and flBossWaves size the entrants: MEMORY_CEILINGS, FL_ENTRANT_CEILING)
     ctfScoreToWin: "a score",
     pdMisses: "misses allowed (the HUD draws at most ten hearts)",
     byPerfect: "a shot's index",

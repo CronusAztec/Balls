@@ -33,7 +33,7 @@ import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTi
 import { DEFAULT_FAST_EXPORT_SETTINGS, FAST_EXPORT_RANGES, resolveFastExportSettings } from "@/lib/recording/fastRenderPlan"; // --- fast-render ---
 // --- jdm-double-pendulum ---
 import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulumSettingFields, readDoublePendulumParams, resolveDoublePendulumFields, writeDoublePendulumParams, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
-import type { DpColourBy } from "@/lib/physics/chaosFan"; // --- chaos-fan ---
+import { CHAOS_FAN_RANGES, type DpColourBy } from "@/lib/physics/chaosFan"; // --- chaos-fan ---
 // --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
 import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllusionFields, writeIllusionParams, type IllusionPatternChoice, type IllusionType } from "@/lib/physics/modes/illusion";
 import { WOBBLE_RANGES } from "@/lib/physics/wobble";
@@ -84,6 +84,11 @@ import { ORB_GRID_PHYSICS_FIELDS, ORB_GRID_RANGES, defaultOrbGridFields, orbGrid
 import type { OgGroup, OgMetro, OgModel, OgRhythm } from "@/lib/physics/modes/orbRhythm"; // --- orb-rhythm --- Bouncing Orbs' rhythm model, polyrhythms and metronome
 // --- fight-league --- Fight League (weapon-wielding fighter balls; the arena games' family)
 import { FIGHT_LEAGUE_RANGES, defaultFightLeagueFields, fightLeagueModeDefaults, readFightLeagueParams, resolveFightLeagueFields, writeFightLeagueParams, type FlArena, type FlMatch } from "@/lib/physics/modes/fightLeague";
+import type { FlSeeding } from "@/lib/physics/modes/fightLeagueShow"; // --- fl-overhaul --- (Stage 5)
+// --- fl-overhaul --- (Stage 3) the spectacle's options and its presentational numbers (never the engine's)
+import { FIGHT_LEAGUE_VISUAL_KEYS, type FlArenaStyle, type FlStage, type FlTags } from "@/lib/physics/modes/fightLeague";
+import type { FlSoundOption } from "@/lib/physics/modes/fightLeague"; // --- fl-overhaul --- (Stage 4) the sound set
+// --- end fl-overhaul ---
 // --- land-claim --- the Land Claim mode (columns of blocks knocked off by competitors' balls)
 import { LAND_CLAIM_RANGES, defaultLandClaimFields, landClaimModeDefaults, readLandClaimParams, resolveLandClaimFields, writeLandClaimParams, type LcArena, type LcRule } from "@/lib/physics/modes/landClaim";
 // --- loop-foundation --- Grow's fill-and-loop upgrade (growth law, fill / hold / shrink, colour by size, markers, pitch) and the
@@ -938,6 +943,66 @@ export interface SimulatorSettings {
   flCastB: number;
   flCastC: number;
   flCastD: number;
+  // --- fl-overhaul --- the intent steering's turn rate (URL `flSk`; 0 = the bounce look) and sudden death at the time cap (URL `flSD`)
+  flSeek: number;
+  flSuddenDeath: boolean;
+  // --- end fl-overhaul ---
+  // --- fl-overhaul --- (Stage 3) the spectacle – the drawing only, never the fight (URL `flSt`, `flAs`, `flSh`, `flSm`, `flIf`, `flDn`, `flPp`, `flTg`)
+  /** lilac (the default) | night | theme: the backdrop and the arena's palette (URL `flSt`). */
+  flStage: FlStage;
+  /** clean | grid | division | neon: the arena floor's pattern (URL `flAs`). */
+  flArenaStyle: FlArenaStyle;
+  /** The screen shake's strength, 0.6 by default, any number from 0 typed (URL `flSh`). */
+  flShake: number;
+  /** The KO finale's slow motion (URL `flSm`). */
+  flSlowMo: boolean;
+  /** The impact frames of heavy hits (URL `flIf`). */
+  flImpact: boolean;
+  /** The floating damage numbers (URL `flDn`). */
+  flDmgNumbers: boolean;
+  /** The portrait plates above and below the arena in tall exports (URL `flPp`). */
+  flPlates: boolean;
+  /** auto | on | off: the name tags over the balls (URL `flTg`). */
+  flTags: FlTags;
+  // --- end fl-overhaul ---
+  // --- fl-overhaul --- (Stage 4) the sound – the page's ToneGenerator only, never the fight (URL `flSnd`, `flAnn`, `flCS`)
+  /** signature (the default) | kinds | legacy: the fighters' synthesized signature sets, the weapon kinds' and abilities' own rows, or the first release's sounds (URL `flSnd`). */
+  flSound: FlSoundOption;
+  /** The announcer's calls and stings (URL `flAnn`). */
+  flAnnouncer: boolean;
+  /** The user's own clips in their fighters' slots, kept on this device (URL `flCS`). */
+  flCustomSounds: boolean;
+  // --- end fl-overhaul ---
+  // --- fl-overhaul --- (Stage 5) slots E and F (a 3v3's D + E + F, a bracket's pinned entrants) and the shows (fightLeagueShow.ts)
+  /** Fighter slots E and F (URL `fl5`, `fl6`). */
+  flFighterE: string;
+  flFighterF: string;
+  /** Slots E and F's multipliers (URL `flS5`–6, `flD5`–6, `flX5`–6, `flC5`–6). */
+  flSpeedE: number;
+  flSpeedF: number;
+  flDamageE: number;
+  flDamageF: number;
+  flAttackE: number;
+  flAttackF: number;
+  flCastE: number;
+  flCastF: number;
+  /** A best-of-N series on 1v1 / 2v2 / 3v3 and a bracket's final: a whole number from 1, an even one rounds up (URL `flBo`). */
+  flBestOf: number;
+  /** A bracket's entrants or a boss rush's challengers: ids and tokens, comma-separated ("" the format's default pool) (URL `flE`). */
+  flEntrants: string;
+  /** A bracket's entrants, from 2 (no maximum; a run builds at most 256) (URL `flBr`). */
+  flBracketSize: number;
+  /** rating | random | listed (URL `flSd`). */
+  flSeeding: FlSeeding;
+  /** A boss rush's challengers, from 1 (URL `flBw`); the boss's HP multiplier (URL `flBoss`) and its heal per interlude (URL `flBh`). */
+  flBossWaves: number;
+  flBossHp: number;
+  flBossHeal: number;
+  /** A show's interlude card (s, from 0) (URL `flCard`). */
+  flCardSec: number;
+  /** The VS card's win chance (simulated) (URL `flOd`). */
+  flOdds: boolean;
+  // --- end fl-overhaul ---
   // --- end fight-league ---
   // --- land-claim --- Land Claim (lib/physics/modes/landClaim.ts): competitors' balls knock the top blocks off the columns lining the arena
   /** Columns round the wall, 4–96 on the slider (any number from 4 typed; a run builds at most 5,000) (URL `lcc`). */
@@ -1990,6 +2055,9 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
 for (const mode of MOVING_EXIT_MODES) (MODE_ENGINE_KEYS[mode] as string[]).push(...EXIT_ENGINE_KEYS);
 for (const mode of SPLAT_MODES) (MODE_ENGINE_KEYS[mode] as string[]).push(...SPLAT_ENGINE_KEYS);
+// --- fl-overhaul --- (Stage 3) the spectacle's numbers (the screen shake) are the picture's: a shake past its slider engages nothing
+(MODE_ENGINE_KEYS as Record<ModeId, readonly string[]>).fightLeague = MODE_ENGINE_KEYS.fightLeague.filter((key) => !FIGHT_LEAGUE_VISUAL_KEYS.includes(key));
+// --- end fl-overhaul ---
 (MODE_ENGINE_KEYS.grow as string[]).push(...GROW_FILL_ENGINE_KEYS); // --- loop-foundation --- (the growth, the start, the hold and the shrink)
 (MODE_ENGINE_KEYS.vortex as string[]).push(...FUNNEL_SPIN_ENGINE_KEYS); // --- funnel-spin --- (the ring release's timing; the camera and the drawn depth are the picture's)
 
@@ -2010,6 +2078,25 @@ export function engineSettingKeys(mode: ModeId): readonly string[] {
   return keys;
 }
 
+/*
+ * --- chaos-fan --- (review fix) The Double Pendulum builds one of two rigs, so of its engine keys only the built rig's count:
+ * with the fan off (the harp rig) the fan's numbers are never read, and with the fan on the harp rig's own – the pendulum
+ * count, the arm count and the third arm, the trail, the strings and their octaves (the fan swings two-arm pendulums, the
+ * panel hides them) – are not. A value past its slider there engages no extreme-values machinery and no ARENA FULL.
+ */
+const DP_FAN_ONLY_KEYS: ReadonlySet<string> = new Set(Object.keys(CHAOS_FAN_RANGES));
+const DP_HARP_ONLY_KEYS: ReadonlySet<string> = new Set(["dpCount", "dpSegments", "dpLength3", "dpMass3", "dpAngle3", "dpTrailSeconds", "dpStrings", "dpOctaves"]);
+const NO_INACTIVE_KEYS: ReadonlySet<string> = new Set();
+
+/**
+ * --- chaos-fan --- (review fix) The keys of `engineSettingKeys(settings.mode)` the run does not read because the other
+ * sub-rig of the mode is built (the Double Pendulum's fan or harp rig): `uncappedEngaged()` and `pastAnyMemoryCeiling()` skip them.
+ */
+export function inactiveEngineKeys(settings: Pick<SimulatorSettings, "mode" | "dpFan">): ReadonlySet<string> {
+  if (settings.mode !== "doublePendulum") return NO_INACTIVE_KEYS;
+  return settings.dpFan ? DP_HARP_ONLY_KEYS : DP_FAN_ONLY_KEYS;
+}
+
 /**
  * True when a setting the mode's engine reads (`engineSettingKeys()`) sits past its slider's comfort range (the engine
  * then runs its extreme-values machinery: planned sub-steps, the crowd, time-slicing – `PhysicsConfig.unlimited`).
@@ -2018,7 +2105,9 @@ export function engineSettingKeys(mode: ModeId): readonly string[] {
  */
 export function uncappedEngaged(settings: SimulatorSettings): boolean {
   const record = settings as unknown as UnlimitedRecord;
+  const inactive = inactiveEngineKeys(settings); // --- chaos-fan --- (the rig not built reads none of its keys)
   for (const key of engineSettingKeys(settings.mode)) {
+    if (inactive.has(key)) continue;
     const range = UNLIMITED_RANGES[key];
     const value = record[key];
     if (range && typeof value === "number" && Number.isFinite(value) && beyondRange(key, value, range)) return true;
@@ -2039,7 +2128,8 @@ export function numericUrlKeyFields(): Readonly<Record<string, string>> {
  */
 export function pastAnyMemoryCeiling(settings: SimulatorSettings): boolean {
   const record = settings as unknown as Record<string, unknown>;
-  for (const key of engineSettingKeys(settings.mode)) if (pastMemoryCeiling(key, record[key])) return true;
+  const inactive = inactiveEngineKeys(settings); // --- chaos-fan --- (a harp run builds no fan, a fan run no harp chains)
+  for (const key of engineSettingKeys(settings.mode)) if (!inactive.has(key) && pastMemoryCeiling(key, record[key])) return true;
   if (settings.mode === "orbGrid" && orbGridPastCeiling(settings)) return true; // --- orb-grid --- (columns × rows past the orbs' ceiling)
   if (settings.mode === "colourSort" && colourSortPastCeiling(settings)) return true; // --- colour-sort --- (colours × balls past the balls a run holds)
   return false;

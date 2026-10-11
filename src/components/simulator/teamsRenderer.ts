@@ -234,7 +234,7 @@ export class TeamLayer {
     // --- end odd-maze ---
     // --- fight-league --- Fight League's 2v2 plays the roster: its two teams take the roster's first two names and colours (the
     // mode's HUD takes the scoreboard's and the names' place); the winner banner is this layer's, its line the winners' names
-    const fight = !battle && !territory && !maze && next && next.roster.length > 0 && engine.isFightLeagueMode() && engine.getFightLeagueView().match === "2v2" ? engine.getFightLeagueView() : null;
+    const fight = !battle && !territory && !maze && next && next.roster.length > 0 && engine.isFightLeagueMode() && (engine.getFightLeagueView().match === "2v2" || engine.getFightLeagueView().match === "3v3") /* --- fl-overhaul --- (Stage 5: a 3v3's teams too) */ ? engine.getFightLeagueView() : null;
     if (fight && next) next = this.fightTeams(next);
     this.fight = fight;
     // --- end fight-league ---

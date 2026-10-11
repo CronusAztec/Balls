@@ -52,6 +52,7 @@ const USAGE = `Usage: node scripts/viral-bot.mjs [options]
   --locale L         en | pl | es (captions and hashtags; default en)
   --max-seeds N      seeds searched per clip (default 24)
   --dry-run          plan only (in Node, no browser): captions, manifest.json, posting-schedule.md
+  --plan             print the recipe rotation of the 7 days from --date (no simulation, nothing written)
   --post             publish the rendered clips to Instagram (needs IG_USER_ID, IG_ACCESS_TOKEN, BOT_VIDEO_BASE_URL)
   --post-only        publish the clips an earlier run rendered into --out (its manifest.json) – after you uploaded
                      that folder to BOT_VIDEO_BASE_URL; nothing is planned or rendered
@@ -70,7 +71,7 @@ class UsageError extends Error {}
 
 /** Parses the command line (exported for the tests). */
 export function parseArgs(argv) {
-  const opts = { count: 3, platform: "reels", out: "bot-output", date: null, family: "all", bucket: "auto", ending: "auto", locale: "en", maxSeeds: 24, dryRun: false, post: false, postOnly: false, help: false, relay: null, relayKey: null, accounts: [] /* --- social-publish --- */ };
+  const opts = { count: 3, platform: "reels", out: "bot-output", date: null, family: "all", bucket: "auto", ending: "auto", locale: "en", maxSeeds: 24, dryRun: false, post: false, postOnly: false, help: false, relay: null, relayKey: null, accounts: [] /* --- social-publish --- */, plan: false /* --- fl-overhaul --- (Stage 6) */ };
   const value = (i, name) => {
     const v = argv[i + 1];
     if (v === undefined || v.startsWith("--")) throw new UsageError(`${name} needs a value`);
@@ -128,6 +129,10 @@ export function parseArgs(argv) {
       case "--dry-run":
         opts.dryRun = true;
         break;
+      // --- fl-overhaul --- (Stage 6) the week's rotation
+      case "--plan":
+        opts.plan = true;
+        break;
       case "--post":
         opts.post = true;
         break;
@@ -157,6 +162,7 @@ export function parseArgs(argv) {
     }
   }
   if (opts.dryRun && (opts.post || opts.postOnly)) throw new UsageError("--dry-run renders nothing, so there is nothing to post");
+  if (opts.plan && (opts.post || opts.postOnly || opts.dryRun || opts.relay)) throw new UsageError("--plan only prints the rotation: it goes with --date, --count, --family, --platform and --bucket"); // --- fl-overhaul --- (Stage 6)
   if (opts.post && opts.postOnly) throw new UsageError("--post renders and posts; --post-only posts what was rendered – pick one");
   // --- social-publish ---
   if (opts.relay && opts.dryRun) throw new UsageError("--dry-run renders nothing, so there is nothing to send to the relay");
@@ -199,6 +205,28 @@ const readCopy = (locale) => JSON.parse(fs.readFileSync(path.join(ROOT, "message
 function writeTextFiles(out, files) {
   for (const f of files) fs.writeFileSync(path.join(out, f.name), f.text);
 }
+
+// --- fl-overhaul --- (Stage 6)
+/** The recipe rotation of the 7 days from `date` (the planner's daySlots: no simulation) as printable lines. */
+export function weekPlanLines(planner, opts) {
+  const lines = [];
+  const start = planner.dayIndexOf(opts.date);
+  const bucket = planner.resolveBucket(opts.platform, opts.bucket);
+  for (let k = 0; k < 7; k++) {
+    const day = start + k;
+    const ms = Date.UTC(...isoParts(opts.date)) + k * 86_400_000;
+    const iso = new Date(ms).toISOString().slice(0, 10);
+    const slots = planner.daySlots(day, opts.count, opts.family, "", bucket);
+    lines.push(`  ${iso}  day ${String(day + 1).padStart(3)}  ${slots.map((s) => `${s.recipe.id} (${s.recipe.family})`).join(", ")}`);
+  }
+  return lines;
+}
+
+function isoParts(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return [y, m - 1, d];
+}
+// --- end fl-overhaul ---
 
 function printPlan(plans) {
   for (const p of plans) {
@@ -538,6 +566,18 @@ export async function main(argv = process.argv.slice(2)) {
     return 0;
   }
   opts.date = opts.date ?? today();
+  // --- fl-overhaul --- (Stage 6) --plan: the week's rotation, printed (nothing written, no browser, no simulation)
+  if (opts.plan) {
+    const planner = await loadPlanner();
+    if (!planner.parseIsoDate(opts.date)) {
+      console.error(`--date ${opts.date} is not a calendar day.\n\n${USAGE}`);
+      return 2;
+    }
+    console.log(`The ${opts.count}-clip ${opts.platform} rotation of the 7 days from ${opts.date} (family ${opts.family}, bucket ${opts.bucket}):`);
+    for (const line of weekPlanLines(planner, opts)) console.log(line);
+    return 0;
+  }
+  // --- end fl-overhaul ---
   const out = path.resolve(opts.out);
   fs.mkdirSync(out, { recursive: true });
   const copy = readCopy(opts.locale);

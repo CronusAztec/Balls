@@ -49,6 +49,10 @@ import {
   type ClipPlan,
 } from "@/lib/bot/planner";
 import { parseBotState } from "@/lib/bot/store";
+// --- fl-overhaul --- (Stage 6) the Fight League recipes
+import { FIGHT_CLIFF_LOW_SEC, MATCHUP_DAY_COUNT, matchupEpisode } from "@/lib/bot/planner";
+import { FL_BY_ID, FL_DIVISIONS, FL_DIVISION_LABELS, conferenceOf, fightersOf, type FlDivision } from "@/lib/physics/modes/fightLeagueRoster";
+import { flWinChance } from "@/lib/physics/modes/fightLeagueShow";
 
 /**
  * The viral video bot's planner (lib/bot): the recipes' settings against RANGES, the determinism of planClip / planDay, the
@@ -638,6 +642,188 @@ describe("the roster and the buckets", () => {
     expect(recipeBucket(battle, "short")).toBe("standard");
     expect(recipeBucket(recipeById("pendulum-wave")!, "long")).toBe("long");
     for (const b of LENGTH_BUCKETS) expect(BUCKET_SECONDS[b].max).toBeGreaterThan(BUCKET_SECONDS[b].min);
+  });
+});
+
+// --- fl-overhaul --- (Stage 6) the Fight League recipes
+describe("the Fight League recipes", () => {
+  const FIGHT_IDS = ["fight-duel", "fight-upset", "fight-bracket", "fight-boss"];
+  const fightRecipes = FIGHT_IDS.map((id) => recipeById(id)!);
+
+  it("are battle recipes counted by the HUD's HP bars, in the buckets and endings their formats can fill", () => {
+    for (const r of fightRecipes) {
+      expect(r, r?.id).toBeTruthy();
+      expect(r.family).toBe("battle");
+      expect(r.modes).toEqual(["fightLeague"]);
+      expect(r.countdown).toEqual({ kind: "hp", source: "hud" });
+      expect(r.strategy).toBe("winner");
+      expect(r.payoff).toBe("winner");
+      expect(typeof r.matchup).toBe("function");
+    }
+    expect(recipeById("fight-duel")!.buckets).toEqual(["short", "standard"]);
+    expect(recipeById("fight-duel")!.endings).toBeUndefined(); // resolved and cliffhanger alternate
+    expect(recipeById("fight-upset")!.buckets).toEqual(["standard"]);
+    expect(recipeById("fight-upset")!.outcome).toBe("upset");
+    expect(recipeById("fight-bracket")!.buckets).toEqual(["long"]);
+    expect(recipeById("fight-boss")!.buckets).toEqual(["standard", "long"]);
+    expect(recipesOfFamily("battle").map((r) => r.id).slice(-4)).toEqual(FIGHT_IDS);
+  });
+
+  it("write concrete fighters and tokens, the same matchup for every variant of a plan seed", () => {
+    for (let seed = 1; seed <= 30; seed++) {
+      const duel = planClip(recipeById("fight-duel")!, seed, "reels", { copy, search: false });
+      const s = duel.settings;
+      expect(FL_BY_ID.get(s.flFighterA), `duel ${seed}`).toBeTruthy();
+      expect(FL_BY_ID.get(s.flFighterB), `duel ${seed}`).toBeTruthy();
+      expect(s.flFighterA).not.toBe(s.flFighterB);
+      expect(FL_BY_ID.get(s.flFighterA)!.division).toBe(FL_BY_ID.get(s.flFighterB)!.division);
+      expect([s.flMatch, s.flStage, s.flArenaStyle]).toEqual(["1v1", "night", "neon"]);
+      const again = recipeById("fight-duel")!.settings({ rng: () => 0.37, bucket: "standard", ending: "resolved", payoffTarget: 20, roster: SERIES_ROSTER, planSeed: duel.planSeed });
+      expect([again.flFighterA, again.flFighterB]).toEqual([s.flFighterA, s.flFighterB]);
+      const upset = planClip(recipeById("fight-upset")!, seed, "reels", { copy, search: false });
+      const c = flWinChance([upset.settings.flFighterA], [upset.settings.flFighterB]);
+      expect(Math.min(c.a, c.b), `upset ${seed}`).toBeLessThan(0.4);
+      expect(c.est).toBe(false);
+      expect(upset.hook).toMatch(new RegExp(`${Math.round(100 * Math.min(c.a, c.b))}%`));
+      const bracket = planClip(recipeById("fight-bracket")!, seed, "reels", { copy, bucket: "long", search: false });
+      expect(bracket.settings.flMatch).toBe("bracket");
+      expect(bracket.settings.flBracketSize).toBe(8);
+      const division = bracket.settings.flEntrants.replace("division:", "");
+      expect(fightersOf(division as FlDivision).length, bracket.settings.flEntrants).toBeGreaterThanOrEqual(8);
+      expect(bracket.hook).toBe("8 fighters. 1 champion.");
+      const boss = planClip(recipeById("fight-boss")!, seed, "reels", { copy, bucket: seed % 2 ? "standard" : "long", search: false });
+      expect(boss.settings.flFighterA).toBe("gerald");
+      expect(boss.settings.flMatch).toBe("boss");
+      expect(boss.settings.flEntrants).toMatch(/^random:[a-zA-Z]+$/);
+      expect(boss.hook).toMatch(new RegExp(`^Can Gerald beat all ${boss.settings.flBossWaves} .+ fighters\\?$`));
+    }
+  });
+
+  it("have their copy in en, pl and es, without a reference account, a game's or a brand's hashtag", () => {
+    const fields = ["name", "series", "seriesMatchup", "hook", "payoff", "cliffQuestion", "postQuestion", "cliffPostQuestion", "keywords", "hashtags"];
+    const banned = /ballthing|ball thing|game link|link in bio|tiktok|instagram|youtube/i;
+    for (const loc of ["en", "pl", "es"]) {
+      const recipes = COPY[loc].recipes as Record<string, Record<string, string>>;
+      for (const r of fightRecipes) {
+        for (const f of fields) {
+          expect(recipes[r.copyKey]?.[f], `${loc} ${r.copyKey}.${f}`).toBeTruthy();
+          expect(recipes[r.copyKey][f], `${loc} ${r.copyKey}.${f}`).not.toMatch(banned);
+        }
+      }
+      const tags = COPY[loc].fightTags as Record<string, string>;
+      const divisions = COPY[loc].fightDivisions as Record<string, string>;
+      expect(Object.keys(divisions).sort()).toEqual([...FL_DIVISIONS].sort());
+      // every division's hashtags: the recipe's, a genre tag – never the division's own name or a source
+      for (const d of FL_DIVISIONS) {
+        const conference = conferenceOf(d) ?? "other";
+        const filled = parseHashtags(fillTemplate(recipes.fightDuel.hashtags, { divisionTag: tags[conference] })).map((h) => h.toLowerCase());
+        expect(filled.length, `${loc} ${d}`).toBe(4);
+        expect(filled[0]).toBe("#ballfight");
+        // (the brand-like names: the division's id and its English label – a franchise or a game; the genre tag is generic)
+        const own = [d, FL_DIVISION_LABELS[d]].map((x) => `#${x.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "")}`);
+        for (const tag of filled) expect(own, `${loc} ${d} ${tag}`).not.toContain(tag);
+        for (const row of fightersOf(d)) expect(filled).not.toContain(`#${row.source.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "")}`);
+      }
+    }
+  });
+
+  it("plan a resolved duel with its final KO at 80–90 % of the clip, named after the matchup", { timeout: 120_000 }, () => {
+    for (const planSeed of [7, 99]) {
+      const plan = planClip(recipeById("fight-duel")!, planSeed, "reels", { copy, bucket: "standard", ending: "resolved", maxSeeds: 24, episode: 9 });
+      expect(plan.timing.found, `${planSeed}`).toBe(true);
+      expect(plan.payoff.position!).toBeGreaterThanOrEqual(0.8);
+      expect(plan.payoff.position!).toBeLessThanOrEqual(0.9);
+      const a = FL_BY_ID.get(plan.settings.flFighterA)!.name;
+      const b = FL_BY_ID.get(plan.settings.flFighterB)!.name;
+      expect(plan.settings.topText).toMatch(new RegExp(`^${a} vs ${b} #\\d+$`));
+      expect(plan.hook).toBe(`${a} vs ${b}: who wins?`);
+      expect([a, b]).toContain(plan.payoff.winner);
+      // the replay: the KO comes at the planned payoff
+      const request = finderRequestOfSettings(plan.settings, plan.world, 60);
+      const facts = simulateFacts(request, plan.seed, { strategy: "winner" }, 60);
+      expect(facts.finishSec).toBeCloseTo(plan.payoff.atSec!, 6);
+      expect(points(plan, "countdown")).toBe(10); // the HP bars
+    }
+  });
+
+  it("cut a cliffhanger 0.5–1 s before the KO with every fighter already low (the both-low-at outcome)", { timeout: 120_000 }, () => {
+    const plan = planClip(recipeById("fight-duel")!, 7, "reels", { copy, bucket: "standard", ending: "cliffhanger", maxSeeds: 24 });
+    expect(plan.timing.found).toBe(true);
+    expect(plan.payoff.cutGapSec!).toBeGreaterThanOrEqual(0.5 - 1e-9);
+    expect(plan.payoff.cutGapSec!).toBeLessThanOrEqual(1 + 1e-9);
+    const request = finderRequestOfSettings(plan.settings, plan.world, 60);
+    const facts = simulateFacts(request, plan.seed, { strategy: "winner" }, 60);
+    expect(facts.bothLowSec!).toBeGreaterThanOrEqual(plan.timing.recordingDuration - FIGHT_CLIFF_LOW_SEC - 1e-6);
+    expect(facts.bothLowSec!).toBeLessThanOrEqual(plan.timing.recordingDuration);
+    expect(facts.finishSec).toBeGreaterThan(plan.timing.recordingDuration);
+    expect(plan.captionRoles).toContain("question");
+  });
+
+  it("plan an upset that happens, a bracket with its champion and a boss rush to its verdict", { timeout: 240_000 }, () => {
+    const upset = planClip(recipeById("fight-upset")!, 99, "reels", { copy, bucket: "standard", maxSeeds: 24 });
+    expect(upset.timing.found).toBe(true);
+    const request = finderRequestOfSettings(upset.settings, upset.world, 60, { kind: "upset", clipSec: 60 });
+    expect(request.outcome?.kind).toBe("upset");
+    expect(simulateFacts(request, upset.seed, { strategy: "winner" }, 60).summary.fl?.upset).toBe(true);
+    const bracket = planClip(recipeById("fight-bracket")!, 7, "reels", { copy, bucket: "long", maxSeeds: 12 });
+    expect(bracket.timing.found).toBe(true);
+    expect(bracket.timing.clipSec).toBeGreaterThanOrEqual(BUCKET_SECONDS.long.min - 0.5);
+    expect(bracket.payoff.winner).toBeTruthy();
+    expect(bracket.settings.topText).toMatch(/ bracket #\d+$/);
+    const boss = planClip(recipeById("fight-boss")!, 7, "reels", { copy, bucket: "standard", maxSeeds: 24 });
+    expect(boss.timing.found).toBe(true);
+    expect(boss.settings.topText).toMatch(/^Gerald vs .+ #\d+$/);
+  });
+
+  it("keep a running episode per matchup: 'Thor vs Loki #3' counts the days the matchup came up before", () => {
+    const duel = recipeById("fight-duel")!;
+    // the first day of the series that plans a duel, and its matchup
+    let first = -1;
+    let key = "";
+    for (let day = 0; day < 60 && first < 0; day++) {
+      const slot = daySlots(day, MATCHUP_DAY_COUNT).find((s) => s.recipe.id === "fight-duel");
+      if (slot) {
+        first = day;
+        key = duel.matchup!(slot.planSeed).key;
+      }
+    }
+    expect(first).toBeGreaterThanOrEqual(0);
+    expect(matchupEpisode(duel, key, first + 1)).toBe(1); // on that day: its first episode
+    expect(matchupEpisode(duel, key, first + 2)).toBe(2); // the day after: one before it
+    expect(matchupEpisode(duel, "nobody|ever", 40)).toBe(1);
+    expect(matchupEpisode(recipeById("ring-escape")!, "x", 40)).toBe(1);
+  });
+});
+
+
+// --- fl-overhaul --- (Stage 6) the day plans of the pinned dates (the daily job's: 3 clips, every family, the Reels bucket),
+// re-recorded when the battle rotation gained the four Fight League recipes
+describe("the day plans of the pinned dates", () => {
+  const PINNED: readonly [string, readonly string[]][] = [
+    ["2026-10-02", ["clone-per-pass", "glass-smash", "square-race"]],
+    ["2026-10-03", ["pendulum-wave", "maze-race", "multipliers-board"]],
+    ["2026-10-04", ["fight-duel", "power-layers", "polyrhythm"]],
+    ["2026-10-05", ["ring-escape", "drop-symphony", "fight-upset"]],
+    ["2026-10-06", ["glass-smash", "territory", "pip-escape"]],
+    ["2026-10-07", ["fight-boss", "grow-fill", "pendulum-wave"]],
+    ["2026-10-08", ["clone-per-pass", "polyrhythm", "square-race"]],
+    ["2026-10-09", ["drop-symphony", "string-battle", "multipliers-board"]],
+    ["2026-10-10", ["fight-duel", "power-layers", "glass-smash"]],
+    ["2026-10-11", ["ring-escape", "pendulum-wave", "battle-royale"]],
+  ];
+
+  it("plans the recorded recipes for every pinned date (the slots, and planDay without a search)", () => {
+    for (const [date, ids] of PINNED) {
+      expect(daySlots(dayIndexOf(date), 3, "all", "", "standard").map((s) => s.recipe.id), date).toEqual(ids);
+      expect(planDay(date, "reels", 3, { copy, search: false }).clips.map((c) => c.recipe), date).toEqual(ids);
+    }
+  });
+
+  it("brings a Fight League recipe into every week of the rotation", () => {
+    for (let start = 0; start < 60; start++) {
+      const week = Array.from({ length: 7 }, (_, k) => daySlots(start + k, 3, "all", "", "standard")).flat();
+      expect(week.some((s) => s.recipe.id.startsWith("fight-")), `week from day ${start}`).toBe(true);
+    }
   });
 });
 

@@ -2,6 +2,8 @@ import type { ModeId } from "@/lib/physics/types";
 import { FREEDOM_HOLD_SEC, POWER_LAYERS_RANGES, powerLayersFixedDurationSec, type PlSequence } from "@/lib/physics/modes/powerLayers";
 import type { SimulatorSettings } from "@/lib/settings";
 import type { TeamEntry } from "@/lib/teams";
+import type { FinderOutcomeKind } from "@/lib/simulation/outcomes"; // --- fl-overhaul --- (Stage 6)
+import { FIGHT_RECIPES } from "./fightRecipes"; // --- fl-overhaul --- (Stage 6) the Fight League recipes
 
 /*
  * --- viral-bot --- The playbook of the viral video bot as data: what docs/virality-playbook.md found (sections 1–3) turned
@@ -43,7 +45,7 @@ export const PAYOFF_TYPES = ["escape", "fill", "shatter", "winner", "flip", "cli
 export type PayoffType = (typeof PAYOFF_TYPES)[number];
 
 /** §3.3: the countdown you can feel – shown by a caption, or by the mode's own HUD / picture. */
-export const COUNTDOWN_KINDS = ["walls", "lives", "layers", "percent", "timer"] as const;
+export const COUNTDOWN_KINDS = ["walls", "lives", "layers", "percent", "timer", "hp" /* --- fl-overhaul --- (Stage 6) Fight League's HP bars (the HUD) */] as const;
 export type CountdownKind = (typeof COUNTDOWN_KINDS)[number];
 export type CountdownSource = "caption" | "hud";
 
@@ -168,6 +170,8 @@ export interface RecipeContext {
   payoffTarget: number;
   /** The series roster (SERIES_ROSTER). */
   roster: readonly TeamEntry[];
+  /** --- fl-overhaul --- (Stage 6) The plan's seed – the same for every variant of a clip (a recipe's matchup is drawn from it). */
+  planSeed?: number;
 }
 
 /** The copy a recipe's hook is filled with: `{seconds}`, `{count}`, `{lives}`, `{panes}`, `{layers}`, `{name}`, `{episode}`. */
@@ -203,6 +207,15 @@ export interface BotRecipe {
    * `{rule}` → `plRules.fibonacci`), so the hook states the rule the clip really plays by, in the clip's language.
    */
   copyVars?: (s: SimulatorSettings) => Record<string, string>;
+  // --- fl-overhaul --- (Stage 6)
+  /**
+   * The clip's matchup, drawn from the plan seed alone (the same for every variant): its key counts the running episode of the
+   * matchup – the series label "Thor vs Loki #3" (`ViralBot.recipes.<copyKey>.seriesMatchup`) – over the series' days.
+   */
+  matchup?: (planSeed: number) => { key: string };
+  /** A finder outcome a resolved clip must also show (outcomes.ts – fight-upset: "upset"). */
+  outcome?: FinderOutcomeKind;
+  // --- end fl-overhaul ---
 }
 
 /* seeded helpers ---------------------------------------------------------- */
@@ -633,6 +646,8 @@ export const RECIPES: readonly BotRecipe[] = [
     },
     hookVars: (s) => ({ count: s.ballCount }),
   },
+  // --- fl-overhaul --- (Stage 6) Fight League: a duel, an upset, an 8-bracket, Gerald's boss rush (fightRecipes.ts)
+  ...FIGHT_RECIPES,
 ];
 
 /** Whether a recipe's mode can fill a bucket. */

@@ -26,6 +26,8 @@ import { landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land
 import { respawnConfigOf } from "@/lib/physics/respawn"; // --- gerald-conveyor ---
 import { orbGridSettingsOf } from "@/lib/physics/modes/orbGrid"; // --- orb-grid ---
 import { fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
+import { flShowHorizonMs, flShowKind } from "@/lib/physics/modes/fightLeague"; // --- fl-overhaul --- (Stage 6) a show's horizon
+import type { FinderOutcome } from "@/lib/simulation/outcomes"; // --- fl-overhaul --- (Stage 6)
 import { growFillSettingsOf } from "@/lib/physics/growFill"; // --- loop-foundation ---
 import { colourSortSettingsOf } from "@/lib/physics/colourSortSettings"; // --- colour-sort ---
 import { starChordsSettingsOf } from "@/lib/physics/starChords"; // --- chord-stars ---
@@ -162,15 +164,22 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
   };
 }
 
-/** A finder request for these settings (the outcome and the target are the caller's). */
-export function finderRequestOfSettings(s: SimulatorSettings, world: BotWorld = DEFAULT_BOT_WORLD, maxSimTimeSec = 120): FinderRequest {
+/**
+ * A finder request for these settings (the target is the caller's). --- fl-overhaul --- (Stage 6) It carries the caller's outcome
+ * when given (the bot's fight recipes: upset, both-low-at; Make a clip's stories) and follows a Fight League show at least
+ * FL_SHOW_BOUT_SEC a bout (`flShowHorizonMs()`), as the page's find request does.
+ */
+export function finderRequestOfSettings(s: SimulatorSettings, world: BotWorld = DEFAULT_BOT_WORLD, maxSimTimeSec = 120, outcome?: FinderOutcome): FinderRequest {
+  const fl = s.mode === "fightLeague" ? fightLeagueSettingsOf(s) : null; // --- fl-overhaul --- (Stage 6)
+  const showSec = fl && flShowKind(fl) !== "single" ? flShowHorizonMs(fl) / 1000 : 0;
   return {
     targetDurationSec: s.recordingDuration,
     toleranceSec: 0.5,
     maxSeeds: 1,
-    maxSimTimeSec,
+    maxSimTimeSec: Math.max(maxSimTimeSec, showSec),
     physicsConfig: physicsConfigOfSettings(s, world),
     mode: s.mode,
     modeSettings: modeSettingsOfSettings(s),
+    ...(outcome ? { outcome } : {}), // --- fl-overhaul --- (Stage 6)
   };
 }

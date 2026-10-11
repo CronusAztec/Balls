@@ -11,6 +11,10 @@ import { pageUrl } from "@/lib/site";
 import { applyTheme } from "@/lib/themes";
 import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeCopyVars, recipeText, seriesLabel, type BotCopy, type BotLocale } from "./copy";
 import { DEFAULT_BOT_WORLD, finderRequestOfSettings, type BotWorld } from "./finderRequest";
+// --- fl-overhaul --- (Stage 6) the Fight League recipes: the KO, the cliffhanger's both-low moment, the winner's name, the holds
+import { FL_WIN_HOLD_SEC, flBothLowNow, flRunSummary, flShowKind } from "@/lib/physics/modes/fightLeague";
+import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
+import { flClipWinnerName } from "@/lib/physics/modes/fightLeagueClip";
 import {
   BOT_EPOCH,
   BOT_FAMILIES,
@@ -393,6 +397,7 @@ function endHoldsSec(s: SimulatorSettings): number {
   let pre = 0;
   if (s.mode === "stringBattle") pre = HOLD_SEC.stringBattle;
   else if (s.mode === "battle" || s.mode === "ctf") pre = HOLD_SEC.arena;
+  else if (s.mode === "fightLeague") pre = FL_FINALE_SEC + FL_WIN_HOLD_SEC; // --- fl-overhaul --- (Stage 6) the KO finale and the winner's card
   const teamsPlay = s.teams.length > 0 && ["classic", "multiply", "lines", "grow", "shatter", "colorMatch"].includes(s.mode);
   const post = Math.max(teamsPlay ? HOLD_SEC.teams : 0, s.mode === "multipliers" ? HOLD_SEC.multipliers : 0);
   return pre + post + HOLD_SEC.stop;
@@ -430,6 +435,16 @@ export interface RunFacts {
   winnerIndex: number;
   /** The run as the finder's predicates see it – at the first escape for a ring race, else where the simulation stopped. */
   summary: RunSummary;
+  // --- fl-overhaul --- (Stage 6)
+  /** Fight League: the first moment every side standing was at or under 25 % with the fight on (s; −1 never). */
+  bothLowSec?: number;
+  /** Fight League: the winner the mode names (the side's names, a bracket's champion), null without one. */
+  winnerName?: string | null;
+}
+
+/** --- fl-overhaul --- (Stage 6) Whether settings play one Fight League match (not a series, a bracket or a boss rush). */
+function flSingle(s: Pick<SimulatorSettings, "mode" | "flMatch" | "flBestOf">): boolean {
+  return s.mode === "fightLeague" && flShowKind({ match: s.flMatch, bestOf: s.flBestOf }) === "single";
 }
 
 /** Ball Drop's rest window (modes/drop.ts REST_TIME_MS): its run ends that long after the last ball settled. */
@@ -496,16 +511,29 @@ export function simulateFacts(request: FinderRequest, seed: number, recipe: Pick
       }
       if (facts.fillSec >= 0) break;
     }
+    // --- fl-overhaul --- (Stage 6) a fight's cliffhanger moment: every side standing at or under 25 %, the fight on
+    if (request.mode === "fightLeague" && (facts.bothLowSec ?? -1) < 0 && flBothLowNow(engine.getFightLeagueView())) facts.bothLowSec = sec;
     if (engine.isSimulationFinished()) {
       facts.finishSec = sec;
       if (request.mode === "battle") facts.winnerIndex = engine.getBattleProgress().winner;
       if (request.mode === "ctf") facts.winnerIndex = engine.getCtfProgress().winner;
+      // --- fl-overhaul --- (Stage 6) the fight's winner (its side, or a show's) and its name
+      if (request.mode === "fightLeague") {
+        const v = engine.getFightLeagueView();
+        facts.winnerIndex = v.show.kind === "single" ? v.winnerTeam : v.show.winnerSide;
+        facts.winnerName = flClipWinnerName(v) || null;
+      }
       break;
     }
     // An escape settles the escape payoffs; follow it a few seconds to learn when the run ends.
-    if ((recipe.strategy === "escape" || (recipe.strategy === "winner" && request.mode !== "stringBattle")) && facts.firstEscapeSec >= 0 && sec > facts.firstEscapeSec + Math.max(6, 0.25 * facts.firstEscapeSec)) break;
+    if ((recipe.strategy === "escape" || (recipe.strategy === "winner" && request.mode !== "stringBattle" && request.mode !== "fightLeague" /* --- fl-overhaul --- (Stage 6) */)) && facts.firstEscapeSec >= 0 && sec > facts.firstEscapeSec + Math.max(6, 0.25 * facts.firstEscapeSec)) break;
   }
-  facts.summary = recipe.strategy === "winner" && request.mode !== "stringBattle" && atEscape ? atEscape : snapshot(elapsed, facts.finishSec >= 0);
+  facts.summary = recipe.strategy === "winner" && request.mode !== "stringBattle" && request.mode !== "fightLeague" && atEscape ? atEscape : snapshot(elapsed, facts.finishSec >= 0);
+  // --- fl-overhaul --- (Stage 6) a fight's story (RunSummary.fl, the cliffhanger's moment) and its double KO, as the finder sees them
+  if (request.mode === "fightLeague") {
+    const v = engine.getFightLeagueView();
+    facts.summary = { ...facts.summary, fl: flRunSummary(v, facts.bothLowSec !== undefined && facts.bothLowSec >= 0 ? 1000 * facts.bothLowSec : -1), ...(facts.finishSec >= 0 ? { doubleKo: v.doubleKo } : {}) };
+  }
   return facts;
 }
 
@@ -522,7 +550,7 @@ export function payoffSecOf(recipe: Pick<BotRecipe, "strategy">, settings: Simul
   if (!facts) return null;
   let sec = -1;
   if (recipe.strategy === "escape") sec = facts.firstEscapeSec;
-  else if (recipe.strategy === "winner") sec = settings.mode === "stringBattle" ? facts.finishSec : facts.firstEscapeSec;
+  else if (recipe.strategy === "winner") sec = settings.mode === "stringBattle" || settings.mode === "fightLeague" /* --- fl-overhaul --- (Stage 6) the final KO */ ? facts.finishSec : facts.firstEscapeSec;
   else if (recipe.strategy === "finish") {
     if (settings.mode === "glass") sec = facts.homeSec >= 0 ? facts.homeSec : facts.finishSec;
     else if (settings.mode === "race") sec = facts.winSec >= 0 ? facts.winSec : facts.finishSec;
@@ -577,7 +605,12 @@ export function clipTiming(recipe: Pick<BotRecipe, "strategy">, settings: Simula
   const end = runEndSec(recipe, settings, facts, payoff);
   let recordingDuration: number;
   let clipSec: number;
-  if (end !== null) {
+  if (flSingle(settings)) {
+    // --- fl-overhaul --- (Stage 6) one fight: the clip puts the KO at 85 % and is cut in the winner's card (it never runs past
+    // the run's own end: the finale, the card's hold and the recorder's stop)
+    recordingDuration = clampInt(Math.max(payoff / PAYOFF_MID, payoff + 1), R_DUR.min, R_DUR.max);
+    clipSec = Math.min(recordingDuration, payoff + endHoldsSec(settings));
+  } else if (end !== null) {
     const natural = end + endHoldsSec(settings);
     recordingDuration = clampInt(Math.ceil(natural), R_DUR.min, R_DUR.max);
     clipSec = Math.min(recordingDuration, natural);
@@ -596,8 +629,10 @@ export function clipTiming(recipe: Pick<BotRecipe, "strategy">, settings: Simula
  * clip's last 20 % (escapes-at, at the band's middle ± half its width), a cut clip shows no escape (never-escapes) and has
  * it 0.5–1 s after its end (escapes-at); a ring race names its winner (winner). Recipes without escapes pass on the timing.
  */
-export function passesFinderPredicates(recipe: Pick<BotRecipe, "strategy">, facts: RunFacts | null, timing: ClipTiming, ending: EndingStyle, teamCount: number): { ok: boolean; winner: number } {
+export function passesFinderPredicates(recipe: Pick<BotRecipe, "strategy" | "outcome">, facts: RunFacts | null, timing: ClipTiming, ending: EndingStyle, teamCount: number): { ok: boolean; winner: number } {
   let winner = -1;
+  // --- fl-overhaul --- (Stage 6) a fight: its own predicates (the KO in the clip, the recipe's outcome, the cliffhanger's both-low-at)
+  if (facts && facts.summary.mode === "fightLeague") return { ok: fightPredicates(recipe, facts, timing, ending), winner: facts.winnerIndex };
   if (facts && recipe.strategy === "winner" && teamCount >= 2) {
     for (let team = 0; team < teamCount; team++) {
       const outcome: FinderOutcome = { kind: "winner", clipSec: timing.clipSec, team };
@@ -617,6 +652,43 @@ export function passesFinderPredicates(recipe: Pick<BotRecipe, "strategy">, fact
   const at: FinderOutcome = { kind: "escapes-at", clipSec: timing.clipSec, atSec: mid, toleranceSec: ((PAYOFF_BAND.accept - PAYOFF_BAND.from) / 2) * timing.clipSec };
   return { ok: timing.accepted && outcomeMatches(at, run), winner };
 }
+
+// --- fl-overhaul --- (Stage 6)
+/** How far before a fight cliffhanger's cut every side may have gone low (s): the last seconds of the clip show it. */
+export const FIGHT_CLIFF_LOW_SEC = 3;
+
+/**
+ * A fight's predicates (the finder's, outcomes.ts): a resolved clip shows a finished fight – and the recipe's outcome (an upset)
+ * when it has one; a cliffhanger is cut 0.5–1 s before the KO with every side already low in its last FIGHT_CLIFF_LOW_SEC
+ * seconds (the both-low-at outcome, its window ending at the cut).
+ */
+export function fightPredicates(recipe: Pick<BotRecipe, "outcome">, facts: RunFacts, timing: ClipTiming, ending: EndingStyle): boolean {
+  if (!timing.accepted || facts.finishSec < 0) return false;
+  if (ending === "cliffhanger") {
+    const cut = timing.recordingDuration;
+    const low: FinderOutcome = { kind: "both-low-at", clipSec: cut, atSec: cut - FIGHT_CLIFF_LOW_SEC / 2, toleranceSec: FIGHT_CLIFF_LOW_SEC / 2 };
+    return outcomeMatches(low, facts.summary) && facts.finishSec > cut;
+  }
+  if (recipe.outcome) return outcomeMatches({ kind: recipe.outcome, clipSec: timing.clipSec }, facts.summary);
+  return facts.summary.finished;
+}
+
+/** The daily plan the running matchup episodes are counted over: the scheduled job's (3 clips, every family). */
+export const MATCHUP_DAY_COUNT = 3;
+
+/**
+ * The running episode of a recipe's matchup on day `episode` (1 = BOT_EPOCH): one more than the days before it whose daily plan
+ * (MATCHUP_DAY_COUNT clips, every family) played the same matchup – "Thor vs Loki #3". 1 for a recipe without matchups.
+ */
+export function matchupEpisode(recipe: Pick<BotRecipe, "id" | "matchup">, key: string, episode: number): number {
+  if (!recipe.matchup) return 1;
+  let n = 1;
+  for (let day = 0; day < episode - 1; day++) {
+    for (const slot of daySlots(day, MATCHUP_DAY_COUNT)) if (slot.recipe.id === recipe.id && recipe.matchup(slot.planSeed).key === key) n++;
+  }
+  return n;
+}
+// --- end fl-overhaul ---
 
 /* ------------------------------------------------------------------ settings and captions */
 
@@ -734,7 +806,9 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
   const episode = options.episode ?? 1;
   const index = options.index ?? 1;
   const settings: SimulatorSettings = { ...built.settings, recordingDuration: timing.recordingDuration };
-  const label = seriesLabel(copy, recipe, episode);
+  // --- fl-overhaul --- (Stage 6) a matchup's series label: "Thor vs Loki #3" (its running episode), else the day's
+  const matchupVars = recipe.matchup ? { ...recipe.hookVars(settings), ...recipeCopyVars(copy, recipe, settings), ep: matchupEpisode(recipe, recipe.matchup(planSeed).key, episode) } : null;
+  const label = matchupVars && copyString(copy, `recipes.${recipe.copyKey}.seriesMatchup`) ? recipeText(copy, recipe, "seriesMatchup", matchupVars) : seriesLabel(copy, recipe, episode);
   // The series label is the Top Text – but an arena game's scoreboard band is where the recorder draws that line, so there
   // it is the Bottom Text (still above the bottom 20 % of the frame).
   if (hasTopHud(settings.mode)) {
@@ -743,7 +817,7 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
   } else settings.topText = sanitizeCaptionText(label, 60);
   const vars = { seconds: timing.recordingDuration, name: settings.ballName || MASCOT.name, ...recipe.hookVars(settings), ...recipeCopyVars(copy, recipe, settings), episode };
   const hook = recipeText(copy, recipe, ending === "cliffhanger" && copyString(copy, `recipes.${recipe.copyKey}.cliffHook`) ? "cliffHook" : "hook", vars);
-  const winnerName = winner >= 0 ? (settings.teams[winner]?.name ?? `#${winner + 1}`) : null;
+  const winnerName = facts?.winnerName ? facts.winnerName /* --- fl-overhaul --- (Stage 6) a fight's winner */ : winner >= 0 ? (settings.teams[winner]?.name ?? `#${winner + 1}`) : null;
   const payoffKey = payoffKeyOf(copy, recipe, facts); // --- low-findings --- (a double KO names nobody: both fell)
   const payoffText = recipeText(copy, recipe, payoffKey, { ...vars, winner: winnerName ?? "" });
   const { captions, roles } = clipCaptions(recipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec, payoffKey);
@@ -816,12 +890,12 @@ export function* planClipSteps(recipe: BotRecipe, planSeed: number, platform: Bo
     // Where the payoff should come: a clip length drawn inside the bucket (at least the recorder's 10 s for a cut clip).
     const clipTarget = Math.max(ending === "cliffhanger" ? R_DUR.min : range.min, range.min + rng() * (range.max - range.min));
     const payoffTarget = ending === "cliffhanger" ? Math.floor(clipTarget) + (CLIFF_GAP_SEC.min + CLIFF_GAP_SEC.max) / 2 : clipTarget * ((PAYOFF_BAND.from + PAYOFF_BAND.to) / 2);
-    const ctx: RecipeContext = { rng, bucket, ending, payoffTarget, roster: SERIES_ROSTER };
+    const ctx: RecipeContext = { rng, bucket, ending, payoffTarget, roster: SERIES_ROSTER, planSeed /* --- fl-overhaul --- (Stage 6) */ };
     const built = recipeSettings(recipe, ctx);
     const hookEndSec = rng() < 0.5 ? HOOK_SEC.min + 0.5 : HOOK_SEC.max;
     // The simulation runs a little past where the latest acceptable payoff could come.
     const horizon = Math.min(R_DUR.max + 5, (ending === "cliffhanger" ? range.max + 2 : range.max / PAYOFF_BAND.from) + 2);
-    const request = finderRequestOfSettings({ ...built.settings, recordingDuration: Math.min(R_DUR.max, Math.ceil(horizon)) }, world, horizon);
+    const request = finderRequestOfSettings({ ...built.settings, recordingDuration: Math.min(R_DUR.max, Math.ceil(horizon)) }, world, horizon, recipe.outcome ? { kind: recipe.outcome, clipSec: horizon } : undefined /* --- fl-overhaul --- (Stage 6) */);
     for (let k = 0; k < seedsPerVariant && tested < maxSeeds; k++) {
       const seed = candidateSeed(planSeed, recipe.id, tested);
       tested++;
@@ -856,6 +930,7 @@ export function planClip(recipe: BotRecipe, planSeed: number, platform: BotPlatf
 
 const hudShowsCountdown = (s: SimulatorSettings): boolean => {
   if (s.mode === "stringBattle") return s.sbHud;
+  if (s.mode === "fightLeague") return s.flHud; // --- fl-overhaul --- (Stage 6) the HP bars
   return ["powerLayers", "battle", "race", "ctf", "glass", "multipliers"].includes(s.mode);
 };
 
