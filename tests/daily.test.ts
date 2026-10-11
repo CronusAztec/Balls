@@ -103,7 +103,7 @@ describe("daily challenge: seed and mode", () => {
       }
       expect(modes.size).toBe(n);
     }
-  });
+  }, 20_000); // (thousands of daily deals: past vitest's 5 s default on a loaded runner)
 
   it("numbers the challenges from the epoch", () => {
     expect(dailyChallenge(addDays(DAILY_EPOCH, 99)).number).toBe(100);

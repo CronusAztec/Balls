@@ -12,6 +12,7 @@ import CharacterSection, { CHARACTER_KEYS } from "./sections/CharacterSection"; 
 import HitSampleSection, { HIT_SAMPLE_KEYS } from "./sections/HitSampleSection";
 import MusicSection, { MUSIC_BED_KEYS, type MusicTrackInfo } from "./sections/MusicSection";
 import PendulumWaveSection, { PENDULUM_WAVE_KEYS } from "./sections/PendulumWaveSection";
+import EllipseFociSection, { ELLIPSE_FOCI_KEYS } from "./sections/EllipseFociSection"; // --- ellipse-foci --- the Focus Shot block of the Mode row
 import { BALL_PHYSICS_EXTRA_KEYS, BallPhysicsExtras, WALL_PHYSICS_EXTRA_KEYS, WallPhysicsExtras } from "./sections/PhysicsExtrasSection";
 import PicturePaintSection, { PICTURE_PAINT_KEYS, type PaintBeatInfo, type PaintPictureInfo } from "./sections/PicturePaintSection";
 import PolyrhythmSection, { POLYRHYTHM_KEYS } from "./sections/PolyrhythmSection"; // --- jdm-polyrhythm ---
@@ -77,6 +78,7 @@ import OrbGridSection, { ORB_GRID_KEYS, OrbGridPresets } from "./sections/OrbGri
 import type { OrbGridFields } from "@/lib/physics/modes/orbGrid"; // --- orb-grid ---
 import FightLeagueSection, { FIGHT_LEAGUE_KEYS } from "./sections/FightLeagueSection"; // --- fight-league --- the Fight League block of the Mode row
 import LandClaimSection, { LAND_CLAIM_KEYS } from "./sections/LandClaimSection"; // --- land-claim --- the Land Claim block of the Mode row
+import ColourSortSection, { COLOUR_SORT_KEYS } from "./sections/ColourSortSection"; // --- colour-sort --- the Colour Sort block of the Mode row
 import StarChordsSection, { STAR_CHORDS_KEYS } from "./sections/StarChordsSection"; // --- chord-stars --- the Chord Stars block of the Mode row
 import HoopsSection, { HOOPS_KEYS } from "./sections/HoopsSection"; // --- bead-hoops --- the Spinning Hoops block of the Mode row
 import VideoBeatsSection, { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection"; // --- video-beats --- the "Beats from a video" block of the Sound section
@@ -270,10 +272,13 @@ SECTION_KEYS.ball.push(...MAZE_KEYS);
 SECTION_KEYS.ball.push(...CONVEYOR_KEYS, ...RESPAWN_KEYS);
 // --- orb-grid --- the Bouncing Orbs block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...ORB_GRID_KEYS);
+SECTION_KEYS.ball.push(...ELLIPSE_FOCI_KEYS); // --- ellipse-foci --- the Focus Shot block of the Mode row
 // --- fight-league --- the Fight League block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...FIGHT_LEAGUE_KEYS);
 // --- land-claim --- the Land Claim block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...LAND_CLAIM_KEYS);
+// --- colour-sort --- the Colour Sort block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...COLOUR_SORT_KEYS);
 // --- chord-stars --- the Chord Stars block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...STAR_CHORDS_KEYS);
 SECTION_KEYS.ball.push(...HOOPS_KEYS); // --- bead-hoops ---
@@ -345,10 +350,12 @@ export default function Controls(props: ControlsProps) {
     }
   };
 
+  // --- colour-sort --- the Colour Sort block's labels live in their own namespace: the search and the palette read them there too
+  const colourSortT = useTranslations("ColourSort");
   const matches = (key: string) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    const label = t.has(key) ? t(key) : "";
+    const label = t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : "";
     return key.toLowerCase().includes(q) || label.toLowerCase().includes(q);
   };
   const sectionMatches = (keys: string[]) => !search || keys.some(matches);
@@ -368,6 +375,7 @@ export default function Controls(props: ControlsProps) {
     drop: t("modeDrop"),
     box: t("modeBox"),
     pendulum: t("modePendulum"),
+    ellipseFoci: t("modeEllipseFoci"), // --- ellipse-foci ---
     polyrhythm: t("modePolyrhythm"), // --- jdm-polyrhythm ---
     // --- jdm-collisions ---
     collide: t("modeCollide"),
@@ -411,6 +419,8 @@ export default function Controls(props: ControlsProps) {
     fightLeague: t("modeFightLeague"),
     // --- land-claim ---
     landClaim: t("modeLandClaim"),
+    // --- colour-sort ---
+    colourSort: t("modeColourSort"),
     // --- chord-stars ---
     starChords: t("modeStarChords"),
     // --- bead-hoops ---
@@ -478,6 +488,7 @@ export default function Controls(props: ControlsProps) {
       {ESCAPE_MODE_KEYS_BY_MODE[s.mode] && !!search && <EscapeModeSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {s.mode === "box" && !!search && <BoxArenaSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {s.mode === "pendulum" && !!search && <PendulumWaveSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {s.mode === "ellipseFoci" && !!search && <EllipseFociSection t={t} search={search} matches={matches} settings={s} update={update} /> /* --- ellipse-foci --- */}
       {s.mode === "polyrhythm" && !!search && <PolyrhythmSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- jdm-collisions --- */}
       {s.mode === "collide" && !!search && <CollisionPlaygroundSection t={t} search={search} matches={matches} settings={s} update={update} />}
@@ -520,6 +531,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "fightLeague" && !!search && <FightLeagueSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- land-claim --- */}
       {s.mode === "landClaim" && !!search && <LandClaimSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- colour-sort --- */}
+      {s.mode === "colourSort" && !!search && <ColourSortSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- chord-stars --- */}
       {s.mode === "starChords" && !!search && <StarChordsSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- bead-hoops --- */}
@@ -1310,6 +1323,8 @@ export default function Controls(props: ControlsProps) {
         return <BoxArenaSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "pendulum":
         return <PendulumWaveSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      case "ellipseFoci": // --- ellipse-foci ---
+        return <EllipseFociSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "polyrhythm": // --- jdm-polyrhythm ---
         return <PolyrhythmSection t={t} search={search} matches={matches} settings={s} update={update} />;
       // --- jdm-collisions ---
@@ -1375,6 +1390,9 @@ export default function Controls(props: ControlsProps) {
       // --- land-claim ---
       case "landClaim":
         return <LandClaimSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- colour-sort ---
+      case "colourSort":
+        return <ColourSortSection t={t} search={search} matches={matches} settings={s} update={update} />;
       // --- chord-stars ---
       case "starChords":
         return <StarChordsSection t={t} search={search} matches={matches} settings={s} update={update} />;
@@ -1466,7 +1484,7 @@ export default function Controls(props: ControlsProps) {
     const labels = Object.fromEntries(railItems.map((item) => [item.id, item.label]));
     const groups: PaletteGroup[] = paletteKeyGroups(paletteShown, sections.map((item) => item.id), !!props.project).map((g) => ({ ...g, label: labels[g.section] }));
     const out: PaletteEntry[] = railItems.map((item) => ({ kind: "section", section: item.id, key: item.id, label: item.label, sectionLabel: item.label }));
-    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : null))];
+    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : null /* --- colour-sort --- */))];
     // The labels follow the language, the entries the mode and the settings that show or hide a control (paletteState).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paletteOpen, t, paletteState, sections.length, !!props.project]);

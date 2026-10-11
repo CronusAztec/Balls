@@ -89,12 +89,17 @@ import { GROW_FILL_ENGINE_KEYS, GROW_FILL_RANGES, defaultGrowFillFields, readGro
 import type { GrowLaw, GrowOnFill } from "@/lib/physics/modes/grow";
 import { defaultLoopFields, readLoopParams, resolveLoopFields, writeLoopParams } from "@/lib/loop/loopSettings";
 // --- end loop-foundation ---
+// --- colour-sort --- the Colour Sort mode (one-way colour gates on turning rings sort the balls into a bullseye, then remix)
+import { COLOUR_SORT_RANGES, colourSortModeDefaults, colourSortPastCeiling, defaultColourSortFields, readColourSortParams, resolveColourSortFields, writeColourSortParams } from "@/lib/physics/colourSortSettings";
+import type { CsRule } from "@/lib/physics/modes/colourSort";
 // --- chord-stars --- Chord Stars (balls in a circle drawing star polygons that all close at the same moment)
 import { SC_ENGINE_KEYS, SC_RANGES, defaultStarChordsFields, readStarChordsParams, resolveStarChordsFields, starChordsModeDefaults, writeStarChordsParams, type ScEnvelope, type ScPalette, type ScVoice } from "@/lib/physics/starChords";
 // --- bead-hoops --- Spinning Hoops (beads on spinning hoops climb as the spin passes each hoop's critical speed)
 import { HOOPS_RANGES, type HoopsRampShape } from "@/lib/physics/modes/hoops";
 import { defaultHoopsFields, readHoopsParams, resolveHoopsFields, writeHoopsParams } from "@/lib/physics/hoopsFields";
 // --- end bead-hoops ---
+// --- ellipse-foci --- Focus Shot (an elliptical pool: a volley from one focus converges on the other every transit)
+import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDefaults, readEllipseFociParams, resolveEllipseFociFields, writeEllipseFociParams, type EfLaunch, type EfOrientation, type EfReset, type EfSkin } from "@/lib/physics/ellipseFoci";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -940,6 +945,32 @@ export interface SimulatorSettings {
   loopHudTitle: string;
   loopHudSubtitle: string;
   // --- end loop-foundation ---
+  // --- colour-sort --- Colour Sort (lib/physics/modes/colourSort.ts; lib/physics/colourSortSettings.ts): sizes and speeds in px of the reference clip
+  /** Colours – and rings: K − 1 gated rings and the outer wall; 2–8 on the slider, any number from 2 typed (URL `csc`). */
+  csColours: number;
+  /** Balls of every colour, 1–500 on the slider, any number from 1 typed (a run holds at most 20,000 balls) (URL `csn`). */
+  csPerColour: number;
+  /** Gates of every gated ring (1–12) and their width in degrees (5–180) (URL `csg`, `csw`). */
+  csGates: number;
+  csGateWidth: number;
+  /** The innermost ring's spin (degrees a second), × the falloff per ring outward, alternating in direction (URL `css`, `csf`, `csa`). */
+  csSpin: number;
+  csFalloff: number;
+  csAlternate: boolean;
+  /** The balls' speed (px/s) and size (px) (URL `csv`, `csr`). */
+  csSpeed: number;
+  csSize: number;
+  /** Elastic contacts between the balls (off: the ghost gas) (URL `csx`). */
+  csContacts: boolean;
+  /** Seconds the remix lasts (URL `csm`). */
+  csRemix: number;
+  /** outwardNotOwn | outwardOwnOnly | bothWaysNotOwn (URL `csu`). */
+  csRule: CsRule;
+  /** The sort's time limit in seconds (URL `csl`). */
+  csLimit: number;
+  /** A short flash where a ring refuses a ball (URL `csh`). */
+  csFlash: boolean;
+  // --- end colour-sort ---
   // --- chord-stars --- Chord Stars (lib/physics/starChords.ts): balls drawing star polygons {n/k} that all close at once
   /** Balls, 1–12 on the slider, any whole number typed (a run builds at most 5,000) (URL `scn`). */
   scBalls: number;
@@ -989,6 +1020,34 @@ export interface SimulatorSettings {
   hpTick: boolean;
   hpBed: boolean;
   // --- end bead-hoops ---
+  // --- ellipse-foci --- Focus Shot (lib/physics/ellipseFoci.ts): a volley fired from one focus of an elliptical pool
+  /** Balls in the volley, 1–720 on the slider, any whole number typed (a run builds at most 2,000) (URL `efN`). */
+  efCount: number;
+  /** Eccentricity, 0 (a circle) – 0.99 on the slider (URL `efE`). */
+  efEccentricity: number;
+  /** The major semi-axis, % of the safe radius (50–140 on the slider) (URL `efS`). */
+  efSize: number;
+  /** Seconds a transit lasts, focus to wall to focus (0.5–20 on the slider): the speed is 2a / T (URL `efT`). */
+  efTransit: number;
+  /** Transits in a loop (1–16 on the slider) (URL `efP`). */
+  efPasses: number;
+  /** The volley's spread in degrees, 360 = every way, less = a fan (URL `efA`); the start angle that turns it (URL `efAim`). */
+  efSpread: number;
+  efAim: number;
+  /** The launch focus: top | bottom (left | right lying down) (URL `efF`); the long axis: vertical | horizontal (URL `efO`). */
+  efLaunch: EfLaunch;
+  efOrientation: EfOrientation;
+  /** The comet trails' length in seconds (URL `efTr`). */
+  efTrail: number;
+  /** At a convergence: refire | collapse | every (URL `efR`). */
+  efReset: EfReset;
+  /** table | neon | minimal (URL `efK`). */
+  efSkin: EfSkin;
+  /** The paths overlay (URL `efPa`), the groove bed (URL `efB`) and the loop HUD's pass counter (URL `efC`). */
+  efPaths: boolean;
+  efBed: boolean;
+  efCounter: boolean;
+  // --- end ellipse-foci ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -1124,10 +1183,16 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...landClaimModeDefaults(mode),
     ...defaultGrowFillFields(), // --- loop-foundation --- (the classic Grow: approach, stay)
     ...defaultLoopFields(), // --- loop-foundation --- (whole loops on, the HUD off)
+    // --- colour-sort --- the feature's fields, and in Colour Sort only the loop HUD on (the title over the rings, the amber counter)
+    ...defaultColourSortFields(),
+    ...colourSortModeDefaults(mode),
     // --- chord-stars --- the feature's fields, and in Chord Stars only the account's look (navy page, lavender circle, the loop HUD on)
     ...defaultStarChordsFields(),
     ...starChordsModeDefaults(mode),
     ...defaultHoopsFields(), // --- bead-hoops --- (the loop HUD stays off, as in every mode: the presets turn it on)
+    // --- ellipse-foci --- the feature's fields, and in Focus Shot only the clip's look (the navy page, the loop HUD on)
+    ...defaultEllipseFociFields(),
+    ...ellipseFociModeDefaults(mode),
   };
 }
 
@@ -1208,8 +1273,10 @@ export const RANGES = {
   ...FIGHT_LEAGUE_RANGES, // --- fight-league ---
   ...LAND_CLAIM_RANGES, // --- land-claim ---
   ...GROW_FILL_RANGES, // --- loop-foundation ---
+  ...COLOUR_SORT_RANGES, // --- colour-sort ---
   ...SC_RANGES, // --- chord-stars ---
   ...HOOPS_RANGES, // --- bead-hoops ---
+  ...EF_RANGES, // --- ellipse-foci ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1461,8 +1528,10 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeLandClaimParams(settings, base, params); // --- land-claim ---: lcc, lcr, lca, lct, lcb, lcm, lce, lcd, lcti, lch
   writeGrowFillParams(settings, base, params); // --- loop-foundation ---: gLaw, gFill, gStep, gStart, gHold, gShrink, gHue, gRamp, gMark, gMarkT, gPitch
   writeLoopParams(settings, base, params); // --- loop-foundation ---: wl, lh, lht, lhs
+  writeColourSortParams(settings, base, params); // --- colour-sort ---: csc, csn, csg, csw, css, csf, csa, csv, csr, csx, csm, csu, csl, csh
   writeStarChordsParams(settings, base, params); // --- chord-stars ---: scn, scs, sct, sch, scf, scsp, scw, sce, scp, scv, scc
   writeHoopsParams(settings, base, params); // --- bead-hoops ---: hpn, hprx, hprn, hpg, hpw0, hpw1, hpr, hps, hph, hprt, hprs, hpd, hpj, hpt, hpb
+  writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1627,8 +1696,10 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readLandClaimParams(params, settings); // --- land-claim --- (valid numbers kept, no maximum; unknown arenas and rules fall back)
   readGrowFillParams(params, settings); // --- loop-foundation --- (valid numbers from their minimum up, known laws, real booleans, a clean ramp)
   readLoopParams(params, settings); // --- loop-foundation --- (real booleans, clean texts)
+  readColourSortParams(params, settings); // --- colour-sort --- (valid numbers from their minimum up, a known rule, real booleans)
   readStarChordsParams(params, settings); // --- chord-stars --- (valid numbers from their minimum up, clean stars, known options, a real boolean)
   readHoopsParams(params, settings); // --- bead-hoops --- (valid numbers from their minimum up, a known ramp shape, real booleans)
+  readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -1846,8 +1917,10 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   orbGrid: ORB_GRID_PHYSICS_FIELDS.filter((key) => key in ORB_GRID_RANGES), // --- orb-grid --- (the field and the variation; the camera is the canvas')
   fightLeague: rangeKeys(FIGHT_LEAGUE_RANGES), // --- fight-league ---
   landClaim: rangeKeys(LAND_CLAIM_RANGES), // --- land-claim ---
+  colourSort: rangeKeys(COLOUR_SORT_RANGES), // --- colour-sort ---
   starChords: [...SC_ENGINE_KEYS], // --- chord-stars --- (the balls, the timing and the start points; the line width is the canvas')
   hoops: rangeKeys(HOOPS_RANGES), // --- bead-hoops --- (every number of the hoops, the spin and the beads is physics)
+  ellipseFoci: [...EF_ENGINE_KEYS], // --- ellipse-foci --- (the volley, the pool and the timing; the trail is the canvas')
 };
 // --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
@@ -1903,6 +1976,7 @@ export function pastAnyMemoryCeiling(settings: SimulatorSettings): boolean {
   const record = settings as unknown as Record<string, unknown>;
   for (const key of engineSettingKeys(settings.mode)) if (pastMemoryCeiling(key, record[key])) return true;
   if (settings.mode === "orbGrid" && orbGridPastCeiling(settings)) return true; // --- orb-grid --- (columns × rows past the orbs' ceiling)
+  if (settings.mode === "colourSort" && colourSortPastCeiling(settings)) return true; // --- colour-sort --- (colours × balls past the balls a run holds)
   return false;
 }
 // --- end uncap-all ---
@@ -2058,8 +2132,10 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveLandClaimFields(merged)); // --- land-claim --- valid numbers (no maximum), a known arena and rule, a clean title, a real boolean
   Object.assign(merged, resolveGrowFillFields(merged)); // --- loop-foundation --- valid numbers from their minimum up, known laws, real booleans, a clean ramp
   Object.assign(merged, resolveLoopFields(merged)); // --- loop-foundation --- real booleans, clean texts
+  Object.assign(merged, resolveColourSortFields(merged)); // --- colour-sort --- valid numbers from their minimum up, a known rule, real booleans
   Object.assign(merged, resolveStarChordsFields(merged)); // --- chord-stars --- valid numbers from their minimum up, clean stars, known options, a real boolean
   Object.assign(merged, resolveHoopsFields(merged)); // --- bead-hoops --- valid numbers from their minimum up, a known ramp shape, real booleans
+  Object.assign(merged, resolveEllipseFociFields(merged)); // --- ellipse-foci --- valid numbers from their minimum up, known options, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

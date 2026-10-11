@@ -52,9 +52,12 @@ import { resolveLandClaimSettings, type LandClaimSettings } from "@/lib/physics/
 import { MAX_TEAMS } from "@/lib/physics/ballStats"; // --- land-claim ---
 import type { GrowFillSettings } from "@/lib/physics/modes/grow"; // --- loop-foundation ---
 import { growRunFinishes } from "@/lib/physics/growFill"; // --- loop-foundation ---
+import { resolveColourSortSettings, type ColourSortSettings } from "@/lib/physics/modes/colourSort"; // --- colour-sort ---
 import type { StarChordsSettings } from "@/lib/physics/starChords"; // --- chord-stars ---
 import { findStarChordsRun, type StarChordsFound } from "./starChordsFinder"; // --- chord-stars ---
 import { hoopsSchedule, resolveHoopsSettings, type HoopsSettings } from "@/lib/physics/modes/hoops"; // --- bead-hoops ---
+import type { EllipseFociSettings } from "@/lib/physics/ellipseFoci"; // --- ellipse-foci ---
+import { findEllipseFociRun, type EllipseFociFound } from "./ellipseFociFinder"; // --- ellipse-foci ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -208,6 +211,13 @@ export interface ModeSettings {
    * a fill within a time limit or a fill on a bar line.
    */
   grow?: Partial<GrowFillSettings>;
+  // --- colour-sort ---
+  /**
+   * Colour Sort: the colours, the balls, the gates, the spin, the speed and size, the contacts, the remix, the rule and the
+   * time limit (see modes/colourSort.ts); the defaults when left out. The run loops forever (sort, remix, sort again), so the
+   * finder searches its first sort: all sorted within a limit, the colour sorted last, the final ball on a bar line.
+   */
+  colourSort?: Partial<ColourSortSettings>;
   // --- chord-stars ---
   /**
    * Chord Stars: the balls, the stars, the drawing time, the hold, the fade and the look (see lib/physics/starChords.ts); the
@@ -222,6 +232,13 @@ export interface ModeSettings {
    * its ramp and top hold, whatever the seed.
    */
   hoops?: Partial<HoopsSettings>;
+  // --- ellipse-foci ---
+  /**
+   * Focus Shot: the volley, the pool, the timing and the look (see lib/physics/ellipseFoci.ts); the defaults when left out. Its
+   * loop never ends and every volley converges by construction, so the finder fits the transit to the tempo or searches the
+   * start angle instead of seeds (ellipseFociFinder.ts).
+   */
+  ellipseFoci?: Partial<EllipseFociSettings>;
 }
 
 // --- odd-string-battle ---
@@ -300,8 +317,12 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "vortex") return resolveVortexSettings(settings.vortex).loop;
   // --- orb-grid --- a field that never settles (the period property, an orb bouncing elastically or harder): only the clip ends it
   if (mode === "orbGrid") return orbGridNeverSettles((settings as Pick<ModeSettings, "orbGrid">).orbGrid);
+  // --- colour-sort --- it sorts, mixes again and sorts again forever: no length (its outcomes search the first sort)
+  if (mode === "colourSort") return true;
   // --- chord-stars --- the loop draws, holds, fades and starts again forever (the finder searches its star sets instead)
   if (mode === "starChords") return true;
+  // --- ellipse-foci --- the volleys converge, refire and collapse forever (the finder fits its transit or its start angle instead)
+  if (mode === "ellipseFoci") return true;
   return false;
 }
 
@@ -424,12 +445,21 @@ export interface FinderResult {
   // --- loop-foundation ---
   /** Grow: the first fill (seconds) of the run found – or of the closest one – when it had one. */
   fillAt?: number;
+  // --- colour-sort ---
+  /** Colour Sort: the first complete sort (seconds) of the run found – or of the closest one – when it had one. */
+  sortedAt?: number;
+  /** Colour Sort: the colour of the final ball that sort sorted (0 = the core's). */
+  lastColour?: number;
+  // --- end colour-sort ---
   // --- chord-stars ---
   /** Chord Stars: the star set found, the drawing time that fits the clip, the loops in it and the set's score. */
   starChords?: StarChordsFound;
   // --- bead-hoops ---
   /** Spinning Hoops: when every bead was first up (seconds) in the run found – or in the closest one – when that came. */
   allUpAt?: number;
+  // --- ellipse-foci ---
+  /** Focus Shot: the transit on the tempo and the loops in the clip, or the start angle and its collapse. */
+  ellipseFoci?: EllipseFociFound;
 }
 
 /**
@@ -497,8 +527,10 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "fightLeague") engine.setFightLeagueSettings(settings.fightLeague ?? {}); // --- fight-league ---
   if (mode === "landClaim") engine.setLandClaimSettings(settings.landClaim ?? {}); // --- land-claim ---
   if (mode === "grow") engine.setGrowFillSettings(settings.grow ?? {}); // --- loop-foundation --- (before the init: the law and the start apply there)
+  if (mode === "colourSort") engine.setColourSortSettings(settings.colourSort ?? {}); // --- colour-sort ---
   if (mode === "starChords") engine.setStarChordsSettings(settings.starChords ?? {}); // --- chord-stars ---
   if (mode === "hoops") engine.setHoopsSettings(settings.hoops ?? {}); // --- bead-hoops ---
+  if (mode === "ellipseFoci") engine.setEllipseFociSettings(settings.ellipseFoci ?? {}); // --- ellipse-foci ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -708,6 +740,11 @@ export function findSimulation(
       resolve(findStarChordsRun(request));
       return;
     }
+    // --- ellipse-foci --- every volley converges on time by construction: the search fits the transit to the tempo or the start angle
+    if (request.mode === "ellipseFoci") {
+      resolve(findEllipseFociRun(request));
+      return;
+    }
     // --- rigged --- the other outcomes (never escapes, first escape at, winner) search by what happens, not by the length
     if (request.outcome && request.outcome.kind !== "duration") {
       findByOutcome(request, request.outcome, onProgress, signal).then(resolve);
@@ -896,7 +933,11 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   let firstFill = -1;
   const hoopsRun = request.mode === "hoops"; // --- bead-hoops --- (the first moment every bead is up, real time; the first cycle's lift order)
   let allUp = -1;
-  while (elapsed < horizonMs - 1e-6) {
+  // --- colour-sort --- the first sort decides every outcome of it: the run is followed until it ends (every ball sorted, or
+  // the mode's time limit – the horizon of the colour and the bar line) and no further
+  const csRun = request.mode === "colourSort";
+  const csHorizonMs = csRun && outcome.kind !== "sorted-by" ? Math.max(horizonMs, 1000 * resolveColourSortSettings(request.modeSettings.colourSort).limit + FIXED_RUN_SLACK_MS) : horizonMs;
+  while (elapsed < csHorizonMs - 1e-6) {
     engine.update(step, 0);
     elapsed += step;
     engine.consumeSoundEvents();
@@ -913,6 +954,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
     // --- fight-league --- the chosen side is out (every fighter of it knocked out): it cannot win any more
     if (fightTeam >= 0 && !engine.getFightLeagueView().fighters.some((f) => f.team === fightTeam && f.alive)) break;
+    if (csRun && engine.getColourSortView().completions > 0) break; // --- colour-sort --- (the first sort has ended: its verdict is in)
   }
   const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : request.mode === "territory" ? engine.getTerritoryView().teams /* --- odd-territory --- */ : request.mode === "maze" ? engine.getMazeView().teamCount /* --- odd-maze --- (one team per ball, the first six) */ : request.mode === "fightLeague" ? engine.getFightLeagueView().teamCount /* --- fight-league --- (a side per fighter, two in 2v2) */ : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
   // --- land-claim --- the battle's first six competitors are teams; its verdict's gap between the top two (a close battle)
@@ -924,8 +966,22 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   // --- bead-hoops --- the first cycle's lift order: strict size order (and at least one lift), once it was decided
   const hv = hoopsRun ? engine.getHoopsView() : null;
   const hoopsSummary = hv ? { allUpMs: allUp, liftOrderOk: hv.orderDecided && hv.orderOk && hv.firstLifts > 0 } : {};
-  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...hoopsSummary /* --- bead-hoops --- */ };
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...hoopsSummary /* --- bead-hoops --- */, ...(csRun ? colourSortRunFields(engine) : {}) /* --- colour-sort --- */ };
 }
+
+// --- colour-sort ---
+/** A Colour Sort run's first sort: when it was complete (ms, −1 when the time limit ended it), the colour sorted last and the cycle it closes. */
+function colourSortRunFields(engine: PhysicsEngine): Pick<RunSummary, "sortedMs" | "lastColour" | "cycleMs"> {
+  const v = engine.getColourSortView();
+  const ended = v.completions > 0;
+  const seams = engine.getLoopSeams();
+  return {
+    sortedMs: ended && v.firstSortSec >= 0 ? 1000 * v.firstSortSec : -1,
+    lastColour: ended ? v.firstLastColour : -1,
+    ...(ended && seams && seams.nextMs > 0 ? { cycleMs: seams.nextMs - v.cycleStartMs } : {}),
+  };
+}
+// --- end colour-sort ---
 
 /** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */
 function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgress: (p: FinderProgress) => void, signal?: AbortSignal): Promise<FinderResult> {
@@ -944,6 +1000,7 @@ function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgres
       ...(run && run.firstEscapeMs >= 0 ? { escapeAt: run.firstEscapeMs / 1000 } : {}),
       ...(run && (run.firstResolveMs ?? -1) >= 0 ? { resolveAt: (run.firstResolveMs ?? 0) / 1000 } : {}), // --- orb-grid ---
       ...(run && (run.firstFillMs ?? -1) >= 0 ? { fillAt: (run.firstFillMs ?? 0) / 1000 } : {}), // --- loop-foundation ---
+      ...(run && (run.sortedMs ?? -1) >= 0 ? { sortedAt: (run.sortedMs ?? 0) / 1000, lastColour: run.lastColour ?? -1 } : {}), // --- colour-sort ---
       ...(run && (run.allUpMs ?? -1) >= 0 ? { allUpAt: (run.allUpMs ?? 0) / 1000 } : {}), // --- bead-hoops ---
     });
     const runBatch = () => {

@@ -27,8 +27,10 @@ import { respawnConfigOf } from "@/lib/physics/respawn"; // --- gerald-conveyor 
 import { orbGridSettingsOf } from "@/lib/physics/modes/orbGrid"; // --- orb-grid ---
 import { fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 import { growFillSettingsOf } from "@/lib/physics/growFill"; // --- loop-foundation ---
+import { colourSortSettingsOf } from "@/lib/physics/colourSortSettings"; // --- colour-sort ---
 import { starChordsSettingsOf } from "@/lib/physics/starChords"; // --- chord-stars ---
 import { hoopsSettingsOf } from "@/lib/physics/hoopsFields"; // --- bead-hoops ---
+import { ellipseFociSettingsOf } from "@/lib/physics/ellipseFoci"; // --- ellipse-foci ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
 import { exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
@@ -153,8 +155,10 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     fightLeague: fightLeagueSettingsOf(s), // --- fight-league ---
     landClaim: landClaimSettingsOf(s), // --- land-claim ---
     grow: growFillSettingsOf(s), // --- loop-foundation --- (Grow's fill and loop: the law, the fill, the hold, the shrink)
+    colourSort: colourSortSettingsOf(s), // --- colour-sort ---
     starChords: starChordsSettingsOf(s), // --- chord-stars ---
     hoops: hoopsSettingsOf(s), // --- bead-hoops --- (the hoops, the spin, the beads, the return)
+    ellipseFoci: ellipseFociSettingsOf(s), // --- ellipse-foci ---
   };
 }
 

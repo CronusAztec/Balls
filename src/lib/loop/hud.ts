@@ -1,5 +1,6 @@
 import type { ModeId } from "@/lib/physics/types";
 import { badgeMetrics, badgeZone, exportSquare } from "@/lib/watermark/layout";
+import { hudPluralText } from "./hudPlural"; // --- ellipse-foci --- (a counter's plural forms)
 
 /*
  * --- loop-foundation --- The loop HUD, in the style of the loop clips: a bold lowercase title at about 16 % of the frame's
@@ -11,6 +12,9 @@ import { badgeMetrics, badgeZone, exportSquare } from "@/lib/watermark/layout";
  *
  * The words: the settings' own title and subtitle, else the mode's (`LOOP_HUD_MODE_TEXT`, translated under `LoopHud`; any other
  * mode's title is its name). The counter is the mode's (`loopHudCount()`: Grow's bounces in the current cycle).
+ *
+ * --- colour-sort --- Colour Sort counts its sorted balls ("n / 360 sorted"); while its remix runs there is no count and the
+ * counter's line shows the spec's `alt` words instead ("mixing again").
  */
 
 export const LOOP_HUD_AMBER = "#f2c46a";
@@ -37,6 +41,8 @@ export interface LoopHudSpec {
   subtitle: string;
   counter: string;
   light: boolean;
+  /** --- colour-sort --- The counter's line while the mode has no count (Colour Sort's remix: "mixing again"); absent: no line then. */
+  alt?: string;
   /** --- bead-hoops --- The page's language: the counter's decimals in its style on the live canvas too ("0,13" in Polish). */
   locale?: string;
 }
@@ -46,6 +52,7 @@ export const LOOP_HUD_MODE_TEXT: Readonly<Partial<Record<ModeId, { title: string
   grow: { title: "growTitle", subtitle: "growSubtitle", counter: "growCounter" },
   starChords: { title: "starChordsTitle", subtitle: "starChordsSubtitle", counter: "starChordsCounter" }, // --- chord-stars ---
   hoops: { title: "hoopsTitle", subtitle: "hoopsSubtitle", counter: "hoopsCounter", counterOne: "hoopsCounterOne" }, // --- bead-hoops ---
+  ellipseFoci: { title: "EllipseFoci.canvasTitle", subtitle: "EllipseFoci.canvasSubtitle", counter: "EllipseFoci.canvasPasses" }, // --- ellipse-foci --- (its own namespace)
 };
 
 // --- chord-stars --- a counter toward a total ("stars closed 3/5") and a subtitle of two lines
@@ -67,6 +74,13 @@ export const HUD_SUBTITLE_LEADING = 1.2;
 /** How far through Chord Stars' fade (0–1) its "stars closed" counter goes back to 0 (`loopHudCount()`). */
 export const STAR_CHORDS_HUD_RESET = 0.5;
 // --- end chord-stars ---
+
+// --- ellipse-foci ---
+/** The full message key of a LOOP_HUD_MODE_TEXT entry: under `LoopHud`, or – a key that names its namespace ("EllipseFoci.canvasTitle") – as it is. */
+export function loopHudMessageKey(key: string): string {
+  return key.includes(".") ? key : `LoopHud.${key}`;
+}
+// --- end ellipse-foci ---
 
 /** The HUD's lines in a `width` × `height` frame (px): centres of the lines, font sizes, the rule and the widest a line may be. */
 export interface LoopHudLayout {
@@ -218,7 +232,7 @@ export function hudText(text: string | undefined | null, locale?: string): strin
 export function hudCounterText(template: string, count: number | LoopHudCount | null, locale?: string, values?: Readonly<Record<string, number>>): string {
   const value = typeof count === "number" || count === null ? count : count.count;
   if (!template || value === null || !Number.isFinite(value)) return "";
-  let text = template.replace("{count}", String(Math.round(value)));
+  let text = hudPluralText(template, Math.round(value), locale).replace("{count}", String(Math.round(value))); // (--- ellipse-foci --- the count's plural form first: "1 pass", "3 passes")
   if (count !== null && typeof count === "object" && Number.isFinite(count.total)) text = text.replace("{total}", String(Math.round(count.total))); // --- chord-stars ---
   if (values) for (const key in values) text = text.replace(`{${key}}`, hudNumber(values[key], locale)); // --- bead-hoops ---
   return hudText(text, locale);
@@ -255,12 +269,15 @@ const HOOPS_COUNTER = { count: 0, values: { rate: 0, total: 0 } };
 // --- end bead-hoops ---
 
 /** The counter of the mode's run (Grow: the bounces of the current cycle; --- chord-stars --- Chord Stars: the stars closed of all;
- * --- bead-hoops --- Spinning Hoops: the beads up, with the spin and the hoop count), or null when the mode has none. */
+ * --- bead-hoops --- Spinning Hoops: the beads up, with the spin and the hoop count; --- ellipse-foci --- Focus Shot: the passes of
+ * the current loop, with its counter on), or null when the mode has none. */
 export function loopHudCount(engine: {
   getCurrentModeName(): string;
   getGrowView(): { bounces: number };
   getStarChordsView?(): { closed: number; count: number; phase: string; phaseProgress: number }; // --- chord-stars ---
   getHoopsView?(): { upCount: number; count: number; omega: number }; // --- bead-hoops ---
+  getEllipseFociHudCount?(): number | null; // --- ellipse-foci ---
+  getColourSortView?(): { sorted: number; phase: string }; // --- colour-sort ---
 }): number | LoopHudCount | LoopHudCounter | null {
   // --- chord-stars --- (the fade is the loop's reset: halfway through it the counter is back at 0, so the clip's last frames
   // read like its first – the payoff's "5/5" still shows through the hold and the first half of the fade, a hold of 0 too)
@@ -276,6 +293,13 @@ export function loopHudCount(engine: {
     HOOPS_COUNTER.values.total = view.count;
     return HOOPS_COUNTER;
   }
+  if (engine.getCurrentModeName() === "ellipseFoci") return engine.getEllipseFociHudCount?.() ?? null; // --- ellipse-foci --- (the pass counter, when it is on)
+  // --- colour-sort --- the balls in their own bands; none while the remix runs (the counter's line then says the spec's `alt`)
+  if (engine.getCurrentModeName() === "colourSort" && engine.getColourSortView) {
+    const view = engine.getColourSortView();
+    return view.phase === "remix" ? null : view.sorted;
+  }
+  // --- end colour-sort ---
   return engine.getCurrentModeName() === "grow" ? engine.getGrowView().bounces : null;
 }
 
@@ -283,7 +307,7 @@ export function loopHudCount(engine: {
 export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | LoopHudCounter | null, locale?: string): LoopHudFrame {
   const counter = count !== null && typeof count === "object" && "values" in count ? count : null; // --- bead-hoops --- (a counter with values)
   const value = counter ? counter.count : (count as number | LoopHudCount | null);
-  return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values), light: spec.light };
+  return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: count === null && spec.alt ? hudText(spec.alt, locale ?? spec.locale) /* --- colour-sort --- */ : hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values), light: spec.light };
 }
 
 /** Draws one line centred at (`x`, `y`), shrunk to `maxWidth` when it is wider. */
