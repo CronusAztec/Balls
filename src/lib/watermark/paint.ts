@@ -1,5 +1,6 @@
 import { ACCENT, ACCENT_LIGHT, SITE_DOMAIN, SITE_NAME } from "@/lib/site";
 import { BADGE_OPACITY, TILE_OPACITY, badgeCorner, badgeMetrics, badgeRect, badgeWidth, exportSquare, tileFontSize, tileLayout, type BadgeMetrics, type FrameRect, type TileLayout } from "./layout";
+import { LiveHud, mapLiveHud, placeVideoBadge, type HudSource, type LivePlacement } from "./liveLayout"; // --- low-findings ---
 
 /*
  * --- free-watermark --- Draws the watermark (layout.ts places it) into an export frame. Called by the gate (seal.ts) for a
@@ -23,6 +24,12 @@ export interface WatermarkFrame {
   clipMs: number;
   /** The exported square inside the frame (default: the centred square of the shorter side). */
   square?: FrameRect;
+  /**
+   * --- low-findings --- The HUD the source canvas drew in this frame (its report in canvas px, about its exported square
+   * `source`): the badge keeps clear of it, as the live one does while the page recorder records (liveLayout.ts). Without it
+   * the badge takes its corner of the moment.
+   */
+  hud?: { report: LiveHud; source: HudSource } | null;
 }
 
 /** The watermark could not be drawn: the export must not go on without it. */
@@ -201,6 +208,10 @@ export function buildTileLayer(width: number, height: number, domain = SITE_DOMA
   return { canvas: layer.canvas, layout, width, height };
 }
 
+/** --- low-findings --- The source's HUD in the export frame's px, and where the badge goes clear of it (reused every frame). */
+const videoHud = new LiveHud();
+const videoSpot: LivePlacement = { x: 0, y: 0, width: 0, height: 0, corner: "bottom-left", free: true };
+
 /** The cached sprite (per exported square side) and tile layer (per frame size): one export runs at a time. */
 let badgeCache: { side: number; sprite: BadgeSprite } | null = null;
 let tileCache: { width: number; height: number; layer: TileLayer } | null = null;
@@ -244,7 +255,9 @@ export function paintWatermark(ctx: Canvas2D, frame: WatermarkFrame): void {
   const tiles = tilesFor(frame.width, frame.height);
   const badge = badgeFor(square.width);
   const spot = placementFor(frame.width, frame.height, square, badge);
-  const rect = badgeCorner(frame.clipMs) === "bottom-left" ? spot.left : spot.right;
+  let rect: FrameRect = badgeCorner(frame.clipMs) === "bottom-left" ? spot.left : spot.right;
+  // --- low-findings --- clear of the source's HUD (a String Circle strip, Fight League's ability boxes, the captions…)
+  if (frame.hud) rect = placeVideoBadge(frame.width, frame.height, square, { width: badge.width, height: badge.height, inset: badge.metrics.inset }, frame.clipMs, mapLiveHud(frame.hud.report, frame.hud.source, square, videoHud), videoSpot);
   ctx.save();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.globalAlpha = 1;

@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_STRING_BATTLE_SETTINGS,
@@ -1164,5 +1166,38 @@ describe("review fixes (modes-gerald-odd)", () => {
     expect(circles.length).toBeGreaterThan(0);
     // The lives are drawn at 1.15 r around the centre: the eyes stay above the digit's top (about 0.35 r above the centre).
     for (const c of circles) expect(c.y + c.r).toBeLessThan(100 - 0.35 * r);
+  });
+});
+
+// --- low-findings --- the smoke test's default battle is pinned to a seed that ends with one ball standing
+describe("--- low-findings --- the smoke test's pinned default battle", () => {
+  /** The `seed=` of the smoke check "a default string battle ends with one ball standing" (scripts/smoke-test.mjs). */
+  const STRING_BATTLE_ONE_STANDING = 4;
+  /** A default battle that ends in a double KO (the last two balls shatter in the same step): why the check pins its seed. */
+  const DEFAULT_DOUBLE_KO = 1374;
+  const page = finderRequestOfSettings(settingsFromSearchParams(new URLSearchParams("mode=stringBattle")), { width: 800, height: 450 }, 120);
+  const play = (seed: number) => {
+    const engine = createEngineForSettings(page.physicsConfig, page.mode, page.modeSettings, seed);
+    runBattle(engine, 240_000);
+    return engine.getStringBattleView();
+  };
+
+  it("ends with one ball standing – as the check asks: three balls out of lives, a dozen cuts and lives lost or more", () => {
+    const v = play(STRING_BATTLE_ONE_STANDING);
+    expect(v.finished).toBe(true);
+    expect(v.alive).toBe(1);
+    expect(v.winner).toBeGreaterThanOrEqual(0);
+    expect(v.fighters[v.winner].lives).toBeGreaterThan(0);
+    expect(v.fighters.filter((f) => f.lives === 0)).toHaveLength(3);
+    expect(v.cuts).toBeGreaterThanOrEqual(12);
+    expect(v.livesLost).toBeGreaterThanOrEqual(12);
+    expect(fs.readFileSync(path.join(__dirname, "..", "scripts/smoke-test.mjs"), "utf8")).toContain(`/en/simulator/?mode=stringBattle&seed=${STRING_BATTLE_ONE_STANDING}\``);
+  });
+
+  it("while a random default battle may end with nobody standing (the mode's shared verdict)", () => {
+    const v = play(DEFAULT_DOUBLE_KO);
+    expect(v.finished).toBe(true);
+    expect(v.alive).toBe(0);
+    expect(v.fighters.every((f) => f.lives === 0)).toBe(true);
   });
 });

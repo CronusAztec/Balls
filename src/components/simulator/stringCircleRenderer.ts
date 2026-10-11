@@ -147,6 +147,44 @@ interface Look extends ScLook {
   fan: string;
 }
 
+// --- low-findings --- the title line and the teams' scoreboard
+/** A rectangle the title keeps clear of (screen px): the teams' scoreboard in a top corner of the square. */
+export interface TitleAvoid {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+/** Half the title line's band, in font sizes (its letters; what the top captions start below). */
+export const TITLE_HALF = 0.6;
+/** The title moves under the scoreboard when the room beside it is narrower than this share of the square. */
+export const TITLE_MIN_ROOM = 0.3;
+
+/**
+ * Where the title line goes (its centre and font size) in the square at `sx` of `side` px: centred at `y`, `width` px wide at
+ * `fs` – unless `avoid` (the scoreboard) is in its way: then centred in the room beside it (the other side of the square from
+ * the board, `0.025 × side` from both), shrunk to fit that room, or – with less room than `TITLE_MIN_ROOM` of the square –
+ * just under the board at its size.
+ */
+export function titleSpot(sx: number, side: number, y: number, fs: number, width: number, avoid: TitleAvoid | null): { x: number; y: number; fs: number } {
+  const x = sx + side / 2;
+  if (!avoid || !(avoid.w > 0 && avoid.h > 0)) return { x, y, fs };
+  const half = TITLE_HALF * fs;
+  const hits = avoid.y < y + half && avoid.y + avoid.h > y - half && avoid.x < x + width / 2 && avoid.x + avoid.w > x - width / 2;
+  if (!hits) return { x, y, fs };
+  const gap = 0.025 * side;
+  const boardLeft = avoid.x + avoid.w / 2 < x;
+  const from = boardLeft ? avoid.x + avoid.w + gap : sx + gap;
+  const to = boardLeft ? sx + side - gap : avoid.x - gap;
+  const room = to - from;
+  if (room >= TITLE_MIN_ROOM * side) {
+    const k = width > room ? room / width : 1;
+    return { x: (from + to) / 2, y, fs: fs * k };
+  }
+  return { x, y: avoid.y + avoid.h + gap + half, fs };
+}
+// --- end low-findings ---
+
 export class StringCircleLayer {
   private looks: Look[] = [];
   private looksKey = "";
@@ -192,6 +230,9 @@ export class StringCircleLayer {
   title = "";
   /** The screen y the standings strip starts at (Infinity: none) – what the bottom captions stay above. */
   stripTop = Infinity;
+  /** --- low-findings --- The title line's letters last frame (screen px) and the scoreboard it kept clear of (w 0: none). */
+  readonly titleBox = { x: 0, y: 0, w: 0, h: 0 };
+  readonly titleAvoid = { x: 0, y: 0, w: 0, h: 0 };
 
   constructor() {
     if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
@@ -693,7 +734,7 @@ export class StringCircleLayer {
    * moves the title below the page's overlay buttons; `dtMs` advances the confetti (0 while paused). Returns the screen y of
    * the title's bottom, which the top captions start below (the strip's top is `stripTop`, which the bottom ones stay above).
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, view: StringBattleView, o: StringCircleRenderOptions, frame: { inset: number; dtMs: number; teamBanner: boolean }): number {
+  drawOverlay(ctx: CanvasRenderingContext2D, view: StringBattleView, o: StringCircleRenderOptions, frame: { inset: number; dtMs: number; teamBanner: boolean; avoid?: TitleAvoid | null }): number {
     const side = Math.min(o.width, o.height);
     const sx = (o.width - side) / 2;
     const sy = (o.height - side) / 2;
@@ -707,12 +748,27 @@ export class StringCircleLayer {
     ctx.font = this.font(fs, 900);
     const tw = ctx.measureText(title).width;
     if (tw > 0.86 * side) fs *= (0.86 * side) / tw;
-    const ty = sy + frame.inset + 0.058 * side;
+    let ty = sy + frame.inset + 0.058 * side;
+    // --- low-findings --- clear of the teams' scoreboard (a roster with the standings strip off puts it in a top corner): beside
+    // it, as big as the room there lets it be, or – too little room beside it – under it
+    const spot = titleSpot(sx, side, ty, fs, (tw * fs) / (0.062 * side), frame.avoid ?? null);
+    fs = spot.fs;
+    ty = spot.y;
+    const tx = spot.x;
     const sprite = this.titleSprite(title, fs, o.dpr);
-    if (sprite) ctx.drawImage(sprite, sx + side / 2 - this.titleW / 2, ty - this.titleH / 2, this.titleW, this.titleH);
-    else this.drawTitle(ctx, title, fs, sx + side / 2, ty);
+    if (sprite) ctx.drawImage(sprite, tx - this.titleW / 2, ty - this.titleH / 2, this.titleW, this.titleH);
+    else this.drawTitle(ctx, title, fs, tx, ty);
     this.titleDrawn = true;
-    const titleBottom = ty + 0.6 * fs;
+    this.titleBox.w = (tw * fs) / (0.062 * side);
+    this.titleBox.h = 2 * TITLE_HALF * fs;
+    this.titleBox.x = tx - this.titleBox.w / 2;
+    this.titleBox.y = ty - TITLE_HALF * fs;
+    const avoid = frame.avoid ?? null;
+    this.titleAvoid.x = avoid ? avoid.x : 0;
+    this.titleAvoid.y = avoid ? avoid.y : 0;
+    this.titleAvoid.w = avoid ? avoid.w : 0;
+    this.titleAvoid.h = avoid ? avoid.h : 0;
+    const titleBottom = ty + TITLE_HALF * fs;
     this.hudDrawn = view.settings.hud;
     this.stripTop = this.hudDrawn ? this.drawStrip(ctx, view, sx, sy, side, o.labels) : Infinity;
     this.bannerDrawn = false;
@@ -916,13 +972,14 @@ export class StringCircleLayer {
 /* ------------------------------------------------------------------ data-sb-* of the circle style */
 
 /** The canvas data keys the circle style adds (data-sb-*); Canvas.tsx clears them in the other styles. */
-export const STRING_CIRCLE_DATA_KEYS = ["sbArena", "sbCoverage", "sbFans", "sbAnchors", "sbTwangs", "sbSnaps", "sbCircleLives", "sbTitle", "sbFlagGlyphs", "sbBadges", "sbNames", "sbSegments", "sbStride", "sbRimArcs", "sbInArena", "sbStripDrawn"];
+export const STRING_CIRCLE_DATA_KEYS = ["sbArena", "sbCoverage", "sbFans", "sbAnchors", "sbTwangs", "sbSnaps", "sbCircleLives", "sbTitle", "sbFlagGlyphs", "sbBadges", "sbNames", "sbSegments", "sbStride", "sbRimArcs", "sbInArena", "sbStripDrawn", "sbTitleBox", "sbTitleAvoid" /* --- low-findings --- */];
 
 /**
  * Mirrors the circle style onto the canvas (data-sb-*): the arena, every team's share of the rim in percent (`sbCoverage`)
  * and live strings (`sbFans`), the strings anchored, the twang and snap events, the lives the cuts took, the title drawn,
  * the badges (f: a flag glyph, c: its code, e: another emoji, d: a disc) and names, the strings stroked last frame and their
- * stride, the rim arcs, whether every ball is inside the wall and whether the standings strip was drawn.
+ * stride, the rim arcs, whether every ball is inside the wall and whether the standings strip was drawn (--- low-findings --- and
+ * where the title line's letters went, `sbTitleBox`, and the teams' scoreboard it kept clear of, `sbTitleAvoid` – "" for none).
  */
 export function writeStringCircleDataset(view: StringBattleView, layer: StringCircleLayer, balls: readonly Ball[], set: (key: string, value: string) => void) {
   const c = view.circle;
@@ -958,4 +1015,9 @@ export function writeStringCircleDataset(view: StringBattleView, layer: StringCi
   }
   set("sbInArena", inside ? "1" : "0");
   set("sbStripDrawn", layer.hudDrawn ? "1" : "0");
+  // --- low-findings --- the title line's letters (screen px: x,y,w,h) – the smoke test checks them against the scoreboard
+  const t = layer.titleBox;
+  set("sbTitleBox", [t.x, t.y, t.w, t.h].map((v) => v.toFixed(1)).join(","));
+  const a = layer.titleAvoid;
+  set("sbTitleAvoid", a.w > 0 ? [a.x, a.y, a.w, a.h].map((v) => v.toFixed(1)).join(",") : "");
 }

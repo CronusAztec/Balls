@@ -1272,6 +1272,9 @@ export class StringBattleMode implements GameMode {
     const v = this.view;
     const s = this.settings;
     const c = createCircleState(s.balls, circleSettingsOf(s));
+    // --- low-findings --- the new state before the balls are put inside it: keepInsideCircleArena() reads `v.circle`, which
+    // still held the previous battle's (a circle battle's, so a hexagon battle after it kept its balls inside the old circle)
+    v.circle = c;
     v.settings.rule = "cut"; // always the cut rule: its shield, and no collision damage
     const looks = circleLineup([], s.balls);
     const balls = ctx.getBalls();

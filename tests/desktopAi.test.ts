@@ -339,3 +339,29 @@ describe("playbook grounding", () => {
     expect(selectPlaybookContext("", "x")).toBe("");
   });
 });
+
+// --- low-findings --- the Windows app's assistant on a Grow page: every Grow setting, the fill-and-loop ones included
+describe("--- low-findings --- the assistant's Grow settings", () => {
+  const GROW_KEYS = ["growRate", "growCenterDot", "growLines", "growLaw", "growOnFill", "growStep", "growStart", "growHold", "growShrink", "growHue", "growRamp", "growMarkers", "growMarkerLife", "growPitch"];
+  it("offers the Grow block on a Grow page (and not elsewhere), the laws and fill choices as enums", () => {
+    const grow = defaultSettings("grow");
+    const keys = assistantSettings(grow).map(([k]) => k);
+    expect(keys).toEqual(expect.arrayContaining(GROW_KEYS));
+    expect(assistantSettings(defaultSettings("glass")).map(([k]) => k).some((k) => k.startsWith("grow"))).toBe(false);
+    // the loop contract and its HUD: any mode
+    for (const mode of ["grow", "classic", "hoops"] as const) expect(assistantSettings(defaultSettings(mode)).map(([k]) => k), mode).toEqual(expect.arrayContaining(["exportWholeLoops", "loopHud"]));
+    const schema = changesSchema(grow);
+    expect(validateJson(schema, [{ setting: "growLaw", value: "multiply" }, { setting: "growOnFill", value: "loop" }, { setting: "growStep", value: 11 }, { setting: "loopHud", value: true }])).toEqual([]);
+    expect(validateJson(schema, [{ setting: "growLaw", value: "exponential" }]).length).toBeGreaterThan(0);
+    expect(settingsCatalog(grow)).toMatch(/growLaw \(one of "approach"\|"multiply"\|"add"\)/);
+  });
+
+  it("checks a Grow patch like any other: Fill and loop applies, past the sliders too (uncapped), a law that does not exist is refused", () => {
+    const grow = defaultSettings("grow");
+    const ok = validateSettingsPatch(grow, { growLaw: "multiply", growOnFill: "loop", growStep: 1500, growStart: 5, growHold: 0.5, growHue: true, exportWholeLoops: true, loopHud: true });
+    expect(ok).toEqual({ ok: true, patch: { growLaw: "multiply", growOnFill: "loop", growStep: 1500, growStart: 5, growHold: 0.5, growHue: true, exportWholeLoops: true, loopHud: true } });
+    const bad = validateSettingsPatch(grow, { growOnFill: "explode" });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.errors.join(" ")).toMatch(/growOnFill.*one of "stay", "loop", "finish"/);
+  });
+});

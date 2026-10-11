@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_STRING_CIRCLE_SETTINGS,
@@ -56,7 +58,8 @@ import { availableOutcomes, outcomeMatches } from "@/lib/simulation/outcomes";
 import { MAX_TEAM_NAME_LENGTH, rosterPatch } from "@/lib/teams";
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { TeamLayer, type TeamLabels } from "@/components/simulator/teamsRenderer";
-import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLayer, fanColor, writeStringCircleDataset, type StringCircleRenderOptions } from "@/components/simulator/stringCircleRenderer";
+import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLayer, TITLE_HALF, fanColor, titleSpot, writeStringCircleDataset, type StringCircleRenderOptions, type TitleAvoid } from "@/components/simulator/stringCircleRenderer";
+import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, type StringBattleRenderOptions } from "@/components/simulator/stringBattleRenderer"; // --- low-findings ---
 import { STRING_BATTLE_KEYS } from "@/components/simulator/sections/StringBattleSection";
 import { STRING_CIRCLE_KEYS } from "@/components/simulator/sections/StringCircleSection";
 import { teamChoiceNames } from "@/components/simulator/FinderOutcomeFields";
@@ -1084,3 +1087,118 @@ function noopCtx(): CanvasRenderingContext2D {
 // wall bounces and all the sound events of the first 6 s)
 const PIN_DEFAULT = { balls: 2904714296, strings: 1039673290, rim: 3187489712, lives: "4,4,4,4", events: "721,362,0,120,98,16,218" };
 const PIN_HEXAGON = { balls: 1186508125, strings: 623405142, rim: 176065577, lives: "2,2,2,1,2,2", events: "721,406,1,120,102,31,222" };
+
+/* ------------------------------------------------------------------ --- low-findings --- */
+
+describe("--- low-findings --- string circle", () => {
+  it("starts a hexagon battle after a circle battle exactly like a fresh one: big balls inside the hexagon, not the old circle", () => {
+    const big: PhysicsConfig = { ...config, ballRadius: 45 };
+    const n = { x: 0, y: 0 };
+    const fingerprint = (engine: ReturnType<typeof circle>) => engine.getBalls().map((b) => `${b.x.toFixed(4)},${b.y.toFixed(4)}`).join(" ");
+    const overlaps = (engine: ReturnType<typeof circle>) => {
+      const v = engine.getStringBattleView();
+      return engine.getBalls().map((b) => Math.max(0, wallOverlap(v.cx, v.cy, v.radius, 6, b.x, b.y, b.radius, n)));
+    };
+    const fresh = circle({ balls: 4, arena: "hexagon" }, 7, big);
+    const atStart = fingerprint(fresh);
+    expect(Math.max(...overlaps(fresh))).toBeLessThanOrEqual(0.5);
+    run(fresh, 2000);
+    const after = fingerprint(fresh);
+    // the page's switch: a circle battle, then the arena changed and a new battle on the same seed
+    const page = circle({ balls: 4, arena: "circle" }, 7, big);
+    run(page, 1000);
+    page.setStringBattleSettings({ arena: "hexagon" });
+    page.setSeed(7);
+    page.initStringBattle();
+    expect(page.getStringBattleView().circle?.sides).toBe(6);
+    expect(Math.max(...overlaps(page))).toBeLessThanOrEqual(0.5);
+    expect(fingerprint(page)).toBe(atStart);
+    run(page, 2000);
+    expect(fingerprint(page)).toBe(after);
+  });
+
+  it("lets the battle's own banner announce a web-style mega fight won past the six teams (the teams banner has no winner then)", { timeout: 60_000 }, () => {
+    const LABELS: TeamLabels = { bounces: "Bounces", walls: "Walls", escapes: "Escapes", kills: "Kills", win: "Win", wins: (name) => `${name} wins!`, tie: "It's a tie!", team: (k) => `Team ${k}` };
+    const roster = stringCirclePresetPatch("mega12").teams;
+    const seen = { past: 0, inside: 0 };
+    for (let seed = 1; seed <= 12 && (seen.past === 0 || seen.inside === 0); seed++) {
+      const engine = createEngineForSettings(config, "stringBattle", { ...modeSettings, stringBattle: { style: "web", balls: 12, lives: 1 } }, seed);
+      runToEnd(engine);
+      const v = engine.getStringBattleView();
+      expect(v.finished).toBe(true);
+      const teams = new TeamLayer();
+      teams.beginFrame(engine, { roster, showNames: true, showScoreboard: true, position: "top-left", labels: LABELS });
+      teams.drawOverlay(noopCtx(), engine, { width: 800, height: 450, dtMs: 16, inset: 0, modeBanner: false });
+      const crowns = teams.crownsBattleWinner(v);
+      // exactly one banner: the teams' when they crown a winner, else the battle's own
+      expect(crowns).toBe(teams.winnerText() !== "");
+      expect(crowns).toBe(v.winner >= 0 && v.winner < MAX_TEAMS);
+      const battle = new StringBattleLayer();
+      const o: StringBattleRenderOptions = { dpr: 1, roster: [], showNames: false, wallThickness: 4, labels: DEFAULT_STRING_BATTLE_LABELS, nowMs: v.finishedMs + 5000, simDtMs: 0, contacts: null, width: 800, height: 450 };
+      battle.drawOverlay(noopCtx(), v, o, { inset: 0, dtMs: 0, teamBanner: crowns });
+      expect(battle.bannerDrawn).toBe(!crowns);
+      if (crowns) seen.inside++;
+      else seen.past++;
+    }
+    expect(seen.past).toBeGreaterThan(0);
+    expect(seen.inside).toBeGreaterThan(0);
+    // up to six balls the teams' verdict announces the battle, whoever won it; without a roster the battle's banner always does
+    const small = createEngineForSettings(config, "stringBattle", { ...modeSettings, stringBattle: { style: "web", balls: 4, lives: 1 } }, 3);
+    runToEnd(small);
+    const teams = new TeamLayer();
+    teams.beginFrame(small, { roster: roster.slice(0, 4), showNames: true, showScoreboard: true, position: "top-left", labels: LABELS });
+    expect(teams.crownsBattleWinner({ winner: -1, count: 4 })).toBe(true);
+    expect(new TeamLayer().crownsBattleWinner({ winner: 1, count: 4 })).toBe(false);
+  });
+
+  it("keeps the title line clear of the teams' scoreboard while the standings strip is off: beside the board, or under it", () => {
+    const side = 450;
+    const sx = 175;
+    const y = 0.058 * side;
+    const fs = 0.062 * side;
+    const width = 0.8 * side;
+    const box = (p: { x: number; y: number; fs: number }, w: number) => ({ x: p.x - w / 2, y: p.y - TITLE_HALF * p.fs, w, h: 2 * TITLE_HALF * p.fs });
+    const apart = (a: TitleAvoid, b: TitleAvoid) => a.x + a.w <= b.x + 1e-9 || b.x + b.w <= a.x + 1e-9 || a.y + a.h <= b.y + 1e-9 || b.y + b.h <= a.y + 1e-9;
+    // no board, or one out of the way: centred, as before
+    expect(titleSpot(sx, side, y, fs, width, null)).toEqual({ x: sx + side / 2, y, fs });
+    expect(titleSpot(sx, side, y, fs, width, { x: sx + 10, y: 300, w: 100, h: 60 })).toEqual({ x: sx + side / 2, y, fs });
+    // a board in the top-left corner: the title moves right of it, shrunk to the room there
+    const left = { x: sx + 7, y: 7, w: 140, h: 70 };
+    const a = titleSpot(sx, side, y, fs, width, left);
+    expect(a.y).toBe(y);
+    expect(a.x).toBeGreaterThan(sx + side / 2);
+    expect(a.fs).toBeLessThan(fs);
+    expect(apart(box(a, (width * a.fs) / fs), left)).toBe(true);
+    expect(a.x + (width * a.fs) / fs / 2).toBeLessThanOrEqual(sx + side);
+    // top-right: left of it
+    const right = { x: sx + side - 147, y: 7, w: 140, h: 70 };
+    const b = titleSpot(sx, side, y, fs, width, right);
+    expect(b.x).toBeLessThan(sx + side / 2);
+    expect(apart(box(b, (width * b.fs) / fs), right)).toBe(true);
+    // a board too wide to leave room beside it: under it, at full size
+    const wide = { x: sx + 7, y: 7, w: 0.75 * side, h: 70 };
+    const c = titleSpot(sx, side, y, fs, width, wide);
+    expect(c.fs).toBe(fs);
+    expect(c.y - TITLE_HALF * c.fs).toBeGreaterThanOrEqual(wide.y + wide.h);
+    // the layer reports where the letters went
+    const layer = new StringCircleLayer();
+    const engine = circle({ balls: 4, hud: false }, 3);
+    run(engine, 500);
+    const o: StringCircleRenderOptions = { dpr: 1, roster: [], showNames: false, wallThickness: 2, labels: DEFAULT_STRING_CIRCLE_LABELS, nowMs: engine.getElapsedMs(), width: 800, height: 450 };
+    layer.drawOverlay(noopCtx(), engine.getStringBattleView(), o, { inset: 0, dtMs: 0, teamBanner: false, avoid: left });
+    expect(layer.titleBox.w).toBeGreaterThan(0);
+    expect(apart(layer.titleBox, left)).toBe(true);
+    layer.drawOverlay(noopCtx(), engine.getStringBattleView(), o, { inset: 0, dtMs: 0, teamBanner: false });
+    expect(layer.titleBox.x + layer.titleBox.w / 2).toBeCloseTo(400, 6);
+  });
+
+  it("says the sliders' ranges of sbRate and sbCut in settings.ts as STRING_CIRCLE_RANGES has them", () => {
+    const src = fs.readFileSync(path.join(__dirname, "..", "src/lib/settings.ts"), "utf8").split("\n");
+    for (const key of ["sbRate", "sbCut"] as const) {
+      const at = src.findIndex((l) => new RegExp(`^\\s+${key}: number;`).test(l));
+      const m = /(\d[\d,]*)–(\d[\d,]*) on the slider/.exec(src[at - 1]);
+      expect(m, key).not.toBeNull();
+      expect([Number(m![1].replace(/,/g, "")), Number(m![2].replace(/,/g, ""))], key).toEqual([STRING_CIRCLE_RANGES[key].min, STRING_CIRCLE_RANGES[key].max]);
+    }
+  });
+});

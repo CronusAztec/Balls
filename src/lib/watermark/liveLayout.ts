@@ -223,3 +223,41 @@ export function placeLiveBadge(box: LiveBadgeBox, width: number, height: number,
   out.free = false;
   return out;
 }
+
+// --- low-findings --- the video badge clear of the HUD in every video: the compositor's own badge (layout.ts' size, at export
+// resolution) placed like the live one while the page recorder records – in the video layout's zone, clear of the HUD the source
+// canvas reported for the frame (the page recorder's frames, copied before the live pass, and the fast export's offline frames)
+
+/** The square a source canvas' HUD report is about (canvas px): its centred square, which the compositor scales into its frame. */
+export interface HudSource {
+  x: number;
+  y: number;
+  side: number;
+}
+
+/**
+ * `src` (canvas px of a source whose exported square is `from`) in the export frame's px, where that square is `to`: the bands
+ * and blocks scaled and moved with it, into `out` (reset first, unit 1). Infinite bands stay infinite.
+ */
+export function mapLiveHud(src: LiveHud, from: HudSource, to: FrameRect, out: LiveHud): LiveHud {
+  out.reset(1);
+  const k = from.side > 0 ? to.width / from.side : 1;
+  const mx = (x: number) => to.x + (x - from.x) * k;
+  const my = (y: number) => to.y + (y - from.y) * k;
+  if (Number.isFinite(src.top)) out.top = my(src.top);
+  if (Number.isFinite(src.bottom)) out.bottom = my(src.bottom);
+  const b = src.blocks;
+  for (let i = 0; i < 4 * src.count; i += 4) out.block(mx(b[i]), my(b[i + 1]), b[i + 2] * k, b[i + 3] * k);
+  return out;
+}
+
+/**
+ * Where the video's badge (`width` × `height` px, `inset` from the zone's edges) goes in a `frameWidth` × `frameHeight` export
+ * frame whose exported square is `square`, at `clipMs`, clear of `hud` (export px; null: none): the video layout's zone (layout.ts
+ * `badgeZone()`) and the live layout's rule (`placeLiveBadge()`: the bottom corner of the moment's side in the free band, else
+ * its top corner, else the other side's) – with no HUD, exactly `badgeRect()`'s corner.
+ */
+export function placeVideoBadge(frameWidth: number, frameHeight: number, square: FrameRect, badge: { width: number; height: number; inset: number }, clipMs: number, hud: LiveHud | null, out: LivePlacement): LivePlacement {
+  const box: LiveBadgeBox = { height: badge.height, inset: badge.inset, zone: badgeZone(frameWidth, frameHeight, square) };
+  return placeLiveBadge(box, badge.width, badge.height, clipMs, hud, out);
+}

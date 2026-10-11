@@ -4,6 +4,7 @@ import {
   BATCH_STORAGE_KEY,
   MAX_BATCH_JOBS,
   MAX_SEED,
+  MIN_SEED,
   SWEEP_KEYS,
   batchFileBase,
   batchJobCount,
@@ -17,6 +18,8 @@ import {
   linkJobSettings,
   linkParams,
   linkSeed,
+  isLinkSeed,
+  seedParam,
   loadBatchDefinition,
   parseBatchDefinition,
   parseBatchList,
@@ -33,6 +36,9 @@ import {
   uniqueFileBase,
   type BatchDefinition,
 } from "@/lib/recording/batch";
+import { clipShareUrl } from "@/lib/bot/planner"; // --- low-findings ---
+import { jobLink } from "@/components/simulator/desktop/useRenderQueue"; // --- low-findings ---
+import { EMPTY_QUEUE, enqueue, journalOf, restoreQueue } from "@/lib/desktop/renderQueue"; // --- low-findings ---
 import { MODE_CARD_ORDER } from "@/lib/modes";
 import { RANGES, defaultSettings, presetToLiveSettings, presetToSettings, settingsToSearchParams } from "@/lib/settings";
 import { WALL_BREAK_SOUNDS } from "@/lib/audio/songs";
@@ -130,12 +136,15 @@ describe("pasted list", () => {
     expect(invalidLines).toEqual([8, 9, 10, 11]);
   });
 
-  it("accepts seeds up to 2^31 - 1 only", () => {
+  it("accepts the engine's signed 32-bit seeds only (--- low-findings --- negative ones too: the finder hands them out)", () => {
     expect(parseSeed("0")).toBe(0);
     expect(parseSeed(String(MAX_SEED))).toBe(MAX_SEED);
     expect(parseSeed(String(MAX_SEED + 1))).toBeNull();
-    expect(parseSeed("-1")).toBeNull();
-    expect(parseSeed("1.5")).toBeNull();
+    expect(parseSeed("-1")).toBe(-1);
+    expect(parseSeed(String(MIN_SEED))).toBe(MIN_SEED);
+    expect(parseSeed(String(MIN_SEED - 1))).toBeNull();
+    expect(parseSeed("-0")).toBe(0);
+    for (const bad of ["1.5", "--1", "+1", "-", "1e3", "0x10", " - 1", "12345678901"]) expect(parseSeed(bad), bad).toBeNull();
     expect(parseSeed(null)).toBeNull();
   });
 
@@ -398,5 +407,38 @@ describe("the longest clip of a batch", () => {
     expect(batchLongestClipSec(def({ source: "list", list: short }), parseBatchList(short), 10)).toBeNull();
     const shorter = "https://x.test/en/simulator/?mode=classic 7";
     expect(batchLongestClipSec(def({ source: "list", list: shorter }), parseBatchList(shorter), 60)).toBe(defaultSettings("classic").recordingDuration);
+  });
+});
+
+// --- low-findings --- a found simulation's link replays it: every seed the finder can produce round-trips through `seed=`
+describe("seed links round-trip every seed the finder produces", () => {
+  /** The finder's seed order (findSimulation's `seedAt(i)` from a `Date.now() | 0` base) – negative seeds included. */
+  const finderSeeds = (base: number, count: number) => Array.from({ length: count }, (_, i) => (base + 0x9e3779b1 * i) | 0);
+  const seeds = [0, 1, -1, MAX_SEED, MIN_SEED, 1461257034, ...finderSeeds(Date.UTC(2026, 9, 11) | 0, 64), ...finderSeeds(-123456789, 64)];
+
+  it("the finder hands out negative seeds as well – and a link reads every one of them back", () => {
+    expect(seeds.some((s) => s < 0)).toBe(true);
+    for (const seed of seeds) {
+      expect(isLinkSeed(seed), String(seed)).toBe(true);
+      expect(parseSeed(seedParam(seed)), String(seed)).toBe(seed);
+      expect(linkSeed(`/en/simulator/?mode=classic&seed=${seedParam(seed)}`), String(seed)).toBe(seed);
+    }
+    // a seed past the engine's range is written as the engine keeps it (`seed | 0`), never as a link that would not parse
+    expect(seedParam(2 ** 31)).toBe(String(MIN_SEED));
+    expect(seedParam(-7.9)).toBe("-7");
+    expect(isLinkSeed(1.5) || isLinkSeed(2 ** 31) || isLinkSeed(MIN_SEED - 1) || isLinkSeed("3")).toBe(false);
+  });
+
+  it("the bot's share links and the desktop queue's job links carry them, and a restored queue keeps them", () => {
+    const settings = defaultSettings("classic");
+    for (const seed of seeds) {
+      expect(linkSeed(clipShareUrl(settings, seed, "en", "https://example.com/Balls")), String(seed)).toBe(seed);
+      expect(linkSeed(jobLink({ settings, seed }, "en")), String(seed)).toBe(seed);
+    }
+    let n = 0;
+    const spec = (seed: number) => ({ name: `s${seed}`, source: { kind: "seed" as const }, settings, seed, resolution: "1080x1920", fps: 60 as const, codec: "h264" as const, preset: "native" as const, meta: { title: "t", platform: null, hook: null, caption: null, hashtags: [] } });
+    const q = enqueue(EMPTY_QUEUE, [spec(-1), spec(MIN_SEED), spec(123)], 1, () => `job-${++n}`);
+    const restored = restoreQueue(JSON.parse(JSON.stringify(journalOf(q, 2))), 3).state;
+    expect(restored.jobs.map((j) => j.seed)).toEqual([-1, MIN_SEED, 123]);
   });
 });

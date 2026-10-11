@@ -6,7 +6,7 @@ import { MAX_CAPTIONS, sanitizeCaption, type Caption } from "@/lib/captions";
 import { isModeId } from "@/lib/physics/types";
 import { sameSettings } from "@/lib/recording/batch";
 import { RANGES, presetToSettings, settingsFromSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { clipHashtags, fillTemplate, parseHashtags, postCopy, type BotCopy } from "@/lib/bot/copy";
+import { clipHashtags, fillTemplate, parseHashtags, postCopy, recipeText, type BotCopy } from "@/lib/bot/copy";
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { createEngineForSettings } from "@/lib/simulation/finder";
 import { HUD_BAND } from "@/lib/physics/modes/arenaGames";
@@ -31,11 +31,15 @@ import {
 } from "@/lib/bot/playbook";
 import {
   captionBoxAt,
+  clipCaptions,
+  clipTiming,
   daySlots,
   dayIndexOf,
   edgeTextBox,
   estimateTextWidth,
   inSafeZone,
+  passesFinderPredicates,
+  payoffKeyOf,
   planClip,
   planDay,
   resolveEnding,
@@ -634,5 +638,49 @@ describe("the roster and the buckets", () => {
     expect(recipeBucket(battle, "short")).toBe("standard");
     expect(recipeBucket(recipeById("pendulum-wave")!, "long")).toBe("long");
     for (const b of LENGTH_BUCKETS) expect(BUCKET_SECONDS[b].max).toBeGreaterThan(BUCKET_SECONDS[b].min);
+  });
+});
+
+// --- low-findings --- a String Battle whose last two balls fell in the same step (a double KO): the mode's verdict shares the
+// win between them, the planner's words name nobody
+describe("--- low-findings --- the planner's words for a double KO", () => {
+  const recipe = recipeById("string-battle")!;
+  const request = finderRequestOfSettings(settingsFromSearchParams(new URLSearchParams("mode=stringBattle")), { width: 800, height: 450 }, 120);
+  /** Default battles (tests/stringBattle.test.ts): 1374 ends with nobody standing, 4 with one ball standing. */
+  const DOUBLE_KO = 1374;
+  const ONE_STANDING = 4;
+
+  it("reports the double KO in the run's facts and names no winner for it, while the mode's verdict still crowns one", () => {
+    const ko = simulateFacts(request, DOUBLE_KO, recipe, 240);
+    expect(ko.finishSec).toBeGreaterThan(0);
+    expect(ko.summary.finished).toBe(true);
+    expect(ko.summary.doubleKo).toBe(true);
+    // the mode itself shares the verdict (a winner on the kills, then the bounces) – unchanged
+    const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, DOUBLE_KO);
+    for (let t = 0; t < 240_000 && !engine.isSimulationFinished(); t += 1000 / 60) engine.update(1000 / 60, 0);
+    expect(engine.getStringBattleView().alive).toBe(0);
+    expect(engine.getStringBattleView().winner).toBeGreaterThanOrEqual(0);
+    const settings = settingsFromSearchParams(new URLSearchParams("mode=stringBattle"));
+    const timing = clipTiming(recipe, settings, ko, "resolved", "standard");
+    expect(passesFinderPredicates(recipe, ko, timing, "resolved", 4).winner).toBe(-1);
+    for (const [locale, c] of Object.entries(COPY)) {
+      expect(payoffKeyOf(c, recipe, ko), locale).toBe("payoffDoubleKo");
+      const words = recipeText(c, recipe, payoffKeyOf(c, recipe, ko), { winner: "" });
+      expect(words, locale).toBe((c as { recipes: Record<string, Record<string, string>> }).recipes.stringBattle.payoffDoubleKo);
+      expect(words, locale).not.toMatch(/\{winner\}|^\s|wins!|wygrywa|Gana/);
+    }
+    // the clip's payoff caption says it too
+    const { captions, roles } = clipCaptions(recipe, copy, "hook", { winner: "" }, { ...timing, payoffSec: ko.finishSec }, "resolved", 2, payoffKeyOf(copy, recipe, ko));
+    expect(captions.filter((_, i) => roles[i] === "payoff").map((c) => c.text).join(" ")).toContain("Double KO");
+  });
+
+  it("keeps the winner's words for a battle with one ball standing, and for a recipe without double-KO words", () => {
+    const won = simulateFacts(request, ONE_STANDING, recipe, 240);
+    expect(won.summary.doubleKo).toBe(false);
+    const settings = settingsFromSearchParams(new URLSearchParams("mode=stringBattle"));
+    expect(passesFinderPredicates(recipe, won, clipTiming(recipe, settings, won, "resolved", "standard"), "resolved", 4).winner).toBeGreaterThanOrEqual(0);
+    expect(payoffKeyOf(copy, recipe, won)).toBe("payoff");
+    expect(payoffKeyOf(copy, recipe, null)).toBe("payoff");
+    expect(payoffKeyOf(copy, recipeById("maze-race")!, { summary: { ...won.summary, doubleKo: true } })).toBe("payoff");
   });
 });

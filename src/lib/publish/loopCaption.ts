@@ -1,5 +1,6 @@
 import { normalizeHashtag, withoutPlatformTags } from "./caption";
 import type { ModeId } from "@/lib/physics/types";
+import { isModeId } from "@/lib/physics/types"; // --- low-findings ---
 import { colourSortTotal } from "@/lib/physics/colourSortSettings"; // --- colour-sort ---
 
 /*
@@ -135,4 +136,17 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     return { mode: s.mode, hookKey: count === 1 ? "hoopsOne" : "hoops", factKey: "hoopsFact", count };
   }
   return { mode: s.mode, hookKey: "seconds", factKey: "", count: Number.isFinite(s.recordingDuration) ? Math.round(s.recordingDuration) : null };
+}
+
+/**
+ * --- low-findings --- The loop-style words of a Publish clip: the words of the run it was made of (`clip.loopCaption`, taken
+ * when the page offered it), else the page's (`page`, its settings now) when the clip is of the page's mode or of no known
+ * mode (a picked file), else – another mode, its settings unknown – that mode's seconds; a "{count} seconds" hook counts the
+ * clip's own length when it is known, never the page's clip length of the moment.
+ */
+export function clipLoopCaptionContext(clip: { mode: string | null; durationSec: number | null; loopCaption?: LoopCaptionContext | null }, page: LoopCaptionContext): LoopCaptionContext {
+  const own = clip.loopCaption ?? null;
+  const ctx: LoopCaptionContext = own ?? (clip.mode === null || clip.mode === page.mode || !isModeId(clip.mode) ? page : { mode: clip.mode, hookKey: "seconds", factKey: "", count: null });
+  const seconds = clip.durationSec !== null && Number.isFinite(clip.durationSec) && clip.durationSec > 0 ? Math.round(clip.durationSec) : null;
+  return ctx.hookKey === "seconds" && seconds !== null ? { ...ctx, count: seconds } : ctx;
 }

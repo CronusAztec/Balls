@@ -30,6 +30,7 @@ import {
   duplicateTitles,
   findBlockTitles,
   formatList,
+  formatLoads,
   matchesOnly,
   parseSmokeArgs,
   refreshBaseline,
@@ -216,6 +217,8 @@ export function createSmokeBlocks({
    */
   const printList = () => {
     fs.writeSync(1, `${formatList(titles, baseline, total).join("\n")}\n`);
+    // --- low-findings --- the per-shard loads for people, on stderr (stdout stays the list and nothing else)
+    fs.writeSync(2, `${formatLoads(titles, baseline, total).join("\n")}\n`);
     return 0;
   };
 
