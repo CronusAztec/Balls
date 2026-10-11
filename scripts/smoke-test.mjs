@@ -15020,6 +15020,43 @@ await smokeBlock("chaos-fan", async () => {
     await freeContext.close().catch(() => {});
   }
 }
+{
+  // --- chaos-fan --- (review fix) Only the rig the run builds engages No limits and ARENA FULL: the harp rig (the fan off)
+  // ignores the fan's numbers past their sliders (1,000 pendulums; 6,000, past their memory-safety ceiling) and a fan run the
+  // harp's (100 strings), while a fan built of 6,000 says ARENA FULL. The realistic path: the 1,000 threads preset (engaged),
+  // then the Chaos fan switch off – the harp run that follows drops the ⚡ machinery and its badges.
+  const runOf = async (query) => {
+    await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(2000);
+    return canvasData();
+  };
+  const quiet = (d) => d.unlimited === undefined && d.unlimitedFull === undefined && d.uncapShow !== "1";
+  const brief = (d) => ({ unlimited: d.unlimited, full: d.unlimitedFull, show: d.uncapShow, pendulums: d.dpPendulums, fan: d.dpFan, fanCount: d.dpFanCount });
+  const harpCount = await runOf("dpfn=1000");
+  const harpCeiling = await runOf("dpf=0&dpfn=6000");
+  const fanStrings = await runOf("dpf=1&dpfn=200&dpst=100");
+  await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpf=1&dpfn=6000`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const fanFull = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.unlimitedFull === "1", null, { timeout: 30_000 }).then(() => true).catch(() => false);
+  const fanFullData = await canvasData();
+  // the 1,000 threads preset, then the fan off
+  await page.goto(`${BASE}/en/simulator/?mode=doublePendulum`, { waitUntil: "networkidle" });
+  await page.locator('[data-dp-fan-preset="threads"]').first().click();
+  await page.waitForTimeout(400);
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const threadsEngaged = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.unlimited === "1", null, { timeout: 15_000 }).then(() => true).catch(() => false);
+  await page.getByTestId("chaos-fan-section").getByRole("switch", { name: switchName("Chaos fan") }).click();
+  const harpQuiet = await page.waitForFunction(() => { const d = document.querySelector("main canvas")?.dataset; return !!d && d.unlimited === undefined && d.dpFan === undefined && d.dpPendulums !== undefined; }, null, { timeout: 15_000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(1000);
+  const afterOff = await canvasData();
+  const offQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "chaos fan: only the built rig engages No limits / ARENA FULL – a harp run ignores 1,000 and 6,000 fan pendulums, a fan run 100 harp strings, 6,000 fan pendulums say ARENA FULL, and the 1,000 threads preset switched back to the harp drops the ⚡ machinery",
+    quiet(harpCount) && harpCount.dpPendulums === "1" && harpCount.dpFan === undefined && quiet(harpCeiling) && harpCeiling.dpPendulums === "1" && quiet(fanStrings) && fanStrings.dpFan === "1" && fanFull && fanFullData.dpFanCount === "5000" && threadsEngaged && harpQuiet && quiet(afterOff) && !offQuery.has("dpf") && offQuery.get("dpfn") === "1000",
+    `(${JSON.stringify({ harpCount: brief(harpCount), harpCeiling: brief(harpCeiling), fanStrings: brief(fanStrings), fanFull, fanFullData: brief(fanFullData), threadsEngaged, harpQuiet, afterOff: brief(afterOff), offQuery: offQuery.toString() })}${loadNote()})`,
+  );
+}
 // --- end chaos-fan ---
 });
 

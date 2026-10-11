@@ -33,7 +33,7 @@ import { TIMELINE_RANGES, defaultTimelineSettings, readTimelineParams, resolveTi
 import { DEFAULT_FAST_EXPORT_SETTINGS, FAST_EXPORT_RANGES, resolveFastExportSettings } from "@/lib/recording/fastRenderPlan"; // --- fast-render ---
 // --- jdm-double-pendulum ---
 import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, doublePendulumSettingFields, readDoublePendulumParams, resolveDoublePendulumFields, writeDoublePendulumParams, type DpStringLayout } from "@/lib/physics/modes/doublePendulum";
-import type { DpColourBy } from "@/lib/physics/chaosFan"; // --- chaos-fan ---
+import { CHAOS_FAN_RANGES, type DpColourBy } from "@/lib/physics/chaosFan"; // --- chaos-fan ---
 // --- jdm-illusions --- the Circle Illusion mode and the global Wobbly Walls amount
 import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllusionFields, writeIllusionParams, type IllusionPatternChoice, type IllusionType } from "@/lib/physics/modes/illusion";
 import { WOBBLE_RANGES } from "@/lib/physics/wobble";
@@ -1979,6 +1979,25 @@ export function engineSettingKeys(mode: ModeId): readonly string[] {
   return keys;
 }
 
+/*
+ * --- chaos-fan --- (review fix) The Double Pendulum builds one of two rigs, so of its engine keys only the built rig's count:
+ * with the fan off (the harp rig) the fan's numbers are never read, and with the fan on the harp rig's own – the pendulum
+ * count, the arm count and the third arm, the trail, the strings and their octaves (the fan swings two-arm pendulums, the
+ * panel hides them) – are not. A value past its slider there engages no extreme-values machinery and no ARENA FULL.
+ */
+const DP_FAN_ONLY_KEYS: ReadonlySet<string> = new Set(Object.keys(CHAOS_FAN_RANGES));
+const DP_HARP_ONLY_KEYS: ReadonlySet<string> = new Set(["dpCount", "dpSegments", "dpLength3", "dpMass3", "dpAngle3", "dpTrailSeconds", "dpStrings", "dpOctaves"]);
+const NO_INACTIVE_KEYS: ReadonlySet<string> = new Set();
+
+/**
+ * --- chaos-fan --- (review fix) The keys of `engineSettingKeys(settings.mode)` the run does not read because the other
+ * sub-rig of the mode is built (the Double Pendulum's fan or harp rig): `uncappedEngaged()` and `pastAnyMemoryCeiling()` skip them.
+ */
+export function inactiveEngineKeys(settings: Pick<SimulatorSettings, "mode" | "dpFan">): ReadonlySet<string> {
+  if (settings.mode !== "doublePendulum") return NO_INACTIVE_KEYS;
+  return settings.dpFan ? DP_HARP_ONLY_KEYS : DP_FAN_ONLY_KEYS;
+}
+
 /**
  * True when a setting the mode's engine reads (`engineSettingKeys()`) sits past its slider's comfort range (the engine
  * then runs its extreme-values machinery: planned sub-steps, the crowd, time-slicing – `PhysicsConfig.unlimited`).
@@ -1987,7 +2006,9 @@ export function engineSettingKeys(mode: ModeId): readonly string[] {
  */
 export function uncappedEngaged(settings: SimulatorSettings): boolean {
   const record = settings as unknown as UnlimitedRecord;
+  const inactive = inactiveEngineKeys(settings); // --- chaos-fan --- (the rig not built reads none of its keys)
   for (const key of engineSettingKeys(settings.mode)) {
+    if (inactive.has(key)) continue;
     const range = UNLIMITED_RANGES[key];
     const value = record[key];
     if (range && typeof value === "number" && Number.isFinite(value) && beyondRange(key, value, range)) return true;
@@ -2008,7 +2029,8 @@ export function numericUrlKeyFields(): Readonly<Record<string, string>> {
  */
 export function pastAnyMemoryCeiling(settings: SimulatorSettings): boolean {
   const record = settings as unknown as Record<string, unknown>;
-  for (const key of engineSettingKeys(settings.mode)) if (pastMemoryCeiling(key, record[key])) return true;
+  const inactive = inactiveEngineKeys(settings); // --- chaos-fan --- (a harp run builds no fan, a fan run no harp chains)
+  for (const key of engineSettingKeys(settings.mode)) if (!inactive.has(key) && pastMemoryCeiling(key, record[key])) return true;
   if (settings.mode === "orbGrid" && orbGridPastCeiling(settings)) return true; // --- orb-grid --- (columns × rows past the orbs' ceiling)
   if (settings.mode === "colourSort" && colourSortPastCeiling(settings)) return true; // --- colour-sort --- (colours × balls past the balls a run holds)
   return false;
