@@ -25,7 +25,7 @@ import { settingsFromSearchParams, settingsToSearchParams, type SimulatorSetting
 export const DAILY_PARAM = "daily";
 /** Day of challenge #1 (UTC). */
 export const DAILY_EPOCH = "2026-09-30";
-/** Highest seed handed out (the engine and `seed=` links take 1 … 2³¹ − 1). */
+/** Highest seed handed out (positive like the page's random seeds; the engine and `seed=` links take −2³¹ … 2³¹ − 1 – --- low-findings --- a found simulation's seed may be negative). */
 const SEED_SPAN = 0x7ffffffe;
 const DAY_MS = 86_400_000;
 

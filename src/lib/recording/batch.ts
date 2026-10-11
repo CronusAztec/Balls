@@ -29,6 +29,25 @@ export const SWEEP_STEPS_LIMIT = { min: 2, max: MAX_BATCH_JOBS } as const;
 export const BATCH_LIST_MAX_CHARS = 20_000;
 /** Seeds are positive 31-bit integers, like the engine's own (`engine.setSeed()`). */
 export const MAX_SEED = 0x7fffffff;
+/**
+ * --- low-findings --- The lowest seed a link takes: the engine keeps a seed as a signed 32-bit integer (`seed | 0` in
+ * `engine.setSeed()`) and the seed finder's order (`seedAt(i)`, from `Date.now() | 0`) hands out negative ones too, so a found
+ * simulation's link carries any of them. The random seeds the page draws itself stay positive.
+ */
+export const MIN_SEED = -0x80000000;
+
+/** --- low-findings --- Whether `n` is a seed a link carries: a whole number in the engine's signed 32-bit range. */
+export function isLinkSeed(n: unknown): n is number {
+  return typeof n === "number" && Number.isInteger(n) && n >= MIN_SEED && n <= MAX_SEED;
+}
+
+/**
+ * --- low-findings --- A seed as a link's `seed=` writes it: the engine's own value (`seed | 0`), so `parseSeed()` reads back
+ * the seed the run used – every seed the finder produces, negative ones included.
+ */
+export function seedParam(seed: number): string {
+  return String(seed | 0);
+}
 /** The link parameter a pasted share link may carry its seed in (`…?mode=portal&seed=1234`). */
 export const LINK_SEED_PARAM = "seed";
 
@@ -145,11 +164,11 @@ export interface BatchListParse {
   invalidLines: number[];
 }
 
-/** A seed written as a plain number (0 – 2³¹−1), else null. */
+/** A seed written as a plain number (−2³¹ – 2³¹−1: --- low-findings --- every seed the engine and the finder use), else null. */
 export function parseSeed(value: string | null | undefined): number | null {
-  if (typeof value !== "string" || !/^\d{1,10}$/.test(value.trim())) return null;
+  if (typeof value !== "string" || !/^-?\d{1,10}$/.test(value.trim())) return null;
   const n = Number(value.trim());
-  return n <= MAX_SEED ? n : null;
+  return isLinkSeed(n) ? n + 0 : null; // (+ 0: "-0" is the seed 0)
 }
 
 const looksLikeLink = (token: string) => /^(https?:\/\/|\/|\?)/i.test(token) || token.includes("?");

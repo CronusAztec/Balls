@@ -541,9 +541,9 @@ export interface SimulatorSettings {
   // --- string-circle --- the String Battle's circle style (lib/physics/modes/stringCircle.ts)
   /** circle | hexagon: the circle style's arena (URL `sba`). */
   sbArena: ScArena;
-  /** Strings every ball anchors a second in the circle style, 1–60 on the slider (any number from 1 typed) (URL `sbrt`). */
+  /** Strings every ball anchors a second in the circle style, 1–120 on the slider (any number from 1 typed) (URL `sbrt`). */
   sbRate: number;
-  /** Strings of one owner cut that take a life from it in the circle style, 1–200 on the slider (any number from 1 typed) (URL `sbc`). */
+  /** Strings of one owner cut that take a life from it in the circle style, 1–1,000 on the slider (any number from 1 typed) (URL `sbc`). */
   sbCut: number;
   /** The circle style's title line, "" = the translated STRING CIRCLE (URL `sbti`). */
   sbTitle: string;
