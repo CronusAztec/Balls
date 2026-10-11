@@ -55,6 +55,8 @@ import { growRunFinishes } from "@/lib/physics/growFill"; // --- loop-foundation
 import type { StarChordsSettings } from "@/lib/physics/starChords"; // --- chord-stars ---
 import { findStarChordsRun, type StarChordsFound } from "./starChordsFinder"; // --- chord-stars ---
 import { hoopsSchedule, resolveHoopsSettings, type HoopsSettings } from "@/lib/physics/modes/hoops"; // --- bead-hoops ---
+import type { EllipseFociSettings } from "@/lib/physics/ellipseFoci"; // --- ellipse-foci ---
+import { findEllipseFociRun, type EllipseFociFound } from "./ellipseFociFinder"; // --- ellipse-foci ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -222,6 +224,13 @@ export interface ModeSettings {
    * its ramp and top hold, whatever the seed.
    */
   hoops?: Partial<HoopsSettings>;
+  // --- ellipse-foci ---
+  /**
+   * Focus Shot: the volley, the pool, the timing and the look (see lib/physics/ellipseFoci.ts); the defaults when left out. Its
+   * loop never ends and every volley converges by construction, so the finder fits the transit to the tempo or searches the
+   * start angle instead of seeds (ellipseFociFinder.ts).
+   */
+  ellipseFoci?: Partial<EllipseFociSettings>;
 }
 
 // --- odd-string-battle ---
@@ -302,6 +311,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "orbGrid") return orbGridNeverSettles((settings as Pick<ModeSettings, "orbGrid">).orbGrid);
   // --- chord-stars --- the loop draws, holds, fades and starts again forever (the finder searches its star sets instead)
   if (mode === "starChords") return true;
+  // --- ellipse-foci --- the volleys converge, refire and collapse forever (the finder fits its transit or its start angle instead)
+  if (mode === "ellipseFoci") return true;
   return false;
 }
 
@@ -430,6 +441,9 @@ export interface FinderResult {
   // --- bead-hoops ---
   /** Spinning Hoops: when every bead was first up (seconds) in the run found – or in the closest one – when that came. */
   allUpAt?: number;
+  // --- ellipse-foci ---
+  /** Focus Shot: the transit on the tempo and the loops in the clip, or the start angle and its collapse. */
+  ellipseFoci?: EllipseFociFound;
 }
 
 /**
@@ -499,6 +513,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "grow") engine.setGrowFillSettings(settings.grow ?? {}); // --- loop-foundation --- (before the init: the law and the start apply there)
   if (mode === "starChords") engine.setStarChordsSettings(settings.starChords ?? {}); // --- chord-stars ---
   if (mode === "hoops") engine.setHoopsSettings(settings.hoops ?? {}); // --- bead-hoops ---
+  if (mode === "ellipseFoci") engine.setEllipseFociSettings(settings.ellipseFoci ?? {}); // --- ellipse-foci ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -706,6 +721,11 @@ export function findSimulation(
     // --- chord-stars --- every star closes on time by construction: the search is over star sets and the loop that fits the clip
     if (request.mode === "starChords") {
       resolve(findStarChordsRun(request));
+      return;
+    }
+    // --- ellipse-foci --- every volley converges on time by construction: the search fits the transit to the tempo or the start angle
+    if (request.mode === "ellipseFoci") {
+      resolve(findEllipseFociRun(request));
       return;
     }
     // --- rigged --- the other outcomes (never escapes, first escape at, winner) search by what happens, not by the length

@@ -37,9 +37,14 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  * --- bead-hoops --- Spinning Hoops adds two: **lift-order** – the first cycle's beads leave their bottoms in strict size order,
  * the biggest hoop's first (at least one lift; a bigger hoop's bead never comes after a smaller one's) – and **all-up-by** –
  * every bead is up within a time limit (`atSec`).
+ *
+ * --- ellipse-foci --- Focus Shot adds two (no seed's length to search: its loop goes on forever): **converge-on-beat** – every
+ * convergence on a bar line: the transit becomes a whole number of bars of the song's tempo (`atSec` is the bar's length) and
+ * the clip a whole number of loops – and **longest-collapse** – the start angle whose swarm takes the most passes to narrow under
+ * two ball radii (ellipseFociFinder.ts; no seed is simulated, the seed only colours the run).
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "converge-on-beat", "longest-collapse"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- ellipse-foci --- (converge-on-beat, longest-collapse)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -398,6 +403,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "grow" && ctx.growFinish) out.push("fills-by", "fill-on-bar"); // --- loop-foundation ---
   if (mode === "starChords") out.push("star-set"); // --- chord-stars --- (the best star set, its loop fitted to the clip)
   if (mode === "hoops") out.push("lift-order", "all-up-by"); // --- bead-hoops ---
+  if (mode === "ellipseFoci") out.push("converge-on-beat", "longest-collapse"); // --- ellipse-foci --- (the transit on the tempo; the start angle)
   return out;
 }
 

@@ -144,6 +144,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   starChords: { samples: [[514893,467278],[349436,287981],[226115,232202],[424452,483190],[566459,262864],[398333,227610],[292533,411349],[249339,295602]], broken: [], walls: [] },
   // --- bead-hoops --- (recorded when the mode was added: no rings – the beads ride the mode's own hoops, the outer two sampled)
   hoops: { samples: [[398959,524996],[399063,503568],[400439,524949],[400329,503540],[190985,380152],[247202,433490],[411377,358020],[409929,373831]], broken: [], walls: [] },
+  // --- ellipse-foci --- (recorded when the mode was added: no rings – the pool is the mode's own; ball 0 flies along the long axis)
+  ellipseFoci: { samples: [[400000,453000],[427781,451787],[400000,338250],[349647,348614],[400000,70500],[336279,132331],[400000,389250],[506404,234010]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

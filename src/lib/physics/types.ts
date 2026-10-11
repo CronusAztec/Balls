@@ -78,6 +78,8 @@ export const MODE_IDS = [
   "starChords",
   // --- bead-hoops --- Spinning Hoops (beads on spinning hoops climb in order as the spin passes each hoop's critical speed)
   "hoops",
+  // --- ellipse-foci --- Focus Shot (an elliptical pool: a volley fired from one focus converges on the other every transit; the loop family)
+  "ellipseFoci",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -382,6 +384,10 @@ export interface SoundEvent {
   /** The pluck's 3f partial: a small or fast object. */
   loopBright?: boolean;
   // --- end loop-foundation ---
+  // --- ellipse-foci ---
+  /** A loop "bed" event's chord is minor (the groove bed's ii, iii and vi: `ToneGenerator.playLoop()`'s `minor`). */
+  loopMinor?: boolean;
+  // --- end ellipse-foci ---
 }
 
 // --- loop-foundation --- the voices of the loop sound families (lib/audio/loopTones.ts; `ToneGenerator.playLoop()`)

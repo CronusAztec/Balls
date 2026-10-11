@@ -2055,7 +2055,64 @@
     "hpTickTip": "A glock chime every turn, pitched higher as the spin climbs.",
     "hpBed": "Groove bed",
     "hpBedTip": "A soft pad and sub on G that enters with the first lift and stops at the reset.",
-    "hpTurnsUnit": "turns/s"
+    "hpTurnsUnit": "turns/s",
+    "modeEllipseFoci": "Focus Shot",
+    "efDesc": "An elliptical pool and a volley of balls fired at once from one focus: every shot bounces off the wall straight through the other focus, and every such path is the same length, so the whole volley arrives there together – every pass, on the beat.",
+    "efPreset": "Focus Shot presets",
+    "efPresetTip": "Starting points: the clip's whispering gallery, one billiard shot with its path, a thousand-ball volley, the circle control and a 90° fan. A preset sets the mode's own settings and its look.",
+    "efPresetGallery": "Whispering gallery",
+    "efPresetBilliard": "Billiard focus shot",
+    "efPresetThousand": "Thousand-ball volley",
+    "efPresetCircle": "Circle control",
+    "efPresetFan": "Fan 90°",
+    "efCount": "Balls",
+    "efCountTip": "Balls fired at once from the start focus, spread evenly over the spread angle. Any whole number can be typed; a run builds at most the engine's ball ceiling.",
+    "efEccentricity": "Eccentricity",
+    "efEccentricityTip": "How stretched the pool is: 0 is a circle (both foci at the centre, every ball back there), 0.99 a long thin pool. The clip uses 0.65.",
+    "efFlatNote": "An eccentricity of 1 or more has no inside: the run uses {max}.",
+    "efSize": "Pool size",
+    "efSizeTip": "The pool's long semi-axis as a share of the safe radius (100% fills the recorder's centred square like the ring modes' arena).",
+    "efTransit": "Transit time",
+    "efTransitTip": "Seconds a ball takes from one focus to the wall and on to the other focus. Every path is 2a long, so the speed is 2a / T and every volley converges exactly T later. Set whole bars of a tempo (T = bars × 4 × 60 / BPM) and the convergences land on the beat.",
+    "efPasses": "Passes per loop",
+    "efPassesTip": "Transits in a loop: with Refire a fresh volley leaves the start focus every this many passes and the clip loops seamlessly (loop length = passes × T).",
+    "efLoopNote": "A convergence every {transit} s (the groove at {bpm} BPM: two bars a pass) – the loop is {loop} s.",
+    "efLoopNoteCollapse": "A convergence every {transit} s (the groove at {bpm} BPM) – no loop: the swarm keeps collapsing onto the long axis.",
+    "efSpread": "Spread angle",
+    "efSpreadTip": "The volley's spread: 360° fires every way, less fires a fan centred on the other focus.",
+    "efAim": "Start angle",
+    "efAimTip": "Turns the whole volley (0° fires one ball straight at the other focus and keeps the volley mirror-symmetric). Find Simulation's Longest collapse searches it.",
+    "efLaunch": "Launch focus",
+    "efLaunchTip": "The focus the volley is fired from: the top or the bottom one (left or right when the pool lies down).",
+    "efLaunchTop": "Top",
+    "efLaunchBottom": "Bottom",
+    "efLaunchLeft": "Left",
+    "efLaunchRight": "Right",
+    "efOrientation": "Orientation",
+    "efOrientationTip": "The pool's long axis: standing up (vertical, the clip) or lying down (horizontal).",
+    "efOrientationVertical": "Vertical",
+    "efOrientationHorizontal": "Horizontal",
+    "efReset": "At a convergence",
+    "efResetTip": "What happens when the swarm converges: refire a fresh volley from the start focus every Passes per loop (the seamless loop), let it keep collapsing, or refire a fresh volley at every pass.",
+    "efResetRefire": "Refire",
+    "efResetCollapse": "Collapse",
+    "efResetEvery": "Every pass",
+    "efResetRefireHint": "A fresh volley leaves the start focus every loop, under the convergence's flash – the loop is seamless.",
+    "efResetCollapseHint": "One volley for the whole run: every pass narrows it until it slides along the long axis as a tight comet.",
+    "efResetEveryHint": "A fresh volley at every convergence, from the focus the swarm landed on: the arc never collapses.",
+    "efSkin": "Pool look",
+    "efSkinTip": "The pool's look: a pool table (wooden rim, copper rail, green felt), a neon outline in the Wall Color, or a thin line.",
+    "efSkinTable": "Table",
+    "efSkinNeon": "Neon",
+    "efSkinMinimal": "Minimal",
+    "efTrail": "Trail length",
+    "efTrailTip": "Seconds of flight each ball's comet trail shows, tapering and fading to nothing (0 = no trails).",
+    "efPaths": "Paths",
+    "efPathsTip": "Draws every ball's chords since its volley faintly over the felt (within the Lines mode's stroke budget: a big volley shows its newest corners).",
+    "efBed": "Groove bed",
+    "efBedTip": "A soft pad, a sub and a kick on every beat at 8 · 60 / T BPM under the plucks, changing chord every pass – a convergence always lands on a bar line.",
+    "efCounter": "Pass counter",
+    "efCounterTip": "Shows the passes of the current loop under the pool in the Loop HUD (“3 passes”; the clip has none). Turning it on turns the Loop HUD on."
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -2210,6 +2267,10 @@
     "hoops": {
       "name": "Spinning Hoops",
       "description": "Rainbow hoops spin faster and faster about their vertical axis, a bead on each. Past each hoop's critical speed the bottom stops being the lowest place and its bead climbs – the biggest hoop's first, one hoop at a time – every lift a tuned bar note; then the spin comes back down and the loop starts over."
+    },
+    "ellipseFoci": {
+      "name": "Focus Shot",
+      "description": "An elliptical pool: a volley of rainbow balls fired from one focus bounces off the wall and passes through the other focus all at once, every pass – while the swarm collapses onto the long axis."
     }
   },
   "FAQ": {
@@ -2331,7 +2392,8 @@
     "modeFightLeague": "Fighters from video games, comics, TV shows and movies – Thor, Loki, Captain Falcon, Little Mac, Yuumi, Katarina and fifty-odd more, grouped into divisions so a matchup stays in its genre – duel as balls in a square or round arena. Every fighter carries its own weapon, drawn as a simple vector silhouette: swords sweep on every bounce, hammers fly at the foe and come back, fists punch, guns, bows and wands fire, breath and beams burn. A hit takes HP – the number inside the ball and the bar under it – knocks the foe back and charges the ability meter in the box at the bottom; when it is full, the ability's name flashes for 0.4 s and it fires by itself: lightning, decoys, beams, chokes, shockwaves, summons, bullet time. Play 1v1, 2v2 or a free-for-all; the last fighter or team standing wins, or the side with more HP at the time cap. Seeded and deterministic: Find Simulation finds a run A or B wins, a double KO or a fight of your clip length – and the Forced Winner rigs it.",
     "modeLandClaim": "A land-claim battle: columns of blocks stand on the inside of a square, hexagon or circle wall, and two or more competitors – a Teams roster of countries gives them their flags, names and colours – bounce their balls around inside at a constant speed. Under the knock rule a ball that hits a column takes its top block: the block flies off in the hitter's colour and counts for it, and every eighth block a competitor knocks adds another ball of its colour at the knock point, so a lead snowballs into a swarm. The claim rule paints the blocks where they stand instead, and the steal rule lets a hit take a rival's block back – the land sways until the clock runs out. The battle ends when the wall is taken or at its duration, and the most blocks wins: DOMINATION past 60% of the land, SUCH A CLOSE BATTLE when the top two are within 5%. Every seed replays exactly, Find Simulation searches for a chosen winner, a close battle or a run that ends at a chosen second, and the Forced Winner favours a colour by aiming its rebounds at the land still to take.",
     "modeStarChords": "Chord Stars: balls ride inside one thin circle and each draws a star polygon such as 5/2 or 12/5. A ball bouncing off a circle meets the wall at the same angle every time, so its contact point steps k of n points round the rim and every line it draws sits at the same distance from the centre – as the lines pile up, an inner circle nobody drew appears. Each ball moves at exactly the speed that closes its star after the same drawing time, so all the stars close on one frame with a chord; then the drawing holds, fades and starts again, a seamless loop. Type your own stars, draw a random coprime set, or let Find Simulation pick the best-looking set and fit the loop to your clip.",
-    "modeHoops": "No rings: 1–16 concentric hoops (eight by default, red outside, violet inside) spin together about their vertical diameter, drawn face-on and squashed by the spin so they read as 3D, each carrying one bead that slides without friction. The spin ramps up – steadily, eased or in steps – and every hoop has a critical speed, √(g/R): below it gravity keeps the bead at the bottom, past it the bead climbs to its balance point arccos(g/(Rω²)), higher the faster the spin. Bigger hoops lift first, so the beads climb in strict size order, each lift a tuned bar note pitched by its hoop; a chime ticks every turn, a chord lands when every bead is up, and the counter reads the spin and the beads up. With Return on the spin ramps back down until every bead rests again and the loop starts over seamlessly, ready for Export whole loops; Find Simulation searches for a run in strict size order or one with every bead up within a time."
+    "modeHoops": "No rings: 1–16 concentric hoops (eight by default, red outside, violet inside) spin together about their vertical diameter, drawn face-on and squashed by the spin so they read as 3D, each carrying one bead that slides without friction. The spin ramps up – steadily, eased or in steps – and every hoop has a critical speed, √(g/R): below it gravity keeps the bead at the bottom, past it the bead climbs to its balance point arccos(g/(Rω²)), higher the faster the spin. Bigger hoops lift first, so the beads climb in strict size order, each lift a tuned bar note pitched by its hoop; a chime ticks every turn, a chord lands when every bead is up, and the counter reads the spin and the beads up. With Return on the spin ramps back down until every bead rests again and the loop starts over seamlessly, ready for Export whole loops; Find Simulation searches for a run in strict size order or one with every bead up within a time.",
+    "modeEllipseFoci": "An elliptical pool table with its two foci marked. A volley of balls – 72 by default, coloured around the hue wheel by launch angle – leaves one focus at the same moment, every way. An ellipse sends every shot from one focus off its wall straight through the other, and every such path has the same length, so the whole volley converges on the other focus one transit later, then back on the first, with a white bloom each time, while every pass narrows the swarm onto the long axis. Refire starts a fresh volley under the flash every few passes, so the clip loops seamlessly; the wall hits run down a pentatonic ladder, every convergence lands a kick, a crack and a chord on a bar line, and Find Simulation puts the convergences on the page's beat or finds the start angle of the longest collapse."
   },
   "Footer": {
     "navLabel": "Footer",
@@ -2707,7 +2769,17 @@
     "missAllUpBy": "Closest: all up at {time}s ({seeds} seeds)",
     "overlayLiftOrder": "Tested {tested} seeds and none lifted in strict size order. Try a smaller axis tilt, less damping or hoops further apart.",
     "overlayAllUpBy": "Tested {tested} seeds: none had every bead up within {target}s. Try a faster top spin, a shorter ramp or a later limit.",
-    "progressAllUpBy": "Closest all up: {time}s"
+    "progressAllUpBy": "Closest all up: {time}s",
+    "outcomeConvergeOnBeat": "Converges on the beat",
+    "outcomeLongestCollapse": "Longest collapse",
+    "hintConvergeOnBeat": "Every volley converges on time (the foci's reflection property): the transit becomes the whole number of bars at the BPM set under Sound nearest it, so every convergence lands on a bar line, and the clip is whole loops of the run.",
+    "hintLongestCollapse": "Searches the start angle (within one step of the volley) whose swarm takes the most passes to narrow under two ball radii; the run found is left to collapse, its clip those passes and the comet's.",
+    "findConvergeOnBeat": "Put the Convergences on the Beat",
+    "findLongestCollapse": "Find the Longest Collapse",
+    "foundConvergeOnBeat": "Found! A convergence every {transit}s ({bars, plural, one {# bar} other {# bars}}), {loops, plural, one {# whole loop} other {# whole loops}} in the clip",
+    "foundLongestCollapse": "Found! Start angle {aim}°: a comet after {passes, plural, one {# pass} other {# passes}}",
+    "missLongestCollapse": "The swarm never narrowed under two ball radii ({seeds} start angles)",
+    "overlayLongestCollapse": "Tested {tested} start angles: the swarm never narrowed under two ball radii within the search. A circle never collapses – try a higher eccentricity."
   },
   "FastExport": {
     "button": "Fast export",
@@ -4469,6 +4541,13 @@
     "starChordsFact": "A star polygon is what a ball draws when every bounce moves it the same number of points round the rim. Each straight line stays the same distance from the centre, so a circle appears in the middle that no ball ever touches. Every ball here moves at the one speed that finishes its star in the same time as the others.",
     "hoops": "{count} hoops spinning faster and faster: the beads climb in order, the biggest hoop first",
     "hoopsOne": "{count} hoop spinning faster and faster, until its bead starts to climb",
-    "hoopsFact": "Why in that order? A bead on a turning hoop rests where gravity and the outward pull of the spin balance. Below a critical spin, √(g/R), that point is the bottom; above it, the balance point moves up the hoop and keeps rising as the spin grows. A hoop of 75 cm radius gets there at about 0.58 turns a second, one of 25 cm needs almost a full turn a second, so the beads leave their bottoms from the outside in."
+    "hoopsFact": "Why in that order? A bead on a turning hoop rests where gravity and the outward pull of the spin balance. Below a critical spin, √(g/R), that point is the bottom; above it, the balance point moves up the hoop and keeps rising as the spin grows. A hoop of 75 cm radius gets there at about 0.58 turns a second, one of 25 cm needs almost a full turn a second, so the beads leave their bottoms from the outside in.",
+    "ellipseFoci": "{count} balls fired from one focus, all landing on the other together",
+    "ellipseFociFact": "An ellipse has two foci. A shot from one bounces off the wall straight through the other, whichever way it goes, and every one of those paths is the same length – so a whole volley fired at once arrives at the other focus at the same instant. It's why a whisper at one focus of an elliptical room is heard clearly at the other."
+  },
+  "EllipseFoci": {
+    "canvasTitle": "fire from one dot, hit the other",
+    "canvasSubtitle": "every bounce off the wall heads for the other dot / and every path there is the same length",
+    "canvasPasses": "{count, plural, one {{count} pass} other {{count} passes}}"
   }
 }

@@ -40,6 +40,8 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "star-set": "outcomeStarSet", // --- chord-stars ---
   "lift-order": "outcomeLiftOrder", // --- bead-hoops ---
   "all-up-by": "outcomeAllUpBy", // --- bead-hoops ---
+  "converge-on-beat": "outcomeConvergeOnBeat", // --- ellipse-foci ---
+  "longest-collapse": "outcomeLongestCollapse", // --- ellipse-foci ---
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -57,6 +59,8 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "star-set": "hintStarSet", // --- chord-stars ---
   "lift-order": "hintLiftOrder", // --- bead-hoops ---
   "all-up-by": "hintAllUpBy", // --- bead-hoops ---
+  "converge-on-beat": "hintConvergeOnBeat", // --- ellipse-foci ---
+  "longest-collapse": "hintLongestCollapse", // --- ellipse-foci ---
 };
 
 /** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
@@ -310,6 +314,10 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findLiftOrder");
     case "all-up-by": // --- bead-hoops ---
       return t("Rigged.findAllUpBy", { time: c.escapeAt.toFixed(1) });
+    case "converge-on-beat": // --- ellipse-foci ---
+      return t("Rigged.findConvergeOnBeat");
+    case "longest-collapse": // --- ellipse-foci ---
+      return t("Rigged.findLongestCollapse");
     default:
       return null;
   }
@@ -343,6 +351,10 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundLiftOrder");
     case "all-up-by": // --- bead-hoops ---
       return t("Rigged.foundAllUpBy", { time: (result.allUpAt ?? 0).toFixed(2) });
+    case "converge-on-beat": // --- ellipse-foci --- (the transit of whole bars, the loops in the clip)
+      return t("Rigged.foundConvergeOnBeat", { transit: (result.ellipseFoci?.transitSec ?? 0).toFixed(2), bars: result.ellipseFoci?.bars ?? 0, loops: result.ellipseFoci?.loops ?? 0 });
+    case "longest-collapse": // --- ellipse-foci --- (the start angle and the passes until the swarm is a comet)
+      return t("Rigged.foundLongestCollapse", { aim: (result.ellipseFoci?.aimDeg ?? 0).toFixed(1), passes: result.ellipseFoci?.collapse ?? 0 });
     default:
       return null;
   }
@@ -377,6 +389,9 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missLiftOrder", { seeds: result.seedsTested });
     case "all-up-by": // --- bead-hoops ---
       return result.allUpAt === undefined ? t("Rigged.missNoAllUp", { seeds: result.seedsTested }) : t("Rigged.missAllUpBy", { time: result.allUpAt.toFixed(1), seeds: result.seedsTested });
+    case "converge-on-beat": // --- ellipse-foci --- (never: every volley converges on time)
+    case "longest-collapse": // --- ellipse-foci --- (a circle, or a swarm still wide at the horizon)
+      return t("Rigged.missLongestCollapse", { seeds: result.seedsTested });
     default:
       return null;
   }
@@ -415,6 +430,9 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayLiftOrder", { tested: result.seedsTested });
     case "all-up-by": // --- bead-hoops ---
       return t("Rigged.overlayAllUpBy", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) });
+    case "converge-on-beat": // --- ellipse-foci ---
+    case "longest-collapse": // --- ellipse-foci ---
+      return t("Rigged.overlayLongestCollapse", { tested: result.seedsTested });
     default:
       return null;
   }

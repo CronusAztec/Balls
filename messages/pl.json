@@ -2046,7 +2046,64 @@
     "hpTickTip": "Dzwonek glockenspielu co obrót, coraz wyższy wraz z obrotami.",
     "hpBed": "Podkład",
     "hpBedTip": "Miękki pad i sub na G, które wchodzą z pierwszym uniesieniem i milkną przy resecie.",
-    "hpTurnsUnit": "obr./s"
+    "hpTurnsUnit": "obr./s",
+    "modeEllipseFoci": "Strzał w ognisko",
+    "efDesc": "Eliptyczny stół i salwa piłek wystrzelona naraz z jednego ogniska: każdy strzał odbija się od ściany prosto przez drugie ognisko, a każda taka droga ma tę samą długość, więc cała salwa dociera tam jednocześnie – w każdym przejściu, w rytm.",
+    "efPreset": "Presety strzału w ognisko",
+    "efPresetTip": "Punkty wyjścia: szepcząca galeria z klipu, jeden strzał bilardowy z torem, salwa tysiąca piłek, kontrolny okrąg i wachlarz 90°. Preset ustawia ustawienia trybu i jego wygląd.",
+    "efPresetGallery": "Szepcząca galeria",
+    "efPresetBilliard": "Bilardowy strzał w ognisko",
+    "efPresetThousand": "Salwa tysiąca piłek",
+    "efPresetCircle": "Kontrolny okrąg",
+    "efPresetFan": "Wachlarz 90°",
+    "efCount": "Piłki",
+    "efCountTip": "Piłki wystrzelone naraz z ogniska startowego, rozłożone równo na kąt rozrzutu. Można wpisać dowolną liczbę całkowitą; przebieg buduje najwyżej limit piłek silnika.",
+    "efEccentricity": "Mimośród",
+    "efEccentricityTip": "Jak bardzo wydłużony jest stół: 0 to okrąg (oba ogniska w środku, każda piłka tam wraca), 0,99 to długi, wąski stół. Klip używa 0,65.",
+    "efFlatNote": "Mimośród 1 lub większy nie ma wnętrza: przebieg używa {max}.",
+    "efSize": "Rozmiar stołu",
+    "efSizeTip": "Długa półoś stołu jako część bezpiecznego promienia (100% wypełnia wyśrodkowany kwadrat nagrania jak arena trybów z pierścieniami).",
+    "efTransit": "Czas przejścia",
+    "efTransitTip": "Sekundy, w których piłka leci z jednego ogniska do ściany i dalej do drugiego. Każda droga ma długość 2a, więc prędkość to 2a / T, a każda salwa zbiega się dokładnie po T. Ustaw całe takty tempa (T = takty × 4 × 60 / BPM), a zbieżności wypadną w rytm.",
+    "efPasses": "Przejścia w pętli",
+    "efPassesTip": "Przejścia w jednej pętli: przy Ponownym strzale nowa salwa wylatuje z ogniska startowego co tyle przejść, a klip zapętla się bez szwu (długość pętli = przejścia × T).",
+    "efLoopNote": "Zbieżność co {transit} s (podkład w {bpm} BPM: dwa takty na przejście) – pętla trwa {loop} s.",
+    "efLoopNoteCollapse": "Zbieżność co {transit} s (podkład w {bpm} BPM) – bez pętli: rój dalej zapada się na długą oś.",
+    "efSpread": "Kąt rozrzutu",
+    "efSpreadTip": "Rozrzut salwy: 360° strzela we wszystkie strony, mniej – wachlarzem skierowanym w drugie ognisko.",
+    "efAim": "Kąt startowy",
+    "efAimTip": "Obraca całą salwę (0° wystrzeliwuje jedną piłkę prosto w drugie ognisko i zachowuje lustrzaną symetrię salwy). Najdłuższe zapadanie w Znajdź symulację przeszukuje właśnie ten kąt.",
+    "efLaunch": "Ognisko startowe",
+    "efLaunchTip": "Ognisko, z którego wylatuje salwa: górne albo dolne (lewe albo prawe, gdy stół leży).",
+    "efLaunchTop": "Górne",
+    "efLaunchBottom": "Dolne",
+    "efLaunchLeft": "Lewe",
+    "efLaunchRight": "Prawe",
+    "efOrientation": "Orientacja",
+    "efOrientationTip": "Długa oś stołu: pionowo (jak w klipie) albo poziomo.",
+    "efOrientationVertical": "Pionowo",
+    "efOrientationHorizontal": "Poziomo",
+    "efReset": "Przy zbieżności",
+    "efResetTip": "Co się dzieje, gdy rój się zbiega: nowa salwa z ogniska startowego co tyle przejść, ile ma pętla (pętla bez szwu), dalsze zapadanie się albo nowa salwa przy każdym przejściu.",
+    "efResetRefire": "Ponowny strzał",
+    "efResetCollapse": "Zapadanie",
+    "efResetEvery": "Co przejście",
+    "efResetRefireHint": "Nowa salwa wylatuje z ogniska startowego w każdej pętli, pod błyskiem zbieżności – pętla nie ma szwu.",
+    "efResetCollapseHint": "Jedna salwa na cały przebieg: każde przejście ją zwęża, aż sunie wzdłuż długiej osi jak ciasna kometa.",
+    "efResetEveryHint": "Nowa salwa przy każdej zbieżności, z ogniska, w którym wylądował rój: łuk nigdy się nie zapada.",
+    "efSkin": "Wygląd stołu",
+    "efSkinTip": "Wygląd stołu: stół bilardowy (drewniana banda, miedziana listwa, zielone sukno), neonowy kontur w Kolorze ścian albo cienka linia.",
+    "efSkinTable": "Stół",
+    "efSkinNeon": "Neon",
+    "efSkinMinimal": "Minimalny",
+    "efTrail": "Długość smugi",
+    "efTrailTip": "Ile sekund lotu pokazuje kometowa smuga każdej piłki, która zwęża się i zanika (0 = bez smug).",
+    "efPaths": "Tory",
+    "efPathsTip": "Rysuje blado na suknie cięciwy każdej piłki od jej salwy (w budżecie linii trybu Linie: duża salwa pokazuje najnowsze odbicia).",
+    "efBed": "Podkład rytmiczny",
+    "efBedTip": "Miękki pad, sub i stopa na każde uderzenie w 8 · 60 / T BPM pod szarpnięciami strun, ze zmianą akordu w każdym przejściu – zbieżność zawsze wypada na kresce taktowej.",
+    "efCounter": "Licznik przejść",
+    "efCounterTip": "Pokazuje przejścia bieżącej pętli pod stołem w HUD-zie pętli („przejścia: 3”; klip go nie ma). Włączenie licznika włącza HUD pętli."
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -2162,6 +2219,10 @@
     "hoops": {
       "name": "Wirujące obręcze",
       "description": "Tęczowe obręcze wirują coraz szybciej wokół pionowej osi, na każdej koralik. Po przekroczeniu prędkości krytycznej obręczy dno przestaje być najniższym miejscem i jej koralik się wspina – najpierw na największej obręczy, jedna obręcz po drugiej – a każde uniesienie to nuta strojonej sztabki; potem obroty zwalniają i pętla zaczyna się od nowa."
+    },
+    "ellipseFoci": {
+      "name": "Strzał w ognisko",
+      "description": "Eliptyczny stół: salwa tęczowych piłek wystrzelona z jednego ogniska odbija się od ściany i przechodzi przez drugie ognisko naraz, w każdym przejściu – a rój zapada się przy tym na długą oś."
     }
   },
   "FAQ": {
@@ -2250,7 +2311,8 @@
     "modeFightLeague": "Zawodnicy z gier wideo, komiksów, seriali i filmów – Thor, Loki, Captain Falcon, Little Mac, Yuumi, Katarina i ponad pięćdziesięciu innych, pogrupowanych w dywizje, by pojedynek został w swoim gatunku – walczą jako kulki na kwadratowej albo okrągłej arenie. Każdy ma własną broń, narysowaną jako prosta wektorowa sylwetka: miecze tną przy każdym odbiciu, młoty lecą we wroga i wracają, pięści uderzają, pistolety, łuki i różdżki strzelają, ogień i promienie palą. Trafienie zabiera PŻ – liczbę w środku kulki i pasek pod nią – odrzuca wroga i ładuje miernik zdolności w polu na dole; gdy jest pełny, nazwa zdolności miga przez 0,4 s, a zdolność odpala sama: pioruny, kopie, promienie, duszenie, fale uderzeniowe, przywołańcy, bullet time. Graj 1 na 1, 2 na 2 albo każdy na każdego; wygrywa ostatni zawodnik lub drużyna na placu boju albo strona z większą liczbą PŻ przy limicie czasu. Deterministyczne i oparte na seedzie: Znajdź symulację znajdzie przebieg, w którym wygrywa A albo B, podwójny nokaut albo walkę o długości Twojego klipu – a wymuszony zwycięzca ją ustawi.",
     "modeLandClaim": "Bitwa o teren: kolumny bloków stoją po wewnętrznej stronie kwadratowej, sześciokątnej lub okrągłej ściany, a dwóch lub więcej zawodników – skład drużyn z krajami daje im flagi, nazwy i barwy – odbija swoje kulki w środku ze stałą prędkością. W zasadzie strącania kulka, która trafi w kolumnę, zabiera jej górny blok: blok odlatuje w kolorze uderzającego i liczy się dla niego, a co ósmy blok strącony przez zawodnika dodaje kolejną kulkę w jego kolorze w miejscu uderzenia, więc prowadzenie rośnie jak kula śnieżna w cały rój. Zasada zajmowania zamiast tego maluje bloki na miejscu, a zasada kradzieży pozwala odebrać rywalowi blok – teren przechodzi z rąk do rąk, aż skończy się czas. Bitwa kończy się, gdy ściana zostanie zdobyta albo po upływie czasu trwania, a wygrywa ten, kto ma najwięcej bloków: DOMINACJA powyżej 60% terenu, CO ZA WYRÓWNANA BITWA, gdy dwóch najlepszych dzieli najwyżej 5%. Każde ziarno odtwarza się dokładnie, Znajdź symulację szuka wybranego zwycięzcy, wyrównanej bitwy albo przebiegu kończącego się w wybranej sekundzie, a Wymuszony zwycięzca faworyzuje kolor, kierując jego odbicia w stronę terenu do zdobycia.",
     "modeStarChords": "Gwiazdy cięciw: kulki krążą w jednym cienkim okręgu i każda rysuje wielokąt gwiaździsty, np. 5/2 albo 12/5. Kulka odbijająca się od okręgu zawsze uderza w ścianę pod tym samym kątem, więc jej punkt styku przeskakuje o k z n punktów wokół obwodu, a każda narysowana linia leży w tej samej odległości od środka – gdy linii przybywa, pojawia się wewnętrzny okrąg, którego nikt nie narysował. Każda kulka porusza się dokładnie z prędkością, która domyka jej gwiazdę po tym samym czasie rysowania, więc wszystkie gwiazdy domykają się w jednej klatce z akordem; potem rysunek trwa, gaśnie i zaczyna się od nowa – płynna pętla. Wpisz własne gwiazdy, wylosuj zestaw względnie pierwszych albo pozwól, by Znajdź symulację wybrało najładniejszy zestaw i dopasowało pętlę do klipu.",
-    "modeHoops": "Bez pierścieni: 1–16 współśrodkowych obręczy (domyślnie osiem, czerwona na zewnątrz, fioletowa w środku) wiruje razem wokół pionowej średnicy, rysowanych na wprost i spłaszczanych przez obrót, więc wyglądają trójwymiarowo, a na każdej jeden koralik ślizga się bez tarcia. Obroty rosną – równo, łagodnie albo schodkami – a każda obręcz ma prędkość krytyczną √(g/R): poniżej niej grawitacja trzyma koralik na dnie, powyżej koralik wspina się do punktu równowagi arccos(g/(Rω²)), tym wyżej, im szybsze obroty. Większe obręcze unoszą koraliki pierwsze, więc koraliki wspinają się ściśle według rozmiaru, a każde uniesienie to nuta strojonej sztabki o wysokości zależnej od obręczy; dzwonek dźwięczy co obrót, akord pada, gdy wszystkie są w górze, a licznik pokazuje obroty i uniesione koraliki. Z włączonym powrotem obroty zwalniają, aż każdy koralik znów spocznie, a pętla zaczyna się płynnie od nowa – gotowa na eksport całych pętli; Znajdź symulację szuka przebiegu ściśle według rozmiaru albo takiego, w którym wszystkie koraliki są w górze przed wybranym czasem."
+    "modeHoops": "Bez pierścieni: 1–16 współśrodkowych obręczy (domyślnie osiem, czerwona na zewnątrz, fioletowa w środku) wiruje razem wokół pionowej średnicy, rysowanych na wprost i spłaszczanych przez obrót, więc wyglądają trójwymiarowo, a na każdej jeden koralik ślizga się bez tarcia. Obroty rosną – równo, łagodnie albo schodkami – a każda obręcz ma prędkość krytyczną √(g/R): poniżej niej grawitacja trzyma koralik na dnie, powyżej koralik wspina się do punktu równowagi arccos(g/(Rω²)), tym wyżej, im szybsze obroty. Większe obręcze unoszą koraliki pierwsze, więc koraliki wspinają się ściśle według rozmiaru, a każde uniesienie to nuta strojonej sztabki o wysokości zależnej od obręczy; dzwonek dźwięczy co obrót, akord pada, gdy wszystkie są w górze, a licznik pokazuje obroty i uniesione koraliki. Z włączonym powrotem obroty zwalniają, aż każdy koralik znów spocznie, a pętla zaczyna się płynnie od nowa – gotowa na eksport całych pętli; Znajdź symulację szuka przebiegu ściśle według rozmiaru albo takiego, w którym wszystkie koraliki są w górze przed wybranym czasem.",
+    "modeEllipseFoci": "Eliptyczny stół bilardowy z dwoma zaznaczonymi ogniskami. Salwa piłek – domyślnie 72, pokolorowanych kołem barw według kąta wystrzału – wylatuje z jednego ogniska w tej samej chwili, we wszystkie strony. Elipsa kieruje każdy strzał z jednego ogniska po odbiciu od ściany prosto przez drugie, a każda taka droga ma tę samą długość, więc cała salwa zbiega się w drugim ognisku jedno przejście później, potem z powrotem w pierwszym, za każdym razem z białym rozbłyskiem, a każde przejście zwęża rój ku długiej osi. Ponowny strzał wypuszcza nową salwę pod błyskiem co kilka przejść, więc klip zapętla się bez szwu; odbicia od ściany schodzą po pentatonicznej drabinie, każda zbieżność ląduje na kresce taktowej ze stopą, trzaskiem i akordem, a Znajdź symulację ustawia zbieżności w rytm strony albo znajduje kąt startowy najdłuższego zapadania."
   },
   "Footer": {
     "navLabel": "Stopka",
@@ -2543,7 +2605,17 @@
     "missAllUpBy": "Najbliżej: wszystkie w górze po {time}s ({seeds} seedów)",
     "overlayLiftOrder": "Sprawdzono {tested} seedów i w żadnym koraliki nie uniosły się ściśle według rozmiaru. Spróbuj mniejszego przechyłu osi, mniejszego tłumienia albo obręczy bardziej od siebie oddalonych.",
     "overlayAllUpBy": "Sprawdzono {tested} seedów: w żadnym wszystkie koraliki nie były w górze w {target}s. Spróbuj szybszych obrotów szczytowych, krótszej rampy albo późniejszego limitu.",
-    "progressAllUpBy": "Najbliżej wszystkich w górze: {time}s"
+    "progressAllUpBy": "Najbliżej wszystkich w górze: {time}s",
+    "outcomeConvergeOnBeat": "Zbieżność w rytm",
+    "outcomeLongestCollapse": "Najdłuższe zapadanie",
+    "hintConvergeOnBeat": "Każda salwa zbiega się na czas (własność odbicia ognisk): czas przejścia staje się najbliższą całkowitą liczbą taktów przy BPM ustawionym w Dźwięku, więc każda zbieżność wypada na kresce taktowej, a klip to całe pętle przebiegu.",
+    "hintLongestCollapse": "Szuka kąta startowego (w obrębie jednego kroku salwy), którego rój potrzebuje najwięcej przejść, by zwęzić się poniżej dwóch promieni piłki; znaleziony przebieg zapada się bez ponownego strzału, a klip obejmuje te przejścia i przejście komety.",
+    "findConvergeOnBeat": "Ustaw zbieżności w rytm",
+    "findLongestCollapse": "Znajdź najdłuższe zapadanie",
+    "foundConvergeOnBeat": "Znaleziono! Zbieżność co {transit}s ({bars, plural, one {# takt} few {# takty} many {# taktów} other {# taktu}}), w klipie {loops, plural, one {# pełna pętla} few {# pełne pętle} many {# pełnych pętli} other {# pełnej pętli}}",
+    "foundLongestCollapse": "Znaleziono! Kąt startowy {aim}°: rój staje się kometą po {passes}. przejściu",
+    "missLongestCollapse": "Rój nigdy nie zwęził się poniżej dwóch promieni piłki (sprawdzone kąty startowe: {seeds})",
+    "overlayLongestCollapse": "Sprawdzono kąty startowe ({tested}): rój nie zwęził się poniżej dwóch promieni piłki w czasie wyszukiwania. Okrąg nigdy się nie zapada – spróbuj większego mimośrodu."
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -4305,6 +4377,13 @@
     "starChordsFact": "Wielokąt gwiaździsty to to, co rysuje kulka, gdy każde odbicie przesuwa ją o tyle samo punktów wokół obwodu. Każda prosta leży w tej samej odległości od środka, więc pośrodku pojawia się okrąg, którego żadna kulka nigdy nie dotyka. Każda kulka porusza się tu z jedyną prędkością, która kończy jej gwiazdę w tym samym czasie co pozostałe.",
     "hoops": "na {count} obręczach wirujących coraz szybciej koraliki wspinają się po kolei, od największej obręczy",
     "hoopsOne": "{count} obręcz wiruje coraz szybciej, aż jej koralik zaczyna się wspinać",
-    "hoopsFact": "Skąd ta kolejność? Koralik na obracającej się obręczy spoczywa tam, gdzie grawitacja równoważy odśrodkowe pchnięcie obrotu. Poniżej obrotów krytycznych, √(g/R), tym miejscem jest dół obręczy; powyżej punkt równowagi przesuwa się w górę obręczy i wznosi się dalej, w miarę jak obroty rosną. Obręcz o promieniu 75 cm osiąga je przy około 0,58 obrotu na sekundę, a obręcz o promieniu 25 cm potrzebuje prawie pełnego obrotu na sekundę, więc koraliki odrywają się od dołu od zewnątrz do środka."
+    "hoopsFact": "Skąd ta kolejność? Koralik na obracającej się obręczy spoczywa tam, gdzie grawitacja równoważy odśrodkowe pchnięcie obrotu. Poniżej obrotów krytycznych, √(g/R), tym miejscem jest dół obręczy; powyżej punkt równowagi przesuwa się w górę obręczy i wznosi się dalej, w miarę jak obroty rosną. Obręcz o promieniu 75 cm osiąga je przy około 0,58 obrotu na sekundę, a obręcz o promieniu 25 cm potrzebuje prawie pełnego obrotu na sekundę, więc koraliki odrywają się od dołu od zewnątrz do środka.",
+    "ellipseFoci": "{count} × strzał z jednego ogniska, wszystkie naraz przez drugie",
+    "ellipseFociFact": "Elipsa ma dwa ogniska. Strzał z jednego odbija się od ściany prosto przez drugie, w którąkolwiek stronę poleci, a każda taka droga ma tę samą długość – więc cała salwa wystrzelona naraz dociera do drugiego ogniska w tej samej chwili. Dlatego szept w jednym ognisku eliptycznej sali słychać wyraźnie w drugim."
+  },
+  "EllipseFoci": {
+    "canvasTitle": "strzel z jednej kropki, traf w drugą",
+    "canvasSubtitle": "każde odbicie od ściany prowadzi do drugiej kropki / a każda droga tam ma tę samą długość",
+    "canvasPasses": "{count, plural, one {{count} przejście} few {{count} przejścia} other {{count} przejść}}"
   }
 }

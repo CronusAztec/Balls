@@ -6,6 +6,7 @@ import type { PaintPoint } from "@/lib/physics/modes";
 import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
 import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions } from "./boxRenderer";
 import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulumTrails, type PendulumRenderOptions } from "./pendulumRenderer";
+import { ELLIPSE_FOCI_DATA_KEYS, EllipseFociLayer, ellipseFociExtentPx, writeEllipseFociDataset, type EllipseFociRenderOptions } from "./ellipseFociRenderer"; // --- ellipse-foci ---
 // --- jdm-polyrhythm ---
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
 // --- jdm-collisions ---
@@ -831,6 +832,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // Pendulum Wave: the renderer's options and the scratch placement the trails are sampled into (one object each for the life of the loop).
     const pendulumRender: PendulumRenderOptions = { wallColor: () => "#fff", wallThickness: 2, showGlow: false };
     const pendulumTrailPoint = { x: 0, y: 0, angle: 0 };
+    // --- ellipse-foci --- Focus Shot's layer (the hue buckets, the comet trails' buffers) and its per-frame options
+    const efLayer = new EllipseFociLayer();
+    const efRender: EllipseFociRenderOptions = { dpr: scale, wallColor: "#ffffff", wallThickness: 2, showGlow: false };
     // --- gerald-faces --- ball characters (faces, name label, squash); the Box / Pendulum / Polyrhythm / Collide bodies get faces through drawOverlays()
     const faces = new FaceLayer();
     facesRef.current = faces;
@@ -1518,6 +1522,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         starLayer.drawStage(ctx, starView, starRender);
       }
 
+      // --- ellipse-foci --- Focus Shot: the pool (table, neon or minimal), the focus markers, the paths and the comet trails
+      const efView = engine.isEllipseFociMode() ? engine.getEllipseFociView() : null;
+      if (efView) {
+        efRender.dpr = scale;
+        efRender.wallColor = wallColor(0);
+        efRender.wallThickness = p.wallThickness;
+        efRender.showGlow = p.showGlow;
+        efLayer.drawStage(ctx, efView, efRender);
+      }
+
       // --- jdm-polyrhythm --- Metronomes & Polyrhythms: the stage (rings / polygons, chords, semicircles, metronome bodies, spiral).
       const isPoly = engine.isPolyrhythmMode();
       if (isPoly) {
@@ -2160,6 +2174,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (isBox) drawBoxShapes(ctx, balls, engine.getBoxView(), boxRender);
       else if (isPendulum) drawPendulumBobs(ctx, balls, engine.getPendulumView(), pendulumRender);
       else if (starView) starLayer.drawBodies(ctx, starView, starRender); // --- chord-stars --- the balls with their glow
+      else if (efView) efLayer.drawBodies(ctx, efView, efRender); // --- ellipse-foci --- the volley by hue, the convergence bloom
       else if (isPoly) drawPolyrhythmVoices(ctx, engine.getPolyrhythmView(), polyRender); // --- jdm-polyrhythm ---
       // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
       else if (isCollide) drawCollideBodies(ctx, balls, engine.getCollideView(), collideRender);
@@ -2971,7 +2986,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       loopHudLive.top = -Infinity;
       loopHudLive.bottom = Infinity;
       if (hudSpec && !recordingRef.current) {
-        const ring = hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
+        const ring = efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
         const liveTop = (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
         const hudFrame = loopHudFrame(hudSpec, loopHudCount(engine));
         const hudLayout = loopHudLiveLayout(size.width, size.height, cy, Math.min(ring, Math.min(size.width, size.height) / 2), liveTop);
@@ -3099,6 +3114,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       } else if (canvas.dataset.pendulumNotes !== undefined) {
         for (const key of ["pendulumNotes", "pendulumChords", "pendulumCycles"]) delete canvas.dataset[key];
       }
+      // --- ellipse-foci --- Focus Shot: convergences, volleys, wall hits, sound events, spreads, the arrival error (data-ef-*)
+      if (efView) writeEllipseFociDataset(efView, efLayer, setCanvasData);
+      else if (canvas.dataset.efBalls !== undefined) for (const key of ELLIPSE_FOCI_DATA_KEYS) delete canvas.dataset[key];
       // --- jdm-polyrhythm --- voice, tick, alignment and cycle counts (data-poly-*) for tools and the smoke test.
       if (isPoly) {
         const view = engine.getPolyrhythmView();

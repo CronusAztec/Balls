@@ -1,5 +1,6 @@
 import type { ModeId } from "@/lib/physics/types";
 import { badgeMetrics, badgeZone, exportSquare } from "@/lib/watermark/layout";
+import { hudPluralText } from "./hudPlural"; // --- ellipse-foci --- (a counter's plural forms)
 
 /*
  * --- loop-foundation --- The loop HUD, in the style of the loop clips: a bold lowercase title at about 16 % of the frame's
@@ -46,6 +47,7 @@ export const LOOP_HUD_MODE_TEXT: Readonly<Partial<Record<ModeId, { title: string
   grow: { title: "growTitle", subtitle: "growSubtitle", counter: "growCounter" },
   starChords: { title: "starChordsTitle", subtitle: "starChordsSubtitle", counter: "starChordsCounter" }, // --- chord-stars ---
   hoops: { title: "hoopsTitle", subtitle: "hoopsSubtitle", counter: "hoopsCounter", counterOne: "hoopsCounterOne" }, // --- bead-hoops ---
+  ellipseFoci: { title: "EllipseFoci.canvasTitle", subtitle: "EllipseFoci.canvasSubtitle", counter: "EllipseFoci.canvasPasses" }, // --- ellipse-foci --- (its own namespace)
 };
 
 // --- chord-stars --- a counter toward a total ("stars closed 3/5") and a subtitle of two lines
@@ -67,6 +69,13 @@ export const HUD_SUBTITLE_LEADING = 1.2;
 /** How far through Chord Stars' fade (0–1) its "stars closed" counter goes back to 0 (`loopHudCount()`). */
 export const STAR_CHORDS_HUD_RESET = 0.5;
 // --- end chord-stars ---
+
+// --- ellipse-foci ---
+/** The full message key of a LOOP_HUD_MODE_TEXT entry: under `LoopHud`, or – a key that names its namespace ("EllipseFoci.canvasTitle") – as it is. */
+export function loopHudMessageKey(key: string): string {
+  return key.includes(".") ? key : `LoopHud.${key}`;
+}
+// --- end ellipse-foci ---
 
 /** The HUD's lines in a `width` × `height` frame (px): centres of the lines, font sizes, the rule and the widest a line may be. */
 export interface LoopHudLayout {
@@ -207,7 +216,7 @@ export function hudText(text: string | undefined | null, locale?: string): strin
 export function hudCounterText(template: string, count: number | LoopHudCount | null, locale?: string, values?: Readonly<Record<string, number>>): string {
   const value = typeof count === "number" || count === null ? count : count.count;
   if (!template || value === null || !Number.isFinite(value)) return "";
-  let text = template.replace("{count}", String(Math.round(value)));
+  let text = hudPluralText(template, Math.round(value), locale).replace("{count}", String(Math.round(value))); // (--- ellipse-foci --- the count's plural form first: "1 pass", "3 passes")
   if (count !== null && typeof count === "object" && Number.isFinite(count.total)) text = text.replace("{total}", String(Math.round(count.total))); // --- chord-stars ---
   if (values) for (const key in values) text = text.replace(`{${key}}`, hudNumber(values[key], locale)); // --- bead-hoops ---
   return hudText(text, locale);
@@ -244,12 +253,14 @@ const HOOPS_COUNTER = { count: 0, values: { rate: 0, total: 0 } };
 // --- end bead-hoops ---
 
 /** The counter of the mode's run (Grow: the bounces of the current cycle; --- chord-stars --- Chord Stars: the stars closed of all;
- * --- bead-hoops --- Spinning Hoops: the beads up, with the spin and the hoop count), or null when the mode has none. */
+ * --- bead-hoops --- Spinning Hoops: the beads up, with the spin and the hoop count; --- ellipse-foci --- Focus Shot: the passes of
+ * the current loop, with its counter on), or null when the mode has none. */
 export function loopHudCount(engine: {
   getCurrentModeName(): string;
   getGrowView(): { bounces: number };
   getStarChordsView?(): { closed: number; count: number; phase: string; phaseProgress: number }; // --- chord-stars ---
   getHoopsView?(): { upCount: number; count: number; omega: number }; // --- bead-hoops ---
+  getEllipseFociHudCount?(): number | null; // --- ellipse-foci ---
 }): number | LoopHudCount | LoopHudCounter | null {
   // --- chord-stars --- (the fade is the loop's reset: halfway through it the counter is back at 0, so the clip's last frames
   // read like its first – the payoff's "5/5" still shows through the hold and the first half of the fade, a hold of 0 too)
@@ -265,6 +276,7 @@ export function loopHudCount(engine: {
     HOOPS_COUNTER.values.total = view.count;
     return HOOPS_COUNTER;
   }
+  if (engine.getCurrentModeName() === "ellipseFoci") return engine.getEllipseFociHudCount?.() ?? null; // --- ellipse-foci --- (the pass counter, when it is on)
   return engine.getCurrentModeName() === "grow" ? engine.getGrowView().bounces : null;
 }
 

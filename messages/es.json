@@ -2046,7 +2046,64 @@
     "hpTickTip": "Una campanilla de glockenspiel en cada vuelta, más aguda a medida que sube el giro.",
     "hpBed": "Base rítmica",
     "hpBedTip": "Un pad suave y un sub en sol que entran con la primera subida y se detienen en el reinicio.",
-    "hpTurnsUnit": "vueltas/s"
+    "hpTurnsUnit": "vueltas/s",
+    "modeEllipseFoci": "Tiro al foco",
+    "efDesc": "Una mesa elíptica y una ráfaga de bolas disparada a la vez desde un foco: cada tiro rebota en la pared y pasa justo por el otro foco, y todos esos caminos miden lo mismo, así que la ráfaga entera llega allí a la vez – en cada pasada, a ritmo.",
+    "efPreset": "Ajustes de Tiro al foco",
+    "efPresetTip": "Puntos de partida: la galería de los susurros del clip, un tiro de billar con su trayectoria, una ráfaga de mil bolas, el círculo de control y un abanico de 90°. Un ajuste fija los ajustes del modo y su aspecto.",
+    "efPresetGallery": "Galería de los susurros",
+    "efPresetBilliard": "Tiro de billar al foco",
+    "efPresetThousand": "Ráfaga de mil bolas",
+    "efPresetCircle": "Círculo de control",
+    "efPresetFan": "Abanico de 90°",
+    "efCount": "Bolas",
+    "efCountTip": "Bolas disparadas a la vez desde el foco de salida, repartidas por igual en el ángulo de apertura. Se puede escribir cualquier número entero; una partida crea como mucho el límite de bolas del motor.",
+    "efEccentricity": "Excentricidad",
+    "efEccentricityTip": "Cuánto se alarga la mesa: 0 es un círculo (los dos focos en el centro, todas las bolas vuelven allí), 0,99 una mesa larga y estrecha. El clip usa 0,65.",
+    "efFlatNote": "Una excentricidad de 1 o más no tiene interior: la partida usa {max}.",
+    "efSize": "Tamaño de la mesa",
+    "efSizeTip": "El semieje mayor de la mesa como parte del radio seguro (100 % llena el cuadrado centrado de la grabación como la arena de los modos de anillos).",
+    "efTransit": "Tiempo de pasada",
+    "efTransitTip": "Segundos que tarda una bola de un foco a la pared y de ahí al otro foco. Todos los caminos miden 2a, así que la velocidad es 2a / T y cada ráfaga converge exactamente T después. Ajústalo a compases enteros de un tempo (T = compases × 4 × 60 / BPM) y las convergencias caerán a ritmo.",
+    "efPasses": "Pasadas por bucle",
+    "efPassesTip": "Pasadas de un bucle: con Redisparar, una ráfaga nueva sale del foco de salida cada tantas pasadas y el clip se repite sin costuras (duración del bucle = pasadas × T).",
+    "efLoopNote": "Una convergencia cada {transit} s (la base a {bpm} BPM: dos compases por pasada) – el bucle dura {loop} s.",
+    "efLoopNoteCollapse": "Una convergencia cada {transit} s (la base a {bpm} BPM) – sin bucle: el enjambre se sigue cerrando sobre el eje mayor.",
+    "efSpread": "Ángulo de apertura",
+    "efSpreadTip": "La apertura de la ráfaga: 360° dispara en todas direcciones; menos, un abanico centrado en el otro foco.",
+    "efAim": "Ángulo inicial",
+    "efAimTip": "Gira toda la ráfaga (0° dispara una bola directa al otro foco y mantiene la ráfaga simétrica). El colapso más largo de Buscar simulación busca este ángulo.",
+    "efLaunch": "Foco de salida",
+    "efLaunchTip": "El foco desde el que sale la ráfaga: el de arriba o el de abajo (izquierda o derecha con la mesa tumbada).",
+    "efLaunchTop": "Arriba",
+    "efLaunchBottom": "Abajo",
+    "efLaunchLeft": "Izquierda",
+    "efLaunchRight": "Derecha",
+    "efOrientation": "Orientación",
+    "efOrientationTip": "El eje mayor de la mesa: de pie (vertical, como en el clip) o tumbada (horizontal).",
+    "efOrientationVertical": "Vertical",
+    "efOrientationHorizontal": "Horizontal",
+    "efReset": "En cada convergencia",
+    "efResetTip": "Qué pasa cuando el enjambre converge: una ráfaga nueva desde el foco de salida cada tantas pasadas como tenga el bucle (el bucle sin costuras), dejar que se siga cerrando o una ráfaga nueva en cada pasada.",
+    "efResetRefire": "Redisparar",
+    "efResetCollapse": "Colapso",
+    "efResetEvery": "Cada pasada",
+    "efResetRefireHint": "Una ráfaga nueva sale del foco de salida en cada bucle, bajo el destello de la convergencia: el bucle no tiene costuras.",
+    "efResetCollapseHint": "Una sola ráfaga para toda la partida: cada pasada la estrecha hasta que se desliza por el eje mayor como un cometa apretado.",
+    "efResetEveryHint": "Una ráfaga nueva en cada convergencia, desde el foco donde cayó el enjambre: el arco nunca se cierra.",
+    "efSkin": "Aspecto de la mesa",
+    "efSkinTip": "El aspecto de la mesa: una mesa de billar (banda de madera, riel de cobre, paño verde), un contorno de neón en el Color de las paredes o una línea fina.",
+    "efSkinTable": "Mesa",
+    "efSkinNeon": "Neón",
+    "efSkinMinimal": "Mínimo",
+    "efTrail": "Largo de la estela",
+    "efTrailTip": "Segundos de vuelo que muestra la estela de cometa de cada bola, que se afina y se desvanece (0 = sin estelas).",
+    "efPaths": "Trayectorias",
+    "efPathsTip": "Dibuja tenues sobre el paño las cuerdas de cada bola desde su ráfaga (dentro del límite de trazos del modo Líneas: una ráfaga grande muestra sus rebotes más recientes).",
+    "efBed": "Base rítmica",
+    "efBedTip": "Un pad suave, un sub y un bombo en cada pulso a 8 · 60 / T BPM bajo los punteos, cambiando de acorde en cada pasada: una convergencia siempre cae en una línea de compás.",
+    "efCounter": "Contador de pasadas",
+    "efCounterTip": "Muestra las pasadas del bucle actual bajo la mesa en el HUD de bucle («3 pasadas»; el clip no lo tiene). Activarlo activa el HUD de bucle."
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -2162,6 +2219,10 @@
     "hoops": {
       "name": "Aros giratorios",
       "description": "Aros arcoíris giran cada vez más rápido alrededor de su eje vertical, con una cuenta en cada uno. Pasada la velocidad crítica de cada aro, el fondo deja de ser el punto más bajo y su cuenta sube –primero la del aro más grande, un aro tras otro–, cada subida una nota de lámina afinada; luego el giro baja y el bucle vuelve a empezar."
+    },
+    "ellipseFoci": {
+      "name": "Tiro al foco",
+      "description": "Una mesa elíptica: una ráfaga de bolas arcoíris disparada desde un foco rebota en la pared y pasa por el otro foco a la vez, en cada pasada – mientras el enjambre se cierra sobre el eje mayor."
     }
   },
   "FAQ": {
@@ -2250,7 +2311,8 @@
     "modeFightLeague": "Luchadores de videojuegos, cómics, series y películas – Thor, Loki, Captain Falcon, Little Mac, Yuumi, Katarina y más de cincuenta más, agrupados en divisiones para que cada enfrentamiento se quede en su género – se enfrentan como bolas en una arena cuadrada o redonda. Cada luchador lleva su propia arma, dibujada como una silueta vectorial sencilla: las espadas barren en cada rebote, los martillos vuelan hacia el enemigo y vuelven, los puños golpean, las pistolas, los arcos y las varitas disparan, el aliento y los rayos queman. Un golpe quita vida – el número dentro de la bola y la barra bajo ella –, aparta al enemigo y carga el medidor de habilidad de la casilla inferior; cuando se llena, el nombre de la habilidad parpadea 0,4 s y se lanza sola: rayos, señuelos, haces, estrangulamientos, ondas expansivas, invocaciones, tiempo bala. Juega 1 contra 1, 2 contra 2 o todos contra todos; gana el último luchador o equipo en pie, o el bando con más vida al llegar al límite de tiempo. Con semilla y determinista: Buscar simulación encuentra una partida en la que gana A o B, un doble KO o una pelea de la duración de tu clip – y el ganador forzado la amaña.",
     "modeLandClaim": "Una batalla por el terreno: columnas de bloques se alzan en el interior de una pared cuadrada, hexagonal o circular, y dos o más competidores (una plantilla de equipos de países les da sus banderas, nombres y colores) hacen rebotar sus bolas dentro a velocidad constante. Con la regla de derribar, una bola que golpea una columna se lleva su bloque superior: el bloque sale volando del color de quien golpea y cuenta para él, y cada octavo bloque que derriba un competidor añade otra bola de su color en el punto del golpe, así que una ventaja crece como una bola de nieve hasta ser un enjambre. La regla de conquistar pinta los bloques donde están, y la de robar permite quitarle un bloque a un rival: el terreno cambia de manos hasta que se acaba el tiempo. La batalla termina cuando la pared está tomada o al cumplirse su duración, y gana quien tenga más bloques: DOMINACIÓN por encima del 60% del terreno, QUÉ BATALLA TAN REÑIDA cuando los dos primeros están a menos de un 5%. Cada semilla se reproduce exactamente, Buscar simulación busca un ganador elegido, una batalla reñida o una partida que termine en un segundo elegido, y el Ganador forzado favorece a un color dirigiendo sus rebotes hacia el terreno que queda por tomar.",
     "modeStarChords": "Estrellas de cuerdas: bolas que recorren un círculo fino y dibujan cada una un polígono estrellado como 5/2 o 12/5. Una bola que rebota en un círculo siempre choca con la pared con el mismo ángulo, así que su punto de contacto avanza k de n puntos alrededor del borde y cada línea que dibuja queda a la misma distancia del centro: a medida que se acumulan las líneas, aparece un círculo interior que nadie dibujó. Cada bola se mueve justo a la velocidad que cierra su estrella tras el mismo tiempo de dibujo, así que todas las estrellas se cierran en un fotograma con un acorde; luego el dibujo se mantiene, se desvanece y vuelve a empezar, un bucle perfecto. Escribe tus propias estrellas, saca un conjunto coprimo aleatorio o deja que Buscar simulación elija el conjunto más bonito y ajuste el bucle a tu clip.",
-    "modeHoops": "Sin anillos: 1–16 aros concéntricos (ocho por defecto, rojo por fuera, violeta por dentro) giran juntos alrededor de su diámetro vertical, dibujados de frente y aplastados por el giro para que se vean en 3D, cada uno con una cuenta que se desliza sin rozamiento. El giro acelera –de forma constante, suave o por escalones– y cada aro tiene una velocidad crítica, √(g/R): por debajo, la gravedad mantiene la cuenta en el fondo; por encima, la cuenta sube hasta su punto de equilibrio arccos(g/(Rω²)), más alto cuanto más rápido el giro. Los aros más grandes levantan primero, así que las cuentas suben en estricto orden de tamaño, cada subida una nota de lámina afinada según su aro; una campanilla suena en cada vuelta, un acorde llega cuando todas están arriba y el contador muestra el giro y las cuentas arriba. Con el regreso activado, el giro baja hasta que todas las cuentas reposan y el bucle vuelve a empezar sin costuras, listo para exportar bucles completos; Buscar simulación encuentra una partida en estricto orden de tamaño o una con todas las cuentas arriba dentro de un tiempo."
+    "modeHoops": "Sin anillos: 1–16 aros concéntricos (ocho por defecto, rojo por fuera, violeta por dentro) giran juntos alrededor de su diámetro vertical, dibujados de frente y aplastados por el giro para que se vean en 3D, cada uno con una cuenta que se desliza sin rozamiento. El giro acelera –de forma constante, suave o por escalones– y cada aro tiene una velocidad crítica, √(g/R): por debajo, la gravedad mantiene la cuenta en el fondo; por encima, la cuenta sube hasta su punto de equilibrio arccos(g/(Rω²)), más alto cuanto más rápido el giro. Los aros más grandes levantan primero, así que las cuentas suben en estricto orden de tamaño, cada subida una nota de lámina afinada según su aro; una campanilla suena en cada vuelta, un acorde llega cuando todas están arriba y el contador muestra el giro y las cuentas arriba. Con el regreso activado, el giro baja hasta que todas las cuentas reposan y el bucle vuelve a empezar sin costuras, listo para exportar bucles completos; Buscar simulación encuentra una partida en estricto orden de tamaño o una con todas las cuentas arriba dentro de un tiempo.",
+    "modeEllipseFoci": "Una mesa de billar elíptica con sus dos focos marcados. Una ráfaga de bolas – 72 por defecto, coloreadas por la rueda de tonos según el ángulo de salida – sale de un foco en el mismo instante, en todas direcciones. Una elipse manda cada tiro de un foco, tras rebotar en su pared, justo por el otro, y todos esos caminos miden lo mismo, así que la ráfaga entera converge en el otro foco una pasada después, luego de vuelta en el primero, cada vez con un destello blanco, mientras cada pasada estrecha el enjambre sobre el eje mayor. Redisparar lanza una ráfaga nueva bajo el destello cada pocas pasadas, así que el clip se repite sin costuras; los rebotes bajan por una escalera pentatónica, cada convergencia cae en una línea de compás con bombo, chasquido y acorde, y Buscar simulación pone las convergencias a ritmo de la página o encuentra el ángulo inicial del colapso más largo."
   },
   "Footer": {
     "navLabel": "Pie de página",
@@ -2543,7 +2605,17 @@
     "missAllUpBy": "Lo más cerca: todas arriba a los {time}s ({seeds} semillas)",
     "overlayLiftOrder": "Se probaron {tested} semillas y en ninguna las cuentas subieron en estricto orden de tamaño. Prueba una inclinación del eje menor, menos amortiguación o aros más separados.",
     "overlayAllUpBy": "Se probaron {tested} semillas: en ninguna estuvieron todas las cuentas arriba en {target}s. Prueba un giro máximo más rápido, una rampa más corta o un límite más tardío.",
-    "progressAllUpBy": "Lo más cerca de todas arriba: {time}s"
+    "progressAllUpBy": "Lo más cerca de todas arriba: {time}s",
+    "outcomeConvergeOnBeat": "Converge a ritmo",
+    "outcomeLongestCollapse": "Colapso más largo",
+    "hintConvergeOnBeat": "Cada ráfaga converge a tiempo (la propiedad de reflexión de los focos): el tiempo de pasada pasa a ser el número entero de compases más cercano al BPM de Sonido, así que cada convergencia cae en una línea de compás, y el clip son bucles completos de la partida.",
+    "hintLongestCollapse": "Busca el ángulo inicial (dentro de un paso de la ráfaga) cuyo enjambre tarda más pasadas en estrecharse por debajo de dos radios de bola; la partida encontrada se deja colapsar, y el clip abarca esas pasadas y la del cometa.",
+    "findConvergeOnBeat": "Poner las convergencias a ritmo",
+    "findLongestCollapse": "Buscar el colapso más largo",
+    "foundConvergeOnBeat": "¡Encontrada! Una convergencia cada {transit}s ({bars, plural, one {# compás} other {# compases}}), {loops, plural, one {# bucle completo} other {# bucles completos}} en el clip",
+    "foundLongestCollapse": "¡Encontrada! Ángulo inicial {aim}°: un cometa tras {passes, plural, one {# pasada} other {# pasadas}}",
+    "missLongestCollapse": "El enjambre nunca se estrechó por debajo de dos radios de bola ({seeds} ángulos iniciales)",
+    "overlayLongestCollapse": "Se probaron {tested} ángulos iniciales: el enjambre no se estrechó por debajo de dos radios de bola durante la búsqueda. Un círculo nunca colapsa: prueba una excentricidad mayor."
   },
   "FastExport": {
     "button": "Exportación rápida",
@@ -4305,6 +4377,13 @@
     "starChordsFact": "Un polígono estrellado es lo que dibuja una bola cuando cada rebote la mueve el mismo número de puntos por el borde. Cada recta queda a la misma distancia del centro, así que en medio aparece un círculo que ninguna bola toca nunca. Aquí cada bola se mueve a la única velocidad que termina su estrella en el mismo tiempo que las demás.",
     "hoops": "{count} aros girando cada vez más rápido: las cuentas suben por orden, primero la del aro más grande",
     "hoopsOne": "{count} aro girando cada vez más rápido, hasta que su cuenta empieza a subir",
-    "hoopsFact": "¿Por qué en ese orden? Una cuenta en un aro que gira descansa donde la gravedad equilibra el empuje hacia fuera del giro. Por debajo de un giro crítico, √(g/R), ese punto es el fondo; por encima, el punto de equilibrio sube por el aro y sigue subiendo a medida que el giro aumenta. Un aro de 75 cm de radio lo alcanza a unas 0,58 vueltas por segundo y uno de 25 cm necesita casi una vuelta por segundo, así que las cuentas dejan el fondo de fuera hacia dentro."
+    "hoopsFact": "¿Por qué en ese orden? Una cuenta en un aro que gira descansa donde la gravedad equilibra el empuje hacia fuera del giro. Por debajo de un giro crítico, √(g/R), ese punto es el fondo; por encima, el punto de equilibrio sube por el aro y sigue subiendo a medida que el giro aumenta. Un aro de 75 cm de radio lo alcanza a unas 0,58 vueltas por segundo y uno de 25 cm necesita casi una vuelta por segundo, así que las cuentas dejan el fondo de fuera hacia dentro.",
+    "ellipseFoci": "{count} tiros desde un foco, todos a la vez por el otro",
+    "ellipseFociFact": "Una elipse tiene dos focos. Un tiro desde uno rebota en la pared y pasa justo por el otro, vaya hacia donde vaya, y todos esos caminos miden lo mismo: por eso una ráfaga entera disparada a la vez llega al otro foco en el mismo instante. Es la razón por la que un susurro en un foco de una sala elíptica se oye con claridad en el otro."
+  },
+  "EllipseFoci": {
+    "canvasTitle": "dispara desde un punto, acierta en el otro",
+    "canvasSubtitle": "cada rebote en la pared va hacia el otro punto / y todos los caminos miden lo mismo",
+    "canvasPasses": "{count, plural, one {{count} pasada} other {{count} pasadas}}"
   }
 }

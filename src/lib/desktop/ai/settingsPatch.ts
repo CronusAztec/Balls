@@ -175,6 +175,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   landClaim: "lc", // --- land-claim ---
   starChords: "sc", // --- chord-stars ---
   hoops: "hp", // --- bead-hoops ---
+  ellipseFoci: "ef", // --- ellipse-foci ---
 };
 
 /** The settings the assistant may change on this page: the catalog, then the scalar settings of the page's mode. */

@@ -15,7 +15,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 
 | Area | What you get |
 | --- | --- |
-| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
+| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops, Focus Shot), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow; collision-safe at every amplitude and speed) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Merge & split balls** | A ball-interaction setting in the Ball section: balls **bounce** (default), **merge** into one bigger ball on contact (area and momentum conserved, colours blended, a particle burst and a low tone), **split** in two every time a ball breaks through a wall (half the area each, diverging velocities, a high tone – down to a smallest size and up to a ball cap) or **pass** through each other. Works in the two-ball modes and Multiply, is deterministic (seeds and Find Simulation include it) and shared via the URL (`bi`, `smr`, `mb`) |
@@ -91,6 +91,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Sharded smoke test** | The browser smoke test (`scripts/smoke-test.mjs`, some 750 checks, ~45 minutes on one runner) runs in CI as **four shards on four runners at once**, about 12 minutes each (feature smoke-sharding): the suite is a list of blocks – `await smokeBlock("title", async () => { … })`, each setting up its own page – split at block level, never at check level, by a greedy longest-first balance over the blocks' wall times in `scripts/smoke-timing.json` (a block the file does not know weighs the median, so a new block gets a shard by itself). `--shard i/N` / `SMOKE_SHARD=i/N` runs one part, `SMOKE_ONLY=<title>` single blocks, `--list` prints the split, `--write-timing` refreshes the baseline, every run prints its 15 slowest blocks, and a narrowed run starts every block from a clean page. The `smoke` job of deploy.yml and smoke.yml is a matrix of the four shards; `smoke-summary` merges their screenshots and slowest blocks and gates the deploy (see [Smoke test shards](#smoke-test-shards)) |
 | **Chord Stars** | A rhythm-family mode of the loop family (`starChords`, feature chord-stars) after the loop-clip account's "five stars, all closing at once" clip: 1–12 balls (any number typed) ride inside one thin lavender circle on navy, each drawing a star polygon n/k – every bounce keeps its angle, so the contact point steps k of n points round the rim and every chord touches one inner circle of radius R·cos(πk/n). The motion is analytic (no solver: at cycle time t ball i has made ⌊t·nᵢ/T⌋ bounces), every ball moves at nᵢ·chordᵢ/T so **every star closes on the same frame** at any frame rate, then the drawing holds, fades and loops (the loop contract: whole loops of drawing + hold + fade). Stars as typed `n/k` pairs or a random coprime set, drawing time, hold, fade, start spread, line width, inner circles (when closed / always / off), pastel / rainbow / ball colours, a pentatonic pluck, chime or bar per bounce pitched by the ball's speed, a completion chord with a reset glide, the loop HUD's "stars closed 3/5" counter, the presets Five stars, Seven-point bloom and Heptagram duel, and a Find Simulation outcome that picks the best-looking star set and fits the loop to the clip. See [Chord Stars](#chord-stars). |
 | **Spinning Hoops** | A rhythm-family mode without rings (`hoops`, feature bead-hoops) after the loop-clip account's bifurcation reel ("the biggest hoop's bead lifts first"): 1–16 concentric rainbow hoops (eight by default, red outside, violet inside) spin together about their vertical diameter, drawn face-on and squashed sideways by the cosine of their turn so they read as 3D, each with one bead sliding on it (θ″ = sin θ (ω² cos θ − g/R) − c θ′, RK4 in 8+ sub-steps a 60 Hz step). The spin ramps from 0.13 to 1.2 turns a second – linear, eased or one step a hoop – and past each hoop's critical spin √(g/R) its bead climbs to arccos(g/(Rω²)), the biggest hoop's first: every lift a tuned bar note pitched by its hoop, a glock chime every turn, a chord when all are up. The return ramps the spin back down until every bead rests again – a seamless loop of whole turns for **Export whole loops**. The presets **8 rainbow hoops**, **One hoop, slow** and **Twin hoops** bring the clip's navy page and the loop HUD ("spin faster, and the beads climb", the amber counter "0.13 turns a second · 0 of 8 beads up"); Find Simulation searches **Lifts in size order** and **All up within**. See [Spinning Hoops](#spinning-hoops-the-loop-clip-family). |
+| **Focus Shot** | A rhythm-family mode of the loop family (`ellipseFoci`, feature ellipse-foci) after the loop-clip account's whispering-gallery clip: an elliptical pool – a pool table with a wooden rim, a copper rail and green felt, or a neon or thin outline – with its two foci marked, and a volley of balls (72 by default, 1–720 on the slider, any whole number typed) fired at once from one focus every way, coloured around the hue wheel by launch angle, with tapering comet trails. Every focus–wall–focus path is 2a long, so at the speed 2a / T the whole volley converges on the other focus every transit T – a white bloom – alternating foci, while every pass collapses the swarm onto the long axis. The motion is analytic (the ray–ellipse quadratic and the reflection about the ellipse's normal, no drift: a seed replays exactly at any frame rate and in the fast export). At a convergence: **Refire** (a fresh volley every Passes per loop – a seamless loop of passes × T that Export whole loops cuts to), **Collapse** or **Every pass**; eccentricity, size, transit time, spread and start angle, launch focus, orientation, trail length, a paths overlay. Sound: a descending pentatonic pluck per wall hit, an impact (kick, noise crack, chord) on every convergence after a 0.4 s pre-drop, a groove bed at 8 · 60 / T BPM; the lowercase loop HUD ("fire from one dot, hit the other") and an optional pass counter; Find Simulation's **Converges on the beat** and **Longest collapse**; five presets. See [Focus Shot](#focus-shot). |
 
 ## Design
 
@@ -1699,6 +1700,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `landClaim` | half the wall taken: the columns a mosaic of the four countries' colours | 3 | 5 s | `teams=France,Brazil,Spain,Colombia…&lcm=claim&lch=0&tsb=0&tn=0` | x 0.5 · y 0.587 · zoom 1.25 |
 | `starChords` | the five stars just closed together: every chord drawn, the inner circles lit, the closing flash | 1 | 12.3 s | `lh=0` | zoom 1.2 |
 | `hoops` | all eight beads up at the top spin, lined up level across the face-on rainbow hoops (g/ω² under the centre) | 1 | 12.9 s | `bg1=0b1020&bg2=0b1020` | – |
+| `ellipseFoci` | the volley mid-flight on the felt: a rainbow arc of comets bouncing off the rail toward the far focus | 2 | 2.2 s | `lh=0&efTr=0.45` | – |
 
 ### Watermark on every free simulation
 Feature watermark-everywhere – the owner's request (2026-10-04): "add the watermark to all simulations made without pro". The
@@ -1989,6 +1991,78 @@ await smokeBlock("my-feature", async () => {
   statement there that does work (an `await`, a check).
 - A new block weighs the median of the baseline; a long one (minutes) is worth a refresh of `scripts/smoke-timing.json`, so the
   four shards stay even.
+
+### Focus Shot
+Feature ellipse-foci – the loop-clip account's breakout reel, rebuilt as a rhythm-family mode (`ellipseFoci`):
+`src/lib/physics/ellipseFoci.ts` holds the maths, the settings, the presets and the URL keys, `src/lib/physics/modes/ellipseFoci.ts`
+the mode, `src/components/simulator/ellipseFociRenderer.ts` the picture, `sections/EllipseFociSection.tsx` the controls and
+`src/lib/simulation/ellipseFociFinder.ts` Find Simulation.
+
+- **The geometry** – an elliptical pool, standing (vertical) or lying down, with the major semi-axis a = Size × 0.425 × the
+  world's shorter side (100 % is the ring modes' arena, inside the recorder's centred square) and b = a·√(1 − e²); its foci at
+  ±e·a are marked. A volley leaves the launch focus at once – the start angle plus i · spread / n, or a fan of less than 360°
+  from −spread/2 to +spread/2 around the direction of the other focus – at the speed v = 2a / T. The motion is analytic: the
+  next wall hit is the positive root of the ray–ellipse quadratic (in its stable form), the reflection is about the normal
+  (x/b², y/a²), and a transit ends exactly at the other focus. Every focus–wall–focus path is 2a long, so the whole volley
+  arrives together at t = k·T, alternating foci (the arrival error the reflection leaves is checked against 1e-6 a,
+  `data-ef-conv-error`). Nothing is integrated: the balls are placed from the simulation clock every sub-step (no gravity,
+  `ballsMayRest`, `ballsPassThrough`), so a seed replays exactly at any frame rate and in the fast export.
+- **The collapse** – ψ, the angle between a ball's chord through a focus and the long axis on the side away from the other
+  focus, follows tan(ψ'/2) = (1 − e) / (1 + e) · tan(ψ/2) every pass: the swarm narrows onto the axis until it slides along it as
+  a comet (the ball fired straight at the other focus stays on the axis the other way). A circle (e = 0) has both foci at the
+  centre: every ball is back there at 2R/v, and nothing collapses.
+- **At a convergence** (`efR`) – **Refire** (the default) fires a fresh volley from the launch focus every Passes per loop, under
+  the convergence's flash: the frame at passes × T is the run's first, the loop contract's seamless cycle (`cycleSeconds()`,
+  `loopSeams()`), and Export whole loops cuts the recordings, the fast export and the batch render to whole loops. **Collapse**
+  lets one volley collapse for the whole run (no loop); **Every pass** fires a fresh volley from the focus the swarm landed on (a
+  loop of two passes).
+- **Settings** (the Mode row; uncapped number fields, the slider in brackets) – Balls `efN` 72 [1–720; a run builds at most
+  2,000, `MEMORY_CEILINGS.efCount`], Eccentricity `efE` 0.65 [0–0.99; 1 and up has no inside, so the run uses 0.9999], Pool size
+  `efS` 100 % [50–140], Transit time `efT` 4 s [0.5–20] (T = bars × 4 × 60 / BPM puts the convergences on the beat), Passes per
+  loop `efP` 4 [1–16], Spread angle `efA` 360° [1–360], Start angle `efAim` 0° [0–360], Launch focus `efF` top / bottom,
+  Orientation `efO` vertical / horizontal, At a convergence `efR` refire / collapse / every, Pool look `efK` table / neon /
+  minimal, Trail length `efTr` 0.2 s [0–2], Paths `efPa`, Groove bed `efB` (on) and Pass counter `efC` (off). A change of the
+  volley, the pool or the timing restarts the run; the look, the trails, the paths, the bed and the counter follow live.
+  Presets: Whispering gallery (the clip), Billiard focus shot (one ball at 50°, a 2 s trail, its path), Thousand-ball volley
+  (720 balls, 0.3 s trails), Circle control (e 0) and Fan 90°; each also sets the clip's look – the near-black navy page
+  (`#060912`) and the loop HUD.
+- **The picture** – the pool table (a wide dark wooden rim `#2b1d16`, a thin copper rail `#b07a4a`, green felt `#15452f`), a
+  neon outline in the Wall Color or a thin grey line; the foci as small hollow circles; the balls around the hue wheel by launch
+  angle (turned by a seeded offset) with comet trails cut from each ball's last corners – a preallocated ring of its launch and
+  wall hits, so a trail is the exact flight at any frame rate – in six tapering, fading bands, batched by hue (at most 72 paths a
+  pass whatever the volley); a white radial bloom on the focus at every convergence (a 120 ms swell, a 400 ms decay; on both foci
+  when a refire leaves from the other one); and the paths overlay, every ball's chords since its volley drawn faintly within the
+  Lines mode's stroke budget (1,000 points: a big volley draws its newest corners, past 500 balls every k-th ball's path).
+- **Sound** (original synthesis through loop-foundation's `ToneGenerator.playLoop()`, on the simulation clock: the live page, the
+  fast export's offline twin and the batch render play the same events) – every wall hit is a pluck of G major pentatonic (D4 to
+  A6) running down the ladder in hit order within a transit (the share of an even volley that has hit by then: the first hits
+  at the top, the last at the bottom); a step's hits on one degree are one note at √(their share) of the level, at most 6 notes a
+  step (the voice budget merges a pitch within 30 ms); plucks in the last min(0.4 s, T / 10) before a convergence are 12 dB
+  softer (the pre-drop); every convergence plays the impact – kick, noise crack and the tonic chord on G3 – and a loop's seam the
+  completion chord on G2; the groove bed (pad, sub and a kick on every beat at 8 · 60 / T BPM, two bars a pass, a chord a pass
+  from a seeded progression) drops in at the loop's first convergence. The seeded choices, in this order: the hue offset, then
+  the bed's progression.
+- **The HUD** – the loop HUD is on in Focus Shot: "fire from one dot, hit the other" and its two-line grey subtitle (the
+  `EllipseFoci` namespace, `loopHudMessageKey()` reads a key that names its namespace), and with the Pass counter the passes of the current loop in amber ("1 pass", "3 passes", 0 again at a seam – a counter template may carry ICU's plural argument,
+  `{count, plural, one {…} other {…}}`, which `hudCounterText()` resolves per language through `src/lib/loop/hudPlural.ts`); the live HUD
+  keeps clear of the pool and its rim.
+- **Find Simulation** – **Converges on the beat**: every volley converges on time, so the transit becomes the whole number of bars
+  at the BPM set under Sound nearest it, and the clip the whole loops that fit the target (at least one); **Longest collapse**:
+  the start angle within one step of the volley whose swarm takes the most passes to narrow under two ball radii (at most 64; a
+  circle finds nothing) – the run found is left to collapse, its clip those passes and the comet's. No seed is simulated: the
+  seed only colours the run. The Publish caption editor's **Loop style** has the mode's hook ("72 balls fired from one focus,
+  all landing on the other together"), its fact and #math #geometry #creativecoding.
+- **For tools** – the canvas mirrors `data-ef-balls`, `-time`, `-transit`, `-convergences`, `-volleys`, `-seams`, `-hits`,
+  `-sounds`, `-conv-sounds` (the sound events up to each convergence), `-spread`, `-spreads`, `-conv-error`, `-nan`, `-bed`,
+  `-chord`, `-bpm`, `-skin`, `-trail`, `-trail-points`, `-path-points`, `-bloom`, `-loop`, `-focus` and `-hue`; the section
+  `data-ef-reset`, `-skin`, `-loop` and `-bpm`.
+- **Tests** – `tests/ellipseFoci.test.ts`: the focal property for random eccentricities (every ball within 1e-6 a of the other
+  focus at T), the hit order and the mirrored pairs, ψ never growing, the refire loop's state at passes × T equal to t = 0, the
+  circle, the resolver past the slider ranges, the sounds (the descending ladder, at most 6 notes a step at 1/√n, the impacts and
+  the pre-drop, the bed, a real ToneGenerator on `tests/fakeAudio.ts`), the replay at 30, 60 and 120 fps (pinned), the seeds,
+  the finder, the links and presets, and the renderer's budgets. The smoke test (section 41, block `ellipse-foci`) runs 20 s at
+  4× (no NaN, at least four convergences, the HUD, the bloom), compares a whole-loop fast export's sound events with live play,
+  and checks a preset's link and the on-the-beat search.
 
 ## Windows app
 

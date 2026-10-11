@@ -70,6 +70,8 @@ import { HoopsMode, type HoopsSettings, type HoopsView } from "./modes/hoops"; /
 import type { GrowFillSettings, GrowView } from "./modes/grow"; // --- loop-foundation ---
 import { StarChordsMode, type StarChordsView } from "./modes/starChords"; // --- chord-stars ---
 import type { StarChordsSettings } from "./starChords"; // --- chord-stars ---
+import { EllipseFociMode, type EllipseFociView } from "./modes/ellipseFoci"; // --- ellipse-foci ---
+import type { EllipseFociSettings } from "./ellipseFoci"; // --- ellipse-foci ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -317,6 +319,8 @@ export class PhysicsEngine {
   readonly starChordsMode = new StarChordsMode();
   // --- bead-hoops --- Spinning Hoops: beads on spinning hoops climb as the spin passes each hoop's critical speed
   readonly hoopsMode = new HoopsMode();
+  // --- ellipse-foci --- Focus Shot: a volley fired from one focus of an elliptical pool converges on the other every transit
+  readonly ellipseFociMode = new EllipseFociMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -718,6 +722,10 @@ export class PhysicsEngine {
   initHoops() {
     this.activateMode(this.hoopsMode, "none");
   }
+  // --- ellipse-foci --- the mode owns its pool (no rings; its balls pinned to the clock)
+  initEllipseFoci() {
+    this.activateMode(this.ellipseFociMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -821,6 +829,9 @@ export class PhysicsEngine {
       // --- bead-hoops ---
       case "hoops":
         return this.initHoops();
+      // --- ellipse-foci ---
+      case "ellipseFoci":
+        return this.initEllipseFoci();
     }
   }
 
@@ -1880,6 +1891,33 @@ export class PhysicsEngine {
     return this.hoopsMode.getView();
   }
   // --- end bead-hoops ---
+  // --- ellipse-foci ---
+  isEllipseFociMode() {
+    return this.currentMode === this.ellipseFociMode;
+  }
+  getEllipseFociSettings(): EllipseFociSettings {
+    return this.ellipseFociMode.getSettings();
+  }
+  /** The volley, the geometry and the timing apply on the next `initEllipseFoci()`; the look (skin, trail, paths) and the bed at once. */
+  setEllipseFociSettings(settings: Partial<EllipseFociSettings>) {
+    this.ellipseFociMode.setSettings(settings);
+  }
+  /** Live Focus Shot state (the pool, the balls and their corners, the convergences, the spreads) for the canvas; the same object every call. */
+  getEllipseFociView(): EllipseFociView {
+    return this.ellipseFociMode.getView();
+  }
+  getEllipseFociProgress() {
+    return this.ellipseFociMode.getProgress();
+  }
+  /** The page resumed a paused Focus Shot run: the groove bed's chord is sent again with the next step. */
+  refreshEllipseFociBed() {
+    this.ellipseFociMode.refreshBed();
+  }
+  /** The loop HUD's counter in Focus Shot: the passes done in the current loop (null in another mode or with the counter off). */
+  getEllipseFociHudCount(): number | null {
+    return this.currentMode === this.ellipseFociMode ? this.ellipseFociMode.hudCount() : null;
+  }
+  // --- end ellipse-foci ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

@@ -30,5 +30,5 @@ export interface LoopPlayOptions {
 
 /** The `playLoop()` options a loop sound event carries (its duration, glide target, brightness, chord; `accent` = a last step). */
 export function loopPlayOptions(ev: SoundEvent): LoopPlayOptions {
-  return { durationSec: ev.loopSec, toFrequency: ev.loopTo, bright: ev.loopBright, chord: ev.chord, last: ev.accent };
+  return { durationSec: ev.loopSec, toFrequency: ev.loopTo, bright: ev.loopBright, chord: ev.chord, last: ev.accent, minor: ev.loopMinor /* --- ellipse-foci --- (the groove bed's minor chords) */ };
 }

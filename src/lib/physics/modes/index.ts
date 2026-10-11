@@ -93,3 +93,6 @@ export type { StarChordsView, StarChordsField } from "./starChords";
 // --- bead-hoops ---
 export { HoopsMode } from "./hoops";
 export type { HoopsSettings, HoopsView, HoopsSchedule, HoopsPhase, HoopsRampShape } from "./hoops";
+// --- ellipse-foci ---
+export { EllipseFociMode } from "./ellipseFoci";
+export type { EllipseFociView } from "./ellipseFoci";

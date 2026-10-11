@@ -70,6 +70,7 @@ export const HERO_MOMENTS: Record<ModeId, HeroMoment> = {
   starChords: { moment: "the five stars just closed together: every chord drawn, the inner circles lit, the closing flash", query: "lh=0", seed: 1, atSec: 12.3, camera: { zoom: 1.2 }, tint: "#b9a8ff" }, // --- chord-stars ---
   // --- bead-hoops --- (the account's navy page)
   hoops: { moment: "all eight beads up at the top spin, lined up level across the face-on rainbow hoops (g/ω² under the centre)", query: "bg1=0b1020&bg2=0b1020", seed: 1, atSec: 12.9, tint: "#f2c46a" },
+  ellipseFoci: { moment: "the volley mid-flight on the felt: a rainbow arc of comets bouncing off the rail toward the far focus", query: "lh=0&efTr=0.45", seed: 2, atSec: 2.2, tint: "#93d119" }, // --- ellipse-foci ---
 };
 
 /** The modes of `ids` (MODE_IDS) without a hero moment in `table`: the generator refuses to run while any is missing. */
