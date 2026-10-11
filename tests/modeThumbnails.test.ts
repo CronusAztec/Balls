@@ -235,8 +235,22 @@ describe("the card pictures (public/modes)", () => {
 describe("a clip's hero moment", () => {
   it("is the payoff on screen when it comes inside the clip", () => {
     expect(heroMomentSec({ mode: "classic", clipSec: 20, payoffSec: 16 })).toEqual({ sec: 16 + HERO_PAYOFF_LAG_SEC, source: "payoff" });
-    // never in the clip's last moments
-    expect(heroMomentSec({ mode: "classic", clipSec: 20, payoffSec: 19.9 })).toEqual({ sec: 20 - HERO_TAIL_SEC, source: "payoff" });
+    // never in the clip's last moments: a payoff just before them is still on screen, a little less than the lag after it
+    expect(heroMomentSec({ mode: "classic", clipSec: 20, payoffSec: 19.4 })).toEqual({ sec: 20 - HERO_TAIL_SEC, source: "payoff" });
+    expect(heroMomentSec({ mode: "classic", clipSec: 20, payoffSec: 20 - HERO_TAIL_SEC })).toEqual({ sec: 20 - HERO_TAIL_SEC, source: "payoff" });
+  });
+
+  it("--- low-findings --- names a payoff inside the clip's last 0.5 s the last moment before it, not the payoff on screen", () => {
+    // the picture is taken at the latest moment allowed – before the payoff, which it cannot show
+    expect(heroMomentSec({ mode: "classic", clipSec: 20, payoffSec: 19.9 })).toEqual({ sec: 20 - HERO_TAIL_SEC, source: "cut" });
+    expect(heroMomentSec({ mode: "classic", clipSec: 20, payoffSec: 20 })).toEqual({ sec: 20 - HERO_TAIL_SEC, source: "cut" });
+    expect(heroMomentSec({ mode: "classic", clipSec: 20, payoffSec: 20 - HERO_TAIL_SEC + 0.001 })).toEqual({ sec: 20 - HERO_TAIL_SEC, source: "cut" });
+    // whatever the source, the picture never precedes a payoff it calls "on screen"
+    for (let payoff = 0; payoff <= 21; payoff += 0.05) {
+      const hero = heroMomentSec({ mode: "classic", clipSec: 20, payoffSec: payoff });
+      if (hero.source === "payoff") expect(hero.sec).toBeGreaterThanOrEqual(payoff - 1e-9);
+      else expect(hero.sec).toBeLessThan(payoff);
+    }
   });
 
   it("is the last moment before the cut of a cliffhanger", () => {

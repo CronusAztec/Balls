@@ -9,7 +9,8 @@ export { BOT_LOCALES, isBotLocale, copyString } from "./copy";
 export { DEFAULT_BOT_WORLD } from "./finderRequest";
 export { INSTAGRAM_ENV, InstagramError, instagramConfigFromEnv, publicVideoUrl, publishReel, redact } from "./instagram";
 export { RelayClient, RelayError } from "@/lib/publish/relayClient"; // --- social-publish --- the CLI's --relay path
-// --- paywall-gate --- rendering needs a Pro licence in the page: the CLI reads BOT_LICENSE's plan and end before it starts
+// --- paywall-gate --- the CLI reads BOT_LICENSE's plan and end before it starts (--- low-findings --- rendering needs no licence:
+// without a Pro one the clips carry the free-video watermark, free-watermark's gate decides – lib/watermark/seal.ts)
 export { decodeLicense, licenseExpired } from "@/lib/billing/license";
 export { coverFrameOf } from "./cover"; // --- mode-thumbnails --- the clips' cover frames (Instagram's thumb_offset, the relay's coverMs)
 export { LICENSE_STORAGE_KEY } from "@/lib/billing/config";
