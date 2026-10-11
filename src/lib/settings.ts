@@ -103,6 +103,8 @@ import { defaultHoopsFields, readHoopsParams, resolveHoopsFields, writeHoopsPara
 import { PHASE_SPIRAL_PICTURE_RANGES, readPhaseSpiralParams, writePhaseSpiralParams, type PolyPalette } from "@/lib/physics/phaseSpiral";
 // --- ellipse-foci --- Focus Shot (an elliptical pool: a volley from one focus converges on the other every transit)
 import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDefaults, readEllipseFociParams, resolveEllipseFociFields, writeEllipseFociParams, type EfLaunch, type EfOrientation, type EfReset, type EfSkin } from "@/lib/physics/ellipseFoci";
+// --- beat-machine --- Beat Machines (the marble xylophone and the eight-step staircase)
+import { BM_ENGINE_KEYS, BM_RANGES, beatMachineModeDefaults, defaultBeatMachineFields, readBeatMachineParams, resolveBeatMachineFields, writeBeatMachineParams, type BeatMachineFields } from "@/lib/physics/beatMachine";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -1079,6 +1081,30 @@ export interface SimulatorSettings {
   efBed: boolean;
   efCounter: boolean;
   // --- end ellipse-foci ---
+  // --- beat-machine --- Beat Machines (lib/physics/beatMachine.ts): the marble xylophone and the musical staircase (URL bm…)
+  bmVariant: BeatMachineFields["bmVariant"];
+  /** Tempo (URL `bmBpm`): 100 for the marbles, 80 for the stairs. */
+  bmBpm: number;
+  /** Stairs: steps (URL `bmSt`) and their offsets, % of the panel (URL `bmDx`, `bmDy`). */
+  bmSteps: number;
+  bmStepDx: number;
+  bmStepDy: number;
+  /** Marbles: bars (URL `bmB`), drop height % (URL `bmDh`), rebound (URL `bmRb`), marbles per tube – 0 auto (URL `bmMt`). */
+  bmBars: number;
+  bmDrop: number;
+  bmRebound: number;
+  bmPerTube: number;
+  /** Stairs: return beats (URL `bmRt`). */
+  bmReturn: number;
+  /** Melody source (URL `bmSrc`) and the typed list (URL `bmN`). */
+  bmSource: BeatMachineFields["bmSource"];
+  bmNotes: string;
+  /** Marbles: loop beats (URL `bmL`). */
+  bmLoopBeats: number;
+  /** The phrase bass (URL `bmBs`) and the loop HUD's note counter (URL `bmC`). */
+  bmBass: boolean;
+  bmCounter: boolean;
+  // --- end beat-machine ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -1224,6 +1250,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- ellipse-foci --- the feature's fields, and in Focus Shot only the clip's look (the navy page, the loop HUD on)
     ...defaultEllipseFociFields(),
     ...ellipseFociModeDefaults(mode),
+    // --- beat-machine --- the feature's fields, and in Beat Machines only the marble xylophone's look (the warm brown page, the loop HUD on)
+    ...defaultBeatMachineFields(),
+    ...beatMachineModeDefaults(mode),
   };
 }
 
@@ -1309,6 +1338,7 @@ export const RANGES = {
   ...HOOPS_RANGES, // --- bead-hoops ---
   ...PHASE_SPIRAL_PICTURE_RANGES, // --- phase-spiral --- (the tails; the arms are in POLYRHYTHM_RANGES)
   ...EF_RANGES, // --- ellipse-foci ---
+  ...BM_RANGES, // --- beat-machine ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1565,6 +1595,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeHoopsParams(settings, base, params); // --- bead-hoops ---: hpn, hprx, hprn, hpg, hpw0, hpw1, hpr, hps, hph, hprt, hprs, hpd, hpj, hpt, hpb
   writePhaseSpiralParams(settings, base, params); // --- phase-spiral ---: prar, prm, prtl, prls, prco
   writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
+  writeBeatMachineParams(settings, base, params); // --- beat-machine ---: bmV, bmBpm, bmSt, bmDx, bmDy, bmB, bmDh, bmRb, bmRt, bmMt, bmSrc, bmN, bmL, bmBs, bmC
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1734,6 +1765,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readHoopsParams(params, settings); // --- bead-hoops --- (valid numbers from their minimum up, a known ramp shape, real booleans)
   readPhaseSpiralParams(params, settings); // --- phase-spiral --- (whole arms from 1 up, a tail from 0 up, real booleans, a known palette)
   readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
+  readBeatMachineParams(params, settings); // --- beat-machine --- (valid numbers from their minimum up, known options, a clean list, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -1955,6 +1987,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   starChords: [...SC_ENGINE_KEYS], // --- chord-stars --- (the balls, the timing and the start points; the line width is the canvas')
   hoops: rangeKeys(HOOPS_RANGES), // --- bead-hoops --- (every number of the hoops, the spin and the beads is physics)
   ellipseFoci: [...EF_ENGINE_KEYS], // --- ellipse-foci --- (the volley, the pool and the timing; the trail is the canvas')
+  beatMachine: [...BM_ENGINE_KEYS], // --- beat-machine --- (every number of the machine is the plan's)
 };
 // --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
@@ -2170,6 +2203,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveStarChordsFields(merged)); // --- chord-stars --- valid numbers from their minimum up, clean stars, known options, a real boolean
   Object.assign(merged, resolveHoopsFields(merged)); // --- bead-hoops --- valid numbers from their minimum up, a known ramp shape, real booleans
   Object.assign(merged, resolveEllipseFociFields(merged)); // --- ellipse-foci --- valid numbers from their minimum up, known options, real booleans
+  Object.assign(merged, resolveBeatMachineFields(merged)); // --- beat-machine --- valid numbers from their minimum up, known options, a clean list, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

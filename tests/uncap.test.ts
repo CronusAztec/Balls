@@ -840,6 +840,10 @@ describe("uncap-all: the guard", () => {
     csGateWidth: "degrees",
     csSpin: "degrees a second",
     csLimit: "seconds",
+    // --- beat-machine --- (the steps, the bars, the marbles a tube holds and the loop's beats are ceiled)
+    bmBpm: "a tempo",
+    bmDrop: "a drop height in % of the panel",
+    bmReturn: "beats of the return trip",
   };
 
   it("gives every whole-number setting that sizes an allocation a memory-safety ceiling", () => {

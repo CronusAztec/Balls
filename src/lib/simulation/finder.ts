@@ -59,6 +59,8 @@ import { findStarChordsRun, type StarChordsFound } from "./starChordsFinder"; //
 import { hoopsSchedule, resolveHoopsSettings, type HoopsSettings } from "@/lib/physics/modes/hoops"; // --- bead-hoops ---
 import type { EllipseFociSettings } from "@/lib/physics/ellipseFoci"; // --- ellipse-foci ---
 import { findEllipseFociRun, type EllipseFociFound } from "./ellipseFociFinder"; // --- ellipse-foci ---
+import type { BeatMachineSettings } from "@/lib/physics/beatMachine"; // --- beat-machine ---
+import { findBeatMachineRun, type BeatMachineFound } from "./beatMachineFinder"; // --- beat-machine ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -240,6 +242,13 @@ export interface ModeSettings {
    * start angle instead of seeds (ellipseFociFinder.ts).
    */
   ellipseFoci?: Partial<EllipseFociSettings>;
+  // --- beat-machine ---
+  /**
+   * Beat Machines: the machine, the tempo, the phrase and the page's scale, root and melody (see lib/physics/beatMachine.ts);
+   * the defaults when left out. Its loop never ends and every note lands on its beat by construction, so the finder searches
+   * seeded phrases instead (beatMachineFinder.ts).
+   */
+  beatMachine?: Partial<BeatMachineSettings>;
 }
 
 // --- odd-string-battle ---
@@ -327,6 +336,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "starChords") return true;
   // --- ellipse-foci --- the volleys converge, refire and collapse forever (the finder fits its transit or its start angle instead)
   if (mode === "ellipseFoci") return true;
+  // --- beat-machine --- the machine loops forever (the finder searches seeded phrases instead)
+  if (mode === "beatMachine") return true;
   return false;
 }
 
@@ -466,6 +477,9 @@ export interface FinderResult {
   // --- ellipse-foci ---
   /** Focus Shot: the transit on the tempo and the loops in the clip, or the start angle and its collapse. */
   ellipseFoci?: EllipseFociFound;
+  // --- beat-machine ---
+  /** Beat Machines: the phrase found's spares and the most marbles out at once, the loop and the loops in the clip. */
+  beatMachine?: BeatMachineFound;
 }
 
 /**
@@ -537,6 +551,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "starChords") engine.setStarChordsSettings(settings.starChords ?? {}); // --- chord-stars ---
   if (mode === "hoops") engine.setHoopsSettings(settings.hoops ?? {}); // --- bead-hoops ---
   if (mode === "ellipseFoci") engine.setEllipseFociSettings(settings.ellipseFoci ?? {}); // --- ellipse-foci ---
+  if (mode === "beatMachine") engine.setBeatMachineSettings(settings.beatMachine ?? {}); // --- beat-machine ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -749,6 +764,11 @@ export function findSimulation(
     // --- ellipse-foci --- every volley converges on time by construction: the search fits the transit to the tempo or the start angle
     if (request.mode === "ellipseFoci") {
       resolve(findEllipseFociRun(request));
+      return;
+    }
+    // --- beat-machine --- every note lands on its beat by construction: the search is over seeded phrases (a plan a seed)
+    if (request.mode === "beatMachine") {
+      resolve(findBeatMachineRun(request, (seed) => createEngineForSettings(request.physicsConfig, "beatMachine", request.modeSettings, seed).getBeatMachineView().plan));
       return;
     }
     // --- rigged --- the other outcomes (never escapes, first escape at, winner) search by what happens, not by the length

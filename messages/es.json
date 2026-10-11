@@ -2156,7 +2156,8 @@
     "efBed": "Base rítmica",
     "efBedTip": "Un pad suave, un sub y un bombo en cada pulso a 8 · 60 / T BPM bajo los punteos, cambiando de acorde en cada pasada: una convergencia siempre cae en una línea de compás.",
     "efCounter": "Contador de pasadas",
-    "efCounterTip": "Muestra las pasadas del bucle actual bajo la mesa en el HUD de bucle («3 pasadas»; el clip no lo tiene). Activarlo activa el HUD de bucle."
+    "efCounterTip": "Muestra las pasadas del bucle actual bajo la mesa en el HUD de bucle («3 pasadas»; el clip no lo tiene). Activarlo activa el HUD de bucle.",
+    "modeBeatMachine": "Máquinas de ritmo"
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -2319,6 +2320,10 @@
     "ellipseFoci": {
       "name": "Tiro al foco",
       "description": "Una mesa elíptica: una ráfaga de bolas arcoíris disparada desde un foco rebota en la pared y pasa por el otro foco a la vez, en cada pasada – mientras el enjambre se cierra sobre el eje mayor."
+    },
+    "beatMachine": {
+      "name": "Máquinas de ritmo",
+      "description": "Máquinas musicales en las que cada nota es una bola que cae justo a tiempo: un xilófono de canicas alimentado por tubos y un elevador, o una bola que salta por una escalera musical de ocho peldaños."
     }
   },
   "FAQ": {
@@ -2442,7 +2447,8 @@
     "modeStarChords": "Estrellas de cuerdas: bolas que recorren un círculo fino y dibujan cada una un polígono estrellado como 5/2 o 12/5. Una bola que rebota en un círculo siempre choca con la pared con el mismo ángulo, así que su punto de contacto avanza k de n puntos alrededor del borde y cada línea que dibuja queda a la misma distancia del centro: a medida que se acumulan las líneas, aparece un círculo interior que nadie dibujó. Cada bola se mueve justo a la velocidad que cierra su estrella tras el mismo tiempo de dibujo, así que todas las estrellas se cierran en un fotograma con un acorde; luego el dibujo se mantiene, se desvanece y vuelve a empezar, un bucle perfecto. Escribe tus propias estrellas, saca un conjunto coprimo aleatorio o deja que Buscar simulación elija el conjunto más bonito y ajuste el bucle a tu clip.",
     "modeHoops": "Sin anillos: 1–16 aros concéntricos (ocho por defecto, rojo por fuera, violeta por dentro) giran juntos alrededor de su diámetro vertical, dibujados de frente y aplastados por el giro para que se vean en 3D, cada uno con una cuenta que se desliza sin rozamiento. El giro acelera –de forma constante, suave o por escalones– y cada aro tiene una velocidad crítica, √(g/R): por debajo, la gravedad mantiene la cuenta en el fondo; por encima, la cuenta sube hasta su punto de equilibrio arccos(g/(Rω²)), más alto cuanto más rápido el giro. Los aros más grandes levantan primero, así que las cuentas suben en estricto orden de tamaño, cada subida una nota de lámina afinada según su aro; una campanilla suena en cada vuelta, un acorde llega cuando todas están arriba y el contador muestra el giro y las cuentas arriba. Con el regreso activado, el giro baja hasta que todas las cuentas reposan y el bucle vuelve a empezar sin costuras, listo para exportar bucles completos; Buscar simulación encuentra una partida en estricto orden de tamaño o una con todas las cuentas arriba dentro de un tiempo.",
     "modeColourSort": "Una máquina de clasificar: 360 bolas de cuatro colores empiezan apiñadas en el centro rojo de una diana de anillos que giran y se mueven como un gas a velocidad constante. Cada anillo es una fila de arcos con puertas entre ellos, y cada puerta es un filtro de color de un solo sentido: solo se abre hacia fuera y nunca para las bolas del color del anillo. Así el rojo nunca sale del centro, el naranja pasa el anillo rojo pero se queda en el suyo, el verde llega un anillo más allá y el azul sale hasta la franja exterior: la mezcla se ordena sola en una diana mientras el contador ámbar sube hasta 360 / 360 ordenadas con una cola larga y llena de suspense. Cada paso por una puerta pulsa la nota de su color en la pentatónica de la mayor, la última bola ordenada desata un cálido acorde final y una remezcla devuelve todas las bolas exactamente al primer fotograma bajo un suave soplo de ruido, así que una grabación de ciclos completos se repite sin costuras. Elige los colores y las bolas de cada uno, las puertas y su anchura, el giro de los anillos, la regla (o inviértela), choques o un gas fantasma para miles de bolas, y deja que Buscar simulación encuentre una clasificación dentro de un límite de tiempo, el color que termina último o una última bola en una barra de compás.",
-    "modeEllipseFoci": "Una mesa de billar elíptica con sus dos focos marcados. Una ráfaga de bolas – 72 por defecto, coloreadas por la rueda de tonos según el ángulo de salida – sale de un foco en el mismo instante, en todas direcciones. Una elipse manda cada tiro de un foco, tras rebotar en su pared, justo por el otro, y todos esos caminos miden lo mismo, así que la ráfaga entera converge en el otro foco una pasada después, luego de vuelta en el primero, cada vez con un destello blanco, mientras cada pasada estrecha el enjambre sobre el eje mayor. Redisparar lanza una ráfaga nueva bajo el destello cada pocas pasadas, así que el clip se repite sin costuras; los rebotes bajan por una escalera pentatónica, cada convergencia cae en una línea de compás con bombo, chasquido y acorde, y Buscar simulación pone las convergencias a ritmo de la página o encuentra el ángulo inicial del colapso más largo."
+    "modeEllipseFoci": "Una mesa de billar elíptica con sus dos focos marcados. Una ráfaga de bolas – 72 por defecto, coloreadas por la rueda de tonos según el ángulo de salida – sale de un foco en el mismo instante, en todas direcciones. Una elipse manda cada tiro de un foco, tras rebotar en su pared, justo por el otro, y todos esos caminos miden lo mismo, así que la ráfaga entera converge en el otro foco una pasada después, luego de vuelta en el primero, cada vez con un destello blanco, mientras cada pasada estrecha el enjambre sobre el eje mayor. Redisparar lanza una ráfaga nueva bajo el destello cada pocas pasadas, así que el clip se repite sin costuras; los rebotes bajan por una escalera pentatónica, cada convergencia cae en una línea de compás con bombo, chasquido y acorde, y Buscar simulación pone las convergencias a ritmo de la página o encuentra el ángulo inicial del colapso más largo.",
+    "modeBeatMachine": "Dos máquinas musicales cinéticas que se repiten sin fin. En el xilófono de canicas, diez láminas de arcoíris esperan bajo diez tubos: cada canica sale de su tubo en el instante exacto para que la gravedad la deje sobre su lámina a tiempo, rebota por el hueco hasta el suelo, rueda hasta el elevador, sube y vuelve por el riel superior a su propio tubo. En la escalera, una bola salta de peldaño en peldaño, un arco idéntico por pulso, y cada aterrizaje es una nota; luego cae en un gancho y la pista de vuelta la sube justo a tiempo para la siguiente frase. La melodía es una frase original de la semilla, una escala, una lista que escribes o la melodía que cargas."
   },
   "Footer": {
     "navLabel": "Pie de página",
@@ -2860,7 +2866,17 @@
     "foundConvergeOnBeat": "¡Encontrada! Una convergencia cada {transit}s ({bars, plural, one {# compás} other {# compases}}), {loops, plural, one {# bucle completo} other {# bucles completos}} en el clip",
     "foundLongestCollapse": "¡Encontrada! Ángulo inicial {aim}°: un cometa tras {passes, plural, one {# pasada} other {# pasadas}}",
     "missLongestCollapse": "El enjambre nunca se estrechó por debajo de dos radios de bola ({seeds} ángulos iniciales)",
-    "overlayLongestCollapse": "Se probaron {tested} ángulos iniciales: el enjambre no se estrechó por debajo de dos radios de bola durante la búsqueda. Un círculo nunca colapsa: prueba una excentricidad mayor."
+    "overlayLongestCollapse": "Se probaron {tested} ángulos iniciales: el enjambre no se estrechó por debajo de dos radios de bola durante la búsqueda. Un círculo nunca colapsa: prueba una excentricidad mayor.",
+    "outcomeNoTubeConflict": "Sin conflicto en los tubos",
+    "outcomeMostInFlight": "Más canicas en el aire",
+    "hintNoTubeConflict": "Busca una melodía original de semilla que cada tubo pueda tocar con las canicas que tiene (Canicas por tubo, una en «auto»): ninguna canica hace falta antes de volver, así que ningún tubo necesita una de repuesto.",
+    "hintMostInFlight": "Busca una melodía original de semilla para la máquina más ajetreada: el mayor número de canicas fuera de sus tubos a la vez.",
+    "findNoTubeConflict": "Buscar una melodía sin repuestos",
+    "findMostInFlight": "Buscar la melodía más ajetreada",
+    "foundNoTubeConflict": "¡Encontrada! Cada canica vuelve a tiempo: {notes} notas por bucle, {loops, plural, one {# bucle completo} other {# bucles completos}} en el clip",
+    "foundMostInFlight": "¡Encontrada! Hasta {marbles} canicas en el aire a la vez, {loops, plural, one {# bucle completo} other {# bucles completos}} en el clip",
+    "missNoTubeConflict": "Todas las melodías necesitaron una canica de repuesto (la que menos: {spares}; {seeds} semillas)",
+    "overlayNoTubeConflict": "Se probaron {tested} melodías de semilla: cada una necesitó al menos {spares} canicas de repuesto. Sube las canicas por tubo, baja el tempo o alarga el bucle."
   },
   "FastExport": {
     "button": "Exportación rápida",
@@ -4638,7 +4654,11 @@
     "colourSort": "{count} bolas mezcladas, ordenadas por sus propios anillos",
     "colourSortFact": "Las puertas de cada anillo solo se abren hacia fuera, y nunca para las bolas del color del propio anillo. Así el color del centro nunca puede salir, el siguiente pasa el primer anillo pero no el suyo, y el color más exterior sale hasta el final: mézclalas y se ordenan solas en una diana.",
     "ellipseFoci": "{count} tiros desde un foco, todos a la vez por el otro",
-    "ellipseFociFact": "Una elipse tiene dos focos. Un tiro desde uno rebota en la pared y pasa justo por el otro, vaya hacia donde vaya, y todos esos caminos miden lo mismo: por eso una ráfaga entera disparada a la vez llega al otro foco en el mismo instante. Es la razón por la que un susurro en un foco de una sala elíptica se oye con claridad en el otro."
+    "ellipseFociFact": "Una elipse tiene dos focos. Un tiro desde uno rebota en la pared y pasa justo por el otro, vaya hacia donde vaya, y todos esos caminos miden lo mismo: por eso una ráfaga entera disparada a la vez llega al otro foco en el mismo instante. Es la razón por la que un susurro en un foco de una sala elíptica se oye con claridad en el otro.",
+    "beatMachineMarbles": "{count} láminas afinadas, y cada nota es una canica",
+    "beatMachineMarblesFact": "Cada canica cae de su tubo en el instante exacto para que la gravedad la deje sobre su lámina a tiempo: una caída de altura h dura √(2h/g), así que sale ese tiempo antes de su nota. Luego el suelo, el elevador y el riel superior la devuelven a su tubo. La melodía es original.",
+    "beatMachineStairs": "{count} peldaños. {count} notas. una frase",
+    "beatMachineStairsFact": "Cada salto es el mismo arco y dura exactamente un pulso: la gravedad y la velocidad de salida se calculan a partir del tempo, la caída de un peldaño y la altura del arco. Tras el último peldaño, la bola vuelve arriba por la pista y aterriza en el primer peldaño justo cuando empieza la siguiente frase."
   },
   "ColourSort": {
     "canvasTitle": "cada anillo solo detiene su propio color",
@@ -4702,5 +4722,64 @@
     "canvasTitle": "dispara desde un punto, acierta en el otro",
     "canvasSubtitle": "cada rebote en la pared va hacia el otro punto / y todos los caminos miden lo mismo",
     "canvasPasses": "{count, plural, one {{count} pasada} other {{count} pasadas}}"
+  },
+  "BeatMachine": {
+    "canvasTitleStairs": "cada peldaño / toca una nota",
+    "canvasSubtitleStairs": "un salto por pulso, cada aterrizaje una nota / luego la pista devuelve la bola",
+    "canvasCounterStairs": "{count} / {total} notas",
+    "canvasTitleMarbles": "cada nota es una canica",
+    "canvasSubtitleMarbles": "cada canica sale de su tubo justo a tiempo / para caer en su lámina al compás",
+    "canvasCounterMarbles": "{count} / {total} notas",
+    "desc": "Máquinas musicales en las que cada nota es una bola que cae sobre su objetivo exactamente a tiempo, con un camino de vuelta para que la máquina se repita sin fin. Las láminas y los peldaños siguen la escala y la tónica de la sección Sonido.",
+    "bmPreset": "Preajuste",
+    "bmPresetTip": "Ocho peldaños: la escalera, 8 notas a 80 BPM. Escalera de escala: 16 peldaños que tocan la escala. Xilófono de canicas: 10 láminas, una melodía original de semilla a 100 BPM. Carga tu melodía: las canicas tocan la melodía cargada en Sonido.",
+    "presetEightSteps": "Ocho peldaños",
+    "presetScaleStairs": "Escalera de escala",
+    "presetXylophone": "Xilófono de canicas",
+    "presetYourMelody": "Carga tu melodía",
+    "bmVariant": "Máquina",
+    "bmVariantTip": "El xilófono de canicas (tubos, láminas afinadas, suelo, elevador y riel superior) o la escalera musical (una bola que salta un peldaño por pulso y luego da la vuelta por la pista).",
+    "variantMarbles": "Xilófono de canicas",
+    "variantStairs": "Escalera",
+    "bmBpm": "Tempo (BPM)",
+    "bmBpmTip": "Pulsos por minuto. Cada golpe o aterrizaje se calcula hacia atrás desde su pulso, así que cualquier tempo llega a tiempo: 100 va bien con las canicas, 80 con la escalera.",
+    "loopNoteStairs": "{steps} peldaños y {back} pulsos de vuelta: un bucle de {beats} pulsos, {loop} s.",
+    "loopNoteMarbles": "Un bucle de {beats} pulsos, {loop} s.",
+    "bmSource": "Notas de",
+    "bmSourceTip": "De dónde sale la melodía: una frase original escrita por la semilla, una escala, la melodía cargada en Sonido o una lista que escribes.",
+    "sourceOriginal": "Frase original",
+    "sourceScale": "Escala",
+    "sourceMelody": "Melodía cargada",
+    "sourceCustom": "Lista escrita",
+    "sourceOriginalHint": "Una melodía original nueva para cada semilla: Buscar simulación puede encontrar una sin canicas de repuesto, o la más ajetreada.",
+    "sourceScaleHint": "Las canicas suben por las láminas y vuelven a bajar; la escalera toca su escala, un grado por peldaño.",
+    "sourceMelodyHint": "Una nota por pulso de la melodía cargada en Sonido, cada una en la lámina más cercana a su altura. Sin melodía cargada suena la frase original.",
+    "sourceCustomHint": "Un elemento por pulso: un número de lámina o de grado (1 es el más grave), un nombre de nota como C4 o F#5, o - para un silencio.",
+    "bmNotes": "Lista de notas",
+    "bmNotesTip": "Un elemento por pulso, separados por espacios o comas: un número de lámina (1 = la más grave), un nombre de nota (C4, F#5, Bb3) o - para un silencio. La lista se repite hasta llenar el bucle.",
+    "bmNotesPlaceholder": "1 3 5 - 8 o C4 E4 G4",
+    "bmSteps": "Peldaños",
+    "bmStepsTip": "Peldaños de la escalera: cada uno toca una nota, así que la frase tiene tantas notas como peldaños.",
+    "bmStepDx": "Ancho del peldaño",
+    "bmStepDxTip": "Cuánto se desplaza cada peldaño a la derecha del anterior, en % del panel.",
+    "bmStepDy": "Caída del peldaño",
+    "bmStepDyTip": "Cuánto más abajo queda cada peldaño respecto al anterior, en % del panel. El arco del salto se calcula con ella y con el pulso.",
+    "bmReturn": "Pulsos de vuelta",
+    "bmReturnTip": "Pulsos desde el gancho hasta el primer peldaño: la bola rueda por la pista y vuelve a la escalera justo cuando empieza otra vez la frase. Por debajo de 2 vuelve de un solo vuelo.",
+    "bmBars": "Láminas",
+    "bmBarsTip": "Láminas afinadas, de graves a la izquierda a agudas a la derecha, cada una con su propio tubo de canicas de su color.",
+    "bmDrop": "Altura de caída",
+    "bmDropTip": "La caída desde un tubo hasta su lámina, en % del panel: la canica sale √(2h/g) antes de su nota.",
+    "bmRebound": "Rebote",
+    "bmReboundTip": "Cuánto rebota una canica en su lámina, como fracción de su velocidad de impacto, antes de caer por el hueco hasta el suelo.",
+    "bmPerTube": "Canicas por tubo",
+    "bmPerTubeTip": "Canicas que guarda cada tubo. Auto: las que necesite la melodía. Un tubo cuya canica no puede volver antes de su siguiente nota empieza con una de repuesto.",
+    "perTubeAuto": "auto",
+    "bmLoopBeats": "Pulsos del bucle",
+    "bmLoopBeatsTip": "Pulsos del bucle de la máquina de canicas: 32 a 100 BPM son 19,2 s.",
+    "bmBass": "Bajo de la frase",
+    "bmBassTip": "Una nota grave suave cada dos compases, en la nota más grave de la frase en ese tramo.",
+    "bmCounter": "Contador de notas",
+    "bmCounterTip": "Muestra las notas del bucle actual en el HUD del bucle («12 / 32 notas»)."
   }
 }

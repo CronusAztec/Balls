@@ -51,6 +51,7 @@ import { LoopClipSlots, type LoopClipSlotId } from "./loopClips";
 import type { LoopPlayOptions } from "./loopEvents";
 export type { LoopPlayOptions } from "./loopEvents";
 import { scheduleKick as scheduleLoopKick } from "./beatDropTones";
+import { schedulePhraseBass } from "./loopTones"; // --- beat-machine --- (the machines' phrase bass)
 import type { LoopSoundKind } from "@/lib/physics/types";
 import { frequencyToMidi } from "./scales";
 // --- end loop-foundation ---
@@ -363,6 +364,10 @@ export class ToneGenerator {
   }
   getCustomNoteCount() {
     return this.customNotes.length;
+  }
+  /** --- beat-machine --- The loaded melody's pitches (Hz), in order (the Beat Machines' "melody" source plans from them). */
+  getCustomNotes(): readonly number[] {
+    return this.customNotes;
   }
 
   /* ------------------------------------------------------------ song slicer & music bed */
@@ -1285,6 +1290,11 @@ export class ToneGenerator {
           this.loopDrone?.stop(time);
           this.loopDrone = null;
           this.loopClips.stopLoop("drone", time);
+          return;
+        // --- beat-machine --- the phrase bass of a machine (a triangle 55–220 Hz, 300 ms attack, 2 s decay) every two bars
+        case "bass":
+          if (!this.loopBudget.thump(time)) return;
+          schedulePhraseBass(ctx, out, f ?? 55, time, l);
           return;
       }
     } catch (err) {

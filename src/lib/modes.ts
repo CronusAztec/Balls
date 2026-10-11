@@ -108,6 +108,12 @@ MODE_CARD_ORDER.push("journey");
   const at = hoops >= 0 ? hoops : MODE_CARD_ORDER.indexOf("pendulum");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "ellipseFoci");
 }
+// --- beat-machine --- Beat Machines joins the rhythm family right after Beat Drop (the same planner idea: every landing solved
+// backwards from its beat)
+{
+  const at = MODE_CARD_ORDER.indexOf("beatDrop");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "beatMachine");
+}
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -188,6 +194,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   hoops: "rhythm",
   // --- ellipse-foci --- every wall hit a pluck down the scale, every convergence an impact on a bar line: the sound-first family
   ellipseFoci: "rhythm",
+  // --- beat-machine --- every note a ball landing on its tuned bar or step exactly on the beat: the sound-first family
+  beatMachine: "rhythm",
 };
 
 /** The modes of a category in card order. */

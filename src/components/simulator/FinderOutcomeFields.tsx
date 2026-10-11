@@ -48,6 +48,9 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "sorted-by": "outcomeSortedBy",
   "last-colour": "outcomeLastColour",
   "sorted-on-bar": "outcomeSortedOnBar",
+  // --- beat-machine ---
+  "no-tube-conflict": "outcomeNoTubeConflict",
+  "most-in-flight": "outcomeMostInFlight",
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -72,6 +75,9 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "sorted-by": "hintSortedBy",
   "last-colour": "hintLastColour",
   "sorted-on-bar": "hintSortedOnBar",
+  // --- beat-machine ---
+  "no-tube-conflict": "hintNoTubeConflict",
+  "most-in-flight": "hintMostInFlight",
 };
 
 /** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
@@ -408,6 +414,11 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findLastColour", { name: c.winnerName });
     case "sorted-on-bar":
       return t("Rigged.findSortedOnBar");
+    // --- beat-machine ---
+    case "no-tube-conflict":
+      return t("Rigged.findNoTubeConflict");
+    case "most-in-flight":
+      return t("Rigged.findMostInFlight");
     default:
       return null;
   }
@@ -454,6 +465,11 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundLastColour", { name: c.winnerName, time: (result.sortedAt ?? 0).toFixed(2) });
     case "sorted-on-bar":
       return t("Rigged.foundSortedOnBar", { time: (result.sortedAt ?? 0).toFixed(2) });
+    // --- beat-machine --- (the loops in the clip; the most marbles out at once)
+    case "no-tube-conflict":
+      return t("Rigged.foundNoTubeConflict", { loops: result.beatMachine?.loops ?? 0, notes: result.beatMachine?.notes ?? 0 });
+    case "most-in-flight":
+      return t("Rigged.foundMostInFlight", { marbles: result.beatMachine?.inFlightMax ?? 0, loops: result.beatMachine?.loops ?? 0 });
     default:
       return null;
   }
@@ -500,6 +516,10 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missLastColour", { name: c.winnerName, seeds: result.seedsTested });
     case "sorted-on-bar":
       return result.sortedAt === undefined ? t("Rigged.missNoSort", { seeds: result.seedsTested }) : t("Rigged.missSortedOnBar", { offset: barOffsetText(result.sortedAt, c.barSec), seeds: result.seedsTested });
+    // --- beat-machine --- (the fewest spares any seed needed)
+    case "no-tube-conflict":
+    case "most-in-flight":
+      return t("Rigged.missNoTubeConflict", { spares: result.beatMachine?.spares ?? 0, seeds: result.seedsTested });
     default:
       return null;
   }
@@ -552,6 +572,10 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayLastColour", { tested: result.seedsTested, name: c.winnerName });
     case "sorted-on-bar":
       return result.sortedAt === undefined ? t("Rigged.overlayNoSort", { tested: result.seedsTested }) : t("Rigged.overlaySortedOnBar", { tested: result.seedsTested, offset: barOffsetText(result.sortedAt, c.barSec) });
+    // --- beat-machine ---
+    case "no-tube-conflict":
+    case "most-in-flight":
+      return t("Rigged.overlayNoTubeConflict", { tested: result.seedsTested, spares: result.beatMachine?.spares ?? 0 });
     default:
       return null;
   }
