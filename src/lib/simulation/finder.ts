@@ -18,6 +18,7 @@ import { countTolerance, resolveMultipliersSettings, type MultipliersSettings } 
 import { startBallCount } from "@/lib/physics/ballStats";
 import { rigNeverFinishes } from "@/lib/physics/rigged";
 import { outcomeClipSec, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcomeMiss, outcomeSettled, winnerNeedsEnd, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "./outcomes";
+import { hoopsOutcomeSettled } from "./outcomes"; // --- bead-hoops ---
 // --- jdm-double-pendulum ---
 import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions ---
@@ -52,6 +53,9 @@ import { MAX_TEAMS } from "@/lib/physics/ballStats"; // --- land-claim ---
 import type { GrowFillSettings } from "@/lib/physics/modes/grow"; // --- loop-foundation ---
 import { growRunFinishes } from "@/lib/physics/growFill"; // --- loop-foundation ---
 import { resolveColourSortSettings, type ColourSortSettings } from "@/lib/physics/modes/colourSort"; // --- colour-sort ---
+import type { StarChordsSettings } from "@/lib/physics/starChords"; // --- chord-stars ---
+import { findStarChordsRun, type StarChordsFound } from "./starChordsFinder"; // --- chord-stars ---
+import { hoopsSchedule, resolveHoopsSettings, type HoopsSettings } from "@/lib/physics/modes/hoops"; // --- bead-hoops ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -212,6 +216,20 @@ export interface ModeSettings {
    * finder searches its first sort: all sorted within a limit, the colour sorted last, the final ball on a bar line.
    */
   colourSort?: Partial<ColourSortSettings>;
+  // --- chord-stars ---
+  /**
+   * Chord Stars: the balls, the stars, the drawing time, the hold, the fade and the look (see lib/physics/starChords.ts); the
+   * defaults when left out. The loop never ends and its stars always close together, so the finder searches star sets and the
+   * drawing time that fits the clip instead (starChordsFinder.ts).
+   */
+  starChords?: Partial<StarChordsSettings>;
+  // --- bead-hoops ---
+  /**
+   * Spinning Hoops: the hoops, the spin, the beads and the return (see modes/hoops.ts); the defaults when left out. With the
+   * return a run loops forever (no length to search: the lift order and "all up within" still are); without it the run lasts
+   * its ramp and top hold, whatever the seed.
+   */
+  hoops?: Partial<HoopsSettings>;
 }
 
 // --- odd-string-battle ---
@@ -267,8 +285,9 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */ & Partial<Pick<ModeSettings, "hoops">> /* --- bead-hoops --- */): boolean {
   if (mode === "grow" && growRunFinishes(settings.grow)) return false; // --- loop-foundation --- ("finish": the run ends at the fill)
+  if (mode === "hoops") return resolveHoopsSettings(settings.hoops).returnLoop; // --- bead-hoops --- (the return loops forever)
   if (ENDLESS_MODES.includes(mode)) return true;
   // --- review fix (modes-rhythm) --- Picture Paint follows the page's picture and song: no length the finder can replay
   if (mode === "paint") return settings.paintPicture === true;
@@ -291,6 +310,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "orbGrid") return orbGridNeverSettles((settings as Pick<ModeSettings, "orbGrid">).orbGrid);
   // --- colour-sort --- it sorts, mixes again and sorts again forever: no length (its outcomes search the first sort)
   if (mode === "colourSort") return true;
+  // --- chord-stars --- the loop draws, holds, fades and starts again forever (the finder searches its star sets instead)
+  if (mode === "starChords") return true;
   return false;
 }
 
@@ -322,6 +343,11 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
   if (mode === "landClaim") {
     const lc = resolveLandClaimSettings((settings as Pick<ModeSettings, "landClaim">).landClaim);
     return lc.rule === "steal" ? lc.duration : null;
+  }
+  // --- bead-hoops --- without the return a run lasts its ramp and its top hold, whatever the seed (with it, it never ends)
+  if (mode === "hoops") {
+    const h = resolveHoopsSettings((settings as Partial<Pick<ModeSettings, "hoops">>).hoops);
+    return h.returnLoop ? null : hoopsSchedule(h).cycle;
   }
   if (mode !== "pendulum") return null;
   const p = resolvePendulumSettings(settings.pendulum);
@@ -414,6 +440,12 @@ export interface FinderResult {
   /** Colour Sort: the colour of the final ball that sort sorted (0 = the core's). */
   lastColour?: number;
   // --- end colour-sort ---
+  // --- chord-stars ---
+  /** Chord Stars: the star set found, the drawing time that fits the clip, the loops in it and the set's score. */
+  starChords?: StarChordsFound;
+  // --- bead-hoops ---
+  /** Spinning Hoops: when every bead was first up (seconds) in the run found – or in the closest one – when that came. */
+  allUpAt?: number;
 }
 
 /**
@@ -482,6 +514,8 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "landClaim") engine.setLandClaimSettings(settings.landClaim ?? {}); // --- land-claim ---
   if (mode === "grow") engine.setGrowFillSettings(settings.grow ?? {}); // --- loop-foundation --- (before the init: the law and the start apply there)
   if (mode === "colourSort") engine.setColourSortSettings(settings.colourSort ?? {}); // --- colour-sort ---
+  if (mode === "starChords") engine.setStarChordsSettings(settings.starChords ?? {}); // --- chord-stars ---
+  if (mode === "hoops") engine.setHoopsSettings(settings.hoops ?? {}); // --- bead-hoops ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -686,6 +720,11 @@ export function findSimulation(
       return;
     }
     // --- end orb-rhythm ---
+    // --- chord-stars --- every star closes on time by construction: the search is over star sets and the loop that fits the clip
+    if (request.mode === "starChords") {
+      resolve(findStarChordsRun(request));
+      return;
+    }
     // --- rigged --- the other outcomes (never escapes, first escape at, winner) search by what happens, not by the length
     if (request.outcome && request.outcome.kind !== "duration") {
       findByOutcome(request, request.outcome, onProgress, signal).then(resolve);
@@ -872,6 +911,8 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   const orbs = request.mode === "orbGrid"; // --- orb-grid ---
   const growRun = request.mode === "grow"; // --- loop-foundation --- (Grow's first fill, real time)
   let firstFill = -1;
+  const hoopsRun = request.mode === "hoops"; // --- bead-hoops --- (the first moment every bead is up, real time; the first cycle's lift order)
+  let allUp = -1;
   // --- colour-sort --- the first sort decides every outcome of it: the run is followed until it ends (every ball sorted, or
   // the mode's time limit – the horizon of the colour and the bar line) and no further
   const csRun = request.mode === "colourSort";
@@ -884,8 +925,10 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     if (orbs && firstResolve < 0 && engine.getOrbGridView().resolveAtMs >= 0) firstResolve = elapsed; // --- orb-grid ---
     if (orbs && settledAt < 0 && engine.getOrbGridView().allSettled) settledAt = elapsed; // --- orb-grid ---
     if (growRun && firstFill < 0 && engine.getGrowView().fills > 0) firstFill = elapsed; // --- loop-foundation ---
+    if (hoopsRun && allUp < 0 && engine.getHoopsView().firstAllUpMs >= 0) allUp = elapsed; // --- bead-hoops ---
     finished = engine.isSimulationFinished();
     if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode, firstResolve, settledAt, firstFill)) break;
+    if (hoopsRun && hoopsOutcomeSettled(outcome, elapsed, allUp, engine.getHoopsView().orderDecided)) break; // --- bead-hoops ---
     if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
     // --- odd-maze --- the maze's verdict is final once a ball is out: another ball's win ends the search of this seed
     if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
@@ -897,9 +940,13 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   // --- land-claim --- the battle's first six competitors are teams; its verdict's gap between the top two (a close battle)
   const lcView = request.mode === "landClaim" ? engine.getLandClaimView() : null;
   const teams = engine.getTeamStats().slice(0, lcView ? Math.min(lcView.teams, MAX_TEAMS) : teamCount).map((t) => ({ ...t }));
-  // --- fight-league --- a finished fight that ended with every side down together: a double KO
-  const doubleKo = request.mode === "fightLeague" && finished ? engine.getFightLeagueView().doubleKo : undefined;
-  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...(csRun ? colourSortRunFields(engine) : {}) /* --- colour-sort --- */ };
+  // --- fight-league --- a finished fight that ended with every side down together: a double KO (--- odd-string-battle --- and a
+  // finished battle with nobody standing: its last balls shattered in the same step)
+  const doubleKo = !finished ? undefined : request.mode === "fightLeague" ? engine.getFightLeagueView().doubleKo : request.mode === "stringBattle" ? engine.getStringBattleView().alive === 0 : undefined;
+  // --- bead-hoops --- the first cycle's lift order: strict size order (and at least one lift), once it was decided
+  const hv = hoopsRun ? engine.getHoopsView() : null;
+  const hoopsSummary = hv ? { allUpMs: allUp, liftOrderOk: hv.orderDecided && hv.orderOk && hv.firstLifts > 0 } : {};
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...hoopsSummary /* --- bead-hoops --- */, ...(csRun ? colourSortRunFields(engine) : {}) /* --- colour-sort --- */ };
 }
 
 // --- colour-sort ---
@@ -934,6 +981,7 @@ function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgres
       ...(run && (run.firstResolveMs ?? -1) >= 0 ? { resolveAt: (run.firstResolveMs ?? 0) / 1000 } : {}), // --- orb-grid ---
       ...(run && (run.firstFillMs ?? -1) >= 0 ? { fillAt: (run.firstFillMs ?? 0) / 1000 } : {}), // --- loop-foundation ---
       ...(run && (run.sortedMs ?? -1) >= 0 ? { sortedAt: (run.sortedMs ?? 0) / 1000, lastColour: run.lastColour ?? -1 } : {}), // --- colour-sort ---
+      ...(run && (run.allUpMs ?? -1) >= 0 ? { allUpAt: (run.allUpMs ?? 0) / 1000 } : {}), // --- bead-hoops ---
     });
     const runBatch = () => {
       if (signal?.aborted) {

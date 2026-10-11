@@ -67,7 +67,10 @@ import { OrbGridMode, type OrbGridSettings, type OrbGridView } from "./modes/orb
 import { FightLeagueMode, type FightLeagueSettings, type FightLeagueView } from "./modes/fightLeague"; // --- fight-league ---
 import { LandClaimMode, type LandClaimSettings, type LandClaimView } from "./modes/landClaim"; // --- land-claim ---
 import { ColourSortMode, type ColourSortSettings, type ColourSortView } from "./modes/colourSort"; // --- colour-sort ---
+import { HoopsMode, type HoopsSettings, type HoopsView } from "./modes/hoops"; // --- bead-hoops --- Spinning Hoops
 import type { GrowFillSettings, GrowView } from "./modes/grow"; // --- loop-foundation ---
+import { StarChordsMode, type StarChordsView } from "./modes/starChords"; // --- chord-stars ---
+import type { StarChordsSettings } from "./starChords"; // --- chord-stars ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -313,6 +316,10 @@ export class PhysicsEngine {
   readonly landClaimMode = new LandClaimMode();
   // --- colour-sort --- Colour Sort: balls sorted into a bullseye by one-way colour gates on rotating rings, then mixed again
   readonly colourSortMode = new ColourSortMode();
+  // --- chord-stars --- Chord Stars: balls in a circle drawing star polygons that all close at the same moment
+  readonly starChordsMode = new StarChordsMode();
+  // --- bead-hoops --- Spinning Hoops: beads on spinning hoops climb as the spin passes each hoop's critical speed
+  readonly hoopsMode = new HoopsMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -710,6 +717,14 @@ export class PhysicsEngine {
   initColourSort() {
     this.activateMode(this.colourSortMode, "none");
   }
+  // --- chord-stars --- the mode owns its circle (no rings; its balls pinned to the clock)
+  initStarChords() {
+    this.activateMode(this.starChordsMode, "none");
+  }
+  // --- bead-hoops --- the mode owns its hoops (no rings; one engine ball a bead, placed by the mode)
+  initHoops() {
+    this.activateMode(this.hoopsMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -810,6 +825,12 @@ export class PhysicsEngine {
       // --- colour-sort ---
       case "colourSort":
         return this.initColourSort();
+      // --- chord-stars ---
+      case "starChords":
+        return this.initStarChords();
+      // --- bead-hoops ---
+      case "hoops":
+        return this.initHoops();
     }
   }
 
@@ -1850,6 +1871,41 @@ export class PhysicsEngine {
     return this.colourSortMode.getView();
   }
   // --- end colour-sort ---
+  // --- chord-stars ---
+  isStarChordsMode() {
+    return this.currentMode === this.starChordsMode;
+  }
+  getStarChordsSettings(): StarChordsSettings {
+    return this.starChordsMode.getSettings();
+  }
+  /** Balls, stars, the cycle, the hold, the fade and the spread apply on the next `initStarChords()`; the look and the sound at once. */
+  setStarChordsSettings(settings: Partial<StarChordsSettings>) {
+    this.starChordsMode.setSettings(settings);
+  }
+  /** Live Chord Stars state (the circle, the stars, the balls, the cycle and its counters) for the canvas and the HUD; the same object every call. */
+  getStarChordsView(): StarChordsView {
+    return this.starChordsMode.getView();
+  }
+  getStarChordsProgress() {
+    return this.starChordsMode.getProgress();
+  }
+  // --- end chord-stars ---
+  // --- bead-hoops ---
+  isHoopsMode() {
+    return this.currentMode === this.hoopsMode;
+  }
+  getHoopsSettings(): HoopsSettings {
+    return this.hoopsMode.getSettings();
+  }
+  /** The hoops, the spin, the beads and the return of Spinning Hoops apply on the next `initHoops()`; the tick and the bed at once. */
+  setHoopsSettings(settings: Partial<HoopsSettings>) {
+    this.hoopsMode.setSettings(settings);
+  }
+  /** Live Spinning Hoops state (the hoops, the beads, the spin, the counters, the cycle) for the canvas, the HUD and the finder; the same object every call. */
+  getHoopsView(): HoopsView {
+    return this.hoopsMode.getView();
+  }
+  // --- end bead-hoops ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

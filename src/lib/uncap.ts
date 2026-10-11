@@ -190,6 +190,12 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   csPerColour: 10_000,
   csGates: ENTITY_CEILING,
   // --- end colour-sort ---
+  // --- chord-stars --- Chord Stars: the balls (each an engine ball pinned to the clock, a star, a voice and a line of the chord
+  // layer; nothing is stored per chord – a cycle's chords past SC_CHORD_CEILING fade on the canvas instead)
+  scBalls: ENTITY_CEILING,
+  // --- bead-hoops --- Spinning Hoops: the hoops a run builds (a bead each: an engine ball, a dozen numbers and an RK4 integration
+  // a sub-step; every frame draws each hoop as an ellipse)
+  hpCount: ENTITY_CEILING,
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

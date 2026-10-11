@@ -76,6 +76,10 @@ export const MODE_IDS = [
   "landClaim",
   // --- colour-sort --- Colour Sort (balls sorted into a bullseye by one-way colour gates on rotating rings, then mixed again)
   "colourSort",
+  // --- chord-stars --- Chord Stars (balls in a circle drawing star polygons that all close at the same moment; the loop family)
+  "starChords",
+  // --- bead-hoops --- Spinning Hoops (beads on spinning hoops climb in order as the spin passes each hoop's critical speed)
+  "hoops",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

@@ -14,7 +14,8 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  *   escape) when the run ends – or when the clip does, for a run that goes on – with no tie. In the modes that end on
  *   an escape the first team out wins, so this is "escapes first or has the top score". In the battle modes
  *   (`BATTLE_WINNER_MODES`) the winner is the last ball standing: the run is followed past the clip to the battle's end
- *   (`winnerNeedsEnd()`), and only a finished battle whose verdict crowned the chosen ball matches.
+ *   (`winnerNeedsEnd()`), and only a finished battle whose verdict crowned the chosen ball matches – never one that ended
+ *   with nobody standing (`RunSummary.doubleKo`: String Battle's last balls shattering in the same step share the verdict).
  *
  * Everything here is pure: a headless run is boiled down to a `RunSummary` (finder.ts simulates it) and the predicates
  * judge it, so they can be tested on synthetic runs. Times are real (recording) time – what the clip shows.
@@ -30,13 +31,20 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  * the circle within a time limit (`atSec`) – and **fill-on-bar** – the fill lands within `toleranceSec` (one 60 fps frame by
  * default) of a bar line of the song's tempo (`atSec` is the bar's length), so the completion chord hits on a downbeat.
  *
+ * --- chord-stars --- Chord Stars adds **star-set**: its stars always close together, so the search is for the best-looking
+ * star set and the drawing time that fits the clip in whole loops (starChordsFinder.ts; no seed is simulated).
+ *
+ * --- bead-hoops --- Spinning Hoops adds two: **lift-order** – the first cycle's beads leave their bottoms in strict size order,
+ * the biggest hoop's first (at least one lift; a bigger hoop's bead never comes after a smaller one's) – and **all-up-by** –
+ * every bead is up within a time limit (`atSec`).
+ *
  * --- colour-sort --- Colour Sort adds three of its first sort (the run itself loops forever): **sorted-by** – every ball is
  * sorted within a time limit (`atSec`) –, **last-colour** – the final ball sorted is of the chosen colour (`team`: its index,
  * the core's colour 0 outward) – and **sorted-on-bar** – the final ball is sorted within `toleranceSec` (±20 ms by default) of
  * a bar line of the song's tempo (`atSec` is the bar's length), so the completion chord lands on a downbeat.
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "sorted-by", "last-colour", "sorted-on-bar"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "sorted-by", "last-colour", "sorted-on-bar"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -85,13 +93,23 @@ export interface RunSummary {
   settledMs?: number;
   // --- end orb-grid ---
   // --- fight-league ---
-  /** Fight League: the run ended with a double KO (its last sides down in the same step). */
+  /**
+   * Fight League: the run ended with a double KO (its last sides down in the same step). --- odd-string-battle --- String
+   * Battle: its last balls shattered in the same step – nobody is left standing, and the mode shares the verdict between them
+   * (the kills, then the bounces), so it may crown one of them.
+   */
   doubleKo?: boolean;
   // --- end fight-league ---
   /** --- land-claim --- A finished battle's gap between its top two, as a share of the land (Land Claim's verdict); absent elsewhere. */
   margin?: number;
   /** --- loop-foundation --- Real time (ms) of Grow's first fill (the ball full), −1 or absent when none came. */
   firstFillMs?: number;
+  // --- bead-hoops ---
+  /** Spinning Hoops: real time (ms) every bead was first up, −1 or absent when that never came. */
+  allUpMs?: number;
+  /** Spinning Hoops: the first cycle's beads lifted in strict size order (decided, at least one lift). */
+  liftOrderOk?: boolean;
+  // --- end bead-hoops ---
   // --- colour-sort ---
   /** Colour Sort: real time (ms) its first sort was complete (every ball in its own band), −1 when the time limit ended it first or it has not ended. */
   sortedMs?: number;
@@ -140,6 +158,10 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
       return 1000 * (outcome.atSec ?? 0) + FILL_SLACK_MS;
     case "fill-on-bar": // --- loop-foundation --- (until the fill)
       return Math.max(clipMs, maxSimMs);
+    case "lift-order": // --- bead-hoops --- (until the first cycle's order is decided)
+      return Math.max(clipMs, maxSimMs);
+    case "all-up-by": // --- bead-hoops --- (until the limit has passed without every bead up)
+      return 1000 * (outcome.atSec ?? 0) + FILL_SLACK_MS;
     case "sorted-by": // --- colour-sort --- (until the limit has passed without a complete sort)
       return 1000 * (outcome.atSec ?? 0) + SORT_SLACK_MS;
     case "last-colour": // --- colour-sort --- (until the first sort ends: the finder adds the mode's time limit)
@@ -256,6 +278,9 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       const team = outcome.team ?? -1;
       if (team < 0 || team >= run.teams.length || run.teams.length < 2) return false;
       if (winnerNeedsEnd(outcome, run.mode) && !(run.finished && run.teams[team].escapes > 0)) return false;
+      // --- odd-string-battle --- a battle's winner is the last one standing: a battle that ended with nobody standing is no
+      // find, even when its shared verdict crowned the chosen ball (it shattered with its rival in the final cut)
+      if (winnerNeedsEnd(outcome, run.mode) && run.doubleKo === true) return false;
       const result = teamResult(run.teams, run.teams.length);
       return !result.tie && result.winner === team;
     }
@@ -269,6 +294,13 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
     }
     case "fill-on-bar":
       return fillOnBar(outcome, run.firstFillMs ?? -1);
+    // --- bead-hoops --- the first cycle in strict size order; every bead up within the limit
+    case "lift-order":
+      return run.liftOrderOk === true;
+    case "all-up-by": {
+      const at = run.allUpMs ?? -1;
+      return at >= 0 && at <= 1000 * (outcome.atSec ?? 0) + 1e-6;
+    }
     // --- colour-sort --- every ball sorted within the limit; the chosen colour's ball the final one sorted; the final ball on a bar line
     case "sorted-by": {
       const sorted = run.sortedMs ?? -1;
@@ -309,6 +341,11 @@ export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
       return (run.firstFillMs ?? -1) < 0 ? Infinity : Math.max(0, (run.firstFillMs ?? 0) / 1000 - (outcome.atSec ?? 0));
     case "fill-on-bar":
       return (run.firstFillMs ?? -1) < 0 ? Infinity : barLineDistanceMs(run.firstFillMs ?? 0, 1000 * (outcome.atSec ?? barSeconds(120))) / 1000;
+    // --- bead-hoops --- 0 / 1 for the order; the seconds past the limit (never all up: Infinity)
+    case "lift-order":
+      return run.liftOrderOk === true ? 0 : 1;
+    case "all-up-by":
+      return (run.allUpMs ?? -1) < 0 ? Infinity : Math.max(0, (run.allUpMs ?? 0) / 1000 - (outcome.atSec ?? 0));
     // --- colour-sort --- the seconds past the limit; 0 / 1 for the last colour; the seconds off the nearest bar line (no complete sort: Infinity)
     case "sorted-by":
       return (run.sortedMs ?? -1) < 0 ? Infinity : Math.max(0, (run.sortedMs ?? 0) / 1000 - (outcome.atSec ?? 0));
@@ -353,6 +390,8 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
     case "fills-by": // --- loop-foundation --- (the first fill, 0 without one)
     case "fill-on-bar":
       return (run.firstFillMs ?? -1) >= 0 ? (run.firstFillMs ?? 0) / 1000 : 0;
+    case "all-up-by": // --- bead-hoops --- (every bead up, 0 when that never came)
+      return (run.allUpMs ?? -1) >= 0 ? (run.allUpMs ?? 0) / 1000 : 0;
     case "sorted-by": // --- colour-sort --- (the first complete sort, 0 without one)
     case "last-colour":
     case "sorted-on-bar":
@@ -409,9 +448,23 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "fightLeague") out.push("double-ko");
   if (CLOSE_BATTLE_MODES.includes(mode) && ctx.ballCount >= 2) out.push("close"); // --- land-claim ---
   if (mode === "grow" && ctx.growFinish) out.push("fills-by", "fill-on-bar"); // --- loop-foundation ---
+  if (mode === "starChords") out.push("star-set"); // --- chord-stars --- (the best star set, its loop fitted to the clip)
+  if (mode === "hoops") out.push("lift-order", "all-up-by"); // --- bead-hoops ---
   if (mode === "colourSort") out.push("sorted-by", "last-colour", "sorted-on-bar"); // --- colour-sort --- (its first sort: the run loops forever)
   return out;
 }
+
+// --- bead-hoops ---
+/**
+ * Whether a Spinning Hoops run being simulated can stop for its outcome: the first cycle's lift order is decided (every bead
+ * up, the order broken, or the ramp back down – no lift can come any more), or every bead is up / the limit passed without it.
+ */
+export function hoopsOutcomeSettled(outcome: FinderOutcome, elapsedMs: number, allUpMs: number, orderDecided: boolean): boolean {
+  if (outcome.kind === "lift-order") return orderDecided;
+  if (outcome.kind === "all-up-by") return allUpMs >= 0 || elapsedMs > 1000 * (outcome.atSec ?? 0) + FILL_SLACK_MS - 1e-6;
+  return false;
+}
+// --- end bead-hoops ---
 
 /** The outcome to search for: the one picked when it is available, else the first one available (null: none). */
 export function effectiveOutcome(picked: FinderOutcomeKind, available: readonly FinderOutcomeKind[]): FinderOutcomeKind | null {

@@ -69,6 +69,9 @@ export const HERO_MOMENTS: Record<ModeId, HeroMoment> = {
   landClaim: { moment: "half the wall taken: the columns a mosaic of the four countries' colours", query: "teams=France*0055a4*%F0%9F%87%AB%F0%9F%87%B7,Brazil*009c3b*%F0%9F%87%A7%F0%9F%87%B7,Spain*aa151b*%F0%9F%87%AA%F0%9F%87%B8,Colombia*fcd116*%F0%9F%87%A8%F0%9F%87%B4&lcm=claim&lch=0&tsb=0&tn=0", seed: 3, atSec: 5, camera: { x: 0.5, y: 0.587, zoom: 1.25 }, tint: "#2a9d8f" },
   // --- colour-sort ---
   colourSort: { moment: "the bullseye almost sorted: every colour in its own band, the last stragglers slipping through the turning gates", query: "lh=0", seed: 1, atSec: 9, tint: "#5b8cff" },
+  starChords: { moment: "the five stars just closed together: every chord drawn, the inner circles lit, the closing flash", query: "lh=0", seed: 1, atSec: 12.3, camera: { zoom: 1.2 }, tint: "#b9a8ff" }, // --- chord-stars ---
+  // --- bead-hoops --- (the account's navy page)
+  hoops: { moment: "all eight beads up at the top spin, lined up level across the face-on rainbow hoops (g/ω² under the centre)", query: "bg1=0b1020&bg2=0b1020", seed: 1, atSec: 12.9, tint: "#f2c46a" },
 };
 
 /** The modes of `ids` (MODE_IDS) without a hero moment in `table`: the generator refuses to run while any is missing. */

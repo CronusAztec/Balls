@@ -174,6 +174,8 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   fightLeague: "fl", // --- fight-league ---
   landClaim: "lc", // --- land-claim ---
   colourSort: "cs", // --- colour-sort ---
+  starChords: "sc", // --- chord-stars ---
+  hoops: "hp", // --- bead-hoops ---
 };
 
 /** The settings the assistant may change on this page: the catalog, then the scalar settings of the page's mode. */

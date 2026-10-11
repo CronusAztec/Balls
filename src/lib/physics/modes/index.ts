@@ -90,3 +90,9 @@ export type { LandClaimSettings, LandClaimView, LandClaimField, LcArena, LcRule,
 // --- colour-sort ---
 export { ColourSortMode } from "./colourSort";
 export type { ColourSortSettings, ColourSortView, CsRule, CsPhase } from "./colourSort";
+// --- chord-stars ---
+export { StarChordsMode } from "./starChords";
+export type { StarChordsView, StarChordsField } from "./starChords";
+// --- bead-hoops ---
+export { HoopsMode } from "./hoops";
+export type { HoopsSettings, HoopsView, HoopsSchedule, HoopsPhase, HoopsRampShape } from "./hoops";

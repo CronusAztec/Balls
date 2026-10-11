@@ -89,6 +89,8 @@ import type { LoopClipSlotId } from "@/lib/audio/loopClips";
 import type { LoopClipView, LoopClipsPanelProps } from "./sections/LoopClipsSection";
 import { barSeconds } from "@/lib/simulation/outcomes";
 // --- end loop-foundation ---
+// --- bead-hoops --- Spinning Hoops (beads on spinning hoops climb in order as the spin passes each hoop's critical speed)
+import { hoopsClipSec, hoopsSettingsOf } from "@/lib/physics/hoopsFields";
 import { resolveFastExportFps, type EndHolds } from "@/lib/recording/fastRenderPlan";
 import { FastExportButton, FastExportStatus, type FastExportState } from "./sections/FastExportSection";
 // --- project-files ---
@@ -134,6 +136,7 @@ import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { FL_WIN_HOLD_SEC, fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 import { landClaimClipSec, landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 import { COLOUR_SORT_ENGINE_KEYS, COLOUR_SORT_HUD_KEYS, colourSortCounterTemplate, colourSortSettingsOf, colourSortTotal } from "@/lib/physics/colourSortSettings"; // --- colour-sort ---
+import { starChordsSettingsOf } from "@/lib/physics/starChords"; // --- chord-stars ---
 // --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
 import { useVideoBeats } from "./useVideoBeats";
 import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
@@ -357,6 +360,7 @@ export default function Simulator() {
     engine.setGrowCenterDotEnabled(s.growCenterDot);
     engine.setGrowLinesEnabled(s.growLines);
     engine.setGrowFillSettings(growFillSettingsOf(s)); // --- loop-foundation --- (before the init: the law and the start apply there)
+    engine.setHoopsSettings(hoopsSettingsOf(s)); // --- bead-hoops --- (before the init: the hoops, the spin and the beads apply there)
     engine.setLinesCenterDotEnabled(s.linesCenterDot);
     engine.setDropSettings(dropSettingsOf(s));
     engine.setBoxSettings(boxSettingsOf(s));
@@ -388,6 +392,7 @@ export default function Simulator() {
     engine.setFightLeagueSettings(fightLeagueSettingsOf(s)); // --- fight-league ---
     engine.setLandClaimSettings(landClaimSettingsOf(s)); // --- land-claim ---
     engine.setColourSortSettings(colourSortSettingsOf(s)); // --- colour-sort ---
+    engine.setStarChordsSettings(starChordsSettingsOf(s)); // --- chord-stars ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -565,6 +570,26 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [growFillKey]);
   const growLook = useMemo(() => (s.mode === "grow" ? growLookOf(s) : null), [s.mode, s.growHue, s.growRamp, s.growMarkers, s.growMarkerLife]); // eslint-disable-line react-hooks/exhaustive-deps
+  // --- bead-hoops --- Spinning Hoops: a change of the hoops, gravity, the spin, the return or the beads restarts its run and
+  // drops a found seed (they apply at the run's start); the chime and the bed switches follow live
+  const hoopsKey = [s.hpCount, s.hpRadiusMax, s.hpRadiusMin, s.hpGravity, s.hpOmegaStart, s.hpOmegaEnd, s.hpRamp, s.hpRampShape, s.hpHold, s.hpReturn, s.hpReturnSec, s.hpDamping, s.hpJitter].join("|");
+  const hoopsKeyRef = useRef(hoopsKey);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setHoopsSettings(hoopsSettingsOf(s));
+    if (hoopsKeyRef.current === hoopsKey) return;
+    hoopsKeyRef.current = hoopsKey;
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+    if (s.mode === "hoops" && engine.getCurrentModeName() === "hoops") {
+      engine.initMode("hoops");
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hoopsKey, s.hpTick, s.hpBed]);
+  // --- end bead-hoops ---
   // The loop HUD's words – the settings' own, else the mode's (translated) – read by the canvas, the recorder and the fast export
   const hudLocale = useLocale();
   const loopHudSpec = useMemo<LoopHudSpec | null>(() => {
@@ -572,15 +597,16 @@ export default function Simulator() {
     // --- colour-sort --- the rule as the title, "n / total sorted" under the rings and "mixing again" while the remix runs
     if (s.mode === "colourSort") {
       const words = COLOUR_SORT_HUD_KEYS[s.csRule];
-      return { title: s.loopHudTitle || t(`ColourSort.${words.title}`), subtitle: s.loopHudSubtitle || t(`ColourSort.${words.subtitle}`), counter: colourSortCounterTemplate(String(t.raw("ColourSort.canvasSorted")), colourSortTotal({ csColours: s.csColours, csPerColour: s.csPerColour })), alt: t("ColourSort.canvasRemix"), light: isLightColor(s.backgroundColors[0]) };
+      return { title: s.loopHudTitle || t(`ColourSort.${words.title}`), subtitle: s.loopHudSubtitle || t(`ColourSort.${words.subtitle}`), counter: colourSortCounterTemplate(String(t.raw("ColourSort.canvasSorted")), colourSortTotal({ csColours: s.csColours, csPerColour: s.csPerColour })), alt: t("ColourSort.canvasRemix"), light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
     }
     // --- end colour-sort ---
     const keys = LOOP_HUD_MODE_TEXT[s.mode];
     const title = s.loopHudTitle || (keys ? t(`LoopHud.${keys.title}`) : t(`Modes.${s.mode}.name`));
     const subtitle = s.loopHudSubtitle || (keys ? t(`LoopHud.${keys.subtitle}`) : "");
-    const counter = keys ? String(t.raw(`LoopHud.${keys.counter}`)) : "";
-    return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]) };
-  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */]);
+    const counterKey = keys?.counterOne && s.mode === "hoops" && s.hpCount === 1 ? keys.counterOne : keys?.counter; // --- bead-hoops --- (one hoop: "the bead up")
+    const counter = counterKey ? String(t.raw(`LoopHud.${counterKey}`)) : "";
+    return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]), locale: hudLocale /* --- bead-hoops --- (the counter's decimals on the live canvas) */ };
+  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */]);
   const loopHudRef = useRef({ spec: loopHudSpec, locale: hudLocale });
   loopHudRef.current = { spec: loopHudSpec, locale: hudLocale };
   /** The HUD of a frame of `engine`'s run (null without the HUD), for the recorder and the fast export. */
@@ -1032,6 +1058,27 @@ export default function Simulator() {
   }, [s.lcTitle, s.lcHud]);
   const landClaimFinishAtRef = useRef<number | null>(null);
   // --- end land-claim ---
+  // --- chord-stars --- Chord Stars: a change of the run (balls, stars, drawing time, hold, fade, spread) restarts it and drops a
+  // found star set; the look (line width, inner circles, colours) and the sound (voice, chord) follow live. A found star set
+  // moves the key itself before it updates the settings (runFinder), so its own change keeps the result on the page.
+  const starChordsKey = [s.scBalls, s.scStars, s.scCycle, s.scHold, s.scFade, s.scSpread].join("|");
+  const starChordsKeyRef = useRef(starChordsKey);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setStarChordsSettings(starChordsSettingsOf(s));
+    if (starChordsKeyRef.current === starChordsKey) return;
+    starChordsKeyRef.current = starChordsKey;
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+    if (s.mode === "starChords" && engine.getCurrentModeName() === "starChords") {
+      engine.initMode("starChords");
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [starChordsKey, s.scLineWidth, s.scEnvelope, s.scPalette, s.scVoice, s.scChord]);
+  // --- end chord-stars ---
   // --- colour-sort --- Colour Sort: a change of the sort (colours, balls, gates, spin, speed, size, contacts, remix, rule, time
   // limit) restarts it and drops a found seed; the refusal flashes only change the drawing and follow live.
   const colourSortKey = COLOUR_SORT_ENGINE_KEYS.map((key) => String((s as unknown as Record<string, unknown>)[key])).join("|");
@@ -1505,7 +1552,7 @@ export default function Simulator() {
   }, [s.neverEscape, s.forcedWinner]); // eslint-disable-line react-hooks/exhaustive-deps
   // The outcomes the finder can search for here (the run length only when the run can end – "never escape" ends that in
   // the escape modes), the one in effect, the names of the balls that can win and what the panel says about them.
-  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, orbGrid: orbGridSettingsOf(s) /* --- orb-rhythm --- (the model decides) */, grow: growFillSettingsOf(s) /* --- loop-foundation --- ("finish" ends at the fill) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
+  const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, orbGrid: orbGridSettingsOf(s) /* --- orb-rhythm --- (the model decides) */, grow: growFillSettingsOf(s) /* --- loop-foundation --- ("finish" ends at the fill) */, hoops: hoopsSettingsOf(s) /* --- bead-hoops --- (the return loops forever) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
   const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);
   const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */ });
@@ -2870,6 +2917,8 @@ export default function Simulator() {
           landClaim: landClaimSettingsOf(settings), // --- land-claim --- (a run ends when the land is all taken or at its duration)
           colourSort: colourSortSettingsOf(settings), // --- colour-sort --- (its first sort: all sorted by, the colour sorted last, on a bar line)
           grow: growFillSettingsOf(settings), // --- loop-foundation --- (Grow's law, fill, hold and shrink: "finish" ends at the fill)
+          starChords: starChordsSettingsOf(settings), // --- chord-stars --- (the balls and the timing: the search fits the loop to the clip)
+          hoops: hoopsSettingsOf(settings), // --- bead-hoops --- (the hoops, the spin, the beads and the return)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
@@ -2913,8 +2962,18 @@ export default function Simulator() {
       if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
       // --- fight-league --- a found fight is recorded with its winner banner's hold
       if (settings.mode === "fightLeague" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + FL_WIN_HOLD_SEC)) });
+      // --- chord-stars --- the star set found and the drawing time that fits the clip in whole loops: the clip is the target, and
+      // the run starts over with them (the restart effect's key is moved first, so the change keeps the result on the page)
+      const foundStars = settings.mode === "starChords" && result.starChords ? { scStars: result.starChords.stars, scCycle: result.starChords.cycleSec } : null;
+      if (foundStars) {
+        starChordsKeyRef.current = [settings.scBalls, foundStars.scStars, foundStars.scCycle, settings.scHold, settings.scFade, settings.scSpread].join("|");
+        update({ ...foundStars, recordingDuration: Math.max(RANGES.recordingDuration.min, result.duration) });
+      }
+      // --- bead-hoops --- a found Spinning Hoops run is recorded for one whole cycle (the climb, the hold, the return and the reset)
+      if (settings.mode === "hoops") update({ recordingDuration: Math.max(RANGES.recordingDuration.min, hoopsClipSec(settings)) });
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
+      if (foundStars) initEngineForMode(engine, { ...settings, ...foundStars }); // --- chord-stars ---
       // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
       if (result.arenaSeeds) update({ arenas: withArenaSeeds(settings.arenas, settings.arenaCount, result.arenaSeeds) });
     }
@@ -3302,7 +3361,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcRacers, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || settings.mode === "colourSort" /* --- colour-sort --- (its first sort's outcomes) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "colourSort" /* --- colour-sort --- (its first sort's outcomes) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */, hoops: hoopsSettingsOf(settings) /* --- bead-hoops --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.
