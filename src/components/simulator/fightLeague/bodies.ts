@@ -243,6 +243,14 @@ function drawBodyLook(g: CanvasRenderingContext2D, R: number, row: FlFighterRow,
   g.stroke();
 }
 
+/**
+ * --- fl-overhaul --- (Stage 6) A fighter's body drawn straight into `g` at its origin, radius `R` – its crest, colours,
+ * pattern, highlight and ink rim (the tier list card's mini balls: a still card, so no sprite cache).
+ */
+export function drawFlBodyIcon(g: CanvasRenderingContext2D, R: number, row: FlFighterRow, floor = "#ffffff", outline = INK) {
+  drawBodyLook(g, R, row, bodyRimWidth(row, floor), outline);
+}
+
 /** A fighter's silhouette in one colour (the flash: white; the tint: its accent). */
 function drawSilhouette(g: CanvasRenderingContext2D, R: number, row: FlFighterRow, color: string) {
   drawCrest(g, R, row, color, color);

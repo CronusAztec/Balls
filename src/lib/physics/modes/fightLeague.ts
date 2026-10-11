@@ -2604,6 +2604,9 @@ export interface FlRunSummary {
   sudden: boolean;
   /** The winner's HP share at the verdict (−1 none). */
   winnerHpFrac: number;
+  /** --- fl-overhaul --- (Stage 6) The bout in play when the run ended or stopped (1 first) and the show's bouts – the finder's progress ("bout 3/7"). */
+  bout?: number;
+  bouts?: number;
 }
 
 /** --- fl-overhaul --- (Stage 5) The run's `FlRunSummary` from its view (`bothLowMs`: the finder's cliffhanger moment when it saw one). */
@@ -2628,6 +2631,8 @@ export function flRunSummary(v: FightLeagueView, bothLowMs = -1): FlRunSummary {
     decider: sh.maxGames > 1 && Math.min(sh.score[0], sh.score[1]) === sh.need - 1 && Math.max(sh.score[0], sh.score[1]) === sh.need,
     sudden: st.sudden,
     winnerHpFrac: st.winnerHpFrac,
+    bout: Math.min(Math.max(1, sh.bouts), sh.bout + (v.matchOver ? 0 : 1)), // --- fl-overhaul --- (Stage 6)
+    bouts: sh.bouts,
   };
 }
 

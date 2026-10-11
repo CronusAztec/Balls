@@ -7,6 +7,12 @@ import { TWO_PI, hash, roundRectPath } from "./sprites";
 import type { FlTextStyle } from "./text";
 import type { FlWeaponsPainter } from "./weapons";
 import { drawHandicapTags, flTeamMatch, type FlShowsPainter } from "./shows"; // --- fl-overhaul --- (Stage 5)
+// --- fl-overhaul --- (Stage 6) the tier list card
+import { FL_TIER_COLORS, flTierLayout, flTierWinText, type FlTierGroup, type FlTierLayout } from "@/lib/physics/modes/fightLeagueTier";
+import { flShortName } from "@/lib/physics/modes/fightLeagueRoster";
+import { drawFlBodyIcon } from "./bodies";
+import { STAGE_PALETTES } from "./palette";
+import { flFont } from "./text";
 
 /**
  * --- fl-overhaul --- (Stage 3) Fight League's cards and banners (screen space, inside the exported square):
@@ -476,3 +482,98 @@ function teamColor(fr: FlFrame, team: number): string {
   const colors = fr.o && fr.o.teamColors && fr.o.teamColors.length >= 2 ? fr.o.teamColors : TEAM_COLORS;
   return colors[team] ?? TEAM_COLORS[team % TEAM_COLORS.length];
 }
+
+// --- fl-overhaul --- (Stage 6) the tier list card
+/** The words of a tier list card (the Controls messages flTierTitle, flTierSubtitle, flTierDisclaimer – in the page's language). */
+export interface FlTierLabels {
+  /** "Marvel tier list (Fight League sim)". */
+  title: string;
+  /** "Ranked by simulated round-robin wins". */
+  subtitle: string;
+  /** The disclaimer line: plain-text names of an unaffiliated fan simulation. */
+  disclaimer: string;
+}
+
+/**
+ * Draws the tier list card of a division or a conference (`group`) into `ctx` at `size` (1080 × 1350 or 1080 × 1920, an
+ * offscreen canvas the panel turns into a PNG): the lilac stage, the title and its subtitle, five rows S–D each with its
+ * coloured label box and its fighters – a mini ball in the fighter's colours and look (`drawFlBodyIcon()`), the short name and
+ * the round-robin win share – and the disclaimer line. A still card: plain paths and text, no logo, no reference branding.
+ * Returns the layout it drew (every fighter placed once, `flTierLayout()`).
+ */
+export function tierCard(ctx: CanvasRenderingContext2D, group: FlTierGroup, size: { width: number; height: number }, labels: FlTierLabels): FlTierLayout {
+  const L = flTierLayout(group, size.width, size.height);
+  const W = L.width;
+  const H = L.height;
+  const lilac = STAGE_PALETTES.lilac;
+  ctx.save();
+  ctx.fillStyle = lilac.backdropTop ?? "#d9cef7";
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = lilac.backdropBottom ?? "#c4b4ee";
+  ctx.fillRect(0, 0.5 * H, W, 0.5 * H);
+  // faint 45° stripes, as on the stage
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+  ctx.lineWidth = 0.012 * W;
+  ctx.beginPath();
+  for (let x = -H; x < W; x += 0.06 * W) {
+    ctx.moveTo(x, H);
+    ctx.lineTo(x + H, 0);
+  }
+  ctx.stroke();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.fillStyle = INK;
+  ctx.font = flFont("display", L.titleSize);
+  fitText(ctx, labels.title, W / 2, L.titleY, W - 2 * L.pad);
+  ctx.font = flFont("ui", L.subtitleSize, 700);
+  ctx.fillStyle = "rgba(30, 27, 46, 0.8)";
+  fitText(ctx, labels.subtitle, W / 2, L.subtitleY, W - 2 * L.pad);
+  for (const row of L.rows) {
+    // the row's white card with an ink border, its tier box on the left
+    roundRectPath(ctx, L.pad, row.y, W - 2 * L.pad, row.h, 0.012 * W);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.lineWidth = Math.max(2, 0.004 * W);
+    ctx.strokeStyle = INK;
+    ctx.stroke();
+    roundRectPath(ctx, L.pad, row.y, L.labelW, row.h, 0.012 * W);
+    ctx.fillStyle = FL_TIER_COLORS[row.tier];
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = INK;
+    ctx.textBaseline = "middle";
+    ctx.font = flFont("display", Math.min(0.09 * W, 0.6 * row.h));
+    ctx.fillText(row.tier, L.pad + L.labelW / 2, row.y + row.h / 2);
+    ctx.textBaseline = "alphabetic";
+    for (const cell of row.cells) {
+      ctx.save();
+      ctx.translate(cell.x, cell.y);
+      drawFlBodyIcon(ctx, cell.r, cell.entry.row, "#ffffff", INK);
+      ctx.restore();
+      ctx.fillStyle = INK;
+      ctx.font = flFont("ui", L.nameSize, 800);
+      fitText(ctx, flShortName(cell.entry.row), cell.x, cell.y + 1.3 * cell.r + 0.75 * L.nameSize, 2.75 * cell.r);
+      ctx.fillStyle = "rgba(30, 27, 46, 0.72)";
+      ctx.font = flFont("mono", L.winSize);
+      ctx.fillText(flTierWinText(cell.entry), cell.x, cell.y + 1.3 * cell.r + 0.9 * L.nameSize + 0.95 * L.winSize);
+    }
+  }
+  ctx.fillStyle = "rgba(30, 27, 46, 0.78)";
+  ctx.font = flFont("ui", L.footerSize, 600);
+  fitText(ctx, labels.disclaimer, W / 2, L.footerY, W - 2 * L.pad);
+  ctx.restore();
+  return L;
+}
+
+/** fillText centred at (x, y), squeezed to `maxW` when it is wider. */
+function fitText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, maxW: number) {
+  const w = ctx.measureText(text).width;
+  if (w > maxW && w > 0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(maxW / w, 1);
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  } else ctx.fillText(text, x, y);
+}
+// --- end fl-overhaul ---

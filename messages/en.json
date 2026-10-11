@@ -2178,7 +2178,44 @@
     "flClipLength": "Expected clip: about {time}",
     "flPinnedHint": "Slots A–F pin entrants (seeds 1–6 when listed); a random slot pins nothing. Find Simulation and the forced winner pick among the pinned entrants.",
     "flBossPinnedHint": "Slot A is the boss (Gerald when random); slots B–F pin the first challengers.",
-    "flBossSlot": "boss"
+    "flBossSlot": "boss",
+    "flCreator": "Creator tools",
+    "flCreatorTip": "Turn the current matchup into a ready-made clip, or download a tier list card of a division or a genre.",
+    "flMakeClip": "Make a clip",
+    "flMakeClipTip": "Searches a seed of the current matchup and format whose story fits the clip. One match is paced to the length first (its HP scaled so the fight lasts about right) and its final KO lands at 82–88 % of the clip; a cliffhanger is cut while every fighter is at or under 25 %; a series, a bracket or a boss rush ends with its verdict. The clip length, a “Who wins?” caption and the Top Text are set for you – the progress and the result show in the Find Simulation strip.",
+    "flClipBucket": "Length",
+    "flClipBucket_short": "Short · {sec} s",
+    "flClipBucket_standard": "Standard · {sec} s",
+    "flClipBucket_long": "Long · {sec} s",
+    "flClipStory": "Story",
+    "flClipStory_any": "Any KO",
+    "flClipStory_upset": "Upset",
+    "flClipStory_clutch": "Clutch win",
+    "flClipStory_comeback": "Comeback",
+    "flClipStory_ability": "Ability finish",
+    "flClipStory_cliffhanger": "Cliffhanger",
+    "flClipStory_champion": "Champion (slot A)",
+    "flClipStory_boss": "The boss falls",
+    "flClipQuestion": "Who wins?",
+    "flClipAnswer": "{winner} wins!",
+    "flClipTopDuel": "{a} vs {b}",
+    "flClipTopBoss": "Can {boss} beat all {n}?",
+    "flClipTopBracket": "{n} fighters. 1 champion.",
+    "flClipBusy": "Making the clip…",
+    "flClipMeasuring": "Measuring the matchup's pace…",
+    "flClipSearching": "Searching for the story – the progress shows in the Find Simulation strip.",
+    "flClipFound": "Clip ready: {sec} s with the final KO at {pct} % – press Start or record it.",
+    "flClipFoundCut": "Clip ready: {sec} s, cut while every fighter is low – the question stays open.",
+    "flClipMissed": "No seed told this story – try another story, length or matchup.",
+    "flTierList": "Tier list",
+    "flTierListTip": "A card of a division or a genre ranked S–D by every fighter's win share in the simulated round robin (top 15 % S, next 20 % A, middle 30 % B, next 20 % C, bottom 15 % D), downloaded as a PNG for a feed post (1080×1350) or a story (1080×1920).",
+    "flTierDivisions": "Divisions",
+    "flTierConferences": "Genres",
+    "flTierPost": "PNG 1080×1350",
+    "flTierStory": "PNG 9:16",
+    "flTierTitle": "{group} tier list (Fight League sim)",
+    "flTierSubtitle": "Ranked by simulated round-robin wins",
+    "flTierDisclaimer": "Names are plain text labels of an unaffiliated fan simulation – no logos, artwork or audio."
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -2867,7 +2904,8 @@
     "championPick": "Champion",
     "leadChangesCount": "Lead changes at least",
     "bossWave": "Wave",
-    "bothLowAt": "Cliffhanger at"
+    "bothLowAt": "Cliffhanger at",
+    "progressBout": "Furthest: bout {bout}"
   },
   "FastExport": {
     "button": "Fast export",
@@ -3143,7 +3181,8 @@
       "timer": "⏱ [time]",
       "percent": "[pct]",
       "lives": "lives",
-      "layers": "layers"
+      "layers": "layers",
+      "hp": "HP"
     },
     "payoffTypes": {
       "escape": "escape",
@@ -3411,6 +3450,54 @@
         "cliffPostQuestion": "Blaze, Wave, Volt or Moss – who's out first? 👇",
         "keywords": "Coloured balls race through rotating rings with one gap each – which one finds the exit first?",
         "hashtags": "#mazerace #ringmaze #whowillwin"
+      },
+      "fightDuel": {
+        "name": "Fight duel",
+        "series": "Fight League",
+        "seriesMatchup": "{a} vs {b} #{ep}",
+        "hook": "{a} vs {b}: who wins?",
+        "payoff": "{winner} wins! 🏆",
+        "cliffQuestion": "{a} or {b}? 👇",
+        "postQuestion": "Did you call it – {a} or {b}?",
+        "cliffPostQuestion": "{a} or {b}? Comment your pick 👇",
+        "keywords": "A ball fight simulation: two fighters of one genre as bouncing balls, each with a weapon, hit points and one special ability.",
+        "hashtags": "#ballfight #fightsimulation {divisionTag} #satisfying"
+      },
+      "fightUpset": {
+        "name": "Fight upset",
+        "series": "Fight League",
+        "seriesMatchup": "{a} vs {b} #{ep}",
+        "hook": "{underdog} has a {pct}% chance.",
+        "payoff": "UPSET! {winner} wins! 😱",
+        "cliffQuestion": "Can {underdog} do it? 👇",
+        "postQuestion": "Did you believe in {underdog}?",
+        "cliffPostQuestion": "Can {underdog} pull it off? 👇",
+        "keywords": "A ball fight simulation: the underdog by simulated win chance against the strongest fighter of its genre.",
+        "hashtags": "#ballfight #fightsimulation {divisionTag} #satisfying"
+      },
+      "fightBracket": {
+        "name": "Fight bracket",
+        "series": "Fight League",
+        "seriesMatchup": "{division} bracket #{ep}",
+        "hook": "{n} fighters. 1 champion.",
+        "payoff": "{winner} is the champion! 🏆",
+        "cliffQuestion": "Who takes the title? 👇",
+        "postQuestion": "Who did you have in the final?",
+        "cliffPostQuestion": "Who takes the title? 👇",
+        "keywords": "A ball fight bracket: eight fighters of one genre, seven bouts, one champion – all simulated.",
+        "hashtags": "#ballfight #fightsimulation {divisionTag} #satisfying"
+      },
+      "fightBoss": {
+        "name": "Boss rush",
+        "series": "Fight League",
+        "seriesMatchup": "{boss} vs {division} #{ep}",
+        "hook": "Can {boss} beat all {n} {division} fighters?",
+        "payoff": "{winner} wins! 👑",
+        "cliffQuestion": "Does {boss} survive? 👇",
+        "postQuestion": "How far did you think {boss} would get?",
+        "cliffPostQuestion": "Does {boss} survive all {n}? 👇",
+        "keywords": "A ball fight boss rush: one boss with extra HP against a whole genre's fighters, one at a time.",
+        "hashtags": "#ballfight #fightsimulation {divisionTag} #satisfying"
       }
     },
     "cover": {
@@ -3424,6 +3511,35 @@
         "card": "the mode's hero moment",
         "band": "late in the clip, where a payoff would land"
       }
+    },
+    "fightDivisions": {
+      "marvel": "Marvel",
+      "dc": "DC",
+      "nintendo": "Nintendo & Sega",
+      "league": "League of Legends",
+      "fighting": "Fighting games",
+      "legends": "Game legends",
+      "shonen": "Shonen anime",
+      "starWars": "Star Wars",
+      "fantasy": "Fantasy",
+      "monsters": "Movie monsters",
+      "action": "Action movies",
+      "tv": "TV",
+      "wildcard": "Wildcard",
+      "pokemon": "Pokémon",
+      "modernAnime": "Modern anime",
+      "sandbox": "Sandbox & online games",
+      "horror": "Horror movies",
+      "animated": "Animated movies",
+      "cartoons": "Cartoons"
+    },
+    "fightTags": {
+      "comics": "#superheroes",
+      "games": "#gaming",
+      "anime": "#anime",
+      "movies": "#movies",
+      "shows": "#tvshows",
+      "other": "#battle"
     }
   },
   "Journey": {

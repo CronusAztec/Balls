@@ -19,6 +19,7 @@ import { startBallCount } from "@/lib/physics/ballStats";
 import { rigNeverFinishes } from "@/lib/physics/rigged";
 import { FL_STORY_OUTCOMES, outcomeClipSec, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcomeMiss, outcomeSettled, winnerNeedsEnd, type FinderOutcome, type FinderOutcomeKind, type RunSummary } from "./outcomes";
 import { hoopsOutcomeSettled } from "./outcomes"; // --- bead-hoops ---
+import { FILL_SLACK_MS } from "./outcomes"; // --- fl-overhaul --- (Stage 6) Make a clip's KO window
 // --- jdm-double-pendulum ---
 import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions ---
@@ -379,6 +380,8 @@ export interface FinderProgress {
   // --- finder-depth ---
   /** Set while the search goes on past its first `maxSeeds` seeds (`FinderRequest.depthBudgetMs`): the wall-clock ms it may still take. */
   depthLeftMs?: number;
+  /** --- fl-overhaul --- (Stage 6) A Fight League show's closest run so far: how far it got ("bout 3/7" – the bout it ended or stopped in). */
+  bestBout?: string;
 }
 
 export interface FinderResult {
@@ -891,6 +894,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   const lowFrom = outcome.kind === "both-low-at" ? 1000 * ((outcome.atSec ?? 0) - (outcome.toleranceSec ?? 0.5)) : Infinity;
   const lowTo = outcome.kind === "both-low-at" ? 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? 0.5)) : -Infinity;
   let bothLowAt = -1;
+  const finishLimitMs = outcome.finishWithin ? 1000 * outcome.finishWithin.toSec + FILL_SLACK_MS : Infinity; // --- fl-overhaul --- (Stage 6)
   const step = 1000 / 60;
   let elapsed = 0;
   let firstEscape = -1;
@@ -924,8 +928,9 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     if (fightTeam >= 0 && flSideEliminated(engine.getFightLeagueView(), fightTeam)) break;
     if (elapsed >= lowFrom - 1e-6 && elapsed <= lowTo + 1e-6 && bothLowAt < 0 && flBothLowNow(engine.getFightLeagueView())) {
       bothLowAt = elapsed;
-      break;
+      if (!outcome.cutWhileOn) break; // (--- fl-overhaul --- Stage 6: Make a clip's cliffhanger follows the fight to the window's end – still on there)
     }
+    if (elapsed > finishLimitMs) break; // --- fl-overhaul --- (Stage 6) past Make a clip's KO window: this run can no longer end inside it
   }
   const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : request.mode === "territory" ? engine.getTerritoryView().teams /* --- odd-territory --- */ : request.mode === "maze" ? engine.getMazeView().teamCount /* --- odd-maze --- (one team per ball, the first six) */ : request.mode === "fightLeague" ? engine.getFightLeagueView().sides /* --- fight-league --- (a side per fighter, two in 2v2; --- fl-overhaul --- Stage 5: the run's sides – a bracket's pinned entrants, a boss rush's boss and challengers) */ : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
   // --- land-claim --- the battle's first six competitors are teams; its verdict's gap between the top two (a close battle)
@@ -941,6 +946,13 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   const fl = request.mode === "fightLeague" ? flRunSummary(engine.getFightLeagueView(), bothLowAt) : null;
   const flMargin = fl && finished && fl.winnerHpFrac >= 0 ? { margin: fl.winnerHpFrac } : {};
   return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...flMargin, ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...hoopsSummary /* --- bead-hoops --- */, ...(fl ? { fl } : {}) /* --- fl-overhaul --- (Stage 5) */ };
+}
+
+/** --- fl-overhaul --- (Stage 6) A Fight League show's run as the progress names it: the bout it reached of the show's bouts ("3/7"). */
+function flBestBout(run: RunSummary | null): { bestBout?: string } {
+  const fl = run?.fl;
+  if (!fl || fl.show === "single" || fl.bout === undefined || fl.bouts === undefined || fl.bouts <= 0) return {};
+  return { bestBout: `${Math.max(1, Math.min(fl.bouts, fl.bout))}/${fl.bouts}` };
 }
 
 /** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */
@@ -980,7 +992,7 @@ function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgres
         if (!best || miss < best.miss) best = { seed, run, miss };
         if (performance.now() - start > FINDER_FRAME_BUDGET_MS) break;
       }
-      onProgress({ seedsTested: tested, maxSeeds: request.maxSeeds, currentSeed: seedAt(tested - 1), bestDuration: best ? outcomeFigure(outcome, best.run) : 0, bestSeed: best?.seed ?? 0 });
+      onProgress({ seedsTested: tested, maxSeeds: request.maxSeeds, currentSeed: seedAt(tested - 1), bestDuration: best ? outcomeFigure(outcome, best.run) : 0, bestSeed: best?.seed ?? 0, ...flBestBout(best?.run ?? null) /* --- fl-overhaul --- (Stage 6) */ });
       if (tested >= request.maxSeeds) resolve(result(false, best?.seed ?? 0, best?.run ?? null));
       else requestAnimationFrame(runBatch);
     };

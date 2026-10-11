@@ -2169,7 +2169,44 @@
     "flClipLength": "Przewidywany klip: około {time}",
     "flPinnedHint": "Sloty A–F przypinają uczestników (rozstawienie 1–6 przy kolejności z listy); losowy slot niczego nie przypina. Znajdź symulację i wymuszony zwycięzca wybierają spośród przypiętych.",
     "flBossPinnedHint": "Slot A to boss (Gerald, gdy losowy); sloty B–F przypinają pierwszych pretendentów.",
-    "flBossSlot": "boss"
+    "flBossSlot": "boss",
+    "flCreator": "Narzędzia twórcy",
+    "flCreatorTip": "Zamień bieżące starcie w gotowy klip albo pobierz kartę z listą tierów dywizji lub gatunku.",
+    "flMakeClip": "Zrób klip",
+    "flMakeClipTip": "Szuka ziarna bieżącego starcia i formatu, którego historia pasuje do klipu. Pojedynczy mecz najpierw dopasowuje się do długości (HP przeskalowane tak, by walka trwała w sam raz), a ostatni nokaut wypada na 82–88 % klipu; cliffhanger jest ucinany, gdy każdy wojownik ma najwyżej 25 %; seria, drabinka czy boss rush kończy się werdyktem. Długość klipu, napis „Kto wygra?” i górny tekst ustawiają się same – postęp i wynik widać na pasku Znajdź symulację.",
+    "flClipBucket": "Długość",
+    "flClipBucket_short": "Krótki · {sec} s",
+    "flClipBucket_standard": "Standardowy · {sec} s",
+    "flClipBucket_long": "Długi · {sec} s",
+    "flClipStory": "Historia",
+    "flClipStory_any": "Dowolny nokaut",
+    "flClipStory_upset": "Niespodzianka",
+    "flClipStory_clutch": "Wygrana na włosku",
+    "flClipStory_comeback": "Powrót",
+    "flClipStory_ability": "Wykończenie umiejętnością",
+    "flClipStory_cliffhanger": "Cliffhanger",
+    "flClipStory_champion": "Mistrz (miejsce A)",
+    "flClipStory_boss": "Boss upada",
+    "flClipQuestion": "Kto wygra?",
+    "flClipAnswer": "{winner} wygrywa!",
+    "flClipTopDuel": "{a} vs {b}",
+    "flClipTopBoss": "Czy {boss} pokona wszystkich {n}?",
+    "flClipTopBracket": "{n} wojowników. 1 mistrz.",
+    "flClipBusy": "Tworzę klip…",
+    "flClipMeasuring": "Mierzę tempo starcia…",
+    "flClipSearching": "Szukam historii – postęp widać na pasku Znajdź symulację.",
+    "flClipFound": "Klip gotowy: {sec} s, ostatni nokaut na {pct} % – naciśnij Start albo go nagraj.",
+    "flClipFoundCut": "Klip gotowy: {sec} s, ucięty, gdy każdy wojownik ledwo stoi – pytanie zostaje otwarte.",
+    "flClipMissed": "Żadne ziarno nie opowiedziało tej historii – spróbuj innej historii, długości albo starcia.",
+    "flTierList": "Lista tierów",
+    "flTierListTip": "Karta dywizji albo gatunku z rankingiem S–D według udziału zwycięstw każdego wojownika w symulowanym turnieju każdy z każdym (górne 15 % S, kolejne 20 % A, środkowe 30 % B, kolejne 20 % C, dolne 15 % D), pobierana jako PNG do posta (1080×1350) albo relacji (1080×1920).",
+    "flTierDivisions": "Dywizje",
+    "flTierConferences": "Gatunki",
+    "flTierPost": "PNG 1080×1350",
+    "flTierStory": "PNG 9:16",
+    "flTierTitle": "{group} – lista tierów (symulacja Fight League)",
+    "flTierSubtitle": "Ranking według zwycięstw w symulowanym turnieju każdy z każdym",
+    "flTierDisclaimer": "Imiona to zwykłe etykiety tekstowe niezależnej symulacji fanowskiej – bez logo, grafik i dźwięków."
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -2703,7 +2740,8 @@
     "championPick": "Mistrz",
     "leadChangesCount": "Zmian prowadzenia co najmniej",
     "bossWave": "Fala",
-    "bothLowAt": "Cliffhanger w"
+    "bothLowAt": "Cliffhanger w",
+    "progressBout": "Najdalej: walka {bout}"
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -2979,7 +3017,8 @@
       "timer": "⏱ [time]",
       "percent": "[pct]",
       "lives": "życia",
-      "layers": "warstwy"
+      "layers": "warstwy",
+      "hp": "HP"
     },
     "payoffTypes": {
       "escape": "ucieczka",
@@ -3247,6 +3286,54 @@
         "cliffPostQuestion": "Blaze, Wave, Volt czy Moss – kto pierwszy na zewnątrz? 👇",
         "keywords": "Kolorowe piłki ścigają się przez obracające się pierścienie z jedną szczeliną – która pierwsza znajdzie wyjście?",
         "hashtags": "#wysciglabirynt #labiryntpierscieni #ktowygra"
+      },
+      "fightDuel": {
+        "name": "Pojedynek ligi",
+        "series": "Fight League",
+        "seriesMatchup": "{a} vs {b} #{ep}",
+        "hook": "{a} vs {b}: kto wygra?",
+        "payoff": "{winner} wygrywa! 🏆",
+        "cliffQuestion": "{a} czy {b}? 👇",
+        "postQuestion": "Kogo wybrałeś – {a} czy {b}?",
+        "cliffPostQuestion": "{a} czy {b}? Napisz, kogo wybierasz 👇",
+        "keywords": "Symulacja walki kulek: dwóch wojowników z jednego gatunku jako odbijające się kulki, każdy z bronią, punktami życia i jedną specjalną umiejętnością.",
+        "hashtags": "#ballfight #symulacjawalki {divisionTag} #satysfakcjonujace"
+      },
+      "fightUpset": {
+        "name": "Niespodzianka ligi",
+        "series": "Fight League",
+        "seriesMatchup": "{a} vs {b} #{ep}",
+        "hook": "{underdog} ma {pct}% szans.",
+        "payoff": "NIESPODZIANKA! {winner} wygrywa! 😱",
+        "cliffQuestion": "Czy {underdog} da radę? 👇",
+        "postQuestion": "Wierzyłeś w {underdog}?",
+        "cliffPostQuestion": "Czy {underdog} zdoła wygrać? 👇",
+        "keywords": "Symulacja walki kulek: najsłabszy według symulowanej szansy na wygraną przeciw najmocniejszemu wojownikowi swojego gatunku.",
+        "hashtags": "#ballfight #symulacjawalki {divisionTag} #satysfakcjonujace"
+      },
+      "fightBracket": {
+        "name": "Drabinka ligi",
+        "series": "Fight League",
+        "seriesMatchup": "Drabinka: {division} #{ep}",
+        "hook": "{n} wojowników. 1 mistrz.",
+        "payoff": "{winner} zostaje mistrzem! 🏆",
+        "cliffQuestion": "Kto zdobędzie tytuł? 👇",
+        "postQuestion": "Kogo widziałeś w finale?",
+        "cliffPostQuestion": "Kto zdobędzie tytuł? 👇",
+        "keywords": "Drabinka walk kulek: ośmiu wojowników z jednego gatunku, siedem walk, jeden mistrz – wszystko w symulacji.",
+        "hashtags": "#ballfight #symulacjawalki {divisionTag} #satysfakcjonujace"
+      },
+      "fightBoss": {
+        "name": "Boss rush",
+        "series": "Fight League",
+        "seriesMatchup": "{boss} vs {division} #{ep}",
+        "hook": "{division}: czy {boss} pokona wszystkich {n} wojowników?",
+        "payoff": "{winner} wygrywa! 👑",
+        "cliffQuestion": "Czy {boss} przetrwa? 👇",
+        "postQuestion": "Jak daleko według ciebie zajdzie {boss}?",
+        "cliffPostQuestion": "Czy {boss} przetrwa wszystkich {n}? 👇",
+        "keywords": "Boss rush walk kulek: jeden boss z dodatkowym HP przeciw wojownikom całego gatunku, jednemu po drugim.",
+        "hashtags": "#ballfight #symulacjawalki {divisionTag} #satysfakcjonujace"
       }
     },
     "cover": {
@@ -3260,6 +3347,35 @@
         "card": "najlepszy moment trybu",
         "band": "końcówka klipu, gdzie wypadłoby rozstrzygnięcie"
       }
+    },
+    "fightDivisions": {
+      "marvel": "Marvel",
+      "dc": "DC",
+      "nintendo": "Nintendo i Sega",
+      "league": "League of Legends",
+      "fighting": "Bijatyki",
+      "legends": "Legendy gier",
+      "shonen": "Anime shōnen",
+      "starWars": "Star Wars",
+      "fantasy": "Fantasy",
+      "monsters": "Potwory z filmów",
+      "action": "Kino akcji",
+      "tv": "Seriale",
+      "wildcard": "Dzika karta",
+      "pokemon": "Pokémon",
+      "modernAnime": "Współczesne anime",
+      "sandbox": "Gry sandbox i online",
+      "horror": "Horrory",
+      "animated": "Filmy animowane",
+      "cartoons": "Kreskówki"
+    },
+    "fightTags": {
+      "comics": "#superbohaterowie",
+      "games": "#gry",
+      "anime": "#anime",
+      "movies": "#filmy",
+      "shows": "#seriale",
+      "other": "#bitwa"
     }
   },
   "Journey": {

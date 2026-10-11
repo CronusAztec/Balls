@@ -2169,7 +2169,44 @@
     "flClipLength": "Clip previsto: unos {time}",
     "flPinnedHint": "Los huecos A–F fijan participantes (cabezas de serie 1–6 en orden de lista); un hueco aleatorio no fija nada. Buscar simulación y el ganador forzado eligen entre los fijados.",
     "flBossPinnedHint": "El hueco A es el jefe (Gerald si es aleatorio); los huecos B–F fijan a los primeros aspirantes.",
-    "flBossSlot": "jefe"
+    "flBossSlot": "jefe",
+    "flCreator": "Herramientas de creador",
+    "flCreatorTip": "Convierte el enfrentamiento actual en un clip listo o descarga una tarjeta con la tier list de una división o un género.",
+    "flMakeClip": "Crear un clip",
+    "flMakeClipTip": "Busca una semilla del enfrentamiento y el formato actuales cuya historia encaje en el clip. Un combate se ajusta antes a la duración (sus PV se escalan para que la pelea dure lo justo) y su KO final cae entre el 82 y el 88 % del clip; un cliffhanger se corta cuando todos los luchadores están al 25 % o menos; una serie, un cuadro o un boss rush termina con su veredicto. La duración del clip, el texto «¿Quién gana?» y el texto superior se ajustan solos; el progreso y el resultado aparecen en la barra de Buscar simulación.",
+    "flClipBucket": "Duración",
+    "flClipBucket_short": "Corto · {sec} s",
+    "flClipBucket_standard": "Estándar · {sec} s",
+    "flClipBucket_long": "Largo · {sec} s",
+    "flClipStory": "Historia",
+    "flClipStory_any": "Cualquier KO",
+    "flClipStory_upset": "Sorpresa",
+    "flClipStory_clutch": "Victoria por los pelos",
+    "flClipStory_comeback": "Remontada",
+    "flClipStory_ability": "Remate con habilidad",
+    "flClipStory_cliffhanger": "Cliffhanger",
+    "flClipStory_champion": "Campeón (puesto A)",
+    "flClipStory_boss": "Cae el jefe",
+    "flClipQuestion": "¿Quién gana?",
+    "flClipAnswer": "¡Gana {winner}!",
+    "flClipTopDuel": "{a} vs {b}",
+    "flClipTopBoss": "¿Puede {boss} vencer a los {n}?",
+    "flClipTopBracket": "{n} luchadores. 1 campeón.",
+    "flClipBusy": "Creando el clip…",
+    "flClipMeasuring": "Midiendo el ritmo del enfrentamiento…",
+    "flClipSearching": "Buscando la historia: el progreso aparece en la barra de Buscar simulación.",
+    "flClipFound": "Clip listo: {sec} s con el KO final al {pct} %; pulsa Iniciar o grábalo.",
+    "flClipFoundCut": "Clip listo: {sec} s, cortado cuando todos los luchadores están al límite; la pregunta queda abierta.",
+    "flClipMissed": "Ninguna semilla contó esta historia: prueba otra historia, duración o enfrentamiento.",
+    "flTierList": "Tier list",
+    "flTierListTip": "Una tarjeta de una división o un género clasificada de S a D según el porcentaje de victorias de cada luchador en un todos contra todos simulado (el 15 % superior S, el 20 % siguiente A, el 30 % central B, el 20 % siguiente C, el 15 % inferior D), descargada como PNG para una publicación (1080×1350) o una historia (1080×1920).",
+    "flTierDivisions": "Divisiones",
+    "flTierConferences": "Géneros",
+    "flTierPost": "PNG 1080×1350",
+    "flTierStory": "PNG 9:16",
+    "flTierTitle": "Tier list de {group} (simulación Fight League)",
+    "flTierSubtitle": "Clasificación por victorias en un todos contra todos simulado",
+    "flTierDisclaimer": "Los nombres son simples etiquetas de texto de una simulación de fans no afiliada: sin logotipos, ilustraciones ni audio."
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -2703,7 +2740,8 @@
     "championPick": "Campeón",
     "leadChangesCount": "Cambios de líder como mínimo",
     "bossWave": "Oleada",
-    "bothLowAt": "Suspense en"
+    "bothLowAt": "Suspense en",
+    "progressBout": "Lo más lejos: combate {bout}"
   },
   "FastExport": {
     "button": "Exportación rápida",
@@ -2979,7 +3017,8 @@
       "timer": "⏱ [time]",
       "percent": "[pct]",
       "lives": "vidas",
-      "layers": "capas"
+      "layers": "capas",
+      "hp": "PV"
     },
     "payoffTypes": {
       "escape": "escape",
@@ -3247,6 +3286,54 @@
         "cliffPostQuestion": "Blaze, Wave, Volt o Moss: ¿quién sale primero? 👇",
         "keywords": "Pelotas de colores compiten entre anillos giratorios con un solo hueco: ¿cuál encuentra la salida primero?",
         "hashtags": "#carreraenlaberinto #laberintodeanillos #quienganara"
+      },
+      "fightDuel": {
+        "name": "Duelo de la liga",
+        "series": "Fight League",
+        "seriesMatchup": "{a} vs {b} #{ep}",
+        "hook": "{a} vs {b}: ¿quién gana?",
+        "payoff": "¡Gana {winner}! 🏆",
+        "cliffQuestion": "¿{a} o {b}? 👇",
+        "postQuestion": "¿Acertaste: {a} o {b}?",
+        "cliffPostQuestion": "¿{a} o {b}? Comenta tu elección 👇",
+        "keywords": "Simulación de peleas de pelotas: dos luchadores del mismo género como pelotas que rebotan, cada uno con un arma, puntos de vida y una habilidad especial.",
+        "hashtags": "#ballfight #simulaciondepelea {divisionTag} #satisfactorio"
+      },
+      "fightUpset": {
+        "name": "Sorpresa de la liga",
+        "series": "Fight League",
+        "seriesMatchup": "{a} vs {b} #{ep}",
+        "hook": "{underdog} tiene un {pct}% de probabilidad.",
+        "payoff": "¡SORPRESA! ¡Gana {winner}! 😱",
+        "cliffQuestion": "¿Podrá {underdog}? 👇",
+        "postQuestion": "¿Creías en {underdog}?",
+        "cliffPostQuestion": "¿Lo logrará {underdog}? 👇",
+        "keywords": "Simulación de peleas de pelotas: el más débil según la probabilidad de victoria simulada contra el luchador más fuerte de su género.",
+        "hashtags": "#ballfight #simulaciondepelea {divisionTag} #satisfactorio"
+      },
+      "fightBracket": {
+        "name": "Cuadro de la liga",
+        "series": "Fight League",
+        "seriesMatchup": "Cuadro de {division} #{ep}",
+        "hook": "{n} luchadores. 1 campeón.",
+        "payoff": "¡{winner} es el campeón! 🏆",
+        "cliffQuestion": "¿Quién se lleva el título? 👇",
+        "postQuestion": "¿A quién tenías en la final?",
+        "cliffPostQuestion": "¿Quién se lleva el título? 👇",
+        "keywords": "Un cuadro de peleas de pelotas: ocho luchadores de un mismo género, siete combates y un campeón, todo simulado.",
+        "hashtags": "#ballfight #simulaciondepelea {divisionTag} #satisfactorio"
+      },
+      "fightBoss": {
+        "name": "Boss rush",
+        "series": "Fight League",
+        "seriesMatchup": "{boss} vs {division} #{ep}",
+        "hook": "¿Puede {boss} vencer a los {n} luchadores de {division}?",
+        "payoff": "¡Gana {winner}! 👑",
+        "cliffQuestion": "¿Sobrevive {boss}? 👇",
+        "postQuestion": "¿Hasta dónde creías que llegaría {boss}?",
+        "cliffPostQuestion": "¿Sobrevive {boss} a los {n}? 👇",
+        "keywords": "Un boss rush de peleas de pelotas: un jefe con PV extra contra los luchadores de todo un género, uno a uno.",
+        "hashtags": "#ballfight #simulaciondepelea {divisionTag} #satisfactorio"
       }
     },
     "cover": {
@@ -3260,6 +3347,35 @@
         "card": "el mejor momento del modo",
         "band": "el final del clip, donde caería el desenlace"
       }
+    },
+    "fightDivisions": {
+      "marvel": "Marvel",
+      "dc": "DC",
+      "nintendo": "Nintendo y Sega",
+      "league": "League of Legends",
+      "fighting": "Juegos de lucha",
+      "legends": "Leyendas de los videojuegos",
+      "shonen": "Anime shōnen",
+      "starWars": "Star Wars",
+      "fantasy": "Fantasía",
+      "monsters": "Monstruos del cine",
+      "action": "Cine de acción",
+      "tv": "Series",
+      "wildcard": "Comodín",
+      "pokemon": "Pokémon",
+      "modernAnime": "Anime moderno",
+      "sandbox": "Juegos sandbox y online",
+      "horror": "Cine de terror",
+      "animated": "Cine de animación",
+      "cartoons": "Dibujos animados"
+    },
+    "fightTags": {
+      "comics": "#superheroes",
+      "games": "#videojuegos",
+      "anime": "#anime",
+      "movies": "#peliculas",
+      "shows": "#series",
+      "other": "#batalla"
     }
   },
   "Journey": {

@@ -78,6 +78,12 @@ export interface FinderOutcome {
   team?: number;
   /** --- fl-overhaul --- (Stage 5) lead-changes: the fewest lead changes (from 1); boss-falls-at: the wave the boss falls at (from 1). */
   count?: number;
+  // --- fl-overhaul --- (Stage 6) Make a clip's constraints (lib/physics/modes/fightLeagueClip.ts)
+  /** The run also ends (its own finish – Fight League's final KO) inside this window (seconds): a story with its KO at 82–88 % of the clip. */
+  finishWithin?: { fromSec: number; toSec: number };
+  /** both-low-at: the fight is still on when the window closes (the clip cut there leaves the question open). */
+  cutWhileOn?: boolean;
+  // --- end fl-overhaul ---
 }
 
 /** What a headless run of one seed amounted to (see `simulateOutcomeRun()` in finder.ts). */
@@ -297,8 +303,27 @@ function flStoryMatches(outcome: FinderOutcome, run: RunSummary): boolean {
   }
 }
 
+// --- fl-overhaul --- (Stage 6)
+/** Whether a run meets Make a clip's constraints of `outcome`: its end inside `finishWithin`, the fight still on for `cutWhileOn`. */
+export function clipConstraintsMet(outcome: Pick<FinderOutcome, "finishWithin" | "cutWhileOn">, run: Pick<RunSummary, "finished" | "durationMs">): boolean {
+  const w = outcome.finishWithin;
+  if (w && !(run.finished && run.durationMs >= 1000 * w.fromSec - 1e-6 && run.durationMs <= 1000 * w.toSec + 1e-6)) return false;
+  if (outcome.cutWhileOn && run.finished) return false;
+  return true;
+}
+/** How far a run's end missed `finishWithin` (s; 0 inside it or without one, Infinity for a run that never ended). */
+export function finishWindowMiss(outcome: Pick<FinderOutcome, "finishWithin">, run: Pick<RunSummary, "finished" | "durationMs">): number {
+  const w = outcome.finishWithin;
+  if (!w) return 0;
+  if (!run.finished) return Infinity;
+  const sec = run.durationMs / 1000;
+  return sec < w.fromSec ? w.fromSec - sec : sec > w.toSec ? sec - w.toSec : 0;
+}
+// --- end fl-overhaul ---
+
 /** Whether a run achieved `outcome` (a battle's winner only once the battle is over and has crowned it – `winnerNeedsEnd()`). */
 export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean {
+  if ((outcome.finishWithin || outcome.cutWhileOn) && !clipConstraintsMet(outcome, run)) return false; // --- fl-overhaul --- (Stage 6)
   switch (outcome.kind) {
     case "never-escapes":
       return run.firstEscapeMs < 0 && !run.finished && run.durationMs >= 1000 * outcome.clipSec - 1;
@@ -366,6 +391,11 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
  * for the winner. The search reports the closest run it saw.
  */
 export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
+  if (outcome.finishWithin) return outcomeMissOf({ ...outcome, finishWithin: undefined }, run) + finishWindowMiss(outcome, run); // --- fl-overhaul --- (Stage 6) the KO's distance from Make a clip's window too
+  return outcomeMissOf(outcome, run);
+}
+
+function outcomeMissOf(outcome: FinderOutcome, run: RunSummary): number {
   switch (outcome.kind) {
     case "never-escapes":
       return Math.max(0, outcome.clipSec - survivalSec(run));

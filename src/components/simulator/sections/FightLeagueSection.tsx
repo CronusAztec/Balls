@@ -20,6 +20,8 @@ import FlCustomSoundsPanel from "./FlCustomSoundsPanel";
 // --- fl-overhaul --- (Stage 5) the shows (series, brackets, boss rushes), the preset gallery and slots E and F
 import FightLeagueShowsSection, { FIGHT_LEAGUE_SHOW_KEYS, FightLeaguePresetGallery } from "./FightLeagueShowsSection";
 import { flCurrentPreset, flPanelSlots, flPresetPatch } from "./fightLeaguePresetMatch";
+// --- fl-overhaul --- (Stage 6) the creator tools: Make a clip and the tier list card
+import FightLeagueCreatorSection, { FIGHT_LEAGUE_CREATOR_KEYS } from "./FightLeagueCreatorSection";
 
 /** --- fl-overhaul --- The list view (the native selects) is remembered per viewer; without storage it starts off. */
 const LIST_VIEW_KEY = "fl-picker-list";
@@ -58,6 +60,8 @@ FIGHT_LEAGUE_KEYS.push("flSoundGroup", "flSound", "flAnnouncer", "flCustomSounds
 const SOUND_LABELS: Record<FlSoundOption, string> = { signature: "flSoundSignature", kinds: "flSoundKinds", legacy: "flSoundLegacy" };
 // (Stage 5) the shows' controls and the gallery (the search finds them too)
 FIGHT_LEAGUE_KEYS.push(...FIGHT_LEAGUE_SHOW_KEYS);
+// (Stage 6) the creator tools (Make a clip, the tier list)
+FIGHT_LEAGUE_KEYS.push(...FIGHT_LEAGUE_CREATOR_KEYS);
 // --- end fl-overhaul ---
 
 const SLOT_FIELDS = ["flFighterA", "flFighterB", "flFighterC", "flFighterD", "flFighterE", "flFighterF"] as const; // (--- fl-overhaul --- Stage 5: A–F)
@@ -155,6 +159,8 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
       </Searchable>
       {/* --- fl-overhaul --- (Stage 5) the shows' settings: a series, a bracket, a boss rush; the win chance */}
       <FightLeagueShowsSection t={t} search={search} matches={matches} settings={s} update={update} />
+      {/* --- fl-overhaul --- (Stage 6) the creator tools: Make a clip (the finder with a story and a length), the tier list card */}
+      <FightLeagueCreatorSection t={t} search={search} matches={matches} settings={s} />
       <Searchable search={search} matches={matches} labelKey="flFighters">
         <div className="space-y-3">
           {/* --- fl-overhaul --- (Stage 2) the picker chips, or the native selects behind the List view toggle */}

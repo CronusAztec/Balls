@@ -11697,6 +11697,60 @@ await smokeBlock("fight-league", async () => {
   check("fight league: the rigged bracket's note names the format", /Rigged \(bracket\): A · Thor wins/.test(note), `("${note}")`);
 }
 // --- end fl-overhaul ---
+// --- fl-overhaul --- (Stage 6) the creator tools: Make a clip (a standard any-KO clip of Thor vs Loki, replayed at 8× – the KO at
+// 80–90 % of the clip, the "Who wins?" caption) and the tier list card's PNG
+{
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague`, { waitUntil: "networkidle" });
+  const block = page.getByTestId("fl-clip-block");
+  await page.getByTestId("fl-clip-bucket").selectOption("standard");
+  await page.getByTestId("fl-clip-story").selectOption("any");
+  const started = Date.now();
+  await page.getByTestId("fl-make-clip").click();
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const tookSec = (Date.now() - started) / 1000;
+  await page.waitForFunction(() => document.querySelector('[data-testid="fl-clip-block"]')?.getAttribute("data-fl-clip-state") === "found", null, { timeout: 10_000 }).catch(() => {});
+  const plan = (await block.getAttribute("data-fl-clip-plan")) || "";
+  const planned = Number((await block.getAttribute("data-fl-clip-ko")) || "NaN");
+  const clipSec = Number((await block.getAttribute("data-fl-clip-sec")) || "NaN");
+  await page.waitForTimeout(400); // (the URL mirrors the settings after the render)
+  const q = new URLSearchParams(page.url().split("?")[1] || "");
+  const caption = q.get("cap") || "";
+  let d = {};
+  if (/Found!/.test(text)) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.flFinished === "1", null, { timeout: 90_000 }).catch(() => {});
+    d = await canvasData();
+  }
+  const finish = Number(d.flFinishSec);
+  const fraction = finish / clipSec;
+  check(
+    "fight league: Make a clip (standard, any KO) finds a seed, sets a 25 s clip with a 'Who wins?' caption and a 'Thor vs Loki' Top Text, and the replay's KO lands at 80–90 % of it",
+    /Found!/.test(text) && tookSec <= 120 && plan === "standard|any|82-88" && clipSec === 25 && /Who wins\?/.test(caption) && q.get("top") !== null && fraction >= 0.8 && fraction <= 0.9 && Math.abs(planned - fraction) < 0.02 && !!d.flWinner,
+    `("${text}" in ${tookSec.toFixed(1)} s, plan ${plan}, HP ${q.get("flHp")}, clip ${clipSec} s, planned KO ${planned}, replay KO at ${d.flFinishSec} s = ${(100 * fraction).toFixed(1)} %, winner ${d.flWinner}, top "${q.get("top")}", cap ${caption.slice(0, 80)})`,
+  );
+}
+{
+  // The tier list card: Marvel's 1080×1350 PNG through the export's download path.
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague`, { waitUntil: "networkidle" });
+  const block = page.getByTestId("fl-tier-block");
+  await page.getByTestId("fl-tier-group").selectOption("division:marvel");
+  const download = await Promise.all([page.waitForEvent("download", { timeout: 30_000 }).catch(() => null), page.getByTestId("fl-tier-list").click()]).then(([dl]) => dl);
+  let size = 0;
+  let name = "";
+  if (download) {
+    name = download.suggestedFilename();
+    const file = path.join(outDir, `sim-fight-league-tier-${name}`);
+    await download.saveAs(file);
+    size = fs.statSync(file).size;
+  }
+  await page.waitForFunction(() => document.querySelector('[data-testid="fl-tier-block"]')?.getAttribute("data-fl-tier") === "marvel", null, { timeout: 10_000 }).catch(() => {});
+  const tier = await block.getAttribute("data-fl-tier");
+  const tierSize = await block.getAttribute("data-fl-tier-size");
+  check("fight league: the Tier list action downloads Marvel's 1080×1350 PNG card (> 20 kB) and data-fl-tier names the division", size > 20_000 && /fight-league-tier-marvel-1080x1350\.png$/.test(name) && tier === "marvel" && tierSize === "1080x1350", `(${name}, ${size} bytes, data-fl-tier ${tier}, size ${tierSize})`);
+}
+// --- end fl-overhaul ---
 // --- end fight-league ---
 });
 

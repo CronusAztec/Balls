@@ -556,6 +556,7 @@ export function orbCycleText(t: Translate, result: FinderResult, c: OutcomeTextC
 
 /** The progress line of an outcome search (the closest run so far); null for a duration search or when there is nothing to say yet. */
 export function outcomeProgressText(t: Translate, outcome: FinderOutcomeKind | null, progress: FinderProgress): string | null {
+  if (progress.bestBout) return t("Rigged.progressBout", { bout: progress.bestBout }); // --- fl-overhaul --- (Stage 6) a Fight League show: how far the closest run got ("bout 3/7")
   if (outcome === "never-escapes") return t("Rigged.progressNeverEscapes", { duration: progress.bestDuration.toFixed(1) });
   if (outcome === "escapes-at") return progress.bestDuration > 0 ? t("Rigged.progressEscapesAt", { time: progress.bestDuration.toFixed(1) }) : null;
   // --- orb-grid ---

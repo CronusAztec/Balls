@@ -96,6 +96,7 @@ import { OrbFrameCost } from "./orbRhythmRenderer";
 import { DEFAULT_FIGHT_LEAGUE_LABELS, FIGHT_LEAGUE_DATA_KEYS, FightLeagueDataset, FightLeagueLayer, type FightLeagueLabels, type FightLeagueRenderOptions } from "./fightLeagueRenderer";
 // --- fl-overhaul --- (Stage 3) the fonts the fast export waits for, the page's reduced motion
 import { flFontsLoaded } from "./fightLeague/text";
+import { flClipWinnerName } from "@/lib/physics/modes/fightLeagueClip"; // --- fl-overhaul --- (Stage 6) Make a clip's answer
 import { prefersReducedMotion } from "@/lib/reducedMotion";
 // --- end fl-overhaul ---
 // --- land-claim --- Land Claim: the arena's blocks (offscreen, repainted where columns change), pops, flying blocks, badges, the HUD band and the verdict
@@ -3046,6 +3047,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         captionView.dtMs = !p.isPaused && p.isStarted ? frameMs : 0;
         captionView.winner = lcView && lcView.finished && lcView.verdict.winner >= 0 ? lcLayer.nameOf(lcView.verdict.winner) : ""; // --- land-claim --- a question's [winner]
         if (sbView && sbView.finished && sbView.winner >= 0) captionView.winner = sbView.circle ? scLayer.nameOf(sbView.winner) : sbLayer.nameOf(sbView.winner); // --- string-circle --- (the String Battle's winner too)
+        if (flView && flView.finished) captionView.winner = flClipWinnerName(flView); // --- fl-overhaul --- (Stage 6) Make a clip's "[winner] wins!" (a bracket's champion, the boss or its conqueror)
         // (--- review fix (modes-gerald-odd) --- on the run's pace: less the real time the slow motion added since Record, as the clip is extended by it)
         captionView.clipTimeSec = recordingRef.current ? Math.max(0, now - clipStartRef.current - Math.max(0, cam.getSlowLagMs() - clipLag0Ref.current)) / 1000 : -1;
         captionLayer.draw(ctx, engine, captionOptions, captionView);

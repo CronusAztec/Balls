@@ -141,6 +141,11 @@ import { flHoldEndMs, flHoldStartMs } from "@/lib/physics/modes/fightLeague";
 import { flShowHorizonMs, flShowKind, flSideCount } from "@/lib/physics/modes/fightLeague"; // (Stage 5) the shows
 import { flBestOfGames } from "@/lib/physics/modes/fightLeagueShow";
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
+// --- fl-overhaul --- (Stage 6) Make a clip
+import { flClipCaptions, flClipKoFraction, flClipNamesOf, flClipRecordingSec, flClipTopText, isFlClipCaption, planFlClip, type FlClipPlan } from "@/lib/physics/modes/fightLeagueClip";
+import { flShowClipEstimateSec } from "@/lib/physics/modes/fightLeagueShow";
+import { flClipBridge, measureFlKoSec } from "./fightLeague/makeClip";
+import { CAPTION_WINNER_TOKEN, MAX_CAPTIONS } from "@/lib/captions";
 // --- end fl-overhaul ---
 import { landClaimClipSec, landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 import { starChordsSettingsOf } from "@/lib/physics/starChords"; // --- chord-stars ---
@@ -2851,7 +2856,7 @@ export default function Simulator() {
 
   /* ------------------------------------------------------------ find simulation */
 
-  const runFinder = useCallback(async () => {
+  const runFinderWith = useCallback(async (flClip: FlClipPlan | null = null /* --- fl-overhaul --- (Stage 6) Make a clip's plan */) => {
     const engine = engineRef.current;
     if (!engine || isSearching) return;
     setIsSearching(true);
@@ -2862,17 +2867,24 @@ export default function Simulator() {
     // --- rigged --- an outcome search (never escapes, escapes at, winner) instead of the run length
     // (a first escape later than the clip gets a clip that runs a few seconds past it)
     const clipSec = finderOutcome === "escapes-at" || finderOutcome === "resolves-at" /* --- orb-grid --- (the first resolve) */ ? Math.max(findDuration, Math.ceil(findEscapeAt + 3)) : findDuration;
-    const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam, count: findCount /* --- fl-overhaul --- (Stage 5) */ } : undefined;
+    let outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam, count: findCount /* --- fl-overhaul --- (Stage 5) */ } : undefined;
     if (outcome?.kind === "fill-on-bar") outcome.atSec = barSeconds(settings.bpm); // --- loop-foundation --- (a bar of four beats at the page's BPM)
-    setSearchOutcome(finderOutcome ?? "duration");
+    // --- fl-overhaul --- (Stage 6) Make a clip searches its own plan: a story's outcome with the KO window, or the run length
+    // that puts the KO at 85 % of the clip (a show: any finished show), through this same search and its strip
+    if (flClip) outcome = flClip.outcome ?? undefined;
+    const findSec = flClip ? flClip.targetSec : findDuration;
+    const findTol = flClip ? flClip.toleranceSec : findTolerance;
+    if (flClip) flClipBridge.setStatus({ state: "searching", plan: flClip });
+    // --- end fl-overhaul ---
+    setSearchOutcome(flClip ? (flClip.outcome?.kind ?? "duration") : (finderOutcome ?? "duration"));
     const result = await findArenaSeeds(
       uncappedEngaged(settings) ? findSimulationBudgeted : findSimulation, // (--- uncap-all --- engaged by the values) --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others') --- unlimited --- (No limits: time-sliced by whole steps, fewer seeds when heavy)
       {
-        targetDurationSec: findDuration,
-        toleranceSec: findTolerance,
+        targetDurationSec: findSec, // (--- fl-overhaul --- Stage 6: Make a clip's target)
+        toleranceSec: findTol,
         maxSeeds: findMaxSeeds,
         depthBudgetMs: FINDER_DEPTH_BUDGET_MS, // --- finder-depth --- (nothing in the first 1,000 seeds: on while the budget lasts, when seeds are cheap)
-        maxSimTimeSec: Math.max(findDuration + (settings.mode === "colorMatch" ? 90 : 30), settings.mode === "fightLeague" && flShowKind({ match: settings.flMatch, bestOf: settings.flBestOf }) !== "single" ? flShowHorizonMs(fightLeagueSettingsOf(settings)) / 1000 : 0) /* --- fl-overhaul --- (Stage 5: a show, FL_SHOW_BOUT_SEC a match) */,
+        maxSimTimeSec: findSec + (settings.mode === "colorMatch" ? 90 : 30) + (settings.mode === "fightLeague" && flShowKind({ match: settings.flMatch, bestOf: settings.flBestOf }) !== "single" ? flShowHorizonMs(fightLeagueSettingsOf(settings)) / 1000 : 0) /* --- fl-overhaul --- (Stage 5: a show, FL_SHOW_BOUT_SEC a match; Stage 6: raised by it, 90 s × bouts on top of the target) */,
         physicsConfig: { ...engine.config },
         mode: settings.mode,
         modeSettings: {
@@ -2937,6 +2949,7 @@ export default function Simulator() {
       finderAbortRef.current = null;
       setIsSearching(false);
     }
+    if (flClip && (controller.signal.aborted || !result.found)) flClipBridge.setStatus({ state: controller.signal.aborted ? "idle" : "missed", plan: flClip }); // --- fl-overhaul --- (Stage 6)
     if (controller.signal.aborted) return;
     setSearchResult(result);
     if (result.found) {
@@ -2979,8 +2992,53 @@ export default function Simulator() {
       if (foundStars) initEngineForMode(engine, { ...settings, ...foundStars }); // --- chord-stars ---
       // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
       if (result.arenaSeeds) update({ arenas: withArenaSeeds(settings.arenas, settings.arenaCount, result.arenaSeeds) });
+      // --- fl-overhaul --- (Stage 6) Make a clip: the clip's length (the bucket; a show's whole run when longer), its question
+      // caption ("Who wins?" → "[winner] wins!"; a cliffhanger never answers) and the Top Text, named from the found run
+      if (flClip && settings.mode === "fightLeague") {
+        const view = engine.getFightLeagueView();
+        const recordingSec = flClipRecordingSec(flClip, result.duration, FL_FINALE_SEC, FL_WIN_HOLD_SEC);
+        const question = t("Controls.flClipQuestion");
+        const clipCaptions = flClipCaptions(flClip, { question, answer: t("Controls.flClipAnswer", { winner: CAPTION_WINNER_TOKEN }) });
+        const topText = flClipTopText(view.show.kind, flClipNamesOf(view), {
+          duel: (a, b) => t("Controls.flClipTopDuel", { a, b }),
+          boss: (boss, n) => t("Controls.flClipTopBoss", { boss, n }),
+          bracket: (n) => t("Controls.flClipTopBracket", { n }),
+        });
+        update({ recordingDuration: recordingSec, topText, captions: [...settings.captions.filter((c) => !isFlClipCaption(c, question)), ...clipCaptions].slice(0, MAX_CAPTIONS) });
+        flClipBridge.setStatus({ state: "found", plan: flClip, recordingSec, koFraction: flClipKoFraction(flClip, result.duration, recordingSec), seed: result.seed });
+      }
+      // --- end fl-overhaul ---
     }
-  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam, paintPicture, findCount]); // --- rigged --- (the outcome) --- review fix (modes-rhythm) --- (paintPicture) --- fl-overhaul --- (findCount)
+  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam, paintPicture, findCount, t]); // --- rigged --- (the outcome) --- review fix (modes-rhythm) --- (paintPicture) --- fl-overhaul --- (findCount; Stage 6: t)
+  const runFinder = useCallback(() => runFinderWith(null), [runFinderWith]); // --- fl-overhaul --- (Stage 6) the Find button: the page's own search
+
+  // --- fl-overhaul --- (Stage 6) Make a clip: the Fight League block asks (a bucket and a story); the page measures the matchup's
+  // pace (FL_CLIP_PACE_SEEDS headless runs), plans the clip, paces the HP to it when needed (a restart: the search waits for the
+  // new settings) and searches it with runFinderWith()
+  const [flClipPending, setFlClipPending] = useState<FlClipPlan | null>(null);
+  useEffect(
+    () =>
+      flClipBridge.onRequest((request) => {
+        const engine = engineRef.current;
+        if (!engine || isSearching || isRecording || settings.mode !== "fightLeague") return;
+        flClipBridge.setStatus({ state: "measuring", plan: null });
+        window.setTimeout(() => {
+          const kind = flShowKind({ match: settings.flMatch, bestOf: settings.flBestOf });
+          const base = kind === "single" ? measureFlKoSec(settings, { width: engine.config.width, height: engine.config.height }) : null;
+          const plan = planFlClip({ kind, bucket: request.bucket, story: request.story, hp: settings.flHp, baseKoSec: base, bossWaves: settings.flBossWaves, showEstimateSec: flShowClipEstimateSec({ kind, bestOf: settings.flBestOf, bracketSize: settings.flBracketSize, bossWaves: settings.flBossWaves, cardSec: settings.flCardSec }) });
+          if (plan.hp !== settings.flHp) update({ flHp: plan.hp });
+          setFlClipPending(plan);
+        }, 0);
+      }),
+    [isSearching, isRecording, settings, update],
+  );
+  useEffect(() => {
+    if (!flClipPending || settings.flHp !== flClipPending.hp) return;
+    const plan = flClipPending;
+    setFlClipPending(null);
+    void runFinderWith(plan);
+  }, [flClipPending, settings.flHp, runFinderWith]);
+  // --- end fl-overhaul ---
 
   const cancelFinder = useCallback(() => finderAbortRef.current?.abort(), []);
 
