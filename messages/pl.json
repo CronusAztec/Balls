@@ -4383,7 +4383,7 @@
   },
   "EllipseFoci": {
     "canvasTitle": "strzel z jednej kropki, traf w drugą",
-    "canvasSubtitle": "każda droga z ogniska przez ścianę do drugiego ma tę samą długość",
+    "canvasSubtitle": "każde odbicie od ściany prowadzi do drugiej kropki / a każda droga tam ma tę samą długość",
     "canvasPasses": "przejścia: {count}"
   }
 }

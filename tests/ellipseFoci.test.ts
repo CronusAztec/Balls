@@ -271,10 +271,10 @@ describe("Focus Shot geometry: the focal property", () => {
 });
 
 describe("Focus Shot: the mode in the catalogue", () => {
-  it("is a rhythm mode after the Pendulum Wave, with its card, its look and its HUD words in every language", () => {
+  it("is a rhythm mode after the Pendulum Wave and Spinning Hoops, with its card, its look and its HUD words in every language", () => {
     expect(MODE_IDS).toContain("ellipseFoci");
     expect(MODE_CATEGORIES.ellipseFoci).toBe("rhythm");
-    expect(MODE_CARD_ORDER.indexOf("ellipseFoci")).toBe(MODE_CARD_ORDER.indexOf("pendulum") + 1);
+    expect(MODE_CARD_ORDER.indexOf("ellipseFoci")).toBe(Math.max(MODE_CARD_ORDER.indexOf("pendulum"), MODE_CARD_ORDER.indexOf("hoops")) + 1);
     expect(modesInCategory("rhythm")).toContain("ellipseFoci");
     const d = defaultSettings("ellipseFoci");
     expect(d).toMatchObject({ ...DEFAULT_ELLIPSE_FOCI_FIELDS, backgroundType: "solid", loopHud: true });

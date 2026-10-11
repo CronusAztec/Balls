@@ -94,10 +94,11 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("pendulum");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "hoops");
 }
-// --- ellipse-foci --- Focus Shot joins the rhythm family right after the Pendulum Wave (a whole volley back in one point every
-// transit, the way the pendulums come back in line every cycle)
+// --- ellipse-foci --- Focus Shot joins the rhythm family after the Pendulum Wave and Spinning Hoops (a whole volley back in one
+// point every transit, the way the pendulums come back in line every cycle)
 {
-  const at = MODE_CARD_ORDER.indexOf("pendulum");
+  const hoops = MODE_CARD_ORDER.indexOf("hoops");
+  const at = hoops >= 0 ? hoops : MODE_CARD_ORDER.indexOf("pendulum");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "ellipseFoci");
 }
 

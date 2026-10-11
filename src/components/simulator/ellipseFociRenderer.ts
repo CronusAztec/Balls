@@ -43,8 +43,11 @@ export const TRAIL_BANDS = 6;
 /** Hue buckets the balls, trails and paths are batched by (5° each). */
 export const HUE_BUCKETS = 72;
 
+/** The neon outline's three strokes: width (× the wall thickness) and alpha, outer glow to core. */
+const NEON_PASSES = [5, 0.08, 2.6, 0.18, 1, 0.95] as const;
 const BUCKET_COLORS: string[] = Array.from({ length: HUE_BUCKETS }, (_, b) => `hsl(${b * 5 + 2.5}, 95%, 62%)`);
 const POINT = { x: 0, y: 0 };
+const FOCI = { arrival: 0, launch: null as number | null };
 
 export class EllipseFociLayer {
   private generation = -1;
@@ -135,13 +138,9 @@ export class EllipseFociLayer {
       const width = Math.max(1.5, opts.wallThickness);
       ctx.globalCompositeOperation = "lighter";
       ctx.strokeStyle = opts.wallColor;
-      for (const [w, alpha] of [
-        [width * 5, 0.08],
-        [width * 2.6, 0.18],
-        [width, 0.95],
-      ] as const) {
-        ctx.globalAlpha = alpha;
-        ctx.lineWidth = w;
+      for (let pass = 0; pass < NEON_PASSES.length; pass += 2) {
+        ctx.globalAlpha = NEON_PASSES[pass + 1];
+        ctx.lineWidth = width * NEON_PASSES[pass];
         ctx.beginPath();
         ctx.ellipse(f.cx, f.cy, rx, ry, 0, 0, Math.PI * 2);
         ctx.stroke();
@@ -159,8 +158,8 @@ export class EllipseFociLayer {
     const marker = Math.max(1.5, EF_MARKER_SHARE * a);
     ctx.strokeStyle = skin === "neon" ? opts.wallColor : "rgba(222, 226, 232, 0.85)";
     ctx.lineWidth = Math.max(0.6, 1.1 / Math.max(0.5, opts.dpr));
-    for (const u of [-view.e, view.e]) {
-      toWorld(f, u, 0, POINT);
+    for (let side = -1; side <= 1; side += 2) {
+      toWorld(f, side * view.e, 0, POINT);
       ctx.beginPath();
       ctx.arc(POINT.x, POINT.y, marker, 0, Math.PI * 2);
       ctx.stroke();
@@ -343,11 +342,10 @@ export class EllipseFociLayer {
     this.prepare(view);
     const r = view.ballRadius;
     ctx.save();
-    for (const [scaleR, alpha] of [
-      [opts.showGlow ? 3.2 : 2.2, opts.showGlow ? 0.22 : 0.14],
-      [1, 1],
-    ] as const) {
-      ctx.globalAlpha = alpha;
+    for (let pass = 0; pass < 2; pass++) {
+      // the soft halo first, then the bright dot (no array a frame: the hot loop stays allocation-free)
+      const scaleR = pass === 1 ? 1 : opts.showGlow ? 3.2 : 2.2;
+      ctx.globalAlpha = pass === 1 ? 1 : opts.showGlow ? 0.22 : 0.14;
       for (let bucket = 0; bucket < HUE_BUCKETS; bucket++) {
         const from = this.bucketStart[bucket];
         const to = this.bucketStart[bucket + 1];
@@ -379,12 +377,13 @@ export class EllipseFociLayer {
     const level = bloomLevel(now - k * T);
     if (level <= 0.002) return;
     this.bloom = level;
-    const foci = convergenceFoci(view.settings.reset, view.settings.passes, k, view.focusU);
+    const foci = convergenceFoci(view.settings.reset, view.settings.passes, k, view.focusU, FOCI);
     const radius = Math.max(4, EF_BLOOM_SHARE * view.frame.scale);
     ctx.save();
     ctx.globalCompositeOperation = "lighter";
-    for (const u of foci.launch !== null && foci.launch !== foci.arrival ? [foci.arrival, foci.launch] : [foci.arrival]) {
-      toWorld(view.frame, u, 0, POINT);
+    const both = foci.launch !== null && foci.launch !== foci.arrival;
+    for (let f = 0; f < (both ? 2 : 1); f++) {
+      toWorld(view.frame, f === 0 ? foci.arrival : (foci.launch as number), 0, POINT);
       const g = ctx.createRadialGradient(POINT.x, POINT.y, 0, POINT.x, POINT.y, radius);
       g.addColorStop(0, `rgba(255, 255, 255, ${0.95 * level})`);
       g.addColorStop(0.25, `rgba(255, 255, 255, ${0.55 * level})`);

@@ -15,7 +15,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 
 | Area | What you get |
 | --- | --- |
-| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Focus Shot, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
+| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops, Focus Shot), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow; collision-safe at every amplitude and speed) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Merge & split balls** | A ball-interaction setting in the Ball section: balls **bounce** (default), **merge** into one bigger ball on contact (area and momentum conserved, colours blended, a particle burst and a low tone), **split** in two every time a ball breaks through a wall (half the area each, diverging velocities, a high tone – down to a smallest size and up to a ball cap) or **pass** through each other. Works in the two-ball modes and Multiply, is deterministic (seeds and Find Simulation include it) and shared via the URL (`bi`, `smr`, `mb`) |
@@ -2042,8 +2042,8 @@ the mode, `src/components/simulator/ellipseFociRenderer.ts` the picture, `sectio
   completion chord on G2; the groove bed (pad, sub and a kick on every beat at 8 · 60 / T BPM, two bars a pass, a chord a pass
   from a seeded progression) drops in at the loop's first convergence. The seeded choices, in this order: the hue offset, then
   the bed's progression.
-- **The HUD** – the loop HUD is on in Focus Shot: "fire from one dot, hit the other" and its subtitle (the `EllipseFoci`
-  namespace), and with the Pass counter the passes of the current loop in amber ("3 passes", 0 again at a seam); the live HUD
+- **The HUD** – the loop HUD is on in Focus Shot: "fire from one dot, hit the other" and its two-line grey subtitle (the
+  `EllipseFoci` namespace, `loopHudMessageKey()` reads a key that names its namespace), and with the Pass counter the passes of the current loop in amber ("3 passes", 0 again at a seam); the live HUD
   keeps clear of the pool and its rim.
 - **Find Simulation** – **Converges on the beat**: every volley converges on time, so the transit becomes the whole number of bars
   at the BPM set under Sound nearest it, and the clip the whole loops that fit the target (at least one); **Longest collapse**:
@@ -2059,7 +2059,7 @@ the mode, `src/components/simulator/ellipseFociRenderer.ts` the picture, `sectio
   focus at T), the hit order and the mirrored pairs, ψ never growing, the refire loop's state at passes × T equal to t = 0, the
   circle, the resolver past the slider ranges, the sounds (the descending ladder, at most 6 notes a step at 1/√n, the impacts and
   the pre-drop, the bed, a real ToneGenerator on `tests/fakeAudio.ts`), the replay at 30, 60 and 120 fps (pinned), the seeds,
-  the finder, the links and presets, and the renderer's budgets. The smoke test (section 39, block `ellipse-foci`) runs 20 s at
+  the finder, the links and presets, and the renderer's budgets. The smoke test (section 41, block `ellipse-foci`) runs 20 s at
   4× (no NaN, at least four convergences, the HUD, the bloom), compares a whole-loop fast export's sound events with live play,
   and checks a preset's link and the on-the-beat search.
 

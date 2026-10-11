@@ -4383,7 +4383,7 @@
   },
   "EllipseFoci": {
     "canvasTitle": "dispara desde un punto, acierta en el otro",
-    "canvasSubtitle": "todo camino de un foco a la pared y al otro mide lo mismo",
+    "canvasSubtitle": "cada rebote en la pared va hacia el otro punto / y todos los caminos miden lo mismo",
     "canvasPasses": "{count} pasadas"
   }
 }
