@@ -337,6 +337,7 @@ export default function Simulator() {
   const [findOutcome, setFindOutcome] = useState<FinderOutcomeKind>("duration");
   const [findEscapeAt, setFindEscapeAt] = useState(10);
   const [findWinner, setFindWinner] = useState(0);
+  const [findCount, setFindCount] = useState(1); // --- fl-overhaul --- (Stage 5) the fewest lead changes, the wave the boss falls at
   const [searchOutcome, setSearchOutcome] = useState<FinderOutcomeKind>("duration");
   const [shareCopied, setShareCopied] = useState(false);
   // --- site-redesign --- read after hydration (the server has no MediaRecorder), so the server-rendered page and the
@@ -1494,12 +1495,13 @@ export default function Simulator() {
   const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, orbGrid: orbGridSettingsOf(s) /* --- orb-rhythm --- (the model decides) */, grow: growFillSettingsOf(s) /* --- loop-foundation --- ("finish" ends at the fill) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
   const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);
-  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */ });
+  const flShow = s.mode === "fightLeague" ? flShowKind({ match: s.flMatch, bestOf: s.flBestOf }) : undefined; // --- fl-overhaul --- (Stage 5) the show's own outcomes
+  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, flShow });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
-  const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
+  const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }), t("Rigged.challengers") /* --- fl-overhaul --- (Stage 5: a boss rush's side 1) */);
   const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
   const outcomeText = { duration: findDuration, escapeAt: findEscapeAt, winnerName: winnerNames[findWinnerTeam] ?? "", barSec: barSeconds(s.bpm) /* --- loop-foundation --- (fill on a bar line) */ };
-  const riggedNote = [s.neverEscape && neverEscapeApplies(s.mode) ? t("Rigged.noteNeverEscape") : "", forcedWinnerApplies(s.mode, ballCount, s.forcedWinner, s.neverEscape) ? t(s.mode === "landClaim" ? "Rigged.noteFavoured" /* --- land-claim --- (honest steering: the favourite, not a certainty) */ : "Rigged.noteWinner", { name: winnerNames[s.forcedWinner] ?? "" }) : ""].filter(Boolean).join(" · ");
+  const riggedNote = [s.neverEscape && neverEscapeApplies(s.mode) ? t("Rigged.noteNeverEscape") : "", forcedWinnerApplies(s.mode, ballCount, s.forcedWinner, s.neverEscape) ? t(s.mode === "landClaim" ? "Rigged.noteFavoured" /* --- land-claim --- (honest steering: the favourite, not a certainty) */ : flShow && flShow !== "single" ? "Rigged.noteShow" /* --- fl-overhaul --- (Stage 5: the format named) */ : "Rigged.noteWinner", { name: winnerNames[s.forcedWinner] ?? "", format: flShow && flShow !== "single" ? t(`Rigged.showFormat_${flShow}`) : "" }) : ""].filter(Boolean).join(" · ");
   // --- end rigged ---
 
   // --- split-screen --- Split-screen races (lib/splitScreen.ts, lib/simulation/multi.ts, splitScreenCanvas.tsx): 2 or 4 arenas
@@ -2807,7 +2809,7 @@ export default function Simulator() {
     // --- rigged --- an outcome search (never escapes, escapes at, winner) instead of the run length
     // (a first escape later than the clip gets a clip that runs a few seconds past it)
     const clipSec = finderOutcome === "escapes-at" || finderOutcome === "resolves-at" /* --- orb-grid --- (the first resolve) */ ? Math.max(findDuration, Math.ceil(findEscapeAt + 3)) : findDuration;
-    const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam } : undefined;
+    const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam, count: findCount /* --- fl-overhaul --- (Stage 5) */ } : undefined;
     if (outcome?.kind === "fill-on-bar") outcome.atSec = barSeconds(settings.bpm); // --- loop-foundation --- (a bar of four beats at the page's BPM)
     setSearchOutcome(finderOutcome ?? "duration");
     const result = await findArenaSeeds(
@@ -2817,7 +2819,7 @@ export default function Simulator() {
         toleranceSec: findTolerance,
         maxSeeds: findMaxSeeds,
         depthBudgetMs: FINDER_DEPTH_BUDGET_MS, // --- finder-depth --- (nothing in the first 1,000 seeds: on while the budget lasts, when seeds are cheap)
-        maxSimTimeSec: findDuration + (settings.mode === "colorMatch" ? 90 : 30),
+        maxSimTimeSec: Math.max(findDuration + (settings.mode === "colorMatch" ? 90 : 30), settings.mode === "fightLeague" ? flShowHorizonMs(fightLeagueSettingsOf(settings)) / 1000 : 0) /* --- fl-overhaul --- (Stage 5: a show, FL_SHOW_BOUT_SEC a match) */,
         physicsConfig: { ...engine.config },
         mode: settings.mode,
         modeSettings: {
@@ -2913,7 +2915,7 @@ export default function Simulator() {
       // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
       if (result.arenaSeeds) update({ arenas: withArenaSeeds(settings.arenas, settings.arenaCount, result.arenaSeeds) });
     }
-  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam, paintPicture]); // --- rigged --- (the outcome) --- review fix (modes-rhythm) --- (paintPicture)
+  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam, paintPicture, findCount]); // --- rigged --- (the outcome) --- review fix (modes-rhythm) --- (paintPicture) --- fl-overhaul --- (findCount)
 
   const cancelFinder = useCallback(() => finderAbortRef.current?.abort(), []);
 
@@ -3607,7 +3609,7 @@ export default function Simulator() {
             </div>
           </div>
           {/* --- rigged --- an outcome search's explanation and fields */}
-          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ landClaim={settings.mode === "landClaim"} /* --- land-claim --- */ />}
+          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ landClaim={settings.mode === "landClaim"} /* --- land-claim --- */ count={findCount} onCount={(n) => setFindCount(Math.max(1, Math.round(n)))} /* --- fl-overhaul --- (Stage 5) */ />}
           {isSearching && searchProgress && (
             <div className="space-y-1.5" data-search-arena={searchProgress.arena ?? 0 /* --- split-screen --- */}>
               <div className="h-1 w-full overflow-hidden rounded-full bg-surface-3">

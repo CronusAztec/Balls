@@ -418,11 +418,11 @@ describe("fight league settings, URL and presets", () => {
 
   it("validates: known fighters and options, uncapped numbers from their minimum up", () => {
     const r = resolveFightLeagueSettings({ fighters: ["thor", "nobody", "random", "goku"], match: "ffa9" as never, hp: -5, timeCap: Number.NaN, speed: [0, 7.5, Number.NaN, 2], arena: "hex" as never, hud: "yes" as never });
-    expect(r.fighters).toEqual(["thor", "loki", "random", "goku"]);
+    expect(r.fighters).toEqual(["thor", "loki", "random", "goku", "random", "random"]); // (--- fl-overhaul --- Stage 5: slots A–F)
     expect(r.match).toBe("1v1");
     expect(r.hp).toBe(FIGHT_LEAGUE_RANGES.flHp.min);
     expect(r.timeCap).toBe(90);
-    expect(r.speed).toEqual([0.05, 7.5, 1, 2]);
+    expect(r.speed).toEqual([0.05, 7.5, 1, 2, 1, 1]);
     expect(r.arena).toBe("square");
     expect(r.hud).toBe(true);
     expect(resolveFightLeagueSettings({ hp: 1e6, timeCap: 1e5 })).toMatchObject({ hp: 1e6, timeCap: 1e5 });
@@ -467,7 +467,7 @@ describe("fight league settings, URL and presets", () => {
     // An unknown token reads back as the slot's default, like an unknown fighter.
     const bad = settingsFromSearchParams(new URLSearchParams("mode=fightLeague&fl1=random:nope&fl2=random:wildcard"));
     expect([bad.flFighterA, bad.flFighterB]).toEqual(["thor", "loki"]);
-    expect(resolveFightLeagueSettings({ fighters: ["random:horror", "random:nope", "random:shows", "random"] }).fighters).toEqual(["random:horror", "loki", "random:shows", "random"]);
+    expect(resolveFightLeagueSettings({ fighters: ["random:horror", "random:nope", "random:shows", "random"] }).fighters).toEqual(["random:horror", "loki", "random:shows", "random", "random", "random"]);
   });
 
   it("resolves presets and every fl field of a stored preset", () => {
