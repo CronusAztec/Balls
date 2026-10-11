@@ -2,6 +2,7 @@ import { MAX_TEAMS, MULTI_BALL_MODES, modeBallCap, type BallStats } from "@/lib/
 import type { ModeId } from "@/lib/physics/types";
 import { normalizeHexColor } from "@/lib/themes";
 import { isFlMatch, matchTeams } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
+import { flSideCount } from "@/lib/physics/modes/fightLeague"; // --- fl-overhaul --- (Stage 5)
 
 /**
  * Team balls with a scoreboard – the "which one wins" format. Pure data and maths, no DOM:
@@ -205,6 +206,13 @@ interface BallCountFields {
   flMatch?: string;
   /** --- land-claim --- Land Claim's own competitor count (2 and up): its first six competitors are teams, whatever the roster's size. */
   lcTeams?: number;
+  /** --- fl-overhaul --- (Stage 5) Fight League's slots A–F: a bracket's sides are its pinned entrants (a boss rush's the boss and the challengers). */
+  flFighterA?: string;
+  flFighterB?: string;
+  flFighterC?: string;
+  flFighterD?: string;
+  flFighterE?: string;
+  flFighterF?: string;
 }
 
 /**
@@ -219,6 +227,8 @@ export function effectiveBallCount(settings: BallCountFields): number {
   // --- odd-maze --- the Maze plays its own number of balls too (the roster colours and names the first ones; six at most are teams)
   if (settings.mode === "maze" && settings.mzBalls !== undefined && Number.isFinite(settings.mzBalls)) return Math.max(1, Math.min(MAX_TEAMS, Math.round(settings.mzBalls)));
   // --- fight-league --- Fight League plays its sides: a fighter each in 1v1 and the free-for-alls, two teams in 2v2
+  // (--- fl-overhaul --- Stage 5: the run's sides – a 3v3's two teams, a bracket's pinned entrants (at least one ball), a boss rush's boss and challengers)
+  if (settings.mode === "fightLeague" && (settings.flMatch === "bracket" || settings.flMatch === "boss")) return Math.max(1, flSideCount(settings.flMatch, [settings.flFighterA, settings.flFighterB, settings.flFighterC, settings.flFighterD, settings.flFighterE, settings.flFighterF]));
   if (settings.mode === "fightLeague") return matchTeams(isFlMatch(settings.flMatch) ? settings.flMatch : "1v1");
   // --- land-claim --- Land Claim plays its own number of competitors too (the roster colours, names and flags the first ones; six at most are teams)
   if (settings.mode === "landClaim" && settings.lcTeams !== undefined && Number.isFinite(settings.lcTeams)) return Math.max(2, Math.min(MAX_TEAMS, Math.round(settings.lcTeams)));

@@ -49,6 +49,23 @@ import {
   slotTeam,
   type FightLeagueSettings,
   type FightLeagueView,
+  // --- fl-overhaul ---
+  EV_CAST,
+  angleDiff,
+  flPanelValue,
+  // --- fl-overhaul --- (Stage 2)
+  EV_TRANSFORM,
+  FL_RANDOM_PREFIX,
+  flRandomToken,
+  isFlRandom,
+  isFlSlotValue,
+  parseFlRandom,
+  // --- fl-overhaul --- (Stage 3)
+  EV_HIT,
+  FL_FIELD_FRAC,
+  FL_FIELD_TOP,
+  flDisplayX,
+  flDisplayY,
 } from "@/lib/physics/modes/fightLeague";
 import {
   FL_ABILITY_PRIMITIVES,
@@ -62,7 +79,25 @@ import {
   weaponOf,
   type FlAbility,
   type FlFighterRow,
+  // --- fl-overhaul --- (Stage 2)
+  FL_CHARGE_RANGE,
+  FL_CONFERENCES,
+  FL_CONFERENCE_IDS,
+  FL_CONFERENCE_LABELS,
+  FL_LOOK_CRESTS,
+  FL_LOOK_PATTERNS,
+  FL_PRIMITIVE_LIMITS,
+  FL_ROLES,
+  FL_WEAPON_LOOKS,
+  abilityClass,
+  conferenceOf,
+  fightersOf,
+  flLimitViolations,
+  flRosterHash,
+  flShortName,
 } from "@/lib/physics/modes/fightLeagueRoster";
+import { flFold, flSortKey, flTypeAhead, searchFighters } from "@/lib/physics/modes/fightLeagueSearch"; // --- fl-overhaul --- (Stage 2)
+import { FL_RATINGS_HASH, FL_STRENGTH } from "@/lib/physics/modes/fightLeagueRatings"; // --- fl-overhaul --- (Stage 2)
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import { MODE_CARD_ORDER, MODE_CATEGORIES } from "@/lib/modes";
@@ -79,6 +114,10 @@ import { playArenaSound, type ArenaSoundSink } from "@/lib/simulation/multi";
 import { playSoundEvent } from "@/lib/recording/fastRender";
 import { DEFAULT_FIGHT_LEAGUE_LABELS, FIGHT_LEAGUE_DATA_KEYS, FightLeagueDataset, FightLeagueLayer, flNameColor } from "@/components/simulator/fightLeagueRenderer";
 import { fakeGraph } from "./fakeAudio";
+import { burstSpawnsBehind, dummyDuel, PROBE_INTRO_MS, PROBE_STEP, probeEngine, probeRun } from "./flProbes"; // --- fl-overhaul ---
+import en from "../messages/en.json"; // --- fl-overhaul ---
+import pl from "../messages/pl.json"; // --- fl-overhaul --- (Stage 2)
+import es from "../messages/es.json"; // --- fl-overhaul --- (Stage 2)
 
 /**
  * Fight League (feature fight-league): the roster and its divisions, the settings / URL / presets and the registration, the
@@ -117,10 +156,10 @@ function run(engine: PhysicsEngine, untilMs: number, frameMs = STEP, each?: (v: 
   return v;
 }
 
-/** A 1v1 of `a` and `b` played to its end (the 60 s cap of the balance runs). */
+/** A 1v1 of `a` and `b` played to its end (the 60 s cap of the balance runs; --- fl-overhaul --- counted from FIGHT!, then sudden death). */
 function duel(a: string, b: string, seed: number, fl: Partial<FightLeagueSettings> = {}) {
   const engine = fightEngine({ fighters: [a, b, "random", "random"], match: "1v1", timeCap: 60, ...fl }, seed);
-  return run(engine, 70_000);
+  return run(engine, 100_000);
 }
 
 async function withFrames<T>(body: () => Promise<T>): Promise<T> {
@@ -145,26 +184,48 @@ function eventsSince(v: FightLeagueView, serial: number) {
 
 /* ------------------------------------------------------------------ the roster */
 
-/** Every fighter the roster must have, by division (the owner's list). */
+/** Every fighter the roster must have, by division (the owner's list; --- fl-overhaul --- Stage 2: 147 fighters in 19 divisions). */
 const EXPECTED: Record<string, string[]> = {
-  marvel: ["Thor", "Loki", "Spider-Man", "Iron Man", "Captain America", "Hulk"],
-  dc: ["Superman", "Batman", "Joker", "Wonder Woman"],
-  nintendo: ["Mario", "Link", "Samus", "Captain Falcon", "Little Mac", "Sonic"],
-  league: ["Yuumi", "Katarina", "Garen", "Jinx", "Ahri"],
-  fighting: ["Ryu", "Ken", "Chun-Li", "Scorpion", "Sub-Zero"],
-  legends: ["Master Chief", "Doom Slayer", "Kratos", "Steve", "Pikachu", "Charizard"],
-  shonen: ["Goku", "Vegeta", "Naruto", "Sasuke", "Luffy", "Saitama"],
-  starWars: ["Luke Skywalker", "Darth Vader", "Yoda", "Darth Maul"],
-  fantasy: ["Harry Potter", "Voldemort", "Gandalf", "Legolas"],
-  monsters: ["Godzilla", "King Kong", "Alien", "Predator"],
-  action: ["John Wick", "Neo", "Terminator", "RoboCop"],
-  tv: ["Homelander", "Omni-Man", "Aang", "Zuko", "Jon Snow", "Night King"],
+  marvel: ["Thor", "Loki", "Spider-Man", "Iron Man", "Captain America", "Hulk", "Venom", "Thanos", "Deadpool", "Wolverine"],
+  dc: ["Superman", "Batman", "Joker", "Wonder Woman", "The Flash", "Aquaman", "Harley Quinn", "Darkseid"],
+  nintendo: ["Mario", "Link", "Samus", "Captain Falcon", "Little Mac", "Sonic", "Kirby", "Donkey Kong", "Bowser", "Shadow"],
+  league: ["Yuumi", "Katarina", "Garen", "Jinx", "Ahri", "Lux", "Yasuo", "Lee Sin"],
+  fighting: ["Ryu", "Ken", "Chun-Li", "Scorpion", "Sub-Zero", "Akuma", "Liu Kang", "Raiden", "Kazuya"],
+  legends: ["Master Chief", "Doom Slayer", "Kratos", "Zeus", "Lara Croft", "Cloud Strife", "Sephiroth", "Arthur Morgan", "Pac-Man"],
+  shonen: ["Goku", "Vegeta", "Naruto", "Sasuke", "Luffy", "Saitama", "Zoro", "Itachi", "Frieza"],
+  starWars: ["Luke Skywalker", "Darth Vader", "Yoda", "Darth Maul", "Obi-Wan Kenobi", "Kylo Ren", "Palpatine", "The Mandalorian"],
+  fantasy: ["Harry Potter", "Voldemort", "Gandalf", "Legolas", "Hermione Granger", "Dumbledore", "Aragorn", "Sauron", "Geralt"],
+  monsters: ["Godzilla", "King Kong", "Alien", "Predator", "T-Rex", "Jaws"],
+  action: ["John Wick", "Neo", "Terminator", "RoboCop", "Indiana Jones", "James Bond", "Rambo", "Jack Sparrow"],
+  tv: ["Homelander", "Omni-Man", "Aang", "Zuko", "Jon Snow", "Night King", "Walter White", "Eleven", "Daenerys Targaryen"],
+  pokemon: ["Pikachu", "Charizard", "Mewtwo", "Lucario", "Greninja", "Gengar", "Snorlax"],
+  modernAnime: ["Gojo", "Sukuna", "Tanjiro", "Nezuko", "Levi", "Eren", "Deku", "Bakugo"],
+  sandbox: ["Steve", "Creeper", "Enderman", "Jonesy", "Peely", "Noob", "Crewmate"],
+  horror: ["Freddy Krueger", "Jason Voorhees", "Michael Myers", "Ghostface", "Pennywise", "Chucky", "Leatherface"],
+  animated: ["Buzz Lightyear", "Woody", "Shrek", "Puss in Boots", "Toothless", "Elsa", "Mr. Incredible"],
+  cartoons: ["Homer Simpson", "SpongeBob", "Rick Sanchez", "Bugs Bunny", "Tom", "Jerry", "Popeye"],
   wildcard: ["Gerald"],
 };
 
+/** --- fl-overhaul --- (Stage 2) The 61 fighters of before the roster grew: their ids are kept (old links play them), none is new. */
+const OLD_IDS = ["thor", "loki", "spiderman", "ironman", "captainamerica", "hulk", "superman", "batman", "joker", "wonderwoman", "mario", "link", "samus", "captainfalcon", "littlemac", "sonic", "yuumi", "katarina", "garen", "jinx", "ahri", "ryu", "ken", "chunli", "scorpion", "subzero", "masterchief", "doomslayer", "kratos", "goku", "vegeta", "naruto", "sasuke", "luffy", "saitama", "luke", "vader", "yoda", "maul", "harrypotter", "voldemort", "gandalf", "legolas", "godzilla", "kingkong", "alien", "predator", "johnwick", "neo", "terminator", "robocop", "homelander", "omniman", "aang", "zuko", "jonsnow", "nightking", "pikachu", "charizard", "steve", "gerald"];
+
+/** --- fl-overhaul --- (Stage 2) A seeded uniform draw for the token tests (mulberry32). */
+function seeded(seed: number): () => number {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
 describe("fight league roster", () => {
   it("has every listed fighter in its division, each one data row with a weapon, stats, one ability and a description", () => {
-    expect(FL_ROSTER).toHaveLength(61);
+    expect(FL_ROSTER).toHaveLength(147);
+    expect(Object.keys(EXPECTED)).toEqual([...FL_DIVISIONS]);
     for (const division of FL_DIVISIONS) expect(rosterByDivision().find((d) => d.division === division)!.fighters.map((r) => r.name)).toEqual(EXPECTED[division]);
     expect(new Set(FL_ROSTER.map((r) => r.id)).size).toBe(FL_ROSTER.length);
     for (const r of FL_ROSTER) {
@@ -185,6 +246,77 @@ describe("fight league roster", () => {
     }
     expect(FL_BY_ID.get("thor")!.name).toBe("Thor");
     expect(Object.keys(FL_DIVISION_LABELS)).toEqual([...FL_DIVISIONS]);
+    // --- fl-overhaul --- (Stage 2) the 61 ids of before kept and not new, 86 new ones; the moves keep their ids
+    expect(OLD_IDS).toHaveLength(61);
+    for (const id of OLD_IDS) expect([id, FL_BY_ID.get(id)?.isNew]).toEqual([id, false]);
+    expect(FL_ROSTER.filter((r) => r.isNew)).toHaveLength(86);
+    expect(FL_ROSTER.filter((r) => !r.isNew).map((r) => r.id).sort()).toEqual([...OLD_IDS].sort());
+    expect(["pikachu", "charizard", "steve", "zeus"].map((id) => FL_BY_ID.get(id)!.division)).toEqual(["pokemon", "pokemon", "sandbox", "legends"]);
+    expect(FL_DIVISIONS.slice(12)).toEqual(["pokemon", "modernAnime", "sandbox", "horror", "animated", "cartoons", "wildcard"]);
+    expect(FL_DIVISIONS.slice(12, 18).map((d) => FL_DIVISION_LABELS[d])).toEqual(["Pokémon", "Modern anime", "Sandbox & online games", "Horror movies", "Animated movies", "Cartoons"]);
+    expect(FL_ROSTER.map((r) => r.id)).toEqual(FL_DIVISIONS.flatMap((d) => fightersOf(d).map((r) => r.id)));
+  });
+
+  it("fills every division with 6–10 fighters (Gerald alone in Wildcard) and keeps the role templates", () => {
+    for (const d of FL_DIVISIONS) {
+      const rows = fightersOf(d);
+      if (d === "wildcard") {
+        expect(rows.map((r) => r.name)).toEqual(["Gerald"]);
+        continue;
+      }
+      expect([d, rows.length >= 6 && rows.length <= 10]).toEqual([d, true]);
+      const tanks = rows.filter((r) => r.role === "tank");
+      const glass = rows.filter((r) => r.role === "glass");
+      // At most two of each; every division but Fighting games has both (fighting games may go without).
+      expect([d, tanks.length <= 2, glass.length <= 2]).toEqual([d, true, true]);
+      if (d !== "fighting") expect([d, tanks.length >= 1, glass.length >= 1]).toEqual([d, true, true]);
+      for (const r of tanks) expect([r.id, r.stats.hp >= 115 && r.stats.hp <= 130, r.stats.speed >= 0.7 && r.stats.speed <= 0.85, r.stats.size >= 1.1 && r.stats.size <= 1.3]).toEqual([r.id, true, true, true]);
+      for (const r of glass) expect([r.id, r.stats.hp >= 90 && r.stats.hp <= 95, r.stats.speed >= 1.3 && r.stats.speed <= 1.8, r.stats.size >= 0.7 && r.stats.size <= 0.9]).toEqual([r.id, true, true, true]);
+    }
+    for (const r of FL_ROSTER) {
+      expect(FL_ROLES).toContain(r.role);
+      expect([r.id, r.stats.hp >= 90 && r.stats.hp <= 130]).toEqual([r.id, true]);
+    }
+  });
+
+  it("keeps every ability inside FL_PRIMITIVE_LIMITS and its charge in its class; short names, looks and weapon looks are valid", () => {
+    for (const r of FL_ROSTER) {
+      for (const e of r.ability.effects) expect([r.id, flLimitViolations(e)]).toEqual([r.id, []]);
+      const cls = abilityClass(r.ability);
+      const [lo, hi] = FL_CHARGE_RANGE[cls];
+      expect([r.id, cls, r.ability.charge >= lo && r.ability.charge <= hi]).toEqual([r.id, cls, true]);
+      if (r.short !== undefined) expect([r.id, r.short.length >= 1 && r.short.length <= 10]).toEqual([r.id, true]);
+      expect(flShortName(r)).toBe((r.short ?? r.name).toUpperCase());
+      if (r.look) {
+        expect(FL_LOOK_PATTERNS).toContain(r.look.pattern);
+        expect(FL_LOOK_CRESTS).toContain(r.look.crest);
+        for (const c of [r.look.glow, r.look.trail]) if (c !== undefined) expect(c).toMatch(/^#[0-9a-f]{6}$/i);
+      }
+      for (const w of r.weapons) if (w.look) expect([r.id, (FL_WEAPON_LOOKS[w.kind] ?? []).includes(w.look)]).toEqual([r.id, true]);
+    }
+    // The limits and the classes themselves.
+    expect(FL_PRIMITIVE_LIMITS.freezeAll).toEqual({ dur: { max: 2 } });
+    expect(flLimitViolations({ p: "freezeAll", dur: 2.5 })).toEqual(["freezeAll.dur > 2"]);
+    expect(flLimitViolations({ p: "slowTime", dur: 2, factor: 0.2 })).toEqual(["slowTime.factor < 0.25"]);
+    expect(flLimitViolations({ p: "trap", n: 5, damage: 5, hold: 1.5 })).toEqual(["trap.hold > 1.2", "trap.n > 4"]);
+    expect(FL_CHARGE_RANGE).toEqual({ ultimate: [13, 14], area: [11, 12], standard: [8, 10] });
+    expect(abilityClass({ effects: [{ p: "shockwave", radius: 4.5, damage: 1, knockback: 1 }] })).toBe("area");
+    expect(abilityClass({ effects: [{ p: "shockwave", radius: 4.4, damage: 1, knockback: 1 }] })).toBe("standard");
+    expect(abilityClass({ ultimate: true, effects: [{ p: "speedBurst", mult: 2, dur: 1 }] })).toBe("ultimate");
+    for (const [id, charge] of [["thor", 11], ["pikachu", 11], ["luke", 11], ["vegeta", 13]] as const) expect([id, FL_BY_ID.get(id)!.ability.charge]).toEqual([id, charge]);
+    expect(FL_BY_ID.get("vegeta")!.ability.ultimate).toBe(true);
+  });
+
+  it("groups the divisions into conferences (every division but Wildcard in exactly one)", () => {
+    expect(FL_CONFERENCE_IDS).toEqual(["comics", "games", "anime", "movies", "shows"]);
+    const all = FL_CONFERENCE_IDS.flatMap((c) => [...FL_CONFERENCES[c]]);
+    expect([...all].sort()).toEqual(FL_DIVISIONS.filter((d) => d !== "wildcard").sort());
+    expect(new Set(all).size).toBe(all.length);
+    expect(conferenceOf("pokemon")).toBe("games");
+    expect(conferenceOf("wildcard")).toBeNull();
+    expect(FL_CONFERENCE_LABELS.shows).toBe("TV & cartoons");
+    // A conference id never collides with a division id (a token names one or the other).
+    for (const c of FL_CONFERENCE_IDS) expect((FL_DIVISIONS as readonly string[]).includes(c)).toBe(false);
   });
 
   it("uses every weapon kind and fills every weapon field from the kind's defaults", () => {
@@ -195,10 +327,14 @@ describe("fight league roster", () => {
     expect(weaponLabel(FL_BY_ID.get("ryu")!)).toBe("fists + gun");
     expect(weaponLabel(FL_BY_ID.get("thor")!)).toBe("returning hammer");
     for (const kind of FL_WEAPON_KINDS) expect(FL_SOUND_OF_KIND[kind]).toMatch(/^(blade|blunt|arrow|gun|fire|magic)$/);
+    // --- fl-overhaul --- (Stage 2) 21 kinds and 26 primitives, each in some row
+    expect(FL_WEAPON_KINDS).toHaveLength(21);
+    expect(FL_ABILITY_PRIMITIVES).toHaveLength(26);
+    for (const p of FL_ABILITY_PRIMITIVES) expect([p, FL_ROSTER.some((r) => r.ability.effects.some((e) => e.p === p))]).toEqual([p, true]);
   });
 
   it("offers in-genre presets (Thor vs Loki the default) and every fighter of a preset is in one division", () => {
-    expect(FL_PRESETS.map((p) => p.label)).toEqual([
+    expect(FL_PRESETS.slice(0, 50).map((p) => p.label)).toEqual([
       "Thor vs Loki",
       "Captain Falcon vs Little Mac",
       "Yuumi vs Katarina",
@@ -213,15 +349,59 @@ describe("fight league roster", () => {
       "Homelander vs Omni-Man",
       "Avengers free-for-all",
       "2v2: Naruto + Sasuke vs Goku + Vegeta",
+      // --- fl-overhaul --- (Stage 2)
+      "Ryu vs Ken",
+      "Naruto vs Sasuke",
+      "Goku vs Frieza",
+      "Pikachu vs Charizard",
+      "Master Chief vs Doom Slayer",
+      "Thor vs Hulk",
+      "Spider-Man vs Venom",
+      "Deadpool vs Wolverine",
+      "Kratos vs Zeus",
+      "Justice League free-for-all",
+      "Batman vs Superman",
+      "Straw Hats vs Team 7: Luffy + Zoro vs Naruto + Sasuke",
+      "Gojo vs Sukuna",
+      "Deku vs Bakugo",
+      "Eren vs Levi",
+      "Mario vs Bowser",
+      "Sonic vs Shadow",
+      "Cloud Strife vs Sephiroth",
+      "Kazuya vs Akuma",
+      "Obi-Wan Kenobi vs Darth Vader",
+      "Yoda vs Palpatine",
+      "Gandalf vs Sauron",
+      "Fellowship vs Dark Lords: Gandalf + Aragorn vs Sauron + Voldemort",
+      "John Wick vs Neo",
+      "King Kong vs T-Rex",
+      "Jon Snow vs Night King",
+      "Aang vs Zuko",
+      "Pokémon free-for-all",
+      "Steve vs Creeper",
+      "Sandbox free-for-all",
+      "Freddy Krueger vs Jason Voorhees",
+      "Slasher free-for-all",
+      "Buzz Lightyear vs Woody",
+      "Buzz Lightyear + Woody vs Shrek + Puss in Boots",
+      "Tom vs Jerry",
+      "Cartoons free-for-all",
     ]);
-    for (const p of FL_PRESETS) {
+    // --- fl-overhaul --- (Stage 5) the first 50 as they were (the shows' 26 after them: tests/fightLeagueMatches.test.ts)
+    for (const p of FL_PRESETS.slice(0, 50)) {
       expect(p.fighters).toHaveLength(matchFighters(p.match));
       const divisions = new Set(p.fighters.map((id) => FL_BY_ID.get(id)!.division));
       expect([p.id, divisions.size]).toEqual([p.id, 1]);
+      // --- fl-overhaul --- (Stage 2) the format follows the match type
+      expect([p.id, p.format]).toEqual([p.id, p.match === "1v1" ? "duel" : p.match === "2v2" ? "team" : "ffa"]);
     }
     expect(DEFAULT_FIGHT_LEAGUE_SETTINGS.fighters.slice(0, 2)).toEqual(["thor", "loki"]);
     expect(FL_PRESETS.find((p) => p.id === "avengers")!.match).toBe("ffa4");
     expect(FL_PRESETS.find((p) => p.id === "naruto-dbz")!.match).toBe("2v2");
+    // --- fl-overhaul --- (Stage 2) the 14 ids of before kept first, 50 in all, every id once
+    expect(FL_PRESETS.slice(0, 14).map((p) => p.id)).toEqual(["thor-loki", "falcon-mac", "yuumi-katarina", "batman-joker", "goku-vegeta", "luke-vader", "mario-sonic", "harry-voldemort", "scorpion-subzero", "godzilla-kong", "alien-predator", "homelander-omniman", "avengers", "naruto-dbz"]);
+    expect(FL_PRESETS).toHaveLength(76); // (--- fl-overhaul --- Stage 5: 26 shows and reworks after the 50)
+    expect(new Set(FL_PRESETS.map((p) => p.id)).size).toBe(76);
   });
 });
 
@@ -239,11 +419,11 @@ describe("fight league settings, URL and presets", () => {
 
   it("validates: known fighters and options, uncapped numbers from their minimum up", () => {
     const r = resolveFightLeagueSettings({ fighters: ["thor", "nobody", "random", "goku"], match: "ffa9" as never, hp: -5, timeCap: Number.NaN, speed: [0, 7.5, Number.NaN, 2], arena: "hex" as never, hud: "yes" as never });
-    expect(r.fighters).toEqual(["thor", "loki", "random", "goku"]);
+    expect(r.fighters).toEqual(["thor", "loki", "random", "goku", "random", "random"]); // (--- fl-overhaul --- Stage 5: slots A–F)
     expect(r.match).toBe("1v1");
     expect(r.hp).toBe(FIGHT_LEAGUE_RANGES.flHp.min);
     expect(r.timeCap).toBe(90);
-    expect(r.speed).toEqual([0.05, 7.5, 1, 2]);
+    expect(r.speed).toEqual([0.05, 7.5, 1, 2, 1, 1]);
     expect(r.arena).toBe("square");
     expect(r.hud).toBe(true);
     expect(resolveFightLeagueSettings({ hp: 1e6, timeCap: 1e5 })).toMatchObject({ hp: 1e6, timeCap: 1e5 });
@@ -269,6 +449,28 @@ describe("fight league settings, URL and presets", () => {
     expect(bad).toMatchObject({ flFighterA: "thor", flMatch: "1v1", flHp: 100, flArena: "square", flHud: true });
   });
 
+  it("round-trips the random tokens (random, random:<division>, random:<conference>) through the settings and the URL", () => {
+    // --- fl-overhaul --- (Stage 2)
+    expect(parseFlRandom("random")).toEqual({ kind: "any" });
+    expect(parseFlRandom("random:marvel")).toEqual({ kind: "division", id: "marvel" });
+    expect(parseFlRandom("random:movies")).toEqual({ kind: "conference", id: "movies" });
+    for (const bad of ["random:wildcard", "random:nope", "random:", "Random", "thor", 7]) expect([bad, parseFlRandom(bad)]).toEqual([bad, null]);
+    expect([flRandomToken("pokemon"), flRandomToken("anime"), flRandomToken(null)]).toEqual(["random:pokemon", "random:anime", "random"]);
+    expect(FL_RANDOM_PREFIX).toBe("random:");
+    expect([isFlRandom("random:tv"), isFlRandom("tv"), isFlSlotValue("random:shows"), isFlSlotValue("random:wildcard"), isFlSlotValue("gerald")]).toEqual([true, false, true, false, true]);
+    const base = defaultSettings("fightLeague");
+    const s: SimulatorSettings = { ...base, flFighterA: "random:pokemon", flFighterB: "random:marvel", flFighterC: "random:games", flFighterD: "random", flMatch: "ffa4" };
+    const params = settingsToSearchParams(s);
+    expect(params.toString()).toContain("fl2=random%3Amarvel");
+    expect([params.get("fl1"), params.get("fl3")]).toEqual(["random:pokemon", "random:games"]);
+    const back = settingsFromSearchParams(params);
+    expect([back.flFighterA, back.flFighterB, back.flFighterC, back.flFighterD]).toEqual(["random:pokemon", "random:marvel", "random:games", "random"]);
+    // An unknown token reads back as the slot's default, like an unknown fighter.
+    const bad = settingsFromSearchParams(new URLSearchParams("mode=fightLeague&fl1=random:nope&fl2=random:wildcard"));
+    expect([bad.flFighterA, bad.flFighterB]).toEqual(["thor", "loki"]);
+    expect(resolveFightLeagueSettings({ fighters: ["random:horror", "random:nope", "random:shows", "random"] }).fighters).toEqual(["random:horror", "loki", "random:shows", "random", "random", "random"]);
+  });
+
   it("resolves presets and every fl field of a stored preset", () => {
     const p = presetToSettings({ mode: "fightLeague", flFighterA: "nobody", flMatch: "ffa4", flHp: -3 } as Partial<SimulatorSettings>);
     expect(p).toMatchObject({ flFighterA: "thor", flMatch: "ffa4", flHp: 1 });
@@ -289,7 +491,8 @@ describe("fight league settings, URL and presets", () => {
     expect(BATTLE_WINNER_MODES).toContain("fightLeague");
     expect(forcedWinnerApplies("fightLeague", 2, 1)).toBe(true);
     expect(forcedWinnerApplies("fightLeague", 2, 2)).toBe(false);
-    expect(availableOutcomes("fightLeague", { endless: false, neverEscape: false, ballCount: 2 })).toEqual(["duration", "winner", "double-ko"]);
+    // (--- fl-overhaul --- Stage 5: the story's outcomes after the first release's three – one match: no decider, champion or boss)
+    expect(availableOutcomes("fightLeague", { endless: false, neverEscape: false, ballCount: 2 })).toEqual(["duration", "winner", "double-ko", "close", "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "sudden"]);
     expect(availableOutcomes("classic", { endless: false, neverEscape: false, ballCount: 1 })).not.toContain("double-ko");
     expect(flSideNames("1v1", ["thor", "loki"])).toEqual(["A · Thor", "B · Loki"]);
     expect(flSideNames("2v2", ["naruto", "sasuke", "goku", "random"])).toEqual(["A+B · Naruto + Sasuke", "C+D · Goku + ?"]);
@@ -300,10 +503,17 @@ describe("fight league settings, URL and presets", () => {
 
   it("lays the arena out under the names' band, inset in the exported square", () => {
     const f = buildFightField(800, 450, "square");
-    expect(f.side).toBeCloseTo(FL_ARENA_FRAC * 450, 9);
+    // --- fl-overhaul --- (Stage 3) the physics field keeps its size and place (the replays hold) and is drawn larger: the
+    // arena of FL_ARENA_FRAC under the names' band of FL_ARENA_TOP
+    expect(f.side).toBeCloseTo(FL_FIELD_FRAC * 450, 9);
     expect(f.cx).toBe(400);
-    expect(f.cy - f.half).toBeCloseTo(FL_ARENA_TOP * 450, 9);
+    expect(f.cy - f.half).toBeCloseTo(FL_FIELD_TOP * 450, 9);
     expect(f.cy + f.half).toBeLessThan(450);
+    expect(f.side * f.dk).toBeCloseTo(FL_ARENA_FRAC * 450, 9);
+    expect(flDisplayX(f, f.cx)).toBe(400);
+    expect(flDisplayY(f, f.cy - f.half)).toBeCloseTo(FL_ARENA_TOP * 450, 9);
+    expect(flDisplayY(f, f.cy + f.half)).toBeLessThan(450);
+    // --- end fl-overhaul ---
     expect(buildFightField(450, 800, "circle")).toMatchObject({ kind: "circle", cx: 225 });
   });
 });
@@ -401,6 +611,52 @@ describe("fight league rules", () => {
     expect(new Set(free.filter((r) => r.id !== "luke").map((r) => r.division)).size).toBeGreaterThan(3);
   });
 
+  it("draws scoped random slots in their scope (one draw a random slot): 1000 seeded draws of random:pokemon stay in Pokémon", () => {
+    // --- fl-overhaul --- (Stage 2)
+    const rand = seeded(20251005);
+    for (let k = 0; k < 1000; k++) {
+      const [a] = pickFighters({ fighters: ["random:pokemon", "random", "random", "random"], match: "1v1", sameDivision: true }, rand);
+      expect(a.division).toBe("pokemon");
+    }
+    for (let k = 0; k < 300; k++) {
+      const rows = pickFighters({ fighters: ["random:anime", "random:marvel", "random:shows", "random:horror"], match: "ffa4", sameDivision: false }, rand);
+      expect(["shonen", "modernAnime"]).toContain(rows[0].division);
+      expect(rows[1].division).toBe("marvel");
+      expect(["tv", "cartoons"]).toContain(rows[2].division);
+      expect(rows[3].division).toBe("horror");
+    }
+    // One ctx.random() per random slot, in slot order (old links keep their draw count).
+    let calls = 0;
+    const counting = () => (calls++, rand());
+    pickFighters({ fighters: ["random:marvel", "random", "thor", "random:games"], match: "ffa4", sameDivision: true }, counting);
+    expect(calls).toBe(3);
+    calls = 0;
+    pickFighters({ fighters: ["thor", "random", "random", "random"], match: "1v1", sameDivision: true }, counting);
+    expect(calls).toBe(1);
+    // Never a fighter twice while the pool allows: four draws from a seven-fighter division.
+    for (let k = 0; k < 200; k++) {
+      const rows = pickFighters({ fighters: ["random:sandbox", "random:sandbox", "random:sandbox", "random:sandbox"], match: "ffa4", sameDivision: true }, rand);
+      expect(new Set(rows.map((r) => r.id)).size).toBe(4);
+    }
+    // Next to Gerald (or with the anchor in Wildcard): every other division, never Gerald.
+    const seen = new Set<string>();
+    for (let k = 0; k < 2000; k++) {
+      const [, b] = pickFighters({ fighters: ["gerald", "random", "random", "random"], match: "1v1", sameDivision: true }, rand);
+      expect(b.id).not.toBe("gerald");
+      seen.add(b.division);
+    }
+    expect(seen.size).toBe(18);
+    // A fully random match: a division drawn uniformly (not by its size), then a fighter in it.
+    const counts = new Map<string, number>();
+    for (let k = 0; k < 3600; k++) {
+      const [a, b] = pickFighters({ fighters: ["random", "random", "random", "random"], match: "1v1", sameDivision: true }, rand);
+      expect(b.division).toBe(a.division);
+      counts.set(a.division, (counts.get(a.division) ?? 0) + 1);
+    }
+    expect(counts.has("wildcard")).toBe(false);
+    for (const d of FL_DIVISIONS.filter((x) => x !== "wildcard")) expect([d, (counts.get(d) ?? 0) > 140 && (counts.get(d) ?? 0) < 260]).toEqual([d, true]);
+  });
+
   it("plays the forced winner only for a side in play", () => {
     expect(fightForcedWinner(1, 2)).toBe(1);
     expect(fightForcedWinner(2, 2)).toBe(-1);
@@ -412,7 +668,8 @@ describe("fight league rules", () => {
 /* ------------------------------------------------------------------ fights in the engine */
 
 describe("fight league weapons in the engine", () => {
-  it("lands hits with every weapon kind (its own hit geometry: blades, heads, fists, projectiles, cones, rays, arcs, throws)", () => {
+  // --- fl-overhaul --- (Stage 3) a timeout of its own: the mode's visual state (trails, banners, merged numbers) costs a little per step
+  it("lands hits with every weapon kind (its own hit geometry: blades, heads, fists, projectiles, cones, rays, arcs, throws)", { timeout: 60_000 }, () => {
     for (const kind of FL_WEAPON_KINDS) {
       const row = FL_ROSTER.find((r) => r.weapons.some((w) => w.kind === kind))!;
       const index = row.weapons.findIndex((w) => w.kind === kind);
@@ -446,6 +703,7 @@ describe("fight league weapons in the engine", () => {
       expect([a, b, damages > 5]).toEqual([a, b, true]);
     }
     // A shotgun's pellets share their volley: several land on the foe within the window.
+    // (--- fl-overhaul --- Stage 3: a volley's damage numbers add into one, so the hits are counted – EV_HIT, the attacker's slot)
     const engine = fightEngine({ fighters: ["doomslayer", "gerald", "random", "random"], cast: [0.05, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 2);
     const v = engine.getFightLeagueView();
     let serial = 0;
@@ -453,7 +711,7 @@ describe("fight league weapons in the engine", () => {
     let together = 0;
     run(engine, 30_000, STEP, () => {
       for (const e of eventsSince(v, serial)) {
-        if (e.kind !== EV_DAMAGE || e.slot !== 1) continue;
+        if (e.kind !== EV_HIT || e.slot !== 0) continue;
         if (e.t - lastT < FL_IFRAME_MS) together++;
         lastT = e.t;
       }
@@ -651,6 +909,37 @@ describe("fight league abilities", () => {
       expect(v.slowTimeFactor).toBeLessThan(1);
       mark("slowTime");
     }
+    // --- fl-overhaul --- (Stage 2) the four new primitives (their landing: tests/fightLeagueWeapons.test.ts)
+    {
+      const { v, f, now } = firstCast("rambo");
+      const traps = v.minions.filter((m) => m.active && m.trap && m.owner === f.slot);
+      expect(traps).toHaveLength(2);
+      for (const m of traps) expect(m.armedAt).toBeGreaterThan(now);
+      mark("trap");
+    }
+    {
+      const { v, f, foe } = firstCast("yasuo");
+      const walls = v.walls.filter((w) => w.active && w.owner === f.slot);
+      expect(walls).toHaveLength(1);
+      expect(Math.hypot(walls[0].x2 - walls[0].x1, walls[0].y2 - walls[0].y1)).toBeCloseTo(4 * f.r, 6);
+      // Across the line to the foe (as it stood at the cast, a step ago): about perpendicular to it.
+      const dot = (walls[0].x2 - walls[0].x1) * (foe.x - f.x) + (walls[0].y2 - walls[0].y1) * (foe.y - f.y);
+      expect(Math.abs(dot) / (Math.hypot(foe.x - f.x, foe.y - f.y) * Math.hypot(walls[0].x2 - walls[0].x1, walls[0].y2 - walls[0].y1))).toBeLessThan(0.2);
+      mark("wall");
+    }
+    {
+      const { f, events } = firstCast("bowser");
+      expect(f.sizeMul).toBe(1.4);
+      expect(f.r).toBeCloseTo(Math.min(1.4 * f.baseR, f.r + 1), 6);
+      expect(events.some((e) => e.kind === EV_TRANSFORM && e.slot === f.slot)).toBe(true);
+      mark("transform");
+    }
+    {
+      const { f, now } = firstCast("gengar");
+      expect(f.drainUntil).toBeGreaterThan(now);
+      expect(f.drainFrac).toBe(0.7);
+      mark("drain");
+    }
     expect([...seen].sort()).toEqual([...FL_ABILITY_PRIMITIVES].sort());
   });
 });
@@ -671,16 +960,20 @@ describe("fight league endings", () => {
   });
 
   it("decides at the time cap: more HP wins, equal HP is a draw", () => {
-    const engine = fightEngine({ fighters: ["thor", "loki", "random", "random"], hp: 100_000, timeCap: 6 }, 3);
+    // --- fl-overhaul --- the cap counts from FIGHT! (the VS card left out); sudden death off: the plain verdict at the cap
+    const engine = fightEngine({ fighters: ["thor", "loki", "random", "random"], hp: 1000, timeCap: 6, suddenDeath: false }, 3);
     const v = run(engine, 20_000);
     expect(v.finished).toBe(true);
     expect(v.byTime).toBe(true);
-    expect(v.finishMs).toBeCloseTo(6000, -2);
-    expect(v.winnerTeam).toBe(capVerdict(v.fighters.map((f) => f.hp), v.fighters.map((f) => f.team), 2));
-    expect(v.winnerTeam).toBe(v.fighters[0].hp > v.fighters[1].hp ? 0 : 1);
-    // Still in the intro at the cap: nobody was hit – a draw.
-    const draw = run(fightEngine({ fighters: ["thor", "loki", "random", "random"], timeCap: 1 }, 3), 5000);
+    expect(v.finishMs).toBeCloseTo(FL_INTRO_MS + 6000, -2);
+    expect(v.winnerTeam).toBe(capVerdict(v.fighters.map((f) => f.hp), v.fighters.map((f) => f.team), 2, undefined, v.fighters.map((f) => f.maxHp)));
+    const [fa, fb] = v.fighters.map((f) => f.hp / f.maxHp);
+    expect(Math.abs(fa - fb)).toBeGreaterThan(0.005); // (no near-draw on this seed: the shares decide)
+    expect(v.winnerTeam).toBe(fa > fb ? 0 : 1);
+    // Nobody hit by the cap (both too slow to attack or cast before it): a draw.
+    const draw = run(fightEngine({ fighters: ["thor", "loki", "random", "random"], timeCap: 1, suddenDeath: false, speed: [0.05, 0.05, 1, 1], attack: [0.05, 0.05, 1, 1], cast: [0.05, 0.05, 1, 1] }, 3), 5000);
     expect(draw).toMatchObject({ finished: true, byTime: true, winnerTeam: -1, doubleKo: false });
+    expect(draw.finishMs).toBeCloseTo(FL_INTRO_MS + 1000, -2);
   });
 
   it("plays 2v2 as teams (no friendly fire) to the last team standing", () => {
@@ -770,7 +1063,7 @@ describe("fight league forced winner", () => {
     }
   });
 
-  it("never ends a rigged fight in a double KO: the backstop holds until the verdict (rivals down in the same step, a shot in the KO grace)", () => {
+  it("never ends a rigged fight in a double KO: the backstop holds until the verdict (rivals down in the same step, a shot in the KO grace)", { timeout: 60_000 }, () => {
     // Seeds that ended in a DOUBLE KO while the backstop held only as long as a rival had HP left.
     const cases: [string, string, number, number][] = [
       ["loki", "spiderman", 3, 0],
@@ -787,12 +1080,33 @@ describe("fight league forced winner", () => {
       ["voldemort", "gandalf", 8, 0],
       ["godzilla", "predator", 8, 0],
     ];
+    // --- fl-overhaul --- under the overhaul's rules these seeds no longer all need the backstop (it is counted below)
+    let absorbed = 0;
     for (const [a, b, seed, forced] of cases) {
       const v = run(fightEngine({ fighters: [a, b, "random", "random"], timeCap: 60 }, seed, { forcedWinner: forced }), 70_000);
       expect([a, b, seed, v.finished, v.doubleKo, v.winnerTeam]).toEqual([a, b, seed, true, false, forced]);
       expect([a, b, seed, v.fighters[forced].alive, v.fighters[forced].hp > 0, v.fighters[1 - forced].alive]).toEqual([a, b, seed, true, true, false]);
-      expect([a, b, seed, v.rigAbsorbed > 0]).toEqual([a, b, seed, true]);
+      if (v.rigAbsorbed > 0) absorbed++;
     }
+    // --- fl-overhaul --- and the mirror matches that end in a DOUBLE KO unrigged today: rigged either way, the chosen side wins.
+    const doubles: [string, number][] = [];
+    // (--- fl-overhaul --- Stage 2: the first release's candidates first, then the rest of the 147 – re-tuned damage stats move
+    // the rare double KOs around – until four are found)
+    const first = ["loki", "spiderman", "captainamerica", "batman", "samus", "katarina", "ahri", "alien", "predator", "johnwick", "terminator"];
+    const candidates = [...first, ...FL_ROSTER.map((r) => r.id).filter((id) => !first.includes(id))];
+    for (const id of candidates) {
+      for (let seed = 1; seed <= 8 && doubles.length < 4; seed++) if (duel(id, id, seed).doubleKo) doubles.push([id, seed]);
+      if (doubles.length >= 4) break;
+    }
+    expect(doubles.length).toBeGreaterThanOrEqual(3);
+    for (const [id, seed] of doubles) {
+      for (const forced of [0, 1]) {
+        const v = run(fightEngine({ fighters: [id, id, "random", "random"], match: "1v1", timeCap: 60 }, seed, { forcedWinner: forced }), 200_000);
+        expect([id, seed, forced, v.finished, v.doubleKo, v.winnerTeam, v.fighters[forced].alive, v.fighters[forced].hp > 0]).toEqual([id, seed, forced, true, false, forced, true, true]);
+        if (v.rigAbsorbed > 0) absorbed++;
+      }
+    }
+    expect(absorbed).toBeGreaterThan(0);
   });
 
   it("guards reflected damage like a hit: none while the attacker is invulnerable, and the rig's backstop holds against it", () => {
@@ -862,11 +1176,20 @@ function fingerprint(v: FightLeagueView): string {
 
 describe("fight league replays", () => {
   /** Golden fingerprints of Thor vs Loki at 18 s (seeds 7, 42, 1234): a change of the rules shows here. */
-  const GOLDEN: Record<number, string> = { 7: "4ba46054", 42: "c93e9204", 1234: "6dc67129" };
+  const GOLDEN: Record<number, string> = { 7: "bc8d863e", 42: "2cfa6717", 1234: "50cfb435" }; // --- fl-overhaul --- re-recorded for Stage 2
+
+  /** --- fl-overhaul --- Steps whole frames to `untilMs` of simulation time, past the fight's end (the fighters stand frozen). */
+  const runTo = (engine: PhysicsEngine, untilMs: number, frameMs: number): FightLeagueView => {
+    while (engine.getElapsedMs() < untilMs - 1e-6) {
+      engine.update(frameMs, 0);
+      engine.consumeSoundEvents();
+    }
+    return engine.getFightLeagueView();
+  };
 
   it("replays a seed exactly at 60, 144 and 30 fps (the fixed step) – three seeds", () => {
     for (const seed of [7, 42, 1234]) {
-      const prints = [STEP, 1000 / 144, 1000 / 30].map((frame) => fingerprint(run(fightEngine({}, seed), 18_000, frame)));
+      const prints = [STEP, 1000 / 144, 1000 / 30].map((frame) => fingerprint(runTo(fightEngine({}, seed), 18_000, frame)));
       expect(new Set(prints).size).toBe(1);
       expect([seed, prints[0]]).toEqual([seed, GOLDEN[seed]]);
     }
@@ -886,10 +1209,12 @@ describe("fight league finder", () => {
     const replay = run(fightEngine({ fighters: ["thor", "loki", "random", "random"] }, found.seed), 100_000);
     expect(replay.winnerTeam).toBe(1);
     expect(found.duration).toBeCloseTo(replay.finishMs / 1000, 1);
-    const length = await withFrames(() => findSimulation(request(), () => undefined));
+    // --- fl-overhaul --- (the fights engage at once now: Thor vs Loki takes about 9–18 s, so the chosen length is 14 s)
+    const length = await withFrames(() => findSimulation(request({ targetDurationSec: 14 }), () => undefined));
     expect(length.found).toBe(true);
-    expect(Math.abs(length.duration - 20)).toBeLessThanOrEqual(1);
-    const mirror = { ...request(), modeSettings: settingsFor({ fighters: ["thor", "thor", "random", "random"] }).modeSettings, maxSeeds: 400 };
+    expect(Math.abs(length.duration - 14)).toBeLessThanOrEqual(1);
+    // --- fl-overhaul --- (a mirror ends in a double KO far more rarely now: the search may go deeper)
+    const mirror = { ...request(), modeSettings: settingsFor({ fighters: ["thor", "thor", "random", "random"] }).modeSettings, maxSeeds: 1500 };
     const dko = await withFrames(() => findSimulation({ ...mirror, outcome: { kind: "double-ko", clipSec: 30 } }, () => undefined));
     expect(dko.found).toBe(true);
     const twice = run(fightEngine({ fighters: ["thor", "thor", "random", "random"] }, dko.seed), 100_000);
@@ -982,40 +1307,549 @@ describe("fight league data attributes", () => {
 
 /* ------------------------------------------------------------------ balance */
 
-/** The balance runs: per division every pair over these seeds, the sides swapped every other seed (a draw is half a win). */
-const BALANCE_SEEDS = [1, 2, 3, 4, 5, 6].map((s) => ({ seed: 1000 + s * 7919, swap: s % 2 === 0 }));
+// --- fl-overhaul --- (Stage 2) The balance round robin (per division every pair over the six BALANCE_SEEDS of
+// tests/flProbes.ts, the sides swapped every other seed, in both arenas, a 60 s cap) moved to tests/fightLeagueBalance*.test.ts:
+// 18 division tests in three files that run in parallel (the roster grew to 147).
 
-describe("fight league balance (per division round robin, 6 seeds, 60 s cap)", () => {
-  for (const division of FL_DIVISIONS) {
-    const rows = FL_ROSTER.filter((r) => r.division === division);
-    if (rows.length < 2) continue;
-    it(`keeps every ${FL_DIVISION_LABELS[division]} fighter between 25 % and 75 % of its matches`, { timeout: 60_000 }, () => {
-      const wins = new Map<string, number>();
-      const games = new Map<string, number>();
-      for (let i = 0; i < rows.length; i++) {
-        for (let j = i + 1; j < rows.length; j++) {
-          for (const { seed, swap } of BALANCE_SEEDS) {
-            const a = swap ? rows[j].id : rows[i].id;
-            const b = swap ? rows[i].id : rows[j].id;
-            const v = duel(a, b, seed);
-            expect(v.finished).toBe(true);
-            games.set(a, (games.get(a) ?? 0) + 1);
-            games.set(b, (games.get(b) ?? 0) + 1);
-            if (v.winnerTeam === 0) wins.set(a, (wins.get(a) ?? 0) + 1);
-            else if (v.winnerTeam === 1) wins.set(b, (wins.get(b) ?? 0) + 1);
-            else {
-              wins.set(a, (wins.get(a) ?? 0) + 0.5);
-              wins.set(b, (wins.get(b) ?? 0) + 0.5);
-            }
-          }
-        }
+/* ------------------------------------------------------------------ --- fl-overhaul --- QA regressions */
+
+/**
+ * --- fl-overhaul --- The QA findings of the overhaul's Stage 1 (numbered as in the QA report): each test failed on the code
+ * before the rework and passes after it (the helpers of tests/flProbes.ts run the engine headlessly at the fixed step).
+ */
+
+/** Every event of a run until `untilMs` (polled each frame), with `each` after every frame. */
+function qaRunEvents(engine: PhysicsEngine, untilMs: number, each?: (v: FightLeagueView) => boolean | void) {
+  const v = engine.getFightLeagueView();
+  let serial = 0;
+  const all: { kind: number; t: number; slot: number; value: number }[] = [];
+  probeRun(engine, untilMs, (view) => {
+    all.push(...eventsSince(view, serial));
+    serial = view.eventSerial;
+    return each?.(view);
+  });
+  return { v, events: all };
+}
+
+function qaWithAbility(ability: FlAbility, body: () => void) {
+  const row = FL_BY_ID.get("gerald")! as { ability: FlAbility };
+  const saved = row.ability;
+  row.ability = ability;
+  try {
+    body();
+  } finally {
+    row.ability = saved;
+  }
+}
+
+/** A 2D context that accepts every call (the renderer's sprites and HUD in Node). */
+function qaStubContext(log: { name: string; args: unknown[] }[] = []): CanvasRenderingContext2D {
+  const target: Record<string, unknown> = { canvas: { width: 800, height: 450 }, globalAlpha: 1 };
+  return new Proxy(target, {
+    get(t, key: string) {
+      if (key in t) return t[key];
+      if (key === "measureText") return (s: string) => ({ width: 6 * String(s).length });
+      if (key === "createLinearGradient" || key === "createRadialGradient") return () => ({ addColorStop: () => undefined });
+      return (...args: unknown[]) => {
+        log.push({ name: key, args });
+        return undefined;
+      };
+    },
+    set(t, key: string, value) {
+      t[key] = value;
+      return true;
+    },
+  }) as unknown as CanvasRenderingContext2D;
+}
+
+function qaStubDocument(log?: { name: string; args: unknown[] }[]) {
+  // (--- fl-overhaul --- Stage 3: the letters are drawn on text sprites – with `log`, their canvases' calls are logged too)
+  vi.stubGlobal("document", { createElement: () => ({ width: 1, height: 1, getContext: () => qaStubContext(log) }) });
+}
+
+const QA_OPTS = { dpr: 1, numbers: true, teamColors: null, teamBanner: false, labels: DEFAULT_FIGHT_LEAGUE_LABELS };
+
+describe("fight league QA regressions", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("1: an ability volley carries no weapon – a disarmed caster's Avada Kedavra still lands (and sounds magic)", { timeout: 60_000 }, () => {
+    for (const seed of [3, 4, 5]) {
+      const engine = probeEngine({ fighters: ["voldemort", "harrypotter", "random", "random"], cast: [40, 0.05, 1, 1], speed: [1, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+      const v = engine.getFightLeagueView();
+      probeRun(engine, 20_000, () => v.projectiles.some((p) => p.active && p.kind === PK_ABILITY));
+      const bolt = v.projectiles.find((p) => p.active && p.kind === PK_ABILITY)!;
+      expect([seed, bolt.weapon]).toEqual([seed, -1]);
+      const [voldemort, harry] = v.fighters;
+      voldemort.disarmedUntil = Infinity;
+      const before = harry.hp;
+      const kinds = new Set<string>();
+      while (bolt.active && engine.getElapsedMs() < 30_000) {
+        engine.update(PROBE_STEP, 0);
+        for (const ev of engine.consumeSoundEvents() as SoundEvent[]) if (ev.fight) kinds.add(ev.fight);
       }
-      const table = rows.map((r) => ({ id: r.id, rate: (wins.get(r.id) ?? 0) / (games.get(r.id) ?? 1) }));
-      console.log(`win table ${FL_DIVISION_LABELS[division]}: ${table.map((t) => `${FL_BY_ID.get(t.id)!.name} ${(100 * t.rate).toFixed(0)}%`).join(", ")}`);
-      for (const t of table) {
-        expect([t.id, t.rate >= 0.25]).toEqual([t.id, true]);
-        expect([t.id, t.rate <= 0.75]).toEqual([t.id, true]);
+      expect([seed, before - harry.hp > 20]).toEqual([seed, true]);
+      expect([seed, kinds.has("magic")]).toEqual([seed, true]);
+    }
+  });
+
+  it("2: the circle no longer locks onto a diameter – finish times spread over the seeds", { timeout: 60_000 }, () => {
+    const times: number[] = [];
+    const winners = new Set<number>();
+    for (let seed = 1; seed <= 10; seed++) {
+      const v = probeRun(probeEngine({ fighters: ["harrypotter", "voldemort", "random", "random"], arena: "circle", timeCap: 60 }, seed), 120_000);
+      times.push(v.finishMs);
+      winners.add(v.winnerTeam);
+    }
+    expect(Math.max(...times) - Math.min(...times)).toBeGreaterThan(1000);
+    expect(winners.has(0) && winners.has(1)).toBe(true);
+  });
+
+  it("3: the Lasso of Truth pulls the foe in before its hold closes", { timeout: 60_000 }, () => {
+    for (const seed of [1, 4, 7]) {
+      const engine = probeEngine({ fighters: ["wonderwoman", "gerald", "random", "random"], cast: [40, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+      const v = engine.getFightLeagueView();
+      const [ww, gerald] = v.fighters;
+      let start = Infinity;
+      let gapAtHold = Infinity;
+      probeRun(engine, 20_000, () => {
+        if (ww.casts > 0 && start === Infinity) start = Math.hypot(gerald.x - ww.x, gerald.y - ww.y) - ww.r - gerald.r;
+        if (gerald.heldBy === 0) {
+          gapAtHold = (Math.hypot(gerald.x - ww.x, gerald.y - ww.y) - ww.r - gerald.r) / ww.r;
+          return true;
+        }
+      });
+      expect([seed, gapAtHold <= 1.2]).toEqual([seed, true]);
+    }
+  });
+
+  it("4: the Alien's tail lands next to its claws, in both arenas (each weapon of a two-weapon fighter lands)", { timeout: 60_000 }, () => {
+    for (const arena of ["square", "circle"] as const) {
+      let tail = 0;
+      for (const seed of [1, 2, 3]) {
+        const v = probeRun(probeEngine({ fighters: ["alien", "gerald", "random", "random"], hp: 1000, timeCap: 0, cast: [0.05, 0.05, 1, 1], arena }, seed), PROBE_INTRO_MS + 60_000);
+        tail += v.fighters[0].weapons[1].hits;
+      }
+      expect([arena, tail / 3 >= 10]).toEqual([arena, true]);
+    }
+    for (const row of FL_ROSTER.filter((r) => r.weapons.length === 2)) {
+      for (const arena of ["square", "circle"] as const) {
+        const hits = [0, 0];
+        for (const seed of [1, 2, 3]) {
+          const v = probeRun(dummyDuel(row.id, seed, { arena }), PROBE_INTRO_MS + 30_000);
+          hits[0] += v.fighters[0].weapons[0].hits;
+          hits[1] += v.fighters[0].weapons[1].hits;
+        }
+        for (const k of [0, 1]) if (!(row.weapons[k].kind === "shield" && row.weapons[k].style === "block")) expect([row.id, arena, k, hits[k] > 0]).toEqual([row.id, arena, k, true]);
+      }
+    }
+  });
+
+  it("5: a returning projectile hits once a pass (no second hit a sub-step later at the turn)", { timeout: 60_000 }, () => {
+    for (const id of ["ahri", "scorpion", "thor", "captainamerica"]) {
+      for (const seed of [1, 2]) {
+        const engine = probeEngine({ fighters: [id, "gerald", "random", "random"], cast: [0.05, 0.05, 1, 1], speed: [1, 0.05, 1, 1], attack: [1, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+        const { events } = qaRunEvents(engine, PROBE_INTRO_MS + 30_000);
+        const hits = events.filter((e) => e.kind === EV_DAMAGE && e.slot === 1).map((e) => e.t);
+        let close = 0;
+        for (let i = 1; i < hits.length; i++) if (hits[i] - hits[i - 1] < 50) close++;
+        expect([id, seed, hits.length > 3, close]).toEqual([id, seed, true, 0]);
+      }
+    }
+  });
+
+  it("6: a burst's rounds leave the muzzle, never from behind the shooter", { timeout: 60_000 }, () => {
+    for (const id of ["masterchief", "robocop"]) {
+      const r = burstSpawnsBehind(id);
+      expect([id, r.rounds > 30, r.behind]).toEqual([id, true, 0]);
+    }
+  });
+
+  it("7: a beam's and a spark's hand turns with its shots (the ray and the zap leave it)", { timeout: 60_000 }, () => {
+    for (const id of ["superman", "homelander"]) {
+      const engine = probeEngine({ fighters: [id, "gerald", "random", "random"], cast: [0.05, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 2);
+      const v = engine.getFightLeagueView();
+      let rays = 0;
+      probeRun(engine, PROBE_INTRO_MS + 20_000, () => {
+        const f = v.fighters[0];
+        const w = f.weapons.find((x) => x.spec.kind === "beam")!;
+        for (const b of v.beams) {
+          if (!b.active || b.ability || b.owner !== 0) continue;
+          rays++;
+          expect(Math.abs(angleDiff(w.angle, b.angle))).toBeLessThan(0.05);
+          expect(Math.hypot(b.x0 - (f.x + Math.cos(b.angle) * 1.1 * f.r), b.y0 - (f.y + Math.sin(b.angle) * 1.1 * f.r))).toBeLessThan(0.75 * f.r);
+        }
+      });
+      expect([id, rays > 5]).toEqual([id, true]);
+    }
+    const engine = probeEngine({ fighters: ["pikachu", "gerald", "random", "random"], cast: [0.05, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 2);
+    const v = engine.getFightLeagueView();
+    let zaps = 0;
+    let last = -Infinity;
+    probeRun(engine, PROBE_INTRO_MS + 20_000, () => {
+      const f = v.fighters[0];
+      const w = f.weapons[0];
+      if (w.zapMs > last) {
+        last = w.zapMs;
+        zaps++;
+        expect(Math.abs(angleDiff(w.angle, Math.atan2(w.zapY - f.y, w.zapX - f.x)))).toBeLessThan(0.35);
       }
     });
-  }
+    expect(zaps).toBeGreaterThan(5);
+  });
+
+  it("8: You Shall Not Pass pins the foe fully inside the arena", { timeout: 60_000 }, () => {
+    for (const arena of ["square", "circle"] as const) {
+      let pinnedFrames = 0;
+      for (const seed of [1, 2, 3]) {
+        const engine = probeEngine({ fighters: ["gandalf", "gerald", "random", "random"], cast: [3, 1, 1, 1], hp: 1000, timeCap: 0, arena }, seed);
+        const v = engine.getFightLeagueView();
+        probeRun(engine, PROBE_INTRO_MS + 40_000, () => {
+          const g = v.fighters[1];
+          const field = v.field!;
+          if (!(v.timeMs < g.pinUntil)) return;
+          pinnedFrames++;
+          if (arena === "square") {
+            expect(Math.abs(g.x - field.cx)).toBeLessThanOrEqual(field.half - g.r + 0.5);
+            expect(Math.abs(g.y - field.cy)).toBeLessThanOrEqual(field.half - g.r + 0.5);
+          } else expect(Math.hypot(g.x - field.cx, g.y - field.cy)).toBeLessThanOrEqual(field.half - g.r + 0.5);
+        });
+      }
+      expect([arena, pinnedFrames > 10]).toEqual([arena, true]);
+    }
+  });
+
+  it("9: a range-limited ability waits for its foe in range – most Spin Attacks hit", { timeout: 60_000 }, () => {
+    let casts = 0;
+    let landed = 0;
+    for (const seed of [1, 2, 3]) {
+      const engine = probeEngine({ fighters: ["link", "gerald", "random", "random"], hp: 1000, timeCap: 0, cast: [1, 0.05, 1, 1] }, seed);
+      const { events } = qaRunEvents(engine, PROBE_INTRO_MS + 60_000);
+      const castsAt = events.filter((e) => e.kind === EV_CAST && e.slot === 0).map((e) => e.t);
+      casts += castsAt.length;
+      // (--- fl-overhaul --- Stage 3: damage numbers merge and move to their last hit, so the hits are counted – EV_HIT, the attacker's slot)
+      for (const t of castsAt) if (events.some((e) => e.kind === EV_HIT && e.slot === 0 && Math.abs(e.t - t) <= 20)) landed++;
+    }
+    expect(casts).toBeGreaterThan(4);
+    expect(landed / casts).toBeGreaterThanOrEqual(0.6);
+  });
+
+  it("10: a choke cast while a decoy is nearer still takes the foe fighter", { timeout: 60_000 }, () => {
+    let casts = 0;
+    let holds = 0;
+    for (const seed of [1, 2, 3, 4, 5]) {
+      const engine = probeEngine({ fighters: ["spiderman", "loki", "random", "random"], cast: [8, 40, 1, 1], hp: 1000, timeCap: 0 }, seed);
+      const v = engine.getFightLeagueView();
+      let lastCasts = 0;
+      probeRun(engine, PROBE_INTRO_MS + 20_000, () => {
+        const [spidey, loki] = v.fighters;
+        if (spidey.casts > lastCasts) {
+          lastCasts = spidey.casts;
+          casts++;
+          if (loki.heldBy === 0 || v.timeMs < loki.ccImmuneUntil) holds++;
+        }
+      });
+    }
+    expect(casts).toBeGreaterThan(5);
+    expect(holds).toBe(casts);
+  });
+
+  it("11: Force Lift's slam throws the foe toward the wall", { timeout: 60_000 }, () => {
+    for (const seed of [1, 4]) {
+      const engine = probeEngine({ fighters: ["yoda", "gerald", "random", "random"], cast: [40, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+      const v = engine.getFightLeagueView();
+      const g = v.fighters[1];
+      let wasHeld = false;
+      let checked = false;
+      probeRun(engine, 20_000, () => {
+        if (g.heldBy === 0) wasHeld = true;
+        else if (wasHeld) {
+          // (thrown at 2.5 cruise units, not carrying on along its old heading at its cruise)
+          expect(Math.hypot(g.vx, g.vy)).toBeGreaterThan(1.8 * g.cruise);
+          checked = true;
+          return true;
+        }
+      });
+      expect([seed, checked]).toEqual([seed, true]);
+    }
+  });
+
+  it("12: air and contact fists are drawn at rest (Gerald, Aang, Sonic)", { timeout: 60_000 }, () => {
+    qaStubDocument();
+    for (const id of ["gerald", "aang", "sonic"]) {
+      const engine = probeEngine({ fighters: [id, "thor", "random", "random"] }, 1);
+      const v = probeRun(engine, 500);
+      const layer = new FightLeagueLayer();
+      layer.drawBodies(qaStubContext(), v, QA_OPTS);
+      expect([id, layer.weaponsDrawn >= 2]).toEqual([id, true]);
+    }
+  });
+
+  it("13: a random slot next to Gerald draws from the other divisions; mirror matches rarely end in a double KO", { timeout: 60_000 }, () => {
+    for (let k = 0; k < 40; k++) {
+      const rows = pickFighters({ fighters: ["gerald", "random", "random", "random"], match: "ffa4", sameDivision: true }, () => (k * 0.137 + 0.01) % 1);
+      expect(rows[0].id).toBe("gerald");
+      for (const r of rows.slice(1)) expect(r.id).not.toBe("gerald");
+    }
+    let double = 0;
+    for (let seed = 1; seed <= 10; seed++) if (probeRun(probeEngine({ fighters: ["gerald", "gerald", "random", "random"], timeCap: 60 }, seed), 120_000).doubleKo) double++;
+    expect(double).toBeLessThanOrEqual(1);
+  });
+
+  it("14: attack speed speeds a sword up", { timeout: 60_000 }, () => {
+    const hits = (atk: number) => {
+      let n = 0;
+      for (const seed of [1, 2, 3]) n += probeRun(dummyDuel("link", seed, { attack: [atk, 0.05, 1, 1] }), PROBE_INTRO_MS + 30_000).fighters[0].hits;
+      return n;
+    };
+    expect(hits(3)).toBeGreaterThanOrEqual(1.5 * hits(1));
+  });
+
+  it("15: a minigun faster than the old window lands its hits", { timeout: 60_000 }, () => {
+    let hits = 0;
+    for (const seed of [1, 2, 3]) hits += probeRun(dummyDuel("jinx", seed), PROBE_INTRO_MS + 20_000).fighters[0].weapons[0].hits;
+    expect(hits / 60).toBeGreaterThanOrEqual(3.2);
+  });
+
+  it("16: a giant hit riding a shot that misses goes back to its owner", { timeout: 60_000 }, () => {
+    const engine = probeEngine({ fighters: ["batman", "gerald", "random", "random"], cast: [40, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 2);
+    const v = engine.getFightLeagueView();
+    const [batman, gerald] = v.fighters;
+    probeRun(engine, 20_000, () => v.projectiles.some((p) => p.active && p.giant > 0 && p.owner === 0));
+    expect(batman.giantLeft).toBe(0);
+    // (no second Smoke Bomb: only a refund can load a giant hit again)
+    batman.cast = 0;
+    batman.meter = 0;
+    batman.telegraphUntil = -1;
+    // Gerald steps out of its way: the batarang flies on into the wall.
+    const ball = engine.getBalls().find((b) => b.id === gerald.ballId)!;
+    const p = v.projectiles.find((x) => x.active && x.giant > 0)!;
+    const field = v.field!;
+    ball.x = gerald.x = 2 * field.cx - p.x;
+    ball.y = gerald.y = field.cy + (field.cy - p.y) * 0.2;
+    gerald.invulnUntil = Infinity;
+    probeRun(engine, v.timeMs + 4000, () => !p.active);
+    expect(p.active).toBe(false);
+    expect(batman.giantLeft).toBe(1);
+  });
+
+  it("17: Katarina's blink spin lands", { timeout: 60_000 }, () => {
+    let spins = 0;
+    for (const seed of [1, 2, 3]) {
+      const engine = probeEngine({ fighters: ["katarina", "gerald", "random", "random"], cast: [0.05, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+      const { events } = qaRunEvents(engine, PROBE_INTRO_MS + 60_000);
+      // (the dagger's own hit and the spin's land in the same sub-step as the blink: two hits – --- fl-overhaul --- Stage 3: one
+      // damage number now, the two add into it, so the hits are counted: EV_HIT, the attacker's slot)
+      for (const e of events) if (e.kind === EV_BLINK && e.slot === 0 && events.filter((d) => d.kind === EV_HIT && d.slot === 0 && d.t === e.t).length >= 2) spins++;
+    }
+    expect(spins).toBeGreaterThanOrEqual(3);
+  });
+
+  it("18: arena cuts land where their foe will be", { timeout: 60_000 }, () => {
+    qaWithAbility({ name: "Rend", charge: 5, effects: [{ p: "arenaCuts", n: 3, damage: 5 }] }, () => {
+      let cuts = 0;
+      let landed = 0;
+      for (const seed of [1, 2, 3]) {
+        const engine = probeEngine({ fighters: ["gerald", "thor", "random", "random"], cast: [3, 0.05, 1, 1], hp: 1000, timeCap: 0 }, seed);
+        const { events } = qaRunEvents(engine, PROBE_INTRO_MS + 30_000);
+        for (const e of events) {
+          if (e.kind !== EV_CUT) continue;
+          cuts++;
+          if (events.some((d) => d.kind === EV_DAMAGE && d.slot === 1 && Math.abs(d.t - e.t) <= 20)) landed++;
+        }
+      }
+      expect(cuts).toBeGreaterThan(10);
+      expect(landed / cuts).toBeGreaterThanOrEqual(0.5);
+    });
+  });
+
+  it("19: a spinning kick's ring thuds (not blades)", { timeout: 60_000 }, () => {
+    const engine = probeEngine({ fighters: ["chunli", "gerald", "random", "random"], cast: [8, 0.05, 1, 1], hp: 1000, timeCap: 0, speed: [1, 0.05, 1, 1] }, 1);
+    const kinds = new Set<string>();
+    while (engine.getElapsedMs() < PROBE_INTRO_MS + 20_000) {
+      engine.update(PROBE_STEP, 0);
+      for (const ev of engine.consumeSoundEvents() as SoundEvent[]) if (ev.fight) kinds.add(ev.fight);
+    }
+    expect(engine.getFightLeagueView().fighters[0].casts).toBeGreaterThan(0);
+    expect(kinds.has("blade")).toBe(false);
+  });
+
+  it("20: an orbiting weapon stops while its owner is frozen", { timeout: 60_000 }, () => {
+    const engine = probeEngine({ fighters: ["kratos", "subzero", "random", "random"], cast: [0.05, 0.05, 1, 1], hp: 1000, timeCap: 0 }, 1);
+    const v = engine.getFightLeagueView();
+    const kratos = v.fighters[0];
+    let checked = 0;
+    let angle = NaN;
+    probeRun(engine, PROBE_INTRO_MS + 40_000, () => {
+      const frozen = v.timeMs + PROBE_STEP < kratos.frozenUntil;
+      if (frozen && Number.isFinite(angle)) {
+        expect(kratos.weapons[0].angle).toBe(angle);
+        checked++;
+      }
+      angle = frozen ? kratos.weapons[0].angle : NaN;
+    });
+    expect(checked).toBeGreaterThan(5);
+  });
+
+  it("21: the time cap counts from FIGHT! (the VS card is not fighting time)", { timeout: 60_000 }, () => {
+    const v = probeRun(probeEngine({ fighters: ["thor", "loki", "random", "random"], hp: 100_000, timeCap: 10, suddenDeath: false } as Partial<FightLeagueSettings>, 3), 30_000);
+    expect(v.byTime).toBe(true);
+    expect(v.finishMs).toBeGreaterThanOrEqual(PROBE_INTRO_MS + 10_000);
+    expect(v.finishMs).toBeLessThan(PROBE_INTRO_MS + 10_000 + 20);
+  });
+
+  it("22: a full meter waiting for its moment says READY", { timeout: 60_000 }, () => {
+    const log: { name: string; args: unknown[] }[] = [];
+    qaStubDocument(log);
+    const engine = probeEngine({ fighters: ["link", "gerald", "random", "random"] }, 1);
+    const v = probeRun(engine, 3000);
+    v.fighters[0].meter = 1;
+    v.fighters[0].telegraphUntil = -1;
+    new FightLeagueLayer().drawOverlay(qaStubContext(log), v, QA_OPTS, { width: 800, height: 450, inset: 0 });
+    expect(log.some((c) => c.name === "fillText" && c.args[0] === "READY")).toBe(true);
+  });
+
+  it("23: a huge Ball Size fits the fighters in the arena (the run goes on)", { timeout: 60_000 }, () => {
+    const engine = probeEngine({ fighters: ["thor", "gerald", "random", "random"] }, 1, { ballRadius: 180 });
+    engine.update(PROBE_STEP, 0);
+    expect(engine.isSimulationFinished()).toBe(false);
+    const v = probeRun(engine, 20_000);
+    const field = v.field!;
+    expect(v.timeMs).toBeGreaterThan(3000);
+    expect(v.finished && (v.kos > 0 || v.byTime)).toBe(true);
+    for (const f of v.fighters) expect(f.r).toBeLessThan(field.half);
+  });
+
+  it("24: the descriptions say what the rows do", { timeout: 60_000 }, () => {
+    const v = FL_BY_ID.get("voldemort")!;
+    const avada = v.ability.effects[0] as { damage: number };
+    const ratio = avada.damage / (v.weapons[0].damage ?? 1);
+    expect(ratio).toBeGreaterThan(3.5);
+    expect(ratio).toBeLessThan(4);
+    expect(v.description).toMatch(/nearly four times/);
+    expect((en as { FightLeague: Record<string, string> }).FightLeague.fighter_voldemort).toMatch(/nearly four times/);
+    const sonic: FlFighterRow = FL_BY_ID.get("sonic")!;
+    expect(sonic.weapons[0].style).toBe("contact");
+  });
+
+  it("25: the panel commits the number the fight runs and the link carries", { timeout: 60_000 }, () => {
+    expect(flPanelValue("flHp", 2.5)).toBe(3);
+    expect(flPanelValue("flTimeCap", 0.04)).toBe(0);
+    expect(flPanelValue("flSpeedA", 1.23456)).toBe(1.235);
+    const s = { ...defaultSettings("fightLeague"), flHp: flPanelValue("flHp", 2.5) };
+    const params = settingsToSearchParams(s);
+    expect(params.get("flHp")).toBe("3");
+    expect(settingsFromSearchParams(params).flHp).toBe(3);
+  });
+
+  it("26: data-fl-weapons counts held shields", { timeout: 60_000 }, () => {
+    qaStubDocument();
+    const engine = probeEngine({ fighters: ["captainamerica", "loki", "random", "random"] }, 1);
+    const v = probeRun(engine, 500);
+    const layer = new FightLeagueLayer();
+    layer.drawBodies(qaStubContext(), v, QA_OPTS);
+    expect(layer.weaponsDrawn).toBeGreaterThanOrEqual(2);
+  });
+});
+
+/* ------------------------------------------------------------------ --- fl-overhaul --- (Stage 2) the picker's search, the ratings */
+
+describe("fight league picker search (src/lib/physics/modes/fightLeagueSearch.ts)", () => {
+  it("ranks a fighter first for the first three letters of its name (as the picker sorts it) for at least 95 % of the roster", () => {
+    const misses: string[] = [];
+    for (const r of FL_ROSTER) {
+      const q = flSortKey(r).replace(/ /g, "").slice(0, 3);
+      if (searchFighters(q)[0]?.id !== r.id) misses.push(`${q}→${r.id}`);
+    }
+    console.log(`search: ${FL_ROSTER.length - misses.length}/${FL_ROSTER.length} first by their first three letters; shared prefixes: ${misses.join(", ")}`);
+    expect((FL_ROSTER.length - misses.length) / FL_ROSTER.length).toBeGreaterThanOrEqual(0.95);
+  });
+
+  it("matches names, short names, ids, sources, abilities, weapons and divisions, case- and diacritic-insensitive, ranked", () => {
+    expect(flFold("  Pokémon: Ash-Ketchum! ")).toBe("pokemon ash ketchum");
+    expect([flSortKey({ name: "Darth Vader" }), flSortKey({ name: "The Flash" }), flSortKey({ name: "Mr. Incredible" }), flSortKey({ name: "The" })]).toEqual(["vader", "flash", "incredible", "the"]);
+    const first = (q: string) => searchFighters(q)[0]?.id;
+    expect(first("pika")).toBe("pikachu");
+    expect(first("PIKA")).toBe("pikachu");
+    expect(first("vader")).toBe("vader");
+    expect(first("pac man")).toBe("pacman");
+    expect(first("pacman")).toBe("pacman");
+    expect(first("Final Spark")).toBe("lux");
+    expect(first("chief")).toBe("masterchief");
+    expect(first("myers")).toBe("michaelmyers");
+    // Diacritics: "pokemon" finds the Pokémon division's fighters (by the division label).
+    expect(searchFighters("pokemon").every((r) => r.division === "pokemon")).toBe(true);
+    expect(searchFighters("pokémon")).toHaveLength(7);
+    // Name prefix > name > ability > source > weapon: "thor" puts Thor before a fighter whose source or ability says it.
+    const thor = searchFighters("thor").map((r) => r.id);
+    expect(thor[0]).toBe("thor");
+    // Several words: each must match somewhere.
+    expect(searchFighters("marvel claws").map((r) => r.id)).toContain("wolverine");
+    expect(searchFighters("zzzz")).toEqual([]);
+    expect(searchFighters("")).toHaveLength(FL_ROSTER.length);
+    // A translated division label counts too.
+    expect(searchFighters("kreskówki", FL_ROSTER, (d) => (d === "cartoons" ? "Kreskówki" : d)).every((r) => r.division === "cartoons")).toBe(true);
+    // Type-ahead in the tile grid.
+    expect(flTypeAhead("sp", fightersOf("marvel"))?.id).toBe("spiderman");
+    expect(flTypeAhead("fla", fightersOf("dc"))?.id).toBe("flash");
+    expect(flTypeAhead("x", fightersOf("dc"))).toBeUndefined();
+  });
+});
+
+describe("fight league ratings (src/lib/physics/modes/fightLeagueRatings.ts, written by scripts/fl-balance.mjs --apply)", () => {
+  it("warns (without failing) when the roster changed since the tuner measured the ratings", () => {
+    const hash = flRosterHash();
+    expect(hash).toMatch(/^[0-9a-f]{8}$/);
+    if (FL_RATINGS_HASH !== hash) {
+      console.warn(`fightLeagueRatings.ts is stale (measured on ${FL_RATINGS_HASH}, the roster is ${hash}): run node scripts/fl-balance.mjs --apply`);
+      return;
+    }
+    // Fresh: every tuned fighter rated, strengths normalised to a geometric mean of 1 per division.
+    for (const d of FL_DIVISIONS) {
+      if (d === "wildcard") continue;
+      const rows = fightersOf(d);
+      for (const r of rows) expect([r.id, typeof FL_STRENGTH[r.id]?.strength]).toEqual([r.id, "number"]);
+      const logMean = rows.reduce((acc, r) => acc + Math.log(FL_STRENGTH[r.id].strength), 0) / rows.length;
+      expect([d, Math.abs(logMean) < 0.01]).toEqual([d, true]);
+      for (const r of rows) expect([r.id, FL_STRENGTH[r.id].win >= 0 && FL_STRENGTH[r.id].win <= 100]).toEqual([r.id, true]);
+    }
+  });
+});
+
+describe("fight league messages (en, pl, es)", () => {
+  it("has the same FightLeague and Controls fl* keys in every language, every division, conference, role and fighter", () => {
+    type Messages = Record<string, Record<string, string>>;
+    const langs: [string, Messages][] = [["en", en as unknown as Messages], ["pl", pl as unknown as Messages], ["es", es as unknown as Messages]];
+    const keys = (m: Messages, ns: string, prefix = "") => Object.keys(m[ns]).filter((k) => k.startsWith(prefix)).sort();
+    const base = langs[0][1];
+    for (const [lang, m] of langs) {
+      expect([lang, keys(m, "FightLeague")]).toEqual([lang, keys(base, "FightLeague")]);
+      expect([lang, keys(m, "Controls", "fl")]).toEqual([lang, keys(base, "Controls", "fl")]);
+      for (const d of FL_DIVISIONS) expect([lang, d, typeof m.FightLeague[`division_${d}`]]).toEqual([lang, d, "string"]);
+      for (const c of FL_CONFERENCE_IDS) expect([lang, c, typeof m.FightLeague[`conference_${c}`]]).toEqual([lang, c, "string"]);
+      for (const r of FL_ROLES) expect([lang, r, typeof m.FightLeague[`role_${r}`]]).toEqual([lang, r, "string"]);
+      for (const k of ["flPickerSearch", "flPickerAll", "flPickerRandomAny", "flPickerRandomDivision", "flPickerRandomConference", "flPickerRecent", "flPickerEmpty", "flPickerOpen", "flPickerList", "flSeek", "flSeekTip", "flSuddenDeath", "flSuddenDeathTip"]) expect([lang, k, typeof m.Controls[k]]).toEqual([lang, k, "string"]);
+      expect(m.Controls.flPickerRandomDivision).toContain("{division}");
+      expect(m.Controls.flPickerOpen).toContain("{slot}");
+      for (const r of FL_ROSTER) {
+        const text = m.FightLeague[`fighter_${r.id}`];
+        expect([lang, r.id, typeof text]).toEqual([lang, r.id, "string"]);
+        // Fighter and ability names stay English: an ability the English line names is named in every language too.
+        if (r.description.includes(r.ability.name)) expect([lang, r.id, text.includes(r.ability.name)]).toEqual([lang, r.id, true]);
+        if (lang !== "en") expect([lang, r.id, text === r.description]).toEqual([lang, r.id, false]);
+      }
+    }
+    // The English line is the row's description.
+    for (const r of FL_ROSTER) expect([r.id, (en as unknown as Messages).FightLeague[`fighter_${r.id}`]]).toEqual([r.id, r.description]);
+  });
+
+  it("names neither the reference account nor the reference game in the FightLeague and Controls fl* strings", () => {
+    // (spelt in fragments: spelt out, the test itself would name them)
+    const ACCOUNT = ["ball", "thing", "sim"].join("");
+    const GAME = ["ball", "fight", "league"].join(" ");
+    for (const m of [en, pl, es] as unknown as Record<string, Record<string, string>>[]) {
+      const strings = [...Object.values(m.FightLeague), ...Object.entries(m.Controls).filter(([k]) => k.startsWith("fl")).map(([, v]) => v)].join("\n").toLowerCase();
+      expect(strings).not.toContain(ACCOUNT);
+      expect(strings.replace(/[^a-z]+/g, " ")).not.toContain(GAME);
+    }
+  });
 });

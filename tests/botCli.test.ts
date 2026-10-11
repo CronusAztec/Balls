@@ -158,3 +158,28 @@ fs.copyFileSync(args[args.indexOf("-i") + 1], args[args.length - 1]);
     expect(help.stdout).toContain("--post");
   });
 });
+
+// --- fl-overhaul --- (Stage 6) --plan: the week's rotation, with the Fight League recipes in the battle family
+describe("viral-bot CLI --plan", () => {
+  it("parses --plan and refuses it with the options that render or post", () => {
+    expect(parseArgs(["--plan", "--date", "2026-10-05"])).toMatchObject({ plan: true, date: "2026-10-05", dryRun: false });
+    expect(parseArgs([])).toMatchObject({ plan: false });
+    for (const bad of [["--plan", "--post"], ["--plan", "--post-only"], ["--plan", "--dry-run"]]) expect(() => parseArgs(bad)).toThrow();
+  });
+
+  it("prints the 7 days from --date without writing anything, a fight recipe among them", { timeout: 120_000 }, () => {
+    const out = fs.mkdtempSync(path.join(os.tmpdir(), "bot-plan-"));
+    try {
+      const log = execFileSync(process.execPath, [CLI, "--plan", "--date", "2026-10-05", "--out", out], { cwd: ROOT, env, encoding: "utf8" });
+      const days = log.split("\n").filter((l) => /^ {2}\d{4}-\d{2}-\d{2} {2}day/.test(l));
+      expect(days).toHaveLength(7);
+      expect(days[0]).toMatch(/^ {2}2026-10-05 {2}day +7 /);
+      expect(days[6]).toMatch(/^ {2}2026-10-11 /);
+      for (const d of days) expect(d.split(", ")).toHaveLength(3);
+      expect(log).toMatch(/fight-(duel|upset|bracket|boss) \(battle\)/);
+      expect(fs.readdirSync(out)).toEqual([]);
+    } finally {
+      fs.rmSync(out, { recursive: true, force: true });
+    }
+  });
+});

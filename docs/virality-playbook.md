@@ -68,9 +68,10 @@ Ordered by how strongly the sources and the observations agree.
 
 ## 5. How the bot applies it, and what building it taught us
 
-The bot (README, "Viral video bot") turns §3 into 15 recipes in three series that rotate day by day: **escape** (ring escape,
+The bot (README, "Viral video bot") turns §3 into 19 recipes in three series that rotate day by day: **escape** (ring escape,
 Pip escapes, grow until it fills, clone per pass, multipliers board, power layers), **rhythm** (pendulum wave, polyrhythm, drop
-symphony, glass smash) and **battle** (string battle, territory, battle royale, square race, maze race). Every clip gets the
+symphony, glass smash) and **battle** (string battle, territory, battle royale, square race, maze race, and the Fight League
+duel, upset, bracket and boss rush). Every clip gets the
 rule as a caption for the first 2–3 s, a countdown, a payoff planned with the seed finder, a note per bounce, neon on black, a
 series label and a recurring cast, and a 0–100 score against the checklist below. The weights are ours, not measured:
 
@@ -115,6 +116,11 @@ What the simulator taught us while building it **[observed in our own planner ru
 - **Posting times are placeholders.** The slots (Reels 12:00 / 18:00 / 21:00, TikTok 13:00 / 19:00 / 22:00, Shorts 12:00 /
   17:00 / 20:00 local) are the usual lunch / after-work / evening windows **[inferred]**; replace them with the hours your own
   Insights show.
+
+- **A fight is paced, not waited for.** Fight League duels are over in 11–20 s at 100 HP; the fight recipes set the HP so the
+  KO lands where the clip wants it (about 18 s of fighting per 100 HP, the divisions' median), cut a duel's winner card at
+  85 % instead of holding it, and play the shows (an 8-bracket, a boss rush) with short bouts and cards so a whole bracket fits
+  a 60–90 s clip. The series label is the matchup itself with its running episode ("Thor vs Loki #3").
 
 Next: feed each clip's average watch time, sends per reach, saves and first-hour comments back into the checklist weights, and
 compare the resolved and cliffhanger clips the bot alternates.
