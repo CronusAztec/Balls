@@ -253,7 +253,7 @@ describe("PhysicsEngine with physics extras", () => {
       expect(engine.getPhysicsExtras()).toEqual(DEFAULT_PHYSICS_EXTRAS);
       expect(fingerprint(engine), mode).toEqual(BASELINE[mode]);
     }
-  });
+  }, 20_000); // (a run of every mode – one more with every new mode: past vitest's 5 s default on a loaded runner)
 
   it("stays deterministic for a given seed with every extra on", () => {
     for (const mode of ["classic", "shatter", "portal", "accumulation"] as const) {
