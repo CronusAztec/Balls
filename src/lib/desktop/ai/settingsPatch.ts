@@ -8,6 +8,7 @@ import { INSTRUMENT_IDS } from "@/lib/audio/instruments";
 import { QUANTIZE_GRIDS, SCALE_IDS } from "@/lib/audio/scales";
 import { HIT_SOUND_MODES } from "@/lib/audio/sampler";
 import { FACE_STYLES } from "@/lib/character/character";
+import { GROW_LAWS, GROW_ON_FILL } from "@/lib/physics/modes/grow"; // --- low-findings ---
 import type { JsonSchema } from "./jsonSchema";
 
 /*
@@ -43,6 +44,9 @@ export const SETTING_OPTIONS: Record<string, readonly (string | number)[]> = {
   rainbowWallMode: ["pulse", "gradient"],
   backgroundType: ["solid", "gradient"],
   fastExportFps: [30, 60],
+  // --- low-findings --- Grow's fill and loop (the mode's block is the assistant's on a Grow page: MODE_PREFIXES)
+  growLaw: GROW_LAWS,
+  growOnFill: GROW_ON_FILL,
 };
 
 const TEXT_KEYS = new Set(["topText", "bottomText", "watermarkText", "ballName", "rcCupTitle"]);
@@ -97,6 +101,9 @@ export const CATALOG: readonly [key: string, description: string][] = [
   ["recordingDuration", "clip length in seconds"],
   ["recordingResolution", "video size"],
   ["fastExportFps", "video frame rate"],
+  // --- low-findings --- the loop contract and its HUD (any mode; nothing changes in one that does not loop)
+  ["exportWholeLoops", "recordings of a looping run end on a whole number of its cycles"],
+  ["loopHud", "the loop HUD: a lowercase title and one counter drawn into the clip"],
   ["topText", "text at the top of the video"],
   ["bottomText", "text at the bottom of the video"],
   ["textSize", "size of the top / bottom text"],
@@ -148,6 +155,7 @@ function describeUnlimited(key: string, range: { min: number; max: number; step:
 
 /** The prefix of the settings that belong to a mode (its block of the panel), so the assistant can tune the mode on the page. */
 const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
+  grow: "grow", // --- low-findings --- (growRate, the centre dot and lines, and loop-foundation's fill and loop: growLaw, growOnFill, growStep…)
   drop: "drop",
   box: "box",
   pendulum: "pw",
@@ -173,8 +181,10 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   orbGrid: "og", // --- orb-grid ---
   fightLeague: "fl", // --- fight-league ---
   landClaim: "lc", // --- land-claim ---
+  colourSort: "cs", // --- colour-sort ---
   starChords: "sc", // --- chord-stars ---
   hoops: "hp", // --- bead-hoops ---
+  ellipseFoci: "ef", // --- ellipse-foci ---
 };
 
 /** The settings the assistant may change on this page: the catalog, then the scalar settings of the page's mode. */

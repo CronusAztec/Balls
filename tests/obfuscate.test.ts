@@ -130,3 +130,22 @@ describe("obfuscate: obfuscation in place", () => {
     expect(BANNER).toBe("/*! JumpingBallsLive - proprietary software. Copying, modification, reverse engineering and reuse are prohibited. */");
   });
 });
+
+// --- low-findings --- what the comments and the README say about the hot loop and about OBFUSCATE=0
+describe("obfuscate: the documented reasons", () => {
+  const read = (rel: string) => fs.readFileSync(path.join(__dirname, "..", rel), "utf8").replace(/\s+/g, " ");
+  it("places the engine's hot loop in the shared numbered chunk, never in the simulator page chunk", () => {
+    for (const rel of ["scripts/obfuscate.mjs", "README.md"]) {
+      const text = read(rel);
+      expect(text, rel).not.toMatch(/hot code (?:sits|lives|is) in the simulator page chunk/);
+      expect(text, rel).toMatch(/shared numbered chunk \(`<n>-/);
+    }
+  });
+
+  it("tells a readable build's smoke test to take OBFUSCATE=0 as well (its code-obfuscation checks follow the variable)", () => {
+    expect(read("README.md")).toContain("`OBFUSCATE=0 npm run smoke`");
+    const smoke = read("scripts/smoke-test.mjs");
+    expect(smoke).toMatch(/`OBFUSCATE=0 npm run smoke`/);
+    expect(smoke).toContain('const expectObfuscated = process.env.OBFUSCATE !== "0";');
+  });
+});

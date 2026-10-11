@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { SEAM_EPS_MS, WholeLoopCut, cutsToWholeLoops, frameSeconds, wholeLoopError, wholeLoops } from "@/lib/loop/loopContract";
+import { describe, expect, it, vi } from "vitest";
+import { createTranslator } from "next-intl"; // --- low-findings ---
+import { fastExportDoneDetail } from "@/components/simulator/sections/FastExportSection"; // --- low-findings ---
+import enMessages from "../messages/en.json";
+import plMessages from "../messages/pl.json";
+import esMessages from "../messages/es.json";
+import { SEAM_EPS_MS, WholeLoopCut, cutsToWholeLoops, frameSeconds, waitForDrawnFrame, wholeLoopError, wholeLoops } from "@/lib/loop/loopContract";
 import { DEFAULT_LOOP_FIELDS, LOOP_HUD_TEXT_MAX, cleanHudText, readLoopParams, resolveLoopFields, writeLoopParams } from "@/lib/loop/loopSettings";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
@@ -93,18 +98,21 @@ describe("the loop contract: whole cycles", () => {
       expect(engine.getLoopSeams()).toBeNull();
       expect(engine.getCycleSeconds()).toBeNull();
     }
-    for (const mode of MODE_IDS) if (mode !== "grow" && mode !== "starChords" /* --- chord-stars --- (it loops from its start: tests/starChords.test.ts) */ && mode !== "hoops" /* --- bead-hoops --- (it loops by default: below) */) expect([mode, createEngineForSettings(config, mode, modeSettings, 3).getLoopSeams()]).toEqual([mode, null]);
+    for (const mode of MODE_IDS) if (mode !== "grow" && mode !== "starChords" /* --- chord-stars --- (it loops from its start: tests/starChords.test.ts) */ && mode !== "hoops" /* --- bead-hoops --- (it loops by default: below) */ && mode !== "ellipseFoci" /* --- ellipse-foci --- (a refire run loops from its start: below) */ && mode !== "colourSort" /* --- colour-sort --- (it always loops: tests/colourSort.test.ts checks its seams) */) expect([mode, createEngineForSettings(config, mode, modeSettings, 3).getLoopSeams()]).toEqual([mode, null]);
     // --- bead-hoops --- Spinning Hoops loops by default (its return ramp: a seamless cycle of whole turns); without the return it
     // reports no seams, like every mode that does not loop
     expect(createEngineForSettings(config, "hoops", modeSettings, 3).getLoopSeams()).toMatchObject({ count: 0, lastMs: -1 });
     expect(createEngineForSettings(config, "hoops", { ...modeSettings, hoops: { returnLoop: false } }, 3).getLoopSeams()).toBeNull();
+    // --- ellipse-foci --- Focus Shot loops from its start (a fresh volley every 4 passes of 4 s); a swarm left to collapse never does
+    expect(createEngineForSettings(config, "ellipseFoci", modeSettings, 3).getLoopSeams()).toMatchObject({ count: 0, lastMs: -1, nextMs: 16000 });
+    expect(createEngineForSettings(config, "ellipseFoci", { ...modeSettings, ellipseFoci: { reset: "collapse" } }, 3).getLoopSeams()).toBeNull();
   });
 });
 
 describe("the loop settings: Export whole loops and the loop HUD", () => {
   it("defaults to whole loops on and the HUD off, and round-trips through links and presets", () => {
     expect(DEFAULT_LOOP_FIELDS).toEqual({ exportWholeLoops: true, loopHud: false, loopHudTitle: "", loopHudSubtitle: "" });
-    for (const mode of MODE_IDS) expect(defaultSettings(mode)).toMatchObject(mode === "starChords" ? { ...DEFAULT_LOOP_FIELDS, loopHud: true } : DEFAULT_LOOP_FIELDS); // --- chord-stars --- (its look starts with the HUD on)
+    for (const mode of MODE_IDS) expect(defaultSettings(mode)).toMatchObject(mode === "starChords" || mode === "ellipseFoci" /* --- ellipse-foci --- */ || mode === "colourSort" /* --- colour-sort --- (its counter is the mode: its own defaults turn the HUD on) */ ? { ...DEFAULT_LOOP_FIELDS, loopHud: true } : DEFAULT_LOOP_FIELDS); // --- chord-stars --- (its look starts with the HUD on)
     const s = { ...defaultSettings("grow"), exportWholeLoops: false, loopHud: true, loopHudTitle: "Every bounce, bigger", loopHudSubtitle: "watch the end" };
     const params = settingsToSearchParams(s);
     expect([params.get("wl"), params.get("lh"), params.get("lht"), params.get("lhs")]).toEqual(["0", "1", "Every bounce, bigger", "watch the end"]);
@@ -122,5 +130,75 @@ describe("the loop settings: Export whole loops and the loop HUD", () => {
     readLoopParams(new URLSearchParams("lh=1&wl=2&lht=%20hi%20"), fields);
     expect(fields).toEqual({ exportWholeLoops: true, loopHud: true, loopHudTitle: "hi", loopHudSubtitle: "" });
     expect(p.toString()).toBe("lh=1");
+  });
+});
+
+// --- low-findings --- the fast export's done line says when the clip was cut to whole loops, and by how much its sound was levelled
+describe("--- low-findings --- the fast export's done line", () => {
+  const done = { status: "done" as const, durationSec: 38.55, wallMs: 9000, extension: "mp4", bytes: 1, digest: "x" };
+  it("names the whole loops and the normaliser's gain when there are any", () => {
+    expect(fastExportDoneDetail({ ...done, loopCycles: 3, loopCycleSec: 12.8497, loudnessGainDb: 1.14 })).toEqual({ loops: { count: 3, cycle: "12.85" }, gain: "+1.1" });
+    expect(fastExportDoneDetail({ ...done, loudnessGainDb: -2.34 })).toEqual({ loops: null, gain: "−2.3" });
+    // a run that does not loop, a clip left at its level, no sound to measure
+    expect(fastExportDoneDetail({ ...done, loudnessGainDb: 0.04 })).toEqual({ loops: null, gain: null });
+    expect(fastExportDoneDetail({ ...done, loopCycles: 0, loopCycleSec: 12, loudnessGainDb: Number.NaN })).toEqual({ loops: null, gain: null });
+    expect(fastExportDoneDetail(done)).toEqual({ loops: null, gain: null });
+  });
+
+  it("says it in every language", () => {
+    for (const [locale, messages] of [["en", enMessages], ["pl", plMessages], ["es", esMessages]] as const) {
+      const t = createTranslator({ locale, messages, namespace: "FastExport" });
+      for (const count of [1, 3, 5]) {
+        const line = t("doneLoops", { count, cycle: "12.85" });
+        expect(line, `${locale} ${count}`).toContain(String(count));
+        expect(line, `${locale} ${count}`).toContain("12.85");
+      }
+      expect(t("doneGain", { gain: "+1.1" }), locale).toContain("+1.1 dB");
+      expect(t("doneGain", { gain: "+1.1" }), locale).toContain("−14 LUFS");
+    }
+    expect(createTranslator({ locale: "en", messages: enMessages, namespace: "FastExport" })("doneLoops", { count: 1, cycle: "5.00" })).toBe("Cut to 1 whole loop of 5.00 s, so it loops seamlessly.");
+    expect(createTranslator({ locale: "pl", messages: plMessages, namespace: "FastExport" })("doneLoops", { count: 3, cycle: "5.00" })).toContain("3 pełnych pętli");
+  });
+});
+
+// --- low-findings --- a whole-loop Record Video waits for the canvas to show the held seam before the recorder copies its first frame
+describe("--- low-findings --- waiting for the held start's frame", () => {
+  it("resolves on the first frame the canvas draws after the restart – not before", async () => {
+    vi.useFakeTimers();
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => frames.push(cb));
+    try {
+      let drawn = 41;
+      let done = false;
+      const wait = waitForDrawnFrame(() => drawn, 41, 500).then(() => void (done = true));
+      for (let i = 0; i < 3; i++) frames.splice(0).forEach((cb) => cb(0)); // animation frames without a drawn frame: still waiting
+      await Promise.resolve();
+      expect(done).toBe(false);
+      drawn = 42; // the canvas drew the held seam
+      frames.splice(0).forEach((cb) => cb(0));
+      await wait;
+      expect(done).toBe(true);
+      expect(frames).toHaveLength(0); // and stops asking for frames
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives up after its cap when no frame comes (a hidden tab runs no animation frames)", async () => {
+    vi.useFakeTimers();
+    vi.stubGlobal("requestAnimationFrame", () => 0);
+    try {
+      let done = false;
+      const wait = waitForDrawnFrame(() => 0, 0, 500).then(() => void (done = true));
+      await vi.advanceTimersByTimeAsync(499);
+      expect(done).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await wait;
+      expect(done).toBe(true);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
   });
 });

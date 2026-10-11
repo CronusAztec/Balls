@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { LOOP_HUD_AMBER, LOOP_HUD_COUNTER_Y, LOOP_HUD_GREY_LIGHT, LOOP_HUD_MODE_TEXT, LOOP_HUD_TITLE_Y, drawLoopHud, hudCounterText, hudText, isLightColor, loopHudBands, loopHudCount, loopHudFrame, loopHudLayout, loopHudLiveLayout, loopHudRects } from "@/lib/loop/hud";
+import { LOOP_HUD_AMBER, LOOP_HUD_COUNTER_Y, LOOP_HUD_GREY_LIGHT, LOOP_HUD_MODE_TEXT, LOOP_HUD_TITLE_Y, LIVE_HUD_MIN_SIZE, drawLoopHud, hudCounterText, hudText, isLightColor, loopHudBands, loopHudCount, loopHudFrame, loopHudLayout, loopHudLiveLayout, loopHudRects } from "@/lib/loop/hud";
 import { badgeMetrics, badgeRect, exportSquare, intersect } from "@/lib/watermark/layout";
+import { loopHudMessageKey } from "@/lib/loop/hud"; // --- ellipse-foci ---
 import { LiveHud, liveBadgeBox, placeLiveBadge, type LivePlacement } from "@/lib/watermark/liveLayout";
 import { RESOLUTIONS, resolutionToSize } from "@/lib/settings";
 import { drawRecordingFrame, recordingTextLayout } from "@/lib/recording/recorder";
@@ -178,13 +179,63 @@ describe("loop HUD: words and colours", () => {
   it("has the mode words in every language", () => {
     for (const keys of Object.values(LOOP_HUD_MODE_TEXT)) {
       for (const catalog of [en, pl, es] as Record<string, unknown>[]) {
-        const hud = catalog.LoopHud as Record<string, string>;
-        expect(typeof hud[keys!.title]).toBe("string");
-        expect(typeof hud[keys!.subtitle]).toBe("string");
-        expect(hud[keys!.counter]).toContain("{count}");
+        // --- ellipse-foci --- a mode's words may live in its own namespace ("EllipseFoci.canvasTitle"): `loopHudMessageKey()`
+        const word = (key: string) => {
+          const [ns, name] = loopHudMessageKey(key).split(".");
+          return (catalog[ns] as Record<string, string>)[name];
+        };
+        expect(typeof word(keys!.title)).toBe("string");
+        expect(typeof word(keys!.subtitle)).toBe("string");
+        expect(word(keys!.counter)).toContain("{count}");
       }
     }
     expect(Object.keys(pl.LoopHud).sort()).toEqual(Object.keys(en.LoopHud).sort());
     expect(Object.keys(es.LoopHud).sort()).toEqual(Object.keys(en.LoopHud).sort());
+  });
+});
+
+// --- low-findings --- the live preview on a phone-sized square canvas: no room above the ring under the page's buttons
+describe("--- low-findings --- the live loop HUD in a margin too thin for a line", () => {
+  const frame = { title: "it grows with every bounce", subtitle: "how many bounces to fill the circle?", counter: "12 bounces", light: false };
+  it("leaves the title out instead of drawing it on the ring (390 px square: the ring's top at 49 px, the buttons to 52 px)", () => {
+    const side = 390;
+    const ring = 0.375 * side;
+    const layout = loopHudLiveLayout(side, side, side / 2, ring, 52);
+    expect(layout.titleY).toBe(-1);
+    expect(layout.subtitleY).toBe(-1);
+    expect(layout.counterY).toBeGreaterThan(side / 2 + ring);
+    const drawn = recordingContext();
+    drawLoopHud(drawn.ctx, side, frame, layout);
+    expect(drawn.texts.map((t) => t.text)).toEqual(["12 bounces"]); // the counter below the ring stays
+    for (const t of drawn.texts) expect(t.y - 0.5 * layout.counterSize).toBeGreaterThanOrEqual(side / 2 + ring - 1e-9);
+    // the left-out title is no HUD band (the live watermark's badge may use the top) and covers no rectangle
+    const bands = loopHudBands(layout, frame);
+    expect(bands.top).toBe(-Infinity);
+    expect(bands.bottom).toBeLessThan(side);
+    expect(loopHudRects(layout, side, true)).toHaveLength(1);
+  });
+
+  it("draws every line whose letters fit its margin, never one on the ring; the export frame keeps them all", () => {
+    for (const [w, h, inset] of [[390, 390, 52], [390, 420, 52], [450, 450, 52], [500, 500, 52], [800, 450, 0], [1280, 720, 0], [390, 844, 52]] as const) {
+      const side = Math.min(w, h);
+      const ring = 0.375 * side;
+      const cy = h / 2;
+      const layout = loopHudLiveLayout(w, h, cy, ring, inset);
+      const top = cy - ring - inset;
+      const bottom = h - (cy + ring);
+      expect(layout.titleY >= 0, `${w}x${h}`).toBe(top >= LIVE_HUD_MIN_SIZE);
+      expect(layout.counterY >= 0, `${w}x${h}`).toBe(bottom >= LIVE_HUD_MIN_SIZE);
+      const drawn = recordingContext();
+      drawLoopHud(drawn.ctx, w, frame, layout);
+      for (const t of drawn.texts) {
+        const size = Number(/(\d+(?:\.\d+)?)px/.exec(t.font)![1]);
+        const clear = t.y + 0.5 * size <= cy - ring + 1e-6 || t.y - 0.5 * size >= cy + ring - 1e-6; // (its letters' em)
+        expect(clear, `${w}x${h} "${t.text}" at ${t.y}`).toBe(true);
+      }
+    }
+    // the recorder's export frame always has room: title, subtitle and counter
+    const exported = recordingContext();
+    drawLoopHud(exported.ctx, 1080, frame, loopHudLayout(1080, 1080));
+    expect(exported.texts.map((t) => t.text)).toEqual([frame.title, frame.subtitle, frame.counter]);
   });
 });

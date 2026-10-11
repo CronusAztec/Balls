@@ -182,6 +182,14 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   lcTeams: 1_000,
   lcBalls: BOARD_BALL_CEILING,
   // --- end land-claim ---
+  // --- colour-sort --- Colour Sort (`CS_*_CEILING` of lib/physics/modes/colourSort.ts – a test keeps them equal): the colours
+  // (a ring, a band and a palette entry each), the balls of a colour (two colours of them fill the 20,000 balls a run holds,
+  // `CS_BALL_CEILING`: a dozen numbers each, all moved every sub-step – past it each colour holds its share) and the gates of a
+  // ring (a few numbers each, every gate's edge pinned and drawn)
+  csColours: ENTITY_CEILING,
+  csPerColour: 10_000,
+  csGates: ENTITY_CEILING,
+  // --- end colour-sort ---
   // --- chord-stars --- Chord Stars: the balls (each an engine ball pinned to the clock, a star, a voice and a line of the chord
   // layer; nothing is stored per chord – a cycle's chords past SC_CHORD_CEILING fade on the canvas instead)
   scBalls: ENTITY_CEILING,
@@ -194,6 +202,9 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   // --- phase-spiral --- Metronomes & Polyrhythms' arms: the dots of a ring (each an engine ball pinned to the clock; rings ×
   // arms stop at the same ceiling in the mode, `DOT_CEILING` of lib/physics/phaseSpiral.ts)
   prArms: ENTITY_CEILING,
+  // --- ellipse-foci --- Focus Shot: the volley's balls (full engine balls pinned to the clock – the board's ball ceiling – each with a
+  // ring of EF_VERTEX_CAP corners for its trail and path)
+  efCount: BOARD_BALL_CEILING,
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

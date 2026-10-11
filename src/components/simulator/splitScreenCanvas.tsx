@@ -114,6 +114,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
   const fpsRef = useRef(60);
   const framesDrawnRef = useRef(0); // --- review fix (performance) ---
   const recordingRef = useRef(false);
+  const recordingTapRef = useRef<((hud: LiveHud | null) => void) | null>(null); // --- low-findings --- (the page recorder's tap: Canvas.tsx setRecordingTap)
   const clipStartRef = useRef(0);
   const clipLag0Ref = useRef(0); // --- review fix (modes-gerald-odd) --- the arenas' slow-motion lag when the recording started
   const exportSizeRef = useRef<{ width: number; height: number } | null>(null);
@@ -210,6 +211,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
     },
     fpsRef,
     framesDrawn: () => framesDrawnRef.current, // --- review fix (performance) --- (the composed frames)
+    setRecordingTap: (tap: ((hud: LiveHud | null) => void) | null) => void (recordingTapRef.current = tap), // --- low-findings ---
     noteWallBreak: () => slotsRef.current[0]?.renderer?.noteWallBreak(),
     paintRecordingBackground: (c: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => (painterRef.current ??= new BackgroundPainter()).paintExport(c, width, height, crop, lookOf(propsRef.current, bgImageRef.current)),
     holdsEndScreen: () =>
@@ -481,6 +483,7 @@ function SplitScreenStage({ props, split, Inner, handleRef }: { props: CanvasPro
           liveRecording.height = recExport.height;
           liveFrame.recording = liveRecording;
         } else liveFrame.recording = null;
+        if (recordingRef.current) recordingTapRef.current?.(liveHud); // --- low-findings --- (the recorder's copy, before the live mark)
         stampLiveFrame(liveFrame);
       }
       // --- end watermark-everywhere ---

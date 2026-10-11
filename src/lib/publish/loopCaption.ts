@@ -1,5 +1,7 @@
 import { normalizeHashtag, withoutPlatformTags } from "./caption";
 import type { ModeId } from "@/lib/physics/types";
+import { isModeId } from "@/lib/physics/types"; // --- low-findings ---
+import { colourSortTotal } from "@/lib/physics/colourSortSettings"; // --- colour-sort ---
 
 /*
  * --- loop-foundation --- The "Loop style" caption preset (the Publish caption editor's button): the words of the loop clips'
@@ -14,9 +16,11 @@ export const LOOP_CAPTION_BASE_TAGS = ["#satisfying", "#oddlysatisfying"] as con
 export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly string[]>>> = {
   hoops: ["#physics", "#math", "#creativecoding"], // --- bead-hoops ---
   grow: ["#physics", "#bouncingball", "#exponentialgrowth"],
+  colourSort: ["#sorting", "#physics", "#simulation"], // --- colour-sort ---
   starChords: ["#math", "#geometry", "#creativecoding"], // --- chord-stars ---
   doublePendulum: ["#physics", "#pendulum", "#creativecoding"], // --- chaos-fan --- (the harp and the fan alike: a pendulum, not a bouncing ball)
   polyrhythm: ["#math", "#polyrhythm", "#creativecoding"], // --- phase-spiral ---
+  ellipseFoci: ["#math", "#geometry", "#creativecoding"], // --- ellipse-foci ---
 };
 /** Any other mode's topic tags. */
 export const LOOP_CAPTION_DEFAULT_TAGS = ["#physics", "#bouncingball"] as const;
@@ -110,7 +114,7 @@ export interface LoopCaptionContext {
  * The loop-style words of a run with these settings: Grow by its law – "{count}% bigger every bounce…" (multiply), "{count} px
  * bigger…" (add), "{count}% closer…" (the classic approach) –, any other mode its clip's seconds.
  */
-export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number; scBalls?: number /* --- chord-stars --- */ }): LoopCaptionContext {
+export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number; scBalls?: number /* --- chord-stars --- */; efCount?: number /* --- ellipse-foci --- */ }): LoopCaptionContext {
   // --- chord-stars --- Chord Stars by its balls: "{count} balls, one circle, …" and the fact of the inner circles
   if (s.mode === "starChords") return { mode: s.mode, hookKey: "starChords", factKey: "starChordsFact", count: s.scBalls ?? null };
   // --- phase-spiral --- Metronomes & Polyrhythms' harmonic rings by their count ("{count} rings, each one lap ahead of the next…")
@@ -119,10 +123,18 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     const p = s as { prLayout?: string; prTempos?: string; prCount?: number };
     if (p.prLayout === "rings" && p.prTempos === "harmonic") return { mode: s.mode, hookKey: "phaseSpiral", factKey: "phaseSpiralFact", count: typeof p.prCount === "number" && Number.isFinite(p.prCount) ? p.prCount : null };
   }
+  // --- ellipse-foci --- Focus Shot by its volley: "{count} balls fired from one focus…" and the whispering-gallery fact
+  if (s.mode === "ellipseFoci") return { mode: s.mode, hookKey: "ellipseFoci", factKey: "ellipseFociFact", count: typeof s.efCount === "number" && Number.isFinite(s.efCount) ? s.efCount : null };
   if (s.mode === "grow") {
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };
     if (s.growLaw === "add") return { mode: s.mode, hookKey: "growAdd", factKey: "", count: s.growStep ?? null };
     return { mode: s.mode, hookKey: "growApproach", factKey: "", count: s.growRate ?? null };
+  }
+  // --- colour-sort --- "360 mixed balls, sorted by their own rings": the balls in all, the rings' rule as the fact
+  if (s.mode === "colourSort") {
+    const cs = s as { csColours?: number; csPerColour?: number };
+    const count = cs.csColours !== undefined && cs.csPerColour !== undefined ? colourSortTotal({ csColours: cs.csColours, csPerColour: cs.csPerColour }) : null;
+    return { mode: s.mode, hookKey: "colourSort", factKey: "colourSortFact", count };
   }
   // --- bead-hoops --- Spinning Hoops by its hoops ("{count} hoops spinning faster and faster…"; one hoop its own words) and
   // the critical-spin fact under it (the page's settings carry `hpCount`)
@@ -138,4 +150,17 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     return { mode: s.mode, hookKey: "chaosFan", factKey: "chaosFanFact", count: typeof pendulums === "number" && Number.isFinite(pendulums) ? pendulums : null };
   }
   return { mode: s.mode, hookKey: "seconds", factKey: "", count: Number.isFinite(s.recordingDuration) ? Math.round(s.recordingDuration) : null };
+}
+
+/**
+ * --- low-findings --- The loop-style words of a Publish clip: the words of the run it was made of (`clip.loopCaption`, taken
+ * when the page offered it), else the page's (`page`, its settings now) when the clip is of the page's mode or of no known
+ * mode (a picked file), else – another mode, its settings unknown – that mode's seconds; a "{count} seconds" hook counts the
+ * clip's own length when it is known, never the page's clip length of the moment.
+ */
+export function clipLoopCaptionContext(clip: { mode: string | null; durationSec: number | null; loopCaption?: LoopCaptionContext | null }, page: LoopCaptionContext): LoopCaptionContext {
+  const own = clip.loopCaption ?? null;
+  const ctx: LoopCaptionContext = own ?? (clip.mode === null || clip.mode === page.mode || !isModeId(clip.mode) ? page : { mode: clip.mode, hookKey: "seconds", factKey: "", count: null });
+  const seconds = clip.durationSec !== null && Number.isFinite(clip.durationSec) && clip.durationSec > 0 ? Math.round(clip.durationSec) : null;
+  return ctx.hookKey === "seconds" && seconds !== null ? { ...ctx, count: seconds } : ctx;
 }

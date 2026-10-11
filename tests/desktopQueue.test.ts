@@ -193,7 +193,8 @@ describe("render journal", () => {
         version: 1,
         running: false,
         jobs: [
-          { id: "x", name: "../../evil", status: "done", seed: -5, resolution: "1x1", fps: 24, codec: "vp8", preset: "nope", settings: { mode: "portal", ballSpeed: 99999 } },
+          // (--- low-findings --- a seed past the engine's signed 32-bit range is damaged; a negative one is a found seed: kept below)
+          { id: "x", name: "../../evil", status: "done", seed: 2 ** 40, resolution: "1x1", fps: 24, codec: "vp8", preset: "nope", settings: { mode: "portal", ballSpeed: 99999 } },
           { id: "x", name: "dup" },
           "garbage",
           { name: "no id" },
@@ -208,6 +209,9 @@ describe("render journal", () => {
     expect(job).toMatchObject({ seed: 1, resolution: "1080x1920", fps: 60, codec: "h264", preset: "native" });
     expect(job.settings.mode).toBe("portal");
     expect(job.settings.ballSpeed).toBe(99999); // --- uncap-all --- the project loader keeps any finite number (no slider maximum)
+    // --- low-findings --- the finder's seeds are signed: a negative one is restored as it was journaled
+    const found = restoreQueue({ format: QUEUE_JOURNAL_FORMAT, version: 1, running: false, jobs: [{ id: "y", name: "found", status: "queued", seed: -5, settings: { mode: "classic" } }] }, 1).state.jobs[0];
+    expect(found.seed).toBe(-5);
   });
 });
 

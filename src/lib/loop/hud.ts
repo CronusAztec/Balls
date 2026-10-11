@@ -1,5 +1,6 @@
 import type { ModeId } from "@/lib/physics/types";
 import { badgeMetrics, badgeZone, exportSquare } from "@/lib/watermark/layout";
+import { hudPluralText } from "./hudPlural"; // --- ellipse-foci --- (a counter's plural forms)
 
 /*
  * --- loop-foundation --- The loop HUD, in the style of the loop clips: a bold lowercase title at about 16 % of the frame's
@@ -11,6 +12,9 @@ import { badgeMetrics, badgeZone, exportSquare } from "@/lib/watermark/layout";
  *
  * The words: the settings' own title and subtitle, else the mode's (`LOOP_HUD_MODE_TEXT`, translated under `LoopHud`; any other
  * mode's title is its name). The counter is the mode's (`loopHudCount()`: Grow's bounces in the current cycle).
+ *
+ * --- colour-sort --- Colour Sort counts its sorted balls ("n / 360 sorted"); while its remix runs there is no count and the
+ * counter's line shows the spec's `alt` words instead ("mixing again").
  */
 
 export const LOOP_HUD_AMBER = "#f2c46a";
@@ -41,6 +45,8 @@ export interface LoopHudSpec {
   subtitle: string;
   counter: string;
   light: boolean;
+  /** --- colour-sort --- The counter's line while the mode has no count (Colour Sort's remix: "mixing again"); absent: no line then. */
+  alt?: string;
   /** --- bead-hoops --- The page's language: the counter's decimals in its style on the live canvas too ("0,13" in Polish). */
   locale?: string;
   /** --- chaos-fan --- The state labels a run's counter line may show instead of a count (`LoopHudState`), by state. */
@@ -53,6 +59,7 @@ export const LOOP_HUD_MODE_TEXT: Readonly<Partial<Record<ModeId, { title: string
   starChords: { title: "starChordsTitle", subtitle: "starChordsSubtitle", counter: "starChordsCounter" }, // --- chord-stars ---
   hoops: { title: "hoopsTitle", subtitle: "hoopsSubtitle", counter: "hoopsCounter", counterOne: "hoopsCounterOne" }, // --- bead-hoops ---
   polyrhythm: { title: "polyrhythmTitle", subtitle: "polyrhythmSubtitle", counter: "polyrhythmCounter" }, // --- phase-spiral --- (the counter: the in-line meter)
+  ellipseFoci: { title: "EllipseFoci.canvasTitle", subtitle: "EllipseFoci.canvasSubtitle", counter: "EllipseFoci.canvasPasses" }, // --- ellipse-foci --- (its own namespace)
 };
 
 // --- chord-stars --- a counter toward a total ("stars closed 3/5") and a subtitle of two lines
@@ -74,6 +81,13 @@ export const HUD_SUBTITLE_LEADING = 1.2;
 /** How far through Chord Stars' fade (0–1) its "stars closed" counter goes back to 0 (`loopHudCount()`). */
 export const STAR_CHORDS_HUD_RESET = 0.5;
 // --- end chord-stars ---
+
+// --- ellipse-foci ---
+/** The full message key of a LOOP_HUD_MODE_TEXT entry: under `LoopHud`, or – a key that names its namespace ("EllipseFoci.canvasTitle") – as it is. */
+export function loopHudMessageKey(key: string): string {
+  return key.includes(".") ? key : `LoopHud.${key}`;
+}
+// --- end ellipse-foci ---
 
 /** The HUD's lines in a `width` × `height` frame (px): centres of the lines, font sizes, the rule and the widest a line may be. */
 export interface LoopHudLayout {
@@ -129,19 +143,28 @@ export function loopHudLayout(width: number, height: number): LoopHudLayout {
 /** Half a HUD line's height, in font sizes (the band a line covers around its centre). */
 export const HUD_LINE_HALF = 0.6;
 
+/** --- low-findings --- The smallest line the live preview draws (px); a margin that cannot hold its band leaves the line out. */
+export const LIVE_HUD_MIN_SIZE = 10;
+
 /**
  * The live canvas' layout: the title in the margin above the ring (below `insetTop`, the page's buttons), the counter in the
  * margin below it; the subtitle only where the margin holds both lines (ruleY / subtitleY are then −1 when it does not).
+ * --- low-findings --- A margin thinner than the smallest line (`LIVE_HUD_MIN_SIZE` px, the em of its letters – a phone's
+ * square canvas has no margin at all above the ring under the page's buttons) leaves that line out of the preview:
+ * titleY (and the subtitle's) or counterY is then −1, and `drawLoopHud()` skips it – the line would sit on the ring. The
+ * recorder lays the export frame out by `loopHudLayout()`, so the clips carry every line.
  */
 export function loopHudLiveLayout(width: number, height: number, centerY: number, ring: number, insetTop = 0): LoopHudLayout {
   const base = loopHudLayout(width, height);
   const top = Math.max(0, centerY - ring - insetTop);
   const bottom = Math.max(0, height - (centerY + ring));
-  const titleSize = Math.max(10, Math.min(base.titleSize, 0.5 * top));
+  const titleSize = Math.max(LIVE_HUD_MIN_SIZE, Math.min(base.titleSize, 0.5 * top));
   const subtitleSize = Math.max(8, Math.min(base.subtitleSize, 0.5 * titleSize));
-  const counterSize = Math.max(10, Math.min(base.counterSize, 0.5 * bottom));
-  const roomForSubtitle = top >= 2.2 * titleSize + 2 * subtitleSize;
-  const titleY = insetTop + (roomForSubtitle ? 0.15 * top + 0.5 * titleSize : top / 2);
+  const counterSize = Math.max(LIVE_HUD_MIN_SIZE, Math.min(base.counterSize, 0.5 * bottom));
+  const titleFits = top >= LIVE_HUD_MIN_SIZE;
+  const counterFits = bottom >= LIVE_HUD_MIN_SIZE;
+  const roomForSubtitle = titleFits && top >= 2.2 * titleSize + 2 * subtitleSize;
+  const titleY = !titleFits ? -1 : insetTop + (roomForSubtitle ? 0.15 * top + 0.5 * titleSize : top / 2);
   const ruleY = roomForSubtitle ? titleY + 0.66 * titleSize : -1;
   return {
     ...base,
@@ -151,7 +174,7 @@ export function loopHudLiveLayout(width: number, height: number, centerY: number
     ruleWidth: Math.min(0.42 * width, 5 * titleSize),
     subtitleY: roomForSubtitle ? ruleY + 0.95 * subtitleSize : -1,
     subtitleSize,
-    counterY: centerY + ring + bottom / 2,
+    counterY: counterFits ? centerY + ring + bottom / 2 : -1,
     counterSize,
   };
 }
@@ -159,7 +182,9 @@ export function loopHudLiveLayout(width: number, height: number, centerY: number
 /** The rectangles (px) the HUD's lines may cover in a frame, for a line `textWidth` px wide at most (the watermark's tests). */
 export function loopHudRects(layout: LoopHudLayout, width: number, subtitle: boolean, subtitleLineCount = 1 /* --- chord-stars --- */): { x: number; y: number; width: number; height: number }[] {
   const line = (y: number, size: number) => ({ x: (width - layout.maxWidth) / 2, y: y - HUD_LINE_HALF * size, width: layout.maxWidth, height: 2 * HUD_LINE_HALF * size });
-  const out = [line(layout.titleY, layout.titleSize), line(layout.counterY, layout.counterSize)];
+  const out: { x: number; y: number; width: number; height: number }[] = [];
+  if (layout.titleY >= 0) out.push(line(layout.titleY, layout.titleSize)); // --- low-findings --- (a line the live preview left out covers nothing)
+  if (layout.counterY >= 0) out.push(line(layout.counterY, layout.counterSize));
   if (subtitle && layout.subtitleY >= 0) for (let i = 0; i < Math.max(1, subtitleLineCount); i++) out.push(line(layout.subtitleY + i * HUD_SUBTITLE_LEADING * layout.subtitleSize, layout.subtitleSize));
   return out;
 }
@@ -178,9 +203,9 @@ export interface LoopHudBands {
 export function loopHudBands(layout: LoopHudLayout, frame: LoopHudFrame, out: LoopHudBands = { top: -Infinity, bottom: Infinity }): LoopHudBands {
   out.top = -Infinity;
   out.bottom = Infinity;
-  if (frame.title) out.top = layout.titleY + HUD_LINE_HALF * layout.titleSize;
+  if (frame.title && layout.titleY >= 0) out.top = layout.titleY + HUD_LINE_HALF * layout.titleSize; // --- low-findings --- (left out: no band)
   if (frame.subtitle && layout.subtitleY >= 0) out.top = Math.max(out.top, layout.subtitleY + (subtitleLines(frame.subtitle).length - 1) * HUD_SUBTITLE_LEADING * layout.subtitleSize + HUD_LINE_HALF * layout.subtitleSize); // --- chord-stars --- (a second line lower)
-  if (frame.counter) out.bottom = layout.counterY - HUD_LINE_HALF * layout.counterSize;
+  if (frame.counter && layout.counterY >= 0) out.bottom = layout.counterY - HUD_LINE_HALF * layout.counterSize;
   return out;
 }
 
@@ -214,7 +239,7 @@ export function hudText(text: string | undefined | null, locale?: string): strin
 export function hudCounterText(template: string, count: number | LoopHudCount | null, locale?: string, values?: Readonly<Record<string, number>>): string {
   const value = typeof count === "number" || count === null ? count : count.count;
   if (!template || value === null || !Number.isFinite(value)) return "";
-  let text = template.replace("{count}", String(Math.round(value)));
+  let text = hudPluralText(template, Math.round(value), locale).replace("{count}", String(Math.round(value))); // (--- ellipse-foci --- the count's plural form first: "1 pass", "3 passes")
   if (count !== null && typeof count === "object" && Number.isFinite(count.total)) text = text.replace("{total}", String(Math.round(count.total))); // --- chord-stars ---
   if (values) for (const key in values) text = text.replace(`{${key}}`, hudNumber(values[key], locale)); // --- bead-hoops ---
   return hudText(text, locale);
@@ -269,7 +294,8 @@ const POLY_METER_COUNTER: LoopHudBarCount = { count: 0, total: 100, bar: 0 };
 
 /** The counter of the mode's run (Grow: the bounces of the current cycle; --- chord-stars --- Chord Stars: the stars closed of all;
  * --- bead-hoops --- Spinning Hoops: the beads up, with the spin and the hoop count; --- phase-spiral --- Metronomes & Polyrhythms
- * with its meter on: "in line N%" over a bar), or null when the mode has none. */
+ * with its meter on: "in line N%" over a bar; --- ellipse-foci --- Focus Shot: the passes of the current loop, with its counter
+ * on; --- chaos-fan --- the Double Pendulum's chaos fan: its state, forwards or backwards), or null when the mode has none. */
 export function loopHudCount(engine: {
   getCurrentModeName(): string;
   getGrowView(): { bounces: number };
@@ -277,6 +303,8 @@ export function loopHudCount(engine: {
   getHoopsView?(): { upCount: number; count: number; omega: number }; // --- bead-hoops ---
   getDoublePendulumView?(): { fan: { running: string } | null }; // --- chaos-fan ---
   getPolyrhythmView?(): { inLine: number; settings: { alignMeter: boolean } }; // --- phase-spiral ---
+  getEllipseFociHudCount?(): number | null; // --- ellipse-foci ---
+  getColourSortView?(): { sorted: number; phase: string }; // --- colour-sort ---
 }): number | LoopHudCount | LoopHudCounter | LoopHudState | null {
   // --- chaos-fan --- the Double Pendulum's chaos fan: running forwards, or its tape backwards
   if (engine.getCurrentModeName() === "doublePendulum" && engine.getDoublePendulumView) {
@@ -309,6 +337,13 @@ export function loopHudCount(engine: {
     HOOPS_COUNTER.values.total = view.count;
     return HOOPS_COUNTER;
   }
+  if (engine.getCurrentModeName() === "ellipseFoci") return engine.getEllipseFociHudCount?.() ?? null; // --- ellipse-foci --- (the pass counter, when it is on)
+  // --- colour-sort --- the balls in their own bands; none while the remix runs (the counter's line then says the spec's `alt`)
+  if (engine.getCurrentModeName() === "colourSort" && engine.getColourSortView) {
+    const view = engine.getColourSortView();
+    return view.phase === "remix" ? null : view.sorted;
+  }
+  // --- end colour-sort ---
   return engine.getCurrentModeName() === "grow" ? engine.getGrowView().bounces : null;
 }
 
@@ -318,7 +353,7 @@ export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | L
   if (count !== null && typeof count === "object" && "state" in count) return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudText(spec.states?.[count.state] ?? "", locale ?? spec.locale), light: spec.light, counterGrey: true };
   const counter = count !== null && typeof count === "object" && "values" in count ? count : null; // --- bead-hoops --- (a counter with values)
   const value = counter ? counter.count : (count as number | LoopHudCount | null);
-  const frame: LoopHudFrame = { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values), light: spec.light };
+  const frame: LoopHudFrame = { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: count === null && spec.alt ? hudText(spec.alt, locale ?? spec.locale) /* --- colour-sort --- */ : hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values), light: spec.light };
   const bar = count !== null && typeof count === "object" && "bar" in count ? (count as LoopHudBarCount).bar : NaN; // --- phase-spiral --- (the meter's bar)
   if (frame.counter && Number.isFinite(bar)) frame.bar = bar;
   return frame;
@@ -342,7 +377,8 @@ export function drawLoopHud(ctx: CanvasRenderingContext2D, width: number, frame:
   ctx.shadowColor = "transparent";
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
-  if (frame.title) {
+  if (frame.title && layout.titleY >= 0) {
+    // --- low-findings --- (−1: the live preview's margin has no room for it)
     ctx.fillStyle = frame.light ? LOOP_HUD_TITLE_DARK : "#ffffff";
     fitLine(ctx, frame.title, cx, layout.titleY, layout.titleSize, "800", layout.maxWidth);
   }
@@ -359,7 +395,7 @@ export function drawLoopHud(ctx: CanvasRenderingContext2D, width: number, frame:
     const lines = subtitleLines(frame.subtitle);
     lines.forEach((line, i) => fitLine(ctx, line, cx, layout.subtitleY + i * HUD_SUBTITLE_LEADING * layout.subtitleSize, layout.subtitleSize, "500", layout.maxWidth));
   }
-  if (frame.counter) {
+  if (frame.counter && layout.counterY >= 0) {
     ctx.fillStyle = frame.light ? LOOP_HUD_GREY_LIGHT : frame.counterGrey ? LOOP_HUD_GREY /* --- chaos-fan --- (a state label) */ : LOOP_HUD_AMBER;
     fitLine(ctx, frame.counter, cx, layout.counterY, layout.counterSize, "700", layout.maxWidth);
     // --- phase-spiral --- a thin bar under the counter, filled to its share (inside the counter line's band)

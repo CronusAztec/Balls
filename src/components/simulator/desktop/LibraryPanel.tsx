@@ -20,6 +20,9 @@ const noTargets: PublishTarget[] = [];
 export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: { bridge: DesktopApi; items: LibraryItem[]; onRefresh: () => void; onRerender: (item: LibraryItem) => void }) {
   const t = useTranslations("Desktop");
   const [status, setStatus] = useState<string | null>(null);
+  // --- low-findings --- a publish under way (its outcome replaces the status) and how many have finished (a tool waits for the next)
+  const [publishing, setPublishing] = useState(false);
+  const [publishes, setPublishes] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
   const targets = useSyncExternalStore(onPublishTargetsChange, publishTargets, () => noTargets);
   useEffect(onRefresh, [onRefresh]);
@@ -30,12 +33,16 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
   };
   const publish = async (target: PublishTarget, item: LibraryItem) => {
     setStatus(t("libPublishing", { target: target.label }));
+    setPublishing(true);
     try {
       const file = pickedToFile(await bridge.library.read(item.id));
       const result = await target.publish({ item, file, title: item.meta.title, caption: item.meta.caption ?? "", hashtags: item.meta.hashtags });
       setStatus(result && result.message ? result.message : result && result.url ? t("libPublishedAt", { url: result.url }) : t("libPublished", { target: target.label }));
     } catch (err) {
       setStatus(errorText(err));
+    } finally {
+      setPublishing(false);
+      setPublishes((n) => n + 1);
     }
   };
 
@@ -54,7 +61,12 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
         </>
       }
     >
-      {status && <p className="text-xs text-ink-2">{status}</p>}
+      {/* --- low-findings --- the status line says whether a publish is under way and how many have finished, so a tool waits for an outcome */}
+      {status && (
+        <p className="text-xs text-ink-2" data-testid="desktop-library-status" data-library-publishing={publishing ? "1" : "0"} data-library-publishes={publishes} role="status">
+          {status}
+        </p>
+      )}
       {items.length === 0 ? (
         <p className="text-xs text-ink-3 py-6 text-center">{t("libEmpty")}</p>
       ) : (

@@ -519,6 +519,7 @@ describe("uncap-all review fixes: only the settings a run's engine reads engage 
   NOT_ENGINE.add("growMarkerLife"); // --- loop-foundation --- Grow's contact markers are the picture's (the canvas draws them)
   NOT_ENGINE.add("scLineWidth"); // --- chord-stars --- the chords' width is the picture's (the canvas draws them)
   NOT_ENGINE.add("prTrail"); // --- phase-spiral --- Metronomes & Polyrhythms' comet tails are the picture's (the canvas draws them)
+  NOT_ENGINE.add("efTrail"); // --- ellipse-foci --- Focus Shot's comet trails are the picture's (the canvas cuts them from the corners)
 
   it("classifies every setting: read by some mode's engine, or the clip's, the text's, the sound's or the picture's", () => {
     const read = new Set<string>();
@@ -831,6 +832,14 @@ describe("uncap-all: the guard", () => {
     lcEvery: "a spawn period in blocks (the balls a run holds stop at LC_BALL_CEILING: ARENA FULL)", // --- land-claim ---
     sbRate: "strings a ball anchors a second (its live strings stop at SC_STRING_CEILING, and a step anchors at most that many)", // --- string-circle ---
     sbCut: "strings cut per life", // --- string-circle ---
+    // --- ellipse-foci --- (the volley's balls are efCount's: ceiled)
+    efSize: "a size in % of the safe radius",
+    efPasses: "transits of a loop (the view logs at most EF_LOG_CAP of a run's)",
+    efSpread: "degrees",
+    // --- colour-sort --- a gate's width and the rings' spin are angles, the time limit a length of time
+    csGateWidth: "degrees",
+    csSpin: "degrees a second",
+    csLimit: "seconds",
   };
 
   it("gives every whole-number setting that sizes an allocation a memory-safety ceiling", () => {

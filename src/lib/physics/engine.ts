@@ -66,10 +66,13 @@ import { RespawnTimer } from "./respawn";
 import { OrbGridMode, type OrbGridSettings, type OrbGridView } from "./modes/orbGrid"; // --- orb-grid --- Bouncing Orbs
 import { FightLeagueMode, type FightLeagueSettings, type FightLeagueView } from "./modes/fightLeague"; // --- fight-league ---
 import { LandClaimMode, type LandClaimSettings, type LandClaimView } from "./modes/landClaim"; // --- land-claim ---
+import { ColourSortMode, type ColourSortSettings, type ColourSortView } from "./modes/colourSort"; // --- colour-sort ---
 import { HoopsMode, type HoopsSettings, type HoopsView } from "./modes/hoops"; // --- bead-hoops --- Spinning Hoops
 import type { GrowFillSettings, GrowView } from "./modes/grow"; // --- loop-foundation ---
 import { StarChordsMode, type StarChordsView } from "./modes/starChords"; // --- chord-stars ---
 import type { StarChordsSettings } from "./starChords"; // --- chord-stars ---
+import { EllipseFociMode, type EllipseFociView } from "./modes/ellipseFoci"; // --- ellipse-foci ---
+import type { EllipseFociSettings } from "./ellipseFoci"; // --- ellipse-foci ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -313,10 +316,14 @@ export class PhysicsEngine {
   readonly fightLeagueMode = new FightLeagueMode();
   // --- land-claim --- Land Claim: balls knock the top blocks off the columns lining the arena
   readonly landClaimMode = new LandClaimMode();
+  // --- colour-sort --- Colour Sort: balls sorted into a bullseye by one-way colour gates on rotating rings, then mixed again
+  readonly colourSortMode = new ColourSortMode();
   // --- chord-stars --- Chord Stars: balls in a circle drawing star polygons that all close at the same moment
   readonly starChordsMode = new StarChordsMode();
   // --- bead-hoops --- Spinning Hoops: beads on spinning hoops climb as the spin passes each hoop's critical speed
   readonly hoopsMode = new HoopsMode();
+  // --- ellipse-foci --- Focus Shot: a volley fired from one focus of an elliptical pool converges on the other every transit
+  readonly ellipseFociMode = new EllipseFociMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -710,6 +717,10 @@ export class PhysicsEngine {
   initLandClaim() {
     this.activateMode(this.landClaimMode, "none");
   }
+  // --- colour-sort --- the mode owns its rings (its own gated rings and outer wall, no engine rings)
+  initColourSort() {
+    this.activateMode(this.colourSortMode, "none");
+  }
   // --- chord-stars --- the mode owns its circle (no rings; its balls pinned to the clock)
   initStarChords() {
     this.activateMode(this.starChordsMode, "none");
@@ -717,6 +728,10 @@ export class PhysicsEngine {
   // --- bead-hoops --- the mode owns its hoops (no rings; one engine ball a bead, placed by the mode)
   initHoops() {
     this.activateMode(this.hoopsMode, "none");
+  }
+  // --- ellipse-foci --- the mode owns its pool (no rings; its balls pinned to the clock)
+  initEllipseFoci() {
+    this.activateMode(this.ellipseFociMode, "none");
   }
 
   /** Convenience: (re)start the simulation for a mode id. */
@@ -815,12 +830,18 @@ export class PhysicsEngine {
       // --- land-claim ---
       case "landClaim":
         return this.initLandClaim();
+      // --- colour-sort ---
+      case "colourSort":
+        return this.initColourSort();
       // --- chord-stars ---
       case "starChords":
         return this.initStarChords();
       // --- bead-hoops ---
       case "hoops":
         return this.initHoops();
+      // --- ellipse-foci ---
+      case "ellipseFoci":
+        return this.initEllipseFoci();
     }
   }
 
@@ -1845,6 +1866,22 @@ export class PhysicsEngine {
     return this.landClaimMode.getProgress();
   }
   // --- end land-claim ---
+  // --- colour-sort ---
+  isColourSortMode() {
+    return this.currentMode === this.colourSortMode;
+  }
+  getColourSortSettings(): ColourSortSettings {
+    return this.colourSortMode.getSettings();
+  }
+  /** Colours, balls, gates, spin, speed, size, contacts, remix, rule and time limit of Colour Sort apply on the next `initColourSort()`; the refusal flashes at once. */
+  setColourSortSettings(settings: Partial<ColourSortSettings>) {
+    this.colourSortMode.setSettings(settings);
+  }
+  /** Live Colour Sort state (the rings, the bands, the census, the phase, the cycle) for the canvas, the HUD and the finder; the same object every call. */
+  getColourSortView(): ColourSortView {
+    return this.colourSortMode.getView();
+  }
+  // --- end colour-sort ---
   // --- chord-stars ---
   isStarChordsMode() {
     return this.currentMode === this.starChordsMode;
@@ -1880,6 +1917,33 @@ export class PhysicsEngine {
     return this.hoopsMode.getView();
   }
   // --- end bead-hoops ---
+  // --- ellipse-foci ---
+  isEllipseFociMode() {
+    return this.currentMode === this.ellipseFociMode;
+  }
+  getEllipseFociSettings(): EllipseFociSettings {
+    return this.ellipseFociMode.getSettings();
+  }
+  /** The volley, the geometry and the timing apply on the next `initEllipseFoci()`; the look (skin, trail, paths) and the bed at once. */
+  setEllipseFociSettings(settings: Partial<EllipseFociSettings>) {
+    this.ellipseFociMode.setSettings(settings);
+  }
+  /** Live Focus Shot state (the pool, the balls and their corners, the convergences, the spreads) for the canvas; the same object every call. */
+  getEllipseFociView(): EllipseFociView {
+    return this.ellipseFociMode.getView();
+  }
+  getEllipseFociProgress() {
+    return this.ellipseFociMode.getProgress();
+  }
+  /** The page resumed a paused Focus Shot run: the groove bed's chord is sent again with the next step. */
+  refreshEllipseFociBed() {
+    this.ellipseFociMode.refreshBed();
+  }
+  /** The loop HUD's counter in Focus Shot: the passes done in the current loop (null in another mode or with the counter off). */
+  getEllipseFociHudCount(): number | null {
+    return this.currentMode === this.ellipseFociMode ? this.ellipseFociMode.hudCount() : null;
+  }
+  // --- end ellipse-foci ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;
@@ -2223,6 +2287,7 @@ export class PhysicsEngine {
     // --- teams --- the other starting balls (and their offspring) keep the colour of their slot
     if (patch.ballColor !== undefined) for (const b of this.balls) if (!b.team) b.color = patch.ballColor;
     if (patch.ballColor2 !== undefined) for (const b of this.balls) if (b.team === 1) b.color = patch.ballColor2;
+    if (patch.ballColor !== undefined) this.currentMode?.onBallColorChange?.(this.ctx); // --- colour-sort --- (a mode that colours its balls itself paints them back)
     // Balls with a size spread (Ball Drop) keep their ratio to the configured radius; the others take it as is.
     if (patch.ballRadius !== undefined) for (const b of this.balls) b.radius = patch.ballRadius * (b.radiusScale ?? 1);
     const sizeChanged =

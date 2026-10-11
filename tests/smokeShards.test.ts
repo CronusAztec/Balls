@@ -214,6 +214,16 @@ describe("the split of the real suite with the checked-in baseline", () => {
     // the deploy waits for the verdict on all the shards
     expect(fs.readFileSync(path.join(ROOT, ".github/workflows/deploy.yml"), "utf8")).toContain("needs: [build, smoke, smoke-summary]");
   });
+
+  it("--- low-findings --- `--list` prints the list on stdout and nothing else, the per-shard loads on stderr (no browser starts)", () => {
+    const r = spawnSync(process.execPath, [path.join(ROOT, SUITE_FILE), "--list"], { cwd: ROOT, encoding: "utf8", env: { ...process.env, SMOKE_SHARD: "", SMOKE_ONLY: "" }, timeout: 60_000 });
+    expect(r.status).toBe(0);
+    expect(r.stdout.trimEnd().split("\n")).toEqual(formatList(TITLES, BASELINE));
+    const loads = formatLoads(TITLES, BASELINE);
+    expect(r.stderr.trimEnd().split("\n")).toEqual(loads);
+    expect(loads).toHaveLength(DEFAULT_SHARDS + 1);
+    expect(loads[0]).toMatch(new RegExp(`^shard 1/${DEFAULT_SHARDS}: \\d+ blocks, \\d+\\.\\d s$`));
+  });
 });
 
 describe("the partition helpers", () => {

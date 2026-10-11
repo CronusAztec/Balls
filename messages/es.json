@@ -184,9 +184,18 @@
     "canvasPolyrhythmInLine": "en línea [count] %"
   },
   "HowItWorks": {
-    "step1": { "title": "Elige un modo", "description": "Elige uno de los {count} modos: anillos de escape, máquinas de ritmo, duelos y viajes." },
-    "step2": { "title": "Personaliza todo", "description": "Ajusta la física, los colores, los efectos, los textos y el aspecto de la pelota hasta que el clip se sienta tuyo." },
-    "step3": { "title": "Exporta y comparte", "description": "Graba la simulación como MP4 en cualquier resolución, incluido el formato vertical de TikTok, y publícala donde quieras." }
+    "step1": {
+      "title": "Elige un modo",
+      "description": "Elige uno de los {count} modos: anillos de escape, máquinas de ritmo, duelos y viajes."
+    },
+    "step2": {
+      "title": "Personaliza todo",
+      "description": "Ajusta la física, los colores, los efectos, los textos y el aspecto de la pelota hasta que el clip se sienta tuyo."
+    },
+    "step3": {
+      "title": "Exporta y comparte",
+      "description": "Graba la simulación como MP4 en cualquier resolución, incluido el formato vertical de TikTok, y publícala donde quieras."
+    }
   },
   "Controls": {
     "modeDisplay": "Cambiar modo",
@@ -2089,21 +2098,112 @@
     "prPalette": "Colores",
     "prPaletteTip": "Arcoíris alrededor del círculo cromático, o el aspecto en espiral: azul y cian dentro, pasando por verde y amarillo hasta naranja y rojo fuera, sobre un disco oscuro.",
     "prPaletteRainbow": "Arcoíris",
-    "prPaletteSpiral": "Espiral"
+    "prPaletteSpiral": "Espiral",
+    "modeColourSort": "Clasificar colores",
+    "modeEllipseFoci": "Tiro al foco",
+    "efDesc": "Una mesa elíptica y una ráfaga de bolas disparada a la vez desde un foco: cada tiro rebota en la pared y pasa justo por el otro foco, y todos esos caminos miden lo mismo, así que la ráfaga entera llega allí a la vez – en cada pasada, a ritmo.",
+    "efPreset": "Ajustes de Tiro al foco",
+    "efPresetTip": "Puntos de partida: la galería de los susurros del clip, un tiro de billar con su trayectoria, una ráfaga de mil bolas, el círculo de control y un abanico de 90°. Un ajuste fija los ajustes del modo y su aspecto.",
+    "efPresetGallery": "Galería de los susurros",
+    "efPresetBilliard": "Tiro de billar al foco",
+    "efPresetThousand": "Ráfaga de mil bolas",
+    "efPresetCircle": "Círculo de control",
+    "efPresetFan": "Abanico de 90°",
+    "efCount": "Bolas",
+    "efCountTip": "Bolas disparadas a la vez desde el foco de salida, repartidas por igual en el ángulo de apertura. Se puede escribir cualquier número entero; una partida crea como mucho el límite de bolas del motor.",
+    "efEccentricity": "Excentricidad",
+    "efEccentricityTip": "Cuánto se alarga la mesa: 0 es un círculo (los dos focos en el centro, todas las bolas vuelven allí), 0,99 una mesa larga y estrecha. El clip usa 0,65.",
+    "efFlatNote": "Una excentricidad de 1 o más no tiene interior: la partida usa {max}.",
+    "efSize": "Tamaño de la mesa",
+    "efSizeTip": "El semieje mayor de la mesa como parte del radio seguro (100 % llena el cuadrado centrado de la grabación como la arena de los modos de anillos).",
+    "efTransit": "Tiempo de pasada",
+    "efTransitTip": "Segundos que tarda una bola de un foco a la pared y de ahí al otro foco. Todos los caminos miden 2a, así que la velocidad es 2a / T y cada ráfaga converge exactamente T después. Ajústalo a compases enteros de un tempo (T = compases × 4 × 60 / BPM) y las convergencias caerán a ritmo.",
+    "efPasses": "Pasadas por bucle",
+    "efPassesTip": "Pasadas de un bucle: con Redisparar, una ráfaga nueva sale del foco de salida cada tantas pasadas y el clip se repite sin costuras (duración del bucle = pasadas × T).",
+    "efLoopNote": "Una convergencia cada {transit} s (la base a {bpm} BPM: dos compases por pasada) – el bucle dura {loop} s.",
+    "efLoopNoteCollapse": "Una convergencia cada {transit} s (la base a {bpm} BPM) – sin bucle: el enjambre se sigue cerrando sobre el eje mayor.",
+    "efSpread": "Ángulo de apertura",
+    "efSpreadTip": "La apertura de la ráfaga: 360° dispara en todas direcciones; menos, un abanico centrado en el otro foco.",
+    "efAim": "Ángulo inicial",
+    "efAimTip": "Gira toda la ráfaga (0° dispara una bola directa al otro foco y mantiene la ráfaga simétrica). El colapso más largo de Buscar simulación busca este ángulo.",
+    "efLaunch": "Foco de salida",
+    "efLaunchTip": "El foco desde el que sale la ráfaga: el de arriba o el de abajo (izquierda o derecha con la mesa tumbada).",
+    "efLaunchTop": "Arriba",
+    "efLaunchBottom": "Abajo",
+    "efLaunchLeft": "Izquierda",
+    "efLaunchRight": "Derecha",
+    "efOrientation": "Orientación",
+    "efOrientationTip": "El eje mayor de la mesa: de pie (vertical, como en el clip) o tumbada (horizontal).",
+    "efOrientationVertical": "Vertical",
+    "efOrientationHorizontal": "Horizontal",
+    "efReset": "En cada convergencia",
+    "efResetTip": "Qué pasa cuando el enjambre converge: una ráfaga nueva desde el foco de salida cada tantas pasadas como tenga el bucle (el bucle sin costuras), dejar que se siga cerrando o una ráfaga nueva en cada pasada.",
+    "efResetRefire": "Redisparar",
+    "efResetCollapse": "Colapso",
+    "efResetEvery": "Cada pasada",
+    "efResetRefireHint": "Una ráfaga nueva sale del foco de salida en cada bucle, bajo el destello de la convergencia: el bucle no tiene costuras.",
+    "efResetCollapseHint": "Una sola ráfaga para toda la partida: cada pasada la estrecha hasta que se desliza por el eje mayor como un cometa apretado.",
+    "efResetEveryHint": "Una ráfaga nueva en cada convergencia, desde el foco donde cayó el enjambre: el arco nunca se cierra.",
+    "efSkin": "Aspecto de la mesa",
+    "efSkinTip": "El aspecto de la mesa: una mesa de billar (banda de madera, riel de cobre, paño verde), un contorno de neón en el Color de las paredes o una línea fina.",
+    "efSkinTable": "Mesa",
+    "efSkinNeon": "Neón",
+    "efSkinMinimal": "Mínimo",
+    "efTrail": "Largo de la estela",
+    "efTrailTip": "Segundos de vuelo que muestra la estela de cometa de cada bola, que se afina y se desvanece (0 = sin estelas).",
+    "efPaths": "Trayectorias",
+    "efPathsTip": "Dibuja tenues sobre el paño las cuerdas de cada bola desde su ráfaga (dentro del límite de trazos del modo Líneas: una ráfaga grande muestra sus rebotes más recientes).",
+    "efBed": "Base rítmica",
+    "efBedTip": "Un pad suave, un sub y un bombo en cada pulso a 8 · 60 / T BPM bajo los punteos, cambiando de acorde en cada pasada: una convergencia siempre cae en una línea de compás.",
+    "efCounter": "Contador de pasadas",
+    "efCounterTip": "Muestra las pasadas del bucle actual bajo la mesa en el HUD de bucle («3 pasadas»; el clip no lo tiene). Activarlo activa el HUD de bucle."
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
-    "classic": { "name": "Clásico", "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez. Las salidas también pueden saltar, huir o encogerse (Comportamiento de la salida), y cada golpe puede dejar una mancha de pintura sólida (Barrera de manchas)." },
-    "accumulation": { "name": "Acumulación", "description": "La pelota tiene unos segundos para escapar antes de congelarse donde está. Cada pelota congelada se convierte en un obstáculo para la siguiente. ¿Logrará salir la última? Las salidas también pueden saltar, huir o encogerse (Comportamiento de la salida), y cada golpe puede dejar una mancha de pintura sólida (Barrera de manchas)." },
-    "multiply": { "name": "Multiplicar", "description": "Cada vez que una pelota escapa del anillo genera pelotas nuevas. La arena se llena de caos en segundos, ideal para clips explosivos que se comparten solos. Las salidas también pueden saltar, huir o encogerse (Comportamiento de la salida), y cada golpe puede dejar una mancha de pintura sólida (Barrera de manchas)." },
-    "lines": { "name": "Líneas", "description": "Cada punto de rebote se conecta con la pelota mediante una línea, así que la simulación va dibujando un intrincado arte de hilos mientras la pelota rebota por el círculo. Con la Barrera de manchas, cada golpe contra la pared deja una mancha de pintura sólida." },
-    "paint": { "name": "Pintar", "description": "La pelota pinta un rastro arcoíris por donde pasa, coloreando poco a poco todo el círculo mientras un contador de porcentaje registra la cobertura. Con la Barrera de manchas, cada golpe contra la pared deja una mancha de pintura sólida." },
-    "target": { "name": "Objetivo", "description": "Segmentos numerados recubren la pared y deben golpearse en orden. Cada acierto dispara un efecto de ruptura; los fallos parpadean en rojo. Con la Barrera de manchas, cada golpe contra la pared deja una mancha de pintura sólida." },
-    "grow": { "name": "Crecer", "description": "La pelota está encerrada en un gran anillo y crece un poco con cada rebote, llenando cada vez más espacio hasta que no le queda dónde ir. Con la Barrera de manchas, cada rebote deja una mancha de pintura en el anillo." },
-    "shatter": { "name": "Fragmentación", "description": "Cada pared está hecha de segmentos con puntos de vida. Cada rebote agrieta un segmento y con suficientes golpes se rompe. Abre un camino a través de todas las paredes para escapar." },
-    "colorMatch": { "name": "Coincidir color", "description": "La pared está dividida en segmentos de colores y la pelota cambia de color en cada rebote. Un segmento solo se rompe cuando los colores coinciden. Elimínalos todos para escapar." },
-    "portal": { "name": "Portal", "description": "Pares de portales del mismo color se sitúan en la pared. Toca uno y la pelota se teletransporta a su gemelo. Tras varios usos los portales se agotan y se convierten en salidas. Con la Barrera de manchas, cada golpe contra la pared deja una mancha de pintura sólida." },
-    "drop": { "name": "Caída de pelotas", "description": "Pelotas de distintos tamaños y pesos caen a través de filas de clavijas y barras, y cada golpe toca una nota cuyo tono depende del tamaño de la pelota. Las distintas gravedades se desincronizan y la simulación escribe su propia polirritmia." },
+    "classic": {
+      "name": "Clásico",
+      "description": "Una pelota rebota dentro de anillos concéntricos, cada uno con un solo hueco. Cada pared que atraviesa se rompe con un efecto satisfactorio. Simple, hipnótico y para ver una y otra vez. Las salidas también pueden saltar, huir o encogerse (Comportamiento de la salida), y cada golpe puede dejar una mancha de pintura sólida (Barrera de manchas)."
+    },
+    "accumulation": {
+      "name": "Acumulación",
+      "description": "La pelota tiene unos segundos para escapar antes de congelarse donde está. Cada pelota congelada se convierte en un obstáculo para la siguiente. ¿Logrará salir la última? Las salidas también pueden saltar, huir o encogerse (Comportamiento de la salida), y cada golpe puede dejar una mancha de pintura sólida (Barrera de manchas)."
+    },
+    "multiply": {
+      "name": "Multiplicar",
+      "description": "Cada vez que una pelota escapa del anillo genera pelotas nuevas. La arena se llena de caos en segundos, ideal para clips explosivos que se comparten solos. Las salidas también pueden saltar, huir o encogerse (Comportamiento de la salida), y cada golpe puede dejar una mancha de pintura sólida (Barrera de manchas)."
+    },
+    "lines": {
+      "name": "Líneas",
+      "description": "Cada punto de rebote se conecta con la pelota mediante una línea, así que la simulación va dibujando un intrincado arte de hilos mientras la pelota rebota por el círculo. Con la Barrera de manchas, cada golpe contra la pared deja una mancha de pintura sólida."
+    },
+    "paint": {
+      "name": "Pintar",
+      "description": "La pelota pinta un rastro arcoíris por donde pasa, coloreando poco a poco todo el círculo mientras un contador de porcentaje registra la cobertura. Con la Barrera de manchas, cada golpe contra la pared deja una mancha de pintura sólida."
+    },
+    "target": {
+      "name": "Objetivo",
+      "description": "Segmentos numerados recubren la pared y deben golpearse en orden. Cada acierto dispara un efecto de ruptura; los fallos parpadean en rojo. Con la Barrera de manchas, cada golpe contra la pared deja una mancha de pintura sólida."
+    },
+    "grow": {
+      "name": "Crecer",
+      "description": "La pelota está encerrada en un gran anillo y crece un poco con cada rebote, llenando cada vez más espacio hasta que no le queda dónde ir. Con la Barrera de manchas, cada rebote deja una mancha de pintura en el anillo."
+    },
+    "shatter": {
+      "name": "Fragmentación",
+      "description": "Cada pared está hecha de segmentos con puntos de vida. Cada rebote agrieta un segmento y con suficientes golpes se rompe. Abre un camino a través de todas las paredes para escapar."
+    },
+    "colorMatch": {
+      "name": "Coincidir color",
+      "description": "La pared está dividida en segmentos de colores y la pelota cambia de color en cada rebote. Un segmento solo se rompe cuando los colores coinciden. Elimínalos todos para escapar."
+    },
+    "portal": {
+      "name": "Portal",
+      "description": "Pares de portales del mismo color se sitúan en la pared. Toca uno y la pelota se teletransporta a su gemelo. Tras varios usos los portales se agotan y se convierten en salidas. Con la Barrera de manchas, cada golpe contra la pared deja una mancha de pintura sólida."
+    },
+    "drop": {
+      "name": "Caída de pelotas",
+      "description": "Pelotas de distintos tamaños y pesos caen a través de filas de clavijas y barras, y cada golpe toca una nota cuyo tono depende del tamaño de la pelota. Las distintas gravedades se desincronizan y la simulación escribe su propia polirritmia."
+    },
     "box": {
       "name": "Formas que rebotan",
       "description": "Cuadrados, círculos o logos estilo DVD se deslizan por una caja a velocidad constante y cada golpe contra una pared toca la siguiente nota. Números grandes hacen cuenta atrás con cada rebote, los logos a velocidades en proporción 2:3 o 3:4:5 tejen polirritmias y un golpe en la esquina es el acento que todos esperan."
@@ -2188,12 +2288,18 @@
       "name": "Escape del laberinto",
       "description": "¿A alguien más le pareció sangre? Las bolas caen por una ranura roja en un laberinto aleatorio que brilla en verde y rebotan hasta la salida, pintando de rojo cada pasillo por el que pasan. Cada golpe en una pared es una nota que sube a medida que la bola se acerca a la salida; gana la primera bola que sale."
     },
-    "conveyor": { "name": "Cinta transportadora", "description": "Gerald reaparece cada 3 segundos: una cinta transportadora en lo alto saca pelota tras pelota de una trampilla y las deja caer en la arena de abajo: anillos concéntricos de los que escapar, un cuenco que se va llenando o un campo de clavos sobre casillas. Cada rebote es una nota, la cinta zumba y hace clic, y un contador lleva la cuenta: Cargadas 17 / Escapadas 4." },
+    "conveyor": {
+      "name": "Cinta transportadora",
+      "description": "Gerald reaparece cada 3 segundos: una cinta transportadora en lo alto saca pelota tras pelota de una trampilla y las deja caer en la arena de abajo: anillos concéntricos de los que escapar, un cuenco que se va llenando o un campo de clavos sobre casillas. Cada rebote es una nota, la cinta zumba y hace clic, y un contador lleva la cuenta: Cargadas 17 / Escapadas 4."
+    },
     "orbGrid": {
       "name": "Esferas saltarinas",
       "description": "Miles de esferas brillantes sobre una losa, cada una rebotando arriba y abajo en su propio sitio sin parar: 1089, 1936 o 4900. Sus tempos varían suavemente a lo largo del campo, así que el conjunto sube desde una esquina, se hunde en un embudo hacia el centro o se extiende en anillos, entra en fase al final de cada ciclo y vuelve a deshacerse: polirritmos al compás de un metrónomo, y cada aterrizaje es una nota suave."
     },
-    "fightLeague": { "name": "Liga de combate", "description": "Personajes de videojuegos, cómics, series y películas luchan como bolas con sus propias armas – las espadas barren, los martillos vuelan y vuelven, las pistolas y las varitas disparan – y la habilidad de cada luchador se carga y se lanza sola. La vida dentro de la bola; gana el último en pie: Thor contra Loki, Captain Falcon contra Little Mac, Yuumi contra Katarina…" },
+    "fightLeague": {
+      "name": "Liga de combate",
+      "description": "Personajes de videojuegos, cómics, series y películas luchan como bolas con sus propias armas – las espadas barren, los martillos vuelan y vuelven, las pistolas y las varitas disparan – y la habilidad de cada luchador se carga y se lanza sola. La vida dentro de la bola; gana el último en pie: Thor contra Loki, Captain Falcon contra Little Mac, Yuumi contra Katarina…"
+    },
     "landClaim": {
       "name": "Conquista de terreno",
       "description": "Columnas de bloques recubren la pared de una arena cuadrada, hexagonal o circular; las bolas de colores derriban los bloques superiores, cada octavo bloque añade otra bola y gana quien tenga más bloques: DOMINACIÓN o QUÉ BATALLA TAN REÑIDA."
@@ -2205,20 +2311,61 @@
     "hoops": {
       "name": "Aros giratorios",
       "description": "Aros arcoíris giran cada vez más rápido alrededor de su eje vertical, con una cuenta en cada uno. Pasada la velocidad crítica de cada aro, el fondo deja de ser el punto más bajo y su cuenta sube –primero la del aro más grande, un aro tras otro–, cada subida una nota de lámina afinada; luego el giro baja y el bucle vuelve a empezar."
+    },
+    "colourSort": {
+      "name": "Clasificar colores",
+      "description": "360 bolas de cuatro colores empiezan apiñadas en el centro de una diana de anillos que giran; las puertas de cada anillo solo se abren hacia fuera y nunca para su propio color, así que las bolas se ordenan solas en sus franjas; después se vuelven a mezclar y el bucle empieza de nuevo."
+    },
+    "ellipseFoci": {
+      "name": "Tiro al foco",
+      "description": "Una mesa elíptica: una ráfaga de bolas arcoíris disparada desde un foco rebota en la pared y pasa por el otro foco a la vez, en cada pasada – mientras el enjambre se cierra sobre el eje mayor."
     }
   },
   "FAQ": {
-    "q1": { "question": "¿{siteName} es gratis?", "answer": "Sí: todos los modos, todas las opciones de personalización, el sonido y Buscar simulación, y también grabar y exportar los vídeos, sin crear ninguna cuenta. Los vídeos gratuitos llevan una pequeña marca de agua; Pro la quita por 10 $ al mes o 79 $ al año." },
-    "q2": { "question": "¿Qué formatos y resoluciones de vídeo puedo exportar?", "answer": "Puedes grabar clips de 500×500 (cuadrado), 1280×720 (HD), 1920×1080 (Full HD) y 1080×1920 (vertical, TikTok) de entre 10 y 120 segundos. Los navegadores que admiten grabación MP4 exportan MP4; el resto exporta WebM." },
-    "q3": { "question": "¿Puedo usar los vídeos exportados con fines comerciales?", "answer": "Sí. Todo lo que crees es tuyo y puedes usarlo en TikTok, YouTube, Instagram o donde quieras, sin necesidad de atribución." },
-    "q4": { "question": "¿Necesito instalar algo?", "answer": "No. Toda la herramienta funciona en el navegador. Abre el sitio y empieza a crear." },
-    "q5": { "question": "¿Puedo guardar mis ajustes?", "answer": "Sí. Guarda tantos presets como quieras en el almacenamiento local del navegador y cárgalos cuando quieras. La URL también se actualiza al cambiar ajustes, así que puedes guardar en favoritos o compartir una configuración." },
-    "q6": { "question": "¿Funciona en el móvil?", "answer": "El simulador está pensado para navegadores de escritorio, donde hay espacio para el lienzo y los controles uno al lado del otro. También funciona en móviles, pero un portátil o un ordenador ofrece mejor experiencia." },
-    "q7": { "question": "¿Hay atajos de teclado?", "answer": "Sí. Pulsa Espacio para pausar o reanudar y R para reiniciar la simulación." },
-    "q8": { "question": "¿Cómo subo una imagen personalizada para la pelota?", "answer": "Abre la sección Pelota y física, activa Mostrar opciones avanzadas y pulsa Elegir imagen. Vale cualquier imagen: logos, fotos, memes. O elige un emoji de la cuadrícula." },
-    "q9": { "question": "¿Cómo funciona el sonido personalizado?", "answer": "En la sección Sonido personalizado, elige una canción de la biblioteca integrada o importa un archivo MIDI. La melodía se extrae del archivo y cada golpe en la pared toca su siguiente nota, convirtiendo la simulación en una actuación musical. ¿Prefieres un efecto de sonido? Cambia Sonido de rebote a Muestra de audio y elige un clic, una cuerda o un bombo integrados, o sube tu propio clip: sonará con un tono distinto en cada pared y se incluirá en la grabación." },
-    "q10": { "question": "¿Qué hace que {siteName} sea tan satisfactorio?", "answer": "El bucle es simple: una pelota rebota dentro de anillos con huecos diminutos y cada vez que se cuela ocurre algo gratificante: confeti, una rotura, una onda expansiva. Como controlas la física, los colores y los efectos, la tensión y la recompensa se ven exactamente como quieres." },
-    "q11": { "question": "¿Puedo usar {siteName} como un clicker satisfactorio?", "answer": "No es un juego clicker, pero cubre la misma necesidad. Miras, anticipas el hueco y recibes efectos y sonido como recompensa en cada escape. La simulación se ejecuta sola, así que es la satisfacción sin tener que tocar nada." }
+    "q1": {
+      "question": "¿{siteName} es gratis?",
+      "answer": "Sí: todos los modos, todas las opciones de personalización, el sonido y Buscar simulación, y también grabar y exportar los vídeos, sin crear ninguna cuenta. Los vídeos gratuitos llevan una pequeña marca de agua; Pro la quita por 10 $ al mes o 79 $ al año."
+    },
+    "q2": {
+      "question": "¿Qué formatos y resoluciones de vídeo puedo exportar?",
+      "answer": "Puedes grabar clips de 500×500 (cuadrado), 1280×720 (HD), 1920×1080 (Full HD) y 1080×1920 (vertical, TikTok) de entre 10 y 120 segundos. Los navegadores que admiten grabación MP4 exportan MP4; el resto exporta WebM."
+    },
+    "q3": {
+      "question": "¿Puedo usar los vídeos exportados con fines comerciales?",
+      "answer": "Sí. Todo lo que crees es tuyo y puedes usarlo en TikTok, YouTube, Instagram o donde quieras, sin necesidad de atribución."
+    },
+    "q4": {
+      "question": "¿Necesito instalar algo?",
+      "answer": "No. Toda la herramienta funciona en el navegador. Abre el sitio y empieza a crear."
+    },
+    "q5": {
+      "question": "¿Puedo guardar mis ajustes?",
+      "answer": "Sí. Guarda tantos presets como quieras en el almacenamiento local del navegador y cárgalos cuando quieras. La URL también se actualiza al cambiar ajustes, así que puedes guardar en favoritos o compartir una configuración."
+    },
+    "q6": {
+      "question": "¿Funciona en el móvil?",
+      "answer": "El simulador está pensado para navegadores de escritorio, donde hay espacio para el lienzo y los controles uno al lado del otro. También funciona en móviles, pero un portátil o un ordenador ofrece mejor experiencia."
+    },
+    "q7": {
+      "question": "¿Hay atajos de teclado?",
+      "answer": "Sí. Pulsa Espacio para pausar o reanudar y R para reiniciar la simulación."
+    },
+    "q8": {
+      "question": "¿Cómo subo una imagen personalizada para la pelota?",
+      "answer": "Abre la sección Pelota y física, activa Mostrar opciones avanzadas y pulsa Elegir imagen. Vale cualquier imagen: logos, fotos, memes. O elige un emoji de la cuadrícula."
+    },
+    "q9": {
+      "question": "¿Cómo funciona el sonido personalizado?",
+      "answer": "En la sección Sonido personalizado, elige una canción de la biblioteca integrada o importa un archivo MIDI. La melodía se extrae del archivo y cada golpe en la pared toca su siguiente nota, convirtiendo la simulación en una actuación musical. ¿Prefieres un efecto de sonido? Cambia Sonido de rebote a Muestra de audio y elige un clic, una cuerda o un bombo integrados, o sube tu propio clip: sonará con un tono distinto en cada pared y se incluirá en la grabación."
+    },
+    "q10": {
+      "question": "¿Qué hace que {siteName} sea tan satisfactorio?",
+      "answer": "El bucle es simple: una pelota rebota dentro de anillos con huecos diminutos y cada vez que se cuela ocurre algo gratificante: confeti, una rotura, una onda expansiva. Como controlas la física, los colores y los efectos, la tensión y la recompensa se ven exactamente como quieres."
+    },
+    "q11": {
+      "question": "¿Puedo usar {siteName} como un clicker satisfactorio?",
+      "answer": "No es un juego clicker, pero cubre la misma necesidad. Miras, anticipas el hueco y recibes efectos y sonido como recompensa en cada escape. La simulación se ejecuta sola, así que es la satisfacción sin tener que tocar nada."
+    }
   },
   "Editorial": {
     "physicsBadge": "Detrás de la simulación",
@@ -2293,7 +2440,9 @@
     "modeFightLeague": "Luchadores de videojuegos, cómics, series y películas – Thor, Loki, Captain Falcon, Little Mac, Yuumi, Katarina y más de cincuenta más, agrupados en divisiones para que cada enfrentamiento se quede en su género – se enfrentan como bolas en una arena cuadrada o redonda. Cada luchador lleva su propia arma, dibujada como una silueta vectorial sencilla: las espadas barren en cada rebote, los martillos vuelan hacia el enemigo y vuelven, los puños golpean, las pistolas, los arcos y las varitas disparan, el aliento y los rayos queman. Un golpe quita vida – el número dentro de la bola y la barra bajo ella –, aparta al enemigo y carga el medidor de habilidad de la casilla inferior; cuando se llena, el nombre de la habilidad parpadea 0,4 s y se lanza sola: rayos, señuelos, haces, estrangulamientos, ondas expansivas, invocaciones, tiempo bala. Juega 1 contra 1, 2 contra 2 o todos contra todos; gana el último luchador o equipo en pie, o el bando con más vida al llegar al límite de tiempo. Con semilla y determinista: Buscar simulación encuentra una partida en la que gana A o B, un doble KO o una pelea de la duración de tu clip – y el ganador forzado la amaña.",
     "modeLandClaim": "Una batalla por el terreno: columnas de bloques se alzan en el interior de una pared cuadrada, hexagonal o circular, y dos o más competidores (una plantilla de equipos de países les da sus banderas, nombres y colores) hacen rebotar sus bolas dentro a velocidad constante. Con la regla de derribar, una bola que golpea una columna se lleva su bloque superior: el bloque sale volando del color de quien golpea y cuenta para él, y cada octavo bloque que derriba un competidor añade otra bola de su color en el punto del golpe, así que una ventaja crece como una bola de nieve hasta ser un enjambre. La regla de conquistar pinta los bloques donde están, y la de robar permite quitarle un bloque a un rival: el terreno cambia de manos hasta que se acaba el tiempo. La batalla termina cuando la pared está tomada o al cumplirse su duración, y gana quien tenga más bloques: DOMINACIÓN por encima del 60% del terreno, QUÉ BATALLA TAN REÑIDA cuando los dos primeros están a menos de un 5%. Cada semilla se reproduce exactamente, Buscar simulación busca un ganador elegido, una batalla reñida o una partida que termine en un segundo elegido, y el Ganador forzado favorece a un color dirigiendo sus rebotes hacia el terreno que queda por tomar.",
     "modeStarChords": "Estrellas de cuerdas: bolas que recorren un círculo fino y dibujan cada una un polígono estrellado como 5/2 o 12/5. Una bola que rebota en un círculo siempre choca con la pared con el mismo ángulo, así que su punto de contacto avanza k de n puntos alrededor del borde y cada línea que dibuja queda a la misma distancia del centro: a medida que se acumulan las líneas, aparece un círculo interior que nadie dibujó. Cada bola se mueve justo a la velocidad que cierra su estrella tras el mismo tiempo de dibujo, así que todas las estrellas se cierran en un fotograma con un acorde; luego el dibujo se mantiene, se desvanece y vuelve a empezar, un bucle perfecto. Escribe tus propias estrellas, saca un conjunto coprimo aleatorio o deja que Buscar simulación elija el conjunto más bonito y ajuste el bucle a tu clip.",
-    "modeHoops": "Sin anillos: 1–16 aros concéntricos (ocho por defecto, rojo por fuera, violeta por dentro) giran juntos alrededor de su diámetro vertical, dibujados de frente y aplastados por el giro para que se vean en 3D, cada uno con una cuenta que se desliza sin rozamiento. El giro acelera –de forma constante, suave o por escalones– y cada aro tiene una velocidad crítica, √(g/R): por debajo, la gravedad mantiene la cuenta en el fondo; por encima, la cuenta sube hasta su punto de equilibrio arccos(g/(Rω²)), más alto cuanto más rápido el giro. Los aros más grandes levantan primero, así que las cuentas suben en estricto orden de tamaño, cada subida una nota de lámina afinada según su aro; una campanilla suena en cada vuelta, un acorde llega cuando todas están arriba y el contador muestra el giro y las cuentas arriba. Con el regreso activado, el giro baja hasta que todas las cuentas reposan y el bucle vuelve a empezar sin costuras, listo para exportar bucles completos; Buscar simulación encuentra una partida en estricto orden de tamaño o una con todas las cuentas arriba dentro de un tiempo."
+    "modeHoops": "Sin anillos: 1–16 aros concéntricos (ocho por defecto, rojo por fuera, violeta por dentro) giran juntos alrededor de su diámetro vertical, dibujados de frente y aplastados por el giro para que se vean en 3D, cada uno con una cuenta que se desliza sin rozamiento. El giro acelera –de forma constante, suave o por escalones– y cada aro tiene una velocidad crítica, √(g/R): por debajo, la gravedad mantiene la cuenta en el fondo; por encima, la cuenta sube hasta su punto de equilibrio arccos(g/(Rω²)), más alto cuanto más rápido el giro. Los aros más grandes levantan primero, así que las cuentas suben en estricto orden de tamaño, cada subida una nota de lámina afinada según su aro; una campanilla suena en cada vuelta, un acorde llega cuando todas están arriba y el contador muestra el giro y las cuentas arriba. Con el regreso activado, el giro baja hasta que todas las cuentas reposan y el bucle vuelve a empezar sin costuras, listo para exportar bucles completos; Buscar simulación encuentra una partida en estricto orden de tamaño o una con todas las cuentas arriba dentro de un tiempo.",
+    "modeColourSort": "Una máquina de clasificar: 360 bolas de cuatro colores empiezan apiñadas en el centro rojo de una diana de anillos que giran y se mueven como un gas a velocidad constante. Cada anillo es una fila de arcos con puertas entre ellos, y cada puerta es un filtro de color de un solo sentido: solo se abre hacia fuera y nunca para las bolas del color del anillo. Así el rojo nunca sale del centro, el naranja pasa el anillo rojo pero se queda en el suyo, el verde llega un anillo más allá y el azul sale hasta la franja exterior: la mezcla se ordena sola en una diana mientras el contador ámbar sube hasta 360 / 360 ordenadas con una cola larga y llena de suspense. Cada paso por una puerta pulsa la nota de su color en la pentatónica de la mayor, la última bola ordenada desata un cálido acorde final y una remezcla devuelve todas las bolas exactamente al primer fotograma bajo un suave soplo de ruido, así que una grabación de ciclos completos se repite sin costuras. Elige los colores y las bolas de cada uno, las puertas y su anchura, el giro de los anillos, la regla (o inviértela), choques o un gas fantasma para miles de bolas, y deja que Buscar simulación encuentre una clasificación dentro de un límite de tiempo, el color que termina último o una última bola en una barra de compás.",
+    "modeEllipseFoci": "Una mesa de billar elíptica con sus dos focos marcados. Una ráfaga de bolas – 72 por defecto, coloreadas por la rueda de tonos según el ángulo de salida – sale de un foco en el mismo instante, en todas direcciones. Una elipse manda cada tiro de un foco, tras rebotar en su pared, justo por el otro, y todos esos caminos miden lo mismo, así que la ráfaga entera converge en el otro foco una pasada después, luego de vuelta en el primero, cada vez con un destello blanco, mientras cada pasada estrecha el enjambre sobre el eje mayor. Redisparar lanza una ráfaga nueva bajo el destello cada pocas pasadas, así que el clip se repite sin costuras; los rebotes bajan por una escalera pentatónica, cada convergencia cae en una línea de compás con bombo, chasquido y acorde, y Buscar simulación pone las convergencias a ritmo de la página o encuentra el ángulo inicial del colapso más largo."
   },
   "Footer": {
     "navLabel": "Pie de página",
@@ -2319,20 +2468,50 @@
     "lastUpdated": "Última actualización",
     "metaTitle": "Política de privacidad – {siteName}",
     "metaDescription": "Política de privacidad de {siteDomain}",
-    "introduction": { "title": "1. Introducción", "content": "Bienvenido a {siteDomain} («nosotros»). Respetamos tu privacidad y reducimos al mínimo la información relacionada con tu uso de este sitio. Esta política explica qué se recopila, cómo se usa y cuáles son tus derechos." },
+    "introduction": {
+      "title": "1. Introducción",
+      "content": "Bienvenido a {siteDomain} («nosotros»). Respetamos tu privacidad y reducimos al mínimo la información relacionada con tu uso de este sitio. Esta política explica qué se recopila, cómo se usa y cuáles son tus derechos."
+    },
     "information": {
       "title": "2. Información que recopilamos",
       "subtitle": "Recopilamos lo mínimo necesario para operar y mejorar el servicio:",
-      "analytics": { "label": "Datos analíticos:", "content": "Si la analítica está activada, usamos un servicio respetuoso con la privacidad que registra estadísticas anónimas de uso como páginas vistas, tipo de navegador, tamaño de pantalla y región aproximada. No te identifica personalmente." },
-      "localStorage": { "label": "Datos de almacenamiento local:", "content": "Tus ajustes del simulador y tus presets se guardan en el almacenamiento local del navegador. Nunca salen de tu dispositivo ni se envían a nuestros servidores." },
-      "images": { "label": "Imágenes y audio subidos:", "content": "Las imágenes personalizadas, los archivos MIDI y los clips de sonido se procesan íntegramente en tu navegador. Nada se sube, se almacena ni se transmite." }
+      "analytics": {
+        "label": "Datos analíticos:",
+        "content": "Si la analítica está activada, usamos un servicio respetuoso con la privacidad que registra estadísticas anónimas de uso como páginas vistas, tipo de navegador, tamaño de pantalla y región aproximada. No te identifica personalmente."
+      },
+      "localStorage": {
+        "label": "Datos de almacenamiento local:",
+        "content": "Tus ajustes del simulador y tus presets se guardan en el almacenamiento local del navegador. Nunca salen de tu dispositivo ni se envían a nuestros servidores."
+      },
+      "images": {
+        "label": "Imágenes y audio subidos:",
+        "content": "Las imágenes personalizadas, los archivos MIDI y los clips de sonido se procesan íntegramente en tu navegador. Nada se sube, se almacena ni se transmite."
+      }
     },
-    "howWeUse": { "title": "3. Cómo usamos tu información", "content": "Los datos analíticos se usan solo para entender cómo se utiliza el sitio y poder mejorarlo. No vendemos, compartimos ni cedemos los datos recopilados a terceros con fines de marketing." },
-    "cookies": { "title": "4. Cookies y seguimiento", "content": "Podemos usar un mínimo de cookies o tecnologías similares para analítica y para recordar tu idioma. No te rastrean en otros sitios web ni recopilan información personal." },
-    "thirdParty": { "title": "5. Servicios de terceros", "content": "Los servicios de analítica de terceros, cuando están activados, pueden recopilar datos de uso anónimos bajo sus propias políticas de privacidad." },
-    "retention": { "title": "6. Conservación de datos", "content": "Los datos analíticos se conservan solo de forma agregada. Aparte de los datos de facturación de una compra Pro (ver Pagos más abajo), no recopilamos información personal identificable. Los datos del almacenamiento local se pueden borrar en cualquier momento desde los ajustes del navegador." },
-    "children": { "title": "7. Privacidad de los menores", "content": "El servicio no está dirigido a menores de 13 años y no recopilamos a sabiendas información personal de menores." },
-    "changes": { "title": "8. Cambios en esta política", "content": "Podemos actualizar esta política de vez en cuando. Los cambios aparecerán en esta página con una fecha de revisión actualizada." },
+    "howWeUse": {
+      "title": "3. Cómo usamos tu información",
+      "content": "Los datos analíticos se usan solo para entender cómo se utiliza el sitio y poder mejorarlo. No vendemos, compartimos ni cedemos los datos recopilados a terceros con fines de marketing."
+    },
+    "cookies": {
+      "title": "4. Cookies y seguimiento",
+      "content": "Podemos usar un mínimo de cookies o tecnologías similares para analítica y para recordar tu idioma. No te rastrean en otros sitios web ni recopilan información personal."
+    },
+    "thirdParty": {
+      "title": "5. Servicios de terceros",
+      "content": "Los servicios de analítica de terceros, cuando están activados, pueden recopilar datos de uso anónimos bajo sus propias políticas de privacidad."
+    },
+    "retention": {
+      "title": "6. Conservación de datos",
+      "content": "Los datos analíticos se conservan solo de forma agregada. Aparte de los datos de facturación de una compra Pro (ver Pagos más abajo), no recopilamos información personal identificable. Los datos del almacenamiento local se pueden borrar en cualquier momento desde los ajustes del navegador."
+    },
+    "children": {
+      "title": "7. Privacidad de los menores",
+      "content": "El servicio no está dirigido a menores de 13 años y no recopilamos a sabiendas información personal de menores."
+    },
+    "changes": {
+      "title": "8. Cambios en esta política",
+      "content": "Podemos actualizar esta política de vez en cuando. Los cambios aparecerán en esta página con una fecha de revisión actualizada."
+    },
     "adsenseNotice": {
       "title": "9. Publicidad",
       "line1": "Podemos mostrar anuncios a través de un servicio publicitario de terceros como Google AdSense. Estos servicios usan cookies para mostrar anuncios relevantes según tu navegación y recopilan información no personal como el tipo de navegador y las páginas visitadas.",
@@ -2344,8 +2523,15 @@
       "optOutLink": "Configuración de anuncios",
       "line5": "."
     },
-    "consent": { "title": "10. Consentimiento de cookies", "content": "Cuando la ley lo exija, se te pedirá consentimiento para las cookies no esenciales antes de instalarlas. Puedes cambiar tu elección en cualquier momento desde los ajustes del navegador." },
-    "contact": { "title": "11. Contacto", "content": "¿Preguntas sobre esta política? Contáctanos a través de nuestro", "feedbackLink": "formulario de comentarios" },
+    "consent": {
+      "title": "10. Consentimiento de cookies",
+      "content": "Cuando la ley lo exija, se te pedirá consentimiento para las cookies no esenciales antes de instalarlas. Puedes cambiar tu elección en cualquier momento desde los ajustes del navegador."
+    },
+    "contact": {
+      "title": "11. Contacto",
+      "content": "¿Preguntas sobre esta política? Contáctanos a través de nuestro",
+      "feedbackLink": "formulario de comentarios"
+    },
     "publishing": {
       "title": "12. Publicar en TikTok, Instagram y YouTube",
       "content": "El bloque Publicar del simulador solo envía un clip cuando pulsas un botón de enviar o compartir. El envío rápido pasa el archivo al menú de compartir de tu dispositivo o lo descarga. Las subidas a YouTube van directamente de tu navegador a Google con un token de acceso guardado en el almacenamiento local del navegador (al quitar la cuenta en el bloque se borra). TikTok, Instagram – y YouTube, si lo eliges – pasan por un servidor relay gestionado por quien te dio su clave de acceso: guarda las cuentas que conectas con sus tokens y conserva cada clip subido en un enlace imposible de adivinar durante 24 horas para que la plataforma pueda descargarlo.",
@@ -2363,8 +2549,14 @@
     "lastUpdated": "Última actualización",
     "metaTitle": "Términos del servicio – {siteName}",
     "metaDescription": "Términos del servicio de {siteDomain}",
-    "acceptance": { "title": "1. Aceptación de los términos", "content": "Al usar {siteDomain} («el Servicio») aceptas estos Términos del servicio. Si no estás de acuerdo con alguna parte, por favor no uses el Servicio." },
-    "description": { "title": "2. Descripción del servicio", "content": "{siteName} es una herramienta de simulación física en el navegador para crear animaciones de pelotas rebotando, personalizar su aspecto y comportamiento y exportarlas como archivos de vídeo. Usar el simulador y exportar vídeos es gratis; los vídeos exportados sin una licencia Pro llevan una marca de agua (consulta Suscripciones Pro). El Servicio se ofrece «tal cual», sin garantía de disponibilidad ni de tiempo de actividad." },
+    "acceptance": {
+      "title": "1. Aceptación de los términos",
+      "content": "Al usar {siteDomain} («el Servicio») aceptas estos Términos del servicio. Si no estás de acuerdo con alguna parte, por favor no uses el Servicio."
+    },
+    "description": {
+      "title": "2. Descripción del servicio",
+      "content": "{siteName} es una herramienta de simulación física en el navegador para crear animaciones de pelotas rebotando, personalizar su aspecto y comportamiento y exportarlas como archivos de vídeo. Usar el simulador y exportar vídeos es gratis; los vídeos exportados sin una licencia Pro llevan una marca de agua (consulta Suscripciones Pro). El Servicio se ofrece «tal cual», sin garantía de disponibilidad ni de tiempo de actividad."
+    },
     "ugc": {
       "title": "3. Contenido generado por el usuario",
       "subtitle": "Al usar el Servicio puedes:",
@@ -2381,11 +2573,27 @@
       "item3": "Subir contenido ilegal, dañino o que infrinja derechos de propiedad intelectual de terceros.",
       "item4": "Presentar el Servicio como producto propio."
     },
-    "intellectual": { "title": "5. Propiedad intelectual", "content": "El Servicio, incluidos su código, diseño y marca, pertenece al operador de {siteName}. Los vídeos e imágenes que crees con él son tuyos." },
-    "warranties": { "title": "6. Exclusión de garantías", "content": "El Servicio se ofrece «tal cual» y «según disponibilidad», sin garantías de ningún tipo, expresas o implícitas, incluidas la fiabilidad, la exactitud o la idoneidad para un fin concreto. No garantizamos que el Servicio sea ininterrumpido ni esté libre de errores." },
-    "liability": { "title": "7. Limitación de responsabilidad", "content": "En la máxima medida permitida por la ley, el operador de {siteName} no es responsable de daños indirectos, incidentales, especiales o consecuentes derivados del uso del Servicio, incluida la pérdida de datos, ingresos o beneficios." },
-    "changes": { "title": "8. Cambios en estos términos", "content": "Podemos actualizar estos términos en cualquier momento. Los cambios se publican en esta página con una nueva fecha, y seguir usando el Servicio tras un cambio implica aceptar los términos revisados." },
-    "contact": { "title": "9. Contacto", "content": "¿Preguntas sobre estos términos? Contáctanos a través de nuestro", "feedbackLink": "formulario de comentarios" },
+    "intellectual": {
+      "title": "5. Propiedad intelectual",
+      "content": "El Servicio, incluidos su código, diseño y marca, pertenece al operador de {siteName}. Los vídeos e imágenes que crees con él son tuyos."
+    },
+    "warranties": {
+      "title": "6. Exclusión de garantías",
+      "content": "El Servicio se ofrece «tal cual» y «según disponibilidad», sin garantías de ningún tipo, expresas o implícitas, incluidas la fiabilidad, la exactitud o la idoneidad para un fin concreto. No garantizamos que el Servicio sea ininterrumpido ni esté libre de errores."
+    },
+    "liability": {
+      "title": "7. Limitación de responsabilidad",
+      "content": "En la máxima medida permitida por la ley, el operador de {siteName} no es responsable de daños indirectos, incidentales, especiales o consecuentes derivados del uso del Servicio, incluida la pérdida de datos, ingresos o beneficios."
+    },
+    "changes": {
+      "title": "8. Cambios en estos términos",
+      "content": "Podemos actualizar estos términos en cualquier momento. Los cambios se publican en esta página con una nueva fecha, y seguir usando el Servicio tras un cambio implica aceptar los términos revisados."
+    },
+    "contact": {
+      "title": "9. Contacto",
+      "content": "¿Preguntas sobre estos términos? Contáctanos a través de nuestro",
+      "feedbackLink": "formulario de comentarios"
+    },
     "proprietaryNotice": "{siteName}, incluido el personaje Gerald, su nombre y sus ilustraciones, es software propietario. Su código fuente está ofuscado y no puede copiarse, modificarse, someterse a ingeniería inversa, redistribuirse, mostrarse públicamente ni usarse comercialmente sin el permiso escrito del propietario."
   },
   "Disclaimer": {
@@ -2393,18 +2601,42 @@
     "lastUpdated": "Última actualización",
     "metaTitle": "Aviso legal – {siteName}",
     "metaDescription": "Aviso legal de {siteName}: cómo se ofrece la herramienta, qué no garantiza y su relación con plataformas de terceros.",
-    "general": { "title": "Información general", "content": "{siteName} ({siteDomain}) es una herramienta para crear vídeos de animación basados en física en tu navegador: jugar con el simulador y exportar los vídeos es gratis, con una marca de agua que Pro quita. Sus funciones y contenidos se ofrecen con fines generales y de entretenimiento. Al usar la herramienta aceptas este aviso en su totalidad; si no estás de acuerdo con alguna parte, por favor no uses el sitio." },
-    "noGuarantee": { "title": "Sin garantía de resultados", "content": "{siteName} te ayuda a hacer vídeos. No promete que esos vídeos se vuelvan virales ni que consigan visualizaciones, seguidores, interacción o ingresos. Las referencias a vídeos que «se vuelven virales» describen lo que el formato puede hacer, no un resultado que garanticemos. El rendimiento en TikTok, Instagram, YouTube o cualquier otra plataforma depende de factores fuera de nuestro control, como el algoritmo de cada plataforma, tu audiencia y tu contenido." },
-    "noAffiliation": { "title": "Sin afiliación con plataformas de terceros", "content": "{siteName} es un proyecto independiente. No está afiliado, respaldado, patrocinado ni asociado con TikTok, Instagram, Meta, YouTube, Google ni ninguna otra plataforma mencionada en este sitio. Los nombres de productos, logos y marcas pertenecen a sus respectivos propietarios y se usan solo para describir dónde se pueden compartir los vídeos." },
-    "yourContent": { "title": "Tu contenido y tu responsabilidad", "content": "Eres responsable del contenido que creas y subes, incluidas imágenes, audio, texto y logos. No uses material sobre el que no tengas derechos. También eres responsable de cumplir las normas de las plataformas donde publiques y la legislación aplicable. {siteName} no revisa ni modera lo que crean los usuarios." },
-    "asIs": { "title": "Base «tal cual»", "content": "La herramienta se ofrece «tal cual» y «según disponibilidad», sin garantías de ningún tipo. No garantizamos que el sitio funcione sin interrupciones, sin errores ni en todos los navegadores y dispositivos, y las funciones pueden cambiar o desaparecer sin previo aviso. En la máxima medida permitida por la ley, {siteName} no es responsable de pérdidas o daños derivados del uso o la imposibilidad de uso del sitio." },
-    "externalLinks": { "title": "Enlaces externos", "content": "Este sitio puede enlazar a sitios externos que no operamos. Los enlaces se ofrecen por comodidad y no implican respaldo; no somos responsables del contenido, las políticas ni las prácticas de sitios de terceros." },
-    "changes": { "title": "Cambios en este aviso", "content": "Podemos actualizar este aviso de vez en cuando. Los cambios entran en vigor en cuanto se publican aquí. Para saber cómo tratamos los datos, consulta nuestra" },
+    "general": {
+      "title": "Información general",
+      "content": "{siteName} ({siteDomain}) es una herramienta para crear vídeos de animación basados en física en tu navegador: jugar con el simulador y exportar los vídeos es gratis, con una marca de agua que Pro quita. Sus funciones y contenidos se ofrecen con fines generales y de entretenimiento. Al usar la herramienta aceptas este aviso en su totalidad; si no estás de acuerdo con alguna parte, por favor no uses el sitio."
+    },
+    "noGuarantee": {
+      "title": "Sin garantía de resultados",
+      "content": "{siteName} te ayuda a hacer vídeos. No promete que esos vídeos se vuelvan virales ni que consigan visualizaciones, seguidores, interacción o ingresos. Las referencias a vídeos que «se vuelven virales» describen lo que el formato puede hacer, no un resultado que garanticemos. El rendimiento en TikTok, Instagram, YouTube o cualquier otra plataforma depende de factores fuera de nuestro control, como el algoritmo de cada plataforma, tu audiencia y tu contenido."
+    },
+    "noAffiliation": {
+      "title": "Sin afiliación con plataformas de terceros",
+      "content": "{siteName} es un proyecto independiente. No está afiliado, respaldado, patrocinado ni asociado con TikTok, Instagram, Meta, YouTube, Google ni ninguna otra plataforma mencionada en este sitio. Los nombres de productos, logos y marcas pertenecen a sus respectivos propietarios y se usan solo para describir dónde se pueden compartir los vídeos."
+    },
+    "yourContent": {
+      "title": "Tu contenido y tu responsabilidad",
+      "content": "Eres responsable del contenido que creas y subes, incluidas imágenes, audio, texto y logos. No uses material sobre el que no tengas derechos. También eres responsable de cumplir las normas de las plataformas donde publiques y la legislación aplicable. {siteName} no revisa ni modera lo que crean los usuarios."
+    },
+    "asIs": {
+      "title": "Base «tal cual»",
+      "content": "La herramienta se ofrece «tal cual» y «según disponibilidad», sin garantías de ningún tipo. No garantizamos que el sitio funcione sin interrupciones, sin errores ni en todos los navegadores y dispositivos, y las funciones pueden cambiar o desaparecer sin previo aviso. En la máxima medida permitida por la ley, {siteName} no es responsable de pérdidas o daños derivados del uso o la imposibilidad de uso del sitio."
+    },
+    "externalLinks": {
+      "title": "Enlaces externos",
+      "content": "Este sitio puede enlazar a sitios externos que no operamos. Los enlaces se ofrecen por comodidad y no implican respaldo; no somos responsables del contenido, las políticas ni las prácticas de sitios de terceros."
+    },
+    "changes": {
+      "title": "Cambios en este aviso",
+      "content": "Podemos actualizar este aviso de vez en cuando. Los cambios entran en vigor en cuanto se publican aquí. Para saber cómo tratamos los datos, consulta nuestra"
+    },
     "and": "y nuestros",
     "privacyLink": "política de privacidad",
     "termsLink": "términos del servicio",
     "feedbackLink": "página de comentarios",
-    "contact": { "title": "Contacto", "content": "¿Preguntas sobre este aviso? Escríbenos a través de la" }
+    "contact": {
+      "title": "Contacto",
+      "content": "¿Preguntas sobre este aviso? Escríbenos a través de la"
+    }
   },
   "Feedback": {
     "title": "Envíanos tus comentarios",
@@ -2596,7 +2828,39 @@
     "missNoDiverge": "Ninguna partida se separó a tiempo ({seeds} semillas)",
     "overlayDivergesAt": "Se probaron {tested} semillas. La separación más cercana llegó a los {closest}s (objetivo: {target}s ±{tolerance}s). Una dispersión inicial mayor separa antes; una menor, después.",
     "overlayNoDiverge": "Se probaron {tested} semillas: ninguna se separó antes de los {target}s. Prueba una dispersión inicial mayor, una distancia de «Se separa a» menor o un objetivo más tardío.",
-    "progressDivergesAt": "Separación más cercana: {time}s"
+    "progressDivergesAt": "Separación más cercana: {time}s",
+    "outcomeSortedBy": "Todo ordenado en",
+    "outcomeLastColour": "Último color",
+    "outcomeSortedOnBar": "Ordenado en compás",
+    "hintSortedBy": "Cada bola llega a su propia franja dentro del límite de tiempo elegido: la primera clasificación de la partida (después las bolas se vuelven a mezclar y el bucle empieza de nuevo, así que el clip es un ciclo completo).",
+    "hintLastColour": "La última bola ordenada es del color elegido, el que los espectadores apuestan que termina último. La primera clasificación de cada semilla se juega hasta el final.",
+    "hintSortedOnBar": "La última bola se ordena a ±20 ms de una línea de compás – cuatro pulsos al BPM de Sonido – así que el acorde final suena en un tiempo fuerte.",
+    "sortedBy": "Ordenar en",
+    "lastColourPick": "Color ordenado al final",
+    "findSortedBy": "Buscar una clasificación en {time}s",
+    "findLastColour": "Buscar una partida en la que {name} termine último",
+    "findSortedOnBar": "Buscar una clasificación en compás",
+    "foundSortedBy": "¡Encontrada! Todo ordenado a los {time}s",
+    "foundLastColour": "¡Encontrada! {name} termina último, a los {time}s",
+    "foundSortedOnBar": "¡Encontrada! La última bola se ordena en un compás a los {time}s",
+    "missSortedBy": "Clasificación más rápida: {time}s ({seeds} semillas)",
+    "missNoSort": "Ninguna semilla ordenó todas las bolas antes del límite de tiempo ({seeds} semillas)",
+    "missLastColour": "{name} no terminó último en ninguna de {seeds} partidas",
+    "missSortedOnBar": "Última bola más cercana: a {offset}s de un compás ({seeds} semillas)",
+    "overlaySortedBy": "Se probaron {tested} semillas: la clasificación más rápida tardó {closest}s (objetivo: {target}s). Prueba más puertas o más anchas, un giro más rápido o bolas más rápidas.",
+    "overlayNoSort": "Se probaron {tested} semillas: ninguna ordenó todas las bolas antes del límite de tiempo. Prueba un límite más largo, puertas más anchas o bolas más rápidas.",
+    "overlayLastColour": "Se probaron {tested} semillas y en ninguna {name} terminó último. Prueba más semillas u otro color.",
+    "overlaySortedOnBar": "Se probaron {tested} semillas: la última bola más cercana se ordenó a {offset}s de un compás. Prueba otro BPM o más semillas.",
+    "outcomeConvergeOnBeat": "Converge a ritmo",
+    "outcomeLongestCollapse": "Colapso más largo",
+    "hintConvergeOnBeat": "Cada ráfaga converge a tiempo (la propiedad de reflexión de los focos): el tiempo de pasada pasa a ser el número entero de compases más cercano al BPM de Sonido, así que cada convergencia cae en una línea de compás, y el clip son bucles completos de la partida.",
+    "hintLongestCollapse": "Busca el ángulo inicial (dentro de un paso de la ráfaga) cuyo enjambre tarda más pasadas en estrecharse por debajo de dos radios de bola; la partida encontrada se deja colapsar, y el clip abarca esas pasadas y la del cometa.",
+    "findConvergeOnBeat": "Poner las convergencias a ritmo",
+    "findLongestCollapse": "Buscar el colapso más largo",
+    "foundConvergeOnBeat": "¡Encontrada! Una convergencia cada {transit}s ({bars, plural, one {# compás} other {# compases}}), {loops, plural, one {# bucle completo} other {# bucles completos}} en el clip",
+    "foundLongestCollapse": "¡Encontrada! Ángulo inicial {aim}°: un cometa tras {passes, plural, one {# pasada} other {# pasadas}}",
+    "missLongestCollapse": "El enjambre nunca se estrechó por debajo de dos radios de bola ({seeds} ángulos iniciales)",
+    "overlayLongestCollapse": "Se probaron {tested} ángulos iniciales: el enjambre no se estrechó por debajo de dos radios de bola durante la búsqueda. Un círculo nunca colapsa: prueba una excentricidad mayor."
   },
   "FastExport": {
     "button": "Exportación rápida",
@@ -2609,6 +2873,8 @@
     "speed": "{speed}× tiempo real",
     "cancel": "Cancelar",
     "done": "Exportado un {format} de {seconds} s en {wall} s ({speed}× tiempo real).",
+    "doneLoops": "Recortado a {count, plural, one {# bucle completo} other {# bucles completos}} de {cycle} s, para que se repita sin cortes.",
+    "doneGain": "Sonido nivelado a −14 LUFS ({gain} dB).",
     "cancelled": "Exportación rápida cancelada: no se guardó nada.",
     "fallbackWebCodecs": "Este navegador no puede codificar vídeo por sí mismo (no tiene WebCodecs), así que el clip se graba en tiempo real con Grabar vídeo.",
     "fallbackCodecs": "Este navegador no tiene un codificador H.264, VP9 ni VP8 con sonido AAC u Opus para la exportación rápida, así que el clip se graba en tiempo real con Grabar vídeo.",
@@ -3091,6 +3357,7 @@
         "series": "Guerra de hilos",
         "hook": "{lives} vidas cada una. Corta un hilo, quita una vida.",
         "payoff": "¡Gana {winner}! 🏆",
+        "payoffDoubleKo": "¡Doble KO: las dos últimas cayeron juntas! 💥",
         "cliffQuestion": "¿Quién sobrevive? 👇",
         "postQuestion": "¿Por quién ibas?",
         "cliffPostQuestion": "¿Quién gana: Blaze, Wave, Volt o Moss? 👇",
@@ -4251,8 +4518,6 @@
   },
   "Watermark": {
     "tag": "Marca de agua",
-    "tagTip": "Plan gratuito: este vídeo llevará la marca de agua; Pro la quita",
-    "note": "Plan gratuito: los vídeos que grabes o exportes aquí llevan una pequeña marca de agua de {siteName}.",
     "noteRecording": "Grabando en el plan gratuito: este vídeo lleva la marca de agua de {siteName}.",
     "remove": "Quitar la marca de agua",
     "liveTagTip": "Plan gratuito: las simulaciones y los vídeos llevan una pequeña marca de agua; Pro la quita",
@@ -4369,6 +4634,73 @@
     "chaosFan": "{count} péndulos salen a un pelo de distancia y luego la película va hacia atrás",
     "chaosFanFact": "¿Por qué se separan? En un péndulo doble cualquier pequeña diferencia en la salida crece de forma exponencial, duplicándose más o menos cada fracción de segundo, así que péndulos soltados casi a la vez solo siguen juntos unos segundos. Edward Lorenz lo llamó el efecto mariposa. La vuelta es la grabación reproducida al revés: si en cambio se calculara la física hacia atrás desde el final, el más mínimo error de redondeo crecería igual de rápido y ningún péndulo volvería a casa.",
     "phaseSpiral": "{count} anillos, cada uno le saca una vuelta al siguiente: mira cómo la espiral se endereza en una sola línea",
-    "phaseSpiralFact": "El anillo n da n vueltas por ciclo, así que cada anillo le saca exactamente una vuelta a su vecino. Entre medias, los puntos se enroscan en una espiral y pasan por patrones de interferencia; al final del ciclo todas las vueltas son números enteros en el mismo instante y la espiral se endereza en una sola línea. Es la misma aritmética que la de una onda de péndulos."
+    "phaseSpiralFact": "El anillo n da n vueltas por ciclo, así que cada anillo le saca exactamente una vuelta a su vecino. Entre medias, los puntos se enroscan en una espiral y pasan por patrones de interferencia; al final del ciclo todas las vueltas son números enteros en el mismo instante y la espiral se endereza en una sola línea. Es la misma aritmética que la de una onda de péndulos.",
+    "colourSort": "{count} bolas mezcladas, ordenadas por sus propios anillos",
+    "colourSortFact": "Las puertas de cada anillo solo se abren hacia fuera, y nunca para las bolas del color del propio anillo. Así el color del centro nunca puede salir, el siguiente pasa el primer anillo pero no el suyo, y el color más exterior sale hasta el final: mézclalas y se ordenan solas en una diana.",
+    "ellipseFoci": "{count} tiros desde un foco, todos a la vez por el otro",
+    "ellipseFociFact": "Una elipse tiene dos focos. Un tiro desde uno rebota en la pared y pasa justo por el otro, vaya hacia donde vaya, y todos esos caminos miden lo mismo: por eso una ráfaga entera disparada a la vez llega al otro foco en el mismo instante. Es la razón por la que un susurro en un foco de una sala elíptica se oye con claridad en el otro."
+  },
+  "ColourSort": {
+    "canvasTitle": "cada anillo solo detiene su propio color",
+    "canvasTitleOwnOnly": "cada anillo solo deja salir su propio color",
+    "canvasSubtitle": "las puertas se abren hacia fuera, nunca para el color del anillo",
+    "canvasSubtitleOwnOnly": "las puertas se abren hacia fuera, solo para el color del anillo",
+    "canvasSubtitleBothWays": "las puertas se abren en ambos sentidos, nunca para el color del anillo",
+    "canvasSorted": "[count] / [total] ordenadas",
+    "canvasRemix": "mezclando otra vez",
+    "csDesc": "Las bolas de cada color empiezan apiñadas en el centro. Las puertas de cada anillo solo se abren hacia fuera y nunca para su propio color, así que las bolas se ordenan solas en una diana; luego una remezcla las devuelve al primer fotograma y el bucle empieza de nuevo.",
+    "csPreset": "Preajuste",
+    "csPresetTip": "Clasificaciones listas para usar. Cada una pone también el fondo azul marino, las bolas brillantes y el HUD del bucle.",
+    "csPresetChoose": "Elige un preajuste…",
+    "presetBullseye": "Diana (4 × 90)",
+    "presetRainbow7": "Arcoíris 7 (7 × 50)",
+    "presetTorture": "Tortura de una puerta (1 puerta, 10°)",
+    "presetTenThousand": "Diez mil (4 × 2500, gas fantasma)",
+    "presetReverse": "Regla inversa (solo su color)",
+    "csRule": "Regla de las puertas",
+    "csRuleTip": "Qué bolas deja pasar una puerta y en qué sentido. Una bola rechazada rebota en la puerta como en un arco.",
+    "csRuleOutwardNotOwn": "Fuera, no el suyo",
+    "csRuleOutwardOwnOnly": "Fuera, solo el suyo",
+    "csRuleBothWaysNotOwn": "Ambos sentidos",
+    "csHintOutwardNotOwn": "La referencia: una puerta se abre hacia fuera para todos los colores menos el de su anillo, así que cada color se detiene en su propio anillo.",
+    "csHintOutwardOwnOnly": "Al revés: una puerta solo se abre hacia fuera para el color de su anillo; el centro se queda con todos los demás colores.",
+    "csHintBothWaysNotOwn": "Una puerta se abre en ambos sentidos para todos los colores menos el de su anillo: las bolas pueden volver hacia dentro, así que la clasificación tarda más.",
+    "csColours": "Colores",
+    "csColoursTip": "Colores, y anillos: un anillo con puertas por cada color salvo el último, dentro de la pared exterior. Se puede escribir cualquier número desde 2 (más allá de ocho, los colores son tonos alrededor de la rueda).",
+    "csPerColour": "Bolas por color",
+    "csPerColourTip": "Bolas de cada color. Se puede escribir cualquier número desde 1; una partida admite como mucho 20.000 bolas en total.",
+    "csPerColourTotal": "{total} bolas",
+    "csBallCeiling": "Una partida admite como mucho {max} bolas: {perColour} de cada color.",
+    "csGates": "Puertas por anillo",
+    "csGatesTip": "Puertas de cada anillo, espaciadas por igual; cada arco entre ellas lleva un pin blanco en cada extremo.",
+    "csGateWidth": "Anchura de puerta",
+    "csGateWidthTip": "La anchura angular de una puerta. Si es tan ancha como el hueco entre dos puertas, todo el anillo es puerta.",
+    "csSpin": "Giro del anillo interior",
+    "csSpinTip": "La velocidad de giro del anillo más interior, en grados por segundo; cada anillo más exterior gira a la caída por la velocidad del anillo de dentro.",
+    "csSpinValue": "{value}°/s",
+    "csFalloff": "Caída del giro",
+    "csFalloffTip": "El giro de cada anillo como fracción del anillo de dentro (0,8: cada anillo una quinta parte más lento).",
+    "csAlternate": "Sentidos alternos",
+    "csAlternateTip": "Los anillos vecinos giran en sentidos opuestos.",
+    "csSpeed": "Velocidad de las bolas",
+    "csSpeedTip": "La velocidad constante de las bolas, en px por segundo de un fotograma de 720 de ancho (su anillo exterior mide 304 px).",
+    "csSpeedValue": "{value} px/s",
+    "csSize": "Tamaño de las bolas",
+    "csSizeTip": "El radio de una bola en px de un fotograma de 720 de ancho: el punto sólido es la mitad y el brillo el resto.",
+    "csSizeValue": "{value} px",
+    "csContacts": "Choques entre bolas",
+    "csContactsTip": "Apagado (por defecto): un gas fantasma; cada bola solo toca los anillos, como en el clip de referencia, y miles de bolas siguen siendo baratas. Encendido: choques elásticos entre las bolas (un centro abarrotado se ordena más despacio).",
+    "csRemix": "Remezcla",
+    "csRemixTip": "Segundos que dura la remezcla: las puertas dejan de filtrar y un muelle devuelve cada bola a su sitio del primer fotograma, así que la grabación se repite sin costuras.",
+    "csLimit": "Límite de tiempo",
+    "csLimitTip": "La clasificación termina en este segundo aunque queden bolas fuera de sus franjas (con un acorde menor), y empieza la remezcla.",
+    "csFlash": "Destellos de rechazo",
+    "csFlashTip": "Un breve destello donde una puerta o un arco devuelve una bola.",
+    "csLoopNote": "Cada ciclo ordena las bolas, mantiene la diana medio segundo y las vuelve a mezclar hasta el primer fotograma: con Exportar bucles completos activado, la grabación termina en una costura y se repite para siempre."
+  },
+  "EllipseFoci": {
+    "canvasTitle": "dispara desde un punto, acierta en el otro",
+    "canvasSubtitle": "cada rebote en la pared va hacia el otro punto / y todos los caminos miden lo mismo",
+    "canvasPasses": "{count, plural, one {{count} pasada} other {{count} pasadas}}"
   }
 }

@@ -1,6 +1,6 @@
 import { resolveProjectSettings } from "@/lib/project";
 import { RESOLUTIONS, type SimulatorSettings } from "@/lib/settings";
-import { MAX_SEED } from "@/lib/recording/batch";
+import { isLinkSeed } from "@/lib/recording/batch"; // --- low-findings --- (was MAX_SEED: a negative found seed was lost)
 import { VIDEO_CODECS, type LibraryMeta, type VideoCodec } from "./contract";
 import { OUTPUT_PRESETS, type OutputPreset } from "./presets";
 import { safeFileBase } from "./fileNames";
@@ -353,7 +353,7 @@ function restoreJob(raw: unknown, now: number): QueueJob | null {
     name,
     source: restoreSource(raw.source),
     settings: resolveProjectSettings(raw.settings),
-    seed: seed >= 0 && seed <= MAX_SEED ? seed : 1,
+    seed: isLinkSeed(seed) ? seed : 1,
     resolution: (RESOLUTIONS as readonly string[]).includes(raw.resolution as string) ? (raw.resolution as string) : "1080x1920",
     fps: raw.fps === 30 ? 30 : 60,
     codec: (VIDEO_CODECS as readonly string[]).includes(raw.codec as string) ? (raw.codec as VideoCodec) : "h264",
