@@ -4548,6 +4548,6 @@
   "EllipseFoci": {
     "canvasTitle": "fire from one dot, hit the other",
     "canvasSubtitle": "every bounce off the wall heads for the other dot / and every path there is the same length",
-    "canvasPasses": "{count} passes"
+    "canvasPasses": "{count, plural, one {{count} pass} other {{count} passes}}"
   }
 }

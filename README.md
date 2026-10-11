@@ -2043,7 +2043,8 @@ the mode, `src/components/simulator/ellipseFociRenderer.ts` the picture, `sectio
   from a seeded progression) drops in at the loop's first convergence. The seeded choices, in this order: the hue offset, then
   the bed's progression.
 - **The HUD** – the loop HUD is on in Focus Shot: "fire from one dot, hit the other" and its two-line grey subtitle (the
-  `EllipseFoci` namespace, `loopHudMessageKey()` reads a key that names its namespace), and with the Pass counter the passes of the current loop in amber ("3 passes", 0 again at a seam); the live HUD
+  `EllipseFoci` namespace, `loopHudMessageKey()` reads a key that names its namespace), and with the Pass counter the passes of the current loop in amber ("1 pass", "3 passes", 0 again at a seam – a counter template may carry ICU's plural argument,
+  `{count, plural, one {…} other {…}}`, which `hudCounterText()` resolves per language through `src/lib/loop/hudPlural.ts`); the live HUD
   keeps clear of the pool and its rim.
 - **Find Simulation** – **Converges on the beat**: every volley converges on time, so the transit becomes the whole number of bars
   at the BPM set under Sound nearest it, and the clip the whole loops that fit the target (at least one); **Longest collapse**:

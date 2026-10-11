@@ -48,7 +48,8 @@ import { EllipseFociLayer, ellipseFociExtentPx } from "@/components/simulator/el
 import { BOARD_BALL_CEILING, MEMORY_CEILINGS } from "@/lib/uncap";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
-import { LOOP_HUD_MODE_TEXT, loopHudCount, loopHudMessageKey } from "@/lib/loop/hud";
+import { LOOP_HUD_MODE_TEXT, hudCounterText, loopHudCount, loopHudMessageKey } from "@/lib/loop/hud";
+import { hudPluralText, parseHudPlural } from "@/lib/loop/hudPlural";
 import { loopCaptionContext } from "@/lib/publish/loopCaption";
 import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
 import { playSoundEvent } from "@/lib/recording/fastRender";
@@ -294,7 +295,22 @@ describe("Focus Shot: the mode in the catalogue", () => {
       expect((catalog.Modes as unknown as Record<string, { name: string }>).ellipseFoci.name).toBe(catalog.Controls.modeEllipseFoci);
     }
     expect(en.EllipseFoci.canvasTitle).toBe("fire from one dot, hit the other");
-    expect(en.EllipseFoci.canvasPasses).toBe("{count} passes");
+    // the pass counter in the right plural form in every language ("1 pass", "3 passes"; Polish's few and many forms)
+    expect(hudCounterText(en.EllipseFoci.canvasPasses, 0, "en")).toBe("0 passes");
+    expect(hudCounterText(en.EllipseFoci.canvasPasses, 1, "en")).toBe("1 pass");
+    expect(hudCounterText(en.EllipseFoci.canvasPasses, 3, "en")).toBe("3 passes");
+    expect(hudCounterText(es.EllipseFoci.canvasPasses, 1, "es")).toBe("1 pasada");
+    expect(hudCounterText(es.EllipseFoci.canvasPasses, 2, "es")).toBe("2 pasadas");
+    expect(hudCounterText(pl.EllipseFoci.canvasPasses, 1, "pl")).toBe("1 przejście");
+    expect(hudCounterText(pl.EllipseFoci.canvasPasses, 3, "pl")).toBe("3 przejścia");
+    expect(hudCounterText(pl.EllipseFoci.canvasPasses, 5, "pl")).toBe("5 przejść");
+    expect(hudCounterText(pl.EllipseFoci.canvasPasses, 0, "pl")).toBe("0 przejść");
+    // a template without the plural argument is untouched, an exact `=n` option wins, `#` is the count, a broken one stays as typed
+    expect(hudPluralText("{count} bounces", 1)).toBe("{count} bounces");
+    expect(hudPluralText("{count, plural, =0 {none yet} one {# pass} other {# passes}} so far", 0)).toBe("none yet so far");
+    expect(hudPluralText("{count, plural, =0 {none yet} one {# pass} other {# passes}} so far", 1)).toBe("1 pass so far");
+    expect(hudPluralText("{count, plural, one {# pass}", 2)).toBe("{count, plural, one {# pass}");
+    expect(parseHudPlural("{count, plural, one {# pass}}")).toBeNull(); // no `other`
   });
 
   it("counts the HUD's passes in the loop when the pass counter is on, and gives the caption its volley", () => {

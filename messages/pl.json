@@ -4384,6 +4384,6 @@
   "EllipseFoci": {
     "canvasTitle": "strzel z jednej kropki, traf w drugą",
     "canvasSubtitle": "każde odbicie od ściany prowadzi do drugiej kropki / a każda droga tam ma tę samą długość",
-    "canvasPasses": "przejścia: {count}"
+    "canvasPasses": "{count, plural, one {{count} przejście} few {{count} przejścia} other {{count} przejść}}"
   }
 }

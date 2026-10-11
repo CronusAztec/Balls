@@ -4384,6 +4384,6 @@
   "EllipseFoci": {
     "canvasTitle": "dispara desde un punto, acierta en el otro",
     "canvasSubtitle": "cada rebote en la pared va hacia el otro punto / y todos los caminos miden lo mismo",
-    "canvasPasses": "{count} pasadas"
+    "canvasPasses": "{count, plural, one {{count} pasada} other {{count} pasadas}}"
   }
 }

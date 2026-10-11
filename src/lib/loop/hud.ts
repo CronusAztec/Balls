@@ -1,5 +1,6 @@
 import type { ModeId } from "@/lib/physics/types";
 import { badgeMetrics, badgeZone, exportSquare } from "@/lib/watermark/layout";
+import { hudPluralText } from "./hudPlural"; // --- ellipse-foci --- (a counter's plural forms)
 
 /*
  * --- loop-foundation --- The loop HUD, in the style of the loop clips: a bold lowercase title at about 16 % of the frame's
@@ -215,7 +216,7 @@ export function hudText(text: string | undefined | null, locale?: string): strin
 export function hudCounterText(template: string, count: number | LoopHudCount | null, locale?: string, values?: Readonly<Record<string, number>>): string {
   const value = typeof count === "number" || count === null ? count : count.count;
   if (!template || value === null || !Number.isFinite(value)) return "";
-  let text = template.replace("{count}", String(Math.round(value)));
+  let text = hudPluralText(template, Math.round(value), locale).replace("{count}", String(Math.round(value))); // (--- ellipse-foci --- the count's plural form first: "1 pass", "3 passes")
   if (count !== null && typeof count === "object" && Number.isFinite(count.total)) text = text.replace("{total}", String(Math.round(count.total))); // --- chord-stars ---
   if (values) for (const key in values) text = text.replace(`{${key}}`, hudNumber(values[key], locale)); // --- bead-hoops ---
   return hudText(text, locale);

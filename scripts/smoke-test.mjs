@@ -14150,7 +14150,7 @@ await smokeBlock("ellipse-foci", async () => {
 // 41. Focus Shot (the loop family's whispering-gallery shot): ?mode=ellipseFoci runs 20 s of simulation at 4× with no NaN
 // position (data-ef-nan), at least four convergences on time (data-ef-convergences; the worst arrival, data-ef-conv-error, under
 // 1e-6 of the long semi-axis), comet trails (data-ef-trail-points), the white convergence bloom and the loop HUD's lowercase
-// title and pass counter on the canvas; a preset travels in the link (efN, efAim, efTr, efPa) and rebuilds the run; Find
+// title and pass counter on the canvas ("1 pass", never "1 passes"); a preset travels in the link (efN, efAim, efTr, efPa) and rebuilds the run; Find
 // Simulation offers Converges on the beat and Longest collapse and puts a 100 BPM page's convergences on its bar lines (efT=4.8);
 // and a fast export of a 20 s clip – one whole 16 s loop – emits exactly the sound events live play emitted up to that seam
 // (data-ef-conv-sounds of the export's hidden canvas against the page's: the sounds after each convergence, cumulative).
@@ -14189,12 +14189,12 @@ await smokeBlock("ellipse-foci", async () => {
   await page.screenshot({ path: path.join(outDir, "sim-ellipse-foci.png") });
   const hud = await page.evaluate(() => {
     const { texts, white } = window.__efHud;
-    return { title: texts.some((t) => t.text === "fire from one dot, hit the other"), counter: texts.filter((t) => /^\d+ passes$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null, white };
+    return { title: texts.some((t) => t.text === "fire from one dot, hit the other"), counter: texts.filter((t) => /^\d+ pass(es)?$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null, onePass: texts.some((t) => t.text === "1 pass") && !texts.some((t) => t.text === "1 passes"), white };
   });
   const live = (run.efConvSounds || "").split(",").filter(Boolean).map(Number);
   check(
     "Focus Shot runs 20 s at 4×: no NaN, a convergence on time every 4 s, comet trails, the bloom and the loop HUD's title and pass counter",
-    sectionInfo.visible && sectionInfo.loop === "16" && sectionInfo.bpm === "120" && Number(run.efTime) >= 20 && run.efNan === "0" && nan === 0 && Number(run.efConvergences) >= 4 && Number(run.efConvError) < 1e-6 && run.efBalls === "72" && run.efSkin === "table" && trail > 72 && hud.white > 0 && hud.title && hud.counter === "#f2c46a" && run.loopHud === "1" && live.length >= 4,
+    sectionInfo.visible && sectionInfo.loop === "16" && sectionInfo.bpm === "120" && Number(run.efTime) >= 20 && run.efNan === "0" && nan === 0 && Number(run.efConvergences) >= 4 && Number(run.efConvError) < 1e-6 && run.efBalls === "72" && run.efSkin === "table" && trail > 72 && hud.white > 0 && hud.title && hud.counter === "#f2c46a" && hud.onePass && run.loopHud === "1" && live.length >= 4,
     `(${JSON.stringify({ section: sectionInfo, time: run.efTime, nan: run.efNan, conv: run.efConvergences, err: run.efConvError, balls: run.efBalls, skin: run.efSkin, trail, hud, live, seams: run.efSeams, loop: run.efLoop })})`,
   );
 
