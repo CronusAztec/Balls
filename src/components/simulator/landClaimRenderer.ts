@@ -3,6 +3,9 @@ import { wobbleEnvelope } from "@/lib/physics/wobble";
 import { flagCodeOf } from "@/lib/countries";
 import { LC_FLY_LOG, LC_FLY_MS, LC_POP_LOG, LC_POP_MS, blockCentre, blockCorners, lcPaletteColor, lcPaletteName, type LandClaimField, type LandClaimView } from "@/lib/physics/modes/landClaim";
 import type { TeamEntry } from "@/lib/teams";
+// --- land-claim-pyramid --- the pyramid layout's isometric drawing and its data
+import { LCP_SOLO_COLOR, LCP_SOLO_NAME } from "@/lib/physics/landClaimPyramid";
+import { LAND_CLAIM_PYRAMID_DATA_KEYS, LandClaimPyramidLayer, lcPyramidBallsOnFloor, writeLandClaimPyramidDataset } from "./landClaimPyramidRenderer";
 
 /**
  * Canvas drawing of Land Claim (feature land-claim; lib/physics/modes/landClaim.ts), one `LandClaimLayer` per draw loop,
@@ -258,6 +261,9 @@ export class LandClaimLayer {
   lod = 0;
   /** The blocks were drawn as runs (too small for their gaps) when the arena was last painted. */
   runs = false;
+  // --- land-claim-pyramid --- the pyramid layout draws isometrically (landClaimPyramidRenderer.ts), in the competitors' colours
+  readonly pyramid = new LandClaimPyramidLayer();
+  private readonly pyramidColor = (team: number) => this.colorOf(team);
 
   /** The colour of competitor `team` this frame (the roster's, else the palette's). */
   colorOf(team: number): string {
@@ -300,15 +306,16 @@ export class LandClaimLayer {
     this.lookRoster = o.roster;
     this.lookTeams = view.teams;
     this.lookLabels = o.labels;
-    let key = `${view.teams}`;
+    let key = `${view.teams}${view.pyramid ? "p" : ""}`; // (--- land-claim-pyramid --- a pyramid alone plays yellow)
     for (let i = 0; i < Math.min(o.roster.length, view.teams); i++) key += `|${o.roster[i].color}|${o.roster[i].name}|${o.roster[i].emoji}`;
     if (key === this.looksKey) return;
     this.looksKey = key;
     this.looks = [];
     for (let t = 0; t < view.teams; t++) {
       const entry = t < o.roster.length ? o.roster[t] : null;
-      const color = entry ? entry.color : lcPaletteColor(t);
-      const name = entry ? entry.name || o.labels.team(t + 1) : lcPaletteName(t) || o.labels.team(t + 1);
+      const solo = !!view.pyramid && view.teams === 1; // --- land-claim-pyramid --- (one competitor alone: the clip's yellow)
+      const color = entry ? entry.color : solo ? LCP_SOLO_COLOR : lcPaletteColor(t);
+      const name = entry ? entry.name || o.labels.team(t + 1) : solo ? LCP_SOLO_NAME : lcPaletteName(t) || o.labels.team(t + 1);
       const emoji = entry ? entry.emoji : "";
       const [r, g, b] = hexRgb(color);
       const alpha: string[] = [];
@@ -326,6 +333,12 @@ export class LandClaimLayer {
   /** World space, under the balls: the arena (floor and blocks), the wall, the pops and the flying blocks. */
   drawStage(ctx: CanvasRenderingContext2D, view: LandClaimView, o: LandClaimRenderOptions) {
     this.refreshLooks(view, o);
+    // --- land-claim-pyramid --- the pyramid's slab and floor (its columns are drawn with the balls, back to front)
+    if (view.pyramid) {
+      this.pyramid.drawStage(ctx, view, view.pyramid);
+      this.pops = 0;
+      return;
+    }
     const f = view.field;
     const now = o.nowMs;
     this.paintArena(view, o.dpr);
@@ -727,6 +740,13 @@ export class LandClaimLayer {
   /** World space, the ball pass: trails, glows, badges and the roster's names (a crowd as plain discs, one path per colour). */
   drawBodies(ctx: CanvasRenderingContext2D, view: LandClaimView, balls: readonly Ball[], o: LandClaimRenderOptions) {
     this.refreshLooks(view, o);
+    // --- land-claim-pyramid --- the columns and the balls back to front, the flying blocks, the summit's flash
+    if (view.pyramid) {
+      this.lod = 0;
+      this.pyramid.drawBodies(ctx, view, view.pyramid, balls, o.nowMs, this.pyramidColor);
+      this.flying = this.pyramid.flying;
+      return;
+    }
     const n = balls.length;
     const teams = Math.max(1, view.teams);
     this.lod = n > CROWD_BALLS ? 2 : n > MANY_BALLS ? 1 : 0;
@@ -843,7 +863,7 @@ export class LandClaimLayer {
       this.drawHud(ctx, view, balls, top, S, o);
     }
     this.bannerDrawn = false;
-    if (view.finished && !view.ate && o.nowMs - view.finishedMs >= BANNER_DELAY_MS) {
+    if (view.finished && !view.ate && o.nowMs - view.finishedMs >= BANNER_DELAY_MS && !(view.pyramid && view.teams < 2) /* --- land-claim-pyramid --- (one competitor alone: no battle to judge) */) {
       if (this.bannerGeneration !== view.generation) {
         this.bannerGeneration = view.generation;
         if (!frame.teamBanner) this.spawnConfetti(f.sqLeft, f.sqTop, S, view.verdict.winner, view.teams);
@@ -1184,6 +1204,7 @@ export const LAND_CLAIM_DATA_KEYS = [
   "lcBanner",
   "lcInArena",
   "lcAte",
+  ...LAND_CLAIM_PYRAMID_DATA_KEYS, // --- land-claim-pyramid ---
 ] as const;
 
 /** Per-competitor lists are written for the first this many competitors. */
@@ -1263,6 +1284,7 @@ export function writeLandClaimDataset(view: LandClaimView, layer: LandClaimLayer
   set("lcHud", layer.hudDrawn ? "1" : "0");
   set("lcTitle", layer.title);
   set("lcBanner", layer.bannerDrawn ? "1" : "0");
-  set("lcInArena", ballsInArena(view.field, balls) ? "1" : "0");
+  set("lcInArena", (view.pyramid ? lcPyramidBallsOnFloor(view, view.pyramid, balls) : ballsInArena(view.field, balls)) /* --- land-claim-pyramid --- (the pyramid's floor) */ ? "1" : "0");
   set("lcAte", view.ate ? "1" : "0");
+  writeLandClaimPyramidDataset(view, layer.pyramid, balls, set); // --- land-claim-pyramid ---
 }

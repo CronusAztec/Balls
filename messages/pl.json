@@ -2316,7 +2316,29 @@
     "flTierStory": "PNG 9:16",
     "flTierTitle": "{group} – lista tierów (symulacja Fight League)",
     "flTierSubtitle": "Ranking według zwycięstw w symulowanym turnieju każdy z każdym",
-    "flTierDisclaimer": "Imiona to zwykłe etykiety tekstowe niezależnej symulacji fanowskiej – bez logo, grafik i dźwięków."
+    "flTierDisclaimer": "Imiona to zwykłe etykiety tekstowe niezależnej symulacji fanowskiej – bez logo, grafik i dźwięków.",
+    "lcLayout": "Układ",
+    "lcLayoutTip": "Ściana: kolumny stoją wzdłuż ściany areny (bitwy). Piramida: schodkowa piramida z kolumn stoi na środku podłogi, pokazana w 3D, a kulki zbijają ją blok po bloku – szczyt na końcu.",
+    "lcLayoutWall": "Ściana",
+    "lcLayoutPyramid": "Piramida",
+    "lcpDesc": "Każda kulka, która uderzy w kolumnę, strąca jej górny blok; co ósmy strącony blok dodaje kolejną kulkę. Zewnętrzne stopnie padają pierwsze, a szczyt na końcu.",
+    "lcPyramidSize": "Rozmiar piramidy",
+    "lcPyramidSizeTip": "Liczba kolumn wzdłuż każdego boku podstawy piramidy (11 daje siatkę 11 × 11). Można wpisać dowolną liczbę od 3.",
+    "lcpGrid": "{n} × {n}",
+    "lcSteps": "Stopnie piramidy",
+    "lcStepsTip": "Stopnie piramidy: kolumna jest tak wysoka, jak liczba stopni minus jej odległość od środka, więc szczyt jest najwyższy, a zewnętrzny pierścień najniższy.",
+    "lcBlocks": "Bloki piramidy",
+    "lcBlocksTip": "Liczba wszystkich bloków: stopnie są przeskalowane tak, żeby piramida miała dokładnie tyle bloków (domyślnie 1144). 0 zostawia liczbę wynikającą ze stopni.",
+    "lcpBlocksN": "{count, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}}",
+    "lcpBlocksNatural": "naturalnie: {count, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}}",
+    "lcpSummary": "{blocks, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}}, szczyt wysoki na {tallest, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}} – {balls, plural, one {# kulka} few {# kulki} many {# kulek} other {# kulki}}, gdy spadnie ostatni.",
+    "lcRebuild": "Odbudowa i pętla",
+    "lcRebuildTip": "Gdy spadnie ostatni blok, piramida odbudowuje się sama, a przebieg zaczyna się od nowa od pierwszej klatki, więc klip z pełnych cykli zapętla się bez końca (Eksportuj pełne pętle w sekcji Nagrywanie).",
+    "lcRebuildSec": "Czas odbudowy",
+    "lcRebuildSecTip": "Ile sekund trwa odbudowa: kolumny wyrastają z podłogi, dodane kulki wtapiają się w piramidę, a pierwsze wracają do swoich narożników.",
+    "lcpLoopNote": "Przebieg się zapętla: zbicie, krótka pauza, odbudowa i znów pierwsza klatka. Znajdź symulację przeszukuje pierwszy cykl; klip obejmuje cały cykl.",
+    "lcpEndNote": "Przebieg kończy się, gdy spadnie ostatni blok (albo po czasie bitwy), jak bitwa na ścianie.",
+    "lcPresetPyramid1144": "Piramida, 1144 bloki"
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -3058,7 +3080,15 @@
     "leadChangesCount": "Zmian prowadzenia co najmniej",
     "bossWave": "Fala",
     "bothLowAt": "Cliffhanger w",
-    "progressBout": "Najdalej: walka {bout}"
+    "progressBout": "Najdalej: walka {bout}",
+    "outcomeSummitLast": "Szczyt spada ostatni",
+    "hintSummitLast": "Środkowa kolumna stoi najdłużej: jej górny blok jest ostatnim blokiem piramidy. Pierwsze zbijanie każdego seeda jest rozgrywane do końca.",
+    "findSummitLast": "Znajdź przebieg, w którym szczyt spada ostatni",
+    "foundSummitLast": "Znaleziono! Szczyt spada ostatni, po {time}s (klip {duration}s)",
+    "missSummitLast": "Najbliżej: gdy spadł szczyt, stało jeszcze {count, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}} ({seeds} seedów)",
+    "missNoSummit": "Szczyt nie spadł przed końcem czasu bitwy ({seeds} seedów)",
+    "overlaySummitLast": "Sprawdzono {tested} seedów: w najbliższym, gdy spadł szczyt, stało jeszcze {count, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}}. Spróbuj więcej seedów albo dłuższej bitwy.",
+    "overlayNoSummit": "Sprawdzono {tested} seedów: szczyt nie spadł przed końcem czasu bitwy. Spróbuj dłuższej bitwy, więcej kulek albo szybszych kulek."
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -4876,7 +4906,10 @@
     "canvasMore": "+[count] WIĘCEJ",
     "canvasBlocks": "Bloki",
     "finderFixed": "Bitwa z kradzieżą trwa zawsze dokładnie {duration}s – tyle, ile jej czas trwania – niezależnie od ziarna: ziarno decyduje, kto wygra. Zmień Czas trwania w bloku Podbój terenu, aby trafić w cel, albo szukaj zwycięzcy.",
-    "fixedRunLength": "Zawsze {duration}s – czas trwania; zmień go albo szukaj zwycięzcy"
+    "fixedRunLength": "Zawsze {duration}s – czas trwania; zmień go albo szukaj zwycięzcy",
+    "pyramidTitle": "piramida, blok po bloku",
+    "pyramidSubtitle": "każda kulka, która uderzy w kolumnę, strąca jej górny blok / co ósmy strącony blok dodaje kolejną kulkę",
+    "pyramidCounter": "{count, plural, one {{count} blok} few {{count} bloki} many {{count} bloków} other {{count} bloku}}"
   },
   "Countries": {
     "AR": "Argentyna",

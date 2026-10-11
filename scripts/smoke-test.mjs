@@ -15728,6 +15728,261 @@ await smokeBlock("phase-spiral", async () => {
 // --- end phase-spiral ---
 });
 
+await smokeBlock("land-claim-pyramid", async () => {
+// --- land-claim-pyramid ---
+// 44. Land Claim pyramid: URL → the Layout buttons and the pyramid's controls of the Land Claim block (size, steps, blocks,
+// Rebuild and Loop, its time; the wall's columns and rows hidden), the summary line (data-total, data-balls), controls → URL and
+// back to the wall, the search box, Find Simulation's outcomes (summit-last; a looping pyramid has no verdict or length to
+// search); the "Pyramid, 1,144 blocks" preset (the navy page, the loop HUD, one yellow colour, a clip of a whole cycle) run at
+// 8× to its clear – 0 blocks, 146 balls, the summit last, every ball on the floor (data-lcp-*), the plucks on C-major pentatonic
+// and the loop voices (OscillatorNode.start instrumented), the HUD's lowercase title and grey "N blocks" counter drawn into the
+// canvas – then the hold, the rebuild and the seam (data-loop-cycle, data-loop-seams); the preset at 1× at 30+ fps; Find
+// Simulation's "the summit falls last", played back to the found second; a fast export with Export whole loops; and a free
+// visitor's watermark badge clear of the HUD.
+{
+  await page.goto(`${BASE}/en/simulator/?mode=landClaim&lcl=pyramid&lct=1&lcg=9&lcs=5&lcbk=200&lcrb=1&lcrs=3`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("land-claim-section");
+  const layout = section.getByTestId("lc-layout");
+  const values = { lcg: await sliderValue("Pyramid Size").catch(() => "?"), lcs: await sliderValue("Pyramid Steps").catch(() => "?"), lcbk: await sliderValue("Pyramid Blocks").catch(() => "?"), lcrs: await sliderValue("Rebuild Time").catch(() => "?") };
+  const pyramid = await layout.locator('button[data-layout="pyramid"]').getAttribute("aria-pressed").catch(() => null);
+  const rebuild = await section.getByRole("switch", { name: switchName("Rebuild and Loop") }).getAttribute("aria-checked").catch(() => null);
+  const summary = page.getByTestId("lcp-summary");
+  const totals = { total: await summary.getAttribute("data-total").catch(() => null), balls: await summary.getAttribute("data-balls").catch(() => null), tallest: await summary.getAttribute("data-tallest").catch(() => null) };
+  const noWall = (await page.locator('input[aria-label="Block Columns"]').count()) === 0 && (await page.locator('input[aria-label="Blocks per Column"]').count()) === 0;
+  const loopNote = await page.getByTestId("lcp-loop-note").innerText().then((t) => /loops/.test(t)).catch(() => false);
+  const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+  check(
+    "a Land Claim pyramid loads from URL (layout, size, steps, blocks, rebuild; the wall's controls hidden; a looping pyramid searches only its summit)",
+    values.lcg === "9" && values.lcs === "5" && values.lcbk === "200" && values.lcrs === "3" && pyramid === "true" && rebuild === "true" && totals.total === "200" && totals.balls === String(3 + Math.floor(200 / 8)) /* one colour of three balls (Balls Each), a ball every eighth block */ && Number(totals.tallest) >= 5 && noWall && loopNote && options.join(",") === "summit-last",
+    `(${JSON.stringify({ values, pyramid, rebuild, totals, noWall, loopNote, options })})`,
+  );
+  await section.getByRole("switch", { name: switchName("Rebuild and Loop") }).click();
+  await page.locator('input[aria-label="Pyramid Size"]').evaluate(setRangeValue, "13");
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    const opts = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+    const endNote = await page.getByTestId("lcp-loop-note").innerText().then((t) => /ends when the last block falls/.test(t)).catch(() => false);
+    check(
+      "the pyramid mirrors into the URL (a run without the loop ends: its length and the summit to search)",
+      query.get("mode") === "landClaim" && query.get("lcl") === "pyramid" && query.get("lcg") === "13" && query.get("lcbk") === "200" && !query.has("lcrb") && opts.join(",") === "duration,summit-last" && endNote,
+      `(${query.toString()}, finder outcomes=${opts.join(",")}, end note=${endNote})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("pyramid steps");
+  const found = await page.locator('input[aria-label="Pyramid Steps"]').isVisible().catch(() => false);
+  await page.getByPlaceholder("Search settings...").fill("");
+  await layout.locator('button[data-layout="wall"]').click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    const wallBack = (await page.locator('input[aria-label="Block Columns"]').count()) === 1 && (await page.locator('input[aria-label="Pyramid Size"]').count()) === 0;
+    const data = await canvasData();
+    check("search finds the pyramid's controls, and the Wall button brings the wall back (no lcl in the URL)", found && wallBack && !query.has("lcl") && data.lcLayout === "wall", `(steps found=${found}, wall controls=${wallBack}, ${query.toString()}, canvas layout=${data.lcLayout})`);
+  }
+}
+let lcpPresetUrl = "";
+{
+  // The "Pyramid, 1,144 blocks" preset at 8×: knocked down to the floor with the summit last, then the hold, the rebuild, the seam.
+  await page.goto(`${BASE}/en/simulator/?mode=landClaim`, { waitUntil: "networkidle" });
+  await page.getByTestId("lc-preset").selectOption("pyramid1144");
+  await page.waitForTimeout(500);
+  lcpPresetUrl = page.url();
+  const query = new URLSearchParams(lcpPresetUrl.split("?")[1] || "");
+  const summary = page.getByTestId("lcp-summary");
+  const totals = { total: await summary.getAttribute("data-total").catch(() => null), balls: await summary.getAttribute("data-balls").catch(() => null) };
+  check(
+    "the Pyramid, 1,144 blocks preset: an 11 × 11 pyramid of 1,144 blocks, one colour of three balls, looping, the loop HUD on a navy page (146 balls at the end)",
+    query.get("lcl") === "pyramid" && query.get("lcrb") === "1" && query.get("lct") === "1" && query.get("lh") === "1" && totals.total === "1144" && totals.balls === "146" && Number(query.get("dur")) >= 40,
+    `(${query.toString()}, ${JSON.stringify(totals)})`,
+  );
+  await page.evaluate(() => {
+    const osc = [];
+    const texts = [];
+    window.__lcpOsc = osc;
+    window.__lcpTexts = texts;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value > 20 && osc.length < 40000) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 40000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  const atStart = await canvasData();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.lcpClears) >= 1 || document.querySelector("main canvas")?.dataset.lcpEnd === "time", null, { timeout: 120_000 }).catch(() => {});
+  const cleared = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-land-claim-pyramid.png") });
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.lcpSeams) >= 1, null, { timeout: 30_000 }).catch(() => {});
+  const seam = await canvasData();
+  const heard = await page.evaluate(() => {
+    const near = (f) => window.__lcpOsc.some((x) => Math.abs(x - f) < 0.5);
+    const texts = window.__lcpTexts.splice(0);
+    // the plucks' C-major pentatonic from C3 (C3 D3 E3 G3 A3 C4)
+    return {
+      osc: window.__lcpOsc.length,
+      plucks: [130.81, 146.83, 164.81, 196.0, 220.0, 261.63].filter(near).length,
+      title: texts.some((t) => t.text === "a pyramid, one block at a time"),
+      counter: texts.filter((t) => /^[\d,]+ blocks?$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null,
+      full: texts.some((t) => /^1,?144 blocks$/.test(t.text)),
+      empty: texts.some((t) => t.text === "0 blocks"),
+    };
+  });
+  check(
+    "the pyramid preset at 8× knocks all 1,144 blocks down, the summit last, and ends with 146 balls on the floor",
+    atStart.lcLayout === "pyramid" && atStart.lcpTotal === "1144" && atStart.lcpShown === "1144" && atStart.lcpStartBalls === "3" && atStart.lcBallCount === "3" && cleared.lcpEnd === "cleared" && cleared.lcpSummitLast === "1" && cleared.lcpSummitLeft === "0" && cleared.lcpEndBalls === "146" && Number(cleared.lcpClearSec) > 3 && Number(cleared.lcpClearSec) < 40 && cleared.lcpOnFloor === "1" && Number(cleared.lcpPlucks) > 100 && Number(cleared.lcpChimes) >= 1 && cleared.lcpSummits === "1" && cleared.lcpClears === "1",
+    `(${JSON.stringify({ total: atStart.lcpTotal, start: atStart.lcBallCount, end: cleared.lcpEnd, summitLast: cleared.lcpSummitLast, summitLeft: cleared.lcpSummitLeft, summitSec: cleared.lcpSummitSec, clearSec: cleared.lcpClearSec, endBalls: cleared.lcpEndBalls, onFloor: cleared.lcpOnFloor, plucks: cleared.lcpPlucks, chimes: cleared.lcpChimes, summits: cleared.lcpSummits, clears: cleared.lcpClears })})`,
+  );
+  check(
+    "the pyramid holds, rebuilds and loops back to its first frame (the loop contract reports its cycle and seams)",
+    Number(seam.lcpSeams) >= 1 && Number(seam.loopSeams) >= 1 && Number(seam.loopCycle) > Number(cleared.lcpClearSec) && Math.abs(Number(seam.lcpCycleSec) - Number(seam.loopCycle)) < 0.05 && seam.lcpOnFloor === "1",
+    `(${JSON.stringify({ seams: seam.lcpSeams, loopSeams: seam.loopSeams, cycle: seam.loopCycle, lcpCycle: seam.lcpCycleSec, phase: seam.lcpPhase, shown: seam.lcpShown, balls: seam.lcBallCount })})`,
+  );
+  check("the blocks pluck C-major pentatonic, and the loop HUD draws its title and a grey block counter from 1,144 to 0", heard.plucks >= 3 && heard.osc >= 100 && heard.title && heard.counter === "#9a9a9a" && heard.full && heard.empty, `(${JSON.stringify(heard)})`);
+}
+{
+  // The preset's frame rate at 1× (121 columns drawn isometrically, the balls among them, the HUD).
+  await page.goto(lcpPresetUrl || `${BASE}/en/simulator/?mode=landClaim&lcl=pyramid&lct=1&lcrb=1&lh=1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(500);
+  const fr = await pageFrameRates(4000);
+  const data = await canvasData();
+  await timingCheck("simulator Land Claim pyramid knocks the 1,144 blocks down at 30+ fps", data.lcLayout === "pyramid" && Number(data.lcpShown) < 1144 && data.lcpOnFloor === "1", fpsOk(fr, 6, 30), `(${data.lcpShown} blocks left, ${data.lcBallCount} balls, ${fpsNote(fr)}, floor 30${loadNote()})`, fpsRetry(4000, 6, 30));
+}
+{
+  // Find Simulation: the summit falls last – found, and played back to the found second.
+  await page.goto(lcpPresetUrl || `${BASE}/en/simulator/?mode=landClaim&lcl=pyramid&lct=1&lcrb=1&lh=1`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("summit-last").catch(() => {});
+  const button = page.getByRole("button", { name: /Find a Run Where the Summit Falls Last/ });
+  const labelled = await button.isVisible().catch(() => false);
+  await button.click().catch(() => {});
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const at = /Found! The summit falls last, at ([\d.]+)s/.exec(text);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  let played = {};
+  if (at) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.lcpSummitSec !== "" && document.querySelector("main canvas")?.dataset.lcpSummitSec !== undefined, null, { timeout: 90_000 }).catch(() => {});
+    played = await canvasData();
+  }
+  check(
+    "Find Simulation finds a pyramid run whose summit falls last, records its whole cycle and plays it back to the found second",
+    labelled && !!at && played.lcpSummitLast === "1" && Math.abs(Number(played.lcpSummitSec) - Number(at[1])) < 0.07 && Number(query.get("dur")) >= Math.floor(Number(at[1])),
+    `("${text}", dur=${query.get("dur")}, played: ${JSON.stringify({ summitSec: played.lcpSummitSec, summitLast: played.lcpSummitLast, seed: query.get("seed") })})`,
+  );
+}
+{
+  // ⚡ A fast export with Export whole loops (on by default) of a small looping pyramid (5 × 5, three steps, a 1 s rebuild) in a
+  // 20 s clip: a whole number of its identical cycles, cut on a seam (within a frame), the HUD's title in its frames.
+  await page.goto(`${BASE}/en/simulator/?mode=landClaim&lcl=pyramid&lct=1&lcg=5&lcs=3&lcbk=0&lcrb=1&lcrs=1&lh=1&seed=7&dur=20&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const osc = [];
+      const texts = [];
+      window.__lcpOfflineOsc = osc;
+      window.__lcpFrameTexts = texts;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.context instanceof OfflineAudioContext && osc.length < 20000) osc.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        if (texts.length < 20000 && this.canvas.width === 500 && this.canvas.height === 500) texts.push(String(text));
+        return fillText.call(this, text, ...rest);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `land-claim-pyramid-loop-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const cycle = Number(await panel.getAttribute("data-fast-loop-cycle"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const heard = await page.evaluate(() => ({
+      osc: window.__lcpOfflineOsc.length,
+      title: window.__lcpFrameTexts.filter((t) => t === "a pyramid, one block at a time").length,
+      counter: window.__lcpFrameTexts.filter((t) => /^\d+ blocks?$/.test(t)).length,
+    }));
+    check(
+      "a Land Claim pyramid fast export with Export whole loops lasts a whole number of its cycles (within a frame, inside the 20 s clip), carries the HUD and plays the loop voices through its own audio",
+      status === "done" && bytes > 10000 && loops >= 1 && cycle > 1 && Math.abs(seconds - loops * cycle) <= 1 / 30 + 0.002 && seconds <= 20 + 1 / 30 + 0.002 && heard.title >= 10 && heard.counter >= 10 && heard.osc >= 20,
+      `(${JSON.stringify({ status, bytes, seconds, cycle, loops, heard })})`,
+    );
+  } else check("without WebCodecs the Land Claim pyramid fast export is not checked (the loop contract is covered above)", true);
+}
+{
+  // A free visitor (no licence): Record Video and Fast export carry the watermark tag, and the live badge – drawn into the
+  // canvas right after the faint domain tiles, on the other side every 6 s – never covers the HUD's title or counter.
+  const freeContext = await browser.newContext({ license: null, viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  try {
+    const fp = await freeContext.newPage();
+    await fp.goto(lcpPresetUrl || `${BASE}/en/simulator/?mode=landClaim&lcl=pyramid&lct=1&lcrb=1&lh=1`, { waitUntil: "networkidle" });
+    await fp.evaluate(() => {
+      const log = { draws: [], texts: [] };
+      window.__lcpMark = log;
+      const main = () => document.querySelector("main canvas");
+      const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+      CanvasRenderingContext2D.prototype.drawImage = function (img, ...rest) {
+        if (this.canvas === main() && log.draws.length < 20000) log.draws.push({ w: img.width, h: img.height, x: rest[0], y: rest[1], cw: this.canvas.width, ch: this.canvas.height });
+        return drawImage.call(this, img, ...rest);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+        if (this.canvas === main() && log.texts.length < 20000 && (text === "a pyramid, one block at a time" || /^[\d,]+ blocks?$/.test(String(text)))) {
+          const m = this.getTransform();
+          const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 10) * m.d;
+          log.texts.push({ x: m.a * x + m.e, y: m.d * y + m.f, size, width: this.measureText(String(text)).width * m.a, baseline: this.textBaseline });
+        }
+        return fillText.call(this, text, x, y, ...rest);
+      };
+    });
+    await fp.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+    const tags = { record: await fp.getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").count(), fast: await fp.getByRole("button", { name: /Fast export/ }).locator("[data-watermark-tag]").count() };
+    await fp.getByRole("button", { name: /Start Simulator/ }).click();
+    await fp.waitForTimeout(7500);
+    const mark = await fp.evaluate(() => {
+      const { draws, texts } = window.__lcpMark;
+      const badges = [];
+      for (let i = 1; i < draws.length; i++) {
+        const p = draws[i - 1];
+        if (p.x === 0 && p.y === 0 && p.w === p.cw && p.h === p.ch) badges.push(draws[i]);
+      }
+      const spots = [...new Map(badges.map((b) => [`${Math.round(b.x)},${Math.round(b.y)}`, b])).values()];
+      const lines = texts.slice(-8).map((t) => ({ x0: t.x - t.width / 2, x1: t.x + t.width / 2, y0: t.y - 0.6 * t.size, y1: t.y + 0.6 * t.size }));
+      const pill = (b) => ({ x: b.x + 0.2 * b.h, y: b.y + 0.2 * b.h, w: b.w - 0.4 * b.h, h: 0.6 * b.h });
+      const overlaps = spots.map(pill).filter((b) => lines.some((l) => b.x < l.x1 && b.x + b.w > l.x0 && b.y < l.y1 && b.y + b.h > l.y0)).length;
+      const inside = lines.every((l) => l.y0 >= 0 && l.y1 <= (draws[0]?.ch ?? Infinity));
+      return { spots: spots.map((b) => [Math.round(b.x), Math.round(b.y), b.w, b.h]), lines: lines.slice(-2).map((l) => [Math.round(l.x0), Math.round(l.y0), Math.round(l.x1), Math.round(l.y1)]), overlaps, inside, count: texts.length };
+    });
+    check(
+      "a free visitor's Land Claim pyramid: the watermark tag on Record Video and Fast export, the live badge clear of the HUD's title and counter, and the HUD inside the canvas",
+      tags.record >= 1 && tags.fast >= 1 && mark.spots.length >= 1 && mark.overlaps === 0 && mark.count >= 2 && mark.inside,
+      `(${JSON.stringify({ tags, ...mark })})`,
+    );
+  } finally {
+    await freeContext.close().catch(() => {});
+  }
+}
+// --- end land-claim-pyramid ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

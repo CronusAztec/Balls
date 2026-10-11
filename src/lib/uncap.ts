@@ -182,6 +182,12 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   lcTeams: 1_000,
   lcBalls: BOARD_BALL_CEILING,
   // --- end land-claim ---
+  // --- land-claim-pyramid --- Land Claim's pyramid (`LCP_*_CEILING` of lib/physics/landClaimPyramid.ts – a test keeps them equal):
+  // the grid's side (a few numbers a column: 1,000 × 1,000 is a million columns) and the blocks in all (an Int32 a column; the
+  // wall's million – a natural pyramid past it is scaled down to it)
+  lcPyramidSize: 1_000,
+  lcBlocks: 1_000_000,
+  // --- end land-claim-pyramid ---
   // --- colour-sort --- Colour Sort (`CS_*_CEILING` of lib/physics/modes/colourSort.ts – a test keeps them equal): the colours
   // (a ring, a band and a palette entry each), the balls of a colour (two colours of them fill the 20,000 balls a run holds,
   // `CS_BALL_CEILING`: a dozen numbers each, all moved every sub-step – past it each colour holds its share) and the gates of a

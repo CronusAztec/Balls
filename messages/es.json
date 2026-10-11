@@ -2316,7 +2316,29 @@
     "flTierStory": "PNG 9:16",
     "flTierTitle": "Tier list de {group} (simulación Fight League)",
     "flTierSubtitle": "Clasificación por victorias en un todos contra todos simulado",
-    "flTierDisclaimer": "Los nombres son simples etiquetas de texto de una simulación de fans no afiliada: sin logotipos, ilustraciones ni audio."
+    "flTierDisclaimer": "Los nombres son simples etiquetas de texto de una simulación de fans no afiliada: sin logotipos, ilustraciones ni audio.",
+    "lcLayout": "Disposición",
+    "lcLayoutTip": "Pared: las columnas recorren la pared de la arena (las batallas). Pirámide: una pirámide escalonada de columnas se alza en el centro de un suelo, vista en 3D, y las bolas la derriban bloque a bloque: la cima, la última.",
+    "lcLayoutWall": "Pared",
+    "lcLayoutPyramid": "Pirámide",
+    "lcpDesc": "Cada bola que golpea una columna le arranca el bloque de arriba; cada octavo bloque arrancado añade otra bola. Los escalones de fuera caen primero y la cima, la última.",
+    "lcPyramidSize": "Tamaño de la pirámide",
+    "lcPyramidSizeTip": "Columnas a lo largo de cada lado de la base de la pirámide (11 forma una cuadrícula de 11 × 11). Se puede escribir cualquier número desde 3.",
+    "lcpGrid": "{n} × {n}",
+    "lcSteps": "Escalones de la pirámide",
+    "lcStepsTip": "Los escalones de la pirámide: una columna es tan alta como los escalones menos su distancia al centro, así que la cima es la más alta y el anillo exterior el más bajo.",
+    "lcBlocks": "Bloques de la pirámide",
+    "lcBlocksTip": "Los bloques en total: los escalones se escalan para que la pirámide tenga exactamente esta cantidad (1144 por defecto). 0 conserva la cuenta propia de los escalones.",
+    "lcpBlocksN": "{count, plural, one {# bloque} other {# bloques}}",
+    "lcpBlocksNatural": "natural: {count, plural, one {# bloque} other {# bloques}}",
+    "lcpSummary": "{blocks, plural, one {# bloque} other {# bloques}}, la cima de {tallest, plural, one {# bloque} other {# bloques}} de alto: {balls, plural, one {# bola} other {# bolas}} cuando cae el último.",
+    "lcRebuild": "Reconstruir y repetir",
+    "lcRebuildTip": "Cuando cae el último bloque, la pirámide se reconstruye sola y la partida vuelve a empezar desde su primer fotograma, así que un clip de ciclos completos se repite sin fin (Exportar bucles completos en la sección Grabación).",
+    "lcRebuildSec": "Tiempo de reconstrucción",
+    "lcRebuildSecTip": "Segundos que dura la reconstrucción: las columnas vuelven a subir desde el suelo, las bolas añadidas se funden en la pirámide y las primeras vuelven a sus esquinas.",
+    "lcpLoopNote": "La partida se repite: derribo, una breve pausa, reconstrucción y de nuevo el primer fotograma. Buscar simulación examina el primer ciclo; el clip abarca uno entero.",
+    "lcpEndNote": "La partida termina cuando cae el último bloque (o al acabar la duración de la batalla), como una batalla en la pared.",
+    "lcPresetPyramid1144": "Pirámide, 1144 bloques"
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -3058,7 +3080,15 @@
     "leadChangesCount": "Cambios de líder como mínimo",
     "bossWave": "Oleada",
     "bothLowAt": "Suspense en",
-    "progressBout": "Lo más lejos: combate {bout}"
+    "progressBout": "Lo más lejos: combate {bout}",
+    "outcomeSummitLast": "La cima cae la última",
+    "hintSummitLast": "La columna central es la última en pie: su bloque de arriba es el último de la pirámide. El primer derribo de cada semilla se juega hasta el final.",
+    "findSummitLast": "Buscar una partida en la que la cima caiga la última",
+    "foundSummitLast": "¡Encontrada! La cima cae la última, a los {time}s (clip de {duration}s)",
+    "missSummitLast": "Lo más cerca: {count, plural, one {# bloque seguía} other {# bloques seguían}} en pie cuando cayó la cima ({seeds} semillas)",
+    "missNoSummit": "La cima no cayó antes de que acabara la duración de la batalla ({seeds} semillas)",
+    "overlaySummitLast": "Se probaron {tested} semillas: en la más cercana {count, plural, one {# bloque seguía} other {# bloques seguían}} en pie cuando cayó la cima. Prueba más semillas o una batalla más larga.",
+    "overlayNoSummit": "Se probaron {tested} semillas: la cima no cayó antes de que acabara la duración de la batalla. Prueba una batalla más larga, más bolas o bolas más rápidas."
   },
   "FastExport": {
     "button": "Exportación rápida",
@@ -4876,7 +4906,10 @@
     "canvasMore": "+[count] MÁS",
     "canvasBlocks": "Bloques",
     "finderFixed": "Una batalla de robo dura siempre exactamente {duration}s – su duración – sea cual sea la semilla: la semilla decide quién gana. Cambia la Duración en el bloque Conquista de terreno para dar con el objetivo, o busca un ganador.",
-    "fixedRunLength": "Siempre {duration}s – la duración; cámbiala o busca un ganador"
+    "fixedRunLength": "Siempre {duration}s – la duración; cámbiala o busca un ganador",
+    "pyramidTitle": "una pirámide, bloque a bloque",
+    "pyramidSubtitle": "cada bola que golpea una columna le arranca el bloque de arriba / cada octavo bloque arrancado añade otra bola",
+    "pyramidCounter": "{count, plural, one {{count} bloque} other {{count} bloques}}"
   },
   "Countries": {
     "AR": "Argentina",

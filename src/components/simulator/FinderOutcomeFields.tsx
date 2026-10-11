@@ -60,6 +60,7 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   sudden: "outcomeSudden",
   champion: "outcomeChampion",
   "boss-falls-at": "outcomeBossFallsAt",
+  "summit-last": "outcomeSummitLast", // --- land-claim-pyramid ---
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -96,6 +97,7 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   sudden: "hintSudden",
   champion: "hintChampion",
   "boss-falls-at": "hintBossFallsAt",
+  "summit-last": "hintSummitLast", // --- land-claim-pyramid ---
 };
 
 /** --- fl-overhaul --- (Stage 5) An outcome's label key (`Rigged.*`): the story outcomes' generic texts name it. */
@@ -482,6 +484,8 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findLastColour", { name: c.winnerName });
     case "sorted-on-bar":
       return t("Rigged.findSortedOnBar");
+    case "summit-last": // --- land-claim-pyramid ---
+      return t("Rigged.findSummitLast");
     default:
       return null;
   }
@@ -541,6 +545,8 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundLastColour", { name: c.winnerName, time: (result.sortedAt ?? 0).toFixed(2) });
     case "sorted-on-bar":
       return t("Rigged.foundSortedOnBar", { time: (result.sortedAt ?? 0).toFixed(2) });
+    case "summit-last": // --- land-claim-pyramid --- (the summit's fall, the cycle the clip loops)
+      return t("Rigged.foundSummitLast", { time: (result.summitAt ?? 0).toFixed(1), duration: result.duration.toFixed(1) });
     default:
       return null;
   }
@@ -600,6 +606,8 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missLastColour", { name: c.winnerName, seeds: result.seedsTested });
     case "sorted-on-bar":
       return result.sortedAt === undefined ? t("Rigged.missNoSort", { seeds: result.seedsTested }) : t("Rigged.missSortedOnBar", { offset: barOffsetText(result.sortedAt, c.barSec), seeds: result.seedsTested });
+    case "summit-last": // --- land-claim-pyramid --- (the fewest blocks standing elsewhere when the summit fell; −1: it never fell)
+      return result.duration < 0 ? t("Rigged.missNoSummit", { seeds: result.seedsTested }) : t("Rigged.missSummitLast", { count: Math.round(result.duration), seeds: result.seedsTested });
     default:
       return null;
   }
@@ -665,6 +673,8 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayLastColour", { tested: result.seedsTested, name: c.winnerName });
     case "sorted-on-bar":
       return result.sortedAt === undefined ? t("Rigged.overlayNoSort", { tested: result.seedsTested }) : t("Rigged.overlaySortedOnBar", { tested: result.seedsTested, offset: barOffsetText(result.sortedAt, c.barSec) });
+    case "summit-last": // --- land-claim-pyramid ---
+      return result.duration < 0 ? t("Rigged.overlayNoSummit", { tested: result.seedsTested }) : t("Rigged.overlaySummitLast", { tested: result.seedsTested, count: Math.round(result.duration) });
     default:
       return null;
   }

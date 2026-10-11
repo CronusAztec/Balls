@@ -842,6 +842,7 @@ describe("uncap-all: the guard", () => {
     csGateWidth: "degrees",
     csSpin: "degrees a second",
     csLimit: "seconds",
+    lcSteps: "a pyramid's steps (its heights stop at the blocks' ceiling, LCP_BLOCK_CEILING: a taller pyramid is scaled down to it)", // --- land-claim-pyramid ---
   };
 
   it("gives every whole-number setting that sizes an allocation a memory-safety ceiling", () => {
