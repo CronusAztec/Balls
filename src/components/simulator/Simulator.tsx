@@ -123,6 +123,8 @@ import { sameBeatSchedule } from "@/lib/simulation/beatSchedule";
 // --- split-screen --- 2 or 4 arenas racing on one canvas and one recording
 import { useSyncExternalStore } from "react";
 import { MultiArenaRunner, arenaPhysicsConfig, findArenaSeeds, playArenaSound, type ArenaFinderProgress, type ArenaHooks } from "@/lib/simulation/multi";
+import { playFightEvent } from "@/lib/audio/flDispatch"; // --- fl-overhaul ---
+import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage 4) the custom clips, on this device only
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- gerald-vortex ---
@@ -138,6 +140,17 @@ import { beatDropPlanKeyOf, beatDropSettingsOf, sameBeatDropPlan, type BeatDropP
 import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-territory ---
 import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { FL_WIN_HOLD_SEC, fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
+// --- fl-overhaul --- (Stage 3) the verdict's card comes in the KO finale or after TIME!: the holds count from the finale's end or the card
+import { flHoldEndMs, flHoldStartMs } from "@/lib/physics/modes/fightLeague";
+import { flShowHorizonMs, flShowKind, flSideCount } from "@/lib/physics/modes/fightLeague"; // (Stage 5) the shows
+import { flBestOfGames } from "@/lib/physics/modes/fightLeagueShow";
+import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
+// --- fl-overhaul --- (Stage 6) Make a clip
+import { flClipCaptions, flClipKoFraction, flClipNamesOf, flClipRecordingSec, flClipTopText, isFlClipCaption, planFlClip, type FlClipPlan } from "@/lib/physics/modes/fightLeagueClip";
+import { flShowClipEstimateSec } from "@/lib/physics/modes/fightLeagueShow";
+import { flClipBridge, measureFlKoSec } from "./fightLeague/makeClip";
+import { CAPTION_WINNER_TOKEN, MAX_CAPTIONS } from "@/lib/captions";
+// --- end fl-overhaul ---
 import { landClaimClipSec, landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 import { COLOUR_SORT_ENGINE_KEYS, COLOUR_SORT_HUD_KEYS, colourSortCounterTemplate, colourSortSettingsOf, colourSortTotal } from "@/lib/physics/colourSortSettings"; // --- colour-sort ---
 import { csSortSettles } from "@/lib/physics/modes/colourSort"; // --- colour-sort --- (a rule that lets balls back in only settles: no first sort to find)
@@ -229,7 +242,7 @@ function fastExportEndHolds(engine: PhysicsEngine, teamsPlay: boolean): EndHolds
           : isArenaGameMode(engine.getCurrentModeName())
             ? ARENA_WIN_HOLD_MS // --- jdm-arena-games --- the winner banner and its confetti, as the page holds them
           : engine.isFightLeagueMode()
-            ? FIGHT_LEAGUE_WIN_HOLD_MS // --- fight-league --- the winner banner and its confetti, as the page holds them
+            ? Math.max(FIGHT_LEAGUE_WIN_HOLD_MS, flHoldEndMs(engine.getFightLeagueView()) - engine.getFightLeagueView().finishMs) // --- fight-league --- the winner banner and its confetti, as the page holds them (--- fl-overhaul --- from the finale's end, or the card's appearance after TIME!)
             : 0;
   const postMs = Math.max(teamsPlay ? WINNER_HOLD_MS : 0, engine.endsWithMultiplierFinish() ? MULT_FINISH_HOLD_MS : 0);
   return { preMs, postMs };
@@ -340,6 +353,7 @@ export default function Simulator() {
   const [findOutcome, setFindOutcome] = useState<FinderOutcomeKind>("duration");
   const [findEscapeAt, setFindEscapeAt] = useState(10);
   const [findWinner, setFindWinner] = useState(0);
+  const [findCount, setFindCount] = useState(1); // --- fl-overhaul --- (Stage 5) the fewest lead changes, the wave the boss falls at
   const [searchOutcome, setSearchOutcome] = useState<FinderOutcomeKind>("duration");
   const [shareCopied, setShareCopied] = useState(false);
   // --- site-redesign --- read after hydration (the server has no MediaRecorder), so the server-rendered page and the
@@ -1305,7 +1319,7 @@ export default function Simulator() {
   // --- end orb-grid ---
   // --- fight-league --- Fight League: a change of the fighters, the match, the division rule, the HP, a multiplier, the time
   // cap or the arena restarts the fight and drops a found seed; the HUD only changes the drawing and follows live.
-  const flFightKey = [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flMatch, s.flSameDivision, s.flHp, s.flTimeCap, s.flArena, s.flSpeedA, s.flSpeedB, s.flSpeedC, s.flSpeedD, s.flDamageA, s.flDamageB, s.flDamageC, s.flDamageD, s.flAttackA, s.flAttackB, s.flAttackC, s.flAttackD, s.flCastA, s.flCastB, s.flCastC, s.flCastD].join("|");
+  const flFightKey = [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flMatch, s.flSameDivision, s.flHp, s.flTimeCap, s.flArena, s.flSpeedA, s.flSpeedB, s.flSpeedC, s.flSpeedD, s.flDamageA, s.flDamageB, s.flDamageC, s.flDamageD, s.flAttackA, s.flAttackB, s.flAttackC, s.flAttackD, s.flCastA, s.flCastB, s.flCastC, s.flCastD, s.flSeek, s.flSuddenDeath /* --- fl-overhaul --- */, s.flFighterE, s.flFighterF, s.flSpeedE, s.flSpeedF, s.flDamageE, s.flDamageF, s.flAttackE, s.flAttackF, s.flCastE, s.flCastF, s.flBestOf, s.flEntrants, s.flBracketSize, s.flSeeding, s.flBossWaves, s.flBossHp, s.flBossHeal, s.flCardSec /* --- fl-overhaul --- (Stage 5: slots E and F, the shows) */].join("|");
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -1321,6 +1335,21 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setFightLeagueSettings({ hud: s.flHud });
   }, [s.flHud]);
+  // --- fl-overhaul --- (Stage 5) the VS card's win chance follows live (the drawing only: no restart, a found seed kept)
+  useEffect(() => {
+    engineRef.current?.setFightLeagueSettings({ odds: s.flOdds });
+  }, [s.flOdds]);
+  // --- fl-overhaul --- (Stage 3) the spectacle follows live too – the drawing only: no restart, a found seed kept
+  useEffect(() => {
+    engineRef.current?.setFightLeagueSettings({ stage: s.flStage, arenaStyle: s.flArenaStyle, shake: s.flShake, slowMo: s.flSlowMo, impact: s.flImpact, dmgNumbers: s.flDmgNumbers, plates: s.flPlates, tags: s.flTags });
+  }, [s.flStage, s.flArenaStyle, s.flShake, s.flSlowMo, s.flImpact, s.flDmgNumbers, s.flPlates, s.flTags]);
+  // (Stage 4) the sound set, the announcer and the custom clips – the page's ToneGenerator only (no restart, a found seed kept);
+  // the clips come from this browser's store (lib/audio/flClips.ts) and never leave the device
+  useEffect(() => {
+    audioRef.current?.setFightSoundSettings({ set: s.flSound, announcer: s.flAnnouncer, custom: s.flCustomSounds });
+  }, [s.flSound, s.flAnnouncer, s.flCustomSounds]);
+  useEffect(() => flClipStore().subscribe((records) => audioRef.current?.setFightClips(records)), []);
+  // --- end fl-overhaul ---
   const flWinAtRef = useRef<number | null>(null);
   // --- end fight-league ---
   useEffect(() => {
@@ -1627,12 +1656,13 @@ export default function Simulator() {
   const finderEndless = runNeverFinishes(s.mode, { drop: dropSettingsOf(s), box: boxSettingsOf(s), pendulum: pendulumSettingsOf(s), polyrhythm: polyrhythmSettingsOf(s), doublePendulum: doublePendulumSettingsOf(s), illusion: illusionSettingsOf(s), ...jdmRhythmFinderSettingsOf(s) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(s) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, orbGrid: orbGridSettingsOf(s) /* --- orb-rhythm --- (the model decides) */, grow: growFillSettingsOf(s) /* --- loop-foundation --- ("finish" ends at the fill) */, hoops: hoopsSettingsOf(s) /* --- bead-hoops --- (the return loops forever) */ }) || rigNeverFinishes(s.mode, s); // --- jdm-double-pendulum --- --- jdm-illusions --- (as showFinder)
   // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
   const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);
-  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, dpFan: s.mode === "doublePendulum" && s.dpFan /* --- chaos-fan --- */, colourSortSettles: s.mode === "colourSort" && csSortSettles(s.csRule) /* --- colour-sort --- */ });
+  const flShow = s.mode === "fightLeague" ? flShowKind({ match: s.flMatch, bestOf: s.flBestOf }) : undefined; // --- fl-overhaul --- (Stage 5) the show's own outcomes
+  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, flShow, flSides: s.mode === "fightLeague" ? flSideCount(s.flMatch, [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flFighterE, s.flFighterF]) : 0, flDecider: flBestOfGames(s.flBestOf) > 1 /* --- fl-overhaul --- (Stage 5) */, dpFan: s.mode === "doublePendulum" && s.dpFan /* --- chaos-fan --- */, colourSortSettles: s.mode === "colourSort" && csSortSettles(s.csRule) /* --- colour-sort --- */ });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
-  const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }));
+  const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }), t("Rigged.challengers") /* --- fl-overhaul --- (Stage 5: a boss rush's side 1) */);
   const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
   const outcomeText = { duration: findDuration, escapeAt: findEscapeAt, winnerName: winnerNames[findWinnerTeam] ?? "", barSec: barSeconds(s.bpm) /* --- loop-foundation --- (fill on a bar line) */ };
-  const riggedNote = [s.neverEscape && neverEscapeApplies(s.mode) ? t("Rigged.noteNeverEscape") : "", forcedWinnerApplies(s.mode, ballCount, s.forcedWinner, s.neverEscape) ? t(s.mode === "landClaim" ? "Rigged.noteFavoured" /* --- land-claim --- (honest steering: the favourite, not a certainty) */ : "Rigged.noteWinner", { name: winnerNames[s.forcedWinner] ?? "" }) : ""].filter(Boolean).join(" · ");
+  const riggedNote = [s.neverEscape && neverEscapeApplies(s.mode) ? t("Rigged.noteNeverEscape") : "", forcedWinnerApplies(s.mode, ballCount, s.forcedWinner, s.neverEscape) ? t(s.mode === "landClaim" ? "Rigged.noteFavoured" /* --- land-claim --- (honest steering: the favourite, not a certainty) */ : flShow && flShow !== "single" ? "Rigged.noteShow" /* --- fl-overhaul --- (Stage 5: the format named) */ : "Rigged.noteWinner", { name: winnerNames[s.forcedWinner] ?? "", format: flShow && flShow !== "single" ? t(`Rigged.showFormat_${flShow}`) : "" }) : ""].filter(Boolean).join(" · ");
   // --- end rigged ---
 
   // --- split-screen --- Split-screen races (lib/splitScreen.ts, lib/simulation/multi.ts, splitScreenCanvas.tsx): 2 or 4 arenas
@@ -1689,6 +1719,7 @@ export default function Simulator() {
         engine.setConveyorSettings(conveyorSettingsOf(arena)); // --- gerald-conveyor --- (the scale and root follow live; the rest waits for a restart)
         engine.setOrbGridSettings(orbGridSettingsOf(arena)); // --- orb-grid --- (the look, the sound, the scale and the clip follow live; the field waits for a restart)
         engine.setFightLeagueSettings({ hud: arena.flHud }); // --- fight-league --- (the HUD follows live; the fight waits for a restart)
+        engine.setFightLeagueSettings({ stage: arena.flStage, arenaStyle: arena.flArenaStyle, shake: arena.flShake, slowMo: arena.flSlowMo, impact: arena.flImpact, dmgNumbers: arena.flDmgNumbers, plates: arena.flPlates, tags: arena.flTags, odds: arena.flOdds }); // --- fl-overhaul --- (Stage 3: the spectacle too; Stage 5: the win chance)
       },
     }),
     [initEngineForMode],
@@ -1763,6 +1794,7 @@ export default function Simulator() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = settingsToSearchParams(settings);
+    if (new URLSearchParams(window.location.search).get("flDbg") === "1") params.set("flDbg", "1"); // --- fl-overhaul --- (Stage 3) Fight League's hit shapes: a URL-only switch the mirror keeps (the canvas reads it once it mounts)
     window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
   }, [settings]);
 
@@ -1929,9 +1961,9 @@ export default function Simulator() {
             audio.playOrb(ev.orb, ev.frequency, ev.chord, ev.level);
             continue;
           }
-          // --- fight-league --- a Fight League weapon hit of its kind, an ability's swell, a KO
-          if (ev.fight) {
-            audio.playFight(ev.fight, ev.frequency, ev.level);
+          // --- fight-league --- a Fight League weapon hit of its kind, an ability's swell, a KO (--- fl-overhaul --- every cue through the one dispatch)
+          if (ev.fight || ev.flCue) {
+            playFightEvent(audio, ev, 1);
             continue;
           }
           // --- land-claim --- a knocked block's wooden click, a new ball's chime, a column's KO
@@ -1966,7 +1998,7 @@ export default function Simulator() {
         void stopRecordingRef.current?.();
       }
       // --- split-screen --- the other arenas' sounds: heard with "every arena", else dropped (their queues empty every frame)
-      splitRunnerRef.current?.drainSounds(audio && splitSoundAllRef.current ? (ev) => playArenaSound(audio, ev) : null);
+      splitRunnerRef.current?.drainSounds(audio && splitSoundAllRef.current ? (ev, arena) => playArenaSound(audio, ev, arena) : null); // --- fl-overhaul --- (the arena keeps its loops apart)
       if (isStarted && !isPaused && audioEnabled && audio) {
         const analyser = audio.getAnalyser();
         if (analyser) {
@@ -2016,8 +2048,17 @@ export default function Simulator() {
         // --- fight-league --- the winner banner ("Thor wins!", DRAW, DOUBLE KO) and its confetti play (and record) before the end screen
         if (done && engine.isFightLeagueMode()) {
           const now = performance.now();
-          if (flWinAtRef.current === null) flWinAtRef.current = now;
-          if (now - flWinAtRef.current < FIGHT_LEAGUE_WIN_HOLD_MS) done = false;
+          // --- fl-overhaul --- (Stage 3) the hold starts at the end of the KO finale (the card is up from 900 ms into it), else
+          // when the verdict's card appears (after TIME!, or at once)
+          const flv = engine.getFightLeagueView();
+          if (flv.timeMs < flHoldStartMs(flv) - 1e-6) {
+            flWinAtRef.current = null;
+            done = false;
+          } else {
+            // --- end fl-overhaul ---
+            if (flWinAtRef.current === null) flWinAtRef.current = now;
+            if (now - flWinAtRef.current < FIGHT_LEAGUE_WIN_HOLD_MS) done = false;
+          }
         } else flWinAtRef.current = null;
         // --- land-claim --- the verdict (DOMINATION / SUCH A CLOSE BATTLE / "[name] claims the most", the banner, the confetti) plays (and records) before the end screen
         if (done && engine.isLandClaimMode()) {
@@ -2941,7 +2982,7 @@ export default function Simulator() {
 
   /* ------------------------------------------------------------ find simulation */
 
-  const runFinder = useCallback(async () => {
+  const runFinderWith = useCallback(async (flClip: FlClipPlan | null = null /* --- fl-overhaul --- (Stage 6) Make a clip's plan */) => {
     const engine = engineRef.current;
     if (!engine || isSearching) return;
     setIsSearching(true);
@@ -2952,19 +2993,26 @@ export default function Simulator() {
     // --- rigged --- an outcome search (never escapes, escapes at, winner) instead of the run length
     // (a first escape later than the clip gets a clip that runs a few seconds past it)
     const clipSec = finderOutcome === "escapes-at" || finderOutcome === "resolves-at" /* --- orb-grid --- (the first resolve) */ ? Math.max(findDuration, Math.ceil(findEscapeAt + 3)) : findDuration;
-    const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam } : undefined;
+    let outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam, count: findCount /* --- fl-overhaul --- (Stage 5) */ } : undefined;
     if (outcome?.kind === "fill-on-bar") outcome.atSec = barSeconds(settings.bpm); // --- loop-foundation --- (a bar of four beats at the page's BPM)
     if (outcome?.kind === "converge-on-beat") outcome.atSec = barSeconds(settings.bpm); // --- ellipse-foci --- (the transit: whole bars at the page's BPM)
     if (outcome?.kind === "sorted-on-bar") outcome.atSec = barSeconds(settings.bpm); // --- colour-sort --- (the final ball sorted on a bar line, ±20 ms)
-    setSearchOutcome(finderOutcome ?? "duration");
+    // --- fl-overhaul --- (Stage 6) Make a clip searches its own plan: a story's outcome with the KO window, or the run length
+    // that puts the KO at 85 % of the clip (a show: any finished show), through this same search and its strip
+    if (flClip) outcome = flClip.outcome ?? undefined;
+    const findSec = flClip ? flClip.targetSec : findDuration;
+    const findTol = flClip ? flClip.toleranceSec : findTolerance;
+    if (flClip) flClipBridge.setStatus({ state: "searching", plan: flClip });
+    // --- end fl-overhaul ---
+    setSearchOutcome(flClip ? (flClip.outcome?.kind ?? "duration") : (finderOutcome ?? "duration"));
     const result = await findArenaSeeds(
       uncappedEngaged(settings) ? findSimulationBudgeted : findSimulation, // (--- uncap-all --- engaged by the values) --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others') --- unlimited --- (No limits: time-sliced by whole steps, fewer seeds when heavy)
       {
-        targetDurationSec: findDuration,
-        toleranceSec: findTolerance,
+        targetDurationSec: findSec, // (--- fl-overhaul --- Stage 6: Make a clip's target)
+        toleranceSec: findTol,
         maxSeeds: findMaxSeeds,
         depthBudgetMs: FINDER_DEPTH_BUDGET_MS, // --- finder-depth --- (nothing in the first 1,000 seeds: on while the budget lasts, when seeds are cheap)
-        maxSimTimeSec: findDuration + (settings.mode === "colorMatch" ? 90 : 30),
+        maxSimTimeSec: findSec + (settings.mode === "colorMatch" ? 90 : 30) + (settings.mode === "fightLeague" && flShowKind({ match: settings.flMatch, bestOf: settings.flBestOf }) !== "single" ? flShowHorizonMs(fightLeagueSettingsOf(settings)) / 1000 : 0) /* --- fl-overhaul --- (Stage 5: a show, FL_SHOW_BOUT_SEC a match; Stage 6: raised by it, 90 s × bouts on top of the target) */,
         physicsConfig: { ...engine.config },
         mode: settings.mode,
         modeSettings: {
@@ -3031,6 +3079,7 @@ export default function Simulator() {
       finderAbortRef.current = null;
       setIsSearching(false);
     }
+    if (flClip && (controller.signal.aborted || !result.found)) flClipBridge.setStatus({ state: controller.signal.aborted ? "idle" : "missed", plan: flClip }); // --- fl-overhaul --- (Stage 6)
     if (controller.signal.aborted) return;
     setSearchResult(result);
     if (result.found) {
@@ -3058,7 +3107,7 @@ export default function Simulator() {
       // --- jdm-arena-games --- the found game plus the winner banner's hold (a capture-the-flag game that ended on time keeps its clip)
       if (isArenaGameMode(settings.mode)) update({ recordingDuration: arenaFoundClipSec(settings.mode, result.duration, ctfFinderSettings(ctfSettingsOf(settings), findDuration, findTolerance).clipSeconds) });
       // --- fight-league --- a found fight is recorded with its winner banner's hold
-      if (settings.mode === "fightLeague" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + FL_WIN_HOLD_SEC)) });
+      if (settings.mode === "fightLeague" && !(result.outcome && !result.finished)) update({ recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration + FL_FINALE_SEC + FL_WIN_HOLD_SEC)) }); // (--- fl-overhaul --- Stage 3: + the KO finale)
       // --- chord-stars --- the star set found and the drawing time that fits the clip in whole loops: the clip is the target, and
       // the run starts over with them (the restart effect's key is moved first, so the change keeps the result on the page)
       const foundStars = settings.mode === "starChords" && result.starChords ? { scStars: result.starChords.stars, scCycle: result.starChords.cycleSec } : null;
@@ -3084,8 +3133,53 @@ export default function Simulator() {
       if (foundEf) initEngineForMode(engine, { ...settings, ...foundEf }); // --- ellipse-foci ---
       // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
       if (result.arenaSeeds) update({ arenas: withArenaSeeds(settings.arenas, settings.arenaCount, result.arenaSeeds) });
+      // --- fl-overhaul --- (Stage 6) Make a clip: the clip's length (the bucket; a show's whole run when longer), its question
+      // caption ("Who wins?" → "[winner] wins!"; a cliffhanger never answers) and the Top Text, named from the found run
+      if (flClip && settings.mode === "fightLeague") {
+        const view = engine.getFightLeagueView();
+        const recordingSec = flClipRecordingSec(flClip, result.duration, FL_FINALE_SEC, FL_WIN_HOLD_SEC);
+        const question = t("Controls.flClipQuestion");
+        const clipCaptions = flClipCaptions(flClip, { question, answer: t("Controls.flClipAnswer", { winner: CAPTION_WINNER_TOKEN }) });
+        const topText = flClipTopText(view.show.kind, flClipNamesOf(view), {
+          duel: (a, b) => t("Controls.flClipTopDuel", { a, b }),
+          boss: (boss, n) => t("Controls.flClipTopBoss", { boss, n }),
+          bracket: (n) => t("Controls.flClipTopBracket", { n }),
+        });
+        update({ recordingDuration: recordingSec, topText, captions: [...settings.captions.filter((c) => !isFlClipCaption(c, question)), ...clipCaptions].slice(0, MAX_CAPTIONS) });
+        flClipBridge.setStatus({ state: "found", plan: flClip, recordingSec, koFraction: flClipKoFraction(flClip, result.duration, recordingSec), seed: result.seed });
+      }
+      // --- end fl-overhaul ---
     }
-  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam, paintPicture]); // --- rigged --- (the outcome) --- review fix (modes-rhythm) --- (paintPicture)
+  }, [isSearching, findDuration, findTolerance, findMaxSeeds, settings, update, initEngineForMode, finderOutcome, findEscapeAt, findWinnerTeam, paintPicture, findCount, t]); // --- rigged --- (the outcome) --- review fix (modes-rhythm) --- (paintPicture) --- fl-overhaul --- (findCount; Stage 6: t)
+  const runFinder = useCallback(() => runFinderWith(null), [runFinderWith]); // --- fl-overhaul --- (Stage 6) the Find button: the page's own search
+
+  // --- fl-overhaul --- (Stage 6) Make a clip: the Fight League block asks (a bucket and a story); the page measures the matchup's
+  // pace (FL_CLIP_PACE_SEEDS headless runs), plans the clip, paces the HP to it when needed (a restart: the search waits for the
+  // new settings) and searches it with runFinderWith()
+  const [flClipPending, setFlClipPending] = useState<FlClipPlan | null>(null);
+  useEffect(
+    () =>
+      flClipBridge.onRequest((request) => {
+        const engine = engineRef.current;
+        if (!engine || isSearching || isRecording || settings.mode !== "fightLeague") return;
+        flClipBridge.setStatus({ state: "measuring", plan: null });
+        window.setTimeout(() => {
+          const kind = flShowKind({ match: settings.flMatch, bestOf: settings.flBestOf });
+          const base = kind === "single" ? measureFlKoSec(settings, { width: engine.config.width, height: engine.config.height }) : null;
+          const plan = planFlClip({ kind, bucket: request.bucket, story: request.story, hp: settings.flHp, baseKoSec: base, bossWaves: settings.flBossWaves, showEstimateSec: flShowClipEstimateSec({ kind, bestOf: settings.flBestOf, bracketSize: settings.flBracketSize, bossWaves: settings.flBossWaves, cardSec: settings.flCardSec }) });
+          if (plan.hp !== settings.flHp) update({ flHp: plan.hp });
+          setFlClipPending(plan);
+        }, 0);
+      }),
+    [isSearching, isRecording, settings, update],
+  );
+  useEffect(() => {
+    if (!flClipPending || settings.flHp !== flClipPending.hp) return;
+    const plan = flClipPending;
+    setFlClipPending(null);
+    void runFinderWith(plan);
+  }, [flClipPending, settings.flHp, runFinderWith]);
+  // --- end fl-overhaul ---
 
   const cancelFinder = useCallback(() => finderAbortRef.current?.abort(), []);
 
@@ -3381,6 +3475,47 @@ export default function Simulator() {
         attack: t("FightLeague.canvasAttack"),
         cast: t("FightLeague.canvasCast"),
         ready: t("FightLeague.canvasReady"),
+        sudden: t("FightLeague.canvasSudden"), // --- fl-overhaul ---
+        // --- fl-overhaul --- (Stage 3) the banners, the callouts and the plates (a division's and a role's names: the picker's own)
+        firstBlood: t("FightLeague.canvasFirstBlood"),
+        perfect: t("FightLeague.canvasPerfect"),
+        clutch: t("FightLeague.canvasClutch"),
+        blocked: t("FightLeague.canvasBlocked"),
+        dodge: t("FightLeague.canvasDodge"),
+        immune: t("FightLeague.canvasImmune"),
+        interrupted: t("FightLeague.canvasInterrupted"),
+        clash: t("FightLeague.canvasClash"),
+        combo: (n) => t("FightLeague.canvasCombo").replace("[n]", () => String(n)),
+        suddenDeath: t("FightLeague.canvasSuddenDeath"),
+        whoWins: t("FightLeague.canvasWhoWins"),
+        winsPlate: (name) => t("FightLeague.canvasWinsPlate").replace("[name]", () => name),
+        division: (id) => t(`FightLeague.division_${id}`),
+        role: (id) => t(`FightLeague.role_${id}`),
+        // --- end fl-overhaul ---
+        // --- fl-overhaul --- (Stage 5) the story's tags, the shows' banners and cards, the win chance (a name may hold "$&")
+        shows: {
+          upset: t("FightLeague.canvasUpset"),
+          comeback: t("FightLeague.canvasComeback"),
+          finish: (ability) => t("FightLeague.canvasFinish").replace("[ability]", () => ability),
+          game: (n) => t("FightLeague.canvasGame").replace("[n]", () => String(n)),
+          seriesPoint: t("FightLeague.canvasSeriesPoint"),
+          seriesWin: (name, a, b) => t("FightLeague.canvasSeriesWin").replace("[name]", () => name).replace("[a]", () => String(a)).replace("[b]", () => String(b)),
+          rematch: t("FightLeague.canvasRematch"),
+          round: (code) => t(`FightLeague.canvasRound_${code}`),
+          champion: t("FightLeague.canvasChampion"),
+          bossFalls: (name) => t("FightLeague.canvasBossFalls").replace("[name]", () => name),
+          bossSurvives: (n, total) => t("FightLeague.canvasBossSurvives").replace("[n]", () => String(n)).replace("[total]", () => String(total)),
+          wave: (n, m) => t("FightLeague.canvasWave").replace("[n]", () => String(n)).replace("[m]", () => String(m)),
+          phase2: t("FightLeague.canvasPhase2"),
+          challenger: t("FightLeague.canvasChallenger"),
+          underdog: t("FightLeague.canvasUnderdog"),
+          buffed: t("FightLeague.canvasBuffed"),
+          nerfed: t("FightLeague.canvasNerfed"),
+          winChance: t("FightLeague.canvasWinChance"),
+          est: t("FightLeague.canvasEst"),
+          decider: t("FightLeague.canvasDecider"),
+          beat: (names) => t("FightLeague.canvasBeat").replace("[names]", () => names),
+        },
       },
     };
   }, [t]);
@@ -3763,7 +3898,7 @@ export default function Simulator() {
             </div>
           </div>
           {/* --- rigged --- an outcome search's explanation and fields */}
-          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ landClaim={settings.mode === "landClaim"} /* --- land-claim --- */ />}
+          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ landClaim={settings.mode === "landClaim"} /* --- land-claim --- */ count={findCount} onCount={(n) => setFindCount(Math.max(1, Math.round(n)))} /* --- fl-overhaul --- (Stage 5) */ />}
           {isSearching && searchProgress && (
             <div className="space-y-1.5" data-search-arena={searchProgress.arena ?? 0 /* --- split-screen --- */}>
               <div className="h-1 w-full overflow-hidden rounded-full bg-surface-3">

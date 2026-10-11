@@ -3,6 +3,7 @@
  * vitest) and imports the result, so its --dry-run plans exactly what the page plans, without a browser.
  */
 export { planDay, planDaySteps, dayIndexOf, localIsoDate, parseIsoDate, scoreClip, type ClipPlan, type DayPlan } from "./planner";
+export { daySlots, resolveBucket } from "./planner"; // --- fl-overhaul --- (Stage 6) the CLI's --plan: the week's rotation, no simulation
 export { batchTextFiles, buildManifest, captionFileName, reasonText, MANIFEST_FILE, SCHEDULE_FILE, type RenderedClip } from "./output";
 export { BOT_FAMILIES, BOT_PLATFORMS, ENDING_CHOICES, LENGTH_BUCKETS, RECIPES, isBotFamily, isBotPlatform, isEndingChoice, isLengthBucket } from "./playbook";
 export { BOT_LOCALES, isBotLocale, copyString } from "./copy";

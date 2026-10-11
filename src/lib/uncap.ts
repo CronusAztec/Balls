@@ -205,6 +205,11 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   // --- ellipse-foci --- Focus Shot: the volley's balls (full engine balls pinned to the clock – the board's ball ceiling – each with a
   // ring of EF_VERTEX_CAP corners for its trail and path)
   efCount: BOARD_BALL_CEILING,
+  // --- fl-overhaul --- (Stage 5) Fight League's shows: a bracket's entrants and a boss rush's challengers (a row and a bout each;
+  // `FL_ENTRANT_CEILING` of lib/physics/modes/fightLeagueShow.ts – a test keeps them equal)
+  flBracketSize: 256,
+  flBossWaves: 256,
+  // --- end fl-overhaul ---
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

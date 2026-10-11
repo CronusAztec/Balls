@@ -72,6 +72,14 @@ export function fakeCanvas(width = 300, height = 150): FakeCanvas {
       return undefined;
     };
   for (const name of ["save", "restore", "translate", "rotate", "scale", "setTransform", "beginPath", "closePath", "moveTo", "lineTo", "arc", "arcTo", "rect", "fill", "stroke", "fillRect", "clearRect", "fillText", "strokeText", "drawImage", "clip"]) ctx[name] = log(name);
+  // --- fl-overhaul --- (Stage 3) the calls Fight League's renderer makes too (logged, so its render-contract test –
+  // tests/fightLeagueFx.test.ts – counts them)
+  for (const name of ["strokeRect", "ellipse", "roundRect", "setLineDash", "quadraticCurveTo", "bezierCurveTo"]) ctx[name] = log(name);
+  ctx.createRadialGradient = (...args: unknown[]) => {
+    calls.push({ name: "createRadialGradient", args });
+    return { addColorStop: () => undefined };
+  };
+  // --- end fl-overhaul ---
   ctx.measureText = (text: string) => {
     calls.push({ name: "measureText", args: [text] });
     const size = Number(/(\d+(?:\.\d+)?)px/.exec(ctx.font)?.[1] ?? 10);
