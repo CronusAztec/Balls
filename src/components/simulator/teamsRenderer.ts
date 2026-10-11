@@ -561,6 +561,18 @@ export class TeamLayer {
     return this.count;
   }
 
+  /**
+   * --- low-findings --- Whether this layer's banner announces the end of a String Battle – else the battle's own banner must,
+   * so exactly one of them shows. With a roster on, the teams' verdict (`teamResult()`) announces a battle of up to six balls;
+   * a bigger one only when the winner is one of the teams in play (`drawOverlay()`: a mega fight won past the six teams has no
+   * team winner here). One rule for the web, neon and circle styles: the canvas gave the web style `isActive()` alone, so a
+   * web battle of more than six balls with a roster could end with no banner at all.
+   */
+  crownsBattleWinner(view: Pick<StringBattleView, "winner" | "count">): boolean {
+    if (!this.active) return false;
+    return view.count <= MAX_TEAMS || (view.winner >= 0 && view.winner < this.count);
+  }
+
   /* ------------------------------------------------------------------ scoreboard */
 
   private scoreboardLayout(ctx: CanvasRenderingContext2D, side: number): ScoreboardLayout {

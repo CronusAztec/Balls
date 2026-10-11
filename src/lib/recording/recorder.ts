@@ -19,6 +19,7 @@
 import { SITE_SLUG } from "@/lib/site";
 import { prepareStamp, sealWatermark, stampFrame, type FrameMark } from "@/lib/watermark/seal"; // --- free-watermark ---
 import { liveMarkCovers } from "@/lib/watermark/live"; // --- watermark-everywhere --- (the page's canvas carries the mark itself)
+import type { LiveHud } from "@/lib/watermark/liveLayout"; // --- low-findings ---
 import { drawLoopHud, loopHudLayout, type LoopHudFrame } from "@/lib/loop/hud"; // --- loop-foundation ---
 
 /** --- review fix (docs-consistency) --- The stem of a downloaded clip (`jumpingballslive-export.mp4`), from the site's name. */
@@ -54,6 +55,23 @@ export interface RecordingOptions {
    * resolution over the frame and under the watermark – every recording and export carries it in its pixels.
    */
   loopHud?: () => LoopHudFrame | null;
+  /**
+   * --- low-findings --- Hands the recorder's tap to the source canvas (null: taken back when the recording ends). The canvas
+   * calls it with every frame it draws just before its live watermark pass, with the HUD it reported: the recorder copies that
+   * frame – without the live mark – and stamps the video's own badge at export resolution, clear of that HUD, and the tiles over
+   * the whole frame, the letterbox bars too. (Without a tap the recorder copies the canvas on its own, its live mark included.)
+   */
+  registerSourceTap?: (tap: ((hud: LiveHud | null) => void) | null) => void;
+}
+
+/**
+ * --- low-findings --- What the compositor passes with a frame besides the seal: the HUD the source canvas drew (`hud`, canvas
+ * px, about its centred square) and whether the source was copied before its live watermark pass (`unmarkedSource`: the frame
+ * carries no live mark whatever the canvas' last frame did, so the compositor stamps it).
+ */
+export interface RecordingFrameMark extends FrameMark {
+  hud?: LiveHud | null;
+  unmarkedSource?: boolean;
 }
 
 // --- themes
@@ -111,7 +129,7 @@ export function drawRecordingFrame(
   bg: string,
   options: Pick<RecordingOptions, "drawBackground" | "textOverlay" | "loopHud" /* --- loop-foundation --- */>,
   textLayout: RecordingTextLayout,
-  mark: FrameMark, // --- free-watermark ---
+  mark: RecordingFrameMark, // --- free-watermark --- · --- low-findings --- (the source's HUD, a source copied before its live mark)
 ) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, width, height);
@@ -150,7 +168,9 @@ export function drawRecordingFrame(
   // --- watermark-everywhere --- unless the copied source is the page's live canvas and its frame already carries the live
   // mark (lib/watermark/live.ts places it where the video layout does while it is recorded): one badge per frame, never two.
   // The fast export's canvas never does (the canvas skips the live pass offline), so its frames are stamped here as before.
-  if (!liveMarkCovers(source)) stampFrame(ctx, mark?.seal ?? null, { width, height, clipMs: mark?.clipMs ?? 0, square: { x: dx, y: dy, width: dw, height: dh } });
+  // --- low-findings --- a source copied before its live pass (the page recorder's tap) carries no mark: stamped here, at export
+  // resolution, the badge clear of the HUD the source reported (as the live badge keeps clear of it) and the tiles over the bars too
+  if (mark?.unmarkedSource || !liveMarkCovers(source)) stampFrame(ctx, mark?.seal ?? null, { width, height, clipMs: mark?.clipMs ?? 0, square: { x: dx, y: dy, width: dw, height: dh }, hud: mark?.hud ? { report: mark.hud, source: { x: sx, y: sy, side } } : null });
 }
 // --- end fast-render ---
 
@@ -180,6 +200,7 @@ export class VideoRecorder {
   private recordingCanvas: HTMLCanvasElement | null = null;
   private animationFrameId: number | null = null;
   private stopTimer: ReturnType<typeof setTimeout> | null = null;
+  private untap: (() => void) | null = null; // --- low-findings ---
 
   constructor(sourceCanvas: HTMLCanvasElement) {
     this.sourceCanvas = sourceCanvas;
@@ -243,6 +264,17 @@ export class VideoRecorder {
         this.animationFrameId = requestAnimationFrame(drawFrame);
       };
       drawFrame(); // the stream's first frame now (the source already shows the run)
+      // --- low-findings --- the source's frames before its live watermark pass: copied once each, stamped here (see RecordingOptions)
+      if (options.registerSourceTap && sourceFrames) {
+        const source = this.sourceCanvas;
+        options.registerSourceTap((hud) => {
+          if (!this.recordingCanvas || this.sourceCanvas !== source) return;
+          copied = sourceFrames ? sourceFrames() : Number.NaN;
+          if (manual) track?.requestFrame?.();
+          drawRecordingFrame(ctx, source, width, height, bg, options, textLayout, { seal, clipMs: performance.now() - startedAt, hud, unmarkedSource: true });
+        });
+        this.untap = () => options.registerSourceTap?.(null);
+      }
 
       this.mediaRecorder = new MediaRecorder(stream, {
         mimeType,
@@ -265,6 +297,8 @@ export class VideoRecorder {
   }
 
   private cleanupRecording() {
+    this.untap?.(); // --- low-findings --- (the canvas stops handing its frames over)
+    this.untap = null;
     if (this.animationFrameId) {
       cancelAnimationFrame(this.animationFrameId);
       this.animationFrameId = null;

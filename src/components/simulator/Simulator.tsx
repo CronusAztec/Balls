@@ -6,6 +6,7 @@ import { useLocale, useMessages } from "next-intl"; // --- viral-bot ---
 import { useViralBot } from "./useViralBot"; // --- viral-bot ---
 import { useHeroStill } from "./useHeroStill"; // --- mode-thumbnails ---
 import { offerPublishClip } from "@/lib/publish/clips"; // --- social-publish --- finished clips go to the Publish block
+import { loopCaptionContext } from "@/lib/publish/loopCaption"; // --- low-findings --- (a clip keeps the loop-style words of its run)
 import { isBotLocale, type BotCopy } from "@/lib/bot/copy"; // --- viral-bot ---
 import { parseSeed } from "@/lib/recording/batch"; // --- viral-bot ---
 import { useSearchParams } from "next/navigation";
@@ -86,7 +87,7 @@ import { growLookOf } from "./growRenderer";
 import { LOOP_HUD_MODE_TEXT, isLightColor, loopHudCount, loopHudFrame, type LoopHudSpec } from "@/lib/loop/hud";
 import { loopHudMessageKey } from "@/lib/loop/hud"; // --- ellipse-foci ---
 import { EF_RESTART_FIELDS, ellipseFociSettingsOf } from "@/lib/physics/ellipseFoci"; // --- ellipse-foci ---
-import { WholeLoopCut } from "@/lib/loop/loopContract";
+import { WholeLoopCut, waitForDrawnFrame } from "@/lib/loop/loopContract"; // --- low-findings --- (waitForDrawnFrame)
 import type { LoopClipSlotId } from "@/lib/audio/loopClips";
 import type { LoopClipView, LoopClipsPanelProps } from "./sections/LoopClipsSection";
 import { barSeconds } from "@/lib/simulation/outcomes";
@@ -2134,7 +2135,7 @@ export default function Simulator() {
     if (recorder) {
       const blob = await recorder.stopRecording();
       if (blob) recorder.downloadBlob(blob, EXPORT_BASE_NAME);
-      if (blob) offerPublishClip({ blob, name: EXPORT_BASE_NAME, source: "recording", mode: themeLookRef.current.mode, seed: engineRef.current?.getSeed() ?? null }); // --- social-publish ---
+      if (blob) offerPublishClip({ blob, name: EXPORT_BASE_NAME, source: "recording", mode: themeLookRef.current.mode, seed: engineRef.current?.getSeed() ?? null, loopCaption: loopCaptionContext(themeLookRef.current) /* --- low-findings --- (the clip's own loop-style words) */ }); // --- social-publish ---
     }
     setIsRecording(false);
   }, []);
@@ -2156,10 +2157,22 @@ export default function Simulator() {
     if (runOver) restartRun(false, { sameSeed: true });
     // --- loop-foundation --- Export whole loops: a looping run is recorded from its start (the first frame is a seam), its own seed
     const wholeLoops = settings.exportWholeLoops && !!engineNow?.getLoopSeams();
+    // --- low-findings --- ...held at that start until the recorder has copied it as the clip's first frame: the engine used to run
+    // on through the awaits below (the audio, the recorder's start), so the clip began a few frames after the seam it ends on
+    const holdRun = (on: boolean) => canvasRef.current?.holdRun?.(on);
+    if (wholeLoops) holdRun(true);
     if (wholeLoops && isStarted && !runOver) restartRun(false, { sameSeed: true });
-    if (!isStarted) await start();
-    recorderRef.current = recorderRef.current || new VideoRecorder(canvas);
-    await audioRef.current?.start();
+    const drawnBefore = canvasRef.current?.framesDrawn() ?? 0;
+    try {
+      if (!isStarted) await start();
+      recorderRef.current = recorderRef.current || new VideoRecorder(canvas);
+      await audioRef.current?.start();
+      // (the recorder copies the canvas as it is: a frame of the held start must be on it first – at most a few frames' wait)
+      if (wholeLoops) await waitForDrawnFrame(() => canvasRef.current?.framesDrawn() ?? Infinity, drawnBefore, 500);
+    } catch (err) {
+      holdRun(false);
+      throw err;
+    }
     const resolution = resolutionToSize(settings.recordingResolution);
     // The canvas starts the captions' clip clock here and keeps them clear of the text lines the recorder draws.
     canvasRef.current?.setRecording(true, resolution);
@@ -2174,6 +2187,9 @@ export default function Simulator() {
       textOverlay: { topText: settings.topText, bottomText: settings.bottomText, textSize: settings.textSize, watermarkText: settings.watermarkText },
       sourceFrames: () => canvasRef.current?.framesDrawn() ?? -1, // --- review fix (performance) --- each frame the canvas drew, copied once
       loopHud: () => loopHudFrameOf(engineRef.current), // --- loop-foundation --- (drawn into every frame at export resolution)
+      // --- low-findings --- each frame copied before the canvas' live watermark pass: the video's badge at export resolution, clear
+      // of the frame's HUD, and the tiles over the letterbox bars too (the studio's canvas and a split-screen race's stage both tap)
+      registerSourceTap: (tap) => canvasRef.current?.setRecordingTap?.(tap),
       // --- themes: the letterbox bars of the export continue the gradient / picture background
       backgroundColor: settings.backgroundColors[0],
       drawBackground: (c, width, height, crop) => canvasRef.current?.paintRecordingBackground(c, width, height, crop),
@@ -2182,6 +2198,7 @@ export default function Simulator() {
       return false;
     });
     if (!ok) {
+      holdRun(false); // --- low-findings ---
       canvasRef.current?.setRecording(false);
       setIsRecording(false);
       setRecordingError(true); // --- review fix (security-robustness) --- (said under the canvas) --- free-watermark --- (no refusal any more)
@@ -2196,6 +2213,13 @@ export default function Simulator() {
     // --- loop-foundation --- the whole-loop cut (the sound loop feeds it every frame)
     loopRecordStartRef.current = performance.now();
     wholeLoopCutRef.current = wholeLoops ? new WholeLoopCut(settings.recordingDuration, 1 / 60) : null;
+    // --- low-findings --- the recorder has the seam as its first frame: the run goes on from here, on the cut's clock; the
+    // canvas notes the run's time of that first frame (data-loop-record-start-ms: 0, the seam)
+    if (wholeLoops) {
+      const recordedCanvas = canvasRef.current?.getCanvas();
+      if (recordedCanvas) recordedCanvas.dataset.loopRecordStartMs = String(engineRef.current?.getElapsedMs() ?? -1);
+      holdRun(false);
+    }
     const onClipEnd = () => {
       // --- loop-foundation --- a whole-loop cut waiting for its seam just past the clip runs on to it
       const cut = wholeLoopCutRef.current;
@@ -2364,7 +2388,7 @@ export default function Simulator() {
       if (!result) setFastExport({ status: "cancelled" });
       else {
         if (!batchJob) downloadExport(result.blob, result.format.extension); // --- batch-render --- (not for a batch job)
-        if (!batchJob) offerPublishClip({ blob: result.blob, name: `${EXPORT_BASE_NAME}.${result.format.extension}`, source: "fast", durationSec: result.durationSec, mode: s.mode, seed }); // --- social-publish --- (a batch job's clip is offered by the batch, under its name)
+        if (!batchJob) offerPublishClip({ blob: result.blob, name: `${EXPORT_BASE_NAME}.${result.format.extension}`, source: "fast", durationSec: result.durationSec, mode: s.mode, seed, loopCaption: loopCaptionContext(s) /* --- low-findings --- */ }); // --- social-publish --- (a batch job's clip is offered by the batch, under its name)
         setFastExport({ status: "done", durationSec: result.durationSec, wallMs: result.wallMs, extension: result.format.extension, bytes: result.blob.size, digest: result.digest, loopCycles: result.loopCycles, loopCycleSec: result.loopCycleSec, loudnessGainDb: result.loudnessGainDb /* --- loop-foundation --- */ });
       }
     } catch (err) {

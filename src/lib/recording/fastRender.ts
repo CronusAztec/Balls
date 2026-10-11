@@ -43,6 +43,7 @@ import {
 import { EXPORT_FRAME_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 import { hardwarePreferred, noteVideoAcceleration, pickDesktopFormat, resolveVideoConfig } from "@/lib/desktop/gpuEncode"; // --- desktop-exe ---
 import { prepareStamp, sealVerdict, sealWatermark } from "@/lib/watermark/seal"; // --- free-watermark ---
+import type { LiveHud } from "@/lib/watermark/liveLayout"; // --- low-findings ---
 
 /**
  * Faster-than-realtime export ("Fast export"): renders a clip offline instead of recording the screen.
@@ -86,6 +87,11 @@ export interface OfflineFrameRenderer {
   paintBackground(ctx: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop): void;
   /** True once the pictures a frame needs (ball image, background picture, Picture Paint picture) are decoded. */
   ready(): boolean;
+  /**
+   * --- low-findings --- The HUD the last frame drew (canvas px, about the canvas' centred square), as the live canvas reports it
+   * to its watermark: the export's badge keeps clear of it (a String Circle strip, Fight League's ability boxes, the captions…).
+   */
+  hud?(): LiveHud | null;
 }
 
 /** The export's side of the offline canvas: its size, its clock and the slot the canvas registers its renderer in. */
@@ -557,7 +563,7 @@ export async function renderFast(options: FastRenderOptions): Promise<FastRender
       const [firstIndex, endIndex] = exportFrameRange(simFrame, fps);
       if (endIndex <= firstIndex) continue;
       if (firstIndex >= EXPORT_FRAME_CEILING) break;
-      drawRecordingFrame(frameCtx, frameRenderer.canvas, width, height, options.backgroundColor, composeOptions, textLayout, { seal, clipMs: t }); // --- free-watermark --- (the seal of this export, the clip's time)
+      drawRecordingFrame(frameCtx, frameRenderer.canvas, width, height, options.backgroundColor, composeOptions, textLayout, { seal, clipMs: t, hud: frameRenderer.hud?.() ?? null }); // --- free-watermark --- (the seal of this export, the clip's time) · --- low-findings --- (the frame's HUD: the badge keeps clear of it)
       for (let index = firstIndex; index < endIndex && index < EXPORT_FRAME_CEILING; index++) {
         const frame = new VideoFrame(frameCanvas, { timestamp: frameTimestampUs(index, fps), duration: frameDurationUs(index, fps) });
         videoEncoder.encode(frame, { keyFrame: isKeyFrame(index, fps) });

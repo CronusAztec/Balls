@@ -261,6 +261,18 @@ export interface CanvasHandle {
   getSlowLagMs: () => number;
   /** --- review fix (performance) --- Frames drawn so far (the recorder copies each drawn frame once, not every animation frame). */
   framesDrawn: () => number;
+  /**
+   * --- low-findings --- Holds the run at the frame it shows (no physics steps; the canvas keeps drawing it) while `on`: a
+   * whole-loop recording restarts the run on its seam and holds it there until the recorder has copied that frame, so the
+   * clip starts on the seam it ends on.
+   */
+  holdRun?: (on: boolean) => void;
+  /**
+   * --- low-findings --- The page recorder's tap (null: none): called with every frame just before the live watermark pass,
+   * with the HUD the frame reported – the recorder copies the frame without the live mark and stamps the video's own at export
+   * resolution (lib/recording/recorder.ts `registerSourceTap`).
+   */
+  setRecordingTap?: (tap: ((hud: LiveHud | null) => void) | null) => void;
 }
 
 export interface CanvasProps {
@@ -511,6 +523,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   const imageLoadedRef = useRef(false);
   const emojiCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const recordingRef = useRef(false);
+  const holdRunRef = useRef(false); // --- low-findings --- (holdRun(): the run waits at its seam for the recorder)
+  const recordingTapRef = useRef<((hud: LiveHud | null) => void) | null>(null); // --- low-findings --- (setRecordingTap())
   /** --- captions --- performance.now() when the current recording started, and the export frame it records into. */
   const clipStartRef = useRef(0);
   /** --- review fix (modes-gerald-odd) --- the camera's slow-motion lag when the recording started (the clip clock subtracts what it adds since). */
@@ -718,6 +732,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     },
     fpsRef,
     framesDrawn: () => framesDrawnRef.current, // --- review fix (performance) ---
+    holdRun: (on: boolean) => void (holdRunRef.current = on), // --- low-findings ---
+    setRecordingTap: (tap) => void (recordingTapRef.current = tap), // --- low-findings ---
     noteWallBreak: () => facesRef.current?.noteWallBreak(), // --- gerald-faces ---
     // --- themes
     paintRecordingBackground: (c: CanvasRenderingContext2D, width: number, height: number, crop: RecordingCrop) => {
@@ -969,6 +985,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const hoopsLayer = new HoopsLayer();
     const hoopsRender: HoopsRenderOptions = { wallThickness: 2, rainbow: true, wallColor: "#ffffff", wallGlow: true };
     const loopHudLive = { top: -Infinity, bottom: Infinity }; // --- loop-foundation --- the bands of the loop HUD this frame drew (the live watermark keeps clear of them)
+    // --- low-findings --- where the live loop HUD's lines went against the ring (world px; "" while none is previewed), for data-loop-hud-live
+    let loopHudLiveText = "";
     // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
     const frameBudget = new FrameBudget();
     const uncapInfo: UncapInfo = { speed: 0, bounce: 1, rescued: 0, show: false }; // --- uncap-all --- (reused every frame)
@@ -1122,7 +1140,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const p = bmLayer.props(propsRef.current, engine.getBounceMathView()); // --- bounce-math --- (a rule's wall thickness; the props themselves otherwise)
       cam.settings = cameraRef.current; // --- camera ---
 
-      if (!p.isPaused && p.isStarted) {
+      const held = holdRunRef.current && !offline; // --- low-findings --- (a whole-loop recording waits for its first frame)
+      if (held) accumulator = 0;
+      if (!p.isPaused && p.isStarted && !held) {
         accumulator += frameMs * p.simSpeed * cam.timeScale(); // --- camera: slow motion feeds the engine less time; its fixed steps stay the same
         if (accumulator > 250) accumulator = 250;
         // --- unlimited --- with No limits on (live only) a frame stops after the step that used up its budget and drops the rest
@@ -1138,7 +1158,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (engine.isSimulationFinished()) frameBudget.reset(); // --- unlimited --- (a finished run's clock stands still: not slow motion)
         else frameBudget.note(frameMs, frameMs * p.simSpeed * cam.timeScale(), engine.getElapsedMs() - simBefore); // --- unlimited ---
       } else frameBudget.reset(); // --- unlimited --- (paused or not started: no slow-motion badge)
-      cam.frame(engine, frameMs, !p.isPaused && !!p.isStarted); // --- camera: shake on wall breaks, slow motion on near misses, the replay at the end
+      cam.frame(engine, frameMs, !p.isPaused && !!p.isStarted && !held); // --- camera: shake on wall breaks, slow motion on near misses, the replay at the end
       elapsedRef.current += frameMs;
       const time = elapsedRef.current;
       // --- camera --- while the escape replay plays, the recorded walls and balls are drawn instead of the live ones;
@@ -2636,11 +2656,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- string-circle --- the circle style: the title line, the standings strip and – unless the teams banner crowns a roster's
       // winner (a winner past the six teams has none: the style's own banner names it) – the winner banner
       if (sbView && sbView.circle) {
-        const teamBanner = teamLayer.isActive() && sbView.winner >= 0 && sbView.winner < teamLayer.teamsInPlay();
-        modeTopHud = Math.max(modeTopHud, scLayer.drawOverlay(ctx, sbView, scRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner }));
+        const teamBanner = teamLayer.crownsBattleWinner(sbView); // --- low-findings --- (the rule the web style now shares)
+        // --- low-findings --- the title keeps clear of the teams' scoreboard (shown in a top corner while the strip is off)
+        const board = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) ? scoreboardBox : null;
+        modeTopHud = Math.max(modeTopHud, scLayer.drawOverlay(ctx, sbView, scRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner, avoid: board }));
       } else if (sbView) {
         const boardLeft = teamLayer.isActive() && teamLayer.scoreboardRect(ctx, size.width, size.height, teamInset, scoreboardBox) && scoreboardBox.x + scoreboardBox.w / 2 < cx;
-        modeTopHud = Math.max(modeTopHud, sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.isActive(), badgeRight: boardLeft }));
+        // --- low-findings --- the teams banner takes over only when it crowns a team (a winner past the six teams has none)
+        modeTopHud = Math.max(modeTopHud, sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.crownsBattleWinner(sbView), badgeRight: boardLeft }));
       }
       // --- odd-territory --- the HUD band (badge, PICK A SIDE, countdown, the VS line, the bar) and – without a roster (the teams banner takes over) – the winner
       // banner; the badge takes the top-right corner when the teams scoreboard sits in the top-left one, and the band is what the top captions start below
@@ -3040,6 +3063,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const hudSpec = loopHudRef.current;
       loopHudLive.top = -Infinity;
       loopHudLive.bottom = Infinity;
+      loopHudLiveText = "";
       if (hudSpec && !recordingRef.current) {
         const ring = efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
         const liveTop = (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
@@ -3047,6 +3071,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const hudLayout = loopHudLiveLayout(size.width, size.height, cy, Math.min(ring, Math.min(size.width, size.height) / 2), liveTop);
         drawLoopHud(ctx, size.width, hudFrame, hudLayout);
         loopHudBands(hudLayout, hudFrame, loopHudLive);
+        // --- low-findings --- the ring's top and bottom, then each line's centre and font size (−1: left out – no room in its margin)
+        const hudRing = Math.min(ring, Math.min(size.width, size.height) / 2);
+        loopHudLiveText = [cy - hudRing, cy + hudRing, hudFrame.title ? hudLayout.titleY : -1, hudLayout.titleSize, hudFrame.counter ? hudLayout.counterY : -1, hudLayout.counterSize].map((v) => v.toFixed(1)).join(",");
       }
 
       // --- captions --- countdown, wall counter, progress bar, question and text captions inside the exported square (so
@@ -3490,6 +3517,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       } else if (canvas.dataset.loopSeams !== undefined) for (const key of ["loopCycle", "loopSeams"]) delete canvas.dataset[key];
       if (hudSpec) setCanvasData("loopHud", "1");
       else if (canvas.dataset.loopHud !== undefined) delete canvas.dataset.loopHud;
+      // --- low-findings --- ringTop,ringBottom,titleY,titleSize,counterY,counterSize of the live preview (data-loop-hud-live)
+      if (loopHudLiveText) setCanvasData("loopHudLive", loopHudLiveText);
+      else if (canvas.dataset.loopHudLive !== undefined) delete canvas.dataset.loopHudLive;
       // (the respawn timer of Classic and Multiply: balls dropped in this run, and the balls in play – data-respawns, data-respawn-balls)
       if ((engine.config.respawnEvery ?? 0) > 0) {
         setCanvasData("respawns", String(engine.getRespawnCount()));
@@ -3525,7 +3555,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // canvas' own pixels after everything else (lib/watermark/live.ts: free-watermark's sealed gate decides, nothing on the
       // page does) – clear of the HUD this frame drew, reported here in world px. Never offline: the fast export's frames are
       // stamped by its compositor and a split-screen race's by the stage that composes the arenas (once per frame).
-      if (!offline) {
+      // --- low-findings --- The HUD is reported offline too: the fast export's compositor keeps its badge clear of it (the
+      // offline renderer's hud()), and so does the page recorder's, which copies each frame before the live pass (its tap).
+      {
         const hud = liveHud.reset(scale);
         const sq = Math.min(size.width, size.height);
         liveSquare.x0 = cx - sq / 2;
@@ -3565,14 +3597,17 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             noteEdgeText(hud, cx, liveEdge, p.topText, p.bottomText);
           } else noteEdgeText(hud, cx, edgeLines, p.topText, p.bottomText);
         }
-        liveFrame.nowMs = now;
-        if (exportSize) {
-          liveRecording.startMs = clipStartRef.current;
-          liveRecording.width = exportSize.width;
-          liveRecording.height = exportSize.height;
-          liveFrame.recording = liveRecording;
-        } else liveFrame.recording = null;
-        stampLiveFrame(liveFrame);
+        if (!offline) {
+          liveFrame.nowMs = now;
+          if (exportSize) {
+            liveRecording.startMs = clipStartRef.current;
+            liveRecording.width = exportSize.width;
+            liveRecording.height = exportSize.height;
+            liveFrame.recording = liveRecording;
+          } else liveFrame.recording = null;
+          if (recording) recordingTapRef.current?.(hud); // --- low-findings --- (the page recorder's copy of the frame, before the live mark)
+          stampLiveFrame(liveFrame);
+        }
       }
       // --- end watermark-everywhere ---
 
@@ -3601,6 +3636,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         },
         holdsEndScreen: () => cam.holdsEndScreen() || captionLayer.holdsEndScreen(),
         slowLagMs: () => cam.getSlowLagMs(), // --- review fix (modes-gerald-odd) ---
+        hud: () => liveHud, // --- low-findings --- (the HUD the last frame reported, in canvas px)
         paintBackground: (c, width, height, crop) => {
           bgPainter().paintExport(c, width, height, crop, backgroundLook());
           if (engine.isFightLeagueMode()) flLayer.paintExportBackdrop(c, width, height, crop); // --- fl-overhaul --- (Stage 3) the stage in the bars, the 9:16 plates

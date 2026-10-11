@@ -6,6 +6,7 @@ import { RANGES, defaultSettings, settingsToSearchParams, type SimulatorSettings
 import { createEngineForSettings, type FinderRequest } from "@/lib/simulation/finder";
 import { outcomeMatches, type FinderOutcome, type RunSummary } from "@/lib/simulation/outcomes";
 import { recordingTextLayout } from "@/lib/recording/recorder";
+import { seedParam } from "@/lib/recording/batch"; // --- low-findings --- (the `seed=` of a share link)
 import { pageUrl } from "@/lib/site";
 import { applyTheme } from "@/lib/themes";
 import { BOT_LOCALES, copyString, fillTemplate, postCopy, recipeCopyVars, recipeText, seriesLabel, type BotCopy, type BotLocale } from "./copy";
@@ -461,13 +462,21 @@ export function simulateFacts(request: FinderRequest, seed: number, recipe: Pick
   const horizonMs = horizonSec * 1000;
   const facts: RunFacts = { firstImpactSec: -1, firstEscapeSec: -1, finishSec: -1, homeSec: -1, fillSec: -1, winSec: -1, winnerIndex: -1, summary: { mode: request.mode, durationMs: 0, finished: false, firstEscapeMs: -1, teams: [] } };
   const teamCount = () => (request.mode === "stringBattle" ? engine.getStringBattleView().count : startBallCount(engine.config, request.mode));
-  const snapshot = (elapsed: number, finished: boolean): RunSummary => ({
-    mode: request.mode,
-    durationMs: elapsed,
-    finished,
-    firstEscapeMs: facts.firstEscapeSec >= 0 ? facts.firstEscapeSec * 1000 : -1,
-    teams: engine.getTeamStats().slice(0, teamCount()).map((t) => ({ ...t })),
-  });
+  // --- low-findings --- a finished battle that ended with nobody standing (its last balls fell in the same step), as
+  // simulateOutcomeRun() reports it: the mode's verdict shares the win, the finder's winner predicate takes it for nobody's
+  const doubleKoOf = (finished: boolean): boolean | undefined =>
+    !finished ? undefined : request.mode === "fightLeague" ? engine.getFightLeagueView().doubleKo : request.mode === "stringBattle" ? engine.getStringBattleView().alive === 0 : undefined;
+  const snapshot = (elapsed: number, finished: boolean): RunSummary => {
+    const doubleKo = doubleKoOf(finished);
+    return {
+      mode: request.mode,
+      durationMs: elapsed,
+      finished,
+      firstEscapeMs: facts.firstEscapeSec >= 0 ? facts.firstEscapeSec * 1000 : -1,
+      teams: engine.getTeamStats().slice(0, teamCount()).map((t) => ({ ...t })),
+      ...(doubleKo !== undefined ? { doubleKo } : {}),
+    };
+  };
   const analytic = recipe.strategy === "cycle" || recipe.strategy === "fixed";
   let elapsed = 0;
   let atEscape: RunSummary | null = null;
@@ -724,8 +733,11 @@ export function recipeSettings(recipe: BotRecipe, ctx: RecipeContext): BuiltSett
 const hookStyle = { size: 1.2, color: "#ffffff", background: "#000000" };
 const LIME = "#93d119";
 
-/** The captions of a clip (§3.2–3.5) and what each is for: the hook, the countdown, the payoff text or the closing question. */
-export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, vars: Record<string, string | number>, timing: ClipTiming, ending: EndingStyle, hookEndSec: number): { captions: Caption[]; roles: CaptionRole[] } {
+/**
+ * The captions of a clip (§3.2–3.5) and what each is for: the hook, the countdown, the payoff text or the closing question.
+ * --- low-findings --- `payoffKey`: the recipe's copy of the payoff (`payoffKeyOf()`: a double KO's own words).
+ */
+export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, vars: Record<string, string | number>, timing: ClipTiming, ending: EndingStyle, hookEndSec: number, payoffKey = "payoff"): { captions: Caption[]; roles: CaptionRole[] } {
   const captions: Caption[] = [];
   const roles: CaptionRole[] = [];
   const add = (caption: Caption, role: CaptionRole) => {
@@ -746,7 +758,7 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
     const start = half(Math.max(hookEndSec + 0.5, clip - 2));
     for (const line of q.lines) add({ ...defaultCaption("question", { text: line }), position: "top", start, end: 0, animation: "pop", style: { size: q.size, color: "#ffffff", background: "#000000" } }, "question");
   } else if (timing.payoffSec !== null) {
-    const p = captionLines(recipeText(copy, recipe, "payoff", vars), 1.3, 2);
+    const p = captionLines(recipeText(copy, recipe, payoffKey, vars), 1.3, 2);
     const start = half(Math.max(hookEndSec + 0.5, Math.floor(timing.payoffSec * 2) / 2));
     for (const line of p.lines) add({ ...defaultCaption("text", { text: line }), position: "top", start, end: 0, animation: "pop", style: { size: p.size, color: LIME, background: "#000000" } }, "payoff");
   }
@@ -757,7 +769,7 @@ export function clipCaptions(recipe: BotRecipe, copy: BotCopy, hook: string, var
 export function clipShareUrl(settings: SimulatorSettings, seed: number, locale: BotLocale, siteUrl?: string): string {
   const base = siteUrl ? `${siteUrl.replace(/\/+$/, "")}/${locale}/simulator/` : pageUrl(locale, "/simulator");
   const params = settingsToSearchParams(settings);
-  params.set("seed", String(seed));
+  params.set("seed", seedParam(seed)); // --- low-findings --- (the engine's value, as parseSeed() reads it back)
   return `${base}?${params.toString()}`;
 }
 
@@ -773,6 +785,16 @@ export function postingTimeFor(platform: BotPlatform, index: number, count: numb
   const minutes = Math.round(9 * 60 + ((22 - 9) * 60 * (index - 1)) / Math.max(1, count - 1));
   const m = Math.round(minutes / 15) * 15;
   return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+}
+
+/**
+ * --- low-findings --- The recipe's copy of a clip's payoff: "payoff" ("{winner} wins! 🏆"), or – for a battle whose last balls
+ * fell in the same step, a double KO – its "payoffDoubleKo" ("Double KO – the last two fell together!") where the recipe has
+ * one: the mode's own verdict still shares the win between them (its banner, the teams' stats), but nobody was left standing,
+ * so the clip's words name no winner.
+ */
+export function payoffKeyOf(copy: BotCopy, recipe: Pick<BotRecipe, "copyKey">, facts: Pick<RunFacts, "summary"> | null): string {
+  return facts?.summary.doubleKo === true && copyString(copy, `recipes.${recipe.copyKey}.payoffDoubleKo`) ? "payoffDoubleKo" : "payoff";
 }
 
 /* ------------------------------------------------------------------ planClip */
@@ -796,8 +818,9 @@ function assemblePlan(recipe: BotRecipe, built: BuiltSettings, seed: number, pla
   const vars = { seconds: timing.recordingDuration, name: settings.ballName || MASCOT.name, ...recipe.hookVars(settings), ...recipeCopyVars(copy, recipe, settings), episode };
   const hook = recipeText(copy, recipe, ending === "cliffhanger" && copyString(copy, `recipes.${recipe.copyKey}.cliffHook`) ? "cliffHook" : "hook", vars);
   const winnerName = facts?.winnerName ? facts.winnerName /* --- fl-overhaul --- (Stage 6) a fight's winner */ : winner >= 0 ? (settings.teams[winner]?.name ?? `#${winner + 1}`) : null;
-  const payoffText = recipeText(copy, recipe, "payoff", { ...vars, winner: winnerName ?? "" });
-  const { captions, roles } = clipCaptions(recipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec);
+  const payoffKey = payoffKeyOf(copy, recipe, facts); // --- low-findings --- (a double KO names nobody: both fell)
+  const payoffText = recipeText(copy, recipe, payoffKey, { ...vars, winner: winnerName ?? "" });
+  const { captions, roles } = clipCaptions(recipe, copy, hook, { ...vars, winner: winnerName ?? "" }, timing, ending, hookEndSec, payoffKey);
   settings.captions = captions;
   const id = `${episodeCode(episode, index)}-${recipe.id}-${seed}`;
   const time = options.postingTime ?? PLATFORMS[platform].postingTimes[0];

@@ -5,6 +5,7 @@
  * closed is there when it opens; kept in memory only (never in storage), the oldest dropped past MAX_CLIPS.
  */
 import { SITE_SLUG } from "@/lib/site";
+import type { LoopCaptionContext } from "./loopCaption"; // --- low-findings ---
 
 export const CLIP_SOURCES = ["recording", "fast", "batch", "bot", "file"] as const;
 export type ClipSource = (typeof CLIP_SOURCES)[number];
@@ -24,6 +25,11 @@ export interface PublishClip {
   seed: number | null;
   /** The viral bot's clip id (its file base) for a bot render: its copy comes from the bot's plan. */
   botClipId: string | null;
+  /**
+   * --- low-findings --- The "Loop style" words of the run the clip was made of, taken when it was offered (null: unknown – a
+   * picked file, the desktop Library's): the caption follows the clip, not the page's settings of the moment.
+   */
+  loopCaption: LoopCaptionContext | null;
   createdAt: number;
 }
 
@@ -36,6 +42,8 @@ export interface OfferClipInput {
   mode?: string | null;
   seed?: number | null;
   botClipId?: string | null;
+  /** --- low-findings --- `loopCaptionContext()` of the settings the clip was made with. */
+  loopCaption?: LoopCaptionContext | null;
 }
 
 /** Clips kept (each can be tens of MB). */
@@ -88,6 +96,7 @@ export function offerPublishClip(input: OfferClipInput): PublishClip {
     mode: input.mode ?? null,
     seed: input.seed ?? null,
     botClipId: input.botClipId ?? null,
+    loopCaption: input.loopCaption ?? null, // --- low-findings ---
     createdAt: Date.now(),
   };
   clips = [clip, ...clips].slice(0, MAX_CLIPS);

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type MutableRefObject } from "react";
 import { resolutionToSize } from "@/lib/settings";
+import { seedParam } from "@/lib/recording/batch"; // --- low-findings ---
 import type { DesktopApi, LibraryMeta, RenderProgressEvent, VideoCodec } from "@/lib/desktop/contract";
 import { blobBytes } from "@/lib/desktop/bridge";
 import { lastVideoAcceleration, setDesktopExportCodec } from "@/lib/desktop/gpuEncode";
@@ -62,7 +63,7 @@ function codecOfString(codec: string | undefined): VideoCodec | null {
 /** The simulator link that renders the job again (its settings and seed). */
 export function jobLink(job: Pick<QueueJob, "settings" | "seed">, locale: string): string {
   const params = settingsToSearchParams(job.settings);
-  params.set("seed", String(job.seed));
+  params.set("seed", seedParam(job.seed)); // --- low-findings --- (the engine's value: a negative found seed too)
   return `${SITE_URL}/${locale}/simulator/?${params.toString()}`;
 }
 

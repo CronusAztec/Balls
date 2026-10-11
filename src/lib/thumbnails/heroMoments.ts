@@ -58,10 +58,10 @@ export const HERO_MOMENTS: Record<ModeId, HeroMoment> = {
   runner: { moment: "the runner in the air over the spikes, on the beat", query: "rrn=40&rrd=1&face=cute", seed: 1, atSec: 3.6, camera: { x: 0.43, y: 0.52, zoom: 1.8 }, tint: "#06d6a0" },
   paddle: { moment: "a catch on the platform, sparks flying", query: "pdsk=1&pdsp=1", seed: 1, atSec: 8.6, camera: { x: 0.55, y: 0.756, zoom: 2.2 }, tint: "#ffbe0b" },
   vortex: { moment: "a full funnel: balls weaving down the glowing rings", query: "face=cute", seed: 1, atSec: 16, camera: { zoom: 1.4 }, tint: "#00bbf9" },
-  journey: { moment: "Gerald bursting the first ring of a rings stage, the field still closed around him", query: "js=rings-l,glass,pegs,home&face=cute", seed: 1, atSec: 2, camera: { x: 0.5, y: 0.5, zoom: 1.3 }, tint: "#93d119" },
-  bullseye: { moment: "BULLSEYE: a ball stuck in the bull, the starburst", query: "byi=0.4&byp=2&face=cute", seed: 1, atSec: 3.5, tint: "#ef476f" },
+  journey: { moment: "Gerald bursting the first ring of a rings stage, the field still closed around him", query: "js=rings-l,glass,pegs,home&face=cute", seed: 1, atSec: 2, camera: { x: 0.5, y: 0.53, zoom: 1.4 } /* --- low-findings --- (the stage label framed out) */, tint: "#93d119" },
+  bullseye: { moment: "BULLSEYE: a ball stuck in the bull, the starburst", query: "byi=0.4&byp=2&face=cute", seed: 1, atSec: 3.5, camera: { x: 0.5, y: 0.56, zoom: 1.2 } /* --- low-findings --- (the corner counters framed out) */, tint: "#ef476f" },
   beatDrop: { moment: "the ball landing on a pad on the beat in a burst of sparks", query: "face=cute&bdd=1&bda=1", seed: 1, atSec: 12.6, camera: { x: 0.38, y: 0.58, zoom: 1.8 }, tint: "#b5179e" },
-  territory: { moment: "the territory map half painted, borders jagged", query: "tyb=3&tybg=0", seed: 1, atSec: 14.5, tint: "#4895ef" },
+  territory: { moment: "the territory map half painted, borders jagged", query: "tyb=3&tybg=0", seed: 1, atSec: 14.5, camera: { x: 0.5, y: 0.545, zoom: 1.1 } /* --- low-findings --- (PICK A SIDE and the clock framed out, the score bar kept) */, tint: "#4895ef" },
   maze: { moment: "the leader one turn from the exit, blood-red trails filling the maze behind it", query: "mzn=4&mzbg=0&mzhud=0", seed: 6, atSec: 6.7, camera: { zoom: 1.12 }, tint: "#38b000" },
   conveyor: { moment: "balls riding the belt and dropping into the rainbow rings", query: "cvi=1&cvn=12&face=cute", seed: 1, atSec: 6.8, camera: { x: 0.481, y: 0.571, zoom: 1.154 }, tint: "#f4a261" },
   orbGrid: { moment: "the orbs' wave at its peak", query: "ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0", seed: 3, atSec: 14.5, camera: { x: 0.506, y: 0.567, zoom: 1.25 }, tint: "#4cc9f0" },
@@ -99,9 +99,10 @@ export const HERO_BAND_SHARE = 0.85;
 export type HeroMomentSource = "payoff" | "cut" | "card" | "band";
 
 /**
- * The hero second of a clip of `clipSec`: the payoff on screen when it comes inside the clip; the clip's last moment when it
- * is cut before the payoff (a cliffhanger – the closest it gets); otherwise the mode's card second when the clip reaches it,
- * else the middle of the payoff band.
+ * The hero second of a clip of `clipSec`: the payoff on screen when it comes inside the clip – no later than the last moment a
+ * picture may take (`clipSec` − `HERO_TAIL_SEC`), the picture up to `HERO_PAYOFF_LAG_SEC` after it; the clip's last moment when
+ * it is cut before the payoff (a cliffhanger – the closest it gets) or the payoff lands in the clip's tail (the picture then
+ * precedes it: "cut", not "payoff"); otherwise the mode's card second when the clip reaches it, else the middle of the payoff band.
  */
 export function heroMomentSec(input: { mode: string; clipSec: number; payoffSec: number | null; cutGapSec?: number | null }): { sec: number; source: HeroMomentSource } {
   const clip = Number.isFinite(input.clipSec) && input.clipSec > 0 ? input.clipSec : 0;
@@ -110,7 +111,9 @@ export function heroMomentSec(input: { mode: string; clipSec: number; payoffSec:
   const payoff = input.payoffSec;
   if (payoff !== null && Number.isFinite(payoff) && payoff >= 0) {
     const cut = (input.cutGapSec ?? null) !== null && (input.cutGapSec as number) > 0;
-    if (!cut && payoff <= clip) return { sec: round(payoff + HERO_PAYOFF_LAG_SEC), source: "payoff" };
+    // --- low-findings --- "the payoff on screen" only when the frame can show it: a payoff past the clip's last moment that
+    // a picture may take (`latest`, before the tail) is shown as the last moment before it – the frame precedes the payoff
+    if (!cut && payoff <= latest) return { sec: round(payoff + HERO_PAYOFF_LAG_SEC), source: "payoff" };
     return { sec: round(latest), source: "cut" };
   }
   const card = (HERO_MOMENTS as Readonly<Record<string, HeroMoment | undefined>>)[input.mode]?.atSec;

@@ -548,8 +548,9 @@ describe("the wiring: every live canvas stamps its frames last, offline canvases
     // nothing drawn after it in the frame: no fill, stroke, text, image or rectangle on the context
     const after = body.slice(at + "stampLiveFrame(liveFrame)".length);
     expect(after).not.toMatch(/ctx\.(fill|stroke|fillText|strokeText|drawImage|fillRect|clearRect|putImageData)\b/);
-    // and only live: the block that reports the HUD and stamps is `if (!offline) { … }`
-    expect(body).toMatch(/if \(!offline\) \{\s*const hud = liveHud\.reset\(scale\);[\s\S]*?stampLiveFrame\(liveFrame\);\s*\}/);
+    // and only live: the stamp is inside `if (!offline) { … }` – --- low-findings --- the HUD is reported offline too (the fast
+    // export's compositor keeps its badge clear of it), and the page recorder's tap copies the frame just before the stamp
+    expect(body).toMatch(/\{\s*const hud = liveHud\.reset\(scale\);[\s\S]*?if \(!offline\) \{[\s\S]*?if \(recording\) recordingTapRef\.current\?\.\(hud\);\s*stampLiveFrame\(liveFrame\);\s*\}\s*\}/);
   });
 
   it("the split-screen stage stamps the composed frame once; its arenas are offline canvases", () => {
@@ -600,7 +601,8 @@ describe("the wiring: every live canvas stamps its frames last, offline canvases
 
   it("the page recorder's compositor stamps only frames the live pass did not mark", () => {
     const src = strip(read("src/lib/recording/recorder.ts"));
-    expect(src).toMatch(/if \(!liveMarkCovers\(source\)\) stampFrame\(ctx, mark\?\.seal/);
+    // --- low-findings --- (or that its tap copied before the live pass: those carry no mark either)
+    expect(src).toMatch(/if \(mark\?\.unmarkedSource \|\| !liveMarkCovers\(source\)\) stampFrame\(ctx, mark\?\.seal/);
   });
 
   it("the still camera (mode-thumbnails' window.__jumpingBallsStill) seals each capture and stamps every picture it hands back – the framed card and the raw world – before encoding it", () => {
@@ -645,5 +647,111 @@ describe("the copy: free simulations and free videos carry a small watermark, Pr
     expect(read("src/components/billing/UnlockDialog.tsx")).toMatch(/t\("liveMark", \{ siteName: SITE_NAME \}\)/);
     expect(read("src/components/simulator/sections/FreeWatermarkNote.tsx")).toMatch(/t\("liveNote"/);
     expect(read("src/components/billing/WatermarkBadge.tsx")).toMatch(/t\("liveTagTip"\)/);
+  });
+});
+
+// --- low-findings --- the page recorder's tap: each frame copied before the live pass, the video's own badge at export resolution
+// (not the canvas' badge scaled up), the tiles over the whole frame – the letterbox bars too –, the badge clear of the HUD the
+// frame reported (the fast export's offline frames report theirs: a free String Circle video's badge stays off the strip's chips)
+describe("--- low-findings --- the video's own badge at export resolution, clear of the frame's HUD", () => {
+  const compose = (recorder: typeof import("@/lib/recording/recorder"), seal: unknown, source: FakeCanvas, mark: Record<string, unknown> = {}, clipMs = 1000) => {
+    const frame = fakeCanvas(1080, 1920);
+    recorder.drawRecordingFrame(frame.ctx as unknown as CanvasRenderingContext2D, source as unknown as HTMLCanvasElement, 1080, 1920, "#000", {}, recorder.recordingTextLayout(1080, 1920), { seal: seal as never, clipMs, ...mark });
+    return draws(drawsOf(frame.ctx));
+  };
+  /** The badge's rectangle (the pill) of a drawImage call of the badge sprite. */
+  const pill = (call: { args: unknown[] }) => {
+    const sprite = call.args[0] as FakeCanvas;
+    const { height, pad } = spriteGeometry(sprite);
+    return { x: (call.args[1] as number) + pad, y: (call.args[2] as number) + pad, width: sprite.width - 2 * pad, height };
+  };
+
+  it("stamps a frame its tap copied before the live pass: tiles of the whole frame and the badge at the export's size", async () => {
+    storeLicence(null);
+    vi.stubGlobal("document", fakeDocument());
+    const { live, recorder, seal } = await fresh();
+    await live.primeLiveWatermark();
+    const free = await seal.sealWatermark();
+    const canvas = fakeCanvas(509, 509); // a 1400 × 900 window's square at dpr 1: 2.1× up to the 1080 px export square
+    stamp(live, canvas, 1000, { recording: { startMs: 0, width: 1080, height: 1920 } }); // its last frame carried the live mark
+    const calls = compose(recorder, free, canvas, { unmarkedSource: true });
+    expect(calls.map((c) => c.args[0])[0]).toBe(canvas);
+    expect(calls).toHaveLength(3); // the copy, the tile layer, the badge
+    const tiles = calls[1].args[0] as FakeCanvas;
+    expect([tiles.width, tiles.height]).toEqual([1080, 1920]); // over the bars too
+    const badge = pill(calls[2]);
+    expect(badge.height).toBe(badgeMetrics(1080).height); // drawn at the export's size, not the canvas' scaled up
+    expect(badge).toMatchObject(badgeRect(1080, 1920, { width: badge.width, height: badge.height, inset: badgeMetrics(1080).inset }, "bottom-left", exportSquare(1080, 1920)));
+    // a Pro recording's tap: the copy only
+    await (await import("@/lib/billing/entitlement")).getEntitlementStore().install(signTestLicense({ days: 30 }));
+    expect(compose(recorder, await seal.sealWatermark(), canvas, { unmarkedSource: true })).toHaveLength(1);
+  });
+
+  it("keeps the badge clear of the HUD the frame reported – a String Circle strip, Fight League's ability boxes – and where it was without one", async () => {
+    storeLicence(null);
+    vi.stubGlobal("document", fakeDocument());
+    const { live, recorder, seal } = await fresh();
+    await live.primeLiveWatermark();
+    const free = await seal.sealWatermark();
+    const source = fakeCanvas(800, 450); // the offline canvas of a 16:9 world: its square at x 175, 450 px
+    const plain = pill(compose(recorder, free, source, { hud: new LiveHud() })[2]);
+    expect(plain).toMatchObject(badgeRect(1080, 1920, { width: plain.width, height: plain.height, inset: badgeMetrics(1080).inset }, "bottom-left", exportSquare(1080, 1920)));
+    // the standings strip: 93.1 % of the square down (canvas px), a bottom band
+    const k = 1080 / 450;
+    const square = exportSquare(1080, 1920);
+    for (const [clipMs, corner] of [[1000, "bottom-left"], [7000, "bottom-right"]] as const) {
+      const strip = new LiveHud().reset(1);
+      strip.bottomBand(0.931 * 450);
+      const b = pill(compose(recorder, free, source, { hud: strip }, clipMs)[2]);
+      expect(b.y + b.height, `${corner}`).toBeLessThanOrEqual(square.y + 0.931 * 450 * k + 0.5);
+      expect(b.x < 540, corner).toBe(corner === "bottom-left");
+    }
+    // a block in the bottom-left corner (the ability boxes' column): the top-left corner of the same side
+    const box = new LiveHud().reset(1);
+    box.block(175, 330, 140, 120);
+    const moved = pill(compose(recorder, free, source, { hud: box }, 1000)[2]);
+    expect(overlaps(moved, { x: square.x + 0 * k, y: square.y + (330 - 0) * k, width: 140 * k, height: 120 * k })).toBe(false);
+    expect(moved.x).toBeLessThan(540);
+  });
+
+  it("taps the canvas' frames while it records and lets go when it stops; the copies are not made twice", async () => {
+    storeLicence(null);
+    const doc = fakeDocument();
+    vi.stubGlobal("document", doc);
+    vi.stubGlobal("requestAnimationFrame", () => 1);
+    vi.stubGlobal("cancelAnimationFrame", () => undefined);
+    vi.stubGlobal("MediaStream", class {});
+    vi.stubGlobal("MediaRecorder", Object.assign(class { state = "recording"; mimeType = "video/webm"; onstop: (() => void) | null = null; start() {} stop() { this.state = "inactive"; this.onstop?.(); } }, { isTypeSupported: () => true }));
+    const { live, recorder } = await fresh();
+    await live.primeLiveWatermark();
+    const source = fakeCanvas(900, 900);
+    stamp(live, source, 0, { recording: { startMs: 0, width: 1080, height: 1920 } });
+    const made = doc.made.length;
+    let tap: ((hud: LiveHud | null) => void) | null = null;
+    let drawn = 1;
+    const r = new recorder.VideoRecorder(source as unknown as HTMLCanvasElement);
+    expect(await r.startRecording({ resolution: { width: 1080, height: 1920 }, sourceFrames: () => drawn, registerSourceTap: (t) => void (tap = t) })).toBe(true);
+    expect(typeof tap).toBe("function");
+    const frame = doc.made[made];
+    const before = draws(drawsOf(frame.ctx)).length; // the stream's first frame: the canvas as it was (its live mark)
+    drawn = 2; // the canvas draws a frame and hands it over before its live pass
+    tap!(new LiveHud());
+    const added = draws(drawsOf(frame.ctx)).slice(before);
+    expect(added.map((c) => (c.args[0] as FakeCanvas).width)).toEqual([900, 1080, added[2] ? (added[2].args[0] as FakeCanvas).width : -1]);
+    expect(pill(added[2]).height).toBe(badgeMetrics(1080).height);
+    await r.stopRecording();
+    expect(tap).toBeNull(); // taken back
+  });
+
+  it("is wired: the studio's canvas and a race's stage hand their frames to the tap, the fast export its frames' HUD", () => {
+    expect(strip(read("src/components/simulator/Simulator.tsx"))).toMatch(/registerSourceTap: \(tap\) => canvasRef\.current\?\.setRecordingTap\?\.\(tap\)/);
+    expect(strip(read("src/components/simulator/splitScreenCanvas.tsx"))).toMatch(/if \(recordingRef\.current\) recordingTapRef\.current\?\.\(liveHud\);\s*stampLiveFrame\(liveFrame\);/);
+    expect(strip(read("src/lib/recording/fastRender.ts"))).toMatch(/\{ seal, clipMs: t, hud: frameRenderer\.hud\?\.\(\) \?\? null \}/);
+    expect(strip(read("src/components/simulator/Canvas.tsx"))).toMatch(/hud: \(\) => liveHud,/);
+  });
+
+  it("names only the message keys the watermark's components use (no dead copy)", () => {
+    const used = (read("src/components/billing/WatermarkBadge.tsx") + read("src/components/simulator/sections/FreeWatermarkNote.tsx")).match(/\bt\("(\w+)"/g)!.map((m) => m.slice(3, -1));
+    for (const messages of [en, pl, es]) expect(Object.keys(messages.Watermark).sort()).toEqual([...new Set(used)].sort());
   });
 });

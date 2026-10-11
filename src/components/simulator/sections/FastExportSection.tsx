@@ -45,12 +45,31 @@ export interface FastExportPanelProps {
 
 const one = (n: number) => (Math.round(n * 10) / 10).toFixed(1);
 
+/**
+ * --- low-findings --- What a finished export did to the clip besides rendering it, for the done line: the whole loops it was
+ * cut to (Export whole loops on a looping run: `loopCycles` × `loopCycleSec`) and the loudness normaliser's gain (−14 LUFS),
+ * signed to one decimal ("+1.1", "−2.3"; null when it rounds to nothing – the clip kept its level).
+ */
+export function fastExportDoneDetail(state: Extract<FastExportState, { status: "done" }>): { loops: { count: number; cycle: string } | null; gain: string | null } {
+  const loops = state.loopCycles !== undefined && state.loopCycles >= 1 && state.loopCycleSec !== undefined && state.loopCycleSec > 0 ? { count: state.loopCycles, cycle: (Math.round(state.loopCycleSec * 100) / 100).toFixed(2) } : null;
+  const g = state.loudnessGainDb;
+  const rounded = g !== undefined && Number.isFinite(g) ? Math.round(g * 10) / 10 : 0;
+  const gain = rounded !== 0 ? `${rounded > 0 ? "+" : "−"}${Math.abs(rounded).toFixed(1)}` : null;
+  return { loops, gain };
+}
+
 /** How the fast export went, or why its button is off – the line under the studio's transport bar (null: nothing to say). */
 function fastExportMessage(t: ReturnType<typeof useTranslations>, { state, supported, handPlay = false }: Pick<FastExportPanelProps, "state" | "supported" | "handPlay">): { message: string; tone: string } | null {
   const running = state.status === "running";
   if (handPlay && !running) return { message: t("handPlayNote"), tone: "text-warn" }; // why the button is off – it outranks how the last export went
-  if (state.status === "done")
-    return { message: t("done", { seconds: one(state.durationSec), format: state.extension.toUpperCase(), wall: one(state.wallMs / 1000), speed: one(realtimeFactor(state.durationSec, state.wallMs)) }), tone: "text-accent" };
+  if (state.status === "done") {
+    // --- low-findings --- and why the clip is shorter than asked (cut to whole loops) or louder / quieter than the live page
+    const detail = fastExportDoneDetail(state);
+    const parts = [t("done", { seconds: one(state.durationSec), format: state.extension.toUpperCase(), wall: one(state.wallMs / 1000), speed: one(realtimeFactor(state.durationSec, state.wallMs)) })];
+    if (detail.loops) parts.push(t("doneLoops", { count: detail.loops.count, cycle: detail.loops.cycle }));
+    if (detail.gain) parts.push(t("doneGain", { gain: detail.gain }));
+    return { message: parts.join(" "), tone: "text-accent" };
+  }
   if (state.status === "fallback") return { message: t(state.reason === "webcodecs" ? "fallbackWebCodecs" : "fallbackCodecs"), tone: "text-warn" };
   if (state.status === "cancelled") return { message: t("cancelled"), tone: "text-ink-2" };
   if (state.status === "error") return { message: t("error", { message: state.message }), tone: "text-danger" };
