@@ -3,6 +3,38 @@ import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
 import { buildPendulumField, pendulumPitch, polygonRadius, type PendulumField } from "./pendulum";
 import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
+// --- phase-spiral --- arms, the in-line meter, comet tails, the spiral palette and the loop sounds (lib/physics/phaseSpiral.ts)
+import {
+  DEFAULT_PHASE_SPIRAL_SETTINGS,
+  PHASE_SPIRAL_RANGES,
+  PS_CHORD_HZ,
+  PS_RISER_FROM,
+  PS_RISER_LEVELS,
+  PS_RISER_MAX_SEC,
+  PS_SPAN,
+  armAngle,
+  effectiveArms,
+  inLineOf,
+  phaseSpiralDegree,
+  phaseSpiralDegreeHz,
+  phaseSpiralLevel,
+  pickPluckDegrees,
+  phaseSpiralSettingFields,
+  phaseSpiralSettingsOf,
+  polyLoopPeriod,
+  progressCrossings,
+  resolvePhaseSpiralSettings,
+  seamsBefore,
+  spiralColor,
+  stepsToNextAlignment,
+  tickPhaseModArms,
+  type PhaseSpiralSettingFields,
+  type PhaseSpiralSettings,
+} from "../phaseSpiral";
+import type { LoopSeams } from "../types";
+/** Degrees of the plucks' key a run uses (0 … PS_SPAN). */
+const PS_DEGREES = PS_SPAN + 1;
+// --- end phase-spiral ---
 
 /**
  * Metronomes & Polyrhythms ("polyrhythm" mode, the project.jdm polyrhythm / tempo-phase-shift formats): no
@@ -54,7 +86,7 @@ export function isPolyPitchBy(value: unknown): value is PolyPitchBy {
   return typeof value === "string" && (POLY_PITCH_BY as readonly string[]).includes(value);
 }
 
-export interface PolyrhythmSettings {
+export interface PolyrhythmSettings extends PhaseSpiralSettings /* --- phase-spiral --- (arms, meter, tails, loop sounds, palette) */ {
   /** Voices of the harmonic and arithmetic series, 2–400 (a custom list has one voice per entry). */
   count: number;
   layout: PolyLayout;
@@ -96,6 +128,7 @@ export const DEFAULT_POLYRHYTHM_SETTINGS: PolyrhythmSettings = {
   pitchBy: "index",
   numbers: false,
   cycles: 1,
+  ...DEFAULT_PHASE_SPIRAL_SETTINGS, // --- phase-spiral ---
 };
 
 /** Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
@@ -106,6 +139,7 @@ export const POLYRHYTHM_RANGES = {
   prBpmStep: { min: 0.1, max: 10, step: 0.1 },
   prAccentEvery: { min: 0, max: 16, step: 1 },
   prCycles: { min: 0, max: 20, step: 1 },
+  ...PHASE_SPIRAL_RANGES, // --- phase-spiral --- (the arms; the tails' range is the picture's: PHASE_SPIRAL_PICTURE_RANGES)
 } as const;
 
 /** Most voices a custom list may define, and the most characters kept of it (links and presets stay small). */
@@ -115,7 +149,7 @@ export const MAX_CUSTOM_LENGTH = 1200;
 export const MAX_CUSTOM_RATIO = 999;
 
 /** The Metronomes & Polyrhythms fields of the SimulatorSettings object (URL keys prn, prl, pras, prt, prcu, prcs, prb, prbs, prp, pra, prpb, prnum, prc). */
-export interface PolyrhythmSettingFields {
+export interface PolyrhythmSettingFields extends PhaseSpiralSettingFields /* --- phase-spiral --- (prar, prm, prtl, prls, prco) */ {
   prCount: number;
   prLayout: PolyLayout;
   prArcStyle: PolyArcStyle;
@@ -178,6 +212,18 @@ export function resolvePolyrhythmSettings(config: Partial<PolyrhythmSettings> | 
   if (isPolyPitchBy(config.pitchBy)) out.pitchBy = config.pitchBy;
   if (typeof config.numbers === "boolean") out.numbers = config.numbers;
   if (config.cycles !== undefined) out.cycles = Math.round(clampNumber(config.cycles, R.prCycles, out.cycles));
+  Object.assign(out, resolvePhaseSpiralSettings({ ...DEFAULT_PHASE_SPIRAL_SETTINGS, ...pickPhaseSpiral(config) })); // --- phase-spiral ---
+  return out;
+}
+
+// --- phase-spiral --- the Phase Spiral fields of a (partial) settings object
+function pickPhaseSpiral(config: Partial<PolyrhythmSettings>): Partial<PhaseSpiralSettings> {
+  const out: Partial<PhaseSpiralSettings> = {};
+  if (config.arms !== undefined) out.arms = config.arms;
+  if (config.alignMeter !== undefined) out.alignMeter = config.alignMeter;
+  if (config.trail !== undefined) out.trail = config.trail;
+  if (config.loopSound !== undefined) out.loopSound = config.loopSound;
+  if (config.palette !== undefined) out.palette = config.palette;
   return out;
 }
 
@@ -197,6 +243,7 @@ export function polyrhythmSettingsOf(source: PolyrhythmSettingFields): Polyrhyth
     pitchBy: source.prPitchBy,
     numbers: source.prNumbers,
     cycles: source.prCycles,
+    ...phaseSpiralSettingsOf(source), // --- phase-spiral ---
   };
 }
 
@@ -216,6 +263,7 @@ export function polyrhythmSettingFields(settings: PolyrhythmSettings): Polyrhyth
     prPitchBy: settings.pitchBy,
     prNumbers: settings.numbers,
     prCycles: settings.cycles,
+    ...phaseSpiralSettingFields(settings), // --- phase-spiral ---
   };
 }
 
@@ -407,6 +455,12 @@ export interface PolyGeometry {
   rows: number;
 }
 
+// --- phase-spiral ---
+/** The outer orbit's share of the field's side (rings, spiral), and the smaller one that leaves the in-line meter its room under the disc. */
+export const POLY_OUTER_SHARE = 0.46;
+export const POLY_METER_OUTER_SHARE = 0.4;
+// --- end phase-spiral ---
+
 /** Turns of the spiral the tick points lie on. */
 export const SPIRAL_TURNS = 1;
 /** Swing amplitude of the metronome arms (radians). */
@@ -426,7 +480,7 @@ function spreadAt(i: number, n: number) {
  * chords, semicircles, the metronome grid or the spiral, with a dot radius that follows the Ball Size but never
  * lets neighbouring dots overlap. Every dot stays inside the field at any phase.
  */
-export function buildPolyGeometry(width: number, height: number, layout: PolyLayout, arcStyle: PolyArcStyle, count: number, ballRadius: number, direction = 1): PolyGeometry {
+export function buildPolyGeometry(width: number, height: number, layout: PolyLayout, arcStyle: PolyArcStyle, count: number, ballRadius: number, direction = 1, outerShare = POLY_OUTER_SHARE /* --- phase-spiral --- (the meter's room) */): PolyGeometry {
   const field = buildPendulumField(width, height);
   const S = field.side;
   const n = Math.max(1, count);
@@ -457,7 +511,7 @@ export function buildPolyGeometry(width: number, height: number, layout: PolyLay
   switch (layout) {
     case "rings":
     case "spiral": {
-      const outer = 0.46 * S;
+      const outer = outerShare * S;
       const inner = n > 1 ? 0.07 * S : 0.3 * S;
       const spacing = n > 1 ? (outer - inner) / (n - 1) : outer;
       const r = Math.max(minDot, Math.min(unit, 0.42 * spacing, 0.03 * S));
@@ -623,7 +677,31 @@ export interface PolyrhythmView {
   lastAnyTickStep: number;
   /** Incremented by every init. */
   generation: number;
+  // --- phase-spiral ---
+  /** Dots a ring this run draws (`effectiveArms()`: the setting on the orbit layouts, 1 elsewhere) and dots in all (count × arms). */
+  arms: number;
+  dotCount: number;
+  /** Position and angle of every dot (dot d: voice ⌊d / arms⌋, arm d mod arms); with one arm these are `x`, `y`, `param` themselves. */
+  dotX: Float64Array;
+  dotY: Float64Array;
+  dotParam: Float64Array;
+  /** The in-line meter at the end of the last step (0–1, `inLineOf()`), its crossings of 50 / 75 / 90 % on the way up and the step of the last one (−1 before). */
+  inLine: number;
+  progressCrossings: number;
+  lastCrossingStep: number;
+  // --- end phase-spiral ---
 }
+
+// --- phase-spiral ---
+/** Whether the rings are drawn as polygons: the setting, on the rings layout with one dot a ring (k arms ride plain circles). */
+export function polyPolygonsOn(settings: Pick<PolyrhythmSettings, "polygon" | "layout">, arms: number): boolean {
+  return settings.polygon && settings.layout === "rings" && arms === 1;
+}
+/** A dot's voice (ring). */
+export function dotVoice(dot: number, arms: number): number {
+  return arms === 1 ? dot : Math.floor(dot / arms);
+}
+// --- end phase-spiral ---
 
 const PLACEMENT: VoicePlacement = { x: 0, y: 0, param: 0 };
 const TICKS = { first: 0, end: 0 };
@@ -676,6 +754,15 @@ export class PolyrhythmMode implements GameMode {
     lastAlignStep: -1,
     lastAnyTickStep: -1,
     generation: 0,
+    // --- phase-spiral ---
+    arms: 1,
+    dotCount: 0,
+    dotX: new Float64Array(0),
+    dotY: new Float64Array(0),
+    dotParam: new Float64Array(0),
+    inLine: 1,
+    progressCrossings: 0,
+    lastCrossingStep: -1,
   };
   private sps = 60;
   private endStep = Infinity;
@@ -687,6 +774,18 @@ export class PolyrhythmMode implements GameMode {
   /** The balls' radii / positions have to follow a live layout change on the next step. */
   private ballsDirty = false;
   private readonly stepPitches: number[] = [];
+  // --- phase-spiral ---
+  /** The balls this mode spawned (dots), and whether they must be built again for a new dot count (a live arms or layout change). */
+  private ballDots = 0;
+  private dotsDirty = false;
+  /** Every voice's degree of the plucks' key and its velocity; a step's loudest pluck per degree and its brightness. */
+  private psDegree = new Int32Array(0);
+  private psLevel = new Float64Array(0);
+  private readonly psStepLevel = new Float64Array(PS_DEGREES);
+  private readonly psStepBright = new Uint8Array(PS_DEGREES);
+  private readonly psPicked: number[] = [];
+  private readonly psCrossed: number[] = [];
+  // --- end phase-spiral ---
 
   getSettings(): PolyrhythmSettings {
     return this.settings;
@@ -707,6 +806,24 @@ export class PolyrhythmMode implements GameMode {
     const soundChanged = live.pitchBy !== s.pitchBy;
     v.settings = { ...live, layout: s.layout, arcStyle: s.arcStyle, polygon: s.polygon, accentEvery: s.accentEvery, pitchBy: s.pitchBy, numbers: s.numbers };
     if (soundChanged) this.computePitches();
+    // --- phase-spiral --- the arms, the meter, the tails, the loop sounds and the palette apply live too (a new dot count
+    // builds the dots again on the next step; the meter's room re-lays the rings out)
+    v.settings.arms = s.arms;
+    v.settings.alignMeter = s.alignMeter;
+    v.settings.trail = s.trail;
+    v.settings.loopSound = s.loopSound;
+    v.settings.palette = s.palette;
+    const dotsChanged = this.allocDots();
+    if (live.palette !== s.palette) {
+      this.computeColors();
+      this.ballsDirty = true;
+    }
+    if (dotsChanged || live.alignMeter !== s.alignMeter) {
+      this.rebuildGeometry();
+      this.placeAll();
+      this.ballsDirty = true;
+    }
+    // --- end phase-spiral ---
     if (layoutChanged || live.polygon !== s.polygon) {
       this.rebuildGeometry();
       this.placeAll();
@@ -761,6 +878,13 @@ export class PolyrhythmMode implements GameMode {
       v.labels.push(voiceLabel(series, i, s.tempos));
       v.sides[i] = polygonSides(series.perCycle[i]);
     }
+    // --- phase-spiral --- the dots (arms), the palette, the plucks' degrees, the meter
+    this.allocDots();
+    this.computeColors();
+    this.computePluckDegrees();
+    v.progressCrossings = 0;
+    v.lastCrossingStep = -1;
+    // --- end phase-spiral ---
     v.step = 0;
     v.stepMs = 0;
     v.timeSec = 0;
@@ -783,11 +907,8 @@ export class PolyrhythmMode implements GameMode {
     this.computePitches();
     this.rebuildGeometry();
     this.placeAll();
-    const r = v.geometry!.dotRadius;
-    this.firstId = ctx.getNextId();
-    for (let i = 0; i < n; i++) {
-      ctx.addBall({ x: v.x[i], y: v.y[i], vx: 0, vy: 0, radius: r, color: v.colors[i], gravityScale: 0, radiusScale: r / this.ballRadius });
-    }
+    v.inLine = inLineOf(series.a, series.D, 0, this.sps); // --- phase-spiral ---
+    this.spawnDots(ctx); // --- phase-spiral --- (a ball per dot: one per voice with one arm, as before)
     this.ballsDirty = false;
   }
 
@@ -807,15 +928,16 @@ export class PolyrhythmMode implements GameMode {
       this.placeAll();
       this.ballsDirty = true;
     }
-    if (this.ballsDirty) this.applyBalls(ctx);
+    if (this.dotsDirty) this.respawnDots(ctx); // --- phase-spiral --- (a live arms or layout change: another dot count)
+    else if (this.ballsDirty) this.applyBalls(ctx);
   }
 
   /** The engine moved the dot by its (zero) velocity; pin it where the clock says it is. */
   onBallStep(_ctx: ModeContext, ball: Ball) {
     const i = ball.id - this.firstId;
-    if (i >= 0 && i < this.view.count) {
-      ball.x = this.view.x[i];
-      ball.y = this.view.y[i];
+    if (i >= 0 && i < this.ballDots && i < this.view.dotCount /* --- phase-spiral --- (a dot: one per voice with one arm) */) {
+      ball.x = this.view.dotX[i];
+      ball.y = this.view.dotY[i];
     }
     ball.vx = 0;
     ball.vy = 0;
@@ -838,6 +960,11 @@ export class PolyrhythmMode implements GameMode {
     pitches.length = 0;
     let ticks = 0;
     let accent = aligned;
+    const plucks = s.loopSound; // --- phase-spiral --- the loop voices instead of the instrument's
+    if (plucks) {
+      this.psStepLevel.fill(0);
+      this.psStepBright.fill(0);
+    }
     for (let i = 0; i < v.count; i++) {
       ticksInStep(series.a[i], series.D, step, sps, TICKS);
       const k = TICKS.end - TICKS.first;
@@ -854,6 +981,7 @@ export class PolyrhythmMode implements GameMode {
       if (accented) accent = true;
       const p = v.pitch[i];
       if (!pitches.includes(p)) pitches.push(p);
+      if (plucks) this.collectPluck(i, accented === 1); // --- phase-spiral ---
     }
     v.step = after;
     v.stepMs = dtMs;
@@ -868,11 +996,14 @@ export class PolyrhythmMode implements GameMode {
       const event: SoundEvent = { type: "hit", wallIndex: 0, frequency: chosen[0] };
       if (chosen.length > 1) event.chord = chosen;
       if (accent) event.accent = true;
-      ctx.addPendingSoundEvent(event);
+      if (plucks) this.queuePlucks(ctx); // --- phase-spiral --- (the step's plucks: at most 6, 1/√n)
+      else ctx.addPendingSoundEvent(event);
     }
     if (aligned) {
       v.alignCount++;
       v.lastAlignStep = after;
+      // --- phase-spiral --- the loop voices' completion chord (with its ding and sub) on every alignment
+      if (plucks) ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: PS_CHORD_HZ, level: 1, melody: false });
     }
     if (step >= this.endStep) {
       v.finished = true;
@@ -881,11 +1012,13 @@ export class PolyrhythmMode implements GameMode {
       if (g) ctx.spawnConfetti(g.cx, g.cy);
     }
     this.placeAll();
+    this.updateMeter(ctx, step); // --- phase-spiral --- (the meter of the new state, its crossings and their risers)
     for (const ball of ctx.getBalls()) {
-      const i = ball.id - this.firstId;
-      if (i >= 0 && i < v.count) {
-        ball.x = v.x[i];
-        ball.y = v.y[i];
+      const d = ball.id - this.firstId;
+      if (d >= 0 && d < this.ballDots && d < v.dotCount /* --- phase-spiral --- (a dot of voice i) */) {
+        const i = dotVoice(d, v.arms);
+        ball.x = v.dotX[d];
+        ball.y = v.dotY[d];
         if (ticks > 0 && v.lastTickStep[i] === after) ctx.noteBounce?.(ball); // --- bounce-math --- a dot's tick (it turns at the end of its arc) is its bounce
       }
     }
@@ -920,6 +1053,122 @@ export class PolyrhythmMode implements GameMode {
     return { timeSec: v.timeSec, step: v.step, cyclesDone: v.cyclesDone, tickCount: v.tickCount, alignCount: v.alignCount, eventCount: v.eventCount, finished: v.finished };
   }
 
+  // --- phase-spiral --- the loop contract (lib/loop/loopContract.ts): an endless run (cycles 0) is a seamless loop whose seam is
+  // the alignment – the dots back on their spokes, the meter at 100 %, the chord (`polyLoopPeriod()`); a run with cycles ends
+  cycleSeconds(): number | null {
+    const p = this.loopPeriod();
+    return p ? p.sec : null;
+  }
+  loopSeams(): LoopSeams | null {
+    const v = this.view;
+    const p = this.loopPeriod();
+    if (!p || !v.series) return null;
+    const count = seamsBefore(p, v.series.D, v.step, this.sps);
+    return { count, lastMs: count > 0 ? count * p.sec * 1000 : -1, nextMs: (count + 1) * p.sec * 1000 };
+  }
+  private loopPeriod() {
+    const v = this.view;
+    if (!this.initialized || !v.series || v.settings.cycles !== 0) return null;
+    return polyLoopPeriod(v.series, v.settings.layout, polyPolygonsOn(v.settings, v.arms), v.settings.accentEvery);
+  }
+
+  /** Sizes the dot arrays for the live arms and layout (the voice arrays themselves with one arm); true when the dot count changed. */
+  private allocDots(): boolean {
+    const v = this.view;
+    const arms = effectiveArms(v.settings.layout, v.settings.arms, v.count);
+    const dots = v.count * arms;
+    const changed = arms !== v.arms || dots !== v.dotCount;
+    v.arms = arms;
+    v.dotCount = dots;
+    if (arms === 1) {
+      v.dotX = v.x;
+      v.dotY = v.y;
+      v.dotParam = v.param;
+    } else if (v.dotX === v.x || v.dotX.length !== dots) {
+      v.dotX = new Float64Array(dots);
+      v.dotY = new Float64Array(dots);
+      v.dotParam = new Float64Array(dots);
+    }
+    if (changed && this.ballDots > 0) this.dotsDirty = true;
+    return changed;
+  }
+
+  /** The voices' colours: the rainbow by index, or the spiral palette (cool inside, warm outside). */
+  private computeColors() {
+    const v = this.view;
+    const spiral = v.settings.palette === "spiral";
+    for (let i = 0; i < v.count; i++) v.colors[i] = spiral ? spiralColor(i, v.count) : voiceColor(i, v.count);
+  }
+
+  /** Every voice's degree of the plucks' key and its velocity (the loop sounds). */
+  private computePluckDegrees() {
+    const n = this.view.count;
+    if (this.psDegree.length !== n) {
+      this.psDegree = new Int32Array(n);
+      this.psLevel = new Float64Array(n);
+    }
+    for (let i = 0; i < n; i++) {
+      this.psDegree[i] = phaseSpiralDegree(i, n);
+      this.psLevel[i] = phaseSpiralLevel(i, n);
+    }
+  }
+
+  /** A ticking voice's pluck: the loudest per degree, bright (its 3f partial) for the fast outer half or an accented tick. */
+  private collectPluck(i: number, accented: boolean) {
+    const d = this.psDegree[i];
+    if (this.psLevel[i] > this.psStepLevel[d]) this.psStepLevel[d] = this.psLevel[i];
+    if (accented || 2 * i >= this.view.count) this.psStepBright[d] = 1;
+  }
+
+  /** The step's plucks (`pickPluckDegrees()`: at most 6, spread over the degrees that ticked), each at 1/√n. */
+  private queuePlucks(ctx: ModeContext) {
+    const picked = pickPluckDegrees(this.psStepLevel, this.psPicked);
+    const share = picked.length > 1 ? 1 / Math.sqrt(picked.length) : 1;
+    for (const d of picked) {
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "pluck", frequency: phaseSpiralDegreeHz(d), level: this.psStepLevel[d] * share, loopBright: this.psStepBright[d] === 1, melody: false });
+    }
+  }
+
+  /** The meter after step `step`, its upward crossings of 50 / 75 / 90 % and – with the loop sounds – a riser each that stops on the alignment's chord. */
+  private updateMeter(ctx: ModeContext, step: number) {
+    const v = this.view;
+    const series = v.series;
+    if (!series) return;
+    const prev = v.inLine;
+    v.inLine = inLineOf(series.a, series.D, v.step, this.sps);
+    if (v.count < 2) return;
+    const crossed = progressCrossings(prev, v.inLine, this.psCrossed);
+    if (crossed.length === 0) return;
+    v.progressCrossings += crossed.length;
+    v.lastCrossingStep = v.step;
+    if (!v.settings.loopSound || v.finished) return;
+    const sec = stepsToNextAlignment(series.g, series.D, step, this.sps) / this.sps;
+    if (!(sec > 0) || sec > PS_RISER_MAX_SEC) return;
+    for (const k of crossed) ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "riser", frequency: PS_CHORD_HZ * PS_RISER_FROM[k], level: PS_RISER_LEVELS[k], loopSec: sec, melody: false });
+  }
+
+  /** A ball per dot, in dot order (voice-major), pinned to the clock. */
+  private spawnDots(ctx: ModeContext) {
+    const v = this.view;
+    const r = v.geometry!.dotRadius;
+    this.firstId = ctx.getNextId();
+    for (let d = 0; d < v.dotCount; d++) {
+      ctx.addBall({ x: v.dotX[d], y: v.dotY[d], vx: 0, vy: 0, radius: r, color: v.colors[dotVoice(d, v.arms)], gravityScale: 0, radiusScale: r / this.ballRadius });
+    }
+    this.ballDots = v.dotCount;
+    this.dotsDirty = false;
+  }
+
+  /** Another dot count mid-run: the old dots' balls leave, the new ones come in where the clock says. */
+  private respawnDots(ctx: ModeContext) {
+    const first = this.firstId;
+    const end = first + this.ballDots;
+    ctx.setBalls(ctx.getBalls().filter((b) => b.id < first || b.id >= end));
+    this.spawnDots(ctx);
+    this.ballsDirty = false;
+  }
+  // --- end phase-spiral ---
+
   private computePitches() {
     const v = this.view;
     const series = v.series;
@@ -934,7 +1183,7 @@ export class PolyrhythmMode implements GameMode {
 
   private rebuildGeometry() {
     const v = this.view;
-    v.geometry = buildPolyGeometry(this.width, this.height, v.settings.layout, v.settings.arcStyle, v.count, this.ballRadius, v.direction);
+    v.geometry = buildPolyGeometry(this.width, this.height, v.settings.layout, v.settings.arcStyle, v.count, this.ballRadius, v.direction, v.settings.alignMeter ? POLY_METER_OUTER_SHARE : POLY_OUTER_SHARE /* --- phase-spiral --- */);
   }
 
   /** Places every voice at the current step (exact phases from the step counter). */
@@ -944,9 +1193,26 @@ export class PolyrhythmMode implements GameMode {
     const series = v.series;
     if (!g || !series) return;
     const sps = this.sps;
-    const polygons = v.settings.polygon && v.settings.layout === "rings";
+    const polygons = polyPolygonsOn(v.settings, v.arms); // --- phase-spiral --- (k arms ride plain circles)
     v.polygonAngle = -Math.PI / 2 + v.direction * TWO_PI * cycleFraction(series, v.step, sps);
+    const arms = v.arms; // --- phase-spiral ---
     for (let i = 0; i < v.count; i++) {
+      // --- phase-spiral --- k dots a ring: one spoke (2π / k) a tick, the arms 2π / k apart, on the voice's orbit
+      if (arms > 1) {
+        const phase = tickPhaseModArms(series.a[i], series.D, v.step, sps, arms);
+        const rho = g.radius[i];
+        for (let j = 0; j < arms; j++) {
+          const a = armAngle(g.tickAngle[i], phase, j, arms, v.direction);
+          const d = i * arms + j;
+          v.dotX[d] = g.cx + rho * Math.cos(a);
+          v.dotY[d] = g.cy + rho * Math.sin(a);
+          v.dotParam[d] = a;
+        }
+        v.x[i] = v.dotX[i * arms];
+        v.y[i] = v.dotY[i * arms];
+        v.param[i] = v.dotParam[i * arms];
+        continue;
+      }
       const u2 = tickPhaseMod2(series.a[i], series.D, v.step, sps);
       placeVoice(g, i, u2, v.direction, v.polygonAngle, polygons ? v.sides[i] : 0, PLACEMENT);
       v.x[i] = PLACEMENT.x;
@@ -961,12 +1227,13 @@ export class PolyrhythmMode implements GameMode {
     const g = v.geometry;
     if (!g) return;
     for (const ball of ctx.getBalls()) {
-      const i = ball.id - this.firstId;
-      if (i < 0 || i >= v.count) continue;
+      const d = ball.id - this.firstId;
+      if (d < 0 || d >= this.ballDots || d >= v.dotCount) continue; // --- phase-spiral --- (a dot)
       ball.radius = g.dotRadius;
       ball.radiusScale = g.dotRadius / this.ballRadius;
-      ball.x = v.x[i];
-      ball.y = v.y[i];
+      ball.x = v.dotX[d];
+      ball.y = v.dotY[d];
+      ball.color = v.colors[dotVoice(d, v.arms)]; // --- phase-spiral --- (a live palette change)
     }
     this.ballsDirty = false;
   }

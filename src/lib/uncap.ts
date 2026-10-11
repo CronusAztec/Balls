@@ -188,6 +188,9 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   // --- bead-hoops --- Spinning Hoops: the hoops a run builds (a bead each: an engine ball, a dozen numbers and an RK4 integration
   // a sub-step; every frame draws each hoop as an ellipse)
   hpCount: ENTITY_CEILING,
+  // --- phase-spiral --- Metronomes & Polyrhythms' arms: the dots of a ring (each an engine ball pinned to the clock; rings ×
+  // arms stop at the same ceiling in the mode, `DOT_CEILING` of lib/physics/phaseSpiral.ts)
+  prArms: ENTITY_CEILING,
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

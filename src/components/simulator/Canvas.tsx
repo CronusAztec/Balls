@@ -8,6 +8,7 @@ import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions 
 import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulumTrails, type PendulumRenderOptions } from "./pendulumRenderer";
 // --- jdm-polyrhythm ---
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
+import { inLinePercent } from "@/lib/physics/phaseSpiral"; // --- phase-spiral ---
 // --- jdm-collisions ---
 import { drawCollideArena, drawCollideBodies, drawCollideOverlay, type CollideRenderOptions } from "./collideRenderer";
 // --- gerald-glass ---
@@ -135,6 +136,8 @@ export interface CanvasLabels {
   /** Metronomes & Polyrhythms: every voice back in phase after the last cycle. */
   polyrhythmDone: string;
   polyrhythmAligned: (n: number, cycles: number) => string;
+  /** --- phase-spiral --- The in-line meter under the disc ("in line 87%"; English without it). */
+  polyrhythmInLine?: (pct: number) => string;
   /** Picture Paint HUD hints: the schedule state and the beat the ball moves to. */
   paintOnSchedule: string;
   paintBehind: string;
@@ -1524,6 +1527,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         polyRender.wallColor = wallColor;
         polyRender.wallThickness = p.wallThickness;
         polyRender.showGlow = p.showGlow;
+        polyRender.inLineLabel = (labelsRef.current ?? DEFAULT_LABELS).polyrhythmInLine; // --- phase-spiral ---
+        polyRender.meterInHud = !!loopHudRef.current; // --- phase-spiral --- (the loop HUD's counter and bar show the meter instead)
         drawPolyrhythmStage(ctx, engine.getPolyrhythmView(), polyRender);
       }
 
@@ -3107,8 +3112,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("polyAlignments", String(view.alignCount));
         setCanvasData("polyCycles", String(view.cyclesDone));
         setCanvasData("polyLayout", view.settings.layout);
+        // --- phase-spiral --- arms, dots, the in-line meter (%), its riser crossings, the loop sounds and the palette
+        setCanvasData("polyArms", String(view.arms));
+        setCanvasData("polyDots", String(view.dotCount));
+        setCanvasData("polyInLine", String(inLinePercent(view.inLine)));
+        setCanvasData("polyCrossings", String(view.progressCrossings));
+        setCanvasData("polyLoopSound", view.settings.loopSound ? "1" : "0");
+        setCanvasData("polyPalette", view.settings.palette);
       } else if (canvas.dataset.polyTicks !== undefined) {
         for (const key of ["polyVoices", "polyTicks", "polyAlignments", "polyCycles", "polyLayout"]) delete canvas.dataset[key];
+        for (const key of ["polyArms", "polyDots", "polyInLine", "polyCrossings", "polyLoopSound", "polyPalette"]) delete canvas.dataset[key]; // --- phase-spiral ---
       }
 
       // --- gerald-faces --- the characters (face style, the first ball's expression, faces drawn, label) as data-face-* for tools and the smoke test

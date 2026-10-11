@@ -35,6 +35,7 @@ import {
   type VoicePlacement,
 } from "@/lib/physics/modes/polyrhythm";
 import { pendulumPitch } from "@/lib/physics/modes/pendulum";
+import { DEFAULT_PHASE_SPIRAL_SETTINGS } from "@/lib/physics/phaseSpiral"; // --- phase-spiral ---
 import { MODE_CARD_ORDER, MODE_CATEGORIES, modesInCategory } from "@/lib/modes";
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import { midiToFrequency } from "@/lib/audio/scales";
@@ -584,14 +585,14 @@ describe("Metronomes & Polyrhythms settings", () => {
       numbers: true,
       cycles: -2,
     });
-    expect(r).toEqual({ count: 999, layout: "rings", arcStyle: "chords", tempos: "harmonic", custom: "3,4,5", cycleSeconds: 12.5, baseBpm: 500, bpmStep: 0.1, polygon: true, accentEvery: 4, pitchBy: "index", numbers: true, cycles: 0 }); // --- uncap-all --- (no maximum)
+    expect(r).toEqual({ count: 999, layout: "rings", arcStyle: "chords", tempos: "harmonic", custom: "3,4,5", cycleSeconds: 12.5, baseBpm: 500, bpmStep: 0.1, polygon: true, accentEvery: 4, pitchBy: "index", numbers: true, cycles: 0, ...DEFAULT_PHASE_SPIRAL_SETTINGS /* --- phase-spiral --- (its fields: tests/phaseSpiral.test.ts) */ }); // --- uncap-all --- (no maximum)
     expect(resolvePolyrhythmSettings({ count: Number.NaN }).count).toBe(DEFAULT_POLYRHYTHM_SETTINGS.count);
     for (const key of Object.keys(POLYRHYTHM_RANGES) as (keyof typeof POLYRHYTHM_RANGES)[]) expect(RANGES[key]).toEqual(POLYRHYTHM_RANGES[key]);
   });
 
   it("map to and from the SimulatorSettings fields, with the defaults in every mode", () => {
     for (const mode of MODE_IDS) expect(polyrhythmSettingsOf(defaultSettings(mode))).toEqual(DEFAULT_POLYRHYTHM_SETTINGS);
-    expect(polyrhythmSettingFields(DEFAULT_POLYRHYTHM_SETTINGS)).toEqual({ prCount: 16, prLayout: "rings", prArcStyle: "chords", prTempos: "harmonic", prCustom: "3,4,5,7", prCycleSeconds: 30, prBaseBpm: 60, prBpmStep: 1, prPolygon: false, prAccentEvery: 0, prPitchBy: "index", prNumbers: false, prCycles: 1 });
+    expect(polyrhythmSettingFields(DEFAULT_POLYRHYTHM_SETTINGS)).toEqual({ prCount: 16, prLayout: "rings", prArcStyle: "chords", prTempos: "harmonic", prCustom: "3,4,5,7", prCycleSeconds: 30, prBaseBpm: 60, prBpmStep: 1, prPolygon: false, prAccentEvery: 0, prPitchBy: "index", prNumbers: false, prCycles: 1, prArms: 1, prAlignMeter: false, prTrail: 0.18, prLoopSound: false, prPalette: "rainbow" /* --- phase-spiral --- */ });
   });
 
   it("round-trip through the URL keys, skipping the defaults", () => {

@@ -180,7 +180,8 @@
     "canvasRacePlace3": "3rd",
     "canvasRacePlaceN": "[n]th",
     "canvasRaceNumber": "Race [n]",
-    "canvasRacePoints": "pts"
+    "canvasRacePoints": "pts",
+    "canvasPolyrhythmInLine": "in line [count]%"
   },
   "HowItWorks": {
     "step1": {
@@ -2055,7 +2056,23 @@
     "hpTickTip": "A glock chime every turn, pitched higher as the spin climbs.",
     "hpBed": "Groove bed",
     "hpBedTip": "A soft pad and sub on G that enters with the first lift and stops at the reset.",
-    "hpTurnsUnit": "turns/s"
+    "hpTurnsUnit": "turns/s",
+    "prSpiralDesc": "Phase spiral: give every ring several dots and they wind into a spiral, pass through interference patterns and straighten into spokes exactly once a cycle – the in-line meter counts toward it.",
+    "prSpiralPreset": "Phase Spiral",
+    "prSpiralPresetTip": "The loop clip in one click: 20 rings with 3 arms each, a 20 s loop that never ends, the in-line meter, comet tails, the loop sounds and the spiral colours on a navy page with the loop HUD.",
+    "prSpiralPresetButton": "20 rings × 3 arms",
+    "prArms": "Arms",
+    "prArmsTip": "Dots on every ring (Rings and Spiral layouts), evenly spaced. A dot steps one spoke a tick, so the rhythm stays the same while the picture becomes a spiral with that many arms that straightens into its spokes once a cycle. Any whole number from 1 can be typed.",
+    "prAlignMeter": "In-Line Meter",
+    "prAlignMeterTip": "Shows \"in line N%\" over a thin bar: how close the dots are to lining up on their spokes – 100% at every alignment, near 0 in between. Under the disc, or as the loop HUD's counter while the HUD is on.",
+    "prTrail": "Comet Tails",
+    "prTrailTip": "How far a dot's tail reaches back, in seconds of its motion (0 = no tail). Longer tails draw the arms of the spiral.",
+    "prLoopSound": "Loop Sounds",
+    "prLoopSoundTip": "Original synthesized loop voices instead of the instrument: a pentatonic pluck on every tick (inner rings low, outer rings high), risers as the meter passes 50, 75 and 90%, and an open chord with a bell on every alignment.",
+    "prPalette": "Colours",
+    "prPaletteTip": "Rainbow round the colour wheel, or the spiral look: blue and cyan inside, through green and yellow to orange and red outside, on a dark disc.",
+    "prPaletteRainbow": "Rainbow",
+    "prPaletteSpiral": "Spiral"
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -4457,7 +4474,10 @@
     "hoopsTitle": "spin faster, and the beads climb",
     "hoopsSubtitle": "the bigger the hoop, the sooner its bead lifts",
     "hoopsCounter": "{rate} turns a second · {count} of {total} beads up",
-    "hoopsCounterOne": "{rate} turns a second · {count} of 1 bead up"
+    "hoopsCounterOne": "{rate} turns a second · {count} of 1 bead up",
+    "polyrhythmTitle": "each ring gains one lap on the next",
+    "polyrhythmSubtitle": "watch the spiral straighten into one line",
+    "polyrhythmCounter": "in line {count}%"
   },
   "LoopCaption": {
     "growMultiply": "{count}% bigger every bounce until it fills the circle",
@@ -4469,6 +4489,8 @@
     "starChordsFact": "A star polygon is what a ball draws when every bounce moves it the same number of points round the rim. Each straight line stays the same distance from the centre, so a circle appears in the middle that no ball ever touches. Every ball here moves at the one speed that finishes its star in the same time as the others.",
     "hoops": "{count} hoops spinning faster and faster: the beads climb in order, the biggest hoop first",
     "hoopsOne": "{count} hoop spinning faster and faster, until its bead starts to climb",
-    "hoopsFact": "Why in that order? A bead on a turning hoop rests where gravity and the outward pull of the spin balance. Below a critical spin, √(g/R), that point is the bottom; above it, the balance point moves up the hoop and keeps rising as the spin grows. A hoop of 75 cm radius gets there at about 0.58 turns a second, one of 25 cm needs almost a full turn a second, so the beads leave their bottoms from the outside in."
+    "hoopsFact": "Why in that order? A bead on a turning hoop rests where gravity and the outward pull of the spin balance. Below a critical spin, √(g/R), that point is the bottom; above it, the balance point moves up the hoop and keeps rising as the spin grows. A hoop of 75 cm radius gets there at about 0.58 turns a second, one of 25 cm needs almost a full turn a second, so the beads leave their bottoms from the outside in.",
+    "phaseSpiral": "{count} rings, each gaining one lap on the next: watch the spiral straighten into one line",
+    "phaseSpiralFact": "Ring n goes round n times a cycle, so every ring gains exactly one lap on its neighbour. In between, the dots wind into a spiral and pass through interference patterns; at the end of the cycle every lap count is a whole number at the same instant, and the spiral straightens into one line. It is the same arithmetic as a pendulum wave."
   }
 }

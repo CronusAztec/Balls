@@ -1,5 +1,9 @@
 import type { PolyrhythmView } from "@/lib/physics/modes/polyrhythm";
 import { SPIRAL_TURNS } from "@/lib/physics/modes/polyrhythm";
+// --- phase-spiral --- arms (k dots a ring on k spokes), comet tails, the spiral palette's disc and the in-line meter
+import { dotVoice, polyPolygonsOn } from "@/lib/physics/modes/polyrhythm";
+import { orbitLayout } from "@/lib/physics/phaseSpiral";
+import { drawCometTails, drawInLineMeter, drawSpiralDisc, drawSpokes } from "./phaseSpiralRenderer";
 
 /**
  * Canvas drawing of the Metronomes & Polyrhythms mode (lib/physics/modes/polyrhythm.ts): the stage of the layout
@@ -17,6 +21,11 @@ export interface PolyrhythmRenderOptions {
   wallColor: (index: number, alpha?: number) => string;
   wallThickness: number;
   showGlow: boolean;
+  // --- phase-spiral ---
+  /** The meter's words ("in line 87%"; English without it). */
+  inLineLabel?: (pct: number) => string;
+  /** The loop HUD shows the meter (its counter and bar): the canvas leaves it out under the disc. */
+  meterInHud?: boolean;
 }
 
 const TWO_PI = Math.PI * 2;
@@ -82,10 +91,12 @@ export function drawPolyrhythmStage(ctx: CanvasRenderingContext2D, view: Polyrhy
   if (!g || view.count === 0) return;
   const n = view.count;
   const thick = Math.max(1, o.wallThickness);
-  const polygons = view.settings.polygon && g.layout === "rings";
+  const polygons = polyPolygonsOn(view.settings, view.arms); // --- phase-spiral --- (k arms ride plain circles)
+  const faint = view.settings.palette === "spiral" && orbitLayout(g.layout); // --- phase-spiral --- (faint guides on a dark disc)
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
+  if (faint) drawSpiralDisc(ctx, view); // --- phase-spiral ---
   if (g.layout === "rings" || g.layout === "arcs") {
     // Guides: thin enough that 400 of them do not merge into a disc.
     const spacing = g.layout === "arcs" && g.arcStyle === "chords" ? (n > 1 ? (1.84 * g.outerRadius) / (n - 1) : g.outerRadius) : n > 1 ? (g.outerRadius - g.innerRadius) / (n - 1) : g.outerRadius;
@@ -94,9 +105,9 @@ export function drawPolyrhythmStage(ctx: CanvasRenderingContext2D, view: Polyrhy
     if (n <= COLOURED_GUIDES_MAX) {
       for (let i = 0; i < n; i++) {
         const flash = tickFlash(view, i);
-        ctx.globalAlpha = 0.24 + 0.6 * flash;
+        ctx.globalAlpha = faint ? 0.1 + 0.15 * flash : 0.24 + 0.6 * flash; // --- phase-spiral --- (faint on the dark disc, so the comet tails stand out)
         ctx.strokeStyle = view.colors[i];
-        ctx.lineWidth = width * (1 + 0.8 * flash);
+        ctx.lineWidth = width * (1 + (faint ? 0.3 : 0.8) * flash);
         ctx.beginPath();
         guidePath(ctx, view, i, polygons);
         ctx.stroke();
@@ -119,7 +130,11 @@ export function drawPolyrhythmStage(ctx: CanvasRenderingContext2D, view: Polyrhy
       }
     }
     ctx.lineWidth = thick;
-    if (g.layout === "rings") {
+    if (g.layout === "rings" && view.arms > 1) {
+      // --- phase-spiral --- the k spokes the arms tick on, glowing with the latest tick
+      const age = stepsAgoMs(view, view.lastAnyTickStep);
+      drawSpokes(ctx, view, age < TICK_FLASH_MS ? 1 - age / TICK_FLASH_MS : 0);
+    } else if (g.layout === "rings") {
       // The 12 o'clock line every dot ticks on, glowing with the latest tick.
       const age = stepsAgoMs(view, view.lastAnyTickStep);
       const pulse = age < TICK_FLASH_MS ? 1 - age / TICK_FLASH_MS : 0;
@@ -155,14 +170,18 @@ export function drawPolyrhythmStage(ctx: CanvasRenderingContext2D, view: Polyrhy
     ctx.lineWidth = thick;
     ctx.beginPath();
     const samples = 120;
-    for (let k = 0; k <= samples; k++) {
-      const f = k / samples;
-      const r = g.innerRadius + (g.outerRadius - g.innerRadius) * f;
-      const a = -Math.PI / 2 + view.direction * TWO_PI * SPIRAL_TURNS * f;
-      const x = g.cx + r * Math.cos(a);
-      const y = g.cy + r * Math.sin(a);
-      if (k === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
+    // --- phase-spiral --- one spiral per arm, 2π / k apart (the dots of every arm tick on their own)
+    for (let m = 0; m < view.arms; m++) {
+      const offset = (TWO_PI * m) / view.arms;
+      for (let k = 0; k <= samples; k++) {
+        const f = k / samples;
+        const r = g.innerRadius + (g.outerRadius - g.innerRadius) * f;
+        const a = -Math.PI / 2 + view.direction * TWO_PI * SPIRAL_TURNS * f + offset;
+        const x = g.cx + r * Math.cos(a);
+        const y = g.cy + r * Math.sin(a);
+        if (k === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
     }
     ctx.stroke();
     ctx.globalAlpha = 0.8;
@@ -201,25 +220,12 @@ export function drawPolyrhythmVoices(ctx: CanvasRenderingContext2D, view: Polyrh
   if (!g || !series || view.count === 0) return;
   const n = view.count;
   const r = g.dotRadius;
-  const dir = view.direction;
   ctx.save();
   ctx.lineCap = "round";
-  if ((g.layout === "rings" && !view.settings.polygon) || g.layout === "spiral") {
-    if (n <= TAILS_MAX) {
-      ctx.lineWidth = Math.max(1, 0.9 * r);
-      for (let i = 0; i < n; i++) {
-        // A tail as long as the dot travels in 0.18 s, at most 70°.
-        const perSecond = series.a[i] / series.D;
-        const tail = Math.min(1.2, TWO_PI * perSecond * 0.18);
-        if (tail < 0.02) continue;
-        const a = view.param[i];
-        ctx.globalAlpha = 0.3;
-        ctx.strokeStyle = view.colors[i];
-        ctx.beginPath();
-        ctx.arc(g.cx, g.cy, g.radius[i], a - dir * tail, a, dir < 0);
-        ctx.stroke();
-      }
-    }
+  if ((g.layout === "rings" && !polyPolygonsOn(view.settings, view.arms)) || g.layout === "spiral") {
+    // --- phase-spiral --- comet tails as long as the dot travels in the Trail's seconds (the classic 0.18 s, at most 70°), in
+    // fading bands, on every dot of every arm (phaseSpiralRenderer.ts; up to TAILS_MAX voices and TAIL_DOTS_MAX dots)
+    if (n <= TAILS_MAX) drawCometTails(ctx, view, r);
   } else if (g.layout === "metronomes") {
     ctx.globalAlpha = 0.85;
     ctx.strokeStyle = "#e5e7eb";
@@ -232,25 +238,30 @@ export function drawPolyrhythmVoices(ctx: CanvasRenderingContext2D, view: Polyrh
     }
     ctx.stroke();
   }
+  // --- phase-spiral --- every dot (dot d of voice ⌊d / arms⌋; with one arm the voices themselves)
+  const dots = view.dotCount;
+  const arms = view.arms;
   // Glow: an enlarged translucent disc (cheaper than a shadow blur), brighter right after a tick.
-  for (let i = 0; i < n; i++) {
+  for (let d = 0; d < dots; d++) {
+    const i = dotVoice(d, arms);
     const flash = tickFlash(view, i);
     const glow = (o.showGlow ? 0.45 : 0) + 0.7 * flash;
     if (glow <= 0.01) continue;
     ctx.globalAlpha = 0.25 * glow;
     ctx.fillStyle = view.colors[i];
     ctx.beginPath();
-    ctx.arc(view.x[i], view.y[i], r * (1.7 + 0.6 * flash) + 2, 0, TWO_PI);
+    ctx.arc(view.dotX[d], view.dotY[d], r * (1.7 + 0.6 * flash) + 2, 0, TWO_PI);
     ctx.fill();
   }
   // Bodies, a white core flash and an accent ring.
-  for (let i = 0; i < n; i++) {
+  for (let d = 0; d < dots; d++) {
+    const i = dotVoice(d, arms);
     const flash = tickFlash(view, i);
     const rr = r * (1 + 0.35 * flash);
     ctx.globalAlpha = 1;
     ctx.fillStyle = view.colors[i];
     ctx.beginPath();
-    ctx.arc(view.x[i], view.y[i], rr, 0, TWO_PI);
+    ctx.arc(view.dotX[d], view.dotY[d], rr, 0, TWO_PI);
     ctx.fill();
     if (flash > 0.02) {
       ctx.globalAlpha = 0.6 * flash;
@@ -261,7 +272,7 @@ export function drawPolyrhythmVoices(ctx: CanvasRenderingContext2D, view: Polyrh
         ctx.strokeStyle = "#ffffff";
         ctx.lineWidth = Math.max(1, 0.25 * r);
         ctx.beginPath();
-        ctx.arc(view.x[i], view.y[i], rr + 0.9 * r * (1 - flash) + 2, 0, TWO_PI);
+        ctx.arc(view.dotX[d], view.dotY[d], rr + 0.9 * r * (1 - flash) + 2, 0, TWO_PI);
         ctx.stroke();
       }
     }
@@ -277,6 +288,8 @@ export function drawPolyrhythmVoices(ctx: CanvasRenderingContext2D, view: Polyrh
     for (let i = 0; i < n; i++) ctx.fillText(view.labels[i], inside ? view.x[i] : view.x[i] + r + 2, view.y[i] + (inside ? 0.05 * fs : 0));
   }
   ctx.restore();
+  // --- phase-spiral --- "in line N %" under the disc, unless the loop HUD shows it
+  if (view.settings.alignMeter && !o.meterInHud) drawInLineMeter(ctx, view, o.inLineLabel);
 }
 
 /** The white full-screen flash of an alignment – every voice ticking at once (screen space, outside the camera transform). */
