@@ -74,6 +74,10 @@ export const MODE_IDS = [
   "fightLeague",
   // --- land-claim --- Land Claim (balls knock the top blocks off the columns lining the arena; every eighth block a new ball)
   "landClaim",
+  // --- chord-stars --- Chord Stars (balls in a circle drawing star polygons that all close at the same moment; the loop family)
+  "starChords",
+  // --- bead-hoops --- Spinning Hoops (beads on spinning hoops climb in order as the spin passes each hoop's critical speed)
+  "hoops",
   // --- ellipse-foci --- Focus Shot (an elliptical pool: a volley fired from one focus converges on the other every transit; the loop family)
   "ellipseFoci",
 ] as const;

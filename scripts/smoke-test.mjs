@@ -3956,7 +3956,8 @@ await smokeBlock("odd-string-battle", async () => {
 {
   // Find Simulation with nine lives: a battle outlasts the 30 s duration, so the finder follows every one to its end (the
   // last ball standing – not whoever leads when the duration is up). The found battle, played to its end at 8×, is really
-  // ACID's, and the recording length covers all of it plus the winner banner's hold.
+  // ACID's – ACID alone standing, never a double KO's shared verdict – and the recording length covers all of it plus the
+  // winner banner's hold.
   await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbl=9`, { waitUntil: "networkidle" });
   await page.locator("#find-outcome").selectOption("winner");
   await page.locator("#find-winner").selectOption("2");
@@ -3978,7 +3979,7 @@ await smokeBlock("odd-string-battle", async () => {
   check(
     "Find Simulation follows a nine-life string battle to its end: the found battle is really ACID's, recorded whole",
     /last one standing/.test(hint) && /Found! ACID wins/.test(text) && foundSec > 0 && data.sbFinished === "1" && data.sbWinner === "2" && data.sbWinnerName === "ACID" && data.sbAlive === "1" && dur >= Math.min(120, foundSec + 3 - 0.05) && dur < foundSec + 4.05,
-    `("${text}", dur=${dur}, played: ${JSON.stringify({ finished: data.sbFinished, winner: data.sbWinner, name: data.sbWinnerName, alive: data.sbAlive, lives: data.sbLives })}, hint="${hint}")`,
+    `("${text}", dur=${dur}, played: ${JSON.stringify({ seed: data.seed, finished: data.sbFinished, winner: data.sbWinner, name: data.sbWinnerName, alive: data.sbAlive, lives: data.sbLives, kills: data.sbKills })}, hint="${hint}")`, // (the seed: a failure replays)
   );
 }
 {
@@ -13721,9 +13722,432 @@ await smokeBlock("loop-foundation", async () => {
 // --- end loop-foundation ---
 });
 
+await smokeBlock("chord-stars", async () => {
+// --- chord-stars ---
+// 39. Chord Stars: the preview image and the card under the rhythm heading; URL → the Chord Stars block of the Mode row (balls,
+// stars, drawing time, hold, fade, spread, line width, inner circles, colours, voice, chord) and the finder's outcome, controls →
+// URL (a preset, the drawing time), the search box; three cycles at 4× – every cycle draws Σn chords (data-sc-last-cycle-chords
+// by the run's clock and data-sc-layer-last, what the canvas' chord layer drew of the cycle, against the stars' point counts),
+// every star closes together, the loop contract's cycle – at 30+ fps; the loop HUD's title and
+// amber "stars closed N/5" counter drawn on the canvas; the plucks on the balls' pentatonic pitches and the chord on A2
+// (OscillatorNode.start instrumented); Find Simulation's Best star set (a coprime set and the loop fitted to the clip) and a fast
+// export of whole loops.
+{
+  const res = await page.request.get(`${BASE}/modes/starChords.webp`);
+  check("asset /modes/starChords.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inRhythm = await page.evaluate(() => {
+    // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
+    const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Rhythm & polyrhythm modes");
+    const group = heading?.parentElement;
+    return !!group && !!group.querySelector('img[src$="/modes/starChords.webp"]') && !!group.querySelector('img[src$="/modes/illusion.webp"]');
+  });
+  const card = await page.locator('img[src$="/modes/starChords.webp"]').count();
+  check("the Chord Stars card is on the landing page under the rhythm heading", card === 1 && inRhythm, `(cards=${card}, in the rhythm group=${inRhythm})`);
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=starChords&scn=7&scs=${encodeURIComponent("5/2,7/3")}&sct=6&sch=0.5&scf=1&scsp=0.5&scw=2&sce=on&scp=rainbow&scv=chime&scc=0`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("star-chords-section");
+  const slider = (label) => section.locator(`input[type="range"][aria-label="${label}"]`).inputValue().catch(() => "");
+  const pressed = (group, name) => section.getByRole("group", { name: group, exact: true }).getByRole("button", { name, exact: true }).getAttribute("aria-pressed").catch(() => null);
+  {
+    const values = { scn: await slider("Balls"), sct: await slider("Drawing Time"), sch: await slider("Hold"), scf: await slider("Fade"), scsp: await slider("Start Spread"), scw: await slider("Line Width") };
+    const stars = await section.getByTestId("sc-stars").inputValue().catch(() => "");
+    const chips = await section.getByTestId("sc-stars-run").locator("span.font-mono").count();
+    const options = { always: await pressed("Inner Circles", "Always"), rainbow: await pressed("Colors", "Rainbow"), chime: await pressed("Bounce Sound", "Chime") };
+    const chord = await section.getByRole("switch", { name: switchName("Closing Chord") }).getAttribute("aria-checked").catch(() => null);
+    const noRings = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    const outcomes = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+    check(
+      "chord stars loads from URL (the block, the run's stars past the typed ones and the finder's Best star set)",
+      values.scn === "7" && values.sct === "6" && values.sch === "0.5" && values.scf === "1" && values.scsp === "0.5" && values.scw === "2" && stars === "5/2, 7/3" && chips === 7 && options.always === "true" && options.rainbow === "true" && options.chime === "true" && chord === "false" && noRings && outcomes.join(",") === "star-set",
+      `(${JSON.stringify({ values, stars, chips, options, chord, noRings, outcomes })})`,
+    );
+  }
+  await section.locator('[data-sc-preset="sevenBloom"]').click();
+  await page.waitForTimeout(300);
+  await section.locator('input[type="range"][aria-label="Drawing Time"]').evaluate(setRangeValue, "8");
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check(
+      "chord stars mirrors into the URL (Seven-point bloom, then the drawing time)",
+      query.get("mode") === "starChords" && query.get("scn") === "7" && query.get("scs") === "7/3,7/3,7/3,7/3,7/3,7/3,7/3" && query.get("sce") === "on" && query.get("scv") === "chime" && query.get("sct") === "8" && !query.has("scc"),
+      `(${query.toString()})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("drawing time");
+  const found = await page.locator('input[aria-label="Drawing Time"]').first().isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the chord stars controls", found && hidden, `(drawing time=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // Three cycles of the five default stars (Σn = 41) at 4×: a 4 s drawing, 0.5 s hold and 0.5 s fade – a 5 s loop.
+  await page.goto(`${BASE}/en/simulator/?mode=starChords&sct=4&sch=0.5&scf=0.5`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    const texts = [];
+    window.__scOsc = osc;
+    window.__scHud = texts;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value > 20) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 4000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(800);
+  const early = await canvasData();
+  const fps = await pageFrameRates(2500);
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  // (per cycle: the run's chords by the clock and the chords the canvas' chord layer drew of that cycle – data-sc-layer-last)
+  const perCycle = [];
+  const drawnPerCycle = [];
+  for (const n of [1, 2, 3]) {
+    await page.waitForFunction((want) => Number(document.querySelector("main canvas")?.dataset.scCycles) >= want, n, { timeout: 30_000 }).catch(() => {});
+    const d = await canvasData();
+    if (Number(d.scCycles) >= n) {
+      perCycle.push(Number(d.scLastCycleChords));
+      drawnPerCycle.push(`${d.scLayerLastCycle}:${d.scLayerLast}`);
+    }
+  }
+  const run = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-chord-stars.png") });
+  const sigma = (run.scStars || "").split(",").map((s) => Number(s.split("/")[0])).reduce((a, b) => a + b, 0);
+  await timingCheck(
+    "chord stars draws Σn chords in every one of three cycles (the run's count and the chord layer's), every star closing together on a 5 s loop, at 30+ fps",
+    sigma === 41 && run.scCycleChords === "41" && perCycle.length === 3 && perCycle.every((c) => c === 41) && drawnPerCycle.join(",") === "0:41,1:41,2:41" && Number(run.scClosings) >= 3 && Number(run.scTotalChords) >= 3 * 41 && Math.abs(Number(run.scPeriod) - 5) < 1e-3 && Math.abs(Number(run.loopCycle) - 5) < 0.002 && Number(run.scLayerChords) <= 41 && run.scBalls === "5" && early.scPhase === "draw",
+    fpsOk(fps, 4, 30),
+    `(${JSON.stringify({ stars: run.scStars, perCycle, drawnPerCycle, closings: run.scClosings, total: run.scTotalChords, period: run.scPeriod, loopCycle: run.loopCycle, layer: run.scLayerChords, phase: early.scPhase })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(2500, 4, 30),
+  );
+  const heard = await page.evaluate(() => ({ osc: window.__scOsc.slice(), hud: window.__scHud.splice(0) }));
+  const near = (f, g) => Math.abs(f - g) / g < 0.003;
+  const pitches = [220, 277.18, 369.99, 493.88, 659.26];
+  const plucked = pitches.filter((p) => heard.osc.some((f) => near(f, p)));
+  const chord = [110, 165].every((p) => heard.osc.some((f) => near(f, p)));
+  check("chord stars plucks every ball on its own pentatonic pitch (A, C♯, F♯, B, E) and plays the chord on A2", plucked.length === 5 && chord, `(${heard.osc.length} oscillators, plucked ${plucked.join("/")}, chord=${chord})`);
+  const title = heard.hud.some((t) => t.text === "stars that close together");
+  const counter = heard.hud.filter((t) => /^stars closed \d\/5$/.test(t.text)).map((t) => t.fill);
+  check("the loop HUD draws its title and the amber 'stars closed N/5' counter", title && counter.length > 0 && counter.every((f) => f === "#f2c46a") && run.loopHud === "1", `(title=${title}, counters=${counter.length} ${counter[0] ?? ""}, flag=${run.loopHud})`);
+}
+{
+  // Find Simulation: the best of the random coprime star sets, the loop fitted to a 40 s clip (3 loops of 10.333 s drawing).
+  await page.goto(`${BASE}/en/simulator/?mode=starChords`, { waitUntil: "networkidle" });
+  await page.locator("#find-duration").evaluate(setRangeValue, "40");
+  await page.waitForTimeout(200);
+  const button = page.getByRole("button", { name: /Find Stars for a 40s Clip/ });
+  const offered = await button.count();
+  await button.click().catch(() => {});
+  await page.waitForFunction(() => /Found /.test(document.querySelector('[data-testid="finder-strip"]')?.textContent || ""), null, { timeout: 20_000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  const strip = (await page.getByTestId("finder-strip").textContent().catch(() => "")) || "";
+  const data = await canvasData();
+  const stars = (query.get("scs") || "").split(",").map((s) => s.split("/").map(Number));
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  const coprime = stars.length === 5 && new Set(stars.map((s) => s[0])).size === 5 && stars.every(([n, k]) => n >= 5 && k >= 2 && 2 * k < n && gcd(n, k) === 1);
+  check(
+    "Find Simulation's Best star set picks a coprime set with distinct points and fits 3 loops into a 40 s clip",
+    offered === 1 && coprime && query.get("sct") === "10.333" && query.get("dur") === "40" && /Found .*3 loops/.test(strip) && data.scStars === query.get("scs"),
+    `(${JSON.stringify({ offered, scs: query.get("scs"), sct: query.get("sct"), dur: query.get("dur"), canvas: data.scStars, strip: strip.slice(0, 160) })})`,
+  );
+}
+{
+  // ⚡ A fast export with Export whole loops (on by default): 10 s of a 5 s loop is exactly two loops, the HUD in its frames.
+  await page.goto(`${BASE}/en/simulator/?mode=starChords&sct=4&sch=0.5&scf=0.5&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const texts = [];
+      window.__scExportHud = texts;
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        if (texts.length < 20000 && this.canvas.width === 500 && this.canvas.height === 500) texts.push(String(text));
+        return fillText.call(this, text, ...rest);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 180_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `chord-stars-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const cycle = Number(await panel.getAttribute("data-fast-loop-cycle"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const hud = await page.evaluate(() => window.__scExportHud.filter((t) => /^stars closed \d\/5$/.test(t)).length);
+    check(
+      "a Chord Stars fast export lasts two whole 5 s loops (within one frame) and carries the HUD's counter",
+      status === "done" && bytes > 10000 && loops === 2 && Math.abs(cycle - 5) < 0.002 && Math.abs(seconds - 10) <= 1 / 30 + 0.002 && hud >= 10,
+      `(${JSON.stringify({ status, bytes, seconds, cycle, loops, hud })})`,
+    );
+  } else check("without WebCodecs the Chord Stars fast export is not checked (the loop contract is covered above)", true);
+}
+// --- end chord-stars ---
+});
+
+await smokeBlock("bead-hoops", async () => {
+// --- bead-hoops ---
+// 40. Spinning Hoops: the preview image and the card under the rhythm heading; URL → the Spinning Hoops block of the Mode row
+// (hoops, radii, gravity, spins, ramp and its shape, hold, return, damping, tilt, chime, bed – the line naming the spins the
+// beads lift at) with Find Simulation's outcomes, controls → URL and the search box; a 20 s headless run of the defaults
+// (mode=hoops) whose eight beads lift in strict size order (data-hoops-order 0,…,7, the eight tuned-bar strikes rising in
+// pitch – OscillatorNode.start instrumented) under the loop HUD's lowercase title and amber counter at 30+ fps, then the cycle
+// closing on its seam with every bead settled (data-loop-cycle 23.2 s); the Twin hoops preset (one bead a step, the navy
+// page, a clip of one cycle); Find Simulation's "Lifts in size order" and "All up within 12 s", found and played back; a fast
+// export with Export whole loops – one whole cycle, the HUD in its frames, the bars and chimes in its own audio; and a free
+// visitor's page – the watermark tag on Record Video and Fast export, the live badge clear of the HUD's title and counter.
+{
+  const res = await page.request.get(`${BASE}/modes/hoops.webp`);
+  check("asset /modes/hoops.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inRhythm = await page.evaluate(() => {
+    // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
+    const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Rhythm & polyrhythm modes");
+    const group = heading?.parentElement;
+    return !!group && !!group.querySelector('img[src$="/modes/hoops.webp"]') && !!group.querySelector('img[src$="/modes/pendulum.webp"]');
+  });
+  const card = await page.locator('img[src$="/modes/hoops.webp"]').count();
+  check("the Spinning Hoops card is on the landing page under the rhythm heading", card === 1 && inRhythm, `(cards=${card}, in the rhythm group=${inRhythm})`);
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=hoops&hpn=5&hprx=0.8&hprn=0.4&hpg=12&hpw0=0.2&hpw1=1.6&hpr=20&hps=steps&hph=3&hprt=0&hpd=0.5&hpj=0.002&hpt=0&hpb=1`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("hoops-section");
+  const shape = (name) => section.getByRole("group", { name: "Ramp shape", exact: true }).getByRole("button", { name, exact: true });
+  const toggle = (label) => section.getByRole("switch", { name: switchName(label) });
+  {
+    const values = { hpn: await sliderValue("Hoops"), hprx: await sliderValue("Outer hoop"), hprn: await sliderValue("Inner hoop"), hpg: await sliderValue("Hoop gravity"), hpw0: await sliderValue("Start spin"), hpw1: await sliderValue("Top spin"), hpr: await sliderValue("Ramp up"), hph: await sliderValue("Top hold"), hpd: await sliderValue("Bead damping"), hpj: await sliderValue("Axis tilt") };
+    const steps = await shape("Steps").getAttribute("aria-pressed");
+    const switches = { ret: await toggle("Return and loop").getAttribute("aria-checked"), tick: await toggle("Spin chime").getAttribute("aria-checked"), bed: await toggle("Groove bed").getAttribute("aria-checked") };
+    const returnRamp = await page.locator('input[aria-label="Return ramp"]').count();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+    const liftLine = await section.getByTestId("hoops-lift-range").innerText().catch(() => "");
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+    check(
+      "spinning hoops load from URL (the block, the lift spins line and the finder's outcomes of a run without the return)",
+      values.hpn === "5" && values.hprx === "0.8" && values.hprn === "0.4" && values.hpg === "12" && values.hpw0 === "0.2" && values.hpw1 === "1.6" && values.hpr === "20" && values.hph === "3" && values.hpd === "0.5" && values.hpj === "0.002" && steps === "true" && switches.ret === "false" && switches.tick === "false" && switches.bed === "true" && returnRamp === 0 && noRingControls && /0\.62 turns a second.*0\.87/.test(liftLine) && options.join(",") === "duration,lift-order,all-up-by",
+      `(${JSON.stringify({ values, steps, switches, returnRamp, noRingControls, liftLine, options })})`,
+    );
+  }
+  await shape("Ease").click();
+  await toggle("Return and loop").click();
+  await page.locator('input[aria-label="Hoops"]').evaluate(setRangeValue, "6");
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    const returnRamp = await page.locator('input[aria-label="Return ramp"]').count();
+    check("spinning hoops mirror into the URL (the shape, the return back on, the hoops)", query.get("mode") === "hoops" && query.get("hps") === "ease" && !query.has("hprt") && query.get("hpn") === "6" && query.get("hpw1") === "1.6" && returnRamp === 1, `(${query.toString()}, return ramp shown=${returnRamp})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("axis tilt");
+  const found = await page.locator('input[aria-label="Axis tilt"]').isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the spinning hoops controls", found && hidden, `(axis tilt=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // A 20 s headless run of the defaults (with the loop HUD on): the eight beads lift in strict size order, each a bar note, the
+  // outer (lowest) first.
+  await page.goto(`${BASE}/en/simulator/?mode=hoops&lh=1`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    const texts = [];
+    window.__hpOsc = osc;
+    window.__hpTexts = texts;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (!(this.context instanceof OfflineAudioContext) && osc.length < 20000) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 4000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(1000);
+  const fps = await pageFrameRates(3000);
+  const lifted = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.hoopsLifts) >= 8, null, { timeout: 20_000 }).then(() => true).catch(() => false);
+  const up = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-spinning-hoops.png") });
+  // the bars' fundamentals: the G pentatonic from G3, one degree a hoop (bigger is lower), in the order they first sounded
+  const bars = [55, 57, 59, 62, 64, 67, 69, 71].map((m) => 440 * 2 ** ((m - 69) / 12));
+  const heard = await page.evaluate(() => ({ osc: window.__hpOsc.slice(), texts: window.__hpTexts.splice(0) }));
+  const firsts = bars.map((f) => heard.osc.findIndex((x) => Math.abs(x - f) < 0.5));
+  const inOrder = firsts.every((i) => i >= 0) && firsts.every((i, k) => k === 0 || i > firsts[k - 1]);
+  const title = heard.texts.some((t) => t.text === "spin faster, and the beads climb");
+  const counter = heard.texts.filter((t) => /^\d+\.\d\d turns a second · \d of 8 beads up$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null;
+  await timingCheck(
+    "a 20 s Spinning Hoops run lifts its eight beads in strict size order, a rising bar note each, under the lowercase title and the amber counter, at 30+ fps",
+    lifted && up.hoopsCount === "8" && up.hoopsOrder === "0,1,2,3,4,5,6,7" && up.hoopsOrdered === "1" && Number(up.hoopsLifts) === 8 && up.hoopsAllUp !== "" && Number(up.hoopsAllUp) > 4 && Number(up.hoopsAllUp) < 14 && inOrder && Number(up.hoopsTicks) >= 5 && title && counter === "#f2c46a" && up.loopHud === "1" && Math.abs(Number(up.loopCycle) - 23.2) < 0.002,
+    fpsOk(fps, 4, 30),
+    `(${JSON.stringify({ order: up.hoopsOrder, lifts: up.hoopsLifts, allUp: up.hoopsAllUp, ticks: up.hoopsTicks, omega: up.hoopsOmega, side: up.hoopsSide, cycle: up.loopCycle, firsts, title, counter })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(3000, 4, 30),
+  );
+  // the return: the spin comes back down, every bead settles, and the cycle closes on its seam
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  const sealed = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.hoopsCycle) >= 1, null, { timeout: 30_000 }).then(() => true).catch(() => false);
+  const seam = await canvasData();
+  check("the return settles every bead and the cycle closes on its seam (one seam, eight settles, 15 turns a cycle)", sealed && Number(seam.hoopsSettles) >= 8 && Number(seam.loopSeams) >= 1 && Number(seam.hoopsTicks) >= 15 && seam.hoopsDone === "0", `(${JSON.stringify({ cycle: seam.hoopsCycle, settles: seam.hoopsSettles, seams: seam.loopSeams, ticks: seam.hoopsTicks, phase: seam.hoopsPhase })})`);
+}
+{
+  // The Twin hoops preset: two hoops lifting on two steps, the navy page and a clip of one cycle (24 s).
+  await page.goto(`${BASE}/en/simulator/?mode=hoops`, { waitUntil: "networkidle" });
+  await page.locator('[data-hoops-preset="twin"]').first().click();
+  await page.waitForTimeout(400);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.hoopsLifts) >= 2, null, { timeout: 20_000 }).catch(() => {});
+  const twin = await canvasData();
+  check("the Twin hoops preset: two hoops in two steps, both beads up in order, the navy page, the loop HUD and a clip of one cycle", query.get("hpn") === "2" && query.get("hprn") === "0.4" && query.get("hps") === "steps" && query.get("bg1") === "#0b1020" && query.get("lh") === "1" && query.get("dur") === "24" && twin.hoopsCount === "2" && twin.hoopsOrder === "0,1" && twin.loopHud === "1", `(${query.toString()}, ${JSON.stringify({ count: twin.hoopsCount, order: twin.hoopsOrder, lifts: twin.hoopsLifts })})`);
+}
+{
+  // Find Simulation on a looping run: no length to find, but the lift order and "all up within" – found and played back.
+  await page.goto(`${BASE}/en/simulator/?mode=hoops`, { waitUntil: "networkidle" });
+  const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+  await page.locator("#find-outcome").selectOption("lift-order").catch(() => {});
+  await page.getByRole("button", { name: /Find a Run in Strict Size Order/ }).click();
+  const order = page.getByText(/Found!|Didn't find simulation/).first();
+  const orderText = await order.waitFor({ timeout: 60_000 }).then(() => order.innerText()).catch(() => "timeout");
+  const dur = new URLSearchParams(page.url().split("?")[1] || "").get("dur");
+  check("Find Simulation offers Lifts in size order and All up within for a looping Spinning Hoops run and finds one in strict size order (a clip of one whole cycle)", options.join(",") === "lift-order,all-up-by" && /Found! The beads lift in strict size order/.test(orderText) && dur === "24", `(${JSON.stringify({ options, text: orderText, dur })})`);
+  await page.locator("#find-outcome").selectOption("all-up-by").catch(() => {});
+  await page.locator("#find-all-up-by").evaluate(setRangeValue, "12").catch(() => {});
+  await page.getByRole("button", { name: /Find All Up within 12\.0s/ }).click();
+  const found = page.getByText(/Found! All up at|Didn't find simulation/).first();
+  const at = await found.waitFor({ timeout: 60_000 }).then(() => found.innerText()).catch(() => "timeout");
+  let played = {};
+  if (/Found!/.test(at)) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "4x", exact: true }).click();
+    await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.hoopsAllUp, null, { timeout: 30_000 }).catch(() => {});
+    played = await canvasData();
+  }
+  check("Find Simulation finds a Spinning Hoops run with every bead up within 12 s, and it plays back", /Found! All up at \d/.test(at) && Number(played.hoopsAllUp) > 0 && Number(played.hoopsAllUp) <= 12 && played.hoopsOrdered === "1", `("${at}", played: ${JSON.stringify({ allUp: played.hoopsAllUp, order: played.hoopsOrder })})`);
+}
+{
+  // ⚡ A fast export with Export whole loops (on by default) of a 30 s clip: one whole cycle (23.2 s), the HUD in its frames,
+  // the bars and chimes through its own audio.
+  await page.goto(`${BASE}/en/simulator/?mode=hoops&lh=1&dur=30&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const osc = [];
+      const texts = [];
+      window.__hpOfflineOsc = osc;
+      window.__hpFrameTexts = texts;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.context instanceof OfflineAudioContext) osc.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        if (texts.length < 20000 && this.canvas.width === 500 && this.canvas.height === 500) texts.push(String(text));
+        return fillText.call(this, text, ...rest);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `hoops-loop-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const cycle = Number(await panel.getAttribute("data-fast-loop-cycle"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const gain = await panel.getAttribute("data-fast-gain");
+    const status = await panel.getAttribute("data-fast-export");
+    const heard = await page.evaluate(() => ({ osc: window.__hpOfflineOsc.length, bars: window.__hpOfflineOsc.filter((f) => Math.abs(f - 196) < 0.5).length, hud: window.__hpFrameTexts.filter((t) => t === "spin faster, and the beads climb").length }));
+    check(
+      "a Spinning Hoops fast export with Export whole loops lasts one whole cycle (23.2 s within a frame), carries the HUD and plays its bars and chimes through its own audio",
+      status === "done" && bytes > 10000 && loops === 1 && Math.abs(seconds - 23.2) <= 1 / 30 + 0.002 && Math.abs(cycle - 23.2) < 0.002 && heard.hud >= 10 && heard.osc >= 20 && heard.bars >= 1 && gain !== null && Number.isFinite(Number(gain)),
+      `(${JSON.stringify({ status, bytes, seconds, cycle, loops, gain, heard })})`,
+    );
+  } else check("without WebCodecs the Spinning Hoops fast export is not checked (Record Video is covered above)", true);
+}
+{
+  // A free visitor (no licence): Record Video and Fast export carry the watermark tag, and the live badge – drawn into the
+  // canvas right after the faint domain tiles, on the other side every 6 s – never covers the HUD's title or counter.
+  const freeContext = await browser.newContext({ license: null, viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  try {
+    const fp = await freeContext.newPage();
+    await fp.goto(`${BASE}/en/simulator/?mode=hoops&lh=1`, { waitUntil: "networkidle" });
+    await fp.evaluate(() => {
+      const log = { draws: [], texts: [] };
+      window.__hpMark = log;
+      const main = () => document.querySelector("main canvas");
+      const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+      CanvasRenderingContext2D.prototype.drawImage = function (img, ...rest) {
+        if (this.canvas === main() && log.draws.length < 20000) log.draws.push({ w: img.width, h: img.height, x: rest[0], y: rest[1], cw: this.canvas.width, ch: this.canvas.height });
+        return drawImage.call(this, img, ...rest);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+        if (this.canvas === main() && log.texts.length < 20000 && (text === "spin faster, and the beads climb" || / beads up$/.test(String(text)))) {
+          const m = this.getTransform();
+          const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 10) * m.d;
+          log.texts.push({ x: m.a * x + m.e, y: m.d * y + m.f, size, width: this.measureText(String(text)).width * m.a, baseline: this.textBaseline });
+        }
+        return fillText.call(this, text, x, y, ...rest);
+      };
+    });
+    await fp.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+    const tags = { record: await fp.getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").count(), fast: await fp.getByRole("button", { name: /Fast export/ }).locator("[data-watermark-tag]").count() };
+    await fp.getByRole("button", { name: /Start Simulator/ }).click();
+    await fp.waitForTimeout(7500);
+    const mark = await fp.evaluate(() => {
+      const { draws, texts } = window.__hpMark;
+      const badges = [];
+      for (let i = 1; i < draws.length; i++) {
+        const p = draws[i - 1];
+        if (p.x === 0 && p.y === 0 && p.w === p.cw && p.h === p.ch) badges.push(draws[i]);
+      }
+      const spots = [...new Map(badges.map((b) => [`${Math.round(b.x)},${Math.round(b.y)}`, b])).values()];
+      // a line's box: its centre (middle baseline) ± 0.6 of its size (the HUD's own band), its measured width around the centre;
+      // the badge's pill: the sprite drawn without its soft shadow padding (about a quarter of the sprite's height a side)
+      const lines = texts.slice(-8).map((t) => ({ x0: t.x - t.width / 2, x1: t.x + t.width / 2, y0: t.y - 0.6 * t.size, y1: t.y + 0.6 * t.size }));
+      const pill = (b) => ({ x: b.x + 0.2 * b.h, y: b.y + 0.2 * b.h, w: b.w - 0.4 * b.h, h: 0.6 * b.h });
+      const overlaps = spots.map(pill).filter((b) => lines.some((l) => b.x < l.x1 && b.x + b.w > l.x0 && b.y < l.y1 && b.y + b.h > l.y0)).length;
+      const inside = lines.every((l) => l.y0 >= 0 && l.y1 <= (draws[0]?.ch ?? Infinity));
+      return { spots: spots.map((b) => [Math.round(b.x), Math.round(b.y), b.w, b.h]), lines: lines.slice(-2).map((l) => [Math.round(l.x0), Math.round(l.y0), Math.round(l.x1), Math.round(l.y1)]), overlaps, inside, count: texts.length };
+    });
+    check(
+      "a free visitor's Spinning Hoops page: the watermark tag on Record Video and Fast export, the live badge in both corners clear of the HUD's title and counter, and the HUD inside the canvas",
+      tags.record >= 1 && tags.fast >= 1 && mark.spots.length >= 1 && mark.overlaps === 0 && mark.count >= 2 && mark.inside,
+      `(${JSON.stringify({ tags, ...mark })})`,
+    );
+  } finally {
+    await freeContext.close().catch(() => {});
+  }
+}
+// --- end bead-hoops ---
+});
+
 await smokeBlock("ellipse-foci", async () => {
 // --- ellipse-foci ---
-// 39. Focus Shot (the loop family's whispering-gallery shot): ?mode=ellipseFoci runs 20 s of simulation at 4× with no NaN
+// 41. Focus Shot (the loop family's whispering-gallery shot): ?mode=ellipseFoci runs 20 s of simulation at 4× with no NaN
 // position (data-ef-nan), at least four convergences on time (data-ef-convergences; the worst arrival, data-ef-conv-error, under
 // 1e-6 of the long semi-axis), comet trails (data-ef-trail-points), the white convergence bloom and the loop HUD's lowercase
 // title and pass counter on the canvas; a preset travels in the link (efN, efAim, efTr, efPa) and rebuilds the run; Find

@@ -517,6 +517,7 @@ describe("uncap-all review fixes: only the settings a run's engine reads engage 
   const NOT_ENGINE = new Set(["wallThickness", "trailThickness", "backgroundDim", "textSize", "recordingDuration", "hitSampleVolume", "sliceMs", "sliceFadeMs", "musicVolume", "musicDucking", "musicDuckRelease", "musicStartOffset", "rootNote", "bpm", "ballSquash", "cameraZoom", "screenShake", "slowMoFactor", "slowMoMs", "fastExportFps", "beatDownbeat", "videoBgOpacity"]);
   for (const key of ["ogElevation", "ogRotation"]) NOT_ENGINE.add(key); // --- orb-grid --- the Bouncing Orbs camera is the picture's (the canvas draws it)
   NOT_ENGINE.add("growMarkerLife"); // --- loop-foundation --- Grow's contact markers are the picture's (the canvas draws them)
+  NOT_ENGINE.add("scLineWidth"); // --- chord-stars --- the chords' width is the picture's (the canvas draws them)
   NOT_ENGINE.add("efTrail"); // --- ellipse-foci --- Focus Shot's comet trails are the picture's (the canvas cuts them from the corners)
 
   it("classifies every setting: read by some mode's engine, or the clip's, the text's, the sound's or the picture's", () => {

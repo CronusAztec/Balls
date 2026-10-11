@@ -78,6 +78,8 @@ import OrbGridSection, { ORB_GRID_KEYS, OrbGridPresets } from "./sections/OrbGri
 import type { OrbGridFields } from "@/lib/physics/modes/orbGrid"; // --- orb-grid ---
 import FightLeagueSection, { FIGHT_LEAGUE_KEYS } from "./sections/FightLeagueSection"; // --- fight-league --- the Fight League block of the Mode row
 import LandClaimSection, { LAND_CLAIM_KEYS } from "./sections/LandClaimSection"; // --- land-claim --- the Land Claim block of the Mode row
+import StarChordsSection, { STAR_CHORDS_KEYS } from "./sections/StarChordsSection"; // --- chord-stars --- the Chord Stars block of the Mode row
+import HoopsSection, { HOOPS_KEYS } from "./sections/HoopsSection"; // --- bead-hoops --- the Spinning Hoops block of the Mode row
 import VideoBeatsSection, { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection"; // --- video-beats --- the "Beats from a video" block of the Sound section
 import type { VideoBeatsPanelProps } from "./useVideoBeats"; // --- video-beats ---
 import { defaultVideoBeatsFields } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
@@ -274,6 +276,9 @@ SECTION_KEYS.ball.push(...ELLIPSE_FOCI_KEYS); // --- ellipse-foci --- the Focus 
 SECTION_KEYS.ball.push(...FIGHT_LEAGUE_KEYS);
 // --- land-claim --- the Land Claim block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...LAND_CLAIM_KEYS);
+// --- chord-stars --- the Chord Stars block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...STAR_CHORDS_KEYS);
+SECTION_KEYS.ball.push(...HOOPS_KEYS); // --- bead-hoops ---
 // --- unlimited --- the No limits switch opens the Ball & Physics section
 SECTION_KEYS.ball.push(...UNLIMITED_KEYS);
 // --- bounce-math --- the Bounce math block (rules on every bounce, pass, collision, break, beat, bar or second) is part of the Ball & Physics section.
@@ -409,6 +414,10 @@ export default function Controls(props: ControlsProps) {
     fightLeague: t("modeFightLeague"),
     // --- land-claim ---
     landClaim: t("modeLandClaim"),
+    // --- chord-stars ---
+    starChords: t("modeStarChords"),
+    // --- bead-hoops ---
+    hoops: t("modeHoops"),
   };
 
   // --- site-redesign --- the rail's groups, with their icons (the Recording group moved after the Arenas, before the presets)
@@ -515,6 +524,10 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "fightLeague" && !!search && <FightLeagueSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- land-claim --- */}
       {s.mode === "landClaim" && !!search && <LandClaimSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- chord-stars --- */}
+      {s.mode === "starChords" && !!search && <StarChordsSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- bead-hoops --- */}
+      {s.mode === "hoops" && !!search && <HoopsSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         // --- uncap-all --- the Bouncier switch is the numeric Bounciness now (1 = off, 1.03 = the old switch), uncapped
@@ -1368,6 +1381,12 @@ export default function Controls(props: ControlsProps) {
       // --- land-claim ---
       case "landClaim":
         return <LandClaimSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- chord-stars ---
+      case "starChords":
+        return <StarChordsSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- bead-hoops ---
+      case "hoops":
+        return <HoopsSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:

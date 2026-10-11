@@ -89,6 +89,12 @@ import { GROW_FILL_ENGINE_KEYS, GROW_FILL_RANGES, defaultGrowFillFields, readGro
 import type { GrowLaw, GrowOnFill } from "@/lib/physics/modes/grow";
 import { defaultLoopFields, readLoopParams, resolveLoopFields, writeLoopParams } from "@/lib/loop/loopSettings";
 // --- end loop-foundation ---
+// --- chord-stars --- Chord Stars (balls in a circle drawing star polygons that all close at the same moment)
+import { SC_ENGINE_KEYS, SC_RANGES, defaultStarChordsFields, readStarChordsParams, resolveStarChordsFields, starChordsModeDefaults, writeStarChordsParams, type ScEnvelope, type ScPalette, type ScVoice } from "@/lib/physics/starChords";
+// --- bead-hoops --- Spinning Hoops (beads on spinning hoops climb as the spin passes each hoop's critical speed)
+import { HOOPS_RANGES, type HoopsRampShape } from "@/lib/physics/modes/hoops";
+import { defaultHoopsFields, readHoopsParams, resolveHoopsFields, writeHoopsParams } from "@/lib/physics/hoopsFields";
+// --- end bead-hoops ---
 // --- ellipse-foci --- Focus Shot (an elliptical pool: a volley from one focus converges on the other every transit)
 import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDefaults, readEllipseFociParams, resolveEllipseFociFields, writeEllipseFociParams, type EfLaunch, type EfOrientation, type EfReset, type EfSkin } from "@/lib/physics/ellipseFoci";
 
@@ -936,6 +942,55 @@ export interface SimulatorSettings {
   loopHudTitle: string;
   loopHudSubtitle: string;
   // --- end loop-foundation ---
+  // --- chord-stars --- Chord Stars (lib/physics/starChords.ts): balls drawing star polygons {n/k} that all close at once
+  /** Balls, 1–12 on the slider, any whole number typed (a run builds at most 5,000) (URL `scn`). */
+  scBalls: number;
+  /** The stars, "n/k" a ball: 5/2,7/3,8/3,9/4,12/5 (URL `scs`). */
+  scStars: string;
+  /** Seconds to close every star (1–30 on the slider), the hold and the fade after it (URL `sct`, `sch`, `scf`). */
+  scCycle: number;
+  scHold: number;
+  scFade: number;
+  /** The share of a full turn the start points spread over, 1 = round the whole rim (URL `scsp`). */
+  scSpread: number;
+  /** The chords' width (world px) (URL `scw`). */
+  scLineWidth: number;
+  /** The inner circles: closed (they appear as the stars close) | on | off (URL `sce`). */
+  scEnvelope: ScEnvelope;
+  /** pastel | rainbow | ball (the Ball Color) (URL `scp`). */
+  scPalette: ScPalette;
+  /** The bounces' voice: pluck | chime | bar | silent (URL `scv`). */
+  scVoice: ScVoice;
+  /** The completion chord and the reset glide (URL `scc`). */
+  scChord: boolean;
+  // --- end chord-stars ---
+  // --- bead-hoops --- Spinning Hoops (lib/physics/modes/hoops.ts, lib/physics/hoopsFields.ts)
+  /** Hoops, one bead each; 1–16 on the slider, any count from 1 typed (at most 5,000 built) (URL `hpn`). */
+  hpCount: number;
+  /** The outer and the inner hoop's radius, shares of the half side; 0.2–1 on the sliders (URL `hprx`, `hprn`). */
+  hpRadiusMax: number;
+  hpRadiusMin: number;
+  /** Gravity in m/s² – the half side is one metre; 1–20 on the slider (URL `hpg`). */
+  hpGravity: number;
+  /** The spin at the start and at the top, turns a second; 0–1 and 0.5–3 on the sliders (URL `hpw0`, `hpw1`). */
+  hpOmegaStart: number;
+  hpOmegaEnd: number;
+  /** Seconds of the ramp up, 5–60 on the slider (URL `hpr`), and its shape: linear | ease | steps (URL `hps`). */
+  hpRamp: number;
+  hpRampShape: HoopsRampShape;
+  /** Seconds at the top speed before the return or the end, 0–10 on the slider (URL `hph`). */
+  hpHold: number;
+  /** Ramp back down and loop seamlessly (URL `hprt`), the return ramp's seconds, 1–60 on the slider (URL `hprs`). */
+  hpReturn: boolean;
+  hpReturnSec: number;
+  /** The beads' damping (1/s), 0–2 on the slider (URL `hpd`). */
+  hpDamping: number;
+  /** The spin axis' tilt in radians (the imperfection: a seeded side, so the bottom is no fixed point), 0–0.01 on the slider (URL `hpj`). */
+  hpJitter: number;
+  /** A glock chime every turn (URL `hpt`); the groove bed from the first lift to the reset (URL `hpb`). */
+  hpTick: boolean;
+  hpBed: boolean;
+  // --- end bead-hoops ---
   // --- ellipse-foci --- Focus Shot (lib/physics/ellipseFoci.ts): a volley fired from one focus of an elliptical pool
   /** Balls in the volley, 1–720 on the slider, any whole number typed (a run builds at most 2,000) (URL `efN`). */
   efCount: number;
@@ -1099,6 +1154,10 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...landClaimModeDefaults(mode),
     ...defaultGrowFillFields(), // --- loop-foundation --- (the classic Grow: approach, stay)
     ...defaultLoopFields(), // --- loop-foundation --- (whole loops on, the HUD off)
+    // --- chord-stars --- the feature's fields, and in Chord Stars only the account's look (navy page, lavender circle, the loop HUD on)
+    ...defaultStarChordsFields(),
+    ...starChordsModeDefaults(mode),
+    ...defaultHoopsFields(), // --- bead-hoops --- (the loop HUD stays off, as in every mode: the presets turn it on)
     // --- ellipse-foci --- the feature's fields, and in Focus Shot only the clip's look (the navy page, the loop HUD on)
     ...defaultEllipseFociFields(),
     ...ellipseFociModeDefaults(mode),
@@ -1182,6 +1241,8 @@ export const RANGES = {
   ...FIGHT_LEAGUE_RANGES, // --- fight-league ---
   ...LAND_CLAIM_RANGES, // --- land-claim ---
   ...GROW_FILL_RANGES, // --- loop-foundation ---
+  ...SC_RANGES, // --- chord-stars ---
+  ...HOOPS_RANGES, // --- bead-hoops ---
   ...EF_RANGES, // --- ellipse-foci ---
 } as const;
 
@@ -1434,6 +1495,8 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeLandClaimParams(settings, base, params); // --- land-claim ---: lcc, lcr, lca, lct, lcb, lcm, lce, lcd, lcti, lch
   writeGrowFillParams(settings, base, params); // --- loop-foundation ---: gLaw, gFill, gStep, gStart, gHold, gShrink, gHue, gRamp, gMark, gMarkT, gPitch
   writeLoopParams(settings, base, params); // --- loop-foundation ---: wl, lh, lht, lhs
+  writeStarChordsParams(settings, base, params); // --- chord-stars ---: scn, scs, sct, sch, scf, scsp, scw, sce, scp, scv, scc
+  writeHoopsParams(settings, base, params); // --- bead-hoops ---: hpn, hprx, hprn, hpg, hpw0, hpw1, hpr, hps, hph, hprt, hprs, hpd, hpj, hpt, hpb
   writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
@@ -1599,6 +1662,8 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readLandClaimParams(params, settings); // --- land-claim --- (valid numbers kept, no maximum; unknown arenas and rules fall back)
   readGrowFillParams(params, settings); // --- loop-foundation --- (valid numbers from their minimum up, known laws, real booleans, a clean ramp)
   readLoopParams(params, settings); // --- loop-foundation --- (real booleans, clean texts)
+  readStarChordsParams(params, settings); // --- chord-stars --- (valid numbers from their minimum up, clean stars, known options, a real boolean)
+  readHoopsParams(params, settings); // --- bead-hoops --- (valid numbers from their minimum up, a known ramp shape, real booleans)
   readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
@@ -1817,6 +1882,8 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   orbGrid: ORB_GRID_PHYSICS_FIELDS.filter((key) => key in ORB_GRID_RANGES), // --- orb-grid --- (the field and the variation; the camera is the canvas')
   fightLeague: rangeKeys(FIGHT_LEAGUE_RANGES), // --- fight-league ---
   landClaim: rangeKeys(LAND_CLAIM_RANGES), // --- land-claim ---
+  starChords: [...SC_ENGINE_KEYS], // --- chord-stars --- (the balls, the timing and the start points; the line width is the canvas')
+  hoops: rangeKeys(HOOPS_RANGES), // --- bead-hoops --- (every number of the hoops, the spin and the beads is physics)
   ellipseFoci: [...EF_ENGINE_KEYS], // --- ellipse-foci --- (the volley, the pool and the timing; the trail is the canvas')
 };
 // --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
@@ -2028,6 +2095,8 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveLandClaimFields(merged)); // --- land-claim --- valid numbers (no maximum), a known arena and rule, a clean title, a real boolean
   Object.assign(merged, resolveGrowFillFields(merged)); // --- loop-foundation --- valid numbers from their minimum up, known laws, real booleans, a clean ramp
   Object.assign(merged, resolveLoopFields(merged)); // --- loop-foundation --- real booleans, clean texts
+  Object.assign(merged, resolveStarChordsFields(merged)); // --- chord-stars --- valid numbers from their minimum up, clean stars, known options, a real boolean
+  Object.assign(merged, resolveHoopsFields(merged)); // --- bead-hoops --- valid numbers from their minimum up, a known ramp shape, real booleans
   Object.assign(merged, resolveEllipseFociFields(merged)); // --- ellipse-foci --- valid numbers from their minimum up, known options, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)

@@ -83,6 +83,17 @@ MODE_CARD_ORDER.push("journey");
   const at = after >= 0 ? after : MODE_CARD_ORDER.indexOf("territory");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "landClaim");
 }
+// --- chord-stars --- Chord Stars joins the rhythm family right before the Circle Illusion (analytic motion inside one circle,
+// a note at every touch of the rim; the arena games stay right after the Illusion)
+{
+  const at = MODE_CARD_ORDER.indexOf("illusion");
+  MODE_CARD_ORDER.splice(at >= 0 ? at : MODE_CARD_ORDER.length, 0, "starChords");
+}
+// --- bead-hoops --- Spinning Hoops joins the rhythm family right after Pendulum Wave (the same family of maths, in a spinning frame)
+{
+  const at = MODE_CARD_ORDER.indexOf("pendulum");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "hoops");
+}
 // --- ellipse-foci --- Focus Shot joins the rhythm family right after the Pendulum Wave (a whole volley back in one point every
 // transit, the way the pendulums come back in line every cycle)
 {
@@ -161,6 +172,10 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   fightLeague: "rhythm",
   // --- land-claim --- competitors knock blocks off the columns lining the arena, the most land wins: the battle family
   landClaim: "battle",
+  // --- chord-stars --- every bounce off the circle is a pluck and the stars close on a chord: the sound-first family
+  starChords: "rhythm",
+  // --- bead-hoops --- every turn is a chime and every bead that climbs a bar note pitched by its hoop: the sound-first family
+  hoops: "rhythm",
   // --- ellipse-foci --- every wall hit a pluck down the scale, every convergence an impact on a bar line: the sound-first family
   ellipseFoci: "rhythm",
 };

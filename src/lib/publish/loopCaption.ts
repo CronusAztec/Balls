@@ -12,7 +12,9 @@ import type { ModeId } from "@/lib/physics/types";
 export const LOOP_CAPTION_BASE_TAGS = ["#satisfying", "#oddlysatisfying"] as const;
 /** The topic tags a mode adds after them (two or three: four or five in all). */
 export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly string[]>>> = {
+  hoops: ["#physics", "#math", "#creativecoding"], // --- bead-hoops ---
   grow: ["#physics", "#bouncingball", "#exponentialgrowth"],
+  starChords: ["#math", "#geometry", "#creativecoding"], // --- chord-stars ---
   ellipseFoci: ["#math", "#geometry", "#creativecoding"], // --- ellipse-foci ---
 };
 /** Any other mode's topic tags. */
@@ -107,13 +109,22 @@ export interface LoopCaptionContext {
  * The loop-style words of a run with these settings: Grow by its law – "{count}% bigger every bounce…" (multiply), "{count} px
  * bigger…" (add), "{count}% closer…" (the classic approach) –, any other mode its clip's seconds.
  */
-export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number; efCount?: number /* --- ellipse-foci --- */ }): LoopCaptionContext {
+export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number; scBalls?: number /* --- chord-stars --- */; efCount?: number /* --- ellipse-foci --- */ }): LoopCaptionContext {
+  // --- chord-stars --- Chord Stars by its balls: "{count} balls, one circle, …" and the fact of the inner circles
+  if (s.mode === "starChords") return { mode: s.mode, hookKey: "starChords", factKey: "starChordsFact", count: s.scBalls ?? null };
   // --- ellipse-foci --- Focus Shot by its volley: "{count} balls fired from one focus…" and the whispering-gallery fact
   if (s.mode === "ellipseFoci") return { mode: s.mode, hookKey: "ellipseFoci", factKey: "ellipseFociFact", count: typeof s.efCount === "number" && Number.isFinite(s.efCount) ? s.efCount : null };
   if (s.mode === "grow") {
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };
     if (s.growLaw === "add") return { mode: s.mode, hookKey: "growAdd", factKey: "", count: s.growStep ?? null };
     return { mode: s.mode, hookKey: "growApproach", factKey: "", count: s.growRate ?? null };
+  }
+  // --- bead-hoops --- Spinning Hoops by its hoops ("{count} hoops spinning faster and faster…"; one hoop its own words) and
+  // the critical-spin fact under it (the page's settings carry `hpCount`)
+  if (s.mode === "hoops") {
+    const hoops = (s as { hpCount?: number }).hpCount;
+    const count = typeof hoops === "number" && Number.isFinite(hoops) ? hoops : null;
+    return { mode: s.mode, hookKey: count === 1 ? "hoopsOne" : "hoops", factKey: "hoopsFact", count };
   }
   return { mode: s.mode, hookKey: "seconds", factKey: "", count: Number.isFinite(s.recordingDuration) ? Math.round(s.recordingDuration) : null };
 }

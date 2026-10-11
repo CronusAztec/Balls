@@ -34,6 +34,8 @@ import { CONVEYOR_KEYS, showsRespawn } from "./sections/ConveyorSection"; // ---
 import { ORB_GRID_KEYS } from "./sections/OrbGridSection"; // --- orb-grid ---
 import { FIGHT_LEAGUE_KEYS } from "./sections/FightLeagueSection"; // --- fight-league ---
 import { LAND_CLAIM_KEYS } from "./sections/LandClaimSection"; // --- land-claim ---
+import { STAR_CHORDS_KEYS } from "./sections/StarChordsSection"; // --- chord-stars ---
+import { HOOPS_KEYS } from "./sections/HoopsSection"; // --- bead-hoops ---
 import { ELLIPSE_FOCI_KEYS } from "./sections/EllipseFociSection"; // --- ellipse-foci ---
 import { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection";
 import { VORTEX_KEYS } from "./sections/VortexSection";
@@ -53,6 +55,10 @@ import { supportsMovingExits, supportsSplats } from "@/lib/physics/exitSplat"; /
 export function wallControlsOf(mode: ModeId): { wallCount: boolean; thickness: boolean; gapControls: boolean; gapSize: boolean } {
   // --- fight-league --- Fight League has no rings: its arena (a square or a circle) and its rim are the mode's own
   if (mode === "fightLeague") return { wallCount: false, thickness: false, gapControls: false, gapSize: false };
+  // --- chord-stars --- Chord Stars has no rings: one thin circle, drawn with the wall thickness
+  if (mode === "starChords") return { wallCount: false, thickness: true, gapControls: false, gapSize: false };
+  // --- bead-hoops --- Spinning Hoops has no rings: its hoops are drawn with the wall thickness
+  if (mode === "hoops") return { wallCount: false, thickness: true, gapControls: false, gapSize: false };
   // --- ellipse-foci --- Focus Shot has no rings: the pool is the mode's own (its neon and minimal outlines take the wall thickness)
   if (mode === "ellipseFoci") return { wallCount: false, thickness: true, gapControls: false, gapSize: false };
   // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop) --- odd-territory --- (territory) --- odd-maze --- (maze)
@@ -109,6 +115,8 @@ export const MODE_BLOCK_KEYS: Readonly<Partial<Record<ModeId, readonly string[]>
   orbGrid: ORB_GRID_KEYS, // --- orb-grid ---
   fightLeague: FIGHT_LEAGUE_KEYS, // --- fight-league ---
   landClaim: LAND_CLAIM_KEYS, // --- land-claim ---
+  starChords: STAR_CHORDS_KEYS, // --- chord-stars ---
+  hoops: HOOPS_KEYS, // --- bead-hoops ---
   ellipseFoci: ELLIPSE_FOCI_KEYS, // --- ellipse-foci ---
 };
 
