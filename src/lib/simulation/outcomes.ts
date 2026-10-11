@@ -42,9 +42,14 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  * convergence on a bar line: the transit becomes a whole number of bars of the song's tempo (`atSec` is the bar's length) and
  * the clip a whole number of loops – and **longest-collapse** – the start angle whose swarm takes the most passes to narrow under
  * two ball radii (ellipseFociFinder.ts; no seed is simulated, the seed only colours the run).
+ *
+ * --- colour-sort --- Colour Sort adds three of its first sort (the run itself loops forever): **sorted-by** – every ball is
+ * sorted within a time limit (`atSec`) –, **last-colour** – the final ball sorted is of the chosen colour (`team`: its index,
+ * the core's colour 0 outward) – and **sorted-on-bar** – the final ball is sorted within `toleranceSec` (±20 ms by default) of
+ * a bar line of the song's tempo (`atSec` is the bar's length), so the completion chord lands on a downbeat.
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "converge-on-beat", "longest-collapse"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- ellipse-foci --- (converge-on-beat, longest-collapse)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -110,6 +115,14 @@ export interface RunSummary {
   /** Spinning Hoops: the first cycle's beads lifted in strict size order (decided, at least one lift). */
   liftOrderOk?: boolean;
   // --- end bead-hoops ---
+  // --- colour-sort ---
+  /** Colour Sort: real time (ms) its first sort was complete (every ball in its own band), −1 when the time limit ended it first or it has not ended. */
+  sortedMs?: number;
+  /** Colour Sort: the colour (0 = the core's) of the final ball its first sort sorted, −1 without a complete sort. */
+  lastColour?: number;
+  /** Colour Sort: the first cycle's length (ms) – the sort, the chord's hold and the remix back to frame 0 – once the sort ended. */
+  cycleMs?: number;
+  // --- end colour-sort ---
 }
 
 // --- land-claim ---
@@ -154,6 +167,11 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
       return Math.max(clipMs, maxSimMs);
     case "all-up-by": // --- bead-hoops --- (until the limit has passed without every bead up)
       return 1000 * (outcome.atSec ?? 0) + FILL_SLACK_MS;
+    case "sorted-by": // --- colour-sort --- (until the limit has passed without a complete sort)
+      return 1000 * (outcome.atSec ?? 0) + SORT_SLACK_MS;
+    case "last-colour": // --- colour-sort --- (until the first sort ends: the finder adds the mode's time limit)
+    case "sorted-on-bar":
+      return Math.max(clipMs, maxSimMs);
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
       return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + ESCAPE_TAIL_MS;
@@ -194,6 +212,19 @@ function fillOnBar(outcome: FinderOutcome, fillMs: number): boolean {
   return fillMs >= 0 && fillMs >= barMs - tolMs && barLineDistanceMs(fillMs, barMs) <= tolMs + 1e-6;
 }
 // --- end loop-foundation ---
+
+// --- colour-sort ---
+/** How close (seconds) the final ball has to be sorted to a bar line for sorted-on-bar: ±20 ms. */
+export const SORT_BAR_TOLERANCE_SEC = 0.02;
+/** How far past the sorted-by limit (ms) a run is followed: one 60 Hz step (the sort is seen at the end of its step). */
+export const SORT_SLACK_MS = 1000 / 60;
+/** sorted-on-bar: the first complete sort (ms) lands on a bar line – at least the first one – within the tolerance. */
+function sortedOnBar(outcome: FinderOutcome, sortedMs: number): boolean {
+  const barMs = 1000 * (outcome.atSec ?? barSeconds(120));
+  const tolMs = 1000 * (outcome.toleranceSec ?? SORT_BAR_TOLERANCE_SEC);
+  return sortedMs >= 0 && sortedMs >= barMs - tolMs && barLineDistanceMs(sortedMs, barMs) <= tolMs + 1e-6;
+}
+// --- end colour-sort ---
 
 /**
  * Whether a run being simulated can stop now: its outcome is settled (`elapsedMs` real time so far, `firstEscapeMs`
@@ -275,6 +306,15 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       const at = run.allUpMs ?? -1;
       return at >= 0 && at <= 1000 * (outcome.atSec ?? 0) + 1e-6;
     }
+    // --- colour-sort --- every ball sorted within the limit; the chosen colour's ball the final one sorted; the final ball on a bar line
+    case "sorted-by": {
+      const sorted = run.sortedMs ?? -1;
+      return sorted >= 0 && sorted <= 1000 * (outcome.atSec ?? 0) + 1e-6;
+    }
+    case "last-colour":
+      return (run.sortedMs ?? -1) >= 0 && (run.lastColour ?? -1) === (outcome.team ?? -1);
+    case "sorted-on-bar":
+      return sortedOnBar(outcome, run.sortedMs ?? -1);
     default:
       return false;
   }
@@ -311,6 +351,13 @@ export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
       return run.liftOrderOk === true ? 0 : 1;
     case "all-up-by":
       return (run.allUpMs ?? -1) < 0 ? Infinity : Math.max(0, (run.allUpMs ?? 0) / 1000 - (outcome.atSec ?? 0));
+    // --- colour-sort --- the seconds past the limit; 0 / 1 for the last colour; the seconds off the nearest bar line (no complete sort: Infinity)
+    case "sorted-by":
+      return (run.sortedMs ?? -1) < 0 ? Infinity : Math.max(0, (run.sortedMs ?? 0) / 1000 - (outcome.atSec ?? 0));
+    case "last-colour":
+      return (run.sortedMs ?? -1) < 0 ? Infinity : outcomeMatches(outcome, run) ? 0 : 1;
+    case "sorted-on-bar":
+      return (run.sortedMs ?? -1) < 0 ? Infinity : barLineDistanceMs(run.sortedMs ?? 0, 1000 * (outcome.atSec ?? barSeconds(120))) / 1000;
     default:
       return Infinity;
   }
@@ -350,6 +397,10 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
       return (run.firstFillMs ?? -1) >= 0 ? (run.firstFillMs ?? 0) / 1000 : 0;
     case "all-up-by": // --- bead-hoops --- (every bead up, 0 when that never came)
       return (run.allUpMs ?? -1) >= 0 ? (run.allUpMs ?? 0) / 1000 : 0;
+    case "sorted-by": // --- colour-sort --- (the first complete sort, 0 without one)
+    case "last-colour":
+    case "sorted-on-bar":
+      return (run.sortedMs ?? -1) >= 0 ? (run.sortedMs ?? 0) / 1000 : 0;
     default:
       return run.durationMs / 1000;
   }
@@ -362,6 +413,7 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
 export function outcomeClipSec(outcome: FinderOutcome, run: RunSummary): number {
   if (outcome.kind === "never-escapes") return outcome.clipSec;
   if (outcome.kind === "never-settles") return outcome.clipSec; // --- orb-grid --- (the field bounces through the whole clip)
+  if (run.cycleMs !== undefined && run.cycleMs > 0) return run.cycleMs / 1000; // --- colour-sort --- (a found sort: its whole loop – the sort, the chord's hold, the remix)
   if (run.finished) return run.durationMs / 1000;
   return outcome.clipSec;
 }
@@ -404,6 +456,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "starChords") out.push("star-set"); // --- chord-stars --- (the best star set, its loop fitted to the clip)
   if (mode === "hoops") out.push("lift-order", "all-up-by"); // --- bead-hoops ---
   if (mode === "ellipseFoci") out.push("converge-on-beat", "longest-collapse"); // --- ellipse-foci --- (the transit on the tempo; the start angle)
+  if (mode === "colourSort") out.push("sorted-by", "last-colour", "sorted-on-bar"); // --- colour-sort --- (its first sort: the run loops forever)
   return out;
 }
 

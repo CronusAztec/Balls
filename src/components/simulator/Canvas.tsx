@@ -102,6 +102,7 @@ import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLaye
 import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live";
 import { noteCornerReadouts, noteEdgeText, noteHomeCounter, noteJourneyHud, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare } from "./liveMarkHud";
 import { GROW_DATA_KEYS, GrowLayer, writeGrowDataset, type GrowLook } from "./growRenderer"; // --- loop-foundation ---
+import { COLOUR_SORT_DATA_KEYS, ColourSortLayer, writeColourSortDataset, type ColourSortRenderOptions } from "./colourSortRenderer"; // --- colour-sort ---
 import { STAR_CHORDS_DATA_KEYS, StarChordsLayer, writeStarChordsDataset, type StarChordsRenderOptions } from "./starChordsRenderer"; // --- chord-stars ---
 import { HOOPS_DATA_KEYS, HoopsLayer, hoopsExtentPx, hoopsRenderTimeMs, type HoopsRenderOptions } from "./hoopsRenderer"; // --- bead-hoops ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation ---
@@ -943,6 +944,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const lcRender: LandClaimRenderOptions = { dpr: scale /* --- world --- device px per world px */, roster: NO_ROSTER, showNames: false, showTrails: true, wallThickness: 2, labels: DEFAULT_LAND_CLAIM_LABELS, nowMs: 0 };
     const lcBodyColor = (ball: Ball) => lcLayer.colorOf(ball.team ?? 0);
     const growLayer = new GrowLayer(); // --- loop-foundation --- Grow's colour by size, contact markers and the loop's solid disc
+    // --- colour-sort --- Colour Sort's layer (the band tints, the neon rings and pins, the refusal flashes) and its options
+    const csLayer = new ColourSortLayer();
+    const csRender: ColourSortRenderOptions = { showWallGlow: true, nowMs: 0 };
     // --- chord-stars --- Chord Stars: the chord layer (offscreen, a cycle at a time) and the look it is drawn with, refreshed per frame
     const starLayer = new StarChordsLayer();
     const starRender: StarChordsRenderOptions = { dpr: scale, wallColor: () => "#fff", rainbow: false, wallThickness: 2, showGlow: false, showWallGlow: true };
@@ -1630,6 +1634,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         lcRender.labels = (labelsRef.current ?? DEFAULT_LABELS).landClaim ?? DEFAULT_LAND_CLAIM_LABELS;
         lcRender.nowMs = engine.getElapsedMs();
         lcLayer.drawStage(ctx, lcView, lcRender);
+      }
+      // --- colour-sort --- Colour Sort: the band tints, the neon rings with their pins, the outer wall and the refusal flashes
+      // (under the balls, which the shared ball pass draws in their colours)
+      const csView = engine.isColourSortMode() ? engine.getColourSortView() : null;
+      if (csView) {
+        csRender.showWallGlow = p.showWallGlow;
+        csRender.nowMs = engine.getElapsedMs();
+        csLayer.drawStage(ctx, csView, csRender);
       }
 
       // --- odd-maze --- Maze: the near-black field, the painted trail, the glowing walls (flaring where hit) and the fog.
@@ -3417,6 +3429,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- loop-foundation --- Grow's run (data-grow-*) and the loop contract's cycle and seams of any looping run (data-loop-*)
       if (growView) writeGrowDataset(growView, engine.getBalls(), setCanvasData);
       else if (canvas.dataset.growLaw !== undefined) for (const key of GROW_DATA_KEYS) delete canvas.dataset[key];
+      // --- colour-sort --- the phase, the census, the loop's counts and the checks (data-cs-*)
+      if (csView) writeColourSortDataset(csView, setCanvasData);
+      else if (canvas.dataset.csPhase !== undefined) for (const key of COLOUR_SORT_DATA_KEYS) delete canvas.dataset[key];
       // --- chord-stars --- Chord Stars' run (data-sc-*: the balls, the cycles, the stars closed, the chords, the layer)
       if (starView) writeStarChordsDataset(starView, starLayer, setCanvasData);
       else if (canvas.dataset.scBalls !== undefined) for (const key of STAR_CHORDS_DATA_KEYS) delete canvas.dataset[key];

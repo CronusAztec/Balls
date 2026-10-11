@@ -1,5 +1,6 @@
 import { normalizeHashtag, withoutPlatformTags } from "./caption";
 import type { ModeId } from "@/lib/physics/types";
+import { colourSortTotal } from "@/lib/physics/colourSortSettings"; // --- colour-sort ---
 
 /*
  * --- loop-foundation --- The "Loop style" caption preset (the Publish caption editor's button): the words of the loop clips'
@@ -14,6 +15,7 @@ export const LOOP_CAPTION_BASE_TAGS = ["#satisfying", "#oddlysatisfying"] as con
 export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly string[]>>> = {
   hoops: ["#physics", "#math", "#creativecoding"], // --- bead-hoops ---
   grow: ["#physics", "#bouncingball", "#exponentialgrowth"],
+  colourSort: ["#sorting", "#physics", "#simulation"], // --- colour-sort ---
   starChords: ["#math", "#geometry", "#creativecoding"], // --- chord-stars ---
   ellipseFoci: ["#math", "#geometry", "#creativecoding"], // --- ellipse-foci ---
 };
@@ -118,6 +120,12 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };
     if (s.growLaw === "add") return { mode: s.mode, hookKey: "growAdd", factKey: "", count: s.growStep ?? null };
     return { mode: s.mode, hookKey: "growApproach", factKey: "", count: s.growRate ?? null };
+  }
+  // --- colour-sort --- "360 mixed balls, sorted by their own rings": the balls in all, the rings' rule as the fact
+  if (s.mode === "colourSort") {
+    const cs = s as { csColours?: number; csPerColour?: number };
+    const count = cs.csColours !== undefined && cs.csPerColour !== undefined ? colourSortTotal({ csColours: cs.csColours, csPerColour: cs.csPerColour }) : null;
+    return { mode: s.mode, hookKey: "colourSort", factKey: "colourSortFact", count };
   }
   // --- bead-hoops --- Spinning Hoops by its hoops ("{count} hoops spinning faster and faster…"; one hoop its own words) and
   // the critical-spin fact under it (the page's settings carry `hpCount`)

@@ -183,9 +183,18 @@
     "canvasRacePoints": "pkt"
   },
   "HowItWorks": {
-    "step1": { "title": "Wybierz tryb", "description": "Wybierz jeden z {count} trybów: pierścienie do ucieczki, rytmiczne maszyny, pojedynki i podróże." },
-    "step2": { "title": "Dostosuj wszystko", "description": "Zmieniaj fizykę, kolory, efekty, nakładki tekstowe i wygląd piłki, aż klip będzie wyglądał tak, jak chcesz." },
-    "step3": { "title": "Eksportuj i udostępniaj", "description": "Nagraj symulację jako MP4 w dowolnej rozdzielczości, w tym w pionowym formacie TikTok, i opublikuj, gdzie chcesz." }
+    "step1": {
+      "title": "Wybierz tryb",
+      "description": "Wybierz jeden z {count} trybów: pierścienie do ucieczki, rytmiczne maszyny, pojedynki i podróże."
+    },
+    "step2": {
+      "title": "Dostosuj wszystko",
+      "description": "Zmieniaj fizykę, kolory, efekty, nakładki tekstowe i wygląd piłki, aż klip będzie wyglądał tak, jak chcesz."
+    },
+    "step3": {
+      "title": "Eksportuj i udostępniaj",
+      "description": "Nagraj symulację jako MP4 w dowolnej rozdzielczości, w tym w pionowym formacie TikTok, i opublikuj, gdzie chcesz."
+    }
   },
   "Controls": {
     "modeDisplay": "Zmień tryb",
@@ -2047,6 +2056,7 @@
     "hpBed": "Podkład",
     "hpBedTip": "Miękki pad i sub na G, które wchodzą z pierwszym uniesieniem i milkną przy resecie.",
     "hpTurnsUnit": "obr./s",
+    "modeColourSort": "Sortowanie kolorów",
     "modeEllipseFoci": "Strzał w ognisko",
     "efDesc": "Eliptyczny stół i salwa piłek wystrzelona naraz z jednego ogniska: każdy strzał odbija się od ściany prosto przez drugie ognisko, a każda taka droga ma tę samą długość, więc cała salwa dociera tam jednocześnie – w każdym przejściu, w rytm.",
     "efPreset": "Presety strzału w ognisko",
@@ -2107,17 +2117,50 @@
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
-    "classic": { "name": "Klasyczny", "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko. Wyjścia mogą też skakać, uciekać albo się zwężać (Zachowanie wyjścia), a każde uderzenie może zostawiać twardą plamę farby (Bariera z plam)." },
-    "accumulation": { "name": "Akumulacja", "description": "Piłka ma kilka sekund na ucieczkę, zanim zamarznie w miejscu. Każda zamrożona piłka staje się przeszkodą dla następnej. Czy ostatnia zdoła się wydostać? Wyjścia mogą też skakać, uciekać albo się zwężać (Zachowanie wyjścia), a każde uderzenie może zostawiać twardą plamę farby (Bariera z plam)." },
-    "multiply": { "name": "Mnożenie", "description": "Za każdym razem, gdy piłka ucieka z pierścienia, pojawiają się kolejne. Arena w kilka sekund wypełnia się chaosem, co daje wybuchowe, chętnie udostępniane klipy. Wyjścia mogą też skakać, uciekać albo się zwężać (Zachowanie wyjścia), a każde uderzenie może zostawiać twardą plamę farby (Bariera z plam)." },
-    "lines": { "name": "Linie", "description": "Każdy punkt odbicia łączy się z piłką linią, więc symulacja powoli rysuje misterną geometryczną sztukę, gdy piłka rykoszetuje po okręgu. Z Barierą z plam każde uderzenie w ścianę zostawia twardą plamę farby." },
-    "paint": { "name": "Malowanie", "description": "Piłka maluje tęczowy ślad wszędzie tam, gdzie się porusza, stopniowo pokrywając cały okrąg, a licznik procentowy śledzi postęp. Z Barierą z plam każde uderzenie w ścianę zostawia twardą plamę farby." },
-    "target": { "name": "Cel", "description": "Ponumerowane segmenty na ścianie trzeba trafiać po kolei. Każde poprawne trafienie uruchamia efekt przebicia, a błędne błyska na czerwono. Z Barierą z plam każde uderzenie w ścianę zostawia twardą plamę farby." },
-    "grow": { "name": "Rośnij", "description": "Piłka jest zamknięta w jednym dużym pierścieniu i rośnie odrobinę z każdym odbiciem, zajmując coraz więcej miejsca, aż nie ma gdzie się ruszyć. Z Barierą z plam każde odbicie zostawia na pierścieniu plamę farby." },
-    "shatter": { "name": "Rozbicie", "description": "Każda ściana składa się z segmentów z punktami wytrzymałości. Każde odbicie pęka segment, a wystarczająco dużo uderzeń go rozbija. Utoruj drogę przez wszystkie ściany, aby uciec." },
-    "colorMatch": { "name": "Dopasowanie kolorów", "description": "Ściana jest podzielona na kolorowe segmenty, a piłka zmienia kolor przy każdym odbiciu. Segment pęka tylko wtedy, gdy kolory się zgadzają. Usuń wszystkie, aby uciec." },
-    "portal": { "name": "Portal", "description": "Na ścianie znajdują się pary portali w tym samym kolorze. Dotknij jednego, a piłka teleportuje się do bliźniaka. Po kilku użyciach portale wypalają się i stają się wyjściami. Z Barierą z plam każde uderzenie w ścianę zostawia twardą plamę farby." },
-    "drop": { "name": "Spadające piłki", "description": "Piłki o różnych rozmiarach i wadze spadają przez rzędy kołków i belek, a każde uderzenie gra nutę o wysokości zależnej od rozmiaru piłki. Różne grawitacje rozjeżdżają się w czasie i symulacja sama pisze swoją polirytmię." },
+    "classic": {
+      "name": "Klasyczny",
+      "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko. Wyjścia mogą też skakać, uciekać albo się zwężać (Zachowanie wyjścia), a każde uderzenie może zostawiać twardą plamę farby (Bariera z plam)."
+    },
+    "accumulation": {
+      "name": "Akumulacja",
+      "description": "Piłka ma kilka sekund na ucieczkę, zanim zamarznie w miejscu. Każda zamrożona piłka staje się przeszkodą dla następnej. Czy ostatnia zdoła się wydostać? Wyjścia mogą też skakać, uciekać albo się zwężać (Zachowanie wyjścia), a każde uderzenie może zostawiać twardą plamę farby (Bariera z plam)."
+    },
+    "multiply": {
+      "name": "Mnożenie",
+      "description": "Za każdym razem, gdy piłka ucieka z pierścienia, pojawiają się kolejne. Arena w kilka sekund wypełnia się chaosem, co daje wybuchowe, chętnie udostępniane klipy. Wyjścia mogą też skakać, uciekać albo się zwężać (Zachowanie wyjścia), a każde uderzenie może zostawiać twardą plamę farby (Bariera z plam)."
+    },
+    "lines": {
+      "name": "Linie",
+      "description": "Każdy punkt odbicia łączy się z piłką linią, więc symulacja powoli rysuje misterną geometryczną sztukę, gdy piłka rykoszetuje po okręgu. Z Barierą z plam każde uderzenie w ścianę zostawia twardą plamę farby."
+    },
+    "paint": {
+      "name": "Malowanie",
+      "description": "Piłka maluje tęczowy ślad wszędzie tam, gdzie się porusza, stopniowo pokrywając cały okrąg, a licznik procentowy śledzi postęp. Z Barierą z plam każde uderzenie w ścianę zostawia twardą plamę farby."
+    },
+    "target": {
+      "name": "Cel",
+      "description": "Ponumerowane segmenty na ścianie trzeba trafiać po kolei. Każde poprawne trafienie uruchamia efekt przebicia, a błędne błyska na czerwono. Z Barierą z plam każde uderzenie w ścianę zostawia twardą plamę farby."
+    },
+    "grow": {
+      "name": "Rośnij",
+      "description": "Piłka jest zamknięta w jednym dużym pierścieniu i rośnie odrobinę z każdym odbiciem, zajmując coraz więcej miejsca, aż nie ma gdzie się ruszyć. Z Barierą z plam każde odbicie zostawia na pierścieniu plamę farby."
+    },
+    "shatter": {
+      "name": "Rozbicie",
+      "description": "Każda ściana składa się z segmentów z punktami wytrzymałości. Każde odbicie pęka segment, a wystarczająco dużo uderzeń go rozbija. Utoruj drogę przez wszystkie ściany, aby uciec."
+    },
+    "colorMatch": {
+      "name": "Dopasowanie kolorów",
+      "description": "Ściana jest podzielona na kolorowe segmenty, a piłka zmienia kolor przy każdym odbiciu. Segment pęka tylko wtedy, gdy kolory się zgadzają. Usuń wszystkie, aby uciec."
+    },
+    "portal": {
+      "name": "Portal",
+      "description": "Na ścianie znajdują się pary portali w tym samym kolorze. Dotknij jednego, a piłka teleportuje się do bliźniaka. Po kilku użyciach portale wypalają się i stają się wyjściami. Z Barierą z plam każde uderzenie w ścianę zostawia twardą plamę farby."
+    },
+    "drop": {
+      "name": "Spadające piłki",
+      "description": "Piłki o różnych rozmiarach i wadze spadają przez rzędy kołków i belek, a każde uderzenie gra nutę o wysokości zależnej od rozmiaru piłki. Różne grawitacje rozjeżdżają się w czasie i symulacja sama pisze swoją polirytmię."
+    },
     "box": {
       "name": "Odbijające się kształty",
       "description": "Kwadraty, koła lub logotypy w stylu DVD suną po pudełku ze stałą prędkością, a każde uderzenie w ściankę gra kolejną nutę. Duże liczby odliczają w dół z każdym odbiciem, logotypy o prędkościach w stosunku 2:3 lub 3:4:5 splatają polirytmię, a trafienie w róg to akcent, na który wszyscy czekają."
@@ -2202,12 +2245,18 @@
       "name": "Ucieczka z labiryntu",
       "description": "Kto jeszcze pomyślał, że to krew? Kulki wpadają przez czerwoną szczelinę do losowego, świecącego na zielono labiryntu i odbijają się w stronę wyjścia, malując na czerwono każdy korytarz, którym przejdą. Każde uderzenie w ścianę to nuta, która wznosi się, gdy kulka zbliża się do wyjścia – wygrywa pierwsza, która się wydostanie."
     },
-    "conveyor": { "name": "Taśmociąg", "description": "Gerald odradza się co 3 sekundy: taśmociąg u góry wywozi z włazu piłkę za piłką i zrzuca je na arenę poniżej – do koncentrycznych pierścieni, z których trzeba uciec, do misy, która się zapełnia, albo na pole kołków nad przegródkami. Każde odbicie to nuta, taśma buczy i klika, a licznik prowadzi rachunek: Załadowano 17 / Uciekło 4." },
+    "conveyor": {
+      "name": "Taśmociąg",
+      "description": "Gerald odradza się co 3 sekundy: taśmociąg u góry wywozi z włazu piłkę za piłką i zrzuca je na arenę poniżej – do koncentrycznych pierścieni, z których trzeba uciec, do misy, która się zapełnia, albo na pole kołków nad przegródkami. Każde odbicie to nuta, taśma buczy i klika, a licznik prowadzi rachunek: Załadowano 17 / Uciekło 4."
+    },
     "orbGrid": {
       "name": "Skaczące kule",
       "description": "Tysiące błyszczących kul na płycie, a każda bez końca podskakuje w górę i w dół na swoim miejscu – 1089, 1936 albo 4900. Ich tempa płynnie zmieniają się w poprzek pola, więc cały zbiór wznosi się od narożnika, zbiega lejem do środka albo rozchodzi się pierścieniami, zgrywa się w fazie na końcu każdego cyklu i znów rozpada – polirytmy pod metronom, a każde lądowanie to cicha nuta."
     },
-    "fightLeague": { "name": "Liga walk", "description": "Postacie z gier, komiksów, seriali i filmów walczą jako kulki własną bronią – miecze tną, młoty lecą i wracają, pistolety i różdżki strzelają – a zdolność każdego zawodnika ładuje się i odpala sama. PŻ w środku kulki; wygrywa ostatni na placu boju: Thor kontra Loki, Captain Falcon kontra Little Mac, Yuumi kontra Katarina…" },
+    "fightLeague": {
+      "name": "Liga walk",
+      "description": "Postacie z gier, komiksów, seriali i filmów walczą jako kulki własną bronią – miecze tną, młoty lecą i wracają, pistolety i różdżki strzelają – a zdolność każdego zawodnika ładuje się i odpala sama. PŻ w środku kulki; wygrywa ostatni na placu boju: Thor kontra Loki, Captain Falcon kontra Little Mac, Yuumi kontra Katarina…"
+    },
     "landClaim": {
       "name": "Podbój terenu",
       "description": "Kolumny bloków obstawiają ścianę kwadratowej, sześciokątnej lub okrągłej areny; kolorowe kulki strącają górne bloki, co ósmy blok dodaje kolejną kulkę, a wygrywa ten, kto ma najwięcej bloków – DOMINACJA albo CO ZA WYRÓWNANA BITWA."
@@ -2220,23 +2269,60 @@
       "name": "Wirujące obręcze",
       "description": "Tęczowe obręcze wirują coraz szybciej wokół pionowej osi, na każdej koralik. Po przekroczeniu prędkości krytycznej obręczy dno przestaje być najniższym miejscem i jej koralik się wspina – najpierw na największej obręczy, jedna obręcz po drugiej – a każde uniesienie to nuta strojonej sztabki; potem obroty zwalniają i pętla zaczyna się od nowa."
     },
+    "colourSort": {
+      "name": "Sortowanie kolorów",
+      "description": "360 kulek w czterech kolorach startuje stłoczonych w środku tarczy z obracających się pierścieni; bramki każdego pierścienia otwierają się tylko na zewnątrz i nigdy dla jego własnego koloru, więc kulki same układają się w swoich pasach – potem znów się mieszają i pętla zaczyna się od nowa."
+    },
     "ellipseFoci": {
       "name": "Strzał w ognisko",
       "description": "Eliptyczny stół: salwa tęczowych piłek wystrzelona z jednego ogniska odbija się od ściany i przechodzi przez drugie ognisko naraz, w każdym przejściu – a rój zapada się przy tym na długą oś."
     }
   },
   "FAQ": {
-    "q1": { "question": "Czy {siteName} jest darmowy?", "answer": "Tak: każdy tryb, każda opcja personalizacji, dźwięk i Znajdź symulację – a także nagrywanie i eksport filmów – bez zakładania konta. Filmy tworzone za darmo mają mały znak wodny; Pro go usuwa za 10 $ miesięcznie lub 79 $ rocznie." },
-    "q2": { "question": "Jakie formaty i rozdzielczości wideo mogę eksportować?", "answer": "Możesz nagrywać klipy 500×500 (kwadrat), 1280×720 (HD), 1920×1080 (Full HD) i 1080×1920 (pionowo, TikTok) o długości od 10 do 120 sekund. Przeglądarki obsługujące nagrywanie MP4 eksportują MP4, pozostałe WebM." },
-    "q3": { "question": "Czy mogę używać wyeksportowanych filmów komercyjnie?", "answer": "Tak. Wszystko, co stworzysz, należy do Ciebie i możesz tego używać na TikToku, YouTube, Instagramie lub gdziekolwiek indziej, bez podawania źródła." },
-    "q4": { "question": "Czy muszę coś instalować?", "answer": "Nie. Całe narzędzie działa w przeglądarce. Otwórz stronę i zacznij tworzyć." },
-    "q5": { "question": "Czy mogę zapisać swoje ustawienia?", "answer": "Tak. Zapisz dowolną liczbę presetów w pamięci lokalnej przeglądarki i wczytuj je w każdej chwili. Adres URL również aktualizuje się przy zmianie ustawień, więc konfigurację można dodać do zakładek lub udostępnić." },
-    "q6": { "question": "Czy działa na telefonie?", "answer": "Symulator jest zaprojektowany z myślą o przeglądarkach na komputerze, gdzie jest miejsce na płótno i sterowanie obok siebie. Działa też na telefonach, ale laptop lub komputer zapewnia lepsze doświadczenie." },
-    "q7": { "question": "Czy są skróty klawiszowe?", "answer": "Tak. Spacja pauzuje lub wznawia, a R uruchamia symulację ponownie." },
-    "q8": { "question": "Jak wgrać własny obrazek piłki?", "answer": "Otwórz sekcję Piłka i fizyka, włącz opcje zaawansowane i kliknij Wybierz obrazek. Dowolny obrazek zadziała: logo, zdjęcie, mem. Możesz też wybrać emoji z siatki." },
-    "q9": { "question": "Jak działa funkcja własnego dźwięku?", "answer": "W sekcji Własny dźwięk wybierz piosenkę z wbudowanej biblioteki lub zaimportuj plik MIDI. Melodia jest wyciągana z pliku, a każde uderzenie w ścianę odtwarza kolejną nutę, zamieniając symulację w występ muzyczny. Wolisz efekt dźwiękowy? Przełącz Dźwięk odbicia na Próbkę audio i wybierz wbudowany klik, strunę lub stopę albo wgraj własny klip – zagra z inną wysokością na każdej ścianie i trafi do nagrania." },
-    "q10": { "question": "Co sprawia, że {siteName} jest tak satysfakcjonujący?", "answer": "Pętla jest prosta: piłka odbija się wewnątrz pierścieni z małymi szczelinami, a za każdym razem, gdy się prześlizgnie, dzieje się coś nagradzającego: konfetti, rozbicie, fala uderzeniowa. Ponieważ kontrolujesz fizykę, kolory i efekty, napięcie i finał wyglądają dokładnie tak, jak chcesz." },
-    "q11": { "question": "Czy {siteName} może działać jak satysfakcjonujący clicker?", "answer": "To nie jest gra typu clicker, ale zaspokaja tę samą potrzebę. Patrzysz, przewidujesz szczelinę i dostajesz nagrodę w postaci efektów i dźwięku przy każdej ucieczce. Symulacja gra sama, więc to satysfakcja bez klikania." }
+    "q1": {
+      "question": "Czy {siteName} jest darmowy?",
+      "answer": "Tak: każdy tryb, każda opcja personalizacji, dźwięk i Znajdź symulację – a także nagrywanie i eksport filmów – bez zakładania konta. Filmy tworzone za darmo mają mały znak wodny; Pro go usuwa za 10 $ miesięcznie lub 79 $ rocznie."
+    },
+    "q2": {
+      "question": "Jakie formaty i rozdzielczości wideo mogę eksportować?",
+      "answer": "Możesz nagrywać klipy 500×500 (kwadrat), 1280×720 (HD), 1920×1080 (Full HD) i 1080×1920 (pionowo, TikTok) o długości od 10 do 120 sekund. Przeglądarki obsługujące nagrywanie MP4 eksportują MP4, pozostałe WebM."
+    },
+    "q3": {
+      "question": "Czy mogę używać wyeksportowanych filmów komercyjnie?",
+      "answer": "Tak. Wszystko, co stworzysz, należy do Ciebie i możesz tego używać na TikToku, YouTube, Instagramie lub gdziekolwiek indziej, bez podawania źródła."
+    },
+    "q4": {
+      "question": "Czy muszę coś instalować?",
+      "answer": "Nie. Całe narzędzie działa w przeglądarce. Otwórz stronę i zacznij tworzyć."
+    },
+    "q5": {
+      "question": "Czy mogę zapisać swoje ustawienia?",
+      "answer": "Tak. Zapisz dowolną liczbę presetów w pamięci lokalnej przeglądarki i wczytuj je w każdej chwili. Adres URL również aktualizuje się przy zmianie ustawień, więc konfigurację można dodać do zakładek lub udostępnić."
+    },
+    "q6": {
+      "question": "Czy działa na telefonie?",
+      "answer": "Symulator jest zaprojektowany z myślą o przeglądarkach na komputerze, gdzie jest miejsce na płótno i sterowanie obok siebie. Działa też na telefonach, ale laptop lub komputer zapewnia lepsze doświadczenie."
+    },
+    "q7": {
+      "question": "Czy są skróty klawiszowe?",
+      "answer": "Tak. Spacja pauzuje lub wznawia, a R uruchamia symulację ponownie."
+    },
+    "q8": {
+      "question": "Jak wgrać własny obrazek piłki?",
+      "answer": "Otwórz sekcję Piłka i fizyka, włącz opcje zaawansowane i kliknij Wybierz obrazek. Dowolny obrazek zadziała: logo, zdjęcie, mem. Możesz też wybrać emoji z siatki."
+    },
+    "q9": {
+      "question": "Jak działa funkcja własnego dźwięku?",
+      "answer": "W sekcji Własny dźwięk wybierz piosenkę z wbudowanej biblioteki lub zaimportuj plik MIDI. Melodia jest wyciągana z pliku, a każde uderzenie w ścianę odtwarza kolejną nutę, zamieniając symulację w występ muzyczny. Wolisz efekt dźwiękowy? Przełącz Dźwięk odbicia na Próbkę audio i wybierz wbudowany klik, strunę lub stopę albo wgraj własny klip – zagra z inną wysokością na każdej ścianie i trafi do nagrania."
+    },
+    "q10": {
+      "question": "Co sprawia, że {siteName} jest tak satysfakcjonujący?",
+      "answer": "Pętla jest prosta: piłka odbija się wewnątrz pierścieni z małymi szczelinami, a za każdym razem, gdy się prześlizgnie, dzieje się coś nagradzającego: konfetti, rozbicie, fala uderzeniowa. Ponieważ kontrolujesz fizykę, kolory i efekty, napięcie i finał wyglądają dokładnie tak, jak chcesz."
+    },
+    "q11": {
+      "question": "Czy {siteName} może działać jak satysfakcjonujący clicker?",
+      "answer": "To nie jest gra typu clicker, ale zaspokaja tę samą potrzebę. Patrzysz, przewidujesz szczelinę i dostajesz nagrodę w postaci efektów i dźwięku przy każdej ucieczce. Symulacja gra sama, więc to satysfakcja bez klikania."
+    }
   },
   "Editorial": {
     "physicsBadge": "Za kulisami symulacji",
@@ -2312,6 +2398,7 @@
     "modeLandClaim": "Bitwa o teren: kolumny bloków stoją po wewnętrznej stronie kwadratowej, sześciokątnej lub okrągłej ściany, a dwóch lub więcej zawodników – skład drużyn z krajami daje im flagi, nazwy i barwy – odbija swoje kulki w środku ze stałą prędkością. W zasadzie strącania kulka, która trafi w kolumnę, zabiera jej górny blok: blok odlatuje w kolorze uderzającego i liczy się dla niego, a co ósmy blok strącony przez zawodnika dodaje kolejną kulkę w jego kolorze w miejscu uderzenia, więc prowadzenie rośnie jak kula śnieżna w cały rój. Zasada zajmowania zamiast tego maluje bloki na miejscu, a zasada kradzieży pozwala odebrać rywalowi blok – teren przechodzi z rąk do rąk, aż skończy się czas. Bitwa kończy się, gdy ściana zostanie zdobyta albo po upływie czasu trwania, a wygrywa ten, kto ma najwięcej bloków: DOMINACJA powyżej 60% terenu, CO ZA WYRÓWNANA BITWA, gdy dwóch najlepszych dzieli najwyżej 5%. Każde ziarno odtwarza się dokładnie, Znajdź symulację szuka wybranego zwycięzcy, wyrównanej bitwy albo przebiegu kończącego się w wybranej sekundzie, a Wymuszony zwycięzca faworyzuje kolor, kierując jego odbicia w stronę terenu do zdobycia.",
     "modeStarChords": "Gwiazdy cięciw: kulki krążą w jednym cienkim okręgu i każda rysuje wielokąt gwiaździsty, np. 5/2 albo 12/5. Kulka odbijająca się od okręgu zawsze uderza w ścianę pod tym samym kątem, więc jej punkt styku przeskakuje o k z n punktów wokół obwodu, a każda narysowana linia leży w tej samej odległości od środka – gdy linii przybywa, pojawia się wewnętrzny okrąg, którego nikt nie narysował. Każda kulka porusza się dokładnie z prędkością, która domyka jej gwiazdę po tym samym czasie rysowania, więc wszystkie gwiazdy domykają się w jednej klatce z akordem; potem rysunek trwa, gaśnie i zaczyna się od nowa – płynna pętla. Wpisz własne gwiazdy, wylosuj zestaw względnie pierwszych albo pozwól, by Znajdź symulację wybrało najładniejszy zestaw i dopasowało pętlę do klipu.",
     "modeHoops": "Bez pierścieni: 1–16 współśrodkowych obręczy (domyślnie osiem, czerwona na zewnątrz, fioletowa w środku) wiruje razem wokół pionowej średnicy, rysowanych na wprost i spłaszczanych przez obrót, więc wyglądają trójwymiarowo, a na każdej jeden koralik ślizga się bez tarcia. Obroty rosną – równo, łagodnie albo schodkami – a każda obręcz ma prędkość krytyczną √(g/R): poniżej niej grawitacja trzyma koralik na dnie, powyżej koralik wspina się do punktu równowagi arccos(g/(Rω²)), tym wyżej, im szybsze obroty. Większe obręcze unoszą koraliki pierwsze, więc koraliki wspinają się ściśle według rozmiaru, a każde uniesienie to nuta strojonej sztabki o wysokości zależnej od obręczy; dzwonek dźwięczy co obrót, akord pada, gdy wszystkie są w górze, a licznik pokazuje obroty i uniesione koraliki. Z włączonym powrotem obroty zwalniają, aż każdy koralik znów spocznie, a pętla zaczyna się płynnie od nowa – gotowa na eksport całych pętli; Znajdź symulację szuka przebiegu ściśle według rozmiaru albo takiego, w którym wszystkie koraliki są w górze przed wybranym czasem.",
+    "modeColourSort": "Maszyna sortująca: 360 kulek w czterech kolorach startuje stłoczonych w czerwonym środku tarczy z obracających się pierścieni i porusza się jak gaz o stałej prędkości. Każdy pierścień to rząd łuków z bramkami pomiędzy nimi, a bramka to jednokierunkowy filtr kolorów: otwiera się tylko na zewnątrz i nigdy dla kulek w kolorze pierścienia. Czerwone nigdy więc nie opuszczą środka, pomarańczowe miną czerwony pierścień, ale zatrzymają się na swoim, zielone dotrą o pierścień dalej, a niebieskie aż do zewnętrznego pasa – mieszanka sama układa się w tarczę, a bursztynowy licznik wspina się do 360 / 360 posortowanych z długą, trzymającą w napięciu końcówką. Każde przejście przez bramkę szarpie nutę swojego koloru w pentatonice A-dur, ostatnia posortowana kulka wywołuje ciepły akord zakończenia, a remiks ściąga wszystkie kulki z powrotem do dokładnie pierwszej klatki pod miękkim szumem, więc nagranie pełnych cykli zapętla się bez szwu. Wybierz kolory i liczbę kulek każdego z nich, bramki i ich szerokość, obrót pierścieni, regułę (albo ją odwróć), zderzenia albo gaz-widmo dla tysięcy kulek – a Znajdź symulację wyszuka sortowanie w limicie czasu, kolor, który skończy ostatni, albo ostatnią kulkę na kresce taktowej.",
     "modeEllipseFoci": "Eliptyczny stół bilardowy z dwoma zaznaczonymi ogniskami. Salwa piłek – domyślnie 72, pokolorowanych kołem barw według kąta wystrzału – wylatuje z jednego ogniska w tej samej chwili, we wszystkie strony. Elipsa kieruje każdy strzał z jednego ogniska po odbiciu od ściany prosto przez drugie, a każda taka droga ma tę samą długość, więc cała salwa zbiega się w drugim ognisku jedno przejście później, potem z powrotem w pierwszym, za każdym razem z białym rozbłyskiem, a każde przejście zwęża rój ku długiej osi. Ponowny strzał wypuszcza nową salwę pod błyskiem co kilka przejść, więc klip zapętla się bez szwu; odbicia od ściany schodzą po pentatonicznej drabinie, każda zbieżność ląduje na kresce taktowej ze stopą, trzaskiem i akordem, a Znajdź symulację ustawia zbieżności w rytm strony albo znajduje kąt startowy najdłuższego zapadania."
   },
   "Footer": {
@@ -2338,20 +2425,50 @@
     "lastUpdated": "Ostatnia aktualizacja",
     "metaTitle": "Polityka prywatności – {siteName}",
     "metaDescription": "Polityka prywatności serwisu {siteDomain}",
-    "introduction": { "title": "1. Wprowadzenie", "content": "Witamy w serwisie {siteDomain} („my”, „nasz”). Szanujemy Twoją prywatność i ograniczamy ilość informacji związanych z korzystaniem z tej strony do minimum. Ta polityka wyjaśnia, co jest zbierane, jak jest wykorzystywane i jakie masz prawa." },
+    "introduction": {
+      "title": "1. Wprowadzenie",
+      "content": "Witamy w serwisie {siteDomain} („my”, „nasz”). Szanujemy Twoją prywatność i ograniczamy ilość informacji związanych z korzystaniem z tej strony do minimum. Ta polityka wyjaśnia, co jest zbierane, jak jest wykorzystywane i jakie masz prawa."
+    },
     "information": {
       "title": "2. Jakie informacje zbieramy",
       "subtitle": "Zbieramy minimum niezbędne do działania i ulepszania serwisu:",
-      "analytics": { "label": "Dane analityczne:", "content": "Jeśli analityka jest włączona, korzystamy z usługi dbającej o prywatność, która rejestruje anonimowe statystyki, takie jak wyświetlenia stron, typ przeglądarki, rozmiar ekranu i przybliżony region. Nie identyfikuje ona Ciebie osobiście." },
-      "localStorage": { "label": "Dane w pamięci lokalnej:", "content": "Ustawienia symulatora i presety są przechowywane w pamięci lokalnej przeglądarki. Nigdy nie opuszczają Twojego urządzenia i nie są wysyłane na nasze serwery." },
-      "images": { "label": "Wgrane obrazki i dźwięki:", "content": "Własne obrazki piłki, pliki MIDI i klipy dźwiękowe są przetwarzane wyłącznie w przeglądarce. Nic nie jest wgrywane, przechowywane ani przesyłane." }
+      "analytics": {
+        "label": "Dane analityczne:",
+        "content": "Jeśli analityka jest włączona, korzystamy z usługi dbającej o prywatność, która rejestruje anonimowe statystyki, takie jak wyświetlenia stron, typ przeglądarki, rozmiar ekranu i przybliżony region. Nie identyfikuje ona Ciebie osobiście."
+      },
+      "localStorage": {
+        "label": "Dane w pamięci lokalnej:",
+        "content": "Ustawienia symulatora i presety są przechowywane w pamięci lokalnej przeglądarki. Nigdy nie opuszczają Twojego urządzenia i nie są wysyłane na nasze serwery."
+      },
+      "images": {
+        "label": "Wgrane obrazki i dźwięki:",
+        "content": "Własne obrazki piłki, pliki MIDI i klipy dźwiękowe są przetwarzane wyłącznie w przeglądarce. Nic nie jest wgrywane, przechowywane ani przesyłane."
+      }
     },
-    "howWeUse": { "title": "3. Jak wykorzystujemy informacje", "content": "Dane analityczne służą wyłącznie do zrozumienia, jak używana jest strona, abyśmy mogli ją ulepszać. Nie sprzedajemy, nie udostępniamy ani nie przekazujemy zebranych danych podmiotom trzecim w celach marketingowych." },
-    "cookies": { "title": "4. Pliki cookie i śledzenie", "content": "Możemy używać minimalnej liczby plików cookie lub podobnych technologii do celów analitycznych i zapamiętania języka. Nie śledzą Cię one na innych stronach i nie zbierają danych osobowych." },
-    "thirdParty": { "title": "5. Usługi podmiotów trzecich", "content": "Zewnętrzne usługi analityczne, jeśli są włączone, mogą zbierać anonimowe dane o użytkowaniu zgodnie z własną polityką prywatności." },
-    "retention": { "title": "6. Przechowywanie danych", "content": "Dane analityczne są przechowywane wyłącznie w formie zagregowanej. Poza danymi rozliczeniowymi zakupu Pro (zobacz Płatności poniżej) nie zbieramy danych osobowych. Dane w pamięci lokalnej możesz w każdej chwili wyczyścić w ustawieniach przeglądarki." },
-    "children": { "title": "7. Prywatność dzieci", "content": "Serwis nie jest skierowany do dzieci poniżej 13. roku życia i świadomie nie zbieramy od nich danych osobowych." },
-    "changes": { "title": "8. Zmiany w polityce", "content": "Możemy od czasu do czasu aktualizować tę politykę. Zmiany pojawią się na tej stronie wraz ze zaktualizowaną datą." },
+    "howWeUse": {
+      "title": "3. Jak wykorzystujemy informacje",
+      "content": "Dane analityczne służą wyłącznie do zrozumienia, jak używana jest strona, abyśmy mogli ją ulepszać. Nie sprzedajemy, nie udostępniamy ani nie przekazujemy zebranych danych podmiotom trzecim w celach marketingowych."
+    },
+    "cookies": {
+      "title": "4. Pliki cookie i śledzenie",
+      "content": "Możemy używać minimalnej liczby plików cookie lub podobnych technologii do celów analitycznych i zapamiętania języka. Nie śledzą Cię one na innych stronach i nie zbierają danych osobowych."
+    },
+    "thirdParty": {
+      "title": "5. Usługi podmiotów trzecich",
+      "content": "Zewnętrzne usługi analityczne, jeśli są włączone, mogą zbierać anonimowe dane o użytkowaniu zgodnie z własną polityką prywatności."
+    },
+    "retention": {
+      "title": "6. Przechowywanie danych",
+      "content": "Dane analityczne są przechowywane wyłącznie w formie zagregowanej. Poza danymi rozliczeniowymi zakupu Pro (zobacz Płatności poniżej) nie zbieramy danych osobowych. Dane w pamięci lokalnej możesz w każdej chwili wyczyścić w ustawieniach przeglądarki."
+    },
+    "children": {
+      "title": "7. Prywatność dzieci",
+      "content": "Serwis nie jest skierowany do dzieci poniżej 13. roku życia i świadomie nie zbieramy od nich danych osobowych."
+    },
+    "changes": {
+      "title": "8. Zmiany w polityce",
+      "content": "Możemy od czasu do czasu aktualizować tę politykę. Zmiany pojawią się na tej stronie wraz ze zaktualizowaną datą."
+    },
     "adsenseNotice": {
       "title": "9. Reklamy",
       "line1": "Możemy wyświetlać reklamy za pośrednictwem zewnętrznej usługi reklamowej, np. Google AdSense. Takie usługi używają plików cookie do wyświetlania dopasowanych reklam na podstawie Twojej aktywności i zbierają dane nieosobowe, takie jak typ przeglądarki i odwiedzone strony.",
@@ -2363,8 +2480,15 @@
       "optOutLink": "Ustawieniach reklam",
       "line5": "."
     },
-    "consent": { "title": "10. Zgoda na pliki cookie", "content": "Tam, gdzie wymaga tego prawo, zostaniesz poproszony o zgodę na nieistotne pliki cookie, zanim zostaną ustawione. Wybór możesz zmienić w każdej chwili w ustawieniach przeglądarki." },
-    "contact": { "title": "11. Kontakt", "content": "Masz pytania dotyczące tej polityki? Skontaktuj się z nami przez", "feedbackLink": "formularz opinii" },
+    "consent": {
+      "title": "10. Zgoda na pliki cookie",
+      "content": "Tam, gdzie wymaga tego prawo, zostaniesz poproszony o zgodę na nieistotne pliki cookie, zanim zostaną ustawione. Wybór możesz zmienić w każdej chwili w ustawieniach przeglądarki."
+    },
+    "contact": {
+      "title": "11. Kontakt",
+      "content": "Masz pytania dotyczące tej polityki? Skontaktuj się z nami przez",
+      "feedbackLink": "formularz opinii"
+    },
     "publishing": {
       "title": "12. Publikowanie na TikToku, Instagramie i YouTube",
       "content": "Blok Publikuj w symulatorze wysyła klip tylko wtedy, gdy klikniesz przycisk wysyłania lub udostępniania. Szybkie udostępnianie przekazuje plik do arkusza udostępniania urządzenia albo go pobiera. Wysyłka na YouTube idzie prosto z twojej przeglądarki do Google z tokenem dostępu przechowywanym w pamięci lokalnej przeglądarki (usunięcie konta w bloku go kasuje). TikTok, Instagram – i YouTube, jeśli wybierzesz – idą przez serwer relay prowadzony przez osobę, która dała ci klucz dostępu: przechowuje on połączone konta z ich tokenami i trzyma każdy wysłany klip pod trudnym do odgadnięcia linkiem przez 24 godziny, aby platforma mogła go pobrać.",
@@ -2382,8 +2506,14 @@
     "lastUpdated": "Ostatnia aktualizacja",
     "metaTitle": "Regulamin – {siteName}",
     "metaDescription": "Regulamin serwisu {siteDomain}",
-    "acceptance": { "title": "1. Akceptacja regulaminu", "content": "Korzystając z serwisu {siteDomain} („Serwis”), akceptujesz niniejszy regulamin. Jeśli nie zgadzasz się z którymkolwiek jego punktem, nie korzystaj z Serwisu." },
-    "description": { "title": "2. Opis usługi", "content": "{siteName} to przeglądarkowe narzędzie do symulacji fizyki, służące do tworzenia animacji odbijającej się piłki, dostosowywania ich wyglądu i zachowania oraz eksportowania jako plików wideo. Korzystanie z symulatora i eksport filmów są darmowe; filmy wyeksportowane bez licencji Pro mają znak wodny (zob. Subskrypcje Pro). Serwis jest udostępniany „tak jak jest”, bez gwarancji dostępności ani ciągłości działania." },
+    "acceptance": {
+      "title": "1. Akceptacja regulaminu",
+      "content": "Korzystając z serwisu {siteDomain} („Serwis”), akceptujesz niniejszy regulamin. Jeśli nie zgadzasz się z którymkolwiek jego punktem, nie korzystaj z Serwisu."
+    },
+    "description": {
+      "title": "2. Opis usługi",
+      "content": "{siteName} to przeglądarkowe narzędzie do symulacji fizyki, służące do tworzenia animacji odbijającej się piłki, dostosowywania ich wyglądu i zachowania oraz eksportowania jako plików wideo. Korzystanie z symulatora i eksport filmów są darmowe; filmy wyeksportowane bez licencji Pro mają znak wodny (zob. Subskrypcje Pro). Serwis jest udostępniany „tak jak jest”, bez gwarancji dostępności ani ciągłości działania."
+    },
     "ugc": {
       "title": "3. Treści użytkowników",
       "subtitle": "Korzystając z Serwisu, możesz:",
@@ -2400,11 +2530,27 @@
       "item3": "Wgrywać treści nielegalnych, szkodliwych lub naruszających prawa własności intelektualnej innych osób.",
       "item4": "Przedstawiać Serwisu jako własnego produktu."
     },
-    "intellectual": { "title": "5. Własność intelektualna", "content": "Serwis, w tym jego kod, projekt i branding, należy do operatora serwisu {siteName}. Filmy i obrazy, które tworzysz za jego pomocą, należą do Ciebie." },
-    "warranties": { "title": "6. Wyłączenie gwarancji", "content": "Serwis jest udostępniany „tak jak jest” i „w miarę dostępności”, bez jakichkolwiek gwarancji, wyraźnych lub dorozumianych, w tym dotyczących niezawodności, dokładności lub przydatności do określonego celu. Nie gwarantujemy, że Serwis będzie działał nieprzerwanie ani bezbłędnie." },
-    "liability": { "title": "7. Ograniczenie odpowiedzialności", "content": "W najszerszym zakresie dozwolonym przez prawo operator serwisu {siteName} nie ponosi odpowiedzialności za jakiekolwiek pośrednie, przypadkowe, szczególne lub wynikowe szkody wynikające z korzystania z Serwisu, w tym utratę danych, przychodów lub zysków." },
-    "changes": { "title": "8. Zmiany regulaminu", "content": "Możemy aktualizować regulamin w dowolnym momencie. Zmiany są publikowane na tej stronie z nową datą, a dalsze korzystanie z Serwisu po zmianie oznacza akceptację zmienionego regulaminu." },
-    "contact": { "title": "9. Kontakt", "content": "Masz pytania dotyczące regulaminu? Skontaktuj się z nami przez", "feedbackLink": "formularz opinii" },
+    "intellectual": {
+      "title": "5. Własność intelektualna",
+      "content": "Serwis, w tym jego kod, projekt i branding, należy do operatora serwisu {siteName}. Filmy i obrazy, które tworzysz za jego pomocą, należą do Ciebie."
+    },
+    "warranties": {
+      "title": "6. Wyłączenie gwarancji",
+      "content": "Serwis jest udostępniany „tak jak jest” i „w miarę dostępności”, bez jakichkolwiek gwarancji, wyraźnych lub dorozumianych, w tym dotyczących niezawodności, dokładności lub przydatności do określonego celu. Nie gwarantujemy, że Serwis będzie działał nieprzerwanie ani bezbłędnie."
+    },
+    "liability": {
+      "title": "7. Ograniczenie odpowiedzialności",
+      "content": "W najszerszym zakresie dozwolonym przez prawo operator serwisu {siteName} nie ponosi odpowiedzialności za jakiekolwiek pośrednie, przypadkowe, szczególne lub wynikowe szkody wynikające z korzystania z Serwisu, w tym utratę danych, przychodów lub zysków."
+    },
+    "changes": {
+      "title": "8. Zmiany regulaminu",
+      "content": "Możemy aktualizować regulamin w dowolnym momencie. Zmiany są publikowane na tej stronie z nową datą, a dalsze korzystanie z Serwisu po zmianie oznacza akceptację zmienionego regulaminu."
+    },
+    "contact": {
+      "title": "9. Kontakt",
+      "content": "Masz pytania dotyczące regulaminu? Skontaktuj się z nami przez",
+      "feedbackLink": "formularz opinii"
+    },
     "proprietaryNotice": "{siteName}, w tym postać Gerald, jej nazwa i grafika, to oprogramowanie własnościowe. Jego kod źródłowy jest zaciemniony (obfuskowany) i nie może być kopiowany, modyfikowany, poddawany inżynierii wstecznej, rozpowszechniany, publicznie wyświetlany ani wykorzystywany komercyjnie bez pisemnej zgody właściciela."
   },
   "Disclaimer": {
@@ -2412,18 +2558,42 @@
     "lastUpdated": "Ostatnia aktualizacja",
     "metaTitle": "Zastrzeżenia – {siteName}",
     "metaDescription": "Zastrzeżenia {siteName}: jak udostępniane jest narzędzie, czego nie gwarantuje i jaki ma związek z platformami zewnętrznymi.",
-    "general": { "title": "Informacje ogólne", "content": "{siteName} ({siteDomain}) to narzędzie do tworzenia filmów z animacjami fizycznymi w przeglądarce: zabawa symulatorem i eksport filmów są darmowe, ze znakiem wodnym, który usuwa Pro. Jego funkcje i treści służą celom ogólnym i rozrywkowym. Korzystając z narzędzia, akceptujesz te zastrzeżenia w całości; jeśli nie zgadzasz się z którymkolwiek punktem, nie korzystaj ze strony." },
-    "noGuarantee": { "title": "Brak gwarancji rezultatów", "content": "{siteName} pomaga tworzyć filmy. Nie obiecuje, że staną się one viralowe ani że zdobędą wyświetlenia, obserwujących, zaangażowanie czy dochód. Odniesienia do filmów „stających się viralowymi” opisują możliwości formatu, a nie gwarantowany rezultat. Wyniki na TikToku, Instagramie, YouTube lub innej platformie zależą od czynników poza naszą kontrolą, w tym algorytmu platformy, Twoich widzów i Twoich treści." },
-    "noAffiliation": { "title": "Brak powiązań z platformami zewnętrznymi", "content": "{siteName} to niezależny projekt. Nie jest powiązany, wspierany, sponsorowany ani związany z TikTokiem, Instagramem, Meta, YouTube, Google ani żadną inną platformą wymienioną na tej stronie. Nazwy produktów, logo i znaki towarowe należą do ich właścicieli i są używane wyłącznie do opisania, gdzie można udostępniać filmy." },
-    "yourContent": { "title": "Twoje treści i Twoja odpowiedzialność", "content": "Odpowiadasz za treści, które tworzysz i wgrywasz, w tym obrazy, dźwięki, teksty i logo. Nie używaj materiałów, do których nie masz praw. Odpowiadasz też za przestrzeganie zasad platform, na których publikujesz, i za zgodność z obowiązującym prawem. {siteName} nie sprawdza ani nie moderuje tego, co tworzą użytkownicy." },
-    "asIs": { "title": "Udostępnianie „tak jak jest”", "content": "Narzędzie jest udostępniane „tak jak jest” i „w miarę dostępności”, bez jakichkolwiek gwarancji. Nie gwarantujemy, że strona będzie działać nieprzerwanie, bezbłędnie ani na każdej przeglądarce i urządzeniu, a funkcje mogą się zmieniać lub znikać bez uprzedzenia. W najszerszym zakresie dozwolonym przez prawo {siteName} nie odpowiada za żadne straty ani szkody wynikające z korzystania lub niemożności korzystania ze strony." },
-    "externalLinks": { "title": "Linki zewnętrzne", "content": "Strona może zawierać linki do witryn zewnętrznych, których nie prowadzimy. Linki są podawane dla wygody i nie oznaczają rekomendacji; nie odpowiadamy za treści, politykę ani praktyki witryn zewnętrznych." },
-    "changes": { "title": "Zmiany w zastrzeżeniach", "content": "Możemy od czasu do czasu aktualizować te zastrzeżenia. Zmiany obowiązują od chwili opublikowania na tej stronie. Szczegóły dotyczące danych znajdziesz w naszej" },
+    "general": {
+      "title": "Informacje ogólne",
+      "content": "{siteName} ({siteDomain}) to narzędzie do tworzenia filmów z animacjami fizycznymi w przeglądarce: zabawa symulatorem i eksport filmów są darmowe, ze znakiem wodnym, który usuwa Pro. Jego funkcje i treści służą celom ogólnym i rozrywkowym. Korzystając z narzędzia, akceptujesz te zastrzeżenia w całości; jeśli nie zgadzasz się z którymkolwiek punktem, nie korzystaj ze strony."
+    },
+    "noGuarantee": {
+      "title": "Brak gwarancji rezultatów",
+      "content": "{siteName} pomaga tworzyć filmy. Nie obiecuje, że staną się one viralowe ani że zdobędą wyświetlenia, obserwujących, zaangażowanie czy dochód. Odniesienia do filmów „stających się viralowymi” opisują możliwości formatu, a nie gwarantowany rezultat. Wyniki na TikToku, Instagramie, YouTube lub innej platformie zależą od czynników poza naszą kontrolą, w tym algorytmu platformy, Twoich widzów i Twoich treści."
+    },
+    "noAffiliation": {
+      "title": "Brak powiązań z platformami zewnętrznymi",
+      "content": "{siteName} to niezależny projekt. Nie jest powiązany, wspierany, sponsorowany ani związany z TikTokiem, Instagramem, Meta, YouTube, Google ani żadną inną platformą wymienioną na tej stronie. Nazwy produktów, logo i znaki towarowe należą do ich właścicieli i są używane wyłącznie do opisania, gdzie można udostępniać filmy."
+    },
+    "yourContent": {
+      "title": "Twoje treści i Twoja odpowiedzialność",
+      "content": "Odpowiadasz za treści, które tworzysz i wgrywasz, w tym obrazy, dźwięki, teksty i logo. Nie używaj materiałów, do których nie masz praw. Odpowiadasz też za przestrzeganie zasad platform, na których publikujesz, i za zgodność z obowiązującym prawem. {siteName} nie sprawdza ani nie moderuje tego, co tworzą użytkownicy."
+    },
+    "asIs": {
+      "title": "Udostępnianie „tak jak jest”",
+      "content": "Narzędzie jest udostępniane „tak jak jest” i „w miarę dostępności”, bez jakichkolwiek gwarancji. Nie gwarantujemy, że strona będzie działać nieprzerwanie, bezbłędnie ani na każdej przeglądarce i urządzeniu, a funkcje mogą się zmieniać lub znikać bez uprzedzenia. W najszerszym zakresie dozwolonym przez prawo {siteName} nie odpowiada za żadne straty ani szkody wynikające z korzystania lub niemożności korzystania ze strony."
+    },
+    "externalLinks": {
+      "title": "Linki zewnętrzne",
+      "content": "Strona może zawierać linki do witryn zewnętrznych, których nie prowadzimy. Linki są podawane dla wygody i nie oznaczają rekomendacji; nie odpowiadamy za treści, politykę ani praktyki witryn zewnętrznych."
+    },
+    "changes": {
+      "title": "Zmiany w zastrzeżeniach",
+      "content": "Możemy od czasu do czasu aktualizować te zastrzeżenia. Zmiany obowiązują od chwili opublikowania na tej stronie. Szczegóły dotyczące danych znajdziesz w naszej"
+    },
     "and": "i",
     "privacyLink": "polityce prywatności",
     "termsLink": "regulaminie",
     "feedbackLink": "stronę opinii",
-    "contact": { "title": "Kontakt", "content": "Masz pytania dotyczące zastrzeżeń? Napisz do nas przez" }
+    "contact": {
+      "title": "Kontakt",
+      "content": "Masz pytania dotyczące zastrzeżeń? Napisz do nas przez"
+    }
   },
   "Feedback": {
     "title": "Podziel się opinią",
@@ -2606,6 +2776,28 @@
     "overlayLiftOrder": "Sprawdzono {tested} seedów i w żadnym koraliki nie uniosły się ściśle według rozmiaru. Spróbuj mniejszego przechyłu osi, mniejszego tłumienia albo obręczy bardziej od siebie oddalonych.",
     "overlayAllUpBy": "Sprawdzono {tested} seedów: w żadnym wszystkie koraliki nie były w górze w {target}s. Spróbuj szybszych obrotów szczytowych, krótszej rampy albo późniejszego limitu.",
     "progressAllUpBy": "Najbliżej wszystkich w górze: {time}s",
+    "outcomeSortedBy": "Wszystko posortowane w czasie",
+    "outcomeLastColour": "Ostatni kolor",
+    "outcomeSortedOnBar": "Posortowane na takcie",
+    "hintSortedBy": "Każda kulka trafia do swojego pasa w wybranym limicie czasu – pierwsze sortowanie przebiegu (potem kulki znów się mieszają i pętla zaczyna się od nowa, więc klip to jeden pełny cykl).",
+    "hintLastColour": "Ostatnia posortowana kulka ma wybrany kolor – ten, który według widzów skończy ostatni. Pierwsze sortowanie każdego seeda jest rozgrywane do końca.",
+    "hintSortedOnBar": "Ostatnia kulka zostaje posortowana najwyżej ±20 ms od kreski taktowej – cztery uderzenia przy BPM ustawionym w Dźwięku – więc akord końcowy trafia w mocną część taktu.",
+    "sortedBy": "Posortowane w ciągu",
+    "lastColourPick": "Kolor posortowany jako ostatni",
+    "findSortedBy": "Znajdź sortowanie w {time}s",
+    "findLastColour": "Znajdź przebieg, w którym {name} kończy ostatni",
+    "findSortedOnBar": "Znajdź sortowanie na takcie",
+    "foundSortedBy": "Znaleziono! Wszystko posortowane po {time}s",
+    "foundLastColour": "Znaleziono! {name} kończy ostatni, po {time}s",
+    "foundSortedOnBar": "Znaleziono! Ostatnia kulka posortowana na takcie po {time}s",
+    "missSortedBy": "Najszybsze sortowanie: {time}s ({seeds} seedów)",
+    "missNoSort": "Żaden seed nie posortował wszystkich kulek przed limitem czasu ({seeds} seedów)",
+    "missLastColour": "{name} nie skończył ostatni w żadnym z {seeds} przebiegów",
+    "missSortedOnBar": "Najbliższa ostatnia kulka: {offset}s od taktu ({seeds} seedów)",
+    "overlaySortedBy": "Sprawdzono {tested} seedów: najszybsze sortowanie trwało {closest}s (cel: {target}s). Spróbuj więcej lub szerszych bramek, szybszego obrotu albo szybszych kulek.",
+    "overlayNoSort": "Sprawdzono {tested} seedów: żaden nie posortował wszystkich kulek przed limitem czasu. Spróbuj dłuższego limitu, szerszych bramek albo szybszych kulek.",
+    "overlayLastColour": "Sprawdzono {tested} seedów i w żadnym {name} nie skończył ostatni. Spróbuj więcej seedów albo innego koloru.",
+    "overlaySortedOnBar": "Sprawdzono {tested} seedów: najbliższa ostatnia kulka została posortowana {offset}s od taktu. Spróbuj innego BPM albo więcej seedów.",
     "outcomeConvergeOnBeat": "Zbieżność w rytm",
     "outcomeLongestCollapse": "Najdłuższe zapadanie",
     "hintConvergeOnBeat": "Każda salwa zbiega się na czas (własność odbicia ognisk): czas przejścia staje się najbliższą całkowitą liczbą taktów przy BPM ustawionym w Dźwięku, więc każda zbieżność wypada na kresce taktowej, a klip to całe pętle przebiegu.",
@@ -4378,8 +4570,68 @@
     "hoops": "na {count} obręczach wirujących coraz szybciej koraliki wspinają się po kolei, od największej obręczy",
     "hoopsOne": "{count} obręcz wiruje coraz szybciej, aż jej koralik zaczyna się wspinać",
     "hoopsFact": "Skąd ta kolejność? Koralik na obracającej się obręczy spoczywa tam, gdzie grawitacja równoważy odśrodkowe pchnięcie obrotu. Poniżej obrotów krytycznych, √(g/R), tym miejscem jest dół obręczy; powyżej punkt równowagi przesuwa się w górę obręczy i wznosi się dalej, w miarę jak obroty rosną. Obręcz o promieniu 75 cm osiąga je przy około 0,58 obrotu na sekundę, a obręcz o promieniu 25 cm potrzebuje prawie pełnego obrotu na sekundę, więc koraliki odrywają się od dołu od zewnątrz do środka.",
+    "colourSort": "{count} wymieszanych kulek, posortowanych przez własne pierścienie",
+    "colourSortFact": "Bramki każdego pierścienia otwierają się tylko na zewnątrz i nigdy dla kulek w jego własnym kolorze. Kolor środka nigdy go więc nie opuści, następny minie pierwszy pierścień, ale nie swój, a najbardziej zewnętrzny kolor dotrze aż na zewnątrz: wymieszaj je, a same ułożą się w tarczę.",
     "ellipseFoci": "{count} × strzał z jednego ogniska, wszystkie naraz przez drugie",
     "ellipseFociFact": "Elipsa ma dwa ogniska. Strzał z jednego odbija się od ściany prosto przez drugie, w którąkolwiek stronę poleci, a każda taka droga ma tę samą długość – więc cała salwa wystrzelona naraz dociera do drugiego ogniska w tej samej chwili. Dlatego szept w jednym ognisku eliptycznej sali słychać wyraźnie w drugim."
+  },
+  "ColourSort": {
+    "canvasTitle": "każdy pierścień zatrzymuje tylko swój kolor",
+    "canvasTitleOwnOnly": "każdy pierścień wypuszcza tylko swój kolor",
+    "canvasSubtitle": "bramki otwierają się na zewnątrz, nigdy dla koloru pierścienia",
+    "canvasSubtitleOwnOnly": "bramki otwierają się na zewnątrz, tylko dla koloru pierścienia",
+    "canvasSubtitleBothWays": "bramki otwierają się w obie strony, nigdy dla koloru pierścienia",
+    "canvasSorted": "[count] / [total] posortowanych",
+    "canvasRemix": "znów mieszamy",
+    "csDesc": "Kulki każdego koloru startują stłoczone w środku. Bramki każdego pierścienia otwierają się tylko na zewnątrz i nigdy dla jego własnego koloru, więc kulki same układają się w tarczę – potem remiks ściąga je z powrotem do pierwszej klatki i pętla zaczyna się od nowa.",
+    "csPreset": "Preset",
+    "csPresetTip": "Gotowe sortowania. Każde ustawia też granatowe tło, świecące kulki i HUD pętli.",
+    "csPresetChoose": "Wybierz preset…",
+    "presetBullseye": "Tarcza (4 × 90)",
+    "presetRainbow7": "Tęcza 7 (7 × 50)",
+    "presetTorture": "Tortura jednej bramki (1 bramka, 10°)",
+    "presetTenThousand": "Dziesięć tysięcy (4 × 2500, gaz-widmo)",
+    "presetReverse": "Odwrócona reguła (tylko własny kolor)",
+    "csRule": "Reguła bramek",
+    "csRuleTip": "Które kulki bramka przepuszcza i w którą stronę. Odrzucona kulka odbija się od bramki jak od łuku.",
+    "csRuleOutwardNotOwn": "Na zewnątrz, nie swój",
+    "csRuleOutwardOwnOnly": "Na zewnątrz, tylko swój",
+    "csRuleBothWaysNotOwn": "W obie strony",
+    "csHintOutwardNotOwn": "Wzorzec: bramka otwiera się na zewnątrz dla każdego koloru poza kolorem swojego pierścienia, więc każdy kolor zatrzymuje się na własnym pierścieniu.",
+    "csHintOutwardOwnOnly": "Odwrotnie: bramka otwiera się na zewnątrz tylko dla koloru swojego pierścienia – środek zatrzymuje wszystkie inne kolory.",
+    "csHintBothWaysNotOwn": "Bramka otwiera się w obie strony dla każdego koloru poza kolorem swojego pierścienia: kulki mogą wracać do środka, więc sortowanie trwa dłużej.",
+    "csColours": "Kolory",
+    "csColoursTip": "Kolory – i pierścienie: pierścień z bramkami dla każdego koloru poza ostatnim, wewnątrz zewnętrznej ściany. Można wpisać dowolną liczbę od 2 (powyżej ośmiu kolory to odcienie wokół koła barw).",
+    "csPerColour": "Kulki na kolor",
+    "csPerColourTip": "Kulki każdego koloru. Można wpisać dowolną liczbę od 1; przebieg mieści najwyżej 20 000 kulek łącznie.",
+    "csPerColourTotal": "kulki: {total}",
+    "csBallCeiling": "Przebieg mieści najwyżej {max} kulek: po {perColour} w każdym kolorze.",
+    "csGates": "Bramki na pierścień",
+    "csGatesTip": "Bramki w każdym pierścieniu, rozmieszczone równo; każdy łuk między nimi ma biały pin na obu końcach.",
+    "csGateWidth": "Szerokość bramki",
+    "csGateWidthTip": "Kątowa szerokość bramki. Gdy jest równa odstępowi między bramkami, cały pierścień jest bramką.",
+    "csSpin": "Obrót wewnętrznego pierścienia",
+    "csSpinTip": "Jak szybko obraca się najbardziej wewnętrzny pierścień, w stopniach na sekundę; każdy dalszy pierścień obraca się z prędkością pierścienia wewnątrz razy spadek.",
+    "csSpinValue": "{value}°/s",
+    "csFalloff": "Spadek obrotu",
+    "csFalloffTip": "Obrót każdego pierścienia jako ułamek obrotu pierścienia wewnątrz (0,8: każdy pierścień o jedną piątą wolniej).",
+    "csAlternate": "Naprzemienne kierunki",
+    "csAlternateTip": "Sąsiednie pierścienie obracają się w przeciwne strony.",
+    "csSpeed": "Prędkość kulek",
+    "csSpeedTip": "Stała prędkość kulek w px na sekundę w klatce o szerokości 720 (jej zewnętrzny pierścień ma 304 px).",
+    "csSpeedValue": "{value} px/s",
+    "csSize": "Rozmiar kulek",
+    "csSizeTip": "Promień kulki w px klatki o szerokości 720: pełna kropka to jego połowa, poświata to reszta.",
+    "csSizeValue": "{value} px",
+    "csContacts": "Zderzenia kulek",
+    "csContactsTip": "Wył. (domyślnie): gaz-widmo – każda kulka spotyka tylko pierścienie, jak w klipie wzorcowym, a tysiące kulek pozostają tanie. Wł.: sprężyste zderzenia między kulkami (zatłoczony środek sortuje się wolniej).",
+    "csRemix": "Remiks",
+    "csRemixTip": "Ile sekund trwa remiks: bramki przestają filtrować, a sprężyna ściąga każdą kulkę na jej miejsce z pierwszej klatki, więc nagranie zapętla się bez szwu.",
+    "csLimit": "Limit czasu",
+    "csLimitTip": "Sortowanie kończy się w tej sekundzie, nawet jeśli kulki są jeszcze poza swoimi pasami (na akordzie molowym), i zaczyna się remiks.",
+    "csFlash": "Błyski odrzucenia",
+    "csFlashTip": "Krótki błysk tam, gdzie bramka lub łuk zawraca kulkę.",
+    "csLoopNote": "Każdy cykl sortuje kulki, przez pół sekundy trzyma tarczę i miesza je z powrotem do pierwszej klatki: z włączonym Eksportem pełnych pętli nagranie kończy się na szwie i zapętla bez końca."
   },
   "EllipseFoci": {
     "canvasTitle": "strzel z jednej kropki, traf w drugą",

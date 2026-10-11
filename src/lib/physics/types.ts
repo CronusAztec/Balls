@@ -74,6 +74,8 @@ export const MODE_IDS = [
   "fightLeague",
   // --- land-claim --- Land Claim (balls knock the top blocks off the columns lining the arena; every eighth block a new ball)
   "landClaim",
+  // --- colour-sort --- Colour Sort (balls sorted into a bullseye by one-way colour gates on rotating rings, then mixed again)
+  "colourSort",
   // --- chord-stars --- Chord Stars (balls in a circle drawing star polygons that all close at the same moment; the loop family)
   "starChords",
   // --- bead-hoops --- Spinning Hoops (beads on spinning hoops climb in order as the spin passes each hoop's critical speed)
@@ -384,10 +386,15 @@ export interface SoundEvent {
   /** The pluck's 3f partial: a small or fast object. */
   loopBright?: boolean;
   // --- end loop-foundation ---
-  // --- ellipse-foci ---
-  /** A loop "bed" event's chord is minor (the groove bed's ii, iii and vi: `ToneGenerator.playLoop()`'s `minor`). */
+  // --- ellipse-foci --- --- colour-sort ---
+  /**
+   * The loop chord is minor: a "bed" event's chord (the groove bed's ii, iii and vi: `ToneGenerator.playLoop()`'s `minor`,
+   * Focus Shot) or the completion chord's "fail" ending (Colour Sort's time limit ran out before every ball was sorted).
+   */
   loopMinor?: boolean;
-  // --- end ellipse-foci ---
+  /** The completion chord held 2 s with its 1.7 Hz tremolo before it decays (Colour Sort's resolve). */
+  loopTremolo?: boolean;
+  // --- end ellipse-foci --- --- end colour-sort ---
 }
 
 // --- loop-foundation --- the voices of the loop sound families (lib/audio/loopTones.ts; `ToneGenerator.playLoop()`)
@@ -640,6 +647,10 @@ export interface GameMode {
   /** The seams of a looping run so far (each the start of a new cycle: the state equals the run's start), or null when it does not loop. */
   loopSeams?(ctx: ModeContext): LoopSeams | null;
   // --- end loop-foundation ---
+  // --- colour-sort ---
+  /** The page's Ball Color repainted every ball (`setConfig()`): a mode that colours its balls itself paints them back. */
+  onBallColorChange?(ctx: ModeContext): void;
+  // --- end colour-sort ---
 }
 
 // --- loop-foundation ---

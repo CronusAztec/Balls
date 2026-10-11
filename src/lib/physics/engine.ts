@@ -66,6 +66,7 @@ import { RespawnTimer } from "./respawn";
 import { OrbGridMode, type OrbGridSettings, type OrbGridView } from "./modes/orbGrid"; // --- orb-grid --- Bouncing Orbs
 import { FightLeagueMode, type FightLeagueSettings, type FightLeagueView } from "./modes/fightLeague"; // --- fight-league ---
 import { LandClaimMode, type LandClaimSettings, type LandClaimView } from "./modes/landClaim"; // --- land-claim ---
+import { ColourSortMode, type ColourSortSettings, type ColourSortView } from "./modes/colourSort"; // --- colour-sort ---
 import { HoopsMode, type HoopsSettings, type HoopsView } from "./modes/hoops"; // --- bead-hoops --- Spinning Hoops
 import type { GrowFillSettings, GrowView } from "./modes/grow"; // --- loop-foundation ---
 import { StarChordsMode, type StarChordsView } from "./modes/starChords"; // --- chord-stars ---
@@ -315,6 +316,8 @@ export class PhysicsEngine {
   readonly fightLeagueMode = new FightLeagueMode();
   // --- land-claim --- Land Claim: balls knock the top blocks off the columns lining the arena
   readonly landClaimMode = new LandClaimMode();
+  // --- colour-sort --- Colour Sort: balls sorted into a bullseye by one-way colour gates on rotating rings, then mixed again
+  readonly colourSortMode = new ColourSortMode();
   // --- chord-stars --- Chord Stars: balls in a circle drawing star polygons that all close at the same moment
   readonly starChordsMode = new StarChordsMode();
   // --- bead-hoops --- Spinning Hoops: beads on spinning hoops climb as the spin passes each hoop's critical speed
@@ -714,6 +717,10 @@ export class PhysicsEngine {
   initLandClaim() {
     this.activateMode(this.landClaimMode, "none");
   }
+  // --- colour-sort --- the mode owns its rings (its own gated rings and outer wall, no engine rings)
+  initColourSort() {
+    this.activateMode(this.colourSortMode, "none");
+  }
   // --- chord-stars --- the mode owns its circle (no rings; its balls pinned to the clock)
   initStarChords() {
     this.activateMode(this.starChordsMode, "none");
@@ -823,6 +830,9 @@ export class PhysicsEngine {
       // --- land-claim ---
       case "landClaim":
         return this.initLandClaim();
+      // --- colour-sort ---
+      case "colourSort":
+        return this.initColourSort();
       // --- chord-stars ---
       case "starChords":
         return this.initStarChords();
@@ -1856,6 +1866,22 @@ export class PhysicsEngine {
     return this.landClaimMode.getProgress();
   }
   // --- end land-claim ---
+  // --- colour-sort ---
+  isColourSortMode() {
+    return this.currentMode === this.colourSortMode;
+  }
+  getColourSortSettings(): ColourSortSettings {
+    return this.colourSortMode.getSettings();
+  }
+  /** Colours, balls, gates, spin, speed, size, contacts, remix, rule and time limit of Colour Sort apply on the next `initColourSort()`; the refusal flashes at once. */
+  setColourSortSettings(settings: Partial<ColourSortSettings>) {
+    this.colourSortMode.setSettings(settings);
+  }
+  /** Live Colour Sort state (the rings, the bands, the census, the phase, the cycle) for the canvas, the HUD and the finder; the same object every call. */
+  getColourSortView(): ColourSortView {
+    return this.colourSortMode.getView();
+  }
+  // --- end colour-sort ---
   // --- chord-stars ---
   isStarChordsMode() {
     return this.currentMode === this.starChordsMode;
@@ -2261,6 +2287,7 @@ export class PhysicsEngine {
     // --- teams --- the other starting balls (and their offspring) keep the colour of their slot
     if (patch.ballColor !== undefined) for (const b of this.balls) if (!b.team) b.color = patch.ballColor;
     if (patch.ballColor2 !== undefined) for (const b of this.balls) if (b.team === 1) b.color = patch.ballColor2;
+    if (patch.ballColor !== undefined) this.currentMode?.onBallColorChange?.(this.ctx); // --- colour-sort --- (a mode that colours its balls itself paints them back)
     // Balls with a size spread (Ball Drop) keep their ratio to the configured radius; the others take it as is.
     if (patch.ballRadius !== undefined) for (const b of this.balls) b.radius = patch.ballRadius * (b.radiusScale ?? 1);
     const sizeChanged =

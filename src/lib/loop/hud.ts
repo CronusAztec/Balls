@@ -12,6 +12,9 @@ import { hudPluralText } from "./hudPlural"; // --- ellipse-foci --- (a counter'
  *
  * The words: the settings' own title and subtitle, else the mode's (`LOOP_HUD_MODE_TEXT`, translated under `LoopHud`; any other
  * mode's title is its name). The counter is the mode's (`loopHudCount()`: Grow's bounces in the current cycle).
+ *
+ * --- colour-sort --- Colour Sort counts its sorted balls ("n / 360 sorted"); while its remix runs there is no count and the
+ * counter's line shows the spec's `alt` words instead ("mixing again").
  */
 
 export const LOOP_HUD_AMBER = "#f2c46a";
@@ -38,6 +41,8 @@ export interface LoopHudSpec {
   subtitle: string;
   counter: string;
   light: boolean;
+  /** --- colour-sort --- The counter's line while the mode has no count (Colour Sort's remix: "mixing again"); absent: no line then. */
+  alt?: string;
   /** --- bead-hoops --- The page's language: the counter's decimals in its style on the live canvas too ("0,13" in Polish). */
   locale?: string;
 }
@@ -261,6 +266,7 @@ export function loopHudCount(engine: {
   getStarChordsView?(): { closed: number; count: number; phase: string; phaseProgress: number }; // --- chord-stars ---
   getHoopsView?(): { upCount: number; count: number; omega: number }; // --- bead-hoops ---
   getEllipseFociHudCount?(): number | null; // --- ellipse-foci ---
+  getColourSortView?(): { sorted: number; phase: string }; // --- colour-sort ---
 }): number | LoopHudCount | LoopHudCounter | null {
   // --- chord-stars --- (the fade is the loop's reset: halfway through it the counter is back at 0, so the clip's last frames
   // read like its first – the payoff's "5/5" still shows through the hold and the first half of the fade, a hold of 0 too)
@@ -277,6 +283,12 @@ export function loopHudCount(engine: {
     return HOOPS_COUNTER;
   }
   if (engine.getCurrentModeName() === "ellipseFoci") return engine.getEllipseFociHudCount?.() ?? null; // --- ellipse-foci --- (the pass counter, when it is on)
+  // --- colour-sort --- the balls in their own bands; none while the remix runs (the counter's line then says the spec's `alt`)
+  if (engine.getCurrentModeName() === "colourSort" && engine.getColourSortView) {
+    const view = engine.getColourSortView();
+    return view.phase === "remix" ? null : view.sorted;
+  }
+  // --- end colour-sort ---
   return engine.getCurrentModeName() === "grow" ? engine.getGrowView().bounces : null;
 }
 
@@ -284,7 +296,7 @@ export function loopHudCount(engine: {
 export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | LoopHudCounter | null, locale?: string): LoopHudFrame {
   const counter = count !== null && typeof count === "object" && "values" in count ? count : null; // --- bead-hoops --- (a counter with values)
   const value = counter ? counter.count : (count as number | LoopHudCount | null);
-  return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values), light: spec.light };
+  return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: count === null && spec.alt ? hudText(spec.alt, locale ?? spec.locale) /* --- colour-sort --- */ : hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values), light: spec.light };
 }
 
 /** Draws one line centred at (`x`, `y`), shrunk to `maxWidth` when it is wider. */

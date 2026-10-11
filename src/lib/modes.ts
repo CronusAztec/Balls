@@ -83,6 +83,13 @@ MODE_CARD_ORDER.push("journey");
   const at = after >= 0 ? after : MODE_CARD_ORDER.indexOf("territory");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "landClaim");
 }
+// --- colour-sort --- Colour Sort joins the escape family right after the ten ring modes, before the Conveyor Belt (balls
+// working their way out of turning rings – here through one-way colour gates that sort them into a bullseye)
+{
+  const conveyor = MODE_CARD_ORDER.indexOf("conveyor");
+  const at = conveyor >= 0 ? conveyor : MODE_CARD_ORDER.indexOf("portal") + 1;
+  MODE_CARD_ORDER.splice(at > 0 ? at : MODE_CARD_ORDER.length, 0, "colourSort");
+}
 // --- chord-stars --- Chord Stars joins the rhythm family right before the Circle Illusion (analytic motion inside one circle,
 // a note at every touch of the rim; the arena games stay right after the Illusion)
 {
@@ -173,6 +180,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   fightLeague: "rhythm",
   // --- land-claim --- competitors knock blocks off the columns lining the arena, the most land wins: the battle family
   landClaim: "battle",
+  // --- colour-sort --- balls work their way out through rotating rings' gates (one-way, colour-coded): the escape family
+  colourSort: "escape",
   // --- chord-stars --- every bounce off the circle is a pluck and the stars close on a chord: the sound-first family
   starChords: "rhythm",
   // --- bead-hoops --- every turn is a chime and every bead that climbs a bar note pitched by its hoop: the sound-first family

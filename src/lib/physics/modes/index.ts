@@ -87,6 +87,9 @@ export type { FlFighterRow, FlDivision, FlWeaponKind, FlWeaponSpec, FlEffect, Fl
 // --- land-claim ---
 export { LandClaimMode } from "./landClaim";
 export type { LandClaimSettings, LandClaimView, LandClaimField, LcArena, LcRule, LcVerdict, LcVerdictKind } from "./landClaim";
+// --- colour-sort ---
+export { ColourSortMode } from "./colourSort";
+export type { ColourSortSettings, ColourSortView, CsRule, CsPhase } from "./colourSort";
 // --- chord-stars ---
 export { StarChordsMode } from "./starChords";
 export type { StarChordsView, StarChordsField } from "./starChords";
