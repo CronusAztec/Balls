@@ -7,7 +7,7 @@ import { offBtn, onBtn, selectClass, type Matcher, type Translate } from "../Con
 import type { BotPanelProps } from "../useViralBot";
 import type { BotCopy } from "@/lib/bot/copy";
 import { composePost, editDraft, emptyDraft, fieldsFor, hasOverrides, resetPlatform, type Counter, type DraftField, type PublishDraft } from "@/lib/publish/caption";
-import { loopCaption, type LoopCaptionContext } from "@/lib/publish/loopCaption"; // --- loop-foundation ---
+import { clipLoopCaptionContext, loopCaption, type LoopCaptionContext } from "@/lib/publish/loopCaption"; // --- loop-foundation --- · --- low-findings --- (clipLoopCaptionContext)
 import type { PublishClip } from "@/lib/publish/clips";
 import { accountViews, getPublishController, sendPlan, type AccountView, type PublishSnapshot, type SendItem } from "@/lib/publish/controller";
 import { defaultDraft } from "@/lib/publish/copy";
@@ -487,8 +487,9 @@ export default function PublishSection({ t, search, matches, bot, loopCaptionOf 
   // --- loop-foundation --- the "Loop style" draft: the page's mode and numbers in the loop clips' words (LoopCaption), shared by every platform
   const loopStyleDraft = (x: PublishClip): PublishDraft => {
     const words = (messages.LoopCaption ?? {}) as Record<string, string>;
-    const ctx = loopCaptionOf!;
-    const mode = (x.mode as LoopCaptionContext["mode"]) ?? ctx.mode;
+    // --- low-findings --- the clip's own run (its mode and numbers when it was made), not the page's settings of the moment
+    const ctx = clipLoopCaptionContext(x, loopCaptionOf!);
+    const mode = ctx.mode;
     const hook = (words[ctx.hookKey] ?? "{count}").replace("{mode}", modeLabel(t, mode) ?? "");
     const fields = loopCaption({ mode, hook, count: ctx.count, fact: ctx.factKey ? (words[ctx.factKey] ?? "") : "", locale });
     return { ...emptyDraft(), ...fields };

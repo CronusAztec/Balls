@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { LOOP_CAPTION_BASE_TAGS, hasMentionOrCta, loopCaption, loopCaptionContext, loopHashtags, loopHook, stripCallsToAction, stripMentions } from "@/lib/publish/loopCaption";
+import { LOOP_CAPTION_BASE_TAGS, clipLoopCaptionContext, hasMentionOrCta, loopCaption, loopCaptionContext, loopHashtags, loopHook, stripCallsToAction, stripMentions } from "@/lib/publish/loopCaption";
+import { offerPublishClip } from "@/lib/publish/clips"; // --- low-findings ---
 import { defaultSettings } from "@/lib/settings";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
@@ -67,5 +68,42 @@ describe("Loop style captions", () => {
     expect(Object.keys(es.LoopCaption).sort()).toEqual(Object.keys(en.LoopCaption).sort());
     // without a fact the caption is the hook alone
     expect(loopCaption({ mode: "grow", hook: "{count} bounces", count: 9 }).caption).toBe("9 bounces 🔊");
+  });
+});
+
+// --- low-findings --- the Loop style caption follows the clip (its run's mode and numbers), not the page's settings of the moment
+describe("--- low-findings --- a clip's loop-style words", () => {
+  const growMultiply = { ...defaultSettings("grow"), growLaw: "multiply" as const, growStep: 11, recordingDuration: 40 };
+  const growAdd = { ...defaultSettings("grow"), growLaw: "add" as const, growStep: 3, recordingDuration: 25 };
+  const classic = { ...defaultSettings("classic"), recordingDuration: 20 };
+
+  it("keeps the words of the run a clip was made of when the page has moved on", () => {
+    // a Classic recording, the page since switched to Grow multiply: no "11 % bigger every bounce" for a Classic clip
+    const classicClip = { mode: "classic", durationSec: 21.4, loopCaption: loopCaptionContext(classic) };
+    expect(clipLoopCaptionContext(classicClip, loopCaptionContext(growMultiply))).toEqual({ mode: "classic", hookKey: "seconds", factKey: "", count: 21 });
+    // a Grow multiply clip, the page now on Grow add 3 px: still 11 % a bounce, with its fact
+    const growClip = { mode: "grow", durationSec: 38.53, loopCaption: loopCaptionContext(growMultiply) };
+    expect(clipLoopCaptionContext(growClip, loopCaptionContext(growAdd))).toEqual({ mode: "grow", hookKey: "growMultiply", factKey: "growMultiplyFact", count: 11 });
+  });
+
+  it("counts a clip's own seconds, never the page's clip length of the moment", () => {
+    const fast = { mode: "classic", durationSec: 38.53, loopCaption: loopCaptionContext({ ...classic, recordingDuration: 40 }) };
+    expect(clipLoopCaptionContext(fast, loopCaptionContext({ ...classic, recordingDuration: 90 })).count).toBe(39);
+    // a recording whose length is not read yet: the seconds it was made with
+    expect(clipLoopCaptionContext({ ...fast, durationSec: null }, loopCaptionContext({ ...classic, recordingDuration: 90 })).count).toBe(40);
+  });
+
+  it("without words of its own: the page's for a clip of its mode or of no known mode, else that mode's seconds", () => {
+    const page = loopCaptionContext(growMultiply);
+    expect(clipLoopCaptionContext({ mode: null, durationSec: null }, page)).toEqual(page);
+    expect(clipLoopCaptionContext({ mode: "grow", durationSec: 12, loopCaption: null }, page)).toEqual(page);
+    expect(clipLoopCaptionContext({ mode: "hoops", durationSec: 14.6, loopCaption: null }, page)).toEqual({ mode: "hoops", hookKey: "seconds", factKey: "", count: 15 });
+    expect(clipLoopCaptionContext({ mode: "nope", durationSec: 9, loopCaption: null }, page)).toEqual(page);
+  });
+
+  it("is taken when the page offers the clip to the Publish block", () => {
+    const clip = offerPublishClip({ blob: new Blob(["x"], { type: "video/mp4" }), name: "c.mp4", source: "fast", durationSec: 38.53, mode: "grow", seed: 1, loopCaption: loopCaptionContext(growMultiply) });
+    expect(clip.loopCaption).toEqual(loopCaptionContext(growMultiply));
+    expect(offerPublishClip({ blob: new Blob(["x"], { type: "video/mp4" }), name: "d.mp4", source: "file" }).loopCaption).toBeNull();
   });
 });

@@ -122,19 +122,28 @@ export function loopHudLayout(width: number, height: number): LoopHudLayout {
 /** Half a HUD line's height, in font sizes (the band a line covers around its centre). */
 export const HUD_LINE_HALF = 0.6;
 
+/** --- low-findings --- The smallest line the live preview draws (px); a margin that cannot hold its band leaves the line out. */
+export const LIVE_HUD_MIN_SIZE = 10;
+
 /**
  * The live canvas' layout: the title in the margin above the ring (below `insetTop`, the page's buttons), the counter in the
  * margin below it; the subtitle only where the margin holds both lines (ruleY / subtitleY are then −1 when it does not).
+ * --- low-findings --- A margin thinner than the smallest line (`LIVE_HUD_MIN_SIZE` px, the em of its letters – a phone's
+ * square canvas has no margin at all above the ring under the page's buttons) leaves that line out of the preview:
+ * titleY (and the subtitle's) or counterY is then −1, and `drawLoopHud()` skips it – the line would sit on the ring. The
+ * recorder lays the export frame out by `loopHudLayout()`, so the clips carry every line.
  */
 export function loopHudLiveLayout(width: number, height: number, centerY: number, ring: number, insetTop = 0): LoopHudLayout {
   const base = loopHudLayout(width, height);
   const top = Math.max(0, centerY - ring - insetTop);
   const bottom = Math.max(0, height - (centerY + ring));
-  const titleSize = Math.max(10, Math.min(base.titleSize, 0.5 * top));
+  const titleSize = Math.max(LIVE_HUD_MIN_SIZE, Math.min(base.titleSize, 0.5 * top));
   const subtitleSize = Math.max(8, Math.min(base.subtitleSize, 0.5 * titleSize));
-  const counterSize = Math.max(10, Math.min(base.counterSize, 0.5 * bottom));
-  const roomForSubtitle = top >= 2.2 * titleSize + 2 * subtitleSize;
-  const titleY = insetTop + (roomForSubtitle ? 0.15 * top + 0.5 * titleSize : top / 2);
+  const counterSize = Math.max(LIVE_HUD_MIN_SIZE, Math.min(base.counterSize, 0.5 * bottom));
+  const titleFits = top >= LIVE_HUD_MIN_SIZE;
+  const counterFits = bottom >= LIVE_HUD_MIN_SIZE;
+  const roomForSubtitle = titleFits && top >= 2.2 * titleSize + 2 * subtitleSize;
+  const titleY = !titleFits ? -1 : insetTop + (roomForSubtitle ? 0.15 * top + 0.5 * titleSize : top / 2);
   const ruleY = roomForSubtitle ? titleY + 0.66 * titleSize : -1;
   return {
     ...base,
@@ -144,7 +153,7 @@ export function loopHudLiveLayout(width: number, height: number, centerY: number
     ruleWidth: Math.min(0.42 * width, 5 * titleSize),
     subtitleY: roomForSubtitle ? ruleY + 0.95 * subtitleSize : -1,
     subtitleSize,
-    counterY: centerY + ring + bottom / 2,
+    counterY: counterFits ? centerY + ring + bottom / 2 : -1,
     counterSize,
   };
 }
@@ -152,7 +161,9 @@ export function loopHudLiveLayout(width: number, height: number, centerY: number
 /** The rectangles (px) the HUD's lines may cover in a frame, for a line `textWidth` px wide at most (the watermark's tests). */
 export function loopHudRects(layout: LoopHudLayout, width: number, subtitle: boolean, subtitleLineCount = 1 /* --- chord-stars --- */): { x: number; y: number; width: number; height: number }[] {
   const line = (y: number, size: number) => ({ x: (width - layout.maxWidth) / 2, y: y - HUD_LINE_HALF * size, width: layout.maxWidth, height: 2 * HUD_LINE_HALF * size });
-  const out = [line(layout.titleY, layout.titleSize), line(layout.counterY, layout.counterSize)];
+  const out: { x: number; y: number; width: number; height: number }[] = [];
+  if (layout.titleY >= 0) out.push(line(layout.titleY, layout.titleSize)); // --- low-findings --- (a line the live preview left out covers nothing)
+  if (layout.counterY >= 0) out.push(line(layout.counterY, layout.counterSize));
   if (subtitle && layout.subtitleY >= 0) for (let i = 0; i < Math.max(1, subtitleLineCount); i++) out.push(line(layout.subtitleY + i * HUD_SUBTITLE_LEADING * layout.subtitleSize, layout.subtitleSize));
   return out;
 }
@@ -171,9 +182,9 @@ export interface LoopHudBands {
 export function loopHudBands(layout: LoopHudLayout, frame: LoopHudFrame, out: LoopHudBands = { top: -Infinity, bottom: Infinity }): LoopHudBands {
   out.top = -Infinity;
   out.bottom = Infinity;
-  if (frame.title) out.top = layout.titleY + HUD_LINE_HALF * layout.titleSize;
+  if (frame.title && layout.titleY >= 0) out.top = layout.titleY + HUD_LINE_HALF * layout.titleSize; // --- low-findings --- (left out: no band)
   if (frame.subtitle && layout.subtitleY >= 0) out.top = Math.max(out.top, layout.subtitleY + (subtitleLines(frame.subtitle).length - 1) * HUD_SUBTITLE_LEADING * layout.subtitleSize + HUD_LINE_HALF * layout.subtitleSize); // --- chord-stars --- (a second line lower)
-  if (frame.counter) out.bottom = layout.counterY - HUD_LINE_HALF * layout.counterSize;
+  if (frame.counter && layout.counterY >= 0) out.bottom = layout.counterY - HUD_LINE_HALF * layout.counterSize;
   return out;
 }
 
@@ -293,7 +304,8 @@ export function drawLoopHud(ctx: CanvasRenderingContext2D, width: number, frame:
   ctx.shadowColor = "transparent";
   ctx.shadowBlur = 0;
   ctx.globalAlpha = 1;
-  if (frame.title) {
+  if (frame.title && layout.titleY >= 0) {
+    // --- low-findings --- (−1: the live preview's margin has no room for it)
     ctx.fillStyle = frame.light ? LOOP_HUD_TITLE_DARK : "#ffffff";
     fitLine(ctx, frame.title, cx, layout.titleY, layout.titleSize, "800", layout.maxWidth);
   }
@@ -310,7 +322,7 @@ export function drawLoopHud(ctx: CanvasRenderingContext2D, width: number, frame:
     const lines = subtitleLines(frame.subtitle);
     lines.forEach((line, i) => fitLine(ctx, line, cx, layout.subtitleY + i * HUD_SUBTITLE_LEADING * layout.subtitleSize, layout.subtitleSize, "500", layout.maxWidth));
   }
-  if (frame.counter) {
+  if (frame.counter && layout.counterY >= 0) {
     ctx.fillStyle = frame.light ? LOOP_HUD_GREY_LIGHT : LOOP_HUD_AMBER;
     fitLine(ctx, frame.counter, cx, layout.counterY, layout.counterSize, "700", layout.maxWidth);
   }

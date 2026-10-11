@@ -102,3 +102,27 @@ export class WholeLoopCut {
     return recordSec >= this.limit - 1e-9 ? "stop" : "record";
   }
 }
+
+/**
+ * --- low-findings --- Resolves once the canvas has drawn a frame after the `before`-th (its `framesDrawn()` count), or after
+ * `capMs` at most (a hidden tab draws nothing): a whole-loop recording holds the run at its seam (`holdRun()`) and waits for
+ * the canvas to show it before the recorder copies its first frame.
+ */
+export function waitForDrawnFrame(drawn: () => number, before: number, capMs: number): Promise<void> {
+  return new Promise((resolve) => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      resolve();
+    };
+    const timer = setTimeout(finish, capMs); // (a hidden tab runs no animation frames at all)
+    const tick = () => {
+      if (done) return;
+      if (drawn() > before) finish();
+      else requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
