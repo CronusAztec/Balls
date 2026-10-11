@@ -9,6 +9,10 @@ import { batchZipBase } from "@/lib/recording/batch";
 import { PROJECT_EXTENSION, projectFileName } from "@/lib/project";
 import { clipFileName } from "@/lib/publish/clips";
 import { scheduleMarkdown } from "@/lib/bot/output";
+// --- fl-overhaul --- (Stage 7) the README's Fight League tables against the code
+import { rosterTableMarkdown, fightersOf, FL_DIVISIONS } from "@/lib/physics/modes/fightLeagueRoster";
+import { flKindsTableMarkdown, flPrimitivesTableMarkdown, flSettingsTableMarkdown, flUrlField } from "@/lib/physics/modes/fightLeagueDocs";
+import { FIGHT_LEAGUE_URL_KEYS } from "@/lib/physics/modes/fightLeague";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -175,7 +179,7 @@ describe("rebrand: the name comes from SITE_NAME", () => {
         .filter((l) => !/^\s*(\/\/|\/\*|\*)/.test(l));
       for (const line of code) expect(literal.test(line), `${file}: ${line.trim()}`).toBe(false);
     }
-  });
+  }, 30_000); // (--- fl-overhaul --- Stage 7: every source file read – room on a loaded machine, where 5 s ran out)
 
   it("no message writes the site name out: every locale says {siteName}", () => {
     for (const [locale, catalog] of Object.entries(CATALOGS)) {
@@ -222,3 +226,56 @@ describe("code comments name things that exist", () => {
     for (const name of names) expect(source, name).toMatch(new RegExp(`^\\s*(export\\s+)?(function\\s+)?${name}\\s*\\(`, "m"));
   });
 });
+
+/* ------------------------------------------------------------------ --- fl-overhaul --- (Stage 7) the Fight League section */
+
+/** The README's text between `<!-- name -->` and `<!-- /name -->` (each on its own line), without the markers. */
+function readmeBlock(name: string): string {
+  const open = `<!-- ${name} -->\n`;
+  const a = README.indexOf(open);
+  const b = a < 0 ? -1 : README.indexOf(`\n<!-- /${name} -->`, a + open.length - 1);
+  expect([name, a >= 0 && b >= 0]).toEqual([name, true]);
+  return README.slice(a + open.length, b);
+}
+
+describe("README vs code: the Fight League section (scripts/fl-readme.mjs, scripts/fl-balance.mjs --reuse --readme)", () => {
+  it("the roster table between the fl-roster markers is rosterTableMarkdown() – 147 rows with the role, new and look columns", () => {
+    const table = readmeBlock("fl-roster");
+    expect(table).toBe(rosterTableMarkdown());
+    const rows = table.split("\n").slice(2);
+    expect(rows).toHaveLength(147);
+    expect(table.split("\n")[0]).toMatch(/\| Role \| New \| Look \|$/);
+  });
+
+  it("the kinds, primitives and settings tables are the code's (fightLeagueDocs.ts)", () => {
+    expect(readmeBlock("fl-kinds")).toBe(flKindsTableMarkdown());
+    expect(readmeBlock("fl-primitives")).toBe(flPrimitivesTableMarkdown());
+    expect(readmeBlock("fl-settings")).toBe(flSettingsTableMarkdown());
+    expect(readmeBlock("fl-kinds").split("\n").slice(2)).toHaveLength(21);
+    expect(readmeBlock("fl-primitives").split("\n").slice(2)).toHaveLength(26);
+    // every URL key of the feature has its row (a new key needs its field in fightLeagueDocs.ts)
+    for (const key of FIGHT_LEAGUE_URL_KEYS) {
+      expect([key, flUrlField(key) !== undefined]).toEqual([key, true]);
+      expect(readmeBlock("fl-settings"), key).toContain(`| \`${key}\` |`);
+    }
+  });
+
+  it("the tuner's balance table between the fl-balance markers names every division with its fighters", () => {
+    const rows = readmeBlock("fl-balance").split("\n").slice(2);
+    const tunable = FL_DIVISIONS.filter((d) => d !== "wildcard");
+    expect(rows.map((r) => r.split("|")[1].trim())).toEqual(tunable);
+    rows.forEach((r, i) => expect([tunable[i], Number(r.split("|")[2])]).toEqual([tunable[i], fightersOf(tunable[i]).length]));
+  });
+
+  it("follows the outline: 17 numbered parts, the research note, the disclaimer and the release notes for old links", () => {
+    const start = README.indexOf("### Fight League (the ballthingsim family)");
+    const section = README.slice(start, README.indexOf("\n### ", start + 5));
+    const parts = [...section.matchAll(/^#### (\d+)\. /gm)].map((m) => Number(m[1]));
+    expect(parts).toEqual(Array.from({ length: 17 }, (_, i) => i + 1));
+    expect(section).toContain("Research (Instagram only): the account ballthingsim posts square \"Ball Fight League\" duels");
+    expect(section).toContain("Character names belong to their respective owners; this is an unaffiliated fan simulation.");
+    for (const note of ["`flSD=0`", "`flSt=theme`", "an old found seed replays a different fight", "`data-fl-render-ms`", "The rights note"]) expect(section).toContain(note);
+    expect(readmeLine("| **Fight League** |")).toContain("147 fighters in 19 divisions and 5 conferences");
+  });
+});
+

@@ -205,6 +205,11 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   // --- ellipse-foci --- Focus Shot: the volley's balls (full engine balls pinned to the clock – the board's ball ceiling – each with a
   // ring of EF_VERTEX_CAP corners for its trail and path)
   efCount: BOARD_BALL_CEILING,
+  // --- fl-overhaul --- (Stage 5) Fight League's shows: a bracket's entrants and a boss rush's challengers (a row and a bout each;
+  // `FL_ENTRANT_CEILING` of lib/physics/modes/fightLeagueShow.ts – a test keeps them equal)
+  flBracketSize: 256,
+  flBossWaves: 256,
+  // --- end fl-overhaul ---
   // --- beat-machine --- Beat Machines: the steps a staircase builds, the bars (each a tube of marbles), the marbles a tube holds
   // at least (the engine balls stop at BOARD_BALL_CEILING in the mode; the plan draws every marble) and the loop's beats (the
   // phrase's notes, each a planned trip)

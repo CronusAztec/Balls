@@ -39,7 +39,7 @@ import { MODE_BLOCK_KEYS } from "@/components/simulator/panelKeys";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import { MEMORY_CEILINGS, ENTITY_CEILING } from "@/lib/uncap";
-import { RANGES, defaultSettings, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { RANGES, defaultSettings, engineSettingKeys, inactiveEngineKeys, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams, uncappedEngaged, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings, fixedRunDurationSec, runNeverFinishes, simulateOutcomeRun, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
 import { availableOutcomes, fanOutcomeSettled, outcomeFigure, outcomeHorizonMs, outcomeMatches, outcomeMiss, type FinderOutcome, type RunSummary } from "@/lib/simulation/outcomes";
 import { LOOP_HUD_AMBER, LOOP_HUD_GREY, drawLoopHud, loopHudCount, loopHudFrame, loopHudLayout } from "@/lib/loop/hud";
@@ -558,6 +558,60 @@ describe("Chaos fan: settings, presets and links", () => {
     // a preset survives presetToSettings as typed
     const p = presetToSettings({ mode: "doublePendulum", ...chaosFanPresetFields("threads") });
     expect(p).toMatchObject({ dpFan: true, dpFanCount: 1000, dpSpreadDeg: 0.0001 });
+  });
+
+  // --- chaos-fan --- (review fix) the rig the run does not build reads none of its keys: no ⚡ machinery, no ARENA FULL from it
+  it("engage No limits and ARENA FULL from the rig the run builds only (a harp run ignores the fan's numbers, a fan run the harp's)", () => {
+    const of = (query: string) => settingsFromSearchParams(new URLSearchParams(`mode=doublePendulum&${query}`));
+    const flags = (s: SimulatorSettings) => [uncappedEngaged(s), pastAnyMemoryCeiling(s), physicsConfigOfSettings(s).unlimited ?? false];
+    // the harp rig (the fan off) with a fan count past its slider – and past its memory-safety ceiling – engages nothing
+    expect(flags(of("dpfn=6000"))).toEqual([false, false, false]);
+    expect(flags(of("dpf=0&dpfn=1000"))).toEqual([false, false, false]);
+    expect(flags(of("dpf=0&dpfs=5"))).toEqual([false, false, false]);
+    // the same numbers with the fan on: it builds them
+    expect(flags(of("dpf=1&dpfn=6000"))).toEqual([true, true, true]);
+    expect(flags(of("dpf=1&dpfn=1000"))).toEqual([true, false, true]);
+    expect(flags(of("dpf=1&dpfs=5"))).toEqual([true, false, true]);
+    expect(flags(of("dpf=1&dpfn=200"))).toEqual([false, false, false]);
+    // every fan number past its slider: the harp rig ignores it, the fan engages
+    for (const [key, range] of Object.entries(CHAOS_FAN_RANGES)) {
+      const far = { [key]: range.max * 10 + 1 };
+      expect([key, uncappedEngaged({ ...defaultSettings("doublePendulum"), ...far, dpFan: false })]).toEqual([key, false]);
+      expect([key, uncappedEngaged({ ...defaultSettings("doublePendulum"), ...far, dpFan: true })]).toEqual([key, true]);
+    }
+    // the realistic path: the 1,000 threads preset, then the fan switched off to go back to the harp
+    const threads = presetToSettings({ mode: "doublePendulum", ...chaosFanPresetFields("threads") });
+    expect(uncappedEngaged(threads)).toBe(true);
+    expect(flags({ ...threads, dpFan: false })).toEqual([false, false, false]);
+    // the reverse: the harp rig's own numbers (the pendulum count, the arms and the third arm, the trail, the strings, the
+    // octaves) past their sliders engage the harp run, never the fan's two-arm batch
+    const harpOnly = { dpCount: 50, dpSegments: 8, dpLength3: 9, dpMass3: 90, dpAngle3: 900, dpTrailSeconds: 100, dpStrings: 100, dpOctaves: 10 };
+    for (const [key, value] of Object.entries(harpOnly)) {
+      expect([key, uncappedEngaged({ ...defaultSettings("doublePendulum"), [key]: value, dpFan: false })]).toEqual([key, true]);
+      expect([key, uncappedEngaged({ ...defaultSettings("doublePendulum"), [key]: value, dpFan: true })]).toEqual([key, false]);
+    }
+    expect(flags(of("dpf=1&dpst=100"))).toEqual([false, false, false]);
+    expect(flags(of("dpst=100"))).toEqual([true, false, true]);
+    expect(flags(of("dpf=1&dpn=1000000"))).toEqual([false, false, false]);
+    expect(flags(of("dpn=1000000"))).toEqual([true, true, true]);
+    // what both rigs read (the first two arms, gravity, friction, the core physics) engages either way
+    for (const dpFan of [false, true]) {
+      for (const patch of [{ dpLength1: 9 }, { dpMass2: 90 }, { dpGravity: 30 }, { dpDamping: 0.5 }, { ballSpeed: 1e6 }]) {
+        expect([dpFan, patch, uncappedEngaged({ ...defaultSettings("doublePendulum"), ...patch, dpFan })]).toEqual([dpFan, patch, true]);
+      }
+    }
+    // the skipped keys are the mode's own engine keys (a renamed range fails here), and no other mode skips any
+    for (const dpFan of [false, true]) {
+      const inactive = [...inactiveEngineKeys({ mode: "doublePendulum", dpFan })];
+      expect(inactive.length).toBeGreaterThan(0);
+      for (const key of inactive) {
+        expect(engineSettingKeys("doublePendulum")).toContain(key);
+        expect(DOUBLE_PENDULUM_RANGES).toHaveProperty(key);
+      }
+    }
+    expect([...inactiveEngineKeys({ mode: "doublePendulum", dpFan: false })].sort()).toEqual(Object.keys(CHAOS_FAN_RANGES).sort());
+    for (const mode of ["classic", "pendulum", "hoops"] as const) expect(inactiveEngineKeys({ ...defaultSettings(mode), dpFan: true }).size).toBe(0);
+    expect(flags(defaultSettings("doublePendulum"))).toEqual([false, false, false]);
   });
 
   it("the panel's keys reach the search box and the command palette, the spread reads naturally", () => {

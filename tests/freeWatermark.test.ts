@@ -28,6 +28,12 @@ import type { PhysicsEngine } from "@/lib/physics/engine";
 import { signForeignLicense, signTestLicense } from "../scripts/lib/test-license.mjs";
 import { drawsOf, fakeCanvas, fakeDocument, type FakeCanvas } from "./fakeCanvas";
 import { fakeGraph } from "./fakeAudio";
+// --- fl-overhaul --- (Stage 3) Fight League's lilac stage in the export bars
+import { DEFAULT_FIGHT_LEAGUE_LABELS, FightLeagueLayer } from "@/components/simulator/fightLeagueRenderer";
+import { STAGE_PALETTES } from "@/components/simulator/fightLeague/palette";
+import { flContrast } from "@/lib/physics/modes/fightLeagueFx";
+import { probeEngine, probeRun } from "./flProbes";
+// --- end fl-overhaul ---
 
 /*
  * --- free-watermark --- Every video made without a verified Pro licence carries the watermark, drawn into its pixels.
@@ -646,3 +652,64 @@ describe("the compositor of every output path draws it", () => {
     expect(ffmpegArgs).not.toMatch(/crop=|delogo|drawbox|removelogo/);
   });
 });
+
+// --- fl-overhaul --- (Stage 3) Fight League paints its lilac stage into the export's bars (and the 9:16 plates) through the
+// compositor's background hook: under the square and under the mark – which stays where it is, drawn last, its ink readable.
+describe("the mark over Fight League's lilac stage (--- fl-overhaul ---)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("draws the tiles and the badge last and in place over the lilac bars and the plates; their dark rim reads on lilac", async () => {
+    storeLicence(null);
+    const seal = await sealWatermark();
+    vi.stubGlobal("document", fakeDocument());
+    const view = probeRun(probeEngine({}, 1), 4000); // Thor vs Loki, mid-fight
+    const layer = new FightLeagueLayer();
+    const opts = { dpr: 1, numbers: true, teamColors: null, teamBanner: false, labels: DEFAULT_FIGHT_LEAGUE_LABELS };
+    layer.drawStage(fakeCanvas(800, 450).ctx as unknown as CanvasRenderingContext2D, view, opts); // (the layer reads its view as it draws)
+    const compose = (staged: boolean) => {
+      const frame = fakeCanvas(1080, 1920);
+      const source = fakeCanvas(800, 450);
+      drawRecordingFrame(
+        frame.ctx as unknown as CanvasRenderingContext2D,
+        source as unknown as HTMLCanvasElement,
+        1080,
+        1920,
+        "#000",
+        { drawBackground: staged ? (c, w, h, crop) => layer.paintExportBackdrop(c, w, h, crop) : undefined },
+        recordingTextLayout(1080, 1920),
+        { seal, clipMs: 1000 },
+      );
+      const calls = frame.ctx.calls;
+      return { calls, draws: drawsOf(frame.ctx), sourceAt: calls.findIndex((c) => c.name === "drawImage" && c.args[0] === source) };
+    };
+    const plain = compose(false);
+    const lilac = compose(true);
+    expect(view.settings.stage).toBe("lilac");
+    expect(layer.platesShown).toBe(true);
+    // the bars: the lilac backdrop (pre-rendered once: its gradient on its own canvas) blitted above and below the square,
+    // the plates over it – all of it before the square is drawn
+    const stage = lilac.draws.filter((d) => lilac.calls.indexOf(d) < lilac.sourceAt);
+    const bars = stage.filter((d) => (d.args[0] as FakeCanvas).ctx.calls.some((c) => c.name === "createLinearGradient"));
+    const plates = stage.filter((d) => !bars.includes(d));
+    expect(bars.map((d) => d.args.slice(5))).toEqual([
+      [0, 0, 1080, 420],
+      [0, 1500, 1080, 420],
+    ]);
+    expect(plates.length).toBeGreaterThanOrEqual(3);
+    // the mark: the same two images, after the square and everything else, where they are without the stage
+    const mark = (draws: typeof lilac.draws) => draws.slice(-2).map((d) => d.args.slice(1));
+    expect(lilac.draws.length).toBe(plain.draws.length + stage.length);
+    expect(mark(lilac.draws)).toEqual(mark(plain.draws));
+    const tilesAt = lilac.calls.indexOf(lilac.draws[lilac.draws.length - 2]);
+    expect(tilesAt).toBeGreaterThan(lilac.sourceAt);
+    expect(lilac.calls.slice(tilesAt).filter((c) => c.name === "fillRect" || c.name === "fillText")).toHaveLength(0);
+    // the tiles' ink: a dark rim under a light fill – the rim holds 7:1 on both stops of the lilac gradient
+    const layerCanvas = lilac.draws[lilac.draws.length - 2].args[0] as FakeCanvas;
+    const tile = (layerCanvas.ctx.fillStyle as { pattern?: FakeCanvas }).pattern;
+    expect(tile).toBeDefined();
+    const rim = String(tile!.ctx.strokeStyle);
+    const { backdropTop, backdropBottom } = STAGE_PALETTES.lilac;
+    for (const stop of [backdropTop, backdropBottom]) expect(flContrast(rim, String(stop))).toBeGreaterThanOrEqual(7);
+  });
+});
+// --- end fl-overhaul ---

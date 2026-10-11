@@ -41,7 +41,7 @@ export const CORE_SETTING_KEYS: readonly string[] = [
  * most (1,700 for a Fight League request), where 1.0.2 listed every setting for ~3,800; past it the block's settings the
  * request does not point at give way first.
  */
-export const MAX_RELEVANT_SETTINGS = 64;
+export const MAX_RELEVANT_SETTINGS = 76; // --- fl-overhaul --- (Stage 5) was 64: Fight League's block (58 – six slots, the shows) with the 18 core settings is the biggest page now (~2,600 tokens)
 
 /** Concepts in a request (English, Polish and Spanish word stems) → words that settings' keys and descriptions use. */
 const CONCEPTS: readonly (readonly [RegExp, readonly string[]])[] = [
