@@ -790,3 +790,35 @@ describe("the Fight League recipes", () => {
     expect(matchupEpisode(recipeById("ring-escape")!, "x", 40)).toBe(1);
   });
 });
+
+
+// --- fl-overhaul --- (Stage 6) the day plans of the pinned dates (the daily job's: 3 clips, every family, the Reels bucket),
+// re-recorded when the battle rotation gained the four Fight League recipes
+describe("the day plans of the pinned dates", () => {
+  const PINNED: readonly [string, readonly string[]][] = [
+    ["2026-10-02", ["clone-per-pass", "glass-smash", "square-race"]],
+    ["2026-10-03", ["pendulum-wave", "maze-race", "multipliers-board"]],
+    ["2026-10-04", ["fight-duel", "power-layers", "polyrhythm"]],
+    ["2026-10-05", ["ring-escape", "drop-symphony", "fight-upset"]],
+    ["2026-10-06", ["glass-smash", "territory", "pip-escape"]],
+    ["2026-10-07", ["fight-boss", "grow-fill", "pendulum-wave"]],
+    ["2026-10-08", ["clone-per-pass", "polyrhythm", "square-race"]],
+    ["2026-10-09", ["drop-symphony", "string-battle", "multipliers-board"]],
+    ["2026-10-10", ["fight-duel", "power-layers", "glass-smash"]],
+    ["2026-10-11", ["ring-escape", "pendulum-wave", "battle-royale"]],
+  ];
+
+  it("plans the recorded recipes for every pinned date (the slots, and planDay without a search)", () => {
+    for (const [date, ids] of PINNED) {
+      expect(daySlots(dayIndexOf(date), 3, "all", "", "standard").map((s) => s.recipe.id), date).toEqual(ids);
+      expect(planDay(date, "reels", 3, { copy, search: false }).clips.map((c) => c.recipe), date).toEqual(ids);
+    }
+  });
+
+  it("brings a Fight League recipe into every week of the rotation", () => {
+    for (let start = 0; start < 60; start++) {
+      const week = Array.from({ length: 7 }, (_, k) => daySlots(start + k, 3, "all", "", "standard")).flat();
+      expect(week.some((s) => s.recipe.id.startsWith("fight-")), `week from day ${start}`).toBe(true);
+    }
+  });
+});
