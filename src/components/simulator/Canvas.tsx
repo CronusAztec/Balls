@@ -101,6 +101,7 @@ import { DEFAULT_STRING_CIRCLE_LABELS, STRING_CIRCLE_DATA_KEYS, StringCircleLaye
 import { LiveHud, primeLiveWatermark, stampLiveFrame, type LiveFrame } from "@/lib/watermark/live";
 import { noteCornerReadouts, noteEdgeText, noteHomeCounter, noteJourneyHud, noteRaceHud, noteRhythmBand, noteTitleBlock, type HudSquare } from "./liveMarkHud";
 import { GROW_DATA_KEYS, GrowLayer, writeGrowDataset, type GrowLook } from "./growRenderer"; // --- loop-foundation ---
+import { COLOUR_SORT_DATA_KEYS, ColourSortLayer, writeColourSortDataset, type ColourSortRenderOptions } from "./colourSortRenderer"; // --- colour-sort ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -937,6 +938,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const lcRender: LandClaimRenderOptions = { dpr: scale /* --- world --- device px per world px */, roster: NO_ROSTER, showNames: false, showTrails: true, wallThickness: 2, labels: DEFAULT_LAND_CLAIM_LABELS, nowMs: 0 };
     const lcBodyColor = (ball: Ball) => lcLayer.colorOf(ball.team ?? 0);
     const growLayer = new GrowLayer(); // --- loop-foundation --- Grow's colour by size, contact markers and the loop's solid disc
+    // --- colour-sort --- Colour Sort's layer (the band tints, the neon rings and pins, the refusal flashes) and its options
+    const csLayer = new ColourSortLayer();
+    const csRender: ColourSortRenderOptions = { showWallGlow: true, nowMs: 0 };
     const loopHudLive = { top: -Infinity, bottom: Infinity }; // --- loop-foundation --- the bands of the loop HUD this frame drew (the live watermark keeps clear of them)
     // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
     const frameBudget = new FrameBudget();
@@ -1596,6 +1600,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         lcRender.labels = (labelsRef.current ?? DEFAULT_LABELS).landClaim ?? DEFAULT_LAND_CLAIM_LABELS;
         lcRender.nowMs = engine.getElapsedMs();
         lcLayer.drawStage(ctx, lcView, lcRender);
+      }
+      // --- colour-sort --- Colour Sort: the band tints, the neon rings with their pins, the outer wall and the refusal flashes
+      // (under the balls, which the shared ball pass draws in their colours)
+      const csView = engine.isColourSortMode() ? engine.getColourSortView() : null;
+      if (csView) {
+        csRender.showWallGlow = p.showWallGlow;
+        csRender.nowMs = engine.getElapsedMs();
+        csLayer.drawStage(ctx, csView, csRender);
       }
 
       // --- odd-maze --- Maze: the near-black field, the painted trail, the glowing walls (flaring where hit) and the fog.
@@ -3369,6 +3381,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- loop-foundation --- Grow's run (data-grow-*) and the loop contract's cycle and seams of any looping run (data-loop-*)
       if (growView) writeGrowDataset(growView, engine.getBalls(), setCanvasData);
       else if (canvas.dataset.growLaw !== undefined) for (const key of GROW_DATA_KEYS) delete canvas.dataset[key];
+      // --- colour-sort --- the phase, the census, the loop's counts and the checks (data-cs-*)
+      if (csView) writeColourSortDataset(csView, setCanvasData);
+      else if (canvas.dataset.csPhase !== undefined) for (const key of COLOUR_SORT_DATA_KEYS) delete canvas.dataset[key];
       const loopSeams = engine.getLoopSeams();
       if (loopSeams) {
         const cycle = engine.getCycleSeconds();

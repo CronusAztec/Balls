@@ -11,6 +11,9 @@ import { badgeMetrics, badgeZone, exportSquare } from "@/lib/watermark/layout";
  *
  * The words: the settings' own title and subtitle, else the mode's (`LOOP_HUD_MODE_TEXT`, translated under `LoopHud`; any other
  * mode's title is its name). The counter is the mode's (`loopHudCount()`: Grow's bounces in the current cycle).
+ *
+ * --- colour-sort --- Colour Sort counts its sorted balls ("n / 360 sorted"); while its remix runs there is no count and the
+ * counter's line shows the spec's `alt` words instead ("mixing again").
  */
 
 export const LOOP_HUD_AMBER = "#f2c46a";
@@ -37,6 +40,8 @@ export interface LoopHudSpec {
   subtitle: string;
   counter: string;
   light: boolean;
+  /** --- colour-sort --- The counter's line while the mode has no count (Colour Sort's remix: "mixing again"); absent: no line then. */
+  alt?: string;
 }
 
 /** Translation keys (namespace `LoopHud`) of the modes with words of their own; any other mode's title is its name. */
@@ -186,12 +191,19 @@ export function hudCounterText(template: string, count: number | null, locale?: 
 
 /** The counter of the mode's run (Grow: the bounces of the current cycle), or null when the mode has none. */
 export function loopHudCount(engine: { getCurrentModeName(): string; getGrowView(): { bounces: number } }): number | null {
+  // --- colour-sort --- the balls in their own bands; none while the remix runs (the counter's line then says the spec's `alt`)
+  const colourSort = (engine as { getColourSortView?: () => { sorted: number; phase: string } }).getColourSortView;
+  if (colourSort && engine.getCurrentModeName() === "colourSort") {
+    const view = colourSort.call(engine);
+    return view.phase === "remix" ? null : view.sorted;
+  }
+  // --- end colour-sort ---
   return engine.getCurrentModeName() === "grow" ? engine.getGrowView().bounces : null;
 }
 
 /** One frame of the HUD from the page's words and the run's counter. */
 export function loopHudFrame(spec: LoopHudSpec, count: number | null, locale?: string): LoopHudFrame {
-  return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudCounterText(spec.counter, count, locale), light: spec.light };
+  return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: count === null && spec.alt ? hudText(spec.alt, locale) /* --- colour-sort --- */ : hudCounterText(spec.counter, count, locale), light: spec.light };
 }
 
 /** Draws one line centred at (`x`, `y`), shrunk to `maxWidth` when it is wider. */

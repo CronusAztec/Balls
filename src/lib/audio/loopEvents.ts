@@ -30,5 +30,7 @@ export interface LoopPlayOptions {
 
 /** The `playLoop()` options a loop sound event carries (its duration, glide target, brightness, chord; `accent` = a last step). */
 export function loopPlayOptions(ev: SoundEvent): LoopPlayOptions {
+  // --- colour-sort --- (the completion chord's tremolo and minor colour ride along when the event asks for them)
+  if (ev.loopTremolo || ev.loopMinor) return { durationSec: ev.loopSec, toFrequency: ev.loopTo, bright: ev.loopBright, chord: ev.chord, last: ev.accent, tremolo: ev.loopTremolo, minor: ev.loopMinor };
   return { durationSec: ev.loopSec, toFrequency: ev.loopTo, bright: ev.loopBright, chord: ev.chord, last: ev.accent };
 }

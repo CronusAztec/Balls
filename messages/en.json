@@ -1967,7 +1967,8 @@
     "loopClipReplace": "Replace",
     "loopClipClear": "Clear",
     "loopClipGain": "{slot} clip level",
-    "loopClipFailed": "This file could not be decoded – try an MP3, WAV, OGG or M4A."
+    "loopClipFailed": "This file could not be decoded – try an MP3, WAV, OGG or M4A.",
+    "modeColourSort": "Colour Sort"
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -2114,6 +2115,10 @@
     "landClaim": {
       "name": "Land Claim",
       "description": "Columns of blocks line a square, hexagon or circle arena; colour balls knock the top blocks off, every eighth block spawns another ball, and the most blocks wins – DOMINATION or SUCH A CLOSE BATTLE."
+    },
+    "colourSort": {
+      "name": "Colour Sort",
+      "description": "360 balls in four colours start packed in the core of a bullseye of turning rings; every ring's gates open only outwards and never for the ring's own colour, so the balls sort themselves into their bands – then they mix again and the loop starts over."
     }
   },
   "FAQ": {
@@ -2233,7 +2238,8 @@
     "modeConveyor": "A conveyor belt runs across the top of the field and drops a ball into the arena below every few seconds – Gerald respawns, again and again. Pick the arena: concentric rings with rotating gaps that every ball has to escape on its own (the rings never break, and a second belt carries the escaped balls out of the field), a bowl that fills up until it spills over, or a peg field that sorts the balls into bins. Freeze on Landing turns every ball that lands into an obstacle for the next one, so the pile grows; Variety mixes sizes and colours. Every bounce is a note of your scale, the belt hums and clicks, and the counter keeps score – Loaded 17 / Escaped 4. In Classic and Multiply the same respawn timer drops in a new ball every few seconds. Seeded and deterministic, so Find Simulation can pick a run of your clip length.",
     "modeOrbGrid": "A field of orbs – a square grid, a disc, octagon rings or a hex grid, 33 × 33 = 1089 by default and no upper limit – seen in perspective on a slab or a round plate, every orb bouncing straight up and down on its own spot. In the rhythm model (the default) each orb is an ideal bouncer that keeps its height forever: the field splits into groups – rows, columns, rings, diagonals, a checkerboard or every orb alone – that bounce a whole number of times per cycle: a pendulum wave, 3 against 2, 4 against 3, 3:4:5, a Euclidean ladder, corner to corner or centre outwards. The heights form a travelling wave that morphs through ripples and groups, and at the end of every cycle every orb lands together – IN PHASE. A metronome keeps the beat with a woodblock click and a swinging bar, a pulsing ring or a hopping dot, the cycle snapping to whole bars, and with Melody on every group plays its own note of the scale. The decay model lets the orbs lose energy instead: one property varies across the field – bounciness, drop height, release delay, size, gravity or period – they drift in and out of phase until they rest, and Find Simulation can pick a run of your clip length. Colour them by height, make them glossy, metallic, matte or glass; every landing is a soft note, a sleep sound, a melody composed by the bounces or metal clinks.",
     "modeFightLeague": "Fighters from video games, comics, TV shows and movies – Thor, Loki, Captain Falcon, Little Mac, Yuumi, Katarina and fifty-odd more, grouped into divisions so a matchup stays in its genre – duel as balls in a square or round arena. Every fighter carries its own weapon, drawn as a simple vector silhouette: swords sweep on every bounce, hammers fly at the foe and come back, fists punch, guns, bows and wands fire, breath and beams burn. A hit takes HP – the number inside the ball and the bar under it – knocks the foe back and charges the ability meter in the box at the bottom; when it is full, the ability's name flashes for 0.4 s and it fires by itself: lightning, decoys, beams, chokes, shockwaves, summons, bullet time. Play 1v1, 2v2 or a free-for-all; the last fighter or team standing wins, or the side with more HP at the time cap. Seeded and deterministic: Find Simulation finds a run A or B wins, a double KO or a fight of your clip length – and the Forced Winner rigs it.",
-    "modeLandClaim": "A land-claim battle: columns of blocks stand on the inside of a square, hexagon or circle wall, and two or more competitors – a Teams roster of countries gives them their flags, names and colours – bounce their balls around inside at a constant speed. Under the knock rule a ball that hits a column takes its top block: the block flies off in the hitter's colour and counts for it, and every eighth block a competitor knocks adds another ball of its colour at the knock point, so a lead snowballs into a swarm. The claim rule paints the blocks where they stand instead, and the steal rule lets a hit take a rival's block back – the land sways until the clock runs out. The battle ends when the wall is taken or at its duration, and the most blocks wins: DOMINATION past 60% of the land, SUCH A CLOSE BATTLE when the top two are within 5%. Every seed replays exactly, Find Simulation searches for a chosen winner, a close battle or a run that ends at a chosen second, and the Forced Winner favours a colour by aiming its rebounds at the land still to take."
+    "modeLandClaim": "A land-claim battle: columns of blocks stand on the inside of a square, hexagon or circle wall, and two or more competitors – a Teams roster of countries gives them their flags, names and colours – bounce their balls around inside at a constant speed. Under the knock rule a ball that hits a column takes its top block: the block flies off in the hitter's colour and counts for it, and every eighth block a competitor knocks adds another ball of its colour at the knock point, so a lead snowballs into a swarm. The claim rule paints the blocks where they stand instead, and the steal rule lets a hit take a rival's block back – the land sways until the clock runs out. The battle ends when the wall is taken or at its duration, and the most blocks wins: DOMINATION past 60% of the land, SUCH A CLOSE BATTLE when the top two are within 5%. Every seed replays exactly, Find Simulation searches for a chosen winner, a close battle or a run that ends at a chosen second, and the Forced Winner favours a colour by aiming its rebounds at the land still to take.",
+    "modeColourSort": "A sorting machine: 360 balls in four colours start packed in the red core of a bullseye of turning rings and move as a constant-speed gas. Every ring is a row of arcs with gates between them, and a gate is a one-way colour filter: it opens outwards only, and never for balls of the ring's own colour. So red can never leave the core, orange gets past the red ring but stops at its own, green makes it one ring further and blue goes all the way out to the outer band – the mix sorts itself into a bullseye while the amber counter climbs to 360 / 360 sorted with a long, suspenseful tail. Every gate pass plucks its colour's note in A major pentatonic, the last ball sorted lands a warm completion chord, and a remix pulls every ball back into the exact first frame under a soft noise wash, so a recording of whole cycles loops seamlessly. Pick the colours and the balls of each, the gates and their width, the rings' spin, the rule (or reverse it), contacts or a ghost gas for thousands of balls – and let Find Simulation search for a sort within a time limit, the colour that finishes last or a final ball on a bar line."
   },
   "Footer": {
     "navLabel": "Footer",
@@ -2588,7 +2594,29 @@
     "missFillOnBar": "Closest fill: {offset}s off a bar line ({seeds} seeds)",
     "overlayFillsBy": "Tested {tested} seeds: none filled the circle within {target}s. Try a bigger growth per bounce, a bigger start size or a faster ball.",
     "overlayNoFill": "Tested {tested} seeds: none filled the circle within the search. Try a bigger growth per bounce.",
-    "overlayFillOnBar": "Tested {tested} seeds: the closest fill landed {offset}s off a bar line. Try another BPM or growth per bounce."
+    "overlayFillOnBar": "Tested {tested} seeds: the closest fill landed {offset}s off a bar line. Try another BPM or growth per bounce.",
+    "outcomeSortedBy": "All sorted within",
+    "outcomeLastColour": "Last colour",
+    "outcomeSortedOnBar": "Sorted on a bar line",
+    "hintSortedBy": "Every ball reaches its own band within the chosen time limit – the run's first sort (then the balls mix again and the loop starts over, so the clip is one whole cycle).",
+    "hintLastColour": "The final ball sorted is of the chosen colour – the one viewers guess will finish last. Every seed's first sort is played to its end.",
+    "hintSortedOnBar": "The final ball is sorted within ±20 ms of a bar line – four beats at the BPM set under Sound – so the completion chord lands on a downbeat.",
+    "sortedBy": "Sorted within",
+    "lastColourPick": "Colour sorted last",
+    "findSortedBy": "Find a Sort within {time}s",
+    "findLastColour": "Find a Run {name} Finishes Last",
+    "findSortedOnBar": "Find a Sort on a Bar Line",
+    "foundSortedBy": "Found! All sorted at {time}s",
+    "foundLastColour": "Found! {name} finishes last, at {time}s",
+    "foundSortedOnBar": "Found! The final ball is sorted on a bar line at {time}s",
+    "missSortedBy": "Fastest sort: {time}s ({seeds} seeds)",
+    "missNoSort": "No seed sorted every ball before the time limit ({seeds} seeds)",
+    "missLastColour": "{name} finished last in none of {seeds} runs",
+    "missSortedOnBar": "Closest final ball: {offset}s off a bar line ({seeds} seeds)",
+    "overlaySortedBy": "Tested {tested} seeds: the fastest sort took {closest}s (target: {target}s). Try more or wider gates, a faster spin or faster balls.",
+    "overlayNoSort": "Tested {tested} seeds: none sorted every ball before the time limit. Try a longer time limit, wider gates or faster balls.",
+    "overlayLastColour": "Tested {tested} seeds and {name} finished last in none of them. Try more seeds or another colour.",
+    "overlaySortedOnBar": "Tested {tested} seeds: the closest final ball was sorted {offset}s off a bar line. Try another BPM or more seeds."
   },
   "FastExport": {
     "button": "Fast export",
@@ -4338,6 +4366,66 @@
     "growMultiplyFact": "Each bounce makes the ball {count}% bigger, so it grows exponentially: the size doubles every few bounces, the bounces come faster and faster, and the last few fill most of the circle.",
     "growAdd": "{count} px bigger every bounce until it fills the circle",
     "growApproach": "{count}% closer to the wall with every bounce",
-    "seconds": "{count} seconds of {mode}"
+    "seconds": "{count} seconds of {mode}",
+    "colourSort": "{count} mixed balls, sorted by their own rings",
+    "colourSortFact": "Each ring's gates only open outwards, and never for balls of the ring's own colour. So the core's colour can never leave it, the next one gets past the first ring but not its own, and the outermost colour makes it all the way out: mix them up and they sort themselves into a bullseye."
+  },
+  "ColourSort": {
+    "canvasTitle": "each ring stops only its own colour",
+    "canvasTitleOwnOnly": "each ring lets out only its own colour",
+    "canvasSubtitle": "gates open outwards, never for the ring's own colour",
+    "canvasSubtitleOwnOnly": "gates open outwards, only for the ring's own colour",
+    "canvasSubtitleBothWays": "gates open both ways, never for the ring's own colour",
+    "canvasSorted": "[count] / [total] sorted",
+    "canvasRemix": "mixing again",
+    "csDesc": "Balls of every colour start packed in the core. Each ring's gates open only outwards and never for the ring's own colour, so the balls sort themselves into a bullseye – then a remix pulls them back into the first frame and the loop starts over.",
+    "csPreset": "Preset",
+    "csPresetTip": "Ready-made sorts. Each sets the navy page, glowing balls and the loop HUD too.",
+    "csPresetChoose": "Choose a preset…",
+    "presetBullseye": "Bullseye sort (4 × 90)",
+    "presetRainbow7": "Rainbow 7 (7 × 50)",
+    "presetTorture": "One-gate torture (1 gate, 10°)",
+    "presetTenThousand": "Ten thousand (4 × 2,500, ghost gas)",
+    "presetReverse": "Reverse rule (own colour only)",
+    "csRule": "Gate rule",
+    "csRuleTip": "Which balls a gate lets through, and which way. A refused ball bounces off the gate as off an arc.",
+    "csRuleOutwardNotOwn": "Out, not own",
+    "csRuleOutwardOwnOnly": "Out, own only",
+    "csRuleBothWaysNotOwn": "Both ways",
+    "csHintOutwardNotOwn": "The reference: a gate opens outwards for every colour but its ring's own, so each colour stops at its own ring.",
+    "csHintOutwardOwnOnly": "Reversed: a gate opens outwards only for its ring's own colour – the core keeps every other colour.",
+    "csHintBothWaysNotOwn": "A gate opens both ways for every colour but its ring's own: balls can wander back in, so the sort takes longer.",
+    "csColours": "Colours",
+    "csColoursTip": "Colours – and rings: a gated ring for every colour but the last, inside the outer wall. Any number from 2 can be typed (past eight the colours are hues around the wheel).",
+    "csPerColour": "Balls per colour",
+    "csPerColourTip": "Balls of every colour. Any number from 1 can be typed; a run holds at most 20,000 balls in all.",
+    "csPerColourTotal": "{total} balls",
+    "csBallCeiling": "A run holds at most {max} balls: {perColour} of each colour.",
+    "csGates": "Gates per ring",
+    "csGatesTip": "Gates in every gated ring, evenly spaced; every arc between them has a white pin at each end.",
+    "csGateWidth": "Gate width",
+    "csGateWidthTip": "A gate's angular width. As wide as the gap between two gates, the ring is all gate.",
+    "csSpin": "Inner ring spin",
+    "csSpinTip": "How fast the innermost ring turns, in degrees a second; every ring further out turns at the falloff times the ring inside it.",
+    "csSpinValue": "{value}°/s",
+    "csFalloff": "Spin falloff",
+    "csFalloffTip": "Each ring's spin as a share of the ring inside it (0.8: every ring a fifth slower).",
+    "csAlternate": "Alternate directions",
+    "csAlternateTip": "Neighbouring rings turn opposite ways.",
+    "csSpeed": "Ball speed",
+    "csSpeedTip": "The balls' constant speed, in px a second of a 720-wide frame (its outer ring is 304 px).",
+    "csSpeedValue": "{value} px/s",
+    "csSize": "Ball size",
+    "csSizeTip": "A ball's radius in px of a 720-wide frame: the solid dot is half of it, the glow the rest.",
+    "csSizeValue": "{value} px",
+    "csContacts": "Ball contacts",
+    "csContactsTip": "Off (the default): a ghost gas – every ball meets only the rings, the way the reference clip sorts, and thousands of balls stay cheap. On: elastic contacts between the balls (a crowded core sorts more slowly).",
+    "csRemix": "Remix",
+    "csRemixTip": "Seconds the remix lasts: the gates stop filtering and a spring pulls every ball back to its place in the first frame, so a recording loops seamlessly.",
+    "csLimit": "Time limit",
+    "csLimitTip": "The sort ends at this second even with balls still out of their bands (on a minor chord), and the remix starts.",
+    "csFlash": "Refusal flashes",
+    "csFlashTip": "A short flash where a gate or an arc turns a ball back.",
+    "csLoopNote": "Every cycle sorts the balls, holds the bullseye for half a second and mixes them back into the first frame: with Export whole loops on, a recording ends on a seam and loops forever."
   }
 }

@@ -11,6 +11,7 @@ import { mazeBallName } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { flSideNames } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 import { lcPaletteName } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
 import { circleLineup } from "@/lib/physics/modes/stringCircle"; // --- string-circle ---
+import { colourSortColourNames, colourSortCounts } from "@/lib/physics/modes/colourSort"; // --- colour-sort ---
 import { ESCAPE_AT_TOLERANCE_SEC, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
 import { barLineDistanceMs } from "@/lib/simulation/outcomes"; // --- loop-foundation ---
 import type { FinderProgress, FinderResult } from "@/lib/simulation/finder";
@@ -37,6 +38,10 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   close: "outcomeClose", // --- land-claim ---
   "fills-by": "outcomeFillsBy", // --- loop-foundation ---
   "fill-on-bar": "outcomeFillOnBar", // --- loop-foundation ---
+  // --- colour-sort ---
+  "sorted-by": "outcomeSortedBy",
+  "last-colour": "outcomeLastColour",
+  "sorted-on-bar": "outcomeSortedOnBar",
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -51,6 +56,10 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   close: "hintClose", // --- land-claim ---
   "fills-by": "hintFillsBy", // --- loop-foundation ---
   "fill-on-bar": "hintFillOnBar", // --- loop-foundation ---
+  // --- colour-sort ---
+  "sorted-by": "hintSortedBy",
+  "last-colour": "hintLastColour",
+  "sorted-on-bar": "hintSortedOnBar",
 };
 
 /** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
@@ -79,6 +88,8 @@ export function teamChoiceNames(settings: Pick<SimulatorSettings, "mode" | "ball
   if (settings.mode === "maze") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : mazeBallName(i)));
   // --- land-claim --- Land Claim's competitors go by the roster's names (its countries), then by their palette names (RED, BLUE…)
   if (settings.mode === "landClaim") return Array.from({ length: count }, (_, i) => (i < settings.teams.length ? settings.teams[i].name || name("team", i + 1) : lcPaletteName(i) || name("team", i + 1)));
+  // --- colour-sort --- Colour Sort's colours (the colour sorted last) go by their palette names, the core's first (RED, AMBER, GREEN, BLUE…)
+  if (settings.mode === "colourSort") return colourSortColourNames(colourSortCounts({ colours: (settings as { csColours?: number }).csColours ?? 4, perColour: 1 }).colours);
   const out: string[] = [];
   for (let i = 0; i < count; i++) {
     if (settings.teams.length > 0) out.push(settings.teams[i]?.name || name("team", i + 1));
@@ -213,6 +224,46 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
         </div>
       )}
       {/* --- end loop-foundation --- */}
+      {/* --- colour-sort --- the sort's time limit (the escape slider's range and field) and the colour to be sorted last */}
+      {outcome === "sorted-by" && (
+        <div className="space-y-1.5" data-testid="finder-sorted-by">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-sorted-by">
+              {r("sortedBy")}
+            </label>
+            <span className="text-xs font-mono text-accent">≤ {escapeAt.toFixed(1)}s</span>
+          </div>
+          <input
+            id="find-sorted-by"
+            type="range"
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={escapeAt}
+            disabled={disabled}
+            onChange={(e) => onEscapeAt(Number(e.target.value))}
+            aria-label={r("sortedBy")}
+            className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
+            style={sliderStyle(escapeAt, range.min, range.max)}
+          />
+          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r("sortedBy")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" />
+        </div>
+      )}
+      {outcome === "last-colour" && (
+        <div className="space-y-1.5" data-testid="finder-last-colour">
+          <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-last-colour">
+            {r("lastColourPick")}
+          </label>
+          <select id="find-last-colour" value={Math.min(winner, teamNames.length - 1)} disabled={disabled} onChange={(e) => onWinner(Number(e.target.value))} className={`${selectClass} text-sm disabled:opacity-50`}>
+            {teamNames.map((name, i) => (
+              <option key={i} value={i}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {/* --- end colour-sort --- */}
       {outcome === "winner" && (
         <div className="space-y-1.5">
           <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-winner">
@@ -272,6 +323,13 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findFillsBy", { time: c.escapeAt.toFixed(1) });
     case "fill-on-bar": // --- loop-foundation ---
       return t("Rigged.findFillOnBar");
+    // --- colour-sort ---
+    case "sorted-by":
+      return t("Rigged.findSortedBy", { time: c.escapeAt.toFixed(1) });
+    case "last-colour":
+      return t("Rigged.findLastColour", { name: c.winnerName });
+    case "sorted-on-bar":
+      return t("Rigged.findSortedOnBar");
     default:
       return null;
   }
@@ -299,6 +357,13 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundFillsBy", { time: (result.fillAt ?? 0).toFixed(2) });
     case "fill-on-bar": // --- loop-foundation ---
       return t("Rigged.foundFillOnBar", { time: (result.fillAt ?? 0).toFixed(2) });
+    // --- colour-sort ---
+    case "sorted-by":
+      return t("Rigged.foundSortedBy", { time: (result.sortedAt ?? 0).toFixed(2) });
+    case "last-colour":
+      return t("Rigged.foundLastColour", { name: c.winnerName, time: (result.sortedAt ?? 0).toFixed(2) });
+    case "sorted-on-bar":
+      return t("Rigged.foundSortedOnBar", { time: (result.sortedAt ?? 0).toFixed(2) });
     default:
       return null;
   }
@@ -327,6 +392,13 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missFillsBy", { time: c.escapeAt.toFixed(1), seeds: result.seedsTested });
     case "fill-on-bar": // --- loop-foundation ---
       return result.fillAt === undefined ? t("Rigged.missNoFill", { seeds: result.seedsTested }) : t("Rigged.missFillOnBar", { offset: barOffsetText(result.fillAt, c.barSec), seeds: result.seedsTested });
+    // --- colour-sort ---
+    case "sorted-by":
+      return result.sortedAt === undefined ? t("Rigged.missNoSort", { seeds: result.seedsTested }) : t("Rigged.missSortedBy", { time: result.sortedAt.toFixed(1), seeds: result.seedsTested });
+    case "last-colour":
+      return t("Rigged.missLastColour", { name: c.winnerName, seeds: result.seedsTested });
+    case "sorted-on-bar":
+      return result.sortedAt === undefined ? t("Rigged.missNoSort", { seeds: result.seedsTested }) : t("Rigged.missSortedOnBar", { offset: barOffsetText(result.sortedAt, c.barSec), seeds: result.seedsTested });
     default:
       return null;
   }
@@ -359,6 +431,13 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayFillsBy", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) });
     case "fill-on-bar": // --- loop-foundation ---
       return result.fillAt === undefined ? t("Rigged.overlayNoFill", { tested: result.seedsTested }) : t("Rigged.overlayFillOnBar", { tested: result.seedsTested, offset: barOffsetText(result.fillAt, c.barSec) });
+    // --- colour-sort ---
+    case "sorted-by":
+      return result.sortedAt === undefined ? t("Rigged.overlayNoSort", { tested: result.seedsTested }) : t("Rigged.overlaySortedBy", { tested: result.seedsTested, closest: result.sortedAt.toFixed(1), target: c.escapeAt.toFixed(1) });
+    case "last-colour":
+      return t("Rigged.overlayLastColour", { tested: result.seedsTested, name: c.winnerName });
+    case "sorted-on-bar":
+      return result.sortedAt === undefined ? t("Rigged.overlayNoSort", { tested: result.seedsTested }) : t("Rigged.overlaySortedOnBar", { tested: result.seedsTested, offset: barOffsetText(result.sortedAt, c.barSec) });
     default:
       return null;
   }

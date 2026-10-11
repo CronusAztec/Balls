@@ -52,6 +52,7 @@ import {
   softCeiling,
   visualValue,
 } from "@/lib/unlimited";
+import { CS_BALL_CEILING } from "@/lib/physics/modes/colourSort"; // --- colour-sort ---
 
 // Whole runs of the engine with extreme values: generous timeouts, so a busy machine does not fail them.
 vi.setConfig({ testTimeout: 120_000 });
@@ -565,7 +566,7 @@ describe("No limits: the engine", () => {
         }
         expect([mode, bigBall, allFinite(engine)]).toEqual([mode, bigBall, true]);
         expect(engine.getCircularWalls().length).toBeLessThanOrEqual(LIVE_WALL_LIMIT);
-        expect(engine.getBalls().length).toBeLessThanOrEqual(Math.max(OBJECT_BALL_LIMIT, ENTITY_CEILING)); // --- uncap-all --- (a mode's own entities stop at their memory-safety ceiling)
+        expect(engine.getBalls().length).toBeLessThanOrEqual(Math.max(OBJECT_BALL_LIMIT, ENTITY_CEILING, mode === "colourSort" ? CS_BALL_CEILING : 0)); // --- uncap-all --- (a mode's own entities stop at their memory-safety ceiling; --- colour-sort --- Colour Sort's balls at its own, `CS_BALL_CEILING`: its Ten thousand preset holds 10,000)
         expect(engine.getCrowd().count).toBeLessThanOrEqual(CROWD_LIMIT);
       }
     }

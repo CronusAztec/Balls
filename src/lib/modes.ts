@@ -83,6 +83,13 @@ MODE_CARD_ORDER.push("journey");
   const at = after >= 0 ? after : MODE_CARD_ORDER.indexOf("territory");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "landClaim");
 }
+// --- colour-sort --- Colour Sort joins the escape family right after the ten ring modes, before the Conveyor Belt (balls
+// working their way out of turning rings – here through one-way colour gates that sort them into a bullseye)
+{
+  const conveyor = MODE_CARD_ORDER.indexOf("conveyor");
+  const at = conveyor >= 0 ? conveyor : MODE_CARD_ORDER.indexOf("portal") + 1;
+  MODE_CARD_ORDER.splice(at > 0 ? at : MODE_CARD_ORDER.length, 0, "colourSort");
+}
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -155,6 +162,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   fightLeague: "rhythm",
   // --- land-claim --- competitors knock blocks off the columns lining the arena, the most land wins: the battle family
   landClaim: "battle",
+  // --- colour-sort --- balls work their way out through rotating rings' gates (one-way, colour-coded): the escape family
+  colourSort: "escape",
 };
 
 /** The modes of a category in card order. */

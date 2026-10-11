@@ -829,6 +829,10 @@ describe("uncap-all: the guard", () => {
     lcEvery: "a spawn period in blocks (the balls a run holds stop at LC_BALL_CEILING: ARENA FULL)", // --- land-claim ---
     sbRate: "strings a ball anchors a second (its live strings stop at SC_STRING_CEILING, and a step anchors at most that many)", // --- string-circle ---
     sbCut: "strings cut per life", // --- string-circle ---
+    // --- colour-sort --- a gate's width and the rings' spin are angles, the time limit a length of time
+    csGateWidth: "degrees",
+    csSpin: "degrees a second",
+    csLimit: "seconds",
   };
 
   it("gives every whole-number setting that sizes an allocation a memory-safety ceiling", () => {

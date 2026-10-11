@@ -15,7 +15,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 
 | Area | What you get |
 | --- | --- |
-| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
+| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Colour Sort, Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow; collision-safe at every amplitude and speed) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Merge & split balls** | A ball-interaction setting in the Ball section: balls **bounce** (default), **merge** into one bigger ball on contact (area and momentum conserved, colours blended, a particle burst and a low tone), **split** in two every time a ball breaks through a wall (half the area each, diverging velocities, a high tone – down to a smallest size and up to a ball cap) or **pass** through each other. Works in the two-ball modes and Multiply, is deterministic (seeds and Find Simulation include it) and shared via the URL (`bi`, `smr`, `mb`) |
@@ -89,6 +89,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Watermark on every free simulation** | The free-video watermark on the live canvas too (feature watermark-everywhere, `src/lib/watermark/live.ts`, `liveLayout.ts`): every frame a visitor without a verified Pro licence sees – the studio's canvas in every mode (and so share links, the gallery's presets, the daily challenge and the Windows app, which runs the same page), a split-screen race's composed frame (once, not per arena) and the landing page's live preview – carries the badge and the faint domain tiles, drawn into the canvas' own pixels as the frame's last pass: 4.5 % of the exported square tall, 1.5 % from its edges, on the other side every 6 s, clear of the mode's HUD. The decision is free-watermark's sealed gate, so a Pro licence removes it at once – mid-run too – and removing the licence brings it back; a page recording copies the marked canvas, one badge per frame in the video layout's place (see [Watermark on every free simulation](#watermark-on-every-free-simulation)) |
 | **Loop foundation & Grow: fill and loop** | The first family of the loop-clip account's simulations (feature loop-foundation). An original synthesized sound library (`src/lib/audio/loopTones.ts`, `ToneGenerator.playLoop()`: pentatonic plucks, tuned bars, a progress ladder, a groove bed, impact accents, a completion chord, reset glides and washes, a field drone – every voice scheduled on the simulation clock under a per-tick voice budget, with optional clip slots for your own sounds that never leave the device), the offline mix of the fast export and the batch render normalised to −14 LUFS with its true peak at most −1 dBTP (BS.1770), the loop contract (a mode reports its seamless cycle; **Export whole loops** cuts recordings, fast exports and batch renders to a whole number of cycles), a lowercase **loop HUD** drawn into the frames, a **Loop style** caption preset in Publish, and Grow's fill-and-loop upgrade: growth law approach / multiply / add, when it fills stay / loop / finish, hold and shrink, colour by size, contact markers, pitch by size, the presets Fill and loop, Slow burn, Instant and Classic grow, and Find Simulation's "Fills within" and "Fill on a bar line". See [Grow: fill and loop](#grow-fill-and-loop) and [Loop foundation](#loop-foundation-sounds-whole-loops-and-the-loop-hud). |
 | **Sharded smoke test** | The browser smoke test (`scripts/smoke-test.mjs`, some 750 checks, ~45 minutes on one runner) runs in CI as **four shards on four runners at once**, about 12 minutes each (feature smoke-sharding): the suite is a list of blocks – `await smokeBlock("title", async () => { … })`, each setting up its own page – split at block level, never at check level, by a greedy longest-first balance over the blocks' wall times in `scripts/smoke-timing.json` (a block the file does not know weighs the median, so a new block gets a shard by itself). `--shard i/N` / `SMOKE_SHARD=i/N` runs one part, `SMOKE_ONLY=<title>` single blocks, `--list` prints the split, `--write-timing` refreshes the baseline, every run prints its 15 slowest blocks, and a narrowed run starts every block from a clean page. The `smoke` job of deploy.yml and smoke.yml is a matrix of the four shards; `smoke-summary` merges their screenshots and slowest blocks and gates the deploy (see [Smoke test shards](#smoke-test-shards)) |
+| **Colour Sort** | An escape-family mode (`colourSort`, feature colour-sort) after the loop family's colour-sorting rings ("360 mixed balls, sorted by four rings"): **Colours** × **Balls per Colour** (`csc` 4, `csn` 90 – 360 balls) start packed in the core of K concentric rings – K − 1 gated rings and a closed outer wall, at (k + 1) / K of its radius – and move as a constant-speed gas (**Ball Speed** `csv`, 220 px/s of a 720-wide frame; no gravity). Every gated ring is **Gates per Ring** arcs and gates (`csg` 4, **Gate Width** `csw` 35°) with a white pin at each arc end, turning at the **Inner Ring Spin** (`css`, 31°/s) times the **Spin Falloff** per ring outward (`csf`, ×0.8), in **Alternate Directions** (`csa`). A gate is a one-way colour filter – the **Gate Rule** (`csu`): outward and never the ring's own colour (the reference), outward and only its own colour, or both ways but never its own – and refuses every other ball like an arc, reflected in the ring's turning frame: red never leaves the core, orange stops at the orange ring, green at the green one and blue reaches the outer band – a bullseye. The loop HUD's amber counter "n / 360 sorted" (a ball in its own band) climbs with a long tail to the completion chord (A2 with its 1.7 Hz tremolo, minor when the **Time Limit** `csl` ran out first), then reads "mixing again": a critically damped spring pulls every ball back to its exact frame-0 place over the **Remix** (`csm`, 2.8 s) under a noise wash, and the next cycle replays the first – the loop contract reports every seam, so Export whole loops cuts a recording into seamless cycles. Every gate pass plucks its colour's note of A major pentatonic (at most six a tick). **Ball Contacts** (`csx`) are off by default – a ghost gas, the reference clip's pace and cheap for thousands of balls –, on: elastic contacts; **Ball Size** (`csr`, 4.5 px), **Refusal Flashes** (`csh`). Five presets (Bullseye sort, Rainbow 7, One-gate torture, Ten thousand, Reverse rule) and Find Simulation's **All sorted within**, **Last colour** and **Sorted on a bar line** (±20 ms) outcomes. Every number is uncapped (20,000 balls a run at most). See "Colour Sort" below |
 
 ## Design
 
@@ -1689,6 +1690,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `orbGrid` | the orbs' wave at its peak | 3 | 14.5 s | `ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0` | x 0.506 · y 0.567 · zoom 1.25 |
 | `fightLeague` | Thor and Loki clashing, the VS card gone, hammer and daggers mid-swing | 11 | 5.25 s | – | x 0.5 · y 0.361 · zoom 1.151 |
 | `landClaim` | half the wall taken: the columns a mosaic of the four countries' colours | 3 | 5 s | `teams=France,Brazil,Spain,Colombia…&lcm=claim&lch=0&tsb=0&tn=0` | x 0.5 · y 0.587 · zoom 1.25 |
+| `colourSort` | the bullseye almost sorted: every colour in its own band, the last stragglers slipping through the turning gates | 1 | 9 s | `lh=0` | – |
 
 ### Watermark on every free simulation
 Feature watermark-everywhere – the owner's request (2026-10-04): "add the watermark to all simulations made without pro". The
@@ -1835,6 +1837,61 @@ The shared pieces every loop-family simulation builds on (feature loop-foundatio
   `tests/loopHud.test.ts`, `tests/loopCaption.test.ts` and `tests/grow.test.ts`; the smoke test (section 38, block
   `loop-foundation`) runs the Fill and loop preset at 2× (two fills or more, every cycle within a frame of the others), checks
   the HUD's pixels, exports a whole number of cycles and lists the Grow outcomes of Find Simulation.
+
+### Colour Sort (the loop family)
+Feature colour-sort – the loop family's colour-sorting rings ("360 mixed balls, sorted by four rings 🔊"): one-way colour gates on
+turning rings sort a packed mix into a bullseye, then a remix pulls it back into the first frame, so the clip loops forever.
+`src/lib/physics/modes/colourSort.ts` holds the pure maths (`gatePasses()`, `targetBand()`, `inGate()`, `reflectInMovingFrame()`,
+`remixOffset()`, the pitch and the palette) and the `ColourSortMode` plugin; `src/lib/physics/colourSortSettings.ts` the settings
+(URL keys `csc`, `csn`, `csg`, `csw`, `css`, `csf`, `csa`, `csv`, `csr`, `csx`, `csm`, `csu`, `csl`, `csh`), the presets and the
+HUD's words; `src/components/simulator/colourSortRenderer.ts` draws it and `sections/ColourSortSection.tsx` is the "Colour Sort"
+block of the Mode row (its labels in the `ColourSort` namespace of `messages/*.json`).
+
+- **The arena** – K colours make K rings at (k + 1) / K of the outer radius (304 px of a 720-wide frame, the same look at every
+  size): K − 1 gated rings and the closed outer wall. A gated ring is G arcs and G gates of the chosen width, its gates at seeded
+  phases; it turns at spin × falloff^k degrees a second, odd rings the other way with Alternate Directions. Balls of colour k end
+  in band k (`targetBand()`: outward through every ring that lets them pass).
+- **The gate test** – every sub-step, a ball whose centre crossed ring k is tested where it crossed, in the ring's turning frame:
+  inside a gate the rule decides (`gatePasses()`: outward = v · r̂ > 0; the reference rule passes outward and never the ring's own
+  colour); otherwise – an arc, a refused ball – it is reflected off the ring in the ring's frame (`reflectInMovingFrame()`: the
+  normal part of the relative velocity reversed, the speed in the ring's frame kept, a quarter of the tangential slip taken by the
+  arc's grip – without it a ball can lock into an orbit that never meets a gate). The pins at the arc ends reflect like small discs,
+  the balls keep their speed (a gentle governor), and with Ball Contacts on the balls collide elastically (a spatial hash, two
+  passes). Off – the default – the balls are a ghost gas: each meets only the rings. That is the reference clip's pace (all sorted
+  in 12–18 s, median about 14 s, against the clip's 13.5 s) and the cheap way to run thousands; with contacts the reds, which never
+  leave, crowd the core and every other ball has to diffuse out through them (16–28 s).
+- **The census and the loop** – a ball is sorted while its centre is in its own band; the counter is that census (the loop HUD's
+  "[count] / [total] sorted", lowercase, in amber). When every ball is sorted – or at the Time Limit – the completion chord plays,
+  the bullseye holds for half a second, and the remix starts ("mixing again"): the gates stop filtering and a critically damped
+  spring (`remixOffset()`, ω0·T = 8, the rest faded out by a smoothstep) brings every ball to its exact place and launch velocity
+  of frame 0 at the remix's end, while each ring is eased onto an angle its gates repeat at. The seam – the first step at or after
+  the remix's end – resets the run to its first frame, so every cycle replays the first exactly (`cycleSeconds()`, `loopSeams()`;
+  the default cycle is about 16.7 s). Every random choice is `ctx.random()` at init, in a documented order.
+- **Sound** (the loop sound library, `ToneGenerator.playLoop()`): every gate pass a pentatonic pluck at its colour's degree of A
+  major pentatonic (the core high, the outer colour ten degrees lower; at most six colours a tick, a colour's passes of a tick in
+  one note at √n), the completion chord on A2 held with its 1.7 Hz tremolo (minor when the time limit ended the sort), the remix a
+  noise wash over its length and the seam the loop voices' hard cut – identical live, in the fast export and in the batch render.
+- **The look** – a very dark tint of each band's colour, the rings as neon arcs (red #ff5a5a, amber #f7b23b, green #57e07a, blue
+  #5b8cff by default; the rainbow for more colours) with a soft glow (the Wall Glow switch) and white pins, the balls as glowing
+  dots through the page's shared ball pass (glow on and trails off in this mode's defaults – switched on, in each ball's own
+  colour), Refusal Flashes on demand; the canvas mirrors the run in `data-cs-*` attributes. The loop HUD is on and the drama layer
+  off in this mode's defaults (its moods – a tension ring around every ball, the glow's swell – run on a clock no seam matches).
+- **Presets** – Bullseye sort (4 × 90, the reference), Rainbow 7 (7 colours × 50), One-gate torture (one 10° gate a ring), Ten
+  thousand (4 × 2,500, ghost gas, 2 px balls) and Reverse rule (a gate lets out only its own colour); each also sets the navy page
+  (#050812), glowing balls and the loop HUD.
+- **Find Simulation** – the run loops forever, so the outcomes are its first sort's: **All sorted within** a time limit, **Last
+  colour** (the final ball sorted is of the chosen colour, the colours named by their palette names) and **Sorted on a bar line**
+  (the final ball within ±20 ms of a bar of four beats at the Sound section's BPM). A found run's clip is its first whole cycle.
+- **Uncapped** – the sliders are comfort ranges (Colours 2–8, Balls per Colour 1–500, Gates 1–12, Gate Width 5–180°, Spin 0–360°/s,
+  Falloff 0–2, Speed 20–2000 px/s, Size 1–30 px, Remix 0–10 s, Time Limit 1–300 s); every value from the minimum up is typed in. The
+  memory-safety ceilings: 5,000 colours, 5,000 gates a ring, 10,000 balls a colour and 20,000 balls a run (past it every colour
+  holds its share – ARENA FULL).
+- **Tests** – `tests/colourSort.test.ts`: the gate truth table, 10,000 random steps that never move a ball to an inner band, a
+  single ball of every colour ending in its own band, the counter against the band census, the remix ending exactly on the seeded
+  frame-0 packing (and the next cycle replaying the first), the speed in a spinning arc's frame kept by a reflection, the settings
+  and URL round trip, the presets, the pitch, the sound events and their playback, the finder's outcomes and fingerprints at 30, 60
+  and 120 fps. The smoke test (section 39, block `colour-sort`) runs `?mode=colourSort` at 8× to 360 / 360 sorted, sees the remix
+  and the seam, finds no ball past the outer wall and checks the HUD, the block and the outcomes.
 
 ### Add a smoke-test block
 

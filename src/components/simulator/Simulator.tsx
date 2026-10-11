@@ -133,6 +133,7 @@ import { territorySettingsOf } from "@/lib/physics/modes/territory"; // --- odd-
 import { mazeSettingsOf } from "@/lib/physics/modes/maze"; // --- odd-maze ---
 import { FL_WIN_HOLD_SEC, fightLeagueSettingsOf } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 import { landClaimClipSec, landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
+import { COLOUR_SORT_ENGINE_KEYS, COLOUR_SORT_HUD_KEYS, colourSortCounterTemplate, colourSortSettingsOf, colourSortTotal } from "@/lib/physics/colourSortSettings"; // --- colour-sort ---
 // --- video-beats --- beats from a video or audio file, hand-placed markers, On beat
 import { useVideoBeats } from "./useVideoBeats";
 import { videoBeatsCarryOver } from "@/lib/simulation/videoBeatsSettings";
@@ -386,6 +387,7 @@ export default function Simulator() {
     engine.setOrbGridSettings(orbGridSettingsOf(s)); // --- orb-grid ---
     engine.setFightLeagueSettings(fightLeagueSettingsOf(s)); // --- fight-league ---
     engine.setLandClaimSettings(landClaimSettingsOf(s)); // --- land-claim ---
+    engine.setColourSortSettings(colourSortSettingsOf(s)); // --- colour-sort ---
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -567,12 +569,18 @@ export default function Simulator() {
   const hudLocale = useLocale();
   const loopHudSpec = useMemo<LoopHudSpec | null>(() => {
     if (!s.loopHud) return null;
+    // --- colour-sort --- the rule as the title, "n / total sorted" under the rings and "mixing again" while the remix runs
+    if (s.mode === "colourSort") {
+      const words = COLOUR_SORT_HUD_KEYS[s.csRule];
+      return { title: s.loopHudTitle || t(`ColourSort.${words.title}`), subtitle: s.loopHudSubtitle || t(`ColourSort.${words.subtitle}`), counter: colourSortCounterTemplate(String(t.raw("ColourSort.canvasSorted")), colourSortTotal({ csColours: s.csColours, csPerColour: s.csPerColour })), alt: t("ColourSort.canvasRemix"), light: isLightColor(s.backgroundColors[0]) };
+    }
+    // --- end colour-sort ---
     const keys = LOOP_HUD_MODE_TEXT[s.mode];
     const title = s.loopHudTitle || (keys ? t(`LoopHud.${keys.title}`) : t(`Modes.${s.mode}.name`));
     const subtitle = s.loopHudSubtitle || (keys ? t(`LoopHud.${keys.subtitle}`) : "");
     const counter = keys ? String(t.raw(`LoopHud.${keys.counter}`)) : "";
     return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]) };
-  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t]);
+  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */]);
   const loopHudRef = useRef({ spec: loopHudSpec, locale: hudLocale });
   loopHudRef.current = { spec: loopHudSpec, locale: hudLocale };
   /** The HUD of a frame of `engine`'s run (null without the HUD), for the recorder and the fast export. */
@@ -1024,6 +1032,29 @@ export default function Simulator() {
   }, [s.lcTitle, s.lcHud]);
   const landClaimFinishAtRef = useRef<number | null>(null);
   // --- end land-claim ---
+  // --- colour-sort --- Colour Sort: a change of the sort (colours, balls, gates, spin, speed, size, contacts, remix, rule, time
+  // limit) restarts it and drops a found seed; the refusal flashes only change the drawing and follow live.
+  const colourSortKey = COLOUR_SORT_ENGINE_KEYS.map((key) => String((s as unknown as Record<string, unknown>)[key])).join("|");
+  const colourSortKeyRef = useRef(colourSortKey);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setColourSortSettings(colourSortSettingsOf(s));
+    if (colourSortKeyRef.current === colourSortKey) return;
+    colourSortKeyRef.current = colourSortKey;
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+    if (s.mode === "colourSort" && engine.getCurrentModeName() === "colourSort") {
+      engine.initMode("colourSort");
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [colourSortKey]);
+  useEffect(() => {
+    engineRef.current?.setColourSortSettings({ flashes: s.csFlash });
+  }, [s.csFlash]);
+  // --- end colour-sort ---
   // --- gerald-vortex --- Sound Vortex: a change of the funnel or the flight (balls, stagger, rings, duration, pull, loop)
   // restarts the run and drops a found seed; the depth cue and the Sound section's scale and root (the ring notes) follow live.
   useEffect(() => {
@@ -2781,6 +2812,7 @@ export default function Simulator() {
     const clipSec = finderOutcome === "escapes-at" || finderOutcome === "resolves-at" /* --- orb-grid --- (the first resolve) */ ? Math.max(findDuration, Math.ceil(findEscapeAt + 3)) : findDuration;
     const outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam } : undefined;
     if (outcome?.kind === "fill-on-bar") outcome.atSec = barSeconds(settings.bpm); // --- loop-foundation --- (a bar of four beats at the page's BPM)
+    if (outcome?.kind === "sorted-on-bar") outcome.atSec = barSeconds(settings.bpm); // --- colour-sort --- (the final ball sorted on a bar line, ±20 ms)
     setSearchOutcome(finderOutcome ?? "duration");
     const result = await findArenaSeeds(
       uncappedEngaged(settings) ? findSimulationBudgeted : findSimulation, // (--- uncap-all --- engaged by the values) --- split-screen --- (in a race, every arena's seed is searched: the first arena's, then the others') --- unlimited --- (No limits: time-sliced by whole steps, fewer seeds when heavy)
@@ -2836,6 +2868,7 @@ export default function Simulator() {
           orbGrid: { ...orbGridSettingsOf(settings), maxSec: 0 }, // --- orb-grid --- (a run ends when every orb is at rest: the page's clip is left out)
           fightLeague: fightLeagueSettingsOf(settings), // --- fight-league --- (every fight ends: the last side standing, a double KO or the time cap)
           landClaim: landClaimSettingsOf(settings), // --- land-claim --- (a run ends when the land is all taken or at its duration)
+          colourSort: colourSortSettingsOf(settings), // --- colour-sort --- (its first sort: all sorted by, the colour sorted last, on a bar line)
           grow: growFillSettingsOf(settings), // --- loop-foundation --- (Grow's law, fill, hold and shrink: "finish" ends at the fill)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
@@ -3269,7 +3302,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcRacers, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || settings.mode === "colourSort" /* --- colour-sort --- (its first sort's outcomes) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.

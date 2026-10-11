@@ -13721,6 +13721,148 @@ await smokeBlock("loop-foundation", async () => {
 // --- end loop-foundation ---
 });
 
+await smokeBlock("colour-sort", async () => {
+// --- colour-sort ---
+// 39. Colour Sort: the preview image and the card under the escape heading; URL → the Colour Sort block of the Mode row (colours,
+// gates, gate width, rule, contacts, flashes; no ring controls) and Find Simulation's three outcomes (the colour picker naming the
+// palette), controls → URL (a preset too), the search box; the reference sort at 8× – 360 / 360 sorted (data-cs-*), the remix and
+// the seam back to frame 0 (data-loop-cycle, data-loop-seams), no ball past the outer wall, the gate plucks on A major pentatonic
+// and the completion chord on A2 (OscillatorNode.start instrumented), the HUD's lowercase title, the amber counter and "mixing
+// again" drawn into the canvas; the default sort at 30+ fps; Find Simulation's "all sorted within", played back to the second.
+{
+  const res = await page.request.get(`${BASE}/modes/colourSort.webp`);
+  check("asset /modes/colourSort.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inEscape = await page.evaluate(() => {
+    // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
+    const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Escape modes");
+    const group = heading?.parentElement;
+    return !!group && !!group.querySelector('img[src$="/modes/colourSort.webp"]') && !!group.querySelector('img[src$="/modes/classic.webp"]');
+  });
+  const card = await page.locator('img[src$="/modes/colourSort.webp"]').count();
+  check("the Colour Sort card is on the landing page under the escape heading", card === 1 && inEscape, `(cards=${card}, in the escape group=${inEscape})`);
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=colourSort&csc=5&csg=3&csw=20&csu=bothWaysNotOwn&csx=1&csh=1`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("colour-sort-section");
+  const value = (label) => section.locator(`input[type="range"][aria-label="${label}"]`).inputValue().catch(() => "?");
+  const values = { csc: await value("Colours"), csg: await value("Gates per ring"), csw: await value("Gate width") };
+  const both = await section.getByTestId("cs-rule").getByRole("button", { name: /Both ways/ }).getAttribute("aria-pressed").catch(() => null);
+  const contacts = await section.getByRole("switch", { name: switchName("Ball contacts") }).getAttribute("aria-checked").catch(() => null);
+  const flashes = await section.getByRole("switch", { name: switchName("Refusal flashes") }).getAttribute("aria-checked").catch(() => null);
+  const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+  const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+  const colours = await page.locator("#find-outcome").selectOption("last-colour").then(() => page.locator("#find-last-colour option").evaluateAll((els) => els.map((e) => e.textContent))).catch(() => []);
+  check(
+    "colour sort loads from URL",
+    values.csc === "5" && values.csg === "3" && values.csw === "20" && both === "true" && contacts === "true" && flashes === "true" && noRingControls && options.join(",") === "sorted-by,last-colour,sorted-on-bar" && colours.join(",") === "RED,AMBER,YELLOW,GREEN,BLUE",
+    `(${JSON.stringify(values)}, both ways=${both}, contacts=${contacts}, flashes=${flashes}, ring controls hidden=${noRingControls}, finder outcomes=${options.join(",")}, colours=${colours.join(",")})`,
+  );
+  await section.getByTestId("cs-rule").getByRole("button", { name: /Out, own only/ }).click();
+  await section.locator('input[type="range"][aria-label="Gates per ring"]').evaluate(setRangeValue, "6");
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check("colour sort mirrors into the URL", query.get("mode") === "colourSort" && query.get("csu") === "outwardOwnOnly" && query.get("csg") === "6" && query.get("csc") === "5" && query.get("csx") === "1", `(${query.toString()})`);
+  }
+  await section.getByTestId("cs-preset").selectOption("rainbow7");
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check("the Rainbow 7 preset sets 7 colours × 50 balls (the reference rule and gates back)", query.get("csc") === "7" && query.get("csn") === "50" && !query.has("csu") && !query.has("csg"), `(${query.toString()})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("gate width");
+  const found = await page.locator('input[type="range"][aria-label="Gate width"]').isVisible().catch(() => false);
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the colour sort controls", found, `(gate width=${found})`);
+}
+{
+  // The reference sort (4 × 90) at 8×: every ball sorted, the chord, "mixing again", the seam back to frame 0.
+  await page.goto(`${BASE}/en/simulator/?mode=colourSort`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    const texts = [];
+    window.__csOsc = osc;
+    window.__csTexts = texts;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value > 20 && osc.length < 20000) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 40000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  const atStart = await canvasData();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.csCompletions) >= 1, null, { timeout: 120_000 }).catch(() => {});
+  const sorted = await canvasData();
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.csPhase === "remix" || Number(document.querySelector("main canvas")?.dataset.csSeams) >= 1, null, { timeout: 30_000 }).catch(() => {});
+  const remix = await canvasData();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.csSeams) >= 1, null, { timeout: 30_000 }).catch(() => {});
+  const seam = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-colour-sort.png") });
+  const heard = await page.evaluate(() => {
+    const near = (f) => window.__csOsc.some((x) => Math.abs(x - f) < 0.5);
+    const texts = window.__csTexts.splice(0);
+    return {
+      // the outer three colours' plucks (A3, E4, C#5) and the chord's root (A2)
+      plucks: [220, 329.63, 554.37].filter(near).length,
+      chord: near(110),
+      title: texts.some((t) => t.text === "each ring stops only its own colour"),
+      counter: texts.filter((t) => /^\d+ \/ 360 sorted$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null,
+      full: texts.some((t) => t.text === "360 / 360 sorted"),
+      remix: texts.some((t) => t.text === "mixing again"),
+    };
+  });
+  check(
+    "colour sort sorts 360 / 360 at 8×, mixes again and loops back to frame 0 with no ball past the outer wall",
+    atStart.csTotal === "360" && atStart.csSorted === "90" && Number(sorted.csCompletions) >= 1 && Number(sorted.csFirstSort) > 3 && sorted.csLastColour !== "-1" && (remix.csPhase === "remix" || Number(remix.csSeams) >= 1) && Number(seam.csSeams) >= 1 && Number(seam.loopCycle) > Number(sorted.csFirstSort) && Number(seam.loopSeams) >= 1 && seam.csEscaped === "0" && sorted.csEscaped === "0",
+    `(${JSON.stringify({ start: atStart.csSorted, total: atStart.csTotal, firstSort: sorted.csFirstSort, sortedNow: sorted.csSorted, last: sorted.csLastColour, phase: remix.csPhase, seams: seam.csSeams, cycle: seam.loopCycle, loopSeams: seam.loopSeams, escaped: seam.csEscaped, passes: sorted.csPasses })})`,
+  );
+  check("the gate passes pluck A major pentatonic, the sort ends on the chord, and the HUD says it (title, amber counter, mixing again)", heard.plucks >= 2 && heard.chord && heard.title && heard.counter === "#f2c46a" && heard.full && heard.remix, `(${JSON.stringify(heard)})`);
+}
+{
+  // The default sort's frame rate at 1× (360 glowing balls, four rings, the HUD).
+  await page.goto(`${BASE}/en/simulator/?mode=colourSort`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(500);
+  const fr = await pageFrameRates(4000);
+  const data = await canvasData();
+  await timingCheck("simulator mode=colourSort sorts 360 balls at 30+ fps", Number(data.csSorted) > 90 && data.csEscaped === "0", fpsOk(fr, 6, 30), `(${data.csSorted} sorted, ${fpsNote(fr)}, floor 30${loadNote()})`, fpsRetry(4000, 6, 30));
+}
+{
+  // Find Simulation: every ball sorted within 40 s – found, and played back to the found second.
+  await page.goto(`${BASE}/en/simulator/?mode=colourSort`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("sorted-by");
+  await page.locator("#find-sorted-by").evaluate(setRangeValue, "40");
+  const button = page.getByRole("button", { name: /Find a Sort within 40(\.0)?s/ });
+  const labelled = await button.isVisible().catch(() => false);
+  await button.click().catch(() => {});
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const at = /Found! All sorted at ([\d.]+)s/.exec(text);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  let played = {};
+  if (at) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.csCompletions) >= 1, null, { timeout: 90_000 }).catch(() => {});
+    played = await canvasData();
+  }
+  check(
+    "Find Simulation finds a colour sort within 40 s, records its whole cycle and plays it back to the found second",
+    labelled && !!at && Number(at[1]) <= 40 && Math.abs(Number(played.csFirstSort) - Number(at[1])) < 0.02 && Number(query.get("dur")) >= Math.ceil(Number(at[1]) + 3),
+    `("${text}", dur=${query.get("dur")}, played: ${JSON.stringify({ completions: played.csCompletions, firstSort: played.csFirstSort })})`,
+  );
+}
+// --- end colour-sort ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

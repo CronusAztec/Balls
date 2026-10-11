@@ -77,6 +77,7 @@ import OrbGridSection, { ORB_GRID_KEYS, OrbGridPresets } from "./sections/OrbGri
 import type { OrbGridFields } from "@/lib/physics/modes/orbGrid"; // --- orb-grid ---
 import FightLeagueSection, { FIGHT_LEAGUE_KEYS } from "./sections/FightLeagueSection"; // --- fight-league --- the Fight League block of the Mode row
 import LandClaimSection, { LAND_CLAIM_KEYS } from "./sections/LandClaimSection"; // --- land-claim --- the Land Claim block of the Mode row
+import ColourSortSection, { COLOUR_SORT_KEYS } from "./sections/ColourSortSection"; // --- colour-sort --- the Colour Sort block of the Mode row
 import VideoBeatsSection, { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection"; // --- video-beats --- the "Beats from a video" block of the Sound section
 import type { VideoBeatsPanelProps } from "./useVideoBeats"; // --- video-beats ---
 import { defaultVideoBeatsFields } from "@/lib/simulation/videoBeatsSettings"; // --- video-beats ---
@@ -272,6 +273,8 @@ SECTION_KEYS.ball.push(...ORB_GRID_KEYS);
 SECTION_KEYS.ball.push(...FIGHT_LEAGUE_KEYS);
 // --- land-claim --- the Land Claim block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...LAND_CLAIM_KEYS);
+// --- colour-sort --- the Colour Sort block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...COLOUR_SORT_KEYS);
 // --- unlimited --- the No limits switch opens the Ball & Physics section
 SECTION_KEYS.ball.push(...UNLIMITED_KEYS);
 // --- bounce-math --- the Bounce math block (rules on every bounce, pass, collision, break, beat, bar or second) is part of the Ball & Physics section.
@@ -340,10 +343,12 @@ export default function Controls(props: ControlsProps) {
     }
   };
 
+  // --- colour-sort --- the Colour Sort block's labels live in their own namespace: the search and the palette read them there too
+  const colourSortT = useTranslations("ColourSort");
   const matches = (key: string) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    const label = t.has(key) ? t(key) : "";
+    const label = t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : "";
     return key.toLowerCase().includes(q) || label.toLowerCase().includes(q);
   };
   const sectionMatches = (keys: string[]) => !search || keys.some(matches);
@@ -406,6 +411,8 @@ export default function Controls(props: ControlsProps) {
     fightLeague: t("modeFightLeague"),
     // --- land-claim ---
     landClaim: t("modeLandClaim"),
+    // --- colour-sort ---
+    colourSort: t("modeColourSort"),
   };
 
   // --- site-redesign --- the rail's groups, with their icons (the Recording group moved after the Arenas, before the presets)
@@ -511,6 +518,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "fightLeague" && !!search && <FightLeagueSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- land-claim --- */}
       {s.mode === "landClaim" && !!search && <LandClaimSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- colour-sort --- */}
+      {s.mode === "colourSort" && !!search && <ColourSortSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {(showsMultipliersSection(s.mode, s.glassGates) || !!search) && <MultipliersSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {showAdvanced && (
         // --- uncap-all --- the Bouncier switch is the numeric Bounciness now (1 = off, 1.03 = the old switch), uncapped
@@ -1362,6 +1371,9 @@ export default function Controls(props: ControlsProps) {
       // --- land-claim ---
       case "landClaim":
         return <LandClaimSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- colour-sort ---
+      case "colourSort":
+        return <ColourSortSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "paint":
         return <div className="space-y-3 pt-2">{picturePaintSection()}</div>;
       default:
@@ -1447,7 +1459,7 @@ export default function Controls(props: ControlsProps) {
     const labels = Object.fromEntries(railItems.map((item) => [item.id, item.label]));
     const groups: PaletteGroup[] = paletteKeyGroups(paletteShown, sections.map((item) => item.id), !!props.project).map((g) => ({ ...g, label: labels[g.section] }));
     const out: PaletteEntry[] = railItems.map((item) => ({ kind: "section", section: item.id, key: item.id, label: item.label, sectionLabel: item.label }));
-    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : null))];
+    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : null /* --- colour-sort --- */))];
     // The labels follow the language, the entries the mode and the settings that show or hide a control (paletteState).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paletteOpen, t, paletteState, sections.length, !!props.project]);

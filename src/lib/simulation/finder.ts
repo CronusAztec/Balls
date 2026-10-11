@@ -51,6 +51,7 @@ import { resolveLandClaimSettings, type LandClaimSettings } from "@/lib/physics/
 import { MAX_TEAMS } from "@/lib/physics/ballStats"; // --- land-claim ---
 import type { GrowFillSettings } from "@/lib/physics/modes/grow"; // --- loop-foundation ---
 import { growRunFinishes } from "@/lib/physics/growFill"; // --- loop-foundation ---
+import { resolveColourSortSettings, type ColourSortSettings } from "@/lib/physics/modes/colourSort"; // --- colour-sort ---
 
 /**
  * Headless seed search: simulates candidate seeds with the current settings until one
@@ -204,6 +205,13 @@ export interface ModeSettings {
    * a fill within a time limit or a fill on a bar line.
    */
   grow?: Partial<GrowFillSettings>;
+  // --- colour-sort ---
+  /**
+   * Colour Sort: the colours, the balls, the gates, the spin, the speed and size, the contacts, the remix, the rule and the
+   * time limit (see modes/colourSort.ts); the defaults when left out. The run loops forever (sort, remix, sort again), so the
+   * finder searches its first sort: all sorted within a limit, the colour sorted last, the final ball on a bar line.
+   */
+  colourSort?: Partial<ColourSortSettings>;
 }
 
 // --- odd-string-battle ---
@@ -281,6 +289,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "vortex") return resolveVortexSettings(settings.vortex).loop;
   // --- orb-grid --- a field that never settles (the period property, an orb bouncing elastically or harder): only the clip ends it
   if (mode === "orbGrid") return orbGridNeverSettles((settings as Pick<ModeSettings, "orbGrid">).orbGrid);
+  // --- colour-sort --- it sorts, mixes again and sorts again forever: no length (its outcomes search the first sort)
+  if (mode === "colourSort") return true;
   return false;
 }
 
@@ -398,6 +408,12 @@ export interface FinderResult {
   // --- loop-foundation ---
   /** Grow: the first fill (seconds) of the run found – or of the closest one – when it had one. */
   fillAt?: number;
+  // --- colour-sort ---
+  /** Colour Sort: the first complete sort (seconds) of the run found – or of the closest one – when it had one. */
+  sortedAt?: number;
+  /** Colour Sort: the colour of the final ball that sort sorted (0 = the core's). */
+  lastColour?: number;
+  // --- end colour-sort ---
 }
 
 /**
@@ -465,6 +481,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "fightLeague") engine.setFightLeagueSettings(settings.fightLeague ?? {}); // --- fight-league ---
   if (mode === "landClaim") engine.setLandClaimSettings(settings.landClaim ?? {}); // --- land-claim ---
   if (mode === "grow") engine.setGrowFillSettings(settings.grow ?? {}); // --- loop-foundation --- (before the init: the law and the start apply there)
+  if (mode === "colourSort") engine.setColourSortSettings(settings.colourSort ?? {}); // --- colour-sort ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -855,7 +872,11 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   const orbs = request.mode === "orbGrid"; // --- orb-grid ---
   const growRun = request.mode === "grow"; // --- loop-foundation --- (Grow's first fill, real time)
   let firstFill = -1;
-  while (elapsed < horizonMs - 1e-6) {
+  // --- colour-sort --- the first sort decides every outcome of it: the run is followed until it ends (every ball sorted, or
+  // the mode's time limit – the horizon of the colour and the bar line) and no further
+  const csRun = request.mode === "colourSort";
+  const csHorizonMs = csRun && outcome.kind !== "sorted-by" ? Math.max(horizonMs, 1000 * resolveColourSortSettings(request.modeSettings.colourSort).limit + FIXED_RUN_SLACK_MS) : horizonMs;
+  while (elapsed < csHorizonMs - 1e-6) {
     engine.update(step, 0);
     elapsed += step;
     engine.consumeSoundEvents();
@@ -870,6 +891,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
     // --- fight-league --- the chosen side is out (every fighter of it knocked out): it cannot win any more
     if (fightTeam >= 0 && !engine.getFightLeagueView().fighters.some((f) => f.team === fightTeam && f.alive)) break;
+    if (csRun && engine.getColourSortView().completions > 0) break; // --- colour-sort --- (the first sort has ended: its verdict is in)
   }
   const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : request.mode === "territory" ? engine.getTerritoryView().teams /* --- odd-territory --- */ : request.mode === "maze" ? engine.getMazeView().teamCount /* --- odd-maze --- (one team per ball, the first six) */ : request.mode === "fightLeague" ? engine.getFightLeagueView().teamCount /* --- fight-league --- (a side per fighter, two in 2v2) */ : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
   // --- land-claim --- the battle's first six competitors are teams; its verdict's gap between the top two (a close battle)
@@ -877,8 +899,22 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   const teams = engine.getTeamStats().slice(0, lcView ? Math.min(lcView.teams, MAX_TEAMS) : teamCount).map((t) => ({ ...t }));
   // --- fight-league --- a finished fight that ended with every side down together: a double KO
   const doubleKo = request.mode === "fightLeague" && finished ? engine.getFightLeagueView().doubleKo : undefined;
-  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */ };
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...(csRun ? colourSortRunFields(engine) : {}) /* --- colour-sort --- */ };
 }
+
+// --- colour-sort ---
+/** A Colour Sort run's first sort: when it was complete (ms, −1 when the time limit ended it), the colour sorted last and the cycle it closes. */
+function colourSortRunFields(engine: PhysicsEngine): Pick<RunSummary, "sortedMs" | "lastColour" | "cycleMs"> {
+  const v = engine.getColourSortView();
+  const ended = v.completions > 0;
+  const seams = engine.getLoopSeams();
+  return {
+    sortedMs: ended && v.firstSortSec >= 0 ? 1000 * v.firstSortSec : -1,
+    lastColour: ended ? v.firstLastColour : -1,
+    ...(ended && seams && seams.nextMs > 0 ? { cycleMs: seams.nextMs - v.cycleStartMs } : {}),
+  };
+}
+// --- end colour-sort ---
 
 /** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */
 function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgress: (p: FinderProgress) => void, signal?: AbortSignal): Promise<FinderResult> {
@@ -897,6 +933,7 @@ function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgres
       ...(run && run.firstEscapeMs >= 0 ? { escapeAt: run.firstEscapeMs / 1000 } : {}),
       ...(run && (run.firstResolveMs ?? -1) >= 0 ? { resolveAt: (run.firstResolveMs ?? 0) / 1000 } : {}), // --- orb-grid ---
       ...(run && (run.firstFillMs ?? -1) >= 0 ? { fillAt: (run.firstFillMs ?? 0) / 1000 } : {}), // --- loop-foundation ---
+      ...(run && (run.sortedMs ?? -1) >= 0 ? { sortedAt: (run.sortedMs ?? 0) / 1000, lastColour: run.lastColour ?? -1 } : {}), // --- colour-sort ---
     });
     const runBatch = () => {
       if (signal?.aborted) {

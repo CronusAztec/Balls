@@ -93,14 +93,14 @@ describe("the loop contract: whole cycles", () => {
       expect(engine.getLoopSeams()).toBeNull();
       expect(engine.getCycleSeconds()).toBeNull();
     }
-    for (const mode of MODE_IDS) if (mode !== "grow") expect([mode, createEngineForSettings(config, mode, modeSettings, 3).getLoopSeams()]).toEqual([mode, null]);
+    for (const mode of MODE_IDS) if (mode !== "grow" && mode !== "colourSort" /* --- colour-sort --- (it always loops: tests/colourSort.test.ts checks its seams) */) expect([mode, createEngineForSettings(config, mode, modeSettings, 3).getLoopSeams()]).toEqual([mode, null]);
   });
 });
 
 describe("the loop settings: Export whole loops and the loop HUD", () => {
   it("defaults to whole loops on and the HUD off, and round-trips through links and presets", () => {
     expect(DEFAULT_LOOP_FIELDS).toEqual({ exportWholeLoops: true, loopHud: false, loopHudTitle: "", loopHudSubtitle: "" });
-    for (const mode of MODE_IDS) expect(defaultSettings(mode)).toMatchObject(DEFAULT_LOOP_FIELDS);
+    for (const mode of MODE_IDS) expect(defaultSettings(mode)).toMatchObject({ ...DEFAULT_LOOP_FIELDS, ...(mode === "colourSort" ? { loopHud: true } : {}) }); // --- colour-sort --- (its counter is the mode: its own defaults turn the HUD on)
     const s = { ...defaultSettings("grow"), exportWholeLoops: false, loopHud: true, loopHudTitle: "Every bounce, bigger", loopHudSubtitle: "watch the end" };
     const params = settingsToSearchParams(s);
     expect([params.get("wl"), params.get("lh"), params.get("lht"), params.get("lhs")]).toEqual(["0", "1", "Every bounce, bigger", "watch the end"]);

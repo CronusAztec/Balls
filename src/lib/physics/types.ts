@@ -74,6 +74,8 @@ export const MODE_IDS = [
   "fightLeague",
   // --- land-claim --- Land Claim (balls knock the top blocks off the columns lining the arena; every eighth block a new ball)
   "landClaim",
+  // --- colour-sort --- Colour Sort (balls sorted into a bullseye by one-way colour gates on rotating rings, then mixed again)
+  "colourSort",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -378,6 +380,12 @@ export interface SoundEvent {
   /** The pluck's 3f partial: a small or fast object. */
   loopBright?: boolean;
   // --- end loop-foundation ---
+  // --- colour-sort ---
+  /** The completion chord held 2 s with its 1.7 Hz tremolo before it decays (Colour Sort's resolve). */
+  loopTremolo?: boolean;
+  /** The completion chord in minor (a "fail" ending: Colour Sort's time limit ran out before every ball was sorted). */
+  loopMinor?: boolean;
+  // --- end colour-sort ---
 }
 
 // --- loop-foundation --- the voices of the loop sound families (lib/audio/loopTones.ts; `ToneGenerator.playLoop()`)
@@ -630,6 +638,10 @@ export interface GameMode {
   /** The seams of a looping run so far (each the start of a new cycle: the state equals the run's start), or null when it does not loop. */
   loopSeams?(ctx: ModeContext): LoopSeams | null;
   // --- end loop-foundation ---
+  // --- colour-sort ---
+  /** The page's Ball Color repainted every ball (`setConfig()`): a mode that colours its balls itself paints them back. */
+  onBallColorChange?(ctx: ModeContext): void;
+  // --- end colour-sort ---
 }
 
 // --- loop-foundation ---
