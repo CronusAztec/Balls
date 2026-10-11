@@ -182,12 +182,23 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   lcTeams: 1_000,
   lcBalls: BOARD_BALL_CEILING,
   // --- end land-claim ---
+  // --- colour-sort --- Colour Sort (`CS_*_CEILING` of lib/physics/modes/colourSort.ts – a test keeps them equal): the colours
+  // (a ring, a band and a palette entry each), the balls of a colour (two colours of them fill the 20,000 balls a run holds,
+  // `CS_BALL_CEILING`: a dozen numbers each, all moved every sub-step – past it each colour holds its share) and the gates of a
+  // ring (a few numbers each, every gate's edge pinned and drawn)
+  csColours: ENTITY_CEILING,
+  csPerColour: 10_000,
+  csGates: ENTITY_CEILING,
+  // --- end colour-sort ---
   // --- chord-stars --- Chord Stars: the balls (each an engine ball pinned to the clock, a star, a voice and a line of the chord
   // layer; nothing is stored per chord – a cycle's chords past SC_CHORD_CEILING fade on the canvas instead)
   scBalls: ENTITY_CEILING,
   // --- bead-hoops --- Spinning Hoops: the hoops a run builds (a bead each: an engine ball, a dozen numbers and an RK4 integration
   // a sub-step; every frame draws each hoop as an ellipse)
   hpCount: ENTITY_CEILING,
+  // --- ellipse-foci --- Focus Shot: the volley's balls (full engine balls pinned to the clock – the board's ball ceiling – each with a
+  // ring of EF_VERTEX_CAP corners for its trail and path)
+  efCount: BOARD_BALL_CEILING,
   // --- fl-overhaul --- (Stage 5) Fight League's shows: a bracket's entrants and a boss rush's challengers (a row and a bout each;
   // `FL_ENTRANT_CEILING` of lib/physics/modes/fightLeagueShow.ts – a test keeps them equal)
   flBracketSize: 256,

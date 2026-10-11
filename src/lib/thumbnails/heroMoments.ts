@@ -67,9 +67,12 @@ export const HERO_MOMENTS: Record<ModeId, HeroMoment> = {
   orbGrid: { moment: "the orbs' wave at its peak", query: "ogC=44&ogR=43&ogD=corner&ogS=0.8&ogB=0.882&ogRhythm=corner&ogHud=0", seed: 3, atSec: 14.5, camera: { x: 0.506, y: 0.567, zoom: 1.25 }, tint: "#4cc9f0" },
   fightLeague: { moment: "Thor's Thunder Strike crashing down on Loki on the lilac stage, the HP bars ticking under the names", query: "", seed: 1, atSec: 9.45, camera: { x: 0.5, y: 0.361, zoom: 1.151 }, tint: "#ffd166" }, // --- fl-overhaul --- (Stage 3: the lilac stage, an ability firing over the foe; the final stage regenerates the picture)
   landClaim: { moment: "half the wall taken: the columns a mosaic of the four countries' colours", query: "teams=France*0055a4*%F0%9F%87%AB%F0%9F%87%B7,Brazil*009c3b*%F0%9F%87%A7%F0%9F%87%B7,Spain*aa151b*%F0%9F%87%AA%F0%9F%87%B8,Colombia*fcd116*%F0%9F%87%A8%F0%9F%87%B4&lcm=claim&lch=0&tsb=0&tn=0", seed: 3, atSec: 5, camera: { x: 0.5, y: 0.587, zoom: 1.25 }, tint: "#2a9d8f" },
+  // --- colour-sort ---
+  colourSort: { moment: "the bullseye almost sorted: every colour in its own band, the last stragglers slipping through the turning gates", query: "lh=0", seed: 1, atSec: 9, tint: "#5b8cff" },
   starChords: { moment: "the five stars just closed together: every chord drawn, the inner circles lit, the closing flash", query: "lh=0", seed: 1, atSec: 12.3, camera: { zoom: 1.2 }, tint: "#b9a8ff" }, // --- chord-stars ---
   // --- bead-hoops --- (the account's navy page)
   hoops: { moment: "all eight beads up at the top spin, lined up level across the face-on rainbow hoops (g/ω² under the centre)", query: "bg1=0b1020&bg2=0b1020", seed: 1, atSec: 12.9, tint: "#f2c46a" },
+  ellipseFoci: { moment: "the volley mid-flight on the felt: a rainbow arc of comets bouncing off the rail toward the far focus", query: "lh=0&efTr=0.45", seed: 2, atSec: 2.2, tint: "#93d119" }, // --- ellipse-foci ---
 };
 
 /** The modes of `ids` (MODE_IDS) without a hero moment in `table`: the generator refuses to run while any is missing. */

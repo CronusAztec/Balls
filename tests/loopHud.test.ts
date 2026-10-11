@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { LOOP_HUD_AMBER, LOOP_HUD_COUNTER_Y, LOOP_HUD_GREY_LIGHT, LOOP_HUD_MODE_TEXT, LOOP_HUD_TITLE_Y, drawLoopHud, hudCounterText, hudText, isLightColor, loopHudBands, loopHudCount, loopHudFrame, loopHudLayout, loopHudLiveLayout, loopHudRects } from "@/lib/loop/hud";
 import { badgeMetrics, badgeRect, exportSquare, intersect } from "@/lib/watermark/layout";
+import { loopHudMessageKey } from "@/lib/loop/hud"; // --- ellipse-foci ---
 import { LiveHud, liveBadgeBox, placeLiveBadge, type LivePlacement } from "@/lib/watermark/liveLayout";
 import { RESOLUTIONS, resolutionToSize } from "@/lib/settings";
 import { drawRecordingFrame, recordingTextLayout } from "@/lib/recording/recorder";
@@ -178,10 +179,14 @@ describe("loop HUD: words and colours", () => {
   it("has the mode words in every language", () => {
     for (const keys of Object.values(LOOP_HUD_MODE_TEXT)) {
       for (const catalog of [en, pl, es] as Record<string, unknown>[]) {
-        const hud = catalog.LoopHud as Record<string, string>;
-        expect(typeof hud[keys!.title]).toBe("string");
-        expect(typeof hud[keys!.subtitle]).toBe("string");
-        expect(hud[keys!.counter]).toContain("{count}");
+        // --- ellipse-foci --- a mode's words may live in its own namespace ("EllipseFoci.canvasTitle"): `loopHudMessageKey()`
+        const word = (key: string) => {
+          const [ns, name] = loopHudMessageKey(key).split(".");
+          return (catalog[ns] as Record<string, string>)[name];
+        };
+        expect(typeof word(keys!.title)).toBe("string");
+        expect(typeof word(keys!.subtitle)).toBe("string");
+        expect(word(keys!.counter)).toContain("{count}");
       }
     }
     expect(Object.keys(pl.LoopHud).sort()).toEqual(Object.keys(en.LoopHud).sort());

@@ -14559,6 +14559,380 @@ await smokeBlock("bead-hoops", async () => {
 // --- end bead-hoops ---
 });
 
+await smokeBlock("ellipse-foci", async () => {
+// --- ellipse-foci ---
+// 41. Focus Shot (the loop family's whispering-gallery shot): ?mode=ellipseFoci runs 20 s of simulation at 4× with no NaN
+// position (data-ef-nan), at least four convergences on time (data-ef-convergences; the worst arrival, data-ef-conv-error, under
+// 1e-6 of the long semi-axis), comet trails (data-ef-trail-points), the white convergence bloom and the loop HUD's lowercase
+// title and pass counter on the canvas ("1 pass", never "1 passes"); a preset travels in the link (efN, efAim, efTr, efPa) and rebuilds the run; Find
+// Simulation offers Converges on the beat and Longest collapse and puts a 100 BPM page's convergences on its bar lines (efT=4.8);
+// and a fast export of a 20 s clip – one whole 16 s loop – emits exactly the sound events live play emitted up to that seam
+// (data-ef-conv-sounds of the export's hidden canvas against the page's: the sounds after each convergence, cumulative).
+{
+  await page.goto(`${BASE}/en/simulator/?mode=ellipseFoci&efC=1`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("ellipse-foci-section");
+  const sectionInfo = { visible: await section.isVisible().catch(() => false), loop: await section.getAttribute("data-ef-loop").catch(() => null), bpm: await section.getAttribute("data-ef-bpm").catch(() => null) };
+  await page.evaluate(() => {
+    const texts = [];
+    window.__efHud = { texts, white: 0 };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 4000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+    // the bloom: a radial gradient from white on the focus (the felt's stops are green)
+    const addColorStop = CanvasGradient.prototype.addColorStop;
+    CanvasGradient.prototype.addColorStop = function (offset, color) {
+      if (offset === 0 && /^rgba\(255, 255, 255, /.test(String(color))) window.__efHud.white++;
+      return addColorStop.call(this, offset, color);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  let trail = 0;
+  let nan = 0;
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline) {
+    const d = await canvasData();
+    trail = Math.max(trail, Number(d.efTrailPoints) || 0);
+    nan = Math.max(nan, Number(d.efNan) || 0);
+    if (Number(d.efTime) >= 20) break;
+    await page.waitForTimeout(150);
+  }
+  const run = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-ellipse-foci.png") });
+  const hud = await page.evaluate(() => {
+    const { texts, white } = window.__efHud;
+    return { title: texts.some((t) => t.text === "fire from one dot, hit the other"), counter: texts.filter((t) => /^\d+ pass(es)?$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null, onePass: texts.some((t) => t.text === "1 pass") && !texts.some((t) => t.text === "1 passes"), white };
+  });
+  const live = (run.efConvSounds || "").split(",").filter(Boolean).map(Number);
+  check(
+    "Focus Shot runs 20 s at 4×: no NaN, a convergence on time every 4 s, comet trails, the bloom and the loop HUD's title and pass counter",
+    sectionInfo.visible && sectionInfo.loop === "16" && sectionInfo.bpm === "120" && Number(run.efTime) >= 20 && run.efNan === "0" && nan === 0 && Number(run.efConvergences) >= 4 && Number(run.efConvError) < 1e-6 && run.efBalls === "72" && run.efSkin === "table" && trail > 72 && hud.white > 0 && hud.title && hud.counter === "#f2c46a" && hud.onePass && run.loopHud === "1" && live.length >= 4,
+    `(${JSON.stringify({ section: sectionInfo, time: run.efTime, nan: run.efNan, conv: run.efConvergences, err: run.efConvError, balls: run.efBalls, skin: run.efSkin, trail, hud, live, seams: run.efSeams, loop: run.efLoop })})`,
+  );
+
+  // ⚡ The fast export of a 20 s clip with Export whole loops (on by default): one 16 s loop, and the sound events the export's
+  // engine emitted by its seam – read off its hidden canvas while it renders – are exactly the live run's by the same convergence.
+  await page.goto(`${BASE}/en/simulator/?mode=ellipseFoci&dur=20&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const seen = { sounds: -1, conv: "", time: 0 };
+      window.__efExport = seen;
+      new MutationObserver((records) => {
+        for (const r of records) {
+          const el = r.target;
+          if (!(el instanceof HTMLCanvasElement) || el.style.display !== "none") continue;
+          seen.sounds = Number(el.dataset.efSounds);
+          seen.conv = el.dataset.efConvSounds || "";
+          seen.time = Number(el.dataset.efTime);
+        }
+      }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-ef-sounds", "data-ef-conv-sounds", "data-ef-time"] });
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `ellipse-foci-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const exported = await page.evaluate(() => window.__efExport);
+    const conv = exported.conv.split(",").filter(Boolean).map(Number);
+    check(
+      "a Focus Shot fast export of a 20 s clip is one whole 16 s loop and emits exactly the sound events live play emitted by that seam",
+      status === "done" && bytes > 10000 && loops === 1 && Math.abs(seconds - 16) <= 1 / 30 + 0.002 && conv.length >= 4 && conv.slice(0, 4).every((n, i) => n === live[i]) && exported.sounds === conv[conv.length - 1] && exported.sounds === live[conv.length - 1],
+      `(${JSON.stringify({ status, bytes, seconds, loops, exported, live })})`,
+    );
+  } else check("without WebCodecs the Focus Shot fast export is not checked (the live run is covered above)", true);
+
+  // A preset travels in the link and rebuilds the run: Billiard focus shot – one ball at 50°, a 2 s trail, its path drawn.
+  await page.goto(`${BASE}/en/simulator/?mode=ellipseFoci`, { waitUntil: "networkidle" });
+  await page.locator('[data-ef-preset="billiard"]').first().click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  const presetQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  const presetRun = await canvasData();
+  check(
+    "a Focus Shot preset travels in the link (efN, efAim, efTr, efPa) and rebuilds the run",
+    presetQuery.get("efN") === "1" && presetQuery.get("efAim") === "50" && presetQuery.get("efTr") === "2" && presetQuery.get("efPa") === "1" && presetRun.efBalls === "1" && presetRun.efTrail === "2",
+    `(${JSON.stringify({ query: presetQuery.toString(), balls: presetRun.efBalls, trail: presetRun.efTrail })})`,
+  );
+
+  // Find Simulation: the two outcomes; on the beat at 100 BPM a 4.1 s transit becomes two bars (4.8 s), the clip whole loops.
+  await page.goto(`${BASE}/en/simulator/?mode=ellipseFoci&bpm=100&efT=4.1`, { waitUntil: "networkidle" });
+  const outcomes = await page.locator("#find-outcome option").evaluateAll((options) => options.map((o) => o.value)).catch(() => []);
+  await page.locator("#find-outcome").selectOption("converge-on-beat").catch(() => {});
+  const findButton = page.getByRole("button", { name: /Put the Convergences on the Beat/ });
+  const labelled = await findButton.isVisible().catch(() => false);
+  await findButton.click().catch(() => {});
+  const foundText = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 30_000 }).then(() => page.getByText(/Found!|Didn't find simulation/).first().innerText()).catch(() => "timeout");
+  await page.waitForTimeout(400);
+  const foundQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "Find Simulation offers Converges on the beat and Longest collapse, and puts a 100 BPM page's convergences on its bar lines (4.8 s, two bars)",
+    outcomes.join(",") === "converge-on-beat,longest-collapse" && labelled && /Found! A convergence every 4\.80s \(2 bars\)/.test(foundText) && foundQuery.get("efT") === "4.8" && foundQuery.get("dur") === "20",
+    `(${JSON.stringify({ outcomes, labelled, foundText, query: foundQuery.toString() })})`,
+  );
+}
+// --- end ellipse-foci ---
+});
+
+await smokeBlock("colour-sort", async () => {
+// --- colour-sort ---
+// 39. Colour Sort: the preview image and the card under the escape heading; URL → the Colour Sort block of the Mode row (colours,
+// gates, gate width, rule, contacts, flashes; no ring controls) and Find Simulation's three outcomes (the colour picker naming the
+// palette), controls → URL (a preset too), the search box; the reference sort at 8× – 360 / 360 sorted (data-cs-*), the remix and
+// the seam back to frame 0 (data-loop-cycle, data-loop-seams), no ball past the outer wall, the gate plucks on A major pentatonic
+// and the completion chord on A2 (OscillatorNode.start instrumented), the HUD's lowercase title, the amber counter and "mixing
+// again" drawn into the canvas; the default sort at 30+ fps; Find Simulation's "all sorted within", played back to the second;
+// a fast export cut to whole loops with the HUD in its frames; a free visitor's watermark badge clear of the HUD.
+{
+  const res = await page.request.get(`${BASE}/modes/colourSort.webp`);
+  check("asset /modes/colourSort.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inEscape = await page.evaluate(() => {
+    // (the heading's own text: the site redesign adds the family's mode count in an aria-hidden span)
+    const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Escape modes");
+    const group = heading?.parentElement;
+    return !!group && !!group.querySelector('img[src$="/modes/colourSort.webp"]') && !!group.querySelector('img[src$="/modes/classic.webp"]');
+  });
+  const card = await page.locator('img[src$="/modes/colourSort.webp"]').count();
+  check("the Colour Sort card is on the landing page under the escape heading", card === 1 && inEscape, `(cards=${card}, in the escape group=${inEscape})`);
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=colourSort&csc=5&csg=3&csw=20&csu=bothWaysNotOwn&csx=1&csh=1`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("colour-sort-section");
+  const value = (label) => section.locator(`input[type="range"][aria-label="${label}"]`).inputValue().catch(() => "?");
+  const values = { csc: await value("Colours"), csg: await value("Gates per ring"), csw: await value("Gate width") };
+  const both = await section.getByTestId("cs-rule").getByRole("button", { name: /Both ways/ }).getAttribute("aria-pressed").catch(() => null);
+  const contacts = await section.getByRole("switch", { name: switchName("Ball contacts") }).getAttribute("aria-checked").catch(() => null);
+  const flashes = await section.getByRole("switch", { name: switchName("Refusal flashes") }).getAttribute("aria-checked").catch(() => null);
+  const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+  const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+  const colours = await page.locator("#find-outcome").selectOption("last-colour").then(() => page.locator("#find-last-colour option").evaluateAll((els) => els.map((e) => e.textContent))).catch(() => []);
+  check(
+    "colour sort loads from URL",
+    values.csc === "5" && values.csg === "3" && values.csw === "20" && both === "true" && contacts === "true" && flashes === "true" && noRingControls && options.join(",") === "sorted-by,last-colour,sorted-on-bar" && colours.join(",") === "RED,AMBER,YELLOW,GREEN,BLUE",
+    `(${JSON.stringify(values)}, both ways=${both}, contacts=${contacts}, flashes=${flashes}, ring controls hidden=${noRingControls}, finder outcomes=${options.join(",")}, colours=${colours.join(",")})`,
+  );
+  await section.getByTestId("cs-rule").getByRole("button", { name: /Out, own only/ }).click();
+  await section.locator('input[type="range"][aria-label="Gates per ring"]').evaluate(setRangeValue, "6");
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check("colour sort mirrors into the URL", query.get("mode") === "colourSort" && query.get("csu") === "outwardOwnOnly" && query.get("csg") === "6" && query.get("csc") === "5" && query.get("csx") === "1", `(${query.toString()})`);
+  }
+  await section.getByTestId("cs-preset").selectOption("rainbow7");
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check("the Rainbow 7 preset sets 7 colours × 50 balls (the reference rule and gates back)", query.get("csc") === "7" && query.get("csn") === "50" && !query.has("csu") && !query.has("csg"), `(${query.toString()})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("gate width");
+  const found = await page.locator('input[type="range"][aria-label="Gate width"]').isVisible().catch(() => false);
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the colour sort controls", found, `(gate width=${found})`);
+}
+{
+  // The reference sort (4 × 90) at 8×: every ball sorted, the chord, "mixing again", the seam back to frame 0.
+  await page.goto(`${BASE}/en/simulator/?mode=colourSort`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    const texts = [];
+    window.__csOsc = osc;
+    window.__csTexts = texts;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value > 20 && osc.length < 20000) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 40000) texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  const atStart = await canvasData();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.csCompletions) >= 1, null, { timeout: 120_000 }).catch(() => {});
+  const sorted = await canvasData();
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.csPhase === "remix" || Number(document.querySelector("main canvas")?.dataset.csSeams) >= 1, null, { timeout: 30_000 }).catch(() => {});
+  const remix = await canvasData();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.csSeams) >= 1, null, { timeout: 30_000 }).catch(() => {});
+  const seam = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-colour-sort.png") });
+  const heard = await page.evaluate(() => {
+    const near = (f) => window.__csOsc.some((x) => Math.abs(x - f) < 0.5);
+    const texts = window.__csTexts.splice(0);
+    return {
+      // the outer three colours' plucks (A3, E4, C#5) and the chord's root (A2)
+      plucks: [220, 329.63, 554.37].filter(near).length,
+      chord: near(110),
+      title: texts.some((t) => t.text === "each ring stops only its own colour"),
+      counter: texts.filter((t) => /^\d+ \/ 360 sorted$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null,
+      full: texts.some((t) => t.text === "360 / 360 sorted"),
+      remix: texts.some((t) => t.text === "mixing again"),
+    };
+  });
+  check(
+    "colour sort sorts 360 / 360 at 8×, mixes again and loops back to frame 0 with no ball past the outer wall",
+    atStart.csTotal === "360" && atStart.csSorted === "90" && Number(sorted.csCompletions) >= 1 && Number(sorted.csFirstSort) > 3 && sorted.csLastColour !== "-1" && (remix.csPhase === "remix" || Number(remix.csSeams) >= 1) && Number(seam.csSeams) >= 1 && Number(seam.loopCycle) > Number(sorted.csFirstSort) && Number(seam.loopSeams) >= 1 && seam.csEscaped === "0" && sorted.csEscaped === "0",
+    `(${JSON.stringify({ start: atStart.csSorted, total: atStart.csTotal, firstSort: sorted.csFirstSort, sortedNow: sorted.csSorted, last: sorted.csLastColour, phase: remix.csPhase, seams: seam.csSeams, cycle: seam.loopCycle, loopSeams: seam.loopSeams, escaped: seam.csEscaped, passes: sorted.csPasses })})`,
+  );
+  check("the gate passes pluck A major pentatonic, the sort ends on the chord, and the HUD says it (title, amber counter, mixing again)", heard.plucks >= 2 && heard.chord && heard.title && heard.counter === "#f2c46a" && heard.full && heard.remix, `(${JSON.stringify(heard)})`);
+}
+{
+  // The default sort's frame rate at 1× (360 glowing balls, four rings, the HUD).
+  await page.goto(`${BASE}/en/simulator/?mode=colourSort`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(500);
+  const fr = await pageFrameRates(4000);
+  const data = await canvasData();
+  await timingCheck("simulator mode=colourSort sorts 360 balls at 30+ fps", Number(data.csSorted) > 90 && data.csEscaped === "0", fpsOk(fr, 6, 30), `(${data.csSorted} sorted, ${fpsNote(fr)}, floor 30${loadNote()})`, fpsRetry(4000, 6, 30));
+}
+{
+  // Find Simulation: every ball sorted within 40 s – found, and played back to the found second.
+  await page.goto(`${BASE}/en/simulator/?mode=colourSort`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("sorted-by");
+  await page.locator("#find-sorted-by").evaluate(setRangeValue, "40");
+  const button = page.getByRole("button", { name: /Find a Sort within 40(\.0)?s/ });
+  const labelled = await button.isVisible().catch(() => false);
+  await button.click().catch(() => {});
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const at = /Found! All sorted at ([\d.]+)s/.exec(text);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  let played = {};
+  if (at) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.csCompletions) >= 1, null, { timeout: 90_000 }).catch(() => {});
+    played = await canvasData();
+  }
+  check(
+    "Find Simulation finds a colour sort within 40 s, records its whole cycle and plays it back to the found second",
+    labelled && !!at && Number(at[1]) <= 40 && Math.abs(Number(played.csFirstSort) - Number(at[1])) < 0.02 && Number(query.get("dur")) >= Math.ceil(Number(at[1]) + 3),
+    `("${text}", dur=${query.get("dur")}, played: ${JSON.stringify({ completions: played.csCompletions, firstSort: played.csFirstSort })})`,
+  );
+}
+{
+  // ⚡ A fast export with Export whole loops (on by default) of a quick sort (60 fast balls, a 1 s remix) in a 20 s clip: a whole
+  // number of its identical cycles, cut on a seam (within a frame), the HUD's title and counter in its frames.
+  await page.goto(`${BASE}/en/simulator/?mode=colourSort&csn=15&csv=600&csm=1&seed=7&dur=20&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const osc = [];
+      const texts = [];
+      window.__csOfflineOsc = osc;
+      window.__csFrameTexts = texts;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.context instanceof OfflineAudioContext && osc.length < 20000) osc.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        if (texts.length < 20000 && this.canvas.width === 500 && this.canvas.height === 500) texts.push(String(text));
+        return fillText.call(this, text, ...rest);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `colour-sort-loop-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const cycle = Number(await panel.getAttribute("data-fast-loop-cycle"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const heard = await page.evaluate(() => ({
+      osc: window.__csOfflineOsc.length,
+      chord: window.__csOfflineOsc.some((f) => Math.abs(f - 110) < 0.5),
+      title: window.__csFrameTexts.filter((t) => t === "each ring stops only its own colour").length,
+      counter: window.__csFrameTexts.filter((t) => /^\d+ \/ 60 sorted$/.test(t)).length,
+      remix: window.__csFrameTexts.filter((t) => t === "mixing again").length,
+    }));
+    check(
+      "a Colour Sort fast export with Export whole loops lasts a whole number of its cycles (within a frame, inside the 20 s clip), carries the HUD and plays the plucks and the chord through its own audio",
+      status === "done" && bytes > 10000 && loops >= 1 && cycle > 1 && Math.abs(seconds - loops * cycle) <= 1 / 30 + 0.002 && seconds <= 20 + 1 / 30 + 0.002 && heard.title >= 10 && heard.counter >= 10 && heard.remix >= 1 && heard.osc >= 20 && heard.chord,
+      `(${JSON.stringify({ status, bytes, seconds, cycle, loops, heard })})`,
+    );
+  } else check("without WebCodecs the Colour Sort fast export is not checked (the loop contract is covered above)", true);
+}
+{
+  // A free visitor (no licence): Record Video and Fast export carry the watermark tag, and the live badge – drawn into the
+  // canvas right after the faint domain tiles, on the other side every 6 s – never covers the HUD's title or counter.
+  const freeContext = await browser.newContext({ license: null, viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  try {
+    const fp = await freeContext.newPage();
+    await fp.goto(`${BASE}/en/simulator/?mode=colourSort`, { waitUntil: "networkidle" });
+    await fp.evaluate(() => {
+      const log = { draws: [], texts: [] };
+      window.__csMark = log;
+      const main = () => document.querySelector("main canvas");
+      const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+      CanvasRenderingContext2D.prototype.drawImage = function (img, ...rest) {
+        if (this.canvas === main() && log.draws.length < 20000) log.draws.push({ w: img.width, h: img.height, x: rest[0], y: rest[1], cw: this.canvas.width, ch: this.canvas.height });
+        return drawImage.call(this, img, ...rest);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+        if (this.canvas === main() && log.texts.length < 20000 && (text === "each ring stops only its own colour" || / sorted$/.test(String(text)))) {
+          const m = this.getTransform();
+          const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 10) * m.d;
+          log.texts.push({ x: m.a * x + m.e, y: m.d * y + m.f, size, width: this.measureText(String(text)).width * m.a, baseline: this.textBaseline });
+        }
+        return fillText.call(this, text, x, y, ...rest);
+      };
+    });
+    await fp.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+    const tags = { record: await fp.getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").count(), fast: await fp.getByRole("button", { name: /Fast export/ }).locator("[data-watermark-tag]").count() };
+    await fp.getByRole("button", { name: /Start Simulator/ }).click();
+    await fp.waitForTimeout(7500);
+    const mark = await fp.evaluate(() => {
+      const { draws, texts } = window.__csMark;
+      const badges = [];
+      for (let i = 1; i < draws.length; i++) {
+        const p = draws[i - 1];
+        if (p.x === 0 && p.y === 0 && p.w === p.cw && p.h === p.ch) badges.push(draws[i]);
+      }
+      const spots = [...new Map(badges.map((b) => [`${Math.round(b.x)},${Math.round(b.y)}`, b])).values()];
+      // a line's box: its centre (middle baseline) ± 0.6 of its size (the HUD's own band), its measured width around the centre;
+      // the badge's pill: the sprite drawn without its soft shadow padding (about a quarter of the sprite's height a side)
+      const lines = texts.slice(-8).map((t) => ({ x0: t.x - t.width / 2, x1: t.x + t.width / 2, y0: t.y - 0.6 * t.size, y1: t.y + 0.6 * t.size }));
+      const pill = (b) => ({ x: b.x + 0.2 * b.h, y: b.y + 0.2 * b.h, w: b.w - 0.4 * b.h, h: 0.6 * b.h });
+      const overlaps = spots.map(pill).filter((b) => lines.some((l) => b.x < l.x1 && b.x + b.w > l.x0 && b.y < l.y1 && b.y + b.h > l.y0)).length;
+      const inside = lines.every((l) => l.y0 >= 0 && l.y1 <= (draws[0]?.ch ?? Infinity));
+      return { spots: spots.map((b) => [Math.round(b.x), Math.round(b.y), b.w, b.h]), lines: lines.slice(-2).map((l) => [Math.round(l.x0), Math.round(l.y0), Math.round(l.x1), Math.round(l.y1)]), overlaps, inside, count: texts.length };
+    });
+    check(
+      "a free visitor's Colour Sort page: the watermark tag on Record Video and Fast export, the live badge in both corners clear of the HUD's title and counter, and the HUD inside the canvas",
+      tags.record >= 1 && tags.fast >= 1 && mark.spots.length >= 1 && mark.overlaps === 0 && mark.count >= 2 && mark.inside,
+      `(${JSON.stringify({ tags, ...mark })})`,
+    );
+  } finally {
+    await freeContext.close().catch(() => {});
+  }
+}
+// --- end colour-sort ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

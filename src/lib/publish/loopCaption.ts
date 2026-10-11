@@ -1,5 +1,6 @@
 import { normalizeHashtag, withoutPlatformTags } from "./caption";
 import type { ModeId } from "@/lib/physics/types";
+import { colourSortTotal } from "@/lib/physics/colourSortSettings"; // --- colour-sort ---
 
 /*
  * --- loop-foundation --- The "Loop style" caption preset (the Publish caption editor's button): the words of the loop clips'
@@ -14,7 +15,9 @@ export const LOOP_CAPTION_BASE_TAGS = ["#satisfying", "#oddlysatisfying"] as con
 export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly string[]>>> = {
   hoops: ["#physics", "#math", "#creativecoding"], // --- bead-hoops ---
   grow: ["#physics", "#bouncingball", "#exponentialgrowth"],
+  colourSort: ["#sorting", "#physics", "#simulation"], // --- colour-sort ---
   starChords: ["#math", "#geometry", "#creativecoding"], // --- chord-stars ---
+  ellipseFoci: ["#math", "#geometry", "#creativecoding"], // --- ellipse-foci ---
 };
 /** Any other mode's topic tags. */
 export const LOOP_CAPTION_DEFAULT_TAGS = ["#physics", "#bouncingball"] as const;
@@ -108,13 +111,21 @@ export interface LoopCaptionContext {
  * The loop-style words of a run with these settings: Grow by its law – "{count}% bigger every bounce…" (multiply), "{count} px
  * bigger…" (add), "{count}% closer…" (the classic approach) –, any other mode its clip's seconds.
  */
-export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number; scBalls?: number /* --- chord-stars --- */ }): LoopCaptionContext {
+export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number; scBalls?: number /* --- chord-stars --- */; efCount?: number /* --- ellipse-foci --- */ }): LoopCaptionContext {
   // --- chord-stars --- Chord Stars by its balls: "{count} balls, one circle, …" and the fact of the inner circles
   if (s.mode === "starChords") return { mode: s.mode, hookKey: "starChords", factKey: "starChordsFact", count: s.scBalls ?? null };
+  // --- ellipse-foci --- Focus Shot by its volley: "{count} balls fired from one focus…" and the whispering-gallery fact
+  if (s.mode === "ellipseFoci") return { mode: s.mode, hookKey: "ellipseFoci", factKey: "ellipseFociFact", count: typeof s.efCount === "number" && Number.isFinite(s.efCount) ? s.efCount : null };
   if (s.mode === "grow") {
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };
     if (s.growLaw === "add") return { mode: s.mode, hookKey: "growAdd", factKey: "", count: s.growStep ?? null };
     return { mode: s.mode, hookKey: "growApproach", factKey: "", count: s.growRate ?? null };
+  }
+  // --- colour-sort --- "360 mixed balls, sorted by their own rings": the balls in all, the rings' rule as the fact
+  if (s.mode === "colourSort") {
+    const cs = s as { csColours?: number; csPerColour?: number };
+    const count = cs.csColours !== undefined && cs.csPerColour !== undefined ? colourSortTotal({ csColours: cs.csColours, csPerColour: cs.csPerColour }) : null;
+    return { mode: s.mode, hookKey: "colourSort", factKey: "colourSortFact", count };
   }
   // --- bead-hoops --- Spinning Hoops by its hoops ("{count} hoops spinning faster and faster…"; one hoop its own words) and
   // the critical-spin fact under it (the page's settings carry `hpCount`)
