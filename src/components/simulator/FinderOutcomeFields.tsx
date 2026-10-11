@@ -40,6 +40,7 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "star-set": "outcomeStarSet", // --- chord-stars ---
   "lift-order": "outcomeLiftOrder", // --- bead-hoops ---
   "all-up-by": "outcomeAllUpBy", // --- bead-hoops ---
+  "diverges-at": "outcomeDivergesAt", // --- chaos-fan ---
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -57,6 +58,7 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "star-set": "hintStarSet", // --- chord-stars ---
   "lift-order": "hintLiftOrder", // --- bead-hoops ---
   "all-up-by": "hintAllUpBy", // --- bead-hoops ---
+  "diverges-at": "hintDivergesAt", // --- chaos-fan ---
 };
 
 /** The explanation of `outcome` (--- odd-string-battle --- a battle's winner is the last ball standing: its own hint; --- odd-territory --- Territory's the most tiles at the countdown). */
@@ -245,6 +247,34 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
         </div>
       )}
       {/* --- end bead-hoops --- */}
+      {/* --- chaos-fan --- the fan's split at a chosen second ± 0.5 s (the escape slider's range and field) */}
+      {outcome === "diverges-at" && (
+        <div className="space-y-1.5" data-testid="finder-diverge-at">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-diverge-at">
+              {r("divergeAt")}
+            </label>
+            <span className="text-xs font-mono text-accent">
+              {escapeAt.toFixed(1)}s ±{ESCAPE_AT_TOLERANCE_SEC}s
+            </span>
+          </div>
+          <input
+            id="find-diverge-at"
+            type="range"
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={escapeAt}
+            disabled={disabled}
+            onChange={(e) => onEscapeAt(Number(e.target.value))}
+            aria-label={r("divergeAt")}
+            className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
+            style={sliderStyle(escapeAt, range.min, range.max)}
+          />
+          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r("divergeAt")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" />
+        </div>
+      )}
+      {/* --- end chaos-fan --- */}
       {outcome === "winner" && (
         <div className="space-y-1.5">
           <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-winner">
@@ -310,6 +340,8 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findLiftOrder");
     case "all-up-by": // --- bead-hoops ---
       return t("Rigged.findAllUpBy", { time: c.escapeAt.toFixed(1) });
+    case "diverges-at": // --- chaos-fan ---
+      return t("Rigged.findDivergesAt", { time: c.escapeAt.toFixed(1) });
     default:
       return null;
   }
@@ -343,6 +375,8 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundLiftOrder");
     case "all-up-by": // --- bead-hoops ---
       return t("Rigged.foundAllUpBy", { time: (result.allUpAt ?? 0).toFixed(2) });
+    case "diverges-at": // --- chaos-fan ---
+      return t("Rigged.foundDivergesAt", { time: (result.divergeAt ?? 0).toFixed(2) });
     default:
       return null;
   }
@@ -377,6 +411,8 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missLiftOrder", { seeds: result.seedsTested });
     case "all-up-by": // --- bead-hoops ---
       return result.allUpAt === undefined ? t("Rigged.missNoAllUp", { seeds: result.seedsTested }) : t("Rigged.missAllUpBy", { time: result.allUpAt.toFixed(1), seeds: result.seedsTested });
+    case "diverges-at": // --- chaos-fan ---
+      return result.divergeAt === undefined ? t("Rigged.missNoDiverge", { seeds: result.seedsTested }) : t("Rigged.missDivergesAt", { time: result.divergeAt.toFixed(1), seeds: result.seedsTested });
     default:
       return null;
   }
@@ -415,6 +451,10 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayLiftOrder", { tested: result.seedsTested });
     case "all-up-by": // --- bead-hoops ---
       return t("Rigged.overlayAllUpBy", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) });
+    case "diverges-at": // --- chaos-fan ---
+      return result.divergeAt === undefined
+        ? t("Rigged.overlayNoDiverge", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) })
+        : t("Rigged.overlayDivergesAt", { tested: result.seedsTested, closest: result.divergeAt.toFixed(1), target: c.escapeAt.toFixed(1), tolerance: ESCAPE_AT_TOLERANCE_SEC });
     default:
       return null;
   }
@@ -450,5 +490,6 @@ export function outcomeProgressText(t: Translate, outcome: FinderOutcomeKind | n
   if (outcome === "resolves-at") return progress.bestDuration > 0 ? t("Rigged.progressResolvesAt", { time: progress.bestDuration.toFixed(1) }) : null;
   if (outcome === "close") return progress.bestDuration < 100 ? t("Rigged.progressClose", { margin: progress.bestDuration.toFixed(1) }) : null; // --- land-claim ---
   if (outcome === "all-up-by") return progress.bestDuration > 0 ? t("Rigged.progressAllUpBy", { time: progress.bestDuration.toFixed(1) }) : null; // --- bead-hoops ---
+  if (outcome === "diverges-at") return progress.bestDuration > 0 ? t("Rigged.progressDivergesAt", { time: progress.bestDuration.toFixed(1) }) : null; // --- chaos-fan ---
   return null;
 }

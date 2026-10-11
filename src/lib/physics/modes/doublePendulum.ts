@@ -3,6 +3,10 @@ import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
 import { ChainStepper, PendulumChain, collideBobs, createContactScratch, type ContactScratch, type Vec2 } from "../pendulumChain";
 import { CHAIN_BOB_CEILING, atLeastMin, memoryCeiling, signedUncapped } from "@/lib/uncap"; // --- uncap-all ---
+// --- chaos-fan --- hundreds of double pendulums a hair apart, batched; the palindrome loop
+import type { LoopSeams } from "../types";
+import { CHAOS_FAN_RANGES, ChaosFanRun, DEFAULT_CHAOS_FAN_SETTINGS, FAN_BOB_PER_BALL_PX, FAN_REACH_SHARE, readChaosFanParams, resolveChaosFanInto, writeChaosFanParams, type ChaosFanView, type DpColourBy } from "../chaosFan";
+// --- end chaos-fan ---
 
 /**
  * Double Pendulum ("doublePendulum" mode, the project.jdm "Double Pendulum HARP" and "2 Pendulums SPAR with Each
@@ -77,6 +81,15 @@ export interface DoublePendulumSettings {
   /** The scale and root of the Sound section: the strings are tuned to them. */
   scale: ScaleId;
   rootNote: number;
+  // --- chaos-fan --- the chaos fan (lib/physics/chaosFan.ts): `fanCount` double pendulums a hair apart, optionally a palindrome
+  fan: boolean;
+  fanCount: number;
+  spreadDeg: number;
+  colourBy: DpColourBy;
+  palindrome: boolean;
+  forwardSec: number;
+  divergePx: number;
+  // --- end chaos-fan ---
 }
 
 export const DEFAULT_DOUBLE_PENDULUM_SETTINGS: DoublePendulumSettings = {
@@ -103,6 +116,7 @@ export const DEFAULT_DOUBLE_PENDULUM_SETTINGS: DoublePendulumSettings = {
   clipSeconds: 30,
   scale: "chromatic",
   rootNote: 0,
+  ...DEFAULT_CHAOS_FAN_SETTINGS, // --- chaos-fan --- (off by default: the harp rig as it always was)
 };
 
 /** Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
@@ -123,6 +137,7 @@ export const DOUBLE_PENDULUM_RANGES = {
   dpTrailSeconds: { min: 0, max: 10, step: 0.5 },
   dpStrings: { min: 0, max: 24, step: 1 },
   dpOctaves: { min: 1, max: 4, step: 1 },
+  ...CHAOS_FAN_RANGES, // --- chaos-fan --- dpFanCount, dpSpreadDeg, dpForwardSec, dpDivergePx
 } as const;
 
 /** The clip lengths the run can be told to finish at (seconds). */
@@ -150,6 +165,15 @@ export interface DoublePendulumSettingFields {
   dpOctaves: number;
   dpSpar: boolean;
   dpEndless: boolean;
+  // --- chaos-fan --- (URL keys in DP_FAN_URL_KEYS of lib/physics/chaosFan.ts)
+  dpFan: boolean;
+  dpFanCount: number;
+  dpSpreadDeg: number;
+  dpColourBy: DpColourBy;
+  dpPalindrome: boolean;
+  dpForwardSec: number;
+  dpDivergePx: number;
+  // --- end chaos-fan ---
 }
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
@@ -189,6 +213,7 @@ export function resolveDoublePendulumSettings(config: Partial<DoublePendulumSett
   if (config.clipSeconds !== undefined) out.clipSeconds = clampNumber(config.clipSeconds, CLIP_RANGE, out.clipSeconds);
   if (isScaleId(config.scale)) out.scale = config.scale;
   if (config.rootNote !== undefined) out.rootNote = normalizeRootNote(config.rootNote);
+  resolveChaosFanInto(config, out, memoryCeiling); // --- chaos-fan --- (numbers from their minimum up; the fan's pendulums at their memory-safety ceiling)
   return out;
 }
 
@@ -225,6 +250,15 @@ export function doublePendulumSettingsOf(source: DoublePendulumSettingFields & D
     clipSeconds: source.recordingDuration ?? DEFAULT_DOUBLE_PENDULUM_SETTINGS.clipSeconds,
     scale: source.scale ?? DEFAULT_DOUBLE_PENDULUM_SETTINGS.scale,
     rootNote: source.rootNote ?? DEFAULT_DOUBLE_PENDULUM_SETTINGS.rootNote,
+    // --- chaos-fan ---
+    fan: source.dpFan ?? DEFAULT_CHAOS_FAN_SETTINGS.fan,
+    fanCount: source.dpFanCount ?? DEFAULT_CHAOS_FAN_SETTINGS.fanCount,
+    spreadDeg: source.dpSpreadDeg ?? DEFAULT_CHAOS_FAN_SETTINGS.spreadDeg,
+    colourBy: source.dpColourBy ?? DEFAULT_CHAOS_FAN_SETTINGS.colourBy,
+    palindrome: source.dpPalindrome ?? DEFAULT_CHAOS_FAN_SETTINGS.palindrome,
+    forwardSec: source.dpForwardSec ?? DEFAULT_CHAOS_FAN_SETTINGS.forwardSec,
+    divergePx: source.dpDivergePx ?? DEFAULT_CHAOS_FAN_SETTINGS.divergePx,
+    // --- end chaos-fan ---
   };
 }
 
@@ -251,6 +285,15 @@ export function doublePendulumSettingFields(settings: DoublePendulumSettings): D
     dpOctaves: settings.octaves,
     dpSpar: settings.spar,
     dpEndless: settings.endless,
+    // --- chaos-fan ---
+    dpFan: settings.fan,
+    dpFanCount: settings.fanCount,
+    dpSpreadDeg: settings.spreadDeg,
+    dpColourBy: settings.colourBy,
+    dpPalindrome: settings.palindrome,
+    dpForwardSec: settings.forwardSec,
+    dpDivergePx: settings.divergePx,
+    // --- end chaos-fan ---
   };
 }
 
@@ -298,6 +341,7 @@ export function writeDoublePendulumParams(settings: DoublePendulumSettingFields,
     else if (typeof value === "number") params.set(key, formatDpNumber(value));
   }
   if (settings.dpStringLayout !== base.dpStringLayout) params.set("dpsl", settings.dpStringLayout);
+  writeChaosFanParams(settings, base, params); // --- chaos-fan ---: dpf, dpfn, dpfs, dpfc, dpfp, dpff, dpfd
 }
 
 /** Reads the Double Pendulum parameters of a URL into `settings` and clamps them (bad values fall back to the defaults). */
@@ -316,6 +360,7 @@ export function readDoublePendulumParams(params: URLSearchParams, settings: Doub
   }
   const layout = params.get("dpsl");
   if (isDpStringLayout(layout)) settings.dpStringLayout = layout;
+  readChaosFanParams(params, settings); // --- chaos-fan --- (validated with the rest below)
   Object.assign(settings, resolveDoublePendulumFields(settings));
 }
 
@@ -642,6 +687,8 @@ export interface DoublePendulumView {
   finished: boolean;
   /** Incremented by every init (a new run). */
   generation: number;
+  /** --- chaos-fan --- The chaos fan's batch, spread, tape and counters while the fan is on (null: the harp rig). */
+  fan: ChaosFanView | null;
 }
 
 const SCRATCH_POS: Vec2 = { x: 0, y: 0 };
@@ -680,6 +727,7 @@ export class DoublePendulumMode implements GameMode {
     finale: false,
     finished: false,
     generation: 0,
+    fan: null, // --- chaos-fan ---
   };
   private firstId = 0;
   private ballRadius = 8;
@@ -706,6 +754,8 @@ export class DoublePendulumMode implements GameMode {
    * need not share the short sub-steps of whichever one whips round, and one swings the same with or without the others.
    */
   private groups: { pens: DpPendulum[]; chains: PendulumChain[]; stepper: ChainStepper }[] = [];
+  /** --- chaos-fan --- The fan's run (active while `settings.fan` built the run): DoublePendulumMode delegates to it. */
+  private readonly fanRun = new ChaosFanRun();
 
   constructor() {
     for (let i = 0; i < HIT_POOL; i++) this.view.hits.push({ x: 0, y: 0, time: -Infinity, strength: 0 });
@@ -727,7 +777,29 @@ export class DoublePendulumMode implements GameMode {
     const harpChanged = live.strings !== s.strings || live.stringLayout !== s.stringLayout || live.octaves !== s.octaves || live.scale !== s.scale || live.rootNote !== s.rootNote;
     this.view.settings = { ...live, trailSeconds: s.trailSeconds, strings: s.strings, stringLayout: s.stringLayout, octaves: s.octaves, scale: s.scale, rootNote: s.rootNote, endless: s.endless, clipSeconds: s.clipSeconds };
     if (harpChanged) this.buildStrings();
+    // --- chaos-fan --- the fan's colours and its split measure follow live (the rest of the fan restarts the run)
+    this.view.settings.colourBy = s.colourBy;
+    this.view.settings.divergePx = s.divergePx;
+    this.fanRun.setLive(s.colourBy, s.divergePx);
   }
+
+  // --- chaos-fan ---
+  /** The fan's view while the fan runs, else null. */
+  getFanView(): ChaosFanView | null {
+    return this.fanRun.active ? this.fanRun.getView() : null;
+  }
+  /** The fan's run (the tests and tools read its batch and its exact start). */
+  getFanRun(): ChaosFanRun {
+    return this.fanRun;
+  }
+  /** The palindrome's cycle (s): the forward run and the same run backwards, or null (the harp rig, a fan without the palindrome). */
+  cycleSeconds(): number | null {
+    return this.fanRun.cycleSeconds();
+  }
+  loopSeams(): LoopSeams | null {
+    return this.fanRun.loopSeams();
+  }
+  // --- end chaos-fan ---
 
   /** Live state for the canvas and the HUD; the same object every call. */
   getView(): DoublePendulumView {
@@ -773,6 +845,14 @@ export class DoublePendulumMode implements GameMode {
     this.width = ctx.config.width;
     this.height = ctx.config.height;
     this.ballRadius = ctx.config.ballRadius || 8;
+    // --- chaos-fan --- the fan instead of the harp rig: its own batch, no strings, no sparring, no trails
+    if (s.fan) {
+      this.initFan(ctx);
+      return;
+    }
+    this.fanRun.clear();
+    v.fan = null;
+    // --- end chaos-fan ---
     const lengths = chainLengths(s);
     const masses = chainMasses(s);
     const params = { links: segments, lengths, masses, gravity: DP_GRAVITY * s.gravity, damping: dampingRate(s.damping) };
@@ -829,6 +909,7 @@ export class DoublePendulumMode implements GameMode {
   }
 
   onPreUpdate(ctx: ModeContext) {
+    if (this.fanRun.active) this.fanRun.setSingleColor(ctx.config.ballColor || "#ffffff"); // --- chaos-fan --- (the single-colour fan's colour, live)
     // A live change of the ball size re-sizes the bobs (and the rig that makes room for them).
     const radius = ctx.config.ballRadius || 8;
     if (radius !== this.ballRadius) {
@@ -842,6 +923,18 @@ export class DoublePendulumMode implements GameMode {
   onBallStep(_ctx: ModeContext, ball: Ball) {
     const v = this.view;
     const f = v.field;
+    // --- chaos-fan --- the fan's one engine ball is the leader's bob
+    if (this.fanRun.active) {
+      const fan = this.fanRun.getView();
+      if (f && ball.id === this.firstId && fan.count > 0) {
+        ball.x = f.cx + fan.x2[0] * f.scale;
+        ball.y = f.cy + fan.y2[0] * f.scale;
+      }
+      ball.vx = 0;
+      ball.vy = 0;
+      return;
+    }
+    // --- end chaos-fan ---
     const i = ball.id - this.firstId;
     if (f && i >= 0 && i < v.count * v.segments) {
       const pen = v.pendulums[Math.floor(i / v.segments)];
@@ -864,10 +957,11 @@ export class DoublePendulumMode implements GameMode {
    */
   onPostUpdate(ctx: ModeContext, dtMs: number) {
     const v = this.view;
-    if (v.finished || v.pendulums.length === 0) return;
+    if (v.finished || (v.pendulums.length === 0 && !this.fanRun.active) /* --- chaos-fan --- (the fan has no chains) */) return;
     const s = v.settings;
     const stepSec = dtMs / 1000;
-    const finaleAt = s.endless ? Infinity : finaleStartSec(s.clipSeconds);
+    const loops = this.fanRun.active && s.palindrome; // --- chaos-fan --- (a palindrome loops forever: no finale, no end)
+    const finaleAt = s.endless || loops ? Infinity : finaleStartSec(s.clipSeconds);
     // Endless switched on, or a longer clip, during the finale: the swing goes on.
     if (v.finale && v.timeSec < finaleAt - 1e-9) v.finale = false;
     if (v.finale) {
@@ -876,6 +970,24 @@ export class DoublePendulumMode implements GameMode {
       if (v.timeSec >= s.clipSeconds - 1e-9) v.finished = true;
       return;
     }
+    // --- chaos-fan --- the fan steps its batch (or plays its tape backwards) and queues its own sounds
+    if (this.fanRun.active) {
+      const leaderSwung = this.fanRun.step(ctx, dtMs);
+      const fan = this.fanRun.getView();
+      v.subSteps = fan.subSteps;
+      v.step++;
+      v.timeSec = v.step * stepSec;
+      v.energy = this.fanRun.energy();
+      if (leaderSwung) {
+        const leader = this.ballAt(ctx.getBalls(), 0);
+        if (leader) ctx.noteBounce?.(leader); // --- bounce-math --- (the leader's swing through the bottom is a bounce)
+      }
+      if (v.timeSec >= finaleAt - 1e-9) this.startFinale(ctx);
+      if (!s.endless && !loops && v.timeSec >= s.clipSeconds - 1e-9) v.finished = true;
+      this.applyFanBall(ctx);
+      return;
+    }
+    // --- end chaos-fan ---
     this.stepPitches.length = 0;
     this.stepHits.length = 0;
     this.stepLevel = 0;
@@ -920,7 +1032,7 @@ export class DoublePendulumMode implements GameMode {
     if (sizeChanged) {
       this.width = ctx.config.width;
       this.height = ctx.config.height;
-      if (this.view.pendulums.length > 0) {
+      if (this.view.pendulums.length > 0 || this.fanRun.active /* --- chaos-fan --- */) {
         this.rebuildLayout();
         this.applyBalls(ctx);
       }
@@ -940,6 +1052,67 @@ export class DoublePendulumMode implements GameMode {
   }
 
   /* -------------------------------------------------------------- internals */
+
+  // --- chaos-fan ---
+  /**
+   * Starts the fan: `fanCount` double pendulums on one pivot – the first two rods' lengths and masses, the gravity and the
+   * friction of the rig –, the leader at the set angles or the seeded start (the same four draws per try as the harp rig), every
+   * further pendulum a hair further on its last rod. One engine ball rides the leader's bob (bounce math, the faces); the fan
+   * itself is drawn from the view.
+   */
+  private initFan(ctx: ModeContext) {
+    const s = this.settings;
+    const v = this.view;
+    const two = { ...s, segments: 2 };
+    const lengths = chainLengths(two);
+    const masses = chainMasses(two);
+    const start = this.startAngles(ctx, lengths, false);
+    const count = Math.max(1, memoryCeiling("dpFanCount", s.fanCount));
+    v.pendulums = [];
+    this.groups = [];
+    v.strings = [];
+    v.spanHalf = 1;
+    v.count = count;
+    v.segments = 2;
+    const singleColor = ctx.config.ballColor || "#ffffff";
+    this.fanRun.init({
+      count,
+      params: { l1: lengths[0], l2: lengths[1], m1: masses[0], m2: masses[1], g: DP_GRAVITY * s.gravity, k: dampingRate(s.damping) },
+      theta1: start[0],
+      theta2: start[1],
+      spreadRad: (s.spreadDeg * Math.PI) / 180,
+      palindrome: s.palindrome,
+      forwardSec: s.forwardSec,
+      divergePx: s.divergePx,
+      colourBy: s.colourBy,
+      singleColor,
+    });
+    const fan = this.fanRun.getView();
+    v.fan = fan;
+    v.harp = buildHarpGeometry("vertical", 0, 1, 1);
+    this.rebuildLayout();
+    v.energy0 = this.fanRun.energy();
+    v.energy = v.energy0;
+    v.energyScale = Math.max(1e-9, count * (masses[0] + masses[1]) * DP_GRAVITY * s.gravity);
+    const field = v.field!;
+    this.firstId = ctx.getNextId();
+    const r = chaosFanBobPx(field.side, this.ballRadius);
+    fan.bobPx = r;
+    ctx.addBall({ x: field.cx + fan.x2[0] * field.scale, y: field.cy + fan.y2[0] * field.scale, vx: 0, vy: 0, radius: r, color: s.colourBy === "single" ? singleColor : CHAOS_FAN_LEADER_COLOR, gravityScale: 0, radiusScale: r / this.ballRadius });
+  }
+
+  /** Puts the fan's engine ball on the leader's bob. */
+  private applyFanBall(ctx: ModeContext) {
+    const f = this.view.field;
+    const fan = this.fanRun.getView();
+    if (!f || fan.count === 0) return;
+    for (const ball of ctx.getBalls()) {
+      if (ball.id !== this.firstId) continue;
+      ball.x = f.cx + fan.x2[0] * f.scale;
+      ball.y = f.cy + fan.y2[0] * f.scale;
+    }
+  }
+  // --- end chaos-fan ---
 
   /** The start angles (radians) of the first pendulum: the settings' angles, or – seeded – a high, chaotic start. */
   private startAngles(ctx: ModeContext, lengths: readonly number[], spar: boolean): number[] {
@@ -977,6 +1150,11 @@ export class DoublePendulumMode implements GameMode {
   /** Field, scale, bob radii and the harp geometry for the current canvas and ball size. */
   private rebuildLayout() {
     const v = this.view;
+    // --- chaos-fan --- the fan's field: its reach a fixed share of the square, whatever the ball size
+    if (this.fanRun.active) {
+      v.field = chaosFanField(this.width, this.height);
+      return;
+    }
     const masses = chainMasses(v.settings);
     const maxFactor = maxBobSizeFactor(masses);
     const field = buildDpField(this.width, this.height, v.spanHalf, BOB_UNIT * this.ballRadius * maxFactor);
@@ -990,6 +1168,12 @@ export class DoublePendulumMode implements GameMode {
   /** Tunes the strings to the scale and lays them out (a live change keeps the vibrations of strings that stay; `init()` empties the list first, so a new run starts still). */
   private buildStrings() {
     const v = this.view;
+    // --- chaos-fan --- the fan plays its own swings: no harp
+    if (this.fanRun.active) {
+      v.strings = [];
+      v.harp = buildHarpGeometry("vertical", 0, v.spanHalf, 1);
+      return;
+    }
     const s = v.settings;
     const midis = harpStringMidi(s.strings, s.octaves, s.scale, s.rootNote);
     const old = v.strings;
@@ -1167,6 +1351,18 @@ export class DoublePendulumMode implements GameMode {
     const v = this.view;
     const f = v.field;
     if (!f) return;
+    // --- chaos-fan --- the leader's bob
+    if (this.fanRun.active) {
+      const r = chaosFanBobPx(f.side, this.ballRadius);
+      this.fanRun.getView().bobPx = r;
+      for (const ball of ctx.getBalls()) {
+        if (ball.id !== this.firstId) continue;
+        ball.radius = r;
+        ball.radiusScale = r / this.ballRadius;
+      }
+      this.applyFanBall(ctx);
+      return;
+    }
     const n = v.count * v.segments;
     for (const ball of ctx.getBalls()) {
       const i = ball.id - this.firstId;
@@ -1179,6 +1375,23 @@ export class DoublePendulumMode implements GameMode {
     this.applyPositions(ctx);
   }
 }
+
+// --- chaos-fan ---
+/** The leader's pink (the bob of the fan while it is still one line). */
+export const CHAOS_FAN_LEADER_COLOR = "#ff5fa2";
+
+/** The fan's field: the centred square the recorder crops to, the fan's reach (one chain) `FAN_REACH_SHARE` of its side. */
+export function chaosFanField(width: number, height: number): DpField {
+  const field = buildDpField(width, height, 1, 0);
+  field.scale = FAN_REACH_SHARE * field.side;
+  return field;
+}
+
+/** A fan bob's radius (px) on a field of `side` px for the Ball Size `ballRadius` (about 6 px on a 1080 clip by default). */
+export function chaosFanBobPx(side: number, ballRadius: number): number {
+  return Math.max(1.5, side * Math.max(0, ballRadius) * FAN_BOB_PER_BALL_PX);
+}
+// --- end chaos-fan ---
 
 /** The chord the run closes with: the first, third and fifth degree of the harp's scale on its lowest string, and the octave – accented. */
 export function closingChordEvent(settings: Pick<DoublePendulumSettings, "octaves" | "scale" | "rootNote">): SoundEvent {

@@ -2046,7 +2046,33 @@
     "hpTickTip": "Una campanilla de glockenspiel en cada vuelta, más aguda a medida que sube el giro.",
     "hpBed": "Base rítmica",
     "hpBedTip": "Un pad suave y un sub en sol que entran con la primera subida y se detienen en el reinicio.",
-    "hpTurnsUnit": "vueltas/s"
+    "hpTurnsUnit": "vueltas/s",
+    "dpFanGroup": "Abanico del caos",
+    "dpFan": "Abanico del caos",
+    "dpFanTip": "Muchos péndulos dobles colgados de un mismo pivote y soltados a un pelo de distancia: durante unos segundos se mueven como una sola línea y luego estallan en un abanico arcoíris. Mientras está activo, el arpa, el combate y la estela descansan.",
+    "dpFanDesc": "Cada péndulo empieza un poquito más adelante en su brazo inferior. Las diferencias se duplican más o menos cada fracción de segundo, así que el abanico se mantiene unido unos segundos y de pronto se separa.",
+    "dpFanPresets": "Abanicos preparados",
+    "dpFanPresetsTip": "Un clic ajusta el abanico, sus péndulos, el aspecto del clip (el fondo azul marino, el título, el subtítulo y la etiqueta de estado) y un clip de un bucle entero.",
+    "dpFanPresetHairApart": "200 péndulos a un pelo",
+    "dpFanPresetThreads": "1000 hilos",
+    "dpFanPresetTwoApart": "Dos que se separan",
+    "dpFanCount": "Péndulos del abanico",
+    "dpFanCountTip": "Cuántos péndulos dobles comparten el pivote. Se puede escribir cualquier número desde 1; se construyen como mucho 5000 (lo que integra el presupuesto de un paso).",
+    "dpSpreadDeg": "Dispersión inicial",
+    "dpSpreadDegTip": "La diferencia total del ángulo inicial del brazo inferior en todo el abanico, en grados. Con 0 todos los péndulos siguen idénticos para siempre; una dispersión mayor separa antes el abanico.",
+    "dpSpreadPicks": "Selección rápida de la dispersión inicial",
+    "dpColourBy": "Colores",
+    "dpColourByTip": "Arcoíris por índice: cada péndulo toma su propio tono al alejarse del líder (líneas blancas y una bola rosa mientras siguen siendo uno). Un color: todos los péndulos en el color de la pelota.",
+    "dpColourByIndex": "Arcoíris por índice",
+    "dpColourBySingle": "Un color",
+    "dpPalindrome": "Rebobinar",
+    "dpPalindromeTip": "Graba la ida y luego la reproduce hacia atrás, para que cada péndulo vuelva a casa por su propio camino y el clip se repita sin costuras.",
+    "dpFanLoopLine": "Un bucle de {cycle}s: {forward}s hacia delante y luego la misma película hacia atrás.",
+    "dpFanForwardOnly": "El abanico solo avanza: la partida termina con la duración del clip.",
+    "dpForwardSec": "Ida",
+    "dpForwardSecTip": "Segundos que el abanico avanza antes de rebobinar. El bucle dura el doble.",
+    "dpDivergePx": "Se separa a",
+    "dpDivergePxTip": "El abanico cuenta como separado en cuanto una bola está así de lejos de la bola del líder (píxeles en un vídeo de 1080 píxeles de ancho). Marca la señal de separación, los colores y la separación de Buscar simulación."
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -2543,7 +2569,17 @@
     "missAllUpBy": "Lo más cerca: todas arriba a los {time}s ({seeds} semillas)",
     "overlayLiftOrder": "Se probaron {tested} semillas y en ninguna las cuentas subieron en estricto orden de tamaño. Prueba una inclinación del eje menor, menos amortiguación o aros más separados.",
     "overlayAllUpBy": "Se probaron {tested} semillas: en ninguna estuvieron todas las cuentas arriba en {target}s. Prueba un giro máximo más rápido, una rampa más corta o un límite más tardío.",
-    "progressAllUpBy": "Lo más cerca de todas arriba: {time}s"
+    "progressAllUpBy": "Lo más cerca de todas arriba: {time}s",
+    "outcomeDivergesAt": "Se separa a los",
+    "hintDivergesAt": "El abanico se separa por primera vez (una bola llega a la distancia de «Se separa a» de la del líder) a ±0,5 s del segundo elegido.",
+    "divergeAt": "El abanico se separa a los",
+    "findDivergesAt": "Buscar una partida que se separe a los {time}s",
+    "foundDivergesAt": "¡Encontrada! El abanico se separa a los {time}s",
+    "missDivergesAt": "Separación más cercana: {time}s ({seeds} semillas)",
+    "missNoDiverge": "Ninguna partida se separó a tiempo ({seeds} semillas)",
+    "overlayDivergesAt": "Se probaron {tested} semillas. La separación más cercana llegó a los {closest}s (objetivo: {target}s ±{tolerance}s). Una dispersión inicial mayor separa antes; una menor, después.",
+    "overlayNoDiverge": "Se probaron {tested} semillas: ninguna se separó antes de los {target}s. Prueba una dispersión inicial mayor, una distancia de «Se separa a» menor o un objetivo más tardío.",
+    "progressDivergesAt": "Separación más cercana: {time}s"
   },
   "FastExport": {
     "button": "Exportación rápida",
@@ -4293,7 +4329,11 @@
     "hoopsTitle": "gira más rápido y las cuentas suben",
     "hoopsSubtitle": "cuanto más grande el aro, antes sube su cuenta",
     "hoopsCounter": "{rate} vueltas por segundo · {count} de {total} cuentas arriba",
-    "hoopsCounterOne": "{rate} vueltas por segundo · {count} de 1 cuenta arriba"
+    "hoopsCounterOne": "{rate} vueltas por segundo · {count} de 1 cuenta arriba",
+    "chaosFanTitle": "{count, plural, one {# péndulo} other {# péndulos}} a un pelo de distancia",
+    "chaosFanSubtitle": "las pequeñas diferencias se duplican sin parar / hasta que no hay dos que oscilen igual",
+    "chaosFanForwards": "hacia delante",
+    "chaosFanBackwards": "hacia atrás"
   },
   "LoopCaption": {
     "growMultiply": "{count}% más grande en cada rebote hasta llenar el círculo",
@@ -4305,6 +4345,8 @@
     "starChordsFact": "Un polígono estrellado es lo que dibuja una bola cuando cada rebote la mueve el mismo número de puntos por el borde. Cada recta queda a la misma distancia del centro, así que en medio aparece un círculo que ninguna bola toca nunca. Aquí cada bola se mueve a la única velocidad que termina su estrella en el mismo tiempo que las demás.",
     "hoops": "{count} aros girando cada vez más rápido: las cuentas suben por orden, primero la del aro más grande",
     "hoopsOne": "{count} aro girando cada vez más rápido, hasta que su cuenta empieza a subir",
-    "hoopsFact": "¿Por qué en ese orden? Una cuenta en un aro que gira descansa donde la gravedad equilibra el empuje hacia fuera del giro. Por debajo de un giro crítico, √(g/R), ese punto es el fondo; por encima, el punto de equilibrio sube por el aro y sigue subiendo a medida que el giro aumenta. Un aro de 75 cm de radio lo alcanza a unas 0,58 vueltas por segundo y uno de 25 cm necesita casi una vuelta por segundo, así que las cuentas dejan el fondo de fuera hacia dentro."
+    "hoopsFact": "¿Por qué en ese orden? Una cuenta en un aro que gira descansa donde la gravedad equilibra el empuje hacia fuera del giro. Por debajo de un giro crítico, √(g/R), ese punto es el fondo; por encima, el punto de equilibrio sube por el aro y sigue subiendo a medida que el giro aumenta. Un aro de 75 cm de radio lo alcanza a unas 0,58 vueltas por segundo y uno de 25 cm necesita casi una vuelta por segundo, así que las cuentas dejan el fondo de fuera hacia dentro.",
+    "chaosFan": "{count} péndulos salen a un pelo de distancia y luego la película va hacia atrás",
+    "chaosFanFact": "¿Por qué se separan? En un péndulo doble cualquier pequeña diferencia en la salida crece de forma exponencial, duplicándose más o menos cada fracción de segundo, así que péndulos soltados casi a la vez solo siguen juntos unos segundos. Edward Lorenz lo llamó el efecto mariposa. La vuelta es la grabación reproducida al revés: si en cambio se calculara la física hacia atrás desde el final, el más mínimo error de redondeo crecería igual de rápido y ningún péndulo volvería a casa."
   }
 }

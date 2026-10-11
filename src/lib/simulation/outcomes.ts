@@ -37,9 +37,12 @@ import { LC_CLOSE } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
  * --- bead-hoops --- Spinning Hoops adds two: **lift-order** – the first cycle's beads leave their bottoms in strict size order,
  * the biggest hoop's first (at least one lift; a bigger hoop's bead never comes after a smaller one's) – and **all-up-by** –
  * every bead is up within a time limit (`atSec`).
+ *
+ * --- chaos-fan --- The Double Pendulum's chaos fan adds **diverges-at**: the fan first splits – a bob `divergePx` from the
+ * leader's – within ±`toleranceSec` (0.5 s) of a target second, the window [a, b] the split must land in.
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by)
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
 
 export function isFinderOutcome(value: unknown): value is FinderOutcomeKind {
@@ -105,6 +108,8 @@ export interface RunSummary {
   /** Spinning Hoops: the first cycle's beads lifted in strict size order (decided, at least one lift). */
   liftOrderOk?: boolean;
   // --- end bead-hoops ---
+  /** --- chaos-fan --- The chaos fan: real time (ms) it first split (a bob `divergePx` from the leader's), −1 or absent when it never did. */
+  divergeMs?: number;
 }
 
 // --- land-claim ---
@@ -149,6 +154,8 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
       return Math.max(clipMs, maxSimMs);
     case "all-up-by": // --- bead-hoops --- (until the limit has passed without every bead up)
       return 1000 * (outcome.atSec ?? 0) + FILL_SLACK_MS;
+    case "diverges-at": // --- chaos-fan --- (until the window has passed without a split)
+      return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + FILL_SLACK_MS;
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
       return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + ESCAPE_TAIL_MS;
@@ -270,6 +277,11 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       const at = run.allUpMs ?? -1;
       return at >= 0 && at <= 1000 * (outcome.atSec ?? 0) + 1e-6;
     }
+    // --- chaos-fan --- the first split inside the window [target − tolerance, target + tolerance]
+    case "diverges-at": {
+      const at = run.divergeMs ?? -1;
+      return at >= 0 && Math.abs(at - 1000 * (outcome.atSec ?? 0)) <= 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC) + 1e-6;
+    }
     default:
       return false;
   }
@@ -306,6 +318,8 @@ export function outcomeMiss(outcome: FinderOutcome, run: RunSummary): number {
       return run.liftOrderOk === true ? 0 : 1;
     case "all-up-by":
       return (run.allUpMs ?? -1) < 0 ? Infinity : Math.max(0, (run.allUpMs ?? 0) / 1000 - (outcome.atSec ?? 0));
+    case "diverges-at": // --- chaos-fan --- the seconds between the split and the target (never split: Infinity)
+      return (run.divergeMs ?? -1) < 0 ? Infinity : Math.abs((run.divergeMs ?? 0) / 1000 - (outcome.atSec ?? 0));
     default:
       return Infinity;
   }
@@ -345,6 +359,8 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
       return (run.firstFillMs ?? -1) >= 0 ? (run.firstFillMs ?? 0) / 1000 : 0;
     case "all-up-by": // --- bead-hoops --- (every bead up, 0 when that never came)
       return (run.allUpMs ?? -1) >= 0 ? (run.allUpMs ?? 0) / 1000 : 0;
+    case "diverges-at": // --- chaos-fan --- (the split, 0 when it never came)
+      return (run.divergeMs ?? -1) >= 0 ? (run.divergeMs ?? 0) / 1000 : 0;
     default:
       return run.durationMs / 1000;
   }
@@ -372,6 +388,8 @@ export interface OutcomeContext {
   orbRhythm?: boolean;
   /** --- loop-foundation --- Grow ends at the fill ("finish"): the fill's time can be searched (fills-by, fill-on-bar). */
   growFinish?: boolean;
+  /** --- chaos-fan --- The Double Pendulum runs its chaos fan: the split's time can be searched (diverges-at). */
+  dpFan?: boolean;
 }
 
 /**
@@ -398,6 +416,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "grow" && ctx.growFinish) out.push("fills-by", "fill-on-bar"); // --- loop-foundation ---
   if (mode === "starChords") out.push("star-set"); // --- chord-stars --- (the best star set, its loop fitted to the clip)
   if (mode === "hoops") out.push("lift-order", "all-up-by"); // --- bead-hoops ---
+  if (mode === "doublePendulum" && ctx.dpFan) out.push("diverges-at"); // --- chaos-fan --- (the split at a chosen second)
   return out;
 }
 
@@ -412,6 +431,14 @@ export function hoopsOutcomeSettled(outcome: FinderOutcome, elapsedMs: number, a
   return false;
 }
 // --- end bead-hoops ---
+
+// --- chaos-fan ---
+/** Whether a chaos-fan run being simulated can stop for diverges-at: the fan has split (in the window or not), or the window passed without it. */
+export function fanOutcomeSettled(outcome: FinderOutcome, elapsedMs: number, divergeMs: number): boolean {
+  if (outcome.kind !== "diverges-at") return false;
+  return divergeMs >= 0 || elapsedMs > 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + FILL_SLACK_MS - 1e-6;
+}
+// --- end chaos-fan ---
 
 /** The outcome to search for: the one picked when it is available, else the first one available (null: none). */
 export function effectiveOutcome(picked: FinderOutcomeKind, available: readonly FinderOutcomeKind[]): FinderOutcomeKind | null {

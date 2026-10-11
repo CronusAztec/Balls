@@ -103,6 +103,7 @@ import { noteCornerReadouts, noteEdgeText, noteHomeCounter, noteJourneyHud, note
 import { GROW_DATA_KEYS, GrowLayer, writeGrowDataset, type GrowLook } from "./growRenderer"; // --- loop-foundation ---
 import { STAR_CHORDS_DATA_KEYS, StarChordsLayer, writeStarChordsDataset, type StarChordsRenderOptions } from "./starChordsRenderer"; // --- chord-stars ---
 import { HOOPS_DATA_KEYS, HoopsLayer, hoopsExtentPx, hoopsRenderTimeMs, type HoopsRenderOptions } from "./hoopsRenderer"; // --- bead-hoops ---
+import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -3142,7 +3143,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         setCanvasData("dpHits", String(view.hitCount));
         setCanvasData("dpDrift", String(Math.round(1e6 * engine.getDoublePendulumEnergyDrift())));
         setCanvasData("dpDone", view.finished ? "1" : "0");
+        writeChaosFanData(view.fan, setCanvasData, canvas.dataset); // --- chaos-fan --- (data-dp-fan-*: the spread, forwards / backwards, the split, the step budget)
       } else if (canvas.dataset.dpPendulums !== undefined) {
+        writeChaosFanData(null, setCanvasData, canvas.dataset); // --- chaos-fan ---
         for (const key of ["dpPendulums", "dpSegments", "dpStrings", "dpLayout", "dpSpar", "dpPlucks", "dpHits", "dpDrift", "dpDone"]) delete canvas.dataset[key];
       }
       // --- jdm-illusions --- Circle Illusion (data-illusion-*) and the wobbly walls (data-wobble: walls wobbling this frame) for tools and the smoke test
