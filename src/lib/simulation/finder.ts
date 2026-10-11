@@ -970,7 +970,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
 }
 
 // --- colour-sort ---
-/** A Colour Sort run's first sort: when it was complete (ms, −1 when the time limit ended it), the colour sorted last and the cycle it closes. */
+/** A Colour Sort run's first sort: when it was complete (ms, −1 when the time limit or the equilibrium ended it), the colour sorted last and the cycle it closes. */
 function colourSortRunFields(engine: PhysicsEngine): Pick<RunSummary, "sortedMs" | "lastColour" | "cycleMs"> {
   const v = engine.getColourSortView();
   const ended = v.completions > 0;

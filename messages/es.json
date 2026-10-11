@@ -4599,7 +4599,7 @@
     "csRuleBothWaysNotOwn": "Ambos sentidos",
     "csHintOutwardNotOwn": "La referencia: una puerta se abre hacia fuera para todos los colores menos el de su anillo, así que cada color se detiene en su propio anillo.",
     "csHintOutwardOwnOnly": "Al revés: una puerta solo se abre hacia fuera para el color de su anillo; el centro se queda con todos los demás colores.",
-    "csHintBothWaysNotOwn": "Una puerta se abre en ambos sentidos para todos los colores menos el de su anillo: las bolas pueden volver hacia dentro, así que la clasificación tarda más.",
+    "csHintBothWaysNotOwn": "Una puerta se abre en ambos sentidos para todos los colores menos el de su anillo, así que las bolas ya clasificadas vuelven hacia dentro: la clasificación nunca se completa, sino que se estabiliza en un equilibrio (más o menos la mitad de las bolas en su sitio), y el ciclo termina cuando el contador deja de subir, con el acorde menor. Buscar simulación no tiene nada que buscar aquí.",
     "csColours": "Colores",
     "csColoursTip": "Colores, y anillos: un anillo con puertas por cada color salvo el último, dentro de la pared exterior. Se puede escribir cualquier número desde 2 (más allá de ocho, los colores son tonos alrededor de la rueda).",
     "csPerColour": "Bolas por color",
@@ -4628,7 +4628,7 @@
     "csRemix": "Remezcla",
     "csRemixTip": "Segundos que dura la remezcla: las puertas dejan de filtrar y un muelle devuelve cada bola a su sitio del primer fotograma, así que la grabación se repite sin costuras.",
     "csLimit": "Límite de tiempo",
-    "csLimitTip": "La clasificación termina en este segundo aunque queden bolas fuera de sus franjas (con un acorde menor), y empieza la remezcla.",
+    "csLimitTip": "La clasificación termina en este segundo aunque queden bolas fuera de sus franjas (con un acorde menor), y empieza la remezcla. Con Ambos sentidos suele terminar antes, cuando el contador deja de subir.",
     "csFlash": "Destellos de rechazo",
     "csFlashTip": "Un breve destello donde una puerta o un arco devuelve una bola.",
     "csLoopNote": "Cada ciclo ordena las bolas, mantiene la diana medio segundo y las vuelve a mezclar hasta el primer fotograma: con Exportar bucles completos activado, la grabación termina en una costura y se repite para siempre."

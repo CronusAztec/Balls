@@ -116,7 +116,7 @@ export interface RunSummary {
   liftOrderOk?: boolean;
   // --- end bead-hoops ---
   // --- colour-sort ---
-  /** Colour Sort: real time (ms) its first sort was complete (every ball in its own band), −1 when the time limit ended it first or it has not ended. */
+  /** Colour Sort: real time (ms) its first sort was complete (every ball in its own band), −1 when the time limit or the equilibrium ended it first or it has not ended. */
   sortedMs?: number;
   /** Colour Sort: the colour (0 = the core's) of the final ball its first sort sorted, −1 without a complete sort. */
   lastColour?: number;
@@ -429,6 +429,11 @@ export interface OutcomeContext {
   orbRhythm?: boolean;
   /** --- loop-foundation --- Grow ends at the fill ("finish"): the fill's time can be searched (fills-by, fill-on-bar). */
   growFinish?: boolean;
+  /**
+   * --- colour-sort --- Colour Sort's gate rule lets balls back in (both ways, `csSortSettles()`): its sort settles at an
+   * equilibrium instead of completing, so there is no first sort to search (no sorted-by, last-colour, sorted-on-bar).
+   */
+  colourSortSettles?: boolean;
 }
 
 /**
@@ -456,7 +461,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "starChords") out.push("star-set"); // --- chord-stars --- (the best star set, its loop fitted to the clip)
   if (mode === "hoops") out.push("lift-order", "all-up-by"); // --- bead-hoops ---
   if (mode === "ellipseFoci") out.push("converge-on-beat", "longest-collapse"); // --- ellipse-foci --- (the transit on the tempo; the start angle)
-  if (mode === "colourSort") out.push("sorted-by", "last-colour", "sorted-on-bar"); // --- colour-sort --- (its first sort: the run loops forever)
+  if (mode === "colourSort" && !ctx.colourSortSettles) out.push("sorted-by", "last-colour", "sorted-on-bar"); // --- colour-sort --- (its first sort: the run loops forever; none when the sort only settles)
   return out;
 }
 

@@ -4599,7 +4599,7 @@
     "csRuleBothWaysNotOwn": "Both ways",
     "csHintOutwardNotOwn": "The reference: a gate opens outwards for every colour but its ring's own, so each colour stops at its own ring.",
     "csHintOutwardOwnOnly": "Reversed: a gate opens outwards only for its ring's own colour – the core keeps every other colour.",
-    "csHintBothWaysNotOwn": "A gate opens both ways for every colour but its ring's own: balls can wander back in, so the sort takes longer.",
+    "csHintBothWaysNotOwn": "A gate opens both ways for every colour but its ring's own, so sorted balls wander back in: the sort never completes but settles at an equilibrium (roughly half the balls home), and the cycle ends once the count stops rising, on the minor chord. Find Simulation has no sort to search here.",
     "csColours": "Colours",
     "csColoursTip": "Colours – and rings: a gated ring for every colour but the last, inside the outer wall. Any number from 2 can be typed (past eight the colours are hues around the wheel).",
     "csPerColour": "Balls per colour",
@@ -4628,7 +4628,7 @@
     "csRemix": "Remix",
     "csRemixTip": "Seconds the remix lasts: the gates stop filtering and a spring pulls every ball back to its place in the first frame, so a recording loops seamlessly.",
     "csLimit": "Time limit",
-    "csLimitTip": "The sort ends at this second even with balls still out of their bands (on a minor chord), and the remix starts.",
+    "csLimitTip": "The sort ends at this second even with balls still out of their bands (on a minor chord), and the remix starts. With Both ways it usually ends sooner, once the count stops rising.",
     "csFlash": "Refusal flashes",
     "csFlashTip": "A short flash where a gate or an arc turns a ball back.",
     "csLoopNote": "Every cycle sorts the balls, holds the bullseye for half a second and mixes them back into the first frame: with Export whole loops on, a recording ends on a seam and loops forever."

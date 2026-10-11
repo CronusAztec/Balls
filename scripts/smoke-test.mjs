@@ -14273,8 +14273,10 @@ await smokeBlock("ellipse-foci", async () => {
 await smokeBlock("colour-sort", async () => {
 // --- colour-sort ---
 // 39. Colour Sort: the preview image and the card under the escape heading; URL → the Colour Sort block of the Mode row (colours,
-// gates, gate width, rule, contacts, flashes; no ring controls) and Find Simulation's three outcomes (the colour picker naming the
-// palette), controls → URL (a preset too), the search box; the reference sort at 8× – 360 / 360 sorted (data-cs-*), the remix and
+// gates, gate width, rule, contacts, flashes; no ring controls) – Both ways hiding Find Simulation (its sort only settles) and its
+// hint saying so – then a one-way rule bringing back the three outcomes (the colour picker naming the palette), controls → URL (a
+// preset too), the search box; a Both ways run at 8× settling at its equilibrium long before the time limit on the minor chord
+// (data-cs-first-end) and looping on; the reference sort at 8× – 360 / 360 sorted (data-cs-*), the remix and
 // the seam back to frame 0 (data-loop-cycle, data-loop-seams), no ball past the outer wall, the gate plucks on A major pentatonic
 // and the completion chord on A2 (OscillatorNode.start instrumented), the HUD's lowercase title, the amber counter and "mixing
 // again" drawn into the canvas; the default sort at 30+ fps; Find Simulation's "all sorted within", played back to the second;
@@ -14302,19 +14304,27 @@ await smokeBlock("colour-sort", async () => {
   const contacts = await section.getByRole("switch", { name: switchName("Ball contacts") }).getAttribute("aria-checked").catch(() => null);
   const flashes = await section.getByRole("switch", { name: switchName("Refusal flashes") }).getAttribute("aria-checked").catch(() => null);
   const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
-  const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
-  const colours = await page.locator("#find-outcome").selectOption("last-colour").then(() => page.locator("#find-last-colour option").evaluateAll((els) => els.map((e) => e.textContent))).catch(() => []);
+  // Both ways only settles (a sorted ball wanders back in): no first sort to find, so no finder strip, and the hint says why
+  const bothFinder = { strip: await page.getByTestId("finder-strip").count(), outcome: await page.locator("#find-outcome").count() };
+  const bothHint = await section.innerText().then((text) => /settles at an equilibrium/.test(text) && /Find Simulation has no sort to search/.test(text)).catch(() => false);
   check(
     "colour sort loads from URL",
-    values.csc === "5" && values.csg === "3" && values.csw === "20" && both === "true" && contacts === "true" && flashes === "true" && noRingControls && options.join(",") === "sorted-by,last-colour,sorted-on-bar" && colours.join(",") === "RED,AMBER,YELLOW,GREEN,BLUE",
-    `(${JSON.stringify(values)}, both ways=${both}, contacts=${contacts}, flashes=${flashes}, ring controls hidden=${noRingControls}, finder outcomes=${options.join(",")}, colours=${colours.join(",")})`,
+    values.csc === "5" && values.csg === "3" && values.csw === "20" && both === "true" && contacts === "true" && flashes === "true" && noRingControls,
+    `(${JSON.stringify(values)}, both ways=${both}, contacts=${contacts}, flashes=${flashes}, ring controls hidden=${noRingControls})`,
   );
+  check("Both ways hides Find Simulation (its sort settles, it never completes) and its hint says so", bothFinder.strip === 0 && bothFinder.outcome === 0 && bothHint, `(${JSON.stringify({ ...bothFinder, hint: bothHint })})`);
   await section.getByTestId("cs-rule").getByRole("button", { name: /Out, own only/ }).click();
   await section.locator('input[type="range"][aria-label="Gates per ring"]').evaluate(setRangeValue, "6");
   await page.waitForTimeout(300);
   {
     const query = new URLSearchParams(page.url().split("?")[1] || "");
     check("colour sort mirrors into the URL", query.get("mode") === "colourSort" && query.get("csu") === "outwardOwnOnly" && query.get("csg") === "6" && query.get("csc") === "5" && query.get("csx") === "1", `(${query.toString()})`);
+  }
+  {
+    // a one-way rule sorts completely: Find Simulation's three outcomes are back, the colour picker naming the palette
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+    const colours = options.includes("last-colour") ? await page.locator("#find-outcome").selectOption("last-colour").then(() => page.locator("#find-last-colour option").evaluateAll((els) => els.map((e) => e.textContent))).catch(() => []) : [];
+    check("a one-way rule offers Find Simulation's three colour sort outcomes", options.join(",") === "sorted-by,last-colour,sorted-on-bar" && colours.join(",") === "RED,AMBER,YELLOW,GREEN,BLUE", `(finder outcomes=${options.join(",")}, colours=${colours.join(",")})`);
   }
   await section.getByTestId("cs-preset").selectOption("rainbow7");
   await page.waitForTimeout(300);
@@ -14326,6 +14336,33 @@ await smokeBlock("colour-sort", async () => {
   const found = await page.locator('input[type="range"][aria-label="Gate width"]').isVisible().catch(() => false);
   await page.getByPlaceholder("Search settings...").fill("");
   check("search finds the colour sort controls", found, `(gate width=${found})`);
+}
+{
+  // Both ways at 8× (4 × 90, a 60 s time limit): a sorted ball can wander back in, so the census settles at its equilibrium and
+  // the sort ends there – "settled", well before the limit, on the minor chord (the minor 10th, C4, is not in the plucks' A major
+  // pentatonic) – and the loop goes on (the remix, the seam).
+  await page.goto(`${BASE}/en/simulator/?mode=colourSort&csu=bothWaysNotOwn`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    window.__csBothOsc = osc;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value > 20 && osc.length < 20000) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.csCompletions) >= 1, null, { timeout: 120_000 }).catch(() => {});
+  const ended = await canvasData();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.csSeams) >= 1, null, { timeout: 30_000 }).catch(() => {});
+  const looped = await canvasData();
+  const heard = await page.evaluate(() => ({ root: window.__csBothOsc.some((f) => Math.abs(f - 110) < 0.5), minorTenth: window.__csBothOsc.some((f) => Math.abs(f - 261.63) < 0.5) }));
+  check(
+    "colour sort's Both ways settles at its equilibrium well before the time limit (on the minor chord) and loops on",
+    ended.csRule === "bothWaysNotOwn" && ended.csFirstEnd === "settled" && Number(ended.csFirstEndSec) >= 12 && Number(ended.csFirstEndSec) < 45 && ended.csFirstSort === "" && ended.csLastColour === "-1" && Number(looped.csSeams) >= 1 && looped.csEscaped === "0" && heard.root && heard.minorTenth,
+    `(${JSON.stringify({ end: ended.csFirstEnd, endSec: ended.csFirstEndSec, sorted: ended.csSorted, total: ended.csTotal, firstSort: ended.csFirstSort, seams: looped.csSeams, cycle: looped.loopCycle, escaped: looped.csEscaped, heard })})`,
+  );
 }
 {
   // The reference sort (4 × 90) at 8×: every ball sorted, the chord, "mixing again", the seam back to frame 0.
@@ -14371,7 +14408,7 @@ await smokeBlock("colour-sort", async () => {
   });
   check(
     "colour sort sorts 360 / 360 at 8×, mixes again and loops back to frame 0 with no ball past the outer wall",
-    atStart.csTotal === "360" && atStart.csSorted === "90" && Number(sorted.csCompletions) >= 1 && Number(sorted.csFirstSort) > 3 && sorted.csLastColour !== "-1" && (remix.csPhase === "remix" || Number(remix.csSeams) >= 1) && Number(seam.csSeams) >= 1 && Number(seam.loopCycle) > Number(sorted.csFirstSort) && Number(seam.loopSeams) >= 1 && seam.csEscaped === "0" && sorted.csEscaped === "0",
+    atStart.csTotal === "360" && atStart.csSorted === "90" && atStart.csFirstEnd === "" && Number(sorted.csCompletions) >= 1 && sorted.csFirstEnd === "sorted" && Number(sorted.csFirstSort) > 3 && sorted.csLastColour !== "-1" && (remix.csPhase === "remix" || Number(remix.csSeams) >= 1) && Number(seam.csSeams) >= 1 && Number(seam.loopCycle) > Number(sorted.csFirstSort) && Number(seam.loopSeams) >= 1 && seam.csEscaped === "0" && sorted.csEscaped === "0",
     `(${JSON.stringify({ start: atStart.csSorted, total: atStart.csTotal, firstSort: sorted.csFirstSort, sortedNow: sorted.csSorted, last: sorted.csLastColour, phase: remix.csPhase, seams: seam.csSeams, cycle: seam.loopCycle, loopSeams: seam.loopSeams, escaped: seam.csEscaped, passes: sorted.csPasses })})`,
   );
   check("the gate passes pluck A major pentatonic, the sort ends on the chord, and the HUD says it (title, amber counter, mixing again)", heard.plucks >= 2 && heard.chord && heard.title && heard.counter === "#f2c46a" && heard.full && heard.remix, `(${JSON.stringify(heard)})`);

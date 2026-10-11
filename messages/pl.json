@@ -4599,7 +4599,7 @@
     "csRuleBothWaysNotOwn": "W obie strony",
     "csHintOutwardNotOwn": "Wzorzec: bramka otwiera się na zewnątrz dla każdego koloru poza kolorem swojego pierścienia, więc każdy kolor zatrzymuje się na własnym pierścieniu.",
     "csHintOutwardOwnOnly": "Odwrotnie: bramka otwiera się na zewnątrz tylko dla koloru swojego pierścienia – środek zatrzymuje wszystkie inne kolory.",
-    "csHintBothWaysNotOwn": "Bramka otwiera się w obie strony dla każdego koloru poza kolorem swojego pierścienia: kulki mogą wracać do środka, więc sortowanie trwa dłużej.",
+    "csHintBothWaysNotOwn": "Bramka otwiera się w obie strony dla każdego koloru poza kolorem swojego pierścienia, więc posortowane kulki wracają do środka: sortowanie nigdy się nie kończy, tylko ustala się w równowadze (mniej więcej połowa kulek na miejscu), a cykl kończy się, gdy licznik przestaje rosnąć, na akordzie molowym. Znajdź symulację nie ma tu czego szukać.",
     "csColours": "Kolory",
     "csColoursTip": "Kolory – i pierścienie: pierścień z bramkami dla każdego koloru poza ostatnim, wewnątrz zewnętrznej ściany. Można wpisać dowolną liczbę od 2 (powyżej ośmiu kolory to odcienie wokół koła barw).",
     "csPerColour": "Kulki na kolor",
@@ -4628,7 +4628,7 @@
     "csRemix": "Remiks",
     "csRemixTip": "Ile sekund trwa remiks: bramki przestają filtrować, a sprężyna ściąga każdą kulkę na jej miejsce z pierwszej klatki, więc nagranie zapętla się bez szwu.",
     "csLimit": "Limit czasu",
-    "csLimitTip": "Sortowanie kończy się w tej sekundzie, nawet jeśli kulki są jeszcze poza swoimi pasami (na akordzie molowym), i zaczyna się remiks.",
+    "csLimitTip": "Sortowanie kończy się w tej sekundzie, nawet jeśli kulki są jeszcze poza swoimi pasami (na akordzie molowym), i zaczyna się remiks. Przy regule W obie strony zwykle kończy się wcześniej, gdy licznik przestaje rosnąć.",
     "csFlash": "Błyski odrzucenia",
     "csFlashTip": "Krótki błysk tam, gdzie bramka lub łuk zawraca kulkę.",
     "csLoopNote": "Każdy cykl sortuje kulki, przez pół sekundy trzyma tarczę i miesza je z powrotem do pierwszej klatki: z włączonym Eksportem pełnych pętli nagranie kończy się na szwie i zapętla bez końca."
