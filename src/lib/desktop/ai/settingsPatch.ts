@@ -11,6 +11,7 @@ import { FACE_STYLES } from "@/lib/character/character";
 import { GROW_LAWS, GROW_ON_FILL } from "@/lib/physics/modes/grow"; // --- low-findings ---
 import type { JsonSchema } from "./jsonSchema";
 import { LC_LAYOUTS } from "@/lib/physics/landClaimPyramid"; // --- land-claim-pyramid ---
+import { WT_MODELS, WT_SOURCES } from "@/lib/physics/waveTank"; // --- wave-tank ---
 
 /*
  * --- desktop-exe --- The AI settings assistant's side of the settings: what it may change and how a patch it proposes is
@@ -49,6 +50,8 @@ export const SETTING_OPTIONS: Record<string, readonly (string | number)[]> = {
   growLaw: GROW_LAWS,
   growOnFill: GROW_ON_FILL,
   lcLayout: LC_LAYOUTS, // --- land-claim-pyramid --- (Land Claim's layout: the arena's wall or the pyramid)
+  wtModel: WT_MODELS, // --- wave-tank --- (the Wave Tank's water: the grid or the Huygens sum)
+  wtSource: WT_SOURCES, // --- wave-tank --- (a wave-maker and a barrier, or point sources)
 };
 
 const TEXT_KEYS = new Set(["topText", "bottomText", "watermarkText", "ballName", "rcCupTitle"]);
@@ -188,6 +191,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   hoops: "hp", // --- bead-hoops ---
   ellipseFoci: "ef", // --- ellipse-foci ---
   beatMachine: "bm", // --- beat-machine ---
+  waveTank: "wt", // --- wave-tank ---
   brickRebuild: "br", // --- brick-rebuild ---
   perfectFit: "pf", // --- perfect-fit ---
 };

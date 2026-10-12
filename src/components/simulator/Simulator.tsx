@@ -91,6 +91,7 @@ import { LOOP_HUD_MODE_TEXT, isLightColor, loopHudCount, loopHudFrame, type Loop
 import { loopHudMessageKey } from "@/lib/loop/hud"; // --- ellipse-foci ---
 import { EF_RESTART_FIELDS, ellipseFociSettingsOf } from "@/lib/physics/ellipseFoci"; // --- ellipse-foci ---
 import { BM_RESTART_FIELDS, beatMachineHudKeys, beatMachineSettingsOf } from "@/lib/physics/beatMachine"; // --- beat-machine ---
+import { WT_RESTART_FIELDS, waveTankHudKeys, waveTankSettingsOf } from "@/lib/physics/waveTank"; // --- wave-tank ---
 import { BRICK_REBUILD_RESTART_FIELDS, brickRebuildHudKeys, brickRebuildHudValues, brickRebuildSettingsOf } from "@/lib/physics/brickRebuildSettings"; // --- brick-rebuild ---
 import { brickField } from "@/lib/physics/brickRebuild"; // --- brick-rebuild ---
 import type { BrickPicture } from "@/lib/physics/brickPicture"; // --- brick-rebuild ---
@@ -426,6 +427,7 @@ export default function Simulator() {
     engine.setStarChordsSettings(starChordsSettingsOf(s)); // --- chord-stars ---
     engine.setEllipseFociSettings(ellipseFociSettingsOf(s)); // --- ellipse-foci --- (before the init: the volley, the pool and the timing apply there)
     engine.setBeatMachineSettings(beatMachineSettingsOf(s, audioRef.current?.getCustomNotes() ?? [])); // --- beat-machine --- (before the init: the plan is made there; the loaded melody for its source)
+    engine.setWaveTankSettings(waveTankSettingsOf(s)); // --- wave-tank --- (before the init: the water, the sections and the grid are built there)
     engine.setBrickRebuildSettings(brickRebuildSettingsOf(s)); // --- brick-rebuild --- (before the init: the grid, the balls and the variants apply there)
     engine.setBrickRebuildPicture(brickPictureRef.current); // --- brick-rebuild --- (the uploaded picture's bricks, when loaded)
     engine.setPerfectFitSettings(perfectFitSettingsOf(s)); // --- perfect-fit --- (before the init: the plan is made there, on the page's tempo)
@@ -650,6 +652,12 @@ export default function Simulator() {
       return { title: s.loopHudTitle || t(words.title).replace(" / ", " "), subtitle: s.loopHudSubtitle || t(words.subtitle), counter: String(t.raw(words.counter)), light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
     }
     // --- end beat-machine ---
+    // --- wave-tank --- "the double slit, in water" with its rule in grey, and the section's label ("2 gaps") in amber
+    if (s.mode === "waveTank") {
+      const words = waveTankHudKeys(s.wtSource);
+      return { title: s.loopHudTitle || t(words.title), subtitle: s.loopHudSubtitle || t(words.subtitle), counter: String(t.raw(words.counter)), light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
+    }
+    // --- end wave-tank ---
     // --- brick-rebuild --- the variant's words (the smash's, the gold capsules' or the kaleidoscope's "only N of these balls are
     // real") and the bricks' counter
     if (s.mode === "brickRebuild") {
@@ -686,7 +694,7 @@ export default function Simulator() {
     const counterKey = keys?.counterOne && s.mode === "hoops" && s.hpCount === 1 ? keys.counterOne : keys?.counter; // --- bead-hoops --- (one hoop: "the bead up")
     const counter = counterKey ? String(t.raw(loopHudMessageKey(counterKey))) : "";
     return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]), locale: hudLocale /* --- bead-hoops --- (the counter's decimals on the live canvas) */ };
-  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */, s.lcLayout /* --- land-claim-pyramid --- */, s.brSymmetry, s.brSymmetryMode, s.brCapsules, s.brBalls, s.brSplit, s.brEvery /* --- brick-rebuild --- */, s.pfVariant, s.pfBoxes, s.pfSections, s.pfWellW /* --- perfect-fit --- */]);
+  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */, s.lcLayout /* --- land-claim-pyramid --- */, s.brSymmetry, s.brSymmetryMode, s.brCapsules, s.brBalls, s.brSplit, s.brEvery /* --- brick-rebuild --- */, s.pfVariant, s.pfBoxes, s.pfSections, s.pfWellW /* --- perfect-fit --- */, s.wtSource /* --- wave-tank --- */]);
   const loopHudRef = useRef({ spec: loopHudSpec, locale: hudLocale });
   loopHudRef.current = { spec: loopHudSpec, locale: hudLocale };
   /** The HUD of a frame of `engine`'s run (null without the HUD), for the recorder and the fast export. */
@@ -1279,6 +1287,35 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bmRunKey, s.bmCounter]);
   // --- end beat-machine ---
+  // --- wave-tank --- Wave Tank: a change of the water (WT_RESTART_FIELDS: the model, the source, the sections, the gaps, the
+  // wave, the grid) rebuilds and restarts the run; the bells, the scan, the ridges, the tilt, the bass and the label follow live.
+  // The section root holds a note: it stops while the run is paused (or over, or another mode runs) and is sent again when it resumes.
+  const wtRunKey = WT_RESTART_FIELDS.map((key) => String(s[key])).join("|");
+  const wtRunKeyRef = useRef(wtRunKey);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setWaveTankSettings(waveTankSettingsOf(s));
+    if (wtRunKeyRef.current === wtRunKey) return;
+    wtRunKeyRef.current = wtRunKey;
+    if (s.mode !== "waveTank") return;
+    if (engine.getCurrentModeName() === "waveTank") {
+      engine.initMode("waveTank");
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wtRunKey, s.wtBells, s.wtScanRate, s.wtRidges, s.wtTilt, s.wtBass, s.wtLabel]);
+  const wtRootLive = s.mode === "waveTank" && isStarted && !isPaused && !finished;
+  const wtRootLiveRef = useRef(false);
+  useEffect(() => {
+    const was = wtRootLiveRef.current;
+    wtRootLiveRef.current = wtRootLive;
+    const engine = engineRef.current;
+    if (wtRootLive && !was && engine && engine.getElapsedMs() > 0) engine.refreshWaveTankRoot();
+    else if (!wtRootLive && was) audioRef.current?.resetLoop();
+  }, [wtRootLive]);
+  // --- end wave-tank ---
   // --- brick-rebuild --- Brick Smash: a change of what the physics reads (BRICK_REBUILD_RESTART_FIELDS) or of the tempo (the
   // groove's bar lines) restarts the run and drops a found seed – only while Brick Smash is the mode; the picture, its text, the
   // rebuild's order and the outline follow live. An uploaded picture (the panel's store) is turned into bricks for the run's grid
@@ -3272,6 +3309,7 @@ export default function Simulator() {
           hoops: hoopsSettingsOf(settings), // --- bead-hoops --- (the hoops, the spin, the beads and the return)
           ellipseFoci: ellipseFociSettingsOf(settings), // --- ellipse-foci --- (the transit and the start angle are searched, not seeds)
           beatMachine: beatMachineSettingsOf(settings, audioRef.current?.getCustomNotes() ?? []), // --- beat-machine --- (seeded phrases are searched: a plan a seed)
+          waveTank: waveTankSettingsOf(settings), // --- wave-tank --- (nothing to search: the tank has no randomness)
           brickRebuild: brickRebuildSettingsOf(settings), // --- brick-rebuild --- (its first smash: cleared by, on a bar line, the balls at its end)
           perfectFit: perfectFitSettingsOf(settings), // --- perfect-fit --- (solution seeds are searched, or the beat: a plan a seed)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)

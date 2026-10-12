@@ -2363,7 +2363,8 @@
     "ringSound": "Ring Sounds",
     "ringSoundTip": "Original synthesized sounds: a soft pentatonic pluck for every bounce, pitched by the ring (outer rings low, inner rings high), a rising step for every ring the ball gets through and a warm chord when it is out.",
     "modeBrickRebuild": "Brick Smash",
-    "modePerfectFit": "Perfect Fit"
+    "modePerfectFit": "Perfect Fit",
+    "modeWaveTank": "Wave Tank"
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -2530,6 +2531,10 @@
     "beatMachine": {
       "name": "Beat Machines",
       "description": "Marbles drop onto tuned bars or a ball hops down a staircase. Every note lands right on the beat."
+    },
+    "waveTank": {
+      "name": "Wave Tank",
+      "description": "Waves squeeze through one, two, then seven gaps and cross into stripes. A row of bells plays the water."
     },
     "brickRebuild": {
       "name": "Brick Smash",
@@ -5200,7 +5205,11 @@
     "perfectFitPento": "same {count} pieces, three perfect rectangles",
     "perfectFitPentoFact": "the 12 pentominoes cover 60 squares. they fill a 6×10 box 2,339 different ways, 5×12 1,010 ways and 4×15 368 ways. 3×20 has only 2 solutions, and neither can be built by dropping pieces straight down, so it isn't here.",
     "perfectFitTetris": "{count} pieces, not one out of place",
-    "perfectFitTetrisFact": "every piece falls straight down in its final column and rotation. four sections end in a four-line perfect clear, then the last 30 pieces build 12 full rows that clear together: 280 squares, 28 lines, an empty well."
+    "perfectFitTetrisFact": "every piece falls straight down in its final column and rotation. four sections end in a four-line perfect clear, then the last 30 pieces build 12 full rows that clear together: 280 squares, 28 lines, an empty well.",
+    "waveTank": "the double slit, in water",
+    "waveTankFact": "One gap turns a straight wave into a fan. Two gaps make two fans that overlap: where crests line up the water climbs, where a crest lands on a trough it goes flat, and quiet stripes run across the tank. Seven gaps only agree in a handful of directions, so the water leaves as narrow beams, which is how the fine grooves of a CD split light into colours. Thomas Young saw these stripes with sunlight in 1803, and they helped show that light is a wave. The bells along the front sound out the water under them: the beams ring, the stripes stay silent.",
+    "waveTankPoints": "two sources, one pond",
+    "waveTankPointsFact": "Two sources bobbing in step send out rings that cross. Where a crest of one meets a trough of the other the water stays flat along curved quiet lines. In between it swells twice as high. The bells along the front fall silent wherever a quiet line reaches them."
   },
   "ColourSort": {
     "canvasTitle": "each ring stops only its own colour",
@@ -5327,6 +5336,65 @@
   "RingEscape": {
     "hudRing": "ring {ring}: {time} s",
     "hudOut": "out in {time} s"
+  },
+  "WaveTank": {
+    "canvasTitle": "the double slit, in water",
+    "canvasSubtitle": "every gap sends out its own ripples / crest on crest rises, crest on trough goes still",
+    "canvasTitlePoints": "ripples that cross",
+    "canvasSubtitlePoints": "each source sends out rings of ripples / where a crest meets a trough the water stays still",
+    "sectionOne": "{count} gap",
+    "sectionMany": "{count, plural, one {{count} gap} other {{count} gaps}}",
+    "sectionSources": "{count, plural, one {{count} source} other {{count} sources}}",
+    "desc": "A ripple tank seen from the front. Straight waves hit a barrier with one, two or seven gaps, then spread, cross into stripes or leave as beams. Each bell rings as loud as the water under it.",
+    "wtPreset": "Preset",
+    "wtPresetTip": "Double slit: 1, 2, then 7 gaps over a 30 s loop. Single-slit width sweep: one gap growing wider. Grating 15: fifteen gaps. Two sources: no barrier. Talbot carpet: a fine grating seen from higher up.",
+    "presetDoubleSlit": "Double slit",
+    "presetWidthSweep": "Single-slit width sweep",
+    "presetGrating15": "Grating 15",
+    "presetTwoSources": "Two sources",
+    "presetTalbot": "Talbot carpet",
+    "wtModel": "Water model",
+    "wtModelTip": "Grid: the water moves cell by cell, right up to the gaps. Huygens sum: every gap acts as a row of tiny sources whose ripples add up. It is lighter, and exact far from the gaps.",
+    "modelGrid": "Grid",
+    "modelHuygens": "Huygens sum",
+    "wtSource": "Source",
+    "wtSourceTip": "Wave-maker: a bar along the back sends straight crests at the barrier. Point sources: no barrier, just a small source bobbing where each gap would be.",
+    "sourceLine": "Wave-maker + barrier",
+    "sourcePoints": "Point sources",
+    "wtGaps": "Gaps per section",
+    "wtGapsTip": "The barrier's gap counts in order, one section each, e.g. 1, 2, 7. Give a section its own length with @: 1@11, 2@9, 7@10. The loop is all the sections together.",
+    "loopNote": "Loop: {loop} s · sections {sections} · the label changes at {changes} s",
+    "wtSection": "Section length",
+    "wtSectionTip": "Seconds a section lasts when its entry gives no length of its own.",
+    "wtWrap": "Wrap",
+    "wtWrapTip": "Seconds of the first section moved to the end of the loop. The clip then starts mid-section and ends on the same picture.",
+    "wtWidth": "Gap width",
+    "wtWidthTip": "How wide each gap is, in wavelengths. A narrow gap fans out wide, a wide one lets a straight beam through.",
+    "wtWidthEnd": "Widen to",
+    "wtWidthEndTip": "Grows the gaps from Gap width in the first section to this width in the last. 0 keeps every section the same.",
+    "widthEndOff": "off",
+    "wtSpacing": "Gap spacing",
+    "wtSpacingTip": "Distance between the centres of neighbouring gaps, in wavelengths. Wider spacing packs the stripes closer together.",
+    "wtWavelength": "Wavelength",
+    "wtWavelengthTip": "Length of one wave as a share of the tank's width. The source's pitch is rounded so a whole number of waves fits the loop.",
+    "wtSpeed": "Wave speed",
+    "wtSpeedTip": "How fast the crests travel. 1 is 0.3 tank widths a second.",
+    "wtDamping": "Damping",
+    "wtDampingTip": "How much the water calms the waves as they travel. 0 is not at all.",
+    "wtCols": "Grid columns",
+    "wtColsTip": "Cells across the tank, with the rows at 4 : 3. More cells look finer and take longer. A grid past about 4 million cells is made smaller.",
+    "wtBells": "Bells",
+    "wtBellsTip": "Bells along the front edge, low to high from left to right. Each one rings as loud as the water moves under it.",
+    "wtScanRate": "Scan rate",
+    "wtScanRateTip": "Strikes a second as the cursor sweeps back and forth along the bells.",
+    "wtRidges": "Ridge lines",
+    "wtRidgesTip": "How many lines draw the water, from the back to the front.",
+    "wtTilt": "Tilt",
+    "wtTiltTip": "How steeply the camera looks down at the tank. 0° is from the side.",
+    "wtBass": "Root bass",
+    "wtBassTip": "A quiet bass note under the bells that changes with every section.",
+    "wtLabel": "Section label",
+    "wtLabelTip": "Shows the gap count of the current section under the tank. Turns the loop HUD on."
   },
   "BrickRebuild": {
     "canvasTitle": "smash the logo, then fix it",

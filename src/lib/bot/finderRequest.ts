@@ -34,6 +34,7 @@ import { starChordsSettingsOf } from "@/lib/physics/starChords"; // --- chord-st
 import { hoopsSettingsOf } from "@/lib/physics/hoopsFields"; // --- bead-hoops ---
 import { ellipseFociSettingsOf } from "@/lib/physics/ellipseFoci"; // --- ellipse-foci ---
 import { beatMachineSettingsOf } from "@/lib/physics/beatMachine"; // --- beat-machine ---
+import { waveTankSettingsOf } from "@/lib/physics/waveTank"; // --- wave-tank ---
 import { brickRebuildSettingsOf } from "@/lib/physics/brickRebuildSettings"; // --- brick-rebuild ---
 import { perfectFitSettingsOf } from "@/lib/physics/perfectFit"; // --- perfect-fit ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
@@ -167,6 +168,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     hoops: hoopsSettingsOf(s), // --- bead-hoops --- (the hoops, the spin, the beads, the return)
     ellipseFoci: ellipseFociSettingsOf(s), // --- ellipse-foci ---
     beatMachine: beatMachineSettingsOf(s), // --- beat-machine --- (the bot has no loaded melody: that source plays the original phrase)
+    waveTank: waveTankSettingsOf(s), // --- wave-tank --- (the fast export and the batch render build the same water)
     brickRebuild: brickRebuildSettingsOf(s), // --- brick-rebuild --- (the bot has no upload: an upload picture plays the emblem)
     perfectFit: perfectFitSettingsOf(s), // --- perfect-fit --- (the puzzles, the timing and the tempo)
   };

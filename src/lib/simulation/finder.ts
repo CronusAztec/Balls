@@ -67,6 +67,7 @@ import type { BeatMachineSettings } from "@/lib/physics/beatMachine"; // --- bea
 import { findBeatMachineRun, type BeatMachineFound } from "./beatMachineFinder"; // --- beat-machine ---
 import type { PerfectFitSettings } from "@/lib/physics/perfectFit"; // --- perfect-fit ---
 import { findPerfectFitRun, type PerfectFitFound } from "./perfectFitFinder"; // --- perfect-fit ---
+import type { WaveTankSettings } from "@/lib/physics/waveTank"; // --- wave-tank ---
 import { findFunnelSpinRun, type FunnelSpinFound } from "./funnelSpinFinder"; // --- funnel-spin ---
 import type { BrickRebuildSettings } from "@/lib/physics/brickRebuild"; // --- brick-rebuild ---
 import { resolveBrickRebuildSettings } from "@/lib/physics/modes/brickRebuild"; // --- brick-rebuild ---
@@ -260,6 +261,12 @@ export interface ModeSettings {
    * seeded phrases instead (beatMachineFinder.ts).
    */
   beatMachine?: Partial<BeatMachineSettings>;
+  // --- wave-tank ---
+  /**
+   * Wave Tank: the water, the sections and the bells (see lib/physics/waveTank.ts); the defaults when left out. The tank loops
+   * forever and has no randomness at all, so there is nothing to search: the fast export and the batch render build it here.
+   */
+  waveTank?: Partial<WaveTankSettings>;
   // --- brick-rebuild ---
   /**
    * Brick Smash: the grid, the balls, the phases and the variants (see lib/physics/brickRebuild.ts); the defaults when left out.
@@ -367,6 +374,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "ellipseFoci") return true;
   // --- beat-machine --- the machine loops forever (the finder searches seeded phrases instead)
   if (mode === "beatMachine") return true;
+  // --- wave-tank --- the tank loops forever and every seed is the same run (no randomness): nothing to search
+  if (mode === "waveTank") return true;
   // --- brick-rebuild --- it smashes, rebuilds and smashes again forever (its outcomes search the first smash)
   if (mode === "brickRebuild") return true;
   // --- perfect-fit --- the puzzles loop forever (the finder searches solution seeds or the beat instead)
@@ -608,6 +617,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "hoops") engine.setHoopsSettings(settings.hoops ?? {}); // --- bead-hoops ---
   if (mode === "ellipseFoci") engine.setEllipseFociSettings(settings.ellipseFoci ?? {}); // --- ellipse-foci ---
   if (mode === "beatMachine") engine.setBeatMachineSettings(settings.beatMachine ?? {}); // --- beat-machine ---
+  if (mode === "waveTank") engine.setWaveTankSettings(settings.waveTank ?? {}); // --- wave-tank ---
   if (mode === "brickRebuild") engine.setBrickRebuildSettings(settings.brickRebuild ?? {}); // --- brick-rebuild ---
   if (mode === "perfectFit") engine.setPerfectFitSettings(settings.perfectFit ?? {}); // --- perfect-fit ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---

@@ -2363,7 +2363,8 @@
     "ringSound": "Dźwięki pierścieni",
     "ringSoundTip": "Oryginalne, syntezowane dźwięki: miękkie pentatoniczne szarpnięcie przy każdym odbiciu, o wysokości zależnej od pierścienia (zewnętrzne nisko, wewnętrzne wysoko), rosnący dźwięk za każdy pokonany pierścień i ciepły akord, gdy piłka jest na zewnątrz.",
     "modeBrickRebuild": "Rozbij cegły",
-    "modePerfectFit": "Idealne dopasowanie"
+    "modePerfectFit": "Idealne dopasowanie",
+    "modeWaveTank": "Basen falowy"
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -2530,6 +2531,10 @@
     "beatMachine": {
       "name": "Maszyny rytmu",
       "description": "Kulki spadają na strojone sztabki albo piłka skacze po schodach. Każda nuta trafia dokładnie w rytm."
+    },
+    "waveTank": {
+      "name": "Basen falowy",
+      "description": "Fale przechodzą przez jedną, dwie, a potem siedem szczelin i krzyżują się w prążki. Dzwonki grają tam, gdzie fala jest wysoka."
     },
     "brickRebuild": {
       "name": "Rozbij cegły",
@@ -5200,7 +5205,11 @@
     "perfectFitPento": "te same {count} klocków, trzy idealne prostokąty",
     "perfectFitPentoFact": "12 pentomin pokrywa 60 kratek. pudełko 6×10 wypełniają na 2339 sposobów, 5×12 na 1010, a 4×15 na 368. 3×20 ma tylko 2 rozwiązania i żadnego nie da się zbudować, zrzucając klocki prosto w dół, więc go tu nie ma.",
     "perfectFitTetris": "{count} klocków, każdy na swoim miejscu",
-    "perfectFitTetrisFact": "każdy klocek spada prosto w dół w swojej docelowej kolumnie i obrocie. cztery sekcje kończą się czystym zbiciem czterech linii, a ostatnie 30 klocków buduje 12 pełnych rzędów, które znikają razem: 280 kratek, 28 linii, pusta studnia."
+    "perfectFitTetrisFact": "każdy klocek spada prosto w dół w swojej docelowej kolumnie i obrocie. cztery sekcje kończą się czystym zbiciem czterech linii, a ostatnie 30 klocków buduje 12 pełnych rzędów, które znikają razem: 280 kratek, 28 linii, pusta studnia.",
+    "waveTank": "podwójna szczelina w wodzie",
+    "waveTankFact": "Jedna szczelina zamienia prostą falę w wachlarz. Dwie szczeliny dają dwa wachlarze, które się nakładają: gdzie grzbiety się spotykają, woda rośnie, gdzie grzbiet trafia na dolinę, wygładza się, i przez basen biegną ciche prążki. Siedem szczelin zgadza się tylko w kilku kierunkach, więc woda odchodzi wąskimi wiązkami. Tak samo drobne rowki płyty CD rozszczepiają światło na kolory. Thomas Young zobaczył takie prążki w świetle słonecznym w 1803 roku i pomogły one pokazać, że światło jest falą. Dzwonki z przodu grają wodę pod sobą: wiązki dzwonią, prążki milczą.",
+    "waveTankPoints": "dwa źródła, jeden staw",
+    "waveTankPointsFact": "Dwa źródła kołyszące się w tym samym rytmie wysyłają kręgi, które się krzyżują. Gdzie grzbiet jednego trafia na dolinę drugiego, woda stoi płasko, wzdłuż zakrzywionych cichych linii. Pomiędzy nimi faluje dwa razy wyżej. Dzwonki z przodu milkną tam, gdzie dochodzi do nich cicha linia."
   },
   "ColourSort": {
     "canvasTitle": "każdy pierścień zatrzymuje tylko swój kolor",
@@ -5327,6 +5336,65 @@
   "RingEscape": {
     "hudRing": "pierścień {ring}: {time} s",
     "hudOut": "na zewnątrz po {time} s"
+  },
+  "WaveTank": {
+    "canvasTitle": "podwójna szczelina w wodzie",
+    "canvasSubtitle": "każda szczelina wysyła własne fale / grzbiet z grzbietem rośnie, grzbiet z doliną cichnie",
+    "canvasTitlePoints": "fale, które się krzyżują",
+    "canvasSubtitlePoints": "każde źródło wysyła kręgi fal / gdzie grzbiet spotyka dolinę, woda stoi",
+    "sectionOne": "{count} szczelina",
+    "sectionMany": "{count, plural, one {{count} szczelina} few {{count} szczeliny} many {{count} szczelin} other {{count} szczeliny}}",
+    "sectionSources": "{count, plural, one {{count} źródło} few {{count} źródła} many {{count} źródeł} other {{count} źródła}}",
+    "desc": "Basen falowy widziany od przodu. Proste fale uderzają w przegrodę z jedną, dwiema albo siedmioma szczelinami, a potem rozchodzą się, układają w prążki albo odchodzą wiązkami. Każdy dzwonek dzwoni tak głośno, jak faluje pod nim woda.",
+    "wtPreset": "Gotowe ustawienie",
+    "wtPresetTip": "Podwójna szczelina: 1, 2, potem 7 szczelin w 30-sekundowej pętli. Coraz szersza szczelina: jedna szczelina rośnie. Siatka 15: piętnaście szczelin. Dwa źródła: bez przegrody. Dywan Talbota: drobna siatka widziana bardziej z góry.",
+    "presetDoubleSlit": "Podwójna szczelina",
+    "presetWidthSweep": "Coraz szersza szczelina",
+    "presetGrating15": "Siatka 15",
+    "presetTwoSources": "Dwa źródła",
+    "presetTalbot": "Dywan Talbota",
+    "wtModel": "Model wody",
+    "wtModelTip": "Siatka: woda porusza się komórka po komórce, aż do samych szczelin. Suma Huygensa: każda szczelina to rząd drobnych źródeł, których fale się sumują. Jest lżejsza i dokładna z dala od szczelin.",
+    "modelGrid": "Siatka",
+    "modelHuygens": "Suma Huygensa",
+    "wtSource": "Źródło",
+    "wtSourceTip": "Generator fal: listwa z tyłu wysyła proste grzbiety na przegrodę. Źródła punktowe: bez przegrody, w miejscu każdej szczeliny kołysze się małe źródło.",
+    "sourceLine": "Generator + przegroda",
+    "sourcePoints": "Źródła punktowe",
+    "wtGaps": "Szczeliny w sekcjach",
+    "wtGapsTip": "Liczby szczelin w przegrodzie po kolei, jedna sekcja na liczbę, np. 1, 2, 7. Własną długość sekcji podasz po @: 1@11, 2@9, 7@10. Pętla to wszystkie sekcje razem.",
+    "loopNote": "Pętla: {loop} s · sekcje {sections} · etykieta zmienia się w {changes} s",
+    "wtSection": "Długość sekcji",
+    "wtSectionTip": "Ile sekund trwa sekcja, gdy jej wpis nie podaje własnej długości.",
+    "wtWrap": "Zawinięcie",
+    "wtWrapTip": "Sekundy pierwszej sekcji przeniesione na koniec pętli. Klip zaczyna się wtedy w środku sekcji i kończy tym samym obrazem.",
+    "wtWidth": "Szerokość szczeliny",
+    "wtWidthTip": "Szerokość każdej szczeliny w długościach fali. Wąska szczelina rozchodzi się szerokim wachlarzem, szeroka przepuszcza prostą wiązkę.",
+    "wtWidthEnd": "Poszerz do",
+    "wtWidthEndTip": "Szczeliny rosną od szerokości szczeliny w pierwszej sekcji do tej szerokości w ostatniej. 0 zostawia każdą sekcję taką samą.",
+    "widthEndOff": "wył.",
+    "wtSpacing": "Rozstaw szczelin",
+    "wtSpacingTip": "Odległość między środkami sąsiednich szczelin w długościach fali. Większy rozstaw zagęszcza prążki.",
+    "wtWavelength": "Długość fali",
+    "wtWavelengthTip": "Długość jednej fali jako część szerokości basenu. Częstotliwość źródła jest zaokrąglana tak, by w pętli mieściła się całkowita liczba fal.",
+    "wtSpeed": "Prędkość fal",
+    "wtSpeedTip": "Jak szybko biegną grzbiety. 1 to 0,3 szerokości basenu na sekundę.",
+    "wtDamping": "Tłumienie",
+    "wtDampingTip": "Jak mocno woda wycisza fale w biegu. 0 to wcale.",
+    "wtCols": "Kolumny siatki",
+    "wtColsTip": "Liczba komórek w poprzek basenu, wierszy jest w proporcji 4 : 3. Więcej komórek to drobniejszy obraz i więcej obliczeń. Siatka ponad ok. 4 mln komórek zostaje zmniejszona.",
+    "wtBells": "Dzwonki",
+    "wtBellsTip": "Dzwonki wzdłuż przedniej krawędzi, od niskiego z lewej do wysokiego z prawej. Każdy dzwoni tak głośno, jak mocno faluje pod nim woda.",
+    "wtScanRate": "Tempo skanowania",
+    "wtScanRateTip": "Uderzenia na sekundę, gdy kursor biegnie tam i z powrotem wzdłuż dzwonków.",
+    "wtRidges": "Linie grzbietów",
+    "wtRidgesTip": "Iloma liniami rysowana jest woda, od tyłu do przodu.",
+    "wtTilt": "Nachylenie",
+    "wtTiltTip": "Jak stromo kamera patrzy w dół na basen. 0° to widok z boku.",
+    "wtBass": "Bas podstawy",
+    "wtBassTip": "Cichy bas pod dzwonkami, który zmienia się z każdą sekcją.",
+    "wtLabel": "Etykieta sekcji",
+    "wtLabelTip": "Pokazuje pod basenem liczbę szczelin bieżącej sekcji. Włącza nakładkę pętli."
   },
   "BrickRebuild": {
     "canvasTitle": "rozbij logo, potem je napraw",

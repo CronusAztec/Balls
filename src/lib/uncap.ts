@@ -223,6 +223,12 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   bmBars: 1_000,
   bmPerTube: 200,
   bmLoopBeats: 4_096,
+  // --- wave-tank --- Wave Tank: the grid's columns (its rows follow at 4/3 and its sponge at ¾ of a wavelength: ~4 M cells at the
+  // ceiling – the solver lowers a grid that would still need more, WT_CELL_CEILING), the bells (each sampled, smoothed and drawn
+  // every step) and the ridge lines (each up to 512 samples a frame)
+  wtCols: 1_700,
+  wtBells: ENTITY_CEILING,
+  wtRidges: 4_096,
   // --- brick-rebuild --- Brick Smash (`BR_*_CEILING` of lib/physics/brickRebuild.ts – a test keeps them equal): the grid's
   // columns and rows (a few typed numbers a cell and a rect of the cached brick layer; their product stops at 40,000 cells in
   // the mode, the aspect kept), the start balls (full engine balls: the board's ceiling, spawns and splits included) and the

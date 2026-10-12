@@ -8,6 +8,7 @@ import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions 
 import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulumTrails, type PendulumRenderOptions } from "./pendulumRenderer";
 import { ELLIPSE_FOCI_DATA_KEYS, EllipseFociLayer, ellipseFociExtentPx, writeEllipseFociDataset, type EllipseFociRenderOptions } from "./ellipseFociRenderer"; // --- ellipse-foci ---
 import { BEAT_MACHINE_DATA_KEYS, BeatMachineLayer, beatMachineExtentPx, writeBeatMachineDataset, type BeatMachineRenderOptions } from "./beatMachineRenderer"; // --- beat-machine ---
+import { WAVE_TANK_DATA_KEYS, WaveTankLayer, waveTankExtentPx, writeWaveTankDataset, type WaveTankRenderOptions } from "./waveTankRenderer"; // --- wave-tank ---
 import { BRICK_REBUILD_DATA_KEYS, BrickRebuildLayer, brickRebuildExtentPx, writeBrickRebuildDataset, type BrickRebuildRenderOptions } from "./brickRebuildRenderer"; // --- brick-rebuild ---
 import { PERFECT_FIT_DATA_KEYS, PERFECT_FIT_ENGLISH, PerfectFitLayer, perfectFitExtentPx, writePerfectFitDataset, type PerfectFitLabels, type PerfectFitRenderOptions } from "./perfectFitRenderer"; // --- perfect-fit ---
 // --- jdm-polyrhythm ---
@@ -882,6 +883,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- beat-machine --- Beat Machines' layer and its per-frame options
     const machineLayer = new BeatMachineLayer();
     const machineRender: BeatMachineRenderOptions = { dpr: scale, showGlow: false };
+    // --- wave-tank --- Wave Tank's layer (the ridges' buffers) and its per-frame options
+    const waveLayer = new WaveTankLayer();
+    const waveRender: WaveTankRenderOptions = { dpr: scale, showGlow: false, background: "#070b17" };
     // --- brick-rebuild --- Brick Smash's layer (the cached bricks, the ghosts, the flights) and its per-frame options
     const brLayer = new BrickRebuildLayer();
     const brRender: BrickRebuildRenderOptions = { dpr: scale, hudOn: false };
@@ -1634,6 +1638,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         machineRender.showGlow = p.showGlow;
         machineLayer.drawStage(ctx, machineView, machineT, machineRender);
       }
+      // --- wave-tank --- Wave Tank: the ridge lines back to front with the barrier among them, the wave-maker and the bells
+      const waveView = engine.isWaveTankMode() ? engine.getWaveTankView() : null;
+      if (waveView) {
+        waveRender.dpr = scale;
+        waveRender.showGlow = p.showGlow;
+        waveRender.background = p.backgroundColor;
+        waveLayer.drawStage(ctx, waveView, engine.getElapsedMs() / 1000, waveRender);
+      }
       // --- brick-rebuild --- Brick Smash: the box (or the kaleidoscope's circle), the cached bricks, the breaks' ghosts, the paddle
       // and its capsules, the rebuild's bricks in flight and – without the loop HUD – the counters under the box
       const brView = engine.isBrickRebuildMode() ? engine.getBrickRebuildView() : null;
@@ -2308,6 +2320,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (starView) starLayer.drawBodies(ctx, starView, starRender); // --- chord-stars --- the balls with their glow
       else if (efView) efLayer.drawBodies(ctx, efView, efRender); // --- ellipse-foci --- the volley by hue, the convergence bloom
       else if (machineView) machineLayer.drawBodies(ctx, machineView, machineT, machineRender); // --- beat-machine --- the stairs' ball and its trail, or the glossy marbles
+      else if (waveView) { /* --- wave-tank --- the tank is the stage: its placeholder ball is not drawn */ }
       else if (brView && brLayer.drawsBodies(brView)) brLayer.drawBodies(ctx, brView, balls, brRender); // --- brick-rebuild --- hollow balls with their kaleidoscope images, the rebuild's fades
       else if (pfView) pfLayer.drawBodies(ctx, pfView, pfT, pfRender, pfLabels); // --- perfect-fit --- the tray, the falling and landed pieces, the scatter, the banners (the anchor ball is not drawn)
       else if (vortexView && vortexLayer.drawsBodies(vortexView)) vortexLayer.drawBodies(ctx, vortexView, vortexRender); // --- funnel-spin --- the perspective's glossy marbles, far to near, under the front lip (--- review fix (funnel-spin) --- and the ring release's from above: a hue a marble outruns the sprite cache below)
@@ -3135,7 +3148,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       loopHudLive.bottom = Infinity;
       loopHudLiveText = "";
       if (hudSpec && !recordingRef.current) {
-        const ring = pfView ? perfectFitExtentPx(pfView) /* --- perfect-fit --- (the square: the tray, the box and its words) */ : brView ? brickRebuildExtentPx(brView) /* --- brick-rebuild --- (the box and its counters, or the circle) */ : machineView ? beatMachineExtentPx(machineView) /* --- beat-machine --- (the machine's box) */ : efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : vortexView && vortexView.funnel.view === "perspective" ? funnelExtentPx(vortexView) /* --- funnel-spin --- (the perspective's whole funnel) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
+        const ring = pfView ? perfectFitExtentPx(pfView) /* --- perfect-fit --- (the square: the tray, the box and its words) */ : brView ? brickRebuildExtentPx(brView) /* --- brick-rebuild --- (the box and its counters, or the circle) */ : waveView ? waveTankExtentPx(waveView) /* --- wave-tank --- (the tank, its crests and its bells) */ : machineView ? beatMachineExtentPx(machineView) /* --- beat-machine --- (the machine's box) */ : efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : vortexView && vortexView.funnel.view === "perspective" ? funnelExtentPx(vortexView) /* --- funnel-spin --- (the perspective's whole funnel) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
         const liveTop = (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
         const hudFrame = loopHudFrame(hudSpec, loopHudCount(engine));
         const hudLayout = loopHudLiveLayout(size.width, size.height, cy, Math.min(ring, Math.min(size.width, size.height) / 2), liveTop);
@@ -3288,6 +3301,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- beat-machine --- Beat Machines: notes, sounds, seams and the seam check, marbles in flight, spares (data-bm-*)
       if (machineView) writeBeatMachineDataset(machineView, machineLayer, setCanvasData);
       else if (canvas.dataset.bmVariant !== undefined) for (const key of BEAT_MACHINE_DATA_KEYS) delete canvas.dataset[key];
+      // --- wave-tank --- Wave Tank: the section and its changes, the seam check, the bells' levels and strikes, NaN guard (data-wt-*)
+      if (waveView) writeWaveTankDataset(waveView, waveLayer, setCanvasData);
+      else if (canvas.dataset.wtModel !== undefined) for (const key of WAVE_TANK_DATA_KEYS) delete canvas.dataset[key];
       // --- brick-rebuild --- Brick Smash: the phase, the bricks, the balls, the seams, the first clear, the rebuild, the layer (data-br-*)
       if (brView) writeBrickRebuildDataset(brView, brLayer, setCanvasData);
       else if (canvas.dataset.brPhase !== undefined) for (const key of BRICK_REBUILD_DATA_KEYS) delete canvas.dataset[key];

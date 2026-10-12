@@ -102,6 +102,9 @@ export type { EllipseFociView } from "./ellipseFoci";
 // --- beat-machine ---
 export { BeatMachineMode } from "./beatMachine";
 export type { BeatMachineView, BeatMachineFrame } from "./beatMachine";
+// --- wave-tank ---
+export { WaveTankMode } from "./waveTank";
+export type { WaveTankView, WaveTankFrame } from "./waveTank";
 // --- brick-rebuild ---
 export { BrickRebuildMode } from "./brickRebuild";
 export type { BrickRebuildView, BrPhase } from "./brickRebuild";
