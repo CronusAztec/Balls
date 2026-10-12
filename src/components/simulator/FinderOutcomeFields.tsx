@@ -60,6 +60,10 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   sudden: "outcomeSudden",
   champion: "outcomeChampion",
   "boss-falls-at": "outcomeBossFallsAt",
+  // --- beat-machine ---
+  "no-tube-conflict": "outcomeNoTubeConflict",
+  "most-in-flight": "outcomeMostInFlight",
+  "ring-on-bar": "outcomeRingOnBar", // --- funnel-spin ---
   "ring-at": "outcomeRingAt", // --- ring-escape ---
 };
 
@@ -97,6 +101,10 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   sudden: "hintSudden",
   champion: "hintChampion",
   "boss-falls-at": "hintBossFallsAt",
+  // --- beat-machine ---
+  "no-tube-conflict": "hintNoTubeConflict",
+  "most-in-flight": "hintMostInFlight",
+  "ring-on-bar": "hintRingOnBar", // --- funnel-spin ---
   "ring-at": "hintRingAt", // --- ring-escape ---
 };
 
@@ -512,6 +520,13 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findLastColour", { name: c.winnerName });
     case "sorted-on-bar":
       return t("Rigged.findSortedOnBar");
+    // --- beat-machine ---
+    case "no-tube-conflict":
+      return t("Rigged.findNoTubeConflict");
+    case "most-in-flight":
+      return t("Rigged.findMostInFlight");
+    case "ring-on-bar": // --- funnel-spin ---
+      return t("Rigged.findRingOnBar");
     case "ring-at": // --- ring-escape ---
       return t("Rigged.findRingAt", { time: c.escapeAt.toFixed(1) });
     default:
@@ -573,6 +588,13 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundLastColour", { name: c.winnerName, time: (result.sortedAt ?? 0).toFixed(2) });
     case "sorted-on-bar":
       return t("Rigged.foundSortedOnBar", { time: (result.sortedAt ?? 0).toFixed(2) });
+    // --- beat-machine --- (the loops in the clip; the most marbles out at once)
+    case "no-tube-conflict":
+      return t("Rigged.foundNoTubeConflict", { loops: result.beatMachine?.loops ?? 0, notes: result.beatMachine?.notes ?? 0 });
+    case "most-in-flight":
+      return t("Rigged.foundMostInFlight", { marbles: result.beatMachine?.inFlightMax ?? 0, loops: result.beatMachine?.loops ?? 0 });
+    case "ring-on-bar": // --- funnel-spin --- (the interval and the friction found, the vanish, its bars and the loops in the clip)
+      return t("Rigged.foundRingOnBar", { interval: (result.funnelSpin?.interval ?? 0).toFixed(2), friction: (result.funnelSpin?.friction ?? 0).toFixed(4), time: (result.funnelSpin?.vanishSec ?? 0).toFixed(2), bars: result.funnelSpin?.bars ?? 0, loops: result.funnelSpin?.loops ?? 0 });
     case "ring-at": // --- ring-escape ---
       return t("Rigged.foundRingAt", { time: (result.ringAt ?? 0).toFixed(2) });
     default:
@@ -634,6 +656,12 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missLastColour", { name: c.winnerName, seeds: result.seedsTested });
     case "sorted-on-bar":
       return result.sortedAt === undefined ? t("Rigged.missNoSort", { seeds: result.seedsTested }) : t("Rigged.missSortedOnBar", { offset: barOffsetText(result.sortedAt, c.barSec), seeds: result.seedsTested });
+    // --- beat-machine --- (the fewest spares any seed needed)
+    case "no-tube-conflict":
+    case "most-in-flight":
+      return t("Rigged.missNoTubeConflict", { spares: result.beatMachine?.spares ?? 0, seeds: result.seedsTested });
+    case "ring-on-bar": // --- funnel-spin --- (no friction to slip down with, or no interval and friction within reach)
+      return t("Rigged.missRingOnBar", { tested: result.seedsTested });
     case "ring-at": // --- ring-escape ---
       return result.ringAt === undefined ? t("Rigged.missNoRing", { seeds: result.seedsTested }) : t("Rigged.missRingAt", { time: result.ringAt.toFixed(1), seeds: result.seedsTested });
     default:
@@ -701,6 +729,12 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayLastColour", { tested: result.seedsTested, name: c.winnerName });
     case "sorted-on-bar":
       return result.sortedAt === undefined ? t("Rigged.overlayNoSort", { tested: result.seedsTested }) : t("Rigged.overlaySortedOnBar", { tested: result.seedsTested, offset: barOffsetText(result.sortedAt, c.barSec) });
+    // --- beat-machine ---
+    case "no-tube-conflict":
+    case "most-in-flight":
+      return t("Rigged.overlayNoTubeConflict", { tested: result.seedsTested, spares: result.beatMachine?.spares ?? 0 });
+    case "ring-on-bar": // --- funnel-spin ---
+      return t("Rigged.missRingOnBar", { tested: result.seedsTested });
     case "ring-at": // --- ring-escape ---
       return result.ringAt === undefined
         ? t("Rigged.overlayNoRing", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) })

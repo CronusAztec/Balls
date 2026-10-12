@@ -1,4 +1,5 @@
 import { MAX_SPLASHES, SLOT_FLYING, depthRadiusScale, vortexDepth, type VortexView } from "@/lib/physics/modes/vortex";
+import { FunnelLayer } from "./funnelRenderer"; // --- funnel-spin --- the perspective view and the ring release's overlay
 
 /**
  * Canvas drawing of the Sound Vortex (feature gerald-vortex, lib/physics/modes/vortex.ts). The canvas calls, per frame:
@@ -33,6 +34,9 @@ export interface VortexLabels {
   /** The banner when every ball is gone, and its line (balls, notes). */
   done: string;
   doneSub: (balls: number, notes: number) => string;
+  /** --- funnel-spin --- The ring release's title and its lap readout ("lap 1.23 s"). */
+  funnelTitle?: string;
+  lapTime?: (seconds: string) => string;
 }
 
 export const DEFAULT_VORTEX_LABELS: VortexLabels = {
@@ -41,6 +45,8 @@ export const DEFAULT_VORTEX_LABELS: VortexLabels = {
   pews: (n) => `${n} × PEW`,
   done: "PEW!",
   doneSub: (balls, notes) => `${balls} ball${balls !== 1 ? "s" : ""} swallowed · ${notes} notes`,
+  funnelTitle: "why marbles speed up in a funnel", // --- funnel-spin ---
+  lapTime: (seconds) => `lap ${seconds} s`,
 };
 
 /** How long (ms of simulation time) a ring glows after a ball sank past it, a note pulse and a splash last. */
@@ -81,6 +87,17 @@ export class VortexLayer {
   private readonly noDash: number[] = [];
   /** hsla() strings by a numeric key (hue, lightness, alpha in hundredths), so a frame builds no strings once they are cached. */
   private readonly colorCache = new Map<number, string>();
+  /** --- funnel-spin --- The perspective view (components/simulator/funnelRenderer.ts). */
+  private readonly funnel = new FunnelLayer();
+
+  /** --- funnel-spin --- True while the view is the perspective: the layer draws the marbles itself (`drawBodies()`), not the page's ball pass. */
+  drawsBodies(view: VortexView): boolean {
+    return view.funnel.view === "perspective";
+  }
+  /** --- funnel-spin --- The perspective's marbles, far to near, and the front lip over them. */
+  drawBodies(ctx: CanvasRenderingContext2D, view: VortexView, opts: VortexRenderOptions) {
+    this.funnel.drawBodies(ctx, view, opts);
+  }
 
   private hsla(h: number, l: number, a: number) {
     const alpha = Math.max(0, Math.min(100, Math.round(100 * a)));
@@ -103,6 +120,7 @@ export class VortexLayer {
   drawWorld(ctx: CanvasRenderingContext2D, view: VortexView, opts: VortexRenderOptions) {
     const f = view.field;
     if (!(f.rim > 0)) return;
+    if (view.funnel.view === "perspective") return this.funnel.drawWorld(ctx, view, opts); // --- funnel-spin ---
     const { cx, cy, rim, hole } = f;
     const t = view.timeMs / 1000;
     ctx.save();
@@ -197,6 +215,7 @@ export class VortexLayer {
   drawEffects(ctx: CanvasRenderingContext2D, view: VortexView, opts: VortexRenderOptions) {
     const f = view.field;
     if (!(f.rim > 0)) return;
+    if (view.funnel.view === "perspective") return this.funnel.drawEffects(ctx, view); // --- funnel-spin ---
     const { cx, cy, rim, hole } = f;
     const now = view.timeMs;
     ctx.save();
@@ -272,9 +291,11 @@ export class VortexLayer {
    * Screen space: the title and the swallowed counter in the top-left corner of the square the recorder crops to (the
    * funnel is round, the corners are free); `inset` moves it below the page's buttons over a nearly square canvas.
    */
-  drawOverlay(ctx: CanvasRenderingContext2D, view: VortexView, labels: VortexLabels, inset = 0) {
+  drawOverlay(ctx: CanvasRenderingContext2D, view: VortexView, labels: VortexLabels, inset = 0, hud = false /* --- funnel-spin --- (the loop HUD is on) */) {
     const f = view.field;
     if (!(f.size > 0)) return;
+    // --- funnel-spin --- the ring release: its own title and lap readout (none with the loop HUD, which carries them)
+    if (view.funnel.release === "rings") return this.funnel.drawOverlay(ctx, view, { title: labels.funnelTitle ?? DEFAULT_VORTEX_LABELS.funnelTitle ?? "", lapTime: labels.lapTime ?? DEFAULT_VORTEX_LABELS.lapTime ?? String }, inset, hud);
     const left = f.cx - f.size / 2 + 0.035 * f.size;
     const top = f.cy - f.size / 2 + 0.03 * f.size + inset;
     const fs = Math.max(11, 0.03 * f.size);
@@ -293,6 +314,9 @@ export class VortexLayer {
 
 /** The data-vortex-* attributes the canvas mirrors for tools and the smoke test. */
 export const VORTEX_DATA_KEYS = ["vortexBalls", "vortexEntered", "vortexSwallowed", "vortexInFlight", "vortexNotes", "vortexChords", "vortexRings", "vortexDeepest", "vortexLoop", "vortexTempo", "vortexDepth", "vortexAllSwallowed", "vortexFinished", "vortexFinishedMs"];
+// --- funnel-spin --- the ring release and the perspective view (data-vortex-release, -view, -waves, -cycle…)
+export const FUNNEL_DATA_KEYS = ["vortexRelease", "vortexView", "vortexElevation", "vortexWaves", "vortexWaveSizes", "vortexCycle", "vortexSeams", "vortexNextSeamMs", "vortexRefills", "vortexLastRefillMs", "vortexCycleSwallowed", "vortexFirstCycleSwallowed", "vortexLapChimes", "vortexWashes", "vortexLastWashMs", "vortexKicks", "vortexBedChords", "vortexHiss", "vortexLapSec", "vortexDescent", "vortexLapGain", "vortexFrameScale", "vortexSounds", "vortexTimeMs"];
+VORTEX_DATA_KEYS.push(...FUNNEL_DATA_KEYS);
 
 export function writeVortexDataset(view: VortexView, set: (key: string, value: string) => void) {
   set("vortexBalls", String(view.slotCount));
@@ -309,4 +333,32 @@ export function writeVortexDataset(view: VortexView, set: (key: string, value: s
   set("vortexAllSwallowed", view.allSwallowed ? "1" : "0");
   set("vortexFinished", view.finished ? "1" : "0");
   set("vortexFinishedMs", String(Math.round(view.finishedMs)));
+  // --- funnel-spin ---
+  const fv = view.funnel;
+  set("vortexRelease", fv.release);
+  set("vortexView", fv.view);
+  set("vortexElevation", String(fv.elevation));
+  set("vortexWaves", String(fv.release === "rings" ? fv.waveCount : 0));
+  let sizes = "";
+  for (let k = 0; k < (fv.release === "rings" ? fv.waveCount : 0); k++) sizes += (k > 0 ? "," : "") + fv.waveSize[k];
+  set("vortexWaveSizes", sizes);
+  set("vortexCycle", Number.isFinite(fv.cycleSec) && fv.release === "rings" ? fv.cycleSec.toFixed(4) : "");
+  set("vortexSeams", String(fv.seams));
+  set("vortexNextSeamMs", String(Math.round(fv.nextSeamMs)));
+  set("vortexRefills", String(fv.refills));
+  set("vortexLastRefillMs", String(Math.round(fv.lastRefillMs)));
+  set("vortexCycleSwallowed", String(fv.cycleSwallowed));
+  set("vortexFirstCycleSwallowed", String(fv.firstCycleSwallowed));
+  set("vortexLapChimes", String(fv.lapChimes));
+  set("vortexWashes", String(fv.washes));
+  set("vortexLastWashMs", String(Math.round(fv.lastWashMs)));
+  set("vortexKicks", String(fv.kicks));
+  set("vortexBedChords", String(fv.bedChords));
+  set("vortexHiss", fv.hiss.toFixed(3));
+  set("vortexLapSec", Number.isFinite(fv.lapSec) ? fv.lapSec.toFixed(3) : "");
+  set("vortexDescent", Number.isFinite(fv.descentSec) ? fv.descentSec.toFixed(4) : "");
+  set("vortexLapGain", fv.lapGain.toFixed(3));
+  set("vortexFrameScale", fv.frame.scale.toFixed(4));
+  set("vortexSounds", String(fv.sounds));
+  set("vortexTimeMs", String(Math.round(view.timeMs)));
 }
