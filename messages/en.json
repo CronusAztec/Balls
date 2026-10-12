@@ -18,19 +18,19 @@
   },
   "SimulatorPage": {
     "heading": "Ball Physics Simulator",
-    "metaTitle": "Ball Physics Simulator for TikTok & Reels – Free to Play and Export – {siteName}",
-    "metaDescription": "Browser-based ball physics simulator with {count} modes, customisable physics and rainbow effects – free to play with and to export, no sign-up, no install. MP4 export in vertical TikTok format; Pro removes the watermark."
+    "metaTitle": "Ball Physics Simulator for TikTok and Reels – {siteName}",
+    "metaDescription": "Ball physics simulator with {count} modes. Free to play and export, no sign-up, no install. Vertical MP4 for TikTok. Pro removes the watermark."
   },
   "Layout": {
-    "metaTitle": "Free Satisfying Ball Physics Simulator for TikTok & Reels – {siteName}",
-    "metaDescription": "Browser-based ball physics simulator. Play with {count} unique modes, customisable physics and rainbow effects for free – no sign-up or installation – and export MP4 videos for TikTok, Reels and Shorts (Pro removes the watermark).",
+    "metaTitle": "Satisfying Ball Physics Simulator for TikTok and Reels – {siteName}",
+    "metaDescription": "Ball physics simulator in your browser. {count} modes, free, no sign-up. Export MP4 videos for TikTok, Reels and Shorts. Pro removes the watermark.",
     "browserRequirements": "Requires a modern web browser with JavaScript enabled",
     "featuresModes": "{count} simulation modes",
     "features": [
       "Customisable physics and visuals",
       "Rainbow wall effects",
       "Colour trail",
-      "Wall break effects (confetti, shatter, shockwave)",
+      "Confetti, shatter and shockwave wall breaks",
       "MP4 video export in multiple resolutions",
       "TikTok vertical format support",
       "Custom ball images",
@@ -186,15 +186,15 @@
   "HowItWorks": {
     "step1": {
       "title": "Pick a Mode",
-      "description": "Choose one of {count} modes: escape rings, rhythm machines, duels and journeys."
+      "description": "Choose one of {count} modes. Rings to escape, rhythm machines, duels and journeys."
     },
     "step2": {
-      "title": "Customise Everything",
-      "description": "Adjust physics, colours, effects, text overlays and the look of the ball until the clip feels like yours."
+      "title": "Make It Yours",
+      "description": "Change the physics, colours, effects and text until the clip feels like yours."
     },
     "step3": {
-      "title": "Export & Share",
-      "description": "Record the run as an MP4 in any resolution, including vertical TikTok format, and post it wherever you like."
+      "title": "Export and Share",
+      "description": "Record the run as an MP4, vertical for TikTok, and post it anywhere."
     }
   },
   "Controls": {
@@ -234,7 +234,7 @@
     "interactionMerge": "Merge",
     "interactionMergeDesc": "Touching balls fuse into one ball with their combined area and momentum and a blended colour.",
     "interactionSplit": "Split",
-    "interactionSplitDesc": "Every wall break splits the ball into two halves of half the area that fly apart – down to the smallest size and up to the ball cap.",
+    "interactionSplitDesc": "Every wall break splits the ball into two halves that fly apart, down to the smallest size and up to the ball cap.",
     "interactionPass": "Pass",
     "interactionPassDesc": "Balls ignore each other and fly straight through.",
     "splitMinRadius": "Smallest Split Ball",
@@ -247,7 +247,7 @@
     "removeEmoji": "Remove emoji",
     "advancedPhysics": "Advanced Physics",
     "advancedPhysicsTip": "Extra forces and wall behaviours. All of them are off by default, so a shared link or a found seed behaves exactly as before until you change them.",
-    "advancedPhysicsDesc": "Deterministic extras: shared links, presets and Find Simulation include them.",
+    "advancedPhysicsDesc": "Extras that shared links, presets and Find Simulation include.",
     "airDrag": "Air Drag",
     "airDragTip": "Fraction of the ball's speed lost on every physics step (60 per second). A little makes the ball settle; a lot makes it sink.",
     "windX": "Wind (Horizontal)",
@@ -376,7 +376,7 @@
     "musicStartOffset": "Music Start",
     "musicStartOffsetTip": "Skip the first seconds of the track so the drop lands right when the simulation starts. Restarts begin from here too.",
     "instrument": "Instrument",
-    "instrumentDesc": "The voice the wall tones are played with (a melody picks its own instrument below). Pluck, marimba and chip are synthesised live; the classic tone is Triangle.",
+    "instrumentDesc": "The voice of the wall tones. Pluck, marimba and chip are synthesised live. The classic tone is Triangle. A melody picks its own instrument below.",
     "instSine": "Sine",
     "instTriangle": "Triangle",
     "instSquare": "Square",
@@ -397,7 +397,7 @@
     "rootNote": "Root note",
     "beatLock": "Beat lock (BPM)",
     "beatLockTip": "Delays each bounce sound to the next point of the beat grid (at most one grid step) so exports sit on the beat.",
-    "beatLockDesc": "Play bounce sounds on a BPM grid; extra hits inside the same step are skipped so the rhythm stays clean.",
+    "beatLockDesc": "Play bounce sounds on a BPM grid. Extra hits inside the same step are skipped so the rhythm stays clean.",
     "bpm": "BPM",
     "quantizeGrid": "Grid",
     "videoResolution": "Resolution",
@@ -461,7 +461,7 @@
     "centerDotTip": "Place a small dot in the centre of the circle that the ball bounces off.",
     "growLines": "Lines",
     "growLinesTip": "Draw lines from each bounce point to the ball, like in Lines mode.",
-    "dropDesc": "Balls of different sizes and weights rain through rows of pegs and bars. Every hit plays a note pitched by the ball's size, so the run composes its own polyrhythm.",
+    "dropDesc": "Balls of different sizes rain through rows of pegs and bars. Every hit plays a note pitched by the ball's size.",
     "dropBallCount": "Ball Count",
     "dropBallCountTip": "How many balls are released from the top of the board.",
     "dropSizeVariation": "Size Variation",
@@ -476,7 +476,7 @@
     "dropLoopTip": "Opens the floor: balls that fall out of the bottom come back in at the top, so the piece never ends.",
     "picturePaint": "Picture Paint",
     "picturePaintTip": "Upload any picture and the ball reveals it stroke by stroke – in rhythm with your song, steered so the whole picture appears, paced to finish when the song ends.",
-    "picturePaintDesc": "PNG, JPG, WebP or GIF (first frame). The picture is fitted into the circle and stays in your browser; the ball's brush uncovers it and the run ends at 95 % revealed.",
+    "picturePaintDesc": "PNG, JPG, WebP or the first frame of a GIF. The picture is fitted into the circle and stays in your browser. The ball’s brush uncovers it and the run ends at 95% revealed.",
     "choosePictureFile": "Choose picture",
     "dropPictureHere": "Drop your picture here!",
     "paintPictureRemove": "Remove picture",
@@ -505,7 +505,7 @@
     "paintPaceTip": "Resizes the brush every second so the reveal finishes when the song – or the clip – ends. The HUD shows whether the ball is on schedule.",
     "paintPaceDesc": "Finish the reveal with the song (or with the clip length without one).",
     "dropLoopDesc": "Off: the run ends once every ball has come to rest on the floor.",
-    "boxDesc": "A box instead of rings. Squares, circles or DVD-style logos fly in straight lines and every wall hit plays a note: the next note of the melody, or one of four notes per wall without one. The numbers count down per bounce, colours cycle and the shapes grow a little.",
+    "boxDesc": "A box instead of rings. Squares, circles or logos fly in straight lines and every wall hit plays a note. The numbers count down with every bounce.",
     "boxShape": "Shape",
     "boxShapeTip": "What bounces around the box: axis-aligned squares, circles or a rounded DVD-style logo whose corner hits are accented with a louder note and a flash.",
     "boxShapeSquare": "Square",
@@ -514,8 +514,8 @@
     "boxShapeCount": "Shape Count",
     "boxShapeCountTip": "How many shapes start from the centre of the box. They pass through each other, so their rhythms never disturb one another.",
     "boxSpeedRatio": "Speed Ratio",
-    "boxSpeedRatioTip": "Speeds of the shapes in small whole-number ratios: with 2:3 the second shape hits the walls three times while the first hits twice – that is the polyrhythm. With 1:1 every shape gets its own launch angle instead. The fastest shape moves at the Ball Speed times the seed's tempo (±15 %), which is what lets Find Simulation hit an exact clip length.",
-    "boxSpeedRatioDesc": "The launch angle is chosen so each shape's top/bottom and left/right hits form a small ratio of their own. A DVD logo always gets an odd ratio and is re-aimed by a hair at every bounce, so it reaches a corner exactly every 3–13 hits – even while it grows.",
+    "boxSpeedRatioTip": "Speeds of the shapes in small whole-number ratios. With 2:3 the second shape hits the walls three times while the first hits twice. That is the polyrhythm. With 1:1 every shape gets its own launch angle instead. The fastest shape moves at the Ball Speed times the seed's tempo.",
+    "boxSpeedRatioDesc": "The launch angle gives each shape a small ratio of top-bottom to left-right hits. A DVD logo always gets an odd ratio and is re-aimed by a hair at every bounce, so it reaches a corner every few hits, even while it grows.",
     "boxCountdown": "Countdown",
     "boxCountdownTip": "The number on every shape counts down by one per wall hit and the run ends when every shape reaches zero. 0 switches the countdown off and the shapes bounce forever.",
     "boxCountdownOff": "Off",
@@ -525,9 +525,9 @@
     "boxGravityTip": "How much of the Gravity setting acts on the shapes. 0 is the classic straight-line DVD motion; anything above turns the shapes into bouncing balls that keep their bounce height.",
     "boxAspect": "Box Shape",
     "boxAspectTip": "Width of the box relative to its height: 9:16 fills a vertical clip, 1:1 is a square, 16:9 is landscape.",
-    "pwDesc": "Pendulums tuned like the classic pendulum wave: the slowest swings K times per cycle and each next one once more, so the row drifts into travelling waves, splits into groups and snaps back in line at the end of every cycle. Every centre crossing plays a note pitched by the pendulum's place in the row.",
+    "pwDesc": "Pendulums tuned so each one swings once more per cycle than the last. The row drifts into waves, splits into groups and snaps back in line. Every centre crossing is a note.",
     "pwLayout": "Layout",
-    "pwLayoutTip": "Where the pendulums hang: a row under a bar (strings visibly different in length), an arc of pivots swinging toward the centre, bobs moving along radii from the centre (optionally on a rotating polygon), the same on a slowly turning frame that draws spiral arms, bobs sliding on rails, or balls bouncing on a floor with periods in the same series.",
+    "pwLayoutTip": "Where the pendulums hang. Row: under a bar. Arc: pivots swinging toward the centre. Radial: bobs along radii from the centre, optionally on a rotating polygon. Galaxy: a slowly turning frame that draws spiral arms. Sliders: bobs on rails. Floor: balls bouncing with periods in the same series.",
     "pwLayoutRow": "Row",
     "pwLayoutArc": "Arc",
     "pwLayoutCircle": "Circle",
@@ -626,7 +626,7 @@
     "faceSoundsTip": "The cat face chirps a synthesised meow when it gets hit, when a wall breaks and when it escapes – on the beat grid and in the recording. Not used while the bounce sound is an audio sample.",
     "faceSoundsSampleNote": "Silent while the bounce sound is an audio sample – switch back to tones to hear the cat.",
     "geraldPersona": "Meet Gerald",
-    "geraldPersonaDesc": "Gerald always escapes – freedom lasts about 4 seconds. One click sets his face, name and squash.",
+    "geraldPersonaDesc": "Gerald always escapes. Freedom lasts about 4 seconds. One click sets his face, name and squash.",
     "theme": "Theme",
     "themeTip": "One-click looks: a theme sets the wall, ball, line, background and trail colours and the particle style. Every colour stays editable afterwards – click the theme again to restore it.",
     "themeDefault": "Default",
@@ -670,9 +670,9 @@
     "themeTrailStart": "Trail colour 1",
     "themeTrailEnd": "Trail colour 2",
     "modePolyrhythm": "Metronomes & Polyrhythms",
-    "prDesc": "Voices ticking at their own tempos: every tick plays a note, and whenever all of them tick together the screen flashes and a chord sounds. Positions are exact functions of time, so even 400 voices replay identically.",
+    "prDesc": "Voices ticking at their own tempos. Every tick plays a note. When they all tick together the screen flashes and a chord sounds.",
     "prLayout": "Layout",
-    "prLayoutTip": "Rings: a dot on each ring orbits a whole number of times per cycle and ticks at 12 o'clock. Arcs: dots slide back and forth across a circle and tick at both ends. Metronomes: a grid of pendulums ticking at both extremes – pair it with the BPM steps for a tempo phase shift. Spiral: orbiting dots whose tick points lie on a spiral, redrawn at every alignment. You can switch the layout mid-run; the rhythm carries on.",
+    "prLayoutTip": "Rings: a dot on each ring orbits a whole number of times per cycle and ticks at 12 o'clock. Arcs: dots slide across a circle and tick at both ends. Metronomes: a grid of pendulums ticking at both extremes. Spiral: orbiting dots whose tick points lie on a spiral. You can switch the layout mid-run.",
     "prLayoutRings": "Rings",
     "prLayoutArcs": "Arcs",
     "prLayoutMetronomes": "Metronomes",
@@ -714,7 +714,7 @@
     "prRealign": "All voices line up every {seconds}s",
     "modeCollide": "Collision Playground",
     "cpTitle": "Collision playground",
-    "cpDesc": "Hundreds of orbs of different sizes bounce off the walls and off each other – mass follows size – and every collision plays a soft note pitched by the smaller orb: big orbs low, small orbs high.",
+    "cpDesc": "Hundreds of orbs of different sizes bounce off the walls and off each other. Every collision plays a soft note pitched by the smaller orb.",
     "cpCount": "Orbs",
     "cpCountTip": "How many orbs collide, from 10 to 2000. They are sized automatically to fill the container (Ball Size makes them bigger or smaller); the ring holds at most 36 lollipops.",
     "cpCountOnRing": "{count} on the ring",
@@ -766,7 +766,7 @@
     "teamDefault6": "Orange",
     "cameraGroup": "Camera",
     "cameraGroupTip": "Cinematic camera effects. They only change the picture and the pace at which the clock feeds the simulation, never the physics: seeds and found simulations play out exactly the same.",
-    "cameraGroupDesc": "Zoom in on the ball, shake the view when a wall breaks, slow down on near misses and replay the escape – in the preview and in recordings.",
+    "cameraGroupDesc": "Zoom in on the ball, shake the view when a wall breaks, slow down on near misses and replay the escape, in the preview and in recordings.",
     "cameraOff": "Off",
     "cameraZoom": "Camera Zoom",
     "cameraZoomTip": "How far the view zooms toward the ball, following it around the arena. 0 keeps today's view (with Camera Follow on, the gentle classic follow). With several balls (Ball Count) the zoom stays wide enough to keep them all in frame.",
@@ -783,7 +783,7 @@
     "replayOnEscapeModes": "The replay plays in the escape modes: Classic, Accumulation, Portal, Shatter and Color Match.",
     "modeGlass": "Glass Smash",
     "glassTitle": "Glass",
-    "glassDesc": "Stages of glass panes stand between the ball and HOME. Every landing cracks a pane and plays the next note (the next melody note, or a scale degree by row); the last hit shatters it with the wall-break sound – a glass clip unless you pick another. Each new stage brings more panes, thicker ones, sliding ones and ones with holes.",
+    "glassDesc": "Stages of glass panes stand between the ball and HOME. Every landing cracks a pane and plays a note. The last hit shatters it. Each stage brings more panes, thicker glass and holes.",
     "glassRows": "Panes per Stage",
     "glassRowsTip": "How many glass panes the first stage holds, from 3 to 30. Every later stage adds a third more (up to 30), packed closer together, so the hits speed up as the ball gets deeper.",
     "glassHp": "Hits per Pane",
@@ -795,12 +795,12 @@
     "glassHoles": "Panes with Holes",
     "glassHolesTip": "From the second stage on, some panes have a hole the ball must miss to keep smashing. Dropping through it skips that pane (the ball can still crack it from below).",
     "glassGates": "Multiplier Gates",
-    "glassGatesTip": "A row of three gates above every stage's glass – x2 DMG (a pane loses two hit points a hit), x1.5 SPEED (every hop runs faster) and x1.25 SIZE – in a seeded order. The gate Gerald falls through stacks its multiplier on him (with no cap unless you set one in the Ball section's Multipliers group) and the HUD shows it.",
+    "glassGatesTip": "A row of three gates above every stage's glass: x2 DMG, x1.5 SPEED and x1.25 SIZE, in a seeded order. The gate Gerald falls through stacks its multiplier on him, with no cap unless you set one in the Multipliers group. The HUD shows it.",
     "glassRunSize": "Whole run: {panes} panes and up to {hits} hits over {stages} stage(s), then HOME.",
     "wallBreakSoundModeDefault": "Mode default ({name})",
     "modeMultipliers": "Multipliers",
     "mpTitle": "Multipliers",
-    "mpDesc": "Speed, size, damage, bounce and gravity multipliers stack on the ball – with no cap unless you set one. Pickups float in the ring modes, and a ball whose damage reaches the smash level breaks the rings it touches.",
+    "mpDesc": "Speed, size, damage, bounce and gravity multipliers stack on the ball with no cap unless you set one. Pickups float in the ring modes.",
     "multiplierPickups": "Multiplier Pickups",
     "multiplierPickupsTip": "Floating orbs – x2 SPEED, x1.5 SIZE, x2 DMG, x2 BALLS… – appear at seeded times and places inside the ball's ring. Touching one stacks it on the ball with a burst, a rising arpeggio and a pop of the HUD badge. Seeds and Find Simulation include them.",
     "pickupRate": "Pickup Rate",
@@ -873,8 +873,8 @@
     "obstaclesModeNote": "Obstacles play in the ring modes, such as Classic, Shatter or Portal. Your layout is kept for when you switch back to one.",
     "captionsTab": "Captions",
     "captions": "Captions",
-    "captionsDesc": "Animated overlays for the clip: a countdown, a wall counter, a progress bar, a question that reveals its answer, or your own text. They are drawn on the canvas, so every recording includes them.",
-    "captionsTip": "Each caption enters and leaves with a fade, slide or pop animation between its start and end time. The timing runs on the simulation clock: pausing holds the captions, 8× plays them eight times faster and Restart starts them over. While a clip is recorded, the countdown and the progress bar count the clip itself, from Record Video to the end of the recording. Captions travel in the share link and are saved in presets.",
+    "captionsDesc": "Animated overlays for the clip. A countdown, a wall counter, a progress bar, a question that reveals its answer, or your own text. They are drawn on the canvas, so every recording includes them.",
+    "captionsTip": "Each caption fades, slides or pops in and out between its start and end time. The timing runs on the simulation clock, so pausing holds the captions and Restart starts them over. While a clip records, the countdown and progress bar count the clip itself. Captions travel in share links and presets.",
     "captionsEmpty": "No captions yet – add one below.",
     "captionAdd": "Add Caption",
     "captionAddTip": "Adds a caption of that type (up to {max}). Captions at the same position stack in the order of the list.",
@@ -886,7 +886,7 @@
     "captionTypeQuestion": "Question",
     "captionTypeText": "Text",
     "captionType": "Type",
-    "captionTypeTip": "Countdown: the time left to the end of the clip. Wall counter: walls broken out of the walls in play (\"Wall 3/10\"; hidden in the modes without rings). Progress bar: the elapsed time over the clip length. Question: a question whose answer pops in when a ball escapes or the run finishes. Text: any text.",
+    "captionTypeTip": "Countdown: the time left to the end of the clip. Wall counter: walls broken out of the walls in play, hidden in modes without rings. Progress bar: elapsed time over the clip length. Question: a question whose answer pops in when a ball escapes or the run ends. Text: any text.",
     "captionText": "Text",
     "captionTextTip": "The text to show (up to 80 characters; a long text wraps onto up to three lines).",
     "captionQuestion": "Question",
@@ -946,7 +946,7 @@
     "forcedWinnerNeverEscape": "Off while Never Escape is on: in this mode the chosen team wins by escaping, and nobody escapes. Together with Never Escape the Forced Winner works in Classic, where the walls it breaks first decide.",
     "timelineTab": "Timeline",
     "timeline": "Timeline keyframes",
-    "timelineDesc": "Automate settings over the clip: pick a setting, set its value and add a keyframe at the current time. Between two keyframes the value glides in a straight line; before the first and after the last it holds.",
+    "timelineDesc": "Automate settings over the clip. Pick a setting, set its value and add a keyframe at the current time. Between keyframes the value glides in a straight line.",
     "timelineTip": "Keyframes run on the simulation clock: a pause holds them, 8× plays them faster and Restart starts them over, so Find Simulation and the recording see the same run. They drive the run only – your own slider values stay as they are and come back when a setting's keyframes are removed.",
     "timelineSetting": "Setting",
     "timelineSettingTip": "The setting the next keyframe drives. While a setting has keyframes, its slider shows the live value with an AUTO badge and is locked.",
@@ -969,7 +969,7 @@
     "timelineAuto": "Auto",
     "timelineAutoTip": "Automated by the timeline: the value follows its keyframes. Edit them in the Timeline section.",
     "modeDoublePendulum": "Double Pendulum",
-    "dpDesc": "Chaotic double pendulums swing over a harp: every string a bob crosses is plucked and plays its note, while the last bob paints a long rainbow trail. Add pendulums for the butterfly effect, a third arm for a triple pendulum, or let two pendulums spar.",
+    "dpDesc": "Chaotic double pendulums swing over a harp. Every string a bob crosses plays its note, and the last bob paints a rainbow trail. Add pendulums, a third arm, or let two spar.",
     "dpGroupRig": "Setup",
     "dpGroupStart": "Start",
     "dpGroupPhysics": "Physics",
@@ -1019,7 +1019,7 @@
     "dpRunEndless": "Swings until you stop it.",
     "dpFixedRunLength": "Always {duration}s – the clip length; change the Duration or switch Endless on",
     "modeIllusion": "Circle Illusion",
-    "ilDesc": "Four circle illusions in the style of project.jdm. Every touch, bounce and collision plays a note through your instrument, scale and beat lock.",
+    "ilDesc": "Four circle illusions. Every touch, bounce and collision plays a note through your instrument, scale and beat lock.",
     "ilType": "Illusion",
     "ilTypeTip": "Lines: balls sliding back and forth on straight lines that together roll a hidden circle. Rings: one ball bouncing in every ring while the rings turn. Nested: circles bouncing inside circles, with wobbly walls. White spaces: balls paint the arena and leave a hidden picture white.",
     "ilTypeLines": "Lines",
@@ -1063,9 +1063,9 @@
     "wallWobbleTip": "Circular walls bulge where a ball hits them; the bulge travels round the wall and dies away like jelly. Visual only – the physics, seeds and Find Simulation stay the same.",
     "wallWobbleOff": "Off",
     "modeStringBattle": "String Battle",
-    "sbDesc": "oddplayground's WEB DOMINION: every wall bounce anchors a glowing thread from the ring to the ball, the threads follow their balls, and the combat rule decides who pays for crossing them. The last ball standing wins.",
+    "sbDesc": "Every wall bounce anchors a glowing thread from the ring to the ball. The combat rule decides who pays for crossing a thread. The last ball standing wins.",
     "sbRule": "Combat Rule",
-    "sbRuleTip": "Cut: a ball crossing an enemy thread – anywhere from the ring to the ball it hangs on – cuts it and the thread's owner loses a life. Touch: the threads are lasers – a ball touching an enemy thread anywhere loses a life itself. Collide: ball-to-ball collisions cost the slower ball a life (every ring bounce sets a ball's speed afresh, so the slower one changes from clash to clash). After a lost life a ball is shielded for a moment.",
+    "sbRuleTip": "Cut: a ball crossing an enemy thread cuts it and the thread's owner loses a life. Touch: the threads are lasers, and a ball touching an enemy thread loses a life itself. Collide: a collision costs the slower ball a life. After a lost life a ball is shielded for a moment.",
     "sbRuleCut": "Cut",
     "sbRuleTouch": "Touch",
     "sbRuleCollide": "Collide",
@@ -1100,7 +1100,7 @@
     "sbPaletteNote": "Palette: {names} – or set a roster in Teams & Scoreboard.",
     "modePowerLayers": "Power Layers",
     "plTitle": "Power layers",
-    "plDesc": "A stack of rainbow layers stands between the ball and freedom. Every hit on the stack destroys as many layers as the power, then the power advances by the sequence – x2 by default – and the next note of the scale plays. The ball bounces on a steady beat and speeds up as the stack drops; when the last layer shatters it falls out of the bottom.",
+    "plDesc": "A stack of rainbow layers stands between the ball and freedom. Every hit destroys as many layers as the power, then the power grows. When the last layer shatters the ball falls free.",
     "plLayers": "Layers",
     "plLayersTip": "How many thin rainbow layers the stack holds, from 20 to 800. With the power doubling on every hit, 120 layers fall in 7 hits and 800 in 10.",
     "plSequence": "Power Sequence",
@@ -1132,7 +1132,7 @@
     "fastExportFps30": "30 fps",
     "fastExportFps60": "60 fps",
     "projectFiles": "Project file",
-    "projectFilesDesc": "Save the whole setup – every setting with its obstacles, keyframes, captions and teams, plus the pictures and sounds you uploaded – in one .jumpingballslive.json file, and open it again later or on another computer.",
+    "projectFilesDesc": "Save the whole setup in one .jumpingballslive.json file, with every setting, the obstacles, keyframes, captions, teams and the pictures and sounds you uploaded. Open it later or on another computer.",
     "projectName": "Project name",
     "projectNamePlaceholder": "e.g. gerald-vs-glass",
     "projectMediaNone": "No uploaded media – the file holds the settings only.",
@@ -1167,7 +1167,7 @@
     "projectExportError": "The project could not be saved.",
     "modeRace": "Square Racing Grand Prix",
     "rcTitle": "Race",
-    "rcDesc": "Racers drop down a long track generated from the seed: pegs, funnels, spinners, pinball bumpers, turbo pads, narrow gates and swap zones. Every obstacle hit is the racer's note, every overtake a chime; the winner gets a fanfare and a podium.",
+    "rcDesc": "Racers drop down a track of pegs, funnels, spinners, bumpers, turbo pads and swap zones. Every obstacle hit is a note, every overtake a chime. The winner gets a podium.",
     "rcGroupGrid": "Grid",
     "rcGroupTrack": "Track",
     "rcGroupView": "Broadcast",
@@ -1243,8 +1243,8 @@
     "modeBattle": "Battle Royale",
     "modeCtf": "Capture the Flag",
     "arenaTitle": "Arena games",
-    "btDesc": "Squares with hit points bounce and clash in the style of project.jdm: the faster square deals the damage, hit squares flash and shrink, and at 0 HP they are knocked out. The last square standing wins – every clash and bounce is a note.",
-    "ctfDesc": "Two teams of bouncing squares in the style of project.jdm: touch the enemy flag to carry it and bring it to your base to score. A carrier hit by an enemy drops the flag where it is – every capture plays a goal fanfare.",
+    "btDesc": "Squares with hit points bounce and clash. The faster square deals the damage. At zero HP a square is knocked out. The last square standing wins.",
+    "ctfDesc": "Two teams of bouncing squares. Touch the enemy flag to carry it and bring it to your base to score. A carrier that gets hit drops the flag where it is.",
     "btCount": "Squares",
     "btCountTip": "How many squares fight, 2–20. Each one is its own team; they are sized automatically to fill the arena (Ball Size makes them bigger).",
     "btHp": "Hit Points",
@@ -1268,13 +1268,13 @@
     "arenaNudgeTip": "How far the director turns a wall rebound toward the action – the nearest opponent, the enemy flag or home with it. 0 is pure physics; it is seeded, so every run stays reproducible.",
     "arenaTeamsHint": "Names and colours come from the Teams roster when you set one (Teams & Scoreboard section); otherwise every square gets a colour name.",
     "batchRender": "Batch Render",
-    "batchRenderTip": "Queue many fast exports: N random seeds or a pasted list of seeds and share links, optionally in every mode or with one setting swept from A to B. The clips render one after another with the settings of this panel (the page shows each one while it renders and gets your settings back at the end), download as mode-seed-duration files and, at the end, all together as a ZIP. The last batch is remembered in this browser.",
+    "batchRenderTip": "Queue many fast exports: N random seeds or a pasted list of seeds and share links, in every mode or with one setting swept from A to B. The clips render one after another with this panel’s settings, download one by one and then together as a ZIP. The last batch is remembered in this browser.",
     "batchDownloadEach": "Download Each Clip",
     "batchDownloadEachTip": "Saves every clip as soon as it is rendered (the browser may ask once to allow several downloads). Either way, all clips can be downloaded together as a ZIP at the end.",
     "modeRunner": "Beat Runner",
     "modePaddle": "Paddle Keep-Up",
     "rrTitle": "Beat runner",
-    "rrDesc": "A square runs along the floor under a scrolling camera; spikes, pits and blocks sit on the beat of the loaded song (or the BPM of the Custom Sound section), so every real-gravity jump lands exactly on a beat and plays the next note.",
+    "rrDesc": "A square runs along the floor under a scrolling camera. Spikes, pits and blocks sit on the beat of your song, so every jump lands on a beat and plays a note.",
     "rrAutoJump": "Auto Jump",
     "rrAutoJumpTip": "On: the square jumps by itself at the times the jump solver planned – it never fails and every landing is on the beat. Off: you jump with Space (or ↑ / a tap on the canvas); a crash restarts the section at its checkpoint, and Escape pauses.",
     "rrObstacles": "Obstacles",
@@ -1302,7 +1302,7 @@
     "rrRunInfo": "{obstacles} obstacles on a {bpm} BPM beat – a run of about {seconds}s (the seed moves it by a few beats).",
     "rrManualInfo": "{obstacles} obstacles – press Space (or tap the canvas) to jump. A crash restarts the section; Find Simulation needs Auto Jump.",
     "pdTitle": "Paddle keep-up",
-    "pdDesc": "A ball falls onto a platform that slides left and right. Every catch plays the next note and launches the ball back up – higher from the centre, lower and sideways with spin from the edges – off the walls and the ceiling. Miss too often and it is game over.",
+    "pdDesc": "A ball falls onto a platform that slides left and right. Every catch plays a note and sends the ball back up. Miss too often and it is game over.",
     "pdAuto": "Auto Platform",
     "pdAutoTip": "On: a deterministic controller predicts every landing and moves the platform there (the Skill slider decides how well). Off: you move it with the pointer or ← → (A / D).",
     "pdSkill": "Skill",
@@ -1355,7 +1355,7 @@
     "splitSingleNote": "Pick 2 or 4 arenas to start a split-screen race.",
     "modeVortex": "Sound Vortex",
     "vxTitle": "Vortex",
-    "vxDesc": "Balls enter at the rim one after another and spiral into the hole under a central pull. Every sound ring a ball sinks past plays the next note of your scale (the Scale and Root note of the sound settings); the hole swallows it with a pew.",
+    "vxDesc": "Balls enter at the rim one after another and spiral into the hole. Every sound ring a ball sinks past plays the next note of your scale. The hole swallows it with a pew.",
     "vxBalls": "Vortex Balls",
     "vxBallsTip": "How many balls go down the vortex (1–30). Each one plays every ring on its way in, so more balls means denser arpeggios.",
     "vxStagger": "Entry Stagger",
@@ -1374,7 +1374,7 @@
     "vxRunEndless": "Respawn Loop is on: the balls come back forever, so the run never ends and Find Simulation is hidden. Switch the loop off to search a seed for your clip length.",
     "modeBeatDrop": "Beat Drop",
     "bdTitle": "Beat drop",
-    "bdDesc": "A ball drops and bounces from obstruction to obstruction – every one flies in from off-screen and settles just before its beat, so every landing is exactly on the beat of the song or the BPM.",
+    "bdDesc": "A ball drops from platform to platform. Every platform flies in just before its beat, so every landing is on the beat of the song or the BPM.",
     "bdKinds": "Obstructions",
     "bdKindsTip": "Which obstructions fly in: planks, blocks, spring pads (a higher bounce with a boing), wedges (they send the ball sideways), spinning bars (flat exactly at the beat) and big drum pads. Keep at least one.",
     "bdKindPlank": "Plank",
@@ -1430,7 +1430,7 @@
     "viralBotTip": "Plans clips after the playbook of the accounts that go viral (a one-line hook, a countdown, the payoff in the last seconds, alternating endings), scores each one, renders them all with the fast export and downloads a ZIP with the videos, captions, a manifest and a posting schedule.",
     "modeJourney": "Journey",
     "journeyTitle": "Journey",
-    "journeyDesc": "The ball clears one stage after another on its way HOME while the camera scrolls down with it. Build the route below – every stage with its own size – or let the seed draw a random one.",
+    "journeyDesc": "The ball clears one stage after another on its way HOME while the camera scrolls down. Build the route below or let the seed draw one.",
     "journeyAutoStages": "Random Stages",
     "journeyAutoStagesTip": "0 plays your stage list. 1–12 draws a random journey of that many stages (plus HOME) from the seed, so every seed – and every seed Find Simulation tries – is a new route.",
     "journeyAutoOff": "Off",
@@ -1452,7 +1452,7 @@
     "journeyRunAuto": "A random journey of {count, plural, one {# stage} other {# stages}}, then HOME – the seed draws the route, so every seed plays a new one.",
     "modeBullseye": "Bullseye",
     "byTitle": "Bullseye",
-    "byDesc": "Balls are launched from the top one after another, bounce through a short field of pegs and bumpers and land on the target at the bottom: the ring they land in scores (10 for the centre, 0 off the target) and every ball sticks where it lands, so later shots can bounce off earlier ones. Pegs play notes of your scale, landings thud; a centre hit is a BULLSEYE! with confetti, a fanfare and slow motion.",
+    "byDesc": "Balls launch from the top one after another, bounce through pegs and land on the target. The ring they land in scores. Every ball sticks where it lands. A centre hit is a BULLSEYE with confetti and slow motion.",
     "byShots": "Shots",
     "byShotsTip": "How many balls are launched at the target (1–30). The final banner shows the total and the best shot.",
     "byInterval": "Launch Interval",
@@ -1481,7 +1481,7 @@
     "publishQuickShare": "Quick share",
     "unlimited": "Wide sliders",
     "modeTerritory": "Territory",
-    "tyDesc": "oddplayground's pong-wars battle: 2 or 4 teams of bouncing balls paint a tile map. A ball passes through its own colour and bounces off any other, converting the tile it hits – so every bounce moves the border. When the countdown runs out, the team with the most tiles wins.",
+    "tyDesc": "Two or four teams of bouncing balls paint a tile map. A ball passes through its own colour and bounces off any other, converting the tile it hits. When the countdown ends the team with the most tiles wins.",
     "tyTeams": "Teams",
     "tyTeamsTip": "2 teams split the board into top and bottom halves, 4 teams into quadrants. Every team starts with the same number of tiles.",
     "tyTeams2": "2 teams",
@@ -1520,9 +1520,9 @@
     "tyHud": "Percentage HUD",
     "tyHudTip": "The band over the board: PICK A SIDE, the countdown, the VS line with every team's share and the live percentage bar. With a team roster it also stands in for the scoreboard.",
     "modeMaze": "Maze Escape",
-    "mzDesc": "oddplayground's maze reels: a seeded perfect maze with a red entrance slot on top and an exit gap at the bottom. The balls drop in one after another, bounce their way through and paint every cell they pass – the first one out wins, and the notes climb as they near the exit.",
+    "mzDesc": "A maze with a red entrance on top and an exit at the bottom. Balls drop in one after another, bounce their way through and paint every cell they pass. The first one out wins.",
     "mzBrain": "Brain",
-    "mzBrainTip": "How the balls find their way. Bounce: pure physics – they just ricochet through the corridors. Wall follower: one hand on the wall at every junction – it always finds the exit. Explorer: prefers the corridors it has not been down yet and backtracks from dead ends. The steering nudges a ball as it crosses the centre of a cell.",
+    "mzBrainTip": "How the balls find their way. Bounce: pure physics, they ricochet through the corridors. Wall follower: one hand on the wall at every junction, it always finds the exit. Explorer: prefers corridors it has not been down yet and backtracks from dead ends.",
     "mzBrainBounce": "Bounce",
     "mzBrainWallFollow": "Wall follower",
     "mzBrainExplorer": "Explorer",
@@ -1567,7 +1567,7 @@
     "mzRunInfo": "A {cols} × {rows} maze ({cells} cells, a new one for every seed); the run ends when every ball is out, at {seconds}s at the latest.",
     "modeConveyor": "Conveyor Belt",
     "cvTitle": "Conveyor Belt",
-    "cvDesc": "A belt across the top carries a ball out of the hatch every few seconds and drops it into the arena below. In the rings every ball has to escape on its own (the rings never break, and the director helps a ball that has been stuck for a while); the escaped balls ride the bottom belt out of the field. The bowl fills up and spills over; the peg field sorts the balls into bins. The belt hums while it carries a ball and clicks when one drops, and every bounce plays a note of your scale.",
+    "cvDesc": "A belt across the top drops a ball into the arena every few seconds. The arena can be rings to escape, a bowl that fills up or a peg field over bins. Every bounce plays a note and the counter keeps score.",
     "cvArena": "Arena",
     "cvArenaTip": "What the balls drop into: concentric rings with rotating gaps (the Wall Count, Gap Size and Rotation of the wall settings apply), a bowl that piles them up, or a peg field over bins.",
     "cvArenaRings": "Rings",
@@ -1590,13 +1590,13 @@
     "respawnEveryValue": "{seconds}s",
     "respawnEveryOff": "Off",
     "exitBehavior": "Exit Behaviour",
-    "exitBehaviorTip": "How every ring’s exit moves. Rotate: it turns with its ring, as always. Jump: it teleports to another spot of the ring every few seconds, or as soon as the ball gets close. Flee: it runs away from the ball along the ring. Shrink: it narrows until it shuts, then opens again somewhere else. Deterministic: seeds, links and Find Simulation include it.",
+    "exitBehaviorTip": "How every ring's exit moves. Rotate: it turns with its ring. Jump: it teleports to another spot every few seconds, or as soon as the ball gets close. Flee: it runs away from the ball along the ring. Shrink: it narrows until it shuts, then opens again somewhere else. Same seed, same run.",
     "exitRotate": "Rotate",
     "exitJump": "Jump",
     "exitFlee": "Flee",
     "exitShrink": "Shrink",
     "exitRotateDesc": "The exits turn with their rings, as always.",
-    "exitJumpDesc": "Every exit teleports to a new spot of its ring on a timer – and jumps away when the ball comes within its sense. A flash marks where it was and where it lands.",
+    "exitJumpDesc": "Every exit teleports to a new spot of its ring on a timer, and jumps away when the ball comes within its sense. A flash marks where it was and where it lands.",
     "exitFleeDesc": "The exit runs away from the ball along its ring while the ball is within its sense. To get out, the ball has to out-run it.",
     "exitShrinkDesc": "The exit narrows over the exit timer until it shuts, then opens again somewhere else.",
     "exitHoldNote": "The rings hold still: the exits move by themselves.",
@@ -1608,7 +1608,7 @@
     "exitFleeSpeed": "Flee Speed",
     "exitFleeSpeedTip": "Top speed of a fleeing exit along its ring, in degrees a second. The ball has to move round the ring faster than that to catch it.",
     "splatBarrier": "Splat Barrier",
-    "splatBarrierTip": "Every wall hit leaves a splat of paint in the ball’s colour on the inside of the wall – and the splats are solid, so the ball slowly builds its own barrier. Past Most Splats the oldest fade out; a splat drips off when an exit moves over it or its ring breaks. Deterministic: seeds, links and Find Simulation include it.",
+    "splatBarrierTip": "Every wall hit leaves a solid splat of paint in the ball's colour on the inside of the wall, so the ball slowly builds its own barrier. Past Most Splats the oldest fade out. A splat drips off when an exit moves over it or its ring breaks.",
     "splatSize": "Splat Size",
     "splatSizeTip": "A splat’s size as a multiple of the ball’s (0.5–2 on the slider).",
     "splatMax": "Most Splats",
@@ -1616,7 +1616,7 @@
     "splatGrowNote": "In Grow the splats only paint the ring – the ball grows to fill it.",
     "modeOrbGrid": "Bouncing Orbs",
     "ogTitle": "Bouncing Orbs",
-    "ogDesc": "Thousands of orbs, each bouncing straight up and down on its own spot – forever in the rhythm model, in polyrhythms on a metronome, so the whole set becomes a travelling wave that rises from a corner, funnels into the centre or ripples in rings and lands together at the end of every cycle. The decay model lets them lose energy and settle.",
+    "ogDesc": "Thousands of orbs, each bouncing on its own spot. Their tempos vary across the field, so waves roll through it and every orb lands together at the end of a cycle. The decay model lets them settle.",
     "ogFieldHeading": "Field",
     "ogVariationHeading": "Variation",
     "ogLookHeading": "Look",
@@ -1719,7 +1719,7 @@
     "ogPresetGrid70": "70 x 70",
     "modeFightLeague": "Fight League",
     "flTitle": "Fight League",
-    "flDesc": "Fighters from games, comics, shows and movies duel in an arena with their weapons and one ability each. Pick a matchup or your own fighters – a random slot is picked by the seed – and the last one (or team) standing wins.",
+    "flDesc": "Fighters from games, comics, shows and films duel in an arena with their weapons and one ability each. Pick a matchup or your own fighters. The last one standing wins.",
     "flPreset": "Matchup",
     "flPresetTip": "A ready-made matchup in its genre: it picks the fighters and the match type.",
     "flPresetCustom": "Custom matchup",
@@ -1757,7 +1757,7 @@
     "flStatAttack": "Attack speed",
     "flStatCast": "Cast speed",
     "modeLandClaim": "Land Claim",
-    "lcDesc": "Columns of blocks line the arena's wall and every competitor's balls bounce around inside: a hit on a column takes its top block, and every 8th block a competitor takes adds one more ball of its colour. The most blocks wins.",
+    "lcDesc": "Columns of blocks line the arena wall. A hit on a column takes its top block for the hitter's colour, and every eighth block adds a ball. The most blocks wins.",
     "lcPreset": "Battle Preset",
     "lcPresetTip": "Load a ready-made battle: its rule, its wall, its competitors (a roster of countries) and the clip length.",
     "lcPresetChoose": "Choose a preset…",
@@ -1812,7 +1812,7 @@
     "teamCountryTip": "Fill this team with a country: its name, its flag and its colour",
     "sbStyleCircle": "Circle",
     "sbHintCircle": "STRING CIRCLE country fights: flag balls fan strings to the rim ahead of them, crossing a rival's strings cuts them, and the fans' share of the rim is the score.",
-    "scDesc": "STRING CIRCLE: every ball keeps anchoring strings from itself to the rim straight ahead of it, so it drags a dense fan in its colour – its claim on the rim. A ball slicing through the outer half of a rival's fan cuts those strings; every Strings per Life cut take a life from the fan's owner (whose fan is then shielded for 2.5 s), a ball out of lives is out and its fan dissolves, and the last flag standing wins. The coloured arcs on the rim show each fan's share.",
+    "scDesc": "String Circle. Every ball anchors strings from itself to the rim ahead of it and drags a fan in its colour. Cutting through a rival's fan takes lives. The last flag standing wins.",
     "scPreset": "Country Fight Preset",
     "scPresetTip": "Fills the battle with a built-in country fight: its flags (the roster, from the Country picker's countries), the arena, the rates and a clip long enough for its battles.",
     "scPresetChoose": "Choose a country fight…",
@@ -1847,7 +1847,7 @@
     "ogModelDecay": "Decay",
     "ogRhythmHeading": "Rhythm",
     "ogRhythm": "Rhythm Preset",
-    "ogRhythmTip": "How many times each group bounces per cycle. Pendulum wave: 51, 52, 53… (the classic). 3 against 2 … 3:4:5: the voices bounce that many times a bar and meet on every downbeat. Euclidean: a ladder of tempos shared out as evenly as a Euclidean rhythm. Corner to corner and centre outwards: tempos rising smoothly across the field. Varied: a tempo per orb from the seed.",
+    "ogRhythmTip": "How many times each group bounces per cycle. Pendulum wave: 51, 52, 53 and so on. 3 against 2 up to 3:4:5: the voices meet on every downbeat. Euclidean: a ladder of tempos shared out evenly. Corner to corner and centre outwards: tempos rising across the field. Varied: a tempo per orb from the seed.",
     "ogRhythmPendulum": "Pendulum wave",
     "ogRhythm32": "3 against 2",
     "ogRhythm43": "4 against 3",
@@ -2049,9 +2049,9 @@
     "loopClipGain": "{slot} clip level",
     "loopClipFailed": "This file could not be decoded – try an MP3, WAV, OGG or M4A.",
     "modeStarChords": "Chord Stars",
-    "scStarDesc": "CHORD STARS: every ball bounces round the inside of one circle at a fixed angle, so it draws a star polygon n/k whose lines all touch one inner circle. The speeds are tuned so every star closes on the same frame – with a chord – then the drawing holds, fades and loops.",
+    "scStarDesc": "Chord Stars. Every ball bounces round one circle at a fixed angle and draws a star polygon whose lines all touch one inner circle. Every star closes on the same frame with a chord, then the drawing fades and loops.",
     "scStarPresets": "Chord Stars Presets",
-    "scStarPresetsTip": "Five stars: five balls drawing 5/2, 7/3, 8/3, 9/4 and 12/5 from points spread round the whole rim. Seven-point bloom: seven heptagrams 7/3, each starting a seventh of a point further round – a 49-point bloom around one inner circle. Heptagram duel: 7/2 against 7/3 from opposite sides. Each also sets the navy look and the loop HUD.",
+    "scStarPresetsTip": "Five stars: five balls drawing 5/2, 7/3, 8/3, 9/4 and 12/5 from points spread round the rim. Seven-point bloom: seven heptagrams 7/3, each starting a seventh of a point further round. Heptagram duel: 7/2 against 7/3 from opposite sides. Each also sets the navy look and the loop HUD.",
     "scPresetFiveStars": "Five stars",
     "scPresetSevenBloom": "Seven-point bloom",
     "scPresetHeptagramDuel": "Heptagram duel",
@@ -2162,7 +2162,7 @@
     "dpForwardSecTip": "Seconds the fan runs forwards before it plays back. The loop lasts twice as long.",
     "dpDivergePx": "Split at",
     "dpDivergePxTip": "The fan counts as split once a bob is this far from the leader's bob (pixels on a 1080-pixel-wide video). It times the split cue, the colours and Find Simulation's split.",
-    "prSpiralDesc": "Phase spiral: give every ring several dots and they wind into a spiral, pass through interference patterns and straighten into spokes exactly once a cycle – the in-line meter counts toward it.",
+    "prSpiralDesc": "Phase spiral. Give every ring several dots and they wind into a spiral, pass through interference patterns and straighten into spokes once a cycle. The in-line meter counts toward it.",
     "prSpiralPreset": "Phase Spiral",
     "prSpiralPresetTip": "The loop clip in one click: 20 rings with 3 arms each, a 20 s loop that never ends, the in-line meter, comet tails, the loop sounds and the spiral colours on a navy page with the loop HUD.",
     "prSpiralPresetButton": "20 rings × 3 arms",
@@ -2180,7 +2180,7 @@
     "prPaletteSpiral": "Spiral",
     "modeColourSort": "Colour Sort",
     "modeEllipseFoci": "Focus Shot",
-    "efDesc": "An elliptical pool and a volley of balls fired at once from one focus: every shot bounces off the wall straight through the other focus, and every such path is the same length, so the whole volley arrives there together – every pass, on the beat.",
+    "efDesc": "An elliptical pool. A volley of balls fires from one focus, bounces off the wall and passes through the other focus all at once. Every pass lands on the beat.",
     "efPreset": "Focus Shot presets",
     "efPresetTip": "Starting points: the clip's whispering gallery, one billiard shot with its path, a thousand-ball volley, the circle control and a 90° fan. A preset sets the mode's own settings and its look.",
     "efPresetGallery": "Whispering gallery",
@@ -2283,7 +2283,7 @@
     "flCreator": "Creator tools",
     "flCreatorTip": "Turn the current matchup into a ready-made clip, or download a tier list card of a division or a genre.",
     "flMakeClip": "Make a clip",
-    "flMakeClipTip": "Searches a seed of the current matchup and format whose story fits the clip. One match is paced to the length first (its HP scaled so the fight lasts about right) and its final KO lands at 82–88 % of the clip; a cliffhanger is cut while every fighter is at or under 25 %; a series, a bracket or a boss rush ends with its verdict. The clip length, a “Who wins?” caption and the Top Text are set for you – the progress and the result show in the Find Simulation strip.",
+    "flMakeClipTip": "Searches a seed of the current matchup and format whose story fits the clip. A single match is paced so its final KO lands near the end. A cliffhanger is cut while every fighter is low. A series, bracket or boss rush ends with its verdict. The clip length, a caption and the Top Text are set for you.",
     "flClipBucket": "Length",
     "flClipBucket_short": "Short · {sec} s",
     "flClipBucket_standard": "Standard · {sec} s",
@@ -2367,292 +2367,232 @@
     "previewAlt": "{name} mode preview",
     "classic": {
       "name": "Classic",
-      "description": "A ball bounces inside concentric rings that each have a single gap. Every wall it slips through breaks with a satisfying effect. Simple, hypnotic and endlessly rewatchable. Make the exits jump, flee or shrink (Exit Behaviour), or let every hit leave a solid splat of paint (Splat Barrier)."
+      "description": "One ball, a stack of rings, one gap each. Every ring it slips through breaks. Will it get out?"
     },
     "accumulation": {
       "name": "Accumulation",
-      "description": "The ball has a few seconds to escape before it freezes where it is. Every frozen ball becomes an obstacle for the next one. Will the last ball make it out? Make the exits jump, flee or shrink (Exit Behaviour), or let every hit leave a solid splat of paint (Splat Barrier)."
+      "description": "Escape in time or freeze in place. Every frozen ball blocks the next one. The arena fills fast."
     },
     "multiply": {
       "name": "Multiply",
-      "description": "Each time a ball escapes the ring it spawns extra balls. The arena fills with bouncing chaos within seconds, which makes for explosive, shareable clips. Make the exits jump, flee or shrink (Exit Behaviour), or let every hit leave a solid splat of paint (Splat Barrier)."
+      "description": "Every escape spawns more balls. One ball becomes a swarm in seconds."
     },
     "lines": {
       "name": "Lines",
-      "description": "Every bounce point is connected to the ball by a line, so the run slowly draws intricate string art as the ball ricochets around the circle. With the Splat Barrier on, every wall hit leaves a solid splat of paint."
+      "description": "A line from the ball to every bounce. The run draws its own string art."
     },
     "paint": {
       "name": "Paint",
-      "description": "The ball paints a rainbow trail wherever it goes, gradually colouring the whole circle while a live percentage counter tracks the coverage. With the Splat Barrier on, every wall hit leaves a solid splat of paint."
+      "description": "The ball paints a rainbow trail and a counter climbs to 100%. Can it cover the whole circle?"
     },
     "target": {
       "name": "Target",
-      "description": "Numbered segments line the wall and must be hit in order. Every correct hit triggers a wall-break effect; wrong hits flash red. With the Splat Barrier on, every wall hit leaves a solid splat of paint."
+      "description": "Numbered targets on the wall. Hit them in order and each one breaks. Miss and it flashes red."
     },
     "grow": {
       "name": "Grow",
-      "description": "The ball is sealed inside one large ring and grows a little with every bounce, filling more and more of the space until there is nowhere left to go. With the Splat Barrier on, every bounce leaves a splat of paint on the ring."
+      "description": "The ball grows with every bounce until it fills the ring and has nowhere left to go."
     },
     "shatter": {
       "name": "Shatter",
-      "description": "Every wall is made of segments with hit points. Each bounce cracks a segment and enough hits shatter it. Clear a path through every wall to escape."
+      "description": "Every wall is made of cracked segments. Each hit chips one off. Smash a path out."
     },
     "colorMatch": {
       "name": "Color Match",
-      "description": "The wall is split into coloured segments and the ball changes colour on every bounce. A segment only breaks when the colours match. Clear them all to escape."
+      "description": "The ball changes colour on every bounce. A segment breaks only when the colours match."
     },
     "portal": {
       "name": "Portal",
-      "description": "Colour-matched portal pairs sit on the wall. Touch one and the ball teleports to its twin. After enough uses the portals burn out and become exits. With the Splat Barrier on, every wall hit leaves a solid splat of paint."
+      "description": "Touch a portal and the ball jumps to its twin. After a few trips the portals burn out and open."
     },
     "drop": {
       "name": "Ball Drop",
-      "description": "Balls of different sizes and weights rain down through rows of pegs and bars, and every hit plays a note pitched by the ball's size. Different gravities fall out of step and the run writes its own polyrhythm."
+      "description": "Balls of every size rain through a pegboard. Every hit is a note. Big balls low, small balls high."
     },
     "box": {
       "name": "Bouncing Shapes",
-      "description": "Squares, circles or DVD-style logos glide through a box at constant speed and every wall hit plays the next note. Big numbers count down with each bounce, logos at speeds in 2:3 or 3:4:5 ratios weave polyrhythms, and a corner hit is the accent everyone waits for."
+      "description": "Squares and logos glide round a box and count down with every bounce. A corner hit is the accent."
     },
     "pendulum": {
       "name": "Pendulum Wave",
-      "description": "Pendulums tuned so each one swings once more per cycle than the last: the row drifts into travelling waves, splits into groups and snaps back in line every cycle, every crossing a note. Row, arc, circle, galaxy, sliding or bouncing – and a phasing mode that never quite realigns."
+      "description": "Pendulums drift out of line, split into waves and snap back together every cycle. Every crossing is a note."
     },
     "polyrhythm": {
       "name": "Metronomes & Polyrhythms",
-      "description": "Up to 400 voices tick at their own tempos – dots orbiting rings in 3:4:5, dots sliding across a circle, a grid of metronomes phasing apart, a spiral – and every tick is a note. They drift into polyrhythms and snap back in phase with a flash and a chord."
+      "description": "Hundreds of voices tick at their own tempo and drift apart. Then they all hit at once with a flash."
     },
     "collide": {
       "name": "Collision Playground",
-      "description": "Hundreds of varied orbs collide in a circle or a box and every collision plays a soft note pitched by size. Make them squishy, drop them in sync, switch the collisions off mid-run or put lollipops on a ring."
+      "description": "Hundreds of orbs bump round a circle. Every collision is a soft note, pitched by size."
     },
     "glass": {
       "name": "Glass Smash",
-      "description": "Gerald is determined to smash all of the glass: he drops down a shaft of glass panes, every landing cracks the pane under him and plays a note, and the last hit shatters it. Stage after stage the glass gets denser and thicker, starts to slide and grows holes – until he rolls through the door marked HOME."
+      "description": "Gerald drops through floors of glass. Every landing cracks a pane and plays a note. The last hit shatters it."
     },
     "multipliers": {
       "name": "Multipliers",
-      "description": "Gerald uses the multipliers to get home: balls fall through rows of gates – x2, x3 and x5 clone them, x2 SPEED, x1.5 SIZE and x2 DMG stack with no cap, ÷2 takes half away and release doors let them through in bursts – past bumpers and blockers, while a live counter shows how many make it home."
+      "description": "Balls fall through gates that clone them. A handful becomes hundreds on the way home. A counter keeps score."
     },
     "doublePendulum": {
       "name": "Double Pendulum Harp",
-      "description": "A chaotic double pendulum swings over a harp: every string a bob crosses is plucked and plays its note, while the last bob paints a long rainbow trail. Add pendulums for the butterfly effect, a third arm for a triple pendulum, or let two pendulums spar – every hit a percussive note."
+      "description": "A chaotic double pendulum swings over a harp. Every string it crosses plays a note."
     },
     "illusion": {
       "name": "Circle Illusion",
-      "description": "Balls sliding on straight lines that secretly roll a circle, rings of bouncing balls rippling in spirals, circles bouncing inside circles with wobbly walls, and balls painting the arena until only a hidden picture stays white – every touch is a note."
+      "description": "Balls on straight lines that secretly roll a circle, rings that ripple, a picture hidden in the paint."
     },
     "stringBattle": {
       "name": "String Battle",
-      "description": "Web dominion: every bounce anchors a glowing thread from the ring to the ball, each ball drags a fan of threads, and crossing an enemy's thread cuts it – and costs its owner a life. Numbered lives, a neon moiré style and a finale that gets intense: the last ball standing wins."
+      "description": "Every bounce leaves a glowing thread. Cut an enemy thread and they lose a life. Last ball standing wins."
     },
     "powerLayers": {
       "name": "Power Layers",
-      "description": "It starts tiny and gets out of control: a white ball bounces between a glowing ceiling and a stack of up to 800 rainbow layers, and every hit destroys as many layers as the power – which then doubles (or follows Fibonacci, the primes, +1, or pure chaos). A new note every level, until the last layer shatters and the ball falls to freedom."
+      "description": "A ball bounces against a stack of hundreds of rainbow layers. Every hit destroys more. The power doubles."
     },
     "race": {
       "name": "Square Racing Grand Prix",
-      "description": "Racing squares (or marbles) drop down a long track of pegs, funnels, spinners, pinball bumpers, turbo pads, narrow gates and swap zones that trade two racers' places. Live standings, passing callouts, a podium with confetti – and cups that keep F1 points across races."
+      "description": "Squares race down a track of bumpers, funnels and turbo pads. Live standings, a podium, confetti."
     },
     "battle": {
       "name": "Square Battle Royale",
-      "description": "Up to 20 squares with health bars bounce around a box or a circle and smash into each other: the faster square deals the damage, hit squares flash and shrink, and at zero HP they explode with a KO. A shrinking safe zone and heal, shield and speed power-ups keep it tense until the last square standing wins."
+      "description": "Up to twenty squares with health bars crash into each other. Last square standing wins."
     },
     "ctf": {
       "name": "Capture the Flag",
-      "description": "Two teams of bouncing squares and a base with a flag at each end: touch the enemy flag to carry it, bring it home to score – get tackled on the way and the flag drops where you are. First to the target score, or the better score when the clip ends, wins, with a goal fanfare for every capture."
+      "description": "Two teams of squares, a flag at each end. Grab the enemy flag and get it home to score."
     },
     "runner": {
       "name": "Beat Runner",
-      "description": "A Geometry Dash-style square runs under a scrolling camera; spikes, pits and blocks sit on the beat of your song, and every real-gravity jump lands exactly on a beat and plays the next note. Auto jump never fails – or play it yourself with Space."
+      "description": "A square runs and jumps to the beat of your song. Every landing hits a beat and plays a note."
     },
     "paddle": {
       "name": "Paddle Keep-Up",
-      "description": "Keep the ball up with a platform that slides left and right: every catch is a note, off-centre hits send it sideways with spin, off the walls and the ceiling – until the misses run out and it is game over."
+      "description": "Keep the ball up with a sliding platform. Every catch is a note. Miss too often and it is over."
     },
     "vortex": {
       "name": "Sound Vortex",
-      "description": "Pew! Balls drop into a whirlpool of sound rings and spiral down to the hole in the middle – every ring they sink past plays the next note, so each ball is a rising glissando and the staggered balls weave arpeggios. At the bottom the hole swallows them with a pew and a splash."
+      "description": "Balls spiral down a whirlpool of sound rings. Every ring is a note. The hole swallows them with a pew."
     },
     "journey": {
       "name": "Journey",
-      "description": "Gerald bounces through his commute: a column of stages – rings to escape, glass to smash, pegs, multiplier gates, a funnel, a bullseye – one after another while the camera scrolls down, each with its banner and a swoosh, until he walks through his own front door at HOME."
+      "description": "Gerald bounces through his commute. Rings, glass, pegs and gates, stage after stage, all the way home."
     },
     "bullseye": {
       "name": "Bullseye",
-      "description": "BULLSEYE!! Balls fly one after another from a launcher at the top, ping through pegs and bumpers and stick where they land on a dartboard lying at the bottom. Every ring scores, every peg plays a note – and a centre hit pops confetti, a fanfare and slow motion."
+      "description": "Balls fire through pegs onto a dartboard. Every ring scores. A centre hit is a bullseye with confetti."
     },
     "beatDrop": {
       "name": "Beat Drop",
-      "description": "A ball drops onto planks, blocks, springs, wedges, spinning bars and drum pads that fly in from off-screen just before each beat – so every single landing hits exactly on the beat, with a kick, a snare or the next note of your song."
+      "description": "Platforms fly in just before each beat, so every landing hits the beat. Made for music edits."
     },
     "territory": {
       "name": "Territory",
-      "description": "Pong-wars style physics simulation: 2 or 4 teams of bouncing balls paint the tile map their colour, and the live percentage bar tracks who's winning. Vortex VS Bomber – one bounce can flip the board."
+      "description": "Two or four teams of balls paint a tile map their colour. One bounce can flip the board."
     },
     "maze": {
       "name": "Maze Escape",
-      "description": "Who else thought that was blood? Balls drop through a red slot into a seeded, green-glowing maze and bounce their way to the exit, painting every corridor they pass red. Every wall hit is a note that climbs as a ball closes in on the way out – the first ball through the exit wins."
+      "description": "Balls drop into a glowing maze and bounce their way out, painting every corridor red. First one out wins."
     },
     "conveyor": {
       "name": "Conveyor Belt",
-      "description": "Gerald respawns every 3 seconds: a conveyor belt across the top carries ball after ball out of a hatch and drops it into the arena below – concentric rings to escape, a bowl that fills up, or a peg field over bins. Every bounce is a note, the belt hums and clicks, and a counter keeps score: Loaded 17 / Escaped 4."
+      "description": "A belt drops a new ball into the arena every few seconds. The pile grows and the counter keeps score."
     },
     "orbGrid": {
       "name": "Bouncing Orbs",
-      "description": "Thousands of glossy orbs on a slab, each bouncing straight up and down on its own spot forever – 1089, 1936 or 4900 of them. Their tempos vary smoothly across the field, so the whole set rises from a corner, funnels into the centre or ripples in rings, falls into phase at the end of every cycle and dissolves again – polyrhythms on a metronome, every landing a soft note."
+      "description": "Thousands of orbs bounce on their own spot. Waves roll across the field until every orb lands together."
     },
     "fightLeague": {
       "name": "Fight League",
-      "description": "Characters from games, comics, shows and movies duel as balls with their own weapons – swords sweep, hammers fly and come back, guns and wands fire – and every fighter's ability charges up and fires by itself. HP inside the ball; the last one standing wins: Thor vs Loki, Captain Falcon vs Little Mac, Yuumi vs Katarina…"
+      "description": "Fighters from games, comics and films duel as balls with their own weapons. Last one standing wins."
     },
     "landClaim": {
       "name": "Land Claim",
-      "description": "Columns of blocks line a square, hexagon or circle arena; colour balls knock the top blocks off, every eighth block spawns another ball, and the most blocks wins – DOMINATION or SUCH A CLOSE BATTLE."
+      "description": "Columns of blocks ring the arena. Balls knock them off for their colour. Most blocks wins."
     },
     "starChords": {
       "name": "Chord Stars",
-      "description": "Balls ride inside one circle, each drawing a star polygon such as 5/2 or 7/3 – every bounce keeps its angle, so the lines ring an inner circle nobody drew – and every star closes on the same frame with a chord, then the drawing fades and loops."
+      "description": "Balls draw star polygons inside one circle. Every star closes on the same frame with a chord."
     },
     "hoops": {
       "name": "Spinning Hoops",
-      "description": "Rainbow hoops spin faster and faster about their vertical axis, a bead on each. Past each hoop's critical speed the bottom stops being the lowest place and its bead climbs – the biggest hoop's first, one hoop at a time – every lift a tuned bar note; then the spin comes back down and the loop starts over."
+      "description": "Hoops spin faster and faster. One by one the beads climb, biggest hoop first, each with its own note."
     },
     "colourSort": {
       "name": "Colour Sort",
-      "description": "360 balls in four colours start packed in the core of a bullseye of turning rings; every ring's gates open only outwards and never for the ring's own colour, so the balls sort themselves into their bands – then they mix again and the loop starts over."
+      "description": "Mixed balls sort themselves through one-way gates into a bullseye of colours, then mix again."
     },
     "ellipseFoci": {
       "name": "Focus Shot",
-      "description": "An elliptical pool: a volley of rainbow balls fired from one focus bounces off the wall and passes through the other focus all at once, every pass – while the swarm collapses onto the long axis."
+      "description": "A volley of balls fires from one focus and lands on the other all at once, pass after pass."
     },
     "beatMachine": {
       "name": "Beat Machines",
-      "description": "Music machines where every note is a ball landing on the beat: a marble xylophone fed by tubes and a lift, or one ball hopping down an eight-step musical staircase."
+      "description": "Marbles drop onto tuned bars or a ball hops down a staircase. Every note lands right on the beat."
     }
   },
   "FAQ": {
     "q1": {
       "question": "Is {siteName} free to use?",
-      "answer": "Yes: every mode, every customisation option, the sound and Find Simulation – and recording and exporting the videos – with no account to create. Videos made for free carry a small watermark; Pro removes it for $10 a month or $79 a year."
+      "answer": "Yes. Every mode, every setting and recording are free, with no account. Free videos carry a small watermark, and Pro removes it for $10 a month or $79 a year."
     },
     "q2": {
-      "question": "What video formats and resolutions can I export?",
-      "answer": "You can record 500×500 (square), 1280×720 (HD), 1920×1080 (Full HD) and 1080×1920 (vertical, TikTok) clips between 10 and 120 seconds long. Browsers that support MP4 recording export MP4; others export WebM."
+      "question": "What video formats and sizes can I export?",
+      "answer": "Square 500×500, HD 1280×720, Full HD 1920×1080 and vertical 1080×1920, from 10 to 120 seconds. Chrome and Safari export MP4. Firefox exports WebM."
     },
     "q3": {
-      "question": "Can I use the exported videos commercially?",
-      "answer": "Yes. Everything you create is yours to use on TikTok, YouTube, Instagram or anywhere else, with no attribution required."
+      "question": "Can I use the videos commercially?",
+      "answer": "Yes. Everything you make is yours to post anywhere, with no credit needed."
     },
     "q4": {
       "question": "Do I need to install anything?",
-      "answer": "No. The whole tool runs in your browser. Open the site and start creating."
+      "answer": "No. It runs in your browser. Open the site and start."
     },
     "q5": {
       "question": "Can I save my settings?",
-      "answer": "Yes. Save as many presets as you like to your browser's local storage and load them back at any time. The URL also updates as you tweak settings, so you can bookmark or share a setup."
+      "answer": "Yes. Save presets in your browser and load them any time. The link in the address bar also carries your setup, so you can bookmark or share it."
     },
     "q6": {
       "question": "Does it work on mobile?",
-      "answer": "The simulator is designed for desktop browsers, where there is room for the canvas and the controls side by side. It runs on phones too, but a laptop or desktop is the better experience."
+      "answer": "It runs on phones, but it is built for a laptop or desktop, where the canvas and the controls fit side by side."
     },
     "q7": {
       "question": "Are there keyboard shortcuts?",
-      "answer": "Yes. Press Space to pause or resume and R to restart the simulation."
+      "answer": "Yes. Space pauses and resumes. R restarts."
     },
     "q8": {
-      "question": "How do I upload a custom ball image?",
-      "answer": "Open the Ball & Physics section, enable Show Advanced Options and click Choose Image. Any image works: logos, photos, memes. Or pick an emoji from the emoji grid."
+      "question": "How do I put my own image on the ball?",
+      "answer": "Open Ball & Physics, turn on Show Advanced Options and click Choose Image. Any image works, or pick an emoji."
     },
     "q9": {
-      "question": "How does the custom sound feature work?",
-      "answer": "In the Custom Sound section, choose a song from the built-in library or import a MIDI file. The melody is extracted from the file and every wall hit plays its next note, turning the run into a musical performance. Prefer a sound effect? Switch Bounce Sound to Audio sample and pick a built-in click, pluck or kick, or upload your own clip – it is pitched per wall and included in the recording."
-    },
-    "q10": {
-      "question": "What makes {siteName} a satisfying ball simulator?",
-      "answer": "The loop is simple: a ball bounces inside rings with tiny gaps, and every time it slips through something rewarding happens: confetti, a shatter, a shockwave. Because you control physics, colours and effects, the tension and the payoff look exactly the way you want."
-    },
-    "q11": {
-      "question": "Can I use {siteName} as a satisfying ball clicker?",
-      "answer": "It is not a clicker game, but it scratches the same itch. You watch, anticipate the gap and get rewarded with effects and sound on every escape. The run plays itself, so it is the satisfaction without the tapping."
+      "question": "Can the bounces play music?",
+      "answer": "Yes. In Custom Sound pick a song from the library or import a MIDI file, and every hit plays the next note. Or switch to an audio sample, built in or your own."
     }
   },
   "Editorial": {
-    "physicsBadge": "Behind the simulation",
-    "physicsTitle": "How the physics engine works",
-    "physicsP1": "Every run starts from the same idea: a ball bouncing inside a ring. Speed, gravity and bounciness change how it moves, a bit like dropping a real ball into a bowl and deciding how fast it falls and how hard it ricochets. The engine steps the world sixty times per second with several sub-steps per frame, so collisions stay stable even at high speed.",
-    "physicsP2": "Each ring has a small gap. When the ball lines up with it and passes through, the ring breaks with the effect you picked: confetti, shattering glass or a shockwave. The ball moves on to the next ring, and the process repeats until it escapes or the recording ends.",
-    "physicsP3": "Every mode layers its own rules on top: the ball might split into a swarm, freeze into an obstacle course, or grow with every bounce. All of it runs locally in your browser; nothing is uploaded and the video is encoded on your own machine.",
-    "modesBadge": "Game modes",
-    "modesTitle": "What each mode does",
-    "modeClassic": "A single ball bounces through concentric rings, each with a gap. Break through every wall to escape. The default mode: simple, hypnotic and endlessly watchable.",
-    "modeAccumulation": "The ball has limited time to escape. If it fails, it freezes in place and becomes a new obstacle, and a fresh ball spawns. The arena fills up fast. Can the last one get out?",
-    "modeMultiply": "Each time a ball escapes the ring it spawns extra balls, so one ball quickly becomes a swarm. Great for explosive, chaotic clips that fill the screen.",
-    "modeLines": "Every bounce point is connected to the ball by a line, producing intricate geometric patterns. Part physics, part generative art.",
-    "modePaint": "The ball leaves a colourful trail as it moves, gradually covering the circle. A percentage counter tracks how much you have painted. Try to reach 100%.",
-    "modeTarget": "Numbered segments appear on the wall. Hit them in order; each correct hit triggers a break effect, and wrong hits flash red.",
-    "modePortal": "Colour-matched portal pairs sit on the wall. Touch one to teleport to its twin. After enough uses the portals burn out and the ball breaks free.",
-    "modeShatter": "Walls are split into segments with hit points. Each bounce cracks a segment and after enough hits it shatters. Clear a path through all walls to escape.",
-    "modeColorMatch": "The wall is split into coloured segments and the ball changes colour on every bounce. A segment breaks only when the colours match. Clear them all to win.",
-    "modeGrow": "The ball is sealed inside a single ring and grows with every bounce, taking up more and more of the space until it can barely move.",
-    "modeDrop": "A tall board of pegs and bars instead of rings. Balls of different sizes and weights drop from the top and every hit plays a note, big balls low and small balls high, until they all come to rest – or forever with Rain on.",
-    "modeBox": "A rectangular box instead of rings. Squares, circles or DVD-style logos travel in straight lines at constant speed and reflect perfectly off the walls; every hit plays the next note of the melody or a note that depends on the wall. Each shape carries a big number that counts down per bounce, flashes, grows a little and changes colour, and several logos at speeds in ratios like 2:3 or 3:4:5 weave a polyrhythm until every number reaches zero – or forever with the countdown off. A logo that hits a corner plays a louder note and lights up the screen.",
-    "modePendulum": "No rings: 5–60 pendulums tuned like the classic pendulum wave, so the slowest swings K times per cycle and every next one once more. In line at the start, they drift into travelling waves, split into two and three groups and snap back in line at the end of every cycle; a centre crossing (or an extreme) plays a note pitched by the pendulum's place in the row, and bobs that align play one chord. Six layouts – a row under a bar, an arc of pivots swinging toward the centre, bobs on radii from the centre or on a rotating polygon, a slowly turning galaxy that draws spiral arms, sliders on rails and balls bouncing on a floor – plus a phasing option that turns the tuning into a Reich-style tempo phase shift.",
-    "tipsBadge": "Pro tips",
-    "tipsTitle": "Tips for the best recordings",
-    "tipFindSimulationTitle": "Use the Find Simulation tool",
-    "tipFindSimulationBody": "Rather than guessing, let the tool search for a seed that produces a run of your target length. Open Find Simulation below the canvas, set the duration and let it scan seeds. Once it finds one, the run lasts exactly that long, which makes recording predictable.",
-    "tipLayerEffectsTitle": "Layer effects for visual impact",
-    "tipLayerEffectsBody": "Rainbow walls, glow, colour trails and wall-break effects stack. Try a reactive background with confetti breaks and a glow; the extra layers keep viewers watching.",
-    "tipTextHooksTitle": "Add text hooks",
-    "tipTextHooksBody": "Top and bottom overlays give context. A question like \"Will it escape?\" or a countdown builds anticipation. Adjust the text size so it is readable at a glance on a phone.",
-    "tipClipLengthTitle": "Match the clip length to the platform",
-    "tipClipLengthBody": "Shorter clips (15 to 30 seconds) tend to perform better on TikTok and Reels. Set the duration in the Recording section and pick the vertical 1080×1920 resolution.",
-    "tipPresetsTitle": "Save your favourite setups as presets",
-    "tipPresetsBody": "When a configuration works, save it and load it again for your next video. Consistent series perform well because the audience knows what to expect.",
-    "tipSpeedTitle": "Speed up previews, record at 1×",
-    "tipSpeedBody": "Use the 2× to 8× speed buttons to fast-forward through a long run while previewing. Before recording, set it back to 1× so the export captures every frame at full quality.",
+    "tipsBadge": "Tips",
+    "tipsTitle": "Better recordings",
+    "tipFindSimulationTitle": "Use Find Simulation",
+    "tipFindSimulationBody": "Set the clip length you want and let Find Simulation scan seeds for a run that lasts exactly that long. Then record it.",
+    "tipTextHooksTitle": "Add a hook",
+    "tipTextHooksBody": "A line at the top like “Will it escape?” gives viewers a reason to stay. Keep it big enough to read on a phone.",
+    "tipClipLengthTitle": "Keep it short",
+    "tipClipLengthBody": "15 to 30 seconds does best on TikTok and Reels. Set the length in Recording and pick 1080×1920.",
+    "tipSpeedTitle": "Preview fast, record at 1×",
+    "tipSpeedBody": "Use 2× to 8× to skip through a long run while you set it up. Go back to 1× before you record.",
     "troubleBadge": "Help",
     "troubleTitle": "Troubleshooting",
     "troubleExportQ": "The video export looks wrong or is missing frames",
-    "troubleExportA": "Use a recent version of Chrome, Edge or Firefox; recording works best there. Close other tabs and apps to free up memory, and keep the simulator tab visible while it records. Chrome and Safari export MP4; Firefox exports WebM, which every major platform accepts.",
-    "troubleAudioQ": "The simulation does not play audio",
-    "troubleAudioA": "Browsers block sound until you interact with the page. Click anywhere first, then press Start. If there is still no sound, check the system volume and make sure the site is allowed to play audio.",
+    "troubleExportA": "Use a recent Chrome, Edge or Firefox. Close other tabs and keep this tab visible while it records. Firefox exports WebM, which every platform accepts.",
+    "troubleAudioQ": "There is no sound",
+    "troubleAudioA": "Browsers block sound until you click the page. Click anywhere, then press Start. If it is still silent, check the system volume and the site’s sound permission.",
     "troubleSpeedQ": "The ball moves too fast or too slow",
-    "troubleSpeedA": "Open the Ball & Physics section and adjust Ball Speed. Lower values are easier to follow; higher values give more energetic clips. Gravity also changes the pacing: lower gravity keeps the ball floating longer between hits.",
+    "troubleSpeedA": "Open Ball & Physics and change Ball Speed. Lower gravity keeps the ball floating longer between hits.",
     "troubleSettingsQ": "Settings are not saving",
-    "troubleSettingsA": "Presets are stored in your browser's local storage. Clearing site data or using a private window removes them. Copy the share link of a setup you care about so you can restore it later.",
-    "troubleMidiQ": "My custom MIDI file does not load",
-    "troubleMidiA": "Very complex files with many simultaneous tracks may not parse. Try a simpler single-melody MIDI (format 0 or 1). The tool keeps only the highest note at each moment, so a lead-melody export from your music software works best.",
+    "troubleSettingsA": "Presets live in your browser's storage. A private window or clearing site data removes them. Copy the share link of a setup you want to keep.",
+    "troubleMidiQ": "My MIDI file does not load",
+    "troubleMidiA": "Very complex files may not parse. Try a single-melody MIDI. The tool keeps only the highest note at each moment.",
     "troubleStuckQ": "Still stuck?",
-    "troubleStuckA": "Send a note through the feedback page and describe what you were doing.",
-    "modePolyrhythm": "No rings to escape: 2–400 voices each tick at their own tempo and every tick plays a note. Rings (dots orbiting 1, 2, 3… times per cycle and ticking at 12 o'clock, optionally as rotating polygons), arcs (dots sliding along the chords or semicircles of a circle and ticking at both ends), a grid of metronomes, or a spiral whose tick points line up again every cycle. The tempos follow the harmonic series, an arithmetic BPM series (the Reich-style tempo phase shift) or your own ratio list such as 3,4,5,7. The moment every voice ticks together is computed exactly and lands as a chord and a flash; the run ends after the chosen number of cycles and always lasts the same time, so it fits any clip.",
-    "modeCollide": "No rings: 10 to 2000 orbs of different sizes – mass follows size – bounce around a circle or a square and off each other with elastic collisions, under as much or as little gravity as you like. Every collision plays a soft note pitched by the smaller orb (big orbs low, small orbs high, on a pentatonic ladder snapped to your scale), and only the dozen most energetic collisions of each frame sound, so hundreds of orbs sound like rain on glass instead of noise. Variants: squishy orbs that squash on every impact, a sync start that drops them all from a grid at once, an anti-collision switch that lets them pass through each other at a chosen second, and lollipops on a ring that collide along a circular track.",
-    "modeGlass": "The geraldbounces glass format, no rings: a portrait shaft of horizontal glass panes stands between the ball and a doorway marked HOME. The ball falls and every landing cracks the pane below it – a procedural crack grows from the impact point – and plays the next note of your melody or, without one, a scale degree by row; on its last hit a pane shatters into shards with an accented note and a glass-break sound, and the ball crashes through to the next pane. After the last pane of a stage the camera scrolls down to the next one: more panes, thicker glass, panes that slide left and right and panes with holes the ball must miss. The final stage ends with the ball rolling into the doorway and a celebration. Every run is deterministic, so Find Simulation can pick a seed for your clip length.",
-    "modeMultipliers": "A tall board the camera scrolls down, always following the lowest ball. Every row is split into 2–4 gates: count gates (x2, x3, x5) clone each ball that passes – up to a ball cap you choose, from 50 to 2000 –, speed, size and damage gates stack multipliers on it with no upper limit, ÷2 gates absorb every second ball and release gates hold a pile on a door that opens in bursts. Splitter pegs, kicking bumpers, funnels and blockers with hit points (the damage multiplier wears them down faster) sit between the rows, every hit is a note on a pentatonic plinko piano, and the HOME zone at the bottom counts the arrivals live until the final “N Gerald made it home”. A ball that grows wider than the board outgrows it and ends the run with a celebration. Set a target count and Find Simulation looks for a seed whose final count lands within 5 % of it. The same multipliers float as pickup orbs in the ring modes (Ball section → Multipliers).",
-    "modeDoublePendulum": "No rings: one to four double pendulums – or triple pendulums – swing from a pivot in the middle of the video, integrated step by step (an adaptive fifth-order Runge–Kutta scheme whose sub-steps shorten wherever the swing gets violent), so the chaos is real physics and the energy holds for the whole clip. Up to 24 harp strings stand across the playfield, vertical or radial; every bob that crosses one plucks it – the string vibrates and plays its note, tuned to the scale of the Custom Sound section across one to four octaves – while the last bob draws a long rainbow trail. Several pendulums start a hair apart and fly apart after a few seconds (the butterfly effect); sparring hangs two side by side whose bobs collide elastically, every hit a percussive note and a flash. Arm lengths, masses, gravity, friction and the start angles (or a seeded random start) are all adjustable, and the run ends with the clip or never.",
-    "modeIllusion": "No rings to escape: four project.jdm illusions. Lines – N balls each slide back and forth on a diameter of the big circle, ball i at the angle i·π/N with the phase offset i·π/N, so together they form a smaller circle rolling around inside; each ball plays its note when it touches the rim. Rings – concentric rings with one bouncing ball each; the rings turn at different speeds, so the bounces ripple outward in spirals and line up again every cycle. Nested – a circle bouncing inside a circle inside a circle (2–5 layers) with elastic collisions and walls that wobble where they are hit. White spaces – the balls paint the white arena black but bounce off shapes they can never enter, so a hidden picture chosen by the seed is revealed at the end. Everything is deterministic, and the Wobbly Walls slider of the Visual section makes the walls of every ring mode bounce like jelly too.",
-    "modeStringBattle": "The oddplayground WEB DOMINION duel: 2–6 numbered balls bounce inside one thin ring on black, and every wall bounce anchors a glowing thread from the impact point to the ball, so each ball drags a fan of threads behind it (the oldest detach and fade). Cut: crossing an enemy thread snaps it with a pluck and costs its owner a life; Touch: the threads are lasers that burn whoever touches them; Collide: the slower ball of every collision loses a life. A ball at 0 lives shatters like glass and its threads dissolve; when two are left and one is a cut from elimination the finale speeds everything up and the halos strobe, and the last ball standing wins – with slow motion on the final cut when the camera's slow motion is on. The neon style turns the threads into endless lines that paint moiré art across the whole canvas, with a jelly ring and glitch bars. Every seed replays exactly, Find Simulation searches a battle's length or its winner, and a team roster lends the balls its colours and names.",
-    "modePowerLayers": "The oddplayground power-layers format, no rings: a navy portrait playfield with a glowing ceiling bar in its upper third and, from mid-screen down, a dense stack of 20–800 thin rainbow layers – the layers between the ball and freedom. One white ball bounces between the ceiling and the top of the stack with a slight seeded drift. Every impact destroys as many layers as the current power – they shatter into coloured particles and the stack drops – and the power then doubles, follows Fibonacci or the primes, grows by one, or is drawn from the seed (chaos: some hits destroy dozens, others change nothing). Two rainbow pills show the rule, the power and the level, every level plays the next note of your scale, a big hit adds a chord and a whoosh, and when the last layer goes the ball falls through the bottom to freedom. Every bounce takes the same time, so a run lasts the hit count times the bounce period – Find Simulation says so, or searches the chaos seeds for your clip length.",
-    "modeRace": "The project.jdm marble-race format, no rings: 2–16 named racers – the Teams roster's names, colours and emoji – drop from a start grid down a long vertical track generated from the seed. Rows of pegs, funnels, spinners, pinball bumpers, turbo dash pads, narrow gates and swap zones (the first racer through arms one, the second swaps places with it) shuffle the order; every obstacle a racer hits plays its own note, every overtake a rising chime. The camera follows the leader or frames the pack, a mini-map shows the whole track, the standings list positions and gaps, and the finish brings a fanfare, a podium and confetti. Loop the track for several laps, switch on a cup to keep F1 points across races, or pick a staged winner.",
-    "modeBattle": "No rings: 2–20 squares with hit points bounce around a box or a circle and into each other. When two collide, the faster one deals damage in proportion to their closing speed; the square that is hit flashes and shrinks a little, and at 0 HP it explodes into shards with a KO callout. An optional safe zone closes in from the eighth second and pushes the survivors together, and heal, shield and speed power-ups appear at seeded times. The last square standing wins under a banner with confetti. Seeded and deterministic, so Find Simulation can search for a battle of a given length.",
-    "modeCtf": "No rings: two teams of one to four squares play capture the flag in a box with a base and a flag at each end. A square that touches the enemy flag carries it and scores when it reaches its own base; a carrier hit by an enemy drops the flag where it is – the enemy can grab it again, its own team sends it home. The director nudges rebounds toward each square's goal, the scoreboard shows the captures and the clock, and every capture plays a goal fanfare. The first team to the target score wins, otherwise the better score when the clip ends.",
-    "modeRunner": "The project.jdm \"realistic gravity in Geometry Dash\" rhythm runner, no rings: a square runs along a floor at a constant speed under a scrolling camera. The course is planned on the beat of the loaded song (its detected beat – the same detector as Picture Paint) or of the BPM: for every obstacle – a row of spikes, a pit, a block to jump onto and later drop off – the jump solver takes the flight time of a jump under real gravity with a fixed take-off speed and times the take-off so that the landing falls exactly on a beat. With Auto Jump the square jumps at those times and never fails; without it you jump with Space and a crash restarts the section. Every landing plays the next note with a puff of dust; the finish plays a chord.",
-    "modePaddle": "The \"Ball Bounce Game with Moving Platform\" format, no rings: a ball falls under real gravity onto a platform that slides left and right; a catch launches it back up – higher from the centre, lower and sideways with spin from the edges – so it wanders off the walls and the ceiling, and every catch plays the next note. The auto controller predicts every landing and heads there; its Skill decides how often it arrives early or late, so the misses (and the game over after the allowed ones) are deterministic for a seed. Or move the platform yourself.",
-    "modeVortex": "The geraldbounces \"sound vortex, pew\" format, no rings to escape: a whirlpool seen from above – a funnel of 6–24 concentric sound rings over glowing spiral arms, with a hole in the middle. One ball after another enters at the rim with a sideways speed and spirals inward under a central pull that grows toward the centre, plus a little drag; it takes the Spiral Time to reach the hole, whirling faster and faster on the way. Every ring it sinks past plays the next note of your scale – melody, instrument, hit sample and beat lock included – so each ball is a rising glissando and the staggered balls weave arpeggios. The hole swallows it with a pew, a fast downward pitch sweep, and a splash; with the loop on it comes back at the rim. The balls shrink with depth for a 3-D feel, and every run is deterministic, so Find Simulation can pick a seed for your clip length.",
-    "modeJourney": "The geraldbounces commute format – \"Gerald bounces through his commute\", \"let him out!\": a column of stages the ball clears one after another while the camera scrolls down. Rings is a compact Classic escape (3–9 rings with rotating gaps; the ball drops down a chute into the core), Glass a few Glass Smash panes that crack on every landing and shatter, Pegs a Ball Drop peg field whose rows play a rising scale, Multipliers two or three rows of gates (x2 DMG, x1.5 SPEED, x1.25 SIZE) that power the ball up for the rest of the trip, Funnel a converging funnel, Bullseye a landing target that scores 10–100 before its trapdoor opens, and HOME the doorway with confetti and the total time. Every stage change shows a banner and plays a swoosh, a mini-map beside the column shows how far Gerald has come, and every note goes through your instrument, scale, beat lock, hit samples and melody. Build the route in the Journey block (sizes, order, add and remove) or let the seed draw a random one; every run is deterministic and always reaches HOME, so Find Simulation can pick a seed for your clip length.",
-    "modeBullseye": "The geraldbounces \"bulleye!!\" format, no rings to escape: a portrait field with a dartboard target – 3–10 concentric rings in dartboard colours – lying at the bottom. A launcher at the top fires 1–30 balls one after another through a short field of pegs and bumpers (Chaos decides how many stand in the way). The ring a ball lands in scores – 10 for the centre, less further out, nothing off the target – with a popup and a running total, and the ball sticks where it landed, so later shots can bounce off earlier ones. Pegs play notes of your scale like a keyboard from left to right, landings thud lower the further out they are, and a centre hit is a BULLSEYE! with confetti, a fanfare and half a second of slow motion. The target can slide left and right, a rigged Perfect Shot is steered into the bull, and the final banner shows the total and the best shot. Seeded and deterministic, so Find Simulation can search for a run of your clip length.",
-    "modeBeatDrop": "A rhythm mode without rings, made for music edits: a portrait scene on a dark gradient where one ball drops and bounces from obstruction to obstruction, and every obstruction flies in from off-screen – from the left, the right, the top or the bottom, never from the side the ball comes from – with a smooth ease and settles a hair before its beat, so the ball lands on it exactly on the beat. The run is planned ahead from the beat it follows (the loaded song's detected beat, or the BPM setting): the take-off speed of every flight is solved so the flight takes exactly the time between two beats, at any tempo and on irregular grids, so every landing is within a fraction of a millisecond of its beat. Six kinds of obstruction – planks, blocks, spring pads (a higher bounce with a boing), wedges (they send the ball sideways), spinning bars (flat exactly at the beat) and big drum pads – squash on impact, glow with the beat and slide away with a fade once the ball has left; the ball squashes and stretches and leaves a motion trail, and every landing throws a ripple and a puff of particles. Landings play synthesised drums – a kick on beats 1 and 3, a snare on 2 and 4, hats on the off-beats, plus each obstruction's own accent – the next note of the melody, or both. Endless scrolling follows the ball down forever; the arena keeps it inside the view. It can never miss a beat, so Find Simulation just picks a seed and times the clip to the beats it covers.",
-    "modeTerritory": "The oddplayground pong-wars battle: a tile map split into 2 or 4 team regions, every team's balls bouncing inside its own colour. A ball passes through tiles of its own colour and bounces off any other, converting the tile it hits – so every bounce pushes the border, and the live percentage bar under PICK A SIDE swings with it. Every team can have a power: the vortex curves its path and drags a whirl whose spiral arms convert enemy tiles, the bomber arms every few seconds and blows on its next bounce off an enemy tile, taking every tile within its reach (with a shock ring, debris and a jolt of the board), the painter dashes straight through enemy territory painting a trail, and the ghost passes through enemy tiles and converts a 3×3 block on every wall bounce. The balls collide with each other, the optional dotted grid deflects them, the last five seconds speed everything up, and when the countdown runs out the team with the most tiles wins – with slow motion when the lead flips in the finale and the camera's slow motion is on. Every seed replays exactly, Find Simulation searches for a run your chosen team wins, the Forced Winner rigs one, and a team roster lends the teams its colours and names.",
-    "modeMaze": "oddplayground's maze reels (“who else thought that was blood”): a seeded perfect maze with glowing green walls on near-black – a red entrance slot in the top wall and an exit gap in the bottom wall. 1–8 balls drop in one after another and work their way through physically (a downward pull, perfectly elastic walls), steered by a brain: pure bounce, a wall follower or an explorer that prefers the corridors it has not visited. Every cell a ball passes is painted red, every wall hit is a note that climbs as the ball nears the exit, and the first ball out wins – with a distance-to-exit bar per ball in the HUD and optional fog over the unvisited cells for suspense. Find Simulation times the run or picks the winner.",
-    "modeConveyor": "A conveyor belt runs across the top of the field and drops a ball into the arena below every few seconds – Gerald respawns, again and again. Pick the arena: concentric rings with rotating gaps that every ball has to escape on its own (the rings never break, and a second belt carries the escaped balls out of the field), a bowl that fills up until it spills over, or a peg field that sorts the balls into bins. Freeze on Landing turns every ball that lands into an obstacle for the next one, so the pile grows; Variety mixes sizes and colours. Every bounce is a note of your scale, the belt hums and clicks, and the counter keeps score – Loaded 17 / Escaped 4. In Classic and Multiply the same respawn timer drops in a new ball every few seconds. Seeded and deterministic, so Find Simulation can pick a run of your clip length.",
-    "modeOrbGrid": "A field of orbs – a square grid, a disc, octagon rings or a hex grid, 33 × 33 = 1089 by default and no upper limit – seen in perspective on a slab or a round plate, every orb bouncing straight up and down on its own spot. In the rhythm model (the default) each orb is an ideal bouncer that keeps its height forever: the field splits into groups – rows, columns, rings, diagonals, a checkerboard or every orb alone – that bounce a whole number of times per cycle: a pendulum wave, 3 against 2, 4 against 3, 3:4:5, a Euclidean ladder, corner to corner or centre outwards. The heights form a travelling wave that morphs through ripples and groups, and at the end of every cycle every orb lands together – IN PHASE. A metronome keeps the beat with a woodblock click and a swinging bar, a pulsing ring or a hopping dot, the cycle snapping to whole bars, and with Melody on every group plays its own note of the scale. The decay model lets the orbs lose energy instead: one property varies across the field – bounciness, drop height, release delay, size, gravity or period – they drift in and out of phase until they rest, and Find Simulation can pick a run of your clip length. Colour them by height, make them glossy, metallic, matte or glass; every landing is a soft note, a sleep sound, a melody composed by the bounces or metal clinks.",
-    "modeFightLeague": "Fighters from video games, comics, TV shows and movies – Thor, Loki, Captain Falcon, Little Mac, Yuumi, Katarina and fifty-odd more, grouped into divisions so a matchup stays in its genre – duel as balls in a square or round arena. Every fighter carries its own weapon, drawn as a simple vector silhouette: swords sweep on every bounce, hammers fly at the foe and come back, fists punch, guns, bows and wands fire, breath and beams burn. A hit takes HP – the number inside the ball and the bar under it – knocks the foe back and charges the ability meter in the box at the bottom; when it is full, the ability's name flashes for 0.4 s and it fires by itself: lightning, decoys, beams, chokes, shockwaves, summons, bullet time. Play 1v1, 2v2 or a free-for-all; the last fighter or team standing wins, or the side with more HP at the time cap. Seeded and deterministic: Find Simulation finds a run A or B wins, a double KO or a fight of your clip length – and the Forced Winner rigs it.",
-    "modeLandClaim": "A land-claim battle: columns of blocks stand on the inside of a square, hexagon or circle wall, and two or more competitors – a Teams roster of countries gives them their flags, names and colours – bounce their balls around inside at a constant speed. Under the knock rule a ball that hits a column takes its top block: the block flies off in the hitter's colour and counts for it, and every eighth block a competitor knocks adds another ball of its colour at the knock point, so a lead snowballs into a swarm. The claim rule paints the blocks where they stand instead, and the steal rule lets a hit take a rival's block back – the land sways until the clock runs out. The battle ends when the wall is taken or at its duration, and the most blocks wins: DOMINATION past 60% of the land, SUCH A CLOSE BATTLE when the top two are within 5%. Every seed replays exactly, Find Simulation searches for a chosen winner, a close battle or a run that ends at a chosen second, and the Forced Winner favours a colour by aiming its rebounds at the land still to take.",
-    "modeStarChords": "Chord Stars: balls ride inside one thin circle and each draws a star polygon such as 5/2 or 12/5. A ball bouncing off a circle meets the wall at the same angle every time, so its contact point steps k of n points round the rim and every line it draws sits at the same distance from the centre – as the lines pile up, an inner circle nobody drew appears. Each ball moves at exactly the speed that closes its star after the same drawing time, so all the stars close on one frame with a chord; then the drawing holds, fades and starts again, a seamless loop. Type your own stars, draw a random coprime set, or let Find Simulation pick the best-looking set and fit the loop to your clip.",
-    "modeHoops": "No rings: 1–16 concentric hoops (eight by default, red outside, violet inside) spin together about their vertical diameter, drawn face-on and squashed by the spin so they read as 3D, each carrying one bead that slides without friction. The spin ramps up – steadily, eased or in steps – and every hoop has a critical speed, √(g/R): below it gravity keeps the bead at the bottom, past it the bead climbs to its balance point arccos(g/(Rω²)), higher the faster the spin. Bigger hoops lift first, so the beads climb in strict size order, each lift a tuned bar note pitched by its hoop; a chime ticks every turn, a chord lands when every bead is up, and the counter reads the spin and the beads up. With Return on the spin ramps back down until every bead rests again and the loop starts over seamlessly, ready for Export whole loops; Find Simulation searches for a run in strict size order or one with every bead up within a time.",
-    "modeColourSort": "A sorting machine: 360 balls in four colours start packed in the red core of a bullseye of turning rings and move as a constant-speed gas. Every ring is a row of arcs with gates between them, and a gate is a one-way colour filter: it opens outwards only, and never for balls of the ring's own colour. So red can never leave the core, orange gets past the red ring but stops at its own, green makes it one ring further and blue goes all the way out to the outer band – the mix sorts itself into a bullseye while the amber counter climbs to 360 / 360 sorted with a long, suspenseful tail. Every gate pass plucks its colour's note in A major pentatonic, the last ball sorted lands a warm completion chord, and a remix pulls every ball back into the exact first frame under a soft noise wash, so a recording of whole cycles loops seamlessly. Pick the colours and the balls of each, the gates and their width, the rings' spin, the rule (or reverse it), contacts or a ghost gas for thousands of balls – and let Find Simulation search for a sort within a time limit, the colour that finishes last or a final ball on a bar line.",
-    "modeEllipseFoci": "An elliptical pool table with its two foci marked. A volley of balls – 72 by default, coloured around the hue wheel by launch angle – leaves one focus at the same moment, every way. An ellipse sends every shot from one focus off its wall straight through the other, and every such path has the same length, so the whole volley converges on the other focus one transit later, then back on the first, with a white bloom each time, while every pass narrows the swarm onto the long axis. Refire starts a fresh volley under the flash every few passes, so the clip loops seamlessly; the wall hits run down a pentatonic ladder, every convergence lands a kick, a crack and a chord on a bar line, and Find Simulation puts the convergences on the page's beat or finds the start angle of the longest collapse.",
-    "modeBeatMachine": "Two kinetic music machines that loop forever. In the marble xylophone, ten rainbow bars sit under ten tubes: each marble leaves its tube at exactly the moment that lets gravity land it on its bar on the beat, rebounds through the gap to the floor, rolls to the lift, rides up and rolls back along the top rail into its own tube. On the staircase one ball hops from step to step, one identical arc a beat, every landing a note, then drops into a hook and rides the return track back to the top just in time for the next phrase. The tune is an original seeded phrase, a scale run, a list you type or the melody you load."
+    "troubleStuckA": "Send a note through the feedback page and tell us what you were doing."
   },
   "Footer": {
     "navLabel": "Footer",
@@ -2850,7 +2790,7 @@
   },
   "Feedback": {
     "title": "Send Us Feedback",
-    "subtitle": "We'd love to hear from you: a bug report, a feature request or just how your experience has been.",
+    "subtitle": "Tell us about a bug, ask for a feature, or just say how it went.",
     "metaTitle": "Feedback – {siteName}",
     "metaDescription": "Share your feedback, report bugs or request features for {siteName}.",
     "ratingLabel": "How would you rate your experience?",
@@ -2861,14 +2801,14 @@
     "category_design": "Design",
     "category_other": "Other",
     "messageLabel": "Your message",
-    "messagePlaceholder": "Tell us what you think, what could be improved, or describe an issue you ran into...",
+    "messagePlaceholder": "What happened, or what would you change?",
     "emailLabel": "Email",
-    "emailPlaceholder": "your@email.com (if you'd like a reply)",
+    "emailPlaceholder": "your@email.com, if you'd like a reply",
     "optional": "optional",
     "submit": "Send Feedback",
     "sending": "Sending...",
     "successTitle": "Thank you!",
-    "successMessage": "Your feedback has been received. We really appreciate you taking the time to help improve {siteName}.",
+    "successMessage": "Got it. Thanks for taking the time to help improve {siteName}.",
     "sendAnother": "Send another",
     "errorMessage": "Something went wrong. Please try again later.",
     "submitEmail": "Send by email",
@@ -2879,50 +2819,50 @@
     "openManually": "If nothing opened, use this link."
   },
   "TikTokBallVideos": {
-    "metaTitle": "Make Bouncing Ball Videos for TikTok – Play and Export Free – {siteName}",
-    "metaDescription": "Create hypnotic bouncing-ball videos for TikTok with {siteName}: a browser tool with {count} modes and custom physics, free to play with and to export in vertical 1080×1920 (Pro removes the watermark). No sign-up needed.",
+    "metaTitle": "Make Bouncing Ball Videos for TikTok with {siteName}",
+    "metaDescription": "Make bouncing-ball videos for TikTok with {siteName}. {count} modes, custom physics, free vertical 1080×1920 export, no sign-up. Pro removes the watermark.",
     "badge": "TikTok Content",
     "navLabel": "TikTok Ball Videos",
     "title": "Bouncing Ball Videos for TikTok",
-    "p1": "Bouncing-ball simulations are one of the most dependable formats on TikTok. The premise is tiny, a ball trapped inside rings with narrow gaps trying to bounce its way out, but the payoff is satisfying enough to hold attention for a whole short-form clip. {siteName} is a browser tool built for exactly this kind of content: its physics controls, visual effects and one-click vertical export are free, and Pro takes the watermark off the videos.",
-    "p2": "What makes the format work is its built-in tension arc. The ball ricochets faster, the walls close in, the gap looks impossibly small, and then the ball slips through and everything pays off with confetti, a shatter or a shockwave. That loop fits naturally into 15 to 60 seconds, which is where TikTok engagement peaks.",
+    "p1": "Bouncing-ball videos are one of the steadiest formats on TikTok. A ball trapped in rings tries to bounce its way out, and people stay to see if it does. {siteName} is built for exactly these clips, free, with a vertical export. Pro removes the watermark.",
+    "p2": "The tension is built in. The ball speeds up, the gap looks too small, then it slips through and the wall breaks. That fits in 15 to 60 seconds, which is where TikTok engagement peaks.",
     "h2_1": "Why It Works on TikTok",
-    "p3": "TikTok rewards videos that hold viewers to the end and get replayed. Ball physics does both: people stay to see whether the ball escapes and rewatch to catch the effects they missed. The format also fits TikTok's sound culture: {siteName} can play a melody note by note on every wall hit, turning the physics into a musical performance.",
-    "p4": "There is no dialogue, no face on screen and no setup. Just a clean visual hook that works even as background noise for a scrolling viewer, which is why the format regularly out-performs more produced content in the discovery feed.",
+    "p3": "TikTok rewards videos people watch to the end and replay. Ball physics does both. Add a melody and every wall hit plays the next note.",
+    "p4": "No dialogue, no face, no setup. A clean visual hook that works even for someone half-scrolling.",
     "h2_2": "Export in the Right Format",
-    "p5": "TikTok's preferred aspect ratio is 9:16 vertical, 1080×1920 pixels. {siteName} records directly at that size, so there is no cropping, no re-encoding and no external editor. Set the recording duration (10 to 120 seconds), press record and download a platform-ready clip.",
-    "p6": "You can also export 500×500 (square), 1280×720 (HD) or 1920×1080 (Full HD) for Reels, YouTube Shorts and other platforms. Recording happens entirely in your browser and nothing is uploaded. Videos made for free carry a small {siteName} watermark, which Pro removes; your own custom watermark is optional.",
-    "h2_3": "Start with a Proven Format",
-    "p7": "The best TikTok ball videos follow a simple recipe: a clear visual hook in the first second, a visible progress indicator such as the number of walls left, and a satisfying payoff when the ball finally escapes. The Find Simulation tool searches for a seed that produces a run of your target length, so you can plan the clip instead of guessing.",
-    "p8": "Every mode, from Classic and Multiply to Ball Drop, Square Racing and Glass Smash, produces a different rhythm, so you can vary your content without starting over. Save your favourite setups as presets and post a new video every day with one click.",
+    "p5": "TikTok wants 9:16 vertical, 1080×1920. {siteName} records at that size, so there is no cropping and no editor. Set the length, press record, download.",
+    "p6": "You can also export square, HD or Full HD for Reels, Shorts and other platforms. Recording happens in your browser and nothing is uploaded. Free videos carry a small {siteName} watermark. Pro removes it.",
+    "h2_3": "Start with a Simple Recipe",
+    "p7": "A clear hook in the first second, a visible counter, and a payoff when the ball escapes. Find Simulation picks a seed for the clip length you want, so you plan instead of guessing.",
+    "p8": "Every mode has its own rhythm, from Classic to Glass Smash. Save your favourite setups as presets and post a new video every day.",
     "cta": "Make Your First TikTok Ball Video"
   },
   "About": {
-    "metaTitle": "About {siteName} – Ball Physics Video Maker",
-    "metaDescription": "The story behind {siteName}: a browser-based tool – free to play with and to export, Pro without the watermark – for making the bouncing-ball videos that go viral on TikTok, Reels and YouTube Shorts.",
+    "metaTitle": "About {siteName}, the Ball Physics Video Maker",
+    "metaDescription": "Why {siteName} exists. A browser tool for the bouncing-ball videos that do well on TikTok, Reels and Shorts. Free to play and export. Pro removes the watermark.",
     "metaOgTitle": "About {siteName}",
     "metaOgDescription": "Why {siteName} exists and who it is for.",
     "badge": "About",
     "title": "About {siteName}",
-    "p1": "{siteName} started with a simple frustration. Bouncing-ball physics videos were everywhere, pulling in millions of views, and every way of making one was clunky: learn a game engine, pay for an app, or repost a clip a thousand other accounts had already used. None of that suited someone who just wanted to make a good video and post it. So we built the tool we wished existed: open a tab, make the video, download it, done.",
-    "p2": "That idea still runs the whole site. {siteName} is free, works in your browser and asks nothing of you before you start. No sign-up and no install: every mode and setting is yours to play with, and so is the video export – free videos carry a small watermark, which Pro removes. The defaults already produce something worth posting; everything after that is you shaping it to fit your idea.",
+    "p1": "{siteName} started with a simple problem. Bouncing-ball videos were everywhere, and every way to make one was slow. Learn a game engine, pay for an app, or repost someone else's clip. We wanted to open a tab, make the video and post it. So we built that.",
+    "p2": "{siteName} is free and runs in your browser. No sign-up, no install. Every mode and setting is yours to play with, and so is the export. Free videos carry a small watermark. Pro removes it.",
     "h2_1": "What we care about",
-    "p3": "Speed and control, more than anything else. Speed, because the gap between an idea and a posted video is where most content dies; if a clip takes twenty minutes and three apps, you stop making clips. Control, because reposted content does not grow an account. When you set the mode, the colours, the pacing and the hook yourself, the video is yours and it stands a real chance in a feed that has seen every recycled clip.",
-    "p4": "We also care about staying out of your way. The simulator updates as you change things, so you learn by doing rather than reading a manual. Settings have plain names. The hard part, the physics and the rendering, happens quietly in the background while you focus on whether the video is fun to watch.",
+    "p3": "Speed and control. Speed, because a clip that takes twenty minutes and three apps never gets made. Control, because a video you shaped yourself stands out in a feed full of reposts.",
+    "p4": "We also stay out of your way. The simulator updates as you change things, so you learn by doing. Settings have plain names.",
     "h2_2": "Privacy by default",
-    "p5": "Your work stays with you. Presets and settings live in your browser and videos render on your own machine, not on a server we control. We are not interested in harvesting your data or locking your creations behind an account. The less we know about you, the better the tool feels to use. The details are in our <privacy>privacy policy</privacy>.",
+    "p5": "Your work stays with you. Presets live in your browser and videos render on your own machine. We do not want your data. The details are in our <privacy>privacy policy</privacy>.",
     "h2_3": "Who makes this",
-    "p6": "{siteName} is a small, independent project rather than a venture-backed company with a roadmap full of upsells, and that shapes what gets built. New modes and settings appear because creators ask for them. When you write in through the <feedback>feedback page</feedback>, the note reaches the person actually working on the tool, and a lot of what is in the simulator today exists because someone asked for it.",
+    "p6": "{siteName} is a small independent project. New modes and settings appear because creators ask for them. Write in through the <feedback>feedback page</feedback> and the note reaches the person building the tool.",
     "h2_4": "Where it is going",
-    "p7": "The plan is to keep the core free and keep adding modes, effects and quality-of-life touches that make a good clip faster to build. If you make something with it, that is the whole point. Go make a ball smash through some walls.",
+    "p7": "The core stays free. More modes, more effects, fewer steps between an idea and a posted clip. Go make a ball smash through some walls.",
     "cta": "Open the simulator",
-    "toolTitle": "What {siteName} actually is",
-    "toolP1": "{siteName} is a browser tool for making the bouncing-ball videos that fill TikTok, Reels and YouTube Shorts. Pick a mode, adjust a few settings and watch it play – all free, with no account, no installation and no video editor involved. When a clip is ready, record it and download it – free videos carry a small watermark, Pro exports them clean; everything happens in the tab you already have open, so an idea becomes a finished video in a couple of minutes.",
-    "toolP2": "The format works because it is simple. A ball bounces inside a ring with a gap. Every time it slips through, something pays off: a wall shatters, the ball multiplies, colour floods the screen, a target is hit. Viewers want to know how it ends, so they keep watching. That small loop of tension and release is what drives the views, and here you control every part of it instead of reposting someone else's clip.",
+    "toolTitle": "What {siteName} is",
+    "toolP1": "A browser tool for the bouncing-ball videos that fill TikTok, Reels and Shorts. Pick a mode, change a few settings and watch it play. When the clip is ready, record it and download it. An idea becomes a video in a couple of minutes.",
+    "toolP2": "The format works because it is simple. A ball bounces inside a ring with a gap. Every time it slips through, something pays off. Viewers want to know how it ends, so they keep watching.",
     "tweakTitle": "Built to be tweaked",
-    "tweakP": "The look is yours. Add rings for a longer build-up or remove them for a fast payoff. Turn on rainbow walls, switch the break effect between confetti, shatter and shockwave, or stack all three. Add spikes for danger, glow for polish and a colour trail so fast motion looks deliberate. Put your own image on the ball, write a hook like \"will it escape?\" across the top and load a melody so the bounces land on a beat. Small changes matter: one extra ring can be the difference between a clip people skip and one they watch twice.",
+    "tweakP": "Add rings for a longer build-up or remove them for a fast payoff. Turn on rainbow walls, pick a break effect, add glow and a colour trail. Put your own image on the ball, write a hook across the top and load a melody. One extra ring can be the difference between a skip and a rewatch.",
     "exportTitle": "Record, export, post",
-    "exportP": "When the run looks right, record it in the browser and export a video sized for vertical feeds. No screen-capture app and no re-encoding elsewhere; on Free the video carries a small watermark, which Pro removes. Found a combination you like? Save it as a preset and reuse it for a whole series; many accounts post the same mode every day with small variations."
+    "exportP": "When the run looks right, record it in the browser and export a vertical video. No screen capture, no re-encoding. Save the setup as a preset and post a new one every day."
   },
   "Rigged": {
     "outcome": "Outcome",
@@ -3201,7 +3141,7 @@
     "count": "Number of seeds",
     "countValue": "{count, plural, one {# seed} other {# seeds}}",
     "listLabel": "Seeds and share links",
-    "listHint": "One job per line: a seed (123456), a share link – long or short – or a link followed by one or more seeds. A link without a seed gets a random one (or the one in its seed= parameter). Every clip keeps the resolution and frame rate of this section and your wall-break sound (links don't carry one); lines starting with # are ignored.",
+    "listHint": "One job per line: a seed, a share link, or a link followed by one or more seeds. A link without a seed gets a random one. Every clip keeps the resolution and frame rate of this section and your wall-break sound. Lines starting with # are ignored.",
     "listPlaceholder": "123456\n4242, 777\nhttps://…/simulator/?mode=portal&g=500\nhttps://…/simulator/?c=… 42",
     "listRead": "{count, plural, =0 {No seeds yet} one {# job} other {# jobs}}",
     "listSkipped": "{count, plural, one {line {lines} skipped} other {lines {lines} skipped}} (not a seed or a simulator link)",
@@ -3538,7 +3478,7 @@
     },
     "manual": {
       "title": "Posting by hand",
-      "steps": "1. Open Instagram and tap + → Reel. 2. Pick the video. 3. Paste the caption from the .txt file (it ends with the hashtags). 4. Set the cover to the frame the .txt file names (the payoff on screen, not the first frame). 5. Share at the suggested time – as a Trial Reel for a new hook – and reply to comments for the first hour."
+      "steps": "1. Open Instagram and tap + → Reel. 2. Pick the video. 3. Paste the caption from the .txt file. 4. Set the cover to the frame the .txt file names, the payoff on screen. 5. Share at the suggested time and reply to comments for the first hour."
     },
     "schedule": {
       "title": "Posting schedule",
@@ -3851,10 +3791,10 @@
     "cardBadge": "Daily challenge",
     "cardTitle": "Today: {mode}",
     "cardLoading": "Today's challenge",
-    "cardText": "One mode and one seed a day – the same for everyone. Press play, watch how today's run unfolds, then send the challenge to a friend.",
+    "cardText": "One mode and one seed a day, the same for everyone. Press play, watch today's run, then send the challenge to a friend.",
     "cardSeed": "Seed {seed}",
     "cardPlayed": "Played today · {seconds} s",
-    "cardImageAlt": "{mode} – today's challenge mode",
+    "cardImageAlt": "{mode}, today’s challenge mode",
     "play": "Play today's seed",
     "nextIn": "Next challenge in {time}",
     "streak": "{days, plural, one {# day} other {# days}} in a row",
@@ -3864,15 +3804,15 @@
     "resultTime": "{seconds} s",
     "resultInvite": "Send your friends the same seed and compare your runs.",
     "copyResult": "Copy challenge link",
-    "copied": "Copied – paste it anywhere"
+    "copied": "Copied. Paste it anywhere."
   },
   "Gallery": {
     "navLabel": "Gallery",
     "metaTitle": "Preset Gallery – {count} Ready-Made Ball Simulations | {siteName}",
-    "metaDescription": "{count} curated bouncing-ball setups – neon escapes, pendulum galaxies, string art, battles and races. Open any of them in the free simulator with one click and make it yours.",
+    "metaDescription": "{count} ready-made bouncing-ball setups. Neon escapes, pendulum galaxies, string art, battles and races. Open one in the free simulator and make it yours.",
     "badge": "Gallery",
     "title": "Preset gallery",
-    "intro": "{count} hand-tuned setups to start from. Every card opens the simulator with the preset applied – the same look, the same seed – ready to record or remix.",
+    "intro": "{count} hand-tuned setups to start from. Every card opens the simulator with the preset applied, the same look and the same seed, ready to record or remix.",
     "imageAlt": "Preview of the {name} preset",
     "tryIt": "Try it",
     "tryAria": "Try it: {name}",
@@ -3881,10 +3821,10 @@
   },
   "Pwa": {
     "installApp": "Install app",
-    "installAppTip": "Install {siteName} on this device: it opens in its own window, starts from your home screen or dock and works offline.",
+    "installAppTip": "Install {siteName} on this device. It opens in its own window, starts from your home screen and works offline.",
     "offlinePageTitle": "Offline – {siteName}",
     "offlineTitle": "You're offline",
-    "offlineBody": "This page isn't saved on this device yet. The home page and the simulator work offline once you've opened the site online – reconnect, or open the simulator below.",
+    "offlineBody": "This page is not saved on this device yet. The home page and the simulator work offline once you have opened them online. Reconnect, or open the simulator below.",
     "offlineRetry": "Try again",
     "offlineSimulator": "Open the simulator"
   },
@@ -4414,36 +4354,36 @@
     "libForget": "Remove from list",
     "libDelete": "Delete file",
     "libDeleteConfirm": "Move {name} to the recycle bin?",
-    "metaTitle": "Download {siteName} for Windows – GPU video rendering and a built-in AI",
-    "metaDescription": "The whole {siteName} simulator as a Windows app: render clips on your GPU (NVENC, AMF, Quick Sync), batch-render a queue into a folder and plan videos with a built-in AI that works offline. Free download; videos rendered without Pro carry a watermark.",
+    "metaTitle": "Download {siteName} for Windows",
+    "metaDescription": "The {siteName} simulator as a Windows app. Render clips on your GPU, batch-render a queue into a folder and plan videos with a built-in AI that works offline. Free download. Videos rendered without Pro carry a watermark.",
     "badge": "Windows app",
     "title": "{siteName} for Windows",
-    "intro": "Everything the simulator does in the browser, plus what a browser can't: your GPU renders and encodes the videos, a render queue works through batches while you do something else, and an AI studio – running on your PC, offline – plans clips, writes captions and changes settings for you.",
+    "intro": "Everything the simulator does in the browser, plus what a browser cannot. Your GPU renders the videos, a queue works through batches while you do something else, and an AI studio on your PC plans clips and writes captions, offline.",
     "setupTitle": "Installer",
-    "setupBody": "Installs for your user only (no administrator rights), with a Start-menu entry, and updates itself from GitHub Releases.",
+    "setupBody": "Installs for your user only, no administrator rights, with a Start menu entry. Updates itself from GitHub Releases.",
     "setupButton": "Download the installer (.exe)",
     "portableTitle": "Portable",
-    "portableBody": "One EXE that runs without installing – from a folder or a USB stick. Keeps its models and library next to it. Doesn't update itself.",
+    "portableBody": "One EXE that runs without installing, from a folder or a USB stick. Keeps its models and library next to it. Does not update itself.",
     "portableButton": "Download the portable EXE",
     "allReleases": "All versions and release notes on GitHub",
     "requirementsTitle": "Requirements",
     "requirements": {
       "os": "Windows 10 or 11, 64-bit",
-      "gpu": "A graphics card with a current driver for hardware encoding (NVIDIA NVENC, AMD AMF or Intel Quick Sync) and for the local AI – without one everything still works, on the CPU",
-      "disk": "About 500 MB for the app and 1–2.5 GB for an AI model (downloaded on first use)",
-      "ram": "8 GB of RAM (16 GB recommended for the local AI)"
+      "gpu": "A graphics card with a current driver for hardware encoding and the local AI. Without one everything still works on the CPU.",
+      "disk": "About 500 MB for the app and up to 2.5 GB for an AI model, downloaded on first use.",
+      "ram": "8 GB of RAM, 16 GB for the local AI"
     },
     "smartScreenTitle": "“Windows protected your PC”?",
-    "smartScreenBody": "The EXE isn't code-signed yet, so Microsoft Defender SmartScreen warns before the first start. Click “More info”, then “Run anyway”. The files are built from the public source by GitHub Actions; the release page lists them with their checksums.",
+    "smartScreenBody": "The EXE is not code-signed yet, so Windows SmartScreen warns before the first start. Click More info, then Run anyway. The files are built from the public source by GitHub Actions and listed with checksums on the release page.",
     "featuresTitle": "What the app adds",
     "features": {
-      "gpu": "GPU video: the fast export encodes on the graphics card, and ffmpeg (bundled) converts to H.264, HEVC or AV1 with NVENC, AMF or Quick Sync – with a benchmark to see how fast.",
-      "queue": "Render queue: seeds, share links or the viral bot's plan × resolutions × frame rates × codecs × TikTok / Reels / Shorts / 4K presets, saved straight into a folder – with progress, cancel, retry and resume after a restart.",
-      "ai": "AI studio: a local model (Llama 3.2 or Qwen, downloaded once) or your own cloud key plans clips with the viral bot and Find Simulation, writes hooks, captions and hashtags, changes settings on request and pitches ideas from the virality playbook.",
-      "library": "Library: every clip you rendered with its thumbnail, length and post text – play, show in folder, re-render or delete."
+      "gpu": "GPU video. The fast export encodes on the graphics card, with H.264, HEVC or AV1 through NVENC, AMF or Quick Sync.",
+      "queue": "Render queue. Seeds, share links or the viral bot's plan, in every resolution, frame rate and codec you pick, saved straight into a folder. Progress, cancel, retry and resume after a restart.",
+      "ai": "AI studio. A local model, downloaded once, or your own cloud key plans clips, writes hooks, captions and hashtags, and changes settings on request.",
+      "library": "Library. Every clip you rendered with its thumbnail, length and post text. Play, show in folder, re-render or delete."
     },
     "privacyTitle": "Privacy",
-    "privacyBody": "Everything runs on your PC. The local AI works offline; a cloud key you enter is stored encrypted on your PC and only sent to the provider you chose. The app only goes online to download a model you asked for and to check GitHub for updates."
+    "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app goes online only to download a model you asked for and to check GitHub for updates."
   },
   "Territory": {
     "canvasVs": "VS",
@@ -4487,7 +4427,7 @@
     "hero": {
       "eyebrow": "Ball physics studio",
       "title": "Satisfying ball physics, made for TikTok.",
-      "sub": "Tune the physics, pick one of {count} modes and play with every setting – free, in your browser, no account. Export the vertical clip, ready to post – Pro removes the watermark.",
+      "sub": "Pick one of {count} modes, tune the physics and press play. Free, in your browser, no account. Export a vertical clip ready to post. Pro removes the watermark.",
       "seeModes": "See the modes",
       "live": "Live",
       "preview": "Preview",
@@ -4499,7 +4439,7 @@
       "statPriceValue": "Free"
     },
     "modesWall": {
-      "intro": "{count} formats – escape rings, rhythm machines, duels and journeys. Pick one and it opens in the studio, ready to run.",
+      "intro": "{count} modes. Rings to escape, rhythm machines, duels and journeys. Pick one and it opens in the studio.",
       "all": "All",
       "filterLabel": "Filter modes by family",
       "current": "Current"
@@ -4557,13 +4497,13 @@
     "canvasTimeUp": "TIME'S UP"
   },
   "Billing": {
-    "metaTitle": "Pricing – free playground and exports, Pro without the watermark – {siteName}",
-    "metaDescription": "Play with every mode and setting of {siteName} and export the videos for free – with a small watermark. Pro removes the watermark for {monthly} a month or {yearly} a year – by card, PayPal or crypto.",
+    "metaTitle": "Pricing – {siteName}",
+    "metaDescription": "Play with every mode and export videos for free, with a small watermark. Pro removes it for {monthly} a month or {yearly} a year, by card, PayPal or crypto.",
     "eyebrow": "Pricing",
     "title": "Play and export for free. Go Pro to drop the watermark.",
-    "lede": "Every mode, every setting and every sound is free, without an account – and so is making the videos: Record Video, the fast export, batch renders, the viral bot's renders and the desktop app's render queue work for everyone. Videos made on Free carry a small watermark; Pro exports them without it and adds Publish.",
-    "testMode": "Licensing is in test mode – payments are not configured yet.",
-    "why": "Videos made on Free carry a small watermark – Pro removes it.",
+    "lede": "Every mode, every setting and every sound is free, with no account. So is making videos. Free videos carry a small watermark. Pro exports them clean and adds Publish.",
+    "testMode": "Licensing is in test mode. Payments are not configured yet.",
+    "why": "Free videos carry a small watermark. Pro removes it.",
     "proTag": "Pro",
     "proFeature": "Pro feature",
     "plansTitle": "Pro plans",
@@ -4581,15 +4521,15 @@
       "label": "Pay with",
       "stripe": "Card (Stripe)",
       "paypal": "PayPal",
-      "crypto": "Crypto – BTC, ETH, USDT and 300+ coins",
+      "crypto": "Crypto: BTC, ETH, USDT and 300+ coins",
       "stripeNote": "Apple Pay and Google Pay come with the card checkout.",
-      "cryptoNote": "Crypto buys a prepaid period of {days} days and cannot renew by itself – buy another period when it ends.",
+      "cryptoNote": "Crypto buys a prepaid period of {days} days and does not renew by itself. Buy another period when it ends.",
       "notConfigured": "Payments are not configured yet. Please check back soon.",
       "redirecting": "Opening the checkout…",
       "failed": "The checkout could not start: {message}",
-      "desktop": "The checkout opened in your browser. Once you have paid, come back here and restore the purchase with your email and the receipt reference the page shows after the payment – or paste the licence key from there.",
-      "emailNeeded": "Enter your email first – the crypto checkout sends your receipt there.",
-      "newTab": "The checkout opened in a new tab. Pay there – this studio unlocks by itself once the payment is through, and your setup stays as it is."
+      "desktop": "The checkout opened in your browser. Once you have paid, come back here and restore the purchase with your email and the receipt reference, or paste the licence key.",
+      "emailNeeded": "Enter your email first. The crypto checkout sends your receipt there.",
+      "newTab": "The checkout opened in a new tab. Pay there. This studio unlocks by itself once the payment is through, and your setup stays as it is."
     },
     "email": {
       "label": "Email",
@@ -4615,9 +4555,9 @@
         "editor": "The obstacle editor, captions and the timeline"
       },
       "create": {
-        "record": "Record Video – up to 1080×1920, with sound",
-        "fastExport": "Fast export – rendered offline, frame by frame",
-        "batch": "Batch render – many clips in one ZIP",
+        "record": "Record Video, up to 1080×1920, with sound",
+        "fastExport": "Fast export, rendered offline frame by frame",
+        "batch": "Batch render, many clips in one ZIP",
         "bot": "The viral bot's renders",
         "publish": "Publish to TikTok, Instagram and YouTube",
         "desktop": "The desktop app's render queue and GPU encoding"
@@ -4628,7 +4568,7 @@
     "claim": {
       "title": "Your purchase",
       "claiming": "Activating your licence…",
-      "pending": "Waiting for the network to confirm your payment. This page checks every few seconds – keep it open.",
+      "pending": "Waiting for the network to confirm your payment. This page checks every few seconds. Keep it open.",
       "timeout": "The payment is not confirmed yet. Come back later and restore the purchase with your order reference.",
       "success": "You are Pro until {date}.",
       "failed": "The licence could not be activated: {message}",
@@ -4640,13 +4580,13 @@
     },
     "restore": {
       "title": "Restore purchase",
-      "intro": "On another device or in another browser: enter the email you paid with and the receipt reference – it is shown after the payment and under Your licence on the device you paid on: the Stripe session or subscription id, the PayPal subscription id or the crypto order id.",
+      "intro": "On another device or browser, enter the email you paid with and the receipt reference. It is shown after the payment and under Your licence on the device you paid on. It is the Stripe session or subscription id, the PayPal subscription id or the crypto order id.",
       "ref": "Receipt reference",
       "refPlaceholder": "sub_… · I-… · order id",
-      "refInvalid": "Copy the reference from your receipt (letters, digits, hyphens and underscores).",
+      "refInvalid": "Copy the reference from your receipt. Letters, digits, hyphens and underscores only.",
       "submit": "Restore",
       "working": "Restoring…",
-      "success": "Restored – you are Pro until {date}.",
+      "success": "Restored. You are Pro until {date}.",
       "failed": "Nothing could be restored: {message}"
     },
     "manage": {
@@ -4670,18 +4610,18 @@
       "referenceHint": "With your email, this reference restores the licence on another device, in another browser or in the desktop app.",
       "copyRef": "Copy reference",
       "lapsedEmail": "Last licensed to {email}",
-      "needsRef": "Manage subscription needs the receipt reference of your purchase. Restore the purchase below once with your email and the reference, then this opens Stripe's customer portal."
+      "needsRef": "Manage subscription needs the receipt reference of your purchase. Restore the purchase below once with your email and the reference. Then this opens Stripe's customer portal."
     },
     "account": {
       "label": "Account",
       "checking": "Checking your licence…",
-      "free": "Free – your videos carry a watermark",
-      "freeExpired": "Your Pro licence has ended – videos carry the watermark again",
-      "freeInvalid": "The saved licence was not valid – videos carry the watermark",
-      "pro": "Pro – {plan} until {date}",
-      "renews": "Pro – {plan}, renews on {date}",
-      "ends": "Pro – {plan}, ends on {date}",
-      "grace": "Pro – {plan}, payment pending, works until {date}",
+      "free": "Free: your videos carry a watermark",
+      "freeExpired": "Your Pro licence has ended. Videos carry the watermark again.",
+      "freeInvalid": "The saved licence was not valid. Videos carry the watermark.",
+      "pro": "Pro: {plan} until {date}",
+      "renews": "Pro: {plan}, renews on {date}",
+      "ends": "Pro: {plan}, ends on {date}",
+      "grace": "Pro: {plan}, payment pending, works until {date}",
       "unlock": "Remove watermark",
       "restore": "Restore",
       "manage": "Manage",
@@ -4690,7 +4630,7 @@
     "dialog": {
       "title": "Remove the watermark",
       "feature": "{feature} is part of Pro.",
-      "unlocked": "Your licence is active – your next recordings and exports have no watermark.",
+      "unlocked": "Your licence is active. Your next recordings and exports have no watermark.",
       "seePricing": "Compare Free and Pro",
       "restore": "Already paid? Restore purchase",
       "close": "Close"
@@ -4714,36 +4654,36 @@
     },
     "notes": {
       "title": "Good to know",
-      "renew": "Card and PayPal subscriptions renew by themselves until you cancel – any time, with Manage subscription on this page.",
-      "crypto": "Crypto pays for a prepaid period (30 days on the monthly plan, 365 on the yearly one); nothing renews by itself.",
-      "licence": "Your licence is a signed key kept in this browser – the site needs no account and no password.",
-      "devices": "On another device or browser, restore the purchase with your email and the receipt reference shown after the payment – or paste the licence key.",
+      "renew": "Card and PayPal subscriptions renew by themselves until you cancel. Cancel any time with Manage subscription on this page.",
+      "crypto": "Crypto pays for a prepaid period of 30 days on the monthly plan or 365 on the yearly one. Nothing renews by itself.",
+      "licence": "Your licence is a signed key kept in this browser. The site needs no account and no password.",
+      "devices": "On another device or browser, restore the purchase with your email and the receipt reference shown after the payment, or paste the licence key.",
       "watermark": "The watermark is drawn into the video itself. With a Pro licence in this browser, every recording or export you start afterwards is clean."
     },
     "landing": {
-      "line": "Playing and exporting are free – with a watermark. Pro removes it, from {price} a month.",
+      "line": "Playing and exporting are free, with a watermark. Pro removes it from {price} a month.",
       "link": "See pricing"
     },
     "privacy": {
       "title": "Payments",
-      "content": "Pro is paid through the provider you choose – Stripe, PayPal or NOWPayments – on its own checkout page and under its own privacy policy; your card or wallet details never reach us. Our billing server keeps what it needs to issue, renew and restore your licence: your email, the plan, and the provider's payment or subscription reference. The licence itself is a signed key stored in your browser."
+      "content": "Pro is paid through the provider you choose, Stripe, PayPal or NOWPayments, on its own checkout page and under its own privacy policy. Your card or wallet details never reach us. Our billing server keeps your email, the plan and the provider's payment or subscription reference, so it can issue, renew and restore your licence. The licence itself is a signed key stored in your browser."
     },
     "terms": {
       "title": "Pro subscriptions",
-      "content": "Playing with the simulator and recording or exporting videos is free; videos made without a Pro licence carry a watermark. Pro – $10 a month or $79 a year – exports them without the watermark and adds publishing to your accounts. Card and PayPal subscriptions renew automatically until you cancel them (in Stripe's customer portal or your PayPal account); a crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for."
+      "content": "Playing with the simulator and recording or exporting videos is free. Videos made without a Pro licence carry a watermark. Pro costs $10 a month or $79 a year, exports videos without the watermark and adds publishing to your accounts. Card and PayPal subscriptions renew automatically until you cancel them in Stripe's customer portal or your PayPal account. A crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for."
     },
     "paste": {
       "title": "Paste a licence key",
-      "intro": "Copied a licence key on another device (Copy licence key)? Paste it here to use the licence in this browser or in the desktop app. A pasted key lasts until its end date – restore with your email and receipt reference instead to keep it renewing by itself.",
+      "intro": "Copied a licence key on another device? Paste it here to use the licence in this browser or in the desktop app. A pasted key lasts until its end date. To keep it renewing by itself, restore with your email and receipt reference instead.",
       "label": "Licence key",
-      "placeholder": "eyJ… – the key from Copy licence key",
+      "placeholder": "Paste the key from Copy licence key",
       "submit": "Use this key",
       "working": "Checking the key…",
-      "success": "Installed – you are Pro until {date}.",
+      "success": "Installed. You are Pro until {date}.",
       "failed": "The key could not be used: {message}",
       "empty": "Paste the licence key first."
     },
-    "liveMark": "Free simulations and free videos carry a small {siteName} watermark – in a corner of the canvas while you play and in every clip you make. Pro removes it from both."
+    "liveMark": "Free simulations and free videos carry a small {siteName} watermark, in a corner of the canvas while you play and in every clip you make. Pro removes it from both."
   },
   "OrbGrid": {
     "canvasHud": "{n, plural, one {{count} bouncing orb} other {{count} bouncing orbs}}",
@@ -5066,7 +5006,7 @@
     "tag": "Watermark",
     "noteRecording": "Recording on Free: this video carries the {siteName} watermark.",
     "remove": "Remove the watermark",
-    "liveTagTip": "Free: simulations and videos carry a small watermark – Pro removes it",
+    "liveTagTip": "Free: simulations and videos carry a small watermark. Pro removes it.",
     "liveNote": "Free: the simulator and the videos you record or export here carry a small {siteName} watermark."
   },
   "DesktopAiFix": {
@@ -5144,8 +5084,8 @@
     "cpuNote": "The model runs on the CPU: each step can take a minute or more. A GPU (Vulkan) is much faster; the 1.5B model is quicker too, but best kept for Settings and Ideas.",
     "tryCpu": "Run on the CPU instead",
     "downloadVersion": "Version {version}",
-    "downloadModelNote": "The AI model is a one-time download from inside the app (1–2.5 GB); after that the AI works offline.",
-    "downloadUpdateNote": "Using 1.0.2? Its built-in updater cannot install 1.0.3 – download the installer above once; from 1.0.3 on the app updates itself."
+    "downloadModelNote": "The AI model is a one-time download from inside the app, up to 2.5 GB. After that the AI works offline.",
+    "downloadUpdateNote": "Using 1.0.2? Its updater cannot install 1.0.3. Download the installer above once. From 1.0.3 on the app updates itself."
   },
   "LoopHud": {
     "growTitle": "it grows with every bounce",
@@ -5200,7 +5140,7 @@
     "canvasSubtitleBothWays": "gates open both ways, never for the ring's own colour",
     "canvasSorted": "[count] / [total] sorted",
     "canvasRemix": "mixing again",
-    "csDesc": "Balls of every colour start packed in the core. Each ring's gates open only outwards and never for the ring's own colour, so the balls sort themselves into a bullseye – then a remix pulls them back into the first frame and the loop starts over.",
+    "csDesc": "Balls of every colour start packed in the core. Each ring's gates open only outwards and never for the ring's own colour, so the balls sort themselves. Then they mix again and the loop starts over.",
     "csPreset": "Preset",
     "csPresetTip": "Ready-made sorts. Each sets the navy page, glowing balls and the loop HUD too.",
     "csPresetChoose": "Choose a preset…",
