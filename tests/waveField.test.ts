@@ -459,9 +459,11 @@ describe("Wave Tank settings, links, words and picture", () => {
     expect(waveTankPresetPatch("doubleSlit").wtGaps).toBe("1@11, 2@9, 7@10");
   });
 
-  it("joins the rhythm family after Beat Machines, with its HUD words, its caption and every message in en / pl / es", () => {
+  it("joins the rhythm family after Beat Machines (and Perfect Fit, which takes the place right after them), with its HUD words, its caption and every message in en / pl / es", () => {
     expect(MODE_CATEGORIES.waveTank).toBe("rhythm");
-    expect(MODE_CARD_ORDER.indexOf("waveTank")).toBe(MODE_CARD_ORDER.indexOf("beatMachine") + 1);
+    // --- perfect-fit --- both modes join right after Beat Machines; Perfect Fit's block runs last, so the order is Beat Machines, Perfect Fit, Wave Tank
+    const machines = MODE_CARD_ORDER.indexOf("beatMachine");
+    expect(MODE_CARD_ORDER.indexOf("waveTank")).toBe(machines + (MODE_CARD_ORDER.includes("perfectFit") ? 2 : 1));
     expect(LOOP_HUD_MODE_TEXT.waveTank?.title).toBe("WaveTank.canvasTitle");
     expect(loopCaptionContext({ mode: "waveTank", recordingDuration: 30 } as never)).toMatchObject({ hookKey: "waveTank", factKey: "waveTankFact", count: null });
     const keys = (o: unknown): string[] => (o && typeof o === "object" ? Object.entries(o).flatMap(([k, v]) => (typeof v === "object" ? keys(v).map((x) => `${k}.${x}`) : [k])) : []);

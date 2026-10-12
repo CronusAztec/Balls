@@ -114,7 +114,8 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("beatDrop");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "beatMachine");
 }
-// --- wave-tank --- Wave Tank joins the rhythm family right after Beat Machines (the loop family's bell row)
+// --- wave-tank --- Wave Tank joins the rhythm family right after Beat Machines (the loop family's bell row; Perfect Fit, below,
+// then takes the place right after Beat Machines, so the cards read Beat Machines, Perfect Fit, Wave Tank)
 {
   const at = MODE_CARD_ORDER.indexOf("beatMachine");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "waveTank");
