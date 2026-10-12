@@ -129,6 +129,14 @@ export class FightLeagueLayer {
   weaponsDrawn = 0;
   /** Where the ability boxes started last frame (screen y; Infinity without them): the bottom captions keep above it. */
   boxesTop = Infinity;
+  /**
+   * --- fl-overhaul --- (fl-overhaul fix) The last frame's boxes: their rows, and their ability names as drawn – the smallest
+   * size (a share of the square's side), the narrowest horizontal squeeze and how many were ellipsised.
+   */
+  boxRows = 0;
+  boxNameMin = 0;
+  boxNameSqueeze = 1;
+  boxNamesCut = 0;
   // --- fl-overhaul --- (Stage 3)
   /** The moving average of drawBodies + drawOverlay (ms, measured by the page – `noteRenderMs()`). */
   renderMs = 0;
@@ -397,6 +405,10 @@ export class FightLeagueLayer {
     this.vsShown = false;
     this.bannerShown = false;
     this.boxesTop = Infinity;
+    this.boxRows = 0;
+    this.boxNameMin = 0;
+    this.boxNameSqueeze = 1;
+    this.boxNamesCut = 0;
     this.cards.vsShown = false;
     this.cards.bannerShown = false;
     const field = view.field;
@@ -418,6 +430,10 @@ export class FightLeagueLayer {
       this.boxesTop = this.hud.drawBoxes(ctx, fr, view, L, lay, ox, oy, this.bodies, this.weapons);
       this.namesDrawn = this.hud.namesDrawn;
       this.boxesDrawn = this.hud.boxesDrawn;
+      this.boxRows = this.hud.boxesDrawn > 0 ? lay.boxRows : 0;
+      this.boxNameMin = this.hud.boxNameMin;
+      this.boxNameSqueeze = this.hud.boxNameSqueeze;
+      this.boxNamesCut = this.hud.boxNamesCut;
       // --- fl-overhaul --- (Stage 5) a boss rush's boss bar across the top of the arena and its challengers' queue
       if (view.show.kind === "boss") this.shows.drawBossBar(ctx, fr, view, L, lay, ox, oy);
     }
@@ -571,6 +587,12 @@ export const FIGHT_LEAGUE_DATA_KEYS = [
   // hazards marked at once (traps lying in wait and the landing zones of lobbed bombs – both drawn on the arena floor)
   "flWalls",
   "flTraps",
+  // --- fl-overhaul --- (fl-overhaul fix) the ability boxes' rows (1 or 2) and their names as drawn: the smallest size scaled to
+  // the 1080 px square (never under the 26 px floor), the narrowest horizontal squeeze (≥ 0.75) and how many were ellipsised
+  "flBoxRows",
+  "flBoxNameFs",
+  "flBoxNameSqueeze",
+  "flBoxNamesCut",
   // --- end fl-overhaul ---
 ];
 
@@ -753,6 +775,11 @@ export class FightLeagueDataset {
     if (traps > this.trapsPeak) this.trapsPeak = traps;
     set("flWalls", String(this.wallsPeak));
     set("flTraps", String(this.trapsPeak));
+    // --- fl-overhaul --- (fl-overhaul fix) the boxes' rows and names
+    set("flBoxRows", String(layer.boxRows));
+    set("flBoxNameFs", layer.boxNameMin > 0 ? (layer.boxNameMin * 1080).toFixed(1) : "");
+    set("flBoxNameSqueeze", layer.boxNameMin > 0 ? layer.boxNameSqueeze.toFixed(3) : "");
+    set("flBoxNamesCut", String(layer.boxNamesCut));
     // --- end fl-overhaul ---
   }
 }

@@ -42,8 +42,11 @@ import {
   FL_SHAKE_REDUCED,
   FL_VS_COUNT_MS,
   bodyRimWidth,
+  FL_BOX_NAME_MIN,
+  FL_BOX_NAME_SQUEEZE,
   flBoxContentBottom,
   flContrast,
+  flFitBoxName,
   flEffectNow,
   flFfaChipRect,
   flFinaleScale,
@@ -676,9 +679,165 @@ describe("the HUD at the 1080 px square, the watermark badge and the 9:16 plates
         expect(flBoxContentBottom(b)).toBeLessThanOrEqual(b.box.y + b.box.h + 1e-6);
       }
     }
-    // the duel and the 2v2 keep two stat lines; the free-for-alls the compact boxes (one)
-    expect(duel.boxes.every((b) => b.stats.length === 2 && !b.compact)).toBe(true);
-    expect(flHudLayout(S, 4, "ffa4", false, R).boxes.every((b) => b.stats.length === 1 && b.compact)).toBe(true);
+    // the duel and the 2v2 keep all four stats (a 2v2's slim boxes: two lines of two); the free-for-alls and the 3v3 a compact
+    // pair – one line in a free-for-all of 3, a column of two single cells in the two-row layouts
+    expect(duel.boxes.every((b) => b.stats.length === 2 && !b.compact && b.statCells === 2)).toBe(true);
+    expect(flHudLayout(S, 4, "2v2", false, R).boxes.every((b) => b.stats.length === 2 && !b.compact && b.statCells === 2)).toBe(true);
+    expect(flHudLayout(S, 3, "ffa3", false, R).boxes.every((b) => b.stats.length === 1 && b.compact)).toBe(true);
+    for (const [n, match] of [
+      [4, "ffa4"],
+      [6, "3v3"],
+    ] as const)
+      expect(flHudLayout(S, n, match, false, R).boxes.every((b) => b.stats.length === 2 && b.compact && b.statCells === 1)).toBe(true);
+  });
+
+  // --- fl-overhaul --- (fl-overhaul fix) a long ability name was squeezed uniformly into its column – 'Super Mega Death Rocket'
+  // drawn at 7 px in a 3v3's one row of six boxes: the boxes take two rows for four and six fighters, and a name is fitted
+  // without ever going under the 26 px floor
+  it("lays the boxes out in one row for two and three fighters and two rows of slim boxes for four and six – inside the band, apart, in the names band's order, with wide name columns", () => {
+    const S = 1080;
+    const cases: [number, string][] = [
+      [2, "1v1"],
+      [3, "ffa3"],
+      [4, "ffa4"],
+      [4, "2v2"],
+      [6, "3v3"],
+    ];
+    for (const portrait of [false, true]) {
+      for (const [n, match] of cases) {
+        const label = `${match}${portrait ? " 9:16" : ""}`;
+        const lay = flHudLayout(S, n, match, portrait, 0.04 * S);
+        expect([label, lay.boxRows, lay.boxes.length]).toEqual([label, n >= 4 ? 2 : 1, n]);
+        const inside = (r: { x: number; y: number; w: number; h: number }, o: { x: number; y: number; w: number; h: number }) =>
+          r.x >= o.x - 1e-6 && r.y >= o.y - 1e-6 && r.x + r.w <= o.x + o.w + 1e-6 && r.y + r.h <= o.y + o.h + 1e-6;
+        const band = { x: lay.left, y: lay.boxesTop, w: lay.right - lay.left, h: lay.boxesBottom - lay.boxesTop };
+        for (const [i, b] of lay.boxes.entries()) {
+          expect([label, i, inside(b.box, band)]).toEqual([label, i, true]);
+          for (const r of [b.name, b.meter, b.portrait, ...b.stats]) expect([label, i, inside(r, b.box)]).toEqual([label, i, true]);
+          // the name and the meter end before the stats start (the slim boxes' stats stand at the right edge)
+          if (lay.boxRows > 1) for (const st of b.stats) expect([label, i, b.name.x + b.name.w <= st.x + 1e-6, b.meter.x + b.meter.w <= st.x + 1e-6]).toEqual([label, i, true, true]);
+          // a name column at least half again as wide as the old 3v3's 95 px
+          expect([label, i, b.name.w >= 150]).toEqual([label, i, true]);
+          expect(b.nameMin).toBeCloseTo(FL_BOX_NAME_MIN * S, 9);
+          for (const [j, o] of lay.boxes.entries()) {
+            if (j <= i) continue;
+            const overlap = intersect({ x: b.box.x, y: b.box.y, width: b.box.w, height: b.box.h }, { x: o.box.x, y: o.box.y, width: o.box.w, height: o.box.h });
+            expect([label, i, j, overlap.width * overlap.height]).toEqual([label, i, j, 0]);
+          }
+        }
+        // the names band's order: a 3v3's teams in rows (A B C over D E F), a 2v2's in columns (A over B, C over D), a
+        // free-for-all's corners (A B over C D), one row otherwise
+        const cells = lay.boxes.map((b) => [b.row, b.col]);
+        const expected =
+          match === "3v3"
+            ? [0, 1, 2, 3, 4, 5].map((s) => [s < 3 ? 0 : 1, s % 3])
+            : match === "2v2"
+              ? [0, 1, 2, 3].map((s) => [s % 2, s < 2 ? 0 : 1])
+              : match === "ffa4"
+                ? [0, 1, 2, 3].map((s) => [Math.floor(s / 2), s % 2])
+                : lay.boxes.map((_, s) => [0, s]);
+        expect([label, cells]).toEqual([label, expected]);
+        // the first row starts at the band's top, a later one under every box above it; a later column right of the earlier
+        for (const b of lay.boxes) {
+          const above = lay.boxes.filter((o) => o.row < b.row);
+          const before = lay.boxes.filter((o) => o.row === b.row && o.col < b.col);
+          expect([label, b.row === 0 ? Math.abs(b.box.y - lay.boxesTop) < 1e-6 : above.every((o) => o.box.y + o.box.h <= b.box.y + 1e-6), before.every((o) => o.box.x + o.box.w <= b.box.x + 1e-6)]).toEqual([label, true, true]);
+        }
+      }
+    }
+  });
+
+  it("fits an ability name without drawing it under the floor: smaller down to the floor, then condensed to 75 % at most, then ellipsised", () => {
+    const measure = (text: string, size: number) => 0.5 * text.length * size;
+    const name = "Super Mega Death Rocket"; // 23 letters: 11.5 em
+    // fits as set
+    expect(flFitBoxName(name, 30, 26, 400, measure)).toEqual({ text: name, size: 30, squeeze: 1, cut: false });
+    // smaller, still above the floor (345 px at 30 → 28 px in 322 px)
+    const smaller = flFitBoxName(name, 30, 26, 322, measure);
+    expect(smaller.cut).toBe(false);
+    expect(smaller.squeeze).toBe(1);
+    expect(smaller.size).toBeCloseTo(28, 9);
+    // at the floor, condensed (299 px at 26 → 0.87 of it in 260 px)
+    const condensed = flFitBoxName(name, 30, 26, 260, measure);
+    expect([condensed.text, condensed.size, condensed.cut]).toEqual([name, 26, false]);
+    expect(condensed.squeeze).toBeCloseTo(260 / 299, 9);
+    // ellipsised at a word's end when that costs at most three letters ('Super Mega Death R…' → 'Super Mega Death…')
+    expect(flFitBoxName(name, 30, 26, 0.75 * 19 * 13 + 0.5, measure)).toMatchObject({ text: "Super Mega Death…", size: 26, cut: true });
+    // every width: never under the floor, never narrower than 75 %, never wider than the column, a cut name its own start
+    for (let maxWidth = 40; maxWidth <= 420; maxWidth += 7) {
+      for (const n of [name, "Electric Wind God Fist", "Gum-Gum Gatling", "BFG", "Unibeam"]) {
+        const fit = flFitBoxName(n, 30, 26, maxWidth, measure);
+        const label = `${n} in ${maxWidth}`;
+        expect([label, fit.size >= 26, fit.squeeze >= FL_BOX_NAME_SQUEEZE - 1e-9, measure(fit.text, fit.size) * fit.squeeze <= maxWidth + 1e-6]).toEqual([label, true, true, true]);
+        if (fit.cut) expect([label, fit.text.endsWith("…"), n.startsWith(fit.text.slice(0, -1)), /[\s-]…$/.test(fit.text)]).toEqual([label, true, true, false]);
+        else expect([label, fit.text]).toEqual([label, n]);
+      }
+    }
+  });
+
+  it("draws every box's ability name at 26 px or more at the 1080 px square – the roster's longest names in a duel, free-for-alls of 3 and 4, a 2v2 and a 3v3, square and 9:16 – condensed to no less than 75 %", { timeout: 60_000 }, () => {
+    stubDocument();
+    const floor = FL_BOX_NAME_MIN * 1080;
+    // the six longest ability names (fakeCanvas measures 0.56 em a letter: the longest are the widest)
+    const longest = [...FL_ROSTER].sort((a, b) => b.ability.name.length - a.ability.name.length || a.id.localeCompare(b.id)).slice(0, 6);
+    expect(longest[0].ability.name).toBe("Super Mega Death Rocket");
+    const cases: [string, number][] = [
+      ["1v1", 2],
+      ["ffa3", 3],
+      ["ffa4", 4],
+      ["2v2", 4],
+      ["3v3", 6],
+    ];
+    for (const portrait of [false, true]) {
+      for (const [match, n] of cases) {
+        const label = `${match}${portrait ? " 9:16" : ""}`;
+        const engine = probeEngine({ fighters: longest.map((r) => r.id), match: match as FightLeagueSettings["match"], hp: 300, timeCap: 0 }, 1);
+        const view = probeRun(engine, 2500); // past the VS card
+        expect([label, view.fighters.map((f) => f.row.ability.name)]).toEqual([label, longest.slice(0, n).map((r) => r.ability.name)]);
+        const width = 1080;
+        const height = portrait ? 1920 : 1080;
+        const layer = new FightLeagueLayer();
+        const main = fakeCanvas(width, height).ctx;
+        layer.drawOverlay(asCtx(main), view, OPTS, { width, height, inset: 0, portrait });
+        const lay = layer.hudLayout(view, 1080, portrait);
+        const oy = (height - 1080) / 2;
+        expect([label, layer.boxRows]).toEqual([label, n >= 4 ? 2 : 1]);
+        let cut = 0;
+        for (const f of view.fighters) {
+          const b = lay.boxes[f.slot];
+          const name = f.row.ability.name;
+          // the box's name sprite: drawn inside its box, its text the name or the name's start ellipsised
+          const draw = main.calls.find((c) => {
+            if (c.name !== "drawImage") return false;
+            const sprite = c.args[0] as FakeCanvas;
+            const text = sprite.ctx?.calls.find((k) => k.name === "fillText")?.args[0];
+            if (typeof text !== "string" || !(text === name || (text.endsWith("…") && name.startsWith(text.slice(0, -1))))) return false;
+            const cy = (c.args[2] as number) + (c.args[4] as number) / 2;
+            return cy >= oy + b.box.y && cy <= oy + b.box.y + b.box.h;
+          });
+          expect([label, name, !!draw]).toEqual([label, name, true]);
+          if (!draw) continue;
+          const sprite = draw.args[0] as FakeCanvas;
+          const text = String(sprite.ctx.calls.find((k) => k.name === "fillText")?.args[0]);
+          const fontPx = Number(/(\d+(?:\.\d+)?)px/.exec(sprite.ctx.font)?.[1]);
+          const [dx, , dw, dh] = draw.args.slice(1) as number[];
+          const ky = dh / sprite.height;
+          const kx = dw / sprite.width;
+          const size = fontPx * ky; // the letters' drawn size
+          const squeeze = kx / ky;
+          const textRight = dx + (2 + 0.56 * text.length * fontPx) * kx; // (the sprite's 2 px pad, then the text)
+          expect([label, name, text, size >= floor - 1e-6, squeeze >= FL_BOX_NAME_SQUEEZE - 1e-6, textRight <= b.name.x + b.name.w + 0.5]).toEqual([label, name, text, true, true, true]);
+          if (text !== name) {
+            cut++;
+            expect([label, name, text, text.length - 1 >= 10]).toEqual([label, name, text, true]);
+          }
+        }
+        // what the layer reports (data-fl-box-name-fs, -squeeze, -names-cut)
+        expect([label, layer.boxNameMin * 1080 >= floor - 1e-6, layer.boxNameSqueeze >= FL_BOX_NAME_SQUEEZE - 1e-6, layer.boxNamesCut]).toEqual([label, true, true, cut]);
+        // the duel and the two-row boxes of a landscape square show every name whole
+        if (match === "1v1" || (!portrait && n >= 4 && match !== "3v3")) expect([label, cut]).toEqual([label, 0]);
+      }
+    }
   });
 
   it("keeps the meters and stat lines clear of the watermark badge in both bottom corners of a portrait export, and its right 10 % free of text", () => {
@@ -691,6 +850,7 @@ describe("the HUD at the 1080 px square, the watermark badge and the 9:16 plates
       [3, "ffa3"],
       [4, "ffa4"],
       [4, "2v2"],
+      [6, "3v3"], // --- fl-overhaul --- (fl-overhaul fix: two rows of slim boxes)
     ];
     for (const [w, h] of sizes) {
       const square = exportSquare(w, h);

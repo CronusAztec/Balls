@@ -1,10 +1,10 @@
 import type { FightLeagueView, FlFighter } from "@/lib/physics/modes/fightLeague";
-import { flNameColor, type FlBoxLayout, type FlHudLayout } from "@/lib/physics/modes/fightLeagueFx";
+import { flFitBoxName, flNameColor, type FlBoxLayout, type FlHudLayout, type FlNameFit } from "@/lib/physics/modes/fightLeagueFx";
 import type { FlBodiesPainter } from "./bodies";
 import type { FlFrame, FightLeagueLabels } from "./frame";
 import { INK } from "./palette";
 import { SpriteCache, TWO_PI, makeSprite, roundRectPath, starPath } from "./sprites";
-import { NUM_TEXT, type FlTextStyle } from "./text";
+import { NUM_TEXT, flFontEpoch, type FlTextStyle } from "./text";
 import { flShortName } from "@/lib/physics/modes/fightLeagueRoster";
 import type { FlWeaponsPainter } from "./weapons";
 import type { FlShowsPainter } from "./shows"; // --- fl-overhaul --- (Stage 5)
@@ -36,6 +36,20 @@ interface StatText {
 }
 
 type Glyph = "blade" | "boot" | "clock" | "star";
+
+/** --- fl-overhaul --- (fl-overhaul fix) A box's fitted ability name and what it was fitted for (refitted when one changes). */
+interface NameFitEntry {
+  name: string;
+  size: number;
+  min: number;
+  width: number;
+  scale: number;
+  epoch: number;
+  fit: FlNameFit;
+}
+
+/** The ability names' style (the fit measures with it). */
+const BOX_NAME_STYLE: FlTextStyle = { role: "ui", color: "#000000", stroke: null };
 
 /** A stat glyph (our own vector marks: a blade, a boot, a clock, a star) at (x, y), `s` tall. */
 function drawGlyph(ctx: CanvasRenderingContext2D, g: Glyph, x: number, y: number, s: number, color: string) {
@@ -163,6 +177,15 @@ function drawRoleGlyph(ctx: CanvasRenderingContext2D, role: string, x: number, y
 
 export class FlHudPainter {
   private readonly stats: (StatText | undefined)[] = [];
+  /** --- fl-overhaul --- (fl-overhaul fix) Each slot's fitted ability name. */
+  private readonly nameFits: (NameFitEntry | undefined)[] = [];
+  /**
+   * What the last frame's boxes drew of their ability names (the data attributes and the smoke test): the smallest size as a
+   * share of the square's side, the narrowest squeeze and how many were ellipsised.
+   */
+  boxNameMin = 0;
+  boxNameSqueeze = 1;
+  boxNamesCut = 0;
   /** The boxes' halos while their ability telegraphs (per colour and size). */
   private readonly halos = new SpriteCache<string>(16);
   private generation = -1;
@@ -175,6 +198,7 @@ export class FlHudPainter {
     if (view.generation !== this.generation) {
       this.generation = view.generation;
       this.stats.length = 0;
+      this.nameFits.length = 0;
       this.timerSec = -1;
     }
   }
@@ -336,13 +360,21 @@ export class FlHudPainter {
   /** The ability boxes along the bottom. Returns their top (screen y; Infinity without them). */
   drawBoxes(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, L: FightLeagueLabels, lay: FlHudLayout, ox: number, oy: number, bodies: FlBodiesPainter, weapons: FlWeaponsPainter): number {
     this.boxesDrawn = 0;
+    this.boxNameMin = 0;
+    this.boxNameSqueeze = 1;
+    this.boxNamesCut = 0;
     if (view.fighters.length === 0 || lay.boxes.length === 0) return Infinity;
+    let minFs = Infinity;
     for (const f of view.fighters) {
       const b = lay.boxes[f.slot];
       if (!b) continue;
-      this.drawBox(ctx, fr, view, L, f, b, ox, oy, bodies, weapons);
+      const fit = this.drawBox(ctx, fr, view, L, f, b, ox, oy, bodies, weapons);
+      minFs = Math.min(minFs, fit.size);
+      this.boxNameSqueeze = Math.min(this.boxNameSqueeze, fit.squeeze);
+      if (fit.cut) this.boxNamesCut++;
       this.boxesDrawn++;
     }
+    this.boxNameMin = minFs < Infinity ? minFs / lay.side : 0;
     return oy + lay.boxesTop;
   }
 
@@ -366,7 +398,23 @@ export class FlHudPainter {
     ctx.globalAlpha = a;
   }
 
-  private drawBox(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, L: FightLeagueLabels, f: FlFighter, b: FlBoxLayout, ox: number, oy: number, bodies: FlBodiesPainter, weapons: FlWeaponsPainter) {
+  /**
+   * --- fl-overhaul --- (fl-overhaul fix) Slot `f`'s ability name fitted to its box's name column – never drawn under the
+   * readability floor (`flFitBoxName()`: smaller down to the floor, then condensed, then ellipsised) – refitted only when the
+   * name, the box, the device scale or the fonts change.
+   */
+  private nameFit(fr: FlFrame, f: FlFighter, b: FlBoxLayout): FlNameFit {
+    const name = f.row.ability.name;
+    const scale = fr.text.scale;
+    const epoch = flFontEpoch();
+    const e = this.nameFits[f.slot];
+    if (e && e.name === name && e.size === b.nameFs && e.min === b.nameMin && e.width === b.name.w && e.scale === scale && e.epoch === epoch) return e.fit;
+    const fit = flFitBoxName(name, b.nameFs, b.nameMin, b.name.w, (text, size) => fr.text.measureWidth(text, size, BOX_NAME_STYLE));
+    this.nameFits[f.slot] = { name, size: b.nameFs, min: b.nameMin, width: b.name.w, scale, epoch, fit };
+    return fit;
+  }
+
+  private drawBox(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, L: FightLeagueLabels, f: FlFighter, b: FlBoxLayout, ox: number, oy: number, bodies: FlBodiesPainter, weapons: FlWeaponsPainter): FlNameFit {
     const now = fr.now;
     const hud = fr.pal.hud;
     const x = ox + b.box.x;
@@ -426,9 +474,10 @@ export class FlHudPainter {
     ctx.globalAlpha = alpha;
     drawRoleGlyph(ctx, f.row.role, ox + p.x + 0.86 * p.w, oy + p.y + 0.16 * p.h, 0.3 * p.w, hud.dark ? "#27272a" : "#ffffff", hud.dark ? "#f4f4f5" : INK);
     ctx.restore();
-    // the ability's name (flashing through the telegraph)
+    // the ability's name (flashing through the telegraph) – fitted to its column, never under the readability floor
     const nameColor = blink ? f.row.accent : hud.dark ? (telegraph ? "#ffffff" : hud.cardText) : hud.cardText;
-    fr.text.draw(ctx, f.row.ability.name, ox + b.name.x, oy + b.name.y + 0.55 * b.nameFs, b.nameFs, { role: "ui", color: nameColor, stroke: null }, "left", b.name.w, alpha);
+    const fit = this.nameFit(fr, f, b);
+    fr.text.drawCondensed(ctx, fit.text, ox + b.name.x, oy + b.name.y + 0.55 * b.nameFs, fit.size, { role: "ui", color: nameColor, stroke: null }, "left", fit.squeeze, alpha);
     // the meter: its track, the fill in the accent (glowing from 0.85), READY shimmering when full
     const m = b.meter;
     const mx = ox + m.x;
@@ -458,13 +507,13 @@ export class FlHudPainter {
     const st = this.statText(view, f, now, L);
     const statColor = (up: number) => (up > 0 ? hud.buff : up < 0 ? hud.debuff : hud.statText);
     const style = (up: number): FlTextStyle => ({ role: "mono", color: statColor(up), stroke: null, weight: 800 });
-    const line = (r: { x: number; y: number; w: number; h: number }, a: [Glyph, string, string, number], c: [Glyph, string, string, number]) => {
+    const line = (r: { x: number; y: number; w: number; h: number }, a: [Glyph, string, string, number], c: [Glyph, string, string, number] | null) => {
       const fs = r.h;
       const lx = ox + r.x;
       const ly = oy + r.y + 0.55 * fs;
-      const colW = r.w / 2;
+      const colW = c ? r.w / 2 : r.w;
       const words = fr.text.width(a[1], fs, style(a[3])) <= colW - 2;
-      for (const [k, cell] of [a, c].entries()) {
+      for (const [k, cell] of (c ? [a, c] : [a]).entries()) {
         const cxl = lx + k * colW;
         if (words) fr.text.draw(ctx, cell[1], cxl, ly, fs, style(cell[3]), "left", colW - 2, alpha);
         else {
@@ -477,14 +526,18 @@ export class FlHudPainter {
       }
     };
     if (b.compact) {
-      // one line: damage and speed (the attack or cast speed instead when buffed or debuffed)
+      // damage and speed (the attack or cast speed instead when buffed or debuffed): one line, or a slim box's column of two
       const second: [Glyph, string, string, number] = st.atkUp !== 0 ? ["clock", st.atk, st.atkV, st.atkUp] : st.castUp !== 0 ? ["star", st.cast, st.castV, st.castUp] : ["boot", st.spd, st.spdV, st.spdUp];
-      line(b.stats[0], ["blade", st.dmg, st.dmgV, st.dmgUp], second);
+      if (b.statCells === 1 && b.stats[1]) {
+        line(b.stats[0], ["blade", st.dmg, st.dmgV, st.dmgUp], null);
+        line(b.stats[1], second, null);
+      } else line(b.stats[0], ["blade", st.dmg, st.dmgV, st.dmgUp], second);
     } else {
       line(b.stats[0], ["blade", st.dmg, st.dmgV, st.dmgUp], ["boot", st.spd, st.spdV, st.spdUp]);
       if (b.stats[1]) line(b.stats[1], ["clock", st.atk, st.atkV, st.atkUp], ["star", st.cast, st.castV, st.castUp]);
     }
     if (!f.alive) fr.text.draw(ctx, L.ko, x + w / 2, y + h / 2, 0.42 * h, { role: "display", color: "#ef4444", stroke: INK, strokeK: 0.1 }, "center", w, 0.9);
+    return fit;
   }
 
   /** The stat strings of `f` (rebuilt only when a shown value changes). */

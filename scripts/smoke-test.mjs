@@ -11713,11 +11713,14 @@ await smokeBlock("fight-league", async () => {
   const fps = await pageFrameRates(3500);
   const data = await canvasData();
   await page.screenshot({ path: path.join(outDir, "sim-fight-league-3v3.png") });
+  // --- fl-overhaul --- (fl-overhaul fix) its six boxes in two rows of three, every ability name – Jinx's 'Super Mega Death
+  // Rocket' among them – drawn at 26 px or more at the 1080 px square (data-fl-box-name-fs), condensed to 75 % at most
+  const boxNamesOk = (d) => d.flBoxRows === "2" && Number(d.flBoxNameFs) >= 26 && Number(d.flBoxNameSqueeze) >= 0.75;
   await timingCheck(
-    "fight league: a 3v3 of six shooters keeps 30+ fps",
-    data.flMatch === "3v3" && data.flFighters === "6" && data.flBoxes === "6" /* --- fl-overhaul --- (Stage 7) */ && Number(data.flShots) >= 20 && data.flFinished === "0",
+    "fight league: a 3v3 of six shooters keeps 30+ fps, its boxes in two rows with every ability name at 26 px or more (data-fl-box-rows, -box-name-fs)",
+    data.flMatch === "3v3" && data.flFighters === "6" && data.flBoxes === "6" /* --- fl-overhaul --- (Stage 7) */ && Number(data.flShots) >= 20 && data.flFinished === "0" && boxNamesOk(data),
     fpsOk(fps, 5, 30),
-    `(fighters ${data.flFighters}, boxes ${data.flBoxes}, names ${data.flNames}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    `(fighters ${data.flFighters}, boxes ${data.flBoxes} in ${data.flBoxRows} rows, box names at ${data.flBoxNameFs} px of 1080 squeezed to ${data.flBoxNameSqueeze} (${data.flBoxNamesCut} cut), names ${data.flNames}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, ${fpsNote(fps)}, floor 30${loadNote()})`,
     fpsRetry(3000, 5, 30),
   );
 }
@@ -11857,9 +11860,11 @@ const FL_HEAVY = "mode=fightLeague&flM=ffa4&fl1=venom&fl2=walterwhite&fl3=jonesy
   console.log(`  fight league render cost: ${data.flRenderMs} ms a frame (the heavy kit: walls ${data.flWalls}, ground hazards ${data.flTraps}, ${data.flShots} shots, ${data.flProjectiles} projectiles drawn; budget 4 ms)`);
   await timingCheck(
     "fight league: the heavy kit (Venom, Walter White, Jonesy, Jinx) keeps 30+ fps live with its walls, ground hazards and shots (data-fl-walls, -traps, -shots)",
-    data.flIds === "venom,walterwhite,jonesy,jinx" && data.flFighters === "4" && Number(data.flWalls) > 0 && Number(data.flTraps) > 0 && Number(data.flShots) > 0 && data.flFinished === "0",
+    data.flIds === "venom,walterwhite,jonesy,jinx" && data.flFighters === "4" && Number(data.flWalls) > 0 && Number(data.flTraps) > 0 && Number(data.flShots) > 0 && data.flFinished === "0" &&
+      // --- fl-overhaul --- (fl-overhaul fix) two rows of two slim boxes, every ability name whole at 26 px or more
+      data.flBoxRows === "2" && Number(data.flBoxNameFs) >= 26 && Number(data.flBoxNameSqueeze) >= 0.75 && data.flBoxNamesCut === "0",
     fpsOk(fps, 5, 30),
-    `(ids ${data.flIds}, fighters ${data.flFighters}, walls ${data.flWalls}, ground hazards ${data.flTraps}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, at ${data.flTime} s, render ${data.flRenderMs} ms, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    `(ids ${data.flIds}, fighters ${data.flFighters}, walls ${data.flWalls}, ground hazards ${data.flTraps}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, boxes in ${data.flBoxRows} rows, box names at ${data.flBoxNameFs} px of 1080 squeezed to ${data.flBoxNameSqueeze} (${data.flBoxNamesCut} cut), at ${data.flTime} s, render ${data.flRenderMs} ms, ${fpsNote(fps)}, floor 30${loadNote()})`,
     fpsRetry(3000, 5, 30),
   );
 }
@@ -11886,10 +11891,10 @@ const FL_HEAVY = "mode=fightLeague&flM=ffa4&fl1=venom&fl2=walterwhite&fl3=jonesy
   }
   console.log(`  fight league render cost while recording 1080×1920: ${during.flRenderMs} ms a frame (the heavy kit; budget 4 ms)`);
   await timingCheck(
-    "a 10 s 1080×1920 recording of the fight league heavy kit keeps 20+ fps and downloads",
-    size > 10000 && during.flFighters === "4",
+    "a 10 s 1080×1920 recording of the fight league heavy kit keeps 20+ fps and downloads, its 9:16 boxes' ability names at 26 px or more (data-fl-box-name-fs)",
+    size > 10000 && during.flFighters === "4" && during.flBoxRows === "2" && Number(during.flBoxNameFs) >= 26 && Number(during.flBoxNameSqueeze) >= 0.75 /* --- fl-overhaul --- (fl-overhaul fix) */,
     fpsOk(fps, 5, 20),
-    `(${size} bytes, fighters ${during.flFighters}, plates ${during.flPlates}, render ${during.flRenderMs} ms, ${fpsNote(fps)}, floor 20${loadNote()})`,
+    `(${size} bytes, fighters ${during.flFighters}, plates ${during.flPlates}, boxes in ${during.flBoxRows} rows, box names at ${during.flBoxNameFs} px of 1080 squeezed to ${during.flBoxNameSqueeze} (${during.flBoxNamesCut} cut), render ${during.flRenderMs} ms, ${fpsNote(fps)}, floor 20${loadNote()})`,
     recordingRetry(5, 20),
   );
 }
