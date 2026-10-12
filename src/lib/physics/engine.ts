@@ -73,6 +73,8 @@ import { StarChordsMode, type StarChordsView } from "./modes/starChords"; // ---
 import type { StarChordsSettings } from "./starChords"; // --- chord-stars ---
 import { EllipseFociMode, type EllipseFociView } from "./modes/ellipseFoci"; // --- ellipse-foci ---
 import type { EllipseFociSettings } from "./ellipseFoci"; // --- ellipse-foci ---
+import { BeatMachineMode, type BeatMachineView } from "./modes/beatMachine"; // --- beat-machine ---
+import type { BeatMachineSettings } from "./beatMachine"; // --- beat-machine ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -324,6 +326,8 @@ export class PhysicsEngine {
   readonly hoopsMode = new HoopsMode();
   // --- ellipse-foci --- Focus Shot: a volley fired from one focus of an elliptical pool converges on the other every transit
   readonly ellipseFociMode = new EllipseFociMode();
+  // --- beat-machine --- Beat Machines: marbles dropped onto tuned bars on the beat, or a ball hopping down a musical staircase
+  readonly beatMachineMode = new BeatMachineMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -733,6 +737,10 @@ export class PhysicsEngine {
   initEllipseFoci() {
     this.activateMode(this.ellipseFociMode, "none");
   }
+  // --- beat-machine --- the mode owns its machine (no rings; its balls pinned to the plan)
+  initBeatMachine() {
+    this.activateMode(this.beatMachineMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -842,6 +850,9 @@ export class PhysicsEngine {
       // --- ellipse-foci ---
       case "ellipseFoci":
         return this.initEllipseFoci();
+      // --- beat-machine ---
+      case "beatMachine":
+        return this.initBeatMachine();
     }
   }
 
@@ -1649,6 +1660,10 @@ export class PhysicsEngine {
   getVortexProgress() {
     return this.vortexMode.getProgress();
   }
+  /** --- funnel-spin --- The page resumed a paused ring run: its groove bed and rolling hiss come back with the next step. */
+  refreshVortexBed() {
+    if (this.currentMode === this.vortexMode) this.vortexMode.refreshFunnelBed();
+  }
   // --- end gerald-vortex ---
   // --- gerald-journey ---
   isJourneyMode() {
@@ -1944,6 +1959,29 @@ export class PhysicsEngine {
     return this.currentMode === this.ellipseFociMode ? this.ellipseFociMode.hudCount() : null;
   }
   // --- end ellipse-foci ---
+  // --- beat-machine ---
+  isBeatMachineMode() {
+    return this.currentMode === this.beatMachineMode;
+  }
+  getBeatMachineSettings(): BeatMachineSettings {
+    return this.beatMachineMode.getSettings();
+  }
+  /** The machine, the tempo and the phrase apply on the next `initBeatMachine()`; the counter at once. */
+  setBeatMachineSettings(settings: Partial<BeatMachineSettings>) {
+    this.beatMachineMode.setSettings(settings);
+  }
+  /** Live Beat Machines state (the plan, the frame, the counters) for the canvas; the same object every call. */
+  getBeatMachineView(): BeatMachineView {
+    return this.beatMachineMode.getView();
+  }
+  getBeatMachineProgress() {
+    return this.beatMachineMode.getProgress();
+  }
+  /** The loop HUD's counter in Beat Machines: the notes of the current loop of the loop's (null in another mode or with the counter off). */
+  getBeatMachineHudCount(): { count: number; total: number } | null {
+    return this.currentMode === this.beatMachineMode ? this.beatMachineMode.hudCount() : null;
+  }
+  // --- end beat-machine ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

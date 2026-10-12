@@ -3,6 +3,7 @@
 import { Searchable, Slider, Toggle, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { vortexNominalRunSec, vortexRunRangeSec, vortexSettingsOf } from "@/lib/physics/modes/vortex";
+import FunnelSpinSection, { FUNNEL_SPIN_KEYS } from "./FunnelSpinSection"; // --- funnel-spin --- the ring release and the perspective view
 
 export interface VortexSectionProps {
   t: Translate;
@@ -14,6 +15,7 @@ export interface VortexSectionProps {
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
 export const VORTEX_KEYS = ["vxBalls", "vxStagger", "vxRings", "vxDuration", "vxGravity", "vxLoop", "vxDepthScale"];
+VORTEX_KEYS.push(...FUNNEL_SPIN_KEYS); // --- funnel-spin ---
 
 /**
  * "Vortex" controls (feature gerald-vortex), shown in the Mode row while the Sound Vortex is the mode (and in the Ball
@@ -27,6 +29,7 @@ export default function VortexSection({ t, search, matches, settings: s, update 
   const vx = vortexSettingsOf(s);
   const nominal = vortexNominalRunSec(vx);
   const range = vortexRunRangeSec(vx);
+  const stagger = s.vxRelease !== "rings" || !!search; // --- funnel-spin --- (a ring run is timed by its waves, its friction and its first lap)
   return (
     <div className="space-y-3 pt-2" data-testid="sound-vortex">
       {!search && (
@@ -35,22 +38,23 @@ export default function VortexSection({ t, search, matches, settings: s, update 
           <p className="text-xs text-ink-3 leading-relaxed">{t("vxDesc")}</p>
         </div>
       )}
-      <Slider t={t} search={search} matches={matches} labelKey="vxBalls" tipKey="vxBallsTip" value={s.vxBalls} range={RANGES.vxBalls} onChange={(v) => update({ vxBalls: v })} display={String(s.vxBalls)} />
-      <Slider t={t} search={search} matches={matches} labelKey="vxStagger" tipKey="vxStaggerTip" value={s.vxStagger} range={RANGES.vxStagger} onChange={(v) => update({ vxStagger: v })} display={`${s.vxStagger.toFixed(2)}s`} />
+      {stagger && <Slider t={t} search={search} matches={matches} labelKey="vxBalls" tipKey="vxBallsTip" value={s.vxBalls} range={RANGES.vxBalls} onChange={(v) => update({ vxBalls: v })} display={String(s.vxBalls)} />}
+      {stagger && <Slider t={t} search={search} matches={matches} labelKey="vxStagger" tipKey="vxStaggerTip" value={s.vxStagger} range={RANGES.vxStagger} onChange={(v) => update({ vxStagger: v })} display={`${s.vxStagger.toFixed(2)}s`} />}
       <Slider t={t} search={search} matches={matches} labelKey="vxRings" tipKey="vxRingsTip" value={s.vxRings} range={RANGES.vxRings} onChange={(v) => update({ vxRings: v })} display={String(s.vxRings)} />
-      <Slider t={t} search={search} matches={matches} labelKey="vxDuration" tipKey="vxDurationTip" value={s.vxDuration} range={RANGES.vxDuration} onChange={(v) => update({ vxDuration: v })} display={`${s.vxDuration.toFixed(1)}s`} />
-      <Slider t={t} search={search} matches={matches} labelKey="vxGravity" tipKey="vxGravityTip" value={s.vxGravity} range={RANGES.vxGravity} onChange={(v) => update({ vxGravity: v })} display={`${s.vxGravity.toFixed(2)}×`} />
+      {stagger && <Slider t={t} search={search} matches={matches} labelKey="vxDuration" tipKey="vxDurationTip" value={s.vxDuration} range={RANGES.vxDuration} onChange={(v) => update({ vxDuration: v })} display={`${s.vxDuration.toFixed(1)}s`} />}
+      {stagger && <Slider t={t} search={search} matches={matches} labelKey="vxGravity" tipKey="vxGravityTip" value={s.vxGravity} range={RANGES.vxGravity} onChange={(v) => update({ vxGravity: v })} display={`${s.vxGravity.toFixed(2)}×`} />}
       <Slider t={t} search={search} matches={matches} labelKey="vxDepthScale" tipKey="vxDepthScaleTip" value={s.vxDepthScale} range={RANGES.vxDepthScale} onChange={(v) => update({ vxDepthScale: v })} display={s.vxDepthScale.toFixed(2)} />
       <Searchable search={search} matches={matches} labelKey="vxLoop">
         <Toggle t={t} labelKey="vxLoop" tipKey="vxLoopTip" value={s.vxLoop} onChange={(v) => update({ vxLoop: v })} />
       </Searchable>
-      {!search && (
+      {!search && s.vxRelease !== "rings" /* --- funnel-spin --- (a ring run sums itself up below) */ && (
         <p className="text-xs text-ink-2 leading-relaxed tabular-nums" data-testid="sound-vortex-run">
           {nominal !== null && range
             ? t("vxRunInfo", { notes: s.vxBalls * s.vxRings, seconds: nominal.toFixed(1), min: range.min.toFixed(1), max: range.max.toFixed(1) })
             : t("vxRunEndless")}
         </p>
       )}
+      <FunnelSpinSection search={search} matches={matches} settings={s} update={update} />
     </div>
   );
 }

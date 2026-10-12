@@ -15546,6 +15546,43 @@ await smokeBlock("chaos-fan", async () => {
     await freeContext.close().catch(() => {});
   }
 }
+{
+  // --- chaos-fan --- (review fix) Only the rig the run builds engages No limits and ARENA FULL: the harp rig (the fan off)
+  // ignores the fan's numbers past their sliders (1,000 pendulums; 6,000, past their memory-safety ceiling) and a fan run the
+  // harp's (100 strings), while a fan built of 6,000 says ARENA FULL. The realistic path: the 1,000 threads preset (engaged),
+  // then the Chaos fan switch off – the harp run that follows drops the ⚡ machinery and its badges.
+  const runOf = async (query) => {
+    await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.waitForTimeout(2000);
+    return canvasData();
+  };
+  const quiet = (d) => d.unlimited === undefined && d.unlimitedFull === undefined && d.uncapShow !== "1";
+  const brief = (d) => ({ unlimited: d.unlimited, full: d.unlimitedFull, show: d.uncapShow, pendulums: d.dpPendulums, fan: d.dpFan, fanCount: d.dpFanCount });
+  const harpCount = await runOf("dpfn=1000");
+  const harpCeiling = await runOf("dpf=0&dpfn=6000");
+  const fanStrings = await runOf("dpf=1&dpfn=200&dpst=100");
+  await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpf=1&dpfn=6000`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const fanFull = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.unlimitedFull === "1", null, { timeout: 30_000 }).then(() => true).catch(() => false);
+  const fanFullData = await canvasData();
+  // the 1,000 threads preset, then the fan off
+  await page.goto(`${BASE}/en/simulator/?mode=doublePendulum`, { waitUntil: "networkidle" });
+  await page.locator('[data-dp-fan-preset="threads"]').first().click();
+  await page.waitForTimeout(400);
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const threadsEngaged = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.unlimited === "1", null, { timeout: 15_000 }).then(() => true).catch(() => false);
+  await page.getByTestId("chaos-fan-section").getByRole("switch", { name: switchName("Chaos fan") }).click();
+  const harpQuiet = await page.waitForFunction(() => { const d = document.querySelector("main canvas")?.dataset; return !!d && d.unlimited === undefined && d.dpFan === undefined && d.dpPendulums !== undefined; }, null, { timeout: 15_000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(1000);
+  const afterOff = await canvasData();
+  const offQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "chaos fan: only the built rig engages No limits / ARENA FULL – a harp run ignores 1,000 and 6,000 fan pendulums, a fan run 100 harp strings, 6,000 fan pendulums say ARENA FULL, and the 1,000 threads preset switched back to the harp drops the ⚡ machinery",
+    quiet(harpCount) && harpCount.dpPendulums === "1" && harpCount.dpFan === undefined && quiet(harpCeiling) && harpCeiling.dpPendulums === "1" && quiet(fanStrings) && fanStrings.dpFan === "1" && fanFull && fanFullData.dpFanCount === "5000" && threadsEngaged && harpQuiet && quiet(afterOff) && !offQuery.has("dpf") && offQuery.get("dpfn") === "1000",
+    `(${JSON.stringify({ harpCount: brief(harpCount), harpCeiling: brief(harpCeiling), fanStrings: brief(fanStrings), fanFull, fanFullData: brief(fanFullData), threadsEngaged, harpQuiet, afterOff: brief(afterOff), offQuery: offQuery.toString() })}${loadNote()})`,
+  );
+}
 // --- end chaos-fan ---
 });
 
@@ -15694,6 +15731,378 @@ await smokeBlock("phase-spiral", async () => {
   } else check("without WebCodecs the Phase Spiral fast export is not checked (the live run is covered above)", true);
 }
 // --- end phase-spiral ---
+});
+
+await smokeBlock("beat-machine", async () => {
+// --- beat-machine ---
+// 43. Beat Machines (the loop family's marble xylophone and eight-step staircase): every preset runs two whole loops at 2× –
+// the notes played by each seam are exactly notes × loops (data-bm-seam-notes), the machine at each seam is its state at t = 0
+// (data-bm-seam-error), no NaN; the marble machine's lift moves its rungs and the loaded melody becomes the "Load your melody"
+// preset's tune (data-bm-source); the staircase draws the loop HUD's two-line title on one line ("each step plays a note"); a
+// link carries the bm… keys into the panel and the plan; Find Simulation offers the marble machine's two outcomes and finds
+// the busiest tune; a fast export with Export whole loops keeps two whole 9 s staircase loops and emits notes × loops plucks
+// (the export's hidden canvas).
+{
+  const bmPresets = [
+    { id: "eightSteps", variant: "stairs", loop: 9, notes: 8 },
+    { id: "scaleStairs", variant: "stairs", loop: 15, notes: 16 },
+    { id: "xylophone", variant: "marbles", loop: 19.2, notes: 0 },
+    { id: "yourMelody", variant: "marbles", loop: 19.2, notes: 32 },
+  ];
+  const bmRuns = [];
+  for (const preset of bmPresets) {
+    await page.goto(`${BASE}/en/simulator/?mode=beatMachine`, { waitUntil: "networkidle" });
+    if (preset.id === "eightSteps") {
+      await page.evaluate(() => {
+        const texts = [];
+        window.__bmHud = texts;
+        const fillText = CanvasRenderingContext2D.prototype.fillText;
+        CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+          if (texts.length < 4000) texts.push(String(text));
+          return fillText.call(this, text, ...rest);
+        };
+      });
+    }
+    await page.locator(`[data-bm-preset="${preset.id}"]`).first().click({ timeout: 10000 }).catch(() => {});
+    let melodyLoaded = null;
+    if (preset.id === "yourMelody") {
+      // the melody under Sound: one note a beat from it, on the bars nearest its pitches
+      await page.getByRole("button", { name: /Custom Sound/ }).click().catch(() => {});
+      await page.locator("#song-select").selectOption("fur-elise").catch(() => {});
+      melodyLoaded = await page
+        .waitForFunction(() => {
+          const select = document.querySelector("#song-select");
+          return !!select && !select.disabled && select.value === "fur-elise";
+        }, null, { timeout: 15000 })
+        .then(() => true)
+        .catch(() => false);
+      await page.getByRole("button", { name: /Custom Sound/ }).click().catch(() => {});
+    }
+    await page.waitForTimeout(500);
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "2x", exact: true }).click();
+    let nan = 0;
+    let rungs = 0;
+    const deadline = Date.now() + 120_000;
+    while (Date.now() < deadline) {
+      const d = await canvasData();
+      nan = Math.max(nan, Number(d.bmNan) || 0);
+      rungs = Math.max(rungs, Number(d.bmRungs) || 0);
+      if (Number(d.bmSeams) >= 2) break;
+      await page.waitForTimeout(250);
+    }
+    const d = await canvasData();
+    if (preset.id === "xylophone") await page.screenshot({ path: path.join(outDir, "sim-beat-machine-marbles.png") });
+    if (preset.id === "eightSteps") await page.screenshot({ path: path.join(outDir, "sim-beat-machine-stairs.png") });
+    const notes = Number(d.bmNotes);
+    const seamNotes = (d.bmSeamNotes || "").split(",").filter(Boolean).map(Number);
+    const title = preset.id === "eightSteps" ? await page.evaluate(() => (window.__bmHud || []).some((t) => t === "each step plays a note")) : null;
+    bmRuns.push({ id: preset.id, query: query.toString().slice(0, 120), variant: d.bmVariant, loop: d.bmLoop, notes, seamNotes, err: d.bmSeamError, nan, rungs, source: d.bmSource, melodyLoaded, title, hud: d.loopHud, played: d.bmPlayed, sounds: d.bmSounds });
+    check(
+      `Beat Machines preset ${preset.id} runs two whole loops at 2×: notes × loops by each seam, the start's state at each seam, no NaN`,
+      d.bmVariant === preset.variant && Math.abs(Number(d.bmLoop) - preset.loop) < 1e-3 && notes > 0 && (preset.notes === 0 || notes === preset.notes) && seamNotes.length >= 2 && seamNotes[0] === notes && seamNotes[1] === 2 * notes && Number(d.bmSeamError) < 1e-6 && d.bmNan === "0" && nan === 0 && d.loopHud === "1" &&
+        (preset.variant === "marbles" ? rungs > 0 && Number(d.bmMarbles) >= 10 : true) && (preset.id === "yourMelody" ? melodyLoaded === true && d.bmSource === "melody" : true) && (preset.id === "eightSteps" ? title === true && query.get("bmV") === "stairs" : true),
+      `(${JSON.stringify(bmRuns[bmRuns.length - 1])})`,
+    );
+  }
+
+  // A link carries the bm… keys into the panel and the plan: a 5-step staircase at 120 BPM with 3 return beats loops in 4 s.
+  await page.goto(`${BASE}/en/simulator/?mode=beatMachine&bmV=stairs&bmSt=5&bmBpm=120&bmRt=3&bmSrc=scale`, { waitUntil: "networkidle" });
+  const linkSection = page.getByTestId("beat-machine-section");
+  const linkInfo = { variant: await linkSection.getAttribute("data-bm-variant").catch(() => null), source: await linkSection.getAttribute("data-bm-source").catch(() => null), beats: await linkSection.getAttribute("data-bm-beats").catch(() => null), loop: await linkSection.getAttribute("data-bm-loop").catch(() => null) };
+  const linkRun = await canvasData();
+  const linkQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "a Beat Machines link (bmV, bmSt, bmBpm, bmRt, bmSrc) sets the panel and plans the run: 5 steps + 3 return beats at 120 BPM loop in 4 s",
+    linkInfo.variant === "stairs" && linkInfo.source === "scale" && linkInfo.beats === "8" && linkInfo.loop === "4" && linkRun.bmVariant === "stairs" && linkRun.bmNotes === "5" && Math.abs(Number(linkRun.bmLoop) - 4) < 1e-3 && linkRun.loopCycle !== undefined && linkQuery.get("bmSt") === "5" && linkQuery.get("bmRt") === "3",
+    `(${JSON.stringify({ linkInfo, run: { variant: linkRun.bmVariant, notes: linkRun.bmNotes, loop: linkRun.bmLoop, cycle: linkRun.loopCycle }, query: linkQuery.toString() })})`,
+  );
+
+  // Find Simulation: the marble machine's two outcomes; the busiest seeded tune is found and its whole loops become the clip.
+  await page.goto(`${BASE}/en/simulator/?mode=beatMachine&bmMt=2`, { waitUntil: "networkidle" });
+  const bmOutcomes = await page.locator("#find-outcome option").evaluateAll((options) => options.map((o) => o.value)).catch(() => []);
+  await page.locator("#find-outcome").selectOption("most-in-flight").catch(() => {});
+  const busyButton = page.getByRole("button", { name: /Find the Busiest Tune/ });
+  const busyLabelled = await busyButton.isVisible().catch(() => false);
+  await busyButton.click().catch(() => {});
+  const busyText = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 60_000 }).then(() => page.getByText(/Found!|Didn't find simulation/).first().innerText()).catch(() => "timeout");
+  await page.waitForTimeout(400);
+  const busyQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "Find Simulation offers No tube conflict and Most marbles in flight for the marble machine and finds the busiest tune (whole loops in the clip)",
+    bmOutcomes.join(",") === "no-tube-conflict,most-in-flight" && busyLabelled && /Found! Up to \d+ marbles in flight at once/.test(busyText) && busyQuery.get("dur") !== null && Number(busyQuery.get("dur")) >= 19,
+    `(${JSON.stringify({ outcomes: bmOutcomes, labelled: busyLabelled, text: busyText, query: busyQuery.toString() })})`,
+  );
+
+  // ⚡ A fast export of a 20 s staircase clip with Export whole loops (on by default): two whole 9 s loops, and the export's
+  // engine plays notes × loops plucks by its seams (read off its hidden canvas while it renders).
+  await page.goto(`${BASE}/en/simulator/?mode=beatMachine&bmV=stairs&bmBpm=80&dur=20&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const bmWebCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (bmWebCodecs) {
+    await page.evaluate(() => {
+      const seen = { seamNotes: "", notes: 0, time: 0 };
+      window.__bmExport = seen;
+      new MutationObserver((records) => {
+        for (const r of records) {
+          const el = r.target;
+          if (!(el instanceof HTMLCanvasElement) || el.style.display !== "none") continue;
+          seen.seamNotes = el.dataset.bmSeamNotes || "";
+          seen.notes = Number(el.dataset.bmNotes);
+          seen.time = Number(el.dataset.bmTime);
+        }
+      }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-bm-seam-notes", "data-bm-time"] });
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `beat-machine-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const exported = await page.evaluate(() => window.__bmExport);
+    const seamNotes = exported.seamNotes.split(",").filter(Boolean).map(Number);
+    check(
+      "a Beat Machines fast export keeps two whole 9 s staircase loops (Export whole loops) and plays notes × loops by its seams",
+      status === "done" && bytes > 10000 && loops === 2 && Math.abs(seconds - 18) <= 1 / 30 + 0.002 && exported.notes === 8 && seamNotes.length >= 2 && seamNotes[0] === 8 && seamNotes[1] === 16,
+      `(${JSON.stringify({ status, bytes, seconds, loops, exported })})`,
+    );
+  } else check("without WebCodecs the Beat Machines fast export is not checked (the live runs are covered above)", true);
+}
+// --- end beat-machine ---
+});
+
+await smokeBlock("funnel-spin", async () => {
+// --- funnel-spin ---
+// 44. Sound Vortex Funnel Spin-up (the ring waves and the perspective view): the Ring of 24 preset travels in the link (vxrl, vxv,
+// vxl, the navy page, the loop HUD) and the Funnel controls read it back; the search finds them; the preset runs 24 s of
+// simulation at 2× – 42 marbles swallowed in the first cycle, the refill on the loop point (data-vortex-last-refill-ms = the
+// cycle, data-loop-cycle), the perspective drawn (the pale rim ellipses, glossy marbles), the HUD's lowercase title, the lap chimes on C major pentatonic and the rolling hiss's 1.2 kHz band-pass; Find Simulation offers Last ring on a
+// bar and puts a 100 BPM page's last ring on its bar lines (vxwi); a fast export with Export whole loops keeps two whole cycles
+// with the chimes in its own audio; and a free visitor's live watermark badge stays clear of the HUD's lines.
+{
+  await page.goto(`${BASE}/en/simulator/?mode=vortex`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("funnel-spin-section");
+  await page.locator('[data-fs-preset="ring24"]').first().click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  const info = { release: await section.getAttribute("data-fs-release"), view: await section.getAttribute("data-fs-view"), marbles: await section.getAttribute("data-fs-marbles"), cycle: await section.getAttribute("data-fs-cycle") };
+  check(
+    "the Ring of 24 preset travels in the link (rings, perspective, the loop, the navy page, the loop HUD) and the Funnel block reads it",
+    query.get("mode") === "vortex" && query.get("vxrl") === "rings" && query.get("vxv") === "perspective" && query.get("vxl") === "1" && query.get("lh") === "1" && query.get("bg1") === "#060914" && !query.has("vxw") && info.release === "rings" && info.view === "perspective" && info.marbles === "42" && Math.abs(Number(info.cycle) - 22.517) < 0.01,
+    `(${query.toString()}, ${JSON.stringify(info)})`,
+  );
+  // the controls → the URL: the waves typed, the elevation and the spin friction moved
+  const waves = page.getByTestId("fs-waves");
+  await waves.fill("4, 8");
+  await waves.press("Enter");
+  await page.locator('input[aria-label="Camera Elevation"]').evaluate(setRangeValue, "40");
+  await page.locator('input[aria-label="Spin Friction"]').evaluate(setRangeValue, "0.03");
+  await page.waitForTimeout(400);
+  const moved = new URLSearchParams(page.url().split("?")[1] || "");
+  check("the Funnel controls mirror into the URL (vxw, vxe, vxsf)", moved.get("vxw") === "4,8" && moved.get("vxe") === "40" && moved.get("vxsf") === "0.03" && (await section.getAttribute("data-fs-marbles")) === "12", `(${moved.toString()})`);
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxrl=rings&vxv=perspective&vxw=5,10&vxwi=3&vxe=60&vxfd=2&vxh=20&vxrg=2&vxlr=1`, { waitUntil: "networkidle" });
+  const values = { vxwi: await sliderValue("Wave Interval"), vxe: await sliderValue("Camera Elevation"), vxfd: await sliderValue("Funnel Depth"), vxh: await sliderValue("Hole Size"), vxrg: await sliderValue("Refill Gap") };
+  const typed = await page.getByTestId("fs-waves").inputValue();
+  const readout = await section.getByRole("switch", { name: switchName("Lap Readout") }).getAttribute("aria-checked");
+  const rings = await section.getByRole("group", { name: "Release", exact: true }).getByRole("button", { name: "Ring waves", exact: true }).getAttribute("aria-pressed");
+  check("the Funnel block loads from the URL (waves, interval, camera, depth, hole, refill gap, the lap readout, the ring release)", values.vxwi === "3" && values.vxe === "60" && values.vxfd === "2" && values.vxh === "20" && values.vxrg === "2" && typed === "5, 10" && readout === "true" && rings === "true", `(${JSON.stringify({ values, typed, readout, rings })})`);
+  await page.getByPlaceholder("Search settings...").fill("spin friction");
+  const found = await page.locator('input[aria-label="Spin Friction"]').isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the Funnel controls", found && hidden, `(spin friction=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // The Ring of 24 for 24 s of simulation at 2×: 42 marbles swallowed in the first cycle, the refill on the loop point.
+  await page.goto(`${BASE}/en/simulator/?mode=vortex`, { waitUntil: "networkidle" });
+  await page.locator('[data-fs-preset="ring24"]').first().click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await page.evaluate(() => {
+    const log = { osc: [], filters: [], texts: [], rims: 0, marbles: 0 };
+    window.__fsLog = log;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (!(this.context instanceof OfflineAudioContext) && log.osc.length < 20000) log.osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const createBiquad = BaseAudioContext.prototype.createBiquadFilter;
+    BaseAudioContext.prototype.createBiquadFilter = function () {
+      const node = createBiquad.call(this);
+      if (!(this instanceof OfflineAudioContext) && log.filters.length < 4000) log.filters.push(node);
+      return node;
+    };
+    const main = () => document.querySelector("main canvas");
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (this.canvas === main() && log.texts.length < 4000) log.texts.push({ text: String(text), fill: String(this.fillStyle) });
+      return fillText.call(this, text, ...rest);
+    };
+    const ellipse = CanvasRenderingContext2D.prototype.ellipse;
+    CanvasRenderingContext2D.prototype.ellipse = function (...args) {
+      if (this.canvas === main() && String(this.strokeStyle).toLowerCase() === "#9fb3e0") log.rims++;
+      return ellipse.apply(this, args);
+    };
+    // The canvas reads a colour back as hex, so the marbles' hsl() fill is kept as it was set.
+    const fillStyle = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, "fillStyle");
+    Object.defineProperty(CanvasRenderingContext2D.prototype, "fillStyle", {
+      configurable: true,
+      get() {
+        return fillStyle.get.call(this);
+      },
+      set(value) {
+        this.__fsFill = String(value);
+        fillStyle.set.call(this, value);
+      },
+    });
+    const arc = CanvasRenderingContext2D.prototype.arc;
+    CanvasRenderingContext2D.prototype.arc = function (...args) {
+      if (this.canvas === main() && /^hsl\(/.test(this.__fsFill || "")) log.marbles++;
+      return arc.apply(this, args);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "2x", exact: true }).click();
+  const deadline = Date.now() + 90_000;
+  let run = await canvasData();
+  while (Date.now() < deadline) {
+    run = await canvasData();
+    if (Number(run.vortexTimeMs) >= 24_000) break;
+    await page.waitForTimeout(200);
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-funnel-spin.png") });
+  const heard = await page.evaluate(() => {
+    const log = window.__fsLog;
+    return { osc: log.osc.slice(), bands: log.filters.filter((f) => f.type === "bandpass").map((f) => f.frequency.value), texts: log.texts.splice(0).map((t) => t.text), rims: log.rims, marbles: log.marbles };
+  });
+  // the chimes: C major pentatonic from C5 (C5 D5 E5 G5 A5 C6 D6 E6)
+  const ladder = [72, 74, 76, 79, 81, 84, 86, 88].map((m) => 440 * 2 ** ((m - 69) / 12));
+  const chimes = heard.osc.filter((f) => ladder.some((p) => Math.abs(f - p) < 0.5)).length;
+  const cycle = Number(run.vortexCycle);
+  check(
+    "Ring of 24 runs 24 s at 2×: 42 marbles swallowed in the first cycle, the refill on the loop point, the perspective drawn, the HUD's title and subtitle, the lap chimes and the rolling hiss",
+    Number(run.vortexTimeMs) >= 24_000 && run.vortexRelease === "rings" && run.vortexView === "perspective" && run.vortexWaveSizes === "6,12,24" && run.vortexFirstCycleSwallowed === "42" && Number(run.vortexRefills) >= 1 && Math.abs(Number(run.vortexLastRefillMs) - 1000 * cycle) <= 17 && Math.abs(Number(run.loopCycle) - cycle) < 0.002 && Number(run.vortexLapChimes) >= 20 && Number(run.vortexWashes) >= 1 && heard.rims > 10 && heard.marbles > 100 && heard.texts.includes("why marbles speed up in a funnel") && chimes >= 5 && heard.bands.some((b) => Math.abs(b - 1200) < 1),
+    `(${JSON.stringify({ time: run.vortexTimeMs, release: run.vortexRelease, view: run.vortexView, sizes: run.vortexWaveSizes, first: run.vortexFirstCycleSwallowed, refills: run.vortexRefills, lastRefill: run.vortexLastRefillMs, cycle, loopCycle: run.loopCycle, laps: run.vortexLapChimes, washes: run.vortexWashes, rims: heard.rims, marbles: heard.marbles, chimes, bands: heard.bands.slice(0, 6), texts: [...new Set(heard.texts)].slice(0, 6) })})`,
+  );
+}
+{
+  // Find Simulation: Last ring on a bar – at 100 BPM (2.4 s bars) the wave interval moves the last vanish onto a bar line.
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxrl=rings&vxl=1&bpm=100`, { waitUntil: "networkidle" });
+  const outcomes = await page.locator("#find-outcome option").evaluateAll((options) => options.map((o) => o.value)).catch(() => []);
+  await page.locator("#find-outcome").selectOption("ring-on-bar").catch(() => {});
+  const findButton = page.getByRole("button", { name: /Find the last ring on a bar/ });
+  const labelled = await findButton.isVisible().catch(() => false);
+  await findButton.click().catch(() => {});
+  const foundText = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 30_000 }).then(() => page.getByText(/Found!|Didn't find simulation/).first().innerText()).catch(() => "timeout");
+  await page.waitForTimeout(400);
+  const foundQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  const interval = Number(foundQuery.get("vxwi"));
+  const vanish = Number(/vanishes at ([\d.]+)s/.exec(foundText)?.[1] ?? NaN);
+  check(
+    "Find Simulation offers Last ring on a bar and puts a 100 BPM page's last ring on a bar line by the wave interval",
+    outcomes.includes("ring-on-bar") && labelled && /Found! Wave interval/.test(foundText) && Number.isFinite(interval) && interval !== 4.5 && Math.abs(vanish / 2.4 - Math.round(vanish / 2.4)) * 2.4 <= 0.021,
+    `(${JSON.stringify({ outcomes, labelled, foundText, query: foundQuery.toString() })})`,
+  );
+}
+{
+  // ⚡ A fast export with Export whole loops (on by default): a single ring, a 5.5 s cycle, two whole loops in a 12 s clip, the
+  // chimes in its own audio.
+  await page.goto(`${BASE}/en/simulator/?mode=vortex&vxrl=rings&vxl=1&vxw=6&vxsf=0.05&vxrg=0.5&dur=12&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const osc = [];
+      window.__fsOfflineOsc = osc;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.context instanceof OfflineAudioContext) osc.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+    });
+    const cycle = Number(await page.getByTestId("funnel-spin-section").getAttribute("data-fs-cycle"));
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `funnel-spin-loop-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const ladder = [72, 74, 76, 79, 81, 84, 86, 88].map((m) => 440 * 2 ** ((m - 69) / 12));
+    const heard = await page.evaluate((ladder) => ({ osc: window.__fsOfflineOsc.length, chimes: window.__fsOfflineOsc.filter((f) => ladder.some((p) => Math.abs(f - p) < 0.5)).length }), ladder);
+    check(
+      "a Funnel Spin-up fast export with Export whole loops keeps two whole cycles of one ring and plays its chimes through its own audio",
+      status === "done" && bytes > 10000 && loops === 2 && Math.abs(seconds - 2 * cycle) <= 1 / 30 + 0.002 && cycle > 5 && cycle < 6 && heard.chimes >= 4,
+      `(${JSON.stringify({ status, bytes, seconds, cycle, loops, heard })})`,
+    );
+  } else check("without WebCodecs the Funnel Spin-up fast export is not checked (the loop is covered above)", true);
+}
+{
+  // A free visitor (no licence): the watermark tag on Record Video and Fast export, and the live badge clear of the HUD's lines.
+  const freeContext = await browser.newContext({ license: null, viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  try {
+    const fp = await freeContext.newPage();
+    await fp.goto(`${BASE}/en/simulator/?mode=vortex&vxrl=rings&vxv=perspective&vxl=1&lh=1&vxlr=1`, { waitUntil: "networkidle" });
+    await fp.evaluate(() => {
+      const log = { draws: [], texts: [] };
+      window.__fsMark = log;
+      const main = () => document.querySelector("main canvas");
+      const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+      CanvasRenderingContext2D.prototype.drawImage = function (img, ...rest) {
+        if (this.canvas === main() && log.draws.length < 20000) log.draws.push({ w: img.width, h: img.height, x: rest[0], y: rest[1], cw: this.canvas.width, ch: this.canvas.height });
+        return drawImage.call(this, img, ...rest);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+        if (this.canvas === main() && log.texts.length < 20000 && (text === "why marbles speed up in a funnel" || /^lap [\d.]+ s$/.test(String(text)))) {
+          const m = this.getTransform();
+          const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 10) * m.d;
+          log.texts.push({ text: String(text), x: m.a * x + m.e, y: m.d * y + m.f, size, width: this.measureText(String(text)).width * m.a, fill: String(this.fillStyle) });
+        }
+        return fillText.call(this, text, x, y, ...rest);
+      };
+    });
+    await fp.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+    const tags = { record: await fp.getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").count(), fast: await fp.getByRole("button", { name: /Fast export/ }).locator("[data-watermark-tag]").count() };
+    await fp.getByRole("button", { name: /Start Simulator/ }).click();
+    await fp.waitForTimeout(7500);
+    const mark = await fp.evaluate(() => {
+      const { draws, texts } = window.__fsMark;
+      const badges = [];
+      for (let i = 1; i < draws.length; i++) {
+        const p = draws[i - 1];
+        if (p.x === 0 && p.y === 0 && p.w === p.cw && p.h === p.ch) badges.push(draws[i]);
+      }
+      const spots = [...new Map(badges.map((b) => [`${Math.round(b.x)},${Math.round(b.y)}`, b])).values()];
+      const lines = texts.slice(-8).map((t) => ({ x0: t.x - t.width / 2, x1: t.x + t.width / 2, y0: t.y - 0.6 * t.size, y1: t.y + 0.6 * t.size }));
+      const pill = (b) => ({ x: b.x + 0.2 * b.h, y: b.y + 0.2 * b.h, w: b.w - 0.4 * b.h, h: 0.6 * b.h });
+      const overlaps = spots.map(pill).filter((b) => lines.some((l) => b.x < l.x1 && b.x + b.w > l.x0 && b.y < l.y1 && b.y + b.h > l.y0)).length;
+      const lap = texts.filter((t) => /^lap /.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null;
+      return { spots: spots.map((b) => [Math.round(b.x), Math.round(b.y), b.w, b.h]), overlaps, count: texts.length, lap };
+    });
+    check(
+      "a free visitor's Funnel Spin-up page: the watermark tag on Record Video and Fast export, the live badge clear of the HUD's title and amber lap readout",
+      tags.record >= 1 && tags.fast >= 1 && mark.spots.length >= 1 && mark.overlaps === 0 && mark.count >= 2 && mark.lap === "#f2c46a",
+      `(${JSON.stringify({ tags, ...mark })})`,
+    );
+  } finally {
+    await freeContext.close().catch(() => {});
+  }
+}
+// --- end funnel-spin ---
 });
 
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
