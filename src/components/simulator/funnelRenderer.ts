@@ -1,4 +1,4 @@
-import { MAX_SPLASHES, SLOT_FLYING, type VortexView } from "@/lib/physics/modes/vortex";
+import { MAX_SPLASHES, SLOT_FLYING, depthRadiusScale, vortexDepth, type VortexView } from "@/lib/physics/modes/vortex";
 import { funnelDepthKey, funnelDrawOrder, funnelZ, projectFunnel, type FunnelFrame } from "@/lib/physics/funnelSpin";
 
 /*
@@ -13,6 +13,12 @@ import { funnelDepthKey, funnelDrawOrder, funnelZ, projectFunnel, type FunnelFra
  *
  * The ring release's overlay (both views): with the loop HUD off, its title and the optional lap readout in the corner of the
  * square (with the HUD on, the HUD carries them).
+ *
+ * --- review fix (funnel-spin) --- The ring release from above (`drawTopBodies()`): the same glossy marbles at their top-view
+ * places and sizes (the Ball Size times the depth cue). A ring's marbles each wear their own hue, so the page's ball pass – one
+ * cached sprite per colour and size, SPRITE_CACHE_CAP (64) of them – re-created a sprite and its gradient for most marbles of
+ * a ring of more than 64 on every frame (the Galaxy preset's 360: a fraction of the frame rate); drawn here, a marble costs a
+ * few path fills and nothing is allocated.
  */
 
 /** The funnel's look. */
@@ -40,6 +46,25 @@ export interface FunnelLabels {
   title: string;
   /** "lap 1.23 s" */
   lapTime: (seconds: string) => string;
+}
+
+/** A marble as a glossy sphere: its colour, a faint dark outline, a soft highlight and a specular dot (no allocation). */
+function glossyMarble(ctx: CanvasRenderingContext2D, x: number, y: number, radius: number, color: string) {
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, TWO_PI);
+  ctx.fill();
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
+  ctx.stroke();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
+  ctx.beginPath();
+  ctx.arc(x - 0.3 * radius, y - 0.3 * radius, 0.5 * radius, 0, TWO_PI);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.beginPath();
+  ctx.arc(x - 0.38 * radius, y - 0.4 * radius, 0.18 * radius, 0, TWO_PI);
+  ctx.fill();
 }
 
 export class FunnelLayer {
@@ -183,22 +208,7 @@ export class FunnelLayer {
     for (let i = 0; i < drawn; i++) {
       const s = this.slots[this.order[i]];
       projectFunnel(frame, view.slotR[s], view.slotTheta[s], this.p);
-      const { x, y } = this.p;
-      ctx.fillStyle = view.slotColor[s];
-      ctx.beginPath();
-      ctx.arc(x, y, radius, 0, TWO_PI);
-      ctx.fill();
-      ctx.lineWidth = 1;
-      ctx.strokeStyle = "rgba(0, 0, 0, 0.35)";
-      ctx.stroke();
-      ctx.fillStyle = "rgba(255, 255, 255, 0.35)";
-      ctx.beginPath();
-      ctx.arc(x - 0.3 * radius, y - 0.3 * radius, 0.5 * radius, 0, TWO_PI);
-      ctx.fill();
-      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-      ctx.beginPath();
-      ctx.arc(x - 0.38 * radius, y - 0.4 * radius, 0.18 * radius, 0, TWO_PI);
-      ctx.fill();
+      glossyMarble(ctx, this.p.x, this.p.y, radius, view.slotColor[s]);
     }
     // the front lip: every marble is inside the funnel, behind it
     ctx.lineWidth = Math.max(1.5, 0.75 * opts.wallThickness);
@@ -206,6 +216,26 @@ export class FunnelLayer {
     ctx.beginPath();
     this.ellipseAt(ctx, frame, frame.rim, frame.sinE >= 0 ? 0 : Math.PI, frame.sinE >= 0 ? Math.PI : TWO_PI);
     ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * --- review fix (funnel-spin) --- The ring release from above: every marble in the funnel as a glossy sphere at its place on
+   * the screen, sized as the run sizes its ball (the Ball Size times the depth cue), in slot order – the earlier, deeper waves
+   * first, so the newer rings above them sit on top. (No faces, emoji, trails or glow: the marbles are the funnel's, as in the
+   * perspective.)
+   */
+  drawTopBodies(ctx: CanvasRenderingContext2D, view: VortexView, opts: FunnelRenderOptions) {
+    const f = view.field;
+    if (!(f.rim > 0)) return;
+    const depth = view.settings.depthScale;
+    ctx.save();
+    ctx.globalAlpha = 1;
+    for (let s = 0; s < view.slotCount; s++) {
+      if (view.slotState[s] !== SLOT_FLYING) continue;
+      const radius = Math.max(1, opts.ballRadius * depthRadiusScale(vortexDepth(f, view.slotR[s]), depth));
+      glossyMarble(ctx, view.slotX[s], view.slotY[s], radius, view.slotColor[s]);
+    }
     ctx.restore();
   }
 
