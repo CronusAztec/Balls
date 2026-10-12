@@ -206,6 +206,7 @@ interface BallCountFields {
   flMatch?: string;
   /** --- land-claim --- Land Claim's own competitor count (2 and up): its first six competitors are teams, whatever the roster's size. */
   lcTeams?: number;
+  lcLayout?: string; // --- land-claim-pyramid --- (a pyramid may be played alone)
   /** --- fl-overhaul --- (Stage 5) Fight League's slots A–F: a bracket's sides are its pinned entrants (a boss rush's the boss and the challengers). */
   flFighterA?: string;
   flFighterB?: string;
@@ -230,6 +231,8 @@ export function effectiveBallCount(settings: BallCountFields): number {
   // (--- fl-overhaul --- Stage 5: the run's sides – a 3v3's two teams, a bracket's pinned entrants (at least one ball), a boss rush's boss and challengers)
   if (settings.mode === "fightLeague" && (settings.flMatch === "bracket" || settings.flMatch === "boss")) return Math.max(1, flSideCount(settings.flMatch, [settings.flFighterA, settings.flFighterB, settings.flFighterC, settings.flFighterD, settings.flFighterE, settings.flFighterF]));
   if (settings.mode === "fightLeague") return matchTeams(isFlMatch(settings.flMatch) ? settings.flMatch : "1v1");
+  // --- land-claim-pyramid --- a pyramid may be knocked down by one competitor alone (the clip's yellow balls): one ball to name, no battle
+  if (settings.mode === "landClaim" && settings.lcLayout === "pyramid" && settings.lcTeams !== undefined && Number.isFinite(settings.lcTeams) && Math.round(settings.lcTeams) <= 1) return 1;
   // --- land-claim --- Land Claim plays its own number of competitors too (the roster colours, names and flags the first ones; six at most are teams)
   if (settings.mode === "landClaim" && settings.lcTeams !== undefined && Number.isFinite(settings.lcTeams)) return Math.max(2, Math.min(MAX_TEAMS, Math.round(settings.lcTeams)));
   const n = settings.teams.length > 0 ? settings.teams.length : Math.max(settings.ballCount, settings.twoBalls ? 2 : 1);

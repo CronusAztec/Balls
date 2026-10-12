@@ -91,6 +91,7 @@ import type { FlSoundOption } from "@/lib/physics/modes/fightLeague"; // --- fl-
 // --- end fl-overhaul ---
 // --- land-claim --- the Land Claim mode (columns of blocks knocked off by competitors' balls)
 import { LAND_CLAIM_RANGES, defaultLandClaimFields, landClaimModeDefaults, readLandClaimParams, resolveLandClaimFields, writeLandClaimParams, type LcArena, type LcRule } from "@/lib/physics/modes/landClaim";
+import { LC_PYRAMID_RANGES, type LcLayout } from "@/lib/physics/landClaimPyramid"; // --- land-claim-pyramid ---
 // --- loop-foundation --- Grow's fill-and-loop upgrade (growth law, fill / hold / shrink, colour by size, markers, pitch) and the
 // loop contract / HUD settings (Export whole loops, the lowercase HUD)
 import { GROW_FILL_ENGINE_KEYS, GROW_FILL_RANGES, defaultGrowFillFields, readGrowFillParams, resolveGrowFillFields, writeGrowFillParams } from "@/lib/physics/growFill";
@@ -112,6 +113,8 @@ import { PHASE_SPIRAL_PICTURE_RANGES, readPhaseSpiralParams, writePhaseSpiralPar
 import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDefaults, readEllipseFociParams, resolveEllipseFociFields, writeEllipseFociParams, type EfLaunch, type EfOrientation, type EfReset, type EfSkin } from "@/lib/physics/ellipseFoci";
 // --- beat-machine --- Beat Machines (the marble xylophone and the eight-step staircase)
 import { BM_ENGINE_KEYS, BM_RANGES, beatMachineModeDefaults, defaultBeatMachineFields, readBeatMachineParams, resolveBeatMachineFields, writeBeatMachineParams, type BeatMachineFields } from "@/lib/physics/beatMachine";
+// --- ring-escape --- Classic's Ring Escape: the gap layout, the spiral step, the spin, the rainbow by ring, the time in the ring, the ring sounds
+import { RING_ESCAPE_RANGES, defaultRingEscapeFields, readRingEscapeParams, resolveRingEscapeFields, writeRingEscapeParams, type GapLayout, type RingEscapeFields, type RingSpin } from "@/lib/physics/ringEscape";
 // --- brick-rebuild --- Brick Smash (a picture of bricks smashed by multiplying balls, then rebuilt colour layer by colour layer)
 import { BRICK_REBUILD_ENGINE_KEYS, BRICK_REBUILD_RANGES, brickRebuildModeDefaults, defaultBrickRebuildFields, readBrickRebuildParams, resolveBrickRebuildFields, writeBrickRebuildParams, type BrickRebuildFields } from "@/lib/physics/brickRebuildSettings";
 
@@ -1030,6 +1033,20 @@ export interface SimulatorSettings {
   /** The HUD: the title, a bar per competitor and the counters (URL `lch`). */
   lcHud: boolean;
   // --- end land-claim ---
+  // --- land-claim-pyramid --- Land Claim's pyramid layout (lib/physics/landClaimPyramid.ts): a stepped pyramid knocked down block by block
+  /** wall (the default: the arena's wall of columns) | pyramid (a G × G stepped pyramid in the middle of a floor, shown isometrically) (URL `lcl`). */
+  lcLayout: LcLayout;
+  /** Columns along a side of the pyramid, 3–40 on the slider (any number from 3 typed; at most 1,000) (URL `lcg`). */
+  lcPyramidSize: number;
+  /** Steps of the natural pyramid (a column stands steps − its distance to the centre), 1–40 on the slider (URL `lcs`). */
+  lcSteps: number;
+  /** Blocks in all (the steps scaled to exactly this many), 0 = the natural count; 1,144 by default (URL `lcbk`). */
+  lcBlocks: number;
+  /** Rebuild and loop: the cleared pyramid builds itself again and the run starts over from its first frame (URL `lcrb`). */
+  lcRebuild: boolean;
+  /** Seconds the rebuild lasts (URL `lcrs`). */
+  lcRebuildSec: number;
+  // --- end land-claim-pyramid ---
   // --- loop-foundation --- Grow's fill and loop (lib/physics/growFill.ts; all off by default: the classic Grow)
   /** approach (the classic) | multiply | add (URL `gLaw`). */
   growLaw: GrowLaw;
@@ -1198,6 +1215,20 @@ export interface SimulatorSettings {
   bmBass: boolean;
   bmCounter: boolean;
   // --- end beat-machine ---
+  // --- ring-escape --- Classic's Ring Escape (lib/physics/ringEscape.ts; the physics ones travel in the physics config)
+  /** even | random | aligned | spiral: where each ring's gap starts (URL `regl`). */
+  gapLayout: GapLayout;
+  /** Degrees between neighbouring gaps of the spiral; 0–90 on the slider, any value from 0 typed (URL `ress`). */
+  gapSpiralStep: number;
+  /** alternate | together: the rings' turning (URL `resp`). */
+  ringSpin: RingSpin;
+  /** The rings in a rainbow by ring, red outside to cyan inside (URL `rerb`). */
+  ringRainbow: boolean;
+  /** "ring k: t s" under the rings (URL `retm`). */
+  ringTimer: boolean;
+  /** Plucks per bounce, a rising step per ring escaped, the chord at the way out (URL `resn`). */
+  ringSound: boolean;
+  // --- end ring-escape ---
   // --- brick-rebuild --- Brick Smash (lib/physics/brickRebuildSettings.ts; URL br…): the grid (`brC`, `brR`), the wall's share (`brW`),
   // the start balls and the spawn period (`brB`, `brE`), the balls' speed and size (`brV`, `brS`), the bricks' hits (`brH`), the
   // smash's limit (`brT`), the settle and the rebuild with its order (`brSt`, `brRb`, `brO`), the picture and its text (`brP`,
@@ -1235,14 +1266,15 @@ export function defaultGapSize(mode: ModeId) {
   return mode === "classic" ? 0.4 : 0.3;
 }
 
-// --- brick-rebuild --- Brick Smash's fields and, in Brick Smash only, the reference clip's look (the cream page, the loop HUD on)
-// are spread over the rest in a literal of their own: the literal below is at V8's ceiling for a fast object literal (127
-// entries – one more entry of any kind there makes every call about 40× slower, and the link and preset checks with it)
 export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
-  return { ...defaultSettingsBeforeBrickRebuild(mode), ...defaultBrickRebuildFields(), ...brickRebuildModeDefaults(mode) };
+  // --- ring-escape --- Classic's Ring Escape fields join the core defaults here, outside the one big literal below: past about
+  // 550 properties that literal leaves V8's fast path and every call gets 10–20× slower (links, presets, the finder, the daily
+  // deals all build settings), so further fields are better spread in here too.
+  return { ...coreDefaultSettings(mode), ...defaultRingEscapeFields(), ...defaultBrickRebuildFields(), ...brickRebuildModeDefaults(mode) }; // --- brick-rebuild --- (its fields, and in Brick Smash only the reference clip's look: the cream page, the loop HUD on)
 }
-// --- end brick-rebuild ---
-function defaultSettingsBeforeBrickRebuild(mode: ModeId = "classic"): Omit<SimulatorSettings, keyof BrickRebuildFields> {
+
+/** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */> {
   return {
     mode,
     gravity: 300,
@@ -1470,6 +1502,7 @@ export const RANGES = {
   ...PHASE_SPIRAL_PICTURE_RANGES, // --- phase-spiral --- (the tails; the arms are in POLYRHYTHM_RANGES)
   ...EF_RANGES, // --- ellipse-foci ---
   ...BM_RANGES, // --- beat-machine ---
+  ...RING_ESCAPE_RANGES, // --- ring-escape --- (the spiral's step)
   ...BRICK_REBUILD_RANGES, // --- brick-rebuild ---
 } as const;
 
@@ -1729,6 +1762,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writePhaseSpiralParams(settings, base, params); // --- phase-spiral ---: prar, prm, prtl, prls, prco
   writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
   writeBeatMachineParams(settings, base, params); // --- beat-machine ---: bmV, bmBpm, bmSt, bmDx, bmDy, bmB, bmDh, bmRb, bmRt, bmMt, bmSrc, bmN, bmL, bmBs, bmC
+  writeRingEscapeParams(settings, base, params); // --- ring-escape ---: regl, ress, resp, rerb, retm, resn
   writeBrickRebuildParams(settings, base, params); // --- brick-rebuild ---: brC, brR, brW, brB, brE, brV, brS, brH, brT, brSt, brRb, brO, brP, brTx, brD, brBd, brCp, brCc, brSp, brK, brKm, brHo, brOl
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
@@ -1901,6 +1935,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readPhaseSpiralParams(params, settings); // --- phase-spiral --- (whole arms from 1 up, a tail from 0 up, real booleans, a known palette)
   readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
   readBeatMachineParams(params, settings); // --- beat-machine --- (valid numbers from their minimum up, known options, a clean list, real booleans)
+  readRingEscapeParams(params, settings); // --- ring-escape --- (known layouts and spins, a step from 0 up, real booleans)
   readBrickRebuildParams(params, settings); // --- brick-rebuild --- (valid numbers from their minimum up, known options, clean text, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
@@ -2162,12 +2197,18 @@ export function engineSettingKeys(mode: ModeId): readonly string[] {
 const DP_FAN_ONLY_KEYS: ReadonlySet<string> = new Set(Object.keys(CHAOS_FAN_RANGES));
 const DP_HARP_ONLY_KEYS: ReadonlySet<string> = new Set(["dpCount", "dpSegments", "dpLength3", "dpMass3", "dpAngle3", "dpTrailSeconds", "dpStrings", "dpOctaves"]);
 const NO_INACTIVE_KEYS: ReadonlySet<string> = new Set();
+// --- land-claim-pyramid --- Land Claim builds one of two layouts: a wall run reads none of the pyramid's numbers, a pyramid run
+// none of the wall's columns and rows (a value past its slider there engages no extreme-values machinery and no ARENA FULL)
+const LC_PYRAMID_ONLY_KEYS: ReadonlySet<string> = new Set(Object.keys(LC_PYRAMID_RANGES));
+const LC_WALL_ONLY_KEYS: ReadonlySet<string> = new Set(["lcCols", "lcRows"]);
+// --- end land-claim-pyramid ---
 
 /**
  * --- chaos-fan --- (review fix) The keys of `engineSettingKeys(settings.mode)` the run does not read because the other
  * sub-rig of the mode is built (the Double Pendulum's fan or harp rig): `uncappedEngaged()` and `pastAnyMemoryCeiling()` skip them.
  */
-export function inactiveEngineKeys(settings: Pick<SimulatorSettings, "mode" | "dpFan">): ReadonlySet<string> {
+export function inactiveEngineKeys(settings: Pick<SimulatorSettings, "mode" | "dpFan"> & Partial<Pick<SimulatorSettings, "lcLayout">> /* --- land-claim-pyramid --- */): ReadonlySet<string> {
+  if (settings.mode === "landClaim") return settings.lcLayout === "pyramid" ? LC_WALL_ONLY_KEYS : LC_PYRAMID_ONLY_KEYS; // --- land-claim-pyramid ---
   if (settings.mode !== "doublePendulum") return NO_INACTIVE_KEYS;
   return settings.dpFan ? DP_HARP_ONLY_KEYS : DP_FAN_ONLY_KEYS;
 }
@@ -2368,6 +2409,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveHoopsFields(merged)); // --- bead-hoops --- valid numbers from their minimum up, a known ramp shape, real booleans
   Object.assign(merged, resolveEllipseFociFields(merged)); // --- ellipse-foci --- valid numbers from their minimum up, known options, real booleans
   Object.assign(merged, resolveBeatMachineFields(merged)); // --- beat-machine --- valid numbers from their minimum up, known options, a clean list, real booleans
+  Object.assign(merged, resolveRingEscapeFields(merged)); // --- ring-escape --- known layouts and spins, a step from 0 up, real booleans
   Object.assign(merged, resolveBrickRebuildFields(merged)); // --- brick-rebuild --- valid numbers from their minimum up, known options, clean text, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)

@@ -39,6 +39,7 @@ import { STAR_CHORDS_KEYS } from "./sections/StarChordsSection"; // --- chord-st
 import { HOOPS_KEYS } from "./sections/HoopsSection"; // --- bead-hoops ---
 import { ELLIPSE_FOCI_KEYS } from "./sections/EllipseFociSection"; // --- ellipse-foci ---
 import { BEAT_MACHINE_KEYS } from "./sections/BeatMachineSection"; // --- beat-machine ---
+import { RING_ESCAPE_KEYS } from "./sections/RingEscapeSection"; // --- ring-escape ---
 import { BRICK_REBUILD_KEYS } from "./sections/BrickRebuildSection"; // --- brick-rebuild ---
 import { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection";
 import { VORTEX_KEYS } from "./sections/VortexSection";
@@ -173,6 +174,7 @@ const BALL_INTERACTION_SET: ReadonlySet<string> = new Set(BALL_INTERACTION_KEYS)
 const WALL_WOBBLE_SET: ReadonlySet<string> = new Set(WALL_WOBBLE_KEYS);
 const EXIT_BEHAVIOR_SET: ReadonlySet<string> = new Set(EXIT_BEHAVIOR_KEYS); // --- gerald-exit-splat ---
 const SPLAT_BARRIER_SET: ReadonlySet<string> = new Set(SPLAT_BARRIER_KEYS); // --- gerald-exit-splat ---
+const RING_ESCAPE_SET: ReadonlySet<string> = new Set(RING_ESCAPE_KEYS); // --- ring-escape ---
 const VIDEO_BEATS_SET: ReadonlySet<string> = new Set(VIDEO_BEATS_KEYS);
 const BATCH_SET: ReadonlySet<string> = new Set(BATCH_KEYS);
 const BOT_SET: ReadonlySet<string> = new Set(BOT_KEYS);
@@ -212,5 +214,7 @@ export function sectionKeyShown(key: string, p: PanelShown, multipliers: boolean
   // --- gerald-exit-splat --- the moving exits in the ring modes with one exit a ring, the splat barrier in the ring modes
   if (EXIT_BEHAVIOR_SET.has(key)) return supportsMovingExits(p.mode);
   if (SPLAT_BARRIER_SET.has(key)) return supportsSplats(p.mode);
+  // --- ring-escape --- Classic's ring generation (the gap layout, the spin, the rainbow, the time in the ring, the ring sounds)
+  if (RING_ESCAPE_SET.has(key)) return p.mode === "classic";
   return true;
 }

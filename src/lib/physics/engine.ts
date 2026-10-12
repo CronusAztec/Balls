@@ -90,6 +90,7 @@ import type { RigView } from "./rigged"; // --- rigged ---
 import { TimelineRuntime, resizeGaps, type TimelineKey } from "@/lib/simulation/timeline"; // --- timeline ---
 import { ExitController, type ExitView } from "./movingExits"; // --- gerald-exit-splat ---
 import { SplatField } from "./splats"; // --- gerald-exit-splat ---
+import { ringGapPlanOf, ringGapStart, type RingEscapeView } from "./ringEscape"; // --- ring-escape ---
 import type {
   Ball,
   BallInteractionConfig,
@@ -953,6 +954,16 @@ export class PhysicsEngine {
   getCurrentMode() {
     return this.currentMode;
   }
+  // --- ring-escape ---
+  /** Classic's time in the ring (lib/physics/ringEscape.ts): the ring the run is in, since when, its escapes; null outside Classic. */
+  getRingEscapeView(): Readonly<RingEscapeView> | null {
+    return this.currentMode === this.classicMode ? this.classicMode.getRingView(this.circularWalls.length) : null;
+  }
+  /** Simulation time (ms) of every ring escaped so far in Classic (empty outside it). */
+  getRingEscapeTimes(): readonly number[] {
+    return this.currentMode === this.classicMode ? this.classicMode.getRingEscapes() : [];
+  }
+  // --- end ring-escape ---
 
   isAccumulationMode() {
     return this.currentMode === this.accumulationMode;
@@ -2344,6 +2355,8 @@ export class PhysicsEngine {
     const oldH = this._config.height;
     const oldWallCount = this._config.wallCount;
     const oldGap = this._config.gapSize;
+    const oldGapLayout = this._config.gapLayout; // --- ring-escape ---
+    const oldGapStep = this._config.gapSpiralStep; // --- ring-escape ---
     this._config = { ...this._config, ...patch };
     // --- bounce-math --- new rules or a new beat grid; a value the patch sets for a world setting a rule holds becomes its page value
     if (patch.bounceMath !== undefined) this.bounceMath.configure(this._config.bounceMath, this._elapsedMs);
@@ -2408,6 +2421,13 @@ export class PhysicsEngine {
     } else if (this.ringPassRadius() !== oldPass) {
       this.refitGaps(); // a bigger (or merged) ball: a gap it can no longer pass is widened, in place
     }
+    // --- ring-escape --- a new gap layout (or spiral step) lays Classic's rings out anew: the same rings, their gaps where the
+    // layout puts them, the rotations from 0 (so the spiral shows); the broken rings stay broken
+    if (this.currentMode === this.classicMode && ((patch.gapLayout !== undefined && patch.gapLayout !== oldGapLayout) || (patch.gapSpiralStep !== undefined && patch.gapSpiralStep !== oldGapStep && this._config.gapLayout === "spiral"))) {
+      this.restoreWallRadii();
+      this.initializeCircularWalls();
+    }
+    // --- end ring-escape ---
     // Re-applies the pulse to the current walls, or restores the base radii when breathing was just switched off – but
     // not while update() applies a step's keyframes: the step's first sub-step moves the walls then, and sweeps the move.
     if (!this.deferBreathing) this.applyBreathing();
@@ -2580,6 +2600,7 @@ export class PhysicsEngine {
   private wallRotationRate(index: number) {
     if (this.exitsHoldRings) return 0; // --- gerald-exit-splat --- moving exits hold their rings still (the exits move by themselves)
     const speed = (this._config.rotationSpeed ?? 1) * 0.8;
+    if (this._config.ringSpin === "together" && this.currentMode === this.classicMode) return speed; // --- ring-escape --- (every ring the same way: a spiral stays a spiral)
     return index % 2 === 0 ? speed : -speed;
   }
 
@@ -3172,11 +3193,14 @@ export class PhysicsEngine {
     const passRadius = this.ringPassRadius();
     this.circularWalls = [];
     this.wallRotations = [];
+    // --- ring-escape --- Classic's gap layout (lib/physics/ringEscape.ts): null for the classic even one, which keeps its own
+    // formula below (every old run replays exactly); a random layout draws one number a ring from the seeded RNG, inner to outer
+    const gapPlan = this.currentMode === this.classicMode ? ringGapPlanOf(this._config) : null;
     for (let i = 0; i < count; i++) {
       const radius = maxR * (0.4 + (0.6 / count) * (i + 1));
       // (widened only where the ball could never pass it – see passableGap(); every gap a ball fits through stays as set)
       const gap = passableGap(this._config.gapSize || 0.3, radius, passRadius);
-      const start = (TWO_PI * i) / count;
+      const start = gapPlan ? ringGapStart(gapPlan.layout, i, count, gapPlan.stepRad, () => this.random()) /* --- ring-escape --- */ : (TWO_PI * i) / count;
       this.circularWalls.push({ radius, gaps: [{ startAngle: start, endAngle: start + gap }] });
       this.wallRotations.push(0);
     }

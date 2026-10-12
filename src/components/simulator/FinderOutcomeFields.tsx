@@ -64,6 +64,8 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "no-tube-conflict": "outcomeNoTubeConflict",
   "most-in-flight": "outcomeMostInFlight",
   "ring-on-bar": "outcomeRingOnBar", // --- funnel-spin ---
+  "summit-last": "outcomeSummitLast", // --- land-claim-pyramid ---
+  "ring-at": "outcomeRingAt", // --- ring-escape ---
   // --- brick-rebuild ---
   "bricks-cleared-by": "outcomeBricksClearedBy",
   "last-brick-on-bar": "outcomeLastBrickOnBar",
@@ -108,6 +110,8 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "no-tube-conflict": "hintNoTubeConflict",
   "most-in-flight": "hintMostInFlight",
   "ring-on-bar": "hintRingOnBar", // --- funnel-spin ---
+  "summit-last": "hintSummitLast", // --- land-claim-pyramid ---
+  "ring-at": "hintRingAt", // --- ring-escape ---
   // --- brick-rebuild ---
   "bricks-cleared-by": "hintBricksClearedBy",
   "last-brick-on-bar": "hintLastBrickOnBar",
@@ -365,6 +369,34 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
         </div>
       )}
       {/* --- end chaos-fan --- */}
+      {/* --- ring-escape --- the first ring at a chosen second ± 0.5 s (the escape slider's range and field) */}
+      {outcome === "ring-at" && (
+        <div className="space-y-1.5" data-testid="finder-ring-at">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-ring-at">
+              {r("ringAt")}
+            </label>
+            <span className="text-xs font-mono text-accent">
+              {escapeAt.toFixed(1)}s ±{ESCAPE_AT_TOLERANCE_SEC}s
+            </span>
+          </div>
+          <input
+            id="find-ring-at"
+            type="range"
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={escapeAt}
+            disabled={disabled}
+            onChange={(e) => onEscapeAt(Number(e.target.value))}
+            aria-label={r("ringAt")}
+            className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
+            style={sliderStyle(escapeAt, range.min, range.max)}
+          />
+          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r("ringAt")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" />
+        </div>
+      )}
+      {/* --- end ring-escape --- */}
       {/* --- colour-sort --- the sort's time limit (the escape slider's range and field) and the colour to be sorted last */}
       {outcome === "sorted-by" && (
         <div className="space-y-1.5" data-testid="finder-sorted-by">
@@ -533,6 +565,10 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findMostInFlight");
     case "ring-on-bar": // --- funnel-spin ---
       return t("Rigged.findRingOnBar");
+    case "summit-last": // --- land-claim-pyramid ---
+      return t("Rigged.findSummitLast");
+    case "ring-at": // --- ring-escape ---
+      return t("Rigged.findRingAt", { time: c.escapeAt.toFixed(1) });
     // --- brick-rebuild ---
     case "bricks-cleared-by":
       return t("Rigged.findBricksClearedBy", { time: c.escapeAt.toFixed(1) });
@@ -606,6 +642,10 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundMostInFlight", { marbles: result.beatMachine?.inFlightMax ?? 0, loops: result.beatMachine?.loops ?? 0 });
     case "ring-on-bar": // --- funnel-spin --- (the interval and the friction found, the vanish, its bars and the loops in the clip)
       return t("Rigged.foundRingOnBar", { interval: (result.funnelSpin?.interval ?? 0).toFixed(2), friction: (result.funnelSpin?.friction ?? 0).toFixed(4), time: (result.funnelSpin?.vanishSec ?? 0).toFixed(2), bars: result.funnelSpin?.bars ?? 0, loops: result.funnelSpin?.loops ?? 0 });
+    case "summit-last": // --- land-claim-pyramid --- (the summit's fall, the cycle the clip loops)
+      return t("Rigged.foundSummitLast", { time: (result.summitAt ?? 0).toFixed(1), duration: result.duration.toFixed(1) });
+    case "ring-at": // --- ring-escape ---
+      return t("Rigged.foundRingAt", { time: (result.ringAt ?? 0).toFixed(2) });
     // --- brick-rebuild --- (the last brick's second, its distance from the bar line, the balls then; the clip is the first loop)
     case "bricks-cleared-by":
     case "last-brick-on-bar":
@@ -676,6 +716,10 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missNoTubeConflict", { spares: result.beatMachine?.spares ?? 0, seeds: result.seedsTested });
     case "ring-on-bar": // --- funnel-spin --- (no friction to slip down with, or no interval and friction within reach)
       return t("Rigged.missRingOnBar", { tested: result.seedsTested });
+    case "summit-last": // --- land-claim-pyramid --- (the fewest blocks standing elsewhere when the summit fell; −1: it never fell)
+      return result.duration < 0 ? t("Rigged.missNoSummit", { seeds: result.seedsTested }) : t("Rigged.missSummitLast", { count: Math.round(result.duration), seeds: result.seedsTested });
+    case "ring-at": // --- ring-escape ---
+      return result.ringAt === undefined ? t("Rigged.missNoRing", { seeds: result.seedsTested }) : t("Rigged.missRingAt", { time: result.ringAt.toFixed(1), seeds: result.seedsTested });
     // --- brick-rebuild --- (the closest smash: its last brick, its distance from the bar line, its balls; none ever cleared)
     case "bricks-cleared-by":
     case "last-brick-on-bar":
@@ -752,6 +796,12 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayNoTubeConflict", { tested: result.seedsTested, spares: result.beatMachine?.spares ?? 0 });
     case "ring-on-bar": // --- funnel-spin ---
       return t("Rigged.missRingOnBar", { tested: result.seedsTested });
+    case "summit-last": // --- land-claim-pyramid ---
+      return result.duration < 0 ? t("Rigged.overlayNoSummit", { tested: result.seedsTested }) : t("Rigged.overlaySummitLast", { tested: result.seedsTested, count: Math.round(result.duration) });
+    case "ring-at": // --- ring-escape ---
+      return result.ringAt === undefined
+        ? t("Rigged.overlayNoRing", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) })
+        : t("Rigged.overlayRingAt", { tested: result.seedsTested, closest: result.ringAt.toFixed(1), target: c.escapeAt.toFixed(1), tolerance: ESCAPE_AT_TOLERANCE_SEC });
     case "bricks-cleared-by": // --- brick-rebuild ---
     case "last-brick-on-bar":
     case "final-balls":
@@ -808,5 +858,6 @@ export function outcomeProgressText(t: Translate, outcome: FinderOutcomeKind | n
   if (outcome === "close") return progress.bestDuration < 100 ? t("Rigged.progressClose", { margin: progress.bestDuration.toFixed(1) }) : null; // --- land-claim ---
   if (outcome === "all-up-by") return progress.bestDuration > 0 ? t("Rigged.progressAllUpBy", { time: progress.bestDuration.toFixed(1) }) : null; // --- bead-hoops ---
   if (outcome === "diverges-at") return progress.bestDuration > 0 ? t("Rigged.progressDivergesAt", { time: progress.bestDuration.toFixed(1) }) : null; // --- chaos-fan ---
+  if (outcome === "ring-at") return progress.bestDuration > 0 ? t("Rigged.progressRingAt", { time: progress.bestDuration.toFixed(1) }) : null; // --- ring-escape ---
   return null;
 }
