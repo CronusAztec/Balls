@@ -1,0 +1,28 @@
+# --- cloudflare-site --- The public site on Cloudflare: the static export in ./out served as Workers static assets by the
+# "jumpingballslive" Worker, with jumpingballslive.com attached to it as a custom domain. Build first (root deployment,
+# so no base path):
+#   NEXT_PUBLIC_SITE_URL=https://jumpingballslive.com NEXT_PUBLIC_BASE_PATH= npm run build
+# then deploy with Wrangler (installed by the billing package: `cd billing && npm ci`):
+#   npx --prefix billing wrangler deploy
+# .github/workflows/cloudflare-deploy.yml does both on every push to the default branch. GitHub Pages
+# (.github/workflows/deploy.yml) keeps publishing the same site under its own URL; the two deploys are independent.
+# The billing Worker in billing/ has its own wrangler.toml.
+name = "jumpingballslive"
+compatibility_date = "2026-10-12"
+
+# Preview URL: https://jumpingballslive.jumpingballslive.workers.dev
+workers_dev = true
+
+# The domain itself: Wrangler attaches it to the Worker as a custom domain on deploy and creates the DNS records for it
+# (the zone jumpingballslive.com is on this account; the token needs the Workers Routes and DNS permissions for this).
+routes = [
+  { pattern = "jumpingballslive.com", custom_domain = true },
+  { pattern = "www.jumpingballslive.com", custom_domain = true },
+]
+
+[assets]
+directory = "./out"
+# Unknown URLs get the localised 404 page (scripts/postexport.mjs writes out/404.html), like GitHub Pages.
+not_found_handling = "404-page"
+# Every page is exported as <route>/index.html (next.config.ts: trailingSlash), so /x redirects to /x/.
+html_handling = "auto-trailing-slash"

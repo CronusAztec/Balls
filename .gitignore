@@ -46,6 +46,9 @@ yarn-error.log*
 /billing/.dev.vars
 /billing/.wrangler/
 
+# --- cloudflare-site --- Wrangler's cache for the site deploy (wrangler.toml at the root)
+/.wrangler/
+
 # --- fl-overhaul --- the Fight League tuner's per-division reports (scripts/fl-balance.mjs)
 /scripts/out/
 

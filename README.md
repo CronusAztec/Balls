@@ -233,6 +233,18 @@ and builds for the domain root (no base path) on the next run.
 **Other static hosts** (Netlify, Cloudflare Pages, S3, nginx…): run `npm run build` with `NEXT_PUBLIC_SITE_URL`
 set and upload `out/`. Point the host's "not found" page at `404.html`.
 
+### Deploying to Cloudflare (jumpingballslive.com)
+
+--- cloudflare-site --- The live site at **https://jumpingballslive.com** is the same export served as the static assets of
+the `jumpingballslive` Cloudflare Worker (`wrangler.toml` at the repository root, the domain attached to the Worker as a
+custom domain). `.github/workflows/cloudflare-deploy.yml` builds it for the root of the domain (no base path) and deploys
+it on every push to the default branch, or on demand from the *Actions* tab. It needs the same two repository secrets as
+the billing Worker's workflow (`CLOUDFLARE_API_TOKEN` with the *Edit Cloudflare Workers* permissions and
+`CLOUDFLARE_ACCOUNT_ID`) and reads the same repository variables as the GitHub Pages build. By hand:
+`NEXT_PUBLIC_SITE_URL=https://jumpingballslive.com NEXT_PUBLIC_BASE_PATH= npm run build`, then
+`npx --prefix billing wrangler deploy` (Wrangler comes with `cd billing && npm ci`). The GitHub Pages deploy is unchanged
+and keeps publishing to `https://cronusaztec.github.io/Balls/`.
+
 The browser smoke test (`scripts/smoke-test.mjs`, ~45 minutes on one runner) gates every deploy: the `smoke` job of
 `deploy.yml` – --- smoke-sharding --- a matrix of four shards that run at once, about 12 minutes each (see
 [Smoke test shards](#smoke-test-shards)) – builds the site under a base path, serves it with `scripts/serve-static.mjs` and
