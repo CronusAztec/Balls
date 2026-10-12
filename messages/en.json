@@ -2322,7 +2322,7 @@
     "lcLayoutTip": "Wall: the columns line the arena's wall (the battles). Pyramid: a stepped pyramid of columns stands in the middle of a floor, shown in 3D, and the balls knock it down block by block – the summit last.",
     "lcLayoutWall": "Wall",
     "lcLayoutPyramid": "Pyramid",
-    "lcpDesc": "Every ball that hits a column knocks its top block off; every eighth block knocked off adds another ball. The outer steps fall first and the summit last.",
+    "lcpDesc": "Every ball that hits a column knocks its top block off. Every eighth block knocked off adds another ball. The outer steps fall first and the summit last.",
     "lcPyramidSize": "Pyramid Size",
     "lcPyramidSizeTip": "Columns along each side of the pyramid's base (11 makes an 11 × 11 grid). Any number from 3 can be typed.",
     "lcpGrid": "{n} × {n}",

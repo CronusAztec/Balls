@@ -2322,7 +2322,7 @@
     "lcLayoutTip": "Pared: las columnas recorren la pared de la arena (las batallas). Pirámide: una pirámide escalonada de columnas se alza en el centro de un suelo, vista en 3D, y las bolas la derriban bloque a bloque: la cima, la última.",
     "lcLayoutWall": "Pared",
     "lcLayoutPyramid": "Pirámide",
-    "lcpDesc": "Cada bola que golpea una columna le arranca el bloque de arriba; cada octavo bloque arrancado añade otra bola. Los escalones de fuera caen primero y la cima, la última.",
+    "lcpDesc": "Cada bola que golpea una columna le arranca el bloque de arriba. Cada octavo bloque arrancado añade otra bola. Los escalones de fuera caen primero y la cima, la última.",
     "lcPyramidSize": "Tamaño de la pirámide",
     "lcPyramidSizeTip": "Columnas a lo largo de cada lado de la base de la pirámide (11 forma una cuadrícula de 11 × 11). Se puede escribir cualquier número desde 3.",
     "lcpGrid": "{n} × {n}",

@@ -2322,7 +2322,7 @@
     "lcLayoutTip": "Ściana: kolumny stoją wzdłuż ściany areny (bitwy). Piramida: schodkowa piramida z kolumn stoi na środku podłogi, pokazana w 3D, a kulki zbijają ją blok po bloku – szczyt na końcu.",
     "lcLayoutWall": "Ściana",
     "lcLayoutPyramid": "Piramida",
-    "lcpDesc": "Każda kulka, która uderzy w kolumnę, strąca jej górny blok; co ósmy strącony blok dodaje kolejną kulkę. Zewnętrzne stopnie padają pierwsze, a szczyt na końcu.",
+    "lcpDesc": "Każda kulka, która uderzy w kolumnę, strąca jej górny blok. Co ósmy strącony blok dodaje kolejną kulkę. Zewnętrzne stopnie padają pierwsze, a szczyt na końcu.",
     "lcPyramidSize": "Rozmiar piramidy",
     "lcPyramidSizeTip": "Liczba kolumn wzdłuż każdego boku podstawy piramidy (11 daje siatkę 11 × 11). Można wpisać dowolną liczbę od 3.",
     "lcpGrid": "{n} × {n}",
