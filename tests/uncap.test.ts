@@ -847,6 +847,16 @@ describe("uncap-all: the guard", () => {
     bmBpm: "a tempo",
     bmDrop: "a drop height in % of the panel",
     bmReturn: "beats of the return trip",
+    // --- drawing-machine --- (the swings are % of the figure, the phases angles; the ratio p : q only sets two periods – the
+    // marks and chords it brings are worked out from the clock and drawn every n-th past a frame's ceiling, `dmStride()`)
+    dmAmpX: "% of the figure's radius",
+    dmAmpY: "% of the figure's radius",
+    dmAmpR: "% of the figure's radius",
+    dmPhaseX: "degrees",
+    dmPhaseY: "degrees",
+    dmPhaseR: "degrees",
+    dmRatioP: "orbits of the inner planet a cycle (a period)",
+    dmRatioQ: "orbits of the outer planet a cycle (a period)",
   };
 
   it("gives every whole-number setting that sizes an allocation a memory-safety ceiling", () => {

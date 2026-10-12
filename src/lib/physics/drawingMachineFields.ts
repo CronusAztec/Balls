@@ -228,6 +228,24 @@ export function drawingMachineHudKeys(machine: DmMachine): { title: string; subt
     : { title: "DrawingMachine.canvasTitleHarmonograph", subtitle: "DrawingMachine.canvasSubtitleHarmonograph", counter: "" };
 }
 
+/** The translation key (`DrawingMachine` namespace) of a body's name. */
+export const DM_BODY_LABELS: Readonly<Record<DmBody, string>> = { mercury: "bodyMercury", venus: "bodyVenus", earth: "bodyEarth", mars: "bodyMars", jupiter: "bodyJupiter", saturn: "bodySaturn", uranus: "bodyUranus", neptune: "bodyNeptune" };
+
+/** The bodies in the orbits' title ("[a] and [b] draw a flower"): the Earth first when it is one of them, else the inner one first. */
+export function dmTitleBodies(inner: DmBody, outer: DmBody): [DmBody, DmBody] {
+  return outer === "earth" && inner !== "earth" ? [outer, inner] : [inner, outer];
+}
+
+/** The loop HUD's words of an orbits run: the title's bodies filled in ("[a]", "[b]" of the message) and the year's template. */
+export function dmOrbitsTitle(template: string, inner: DmBody, outer: DmBody, nameOf: (body: DmBody) => string): string {
+  const [a, b] = dmTitleBodies(inner, outer);
+  return template.replace("[a]", nameOf(a)).replace("[b]", nameOf(b));
+}
+/** The year counter's template for the HUD ("year [value]" → "year {value}": `LoopHudCounter.values.value`, one decimal). */
+export function dmYearTemplate(message: string): string {
+  return message.replace("[value]", "{value}");
+}
+
 /** A whole number as it is, any other number with at most `digits` decimals (trailing zeros dropped): the HUD's and the panel's words. */
 export function dmShort(value: number, digits = 2): string {
   return Number.isFinite(value) ? String(Number(value.toFixed(digits))) : "–";

@@ -16181,6 +16181,142 @@ await smokeBlock("funnel-spin", async () => {
 // --- end funnel-spin ---
 });
 
+await smokeBlock("drawing-machine", async () => {
+// --- drawing-machine ---
+// Drawing Machines (the loop family's harmonograph and orbit flowers): one full cycle of each machine at 4× – the harmonograph
+// draws its trace, the paper scrolls exactly once (data-dm-scrolls) and the next sheet starts at the seam, the cream serif title
+// is drawn; the Earth and Venus preset's year counter reaches 8.0 (data-dm-peak-year), the five conjunctions are marked, the
+// rewind runs it back to 0.0 (data-dm-rewound-to) with one wash, and the HUD draws "year 8.0"; a link carries the dm… keys into
+// the panel and the cycle, the machine switch moves the page to the orbits' sky, Find Simulation stays hidden (the drawing is the
+// same for every seed), and a fast export with Export whole loops keeps two whole 5 s cycles.
+{
+  const hookHud = () =>
+    page.evaluate(() => {
+      const texts = [];
+      window.__dmHud = texts;
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        if (texts.length < 6000) texts.push({ text: String(text), font: String(this.font), fill: String(this.fillStyle) });
+        return fillText.call(this, text, ...rest);
+      };
+    });
+  // 1. the harmonograph (the mode's default): 22.5 s of drawing, a 1.5 s scroll, the seam at 24 s
+  await page.goto(`${BASE}/en/simulator/?mode=drawingMachine`, { waitUntil: "networkidle" });
+  await hookHud();
+  const hSection = await page.getByTestId("drawing-machine-section").getAttribute("data-dm-machine").catch(() => null);
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  let hMax = { trace: 0, scrollsAtSeam: -1, nan: 0, energyMin: 1 };
+  const hDeadline = Date.now() + 90_000;
+  while (Date.now() < hDeadline) {
+    const d = await canvasData();
+    hMax.trace = Math.max(hMax.trace, Number(d.dmTrace) || 0);
+    hMax.nan = Math.max(hMax.nan, Number(d.dmNan) || 0);
+    hMax.energyMin = Math.min(hMax.energyMin, Number(d.dmEnergy) || 1);
+    if (Number(d.dmCycleIndex) >= 1) {
+      hMax.scrollsAtSeam = Number(d.dmScrolls);
+      break;
+    }
+    await page.waitForTimeout(200);
+  }
+  const h = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-drawing-machine-harmonograph.png") });
+  const hHud = await page.evaluate(() => (window.__dmHud || []).filter((t) => t.text === "three pendulums, one pen").map((t) => t.font).slice(-1)[0] ?? null);
+  const hFinder = await page.getByRole("button", { name: /Find \d+s Simulation/ }).count();
+  check(
+    "Drawing Machines' harmonograph runs a full 24 s cycle at 4×: the trace drawn, the paper scrolls once, the next sheet at the seam, the cream serif title, no finder",
+    hSection === "harmonograph" && h.dmMachine === "harmonograph" && Math.abs(Number(h.dmCycle) - 24) < 1e-6 && Math.abs(Number(h.loopCycle) - 24) < 1e-3 && hMax.trace >= 22.5 * 240 && hMax.scrollsAtSeam === 1 && Number(h.dmRatchets) >= 1 && Number(h.dmDrones) > 100 && hMax.energyMin < 0.2 && hMax.nan === 0 && h.loopHud === "1" && typeof hHud === "string" && /Georgia/.test(hHud) && hFinder === 0,
+    `(${JSON.stringify({ section: hSection, cycle: h.dmCycle, loopCycle: h.loopCycle, ...hMax, ratchets: h.dmRatchets, drones: h.dmDrones, cycleIndex: h.dmCycleIndex, hud: h.loopHud, title: hHud, finder: hFinder })})`,
+  );
+
+  // 2. the Earth and Venus preset: 8 years at 1.8 s, a 1.5 s hold, a 3 s rewind (18.9 s)
+  await page.goto(`${BASE}/en/simulator/?mode=drawingMachine`, { waitUntil: "networkidle" });
+  await page.locator('[data-dm-preset="earthVenus"]').first().click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  await hookHud();
+  const oQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  let oSeen = { peak: 0, conj: 0, nan: 0 };
+  const oDeadline = Date.now() + 90_000;
+  while (Date.now() < oDeadline) {
+    const d = await canvasData();
+    oSeen.peak = Math.max(oSeen.peak, Number(d.dmPeakYear) || 0);
+    oSeen.conj = Math.max(oSeen.conj, Number(d.dmMarks) || 0);
+    oSeen.nan = Math.max(oSeen.nan, Number(d.dmNan) || 0);
+    if (Number(d.dmCycleIndex) >= 1) break;
+    if (d.dmPhase === "hold") await page.screenshot({ path: path.join(outDir, "sim-drawing-machine-orbits.png") }).catch(() => {});
+    await page.waitForTimeout(200);
+  }
+  const o = await canvasData();
+  const oHud = await page.evaluate(() => {
+    const texts = window.__dmHud || [];
+    return { year: texts.filter((t) => t.text === "year 8.0").map((t) => t.fill).slice(-1)[0] ?? null, zero: texts.some((t) => t.text === "year 0.0"), title: texts.some((t) => t.text === "earth and venus draw a flower") };
+  });
+  check(
+    "Drawing Machines' Earth and Venus preset runs a full cycle at 4×: the year counter reaches 8.0 and then 0.0, five conjunctions a cycle, one wash on the rewind, the amber year HUD",
+    o.dmMachine === "orbits" && oQuery.get("dmm") === "orbits" && Math.abs(Number(o.dmCycle) - 18.9) < 1e-6 && oSeen.peak === 8 && o.dmLastPeakYear === "8.0" && o.dmRewoundTo === "0.0" && o.dmConjCycle === "5" && o.dmChordsCycle === "365" && oSeen.conj === 6 && Number(o.dmPlucks) >= 6 && Number(o.dmWashes) >= 1 && Number(o.dmBeds) >= 8 && oSeen.nan === 0 && oHud.year === "#f2c46a" && oHud.zero && oHud.title,
+    `(${JSON.stringify({ cycle: o.dmCycle, ...oSeen, lastPeak: o.dmLastPeakYear, rewoundTo: o.dmRewoundTo, conjCycle: o.dmConjCycle, chords: o.dmChordsCycle, plucks: o.dmPlucks, washes: o.dmWashes, beds: o.dmBeds, hud: oHud, query: oQuery.toString().slice(0, 160) })})`,
+  );
+
+  // 3. a link carries the dm… keys into the panel and the cycle; the machine switch moves an untouched page to the orbits' sky
+  await page.goto(`${BASE}/en/simulator/?mode=drawingMachine&dmm=orbits&dmy=4&dmspy=1&dmh=0.5&dmrw=1&dmbi=jupiter&dmbo=saturn&dmp=5&dmq=2`, { waitUntil: "networkidle" });
+  const linkSection = page.getByTestId("drawing-machine-section");
+  const linkInfo = { machine: await linkSection.getAttribute("data-dm-machine").catch(() => null), cycle: await linkSection.getAttribute("data-dm-cycle").catch(() => null) };
+  const linkRun = await canvasData();
+  const linkQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.goto(`${BASE}/en/simulator/?mode=drawingMachine`, { waitUntil: "networkidle" });
+  await page.locator('[data-dm-option="dmMachine:orbits"]').first().click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const switched = { machine: await page.getByTestId("drawing-machine-section").getAttribute("data-dm-machine").catch(() => null), run: (await canvasData()).dmMachine, query: new URLSearchParams(page.url().split("?")[1] || "") };
+  check(
+    "a Drawing Machines link (dmm, dmy, dmspy, dmh, dmrw, dmbi, dmbo, dmp, dmq) sets the panel and the 5.5 s cycle; the machine switch moves the page to the orbits",
+    linkInfo.machine === "orbits" && linkInfo.cycle === "5.5" && linkRun.dmMachine === "orbits" && Math.abs(Number(linkRun.dmCycle) - 5.5) < 1e-6 && linkRun.dmConjCycle === "3" && linkQuery.get("dmbi") === "jupiter" && linkQuery.get("dmp") === "5" &&
+      switched.machine === "orbits" && switched.run === "orbits" && switched.query.get("dmm") === "orbits" && (switched.query.get("bg1") ?? "").toLowerCase().includes("05060c"),
+    `(${JSON.stringify({ linkInfo, run: { machine: linkRun.dmMachine, cycle: linkRun.dmCycle, conj: linkRun.dmConjCycle }, query: linkQuery.toString(), switched: { ...switched, query: switched.query.toString().slice(0, 200) } })})`,
+  );
+
+  // 4. ⚡ a fast export of a 12 s clip of a 5 s harmonograph cycle with Export whole loops (on by default): two whole cycles
+  await page.goto(`${BASE}/en/simulator/?mode=drawingMachine&dmds=4.5&dmss=0.5&dur=12&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const dmWebCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (dmWebCodecs) {
+    await page.evaluate(() => {
+      const seen = { scrolls: 0, cycles: 0 };
+      window.__dmExport = seen;
+      new MutationObserver((records) => {
+        for (const r of records) {
+          const el = r.target;
+          if (!(el instanceof HTMLCanvasElement) || el.style.display !== "none") continue;
+          seen.scrolls = Math.max(seen.scrolls, Number(el.dataset.dmScrolls) || 0);
+          seen.cycles = Math.max(seen.cycles, Number(el.dataset.dmCycleIndex) || 0);
+        }
+      }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-dm-scrolls", "data-dm-cycle-index"] });
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `drawing-machine-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const exported = await page.evaluate(() => window.__dmExport);
+    check(
+      "a Drawing Machines fast export keeps two whole 5 s harmonograph cycles (Export whole loops), the paper scrolling in each",
+      status === "done" && bytes > 10000 && loops === 2 && Math.abs(seconds - 10) <= 1 / 30 + 0.002 && exported.scrolls >= 2,
+      `(${JSON.stringify({ status, bytes, seconds, loops, exported })})`,
+    );
+  } else check("without WebCodecs the Drawing Machines fast export is not checked (the live runs are covered above)", true);
+}
+// --- end drawing-machine ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

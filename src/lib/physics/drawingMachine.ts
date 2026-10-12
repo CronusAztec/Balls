@@ -459,6 +459,19 @@ export function chordsPerCycle(years: number, dt: number): number {
   return dt > 0 ? Math.floor(years / dt + EPS) : 0;
 }
 
+/**
+ * What a frame draws at most of a cycle's chords and conjunction marks (the accumulation layer replays them on a rewind or a
+ * resize): past it every n-th one is drawn (`dmStride()`), so a chord every hour over a thousand years still draws in a frame –
+ * cheaper, never stalled. The chords and the marks are worked out from the clock, so nothing is allocated for them.
+ */
+export const DM_CHORD_DRAW_CEILING = 20_000;
+export const DM_MARK_DRAW_CEILING = 2_000;
+/** Every n-th of `count` things a frame draws to stay within `ceiling` (1: all of them). */
+export function dmStride(count: number, ceiling: number): number {
+  if (!(count > ceiling) || !(ceiling >= 1)) return 1;
+  return Number.isFinite(count) ? Math.ceil(count / ceiling) : Number.MAX_SAFE_INTEGER;
+}
+
 /** The chords drawn by year `t` of a cycle: those at dt, 2·dt, … ≤ t (at most `total`). */
 export function chordsBy(t: number, dt: number, total: number): number {
   if (!(t > 0) || !(dt > 0)) return 0;

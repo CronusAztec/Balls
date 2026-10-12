@@ -112,6 +112,9 @@ import { PHASE_SPIRAL_PICTURE_RANGES, readPhaseSpiralParams, writePhaseSpiralPar
 import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDefaults, readEllipseFociParams, resolveEllipseFociFields, writeEllipseFociParams, type EfLaunch, type EfOrientation, type EfReset, type EfSkin } from "@/lib/physics/ellipseFoci";
 // --- beat-machine --- Beat Machines (the marble xylophone and the eight-step staircase)
 import { BM_ENGINE_KEYS, BM_RANGES, beatMachineModeDefaults, defaultBeatMachineFields, readBeatMachineParams, resolveBeatMachineFields, writeBeatMachineParams, type BeatMachineFields } from "@/lib/physics/beatMachine";
+// --- drawing-machine --- Drawing Machines (the three-pendulum harmonograph and the planets' orbit flowers)
+import { DM_RANGES } from "@/lib/physics/drawingMachine";
+import { DM_ENGINE_KEYS, defaultDrawingMachineFields, drawingMachineModeDefaults, readDrawingMachineParams, resolveDrawingMachineFields, writeDrawingMachineParams, type DrawingMachineFields } from "@/lib/physics/drawingMachineFields";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -1196,6 +1199,43 @@ export interface SimulatorSettings {
   bmBass: boolean;
   bmCounter: boolean;
   // --- end beat-machine ---
+  // --- drawing-machine --- Drawing Machines (lib/physics/drawingMachine.ts, drawingMachineFields.ts): the harmonograph and the orbits (URL dm…)
+  /** harmonograph | orbits (URL `dmm`). */
+  dmMachine: DrawingMachineFields["dmMachine"];
+  /** Harmonograph: the lateral swing's frequency in Hz (`dmf`), the vertical one's detune in % (`dmdt`), the rotary ratio (`dmrr`). */
+  dmFreq: number;
+  dmDetune: number;
+  dmRotary: number;
+  /** Friction: the swings' time constant τ in seconds (`dmtau`). */
+  dmDamping: number;
+  /** Amplitudes, % of the figure's radius (`dmax`, `dmay`, `dmar`), and phases in degrees (`dmpx`, `dmpy`, `dmpr`). */
+  dmAmpX: number;
+  dmAmpY: number;
+  dmAmpR: number;
+  dmPhaseX: number;
+  dmPhaseY: number;
+  dmPhaseR: number;
+  /** Seconds of drawing (`dmds`) and of the paper's scroll (`dmss`). */
+  dmDraw: number;
+  dmScroll: number;
+  /** Orbits: the bodies (`dmbi`, `dmbo`), the ratio p : q (`dmp`, `dmq`), Exact ratio (`dmx`), the radius ratio (`dmrad`). */
+  dmInner: DrawingMachineFields["dmInner"];
+  dmOuter: DrawingMachineFields["dmOuter"];
+  dmRatioP: number;
+  dmRatioQ: number;
+  dmExact: boolean;
+  dmRadius: number;
+  /** A chord every n days (`dmld`); years a cycle (`dmy`), seconds a year (`dmspy`), the hold (`dmh`) and the rewind (`dmrw`). */
+  dmLineDays: number;
+  dmYears: number;
+  dmSecPerYear: number;
+  dmHold: number;
+  dmRewind: number;
+  /** Join the conjunction marks (`dmpg`), the ink ramp (`dmi`) and the machine's sounds (`dms`). */
+  dmPentagram: boolean;
+  dmInk: DrawingMachineFields["dmInk"];
+  dmSound: boolean;
+  // --- end drawing-machine ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -1204,7 +1244,7 @@ export function defaultGapSize(mode: ModeId) {
   return mode === "classic" ? 0.4 : 0.3;
 }
 
-export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
+function buildDefaultSettings(mode: ModeId = "classic"): SimulatorSettings { // --- drawing-machine --- (built once a mode: `defaultSettings()` below)
   return {
     mode,
     gravity: 300,
@@ -1345,8 +1385,41 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- beat-machine --- the feature's fields, and in Beat Machines only the marble xylophone's look (the warm brown page, the loop HUD on)
     ...defaultBeatMachineFields(),
     ...beatMachineModeDefaults(mode),
+    // --- drawing-machine --- the feature's fields, and in Drawing Machines only the harmonograph's look (the dark wood, the loop HUD on)
+    ...defaultDrawingMachineFields(),
+    ...drawingMachineModeDefaults(mode),
   };
 }
+
+// --- drawing-machine --- (performance) The defaults of a mode are built once and handed out as copies. The object is some 580
+// properties added by one big literal of spreads; past ~550 of them V8 stopped caching the literal's shape and every build made
+// its maps anew (defaultSettings() went from ~0.2 ms to ~8 ms, a link's parse to ~50 ms, the settings tests timed out). A copy of
+// a built template keeps one shape: a spread clone, with the template's arrays and objects (colours, teams, obstacles, captions,
+// keyframes…) deep-copied so no two settings objects share them – exactly what a fresh build gave.
+const DEFAULT_SETTINGS_TEMPLATES = new Map<ModeId, { template: SimulatorSettings; nested: (keyof SimulatorSettings)[] }>();
+
+export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
+  let entry = DEFAULT_SETTINGS_TEMPLATES.get(mode);
+  if (!entry) {
+    const built = buildDefaultSettings(mode) as unknown as Record<string, unknown>;
+    // Every number field is laid out as a double from the start (a store of 1.5 into a field that held 8 widens the field,
+    // and widening a field of an object this size turned it into a slow dictionary for the rest of a link's parse): the
+    // numbers are made fractional, the object re-laid out by a clone, and the exact defaults put back.
+    const numbers = Object.keys(built).filter((key) => typeof built[key] === "number" && Number.isInteger(built[key]));
+    const widened: Record<string, unknown> = { ...built };
+    for (const key of numbers) widened[key] = (built[key] as number) + 0.5;
+    const template = { ...widened };
+    for (const key of numbers) template[key] = built[key];
+    const typed = template as unknown as SimulatorSettings;
+    const nested = (Object.keys(typed) as (keyof SimulatorSettings)[]).filter((key) => typeof typed[key] === "object" && typed[key] !== null);
+    entry = { template: typed, nested };
+    DEFAULT_SETTINGS_TEMPLATES.set(mode, entry);
+  }
+  const out = { ...entry.template };
+  for (const key of entry.nested) (out as unknown as Record<string, unknown>)[key] = structuredClone(entry.template[key]);
+  return out;
+}
+// --- end drawing-machine ---
 
 /** Slider ranges shared by the controls panel and URL validation. */
 export const RANGES = {
@@ -1432,6 +1505,7 @@ export const RANGES = {
   ...PHASE_SPIRAL_PICTURE_RANGES, // --- phase-spiral --- (the tails; the arms are in POLYRHYTHM_RANGES)
   ...EF_RANGES, // --- ellipse-foci ---
   ...BM_RANGES, // --- beat-machine ---
+  ...DM_RANGES, // --- drawing-machine ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1690,6 +1764,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writePhaseSpiralParams(settings, base, params); // --- phase-spiral ---: prar, prm, prtl, prls, prco
   writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
   writeBeatMachineParams(settings, base, params); // --- beat-machine ---: bmV, bmBpm, bmSt, bmDx, bmDy, bmB, bmDh, bmRb, bmRt, bmMt, bmSrc, bmN, bmL, bmBs, bmC
+  writeDrawingMachineParams(settings, base, params); // --- drawing-machine ---: dmm, dmf, dmdt, dmrr, dmtau, dmax, dmay, dmar, dmpx, dmpy, dmpr, dmds, dmss, dmbi, dmbo, dmp, dmq, dmx, dmrad, dmld, dmy, dmspy, dmh, dmrw, dmpg, dmi, dms
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1861,6 +1936,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readPhaseSpiralParams(params, settings); // --- phase-spiral --- (whole arms from 1 up, a tail from 0 up, real booleans, a known palette)
   readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
   readBeatMachineParams(params, settings); // --- beat-machine --- (valid numbers from their minimum up, known options, a clean list, real booleans)
+  readDrawingMachineParams(params, settings); // --- drawing-machine --- (valid numbers from their minimum up, whole ratios, known names, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -2083,6 +2159,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   hoops: rangeKeys(HOOPS_RANGES), // --- bead-hoops --- (every number of the hoops, the spin and the beads is physics)
   ellipseFoci: [...EF_ENGINE_KEYS], // --- ellipse-foci --- (the volley, the pool and the timing; the trail is the canvas')
   beatMachine: [...BM_ENGINE_KEYS], // --- beat-machine --- (every number of the machine is the plan's)
+  drawingMachine: [...DM_ENGINE_KEYS], // --- drawing-machine --- (every number of the machines is the clock's: the drawing and its timing)
 };
 // --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
@@ -2326,6 +2403,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveHoopsFields(merged)); // --- bead-hoops --- valid numbers from their minimum up, a known ramp shape, real booleans
   Object.assign(merged, resolveEllipseFociFields(merged)); // --- ellipse-foci --- valid numbers from their minimum up, known options, real booleans
   Object.assign(merged, resolveBeatMachineFields(merged)); // --- beat-machine --- valid numbers from their minimum up, known options, a clean list, real booleans
+  Object.assign(merged, resolveDrawingMachineFields(merged)); // --- drawing-machine --- valid numbers from their minimum up, whole ratios, known names, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

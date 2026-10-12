@@ -5,6 +5,9 @@ import { midiToFrequency } from "@/lib/audio/scales";
 import {
   DEFAULT_DRAWING_MACHINE_SETTINGS,
   DM_BODY_SPECS,
+  DM_CHORD_DRAW_CEILING,
+  DM_MARK_DRAW_CEILING,
+  DM_TRACE_CEILING,
   DmTrace,
   chordStepYears,
   chordsBy,
@@ -15,6 +18,7 @@ import {
   dmEase,
   dmInkStops,
   dmPhaseAt,
+  dmStride,
   dmTimeline,
   harmonographPendulums,
   orbitAngle,
@@ -158,10 +162,13 @@ export interface DrawingMachineView {
   innerY: number;
   outerX: number;
   outerY: number;
-  /** The chords: years between two, a cycle's, the ones drawn now. */
+  /** The chords: years between two, a cycle's, the ones drawn now, and every how many a frame draws (1: all; DM_CHORD_DRAW_CEILING). */
   chordDt: number;
   chordsPerCycle: number;
   chordsVisible: number;
+  chordStride: number;
+  /** Every how many of the conjunction marks a frame draws (1: all; DM_MARK_DRAW_CEILING). */
+  markStride: number;
   /** The conjunction marks: a cycle's (years 0 … years, the closing one included), the ones shown now, every conjunction so far. */
   marksPerCycle: number;
   marksVisible: number;
@@ -208,6 +215,7 @@ export class DrawingMachineMode implements GameMode {
   private startPending = true;
   private refreshPending = false;
   private stopPending = false;
+  private readonly hudCounter = { count: 0, values: { value: 0 }, decimals: 1 };
   private readonly scratchPen: DmPen = { x: 0, y: 0, vx: 0, vy: 0 };
   private readonly scratchPen2: DmPen = { x: 0, y: 0, vx: 0, vy: 0 };
 
@@ -229,7 +237,8 @@ export class DrawingMachineMode implements GameMode {
       ink: dmInkStops(s.ink, s.machine),
       pendulums: harmonographPendulums(s),
       rate: 240,
-      trace: new DmTrace(),
+      // (sized at init to what a sheet holds: an engine of another mode – every finder seed builds one – allocates nothing)
+      trace: new DmTrace(2),
       paperX: 0,
       paperY: 0,
       paperW: 0,
@@ -268,6 +277,8 @@ export class DrawingMachineMode implements GameMode {
       chordDt: 0,
       chordsPerCycle: 0,
       chordsVisible: 0,
+      chordStride: 1,
+      markStride: 1,
       marksPerCycle: 0,
       marksVisible: 0,
       conjunctions: 0,
@@ -310,6 +321,14 @@ export class DrawingMachineMode implements GameMode {
   refreshSound() {
     this.refreshPending = true;
   }
+  /** The loop HUD's counter: the orbits' year with one decimal ("year 8.0"; the same object every call), none for the harmonograph. */
+  hudCount(): { count: number; values: { value: number }; decimals: number } | null {
+    const v = this.view;
+    if (v.machine !== "orbits") return null;
+    this.hudCounter.count = v.yearShown;
+    this.hudCounter.values.value = v.yearShown;
+    return this.hudCounter;
+  }
 
   init(ctx: ModeContext) {
     ctx.setDestructionMode(false);
@@ -324,6 +343,9 @@ export class DrawingMachineMode implements GameMode {
     v.ink = dmInkStops(s.ink, s.machine);
     v.pendulums = harmonographPendulums(s);
     v.rate = traceRateHz(v.pendulums);
+    // the sheet's points (two a sample over the drawing), at most the memory-safety ceiling: past it the oldest are dropped
+    const capacity = s.machine === "harmonograph" ? Math.min(DM_TRACE_CEILING, Math.ceil(v.timeline.draw * v.rate) + 2) : 2;
+    if (v.trace.capacity !== Math.max(2, capacity)) v.trace = new DmTrace(capacity);
     this.speedRef = Math.max(1e-9, penSpeedRef(v.pendulums));
     v.periods = orbitPeriods(s);
     v.synodic = conjunctionPeriod(v.periods.inner, v.periods.outer);
@@ -331,6 +353,8 @@ export class DrawingMachineMode implements GameMode {
     v.chordsPerCycle = chordsPerCycle(s.years, v.chordDt);
     v.marksPerCycle = conjunctionsUpTo(s.years, v.synodic);
     v.conjPerCycle = conjunctionsPerCycle(s.years, v.synodic);
+    v.chordStride = dmStride(v.chordsPerCycle, DM_CHORD_DRAW_CEILING);
+    v.markStride = dmStride(v.marksPerCycle, DM_MARK_DRAW_CEILING);
     v.innerColor = DM_BODY_SPECS[s.inner].color;
     v.outerColor = DM_BODY_SPECS[s.outer].color;
     const bed = orbitsBedBars(v.timeline.cycle);
@@ -498,7 +522,8 @@ export class DrawingMachineMode implements GameMode {
         if (p.vx !== 0) this.lastVx = p.vx;
       }
       // the scroll: the ratchet runs while the paper moves
-      if (tl.scroll > 0 && ta < tl.draw && tb >= tl.draw - EPS) {
+      // (a stretch that crosses the drawing's end – one ending a hair short of it counts, so the next must start before it)
+      if (tl.scroll > 0 && ta < tl.draw - EPS && tb >= tl.draw - EPS) {
         v.scrolls++;
         if (sound) {
           v.ratchets++;

@@ -89,6 +89,7 @@ import { LOOP_HUD_MODE_TEXT, isLightColor, loopHudCount, loopHudFrame, type Loop
 import { loopHudMessageKey } from "@/lib/loop/hud"; // --- ellipse-foci ---
 import { EF_RESTART_FIELDS, ellipseFociSettingsOf } from "@/lib/physics/ellipseFoci"; // --- ellipse-foci ---
 import { BM_RESTART_FIELDS, beatMachineHudKeys, beatMachineSettingsOf } from "@/lib/physics/beatMachine"; // --- beat-machine ---
+import { DM_BODY_LABELS, DM_RESTART_FIELDS, dmOrbitsTitle, dmYearTemplate, drawingMachineHudKeys, drawingMachineSettingsOf } from "@/lib/physics/drawingMachineFields"; // --- drawing-machine ---
 import { WholeLoopCut, waitForDrawnFrame } from "@/lib/loop/loopContract"; // --- low-findings --- (waitForDrawnFrame)
 import type { LoopClipSlotId } from "@/lib/audio/loopClips";
 import type { LoopClipView, LoopClipsPanelProps } from "./sections/LoopClipsSection";
@@ -416,6 +417,7 @@ export default function Simulator() {
     engine.setStarChordsSettings(starChordsSettingsOf(s)); // --- chord-stars ---
     engine.setEllipseFociSettings(ellipseFociSettingsOf(s)); // --- ellipse-foci --- (before the init: the volley, the pool and the timing apply there)
     engine.setBeatMachineSettings(beatMachineSettingsOf(s, audioRef.current?.getCustomNotes() ?? [])); // --- beat-machine --- (before the init: the plan is made there; the loaded melody for its source)
+    engine.setDrawingMachineSettings(drawingMachineSettingsOf(s)); // --- drawing-machine --- (before the init: the machine and its numbers apply there)
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -636,6 +638,17 @@ export default function Simulator() {
       return { title: s.loopHudTitle || t(words.title).replace(" / ", " "), subtitle: s.loopHudSubtitle || t(words.subtitle), counter: String(t.raw(words.counter)), light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
     }
     // --- end beat-machine ---
+    // --- drawing-machine --- the machine's words: the harmonograph's ("three pendulums, one pen", in cream serif, no counter) or the
+    // orbits' ("earth and venus draw a flower" with the bodies' names, the amber "year 8.0")
+    if (s.mode === "drawingMachine") {
+      const words = drawingMachineHudKeys(s.dmMachine);
+      if (s.dmMachine === "orbits") {
+        const title = s.loopHudTitle || dmOrbitsTitle(String(t.raw(words.title)), s.dmInner, s.dmOuter, (body) => t(`DrawingMachine.${DM_BODY_LABELS[body]}`));
+        return { title, subtitle: s.loopHudSubtitle || t(words.subtitle), counter: dmYearTemplate(String(t.raw(words.counter))), light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
+      }
+      return { title: s.loopHudTitle || t(words.title), subtitle: s.loopHudSubtitle || t(words.subtitle), counter: "", light: isLightColor(s.backgroundColors[0]), locale: hudLocale, serif: true };
+    }
+    // --- end drawing-machine ---
     // --- funnel-spin --- the ring release's words ("why marbles speed up in a funnel", a two-line subtitle) and, with the lap
     // readout, the newest ring's lap ("lap 1.23 s")
     if (s.mode === "vortex" && s.vxRelease === "rings") {
@@ -650,7 +663,7 @@ export default function Simulator() {
     const counterKey = keys?.counterOne && s.mode === "hoops" && s.hpCount === 1 ? keys.counterOne : keys?.counter; // --- bead-hoops --- (one hoop: "the bead up")
     const counter = counterKey ? String(t.raw(loopHudMessageKey(counterKey))) : "";
     return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]), locale: hudLocale /* --- bead-hoops --- (the counter's decimals on the live canvas) */ };
-  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */]);
+  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */, s.dmMachine, s.dmInner, s.dmOuter /* --- drawing-machine --- */]);
   const loopHudRef = useRef({ spec: loopHudSpec, locale: hudLocale });
   loopHudRef.current = { spec: loopHudSpec, locale: hudLocale };
   /** The HUD of a frame of `engine`'s run (null without the HUD), for the recorder and the fast export. */
@@ -1205,6 +1218,35 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bmRunKey, s.bmCounter]);
   // --- end beat-machine ---
+  // --- drawing-machine --- Drawing Machines: a change of the machine or of a number of its pendulums, orbits or timing
+  // (DM_RESTART_FIELDS) restarts the run and starts its sounds over; the ink, the pentagram and the sound follow live. The held
+  // voices (the harmonograph's drone, the orbits' groove bed) stop while the run is paused (or over, or another mode runs) and
+  // come back where the run is when it resumes (a run from its start sends them itself).
+  const dmRunKey = DM_RESTART_FIELDS.map((key) => String(s[key])).join("|");
+  const dmRunKeyRef = useRef(dmRunKey);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setDrawingMachineSettings(drawingMachineSettingsOf(s));
+    if (dmRunKeyRef.current === dmRunKey) return;
+    dmRunKeyRef.current = dmRunKey;
+    if (s.mode === "drawingMachine" && engine.getCurrentModeName() === "drawingMachine") {
+      engine.initMode("drawingMachine");
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dmRunKey, s.dmInk, s.dmPentagram, s.dmSound]);
+  const dmSoundLive = s.mode === "drawingMachine" && isStarted && !isPaused && !finished;
+  const dmSoundLiveRef = useRef(false);
+  useEffect(() => {
+    const was = dmSoundLiveRef.current;
+    dmSoundLiveRef.current = dmSoundLive;
+    const engine = engineRef.current;
+    if (dmSoundLive && !was && engine && engine.getElapsedMs() > 0) engine.refreshDrawingMachineSound();
+    else if (!dmSoundLive && was) audioRef.current?.resetLoop();
+  }, [dmSoundLive]);
+  // --- end drawing-machine ---
   // --- colour-sort --- Colour Sort: a change of the sort (colours, balls, gates, spin, speed, size, contacts, remix, rule, time
   // limit) restarts it and drops a found seed; the refusal flashes only change the drawing and follow live.
   const colourSortKey = COLOUR_SORT_ENGINE_KEYS.map((key) => String((s as unknown as Record<string, unknown>)[key])).join("|");

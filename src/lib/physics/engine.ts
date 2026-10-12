@@ -2012,6 +2012,10 @@ export class PhysicsEngine {
   refreshDrawingMachineSound() {
     this.drawingMachineMode.refreshSound();
   }
+  /** The loop HUD's counter: the orbits' year with one decimal ("year 8.0"); null for the harmonograph or another mode. */
+  getDrawingMachineHudCount(): { count: number; values: { value: number }; decimals: number } | null {
+    return this.currentMode === this.drawingMachineMode ? this.drawingMachineMode.hudCount() : null;
+  }
   // --- end drawing-machine ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {

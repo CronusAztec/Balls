@@ -37,6 +37,8 @@ export interface LoopHudFrame {
   counterGrey?: boolean;
   /** --- phase-spiral --- A thin bar under the counter filled to this share (0–1; Metronomes & Polyrhythms' "in line 87%"); none when left out. */
   bar?: number;
+  /** --- drawing-machine --- The harmonograph's paper style: a cream serif title and an italic serif subtitle (the counter stays sans). */
+  serif?: boolean;
 }
 
 /** The HUD's static words for a page: the title, the subtitle and the counter's template ("{count} bounces"). */
@@ -51,6 +53,8 @@ export interface LoopHudSpec {
   locale?: string;
   /** --- chaos-fan --- The state labels a run's counter line may show instead of a count (`LoopHudState`), by state. */
   states?: Readonly<Record<string, string>>;
+  /** --- drawing-machine --- The title and the subtitle in serif (the harmonograph's: a cream bold title, an italic subtitle). */
+  serif?: boolean;
 }
 
 /** Translation keys (namespace `LoopHud`) of the modes with words of their own; any other mode's title is its name. */
@@ -237,12 +241,12 @@ export function hudText(text: string | undefined | null, locale?: string): strin
 
 /** The counter's line: the template with `{count}` replaced ("" without a count or a template) – --- chord-stars --- and `{total}`;
  * --- bead-hoops --- and `values`' placeholders. */
-export function hudCounterText(template: string, count: number | LoopHudCount | null, locale?: string, values?: Readonly<Record<string, number>>): string {
+export function hudCounterText(template: string, count: number | LoopHudCount | null, locale?: string, values?: Readonly<Record<string, number>>, decimals?: number /* --- drawing-machine --- */): string {
   const value = typeof count === "number" || count === null ? count : count.count;
   if (!template || value === null || !Number.isFinite(value)) return "";
   let text = hudPluralText(template, Math.round(value), locale).replace("{count}", String(Math.round(value))); // (--- ellipse-foci --- the count's plural form first: "1 pass", "3 passes")
   if (count !== null && typeof count === "object" && Number.isFinite(count.total)) text = text.replace("{total}", String(Math.round(count.total))); // --- chord-stars ---
-  if (values) for (const key in values) text = text.replace(`{${key}}`, hudNumber(values[key], locale)); // --- bead-hoops ---
+  if (values) for (const key in values) text = text.replace(`{${key}}`, hudNumber(values[key], locale, decimals)); // --- bead-hoops --- (--- drawing-machine --- a fixed number of decimals)
   return hudText(text, locale);
 }
 
@@ -252,12 +256,15 @@ export interface LoopHudCounter {
   count: number;
   /** The template's other placeholders: a whole number as it is, any other with two decimals in the page's style. */
   values: Readonly<Record<string, number>>;
+  /** --- drawing-machine --- Every value with exactly this many decimals instead, whole numbers too ("year 8.0"). */
+  decimals?: number;
 }
 
 const hudNumberFormats = new Map<string, Intl.NumberFormat>();
 /** A HUD value: a whole number as it is, any other with two decimals ("0.13"; with a language its separator: "0,13"). */
-export function hudNumber(value: number, locale?: string): string {
+export function hudNumber(value: number, locale?: string, decimals?: number /* --- drawing-machine --- */): string {
   if (!Number.isFinite(value)) return "";
+  if (decimals !== undefined) return hudFixed(value, decimals, locale); // --- drawing-machine ---
   if (Number.isInteger(value)) return String(value);
   if (!locale) return value.toFixed(2);
   let format = hudNumberFormats.get(locale);
@@ -271,6 +278,27 @@ export function hudNumber(value: number, locale?: string): string {
   }
   return format.format(value);
 }
+
+// --- drawing-machine ---
+const hudFixedFormats = new Map<string, Intl.NumberFormat>();
+/** A HUD value with exactly `decimals` decimals (0–6), in the page's style when a language is given ("8.0", "8,0"). */
+export function hudFixed(value: number, decimals: number, locale?: string): string {
+  if (!Number.isFinite(value)) return "";
+  const d = Number.isFinite(decimals) ? Math.max(0, Math.min(6, Math.round(decimals))) : 0;
+  if (!locale) return value.toFixed(d);
+  const key = `${locale}|${d}`;
+  let format = hudFixedFormats.get(key);
+  if (!format) {
+    try {
+      format = new Intl.NumberFormat(locale, { minimumFractionDigits: d, maximumFractionDigits: d, useGrouping: false });
+    } catch {
+      return value.toFixed(d);
+    }
+    hudFixedFormats.set(key, format);
+  }
+  return format.format(value);
+}
+// --- end drawing-machine ---
 
 /** The hoops' counter, reused every frame: the beads up, the spin (turns a second) and the hoop count. */
 const HOOPS_COUNTER = { count: 0, values: { rate: 0, total: 0 } };
@@ -309,6 +337,7 @@ export function loopHudCount(engine: {
   getEllipseFociHudCount?(): number | null; // --- ellipse-foci ---
   getColourSortView?(): { sorted: number; phase: string }; // --- colour-sort ---
   getBeatMachineHudCount?(): LoopHudCount | null; // --- beat-machine ---
+  getDrawingMachineHudCount?(): LoopHudCounter | null; // --- drawing-machine ---
   getVortexView?(): { funnel: { release: string; lapReadout: boolean; newestWave: number; lapSec: number; waveLaps: ArrayLike<number> } }; // --- funnel-spin ---
 }): number | LoopHudCount | LoopHudCounter | LoopHudState | null {
   // --- chaos-fan --- the Double Pendulum's chaos fan: running forwards, or its tape backwards
@@ -350,6 +379,7 @@ export function loopHudCount(engine: {
   }
   // --- end colour-sort ---
   if (engine.getCurrentModeName() === "beatMachine") return engine.getBeatMachineHudCount?.() ?? null; // --- beat-machine --- (the notes of the loop, with the counter on)
+  if (engine.getCurrentModeName() === "drawingMachine") return engine.getDrawingMachineHudCount?.() ?? null; // --- drawing-machine --- (the orbits' "year 8.0"; none for the harmonograph)
   // --- funnel-spin --- the Sound Vortex's ring release with the lap readout: the newest ring's lap ("lap 1.23 s"); none while the funnel is empty
   if (engine.getCurrentModeName() === "vortex" && engine.getVortexView) {
     const f = engine.getVortexView().funnel;
@@ -367,19 +397,26 @@ export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | L
   if (count !== null && typeof count === "object" && "state" in count) return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudText(spec.states?.[count.state] ?? "", locale ?? spec.locale), light: spec.light, counterGrey: true };
   const counter = count !== null && typeof count === "object" && "values" in count ? count : null; // --- bead-hoops --- (a counter with values)
   const value = counter ? counter.count : (count as number | LoopHudCount | null);
-  const frame: LoopHudFrame = { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: count === null && spec.alt ? hudText(spec.alt, locale ?? spec.locale) /* --- colour-sort --- */ : hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values), light: spec.light };
+  const frame: LoopHudFrame = { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: count === null && spec.alt ? hudText(spec.alt, locale ?? spec.locale) /* --- colour-sort --- */ : hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values, counter?.decimals /* --- drawing-machine --- */), light: spec.light };
+  if (spec.serif) frame.serif = true; // --- drawing-machine --- (the harmonograph's serif title and subtitle)
   const bar = count !== null && typeof count === "object" && "bar" in count ? (count as LoopHudBarCount).bar : NaN; // --- phase-spiral --- (the meter's bar)
   if (frame.counter && Number.isFinite(bar)) frame.bar = bar;
   return frame;
 }
 
-/** Draws one line centred at (`x`, `y`), shrunk to `maxWidth` when it is wider. */
-function fitLine(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, weight: string, maxWidth: number) {
-  ctx.font = `${weight} ${size}px sans-serif`;
+/** Draws one line centred at (`x`, `y`), shrunk to `maxWidth` when it is wider (--- drawing-machine --- in `family`). */
+function fitLine(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, weight: string, maxWidth: number, family = "sans-serif") {
+  ctx.font = `${weight} ${size}px ${family}`;
   const w = ctx.measureText(text).width;
-  if (w > maxWidth && w > 0) ctx.font = `${weight} ${Math.max(6, Math.floor((size * maxWidth) / w))}px sans-serif`;
+  if (w > maxWidth && w > 0) ctx.font = `${weight} ${Math.max(6, Math.floor((size * maxWidth) / w))}px ${family}`;
   ctx.fillText(text, x, y);
 }
+
+// --- drawing-machine ---
+/** The harmonograph's paper style: the serif family and the cream of its title (on a dark page). */
+export const LOOP_HUD_SERIF = 'Georgia, "Times New Roman", serif';
+export const LOOP_HUD_CREAM = "#f3ecdc";
+// --- end drawing-machine ---
 
 /** Paints the HUD into a frame (the compositor, the live canvas). */
 export function drawLoopHud(ctx: CanvasRenderingContext2D, width: number, frame: LoopHudFrame, layout: LoopHudLayout) {
@@ -393,8 +430,8 @@ export function drawLoopHud(ctx: CanvasRenderingContext2D, width: number, frame:
   ctx.globalAlpha = 1;
   if (frame.title && layout.titleY >= 0) {
     // --- low-findings --- (−1: the live preview's margin has no room for it)
-    ctx.fillStyle = frame.light ? LOOP_HUD_TITLE_DARK : "#ffffff";
-    fitLine(ctx, frame.title, cx, layout.titleY, layout.titleSize, "800", layout.maxWidth);
+    ctx.fillStyle = frame.light ? LOOP_HUD_TITLE_DARK : frame.serif ? LOOP_HUD_CREAM /* --- drawing-machine --- */ : "#ffffff";
+    fitLine(ctx, frame.title, cx, layout.titleY, layout.titleSize, frame.serif ? "700" : "800", layout.maxWidth, frame.serif ? LOOP_HUD_SERIF : undefined);
   }
   if (frame.subtitle && layout.subtitleY >= 0) {
     const grey = frame.light ? LOOP_HUD_GREY_LIGHT : LOOP_HUD_GREY;
@@ -407,7 +444,7 @@ export function drawLoopHud(ctx: CanvasRenderingContext2D, width: number, frame:
     ctx.fillStyle = grey;
     // --- chord-stars --- a subtitle of two lines ("line one / line two"): the second under the first
     const lines = subtitleLines(frame.subtitle);
-    lines.forEach((line, i) => fitLine(ctx, line, cx, layout.subtitleY + i * HUD_SUBTITLE_LEADING * layout.subtitleSize, layout.subtitleSize, "500", layout.maxWidth));
+    lines.forEach((line, i) => fitLine(ctx, line, cx, layout.subtitleY + i * HUD_SUBTITLE_LEADING * layout.subtitleSize, layout.subtitleSize, frame.serif ? "italic 500" : "500", layout.maxWidth, frame.serif ? LOOP_HUD_SERIF : undefined /* --- drawing-machine --- */));
   }
   if (frame.counter && layout.counterY >= 0) {
     ctx.fillStyle = frame.light ? LOOP_HUD_GREY_LIGHT : frame.counterGrey ? LOOP_HUD_GREY /* --- chaos-fan --- (a state label) */ : LOOP_HUD_AMBER;

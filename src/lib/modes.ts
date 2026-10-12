@@ -114,6 +114,11 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("beatDrop");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "beatMachine");
 }
+// --- drawing-machine --- Drawing Machines joins the rhythm family right after Beat Machines (the same loop family's machines)
+{
+  const at = MODE_CARD_ORDER.indexOf("beatMachine");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "drawingMachine");
+}
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -196,6 +201,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   ellipseFoci: "rhythm",
   // --- beat-machine --- every note a ball landing on its tuned bar or step exactly on the beat: the sound-first family
   beatMachine: "rhythm",
+  // --- drawing-machine --- a drone that breathes with the pendulums' energy, a pluck at every conjunction: the sound-first family
+  drawingMachine: "rhythm",
 };
 
 /** The modes of a category in card order. */
