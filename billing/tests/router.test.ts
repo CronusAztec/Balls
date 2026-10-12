@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { jsonOf } from "./helpers";
 import { handleRequest } from "../src/app";
+import { siteOrigins } from "../src/http";
+import type { Env } from "../src/env";
 import { allProvidersEnv, makeHarness, makeRequest, NOW, SITE_ORIGIN } from "./helpers";
 
 describe("CORS and preflight", () => {
@@ -11,6 +13,19 @@ describe("CORS and preflight", () => {
     expect(res.headers.get("access-control-allow-origin")).toBe(SITE_ORIGIN);
     expect(res.headers.get("access-control-allow-methods")).toContain("POST");
     expect(res.headers.get("vary")).toBe("Origin");
+  });
+
+  it("allows every origin SITE_ORIGIN lists (commas), and none it does not", async () => {
+    const { env } = makeHarness();
+    const listed: Env = { ...env, SITE_ORIGIN: "https://jumpingballslive.com, https://www.jumpingballslive.com/,https://cronusaztec.github.io" };
+    for (const origin of ["https://jumpingballslive.com", "https://www.jumpingballslive.com", "https://cronusaztec.github.io"]) {
+      const res = await handleRequest(makeRequest("OPTIONS", "/config", { origin }), listed, { now: NOW });
+      expect(res.headers.get("access-control-allow-origin")).toBe(origin);
+    }
+    const other = await handleRequest(makeRequest("OPTIONS", "/config", { origin: "https://evil.example" }), listed, { now: NOW });
+    expect(other.headers.get("access-control-allow-origin")).toBeNull();
+    expect(siteOrigins(" https://a.example/ ,, https://b.example ")).toEqual(["https://a.example", "https://b.example"]);
+    expect(siteOrigins(undefined)).toEqual([]);
   });
 
   it("allows any localhost origin for development", async () => {

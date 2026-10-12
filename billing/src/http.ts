@@ -4,14 +4,23 @@
 /** The largest request body the Worker will read, in bytes. */
 export const MAX_BODY_BYTES = 20 * 1024;
 
+/** The origins SITE_ORIGIN names: one, or several separated by commas or whitespace, each without a trailing slash. */
+export function siteOrigins(siteOrigin: string | undefined): string[] {
+  return (siteOrigin ?? "")
+    .split(/[\s,]+/)
+    .map((o) => o.replace(/\/$/, ""))
+    .filter((o) => o !== "");
+}
+
 /**
- * Whether an Origin is allowed: the configured SITE_ORIGIN, or any localhost / 127.0.0.1 origin on
- * any port (so the site can be developed locally against a deployed Worker). A missing Origin (same
- * origin, curl, a server-to-server webhook) is allowed through with no CORS headers.
+ * Whether an Origin is allowed: one of the configured SITE_ORIGIN origins (the site is served from several –
+ * jumpingballslive.com, www and GitHub Pages – so the variable may list them, separated by commas), or any
+ * localhost / 127.0.0.1 origin on any port (so the site can be developed locally against a deployed Worker). A
+ * missing Origin (same origin, curl, a server-to-server webhook) is allowed through with no CORS headers.
  */
 export function isAllowedOrigin(origin: string | null, siteOrigin: string | undefined): boolean {
   if (!origin) return false;
-  if (siteOrigin && origin === siteOrigin.replace(/\/$/, "")) return true;
+  if (siteOrigins(siteOrigin).includes(origin)) return true;
   try {
     const url = new URL(origin);
     const host = url.hostname;

@@ -70,8 +70,10 @@ jobs:
           NEXT_PUBLIC_ANALYTICS_SITE_ID: ${{ vars.ANALYTICS_SITE_ID }}
           NEXT_PUBLIC_YOUTUBE_CLIENT_ID: ${{ vars.YOUTUBE_CLIENT_ID }}
           NEXT_PUBLIC_PUBLISH_RELAY_URL: ${{ vars.PUBLISH_RELAY_URL }}
-          NEXT_PUBLIC_LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY }}
-          NEXT_PUBLIC_BILLING_API: ${{ vars.BILLING_API_URL }}
+          # The paywall's two public values (billing/README.md step 8): the licence public key the site verifies licences with
+          # and the billing Worker's origin. A repository variable overrides either; without one the live values below apply.
+          NEXT_PUBLIC_LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY || 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5Q9-e4H4jsJ0U34xlaAeMGIHpq5mV260PbJs0fVCZx5x3HgT9OTNN6Jk1WtKDGPxj6GkusFBjURGz240mV941A' }}
+          NEXT_PUBLIC_BILLING_API: ${{ vars.BILLING_API_URL || 'https://jumpingballslive-billing.jumpingballslive.workers.dev' }}
 
       - name: Deploy with Wrangler
         uses: cloudflare/wrangler-action@v3

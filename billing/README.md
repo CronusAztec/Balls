@@ -175,8 +175,10 @@ development only — do not use it in production.)
 
 ### 7. Deploy the Worker
 
-Set the site origin in `wrangler.toml` under `[vars] SITE_ORIGIN` (it is `https://cronusaztec.github.io`
-for this repository — the scheme and host only, no path). Then:
+Set the site's origin in `wrangler.toml` under `[vars] SITE_ORIGIN` — the scheme and host only, no path; several
+origins separated by commas when the site is served from more than one place (for this repository
+`https://jumpingballslive.com`, `https://www.jumpingballslive.com` and the GitHub Pages
+`https://cronusaztec.github.io`; the first one is where the Stripe portal returns to when the site names no page). Then:
 
 ```bash
 npm test          # make sure the suite is green
