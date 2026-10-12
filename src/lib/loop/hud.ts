@@ -69,6 +69,7 @@ export const LOOP_HUD_MODE_TEXT: Readonly<Partial<Record<ModeId, { title: string
   polyrhythm: { title: "polyrhythmTitle", subtitle: "polyrhythmSubtitle", counter: "polyrhythmCounter" }, // --- phase-spiral --- (the counter: the in-line meter)
   ellipseFoci: { title: "EllipseFoci.canvasTitle", subtitle: "EllipseFoci.canvasSubtitle", counter: "EllipseFoci.canvasPasses" }, // --- ellipse-foci --- (its own namespace)
   beatMachine: { title: "BeatMachine.canvasTitleMarbles", subtitle: "BeatMachine.canvasSubtitleMarbles", counter: "BeatMachine.canvasCounterMarbles" }, // --- beat-machine --- (the marble machine's; the page picks the variant's: beatMachineHudKeys())
+  brickRebuild: { title: "BrickRebuild.canvasTitle", subtitle: "BrickRebuild.canvasSubtitle", counter: "BrickRebuild.canvasCounter" }, // --- brick-rebuild --- (the smash's; the page picks the variant's: brickRebuildHudKeys())
 };
 
 // --- chord-stars --- a counter toward a total ("stars closed 3/5") and a subtitle of two lines
@@ -341,6 +342,7 @@ export function loopHudCount(engine: {
   getEllipseFociHudCount?(): number | null; // --- ellipse-foci ---
   getColourSortView?(): { sorted: number; phase: string }; // --- colour-sort ---
   getBeatMachineHudCount?(): LoopHudCount | null; // --- beat-machine ---
+  getBrickRebuildHudCount?(): number | null; // --- brick-rebuild ---
   getDrawingMachineHudCount?(): LoopHudCounter | null; // --- drawing-machine ---
   getVortexView?(): { funnel: { release: string; lapReadout: boolean; newestWave: number; lapSec: number; waveLaps: ArrayLike<number> } }; // --- funnel-spin ---
   getLandClaimView?(): { pyramid: { shown: number } | null }; // --- land-claim-pyramid ---
@@ -389,6 +391,7 @@ export function loopHudCount(engine: {
   }
   // --- end colour-sort ---
   if (engine.getCurrentModeName() === "beatMachine") return engine.getBeatMachineHudCount?.() ?? null; // --- beat-machine --- (the notes of the loop, with the counter on)
+  if (engine.getCurrentModeName() === "brickRebuild") return engine.getBrickRebuildHudCount?.() ?? null; // --- brick-rebuild --- (the bricks standing: down to 0, back up in the rebuild)
   if (engine.getCurrentModeName() === "drawingMachine") return engine.getDrawingMachineHudCount?.() ?? null; // --- drawing-machine --- (the orbits' "year 8.0"; none for the harmonograph)
   // --- funnel-spin --- the Sound Vortex's ring release with the lap readout: the newest ring's lap ("lap 1.23 s"); none while the funnel is empty
   if (engine.getCurrentModeName() === "vortex" && engine.getVortexView) {

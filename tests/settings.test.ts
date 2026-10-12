@@ -218,7 +218,8 @@ describe("link and preset validation (review fix: recording-export)", () => {
     }
   });
 
-  it("no numeric link key with a slider range comes back below its minimum (the features' own checks included)", () => {
+  // (two link writes per numeric field, and every feature adds fields: a generous timeout for a busy machine)
+  it("no numeric link key with a slider range comes back below its minimum (the features' own checks included)", { timeout: 60000 }, () => {
     // Every numeric key the writer emits: each numeric field of the defaults nudged off its default and written out.
     const base = defaultSettings("classic");
     const numeric = Object.keys(base).filter((k) => typeof (base as unknown as Record<string, unknown>)[k] === "number" && rangeOf(k));

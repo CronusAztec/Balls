@@ -75,6 +75,9 @@ import { EllipseFociMode, type EllipseFociView } from "./modes/ellipseFoci"; // 
 import type { EllipseFociSettings } from "./ellipseFoci"; // --- ellipse-foci ---
 import { BeatMachineMode, type BeatMachineView } from "./modes/beatMachine"; // --- beat-machine ---
 import type { BeatMachineSettings } from "./beatMachine"; // --- beat-machine ---
+import { BrickRebuildMode, type BrickRebuildView } from "./modes/brickRebuild"; // --- brick-rebuild ---
+import type { BrickRebuildSettings } from "./brickRebuild"; // --- brick-rebuild ---
+import type { BrickPicture } from "./brickPicture"; // --- brick-rebuild ---
 import { DrawingMachineMode, type DrawingMachineView } from "./modes/drawingMachine"; // --- drawing-machine ---
 import type { DrawingMachineSettings } from "./drawingMachine"; // --- drawing-machine ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
@@ -331,6 +334,8 @@ export class PhysicsEngine {
   readonly ellipseFociMode = new EllipseFociMode();
   // --- beat-machine --- Beat Machines: marbles dropped onto tuned bars on the beat, or a ball hopping down a musical staircase
   readonly beatMachineMode = new BeatMachineMode();
+  // --- brick-rebuild --- Brick Smash: a picture of bricks smashed by multiplying balls, then rebuilt colour layer by colour layer
+  readonly brickRebuildMode = new BrickRebuildMode();
   // --- drawing-machine --- Drawing Machines: a three-pendulum harmonograph, or two planets drawing an orbit flower
   readonly drawingMachineMode = new DrawingMachineMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
@@ -746,6 +751,10 @@ export class PhysicsEngine {
   initBeatMachine() {
     this.activateMode(this.beatMachineMode, "none");
   }
+  // --- brick-rebuild --- the mode owns its box (or its kaleidoscope's circle): no rings
+  initBrickRebuild() {
+    this.activateMode(this.brickRebuildMode, "none");
+  }
   // --- drawing-machine --- the mode owns its machine (no rings; the pen or the planets pinned to the clock)
   initDrawingMachine() {
     this.activateMode(this.drawingMachineMode, "none");
@@ -862,6 +871,9 @@ export class PhysicsEngine {
       // --- beat-machine ---
       case "beatMachine":
         return this.initBeatMachine();
+      // --- brick-rebuild ---
+      case "brickRebuild":
+        return this.initBrickRebuild();
       // --- drawing-machine ---
       case "drawingMachine":
         return this.initDrawingMachine();
@@ -2004,6 +2016,30 @@ export class PhysicsEngine {
     return this.currentMode === this.beatMachineMode ? this.beatMachineMode.hudCount() : null;
   }
   // --- end beat-machine ---
+  // --- brick-rebuild ---
+  isBrickRebuildMode() {
+    return this.currentMode === this.brickRebuildMode;
+  }
+  getBrickRebuildSettings(): BrickRebuildSettings {
+    return this.brickRebuildMode.getSettings();
+  }
+  /** The grid, the balls, the spawns, the phases and the variants apply on the next `initBrickRebuild()`; the picture, its text, the rebuild order and the outline at once. */
+  setBrickRebuildSettings(settings: Partial<BrickRebuildSettings>) {
+    this.brickRebuildMode.setSettings(settings);
+  }
+  /** The page's uploaded picture for the bricks (cover-fitted into the grid and quantised; null: none). It never travels in a link. */
+  setBrickRebuildPicture(picture: BrickPicture | null) {
+    this.brickRebuildMode.setUploadPicture(picture);
+  }
+  /** Live Brick Smash state (the bricks, the phase, the rebuild, the capsules, the counters) for the canvas and the finder; the same object every call. */
+  getBrickRebuildView(): BrickRebuildView {
+    return this.brickRebuildMode.getView();
+  }
+  /** The loop HUD's counter in Brick Smash: the bricks standing (null in another mode). */
+  getBrickRebuildHudCount(): number | null {
+    return this.currentMode === this.brickRebuildMode ? this.brickRebuildMode.hudCount() : null;
+  }
+  // --- end brick-rebuild ---
   // --- drawing-machine ---
   isDrawingMachineMode() {
     return this.currentMode === this.drawingMachineMode;
