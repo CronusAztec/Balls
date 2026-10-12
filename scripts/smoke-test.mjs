@@ -15728,6 +15728,152 @@ await smokeBlock("phase-spiral", async () => {
 // --- end phase-spiral ---
 });
 
+await smokeBlock("beat-machine", async () => {
+// --- beat-machine ---
+// 43. Beat Machines (the loop family's marble xylophone and eight-step staircase): every preset runs two whole loops at 2× –
+// the notes played by each seam are exactly notes × loops (data-bm-seam-notes), the machine at each seam is its state at t = 0
+// (data-bm-seam-error), no NaN; the marble machine's lift moves its rungs and the loaded melody becomes the "Load your melody"
+// preset's tune (data-bm-source); the staircase draws the loop HUD's two-line title on one line ("each step plays a note"); a
+// link carries the bm… keys into the panel and the plan; Find Simulation offers the marble machine's two outcomes and finds
+// the busiest tune; a fast export with Export whole loops keeps two whole 9 s staircase loops and emits notes × loops plucks
+// (the export's hidden canvas).
+{
+  const bmPresets = [
+    { id: "eightSteps", variant: "stairs", loop: 9, notes: 8 },
+    { id: "scaleStairs", variant: "stairs", loop: 15, notes: 16 },
+    { id: "xylophone", variant: "marbles", loop: 19.2, notes: 0 },
+    { id: "yourMelody", variant: "marbles", loop: 19.2, notes: 32 },
+  ];
+  const bmRuns = [];
+  for (const preset of bmPresets) {
+    await page.goto(`${BASE}/en/simulator/?mode=beatMachine`, { waitUntil: "networkidle" });
+    if (preset.id === "eightSteps") {
+      await page.evaluate(() => {
+        const texts = [];
+        window.__bmHud = texts;
+        const fillText = CanvasRenderingContext2D.prototype.fillText;
+        CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+          if (texts.length < 4000) texts.push(String(text));
+          return fillText.call(this, text, ...rest);
+        };
+      });
+    }
+    await page.locator(`[data-bm-preset="${preset.id}"]`).first().click({ timeout: 10000 }).catch(() => {});
+    let melodyLoaded = null;
+    if (preset.id === "yourMelody") {
+      // the melody under Sound: one note a beat from it, on the bars nearest its pitches
+      await page.getByRole("button", { name: /Custom Sound/ }).click().catch(() => {});
+      await page.locator("#song-select").selectOption("fur-elise").catch(() => {});
+      melodyLoaded = await page
+        .waitForFunction(() => {
+          const select = document.querySelector("#song-select");
+          return !!select && !select.disabled && select.value === "fur-elise";
+        }, null, { timeout: 15000 })
+        .then(() => true)
+        .catch(() => false);
+      await page.getByRole("button", { name: /Custom Sound/ }).click().catch(() => {});
+    }
+    await page.waitForTimeout(500);
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "2x", exact: true }).click();
+    let nan = 0;
+    let rungs = 0;
+    const deadline = Date.now() + 120_000;
+    while (Date.now() < deadline) {
+      const d = await canvasData();
+      nan = Math.max(nan, Number(d.bmNan) || 0);
+      rungs = Math.max(rungs, Number(d.bmRungs) || 0);
+      if (Number(d.bmSeams) >= 2) break;
+      await page.waitForTimeout(250);
+    }
+    const d = await canvasData();
+    if (preset.id === "xylophone") await page.screenshot({ path: path.join(outDir, "sim-beat-machine-marbles.png") });
+    if (preset.id === "eightSteps") await page.screenshot({ path: path.join(outDir, "sim-beat-machine-stairs.png") });
+    const notes = Number(d.bmNotes);
+    const seamNotes = (d.bmSeamNotes || "").split(",").filter(Boolean).map(Number);
+    const title = preset.id === "eightSteps" ? await page.evaluate(() => (window.__bmHud || []).some((t) => t === "each step plays a note")) : null;
+    bmRuns.push({ id: preset.id, query: query.toString().slice(0, 120), variant: d.bmVariant, loop: d.bmLoop, notes, seamNotes, err: d.bmSeamError, nan, rungs, source: d.bmSource, melodyLoaded, title, hud: d.loopHud, played: d.bmPlayed, sounds: d.bmSounds });
+    check(
+      `Beat Machines preset ${preset.id} runs two whole loops at 2×: notes × loops by each seam, the start's state at each seam, no NaN`,
+      d.bmVariant === preset.variant && Math.abs(Number(d.bmLoop) - preset.loop) < 1e-3 && notes > 0 && (preset.notes === 0 || notes === preset.notes) && seamNotes.length >= 2 && seamNotes[0] === notes && seamNotes[1] === 2 * notes && Number(d.bmSeamError) < 1e-6 && d.bmNan === "0" && nan === 0 && d.loopHud === "1" &&
+        (preset.variant === "marbles" ? rungs > 0 && Number(d.bmMarbles) >= 10 : true) && (preset.id === "yourMelody" ? melodyLoaded === true && d.bmSource === "melody" : true) && (preset.id === "eightSteps" ? title === true && query.get("bmV") === "stairs" : true),
+      `(${JSON.stringify(bmRuns[bmRuns.length - 1])})`,
+    );
+  }
+
+  // A link carries the bm… keys into the panel and the plan: a 5-step staircase at 120 BPM with 3 return beats loops in 4 s.
+  await page.goto(`${BASE}/en/simulator/?mode=beatMachine&bmV=stairs&bmSt=5&bmBpm=120&bmRt=3&bmSrc=scale`, { waitUntil: "networkidle" });
+  const linkSection = page.getByTestId("beat-machine-section");
+  const linkInfo = { variant: await linkSection.getAttribute("data-bm-variant").catch(() => null), source: await linkSection.getAttribute("data-bm-source").catch(() => null), beats: await linkSection.getAttribute("data-bm-beats").catch(() => null), loop: await linkSection.getAttribute("data-bm-loop").catch(() => null) };
+  const linkRun = await canvasData();
+  const linkQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "a Beat Machines link (bmV, bmSt, bmBpm, bmRt, bmSrc) sets the panel and plans the run: 5 steps + 3 return beats at 120 BPM loop in 4 s",
+    linkInfo.variant === "stairs" && linkInfo.source === "scale" && linkInfo.beats === "8" && linkInfo.loop === "4" && linkRun.bmVariant === "stairs" && linkRun.bmNotes === "5" && Math.abs(Number(linkRun.bmLoop) - 4) < 1e-3 && linkRun.loopCycle !== undefined && linkQuery.get("bmSt") === "5" && linkQuery.get("bmRt") === "3",
+    `(${JSON.stringify({ linkInfo, run: { variant: linkRun.bmVariant, notes: linkRun.bmNotes, loop: linkRun.bmLoop, cycle: linkRun.loopCycle }, query: linkQuery.toString() })})`,
+  );
+
+  // Find Simulation: the marble machine's two outcomes; the busiest seeded tune is found and its whole loops become the clip.
+  await page.goto(`${BASE}/en/simulator/?mode=beatMachine&bmMt=2`, { waitUntil: "networkidle" });
+  const bmOutcomes = await page.locator("#find-outcome option").evaluateAll((options) => options.map((o) => o.value)).catch(() => []);
+  await page.locator("#find-outcome").selectOption("most-in-flight").catch(() => {});
+  const busyButton = page.getByRole("button", { name: /Find the Busiest Tune/ });
+  const busyLabelled = await busyButton.isVisible().catch(() => false);
+  await busyButton.click().catch(() => {});
+  const busyText = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 60_000 }).then(() => page.getByText(/Found!|Didn't find simulation/).first().innerText()).catch(() => "timeout");
+  await page.waitForTimeout(400);
+  const busyQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "Find Simulation offers No tube conflict and Most marbles in flight for the marble machine and finds the busiest tune (whole loops in the clip)",
+    bmOutcomes.join(",") === "no-tube-conflict,most-in-flight" && busyLabelled && /Found! Up to \d+ marbles in flight at once/.test(busyText) && busyQuery.get("dur") !== null && Number(busyQuery.get("dur")) >= 19,
+    `(${JSON.stringify({ outcomes: bmOutcomes, labelled: busyLabelled, text: busyText, query: busyQuery.toString() })})`,
+  );
+
+  // ⚡ A fast export of a 20 s staircase clip with Export whole loops (on by default): two whole 9 s loops, and the export's
+  // engine plays notes × loops plucks by its seams (read off its hidden canvas while it renders).
+  await page.goto(`${BASE}/en/simulator/?mode=beatMachine&bmV=stairs&bmBpm=80&dur=20&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const bmWebCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (bmWebCodecs) {
+    await page.evaluate(() => {
+      const seen = { seamNotes: "", notes: 0, time: 0 };
+      window.__bmExport = seen;
+      new MutationObserver((records) => {
+        for (const r of records) {
+          const el = r.target;
+          if (!(el instanceof HTMLCanvasElement) || el.style.display !== "none") continue;
+          seen.seamNotes = el.dataset.bmSeamNotes || "";
+          seen.notes = Number(el.dataset.bmNotes);
+          seen.time = Number(el.dataset.bmTime);
+        }
+      }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-bm-seam-notes", "data-bm-time"] });
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `beat-machine-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const exported = await page.evaluate(() => window.__bmExport);
+    const seamNotes = exported.seamNotes.split(",").filter(Boolean).map(Number);
+    check(
+      "a Beat Machines fast export keeps two whole 9 s staircase loops (Export whole loops) and plays notes × loops by its seams",
+      status === "done" && bytes > 10000 && loops === 2 && Math.abs(seconds - 18) <= 1 / 30 + 0.002 && exported.notes === 8 && seamNotes.length >= 2 && seamNotes[0] === 8 && seamNotes[1] === 16,
+      `(${JSON.stringify({ status, bytes, seconds, loops, exported })})`,
+    );
+  } else check("without WebCodecs the Beat Machines fast export is not checked (the live runs are covered above)", true);
+}
+// --- end beat-machine ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

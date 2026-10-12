@@ -82,6 +82,8 @@ export const MODE_IDS = [
   "hoops",
   // --- ellipse-foci --- Focus Shot (an elliptical pool: a volley fired from one focus converges on the other every transit; the loop family)
   "ellipseFoci",
+  // --- beat-machine --- Beat Machines (the marble xylophone and the eight-step staircase: every note a ball landing on the beat; the loop family)
+  "beatMachine",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -437,7 +439,7 @@ export interface SoundEvent {
 }
 
 // --- loop-foundation --- the voices of the loop sound families (lib/audio/loopTones.ts; `ToneGenerator.playLoop()`)
-export const LOOP_SOUND_KINDS = ["pluck", "bar", "chime", "ding", "step", "land", "chord", "riser", "impact", "kick", "glide", "wash", "ratchet", "scan", "cut", "bed", "bedStop", "drone", "droneStop"] as const;
+export const LOOP_SOUND_KINDS = ["pluck", "bar", "chime", "ding", "step", "land", "chord", "riser", "impact", "kick", "glide", "wash", "ratchet", "scan", "cut", "bed", "bedStop", "drone", "droneStop", "bass" /* --- beat-machine --- the phrase bass of a machine (loopTones.ts schedulePhraseBass) */] as const;
 export type LoopSoundKind = (typeof LOOP_SOUND_KINDS)[number];
 
 // --- fight-league --- the sound families of Fight League's weapons, abilities and KOs

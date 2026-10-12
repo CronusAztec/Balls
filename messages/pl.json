@@ -2316,7 +2316,8 @@
     "flTierStory": "PNG 9:16",
     "flTierTitle": "{group} – lista tierów (symulacja Fight League)",
     "flTierSubtitle": "Ranking według zwycięstw w symulowanym turnieju każdy z każdym",
-    "flTierDisclaimer": "Imiona to zwykłe etykiety tekstowe niezależnej symulacji fanowskiej – bez logo, grafik i dźwięków."
+    "flTierDisclaimer": "Imiona to zwykłe etykiety tekstowe niezależnej symulacji fanowskiej – bez logo, grafik i dźwięków.",
+    "modeBeatMachine": "Maszyny rytmu"
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -2479,6 +2480,10 @@
     "ellipseFoci": {
       "name": "Strzał w ognisko",
       "description": "Eliptyczny stół: salwa tęczowych piłek wystrzelona z jednego ogniska odbija się od ściany i przechodzi przez drugie ognisko naraz, w każdym przejściu – a rój zapada się przy tym na długą oś."
+    },
+    "beatMachine": {
+      "name": "Maszyny rytmu",
+      "description": "Muzyczne maszyny, w których każda nuta to kulka lądująca dokładnie w rytm: kulkowy ksylofon zasilany rurkami i windą albo jedna kulka skacząca po ośmiostopniowych muzycznych schodach."
     }
   },
   "FAQ": {
@@ -2602,7 +2607,8 @@
     "modeStarChords": "Gwiazdy cięciw: kulki krążą w jednym cienkim okręgu i każda rysuje wielokąt gwiaździsty, np. 5/2 albo 12/5. Kulka odbijająca się od okręgu zawsze uderza w ścianę pod tym samym kątem, więc jej punkt styku przeskakuje o k z n punktów wokół obwodu, a każda narysowana linia leży w tej samej odległości od środka – gdy linii przybywa, pojawia się wewnętrzny okrąg, którego nikt nie narysował. Każda kulka porusza się dokładnie z prędkością, która domyka jej gwiazdę po tym samym czasie rysowania, więc wszystkie gwiazdy domykają się w jednej klatce z akordem; potem rysunek trwa, gaśnie i zaczyna się od nowa – płynna pętla. Wpisz własne gwiazdy, wylosuj zestaw względnie pierwszych albo pozwól, by Znajdź symulację wybrało najładniejszy zestaw i dopasowało pętlę do klipu.",
     "modeHoops": "Bez pierścieni: 1–16 współśrodkowych obręczy (domyślnie osiem, czerwona na zewnątrz, fioletowa w środku) wiruje razem wokół pionowej średnicy, rysowanych na wprost i spłaszczanych przez obrót, więc wyglądają trójwymiarowo, a na każdej jeden koralik ślizga się bez tarcia. Obroty rosną – równo, łagodnie albo schodkami – a każda obręcz ma prędkość krytyczną √(g/R): poniżej niej grawitacja trzyma koralik na dnie, powyżej koralik wspina się do punktu równowagi arccos(g/(Rω²)), tym wyżej, im szybsze obroty. Większe obręcze unoszą koraliki pierwsze, więc koraliki wspinają się ściśle według rozmiaru, a każde uniesienie to nuta strojonej sztabki o wysokości zależnej od obręczy; dzwonek dźwięczy co obrót, akord pada, gdy wszystkie są w górze, a licznik pokazuje obroty i uniesione koraliki. Z włączonym powrotem obroty zwalniają, aż każdy koralik znów spocznie, a pętla zaczyna się płynnie od nowa – gotowa na eksport całych pętli; Znajdź symulację szuka przebiegu ściśle według rozmiaru albo takiego, w którym wszystkie koraliki są w górze przed wybranym czasem.",
     "modeColourSort": "Maszyna sortująca: 360 kulek w czterech kolorach startuje stłoczonych w czerwonym środku tarczy z obracających się pierścieni i porusza się jak gaz o stałej prędkości. Każdy pierścień to rząd łuków z bramkami pomiędzy nimi, a bramka to jednokierunkowy filtr kolorów: otwiera się tylko na zewnątrz i nigdy dla kulek w kolorze pierścienia. Czerwone nigdy więc nie opuszczą środka, pomarańczowe miną czerwony pierścień, ale zatrzymają się na swoim, zielone dotrą o pierścień dalej, a niebieskie aż do zewnętrznego pasa – mieszanka sama układa się w tarczę, a bursztynowy licznik wspina się do 360 / 360 posortowanych z długą, trzymającą w napięciu końcówką. Każde przejście przez bramkę szarpie nutę swojego koloru w pentatonice A-dur, ostatnia posortowana kulka wywołuje ciepły akord zakończenia, a remiks ściąga wszystkie kulki z powrotem do dokładnie pierwszej klatki pod miękkim szumem, więc nagranie pełnych cykli zapętla się bez szwu. Wybierz kolory i liczbę kulek każdego z nich, bramki i ich szerokość, obrót pierścieni, regułę (albo ją odwróć), zderzenia albo gaz-widmo dla tysięcy kulek – a Znajdź symulację wyszuka sortowanie w limicie czasu, kolor, który skończy ostatni, albo ostatnią kulkę na kresce taktowej.",
-    "modeEllipseFoci": "Eliptyczny stół bilardowy z dwoma zaznaczonymi ogniskami. Salwa piłek – domyślnie 72, pokolorowanych kołem barw według kąta wystrzału – wylatuje z jednego ogniska w tej samej chwili, we wszystkie strony. Elipsa kieruje każdy strzał z jednego ogniska po odbiciu od ściany prosto przez drugie, a każda taka droga ma tę samą długość, więc cała salwa zbiega się w drugim ognisku jedno przejście później, potem z powrotem w pierwszym, za każdym razem z białym rozbłyskiem, a każde przejście zwęża rój ku długiej osi. Ponowny strzał wypuszcza nową salwę pod błyskiem co kilka przejść, więc klip zapętla się bez szwu; odbicia od ściany schodzą po pentatonicznej drabinie, każda zbieżność ląduje na kresce taktowej ze stopą, trzaskiem i akordem, a Znajdź symulację ustawia zbieżności w rytm strony albo znajduje kąt startowy najdłuższego zapadania."
+    "modeEllipseFoci": "Eliptyczny stół bilardowy z dwoma zaznaczonymi ogniskami. Salwa piłek – domyślnie 72, pokolorowanych kołem barw według kąta wystrzału – wylatuje z jednego ogniska w tej samej chwili, we wszystkie strony. Elipsa kieruje każdy strzał z jednego ogniska po odbiciu od ściany prosto przez drugie, a każda taka droga ma tę samą długość, więc cała salwa zbiega się w drugim ognisku jedno przejście później, potem z powrotem w pierwszym, za każdym razem z białym rozbłyskiem, a każde przejście zwęża rój ku długiej osi. Ponowny strzał wypuszcza nową salwę pod błyskiem co kilka przejść, więc klip zapętla się bez szwu; odbicia od ściany schodzą po pentatonicznej drabinie, każda zbieżność ląduje na kresce taktowej ze stopą, trzaskiem i akordem, a Znajdź symulację ustawia zbieżności w rytm strony albo znajduje kąt startowy najdłuższego zapadania.",
+    "modeBeatMachine": "Dwie kinetyczne maszyny muzyczne, które zapętlają się bez końca. W kulkowym ksylofonie dziesięć tęczowych sztabek stoi pod dziesięcioma rurkami: każda kulka wypada ze swojej rurki dokładnie w chwili, w której grawitacja doniesie ją na sztabkę w rytm, odbija się przez szczelinę na podłogę, toczy się do windy, wjeżdża na górę i wraca górną szyną do swojej rurki. Na schodach jedna kulka skacze ze stopnia na stopień, jednym identycznym łukiem na każde uderzenie, a każde lądowanie to nuta; potem wpada do haczyka i torem powrotnym wraca na górę akurat na kolejną frazę. Melodia to oryginalna fraza z ziarna, gama, wpisana lista albo wczytana melodia."
   },
   "Footer": {
     "navLabel": "Stopka",
@@ -3058,7 +3064,17 @@
     "leadChangesCount": "Zmian prowadzenia co najmniej",
     "bossWave": "Fala",
     "bothLowAt": "Cliffhanger w",
-    "progressBout": "Najdalej: walka {bout}"
+    "progressBout": "Najdalej: walka {bout}",
+    "outcomeNoTubeConflict": "Bez konfliktu w rurkach",
+    "outcomeMostInFlight": "Najwięcej kulek w locie",
+    "hintNoTubeConflict": "Szuka oryginalnej melodii z ziarna, którą każda rurka zagra kulkami, które ma (Kulki na rurkę, jedna przy „auto”): żadna kulka nie jest potrzebna, zanim wróci, więc żadna rurka nie potrzebuje zapasowej.",
+    "hintMostInFlight": "Szuka oryginalnej melodii z ziarna dla najbardziej zapracowanej maszyny: najwięcej kulek poza rurkami w tej samej chwili.",
+    "findNoTubeConflict": "Znajdź melodię bez zapasowych kulek",
+    "findMostInFlight": "Znajdź najgęstszą melodię",
+    "foundNoTubeConflict": "Znaleziono! Każda kulka wraca na czas: {notes} nut w pętli, {loops, plural, one {# pełna pętla} few {# pełne pętle} many {# pełnych pętli} other {# pełnej pętli}} w klipie",
+    "foundMostInFlight": "Znaleziono! Do {marbles} kulek w locie naraz, {loops, plural, one {# pełna pętla} few {# pełne pętle} many {# pełnych pętli} other {# pełnej pętli}} w klipie",
+    "missNoTubeConflict": "Każda melodia potrzebowała zapasowej kulki (najmniej: {spares}; ziaren: {seeds})",
+    "overlayNoTubeConflict": "Sprawdzono {tested} melodii z ziarna: każda potrzebowała co najmniej {spares} zapasowych kulek. Zwiększ liczbę kulek na rurkę, zwolnij tempo albo wydłuż pętlę."
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -5056,7 +5072,11 @@
     "colourSort": "{count} wymieszanych kulek, posortowanych przez własne pierścienie",
     "colourSortFact": "Bramki każdego pierścienia otwierają się tylko na zewnątrz i nigdy dla kulek w jego własnym kolorze. Kolor środka nigdy go więc nie opuści, następny minie pierwszy pierścień, ale nie swój, a najbardziej zewnętrzny kolor dotrze aż na zewnątrz: wymieszaj je, a same ułożą się w tarczę.",
     "ellipseFoci": "{count} × strzał z jednego ogniska, wszystkie naraz przez drugie",
-    "ellipseFociFact": "Elipsa ma dwa ogniska. Strzał z jednego odbija się od ściany prosto przez drugie, w którąkolwiek stronę poleci, a każda taka droga ma tę samą długość – więc cała salwa wystrzelona naraz dociera do drugiego ogniska w tej samej chwili. Dlatego szept w jednym ognisku eliptycznej sali słychać wyraźnie w drugim."
+    "ellipseFociFact": "Elipsa ma dwa ogniska. Strzał z jednego odbija się od ściany prosto przez drugie, w którąkolwiek stronę poleci, a każda taka droga ma tę samą długość – więc cała salwa wystrzelona naraz dociera do drugiego ogniska w tej samej chwili. Dlatego szept w jednym ognisku eliptycznej sali słychać wyraźnie w drugim.",
+    "beatMachineMarbles": "{count} strojonych sztabek, a każda nuta to kulka",
+    "beatMachineMarblesFact": "Każda kulka wypada z rurki dokładnie w chwili, w której grawitacja doniesie ją na sztabkę w rytm: spadek z wysokości h trwa √(2h/g), więc kulka rusza o tyle wcześniej przed swoją nutą. Potem podłoga, winda i górna szyna odwożą ją do jej rurki. Melodia jest oryginalna.",
+    "beatMachineStairs": "{count} stopni. {count} nut. jedna fraza",
+    "beatMachineStairsFact": "Każdy skok to ten sam łuk i trwa dokładnie jedno uderzenie: grawitację i prędkość wybicia wylicza się z tempa, wysokości stopnia i wysokości łuku. Po ostatnim stopniu kulka wraca torem na górę i ląduje na pierwszym stopniu dokładnie wtedy, gdy zaczyna się kolejna fraza."
   },
   "ColourSort": {
     "canvasTitle": "każdy pierścień zatrzymuje tylko swój kolor",
@@ -5120,5 +5140,64 @@
     "canvasTitle": "strzel z jednej kropki, traf w drugą",
     "canvasSubtitle": "każde odbicie od ściany prowadzi do drugiej kropki / a każda droga tam ma tę samą długość",
     "canvasPasses": "{count, plural, one {{count} przejście} few {{count} przejścia} other {{count} przejść}}"
+  },
+  "BeatMachine": {
+    "canvasTitleStairs": "każdy stopień / gra nutę",
+    "canvasSubtitleStairs": "jeden skok na uderzenie, każde lądowanie to nuta / potem tor odwozi kulkę z powrotem",
+    "canvasCounterStairs": "{count} / {total} nut",
+    "canvasTitleMarbles": "każda nuta to kulka",
+    "canvasSubtitleMarbles": "każda kulka wypada z rurki w samą porę, / by trafić w swoją sztabkę w rytm",
+    "canvasCounterMarbles": "{count} / {total} nut",
+    "desc": "Muzyczne maszyny, w których każda nuta to kulka lądująca na swoim celu dokładnie w rytm, z drogą powrotną, dzięki której maszyna zapętla się bez końca. Sztabki i stopnie stroją się według skali i tonu podstawowego z sekcji Dźwięk.",
+    "bmPreset": "Ustawienie",
+    "bmPresetTip": "Osiem stopni: schody, 8 nut przy 80 BPM. Schody gamy: 16 stopni grających skalę. Kulkowy ksylofon: 10 sztabek, oryginalna melodia z ziarna przy 100 BPM. Wczytaj melodię: kulki grają melodię wczytaną w sekcji Dźwięk.",
+    "presetEightSteps": "Osiem stopni",
+    "presetScaleStairs": "Schody gamy",
+    "presetXylophone": "Kulkowy ksylofon",
+    "presetYourMelody": "Wczytaj melodię",
+    "bmVariant": "Maszyna",
+    "bmVariantTip": "Kulkowy ksylofon (rurki, strojone sztabki, podłoga, winda i górna szyna) albo muzyczne schody (jedna kulka skacząca o stopień na uderzenie, a potem torem powrotnym).",
+    "variantMarbles": "Kulkowy ksylofon",
+    "variantStairs": "Schody",
+    "bmBpm": "Tempo (BPM)",
+    "bmBpmTip": "Uderzenia na minutę. Każde uderzenie w sztabkę i każde lądowanie wylicza się wstecz od jego uderzenia rytmu, więc każde tempo trafia na czas: 100 pasuje do kulek, 80 do schodów.",
+    "loopNoteStairs": "{steps} stopni i {back} uderzeń powrotu: pętla ma {beats} uderzeń, {loop} s.",
+    "loopNoteMarbles": "Pętla ma {beats} uderzeń, {loop} s.",
+    "bmSource": "Nuty z",
+    "bmSourceTip": "Skąd bierze się melodia: oryginalna fraza zapisana przez ziarno, gama, melodia wczytana w sekcji Dźwięk albo wpisana lista.",
+    "sourceOriginal": "Oryginalna fraza",
+    "sourceScale": "Gama",
+    "sourceMelody": "Wczytana melodia",
+    "sourceCustom": "Wpisana lista",
+    "sourceOriginalHint": "Nowa oryginalna melodia dla każdego ziarna: Znajdź symulację poszuka takiej bez zapasowych kulek albo najgęstszej.",
+    "sourceScaleHint": "Kulki biegną w górę po sztabkach i z powrotem w dół; schody grają swoją drabinę, stopień po stopniu skali.",
+    "sourceMelodyHint": "Jedna nuta na uderzenie z melodii wczytanej w sekcji Dźwięk, każda na sztabce najbliższej jej wysokości. Bez wczytanej melodii gra oryginalna fraza.",
+    "sourceCustomHint": "Jeden element na uderzenie: numer sztabki lub stopnia skali (1 to najniższy), nazwa nuty jak C4 albo F#5 lub - jako pauza.",
+    "bmNotes": "Lista nut",
+    "bmNotesTip": "Jeden element na uderzenie, oddzielone spacjami lub przecinkami: numer sztabki (1 = najniższa), nazwa nuty (C4, F#5, Bb3) albo - jako pauza. Lista powtarza się do końca pętli.",
+    "bmNotesPlaceholder": "1 3 5 - 8 albo C4 E4 G4",
+    "bmSteps": "Stopnie",
+    "bmStepsTip": "Stopnie schodów: każdy gra jedną nutę, więc fraza ma tyle nut, ile stopni.",
+    "bmStepDx": "Szerokość stopnia",
+    "bmStepDxTip": "Jak daleko w prawo od poprzedniego stoi każdy stopień, w % panelu.",
+    "bmStepDy": "Wysokość stopnia",
+    "bmStepDyTip": "Jak nisko pod poprzednim stoi każdy stopień, w % panelu. Łuk skoku wylicza się z tej wartości i z rytmu.",
+    "bmReturn": "Uderzenia powrotu",
+    "bmReturnTip": "Uderzenia od haczyka do pierwszego stopnia: kulka okrąża tor i zostaje zrzucona na schody akurat wtedy, gdy fraza zaczyna się od nowa. Poniżej 2 wraca jednym lotem.",
+    "bmBars": "Sztabki",
+    "bmBarsTip": "Strojone sztabki, od niskich po lewej do wysokich po prawej, każda z własną rurką kulek w swoim kolorze.",
+    "bmDrop": "Wysokość spadku",
+    "bmDropTip": "Spadek z rurki na sztabkę, w % panelu: kulka rusza √(2h/g) przed swoją nutą.",
+    "bmRebound": "Odbicie",
+    "bmReboundTip": "Jak wysoko kulka odbija się od sztabki, jako część prędkości uderzenia, zanim spadnie przez szczelinę na podłogę.",
+    "bmPerTube": "Kulki na rurkę",
+    "bmPerTubeTip": "Ile kulek mieści każda rurka. Auto: tyle, ile potrzebuje melodia. Rurka, której kulka nie zdąży wrócić przed następną nutą, dostaje zapasową.",
+    "perTubeAuto": "auto",
+    "bmLoopBeats": "Uderzenia pętli",
+    "bmLoopBeatsTip": "Liczba uderzeń w pętli kulkowej maszyny: 32 przy 100 BPM to 19,2 s.",
+    "bmBass": "Bas frazy",
+    "bmBassTip": "Miękka nuta basu co dwa takty, na najniższej nucie frazy w tym miejscu.",
+    "bmCounter": "Licznik nut",
+    "bmCounterTip": "Pokazuje nuty bieżącej pętli w nakładce pętli („12 / 32 nut”)."
   }
 }

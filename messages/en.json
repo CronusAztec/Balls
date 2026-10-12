@@ -2316,7 +2316,8 @@
     "flTierStory": "PNG 9:16",
     "flTierTitle": "{group} tier list (Fight League sim)",
     "flTierSubtitle": "Ranked by simulated round-robin wins",
-    "flTierDisclaimer": "Names are plain text labels of an unaffiliated fan simulation – no logos, artwork or audio."
+    "flTierDisclaimer": "Names are plain text labels of an unaffiliated fan simulation – no logos, artwork or audio.",
+    "modeBeatMachine": "Beat Machines"
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -2479,6 +2480,10 @@
     "ellipseFoci": {
       "name": "Focus Shot",
       "description": "An elliptical pool: a volley of rainbow balls fired from one focus bounces off the wall and passes through the other focus all at once, every pass – while the swarm collapses onto the long axis."
+    },
+    "beatMachine": {
+      "name": "Beat Machines",
+      "description": "Music machines where every note is a ball landing on the beat: a marble xylophone fed by tubes and a lift, or one ball hopping down an eight-step musical staircase."
     }
   },
   "FAQ": {
@@ -2602,7 +2607,8 @@
     "modeStarChords": "Chord Stars: balls ride inside one thin circle and each draws a star polygon such as 5/2 or 12/5. A ball bouncing off a circle meets the wall at the same angle every time, so its contact point steps k of n points round the rim and every line it draws sits at the same distance from the centre – as the lines pile up, an inner circle nobody drew appears. Each ball moves at exactly the speed that closes its star after the same drawing time, so all the stars close on one frame with a chord; then the drawing holds, fades and starts again, a seamless loop. Type your own stars, draw a random coprime set, or let Find Simulation pick the best-looking set and fit the loop to your clip.",
     "modeHoops": "No rings: 1–16 concentric hoops (eight by default, red outside, violet inside) spin together about their vertical diameter, drawn face-on and squashed by the spin so they read as 3D, each carrying one bead that slides without friction. The spin ramps up – steadily, eased or in steps – and every hoop has a critical speed, √(g/R): below it gravity keeps the bead at the bottom, past it the bead climbs to its balance point arccos(g/(Rω²)), higher the faster the spin. Bigger hoops lift first, so the beads climb in strict size order, each lift a tuned bar note pitched by its hoop; a chime ticks every turn, a chord lands when every bead is up, and the counter reads the spin and the beads up. With Return on the spin ramps back down until every bead rests again and the loop starts over seamlessly, ready for Export whole loops; Find Simulation searches for a run in strict size order or one with every bead up within a time.",
     "modeColourSort": "A sorting machine: 360 balls in four colours start packed in the red core of a bullseye of turning rings and move as a constant-speed gas. Every ring is a row of arcs with gates between them, and a gate is a one-way colour filter: it opens outwards only, and never for balls of the ring's own colour. So red can never leave the core, orange gets past the red ring but stops at its own, green makes it one ring further and blue goes all the way out to the outer band – the mix sorts itself into a bullseye while the amber counter climbs to 360 / 360 sorted with a long, suspenseful tail. Every gate pass plucks its colour's note in A major pentatonic, the last ball sorted lands a warm completion chord, and a remix pulls every ball back into the exact first frame under a soft noise wash, so a recording of whole cycles loops seamlessly. Pick the colours and the balls of each, the gates and their width, the rings' spin, the rule (or reverse it), contacts or a ghost gas for thousands of balls – and let Find Simulation search for a sort within a time limit, the colour that finishes last or a final ball on a bar line.",
-    "modeEllipseFoci": "An elliptical pool table with its two foci marked. A volley of balls – 72 by default, coloured around the hue wheel by launch angle – leaves one focus at the same moment, every way. An ellipse sends every shot from one focus off its wall straight through the other, and every such path has the same length, so the whole volley converges on the other focus one transit later, then back on the first, with a white bloom each time, while every pass narrows the swarm onto the long axis. Refire starts a fresh volley under the flash every few passes, so the clip loops seamlessly; the wall hits run down a pentatonic ladder, every convergence lands a kick, a crack and a chord on a bar line, and Find Simulation puts the convergences on the page's beat or finds the start angle of the longest collapse."
+    "modeEllipseFoci": "An elliptical pool table with its two foci marked. A volley of balls – 72 by default, coloured around the hue wheel by launch angle – leaves one focus at the same moment, every way. An ellipse sends every shot from one focus off its wall straight through the other, and every such path has the same length, so the whole volley converges on the other focus one transit later, then back on the first, with a white bloom each time, while every pass narrows the swarm onto the long axis. Refire starts a fresh volley under the flash every few passes, so the clip loops seamlessly; the wall hits run down a pentatonic ladder, every convergence lands a kick, a crack and a chord on a bar line, and Find Simulation puts the convergences on the page's beat or finds the start angle of the longest collapse.",
+    "modeBeatMachine": "Two kinetic music machines that loop forever. In the marble xylophone, ten rainbow bars sit under ten tubes: each marble leaves its tube at exactly the moment that lets gravity land it on its bar on the beat, rebounds through the gap to the floor, rolls to the lift, rides up and rolls back along the top rail into its own tube. On the staircase one ball hops from step to step, one identical arc a beat, every landing a note, then drops into a hook and rides the return track back to the top just in time for the next phrase. The tune is an original seeded phrase, a scale run, a list you type or the melody you load."
   },
   "Footer": {
     "navLabel": "Footer",
@@ -3058,7 +3064,17 @@
     "leadChangesCount": "Lead changes at least",
     "bossWave": "Wave",
     "bothLowAt": "Cliffhanger at",
-    "progressBout": "Furthest: bout {bout}"
+    "progressBout": "Furthest: bout {bout}",
+    "outcomeNoTubeConflict": "No tube conflict",
+    "outcomeMostInFlight": "Most marbles in flight",
+    "hintNoTubeConflict": "Searches seeded original tunes for one every tube can play with the marbles it holds (Marbles per tube, one under auto): no marble is needed again before it is back, so no tube needs a spare.",
+    "hintMostInFlight": "Searches seeded original tunes for the busiest machine: the most marbles out of their tubes at the same moment.",
+    "findNoTubeConflict": "Find a Tune Without Spares",
+    "findMostInFlight": "Find the Busiest Tune",
+    "foundNoTubeConflict": "Found! Every marble is back in time: {notes} notes a loop, {loops, plural, one {# whole loop} other {# whole loops}} in the clip",
+    "foundMostInFlight": "Found! Up to {marbles} marbles in flight at once, {loops, plural, one {# whole loop} other {# whole loops}} in the clip",
+    "missNoTubeConflict": "Every tune needed a spare marble (the fewest: {spares}; {seeds} seeds)",
+    "overlayNoTubeConflict": "Tested {tested} seeded tunes: each needed at least {spares} spare marbles. Raise Marbles per tube, slow the tempo or lengthen the loop."
   },
   "FastExport": {
     "button": "Fast export",
@@ -5056,7 +5072,11 @@
     "colourSort": "{count} mixed balls, sorted by their own rings",
     "colourSortFact": "Each ring's gates only open outwards, and never for balls of the ring's own colour. So the core's colour can never leave it, the next one gets past the first ring but not its own, and the outermost colour makes it all the way out: mix them up and they sort themselves into a bullseye.",
     "ellipseFoci": "{count} balls fired from one focus, all landing on the other together",
-    "ellipseFociFact": "An ellipse has two foci. A shot from one bounces off the wall straight through the other, whichever way it goes, and every one of those paths is the same length – so a whole volley fired at once arrives at the other focus at the same instant. It's why a whisper at one focus of an elliptical room is heard clearly at the other."
+    "ellipseFociFact": "An ellipse has two foci. A shot from one bounces off the wall straight through the other, whichever way it goes, and every one of those paths is the same length – so a whole volley fired at once arrives at the other focus at the same instant. It's why a whisper at one focus of an elliptical room is heard clearly at the other.",
+    "beatMachineMarbles": "{count} tuned bars, and every note is a marble",
+    "beatMachineMarblesFact": "Each marble drops from its tube at exactly the moment that lets gravity land it on its bar on the beat: a fall of height h takes √(2h/g), so it leaves that long before its note. Then the floor, the lift and the top rail bring it back to its own tube. The tune is original.",
+    "beatMachineStairs": "{count} steps. {count} notes. one phrase",
+    "beatMachineStairsFact": "Every hop is the same arc and takes exactly one beat: the gravity and the take-off speed are worked out from the tempo, the drop of a step and the height of the arc. After the last step the ball rides the return track back to the top, landing on the first step just as the next phrase begins."
   },
   "ColourSort": {
     "canvasTitle": "each ring stops only its own colour",
@@ -5120,5 +5140,64 @@
     "canvasTitle": "fire from one dot, hit the other",
     "canvasSubtitle": "every bounce off the wall heads for the other dot / and every path there is the same length",
     "canvasPasses": "{count, plural, one {{count} pass} other {{count} passes}}"
+  },
+  "BeatMachine": {
+    "canvasTitleStairs": "each step / plays a note",
+    "canvasSubtitleStairs": "one hop a beat, every landing a note / then the track brings the ball back",
+    "canvasCounterStairs": "{count} / {total} notes",
+    "canvasTitleMarbles": "every note is a marble",
+    "canvasSubtitleMarbles": "each marble leaves its tube just in time / to land on its bar on the beat",
+    "canvasCounterMarbles": "{count} / {total} notes",
+    "desc": "Music machines where every note is a ball landing on its target exactly on the beat, with a return path so the machine loops forever. The bars and steps follow the Sound section's scale and root.",
+    "bmPreset": "Preset",
+    "bmPresetTip": "Eight steps: the staircase, 8 notes at 80 BPM. Scale staircase: 16 steps playing the scale. Marble xylophone: 10 bars, a seeded original tune at 100 BPM. Load your melody: the marbles play the melody loaded under Sound.",
+    "presetEightSteps": "Eight steps",
+    "presetScaleStairs": "Scale staircase",
+    "presetXylophone": "Marble xylophone",
+    "presetYourMelody": "Load your melody",
+    "bmVariant": "Machine",
+    "bmVariantTip": "The marble xylophone (tubes, tuned bars, a floor, a lift and a top rail) or the musical staircase (one ball hopping a step a beat, then round the return track).",
+    "variantMarbles": "Marble xylophone",
+    "variantStairs": "Staircase",
+    "bmBpm": "Tempo (BPM)",
+    "bmBpmTip": "Beats a minute. Every strike or landing is solved backwards from its beat, so any tempo lands on time: 100 suits the marbles, 80 the staircase.",
+    "loopNoteStairs": "{steps} steps and {back} return beats: a loop of {beats} beats, {loop}s.",
+    "loopNoteMarbles": "A loop of {beats} beats, {loop}s.",
+    "bmSource": "Notes from",
+    "bmSourceTip": "Where the tune comes from: an original phrase written by the seed, a scale run, the melody loaded under Sound, or a list you type.",
+    "sourceOriginal": "Original phrase",
+    "sourceScale": "Scale run",
+    "sourceMelody": "Loaded melody",
+    "sourceCustom": "Typed list",
+    "sourceOriginalHint": "A new original tune for every seed: Find Simulation can look for one without spare marbles, or the busiest.",
+    "sourceScaleHint": "The marbles run up the bars and back down; the staircase plays its ladder, a step a degree.",
+    "sourceMelodyHint": "One note a beat from the melody loaded under Sound, each on the bar nearest its pitch. With no melody loaded the original phrase plays.",
+    "sourceCustomHint": "One token a beat: a bar or degree number (1 is the lowest), a note name like C4 or F#5, or - for a rest.",
+    "bmNotes": "Note list",
+    "bmNotesTip": "One token a beat, separated by spaces or commas: a bar number (1 = the lowest bar), a note name (C4, F#5, Bb3) or - for a rest. The list repeats to fill the loop.",
+    "bmNotesPlaceholder": "1 3 5 - 8 or C4 E4 G4",
+    "bmSteps": "Steps",
+    "bmStepsTip": "Step bars on the staircase: one note each, so the phrase has as many notes as steps.",
+    "bmStepDx": "Step width",
+    "bmStepDxTip": "How far each step sits to the right of the last, % of the panel.",
+    "bmStepDy": "Step drop",
+    "bmStepDyTip": "How far each step sits below the last, % of the panel. The hop's arc is solved from it and the beat.",
+    "bmReturn": "Return beats",
+    "bmReturnTip": "Beats from the hook to the first step again: the ball rolls round the track and is tipped back on just as the phrase starts over. Under 2 it flies straight back.",
+    "bmBars": "Bars",
+    "bmBarsTip": "Tuned bars, low to high from left to right, each with its own tube of marbles in its colour.",
+    "bmDrop": "Drop height",
+    "bmDropTip": "The fall from a tube to its bar, % of the panel: a marble leaves √(2h/g) before its note.",
+    "bmRebound": "Rebound",
+    "bmReboundTip": "How high a marble bounces off its bar, as a share of its impact speed, before it falls through the gap to the floor.",
+    "bmPerTube": "Marbles per tube",
+    "bmPerTubeTip": "Marbles each tube holds. Auto: as many as the tune needs. A tube whose marble cannot be back before its next note starts with a spare.",
+    "perTubeAuto": "auto",
+    "bmLoopBeats": "Loop beats",
+    "bmLoopBeatsTip": "Beats in the marble machine's loop: 32 at 100 BPM is 19.2 s.",
+    "bmBass": "Phrase bass",
+    "bmBassTip": "A soft bass note every two bars on the lowest note of the phrase there.",
+    "bmCounter": "Note counter",
+    "bmCounterTip": "Shows the notes of the current loop in the loop HUD (\"12 / 32 notes\")."
   }
 }

@@ -61,9 +61,14 @@ import type { FlRunSummary } from "@/lib/physics/modes/fightLeague"; // --- fl-o
  * cut there), **decider** (a series goes the distance), **sudden** (decided in sudden death), **champion** (a bracket won by the
  * pinned entrant `team`) and **boss-falls-at** (the boss falls at wave `count`); **close** takes the winner's HP share as its
  * margin (≤ FL_CLOSE).
+ *
+ * --- beat-machine --- Beat Machines' marble xylophone adds two (every note lands on its beat by construction, so the seeds
+ * write the tune instead): **no-tube-conflict** – the first seeded phrase whose tubes never need a spare marble (a marble is
+ * always back before its tube's next note) – and **most-in-flight** – the phrase with the most marbles out at once
+ * (beatMachineFinder.ts; a plan per seed, nothing simulated).
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at", "no-tube-conflict", "most-in-flight" /* --- beat-machine --- */] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
 /** --- fl-overhaul --- (Stage 5) Fight League's story outcomes (judged on `RunSummary.fl`; the run followed to its end, both-low-at to its window). */
 export const FL_STORY_OUTCOMES: readonly FinderOutcomeKind[] = ["upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at"];
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
@@ -590,6 +595,8 @@ export interface OutcomeContext {
   colourSortSettles?: boolean;
   /** --- chaos-fan --- The Double Pendulum runs its chaos fan: the split's time can be searched (diverges-at). */
   dpFan?: boolean;
+  /** --- beat-machine --- Beat Machines runs its marble xylophone: its seeded phrases can be searched (no-tube-conflict, most-in-flight). */
+  bmMarbles?: boolean;
 }
 
 /**
@@ -626,6 +633,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "doublePendulum" && ctx.dpFan) out.push("diverges-at"); // --- chaos-fan --- (the split at a chosen second)
   if (mode === "ellipseFoci") out.push("converge-on-beat", "longest-collapse"); // --- ellipse-foci --- (the transit on the tempo; the start angle)
   if (mode === "colourSort" && !ctx.colourSortSettles) out.push("sorted-by", "last-colour", "sorted-on-bar"); // --- colour-sort --- (its first sort: the run loops forever; none when the sort only settles)
+  if (mode === "beatMachine" && ctx.bmMarbles) out.push("no-tube-conflict", "most-in-flight"); // --- beat-machine --- (seeded phrases: the marble machine's tubes)
   return out;
 }
 

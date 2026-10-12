@@ -7,6 +7,7 @@ import { segmentEndpoints, type SegmentEnds } from "@/lib/physics/obstacles";
 import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions } from "./boxRenderer";
 import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulumTrails, type PendulumRenderOptions } from "./pendulumRenderer";
 import { ELLIPSE_FOCI_DATA_KEYS, EllipseFociLayer, ellipseFociExtentPx, writeEllipseFociDataset, type EllipseFociRenderOptions } from "./ellipseFociRenderer"; // --- ellipse-foci ---
+import { BEAT_MACHINE_DATA_KEYS, BeatMachineLayer, beatMachineExtentPx, writeBeatMachineDataset, type BeatMachineRenderOptions } from "./beatMachineRenderer"; // --- beat-machine ---
 // --- jdm-polyrhythm ---
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
 import { inLinePercent } from "@/lib/physics/phaseSpiral"; // --- phase-spiral ---
@@ -864,6 +865,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- ellipse-foci --- Focus Shot's layer (the hue buckets, the comet trails' buffers) and its per-frame options
     const efLayer = new EllipseFociLayer();
     const efRender: EllipseFociRenderOptions = { dpr: scale, wallColor: "#ffffff", wallThickness: 2, showGlow: false };
+    // --- beat-machine --- Beat Machines' layer and its per-frame options
+    const machineLayer = new BeatMachineLayer();
+    const machineRender: BeatMachineRenderOptions = { dpr: scale, showGlow: false };
     // --- gerald-faces --- ball characters (faces, name label, squash); the Box / Pendulum / Polyrhythm / Collide bodies get faces through drawOverlays()
     const faces = new FaceLayer();
     facesRef.current = faces;
@@ -1594,6 +1598,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         efRender.showGlow = p.showGlow;
         efLayer.drawStage(ctx, efView, efRender);
       }
+      // --- beat-machine --- Beat Machines: the machine (the panel, steps, track and dots, or the floor, lift, rail, tubes and bars)
+      // drawn from the plan at the frame's own simulation time
+      const machineView = engine.isBeatMachineMode() ? engine.getBeatMachineView() : null;
+      const machineT = machineView ? hoopsRenderTimeMs(engine.getElapsedMs(), engine.getStepRemainderMs(), accumulator) / 1000 : 0;
+      if (machineView) {
+        machineRender.dpr = scale;
+        machineRender.showGlow = p.showGlow;
+        machineLayer.drawStage(ctx, machineView, machineT, machineRender);
+      }
 
       // --- jdm-polyrhythm --- Metronomes & Polyrhythms: the stage (rings / polygons, chords, semicircles, metronome bodies, spiral).
       const isPoly = engine.isPolyrhythmMode();
@@ -2248,6 +2261,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (isPendulum) drawPendulumBobs(ctx, balls, engine.getPendulumView(), pendulumRender);
       else if (starView) starLayer.drawBodies(ctx, starView, starRender); // --- chord-stars --- the balls with their glow
       else if (efView) efLayer.drawBodies(ctx, efView, efRender); // --- ellipse-foci --- the volley by hue, the convergence bloom
+      else if (machineView) machineLayer.drawBodies(ctx, machineView, machineT, machineRender); // --- beat-machine --- the stairs' ball and its trail, or the glossy marbles
       else if (isPoly) drawPolyrhythmVoices(ctx, engine.getPolyrhythmView(), polyRender); // --- jdm-polyrhythm ---
       // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
       else if (isCollide) drawCollideBodies(ctx, balls, engine.getCollideView(), collideRender);
@@ -3071,7 +3085,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       loopHudLive.bottom = Infinity;
       loopHudLiveText = "";
       if (hudSpec && !recordingRef.current) {
-        const ring = efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
+        const ring = machineView ? beatMachineExtentPx(machineView) /* --- beat-machine --- (the machine's box) */ : efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
         const liveTop = (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
         const hudFrame = loopHudFrame(hudSpec, loopHudCount(engine));
         const hudLayout = loopHudLiveLayout(size.width, size.height, cy, Math.min(ring, Math.min(size.width, size.height) / 2), liveTop);
@@ -3206,6 +3220,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- ellipse-foci --- Focus Shot: convergences, volleys, wall hits, sound events, spreads, the arrival error (data-ef-*)
       if (efView) writeEllipseFociDataset(efView, efLayer, setCanvasData);
       else if (canvas.dataset.efBalls !== undefined) for (const key of ELLIPSE_FOCI_DATA_KEYS) delete canvas.dataset[key];
+      // --- beat-machine --- Beat Machines: notes, sounds, seams and the seam check, marbles in flight, spares (data-bm-*)
+      if (machineView) writeBeatMachineDataset(machineView, machineLayer, setCanvasData);
+      else if (canvas.dataset.bmVariant !== undefined) for (const key of BEAT_MACHINE_DATA_KEYS) delete canvas.dataset[key];
       // --- jdm-polyrhythm --- voice, tick, alignment and cycle counts (data-poly-*) for tools and the smoke test.
       if (isPoly) {
         const view = engine.getPolyrhythmView();

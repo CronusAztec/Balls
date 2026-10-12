@@ -60,6 +60,7 @@ export const LOOP_HUD_MODE_TEXT: Readonly<Partial<Record<ModeId, { title: string
   hoops: { title: "hoopsTitle", subtitle: "hoopsSubtitle", counter: "hoopsCounter", counterOne: "hoopsCounterOne" }, // --- bead-hoops ---
   polyrhythm: { title: "polyrhythmTitle", subtitle: "polyrhythmSubtitle", counter: "polyrhythmCounter" }, // --- phase-spiral --- (the counter: the in-line meter)
   ellipseFoci: { title: "EllipseFoci.canvasTitle", subtitle: "EllipseFoci.canvasSubtitle", counter: "EllipseFoci.canvasPasses" }, // --- ellipse-foci --- (its own namespace)
+  beatMachine: { title: "BeatMachine.canvasTitleMarbles", subtitle: "BeatMachine.canvasSubtitleMarbles", counter: "BeatMachine.canvasCounterMarbles" }, // --- beat-machine --- (the marble machine's; the page picks the variant's: beatMachineHudKeys())
 };
 
 // --- chord-stars --- a counter toward a total ("stars closed 3/5") and a subtitle of two lines
@@ -305,6 +306,7 @@ export function loopHudCount(engine: {
   getPolyrhythmView?(): { inLine: number; settings: { alignMeter: boolean } }; // --- phase-spiral ---
   getEllipseFociHudCount?(): number | null; // --- ellipse-foci ---
   getColourSortView?(): { sorted: number; phase: string }; // --- colour-sort ---
+  getBeatMachineHudCount?(): LoopHudCount | null; // --- beat-machine ---
 }): number | LoopHudCount | LoopHudCounter | LoopHudState | null {
   // --- chaos-fan --- the Double Pendulum's chaos fan: running forwards, or its tape backwards
   if (engine.getCurrentModeName() === "doublePendulum" && engine.getDoublePendulumView) {
@@ -344,6 +346,7 @@ export function loopHudCount(engine: {
     return view.phase === "remix" ? null : view.sorted;
   }
   // --- end colour-sort ---
+  if (engine.getCurrentModeName() === "beatMachine") return engine.getBeatMachineHudCount?.() ?? null; // --- beat-machine --- (the notes of the loop, with the counter on)
   return engine.getCurrentModeName() === "grow" ? engine.getGrowView().bounces : null;
 }
 

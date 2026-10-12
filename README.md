@@ -15,7 +15,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 
 | Area | What you get |
 | --- | --- |
-| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Colour Sort, Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops, Focus Shot), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
+| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Colour Sort, Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Beat Machines, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops, Focus Shot), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow; collision-safe at every amplitude and speed) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Merge & split balls** | A ball-interaction setting in the Ball section: balls **bounce** (default), **merge** into one bigger ball on contact (area and momentum conserved, colours blended, a particle burst and a low tone), **split** in two every time a ball breaks through a wall (half the area each, diverging velocities, a high tone – down to a smallest size and up to a ball cap) or **pass** through each other. Works in the two-ball modes and Multiply, is deterministic (seeds and Find Simulation include it) and shared via the URL (`bi`, `smr`, `mb`) |
@@ -95,6 +95,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Phase Spiral** | The Metronomes & Polyrhythms rings as the loop-clip account's "watch the spiral straighten into one line" reel (feature phase-spiral, `src/lib/physics/phaseSpiral.ts`): **Arms** put 1–8 dots on every ring (any whole number typed; rings and spiral layouts), evenly spaced on as many spokes, and a dot steps one spoke a tick – ring i still ticks i + 1 times a cycle, so the polyrhythm, its chord and its finish stay the classic ones while the picture winds into a k-armed spiral, passes through interference patterns and straightens into the spokes **exactly once a cycle**, on the alignment. The **in-line meter** shows "in line N%" over a thin amber bar – the arms-fold resultant \|mean e^{i·k·θ}\| of the dot angles (100 % at every alignment, near 0 in between) – under the disc or as the loop HUD's counter; **comet tails** (0–1 s of motion, the classic 0.18 s by default) fade behind every dot; the **spiral colours** go blue inside to red outside on a dark disc; **loop sounds** play a pentatonic pluck a tick (inner rings low), risers as the meter crosses 50, 75 and 90 % that stop on the alignment's open chord and bell. An endless run (Cycles 0) is a seamless loop for **Export whole loops**. The **Phase spiral, 20 rings × 3 arms** preset brings the clip's navy page and loop HUD. See [Phase Spiral](#phase-spiral-the-loop-clip-family). |
 | **Focus Shot** | A rhythm-family mode of the loop family (`ellipseFoci`, feature ellipse-foci) after the loop-clip account's whispering-gallery clip: an elliptical pool – a pool table with a wooden rim, a copper rail and green felt, or a neon or thin outline – with its two foci marked, and a volley of balls (72 by default, 1–720 on the slider, any whole number typed) fired at once from one focus every way, coloured around the hue wheel by launch angle, with tapering comet trails. Every focus–wall–focus path is 2a long, so at the speed 2a / T the whole volley converges on the other focus every transit T – a white bloom – alternating foci, while every pass collapses the swarm onto the long axis. The motion is analytic (the ray–ellipse quadratic and the reflection about the ellipse's normal, no drift: a seed replays exactly at any frame rate and in the fast export). At a convergence: **Refire** (a fresh volley every Passes per loop – a seamless loop of passes × T that Export whole loops cuts to), **Collapse** or **Every pass**; eccentricity, size, transit time, spread and start angle, launch focus, orientation, trail length, a paths overlay. Sound: a descending pentatonic pluck per wall hit, an impact (kick, noise crack, chord) on every convergence after a 0.4 s pre-drop, a groove bed at 8 · 60 / T BPM; the lowercase loop HUD ("fire from one dot, hit the other") and an optional pass counter; Find Simulation's **Converges on the beat** and **Longest collapse**; five presets. See [Focus Shot](#focus-shot). |
 | **Colour Sort** | An escape-family mode (`colourSort`, feature colour-sort) after the loop family's colour-sorting rings ("360 mixed balls, sorted by four rings"): **Colours** × **Balls per Colour** (`csc` 4, `csn` 90 – 360 balls) start packed in the core of K concentric rings – K − 1 gated rings and a closed outer wall, at (k + 1) / K of its radius – and move as a constant-speed gas (**Ball Speed** `csv`, 220 px/s of a 720-wide frame; no gravity). Every gated ring is **Gates per Ring** arcs and gates (`csg` 4, **Gate Width** `csw` 35°) with a white pin at each arc end, turning at the **Inner Ring Spin** (`css`, 31°/s) times the **Spin Falloff** per ring outward (`csf`, ×0.8), in **Alternate Directions** (`csa`). A gate is a one-way colour filter – the **Gate Rule** (`csu`): outward and never the ring's own colour (the reference), outward and only its own colour, or both ways but never its own – and refuses every other ball like an arc, reflected in the ring's turning frame: red never leaves the core, orange stops at the orange ring, green at the green one and blue reaches the outer band – a bullseye. (Both ways lets sorted balls wander back in, so that sort never completes: it settles at an equilibrium – about 200 / 360 – and the cycle ends once the count stops rising, on the minor chord, with no Find Simulation outcomes.) The loop HUD's amber counter "n / 360 sorted" (a ball in its own band) climbs with a long tail to the completion chord (A2 with its 1.7 Hz tremolo, minor when the **Time Limit** `csl` ran out first), then reads "mixing again": a critically damped spring pulls every ball back to its exact frame-0 place over the **Remix** (`csm`, 2.8 s) under a noise wash, and the next cycle replays the first – the loop contract reports every seam, so Export whole loops cuts a recording into seamless cycles. Every gate pass plucks its colour's note of A major pentatonic (at most six a tick). **Ball Contacts** (`csx`) are off by default – a ghost gas, the reference clip's pace and cheap for thousands of balls –, on: elastic contacts; **Ball Size** (`csr`, 4.5 px), **Refusal Flashes** (`csh`). Five presets (Bullseye sort, Rainbow 7, One-gate torture, Ten thousand, Reverse rule) and Find Simulation's **All sorted within**, **Last colour** and **Sorted on a bar line** (±20 ms) outcomes. Every number is uncapped (20,000 balls a run at most). See "Colour Sort" below |
+| **Beat Machines** | A rhythm-family mode of the loop family (`beatMachine`, feature beat-machine) after the loop-clip account's "every note is a marble" and "eight steps. eight notes. one phrase" clips: kinetic music machines in which every note is a ball landing on a tuned target exactly on the beat, with a mechanical return path so the machine loops forever. **Marble xylophone** – 10 rainbow bars (2–48, any number typed) low to high, a tube of marbles in each bar's colour above it, a brass floor, a ladder lift with moving rungs and a top rail: each marble leaves its tube at t_note − √(2h/g) so it strikes its bar on the beat, rebounds through the gap to the floor, rolls to the lift, waits for the next free rung, rides up and rolls back along the rail into its own tube; the tubes are first in, first out and hold as many marbles as the tune needs (a marble that cannot be back in time gives its tube a spare); 32 beats at 100 BPM loop in 19.2 s. **Staircase** – one cream ball hops down 8 steps (1–64) in identical arcs of one beat (80 BPM: 749 ms), every landing a note, then drops into a hook, rolls round the U-shaped return track and is tipped back onto step 1 exactly `returnBeats` (4) beats later – (steps + return) beats a loop, progress dots under the panel. The notes: a seeded original phrase, a scale run, the melody loaded under Sound or a typed list (bar numbers or note names); the Sound section's scale and root tune the bars and steps. Sound (original synthesis through `ToneGenerator.playLoop()`, scheduled from the plan): tuned-bar strikes and a phrase bass every two bars, pentatonic plucks and a reset glide that ends at the loop point. Four presets (Eight steps, Scale staircase, Marble xylophone, Load your melody), the loop HUD ("every note is a marble", "each step plays a note") with an optional note counter, the loop contract for **Export whole loops**, and Find Simulation's **No tube conflict** and **Most marbles in flight**. See [Beat Machines](#beat-machines). |
 
 ## Design
 
@@ -2079,6 +2080,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `hoops` | all eight beads up at the top spin, lined up level across the face-on rainbow hoops (g/ω² under the centre) | 1 | 12.9 s | `bg1=0b1020&bg2=0b1020` | – |
 | `ellipseFoci` | the volley mid-flight on the felt: a rainbow arc of comets bouncing off the rail toward the far focus | 2 | 2.2 s | `lh=0&efTr=0.45` | – |
 | `colourSort` | the bullseye almost sorted: every colour in its own band, the last stragglers slipping through the turning gates | 1 | 9 s | `lh=0` | – |
+| `beatMachine` | the marble xylophone mid-tune: marbles falling from their tubes onto the rainbow bars, one bouncing off a struck bar, others riding the lift | 1 | 3.5 s | `lh=0` | zoom 1.15 |
 
 ### Watermark on every free simulation
 Feature watermark-everywhere – the owner's request (2026-10-04): "add the watermark to all simulations made without pro". The
@@ -2663,6 +2665,77 @@ the mode, `src/components/simulator/ellipseFociRenderer.ts` the picture, `sectio
   the finder, the links and presets, and the renderer's budgets. The smoke test (section 41, block `ellipse-foci`) runs 20 s at
   4× (no NaN, at least four convergences, the HUD, the bloom), compares a whole-loop fast export's sound events with live play,
   and checks a preset's link and the on-the-beat search.
+
+### Beat Machines
+Feature beat-machine – the loop-clip account's two music machines ("every note is a marble", "eight steps. eight notes. one
+phrase"), rebuilt as one rhythm-family mode (`beatMachine`) on the pattern of the [Beat Drop](#beat-drop) planner
+(`src/lib/simulation/beatDropPlan.ts`): every impact is solved backwards from its note time and the balls are placed from the
+plan, never integrated. `src/lib/simulation/beatMachinePlan.ts` is the planner, `src/lib/physics/beatMachine.ts` the settings,
+links and presets, `src/lib/physics/modes/beatMachine.ts` the mode, `src/components/simulator/beatMachineRenderer.ts` the picture,
+`sections/BeatMachineSection.tsx` the controls and `src/lib/simulation/beatMachineFinder.ts` Find Simulation.
+
+- **The planner** – pure, in machine units (about one panel, y down; the mode fits the plan's box into the page's centred square).
+  `buildPhrase()` writes the notes – a seeded original phrase (`originalMarblePhrase()`: two motifs of 8 beats, a quarter, two
+  eighths or a rest a beat and a walk over the bars, laid out A, A transposed, B, A coming home to a tonic bar; the staircase's
+  `originalStairsDegrees()`), a scale run, the loaded melody (one note a beat, folded onto the nearest bar) or a typed list
+  (`parseNoteList()`: bar numbers, note names like C4 or F#5, `-` for a rest). `planBeatMachine()` turns them into piecewise
+  trajectories (`BmSegment`: parabolic arcs, constant-speed arc-length paths, holds) and the loop's events (`BmEvent`: notes,
+  releases, rung pick-ups, the hook's catch and the tip, the glide, the bass).
+  - **Marbles**: a fall of h = Drop Height from the tube's exit lands on the bar at the note time (release at t − √(2h/g)); the
+    rebound (Rebound × the impact speed, a sideways kick that clears the bar's edge) ends on the floor; the floor roll, a wait for
+    the next free rung (first come, first served on the periodic schedule; the rungs pass the lift's foot a whole number of times
+    a loop), the lift, the rail and the drop into the tube follow at constant speeds. `tubeNeeds()` counts, at every release, the
+    tube's marbles still out on the endless periodic schedule: a tube holds max(Marbles per tube – one under auto –, what its tune
+    needs), the difference its spares (`plan.spares`, `plan.conflicts`); `marblePosition()` places marble k of a tube at any time
+    (note g of the endless schedule is marble g mod count – first in, first out – and a release lets the stack above fall a slot).
+  - **Stairs**: step k at (k·dx, k·dy); every hop lasts T = 60 / BPM with the gravity solved from T, the drop and an apex of
+    1.2 × the drop (`stairsGravity()`); with two or more return beats the ball drops into the hook, rolls the U-shaped track
+    (down, along the bottom, up the left side, over the tipping hook) for returnBeats − 1 beats and is tipped onto step 1 – the
+    loop is (steps + returnBeats) · T; with fewer it flies straight back.
+- **The mode** – the "none" ring layout, `ballsMayRest` + `ballsPassThrough`, engine balls with no gravity placed from the plan at
+  every sub-step's time (the stairs' ball, or every marble up to the board's 2,000); the plan's events are emitted over
+  (last step, now] – sounds in the step that holds their time, so live play, the fast export, the batch render and the finder
+  replay them exactly; every note is bounce math's "bounce" trigger. The loop contract reports the plan's loop (`cycleSeconds()`,
+  `loopSeams()`), and at every seam the mode checks the machine against its state at t = 0 (`data-bm-seam-error`). The seeded
+  choices: the original phrase's draws, nothing else.
+- **Settings** (the Mode row; uncapped number fields, the slider in brackets; labels in the `BeatMachine` namespace) – Machine
+  `bmV` marbles / stairs, Tempo `bmBpm` 100 [1–1000] (a switch of the machine moves a default tempo and look to the other's),
+  Notes from `bmSrc` original / scale / melody / custom with the list `bmN`; stairs: Steps `bmSt` 8 [1–64], Step width / drop
+  `bmDx` / `bmDy` 7.5 / 7.9 % [0–20], Return beats `bmRt` 4 [0–64]; marbles: Bars `bmB` 10 [2–48], Drop height `bmDh` 28 %
+  [1–90], Rebound `bmRb` 0.3 [0–1.5], Marbles per tube `bmMt` auto (0) [0–50], Loop beats `bmL` 32 [1–1024], Phrase bass `bmBs`;
+  and the HUD's Note counter `bmC`. Memory-safety ceilings: `bmSteps`, `bmBars`, `bmPerTube`, `bmLoopBeats`. A change re-plans
+  and restarts the run (the counter follows live), as does a new scale, root or loaded melody. Far past the sliders the machine
+  still plans and plays without stalling: a tube holds at most 200 marbles (`BM_TUBE_CEILING`; a longer trip reuses them), a
+  hop's gravity stops at `BM_G_CEILING`, and a loop shorter than a step plays its last four loops' events a step and counts the
+  rest (`BM_LOOPS_PER_STEP`; past 4,096 marbles the in-flight count reads the trips and the seams go unchecked).
+- **The picture** – the staircase on the clip's navy page: a rounded panel (#0f1a28, a 1 px #1f2c3a border, a faint dot grid),
+  steps on a mint-to-sky ramp that glow when landed on, the hook and the grey-teal return track, the cream ball with its glow
+  and a trail of its exact flight, the progress dots under the panel; the marble machine on a warm dark-brown gradient: brass
+  floor, ladder lift with rungs moving up, top rail, pale tubes with base caps and stacked marbles, rainbow bars that brighten,
+  glow and dip 2 px when struck, and glossy marbles with a white specular dot and a soft glow. Drawn from the plan at the frame's
+  own time, with no gradient or array allocated per frame.
+- **Sound** (original synthesis, no audio copied: loop-foundation's `ToneGenerator.playLoop()`) – the marbles' strikes are tuned
+  bars (`"bar"`: the additive f / 4f / 10f strike with its click) at the bar's pitch, with the phrase bass (`"bass"`, the new loop
+  kind playing loopTones' `schedulePhraseBass()`: a triangle 55–220 Hz, 300 ms attack, 2 s decay) every two bars on the window's
+  lowest note; the staircase's landings are pentatonic plucks (`"pluck"`) and its return a reset glide (`"glide"`) from the first
+  note's pitch two octaves down to one octave down, ending exactly at the loop point. At most six notes a step; the voice budget
+  merges the rest.
+- **The HUD** – the loop HUD is on in Beat Machines: "every note is a marble" or "each step plays a note" (the reel's two-line
+  title on one line) with the rule in grey, and with the Note counter "12 / 32 notes" in amber (`loopHudCount()`).
+- **Find Simulation** (the marble machine) – **No tube conflict**: the first seeded original tune whose tubes never need a spare;
+  **Most marbles in flight**: the seeded tune with the most marbles out at once. A plan per seed (the headless engine's), nothing
+  simulated; the clip is the whole loops that fit the target. The Publish caption editor's **Loop style** has the machine's hook
+  ("10 tuned bars, and every note is a marble", "8 steps. 8 notes. one phrase"), its fact and #marbles #animation #creativecoding.
+- **For tools** – the canvas mirrors `data-bm-variant`, `-time`, `-loop`, `-loop-index`, `-bpm`, `-notes`, `-played`, `-sounds`,
+  `-seams`, `-seam-notes`, `-seam-sounds`, `-seam-error`, `-balls`, `-marbles`, `-spares`, `-conflicts`, `-in-flight`,
+  `-in-flight-max`, `-releases`, `-lifts`, `-glides`, `-basses`, `-source`, `-nan`, `-lit`, `-rungs`, `-glowing` and `-drawn`; the
+  section `data-bm-variant`, `-source`, `-loop` and `-beats`.
+- **Tests** – `tests/beatMachinePlan.test.ts`: every strike on its note time within 1e-9 s, every release √(2h/g) before it, no
+  marble needed before it is back (or a spare), the staircase's beat-long flights and its (steps + return) · 60 / BPM loop,
+  continuous trajectories at every join, the same plan for the same seed, the engine's notes × loops and seam state, 30 / 60 / 120
+  fps replays, the sounds through a real ToneGenerator on `tests/fakeAudio.ts`, the finder, the links and presets and the renderer.
+  The smoke test (section 43, block `beat-machine`) runs every preset for two loops at 2×, checks a link, the two outcomes and a
+  whole-loop fast export.
 
 ## Windows app
 
