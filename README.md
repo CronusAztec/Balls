@@ -2935,8 +2935,10 @@ presets, `src/lib/physics/modes/perfectFit.ts` the mode, `src/components/simulat
   orientation), the white bold "6 × 10" (rows × columns, as the account writes it) and the grey "one of 2,339 ways" under the box;
   Tetris on near-black (#0a0b14): the well with a 2 px slate border (#5a5f8a) and a faint grid, the guideline colours with a darker
   bevel, a landed piece's brief glow, a translucent khaki band with the gold (#e5b04a) "four lines" over a clear, the finale's
-  rows flashing cream-white under "twelve lines" and the grey "N lines cleared" under the well. The words under the box are the
-  live watermark's bottom band.
+  rows flashing cream-white under "twelve lines" and the grey "N lines cleared" under the well. The words under the box are one
+  centred block of the watermark's HUD report (`labelRect`), live and in the exports, and they end above the bottom 9 % of the
+  square, so the badge keeps its bottom corners under the box instead of covering the pieces; a piece lifted out of the tray's
+  top row never leaves the square (`PF_LIFT_TOP`).
 - **Sound** (original synthesis, no audio copied: loop-foundation's `ToneGenerator.playLoop()`) – the progress ladder: each piece
   leaving the tray plays the next degree of the major pentatonic up from C5 (`"step"`, sine + 3f, the last piece +3 dB), wrapping
   after 13 and starting again with every box, and its landing the soft thump (`"land"`); a completed rectangle plays the
@@ -2961,7 +2963,8 @@ presets, `src/lib/physics/modes/perfectFit.ts` the mode, `src/components/simulat
   and lines per loop with an empty box at every seam, 30 / 60 / 120 fps replays, the sounds through a real ToneGenerator on
   `tests/fakeAudio.ts`, the finder, the links and presets and the renderer. The smoke test (section 47, block `perfect-fit`) runs
   both presets to the end at 4× (3 rectangles, 28 lines, an empty box at the loop point), checks a link and the panel, the two
-  outcomes, a whole-loop fast export and the live watermark against the words under the box.
+  outcomes, a whole-loop fast export, the watermark tag on Record Video and Fast export for a free visitor and the live
+  watermark against the words under the box.
 
 ## Windows app
 

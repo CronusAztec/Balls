@@ -76,16 +76,18 @@ export const PF_LOOK = {
 /** Layout shares of the square: the box's widest (0.9) and tallest, its bottom, the label lines, the tray. */
 export const PF_BOX_WIDTH = 0.9;
 export const PF_BOX_HEIGHT = 0.54;
-export const PF_BOX_BOTTOM = 0.84;
-export const PF_LABEL_Y = 0.895;
-export const PF_WAYS_Y = 0.945;
+export const PF_BOX_BOTTOM = 0.795;
+export const PF_LABEL_Y = 0.845;
+export const PF_WAYS_Y = 0.89;
 export const PF_TRAY_TOP = 0.03;
 export const PF_TRAY_ROW = 0.1;
 export const PF_TRAY_SCALE = 0.45;
+/** The highest a lifted or hovering piece's top edge goes (a share of the square from its top). */
+export const PF_LIFT_TOP = 0.01;
 /** Tetris: the well's tallest share, its bottom and the counter's line. */
 export const PF_WELL_HEIGHT = 0.72;
-export const PF_WELL_BOTTOM = 0.86;
-export const PF_COUNTER_Y = 0.93;
+export const PF_WELL_BOTTOM = 0.835;
+export const PF_COUNTER_Y = 0.885;
 /** Seconds a landed Tetris piece glows. */
 export const PF_GLOW_SEC = 0.25;
 
@@ -137,8 +139,21 @@ export class PerfectFitLayer {
   scatterDrawn = 0;
   banner = "";
   label = "";
-  /** The top edge of the words under the box or well (world px; Infinity: none) – the live watermark's bottom band. */
-  labelTop = Infinity;
+  /**
+   * The words under the box or well as one block (world px; w 0: none drawn) – the watermark keeps clear of it, live and in
+   * the exports. The words end above the bottom 9 % of the square, where the badge's bottom corners sit, so it never has to
+   * cover the box.
+   */
+  readonly labelRect = { x: 0, y: 0, w: 0, h: 0 };
+  /** Measured text widths (text, font, px), so the block costs no measureText() a frame once the words are known. */
+  private readonly measured: { text: string; font: string; width: number }[] = [];
+  /** data-pf-status of the plan last written (rebuilt only when the plan changes, not every frame). */
+  statusPlan: PerfectFitView["plan"] | null = null;
+  statusText = "";
+  /** data-pf-seam-cells, rebuilt only when a seam was logged or the run restarted. */
+  seamGeneration = -1;
+  seamCount = -1;
+  seamText = "";
   private readonly paths = new Map<string, PiecePaths>();
 
   /** The cached paths of a piece's orientation (rounded cells inset 4 %, corners 20 %; the bevel the cells' top quarter). */
@@ -186,7 +201,7 @@ export class PerfectFitLayer {
   drawStage(ctx: CanvasRenderingContext2D, view: PerfectFitView, t: number, opts: PerfectFitRenderOptions, labels: PerfectFitLabels = PERFECT_FIT_ENGLISH) {
     const plan = view.plan;
     this.label = "";
-    this.labelTop = Infinity;
+    this.labelRect.w = 0;
     const { index, local } = puzzleAt(plan, t);
     if (index < 0) return;
     const p = plan.puzzles[index];
@@ -207,8 +222,8 @@ export class PerfectFitLayer {
       ctx.fillStyle = PF_LOOK.counter;
       this.label = labels.lines(lines);
       ctx.fillText(this.label, view.frame.cx, top + PF_COUNTER_Y * S, 0.9 * S);
+      this.noteLabel(view, Math.min(0.9 * S, this.measure(ctx, this.label)), top + PF_COUNTER_Y * S - 0.6 * size, top + PF_COUNTER_Y * S + 0.6 * size);
       ctx.restore();
-      this.labelTop = top + PF_COUNTER_Y * S - 0.6 * size;
       return;
     }
     // the rectangles: during the label's crossfade the box morphs into the next one's
@@ -235,9 +250,8 @@ export class PerfectFitLayer {
     // the words under the box: this one's, then the next one's
     const titleSize = Math.max(10, 0.052 * S);
     const waysSize = Math.max(8, 0.032 * S);
-    this.labelTop = top + PF_LABEL_Y * S - 0.6 * titleSize;
-    this.drawWords(ctx, view, p, 1 - k, titleSize, waysSize, labels);
-    if (k > 0) this.drawWords(ctx, view, next, k, titleSize, waysSize, labels);
+    const wide = Math.max(this.drawWords(ctx, view, p, 1 - k, titleSize, waysSize, labels), k > 0 ? this.drawWords(ctx, view, next, k, titleSize, waysSize, labels) : 0);
+    this.noteLabel(view, wide, top + PF_LABEL_Y * S - 0.6 * titleSize, top + PF_WAYS_Y * S + 0.6 * waysSize);
     this.label = boxWords(k >= 0.5 ? next : p, labels);
   }
 
@@ -261,8 +275,9 @@ export class PerfectFitLayer {
     ctx.stroke();
   }
 
-  private drawWords(ctx: CanvasRenderingContext2D, view: PerfectFitView, p: PfPuzzle, alpha: number, titleSize: number, waysSize: number, labels: PerfectFitLabels) {
-    if (alpha <= 0.001) return;
+  /** The words of `p` under the box; returns the widest line's width (px, 0 when nothing was drawn). */
+  private drawWords(ctx: CanvasRenderingContext2D, view: PerfectFitView, p: PfPuzzle, alpha: number, titleSize: number, waysSize: number, labels: PerfectFitLabels): number {
+    if (alpha <= 0.001) return 0;
     const S = view.frame.side;
     const top = view.frame.cy - S / 2;
     ctx.save();
@@ -271,14 +286,38 @@ export class PerfectFitLayer {
     ctx.textBaseline = "middle";
     ctx.fillStyle = PF_LOOK.label;
     ctx.font = `800 ${titleSize}px sans-serif`;
-    ctx.fillText(labels.box(p.h, p.w), view.frame.cx, top + PF_LABEL_Y * S, 0.9 * S);
+    const title = labels.box(p.h, p.w);
+    ctx.fillText(title, view.frame.cx, top + PF_LABEL_Y * S, 0.9 * S);
+    let wide = this.measure(ctx, title);
     const second = p.status === "ok" ? (p.ways !== null ? labels.ways(p.ways) : "") : p.status === "size" || p.w * p.h !== 60 || Math.min(p.w, p.h) <= 2 ? labels.noTiling : labels.noDrop;
     if (second) {
       ctx.fillStyle = PF_LOOK.ways;
       ctx.font = `500 ${waysSize}px sans-serif`;
       ctx.fillText(second, view.frame.cx, top + PF_WAYS_Y * S, 0.9 * S);
+      wide = Math.max(wide, this.measure(ctx, second));
     }
     ctx.restore();
+    return Math.min(0.9 * S, wide);
+  }
+
+  /** A text's width in the context's font (cached: the words change a few times a loop, not every frame). */
+  private measure(ctx: CanvasRenderingContext2D, text: string): number {
+    const font = ctx.font;
+    for (const m of this.measured) if (m.text === text && m.font === font) return m.width;
+    const width = typeof ctx.measureText === "function" ? ctx.measureText(text).width || 0 : 0.6 * text.length * (Number(/(\d+(?:\.\d+)?)px/.exec(font)?.[1]) || 10);
+    if (this.measured.length >= 12) this.measured.shift();
+    this.measured.push({ text, font, width });
+    return width;
+  }
+
+  /** The words' block, centred under the box: `wide` px wide from `y0` to `y1`, with a margin of 2 % of the square around it. */
+  private noteLabel(view: PerfectFitView, wide: number, y0: number, y1: number) {
+    if (!(wide > 0)) return;
+    const pad = 0.02 * view.frame.side;
+    this.labelRect.x = view.frame.cx - wide / 2 - pad;
+    this.labelRect.y = y0 - pad / 2;
+    this.labelRect.w = wide + 2 * pad;
+    this.labelRect.h = y1 - y0 + pad;
   }
 
   private drawWell(ctx: CanvasRenderingContext2D, g: Layout, p: PfPuzzle, px: number) {
@@ -345,27 +384,30 @@ export class PerfectFitLayer {
         const travel = PF_TRAVEL / (PF_LIFT + PF_TRAVEL + PF_FALL);
         const slot = this.traySlot(view, k);
         const trayScale = trayCell / g.cell;
+        // (a piece lifted out of the tray's top row stays inside the square: its top edge never above PF_LIFT_TOP of it)
+        const top = view.frame.cy - S / 2 + PF_LIFT_TOP * S;
         if (u < lift) {
           const a = smooth(u / lift);
           scale = trayScale + (0.7 - trayScale) * a;
           const cxp = slot.x;
-          const cyp = slot.y - 0.03 * S * a;
+          const cyp = Math.max(slot.y - 0.03 * S * a, top + (h * g.cell * scale) / 2);
           x = cxp - (w * g.cell * scale) / 2;
           y = cyp - (h * g.cell * scale) / 2;
         } else if (u < lift + travel) {
           const a = smooth((u - lift) / travel);
           scale = 0.7 + 0.3 * a;
           const fromX = slot.x;
-          const fromY = slot.y - 0.03 * S;
+          const fromY = Math.max(slot.y - 0.03 * S, top + (h * g.cell * 0.7) / 2);
           const toX = targetX + (w * g.cell) / 2;
-          const toY = hoverY + (h * g.cell) / 2;
+          const toY = Math.max(hoverY, top) + (h * g.cell) / 2;
           const cxp = fromX + (toX - fromX) * a;
           const cyp = fromY + (toY - fromY) * a;
           x = cxp - (w * g.cell * scale) / 2;
           y = cyp - (h * g.cell * scale) / 2;
         } else {
           const a = clamp01((local - (piece.tLand - fall)) / Math.max(1e-6, fall));
-          y = hoverY + (targetY - hoverY) * Math.pow(a, feel);
+          const from = Math.max(hoverY, view.frame.cy - S / 2 + PF_LIFT_TOP * S);
+          y = from + (targetY - from) * Math.pow(a, feel);
         }
       } else if (local < piece.tLand + PF_SQUASH * sc) {
         const v = (local - piece.tLand) / (PF_SQUASH * sc);
@@ -573,7 +615,12 @@ export function writePerfectFitDataset(view: PerfectFitView, layer: PerfectFitLa
   set("pfLoopIndex", String(view.loop));
   set("pfSeams", String(view.seams));
   set("pfSeamsEmpty", String(view.seamsEmpty));
-  set("pfSeamCells", view.seamCells.join(","));
+  if (layer.seamGeneration !== view.generation || layer.seamCount !== view.seamCells.length) {
+    layer.seamGeneration = view.generation;
+    layer.seamCount = view.seamCells.length;
+    layer.seamText = view.seamCells.join(",");
+  }
+  set("pfSeamCells", layer.seamText);
   set("pfPuzzle", String(view.puzzle));
   set("pfPuzzles", String(plan.puzzles.length));
   set("pfPlaced", String(view.placed));
@@ -591,7 +638,11 @@ export function writePerfectFitDataset(view: PerfectFitView, layer: PerfectFitLa
   set("pfPieces", String(plan.pieceCount));
   set("pfFloor", String(plan.floor));
   set("pfSeed", String(plan.seed));
-  set("pfStatus", plan.puzzles.map((p) => p.status).join(","));
+  if (layer.statusPlan !== plan) {
+    layer.statusPlan = plan;
+    layer.statusText = plan.puzzles.map((p) => p.status).join(",");
+  }
+  set("pfStatus", layer.statusText);
   set("pfBeat", plan.beatSec > 0 ? plan.beatSec.toFixed(4) : "0");
   set("pfBeatError", view.beatErrorMs.toFixed(3));
   set("pfDrawn", String(layer.piecesDrawn));

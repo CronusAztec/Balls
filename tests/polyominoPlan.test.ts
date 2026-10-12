@@ -491,6 +491,16 @@ describe("Perfect Fit: the renderer", () => {
       const data: Record<string, string> = {};
       writePerfectFitDataset(view, layer, (k, v) => (data[k] = v));
       expect(Object.keys(data).sort()).toEqual([...PERFECT_FIT_DATA_KEYS].sort());
+      // the words under the box are one centred block (the watermark keeps clear of it), and they end above the bottom 9 % of
+      // the square – where the live badge (from 94 %) and the video badge (from 92.3 %) sit in its bottom corners
+      layer.drawStage(ctx, view, 1, { dpr: 1, showGlow: false }, PERFECT_FIT_ENGLISH);
+      const f = view.frame;
+      const r = layer.labelRect;
+      expect(r.w).toBeGreaterThan(0);
+      expect(r.w).toBeLessThan(0.9 * f.side);
+      expect(r.x + r.w / 2).toBeCloseTo(f.cx, 6);
+      expect(r.y).toBeGreaterThan(f.cy - f.side / 2 + 0.75 * f.side);
+      expect(r.y + r.h).toBeLessThan(f.cy - f.side / 2 + 0.92 * f.side);
     }
     // the words: the box as rows × columns with its classic count, the banners in words
     expect(PERFECT_FIT_ENGLISH.box(6, 10)).toBe("6 × 10");

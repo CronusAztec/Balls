@@ -1636,7 +1636,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         pfRender.dpr = scale;
         pfRender.showGlow = p.showGlow;
         pfLayer.drawStage(ctx, pfView, pfT, pfRender, pfLabels);
-      } else pfLayer.labelTop = Infinity;
+      } else pfLayer.labelRect.w = 0;
 
       // --- jdm-polyrhythm --- Metronomes & Polyrhythms: the stage (rings / polygons, chords, semicircles, metronome bodies, spiral).
       const isPoly = engine.isPolyrhythmMode();
@@ -3672,7 +3672,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         hud.topBand(loopHudLive.top);
         hud.bottomBand(loopHudLive.bottom);
         hud.bottomBand(ringLineBottom); // --- ring-escape --- (the time-in-ring line under the rings)
-        hud.bottomBand(pfLayer.labelTop); // --- perfect-fit --- (the words under the box or the well)
+        if (pfView && pfLayer.labelRect.w > 0) hud.block(pfLayer.labelRect.x, pfLayer.labelRect.y, pfLayer.labelRect.w, pfLayer.labelRect.h); // --- perfect-fit --- (the words under the box or the well)
         const exportSize = recording ? exportSizeRef.current : null;
         // the Top / Bottom Text: the canvas' own lines, or while recording the recorder's (it draws them into the export frame)
         if (p.topText || p.bottomText) {

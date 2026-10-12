@@ -17014,7 +17014,8 @@ await smokeBlock("perfect-fit", async () => {
   } else check("without WebCodecs the Perfect Fit fast export is not checked (the live runs are covered above)", true);
 }
 {
-  // A free visitor: the live badge never covers the words under the box ("6 × 10", "one of 2,339 ways")
+  // A free visitor: the watermark tag on Record Video and Fast export, and the live badge never covers the words under the box
+  // ("6 × 10", "one of 2,339 ways")
   const freeContext = await browser.newContext({ license: null, viewport: { width: 1400, height: 900 } });
   try {
     const fp = await freeContext.newPage();
@@ -17038,6 +17039,8 @@ await smokeBlock("perfect-fit", async () => {
         return fillText.call(this, text, x, y, ...rest);
       };
     });
+    await fp.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+    const tags = { record: await fp.getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").count(), fast: await fp.getByRole("button", { name: /Fast export/ }).locator("[data-watermark-tag]").count() };
     await fp.getByRole("button", { name: /Start Simulator/ }).click();
     await fp.waitForTimeout(7500);
     const mark = await fp.evaluate(() => {
@@ -17055,9 +17058,9 @@ await smokeBlock("perfect-fit", async () => {
       return { spots: spots.map((b) => [Math.round(b.x), Math.round(b.y), b.w, b.h]), lines: lines.map((l) => [Math.round(l.x0), Math.round(l.y0), Math.round(l.x1), Math.round(l.y1)]), overlaps, inside, count: texts.length };
     });
     check(
-      "a free visitor's Perfect Fit page: the live badge clear of the words under the box, the words inside the canvas",
-      mark.spots.length >= 1 && mark.overlaps === 0 && mark.count >= 2 && mark.inside,
-      `(${JSON.stringify(mark)})`,
+      "a free visitor's Perfect Fit page: the watermark tag on Record Video and Fast export, the live badge clear of the words under the box, the words inside the canvas",
+      tags.record >= 1 && tags.fast >= 1 && mark.spots.length >= 1 && mark.overlaps === 0 && mark.count >= 2 && mark.inside,
+      `(${JSON.stringify({ tags, ...mark })})`,
     );
   } finally {
     await freeContext.close().catch(() => {});
