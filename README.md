@@ -15,7 +15,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 
 | Area | What you get |
 | --- | --- |
-| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Colour Sort, Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Beat Machines, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops, Focus Shot), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
+| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Colour Sort, Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Beat Machines, Drawing Machines, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops, Focus Shot), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow; collision-safe at every amplitude and speed) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Merge & split balls** | A ball-interaction setting in the Ball section: balls **bounce** (default), **merge** into one bigger ball on contact (area and momentum conserved, colours blended, a particle burst and a low tone), **split** in two every time a ball breaks through a wall (half the area each, diverging velocities, a high tone – down to a smallest size and up to a ball cap) or **pass** through each other. Works in the two-ball modes and Multiply, is deterministic (seeds and Find Simulation include it) and shared via the URL (`bi`, `smr`, `mb`) |
@@ -101,6 +101,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Ring Escape (Classic)** | --- ring-escape --- The loop family's oldest reel ("it takes three seconds to get through the first one 🔊") as options of Classic's own rings (no new mode; `src/lib/physics/ringEscape.ts`; Wall Settings in Classic): a **gap layout** – even (as always), random (seeded), aligned or a **spiral** whose gaps step round by **Spiral step** degrees (`regl`, `ress`; 0–90° on the slider, any angle typed) –, the rings turning **together** so the spiral stays a spiral (`resp`), a **rainbow by ring** (red outside to cyan inside, `rerb`), **Time in ring** – "ring k: t s" in amber under the rings, "out in t s" once out, recorded with the clip (`retm`) – and original **ring sounds** – a pentatonic pluck per bounce pitched by the ring, a rising step per ring escaped, a chord at the way out (`resn`). **Find Simulation** gets **First ring at** (the first ring escaped within ±0.5 s of a chosen second) and the preset **Rainbow spiral, 11 rings** is the poster's look. See [Ring Escape](#ring-escape-classic-the-loop-family) |
 | **Go-live kit** | Everything between "it works" and "strangers pay" (feature go-live-kit, owner request 8): [`docs/GO-LIVE.md`](docs/GO-LIVE.md), a plain-language launch guide with sixteen sections – costs, hosting and a custom domain, the four accounts (Cloudflare, Stripe, PayPal, NOWPayments with your own payout wallets), test first then live, payouts, licence keys, GitHub variables, legal pages, taxes, a launch-day and a monthly checklist, the fee table and what to do when something breaks; **`npm run go-live`**, a wizard that asks for every key once (hidden, checked by its shape and mode), finds or creates the KV storage, deploys the Worker, makes the licence key pair, finds or creates the Stripe prices and PayPal plans (never twice), stores every secret with `wrangler secret put` on standard input only and sets the GitHub variables and secrets (`--dry-run`, `--skip`, `--mode`); **`npm run go-live:check`**, 17 PASS/FAIL checks of the Worker (`/health`, mode, providers, webhooks, CORS, `/config`, storage), the site (online, not in test mode, the same public key as the Worker, pointing at it, the legal sections), Stripe/PayPal/NOWPayments (prices, plans, webhook endpoints, the customer portal) and GitHub. The Worker gains `GET /health`, live/test mode safety (mixed keys switch a provider off: `503 provider_misconfigured`), refunds, disputes and reversals that end a subscription's access, per-connection rate limits (`429 rate_limited`), several site origins and one price file, [`billing/billing-config.json`](billing/billing-config.json); the terms gain Delivery, Cancellation and refunds and Who you are buying from (`SUPPORT_EMAIL`, `LEGAL_NAME`, `LEGAL_ADDRESS` repository variables); `deploy.yml` refuses a half-configured or test-key production deploy (`node scripts/go-live-check.mjs --deploy-guard`) |
 | **Auto-release (desktop-autorelease)** | One push updates everything: the website deploys from the product branch only (`CUSTOM_DOMAIN` switches it to a domain root; optional Cloudflare Pages), the billing Worker deploys on changes to `billing/` with a health check, and a version bump in `desktop/package.json` (`npm run release:desktop -- 1.0.4`) builds, smoke-runs and publishes the Windows release that electron-updater serves; the app checks every 4 hours, shows a Restart / Later banner and a notification, never interrupts a render. [docs/RELEASING.md](docs/RELEASING.md) |
+| **Drawing Machines** | A rhythm-family mode of the loop family (`drawingMachine`, feature drawing-machine) after the loop-clip account's "three pendulums, one pen" harmonograph and "earth and venus draw this every 8 years" orbit flower, both analytic in the simulation clock and both looping on frame 0: the **harmonograph**'s three damped pendulums (left-right, up-down and rotary; 1.5 Hz, the second 2 % faster so the figure keeps twisting, friction τ = 18 s shrinking it toward the middle) drive one pen that inks a typed-array trace on cream paper between two metal rollers for 22.5 s, then the paper scrolls a fresh sheet in (1.5 s); the **orbits** draw a line between two planets every 8 days (Venus and Earth at exactly 13 : 8) for 8 years at 1.8 s a year, mark the five conjunctions 144° apart and join them into a pentagram, hold, and rewind – the year counter running back to 0.0 and the lines un-drawing newest first. Six presets (Three pendulums, one pen; Lissajous 3:2; Decay rose; Earth and Venus; Earth and Mars at their real periods; Jupiter and Saturn at 5 : 2), every number an uncapped field (`dm…` link keys), original synthesized sound on the loop foundation (a drone that breathes with the pendulums' energy, the pen's scratch, the paper's ratchet; the groove bed, a rising pluck at every conjunction, a wash on the rewind), the loop HUD ("three pendulums, one pen" in cream serif, or "earth and venus draw a flower" and the amber "year 8.0") and Export whole loops. See [Drawing Machines](#drawing-machines). |
 
 ## Design
 
@@ -2171,6 +2172,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `ellipseFoci` | the volley mid-flight on the felt: a rainbow arc of comets bouncing off the rail toward the far focus | 2 | 2.2 s | `lh=0&efTr=0.45` | – |
 | `colourSort` | the bullseye almost sorted: every colour in its own band, the last stragglers slipping through the turning gates | 1 | 9 s | `lh=0` | – |
 | `beatMachine` | the marble xylophone mid-tune: marbles falling from their tubes onto the rainbow bars, one bouncing off a struck bar, others riding the lift | 1 | 3.5 s | `lh=0` | zoom 1.15 |
+| `drawingMachine` | earth and venus at year 8.0: the five-petal flower of blue-to-magenta chords complete round the amber sun, the cream pentagram joining the five conjunction marks | 1 | 15 s | `dmm=orbits&lh=0` | – |
 
 ### Watermark on every free simulation
 Feature watermark-everywhere – the owner's request (2026-10-04): "add the watermark to all simulations made without pro". The
@@ -2875,6 +2877,91 @@ Settings in Classic). Only the poster and the caption were seen, so every quanti
   fps and a pinned fingerprint, the rainbow, the settings, links and presets, the translations); the smoke test's block
   `ring-escape` applies the preset from Wall Settings and from a link, checks the spiral's gaps, the rainbow, the timer line and its pixels, the URL round
   trip, finds a first ring at 3 s and records the clip with the free watermark.
+
+### Drawing Machines
+Feature drawing-machine – the loop-clip account's two drawing machines ("three pendulums, one pen" and "earth and venus draw this
+every 8 years"), rebuilt as one rhythm-family mode (`drawingMachine`) whose motion is analytic in the simulation clock, like the
+[Pendulum Wave](#pendulum-wave): `src/lib/physics/drawingMachine.ts` holds the maths and the engine's settings,
+`src/lib/physics/drawingMachineFields.ts` the page's fields, links, presets and HUD words, `src/lib/physics/modes/drawingMachine.ts`
+the mode, `src/components/simulator/drawingMachineRenderer.ts` the picture and `sections/DrawingMachineSection.tsx` the controls.
+
+- **The harmonograph** – three damped pendulums drive one pen (in units of the figure's radius, 1 = the paper's edge):
+  x(t) = A1·e^(−t/τ)·sin(2π f1 t + φ1) + A3·e^(−t/τ)·sin(2π f3 t + φ3), y(t) = A2·e^(−t/τ)·sin(2π f2 t + φ2) + A3·e^(−t/τ)·cos(2π f3 t + φ3)
+  (`penAt()`, which also gives the pen's velocity), with f2 = f1 · (1 + detune) – the caption's 2 % that makes the figure drift in
+  and out of step and twist – and f3 = f1 · the rotary ratio. Friction (τ = 18 s) leaves the drawing at about 30 % after 22 s. The
+  pen is sampled at `traceRateHz()` – 240 Hz, or 64 samples a swing of the fastest pendulum – sample k at exactly k / rate whatever
+  the steps, into `DmTrace`, a typed-array ring buffer sized at init to what a sheet holds (an engine of another mode allocates
+  nothing) with a memory-safety ceiling of 400,000 points (`DM_TRACE_CEILING`: past it the oldest are dropped; the drawing already
+  inked stays on the sheet). After `drawSec` (22.5 s) the paper scrolls for `scrollSec` (1.5 s): the drawing slides up and off the
+  rollers behind a perforation line, the pen glides back to its first point and the next cycle starts exactly like the first (the
+  trace empty, the pendulums at t = 0).
+- **The orbits** – two bodies on circular orbits round a sun, the inner at `radiusRatio` (0.723) of the outer. With **Exact ratio**
+  the inner goes round p times while the outer goes round q in `years` (13 : 8 in 8: the pattern closes on the cycle's last frame);
+  without it they keep their real sidereal periods (365.256 d for the Earth, 224.701 d for Venus…), so the pattern creeps round a
+  little every cycle. A chord joins them every `lineDays` days (8) and stays; a conjunction – the relative angle crossing 0, once a
+  synodic period S = 1 / |1/P_inner − 1/P_outer| (1.6 years for 13 : 8: five a cycle, each 144° further round) – puts a white mark on
+  the outer orbit, and the marks are joined in order into the cream pentagram. The year runs from 0 to `years` at `secPerYear`
+  (1.8 s), the drawing holds `holdSec` (1.5 s) and rewinds over `rewindSec` (3 s): the counter counts back to 0.0 (eased) and the
+  chords and marks un-draw newest first. Everything is worked out from the clock (`orbitAngle()`, `conjunctionsUpTo()`,
+  `chordsBy()`), so nothing is stored per chord.
+- **The cycle and the loop contract** – the harmonograph's cycle is drawSec + scrollSec (24 s), the orbits' years · secPerYear +
+  holdSec + rewindSec (18.9 s); the mode reports it (`cycleSeconds()`, `loopSeams()`), so **Export whole loops** cuts every clip
+  on a seam, and its last frame flows into its first. The run never finishes (Find Simulation is hidden: the drawing is the same
+  for every seed and the presets carry the variety; `runNeverFinishes()` says so).
+- **Settings** (the Mode row; uncapped number fields from their minimum, the slider in brackets; labels in the `DrawingMachine`
+  namespace) – Machine `dmm` harmonograph / orbits (a switch moves an untouched page to the machine's: the dark wood or the
+  near-black sky); harmonograph: Frequency `dmf` 1.5 Hz [0.01–20], Detune `dmdt` 2 % [0–50], Rotary ratio `dmrr` 2 [0–8],
+  Friction τ `dmtau` 18 s [0.5–600], the swings `dmax` / `dmay` / `dmar` 50 / 50 / 35 % [0–150] and their phases `dmpx` / `dmpy` /
+  `dmpr` 0 / 90 / 0° [0–360], Drawing time `dmds` 22.5 s [1–600], Paper scroll `dmss` 1.5 s [0–10]; orbits: the planets `dmbi` /
+  `dmbo` (Venus, Earth; a new planet sets the real radius ratio), Exact ratio `dmx`, p and q `dmp` / `dmq` 13 / 8 [1–1000], Radius
+  ratio `dmrad` 0.723 [0.05–1], Line every `dmld` 8 d [0.1–365], Years a cycle `dmy` 8 [0.1–1000], Seconds a year `dmspy` 1.8
+  [0.05–60], Hold `dmh` 1.5 s [0–10], Rewind `dmrw` 3 s [0–30], Join the marks `dmpg`; and Ink `dmi` (auto: violet → crimson on paper,
+  blue → violet → magenta in space; ink, nebula, ember, ocean, rainbow) and Machine sounds `dms`. A number or the machine restarts
+  the run; the ink, the marks' joins and the sound follow live. Far past the sliders nothing stalls: a step samples at most 20,000
+  trace points (a stride past it), a frame draws at most 20,000 chords and 2,000 marks of a cycle (every n-th past it,
+  `dmStride()`), a step plays at most 16 conjunctions or bar changes, and cycles far shorter than a step skip to the step's own.
+- **Presets** – Three pendulums, one pen (the reference); Lissajous 3:2 (no rotary swing, a 2 : 3 figure 1 % off so it turns);
+  Decay rose (a strong rotary swing at three times the rate, quick friction, ember ink); Earth and Venus (13 : 8, 8 years, the
+  pentagram); Earth and Mars (their real periods over 15 years); Jupiter and Saturn (5 : 2 over 59.6 years at 0.25 s a year: three
+  conjunctions, a triangle). Each sets the machine's page, the loop HUD and a clip of one whole cycle.
+- **The picture** – the harmonograph on dark wood (#2a1c15) with a faint grain: cream paper (#f3ecdc) between two grey metal
+  rollers, the trace at 1 px of a 720 px frame and alpha 0.7 drifting from blue-violet (#5b55c9) to crimson (#c93a5c) over the
+  cycle, the brass rod from its pivot in the bottom-right corner to the pen and the dark ink dot (r ≈ 5 px); the orbits on
+  near-black (#05060c) with faint star specks (a fixed sequence, never the run's random numbers): the 1 px orbit circles (#26304a),
+  the chords with "lighter" compositing shifting blue → violet → magenta over the years, the amber sun with its glow, the white
+  conjunction marks, the 2 px cream pentagram (#fff2c0), the string between the planets and the planets (Earth #4aa8ff, Venus
+  #f6dc9a). The trace and the chords accumulate in an offscreen layer in device pixels, like the Picture Paint mask: a frame strokes
+  only the new segments or chords, one path per step of a 64-colour palette made when the ink changes; a new sheet, a new run or a
+  resize starts the layer over, and the rewind replays the chords still visible.
+- **Sound** (original synthesis, no audio copied: loop-foundation's `ToneGenerator.playLoop()`) – the harmonograph's **drone**
+  (sines at G2 × 1, 2, 4 with soft 3rd and 6th partials) at √(E/E0) of the pendulums' energy, rippled by the pen's speed, with the
+  pen's **scratch** (noise band-passed 2–7 kHz at 0.06 × the speed), both updated at 30 Hz of simulation time with
+  `setTargetAtTime` (no new nodes), swelling back to full while the paper scrolls under the scroll's **ratchet** (2 ms ticks at 6
+  Hz); the orbits' **groove bed** (pad, sub and arpeggio over a seeded progression – the mode's one random draw, at init – changing
+  chord every bar of four beats, whole bars a cycle near 110 BPM), a **pluck** at every conjunction one degree higher up the major
+  pentatonic from A4, and a **wash** as the rewind opens. The held voices stop while the run is paused and come back where it is.
+  (--- drawing-machine --- `startDrone()`'s `setSpeed()` now drives the scratch on a 30 Hz clock of its own: an energy update at the
+  same moment used to swallow it.) The custom clip slots of the loop family apply (the drone, the bed, the pluck, the reset).
+- **The HUD** – the loop HUD is on in Drawing Machines: "three pendulums, one pen" in a cream serif title with the rule in an
+  italic serif subtitle (`LoopHudSpec.serif`), or "earth and venus draw a flower" (the bodies' names filled in, the Earth first)
+  with the amber "year 8.0" – one decimal (`LoopHudCounter.decimals`) in tabular digits (`LoopHudFrame.tabular`: every digit drawn
+  in a cell as wide as the widest, so the ticking counter never jitters). The Publish caption editor's **Loop style**
+  has "3 pendulums, one pen", "earth and venus draw this every 8 years" (the 13 : 8 fact) or "two planets, one line every few days,
+  {count} years", with #mathart #generativeart #physics.
+- **For tools** – the canvas mirrors `data-dm-machine`, `-time`, `-cycle`, `-cycle-index`, `-phase`, `-year`, `-peak-year`,
+  `-last-peak-year`, `-rewound-to`, `-rewinds`, `-scrolls`, `-sheets`, `-scroll`, `-trace`, `-trace-held`, `-rate`, `-chords`,
+  `-chords-cycle`, `-marks`, `-conj-cycle`, `-conjunctions`, `-energy`, `-pen-speed`, `-drones`, `-ratchets`, `-plucks`, `-beds`,
+  `-washes`, `-turns`, `-layer-points`, `-layer-chords`, `-marks-drawn`, `-redraws` and `-nan`; the section `data-dm-machine` and
+  `-cycle`.
+- **Tests** – `tests/drawingMachine.test.ts`: the pen on the closed form at random times and the e^(−t/τ) decay, the figure
+  closing with 0 % detune, the 13 : 8 orbits back at the start after 8 years (1e-9), five conjunctions 144° apart, the rewind
+  un-drawing newest first down to none, the trace's ceiling; then the cycle and the seams, 30 / 60 / 120 fps replays, the sounds
+  through a real ToneGenerator on `tests/fakeAudio.ts`, the links, presets, HUD, captions and the renderer. The smoke test (block
+  `drawing-machine`) runs one cycle of each machine at 4× – the scroll fires once, the year counter reaches 8.0 and then 0.0 – and
+  checks the controls, a link and a whole-loop fast export.
+- **Extending it** – a machine is a value of `DM_MACHINES` with its branch in the mode's `segment()` / `updateView()` (events and
+  view at the clock's time), its cycle in `dmTimeline()`, its skin in the renderer's `drawStage()` / `drawBodies()` and its words in
+  `drawingMachineHudKeys()`; a body is a row of `DM_BODY_SPECS` and a `body…` key in the `DrawingMachine` namespace.
 
 ## Windows app
 

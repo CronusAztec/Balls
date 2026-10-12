@@ -75,6 +75,8 @@ import { EllipseFociMode, type EllipseFociView } from "./modes/ellipseFoci"; // 
 import type { EllipseFociSettings } from "./ellipseFoci"; // --- ellipse-foci ---
 import { BeatMachineMode, type BeatMachineView } from "./modes/beatMachine"; // --- beat-machine ---
 import type { BeatMachineSettings } from "./beatMachine"; // --- beat-machine ---
+import { DrawingMachineMode, type DrawingMachineView } from "./modes/drawingMachine"; // --- drawing-machine ---
+import type { DrawingMachineSettings } from "./drawingMachine"; // --- drawing-machine ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -329,6 +331,8 @@ export class PhysicsEngine {
   readonly ellipseFociMode = new EllipseFociMode();
   // --- beat-machine --- Beat Machines: marbles dropped onto tuned bars on the beat, or a ball hopping down a musical staircase
   readonly beatMachineMode = new BeatMachineMode();
+  // --- drawing-machine --- Drawing Machines: a three-pendulum harmonograph, or two planets drawing an orbit flower
+  readonly drawingMachineMode = new DrawingMachineMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -742,6 +746,10 @@ export class PhysicsEngine {
   initBeatMachine() {
     this.activateMode(this.beatMachineMode, "none");
   }
+  // --- drawing-machine --- the mode owns its machine (no rings; the pen or the planets pinned to the clock)
+  initDrawingMachine() {
+    this.activateMode(this.drawingMachineMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -854,6 +862,9 @@ export class PhysicsEngine {
       // --- beat-machine ---
       case "beatMachine":
         return this.initBeatMachine();
+      // --- drawing-machine ---
+      case "drawingMachine":
+        return this.initDrawingMachine();
     }
   }
 
@@ -1993,6 +2004,30 @@ export class PhysicsEngine {
     return this.currentMode === this.beatMachineMode ? this.beatMachineMode.hudCount() : null;
   }
   // --- end beat-machine ---
+  // --- drawing-machine ---
+  isDrawingMachineMode() {
+    return this.currentMode === this.drawingMachineMode;
+  }
+  getDrawingMachineSettings(): DrawingMachineSettings {
+    return this.drawingMachineMode.getSettings();
+  }
+  /** The machine and its numbers apply on the next `initDrawingMachine()`; the ink, the marks' joins and the sound at once. */
+  setDrawingMachineSettings(settings: Partial<DrawingMachineSettings>) {
+    this.drawingMachineMode.setSettings(settings);
+  }
+  /** Live Drawing Machines state (the pen and its trace, or the planets, the chords and the year) for the canvas; the same object every call. */
+  getDrawingMachineView(): DrawingMachineView {
+    return this.drawingMachineMode.getView();
+  }
+  /** A resumed run sends its held voices again (the drone, or the bed's chord) with the next step. */
+  refreshDrawingMachineSound() {
+    this.drawingMachineMode.refreshSound();
+  }
+  /** The loop HUD's counter: the orbits' year with one decimal ("year 8.0"); null for the harmonograph or another mode. */
+  getDrawingMachineHudCount(): { count: number; values: { value: number }; decimals: number } | null {
+    return this.currentMode === this.drawingMachineMode ? this.drawingMachineMode.hudCount() : null;
+  }
+  // --- end drawing-machine ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

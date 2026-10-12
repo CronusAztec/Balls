@@ -23,6 +23,7 @@ export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly s
   ellipseFoci: ["#math", "#geometry", "#creativecoding"], // --- ellipse-foci ---
   beatMachine: ["#marbles", "#animation", "#creativecoding"], // --- beat-machine ---
   vortex: ["#simulation", "#physics", "#marbles"], // --- funnel-spin --- (the funnel clip's own tags: no #creativecoding)
+  drawingMachine: ["#mathart", "#generativeart", "#physics"], // --- drawing-machine --- (the harmonograph's caption had no #creativecoding)
 };
 /** Any other mode's topic tags. */
 export const LOOP_CAPTION_DEFAULT_TAGS = ["#physics", "#bouncingball"] as const;
@@ -140,6 +141,19 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     const stairs = bm.bmVariant === "stairs";
     const n = stairs ? bm.bmSteps : bm.bmBars;
     return { mode: s.mode, hookKey: stairs ? "beatMachineStairs" : "beatMachineMarbles", factKey: stairs ? "beatMachineStairsFact" : "beatMachineMarblesFact", count: typeof n === "number" && Number.isFinite(n) ? n : null };
+  }
+  // --- drawing-machine --- the harmonograph by its swinging pendulums ("{count} pendulums, one pen") and the friction-and-detune
+  // fact; the orbits by their years – Earth and Venus with their own words ("earth and venus draw this every {count} years") and
+  // the 13 : 8 fact, any other pair "{count} years, two planets, one flower"
+  if (s.mode === "drawingMachine") {
+    const dm = s as { dmMachine?: string; dmInner?: string; dmOuter?: string; dmYears?: number; dmAmpX?: number; dmAmpY?: number; dmAmpR?: number };
+    if (dm.dmMachine === "orbits") {
+      const pair = [dm.dmInner, dm.dmOuter].sort().join("+");
+      const earthVenus = pair === "earth+venus";
+      return { mode: s.mode, hookKey: earthVenus ? "drawingMachineEarthVenus" : "drawingMachineOrbits", factKey: earthVenus ? "drawingMachineEarthVenusFact" : "drawingMachineOrbitsFact", count: typeof dm.dmYears === "number" && Number.isFinite(dm.dmYears) ? dm.dmYears : null };
+    }
+    const swinging = [dm.dmAmpX, dm.dmAmpY, dm.dmAmpR].filter((a) => typeof a === "number" && a > 0).length;
+    return { mode: s.mode, hookKey: "drawingMachineHarmonograph", factKey: "drawingMachineHarmonographFact", count: swinging };
   }
   if (s.mode === "grow") {
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };

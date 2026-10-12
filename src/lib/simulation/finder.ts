@@ -65,6 +65,7 @@ import type { EllipseFociSettings } from "@/lib/physics/ellipseFoci"; // --- ell
 import { findEllipseFociRun, type EllipseFociFound } from "./ellipseFociFinder"; // --- ellipse-foci ---
 import type { BeatMachineSettings } from "@/lib/physics/beatMachine"; // --- beat-machine ---
 import { findBeatMachineRun, type BeatMachineFound } from "./beatMachineFinder"; // --- beat-machine ---
+import type { DrawingMachineSettings } from "@/lib/physics/drawingMachine"; // --- drawing-machine ---
 import { findFunnelSpinRun, type FunnelSpinFound } from "./funnelSpinFinder"; // --- funnel-spin ---
 import { funnelTiming } from "@/lib/physics/funnelSpin"; // --- funnel-spin ---
 
@@ -255,6 +256,13 @@ export interface ModeSettings {
    * seeded phrases instead (beatMachineFinder.ts).
    */
   beatMachine?: Partial<BeatMachineSettings>;
+  // --- drawing-machine ---
+  /**
+   * Drawing Machines: the machine, the pendulums or the orbits and the cycle's timing (see lib/physics/drawingMachine.ts); the
+   * defaults when left out. The drawing is analytic and loops forever, so there is nothing to search (`runNeverFinishes()`):
+   * the presets carry the variety. The engines of the bot and the tools still build the run from these.
+   */
+  drawingMachine?: Partial<DrawingMachineSettings>;
 }
 
 // --- odd-string-battle ---
@@ -349,6 +357,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "ellipseFoci") return true;
   // --- beat-machine --- the machine loops forever (the finder searches seeded phrases instead)
   if (mode === "beatMachine") return true;
+  // --- drawing-machine --- the pen draws, the paper scrolls (or the orbits rewind) forever, the same for every seed: nothing to find
+  if (mode === "drawingMachine") return true;
   return false;
 }
 
@@ -582,6 +592,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "hoops") engine.setHoopsSettings(settings.hoops ?? {}); // --- bead-hoops ---
   if (mode === "ellipseFoci") engine.setEllipseFociSettings(settings.ellipseFoci ?? {}); // --- ellipse-foci ---
   if (mode === "beatMachine") engine.setBeatMachineSettings(settings.beatMachine ?? {}); // --- beat-machine ---
+  if (mode === "drawingMachine") engine.setDrawingMachineSettings(settings.drawingMachine ?? {}); // --- drawing-machine ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);

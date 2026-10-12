@@ -949,6 +949,7 @@ export function startDrone(ctx: BaseAudioContext, out: AudioNode, rootHz: number
   let energy = 1;
   let ripple = tone.rippleBase + tone.rippleSpeed;
   let lastUpdate = -Infinity;
+  let lastScratch = -Infinity; // --- drawing-machine --- (the scratch keeps its own 30 Hz clock)
   let stopped = false;
   const minGap = 1 / Math.max(1, tone.updateHz);
   const apply = (at: number) => master.gain.setTargetAtTime(tone.gain * l * Math.sqrt(Math.max(0, energy)) * ripple, at, tone.timeConstant);
@@ -965,10 +966,15 @@ export function startDrone(ctx: BaseAudioContext, out: AudioNode, rootHz: number
       if (stopped) return;
       const s = Number.isFinite(speed) ? Math.max(0, Math.min(1, speed)) : 0;
       ripple = tone.rippleBase + tone.rippleSpeed * s;
+      // --- drawing-machine --- the pen's scratch follows its speed on a clock of its own: a setEnergy() at the same time (every
+      // update of a drone sends both) used to swallow it, so the scratch never sounded
+      if (scratch && at - lastScratch >= minGap - 1e-9) {
+        lastScratch = at;
+        scratch.gain.setTargetAtTime(tone.scratchGain * l * s, at, tone.timeConstant);
+      }
       if (at - lastUpdate < minGap - 1e-9) return;
       lastUpdate = at;
       apply(at);
-      scratch?.gain.setTargetAtTime(tone.scratchGain * l * s, at, tone.timeConstant);
     },
     stop(at) {
       if (stopped) return;

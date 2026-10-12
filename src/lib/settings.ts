@@ -115,6 +115,9 @@ import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDef
 import { BM_ENGINE_KEYS, BM_RANGES, beatMachineModeDefaults, defaultBeatMachineFields, readBeatMachineParams, resolveBeatMachineFields, writeBeatMachineParams, type BeatMachineFields } from "@/lib/physics/beatMachine";
 // --- ring-escape --- Classic's Ring Escape: the gap layout, the spiral step, the spin, the rainbow by ring, the time in the ring, the ring sounds
 import { RING_ESCAPE_RANGES, defaultRingEscapeFields, readRingEscapeParams, resolveRingEscapeFields, writeRingEscapeParams, type GapLayout, type RingEscapeFields, type RingSpin } from "@/lib/physics/ringEscape";
+// --- drawing-machine --- Drawing Machines (the three-pendulum harmonograph and the planets' orbit flowers)
+import { DM_RANGES } from "@/lib/physics/drawingMachine";
+import { DM_ENGINE_KEYS, defaultDrawingMachineFields, drawingMachineModeDefaults, readDrawingMachineParams, resolveDrawingMachineFields, writeDrawingMachineParams, type DrawingMachineFields } from "@/lib/physics/drawingMachineFields";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -1227,6 +1230,43 @@ export interface SimulatorSettings {
   /** Plucks per bounce, a rising step per ring escaped, the chord at the way out (URL `resn`). */
   ringSound: boolean;
   // --- end ring-escape ---
+  // --- drawing-machine --- Drawing Machines (lib/physics/drawingMachine.ts, drawingMachineFields.ts): the harmonograph and the orbits (URL dm…)
+  /** harmonograph | orbits (URL `dmm`). */
+  dmMachine: DrawingMachineFields["dmMachine"];
+  /** Harmonograph: the lateral swing's frequency in Hz (`dmf`), the vertical one's detune in % (`dmdt`), the rotary ratio (`dmrr`). */
+  dmFreq: number;
+  dmDetune: number;
+  dmRotary: number;
+  /** Friction: the swings' time constant τ in seconds (`dmtau`). */
+  dmDamping: number;
+  /** Amplitudes, % of the figure's radius (`dmax`, `dmay`, `dmar`), and phases in degrees (`dmpx`, `dmpy`, `dmpr`). */
+  dmAmpX: number;
+  dmAmpY: number;
+  dmAmpR: number;
+  dmPhaseX: number;
+  dmPhaseY: number;
+  dmPhaseR: number;
+  /** Seconds of drawing (`dmds`) and of the paper's scroll (`dmss`). */
+  dmDraw: number;
+  dmScroll: number;
+  /** Orbits: the bodies (`dmbi`, `dmbo`), the ratio p : q (`dmp`, `dmq`), Exact ratio (`dmx`), the radius ratio (`dmrad`). */
+  dmInner: DrawingMachineFields["dmInner"];
+  dmOuter: DrawingMachineFields["dmOuter"];
+  dmRatioP: number;
+  dmRatioQ: number;
+  dmExact: boolean;
+  dmRadius: number;
+  /** A chord every n days (`dmld`); years a cycle (`dmy`), seconds a year (`dmspy`), the hold (`dmh`) and the rewind (`dmrw`). */
+  dmLineDays: number;
+  dmYears: number;
+  dmSecPerYear: number;
+  dmHold: number;
+  dmRewind: number;
+  /** Join the conjunction marks (`dmpg`), the ink ramp (`dmi`) and the machine's sounds (`dms`). */
+  dmPentagram: boolean;
+  dmInk: DrawingMachineFields["dmInk"];
+  dmSound: boolean;
+  // --- end drawing-machine ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -1239,11 +1279,17 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
   // --- ring-escape --- Classic's Ring Escape fields join the core defaults here, outside the one big literal below: past about
   // 550 properties that literal leaves V8's fast path and every call gets 10–20× slower (links, presets, the finder, the daily
   // deals all build settings), so further fields are better spread in here too.
-  return { ...coreDefaultSettings(mode), ...defaultRingEscapeFields() };
+  return {
+    ...coreDefaultSettings(mode),
+    ...defaultRingEscapeFields(),
+    // --- drawing-machine --- the feature's fields, and in Drawing Machines only the harmonograph's look (the dark wood, the loop HUD on)
+    ...defaultDrawingMachineFields(),
+    ...drawingMachineModeDefaults(mode),
+  };
 }
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof DrawingMachineFields /* --- drawing-machine --- */> {
   return {
     mode,
     gravity: 300,
@@ -1472,6 +1518,7 @@ export const RANGES = {
   ...EF_RANGES, // --- ellipse-foci ---
   ...BM_RANGES, // --- beat-machine ---
   ...RING_ESCAPE_RANGES, // --- ring-escape --- (the spiral's step)
+  ...DM_RANGES, // --- drawing-machine ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1731,6 +1778,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
   writeBeatMachineParams(settings, base, params); // --- beat-machine ---: bmV, bmBpm, bmSt, bmDx, bmDy, bmB, bmDh, bmRb, bmRt, bmMt, bmSrc, bmN, bmL, bmBs, bmC
   writeRingEscapeParams(settings, base, params); // --- ring-escape ---: regl, ress, resp, rerb, retm, resn
+  writeDrawingMachineParams(settings, base, params); // --- drawing-machine ---: dmm, dmf, dmdt, dmrr, dmtau, dmax, dmay, dmar, dmpx, dmpy, dmpr, dmds, dmss, dmbi, dmbo, dmp, dmq, dmx, dmrad, dmld, dmy, dmspy, dmh, dmrw, dmpg, dmi, dms
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1903,6 +1951,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
   readBeatMachineParams(params, settings); // --- beat-machine --- (valid numbers from their minimum up, known options, a clean list, real booleans)
   readRingEscapeParams(params, settings); // --- ring-escape --- (known layouts and spins, a step from 0 up, real booleans)
+  readDrawingMachineParams(params, settings); // --- drawing-machine --- (valid numbers from their minimum up, whole ratios, known names, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -2125,6 +2174,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   hoops: rangeKeys(HOOPS_RANGES), // --- bead-hoops --- (every number of the hoops, the spin and the beads is physics)
   ellipseFoci: [...EF_ENGINE_KEYS], // --- ellipse-foci --- (the volley, the pool and the timing; the trail is the canvas')
   beatMachine: [...BM_ENGINE_KEYS], // --- beat-machine --- (every number of the machine is the plan's)
+  drawingMachine: [...DM_ENGINE_KEYS], // --- drawing-machine --- (every number of the machines is the clock's: the drawing and its timing)
 };
 // --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
@@ -2375,6 +2425,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveEllipseFociFields(merged)); // --- ellipse-foci --- valid numbers from their minimum up, known options, real booleans
   Object.assign(merged, resolveBeatMachineFields(merged)); // --- beat-machine --- valid numbers from their minimum up, known options, a clean list, real booleans
   Object.assign(merged, resolveRingEscapeFields(merged)); // --- ring-escape --- known layouts and spins, a step from 0 up, real booleans
+  Object.assign(merged, resolveDrawingMachineFields(merged)); // --- drawing-machine --- valid numbers from their minimum up, whole ratios, known names, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

@@ -102,3 +102,6 @@ export type { EllipseFociView } from "./ellipseFoci";
 // --- beat-machine ---
 export { BeatMachineMode } from "./beatMachine";
 export type { BeatMachineView, BeatMachineFrame } from "./beatMachine";
+// --- drawing-machine ---
+export { DrawingMachineMode } from "./drawingMachine";
+export type { DrawingMachineView } from "./drawingMachine";
