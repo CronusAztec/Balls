@@ -26,6 +26,7 @@ import { flClipLookup, parseWav16, type FlClipRecord } from "./flClips";
 // --- end fl-overhaul ---
 import { DEFAULT_KNOCK_FREQUENCY, DEFAULT_KO_FREQUENCY, lcFrequency, lcLevel, scheduleKnock, scheduleKo, scheduleSpawnChime } from "./landClaimTones"; // --- land-claim ---
 import { scLevel, scheduleSnap, scheduleTwang } from "./stringCircleTones"; // --- string-circle ---
+import { scheduleDuelRiser, scheduleDuelSwell, scheduleDuelTail, scheduleHeartbeat, startDuelDrone, type DuelDroneHandle } from "./stringDuelTones"; // --- string-battle-alive ---
 // --- loop-foundation --- the loop sound families (loopTones.ts), their custom clip slots (loopClips.ts)
 import {
   LOOP_PLUCK,
@@ -1259,6 +1260,80 @@ export class ToneGenerator {
   }
   // --- end string-circle ---
 
+  // --- string-battle-alive ---
+  /** The final duel's voice budget (6 new notes a tick, 24 at once, a thump and a noise burst a tick) and its drone. */
+  private readonly duelBudget = new LoopVoiceBudget();
+  private duelDrone: DuelDroneHandle | null = null;
+
+  /**
+   * A sound of the String Battle's final duel (stringDuelTones.ts) at the context's current time – the simulation clock in the
+   * fast export –, never moved onto the beat lock's grid (the heartbeat keeps the battle's own tempo): "start" – the riser into
+   * its tom and the drone on `frequency` –, "beat" – a heartbeat at `bpm` –, "cut" – a swell, the drone re-pitched to `frequency`
+   * –, "final" – the long noise tail, the drone let go –, "stop" – the drone let go. `speed` (the duel's speed factor) opens the
+   * drone's filter; every event renews its lease. The notes keep the voice budget (6 new a tick, 24 at once, one thump and one
+   * noise burst a tick); the effects duck the music bed. An accompaniment: it never uses up a melody note.
+   */
+  playStringDuel(kind: "start" | "beat" | "cut" | "final" | "stop", frequency?: number, bpm?: number, speed?: number, level = 1) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.scheduleStringDuel(kind, frequency, bpm, speed, level));
+      return;
+    }
+    this.scheduleStringDuel(kind, frequency, bpm, speed, level);
+  }
+
+  private scheduleStringDuel(kind: "start" | "beat" | "cut" | "final" | "stop", frequency: number | undefined, bpm: number | undefined, speed: number | undefined, level: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const ctx = this.audioContext;
+      const out = this.masterGain;
+      const time = ctx.currentTime;
+      const l = typeof level === "number" && Number.isFinite(level) ? Math.max(0, level) : 1;
+      const root = frequency !== undefined && frequency > 0 ? frequency : undefined;
+      const s = speed !== undefined && Number.isFinite(speed) ? speed : 1;
+      // the drone: a new one for a start (or once the old one has run out), else renewed, re-pitched and opened
+      if (this.duelDrone && !(time < this.duelDrone.endsAt)) this.duelDrone = null;
+      if (kind === "final" || kind === "stop") {
+        this.duelDrone?.release(time);
+        this.duelDrone = null;
+      } else if (!this.duelDrone) this.duelDrone = startDuelDrone(ctx, out, root ?? 73.42, time, s, l);
+      else {
+        this.duelDrone.renew(time);
+        if (root) this.duelDrone.setRoot(root, time);
+        this.duelDrone.setSpeed(s, time);
+      }
+      switch (kind) {
+        case "start":
+          if (this.duelBudget.noise(time)) scheduleDuelRiser(ctx, out, time, this.noiseCache.get(ctx), l);
+          break;
+        case "beat":
+          if (this.duelBudget.thump(time)) scheduleHeartbeat(ctx, out, time, bpm ?? 100, l);
+          break;
+        case "cut": {
+          const swellRoot = root ?? 73.42;
+          const verdict = this.duelBudget.note(time, swellRoot, time + 0.55);
+          if (verdict.action === "start") scheduleDuelSwell(ctx, out, swellRoot, time, l);
+          break;
+        }
+        case "final":
+          if (this.duelBudget.noise(time)) scheduleDuelTail(ctx, out, time, this.noiseCache.get(ctx), l);
+          break;
+      }
+      if (kind !== "beat" && kind !== "stop") this.musicBed.duck(time);
+    } catch (err) {
+      console.error(`Error playing the string duel ${kind}:`, err);
+    }
+  }
+
+  /** Lets the duel's drone go and forgets its budget (a run restarts). */
+  resetStringDuel() {
+    this.duelDrone?.release(this.audioContext?.currentTime ?? 0);
+    this.duelDrone = null;
+    this.duelBudget.reset();
+  }
+  // --- end string-battle-alive ---
+
   // --- loop-foundation ---
   /** The loop sounds' voice budget, the notes it can still merge into, the clip slots, the bus the hard cut empties, the bed and drone. */
   private readonly loopBudget = new LoopVoiceBudget();
@@ -1463,6 +1538,7 @@ export class ToneGenerator {
     this.loopDrone = null;
     this.loopHiss?.stop(time); // --- funnel-spin ---
     this.loopHiss = null;
+    this.resetStringDuel(); // --- string-battle-alive --- (the duel's drone and budget start over with the run)
   }
   // --- end loop-foundation ---
 
@@ -1566,6 +1642,8 @@ export class ToneGenerator {
     this.loopBed = null;
     this.loopDrone = null;
     // --- end loop-foundation ---
+    this.duelDrone = null; // --- string-battle-alive --- (its context is closed)
+    this.duelBudget.reset();
     this.lastSlotTime = -1;
     this.isInitialized = false;
     this.isPlaying = false;

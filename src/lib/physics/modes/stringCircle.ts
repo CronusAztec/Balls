@@ -785,6 +785,8 @@ export function stringCirclePresetPatch(
   sbDuration: number;
   sbBadge: boolean;
   sbHud: boolean;
+  /** --- string-battle-alive --- the presets play the lives rule: their lives and clips were measured on it */
+  sbLife: "lives";
   teams: { name: string; color: string; emoji: string }[];
   recordingDuration: number;
 } {
@@ -793,5 +795,5 @@ export function stringCirclePresetPatch(
     const c = countryByCode(code) ?? COUNTRIES[0];
     return { name: nameOf(c.code, c.name), color, emoji: c.flag };
   });
-  return { sbStyle: "circle", sbArena: p.arena, sbRate: p.rate, sbCut: p.cut, sbTitle: "", sbBalls: p.balls, sbLives: p.lives, sbDuration: 0, sbBadge: false, sbHud: true, teams, recordingDuration: p.clip };
+  return { sbStyle: "circle", sbArena: p.arena, sbRate: p.rate, sbCut: p.cut, sbTitle: "", sbBalls: p.balls, sbLives: p.lives, sbDuration: 0, sbBadge: false, sbHud: true, sbLife: "lives" /* --- string-battle-alive --- */, teams, recordingDuration: p.clip };
 }

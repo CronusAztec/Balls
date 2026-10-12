@@ -3852,7 +3852,8 @@ await smokeBlock("odd-string-battle", async () => {
   check("the String Battle card is on the landing page under the battle heading", card === 1 && heading === 1, `(cards=${card}, heading=${heading})`);
 }
 {
-  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbn=5&sbl=6&sbm=20&sbr=touch&sbst=neon&sbd=60&sbf=2.4&sbw=0.3&sbb=0`, { waitUntil: "networkidle" });
+  // --- string-battle-alive --- the lives rule pinned (`sblf=lives`): its Lives slider shows under it only
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sblf=lives&sbn=5&sbl=6&sbm=20&sbr=touch&sbst=neon&sbd=60&sbf=2.4&sbw=0.3&sbb=0`, { waitUntil: "networkidle" });
   const section = page.getByTestId("string-battle-section");
   const pick = (group, name) => section.getByRole("group", { name: group, exact: true }).getByRole("button", { name: new RegExp(name) });
   const toggle = (label) => section.getByRole("switch", { name: switchName(label) });
@@ -3895,7 +3896,10 @@ await smokeBlock("odd-string-battle", async () => {
   // --- low-findings --- on a pinned seed (`STRING_BATTLE_ONE_STANDING` in tests/stringBattle.test.ts: a battle that ends with
   // one ball standing): a random one ends now and then (9 of the seeds 1–6,000, about 1 in 670) with the last two balls
   // shattering in the same step, nobody standing and a shared verdict – the mode's documented double KO, not this check's case
-  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&seed=4`, { waitUntil: "networkidle" });
+  // (--- string-battle-alive --- the lives rule pinned, `sblf=lives`: the check counts lives, and the strings rule is the default
+  // now. The final duel pinned off, `sbdl=0`: its soundtrack (the drone, the heartbeat, the swells) is off the ladder this
+  // check holds the bounce notes to – the string-battle-alive block checks it.)
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sblf=lives&sbdl=0&seed=4`, { waitUntil: "networkidle" });
   await page.evaluate(() => {
     const osc = [];
     const buffers = [];
@@ -3981,7 +3985,7 @@ await smokeBlock("odd-string-battle", async () => {
 }
 {
   // The neon style: endless lines painted into a layer that is never cleared, the jelly ring, glitch bars, no HUD.
-  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=neon`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sblf=lives&sbst=neon`, { waitUntil: "networkidle" }); // --- string-battle-alive --- lives pinned (a lost life glitches)
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.getByRole("button", { name: "2x", exact: true }).click();
   const wobbled = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbWobble === "1", null, { timeout: 15_000 }).then(() => true).catch(() => false);
@@ -4032,7 +4036,7 @@ await smokeBlock("odd-string-battle", async () => {
   // last ball standing – not whoever leads when the duration is up). The found battle, played to its end at 8×, is really
   // ACID's – ACID alone standing, never a double KO's shared verdict – and the recording length covers all of it plus the
   // winner banner's hold.
-  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbl=9`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sblf=lives&sbl=9`, { waitUntil: "networkidle" }); // --- string-battle-alive --- lives pinned
   await page.locator("#find-outcome").selectOption("winner");
   await page.locator("#find-winner").selectOption("2");
   const hint = await page.getByTestId("finder-outcome-hint").innerText().catch(() => "");
@@ -4092,7 +4096,7 @@ await smokeBlock("odd-string-battle", async () => {
   // ball 12, slot 11 – tests/stringCircle.test.ts): the teams banner has no winner then, so the battle's own banner announces
   // it – exactly one banner, never none
   const teams = encodeURIComponent("Red*ff3344*,Blue*2255ff*,Green*22aa44*,Gold*ffcc00*,Purple*aa44ff*,Orange*ff8800*");
-  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbn=12&sbl=1&teams=${teams}&seed=6`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sblf=lives&sbn=12&sbl=1&teams=${teams}&seed=6`, { waitUntil: "networkidle" }); // --- string-battle-alive --- lives pinned
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   const ended = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbFinished === "1", null, { timeout: 60_000 }).then(() => true).catch(() => false);
   const banner = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbBanner === "1", null, { timeout: 10_000 }).then(() => true).catch(() => false);
@@ -12319,7 +12323,8 @@ await smokeBlock("string-circle", async () => {
 // (12 flags) at 30+ fps and recorded at 1080×1920 at 20+ fps, and 5 and 12 balls with fans of about 400 strings each, on the page
 // and recorded.
 {
-  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=circle&sba=hexagon&sbrt=45&sbc=150&sbti=${encodeURIComponent("WHO WINS?")}&sbn=5&sbh=0`, { waitUntil: "networkidle" });
+  // --- string-battle-alive --- the lives rule pinned (`sblf=lives`): its Strings per Life slider shows under it only
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sblf=lives&sbst=circle&sba=hexagon&sbrt=45&sbc=150&sbti=${encodeURIComponent("WHO WINS?")}&sbn=5&sbh=0`, { waitUntil: "networkidle" });
   const battle = page.getByTestId("string-battle-section");
   const section = page.getByTestId("string-circle-section");
   const styleButton = (name) => battle.getByRole("group", { name: "Style", exact: true }).getByRole("button", { name, exact: true });
@@ -12371,7 +12376,7 @@ await smokeBlock("string-circle", async () => {
 }
 {
   // The default circle battle (four flags of the line-up: TR, IN, US, IR) at 1× – the fans and the rim – then at 4× to its end.
-  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=circle&seed=7`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sblf=lives&sbst=circle&seed=7`, { waitUntil: "networkidle" }); // --- string-battle-alive --- lives pinned
   await page.evaluate(() => {
     const osc = [];
     window.__scOsc = osc;
@@ -12518,7 +12523,7 @@ await smokeBlock("string-circle", async () => {
 // presets' floor (the mega preset's above): software video encoding at 1080×1920 shares the CPU with the page, so they are
 // held to a sanity floor (12+ fps on average) and their frame rates are reported.
 for (const [balls, rate] of [[5, 170], [12, 270]]) {
-  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sbst=circle&sbn=${balls}&sbrt=${rate}&sbc=1000000&sbl=3&seed=7`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sblf=lives&sbst=circle&sbn=${balls}&sbrt=${rate}&sbc=1000000&sbl=3&seed=7`, { waitUntil: "networkidle" }); // --- string-battle-alive --- lives pinned
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   const fanSum = () => page.evaluate(() => (document.querySelector("main canvas")?.dataset.sbFans || "").split(",").map(Number).reduce((a, b) => a + b, 0));
   await page.waitForFunction((min) => (document.querySelector("main canvas")?.dataset.sbFans || "").split(",").map(Number).reduce((a, b) => a + b, 0) >= min, balls * 330, { timeout: 30_000 }).catch(() => {});
@@ -17177,6 +17182,320 @@ await smokeBlock("brick-rebuild", async () => {
   }
 }
 // --- end brick-rebuild ---
+});
+
+await smokeBlock("string-battle-alive", async () => {
+// --- string-battle-alive ---
+// The String Battle's strings rule and its final duel (lib/physics/modes/stringDuel.ts): (a) the default page plays the strings
+// rule – every ball holding its lifeline from the start, the number on it its live threads, a ball out only when its last thread
+// goes (never one with a thread left) – and the duel the moment two remain: data-sb-duel, the speed past 1.3× within 2 s, the
+// FINAL DUEL banner drawn once, the duel's cuts counted, the slow-motion dips, the comet trails, the homing (35° at most), the
+// soundtrack (the heartbeat's beats, the drone's two saws), to one ball standing under the winner banner; (b) the lives rule one
+// click away (sblf=lives: balls numbered 4, a lost life shields its ball and leaves it a 3) and the URL round trip; (c) a free
+// visitor's 1080×1920 recording of a duel keeps 20+ fps and downloads, its watermark clear of the banner – on the page while the
+// banner is up and in the video's pixels where the banner is; (d) the copy in en / pl / es. The seeds are pinned
+// (tests/stringBattleAlive.test.ts plays the same rules): the default battle of seed 4 is left with two balls at 6 s and ends at
+// 12.4 s after seven duel cuts; seed 7 of two balls duels from the start for 15 s.
+{
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&seed=4`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("string-battle-section");
+  const panel = {
+    strings: await page.getByTestId("string-battle-life").locator('button[data-life="strings"]').getAttribute("aria-pressed"),
+    duel: await section.getByRole("switch", { name: switchName("Final Duel") }).getAttribute("aria-checked"),
+    noLives: (await page.locator('input[aria-label="Lives"]').count()) === 0,
+    hint: await page.getByTestId("string-battle-life-hint").innerText().catch(() => ""),
+  };
+  await page.evaluate(() => {
+    const saws = [];
+    window.__sbaSaws = saws;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.type === "sawtooth") saws.push(this.detune.value);
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  // Every frame's state, logged in the page (a frame the harness would miss by polling is still checked).
+  await page.evaluate(() => {
+    const log = [];
+    window.__sbaLog = log;
+    const c = document.querySelector("main canvas");
+    const t0 = performance.now();
+    const tick = () => {
+      const d = c.dataset;
+      log.push({ t: performance.now() - t0, threads: d.sbThreads ?? "", lives: d.sbLives ?? "", numbers: d.sbNumbers ?? "", alive: Number(d.sbAlive), duel: d.sbDuel, factor: Number(d.sbFinaleFactor), banners: Number(d.sbDuelBanner), bannerOn: d.sbDuelBannerOn, cuts: Number(d.sbDuelCuts), finished: d.sbFinished });
+      if (d.sbFinished !== "1" && log.length < 20000) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.waitForTimeout(800);
+  const first = await canvasData();
+  const threads0 = (first.sbThreads || "").split(",").map(Number);
+  check(
+    "string battle alive: the default page plays the strings rule – Strings and the Final Duel picked, no Lives slider, every ball holding a thread and numbered by them",
+    panel.strings === "true" && panel.duel === "true" && panel.noLives && /thread/.test(panel.hint) && first.sbLife === "strings" && threads0.length === 4 && threads0.every((n) => n >= 1) && first.sbNumbers === first.sbThreads && first.sbDuel === "0",
+    `(${JSON.stringify({ panel, life: first.sbLife, threads: first.sbThreads, numbers: first.sbNumbers, duel: first.sbDuel })})`,
+  );
+  const bannerUp = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbDuelBannerOn === "1", null, { timeout: 30_000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(250);
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle-duel-banner.png") });
+  await page.waitForTimeout(1500);
+  const mid = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle-duel.png") });
+  const ended = await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbFinished === "1", null, { timeout: 60_000 }).then(() => true).catch(() => false);
+  // The winner banner follows the final cut's slow motion (the duel's longer dip): wait for it, not a fixed pause.
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.sbBanner === "1", null, { timeout: 15_000 }).catch(() => {});
+  const end = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-string-battle-duel-winner.png") });
+  const log = await page.evaluate(() => window.__sbaLog);
+  const saws = await page.evaluate(() => window.__sbaSaws);
+  // A ball is out exactly when its threads are gone: in every frame logged, the thread count and the life agree.
+  const split = (text) => (text || "").split(",").map(Number);
+  const bad = log.filter((r) => {
+    const th = split(r.threads);
+    const li = split(r.lives);
+    return th.length !== li.length || th.some((n, i) => (n === 0) !== (li[i] === 0));
+  });
+  const kos = log.filter((r, i) => i > 0 && r.alive < log[i - 1].alive).map((r) => ({ t: Math.round(r.t), alive: r.alive, threads: r.threads }));
+  const duelAt = log.findIndex((r) => r.duel === "1");
+  const atDuel = duelAt >= 0 ? log[duelAt] : null;
+  const beforeDuel = duelAt > 0 ? log[duelAt - 1] : null;
+  const fast = atDuel ? log.find((r) => r.t >= atDuel.t && r.factor > 1.3) : null;
+  const cutsSeen = [...new Set(log.map((r) => r.cuts).filter((n) => n > 0))];
+  check(
+    "string battle alive: a ball is out exactly when its last thread goes – the count 0, then shattered – never with a thread left",
+    bad.length === 0 && kos.length >= 3 && kos.every((k) => split(k.threads).filter((n) => n === 0).length === 4 - k.alive),
+    `(${bad.length} frames disagreeing${bad.length ? ` e.g. ${JSON.stringify(bad[0])}` : ""}, knock-outs ${JSON.stringify(kos)})`,
+  );
+  check(
+    "string battle alive: the final duel starts the moment two balls remain – faster than 1.3× within 2 s, the FINAL DUEL banner drawn once, its cuts counted",
+    bannerUp && !!atDuel && atDuel.alive === 2 && !!beforeDuel && beforeDuel.alive === 3 && beforeDuel.duel !== "1" && !!fast && fast.t - atDuel.t <= 2000 && Math.max(...log.map((r) => r.banners)) === 1 && Number(end.sbDuelBanner) === 1 && cutsSeen.length >= 2 && Number(end.sbDuelCuts) >= 3,
+    `(${JSON.stringify({ duelAt: atDuel ? Math.round(atDuel.t) : null, alive: atDuel?.alive, before: beforeDuel?.alive, fastAfter: fast && atDuel ? Math.round(fast.t - atDuel.t) : null, factor: mid.sbFinaleFactor, surge: mid.sbSurge, banners: end.sbDuelBanner, box: mid.sbDuelBannerBox, cuts: cutsSeen })})`,
+  );
+  check(
+    "string battle alive: the duel plays out – slow-motion dips, comet trails, a ring flash, homing within 35°, the heartbeat and the drone's two saws – to one ball standing under the winner banner",
+    ended && end.sbAlive === "1" && Number(end.sbWinner) >= 0 && end.sbBanner === "1" && end.sbDuelFinal === "1" && Number(end.sbDuelDips) >= 2 && Number(mid.sbDuelTrails) > 0 && Number(end.sbDuelFlashes) >= 1 && Number(end.sbDuelHomings) >= 1 && Number(end.sbDuelMaxHoming) <= 35.01 && Number(end.sbDuelBeats) >= 3 && Number(end.sbDuelSounds) >= 5 && saws.length >= 2,
+    `(${JSON.stringify({ alive: end.sbAlive, winner: end.sbWinner, name: end.sbWinnerName, banner: end.sbBanner, final: end.sbDuelFinal, dips: end.sbDuelDips, camDips: end.sbDips, trails: mid.sbDuelTrails, flashes: end.sbDuelFlashes, homings: end.sbDuelHomings, maxHoming: end.sbDuelMaxHoming, beats: end.sbDuelBeats, sounds: end.sbDuelSounds, saws: saws.length, threadsLost: end.sbThreadsLost })})`,
+  );
+}
+{
+  // (b) The lives rule, one click away and unchanged: four lives on every ball, a lost life shields its ball and leaves it a 3;
+  // the URL round trip of the two new keys.
+  await page.goto(`${BASE}/en/simulator/?mode=stringBattle&sblf=lives&seed=4`, { waitUntil: "networkidle" });
+  const lives = await page.getByTestId("string-battle-life").locator('button[data-life="lives"]').getAttribute("aria-pressed");
+  const slider = await sliderValue("Lives").catch(() => "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  // The first frame a ball blinks (data-sb-shielded: the slots drawn shielded), caught in the page.
+  await page.evaluate(() => {
+    window.__sbaShield = null;
+    const c = document.querySelector("main canvas");
+    const tick = () => {
+      const d = c.dataset;
+      if (d.sbShielded) window.__sbaShield = { slots: d.sbShielded, lives: d.sbLives, numbers: d.sbNumbers, lost: d.sbLivesLost };
+      else if (d.sbFinished !== "1") requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+  await page.waitForTimeout(500);
+  const start = await canvasData();
+  await page.waitForFunction(() => !!window.__sbaShield, null, { timeout: 30_000 }).catch(() => {});
+  const hit = await page.evaluate(() => window.__sbaShield);
+  const slot = hit ? Number(hit.slots.split(",")[0]) : -1;
+  check(
+    "string battle alive: the lives rule still works with sblf=lives – balls numbered 4, a lost life shields its ball and leaves it a 3",
+    lives === "true" && slider === "4" && start.sbLife === "lives" && start.sbNumbers === "4,4,4,4" && start.sbLives === "4,4,4,4" && !!hit && slot >= 0 && hit.lives.split(",")[slot] === "3" && hit.numbers.split(",")[slot] === "3" && Number(hit.lost) >= 1,
+    `(${JSON.stringify({ pressed: lives, slider, life: start.sbLife, numbers: start.sbNumbers, lives: start.sbLives, first: hit })})`,
+  );
+  const section = page.getByTestId("string-battle-section");
+  await section.getByRole("switch", { name: switchName("Final Duel") }).click();
+  await page.waitForTimeout(300);
+  const off = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.getByTestId("string-battle-life").locator('button[data-life="strings"]').click();
+  await section.getByRole("switch", { name: switchName("Final Duel") }).click();
+  await page.waitForTimeout(300);
+  const back = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "string battle alive: the life rule and the Final Duel mirror into the URL (sblf=lives, sbdl=0; the defaults leave them out)",
+    off.get("sblf") === "lives" && off.get("sbdl") === "0" && !back.has("sblf") && !back.has("sbdl"),
+    `(${off.toString()} → ${back.toString()})`,
+  );
+}
+{
+  // (c) A free visitor's two-ball duel (it starts with the banner): the watermark's lime nowhere in the banner on the page while
+  // it is up (a run), then a 1080×1920 recording of it – 20+ fps, a download, and no lime in its frames where the banner is.
+  const freeCtx = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true, license: null });
+  const free = await freeCtx.newPage();
+  try {
+    await free.goto(`${BASE}/en/simulator/?mode=stringBattle&sbn=2&res=1080x1920&seed=7`, { waitUntil: "networkidle" });
+    await free.waitForTimeout(800);
+    await free.evaluate(() => {
+      const lime = (d, i) => d[i + 1] > 140 && d[i] < 210 && d[i + 2] < 120 && d[i + 1] - d[i + 2] > 60; // the watermark badge's lime (the free-watermark block's test)
+      window.__sbaLive = null;
+      const c = document.querySelector("main canvas");
+      let frames = 0;
+      let seen = false;
+      const tick = () => {
+        const d = c.dataset;
+        const box = (d.sbDuelBannerBox || "").split(",").map(Number);
+        if (d.sbDuelBannerOn === "1" && box.length === 4 && box[2] > 0) {
+          seen = true;
+          frames++;
+          // The banner's box is in world px (data-world, 800 × 450 in a 16:9 frame): scaled to the canvas' backing pixels.
+          const [ww, wh] = (d.world || `${c.clientWidth}x${c.clientHeight}`).split("x").map(Number);
+          const kx = c.width / Math.max(1, ww);
+          const ky = c.height / Math.max(1, wh);
+          const img = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+          let inside = 0;
+          let outside = 0;
+          const [bx, by, bw, bh] = [box[0] * kx, box[1] * ky, box[2] * kx, box[3] * ky];
+          for (let y = 0; y < c.height; y += 2)
+            for (let x = 0; x < c.width; x += 2) {
+              const i = 4 * (y * c.width + x);
+              if (!lime(img, i)) continue;
+              if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) inside++;
+              else outside++;
+            }
+          const prev = window.__sbaLive;
+          window.__sbaLive = { frames, inside: Math.max(inside, prev?.inside ?? 0), outside: Math.min(outside, prev?.outside ?? Infinity), box: d.sbDuelBannerBox, side: Math.min(ww, wh), w: ww, h: wh };
+          if (frames >= 10) return;
+        } else if (seen) return;
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
+    await free.getByRole("button", { name: /Start Simulator/ }).click();
+    await free.waitForFunction(() => !!window.__sbaLive && (window.__sbaLive.frames >= 10 || document.querySelector("main canvas")?.dataset.sbDuelBannerOn !== "1"), null, { timeout: 20_000 }).catch(() => {});
+    const live = await free.evaluate(() => window.__sbaLive);
+    // Then the recording, from a fresh page: measured on its own, nothing else reading the canvas.
+    await free.goto(`${BASE}/en/simulator/?mode=stringBattle&sbn=2&res=1080x1920&seed=7`, { waitUntil: "networkidle" });
+    await free.waitForTimeout(800);
+    let rec = { windows: [], avg: 0, min: 0, low: 0 };
+    const download = await Promise.all([
+      free.waitForEvent("download", { timeout: 90_000 }).catch(() => null),
+      (async () => {
+        await free.getByRole("button", { name: /Record Video/ }).click();
+        await free.getByRole("button", { name: /Stop & Export/ }).waitFor({ timeout: 10_000 }).catch(() => {});
+        rec = fpsStats(await free.evaluate(rafDeltas, 3500));
+        await free.getByRole("button", { name: /Stop & Export/ }).click({ timeout: 5000 }).catch(() => {});
+      })(),
+    ]).then(([d]) => d);
+    let file = "";
+    if (download) {
+      file = path.join(outDir, `string-battle-duel-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+    }
+    await free.screenshot({ path: path.join(outDir, "sim-string-battle-duel-free.png") });
+    await timingCheck(
+      "string battle alive: a free 1080×1920 recording of a duel keeps 20+ fps and downloads",
+      !!file && fs.statSync(file).size > 10000,
+      fpsOk(rec, 5, 20),
+      `(${file ? fs.statSync(file).size : 0} bytes, ${fpsNote(rec)}, floor 20${loadNote()})`,
+      async () => {
+        let again = { windows: [], avg: 0, min: 0, low: 0 };
+        await Promise.all([
+          free.waitForEvent("download", { timeout: 90_000 }).catch(() => null),
+          (async () => {
+            await free.getByRole("button", { name: /Record Video/ }).click({ timeout: 10_000 });
+            await free.waitForTimeout(300);
+            again = fpsStats(await free.evaluate(rafDeltas, 3500));
+            await free.getByRole("button", { name: /Stop & Export/ }).click({ timeout: 10_000 }).catch(() => {});
+          })(),
+        ]);
+        return { timingOk: fpsOk(again, 5, 20), extra: `(recorded again: ${fpsNote(again)})` };
+      },
+    );
+    // The video's frames over the banner's time: the banner's box (as a share of the world's square, from the page) mapped into
+    // the exported square; the badge's lime in the square's lower part (the mark is there) and none in the box.
+    let video = { error: file ? "no banner frame seen on the page" : "no download" };
+    if (file && live) {
+      const [bx, by, bw, bh] = live.box.split(",").map(Number);
+      const sx = (live.w - live.side) / 2;
+      const sy = (live.h - live.side) / 2;
+      const rel = { x: (bx - sx) / live.side, y: (by - sy) / live.side, w: bw / live.side, h: bh / live.side };
+      const url = `${ORIGIN}${BASE_PATH}/__sba-clip/${encodeURIComponent(path.basename(file))}`;
+      await free.route(url, (route) => route.fulfill({ path: file, contentType: file.endsWith(".mp4") ? "video/mp4" : "video/webm" }));
+      await free.goto(`${BASE}/en/privacy/`, { waitUntil: "domcontentloaded" });
+      video = await free
+        .evaluate(
+          async ({ url, rel, times }) => {
+            const lime = (d, i) => d[i + 1] > 140 && d[i] < 210 && d[i + 2] < 120 && d[i + 1] - d[i + 2] > 60; // the watermark badge's lime (the free-watermark block's test)
+            const v = document.createElement("video");
+            v.muted = true;
+            v.preload = "auto";
+            v.src = url;
+            await new Promise((res, rej) => {
+              v.onloadeddata = res;
+              v.onerror = () => rej(new Error(`the video does not decode: ${v.error?.message ?? "?"}`));
+            });
+            const c = document.createElement("canvas");
+            c.width = v.videoWidth;
+            c.height = v.videoHeight;
+            const g = c.getContext("2d", { willReadFrequently: true });
+            const side = Math.min(c.width, c.height);
+            const sq = { x: (c.width - side) / 2, y: (c.height - side) / 2 };
+            const box = { x: sq.x + rel.x * side, y: sq.y + rel.y * side, w: rel.w * side, h: rel.h * side };
+            const frames = [];
+            let next = 0;
+            await new Promise((resolve) => {
+              const timer = setTimeout(resolve, 60000);
+              const step = (_now, meta) => {
+                if (next < times.length && meta.mediaTime >= times[next]) {
+                  g.drawImage(v, 0, 0);
+                  const d = g.getImageData(0, 0, c.width, c.height).data;
+                  let inBox = 0;
+                  let lower = 0;
+                  for (let y = Math.floor(sq.y); y < sq.y + side; y += 2)
+                    for (let x = Math.floor(sq.x); x < sq.x + side; x += 2) {
+                      const i = 4 * (y * c.width + x);
+                      if (!lime(d, i)) continue;
+                      if (x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h) inBox++;
+                      else if (y > sq.y + 0.6 * side) lower++;
+                    }
+                  frames.push({ t: +meta.mediaTime.toFixed(2), inBox, lower });
+                  next++;
+                }
+                if (next >= times.length || v.ended) {
+                  clearTimeout(timer);
+                  resolve();
+                } else v.requestVideoFrameCallback(step);
+              };
+              v.requestVideoFrameCallback(step);
+              v.onended = () => resolve();
+              v.play().catch(() => resolve());
+            });
+            return { width: c.width, height: c.height, box: [box.x, box.y, box.w, box.h].map((n) => Math.round(n)), frames };
+          },
+          { url, rel, times: [0.3, 0.7, 1.1, 2.5] },
+        )
+        .catch((e) => ({ error: String(e).split("\n")[0] }));
+    }
+    check(
+      "string battle alive: a free recording's watermark keeps clear of the FINAL DUEL banner – on the page while it is up and in the video's pixels where it is",
+      !!live && live.inside <= 3 && live.outside >= 5 && !video.error && video.width === 1080 && video.height === 1920 && video.frames.length >= 3 && video.frames.every((f) => f.inBox <= 3) && video.frames.some((f) => f.lower >= 20),
+      `(live ${JSON.stringify(live)}, video ${JSON.stringify(video)})`,
+    );
+  } finally {
+    await freeCtx.close().catch(() => {});
+  }
+}
+{
+  // (d) The copy in three languages: the Life Rule, its two rules and the Final Duel in the panel.
+  const copy = {};
+  for (const [locale, words] of [
+    ["en", ["Life Rule", "Strings", "Lives", "Final Duel"]],
+    ["pl", ["Zasada życia", "Nici", "Życia", "Finałowy pojedynek"]],
+    ["es", ["Regla de vida", "Hilos", "Vidas", "Duelo final"]],
+  ]) {
+    await page.goto(`${BASE}/${locale}/simulator/?mode=stringBattle`, { waitUntil: "networkidle" });
+    const group = page.getByTestId("string-battle-life");
+    const label = await group.getAttribute("aria-label").catch(() => "");
+    const buttons = await group.locator("button").allInnerTexts().catch(() => []);
+    const duel = await page.getByTestId("string-battle-section").getByRole("switch", { name: switchName(words[3]) }).count();
+    copy[locale] = { ok: label === words[0] && buttons.map((b) => b.trim()).join("|") === `${words[1]}|${words[2]}` && duel === 1, label, buttons, duel };
+  }
+  check("string battle alive: the Life Rule and the Final Duel speak English, Polish and Spanish", Object.values(copy).every((c) => c.ok), `(${JSON.stringify(copy)})`);
+}
+// --- end string-battle-alive ---
 });
 
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every

@@ -1032,6 +1032,22 @@ export default function Simulator() {
     engineRef.current?.setStringBattleSettings({ title: s.sbTitle });
   }, [s.sbTitle]);
   // --- end string-circle ---
+  // --- string-battle-alive --- a change of the life rule or of the duel's switch is a rule of the fight: it restarts the battle
+  // and drops a found seed
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setStringBattleSettings(stringBattleSettingsOf(s));
+    if (s.mode === "stringBattle" && engine.getCurrentModeName() === "stringBattle") {
+      engine.initStringBattle();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.sbLife, s.sbDuel]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.sbLife, s.sbDuel]);
+  // --- end string-battle-alive ---
   // --- end odd-string-battle ---
   // --- odd-maze --- Maze: a new maze or race (columns, balls, brain, hand, clip limit) restarts the run and drops a found seed;
   // the pull and the speed follow live (and drop the seed: they change the run); the trail, fog, colours, badge and HUD follow live.
@@ -2092,6 +2108,11 @@ export default function Simulator() {
           // --- odd-string-battle --- a cut thread's pluck, a ball's shatter
           if (ev.sbSound) {
             audio.playStringBattle(ev.sbSound, ev.frequency);
+            continue;
+          }
+          // --- string-battle-alive --- the final duel's riser, heartbeat, swell, tail and drone
+          if (ev.sbDuel) {
+            audio.playStringDuel(ev.sbDuel, ev.frequency, ev.sbDuelBpm, ev.sbDuelSpeed, ev.level);
             continue;
           }
           // --- gerald-vortex --- a ball swallowed by the Sound Vortex pews
@@ -3461,7 +3482,9 @@ export default function Simulator() {
         kills: (n) => fill("Simulator.canvasSbKills", { count: n }),
         draw: t("Simulator.canvasSbDraw"),
         team: (n) => fill("Simulator.canvasTeamFallback", { n }),
+        threads: t("StringDuel.threads"), // --- string-battle-alive --- (the HUD's figure under the strings rule)
       },
+      stringDuel: { banner: t("StringDuel.banner") }, // --- string-battle-alive --- the FINAL DUEL banner
       // --- odd-power-layers ---
       powerLayers: {
         rules: {

@@ -3,6 +3,7 @@ import { SB_BURST_MS, SB_INVULN_MS, ghostLifeMs, type StringBattleView } from "@
 import { SC_RIM_BINS, circleLineup, coverageText, fanText, rimAt, wallOverlap, type ScLook } from "@/lib/physics/modes/stringCircle";
 import type { TeamEntry } from "@/lib/teams";
 import { flagGlyphsSupported } from "./landClaimRenderer";
+import { sbShieldMs } from "@/lib/physics/modes/stringDuel"; // --- string-battle-alive ---
 
 /**
  * --- string-circle --- Canvas drawing of the String Battle's circle style (lib/physics/modes/stringCircle.ts), one
@@ -396,7 +397,7 @@ export class StringCircleLayer {
 
   private shielded(view: StringBattleView, slot: number, nowMs: number): boolean {
     const f = view.fighters[slot];
-    return !!f && f.alive && nowMs - f.hurtMs < SB_INVULN_MS.cut;
+    return !!f && f.alive && nowMs - f.hurtMs < sbShieldMs(view.settings.life === "strings" ? "strings" : "lives", SB_INVULN_MS.cut); // --- string-battle-alive --- (the strings rule: the rig's blink)
   }
 
   /** Traces the arena's wall at `scale` × its radius (the circle, or the hexagon's six corners). */
@@ -641,7 +642,9 @@ export class StringCircleLayer {
       const ringR = r + Math.max(1.5, 0.16 * r);
       ctx.lineWidth = Math.max(2, 0.24 * r);
       ctx.lineCap = "butt";
-      if (startLives <= 12) {
+      // --- string-battle-alive --- under the strings rule there are no lives: one ring, and the live strings under the flag
+      const stringsRule = view.settings.life === "strings";
+      if (!stringsRule && startLives <= 12) {
         const seg = TWO_PI / startLives;
         const gap = startLives > 1 ? Math.min(0.25, 0.3 * seg) : 0;
         const drain = c && c.cut > 0 ? Math.min(1, (c.toward[f.slot] ?? 0) / c.cut) : 0;
@@ -668,9 +671,10 @@ export class StringCircleLayer {
         ctx.font = this.font(fs, 900);
         ctx.lineWidth = Math.max(2, 0.2 * fs);
         ctx.strokeStyle = "rgba(0, 0, 0, 0.8)";
-        ctx.strokeText(String(f.lives), B.x, B.y + r + 0.9 * fs);
+        const shown = stringsRule ? f.strings.length : f.lives; // --- string-battle-alive ---
+        ctx.strokeText(String(shown), B.x, B.y + r + 0.9 * fs);
         ctx.fillStyle = "#ffffff";
-        ctx.fillText(String(f.lives), B.x, B.y + r + 0.9 * fs);
+        ctx.fillText(String(shown), B.x, B.y + r + 0.9 * fs);
       }
       ctx.lineCap = "round";
       ctx.globalAlpha = 1;

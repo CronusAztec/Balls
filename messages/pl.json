@@ -1085,10 +1085,10 @@
     "sbMaxStrings": "Nici na kulkę",
     "sbMaxStringsTip": "Ile nici kulka ciągnie najwyżej, 3–40; ponad to najstarsza odczepia się i gaśnie.",
     "sbDuration": "Limit klipu",
-    "sbDurationTip": "Rozstrzygnij walkę po tylu sekundach: wygrywają ocalali z największą liczbą żyć (potem z największą liczbą eliminacji, potem odbić). Wyłączony: walka trwa do ostatniej kulki.",
+    "sbDurationTip": "Rozstrzygnij walkę po tylu sekundach: wygrywają ocalali z największą liczbą nici, a przy zasadzie żyć z największą liczbą żyć (potem z największą liczbą eliminacji, potem odbić). Wyłączony: walka trwa do ostatniej kulki.",
     "sbDurationOff": "Do ostatniej kulki",
     "sbFinaleSpeed": "Prędkość finału",
-    "sbFinaleSpeedTip": "Gdy zostają dwie kulki, a jedna jest o jedno cięcie od eliminacji (albo do limitu klipu zostało 6 s), kulki przyspieszają do tej wartości, a ich poświaty migają – końcówka robi się intensywna.",
+    "sbFinaleSpeedTip": "Gdy zostaną dwie kulki albo do limitu klipu zostanie 6 s, kulki przyspieszają do tej wartości, a ich poświaty migają. Długi pat przyspiesza je jeszcze bardziej.",
     "sbWobble": "Drganie pierścienia",
     "sbWobbleTip": "Styl neon: jak mocno pierścień drga jak galareta przy każdym uderzeniu (tylko wizualnie).",
     "sbWobbleOff": "Wył.",
@@ -2362,7 +2362,18 @@
     "ringTimerTip": "Pokazuje pod pierścieniami „pierścień k: t s”: jak długo piłka jest w obecnym pierścieniu, a po wydostaniu się „na zewnątrz po t s”. Nagrania to zawierają.",
     "ringSound": "Dźwięki pierścieni",
     "ringSoundTip": "Oryginalne, syntezowane dźwięki: miękkie pentatoniczne szarpnięcie przy każdym odbiciu, o wysokości zależnej od pierścienia (zewnętrzne nisko, wewnętrzne wysoko), rosnący dźwięk za każdy pokonany pierścień i ciepły akord, gdy piłka jest na zewnątrz.",
-    "modeBrickRebuild": "Rozbij cegły"
+    "modeBrickRebuild": "Rozbij cegły",
+    "sbLife": "Zasada życia",
+    "sbLifeTip": "Nici trzymają kulkę przy życiu, dopóki trzyma się choć jedna jej nić, a Życia dają każdej kulce stałą liczbę żyć.",
+    "sbLifeStrings": "Nici",
+    "sbLifeLives": "Życia",
+    "sbLifeHintStrings": "Kulka żyje, dopóki trzyma się choć jedna jej nić. Gdy straci ostatnią, pęka.",
+    "sbLifeHintLives": "Każda kulka zaczyna z ustaloną liczbą żyć. Po utracie życia jest przez chwilę chroniona.",
+    "sbHintCutStrings": "Przelot przez nici rywala przecina każdą z nich. Odbijaj się często, by zyskać nowe.",
+    "sbHintTouchStrings": "Nici są laserami. Dotknięcie jednej kosztuje twoją najstarszą nić.",
+    "sbHintCollideStrings": "Każde zderzenie kosztuje wolniejszą kulkę jej najstarszą nić.",
+    "sbDuel": "Finałowy pojedynek",
+    "sbDuelTip": "Gdy zostaną dwie kulki, polują na siebie, każde cięcie zwalnia czas, a bicie serca narasta aż do końca."
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -5396,5 +5407,9 @@
     "brOutline": "Puste piłki",
     "brOutlineTip": "Białe piłki z cienką ciemną obwódką, jak w klipie wzorcowym. Wyłączone: piłki wyglądają tak, jak ustawisz (kolor, obraz, twarze).",
     "canvasCounter": "cegły: {count}"
+  },
+  "StringDuel": {
+    "banner": "FINAŁOWY POJEDYNEK",
+    "threads": "NICI"
   }
 }

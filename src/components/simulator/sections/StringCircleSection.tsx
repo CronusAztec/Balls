@@ -99,7 +99,7 @@ export default function StringCircleSection({ t, search, matches, settings: s, u
         </div>
       </Searchable>
       <Slider t={t} search={search} matches={matches} labelKey="scRate" tipKey="scRateTip" value={s.sbRate} range={RANGES.sbRate} onChange={(v) => update({ sbRate: v })} display={t("scRateValue", { n: s.sbRate })} />
-      <Slider t={t} search={search} matches={matches} labelKey="scCut" tipKey="scCutTip" value={s.sbCut} range={RANGES.sbCut} onChange={(v) => update({ sbCut: v })} display={String(s.sbCut)} />
+      {(s.sbLife === "lives" || !!search) && <Slider t={t} search={search} matches={matches} labelKey="scCut" tipKey="scCutTip" value={s.sbCut} range={RANGES.sbCut} onChange={(v) => update({ sbCut: v })} display={String(s.sbCut)} /> /* --- string-battle-alive --- (strings per life: the lives rule's) */}
       {!search && (
         <p className="text-xs text-ink-3 leading-relaxed" data-testid="sc-lineup-note">
           {lineup.length > 0 ? t("scLineupNote", { codes: lineup.join(" · "), max: SC_STRING_CEILING.toLocaleString() }) : t("scRosterNote", { max: SC_STRING_CEILING.toLocaleString() })}
