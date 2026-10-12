@@ -6,7 +6,7 @@ import { randomId } from "../crypto";
 import * as stripe from "../providers/stripe";
 import * as paypal from "../providers/paypal";
 import * as nowpayments from "../providers/nowpayments";
-import { planDays } from "../entitlements";
+import { PLAN_PRICE_USD, planDays } from "../entitlements";
 import type { Ctx } from "./common";
 import {
   appendQuery,
@@ -87,7 +87,7 @@ export async function checkoutCrypto(request: Request, ctx: Ctx): Promise<Respon
   if (!providerReady(ctx.env, "crypto") || !NOWPAYMENTS_API_KEY) {
     throw new ApiError("provider_unavailable", "Crypto payments are not configured.", 503);
   }
-  const priceAmount = plan === "yearly" ? 79 : 10;
+  const priceAmount = PLAN_PRICE_USD[plan];
   const apiBase = nowpayments.nowPaymentsApiBase(flagOn(ctx.env.NOWPAYMENTS_SANDBOX));
   const orderId = randomId();
 

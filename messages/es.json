@@ -2533,7 +2533,7 @@
   "FAQ": {
     "q1": {
       "question": "¿{siteName} es gratis?",
-      "answer": "Sí: todos los modos, todas las opciones de personalización, el sonido y Buscar simulación, y también grabar y exportar los vídeos, sin crear ninguna cuenta. Los vídeos gratuitos llevan una pequeña marca de agua; Pro la quita por 10 $ al mes o 79 $ al año."
+      "answer": "Sí: todos los modos, todas las opciones de personalización, el sonido y Buscar simulación, y también grabar y exportar los vídeos, sin crear ninguna cuenta. Los vídeos gratuitos llevan una pequeña marca de agua; Pro la quita por 6,99 $ al mes o 49 $ al año."
     },
     "q2": {
       "question": "¿Qué formatos y resoluciones de vídeo puedo exportar?",
@@ -4730,7 +4730,7 @@
     },
     "terms": {
       "title": "Suscripciones Pro",
-      "content": "Jugar con el simulador y grabar o exportar vídeos es gratis; los vídeos creados sin una licencia Pro llevan una marca de agua. Pro, por 10 $ al mes o 79 $ al año, los exporta sin marca de agua y añade la publicación en tus cuentas. Las suscripciones con tarjeta y PayPal se renuevan automáticamente hasta que las canceles (en el portal de clientes de Stripe o en tu cuenta de PayPal); un pago con cripto compra por adelantado un periodo de 30 o 365 días que no se renueva. La licencia es válida hasta el final del periodo pagado."
+      "content": "Jugar con el simulador y grabar o exportar vídeos es gratis; los vídeos creados sin una licencia Pro llevan una marca de agua. Pro, por 6,99 $ al mes o 49 $ al año, los exporta sin marca de agua y añade la publicación en tus cuentas. Las suscripciones con tarjeta y PayPal se renuevan automáticamente hasta que las canceles (en el portal de clientes de Stripe o en tu cuenta de PayPal); un pago con cripto compra por adelantado un periodo de 30 o 365 días que no se renueva. La licencia es válida hasta el final del periodo pagado."
     },
     "paste": {
       "title": "Pegar una clave de licencia",

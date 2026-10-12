@@ -7,6 +7,7 @@ import { corsHeaders, json, Router } from "./http";
 import { Repo } from "./store";
 import type { KV } from "./store";
 import { isTestKey } from "./license";
+import { PLAN_PRICE_USD } from "./entitlements";
 import type { Ctx } from "./handlers/common";
 import { checkoutCrypto, checkoutPaypal, checkoutStripe } from "./handlers/checkout";
 import { webhookNowPayments, webhookPaypal, webhookStripe } from "./handlers/webhooks";
@@ -17,7 +18,7 @@ function configResponse(ctx: Ctx): Response {
   const env = ctx.env;
   return json(
     {
-      plans: { monthly: { usd: 10 }, yearly: { usd: 79 } },
+      plans: { monthly: { usd: PLAN_PRICE_USD.monthly }, yearly: { usd: PLAN_PRICE_USD.yearly } },
       // On only with every secret it needs – the webhook's included (providerReady).
       providers: {
         stripe: providerReady(env, "stripe"),

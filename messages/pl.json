@@ -2533,7 +2533,7 @@
   "FAQ": {
     "q1": {
       "question": "Czy {siteName} jest darmowy?",
-      "answer": "Tak: każdy tryb, każda opcja personalizacji, dźwięk i Znajdź symulację – a także nagrywanie i eksport filmów – bez zakładania konta. Filmy tworzone za darmo mają mały znak wodny; Pro go usuwa za 10 $ miesięcznie lub 79 $ rocznie."
+      "answer": "Tak: każdy tryb, każda opcja personalizacji, dźwięk i Znajdź symulację – a także nagrywanie i eksport filmów – bez zakładania konta. Filmy tworzone za darmo mają mały znak wodny; Pro go usuwa za 6,99 $ miesięcznie lub 49 $ rocznie."
     },
     "q2": {
       "question": "Jakie formaty i rozdzielczości wideo mogę eksportować?",
@@ -4730,7 +4730,7 @@
     },
     "terms": {
       "title": "Subskrypcje Pro",
-      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe; filmy utworzone bez licencji Pro mają znak wodny. Pro – 10 $ miesięcznie lub 79 $ rocznie – eksportuje je bez znaku wodnego i dodaje publikowanie na Twoich kontach. Subskrypcje kartą i przez PayPal odnawiają się automatycznie, dopóki ich nie anulujesz (w portalu klienta Stripe lub na koncie PayPal); płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu."
+      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe; filmy utworzone bez licencji Pro mają znak wodny. Pro – 6,99 $ miesięcznie lub 49 $ rocznie – eksportuje je bez znaku wodnego i dodaje publikowanie na Twoich kontach. Subskrypcje kartą i przez PayPal odnawiają się automatycznie, dopóki ich nie anulujesz (w portalu klienta Stripe lub na koncie PayPal); płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu."
     },
     "paste": {
       "title": "Wklej klucz licencji",

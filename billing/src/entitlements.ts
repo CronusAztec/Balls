@@ -24,6 +24,11 @@ export type EntitlementStatus =
   | "expired";
 
 export const DAY = 86400;
+/**
+ * What each plan costs in US dollars: $6.99 a month or $49 a year. The site (src/lib/billing/config.ts PLANS) and the
+ * Stripe prices / PayPal plans scripts/ create carry the same numbers; /config states these and crypto invoices charge them.
+ */
+export const PLAN_PRICE_USD: Record<Plan, number> = { monthly: 6.99, yearly: 49 };
 /** Days of grace a licence lasts past the paid period's end (its exp is the period's end plus these). */
 export const GRACE_DAYS = 3;
 

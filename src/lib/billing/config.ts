@@ -76,25 +76,29 @@ export interface PlanInfo {
   prepaidDays: number;
 }
 
-/** The two plans: $10 a month or $79 a year. */
+/**
+ * The two plans: $6.99 a month or $49 a year – under every direct competitor (bouncing-ball video generators charge $15 to
+ * $29 a month with export caps; Pro has none). The billing Worker (billing/src/entitlements.ts PLAN_PRICE_USD) and the
+ * Stripe prices / PayPal plans its scripts create carry the same numbers.
+ */
 export const PLANS: Record<Plan, PlanInfo> = {
-  monthly: { usd: 10, months: 1, prepaidDays: 30 },
-  yearly: { usd: 79, months: 12, prepaidDays: 365 },
+  monthly: { usd: 6.99, months: 1, prepaidDays: 30 },
+  yearly: { usd: 49, months: 12, prepaidDays: 365 },
 };
 
-/** The yearly plan's saving against twelve monthly payments, in whole percent (34 for $79 against $120). */
+/** The yearly plan's saving against twelve monthly payments, in whole percent (42 for $49 against $83.88). */
 export function yearlySavingPercent(plans: Record<Plan, Pick<PlanInfo, "usd" | "months">> = PLANS): number {
   const monthlyYear = (plans.monthly.usd / plans.monthly.months) * plans.yearly.months;
   if (!(monthlyYear > 0)) return 0;
   return Math.max(0, Math.round((1 - plans.yearly.usd / monthlyYear) * 100));
 }
 
-/** What a plan costs a month ($6.58 for the yearly plan), to the cent. */
+/** What a plan costs a month ($4.08 for the yearly plan), to the cent. */
 export function monthlyEquivalentUsd(plan: Plan, plans: Record<Plan, Pick<PlanInfo, "usd" | "months">> = PLANS): number {
   return Math.round((plans[plan].usd / plans[plan].months) * 100) / 100;
 }
 
-/** A dollar price in the page's language: "$10", "$79", "$6.58" (no cents on whole dollars). */
+/** A dollar price in the page's language: "$6.99", "$49", "$4.08" (no cents on whole dollars). */
 export function formatUsd(amount: number, locale: string): string {
   const whole = Number.isInteger(amount);
   try {

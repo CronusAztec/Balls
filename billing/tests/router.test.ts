@@ -72,7 +72,7 @@ describe("/config", () => {
     const res = await handleRequest(makeRequest("GET", "/config", { origin: SITE_ORIGIN }), env, { now: NOW });
     expect(res.status).toBe(200);
     const body = await jsonOf(res);
-    expect(body.plans).toEqual({ monthly: { usd: 10 }, yearly: { usd: 79 } });
+    expect(body.plans).toEqual({ monthly: { usd: 6.99 }, yearly: { usd: 49 } });
     expect(body.providers).toEqual({ stripe: false, paypal: false, crypto: false });
     expect(body.testMode).toBe(true); // the harness uses the public test key
   });

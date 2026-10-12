@@ -2533,7 +2533,7 @@
   "FAQ": {
     "q1": {
       "question": "Is {siteName} free to use?",
-      "answer": "Yes: every mode, every customisation option, the sound and Find Simulation – and recording and exporting the videos – with no account to create. Videos made for free carry a small watermark; Pro removes it for $10 a month or $79 a year."
+      "answer": "Yes: every mode, every customisation option, the sound and Find Simulation – and recording and exporting the videos – with no account to create. Videos made for free carry a small watermark; Pro removes it for $6.99 a month or $49 a year."
     },
     "q2": {
       "question": "What video formats and resolutions can I export?",
@@ -4730,7 +4730,7 @@
     },
     "terms": {
       "title": "Pro subscriptions",
-      "content": "Playing with the simulator and recording or exporting videos is free; videos made without a Pro licence carry a watermark. Pro – $10 a month or $79 a year – exports them without the watermark and adds publishing to your accounts. Card and PayPal subscriptions renew automatically until you cancel them (in Stripe's customer portal or your PayPal account); a crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for."
+      "content": "Playing with the simulator and recording or exporting videos is free; videos made without a Pro licence carry a watermark. Pro – $6.99 a month or $49 a year – exports them without the watermark and adds publishing to your accounts. Card and PayPal subscriptions renew automatically until you cancel them (in Stripe's customer portal or your PayPal account); a crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for."
     },
     "paste": {
       "title": "Paste a licence key",

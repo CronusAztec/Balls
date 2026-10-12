@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Create the PayPal product and the two billing plans ($10/month, $79/year), then print their ids.
+// Create the PayPal product and the two billing plans ($6.99/month, $49/year), then print their ids.
 //
 //   PAYPAL_CLIENT_ID=... PAYPAL_CLIENT_SECRET=... PAYPAL_ENV=sandbox node scripts/paypal-create-plans.mjs
 //
@@ -82,12 +82,12 @@ const product = await paypal(accessToken, "/v1/catalogs/products", {
 const monthly = await paypal(
   accessToken,
   "/v1/billing/plans",
-  plan(product.id, "JumpingBallsLive Pro monthly", "MONTH", "10"),
+  plan(product.id, "JumpingBallsLive Pro monthly", "MONTH", "6.99"),
 );
 const yearly = await paypal(
   accessToken,
   "/v1/billing/plans",
-  plan(product.id, "JumpingBallsLive Pro yearly", "YEAR", "79"),
+  plan(product.id, "JumpingBallsLive Pro yearly", "YEAR", "49"),
 );
 
 console.error(`Created product ${product.id} with two plans.\n`);

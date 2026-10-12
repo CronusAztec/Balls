@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Create the Stripe product and the two recurring prices ($10/month, $79/year), then print their ids.
+// Create the Stripe product and the two recurring prices ($6.99/month, $49/year), then print their ids.
 //
 //   STRIPE_SECRET_KEY=sk_test_... node scripts/stripe-create-prices.mjs
 //
@@ -33,14 +33,14 @@ const product = await stripe("/v1/products", { name: "JumpingBallsLive Pro" });
 const monthly = await stripe("/v1/prices", {
   product: product.id,
   currency: "usd",
-  unit_amount: "1000",
+  unit_amount: "699",
   "recurring[interval]": "month",
   nickname: "JumpingBallsLive Pro monthly",
 });
 const yearly = await stripe("/v1/prices", {
   product: product.id,
   currency: "usd",
-  unit_amount: "7900",
+  unit_amount: "4900",
   "recurring[interval]": "year",
   nickname: "JumpingBallsLive Pro yearly",
 });

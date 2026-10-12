@@ -14,7 +14,7 @@ types, Vitest). Everything the owner has to do is below. You do **not** need to 
 do need to create a few free accounts and paste some keys.
 
 > **What the visitor sees.** The playground (physics, sounds, all the controls) stays free. Exporting a
-> video is behind the paywall: **$10/month** or **$79/year**. Cards and PayPal renew automatically;
+> video is behind the paywall: **$6.99/month** or **$49/year**. Cards and PayPal renew automatically;
 > crypto buys a fixed prepaid period (30 or 365 days) because crypto cannot auto-renew.
 
 ---
@@ -102,7 +102,7 @@ development only — do not use it in production.)
    STRIPE_SECRET_KEY=sk_test_xxx node scripts/stripe-create-prices.mjs
    ```
    It prints `STRIPE_PRICE_MONTHLY=price_...` and `STRIPE_PRICE_YEARLY=price_...`. (Or create a product
-   "JumpingBallsLive Pro" by hand in the dashboard with a $10/month and a $79/year recurring price.)
+   "JumpingBallsLive Pro" by hand in the dashboard with a $6.99/month and a $49/year recurring price.)
 3. Add a **webhook endpoint**: Dashboard → *Developers → Webhooks → Add endpoint*.
    - URL: `https://<your-worker-subdomain>.workers.dev/webhooks/stripe` (you will know the subdomain
      after step 7; you can add the endpoint afterwards).
