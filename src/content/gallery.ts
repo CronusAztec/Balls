@@ -4,8 +4,8 @@ import type { ModeId } from "@/lib/physics/types";
 /*
  * --- daily-gallery --- The preset gallery (/gallery): curated setups, each a share query the simulator opens as is.
  *
- * `query` is exactly what the simulator's share link carries – the canonical output of `settingsToSearchParams()` (the
- * settings that differ from the mode's defaults; a theme is written out with its colours) – plus `seed=`, which pins the
+ * `query` is exactly what the simulator's share link carries: the canonical output of `settingsToSearchParams()` (the
+ * settings that differ from the mode's defaults; a theme is written out with its colours), plus `seed=`, which pins the
  * run, so "Try it" plays the very run the preview shows (on a canvas of the preview's size; another size is another
  * world). tests/gallery.test.ts checks every query is canonical, so a renamed or re-ranged setting cannot rot a preset.
  *
@@ -49,7 +49,7 @@ export const GALLERY: readonly GalleryPreset[] = [
     name: { en: "Aurora Galaxy Wave", pl: "Galaktyka zorzy", es: "Galaxia boreal" },
     description: {
       en: "Thirty pendulums laid out as a spinning galaxy drift into spiral arms and snap back in line, in northern-lights colours.",
-      pl: "Trzydzieści wahadeł ułożonych w wirującą galaktykę rozchodzi się w spiralne ramiona i znów ustawia w linii – w barwach zorzy polarnej.",
+      pl: "Trzydzieści wahadeł ułożonych w wirującą galaktykę rozchodzi się w spiralne ramiona i znów ustawia w linii, w barwach zorzy polarnej.",
       es: "Treinta péndulos dispuestos como una galaxia giratoria se abren en brazos espirales y vuelven a alinearse, con los colores de la aurora boreal.",
     },
   },
@@ -120,8 +120,8 @@ export const GALLERY: readonly GalleryPreset[] = [
     previewAt: 5,
     name: { en: "Circle Royale", pl: "Królewska arena", es: "Batalla en el círculo" },
     description: {
-      en: "Twelve squares with health bars in a shrinking circular arena – the faster one deals the damage, and the last square standing wins.",
-      pl: "Dwanaście kwadratów z paskami życia na kurczącej się okrągłej arenie – obrażenia zadaje szybszy, a wygrywa ostatni, który przetrwa.",
+      en: "Twelve squares with health bars in a shrinking circular arena. The faster one deals the damage, and the last square standing wins.",
+      pl: "Dwanaście kwadratów z paskami życia na kurczącej się okrągłej arenie. Obrażenia zadaje szybszy, a wygrywa ostatni, który przetrwa.",
       es: "Doce cuadrados con barras de vida en una arena circular que se encoge: el más rápido hace el daño y gana el último que quede en pie.",
     },
   },
@@ -156,8 +156,8 @@ export const GALLERY: readonly GalleryPreset[] = [
     previewAt: 11.5,
     name: { en: "Gerald at Sunset", pl: "Gerald o zachodzie słońca", es: "Gerald al atardecer" },
     description: {
-      en: "Gerald, all smiles, smashes his way down a shaft of glass under a sunset sky – every landing a note, every last hit a crash of shards.",
-      pl: "Uśmiechnięty Gerald przebija się w dół szybu pełnego szyb pod niebem o zachodzie – każde lądowanie to nuta, każde ostatnie uderzenie to deszcz odłamków.",
+      en: "Gerald, all smiles, smashes his way down a shaft of glass under a sunset sky. Every landing a note, every last hit a crash of shards.",
+      pl: "Uśmiechnięty Gerald przebija się w dół szybu pełnego szyb pod niebem o zachodzie. Każde lądowanie to nuta, każde ostatnie uderzenie to deszcz odłamków.",
       es: "Gerald, todo sonrisas, se abre paso rompiendo un pozo de cristales bajo un cielo de atardecer: cada aterrizaje es una nota y cada último golpe, una lluvia de esquirlas.",
     },
   },
@@ -204,8 +204,8 @@ export const GALLERY: readonly GalleryPreset[] = [
     previewAt: 13,
     name: { en: "Neon Vortex", pl: "Neonowy wir", es: "Vórtice de neón" },
     description: {
-      en: "Twenty smiling balls spiral down a magenta whirlpool of sound rings – each one a rising glissando, each swallow a pew.",
-      pl: "Dwadzieścia uśmiechniętych piłek schodzi spiralą w purpurowy wir dźwiękowych pierścieni – każda to wznoszące się glissando, każde połknięcie to „piu”.",
+      en: "Twenty smiling balls spiral down a magenta whirlpool of sound rings. Each one a rising glissando, each swallow a pew.",
+      pl: "Dwadzieścia uśmiechniętych piłek schodzi spiralą w purpurowy wir dźwiękowych pierścieni. Każda to wznoszące się glissando, każde połknięcie to „piu”.",
       es: "Veinte bolas sonrientes bajan en espiral por un remolino magenta de anillos sonoros: cada una es un glissando ascendente y cada tragada, un «piu».",
     },
   },
@@ -216,8 +216,8 @@ export const GALLERY: readonly GalleryPreset[] = [
     previewAt: 8,
     name: { en: "Retro Countdown Squares", pl: "Retro odliczanie", es: "Cuadrados en cuenta atrás" },
     description: {
-      en: "Four synthwave squares count down from 30 with every wall hit and grow a little each time – which one reaches zero first?",
-      pl: "Cztery kwadraty w stylu synthwave odliczają od 30 przy każdym uderzeniu w ścianę i za każdym razem trochę rosną – który pierwszy dojdzie do zera?",
+      en: "Four synthwave squares count down from 30 with every wall hit and grow a little each time. Which one reaches zero first?",
+      pl: "Cztery kwadraty w stylu synthwave odliczają od 30 przy każdym uderzeniu w ścianę i za każdym razem trochę rosną. Który pierwszy dojdzie do zera?",
       es: "Cuatro cuadrados synthwave cuentan hacia atrás desde 30 con cada golpe en la pared y crecen un poco cada vez: ¿cuál llegará antes a cero?",
     },
   },
@@ -240,8 +240,8 @@ export const GALLERY: readonly GalleryPreset[] = [
     previewAt: 16,
     name: { en: "The Hidden Heart", pl: "Ukryte serce", es: "El corazón oculto" },
     description: {
-      en: "Painters cover the arena in black and steer around one secret shape – watch the white space close in until only a heart is left.",
-      pl: "Malarze pokrywają arenę czernią i omijają jeden sekretny kształt – patrz, jak biała przestrzeń się kurczy, aż zostaje samo serce.",
+      en: "Painters cover the arena in black and steer around one secret shape. Watch the white space close in until only a heart is left.",
+      pl: "Malarze pokrywają arenę czernią i omijają jeden sekretny kształt. Patrz, jak biała przestrzeń się kurczy, aż zostaje samo serce.",
       es: "Los pintores cubren la arena de negro esquivando una forma secreta: mira cómo el blanco se reduce hasta que solo queda un corazón.",
     },
   },

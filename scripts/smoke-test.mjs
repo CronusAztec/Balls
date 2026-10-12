@@ -389,6 +389,27 @@ for (const locale of ["en", "pl", "es"]) {
     check(`GET /${locale}${p}`, res.status() === 200 && h1.length > 0, `(${res.status()}, h1="${h1.slice(0, 40)}")`);
   }
 }
+// --- copy-pass --- the studio guide is tips and help only, and the copy of the pages a visitor reads has no sentence dashes,
+// semicolons or other creators' names (docs/COPY-STYLE.md); the names are built from parts so this file does not spell them
+// (the Accordion renders each help row as a <button>, so the six buttons are the five troubleshooting rows and "Still stuck?")
+{
+  const names = [["gerald", "bounces"], ["odd", "playground"], ["project", ".jdm"], ["particles", "flow"], ["weapon", "ball", "arena"], ["ball", "thing", "sim"], ["loop", "mechanics"]].map((p) => p.join(""));
+  await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+  const guide = page.getByTestId("studio-guide");
+  const sections = await guide.locator("section").count();
+  const tips = await guide.locator('section[aria-labelledby="guide-tips"] li').count();
+  const help = await guide.locator('section[aria-labelledby="guide-trouble"] button').count();
+  const guideText = (await guide.innerText()).toLowerCase();
+  check("copy-pass: the studio guide is two sections (4 tips, 6 help rows) with no physics block, no mode list and no creator names", sections === 2 && tips === 4 && help === 6 && !/behind the simulation|physics engine|what each mode does/.test(guideText) && !names.some((n) => guideText.includes(n)) && !/ – |—|;/.test(guideText), `(sections ${sections}, tips ${tips}, help ${help})`);
+  const pages = {};
+  for (const p of ["", "/pricing", "/about", "/tiktok-ball-videos", "/gallery", "/download", "/feedback"]) {
+    await page.goto(`${BASE}/en${p}/`, { waitUntil: "networkidle" });
+    const text = (await page.locator("main").first().innerText()).toLowerCase();
+    pages[p || "/"] = { dash: / – |—/.test(text), semi: /;/.test(text), names: names.some((n) => text.includes(n)), chars: text.length };
+  }
+  const clean = Object.values(pages).every((v) => !v.dash && !v.semi && !v.names && v.chars > 200);
+  check("copy-pass: the landing, pricing, about, tiktok, gallery, download and feedback pages carry no sentence dashes, semicolons or creator names", clean, `(${JSON.stringify(pages)})`);
+}
 await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
 const previewImg = page.locator('img[src$="/modes/classic.webp"]').first();
 await previewImg.scrollIntoViewIfNeeded();
@@ -7398,7 +7419,7 @@ await smokeBlock("daily-gallery", async () => {
   let copied = "";
   if (panel) {
     await page.getByRole("button", { name: /Copy challenge link/ }).click();
-    await page.getByText(/Copied – paste it anywhere/).waitFor({ timeout: 5000 }).catch(() => {});
+    await page.getByText(/Copied\. Paste it anywhere/).waitFor({ timeout: 5000 }).catch(() => {});
     copied = await page.evaluate(() => navigator.clipboard.readText()).catch(() => "");
   }
   check(
@@ -10209,7 +10230,7 @@ await smokeBlock("paywall-gate", async () => {
         "paywall: a free visitor's Record Video, fast export and Render batch carry the watermark tag (no lock) and run – Record records and downloads, the fast export starts; Remove watermark (account row, the line under the stage) opens the Unlock dialog",
         tags.record === 1 && tags.fast === 1 && tags.locks === 0 && /watermark/i.test(tags.title ?? "") && /watermark/i.test(tags.name) &&
           recording && recordDialog === 0 && recorded &&
-          /Free – your videos carry a watermark/.test(account) && accountStatus === "free" &&
+          /Free: your videos carry a watermark/.test(account) && accountStatus === "free" &&
           unlockDialog && dialogInfo.feature === "" && /Remove the watermark/.test(dialogInfo.title) && dialogInfo.plans === 2 && dialogInfo.pays === 6 && dialogInfo.testMode && dialogInfo.pricingLink === `${BASE_PATH}/en/pricing/` && dialogInfo.restoreLink === `${BASE_PATH}/en/pricing/#restore` && escClosed &&
           noteDialog && closeClosed && batchTag === 1 && batchLock === 0 && editable && fastStarted && fastDialog === 0 && downloaded >= 1,
         `(${JSON.stringify({ tags, recording, recordDialog, recorded, account, accountStatus, unlockDialog, dialogInfo, escClosed, noteDialog, closeClosed, batchTag, batchLock, editable, fastStarted, fastDialog, downloaded })})`,
@@ -10312,7 +10333,7 @@ await smokeBlock("paywall-gate", async () => {
         "paywall: a checkout with the mocked backend comes back with ?claim=stripe&ref=…, the claim ends Pro (“You are Pro until …”, the licence stored) and Record Video then records and downloads",
         !!checkout && checkout.plan === "yearly" && checkout.email === "Buyer@Example.com" && checkout.locale === "en" && checkout.returnUrl === `${BASE}/en/pricing/` &&
           !!claim && claim.provider === "stripe" && claim.ref === "cs_test_smoke1" && claimed && /You are Pro until/.test(claimText) && token === claimToken && cleanUrl && licence === "pro" &&
-          locks === 0 && size > 10000 && /Pro – Yearly until/.test(account),
+          locks === 0 && size > 10000 && /Pro: Yearly until/.test(account),
         `(${JSON.stringify({ checkout, claim, claimed, claimText, stored: token === claimToken, cleanUrl, licence, locks, size, account })})`,
       );
     }
@@ -10522,7 +10543,7 @@ await smokeBlock("paywall-gate", async () => {
       const restores = calls.filter((c) => c.path === "/license/restore");
       check(
         "paywall: a Stripe licence that expired while nobody visited is renewed on the next visit – \"Renewing your licence…\", one /license/restore with the stored receipt, then Pro (the receipt kept)",
-        renewing && /Renewing your licence/.test(renewingText) && pro && /Pro – Monthly/.test(proText) && restores.length === 1 && restores[0].body?.email === "buyer@example.com" && restores[0].body?.ref === "cs_test_abc" && stored.licence === renewed && stored.lapsed === null && JSON.parse(stored.ref ?? "null")?.ref === "cs_test_abc",
+        renewing && /Renewing your licence/.test(renewingText) && pro && /Pro: Monthly/.test(proText) && restores.length === 1 && restores[0].body?.email === "buyer@example.com" && restores[0].body?.ref === "cs_test_abc" && stored.licence === renewed && stored.lapsed === null && JSON.parse(stored.ref ?? "null")?.ref === "cs_test_abc",
         `(${JSON.stringify({ renewing, renewingText, pro, proText, restores: restores.map((c) => c.body), stored: { licence: stored.licence === renewed, ref: stored.ref, lapsed: stored.lapsed } })})`,
       );
 
@@ -10637,7 +10658,7 @@ await smokeBlock("paywall-gate", async () => {
       await page.getByRole("button", { name: /Recording/ }).click();
       const account = await page.getByTestId("billing-account").innerText().catch(() => "");
       const locks = await lockCount(page);
-      check("paywall: the suite's Pro context shows no lock and the account row says Pro", locks === 0 && /Pro – Yearly until/.test(account), `(locks ${locks}, "${account}")`);
+      check("paywall: the suite's Pro context shows no lock and the account row says Pro", locks === 0 && /Pro: Yearly until/.test(account), `(locks ${locks}, "${account}")`);
     }
   } finally {
     for (const c of contexts) await c.close().catch(() => {});
@@ -12859,7 +12880,7 @@ await smokeBlock("free-watermark", async () => {
     await free.screenshot({ path: path.join(outDir, "watermark-free-studio.png") });
     check(
       "free watermark: the pricing page (en, pl, es: Free makes videos with the watermark, Pro without, Publish is Pro), the studio's line, tag and account row and the Unlock dialog (\"Remove the watermark\") say so",
-      pricingOk && /watermark/.test(note) && /Remove the watermark/.test(note) && /watermark/i.test(recordTag ?? "") && opened && /Remove the watermark/.test(dialogText) && /watermark/.test(dialogText) && /Free – your videos carry a watermark/.test(account) && /Remove watermark/.test(account),
+      pricingOk && /watermark/.test(note) && /Remove the watermark/.test(note) && /watermark/i.test(recordTag ?? "") && opened && /Remove the watermark/.test(dialogText) && /watermark/.test(dialogText) && /Free: your videos carry a watermark/.test(account) && /Remove watermark/.test(account),
       `(${JSON.stringify({ copy: Object.fromEntries(Object.entries(copy).map(([k, v]) => [k, { h1: v.h1, watermarkRows: v.watermarkRows, proRows: v.proRows }])), note, recordTag, opened, dialog: dialogText.slice(0, 160), account })})`,
     );
   } finally {
