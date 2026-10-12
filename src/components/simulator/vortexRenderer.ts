@@ -6,7 +6,8 @@ import { FunnelLayer } from "./funnelRenderer"; // --- funnel-spin --- the persp
  * `drawWorld()` under the balls – the funnel's depth gradient, the whirlpool arms (logarithmic spirals turning with the
  * balls, their dashes flowing inward), the sound rings (cool at the rim, hot by the hole with the rainbow walls on, else
  * the wall colour; a ring lights up and glows when a ball sinks past it), the rim and the hole; the balls themselves are
- * the canvas' ordinary balls (faces, emoji, trails, glow – the mode shrinks them with depth); `drawEffects()` over them –
+ * the canvas' ordinary balls (faces, emoji, trails, glow – the mode shrinks them with depth; --- funnel-spin --- the ring
+ * release's marbles and the perspective's are the layer's own, `drawBodies()`); `drawEffects()` over them –
  * the darkening throat of the depth cue, a note pulse around a ball that just played a ring and the splash of a swallowed
  * ball (a ripple and droplets in its colour); and `drawOverlay()` in screen space – the swallowed counter at the top of
  * the square the recorder crops to. Everything animates on the simulation clock (`view.timeMs`), so a pause freezes it and
@@ -90,13 +91,18 @@ export class VortexLayer {
   /** --- funnel-spin --- The perspective view (components/simulator/funnelRenderer.ts). */
   private readonly funnel = new FunnelLayer();
 
-  /** --- funnel-spin --- True while the view is the perspective: the layer draws the marbles itself (`drawBodies()`), not the page's ball pass. */
+  /**
+   * --- funnel-spin --- True while the view is the perspective: the layer draws the marbles itself (`drawBodies()`), not the
+   * page's ball pass. --- review fix (funnel-spin) --- And for the ring release from above too: a ring's marbles wear a hue
+   * each, more colours than the page's sprite cache holds (SPRITE_CACHE_CAP), which a ring of 360 thrashed on every frame.
+   */
   drawsBodies(view: VortexView): boolean {
-    return view.funnel.view === "perspective";
+    return view.funnel.view === "perspective" || view.funnel.release === "rings";
   }
-  /** --- funnel-spin --- The perspective's marbles, far to near, and the front lip over them. */
+  /** --- funnel-spin --- The perspective's marbles, far to near, and the front lip over them (--- review fix --- or the ring release's from above). */
   drawBodies(ctx: CanvasRenderingContext2D, view: VortexView, opts: VortexRenderOptions) {
-    this.funnel.drawBodies(ctx, view, opts);
+    if (view.funnel.view === "perspective") this.funnel.drawBodies(ctx, view, opts);
+    else this.funnel.drawTopBodies(ctx, view, opts);
   }
 
   private hsla(h: number, l: number, a: number) {

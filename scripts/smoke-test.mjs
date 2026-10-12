@@ -15924,7 +15924,7 @@ await smokeBlock("funnel-spin", async () => {
 // 44. Sound Vortex Funnel Spin-up (the ring waves and the perspective view): the Ring of 24 preset travels in the link (vxrl, vxv,
 // vxl, the navy page, the loop HUD) and the Funnel controls read it back; the search finds them; the preset runs 24 s of
 // simulation at 2× – 42 marbles swallowed in the first cycle, the refill on the loop point (data-vortex-last-refill-ms = the
-// cycle, data-loop-cycle), the perspective drawn (the pale rim ellipses, glossy marbles), the HUD's lowercase title, the lap chimes on C major pentatonic and the rolling hiss's 1.2 kHz band-pass; Find Simulation offers Last ring on a
+// cycle, data-loop-cycle), the perspective drawn (the pale rim ellipses, glossy marbles), the HUD's lowercase title, the lap chimes on C major pentatonic and the rolling hiss's 1.2 kHz band-pass; Galaxy's ring of 360 from above at 30+ fps (no sprite made a frame); Find Simulation offers Last ring on a
 // bar and puts a 100 BPM page's last ring on its bar lines (vxwi); a fast export with Export whole loops keeps two whole cycles
 // with the chimes in its own audio; and a free visitor's live watermark badge stays clear of the HUD's lines.
 {
@@ -16030,6 +16030,37 @@ await smokeBlock("funnel-spin", async () => {
     "Ring of 24 runs 24 s at 2×: 42 marbles swallowed in the first cycle, the refill on the loop point, the perspective drawn, the HUD's title and subtitle, the lap chimes and the rolling hiss",
     Number(run.vortexTimeMs) >= 24_000 && run.vortexRelease === "rings" && run.vortexView === "perspective" && run.vortexWaveSizes === "6,12,24" && run.vortexFirstCycleSwallowed === "42" && Number(run.vortexRefills) >= 1 && Math.abs(Number(run.vortexLastRefillMs) - 1000 * cycle) <= 17 && Math.abs(Number(run.loopCycle) - cycle) < 0.002 && Number(run.vortexLapChimes) >= 20 && Number(run.vortexWashes) >= 1 && heard.rims > 10 && heard.marbles > 100 && heard.texts.includes("why marbles speed up in a funnel") && chimes >= 5 && heard.bands.some((b) => Math.abs(b - 1200) < 1),
     `(${JSON.stringify({ time: run.vortexTimeMs, release: run.vortexRelease, view: run.vortexView, sizes: run.vortexWaveSizes, first: run.vortexFirstCycleSwallowed, refills: run.vortexRefills, lastRefill: run.vortexLastRefillMs, cycle, loopCycle: run.loopCycle, laps: run.vortexLapChimes, washes: run.vortexWashes, rims: heard.rims, marbles: heard.marbles, chimes, bands: heard.bands.slice(0, 6), texts: [...new Set(heard.texts)].slice(0, 6) })})`,
+  );
+}
+{
+  // --- review fix (funnel-spin) --- Galaxy: one ring of 360 seen from above, a hue a marble – more colours than the page's ball
+  // sprites are cached for (64), so the funnel layer draws the marbles itself: no canvas made a frame, and 30+ fps with the
+  // whole ring in the funnel (it ran at 10–21 fps through the page's sprites).
+  await page.goto(`${BASE}/en/simulator/?mode=vortex`, { waitUntil: "networkidle" });
+  await page.locator('[data-fs-preset="galaxy"]').first().click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(400);
+  const galaxyQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2500);
+  await page.evaluate(() => {
+    const made = { canvases: 0 };
+    window.__fsGalaxy = made;
+    const createElement = Document.prototype.createElement;
+    Document.prototype.createElement = function (tag, ...rest) {
+      if (String(tag).toLowerCase() === "canvas") made.canvases++;
+      return createElement.call(this, tag, ...rest);
+    };
+  });
+  const fps = await vxFrameRates(4000);
+  const made = await page.evaluate(() => window.__fsGalaxy);
+  const data = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-funnel-spin-galaxy.png") });
+  await timingCheck(
+    "Galaxy (a ring of 360 from above) keeps 30+ fps: the funnel layer draws the marbles, no sprite made a frame",
+    galaxyQuery.get("vxw") === "360" && galaxyQuery.get("vxrl") === "rings" && !galaxyQuery.has("vxv") && data.vortexRelease === "rings" && data.vortexView === "top" && data.vortexWaveSizes === "360" && Number(data.vortexInFlight) >= 300 && made.canvases < 10,
+    fpsOk(fps, 6, 30),
+    `(${JSON.stringify({ query: galaxyQuery.toString().slice(0, 160), view: data.vortexView, inFlight: data.vortexInFlight, canvasesMade: made.canvases })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    fpsRetry(3000, 5, 30),
   );
 }
 {
