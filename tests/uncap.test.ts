@@ -522,6 +522,7 @@ describe("uncap-all review fixes: only the settings a run's engine reads engage 
   NOT_ENGINE.add("prTrail"); // --- phase-spiral --- Metronomes & Polyrhythms' comet tails are the picture's (the canvas draws them)
   NOT_ENGINE.add("efTrail"); // --- ellipse-foci --- Focus Shot's comet trails are the picture's (the canvas cuts them from the corners)
   for (const key of ["vxElevation", "vxFunnelDepth"]) NOT_ENGINE.add(key); // --- funnel-spin --- the Sound Vortex's perspective camera and drawn depth are the picture's
+  NOT_ENGINE.add("gapSpiralStep"); // --- ring-escape --- Classic's spiral step is an angle: any value is a layout, never an extreme (it engages nothing)
 
   it("classifies every setting: read by some mode's engine, or the clip's, the text's, the sound's or the picture's", () => {
     const read = new Set<string>();

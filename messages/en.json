@@ -2339,7 +2339,29 @@
     "lcRebuildSecTip": "Seconds the rebuild takes: the columns rise back from the floor, the added balls melt into the pyramid and the first ones glide back to their corners.",
     "lcpLoopNote": "The run loops: knocked down, a short hold, rebuilt, and the first frame again. Find Simulation searches the first cycle; the clip covers a whole one.",
     "lcpEndNote": "The run ends when the last block falls (or at the battle duration), like a battle on the wall.",
-    "lcPresetPyramid1144": "Pyramid, 1,144 blocks"
+    "lcPresetPyramid1144": "Pyramid, 1,144 blocks",
+    "reDesc": "Ring Escape, after the loop family's oldest reel: lay the gaps out in a spiral, turn the rings together, paint them in a rainbow, time every ring and hear a rising note for each ring the ball gets through.",
+    "reSpiralPreset": "Ring Escape",
+    "reSpiralPresetTip": "The reel's look: a pure black page, eleven thin rainbow rings whose gaps step round in a spiral and turn together, a white ball with a short trail and the ring sounds. No title and no counter.",
+    "reSpiralPresetButton": "Rainbow spiral, 11 rings",
+    "gapLayout": "Gap Layout",
+    "gapLayoutTip": "Where each ring's gap starts. Even: spread evenly round the rings (the classic look). Random: anywhere, drawn from the run's seed. Aligned: every gap in one straight line. Spiral: each gap a fixed step round from the one inside it.",
+    "gapLayoutEven": "Even",
+    "gapLayoutRandom": "Random",
+    "gapLayoutAligned": "Aligned",
+    "gapLayoutSpiral": "Spiral",
+    "gapSpiralStep": "Spiral Step",
+    "gapSpiralStepTip": "Degrees between the gaps of neighbouring rings in the spiral layout. 0 lines them all up; the field takes any value from 0.",
+    "ringSpin": "Ring Spin",
+    "ringSpinTip": "Alternate: neighbouring rings turn opposite ways (the classic rings). Together: every ring turns the same way at the same speed, so a spiral stays a spiral while it turns.",
+    "ringSpinAlternate": "Alternate",
+    "ringSpinTogether": "Together",
+    "ringRainbow": "Rainbow by Ring",
+    "ringRainbowTip": "Colours each ring by its place: red outside, through orange, yellow and green, to cyan inside.",
+    "ringTimer": "Time in Ring",
+    "ringTimerTip": "Shows \"ring k: t s\" under the rings: how long the ball has been in the ring it is in, and \"out in t s\" once it is out. Recordings carry it.",
+    "ringSound": "Ring Sounds",
+    "ringSoundTip": "Original synthesized sounds: a soft pentatonic pluck for every bounce, pitched by the ring (outer rings low, inner rings high), a rising step for every ring the ball gets through and a warm chord when it is out."
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -3109,7 +3131,17 @@
     "missSummitLast": "Closest: {count, plural, one {# block} other {# blocks}} still stood when the summit fell ({seeds} seeds)",
     "missNoSummit": "The summit never fell before the battle duration ran out ({seeds} seeds)",
     "overlaySummitLast": "Tested {tested} seeds: in the closest one {count, plural, one {# block} other {# blocks}} still stood when the summit fell. Try more seeds or a longer battle.",
-    "overlayNoSummit": "Tested {tested} seeds: the summit never fell before the battle duration ran out. Try a longer battle, more balls or faster balls."
+    "overlayNoSummit": "Tested {tested} seeds: the summit never fell before the battle duration ran out. Try a longer battle, more balls or faster balls.",
+    "outcomeRingAt": "First ring at",
+    "hintRingAt": "The ball gets through the first ring within ±0.5 s of the chosen second, as in \"it takes three seconds to get through the first one\". The run found is recorded to its end.",
+    "findRingAt": "Find a Run Through the First Ring at {time}s",
+    "foundRingAt": "Found! Through the first ring at {time}s",
+    "missRingAt": "Closest first ring: {time}s ({seeds} seeds)",
+    "missNoRing": "No ball got through the first ring in time ({seeds} seeds)",
+    "overlayRingAt": "Tested {tested} seeds. The closest first ring came at {closest}s (target: {target}s ±{tolerance}s).",
+    "overlayNoRing": "Tested {tested} seeds and no ball got through the first ring by {target}s. Try a later second or a bigger gap.",
+    "progressRingAt": "Closest first ring: {time}s",
+    "ringAt": "First ring at"
   },
   "FastExport": {
     "button": "Fast export",
@@ -5281,5 +5313,9 @@
     "bmBassTip": "A soft bass note every two bars on the lowest note of the phrase there.",
     "bmCounter": "Note counter",
     "bmCounterTip": "Shows the notes of the current loop in the loop HUD (\"12 / 32 notes\")."
+  },
+  "RingEscape": {
+    "hudRing": "ring {ring}: {time} s",
+    "hudOut": "out in {time} s"
   }
 }

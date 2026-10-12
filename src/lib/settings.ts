@@ -113,6 +113,8 @@ import { PHASE_SPIRAL_PICTURE_RANGES, readPhaseSpiralParams, writePhaseSpiralPar
 import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDefaults, readEllipseFociParams, resolveEllipseFociFields, writeEllipseFociParams, type EfLaunch, type EfOrientation, type EfReset, type EfSkin } from "@/lib/physics/ellipseFoci";
 // --- beat-machine --- Beat Machines (the marble xylophone and the eight-step staircase)
 import { BM_ENGINE_KEYS, BM_RANGES, beatMachineModeDefaults, defaultBeatMachineFields, readBeatMachineParams, resolveBeatMachineFields, writeBeatMachineParams, type BeatMachineFields } from "@/lib/physics/beatMachine";
+// --- ring-escape --- Classic's Ring Escape: the gap layout, the spiral step, the spin, the rainbow by ring, the time in the ring, the ring sounds
+import { RING_ESCAPE_RANGES, defaultRingEscapeFields, readRingEscapeParams, resolveRingEscapeFields, writeRingEscapeParams, type GapLayout, type RingEscapeFields, type RingSpin } from "@/lib/physics/ringEscape";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -1211,6 +1213,20 @@ export interface SimulatorSettings {
   bmBass: boolean;
   bmCounter: boolean;
   // --- end beat-machine ---
+  // --- ring-escape --- Classic's Ring Escape (lib/physics/ringEscape.ts; the physics ones travel in the physics config)
+  /** even | random | aligned | spiral: where each ring's gap starts (URL `regl`). */
+  gapLayout: GapLayout;
+  /** Degrees between neighbouring gaps of the spiral; 0–90 on the slider, any value from 0 typed (URL `ress`). */
+  gapSpiralStep: number;
+  /** alternate | together: the rings' turning (URL `resp`). */
+  ringSpin: RingSpin;
+  /** The rings in a rainbow by ring, red outside to cyan inside (URL `rerb`). */
+  ringRainbow: boolean;
+  /** "ring k: t s" under the rings (URL `retm`). */
+  ringTimer: boolean;
+  /** Plucks per bounce, a rising step per ring escaped, the chord at the way out (URL `resn`). */
+  ringSound: boolean;
+  // --- end ring-escape ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -1220,6 +1236,14 @@ export function defaultGapSize(mode: ModeId) {
 }
 
 export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
+  // --- ring-escape --- Classic's Ring Escape fields join the core defaults here, outside the one big literal below: past about
+  // 550 properties that literal leaves V8's fast path and every call gets 10–20× slower (links, presets, the finder, the daily
+  // deals all build settings), so further fields are better spread in here too.
+  return { ...coreDefaultSettings(mode), ...defaultRingEscapeFields() };
+}
+
+/** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields> {
   return {
     mode,
     gravity: 300,
@@ -1447,6 +1471,7 @@ export const RANGES = {
   ...PHASE_SPIRAL_PICTURE_RANGES, // --- phase-spiral --- (the tails; the arms are in POLYRHYTHM_RANGES)
   ...EF_RANGES, // --- ellipse-foci ---
   ...BM_RANGES, // --- beat-machine ---
+  ...RING_ESCAPE_RANGES, // --- ring-escape --- (the spiral's step)
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1705,6 +1730,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writePhaseSpiralParams(settings, base, params); // --- phase-spiral ---: prar, prm, prtl, prls, prco
   writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
   writeBeatMachineParams(settings, base, params); // --- beat-machine ---: bmV, bmBpm, bmSt, bmDx, bmDy, bmB, bmDh, bmRb, bmRt, bmMt, bmSrc, bmN, bmL, bmBs, bmC
+  writeRingEscapeParams(settings, base, params); // --- ring-escape ---: regl, ress, resp, rerb, retm, resn
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1876,6 +1902,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readPhaseSpiralParams(params, settings); // --- phase-spiral --- (whole arms from 1 up, a tail from 0 up, real booleans, a known palette)
   readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
   readBeatMachineParams(params, settings); // --- beat-machine --- (valid numbers from their minimum up, known options, a clean list, real booleans)
+  readRingEscapeParams(params, settings); // --- ring-escape --- (known layouts and spins, a step from 0 up, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -2347,6 +2374,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveHoopsFields(merged)); // --- bead-hoops --- valid numbers from their minimum up, a known ramp shape, real booleans
   Object.assign(merged, resolveEllipseFociFields(merged)); // --- ellipse-foci --- valid numbers from their minimum up, known options, real booleans
   Object.assign(merged, resolveBeatMachineFields(merged)); // --- beat-machine --- valid numbers from their minimum up, known options, a clean list, real booleans
+  Object.assign(merged, resolveRingEscapeFields(merged)); // --- ring-escape --- known layouts and spins, a step from 0 up, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

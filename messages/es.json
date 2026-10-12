@@ -2339,7 +2339,29 @@
     "lcRebuildSecTip": "Segundos que dura la reconstrucción: las columnas vuelven a subir desde el suelo, las bolas añadidas se funden en la pirámide y las primeras vuelven a sus esquinas.",
     "lcpLoopNote": "La partida se repite: derribo, una breve pausa, reconstrucción y de nuevo el primer fotograma. Buscar simulación examina el primer ciclo; el clip abarca uno entero.",
     "lcpEndNote": "La partida termina cuando cae el último bloque (o al acabar la duración de la batalla), como una batalla en la pared.",
-    "lcPresetPyramid1144": "Pirámide, 1144 bloques"
+    "lcPresetPyramid1144": "Pirámide, 1144 bloques",
+    "reDesc": "Escape de anillos, como el vídeo más antiguo de la familia de bucles: coloca los huecos en espiral, gira los anillos juntos, píntalos de arcoíris, cronometra cada anillo y oye una nota que sube por cada anillo que atraviesa la bola.",
+    "reSpiralPreset": "Escape de anillos",
+    "reSpiralPresetTip": "El aspecto del vídeo: un fondo negro puro, once anillos finos de arcoíris cuyos huecos avanzan en espiral y giran juntos, una bola blanca con una estela corta y los sonidos de los anillos. Sin título ni contador.",
+    "reSpiralPresetButton": "Espiral arcoíris, 11 anillos",
+    "gapLayout": "Disposición de huecos",
+    "gapLayoutTip": "Dónde empieza el hueco de cada anillo. Uniforme: repartidos por igual alrededor (el aspecto clásico). Aleatoria: en cualquier sitio, según la semilla de la partida. Alineada: todos los huecos en una línea recta. Espiral: cada hueco un paso fijo más allá que el del anillo interior.",
+    "gapLayoutEven": "Uniforme",
+    "gapLayoutRandom": "Aleatoria",
+    "gapLayoutAligned": "Alineada",
+    "gapLayoutSpiral": "Espiral",
+    "gapSpiralStep": "Paso de la espiral",
+    "gapSpiralStepTip": "Grados entre los huecos de anillos vecinos en la disposición en espiral. 0 los alinea todos; el campo acepta cualquier valor desde 0.",
+    "ringSpin": "Giro de los anillos",
+    "ringSpinTip": "Alterno: los anillos vecinos giran en sentidos opuestos (los anillos clásicos). Juntos: todos los anillos giran en el mismo sentido y a la misma velocidad, así que la espiral sigue siendo una espiral mientras gira.",
+    "ringSpinAlternate": "Alterno",
+    "ringSpinTogether": "Juntos",
+    "ringRainbow": "Arcoíris por anillo",
+    "ringRainbowTip": "Colorea cada anillo según su lugar: rojo por fuera, pasando por naranja, amarillo y verde, hasta cian por dentro.",
+    "ringTimer": "Tiempo en el anillo",
+    "ringTimerTip": "Muestra «anillo k: t s» bajo los anillos: cuánto tiempo lleva la bola en el anillo actual, y «fuera en t s» cuando ya ha salido. Las grabaciones lo incluyen.",
+    "ringSound": "Sonidos de los anillos",
+    "ringSoundTip": "Sonidos sintetizados originales: un punteo pentatónico suave en cada rebote, afinado según el anillo (los exteriores graves, los interiores agudos), una nota que sube por cada anillo superado y un acorde cálido cuando la bola sale."
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -3109,7 +3131,17 @@
     "missSummitLast": "Lo más cerca: {count, plural, one {# bloque seguía} other {# bloques seguían}} en pie cuando cayó la cima ({seeds} semillas)",
     "missNoSummit": "La cima no cayó antes de que acabara la duración de la batalla ({seeds} semillas)",
     "overlaySummitLast": "Se probaron {tested} semillas: en la más cercana {count, plural, one {# bloque seguía} other {# bloques seguían}} en pie cuando cayó la cima. Prueba más semillas o una batalla más larga.",
-    "overlayNoSummit": "Se probaron {tested} semillas: la cima no cayó antes de que acabara la duración de la batalla. Prueba una batalla más larga, más bolas o bolas más rápidas."
+    "overlayNoSummit": "Se probaron {tested} semillas: la cima no cayó antes de que acabara la duración de la batalla. Prueba una batalla más larga, más bolas o bolas más rápidas.",
+    "outcomeRingAt": "Primer anillo en",
+    "hintRingAt": "La bola atraviesa el primer anillo a ±0,5 s del segundo elegido, como en «tarda tres segundos en pasar el primero». La partida encontrada se graba hasta el final.",
+    "findRingAt": "Buscar el paso del primer anillo en {time}s",
+    "foundRingAt": "¡Encontrada! Primer anillo superado en {time}s",
+    "missRingAt": "Primer anillo más cercano: {time}s ({seeds} semillas)",
+    "missNoRing": "Ninguna bola atravesó el primer anillo a tiempo ({seeds} semillas)",
+    "overlayRingAt": "Se probaron {tested} semillas. El primer anillo más cercano llegó a los {closest}s (objetivo: {target}s ±{tolerance}s).",
+    "overlayNoRing": "Se probaron {tested} semillas y ninguna bola atravesó el primer anillo antes de {target}s. Prueba un segundo posterior o un hueco más grande.",
+    "progressRingAt": "Primer anillo más cercano: {time}s",
+    "ringAt": "Primer anillo en"
   },
   "FastExport": {
     "button": "Exportación rápida",
@@ -5281,5 +5313,9 @@
     "bmBassTip": "Una nota grave suave cada dos compases, en la nota más grave de la frase en ese tramo.",
     "bmCounter": "Contador de notas",
     "bmCounterTip": "Muestra las notas del bucle actual en el HUD del bucle («12 / 32 notas»)."
+  },
+  "RingEscape": {
+    "hudRing": "anillo {ring}: {time} s",
+    "hudOut": "fuera en {time} s"
   }
 }
