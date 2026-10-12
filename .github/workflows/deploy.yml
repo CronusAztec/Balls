@@ -76,6 +76,15 @@ jobs:
           echo "base=$base" >> "$GITHUB_OUTPUT"
           echo "Site URL: $url (base path: '$base', from $source)"
 
+      # --- go-live-kit --- a deploy to the default branch must be all-live or all-test: the billing variables set together
+      # (and never the public TEST key), or both empty while payments are not configured yet.
+      - name: Production guard (billing)
+        if: env.DEPLOY == 'true'
+        env:
+          LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY }}
+          BILLING_API_URL: ${{ vars.BILLING_API_URL }}
+        run: node scripts/go-live-check.mjs --deploy-guard
+
       # --- review fix (site-static) --- Next's build cache (the "No build cache found" warning)
       - name: Cache the Next.js build
         uses: actions/cache@v5
@@ -111,6 +120,10 @@ jobs:
           # not configured. (The smoke job builds without them on purpose: it records with test licences.)
           NEXT_PUBLIC_LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY }}
           NEXT_PUBLIC_BILLING_API: ${{ vars.BILLING_API_URL }}
+          # --- go-live-kit --- the operator's public details the legal pages show (docs/GO-LIVE.md); empty while unset.
+          NEXT_PUBLIC_SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
+          NEXT_PUBLIC_LEGAL_NAME: ${{ vars.LEGAL_NAME }}
+          NEXT_PUBLIC_LEGAL_ADDRESS: ${{ vars.LEGAL_ADDRESS }}
 
       - name: Upload site artifact
         if: env.DEPLOY == 'true'

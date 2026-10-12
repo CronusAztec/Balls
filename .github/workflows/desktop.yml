@@ -85,6 +85,10 @@ jobs:
           # app's app://jumpingballslive origin CORS). Empty while unset: the app is then in test mode, like the site.
           NEXT_PUBLIC_LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY }}
           NEXT_PUBLIC_BILLING_API: ${{ vars.BILLING_API_URL }}
+          # --- go-live-kit --- the operator's public details the legal pages show (docs/GO-LIVE.md); empty while unset.
+          NEXT_PUBLIC_SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
+          NEXT_PUBLIC_LEGAL_NAME: ${{ vars.LEGAL_NAME }}
+          NEXT_PUBLIC_LEGAL_ADDRESS: ${{ vars.LEGAL_ADDRESS }}
 
       - name: Install the app's dependencies
         working-directory: desktop

@@ -11,7 +11,8 @@
 //   sub:<stripe|paypal>:<subscription id>:link    who bought it (e-mail, plan, Stripe customer, refs)
 //   sub:<stripe|paypal>:<subscription id>:paid    how far it is paid (only ever moves later)
 //   sub:<stripe|paypal>:<subscription id>:state   its latest status (the newest event wins)
-//   sub:stripe:<subscription id>:ended            when Stripe deleted it (the first answer stays)
+//   sub:<stripe|paypal>:<subscription id>:ended   when it was deleted (the first answer stays), or – go-live-kit –
+//                                                 revoked by a full refund, a dispute or a reversal
 //   grant:crypto:<payment id | order-<order id>>  one crypto payment's prepaid days (once per payment)
 //   idx:<e-mail>:<stripe|paypal|crypto>:<id>      the e-mail's index: one key per subscription or grant,
 //                                                 found by listing the prefix (distinct keys never
@@ -178,11 +179,16 @@ export class Repo {
     await this.kv.put(this.subKey(provider, id, "state"), JSON.stringify(state));
   }
 
-  /** Record that a subscription was deleted (its access ends there); the first answer stays. */
-  async recordEnded(provider: SubscriptionProvider, id: string, at: number): Promise<void> {
+  /**
+   * Record that a subscription was deleted (its access ends there); the first answer stays. --- go-live-kit --- `revoked`
+   * (a full refund, a dispute, a PayPal reversal) is kept once recorded, whichever event came first.
+   */
+  async recordEnded(provider: SubscriptionProvider, id: string, at: number, revoked = false): Promise<void> {
     const stored = await this.readJson<SubscriptionEnded>(this.subKey(provider, id, "ended"));
-    if (stored && stored.at <= at) return;
-    await this.kv.put(this.subKey(provider, id, "ended"), JSON.stringify({ at }));
+    if (stored && stored.at <= at && (stored.revoked || !revoked)) return;
+    const next: SubscriptionEnded = { at: stored ? Math.min(stored.at, at) : at };
+    if (revoked || stored?.revoked) next.revoked = true;
+    await this.kv.put(this.subKey(provider, id, "ended"), JSON.stringify(next));
   }
 
   /** Everything stored about one subscription. */

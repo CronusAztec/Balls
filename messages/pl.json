@@ -4526,7 +4526,7 @@
       "redirecting": "Otwieranie płatności…",
       "failed": "Nie udało się rozpocząć płatności: {message}",
       "desktop": "Płatność otworzyła się w przeglądarce. Po zapłacie wróć tutaj i przywróć zakup e-mailem i numerem referencyjnym, który strona pokaże po płatności – albo wklej stamtąd klucz licencji.",
-      "emailNeeded": "Najpierw podaj e-mail – płatność kryptowalutą wysyła na niego potwierdzenie.",
+      "emailNeeded": "Najpierw podaj e-mail – licencja jest wydawana na ten adres i dzięki niemu przywrócisz zakup na innym urządzeniu.",
       "newTab": "Płatność otworzyła się w nowej karcie. Zapłać tam – to studio odblokuje się samo, gdy płatność przejdzie, a Twoje ustawienia zostaną bez zmian."
     },
     "email": {
@@ -4656,7 +4656,10 @@
       "crypto": "Kryptowaluta opłaca okres z góry (30 dni w planie miesięcznym, 365 w rocznym); nic nie odnawia się samo.",
       "licence": "Licencja to podpisany klucz zapisany w tej przeglądarce – strona nie potrzebuje konta ani hasła.",
       "devices": "Na innym urządzeniu lub w innej przeglądarce przywróć zakup e-mailem i numerem referencyjnym pokazanym po płatności – albo wklej klucz licencji.",
-      "watermark": "Znak wodny jest wrysowany w sam film. Z licencją Pro w tej przeglądarce każde nagranie lub eksport, które potem rozpoczniesz, jest czyste."
+      "watermark": "Znak wodny jest wrysowany w sam film. Z licencją Pro w tej przeglądarce każde nagranie lub eksport, które potem rozpoczniesz, jest czyste.",
+      "refunds": "Anulujesz w każdej chwili. Pierwszą płatność zwracamy w całości, jeśli poprosisz w ciągu 14 dni – szczegóły w regulaminie.",
+      "support": "Pytania o płatność? Napisz na {email}.",
+      "termsLink": "Regulamin"
     },
     "landing": {
       "line": "Zabawa i eksport są darmowe – ze znakiem wodnym. Pro go usuwa, od {price} miesięcznie.",
@@ -4664,11 +4667,24 @@
     },
     "privacy": {
       "title": "Płatności",
-      "content": "Za Pro płacisz u wybranego dostawcy – Stripe, PayPal albo NOWPayments – na jego własnej stronie płatności i zgodnie z jego polityką prywatności; dane karty ani portfela nigdy do nas nie trafiają. Nasz serwer rozliczeń przechowuje to, czego potrzebuje do wydania, odnowienia i przywrócenia licencji: Twój e-mail, plan oraz identyfikator płatności lub subskrypcji u dostawcy. Sama licencja to podpisany klucz zapisany w Twojej przeglądarce."
+      "content": "Za Pro płacisz u wybranego dostawcy – Stripe, PayPal albo NOWPayments – na jego własnej stronie płatności i zgodnie z jego polityką prywatności; dane karty ani portfela nigdy do nas nie trafiają. Nasz serwer rozliczeń przechowuje to, czego potrzebuje do wydania, odnowienia i przywrócenia licencji: Twój e-mail, plan oraz identyfikator płatności lub subskrypcji u dostawcy. Sama licencja to podpisany klucz zapisany w Twojej przeglądarce. Te dane przechowujemy na serwerach Cloudflare tak długo, jak można przywrócić Twoją licencję i jak wymagają tego przepisy rachunkowe."
     },
     "terms": {
       "title": "Subskrypcje Pro",
-      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe; filmy utworzone bez licencji Pro mają znak wodny. Pro – 10 $ miesięcznie lub 79 $ rocznie – eksportuje je bez znaku wodnego i dodaje publikowanie na Twoich kontach. Subskrypcje kartą i przez PayPal odnawiają się automatycznie, dopóki ich nie anulujesz (w portalu klienta Stripe lub na koncie PayPal); płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu."
+      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe; filmy utworzone bez licencji Pro mają znak wodny. Pro – {monthly} miesięcznie lub {yearly} rocznie, w dolarach amerykańskich – eksportuje je bez znaku wodnego i dodaje publikowanie na Twoich kontach. Subskrypcje kartą i przez PayPal odnawiają się automatycznie, dopóki ich nie anulujesz (w portalu klienta Stripe lub na koncie PayPal); płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu.",
+      "delivery": {
+        "title": "Dostawa",
+        "content": "Pro to licencja cyfrowa dostarczana od razu: po płatności strona cennika aktywuje ją w Twojej przeglądarce i pokazuje numer referencyjny potwierdzenia. Za pomocą e-maila i tego numeru możesz w każdej chwili przywrócić licencję na innym urządzeniu lub w aplikacji na Windows. Nic nie jest wysyłane pocztą."
+      },
+      "refunds": {
+        "title": "Anulowanie i zwroty",
+        "content": "Subskrypcję kartą lub przez PayPal możesz anulować w każdej chwili – przyciskiem Zarządzaj subskrypcją na stronie cennika albo na swoim koncie PayPal. Trwa ona wtedy do końca opłaconego okresu i się nie odnawia. Jeśli Pro Ci nie odpowiada, napisz do nas w ciągu 14 dni od pierwszej płatności, a zwrócimy ją w całości. Odnowienia oraz płatności kryptowalutą (których nie da się cofnąć w sieci) nie podlegają zwrotowi, chyba że prawo Twojego kraju daje Ci takie uprawnienie. Zwrot trafia na użytą metodę płatności i pojawia się na koncie po 5–10 dniach roboczych."
+      },
+      "operator": {
+        "title": "Od kogo kupujesz",
+        "named": "{siteName} i subskrypcję Pro prowadzi {legalName}{address}. Płatności obsługują Stripe, PayPal i NOWPayments; na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności.",
+        "unnamed": "{siteName} i subskrypcję Pro prowadzi operator serwisu {siteDomain}. Płatności obsługują Stripe, PayPal i NOWPayments; na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności."
+      }
     },
     "paste": {
       "title": "Wklej klucz licencji",
@@ -4681,7 +4697,10 @@
       "failed": "Nie udało się użyć klucza: {message}",
       "empty": "Najpierw wklej klucz licencji."
     },
-    "liveMark": "Darmowe symulacje i darmowe filmy mają mały znak wodny {siteName} – w rogu płótna podczas zabawy i w każdym klipie, który zrobisz. Pro usuwa go z obu."
+    "liveMark": "Darmowe symulacje i darmowe filmy mają mały znak wodny {siteName} – w rogu płótna podczas zabawy i w każdym klipie, który zrobisz. Pro usuwa go z obu.",
+    "support": {
+      "lead": "Możesz też napisać do nas na adres"
+    }
   },
   "OrbGrid": {
     "canvasHud": "{n, plural, one {{count} skacząca kula} few {{count} skaczące kule} many {{count} skaczących kul} other {{count} skaczącej kuli}}",

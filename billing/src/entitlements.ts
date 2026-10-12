@@ -11,6 +11,8 @@
 //
 // Nothing here touches the network or storage, so the tests exercise the maths directly.
 
+import { PLAN_DAYS } from "./config";
+
 export type Plan = "monthly" | "yearly";
 export type Provider = "stripe" | "paypal" | "crypto";
 export type SubscriptionProvider = "stripe" | "paypal";
@@ -29,7 +31,7 @@ export const GRACE_DAYS = 3;
 
 /** Days a crypto plan prepays for. Crypto cannot renew itself, so each payment buys a fixed period. */
 export function planDays(plan: Plan): number {
-  return plan === "yearly" ? 365 : 30;
+  return PLAN_DAYS[plan]; // --- go-live-kit --- billing/billing-config.json (30 and 365)
 }
 
 export function isPlan(value: unknown): value is Plan {
@@ -71,6 +73,11 @@ export interface SubscriptionState {
 /** A Stripe subscription that was deleted: its access ends here, whatever was paid. */
 export interface SubscriptionEnded {
   at: number;
+  /**
+   * --- go-live-kit --- The money was taken back (a full refund, a dispute, a PayPal reversal): nothing of the
+   * subscription counts any more – not even the grace days – so neither a renewal nor a restore hands out a licence.
+   */
+  revoked?: boolean;
 }
 
 /** Everything known about one Stripe or PayPal subscription. */
@@ -151,7 +158,7 @@ export function subscriptionOwner(sub: SubscriptionFacts): string | null {
 export function subscriptionSource(sub: SubscriptionFacts): Source | null {
   if (!subscriptionOwner(sub)) return null;
   let periodEnd = sub.paid?.periodEnd ?? 0;
-  if (sub.ended) periodEnd = Math.min(periodEnd, sub.ended.at);
+  if (sub.ended) periodEnd = sub.ended.revoked ? 0 : Math.min(periodEnd, sub.ended.at); // --- go-live-kit --- (revoked)
   const refs: string[] = [];
   for (const ref of sub.link?.refs ?? []) addRef(refs, ref);
   addRef(refs, sub.id);

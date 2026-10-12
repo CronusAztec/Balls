@@ -4526,7 +4526,7 @@
       "redirecting": "Opening the checkout…",
       "failed": "The checkout could not start: {message}",
       "desktop": "The checkout opened in your browser. Once you have paid, come back here and restore the purchase with your email and the receipt reference the page shows after the payment – or paste the licence key from there.",
-      "emailNeeded": "Enter your email first – the crypto checkout sends your receipt there.",
+      "emailNeeded": "Enter your email first – the licence is issued to it, and with it you restore the purchase on another device.",
       "newTab": "The checkout opened in a new tab. Pay there – this studio unlocks by itself once the payment is through, and your setup stays as it is."
     },
     "email": {
@@ -4656,7 +4656,10 @@
       "crypto": "Crypto pays for a prepaid period (30 days on the monthly plan, 365 on the yearly one); nothing renews by itself.",
       "licence": "Your licence is a signed key kept in this browser – the site needs no account and no password.",
       "devices": "On another device or browser, restore the purchase with your email and the receipt reference shown after the payment – or paste the licence key.",
-      "watermark": "The watermark is drawn into the video itself. With a Pro licence in this browser, every recording or export you start afterwards is clean."
+      "watermark": "The watermark is drawn into the video itself. With a Pro licence in this browser, every recording or export you start afterwards is clean.",
+      "refunds": "Cancel any time. A first payment is refunded in full when you ask within 14 days – see the terms.",
+      "support": "Questions about a payment? Email {email}.",
+      "termsLink": "Terms"
     },
     "landing": {
       "line": "Playing and exporting are free – with a watermark. Pro removes it, from {price} a month.",
@@ -4664,11 +4667,24 @@
     },
     "privacy": {
       "title": "Payments",
-      "content": "Pro is paid through the provider you choose – Stripe, PayPal or NOWPayments – on its own checkout page and under its own privacy policy; your card or wallet details never reach us. Our billing server keeps what it needs to issue, renew and restore your licence: your email, the plan, and the provider's payment or subscription reference. The licence itself is a signed key stored in your browser."
+      "content": "Pro is paid through the provider you choose – Stripe, PayPal or NOWPayments – on its own checkout page and under its own privacy policy; your card or wallet details never reach us. Our billing server keeps what it needs to issue, renew and restore your licence: your email, the plan, and the provider's payment or subscription reference. The licence itself is a signed key stored in your browser. These records are kept for as long as your licence can be restored and as long as accounting rules require, on Cloudflare's servers."
     },
     "terms": {
       "title": "Pro subscriptions",
-      "content": "Playing with the simulator and recording or exporting videos is free; videos made without a Pro licence carry a watermark. Pro – $10 a month or $79 a year – exports them without the watermark and adds publishing to your accounts. Card and PayPal subscriptions renew automatically until you cancel them (in Stripe's customer portal or your PayPal account); a crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for."
+      "content": "Playing with the simulator and recording or exporting videos is free; videos made without a Pro licence carry a watermark. Pro – {monthly} a month or {yearly} a year, in US dollars – exports them without the watermark and adds publishing to your accounts. Card and PayPal subscriptions renew automatically until you cancel them (in Stripe's customer portal or your PayPal account); a crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for.",
+      "delivery": {
+        "title": "Delivery",
+        "content": "Pro is a digital licence and is delivered at once: after the payment the pricing page activates it in your browser and shows a receipt reference. With your email and that reference you can restore the licence on any other device or in the Windows app at any time. Nothing is shipped."
+      },
+      "refunds": {
+        "title": "Cancellation and refunds",
+        "content": "You can cancel a card or PayPal subscription at any time – with Manage subscription on the pricing page or in your PayPal account. It then runs to the end of the period you have paid for and does not renew. If Pro did not work for you, write to us within 14 days of your first payment and we refund it in full. Renewals, and crypto payments (which cannot be reversed on the network), are not refundable unless the law of your country gives you that right. Refunds go back to the payment method you used and take 5–10 business days to show."
+      },
+      "operator": {
+        "title": "Who you are buying from",
+        "named": "{siteName} and the Pro subscription are run by {legalName}{address}. Payments are processed by Stripe, PayPal and NOWPayments; your statement shows {siteName} or the provider's name.",
+        "unnamed": "{siteName} and the Pro subscription are run by the operator of {siteDomain}. Payments are processed by Stripe, PayPal and NOWPayments; your statement shows {siteName} or the provider's name."
+      }
     },
     "paste": {
       "title": "Paste a licence key",
@@ -4681,7 +4697,10 @@
       "failed": "The key could not be used: {message}",
       "empty": "Paste the licence key first."
     },
-    "liveMark": "Free simulations and free videos carry a small {siteName} watermark – in a corner of the canvas while you play and in every clip you make. Pro removes it from both."
+    "liveMark": "Free simulations and free videos carry a small {siteName} watermark – in a corner of the canvas while you play and in every clip you make. Pro removes it from both.",
+    "support": {
+      "lead": "You can also email us at"
+    }
   },
   "OrbGrid": {
     "canvasHud": "{n, plural, one {{count} bouncing orb} other {{count} bouncing orbs}}",

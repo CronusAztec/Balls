@@ -9,6 +9,8 @@ import { signTestLicense } from "../scripts/lib/test-license.mjs";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
+import fs from "fs"; // --- go-live-kit --- billing/billing-config.json and the terms page
+import path from "path";
 
 /*
  * --- paywall-gate --- The plans and their maths, the billing backend's answers as the site reads them (defensively), the
@@ -44,6 +46,21 @@ describe("the plans", () => {
     expect(formatUsd(6.58, "en")).toBe("$6.58");
     expect(formatUsd(79, "pl")).toContain("79");
     expect(formatUsd(79, "es")).toContain("79");
+  });
+
+  // --- go-live-kit --- one source of truth for the prices: billing/billing-config.json (the Worker, its scripts, the wizard)
+  it("match billing/billing-config.json", () => {
+    const { plans } = JSON.parse(fs.readFileSync(path.resolve(__dirname, "..", "billing", "billing-config.json"), "utf8"));
+    expect(PLANS.monthly.usd).toBe(plans.monthly.usd);
+    expect(PLANS.yearly.usd).toBe(plans.yearly.usd);
+    expect(PLANS.monthly.prepaidDays).toBe(plans.monthly.days);
+    expect(PLANS.yearly.prepaidDays).toBe(plans.yearly.days);
+    for (const m of [en, pl, es] as unknown as { Billing: { terms: { content: string } } }[]) {
+      const content = m.Billing.terms.content;
+      expect(content).toContain("{monthly}");
+      expect(content).toContain("{yearly}");
+      for (const literal of ["$10", "$79", "10 $", "79 $"]) expect(content).not.toContain(literal);
+    }
   });
 });
 
@@ -110,6 +127,15 @@ describe("the backend's answers", () => {
     const offline = new BillingClient("https://billing.test", async () => Promise.reject(new TypeError("Failed to fetch")));
     expect(await offline.portal("a@b.co", "cs_1")).toEqual({ ok: false, kind: "network", message: "Failed to fetch" });
     expect(await new BillingClient("https://billing.test", reply(200, { error: "no_customer", message: "No subscription for this email" })).portal("a@b.co", "cs_1")).toEqual({ ok: false, kind: "server", message: "No subscription for this email" });
+  });
+
+  // --- go-live-kit --- the Worker's rate limit: the pay button shows the message
+  it("a 429 rate limit surfaces as a server error with the Worker's message", async () => {
+    const message = "Too many requests from this connection. Please wait a minute and try again.";
+    const limited = new BillingClient("https://billing.test", async () => new Response(JSON.stringify({ error: "rate_limited", message }), { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "540" } }));
+    expect(await limited.checkout("stripe", { plan: "monthly", locale: "en", returnUrl: "https://site/Balls/en/pricing/" })).toEqual({ ok: false, kind: "server", message });
+    expect(await limited.portal("a@b.co", "cs_1")).toEqual({ ok: false, kind: "server", message });
+    expect(await limited.restore("a@b.co", "cs_1")).toEqual({ ok: true, value: { kind: "error", error: "rate_limited", message } });
   });
 });
 
@@ -328,6 +354,23 @@ describe("the Billing messages", () => {
       expect(m.Navbar.pricing.length).toBeGreaterThan(2);
       expect(m.Footer.pricing.length).toBeGreaterThan(2);
     }
+  });
+
+  // --- go-live-kit --- what payment reviewers look for on the terms page
+  it("the terms name delivery, refunds and the operator", () => {
+    const page = fs.readFileSync(path.resolve(__dirname, "..", "src", "app", "[locale]", "terms", "page.tsx"), "utf8");
+    expect(page).toContain('id="delivery"');
+    expect(page).toContain('id="refunds"');
+    expect(page).toContain('id="operator"');
+    expect(page).toContain("terms.operator.named");
+    expect(page).toContain("terms.operator.unnamed");
+    expect(page).toContain("support.lead");
+    for (const m of [en, pl, es] as unknown as { Billing: Record<string, Record<string, Record<string, string>>> }[]) {
+      expect(m.Billing.terms.operator.named).toContain("{legalName}{address}");
+      expect(m.Billing.terms.operator.unnamed).toContain("{siteDomain}");
+      expect(m.Billing.notes.support).toContain("{email}");
+    }
+    expect((en.Billing.pay as Record<string, string>).emailNeeded).not.toMatch(/receipt/i); // the crypto checkout e-mails nothing
   });
 
   it("are translated (no Polish or Spanish string left in English, the prices filled in)", () => {

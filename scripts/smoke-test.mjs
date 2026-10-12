@@ -16105,6 +16105,42 @@ await smokeBlock("funnel-spin", async () => {
 // --- end funnel-spin ---
 });
 
+// --- go-live-kit --- The legal sections payment reviewers read (Delivery, Cancellation and refunds, Who you are buying from) in
+// every language, the Pro prices filled in from the plans (no {placeholder} left), and the pricing page's refunds note linking
+// the terms. The smoke build sets no SUPPORT_EMAIL / LEGAL_NAME, so the terms name "the operator of" the site.
+await smokeBlock("go-live-kit", async () => {
+  for (const locale of ["en", "pl", "es"]) {
+    const res = await page.goto(`${BASE}/${locale}/terms/`, { waitUntil: "domcontentloaded" });
+    const terms = await page.evaluate(() => {
+      const section = (id) => {
+        const el = document.getElementById(id);
+        return el ? { h2: el.querySelector("h2")?.textContent?.trim() ?? "", text: el.textContent ?? "" } : null;
+      };
+      const toc = [...document.querySelectorAll('a[href*="#"]')].map((a) => a.getAttribute("href") ?? "");
+      return { pro: section("pro"), delivery: section("delivery"), refunds: section("refunds"), operator: section("operator"), toc, body: document.body.innerText };
+    });
+    const sections = [terms.pro, terms.delivery, terms.refunds, terms.operator];
+    check(
+      `go-live-kit: the ${locale} terms carry Pro, Delivery, Cancellation and refunds and Who you are buying from`,
+      res.status() === 200 && sections.every((x) => x && x.h2.length > 2 && x.text.length > 60) && ["#delivery", "#refunds", "#operator"].every((h) => terms.toc.some((t) => t.endsWith(h))),
+      `(${res.status()}, ${sections.map((x) => (x ? x.h2 : "missing")).join(" | ")})`,
+    );
+    check(
+      `go-live-kit: the ${locale} terms fill in the prices and every placeholder`,
+      /79/.test(terms.pro?.text ?? "") && /10/.test(terms.pro?.text ?? "") && !/\{(monthly|yearly|siteName|siteDomain|legalName|address)\}/.test(terms.body),
+      `(${(terms.pro?.text ?? "").slice(0, 120)})`,
+    );
+    if (locale === "en") check("go-live-kit: without LEGAL_NAME the terms name the operator of the site", (terms.operator?.text ?? "").includes("the operator of"), `(${(terms.operator?.text ?? "").slice(0, 120)})`);
+  }
+  for (const locale of ["en", "pl", "es"]) {
+    await page.goto(`${BASE}/${locale}/pricing/`, { waitUntil: "domcontentloaded" });
+    const link = page.locator('[data-testid="pricing-refunds-terms"]').first();
+    const href = (await link.getAttribute("href").catch(() => null)) ?? "";
+    const note = await link.evaluate((a) => a.closest("li")?.textContent ?? "").catch(() => "");
+    check(`go-live-kit: the ${locale} pricing notes link the refund terms`, (href === `${BASE_PATH}/${locale}/terms/#refunds` || href === `${BASE_PATH}/${locale}/terms#refunds`) && /14/.test(note), `(${href}, "${note.slice(0, 80)}")`);
+  }
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();
