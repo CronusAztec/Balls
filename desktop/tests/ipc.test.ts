@@ -106,4 +106,18 @@ describe("main process handlers", () => {
     await expect(guarded(IPC.aiDiagnose as IpcChannel, handler, page.senderFrame.url, [])).resolves.toEqual({ checks: [] });
     expect(handler.mock.calls).toEqual([[{ deep: true }], []]);
   });
+
+  // --- low-findings-2 --- the updater's status without a check: its own channel (the page's mount reads it, never checks)
+  it("carries update.status on update:state, apart from the manual check and the status event", async () => {
+    expect(BRIDGE_METHODS["update.status"]).toBe("update:state");
+    expect(BRIDGE_METHODS["update.check"]).toBe("update:check");
+    expect(Object.values(IPC)).toContain("update:state");
+    expect(EVENT_CHANNELS.update).toBe("update:status");
+    const handled: string[] = [];
+    registerHandlers({ handle: (c) => handled.push(c), on: () => {} }, table);
+    expect(handled).toContain(IPC.updateState);
+    const handler = vi.fn(async () => ({ state: "none", version: null, progress: null, message: null }));
+    await expect(guarded(IPC.updateState as IpcChannel, handler, page.senderFrame.url, [])).resolves.toMatchObject({ state: "none" });
+    await expect(guarded(IPC.updateState as IpcChannel, handler, "https://evil.example/", [])).rejects.toThrow(/not from the app/);
+  });
 });

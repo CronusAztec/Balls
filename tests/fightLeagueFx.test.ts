@@ -840,6 +840,51 @@ describe("the HUD at the 1080 px square, the watermark badge and the 9:16 plates
     }
   });
 
+  // --- low-findings-2 --- the names band fitted its names by squeezing them uniformly into their column: the roster's longest
+  // names went under the 54 px floor of a duel; now they keep the floor (condensed to no less than 75 %, ellipsised past that)
+  it("draws every fighter's name in the band at its floor or more at the 1080 px square – 54 px in a duel, 30 px stacked – condensed to no less than 75 %", { timeout: 60_000 }, () => {
+    stubDocument();
+    const longest = [...FL_ROSTER].sort((a, b) => b.name.length - a.name.length || a.id.localeCompare(b.id)).slice(0, 6);
+    const cases: [string, number, number][] = [
+      ["1v1", 2, 54],
+      ["ffa3", 3, 30],
+      ["2v2", 4, 30],
+    ];
+    for (const portrait of [false, true]) {
+      for (const [match, n, floor] of cases) {
+        const label = `${match}${portrait ? " 9:16" : ""}`;
+        const engine = probeEngine({ fighters: longest.map((r) => r.id), match: match as FightLeagueSettings["match"], hp: 300, timeCap: 0 }, 1);
+        const view = probeRun(engine, 2500); // past the VS card
+        const width = 1080;
+        const height = portrait ? 1920 : 1080;
+        const layer = new FightLeagueLayer();
+        const main = fakeCanvas(width, height).ctx;
+        layer.drawOverlay(asCtx(main), view, OPTS, { width, height, inset: 0, portrait });
+        const lay = layer.hudLayout(view, 1080, portrait);
+        expect([label, lay.nameMin]).toEqual([label, expect.closeTo(Math.min(lay.nameFs, floor), 0)]);
+        expect([label, lay.nameMin >= floor - 0.5]).toEqual([label, true]);
+        for (const f of view.fighters.slice(0, n)) {
+          const name = f.row.name;
+          const draw = main.calls.find((c) => {
+            if (c.name !== "drawImage") return false;
+            const sprite = c.args[0] as FakeCanvas;
+            const text = sprite.ctx?.calls.find((k) => k.name === "fillText")?.args[0];
+            return typeof text === "string" && (text === name || (text.endsWith("…") && name.startsWith(text.slice(0, -1))));
+          });
+          expect([label, name, !!draw]).toEqual([label, name, true]);
+          if (!draw) continue;
+          const sprite = draw.args[0] as FakeCanvas;
+          const fontPx = Number(/(\d+(?:\.\d+)?)px/.exec(sprite.ctx.font)?.[1]);
+          const [, , dw, dh] = draw.args.slice(1) as number[];
+          const ky = dh / sprite.height;
+          const kx = dw / sprite.width;
+          expect([label, name, fontPx * ky >= floor - 0.5, kx / ky >= FL_BOX_NAME_SQUEEZE - 1e-6]).toEqual([label, name, true, true]);
+        }
+        expect([label, layer.bandNameMin * 1080 >= floor - 0.5]).toEqual([label, true]);
+      }
+    }
+  });
+
   it("keeps the meters and stat lines clear of the watermark badge in both bottom corners of a portrait export, and its right 10 % free of text", () => {
     const sizes: [number, number][] = [
       [1080, 1920],

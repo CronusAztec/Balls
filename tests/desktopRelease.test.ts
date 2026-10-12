@@ -2,7 +2,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { bumpFiles, checkConsistency, compareSemver, decideRelease, isSemver, nextPatch, readVersion, VERSION_FILES } from "../scripts/release/desktop-version.mjs";
+import { bumpFiles, checkConsistency, compareSemver, decideRelease, hasPrereleaseSuffix, isSemver, nextPatch, readVersion, VERSION_FILES } from "../scripts/release/desktop-version.mjs";
+import { spawnSync } from "child_process"; // --- low-findings-2 ---
 import { LATEST_CACHE_KEY, LATEST_CACHE_MS, parseLatest } from "@/components/site/LatestDesktopVersion";
 
 /*
@@ -119,6 +120,24 @@ describe("the version bump", () => {
     expect(JSON.parse(fs.readFileSync(path.join(tmp, "desktop/package.json"), "utf8")).version).toBe("9.9.9");
     expect(() => bumpFiles(tmp, "9.9")).toThrow("not a semantic version");
     expect(checkConsistency(tmp).problems.length).toBeGreaterThan(0);
+  });
+
+  // --- low-findings-2 --- x.y.z only: a pre-release would pass the bump, then turn the site's build red and never show
+  it("refuses a pre-release version: the bump writes nothing and a branch push releases none", () => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-release-"));
+    for (const rel of VERSION_FILES) {
+      fs.mkdirSync(path.dirname(path.join(tmp, rel)), { recursive: true });
+      fs.copyFileSync(path.join(ROOT, rel), path.join(tmp, rel));
+    }
+    const before = VERSION_FILES.map((rel) => fs.readFileSync(path.join(tmp, rel), "utf8"));
+    const current = checkConsistency(tmp).version ?? "";
+    expect(current).toMatch(/^\d+\.\d+\.\d+$/);
+    const run = spawnSync(process.execPath, [path.join(ROOT, "scripts/release/desktop-version.mjs"), "1.0.4-rc.1"], { cwd: tmp, encoding: "utf8" });
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain(`1.0.4-rc.1 has a pre-release suffix: the website's checks and the download page only accept x.y.z (e.g. ${nextPatch(current)})`);
+    expect(VERSION_FILES.map((rel) => fs.readFileSync(path.join(tmp, rel), "utf8"))).toEqual(before);
+    expect([hasPrereleaseSuffix("1.0.4-rc.1"), hasPrereleaseSuffix("1.0.4"), isSemver("1.0.4-rc.1")]).toEqual([true, false, true]);
+    expect(decideRelease({ event: "push", ref: "refs/heads/main", current: "1.0.4-rc.1", previous: "1.0.3", tagExists: false, inputVersion: "", inputPublish: "" })).toMatchObject({ build: false, release: false, reason: "pre-release 1.0.4-rc.1", warning: expect.stringContaining("only accept x.y.z") });
   });
 
   it("finds the repository's four version fields in agreement", () => {

@@ -27,6 +27,8 @@ import {
 import { ringGapDegrees, ringRainbowColor, ringTimerText } from "@/components/simulator/ringEscapeRenderer";
 import { RING_ESCAPE_KEYS } from "@/components/simulator/sections/RingEscapeSection";
 import { MODE_BLOCK_KEY_SET, sectionKeyShown, type PanelShown } from "@/components/simulator/panelKeys";
+import { sectionDefaults } from "@/components/simulator/Controls"; // --- low-findings-2 ---
+import { loopHudCount, loopHudFrame, ringTimeText } from "@/lib/loop/hud"; // --- low-findings-2 ---
 import { PhysicsEngine } from "@/lib/physics/engine";
 import type { PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import { inLoopScale } from "@/lib/audio/loopPitch";
@@ -543,5 +545,42 @@ describe("Ring Escape: the panel and the translations", () => {
       expect(messages.RingEscape.hudOut).toContain("{time}");
     }
     for (const key of RING_ESCAPE_KEYS) expect((en as unknown as Record<string, Record<string, string>>).Controls[key], key).toBeTruthy();
+  });
+});
+
+/* ------------------------------------------------------------------ --- low-findings-2 --- */
+
+describe("Ring Escape: the Wall section's reset and the loop HUD's time in the ring", () => {
+  it("resets the Ring Escape options with the Wall section's Reset Category", () => {
+    const d = defaultSettings("classic");
+    const reset = sectionDefaults("wall", "classic");
+    expect(reset).toMatchObject({ gapLayout: d.gapLayout, gapSpiralStep: d.gapSpiralStep, ringSpin: d.ringSpin, ringRainbow: d.ringRainbow, ringTimer: d.ringTimer, ringSound: d.ringSound });
+    const on = settingsOf({ gapLayout: "random", gapSpiralStep: 77, ringSpin: "together", ringRainbow: true, ringTimer: true, ringSound: true });
+    const back = { ...on, ...reset };
+    expect([back.gapLayout, back.gapSpiralStep, back.ringSpin, back.ringRainbow, back.ringTimer, back.ringSound]).toEqual(["even", 30, "alternate", false, false, false]);
+    // every key the Wall section's Ring Escape block shows is one the reset puts back (the preset buttons excepted)
+    for (const key of RING_ESCAPE_KEYS.filter((k) => k !== "reSpiralPreset")) expect(key in reset, key).toBe(true);
+  });
+
+  it("puts the time in the ring on the loop HUD's counter when the timer is on, in the page's language, and nothing without it", () => {
+    const s = settingsOf({ ringTimer: true });
+    const engine = engineOf(s);
+    run(engine, 30);
+    const count = loopHudCount(engine);
+    expect(count).toMatchObject({ ring: 1, out: false });
+    const templates = { ring: en.RingEscape.hudRing, out: en.RingEscape.hudOut };
+    const spec = { title: "", subtitle: "", counter: "", light: false, ringTimer: templates };
+    const frame = loopHudFrame(spec, count, "en");
+    expect(frame.counter).toMatch(/^ring 1: \d+\.\d s$/);
+    expect(frame.counter).toBe(ringTimerText(engine.getRingEscapeView()!, engine.getElapsedMs(), { ringText: templates.ring, outText: templates.out, locale: "en" }));
+    expect(loopHudFrame({ ...spec, ringTimer: { ring: pl.RingEscape.hudRing, out: pl.RingEscape.hudOut } }, count, "pl").counter).toMatch(/^pierścień 1: \d+,\d s$/);
+    // the timer off: no counter (Classic's HUD has none of its own)
+    expect(loopHudFrame({ ...spec, ringTimer: undefined }, count, "en").counter).toBe("");
+    // out of the last ring: "out in t s"
+    expect(ringTimeText(templates, { ringSec: 11.26, ring: 12, rings: 11, out: true }, "en")).toBe("out in 11.2 s");
+    expect(ringTimeText(templates, { ringSec: 1.47, ring: 3, rings: 11, out: false }, "en")).toBe("ring 3: 1.4 s");
+    // outside Classic: no ring time
+    const other = createEngineForSettings(physicsConfigOfSettings(defaultSettings("hoops"), WORLD), "hoops", modeSettingsOfSettings(defaultSettings("hoops")), 7);
+    expect(loopHudCount(other)).not.toMatchObject({ ringSec: expect.any(Number) });
   });
 });

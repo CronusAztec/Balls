@@ -427,6 +427,11 @@ export interface FlHudLayout {
   left: number;
   /** Names (1v1: big, ≥ 3 fighters: stacked), the HP bar under a name, the source line, the timer and the lead bar. */
   nameFs: number;
+  /**
+   * --- low-findings-2 --- The smallest a fighter's name in the band may be drawn (px: the readability floor, `FL_NAME_MIN` or
+   * `FL_NAME_MIN_STACKED` of the side): a long name is fitted down to it, then condensed, then ellipsised (`flFitBoxName()`).
+   */
+  nameMin: number;
   nameRowH: number;
   /** The names' centre lines (1v1: one; stacked: two rows a side), the HP bars' tops, the source line's centre. */
   nameY: number[];
@@ -466,6 +471,13 @@ export function flFullBoxes(match: string, n: number): boolean {
   // (--- fl-overhaul --- Stage 5: a 3v3's six boxes are compact – one stat pair each, like the free-for-alls')
   return n <= 2 || match === "2v2";
 }
+
+/**
+ * --- low-findings-2 --- The readability floors of the names band (share of the square's side; at 1080 px: 54 px in a duel, 30 px
+ * stacked): a fighter's name is never drawn under them.
+ */
+export const FL_NAME_MIN = 0.05;
+export const FL_NAME_MIN_STACKED = 0.0278;
 
 /** The readability floors of the HUD (share of the square's side; at 1080 px: 26 px box names, 20 px stat lines). */
 export const FL_BOX_NAME_MIN = 0.0245;
@@ -637,6 +649,7 @@ export function flHudLayout(side: number, n: number, match: string, portrait: bo
     right,
     left,
     nameFs,
+    nameMin: Math.min(nameFs, (stacked ? FL_NAME_MIN_STACKED : FL_NAME_MIN) * S), // --- low-findings-2 ---
     nameRowH: stacked ? 0.035 * S : band,
     nameY,
     hpBarY,

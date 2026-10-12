@@ -122,7 +122,8 @@ export interface LoopCaptionContext {
  */
 export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep?: number; growRate?: number; recordingDuration: number; scBalls?: number /* --- chord-stars --- */; efCount?: number /* --- ellipse-foci --- */ }): LoopCaptionContext {
   // --- chord-stars --- Chord Stars by its balls: "{count} balls, one circle, …" and the fact of the inner circles
-  if (s.mode === "starChords") return { mode: s.mode, hookKey: "starChords", factKey: "starChordsFact", count: s.scBalls ?? null };
+  // (--- low-findings-2 --- one ball has its own words: "1 ball, one circle, one star closing on itself")
+  if (s.mode === "starChords") return { mode: s.mode, hookKey: s.scBalls === 1 ? "starChordsOne" : "starChords", factKey: "starChordsFact", count: s.scBalls ?? null };
   // --- phase-spiral --- Metronomes & Polyrhythms' harmonic rings by their count ("{count} rings, each one lap ahead of the next…")
   // and the fact of the spiral that straightens (any other polyrhythm keeps its clip's seconds)
   if (s.mode === "polyrhythm") {

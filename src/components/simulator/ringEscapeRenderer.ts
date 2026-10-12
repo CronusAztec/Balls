@@ -1,6 +1,6 @@
 import type { CircularWall } from "@/lib/physics/types";
 import { ringRainbowHue, ringRunOut, timeInRingSec, type GapLayout, type RingEscapeView, type RingSpin } from "@/lib/physics/ringEscape";
-import { drawLoopHud, hudText, loopHudBands, loopHudLiveLayout, type LoopHudBands, type LoopHudFrame } from "@/lib/loop/hud";
+import { drawLoopHud, loopHudBands, loopHudLiveLayout, ringTimeText, type LoopHudBands, type LoopHudFrame } from "@/lib/loop/hud";
 
 /*
  * --- ring-escape --- The canvas side of Classic's Ring Escape (lib/physics/ringEscape.ts): the rainbow by ring (a colour per
@@ -45,26 +45,10 @@ export function ringRainbowColor(index: number, count: number, alpha?: number): 
 
 /* ------------------------------------------------------------------ the time in the ring */
 
-const formats = new Map<string, Intl.NumberFormat>();
-function oneDecimal(value: number, locale?: string): string {
-  if (!locale) return value.toFixed(1);
-  let format = formats.get(locale);
-  if (!format) {
-    try {
-      format = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
-    } catch {
-      return value.toFixed(1);
-    }
-    formats.set(locale, format);
-  }
-  return format.format(value);
-}
-
 /** The line's text at simulation time `nowMs`: "ring k: t s" (one decimal, the page's separator), "out in t s" once out; lowercase. */
 export function ringTimerText(view: Readonly<RingEscapeView>, nowMs: number, look: Pick<RingEscapeLook, "ringText" | "outText" | "locale">): string {
-  const seconds = oneDecimal(Math.floor(10 * timeInRingSec(view, nowMs) + 1e-6) / 10, look.locale);
-  const template = ringRunOut(view) ? look.outText : look.ringText;
-  return hudText(template.replace("{ring}", String(Math.min(view.ring, Math.max(1, view.rings)))).replace("{time}", seconds), look.locale);
+  // (--- low-findings-2 --- the loop HUD's counter words it the same way: lib/loop/hud.ts ringTimeText())
+  return ringTimeText({ ring: look.ringText, out: look.outText }, { ringSec: timeInRingSec(view, nowMs), ring: view.ring, rings: view.rings, out: ringRunOut(view) }, look.locale);
 }
 
 /** The line's text and its frame, reused (the text is formatted again only when the tenth of a second or the ring changes). */

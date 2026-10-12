@@ -203,6 +203,16 @@ export function chaosFanClipSec(fields: Pick<ChaosFanFields, "dpForwardSec">): n
   return Math.ceil(chaosFanCycleSec(fields.dpForwardSec) - 1e-9);
 }
 
+/**
+ * --- low-findings-2 --- The latest target second Find Simulation's "Splits at" can meet: run backwards, the fan only splits on
+ * its forward run (it closes up again on the way back), so a split's window [target − `toleranceSec`, target + `toleranceSec`]
+ * must start by the forward run's end; null when the fan runs on forwards (any second is reachable).
+ */
+export function fanSplitLatestSec(fields: Pick<ChaosFanFields, "dpPalindrome" | "dpForwardSec">, toleranceSec: number): number | null {
+  if (!fields.dpPalindrome) return null;
+  return fanForwardSteps(fields.dpForwardSec) / FAN_STEPS_PER_SEC + toleranceSec;
+}
+
 /* ------------------------------------------------------------------ physics */
 
 /** Pendulums whose start offsets are spread over the total (radians): pendulum i of n starts i/(n − 1) of it further on its last rod. */

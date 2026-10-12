@@ -375,6 +375,28 @@ export function themeCarryOver(settings: ThemeLook): Partial<ThemeLook> {
 }
 
 /**
+ * --- low-findings-2 --- What a mode change keeps of the look: `themeCarryOver`, except a background that is still the old mode's
+ * own default (no theme picked, the same type and colours as `previousDefaults`). That one is the mode's, not a pick, so the new
+ * mode's own page shows on the first switch (Focus Shot's navy pool, Chord Stars' night) and leaving such a mode gives the next
+ * one its own page. A background someone picked (a colour, a gradient, a picture, a theme) still carries over.
+ */
+export function modeChangeCarryOver(settings: ThemeLook, previousDefaults: ThemeSettings): Partial<ThemeLook> {
+  const kept = themeCarryOver(settings);
+  if (themeById(settings.themeId) || !isModeDefaultBackground(settings, previousDefaults)) return kept;
+  delete kept.backgroundType;
+  delete kept.backgroundColors;
+  return kept;
+}
+
+/** True when the background is exactly the mode's default: the same type and the same colours (case-insensitive). */
+function isModeDefaultBackground(settings: ThemeSettings, defaults: ThemeSettings): boolean {
+  if (settings.backgroundType !== defaults.backgroundType) return false;
+  const have = settings.backgroundColors;
+  const want = defaults.backgroundColors;
+  return have.length === want.length && want.every((c, i) => normalizeHexColor(c) === normalizeHexColor(have[i]));
+}
+
+/**
  * Colours of the particle bursts: with a theme picked, the scene's own colours (balls, walls, lines, trail);
  * without one, empty – each particle style then uses its own palette and "confetti" stays the classic burst.
  */

@@ -121,7 +121,7 @@ import { COLOUR_SORT_DATA_KEYS, ColourSortLayer, writeColourSortDataset, type Co
 import { STAR_CHORDS_DATA_KEYS, StarChordsLayer, writeStarChordsDataset, type StarChordsRenderOptions } from "./starChordsRenderer"; // --- chord-stars ---
 import { HOOPS_DATA_KEYS, HoopsLayer, hoopsExtentPx, hoopsRenderTimeMs, type HoopsRenderOptions } from "./hoopsRenderer"; // --- bead-hoops ---
 import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
-import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation ---
+import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, loopHudStackShare, stackLoopHudBelow, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation --- (--- low-findings-2 --- stacked under a mode's band)
 import { RingTimerLine, ringRainbowColor, writeRingEscapeData, type RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
@@ -392,6 +392,13 @@ export interface CanvasProps {
   // --- end loop-foundation ---
   /** --- ring-escape --- Classic's Ring Escape look: the rainbow by ring and the time-in-ring line (null outside Classic); see ringEscapeRenderer.ts. */
   ringEscape?: RingEscapeLook | null;
+}
+
+/** --- low-findings-2 --- The outermost ring's radius (the rings may run inner to outer, as Classic's do); undefined without rings. */
+function outerWallRadius(walls: readonly { radius: number }[]): number | undefined {
+  let outer: number | undefined;
+  for (let i = 0; i < walls.length; i++) if (outer === undefined || walls[i].radius > outer) outer = walls[i].radius;
+  return outer;
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -1796,6 +1803,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         lcRender.wallThickness = p.wallThickness;
         lcRender.labels = (labelsRef.current ?? DEFAULT_LABELS).landClaim ?? DEFAULT_LAND_CLAIM_LABELS;
         lcRender.nowMs = engine.getElapsedMs();
+        // --- low-findings-2 --- the loop HUD stacked under Land Claim's band: the pyramid leaves its title block the room
+        lcRender.loopHudStack = loopHudRef.current?.topBand ? loopHudStackShare(loopHudRef.current) : 0;
         lcLayer.drawStage(ctx, lcView, lcRender);
       }
       // --- colour-sort --- Colour Sort: the band tints, the neon rings with their pins, the outer wall and the refusal flashes
@@ -3181,16 +3190,24 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       // --- loop-foundation --- the loop HUD, previewed live around the ring (the recorder draws it into the export frame itself)
       const hudSpec = loopHudRef.current;
+      // --- low-findings-2 --- the HUD's counter shows Ring Escape's time in the ring (while recording the recorder draws it: "")
+      let hudRingText: string | null = hudSpec?.ringTimer ? "" : null;
+      let hudRingY = -1;
       loopHudLive.top = -Infinity;
       loopHudLive.bottom = Infinity;
       loopHudLiveText = "";
       if (hudSpec && !recordingRef.current) {
-        const ring = pfView ? perfectFitExtentPx(pfView) /* --- perfect-fit --- (the square: the tray, the box and its words) */ : brView ? brickRebuildExtentPx(brView) /* --- brick-rebuild --- (the box and its counters, or the circle) */ : waveView ? waveTankExtentPx(waveView) /* --- wave-tank --- (the tank, its crests and its bells) */ : drawingView ? drawingMachineExtentPx(drawingView) /* --- drawing-machine --- (the paper and its rollers, or the outer orbit) */ : machineView ? beatMachineExtentPx(machineView) /* --- beat-machine --- (the machine's box) */ : efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : vortexView && vortexView.funnel.view === "perspective" ? funnelExtentPx(vortexView) /* --- funnel-spin --- (the perspective's whole funnel) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
+        const ring = pfView ? perfectFitExtentPx(pfView) /* --- perfect-fit --- (the square: the tray, the box and its words) */ : brView ? brickRebuildExtentPx(brView) /* --- brick-rebuild --- (the box and its counters, or the circle) */ : waveView ? waveTankExtentPx(waveView) /* --- wave-tank --- (the tank, its crests and its bells) */ : drawingView ? drawingMachineExtentPx(drawingView) /* --- drawing-machine --- (the paper and its rollers, or the outer orbit) */ : machineView ? beatMachineExtentPx(machineView) /* --- beat-machine --- (the machine's box) */ : efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : vortexView && vortexView.funnel.view === "perspective" ? funnelExtentPx(vortexView) /* --- funnel-spin --- (the perspective's whole funnel) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (outerWallRadius(engine.getCircularWalls()) /* --- low-findings-2 --- (the outermost ring: Classic's rings run inner to outer) */ ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
         const liveTop = (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
         const hudFrame = loopHudFrame(hudSpec, loopHudCount(engine));
         const hudLayout = loopHudLiveLayout(size.width, size.height, cy, Math.min(ring, Math.min(size.width, size.height) / 2), liveTop);
+        if (hudFrame.topBand && modeTopHud > 0) stackLoopHudBelow(hudLayout, modeTopHud); // --- low-findings-2 --- (under Land Claim's band, never over it)
         drawLoopHud(ctx, size.width, hudFrame, hudLayout);
         loopHudBands(hudLayout, hudFrame, loopHudLive);
+        if (hudSpec.ringTimer) {
+          hudRingText = hudFrame.counter;
+          hudRingY = hudFrame.counter ? hudLayout.counterY : -1;
+        }
         // --- low-findings --- the ring's top and bottom, then each line's centre and font size (−1: left out – no room in its margin)
         const hudRing = Math.min(ring, Math.min(size.width, size.height) / 2);
         loopHudLiveText = [cy - hudRing, cy + hudRing, hudFrame.title ? hudLayout.titleY : -1, hudLayout.titleSize, hudFrame.counter ? hudLayout.counterY : -1, hudLayout.counterSize].map((v) => v.toFixed(1)).join(",");
@@ -3202,7 +3219,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const reView = reLook ? engine.getRingEscapeView() : null;
         ringLineBottom = Infinity;
         let reText = "";
-        if (reLook && reView && reLook.timer) {
+        if (reLook && reView && reLook.timer && hudRingText !== null) {
+          // --- low-findings-2 --- the loop HUD is on: its counter shows the time in the ring (the line under the rings would repeat it)
+          reText = hudRingText;
+          ringLine.y = hudRingY;
+        } else if (reLook && reView && reLook.timer) {
           reText = ringLine.textAt(reView, engine.getElapsedMs(), reLook);
           const outer = walls.length > 0 ? walls[walls.length - 1].radius : arena;
           const bands = ringLine.draw(ctx, size.width, size.height, cy, Math.min(outer, Math.min(size.width, size.height) / 2), reText, reLook.light);

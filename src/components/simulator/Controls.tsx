@@ -121,7 +121,7 @@ import { useMediaQuery } from "@/components/ui/useMediaQuery";
 import { IconBall, IconBookmark, IconCaptions, IconClose, IconGrid, IconInfo, IconKeyframes, IconObstacle, IconReset, IconRings, IconSearch, IconSparkle, IconSplit, IconUpload, IconUsers, IconVideo, IconWave } from "@/components/ui/icons";
 import CommandPalette from "./studio/CommandPalette";
 import { paletteControlEntries, type PaletteEntry, type PaletteGroup } from "@/lib/siteDesign";
-import { MODE_BLOCK_KEYS, sectionKeyShown, wallControlsOf, type PanelShown } from "./panelKeys"; // --- review fix (site-redesign) --- what the palette offers per mode
+import { MODE_BLOCK_KEYS, ballControlsOf, sectionKeyShown, wallControlsOf, type PanelShown } from "./panelKeys"; // --- review fix (site-redesign) --- what the palette offers per mode
 
 /** --- site-redesign --- a group of the studio's rail: the Mode group, a panel section, or the saved presets. */
 export type StudioSection = "mode" | ControlSection | "presets";
@@ -373,7 +373,7 @@ export default function Controls(props: ControlsProps) {
   const matches = (key: string) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    const label = t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : brickRebuildT.has(key) ? brickRebuildT(key) /* --- brick-rebuild --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : waveTankT.has(key) ? waveTankT(key) /* --- wave-tankdrawingMachineT.has(key) ? drawingMachineT(key) /* --- drawing-machine --- */ : "";
+    const label = t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : brickRebuildT.has(key) ? brickRebuildT(key) /* --- brick-rebuild --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : waveTankT.has(key) ? waveTankT(key) /* --- wave-tank --- */ : drawingMachineT.has(key) ? drawingMachineT(key) /* --- drawing-machine --- */ : "";
     return key.toLowerCase().includes(q) || label.toLowerCase().includes(q);
   };
   const sectionMatches = (keys: string[]) => !search || keys.some(matches);
@@ -478,12 +478,13 @@ export default function Controls(props: ControlsProps) {
       <UnlimitedSection t={t} search={search} matches={matches} settings={s} update={update} />
       {/* --- gerald-faces --- the "Character" group: face, name label, squash, Gerald persona */}
       <CharacterSection t={t} search={search} matches={matches} settings={s} update={update} ballImage={props.ballImage} ballEmoji={props.ballEmoji} />
-      <Slider t={t} search={search} matches={matches} labelKey="ballSpeed" tipKey="ballSpeedTip" value={s.ballSpeed} range={RANGES.ballSpeed} onChange={(v) => update({ ballSpeed: v })} />
-      <Slider t={t} search={search} matches={matches} labelKey="ballSize" tipKey="ballSizeTip" value={s.ballRadius} range={RANGES.ballRadius} onChange={(v) => update({ ballRadius: v })} display={`${s.ballRadius}px`} />
+      {/* --- low-findings-2 --- a mode whose balls are its own (Colour Sort) leaves out the page's speed, size and colour (panelKeys.ts ballControlsOf()) */}
+      {ballControlsOf(s.mode).speed && <Slider t={t} search={search} matches={matches} labelKey="ballSpeed" tipKey="ballSpeedTip" value={s.ballSpeed} range={RANGES.ballSpeed} onChange={(v) => update({ ballSpeed: v })} />}
+      {ballControlsOf(s.mode).size && <Slider t={t} search={search} matches={matches} labelKey="ballSize" tipKey="ballSizeTip" value={s.ballRadius} range={RANGES.ballRadius} onChange={(v) => update({ ballRadius: v })} display={`${s.ballRadius}px`} />}
       {showAdvanced && (
         <Slider t={t} search={search} matches={matches} labelKey="gravity" tipKey="gravityTip" value={s.gravity} range={RANGES.gravity} onChange={(v) => update({ gravity: v })} />
       )}
-      {!props.ballImage && !props.ballEmoji && (
+      {!props.ballImage && !props.ballEmoji && ballControlsOf(s.mode).color && (
         <Searchable search={search} matches={matches} labelKey="ballColor">
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -1524,7 +1525,7 @@ export default function Controls(props: ControlsProps) {
     const labels = Object.fromEntries(railItems.map((item) => [item.id, item.label]));
     const groups: PaletteGroup[] = paletteKeyGroups(paletteShown, sections.map((item) => item.id), !!props.project).map((g) => ({ ...g, label: labels[g.section] }));
     const out: PaletteEntry[] = railItems.map((item) => ({ kind: "section", section: item.id, key: item.id, label: item.label, sectionLabel: item.label }));
-    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : brickRebuildT.has(key) ? brickRebuildT(key) /* --- brick-rebuild --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : waveTankT.has(key) ? waveTankT(key) /* --- wave-tankdrawingMachineT.has(key) ? drawingMachineT(key) /* --- drawing-machine --- */ : null /* --- colour-sort --- */))];
+    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : brickRebuildT.has(key) ? brickRebuildT(key) /* --- brick-rebuild --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : waveTankT.has(key) ? waveTankT(key) /* --- wave-tank --- */ : drawingMachineT.has(key) ? drawingMachineT(key) /* --- drawing-machine --- */ : null /* --- colour-sort --- */))];
     // The labels follow the language, the entries the mode and the settings that show or hide a control (paletteState).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paletteOpen, t, paletteState, sections.length, !!props.project]);
@@ -1881,6 +1882,9 @@ export function sectionDefaults(section: ControlSection, mode: ModeId): Partial<
         breathingAmplitude: d.breathingAmplitude,
         breathingSpeed: d.breathingSpeed,
         exitBehavior: d.exitBehavior, exitJumpSeconds: d.exitJumpSeconds, exitSense: d.exitSense, exitFleeSpeed: d.exitFleeSpeed, // --- gerald-exit-splat ---
+        // --- low-findings-2 --- Ring Escape's options (Classic's ring generation, in this section): the layout, the spiral's step,
+        // the spin, the rainbow, the time in the ring and the ring sounds
+        gapLayout: d.gapLayout, gapSpiralStep: d.gapSpiralStep, ringSpin: d.ringSpin, ringRainbow: d.ringRainbow, ringTimer: d.ringTimer, ringSound: d.ringSound,
       };
     case "visual":
       return {

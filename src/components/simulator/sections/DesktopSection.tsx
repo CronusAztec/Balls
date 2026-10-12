@@ -66,7 +66,9 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
       })
       .catch((err: unknown) => setNotice(errorText(err)));
     bridge.info().then(setInfo).catch(() => {});
-    bridge.update.check().then(setUpdate).catch(() => {});
+    // --- low-findings-2 --- the updater's status as it is, never a check: the app's own quiet schedule checks 8 s after launch
+    // (a manual check at every start made an offline start show "error" and doubled the quiet one); the events keep it fresh
+    bridge.update.status?.().then(setUpdate).catch(() => {});
     return bridge.on("update", setUpdate);
   }, [bridge]);
   const changePrefs = useCallback(

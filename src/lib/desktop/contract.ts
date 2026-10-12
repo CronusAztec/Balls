@@ -47,6 +47,7 @@ export const IPC = {
   aiPlaybook: "ai:playbook",
   updateCheck: "update:check",
   updateInstall: "update:install",
+  updateState: "update:state", // --- low-findings-2 --- the updater's status as it is (no check)
   aiDiagnose: "ai:diagnose", // --- desktop-ai-fix --- the AI status / diagnostics panel
 } as const;
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
@@ -472,6 +473,8 @@ export interface DesktopApi {
   update: {
     check(): Promise<UpdateStatus>;
     install(): Promise<void>;
+    /** --- low-findings-2 --- The updater's status as it is, without a check (the page's mount: the quiet schedule does the checking). */
+    status(): Promise<UpdateStatus>;
   };
   /** Subscribes to an event from the main process; returns the unsubscribe. */
   on<K extends DesktopEventName>(event: K, listener: (payload: DesktopEventMap[K]) => void): () => void;
@@ -525,6 +528,7 @@ export const BRIDGE_METHODS = {
   "ai.playbook": IPC.aiPlaybook,
   "update.check": IPC.updateCheck,
   "update.install": IPC.updateInstall,
+  "update.status": IPC.updateState, // --- low-findings-2 ---
   "ai.diagnose": IPC.aiDiagnose, // --- desktop-ai-fix ---
 } as const satisfies Record<string, IpcChannel>;
 

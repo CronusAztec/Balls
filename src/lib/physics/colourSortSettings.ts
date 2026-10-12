@@ -25,7 +25,7 @@ export interface ColourSortFields {
   /** The balls' speed (px/s) and size (radius, px), in px of the 720 × 1280 reference clip (URL `csv`, `csr`). */
   csSpeed: number;
   csSize: number;
-  /** Elastic contacts between the balls (off: the ghost gas of the reference clip) (URL `csx`). */
+  /** Elastic contacts between the balls, on by default (off: the ghost gas, the cheap way for thousands) (URL `csx`). */
   csContacts: boolean;
   /** Seconds the remix lasts (URL `csm`). */
   csRemix: number;

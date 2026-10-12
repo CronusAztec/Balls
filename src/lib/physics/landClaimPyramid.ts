@@ -277,9 +277,15 @@ export function lcPyramidRingCells(grid: number, ring: number): number {
 export function lcPyramidNaturalTotal(grid: number, steps: number): number {
   const rings = lcPyramidRings(grid);
   const s = Math.max(1, Math.round(steps));
-  let total = 0;
-  for (let r = 0; r < rings; r++) total += lcPyramidRingCells(grid, r) * Math.max(0, s - r);
-  return total;
+  // --- low-findings-2 --- the rings past the steps stand 0 high, so the sum runs over the n = min(rings, steps) standing ones, in
+  // closed form (any size at once): with m = n − 1, T = m(m + 1)/2 and Q = m(m + 1)(2m + 1)/6, Σ r(s − r) over r = 1…m is sT − Q;
+  // an odd grid adds the summit's 1 × s, an even one 4 × (ns − T) for its 4 + 8r columns a ring
+  const n = Math.min(rings, s);
+  const m = n - 1;
+  const t = (m * (m + 1)) / 2;
+  const q = (t * (2 * m + 1)) / 3;
+  const inner = 8 * (s * t - q);
+  return Math.max(1, Math.round(grid)) % 2 === 1 ? s + inner : inner + 4 * (n * s - t);
 }
 
 /**
@@ -333,6 +339,46 @@ export function lcPyramidHeights(grid: number, steps: number, blocks: number): I
     }
   }
   return out;
+}
+
+/**
+ * --- low-findings-2 --- The tallest column of `lcPyramidHeights(grid, steps, blocks)` – the summit's – for any size, without
+ * building the grid: the same ring heights (natural, or scaled to `blocks` with the leftover whole rings handed out from the
+ * summit outwards and the last few blocks on the summit's columns), worked out ring by ring and only as far out as a ring still
+ * gets a block. The summary line's "the summit N blocks high" for a Pyramid Size the panel does not build (past 400).
+ */
+export function lcPyramidSummitHeight(grid: number, steps: number, blocks: number): number {
+  const g = Math.max(1, Math.round(grid));
+  const s = Math.max(1, Math.round(steps));
+  const standing = Math.min(lcPyramidRings(g), s);
+  const natural = lcPyramidNaturalTotal(g, s);
+  let target = blocks > 0 ? Math.min(Math.round(blocks), LCP_BLOCK_CEILING) : 0;
+  if (target === 0 && natural > LCP_BLOCK_CEILING) target = LCP_BLOCK_CEILING;
+  if (target === 0 || target === natural) return s;
+  const k = target / natural;
+  // the scaled heights, ring by ring outwards: they only fall, so the sum stops at the first ring left at 0
+  let sum = 0;
+  for (let r = 0; r < standing; r++) {
+    const h = Math.floor((s - r) * k + 1e-9);
+    if (h <= 0) break;
+    sum += lcPyramidRingCells(g, r) * h;
+  }
+  let left = target - sum;
+  // the leftover: passes over the rings from the summit outwards, a ring taking one more layer while its columns fit; a ring's
+  // columns only grow outwards, so a pass ends at the first ring that does not fit – and the summit takes one in every pass
+  let summit = Math.floor(s * k + 1e-9);
+  for (;;) {
+    let progress = false;
+    for (let r = 0; r < standing; r++) {
+      const n = lcPyramidRingCells(g, r);
+      if (n > left) break;
+      if (r === 0) summit++;
+      left -= n;
+      progress = true;
+    }
+    if (!progress) break;
+  }
+  return left > 0 ? summit + 1 : summit;
 }
 
 /** The blocks of a height map. */

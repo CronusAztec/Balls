@@ -8,6 +8,7 @@ import { WideTrack, keyOfRange, rulesForRange, useUnlimitedKey } from "./unlimit
 // --- uncap-all --- a number field next to every slider, the track pinned at its end beyond its comfort range
 import NumberField from "./NumberField";
 import { beyondSlider, formatCompact, memoryCeiling } from "@/lib/uncap";
+import { logTrackEnd, logTrackPosition, logTrackValue, type LogTrackSpec } from "./logTrack"; // --- low-findings-2 ---
 
 /*
  * Building blocks of the controls panel, shared by Controls.tsx and the feature sections in
@@ -61,6 +62,7 @@ export function Slider({
   onChange,
   display,
   disabled,
+  log,
 }: {
   t: Translate;
   search: string;
@@ -72,6 +74,8 @@ export function Slider({
   onChange: (v: number) => void;
   display?: string;
   disabled?: boolean;
+  /** --- low-findings-2 --- a logarithmic track (logTrack.ts) from `low` to the range's maximum, `perDecade` positions a decade. */
+  log?: { low: number; perDecade: number };
 }) {
   // --- timeline --- while keyframes drive this setting the slider shows its live value, locked, with an AUTO badge
   const live = useTimelineSlider(labelKey);
@@ -95,7 +99,9 @@ export function Slider({
           <span className={`num shrink-0 text-xs ${beyond ? "font-medium text-warn" : "text-ink-3"}`}>{live ? <TimelineSliderValue t={t} live={live} fallback={null} /> : beyond ? formatCompact(value) : (display ?? value)}</span>
         </label>
         <div className="flex items-center gap-3">
-          {wideKey && !live ? (
+          {log ? (
+            <LogTrackInput log={{ ...log, high: range.max, min: range.min }} label={label} value={shown} valueText={display ?? String(shown)} onChange={onChange} disabled={disabled || !!live} beyond={beyond} />
+          ) : wideKey && !live ? (
             <WideTrack settingKey={wideKey} label={label} value={value} range={range} onChange={onChange} disabled={disabled} />
           ) : (
             <span className={`relative flex w-full items-center ${beyond ? "rounded-md ring-1 ring-warn/40" : ""}`} title={beyond ? u("beyondTip", { value: formatCompact(value), min: formatCompact(range.min), max: formatCompact(range.max) }) : undefined} data-beyond={beyond ? "1" : undefined}>
@@ -118,6 +124,30 @@ export function Slider({
         {ceiling < value && <p className="text-xs text-warn">{u("memoryCeiling", { value: formatCompact(ceiling) })}</p>}
       </div>
     </Searchable>
+  );
+}
+
+/** --- low-findings-2 --- The range input of a logarithmic Slider (`log`): positions on the track, the setting's value in and out. */
+function LogTrackInput({ log, label, value, valueText, onChange, disabled, beyond }: { log: LogTrackSpec; label: string; value: number; valueText: string; onChange: (v: number) => void; disabled?: boolean; beyond: boolean }) {
+  const end = logTrackEnd(log);
+  const pos = logTrackPosition(value, log);
+  return (
+    <span className={`relative flex w-full items-center ${beyond ? "rounded-md ring-1 ring-warn/40" : ""}`} data-beyond={beyond ? "1" : undefined}>
+      <input
+        type="range"
+        min={0}
+        max={end}
+        step={1}
+        value={pos}
+        disabled={disabled}
+        onChange={(e) => onChange(logTrackValue(Number(e.target.value), log))}
+        className="w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+        style={sliderStyle(pos, 0, end)}
+        aria-label={label}
+        aria-valuetext={valueText}
+        data-log-track={end}
+      />
+    </span>
   );
 }
 

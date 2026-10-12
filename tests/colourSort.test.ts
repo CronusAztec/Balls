@@ -202,7 +202,7 @@ describe("Colour Sort: the reflection off a turning arc", () => {
   });
 
   it("keeps the balls' speed in a run (the gas runs at the set speed, every arc's grip included)", () => {
-    const engine = engineOf({}, 3);
+    const engine = engineOf({ collisions: false }, 3); // (--- low-findings-2 --- the ghost gas, the default this was written for: elastic contacts spread the speeds)
     const v = engine.getColourSortView();
     runUntil(engine, () => false, 6);
     const target = v.settings.speed * v.scale;
@@ -446,6 +446,32 @@ describe("Colour Sort: the loop", () => {
     expect(engine.getLoopSeams()).toMatchObject({ count: 2, nextMs: -1 });
   });
 
+  // --- low-findings-2 --- the half second after the completion chord is a hold: every gate shut until the remix
+  it("holds the bullseye for half a second after the chord: no pass, no pluck, no refusal flash, the census still while the balls move", () => {
+    for (const patch of [{ flashes: true, limit: 4 }, { flashes: true, collisions: false, limit: 4 }]) { // (a time-out: many balls still on their way, the gates still busy)
+      const engine = engineOf(patch, 1);
+      const v = engine.getColourSortView();
+      runUntil(engine, (view) => view.phase === "hold", 90);
+      expect(v.phase).toBe("hold");
+      const [sorted, passes, refusals, bands] = [v.sorted, v.passes, v.refusals, Array.from(v.band).join()];
+      const start = engine.getBalls().map((b) => [b.x, b.y]);
+      let held = 0;
+      let moved = 0;
+      while (held < 120) {
+        engine.update(STEP, 0);
+        if (v.phase !== "hold") break;
+        held++;
+        const events = engine.consumeSoundEvents();
+        expect(events.filter((e) => e.loop === "pluck"), JSON.stringify(patch)).toEqual([]);
+        expect([v.sorted, v.passes, v.refusals, Array.from(v.band).join()]).toEqual([sorted, passes, refusals, bands]);
+      }
+      engine.getBalls().forEach((b, j) => (moved += Math.hypot(b.x - start[j][0], b.y - start[j][1]) > 1e-3 ? 1 : 0));
+      expect(held, JSON.stringify(patch)).toBe(Math.ceil((1000 * CS_HOLD_SEC) / STEP - 1e-9));
+      expect(v.phase).toBe("remix");
+      expect(moved).toBeGreaterThan(v.total / 2);
+    }
+  });
+
   it("springs a remix from any displacement and speed exactly onto zero (critically damped, no overshoot past the wall)", () => {
     const out: [number, number] = [0, 0];
     for (const [a, vel] of [[100, 0], [-40, 300], [5, -200], [0, 0]]) {
@@ -521,8 +547,9 @@ describe("Colour Sort: sound", () => {
 });
 
 describe("Colour Sort: settings", () => {
-  it("defaults to the reference: 4 × 90, four 35° gates, 31°/s with ×0.8 alternating, 220 px/s, 4.5 px, a ghost gas, a 2.8 s remix", () => {
-    expect(DEFAULT_COLOUR_SORT).toEqual({ colours: 4, perColour: 90, gates: 4, gateWidth: 35, spin: 31, falloff: 0.8, alternate: true, speed: 220, size: 4.5, collisions: false, remix: 2.8, rule: "outwardNotOwn", limit: 60, flashes: false });
+  // --- low-findings-2 --- elastic contacts by default (the spec's norm), at 300 px/s so the sort keeps the reference clip's pace
+  it("defaults to the reference: 4 × 90, four 35° gates, 31°/s with ×0.8 alternating, elastic contacts at 300 px/s, 4.5 px, a 2.8 s remix", () => {
+    expect(DEFAULT_COLOUR_SORT).toEqual({ colours: 4, perColour: 90, gates: 4, gateWidth: 35, spin: 31, falloff: 0.8, alternate: true, speed: 300, size: 4.5, collisions: true, remix: 2.8, rule: "outwardNotOwn", limit: 60, flashes: false });
     expect(colourSortSettingsOf(DEFAULT_COLOUR_SORT_FIELDS)).toEqual(DEFAULT_COLOUR_SORT);
     const d = defaultSettings("colourSort");
     expect(colourSortSettingsOf(d)).toEqual(DEFAULT_COLOUR_SORT);
@@ -541,7 +568,7 @@ describe("Colour Sort: settings", () => {
   });
 
   it("round-trips every setting through links, presets and the resolver; invalid values fall back, small ones lift onto the minimum, no maximum", () => {
-    const s = { ...defaultSettings("colourSort"), csColours: 6, csPerColour: 1234, csGates: 9, csGateWidth: 12.5, csSpin: 400, csFalloff: 1.25, csAlternate: false, csSpeed: 5000, csSize: 2.5, csContacts: true, csRemix: 0.4, csRule: "bothWaysNotOwn" as const, csLimit: 999, csFlash: true };
+    const s = { ...defaultSettings("colourSort"), csColours: 6, csPerColour: 1234, csGates: 9, csGateWidth: 12.5, csSpin: 400, csFalloff: 1.25, csAlternate: false, csSpeed: 5000, csSize: 2.5, csContacts: false, csRemix: 0.4, csRule: "bothWaysNotOwn" as const, csLimit: 999, csFlash: true };
     const params = settingsToSearchParams(s);
     expect(["csc", "csn", "csg", "csw", "css", "csf", "csa", "csv", "csr", "csx", "csm", "csu", "csl", "csh"].filter((key) => !params.has(key))).toEqual([]);
     const back = settingsFromSearchParams(params);
@@ -553,7 +580,7 @@ describe("Colour Sort: settings", () => {
     // invalid values fall back, a number below its minimum is lifted onto it, a big one is kept
     const bad = settingsFromSearchParams(new URLSearchParams("mode=colourSort&csc=abc&csn=-5&csg=1e9&csw=NaN&csu=sideways&csa=maybe&csl=0"));
     expect([bad.csColours, bad.csPerColour, bad.csGates, bad.csGateWidth, bad.csRule, bad.csAlternate, bad.csLimit]).toEqual([4, 1, 1e9, 35, "outwardNotOwn", true, 1]);
-    expect(resolveColourSortFields({ csColours: 2.6, csSpeed: "300", csContacts: "yes" })).toMatchObject({ csColours: 3, csSpeed: 300, csContacts: false });
+    expect(resolveColourSortFields({ csColours: 2.6, csSpeed: "250", csContacts: "yes" })).toMatchObject({ csColours: 3, csSpeed: 250, csContacts: true });
     expect(resolveColourSortSettings({ colours: 1, perColour: 0, gateWidth: 1, size: -2 })).toMatchObject({ colours: 2, perColour: 1, gateWidth: 5, size: 1 });
     // the writer and the reader on their own
     const p = new URLSearchParams();
@@ -674,19 +701,24 @@ describe("Colour Sort: Find Simulation", () => {
 
 describe("Colour Sort: determinism", () => {
   /** Recorded when the mode was added: balls 0 and 1 (x, y × 1000) every second of a 5 s run, seed 42, an 800 × 600 world. */
-  const FINGERPRINT = [[319677, 289676], [315508, 317325], [169717, 248118], [246351, 339992], [188750, 232018], [261527, 327081], [211366, 208137], [221068, 320772], [205367, 153622], [166608, 311655]];
+  // (--- low-findings-2 --- the defaults' run since elastic contacts at 300 px/s became the default; the ghost gas at 220 px/s – the
+  // defaults before – keeps its pin, run explicitly)
+  const FINGERPRINT = [[388804, 349145], [393585, 297098], [450076, 456262], [389422, 268640], [427819, 462867], [392423, 281888], [317395, 440388], [406607, 348027], [248690, 232960], [419560, 316200]];
+  const GHOST_FINGERPRINT = [[319677, 289676], [315508, 317325], [169717, 248118], [246351, 339992], [188750, 232018], [261527, 327081], [211366, 208137], [221068, 320772], [205367, 153622], [166608, 311655]];
 
   it("plays the same run at 30, 60 and 120 fps (pinned), and a seed replays exactly", () => {
     const wide: PhysicsConfig = { ...config, width: 800, height: 600 };
-    for (const fps of [30, 60, 120]) {
-      const engine = engineOf({}, 42, wide);
-      const out: number[][] = [];
-      for (let f = 1; f <= 5 * fps; f++) {
-        engine.update(1000 / fps, 0);
-        engine.consumeSoundEvents();
-        if (f % fps === 0) out.push(...engine.getBalls().slice(0, 2).map((b) => [Math.round(b.x * 1000), Math.round(b.y * 1000)]));
+    for (const [patch, pinned] of [[{}, FINGERPRINT], [{ collisions: false, speed: 220 }, GHOST_FINGERPRINT]] as const) {
+      for (const fps of [30, 60, 120]) {
+        const engine = engineOf(patch, 42, wide);
+        const out: number[][] = [];
+        for (let f = 1; f <= 5 * fps; f++) {
+          engine.update(1000 / fps, 0);
+          engine.consumeSoundEvents();
+          if (f % fps === 0) out.push(...engine.getBalls().slice(0, 2).map((b) => [Math.round(b.x * 1000), Math.round(b.y * 1000)]));
+        }
+        expect([JSON.stringify(patch), fps, out]).toEqual([JSON.stringify(patch), fps, pinned]);
       }
-      expect([fps, out]).toEqual([fps, FINGERPRINT]);
     }
     const a = engineOf({}, 9);
     const b = engineOf({}, 9);

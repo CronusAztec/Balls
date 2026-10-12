@@ -18,7 +18,9 @@ import {
   planCommands,
   publicKeyFromPrivateJwk,
   readWranglerToml,
+  yesValueAnswer, // --- low-findings-2 ---
 } from "../scripts/go-live.mjs";
+import { spawn } from "child_process"; // --- low-findings-2 ---
 import { chunkUrls, deployGuard, extractPublicKeys, formatReport, runChecks } from "../scripts/go-live-check.mjs";
 import { TEST_PRIVATE_D, TEST_PUBLIC_KEY, pagesSiteUrl } from "../scripts/lib/go-live-common.mjs";
 import { LICENSE_TEST_PUBLIC_KEY } from "@/lib/billing/config";
@@ -506,5 +508,42 @@ describe("the go-live check", () => {
     const k = realPair().publicKey;
     expect(extractPublicKeys(`x="${k}";y="${TEST_PUBLIC_KEY}";z="${k}"`)).toEqual([k, TEST_PUBLIC_KEY, k]);
     expect(extractPublicKeys(`"${k}A"`)).toEqual([]); // not a key on its own
+  });
+});
+
+// --- low-findings-2 --- --yes takes the default of a value question too (the mode, the own domain, the optional GitHub values),
+// not only of a yes/no question: run on an open input with --yes the wizard never waits there
+describe("go-live wizard: --yes", () => {
+  it("answers a value with a default or an optional one without asking, and asks for a needed one", () => {
+    expect(yesValueAnswer(true, { fallback: "test" })).toEqual({ ask: false, value: "test" });
+    expect(yesValueAnswer(true, { optional: true })).toEqual({ ask: false, value: undefined });
+    expect(yesValueAnswer(true, {})).toEqual({ ask: true });
+    expect(yesValueAnswer(false, { fallback: "test" })).toEqual({ ask: true });
+    expect(yesValueAnswer(false, { optional: true })).toEqual({ ask: true });
+  });
+
+  it("runs a dry run on an open input with --yes to its end without waiting at the mode or the domain question", { timeout: 60_000 }, async () => {
+    const root = path.join(__dirname, "..");
+    const toml = fs.readFileSync(path.join(root, "billing", "wrangler.toml"), "utf8");
+    const result = await new Promise<{ code: number | null; out: string; timedOut: boolean }>((resolve) => {
+      // (stdin stays open, like a terminal nobody types in: a question that waits would hang here)
+      const child = spawn(process.execPath, ["scripts/go-live.mjs", "--yes", "--dry-run", "--skip", "stripe,paypal,crypto,github"], { cwd: root, stdio: ["pipe", "pipe", "pipe"] });
+      let out = "";
+      child.stdout.on("data", (d) => (out += String(d)));
+      child.stderr.on("data", (d) => (out += String(d)));
+      const timer = setTimeout(() => {
+        child.kill();
+        resolve({ code: null, out, timedOut: true });
+      }, 45_000);
+      child.on("exit", (code) => {
+        clearTimeout(timer);
+        resolve({ code, out, timedOut: false });
+      });
+    });
+    expect([result.timedOut, result.code], result.out.slice(-400)).toEqual([false, 0]);
+    expect(result.out).toMatch(/\[test\/live\] \(Enter = test\): test \(--yes\)/);
+    expect(result.out).toMatch(/Do you have your own domain for the site\?[\s\S]*\(skipped\) \(--yes\)/);
+    // a dry run changes no file
+    expect(fs.readFileSync(path.join(root, "billing", "wrangler.toml"), "utf8")).toBe(toml);
   });
 });

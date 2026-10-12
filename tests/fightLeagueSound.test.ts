@@ -12,6 +12,7 @@ import { defaultSettings, settingsFromSearchParams, settingsToSearchParams } fro
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { flRecipeProblems, parseFlRecipe, recipeDurationMs, scheduleFlRecipe } from "@/lib/audio/flSynth";
+import { flAvoidListProblems } from "@/lib/audio/flAvoidList"; // --- low-findings-2 ---
 import { FL_ANNOUNCER, FL_BANNER_SOUNDS, FL_DIVISION_TINTS, FL_FAMILIES, FL_FAMILY_SETS, FL_MATCH_SOUNDS, FL_SIGNATURES, FL_TIER_PEAK, FL_TRIM_F, FL_TRIM_HOLD_SEC, FL_TRIM_R, flAllRecipes, flSaberHz, flTrimKey } from "@/lib/audio/flRecipes";
 import { FL_RECIPE_TRIMS } from "@/lib/audio/flRecipeTrims";
 import { NO_FL_CLIPS, flResolved, resolveFlSound, type FlClipLookup, type FlSoundSettings } from "@/lib/audio/flSoundResolve";
@@ -108,6 +109,25 @@ describe("fight league sound recipes (flRecipes.ts, flSynth.ts)", () => {
       }
     }
     expect(bad).toEqual([]);
+  });
+
+  // --- low-findings-2 --- the avoid-list's source gestures a row could reproduce by its shape: none in any table
+  it("passes the avoid-list: no row of any table sweeps a chip tone up like the plumber's jump, revs like the spin-dash or rings the coin's fourth", () => {
+    const bad: string[] = [];
+    for (const e of flAllRecipes()) {
+      const problems = flAvoidListProblems(e.text, { F: 330, R: 523.25, H: e.h });
+      if (problems.length) bad.push(`${e.table} ${e.key} ${e.role}: ${problems.join("; ")}`);
+    }
+    expect(bad).toEqual([]);
+    // the gestures it finds: the two signature rows it replaced, and a coin-like fourth
+    expect(flAvoidListProblems("intro(120) p25 330>990/110 d120 p.46")[0]).toMatch(/^jump/);
+    expect(flAvoidListProblems("telegraph(400) saw 200>500/120 a28/.6 lp2500 e5/120 p.3 x3/130^1.25 + pn bp800>2000/400 e300/100 p.68")[0]).toMatch(/^rev/);
+    expect(flAvoidListProblems("coin(300) sqr 987.77 d80 p.3 + sqr 1318.5 d200 p.3 @80")[0]).toMatch(/^coin/);
+    // and not a quicker zip, a smaller chirp, a slow riser or a fifth
+    for (const ok of ["ricochet(60) p25 400>1000/50 d60 p.4", "chipChirp(101) p25 F*2>F*4/80 d100 p.42", "fire(490) sqr H>H*4/400 lp1500>4000/400 e10/480 p.1", "two(300) sqr 880 d80 p.3 + sqr 1320 d200 p.3 @80"]) expect([ok, flAvoidListProblems(ok)]).toEqual([ok, []]);
+    // the replacements keep their characters: a chip boing for the plumber, a spool-up under rushing air for the hedgehog
+    expect(FL_SIGNATURES.mario.roles?.intro).toMatch(/^intro\(120\) p25 /);
+    expect(FL_SIGNATURES.sonic.roles?.telegraph).toMatch(/^telegraph\(400\) tri F>F\*3/);
   });
 
   it("has a fresh trim for every row at its pitch (re-run scripts/fl-sound-trims.mjs after changing a recipe)", () => {

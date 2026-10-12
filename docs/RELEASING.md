@@ -32,7 +32,8 @@ stays as it was.
 ## Release the Windows app
 
 1. Pick the next version. It must always be higher than the last one: 1.0.3 → 1.0.4 → 1.0.5 … Raise the second number
-   for bigger changes (1.0.9 → 1.1.0).
+   for bigger changes (1.0.9 → 1.1.0). Three plain numbers only: a version like 1.0.4-rc.1 is refused (the website and the
+   download page only show x.y.z releases).
 2. Run `npm run release:desktop -- 1.0.4`. It writes the version into three files – `desktop/package.json`,
    `desktop/package-lock.json` and `src/lib/desktop/release.ts` – and prints three git lines.
 3. Run the three lines it printed:

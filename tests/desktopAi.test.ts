@@ -14,7 +14,8 @@ import type { BotCopy } from "@/lib/bot/copy";
 import type { AiMessage } from "@/lib/desktop/contract";
 import { extractJson, validateJson, type JsonSchema } from "@/lib/desktop/ai/jsonSchema";
 import { normaliseReply, replySchema, runAgent, type AgentEvent, type ChatModel } from "@/lib/desktop/ai/agent";
-import { assistantSettings, changedKeys, changesSchema, invertPatch, patchFromChanges, settingsCatalog, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
+import { assistantSettings, changedKeys, changesSchema, invertPatch, isModeSettingKey, patchFromChanges, settingsCatalog, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
+import { MODE_IDS } from "@/lib/physics/types"; // --- low-findings-2 ---
 import { PlanStore, copyTask, ideasTask, makeVideosTask, settingsTask, type MakeVideosResult, type SettingsResult, type StudioPorts } from "@/lib/desktop/ai/studio";
 import { selectPlaybookContext, splitPlaybook } from "@/lib/desktop/ai/playbookContext";
 
@@ -363,5 +364,24 @@ describe("--- low-findings --- the assistant's Grow settings", () => {
     const bad = validateSettingsPatch(grow, { growOnFill: "explode" });
     expect(bad.ok).toBe(false);
     if (!bad.ok) expect(bad.errors.join(" ")).toMatch(/growOnFill.*one of "stay", "loop", "finish"/);
+  });
+});
+
+// --- low-findings-2 --- a core setting that starts with a mode's letters is the core's, never the mode's
+describe("--- low-findings-2 --- the assistant's mode settings", () => {
+  it("lists the scoreboard's corner as a core setting on a Chord Stars page, and every mode's settings by their own prefix only", () => {
+    const stars = assistantSettings(defaultSettings("starChords"));
+    expect(stars.find(([k]) => k === "scoreboardPosition")).toEqual(["scoreboardPosition", "corner of the teams scoreboard"]);
+    expect(stars.filter(([k]) => k === "scoreboardPosition")).toHaveLength(1);
+    expect(stars.find(([k]) => k === "scBalls")?.[1]).toBe("starChords setting");
+    expect(settingsCatalog(defaultSettings("starChords"))).toMatch(/scoreboardPosition \(one of "top-left"\|"top-right"\) = "top-left" — corner of the teams scoreboard/);
+    expect(validateSettingsPatch(defaultSettings("starChords"), { scoreboardPosition: "top-right" })).toEqual({ ok: true, patch: { scoreboardPosition: "top-right" } });
+    expect(validateSettingsPatch(defaultSettings("starChords"), { scoreboardPosition: "middle" }).ok).toBe(false);
+    for (const mode of MODE_IDS) {
+      const all = assistantSettings(defaultSettings(mode));
+      for (const [key, description] of all) if (description === `${mode} setting`) expect(key, mode).toMatch(/^[a-z]+[A-Z0-9]/);
+      expect(all.find(([k]) => k === "scoreboardPosition")?.[1], mode).toBe("corner of the teams scoreboard");
+    }
+    expect([isModeSettingKey("scBalls", "sc"), isModeSettingKey("scoreboardPosition", "sc"), isModeSettingKey("dpLength1", "dp"), isModeSettingKey("sc", "sc")]).toEqual([true, false, true, false]);
   });
 });

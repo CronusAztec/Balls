@@ -233,10 +233,18 @@ export interface FinderOutcomeFieldsProps {
   /** --- fl-overhaul --- (Stage 5) lead-changes: the fewest lead changes; boss-falls-at: the wave (both whole numbers from 1). */
   count?: number;
   onCount?: (n: number) => void;
+  /** --- low-findings-2 --- diverges-at: the latest second the fan can split at (its forward run, `fanSplitLatestSec()`), and that run's length; null: any second. */
+  divergeLatestSec?: number | null;
+  forwardSec?: number;
+}
+
+/** --- low-findings-2 --- Whether a "Splits at" target lies past what the fan's forward run can reach (`latest` null: no bound). */
+export function divergeTargetUnreachable(outcome: FinderOutcomeKind | null, target: number, latest: number | null | undefined): boolean {
+  return outcome === "diverges-at" && latest !== null && latest !== undefined && target > latest + 1e-9;
 }
 
 /** An outcome search's one-line explanation and its own field (the escape second, the team to win); nothing for the classic run-length search. */
-export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, winner, onWinner, teamNames, disabled, battle, territory, landClaim, count = 1, onCount }: FinderOutcomeFieldsProps) {
+export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, winner, onWinner, teamNames, disabled, battle, territory, landClaim, count = 1, onCount, divergeLatestSec = null, forwardSec = 0 }: FinderOutcomeFieldsProps) {
   const r = useTranslations("Rigged");
   if (outcome === "duration") return null;
   const range = RANGES.findEscapeAt;
@@ -372,6 +380,12 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
             style={sliderStyle(escapeAt, range.min, range.max)}
           />
           <NumberField value={escapeAt} onCommit={onEscapeAt} label={r("divergeAt")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" />
+          {/* --- low-findings-2 --- a target the fan can never meet (past its forward run): said plainly, never clamped */}
+          {divergeTargetUnreachable(outcome, escapeAt, divergeLatestSec) && (
+            <p className="text-xs text-danger leading-relaxed" role="alert" data-testid="finder-diverge-unreachable">
+              {r("divergeAtUnreachable", { forward: forwardSec.toFixed(1), max: (divergeLatestSec ?? 0).toFixed(1) })}
+            </p>
+          )}
         </div>
       )}
       {/* --- end chaos-fan --- */}
