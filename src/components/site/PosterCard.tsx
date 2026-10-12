@@ -6,6 +6,9 @@ import { cx } from "@/components/ui/cx";
  * in a square (the centred square of a preview is exactly what a clip records), then the name with a mono tag and one or
  * two lines of description. Calm hover: the hairline brightens, nothing moves. The interactive wrapper (link, button) is
  * the caller's; this is the content.
+ * --- copy-pass --- the description clamps at four lines, not two: a card is about 214 px wide, so a mode's one-liner
+ * (60 to 110 characters in English, up to 140 in Polish and Spanish, docs/COPY-STYLE.md) reads in full instead of ending
+ * mid-sentence.
  */
 export default function PosterCard({
   image,
@@ -41,7 +44,7 @@ export default function PosterCard({
         <Heading className="min-w-0 truncate font-sans text-md font-medium tracking-normal text-ink">{name}</Heading>
         {tag && <span className="eyebrow hidden shrink-0 text-ink-3 sm:inline">{tag}</span>}
       </div>
-      {description && <p className="mt-1 line-clamp-2 text-sm text-ink-2">{description}</p>}
+      {description && <p className="mt-1 line-clamp-4 text-sm text-ink-2">{description}</p>}
       {footer}
     </>
   );
