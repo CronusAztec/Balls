@@ -66,6 +66,9 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "ring-on-bar": "outcomeRingOnBar", // --- funnel-spin ---
   "summit-last": "outcomeSummitLast", // --- land-claim-pyramid ---
   "ring-at": "outcomeRingAt", // --- ring-escape ---
+  // --- perfect-fit ---
+  "most-on-floor": "outcomeMostOnFloor",
+  "landings-on-beat": "outcomeLandingsOnBeat",
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -108,6 +111,9 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "ring-on-bar": "hintRingOnBar", // --- funnel-spin ---
   "summit-last": "hintSummitLast", // --- land-claim-pyramid ---
   "ring-at": "hintRingAt", // --- ring-escape ---
+  // --- perfect-fit ---
+  "most-on-floor": "hintMostOnFloor",
+  "landings-on-beat": "hintLandingsOnBeat",
 };
 
 /** --- fl-overhaul --- (Stage 5) An outcome's label key (`Rigged.*`): the story outcomes' generic texts name it. */
@@ -533,6 +539,11 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findSummitLast");
     case "ring-at": // --- ring-escape ---
       return t("Rigged.findRingAt", { time: c.escapeAt.toFixed(1) });
+    // --- perfect-fit ---
+    case "most-on-floor":
+      return t("Rigged.findMostOnFloor");
+    case "landings-on-beat":
+      return t("Rigged.findLandingsOnBeat");
     default:
       return null;
   }
@@ -603,6 +614,11 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundSummitLast", { time: (result.summitAt ?? 0).toFixed(1), duration: result.duration.toFixed(1) });
     case "ring-at": // --- ring-escape ---
       return t("Rigged.foundRingAt", { time: (result.ringAt ?? 0).toFixed(2) });
+    // --- perfect-fit --- (the pieces on the floor and the solution seed; the beat and the loops in the clip)
+    case "most-on-floor":
+      return t("Rigged.foundMostOnFloor", { floor: result.perfectFit?.floor ?? 0, pieces: result.perfectFit?.pieces ?? 0, seed: result.perfectFit?.seed ?? 0 });
+    case "landings-on-beat":
+      return t("Rigged.foundLandingsOnBeat", { bpm: (result.perfectFit?.beatSec ?? 0) > 0 ? Math.round(60 / (result.perfectFit?.beatSec ?? 1)) : 0, loop: (result.perfectFit?.loopSec ?? 0).toFixed(2), loops: result.perfectFit?.loops ?? 0 });
     default:
       return null;
   }
@@ -672,6 +688,10 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return result.duration < 0 ? t("Rigged.missNoSummit", { seeds: result.seedsTested }) : t("Rigged.missSummitLast", { count: Math.round(result.duration), seeds: result.seedsTested });
     case "ring-at": // --- ring-escape ---
       return result.ringAt === undefined ? t("Rigged.missNoRing", { seeds: result.seedsTested }) : t("Rigged.missRingAt", { time: result.ringAt.toFixed(1), seeds: result.seedsTested });
+    // --- perfect-fit --- (no box of the list can be filled by dropping: nothing to land)
+    case "most-on-floor":
+    case "landings-on-beat":
+      return t("Rigged.missPerfectFit", { seeds: result.seedsTested });
     default:
       return null;
   }
@@ -749,6 +769,10 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return result.ringAt === undefined
         ? t("Rigged.overlayNoRing", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) })
         : t("Rigged.overlayRingAt", { tested: result.seedsTested, closest: result.ringAt.toFixed(1), target: c.escapeAt.toFixed(1), tolerance: ESCAPE_AT_TOLERANCE_SEC });
+    // --- perfect-fit ---
+    case "most-on-floor":
+    case "landings-on-beat":
+      return t("Rigged.overlayPerfectFit", { tested: result.seedsTested });
     default:
       return null;
   }

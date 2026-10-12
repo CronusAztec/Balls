@@ -2361,7 +2361,8 @@
     "ringTimer": "Tiempo en el anillo",
     "ringTimerTip": "Muestra «anillo k: t s» bajo los anillos: cuánto tiempo lleva la bola en el anillo actual, y «fuera en t s» cuando ya ha salido. Las grabaciones lo incluyen.",
     "ringSound": "Sonidos de los anillos",
-    "ringSoundTip": "Sonidos sintetizados originales: un punteo pentatónico suave en cada rebote, afinado según el anillo (los exteriores graves, los interiores agudos), una nota que sube por cada anillo superado y un acorde cálido cuando la bola sale."
+    "ringSoundTip": "Sonidos sintetizados originales: un punteo pentatónico suave en cada rebote, afinado según el anillo (los exteriores graves, los interiores agudos), una nota que sube por cada anillo superado y un acorde cálido cuando la bola sale.",
+    "modePerfectFit": "Encaje perfecto"
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -2528,6 +2529,10 @@
     "beatMachine": {
       "name": "Máquinas de ritmo",
       "description": "Máquinas musicales en las que cada nota es una bola que cae justo a tiempo: un xilófono de canicas alimentado por tubos y un elevador, o una bola que salta por una escalera musical de ocho peldaños."
+    },
+    "perfectFit": {
+      "name": "Encaje perfecto",
+      "description": "Piezas que caen en línea recta en una caja que acaba llena del todo: los 12 pentominós en tres rectángulos, o piezas de Tetris en limpiezas perfectas y un final de doce líneas."
     }
   },
   "FAQ": {
@@ -2652,7 +2657,8 @@
     "modeHoops": "Sin anillos: 1–16 aros concéntricos (ocho por defecto, rojo por fuera, violeta por dentro) giran juntos alrededor de su diámetro vertical, dibujados de frente y aplastados por el giro para que se vean en 3D, cada uno con una cuenta que se desliza sin rozamiento. El giro acelera –de forma constante, suave o por escalones– y cada aro tiene una velocidad crítica, √(g/R): por debajo, la gravedad mantiene la cuenta en el fondo; por encima, la cuenta sube hasta su punto de equilibrio arccos(g/(Rω²)), más alto cuanto más rápido el giro. Los aros más grandes levantan primero, así que las cuentas suben en estricto orden de tamaño, cada subida una nota de lámina afinada según su aro; una campanilla suena en cada vuelta, un acorde llega cuando todas están arriba y el contador muestra el giro y las cuentas arriba. Con el regreso activado, el giro baja hasta que todas las cuentas reposan y el bucle vuelve a empezar sin costuras, listo para exportar bucles completos; Buscar simulación encuentra una partida en estricto orden de tamaño o una con todas las cuentas arriba dentro de un tiempo.",
     "modeColourSort": "Una máquina de clasificar: 360 bolas de cuatro colores empiezan apiñadas en el centro rojo de una diana de anillos que giran y se mueven como un gas a velocidad constante. Cada anillo es una fila de arcos con puertas entre ellos, y cada puerta es un filtro de color de un solo sentido: solo se abre hacia fuera y nunca para las bolas del color del anillo. Así el rojo nunca sale del centro, el naranja pasa el anillo rojo pero se queda en el suyo, el verde llega un anillo más allá y el azul sale hasta la franja exterior: la mezcla se ordena sola en una diana mientras el contador ámbar sube hasta 360 / 360 ordenadas con una cola larga y llena de suspense. Cada paso por una puerta pulsa la nota de su color en la pentatónica de la mayor, la última bola ordenada desata un cálido acorde final y una remezcla devuelve todas las bolas exactamente al primer fotograma bajo un suave soplo de ruido, así que una grabación de ciclos completos se repite sin costuras. Elige los colores y las bolas de cada uno, las puertas y su anchura, el giro de los anillos, la regla (o inviértela), choques o un gas fantasma para miles de bolas, y deja que Buscar simulación encuentre una clasificación dentro de un límite de tiempo, el color que termina último o una última bola en una barra de compás.",
     "modeEllipseFoci": "Una mesa de billar elíptica con sus dos focos marcados. Una ráfaga de bolas – 72 por defecto, coloreadas por la rueda de tonos según el ángulo de salida – sale de un foco en el mismo instante, en todas direcciones. Una elipse manda cada tiro de un foco, tras rebotar en su pared, justo por el otro, y todos esos caminos miden lo mismo, así que la ráfaga entera converge en el otro foco una pasada después, luego de vuelta en el primero, cada vez con un destello blanco, mientras cada pasada estrecha el enjambre sobre el eje mayor. Redisparar lanza una ráfaga nueva bajo el destello cada pocas pasadas, así que el clip se repite sin costuras; los rebotes bajan por una escalera pentatónica, cada convergencia cae en una línea de compás con bombo, chasquido y acorde, y Buscar simulación pone las convergencias a ritmo de la página o encuentra el ángulo inicial del colapso más largo.",
-    "modeBeatMachine": "Dos máquinas musicales cinéticas que se repiten sin fin. En el xilófono de canicas, diez láminas de arcoíris esperan bajo diez tubos: cada canica sale de su tubo en el instante exacto para que la gravedad la deje sobre su lámina a tiempo, rebota por el hueco hasta el suelo, rueda hasta el elevador, sube y vuelve por el riel superior a su propio tubo. En la escalera, una bola salta de peldaño en peldaño, un arco idéntico por pulso, y cada aterrizaje es una nota; luego cae en un gancho y la pista de vuelta la sube justo a tiempo para la siguiente frase. La melodía es una frase original de la semilla, una escala, una lista que escribes o la melodía que cargas."
+    "modeBeatMachine": "Dos máquinas musicales cinéticas que se repiten sin fin. En el xilófono de canicas, diez láminas de arcoíris esperan bajo diez tubos: cada canica sale de su tubo en el instante exacto para que la gravedad la deje sobre su lámina a tiempo, rebota por el hueco hasta el suelo, rueda hasta el elevador, sube y vuelve por el riel superior a su propio tubo. En la escalera, una bola salta de peldaño en peldaño, un arco idéntico por pulso, y cada aterrizaje es una nota; luego cae en un gancho y la pista de vuelta la sube justo a tiempo para la siguiente frase. La melodía es una frase original de la semilla, una escala, una lista que escribes o la melodía que cargas.",
+    "modePerfectFit": "Un rompecabezas de encajar que siempre sale bien. Los 12 pentominós salen de la bandeja uno a uno, se deslizan sobre sus columnas y caen rectos a su sitio hasta llenar del todo una caja de 10 × 6; destella, estalla en sus 60 cuadrados y las mismas piezas llenan 12 × 5 y luego 15 × 4. Un solucionador elige el teselado y un orden en el que nada tiene que meterse bajo un saliente. O cambia a Tetris: 70 piezas en un pozo de 10 × 16, cuatro limpiezas perfectas de cuatro líneas y un final de doce. Cada pieza colocada toca la nota siguiente hacia arriba, así que la construcción suena como una larga escala ascendente."
   },
   "Footer": {
     "navLabel": "Pie de página",
@@ -3141,7 +3147,17 @@
     "overlayRingAt": "Se probaron {tested} semillas. El primer anillo más cercano llegó a los {closest}s (objetivo: {target}s ±{tolerance}s).",
     "overlayNoRing": "Se probaron {tested} semillas y ninguna bola atravesó el primer anillo antes de {target}s. Prueba un segundo posterior o un hueco más grande.",
     "progressRingAt": "Primer anillo más cercano: {time}s",
-    "ringAt": "Primer anillo en"
+    "ringAt": "Primer anillo en",
+    "outcomeMostOnFloor": "Más piezas en el fondo",
+    "outcomeLandingsOnBeat": "Cada aterrizaje a tiempo",
+    "hintMostOnFloor": "Prueba semillas de solución y se queda con la que tiene más piezas apoyadas en el fondo de la caja.",
+    "hintLandingsOnBeat": "Pone cada aterrizaje en el pulso del tempo de la sección Sonido: cada pieza dura una potencia de dos de pulsos y el bucle pasa a ser de compases completos.",
+    "findMostOnFloor": "Buscar más piezas en el fondo",
+    "findLandingsOnBeat": "Poner cada aterrizaje a tiempo",
+    "foundMostOnFloor": "¡Encontrada! {floor} de {pieces} piezas caen en el fondo (semilla de solución {seed})",
+    "foundLandingsOnBeat": "¡Listo! Cada aterrizaje en el pulso de {bpm} BPM, un bucle de {loop} s, {loops, plural, one {# bucle completo} other {# bucles completos}} en el clip",
+    "missPerfectFit": "Ninguna caja de la lista se puede llenar dejando caer las 12 piezas ({seeds} semillas)",
+    "overlayPerfectFit": "Se probaron {tested} semillas de solución: ninguna caja de la lista se puede construir dejando caer piezas. Usa cajas de 60 casillas, como 10×6, 12×5 o 15×4."
   },
   "FastExport": {
     "button": "Exportación rápida",
@@ -5190,7 +5206,11 @@
     "beatMachineStairs": "{count} peldaños. {count} notas. una frase",
     "beatMachineStairsFact": "Cada salto es el mismo arco y dura exactamente un pulso: la gravedad y la velocidad de salida se calculan a partir del tempo, la caída de un peldaño y la altura del arco. Tras el último peldaño, la bola vuelve arriba por la pista y aterriza en el primer peldaño justo cuando empieza la siguiente frase.",
     "funnelSpin": "mira cómo el anillo de {count} acelera al caer",
-    "funnelSpinFact": "Una canica que rueda por un embudo conserva casi todo su giro mientras el rozamiento le quita energía y la deja bajar. El mismo giro en un círculo más cerrado es una vuelta más rápida – por eso una patinadora gira más deprisa al recoger los brazos – así que cada anillo da vueltas unas once veces más rápido abajo que en el borde."
+    "funnelSpinFact": "Una canica que rueda por un embudo conserva casi todo su giro mientras el rozamiento le quita energía y la deja bajar. El mismo giro en un círculo más cerrado es una vuelta más rápida – por eso una patinadora gira más deprisa al recoger los brazos – así que cada anillo da vueltas unas once veces más rápido abajo que en el borde.",
+    "perfectFitPento": "las mismas {count} piezas, tres rectángulos perfectos",
+    "perfectFitPentoFact": "los 12 pentominós cubren 60 cuadrados. llenan una caja de 6×10 de 2339 maneras distintas, una de 5×12 de 1010 y una de 4×15 de 368. la de 3×20 solo tiene 2 soluciones y ninguna se puede construir dejando caer las piezas en línea recta, así que no está aquí.",
+    "perfectFitTetris": "{count} piezas, ni una fuera de sitio",
+    "perfectFitTetrisFact": "cada pieza cae en línea recta en su columna y su giro finales. cuatro secciones terminan en una limpieza perfecta de cuatro líneas y las últimas 30 piezas forman 12 filas completas que desaparecen juntas: 280 cuadrados, 28 líneas, el pozo vacío."
   },
   "ColourSort": {
     "canvasTitle": "cada anillo solo detiene su propio color",
@@ -5317,5 +5337,56 @@
   "RingEscape": {
     "hudRing": "anillo {ring}: {time} s",
     "hudOut": "fuera en {time} s"
+  },
+  "PerfectFit": {
+    "desc": "Piezas que caen en línea recta en una caja que un solucionador garantiza que acaba llena del todo: los 12 pentominós en tres rectángulos, o piezas de Tetris en limpiezas perfectas de cuatro líneas y un final de doce. Cada pieza colocada toca la nota siguiente hacia arriba.",
+    "pfPreset": "Preajuste",
+    "pfPresetTip": "Tres rectángulos: los 12 pentominós en 10 × 6, 12 × 5 y 15 × 4. Cada pieza encaja: Tetris, cuatro limpiezas de cuatro líneas y un final de doce (70 piezas). Speedrun: los rectángulos a 0,15 s por pieza. Pozo grande: Tetris en un pozo de 20 × 40.",
+    "presetThreeRects": "Tres rectángulos",
+    "presetEveryPiece": "Cada pieza encaja",
+    "presetSpeedRun": "Speedrun",
+    "presetBigWell": "Pozo grande",
+    "pfVariant": "Rompecabezas",
+    "pfVariantTip": "Rectángulos de pentominós (las 12 formas de cinco cuadrados, cada una una vez) o limpiezas perfectas de Tetris (tetrominós que llenan líneas enteras de un pozo).",
+    "variantPento": "Pentominós",
+    "variantTetris": "Tetris",
+    "pfPieceSec": "Segundos por pieza",
+    "pfPieceSecTip": "Lo que tarda cada pieza desde la bandeja hasta que aterriza. En Tetris es el de la primera sección: cada sección siguiente va un poco más rápido.",
+    "pfFall": "Sensación de caída",
+    "pfFallTip": "Cómo recorre la pieza el último tramo: 0 es velocidad constante, 1 una caída libre desde el reposo, valores mayores un aterrizaje más tardío y más fuerte.",
+    "pfBeat": "Aterrizar a tiempo",
+    "pfBeatTip": "Cada aterrizaje en el pulso del tempo de la sección Sonido: una pieza dura la potencia de dos de pulsos más cercana a Segundos por pieza, cada final pulsos completos y el bucle compases completos.",
+    "beatNote": "Aterrizajes en el pulso de {bpm} BPM (el tempo de la sección Sonido).",
+    "pfSeed": "Semilla de solución",
+    "pfSeedTip": "Qué teselado y qué orden de caída elige el solucionador. Auto toma uno nuevo de la semilla de cada ejecución; un número mantiene esa solución. Buscar simulación puede fijarla.",
+    "seedAuto": "auto",
+    "pfBoxes": "Cajas",
+    "pfBoxesTip": "Los rectángulos en orden, ancho × alto en casillas, como 10×6, 12×5, 15×4. Los 12 pentominós cubren exactamente 60 casillas, así que una caja de otro tamaño queda vacía.",
+    "boxNoteWays": "{w} × {h}: una de {ways, number} maneras de llenarla.",
+    "boxNoteNoDrop": "{w} × {h}: tiene teselados, pero ninguno se puede construir dejando caer las piezas en línea recta.",
+    "boxNoteNone": "{w} × {h}: demasiado estrecha, las 12 piezas no la llenan.",
+    "boxNoteSize": "{w} × {h} son {area} casillas: las 12 piezas necesitan exactamente 60.",
+    "boxNoteOther": "{w} × {h}: el solucionador busca un teselado que se pueda dejar caer.",
+    "pfSections": "Líneas por sección",
+    "pfSectionsTip": "Cada número es una sección del pozo que termina en una limpieza perfecta, como 4,4,4,4,12. Una sección de cuatro líneas termina con una I vertical cayendo en el último hueco.",
+    "sectionsNote": "{lines} líneas, {pieces} piezas.",
+    "pfWellW": "Ancho del pozo",
+    "pfWellWTip": "Columnas del pozo. Ancho × líneas debe ser múltiplo de 4; si no, esa sección se omite.",
+    "pfWellH": "Alto del pozo",
+    "pfWellHTip": "Filas del pozo; crece para que quepa su sección más alta.",
+    "pfHold": "Retener las últimas limpiezas",
+    "pfHoldTip": "La última sección guarda sus filas completas hasta que aterriza su última pieza y luego las limpia todas a la vez. Desactivado: limpia de cuatro en cuatro líneas.",
+    "canvasTitlePento": "los 12 pentominós",
+    "canvasSubtitlePento": "tres rectángulos, los mismos 60 cuadrados",
+    "canvasSubtitlePentoCount": "{count, plural, one {# rectángulo} other {# rectángulos}}, los mismos 60 cuadrados",
+    "canvasBox": "[rows] × [cols]",
+    "canvasWays": "una de [count] maneras",
+    "canvasNoDrop": "no se puede construir dejando caer",
+    "canvasNoTiling": "las 12 piezas no la llenan",
+    "canvasTitleTetris": "cada pieza encaja",
+    "canvasSubtitleTetris": "{count} piezas, ni una fuera de sitio",
+    "canvasLines": "{count, plural, one {# línea completada} other {# líneas completadas}}",
+    "bannerLines": "{count, plural, one {[words] línea} other {[words] líneas}}",
+    "numberWords": "cero|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieciséis|diecisiete|dieciocho|diecinueve|veinte"
   }
 }

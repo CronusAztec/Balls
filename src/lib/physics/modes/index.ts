@@ -102,3 +102,6 @@ export type { EllipseFociView } from "./ellipseFoci";
 // --- beat-machine ---
 export { BeatMachineMode } from "./beatMachine";
 export type { BeatMachineView, BeatMachineFrame } from "./beatMachine";
+// --- perfect-fit ---
+export { PerfectFitMode } from "./perfectFit";
+export type { PerfectFitView, PerfectFitFrame } from "./perfectFit";

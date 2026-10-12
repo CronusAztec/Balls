@@ -114,6 +114,13 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("beatDrop");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "beatMachine");
 }
+// --- perfect-fit --- Perfect Fit joins the rhythm family right after Beat Machines (pieces dropped on a timeline, every landing a
+// step of the progress ladder)
+{
+  const machines = MODE_CARD_ORDER.indexOf("beatMachine");
+  const at = machines >= 0 ? machines : MODE_CARD_ORDER.indexOf("beatDrop");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "perfectFit");
+}
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -196,6 +203,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   ellipseFoci: "rhythm",
   // --- beat-machine --- every note a ball landing on its tuned bar or step exactly on the beat: the sound-first family
   beatMachine: "rhythm",
+  // --- perfect-fit --- every piece placed a step up the ladder, every rectangle or clear a chord: the sound-first family
+  perfectFit: "rhythm",
 };
 
 /** The modes of a category in card order. */

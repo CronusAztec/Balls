@@ -16672,6 +16672,188 @@ const RE_PRESET = "mode=classic&wc=11&gap=0.8&s=500&regl=spiral&ress=30&resp=tog
 // --- end ring-escape ---
 });
 
+await smokeBlock("perfect-fit", async () => {
+// --- perfect-fit ---
+// 47. Perfect Fit (the loop family's packing puzzles): both presets run to the end of a loop at 4× – Three rectangles builds 3
+// rectangles (data-pf-rects-max) and Every piece fits clears 28 lines with the "four lines" and "twelve lines" banners drawn, each
+// loop point an empty box or well (data-pf-seams-empty, data-pf-seam-cells); a link carries the pf… keys into the panel and the plan
+// (a 20 × 3 box shown empty: no droppable tiling); Find Simulation offers Most pieces on the floor and Every landing on the beat and
+// applies them (pfSd, pfB, the landings on the grid); a fast export of the Speed run keeps two whole 9.75 s loops; a free
+// visitor's live watermark stays clear of the words under the box.
+{
+  const pfPresets = [
+    { id: "threeRects", variant: "pento", loop: 24.15 },
+    { id: "everyPiece", variant: "tetris", loop: 0 },
+  ];
+  for (const preset of pfPresets) {
+    await page.goto(`${BASE}/en/simulator/?mode=perfectFit`, { waitUntil: "networkidle" });
+    await page.evaluate(() => {
+      const texts = new Set();
+      window.__pfTexts = texts;
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        if (texts.size < 400) texts.add(String(text));
+        return fillText.call(this, text, ...rest);
+      };
+    });
+    const section = page.getByTestId("perfect-fit-section");
+    const shown = await section.isVisible().catch(() => false);
+    await section.locator(`[data-pf-preset="${preset.id}"]`).first().click({ timeout: 10000 }).catch(() => {});
+    await page.waitForTimeout(500);
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "4x", exact: true }).click();
+    let rectsMax = 0;
+    let linesMax = 0;
+    let drawn = 0;
+    const deadline = Date.now() + 150_000;
+    while (Date.now() < deadline) {
+      const d = await canvasData();
+      rectsMax = Math.max(rectsMax, Number(d.pfRectsMax) || 0);
+      linesMax = Math.max(linesMax, Number(d.pfLinesMax) || 0);
+      drawn = Math.max(drawn, Number(d.pfDrawn) || 0);
+      if (Number(d.pfSeams) >= 1) break;
+      await page.waitForTimeout(250);
+    }
+    const d = await canvasData();
+    await page.screenshot({ path: path.join(outDir, `sim-perfect-fit-${preset.variant}.png`) });
+    const texts = await page.evaluate(() => [...(window.__pfTexts || [])]);
+    const cells = (d.pfSeamCells || "").split(",").filter(Boolean).map(Number);
+    const info = { shown, variant: d.pfVariant, loop: d.pfLoop, seams: d.pfSeams, empty: d.pfSeamsEmpty, cells, rectsMax, linesMax, pieces: d.pfPieces, status: d.pfStatus, drawn, hud: d.loopHud, cycle: d.loopCycle, sounds: d.pfSounds, query: query.toString().slice(0, 120), texts: texts.filter((t) => /lines|ways|×|pentominoes|fits/.test(t)).slice(0, 12) };
+    check(
+      preset.variant === "pento"
+        ? "Perfect Fit Three rectangles runs a whole loop at 4×: 3 rectangles built (6 × 10, 5 × 12, 4 × 15 with their counts), an empty box at the loop point"
+        : "Perfect Fit Every piece fits runs a whole loop at 4×: 70 pieces, 28 lines cleared under the four lines / twelve lines banners, an empty well at the loop point",
+      shown && d.pfVariant === preset.variant && Number(d.pfSeams) >= 1 && Number(d.pfSeamsEmpty) >= 1 && cells.length >= 1 && cells[0] === 0 && d.loopHud === "1" && drawn > 0 && Number(d.pfSounds) > 0 &&
+        (preset.variant === "pento"
+          ? rectsMax === 3 && Math.abs(Number(d.pfLoop) - preset.loop) < 1e-3 && d.pfStatus === "ok,ok,ok" && texts.includes("6 × 10") && texts.includes("one of 2,339 ways") && texts.includes("one of 368 ways")
+          : linesMax === 28 && d.pfPieces === "70" && query.get("pfV") === "tetris" && texts.includes("four lines") && texts.includes("twelve lines") && texts.some((t) => /^28 lines cleared$/.test(t))),
+      `(${JSON.stringify(info)})`,
+    );
+  }
+
+  // A link carries the pf… keys into the panel and the plan: a 20 × 3 box (two tilings, neither droppable) is shown empty, then 10 × 6.
+  await page.goto(`${BASE}/en/simulator/?mode=perfectFit&pfBx=20x3,10x6&pfS=0.2&pfSd=42`, { waitUntil: "networkidle" });
+  const linkSection = page.getByTestId("perfect-fit-section");
+  const linkInfo = {
+    boxes: await linkSection.getAttribute("data-pf-boxes").catch(() => null),
+    fits: await linkSection.getAttribute("data-pf-fits").catch(() => null),
+    notes: await linkSection.locator("[data-pf-box-note]").evaluateAll((els) => els.map((e) => e.getAttribute("data-pf-box-note"))).catch(() => []),
+    boxesField: await page.getByTestId("pf-boxes").inputValue().catch(() => ""),
+  };
+  const linkRun = await canvasData();
+  const linkQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  check(
+    "a Perfect Fit link (pfBx, pfS, pfSd) sets the panel and plans the run: 20 × 3 has no droppable tiling and stays empty, 10 × 6 is built",
+    linkInfo.boxes === "2" && linkInfo.fits === "2" && linkInfo.notes.join(",") === "boxNoteNoDrop,boxNoteWays" && linkInfo.boxesField === "20x3,10x6" && linkRun.pfStatus === "none,ok" && linkRun.pfSeed === "42" && linkQuery.get("pfS") === "0.2" && linkQuery.get("pfSd") === "42",
+    `(${JSON.stringify({ linkInfo, run: { status: linkRun.pfStatus, seed: linkRun.pfSeed, loop: linkRun.pfLoop }, query: linkQuery.toString() })})`,
+  );
+
+  // Find Simulation: Most pieces on the floor (a solution seed kept in the link), then Every landing on the beat (pfB, the landings on the grid).
+  await page.goto(`${BASE}/en/simulator/?mode=perfectFit`, { waitUntil: "networkidle" });
+  const pfOutcomes = await page.locator("#find-outcome option").evaluateAll((options) => options.map((o) => o.value)).catch(() => []);
+  await page.locator("#find-outcome").selectOption("most-on-floor").catch(() => {});
+  const floorButton = page.getByRole("button", { name: /Find the Most Pieces on the Floor/ });
+  const floorLabelled = await floorButton.isVisible().catch(() => false);
+  await floorButton.click().catch(() => {});
+  const floorText = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 60_000 }).then(() => page.getByText(/Found!|Didn't find simulation/).first().innerText()).catch(() => "timeout");
+  await page.waitForTimeout(400);
+  const floorQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.locator("#find-outcome").selectOption("landings-on-beat").catch(() => {});
+  const beatButton = page.getByRole("button", { name: /Put Every Landing on the Beat/ });
+  const beatLabelled = await beatButton.isVisible().catch(() => false);
+  await beatButton.click().catch(() => {});
+  const beatText = await page.getByText(/Done! Every landing on the beat|Didn't find simulation/).first().waitFor({ timeout: 60_000 }).then(() => page.getByText(/Done! Every landing on the beat|Didn't find simulation/).first().innerText()).catch(() => "timeout");
+  await page.waitForTimeout(400);
+  const beatQuery = new URLSearchParams(page.url().split("?")[1] || "");
+  await page.getByRole("button", { name: /Start Simulator/ }).click().catch(() => {});
+  await page.getByRole("button", { name: "4x", exact: true }).click().catch(() => {});
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.pfLanded) >= 6, null, { timeout: 60_000 }).catch(() => {});
+  const beatRun = await canvasData();
+  check(
+    "Find Simulation offers Most pieces on the floor and Every landing on the beat: the floor search keeps its solution seed, the beat puts every landing on the grid",
+    pfOutcomes.join(",") === "most-on-floor,landings-on-beat" && floorLabelled && /Found! \d+ of 36 pieces land on the floor/.test(floorText) && Number(floorQuery.get("pfSd")) > 0 && beatLabelled && /Every landing on the beat of 120 BPM/.test(beatText) && beatQuery.get("pfB") === "1" && Number(beatRun.pfBeat) === 0.5 && Number(beatRun.pfLanded) >= 6 && Number(beatRun.pfBeatError) < 1e-3 && Number(beatQuery.get("dur")) >= 24,
+    `(${JSON.stringify({ outcomes: pfOutcomes, floorLabelled, floorText, floorQuery: floorQuery.toString(), beatLabelled, beatText, beatQuery: beatQuery.toString(), run: { beat: beatRun.pfBeat, landed: beatRun.pfLanded, error: beatRun.pfBeatError, loop: beatRun.pfLoop } })})`,
+  );
+
+  // ⚡ A fast export of a 20 s Speed run clip with Export whole loops (on by default): two whole 9.75 s loops.
+  await page.goto(`${BASE}/en/simulator/?mode=perfectFit&pfS=0.15&dur=20&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const pfWebCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (pfWebCodecs) {
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `perfect-fit-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    check(
+      "a Perfect Fit fast export of the Speed run keeps two whole 9.75 s loops (Export whole loops)",
+      status === "done" && bytes > 10000 && loops === 2 && Math.abs(seconds - 19.5) <= 1 / 30 + 0.002,
+      `(${JSON.stringify({ status, bytes, seconds, loops })})`,
+    );
+  } else check("without WebCodecs the Perfect Fit fast export is not checked (the live runs are covered above)", true);
+}
+{
+  // A free visitor: the live badge never covers the words under the box ("6 × 10", "one of 2,339 ways")
+  const freeContext = await browser.newContext({ license: null, viewport: { width: 1400, height: 900 } });
+  try {
+    const fp = await freeContext.newPage();
+    await fp.goto(`${BASE}/en/simulator/?mode=perfectFit`, { waitUntil: "networkidle" });
+    await fp.evaluate(() => {
+      const log = { draws: [], texts: [] };
+      window.__pfMark = log;
+      const main = () => document.querySelector("main canvas");
+      const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+      CanvasRenderingContext2D.prototype.drawImage = function (img, ...rest) {
+        if (this.canvas === main() && log.draws.length < 20000) log.draws.push({ w: img.width, h: img.height, x: rest[0], y: rest[1], cw: this.canvas.width, ch: this.canvas.height });
+        return drawImage.call(this, img, ...rest);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+        if (this.canvas === main() && log.texts.length < 20000 && /^\d+ × \d+$|ways$/.test(String(text))) {
+          const m = this.getTransform();
+          const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 10) * m.d;
+          log.texts.push({ x: m.a * x + m.e, y: m.d * y + m.f, size, width: this.measureText(String(text)).width * m.a });
+        }
+        return fillText.call(this, text, x, y, ...rest);
+      };
+    });
+    await fp.getByRole("button", { name: /Start Simulator/ }).click();
+    await fp.waitForTimeout(7500);
+    const mark = await fp.evaluate(() => {
+      const { draws, texts } = window.__pfMark;
+      const badges = [];
+      for (let i = 1; i < draws.length; i++) {
+        const p = draws[i - 1];
+        if (p.x === 0 && p.y === 0 && p.w === p.cw && p.h === p.ch) badges.push(draws[i]);
+      }
+      const spots = [...new Map(badges.map((b) => [`${Math.round(b.x)},${Math.round(b.y)}`, b])).values()];
+      const lines = texts.slice(-2).map((t) => ({ x0: t.x - t.width / 2, x1: t.x + t.width / 2, y0: t.y - 0.6 * t.size, y1: t.y + 0.6 * t.size }));
+      const pill = (b) => ({ x: b.x + 0.2 * b.h, y: b.y + 0.2 * b.h, w: b.w - 0.4 * b.h, h: 0.6 * b.h });
+      const overlaps = spots.map(pill).filter((b) => lines.some((l) => b.x < l.x1 && b.x + b.w > l.x0 && b.y < l.y1 && b.y + b.h > l.y0)).length;
+      const inside = lines.every((l) => l.y0 >= 0 && l.y1 <= (draws[0]?.ch ?? Infinity));
+      return { spots: spots.map((b) => [Math.round(b.x), Math.round(b.y), b.w, b.h]), lines: lines.map((l) => [Math.round(l.x0), Math.round(l.y0), Math.round(l.x1), Math.round(l.y1)]), overlaps, inside, count: texts.length };
+    });
+    check(
+      "a free visitor's Perfect Fit page: the live badge clear of the words under the box, the words inside the canvas",
+      mark.spots.length >= 1 && mark.overlaps === 0 && mark.count >= 2 && mark.inside,
+      `(${JSON.stringify(mark)})`,
+    );
+  } finally {
+    await freeContext.close().catch(() => {});
+  }
+}
+// --- end perfect-fit ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

@@ -75,6 +75,8 @@ import { EllipseFociMode, type EllipseFociView } from "./modes/ellipseFoci"; // 
 import type { EllipseFociSettings } from "./ellipseFoci"; // --- ellipse-foci ---
 import { BeatMachineMode, type BeatMachineView } from "./modes/beatMachine"; // --- beat-machine ---
 import type { BeatMachineSettings } from "./beatMachine"; // --- beat-machine ---
+import { PerfectFitMode, type PerfectFitView } from "./modes/perfectFit"; // --- perfect-fit ---
+import type { PerfectFitSettings } from "./perfectFit"; // --- perfect-fit ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -329,6 +331,8 @@ export class PhysicsEngine {
   readonly ellipseFociMode = new EllipseFociMode();
   // --- beat-machine --- Beat Machines: marbles dropped onto tuned bars on the beat, or a ball hopping down a musical staircase
   readonly beatMachineMode = new BeatMachineMode();
+  // --- perfect-fit --- Perfect Fit: pentominoes or tetrominoes dropped straight down into a box a solver guarantees ends exactly full
+  readonly perfectFitMode = new PerfectFitMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -742,6 +746,10 @@ export class PhysicsEngine {
   initBeatMachine() {
     this.activateMode(this.beatMachineMode, "none");
   }
+  // --- perfect-fit --- the mode owns its box and pieces (no rings; one anchor ball pinned to the middle)
+  initPerfectFit() {
+    this.activateMode(this.perfectFitMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -854,6 +862,9 @@ export class PhysicsEngine {
       // --- beat-machine ---
       case "beatMachine":
         return this.initBeatMachine();
+      // --- perfect-fit ---
+      case "perfectFit":
+        return this.initPerfectFit();
     }
   }
 
@@ -1993,6 +2004,25 @@ export class PhysicsEngine {
     return this.currentMode === this.beatMachineMode ? this.beatMachineMode.hudCount() : null;
   }
   // --- end beat-machine ---
+  // --- perfect-fit ---
+  isPerfectFitMode() {
+    return this.currentMode === this.perfectFitMode;
+  }
+  getPerfectFitSettings(): PerfectFitSettings {
+    return this.perfectFitMode.getSettings();
+  }
+  /** The puzzles, the timing and the solution seed apply on the next `initPerfectFit()`. */
+  setPerfectFitSettings(settings: Partial<PerfectFitSettings>) {
+    this.perfectFitMode.setSettings(settings);
+  }
+  /** Live Perfect Fit state (the plan, the frame, the counters) for the canvas; the same object every call. */
+  getPerfectFitView(): PerfectFitView {
+    return this.perfectFitMode.getView();
+  }
+  getPerfectFitProgress() {
+    return this.perfectFitMode.getProgress();
+  }
+  // --- end perfect-fit ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

@@ -2361,7 +2361,8 @@
     "ringTimer": "Czas w pierścieniu",
     "ringTimerTip": "Pokazuje pod pierścieniami „pierścień k: t s”: jak długo piłka jest w obecnym pierścieniu, a po wydostaniu się „na zewnątrz po t s”. Nagrania to zawierają.",
     "ringSound": "Dźwięki pierścieni",
-    "ringSoundTip": "Oryginalne, syntezowane dźwięki: miękkie pentatoniczne szarpnięcie przy każdym odbiciu, o wysokości zależnej od pierścienia (zewnętrzne nisko, wewnętrzne wysoko), rosnący dźwięk za każdy pokonany pierścień i ciepły akord, gdy piłka jest na zewnątrz."
+    "ringSoundTip": "Oryginalne, syntezowane dźwięki: miękkie pentatoniczne szarpnięcie przy każdym odbiciu, o wysokości zależnej od pierścienia (zewnętrzne nisko, wewnętrzne wysoko), rosnący dźwięk za każdy pokonany pierścień i ciepły akord, gdy piłka jest na zewnątrz.",
+    "modePerfectFit": "Idealne dopasowanie"
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -2528,6 +2529,10 @@
     "beatMachine": {
       "name": "Maszyny rytmu",
       "description": "Muzyczne maszyny, w których każda nuta to kulka lądująca dokładnie w rytm: kulkowy ksylofon zasilany rurkami i windą albo jedna kulka skacząca po ośmiostopniowych muzycznych schodach."
+    },
+    "perfectFit": {
+      "name": "Idealne dopasowanie",
+      "description": "Klocki spadają prosto w dół do pudełka, które na końcu jest wypełnione co do kratki: 12 pentomin w trzy prostokąty albo klocki Tetrisa w czyste zbicia i finał z dwunastoma liniami."
     }
   },
   "FAQ": {
@@ -2652,7 +2657,8 @@
     "modeHoops": "Bez pierścieni: 1–16 współśrodkowych obręczy (domyślnie osiem, czerwona na zewnątrz, fioletowa w środku) wiruje razem wokół pionowej średnicy, rysowanych na wprost i spłaszczanych przez obrót, więc wyglądają trójwymiarowo, a na każdej jeden koralik ślizga się bez tarcia. Obroty rosną – równo, łagodnie albo schodkami – a każda obręcz ma prędkość krytyczną √(g/R): poniżej niej grawitacja trzyma koralik na dnie, powyżej koralik wspina się do punktu równowagi arccos(g/(Rω²)), tym wyżej, im szybsze obroty. Większe obręcze unoszą koraliki pierwsze, więc koraliki wspinają się ściśle według rozmiaru, a każde uniesienie to nuta strojonej sztabki o wysokości zależnej od obręczy; dzwonek dźwięczy co obrót, akord pada, gdy wszystkie są w górze, a licznik pokazuje obroty i uniesione koraliki. Z włączonym powrotem obroty zwalniają, aż każdy koralik znów spocznie, a pętla zaczyna się płynnie od nowa – gotowa na eksport całych pętli; Znajdź symulację szuka przebiegu ściśle według rozmiaru albo takiego, w którym wszystkie koraliki są w górze przed wybranym czasem.",
     "modeColourSort": "Maszyna sortująca: 360 kulek w czterech kolorach startuje stłoczonych w czerwonym środku tarczy z obracających się pierścieni i porusza się jak gaz o stałej prędkości. Każdy pierścień to rząd łuków z bramkami pomiędzy nimi, a bramka to jednokierunkowy filtr kolorów: otwiera się tylko na zewnątrz i nigdy dla kulek w kolorze pierścienia. Czerwone nigdy więc nie opuszczą środka, pomarańczowe miną czerwony pierścień, ale zatrzymają się na swoim, zielone dotrą o pierścień dalej, a niebieskie aż do zewnętrznego pasa – mieszanka sama układa się w tarczę, a bursztynowy licznik wspina się do 360 / 360 posortowanych z długą, trzymającą w napięciu końcówką. Każde przejście przez bramkę szarpie nutę swojego koloru w pentatonice A-dur, ostatnia posortowana kulka wywołuje ciepły akord zakończenia, a remiks ściąga wszystkie kulki z powrotem do dokładnie pierwszej klatki pod miękkim szumem, więc nagranie pełnych cykli zapętla się bez szwu. Wybierz kolory i liczbę kulek każdego z nich, bramki i ich szerokość, obrót pierścieni, regułę (albo ją odwróć), zderzenia albo gaz-widmo dla tysięcy kulek – a Znajdź symulację wyszuka sortowanie w limicie czasu, kolor, który skończy ostatni, albo ostatnią kulkę na kresce taktowej.",
     "modeEllipseFoci": "Eliptyczny stół bilardowy z dwoma zaznaczonymi ogniskami. Salwa piłek – domyślnie 72, pokolorowanych kołem barw według kąta wystrzału – wylatuje z jednego ogniska w tej samej chwili, we wszystkie strony. Elipsa kieruje każdy strzał z jednego ogniska po odbiciu od ściany prosto przez drugie, a każda taka droga ma tę samą długość, więc cała salwa zbiega się w drugim ognisku jedno przejście później, potem z powrotem w pierwszym, za każdym razem z białym rozbłyskiem, a każde przejście zwęża rój ku długiej osi. Ponowny strzał wypuszcza nową salwę pod błyskiem co kilka przejść, więc klip zapętla się bez szwu; odbicia od ściany schodzą po pentatonicznej drabinie, każda zbieżność ląduje na kresce taktowej ze stopą, trzaskiem i akordem, a Znajdź symulację ustawia zbieżności w rytm strony albo znajduje kąt startowy najdłuższego zapadania.",
-    "modeBeatMachine": "Dwie kinetyczne maszyny muzyczne, które zapętlają się bez końca. W kulkowym ksylofonie dziesięć tęczowych sztabek stoi pod dziesięcioma rurkami: każda kulka wypada ze swojej rurki dokładnie w chwili, w której grawitacja doniesie ją na sztabkę w rytm, odbija się przez szczelinę na podłogę, toczy się do windy, wjeżdża na górę i wraca górną szyną do swojej rurki. Na schodach jedna kulka skacze ze stopnia na stopień, jednym identycznym łukiem na każde uderzenie, a każde lądowanie to nuta; potem wpada do haczyka i torem powrotnym wraca na górę akurat na kolejną frazę. Melodia to oryginalna fraza z ziarna, gama, wpisana lista albo wczytana melodia."
+    "modeBeatMachine": "Dwie kinetyczne maszyny muzyczne, które zapętlają się bez końca. W kulkowym ksylofonie dziesięć tęczowych sztabek stoi pod dziesięcioma rurkami: każda kulka wypada ze swojej rurki dokładnie w chwili, w której grawitacja doniesie ją na sztabkę w rytm, odbija się przez szczelinę na podłogę, toczy się do windy, wjeżdża na górę i wraca górną szyną do swojej rurki. Na schodach jedna kulka skacze ze stopnia na stopień, jednym identycznym łukiem na każde uderzenie, a każde lądowanie to nuta; potem wpada do haczyka i torem powrotnym wraca na górę akurat na kolejną frazę. Melodia to oryginalna fraza z ziarna, gama, wpisana lista albo wczytana melodia.",
+    "modePerfectFit": "Łamigłówka z układaniem, która zawsze wychodzi. 12 pentomin po kolei unosi się z tacki, przesuwa nad swoje kolumny i spada prosto na miejsce, aż pudełko 10 × 6 jest pełne co do kratki; błyska, rozsypuje się na 60 kwadracików, a te same klocki wypełniają 12 × 5, potem 15 × 4. Solver wybiera ułożenie i kolejność, w której nic nigdy nie musi wsuwać się pod nawis. Albo przełącz na Tetrisa: 70 klocków w studni 10 × 16, cztery czyste zbicia po cztery linie i finał z dwunastoma liniami. Każdy położony klocek gra kolejną, wyższą nutę, więc budowa brzmi jak jeden długi wznoszący się pasaż."
   },
   "Footer": {
     "navLabel": "Stopka",
@@ -3141,7 +3147,17 @@
     "overlayRingAt": "Sprawdzono {tested} seedów. Najbliższy pierwszy pierścień padł w {closest}s (cel: {target}s ±{tolerance}s).",
     "overlayNoRing": "Sprawdzono {tested} seedów i żadna piłka nie przeszła przez pierwszy pierścień do {target}s. Spróbuj późniejszej sekundy lub większej szczeliny.",
     "progressRingAt": "Najbliższy pierwszy pierścień: {time}s",
-    "ringAt": "Pierwszy pierścień w"
+    "ringAt": "Pierwszy pierścień w",
+    "outcomeMostOnFloor": "Najwięcej klocków na dnie",
+    "outcomeLandingsOnBeat": "Każde lądowanie w rytm",
+    "hintMostOnFloor": "Sprawdza ziarna rozwiązania i zostawia to, w którym najwięcej klocków leży na dnie pudełka.",
+    "hintLandingsOnBeat": "Ustawia każde lądowanie w rytm tempa z sekcji Dźwięk: każdy klocek trwa potęgę dwójki uderzeń, a pętla staje się pełnymi taktami.",
+    "findMostOnFloor": "Znajdź najwięcej klocków na dnie",
+    "findLandingsOnBeat": "Ustaw każde lądowanie w rytm",
+    "foundMostOnFloor": "Znaleziono! {floor} z {pieces} klocków ląduje na dnie (ziarno rozwiązania {seed})",
+    "foundLandingsOnBeat": "Gotowe! Każde lądowanie w rytm {bpm} BPM, pętla {loop} s, {loops, plural, one {# pełna pętla} few {# pełne pętle} many {# pełnych pętli} other {# pełnej pętli}} w klipie",
+    "missPerfectFit": "Żadnego pudełka z listy nie da się wypełnić, zrzucając 12 klocków (ziaren: {seeds})",
+    "overlayPerfectFit": "Sprawdzono {tested} ziaren rozwiązania: żadnego pudełka z listy nie da się zbudować zrzucaniem. Użyj pudełek z 60 kratek, np. 10×6, 12×5 albo 15×4."
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -5190,7 +5206,11 @@
     "beatMachineStairs": "{count} stopni. {count} nut. jedna fraza",
     "beatMachineStairsFact": "Każdy skok to ten sam łuk i trwa dokładnie jedno uderzenie: grawitację i prędkość wybicia wylicza się z tempa, wysokości stopnia i wysokości łuku. Po ostatnim stopniu kulka wraca torem na górę i ląduje na pierwszym stopniu dokładnie wtedy, gdy zaczyna się kolejna fraza.",
     "funnelSpin": "patrz, jak pierścień {count} kulek rozkręca się, opadając",
-    "funnelSpinFact": "Kulka tocząca się po lejku zachowuje prawie cały swój obrót, a tarcie odbiera jej energię i pozwala opadać. Ten sam obrót na ciaśniejszym kole to szybsze okrążenie – dlatego łyżwiarka kręci się szybciej, gdy przyciąga ramiona – więc każdy pierścień okrąża dno mniej więcej jedenaście razy szybciej niż krawędź."
+    "funnelSpinFact": "Kulka tocząca się po lejku zachowuje prawie cały swój obrót, a tarcie odbiera jej energię i pozwala opadać. Ten sam obrót na ciaśniejszym kole to szybsze okrążenie – dlatego łyżwiarka kręci się szybciej, gdy przyciąga ramiona – więc każdy pierścień okrąża dno mniej więcej jedenaście razy szybciej niż krawędź.",
+    "perfectFitPento": "te same {count} klocków, trzy idealne prostokąty",
+    "perfectFitPentoFact": "12 pentomin pokrywa 60 kratek. pudełko 6×10 wypełniają na 2339 sposobów, 5×12 na 1010, a 4×15 na 368. 3×20 ma tylko 2 rozwiązania i żadnego nie da się zbudować, zrzucając klocki prosto w dół, więc go tu nie ma.",
+    "perfectFitTetris": "{count} klocków, każdy na swoim miejscu",
+    "perfectFitTetrisFact": "każdy klocek spada prosto w dół w swojej docelowej kolumnie i obrocie. cztery sekcje kończą się czystym zbiciem czterech linii, a ostatnie 30 klocków buduje 12 pełnych rzędów, które znikają razem: 280 kratek, 28 linii, pusta studnia."
   },
   "ColourSort": {
     "canvasTitle": "każdy pierścień zatrzymuje tylko swój kolor",
@@ -5317,5 +5337,56 @@
   "RingEscape": {
     "hudRing": "pierścień {ring}: {time} s",
     "hudOut": "na zewnątrz po {time} s"
+  },
+  "PerfectFit": {
+    "desc": "Klocki spadają prosto w dół do pudełka, które według solvera na końcu jest wypełnione co do kratki: 12 pentomin w trzy prostokąty albo klocki Tetrisa w czyste zbicia po cztery linie i finał z dwunastoma liniami. Każdy położony klocek gra kolejną, wyższą nutę.",
+    "pfPreset": "Ustawienie",
+    "pfPresetTip": "Trzy prostokąty: 12 pentomin w 10 × 6, 12 × 5 i 15 × 4. Każdy klocek pasuje: Tetris, cztery czyste zbicia po cztery linie i finał z dwunastoma (70 klocków). Speedrun: prostokąty po 0,15 s na klocek. Duża studnia: Tetris w studni 20 × 40.",
+    "presetThreeRects": "Trzy prostokąty",
+    "presetEveryPiece": "Każdy klocek pasuje",
+    "presetSpeedRun": "Speedrun",
+    "presetBigWell": "Duża studnia",
+    "pfVariant": "Łamigłówka",
+    "pfVariantTip": "Prostokąty z pentomin (12 kształtów z pięciu kwadratów, każdy użyty raz) albo czyste zbicia w Tetrisie (tetromina wypełniające całe linie studni).",
+    "variantPento": "Pentomina",
+    "variantTetris": "Tetris",
+    "pfPieceSec": "Sekundy na klocek",
+    "pfPieceSecTip": "Ile trwa droga klocka z tacki do lądowania. W Tetrisie to czas pierwszej sekcji: każda kolejna jest trochę szybsza.",
+    "pfFall": "Charakter spadania",
+    "pfFallTip": "Jak klocek pokonuje ostatni odcinek: 0 to stała prędkość, 1 swobodne spadanie od zera, wyższe wartości późniejsze, mocniejsze lądowanie.",
+    "pfBeat": "Lądowanie w rytm",
+    "pfBeatTip": "Każde lądowanie w rytm tempa z sekcji Dźwięk: klocek trwa potęgę dwójki uderzeń najbliższą Sekundom na klocek, każde ukończenie pełne uderzenia, a pętla pełne takty.",
+    "beatNote": "Lądowania w rytm {bpm} BPM (tempo z sekcji Dźwięk).",
+    "pfSeed": "Ziarno rozwiązania",
+    "pfSeedTip": "Które ułożenie i którą kolejność zrzucania wybiera solver. Auto bierze nowe z ziarna każdego przebiegu; liczba zachowuje to rozwiązanie. Może je ustawić Znajdź symulację.",
+    "seedAuto": "auto",
+    "pfBoxes": "Pudełka",
+    "pfBoxesTip": "Prostokąty po kolei, szerokość × wysokość w kratkach, np. 10×6, 12×5, 15×4. 12 pentomin pokrywa dokładnie 60 kratek, więc pudełko innej wielkości zostaje puste.",
+    "boxNoteWays": "{w} × {h}: jeden z {ways, number} sposobów, by je wypełnić.",
+    "boxNoteNoDrop": "{w} × {h}: ma ułożenia, ale żadnego nie da się zbudować, zrzucając klocki prosto w dół.",
+    "boxNoteNone": "{w} × {h}: za wąskie, 12 klocków go nie wypełni.",
+    "boxNoteSize": "{w} × {h} to {area} kratek: 12 klocków potrzebuje dokładnie 60.",
+    "boxNoteOther": "{w} × {h}: solver szuka ułożenia, które da się zrzucić.",
+    "pfSections": "Linie w sekcjach",
+    "pfSectionsTip": "Każda liczba to sekcja studni zakończona czystym zbiciem, np. 4,4,4,4,12. Sekcja z czterech linii kończy się pionowym I wpadającym w ostatnią szczelinę.",
+    "sectionsNote": "Linie: {lines}, klocki: {pieces}.",
+    "pfWellW": "Szerokość studni",
+    "pfWellWTip": "Kolumny studni. Szerokość × linie musi być wielokrotnością 4, inaczej ta sekcja zostaje pominięta.",
+    "pfWellH": "Wysokość studni",
+    "pfWellHTip": "Rzędy studni; rośnie, by pomieścić najwyższą sekcję.",
+    "pfHold": "Wstrzymaj ostatnie zbicia",
+    "pfHoldTip": "Ostatnia sekcja trzyma pełne rzędy, aż wyląduje jej ostatni klocek, a potem zbija je wszystkie naraz. Wyłączone: zbija po cztery linie.",
+    "canvasTitlePento": "wszystkie 12 pentomin",
+    "canvasSubtitlePento": "trzy prostokąty, te same 60 kratek",
+    "canvasSubtitlePentoCount": "{count, plural, one {# prostokąt} few {# prostokąty} many {# prostokątów} other {# prostokąta}}, te same 60 kratek",
+    "canvasBox": "[rows] × [cols]",
+    "canvasWays": "jeden z [count] sposobów",
+    "canvasNoDrop": "nie da się zbudować zrzucaniem",
+    "canvasNoTiling": "12 klocków go nie wypełni",
+    "canvasTitleTetris": "każdy klocek pasuje",
+    "canvasSubtitleTetris": "{count} klocków, każdy na swoim miejscu",
+    "canvasLines": "{count, plural, one {# linia zbita} few {# linie zbite} many {# linii zbitych} other {# linii zbitych}}",
+    "bannerLines": "{count, plural, one {[words] linia} few {[words] linie} many {[words] linii} other {[words] linii}}",
+    "numberWords": "zero|jedna|dwie|trzy|cztery|pięć|sześć|siedem|osiem|dziewięć|dziesięć|jedenaście|dwanaście|trzynaście|czternaście|piętnaście|szesnaście|siedemnaście|osiemnaście|dziewiętnaście|dwadzieścia"
   }
 }

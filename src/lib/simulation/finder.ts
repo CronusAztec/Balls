@@ -65,6 +65,8 @@ import type { EllipseFociSettings } from "@/lib/physics/ellipseFoci"; // --- ell
 import { findEllipseFociRun, type EllipseFociFound } from "./ellipseFociFinder"; // --- ellipse-foci ---
 import type { BeatMachineSettings } from "@/lib/physics/beatMachine"; // --- beat-machine ---
 import { findBeatMachineRun, type BeatMachineFound } from "./beatMachineFinder"; // --- beat-machine ---
+import type { PerfectFitSettings } from "@/lib/physics/perfectFit"; // --- perfect-fit ---
+import { findPerfectFitRun, type PerfectFitFound } from "./perfectFitFinder"; // --- perfect-fit ---
 import { findFunnelSpinRun, type FunnelSpinFound } from "./funnelSpinFinder"; // --- funnel-spin ---
 import { funnelTiming } from "@/lib/physics/funnelSpin"; // --- funnel-spin ---
 
@@ -255,6 +257,13 @@ export interface ModeSettings {
    * seeded phrases instead (beatMachineFinder.ts).
    */
   beatMachine?: Partial<BeatMachineSettings>;
+  // --- perfect-fit ---
+  /**
+   * Perfect Fit: the puzzles, the timing, the solution seed and the page's tempo (see lib/physics/perfectFit.ts); the defaults
+   * when left out. Every box ends exactly full by construction and the run loops forever, so the finder searches solution seeds
+   * or puts the landings on the beat instead (perfectFitFinder.ts).
+   */
+  perfectFit?: Partial<PerfectFitSettings>;
 }
 
 // --- odd-string-battle ---
@@ -349,6 +358,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "ellipseFoci") return true;
   // --- beat-machine --- the machine loops forever (the finder searches seeded phrases instead)
   if (mode === "beatMachine") return true;
+  // --- perfect-fit --- the puzzles loop forever (the finder searches solution seeds or the beat instead)
+  if (mode === "perfectFit") return true;
   return false;
 }
 
@@ -500,6 +511,8 @@ export interface FinderResult {
   // --- beat-machine ---
   /** Beat Machines: the phrase found's spares and the most marbles out at once, the loop and the loops in the clip. */
   beatMachine?: BeatMachineFound;
+  /** --- perfect-fit --- Perfect Fit: the solution seed with the most pieces on the floor, or the landings on the beat; the loop and the loops in the clip. */
+  perfectFit?: PerfectFitFound;
   /** --- funnel-spin --- The Sound Vortex's ring release: the wave interval and the friction that put the last ring's vanish on a bar line. */
   funnelSpin?: FunnelSpinFound;
   // --- land-claim-pyramid ---
@@ -582,6 +595,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "hoops") engine.setHoopsSettings(settings.hoops ?? {}); // --- bead-hoops ---
   if (mode === "ellipseFoci") engine.setEllipseFociSettings(settings.ellipseFoci ?? {}); // --- ellipse-foci ---
   if (mode === "beatMachine") engine.setBeatMachineSettings(settings.beatMachine ?? {}); // --- beat-machine ---
+  if (mode === "perfectFit") engine.setPerfectFitSettings(settings.perfectFit ?? {}); // --- perfect-fit ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -799,6 +813,11 @@ export function findSimulation(
     // --- beat-machine --- every note lands on its beat by construction: the search is over seeded phrases (a plan a seed)
     if (request.mode === "beatMachine") {
       resolve(findBeatMachineRun(request, (seed) => createEngineForSettings(request.physicsConfig, "beatMachine", request.modeSettings, seed).getBeatMachineView().plan));
+      return;
+    }
+    // --- perfect-fit --- every box ends exactly full by construction: the search is over solution seeds (a plan a seed), or the beat
+    if (request.mode === "perfectFit") {
+      resolve(findPerfectFitRun(request));
       return;
     }
     // --- funnel-spin --- a ring run does not depend on the seed: the search fits the wave interval and the friction to the bar lines
