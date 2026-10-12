@@ -16884,6 +16884,193 @@ await smokeBlock("go-live-kit", async () => {
   }
 });
 
+await smokeBlock("wave-tank", async () => {
+// --- wave-tank ---
+// 47. Wave Tank, the ripple tank (the loop family's "the double slit, in water"): the Double slit preset runs a whole 30 s loop at
+// 2× – the section label changes on the exact frames of 6, 15 and 25 s (data-wt-changes 360,900,1500), the HUD draws "1 gap",
+// "2 gaps" and "7 gaps" in turn, no NaN at any time, the water at the seam close to its first frame, the bells struck and the root
+// changed with every section, the frame rate held at the default 192 × 256 grid; a link (wt… keys) sets the panel and the run and
+// survives the round trip; the finder is hidden (no randomness: nothing to search); a fast export with Export whole loops keeps
+// two whole 4 s loops; a free visitor's page carries the watermark tag on Record Video and Fast export, its live badge clear of
+// the section label.
+{
+  await page.goto(`${BASE}/en/simulator/?mode=waveTank`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const seen = new Set();
+    window.__wtHud = seen;
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      const s = String(text);
+      if (/^\d+ gaps?$/.test(s) || s === "the double slit, in water") seen.add(s);
+      return fillText.call(this, text, ...rest);
+    };
+  });
+  await page.locator('[data-wt-preset="doubleSlit"]').first().click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(800);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  const wtSection = page.getByTestId("wave-tank-section");
+  const panel = { loop: await wtSection.getAttribute("data-wt-loop").catch(() => null), changes: await wtSection.getAttribute("data-wt-changes").catch(() => null), sections: await wtSection.getAttribute("data-wt-sections").catch(() => null) };
+  const finderHidden = (await page.getByRole("button", { name: /Find \d+s Simulation/ }).count()) === 0;
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "2x", exact: true }).click();
+  await page.waitForTimeout(1500);
+  // the frame rate at the default grid (two sub-steps a frame, four at 2×), measured while the water runs
+  const clockBefore = await simClock();
+  const fr = await pageFrameRates(4000);
+  const clockAfter = await simClock();
+  let nan = 0;
+  let shot = false;
+  const deadline = Date.now() + 180_000;
+  while (Date.now() < deadline) {
+    const d = await canvasData();
+    nan = Math.max(nan, Number(d.wtNan) || 0);
+    if (!shot && d.wtGaps === "7" && Number(d.wtTime) > 21) {
+      await page.screenshot({ path: path.join(outDir, "sim-wave-tank.png") });
+      shot = true;
+    }
+    if (Number(d.wtSeams) >= 1) break;
+    await page.waitForTimeout(400);
+  }
+  const d = await canvasData();
+  const hud = await page.evaluate(() => [...(window.__wtHud ?? [])]);
+  const run = { grid: d.wtGrid, changes: d.wtChanges, sectionChanges: d.wtSectionChanges, seams: d.wtSeams, seamError: d.wtSeamError, nan, nanNow: d.wtNan, max: d.wtMax, strikes: d.wtStrikes, skipped: d.wtSkipped, roots: d.wtRoots, cycles: d.wtCycles, loop: d.wtLoop, drawn: d.wtDrawn, ridges: d.wtRidges, lit: d.wtLit, hud: d.loopHud, cycle: d.loopCycle, lag: d.wtLag };
+  check(
+    "Wave Tank's Double slit preset runs a whole 30 s loop at 2×: the label changes on the frames of 6, 15 and 25 s, \"1 gap\", \"2 gaps\" and \"7 gaps\" drawn, no NaN, the seam close to the first frame, bells struck and a root a section",
+    query.get("wtG") === "1@11, 2@9, 7@10" && panel.loop === "30" && panel.changes === "6,15,25" && finderHidden && d.wtGrid === "192x256" && d.wtChanges === "360,900,1500" && d.wtSeams === "1" && Number(d.wtSeamError) >= 0 && Number(d.wtSeamError) < 0.05 && nan === 0 && d.wtNan === "0" && Number(d.wtMax) > 0.3 && Number(d.wtStrikes) > 40 && Number(d.wtRoots) >= 4 && Number(d.wtDrawn) >= 30 && d.loopHud === "1" && Math.abs(Number(d.wtLoop) - 30) < 1e-6 && ["1 gap", "2 gaps", "7 gaps"].every((t) => hud.includes(t)),
+    `(${JSON.stringify({ query: query.toString().slice(0, 160), panel, finderHidden, run, hud, shot })})`,
+  );
+  await timingCheck(
+    "Wave Tank's default 192 × 256 grid runs at 2× at 30+ fps (the water, 40 ridge lines and 11 bells)",
+    d.wtGrid === "192x256" && clockAfter > clockBefore,
+    fpsOk(fr, 6, 30),
+    `(${fpsNote(fr)}, clock ${clockBefore} → ${clockAfter} s, floor 30${loadNote()})`,
+    fpsRetry(4000, 6, 30),
+  );
+}
+{
+  // A link carries the wt… keys into the panel and the run (a 4 s loop of 3 then 5 gaps, the Huygens sum, 15 bells, 60 ridges at
+  // 45°), a click on Point sources writes wtSrc into the link, and the link read back gives the same run.
+  const link = `${BASE}/en/simulator/?mode=waveTank&wtM=huygens&wtG=${encodeURIComponent("3@2, 5@2")}&wtWr=0&wtB=15&wtR=60&wtT=45&wtW=0.8`;
+  await page.goto(link, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+  const wtSection = page.getByTestId("wave-tank-section");
+  const panel = { model: await wtSection.getAttribute("data-wt-model").catch(() => null), sections: await wtSection.getAttribute("data-wt-sections").catch(() => null), loop: await wtSection.getAttribute("data-wt-loop").catch(() => null) };
+  const first = await canvasData();
+  await page.locator('[data-wt-option="wtSource:points"]').first().click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  const after = await canvasData();
+  const url = page.url();
+  const q = new URLSearchParams(url.split("?")[1] || "");
+  await page.goto(url, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+  const back = await canvasData();
+  const pick = (x) => ({ model: x.wtModel, source: x.wtSource, gaps: x.wtGaps, bells: x.wtBells, ridges: x.wtRidges, tilt: x.wtTilt, loop: x.wtLoop, grid: x.wtGrid });
+  check(
+    "a Wave Tank link (wtM, wtG, wtWr, wtB, wtR, wtT, wtW) sets the panel and the run, a click on Point sources writes wtSrc, and the link read back gives the same run",
+    panel.model === "huygens" && panel.sections === "3, 5" && panel.loop === "4" && first.wtModel === "huygens" && first.wtGrid === "huygens" && first.wtGaps === "3" && first.wtBells === "15" && first.wtRidges === "60" && first.wtTilt === "45" && Math.abs(Number(first.wtLoop) - 4) < 1e-6 &&
+      after.wtSource === "points" && q.get("wtSrc") === "points" && q.get("wtM") === "huygens" && q.get("wtB") === "15" && q.get("wtR") === "60" && q.get("wtT") === "45" && q.get("wtW") === "0.8" && q.get("wtG") === "3@2, 5@2" &&
+      JSON.stringify(pick(back)) === JSON.stringify(pick(after)),
+    `(${JSON.stringify({ panel, first: pick(first), after: pick(after), back: pick(back), query: q.toString() })})`,
+  );
+}
+{
+  // ⚡ A fast export of a 10 s clip of a 4 s loop (1 gap, then 2, on a 96-column grid) with Export whole loops (on by default):
+  // two whole loops, 8 s, and the export's own engine crosses both seams and strikes the bells (read off its hidden canvas).
+  await page.goto(`${BASE}/en/simulator/?mode=waveTank&wtG=${encodeURIComponent("1@2, 2@2")}&wtWr=0&wtN=96&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const seen = { seams: 0, strikes: 0, nan: 0, time: 0 };
+      window.__wtExport = seen;
+      new MutationObserver((records) => {
+        for (const r of records) {
+          const el = r.target;
+          if (!(el instanceof HTMLCanvasElement) || el.style.display !== "none") continue;
+          seen.seams = Math.max(seen.seams, Number(el.dataset.wtSeams) || 0);
+          seen.strikes = Math.max(seen.strikes, Number(el.dataset.wtStrikes) || 0);
+          seen.nan = Math.max(seen.nan, Number(el.dataset.wtNan) || 0);
+          seen.time = Math.max(seen.time, Number(el.dataset.wtTime) || 0);
+        }
+      }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-wt-seams", "data-wt-time"] });
+    });
+    const fast = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `wave-tank-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await fast.getAttribute("data-fast-seconds"));
+    const loops = Number(await fast.getAttribute("data-fast-loops"));
+    const status = await fast.getAttribute("data-fast-export");
+    const exported = await page.evaluate(() => window.__wtExport);
+    check(
+      "a Wave Tank fast export keeps two whole 4 s loops (Export whole loops), its engine crossing both seams with the bells struck and no NaN",
+      status === "done" && bytes > 10000 && loops === 2 && Math.abs(seconds - 8) <= 1 / 30 + 0.002 && exported.seams >= 1 && exported.strikes > 5 && exported.nan === 0,
+      `(${JSON.stringify({ status, bytes, seconds, loops, exported })})`,
+    );
+  } else check("without WebCodecs the Wave Tank fast export is not checked (the live run is covered above)", true);
+}
+{
+  // A free visitor: Record Video and Fast export carry the watermark tag, and the live badge never covers the section label
+  const freeContext = await browser.newContext({ license: null, viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  try {
+    const fp = await freeContext.newPage();
+    await fp.goto(`${BASE}/en/simulator/?mode=waveTank&wtG=${encodeURIComponent("1@2, 2@2, 7@2")}&wtWr=0&wtN=96`, { waitUntil: "networkidle" });
+    await fp.evaluate(() => {
+      const log = { draws: [], texts: [] };
+      window.__wtMark = log;
+      const main = () => document.querySelector("main canvas");
+      const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+      CanvasRenderingContext2D.prototype.drawImage = function (img, ...rest) {
+        if (this.canvas === main() && log.draws.length < 20000) log.draws.push({ w: img.width, h: img.height, x: rest[0], y: rest[1], cw: this.canvas.width, ch: this.canvas.height });
+        return drawImage.call(this, img, ...rest);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+        if (this.canvas === main() && log.texts.length < 20000 && /^\d+ gaps?$/.test(String(text))) {
+          const m = this.getTransform();
+          const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 10) * m.d;
+          log.texts.push({ x: m.a * x + m.e, y: m.d * y + m.f, size, width: this.measureText(String(text)).width * m.a, align: this.textAlign });
+        }
+        return fillText.call(this, text, x, y, ...rest);
+      };
+    });
+    await fp.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+    const tags = { record: await fp.getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").count(), fast: await fp.getByRole("button", { name: /Fast export/ }).locator("[data-watermark-tag]").count() };
+    await fp.getByRole("button", { name: /Start Simulator/ }).click();
+    await fp.waitForTimeout(7500);
+    const mark = await fp.evaluate(() => {
+      const { draws, texts } = window.__wtMark;
+      const badges = [];
+      for (let i = 1; i < draws.length; i++) {
+        const p = draws[i - 1];
+        if (p.x === 0 && p.y === 0 && p.w === p.cw && p.h === p.ch) badges.push(draws[i]);
+      }
+      const spots = [...new Map(badges.map((b) => [`${Math.round(b.x)},${Math.round(b.y)}`, b])).values()];
+      const span = (t) => (t.align === "left" || t.align === "start" ? [t.x, t.x + t.width] : t.align === "right" || t.align === "end" ? [t.x - t.width, t.x] : [t.x - t.width / 2, t.x + t.width / 2]);
+      const lines = texts.slice(-4).map((t) => ({ x0: span(t)[0], x1: span(t)[1], y0: t.y - 0.6 * t.size, y1: t.y + 0.6 * t.size }));
+      const pill = (b) => ({ x: b.x + 0.2 * b.h, y: b.y + 0.2 * b.h, w: b.w - 0.4 * b.h, h: 0.6 * b.h });
+      const overlaps = spots.map(pill).filter((b) => lines.some((l) => b.x < l.x1 && b.x + b.w > l.x0 && b.y < l.y1 && b.y + b.h > l.y0)).length;
+      const inside = lines.every((l) => l.y0 >= 0 && l.y1 <= (draws[0]?.ch ?? Infinity));
+      return { spots: spots.map((b) => [Math.round(b.x), Math.round(b.y), b.w, b.h]), lines: lines.slice(-1).map((l) => [Math.round(l.x0), Math.round(l.y0), Math.round(l.x1), Math.round(l.y1)]), overlaps, inside, count: texts.length };
+    });
+    check(
+      "a free visitor's Wave Tank page: the watermark tag on Record Video and Fast export, the live badge clear of the section label, the label inside the canvas",
+      tags.record >= 1 && tags.fast >= 1 && mark.spots.length >= 1 && mark.overlaps === 0 && mark.count >= 2 && mark.inside,
+      `(${JSON.stringify({ tags, ...mark })})`,
+    );
+  } finally {
+    await freeContext.close().catch(() => {});
+  }
+}
+// --- end wave-tank ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

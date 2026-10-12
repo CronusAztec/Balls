@@ -36,6 +36,7 @@ import {
 } from "@/lib/physics/waveTank";
 import { SCAN_FLOOR, scanGain } from "@/lib/audio/loopTones";
 import { WAVE_TANK_DATA_KEYS, WaveTankLayer, waveTankExtentPx, waveTankProjection, writeWaveTankDataset } from "@/components/simulator/waveTankRenderer";
+import { resetWaveTankPrerollCache } from "@/lib/physics/modes/waveTank";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { MODE_CARD_ORDER, MODE_CATEGORIES } from "@/lib/modes";
 import { LOOP_HUD_MODE_TEXT, loopHudCount } from "@/lib/loop/hud";
@@ -295,6 +296,26 @@ describe("Wave Tank in the engine", () => {
     expect(va.frequency * va.loopSec).toBeCloseTo(va.cycles, 9);
   });
 
+  it("starts a restart of the same run from the kept pre-rolled water, bit for bit what a fresh pre-roll gives", () => {
+    const state = (engine: PhysicsEngine) => {
+      const v = engine.getWaveTankView();
+      return { reused: v.prerollReused, preroll: v.prerollSec, h: Array.from(v.heights), amp: Array.from(v.bellAmp), level: Array.from(v.bellLevel), reference: v.reference };
+    };
+    resetWaveTankPrerollCache();
+    const fresh = wtEngine({ cols: 64, gaps: "1@2, 2@2" }, 1);
+    const first = state(fresh);
+    const again = wtEngine({ cols: 64, gaps: "1@2, 2@2" }, 5);
+    const second = state(again);
+    expect([first.reused, second.reused]).toEqual([false, true]);
+    expect({ ...second, reused: false }).toEqual(first);
+    run(fresh, 300);
+    run(again, 300);
+    expect(state(again).h).toEqual(state(fresh).h);
+    // another run (more bells) pre-rolls again
+    expect(wtEngine({ cols: 64, gaps: "1@2, 2@2", bells: 12 }, 1).getWaveTankView().prerollReused).toBe(false);
+    resetWaveTankPrerollCache();
+  });
+
   it("replays the same water at 30, 60 and 120 fps", () => {
     const at = (frameMs: number) => {
       const engine = wtEngine({ cols: 64 }, 3);
@@ -371,6 +392,28 @@ describe("Wave Tank in the engine", () => {
     tone.resetLoop();
   });
 
+  it("plays the owner's clips in place of the synthesis: the bar-strike clip for a scanned bell, the drone clip for the root", async () => {
+    const graph = fakeGraph();
+    vi.stubGlobal("window", { AudioContext: function FakeAudioContext() { return graph.ctx; } });
+    const tone = new ToneGenerator();
+    await tone.start();
+    tone.setMusicSettings({ ...DEFAULT_MUSIC_SETTINGS });
+    const buffer = graph.ctx.createBuffer(1, 48000, 48000) as unknown as AudioBuffer;
+    tone.getLoopClips().set("barStrike", buffer, "bell.wav");
+    tone.getLoopClips().set("drone", buffer, "drone.wav");
+    graph.ctx.currentTime = 1;
+    const sources = graph.sources.length;
+    const oscillators = graph.oscillators.length;
+    tone.playLoop("scan", 440, 0.5);
+    tone.playLoop("root", 55, 1);
+    graph.ctx.currentTime = 2;
+    tone.playLoop("root", 73.42, 1); // a section change: the drone clip keeps looping, no second copy
+    expect(graph.sources.length - sources).toBe(2);
+    expect(graph.oscillators.length).toBe(oscillators);
+    tone.playLoop("rootStop");
+    tone.resetLoop();
+  });
+
   it("reports the HUD's section label and follows the bells, the scan and the ridges live", () => {
     const engine = wtEngine(presetSettings("doubleSlit"), 1);
     run(engine, 7 * 60);
@@ -428,10 +471,14 @@ describe("Wave Tank settings, links, words and picture", () => {
     const wt = (en as unknown as Record<string, Record<string, string>>).WaveTank;
     expect(wt.canvasTitle).toBe("the double slit, in water");
     expect(wt.sectionOne).toBe("{count} gap");
-    for (const m of [en, pl, es] as unknown as Record<string, Record<string, unknown>>[]) {
+    for (const [locale, m] of Object.entries({ en, pl, es }) as unknown as [string, Record<string, Record<string, unknown>>][]) {
       expect(typeof m.Controls.modeWaveTank).toBe("string");
       expect(typeof (m.Modes.waveTank as Record<string, string>).name).toBe("string");
-      expect(typeof m.Editorial.modeWaveTank).toBe("string");
+      // the mode card's one-liner within the copy pass's budget (60–110 characters in English, 40–140 in Polish and Spanish)
+      const line = [...(m.Modes.waveTank as Record<string, string>).description].length;
+      expect([locale, line >= (locale === "en" ? 60 : 40) && line <= (locale === "en" ? 110 : 140)]).toEqual([locale, true]);
+      // the panel's intro and tips keep the house style (docs/COPY-STYLE.md): no sentence dashes, no semicolons
+      for (const text of Object.values(m.WaveTank as Record<string, string>)) expect([text, / – |—|;/.test(text)]).toEqual([text, false]);
       for (const key of ["waveTank", "waveTankFact", "waveTankPoints", "waveTankPointsFact"]) expect(typeof m.LoopCaption[key]).toBe("string");
     }
   });

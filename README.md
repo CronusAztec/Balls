@@ -15,7 +15,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 
 | Area | What you get |
 | --- | --- |
-| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Colour Sort, Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Beat Machines, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops, Focus Shot), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
+| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Colour Sort, Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Beat Machines, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops, Focus Shot, Wave Tank), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow; collision-safe at every amplitude and speed) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Merge & split balls** | A ball-interaction setting in the Ball section: balls **bounce** (default), **merge** into one bigger ball on contact (area and momentum conserved, colours blended, a particle burst and a low tone), **split** in two every time a ball breaks through a wall (half the area each, diverging velocities, a high tone – down to a smallest size and up to a ball cap) or **pass** through each other. Works in the two-ball modes and Multiply, is deterministic (seeds and Find Simulation include it) and shared via the URL (`bi`, `smr`, `mb`) |
@@ -101,6 +101,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Ring Escape (Classic)** | --- ring-escape --- The loop family's oldest reel ("it takes three seconds to get through the first one 🔊") as options of Classic's own rings (no new mode; `src/lib/physics/ringEscape.ts`; Wall Settings in Classic): a **gap layout** – even (as always), random (seeded), aligned or a **spiral** whose gaps step round by **Spiral step** degrees (`regl`, `ress`; 0–90° on the slider, any angle typed) –, the rings turning **together** so the spiral stays a spiral (`resp`), a **rainbow by ring** (red outside to cyan inside, `rerb`), **Time in ring** – "ring k: t s" in amber under the rings, "out in t s" once out, recorded with the clip (`retm`) – and original **ring sounds** – a pentatonic pluck per bounce pitched by the ring, a rising step per ring escaped, a chord at the way out (`resn`). **Find Simulation** gets **First ring at** (the first ring escaped within ±0.5 s of a chosen second) and the preset **Rainbow spiral, 11 rings** is the poster's look. See [Ring Escape](#ring-escape-classic-the-loop-family) |
 | **Go-live kit** | Everything between "it works" and "strangers pay" (feature go-live-kit, owner request 8): [`docs/GO-LIVE.md`](docs/GO-LIVE.md), a plain-language launch guide with sixteen sections – costs, hosting and a custom domain, the four accounts (Cloudflare, Stripe, PayPal, NOWPayments with your own payout wallets), test first then live, payouts, licence keys, GitHub variables, legal pages, taxes, a launch-day and a monthly checklist, the fee table and what to do when something breaks; **`npm run go-live`**, a wizard that asks for every key once (hidden, checked by its shape and mode), finds or creates the KV storage, deploys the Worker, makes the licence key pair, finds or creates the Stripe prices and PayPal plans (never twice), stores every secret with `wrangler secret put` on standard input only and sets the GitHub variables and secrets (`--dry-run`, `--skip`, `--mode`); **`npm run go-live:check`**, 17 PASS/FAIL checks of the Worker (`/health`, mode, providers, webhooks, CORS, `/config`, storage), the site (online, not in test mode, the same public key as the Worker, pointing at it, the legal sections), Stripe/PayPal/NOWPayments (prices, plans, webhook endpoints, the customer portal) and GitHub. The Worker gains `GET /health`, live/test mode safety (mixed keys switch a provider off: `503 provider_misconfigured`), refunds, disputes and reversals that end a subscription's access, per-connection rate limits (`429 rate_limited`), several site origins and one price file, [`billing/billing-config.json`](billing/billing-config.json); the terms gain Delivery, Cancellation and refunds and Who you are buying from (`SUPPORT_EMAIL`, `LEGAL_NAME`, `LEGAL_ADDRESS` repository variables); `deploy.yml` refuses a half-configured or test-key production deploy (`node scripts/go-live-check.mjs --deploy-guard`) |
 | **Auto-release (desktop-autorelease)** | One push updates everything: the website deploys from the product branch only (`CUSTOM_DOMAIN` switches it to a domain root; optional Cloudflare Pages), the billing Worker deploys on changes to `billing/` with a health check, and a version bump in `desktop/package.json` (`npm run release:desktop -- 1.0.4`) builds, smoke-runs and publishes the Windows release that electron-updater serves; the app checks every 4 hours, shows a Restart / Later banner and a notification, never interrupts a render. [docs/RELEASING.md](docs/RELEASING.md) |
+| **Wave Tank** | --- wave-tank --- A rhythm-family mode of the loop family (`waveTank`) after the loop-clip account's "the double slit, in water 🔊" reel: a ripple tank in perspective, its water drawn as 40 pale ridge lines back to front with the hidden lines removed (Joy Division style). A golden wave-maker along the back sends straight crests at a slate barrier with **1, 2, then 7 gaps** (the sections; the barrier swaps on the exact frame and the old pattern travels on and leaves): one gap fans out, two cross into stripes with still nodal lines, seven leave as a grating's tall near-field spikes and a few sharp beams. The water is solved, not faked: the wave equation on a 192 × 256 grid (leapfrog sub-steps under a Courant number of 0.5, an absorbing sponge on the sides and the front) or a **Huygens sum** of wavelets from every gap; no randomness at all. Eleven brass bells along the front glow amber as high as the water under them, and a cursor sweeps them left-right-left at 8 strikes a second, each strike (original synthesis through `ToneGenerator.playLoop()`) as loud as (|u| / max)^1.5 – the beams ring, the nodal lines stay silent – over a root bass that crossfades at every section. The loop: 30 s of whole frames and whole wave cycles, the 1-gap section wrapping across the loop point so the clip closes on its first frame (**Export whole loops**). Five presets (Double slit, Single-slit width sweep, Grating 15, Two sources, Talbot carpet), the loop HUD ("the double slit, in water" and the amber "2 gaps"), every setting a `wt…` URL key. See [Wave Tank](#wave-tank-ripple-tank). |
 
 ## Design
 
@@ -2171,6 +2172,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `ellipseFoci` | the volley mid-flight on the felt: a rainbow arc of comets bouncing off the rail toward the far focus | 2 | 2.2 s | `lh=0&efTr=0.45` | – |
 | `colourSort` | the bullseye almost sorted: every colour in its own band, the last stragglers slipping through the turning gates | 1 | 9 s | `lh=0` | – |
 | `beatMachine` | the marble xylophone mid-tune: marbles falling from their tubes onto the rainbow bars, one bouncing off a struck bar, others riding the lift | 1 | 3.5 s | `lh=0` | zoom 1.15 |
+| `waveTank` | the seven-gap grating: tall spiky ridges just past the slate barrier, a few sharp beams fanning toward the bells, the centre bells glowing amber | 1 | 22 s | `lh=0&wtR=56&wtT=42` | y 0.51 · zoom 1.28 |
 
 ### Watermark on every free simulation
 Feature watermark-everywhere – the owner's request (2026-10-04): "add the watermark to all simulations made without pro". The
@@ -2875,6 +2877,79 @@ Settings in Classic). Only the poster and the caption were seen, so every quanti
   fps and a pinned fingerprint, the rainbow, the settings, links and presets, the translations); the smoke test's block
   `ring-escape` applies the preset from Wall Settings and from a link, checks the spiral's gaps, the rainbow, the timer line and its pixels, the URL round
   trip, finds a first ring at 3 s and records the clip with the free watermark.
+
+### Wave Tank (ripple tank)
+--- wave-tank --- The loop family's ripple tank ("the double slit, in water 🔊": a wave squeezing through one gap, then two,
+then seven), rebuilt as a rhythm-family mode (`waveTank`) that owns its picture like Bouncing Orbs (the "none" ring layout; the
+engine's one ball is a pinned placeholder that is never drawn). `src/lib/simulation/waveField.ts` is the water (pure: no
+randomness, no clock, no DOM), `src/lib/physics/waveTank.ts` the settings, links, sections, presets and pitches,
+`src/lib/physics/modes/waveTank.ts` the mode, `src/components/simulator/waveTankRenderer.ts` the picture and
+`sections/WaveTankSection.tsx` the controls (the Mode row; labels in the `WaveTank` namespace).
+
+- **The grid model** (the default) – u_tt = c²∇²u − γu_t on a Float32 grid of `cols` × 4/3 · `cols` cells (192 × 256), solved
+  by leapfrog steps with the 5-point Laplacian. **Stability**: the explicit scheme is stable for a Courant number ν = c·dt/h up to
+  1/√2 in 2D; every 60 Hz step is cut into the fewest equal sub-steps that keep ν ≤ 0.5 (`substepsFor()`, `WT_COURANT`), so any
+  wave speed and any grid stay stable – a faster wave or a finer grid only costs more sub-steps (the default: two a frame). The
+  damping and the sponge are centred in time, which keeps the scheme stable for any γ. The sides, the front and the strip
+  behind the source are a sponge of at least 12 cells (¾ of a wavelength on a fine grid) whose σ rises quadratically, so the
+  waves leave instead of bouncing back. The wave-maker is a soft line source (it adds to the field and lets reflections pass, so
+  the strip between it and the barrier never rings); the barrier's cells are clamped to 0 except the gaps' columns; **Point
+  sources** (no barrier) put a soft source where each gap would be. A mirror-symmetric barrier gives a mirror-symmetric field to
+  the last bit (the Laplacian is summed in a symmetric order).
+- **The Huygens model** – the far field of every gap as a sum of cylindrical wavelets (⌈4w/λ⌉ points a gap, the obliquity
+  (1 + cos χ)/2, 1/√r), plus the incident plane wave before the barrier: exact far from the gaps, periodic by construction and
+  cheap (a phasor per sample point, cached per section).
+- **Sections and the loop** – **Gaps per section** (`wtG`, "1, 2, 7"; an entry may name its own seconds, "1@11, 2@9, 7@10";
+  each count from 1 up to 4,096, at most 256 sections), **Section length** (`wtS`, 10 s) and **Wrap** (`wtWr`, 5 s: seconds of
+  the first section moved to the end of the loop, so it runs across the loop point as in the reel). Every section is whole 60 Hz
+  frames and switches on its exact frame; the source's frequency is snapped to a whole number of cycles a loop (150 in 30 s at
+  the defaults), so the forcing repeats exactly. The grid is pre-rolled through the loop's end before t = 0 (1.6 tank transits,
+  12.4 s at the defaults, at most 2·10⁸ cell sub-steps; a restart of the same run – Start after a preset, the fast export's
+  own engine – copies the kept start bit for bit instead, grids up to 1 M cells), so the run starts in its periodic state and the closing section rebuilds
+  the frame-0 field: `data-wt-seam-error` measures the difference at each seam (about 10⁻² of the wave's amplitude on the grid, 0
+  with the Huygens sum), and the mode reports its loop to **Export whole loops** (`cycleSeconds()`, `loopSeams()`). At the
+  defaults the label changes at 5, 15 and 25 s; the Double slit preset's 11 / 9 / 10 s sections put the changes at the reel's 6,
+  15 and 25 s.
+- **Settings** (uncapped number fields, the slider in brackets) – Water model `wtM` grid / huygens, Source `wtSrc` line / points,
+  Gap width `wtW` 0.6 λ [0.1–5] and Widen to `wtWe` (the last section's width; 0 off), Gap spacing `wtD` 2 λ [0.5–20],
+  Wavelength `wtL` 6 % of the tank [1–30], Wave speed `wtV` 1 (0.3 tank widths a second) [0.1–5], Damping `wtY` 0.002 per
+  radian [0–0.1], Grid columns `wtN` 192 [32–1024], Bells `wtB` 11 [1–64], Scan rate `wtSr` 8 a second [0.5–32], Ridge lines
+  `wtR` 40 [8–256], Tilt `wtT` 30° [0–80], Root bass `wtBs` and Section label `wtLb`. A change of the water, the sections or the
+  grid rebuilds and restarts the run (`WT_RESTART_FIELDS`); the bells, the scan, the ridges, the tilt, the bass and the label
+  follow live. Memory-safety ceilings (`MEMORY_CEILINGS`): `wtCols` 1,700 and the solver's ~4 M cells (`WT_CELL_CEILING`: a grid
+  that would need more is made smaller, never refused), `wtBells`, `wtRidges`. Far past the sliders the run degrades instead of
+  stalling: a step takes at most 512 sub-steps and 3.2·10⁷ cell updates (the water then lags the clock, `data-wt-lag`).
+- **The picture** – the tank's front edge spans up to 94 % of the page's centred square: the field sampled along each ridge row (up to 512 samples),
+  projected with a simple perspective (the depth sets the line's height and its width), drawn back to front, each line's outline
+  filled with the page's navy (#070b17) so the lines behind a crest are hidden; 1 px pale blue-white strokes (#c8d6ff) in four
+  brightness steps by height, the golden source line (#f2c879), the slate barrier (#5a6488) with dark notches, the bells as dim
+  brass dots with amber halos (#f2c46a) whose alpha follows the smoothed amplitude, flashing on a strike. Nothing is allocated per
+  frame.
+- **Sound** (original synthesis, no audio copied: loop-foundation's `ToneGenerator.playLoop()`) – the field sonification: a
+  cursor ping-pongs along the bells at Scan rate; each strike is a scanned tuned bar (`"scan"`: the bar with a ~1 s ring) at the
+  bell's pitch – A major pentatonic over two octaves, A3 to A5, low to high left to right – as loud as (|u| / max)^1.5 of the
+  smoothed amplitude under it (the reference is the loudest bell, held and let down over 2 s), a strike under −40 dB skipped, at
+  most two a step. Under them a section root (`"root"`: a sine + 2f about 13 dB under the bells on A1, D2, E2…) crossfades over
+  1 s at every section change (`"rootStop"` fades it out). The owner's clips: the bar-strike clip rings for a scanned bell, the
+  drone clip loops in place of the root. Every strike is bounce math's "bounce".
+- **The HUD** – the loop HUD is on in Wave Tank, on the clip's navy page: "the double slit, in water" with the rule in grey on
+  two lines and the amber section label ("1 gap", "2 gaps", "7 gaps"; with point sources "ripples that cross" and "2 sources").
+  The Publish caption editor's **Loop style** has the reel's hook, Young's 1803 fact and #physics #waves #creativecoding.
+- **Find Simulation** – not offered: the tank has no randomness, so every seed is the same run; the fast export and the batch
+  render build the same water through `initEngineForMode()` / `createEngineForSettings()`.
+- **For tools** – the canvas mirrors `data-wt-model`, `-source`, `-time`, `-loop`, `-loop-index`, `-section`, `-gaps`, `-changes`
+  (the frames of the section changes), `-section-changes`, `-seams`, `-seam-error`, `-nan`, `-max`, `-grid`, `-substeps`,
+  `-clamped`, `-preroll`, `-freq`, `-lambda`, `-cycles`, `-bells`, `-levels`, `-reference`, `-strikes`, `-skipped`, `-cursor`,
+  `-sounds`, `-roots`, `-root-hz`, `-ridges`, `-samples`, `-drawn`, `-strokes`, `-lit`, `-flashing`, `-lag` and `-tilt`; the
+  section `data-wt-model`, `-source`, `-loop`, `-sections` and `-changes`.
+- **Tests** – `tests/waveField.test.ts`: bounded energy over 10,000 steps without damping, a mirror-symmetric field for a
+  symmetric barrier (to 1e-6), the two-gap far-field minima at sin θ = (m + ½) λ / d within a cell, sections on their exact frames
+  at 30, 60 and 120 fps, bell gains rising with |u|, a grid past the ceiling lowered instead of refused, the seam, the same water
+  for every seed and frame rate, the strikes and the roots through a real ToneGenerator on `tests/fakeAudio.ts` (the clips in
+  their place too), the HUD, the links and presets, the translations and the renderer. The smoke test (section 47, block
+  `wave-tank`) runs the Double slit preset for a whole 30 s loop at 2× (the label changes at 6, 15 and 25 s, no NaN, the frame
+  rate at the default grid), checks a link and its round trip, the finder hidden, a whole-loop fast export and a free visitor's
+  watermark.
 
 ## Windows app
 

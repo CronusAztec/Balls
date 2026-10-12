@@ -118,6 +118,8 @@ export interface WaveTankView {
   grid: { cols: number; rows: number; sponge: number; cells: number; substeps: number; clamped: boolean } | null;
   /** Seconds of the loop the grid was pre-rolled through before t = 0. */
   prerollSec: number;
+  /** True when the init copied the last identical run's pre-rolled start instead of pre-rolling again. */
+  prerollReused: boolean;
   frame: WaveTankFrame;
   /** Simulation time (s) of the last step, the loop it is in and its time within the loop. */
   timeSec: number;
@@ -165,6 +167,30 @@ export interface WaveTankView {
 }
 
 const PHASOR: Phasor = { c: 0, s: 0 };
+
+/** The largest grid whose pre-rolled start is kept for the next init (two Float32 copies: 8 MB at most). */
+export const WT_PREROLL_CACHE_CELLS = 1_000_000;
+/** The last pre-rolled start: the water at t = 0, the field's step count and the bells' followers. */
+interface PrerollSnapshot {
+  key: string;
+  u: Float32Array;
+  prev: Float32Array;
+  steps: number;
+  env: Float64Array;
+  peak: number;
+  amp: Float32Array;
+  level: Float32Array;
+  reference: number;
+}
+let prerollCache: PrerollSnapshot | null = null;
+/** Forgets the kept start (tests: the next init pre-rolls). */
+export function resetWaveTankPrerollCache() {
+  prerollCache = null;
+}
+/** Everything the pre-roll depends on: the water's settings, the bells (their followers warm up during it), the grid and its length. */
+function prerollKey(s: WaveTankSettings, cells: number, pre: number): string {
+  return [s.source, s.gaps, s.width, s.widthEnd, s.spacing, s.wavelengthPct, s.speed, s.damping, s.cols, s.sectionSec, s.wrapSec, s.bells, cells, pre].join("|");
+}
 
 /** x of sample s of n across the tank (−½ … ½). */
 function sampleXOf(s: number, n: number): number {
@@ -228,6 +254,7 @@ export class WaveTankMode implements GameMode {
       schedule,
       grid: null,
       prerollSec: 0,
+      prerollReused: false,
       frame: { cx: 400, cy: 300, side: 600 },
       timeSec: 0,
       loopIndex: 0,
@@ -372,6 +399,7 @@ export class WaveTankMode implements GameMode {
     this.field = null;
     v.grid = null;
     v.prerollSec = 0;
+    v.prerollReused = false;
     if (s.model === "grid") {
       const field = new WaveField({ cols: s.cols, depthRatio: depth, wavelength: v.wavelength, speed, damping: s.damping * 2 * Math.PI * v.frequency, stepSec: 1 / 60 });
       this.field = field;
@@ -391,9 +419,28 @@ export class WaveTankMode implements GameMode {
       this.n = -pre;
       v.prerollSec = pre / (60 * this.k);
       const warm = Math.round(2 / this.dt); // the bells' follower runs over the pre-roll's last 2 s
-      while (this.n < 0) {
-        this.advance(1);
-        if (this.n % this.k === 0 && -this.n <= warm) this.listen(this.n / this.k / 60, 1 / 60);
+      const key = prerollKey(s, size.cells, pre);
+      const hit = prerollCache !== null && prerollCache.key === key && prerollCache.u.length === field.u.length && prerollCache.env.length === this.env.length ? prerollCache : null;
+      if (hit) {
+        // the same run again (Start after a preset, a restart, the fast export's engine): the t = 0 state is a pure function of
+        // the settings, so the copy is bit for bit what the pre-roll would give
+        field.u.set(hit.u);
+        field.prev.set(hit.prev);
+        field.steps = hit.steps;
+        this.env.set(hit.env);
+        this.peak = hit.peak;
+        v.bellAmp.set(hit.amp);
+        v.bellLevel.set(hit.level);
+        v.reference = hit.reference;
+        this.n = 0;
+        this.applySection(this.sectionAtStep(0));
+        v.prerollReused = true;
+      } else {
+        while (this.n < 0) {
+          this.advance(1);
+          if (this.n % this.k === 0 && -this.n <= warm) this.listen(this.n / this.k / 60, 1 / 60);
+        }
+        prerollCache = size.cells <= WT_PREROLL_CACHE_CELLS ? { key, u: field.u.slice(), prev: field.prev.slice(), steps: field.steps, env: this.env.slice(), peak: this.peak, amp: v.bellAmp.slice(), level: v.bellLevel.slice(), reference: v.reference } : null;
       }
     } else {
       this.k = 1;

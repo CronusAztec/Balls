@@ -146,6 +146,8 @@ export function hitPitches(wallIndex: number, pitch: number | undefined, chord: 
 /** The clip slot that stands in for a loop sound's synthesis (null: none). */
 const LOOP_CLIP_OF: Partial<Record<LoopSoundKind, LoopClipSlotId>> = { pluck: "bounce", bar: "barStrike", chime: "chime", step: "progressStep", land: "land", chord: "completion", impact: "impact", glide: "reset", wash: "reset", bed: "bed", drone: "drone" };
 // --- end loop-foundation ---
+// --- wave-tank --- a scanned bell is a tuned-bar strike: the owner's bar-strike clip rings in its place, as loud as the strike
+LOOP_CLIP_OF.scan = "barStrike";
 
 export class ToneGenerator {
   private audioContext: AudioContext | null = null;
