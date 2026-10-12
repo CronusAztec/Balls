@@ -1,9 +1,15 @@
 name: Build and deploy to GitHub Pages
 
-# Every push is linted, type-checked, unit-tested and built. Pushes to the repository's default
-# branch (and manual runs from any branch) then run the browser smoke test against a base-path
-# build and, once it passes, are published to GitHub Pages.
+# Every push is linted, type-checked, unit-tested and built. Pushes to the product branch (and
+# manual runs from it) then run the browser smoke test against a base-path build and, once it
+# passes, are published to GitHub Pages.
 # One-time setup: Settings → Pages → "Build and deployment" → Source: "GitHub Actions".
+# --- desktop-autorelease --- Only the product branch deploys: claude/optimistic-johnson-46x3qg (today) or main (when the owner
+# renames it in the GitHub UI – both are listed so nothing needs editing that day). Every other branch – and a manual run from
+# one – is built and checked, nothing more. The repository variable CUSTOM_DOMAIN switches the build to a custom domain (empty
+# base path, out/CNAME); SITE_HOST=cloudflare-pages deploys the same out/ to Cloudflare Pages instead of GitHub Pages
+# (docs/RELEASING.md). `env` is not available in a job-level `if`, so the branch test below is repeated verbatim in the smoke,
+# smoke-summary, deploy and deploy-cloudflare jobs (tests/releaseWorkflows.test.ts keeps the copies identical).
 on:
   push:
   workflow_dispatch:
@@ -14,7 +20,7 @@ permissions:
   contents: read
 
 env:
-  DEPLOY: ${{ github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}
+  DEPLOY: ${{ contains(fromJSON('["refs/heads/claude/optimistic-johnson-46x3qg","refs/heads/main"]'), github.ref) }}
 
 jobs:
   build:
@@ -22,6 +28,10 @@ jobs:
     permissions:
       contents: read
       pages: read # the Pages settings lookup below (custom domain)
+    # --- desktop-autorelease --- the site's address and host, for the deploy-cloudflare job
+    outputs:
+      url: ${{ steps.site.outputs.url }}
+      host: ${{ steps.site.outputs.host }}
     # A newer push to the same branch supersedes a build that is still running.
     concurrency:
       group: build-${{ github.ref }}
@@ -50,31 +60,21 @@ jobs:
 
       - name: Work out the public URL and base path
         id: site
-        shell: bash
+        uses: ./.github/actions/site-url
+        with:
+          custom-domain: ${{ vars.CUSTOM_DOMAIN }}
+          site-host: ${{ vars.SITE_HOST }}
+          cf-pages-project: ${{ vars.CF_PAGES_PROJECT }}
+          token: ${{ github.token }}
+
+      # --- go-live-kit --- a deploy to the default branch must be all-live or all-test: the billing variables set together
+      # (and never the public TEST key), or both empty while payments are not configured yet.
+      - name: Production guard (billing)
+        if: env.DEPLOY == 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
-          OWNER: ${{ github.repository_owner }}
-          REPO: ${{ github.event.repository.name }}
-        run: |
-          # Prefer the URL GitHub has configured for this repository's Pages site (this is how a
-          # custom domain set under Settings → Pages is picked up); fall back to the conventional
-          # project-site URL while Pages is not enabled yet.
-          if url="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.html_url' 2>/dev/null)" && [ -n "$url" ]; then
-            source="the Pages settings"
-          else
-            owner="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
-            if [ "$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')" = "$owner.github.io" ]; then
-              url="https://$owner.github.io"
-            else
-              url="https://$owner.github.io/$REPO"
-            fi
-            source="the repository name (Pages is not enabled yet)"
-          fi
-          url="${url%/}"
-          base="$(printf '%s' "$url" | sed -E 's#^https?://[^/]*##')"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-          echo "base=$base" >> "$GITHUB_OUTPUT"
-          echo "Site URL: $url (base path: '$base', from $source)"
+          LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY }}
+          BILLING_API_URL: ${{ vars.BILLING_API_URL }}
+        run: node scripts/go-live-check.mjs --deploy-guard
 
       # --- review fix (site-static) --- Next's build cache (the "No build cache found" warning)
       - name: Cache the Next.js build
@@ -111,12 +111,43 @@ jobs:
           # not configured. (The smoke job builds without them on purpose: it records with test licences.)
           NEXT_PUBLIC_LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY }}
           NEXT_PUBLIC_BILLING_API: ${{ vars.BILLING_API_URL }}
+          # --- go-live-kit --- the operator's public details the legal pages show (docs/GO-LIVE.md); empty while unset.
+          NEXT_PUBLIC_SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
+          NEXT_PUBLIC_LEGAL_NAME: ${{ vars.LEGAL_NAME }}
+          NEXT_PUBLIC_LEGAL_ADDRESS: ${{ vars.LEGAL_ADDRESS }}
 
-      - name: Upload site artifact
-        if: env.DEPLOY == 'true'
+      # --- desktop-autorelease --- GitHub ignores CNAME for Actions deployments, but out/ then works on any static host as is.
+      - name: Custom domain file (out/CNAME)
+        if: steps.site.outputs.domain != ''
+        env:
+          DOMAIN: ${{ steps.site.outputs.domain }}
+        run: printf '%s\n' "$DOMAIN" > out/CNAME && echo "wrote out/CNAME ($DOMAIN)"
+
+      # --- desktop-autorelease --- the billing Worker allows exactly the origins in SITE_ORIGIN: a site on a new domain whose
+      # Worker does not list it gets CORS errors on every checkout. A warning here; billing-deploy.yml refuses to deploy until fixed.
+      - name: The billing Worker knows the custom domain
+        if: env.DEPLOY == 'true' && steps.site.outputs.domain != ''
+        env:
+          DOMAIN: ${{ steps.site.outputs.domain }}
+        run: |
+          if ! grep -E '^SITE_ORIGIN *=' billing/wrangler.toml | grep -Fq "https://$DOMAIN"; then
+            echo "::warning title=billing/wrangler.toml does not list https://$DOMAIN::Add https://$DOMAIN to SITE_ORIGIN in billing/wrangler.toml (npm run go-live does it), commit, and run the 'Deploy billing worker' workflow, or checkouts from the new domain are refused (CORS)."
+          fi
+
+      - name: Upload site artifact (GitHub Pages)
+        if: env.DEPLOY == 'true' && steps.site.outputs.host == 'github-pages'
         uses: actions/upload-pages-artifact@v5
         with:
           path: out
+
+      - name: Upload site artifact (Cloudflare Pages)
+        if: env.DEPLOY == 'true' && steps.site.outputs.host == 'cloudflare-pages'
+        uses: actions/upload-artifact@v6
+        with:
+          name: site-out
+          path: out
+          include-hidden-files: true
+          retention-days: 7
 
   # --- review fix (site-static) --- the browser smoke test (scripts/smoke-test.mjs: base path, 404, every page and mode,
   # recording...) gates every deploy. Feature-branch pushes skip it and stay fast; .github/workflows/smoke.yml runs it on pull
@@ -128,7 +159,7 @@ jobs:
   smoke:
     name: smoke (shard ${{ matrix.shard }} of 4)
     needs: build
-    if: github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: contains(fromJSON('["refs/heads/claude/optimistic-johnson-46x3qg","refs/heads/main"]'), github.ref)
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -211,7 +242,7 @@ jobs:
   # merged (and checked: every block of the suite ran in exactly one shard), and the gate: it fails unless every shard passed.
   smoke-summary:
     needs: smoke
-    if: always() && (github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch))
+    if: always() && contains(fromJSON('["refs/heads/claude/optimistic-johnson-46x3qg","refs/heads/main"]'), github.ref)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -266,7 +297,7 @@ jobs:
 
   deploy:
     needs: [build, smoke, smoke-summary]
-    if: github.event_name == 'workflow_dispatch' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    if: vars.SITE_HOST != 'cloudflare-pages' && contains(fromJSON('["refs/heads/claude/optimistic-johnson-46x3qg","refs/heads/main"]'), github.ref)
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -297,3 +328,65 @@ jobs:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v5
+
+      # --- desktop-autorelease --- the published site answers (a warning, not a failure: a fresh custom domain can take up to
+      # 48 h of DNS propagation)
+      - name: The site answers
+        env:
+          URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          for i in $(seq 1 12); do
+            if curl -fsS --max-time 20 "${URL%/}/en/" | grep -q "<html"; then echo "live: ${URL%/}/en/"; exit 0; fi
+            sleep 10
+          done
+          echo "::warning title=The site did not answer within 2 minutes::${URL%/}/en/ – a new custom domain can take up to 48 h of DNS propagation; check Settings → Pages."
+
+  # --- desktop-autorelease --- the optional host: Cloudflare Pages (free, private repositories allowed, the same Cloudflare account
+  # as the billing Worker). On when the repository variable SITE_HOST is `cloudflare-pages`; the deploy job above then skips.
+  # One-time: `npx wrangler pages project create <name> --production-branch main`, the variable CF_PAGES_PROJECT=<name>, and the
+  # secrets CLOUDFLARE_API_TOKEN (a token that also has "Cloudflare Pages: Edit") / CLOUDFLARE_ACCOUNT_ID. Secrets cannot be
+  # tested in `if:`, so the first step fails with a plain message when they are missing. The Windows app's downloads and updates
+  # still come from GitHub Releases, which need a public repository (docs/RELEASING.md, "Hosting").
+  deploy-cloudflare:
+    needs: [build, smoke, smoke-summary]
+    if: vars.SITE_HOST == 'cloudflare-pages' && contains(fromJSON('["refs/heads/claude/optimistic-johnson-46x3qg","refs/heads/main"]'), github.ref)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    environment:
+      name: cloudflare-pages
+      url: ${{ needs.build.outputs.url }}
+    steps:
+      - name: Check the Cloudflare secrets and the project name
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
+        run: |
+          ok=1
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error title=CLOUDFLARE_API_TOKEN is missing::Settings → Secrets and variables → Actions → Secrets → New repository secret: a Cloudflare API token with 'Cloudflare Pages: Edit' (and 'Edit Cloudflare Workers' for the billing Worker)."; ok=0; }
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error title=CLOUDFLARE_ACCOUNT_ID is missing::Cloudflare dashboard → Workers & Pages → Account ID (right-hand column); add it as a repository secret."; ok=0; }
+          [ -n "$CF_PAGES_PROJECT" ] || { echo "::error title=CF_PAGES_PROJECT is missing::Create the Pages project once (npx wrangler pages project create <name> --production-branch main) and set the repository variable CF_PAGES_PROJECT to its name."; ok=0; }
+          [ "$ok" = 1 ]
+
+      - name: Download the site
+        uses: actions/download-artifact@v7
+        with:
+          name: site-out
+          path: out
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Deploy to Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
+        run: npx --yes wrangler@3 pages deploy out --project-name "$CF_PAGES_PROJECT" --branch main --commit-hash "$GITHUB_SHA" --commit-dirty=true

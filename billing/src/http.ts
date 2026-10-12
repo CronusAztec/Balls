@@ -5,13 +5,35 @@
 export const MAX_BODY_BYTES = 20 * 1024;
 
 /**
- * Whether an Origin is allowed: the configured SITE_ORIGIN, or any localhost / 127.0.0.1 origin on
+ * --- go-live-kit --- The site origins SITE_ORIGIN lists: one or more, separated by spaces or commas (the GitHub Pages
+ * origin and a custom domain, e.g. "https://cronusaztec.github.io https://www.example.com"). Trailing slashes are dropped and
+ * anything that is not a bare http(s) origin (a path, a query, another scheme) is ignored.
+ */
+export function siteOrigins(value: string | undefined): string[] {
+  const out: string[] = [];
+  for (const part of (value ?? "").split(/[\s,]+/)) {
+    const candidate = part.trim().replace(/\/+$/, "").toLowerCase();
+    if (!candidate) continue;
+    try {
+      const url = new URL(candidate);
+      if ((url.protocol === "http:" || url.protocol === "https:") && url.origin === candidate && !out.includes(candidate)) {
+        out.push(candidate);
+      }
+    } catch {
+      // not a URL
+    }
+  }
+  return out;
+}
+
+/**
+ * Whether an Origin is allowed: one of the configured site origins (siteOrigins), or any localhost / 127.0.0.1 origin on
  * any port (so the site can be developed locally against a deployed Worker). A missing Origin (same
  * origin, curl, a server-to-server webhook) is allowed through with no CORS headers.
  */
 export function isAllowedOrigin(origin: string | null, siteOrigin: string | undefined): boolean {
   if (!origin) return false;
-  if (siteOrigin && origin === siteOrigin.replace(/\/$/, "")) return true;
+  if (siteOrigins(siteOrigin).includes(origin)) return true;
   try {
     const url = new URL(origin);
     const host = url.hostname;

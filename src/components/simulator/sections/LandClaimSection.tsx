@@ -15,6 +15,7 @@ import {
   LC_PRESET_IDS,
   LC_RULES,
   LC_TITLE_LENGTH,
+  LC_WALL_TEAMS_RANGE,
   isLcPresetId,
   landClaimClipSec,
   landClaimPresetPatch,
@@ -23,6 +24,9 @@ import {
   type LcPresetId,
   type LcRule,
 } from "@/lib/physics/modes/landClaim";
+// --- land-claim-pyramid --- the pyramid layout's block, its preset and its one-competitor range
+import LandClaimPyramidSection, { LAND_CLAIM_PYRAMID_KEYS } from "./LandClaimPyramidSection";
+import { LCP_PRESET_IDS, LCP_TEAMS_RANGE, isLcpPresetId, lcPyramidPresetPatch, type LcpPresetId } from "@/lib/physics/landClaimPyramid";
 
 export interface LandClaimSectionProps {
   t: Translate;
@@ -33,7 +37,7 @@ export interface LandClaimSectionProps {
 }
 
 /** Search keys of the controls rendered here (added to SECTION_KEYS.ball in Controls.tsx so the search box finds them). */
-export const LAND_CLAIM_KEYS = ["lcPreset", "lcRule", "lcArena", "lcTeams", "lcBalls", "lcCols", "lcRows", "lcEvery", "lcDuration", "lcTitle", "lcHud", "lcCaption"];
+export const LAND_CLAIM_KEYS = ["lcPreset", "lcRule", "lcArena", "lcTeams", "lcBalls", "lcCols", "lcRows", "lcEvery", "lcDuration", "lcTitle", "lcHud", "lcCaption", ...LAND_CLAIM_PYRAMID_KEYS /* --- land-claim-pyramid --- */];
 
 const RULE_OPTIONS: Record<LcRule, { icon: string; labelKey: string; hintKey: string }> = {
   knock: { icon: "💥", labelKey: "lcRuleKnock", hintKey: "lcHintKnock" },
@@ -54,6 +58,8 @@ const PRESET_LABELS: Record<LcPresetId, string> = {
   hexagon6: "lcPresetHexagon6",
   claim2v2: "lcPresetClaim2v2",
 };
+// --- land-claim-pyramid ---
+const PYRAMID_PRESET_LABELS: Record<LcpPresetId, string> = { pyramid1144: "lcPresetPyramid1144" };
 
 const pick = (active: boolean) => `px-1 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${active ? onBtn : "bg-surface-2 text-ink-2 hover:bg-surface-3"}`;
 
@@ -73,6 +79,12 @@ export default function LandClaimSection({ t, search, matches, settings: s, upda
     const { teams, ...rest } = landClaimPresetPatch(id, (code, english) => (countries.has(code) ? countries(code) : english));
     update({ ...rest, ...rosterPatch(teams) });
   };
+  // --- land-claim-pyramid --- "Pyramid, 1,144 blocks": the clip's pyramid, played alone in yellow (no roster), looping, with the loop HUD
+  const applyPyramidPreset = (id: LcpPresetId) => {
+    const { teams, ...rest } = lcPyramidPresetPatch(id);
+    update({ ...rest, ...rosterPatch(teams) });
+  };
+  const wall = s.lcLayout !== "pyramid";
   const fromRoster = Math.min(s.teams.length, s.lcTeams, MAX_TEAMS);
   const blocks = s.lcCols * s.lcRows;
   const hasCaption = s.captions.some((c) => c.type === "question" && c.answer.toLowerCase().includes(CAPTION_WINNER_TOKEN));
@@ -90,6 +102,7 @@ export default function LandClaimSection({ t, search, matches, settings: s, upda
             onChange={(e) => {
               const id = e.target.value;
               if (isLcPresetId(id)) applyPreset(id);
+              else if (isLcpPresetId(id)) applyPyramidPreset(id); // --- land-claim-pyramid ---
             }}
             aria-label={t("lcPreset")}
             className={`${selectClass} text-sm py-1.5`}
@@ -101,9 +114,16 @@ export default function LandClaimSection({ t, search, matches, settings: s, upda
                 {t(PRESET_LABELS[id])}
               </option>
             ))}
+            {LCP_PRESET_IDS.map((id) => (
+              <option key={id} value={id}>
+                {t(PYRAMID_PRESET_LABELS[id]) /* --- land-claim-pyramid --- */}
+              </option>
+            ))}
           </select>
         </div>
       </Searchable>
+      <LandClaimPyramidSection t={t} search={search} matches={matches} settings={s} update={update} /* --- land-claim-pyramid --- (the layout; the pyramid's numbers) */ />
+      {wall /* --- land-claim-pyramid --- (the rule and the arena are the wall's: a pyramid knocks) */ && (
       <Searchable search={search} matches={matches} labelKey="lcRule">
         <div className="space-y-2">
           <label className="text-sm font-medium text-ink-2">
@@ -120,6 +140,8 @@ export default function LandClaimSection({ t, search, matches, settings: s, upda
           {!search && <p className="text-xs text-ink-3 leading-relaxed">{t(RULE_OPTIONS[s.lcRule].hintKey)}</p>}
         </div>
       </Searchable>
+      )}
+      {wall && (
       <Searchable search={search} matches={matches} labelKey="lcArena">
         <div className="space-y-2">
           <label className="text-sm font-medium text-ink-2">
@@ -135,16 +157,17 @@ export default function LandClaimSection({ t, search, matches, settings: s, upda
           </div>
         </div>
       </Searchable>
-      <Slider t={t} search={search} matches={matches} labelKey="lcTeams" tipKey="lcTeamsTip" value={s.lcTeams} range={RANGES.lcTeams} onChange={(v) => update({ lcTeams: v })} display={String(s.lcTeams)} />
+      )}
+      <Slider t={t} search={search} matches={matches} labelKey="lcTeams" tipKey="lcTeamsTip" value={s.lcTeams} range={wall ? LC_WALL_TEAMS_RANGE : LCP_TEAMS_RANGE /* --- land-claim-pyramid --- (a battle from two, a pyramid from one) */} onChange={(v) => update({ lcTeams: v })} display={String(s.lcTeams)} />
       {!search && (
         <p className="text-xs text-ink-3 leading-relaxed" data-testid="lc-teams-note">
           {fromRoster > 0 ? t("lcRosterNote", { count: fromRoster, teams: s.lcTeams }) : t("lcPaletteNote", { names: LC_PALETTE.slice(0, Math.min(4, Math.max(2, s.lcTeams))).map((p) => p.name).join(" · ") })}
         </p>
       )}
       <Slider t={t} search={search} matches={matches} labelKey="lcBalls" tipKey="lcBallsTip" value={s.lcBalls} range={RANGES.lcBalls} onChange={(v) => update({ lcBalls: v })} display={t("lcBallsEach", { count: s.lcBalls })} />
-      <Slider t={t} search={search} matches={matches} labelKey="lcCols" tipKey="lcColsTip" value={s.lcCols} range={RANGES.lcCols} onChange={(v) => update({ lcCols: v })} display={String(s.lcCols)} />
-      <Slider t={t} search={search} matches={matches} labelKey="lcRows" tipKey="lcRowsTip" value={s.lcRows} range={RANGES.lcRows} onChange={(v) => update({ lcRows: v })} display={t("lcBlocksTotal", { count: blocks })} />
-      {!search && blocks > LC_BLOCK_CEILING && (
+      {wall /* --- land-claim-pyramid --- (the wall's columns and rows) */ && <Slider t={t} search={search} matches={matches} labelKey="lcCols" tipKey="lcColsTip" value={s.lcCols} range={RANGES.lcCols} onChange={(v) => update({ lcCols: v })} display={String(s.lcCols)} />}
+      {wall && <Slider t={t} search={search} matches={matches} labelKey="lcRows" tipKey="lcRowsTip" value={s.lcRows} range={RANGES.lcRows} onChange={(v) => update({ lcRows: v })} display={t("lcBlocksTotal", { count: blocks })} />}
+      {!search && wall && blocks > LC_BLOCK_CEILING && (
         <p className="text-xs text-warn" data-testid="lc-block-ceiling">
           {t("lcBlockCeiling", { max: LC_BLOCK_CEILING.toLocaleString(), rows: Math.max(1, Math.floor(LC_BLOCK_CEILING / Math.max(1, s.lcCols))) })}
         </p>

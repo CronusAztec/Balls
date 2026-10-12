@@ -91,6 +91,7 @@ import type { FlSoundOption } from "@/lib/physics/modes/fightLeague"; // --- fl-
 // --- end fl-overhaul ---
 // --- land-claim --- the Land Claim mode (columns of blocks knocked off by competitors' balls)
 import { LAND_CLAIM_RANGES, defaultLandClaimFields, landClaimModeDefaults, readLandClaimParams, resolveLandClaimFields, writeLandClaimParams, type LcArena, type LcRule } from "@/lib/physics/modes/landClaim";
+import { LC_PYRAMID_RANGES, type LcLayout } from "@/lib/physics/landClaimPyramid"; // --- land-claim-pyramid ---
 // --- loop-foundation --- Grow's fill-and-loop upgrade (growth law, fill / hold / shrink, colour by size, markers, pitch) and the
 // loop contract / HUD settings (Export whole loops, the lowercase HUD)
 import { GROW_FILL_ENGINE_KEYS, GROW_FILL_RANGES, defaultGrowFillFields, readGrowFillParams, resolveGrowFillFields, writeGrowFillParams } from "@/lib/physics/growFill";
@@ -112,6 +113,8 @@ import { PHASE_SPIRAL_PICTURE_RANGES, readPhaseSpiralParams, writePhaseSpiralPar
 import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDefaults, readEllipseFociParams, resolveEllipseFociFields, writeEllipseFociParams, type EfLaunch, type EfOrientation, type EfReset, type EfSkin } from "@/lib/physics/ellipseFoci";
 // --- beat-machine --- Beat Machines (the marble xylophone and the eight-step staircase)
 import { BM_ENGINE_KEYS, BM_RANGES, beatMachineModeDefaults, defaultBeatMachineFields, readBeatMachineParams, resolveBeatMachineFields, writeBeatMachineParams, type BeatMachineFields } from "@/lib/physics/beatMachine";
+// --- ring-escape --- Classic's Ring Escape: the gap layout, the spiral step, the spin, the rainbow by ring, the time in the ring, the ring sounds
+import { RING_ESCAPE_RANGES, defaultRingEscapeFields, readRingEscapeParams, resolveRingEscapeFields, writeRingEscapeParams, type GapLayout, type RingEscapeFields, type RingSpin } from "@/lib/physics/ringEscape";
 // --- drawing-machine --- Drawing Machines (the three-pendulum harmonograph and the planets' orbit flowers)
 import { DM_RANGES } from "@/lib/physics/drawingMachine";
 import { DM_ENGINE_KEYS, defaultDrawingMachineFields, drawingMachineModeDefaults, readDrawingMachineParams, resolveDrawingMachineFields, writeDrawingMachineParams, type DrawingMachineFields } from "@/lib/physics/drawingMachineFields";
@@ -1031,6 +1034,20 @@ export interface SimulatorSettings {
   /** The HUD: the title, a bar per competitor and the counters (URL `lch`). */
   lcHud: boolean;
   // --- end land-claim ---
+  // --- land-claim-pyramid --- Land Claim's pyramid layout (lib/physics/landClaimPyramid.ts): a stepped pyramid knocked down block by block
+  /** wall (the default: the arena's wall of columns) | pyramid (a G × G stepped pyramid in the middle of a floor, shown isometrically) (URL `lcl`). */
+  lcLayout: LcLayout;
+  /** Columns along a side of the pyramid, 3–40 on the slider (any number from 3 typed; at most 1,000) (URL `lcg`). */
+  lcPyramidSize: number;
+  /** Steps of the natural pyramid (a column stands steps − its distance to the centre), 1–40 on the slider (URL `lcs`). */
+  lcSteps: number;
+  /** Blocks in all (the steps scaled to exactly this many), 0 = the natural count; 1,144 by default (URL `lcbk`). */
+  lcBlocks: number;
+  /** Rebuild and loop: the cleared pyramid builds itself again and the run starts over from its first frame (URL `lcrb`). */
+  lcRebuild: boolean;
+  /** Seconds the rebuild lasts (URL `lcrs`). */
+  lcRebuildSec: number;
+  // --- end land-claim-pyramid ---
   // --- loop-foundation --- Grow's fill and loop (lib/physics/growFill.ts; all off by default: the classic Grow)
   /** approach (the classic) | multiply | add (URL `gLaw`). */
   growLaw: GrowLaw;
@@ -1199,6 +1216,20 @@ export interface SimulatorSettings {
   bmBass: boolean;
   bmCounter: boolean;
   // --- end beat-machine ---
+  // --- ring-escape --- Classic's Ring Escape (lib/physics/ringEscape.ts; the physics ones travel in the physics config)
+  /** even | random | aligned | spiral: where each ring's gap starts (URL `regl`). */
+  gapLayout: GapLayout;
+  /** Degrees between neighbouring gaps of the spiral; 0–90 on the slider, any value from 0 typed (URL `ress`). */
+  gapSpiralStep: number;
+  /** alternate | together: the rings' turning (URL `resp`). */
+  ringSpin: RingSpin;
+  /** The rings in a rainbow by ring, red outside to cyan inside (URL `rerb`). */
+  ringRainbow: boolean;
+  /** "ring k: t s" under the rings (URL `retm`). */
+  ringTimer: boolean;
+  /** Plucks per bounce, a rising step per ring escaped, the chord at the way out (URL `resn`). */
+  ringSound: boolean;
+  // --- end ring-escape ---
   // --- drawing-machine --- Drawing Machines (lib/physics/drawingMachine.ts, drawingMachineFields.ts): the harmonograph and the orbits (URL dm…)
   /** harmonograph | orbits (URL `dmm`). */
   dmMachine: DrawingMachineFields["dmMachine"];
@@ -1244,7 +1275,21 @@ export function defaultGapSize(mode: ModeId) {
   return mode === "classic" ? 0.4 : 0.3;
 }
 
-function buildDefaultSettings(mode: ModeId = "classic"): SimulatorSettings { // --- drawing-machine --- (built once a mode: `defaultSettings()` below)
+export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
+  // --- ring-escape --- Classic's Ring Escape fields join the core defaults here, outside the one big literal below: past about
+  // 550 properties that literal leaves V8's fast path and every call gets 10–20× slower (links, presets, the finder, the daily
+  // deals all build settings), so further fields are better spread in here too.
+  return {
+    ...coreDefaultSettings(mode),
+    ...defaultRingEscapeFields(),
+    // --- drawing-machine --- the feature's fields, and in Drawing Machines only the harmonograph's look (the dark wood, the loop HUD on)
+    ...defaultDrawingMachineFields(),
+    ...drawingMachineModeDefaults(mode),
+  };
+}
+
+/** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof DrawingMachineFields /* --- drawing-machine --- */> {
   return {
     mode,
     gravity: 300,
@@ -1385,41 +1430,8 @@ function buildDefaultSettings(mode: ModeId = "classic"): SimulatorSettings { // 
     // --- beat-machine --- the feature's fields, and in Beat Machines only the marble xylophone's look (the warm brown page, the loop HUD on)
     ...defaultBeatMachineFields(),
     ...beatMachineModeDefaults(mode),
-    // --- drawing-machine --- the feature's fields, and in Drawing Machines only the harmonograph's look (the dark wood, the loop HUD on)
-    ...defaultDrawingMachineFields(),
-    ...drawingMachineModeDefaults(mode),
   };
 }
-
-// --- drawing-machine --- (performance) The defaults of a mode are built once and handed out as copies. The object is some 580
-// properties added by one big literal of spreads; past ~550 of them V8 stopped caching the literal's shape and every build made
-// its maps anew (defaultSettings() went from ~0.2 ms to ~8 ms, a link's parse to ~50 ms, the settings tests timed out). A copy of
-// a built template keeps one shape: a spread clone, with the template's arrays and objects (colours, teams, obstacles, captions,
-// keyframes…) deep-copied so no two settings objects share them – exactly what a fresh build gave.
-const DEFAULT_SETTINGS_TEMPLATES = new Map<ModeId, { template: SimulatorSettings; nested: (keyof SimulatorSettings)[] }>();
-
-export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
-  let entry = DEFAULT_SETTINGS_TEMPLATES.get(mode);
-  if (!entry) {
-    const built = buildDefaultSettings(mode) as unknown as Record<string, unknown>;
-    // Every number field is laid out as a double from the start (a store of 1.5 into a field that held 8 widens the field,
-    // and widening a field of an object this size turned it into a slow dictionary for the rest of a link's parse): the
-    // numbers are made fractional, the object re-laid out by a clone, and the exact defaults put back.
-    const numbers = Object.keys(built).filter((key) => typeof built[key] === "number" && Number.isInteger(built[key]));
-    const widened: Record<string, unknown> = { ...built };
-    for (const key of numbers) widened[key] = (built[key] as number) + 0.5;
-    const template = { ...widened };
-    for (const key of numbers) template[key] = built[key];
-    const typed = template as unknown as SimulatorSettings;
-    const nested = (Object.keys(typed) as (keyof SimulatorSettings)[]).filter((key) => typeof typed[key] === "object" && typed[key] !== null);
-    entry = { template: typed, nested };
-    DEFAULT_SETTINGS_TEMPLATES.set(mode, entry);
-  }
-  const out = { ...entry.template };
-  for (const key of entry.nested) (out as unknown as Record<string, unknown>)[key] = structuredClone(entry.template[key]);
-  return out;
-}
-// --- end drawing-machine ---
 
 /** Slider ranges shared by the controls panel and URL validation. */
 export const RANGES = {
@@ -1505,6 +1517,7 @@ export const RANGES = {
   ...PHASE_SPIRAL_PICTURE_RANGES, // --- phase-spiral --- (the tails; the arms are in POLYRHYTHM_RANGES)
   ...EF_RANGES, // --- ellipse-foci ---
   ...BM_RANGES, // --- beat-machine ---
+  ...RING_ESCAPE_RANGES, // --- ring-escape --- (the spiral's step)
   ...DM_RANGES, // --- drawing-machine ---
 } as const;
 
@@ -1764,6 +1777,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writePhaseSpiralParams(settings, base, params); // --- phase-spiral ---: prar, prm, prtl, prls, prco
   writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
   writeBeatMachineParams(settings, base, params); // --- beat-machine ---: bmV, bmBpm, bmSt, bmDx, bmDy, bmB, bmDh, bmRb, bmRt, bmMt, bmSrc, bmN, bmL, bmBs, bmC
+  writeRingEscapeParams(settings, base, params); // --- ring-escape ---: regl, ress, resp, rerb, retm, resn
   writeDrawingMachineParams(settings, base, params); // --- drawing-machine ---: dmm, dmf, dmdt, dmrr, dmtau, dmax, dmay, dmar, dmpx, dmpy, dmpr, dmds, dmss, dmbi, dmbo, dmp, dmq, dmx, dmrad, dmld, dmy, dmspy, dmh, dmrw, dmpg, dmi, dms
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
@@ -1936,6 +1950,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readPhaseSpiralParams(params, settings); // --- phase-spiral --- (whole arms from 1 up, a tail from 0 up, real booleans, a known palette)
   readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
   readBeatMachineParams(params, settings); // --- beat-machine --- (valid numbers from their minimum up, known options, a clean list, real booleans)
+  readRingEscapeParams(params, settings); // --- ring-escape --- (known layouts and spins, a step from 0 up, real booleans)
   readDrawingMachineParams(params, settings); // --- drawing-machine --- (valid numbers from their minimum up, whole ratios, known names, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
@@ -2197,12 +2212,18 @@ export function engineSettingKeys(mode: ModeId): readonly string[] {
 const DP_FAN_ONLY_KEYS: ReadonlySet<string> = new Set(Object.keys(CHAOS_FAN_RANGES));
 const DP_HARP_ONLY_KEYS: ReadonlySet<string> = new Set(["dpCount", "dpSegments", "dpLength3", "dpMass3", "dpAngle3", "dpTrailSeconds", "dpStrings", "dpOctaves"]);
 const NO_INACTIVE_KEYS: ReadonlySet<string> = new Set();
+// --- land-claim-pyramid --- Land Claim builds one of two layouts: a wall run reads none of the pyramid's numbers, a pyramid run
+// none of the wall's columns and rows (a value past its slider there engages no extreme-values machinery and no ARENA FULL)
+const LC_PYRAMID_ONLY_KEYS: ReadonlySet<string> = new Set(Object.keys(LC_PYRAMID_RANGES));
+const LC_WALL_ONLY_KEYS: ReadonlySet<string> = new Set(["lcCols", "lcRows"]);
+// --- end land-claim-pyramid ---
 
 /**
  * --- chaos-fan --- (review fix) The keys of `engineSettingKeys(settings.mode)` the run does not read because the other
  * sub-rig of the mode is built (the Double Pendulum's fan or harp rig): `uncappedEngaged()` and `pastAnyMemoryCeiling()` skip them.
  */
-export function inactiveEngineKeys(settings: Pick<SimulatorSettings, "mode" | "dpFan">): ReadonlySet<string> {
+export function inactiveEngineKeys(settings: Pick<SimulatorSettings, "mode" | "dpFan"> & Partial<Pick<SimulatorSettings, "lcLayout">> /* --- land-claim-pyramid --- */): ReadonlySet<string> {
+  if (settings.mode === "landClaim") return settings.lcLayout === "pyramid" ? LC_WALL_ONLY_KEYS : LC_PYRAMID_ONLY_KEYS; // --- land-claim-pyramid ---
   if (settings.mode !== "doublePendulum") return NO_INACTIVE_KEYS;
   return settings.dpFan ? DP_HARP_ONLY_KEYS : DP_FAN_ONLY_KEYS;
 }
@@ -2403,6 +2424,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveHoopsFields(merged)); // --- bead-hoops --- valid numbers from their minimum up, a known ramp shape, real booleans
   Object.assign(merged, resolveEllipseFociFields(merged)); // --- ellipse-foci --- valid numbers from their minimum up, known options, real booleans
   Object.assign(merged, resolveBeatMachineFields(merged)); // --- beat-machine --- valid numbers from their minimum up, known options, a clean list, real booleans
+  Object.assign(merged, resolveRingEscapeFields(merged)); // --- ring-escape --- known layouts and spins, a step from 0 up, real booleans
   Object.assign(merged, resolveDrawingMachineFields(merged)); // --- drawing-machine --- valid numbers from their minimum up, whole ratios, known names, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)

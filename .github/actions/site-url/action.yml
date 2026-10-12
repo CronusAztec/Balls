@@ -1,0 +1,80 @@
+name: Site URL
+description: >-
+  --- desktop-autorelease --- The public URL, base path and host of the site build, for deploy.yml (the website) and
+  desktop.yml (the share links baked into the Windows app). Order: the repository variable CUSTOM_DOMAIN (a bare domain), else
+  SITE_HOST=cloudflare-pages with CF_PAGES_PROJECT (<project>.pages.dev), else the URL GitHub has configured for the Pages
+  site (a custom domain set under Settings → Pages is picked up here too), else https://<owner>.github.io/<repo>.
+inputs:
+  custom-domain:
+    description: "vars.CUSTOM_DOMAIN – the bare domain the site is served from (jumpingballs.live or www.jumpingballs.live); empty when none"
+    default: ""
+  site-host:
+    description: "vars.SITE_HOST – github-pages (default, also when empty) or cloudflare-pages"
+    default: ""
+  cf-pages-project:
+    description: "vars.CF_PAGES_PROJECT – the Cloudflare Pages project; its <project>.pages.dev address is the URL when no custom domain is set"
+    default: ""
+  token:
+    description: "github.token – reads the repository's Pages settings"
+    required: true
+outputs:
+  url:
+    description: "https://… without a trailing slash"
+    value: ${{ steps.resolve.outputs.url }}
+  base:
+    description: "the base path: '' at a domain root, /Balls on the project site"
+    value: ${{ steps.resolve.outputs.base }}
+  domain:
+    description: "the custom domain ('' when none) – what out/CNAME gets"
+    value: ${{ steps.resolve.outputs.domain }}
+  host:
+    description: "github-pages or cloudflare-pages"
+    value: ${{ steps.resolve.outputs.host }}
+runs:
+  using: composite
+  steps:
+    - id: resolve
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.token }}
+        CUSTOM_DOMAIN: ${{ inputs.custom-domain }}
+        SITE_HOST: ${{ inputs.site-host }}
+        CF_PAGES_PROJECT: ${{ inputs.cf-pages-project }}
+        OWNER: ${{ github.repository_owner }}
+        REPO: ${{ github.event.repository.name }}
+      run: |
+        host="github-pages"
+        if [ "$SITE_HOST" = "cloudflare-pages" ]; then host="cloudflare-pages"; fi
+        domain="$(printf '%s' "$CUSTOM_DOMAIN" | tr '[:upper:]' '[:lower:]' | sed -E 's#[[:space:]]##g; s#^https?://##; s#/.*$##')"
+        if [ -n "$domain" ] && ! printf '%s' "$domain" | grep -Eq '^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$'; then
+          echo "::error title=CUSTOM_DOMAIN is not a domain::Set the repository variable CUSTOM_DOMAIN to the bare domain, e.g. jumpingballs.live or www.jumpingballs.live (no https://, no slash). It is '$CUSTOM_DOMAIN'."
+          exit 1
+        fi
+        if [ -n "$domain" ]; then
+          url="https://$domain"; source="the CUSTOM_DOMAIN variable"
+        elif [ "$host" = "cloudflare-pages" ]; then
+          if [ -z "$CF_PAGES_PROJECT" ]; then
+            echo "::error title=CF_PAGES_PROJECT is not set::SITE_HOST is cloudflare-pages: set the repository variable CF_PAGES_PROJECT to the Pages project name, or set CUSTOM_DOMAIN."
+            exit 1
+          fi
+          url="https://$CF_PAGES_PROJECT.pages.dev"; source="the CF_PAGES_PROJECT variable"
+        elif url="$(gh api "repos/${GITHUB_REPOSITORY}/pages" --jq '.html_url' 2>/dev/null)" && [ -n "$url" ]; then
+          source="the Pages settings"
+        else
+          owner="$(printf '%s' "$OWNER" | tr '[:upper:]' '[:lower:]')"
+          if [ "$(printf '%s' "$REPO" | tr '[:upper:]' '[:lower:]')" = "$owner.github.io" ]; then
+            url="https://$owner.github.io"
+          else
+            url="https://$owner.github.io/$REPO"
+          fi
+          source="the repository name (Pages is not enabled yet)"
+        fi
+        url="${url%/}"
+        base="$(printf '%s' "$url" | sed -E 's#^https?://[^/]*##')"
+        {
+          echo "url=$url"
+          echo "base=$base"
+          echo "domain=$domain"
+          echo "host=$host"
+        } >> "$GITHUB_OUTPUT"
+        echo "Site URL: $url (base path: '$base', host: $host, from $source)"

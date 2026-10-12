@@ -18,19 +18,19 @@
   },
   "SimulatorPage": {
     "heading": "Symulator fizyki piłki",
-    "metaTitle": "Symulator fizyki piłki na TikToka i Reels – zabawa i eksport za darmo – {siteName}",
-    "metaDescription": "Przeglądarkowy symulator fizyki piłki z {count} trybami, konfigurowalną fizyką i tęczowymi efektami – zabawa i eksport są darmowe, bez rejestracji i instalacji. Eksport MP4 w pionowym formacie TikTok; Pro usuwa znak wodny."
+    "metaTitle": "Symulator fizyki piłki na TikToka i Reels – {siteName}",
+    "metaDescription": "Symulator fizyki piłki z {count} trybami. Zabawa i eksport za darmo, bez rejestracji i instalacji. Pionowe MP4 na TikToka. Pro usuwa znak wodny."
   },
   "Layout": {
-    "metaTitle": "Darmowy satysfakcjonujący symulator fizyki piłki na TikToka i Reels – {siteName}",
-    "metaDescription": "Symulator fizyki piłki działający w przeglądarce. Baw się za darmo {count} unikalnymi trybami, konfigurowalną fizyką i tęczowymi efektami – bez rejestracji i instalacji – i eksportuj filmy MP4 na TikToka, Reels i Shorts (Pro usuwa znak wodny).",
+    "metaTitle": "Satysfakcjonujący symulator fizyki piłki na TikToka i Reels – {siteName}",
+    "metaDescription": "Symulator fizyki piłki w przeglądarce z {count} trybami, za darmo i bez rejestracji. Eksportuj filmy MP4 na TikToka, Reels i Shorts. Pro usuwa znak wodny.",
     "browserRequirements": "Wymaga nowoczesnej przeglądarki z włączonym JavaScriptem",
     "featuresModes": "{count, plural, one {# tryb symulacji} few {# tryby symulacji} many {# trybów symulacji} other {# trybu symulacji}}",
     "features": [
       "Konfigurowalna fizyka i wygląd",
       "Tęczowe efekty ścian",
       "Kolorowy ślad",
-      "Efekty przebicia ściany (konfetti, rozbicie, fala uderzeniowa)",
+      "Konfetti, rozbicie i fala uderzeniowa przy przebiciu ściany",
       "Eksport wideo MP4 w wielu rozdzielczościach",
       "Pionowy format TikTok",
       "Własne obrazki piłki",
@@ -186,15 +186,15 @@
   "HowItWorks": {
     "step1": {
       "title": "Wybierz tryb",
-      "description": "Wybierz jeden z {count} trybów: pierścienie do ucieczki, rytmiczne maszyny, pojedynki i podróże."
+      "description": "Wybierz jeden z {count} trybów. Pierścienie do ucieczki, rytmiczne maszyny, pojedynki i podróże."
     },
     "step2": {
-      "title": "Dostosuj wszystko",
-      "description": "Zmieniaj fizykę, kolory, efekty, nakładki tekstowe i wygląd piłki, aż klip będzie wyglądał tak, jak chcesz."
+      "title": "Zrób to po swojemu",
+      "description": "Zmieniaj fizykę, kolory, efekty i tekst, aż klip będzie naprawdę Twój."
     },
     "step3": {
-      "title": "Eksportuj i udostępniaj",
-      "description": "Nagraj symulację jako MP4 w dowolnej rozdzielczości, w tym w pionowym formacie TikTok, i opublikuj, gdzie chcesz."
+      "title": "Eksportuj i udostępnij",
+      "description": "Nagraj przebieg jako MP4, pionowo pod TikToka, i opublikuj, gdzie chcesz."
     }
   },
   "Controls": {
@@ -234,7 +234,7 @@
     "interactionMerge": "Łączenie",
     "interactionMergeDesc": "Stykające się piłki zlewają się w jedną o łącznej powierzchni i pędzie oraz zmieszanym kolorze.",
     "interactionSplit": "Podział",
-    "interactionSplitDesc": "Każde przebicie ściany dzieli piłkę na dwie połówki o połowie powierzchni, które rozlatują się na boki – aż do najmniejszego rozmiaru i limitu piłek.",
+    "interactionSplitDesc": "Każde przebicie ściany dzieli piłkę na dwie połówki, które rozlatują się na boki, aż do najmniejszego rozmiaru i limitu piłek.",
     "interactionPass": "Przenikanie",
     "interactionPassDesc": "Piłki ignorują się nawzajem i przelatują przez siebie.",
     "splitMinRadius": "Najmniejsza połówka",
@@ -247,7 +247,7 @@
     "removeEmoji": "Usuń emoji",
     "advancedPhysics": "Fizyka zaawansowana",
     "advancedPhysicsTip": "Dodatkowe siły i zachowania ścian. Wszystkie są domyślnie wyłączone, więc udostępniony link lub znaleziony seed zachowuje się dokładnie tak jak wcześniej, dopóki ich nie zmienisz.",
-    "advancedPhysicsDesc": "Deterministyczne dodatki: uwzględniają je udostępniane linki, presety i wyszukiwanie symulacji.",
+    "advancedPhysicsDesc": "Dodatki, które uwzględniają udostępniane linki, presety i Znajdź symulację.",
     "airDrag": "Opór powietrza",
     "airDragTip": "Ułamek prędkości piłki tracony w każdym kroku fizyki (60 na sekundę). Odrobina uspokaja piłkę, dużo sprawia, że opada.",
     "windX": "Wiatr (poziomo)",
@@ -376,7 +376,7 @@
     "musicStartOffset": "Start muzyki",
     "musicStartOffsetTip": "Pomiń pierwsze sekundy utworu, żeby refren trafił dokładnie w start symulacji. Restart też zaczyna od tego miejsca.",
     "instrument": "Instrument",
-    "instrumentDesc": "Brzmienie, którym grane są tony ścian (melodia ma własny instrument poniżej). Szarpana struna, marimba i chiptune są syntezowane na żywo; klasyczny ton to trójkąt.",
+    "instrumentDesc": "Brzmienie tonów ścian. Szarpana struna, marimba i chiptune są syntezowane na żywo. Klasyczny ton to trójkąt. Melodia ma własny instrument poniżej.",
     "instSine": "Sinus",
     "instTriangle": "Trójkąt",
     "instSquare": "Prostokąt",
@@ -397,7 +397,7 @@
     "rootNote": "Dźwięk podstawowy",
     "beatLock": "Do rytmu (BPM)",
     "beatLockTip": "Opóźnia dźwięk każdego odbicia do najbliższego punktu siatki rytmicznej (najwyżej o jeden krok), więc eksport trzyma się rytmu.",
-    "beatLockDesc": "Dźwięki odbić grane są na siatce BPM; dodatkowe uderzenia w tym samym kroku są pomijane, żeby rytm pozostał czysty.",
+    "beatLockDesc": "Dźwięki odbić grają na siatce BPM. Dodatkowe uderzenia w tym samym kroku są pomijane, żeby rytm pozostał czysty.",
     "bpm": "BPM",
     "quantizeGrid": "Siatka",
     "videoResolution": "Rozdzielczość",
@@ -461,7 +461,7 @@
     "centerDotTip": "Umieść małą kropkę na środku okręgu, od której odbija się piłka.",
     "growLines": "Linie",
     "growLinesTip": "Rysuj linie od każdego punktu odbicia do piłki, jak w trybie Linie.",
-    "dropDesc": "Piłki o różnych rozmiarach i wadze spadają przez rzędy kołków i belek. Każde uderzenie gra nutę o wysokości zależnej od rozmiaru piłki, więc symulacja sama komponuje polirytmię.",
+    "dropDesc": "Piłki różnej wielkości spadają przez rzędy kołków i belek. Każde uderzenie gra nutę o wysokości zależnej od rozmiaru piłki.",
     "dropBallCount": "Liczba piłek",
     "dropBallCountTip": "Ile piłek zostaje wypuszczonych z góry planszy.",
     "dropSizeVariation": "Rozrzut rozmiarów",
@@ -476,7 +476,7 @@
     "dropLoopTip": "Otwiera podłogę: piłki, które wypadną dołem, wracają na górę, więc utwór nigdy się nie kończy.",
     "picturePaint": "Malowanie obrazka",
     "picturePaintTip": "Wgraj dowolny obrazek, a piłka odsłoni go pociągnięcie po pociągnięciu – w rytm twojej piosenki, prowadzona tak, by pojawił się cały, w tempie dobranym do końca utworu.",
-    "picturePaintDesc": "PNG, JPG, WebP lub GIF (pierwsza klatka). Obrazek jest dopasowany do okręgu i zostaje w twojej przeglądarce; pędzel piłki go odkrywa, a bieg kończy się przy 95 % odsłonięcia.",
+    "picturePaintDesc": "PNG, JPG, WebP albo pierwsza klatka GIF-a. Obrazek jest dopasowany do okręgu i zostaje w Twojej przeglądarce. Pędzel piłki go odkrywa, a przebieg kończy się przy 95% odsłonięcia.",
     "choosePictureFile": "Wybierz obrazek",
     "dropPictureHere": "Upuść obrazek tutaj!",
     "paintPictureRemove": "Usuń obrazek",
@@ -505,7 +505,7 @@
     "paintPaceTip": "Co sekundę zmienia rozmiar pędzla, żeby odsłanianie skończyło się razem z piosenką – albo z klipem. HUD pokazuje, czy piłka jest w harmonogramie.",
     "paintPaceDesc": "Zakończ odsłanianie razem z piosenką (albo z długością klipu, gdy jej nie ma).",
     "dropLoopDesc": "Wyłączone: symulacja kończy się, gdy wszystkie piłki spoczną na podłodze.",
-    "boxDesc": "Pudełko zamiast pierścieni. Kwadraty, koła lub logotypy w stylu DVD lecą po liniach prostych, a każde uderzenie w ściankę gra nutę: kolejną nutę melodii albo bez melodii jedną z czterech nut, po jednej na ściankę. Liczby odliczają z każdym odbiciem, kolory się zmieniają, a kształty odrobinę rosną.",
+    "boxDesc": "Pudełko zamiast pierścieni. Kwadraty, koła albo loga lecą po liniach prostych, a każde uderzenie w ściankę gra nutę. Liczby odliczają w dół z każdym odbiciem.",
     "boxShape": "Kształt",
     "boxShapeTip": "Co odbija się w pudełku: kwadraty równoległe do ścianek, koła albo zaokrąglony logotyp w stylu DVD, którego trafienia w róg są akcentowane głośniejszą nutą i błyskiem.",
     "boxShapeSquare": "Kwadrat",
@@ -514,8 +514,8 @@
     "boxShapeCount": "Liczba kształtów",
     "boxShapeCountTip": "Ile kształtów startuje ze środka pudełka. Przenikają się nawzajem, więc ich rytmy nigdy sobie nie przeszkadzają.",
     "boxSpeedRatio": "Stosunek prędkości",
-    "boxSpeedRatioTip": "Prędkości kształtów w małych stosunkach liczb całkowitych: przy 2:3 drugi kształt uderza w ścianki trzy razy, gdy pierwszy dwa – to właśnie polirytmia. Przy 1:1 każdy kształt dostaje za to własny kąt startu. Najszybszy kształt porusza się z prędkością piłki pomnożoną przez tempo losowane z seeda (±15 %) – dzięki temu Znajdź symulację może trafić w dokładną długość klipu.",
-    "boxSpeedRatioDesc": "Kąt startu jest tak dobrany, by uderzenia góra/dół i lewo/prawo każdego kształtu też tworzyły prosty stosunek. Logo DVD zawsze dostaje stosunek nieparzysty i przy każdym odbiciu jest minimalnie korygowane, więc trafia dokładnie w róg co 3–13 uderzeń – nawet gdy rośnie.",
+    "boxSpeedRatioTip": "Prędkości kształtów w małych stosunkach liczb całkowitych. Przy 2:3 drugi kształt uderza w ścianki trzy razy, gdy pierwszy dwa. To właśnie polirytmia. Przy 1:1 każdy kształt dostaje za to własny kąt startu. Najszybszy kształt porusza się z Prędkością piłki pomnożoną przez tempo z ziarna.",
+    "boxSpeedRatioDesc": "Kąt startu daje każdemu kształtowi prosty stosunek uderzeń góra/dół do lewo/prawo. Logo DVD zawsze dostaje stosunek nieparzysty i przy każdym odbiciu jest minimalnie korygowane, więc co kilka uderzeń trafia w róg, nawet gdy rośnie.",
     "boxCountdown": "Odliczanie",
     "boxCountdownTip": "Liczba na każdym kształcie zmniejsza się o jeden z każdym uderzeniem w ściankę, a symulacja kończy się, gdy wszystkie kształty dojdą do zera. 0 wyłącza odliczanie i kształty odbijają się bez końca.",
     "boxCountdownOff": "Wył.",
@@ -525,9 +525,9 @@
     "boxGravityTip": "Jaka część ustawienia grawitacji działa na kształty. 0 to klasyczny ruch logo DVD po liniach prostych; powyżej kształty zamieniają się w odbijające się piłki, które zachowują wysokość odbicia.",
     "boxAspect": "Proporcje pudełka",
     "boxAspectTip": "Szerokość pudełka względem jego wysokości: 9:16 wypełnia pionowy klip, 1:1 to kwadrat, 16:9 to poziom.",
-    "pwDesc": "Wahadła nastrojone jak klasyczna fala wahadeł: najwolniejsze wykonuje K wahnięć na cykl, każde kolejne o jedno więcej, więc rząd rozjeżdża się w wędrujące fale, dzieli na grupy i na koniec każdego cyklu znów staje w linii. Każde przejście przez środek gra nutę o wysokości zależnej od miejsca wahadła w rzędzie.",
+    "pwDesc": "Wahadła nastrojone tak, że każde wykonuje na cykl o jedno wahnięcie więcej niż poprzednie. Rząd rozjeżdża się w fale, dzieli na grupy i wraca do linii. Każde przejście przez środek to nuta.",
     "pwLayout": "Układ",
-    "pwLayoutTip": "Gdzie wiszą wahadła: rząd pod belką (nitki o wyraźnie różnej długości), łuk zaczepów wahających się ku środkowi, kulki poruszające się po promieniach od środka (opcjonalnie po obracającym się wielokącie), to samo na wolno obracającej się ramie rysującej ramiona spiralne, kulki przesuwające się po szynach albo piłki odbijające się od podłogi z okresami z tej samej serii.",
+    "pwLayoutTip": "Gdzie wiszą wahadła. Rząd: pod belką. Łuk: zaczepy wahające się ku środkowi. Okrąg: kulki na promieniach od środka, opcjonalnie na obracającym się wielokącie. Galaktyka: wolno obracająca się rama, która rysuje ramiona spiralne. Szyny: kulki na szynach. Odbijanie: piłki skaczące z okresami z tej samej serii.",
     "pwLayoutRow": "Rząd",
     "pwLayoutArc": "Łuk",
     "pwLayoutCircle": "Okrąg",
@@ -626,7 +626,7 @@
     "faceSoundsTip": "Kocia buźka wydaje syntezowane miauknięcie, gdy dostaje uderzenie, gdy pęka ściana i gdy ucieka – w siatce rytmu i na nagraniu. Nieużywane, gdy dźwiękiem odbicia jest próbka audio.",
     "faceSoundsSampleNote": "Wyciszone, dopóki dźwiękiem odbicia jest próbka audio – przełącz z powrotem na tony, żeby usłyszeć kota.",
     "geraldPersona": "Poznaj Geralda",
-    "geraldPersonaDesc": "Gerald zawsze ucieka – wolność trwa około 4 sekund. Jedno kliknięcie ustawia jego buźkę, imię i zgniatanie.",
+    "geraldPersonaDesc": "Gerald zawsze ucieka. Wolność trwa około 4 sekund. Jedno kliknięcie ustawia jego buźkę, imię i zgniatanie.",
     "theme": "Motyw",
     "themeTip": "Gotowy wygląd jednym kliknięciem: motyw ustawia kolory ścian, piłek, linii, tła i śladu oraz styl cząsteczek. Każdy kolor możesz potem dalej zmieniać – kliknij motyw ponownie, aby go przywrócić.",
     "themeDefault": "Domyślny",
@@ -670,9 +670,9 @@
     "themeTrailStart": "Kolor śladu 1",
     "themeTrailEnd": "Kolor śladu 2",
     "modePolyrhythm": "Metronomy i polirytmy",
-    "prDesc": "Głosy tykające we własnym tempie: każde tyknięcie gra nutę, a gdy wszystkie tykną naraz, ekran błyska i rozbrzmiewa akord. Pozycje są dokładnymi funkcjami czasu, więc nawet 400 głosów odtwarza się identycznie.",
+    "prDesc": "Głosy tykające we własnym tempie. Każde tyknięcie gra nutę. Gdy wszystkie tykną naraz, ekran błyska i rozbrzmiewa akord.",
     "prLayout": "Układ",
-    "prLayoutTip": "Okręgi: kropka na każdym okręgu obiega środek całkowitą liczbę razy na cykl i tyka na godzinie 12. Łuki: kropki przesuwają się tam i z powrotem w poprzek koła i tykają na obu końcach. Metronomy: siatka wahadeł tykających w obu skrajnych położeniach – połącz je z krokami BPM, żeby uzyskać przesunięcie fazowe tempa. Spirala: krążące kropki, których punkty tyknięć leżą na spirali odtwarzanej przy każdym zgraniu. Układ można zmienić w trakcie – rytm trwa dalej.",
+    "prLayoutTip": "Okręgi: kropka na każdym okręgu obiega go całkowitą liczbę razy na cykl i tyka na godzinie 12. Łuki: kropki przesuwają się w poprzek koła i tykają na obu końcach. Metronomy: siatka wahadeł tykających w obu skrajnych położeniach. Spirala: krążące kropki, których punkty tyknięć leżą na spirali. Układ możesz zmienić w trakcie.",
     "prLayoutRings": "Okręgi",
     "prLayoutArcs": "Łuki",
     "prLayoutMetronomes": "Metronomy",
@@ -714,7 +714,7 @@
     "prRealign": "Wszystkie głosy zgrywają się co {seconds}s",
     "modeCollide": "Poligon zderzeń",
     "cpTitle": "Poligon zderzeń",
-    "cpDesc": "Setki kul różnej wielkości odbijają się od ścian i od siebie nawzajem – masa rośnie z rozmiarem – a każde zderzenie gra cichą nutę o wysokości zależnej od mniejszej kuli: duże kule nisko, małe wysoko.",
+    "cpDesc": "Setki kul różnej wielkości odbijają się od ścian i od siebie nawzajem. Każde zderzenie gra cichą nutę o wysokości zależnej od mniejszej kuli.",
     "cpCount": "Kule",
     "cpCountTip": "Ile kul się zderza, od 10 do 2000. Ich rozmiar dobiera się sam, tak by wypełniły pojemnik (Rozmiar piłki je powiększa lub zmniejsza); na pierścieniu mieści się najwyżej 36 lizaków.",
     "cpCountOnRing": "{count} na pierścieniu",
@@ -766,7 +766,7 @@
     "teamDefault6": "Pomarańczowi",
     "cameraGroup": "Kamera",
     "cameraGroupTip": "Filmowe efekty kamery. Zmieniają tylko obraz i tempo, w jakim zegar napędza symulację – nigdy fizykę: ziarna i znalezione symulacje przebiegają dokładnie tak samo.",
-    "cameraGroupDesc": "Przybliż piłkę, potrząśnij obrazem, gdy pęka ściana, zwolnij przy otarciach o krawędź szczeliny i powtórz ucieczkę – w podglądzie i w nagraniach.",
+    "cameraGroupDesc": "Przybliż piłkę, potrząśnij obrazem, gdy pęka ściana, zwolnij przy otarciach i powtórz ucieczkę, w podglądzie i w nagraniach.",
     "cameraOff": "Wył.",
     "cameraZoom": "Zoom kamery",
     "cameraZoomTip": "Jak mocno widok przybliża się do piłki, podążając za nią po arenie. 0 zostawia dotychczasowy widok (z włączoną opcją „Kamera podąża” – łagodne klasyczne śledzenie). Przy kilku piłkach (Liczba piłek) zoom pozostaje na tyle szeroki, by wszystkie były w kadrze.",
@@ -783,7 +783,7 @@
     "replayOnEscapeModes": "Powtórka działa w trybach ucieczki: Klasyczny, Akumulacja, Portal, Rozbicie i Dopasowanie kolorów.",
     "modeGlass": "Rozbijanie szkła",
     "glassTitle": "Szkło",
-    "glassDesc": "Między piłką a DOMEM stoją etapy szklanych tafli. Każde lądowanie zostawia pęknięcie na tafli i gra kolejną nutę (następną nutę melodii albo stopień skali według rzędu); ostatnie uderzenie roztrzaskuje taflę z dźwiękiem przebicia ściany – szklanym klipem, chyba że wybierzesz inny. Każdy kolejny etap ma więcej tafli, grubsze szkło, tafle jeżdżące na boki i tafle z dziurami.",
+    "glassDesc": "Między piłką a DOMEM stoją etapy szklanych tafli. Każde lądowanie zostawia pęknięcie i gra nutę. Ostatnie uderzenie roztrzaskuje taflę. Każdy etap to więcej tafli, grubsze szkło i dziury.",
     "glassRows": "Tafle na etap",
     "glassRowsTip": "Ile szklanych tafli ma pierwszy etap – od 3 do 30. Każdy następny dokłada jedną trzecią więcej (najwyżej 30), ułożonych gęściej, więc im głębiej, tym szybciej padają uderzenia.",
     "glassHp": "Uderzenia na taflę",
@@ -795,12 +795,12 @@
     "glassHoles": "Tafle z dziurami",
     "glassHolesTip": "Od drugiego etapu część tafli ma dziurę, którą piłka musi ominąć, żeby dalej tłuc szkło. Wpadając w dziurę, pomija taflę (od spodu wciąż może ją pęknąć).",
     "glassGates": "Bramki mnożników",
-    "glassGatesTip": "Rząd trzech bramek nad szkłem każdego etapu – x2 OBRAŻ. (tafla traci dwa punkty wytrzymałości na uderzenie), x1.5 PRĘDKOŚĆ (każdy podskok jest szybszy) i x1.25 ROZMIAR – w kolejności zależnej od ziarna. Bramka, przez którą przeleci Gerald, dokłada mu swój mnożnik (bez limitu, chyba że ustawisz go w grupie Mnożniki w sekcji Piłka), a HUD go pokazuje.",
+    "glassGatesTip": "Rząd trzech bramek nad szkłem każdego etapu: x2 OBRAŻ., x1.5 PRĘDKOŚĆ i x1.25 ROZMIAR, w kolejności zależnej od ziarna. Bramka, przez którą przeleci Gerald, dokłada mu swój mnożnik, bez limitu, chyba że ustawisz go w grupie Mnożniki. HUD go pokazuje.",
     "glassRunSize": "Cały bieg: tafle – {panes}, uderzenia – do {hits}, etapy – {stages}, a na końcu DOM.",
     "wallBreakSoundModeDefault": "Domyślny dla trybu ({name})",
     "modeMultipliers": "Mnożniki",
     "mpTitle": "Mnożniki",
-    "mpDesc": "Mnożniki prędkości, rozmiaru, obrażeń, odbicia i grawitacji kumulują się na piłce – bez limitu, chyba że go ustawisz. W trybach z pierścieniami unoszą się znajdźki, a piłka, której obrażenia sięgną progu rozbijania, kruszy pierścienie, których dotknie.",
+    "mpDesc": "Mnożniki prędkości, rozmiaru, obrażeń, odbicia i grawitacji kumulują się na piłce bez limitu, chyba że go ustawisz. W trybach z pierścieniami unoszą się znajdźki.",
     "multiplierPickups": "Znajdźki z mnożnikami",
     "multiplierPickupsTip": "Unoszące się kule – x2 PRĘDKOŚĆ, x1,5 ROZMIAR, x2 OBRAŻENIA, x2 PIŁKI… – pojawiają się w wyznaczonych przez ziarno chwilach i miejscach wewnątrz pierścienia piłki. Dotknięcie nakłada mnożnik na piłkę z wybuchem cząstek, rosnącym arpeggio i mignięciem plakietki w HUD-zie. Ziarna i Znajdź symulację je uwzględniają.",
     "pickupRate": "Częstość znajdźek",
@@ -873,8 +873,8 @@
     "obstaclesModeNote": "Przeszkody działają w trybach z pierścieniami, np. w trybie Klasycznym, Rozbiciu czy Portalu. Twój układ zostaje zachowany na powrót do takiego trybu.",
     "captionsTab": "Napisy",
     "captions": "Napisy",
-    "captionsDesc": "Animowane nakładki do klipu: odliczanie, licznik ścian, pasek postępu, pytanie, które odsłania odpowiedź, albo własny tekst. Są rysowane na płótnie, więc każde nagranie je zawiera.",
-    "captionsTip": "Każdy napis pojawia się i znika z animacją – zanikaniem, wsunięciem albo wyskokiem – między swoim początkiem a końcem. Czas odmierza zegar symulacji: pauza zatrzymuje napisy, 8× odtwarza je osiem razy szybciej, a restart zaczyna je od nowa. Podczas nagrywania klipu odliczanie i pasek postępu liczą sam klip – od kliknięcia „Nagraj wideo” do końca nagrania. Napisy trafiają do linku do udostępnienia i do zapisanych presetów.",
+    "captionsDesc": "Animowane nakładki do klipu. Odliczanie, licznik ścian, pasek postępu, pytanie, które odsłania odpowiedź, albo własny tekst. Są rysowane na płótnie, więc każde nagranie je zawiera.",
+    "captionsTip": "Każdy napis pojawia się i znika, zanikając, wsuwając się albo wyskakując, między swoim początkiem a końcem. Czas odmierza zegar symulacji, więc pauza zatrzymuje napisy, a restart zaczyna je od nowa. Podczas nagrywania odliczanie i pasek postępu liczą sam klip. Napisy trafiają do linków i presetów.",
     "captionsEmpty": "Nie ma jeszcze napisów – dodaj pierwszy poniżej.",
     "captionAdd": "Dodaj napis",
     "captionAddTip": "Dodaje napis wybranego typu (maksymalnie {max}). Napisy w tym samym miejscu układają się w kolejności z listy.",
@@ -886,7 +886,7 @@
     "captionTypeQuestion": "Pytanie",
     "captionTypeText": "Tekst",
     "captionType": "Typ",
-    "captionTypeTip": "Odliczanie: czas do końca klipu. Licznik ścian: rozbite ściany spośród wszystkich ścian w grze („Ściana 3/10”; niewidoczny w trybach bez pierścieni). Pasek postępu: czas, który upłynął, względem długości klipu. Pytanie: pytanie, którego odpowiedź wyskakuje, gdy piłka ucieknie lub przebieg się skończy. Tekst: dowolny tekst.",
+    "captionTypeTip": "Odliczanie: czas do końca klipu. Licznik ścian: rozbite ściany spośród wszystkich w grze, ukryty w trybach bez pierścieni. Pasek postępu: czas, który upłynął, względem długości klipu. Pytanie: pytanie, którego odpowiedź wyskakuje, gdy piłka ucieknie lub przebieg się skończy. Tekst: dowolny tekst.",
     "captionText": "Tekst",
     "captionTextTip": "Tekst do wyświetlenia (do 80 znaków; dłuższy łamie się na maksymalnie trzy wiersze).",
     "captionQuestion": "Pytanie",
@@ -946,7 +946,7 @@
     "forcedWinnerNeverEscape": "Wyłączony, gdy włączona jest opcja Nigdy nie ucieknie: w tym trybie wybrana drużyna wygrywa ucieczką, a nikt nie ucieka. Razem z opcją Nigdy nie ucieknie wymuszony zwycięzca działa w trybie Klasyczny, gdzie decydują ściany, które rozbija jako pierwsza.",
     "timelineTab": "Oś czasu",
     "timeline": "Klatki kluczowe osi czasu",
-    "timelineDesc": "Automatyzuj ustawienia w trakcie klipu: wybierz ustawienie, ustaw jego wartość i dodaj klatkę kluczową w bieżącej chwili. Między dwiema klatkami wartość zmienia się liniowo; przed pierwszą i po ostatniej pozostaje stała.",
+    "timelineDesc": "Automatyzuj ustawienia w trakcie klipu. Wybierz ustawienie, ustaw wartość i dodaj klatkę kluczową w bieżącej chwili. Między klatkami kluczowymi wartość zmienia się liniowo.",
     "timelineTip": "Klatki kluczowe biegną według zegara symulacji: pauza je wstrzymuje, 8× odtwarza je szybciej, a Uruchom ponownie zaczyna je od początku, więc Znajdź symulację i nagranie widzą ten sam przebieg. Sterują tylko przebiegiem – Twoje wartości suwaków zostają bez zmian i wracają, gdy usuniesz klatki danego ustawienia.",
     "timelineSetting": "Ustawienie",
     "timelineSettingTip": "Ustawienie, którym steruje następna klatka kluczowa. Dopóki ustawienie ma klatki kluczowe, jego suwak pokazuje bieżącą wartość z plakietką AUTO i jest zablokowany.",
@@ -969,7 +969,7 @@
     "timelineAuto": "Auto",
     "timelineAutoTip": "Sterowane przez oś czasu: wartość podąża za klatkami kluczowymi. Edytuj je w sekcji Oś czasu.",
     "modeDoublePendulum": "Podwójne wahadło",
-    "dpDesc": "Chaotyczne podwójne wahadła kołyszą się nad harfą: każda struna, którą przetnie kulka, zostaje szarpnięta i gra swój dźwięk, a ostatnia kulka maluje długi tęczowy ślad. Dodaj wahadła, by zobaczyć efekt motyla, trzecie ramię dla wahadła potrójnego albo pozwól dwóm wahadłom stoczyć sparing.",
+    "dpDesc": "Chaotyczne podwójne wahadła kołyszą się nad harfą. Każda struna, którą przetnie kulka, gra swoją nutę, a ostatnia kulka maluje tęczowy ślad. Dodaj wahadła, trzecie ramię albo pozwól dwóm stoczyć sparing.",
     "dpGroupRig": "Układ",
     "dpGroupStart": "Start",
     "dpGroupPhysics": "Fizyka",
@@ -1019,7 +1019,7 @@
     "dpRunEndless": "Kołysze się, dopóki go nie zatrzymasz.",
     "dpFixedRunLength": "Zawsze {duration}s – tyle, ile klip; zmień Czas trwania albo włącz Bez końca",
     "modeIllusion": "Iluzja okręgu",
-    "ilDesc": "Cztery iluzje z okręgami w stylu project.jdm. Każde dotknięcie, odbicie i zderzenie gra nutę wybranym instrumentem, w wybranej skali i z blokadą rytmu.",
+    "ilDesc": "Cztery iluzje z okręgami. Każde dotknięcie, odbicie i zderzenie gra nutę wybranym instrumentem, w wybranej skali i z blokadą rytmu.",
     "ilType": "Iluzja",
     "ilTypeTip": "Linie: piłki sunące tam i z powrotem po prostych, które razem toczą ukryty okrąg. Pierścienie: w każdym obracającym się pierścieniu odbija się jedna piłka. Zagnieżdżone: okręgi odbijające się w okręgach, z falującymi ścianami. Białe plamy: piłki malują arenę i zostawiają białą ukrytą figurę.",
     "ilTypeLines": "Linie",
@@ -1063,9 +1063,9 @@
     "wallWobbleTip": "Okrągłe ściany wybrzuszają się tam, gdzie uderzy piłka; wybrzuszenie obiega ścianę i gaśnie jak galaretka. Tylko efekt wizualny – fizyka, ziarna i Znajdź symulację się nie zmieniają.",
     "wallWobbleOff": "Wył.",
     "modeStringBattle": "Bitwa na nici",
-    "sbDesc": "WEB DOMINION z konta oddplayground: każde odbicie od ściany przyczepia do pierścienia świecącą nić prowadzącą do kulki, nici podążają za swoimi kulkami, a zasada walki decyduje, kto płaci za ich przekroczenie. Wygrywa ostatnia kulka na placu boju.",
+    "sbDesc": "Każde odbicie od ściany przyczepia świecącą nić od pierścienia do kulki. Zasada walki decyduje, kto płaci za przekroczenie nici. Wygrywa ostatnia kulka na placu boju.",
     "sbRule": "Zasada walki",
-    "sbRuleTip": "Cięcie: kulka przecinająca nić rywala – w dowolnym miejscu, od pierścienia aż po kulkę, na której wisi – tnie ją, a właściciel nici traci życie. Dotyk: nici są laserami – kulka, która dotknie nici rywala w dowolnym miejscu, sama traci życie. Zderzenie: przy zderzeniu kulek życie traci wolniejsza (każde odbicie od pierścienia nadaje kulce nową prędkość, więc wolniejsza zmienia się od zderzenia do zderzenia). Po utracie życia kulka jest przez chwilę chroniona.",
+    "sbRuleTip": "Cięcie: kulka, która przetnie nić rywala, zrywa ją, a właściciel nici traci życie. Dotyk: nici są laserami, a kulka, która dotknie nici rywala, sama traci życie. Zderzenie: przy zderzeniu życie traci wolniejsza kulka. Po utracie życia kulka jest przez chwilę chroniona.",
     "sbRuleCut": "Cięcie",
     "sbRuleTouch": "Dotyk",
     "sbRuleCollide": "Zderzenie",
@@ -1100,7 +1100,7 @@
     "sbPaletteNote": "Paleta: {names} – albo ustaw skład w sekcji Drużyny i tablica wyników.",
     "modePowerLayers": "Warstwy mocy",
     "plTitle": "Warstwy mocy",
-    "plDesc": "Między piłką a wolnością stoi stos tęczowych warstw. Każde uderzenie w stos niszczy tyle warstw, ile wynosi moc, po czym moc rośnie według ciągu – domyślnie x2 – i gra kolejna nuta skali. Piłka odbija się w równym rytmie i przyspiesza, gdy stos opada; gdy pęknie ostatnia warstwa, wypada dołem.",
+    "plDesc": "Między piłką a wolnością stoi stos tęczowych warstw. Każde uderzenie niszczy tyle warstw, ile wynosi moc, a potem moc rośnie. Gdy pęknie ostatnia warstwa, piłka wypada na wolność.",
     "plLayers": "Warstwy",
     "plLayersTip": "Ile cienkich tęczowych warstw ma stos, od 20 do 800. Gdy moc podwaja się przy każdym uderzeniu, 120 warstw znika w 7 uderzeniach, a 800 w 10.",
     "plSequence": "Ciąg mocy",
@@ -1132,7 +1132,7 @@
     "fastExportFps30": "30 kl./s",
     "fastExportFps60": "60 kl./s",
     "projectFiles": "Plik projektu",
-    "projectFilesDesc": "Zapisz całą konfigurację – wszystkie ustawienia z przeszkodami, klatkami kluczowymi, napisami i drużynami oraz wgrane obrazki i dźwięki – w jednym pliku .jumpingballslive.json i otwórz ją później albo na innym komputerze.",
+    "projectFilesDesc": "Zapisz całą konfigurację w jednym pliku .jumpingballslive.json, ze wszystkimi ustawieniami, przeszkodami, klatkami kluczowymi, napisami, drużynami oraz wgranymi obrazkami i dźwiękami. Otwórz ją później albo na innym komputerze.",
     "projectName": "Nazwa projektu",
     "projectNamePlaceholder": "np. gerald-kontra-szklo",
     "projectMediaNone": "Brak wgranych multimediów – plik zawiera tylko ustawienia.",
@@ -1167,7 +1167,7 @@
     "projectExportError": "Nie udało się zapisać projektu.",
     "modeRace": "Wyścig kwadratów Grand Prix",
     "rcTitle": "Wyścig",
-    "rcDesc": "Zawodnicy pędzą w dół długiego toru wygenerowanego z ziarna: kołki, lejki, obrotowe belki, flipperowe odbijacze, turbo-pola, wąskie bramki i strefy zamiany. Każde uderzenie w przeszkodę to nuta zawodnika, każde wyprzedzenie – dzwonek; zwycięzca dostaje fanfarę i podium.",
+    "rcDesc": "Zawodnicy pędzą w dół toru z kołkami, lejkami, obrotowymi belkami, odbijaczami, dopalaczami i strefami zamiany. Każde uderzenie w przeszkodę to nuta, każde wyprzedzenie to dzwonek. Zwycięzca staje na podium.",
     "rcGroupGrid": "Pola startowe",
     "rcGroupTrack": "Tor",
     "rcGroupView": "Transmisja",
@@ -1243,8 +1243,8 @@
     "modeBattle": "Battle Royale",
     "modeCtf": "Zdobądź flagę",
     "arenaTitle": "Gry na arenie",
-    "btDesc": "Kwadraty z punktami życia odbijają się i zderzają w stylu project.jdm: obrażenia zadaje szybszy kwadrat, trafione kwadraty błyskają i się kurczą, a przy 0 HP odpadają z gry. Wygrywa ostatni kwadrat na placu boju – każde zderzenie i odbicie to nuta.",
-    "ctfDesc": "Dwie drużyny odbijających się kwadratów w stylu project.jdm: dotknij flagi rywala, by ją nieść, i zanieś ją do swojej bazy, by zdobyć punkt. Niosący flagę trafiony przez rywala upuszcza ją tam, gdzie jest – każde zdobycie flagi wita fanfara.",
+    "btDesc": "Kwadraty z punktami życia odbijają się i zderzają. Obrażenia zadaje szybszy kwadrat. Przy 0 HP kwadrat odpada z gry. Wygrywa ostatni, który przetrwa.",
+    "ctfDesc": "Dwie drużyny odbijających się kwadratów. Dotknij flagi rywala, by ją nieść, i zanieś ją do swojej bazy, by zdobyć punkt. Trafiony niosący upuszcza flagę tam, gdzie stoi.",
     "btCount": "Kwadraty",
     "btCountTip": "Ile kwadratów walczy, od 2 do 20. Każdy jest osobną drużyną; ich rozmiar dobiera się sam, by wypełniły arenę (Rozmiar kulki je powiększa).",
     "btHp": "Punkty życia",
@@ -1268,13 +1268,13 @@
     "arenaNudgeTip": "Jak mocno reżyser skręca odbicie od ściany w stronę akcji – najbliższego rywala, flagi przeciwnika albo, z flagą, własnej bazy. 0 to czysta fizyka; wszystko zależy od ziarna, więc każdy przebieg da się odtworzyć.",
     "arenaTeamsHint": "Nazwy i kolory pochodzą z listy drużyn, jeśli ją ustawisz (sekcja Drużyny i tablica wyników); w przeciwnym razie każdy kwadrat dostaje nazwę koloru.",
     "batchRender": "Renderowanie seryjne",
-    "batchRenderTip": "Ustaw w kolejce wiele szybkich eksportów: N losowych ziaren albo wklejoną listę ziaren i linków do udostępniania, opcjonalnie w każdym trybie albo z jednym ustawieniem zmienianym od A do B. Klipy renderują się jeden po drugim z ustawieniami tego panelu (strona pokazuje każdy z nich podczas renderowania, a na końcu przywraca Twoje ustawienia), pobierają się jako pliki tryb-ziarno-długość, a na końcu także razem jako ZIP. Ostatnia seria jest zapamiętywana w tej przeglądarce.",
+    "batchRenderTip": "Ustaw w kolejce wiele szybkich eksportów: N losowych ziaren albo wklejoną listę ziaren i linków, w każdym trybie albo z jednym ustawieniem zmienianym od A do B. Klipy renderują się jeden po drugim z ustawieniami tego panelu, pobierają się po kolei, a na końcu razem jako ZIP. Ostatnia seria zostaje zapamiętana w tej przeglądarce.",
     "batchDownloadEach": "Pobieraj każdy klip",
     "batchDownloadEachTip": "Zapisuje każdy klip zaraz po wyrenderowaniu (przeglądarka może raz zapytać o zgodę na pobieranie wielu plików). Tak czy inaczej na końcu wszystkie klipy można pobrać razem jako ZIP.",
     "modeRunner": "Bieg w rytmie",
     "modePaddle": "Piłka na platformie",
     "rrTitle": "Bieg w rytmie",
-    "rrDesc": "Kwadrat biegnie po podłodze pod przewijaną kamerą; kolce, dziury i bloki stoją na bitach wczytanej piosenki (albo tempa BPM z sekcji Własny dźwięk), więc każdy skok z prawdziwą grawitacją ląduje dokładnie na bicie i gra kolejną nutę.",
+    "rrDesc": "Kwadrat biegnie po podłodze pod przewijaną kamerą. Kolce, dziury i bloki stoją na bitach Twojej piosenki, więc każdy skok ląduje na bicie i gra nutę.",
     "rrAutoJump": "Automatyczny skok",
     "rrAutoJumpTip": "Włączone: kwadrat skacze sam w chwilach wyliczonych przez solver skoków – nigdy się nie myli, a każde lądowanie wypada na bicie. Wyłączone: skaczesz Spacją (albo ↑ lub stuknięciem w płótno); zderzenie wznawia odcinek od punktu kontrolnego, a Escape włącza pauzę.",
     "rrObstacles": "Przeszkody",
@@ -1302,7 +1302,7 @@
     "rrRunInfo": "Przeszkody: {obstacles} na bicie {bpm} BPM – bieg na około {seconds}s (ziarno przesuwa go o kilka bitów).",
     "rrManualInfo": "Przeszkody: {obstacles} – skacz Spacją (albo stuknij w płótno). Zderzenie wznawia odcinek; Znajdź symulację wymaga automatycznego skoku.",
     "pdTitle": "Piłka na platformie",
-    "pdDesc": "Piłka spada na platformę, która jeździ w lewo i w prawo. Każde złapanie gra kolejną nutę i wyrzuca piłkę z powrotem w górę – ze środka wyżej, z brzegów niżej i w bok z podkręceniem – od ścian i sufitu. Za dużo pudeł i koniec gry.",
+    "pdDesc": "Piłka spada na platformę, która jeździ w lewo i w prawo. Każde złapanie gra nutę i wyrzuca piłkę z powrotem w górę. Za dużo pudeł i koniec gry.",
     "pdAuto": "Automatyczna platforma",
     "pdAutoTip": "Włączone: deterministyczny sterownik przewiduje każde lądowanie i przesuwa tam platformę (jak dobrze – decyduje suwak Umiejętność). Wyłączone: przesuwasz ją wskaźnikiem albo ← → (A / D).",
     "pdSkill": "Umiejętność",
@@ -1355,7 +1355,7 @@
     "splitSingleNote": "Wybierz 2 lub 4 areny, aby rozpocząć wyścig na podzielonym ekranie.",
     "modeVortex": "Dźwiękowy wir",
     "vxTitle": "Wir",
-    "vxDesc": "Kulki wchodzą na krawędzi jedna po drugiej i spiralą wpadają do dziury, przyciągane przez środek. Każdy dźwiękowy pierścień, który kulka minie, gra kolejną nutę Twojej skali (Skala i Dźwięk podstawowy z ustawień dźwięku); dziura połyka ją z „pew”.",
+    "vxDesc": "Kulki wchodzą na krawędzi jedna po drugiej i spiralą wpadają do dziury. Każdy dźwiękowy pierścień, który kulka minie, gra kolejną nutę Twojej skali. Dziura połyka ją z „piu”.",
     "vxBalls": "Kulki w wirze",
     "vxBallsTip": "Ile kulek wpada do wiru (1–30). Każda gra po drodze wszystkie pierścienie, więc więcej kulek to gęstsze arpeggia.",
     "vxStagger": "Odstęp wejścia",
@@ -1374,7 +1374,7 @@
     "vxRunEndless": "Pętla odrodzeń jest włączona: kulki wracają bez końca, więc bieg nigdy się nie kończy, a Znajdź symulację jest ukryte. Wyłącz pętlę, żeby wyszukać ziarno pod długość klipu.",
     "modeBeatDrop": "Spadanie w rytm",
     "bdTitle": "Spadanie w rytm",
-    "bdDesc": "Kulka spada i odbija się od przeszkody do przeszkody – każda wlatuje zza ekranu i zatrzymuje się tuż przed swoim bitem, więc każde lądowanie wypada dokładnie w bit piosenki albo BPM.",
+    "bdDesc": "Kulka spada z platformy na platformę. Każda platforma wlatuje tuż przed swoim bitem, więc każde lądowanie wypada w bit piosenki albo BPM.",
     "bdKinds": "Przeszkody",
     "bdKindsTip": "Które przeszkody wlatują: deski, bloki, sprężyny (wyższe odbicie z „boing”), kliny (posyłają kulkę w bok), obracające się belki (płaskie dokładnie w bicie) i duże bębny. Zostaw co najmniej jedną.",
     "bdKindPlank": "Deska",
@@ -1430,7 +1430,7 @@
     "viralBotTip": "Planuje klipy według przepisu kont, które robią zasięgi (hook w jednym zdaniu, odliczanie, finał w ostatnich sekundach, naprzemienne zakończenia), ocenia każdy z nich, renderuje wszystkie szybkim eksportem i pobiera ZIP z filmami, opisami, manifestem i harmonogramem publikacji.",
     "modeJourney": "Podróż",
     "journeyTitle": "Podróż",
-    "journeyDesc": "Kulka pokonuje etap za etapem w drodze do DOMU, a kamera zjeżdża razem z nią. Ułóż trasę poniżej – każdy etap z własnym rozmiarem – albo pozwól, by ziarno wylosowało ją za ciebie.",
+    "journeyDesc": "Kulka pokonuje etap za etapem w drodze do DOMU, a kamera zjeżdża razem z nią. Ułóż trasę poniżej albo pozwól, by ziarno ją wylosowało.",
     "journeyAutoStages": "Losowe etapy",
     "journeyAutoStagesTip": "0 odtwarza twoją listę etapów. 1–12 losuje z ziarna podróż z taką liczbą etapów (plus DOM), więc każde ziarno – i każde, które sprawdza Znajdź symulację – to nowa trasa.",
     "journeyAutoOff": "Wył.",
@@ -1452,7 +1452,7 @@
     "journeyRunAuto": "Losowa podróż: {count, plural, one {# etap} few {# etapy} many {# etapów} other {# etapu}}, potem DOM – trasę losuje ziarno, więc każde ziarno to nowa droga.",
     "modeBullseye": "W dziesiątkę",
     "byTitle": "W dziesiątkę",
-    "byDesc": "Kulki startują z góry jedna po drugiej, odbijają się w krótkim polu kołków i odbijaczy i lądują na tarczy na dole: pierścień, w który trafią, daje punkty (10 za środek, 0 poza tarczą), a każda kulka zostaje tam, gdzie wylądowała, więc kolejne strzały mogą się od niej odbić. Kołki grają nuty Twojej skali, lądowania głucho stukają; trafienie w środek to DZIESIĄTKA! z konfetti, fanfarą i zwolnionym tempem.",
+    "byDesc": "Kulki startują z góry jedna po drugiej, odbijają się między kołkami i lądują na tarczy. Pierścień, w który trafią, daje punkty. Każda kulka zostaje tam, gdzie wylądowała. Trafienie w środek to DZIESIĄTKA! z konfetti i zwolnionym tempem.",
     "byShots": "Strzały",
     "byShotsTip": "Ile kulek zostanie wystrzelonych w tarczę (1–30). Końcowy baner pokazuje sumę punktów i najlepszy strzał.",
     "byInterval": "Odstęp strzałów",
@@ -1481,7 +1481,7 @@
     "publishQuickShare": "Szybkie udostępnianie",
     "unlimited": "Szerokie suwaki",
     "modeTerritory": "Terytorium",
-    "tyDesc": "Pong wars w wydaniu oddplayground: 2 lub 4 drużyny odbijających się kulek malują mapę z kafelków. Kulka przelatuje przez kafelki swojego koloru i odbija się od każdego innego, przemalowując kafelek, w który trafi – więc każde odbicie przesuwa granicę. Gdy skończy się odliczanie, wygrywa drużyna z największą liczbą kafelków.",
+    "tyDesc": "Dwie albo cztery drużyny odbijających się kulek malują mapę z kafelków. Kulka przelatuje przez swój kolor i odbija się od każdego innego, przemalowując kafelek, w który trafi. Gdy skończy się odliczanie, wygrywa drużyna z największą liczbą kafelków.",
     "tyTeams": "Drużyny",
     "tyTeamsTip": "2 drużyny dzielą planszę na górną i dolną połowę, 4 – na ćwiartki. Każda drużyna zaczyna z taką samą liczbą kafelków.",
     "tyTeams2": "2 drużyny",
@@ -1520,9 +1520,9 @@
     "tyHud": "Pasek procentów",
     "tyHudTip": "Pas nad planszą: WYBIERZ STRONĘ, odliczanie, linia VS z udziałem każdej drużyny i pasek procentów na żywo. Przy składzie drużyn zastępuje też tablicę wyników.",
     "modeMaze": "Ucieczka z labiryntu",
-    "mzDesc": "Labirynty z konta oddplayground: losowy labirynt doskonały z czerwoną szczeliną wejścia u góry i wyjściem na dole. Kulki wpadają jedna po drugiej, przebijają się przez korytarze i malują każdą komórkę, przez którą przejdą – wygrywa pierwsza, która wyjdzie, a nuty wznoszą się w miarę zbliżania do wyjścia.",
+    "mzDesc": "Labirynt z czerwonym wejściem u góry i wyjściem na dole. Kulki wpadają jedna po drugiej, przebijają się przez korytarze i malują każdą komórkę, przez którą przejdą. Wygrywa pierwsza, która wyjdzie.",
     "mzBrain": "Mózg",
-    "mzBrainTip": "Jak kulki szukają drogi. Odbijanie: czysta fizyka – po prostu rykoszetują po korytarzach. Ręka na ścianie: na każdym skrzyżowaniu trzyma rękę na ścianie – zawsze znajdzie wyjście. Odkrywca: wybiera korytarze, w których jeszcze nie był, i wycofuje się ze ślepych zaułków. Sterowanie popycha kulkę, gdy mija środek komórki.",
+    "mzBrainTip": "Jak kulki szukają drogi. Odbijanie: czysta fizyka, kulki rykoszetują po korytarzach. Ręka na ścianie: na każdym skrzyżowaniu trzyma rękę na ścianie i zawsze znajduje wyjście. Odkrywca: wybiera korytarze, w których jeszcze nie był, i wycofuje się ze ślepych zaułków.",
     "mzBrainBounce": "Odbijanie",
     "mzBrainWallFollow": "Ręka na ścianie",
     "mzBrainExplorer": "Odkrywca",
@@ -1567,7 +1567,7 @@
     "mzRunInfo": "Labirynt {cols} × {rows} ({cells, plural, one {# komórka} few {# komórki} many {# komórek} other {# komórki}}, nowy dla każdego ziarna); przebieg kończy się, gdy wszystkie kulki wyjdą, najpóźniej po {seconds} s.",
     "modeConveyor": "Taśmociąg",
     "cvTitle": "Taśmociąg",
-    "cvDesc": "Taśma u góry co kilka sekund wywozi piłkę z włazu i zrzuca ją na arenę poniżej. W pierścieniach każda piłka musi uciec sama (pierścienie nigdy nie pękają, a reżyser pomaga piłce, która od dłuższej chwili nie może się wydostać); piłki, które uciekły, dolna taśma wywozi poza pole. Misa zapełnia się i przelewa, a pole kołków rozdziela piłki do przegródek. Taśma buczy, gdy wiezie piłkę, i klika, gdy ją zrzuca, a każde odbicie gra nutę z Twojej skali.",
+    "cvDesc": "Taśma u góry co kilka sekund zrzuca piłkę na arenę. Areną mogą być pierścienie do ucieczki, misa, która się zapełnia, albo pole kołków nad przegródkami. Każde odbicie gra nutę, a licznik pilnuje wyniku.",
     "cvArena": "Arena",
     "cvArenaTip": "Na co spadają piłki: koncentryczne pierścienie z obracającymi się szczelinami (działają tu Liczba ścian, Rozmiar szczeliny i Obrót z ustawień ścian), misa, w której się piętrzą, albo pole kołków nad przegródkami.",
     "cvArenaRings": "Pierścienie",
@@ -1590,13 +1590,13 @@
     "respawnEveryValue": "{seconds} s",
     "respawnEveryOff": "Wył.",
     "exitBehavior": "Zachowanie wyjścia",
-    "exitBehaviorTip": "Jak porusza się wyjście każdego pierścienia. Obrót: kręci się razem z pierścieniem, jak zawsze. Skok: co kilka sekund – albo gdy tylko piłka się zbliży – teleportuje się w inne miejsce pierścienia. Ucieczka: ucieka przed piłką wzdłuż pierścienia. Zwężanie: zwęża się, aż się zamknie, a potem otwiera się gdzie indziej. Deterministyczne: ziarna, linki i Znajdź symulację to uwzględniają.",
+    "exitBehaviorTip": "Jak porusza się wyjście każdego pierścienia. Obrót: kręci się razem z pierścieniem. Skok: co kilka sekund albo gdy tylko piłka się zbliży, teleportuje się w inne miejsce. Ucieczka: ucieka przed piłką wzdłuż pierścienia. Zwężanie: zwęża się, aż się zamknie, a potem otwiera gdzie indziej. To samo ziarno, ten sam przebieg.",
     "exitRotate": "Obrót",
     "exitJump": "Skok",
     "exitFlee": "Ucieczka",
     "exitShrink": "Zwężanie",
     "exitRotateDesc": "Wyjścia kręcą się razem ze swoimi pierścieniami, jak zawsze.",
-    "exitJumpDesc": "Każde wyjście co jakiś czas teleportuje się w nowe miejsce swojego pierścienia – i odskakuje, gdy piłka znajdzie się w zasięgu jego czujności. Błysk pokazuje, skąd zniknęło i gdzie się pojawiło.",
+    "exitJumpDesc": "Każde wyjście co jakiś czas teleportuje się w nowe miejsce swojego pierścienia i odskakuje, gdy piłka znajdzie się w zasięgu jego czujności. Błysk pokazuje, skąd zniknęło i gdzie się pojawiło.",
     "exitFleeDesc": "Wyjście ucieka przed piłką wzdłuż pierścienia, dopóki piłka jest w zasięgu jego czujności. Żeby się wydostać, piłka musi je prześcignąć.",
     "exitShrinkDesc": "Wyjście zwęża się przez czas wyjścia, aż się zamknie, a potem otwiera się w innym miejscu.",
     "exitHoldNote": "Pierścienie stoją w miejscu: wyjścia poruszają się same.",
@@ -1608,7 +1608,7 @@
     "exitFleeSpeed": "Szybkość ucieczki",
     "exitFleeSpeedTip": "Największa szybkość uciekającego wyjścia wzdłuż pierścienia, w stopniach na sekundę. Żeby je dogonić, piłka musi okrążać pierścień szybciej.",
     "splatBarrier": "Bariera z plam",
-    "splatBarrierTip": "Każde uderzenie w ścianę zostawia plamę farby w kolorze piłki po wewnętrznej stronie ściany – a plamy są twarde, więc piłka powoli buduje sobie własną barierę. Powyżej limitu plam najstarsze znikają; plama spływa, gdy przesunie się nad nią wyjście albo gdy pęknie jej pierścień. Deterministyczne: ziarna, linki i Znajdź symulację to uwzględniają.",
+    "splatBarrierTip": "Każde uderzenie w ścianę zostawia twardą plamę farby w kolorze piłki po wewnętrznej stronie ściany, więc piłka powoli buduje sobie własną barierę. Powyżej limitu plam najstarsze znikają. Plama spływa, gdy przesunie się nad nią wyjście albo pęknie jej pierścień.",
     "splatSize": "Rozmiar plamy",
     "splatSizeTip": "Rozmiar plamy jako wielokrotność rozmiaru piłki (0,5–2 na suwaku).",
     "splatMax": "Limit plam",
@@ -1616,7 +1616,7 @@
     "splatGrowNote": "W trybie Rośnij plamy tylko malują pierścień – piłka rośnie, aż go wypełni.",
     "modeOrbGrid": "Skaczące kule",
     "ogTitle": "Skaczące kule",
-    "ogDesc": "Tysiące kul, a każda podskakuje w górę i w dół na swoim miejscu – w modelu rytmu bez końca, w polirytmach pod metronom, więc cały zbiór układa się w falę biegnącą, która wznosi się od narożnika, zbiega lejem do środka albo rozchodzi się pierścieniami i na końcu każdego cyklu ląduje razem. Model wygasania pozwala kulom tracić energię i spocząć.",
+    "ogDesc": "Tysiące kul, a każda podskakuje na swoim miejscu. Ich tempa zmieniają się w poprzek pola, więc przetaczają się przez nie fale, a na końcu cyklu wszystkie kule lądują razem. Model wygasania pozwala im spocząć.",
     "ogFieldHeading": "Pole",
     "ogVariationHeading": "Zróżnicowanie",
     "ogLookHeading": "Wygląd",
@@ -1719,7 +1719,7 @@
     "ogPresetGrid70": "70 x 70",
     "modeFightLeague": "Liga walk",
     "flTitle": "Liga walk",
-    "flDesc": "Zawodnicy z gier, komiksów, seriali i filmów walczą na arenie swoją bronią i jedną zdolnością. Wybierz gotowy pojedynek albo własnych zawodników – losowy slot wybiera seed – a wygrywa ostatni zawodnik (lub drużyna) na placu boju.",
+    "flDesc": "Wojownicy z gier, komiksów, seriali i filmów walczą na arenie swoją bronią i jedną zdolnością. Wybierz gotowy pojedynek albo własnych wojowników. Wygrywa ostatni na placu boju.",
     "flPreset": "Pojedynek",
     "flPresetTip": "Gotowy pojedynek w swoim gatunku: ustawia zawodników i rodzaj meczu.",
     "flPresetCustom": "Własny pojedynek",
@@ -1757,7 +1757,7 @@
     "flStatAttack": "Szybkość ataku",
     "flStatCast": "Szybkość zdolności",
     "modeLandClaim": "Podbój terenu",
-    "lcDesc": "Ścianę areny obstawiają kolumny bloków, a kulki każdego zawodnika odbijają się w środku: uderzenie w kolumnę zabiera jej górny blok, a co 8. blok zdobyty przez zawodnika dodaje kolejną kulkę w jego kolorze. Wygrywa ten, kto ma najwięcej bloków.",
+    "lcDesc": "Kolumny bloków stoją przy ścianie areny. Uderzenie w kolumnę zabiera jej górny blok dla koloru, który trafił, a co ósmy blok dodaje kulkę. Wygrywa ten, kto ma najwięcej bloków.",
     "lcPreset": "Gotowa bitwa",
     "lcPresetTip": "Wczytaj gotową bitwę: jej zasadę, ścianę, zawodników (skład z krajów) i długość klipu.",
     "lcPresetChoose": "Wybierz ustawienie…",
@@ -1812,7 +1812,7 @@
     "teamCountryTip": "Wypełnij drużynę krajem: nazwą, flagą i kolorem",
     "sbStyleCircle": "Koło",
     "sbHintCircle": "Walki krajów w KRĘGU STRUN: kulki z flagami rozpinają wachlarze strun do obręczy przed sobą, przecięcie strun rywala je zrywa, a udział wachlarzy w obręczy to wynik.",
-    "scDesc": "KRĄG STRUN: każda kulka bez przerwy rozpina struny od siebie do obręczy prosto przed sobą, więc ciągnie gęsty wachlarz w swoim kolorze – swój kawałek obręczy. Kulka, która przetnie zewnętrzną połowę wachlarza rywala, zrywa te struny; każde Struny na życie przecięte odbierają właścicielowi wachlarza jedno życie (jego wachlarz jest potem osłonięty przez 2,5 s), kulka bez żyć odpada, a jej wachlarz się rozpada – wygrywa ostatnia flaga. Kolorowe łuki na obręczy pokazują udział każdego wachlarza.",
+    "scDesc": "Krąg strun. Każda kulka rozpina struny od siebie do obręczy przed sobą i ciągnie za sobą wachlarz w swoim kolorze. Przecięcie wachlarza rywala odbiera mu życia. Wygrywa ostatnia flaga w grze.",
     "scPreset": "Gotowa walka krajów",
     "scPresetTip": "Wypełnia bitwę gotową walką krajów: jej flagami (skład z listy krajów do wyboru), areną, tempem i klipem dość długim na jej bitwy.",
     "scPresetChoose": "Wybierz walkę krajów…",
@@ -1847,7 +1847,7 @@
     "ogModelDecay": "Wygasanie",
     "ogRhythmHeading": "Rytm",
     "ogRhythm": "Wzór rytmu",
-    "ogRhythmTip": "Ile razy każda grupa odbija się w jednym cyklu. Fala wahadeł: 51, 52, 53… (klasyka). 3 na 2 … 3:4:5: głosy odbijają się tyle razy na takt i spotykają się na każdej mocnej części taktu. Euklidesowy: drabina temp rozdzielona tak równo jak rytm euklidesowy. Od rogu do rogu i od środka na zewnątrz: tempa rosnące płynnie w poprzek pola. Zróżnicowany: tempo każdej kuli z ziarna.",
+    "ogRhythmTip": "Ile razy każda grupa odbija się w jednym cyklu. Fala wahadeł: 51, 52, 53 i tak dalej. Od 3 na 2 do 3:4:5: głosy spotykają się na każdej mocnej części taktu. Euklidesowy: drabina temp rozłożona równo. Od rogu do rogu i od środka na zewnątrz: tempa rosnące w poprzek pola. Zróżnicowany: tempo każdej kuli z ziarna.",
     "ogRhythmPendulum": "Fala wahadeł",
     "ogRhythm32": "3 na 2",
     "ogRhythm43": "4 na 3",
@@ -2049,9 +2049,9 @@
     "loopClipGain": "Poziom klipu: {slot}",
     "loopClipFailed": "Nie udało się zdekodować pliku – spróbuj MP3, WAV, OGG albo M4A.",
     "modeStarChords": "Gwiazdy cięciw",
-    "scStarDesc": "GWIAZDY CIĘCIW: każda kulka odbija się od wnętrza jednego okręgu pod stałym kątem, więc rysuje wielokąt gwiaździsty n/k, którego wszystkie linie dotykają jednego wewnętrznego okręgu. Prędkości są dobrane tak, że każda gwiazda domyka się w tej samej klatce – z akordem – a potem rysunek trwa, gaśnie i zapętla się.",
+    "scStarDesc": "Gwiazdy cięciw. Każda kulka odbija się wewnątrz jednego okręgu pod stałym kątem i rysuje wielokąt gwiaździsty, którego wszystkie linie dotykają jednego wewnętrznego okręgu. Wszystkie gwiazdy domykają się w tej samej klatce z akordem, a potem rysunek gaśnie i zapętla się.",
     "scStarPresets": "Presety gwiazd cięciw",
-    "scStarPresetsTip": "Pięć gwiazd: pięć kulek rysuje 5/2, 7/3, 8/3, 9/4 i 12/5 z punktów rozłożonych na całym obwodzie. Siedmioramienny kwiat: siedem heptagramów 7/3, każdy startuje o siódmą część punktu dalej – kwiat z 49 punktów wokół jednego wewnętrznego okręgu. Pojedynek heptagramów: 7/2 przeciw 7/3 z przeciwnych stron. Każdy ustawia też granatowy wygląd i nakładkę pętli.",
+    "scStarPresetsTip": "Pięć gwiazd: pięć kulek rysuje 5/2, 7/3, 8/3, 9/4 i 12/5 z punktów rozłożonych na obwodzie. Siedmioramienny kwiat: siedem heptagramów 7/3, każdy startuje o siódmą część punktu dalej. Pojedynek heptagramów: 7/2 przeciw 7/3 z przeciwnych stron. Każdy ustawia też granatowy wygląd i nakładkę pętli.",
     "scPresetFiveStars": "Pięć gwiazd",
     "scPresetSevenBloom": "Siedmioramienny kwiat",
     "scPresetHeptagramDuel": "Pojedynek heptagramów",
@@ -2162,7 +2162,7 @@
     "dpForwardSecTip": "Ile sekund wachlarz biegnie do przodu, zanim zacznie się cofać. Pętla trwa dwa razy dłużej.",
     "dpDivergePx": "Rozdzielenie przy",
     "dpDivergePxTip": "Wachlarz uznaje się za rozdzielony, gdy któraś kulka odsunie się na tyle od kulki prowadzącej (w pikselach filmu szerokiego na 1080 pikseli). Od tego zależą sygnał rozdzielenia, kolory i chwila rozdzielenia w Znajdź symulację.",
-    "prSpiralDesc": "Spirala faz: daj każdemu pierścieniowi kilka kropek, a skręcą się w spiralę, przejdą przez wzory interferencyjne i dokładnie raz na cykl wyprostują się w szprychy – miernik „w linii” odlicza do tej chwili.",
+    "prSpiralDesc": "Spirala faz. Daj każdemu pierścieniowi kilka kropek, a skręcą się w spiralę, przejdą przez wzory interferencyjne i raz na cykl wyprostują się w szprychy. Miernik „w linii” odlicza do tej chwili.",
     "prSpiralPreset": "Spirala faz",
     "prSpiralPresetTip": "Klip pętli jednym kliknięciem: 20 pierścieni po 3 ramiona, 20-sekundowa pętla bez końca, miernik „w linii”, ogony komet, dźwięki pętli i kolory spirali na granatowym tle z HUD-em pętli.",
     "prSpiralPresetButton": "20 pierścieni × 3 ramiona",
@@ -2180,7 +2180,7 @@
     "prPaletteSpiral": "Spirala",
     "modeColourSort": "Sortowanie kolorów",
     "modeEllipseFoci": "Strzał w ognisko",
-    "efDesc": "Eliptyczny stół i salwa piłek wystrzelona naraz z jednego ogniska: każdy strzał odbija się od ściany prosto przez drugie ognisko, a każda taka droga ma tę samą długość, więc cała salwa dociera tam jednocześnie – w każdym przejściu, w rytm.",
+    "efDesc": "Eliptyczny stół. Salwa piłek wylatuje z jednego ogniska, odbija się od ściany i przechodzi przez drugie ognisko w tej samej chwili. Każde przejście wypada w rytm.",
     "efPreset": "Presety strzału w ognisko",
     "efPresetTip": "Punkty wyjścia: szepcząca galeria z klipu, jeden strzał bilardowy z torem, salwa tysiąca piłek, kontrolny okrąg i wachlarz 90°. Preset ustawia ustawienia trybu i jego wygląd.",
     "efPresetGallery": "Szepcząca galeria",
@@ -2283,7 +2283,7 @@
     "flCreator": "Narzędzia twórcy",
     "flCreatorTip": "Zamień bieżące starcie w gotowy klip albo pobierz kartę z listą tierów dywizji lub gatunku.",
     "flMakeClip": "Zrób klip",
-    "flMakeClipTip": "Szuka ziarna bieżącego starcia i formatu, którego historia pasuje do klipu. Pojedynczy mecz najpierw dopasowuje się do długości (HP przeskalowane tak, by walka trwała w sam raz), a ostatni nokaut wypada na 82–88 % klipu; cliffhanger jest ucinany, gdy każdy wojownik ma najwyżej 25 %; seria, drabinka czy boss rush kończy się werdyktem. Długość klipu, napis „Kto wygra?” i górny tekst ustawiają się same – postęp i wynik widać na pasku Znajdź symulację.",
+    "flMakeClipTip": "Szuka ziarna bieżącego starcia i formatu, którego historia pasuje do klipu. Pojedynczy mecz jest tak rozłożony, by ostatni nokaut wypadł pod koniec. Cliffhanger jest ucinany, gdy każdy wojownik ledwo stoi. Seria, drabinka czy boss rush kończy się werdyktem. Długość klipu, napis i Tekst u góry ustawiają się same.",
     "flClipBucket": "Długość",
     "flClipBucket_short": "Krótki · {sec} s",
     "flClipBucket_standard": "Standardowy · {sec} s",
@@ -2318,303 +2318,286 @@
     "flTierSubtitle": "Ranking według zwycięstw w symulowanym turnieju każdy z każdym",
     "flTierDisclaimer": "Imiona to zwykłe etykiety tekstowe niezależnej symulacji fanowskiej – bez logo, grafik i dźwięków.",
     "modeBeatMachine": "Maszyny rytmu",
+    "lcLayout": "Układ",
+    "lcLayoutTip": "Ściana: kolumny stoją wzdłuż ściany areny (bitwy). Piramida: schodkowa piramida z kolumn stoi na środku podłogi, pokazana w 3D, a kulki zbijają ją blok po bloku – szczyt na końcu.",
+    "lcLayoutWall": "Ściana",
+    "lcLayoutPyramid": "Piramida",
+    "lcpDesc": "Każda kulka, która uderzy w kolumnę, strąca jej górny blok. Co ósmy strącony blok dodaje kolejną kulkę. Zewnętrzne stopnie padają pierwsze, a szczyt na końcu.",
+    "lcPyramidSize": "Rozmiar piramidy",
+    "lcPyramidSizeTip": "Liczba kolumn wzdłuż każdego boku podstawy piramidy (11 daje siatkę 11 × 11). Można wpisać dowolną liczbę od 3.",
+    "lcpGrid": "{n} × {n}",
+    "lcSteps": "Stopnie piramidy",
+    "lcStepsTip": "Stopnie piramidy: kolumna jest tak wysoka, jak liczba stopni minus jej odległość od środka, więc szczyt jest najwyższy, a zewnętrzny pierścień najniższy.",
+    "lcBlocks": "Bloki piramidy",
+    "lcBlocksTip": "Liczba wszystkich bloków: stopnie są przeskalowane tak, żeby piramida miała dokładnie tyle bloków (domyślnie 1144). 0 zostawia liczbę wynikającą ze stopni.",
+    "lcpBlocksN": "{count, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}}",
+    "lcpBlocksNatural": "naturalnie: {count, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}}",
+    "lcpSummary": "{blocks, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}}, szczyt wysoki na {tallest, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}} – {balls, plural, one {# kulka} few {# kulki} many {# kulek} other {# kulki}}, gdy spadnie ostatni.",
+    "lcRebuild": "Odbudowa i pętla",
+    "lcRebuildTip": "Gdy spadnie ostatni blok, piramida odbudowuje się sama, a przebieg zaczyna się od nowa od pierwszej klatki, więc klip z pełnych cykli zapętla się bez końca (Eksportuj pełne pętle w sekcji Nagrywanie).",
+    "lcRebuildSec": "Czas odbudowy",
+    "lcRebuildSecTip": "Ile sekund trwa odbudowa: kolumny wyrastają z podłogi, dodane kulki wtapiają się w piramidę, a pierwsze wracają do swoich narożników.",
+    "lcpLoopNote": "Przebieg się zapętla: zbicie, krótka pauza, odbudowa i znów pierwsza klatka. Znajdź symulację przeszukuje pierwszy cykl; klip obejmuje cały cykl.",
+    "lcpEndNote": "Przebieg kończy się, gdy spadnie ostatni blok (albo po czasie bitwy), jak bitwa na ścianie.",
+    "lcPresetPyramid1144": "Piramida, 1144 bloki",
+    "reDesc": "Ucieczka z pierścieni, na wzór najstarszego filmu z rodziny pętli: ułóż szczeliny w spiralę, obracaj pierścienie razem, pomaluj je w tęczę, mierz czas w każdym pierścieniu i słuchaj rosnącego dźwięku za każdy pierścień, przez który przejdzie piłka.",
+    "reSpiralPreset": "Ucieczka z pierścieni",
+    "reSpiralPresetTip": "Wygląd z filmu: czysto czarne tło, jedenaście cienkich tęczowych pierścieni, których szczeliny przesuwają się spiralnie i obracają razem, biała piłka z krótkim śladem i dźwięki pierścieni. Bez tytułu i bez licznika.",
+    "reSpiralPresetButton": "Tęczowa spirala, 11 pierścieni",
+    "gapLayout": "Układ szczelin",
+    "gapLayoutTip": "Gdzie zaczyna się szczelina każdego pierścienia. Równy: rozłożone równo dookoła (klasyczny wygląd). Losowy: w dowolnym miejscu, z seeda przebiegu. W linii: wszystkie szczeliny w jednej prostej. Spirala: każda szczelina o stały krok dalej niż ta w pierścieniu wewnątrz.",
+    "gapLayoutEven": "Równy",
+    "gapLayoutRandom": "Losowy",
+    "gapLayoutAligned": "W linii",
+    "gapLayoutSpiral": "Spirala",
+    "gapSpiralStep": "Krok spirali",
+    "gapSpiralStepTip": "Stopnie między szczelinami sąsiednich pierścieni w układzie spirali. 0 ustawia je wszystkie w linii; pole przyjmuje każdą wartość od 0.",
+    "ringSpin": "Obrót pierścieni",
+    "ringSpinTip": "Naprzemienny: sąsiednie pierścienie obracają się w przeciwne strony (klasyczne pierścienie). Razem: każdy pierścień obraca się w tę samą stronę z tą samą prędkością, więc spirala obraca się, pozostając spiralą.",
+    "ringSpinAlternate": "Naprzemienny",
+    "ringSpinTogether": "Razem",
+    "ringRainbow": "Tęcza według pierścieni",
+    "ringRainbowTip": "Koloruje każdy pierścień według jego miejsca: czerwony na zewnątrz, przez pomarańczowy, żółty i zielony, do błękitnego w środku.",
+    "ringTimer": "Czas w pierścieniu",
+    "ringTimerTip": "Pokazuje pod pierścieniami „pierścień k: t s”: jak długo piłka jest w obecnym pierścieniu, a po wydostaniu się „na zewnątrz po t s”. Nagrania to zawierają.",
+    "ringSound": "Dźwięki pierścieni",
+    "ringSoundTip": "Oryginalne, syntezowane dźwięki: miękkie pentatoniczne szarpnięcie przy każdym odbiciu, o wysokości zależnej od pierścienia (zewnętrzne nisko, wewnętrzne wysoko), rosnący dźwięk za każdy pokonany pierścień i ciepły akord, gdy piłka jest na zewnątrz.",
     "modeDrawingMachine": "Maszyny rysujące"
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
     "classic": {
       "name": "Klasyczny",
-      "description": "Piłka odbija się wewnątrz koncentrycznych pierścieni, z których każdy ma jedną szczelinę. Każda przebita ściana rozpada się z satysfakcjonującym efektem. Prosto, hipnotyzująco i do oglądania w kółko. Wyjścia mogą też skakać, uciekać albo się zwężać (Zachowanie wyjścia), a każde uderzenie może zostawiać twardą plamę farby (Bariera z plam)."
+      "description": "Jedna piłka, kilka pierścieni, w każdym jedna szczelina. Każdy, przez który się prześlizgnie, pęka. Czy się wydostanie?"
     },
     "accumulation": {
       "name": "Akumulacja",
-      "description": "Piłka ma kilka sekund na ucieczkę, zanim zamarznie w miejscu. Każda zamrożona piłka staje się przeszkodą dla następnej. Czy ostatnia zdoła się wydostać? Wyjścia mogą też skakać, uciekać albo się zwężać (Zachowanie wyjścia), a każde uderzenie może zostawiać twardą plamę farby (Bariera z plam)."
+      "description": "Ucieknij na czas albo zamarznij w miejscu. Każda zamrożona piłka blokuje następną. Arena szybko się zapełnia."
     },
     "multiply": {
       "name": "Mnożenie",
-      "description": "Za każdym razem, gdy piłka ucieka z pierścienia, pojawiają się kolejne. Arena w kilka sekund wypełnia się chaosem, co daje wybuchowe, chętnie udostępniane klipy. Wyjścia mogą też skakać, uciekać albo się zwężać (Zachowanie wyjścia), a każde uderzenie może zostawiać twardą plamę farby (Bariera z plam)."
+      "description": "Każda ucieczka dokłada kolejne piłki. Z jednej piłki w kilka sekund robi się rój."
     },
     "lines": {
       "name": "Linie",
-      "description": "Każdy punkt odbicia łączy się z piłką linią, więc symulacja powoli rysuje misterną geometryczną sztukę, gdy piłka rykoszetuje po okręgu. Z Barierą z plam każde uderzenie w ścianę zostawia twardą plamę farby."
+      "description": "Linia od piłki do każdego odbicia. Przebieg sam rysuje swój obraz z nici."
     },
     "paint": {
       "name": "Malowanie",
-      "description": "Piłka maluje tęczowy ślad wszędzie tam, gdzie się porusza, stopniowo pokrywając cały okrąg, a licznik procentowy śledzi postęp. Z Barierą z plam każde uderzenie w ścianę zostawia twardą plamę farby."
+      "description": "Piłka maluje tęczowy ślad, a licznik rośnie do 100%. Czy pokryje cały okrąg?"
     },
     "target": {
       "name": "Cel",
-      "description": "Ponumerowane segmenty na ścianie trzeba trafiać po kolei. Każde poprawne trafienie uruchamia efekt przebicia, a błędne błyska na czerwono. Z Barierą z plam każde uderzenie w ścianę zostawia twardą plamę farby."
+      "description": "Ponumerowane cele na ścianie. Trafiaj po kolei, a każdy pęka. Pudło błyska na czerwono."
     },
     "grow": {
       "name": "Rośnij",
-      "description": "Piłka jest zamknięta w jednym dużym pierścieniu i rośnie odrobinę z każdym odbiciem, zajmując coraz więcej miejsca, aż nie ma gdzie się ruszyć. Z Barierą z plam każde odbicie zostawia na pierścieniu plamę farby."
+      "description": "Piłka rośnie z każdym odbiciem, aż wypełni pierścień i nie będzie miała dokąd uciec."
     },
     "shatter": {
       "name": "Rozbicie",
-      "description": "Każda ściana składa się z segmentów z punktami wytrzymałości. Każde odbicie pęka segment, a wystarczająco dużo uderzeń go rozbija. Utoruj drogę przez wszystkie ściany, aby uciec."
+      "description": "Każda ściana to popękane segmenty. Każde uderzenie odłupuje jeden. Wybij sobie drogę na zewnątrz."
     },
     "colorMatch": {
       "name": "Dopasowanie kolorów",
-      "description": "Ściana jest podzielona na kolorowe segmenty, a piłka zmienia kolor przy każdym odbiciu. Segment pęka tylko wtedy, gdy kolory się zgadzają. Usuń wszystkie, aby uciec."
+      "description": "Piłka zmienia kolor przy każdym odbiciu. Segment pęka tylko wtedy, gdy kolory się zgadzają."
     },
     "portal": {
       "name": "Portal",
-      "description": "Na ścianie znajdują się pary portali w tym samym kolorze. Dotknij jednego, a piłka teleportuje się do bliźniaka. Po kilku użyciach portale wypalają się i stają się wyjściami. Z Barierą z plam każde uderzenie w ścianę zostawia twardą plamę farby."
+      "description": "Dotknij portalu, a piłka przeskoczy do jego bliźniaka. Po kilku podróżach portale się wypalają i otwierają."
     },
     "drop": {
       "name": "Spadające piłki",
-      "description": "Piłki o różnych rozmiarach i wadze spadają przez rzędy kołków i belek, a każde uderzenie gra nutę o wysokości zależnej od rozmiaru piłki. Różne grawitacje rozjeżdżają się w czasie i symulacja sama pisze swoją polirytmię."
+      "description": "Piłki każdej wielkości spadają przez tablicę z kołkami. Każde uderzenie to nuta. Duże grają nisko, małe wysoko."
     },
     "box": {
       "name": "Odbijające się kształty",
-      "description": "Kwadraty, koła lub logotypy w stylu DVD suną po pudełku ze stałą prędkością, a każde uderzenie w ściankę gra kolejną nutę. Duże liczby odliczają w dół z każdym odbiciem, logotypy o prędkościach w stosunku 2:3 lub 3:4:5 splatają polirytmię, a trafienie w róg to akcent, na który wszyscy czekają."
+      "description": "Kwadraty i loga suną po pudełku i odliczają w dół z każdym odbiciem. Trafienie w róg to akcent."
     },
     "pendulum": {
       "name": "Fala wahadeł",
-      "description": "Wahadła nastrojone tak, że każde wykonuje o jedno wahnięcie na cykl więcej niż poprzednie: rząd rozjeżdża się w wędrujące fale, dzieli na grupy i co cykl znów staje w linii, a każde przejście to nuta. Rząd, łuk, okrąg, galaktyka, szyny albo odbijanie – oraz tryb przesunięcia fazowego, który nigdy do końca się nie zrównuje."
+      "description": "Wahadła rozjeżdżają się, układają w fale i w każdym cyklu wracają do linii. Każde przejście to nuta."
     },
     "polyrhythm": {
       "name": "Metronomy i polirytmy",
-      "description": "Do 400 głosów tyka we własnym tempie – kropki krążące po okręgach w rytmie 3:4:5, kropki sunące w poprzek koła, siatka metronomów rozjeżdżających się w fazie, spirala – a każde tyknięcie to nuta. Rozchodzą się w polirytmy i wracają do wspólnej fazy z błyskiem i akordem."
+      "description": "Setki głosów tyka we własnym tempie i rozjeżdża się. Potem wszystkie uderzają naraz z błyskiem."
     },
     "collide": {
       "name": "Poligon zderzeń",
-      "description": "Setki różnorodnych kul zderza się w okręgu albo w kwadracie, a każde zderzenie gra cichą nutę zależną od rozmiaru. Zrób je galaretowate, puść je synchronicznie, wyłącz kolizje w trakcie albo ustaw lizaki na pierścieniu."
+      "description": "Setki kul obijają się w okręgu. Każde zderzenie to cicha nuta, której wysokość zależy od rozmiaru."
     },
     "glass": {
       "name": "Rozbijanie szkła",
-      "description": "Gerald jest zdeterminowany, żeby rozbić całe szkło: spada szybem pełnym szklanych tafli, każde lądowanie zostawia pęknięcie na tafli pod nim i gra nutę, a ostatnie uderzenie roztrzaskuje ją w drobny mak. Z etapu na etap szkła przybywa, jest grubsze, zaczyna jeździć na boki i ma dziury – aż Gerald wtoczy się w drzwi z napisem DOM."
+      "description": "Gerald spada przez kolejne szklane piętra. Każde lądowanie rysuje szybę i gra nutę. Ostatnie ją roztrzaskuje."
     },
     "multipliers": {
       "name": "Mnożniki",
-      "description": "Gerald korzysta z mnożników, żeby dotrzeć do domu: piłki spadają przez rzędy bramek – x2, x3 i x5 je klonują, x2 PRĘDKOŚĆ, x1,5 ROZMIAR i x2 OBRAŻENIA kumulują się bez limitu, ÷2 zabiera połowę, a zapadki wypuszczają je seriami – obok odbijaczy i blokad, a licznik na żywo pokazuje, ile z nich dotarło do domu."
+      "description": "Piłki spadają przez bramki, które je klonują. Z garstki w drodze do domu robią się setki. Licznik pilnuje wyniku."
     },
     "doublePendulum": {
       "name": "Harfa z podwójnym wahadłem",
-      "description": "Chaotyczne podwójne wahadło kołysze się nad harfą: każda struna, którą przetnie kulka, zostaje szarpnięta i gra swój dźwięk, a ostatnia kulka maluje długi tęczowy ślad. Dodaj wahadła, by zobaczyć efekt motyla, trzecie ramię, by powstało wahadło potrójne, albo pozwól dwóm wahadłom stoczyć sparing – każde uderzenie to perkusyjny dźwięk."
+      "description": "Chaotyczne podwójne wahadło kołysze się nad harfą. Każda struna, którą przetnie, gra nutę."
     },
     "illusion": {
       "name": "Iluzja okręgu",
-      "description": "Piłki sunące po prostych, które po cichu toczą okrąg, pierścienie z odbijającymi się piłkami falujące spiralami, okręgi odbijające się w okręgach z falującymi ścianami i piłki malujące arenę, aż biały zostanie tylko ukryty obrazek – każde dotknięcie to nuta."
+      "description": "Piłki na prostych liniach, które po cichu toczą okrąg, falujące pierścienie i obraz ukryty w farbie."
     },
     "stringBattle": {
       "name": "Bitwa na nici",
-      "description": "Władza sieci: każde odbicie przyczepia do pierścienia świecącą nić prowadzącą do kulki, każda kulka ciągnie za sobą wachlarz nici, a przecięcie cudzej nici kosztuje jej właściciela życie. Ponumerowane życia, neonowy styl mory i finał, który robi się intensywny – wygrywa ostatnia kulka na placu boju."
+      "description": "Każde odbicie zostawia świecącą nić. Przetnij nić wroga, a straci życie. Wygrywa ostatnia piłka w grze."
     },
     "powerLayers": {
       "name": "Warstwy mocy",
-      "description": "Zaczyna się niewinnie, a kończy chaosem: biała piłka odbija się między świecącym sufitem a stosem nawet 800 tęczowych warstw, a każde uderzenie niszczy tyle warstw, ile wynosi moc – która potem się podwaja (albo rośnie według Fibonacciego, liczb pierwszych, o jeden lub zupełnie losowo). Każdy poziom to nowa nuta, aż pęknie ostatnia warstwa i piłka spadnie na wolność."
+      "description": "Piłka odbija się od stosu setek tęczowych warstw. Każde uderzenie niszczy ich więcej. Moc się podwaja."
     },
     "race": {
       "name": "Wyścig kwadratów Grand Prix",
-      "description": "Wyścigowe kwadraty (albo kulki) pędzą w dół długiego toru pełnego kołków, lejków, obrotowych belek, flipperowych odbijaczy, turbo-pól, wąskich bramek i stref zamiany, które zamieniają miejscami dwóch zawodników. Klasyfikacja na żywo, komunikaty o wyprzedzaniu, podium z konfetti – i puchary, w których punkty F1 sumują się przez kolejne wyścigi."
+      "description": "Kwadraty pędzą w dół toru z odbijaczami, lejami i dopalaczami. Tabela na żywo, podium i konfetti."
     },
     "battle": {
       "name": "Battle Royale kwadratów",
-      "description": "Do 20 kwadratów z paskami zdrowia odbija się w pudełku lub w kole i zderza ze sobą: obrażenia zadaje szybszy kwadrat, trafione kwadraty błyskają i się kurczą, a przy zerze HP wybuchają z napisem KO. Kurcząca się bezpieczna strefa oraz bonusy – leczenie, tarcza i przyspieszenie – trzymają w napięciu, aż na placu boju zostanie ostatni kwadrat."
+      "description": "Do dwudziestu kwadratów z paskami życia zderza się ze sobą. Wygrywa ostatni, który przetrwa."
     },
     "ctf": {
       "name": "Zdobądź flagę",
-      "description": "Dwie drużyny odbijających się kwadratów i baza z flagą na każdym końcu: dotknij flagi rywala, by ją nieść, zanieś ją do siebie, by zdobyć punkt – a gdy ktoś cię po drodze staranuje, flaga spada tam, gdzie jesteś. Wygrywa pierwsza drużyna z wymaganym wynikiem albo ta z lepszym wynikiem na koniec klipu, a każde zdobycie flagi wita fanfara."
+      "description": "Dwie drużyny kwadratów i flaga na każdym końcu. Zdobądź flagę wroga i donieś ją do bazy, by zdobyć punkt."
     },
     "runner": {
       "name": "Bieg w rytmie",
-      "description": "Kwadrat w stylu Geometry Dash biegnie pod przewijaną kamerą; kolce, dziury i bloki stoją na bitach twojej piosenki, a każdy skok z prawdziwą grawitacją ląduje dokładnie na bicie i gra kolejną nutę. Automatyczny skok nigdy się nie myli – albo graj sam Spacją."
+      "description": "Kwadrat biegnie i skacze w rytm Twojej piosenki. Każde lądowanie trafia w bit i gra nutę."
     },
     "paddle": {
       "name": "Piłka na platformie",
-      "description": "Utrzymaj piłkę w grze platformą, która jeździ w lewo i w prawo: każde złapanie to nuta, uderzenia poza środkiem posyłają ją w bok z podkręceniem, od ścian i sufitu – aż skończą się pudła i nadejdzie koniec gry."
+      "description": "Utrzymaj piłkę w górze przesuwaną platformą. Każde złapanie to nuta. Za dużo pudeł i koniec gry."
     },
     "vortex": {
       "name": "Dźwiękowy wir",
-      "description": "Pew! Kulki wpadają do wiru dźwiękowych pierścieni i spiralą opadają do dziury pośrodku – każdy mijany pierścień gra kolejną nutę, więc każda kulka to wznoszące się glissando, a kulki wpuszczane jedna po drugiej splatają się w arpeggia. Na dnie dziura połyka je z „pew” i pluskiem."
+      "description": "Piłki spływają spiralą przez wir dźwiękowych pierścieni. Każdy pierścień to nuta. Dziura połyka je z „piu”."
     },
     "journey": {
       "name": "Podróż",
-      "description": "Gerald odbija się w drodze do domu: kolumna etapów – pierścienie do ucieczki, szkło do rozbicia, kołki, bramki mnożników, lejek, tarcza – jeden po drugim, a kamera zjeżdża w dół. Każdy etap ma swój baner i świst, aż Gerald przejdzie przez własne drzwi DOMU."
+      "description": "Gerald odbija się przez całą drogę z pracy. Pierścienie, szkło, kołki i bramki, etap po etapie, aż do domu."
     },
     "bullseye": {
       "name": "W dziesiątkę",
-      "description": "DZIESIĄTKA!! Kulki lecą jedna po drugiej z wyrzutni na górze, dzwonią o kołki i odbijacze i utykają tam, gdzie wylądują na tarczy leżącej na dole. Każdy pierścień daje punkty, każdy kołek gra nutę – a trafienie w środek odpala konfetti, fanfarę i zwolnione tempo."
+      "description": "Piłki lecą przez kołki na tarczę. Każdy pierścień daje punkty. Trafienie w środek to dziesiątka z konfetti."
     },
     "beatDrop": {
       "name": "Spadanie w rytm",
-      "description": "Kulka spada na deski, bloki, sprężyny, kliny, obracające się belki i bębny, które wlatują zza ekranu tuż przed każdym bitem – więc każde lądowanie trafia dokładnie w bit, ze stopą, werblem albo kolejną nutą Twojej piosenki."
+      "description": "Platformy wlatują tuż przed każdym bitem, więc każde lądowanie trafia w rytm. Stworzone do muzycznych edycji."
     },
     "territory": {
       "name": "Terytorium",
-      "description": "Symulacja fizyki w stylu pong wars: 2 lub 4 drużyny odbijających się kulek malują mapę kafelków na swój kolor, a pasek procentów na żywo pokazuje, kto wygrywa. Wir kontra bombowiec – jedno odbicie może odwrócić losy planszy."
+      "description": "Dwie albo cztery drużyny piłek malują mapę z kafelków na swój kolor. Jedno odbicie może odwrócić losy."
     },
     "maze": {
       "name": "Ucieczka z labiryntu",
-      "description": "Kto jeszcze pomyślał, że to krew? Kulki wpadają przez czerwoną szczelinę do losowego, świecącego na zielono labiryntu i odbijają się w stronę wyjścia, malując na czerwono każdy korytarz, którym przejdą. Każde uderzenie w ścianę to nuta, która wznosi się, gdy kulka zbliża się do wyjścia – wygrywa pierwsza, która się wydostanie."
+      "description": "Piłki wpadają do świecącego labiryntu i szukają wyjścia, malując każdy korytarz na czerwono. Wygrywa pierwsza."
     },
     "conveyor": {
       "name": "Taśmociąg",
-      "description": "Gerald odradza się co 3 sekundy: taśmociąg u góry wywozi z włazu piłkę za piłką i zrzuca je na arenę poniżej – do koncentrycznych pierścieni, z których trzeba uciec, do misy, która się zapełnia, albo na pole kołków nad przegródkami. Każde odbicie to nuta, taśma buczy i klika, a licznik prowadzi rachunek: Załadowano 17 / Uciekło 4."
+      "description": "Taśma co kilka sekund zrzuca na arenę nową piłkę. Stos rośnie, a licznik pilnuje wyniku."
     },
     "orbGrid": {
       "name": "Skaczące kule",
-      "description": "Tysiące błyszczących kul na płycie, a każda bez końca podskakuje w górę i w dół na swoim miejscu – 1089, 1936 albo 4900. Ich tempa płynnie zmieniają się w poprzek pola, więc cały zbiór wznosi się od narożnika, zbiega lejem do środka albo rozchodzi się pierścieniami, zgrywa się w fazie na końcu każdego cyklu i znów rozpada – polirytmy pod metronom, a każde lądowanie to cicha nuta."
+      "description": "Tysiące kul skacze każda w swoim miejscu. Przez pole przetaczają się fale, aż wszystkie wylądują razem."
     },
     "fightLeague": {
       "name": "Liga walk",
-      "description": "Postacie z gier, komiksów, seriali i filmów walczą jako kulki własną bronią – miecze tną, młoty lecą i wracają, pistolety i różdżki strzelają – a zdolność każdego zawodnika ładuje się i odpala sama. PŻ w środku kulki; wygrywa ostatni na placu boju: Thor kontra Loki, Captain Falcon kontra Little Mac, Yuumi kontra Katarina…"
+      "description": "Wojownicy z gier, komiksów i filmów walczą jako piłki własną bronią. Wygrywa ostatni na placu boju."
     },
     "landClaim": {
       "name": "Podbój terenu",
-      "description": "Kolumny bloków obstawiają ścianę kwadratowej, sześciokątnej lub okrągłej areny; kolorowe kulki strącają górne bloki, co ósmy blok dodaje kolejną kulkę, a wygrywa ten, kto ma najwięcej bloków – DOMINACJA albo CO ZA WYRÓWNANA BITWA."
+      "description": "Kolumny bloków otaczają arenę. Piłki strącają je dla swojego koloru. Wygrywa ten, kto zbierze najwięcej."
     },
     "starChords": {
       "name": "Gwiazdy cięciw",
-      "description": "Kulki krążą w jednym okręgu i każda rysuje wielokąt gwiaździsty, np. 5/2 albo 7/3 – każde odbicie zachowuje kąt, więc linie otaczają wewnętrzny okrąg, którego nikt nie narysował – a wszystkie gwiazdy domykają się w tej samej klatce z akordem, potem rysunek gaśnie i wszystko się zapętla."
+      "description": "Piłki rysują gwiazdy w jednym okręgu. Wszystkie domykają się w tej samej klatce, a wtedy brzmi akord."
     },
     "hoops": {
       "name": "Wirujące obręcze",
-      "description": "Tęczowe obręcze wirują coraz szybciej wokół pionowej osi, na każdej koralik. Po przekroczeniu prędkości krytycznej obręczy dno przestaje być najniższym miejscem i jej koralik się wspina – najpierw na największej obręczy, jedna obręcz po drugiej – a każde uniesienie to nuta strojonej sztabki; potem obroty zwalniają i pętla zaczyna się od nowa."
+      "description": "Obręcze wirują coraz szybciej. Koraliki wspinają się po kolei, od największej obręczy, każdy z własną nutą."
     },
     "colourSort": {
       "name": "Sortowanie kolorów",
-      "description": "360 kulek w czterech kolorach startuje stłoczonych w środku tarczy z obracających się pierścieni; bramki każdego pierścienia otwierają się tylko na zewnątrz i nigdy dla jego własnego koloru, więc kulki same układają się w swoich pasach – potem znów się mieszają i pętla zaczyna się od nowa."
+      "description": "Wymieszane piłki same sortują się przez jednokierunkowe bramki w kolorową tarczę, a potem znów się mieszają."
     },
     "ellipseFoci": {
       "name": "Strzał w ognisko",
-      "description": "Eliptyczny stół: salwa tęczowych piłek wystrzelona z jednego ogniska odbija się od ściany i przechodzi przez drugie ognisko naraz, w każdym przejściu – a rój zapada się przy tym na długą oś."
+      "description": "Salwa piłek wylatuje z jednego ogniska i trafia w drugie w tej samej chwili, raz za razem."
     },
     "beatMachine": {
       "name": "Maszyny rytmu",
-      "description": "Muzyczne maszyny, w których każda nuta to kulka lądująca dokładnie w rytm: kulkowy ksylofon zasilany rurkami i windą albo jedna kulka skacząca po ośmiostopniowych muzycznych schodach."
+      "description": "Kulki spadają na strojone sztabki albo piłka skacze po schodach. Każda nuta trafia dokładnie w rytm."
     },
     "drawingMachine": {
       "name": "Maszyny rysujące",
-      "description": "Harmonograf z trzema wahadłami rysujący na papierze, który się przewija, albo Ziemia i Wenus rysujące co osiem lat pięciopłatkowy kwiat."
+      "description": "Trzy wahadła prowadzą jedno pióro po papierze albo Ziemia i Wenus rysują pięciopłatkowy kwiat."
     }
   },
   "FAQ": {
     "q1": {
       "question": "Czy {siteName} jest darmowy?",
-      "answer": "Tak: każdy tryb, każda opcja personalizacji, dźwięk i Znajdź symulację – a także nagrywanie i eksport filmów – bez zakładania konta. Filmy tworzone za darmo mają mały znak wodny; Pro go usuwa za 10 $ miesięcznie lub 79 $ rocznie."
+      "answer": "Tak. Każdy tryb, każde ustawienie i nagrywanie są darmowe, bez konta. Darmowe filmy mają mały znak wodny, a Pro usuwa go za 10 $ miesięcznie lub 79 $ rocznie."
     },
     "q2": {
-      "question": "Jakie formaty i rozdzielczości wideo mogę eksportować?",
-      "answer": "Możesz nagrywać klipy 500×500 (kwadrat), 1280×720 (HD), 1920×1080 (Full HD) i 1080×1920 (pionowo, TikTok) o długości od 10 do 120 sekund. Przeglądarki obsługujące nagrywanie MP4 eksportują MP4, pozostałe WebM."
+      "question": "Jakie formaty i rozmiary filmów mogę eksportować?",
+      "answer": "Kwadrat 500×500, HD 1280×720, Full HD 1920×1080 i pion 1080×1920, od 10 do 120 sekund. Chrome i Safari eksportują MP4. Firefox eksportuje WebM."
     },
     "q3": {
-      "question": "Czy mogę używać wyeksportowanych filmów komercyjnie?",
-      "answer": "Tak. Wszystko, co stworzysz, należy do Ciebie i możesz tego używać na TikToku, YouTube, Instagramie lub gdziekolwiek indziej, bez podawania źródła."
+      "question": "Czy mogę używać filmów komercyjnie?",
+      "answer": "Tak. Wszystko, co stworzysz, należy do Ciebie. Publikuj, gdzie chcesz, bez podawania źródła."
     },
     "q4": {
       "question": "Czy muszę coś instalować?",
-      "answer": "Nie. Całe narzędzie działa w przeglądarce. Otwórz stronę i zacznij tworzyć."
+      "answer": "Nie. Działa w przeglądarce. Otwórz stronę i zaczynaj."
     },
     "q5": {
       "question": "Czy mogę zapisać swoje ustawienia?",
-      "answer": "Tak. Zapisz dowolną liczbę presetów w pamięci lokalnej przeglądarki i wczytuj je w każdej chwili. Adres URL również aktualizuje się przy zmianie ustawień, więc konfigurację można dodać do zakładek lub udostępnić."
+      "answer": "Tak. Zapisuj presety w przeglądarce i wczytuj je w każdej chwili. Link w pasku adresu też zawiera Twoją konfigurację, więc możesz go dodać do zakładek albo udostępnić."
     },
     "q6": {
       "question": "Czy działa na telefonie?",
-      "answer": "Symulator jest zaprojektowany z myślą o przeglądarkach na komputerze, gdzie jest miejsce na płótno i sterowanie obok siebie. Działa też na telefonach, ale laptop lub komputer zapewnia lepsze doświadczenie."
+      "answer": "Działa na telefonach, ale najlepiej sprawdza się na laptopie lub komputerze, gdzie płótno i ustawienia mieszczą się obok siebie."
     },
     "q7": {
       "question": "Czy są skróty klawiszowe?",
-      "answer": "Tak. Spacja pauzuje lub wznawia, a R uruchamia symulację ponownie."
+      "answer": "Tak. Spacja pauzuje i wznawia. R uruchamia od nowa."
     },
     "q8": {
-      "question": "Jak wgrać własny obrazek piłki?",
-      "answer": "Otwórz sekcję Piłka i fizyka, włącz opcje zaawansowane i kliknij Wybierz obrazek. Dowolny obrazek zadziała: logo, zdjęcie, mem. Możesz też wybrać emoji z siatki."
+      "question": "Jak umieścić własny obrazek na piłce?",
+      "answer": "Otwórz sekcję Piłka i fizyka, włącz Pokaż opcje zaawansowane i kliknij Wybierz obrazek. Pasuje każdy obrazek, możesz też wybrać emoji."
     },
     "q9": {
-      "question": "Jak działa funkcja własnego dźwięku?",
-      "answer": "W sekcji Własny dźwięk wybierz piosenkę z wbudowanej biblioteki lub zaimportuj plik MIDI. Melodia jest wyciągana z pliku, a każde uderzenie w ścianę odtwarza kolejną nutę, zamieniając symulację w występ muzyczny. Wolisz efekt dźwiękowy? Przełącz Dźwięk odbicia na Próbkę audio i wybierz wbudowany klik, strunę lub stopę albo wgraj własny klip – zagra z inną wysokością na każdej ścianie i trafi do nagrania."
-    },
-    "q10": {
-      "question": "Co sprawia, że {siteName} jest tak satysfakcjonujący?",
-      "answer": "Pętla jest prosta: piłka odbija się wewnątrz pierścieni z małymi szczelinami, a za każdym razem, gdy się prześlizgnie, dzieje się coś nagradzającego: konfetti, rozbicie, fala uderzeniowa. Ponieważ kontrolujesz fizykę, kolory i efekty, napięcie i finał wyglądają dokładnie tak, jak chcesz."
-    },
-    "q11": {
-      "question": "Czy {siteName} może działać jak satysfakcjonujący clicker?",
-      "answer": "To nie jest gra typu clicker, ale zaspokaja tę samą potrzebę. Patrzysz, przewidujesz szczelinę i dostajesz nagrodę w postaci efektów i dźwięku przy każdej ucieczce. Symulacja gra sama, więc to satysfakcja bez klikania."
+      "question": "Czy odbicia mogą grać muzykę?",
+      "answer": "Tak. W sekcji Własny dźwięk wybierz piosenkę z biblioteki albo zaimportuj plik MIDI, a każde uderzenie zagra kolejną nutę. Możesz też wybrać próbkę audio, wbudowaną lub własną."
     }
   },
   "Editorial": {
-    "physicsBadge": "Za kulisami symulacji",
-    "physicsTitle": "Jak działa silnik fizyki",
-    "physicsP1": "Każda symulacja zaczyna się od tego samego pomysłu: piłka odbija się w pierścieniu. Prędkość, grawitacja i sprężystość zmieniają jej ruch, trochę jak wrzucenie prawdziwej piłki do miski i decydowanie, jak szybko spada i jak mocno rykoszetuje. Silnik liczy świat sześćdziesiąt razy na sekundę z kilkoma podkrokami na klatkę, więc kolizje pozostają stabilne nawet przy dużej prędkości.",
-    "physicsP2": "Każdy pierścień ma małą szczelinę. Gdy piłka ustawi się w niej i przejdzie, pierścień rozpada się z wybranym efektem: konfetti, tłuczonym szkłem lub falą uderzeniową. Piłka przechodzi do kolejnego pierścienia i proces się powtarza, aż ucieknie lub nagranie się skończy.",
-    "physicsP3": "Każdy tryb dokłada własne zasady: piłka może rozdzielić się w rój, zamarznąć w tor przeszkód albo rosnąć z każdym odbiciem. Wszystko działa lokalnie w przeglądarce; nic nie jest wysyłane, a film jest kodowany na Twoim urządzeniu.",
-    "modesBadge": "Tryby gry",
-    "modesTitle": "Co robi każdy tryb",
-    "modeClassic": "Jedna piłka odbija się przez koncentryczne pierścienie, każdy ze szczeliną. Przebij wszystkie ściany, aby uciec. Tryb domyślny: prosty, hipnotyzujący i do oglądania bez końca.",
-    "modeAccumulation": "Piłka ma ograniczony czas na ucieczkę. Jeśli się nie uda, zamarza w miejscu i staje się nową przeszkodą, a pojawia się kolejna piłka. Arena szybko się zapełnia. Czy ostatnia zdoła się wydostać?",
-    "modeMultiply": "Za każdym razem, gdy piłka ucieka z pierścienia, pojawiają się kolejne, więc jedna piłka szybko staje się rojem. Świetne na wybuchowe, chaotyczne klipy wypełniające ekran.",
-    "modeLines": "Każdy punkt odbicia łączy się z piłką linią, tworząc misterne geometryczne wzory. Po części fizyka, po części sztuka generatywna.",
-    "modePaint": "Piłka zostawia kolorowy ślad, stopniowo pokrywając okrąg. Licznik procentowy śledzi, ile już pomalowano. Spróbuj dojść do 100%.",
-    "modeTarget": "Na ścianie pojawiają się ponumerowane segmenty. Trafiaj je po kolei; każde poprawne trafienie uruchamia efekt przebicia, a błędne błyska na czerwono.",
-    "modePortal": "Na ścianie znajdują się pary portali w tym samym kolorze. Dotknij jednego, aby teleportować się do bliźniaka. Po kilku użyciach portale wypalają się i piłka się uwalnia.",
-    "modeShatter": "Ściany są podzielone na segmenty z punktami wytrzymałości. Każde odbicie pęka segment, a po wystarczającej liczbie uderzeń rozbija go. Utoruj drogę przez wszystkie ściany, aby uciec.",
-    "modeColorMatch": "Ściana jest podzielona na kolorowe segmenty, a piłka zmienia kolor przy każdym odbiciu. Segment pęka tylko wtedy, gdy kolory się zgadzają. Usuń wszystkie, aby wygrać.",
-    "modeGrow": "Piłka jest zamknięta w jednym pierścieniu i rośnie z każdym odbiciem, zajmując coraz więcej miejsca, aż ledwo może się ruszać.",
-    "modeDrop": "Zamiast pierścieni wysoka plansza z kołkami i belkami. Piłki o różnych rozmiarach i wadze spadają z góry, a każde uderzenie gra nutę – duże piłki nisko, małe wysoko – aż wszystkie się zatrzymają, albo bez końca z włączonym Deszczem.",
-    "modeBox": "Prostokątne pudełko zamiast pierścieni. Kwadraty, koła lub logotypy w stylu DVD poruszają się po liniach prostych ze stałą prędkością i idealnie odbijają się od ścianek; każde uderzenie gra kolejną nutę melodii albo nutę zależną od ścianki. Każdy kształt nosi dużą liczbę, która odlicza w dół z każdym odbiciem, błyska, odrobinę rośnie i zmienia kolor, a kilka logotypów o prędkościach w stosunku 2:3 czy 3:4:5 splata polirytmię, aż wszystkie liczby dojdą do zera – albo bez końca z wyłączonym odliczaniem. Logo, które trafi w róg, gra głośniejszą nutę i rozświetla ekran.",
-    "modePendulum": "Bez pierścieni: 5–60 wahadeł nastrojonych jak klasyczna fala wahadeł – najwolniejsze wykonuje K wahnięć na cykl, każde kolejne o jedno więcej. Na starcie w linii, rozjeżdżają się w wędrujące fale, dzielą na dwie i trzy grupy i na koniec każdego cyklu znów stają w linii; przejście przez środek (albo skrajne wychylenie) gra nutę o wysokości zależnej od miejsca wahadła w rzędzie, a kulki, które się zrównają, grają jeden akord. Sześć układów – rząd pod belką, łuk zaczepów wahających się ku środkowi, kulki na promieniach od środka lub na obracającym się wielokącie, wolno obracająca się galaktyka rysująca ramiona spiralne, suwaki na szynach i piłki odbijające się od podłogi – plus opcja przesunięcia fazowego, która zamienia strojenie w przesunięcie tempa w stylu Reicha.",
     "tipsBadge": "Porady",
-    "tipsTitle": "Wskazówki dla najlepszych nagrań",
+    "tipsTitle": "Lepsze nagrania",
     "tipFindSimulationTitle": "Użyj funkcji Znajdź symulację",
-    "tipFindSimulationBody": "Zamiast zgadywać, pozwól narzędziu wyszukać seed dający symulację o docelowej długości. Otwórz Znajdź symulację pod płótnem, ustaw czas i pozwól mu przeskanować seedy. Gdy znajdzie, symulacja trwa dokładnie tyle, co czyni nagrywanie przewidywalnym.",
-    "tipLayerEffectsTitle": "Nakładaj efekty dla większego wrażenia",
-    "tipLayerEffectsBody": "Tęczowe ściany, poświata, kolorowe ślady i efekty przebicia sumują się. Spróbuj reaktywnego tła z konfetti i poświatą; dodatkowe warstwy zatrzymują widzów.",
-    "tipTextHooksTitle": "Dodaj tekstowe haczyki",
-    "tipTextHooksBody": "Górne i dolne nakładki dają kontekst. Pytanie w stylu „Czy ucieknie?” lub odliczanie buduje napięcie. Dostosuj rozmiar tekstu, aby był czytelny na telefonie.",
-    "tipClipLengthTitle": "Dopasuj długość klipu do platformy",
-    "tipClipLengthBody": "Krótsze klipy (15–30 sekund) zwykle lepiej działają na TikToku i Reels. Ustaw czas w sekcji Nagrywanie i wybierz pionową rozdzielczość 1080×1920.",
-    "tipPresetsTitle": "Zapisuj ulubione konfiguracje jako presety",
-    "tipPresetsBody": "Gdy konfiguracja działa, zapisz ją i wczytaj ponownie przy następnym filmie. Spójne serie dobrze się sprawdzają, bo widzowie wiedzą, czego się spodziewać.",
-    "tipSpeedTitle": "Przyspieszaj podgląd, nagrywaj przy 1×",
-    "tipSpeedBody": "Użyj przycisków prędkości 2× do 8×, aby przewinąć długą symulację podczas podglądu. Przed nagrywaniem wróć do 1×, aby eksport uchwycił każdą klatkę w pełnej jakości.",
+    "tipFindSimulationBody": "Ustaw długość klipu, a Znajdź symulację przeszuka seedy i znajdzie przebieg, który trwa dokładnie tyle. Potem go nagraj.",
+    "tipTextHooksTitle": "Dodaj haczyk",
+    "tipTextHooksBody": "Napis u góry w stylu „Czy ucieknie?” daje widzom powód, by zostać. Zadbaj, by był czytelny na telefonie.",
+    "tipClipLengthTitle": "Niech będzie krótko",
+    "tipClipLengthBody": "Na TikToku i Reels najlepiej działa od 15 do 30 sekund. Ustaw długość w sekcji Nagrywanie i wybierz 1080×1920.",
+    "tipSpeedTitle": "Szybki podgląd, nagrywanie przy 1×",
+    "tipSpeedBody": "Przy ustawianiu przewijaj długi przebieg z prędkością od 2× do 8×. Przed nagraniem wróć do 1×.",
     "troubleBadge": "Pomoc",
     "troubleTitle": "Rozwiązywanie problemów",
     "troubleExportQ": "Eksport wideo wygląda źle lub brakuje klatek",
-    "troubleExportA": "Użyj aktualnej wersji Chrome, Edge lub Firefoksa; tam nagrywanie działa najlepiej. Zamknij inne karty i aplikacje, aby zwolnić pamięć, i nie przełączaj karty podczas nagrywania. Chrome i Safari eksportują MP4; Firefox eksportuje WebM, który akceptuje każda większa platforma.",
-    "troubleAudioQ": "Symulacja nie odtwarza dźwięku",
-    "troubleAudioA": "Przeglądarki blokują dźwięk, dopóki nie wejdziesz w interakcję ze stroną. Kliknij gdziekolwiek, a potem naciśnij Start. Jeśli nadal nie ma dźwięku, sprawdź głośność systemu i upewnij się, że strona może odtwarzać audio.",
+    "troubleExportA": "Użyj aktualnej wersji Chrome, Edge lub Firefoksa. Zamknij inne karty i nie przełączaj tej podczas nagrywania. Firefox eksportuje WebM, który przyjmuje każda platforma.",
+    "troubleAudioQ": "Nie ma dźwięku",
+    "troubleAudioA": "Przeglądarki blokują dźwięk, dopóki nie klikniesz strony. Kliknij gdziekolwiek i naciśnij Start. Jeśli nadal jest cicho, sprawdź głośność systemu i uprawnienia strony do dźwięku.",
     "troubleSpeedQ": "Piłka porusza się za szybko lub za wolno",
-    "troubleSpeedA": "Otwórz sekcję Piłka i fizyka i zmień Prędkość piłki. Niższe wartości łatwiej śledzić; wyższe dają bardziej energiczne klipy. Grawitacja też zmienia tempo: niższa dłużej utrzymuje piłkę w powietrzu między uderzeniami.",
+    "troubleSpeedA": "Otwórz sekcję Piłka i fizyka i zmień Prędkość piłki. Przy niższej grawitacji piłka dłużej unosi się między uderzeniami.",
     "troubleSettingsQ": "Ustawienia się nie zapisują",
-    "troubleSettingsA": "Presety są przechowywane w pamięci lokalnej przeglądarki. Wyczyszczenie danych strony lub tryb prywatny je usuwa. Skopiuj link do udostępnienia konfiguracji, na której Ci zależy, aby móc ją później przywrócić.",
-    "troubleMidiQ": "Mój plik MIDI się nie wczytuje",
-    "troubleMidiA": "Bardzo złożone pliki z wieloma jednoczesnymi ścieżkami mogą się nie wczytać. Spróbuj prostszego pliku MIDI z jedną melodią (format 0 lub 1). Narzędzie zachowuje tylko najwyższą nutę w danym momencie, więc eksport samej linii melodycznej z programu muzycznego działa najlepiej.",
+    "troubleSettingsA": "Presety są zapisane w pamięci przeglądarki. Okno prywatne lub wyczyszczenie danych strony je usuwa. Skopiuj link do konfiguracji, którą chcesz zachować.",
+    "troubleMidiQ": "Plik MIDI się nie wczytuje",
+    "troubleMidiA": "Bardzo złożone pliki mogą się nie wczytać. Spróbuj pliku MIDI z jedną melodią. Narzędzie zachowuje tylko najwyższą nutę w danej chwili.",
     "troubleStuckQ": "Nadal masz problem?",
-    "troubleStuckA": "Napisz do nas przez stronę opinii i opisz, co robiłeś.",
-    "modePolyrhythm": "Bez pierścieni do przebicia: od 2 do 400 głosów tyka każdy we własnym tempie, a każde tyknięcie gra nutę. Okręgi (kropki obiegają środek 1, 2, 3… razy na cykl i tykają na godzinie 12, opcjonalnie jako obracające się wielokąty), łuki (kropki sunące po cięciwach lub półokręgach koła i tykające na obu końcach), siatka metronomów albo spirala, której punkty tyknięć układają się na nowo w każdym cyklu. Tempa tworzą szereg harmoniczny, arytmetyczny szereg BPM (przesunięcie fazowe tempa w stylu Reicha) albo twoją własną listę proporcji, np. 3,4,5,7. Chwila, w której wszystkie głosy tykają razem, jest wyliczana dokładnie i wybrzmiewa akordem z błyskiem; symulacja kończy się po wybranej liczbie cykli i zawsze trwa tyle samo, więc pasuje do każdego klipu.",
-    "modeCollide": "Bez pierścieni: od 10 do 2000 kul różnej wielkości – masa rośnie z rozmiarem – odbija się od ścian okręgu albo kwadratu i od siebie nawzajem w sprężystych zderzeniach, przy grawitacji tak słabej lub silnej, jak zechcesz. Każde zderzenie gra cichą nutę o wysokości zależnej od mniejszej kuli (duże kule nisko, małe wysoko, na drabinie pentatonicznej dopasowanej do wybranej skali), a w każdej klatce brzmi tylko tuzin najmocniejszych zderzeń, więc setki kul brzmią jak deszcz na szybie, a nie jak szum. Warianty: galaretowate kule zgniatające się przy każdym uderzeniu, start w synchronizacji, w którym wszystkie spadają naraz z siatki, przełącznik antykolizji, po którym w wybranej sekundzie przenikają przez siebie, oraz lizaki na pierścieniu zderzające się wzdłuż okrągłego toru.",
-    "modeGlass": "Szklany format geraldbounces, bez pierścieni: pionowy szyb z poziomymi szklanymi taflami dzieli piłkę od drzwi z napisem DOM. Piłka spada, a każde lądowanie zostawia pęknięcie na tafli pod nią – proceduralna rysa rośnie od miejsca uderzenia – i gra kolejną nutę melodii albo, bez melodii, stopień skali według rzędu; przy ostatnim uderzeniu tafla rozpada się na odłamki z akcentowaną nutą i dźwiękiem tłuczonego szkła, a piłka przebija się do następnej tafli. Po ostatniej tafli etapu kamera zjeżdża do kolejnego: więcej tafli, grubsze szkło, tafle jeżdżące w lewo i w prawo oraz tafle z dziurami, które piłka musi ominąć. Ostatni etap kończy się wtoczeniem piłki w drzwi i świętowaniem. Każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno do długości klipu.",
-    "modeMultipliers": "Wysoka plansza, którą kamera przewija w dół, zawsze za najniżej położoną piłką. Każdy rząd dzieli się na 2–4 bramki: bramki liczby (x2, x3, x5) klonują każdą przechodzącą piłkę – aż do wybranego limitu, od 50 do 2000 –, bramki prędkości, rozmiaru i obrażeń nakładają na nią mnożniki bez górnej granicy, bramki ÷2 pochłaniają co drugą piłkę, a bramki z zapadką trzymają stos piłek na klapie, która otwiera się seriami. Między rzędami stoją kołki rozdzielające, sprężyste odbijacze, lejki i blokady z punktami wytrzymałości (mnożnik obrażeń szybciej je kruszy), każde uderzenie to nuta pentatonicznego „pianina plinko”, a strefa DOM na dole liczy na żywo przybyłe piłki aż do końcowego „Gerald w domu: N”. Piłka, która urośnie szerzej niż plansza, przerasta arenę i kończy bieg świętowaniem. Ustaw docelową liczbę, a Znajdź symulację poszuka ziarna, którego końcowy wynik mieści się w 5 % od celu. Te same mnożniki unoszą się jako znajdźki w trybach z pierścieniami (sekcja Piłka → Mnożniki).",
-    "modeDoublePendulum": "Bez pierścieni: od jednego do czterech podwójnych – albo potrójnych – wahadeł kołysze się z punktu zawieszenia na środku filmu, liczonych krok po kroku (adaptacyjną metodą Rungego–Kutty piątego rzędu, której podkroki skracają się wszędzie tam, gdzie ruch robi się gwałtowny), więc chaos to prawdziwa fizyka, a energia utrzymuje się przez cały klip. W poprzek planszy stoi do 24 strun harfy, pionowych lub promienistych; każda kulka, która przetnie strunę, szarpie ją – struna drga i gra swój dźwięk, nastrojony do skali z sekcji Własny dźwięk w zakresie od jednej do czterech oktaw – a ostatnia kulka rysuje długi tęczowy ślad. Kilka wahadeł startuje minimalnie przesuniętych i po kilku sekundach się rozbiega (efekt motyla); sparing wiesza dwa wahadła obok siebie, których kulki zderzają się sprężyście – każde uderzenie to perkusyjny dźwięk i błysk. Długości ramion, masy, grawitację, tarcie i kąty startowe (albo losowy start z ziarna) można regulować, a przebieg kończy się razem z klipem albo nigdy.",
-    "modeIllusion": "Bez pierścieni do przebicia: cztery iluzje w stylu project.jdm. Linie – N piłek sunie tam i z powrotem po średnicach dużego okręgu, piłka i pod kątem i·π/N z przesunięciem fazy i·π/N, więc razem tworzą mniejszy okrąg toczący się w środku; każda piłka gra swoją nutę, gdy dotknie krawędzi. Pierścienie – współśrodkowe pierścienie z jedną odbijającą się piłką w każdym; obracają się z różną prędkością, więc odbicia rozchodzą się spiralami i co cykl znów stają w linii. Zagnieżdżone – okrąg odbijający się w okręgu w okręgu (2–5 warstw), ze sprężystymi zderzeniami i ścianami, które falują tam, gdzie zostały uderzone. Białe plamy – piłki malują białą arenę na czarno, ale odbijają się od kształtów, w które nigdy nie wjadą, więc na końcu ukazuje się ukryty obrazek wybrany przez ziarno. Wszystko jest deterministyczne, a suwak Falujące ściany w sekcji Efekty wizualne sprawia, że ściany każdego trybu z pierścieniami też drgają jak galaretka.",
-    "modeStringBattle": "Pojedynek WEB DOMINION z konta oddplayground: 2–6 ponumerowanych kulek odbija się w jednym cienkim pierścieniu na czarnym tle, a każde odbicie od ściany przyczepia w miejscu uderzenia świecącą nić prowadzącą do kulki – każda kulka ciągnie więc za sobą wachlarz nici (najstarsze odczepiają się i gasną). Cięcie: przekroczenie nici rywala zrywa ją z brzdękiem i kosztuje jej właściciela życie; Dotyk: nici są laserami parzącymi każdego, kto ich dotknie; Zderzenie: w każdym zderzeniu życie traci wolniejsza kulka. Kulka z 0 żyć pęka jak szkło, a jej nici się rozpływają; gdy zostają dwie, a jedna jest o cięcie od eliminacji, finał przyspiesza wszystko, a poświaty migają – wygrywa ostatnia kulka na placu boju, ze zwolnionym tempem przy ostatnim cięciu, gdy włączone jest spowolnienie kamery. Styl neon zmienia nici w nieskończone linie malujące morę na całym płótnie, z galaretowatym pierścieniem i paskami glitchu. Każde ziarno odtwarza się dokładnie, Znajdź symulację szuka długości walki albo jej zwycięzcy, a skład drużyn użycza kulkom swoich kolorów i nazw.",
-    "modePowerLayers": "Format warstw mocy z oddplayground, bez pierścieni: granatowa pionowa plansza ze świecącą belką sufitu w górnej jednej trzeciej i – od połowy ekranu w dół – gęstym stosem 20–800 cienkich tęczowych warstw, które dzielą piłkę od wolności. Jedna biała piłka odbija się między sufitem a wierzchem stosu z lekkim dryfem wyznaczonym przez ziarno. Każde uderzenie niszczy tyle warstw, ile wynosi bieżąca moc – rozpryskują się w kolorowe cząstki, a stos opada – po czym moc się podwaja, rośnie według Fibonacciego lub liczb pierwszych, o jeden albo jest losowana z ziarna (chaos: jedne uderzenia niszczą dziesiątki warstw, inne niczego nie zmieniają). Dwie tęczowe plakietki pokazują zasadę, moc i poziom, każdy poziom gra kolejną nutę Twojej skali, duże uderzenie dokłada akord i świst, a gdy zniknie ostatnia warstwa, piłka wypada dołem na wolność. Każde odbicie trwa tyle samo, więc bieg trwa liczbę uderzeń razy okres odbicia – Znajdź symulację mówi to wprost albo przeszukuje ziarna chaosu pod długość Twojego klipu.",
-    "modeRace": "Format wyścigu kulek z project.jdm, bez pierścieni: od 2 do 16 zawodników – z nazwami, kolorami i emoji z listy drużyn – rusza z pól startowych w dół długiego, pionowego toru wygenerowanego z ziarna. Rzędy kołków, lejków, obrotowych belek, flipperowych odbijaczy, turbo-pól, wąskich bramek i stref zamiany (pierwszy zawodnik ją uzbraja, drugi zamienia się z nim miejscami) mieszają kolejność; każda przeszkoda, w którą ktoś uderzy, gra jego własną nutę, a każde wyprzedzenie – rosnący dzwonek. Kamera śledzi lidera albo obejmuje całą stawkę, minimapa pokazuje cały tor, klasyfikacja – pozycje i straty, a meta to fanfara, podium i konfetti. Zapętl tor na kilka okrążeń, włącz puchar, by zbierać punkty F1 przez kolejne wyścigi, albo wybierz ustawionego zwycięzcę.",
-    "modeBattle": "Bez pierścieni: od 2 do 20 kwadratów z punktami życia odbija się w pudełku lub w kole i wpada na siebie. Przy zderzeniu szybszy kwadrat zadaje obrażenia proporcjonalne do prędkości zbliżania; trafiony kwadrat błyska i trochę się kurczy, a przy 0 HP rozpada się na odłamki z napisem KO. Opcjonalna bezpieczna strefa zamyka się od ósmej sekundy i spycha ocalałych do siebie, a bonusy – leczenie, tarcza i przyspieszenie – pojawiają się w chwilach wyznaczonych przez ziarno. Ostatni kwadrat na placu boju wygrywa pod banerem z konfetti. Przebieg zależy tylko od ziarna, więc Znajdź symulację potrafi wyszukać bitwę o zadanej długości.",
-    "modeCtf": "Bez pierścieni: dwie drużyny po jeden do czterech kwadratów grają w zdobywanie flagi w pudełku z bazą i flagą na każdym końcu. Kwadrat, który dotknie flagi rywala, niesie ją i zdobywa punkt, gdy dotrze do własnej bazy; niosący flagę trafiony przez rywala upuszcza ją tam, gdzie jest – przeciwnik może ją znów porwać, a jej drużyna odsyła ją do bazy. Reżyser lekko kieruje odbicia w stronę celu każdego kwadratu, tablica wyników pokazuje punkty i zegar, a każde zdobycie flagi gra fanfarę. Wygrywa pierwsza drużyna z wymaganym wynikiem, w przeciwnym razie lepszy wynik na koniec klipu.",
-    "modeRunner": "Rytmiczny bieg w stylu project.jdm „realistyczna grawitacja w Geometry Dash”, bez pierścieni: kwadrat biegnie po podłodze ze stałą prędkością pod przewijaną kamerą. Trasa jest planowana na bitach wczytanej piosenki (jej wykryty bit – ten sam detektor co w Malowaniu obrazka) albo tempa BPM: dla każdej przeszkody – rzędu kolców, dziury, bloku, na który się wskakuje, a potem z niego zeskakuje – solver skoków bierze czas lotu skoku z prawdziwą grawitacją i stałą prędkością wybicia i ustawia wybicie tak, żeby lądowanie wypadło dokładnie na bicie. Z automatycznym skokiem kwadrat skacze w tych chwilach i nigdy się nie myli; bez niego skaczesz Spacją, a zderzenie wznawia odcinek. Każde lądowanie gra kolejną nutę i wzbija obłoczek kurzu; meta gra akord.",
-    "modePaddle": "Format „Ball Bounce Game with Moving Platform”, bez pierścieni: piłka spada z prawdziwą grawitacją na platformę jeżdżącą w lewo i w prawo; złapanie wyrzuca ją z powrotem w górę – ze środka wyżej, z brzegów niżej i w bok z podkręceniem – więc wędruje od ścian i sufitu, a każde złapanie gra kolejną nutę. Automatyczny sterownik przewiduje każde lądowanie i tam jedzie; jego Umiejętność decyduje, jak często zjawia się za wcześnie lub za późno, więc pudła (i koniec gry po wyczerpaniu dozwolonych) są dla danego ziarna deterministyczne. Możesz też sterować platformą samodzielnie.",
-    "modeVortex": "Format „sound vortex, pew” z geraldbounces, bez pierścieni do ucieczki: wir oglądany z góry – lejek z 6–24 koncentrycznych dźwiękowych pierścieni nad świecącymi ramionami spirali, z dziurą pośrodku. Kulka za kulką wchodzi na krawędzi z prędkością styczną i spiralą opada do środka, przyciągana siłą, która rośnie ku środkowi, i lekko hamowana oporem; do dziury leci przez Czas spirali, wirując po drodze coraz szybciej. Każdy mijany pierścień gra kolejną nutę Twojej skali – z melodią, instrumentem, próbką uderzenia i grą do rytmu (BPM) – więc każda kulka to wznoszące się glissando, a kulki wpuszczane po kolei splatają się w arpeggia. Dziura połyka kulkę z „pew” – szybkim zjazdem wysokości dźwięku w dół – i pluskiem; z włączoną pętlą kulka wraca na krawędź. Kulki maleją z głębokością, co daje wrażenie 3D, a każdy bieg jest deterministyczny, więc Znajdź symulację dobierze ziarno pod długość klipu.",
-    "modeJourney": "Format dojazdów z geraldbounces – „Gerald bounces through his commute”, „let him out!”: kolumna etapów, które kulka pokonuje jeden po drugim, a kamera zjeżdża w dół. Pierścienie to kompaktowa ucieczka jak w trybie Klasycznym (3–9 pierścieni z obracającymi się przerwami; kulka wpada rynną do środka), Szkło to kilka tafli z Rozbijania szkła, które pękają przy każdym lądowaniu i rozpryskują się, Kołki to pole kołków ze Spadających piłek, którego rzędy grają wznoszącą się skalę, Mnożniki to dwa lub trzy rzędy bramek (x2 DMG, x1.5 SPEED, x1.25 SIZE), które wzmacniają kulkę na resztę drogi, Lejek to zwężający się lejek, Tarcza to cel do lądowania wart 10–100 punktów, zanim otworzy się zapadnia, a DOM to drzwi z konfetti i łącznym czasem. Każda zmiana etapu pokazuje baner i odtwarza świst, minimapa obok kolumny pokazuje, jak daleko zaszedł Gerald, a każda nuta przechodzi przez twój instrument, skalę, synchronizację z rytmem, sample uderzeń i melodię. Ułóż trasę w bloku Podróż (rozmiary, kolejność, dodawanie i usuwanie) albo pozwól, by ziarno wylosowało ją za ciebie; każdy przebieg jest deterministyczny i zawsze dociera do DOMU, więc Znajdź symulację może dobrać ziarno do długości klipu.",
-    "modeBullseye": "Format „bulleye!!” z geraldbounces, bez pierścieni do ucieczki: pionowe pole z tarczą do rzutek – 3–10 koncentrycznych pierścieni w barwach tarczy – leżącą na dole. Wyrzutnia na górze wystrzeliwuje 1–30 kulek jedna po drugiej przez krótkie pole kołków i odbijaczy (Chaos decyduje, ile ich stoi na drodze). Pierścień, w którym wyląduje kulka, daje punkty – 10 za środek, mniej dalej od niego, nic poza tarczą – z wyskakującym wynikiem i bieżącą sumą, a kulka zostaje tam, gdzie wylądowała, więc kolejne strzały mogą się od niej odbić. Kołki grają nuty Twojej skali jak klawiatura od lewej do prawej, lądowania stukają tym niżej, im dalej od środka, a trafienie w środek to DZIESIĄTKA! z konfetti, fanfarą i pół sekundy zwolnionego tempa. Tarcza może jeździć w lewo i w prawo, ustawiony Idealny strzał trafia w dziesiątkę, a końcowy baner pokazuje sumę i najlepszy strzał. Deterministyczne dla ziarna, więc Znajdź symulację może wyszukać przebieg o długości Twojego klipu.",
-    "modeBeatDrop": "Tryb rytmiczny bez pierścieni, stworzony do edycji pod muzykę: pionowa scena na ciemnym gradiencie, w której jedna kulka spada i odbija się od przeszkody do przeszkody, a każda przeszkoda wlatuje zza ekranu – z lewej, z prawej, z góry albo z dołu, nigdy od strony, z której nadlatuje kulka – z płynnym wyhamowaniem i zatrzymuje się tuż przed swoim bitem, więc kulka ląduje na niej dokładnie w bit. Bieg jest zaplanowany z góry na podstawie bitu, za którym podąża (wykrytego bitu wczytanej piosenki albo ustawienia BPM): prędkość wybicia każdego lotu jest wyliczana tak, by lot trwał dokładnie tyle, ile odstęp między dwoma bitami – przy każdym tempie i na nieregularnej siatce – więc każde lądowanie mieści się w ułamku milisekundy od swojego bitu. Sześć rodzajów przeszkód – deski, bloki, sprężyny (wyższe odbicie z „boing”), kliny (posyłają kulkę w bok), obracające się belki (płaskie dokładnie w bicie) i duże bębny – ugina się przy uderzeniu, świeci w rytm i odjeżdża z zanikaniem, gdy kulka już ją opuści; kulka spłaszcza się i rozciąga, zostawia smugę ruchu, a każde lądowanie wywołuje falę i obłok cząsteczek. Lądowania grają syntezowaną perkusję – stopę na 1 i 3, werbel na 2 i 4, hi-hat między bitami i własny akcent każdej przeszkody – kolejną nutę melodii albo jedno i drugie. Przewijanie bez końca jedzie za kulką w dół w nieskończoność; arena trzyma ją w kadrze. Ten tryb nigdy nie chybia bitu, więc Znajdź symulację po prostu wybiera ziarno i dopasowuje klip do bitów, które obejmuje.",
-    "modeTerritory": "Pong wars z konta oddplayground: mapa kafelków podzielona na 2 lub 4 obszary drużyn, a kulki każdej drużyny odbijają się w obrębie jej koloru. Kulka przelatuje przez kafelki swojego koloru i odbija się od każdego innego, przemalowując kafelek, w który trafi – każde odbicie przesuwa więc granicę, a pasek procentów pod napisem WYBIERZ STRONĘ wychyla się razem z nią. Każda drużyna może mieć moc: wir zakrzywia swój tor i ciągnie za sobą wir, którego spiralne ramiona przemalowują wrogie kafelki; bombowiec co kilka sekund się uzbraja i wybucha przy najbliższym odbiciu od wrogiego kafelka, przejmując każdy kafelek w zasięgu (z falą uderzeniową, odłamkami i wstrząsem planszy); malarz pędzi prosto przez wrogie terytorium, malując za sobą ślad; a duch przenika przez wrogie kafelki i przy każdym odbiciu od ściany przemalowuje blok 3×3. Kulki zderzają się ze sobą, opcjonalna siatka kropek je odbija, ostatnie pięć sekund wszystko przyspiesza, a gdy skończy się odliczanie, wygrywa drużyna z największą liczbą kafelków – ze zwolnionym tempem, gdy w finale zmienia się prowadzenie, a zwolnione tempo kamery jest włączone. Każde ziarno odtwarza się dokładnie, Znajdź symulację szuka przebiegu, który wygra wybrana drużyna, Wymuszony zwycięzca go ustawia, a skład drużyn użycza drużynom swoich barw i nazw.",
-    "modeMaze": "Labirynty z konta oddplayground („kto jeszcze pomyślał, że to krew”): losowy labirynt doskonały ze świecącymi na zielono ścianami na prawie czarnym tle – czerwona szczelina wejścia w górnej ścianie i wyjście w dolnej. 1–8 kulek wpada jedna po drugiej i fizycznie przebija się przez korytarze (przyciąganie w dół, idealnie sprężyste ściany), sterowanych przez mózg: czyste odbijanie, rękę na ścianie albo odkrywcę, który wybiera nieodwiedzone korytarze. Każda komórka, przez którą przejdzie kulka, zostaje zamalowana na czerwono, każde uderzenie w ścianę to nuta wznosząca się w miarę zbliżania do wyjścia, a wygrywa pierwsza kulka na zewnątrz – z paskiem odległości do wyjścia dla każdej kulki i opcjonalną mgłą nad nieodwiedzonymi komórkami dla napięcia. Znajdź symulację dobiera długość przebiegu albo zwycięzcę.",
-    "modeConveyor": "Taśmociąg biegnie górą pola i co kilka sekund zrzuca piłkę na arenę poniżej – Gerald odradza się raz za razem. Wybierz arenę: koncentryczne pierścienie z obracającymi się szczelinami, z których każda piłka musi uciec sama (pierścienie nigdy nie pękają, a druga taśma wywozi poza pole piłki, które uciekły), misę, która zapełnia się, aż się przeleje, albo pole kołków, które rozdziela piłki do przegródek. Zamrażanie po lądowaniu zamienia każdą piłkę, która wyląduje, w przeszkodę dla następnej, więc stos rośnie; Różnorodność miesza rozmiary i kolory. Każde odbicie to nuta z Twojej skali, taśma buczy i klika, a licznik prowadzi rachunek – Załadowano 17 / Uciekło 4. W trybach Klasyczny i Mnożenie ten sam licznik odradzania co kilka sekund wrzuca nową piłkę. Wszystko jest deterministyczne dla danego ziarna, więc Znajdź symulację dobierze przebieg o długości Twojego klipu.",
-    "modeOrbGrid": "Pole kul – kwadratowa siatka, dysk, pierścienie ośmiokątne albo siatka heksagonalna, domyślnie 33 × 33 = 1089 i bez górnej granicy – w perspektywie, na płycie albo okrągłym talerzu; każda kula podskakuje w górę i w dół na swoim miejscu. W modelu rytmu (domyślnym) każda kula to idealnie sprężysta piłka, która zawsze wybija się na tę samą wysokość: pole dzieli się na grupy – rzędy, kolumny, pierścienie, przekątne, szachownicę albo pojedyncze kule – odbijające się w cyklu całkowitą liczbę razy: fala wahadeł, 3 na 2, 4 na 3, 3:4:5, drabina euklidesowa, od rogu do rogu albo od środka. Wysokości tworzą falę biegnącą, która przechodzi przez zmarszczki i grupy, a na końcu każdego cyklu wszystkie kule lądują razem – W FAZIE. Metronom wybija rytm drewnianym klikiem i kołyszącym się wahadłem, pulsującym pierścieniem albo skaczącą kropką, cykl dopasowuje się do pełnych taktów, a z włączoną Melodią każda grupa gra własną nutę ze skali. Model wygasania pozwala kulom tracić energię: jedna cecha zmienia się w poprzek pola – sprężystość, wysokość zrzutu, opóźnienie puszczenia, rozmiar, grawitacja albo okres – kule rozchodzą się i zgrywają w fazie, aż spoczną, a Znajdź symulację może wybrać przebieg o długości Twojego klipu. Kolor według wysokości, kule błyszczące, metaliczne, matowe albo szklane; każde lądowanie to cicha nuta, dźwięk do snu, melodia skomponowana przez odbicia albo metaliczne brzęknięcia.",
-    "modeFightLeague": "Zawodnicy z gier wideo, komiksów, seriali i filmów – Thor, Loki, Captain Falcon, Little Mac, Yuumi, Katarina i ponad pięćdziesięciu innych, pogrupowanych w dywizje, by pojedynek został w swoim gatunku – walczą jako kulki na kwadratowej albo okrągłej arenie. Każdy ma własną broń, narysowaną jako prosta wektorowa sylwetka: miecze tną przy każdym odbiciu, młoty lecą we wroga i wracają, pięści uderzają, pistolety, łuki i różdżki strzelają, ogień i promienie palą. Trafienie zabiera PŻ – liczbę w środku kulki i pasek pod nią – odrzuca wroga i ładuje miernik zdolności w polu na dole; gdy jest pełny, nazwa zdolności miga przez 0,4 s, a zdolność odpala sama: pioruny, kopie, promienie, duszenie, fale uderzeniowe, przywołańcy, bullet time. Graj 1 na 1, 2 na 2 albo każdy na każdego; wygrywa ostatni zawodnik lub drużyna na placu boju albo strona z większą liczbą PŻ przy limicie czasu. Deterministyczne i oparte na seedzie: Znajdź symulację znajdzie przebieg, w którym wygrywa A albo B, podwójny nokaut albo walkę o długości Twojego klipu – a wymuszony zwycięzca ją ustawi.",
-    "modeLandClaim": "Bitwa o teren: kolumny bloków stoją po wewnętrznej stronie kwadratowej, sześciokątnej lub okrągłej ściany, a dwóch lub więcej zawodników – skład drużyn z krajami daje im flagi, nazwy i barwy – odbija swoje kulki w środku ze stałą prędkością. W zasadzie strącania kulka, która trafi w kolumnę, zabiera jej górny blok: blok odlatuje w kolorze uderzającego i liczy się dla niego, a co ósmy blok strącony przez zawodnika dodaje kolejną kulkę w jego kolorze w miejscu uderzenia, więc prowadzenie rośnie jak kula śnieżna w cały rój. Zasada zajmowania zamiast tego maluje bloki na miejscu, a zasada kradzieży pozwala odebrać rywalowi blok – teren przechodzi z rąk do rąk, aż skończy się czas. Bitwa kończy się, gdy ściana zostanie zdobyta albo po upływie czasu trwania, a wygrywa ten, kto ma najwięcej bloków: DOMINACJA powyżej 60% terenu, CO ZA WYRÓWNANA BITWA, gdy dwóch najlepszych dzieli najwyżej 5%. Każde ziarno odtwarza się dokładnie, Znajdź symulację szuka wybranego zwycięzcy, wyrównanej bitwy albo przebiegu kończącego się w wybranej sekundzie, a Wymuszony zwycięzca faworyzuje kolor, kierując jego odbicia w stronę terenu do zdobycia.",
-    "modeStarChords": "Gwiazdy cięciw: kulki krążą w jednym cienkim okręgu i każda rysuje wielokąt gwiaździsty, np. 5/2 albo 12/5. Kulka odbijająca się od okręgu zawsze uderza w ścianę pod tym samym kątem, więc jej punkt styku przeskakuje o k z n punktów wokół obwodu, a każda narysowana linia leży w tej samej odległości od środka – gdy linii przybywa, pojawia się wewnętrzny okrąg, którego nikt nie narysował. Każda kulka porusza się dokładnie z prędkością, która domyka jej gwiazdę po tym samym czasie rysowania, więc wszystkie gwiazdy domykają się w jednej klatce z akordem; potem rysunek trwa, gaśnie i zaczyna się od nowa – płynna pętla. Wpisz własne gwiazdy, wylosuj zestaw względnie pierwszych albo pozwól, by Znajdź symulację wybrało najładniejszy zestaw i dopasowało pętlę do klipu.",
-    "modeHoops": "Bez pierścieni: 1–16 współśrodkowych obręczy (domyślnie osiem, czerwona na zewnątrz, fioletowa w środku) wiruje razem wokół pionowej średnicy, rysowanych na wprost i spłaszczanych przez obrót, więc wyglądają trójwymiarowo, a na każdej jeden koralik ślizga się bez tarcia. Obroty rosną – równo, łagodnie albo schodkami – a każda obręcz ma prędkość krytyczną √(g/R): poniżej niej grawitacja trzyma koralik na dnie, powyżej koralik wspina się do punktu równowagi arccos(g/(Rω²)), tym wyżej, im szybsze obroty. Większe obręcze unoszą koraliki pierwsze, więc koraliki wspinają się ściśle według rozmiaru, a każde uniesienie to nuta strojonej sztabki o wysokości zależnej od obręczy; dzwonek dźwięczy co obrót, akord pada, gdy wszystkie są w górze, a licznik pokazuje obroty i uniesione koraliki. Z włączonym powrotem obroty zwalniają, aż każdy koralik znów spocznie, a pętla zaczyna się płynnie od nowa – gotowa na eksport całych pętli; Znajdź symulację szuka przebiegu ściśle według rozmiaru albo takiego, w którym wszystkie koraliki są w górze przed wybranym czasem.",
-    "modeColourSort": "Maszyna sortująca: 360 kulek w czterech kolorach startuje stłoczonych w czerwonym środku tarczy z obracających się pierścieni i porusza się jak gaz o stałej prędkości. Każdy pierścień to rząd łuków z bramkami pomiędzy nimi, a bramka to jednokierunkowy filtr kolorów: otwiera się tylko na zewnątrz i nigdy dla kulek w kolorze pierścienia. Czerwone nigdy więc nie opuszczą środka, pomarańczowe miną czerwony pierścień, ale zatrzymają się na swoim, zielone dotrą o pierścień dalej, a niebieskie aż do zewnętrznego pasa – mieszanka sama układa się w tarczę, a bursztynowy licznik wspina się do 360 / 360 posortowanych z długą, trzymającą w napięciu końcówką. Każde przejście przez bramkę szarpie nutę swojego koloru w pentatonice A-dur, ostatnia posortowana kulka wywołuje ciepły akord zakończenia, a remiks ściąga wszystkie kulki z powrotem do dokładnie pierwszej klatki pod miękkim szumem, więc nagranie pełnych cykli zapętla się bez szwu. Wybierz kolory i liczbę kulek każdego z nich, bramki i ich szerokość, obrót pierścieni, regułę (albo ją odwróć), zderzenia albo gaz-widmo dla tysięcy kulek – a Znajdź symulację wyszuka sortowanie w limicie czasu, kolor, który skończy ostatni, albo ostatnią kulkę na kresce taktowej.",
-    "modeEllipseFoci": "Eliptyczny stół bilardowy z dwoma zaznaczonymi ogniskami. Salwa piłek – domyślnie 72, pokolorowanych kołem barw według kąta wystrzału – wylatuje z jednego ogniska w tej samej chwili, we wszystkie strony. Elipsa kieruje każdy strzał z jednego ogniska po odbiciu od ściany prosto przez drugie, a każda taka droga ma tę samą długość, więc cała salwa zbiega się w drugim ognisku jedno przejście później, potem z powrotem w pierwszym, za każdym razem z białym rozbłyskiem, a każde przejście zwęża rój ku długiej osi. Ponowny strzał wypuszcza nową salwę pod błyskiem co kilka przejść, więc klip zapętla się bez szwu; odbicia od ściany schodzą po pentatonicznej drabinie, każda zbieżność ląduje na kresce taktowej ze stopą, trzaskiem i akordem, a Znajdź symulację ustawia zbieżności w rytm strony albo znajduje kąt startowy najdłuższego zapadania.",
-    "modeBeatMachine": "Dwie kinetyczne maszyny muzyczne, które zapętlają się bez końca. W kulkowym ksylofonie dziesięć tęczowych sztabek stoi pod dziesięcioma rurkami: każda kulka wypada ze swojej rurki dokładnie w chwili, w której grawitacja doniesie ją na sztabkę w rytm, odbija się przez szczelinę na podłogę, toczy się do windy, wjeżdża na górę i wraca górną szyną do swojej rurki. Na schodach jedna kulka skacze ze stopnia na stopień, jednym identycznym łukiem na każde uderzenie, a każde lądowanie to nuta; potem wpada do haczyka i torem powrotnym wraca na górę akurat na kolejną frazę. Melodia to oryginalna fraza z ziarna, gama, wpisana lista albo wczytana melodia.",
-    "modeDrawingMachine": "Dwie maszyny rysujące, które zapętlają się bez końca. W harmonografie trzy wahadła prowadzą jedno pióro: jedno porusza nim w lewo i w prawo, drugie w górę i w dół, trzecie po okręgu. Tarcie odbiera im energię, więc rysunek kurczy się ku środkowi, a dwa pierwsze są rozstrojone o 2%, więc rozchodzą się i schodzą, a figura ciągle się skręca; potem papier się przewija i pojawia się świeża kartka. Na orbitach Ziemia i Wenus krążą wokół Słońca, co osiem dni łączy je linia, a za każdym razem, gdy ustawiają się w jednej linii, pojawia się znak: w osiem lat rysują pięciopłatkowy kwiat i pentagram, a potem licznik lat cofa się do zera i linie znikają."
+    "troubleStuckA": "Napisz do nas przez stronę opinii i opisz, co się działo."
   },
   "Footer": {
     "navLabel": "Stopka",
@@ -2812,7 +2795,7 @@
   },
   "Feedback": {
     "title": "Podziel się opinią",
-    "subtitle": "Chętnie Cię wysłuchamy: zgłoszenie błędu, prośba o funkcję albo po prostu wrażenia z używania.",
+    "subtitle": "Zgłoś błąd, poproś o funkcję albo po prostu napisz, jak Ci poszło.",
     "metaTitle": "Opinie – {siteName}",
     "metaDescription": "Podziel się opinią, zgłoś błąd lub zaproponuj funkcję dla {siteName}.",
     "ratingLabel": "Jak oceniasz swoje doświadczenie?",
@@ -2823,14 +2806,14 @@
     "category_design": "Wygląd",
     "category_other": "Inne",
     "messageLabel": "Twoja wiadomość",
-    "messagePlaceholder": "Napisz, co myślisz, co można poprawić lub opisz napotkany problem...",
+    "messagePlaceholder": "Co się stało albo co warto zmienić?",
     "emailLabel": "E-mail",
-    "emailPlaceholder": "twoj@email.com (jeśli chcesz odpowiedzi)",
+    "emailPlaceholder": "twoj@email.com, jeśli chcesz odpowiedzi",
     "optional": "opcjonalnie",
     "submit": "Wyślij opinię",
     "sending": "Wysyłanie...",
     "successTitle": "Dziękujemy!",
-    "successMessage": "Otrzymaliśmy Twoją opinię. Doceniamy, że poświęciłeś czas, aby pomóc ulepszyć {siteName}.",
+    "successMessage": "Mamy to. Dziękujemy, że pomagasz ulepszać {siteName}.",
     "sendAnother": "Wyślij kolejną",
     "errorMessage": "Coś poszło nie tak. Spróbuj ponownie później.",
     "submitEmail": "Wyślij e-mailem",
@@ -2841,50 +2824,50 @@
     "openManually": "Jeśli nic się nie otworzyło, użyj tego linku."
   },
   "TikTokBallVideos": {
-    "metaTitle": "Twórz filmy z odbijającą się piłką na TikToka – zabawa i eksport za darmo – {siteName}",
-    "metaDescription": "Twórz hipnotyzujące filmy z odbijającą się piłką na TikToka z {siteName}: narzędzie przeglądarkowe z {count} trybami i własną fizyką, darmowe do zabawy i do pionowego eksportu 1080×1920 (Pro usuwa znak wodny). Bez rejestracji.",
+    "metaTitle": "Twórz filmy z odbijającą się piłką na TikToka w {siteName}",
+    "metaDescription": "Twórz filmy z odbijającą się piłką na TikToka w {siteName}, z {count} trybami i własną fizyką. Darmowy pionowy eksport 1080×1920, bez rejestracji. Pro usuwa znak wodny.",
     "badge": "Treści na TikToka",
     "navLabel": "Filmy z piłką na TikToka",
     "title": "Filmy z odbijającą się piłką na TikToka",
-    "p1": "Symulacje odbijającej się piłki to jeden z najbardziej niezawodnych formatów na TikToku. Założenie jest maleńkie, piłka uwięziona w pierścieniach z wąskimi szczelinami próbuje się wydostać, ale finał jest na tyle satysfakcjonujący, że utrzymuje uwagę przez cały krótki klip. {siteName} to narzędzie przeglądarkowe stworzone dokładnie do takich treści: kontrola fizyki, efekty wizualne i pionowy eksport jednym kliknięciem są darmowe, a Pro zdejmuje z filmów znak wodny.",
-    "p2": "Format działa dzięki wbudowanemu łukowi napięcia. Piłka rykoszetuje coraz szybciej, ściany się zaciskają, szczelina wygląda na niemożliwie małą, aż w końcu piłka się prześlizguje i wszystko wybucha konfetti, rozbiciem lub falą uderzeniową. Ta pętla naturalnie mieści się w 15–60 sekundach, czyli tam, gdzie zaangażowanie na TikToku jest najwyższe.",
+    "p1": "Filmy z odbijającą się piłką to jeden z najpewniejszych formatów na TikToku. Piłka uwięziona w pierścieniach próbuje się wydostać, a ludzie zostają, żeby zobaczyć, czy jej się uda. {siteName} powstał właśnie do takich klipów, za darmo i z pionowym eksportem. Pro usuwa znak wodny.",
+    "p2": "Napięcie jest wbudowane. Piłka przyspiesza, szczelina wydaje się za mała, aż w końcu piłka się prześlizguje i ściana pęka. Mieści się to w 15–60 sekundach, czyli tam, gdzie zaangażowanie na TikToku jest najwyższe.",
     "h2_1": "Dlaczego to działa na TikToku",
-    "p3": "TikTok nagradza filmy oglądane do końca i odtwarzane ponownie. Fizyka piłki robi jedno i drugie: ludzie zostają, aby zobaczyć, czy piłka ucieknie, i oglądają ponownie, aby wyłapać efekty, które przegapili. Format pasuje też do kultury dźwięku na TikToku: {siteName} może odtwarzać melodię nuta po nucie przy każdym uderzeniu w ścianę, zamieniając fizykę w występ muzyczny.",
-    "p4": "Nie ma dialogów, twarzy na ekranie ani przygotowań. Tylko czysty wizualny haczyk, który działa nawet jako tło dla przewijającego widza, dlatego format regularnie wygrywa z bardziej dopracowanymi treściami w feedzie odkrywania.",
+    "p3": "TikTok nagradza filmy, które ludzie oglądają do końca i puszczają ponownie. Fizyka piłki daje jedno i drugie. Dodaj melodię, a każde uderzenie w ścianę zagra kolejną nutę.",
+    "p4": "Bez dialogów, bez twarzy, bez przygotowań. Czysty wizualny haczyk, który działa nawet na kogoś, kto przewija w pół oka.",
     "h2_2": "Eksportuj we właściwym formacie",
-    "p5": "Preferowane proporcje TikToka to pionowe 9:16, czyli 1080×1920 pikseli. {siteName} nagrywa bezpośrednio w tym rozmiarze, więc nie ma kadrowania, ponownego kodowania ani zewnętrznego edytora. Ustaw czas nagrania (10–120 sekund), naciśnij nagrywanie i pobierz gotowy klip.",
-    "p6": "Możesz też eksportować 500×500 (kwadrat), 1280×720 (HD) lub 1920×1080 (Full HD) na Reels, YouTube Shorts i inne platformy. Nagrywanie odbywa się w całości w przeglądarce i nic nie jest wgrywane. Filmy tworzone za darmo mają mały znak wodny {siteName}, który usuwa Pro; własny znak wodny jest opcjonalny.",
-    "h2_3": "Zacznij od sprawdzonego formatu",
-    "p7": "Najlepsze filmy z piłką na TikToku mają prosty przepis: wyraźny wizualny haczyk w pierwszej sekundzie, widoczny wskaźnik postępu, np. liczba pozostałych ścian, i satysfakcjonujący finał, gdy piłka w końcu ucieka. Funkcja Znajdź symulację wyszukuje seed dający symulację o docelowej długości, więc możesz zaplanować klip zamiast zgadywać.",
-    "p8": "Każdy tryb, od Klasycznego i Mnożenia po Spadające piłki, Wyścig kwadratów i Rozbijanie szkła, ma inny rytm, więc możesz urozmaicać treści bez zaczynania od zera. Zapisz ulubione konfiguracje jako presety i publikuj nowy film codziennie jednym kliknięciem.",
+    "p5": "TikTok chce pionu 9:16, czyli 1080×1920. {siteName} nagrywa w tym rozmiarze, więc nie ma kadrowania ani edytora. Ustaw długość, nagraj, pobierz.",
+    "p6": "Możesz też eksportować kwadrat, HD albo Full HD na Reels, Shorts i inne platformy. Nagrywanie odbywa się w przeglądarce i nic nie jest wysyłane. Darmowe filmy mają mały znak wodny {siteName}. Pro go usuwa.",
+    "h2_3": "Zacznij od prostego przepisu",
+    "p7": "Wyraźny haczyk w pierwszej sekundzie, widoczny licznik i finał, gdy piłka ucieka. Znajdź symulację dobiera seed do wybranej długości klipu, więc planujesz zamiast zgadywać.",
+    "p8": "Każdy tryb ma swój rytm, od Klasycznego po Rozbijanie szkła. Zapisz ulubione konfiguracje jako presety i publikuj nowy film codziennie.",
     "cta": "Nagraj swój pierwszy film z piłką na TikToka"
   },
   "About": {
-    "metaTitle": "O {siteName} – kreator filmów z fizyką piłki",
-    "metaDescription": "Historia {siteName}: przeglądarkowego narzędzia – zabawa i eksport za darmo, Pro bez znaku wodnego – do tworzenia filmów z odbijającą się piłką, które stają się viralowe na TikToku, Reels i YouTube Shorts.",
+    "metaTitle": "O {siteName}, kreatorze filmów z fizyką piłki",
+    "metaDescription": "Dlaczego powstał {siteName}. Przeglądarkowe narzędzie do filmów z odbijającą się piłką, które dobrze radzą sobie na TikToku, Reels i Shorts. Zabawa i eksport za darmo. Pro usuwa znak wodny.",
     "metaOgTitle": "O {siteName}",
     "metaOgDescription": "Dlaczego {siteName} istnieje i dla kogo jest.",
     "badge": "O nas",
     "title": "O {siteName}",
-    "p1": "{siteName} zaczął się od prostej frustracji. Filmy z fizyką odbijającej się piłki były wszędzie i zbierały miliony wyświetleń, a każdy sposób na ich zrobienie był toporny: nauczyć się silnika gier, zapłacić za aplikację albo ponownie opublikować klip, którego użyło już tysiąc innych kont. Nic z tego nie pasowało komuś, kto po prostu chciał zrobić dobry film i go opublikować. Zbudowaliśmy więc narzędzie, którego nam brakowało: otwórz kartę, zrób film, pobierz, gotowe.",
-    "p2": "Ten pomysł nadal napędza całą stronę. {siteName} jest darmowy, działa w przeglądarce i niczego od Ciebie nie wymaga przed startem. Bez rejestracji i instalacji: każdy tryb i każde ustawienie są do Twojej dyspozycji, tak samo jak eksport filmu – darmowe filmy mają mały znak wodny, który usuwa Pro. Domyślne ustawienia od razu dają coś wartego publikacji; reszta to Twoje dopasowanie do własnego pomysłu.",
+    "p1": "{siteName} zaczął się od prostego problemu. Filmy z odbijającą się piłką były wszędzie, a każdy sposób na zrobienie własnego był powolny. Nauczyć się silnika gier, zapłacić za aplikację albo wrzucić cudzy klip. Chcieliśmy otworzyć kartę, zrobić film i go opublikować. Więc to zbudowaliśmy.",
+    "p2": "{siteName} jest darmowy i działa w przeglądarce. Bez rejestracji i instalacji. Każdy tryb i każde ustawienie są do Twojej dyspozycji, tak samo jak eksport. Darmowe filmy mają mały znak wodny. Pro go usuwa.",
     "h2_1": "Na czym nam zależy",
-    "p3": "Na szybkości i kontroli, bardziej niż na czymkolwiek innym. Na szybkości, bo odległość między pomysłem a opublikowanym filmem to miejsce, gdzie umiera większość treści; jeśli klip wymaga dwudziestu minut i trzech aplikacji, przestajesz robić klipy. Na kontroli, bo ponownie publikowane treści nie rozwijają konta. Gdy sam ustalasz tryb, kolory, tempo i haczyk, film jest Twój i ma realną szansę w feedzie, który widział już każdy przetworzony klip.",
-    "p4": "Zależy nam też na tym, aby nie wchodzić Ci w drogę. Symulator aktualizuje się w miarę zmian, więc uczysz się przez działanie, a nie czytanie instrukcji. Ustawienia mają proste nazwy. Trudna część, fizyka i rendering, dzieje się po cichu w tle, a Ty skupiasz się na tym, czy film jest przyjemny do oglądania.",
+    "p3": "Szybkość i kontrola. Szybkość, bo klip, który wymaga dwudziestu minut i trzech aplikacji, nigdy nie powstaje. Kontrola, bo film, który ułożysz sam, wyróżnia się w feedzie pełnym powtórek.",
+    "p4": "Staramy się też nie wchodzić Ci w drogę. Symulator zmienia się na bieżąco, więc uczysz się w praktyce. Ustawienia mają proste nazwy.",
     "h2_2": "Prywatność domyślnie",
-    "p5": "Twoja praca zostaje u Ciebie. Presety i ustawienia żyją w Twojej przeglądarce, a filmy renderują się na Twoim urządzeniu, nie na serwerze, który kontrolujemy. Nie interesuje nas zbieranie Twoich danych ani zamykanie Twoich prac za kontem. Im mniej o Tobie wiemy, tym lepiej narzędzie się sprawdza. Szczegóły znajdziesz w naszej <privacy>polityce prywatności</privacy>.",
+    "p5": "Twoja praca zostaje u Ciebie. Presety są w Twojej przeglądarce, a filmy renderują się na Twoim urządzeniu. Nie chcemy Twoich danych. Szczegóły znajdziesz w naszej <privacy>polityce prywatności</privacy>.",
     "h2_3": "Kto to tworzy",
-    "p6": "{siteName} to mały, niezależny projekt, a nie firma z funduszem i mapą drogową pełną dosprzedaży, i to kształtuje to, co powstaje. Nowe tryby i ustawienia pojawiają się, bo proszą o nie twórcy. Gdy piszesz przez <feedback>stronę opinii</feedback>, wiadomość trafia do osoby, która faktycznie pracuje nad narzędziem, a wiele z tego, co jest dziś w symulatorze, istnieje, bo ktoś o to poprosił.",
+    "p6": "{siteName} to mały, niezależny projekt. Nowe tryby i ustawienia pojawiają się, bo proszą o nie twórcy. Napisz przez <feedback>stronę opinii</feedback>, a wiadomość trafi do osoby, która buduje to narzędzie.",
     "h2_4": "Dokąd zmierzamy",
-    "p7": "Plan jest taki, aby rdzeń pozostał darmowy i aby dodawać tryby, efekty i ułatwienia, dzięki którym dobry klip powstaje szybciej. Jeśli coś dzięki niemu stworzysz, o to właśnie chodzi. Idź i spraw, żeby piłka rozbiła kilka ścian.",
+    "p7": "Podstawa zostaje darmowa. Więcej trybów, więcej efektów i mniej kroków od pomysłu do opublikowanego klipu. Śmiało, niech piłka rozbije kilka ścian.",
     "cta": "Otwórz symulator",
-    "toolTitle": "Czym właściwie jest {siteName}",
-    "toolP1": "{siteName} to narzędzie przeglądarkowe do tworzenia filmów z odbijającą się piłką, które wypełniają TikToka, Reels i YouTube Shorts. Wybierz tryb, popraw kilka ustawień i patrz, jak gra – wszystko za darmo, bez konta, instalacji i edytora wideo. Gdy klip jest gotowy, nagraj go i pobierz – darmowe filmy mają mały znak wodny, a Pro eksportuje je bez niego; wszystko dzieje się w karcie, którą już masz otwartą, więc pomysł zamienia się w gotowy film w kilka minut.",
-    "toolP2": "Format działa, bo jest prosty. Piłka odbija się w pierścieniu ze szczeliną. Za każdym razem, gdy się prześlizgnie, coś się dzieje: ściana się rozpada, piłka się mnoży, kolor zalewa ekran, cel zostaje trafiony. Widzowie chcą wiedzieć, jak to się skończy, więc oglądają dalej. Ta mała pętla napięcia i ulgi napędza wyświetlenia, a tutaj kontrolujesz każdy jej element, zamiast publikować cudzy klip.",
+    "toolTitle": "Czym jest {siteName}",
+    "toolP1": "Przeglądarkowe narzędzie do filmów z odbijającą się piłką, którymi pełne są TikTok, Reels i Shorts. Wybierz tryb, zmień kilka ustawień i patrz, jak gra. Gdy klip jest gotowy, nagraj go i pobierz. Pomysł staje się filmem w parę minut.",
+    "toolP2": "Format działa, bo jest prosty. Piłka odbija się w pierścieniu ze szczeliną. Za każdym razem, gdy się prześlizgnie, coś się dzieje. Widzowie chcą wiedzieć, jak to się skończy, więc oglądają dalej.",
     "tweakTitle": "Stworzony do majstrowania",
-    "tweakP": "Wygląd należy do Ciebie. Dodaj pierścienie dla dłuższego budowania napięcia lub usuń je dla szybkiego finału. Włącz tęczowe ściany, przełączaj efekt przebicia między konfetti, rozbiciem i falą uderzeniową albo połącz wszystkie trzy. Dodaj kolce dla zagrożenia, poświatę dla szlifu i kolorowy ślad, aby szybki ruch wyglądał celowo. Umieść własny obrazek na piłce, napisz haczyk w stylu „czy ucieknie?” u góry i wgraj melodię, aby odbicia trafiały w rytm. Małe zmiany mają znaczenie: jeden dodatkowy pierścień może zdecydować o tym, czy klip zostanie przewinięty, czy obejrzany dwa razy.",
+    "tweakP": "Dodaj pierścienie, by dłużej budować napięcie, albo usuń je dla szybkiego finału. Włącz tęczowe ściany, wybierz efekt przebicia, dodaj poświatę i kolorowy ślad. Daj piłce własny obrazek, napisz haczyk u góry i wgraj melodię. Jeden pierścień więcej może zdecydować, czy ktoś przewinie, czy obejrzy jeszcze raz.",
     "exportTitle": "Nagraj, wyeksportuj, opublikuj",
-    "exportP": "Gdy symulacja wygląda dobrze, nagraj ją w przeglądarce i wyeksportuj film w rozmiarze pionowych feedów. Bez aplikacji do nagrywania ekranu i bez ponownego kodowania; w planie darmowym film ma mały znak wodny, który usuwa Pro. Znalazłeś kombinację, która Ci się podoba? Zapisz ją jako preset i używaj w całej serii; wiele kont publikuje ten sam tryb codziennie z drobnymi zmianami."
+    "exportP": "Gdy przebieg wygląda dobrze, nagraj go w przeglądarce i wyeksportuj pionowy film. Bez nagrywania ekranu i ponownego kodowania. Zapisz konfigurację jako preset i publikuj nowy film codziennie."
   },
   "Rigged": {
     "outcome": "Wynik",
@@ -3085,7 +3068,25 @@
     "hintRingOnBar": "Ostatni pierścień pętli znika w dziurze najwyżej ±20 ms od kreski taktowej – cztery uderzenia przy BPM ustawionym w Dźwięku. Przebieg pierścieni nie zależy od ziarna, więc wyszukiwanie dostraja odstęp fal (a przy jednej fali – tarcie obrotu).",
     "findRingOnBar": "Znajdź ostatni pierścień na takcie",
     "foundRingOnBar": "Znaleziono! Odstęp fal {interval}s, tarcie obrotu {friction}: ostatni pierścień znika po {time}s, na takcie {bars}; w klipie {loops, plural, one {# pełna pętla} few {# pełne pętle} many {# pełnych pętli} other {# pełnej pętli}}",
-    "missRingOnBar": "Żaden odstęp fal ani tarcie obrotu w zasięgu nie stawia ostatniego pierścienia na takcie (sprawdzono: {tested}) – pierścienie potrzebują trochę tarcia, żeby opadać."
+    "missRingOnBar": "Żaden odstęp fal ani tarcie obrotu w zasięgu nie stawia ostatniego pierścienia na takcie (sprawdzono: {tested}) – pierścienie potrzebują trochę tarcia, żeby opadać.",
+    "outcomeSummitLast": "Szczyt spada ostatni",
+    "hintSummitLast": "Środkowa kolumna stoi najdłużej: jej górny blok jest ostatnim blokiem piramidy. Pierwsze zbijanie każdego seeda jest rozgrywane do końca.",
+    "findSummitLast": "Znajdź przebieg, w którym szczyt spada ostatni",
+    "foundSummitLast": "Znaleziono! Szczyt spada ostatni, po {time}s (klip {duration}s)",
+    "missSummitLast": "Najbliżej: gdy spadł szczyt, stało jeszcze {count, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}} ({seeds} seedów)",
+    "missNoSummit": "Szczyt nie spadł przed końcem czasu bitwy ({seeds} seedów)",
+    "overlaySummitLast": "Sprawdzono {tested} seedów: w najbliższym, gdy spadł szczyt, stało jeszcze {count, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}}. Spróbuj więcej seedów albo dłuższej bitwy.",
+    "overlayNoSummit": "Sprawdzono {tested} seedów: szczyt nie spadł przed końcem czasu bitwy. Spróbuj dłuższej bitwy, więcej kulek albo szybszych kulek.",
+    "outcomeRingAt": "Pierwszy pierścień w",
+    "hintRingAt": "Piłka przechodzi przez pierwszy pierścień w granicach ±0,5 s od wybranej sekundy, jak w „przejście przez pierwszy zajmuje trzy sekundy”. Znaleziony przebieg jest nagrywany do końca.",
+    "findRingAt": "Znajdź przejście przez pierwszy pierścień w {time}s",
+    "foundRingAt": "Znaleziono! Przez pierwszy pierścień w {time}s",
+    "missRingAt": "Najbliższy pierwszy pierścień: {time}s ({seeds} seedów)",
+    "missNoRing": "Żadna piłka nie przeszła na czas przez pierwszy pierścień ({seeds} seedów)",
+    "overlayRingAt": "Sprawdzono {tested} seedów. Najbliższy pierwszy pierścień padł w {closest}s (cel: {target}s ±{tolerance}s).",
+    "overlayNoRing": "Sprawdzono {tested} seedów i żadna piłka nie przeszła przez pierwszy pierścień do {target}s. Spróbuj późniejszej sekundy lub większej szczeliny.",
+    "progressRingAt": "Najbliższy pierwszy pierścień: {time}s",
+    "ringAt": "Pierwszy pierścień w"
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -3145,7 +3146,7 @@
     "count": "Liczba ziaren",
     "countValue": "{count, plural, one {# ziarno} few {# ziarna} many {# ziaren} other {# ziarna}}",
     "listLabel": "Ziarna i linki do udostępniania",
-    "listHint": "Jedno zadanie w linii: ziarno (123456), link do udostępniania – długi lub krótki – albo link, a po nim jedno lub więcej ziaren. Link bez ziarna dostaje losowe (albo to z parametru seed=). Każdy klip zachowuje rozdzielczość i liczbę klatek z tej sekcji oraz Twój dźwięk przebicia ściany (linki go nie przenoszą); linie zaczynające się od # są pomijane.",
+    "listHint": "Jedno zadanie w linii: ziarno, link do udostępniania albo link, a po nim jedno lub więcej ziaren. Link bez ziarna dostaje losowe. Każdy klip zachowuje rozdzielczość i liczbę klatek z tej sekcji oraz Twój dźwięk przebicia ściany. Linie zaczynające się od # są pomijane.",
     "listPlaceholder": "123456\n4242, 777\nhttps://…/simulator/?mode=portal&g=500\nhttps://…/simulator/?c=… 42",
     "listRead": "{count, plural, =0 {Brak ziaren} one {# zadanie} few {# zadania} many {# zadań} other {# zadania}}",
     "listSkipped": "{count, plural, one {pominięto linię {lines}} other {pominięto linie {lines}}} (to nie jest ziarno ani link do symulatora)",
@@ -3482,7 +3483,7 @@
     },
     "manual": {
       "title": "Publikowanie ręczne",
-      "steps": "1. Otwórz Instagram i stuknij + → Rolka. 2. Wybierz film. 3. Wklej opis z pliku .txt (kończy się hasztagami). 4. Jako okładkę ustaw klatkę wskazaną w pliku .txt (moment rozstrzygnięcia, nie pierwszą klatkę). 5. Udostępnij o proponowanej godzinie – nowy hook jako próbną rolkę – i odpowiadaj na komentarze przez pierwszą godzinę."
+      "steps": "1. Otwórz Instagram i stuknij + → Rolka. 2. Wybierz film. 3. Wklej opis z pliku .txt. 4. Jako okładkę ustaw klatkę wskazaną w pliku .txt, czyli moment rozstrzygnięcia. 5. Udostępnij o proponowanej godzinie i odpowiadaj na komentarze przez pierwszą godzinę."
     },
     "schedule": {
       "title": "Harmonogram publikacji",
@@ -3795,40 +3796,40 @@
     "cardBadge": "Wyzwanie dnia",
     "cardTitle": "Dziś: {mode}",
     "cardLoading": "Dzisiejsze wyzwanie",
-    "cardText": "Jeden tryb i jedno ziarno dziennie – takie same dla wszystkich. Naciśnij play, zobacz, jak potoczy się dzisiejsza symulacja, i wyślij wyzwanie znajomym.",
+    "cardText": "Jeden tryb i jedno ziarno dziennie, takie same dla wszystkich. Naciśnij play, obejrzyj dzisiejszy przebieg i wyślij wyzwanie znajomemu.",
     "cardSeed": "Ziarno {seed}",
     "cardPlayed": "Zagrane dziś · {seconds} s",
-    "cardImageAlt": "{mode} – tryb dzisiejszego wyzwania",
+    "cardImageAlt": "{mode}, tryb dzisiejszego wyzwania",
     "play": "Zagraj dzisiejsze ziarno",
     "nextIn": "Następne wyzwanie za {time}",
     "streak": "{days, plural, one {# dzień} few {# dni} many {# dni} other {# dnia}} z rzędu",
     "barActive": "Wyzwanie dnia #{number} · {mode} · ziarno {seed}",
-    "barIdle": "Wyzwanie dnia: jeden tryb, jedno ziarno – dziś takie same dla wszystkich",
+    "barIdle": "Wyzwanie dnia: jeden tryb, jedno ziarno, dziś takie same dla wszystkich",
     "resultTitle": "Wyzwanie dnia #{number} ukończone",
     "resultTime": "{seconds} s",
     "resultInvite": "Wyślij znajomym to samo ziarno i porównajcie swoje przebiegi.",
     "copyResult": "Kopiuj link do wyzwania",
-    "copied": "Skopiowano – wklej go, gdzie chcesz"
+    "copied": "Skopiowano. Wklej, gdzie chcesz."
   },
   "Gallery": {
     "navLabel": "Galeria",
     "metaTitle": "Galeria presetów – {count, plural, one {# gotowa symulacja} few {# gotowe symulacje} many {# gotowych symulacji} other {# gotowej symulacji}} piłek | {siteName}",
-    "metaDescription": "{count, plural, one {# dopracowane ustawienie} few {# dopracowane ustawienia} many {# dopracowanych ustawień} other {# dopracowanego ustawienia}} odbijających się piłek – neonowe ucieczki, galaktyki wahadeł, string art, bitwy i wyścigi. Otwórz dowolne w darmowym symulatorze jednym kliknięciem i dopasuj je do siebie.",
+    "metaDescription": "{count, plural, one {# gotowe ustawienie} few {# gotowe ustawienia} other {# gotowych ustawień}} z piłkami. Neonowe ucieczki, galaktyki wahadeł, string art, bitwy i wyścigi. Otwórz w darmowym symulatorze i dopasuj do siebie.",
     "badge": "Galeria",
     "title": "Galeria presetów",
-    "intro": "{count, plural, one {# ręcznie dopracowane ustawienie} few {# ręcznie dopracowane ustawienia} many {# ręcznie dopracowanych ustawień} other {# ręcznie dopracowanego ustawienia}} na dobry początek. Każda karta otwiera symulator z zastosowanym presetem – ten sam wygląd, to samo ziarno – gotowy do nagrania albo remiksu.",
+    "intro": "{count, plural, one {# ręcznie dopracowane ustawienie} few {# ręcznie dopracowane ustawienia} many {# ręcznie dopracowanych ustawień} other {# ręcznie dopracowanego ustawienia}} na start. Każda karta otwiera symulator z tym presetem, tym samym wyglądem i tym samym ziarnem, gotowy do nagrania albo remiksu.",
     "imageAlt": "Podgląd presetu {name}",
     "tryIt": "Wypróbuj",
     "tryAria": "Wypróbuj: {name}",
-    "outro": "Zmieniłeś coś i efekt ci się podoba? Skopiuj link do udostępnienia pod płótnem – twoje ustawienia pójdą razem z nim.",
+    "outro": "Zmieniłeś coś i efekt Ci się podoba? Skopiuj link do udostępnienia pod płótnem, a Twoje ustawienia pójdą razem z nim.",
     "cta": "Zacznij od zera"
   },
   "Pwa": {
     "installApp": "Zainstaluj aplikację",
-    "installAppTip": "Zainstaluj {siteName} na tym urządzeniu: otwiera się we własnym oknie, startuje z ekranu głównego lub z doku i działa offline.",
+    "installAppTip": "Zainstaluj {siteName} na tym urządzeniu. Otwiera się we własnym oknie, startuje z ekranu głównego i działa offline.",
     "offlinePageTitle": "Offline – {siteName}",
     "offlineTitle": "Jesteś offline",
-    "offlineBody": "Ta strona nie jest jeszcze zapisana na tym urządzeniu. Strona główna i symulator działają offline, gdy choć raz otworzysz witrynę z dostępem do sieci – połącz się ponownie albo otwórz symulator poniżej.",
+    "offlineBody": "Ta strona nie jest jeszcze zapisana na tym urządzeniu. Strona główna i symulator działają offline, gdy raz otworzysz je online. Połącz się ponownie albo otwórz symulator poniżej.",
     "offlineRetry": "Spróbuj ponownie",
     "offlineSimulator": "Otwórz symulator"
   },
@@ -4358,36 +4359,38 @@
     "libForget": "Usuń z listy",
     "libDelete": "Usuń plik",
     "libDeleteConfirm": "Przenieść {name} do kosza?",
-    "metaTitle": "Pobierz {siteName} dla Windows – renderowanie wideo na GPU i wbudowana AI",
-    "metaDescription": "Cały symulator {siteName} jako aplikacja Windows: renderuj klipy na GPU (NVENC, AMF, Quick Sync), renderuj całe kolejki prosto do folderu i planuj filmy z wbudowaną AI, która działa offline. Do pobrania za darmo; filmy renderowane bez Pro mają znak wodny.",
+    "metaTitle": "Pobierz {siteName} dla Windows",
+    "metaDescription": "Symulator {siteName} jako aplikacja na Windows. Renderuj klipy na GPU, całą kolejkę prosto do folderu i planuj filmy z wbudowaną AI, która działa offline. Do pobrania za darmo. Filmy bez Pro mają znak wodny.",
     "badge": "Aplikacja Windows",
     "title": "{siteName} dla Windows",
-    "intro": "Wszystko, co symulator robi w przeglądarce, i to, czego przeglądarka nie potrafi: Twoje GPU renderuje i koduje filmy, kolejka renderowania przerabia całe serie, gdy robisz coś innego, a studio AI – działające na Twoim komputerze, offline – planuje klipy, pisze opisy i zmienia za Ciebie ustawienia.",
+    "intro": "Wszystko, co symulator robi w przeglądarce, i to, czego przeglądarka nie potrafi. Twoje GPU renderuje filmy, kolejka przerabia całe serie, gdy robisz coś innego, a studio AI na Twoim komputerze planuje klipy i pisze opisy, offline.",
     "setupTitle": "Instalator",
-    "setupBody": "Instaluje się tylko dla Twojego użytkownika (bez uprawnień administratora), z wpisem w menu Start, i aktualizuje się sam z GitHub Releases.",
+    "setupBody": "Instaluje się tylko dla Twojego użytkownika, bez uprawnień administratora, z wpisem w menu Start. Aktualizuje się sam z GitHub Releases.",
     "setupButton": "Pobierz instalator (.exe)",
     "portableTitle": "Wersja przenośna",
-    "portableBody": "Jeden plik EXE, który działa bez instalacji – z folderu albo pendrive’a. Trzyma modele i bibliotekę obok siebie. Nie aktualizuje się sama.",
+    "portableBody": "Jeden plik EXE, który działa bez instalacji, z folderu albo pendrive’a. Trzyma modele i bibliotekę obok siebie. Nie aktualizuje się sam.",
     "portableButton": "Pobierz przenośny EXE",
     "allReleases": "Wszystkie wersje i informacje o wydaniach na GitHubie",
     "requirementsTitle": "Wymagania",
     "requirements": {
       "os": "Windows 10 lub 11, 64-bitowy",
-      "gpu": "Karta graficzna z aktualnym sterownikiem do sprzętowego kodowania (NVIDIA NVENC, AMD AMF lub Intel Quick Sync) i lokalnej AI – bez niej wszystko nadal działa, na procesorze",
-      "disk": "Około 500 MB na aplikację i 1–2,5 GB na model AI (pobierany przy pierwszym użyciu)",
-      "ram": "8 GB RAM (16 GB zalecane dla lokalnej AI)"
+      "gpu": "Karta graficzna z aktualnym sterownikiem do sprzętowego kodowania i lokalnej AI. Bez niej wszystko nadal działa na procesorze.",
+      "disk": "Około 500 MB na aplikację i do 2,5 GB na model AI, pobierany przy pierwszym użyciu.",
+      "ram": "8 GB RAM, 16 GB dla lokalnej AI"
     },
     "smartScreenTitle": "„System Windows ochronił ten komputer”?",
-    "smartScreenBody": "Plik EXE nie jest jeszcze podpisany cyfrowo, więc Microsoft Defender SmartScreen ostrzega przed pierwszym uruchomieniem. Kliknij „Więcej informacji”, a potem „Uruchom mimo to”. Pliki są budowane z publicznego kodu przez GitHub Actions; strona wydania podaje je z sumami kontrolnymi.",
+    "smartScreenBody": "Plik EXE nie jest jeszcze podpisany cyfrowo, więc Windows SmartScreen ostrzega przed pierwszym uruchomieniem. Kliknij „Więcej informacji”, a potem „Uruchom mimo to”. Pliki buduje GitHub Actions z publicznego kodu, a strona wydania podaje je z sumami kontrolnymi.",
     "featuresTitle": "Co dodaje aplikacja",
     "features": {
-      "gpu": "Wideo na GPU: szybki eksport koduje na karcie graficznej, a dołączony ffmpeg konwertuje do H.264, HEVC lub AV1 przez NVENC, AMF albo Quick Sync – z testem wydajności.",
-      "queue": "Kolejka renderowania: ziarna, linki albo plan wiralowego bota × rozdzielczości × liczba klatek × kodeki × ustawienia TikTok / Reels / Shorts / 4K, zapisywane prosto do folderu – z postępem, anulowaniem, ponawianiem i wznawianiem po restarcie.",
-      "ai": "Studio AI: lokalny model (Llama 3.2 lub Qwen, pobierany raz) albo Twój własny klucz do chmury planuje klipy wiralowym botem i funkcją Znajdź symulację, pisze haczyki, opisy i hashtagi, zmienia ustawienia na prośbę i podsuwa pomysły z poradnika o wiralności.",
-      "library": "Biblioteka: każdy wyrenderowany klip z miniaturą, długością i tekstem posta – odtwórz, pokaż w folderze, wyrenderuj ponownie albo usuń."
+      "gpu": "Wideo na GPU. Szybki eksport koduje na karcie graficznej, w H.264, HEVC lub AV1 przez NVENC, AMF albo Quick Sync.",
+      "queue": "Kolejka renderowania. Ziarna, linki albo plan wiralowego bota, w każdej wybranej rozdzielczości, liczbie klatek i kodeku, zapisywane prosto do folderu. Postęp, anulowanie, ponawianie i wznawianie po restarcie.",
+      "ai": "Studio AI. Lokalny model, pobierany raz, albo Twój własny klucz do chmury planuje klipy, pisze haczyki, opisy i hashtagi oraz zmienia ustawienia na prośbę.",
+      "library": "Biblioteka. Każdy wyrenderowany klip z miniaturą, długością i tekstem posta. Odtwórz, pokaż w folderze, wyrenderuj ponownie albo usuń."
     },
     "privacyTitle": "Prywatność",
-    "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline; wpisany klucz do chmury jest zapisany w zaszyfrowanej postaci na Twoim komputerze i wysyłany tylko do wybranego dostawcy. Aplikacja łączy się z internetem tylko po to, by pobrać model, o który poprosisz, i sprawdzić aktualizacje na GitHubie."
+    "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja łączy się z internetem tylko po to, by pobrać model, o który poprosisz, i sprawdzić aktualizacje na GitHubie.",
+    "updateLater": "Później",
+    "updateWaitRender": "Trwa renderowanie. Poczekaj, aż kolejka się skończy, albo zamknij aplikację, a aktualizacja zainstaluje się przy zamykaniu."
   },
   "Territory": {
     "canvasVs": "VS",
@@ -4430,8 +4433,8 @@
     },
     "hero": {
       "eyebrow": "Studio fizyki piłek",
-      "title": "Hipnotyzująca fizyka piłek, gotowa na TikToka.",
-      "sub": "Dostrój fizykę, wybierz jeden z {count} trybów i baw się każdym ustawieniem – za darmo, w przeglądarce, bez konta. Wyeksportuj pionowy klip gotowy do publikacji – Pro usuwa znak wodny.",
+      "title": "Satysfakcjonująca fizyka piłek, gotowa na TikToka.",
+      "sub": "Wybierz jeden z {count} trybów, dostrój fizykę i naciśnij start. Za darmo, w przeglądarce, bez konta. Wyeksportuj pionowy klip gotowy do publikacji. Pro usuwa znak wodny.",
       "seeModes": "Zobacz tryby",
       "live": "Na żywo",
       "preview": "Podgląd",
@@ -4443,7 +4446,7 @@
       "statPriceValue": "Za darmo"
     },
     "modesWall": {
-      "intro": "{count} formatów – pierścienie do ucieczki, rytmiczne maszyny, pojedynki i podróże. Wybierz jeden, a otworzy się w studiu gotowy do startu.",
+      "intro": "{count, plural, one {# tryb} few {# tryby} many {# trybów} other {# trybu}}. Pierścienie do ucieczki, rytmiczne maszyny, pojedynki i podróże. Wybierz jeden, a otworzy się w studiu.",
       "all": "Wszystkie",
       "filterLabel": "Filtruj tryby według rodziny",
       "current": "Bieżący"
@@ -4501,13 +4504,13 @@
     "canvasTimeUp": "KONIEC CZASU"
   },
   "Billing": {
-    "metaTitle": "Cennik – darmowa zabawa i eksport, Pro bez znaku wodnego – {siteName}",
-    "metaDescription": "Wszystkie tryby i ustawienia {siteName} są darmowe, tak samo jak eksport filmów – z małym znakiem wodnym. Pro usuwa znak wodny za {monthly} miesięcznie lub {yearly} rocznie – kartą, przez PayPal albo w kryptowalutach.",
+    "metaTitle": "Cennik – {siteName}",
+    "metaDescription": "Baw się każdym trybem i eksportuj filmy za darmo, z małym znakiem wodnym. Pro usuwa go za {monthly} miesięcznie lub {yearly} rocznie, kartą, przez PayPal albo w krypto.",
     "eyebrow": "Cennik",
     "title": "Baw się i eksportuj za darmo. Z Pro bez znaku wodnego.",
-    "lede": "Każdy tryb, każde ustawienie i każdy dźwięk są darmowe, bez zakładania konta – tak samo tworzenie filmów: Nagraj wideo, szybki eksport, renderowanie seryjne, filmy bota i kolejka renderowania w aplikacji na komputer działają dla wszystkich. Filmy z planu darmowego mają mały znak wodny; Pro eksportuje je bez niego i dodaje publikowanie.",
-    "testMode": "Licencjonowanie działa w trybie testowym – płatności nie są jeszcze skonfigurowane.",
-    "why": "Filmy z planu darmowego mają mały znak wodny – Pro go usuwa.",
+    "lede": "Każdy tryb, każde ustawienie i każdy dźwięk są darmowe, bez konta. Tworzenie filmów też. Darmowe filmy mają mały znak wodny. Pro eksportuje je bez niego i dodaje publikowanie.",
+    "testMode": "Licencjonowanie działa w trybie testowym. Płatności nie są jeszcze skonfigurowane.",
+    "why": "Darmowe filmy mają mały znak wodny. Pro go usuwa.",
     "proTag": "Pro",
     "proFeature": "Funkcja Pro",
     "plansTitle": "Plany Pro",
@@ -4525,20 +4528,20 @@
       "label": "Zapłać przez",
       "stripe": "Karta (Stripe)",
       "paypal": "PayPal",
-      "crypto": "Krypto – BTC, ETH, USDT i ponad 300 monet",
+      "crypto": "Krypto: BTC, ETH, USDT i ponad 300 monet",
       "stripeNote": "Apple Pay i Google Pay są dostępne w płatności kartą.",
-      "cryptoNote": "Krypto opłaca z góry okres {days} dni i nie odnawia się samo – gdy się skończy, kup kolejny okres.",
+      "cryptoNote": "Krypto opłaca z góry okres {days} dni i nie odnawia się samo. Gdy się skończy, kup kolejny okres.",
       "notConfigured": "Płatności nie są jeszcze skonfigurowane. Zajrzyj tu wkrótce.",
       "redirecting": "Otwieranie płatności…",
       "failed": "Nie udało się rozpocząć płatności: {message}",
-      "desktop": "Płatność otworzyła się w przeglądarce. Po zapłacie wróć tutaj i przywróć zakup e-mailem i numerem referencyjnym, który strona pokaże po płatności – albo wklej stamtąd klucz licencji.",
-      "emailNeeded": "Najpierw podaj e-mail – płatność kryptowalutą wysyła na niego potwierdzenie.",
-      "newTab": "Płatność otworzyła się w nowej karcie. Zapłać tam – to studio odblokuje się samo, gdy płatność przejdzie, a Twoje ustawienia zostaną bez zmian."
+      "desktop": "Płatność otworzyła się w przeglądarce. Po zapłacie wróć tutaj i przywróć zakup e-mailem i numerem z potwierdzenia albo wklej klucz licencji.",
+      "emailNeeded": "Najpierw podaj e-mail. Licencja jest wydawana na ten adres i dzięki niemu przywrócisz zakup na innym urządzeniu.",
+      "newTab": "Płatność otworzyła się w nowej karcie. Zapłać tam. Studio odblokuje się samo, gdy płatność przejdzie, a Twoje ustawienia zostaną bez zmian."
     },
     "email": {
       "label": "E-mail",
       "placeholder": "ty@example.com",
-      "hint": "Używają go płatności kartą i kryptowalutą; przywraca też zakup na innym urządzeniu. PayPal korzysta z adresu Twojego konta PayPal.",
+      "hint": "Używają go płatności kartą i kryptowalutą, a także przywracanie zakupu na innym urządzeniu. PayPal korzysta z adresu Twojego konta PayPal.",
       "invalid": "To nie wygląda na adres e-mail."
     },
     "compare": {
@@ -4559,9 +4562,9 @@
         "editor": "Edytor przeszkód, napisy i oś czasu"
       },
       "create": {
-        "record": "Nagraj wideo – do 1080×1920, z dźwiękiem",
-        "fastExport": "Szybki eksport – renderowany klatka po klatce",
-        "batch": "Renderowanie seryjne – wiele klipów w jednym pliku ZIP",
+        "record": "Nagraj wideo, do 1080×1920, z dźwiękiem",
+        "fastExport": "Szybki eksport, renderowany klatka po klatce",
+        "batch": "Renderowanie seryjne, wiele klipów w jednym ZIP-ie",
         "bot": "Filmy renderowane przez bota",
         "publish": "Publikowanie na TikToku, Instagramie i YouTube",
         "desktop": "Kolejka renderowania i kodowanie na GPU w aplikacji na komputer"
@@ -4572,7 +4575,7 @@
     "claim": {
       "title": "Twój zakup",
       "claiming": "Aktywowanie licencji…",
-      "pending": "Czekamy, aż sieć potwierdzi płatność. Ta strona sprawdza to co kilka sekund – nie zamykaj jej.",
+      "pending": "Czekamy, aż sieć potwierdzi płatność. Ta strona sprawdza to co kilka sekund. Nie zamykaj jej.",
       "timeout": "Płatność nie jest jeszcze potwierdzona. Wróć później i przywróć zakup numerem zamówienia.",
       "success": "Masz Pro do {date}.",
       "failed": "Nie udało się aktywować licencji: {message}",
@@ -4584,13 +4587,13 @@
     },
     "restore": {
       "title": "Przywróć zakup",
-      "intro": "Na innym urządzeniu lub w innej przeglądarce: podaj e-mail, którym płaciłeś, i numer referencyjny – widać go po płatności i w sekcji Twoja licencja na urządzeniu, na którym płaciłeś: identyfikator sesji lub subskrypcji Stripe, identyfikator subskrypcji PayPal albo numer zamówienia krypto.",
+      "intro": "Na innym urządzeniu lub w innej przeglądarce podaj e-mail użyty przy płatności i numer z potwierdzenia. Widać go po płatności i w sekcji Twoja licencja na urządzeniu, na którym zapłacono. To identyfikator sesji lub subskrypcji Stripe, identyfikator subskrypcji PayPal albo numer zamówienia krypto.",
       "ref": "Numer referencyjny",
       "refPlaceholder": "sub_… · I-… · nr zamówienia",
-      "refInvalid": "Skopiuj numer z potwierdzenia (litery, cyfry, myślniki i podkreślenia).",
+      "refInvalid": "Skopiuj numer z potwierdzenia. Tylko litery, cyfry, myślniki i podkreślenia.",
       "submit": "Przywróć",
       "working": "Przywracanie…",
-      "success": "Przywrócono – masz Pro do {date}.",
+      "success": "Przywrócono. Masz Pro do {date}.",
       "failed": "Nie udało się niczego przywrócić: {message}"
     },
     "manage": {
@@ -4614,18 +4617,18 @@
       "referenceHint": "Razem z e-mailem ten numer przywraca licencję na innym urządzeniu, w innej przeglądarce lub w aplikacji na komputer.",
       "copyRef": "Kopiuj numer",
       "lapsedEmail": "Ostatnia licencja dla {email}",
-      "needsRef": "Zarządzanie subskrypcją wymaga numeru referencyjnego zakupu. Przywróć raz zakup poniżej e-mailem i tym numerem, a potem ten przycisk otworzy portal klienta Stripe."
+      "needsRef": "Zarządzanie subskrypcją wymaga numeru z potwierdzenia zakupu. Przywróć raz zakup poniżej, podając e-mail i ten numer. Potem ten przycisk otworzy portal klienta Stripe."
     },
     "account": {
       "label": "Konto",
       "checking": "Sprawdzanie licencji…",
-      "free": "Darmowy – Twoje filmy mają znak wodny",
-      "freeExpired": "Twoja licencja Pro wygasła – filmy znów mają znak wodny",
-      "freeInvalid": "Zapisana licencja była nieprawidłowa – filmy mają znak wodny",
-      "pro": "Pro – {plan} do {date}",
-      "renews": "Pro – {plan}, odnowienie {date}",
-      "ends": "Pro – {plan}, kończy się {date}",
-      "grace": "Pro – {plan}, płatność w toku, działa do {date}",
+      "free": "Darmowy: Twoje filmy mają znak wodny",
+      "freeExpired": "Twoja licencja Pro wygasła. Filmy znów mają znak wodny.",
+      "freeInvalid": "Zapisana licencja była nieprawidłowa. Filmy mają znak wodny.",
+      "pro": "Pro: {plan} do {date}",
+      "renews": "Pro: {plan}, odnowienie {date}",
+      "ends": "Pro: {plan}, kończy się {date}",
+      "grace": "Pro: {plan}, płatność w toku, działa do {date}",
       "unlock": "Usuń znak wodny",
       "restore": "Przywróć",
       "manage": "Zarządzaj",
@@ -4634,7 +4637,7 @@
     "dialog": {
       "title": "Usuń znak wodny",
       "feature": "{feature} należy do Pro.",
-      "unlocked": "Twoja licencja jest aktywna – kolejne nagrania i eksporty nie będą miały znaku wodnego.",
+      "unlocked": "Twoja licencja jest aktywna. Kolejne nagrania i eksporty nie będą miały znaku wodnego.",
       "seePricing": "Porównaj Darmowy i Pro",
       "restore": "Już zapłaciłeś? Przywróć zakup",
       "close": "Zamknij"
@@ -4658,36 +4661,55 @@
     },
     "notes": {
       "title": "Dobrze wiedzieć",
-      "renew": "Subskrypcje kartą i przez PayPal odnawiają się same, dopóki z nich nie zrezygnujesz – w każdej chwili, przez Zarządzaj subskrypcją na tej stronie.",
-      "crypto": "Kryptowaluta opłaca okres z góry (30 dni w planie miesięcznym, 365 w rocznym); nic nie odnawia się samo.",
-      "licence": "Licencja to podpisany klucz zapisany w tej przeglądarce – strona nie potrzebuje konta ani hasła.",
-      "devices": "Na innym urządzeniu lub w innej przeglądarce przywróć zakup e-mailem i numerem referencyjnym pokazanym po płatności – albo wklej klucz licencji.",
-      "watermark": "Znak wodny jest wrysowany w sam film. Z licencją Pro w tej przeglądarce każde nagranie lub eksport, które potem rozpoczniesz, jest czyste."
+      "renew": "Subskrypcje kartą i przez PayPal odnawiają się same, dopóki ich nie anulujesz. Zrobisz to w każdej chwili przyciskiem Zarządzaj subskrypcją na tej stronie.",
+      "crypto": "Krypto opłaca z góry okres 30 dni w planie miesięcznym albo 365 w rocznym. Nic nie odnawia się samo.",
+      "licence": "Licencja to podpisany klucz zapisany w tej przeglądarce. Strona nie potrzebuje konta ani hasła.",
+      "devices": "Na innym urządzeniu lub w innej przeglądarce przywróć zakup e-mailem i numerem z potwierdzenia pokazanym po płatności albo wklej klucz licencji.",
+      "watermark": "Znak wodny jest wrysowany w sam film. Z licencją Pro w tej przeglądarce każde nagranie lub eksport, które potem rozpoczniesz, jest czyste.",
+      "refunds": "Anulujesz w każdej chwili. Jeśli poprosisz w ciągu 14 dni, zwrócimy całą pierwszą płatność.",
+      "support": "Pytania o płatność? Napisz na {email}.",
+      "termsLink": "Regulamin"
     },
     "landing": {
-      "line": "Zabawa i eksport są darmowe – ze znakiem wodnym. Pro go usuwa, od {price} miesięcznie.",
+      "line": "Zabawa i eksport są darmowe, ze znakiem wodnym. Pro usuwa go już od {price} miesięcznie.",
       "link": "Zobacz cennik"
     },
     "privacy": {
       "title": "Płatności",
-      "content": "Za Pro płacisz u wybranego dostawcy – Stripe, PayPal albo NOWPayments – na jego własnej stronie płatności i zgodnie z jego polityką prywatności; dane karty ani portfela nigdy do nas nie trafiają. Nasz serwer rozliczeń przechowuje to, czego potrzebuje do wydania, odnowienia i przywrócenia licencji: Twój e-mail, plan oraz identyfikator płatności lub subskrypcji u dostawcy. Sama licencja to podpisany klucz zapisany w Twojej przeglądarce."
+      "content": "Za Pro płacisz u wybranego dostawcy, czyli w Stripe, PayPal albo NOWPayments, na jego własnej stronie płatności i zgodnie z jego polityką prywatności. Dane karty ani portfela nigdy do nas nie trafiają. Nasz serwer rozliczeń przechowuje Twój e-mail, plan i identyfikator płatności lub subskrypcji u dostawcy, aby wydać, odnowić i przywrócić licencję. Sama licencja to podpisany klucz zapisany w Twojej przeglądarce. Te dane przechowujemy na serwerach Cloudflare tak długo, jak można przywrócić Twoją licencję i jak wymagają tego przepisy rachunkowe."
     },
     "terms": {
       "title": "Subskrypcje Pro",
-      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe; filmy utworzone bez licencji Pro mają znak wodny. Pro – 10 $ miesięcznie lub 79 $ rocznie – eksportuje je bez znaku wodnego i dodaje publikowanie na Twoich kontach. Subskrypcje kartą i przez PayPal odnawiają się automatycznie, dopóki ich nie anulujesz (w portalu klienta Stripe lub na koncie PayPal); płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu."
+      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe. Filmy utworzone bez licencji Pro mają znak wodny. Pro kosztuje {monthly} miesięcznie lub {yearly} rocznie, w dolarach amerykańskich. Eksportuje filmy bez znaku wodnego i dodaje publikowanie na Twoich kontach. Subskrypcje kartą i przez PayPal odnawiają się automatycznie, dopóki ich nie anulujesz w portalu klienta Stripe lub na koncie PayPal. Płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu.",
+      "delivery": {
+        "title": "Dostawa",
+        "content": "Pro to licencja cyfrowa dostarczana od razu. Po płatności strona cennika aktywuje ją w Twojej przeglądarce i pokazuje numer referencyjny potwierdzenia. Za pomocą e-maila i tego numeru możesz w każdej chwili przywrócić licencję na innym urządzeniu lub w aplikacji na Windows. Nic nie jest wysyłane pocztą."
+      },
+      "refunds": {
+        "title": "Anulowanie i zwroty",
+        "content": "Subskrypcję kartą lub przez PayPal możesz anulować w każdej chwili, przyciskiem Zarządzaj subskrypcją na stronie cennika albo na swoim koncie PayPal. Trwa ona wtedy do końca opłaconego okresu i się nie odnawia. Jeśli Pro Ci nie odpowiada, napisz do nas w ciągu 14 dni od pierwszej płatności, a zwrócimy ją w całości. Odnowienia i płatności kryptowalutą nie podlegają zwrotowi, chyba że prawo Twojego kraju daje Ci takie uprawnienie. Płatności kryptowalutą nie da się cofnąć w sieci. Zwrot trafia na użytą metodę płatności i pojawia się na koncie po 5–10 dniach roboczych."
+      },
+      "operator": {
+        "title": "Od kogo kupujesz",
+        "named": "{siteName} i subskrypcję Pro prowadzi {legalName}{address}. Płatności obsługują Stripe, PayPal i NOWPayments. Na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności.",
+        "unnamed": "{siteName} i subskrypcję Pro prowadzi operator serwisu {siteDomain}. Płatności obsługują Stripe, PayPal i NOWPayments. Na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności."
+      }
     },
     "paste": {
       "title": "Wklej klucz licencji",
-      "intro": "Masz klucz licencji skopiowany na innym urządzeniu (Kopiuj klucz licencji)? Wklej go tutaj, aby używać licencji w tej przeglądarce lub w aplikacji na komputer. Wklejony klucz działa do swojej daty końca – przywróć zakup e-mailem i numerem referencyjnym, aby odnawiał się sam.",
+      "intro": "Masz klucz licencji skopiowany na innym urządzeniu? Wklej go tutaj, aby używać licencji w tej przeglądarce lub w aplikacji na komputer. Wklejony klucz działa do swojej daty końca. Aby odnawiał się sam, przywróć zakup e-mailem i numerem z potwierdzenia.",
       "label": "Klucz licencji",
-      "placeholder": "eyJ… – klucz z „Kopiuj klucz licencji”",
+      "placeholder": "Wklej klucz z „Kopiuj klucz licencji”",
       "submit": "Użyj tego klucza",
       "working": "Sprawdzanie klucza…",
-      "success": "Zainstalowano – masz Pro do {date}.",
+      "success": "Zainstalowano. Masz Pro do {date}.",
       "failed": "Nie udało się użyć klucza: {message}",
       "empty": "Najpierw wklej klucz licencji."
     },
-    "liveMark": "Darmowe symulacje i darmowe filmy mają mały znak wodny {siteName} – w rogu płótna podczas zabawy i w każdym klipie, który zrobisz. Pro usuwa go z obu."
+    "liveMark": "Darmowe symulacje i darmowe filmy mają mały znak wodny {siteName}, w rogu płótna podczas zabawy i w każdym klipie, który zrobisz. Pro usuwa go z obu.",
+    "support": {
+      "lead": "Możesz też napisać do nas na adres"
+    }
   },
   "OrbGrid": {
     "canvasHud": "{n, plural, one {{count} skacząca kula} few {{count} skaczące kule} many {{count} skaczących kul} other {{count} skaczącej kuli}}",
@@ -4945,7 +4967,10 @@
     "canvasMore": "+[count] WIĘCEJ",
     "canvasBlocks": "Bloki",
     "finderFixed": "Bitwa z kradzieżą trwa zawsze dokładnie {duration}s – tyle, ile jej czas trwania – niezależnie od ziarna: ziarno decyduje, kto wygra. Zmień Czas trwania w bloku Podbój terenu, aby trafić w cel, albo szukaj zwycięzcy.",
-    "fixedRunLength": "Zawsze {duration}s – czas trwania; zmień go albo szukaj zwycięzcy"
+    "fixedRunLength": "Zawsze {duration}s – czas trwania; zmień go albo szukaj zwycięzcy",
+    "pyramidTitle": "piramida, blok po bloku",
+    "pyramidSubtitle": "każda kulka, która uderzy w kolumnę, strąca jej górny blok / co ósmy strącony blok dodaje kolejną kulkę",
+    "pyramidCounter": "{count, plural, one {{count} blok} few {{count} bloki} many {{count} bloków} other {{count} bloku}}"
   },
   "Countries": {
     "AR": "Argentyna",
@@ -5007,7 +5032,7 @@
     "tag": "Znak wodny",
     "noteRecording": "Nagrywanie w planie darmowym: ten film ma znak wodny {siteName}.",
     "remove": "Usuń znak wodny",
-    "liveTagTip": "Plan darmowy: symulacje i filmy mają mały znak wodny – Pro go usuwa",
+    "liveTagTip": "Plan darmowy: symulacje i filmy mają mały znak wodny. Pro go usuwa.",
     "liveNote": "Plan darmowy: symulator oraz filmy nagrane lub wyeksportowane tutaj mają mały znak wodny {siteName}."
   },
   "DesktopAiFix": {
@@ -5085,8 +5110,9 @@
     "cpuNote": "Model działa na procesorze: każdy krok może trwać minutę lub dłużej. Karta graficzna (Vulkan) jest dużo szybsza; model 1.5B też jest szybszy, ale najlepiej sprawdza się w Ustawieniach i Pomysłach.",
     "tryCpu": "Uruchom na procesorze",
     "downloadVersion": "Wersja {version}",
-    "downloadModelNote": "Model AI pobierasz z poziomu aplikacji tylko raz (1–2,5 GB); potem AI działa offline.",
-    "downloadUpdateNote": "Masz wersję 1.0.2? Jej wbudowany aktualizator nie zainstaluje 1.0.3 – pobierz raz instalator powyżej; od wersji 1.0.3 aplikacja aktualizuje się sama."
+    "downloadModelNote": "Model AI pobierasz z poziomu aplikacji tylko raz, do 2,5 GB. Potem AI działa offline.",
+    "downloadUpdateNote": "Masz wersję 1.0.2? Jej aktualizator nie zainstaluje 1.0.3. Pobierz raz instalator powyżej. Od wersji 1.0.3 aplikacja aktualizuje się sama.",
+    "downloadWhatsNew": "Co nowego w {version}"
   },
   "LoopHud": {
     "growTitle": "rośnie z każdym odbiciem",
@@ -5147,7 +5173,7 @@
     "canvasSubtitleBothWays": "bramki otwierają się w obie strony, nigdy dla koloru pierścienia",
     "canvasSorted": "[count] / [total] posortowanych",
     "canvasRemix": "znów mieszamy",
-    "csDesc": "Kulki każdego koloru startują stłoczone w środku. Bramki każdego pierścienia otwierają się tylko na zewnątrz i nigdy dla jego własnego koloru, więc kulki same układają się w tarczę – potem remiks ściąga je z powrotem do pierwszej klatki i pętla zaczyna się od nowa.",
+    "csDesc": "Kulki każdego koloru startują stłoczone w środku. Bramki każdego pierścienia otwierają się tylko na zewnątrz i nigdy dla jego własnego koloru, więc kulki same się sortują. Potem znów się mieszają i pętla zaczyna się od nowa.",
     "csPreset": "Preset",
     "csPresetTip": "Gotowe sortowania. Każde ustawia też granatowe tło, świecące kulki i HUD pętli.",
     "csPresetChoose": "Wybierz preset…",
@@ -5260,6 +5286,10 @@
     "bmBassTip": "Miękka nuta basu co dwa takty, na najniższej nucie frazy w tym miejscu.",
     "bmCounter": "Licznik nut",
     "bmCounterTip": "Pokazuje nuty bieżącej pętli w nakładce pętli („12 / 32 nut”)."
+  },
+  "RingEscape": {
+    "hudRing": "pierścień {ring}: {time} s",
+    "hudOut": "na zewnątrz po {time} s"
   },
   "DrawingMachine": {
     "canvasTitleHarmonograph": "trzy wahadła, jedno pióro",

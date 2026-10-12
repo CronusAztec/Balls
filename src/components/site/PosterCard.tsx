@@ -3,9 +3,13 @@ import { cx } from "@/components/ui/cx";
 
 /*
  * --- site-redesign --- The poster card of the modes wall, the mode picker and the gallery: the preview picture full-bleed
- * in a square (the centred square of a preview is exactly what a clip records), then the name with a mono tag and one or
- * two lines of description. Calm hover: the hairline brightens, nothing moves. The interactive wrapper (link, button) is
+ * in a square (the centred square of a preview is exactly what a clip records), then the name with a mono tag and a short
+ * description. Calm hover: the hairline brightens, nothing moves. The interactive wrapper (link, button) is
  * the caller's; this is the content.
+ * --- copy-pass --- the description is never clamped: a mode's one-liner (60 to 110 characters in English, up to 140 in
+ * Polish and Spanish, bounded by tests/copyStyle.test.ts and docs/COPY-STYLE.md) reads in full at every width. Four lines
+ * fit a card of 214 px or more, but on 320 to 640 px screens the cards are 136 to 187 px wide (152 px in the studio's picker
+ * at 390) and need five to seven, so any clamp would end some mid-sentence (the smoke test measures them at 390 and 640 px).
  */
 export default function PosterCard({
   image,
@@ -41,7 +45,7 @@ export default function PosterCard({
         <Heading className="min-w-0 truncate font-sans text-md font-medium tracking-normal text-ink">{name}</Heading>
         {tag && <span className="eyebrow hidden shrink-0 text-ink-3 sm:inline">{tag}</span>}
       </div>
-      {description && <p className="mt-1 line-clamp-2 text-sm text-ink-2">{description}</p>}
+      {description && <p className="mt-1 text-sm text-ink-2" data-poster-description="">{description}</p>}
       {footer}
     </>
   );

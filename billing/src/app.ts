@@ -4,6 +4,10 @@
 import type { Env } from "./env";
 import { providerReady } from "./env";
 import { corsHeaders, json, Router } from "./http";
+import type { RouteHandler } from "./http";
+import { PLAN_USD } from "./config";
+import { MemoryRateLimiter } from "./ratelimit";
+import { healthResponse } from "./handlers/health";
 import { Repo } from "./store";
 import type { KV } from "./store";
 import { isTestKey } from "./license";
@@ -17,7 +21,7 @@ function configResponse(ctx: Ctx): Response {
   const env = ctx.env;
   return json(
     {
-      plans: { monthly: { usd: 10 }, yearly: { usd: 79 } },
+      plans: { monthly: { usd: PLAN_USD.monthly }, yearly: { usd: PLAN_USD.yearly } }, // --- go-live-kit --- billing-config.json
       // On only with every secret it needs – the webhook's included (providerReady).
       providers: {
         stripe: providerReady(env, "stripe"),
@@ -31,9 +35,51 @@ function configResponse(ctx: Ctx): Response {
   );
 }
 
+// --- go-live-kit --- Rate limits per connection (cf-connecting-ip) and 10 minutes, kept in this isolate's memory
+// (ratelimit.ts says what that does and does not stop). Webhooks, /config and /health are never limited. The licence limit
+// covers a whole pending claim: the pricing page asks /license/claim every 5 s for up to 10 minutes (121 asks, CLAIM_POLL_MS
+// and CLAIM_POLL_LIMIT_MS in src/lib/billing/api.ts), with room for a restore or two; over it, the page waits and asks again.
+const WINDOW_SECONDS = 600;
+export const RATE_LIMITS = { checkoutPer10Min: 10, licensePer10Min: 150, portalPer10Min: 10 } as const;
+const checkoutLimiter = new MemoryRateLimiter(RATE_LIMITS.checkoutPer10Min, WINDOW_SECONDS);
+const licenseLimiter = new MemoryRateLimiter(RATE_LIMITS.licensePer10Min, WINDOW_SECONDS);
+const portalLimiter = new MemoryRateLimiter(RATE_LIMITS.portalPer10Min, WINDOW_SECONDS);
+
+export interface RateLimiters {
+  checkout: MemoryRateLimiter;
+  license: MemoryRateLimiter;
+  portal: MemoryRateLimiter;
+}
+
+/**
+ * The 429 a connection over its limit gets: a stable code, a plain message, Retry-After and the CORS headers. The seconds are
+ * in the body too (`retryAfter`): a cross-origin page cannot read a Retry-After header that CORS does not expose.
+ */
+function rateLimited(retryAfterSeconds: number, cors: Record<string, string>): Response {
+  return json(
+    { error: "rate_limited", message: "Too many requests from this connection. Please wait a minute and try again.", retryAfter: retryAfterSeconds },
+    429,
+    { ...cors, "Retry-After": String(retryAfterSeconds) },
+  );
+}
+
+/** A route handler counted against `limiter` per connection; a request without cf-connecting-ip (local dev) is not limited. */
+function limited(limiter: MemoryRateLimiter, cors: Record<string, string>, handler: RouteHandler): RouteHandler {
+  return async (request, path) => {
+    const ip = request.headers.get("cf-connecting-ip");
+    if (ip) {
+      const verdict = limiter.hit(ip);
+      if (!verdict.allowed) return rateLimited(verdict.retryAfterSeconds, cors);
+    }
+    return handler(request, path);
+  };
+}
+
 export interface HandleOptions {
   /** unix seconds; defaults to the wall clock. */
   now?: number;
+  /** --- go-live-kit --- the rate limiters (tests inject fresh ones; the Worker shares the module's). */
+  limiters?: RateLimiters;
 }
 
 export async function handleRequest(
@@ -51,17 +97,19 @@ export async function handleRequest(
     workerOrigin: new URL(request.url).origin,
   };
 
+  const limiters = options.limiters ?? { checkout: checkoutLimiter, license: licenseLimiter, portal: portalLimiter };
   const router = new Router()
     .get("/config", async () => configResponse(ctx))
-    .post("/checkout/stripe", (req) => checkoutStripe(req, ctx))
-    .post("/checkout/paypal", (req) => checkoutPaypal(req, ctx))
-    .post("/checkout/crypto", (req) => checkoutCrypto(req, ctx))
+    .get("/health", () => healthResponse(ctx, RATE_LIMITS)) // --- go-live-kit ---
+    .post("/checkout/stripe", limited(limiters.checkout, cors, (req) => checkoutStripe(req, ctx)))
+    .post("/checkout/paypal", limited(limiters.checkout, cors, (req) => checkoutPaypal(req, ctx)))
+    .post("/checkout/crypto", limited(limiters.checkout, cors, (req) => checkoutCrypto(req, ctx)))
     .post("/webhooks/stripe", (req) => webhookStripe(req, ctx))
     .post("/webhooks/paypal", (req) => webhookPaypal(req, ctx))
     .post("/webhooks/nowpayments", (req) => webhookNowPayments(req, ctx))
-    .post("/license/claim", (req) => claim(req, ctx))
-    .post("/license/restore", (req) => restore(req, ctx))
-    .post("/portal/stripe", (req) => portalStripe(req, ctx));
+    .post("/license/claim", limited(limiters.license, cors, (req) => claim(req, ctx)))
+    .post("/license/restore", limited(limiters.license, cors, (req) => restore(req, ctx)))
+    .post("/portal/stripe", limited(limiters.portal, cors, (req) => portalStripe(req, ctx)));
 
   return router.handle(request, cors);
 }

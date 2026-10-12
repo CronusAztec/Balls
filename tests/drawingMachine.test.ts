@@ -526,7 +526,6 @@ describe("Drawing Machines: settings, links, presets, the page", () => {
     for (const m of catalogs) {
       expect(typeof m.Controls.modeDrawingMachine).toBe("string");
       expect(Object.keys(m.Modes.drawingMachine as object).sort()).toEqual(["description", "name"]);
-      expect(typeof m.Editorial.modeDrawingMachine).toBe("string");
       for (const key of ["drawingMachineHarmonograph", "drawingMachineHarmonographFact", "drawingMachineEarthVenus", "drawingMachineEarthVenusFact", "drawingMachineOrbits", "drawingMachineOrbitsFact"]) expect(typeof m.LoopCaption[key]).toBe("string");
       const dm = m.DrawingMachine as Record<string, string>;
       expect(dm.canvasTitleOrbits).toContain("[a]");

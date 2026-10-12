@@ -11,6 +11,8 @@ import { pageClientNamespaces, pickMessages } from "@/i18n/clientMessages";
 import { localeAlternates } from "@/i18n/alternates";
 import { PLANS, formatUsd, yearlySavingPercent } from "@/lib/billing/config";
 import { SITE_NAME, absoluteUrl, pageUrl } from "@/lib/site";
+import { SUPPORT_EMAIL } from "@/lib/operator"; // --- go-live-kit ---
+import { Link } from "@/i18n/navigation"; // --- go-live-kit --- the refunds note links the terms
 
 /*
  * --- paywall-gate --- The pricing page: what plays for free and what Pro adds (--- free-watermark --- everyone makes videos;
@@ -24,7 +26,7 @@ const PLAY_ROWS = ["modes", "sound", "finder", "presets", "gallery", "editor"] a
 const CREATE_ROWS = ["record", "fastExport", "batch", "bot", "publish", "desktop"] as const;
 /** --- free-watermark --- the video-making rows Free has too – with the watermark (Publish stays Pro). */
 const WATERMARKED_ROWS: readonly string[] = ["record", "fastExport", "batch", "bot", "desktop"];
-const NOTES = ["renew", "crypto", "licence", "devices", "watermark" /* --- free-watermark --- */] as const;
+const NOTES = ["renew", "refunds" /* --- go-live-kit --- */, "crypto", "licence", "devices", "watermark" /* --- free-watermark --- */] as const;
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -203,8 +205,21 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
               {NOTES.map((k) => (
                 <li key={k} className="border-t border-line py-4 text-md text-ink-2">
                   {t(`notes.${k}`)}
+                  {/* --- go-live-kit --- the refund rule in full is in the terms */}
+                  {k === "refunds" && (
+                    <>
+                      {" "}
+                      <Link href="/terms#refunds" className="font-medium text-accent hover:text-accent-strong" data-testid="pricing-refunds-terms">
+                        {t("notes.termsLink")}
+                      </Link>
+                    </>
+                  )}
                 </li>
               ))}
+              {/* --- go-live-kit --- the support address, when the repository variable SUPPORT_EMAIL is set */}
+              {SUPPORT_EMAIL && (
+                <li className="border-t border-line py-4 text-md text-ink-2">{t("notes.support", { email: SUPPORT_EMAIL })}</li>
+              )}
             </ul>
           </section>
         </main>

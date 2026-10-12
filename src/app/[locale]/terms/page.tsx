@@ -3,6 +3,8 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import ProseLayout, { legalDate } from "@/components/site/ProseLayout";
 import { Link } from "@/i18n/navigation";
 import { SITE_DOMAIN, SITE_NAME, pageUrl } from "@/lib/site";
+import { LEGAL_ADDRESS, LEGAL_NAME, SUPPORT_EMAIL } from "@/lib/operator"; // --- go-live-kit ---
+import { PLANS, formatUsd } from "@/lib/billing/config"; // --- go-live-kit --- the prices in the Pro section come from the plans
 import { localeAlternates } from "@/i18n/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -18,6 +20,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 const PLAIN = ["intellectual", "warranties", "liability", "changes"] as const;
 // --- site-redesign --- the sections in page order (their ids are the table of contents' anchors)
 const SECTIONS = ["acceptance", "description", "ugc", "acceptable", ...PLAIN, "contact"] as const;
+/** --- go-live-kit --- the Billing sections after the description, in page order: Pro, then what payment reviewers look for. */
+const BILLING_SECTIONS = ["pro", "delivery", "refunds", "operator"] as const;
 
 export default async function TermsPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -31,7 +35,7 @@ export default async function TermsPage({ params }: { params: Promise<{ locale: 
       eyebrow={site("footer.legal")}
       title={t("title")}
       meta={`${t("lastUpdated")}: ${legalDate(locale)}`}
-      toc={SECTIONS.flatMap((id) => [{ id, label: t(`${id}.title`) }, ...(id === "description" ? [{ id: "pro", label: billing("terms.title") }] : [])]) /* --- paywall-gate --- (the Pro section after the description) */}
+      toc={SECTIONS.flatMap((id) => [{ id, label: t(`${id}.title`) }, ...(id === "description" ? BILLING_SECTIONS.map((b) => ({ id: b, label: billing(b === "pro" ? "terms.title" : `terms.${b}.title`) })) : [])]) /* --- paywall-gate --- (the Pro section after the description; --- go-live-kit --- then delivery, refunds, operator) */}
       tocLabel={site("prose.onThisPage")}
     >
       <section id="acceptance">
@@ -45,7 +49,25 @@ export default async function TermsPage({ params }: { params: Promise<{ locale: 
       {/* --- paywall-gate --- the free playground and the Pro subscriptions */}
       <section id="pro">
         <h2>{billing("terms.title")}</h2>
-        <p>{billing("terms.content")}</p>
+        <p>{billing("terms.content", { monthly: formatUsd(PLANS.monthly.usd, locale), yearly: formatUsd(PLANS.yearly.usd, locale) })}</p>
+      </section>
+      {/* --- go-live-kit --- delivery, cancellation and refunds, and who the buyer is buying from (the operator's details come
+          from the repository variables LEGAL_NAME / LEGAL_ADDRESS) */}
+      <section id="delivery">
+        <h2>{billing("terms.delivery.title")}</h2>
+        <p>{billing("terms.delivery.content")}</p>
+      </section>
+      <section id="refunds">
+        <h2>{billing("terms.refunds.title")}</h2>
+        <p>{billing("terms.refunds.content")}</p>
+      </section>
+      <section id="operator">
+        <h2>{billing("terms.operator.title")}</h2>
+        <p>
+          {LEGAL_NAME
+            ? billing("terms.operator.named", { siteName: SITE_NAME, legalName: LEGAL_NAME, address: LEGAL_ADDRESS ? `, ${LEGAL_ADDRESS}` : "" })
+            : billing("terms.operator.unnamed", { siteName: SITE_NAME, siteDomain: SITE_DOMAIN })}
+        </p>
       </section>
       <section id="ugc">
         <h2>{t("ugc.title")}</h2>
@@ -80,6 +102,12 @@ export default async function TermsPage({ params }: { params: Promise<{ locale: 
         <p>
           {t("contact.content")} <Link href="/feedback">{t("contact.feedbackLink")}</Link>.
         </p>
+        {/* --- go-live-kit --- the support address, when the repository variable SUPPORT_EMAIL is set */}
+        {SUPPORT_EMAIL && (
+          <p>
+            {billing("support.lead")} <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
+          </p>
+        )}
       </section>
     </ProseLayout>
   );

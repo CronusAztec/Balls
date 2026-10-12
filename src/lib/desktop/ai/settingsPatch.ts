@@ -10,6 +10,7 @@ import { HIT_SOUND_MODES } from "@/lib/audio/sampler";
 import { FACE_STYLES } from "@/lib/character/character";
 import { GROW_LAWS, GROW_ON_FILL } from "@/lib/physics/modes/grow"; // --- low-findings ---
 import type { JsonSchema } from "./jsonSchema";
+import { LC_LAYOUTS } from "@/lib/physics/landClaimPyramid"; // --- land-claim-pyramid ---
 
 /*
  * --- desktop-exe --- The AI settings assistant's side of the settings: what it may change and how a patch it proposes is
@@ -47,6 +48,7 @@ export const SETTING_OPTIONS: Record<string, readonly (string | number)[]> = {
   // --- low-findings --- Grow's fill and loop (the mode's block is the assistant's on a Grow page: MODE_PREFIXES)
   growLaw: GROW_LAWS,
   growOnFill: GROW_ON_FILL,
+  lcLayout: LC_LAYOUTS, // --- land-claim-pyramid --- (Land Claim's layout: the arena's wall or the pyramid)
 };
 
 const TEXT_KEYS = new Set(["topText", "bottomText", "watermarkText", "ballName", "rcCupTitle"]);
