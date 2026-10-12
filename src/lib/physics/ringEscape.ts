@@ -147,7 +147,8 @@ export function writeRingEscapeParams(settings: RingEscapeFields, base: RingEsca
 
 /** Reads the feature's URL parameters into `settings` (validated: an invalid value keeps what it was). */
 export function readRingEscapeParams(params: URLSearchParams, settings: RingEscapeFields) {
-  const next: Partial<Record<keyof RingEscapeFields, unknown>> = { ...settings };
+  // (only the feature's own fields: the settings object is large, and a link is parsed often)
+  const next: Partial<Record<keyof RingEscapeFields, unknown>> = { gapLayout: settings.gapLayout, gapSpiralStep: settings.gapSpiralStep, ringSpin: settings.ringSpin, ringRainbow: settings.ringRainbow, ringTimer: settings.ringTimer, ringSound: settings.ringSound };
   const layout = params.get("regl");
   if (isGapLayout(layout)) next.gapLayout = layout;
   const rawStep = params.get("ress");

@@ -113,7 +113,7 @@ import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDef
 // --- beat-machine --- Beat Machines (the marble xylophone and the eight-step staircase)
 import { BM_ENGINE_KEYS, BM_RANGES, beatMachineModeDefaults, defaultBeatMachineFields, readBeatMachineParams, resolveBeatMachineFields, writeBeatMachineParams, type BeatMachineFields } from "@/lib/physics/beatMachine";
 // --- ring-escape --- Classic's Ring Escape: the gap layout, the spiral step, the spin, the rainbow by ring, the time in the ring, the ring sounds
-import { RING_ESCAPE_RANGES, defaultRingEscapeFields, readRingEscapeParams, resolveRingEscapeFields, writeRingEscapeParams, type GapLayout, type RingSpin } from "@/lib/physics/ringEscape";
+import { RING_ESCAPE_RANGES, defaultRingEscapeFields, readRingEscapeParams, resolveRingEscapeFields, writeRingEscapeParams, type GapLayout, type RingEscapeFields, type RingSpin } from "@/lib/physics/ringEscape";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -1221,6 +1221,14 @@ export function defaultGapSize(mode: ModeId) {
 }
 
 export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
+  // --- ring-escape --- Classic's Ring Escape fields join the core defaults here, outside the one big literal below: past about
+  // 550 properties that literal leaves V8's fast path and every call gets 10–20× slower (links, presets, the finder, the daily
+  // deals all build settings), so further fields are better spread in here too.
+  return { ...coreDefaultSettings(mode), ...defaultRingEscapeFields() };
+}
+
+/** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields> {
   return {
     mode,
     gravity: 300,
@@ -1361,7 +1369,6 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- beat-machine --- the feature's fields, and in Beat Machines only the marble xylophone's look (the warm brown page, the loop HUD on)
     ...defaultBeatMachineFields(),
     ...beatMachineModeDefaults(mode),
-    ...defaultRingEscapeFields(), // --- ring-escape --- (the classic rings: even gaps, alternating spin, no rainbow, no timer, the classic tones)
   };
 }
 
