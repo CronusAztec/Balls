@@ -4192,10 +4192,10 @@
       "idle": "not checked yet",
       "disabled": "off (portable or development build)",
       "checking": "checking…",
-      "available": "version {version} found – downloading",
+      "available": "version {version} found, downloading",
       "none": "up to date",
       "downloading": "downloading {progress}%",
-      "ready": "version {version} ready – restart to install",
+      "ready": "version {version} ready. Restart to install.",
       "error": "couldn't check (offline?)"
     },
     "queueAddTitle": "Add clips",

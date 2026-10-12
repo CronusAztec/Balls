@@ -350,6 +350,7 @@ function start() {
     [IPC.aiClearCloudKey]: () => ai.clearCloudKey(),
     [IPC.aiPlaybook]: () => fs.readFile(locations.playbook, "utf8").catch(() => ""),
     [IPC.updateCheck]: () => updater.check(),
+    [IPC.updateState]: () => updater.status, // --- low-findings-2 --- (the page's mount reads it: no check at every start)
     [IPC.updateInstall]: () => updater.install(),
     [IPC.aiDiagnose]: (options) => runAiDiagnostics(diagnosticsDeps, (options ?? {}) as AiDiagnoseOptions), // --- desktop-ai-fix ---
   };

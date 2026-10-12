@@ -6,6 +6,7 @@
 //   npm run go-live -- --mode live           real money: your own key pair, live keys, the GitHub variables
 //   npm run go-live -- --dry-run             prints every command (secret values as [hidden]) and runs nothing
 //   npm run go-live -- --skip paypal,crypto  leaves those steps out (also: stripe, github); --yes takes the default answers
+//                                            (yes/no questions, values with a default, optional values; a needed value still asks)
 //
 // Rules it keeps: every pasted value is checked before it is used (a wrong shape asks again, with the reason); secret values
 // reach the tools only on their standard input – never in a command line – and are never printed, logged or written to a
@@ -551,6 +552,16 @@ async function fetchHealth(workerUrl) {
   }
 }
 
+/**
+ * --- low-findings-2 --- What `--yes` answers to a value question without asking (`ask` false): its default (`fallback`), or –
+ * an optional value – nothing. A needed value without a default still asks, --yes or not.
+ * @param {boolean} yes @param {{ fallback?: string, optional?: boolean }} [options] @returns {{ ask: boolean, value?: string }}
+ */
+export function yesValueAnswer(yes, { fallback, optional = false } = {}) {
+  if (yes && (fallback !== undefined || optional)) return { ask: false, value: fallback };
+  return { ask: true };
+}
+
 export async function main(argv = process.argv.slice(2)) {
   const opts = parseOptions(argv, { booleans: ["dry-run", "yes", "help"], strings: ["mode", "skip"] });
   if (opts.help) {
@@ -584,6 +595,13 @@ export async function main(argv = process.argv.slice(2)) {
   };
   /** A value: validated; Enter (or the end of the input) takes `fallback` when there is one. */
   const value = async (question, check, { fallback, optional = false, hidden = false } = {}) => {
+    // --- low-findings-2 --- --yes takes a value's default too, like yesNo(): its fallback, or nothing for an optional one; a
+    // needed value (a secret, an id) still asks
+    const auto = yesValueAnswer(!!opts.yes, { fallback, optional });
+    if (!auto.ask) {
+      console.log(`${question.trim()} ${fallback ?? "(skipped)"} (--yes)`);
+      return auto.value;
+    }
     for (;;) {
       const a = await prompter.ask(question, { hidden });
       if (a === null) {

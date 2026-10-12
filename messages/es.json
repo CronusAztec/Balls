@@ -4192,10 +4192,10 @@
       "idle": "aún sin comprobar",
       "disabled": "desactivadas (versión portátil o de desarrollo)",
       "checking": "comprobando…",
-      "available": "versión {version} encontrada: descargando",
+      "available": "versión {version} encontrada, descargando",
       "none": "al día",
       "downloading": "descargando {progress}%",
-      "ready": "versión {version} lista: reinicia para instalarla",
+      "ready": "versión {version} lista. Reinicia para instalarla.",
       "error": "no se pudo comprobar (¿sin conexión?)"
     },
     "queueAddTitle": "Añadir clips",

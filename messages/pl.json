@@ -4192,10 +4192,10 @@
       "idle": "jeszcze nie sprawdzano",
       "disabled": "wyłączone (wersja przenośna lub deweloperska)",
       "checking": "sprawdzanie…",
-      "available": "znaleziono wersję {version} – pobieranie",
+      "available": "znaleziono wersję {version}, pobieranie",
       "none": "aktualna",
       "downloading": "pobieranie {progress}%",
-      "ready": "wersja {version} gotowa – uruchom ponownie, aby zainstalować",
+      "ready": "wersja {version} gotowa. Uruchom ponownie, aby zainstalować.",
       "error": "nie udało się sprawdzić (brak internetu?)"
     },
     "queueAddTitle": "Dodaj klipy",

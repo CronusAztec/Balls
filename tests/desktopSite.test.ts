@@ -142,3 +142,20 @@ describe("publish targets snapshot", () => {
     off();
   });
 });
+
+// --- low-findings-2 --- the studio reads the updater's status when it mounts, never checks: the app's quiet schedule checks 8 s
+// after launch (a manual check at every start doubled it and showed "error" on an offline start); the GPU panel's button and the
+// Help menu keep the manual check
+describe("the desktop studio's update status", () => {
+  it("reads the status on mount without a check, keeps listening to the status event, and checks only on the user's click", () => {
+    const read = (file: string) => fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", file), "utf8");
+    const section = read("sections/DesktopSection.tsx");
+    const mount = section.slice(section.indexOf("bridge.prefs"), section.indexOf('return bridge.on("update", setUpdate);') + 40);
+    expect(mount).toContain("bridge.update.status");
+    expect(mount).not.toMatch(/update\.check\(/);
+    expect(mount).toContain('bridge.on("update", setUpdate)');
+    expect(read("desktop/GpuPanel.tsx")).toMatch(/onClick=\{\(\) => void bridge\.update\.check\(\)\}/);
+    // and the status line of the update banner reads without a dash in every language
+    for (const m of [en, pl, es]) for (const key of ["available", "ready"]) expect((m.Desktop.update as Record<string, string>)[key]).not.toMatch(/ – | — |;/);
+  });
+});

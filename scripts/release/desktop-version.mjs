@@ -72,6 +72,16 @@ export function compareSemver(a, b) {
   return 0;
 }
 
+/**
+ * --- low-findings-2 --- Whether a semantic version carries a pre-release (or build) suffix – 1.0.4-rc.1 –, which the website's
+ * checks (DESKTOP_VERSION must be x.y.z) and the download page (parseLatest() reads desktop-v<x.y.z> only) never accept: a
+ * release of one would turn the site's build red and never show on the download page.
+ * @param {string} v @returns {boolean}
+ */
+export function hasPrereleaseSuffix(v) {
+  return typeof v === "string" && /[-+]/.test(v);
+}
+
 /** The next patch version (1.0.4 → 1.0.5), for the messages. @param {string} v */
 export function nextPatch(v) {
   if (!isSemver(v)) return "1.0.0";
@@ -103,6 +113,15 @@ export function decideRelease({ event, ref, inputVersion, inputPublish, current,
         release: false,
         reason: `desktop-v${current} exists already`,
         warning: `desktop/package.json says ${current} but the release desktop-v${current} exists already: bump to a higher version (npm run release:desktop -- ${nextPatch(current)})`,
+      };
+    } else if (hasPrereleaseSuffix(current)) {
+      // --- low-findings-2 --- a hand-edited desktop/package.json with a pre-release: no release the site could not show
+      d = {
+        version: current,
+        build: false,
+        release: false,
+        reason: `pre-release ${current}`,
+        warning: `desktop/package.json says ${current}: the website's checks and the download page only accept x.y.z (e.g. ${nextPatch(previous && isSemver(previous) ? previous : current)})`,
       };
     } else {
       const lower = previous != null && isSemver(previous) && isSemver(current) && compareSemver(current, previous) <= 0;
@@ -198,6 +217,8 @@ function fail(message) {
 function bump(root, version) {
   if (!isSemver(version)) fail(`'${version}' is not a semantic version (1.2.3) – e.g. npm run release:desktop -- 1.0.4`);
   const current = readVersion(fs.readFileSync(path.join(root, VERSION_FILES[0]), "utf8"));
+  // --- low-findings-2 --- x.y.z only: a pre-release would turn the site's build red and never show on the download page
+  if (hasPrereleaseSuffix(version)) fail(`${version} has a pre-release suffix: the website's checks and the download page only accept x.y.z (e.g. ${nextPatch(current)})`);
   if (isSemver(current) && compareSemver(version, current) <= 0) fail(`${version} is not higher than the current ${current} – use a higher version`);
   const files = bumpFiles(root, version);
   const { problems } = checkConsistency(root);

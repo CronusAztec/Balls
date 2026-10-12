@@ -26,7 +26,7 @@ function flatten(node: unknown, prefix = "", out: Record<string, string> = {}): 
 }
 
 const SITE_NAMESPACES = ["Headings", "Navbar", "SimulatorPage", "Layout", "HowItWorks", "Modes", "FAQ", "Editorial", "Footer", "NotFound", "Feedback", "TikTokBallVideos", "About", "Gallery", "Pwa", "Daily", "Billing", "Watermark", "DesktopLink", "SiteRedesign"];
-const DOWNLOAD_PREFIXES = ["Desktop.metaTitle", "Desktop.metaDescription", "Desktop.badge", "Desktop.title", "Desktop.intro", "Desktop.setup", "Desktop.portable", "Desktop.requirements", "Desktop.smartScreen", "Desktop.features", "Desktop.privacy", "DesktopAiFix.download"];
+const DOWNLOAD_PREFIXES = ["Desktop.metaTitle", "Desktop.metaDescription", "Desktop.badge", "Desktop.title", "Desktop.intro", "Desktop.setup", "Desktop.portable", "Desktop.requirements", "Desktop.smartScreen", "Desktop.features", "Desktop.privacy", "DesktopAiFix.download", "Desktop.update" /* --- low-findings-2 --- (the Windows app's update banner) */];
 const SECTION_INTRO = /^Controls\.[A-Za-z]+Desc$/;
 const TIPS = ["boxSpeedRatioTip", "pwLayoutTip", "prLayoutTip", "glassGatesTip", "captionsTip", "captionTypeTip", "sbRuleTip", "batchRenderTip", "mzBrainTip", "exitBehaviorTip", "splatBarrierTip", "ogRhythmTip", "scStarPresetsTip", "flMakeClipTip"].map((k) => `Controls.${k}`).concat(["BatchRender.listHint", "ViralBot.manual.steps"]);
 const COLOUR_SORT_INTRO = "ColourSort.csDesc";
@@ -83,7 +83,7 @@ describe("copy style (docs/COPY-STYLE.md)", () => {
     for (const locale of Object.keys(LOCALES) as Locale[]) {
       const keys = coveredStrings(locale).map(([key]) => key);
       expect(keys.length, locale).toBeGreaterThan(600);
-      for (const key of [...TIPS, COLOUR_SORT_INTRO, "SiteRedesign.hero.sub", "Desktop.intro", "DesktopAiFix.downloadModelNote", "Controls.sbDesc"]) expect(keys, `${locale} ${key}`).toContain(key);
+      for (const key of [...TIPS, COLOUR_SORT_INTRO, "SiteRedesign.hero.sub", "Desktop.intro", "DesktopAiFix.downloadModelNote", "Controls.sbDesc", "Desktop.update.available", "Desktop.update.ready" /* --- low-findings-2 --- */]) expect(keys, `${locale} ${key}`).toContain(key);
     }
   });
 

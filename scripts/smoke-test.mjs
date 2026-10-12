@@ -8547,7 +8547,7 @@ await smokeBlock("desktop-exe", async () => {
         },
         cancel: async () => {}, setCloud: async () => ({}), clearCloudKey: async () => ({}), playbook: async () => "## 3. The recipe\\nMotion in frame one.",
       },
-      update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: async () => {} },
+      update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: async () => {}, status: async () => ({ state: "none", version: null, progress: null, message: null }) },
       on: (event, l) => { (listeners[event] ||= []).push(l); return () => { listeners[event] = listeners[event].filter((x) => x !== l); }; },
     };
     // The app sends web pages to the system browser (main.ts setWindowOpenHandler); here they are only noted.
@@ -10755,7 +10755,7 @@ await smokeBlock("paywall-gate", async () => {
           journal: { load: none, save: none },
           library: { list: async () => [], remove: async () => [], reveal: none, open: none, openFolder: none, read: none },
           ai: { status: async () => ({ provider: "local", ready: false, local: { model: null, loaded: false, backend: null, gpuLayers: 0, error: null }, cloud: { provider: "anthropic", baseUrl: "", model: "", hasKey: false, encryption: true } }), models: async () => [], downloadModel: async () => [], cancelDownload: none, importModel: async () => [], selectModel: none, removeModel: async () => [], chat: none, cancel: none, setCloud: none, clearCloudKey: none, playbook: async () => "" },
-          update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: none },
+          update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: none, status: async () => ({ state: "none", version: null, progress: null, message: null }) },
           on: () => () => {},
         };
       })();`;
@@ -13391,7 +13391,7 @@ await smokeBlock("desktop-ai-fix", async () => {
           return { at: new Date().toISOString(), deep, checks, report: { report: "JumpingBallsLive AI status", deep, app: { version: "1.0.3" }, cloud: { provider: "anthropic", keyStored: false }, checks } };
         },
       },
-      update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: async () => {} },
+      update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: async () => {}, status: async () => ({ state: "none", version: null, progress: null, message: null }) },
       on: (event, l) => { (listeners[event] ||= []).push(l); return () => { listeners[event] = listeners[event].filter((x) => x !== l); }; },
     };
     window.__aiFix = { state, emit, SECRET };
@@ -13541,7 +13541,7 @@ await smokeBlock("desktop-ai-fix", async () => {
           return { at: new Date().toISOString(), deep, checks, report: { report: "JumpingBallsLive AI status", deep, checks } };
         },
       },
-      update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: async () => {} },
+      update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: async () => {}, status: async () => ({ state: "none", version: null, progress: null, message: null }) },
       on: (event, l) => { (listeners[event] ||= []).push(l); return () => { listeners[event] = listeners[event].filter((x) => x !== l); }; },
     };
     // The app's end of a download (createModelServices): verified, selected when the selected model is not ready, THEN "ready".
