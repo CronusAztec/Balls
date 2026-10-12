@@ -65,6 +65,8 @@ import { rulesForRange } from "./unlimitedSlider"; // --- uncap-all ---
 import { SLOW_LAG_MIN_MS, cameraSettingsOf, maxSlowLagMs } from "@/lib/simulation/camera"; // --- camera --- (--- review fix (modes-gerald-odd) --- the slow motion's lag)
 import { obstacleConfigOf, obstacleSettingsOf, supportsObstacles, type EditorObstacle } from "@/lib/physics/obstacleEditor"; // --- obstacle-editor ---
 import { exitSplatCarryOver, exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
+import { ringEscapeActive, ringEscapeConfigOf } from "@/lib/physics/ringEscape"; // --- ring-escape ---
+import type { RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
 // --- captions ---
 import type { CanvasCaptionOptions } from "./captionsRenderer";
 import { captionCarryOver, captionRenderOptions } from "@/lib/captions";
@@ -444,6 +446,7 @@ export default function Simulator() {
       ...physicsExtrasOf(s),
       ...ballInteractionOf(s),
       timeline: engineTimelineOf(s), // --- timeline --- (the first run already starts from the keyframes' values)
+      ...ringEscapeConfigOf(s), // --- ring-escape --- (the first run's rings already laid out as the settings say)
       ...uncapConfigOf(uncappedEngaged(s), s.ballCount, effectiveBallCount(s), MULTI_BALL_MODES.includes(s.mode), pastAnyMemoryCeiling(s)), // --- unlimited --- (before the first run: its crowd; --- uncap-all --- engaged by any value past its slider)
     });
     initEngineForMode(engine, s);
@@ -663,6 +666,11 @@ export default function Simulator() {
     const { spec, locale } = loopHudRef.current;
     return spec && engine ? loopHudFrame(spec, loopHudCount(engine), locale) : null;
   }, []);
+  // --- ring-escape --- Classic's Ring Escape look for the canvas: the rainbow by ring and the time-in-ring line's words (null elsewhere)
+  const ringEscapeLook = useMemo<RingEscapeLook | null>(
+    () => (s.mode === "classic" ? { rainbow: s.ringRainbow, timer: s.ringTimer, ringText: String(t.raw("RingEscape.hudRing")), outText: String(t.raw("RingEscape.hudOut")), locale: hudLocale, light: isLightColor(s.backgroundColors[0]), layout: s.gapLayout, spin: s.ringSpin } : null),
+    [s.mode, s.ringRainbow, s.ringTimer, s.gapLayout, s.ringSpin, s.backgroundColors, t, hudLocale],
+  );
   // The loop families' clip slots (the owner's own clips, decoded in this session and kept on the device)
   const [loopClipViews, setLoopClipViews] = useState<LoopClipView[]>([]);
   const [loopClipFailed, setLoopClipFailed] = useState<LoopClipSlotId | null>(null);
@@ -909,6 +917,22 @@ export default function Simulator() {
     setSearchResult((r) => (r?.found ? null : r));
   }, [s.exitBehavior, s.exitJumpSeconds, s.exitSense, s.exitFleeSpeed, s.splatBarrier, s.splatSize, s.splatMax]); // eslint-disable-line react-hooks/exhaustive-deps
   // --- end gerald-exit-splat ---
+  // --- ring-escape --- Classic's gap layout, spiral step and spin travel in the physics config (the finder, the fast export, the
+  // arenas and the bot copy it): a change lays the rings out anew and drops a found seed with its promise; the ring sounds only
+  // change what the bounces play
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    const { gapLayout, gapSpiralStep, ringSpin } = ringEscapeConfigOf(s);
+    if (engine.config.gapLayout === gapLayout && engine.config.gapSpiralStep === gapSpiralStep && engine.config.ringSpin === ringSpin) return;
+    engine.setConfig({ gapLayout, gapSpiralStep, ringSpin });
+    engine.setSeed(null);
+    setSearchResult((r) => (r?.found ? null : r));
+  }, [s.gapLayout, s.gapSpiralStep, s.ringSpin]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    engineRef.current?.setConfig({ ringSound: s.ringSound });
+  }, [s.ringSound]);
+  // --- end ring-escape ---
   // --- timeline --- the keyframes travel in the physics config: the engine plays them on the simulation clock and the seed finder
   // copies them (the rotation speed's only while the rotation is on). New keyframes drop a found seed with its promise, like a new
   // obstacle layout. The live values of the automated settings are published for the panel (sliders, Timeline section).
@@ -1756,7 +1780,7 @@ export default function Simulator() {
   // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
   const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);
   const flShow = s.mode === "fightLeague" ? flShowKind({ match: s.flMatch, bestOf: s.flBestOf }) : undefined; // --- fl-overhaul --- (Stage 5) the show's own outcomes
-  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, flShow, flSides: s.mode === "fightLeague" ? flSideCount(s.flMatch, [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flFighterE, s.flFighterF]) : 0, flDecider: flBestOfGames(s.flBestOf) > 1 /* --- fl-overhaul --- (Stage 5) */, dpFan: s.mode === "doublePendulum" && s.dpFan /* --- chaos-fan --- */, colourSortSettles: s.mode === "colourSort" && csSortSettles(s.csRule) /* --- colour-sort --- */, bmMarbles: s.mode === "beatMachine" && s.bmVariant === "marbles" /* --- beat-machine --- */, vortexRings: s.mode === "vortex" && s.vxRelease === "rings" /* --- funnel-spin --- */, lcPyramid: s.mode === "landClaim" && s.lcLayout === "pyramid", lcPyramidLoop: s.mode === "landClaim" && s.lcLayout === "pyramid" && s.lcRebuild /* --- land-claim-pyramid --- */ });
+  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, flShow, flSides: s.mode === "fightLeague" ? flSideCount(s.flMatch, [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flFighterE, s.flFighterF]) : 0, flDecider: flBestOfGames(s.flBestOf) > 1 /* --- fl-overhaul --- (Stage 5) */, dpFan: s.mode === "doublePendulum" && s.dpFan /* --- chaos-fan --- */, colourSortSettles: s.mode === "colourSort" && csSortSettles(s.csRule) /* --- colour-sort --- */, bmMarbles: s.mode === "beatMachine" && s.bmVariant === "marbles" /* --- beat-machine --- */, vortexRings: s.mode === "vortex" && s.vxRelease === "rings" /* --- funnel-spin --- */, lcPyramid: s.mode === "landClaim" && s.lcLayout === "pyramid", lcPyramidLoop: s.mode === "landClaim" && s.lcLayout === "pyramid" && s.lcRebuild /* --- land-claim-pyramid --- */, ringEscape: s.mode === "classic" && ringEscapeActive(s) /* --- ring-escape --- */ });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }), t("Rigged.challengers") /* --- fl-overhaul --- (Stage 5: a boss rush's side 1) */);
   const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
@@ -3849,6 +3873,7 @@ export default function Simulator() {
               splitScreen={splitRender} // --- split-screen ---
               growLook={growLook} // --- loop-foundation ---
               loopHud={loopHudSpec} // --- loop-foundation ---
+              ringEscape={ringEscapeLook} // --- ring-escape ---
             />
           )}
           {isRecording && (

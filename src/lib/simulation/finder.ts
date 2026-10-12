@@ -21,6 +21,7 @@ import { FL_STORY_OUTCOMES, outcomeClipSec, outcomeFigure, outcomeHorizonMs, out
 import { hoopsOutcomeSettled } from "./outcomes"; // --- bead-hoops ---
 import { FILL_SLACK_MS } from "./outcomes"; // --- fl-overhaul --- (Stage 6) Make a clip's KO window
 import { fanOutcomeSettled } from "./outcomes"; // --- chaos-fan ---
+import { ringOutcomeSettled } from "./outcomes"; // --- ring-escape ---
 // --- jdm-double-pendulum ---
 import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions ---
@@ -507,6 +508,8 @@ export interface FinderResult {
   /** Land Claim's pyramid: the blocks still standing elsewhere then (0: the summit fell last). */
   summitLeft?: number;
   // --- end land-claim-pyramid ---
+  /** --- ring-escape --- Classic: when the first ring was escaped (seconds) in the run found – or in the closest one – when one was. */
+  ringAt?: number;
 }
 
 /**
@@ -1001,6 +1004,8 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   let allUp = -1;
   const fanRun = request.mode === "doublePendulum" && outcome.kind === "diverges-at"; // --- chaos-fan --- (the fan's first split, real time)
   let diverge = -1;
+  const ringRun = request.mode === "classic" && outcome.kind === "ring-at"; // --- ring-escape --- (the first ring escaped, real time)
+  let firstRing = -1;
   // --- colour-sort --- the first sort decides every outcome of it: the run is followed until it ends (every ball sorted, or
   // the mode's time limit – the horizon of the colour and the bar line) and no further
   const csRun = request.mode === "colourSort";
@@ -1016,10 +1021,12 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     if (growRun && firstFill < 0 && engine.getGrowView().fills > 0) firstFill = elapsed; // --- loop-foundation ---
     if (hoopsRun && allUp < 0 && engine.getHoopsView().firstAllUpMs >= 0) allUp = elapsed; // --- bead-hoops ---
     if (fanRun && diverge < 0 && (engine.getDoublePendulumView().fan?.divergeMs ?? -1) >= 0) diverge = elapsed; // --- chaos-fan ---
+    if (ringRun && firstRing < 0 && (engine.getRingEscapeView()?.escaped ?? 0) > 0) firstRing = elapsed; // --- ring-escape ---
     finished = engine.isSimulationFinished();
     if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode, firstResolve, settledAt, firstFill)) break;
     if (hoopsRun && hoopsOutcomeSettled(outcome, elapsed, allUp, engine.getHoopsView().orderDecided)) break; // --- bead-hoops ---
     if (fanRun && fanOutcomeSettled(outcome, elapsed, diverge)) break; // --- chaos-fan ---
+    if (ringRun && ringOutcomeSettled(outcome, elapsed, firstRing)) break; // --- ring-escape --- (a miss stops; a match plays on to the run's end)
     if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
     // --- odd-maze --- the maze's verdict is final once a ball is out: another ball's win ends the search of this seed
     if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
@@ -1047,7 +1054,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   // --- fl-overhaul --- (Stage 5) Fight League's story (RunSummary.fl) and its close battle's margin: the winner's HP share
   const fl = request.mode === "fightLeague" ? flRunSummary(engine.getFightLeagueView(), bothLowAt) : null;
   const flMargin = fl && finished && fl.winnerHpFrac >= 0 ? { margin: fl.winnerHpFrac } : {};
-  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...flMargin, ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...hoopsSummary /* --- bead-hoops --- */, ...(fanRun ? { divergeMs: diverge } : {}) /* --- chaos-fan --- */, ...(csRun ? colourSortRunFields(engine) : {}) /* --- colour-sort --- */, ...(lcView?.pyramid ? lcPyramidRunFields(lcView.pyramid) : {}) /* --- land-claim-pyramid --- */, ...(fl ? { fl } : {}) /* --- fl-overhaul --- (Stage 5) */ };
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...flMargin, ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...hoopsSummary /* --- bead-hoops --- */, ...(fanRun ? { divergeMs: diverge } : {}) /* --- chaos-fan --- */, ...(csRun ? colourSortRunFields(engine) : {}) /* --- colour-sort --- */, ...(lcView?.pyramid ? lcPyramidRunFields(lcView.pyramid) : {}) /* --- land-claim-pyramid --- */, ...(fl ? { fl } : {}) /* --- fl-overhaul --- (Stage 5) */, ...(ringRun ? { firstRingMs: firstRing } : {}) /* --- ring-escape --- */ };
 }
 
 /** --- fl-overhaul --- (Stage 6) A Fight League show's run as the progress names it: the bout it reached of the show's bouts ("3/7"). */
@@ -1103,6 +1110,7 @@ function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgres
       ...(run && (run.allUpMs ?? -1) >= 0 ? { allUpAt: (run.allUpMs ?? 0) / 1000 } : {}), // --- bead-hoops ---
       ...(run && (run.divergeMs ?? -1) >= 0 ? { divergeAt: (run.divergeMs ?? 0) / 1000 } : {}), // --- chaos-fan ---
       ...(run && (run.summitMs ?? -1) >= 0 ? { summitAt: (run.summitMs ?? 0) / 1000, summitLeft: run.summitLeft ?? -1 } : {}), // --- land-claim-pyramid ---
+      ...(run && (run.firstRingMs ?? -1) >= 0 ? { ringAt: (run.firstRingMs ?? 0) / 1000 } : {}), // --- ring-escape ---
     });
     const runBatch = () => {
       if (signal?.aborted) {

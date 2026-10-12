@@ -74,9 +74,13 @@ import type { FlRunSummary } from "@/lib/physics/modes/fightLeague"; // --- fl-o
  * --- land-claim-pyramid --- Land Claim's pyramid adds **summit-last** – the first cycle's summit falls last: the centre column
  * is the last one standing (`RunSummary.summitLeft` 0: no block stood elsewhere when the summit's last block fell). The run is
  * followed to its first cycle's end (cleared, or out of time); a looping pyramid's clip is that whole cycle.
+ *
+ * --- ring-escape --- Classic's Ring Escape adds **ring-at**: the first ring escaped – the innermost broken, the hook "it takes
+ * three seconds to get through the first one" – within ±`toleranceSec` (0.5 s) of a target second (`RunSummary.firstRingMs`); a
+ * match is followed to the run's end, so the clip is the whole escape.
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at", "no-tube-conflict", "most-in-flight" /* --- beat-machine --- */, "ring-on-bar" /* --- funnel-spin --- */, "summit-last" /* --- land-claim-pyramid --- */] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at", "no-tube-conflict", "most-in-flight" /* --- beat-machine --- */, "ring-on-bar" /* --- funnel-spin --- */, "summit-last" /* --- land-claim-pyramid --- */, "ring-at" /* --- ring-escape --- */] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
 /** --- fl-overhaul --- (Stage 5) Fight League's story outcomes (judged on `RunSummary.fl`; the run followed to its end, both-low-at to its window). */
 export const FL_STORY_OUTCOMES: readonly FinderOutcomeKind[] = ["upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at"];
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
@@ -170,6 +174,8 @@ export interface RunSummary {
   /** Land Claim's pyramid: when the first cycle's summit fell (real time, ms), −1 when it never did. */
   summitMs?: number;
   // --- end land-claim-pyramid ---
+  /** --- ring-escape --- Classic: real time (ms) the first ring was escaped, −1 or absent when none was. */
+  firstRingMs?: number;
 }
 
 // --- land-claim ---
@@ -238,6 +244,8 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
     case "sudden":
     case "champion":
     case "boss-falls-at":
+      return Math.max(clipMs, maxSimMs);
+    case "ring-at": // --- ring-escape --- (until the window has passed without a ring, or the end of a matching run)
       return Math.max(clipMs, maxSimMs);
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
@@ -458,6 +466,8 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       return sortedOnBar(outcome, run.sortedMs ?? -1);
     case "summit-last": // --- land-claim-pyramid --- (the centre column the last one standing)
       return run.summitLeft === 0;
+    case "ring-at": // --- ring-escape ---
+      return ringAtMatches(outcome, run);
     default:
       return false;
   }
@@ -526,6 +536,8 @@ function outcomeMissOf(outcome: FinderOutcome, run: RunSummary): number {
       return (run.sortedMs ?? -1) < 0 ? Infinity : barLineDistanceMs(run.sortedMs ?? 0, 1000 * (outcome.atSec ?? barSeconds(120))) / 1000;
     case "summit-last": // --- land-claim-pyramid --- the blocks still standing elsewhere when the summit fell (never fell: Infinity)
       return (run.summitLeft ?? -1) < 0 ? Infinity : (run.summitLeft ?? 0);
+    case "ring-at": // --- ring-escape --- the seconds between the first ring and the target (no ring: Infinity)
+      return (run.firstRingMs ?? -1) < 0 ? Infinity : Math.abs((run.firstRingMs ?? 0) / 1000 - (outcome.atSec ?? 0));
     default:
       return Infinity;
   }
@@ -575,6 +587,8 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
       return (run.sortedMs ?? -1) >= 0 ? (run.sortedMs ?? 0) / 1000 : 0;
     case "summit-last": // --- land-claim-pyramid --- (the blocks still standing elsewhere when the summit fell; −1 when it never did)
       return run.summitLeft ?? -1;
+    case "ring-at": // --- ring-escape --- (the first ring escaped, 0 without one)
+      return (run.firstRingMs ?? -1) >= 0 ? (run.firstRingMs ?? 0) / 1000 : 0;
     default:
       return run.durationMs / 1000;
   }
@@ -626,6 +640,8 @@ export interface OutcomeContext {
    */
   lcPyramid?: boolean;
   lcPyramidLoop?: boolean;
+  /** --- ring-escape --- Classic runs a Ring Escape option (`ringEscapeActive()`): the first ring's time can be searched (ring-at). */
+  ringEscape?: boolean;
 }
 
 /**
@@ -670,6 +686,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
     out.push("summit-last");
   }
   // --- end land-claim-pyramid ---
+  if (mode === "classic" && ctx.ringEscape) out.push("ring-at"); // --- ring-escape --- (the first ring at a chosen second)
   return out;
 }
 
@@ -684,6 +701,25 @@ export function hoopsOutcomeSettled(outcome: FinderOutcome, elapsedMs: number, a
   return false;
 }
 // --- end bead-hoops ---
+
+// --- ring-escape ---
+/**
+ * Whether a Classic run being simulated can stop for ring-at: its first ring came outside the window, or the window passed
+ * without one. A match is followed on (to the run's own end, which settles every outcome), so the found clip is the whole run.
+ */
+export function ringOutcomeSettled(outcome: FinderOutcome, elapsedMs: number, firstRingMs: number): boolean {
+  if (outcome.kind !== "ring-at") return false;
+  const tol = 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC);
+  const at = 1000 * (outcome.atSec ?? 0);
+  if (firstRingMs < 0) return elapsedMs > at + tol + FILL_SLACK_MS;
+  return Math.abs(firstRingMs - at) > tol + 1e-6;
+}
+/** ring-at: the first ring escaped within the window around the target. */
+function ringAtMatches(outcome: FinderOutcome, run: RunSummary): boolean {
+  const at = run.firstRingMs ?? -1;
+  return at >= 0 && Math.abs(at - 1000 * (outcome.atSec ?? 0)) <= 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC) + 1e-6;
+}
+// --- end ring-escape ---
 
 // --- chaos-fan ---
 /** Whether a chaos-fan run being simulated can stop for diverges-at: the fan has split (in the window or not), or the window passed without it. */

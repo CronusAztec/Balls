@@ -16436,6 +16436,242 @@ let lcpPresetUrl = "";
 // --- end land-claim-pyramid ---
 });
 
+await smokeBlock("ring-escape", async () => {
+// --- ring-escape ---
+// 46. Ring Escape (Classic, the loop family's oldest reel): the "Rainbow spiral, 11 rings" preset from Wall Settings (the
+// poster's look in the URL: eleven rings, the spiral turning together, the rainbow, the ring sounds, the black page); the
+// spiral's gaps 30° apart and the rainbow's colours on the canvas; Time in Ring – "ring k: t s" in amber under the rings, its
+// pixels, the URL round trip and the search box; the ring sounds (OscillatorNode.start instrumented: the plucks on C major
+// pentatonic, the ladder's steps); Find Simulation's "First ring at" 3 s, played back to the found second; a fast export
+// carrying the line and the voices (no loop cut: Classic does not loop); a free visitor's watermark tags and live badge clear of
+// the line.
+const RE_PRESET = "mode=classic&wc=11&gap=0.8&s=500&regl=spiral&ress=30&resp=together&rerb=1&resn=1&rwalls=0&wglow=0&ctrail=0&bg1=%23000000&bg2=%23000000";
+{
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Wall Settings/ }).click();
+  const section = page.getByTestId("ring-escape-section");
+  const shown = await section.isVisible().catch(() => false);
+  await section.locator('[data-re-preset="rainbowSpiral"]').click();
+  await page.waitForTimeout(500);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  const data = await canvasData();
+  const pressed = {
+    spiral: await section.getByRole("group", { name: "Gap Layout", exact: true }).getByRole("button", { name: "Spiral", exact: true }).getAttribute("aria-pressed"),
+    together: await section.getByRole("group", { name: "Ring Spin", exact: true }).getByRole("button", { name: "Together", exact: true }).getAttribute("aria-pressed"),
+    rainbow: await section.getByRole("switch", { name: switchName("Rainbow by Ring") }).getAttribute("aria-checked"),
+    sound: await section.getByRole("switch", { name: switchName("Ring Sounds") }).getAttribute("aria-checked"),
+    timer: await section.getByRole("switch", { name: switchName("Time in Ring") }).getAttribute("aria-checked"),
+    step: await sliderValue("Spiral Step"),
+  };
+  check(
+    "the Rainbow spiral preset: eleven rings whose gaps step 30° round in a spiral and turn together, the rainbow by ring and the ring sounds on a black page, no counter (Wall Settings shows it in Classic)",
+    shown && query.get("mode") === "classic" && query.get("wc") === "11" && query.get("regl") === "spiral" && query.get("resp") === "together" && query.get("rerb") === "1" && query.get("resn") === "1" && !query.has("retm") && query.get("bg1") === "#000000" && data.ringLayout === "spiral" && data.ringSpin === "together" && data.ringRainbow === "1" && data.ringTimer === "0" && data.ringCount === "11" && data.ringGaps === "0,30,60,90,120,150,180,210,240,270,300" && pressed.spiral === "true" && pressed.together === "true" && pressed.rainbow === "true" && pressed.sound === "true" && pressed.timer === "false" && pressed.step === "30",
+    `(${query.toString()}, ${JSON.stringify({ shown, layout: data.ringLayout, spin: data.ringSpin, rainbow: data.ringRainbow, count: data.ringCount, gaps: data.ringGaps, pressed })})`,
+  );
+  // Controls → URL (a 45° step, the timer on) and the search box
+  await page.locator('input[aria-label="Spiral Step"]').evaluate(setRangeValue, "45");
+  await section.getByRole("switch", { name: switchName("Time in Ring") }).click();
+  await page.waitForTimeout(400);
+  const after = new URLSearchParams(page.url().split("?")[1] || "");
+  const relaid = await canvasData();
+  check("Ring Escape mirrors into the URL and lays the rings out anew live (a 45° spiral, the timer on)", after.get("ress") === "45" && after.get("retm") === "1" && relaid.ringGaps === "0,45,90,135,180,225,270,315,0,45,90" && relaid.ringTimer === "1", `(${after.toString()}, gaps=${relaid.ringGaps})`);
+  await page.getByPlaceholder("Search settings...").fill("spiral step");
+  const found = await page.locator('input[aria-label="Spiral Step"]').isVisible();
+  const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the Ring Escape controls", found && hidden, `(spiral step=${found}, ball speed hidden=${hidden})`);
+}
+{
+  // URL → the run: the rainbow's colours on the rings, the timer's amber line under them (its text and pixels), the ring sounds
+  await page.goto(`${BASE}/en/simulator/?${RE_PRESET}&retm=1&seed=21`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const log = { strokes: new Set(), texts: [], osc: [] };
+    window.__reLog = log;
+    const main = () => document.querySelector("main canvas");
+    const stroke = CanvasRenderingContext2D.prototype.stroke;
+    CanvasRenderingContext2D.prototype.stroke = function (...args) {
+      if (this.canvas === main() && log.strokes.size < 400) log.strokes.add(String(this.strokeStyle));
+      return stroke.apply(this, args);
+    };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+      if (this.canvas === main() && log.texts.length < 4000 && /^(ring \d+: \d+\.\d s|out in \d+\.\d s)$/.test(String(text))) {
+        const m = this.getTransform();
+        const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 10) * m.d;
+        log.texts.push({ text: String(text), fill: String(this.fillStyle), x: m.a * x + m.e, y: m.d * y + m.f, size, width: this.measureText(String(text)).width * m.a });
+      }
+      return fillText.call(this, text, x, y, ...rest);
+    };
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (!(this.context instanceof OfflineAudioContext) && log.osc.length < 20000) log.osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  const escaped = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.ringEscaped) >= 2, null, { timeout: 45_000 }).then(() => true).catch(() => false);
+  await page.waitForTimeout(300);
+  const run = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-ring-escape.png") });
+  const seen = await page.evaluate(() => {
+    const log = window.__reLog;
+    const last = log.texts[log.texts.length - 1] ?? null;
+    let amber = 0;
+    if (last) {
+      // the line's pixels: amber (#f2c46a) on the black page around the drawn text
+      const c = document.querySelector("main canvas");
+      const g = c.getContext("2d");
+      const x0 = Math.max(0, Math.floor(last.x - last.width / 2));
+      const y0 = Math.max(0, Math.floor(last.y - 0.6 * last.size));
+      const w = Math.max(1, Math.min(c.width - x0, Math.ceil(last.width)));
+      const h = Math.max(1, Math.min(c.height - y0, Math.ceil(1.2 * last.size)));
+      const px = g.getImageData(x0, y0, w, h).data;
+      for (let i = 0; i < px.length; i += 4) if (px[i] > 180 && px[i + 1] > 140 && px[i + 2] < 150 && px[i] > px[i + 2] + 60) amber++;
+    }
+    // the rainbow's ends as the canvas reports a stroke style (it serialises hsl() as #rrggbb)
+    const scratch = document.createElement("canvas").getContext("2d");
+    const norm = (color) => {
+      scratch.strokeStyle = "#000000";
+      scratch.strokeStyle = color;
+      return String(scratch.strokeStyle);
+    };
+    return { strokes: [...log.strokes], texts: log.texts.slice(-3).map((t) => t.text), fill: last?.fill ?? null, amber, osc: log.osc.slice(), cyan: norm("hsl(180, 100%, 60%)"), red: norm("hsl(0, 100%, 60%)") };
+  });
+  const pentatonic = new Set([0, 2, 4, 7, 9]);
+  const notes = seen.osc.map((f) => 69 + 12 * Math.log2(f / 440)).filter((m) => Math.abs(m - Math.round(m)) < 0.02).map(Math.round);
+  const plucks = notes.filter((m) => m >= 48 && m <= 76 && pentatonic.has(m % 12)).length;
+  const steps = notes.filter((m) => m >= 79 && m <= 103 && pentatonic.has(m % 12)).length;
+  const rainbow = seen.strokes.includes(seen.cyan) && seen.strokes.includes(seen.red);
+  check(
+    "a Ring Escape run: the rings in a rainbow (cyan inside, red outside), \"ring k: t s\" in amber under them (its pixels on the canvas), the plucks on C major pentatonic and a rising step for every ring escaped",
+    escaped && rainbow && /^ring \d+: \d+\.\d s$/.test(run.ringTimerText ?? "") && Number(run.ringCurrent) === Number(run.ringEscaped) + 1 && Number(run.ringFirstMs) > 0 && seen.fill === "#f2c46a" && seen.amber >= 20 && Number(run.ringTimerY) > 0 && plucks >= 5 && steps >= 2,
+    `(${JSON.stringify({ escaped, rainbow, ends: [seen.cyan, seen.red], strokes: seen.strokes.slice(0, 14), text: run.ringTimerText, texts: seen.texts, current: run.ringCurrent, escapedRings: run.ringEscaped, first: run.ringFirstMs, fill: seen.fill, amber: seen.amber, y: run.ringTimerY, plucks, steps, osc: seen.osc.length })})`,
+  );
+}
+{
+  // Find Simulation: the first ring at 3 s (± 0.5 s), found and played back to the found second
+  await page.goto(`${BASE}/en/simulator/?${RE_PRESET}`, { waitUntil: "networkidle" });
+  const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value));
+  await page.locator("#find-outcome").selectOption("ring-at");
+  await page.locator("#find-ring-at").evaluate(setRangeValue, "3");
+  const button = page.getByRole("button", { name: /Find a Run Through the First Ring at 3\.0s/ });
+  const labelled = await button.isVisible().catch(() => false);
+  await button.click().catch(() => {});
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const at = /Through the first ring at ([\d.]+)s/.exec(text);
+  let played = {};
+  if (at) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.ringEscaped) >= 1, null, { timeout: 30_000 }).catch(() => {});
+    played = await canvasData();
+  }
+  check(
+    "Find Simulation's First ring at: a Classic run through its first ring at 3 s ± 0.5 s, played back to the found second",
+    options.includes("ring-at") && options.includes("escapes-at") && labelled && !!at && Math.abs(Number(at[1]) - 3) <= 0.5 + 1e-9 && Math.abs(Number(played.ringFirstMs) / 1000 - Number(at[1])) < 0.02,
+    `(options=${options.join(",")}, "${text}", played first=${played.ringFirstMs})`,
+  );
+}
+{
+  // ⚡ A fast export of the timer's run (500×500, 30 fps, 10 s – the shortest clip a link sets): the line in its frames, the
+  // plucks and the steps through its own audio, and no whole-loop cut (Classic reports no cycle: the clip keeps its length)
+  await page.goto(`${BASE}/en/simulator/?${RE_PRESET}&retm=1&seed=21&dur=10&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const osc = [];
+      const texts = [];
+      window.__reOfflineOsc = osc;
+      window.__reFrameTexts = texts;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.context instanceof OfflineAudioContext && osc.length < 20000) osc.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        if (texts.length < 20000 && /^ring \d+: \d+\.\d s$/.test(String(text))) texts.push(String(text));
+        return fillText.call(this, text, ...rest);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `ring-escape-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const loops = await panel.getAttribute("data-fast-loops");
+    const status = await panel.getAttribute("data-fast-export");
+    const heard = await page.evaluate(() => ({ osc: window.__reOfflineOsc.length, texts: window.__reFrameTexts.length, rings: [...new Set(window.__reFrameTexts.map((t) => t.split(":")[0]))] }));
+    check(
+      "a Ring Escape fast export carries the time-in-ring line in its frames, plays the ring sounds through its own audio and keeps its 10 s (Classic does not loop: no whole-loop cut)",
+      status === "done" && bytes > 10000 && loops === null && Math.abs(seconds - 10) <= 0.1 && heard.texts >= 30 && heard.rings.length >= 2 && heard.osc >= 10,
+      `(${JSON.stringify({ status, bytes, seconds, loops, heard })})`,
+    );
+  } else check("without WebCodecs the Ring Escape fast export is not checked (the live run is covered above)", true);
+}
+{
+  // A free visitor: Record Video and Fast export carry the watermark tag, and the live badge never covers the time-in-ring line
+  const freeContext = await browser.newContext({ license: null, viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  try {
+    const fp = await freeContext.newPage();
+    await fp.goto(`${BASE}/en/simulator/?${RE_PRESET}&retm=1`, { waitUntil: "networkidle" });
+    await fp.evaluate(() => {
+      const log = { draws: [], texts: [] };
+      window.__reMark = log;
+      const main = () => document.querySelector("main canvas");
+      const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+      CanvasRenderingContext2D.prototype.drawImage = function (img, ...rest) {
+        if (this.canvas === main() && log.draws.length < 20000) log.draws.push({ w: img.width, h: img.height, x: rest[0], y: rest[1], cw: this.canvas.width, ch: this.canvas.height });
+        return drawImage.call(this, img, ...rest);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+        if (this.canvas === main() && log.texts.length < 20000 && /^ring \d+: /.test(String(text))) {
+          const m = this.getTransform();
+          const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 10) * m.d;
+          log.texts.push({ x: m.a * x + m.e, y: m.d * y + m.f, size, width: this.measureText(String(text)).width * m.a });
+        }
+        return fillText.call(this, text, x, y, ...rest);
+      };
+    });
+    await fp.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+    const tags = { record: await fp.getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").count(), fast: await fp.getByRole("button", { name: /Fast export/ }).locator("[data-watermark-tag]").count() };
+    await fp.getByRole("button", { name: /Start Simulator/ }).click();
+    await fp.waitForTimeout(7500);
+    const mark = await fp.evaluate(() => {
+      const { draws, texts } = window.__reMark;
+      const badges = [];
+      for (let i = 1; i < draws.length; i++) {
+        const p = draws[i - 1];
+        if (p.x === 0 && p.y === 0 && p.w === p.cw && p.h === p.ch) badges.push(draws[i]);
+      }
+      const spots = [...new Map(badges.map((b) => [`${Math.round(b.x)},${Math.round(b.y)}`, b])).values()];
+      const lines = texts.slice(-4).map((t) => ({ x0: t.x - t.width / 2, x1: t.x + t.width / 2, y0: t.y - 0.6 * t.size, y1: t.y + 0.6 * t.size }));
+      const pill = (b) => ({ x: b.x + 0.2 * b.h, y: b.y + 0.2 * b.h, w: b.w - 0.4 * b.h, h: 0.6 * b.h });
+      const overlaps = spots.map(pill).filter((b) => lines.some((l) => b.x < l.x1 && b.x + b.w > l.x0 && b.y < l.y1 && b.y + b.h > l.y0)).length;
+      const inside = lines.every((l) => l.y0 >= 0 && l.y1 <= (draws[0]?.ch ?? Infinity));
+      return { spots: spots.map((b) => [Math.round(b.x), Math.round(b.y), b.w, b.h]), lines: lines.slice(-1).map((l) => [Math.round(l.x0), Math.round(l.y0), Math.round(l.x1), Math.round(l.y1)]), overlaps, inside, count: texts.length };
+    });
+    check(
+      "a free visitor's Ring Escape page: the watermark tag on Record Video and Fast export, the live badge clear of the time-in-ring line, the line inside the canvas",
+      tags.record >= 1 && tags.fast >= 1 && mark.spots.length >= 1 && mark.overlaps === 0 && mark.count >= 2 && mark.inside,
+      `(${JSON.stringify({ tags, ...mark })})`,
+    );
+  } finally {
+    await freeContext.close().catch(() => {});
+  }
+}
+// --- end ring-escape ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

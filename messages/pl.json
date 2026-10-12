@@ -2339,7 +2339,29 @@
     "lcRebuildSecTip": "Ile sekund trwa odbudowa: kolumny wyrastają z podłogi, dodane kulki wtapiają się w piramidę, a pierwsze wracają do swoich narożników.",
     "lcpLoopNote": "Przebieg się zapętla: zbicie, krótka pauza, odbudowa i znów pierwsza klatka. Znajdź symulację przeszukuje pierwszy cykl; klip obejmuje cały cykl.",
     "lcpEndNote": "Przebieg kończy się, gdy spadnie ostatni blok (albo po czasie bitwy), jak bitwa na ścianie.",
-    "lcPresetPyramid1144": "Piramida, 1144 bloki"
+    "lcPresetPyramid1144": "Piramida, 1144 bloki",
+    "reDesc": "Ucieczka z pierścieni, na wzór najstarszego filmu z rodziny pętli: ułóż szczeliny w spiralę, obracaj pierścienie razem, pomaluj je w tęczę, mierz czas w każdym pierścieniu i słuchaj rosnącego dźwięku za każdy pierścień, przez który przejdzie piłka.",
+    "reSpiralPreset": "Ucieczka z pierścieni",
+    "reSpiralPresetTip": "Wygląd z filmu: czysto czarne tło, jedenaście cienkich tęczowych pierścieni, których szczeliny przesuwają się spiralnie i obracają razem, biała piłka z krótkim śladem i dźwięki pierścieni. Bez tytułu i bez licznika.",
+    "reSpiralPresetButton": "Tęczowa spirala, 11 pierścieni",
+    "gapLayout": "Układ szczelin",
+    "gapLayoutTip": "Gdzie zaczyna się szczelina każdego pierścienia. Równy: rozłożone równo dookoła (klasyczny wygląd). Losowy: w dowolnym miejscu, z seeda przebiegu. W linii: wszystkie szczeliny w jednej prostej. Spirala: każda szczelina o stały krok dalej niż ta w pierścieniu wewnątrz.",
+    "gapLayoutEven": "Równy",
+    "gapLayoutRandom": "Losowy",
+    "gapLayoutAligned": "W linii",
+    "gapLayoutSpiral": "Spirala",
+    "gapSpiralStep": "Krok spirali",
+    "gapSpiralStepTip": "Stopnie między szczelinami sąsiednich pierścieni w układzie spirali. 0 ustawia je wszystkie w linii; pole przyjmuje każdą wartość od 0.",
+    "ringSpin": "Obrót pierścieni",
+    "ringSpinTip": "Naprzemienny: sąsiednie pierścienie obracają się w przeciwne strony (klasyczne pierścienie). Razem: każdy pierścień obraca się w tę samą stronę z tą samą prędkością, więc spirala obraca się, pozostając spiralą.",
+    "ringSpinAlternate": "Naprzemienny",
+    "ringSpinTogether": "Razem",
+    "ringRainbow": "Tęcza według pierścieni",
+    "ringRainbowTip": "Koloruje każdy pierścień według jego miejsca: czerwony na zewnątrz, przez pomarańczowy, żółty i zielony, do błękitnego w środku.",
+    "ringTimer": "Czas w pierścieniu",
+    "ringTimerTip": "Pokazuje pod pierścieniami „pierścień k: t s”: jak długo piłka jest w obecnym pierścieniu, a po wydostaniu się „na zewnątrz po t s”. Nagrania to zawierają.",
+    "ringSound": "Dźwięki pierścieni",
+    "ringSoundTip": "Oryginalne, syntezowane dźwięki: miękkie pentatoniczne szarpnięcie przy każdym odbiciu, o wysokości zależnej od pierścienia (zewnętrzne nisko, wewnętrzne wysoko), rosnący dźwięk za każdy pokonany pierścień i ciepły akord, gdy piłka jest na zewnątrz."
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -3109,7 +3131,17 @@
     "missSummitLast": "Najbliżej: gdy spadł szczyt, stało jeszcze {count, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}} ({seeds} seedów)",
     "missNoSummit": "Szczyt nie spadł przed końcem czasu bitwy ({seeds} seedów)",
     "overlaySummitLast": "Sprawdzono {tested} seedów: w najbliższym, gdy spadł szczyt, stało jeszcze {count, plural, one {# blok} few {# bloki} many {# bloków} other {# bloku}}. Spróbuj więcej seedów albo dłuższej bitwy.",
-    "overlayNoSummit": "Sprawdzono {tested} seedów: szczyt nie spadł przed końcem czasu bitwy. Spróbuj dłuższej bitwy, więcej kulek albo szybszych kulek."
+    "overlayNoSummit": "Sprawdzono {tested} seedów: szczyt nie spadł przed końcem czasu bitwy. Spróbuj dłuższej bitwy, więcej kulek albo szybszych kulek.",
+    "outcomeRingAt": "Pierwszy pierścień w",
+    "hintRingAt": "Piłka przechodzi przez pierwszy pierścień w granicach ±0,5 s od wybranej sekundy, jak w „przejście przez pierwszy zajmuje trzy sekundy”. Znaleziony przebieg jest nagrywany do końca.",
+    "findRingAt": "Znajdź przejście przez pierwszy pierścień w {time}s",
+    "foundRingAt": "Znaleziono! Przez pierwszy pierścień w {time}s",
+    "missRingAt": "Najbliższy pierwszy pierścień: {time}s ({seeds} seedów)",
+    "missNoRing": "Żadna piłka nie przeszła na czas przez pierwszy pierścień ({seeds} seedów)",
+    "overlayRingAt": "Sprawdzono {tested} seedów. Najbliższy pierwszy pierścień padł w {closest}s (cel: {target}s ±{tolerance}s).",
+    "overlayNoRing": "Sprawdzono {tested} seedów i żadna piłka nie przeszła przez pierwszy pierścień do {target}s. Spróbuj późniejszej sekundy lub większej szczeliny.",
+    "progressRingAt": "Najbliższy pierwszy pierścień: {time}s",
+    "ringAt": "Pierwszy pierścień w"
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -5281,5 +5313,9 @@
     "bmBassTip": "Miękka nuta basu co dwa takty, na najniższej nucie frazy w tym miejscu.",
     "bmCounter": "Licznik nut",
     "bmCounterTip": "Pokazuje nuty bieżącej pętli w nakładce pętli („12 / 32 nut”)."
+  },
+  "RingEscape": {
+    "hudRing": "pierścień {ring}: {time} s",
+    "hudOut": "na zewnątrz po {time} s"
   }
 }

@@ -6,6 +6,7 @@ import type { BeatDropPadKind } from "@/lib/simulation/beatDropPlan"; // --- bea
 import type { BounceMathConfig } from "@/lib/simulation/bounceMath"; // --- bounce-math ---
 import type { UnlimitedConfig } from "./limits"; // --- unlimited ---
 import type { ExitBehavior } from "./exitSplat"; // --- gerald-exit-splat ---
+import type { GapLayout, RingSpin } from "./ringEscape"; // --- ring-escape ---
 
 /**
  * Shared types for the physics engine and its game modes.
@@ -257,6 +258,16 @@ export interface PhysicsConfig extends Partial<PhysicsExtras>, Partial<BallInter
   /** The most splats at once; past it the oldest fade out. */
   splatMax?: number;
   // --- end gerald-exit-splat ---
+  // --- ring-escape --- Classic's rings (lib/physics/ringEscape.ts); absent: the classic even layout, alternating spin, the classic tones
+  /** even (as always) | random (seeded) | aligned | spiral: where each ring's gap starts. */
+  gapLayout?: GapLayout;
+  /** Degrees between neighbouring gaps of the spiral layout. */
+  gapSpiralStep?: number;
+  /** alternate (even rings one way, odd the other, as always) | together (every ring the same way). */
+  ringSpin?: RingSpin;
+  /** The loop family's voices: a pluck per bounce pitched by the ring, a rising step per ring escaped, the chord at the way out. */
+  ringSound?: boolean;
+  // --- end ring-escape ---
 }
 
 export interface SoundEvent {
