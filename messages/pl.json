@@ -5173,6 +5173,7 @@
     "growApproach": "{count}% bliżej ściany z każdym odbiciem",
     "seconds": "{count} sekund: {mode}",
     "starChords": "kulki: {count}, jeden okrąg, każda gwiazda domyka się w tej samej klatce",
+    "starChordsOne": "{count} kulka, jeden okrąg, jedna gwiazda domyka się sama",
     "starChordsFact": "Wielokąt gwiaździsty to to, co rysuje kulka, gdy każde odbicie przesuwa ją o tyle samo punktów wokół obwodu. Każda prosta leży w tej samej odległości od środka, więc pośrodku pojawia się okrąg, którego żadna kulka nigdy nie dotyka. Każda kulka porusza się tu z jedyną prędkością, która kończy jej gwiazdę w tym samym czasie co pozostałe.",
     "hoops": "na {count} obręczach wirujących coraz szybciej koraliki wspinają się po kolei, od największej obręczy",
     "hoopsOne": "{count} obręcz wiruje coraz szybciej, aż jej koralik zaczyna się wspinać",

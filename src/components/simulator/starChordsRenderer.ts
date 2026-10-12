@@ -45,6 +45,13 @@ const FLASH_SEC = 0.75;
 const ENVELOPE_IN_SEC = 0.35;
 /** The layer's fade past the ceiling: every quarter of it, the chords so far at half their strength. */
 const FADE_EVERY = SC_CHORD_CEILING / 4;
+/**
+ * --- low-findings-2 --- The glow sprites kept at most: a memory-safety ceiling above any palette's distinct colours (the rainbow
+ * and the pastel hues are whole degrees – 360 at most – plus the twelve pastels; the Ball Color palette is one), so the live
+ * palette's sprites are all kept whatever the ball count and none is made again frame after frame. Past it (a palette that
+ * never fits) a ball's glow is a plain soft disc, never a sprite made anew.
+ */
+export const SC_GLOW_SPRITE_CEILING = 512;
 
 /** Ease in-out (sine): the fade of the drawing. */
 function ease(p: number): number {
@@ -78,6 +85,11 @@ export class StarChordsLayer {
   lastCycleLayerChords = -1;
   lastLayerCycle = -1;
   private readonly glowSprites = new Map<string, HTMLCanvasElement>();
+  /** --- low-findings-2 --- The run and the colours the sprites were made for (a new run or palette starts the cache over). */
+  private glowGen = -1;
+  private glowColorVersion = -1;
+  /** For the tests: the glow sprites made so far. */
+  glowSpritesMade = 0;
 
   /** World space, under the balls: the circle, the inner circles, the chords (faded with the loop), the chords being drawn, the glints. */
   drawStage(ctx: CanvasRenderingContext2D, view: StarChordsView, o: StarChordsRenderOptions) {
@@ -104,6 +116,12 @@ export class StarChordsLayer {
   drawBodies(ctx: CanvasRenderingContext2D, view: StarChordsView, o: StarChordsRenderOptions) {
     const r = view.field.ballRadius;
     const glowR = (o.showGlow ? 3.2 : 2.2) * r;
+    // --- low-findings-2 --- the sprites of the live palette: started over only with a new run or new colours
+    if (view.generation !== this.glowGen || view.colorVersion !== this.glowColorVersion) {
+      this.glowSprites.clear();
+      this.glowGen = view.generation;
+      this.glowColorVersion = view.colorVersion;
+    }
     ctx.save();
     ctx.shadowBlur = 0;
     for (let i = 0; i < view.count; i++) {
@@ -111,7 +129,16 @@ export class StarChordsLayer {
       const x = view.x[i];
       const y = view.y[i];
       ctx.globalAlpha = o.showGlow ? 0.85 : 0.6;
-      ctx.drawImage(this.glowSprite(color), x - glowR, y - glowR, 2 * glowR, 2 * glowR);
+      const sprite = this.glowSprite(color);
+      if (sprite) ctx.drawImage(sprite, x - glowR, y - glowR, 2 * glowR, 2 * glowR);
+      else {
+        // (past the sprite ceiling: a faint disc in the ball's colour)
+        ctx.globalAlpha *= 0.25;
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(x, y, 0.7 * glowR, 0, 2 * Math.PI);
+        ctx.fill();
+      }
       ctx.globalAlpha = 1;
       ctx.fillStyle = color;
       ctx.beginPath();
@@ -349,10 +376,11 @@ export class StarChordsLayer {
     this.layerChords += pending;
   }
 
-  /** A soft round glow in `color` (one sprite per colour, scaled to any size). */
-  private glowSprite(color: string): HTMLCanvasElement {
+  /** A soft round glow in `color` (one sprite per colour, scaled to any size); null past `SC_GLOW_SPRITE_CEILING` colours. */
+  private glowSprite(color: string): HTMLCanvasElement | null {
     let sprite = this.glowSprites.get(color);
     if (sprite) return sprite;
+    if (this.glowSprites.size >= SC_GLOW_SPRITE_CEILING) return null;
     const size = 64;
     sprite = document.createElement("canvas");
     sprite.width = size;
@@ -367,8 +395,8 @@ export class StarChordsLayer {
       g.fillStyle = grad;
       g.fillRect(0, 0, size, size);
     }
-    if (this.glowSprites.size > 256) this.glowSprites.clear();
     this.glowSprites.set(color, sprite);
+    this.glowSpritesMade++;
     return sprite;
   }
 }

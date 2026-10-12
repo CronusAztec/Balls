@@ -83,20 +83,27 @@ export interface HoopsSettings {
   bed: boolean;
 }
 
+/**
+ * --- low-findings-2 --- The default loop puts its payoff – the chord as the last bead lifts – at about 68 % of the cycle and
+ * holds the top until about 76 % (the loop family's 65–85 %): a slow 20.5 s climb to 1.05 turns a second, just past the inner
+ * hoop's critical spin (≈ 1.0), so the last bead lifts near the top of the ramp; a 1 s top hold (1.1 s with the whole turns) and
+ * a 4 s return that still settles the beads inner first lead into the rest and the seam. A cycle of exactly 28.6 s (whole steps
+ * of 60 Hz and whole frames of 30 fps, like the 23.2 s it replaces).
+ */
 export const DEFAULT_HOOPS_SETTINGS: Readonly<HoopsSettings> = {
   count: 8,
   radiusMax: 0.75,
   radiusMin: 0.25,
   gravity: 9.81,
   omegaStart: 0.13,
-  omegaEnd: 1.2,
-  rampSec: 12,
-  returnSec: 6,
+  omegaEnd: 1.05,
+  rampSec: 20.5,
+  returnSec: 4,
   rampShape: "linear",
   damping: 1,
   returnLoop: true,
   jitter: 0.004,
-  holdSec: 2,
+  holdSec: 1,
   tick: true,
   bed: false,
 };

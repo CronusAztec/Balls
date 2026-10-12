@@ -5173,6 +5173,7 @@
     "growApproach": "{count}% closer to the wall with every bounce",
     "seconds": "{count} seconds of {mode}",
     "starChords": "{count} balls, one circle, every star closing on the same frame",
+    "starChordsOne": "{count} ball, one circle, one star closing on itself",
     "starChordsFact": "A star polygon is what a ball draws when every bounce moves it the same number of points round the rim. Each straight line stays the same distance from the centre, so a circle appears in the middle that no ball ever touches. Every ball here moves at the one speed that finishes its star in the same time as the others.",
     "hoops": "{count} hoops spinning faster and faster: the beads climb in order, the biggest hoop first",
     "hoopsOne": "{count} hoop spinning faster and faster, until its bead starts to climb",

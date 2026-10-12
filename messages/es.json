@@ -5173,6 +5173,7 @@
     "growApproach": "{count}% más cerca de la pared en cada rebote",
     "seconds": "{count} segundos de {mode}",
     "starChords": "{count} bolas, un círculo, cada estrella se cierra en el mismo fotograma",
+    "starChordsOne": "{count} bola, un círculo, una estrella que se cierra sobre sí misma",
     "starChordsFact": "Un polígono estrellado es lo que dibuja una bola cuando cada rebote la mueve el mismo número de puntos por el borde. Cada recta queda a la misma distancia del centro, así que en medio aparece un círculo que ninguna bola toca nunca. Aquí cada bola se mueve a la única velocidad que termina su estrella en el mismo tiempo que las demás.",
     "hoops": "{count} aros girando cada vez más rápido: las cuentas suben por orden, primero la del aro más grande",
     "hoopsOne": "{count} aro girando cada vez más rápido, hasta que su cuenta empieza a subir",

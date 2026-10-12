@@ -70,6 +70,12 @@ const STEP = 1000 / 60;
 const config: PhysicsConfig = { width: 800, height: 800, gravity: 300, bounce: 1, damping: 0, ballSpeed: 400, rotationSpeed: 1, wallCount: 7, gapSize: 0.4, ballColor: "#ffffff", ballRadius: 8, audioIntensity: 0 };
 const base: ModeSettings = { bouncierEnabled: false, countdownTotal: 10, countdownRandom: false, colorMatchColorCount: 7, accumulationTimerMax: 4000, spikesEnabled: false, spikeCount: 6, multiplySpawnCount: 3, shatterSegmentsPerWall: 18, shatterHpPerSegment: 1, growRate: 5, portalCount: 3, twoBalls: false, drop: {}, box: {} };
 
+/**
+ * --- low-findings-2 --- The defaults before the payoff retune (0.13 → 1.2 turns a second over 12 s, a 2 s top hold, a 6 s return:
+ * a 23.2 s cycle). The fingerprints pinned on it stay pinned on it, run explicitly.
+ */
+const EARLY: Partial<HoopsSettings> = { omegaEnd: 1.2, rampSec: 12, returnSec: 6, holdSec: 2 };
+
 function engineOf(hoops: Partial<HoopsSettings> = {}, seed = 7, size: Partial<PhysicsConfig> = {}): PhysicsEngine {
   return createEngineForSettings({ ...config, ...size }, "hoops", { ...base, hoops }, seed);
 }
@@ -225,11 +231,12 @@ describe("Spinning Hoops: the spin's schedule", () => {
 
   it("a cycle is the ramp, the top hold (stretched by less than a turn), the mirrored return and the rest: whole turns", () => {
     const sc = hoopsSchedule(DEFAULT_HOOPS_SETTINGS);
-    expect([sc.up, sc.down, sc.settle, sc.loop]).toEqual([12, 6, HOOPS_SETTLE_SEC, true]);
-    expect(sc.hold).toBeGreaterThanOrEqual(2);
-    expect(sc.hold).toBeLessThan(2 + 1 / sc.b);
+    expect([sc.up, sc.down, sc.settle, sc.loop]).toEqual([20.5, 4, HOOPS_SETTLE_SEC, true]); // --- low-findings-2 --- (the payoff retune)
+    expect(sc.hold).toBeGreaterThanOrEqual(1);
+    expect(sc.hold).toBeLessThan(1 + 1 / sc.b);
     expect(sc.cycle).toBeCloseTo(sc.up + sc.hold + sc.down + sc.settle, 12);
-    expect(sc.cycle).toBeCloseTo(23.2, 9);
+    expect(sc.cycle).toBeCloseTo(28.6, 9);
+    expect(hoopsSchedule(settingsOf(EARLY)).cycle).toBeCloseTo(23.2, 9); // (the tuning before it)
     expect(Number.isInteger(sc.turns)).toBe(true);
     expect(scheduleTurns(sc, sc.cycle)).toBeCloseTo(sc.turns, 9);
     for (const shape of HOOPS_RAMP_SHAPES) {
@@ -270,7 +277,7 @@ describe("Spinning Hoops: the spin's schedule", () => {
     expect([schedulePhase(linear, 1), schedulePhase(linear, linear.up + 0.1), schedulePhase(linear, top + 0.1), schedulePhase(linear, linear.cycle - 0.1)]).toEqual(["up", "hold", "down", "settle"]);
     // without the return the run is the ramp and the hold, then it is done
     const once = hoopsSchedule(settingsOf({ returnLoop: false }));
-    expect([once.loop, once.cycle, schedulePhase(once, once.cycle + 1)]).toEqual([false, 14, "done"]);
+    expect([once.loop, once.cycle, schedulePhase(once, once.cycle + 1)]).toEqual([false, 21.5, "done"]); // --- low-findings-2 --- (20.5 s up, 1 s hold)
   });
 
   it("sub-steps by simulation time only: at least 8 a 60 Hz step, more for stiff hoops, never more than 256", () => {
@@ -300,9 +307,11 @@ describe("Spinning Hoops: the spin's schedule", () => {
       return { state: fnv(new Uint8Array(state.buffer)), balls: fnv(new Uint8Array(balls.buffer)), sounds: fnv(new TextEncoder().encode(kinds.join("|"))), counts: [v.lifts, v.settles, v.ticks, v.seams, v.upCount].join(","), order: v.liftOrder.join(",") };
     }
     const pinned: [Partial<HoopsSettings>, number, number, ReturnType<typeof fingerprint>][] = [
-      [{}, 25, 7, { state: 352939752, balls: 1408551317, sounds: 1590370778, counts: "8,8,16,1,0", order: "" }],
-      [{ count: 2, radiusMin: 0.4, rampShape: "steps" }, 25, 3, { state: 2416355523, balls: 1068521239, sounds: 804856254, counts: "2,2,12,1,0", order: "" }],
-      [{ count: 1, radiusMax: 0.75, radiusMin: 0.75, rampSec: 20, rampShape: "ease", omegaEnd: 0.9, damping: 0.8 }, 12, 11, { state: 2606840233, balls: 1046182795, sounds: 1971007996, counts: "1,0,4,0,1", order: "0" }],
+      // (--- low-findings-2 --- pinned on the tuning before the payoff retune, run explicitly; the retuned defaults pinned last)
+      [{ ...EARLY }, 25, 7, { state: 352939752, balls: 1408551317, sounds: 1590370778, counts: "8,8,16,1,0", order: "" }],
+      [{ ...EARLY, count: 2, radiusMin: 0.4, rampShape: "steps" }, 25, 3, { state: 2416355523, balls: 1068521239, sounds: 804856254, counts: "2,2,12,1,0", order: "" }],
+      [{ ...EARLY, count: 1, radiusMax: 0.75, radiusMin: 0.75, rampSec: 20, rampShape: "ease", omegaEnd: 0.9, damping: 0.8 }, 12, 11, { state: 2606840233, balls: 1046182795, sounds: 1971007996, counts: "1,0,4,0,1", order: "0" }],
+      [{}, 30, 7, { state: 0, balls: 0, sounds: 0, counts: "", order: "" }],
     ];
     for (const [hoops, seconds, seed, expected] of pinned) {
       expect(fingerprint(hoops, 1000 / 60, seconds, seed), `60 fps ${JSON.stringify(hoops)}`).toEqual(expected);
@@ -400,10 +409,10 @@ describe("Spinning Hoops: the sounds", () => {
   });
 
   it("the switches: no chime with the tick off, no bed by default", () => {
-    const quiet = run(engineOf({ tick: false }), 15);
+    const quiet = run(engineOf({ tick: false }), 21); // (--- low-findings-2 --- every bead up by 21 s since the payoff retune)
     expect(ofKind(quiet, "chime")).toHaveLength(0);
     expect(ofKind(quiet, "bar")).toHaveLength(8);
-    expect(ofKind(run(engineOf(), 15), "bed")).toHaveLength(0);
+    expect(ofKind(run(engineOf(), 21), "bed")).toHaveLength(0);
     // the switches follow live (the rest waits for the next run)
     const engine = engineOf();
     run(engine, 2);
@@ -439,7 +448,7 @@ describe("Spinning Hoops: the loop, the HUD and the picture", () => {
     // without the return it never loops and finishes after the hold
     const once = engineOf({ returnLoop: false });
     expect(once.getCycleSeconds()).toBeNull();
-    run(once, 15);
+    run(once, 22); // (--- low-findings-2 --- the ramp and the hold: 21.5 s since the payoff retune)
     expect([once.getLoopSeams(), once.isSimulationFinished(), once.getHoopsView().phase]).toEqual([null, true, "done"]);
   });
 
@@ -451,9 +460,9 @@ describe("Spinning Hoops: the loop, the HUD and the picture", () => {
     engine.update(STEP, 0);
     expect(loopHudFrame(spec(en.LoopHud.hoopsCounter), loopHudCount(engine)).counter).toBe("0.13 turns a second · 0 of 8 beads up");
     expect(loopHudFrame({ ...spec(pl.LoopHud.hoopsCounter), locale: "pl" }, loopHudCount(engine)).counter).toBe("0,13 obr./s · w górze: 0 z 8 koralików");
-    run(engine, 13);
-    expect(loopHudFrame(spec(en.LoopHud.hoopsCounter), loopHudCount(engine), "en").counter).toBe("1.20 turns a second · 8 of 8 beads up");
-    expect(loopHudFrame(spec(es.LoopHud.hoopsCounter), loopHudCount(engine), "es").counter).toBe("1,20 vueltas por segundo · 8 de 8 cuentas arriba");
+    run(engine, 21); // (--- low-findings-2 --- the top hold of the retuned defaults: 1.05 turns a second)
+    expect(loopHudFrame(spec(en.LoopHud.hoopsCounter), loopHudCount(engine), "en").counter).toBe("1.05 turns a second · 8 of 8 beads up");
+    expect(loopHudFrame(spec(es.LoopHud.hoopsCounter), loopHudCount(engine), "es").counter).toBe("1,05 vueltas por segundo · 8 de 8 cuentas arriba");
     expect(hudNumber(3, "pl")).toBe("3");
     expect(hudNumber(0.125)).toBe("0.13");
     // every title is lowercase (the account's convention), every counter carries the three values
@@ -467,7 +476,7 @@ describe("Spinning Hoops: the loop, the HUD and the picture", () => {
   it("draws every hoop and bead at the frame's own time: φ from the schedule, the angle between the last two steps", () => {
     const engine = engineOf();
     const v = engine.getHoopsView();
-    run(engine, 11);
+    run(engine, 21); // (--- low-findings-2 --- every bead up: the retuned defaults' top)
     const frame = hoopsFrameAt(v, v.timeMs - v.stepMs / 2);
     const turns = scheduleTurns(v.schedule, (v.timeMs - v.stepMs / 2) / 1000);
     expect(frame.phi).toBeCloseTo(TWO_PI * (turns - Math.floor(turns)), 9);
@@ -525,7 +534,7 @@ describe("Spinning Hoops: Find Simulation", () => {
     expect(runNeverFinishes("hoops", { hoops: { returnLoop: false } } as ModeSettings)).toBe(false);
     const once: ModeSettings = { ...base, hoops: { returnLoop: false } };
     const looping: ModeSettings = { ...base, hoops: {} };
-    expect(fixedRunDurationSec("hoops", once)).toBe(14);
+    expect(fixedRunDurationSec("hoops", once)).toBe(21.5); // --- low-findings-2 --- (20.5 s up, 1 s hold)
     expect(fixedRunDurationSec("hoops", looping)).toBeNull();
     expect(availableOutcomes("hoops", { endless: true, neverEscape: false, ballCount: 1 })).toEqual(["lift-order", "all-up-by"]);
     expect(availableOutcomes("hoops", { endless: false, neverEscape: false, ballCount: 1 })).toEqual(["duration", "lift-order", "all-up-by"]);
@@ -536,8 +545,8 @@ describe("Spinning Hoops: Find Simulation", () => {
     const outcome: FinderOutcome = { kind: "lift-order", clipSec: 20 };
     const fine = simulateOutcomeRun(1, request({}, outcome), outcome);
     expect([fine.liftOrderOk, outcomeMatches(outcome, fine), outcomeMiss(outcome, fine)]).toEqual([true, true, 0]);
-    // the order is decided once every bead is up: the run stops there
-    expect(fine.durationMs / 1000).toBeLessThan(12);
+    // the order is decided once every bead is up: the run stops there (--- low-findings-2 --- before the ramp's end)
+    expect(fine.durationMs / 1000).toBeLessThan(hoopsSchedule(DEFAULT_HOOPS_SETTINGS).up);
     const twins = { count: 2, radiusMax: 0.9, radiusMin: 0.895, jitter: 0.01 };
     const verdicts = [1, 2, 3, 4, 5, 6].map((seed) => simulateOutcomeRun(seed, request(twins, outcome), outcome).liftOrderOk);
     expect(verdicts).toContain(true);
@@ -546,10 +555,11 @@ describe("Spinning Hoops: Find Simulation", () => {
   });
 
   it("all up within a time: met before the limit, missed by the seconds past it", () => {
-    const by12: FinderOutcome = { kind: "all-up-by", clipSec: 20, atSec: 12 };
+    // (--- low-findings-2 --- the retuned defaults' beads are all up at about 19.6 s)
+    const by12: FinderOutcome = { kind: "all-up-by", clipSec: 20, atSec: 21 };
     const run12 = simulateOutcomeRun(7, request({}, by12), by12);
     expect(run12.allUpMs).toBeGreaterThan(5000);
-    expect(run12.allUpMs).toBeLessThan(12000);
+    expect(run12.allUpMs).toBeLessThan(21000);
     expect([outcomeMatches(by12, run12), outcomeFigure(by12, run12)]).toEqual([true, run12.allUpMs! / 1000]);
     const by6: FinderOutcome = { kind: "all-up-by", clipSec: 20, atSec: 6 };
     const run6 = simulateOutcomeRun(7, request({}, by6), by6);
@@ -588,7 +598,7 @@ describe("Spinning Hoops: settings, presets and the mode's registration", () => 
 
   it("starts from the defaults, the loop HUD off as in every mode (the presets turn it on)", () => {
     const s = defaultSettings("hoops");
-    expect([s.hpCount, s.hpRadiusMax, s.hpRadiusMin, s.hpGravity, s.hpOmegaStart, s.hpOmegaEnd, s.hpRamp, s.hpRampShape, s.hpHold, s.hpReturn, s.hpReturnSec, s.hpDamping, s.hpJitter, s.hpTick, s.hpBed]).toEqual([8, 0.75, 0.25, 9.81, 0.13, 1.2, 12, "linear", 2, true, 6, 1, 0.004, true, false]);
+    expect([s.hpCount, s.hpRadiusMax, s.hpRadiusMin, s.hpGravity, s.hpOmegaStart, s.hpOmegaEnd, s.hpRamp, s.hpRampShape, s.hpHold, s.hpReturn, s.hpReturnSec, s.hpDamping, s.hpJitter, s.hpTick, s.hpBed]).toEqual([8, 0.75, 0.25, 9.81, 0.13, 1.05, 20.5, "linear", 1, true, 4, 1, 0.004, true, false]); // --- low-findings-2 --- (the payoff retune)
     expect(s.loopHud).toBe(false);
     expect(HOOPS_LOOK.loopHud).toBe(true);
     expect(hoopsSettingsOf(DEFAULT_HOOPS_FIELDS)).toEqual(DEFAULT_HOOPS_SETTINGS);
@@ -618,7 +628,7 @@ describe("Spinning Hoops: settings, presets and the mode's registration", () => 
     expect(hoopsPresetFields("oneSlow")).toMatchObject({ hpCount: 1, hpRadiusMax: 0.75, hpRampShape: "ease", hpRamp: 20 });
     expect(hoopsPresetFields("twin")).toMatchObject({ hpCount: 2, hpRadiusMax: 0.75, hpRadiusMin: 0.4, hpRampShape: "steps" });
     expect(HOOPS_LOOK).toMatchObject({ backgroundColors: ["#0b1020", "#0b1020"], rainbowWalls: true, loopHud: true });
-    expect(hoopsClipSec(DEFAULT_HOOPS_FIELDS)).toBe(24);
+    expect(hoopsClipSec(DEFAULT_HOOPS_FIELDS)).toBe(29); // --- low-findings-2 --- (a 28.6 s cycle)
     for (const preset of HOOPS_PRESETS) {
       const fields = hoopsPresetFields(preset.id);
       expect(hoopsClipSec(fields)).toBe(Math.ceil(hoopsSchedule(hoopsSettingsOf(fields)).cycle - 1e-9));
@@ -673,13 +683,13 @@ describe("Spinning Hoops: the chime's register, the bed's switch and the loop-st
 
   it("stops the groove bed at once when its switch goes off mid-run, and when a run without the return ends", () => {
     const engine = engineOf({ bed: true });
-    const before = run(engine, 9);
+    const before = run(engine, 12); // (--- low-findings-2 --- the first lift of the retuned defaults comes at about 11 s)
     expect(ofKind(before, "bed")).toHaveLength(1);
     engine.setHoopsSettings({ bed: false });
     const after = run(engine, 1);
     const stops = ofKind(after, "bedStop");
     expect(stops).toHaveLength(1);
-    expect(stops[0].t).toBeCloseTo(9 + STEP / 1000, 9);
+    expect(stops[0].t).toBeCloseTo(12 + STEP / 1000, 9);
     // nothing restarts it, and the reset has no bed left to stop
     const rest = run(engine, 20);
     expect(ofKind(rest, "bed")).toHaveLength(0);
@@ -691,7 +701,7 @@ describe("Spinning Hoops: the chime's register, the bed's switch and the loop-st
     expect(ofKind(run(quiet, 2), "bedStop")).toHaveLength(0);
     // without the return the run ends after the top hold, and the bed with it
     const once = engineOf({ bed: true, returnLoop: false });
-    const events = run(once, 16);
+    const events = run(once, 23); // (--- low-findings-2 --- 21.5 s of ramp and hold)
     const [stop] = ofKind(events, "bedStop");
     expect(once.isSimulationFinished()).toBe(true);
     expect(stop?.t).toBeCloseTo(hoopsSchedule(resolveHoopsSettings({ returnLoop: false })).cycle, 1);

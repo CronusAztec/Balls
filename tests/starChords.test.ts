@@ -3,11 +3,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakeGraph } from "./fakeAudio";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import type { PhysicsConfig, SoundEvent } from "@/lib/physics/types";
-import { SC_CHORD_CEILING, SC_EARLY_DING_LEVEL, SC_MIN_CUT_HOLD_SEC, SC_SOUNDS_PER_STEP } from "@/lib/physics/modes/starChords";
+import { SC_CHORD_CEILING, SC_EARLY_DING_LEVEL, SC_MIN_CUT_HOLD_SEC, SC_SOUNDS_PER_STEP, type StarChordsView } from "@/lib/physics/modes/starChords";
 import { pluckVelocity } from "@/lib/audio/loopTones";
 import {
   DEFAULT_STARS,
   SC_CHORD_HZ,
+  ballColorOf, // --- low-findings-2 ---
   SC_ENGINE_KEYS,
   SC_PRESET_IDS,
   SC_RANGES,
@@ -55,7 +56,9 @@ import { availableOutcomes } from "@/lib/simulation/outcomes";
 import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import { ENTITY_CEILING } from "@/lib/uncap";
 import { hudCounterText, loopHudCount, subtitleLines } from "@/lib/loop/hud";
-import { loopCaptionContext, loopHashtags } from "@/lib/publish/loopCaption";
+import { hasMentionOrCta, loopCaption, loopCaptionContext, loopHashtags } from "@/lib/publish/loopCaption";
+import { SC_GLOW_SPRITE_CEILING, StarChordsLayer, type StarChordsRenderOptions } from "@/components/simulator/starChordsRenderer"; // --- low-findings-2 ---
+import { drawsOf, fakeCanvas, fakeDocument } from "./fakeCanvas"; // --- low-findings-2 ---
 import { wallControlsOf, MODE_BLOCK_KEYS } from "@/components/simulator/panelKeys";
 import { STAR_CHORDS_KEYS } from "@/components/simulator/sections/StarChordsSection";
 import en from "../messages/en.json";
@@ -550,6 +553,64 @@ describe("Chord Stars: the loop HUD and the caption", () => {
   it("writes the loop-style caption from the balls: math and geometry tags after #satisfying #oddlysatisfying", () => {
     expect(loopCaptionContext({ mode: "starChords", recordingDuration: 30, scBalls: 5 })).toEqual({ mode: "starChords", hookKey: "starChords", factKey: "starChordsFact", count: 5 });
     expect(loopHashtags("starChords")).toEqual(["#satisfying", "#oddlysatisfying", "#math", "#geometry", "#creativecoding"]);
+  });
+
+  it("--- low-findings-2 --- words one ball in the singular in every language, many in the plural", () => {
+    expect(loopCaptionContext({ mode: "starChords", recordingDuration: 30, scBalls: 1 })).toEqual({ mode: "starChords", hookKey: "starChordsOne", factKey: "starChordsFact", count: 1 });
+    expect(loopCaptionContext({ mode: "starChords", recordingDuration: 30, scBalls: 2 }).hookKey).toBe("starChords");
+    for (const [locale, m] of Object.entries({ en, pl, es })) {
+      const words = m.LoopCaption as Record<string, string>;
+      expect(words.starChordsOne, locale).toContain("{count}");
+      const hook = loopCaption({ mode: "starChords", hook: words.starChordsOne, count: 1, fact: words.starChordsFact, locale });
+      expect(hook.title, locale).toBe(hook.title.toLocaleLowerCase(locale));
+      expect(hook.caption.match(/🔊/gu), locale).toHaveLength(1);
+      expect(hasMentionOrCta(hook.caption), locale).toBe(false);
+    }
+    expect(loopCaption({ mode: "starChords", hook: (en.LoopCaption as Record<string, string>).starChordsOne, count: 1, locale: "en" }).title).toBe("1 ball, one circle, one star closing on itself");
+    expect(loopCaption({ mode: "starChords", hook: (es.LoopCaption as Record<string, string>).starChordsOne, count: 1, locale: "es" }).title).not.toMatch(/\bbolas\b/);
+    expect(loopCaption({ mode: "starChords", hook: (en.LoopCaption as Record<string, string>).starChordsOne, count: 1, locale: "en" }).title).not.toMatch(/\bballs\b/);
+  });
+});
+
+// --- low-findings-2 --- the balls' glow sprites: the live palette's kept whatever the count (no cache that thrashes past 256 colours)
+describe("Chord Stars: the glow sprites", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const OPTS: StarChordsRenderOptions = { dpr: 1, wallColor: () => "#ffffff", rainbow: false, wallThickness: 2, showGlow: true, showWallGlow: false };
+  function viewOf(count: number, palette: "rainbow" | "pastel" | "ball", generation = 1, colorVersion = 1, ballColor = "#ff0000"): StarChordsView {
+    const colors = Array.from({ length: count }, (_, i) => ballColorOf(i, count, palette, ballColor));
+    return { count, colors, x: new Float64Array(count), y: new Float64Array(count), field: { ballRadius: 4 }, generation, colorVersion } as unknown as StarChordsView;
+  }
+  it("makes each colour's sprite once at 1,000+ balls in the rainbow and pastel palettes, then none frame after frame", () => {
+    const doc = fakeDocument();
+    vi.stubGlobal("document", doc);
+    for (const palette of ["rainbow", "pastel"] as const) {
+      const layer = new StarChordsLayer();
+      const view = viewOf(1500, palette);
+      const distinct = new Set(view.colors).size;
+      expect(distinct, palette).toBeGreaterThan(256);
+      expect(distinct, palette).toBeLessThanOrEqual(SC_GLOW_SPRITE_CEILING);
+      const canvas = fakeCanvas(1080, 1920);
+      layer.drawBodies(canvas.ctx as unknown as CanvasRenderingContext2D, view, OPTS);
+      expect(layer.glowSpritesMade, palette).toBe(distinct);
+      for (let frame = 0; frame < 5; frame++) {
+        canvas.ctx.calls.length = 0;
+        layer.drawBodies(canvas.ctx as unknown as CanvasRenderingContext2D, view, OPTS);
+        expect(drawsOf(canvas.ctx), palette).toHaveLength(1500);
+      }
+      expect(layer.glowSpritesMade, `${palette}: no sprite made again`).toBe(distinct);
+      // new colours (a palette change) start the cache over
+      layer.drawBodies(canvas.ctx as unknown as CanvasRenderingContext2D, viewOf(1500, "ball", 1, 2), OPTS);
+      expect(layer.glowSpritesMade, palette).toBe(distinct + 1);
+    }
+  });
+  it("past the sprite ceiling draws a plain disc instead of making sprites anew", () => {
+    vi.stubGlobal("document", fakeDocument());
+    const layer = new StarChordsLayer();
+    const count = SC_GLOW_SPRITE_CEILING + 40;
+    const view = { ...viewOf(count, "ball"), colors: Array.from({ length: count }, (_, i) => `#${(i + 1).toString(16).padStart(6, "0")}`) } as StarChordsView;
+    const canvas = fakeCanvas(1080, 1920);
+    for (let frame = 0; frame < 3; frame++) layer.drawBodies(canvas.ctx as unknown as CanvasRenderingContext2D, view, OPTS);
+    expect(layer.glowSpritesMade).toBe(SC_GLOW_SPRITE_CEILING);
   });
 });
 

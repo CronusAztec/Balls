@@ -11,6 +11,7 @@ import { FACE_STYLES } from "@/lib/character/character";
 import { GROW_LAWS, GROW_ON_FILL } from "@/lib/physics/modes/grow"; // --- low-findings ---
 import type { JsonSchema } from "./jsonSchema";
 import { LC_LAYOUTS } from "@/lib/physics/landClaimPyramid"; // --- land-claim-pyramid ---
+import { SCOREBOARD_POSITIONS } from "@/lib/teams"; // --- low-findings-2 ---
 
 /*
  * --- desktop-exe --- The AI settings assistant's side of the settings: what it may change and how a patch it proposes is
@@ -49,6 +50,7 @@ export const SETTING_OPTIONS: Record<string, readonly (string | number)[]> = {
   growLaw: GROW_LAWS,
   growOnFill: GROW_ON_FILL,
   lcLayout: LC_LAYOUTS, // --- land-claim-pyramid --- (Land Claim's layout: the arena's wall or the pyramid)
+  scoreboardPosition: SCOREBOARD_POSITIONS, // --- low-findings-2 --- (a core setting: the teams scoreboard's corner)
 };
 
 const TEXT_KEYS = new Set(["topText", "bottomText", "watermarkText", "ballName", "rcCupTitle"]);
@@ -94,6 +96,7 @@ export const CATALOG: readonly [key: string, description: string][] = [
   ["cameraZoom", "camera zoom"],
   ["ballFace", "face on the ball"],
   ["ballName", "name label on the ball"],
+  ["scoreboardPosition", "corner of the teams scoreboard"], // --- low-findings-2 --- (core: never a mode's setting)
   ["instrument", "bounce sound instrument"],
   ["melodyInstrument", "melody instrument"],
   ["scale", "musical scale of the bounces"],
@@ -190,13 +193,24 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   beatMachine: "bm", // --- beat-machine ---
 };
 
+/**
+ * --- low-findings-2 --- Whether `key` is one of the settings of the mode whose block prefix is `prefix`: the prefix, then the next
+ * word's capital or a digit (`scBalls`, `pwCount`, `dpLength1`) – so a core setting that merely starts with the same letters
+ * (`scoreboardPosition` under Chord Stars' `sc`) is never listed as the mode's.
+ */
+export function isModeSettingKey(key: string, prefix: string): boolean {
+  if (!key.startsWith(prefix) || key.length === prefix.length) return false;
+  const next = key.charCodeAt(prefix.length);
+  return (next >= 65 && next <= 90) || (next >= 48 && next <= 57);
+}
+
 /** The settings the assistant may change on this page: the catalog, then the scalar settings of the page's mode. */
 export function assistantSettings(current: SimulatorSettings): [key: string, description: string][] {
   const list: [string, string][] = CATALOG.filter(([key]) => key in current).map(([k, d]) => [k, d]);
   const prefix = MODE_PREFIXES[current.mode];
   if (prefix) {
     for (const [key, value] of Object.entries(current as unknown as Settings)) {
-      if (!key.startsWith(prefix) || PATCH_EXCLUDED.has(key) || list.some(([k]) => k === key)) continue;
+      if (!isModeSettingKey(key, prefix) || PATCH_EXCLUDED.has(key) || list.some(([k]) => k === key)) continue;
       if (typeof value === "number" || typeof value === "boolean" || typeof value === "string") list.push([key, `${current.mode} setting`]);
     }
   }
