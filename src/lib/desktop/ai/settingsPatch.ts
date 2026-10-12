@@ -192,6 +192,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   ellipseFoci: "ef", // --- ellipse-foci ---
   beatMachine: "bm", // --- beat-machine ---
   waveTank: "wt", // --- wave-tank ---
+  brickRebuild: "br", // --- brick-rebuild ---
 };
 
 /** The settings the assistant may change on this page: the catalog, then the scalar settings of the page's mode. */

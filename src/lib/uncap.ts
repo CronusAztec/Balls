@@ -229,6 +229,15 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   wtCols: 1_700,
   wtBells: ENTITY_CEILING,
   wtRidges: 4_096,
+  // --- brick-rebuild --- Brick Smash (`BR_*_CEILING` of lib/physics/brickRebuild.ts – a test keeps them equal): the grid's
+  // columns and rows (a few typed numbers a cell and a rect of the cached brick layer; their product stops at 40,000 cells in
+  // the mode, the aspect kept), the start balls (full engine balls: the board's ceiling, spawns and splits included) and the
+  // kaleidoscope's images (each real ball drawn that many times, every brick hit applied to that many bricks)
+  brCols: 40_000,
+  brRows: 40_000,
+  brBalls: BOARD_BALL_CEILING,
+  brSymmetry: 256,
+  // --- end brick-rebuild ---
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

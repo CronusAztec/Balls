@@ -16886,7 +16886,7 @@ await smokeBlock("go-live-kit", async () => {
 
 await smokeBlock("wave-tank", async () => {
 // --- wave-tank ---
-// 47. Wave Tank, the ripple tank (the loop family's "the double slit, in water"): the Double slit preset runs a whole 30 s loop at
+// 48. Wave Tank, the ripple tank (the loop family's "the double slit, in water"): the Double slit preset runs a whole 30 s loop at
 // 2× – the section label changes on the exact frames of 6, 15 and 25 s (data-wt-changes 360,900,1500), the HUD draws "1 gap",
 // "2 gaps" and "7 gaps" in turn, no NaN at any time, the water at the seam close to its first frame, the bells struck and the root
 // changed with every section, the frame rate held at the default 192 × 256 grid; a link (wt… keys) sets the panel and the run and
@@ -17069,6 +17069,301 @@ await smokeBlock("wave-tank", async () => {
   }
 }
 // --- end wave-tank ---
+});
+
+await smokeBlock("brick-rebuild", async () => {
+// --- brick-rebuild ---
+// 47. Brick Smash: the preview image and the card under the escape heading; URL → the Brick Smash block of the Mode row (columns,
+// rows, start balls, spawn rule, rebuild order, picture, text; no ring controls), its controls → URL (a preset too), the search box,
+// Find Simulation's three outcomes; an uploaded 2-colour picture (generated in the page) as the bricks, the link carrying only
+// brP=upload; the reference preset at 4× through the rebuild – the counter down to 0, back up to 900 in the rebuild, the seam back
+// to the first frame (data-br-*, data-loop-*), no ball out of the box, the plucks on A major pentatonic, the HUD's title and
+// counter drawn into the canvas – and its frame rate at 1× with about 200 balls; Find Simulation's "Cleared by", played back to
+// the found second; a fast export cut to whole loops with the HUD in its frames; a free visitor's watermark badge clear of the HUD.
+{
+  const res = await page.request.get(`${BASE}/modes/brickRebuild.webp`);
+  check("asset /modes/brickRebuild.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const inEscape = await page.evaluate(() => {
+    const ownText = (h) => [...h.childNodes].filter((n) => !(n instanceof Element && n.getAttribute("aria-hidden") === "true")).map((n) => n.textContent).join("").trim();
+    const heading = [...document.querySelectorAll("h2, h3")].find((h) => ownText(h) === "Escape modes");
+    const group = heading?.parentElement;
+    return !!group && !!group.querySelector('img[src$="/modes/brickRebuild.webp"]') && !!group.querySelector('img[src$="/modes/classic.webp"]');
+  });
+  const card = await page.locator('img[src$="/modes/brickRebuild.webp"]').count();
+  check("the Brick Smash card is on the landing page under the escape heading", card === 1 && inEscape, `(cards=${card}, in the escape group=${inEscape})`);
+}
+{
+  await page.goto(`${BASE}/en/simulator/?mode=brickRebuild&brC=40&brR=24&brB=5&brE=6&brO=rows&brP=text&brTx=HI`, { waitUntil: "networkidle" });
+  const section = page.getByTestId("brick-rebuild-section");
+  const value = (label) => section.locator(`input[type="range"][aria-label="${label}"]`).inputValue().catch(() => "?");
+  const values = { brC: await value("Columns"), brR: await value("Rows"), brB: await value("Start balls"), brE: await value("New ball every") };
+  const rows = await section.getByRole("group", { name: "Rebuild order" }).getByRole("button", { name: "Rows" }).getAttribute("aria-pressed").catch(() => null);
+  const text = await section.getByTestId("br-text").inputValue().catch(() => "?");
+  const grid = await section.getAttribute("data-br-grid").catch(() => null);
+  const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0;
+  const data = await canvasData();
+  check(
+    "brick smash loads from URL",
+    values.brC === "40" && values.brR === "24" && values.brB === "5" && values.brE === "6" && rows === "true" && text === "HI" && grid === "40x24" && noRingControls && data.brTotal === "960" && data.brPicture === "text",
+    `(${JSON.stringify(values)}, rows=${rows}, text=${text}, grid=${grid}, ring controls hidden=${noRingControls}, total=${data.brTotal}, picture=${data.brPicture})`,
+  );
+  await section.getByRole("group", { name: "Rebuild order" }).getByRole("button", { name: "Random" }).click();
+  await section.locator('input[type="range"][aria-label="Rows"]').evaluate(setRangeValue, "36");
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check("brick smash mirrors into the URL", query.get("mode") === "brickRebuild" && query.get("brO") === "random" && query.get("brR") === "36" && query.get("brC") === "40" && query.get("brTx") === "HI", `(${query.toString()})`);
+  }
+  {
+    const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+    check("brick smash offers Find Simulation's three outcomes", options.join(",") === "bricks-cleared-by,last-brick-on-bar,final-balls", `(finder outcomes=${options.join(",")})`);
+  }
+  await section.locator('[data-br-preset="avalanche"]').click();
+  await page.waitForTimeout(300);
+  {
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check("the Avalanche preset sets a ball every break at 600 px/s on a 30 × 30 emblem", query.get("brE") === "1" && query.get("brV") === "600" && !query.has("brC") && !query.has("brR") && !query.has("brP"), `(${query.toString()})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("rebuild order");
+  const found = await page.getByRole("group", { name: "Rebuild order" }).isVisible().catch(() => false);
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the brick smash controls", found, `(rebuild order=${found})`);
+}
+{
+  // An uploaded picture: a red field with a white square, generated in the page – two colours, so two brick colours; the link
+  // carries only the setting (brP=upload), never the picture.
+  await page.goto(`${BASE}/en/simulator/?mode=brickRebuild&brP=upload`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const c = document.createElement("canvas");
+    c.width = 200;
+    c.height = 200;
+    const g = c.getContext("2d");
+    g.fillStyle = "#ff2020";
+    g.fillRect(0, 0, 200, 200);
+    g.fillStyle = "#ffffff";
+    g.fillRect(60, 60, 80, 80);
+    const bytes = atob(c.toDataURL("image/png").split(",")[1]);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i);
+    const dt = new DataTransfer();
+    dt.items.add(new File([arr], "smoke-bricks.png", { type: "image/png" }));
+    const input = document.querySelector('[data-testid="br-upload-input"]');
+    input.files = dt.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  const loaded = await page.waitForFunction(() => document.querySelector('[data-testid="br-upload-note"]')?.textContent?.includes("smoke-bricks.png") && document.querySelector("main canvas")?.dataset.brPicture === "upload", null, { timeout: 10_000 }).then(() => true).catch(() => false);
+  const data = await canvasData();
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  const linkClean = [...query.values()].every((v) => v.length < 64);
+  check("brick smash builds its bricks from an uploaded picture (2 colours) and the link carries only brP=upload", loaded && data.brPicture === "upload" && data.brColours === "2" && query.get("brP") === "upload" && linkClean, `(loaded=${loaded}, picture=${data.brPicture}, colours=${data.brColours}, ${query.toString()})`);
+}
+{
+  // The reference preset (30 × 30, 3 balls, a ball every 4 breaks, 600 px/s) at 4×: down to 0 bricks, back up to 900 in the
+  // rebuild, then the seam back to the first frame.
+  await page.goto(`${BASE}/en/simulator/?mode=brickRebuild&brV=600`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const osc = [];
+    const texts = [];
+    const frames = { minBricks: Infinity, maxRebuild: 0, maxBalls: 0, phases: new Set() };
+    window.__brOsc = osc;
+    window.__brTexts = texts;
+    window.__brFrames = frames;
+    const start = OscillatorNode.prototype.start;
+    OscillatorNode.prototype.start = function () {
+      if (this.frequency.value > 20 && osc.length < 20000) osc.push(this.frequency.value);
+      return start.apply(this, arguments);
+    };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+      if (texts.length < 40000) texts.push(String(text));
+      return fillText.call(this, text, ...rest);
+    };
+    const sample = () => {
+      const d = document.querySelector("main canvas")?.dataset;
+      if (d && d.brBricks !== undefined && Number(d.brSeams) === 0) {
+        const bricks = Number(d.brBricks);
+        frames.phases.add(d.brPhase);
+        if (bricks < frames.minBricks) frames.minBricks = bricks;
+        if (d.brPhase === "rebuild" && bricks > frames.maxRebuild) frames.maxRebuild = bricks;
+        frames.maxBalls = Math.max(frames.maxBalls, Number(d.brBalls));
+      }
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+  const atStart = await canvasData();
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.brFirstEnd !== "", null, { timeout: 120_000 }).catch(() => {});
+  const cleared = await canvasData();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.brSeams) >= 1, null, { timeout: 60_000 }).catch(() => {});
+  const seam = await canvasData();
+  await page.screenshot({ path: path.join(outDir, "sim-brick-rebuild.png") });
+  const seen = await page.evaluate(() => {
+    const f = window.__brFrames;
+    const near = (x) => window.__brOsc.some((y) => Math.abs(y - x) < 0.5);
+    const texts = window.__brTexts.splice(0);
+    return {
+      minBricks: f.minBricks,
+      maxRebuild: f.maxRebuild,
+      maxBalls: f.maxBalls,
+      phases: [...f.phases].join(","),
+      // A major pentatonic from A3: A3, B3, C#4, E4, F#4, A4, B4, C#5
+      plucks: [220, 246.94, 277.18, 329.63, 369.99, 440, 493.88, 554.37].filter(near).length,
+      title: texts.some((t) => t === "smash the logo, then fix it"),
+      counter: texts.some((t) => t === "900 bricks"),
+      zero: texts.some((t) => t === "0 bricks"),
+    };
+  });
+  check(
+    "brick smash at 4× counts the reference emblem down to 0 bricks, rebuilds it to 900 and loops back to the first frame with no ball out of the box",
+    atStart.brBricks === "900" && atStart.brTotal === "900" && atStart.brPhase === "smash" && cleared.brFirstEnd === "cleared" && Number(cleared.brCleared) > 5 && Number(cleared.brFirstBalls) === 3 + Math.floor(900 / 4) && seen.minBricks === 0 && seen.maxRebuild >= 850 && seen.phases.includes("rebuild") && Number(seam.brSeams) >= 1 && Number(seam.loopSeams) >= 1 && Number(seam.brCycle) > Number(cleared.brCleared) && seam.brEscaped === "0" && seam.brNan === "0",
+    `(${JSON.stringify({ start: atStart.brBricks, end: cleared.brFirstEnd, cleared: cleared.brCleared, balls: cleared.brFirstBalls, seen, seams: seam.brSeams, cycle: seam.brCycle, loopSeams: seam.loopSeams, escaped: seam.brEscaped, nan: seam.brNan })})`,
+  );
+  check("the breaks pluck A major pentatonic and the HUD says it (title, \"0 bricks\", \"900 bricks\")", seen.plucks >= 3 && seen.title && seen.counter && seen.zero, `(${JSON.stringify(seen)})`);
+}
+{
+  // The frame rate at 1× deep into the reference smash (about 200 balls, the bricks' cached layer, the HUD).
+  await page.goto(`${BASE}/en/simulator/?mode=brickRebuild&brV=600`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "4x", exact: true }).click();
+  await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.brBalls) >= 180, null, { timeout: 60_000 }).catch(() => {});
+  await page.getByRole("button", { name: "1x", exact: true }).click();
+  await page.waitForTimeout(300);
+  const before = await canvasData();
+  const fr = await pageFrameRates(2500);
+  const data = await canvasData();
+  await timingCheck("simulator mode=brickRebuild smashes with about 200 balls at 30+ fps", Number(before.brBalls) >= 180 && data.brEscaped === "0", fpsOk(fr, 4, 30), `(${before.brBalls} balls, ${data.brBricks} bricks, ${fpsNote(fr)}, floor 30${loadNote()})`);
+}
+{
+  // Find Simulation: the last brick within 30 s – found, and played back to the found second.
+  await page.goto(`${BASE}/en/simulator/?mode=brickRebuild`, { waitUntil: "networkidle" });
+  await page.locator("#find-outcome").selectOption("bricks-cleared-by");
+  await page.locator("#find-cleared-by").evaluate(setRangeValue, "30");
+  const button = page.getByRole("button", { name: /Find a Smash Cleared by 30(\.0)?s/ });
+  const labelled = await button.isVisible().catch(() => false);
+  await button.click().catch(() => {});
+  const done = await page.getByText(/Found!|Didn't find simulation/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  const text = done ? await page.getByText(/Found!|Didn't find simulation/).first().innerText() : "timeout";
+  const at = /Found! The last brick falls at ([\d.]+)s/.exec(text);
+  const query = new URLSearchParams(page.url().split("?")[1] || "");
+  let played = {};
+  if (at) {
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    await page.getByRole("button", { name: "8x", exact: true }).click();
+    await page.waitForFunction(() => document.querySelector("main canvas")?.dataset.brFirstEnd !== "", null, { timeout: 90_000 }).catch(() => {});
+    played = await canvasData();
+  }
+  check(
+    "Find Simulation finds a brick smash cleared within 30 s, records its whole loop and plays it back to the found second",
+    labelled && !!at && Number(at[1]) <= 30 && played.brFirstEnd === "cleared" && Math.abs(Number(played.brCleared) - Number(at[1])) < 0.02 && Number(query.get("dur")) >= Math.ceil(Number(at[1]) + 4),
+    `("${text}", dur=${query.get("dur")}, played: ${JSON.stringify({ end: played.brFirstEnd, cleared: played.brCleared })})`,
+  );
+}
+{
+  // ⚡ A fast export with Export whole loops (on by default) of a small wall (12 × 8 at 900 px/s) in a 20 s clip: a whole
+  // number of its identical cycles, cut on a seam (within a frame), the HUD's title and counter in its frames.
+  await page.goto(`${BASE}/en/simulator/?mode=brickRebuild&brC=12&brR=8&brV=900&seed=3&dur=20&res=500x500&xfps=30`, { waitUntil: "networkidle" });
+  const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
+  if (webCodecs) {
+    await page.evaluate(() => {
+      const osc = [];
+      const texts = [];
+      window.__brOfflineOsc = osc;
+      window.__brFrameTexts = texts;
+      const start = OscillatorNode.prototype.start;
+      OscillatorNode.prototype.start = function () {
+        if (this.context instanceof OfflineAudioContext && osc.length < 20000) osc.push(this.frequency.value);
+        return start.apply(this, arguments);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
+        if (texts.length < 20000 && this.canvas.width === 500 && this.canvas.height === 500) texts.push(String(text));
+        return fillText.call(this, text, ...rest);
+      };
+    });
+    const panel = page.locator("[data-fast-export]");
+    const downloadWait = page.waitForEvent("download", { timeout: 240_000 }).catch(() => null);
+    await page.getByRole("button", { name: /Fast export/ }).click();
+    const download = await downloadWait;
+    await page.waitForFunction(() => document.querySelector("[data-fast-export]")?.getAttribute("data-fast-export") !== "running", null, { timeout: 60_000 }).catch(() => {});
+    let bytes = 0;
+    if (download) {
+      const file = path.join(outDir, `brick-rebuild-loop-${download.suggestedFilename()}`);
+      await download.saveAs(file);
+      bytes = fs.statSync(file).size;
+    }
+    const seconds = Number(await panel.getAttribute("data-fast-seconds"));
+    const cycle = Number(await panel.getAttribute("data-fast-loop-cycle"));
+    const loops = Number(await panel.getAttribute("data-fast-loops"));
+    const status = await panel.getAttribute("data-fast-export");
+    const heard = await page.evaluate(() => ({
+      osc: window.__brOfflineOsc.length,
+      title: window.__brFrameTexts.filter((t) => t === "smash the logo, then fix it").length,
+      counter: window.__brFrameTexts.filter((t) => /^\d+ bricks$/.test(t)).length,
+      zero: window.__brFrameTexts.filter((t) => t === "0 bricks").length,
+    }));
+    check(
+      "a Brick Smash fast export with Export whole loops lasts a whole number of its cycles (within a frame, inside the 20 s clip), carries the HUD and plays the plucks through its own audio",
+      status === "done" && bytes > 10000 && loops >= 1 && cycle > 1 && Math.abs(seconds - loops * cycle) <= 1 / 30 + 0.002 && seconds <= 20 + 1 / 30 + 0.002 && heard.title >= 10 && heard.counter >= 10 && heard.zero >= 1 && heard.osc >= 20,
+      `(${JSON.stringify({ status, bytes, seconds, cycle, loops, heard })})`,
+    );
+  } else check("without WebCodecs the Brick Smash fast export is not checked (the loop contract is covered above)", true);
+}
+{
+  // A free visitor (no licence): Record Video and Fast export carry the watermark tag, and the live badge never covers the HUD's
+  // title or counter.
+  const freeContext = await browser.newContext({ license: null, viewport: { width: 1400, height: 900 }, acceptDownloads: true });
+  try {
+    const fp = await freeContext.newPage();
+    await fp.goto(`${BASE}/en/simulator/?mode=brickRebuild`, { waitUntil: "networkidle" });
+    await fp.evaluate(() => {
+      const log = { draws: [], texts: [] };
+      window.__brMark = log;
+      const main = () => document.querySelector("main canvas");
+      const drawImage = CanvasRenderingContext2D.prototype.drawImage;
+      CanvasRenderingContext2D.prototype.drawImage = function (img, ...rest) {
+        if (this.canvas === main() && log.draws.length < 20000) log.draws.push({ w: img.width, h: img.height, x: rest[0], y: rest[1], cw: this.canvas.width, ch: this.canvas.height });
+        return drawImage.call(this, img, ...rest);
+      };
+      const fillText = CanvasRenderingContext2D.prototype.fillText;
+      CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+        if (this.canvas === main() && log.texts.length < 20000 && (text === "smash the logo, then fix it" || / bricks$/.test(String(text)))) {
+          const m = this.getTransform();
+          const size = Number(/(\d+(?:\.\d+)?)px/.exec(this.font)?.[1] ?? 10) * m.d;
+          log.texts.push({ x: m.a * x + m.e, y: m.d * y + m.f, size, width: this.measureText(String(text)).width * m.a });
+        }
+        return fillText.call(this, text, x, y, ...rest);
+      };
+    });
+    await fp.waitForFunction(() => document.querySelectorAll("[data-watermark-tag]").length >= 2, null, { timeout: 15000 }).catch(() => {});
+    const tags = { record: await fp.getByRole("button", { name: /Record Video/ }).locator("[data-watermark-tag]").count(), fast: await fp.getByRole("button", { name: /Fast export/ }).locator("[data-watermark-tag]").count() };
+    await fp.getByRole("button", { name: /Start Simulator/ }).click();
+    await fp.waitForTimeout(7500);
+    const mark = await fp.evaluate(() => {
+      const { draws, texts } = window.__brMark;
+      const badges = [];
+      for (let i = 1; i < draws.length; i++) {
+        const p = draws[i - 1];
+        if (p.x === 0 && p.y === 0 && p.w === p.cw && p.h === p.ch) badges.push(draws[i]);
+      }
+      const spots = [...new Map(badges.map((b) => [`${Math.round(b.x)},${Math.round(b.y)}`, b])).values()];
+      const lines = texts.slice(-8).map((t) => ({ x0: t.x - t.width / 2, x1: t.x + t.width / 2, y0: t.y - 0.6 * t.size, y1: t.y + 0.6 * t.size }));
+      const pill = (b) => ({ x: b.x + 0.2 * b.h, y: b.y + 0.2 * b.h, w: b.w - 0.4 * b.h, h: 0.6 * b.h });
+      const overlaps = spots.map(pill).filter((b) => lines.some((l) => b.x < l.x1 && b.x + b.w > l.x0 && b.y < l.y1 && b.y + b.h > l.y0)).length;
+      return { spots: spots.map((b) => [Math.round(b.x), Math.round(b.y), b.w, b.h]), lines: lines.slice(-2).map((l) => [Math.round(l.x0), Math.round(l.y0), Math.round(l.x1), Math.round(l.y1)]), overlaps, count: texts.length };
+    });
+    check(
+      "a free visitor's Brick Smash page: the watermark tag on Record Video and Fast export, the live badge clear of the HUD's title and brick counter",
+      tags.record >= 1 && tags.fast >= 1 && mark.spots.length >= 1 && mark.overlaps === 0 && mark.count >= 2,
+      `(${JSON.stringify({ tags, ...mark })})`,
+    );
+  } finally {
+    await freeContext.close().catch(() => {});
+  }
+}
+// --- end brick-rebuild ---
 });
 
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every

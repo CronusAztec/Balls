@@ -87,6 +87,8 @@ export const MODE_IDS = [
   "beatMachine",
   // --- wave-tank --- Wave Tank (a ripple tank: crests through 1, 2 or 7 gaps drawn as perspective ridge lines, sonified by a row of bells; the loop family)
   "waveTank",
+  // --- brick-rebuild --- Brick Smash (a picture of bricks smashed by multiplying balls, then rebuilt colour layer by colour layer; the loop family)
+  "brickRebuild",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

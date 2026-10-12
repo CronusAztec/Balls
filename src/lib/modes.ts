@@ -119,6 +119,13 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("beatMachine");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "waveTank");
 }
+// --- brick-rebuild --- Brick Smash joins the escape family right after Colour Sort (balls breaking a picture out of a box – a
+// spawn every few bricks, Land Claim's rule – then the picture rebuilt for the loop)
+{
+  const colourSort = MODE_CARD_ORDER.indexOf("colourSort");
+  const at = colourSort >= 0 ? colourSort + 1 : MODE_CARD_ORDER.indexOf("portal") + 1;
+  MODE_CARD_ORDER.splice(at > 0 ? at : MODE_CARD_ORDER.length, 0, "brickRebuild");
+}
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -203,6 +210,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   beatMachine: "rhythm",
   // --- wave-tank --- the water is heard: a row of bells rings as loud as the wave under each one – the sound-first family
   waveTank: "rhythm",
+  // --- brick-rebuild --- balls breaking out a picture of bricks (a ball every few breaks), then the rebuild: the escape family
+  brickRebuild: "escape",
 };
 
 /** The modes of a category in card order. */

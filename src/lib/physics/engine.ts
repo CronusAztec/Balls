@@ -77,6 +77,9 @@ import { BeatMachineMode, type BeatMachineView } from "./modes/beatMachine"; // 
 import type { BeatMachineSettings } from "./beatMachine"; // --- beat-machine ---
 import { WaveTankMode, type WaveTankView } from "./modes/waveTank"; // --- wave-tank ---
 import type { WaveTankSettings } from "./waveTank"; // --- wave-tank ---
+import { BrickRebuildMode, type BrickRebuildView } from "./modes/brickRebuild"; // --- brick-rebuild ---
+import type { BrickRebuildSettings } from "./brickRebuild"; // --- brick-rebuild ---
+import type { BrickPicture } from "./brickPicture"; // --- brick-rebuild ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -333,6 +336,8 @@ export class PhysicsEngine {
   readonly beatMachineMode = new BeatMachineMode();
   // --- wave-tank --- Wave Tank: a ripple tank's crests through 1, 2 or 7 gaps, a row of bells along its front
   readonly waveTankMode = new WaveTankMode();
+  // --- brick-rebuild --- Brick Smash: a picture of bricks smashed by multiplying balls, then rebuilt colour layer by colour layer
+  readonly brickRebuildMode = new BrickRebuildMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -750,6 +755,10 @@ export class PhysicsEngine {
   initWaveTank() {
     this.activateMode(this.waveTankMode, "none");
   }
+  // --- brick-rebuild --- the mode owns its box (or its kaleidoscope's circle): no rings
+  initBrickRebuild() {
+    this.activateMode(this.brickRebuildMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -865,6 +874,9 @@ export class PhysicsEngine {
       // --- wave-tank ---
       case "waveTank":
         return this.initWaveTank();
+      // --- brick-rebuild ---
+      case "brickRebuild":
+        return this.initBrickRebuild();
     }
   }
 
@@ -2031,6 +2043,30 @@ export class PhysicsEngine {
     if (this.currentMode === this.waveTankMode) this.waveTankMode.refreshRoot();
   }
   // --- end wave-tank ---
+  // --- brick-rebuild ---
+  isBrickRebuildMode() {
+    return this.currentMode === this.brickRebuildMode;
+  }
+  getBrickRebuildSettings(): BrickRebuildSettings {
+    return this.brickRebuildMode.getSettings();
+  }
+  /** The grid, the balls, the spawns, the phases and the variants apply on the next `initBrickRebuild()`; the picture, its text, the rebuild order and the outline at once. */
+  setBrickRebuildSettings(settings: Partial<BrickRebuildSettings>) {
+    this.brickRebuildMode.setSettings(settings);
+  }
+  /** The page's uploaded picture for the bricks (cover-fitted into the grid and quantised; null: none). It never travels in a link. */
+  setBrickRebuildPicture(picture: BrickPicture | null) {
+    this.brickRebuildMode.setUploadPicture(picture);
+  }
+  /** Live Brick Smash state (the bricks, the phase, the rebuild, the capsules, the counters) for the canvas and the finder; the same object every call. */
+  getBrickRebuildView(): BrickRebuildView {
+    return this.brickRebuildMode.getView();
+  }
+  /** The loop HUD's counter in Brick Smash: the bricks standing (null in another mode). */
+  getBrickRebuildHudCount(): number | null {
+    return this.currentMode === this.brickRebuildMode ? this.brickRebuildMode.hudCount() : null;
+  }
+  // --- end brick-rebuild ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;
