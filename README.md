@@ -100,6 +100,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Land Claim pyramid** | A second layout of Land Claim (`lcLayout` "pyramid", URL `lcl=pyramid`; feature land-claim-pyramid) after the loop-clip account's "1,144 blocks, 146 balls, and the summit goes last" clip: instead of the arena's wall, a stepped pyramid – a **Pyramid Size** × Pyramid Size grid of columns (`lcg`, 11; 3–40 on the slider, any whole number typed) whose heights are **Steps** (`lcs`, 6) minus each column's Chebyshev distance to the centre, scaled to exactly **Blocks** (`lcbk`, 1,144; 0 = the natural Σ of the steps) – stands on a square floor, drawn isometrically on a navy page: teal, green and yellow layers up to an orange summit, light tops and darker sides, the balls rolling on the floor with soft shadows. The physics is top down: every column with a block is a square obstacle, a hit knocks its top block off (it flies away in the hitter's colour) and a bare column is floor again; Land Claim's rule stays – every **New Ball Every** blocks (8) adds a ball – so the outer steps go first and the summit falls last, with 3 + 1,144 ÷ 8 = 146 balls on the floor. One colour (yellow) or any number of competitors (the wall's verdicts then apply). **Rebuild and loop** (`lcrb`): after the summit's payoff the columns grow back over the **Rebuild Time** (`lcrs`, 2.5 s), the added balls melt into the pyramid and the starting balls glide to their corners, and the seam restores the first frame exactly – the loop contract, so Export whole loops cuts seamless cycles. Original synthesized sounds from the loop library: a pentatonic pluck per block pitched by its layer (low blocks low, at most six new notes a tick), a chime on every eighth block, an impact accent and a major chord as the summit falls, the completion chord when the floor is clear, and the reset glide, wash and cut into the seam. The loop HUD reads "a pyramid, one block at a time" over a grey "N blocks" counter. Find Simulation's **The summit falls last**; preset **Pyramid, 1,144 blocks**. Every number uncapped (a 1,000-wide grid and a million blocks are the memory-safety ceilings). See "Land Claim" below |
 | **Ring Escape (Classic)** | --- ring-escape --- The loop family's oldest reel ("it takes three seconds to get through the first one 🔊") as options of Classic's own rings (no new mode; `src/lib/physics/ringEscape.ts`; Wall Settings in Classic): a **gap layout** – even (as always), random (seeded), aligned or a **spiral** whose gaps step round by **Spiral step** degrees (`regl`, `ress`; 0–90° on the slider, any angle typed) –, the rings turning **together** so the spiral stays a spiral (`resp`), a **rainbow by ring** (red outside to cyan inside, `rerb`), **Time in ring** – "ring k: t s" in amber under the rings, "out in t s" once out, recorded with the clip (`retm`) – and original **ring sounds** – a pentatonic pluck per bounce pitched by the ring, a rising step per ring escaped, a chord at the way out (`resn`). **Find Simulation** gets **First ring at** (the first ring escaped within ±0.5 s of a chosen second) and the preset **Rainbow spiral, 11 rings** is the poster's look. See [Ring Escape](#ring-escape-classic-the-loop-family) |
 | **Go-live kit** | Everything between "it works" and "strangers pay" (feature go-live-kit, owner request 8): [`docs/GO-LIVE.md`](docs/GO-LIVE.md), a plain-language launch guide with sixteen sections – costs, hosting and a custom domain, the four accounts (Cloudflare, Stripe, PayPal, NOWPayments with your own payout wallets), test first then live, payouts, licence keys, GitHub variables, legal pages, taxes, a launch-day and a monthly checklist, the fee table and what to do when something breaks; **`npm run go-live`**, a wizard that asks for every key once (hidden, checked by its shape and mode), finds or creates the KV storage, deploys the Worker, makes the licence key pair, finds or creates the Stripe prices and PayPal plans (never twice), stores every secret with `wrangler secret put` on standard input only and sets the GitHub variables and secrets (`--dry-run`, `--skip`, `--mode`); **`npm run go-live:check`**, 17 PASS/FAIL checks of the Worker (`/health`, mode, providers, webhooks, CORS, `/config`, storage), the site (online, not in test mode, the same public key as the Worker, pointing at it, the legal sections), Stripe/PayPal/NOWPayments (prices, plans, webhook endpoints, the customer portal) and GitHub. The Worker gains `GET /health`, live/test mode safety (mixed keys switch a provider off: `503 provider_misconfigured`), refunds, disputes and reversals that end a subscription's access, per-connection rate limits (`429 rate_limited`), several site origins and one price file, [`billing/billing-config.json`](billing/billing-config.json); the terms gain Delivery, Cancellation and refunds and Who you are buying from (`SUPPORT_EMAIL`, `LEGAL_NAME`, `LEGAL_ADDRESS` repository variables); `deploy.yml` refuses a half-configured or test-key production deploy (`node scripts/go-live-check.mjs --deploy-guard`) |
+| **Auto-release (desktop-autorelease)** | One push updates everything: the website deploys from the product branch only (`CUSTOM_DOMAIN` switches it to a domain root; optional Cloudflare Pages), the billing Worker deploys on changes to `billing/` with a health check, and a version bump in `desktop/package.json` (`npm run release:desktop -- 1.0.4`) builds, smoke-runs and publishes the Windows release that electron-updater serves; the app checks every 4 hours, shows a Restart / Later banner and a notification, never interrupts a render. [docs/RELEASING.md](docs/RELEASING.md) |
 
 ## Design
 
@@ -216,9 +217,10 @@ The repository ships with `.github/workflows/deploy.yml`:
    The workflow cannot do this for you; until it is done the *deploy* job stops with a message saying so.
    Private repositories need a paid GitHub plan (Pro, Team or Enterprise) for Pages; public repositories work on
    the free plan.
-2. **Push to the default branch** (or run the workflow manually from the *Actions* tab). Every push is linted,
-   type-checked, unit-tested and built; pushes to the default branch then run the browser smoke test (the `smoke` job)
-   and are published only once it passes.
+2. **Push to the product branch** (`claude/optimistic-johnson-46x3qg`, or `main` once renamed; both are listed in
+   `deploy.yml`). Every push to any branch is linted, type-checked, unit-tested and built; pushes to the product branch
+   then run the browser smoke test (four shards) and are published only once it passes. A manual run from another branch
+   builds and checks only. (--- desktop-autorelease ---)
 3. The site appears at `https://<user>.github.io/<repo>/` – for this repository
    `https://cronusaztec.github.io/Balls/`. The workflow reads the site URL from the repository's Pages settings
    on every run (falling back to that conventional URL while Pages is off) and builds with the matching base path.
@@ -230,9 +232,19 @@ accepts a cross-origin JSON POST, e.g. Formspree) or `FEEDBACK_EMAIL`. Until one
 tells visitors that no channel is configured. `ANALYTICS_SCRIPT_URL` and `ANALYTICS_SITE_ID` variables are passed
 to the build the same way.
 
-**Custom domain**: set it under *Settings → Pages → Custom domain* and point its DNS at GitHub Pages. For
-Actions-based deployments GitHub ignores a `CNAME` file; the workflow picks the domain up from the Pages settings
-and builds for the domain root (no base path) on the next run.
+**Custom domain**: set it under *Settings → Pages → Custom domain*, point its DNS at GitHub Pages, and set the repository
+variable `CUSTOM_DOMAIN` to the bare domain (e.g. `jumpingballs.live`) – the next run builds for the domain root (empty base
+path, `out/CNAME`; `.github/actions/site-url` resolves the address for both workflows), the Windows app's share links follow,
+and `billing-deploy.yml` checks that the Worker's `SITE_ORIGIN` lists it (the website run warns until it does). Without the
+variable the workflow still picks a domain up from the Pages settings.
+
+**Cloudflare Pages (optional)**: the repository variable `SITE_HOST=cloudflare-pages` deploys the same `out/` to Cloudflare
+Pages (the `deploy-cloudflare` job) instead of GitHub Pages; it needs the variable `CF_PAGES_PROJECT` (the project, created
+once with `npx wrangler pages project create <name> --production-branch main`) and the secrets `CLOUDFLARE_API_TOKEN` /
+`CLOUDFLARE_ACCOUNT_ID`. The Windows app's downloads and updates still come from GitHub Releases, so the repository stays
+public.
+
+Shipping an update, step by step, for the owner: [docs/RELEASING.md](docs/RELEASING.md).
 
 **Other static hosts** (Netlify, Cloudflare Pages, S3, nginx…): run `npm run build` with `NEXT_PUBLIC_SITE_URL`
 set and upload `out/`. Point the host's "not found" page at `404.html`.
@@ -3005,20 +3017,30 @@ to the console.
 
 ### Release workflow
 
-`.github/workflows/desktop.yml` runs on `windows-latest` for pull requests that touch the app, for `desktop-v*` tags and by
-hand (inputs `version`, `publish`, `cuda`): it builds the site with an empty base path, installs the app, type-checks and
-tests it, packages the NSIS installer and the portable EXE, smoke-runs the packaged `JumpingBallsLive.exe --smoke`, uploads
-the EXEs (plus blockmaps, `latest.yml` and `SHA256SUMS.txt`) as a workflow artifact and – for a tag or a manual run with
-`publish` – creates the GitHub Release `desktop-v<version>` with them and fixed-name copies (`JumpingBallsLive-Setup.exe`,
-`JumpingBallsLive-portable.exe`) that the download page links as `…/releases/latest/download/<name>`. To release: bump
-`desktop/package.json` (or pass `version`), push the tag `desktop-v1.2.3`. electron-updater reads the newest release's
-`latest.yml`, so keep app releases the repository's "latest" release.
+`.github/workflows/desktop.yml` runs for pull requests that touch the app, for `desktop-v*` tags, by hand (inputs `version`,
+`publish`, `cuda`) **and for a push to the product branch that changes the version in `desktop/package.json`**
+(--- desktop-autorelease ---: `npm run release:desktop -- 1.2.3`, commit, push). The `decide` job
+(`scripts/release/desktop-version.mjs --decide`) compares the version with the one before the push and checks that the tag
+`desktop-v<version>` does not exist yet; `build` (on `windows-latest`) builds the site with an empty base path for the
+address `.github/actions/site-url` resolves (`CUSTOM_DOMAIN`, the Pages settings), installs the app, type-checks and tests
+it, packages the NSIS installer and the portable EXE (with the CUDA build when the input `cuda` or the variable
+`DESKTOP_CUDA=1` asks), smoke-runs the packaged `JumpingBallsLive.exe --smoke` and uploads the EXEs (plus blockmaps,
+`latest.yml` and `SHA256SUMS.txt`) as a workflow artifact; `release` – the only job with `contents: write` – creates the tag
+and the GitHub Release `desktop-v<version>` with them, fixed-name copies (`JumpingBallsLive-Setup.exe`,
+`JumpingBallsLive-portable.exe`) that the download page links as `…/releases/latest/download/<name>` and GitHub's generated
+notes, then checks that `…/releases/latest/download/latest.yml` names the version. A release build is never cancelled by a
+newer push. electron-updater reads the newest release's `latest.yml`, so keep app releases the repository's "latest"
+release. The app checks 8 s after launch and every 4 hours, downloads in the background, shows a banner (Restart and update
+/ Later) and a Windows notification, installs on quit; the GPU tab keeps the manual check. The download page shows the
+build-time version and then asks GitHub's API which release is the latest (with a "What's new" link to it). The owner's
+step-by-step guide: [docs/RELEASING.md](docs/RELEASING.md).
 
 **Code signing**: the EXEs are unsigned until a certificate is configured – Windows SmartScreen then shows "Windows protected
 your PC" (**More info → Run anyway**), which the download page explains. To sign, add the repository secrets `WIN_CSC_LINK`
 (the .pfx certificate, base64-encoded, or an HTTPS URL to it) and `WIN_CSC_KEY_PASSWORD`; the workflow passes them to
-electron-builder, which signs both EXEs. Never commit certificates, keys, models or built binaries (`.gitignore` covers
-`desktop/node_modules`, `dist`, `release` and `*.gguf`).
+electron-builder, which signs both EXEs. Once a certificate is in use it must stay in use – signed installs refuse unsigned
+updates. Never commit certificates, keys, models or built binaries (`.gitignore` covers `desktop/node_modules`, `dist`,
+`release` and `*.gguf`).
 
 ### Tests and what is verified where
 
@@ -3170,7 +3192,9 @@ kept out of the site's `tsc`/ESLint/Vitest/build. A non-developer, step-by-step 
 the secrets, the webhook event lists, the two GitHub repository variables (`BILLING_API_URL`,
 `LICENSE_PUBLIC_KEY`) the site reads, test/sandbox testing and the trust model — is in
 [`billing/README.md`](billing/README.md); deploy it from the **Actions → "Deploy billing worker"**
-workflow (it type-checks and runs the Worker's own suite first: `cd billing && npm ci && npm run check && npm test`).
+workflow (and, with the repository variable `BILLING_AUTODEPLOY=1`, automatically on every push that changes `billing/`; the
+workflow checks the secrets, the KV id and the custom domain first and probes `/health` or `/config` afterwards); it
+type-checks and runs the Worker's own suite first (`cd billing && npm ci && npm run check && npm test`).
 --- go-live-kit --- **To launch for real, follow [docs/GO-LIVE.md](docs/GO-LIVE.md)** – the plain-language guide (accounts,
 keys, payouts, legal pages, checklists); `npm run go-live` pastes the keys for you and `npm run go-live:check` proves the live
 setup.

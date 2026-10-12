@@ -8509,6 +8509,35 @@ await smokeBlock("desktop-exe", async () => {
     const version = await dp.getByTestId("desktop-version").innerText().catch(() => "");
     check("desktop-exe: with window.desktop the Desktop group shows the GPU, the chosen encoders and the app version", shown && gpuName.includes("NVIDIA GeForce RTX 4090") && chosen === "h264_nvenc" && version.startsWith("9.9.9"), `(shown ${shown}, encoder ${chosen}, version ${version})`);
 
+    // --- desktop-autorelease --- a downloaded update: the banner above the tabs' panels (Restart and update / Later), on every
+    // tab; Later hides it for that version only; a newer version shows it again
+    {
+      const banner = dp.getByTestId("desktop-update-banner");
+      const ready = (version) => dp.evaluate((v) => window.__fakeDesktop.emit("update", { state: "ready", version: v, progress: 1, message: null }), version);
+      await ready("9.9.10");
+      const shownGpu = await banner.waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+      const text = await banner.innerText().catch(() => "");
+      const restartEnabled = await dp.getByTestId("desktop-update-restart").isEnabled().catch(() => false);
+      await dp.getByTestId("desktop-tab-library").click().catch(() => {});
+      const shownLibrary = await banner.isVisible().catch(() => false);
+      await dp.getByTestId("desktop-update-later").click().catch(() => {});
+      const goneAfterLater = await banner.waitFor({ state: "detached", timeout: 3000 }).then(() => true).catch(() => false);
+      await ready("9.9.10");
+      await dp.waitForTimeout(300);
+      const stillGone = (await banner.count()) === 0;
+      await ready("9.9.11");
+      const newerShown = await banner.waitFor({ timeout: 3000 }).then(() => true).catch(() => false);
+      const newerText = await banner.innerText().catch(() => "");
+      check(
+        "desktop-exe: an update that is downloaded shows the banner on every tab with Restart and update / Later",
+        shownGpu && text.includes("9.9.10") && text.includes("Restart and update") && text.includes("Later") && restartEnabled && shownLibrary && goneAfterLater && stillGone && newerShown && newerText.includes("9.9.11"),
+        `(shown ${shownGpu} "${text.replace(/\s+/g, " ")}", restart enabled ${restartEnabled}, on Library ${shownLibrary}, Later hides ${goneAfterLater}, same version stays hidden ${stillGone}, newer shown ${newerShown})`,
+      );
+      await dp.evaluate(() => window.__fakeDesktop.emit("update", { state: "none", version: null, progress: null, message: null }));
+      await banner.waitFor({ state: "detached", timeout: 3000 }).catch(() => {});
+      await dp.getByTestId("desktop-tab-gpu").click().catch(() => {});
+    }
+
     await dp.evaluate(() => window.__fakeDesktop.emit("menu", "library"));
     await dp.waitForTimeout(300);
     const libTab = await dp.locator("[data-desktop-group]").getAttribute("data-desktop-tab");
@@ -13170,19 +13199,51 @@ await smokeBlock("desktop-ai-fix", async () => {
 // a timing line and the small model's hashtags without "#" / its unrequested platform normalised into a valid result, and
 // a failure shown without Electron's IPC prefix.
 {
-  const DESKTOP_VERSION = "1.0.3";
+  const DESKTOP_VERSION = JSON.parse(fs.readFileSync(new URL("../desktop/package.json", import.meta.url), "utf8")).version; // --- desktop-autorelease --- one source of truth
+  // --- desktop-autorelease --- GitHub's API unreachable: every locale keeps the build-time version (desktop/package.json's)
+  // and links "What's new" to the latest release page
+  const latestRelease = `https://github.com/${process.env.NEXT_PUBLIC_GITHUB_REPO || "CronusAztec/Balls"}/releases/latest`;
+  await page.route("https://api.github.com/**", (route) => route.abort());
+  // (an answer an earlier visit kept for an hour in this tab's sessionStorage is dropped first)
+  await page.goto(`${BASE}/en/download/`, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => sessionStorage.removeItem("jbl.desktopLatest")).catch(() => {});
   for (const locale of ["en", "pl", "es"]) {
     await page.goto(`${BASE}/${locale}/download/`, { waitUntil: "networkidle" });
     const notes = await page.evaluate(() => ({
       version: document.querySelector('[data-testid="download-version"]')?.textContent ?? "",
       update: document.querySelector('[data-testid="download-update-note"]')?.textContent ?? "",
       all: document.querySelector('[data-testid="download-notes"]')?.textContent ?? "",
+      whatsNew: document.querySelector('[data-testid="download-whats-new"]')?.getAttribute("href") ?? "",
     }));
     check(
       `desktop-ai-fix: /${locale}/download/ shows version ${DESKTOP_VERSION}, the one-time model download and the manual step for 1.0.2`,
-      notes.version.includes(DESKTOP_VERSION) && notes.update.includes("1.0.2") && notes.update.includes("1.0.3") && notes.all.length > notes.version.length + notes.update.length + 40,
-      `(version "${notes.version}", update note "${notes.update.slice(0, 80)}")`,
+      notes.version.includes(DESKTOP_VERSION) && notes.update.includes("1.0.2") && notes.update.includes("1.0.3") && notes.all.length > notes.version.length + notes.update.length + 40 && notes.whatsNew === latestRelease,
+      `(version "${notes.version}", what's new ${notes.whatsNew}, update note "${notes.update.slice(0, 80)}")`,
     );
+  }
+  await page.unroute("https://api.github.com/**");
+  // --- desktop-autorelease --- GitHub reports a newer release: the page shows it and links its release notes
+  {
+    const htmlUrl = "https://github.com/CronusAztec/Balls/releases/tag/desktop-v9.9.9";
+    await page.route("https://api.github.com/**", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ tag_name: "desktop-v9.9.9", html_url: htmlUrl }) }),
+    );
+    await page.goto(`${BASE}/en/download/`, { waitUntil: "networkidle" });
+    const live = await page
+      .waitForFunction(() => (document.querySelector('[data-testid="download-version"]')?.textContent ?? "").includes("9.9.9"), null, { timeout: 5000 })
+      .then(() => true)
+      .catch(() => false);
+    const shown = await page.evaluate(() => ({
+      version: document.querySelector('[data-testid="download-version"]')?.textContent ?? "",
+      whatsNew: document.querySelector('[data-testid="download-whats-new"]')?.getAttribute("href") ?? "",
+    }));
+    check(
+      "desktop-ai-fix: the download page shows the latest release GitHub reports (9.9.9) and links its What's new",
+      live && shown.version.includes("9.9.9") && shown.whatsNew === htmlUrl,
+      `(version "${shown.version}", what's new ${shown.whatsNew})`,
+    );
+    await page.evaluate(() => sessionStorage.removeItem("jbl.desktopLatest")).catch(() => {});
+    await page.unroute("https://api.github.com/**");
   }
 
   const FAKE_AI_FIX_BRIDGE = `(() => {

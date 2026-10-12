@@ -4383,7 +4383,9 @@
       "library": "Library. Every clip you rendered with its thumbnail, length and post text. Play, show in folder, re-render or delete."
     },
     "privacyTitle": "Privacy",
-    "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app goes online only to download a model you asked for and to check GitHub for updates."
+    "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app goes online only to download a model you asked for and to check GitHub for updates.",
+    "updateLater": "Later",
+    "updateWaitRender": "A render is running. Wait for the queue to finish, or quit the app and the update installs as it closes."
   },
   "Territory": {
     "canvasVs": "VS",
@@ -5104,7 +5106,8 @@
     "tryCpu": "Run on the CPU instead",
     "downloadVersion": "Version {version}",
     "downloadModelNote": "The AI model is a one-time download from inside the app, up to 2.5 GB. After that the AI works offline.",
-    "downloadUpdateNote": "Using 1.0.2? Its updater cannot install 1.0.3. Download the installer above once. From 1.0.3 on the app updates itself."
+    "downloadUpdateNote": "Using 1.0.2? Its updater cannot install 1.0.3. Download the installer above once. From 1.0.3 on the app updates itself.",
+    "downloadWhatsNew": "What's new in {version}"
   },
   "LoopHud": {
     "growTitle": "it grows with every bounce",

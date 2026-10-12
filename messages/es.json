@@ -4383,7 +4383,9 @@
       "library": "Biblioteca. Cada clip que renderizaste, con su miniatura, duración y texto de publicación. Reprodúcelo, ábrelo en su carpeta, vuelve a renderizarlo o bórralo."
     },
     "privacyTitle": "Privacidad",
-    "privacyBody": "Todo funciona en tu PC. La IA local funciona sin conexión. Una clave de la nube que introduzcas se guarda cifrada y solo se envía al proveedor que elegiste. La aplicación solo se conecta para descargar un modelo que pediste y buscar actualizaciones en GitHub."
+    "privacyBody": "Todo funciona en tu PC. La IA local funciona sin conexión. Una clave de la nube que introduzcas se guarda cifrada y solo se envía al proveedor que elegiste. La aplicación solo se conecta para descargar un modelo que pediste y buscar actualizaciones en GitHub.",
+    "updateLater": "Más tarde",
+    "updateWaitRender": "Hay un renderizado en curso. Espera a que termine la cola o cierra la aplicación, y la actualización se instalará al cerrar."
   },
   "Territory": {
     "canvasVs": "VS",
@@ -5104,7 +5106,8 @@
     "tryCpu": "Ejecutar en la CPU",
     "downloadVersion": "Versión {version}",
     "downloadModelNote": "El modelo de IA se descarga una sola vez desde la aplicación, hasta 2,5 GB. Después, la IA funciona sin conexión.",
-    "downloadUpdateNote": "¿Tienes la 1.0.2? Su actualizador no puede instalar la 1.0.3. Descarga una vez el instalador de arriba. Desde la 1.0.3, la aplicación se actualiza sola."
+    "downloadUpdateNote": "¿Tienes la 1.0.2? Su actualizador no puede instalar la 1.0.3. Descarga una vez el instalador de arriba. Desde la 1.0.3, la aplicación se actualiza sola.",
+    "downloadWhatsNew": "Novedades de {version}"
   },
   "LoopHud": {
     "growTitle": "crece con cada rebote",
