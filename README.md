@@ -15,7 +15,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 
 | Area | What you get |
 | --- | --- |
-| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Colour Sort, Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Beat Machines, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops, Focus Shot), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
+| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Colour Sort, Brick Smash, Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Beat Machines, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops, Focus Shot), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow; collision-safe at every amplitude and speed) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Merge & split balls** | A ball-interaction setting in the Ball section: balls **bounce** (default), **merge** into one bigger ball on contact (area and momentum conserved, colours blended, a particle burst and a low tone), **split** in two every time a ball breaks through a wall (half the area each, diverging velocities, a high tone – down to a smallest size and up to a ball cap) or **pass** through each other. Works in the two-ball modes and Multiply, is deterministic (seeds and Find Simulation include it) and shared via the URL (`bi`, `smr`, `mb`) |
@@ -101,6 +101,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Ring Escape (Classic)** | --- ring-escape --- The loop family's oldest reel ("it takes three seconds to get through the first one 🔊") as options of Classic's own rings (no new mode; `src/lib/physics/ringEscape.ts`; Wall Settings in Classic): a **gap layout** – even (as always), random (seeded), aligned or a **spiral** whose gaps step round by **Spiral step** degrees (`regl`, `ress`; 0–90° on the slider, any angle typed) –, the rings turning **together** so the spiral stays a spiral (`resp`), a **rainbow by ring** (red outside to cyan inside, `rerb`), **Time in ring** – "ring k: t s" in amber under the rings, "out in t s" once out, recorded with the clip (`retm`) – and original **ring sounds** – a pentatonic pluck per bounce pitched by the ring, a rising step per ring escaped, a chord at the way out (`resn`). **Find Simulation** gets **First ring at** (the first ring escaped within ±0.5 s of a chosen second) and the preset **Rainbow spiral, 11 rings** is the poster's look. See [Ring Escape](#ring-escape-classic-the-loop-family) |
 | **Go-live kit** | Everything between "it works" and "strangers pay" (feature go-live-kit, owner request 8): [`docs/GO-LIVE.md`](docs/GO-LIVE.md), a plain-language launch guide with sixteen sections – costs, hosting and a custom domain, the four accounts (Cloudflare, Stripe, PayPal, NOWPayments with your own payout wallets), test first then live, payouts, licence keys, GitHub variables, legal pages, taxes, a launch-day and a monthly checklist, the fee table and what to do when something breaks; **`npm run go-live`**, a wizard that asks for every key once (hidden, checked by its shape and mode), finds or creates the KV storage, deploys the Worker, makes the licence key pair, finds or creates the Stripe prices and PayPal plans (never twice), stores every secret with `wrangler secret put` on standard input only and sets the GitHub variables and secrets (`--dry-run`, `--skip`, `--mode`); **`npm run go-live:check`**, 17 PASS/FAIL checks of the Worker (`/health`, mode, providers, webhooks, CORS, `/config`, storage), the site (online, not in test mode, the same public key as the Worker, pointing at it, the legal sections), Stripe/PayPal/NOWPayments (prices, plans, webhook endpoints, the customer portal) and GitHub. The Worker gains `GET /health`, live/test mode safety (mixed keys switch a provider off: `503 provider_misconfigured`), refunds, disputes and reversals that end a subscription's access, per-connection rate limits (`429 rate_limited`), several site origins and one price file, [`billing/billing-config.json`](billing/billing-config.json); the terms gain Delivery, Cancellation and refunds and Who you are buying from (`SUPPORT_EMAIL`, `LEGAL_NAME`, `LEGAL_ADDRESS` repository variables); `deploy.yml` refuses a half-configured or test-key production deploy (`node scripts/go-live-check.mjs --deploy-guard`) |
 | **Auto-release (desktop-autorelease)** | One push updates everything: the website deploys from the product branch only (`CUSTOM_DOMAIN` switches it to a domain root; optional Cloudflare Pages), the billing Worker deploys on changes to `billing/` with a health check, and a version bump in `desktop/package.json` (`npm run release:desktop -- 1.0.4`) builds, smoke-runs and publishes the Windows release that electron-updater serves; the app checks every 4 hours, shows a Restart / Later banner and a notification, never interrupts a render. [docs/RELEASING.md](docs/RELEASING.md) |
+| **Brick Smash** | An escape-family mode of the loop family (`brickRebuild`, feature brick-rebuild) after the loop-clip account's Breakout picture smash ("we smashed our own logo"), with its gold-capsule ("from 3 balls to 280") and kaleidoscope ("the other fourteen are reflections") variants: a box whose top 78 % is a 30 × 30 picture of one-hit bricks – the built-in emblem (an original navy field, teal ring and amber square), **your own uploaded logo** (cover-fitted, quantised to ≤ 8 colours by seeded k-means; it stays in the page – no link, preset or project file carries it) or typed text in a pixel font – smashed by hollow balls that sweep through the grid (no tunnelling at any speed or size) and add a ball every 4th break; at 0 bricks gravity drops them, the bricks fly back colour layer by colour layer while the counter climbs back, and the start balls reappear on the seam, so Export whole loops records a clip that repeats forever. Pentatonic plucks by row, a groove that drops on a bar line, a wash and a ding over the rebuild; Find Simulation searches a smash cleared by a time, a last brick on the downbeat or a final ball count. See [Brick Smash](#brick-smash). |
 
 ## Design
 
@@ -2171,6 +2172,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `ellipseFoci` | the volley mid-flight on the felt: a rainbow arc of comets bouncing off the rail toward the far focus | 2 | 2.2 s | `lh=0&efTr=0.45` | – |
 | `colourSort` | the bullseye almost sorted: every colour in its own band, the last stragglers slipping through the turning gates | 1 | 9 s | `lh=0` | – |
 | `beatMachine` | the marble xylophone mid-tune: marbles falling from their tubes onto the rainbow bars, one bouncing off a struck bar, others riding the lift | 1 | 3.5 s | `lh=0` | zoom 1.15 |
+| `brickRebuild` | the emblem half smashed: a hundred hollow balls tearing through the navy field, the teal ring and the amber square, grey ghosts of the last bricks shrinking away | 1 | 9 s | `brV=600&lh=0` | – |
 
 ### Watermark on every free simulation
 Feature watermark-everywhere – the owner's request (2026-10-04): "add the watermark to all simulations made without pro". The
@@ -2886,6 +2888,80 @@ Settings in Classic). Only the poster and the caption were seen, so every quanti
   fps and a pinned fingerprint, the rainbow, the settings, links and presets, the translations); the smoke test's block
   `ring-escape` applies the preset from Wall Settings and from a link, checks the spiral's gaps, the rainbow, the timer line and its pixels, the URL round
   trip, finds a first ring at 3 s and records the clip with the free watermark.
+
+### Brick Smash
+Feature brick-rebuild – the loop family's Breakout picture smash and rebuild ("we smashed our own logo 🔊"), with its gold-capsule
+("from 3 balls to 280") and kaleidoscope ("the other fourteen are reflections") variants. `src/lib/physics/brickRebuild.ts` holds the
+pure maths (the playfield `brickField()`, the swept collision `sweepBody()`, the spawn rule `spawnDue()`, the symmetry group
+`symmetryImages()` / `applyImage()` / `foldIntoWedge()`, the rebuild's order and timetable `rebuildOrder()` / `rebuildLandMs()` /
+`rebuildFlight()`, the plucks' pitch), `src/lib/physics/brickPicture.ts` the pictures (the emblem, the mandala, text-to-pixels and
+`quantisePixels()`), `src/lib/physics/modes/brickRebuild.ts` the `BrickRebuildMode` plugin, `src/lib/physics/brickRebuildSettings.ts`
+the settings (URL keys `brC`, `brR`, `brW`, `brB`, `brE`, `brV`, `brS`, `brH`, `brT`, `brSt`, `brRb`, `brO`, `brP`, `brTx`, `brD`, `brBd`,
+`brCp`, `brCc`, `brSp`, `brK`, `brKm`, `brHo`, `brOl`), the presets and the HUD's words; `src/components/simulator/brickRebuildRenderer.ts`
+draws it, `brickUpload.ts` turns an uploaded picture into bricks, `sections/BrickRebuildSection.tsx` is the "Brick Smash" block of the
+Mode row (its labels in the `BrickRebuild` namespace of `messages/*.json`) and `src/lib/simulation/brickRebuildFinder.ts` searches it.
+
+- **The picture** – a W × H grid of bricks (30 × 30 by default; any size from 4 × 2 up, at most 40,000 bricks – past that the grid
+  keeps its aspect at that many) fills the top **Wall height** (78 %) of a box of the reference clip's 645 × 817 shape. Its colours
+  come from the built-in emblem (an original mark: a navy field, a teal ring and an amber square – no third-party artwork is
+  bundled), from **your own picture** – your logo: cover-fitted into the grid like Picture Paint and quantised to at most 8 colours
+  by a fixed-seed k-means (a picture of 8 colours or fewer keeps them exactly), kept in the page only (never in a link, a preset, a
+  project file or a share code; without one loaded the emblem plays) – or from typed text in a built-in 5 × 7 pixel font. The
+  picture only colours the bricks: the physics never reads a colour, so the finder and a link replay the same run with any picture.
+- **The smash** – the start balls (3) leave the bottom centre upward at a constant speed (450 px/s at a 720-wide clip; Smash the
+  emblem plays the reference clip's pace at 600: 0 bricks at about 15 s, a loop of about 20 s) with no gravity; they pass through
+  each other and reflect off the box and the bricks. Every sub-step the mode takes the engine's move back and sweeps it through the
+  grid (`sweepBody()`: a DDA over the cells the centre crosses, the bricks grown by the ball's radius, the first face met bounces
+  it), so no ball tunnels at any speed or size – 1 px balls at 5,000 px/s included. A brick loses one of its **Brick hits** a
+  contact and breaks at 0 (it greys to lilac and shrinks away in 0.2 s); every **New ball every** (4) breaks a ball spawns at the
+  brick in a seeded direction – Land Claim's rule; past the board's 2,000 balls a break still counts but spawns nothing. The count
+  falls slowly, then exponentially, then slowly again for the last corner bricks.
+- **The settle, the rebuild and the seam** – at 0 bricks (or the **Smash time limit**) gravity drops the balls to the floor for the
+  **Drop** (1 s), then the broken bricks fly back for the **Rebuild** (4 s) from seeded off-screen points along eased, slightly bent
+  curves, enlarged in flight – by **colour layer** (the colour with the most bricks first: the field, the ring, the accent – each
+  from the middle out), in a seeded **random** order or by **rows** from the bottom –, each landing adding one to the counter, while
+  the balls fade and the start balls fade in at their places. The seam – the step after the rebuild's end – puts the run back at its
+  first frame (every brick, the start balls), and every cycle replays the first exactly: the in-cycle random choices (the spawn
+  directions, the capsule draws) come from a stream re-seeded every cycle (`cycleSeconds()`, `loopSeams()`; Export whole loops cuts a
+  clip to whole cycles). Every random choice is `ctx.random()` at init, in a documented order.
+- **Gold capsules** (`brCp`) – a broken brick drops a gold capsule with the **Capsule chance**; an auto-paddle above the floor runs
+  for the lowest one (else under the lowest ball coming down) and balls coming down bounce off it, aimed by where they hit; a caught
+  capsule splits every ball in play into **Split into** (3) – the copies fanned from its heading – up to the board's ceiling. A chime
+  marks a catch, a riser the split; "N balls" shows under the box.
+- **Kaleidoscope** (`brK` above 1) – the bricks form a round mosaic with a **Hole** (a mandala picture with the run's own symmetry).
+  The real balls move in one wedge of 360° / images with **mirror** walls (an odd count doubles: the dihedral group) or **rotations**,
+  are drawn with all their images, and every brick hit is applied to its images too – so the mosaic breaks symmetrically ("only 2 of
+  these balls are real"; Kaleidoscope: 8 mirror images of 2 balls). The settle pulls the balls out to the rim.
+- **Sound** (the loop sound library, `ToneGenerator.playLoop()`) – every break a pentatonic pluck pitched by its row (A major
+  pentatonic, the top row eleven degrees up; at most six notes a 60 Hz tick, a degree's breaks of a tick in one note at √n); the
+  groove bed (pad, sub, arpeggio over a seeded progression) drops on the first bar line after **Groove drop** (4 s at the Sound
+  section's BPM) with an impact accent, kicks every beat and a chord every bar until 0 bricks, where an impact lands the payoff; the
+  rebuild a noise wash with the pad, the last brick a ding, a glide toward the first note ending at the seam, which cuts the loop
+  voices – identical live, in the fast export and in the batch render; the clip slots of the loop family take your own sounds.
+- **The look** – the reference clip's cream page (#ecebe3), the box's thin grey border, navy (#1b2350), teal (#2fb7b4) and amber
+  (#f4c55c) bricks with 1 px grout and a subtle vignette, hollow white balls with a dark rim (**Hollow balls** off: your ball look,
+  the kaleidoscope's images as discs in its colours), the loop HUD on with its title ("smash the logo, then fix it"), the rule as
+  its subtitle and "N bricks" counting down and back up. The bricks are a cached layer redrawn only for the cells that change, the
+  breaks a pool of ghost squares; the canvas mirrors the run in `data-br-*` attributes.
+- **Presets** – Smash the emblem (30 × 30, 3 balls, a spawn every 4 – the reference), Avalanche (a spawn every break), Big picture
+  (100 × 100 from your upload; it opens the file picker without one), Classic breakout (1 ball, the paddle, no multiplying),
+  Gold capsules (no spawns, 5 % capsules that triple every ball) and Kaleidoscope.
+- **Find Simulation** – the run loops forever, so the outcomes are its first smash's, each seed's smash stepped headlessly across
+  frames: **Cleared by** a time, **Last brick on the beat** (±20 ms of a bar line at the Sound section's BPM) and **Final ball
+  count** (at least N balls in play when the smash ends – the capsules' luckiest catches). A found run's clip is its whole first
+  loop.
+- **Uncapped** – the sliders are comfort ranges (Columns 4–200, Rows 2–200, Wall 10–95 %, Start balls 1–1,000, New ball every 0–1,000,
+  Speed 20–5,000 px/s, Size 1–40 px, Hits 1–99, Limit 5–300 s, Drop 0–10 s, Rebuild 0–60 s, Groove drop 0–30 s, Capsule chance
+  0–100 %, Split 2–5, Kaleidoscope 1–12, Hole 0–80 %); every value from the minimum up is typed in. The memory-safety ceilings:
+  40,000 bricks, the board's 2,000 balls and 256 kaleidoscope images.
+- **Tests** – `tests/brickRebuild.test.ts`: the quantiser reproducing a 2-colour picture exactly, the swept collision never
+  tunnelling at 5,000 px/s with 1 px balls, the spawns equal to ⌊broken / every⌋ + the start balls up to the ceiling, the counter
+  reaching 0 and then W·H after the rebuild, the state after the rebuild equal to the first frame (and the next cycle replaying the
+  first), the layer order, the kaleidoscope's symmetric breaks, the capsules' splits, the settings and URL round trip, the presets,
+  the sounds, the finder's outcomes and fingerprints at 30, 60 and 120 fps. The smoke test (block `brick-rebuild`) runs the
+  reference preset at 4× through the rebuild – the counter reaching 0 and then 900, the seam, the plucks and the HUD – and measures
+  its frame rate at 1× with about 200 balls; it also checks the block, the link, an uploaded picture, the outcomes (a found run played
+  back to its second) and a whole-loop fast export, with the free watermark clear of the HUD.
 
 ## Windows app
 

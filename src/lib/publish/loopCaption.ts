@@ -22,6 +22,7 @@ export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly s
   polyrhythm: ["#math", "#polyrhythm", "#creativecoding"], // --- phase-spiral ---
   ellipseFoci: ["#math", "#geometry", "#creativecoding"], // --- ellipse-foci ---
   beatMachine: ["#marbles", "#animation", "#creativecoding"], // --- beat-machine ---
+  brickRebuild: ["#breakout", "#simulation", "#creativecoding"], // --- brick-rebuild --- (the reference clips' own tags)
   vortex: ["#simulation", "#physics", "#marbles"], // --- funnel-spin --- (the funnel clip's own tags: no #creativecoding)
 };
 /** Any other mode's topic tags. */
@@ -141,6 +142,18 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     const stairs = bm.bmVariant === "stairs";
     const n = stairs ? bm.bmSteps : bm.bmBars;
     return { mode: s.mode, hookKey: stairs ? "beatMachineStairs" : "beatMachineMarbles", factKey: stairs ? "beatMachineStairsFact" : "beatMachineMarblesFact", count: typeof n === "number" && Number.isFinite(n) ? n : null };
+  }
+  // --- brick-rebuild --- Brick Smash by its picture's bricks ("we smashed the logo: {count} bricks, then put them all back"), the gold
+  // capsules by the start balls ("{count} balls, and every gold capsule triples them"), the kaleidoscope by its real balls ("only
+  // {count} of these balls are real"), each with the fact of its rule
+  if (s.mode === "brickRebuild") {
+    const br = s as { brCols?: number; brRows?: number; brBalls?: number; brCapsules?: boolean; brSymmetry?: number };
+    const whole = (n: unknown) => (typeof n === "number" && Number.isFinite(n) ? n : null);
+    if ((whole(br.brSymmetry) ?? 1) > 1) return { mode: s.mode, hookKey: "brickRebuildKaleidoscope", factKey: "brickRebuildKaleidoscopeFact", count: whole(br.brBalls) };
+    if (br.brCapsules) return { mode: s.mode, hookKey: "brickRebuildCapsules", factKey: "brickRebuildCapsulesFact", count: whole(br.brBalls) };
+    const cols = whole(br.brCols);
+    const rows = whole(br.brRows);
+    return { mode: s.mode, hookKey: "brickRebuild", factKey: "brickRebuildFact", count: cols !== null && rows !== null ? cols * rows : null };
   }
   if (s.mode === "grow") {
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };
