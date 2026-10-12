@@ -73,6 +73,8 @@ import {
   type FunnelState,
 } from "@/lib/physics/funnelSpin";
 import { FunnelLayer } from "@/components/simulator/funnelRenderer";
+import { VortexLayer, type VortexRenderOptions } from "@/components/simulator/vortexRenderer"; // --- review fix (funnel-spin) ---
+import { SPRITE_CACHE_CAP } from "@/components/simulator/renderBudget";
 import { findFunnelSpinRun } from "@/lib/simulation/funnelSpinFinder";
 import { availableOutcomes } from "@/lib/simulation/outcomes";
 import { hudCounterText, loopHudCount } from "@/lib/loop/hud";
@@ -875,6 +877,48 @@ describe("funnel spin-up: the ring physics", () => {
         if (i % 150 === 0) samples.push(...engine.getBalls().slice(0, 2).map((b) => [Math.round(b.x * 1000), Math.round(b.y * 1000)]));
       }
       expect(samples).toEqual(BASELINE);
+    }
+  });
+
+  // --- review fix (funnel-spin) --- the page's ball pass caches one sprite per colour and size (SPRITE_CACHE_CAP of them): a
+  // ring's hue a marble re-created most of them every frame from above (Galaxy, 360 marbles: a fraction of the frame rate)
+  it("draws the ring release's marbles itself from above too: glossy spheres on their balls, no sprite or gradient a frame", () => {
+    const opts: VortexRenderOptions = { wallAlpha: () => "#fff", rainbow: true, wallThickness: 2, showWallGlow: true, ballRadius: 8 };
+    const layer = new VortexLayer();
+    // the stagger release from above stays the page's ordinary balls (faces, emoji, trails, glow); the perspective is the layer's
+    expect(layer.drawsBodies(vortexEngine({}, 3).getVortexView())).toBe(false);
+    expect(layer.drawsBodies(vortexEngine({ view: "perspective" }, 3).getVortexView())).toBe(true);
+    const galaxy = funnelSpinPresetPatch("galaxy");
+    expect(galaxy.vxView).toBe("top");
+    for (const patch of [{ waves: parseWaves(galaxy.vxWaves), depthScale: 1 }, { waves: [1, 2, 4, 8, 16, 32, 64, 128, 256], waveInterval: 0.5, depthScale: 0.6 }]) {
+      const engine = ringEngine({ view: "top", loop: true, ...patch });
+      for (let i = 0; i < 300; i++) engine.update(STEP, 0);
+      const v = engine.getVortexView();
+      const balls = engine.getBalls();
+      expect(balls.length).toBeGreaterThan(SPRITE_CACHE_CAP);
+      expect(new Set(balls.map((b) => b.color)).size).toBeGreaterThan(SPRITE_CACHE_CAP);
+      expect(layer.drawsBodies(v)).toBe(true);
+      const ctx = fakeCanvas(800, 600).ctx;
+      const fills: string[] = [];
+      const fill = ctx.fill as (...args: unknown[]) => void;
+      ctx.fill = (...args: unknown[]) => {
+        fills.push(String(ctx.fillStyle));
+        fill(...args);
+      };
+      layer.drawBodies(ctx as unknown as CanvasRenderingContext2D, v, opts);
+      expect(ctx.calls.some((c) => c.name === "drawImage" || c.name === "createRadialGradient")).toBe(false);
+      // three arcs a marble (the body, the highlight, the specular dot); the body on its ball, its size and its colour
+      const arcs = ctx.calls.filter((c) => c.name === "arc").map((c) => c.args as number[]);
+      expect(arcs).toHaveLength(3 * balls.length);
+      const bodies = fills.filter((_, i) => i % 3 === 0);
+      for (const ball of balls) {
+        const at = arcs.findIndex((a, j) => j % 3 === 0 && Math.abs(a[0] - ball.x) < 1e-9 && Math.abs(a[1] - ball.y) < 1e-9);
+        expect(at).toBeGreaterThanOrEqual(0);
+        expect(arcs[at][2]).toBeCloseTo(ball.radius, 9);
+        expect(bodies[at / 3]).toBe(ball.color);
+      }
+      // the depth cue kept: the marbles that sank are drawn smaller
+      expect(Math.min(...balls.map((b) => b.radius))).toBeLessThan(0.9 * opts.ballRadius);
     }
   });
 

@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fakeGraph } from "./fakeAudio";
 import { createEngineForSettings, findSimulation, type ModeSettings } from "@/lib/simulation/finder";
@@ -574,6 +576,26 @@ describe("Beat Machines: settings, links, presets, the page", () => {
     expect(beatMachinePresetPatch("xylophone")).toMatchObject({ bmVariant: "marbles", bmBars: 10, bmBpm: 100, bmSource: "original" });
     expect(beatMachinePresetPatch("yourMelody")).toMatchObject({ bmVariant: "marbles", bmSource: "melody" });
     expect(BM_RESTART_FIELDS).not.toContain("bmCounter");
+  });
+
+  // --- review fix (beat-machine) --- the scale, the root and the loaded melody are every mode's: in another mode a change of
+  // them must not drop a found result (a found Classic seed lost its "Found!" line to a scale change)
+  it("restarts its run and drops a found result for a change of its key only while Beat Machines is the mode (Simulator.tsx)", () => {
+    const src = fs.readFileSync(path.resolve(__dirname, "../src/components/simulator/Simulator.tsx"), "utf8");
+    expect(src).toMatch(/const bmRunKey = \[\.\.\.BM_RESTART_FIELDS\.map\([^\n]*s\.scale, s\.rootNote/);
+    const effects = [...src.matchAll(/useEffect\(\(\) => \{([\s\S]*?)\n {2}\}, \[([^\]]*)\]\);/g)].filter((m) => m[2].includes("bmRunKey"));
+    expect(effects).toHaveLength(1);
+    const body = effects[0][1];
+    const moved = body.indexOf("bmRunKeyRef.current = bmRunKey;");
+    const guard = body.indexOf('if (s.mode !== "beatMachine") return;');
+    const drop = body.indexOf("setSearchResult(");
+    const restart = body.indexOf('engine.initMode("beatMachine")');
+    // the key is remembered in every mode (a later switch to Beat Machines does not restart twice), then the mode decides
+    expect(moved).toBeGreaterThan(0);
+    expect(guard).toBeGreaterThan(moved);
+    expect(drop).toBeGreaterThan(guard);
+    expect(restart).toBeGreaterThan(guard);
+    expect(body.indexOf("setSearchResult(", drop + 1)).toBe(-1);
   });
 
   it("joins the rhythm family after Beat Drop, with its HUD words, its caption and every message in en / pl / es", () => {
