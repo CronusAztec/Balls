@@ -37,6 +37,7 @@ import { beatMachineSettingsOf } from "@/lib/physics/beatMachine"; // --- beat-m
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
 import { exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
+import { ringEscapeConfigIfSet } from "@/lib/physics/ringEscape"; // --- ring-escape ---
 import { riggedConfigOf } from "@/lib/physics/rigged";
 import type { PhysicsConfig } from "@/lib/physics/types";
 import { defaultSettings, pastAnyMemoryCeiling, uncappedEngaged, type SimulatorSettings } from "@/lib/settings";
@@ -90,6 +91,7 @@ export function physicsConfigOfSettings(s: SimulatorSettings, world: BotWorld = 
     ...riggedConfigOf(s),
     ...(s.bounceMath.length > 0 ? { bounceMath: bounceMathConfigOf(s, markerBeatInputOf(s)) } : {}), // --- bounce-math --- (the hand-placed markers, else the BPM: a page's song is not there)
     ...(s.respawnEvery > 0 ? respawnConfigOf(s) : {}), // --- gerald-conveyor --- the respawn timer of Classic and Multiply (nothing while it is off)
+    ...ringEscapeConfigIfSet(s), // --- ring-escape --- Classic's gap layout, spin and ring sounds (nothing at their defaults)
     // --- unlimited --- the extreme-values runtime as the page's engine gets it (--- uncap-all --- engaged by any value past its
     // slider, whatever the switch: planned steps, the crowd, ARENA FULL); nothing at the sliders' values
     ...uncapConfigIfEngaged(s),

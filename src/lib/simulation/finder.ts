@@ -21,6 +21,7 @@ import { FL_STORY_OUTCOMES, outcomeClipSec, outcomeFigure, outcomeHorizonMs, out
 import { hoopsOutcomeSettled } from "./outcomes"; // --- bead-hoops ---
 import { FILL_SLACK_MS } from "./outcomes"; // --- fl-overhaul --- (Stage 6) Make a clip's KO window
 import { fanOutcomeSettled } from "./outcomes"; // --- chaos-fan ---
+import { ringOutcomeSettled } from "./outcomes"; // --- ring-escape ---
 // --- jdm-double-pendulum ---
 import { resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
 // --- jdm-illusions ---
@@ -52,6 +53,7 @@ import { orbRhythmFinderAnswer } from "@/lib/physics/modes/orbGrid"; // --- orb-
 import type { FightLeagueSettings } from "@/lib/physics/modes/fightLeague"; // --- fight-league ---
 import { flBothLowNow, flFinderBatch, flRunSummary, flShowHorizonMs, flSideEliminated, resolveFightLeagueSettings } from "@/lib/physics/modes/fightLeague"; // --- fl-overhaul --- (Stage 5)
 import { resolveLandClaimSettings, type LandClaimSettings } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
+import { lcPyramidLoops, type LcPyramidView } from "@/lib/physics/landClaimPyramid"; // --- land-claim-pyramid ---
 import { MAX_TEAMS } from "@/lib/physics/ballStats"; // --- land-claim ---
 import type { GrowFillSettings } from "@/lib/physics/modes/grow"; // --- loop-foundation ---
 import { growRunFinishes } from "@/lib/physics/growFill"; // --- loop-foundation ---
@@ -308,7 +310,8 @@ export const ENDLESS_MODES: ModeId[] = ["multiply", "lines", "grow"];
  * Wave with the cycles set to never. The finder resolves at once with `endless` set instead of simulating,
  * and the page hides its button.
  */
-export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */ & Partial<Pick<ModeSettings, "hoops">> /* --- bead-hoops --- */): boolean {
+export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "drop" | "box" | "pendulum" | "polyrhythm" | "doublePendulum" | "illusion" | "runner" | "paddle" | "vortex" | "paintPicture" | "orbGrid" /* --- orb-rhythm --- */> & Partial<Pick<ModeSettings, "grow">> /* --- loop-foundation --- */ & Partial<Pick<ModeSettings, "hoops">> /* --- bead-hoops --- */ & Partial<Pick<ModeSettings, "landClaim">> /* --- land-claim-pyramid --- */): boolean {
+  if (mode === "landClaim") return lcPyramidLoops(resolveLandClaimSettings(settings.landClaim)); // --- land-claim-pyramid --- (a looping pyramid never ends; its outcomes search the first cycle)
   if (mode === "grow" && growRunFinishes(settings.grow)) return false; // --- loop-foundation --- ("finish": the run ends at the fill)
   if (mode === "hoops") return resolveHoopsSettings(settings.hoops).returnLoop; // --- bead-hoops --- (the return loops forever)
   if (ENDLESS_MODES.includes(mode)) return true;
@@ -376,7 +379,7 @@ export function fixedRunDurationSec(mode: ModeId, settings: Pick<ModeSettings, "
   // --- land-claim --- a steal battle always lasts its duration (land sways until then); a knock or claim run ends when the wall is taken
   if (mode === "landClaim") {
     const lc = resolveLandClaimSettings((settings as Pick<ModeSettings, "landClaim">).landClaim);
-    return lc.rule === "steal" ? lc.duration : null;
+    return lc.rule === "steal" && lc.layout !== "pyramid" /* --- land-claim-pyramid --- (a pyramid only knocks) */ ? lc.duration : null;
   }
   // --- bead-hoops --- without the return a run lasts its ramp and its top hold, whatever the seed (with it, it never ends)
   if (mode === "hoops") {
@@ -499,6 +502,14 @@ export interface FinderResult {
   beatMachine?: BeatMachineFound;
   /** --- funnel-spin --- The Sound Vortex's ring release: the wave interval and the friction that put the last ring's vanish on a bar line. */
   funnelSpin?: FunnelSpinFound;
+  // --- land-claim-pyramid ---
+  /** Land Claim's pyramid: when the first cycle's summit fell (seconds) in the run found – or in the closest one – when it did. */
+  summitAt?: number;
+  /** Land Claim's pyramid: the blocks still standing elsewhere then (0: the summit fell last). */
+  summitLeft?: number;
+  // --- end land-claim-pyramid ---
+  /** --- ring-escape --- Classic: when the first ring was escaped (seconds) in the run found – or in the closest one – when one was. */
+  ringAt?: number;
 }
 
 /**
@@ -964,7 +975,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   // Find Duration + 30 s cut a 61–120 s countdown short: no seed could match, not even with the forced winner)
   const fixedSec = winnerNeedsEnd(outcome, request.mode) ? fixedRunDurationSec(request.mode, request.modeSettings) : null;
   // --- land-claim --- a battle judged at its end (the winner, a close battle) is followed to its duration at the latest
-  const lcEndSec = request.mode === "landClaim" && (winnerNeedsEnd(outcome, request.mode) || outcome.kind === "close") ? resolveLandClaimSettings(request.modeSettings.landClaim).duration : null;
+  const lcEndSec = request.mode === "landClaim" && (winnerNeedsEnd(outcome, request.mode) || outcome.kind === "close" || outcome.kind === "summit-last" /* --- land-claim-pyramid --- */) ? resolveLandClaimSettings(request.modeSettings.landClaim).duration : null;
   // --- fl-overhaul --- (Stage 5) a Fight League show is followed FL_SHOW_BOUT_SEC a match at least, when its verdict is the outcome
   const flSettings = request.mode === "fightLeague" ? resolveFightLeagueSettings(request.modeSettings.fightLeague) : null;
   const flShowMs = flSettings && (winnerNeedsEnd(outcome, request.mode) || outcome.kind === "double-ko" || outcome.kind === "close" || (FL_STORY_OUTCOMES.includes(outcome.kind) && outcome.kind !== "both-low-at")) ? flShowHorizonMs(flSettings) : 0;
@@ -993,9 +1004,12 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   let allUp = -1;
   const fanRun = request.mode === "doublePendulum" && outcome.kind === "diverges-at"; // --- chaos-fan --- (the fan's first split, real time)
   let diverge = -1;
+  const ringRun = request.mode === "classic" && outcome.kind === "ring-at"; // --- ring-escape --- (the first ring escaped, real time)
+  let firstRing = -1;
   // --- colour-sort --- the first sort decides every outcome of it: the run is followed until it ends (every ball sorted, or
   // the mode's time limit – the horizon of the colour and the bar line) and no further
   const csRun = request.mode === "colourSort";
+  const lcpRun = request.mode === "landClaim" && outcome.kind === "summit-last"; // --- land-claim-pyramid ---
   const csHorizonMs = csRun && outcome.kind !== "sorted-by" ? Math.max(horizonMs, 1000 * resolveColourSortSettings(request.modeSettings.colourSort).limit + FIXED_RUN_SLACK_MS) : horizonMs;
   while (elapsed < csHorizonMs - 1e-6) {
     engine.update(step, 0);
@@ -1007,10 +1021,12 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     if (growRun && firstFill < 0 && engine.getGrowView().fills > 0) firstFill = elapsed; // --- loop-foundation ---
     if (hoopsRun && allUp < 0 && engine.getHoopsView().firstAllUpMs >= 0) allUp = elapsed; // --- bead-hoops ---
     if (fanRun && diverge < 0 && (engine.getDoublePendulumView().fan?.divergeMs ?? -1) >= 0) diverge = elapsed; // --- chaos-fan ---
+    if (ringRun && firstRing < 0 && (engine.getRingEscapeView()?.escaped ?? 0) > 0) firstRing = elapsed; // --- ring-escape ---
     finished = engine.isSimulationFinished();
     if (outcomeSettled(outcome, elapsed, firstEscape, finished, request.mode, firstResolve, settledAt, firstFill)) break;
     if (hoopsRun && hoopsOutcomeSettled(outcome, elapsed, allUp, engine.getHoopsView().orderDecided)) break; // --- bead-hoops ---
     if (fanRun && fanOutcomeSettled(outcome, elapsed, diverge)) break; // --- chaos-fan ---
+    if (ringRun && ringOutcomeSettled(outcome, elapsed, firstRing)) break; // --- ring-escape --- (a miss stops; a match plays on to the run's end)
     if (battleTeam >= 0 && engine.getStringBattleView().fighters[battleTeam]?.alive === false) break; // it cannot win any more
     // --- odd-maze --- the maze's verdict is final once a ball is out: another ball's win ends the search of this seed
     if (mazeTeam >= 0 && engine.getMazeView().winner >= 0 && engine.getMazeView().winner !== mazeTeam) break;
@@ -1023,6 +1039,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
     }
     if (elapsed > finishLimitMs) break; // --- fl-overhaul --- (Stage 6) past Make a clip's KO window: this run can no longer end inside it
     if (csRun && engine.getColourSortView().completions > 0) break; // --- colour-sort --- (the first sort has ended: its verdict is in)
+    if (lcpRun && (engine.getLandClaimView().pyramid?.ends ?? 0) > 0) break; // --- land-claim-pyramid --- (the first cycle is over: the summit's verdict is in)
   }
   const teamCount = request.mode === "stringBattle" ? engine.getStringBattleView().count : request.mode === "territory" ? engine.getTerritoryView().teams /* --- odd-territory --- */ : request.mode === "maze" ? engine.getMazeView().teamCount /* --- odd-maze --- (one team per ball, the first six) */ : request.mode === "fightLeague" ? engine.getFightLeagueView().sides /* --- fight-league --- (a side per fighter, two in 2v2; --- fl-overhaul --- Stage 5: the run's sides – a bracket's pinned entrants, a boss rush's boss and challengers) */ : startBallCount(engine.config, request.mode); // --- odd-string-battle --- (one team per ball)
   // --- land-claim --- the battle's first six competitors are teams; its verdict's gap between the top two (a close battle)
@@ -1037,7 +1054,7 @@ export function simulateOutcomeRun(seed: number, request: FinderRequest, outcome
   // --- fl-overhaul --- (Stage 5) Fight League's story (RunSummary.fl) and its close battle's margin: the winner's HP share
   const fl = request.mode === "fightLeague" ? flRunSummary(engine.getFightLeagueView(), bothLowAt) : null;
   const flMargin = fl && finished && fl.winnerHpFrac >= 0 ? { margin: fl.winnerHpFrac } : {};
-  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...flMargin, ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...hoopsSummary /* --- bead-hoops --- */, ...(fanRun ? { divergeMs: diverge } : {}) /* --- chaos-fan --- */, ...(csRun ? colourSortRunFields(engine) : {}) /* --- colour-sort --- */, ...(fl ? { fl } : {}) /* --- fl-overhaul --- (Stage 5) */ };
+  return { mode: request.mode, durationMs: elapsed, finished, firstEscapeMs: firstEscape, teams, ...(lcView && lcView.finished ? { margin: lcView.verdict.margin } : {}), ...flMargin, ...(orbs ? { firstResolveMs: firstResolve, settledMs: settledAt } : {}) /* --- orb-grid --- */, ...(doubleKo !== undefined ? { doubleKo } : {}), ...(growRun ? { firstFillMs: firstFill } : {}) /* --- loop-foundation --- */, ...hoopsSummary /* --- bead-hoops --- */, ...(fanRun ? { divergeMs: diverge } : {}) /* --- chaos-fan --- */, ...(csRun ? colourSortRunFields(engine) : {}) /* --- colour-sort --- */, ...(lcView?.pyramid ? lcPyramidRunFields(lcView.pyramid) : {}) /* --- land-claim-pyramid --- */, ...(fl ? { fl } : {}) /* --- fl-overhaul --- (Stage 5) */, ...(ringRun ? { firstRingMs: firstRing } : {}) /* --- ring-escape --- */ };
 }
 
 /** --- fl-overhaul --- (Stage 6) A Fight League show's run as the progress names it: the bout it reached of the show's bouts ("3/7"). */
@@ -1061,6 +1078,17 @@ function colourSortRunFields(engine: PhysicsEngine): Pick<RunSummary, "sortedMs"
 }
 // --- end colour-sort ---
 
+// --- land-claim-pyramid ---
+/** A pyramid run's first cycle: when its summit fell (real time, from 0: the first cycle starts the run) and the blocks still standing then, and the whole cycle of a looping run once it ended. */
+function lcPyramidRunFields(p: LcPyramidView): Pick<RunSummary, "summitLeft" | "summitMs" | "cycleMs"> {
+  return {
+    summitLeft: p.firstSummitSec >= 0 ? p.firstSummitLeft : -1,
+    summitMs: p.firstSummitSec >= 0 ? 1000 * p.firstSummitSec : -1,
+    ...(p.rebuild && p.seams === 0 && p.seamMs > 0 ? { cycleMs: p.seamMs - p.cycleStartMs } : p.rebuild && p.cycleSec > 0 ? { cycleMs: 1000 * p.cycleSec } : {}),
+  };
+}
+// --- end land-claim-pyramid ---
+
 /** The outcome search: seeds in the finder's order until one achieves the outcome, reporting the closest run so far. */
 function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgress: (p: FinderProgress) => void, signal?: AbortSignal): Promise<FinderResult> {
   return new Promise((resolve) => {
@@ -1081,6 +1109,8 @@ function findByOutcome(request: FinderRequest, outcome: FinderOutcome, onProgres
       ...(run && (run.sortedMs ?? -1) >= 0 ? { sortedAt: (run.sortedMs ?? 0) / 1000, lastColour: run.lastColour ?? -1 } : {}), // --- colour-sort ---
       ...(run && (run.allUpMs ?? -1) >= 0 ? { allUpAt: (run.allUpMs ?? 0) / 1000 } : {}), // --- bead-hoops ---
       ...(run && (run.divergeMs ?? -1) >= 0 ? { divergeAt: (run.divergeMs ?? 0) / 1000 } : {}), // --- chaos-fan ---
+      ...(run && (run.summitMs ?? -1) >= 0 ? { summitAt: (run.summitMs ?? 0) / 1000, summitLeft: run.summitLeft ?? -1 } : {}), // --- land-claim-pyramid ---
+      ...(run && (run.firstRingMs ?? -1) >= 0 ? { ringAt: (run.firstRingMs ?? 0) / 1000 } : {}), // --- ring-escape ---
     });
     const runBatch = () => {
       if (signal?.aborted) {
