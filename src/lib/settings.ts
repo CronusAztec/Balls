@@ -54,6 +54,8 @@ import type { RunnerBeatSource, RunnerMix } from "@/lib/physics/modes/runner";
 import { SPLIT_SCREEN_RANGES, defaultSplitScreenFields, readSplitScreenParams, resolveSplitScreenFields, writeSplitScreenParams, type ArenaCount, type ArenaLayout, type ArenaOverride, type SoundArena } from "@/lib/splitScreen";
 // --- gerald-vortex --- the Sound Vortex mode
 import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFields, writeVortexParams } from "@/lib/physics/modes/vortex";
+// --- funnel-spin --- the Sound Vortex's ring waves and perspective view
+import { FUNNEL_SPIN_ENGINE_KEYS, FUNNEL_SPIN_RANGES, defaultFunnelSpinFields, readFunnelSpinParams, resolveFunnelSpinFields, writeFunnelSpinParams, type FsRelease, type FsView } from "@/lib/physics/funnelSpin";
 // --- gerald-journey --- the Journey mode
 import { JOURNEY_RANGES, defaultJourneyFields, readJourneyParams, resolveJourneyFields, writeJourneyParams } from "@/lib/physics/modes/journey";
 // --- gerald-bullseye --- the Bullseye mode
@@ -695,6 +697,30 @@ export interface SimulatorSettings {
   /** 0–1: the depth cue – balls shrink toward the centre (URL `vxds`). */
   vxDepthScale: number;
   // --- end gerald-vortex ---
+  // --- funnel-spin --- the Sound Vortex's ring waves and perspective view (lib/physics/funnelSpin.ts; resolved with the mode's settings)
+  /** stagger | rings: the balls one after another, or waves of evenly spaced rings (URL `vxrl`). */
+  vxRelease: FsRelease;
+  /** top | perspective: the funnel from straight above, or seen from the camera elevation (URL `vxv`). */
+  vxView: FsView;
+  /** The ring waves, "6, 12, 24" (each from 1 up; a run builds at most the engine's ball ceiling) (URL `vxw`). */
+  vxWaves: string;
+  /** Seconds between two waves, 0–120 on the slider (URL `vxwi`). */
+  vxWaveInterval: number;
+  /** The drawn funnel's depth, 0–5 on the slider (URL `vxfd`). */
+  vxFunnelDepth: number;
+  /** The camera's elevation in degrees, 0–90 on the slider – 90 is the top view (URL `vxe`). */
+  vxElevation: number;
+  /** The spin friction (1/s), 0–1 on the slider: what lets a ring slip lower (URL `vxsf`). */
+  vxSpinFriction: number;
+  /** Seconds the first lap takes, 0.1–120 on the slider (URL `vxfl`). */
+  vxFirstLap: number;
+  /** The ring release's hole, % of the rim, 1–50 on the slider (URL `vxh`). */
+  vxHoleSize: number;
+  /** Seconds the funnel stays empty before the refill, 0–30 on the slider (URL `vxrg`). */
+  vxRefillGap: number;
+  /** The loop HUD's "lap 1.23 s" of the newest ring (URL `vxlr`). */
+  vxLapReadout: boolean;
+  // --- end funnel-spin ---
   // --- gerald-journey --- Journey (lib/physics/modes/journey.ts, lib/physics/journey/): a column of stages the ball clears on its way HOME
   /** The stage list top-down, e.g. "rings,pegs-l,glass-s,multipliers,home" (sizes "-s" / "-l"; HOME always last) (URL `js`). */
   journeyStages: string;
@@ -1282,6 +1308,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultJdmRhythmFields(), // --- jdm-rhythm-runner ---
     ...defaultSplitScreenFields(), // --- split-screen ---
     ...defaultVortexFields(), // --- gerald-vortex ---
+    ...defaultFunnelSpinFields(), // --- funnel-spin ---
     ...defaultJourneyFields(), // --- gerald-journey ---
     ...defaultBullseyeFields(), // --- gerald-bullseye ---
     // --- beat-drop --- the feature's fields, and the mode's own ball size (radius 14) in Beat Drop only
@@ -1384,6 +1411,7 @@ export const RANGES = {
   ...JDM_RHYTHM_RANGES, // --- jdm-rhythm-runner ---
   ...SPLIT_SCREEN_RANGES, // --- split-screen ---
   ...VORTEX_RANGES, // --- gerald-vortex ---
+  ...FUNNEL_SPIN_RANGES, // --- funnel-spin ---
   ...JOURNEY_RANGES, // --- gerald-journey ---
   ...BULLSEYE_RANGES, // --- gerald-bullseye ---
   ...BEAT_DROP_RANGES, // --- beat-drop ---
@@ -1643,6 +1671,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeJdmRhythmParams(settings, base, params); // --- jdm-rhythm-runner ---: rra, rrn, rrsp, rrj, rrd, rrm, rrbs, pda, pdsk, pdm, pdw, pdsp, pdu
   writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
   writeVortexParams(settings, base, params); // --- gerald-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
+  writeFunnelSpinParams(settings, base, params); // --- funnel-spin ---: vxrl, vxv, vxw, vxwi, vxfd, vxe, vxsf, vxfl, vxh, vxrg, vxlr
   writeJourneyParams(settings, base, params); // --- gerald-journey ---: js, jsa
   writeBullseyeParams(settings, base, params); // --- gerald-bullseye ---: bys, byi, byc, byr, bym, byp
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
@@ -1813,6 +1842,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readJdmRhythmParams(params, settings); // --- jdm-rhythm-runner --- (clamped to the ranges; unknown options fall back)
   readSplitScreenParams(params, settings); // --- split-screen --- (1, 2 or 4 arenas, known layout / sound, clean overrides)
   readVortexParams(params, settings); // --- gerald-vortex --- (clamped onto the sliders; bad values fall back)
+  readFunnelSpinParams(params, settings); // --- funnel-spin --- (known options, clean waves, valid numbers from their minimum up, a real boolean)
   readJourneyParams(params, settings); // --- gerald-journey --- (the stage list normalised, the auto count clamped)
   readBullseyeParams(params, settings); // --- gerald-bullseye --- (clamped onto the sliders; bad values fall back)
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
@@ -2062,6 +2092,7 @@ for (const mode of SPLAT_MODES) (MODE_ENGINE_KEYS[mode] as string[]).push(...SPL
 (MODE_ENGINE_KEYS as Record<ModeId, readonly string[]>).fightLeague = MODE_ENGINE_KEYS.fightLeague.filter((key) => !FIGHT_LEAGUE_VISUAL_KEYS.includes(key));
 // --- end fl-overhaul ---
 (MODE_ENGINE_KEYS.grow as string[]).push(...GROW_FILL_ENGINE_KEYS); // --- loop-foundation --- (the growth, the start, the hold and the shrink)
+(MODE_ENGINE_KEYS.vortex as string[]).push(...FUNNEL_SPIN_ENGINE_KEYS); // --- funnel-spin --- (the ring release's timing; the camera and the drawn depth are the picture's)
 
 const engineKeyCache = new Map<ModeId, readonly string[]>();
 
@@ -2277,6 +2308,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveSplitScreenFields(merged)); // --- split-screen --- 1, 2 or 4 arenas, known layout / sound, clean overrides
   Object.assign(merged, resolveVortexFields(merged)); // --- gerald-vortex --- clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveFunnelSpinFields(merged)); // --- funnel-spin --- known options, clean waves, valid numbers from their minimum up
   Object.assign(merged, resolveJourneyFields(merged)); // --- gerald-journey --- a normalised stage list, a clamped auto count
   Object.assign(merged, resolveBullseyeFields(merged)); // --- gerald-bullseye --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean

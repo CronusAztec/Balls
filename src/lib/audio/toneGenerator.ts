@@ -55,6 +55,7 @@ import {
 } from "./loopTones";
 import { LoopClipSlots, type LoopClipSlotId } from "./loopClips";
 import type { LoopPlayOptions } from "./loopEvents";
+import { startRollingHiss, type RollingHissHandle } from "./funnelTones"; // --- funnel-spin --- the ring release's rolling hiss
 export type { LoopPlayOptions } from "./loopEvents";
 import { scheduleKick as scheduleLoopKick } from "./beatDropTones";
 import { schedulePhraseBass } from "./loopTones"; // --- beat-machine --- (the machines' phrase bass)
@@ -1268,6 +1269,7 @@ export class ToneGenerator {
   private loopBed: GrooveBedHandle | null = null;
   private loopDrone: DroneHandle | null = null;
   private loopDroneEnergy = 1;
+  private loopHiss: RollingHissHandle | null = null; // --- funnel-spin ---
 
   /** The owner's custom clips of the loop families (the panel loads, trims and clears them; the session keeps them). */
   getLoopClips(): LoopClipSlots {
@@ -1435,6 +1437,15 @@ export class ToneGenerator {
           if (!this.loopBudget.thump(time)) return;
           schedulePhraseBass(ctx, out, f ?? 55, time, l);
           return;
+        // --- funnel-spin --- the rolling hiss (lib/audio/funnelTones.ts): started by its first level, faded out by "hissStop"
+        case "hiss":
+          if (!this.loopHiss) this.loopHiss = startRollingHiss(ctx, this.masterGain, time, noise());
+          this.loopHiss.setLevel(l, time);
+          return;
+        case "hissStop":
+          this.loopHiss?.stop(time);
+          this.loopHiss = null;
+          return;
       }
     } catch (err) {
       console.error(`Error playing the loop sound ${kind}:`, err);
@@ -1450,6 +1461,8 @@ export class ToneGenerator {
     this.loopBed = null;
     this.loopDrone?.stop(time);
     this.loopDrone = null;
+    this.loopHiss?.stop(time); // --- funnel-spin ---
+    this.loopHiss = null;
   }
   // --- end loop-foundation ---
 

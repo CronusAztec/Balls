@@ -1660,6 +1660,10 @@ export class PhysicsEngine {
   getVortexProgress() {
     return this.vortexMode.getProgress();
   }
+  /** --- funnel-spin --- The page resumed a paused ring run: its groove bed and rolling hiss come back with the next step. */
+  refreshVortexBed() {
+    if (this.currentMode === this.vortexMode) this.vortexMode.refreshFunnelBed();
+  }
   // --- end gerald-vortex ---
   // --- gerald-journey ---
   isJourneyMode() {

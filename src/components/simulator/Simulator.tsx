@@ -129,6 +129,7 @@ import { flClipStore } from "@/lib/audio/flClips"; // --- fl-overhaul --- (Stage
 import { mergeArenaSettings, resolvedArenas, splitRestartKey, splitScreenCarryOver, withArenaSeeds } from "@/lib/splitScreen";
 import type { SplitScreenCanvasOptions, SplitScreenLabels } from "./splitScreenCanvas";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex"; // --- gerald-vortex ---
+import { FUNNEL_SPIN_RESTART_FIELDS } from "@/lib/physics/funnelSpin"; // --- funnel-spin ---
 import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- gerald-journey ---
 import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- gerald-bullseye ---
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
@@ -635,6 +636,13 @@ export default function Simulator() {
       return { title: s.loopHudTitle || t(words.title).replace(" / ", " "), subtitle: s.loopHudSubtitle || t(words.subtitle), counter: String(t.raw(words.counter)), light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
     }
     // --- end beat-machine ---
+    // --- funnel-spin --- the ring release's words ("why marbles speed up in a funnel", a two-line subtitle) and, with the lap
+    // readout, the newest ring's lap ("lap 1.23 s")
+    if (s.mode === "vortex" && s.vxRelease === "rings") {
+      const counter = s.vxLapReadout ? String(t.raw("Vortex.canvasLapTime")).replace("[value]", "{lap}") : "";
+      return { title: s.loopHudTitle || t("Vortex.canvasTitleFunnel"), subtitle: s.loopHudSubtitle || t("Vortex.canvasSubtitleFunnel"), counter, light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
+    }
+    // --- end funnel-spin ---
     const keys = LOOP_HUD_MODE_TEXT[s.mode];
     // (--- ellipse-foci --- a mode's words may live in its own namespace: `loopHudMessageKey()`)
     const title = s.loopHudTitle || (keys ? t(loopHudMessageKey(keys.title)) : t(`Modes.${s.mode}.name`));
@@ -642,7 +650,7 @@ export default function Simulator() {
     const counterKey = keys?.counterOne && s.mode === "hoops" && s.hpCount === 1 ? keys.counterOne : keys?.counter; // --- bead-hoops --- (one hoop: "the bead up")
     const counter = counterKey ? String(t.raw(loopHudMessageKey(counterKey))) : "";
     return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]), locale: hudLocale /* --- bead-hoops --- (the counter's decimals on the live canvas) */ };
-  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */]);
+  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */]);
   const loopHudRef = useRef({ spec: loopHudSpec, locale: hudLocale });
   loopHudRef.current = { spec: loopHudSpec, locale: hudLocale };
   /** The HUD of a frame of `engine`'s run (null without the HUD), for the recorder and the fast export. */
@@ -1236,6 +1244,43 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [s.vxDepthScale, s.scale, s.rootNote]);
   // --- end gerald-vortex ---
+  // --- funnel-spin --- the Sound Vortex's ring release: a change of the waves, the timing, the friction, the first lap, the hole
+  // or the refill (FUNNEL_SPIN_RESTART_FIELDS) restarts the run, silences its bed and hiss and drops a found result; the view, the
+  // camera, the drawn depth, the lap readout and the bed's tempo follow live. A found run moves the key itself before it updates
+  // the settings (runFinder), so its own change keeps the result.
+  const fsRunKey = FUNNEL_SPIN_RESTART_FIELDS.map((key) => String(s[key])).join("|");
+  const fsRunKeyRef = useRef(fsRunKey);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setVortexSettings(vortexSettingsOf(s));
+    if (fsRunKeyRef.current === fsRunKey) return;
+    fsRunKeyRef.current = fsRunKey;
+    setSearchResult((r) => (r?.found ? null : r));
+    if (s.mode === "vortex" && engine.getCurrentModeName() === "vortex") {
+      engine.initVortex();
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fsRunKey, s.vxView, s.vxElevation, s.vxFunnelDepth, s.vxLapReadout, s.bpm]);
+  // the Sound Vortex's own restarts (balls, rings, loop…) start a ring run's bed and hiss over too
+  useEffect(() => {
+    if (s.vxRelease === "rings") audioRef.current?.resetLoop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.vxBalls, s.vxStagger, s.vxRings, s.vxDuration, s.vxGravity, s.vxLoop]);
+  // The bed and the hiss hold their sound: they stop while a ring run is paused (or over, or another mode runs) and come back
+  // with the run when it resumes (a run from its start sends its first chord itself)
+  const fsBedLive = s.mode === "vortex" && s.vxRelease === "rings" && isStarted && !isPaused && !finished;
+  const fsBedLiveRef = useRef(false);
+  useEffect(() => {
+    const was = fsBedLiveRef.current;
+    fsBedLiveRef.current = fsBedLive;
+    const engine = engineRef.current;
+    if (fsBedLive && !was && engine && engine.getElapsedMs() > 0) engine.refreshVortexBed();
+    else if (!fsBedLive && was) audioRef.current?.resetLoop();
+  }, [fsBedLive]);
+  // --- end funnel-spin ---
   // --- gerald-journey --- Journey: a change of the stage list or the random-stage count restarts the run and drops a found seed.
   useEffect(() => {
     const engine = engineRef.current;
@@ -1685,7 +1730,7 @@ export default function Simulator() {
   // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
   const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);
   const flShow = s.mode === "fightLeague" ? flShowKind({ match: s.flMatch, bestOf: s.flBestOf }) : undefined; // --- fl-overhaul --- (Stage 5) the show's own outcomes
-  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, flShow, flSides: s.mode === "fightLeague" ? flSideCount(s.flMatch, [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flFighterE, s.flFighterF]) : 0, flDecider: flBestOfGames(s.flBestOf) > 1 /* --- fl-overhaul --- (Stage 5) */, dpFan: s.mode === "doublePendulum" && s.dpFan /* --- chaos-fan --- */, colourSortSettles: s.mode === "colourSort" && csSortSettles(s.csRule) /* --- colour-sort --- */, bmMarbles: s.mode === "beatMachine" && s.bmVariant === "marbles" /* --- beat-machine --- */ });
+  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, flShow, flSides: s.mode === "fightLeague" ? flSideCount(s.flMatch, [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flFighterE, s.flFighterF]) : 0, flDecider: flBestOfGames(s.flBestOf) > 1 /* --- fl-overhaul --- (Stage 5) */, dpFan: s.mode === "doublePendulum" && s.dpFan /* --- chaos-fan --- */, colourSortSettles: s.mode === "colourSort" && csSortSettles(s.csRule) /* --- colour-sort --- */, bmMarbles: s.mode === "beatMachine" && s.bmVariant === "marbles" /* --- beat-machine --- */, vortexRings: s.mode === "vortex" && s.vxRelease === "rings" /* --- funnel-spin --- */ });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }), t("Rigged.challengers") /* --- fl-overhaul --- (Stage 5: a boss rush's side 1) */);
   const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
@@ -3024,6 +3069,7 @@ export default function Simulator() {
     let outcome: FinderOutcome | undefined = finderOutcome && finderOutcome !== "duration" ? { kind: finderOutcome, clipSec, atSec: findEscapeAt, team: findWinnerTeam, count: findCount /* --- fl-overhaul --- (Stage 5) */ } : undefined;
     if (outcome?.kind === "fill-on-bar") outcome.atSec = barSeconds(settings.bpm); // --- loop-foundation --- (a bar of four beats at the page's BPM)
     if (outcome?.kind === "converge-on-beat") outcome.atSec = barSeconds(settings.bpm); // --- ellipse-foci --- (the transit: whole bars at the page's BPM)
+    if (outcome?.kind === "ring-on-bar") outcome.atSec = barSeconds(settings.bpm); // --- funnel-spin --- (the last ring's vanish on a bar line at the page's BPM)
     if (outcome?.kind === "sorted-on-bar") outcome.atSec = barSeconds(settings.bpm); // --- colour-sort --- (the final ball sorted on a bar line, ±20 ms)
     // --- fl-overhaul --- (Stage 6) Make a clip searches its own plan: a story's outcome with the KO window, or the run length
     // that puts the KO at 85 % of the clip (a show: any finished show), through this same search and its strip
@@ -3156,8 +3202,16 @@ export default function Simulator() {
         efRunKeyRef.current = EF_RESTART_FIELDS.map((key) => String({ ...settings, ...foundEf }[key])).join("|");
         update({ ...foundEf, recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration - 1e-6)) }); // (whole seconds: Export whole loops cuts the clip to the loops)
       }
+      // --- funnel-spin --- the wave interval and the spin friction that put the last ring's vanish on a bar line, and the clip:
+      // whole cycles of the run (the restart effect's key is moved first, so the change keeps the result on the page)
+      const foundFs = settings.mode === "vortex" && result.funnelSpin ? { vxWaveInterval: result.funnelSpin.interval, vxSpinFriction: result.funnelSpin.friction } : null;
+      if (foundFs) {
+        fsRunKeyRef.current = FUNNEL_SPIN_RESTART_FIELDS.map((key) => String({ ...settings, ...foundFs }[key])).join("|");
+        update({ ...foundFs, recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration - 1e-6)) });
+      }
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
+      if (foundFs) initEngineForMode(engine, { ...settings, ...foundFs }); // --- funnel-spin ---
       if (foundStars) initEngineForMode(engine, { ...settings, ...foundStars }); // --- chord-stars ---
       if (foundEf) initEngineForMode(engine, { ...settings, ...foundEf }); // --- ellipse-foci ---
       // --- split-screen --- every arena keeps the seed found for it (the first arena's is this page's, set above)
@@ -3357,6 +3411,8 @@ export default function Simulator() {
         pews: (n) => fill("Vortex.canvasPews", { count: n }),
         done: t("Vortex.canvasDone"),
         doneSub: (balls, notes) => fill("Vortex.canvasDoneSub", { balls, notes }),
+        funnelTitle: t("Vortex.canvasTitleFunnel"), // --- funnel-spin ---
+        lapTime: (seconds) => fill("Vortex.canvasLapTime", { value: seconds }),
       },
       // --- gerald-journey ---
       journey: {
@@ -3634,7 +3690,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcRacers, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || (settings.mode === "doublePendulum" && settings.dpFan) /* --- chaos-fan --- (a looping fan still has its split to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "ellipseFoci" /* --- ellipse-foci --- (the convergences on the beat, the longest collapse) */ || (settings.mode === "beatMachine" && settings.bmVariant === "marbles") /* --- beat-machine --- (the marble machine's seeded phrases) */ || (settings.mode === "colourSort" && !csSortSettles(settings.csRule)) /* --- colour-sort --- (its first sort's outcomes; a rule that lets balls back in only settles: nothing to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */, hoops: hoopsSettingsOf(settings) /* --- bead-hoops --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || (settings.mode === "doublePendulum" && settings.dpFan) /* --- chaos-fan --- (a looping fan still has its split to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "ellipseFoci" /* --- ellipse-foci --- (the convergences on the beat, the longest collapse) */ || (settings.mode === "beatMachine" && settings.bmVariant === "marbles") /* --- beat-machine --- (the marble machine's seeded phrases) */ || (settings.mode === "vortex" && settings.vxRelease === "rings") /* --- funnel-spin --- (a looping ring run still has its last ring's vanish to put on a bar line) */ || (settings.mode === "colourSort" && !csSortSettles(settings.csRule)) /* --- colour-sort --- (its first sort's outcomes; a rule that lets balls back in only settles: nothing to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */, hoops: hoopsSettingsOf(settings) /* --- bead-hoops --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.

@@ -355,10 +355,11 @@ export default function Controls(props: ControlsProps) {
   // --- colour-sort --- the Colour Sort block's labels live in their own namespace: the search and the palette read them there too
   const colourSortT = useTranslations("ColourSort");
   const beatMachineT = useTranslations("BeatMachine"); // --- beat-machine --- (its block's labels live in their own namespace too)
+  const vortexT = useTranslations("Vortex"); // --- funnel-spin --- (the ring release's and the perspective's labels live under Vortex)
   const matches = (key: string) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    const label = t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : "";
+    const label = t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : "";
     return key.toLowerCase().includes(q) || label.toLowerCase().includes(q);
   };
   const sectionMatches = (keys: string[]) => !search || keys.some(matches);
@@ -1491,7 +1492,7 @@ export default function Controls(props: ControlsProps) {
     const labels = Object.fromEntries(railItems.map((item) => [item.id, item.label]));
     const groups: PaletteGroup[] = paletteKeyGroups(paletteShown, sections.map((item) => item.id), !!props.project).map((g) => ({ ...g, label: labels[g.section] }));
     const out: PaletteEntry[] = railItems.map((item) => ({ kind: "section", section: item.id, key: item.id, label: item.label, sectionLabel: item.label }));
-    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : null /* --- colour-sort --- */))];
+    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : null /* --- colour-sort --- */))];
     // The labels follow the language, the entries the mode and the settings that show or hide a control (paletteState).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paletteOpen, t, paletteState, sections.length, !!props.project]);

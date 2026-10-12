@@ -440,7 +440,9 @@ export interface SoundEvent {
 
 // --- loop-foundation --- the voices of the loop sound families (lib/audio/loopTones.ts; `ToneGenerator.playLoop()`)
 export const LOOP_SOUND_KINDS = ["pluck", "bar", "chime", "ding", "step", "land", "chord", "riser", "impact", "kick", "glide", "wash", "ratchet", "scan", "cut", "bed", "bedStop", "drone", "droneStop", "bass" /* --- beat-machine --- the phrase bass of a machine (loopTones.ts schedulePhraseBass) */] as const;
-export type LoopSoundKind = (typeof LOOP_SOUND_KINDS)[number];
+// --- funnel-spin --- the Sound Vortex ring release's rolling hiss: "hiss" starts it or sets its level, "hissStop" fades it out
+export const FUNNEL_SOUND_KINDS = ["hiss", "hissStop"] as const;
+export type LoopSoundKind = (typeof LOOP_SOUND_KINDS)[number] | (typeof FUNNEL_SOUND_KINDS)[number];
 
 // --- fight-league --- the sound families of Fight League's weapons, abilities and KOs
 export type FightSoundKind = "blade" | "blunt" | "arrow" | "gun" | "fire" | "magic" | "ability" | "ko" | "block";
