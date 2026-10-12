@@ -1245,6 +1245,9 @@ await smokeBlock("review-fix-recording-export", async () => {
   const seedAfter = await page.evaluate(() => document.querySelector("main canvas")?.dataset.seed ?? null);
   await page.waitForTimeout(1600);
   // (a run of a few seconds cannot be over again within 2 s; a very short one – a first-bounce escape – may be)
+  // The replay must last at least half the run. The run is measured in wall time, which a loaded runner stretches
+  // (CI once took 25 s for this 10 s run while the replay took its correct 10 s), so the reference is the shorter of the
+  // measured run and the run's set 10 s duration: an early escape still compares against its own short run.
   const earlyDownload = downloadAt !== null && downloadAt - clickedAt < 2000 && runMs > 4000;
   for (let i = 0; i < 60 && !replayDownload; i++) await page.waitForTimeout(500);
   page.off("download", onReplayDownload);
@@ -1257,7 +1260,7 @@ await smokeBlock("review-fix-recording-export", async () => {
   const replayMs = downloadAt ? downloadAt - clickedAt : null;
   check(
     "Record Video on a finished run records the run again from its seed (no half-second still of the end screen)",
-    over && stopShown && endScreenGone && seedBefore !== null && seedAfter === seedBefore && !earlyDownload && replayMs !== null && replayMs > 0.5 * runMs && replayBytes > 10000,
+    over && stopShown && endScreenGone && seedBefore !== null && seedAfter === seedBefore && !earlyDownload && replayMs !== null && replayMs > 0.5 * Math.min(runMs, 10000) && replayBytes > 10000,
     `(run ${runMs} ms, seed ${seedBefore} → ${seedAfter}, stop shown ${stopShown}, end screen gone ${endScreenGone}, download after ${replayMs} ms, ${replayBytes} bytes)`,
   );
 
