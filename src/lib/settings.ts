@@ -54,6 +54,8 @@ import type { RunnerBeatSource, RunnerMix } from "@/lib/physics/modes/runner";
 import { SPLIT_SCREEN_RANGES, defaultSplitScreenFields, readSplitScreenParams, resolveSplitScreenFields, writeSplitScreenParams, type ArenaCount, type ArenaLayout, type ArenaOverride, type SoundArena } from "@/lib/splitScreen";
 // --- gerald-vortex --- the Sound Vortex mode
 import { VORTEX_RANGES, defaultVortexFields, readVortexParams, resolveVortexFields, writeVortexParams } from "@/lib/physics/modes/vortex";
+// --- funnel-spin --- the Sound Vortex's ring waves and perspective view
+import { FUNNEL_SPIN_ENGINE_KEYS, FUNNEL_SPIN_RANGES, defaultFunnelSpinFields, readFunnelSpinParams, resolveFunnelSpinFields, writeFunnelSpinParams, type FsRelease, type FsView } from "@/lib/physics/funnelSpin";
 // --- gerald-journey --- the Journey mode
 import { JOURNEY_RANGES, defaultJourneyFields, readJourneyParams, resolveJourneyFields, writeJourneyParams } from "@/lib/physics/modes/journey";
 // --- gerald-bullseye --- the Bullseye mode
@@ -109,6 +111,8 @@ import { defaultHoopsFields, readHoopsParams, resolveHoopsFields, writeHoopsPara
 import { PHASE_SPIRAL_PICTURE_RANGES, readPhaseSpiralParams, writePhaseSpiralParams, type PolyPalette } from "@/lib/physics/phaseSpiral";
 // --- ellipse-foci --- Focus Shot (an elliptical pool: a volley from one focus converges on the other every transit)
 import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDefaults, readEllipseFociParams, resolveEllipseFociFields, writeEllipseFociParams, type EfLaunch, type EfOrientation, type EfReset, type EfSkin } from "@/lib/physics/ellipseFoci";
+// --- beat-machine --- Beat Machines (the marble xylophone and the eight-step staircase)
+import { BM_ENGINE_KEYS, BM_RANGES, beatMachineModeDefaults, defaultBeatMachineFields, readBeatMachineParams, resolveBeatMachineFields, writeBeatMachineParams, type BeatMachineFields } from "@/lib/physics/beatMachine";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -694,6 +698,30 @@ export interface SimulatorSettings {
   /** 0–1: the depth cue – balls shrink toward the centre (URL `vxds`). */
   vxDepthScale: number;
   // --- end gerald-vortex ---
+  // --- funnel-spin --- the Sound Vortex's ring waves and perspective view (lib/physics/funnelSpin.ts; resolved with the mode's settings)
+  /** stagger | rings: the balls one after another, or waves of evenly spaced rings (URL `vxrl`). */
+  vxRelease: FsRelease;
+  /** top | perspective: the funnel from straight above, or seen from the camera elevation (URL `vxv`). */
+  vxView: FsView;
+  /** The ring waves, "6, 12, 24" (each from 1 up; a run builds at most the engine's ball ceiling) (URL `vxw`). */
+  vxWaves: string;
+  /** Seconds between two waves, 0–120 on the slider (URL `vxwi`). */
+  vxWaveInterval: number;
+  /** The drawn funnel's depth, 0–5 on the slider (URL `vxfd`). */
+  vxFunnelDepth: number;
+  /** The camera's elevation in degrees, 0–90 on the slider – 90 is the top view (URL `vxe`). */
+  vxElevation: number;
+  /** The spin friction (1/s), 0–1 on the slider: what lets a ring slip lower (URL `vxsf`). */
+  vxSpinFriction: number;
+  /** Seconds the first lap takes, 0.1–120 on the slider (URL `vxfl`). */
+  vxFirstLap: number;
+  /** The ring release's hole, % of the rim, 1–50 on the slider (URL `vxh`). */
+  vxHoleSize: number;
+  /** Seconds the funnel stays empty before the refill, 0–30 on the slider (URL `vxrg`). */
+  vxRefillGap: number;
+  /** The loop HUD's "lap 1.23 s" of the newest ring (URL `vxlr`). */
+  vxLapReadout: boolean;
+  // --- end funnel-spin ---
   // --- gerald-journey --- Journey (lib/physics/modes/journey.ts, lib/physics/journey/): a column of stages the ball clears on its way HOME
   /** The stage list top-down, e.g. "rings,pegs-l,glass-s,multipliers,home" (sizes "-s" / "-l"; HOME always last) (URL `js`). */
   journeyStages: string;
@@ -1159,6 +1187,30 @@ export interface SimulatorSettings {
   efBed: boolean;
   efCounter: boolean;
   // --- end ellipse-foci ---
+  // --- beat-machine --- Beat Machines (lib/physics/beatMachine.ts): the marble xylophone and the musical staircase (URL bm…)
+  bmVariant: BeatMachineFields["bmVariant"];
+  /** Tempo (URL `bmBpm`): 100 for the marbles, 80 for the stairs. */
+  bmBpm: number;
+  /** Stairs: steps (URL `bmSt`) and their offsets, % of the panel (URL `bmDx`, `bmDy`). */
+  bmSteps: number;
+  bmStepDx: number;
+  bmStepDy: number;
+  /** Marbles: bars (URL `bmB`), drop height % (URL `bmDh`), rebound (URL `bmRb`), marbles per tube – 0 auto (URL `bmMt`). */
+  bmBars: number;
+  bmDrop: number;
+  bmRebound: number;
+  bmPerTube: number;
+  /** Stairs: return beats (URL `bmRt`). */
+  bmReturn: number;
+  /** Melody source (URL `bmSrc`) and the typed list (URL `bmN`). */
+  bmSource: BeatMachineFields["bmSource"];
+  bmNotes: string;
+  /** Marbles: loop beats (URL `bmL`). */
+  bmLoopBeats: number;
+  /** The phrase bass (URL `bmBs`) and the loop HUD's note counter (URL `bmC`). */
+  bmBass: boolean;
+  bmCounter: boolean;
+  // --- end beat-machine ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -1271,6 +1323,7 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     ...defaultJdmRhythmFields(), // --- jdm-rhythm-runner ---
     ...defaultSplitScreenFields(), // --- split-screen ---
     ...defaultVortexFields(), // --- gerald-vortex ---
+    ...defaultFunnelSpinFields(), // --- funnel-spin ---
     ...defaultJourneyFields(), // --- gerald-journey ---
     ...defaultBullseyeFields(), // --- gerald-bullseye ---
     // --- beat-drop --- the feature's fields, and the mode's own ball size (radius 14) in Beat Drop only
@@ -1304,6 +1357,9 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- ellipse-foci --- the feature's fields, and in Focus Shot only the clip's look (the navy page, the loop HUD on)
     ...defaultEllipseFociFields(),
     ...ellipseFociModeDefaults(mode),
+    // --- beat-machine --- the feature's fields, and in Beat Machines only the marble xylophone's look (the warm brown page, the loop HUD on)
+    ...defaultBeatMachineFields(),
+    ...beatMachineModeDefaults(mode),
   };
 }
 
@@ -1370,6 +1426,7 @@ export const RANGES = {
   ...JDM_RHYTHM_RANGES, // --- jdm-rhythm-runner ---
   ...SPLIT_SCREEN_RANGES, // --- split-screen ---
   ...VORTEX_RANGES, // --- gerald-vortex ---
+  ...FUNNEL_SPIN_RANGES, // --- funnel-spin ---
   ...JOURNEY_RANGES, // --- gerald-journey ---
   ...BULLSEYE_RANGES, // --- gerald-bullseye ---
   ...BEAT_DROP_RANGES, // --- beat-drop ---
@@ -1389,6 +1446,7 @@ export const RANGES = {
   ...HOOPS_RANGES, // --- bead-hoops ---
   ...PHASE_SPIRAL_PICTURE_RANGES, // --- phase-spiral --- (the tails; the arms are in POLYRHYTHM_RANGES)
   ...EF_RANGES, // --- ellipse-foci ---
+  ...BM_RANGES, // --- beat-machine ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1628,6 +1686,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeJdmRhythmParams(settings, base, params); // --- jdm-rhythm-runner ---: rra, rrn, rrsp, rrj, rrd, rrm, rrbs, pda, pdsk, pdm, pdw, pdsp, pdu
   writeSplitScreenParams(settings, base, params); // --- split-screen ---: ac, al, sa, ar
   writeVortexParams(settings, base, params); // --- gerald-vortex ---: vxn, vxs, vxr, vxd, vxg, vxl, vxds
+  writeFunnelSpinParams(settings, base, params); // --- funnel-spin ---: vxrl, vxv, vxw, vxwi, vxfd, vxe, vxsf, vxfl, vxh, vxrg, vxlr
   writeJourneyParams(settings, base, params); // --- gerald-journey ---: js, jsa
   writeBullseyeParams(settings, base, params); // --- gerald-bullseye ---: bys, byi, byc, byr, bym, byp
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
@@ -1645,6 +1704,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeHoopsParams(settings, base, params); // --- bead-hoops ---: hpn, hprx, hprn, hpg, hpw0, hpw1, hpr, hps, hph, hprt, hprs, hpd, hpj, hpt, hpb
   writePhaseSpiralParams(settings, base, params); // --- phase-spiral ---: prar, prm, prtl, prls, prco
   writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
+  writeBeatMachineParams(settings, base, params); // --- beat-machine ---: bmV, bmBpm, bmSt, bmDx, bmDy, bmB, bmDh, bmRb, bmRt, bmMt, bmSrc, bmN, bmL, bmBs, bmC
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1797,6 +1857,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readJdmRhythmParams(params, settings); // --- jdm-rhythm-runner --- (clamped to the ranges; unknown options fall back)
   readSplitScreenParams(params, settings); // --- split-screen --- (1, 2 or 4 arenas, known layout / sound, clean overrides)
   readVortexParams(params, settings); // --- gerald-vortex --- (clamped onto the sliders; bad values fall back)
+  readFunnelSpinParams(params, settings); // --- funnel-spin --- (known options, clean waves, valid numbers from their minimum up, a real boolean)
   readJourneyParams(params, settings); // --- gerald-journey --- (the stage list normalised, the auto count clamped)
   readBullseyeParams(params, settings); // --- gerald-bullseye --- (clamped onto the sliders; bad values fall back)
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
@@ -1814,6 +1875,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readHoopsParams(params, settings); // --- bead-hoops --- (valid numbers from their minimum up, a known ramp shape, real booleans)
   readPhaseSpiralParams(params, settings); // --- phase-spiral --- (whole arms from 1 up, a tail from 0 up, real booleans, a known palette)
   readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
+  readBeatMachineParams(params, settings); // --- beat-machine --- (valid numbers from their minimum up, known options, a clean list, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -2035,6 +2097,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   starChords: [...SC_ENGINE_KEYS], // --- chord-stars --- (the balls, the timing and the start points; the line width is the canvas')
   hoops: rangeKeys(HOOPS_RANGES), // --- bead-hoops --- (every number of the hoops, the spin and the beads is physics)
   ellipseFoci: [...EF_ENGINE_KEYS], // --- ellipse-foci --- (the volley, the pool and the timing; the trail is the canvas')
+  beatMachine: [...BM_ENGINE_KEYS], // --- beat-machine --- (every number of the machine is the plan's)
 };
 // --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
@@ -2044,6 +2107,7 @@ for (const mode of SPLAT_MODES) (MODE_ENGINE_KEYS[mode] as string[]).push(...SPL
 (MODE_ENGINE_KEYS as Record<ModeId, readonly string[]>).fightLeague = MODE_ENGINE_KEYS.fightLeague.filter((key) => !FIGHT_LEAGUE_VISUAL_KEYS.includes(key));
 // --- end fl-overhaul ---
 (MODE_ENGINE_KEYS.grow as string[]).push(...GROW_FILL_ENGINE_KEYS); // --- loop-foundation --- (the growth, the start, the hold and the shrink)
+(MODE_ENGINE_KEYS.vortex as string[]).push(...FUNNEL_SPIN_ENGINE_KEYS); // --- funnel-spin --- (the ring release's timing; the camera and the drawn depth are the picture's)
 
 const engineKeyCache = new Map<ModeId, readonly string[]>();
 
@@ -2265,6 +2329,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveJdmRhythmFields(merged)); // --- jdm-rhythm-runner --- clamped numbers, known options, real booleans
   Object.assign(merged, resolveSplitScreenFields(merged)); // --- split-screen --- 1, 2 or 4 arenas, known layout / sound, clean overrides
   Object.assign(merged, resolveVortexFields(merged)); // --- gerald-vortex --- clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveFunnelSpinFields(merged)); // --- funnel-spin --- known options, clean waves, valid numbers from their minimum up
   Object.assign(merged, resolveJourneyFields(merged)); // --- gerald-journey --- a normalised stage list, a clamped auto count
   Object.assign(merged, resolveBullseyeFields(merged)); // --- gerald-bullseye --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
@@ -2281,6 +2346,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveStarChordsFields(merged)); // --- chord-stars --- valid numbers from their minimum up, clean stars, known options, a real boolean
   Object.assign(merged, resolveHoopsFields(merged)); // --- bead-hoops --- valid numbers from their minimum up, a known ramp shape, real booleans
   Object.assign(merged, resolveEllipseFociFields(merged)); // --- ellipse-foci --- valid numbers from their minimum up, known options, real booleans
+  Object.assign(merged, resolveBeatMachineFields(merged)); // --- beat-machine --- valid numbers from their minimum up, known options, a clean list, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

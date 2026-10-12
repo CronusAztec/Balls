@@ -21,6 +21,8 @@ export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly s
   doublePendulum: ["#physics", "#pendulum", "#creativecoding"], // --- chaos-fan --- (the harp and the fan alike: a pendulum, not a bouncing ball)
   polyrhythm: ["#math", "#polyrhythm", "#creativecoding"], // --- phase-spiral ---
   ellipseFoci: ["#math", "#geometry", "#creativecoding"], // --- ellipse-foci ---
+  beatMachine: ["#marbles", "#animation", "#creativecoding"], // --- beat-machine ---
+  vortex: ["#simulation", "#physics", "#marbles"], // --- funnel-spin --- (the funnel clip's own tags: no #creativecoding)
 };
 /** Any other mode's topic tags. */
 export const LOOP_CAPTION_DEFAULT_TAGS = ["#physics", "#bouncingball"] as const;
@@ -123,8 +125,22 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     const p = s as { prLayout?: string; prTempos?: string; prCount?: number };
     if (p.prLayout === "rings" && p.prTempos === "harmonic") return { mode: s.mode, hookKey: "phaseSpiral", factKey: "phaseSpiralFact", count: typeof p.prCount === "number" && Number.isFinite(p.prCount) ? p.prCount : null };
   }
+  // --- funnel-spin --- the Sound Vortex's ring release by its last ring ("watch the ring of {count} spin up as it drops") and
+  // the figure-skater fact (the stagger release keeps its clip's seconds)
+  if (s.mode === "vortex" && (s as { vxRelease?: string }).vxRelease === "rings") {
+    const waves = String((s as { vxWaves?: string }).vxWaves ?? "").split(/[\s,;]+/).map(Number).filter((n) => Number.isFinite(n) && n >= 1);
+    return { mode: s.mode, hookKey: "funnelSpin", factKey: "funnelSpinFact", count: waves.length > 0 ? Math.round(waves[waves.length - 1]) : null };
+  }
   // --- ellipse-foci --- Focus Shot by its volley: "{count} balls fired from one focus…" and the whispering-gallery fact
   if (s.mode === "ellipseFoci") return { mode: s.mode, hookKey: "ellipseFoci", factKey: "ellipseFociFact", count: typeof s.efCount === "number" && Number.isFinite(s.efCount) ? s.efCount : null };
+  // --- beat-machine --- the marble machine by its bars ("{count} tuned bars, and every note is a marble"), the staircase by its
+  // steps ("{count} steps. {count} notes. one phrase"), each with the fact of its timing
+  if (s.mode === "beatMachine") {
+    const bm = s as { bmVariant?: string; bmBars?: number; bmSteps?: number };
+    const stairs = bm.bmVariant === "stairs";
+    const n = stairs ? bm.bmSteps : bm.bmBars;
+    return { mode: s.mode, hookKey: stairs ? "beatMachineStairs" : "beatMachineMarbles", factKey: stairs ? "beatMachineStairsFact" : "beatMachineMarblesFact", count: typeof n === "number" && Number.isFinite(n) ? n : null };
+  }
   if (s.mode === "grow") {
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };
     if (s.growLaw === "add") return { mode: s.mode, hookKey: "growAdd", factKey: "", count: s.growStep ?? null };

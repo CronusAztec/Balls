@@ -216,6 +216,13 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   flBracketSize: 256,
   flBossWaves: 256,
   // --- end fl-overhaul ---
+  // --- beat-machine --- Beat Machines: the steps a staircase builds, the bars (each a tube of marbles), the marbles a tube holds
+  // at least (the engine balls stop at BOARD_BALL_CEILING in the mode; the plan draws every marble) and the loop's beats (the
+  // phrase's notes, each a planned trip)
+  bmSteps: ENTITY_CEILING,
+  bmBars: 1_000,
+  bmPerTube: 200,
+  bmLoopBeats: 4_096,
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

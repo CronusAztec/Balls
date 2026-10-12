@@ -521,6 +521,7 @@ describe("uncap-all review fixes: only the settings a run's engine reads engage 
   NOT_ENGINE.add("scLineWidth"); // --- chord-stars --- the chords' width is the picture's (the canvas draws them)
   NOT_ENGINE.add("prTrail"); // --- phase-spiral --- Metronomes & Polyrhythms' comet tails are the picture's (the canvas draws them)
   NOT_ENGINE.add("efTrail"); // --- ellipse-foci --- Focus Shot's comet trails are the picture's (the canvas cuts them from the corners)
+  for (const key of ["vxElevation", "vxFunnelDepth"]) NOT_ENGINE.add(key); // --- funnel-spin --- the Sound Vortex's perspective camera and drawn depth are the picture's
 
   it("classifies every setting: read by some mode's engine, or the clip's, the text's, the sound's or the picture's", () => {
     const read = new Set<string>();
@@ -842,6 +843,10 @@ describe("uncap-all: the guard", () => {
     csGateWidth: "degrees",
     csSpin: "degrees a second",
     csLimit: "seconds",
+    // --- beat-machine --- (the steps, the bars, the marbles a tube holds and the loop's beats are ceiled)
+    bmBpm: "a tempo",
+    bmDrop: "a drop height in % of the panel",
+    bmReturn: "beats of the return trip",
     lcSteps: "a pyramid's steps (its heights stop at the blocks' ceiling, LCP_BLOCK_CEILING: a taller pyramid is scaled down to it)", // --- land-claim-pyramid ---
   };
 
