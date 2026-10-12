@@ -3,8 +3,51 @@ import { COUNTRIES, countryByCode } from "@/lib/countries";
 import { BOARD_BALL_CEILING, atLeastMin, memoryCeiling } from "@/lib/uncap"; // uncap-all: no maximum, the memory-safety ceilings only
 import { MAX_TEAMS } from "../ballStats";
 import { SpatialHash, createPairBuffer } from "../spatialHash";
-import type { Ball, GameMode, ModeContext, SoundEvent } from "../types";
+import type { Ball, GameMode, LoopSeams, ModeContext, SoundEvent } from "../types";
 import { TWO_PI } from "../types";
+// --- land-claim-pyramid --- the pyramid layout's settings, height map, floor, pitch and view (lib/physics/landClaimPyramid.ts)
+import {
+  DEFAULT_LC_PYRAMID_SETTINGS,
+  LCP_CHIME_GAP_MS,
+  LCP_CLEAR_ROOT_HZ,
+  LCP_GLIDE_FROM_HZ,
+  LCP_HOLD_SEC,
+  LCP_MELT_SHARE,
+  LCP_NOTES_PER_STEP,
+  LCP_SCATTER,
+  LCP_SOLO_COLOR,
+  LCP_SUMMIT_CHORD,
+  LCP_TEAMS_RANGE,
+  LC_PYRAMID_RANGES,
+  LcpRandom,
+  LcpStepNotes,
+  createLcPyramidView,
+  createLcpContact,
+  lcPyramidBallRadius,
+  lcPyramidBallsAfter,
+  lcPyramidChimeFrequency,
+  lcPyramidContact,
+  lcPyramidCruise,
+  lcPyramidField,
+  lcPyramidHeights,
+  lcPyramidInside,
+  lcPyramidKnockFrequency,
+  lcPyramidRebuildLevel,
+  lcPyramidSettingFields,
+  lcPyramidSettingsOf,
+  lcPyramidShownBlocks,
+  lcPyramidStart,
+  lcPyramidSummitCells,
+  lcPyramidTotal,
+  readLcPyramidParams,
+  resolveLcPyramidSettings,
+  smoothStep,
+  writeLcPyramidParams,
+  type LcPyramidSettingFields,
+  type LcPyramidSettings,
+  type LcPyramidView,
+} from "../landClaimPyramid";
+// --- end land-claim-pyramid ---
 
 /**
  * Land Claim ("landClaim" mode, battle family – feature land-claim): the land-claim clips of the arena account ("WHO WILL
@@ -67,7 +110,7 @@ export function isLcRule(value: unknown): value is LcRule {
   return typeof value === "string" && (LC_RULES as readonly string[]).includes(value);
 }
 
-export interface LandClaimSettings {
+export interface LandClaimSettings extends LcPyramidSettings /* --- land-claim-pyramid --- (the layout and the pyramid's numbers) */ {
   /** Columns round the wall, 4–96 on the slider, any number from 4 typed (a run builds at most `LC_COL_CEILING`). */
   cols: number;
   /** Blocks a column holds, 1–40 on the slider, any number from 1 typed (at most `LC_ROW_CEILING`, `LC_BLOCK_CEILING` in all). */
@@ -99,6 +142,7 @@ export const DEFAULT_LAND_CLAIM_SETTINGS: LandClaimSettings = {
   duration: 60,
   title: "",
   hud: true,
+  ...DEFAULT_LC_PYRAMID_SETTINGS, // --- land-claim-pyramid --- (the wall stays the layout, so old runs replay)
 };
 
 /**
@@ -108,11 +152,15 @@ export const DEFAULT_LAND_CLAIM_SETTINGS: LandClaimSettings = {
 export const LAND_CLAIM_RANGES = {
   lcCols: { min: 4, max: 96, step: 1 },
   lcRows: { min: 1, max: 40, step: 1 },
-  lcTeams: { min: 2, max: 12, step: 1 },
+  lcTeams: { min: 1, max: 12, step: 1 }, // (--- land-claim-pyramid --- from 1: a pyramid may be played alone; the wall's battles start at two, `LC_WALL_TEAMS_RANGE`)
   lcBalls: { min: 1, max: 10, step: 1 },
   lcEvery: { min: 0, max: 20, step: 1 },
   lcDuration: { min: 10, max: 180, step: 5 },
+  ...LC_PYRAMID_RANGES, // --- land-claim-pyramid ---
 } as const;
+
+/** --- land-claim-pyramid --- The wall's competitors: a battle needs two (its slider and its resolver start there). */
+export const LC_WALL_TEAMS_RANGE = { min: 2, max: 12, step: 1 } as const;
 
 /**
  * Memory-safety ceilings (`MEMORY_CEILINGS` of lib/uncap.ts names the first four; a test keeps them equal). Columns: a
@@ -129,7 +177,7 @@ export const LC_TEAM_CEILING = 1_000;
 export const LC_BALL_CEILING = BOARD_BALL_CEILING;
 
 /** The Land Claim fields of the SimulatorSettings object (URL keys lcc, lcr, lca, lct, lcb, lcm, lce, lcd, lcti, lch). */
-export interface LandClaimSettingFields {
+export interface LandClaimSettingFields extends LcPyramidSettingFields /* --- land-claim-pyramid --- (lcl, lcg, lcs, lcbk, lcrb, lcrs) */ {
   lcCols: number;
   lcRows: number;
   lcArena: LcArena;
@@ -172,13 +220,17 @@ export function resolveLandClaimSettings(config: Partial<Record<keyof LandClaimS
   if (config.cols !== undefined) out.cols = memoryCeiling("lcCols", Math.round(typedNumber(config.cols, R.lcCols, out.cols)));
   if (config.rows !== undefined) out.rows = memoryCeiling("lcRows", Math.round(typedNumber(config.rows, R.lcRows, out.rows)));
   if (isLcArena(config.arena)) out.arena = config.arena;
-  if (config.teams !== undefined) out.teams = memoryCeiling("lcTeams", Math.round(typedNumber(config.teams, R.lcTeams, out.teams)));
+  if (config.teams !== undefined) out.teams = memoryCeiling("lcTeams", Math.round(typedNumber(config.teams, LC_WALL_TEAMS_RANGE /* --- land-claim-pyramid --- (the wall's two; a pyramid's below) */, out.teams)));
   if (config.balls !== undefined) out.balls = memoryCeiling("lcBalls", Math.round(typedNumber(config.balls, R.lcBalls, out.balls)));
   if (isLcRule(config.rule)) out.rule = config.rule;
   if (config.every !== undefined) out.every = Math.round(typedNumber(config.every, R.lcEvery, out.every));
   if (config.duration !== undefined) out.duration = Math.round(typedNumber(config.duration, R.lcDuration, out.duration));
   if (config.title !== undefined) out.title = sanitizeLcTitle(config.title);
   if (typeof config.hud === "boolean") out.hud = config.hud;
+  // --- land-claim-pyramid --- the layout and the pyramid's numbers; a pyramid may be played by one competitor alone
+  resolveLcPyramidSettings(config, out);
+  if (out.layout === "pyramid" && config.teams !== undefined) out.teams = memoryCeiling("lcTeams", Math.round(typedNumber(config.teams, LCP_TEAMS_RANGE, DEFAULT_LAND_CLAIM_SETTINGS.teams)));
+  // --- end land-claim-pyramid ---
   return out;
 }
 
@@ -195,6 +247,7 @@ export function landClaimSettingsOf(source: LandClaimSettingFields): LandClaimSe
     duration: source.lcDuration,
     title: source.lcTitle,
     hud: source.lcHud,
+    ...lcPyramidSettingsOf(source), // --- land-claim-pyramid ---
   });
 }
 
@@ -211,6 +264,7 @@ export function landClaimSettingFields(settings: LandClaimSettings): LandClaimSe
     lcDuration: settings.duration,
     lcTitle: settings.title,
     lcHud: settings.hud,
+    ...lcPyramidSettingFields(settings), // --- land-claim-pyramid ---
   };
 }
 
@@ -258,6 +312,7 @@ export function writeLandClaimParams(settings: LandClaimSettingFields, base: Lan
   if (settings.lcRule !== base.lcRule) params.set("lcm", settings.lcRule);
   if (settings.lcTitle !== base.lcTitle) params.set("lcti", settings.lcTitle);
   if (settings.lcHud !== base.lcHud) params.set("lch", settings.lcHud ? "1" : "0");
+  writeLcPyramidParams(settings, base, params); // --- land-claim-pyramid --- lcl, lcg, lcs, lcbk, lcrb, lcrs
 }
 
 /** Reads the feature's URL parameters into `settings` and validates them; unknown or invalid values fall back to the defaults. */
@@ -278,6 +333,7 @@ export function readLandClaimParams(params: URLSearchParams, settings: LandClaim
   const hud = params.get("lch");
   if (hud === "1") next.lcHud = true;
   else if (hud === "0") next.lcHud = false;
+  readLcPyramidParams(params, next); // --- land-claim-pyramid ---
   Object.assign(settings, resolveLandClaimFields(next));
 }
 
@@ -772,6 +828,12 @@ export interface LandClaimView {
   verdict: LcVerdict;
   /** A ball too big for the arena ate it (the engine's outgrow finish ended the run, no verdict). */
   ate: boolean;
+  /**
+   * --- land-claim-pyramid --- The pyramid layout's run (null on the wall): the floor, the starting and rebuilt heights, the
+   * phase of the loop, the summit and the clear. The shared fields keep their meaning: `heights` per column (index j · G + i),
+   * `cols` the grid's G × G columns, `rows` the tallest column, `total` / `remaining` the blocks.
+   */
+  pyramid: LcPyramidView | null;
 }
 
 function createView(): LandClaimView {
@@ -829,6 +891,7 @@ function createView(): LandClaimView {
     finishedMs: -1,
     verdict: { winner: -1, second: -1, kind: "plain", share: 0, margin: 0, tie: false },
     ate: false,
+    pyramid: null, // --- land-claim-pyramid ---
   };
 }
 
@@ -924,6 +987,13 @@ export class LandClaimMode implements GameMode {
   }
 
   init(ctx: ModeContext) {
+    // --- land-claim-pyramid --- the pyramid layout builds its own run (the wall's below is untouched)
+    if (this.settings.layout === "pyramid") {
+      this.initPyramid(ctx);
+      return;
+    }
+    this.view.pyramid = null;
+    // --- end land-claim-pyramid ---
     ctx.setDestructionMode(false);
     ctx.setInfiniteMode(false);
     ctx.setBounceSpeedMultiplier(1);
@@ -1059,13 +1129,14 @@ export class LandClaimMode implements GameMode {
     return need && Number.isFinite(bound) ? bound : 0;
   }
 
-  onPreUpdate(ctx: ModeContext) {
+  onPreUpdate(ctx: ModeContext, dtMs?: number) {
     const v = this.view;
     // The rig follows the config (the page may pick a forced winner mid-battle); the seed finder's engines carry it from the start.
     v.forcedWinner = landClaimForcedWinner(ctx.config.forcedWinner, v.teams);
     this.notesThisStep = 0;
     this.koThisStep = false;
     if (!v.ate) this.eatArena(ctx);
+    if (v.pyramid && !v.ate) this.pyramidPreUpdate(ctx, dtMs ?? 1000 / 60); // --- land-claim-pyramid --- (the hold's end, the seam)
   }
 
   /**
@@ -1076,14 +1147,15 @@ export class LandClaimMode implements GameMode {
   private eatArena(ctx: ModeContext) {
     const v = this.view;
     const f = v.field;
-    const free = f.apothem - v.maxHeight * f.block;
+    // --- land-claim-pyramid --- on the pyramid's floor the free room is the margin round the pyramid's base
+    const free = v.pyramid ? v.pyramid.field.half + v.pyramid.field.gx0 : f.apothem - v.maxHeight * f.block;
     const balls = ctx.getBalls();
     let eater: Ball | null = null;
     for (let i = 0; i < balls.length; i++) if (balls[i].radius >= free && (!eater || balls[i].radius > eater.radius)) eater = balls[i];
     if (!eater) return;
     v.ate = true;
-    eater.x = f.cx;
-    eater.y = f.cy;
+    eater.x = v.pyramid ? v.pyramid.field.cx : f.cx; // --- land-claim-pyramid --- (the floor's centre)
+    eater.y = v.pyramid ? v.pyramid.field.cy : f.cy;
     ctx.getMultipliers?.().outgrow(ctx, eater, Math.max(1, free));
     for (const b of balls) {
       b.vx = 0;
@@ -1095,6 +1167,11 @@ export class LandClaimMode implements GameMode {
     const v = this.view;
     if (v.ate) return;
     void dtSec;
+    // --- land-claim-pyramid --- the pyramid's floor and its columns (or the rebuild's glide)
+    if (v.pyramid) {
+      this.pyramidBallStep(ctx, ball);
+      return;
+    }
     const team = ball.team !== undefined && ball.team >= 0 && ball.team < v.teams ? ball.team : 0;
     // The cruising speed (a speed multiplier raises it).
     const cruise = this.cruise(ctx.config.ballSpeed) * (ball.mult ? ball.mult.speed : 1);
@@ -1488,6 +1565,7 @@ export class LandClaimMode implements GameMode {
   /** After the sub-step's moves: the balls' hits on each other, then the sub-step's knocks in order, then its spawns. */
   onPostSubStep(ctx: ModeContext) {
     if (this.view.ate) return;
+    if (this.view.pyramid?.phase === "rebuild") return; // --- land-claim-pyramid --- (the rebuild places every ball itself)
     this.collide(ctx);
     this.flush(ctx);
   }
@@ -1514,8 +1592,11 @@ export class LandClaimMode implements GameMode {
     }
     if (!(maxR > 0) || !Number.isFinite(maxR)) return;
     const f = v.field;
-    const half = f.apothem / Math.cos(f.sides > 0 ? Math.PI / f.sides : 0) + 2 * maxR;
-    this.hash.build(this.xs, this.ys, n, 2 * maxR + 1, f.cx - half, f.cy - half, f.cx + half, f.cy + half);
+    const pf = v.pyramid ? v.pyramid.field : null; // --- land-claim-pyramid --- (the floor's square)
+    const half = pf ? pf.half + 2 * maxR : f.apothem / Math.cos(f.sides > 0 ? Math.PI / f.sides : 0) + 2 * maxR;
+    const hx = pf ? pf.cx : f.cx;
+    const hy = pf ? pf.cy : f.cy;
+    this.hash.build(this.xs, this.ys, n, 2 * maxR + 1, hx - half, hy - half, hx + half, hy + half);
     const count = this.hash.collectContacts(this.xs, this.ys, this.rs, 0, this.pairs);
     const pairs = this.pairs.pairs;
     for (let k = 0; k < count; k++) {
@@ -1549,6 +1630,14 @@ export class LandClaimMode implements GameMode {
 
   /** Moves `ball` back inside the arena's wall when a push left part of it beyond (the columns are the next sub-step's contacts). */
   private keepInside(ball: Ball) {
+    // --- land-claim-pyramid --- the floor's square
+    const pyramid = this.view.pyramid;
+    if (pyramid) {
+      const at = lcPyramidInside(pyramid.field, ball.x - pyramid.field.cx, ball.y - pyramid.field.cy, ball.radius, this.lcpAt);
+      ball.x = pyramid.field.cx + at.x;
+      ball.y = pyramid.field.cy + at.y;
+      return;
+    }
     const f = this.view.field;
     let px = ball.x - f.cx;
     let py = ball.y - f.cy;
@@ -1663,6 +1752,11 @@ export class LandClaimMode implements GameMode {
       const every = v.settings.every;
       if (every > 0 && v.gains[team] % every === 0) this.queueSpawn(team, x, y, nx, ny);
     }
+    // --- land-claim-pyramid --- the pyramid's knock: a pluck pitched by the block's layer, the summit, the clear
+    if (v.pyramid) {
+      this.pyramidKnocked(ctx, col, row, ko, now);
+      return;
+    }
     // Sounds: the knock's wooden click (pitched by the column), a column's KO.
     if (ko) {
       v.kos++;
@@ -1713,6 +1807,11 @@ export class LandClaimMode implements GameMode {
   /** A new ball of `team` at the knock point (x, y), off the wall within `LC_SPAWN_SPREAD` of its inward normal (nx, ny) – or ARENA FULL at the ball ceiling. */
   private spawn(ctx: ModeContext, team: number, x: number, y: number, nx: number, ny: number) {
     const v = this.view;
+    // --- land-claim-pyramid --- a pyramid's new ball (its size, speed, colour and chime; its heading from the run's generator)
+    if (v.pyramid) {
+      this.pyramidSpawn(ctx, team, x, y, nx, ny);
+      return;
+    }
     const balls = ctx.getBalls();
     if (balls.length >= LC_BALL_CEILING) {
       v.spawnsRefused++;
@@ -1748,6 +1847,11 @@ export class LandClaimMode implements GameMode {
   onPostUpdate(ctx: ModeContext) {
     const v = this.view;
     if (v.ate) return;
+    // --- land-claim-pyramid --- the pyramid's notes, its clear, the hold and the rebuild
+    if (v.pyramid) {
+      this.pyramidPostUpdate(ctx);
+      return;
+    }
     const now = ctx.getElapsedMs();
     this.countAlive(ctx);
     if (v.finished) return;
@@ -1809,6 +1913,7 @@ export class LandClaimMode implements GameMode {
    */
   onConfigChange(ctx: ModeContext, sizeChanged: boolean) {
     if (!sizeChanged) return true;
+    if (this.view.pyramid) return this.pyramidConfigChange(ctx); // --- land-claim-pyramid --- (the floor follows the square)
     const v = this.view;
     const old = v.field;
     const next = landClaimField(ctx.config.width, ctx.config.height, old.arena, old.cols, old.rows);
@@ -1841,4 +1946,601 @@ export class LandClaimMode implements GameMode {
     const v = this.view;
     return { teams: v.teams, land: Array.from(v.land), remaining: v.remaining, knocks: v.knocks, spawns: v.spawns, winner: v.verdict.winner, verdict: v.verdict.kind, finished: v.finished };
   }
+
+  // --- land-claim-pyramid ---------------------------------------------------------------------------------------------------
+  // The pyramid layout (lib/physics/landClaimPyramid.ts): a stepped pyramid of columns in the middle of a square floor, knocked
+  // down block by block (top down: every column with a block left is a square obstacle), the summit last when the run is kind;
+  // with Rebuild and loop on, the cleared pyramid holds, builds itself again and the run starts over from its first frame. The
+  // knock queue, the knocks themselves, the spawn rule and the verdict are the wall's (`apply()`, `flush()`); what differs is
+  // here. Everything random of a pyramid run comes from its own generator (`lcpRng`), seeded once from `ctx.random()` at init
+  // and rewound at the seam: the competitor that starts, the corner, each ball's jitter and heading, then every bounce's scatter
+  // and every spawn's heading in the order they happen.
+
+  private readonly pyr: LcPyramidView = createLcPyramidView();
+  private readonly lcpRng = new LcpRandom();
+  /** The generator's state once the first frame was laid out (the seam rewinds it there). */
+  private lcpRngStart = 1;
+  /** The starting balls: the first one's id and the first frame's places (relative to the floor's centre) and headings. */
+  private lcpFirstId = 0;
+  private lcpX0 = new Float64Array(0);
+  private lcpY0 = new Float64Array(0);
+  private lcpH0 = new Float64Array(0);
+  /** The id of the cycle's first added ball (a ball's slot: the starting balls first, then this cycle's added ones). */
+  private lcpSpawnBase = 0;
+  /** Where every ball (by slot) stood when the rebuild began, and its size. */
+  private lcpAx = new Float64Array(64);
+  private lcpAy = new Float64Array(64);
+  private lcpAr = new Float64Array(64);
+  /** Per column: a summit column (1), and how hard its last hit was (0–1, the pluck's level). */
+  private lcpSummitCell = new Uint8Array(0);
+  private lcpImpact = new Float32Array(0);
+  /** Blocks left on the summit's columns this cycle. */
+  private lcpSummitLeft = 0;
+  private lcpStepMs = 1000 / 60;
+  private lcpLastChimeMs = -Infinity;
+  private readonly lcpNotes = new LcpStepNotes();
+  private readonly lcpContact = createLcpContact();
+  private readonly lcpAt = { x: 0, y: 0 };
+  private readonly lcpStartAt = { x: 0, y: 0, heading: 0 };
+  private lcpCtx: ModeContext | null = null;
+  /** A step's pluck (`LcpStepNotes.flush()`): made once, so a step allocates nothing but its sound events. */
+  private readonly lcpEmitPluck = (row: number, level: number) => {
+    const ctx = this.lcpCtx;
+    if (!ctx) return;
+    this.view.notes++;
+    this.pyr.plucks++;
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "pluck", frequency: lcPyramidKnockFrequency(row, this.pyr.maxRows), level, loopBright: true, melody: false });
+  };
+
+  /** The colour of competitor `team` on the pyramid: the clip's yellow for one played alone, else the palette's. */
+  private pyramidColor(team: number): string {
+    return this.view.teams === 1 ? LCP_SOLO_COLOR : lcPaletteColor(team);
+  }
+
+  /** A pyramid run's start: the floor, the height map, the run's generator, the starting balls at the floor's corners, the first cycle. */
+  private initPyramid(ctx: ModeContext) {
+    ctx.setDestructionMode(false);
+    ctx.setInfiniteMode(false);
+    ctx.setBounceSpeedMultiplier(1);
+    const s = this.settings;
+    const v = this.view;
+    const p = this.pyr;
+    const cfg = ctx.config;
+    v.settings = { ...s };
+    v.generation++;
+    v.rule = "knock"; // (the pyramid knocks: a claimed column would stand for ever)
+    v.teams = Math.max(1, s.teams);
+    v.field = landClaimField(cfg.width, cfg.height, "square", 4, 1); // (the square of the HUD band and the verdict's banner)
+    p.field = lcPyramidField(cfg.width, cfg.height, s.pyramidSize);
+    p.grid = p.field.grid;
+    p.steps = Math.max(1, Math.round(s.steps));
+    p.full = lcPyramidHeights(p.grid, p.steps, s.blocks);
+    p.total = lcPyramidTotal(p.full);
+    let tallest = 0;
+    for (let k = 0; k < p.full.length; k++) if (p.full[k] > tallest) tallest = p.full[k];
+    p.maxRows = tallest;
+    p.kept = new Int32Array(p.full.length);
+    p.summit = lcPyramidSummitCells(p.grid);
+    p.rebuild = s.rebuild;
+    p.rebuildSec = s.rebuildSec;
+    p.seams = 0;
+    p.lastSeamMs = 0;
+    p.cycleSec = 0;
+    p.firstSummitSec = -1;
+    p.firstSummitLeft = -1;
+    p.firstClearSec = -1;
+    p.firstEndBalls = -1;
+    p.ends = 0;
+    p.plucks = 0;
+    p.chimes = 0;
+    p.summits = 0;
+    p.clears = 0;
+    v.pyramid = p;
+    v.cols = p.full.length;
+    v.rows = Math.max(1, p.maxRows);
+    v.total = p.total;
+    v.heights = new Int32Array(p.full.length);
+    v.claimTop = new Int32Array(0);
+    v.owner = new Int16Array(0);
+    v.colVersion = new Uint32Array(p.full.length);
+    v.land = new Int32Array(v.teams);
+    v.gains = new Int32Array(v.teams);
+    v.alive = new Int32Array(v.teams);
+    v.spawned = new Int32Array(v.teams);
+    v.stolen = new Int32Array(v.teams);
+    v.lost = new Int32Array(v.teams);
+    v.forcedWinner = landClaimForcedWinner(cfg.forcedWinner, v.teams);
+    v.steers = 0;
+    v.durationMs = 1000 * s.duration;
+    v.ate = false;
+    v.bounces = 0;
+    v.collisions = 0;
+    v.notes = 0;
+    this.lcpSummitCell = new Uint8Array(p.full.length);
+    for (let k = 0; k < p.summit.length; k++) this.lcpSummitCell[p.summit[k]] = 1;
+    this.lcpImpact = new Float32Array(p.full.length);
+    // The run's generator: one draw of the engine's seeded stream.
+    this.lcpRng.state = Math.floor(ctx.random() * 4294967296) >>> 0 || 1;
+    // The balls: every competitor's in rounds (the first round from a seeded competitor), each at the next corner of the floor
+    // (from a seeded one), heading for the pyramid – drawn in this order: the competitor, the corner, each ball's jitter and heading.
+    const firstTeam = Math.floor(this.lcpRng.next() * v.teams);
+    const firstCorner = Math.floor(this.lcpRng.next() * 4);
+    const radius = lcPyramidBallRadius(cfg.ballRadius, p.field.floor);
+    const perTeam = Math.max(1, Math.min(s.balls, Math.floor(LC_BALL_CEILING / v.teams)));
+    const n = perTeam * v.teams;
+    this.lcpX0 = new Float64Array(n);
+    this.lcpY0 = new Float64Array(n);
+    this.lcpH0 = new Float64Array(n);
+    const teamOf = new Int32Array(n);
+    let index = 0;
+    for (let k = 0; k < perTeam; k++) {
+      for (let j = 0; j < v.teams; j++) {
+        teamOf[index] = (firstTeam + k + j) % v.teams;
+        const at = lcPyramidStart(p.field, index, firstCorner, radius, this.lcpRng, this.lcpStartAt);
+        this.lcpX0[index] = at.x;
+        this.lcpY0[index] = at.y;
+        this.lcpH0[index] = at.heading;
+        index++;
+      }
+    }
+    this.lcpRngStart = this.lcpRng.state;
+    p.startBalls = n;
+    this.lcpFirstId = ctx.getNextId();
+    const speed = lcPyramidCruise(cfg.ballSpeed, p.field.floor);
+    for (let i = 0; i < n; i++) {
+      ctx.addBall({ x: p.field.cx + this.lcpX0[i], y: p.field.cy + this.lcpY0[i], vx: Math.cos(this.lcpH0[i]) * speed, vy: Math.sin(this.lcpH0[i]) * speed, radius, radiusScale: radius / (cfg.ballRadius || 8), color: this.pyramidColor(teamOf[i]), team: teamOf[i] });
+    }
+    this.startPyramidCycle(ctx, 0);
+    this.countAlive(ctx);
+  }
+
+  /** A cycle's start (the run's first frame, or a seam): every column at its height, the counters at zero, the knock phase. */
+  private startPyramidCycle(ctx: ModeContext, atMs: number) {
+    const v = this.view;
+    const p = this.pyr;
+    v.heights.set(p.full);
+    this.heightCount = new Int32Array(p.maxRows + 1);
+    for (let k = 0; k < p.full.length; k++) this.heightCount[p.full[k]]++;
+    v.maxHeight = p.maxRows;
+    v.remaining = p.total;
+    v.colVersion.fill(0);
+    v.land.fill(0);
+    v.gains.fill(0);
+    v.spawned.fill(0);
+    v.stolen.fill(0);
+    v.lost.fill(0);
+    v.kos = 0;
+    v.knocks = 0;
+    v.steals = 0;
+    v.spawns = 0;
+    v.spawnsRefused = 0;
+    v.flyHead = 0;
+    v.flyCount = 0;
+    v.popHead = 0;
+    v.popCount = 0;
+    v.leader = -1;
+    v.leadChanges = 0;
+    v.close = false;
+    v.finished = false;
+    v.finishedMs = -1;
+    v.verdict.winner = -1;
+    v.verdict.second = -1;
+    v.verdict.kind = "plain";
+    v.verdict.share = 0;
+    v.verdict.margin = 0;
+    v.verdict.tie = false;
+    p.phase = "knock";
+    p.progress = 0;
+    p.level = 0;
+    p.shown = p.total;
+    p.cycleStartMs = atMs;
+    p.holdEndMs = -1;
+    p.seamMs = -1;
+    p.summitMs = -1;
+    p.summitLeft = -1;
+    p.clearMs = -1;
+    p.end = "";
+    p.kept.fill(0);
+    p.version++;
+    let summit = 0;
+    for (let k = 0; k < p.summit.length; k++) summit += p.full[p.summit[k]];
+    this.lcpSummitLeft = summit;
+    this.lcpImpact.fill(0);
+    this.lcpNotes.clear();
+    this.lcpLastChimeMs = -Infinity;
+    this.lcpSpawnBase = ctx.getNextId();
+    this.qLen = 0;
+    this.sLen = 0;
+    this.notesThisStep = 0;
+    this.lastKnockNoteMs = -Infinity;
+    this.lastSpawnNoteMs = -Infinity;
+    this.koThisStep = false;
+    this.lastLeader = -1;
+  }
+
+  /** The step's start: the hold's end begins the rebuild, the rebuild's end is the seam (on the step clock, like Colour Sort's). */
+  private pyramidPreUpdate(ctx: ModeContext, dtMs: number) {
+    const p = this.pyr;
+    this.lcpStepMs = dtMs > 0 ? dtMs : 1000 / 60;
+    const t0 = ctx.getElapsedMs() - this.lcpStepMs;
+    if (p.phase === "hold" && t0 >= p.holdEndMs - 1e-6) this.beginPyramidRebuild(ctx);
+    if (p.phase === "rebuild" && t0 >= p.seamMs - 1e-6) this.pyramidSeam(ctx, t0);
+  }
+
+  /** A ball's slot: the starting balls by their order, then this cycle's added balls by theirs (−1: neither). */
+  private lcpSlot(id: number): number {
+    const n = this.pyr.startBalls;
+    const k = id - this.lcpFirstId;
+    if (k >= 0 && k < n) return k;
+    const a = id - this.lcpSpawnBase;
+    return a >= 0 ? n + a : -1;
+  }
+
+  /** The rebuild begins: what every column kept, where every ball stands, the reset's glide and wash. */
+  private beginPyramidRebuild(ctx: ModeContext) {
+    const v = this.view;
+    const p = this.pyr;
+    const f = p.field;
+    p.phase = "rebuild";
+    p.progress = 0;
+    p.level = 0;
+    p.kept.set(v.heights);
+    const slots = p.startBalls + Math.max(0, ctx.getNextId() - this.lcpSpawnBase);
+    if (this.lcpAx.length < slots) {
+      const size = Math.max(slots, 2 * this.lcpAx.length);
+      this.lcpAx = new Float64Array(size);
+      this.lcpAy = new Float64Array(size);
+      this.lcpAr = new Float64Array(size);
+    }
+    for (const b of ctx.getBalls()) {
+      const k = this.lcpSlot(b.id);
+      if (k < 0 || k >= this.lcpAx.length) continue;
+      this.lcpAx[k] = b.x - f.cx;
+      this.lcpAy[k] = b.y - f.cy;
+      this.lcpAr[k] = b.radius;
+    }
+    const sec = (p.seamMs - p.holdEndMs) / 1000;
+    v.notes += 2;
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "glide", frequency: LCP_GLIDE_FROM_HZ, loopTo: lcPyramidKnockFrequency(0, p.maxRows), loopSec: sec, level: 0.8, melody: false });
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "wash", loopSec: sec, level: 0.6, melody: false });
+  }
+
+  /** The seam: the run's first frame again – the starting balls at their places and headings, the added ones gone, every column whole, the generator rewound. */
+  private pyramidSeam(ctx: ModeContext, t0: number) {
+    const v = this.view;
+    const p = this.pyr;
+    const f = p.field;
+    const at = p.seamMs >= 0 ? p.seamMs : t0;
+    p.cycleSec = (at - p.cycleStartMs) / 1000;
+    p.lastSeamMs = at;
+    p.seams++;
+    v.notes++;
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "cut", melody: false });
+    const cfg = ctx.config;
+    const radius = lcPyramidBallRadius(cfg.ballRadius, f.floor);
+    const speed = lcPyramidCruise(cfg.ballSpeed, f.floor);
+    const kept: Ball[] = [];
+    for (const b of ctx.getBalls()) {
+      const k = b.id - this.lcpFirstId;
+      if (k < 0 || k >= p.startBalls) continue;
+      b.x = f.cx + this.lcpX0[k];
+      b.y = f.cy + this.lcpY0[k];
+      b.vx = Math.cos(this.lcpH0[k]) * speed;
+      b.vy = Math.sin(this.lcpH0[k]) * speed;
+      b.radius = radius;
+      b.radiusScale = radius / (cfg.ballRadius || 8);
+      b.trail.length = 0;
+      b.trailIndex = 0;
+      kept.push(b);
+    }
+    kept.sort((a, b) => a.id - b.id);
+    ctx.setBalls(kept);
+    this.lcpRng.state = this.lcpRngStart;
+    this.startPyramidCycle(ctx, at);
+    this.countAlive(ctx);
+  }
+
+  /** One sub-step of a ball on the pyramid's floor: its cruising speed, its contacts with the walls and the columns, the knocks it queues. */
+  private pyramidBallStep(ctx: ModeContext, ball: Ball) {
+    const v = this.view;
+    const p = this.pyr;
+    if (p.phase === "rebuild") {
+      this.placeRebuild(ctx, ball);
+      return;
+    }
+    const f = p.field;
+    const team = ball.team !== undefined && ball.team >= 0 && ball.team < v.teams ? ball.team : 0;
+    const cruise = lcPyramidCruise(ctx.config.ballSpeed, f.floor) * (ball.mult ? ball.mult.speed : 1);
+    const sp = Math.hypot(ball.vx, ball.vy);
+    if (sp > 1e-9) {
+      ball.vx *= cruise / sp;
+      ball.vy *= cruise / sp;
+    } else {
+      ball.vx = cruise * Math.cos(0.7);
+      ball.vy = cruise * Math.sin(0.7);
+    }
+    const knocking = p.phase === "knock" && !v.finished;
+    const c = this.lcpContact;
+    // Up to three contacts a sub-step (a column's face and a neighbour's corner); the deepest first.
+    for (let pass = 0; pass < 3; pass++) {
+      if (!lcPyramidContact(f, v.heights, ball.x - f.cx, ball.y - f.cy, ball.radius, c)) break;
+      ball.x += c.nx * (c.depth + 1e-6);
+      ball.y += c.ny * (c.depth + 1e-6);
+      const vn = ball.vx * c.nx + ball.vy * c.ny;
+      if (vn >= 0) continue; // already moving away (a push from a crowd): no rebound
+      ball.vx -= 2 * vn * c.nx;
+      ball.vy -= 2 * vn * c.ny;
+      this.turn(ball, (2 * this.lcpRng.next() - 1) * LCP_SCATTER, c.nx, c.ny);
+      if (team === v.forcedWinner && knocking) this.pyramidSteer(ball, c.nx, c.ny);
+      v.bounces++;
+      ctx.creditBounce?.(ball); // the team stats and bounce math's "bounce" trigger
+      if (c.cell >= 0 && knocking) {
+        this.lcpImpact[c.cell] = Math.min(1, -vn / Math.max(1e-9, cruise));
+        this.queueKnock(c.cell, team, f.cx + c.px, f.cy + c.py, c.nx, c.ny);
+      }
+    }
+  }
+
+  /** The rig on the pyramid (honest aim, nothing else changes): a chosen ball's rebound turned, at most `LC_RIG_TURN`, towards the nearest column with a block left. */
+  private pyramidSteer(ball: Ball, nx: number, ny: number) {
+    const v = this.view;
+    const f = this.pyr.field;
+    const g = f.grid;
+    if (v.remaining <= 0 || g * g > 40_000) return;
+    const px = ball.x - f.cx;
+    const py = ball.y - f.cy;
+    let tx = 0;
+    let ty = 0;
+    let bestD = Infinity;
+    for (let j = 0; j < g; j++) {
+      for (let i = 0; i < g; i++) {
+        if (!(v.heights[j * g + i] > 0)) continue;
+        const x = f.gx0 + (i + 0.5) * f.cell;
+        const y = f.gx0 + (j + 0.5) * f.cell;
+        const d = (x - px) * (x - px) + (y - py) * (y - py);
+        if (d < bestD) {
+          bestD = d;
+          tx = x;
+          ty = y;
+        }
+      }
+    }
+    if (bestD === Infinity) return;
+    let delta = Math.atan2(ty - py, tx - px) - Math.atan2(ball.vy, ball.vx);
+    while (delta > Math.PI) delta -= TWO_PI;
+    while (delta < -Math.PI) delta += TWO_PI;
+    const turn = Math.max(-LC_RIG_TURN, Math.min(LC_RIG_TURN, delta));
+    if (turn === 0) return;
+    const before = ball.vx;
+    this.turn(ball, turn, nx, ny);
+    if (ball.vx !== before) v.steers++;
+  }
+
+  /**
+   * The rebuild's places (analytic, on the simulation clock): a starting ball glides back to its corner round the pyramid – its
+   * bearing eased over the whole rebuild, its distance by half-time, so it never cuts across the rising columns – and an added
+   * ball melts into the pyramid, drifting to its middle as it shrinks away.
+   */
+  private placeRebuild(ctx: ModeContext, ball: Ball) {
+    const p = this.pyr;
+    const f = p.field;
+    const k = this.lcpSlot(ball.id);
+    if (k < 0 || k >= this.lcpAx.length) return;
+    const span = p.seamMs - p.holdEndMs;
+    const q = span > 0 ? Math.min(1, Math.max(0, (ctx.getElapsedMs() - p.holdEndMs) / span)) : 1;
+    const ax = this.lcpAx[k];
+    const ay = this.lcpAy[k];
+    let x: number;
+    let y: number;
+    if (k < p.startBalls) {
+      const tx = this.lcpX0[k];
+      const ty = this.lcpY0[k];
+      if (q >= 1) {
+        x = tx;
+        y = ty;
+      } else {
+        const ra = Math.hypot(ax, ay);
+        const ta = Math.atan2(ay, ax);
+        let d = Math.atan2(ty, tx) - ta;
+        while (d > Math.PI) d -= TWO_PI;
+        while (d < -Math.PI) d += TWO_PI;
+        const rr = ra + (Math.hypot(tx, ty) - ra) * smoothStep(2 * q);
+        const th = ta + d * smoothStep(q);
+        const at = lcPyramidInside(f, rr * Math.cos(th), rr * Math.sin(th), ball.radius, this.lcpAt);
+        x = at.x;
+        y = at.y;
+      }
+    } else {
+      const m = smoothStep(q / LCP_MELT_SHARE);
+      x = ax * (1 - m);
+      y = ay * (1 - m);
+      ball.radius = Math.max(1e-3 * this.lcpAr[k], this.lcpAr[k] * (1 - m));
+    }
+    ball.x = f.cx + x;
+    ball.y = f.cy + y;
+    ball.vx = 0;
+    ball.vy = 0;
+  }
+
+  /** A block knocked off the pyramid (after the wall's bookkeeping in `apply()`): its pluck, a column knocked bare, the summit's fall. */
+  private pyramidKnocked(ctx: ModeContext, col: number, row: number, ko: boolean, now: number) {
+    const v = this.view;
+    const p = this.pyr;
+    p.version++;
+    if (ko) v.kos++;
+    this.lcpNotes.add(row, p.maxRows, this.lcpImpact[col]);
+    if (this.lcpSummitCell[col] !== 1) return;
+    this.lcpSummitLeft--;
+    if (this.lcpSummitLeft > 0 || p.summitMs >= 0) return;
+    // The summit's last block: its impact accent (and, when it is the pyramid's last block, the clear's chord follows).
+    p.summitMs = now;
+    p.summitLeft = v.remaining;
+    p.summits++;
+    if (p.seams === 0 && p.firstSummitSec < 0) {
+      p.firstSummitSec = (now - p.cycleStartMs) / 1000;
+      p.firstSummitLeft = v.remaining;
+    }
+    v.notes++;
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "impact", frequency: LCP_CLEAR_ROOT_HZ, chord: [...LCP_SUMMIT_CHORD], level: 1, melody: false });
+  }
+
+  /** A new ball on the pyramid's floor: at the knock point, off the column within `LC_SPAWN_SPREAD` of its normal, and its chime (or ARENA FULL). */
+  private pyramidSpawn(ctx: ModeContext, team: number, x: number, y: number, nx: number, ny: number) {
+    const v = this.view;
+    const p = this.pyr;
+    const balls = ctx.getBalls();
+    if (balls.length >= LC_BALL_CEILING) {
+      v.spawnsRefused++;
+      ctx.noteArenaFull?.();
+      return;
+    }
+    const cfg = ctx.config;
+    const radius = lcPyramidBallRadius(cfg.ballRadius, p.field.floor);
+    const angle = Math.atan2(ny, nx) + (2 * this.lcpRng.next() - 1) * LC_SPAWN_SPREAD;
+    const speed = lcPyramidCruise(cfg.ballSpeed, p.field.floor);
+    ctx.addBall({ x: x + nx * (radius + 0.5), y: y + ny * (radius + 0.5), vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, radius, radiusScale: radius / (cfg.ballRadius || 8), color: this.pyramidColor(team), team });
+    v.spawns++;
+    v.spawned[team]++;
+    v.alive[team]++;
+    const now = ctx.getElapsedMs();
+    if (now - this.lcpLastChimeMs >= LCP_CHIME_GAP_MS) {
+      this.lcpLastChimeMs = now;
+      v.notes++;
+      p.chimes++;
+      const most = lcPyramidBallsAfter(p.startBalls, p.total, v.settings.every);
+      ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chime", frequency: lcPyramidChimeFrequency(ctx.getBalls().length, p.startBalls, most), level: 0.7, melody: false });
+    }
+  }
+
+  /** The step's end on the pyramid: the knocks' plucks, the leader, the clear (or the duration), the rebuild's progress. */
+  private pyramidPostUpdate(ctx: ModeContext) {
+    const v = this.view;
+    const p = this.pyr;
+    const now = ctx.getElapsedMs();
+    this.countAlive(ctx);
+    this.lcpCtx = ctx;
+    this.lcpNotes.flush(LCP_NOTES_PER_STEP, this.lcpEmitPluck);
+    this.lcpCtx = null;
+    if (p.phase === "rebuild") {
+      const span = p.seamMs - p.holdEndMs;
+      p.progress = span > 0 ? Math.min(1, Math.max(0, (now - p.holdEndMs) / span)) : 1;
+      p.level = lcPyramidRebuildLevel(p.progress, p.maxRows);
+      p.shown = lcPyramidShownBlocks(p.full, p.kept, p.level);
+      return;
+    }
+    p.shown = v.remaining;
+    if (v.finished || p.phase !== "knock") return;
+    // The leader (−1 on a level top), its changes, and whether the top two are within LC_CLOSE of the land so far.
+    let best = -1;
+    let level = false;
+    let total = 0;
+    for (let t = 0; t < v.teams; t++) {
+      total += v.land[t];
+      if (best < 0 || v.land[t] > v.land[best]) {
+        best = t;
+        level = false;
+      } else if (v.land[t] === v.land[best]) level = true;
+    }
+    let second = 0;
+    for (let t = 0; t < v.teams; t++) if (t !== best && v.land[t] > second) second = v.land[t];
+    const leader = level ? -1 : best;
+    if (leader >= 0 && this.lastLeader >= 0 && leader !== this.lastLeader) v.leadChanges++;
+    if (leader >= 0) this.lastLeader = leader;
+    v.leader = leader;
+    v.close = v.teams > 1 && total >= 8 && best >= 0 && (v.land[best] - second) / total <= LC_CLOSE;
+    const cleared = v.remaining <= 0;
+    if (cleared || now - p.cycleStartMs >= v.durationMs - 1e-6) this.endPyramidCycle(ctx, now, cleared);
+  }
+
+  /** The cycle is over – the pyramid cleared, or out of time: the verdict and the chord; then the end (no loop) or the hold and the rebuild. */
+  private endPyramidCycle(ctx: ModeContext, now: number, cleared: boolean) {
+    const v = this.view;
+    const p = this.pyr;
+    p.end = cleared ? "cleared" : "time";
+    p.ends++;
+    if (cleared) {
+      p.clearMs = now;
+      p.clears++;
+    }
+    if (p.seams === 0 && p.ends === 1) {
+      p.firstClearSec = cleared ? (now - p.cycleStartMs) / 1000 : -1;
+      p.firstEndBalls = ctx.getBalls().length;
+    }
+    landClaimVerdict(v.land, v.teams, v.forcedWinner, v.alive, v.verdict);
+    v.notes++;
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, loop: "chord", frequency: LCP_CLEAR_ROOT_HZ, level: 1, loopMinor: !cleared, melody: false });
+    if (!p.rebuild) {
+      this.pyramidFinish(ctx, now);
+      return;
+    }
+    const step = this.lcpStepMs > 0 ? this.lcpStepMs : 1000 / 60;
+    const holdSteps = Math.ceil((1000 * LCP_HOLD_SEC) / step - 1e-9);
+    const rebuildSteps = Math.max(1, Math.ceil((1000 * Math.max(0, p.rebuildSec)) / step - 1e-9));
+    p.phase = "hold";
+    p.holdEndMs = now + holdSteps * step;
+    p.seamMs = p.holdEndMs + rebuildSteps * step;
+  }
+
+  /** A pyramid run that does not loop ends with its cycle: the credits the teams banner and the finder rank it by (no win for one played alone). */
+  private pyramidFinish(ctx: ModeContext, now: number) {
+    const v = this.view;
+    v.finished = true;
+    v.finishedMs = now;
+    const balls = ctx.getBalls();
+    const teams = Math.min(v.teams, MAX_TEAMS);
+    for (let team = 0; team < teams; team++) {
+      let rep: Ball | null = null;
+      for (let i = 0; i < balls.length && !rep; i++) if (balls[i].team === team) rep = balls[i];
+      if (!rep) continue;
+      for (let k = 0; k < v.land[team]; k++) ctx.creditWallBreak?.(rep);
+      if (team === v.verdict.winner && v.teams > 1) ctx.creditEscape?.(rep);
+    }
+  }
+
+  /** A resize on the pyramid: the floor follows the centred square; every ball (and the first frame's places) keeps its place on it. */
+  private pyramidConfigChange(ctx: ModeContext): boolean {
+    const v = this.view;
+    const p = this.pyr;
+    const old = p.field;
+    const next = lcPyramidField(ctx.config.width, ctx.config.height, old.grid);
+    const k = old.floor > 0 ? next.floor / old.floor : 1;
+    const sx = next.width > 0 ? old.width / next.width : 1;
+    const sy = next.height > 0 ? old.height / next.height : 1;
+    for (const b of ctx.getBalls()) {
+      const ox = old.width / 2 + (b.x - next.width / 2) * sx;
+      const oy = old.height / 2 + (b.y - next.height / 2) * sy;
+      b.x = next.cx + (ox - old.cx) * k;
+      b.y = next.cy + (oy - old.cy) * k;
+      b.vx *= k;
+      b.vy *= k;
+      b.radius *= k;
+      b.radiusScale = b.radius / (ctx.config.ballRadius || 8);
+    }
+    for (let i = 0; i < this.lcpX0.length; i++) {
+      this.lcpX0[i] *= k;
+      this.lcpY0[i] *= k;
+    }
+    for (let i = 0; i < this.lcpAx.length; i++) {
+      this.lcpAx[i] *= k;
+      this.lcpAy[i] *= k;
+      this.lcpAr[i] *= k;
+    }
+    p.field = next;
+    v.field = landClaimField(ctx.config.width, ctx.config.height, "square", 4, 1);
+    return true;
+  }
+
+  /** The loop contract (a pyramid with Rebuild and loop on): the last whole cycle (s), once there was one. */
+  cycleSeconds(): number | null {
+    const p = this.view.pyramid;
+    return p && p.rebuild && p.cycleSec > 0 ? p.cycleSec : null;
+  }
+
+  /** The loop contract: the seams of a looping pyramid run (the next one known from the cycle's end on); null on the wall and without the loop. */
+  loopSeams(): LoopSeams | null {
+    const p = this.view.pyramid;
+    if (!p || !p.rebuild) return null;
+    return { count: p.seams, lastMs: p.seams > 0 ? p.lastSeamMs : -1, nextMs: p.phase === "knock" ? -1 : p.seamMs };
+  }
+  // --- end land-claim-pyramid -----------------------------------------------------------------------------------------------
 }

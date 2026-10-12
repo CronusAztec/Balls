@@ -70,9 +70,13 @@ import type { FlRunSummary } from "@/lib/physics/modes/fightLeague"; // --- fl-o
  * write the tune instead): **no-tube-conflict** – the first seeded phrase whose tubes never need a spare marble (a marble is
  * always back before its tube's next note) – and **most-in-flight** – the phrase with the most marbles out at once
  * (beatMachineFinder.ts; a plan per seed, nothing simulated).
+ *
+ * --- land-claim-pyramid --- Land Claim's pyramid adds **summit-last** – the first cycle's summit falls last: the centre column
+ * is the last one standing (`RunSummary.summitLeft` 0: no block stood elsewhere when the summit's last block fell). The run is
+ * followed to its first cycle's end (cleared, or out of time); a looping pyramid's clip is that whole cycle.
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at", "no-tube-conflict", "most-in-flight" /* --- beat-machine --- */, "ring-on-bar" /* --- funnel-spin --- */] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at", "no-tube-conflict", "most-in-flight" /* --- beat-machine --- */, "ring-on-bar" /* --- funnel-spin --- */, "summit-last" /* --- land-claim-pyramid --- */] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
 /** --- fl-overhaul --- (Stage 5) Fight League's story outcomes (judged on `RunSummary.fl`; the run followed to its end, both-low-at to its window). */
 export const FL_STORY_OUTCOMES: readonly FinderOutcomeKind[] = ["upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at"];
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
@@ -160,6 +164,12 @@ export interface RunSummary {
   // --- end colour-sort ---
   /** --- fl-overhaul --- (Stage 5) Fight League's story of the run (`flRunSummary()`): the deciding match's and the show's. */
   fl?: FlRunSummary;
+  // --- land-claim-pyramid ---
+  /** Land Claim's pyramid: the blocks still standing elsewhere when the first cycle's summit fell (0: it fell last), −1 when it never fell. */
+  summitLeft?: number;
+  /** Land Claim's pyramid: when the first cycle's summit fell (real time, ms), −1 when it never did. */
+  summitMs?: number;
+  // --- end land-claim-pyramid ---
 }
 
 // --- land-claim ---
@@ -216,6 +226,7 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
     case "both-low-at":
       return 1000 * ((outcome.atSec ?? 0) + (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC)) + FILL_SLACK_MS;
     case "last-colour": // --- colour-sort --- (until the first sort ends: the finder adds the mode's time limit)
+    case "summit-last": // --- land-claim-pyramid --- (until the first cycle ends: the finder adds the run's duration)
     case "sorted-on-bar":
     case "upset":
     case "clutch":
@@ -445,6 +456,8 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       return (run.sortedMs ?? -1) >= 0 && (run.lastColour ?? -1) === (outcome.team ?? -1);
     case "sorted-on-bar":
       return sortedOnBar(outcome, run.sortedMs ?? -1);
+    case "summit-last": // --- land-claim-pyramid --- (the centre column the last one standing)
+      return run.summitLeft === 0;
     default:
       return false;
   }
@@ -511,6 +524,8 @@ function outcomeMissOf(outcome: FinderOutcome, run: RunSummary): number {
       return (run.sortedMs ?? -1) < 0 ? Infinity : outcomeMatches(outcome, run) ? 0 : 1;
     case "sorted-on-bar":
       return (run.sortedMs ?? -1) < 0 ? Infinity : barLineDistanceMs(run.sortedMs ?? 0, 1000 * (outcome.atSec ?? barSeconds(120))) / 1000;
+    case "summit-last": // --- land-claim-pyramid --- the blocks still standing elsewhere when the summit fell (never fell: Infinity)
+      return (run.summitLeft ?? -1) < 0 ? Infinity : (run.summitLeft ?? 0);
     default:
       return Infinity;
   }
@@ -558,6 +573,8 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
     case "last-colour":
     case "sorted-on-bar":
       return (run.sortedMs ?? -1) >= 0 ? (run.sortedMs ?? 0) / 1000 : 0;
+    case "summit-last": // --- land-claim-pyramid --- (the blocks still standing elsewhere when the summit fell; −1 when it never did)
+      return run.summitLeft ?? -1;
     default:
       return run.durationMs / 1000;
   }
@@ -603,6 +620,12 @@ export interface OutcomeContext {
   bmMarbles?: boolean;
   /** --- funnel-spin --- The Sound Vortex releases ring waves: the last ring's vanish can be put on a bar line (ring-on-bar). */
   vortexRings?: boolean;
+  /**
+   * --- land-claim-pyramid --- Land Claim plays its pyramid (summit-last), and loops it (Rebuild and loop: it never ends, so no
+   * battle verdict to search – no winner, no close battle – and no length).
+   */
+  lcPyramid?: boolean;
+  lcPyramidLoop?: boolean;
 }
 
 /**
@@ -641,6 +664,12 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "colourSort" && !ctx.colourSortSettles) out.push("sorted-by", "last-colour", "sorted-on-bar"); // --- colour-sort --- (its first sort: the run loops forever; none when the sort only settles)
   if (mode === "beatMachine" && ctx.bmMarbles) out.push("no-tube-conflict", "most-in-flight"); // --- beat-machine --- (seeded phrases: the marble machine's tubes)
   if (mode === "vortex" && ctx.vortexRings) out.push("ring-on-bar"); // --- funnel-spin --- (the wave interval and the friction searched, no seed)
+  // --- land-claim-pyramid --- the pyramid's summit last; a looping pyramid has no verdict to search
+  if (mode === "landClaim" && ctx.lcPyramid) {
+    if (ctx.lcPyramidLoop) for (const kind of ["winner", "close"] as const) if (out.includes(kind)) out.splice(out.indexOf(kind), 1);
+    out.push("summit-last");
+  }
+  // --- end land-claim-pyramid ---
   return out;
 }
 

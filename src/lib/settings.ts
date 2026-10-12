@@ -91,6 +91,7 @@ import type { FlSoundOption } from "@/lib/physics/modes/fightLeague"; // --- fl-
 // --- end fl-overhaul ---
 // --- land-claim --- the Land Claim mode (columns of blocks knocked off by competitors' balls)
 import { LAND_CLAIM_RANGES, defaultLandClaimFields, landClaimModeDefaults, readLandClaimParams, resolveLandClaimFields, writeLandClaimParams, type LcArena, type LcRule } from "@/lib/physics/modes/landClaim";
+import { LC_PYRAMID_RANGES, type LcLayout } from "@/lib/physics/landClaimPyramid"; // --- land-claim-pyramid ---
 // --- loop-foundation --- Grow's fill-and-loop upgrade (growth law, fill / hold / shrink, colour by size, markers, pitch) and the
 // loop contract / HUD settings (Export whole loops, the lowercase HUD)
 import { GROW_FILL_ENGINE_KEYS, GROW_FILL_RANGES, defaultGrowFillFields, readGrowFillParams, resolveGrowFillFields, writeGrowFillParams } from "@/lib/physics/growFill";
@@ -1028,6 +1029,20 @@ export interface SimulatorSettings {
   /** The HUD: the title, a bar per competitor and the counters (URL `lch`). */
   lcHud: boolean;
   // --- end land-claim ---
+  // --- land-claim-pyramid --- Land Claim's pyramid layout (lib/physics/landClaimPyramid.ts): a stepped pyramid knocked down block by block
+  /** wall (the default: the arena's wall of columns) | pyramid (a G × G stepped pyramid in the middle of a floor, shown isometrically) (URL `lcl`). */
+  lcLayout: LcLayout;
+  /** Columns along a side of the pyramid, 3–40 on the slider (any number from 3 typed; at most 1,000) (URL `lcg`). */
+  lcPyramidSize: number;
+  /** Steps of the natural pyramid (a column stands steps − its distance to the centre), 1–40 on the slider (URL `lcs`). */
+  lcSteps: number;
+  /** Blocks in all (the steps scaled to exactly this many), 0 = the natural count; 1,144 by default (URL `lcbk`). */
+  lcBlocks: number;
+  /** Rebuild and loop: the cleared pyramid builds itself again and the run starts over from its first frame (URL `lcrb`). */
+  lcRebuild: boolean;
+  /** Seconds the rebuild lasts (URL `lcrs`). */
+  lcRebuildSec: number;
+  // --- end land-claim-pyramid ---
   // --- loop-foundation --- Grow's fill and loop (lib/physics/growFill.ts; all off by default: the classic Grow)
   /** approach (the classic) | multiply | add (URL `gLaw`). */
   growLaw: GrowLaw;
@@ -2120,12 +2135,18 @@ export function engineSettingKeys(mode: ModeId): readonly string[] {
 const DP_FAN_ONLY_KEYS: ReadonlySet<string> = new Set(Object.keys(CHAOS_FAN_RANGES));
 const DP_HARP_ONLY_KEYS: ReadonlySet<string> = new Set(["dpCount", "dpSegments", "dpLength3", "dpMass3", "dpAngle3", "dpTrailSeconds", "dpStrings", "dpOctaves"]);
 const NO_INACTIVE_KEYS: ReadonlySet<string> = new Set();
+// --- land-claim-pyramid --- Land Claim builds one of two layouts: a wall run reads none of the pyramid's numbers, a pyramid run
+// none of the wall's columns and rows (a value past its slider there engages no extreme-values machinery and no ARENA FULL)
+const LC_PYRAMID_ONLY_KEYS: ReadonlySet<string> = new Set(Object.keys(LC_PYRAMID_RANGES));
+const LC_WALL_ONLY_KEYS: ReadonlySet<string> = new Set(["lcCols", "lcRows"]);
+// --- end land-claim-pyramid ---
 
 /**
  * --- chaos-fan --- (review fix) The keys of `engineSettingKeys(settings.mode)` the run does not read because the other
  * sub-rig of the mode is built (the Double Pendulum's fan or harp rig): `uncappedEngaged()` and `pastAnyMemoryCeiling()` skip them.
  */
-export function inactiveEngineKeys(settings: Pick<SimulatorSettings, "mode" | "dpFan">): ReadonlySet<string> {
+export function inactiveEngineKeys(settings: Pick<SimulatorSettings, "mode" | "dpFan"> & Partial<Pick<SimulatorSettings, "lcLayout">> /* --- land-claim-pyramid --- */): ReadonlySet<string> {
+  if (settings.mode === "landClaim") return settings.lcLayout === "pyramid" ? LC_WALL_ONLY_KEYS : LC_PYRAMID_ONLY_KEYS; // --- land-claim-pyramid ---
   if (settings.mode !== "doublePendulum") return NO_INACTIVE_KEYS;
   return settings.dpFan ? DP_HARP_ONLY_KEYS : DP_FAN_ONLY_KEYS;
 }

@@ -51,6 +51,8 @@ export interface LoopHudSpec {
   locale?: string;
   /** --- chaos-fan --- The state labels a run's counter line may show instead of a count (`LoopHudState`), by state. */
   states?: Readonly<Record<string, string>>;
+  /** --- land-claim-pyramid --- The counter in grey instead of amber (Land Claim's pyramid: the clip's grey "1144 blocks"). */
+  counterGrey?: boolean;
 }
 
 /** Translation keys (namespace `LoopHud`) of the modes with words of their own; any other mode's title is its name. */
@@ -310,7 +312,13 @@ export function loopHudCount(engine: {
   getColourSortView?(): { sorted: number; phase: string }; // --- colour-sort ---
   getBeatMachineHudCount?(): LoopHudCount | null; // --- beat-machine ---
   getVortexView?(): { funnel: { release: string; lapReadout: boolean; newestWave: number; lapSec: number; waveLaps: ArrayLike<number> } }; // --- funnel-spin ---
+  getLandClaimView?(): { pyramid: { shown: number } | null }; // --- land-claim-pyramid ---
 }): number | LoopHudCount | LoopHudCounter | LoopHudState | null {
+  // --- land-claim-pyramid --- Land Claim's pyramid: the blocks standing (counting down to the summit's fall, back up in the rebuild)
+  if (engine.getCurrentModeName() === "landClaim" && engine.getLandClaimView) {
+    const pyramid = engine.getLandClaimView().pyramid;
+    if (pyramid) return pyramid.shown;
+  }
   // --- chaos-fan --- the Double Pendulum's chaos fan: running forwards, or its tape backwards
   if (engine.getCurrentModeName() === "doublePendulum" && engine.getDoublePendulumView) {
     const fan = engine.getDoublePendulumView().fan;
@@ -370,6 +378,7 @@ export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | L
   const frame: LoopHudFrame = { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: count === null && spec.alt ? hudText(spec.alt, locale ?? spec.locale) /* --- colour-sort --- */ : hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values), light: spec.light };
   const bar = count !== null && typeof count === "object" && "bar" in count ? (count as LoopHudBarCount).bar : NaN; // --- phase-spiral --- (the meter's bar)
   if (frame.counter && Number.isFinite(bar)) frame.bar = bar;
+  if (spec.counterGrey) frame.counterGrey = true; // --- land-claim-pyramid ---
   return frame;
 }
 

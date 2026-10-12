@@ -64,6 +64,7 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "no-tube-conflict": "outcomeNoTubeConflict",
   "most-in-flight": "outcomeMostInFlight",
   "ring-on-bar": "outcomeRingOnBar", // --- funnel-spin ---
+  "summit-last": "outcomeSummitLast", // --- land-claim-pyramid ---
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -104,6 +105,7 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "no-tube-conflict": "hintNoTubeConflict",
   "most-in-flight": "hintMostInFlight",
   "ring-on-bar": "hintRingOnBar", // --- funnel-spin ---
+  "summit-last": "hintSummitLast", // --- land-claim-pyramid ---
 };
 
 /** --- fl-overhaul --- (Stage 5) An outcome's label key (`Rigged.*`): the story outcomes' generic texts name it. */
@@ -497,6 +499,8 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findMostInFlight");
     case "ring-on-bar": // --- funnel-spin ---
       return t("Rigged.findRingOnBar");
+    case "summit-last": // --- land-claim-pyramid ---
+      return t("Rigged.findSummitLast");
     default:
       return null;
   }
@@ -563,6 +567,8 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundMostInFlight", { marbles: result.beatMachine?.inFlightMax ?? 0, loops: result.beatMachine?.loops ?? 0 });
     case "ring-on-bar": // --- funnel-spin --- (the interval and the friction found, the vanish, its bars and the loops in the clip)
       return t("Rigged.foundRingOnBar", { interval: (result.funnelSpin?.interval ?? 0).toFixed(2), friction: (result.funnelSpin?.friction ?? 0).toFixed(4), time: (result.funnelSpin?.vanishSec ?? 0).toFixed(2), bars: result.funnelSpin?.bars ?? 0, loops: result.funnelSpin?.loops ?? 0 });
+    case "summit-last": // --- land-claim-pyramid --- (the summit's fall, the cycle the clip loops)
+      return t("Rigged.foundSummitLast", { time: (result.summitAt ?? 0).toFixed(1), duration: result.duration.toFixed(1) });
     default:
       return null;
   }
@@ -628,6 +634,8 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missNoTubeConflict", { spares: result.beatMachine?.spares ?? 0, seeds: result.seedsTested });
     case "ring-on-bar": // --- funnel-spin --- (no friction to slip down with, or no interval and friction within reach)
       return t("Rigged.missRingOnBar", { tested: result.seedsTested });
+    case "summit-last": // --- land-claim-pyramid --- (the fewest blocks standing elsewhere when the summit fell; −1: it never fell)
+      return result.duration < 0 ? t("Rigged.missNoSummit", { seeds: result.seedsTested }) : t("Rigged.missSummitLast", { count: Math.round(result.duration), seeds: result.seedsTested });
     default:
       return null;
   }
@@ -699,6 +707,8 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayNoTubeConflict", { tested: result.seedsTested, spares: result.beatMachine?.spares ?? 0 });
     case "ring-on-bar": // --- funnel-spin ---
       return t("Rigged.missRingOnBar", { tested: result.seedsTested });
+    case "summit-last": // --- land-claim-pyramid ---
+      return result.duration < 0 ? t("Rigged.overlayNoSummit", { tested: result.seedsTested }) : t("Rigged.overlaySummitLast", { tested: result.seedsTested, count: Math.round(result.duration) });
     default:
       return null;
   }

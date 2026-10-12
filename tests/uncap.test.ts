@@ -847,6 +847,7 @@ describe("uncap-all: the guard", () => {
     bmBpm: "a tempo",
     bmDrop: "a drop height in % of the panel",
     bmReturn: "beats of the return trip",
+    lcSteps: "a pyramid's steps (its heights stop at the blocks' ceiling, LCP_BLOCK_CEILING: a taller pyramid is scaled down to it)", // --- land-claim-pyramid ---
   };
 
   it("gives every whole-number setting that sizes an allocation a memory-safety ceiling", () => {
