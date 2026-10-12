@@ -253,6 +253,11 @@ export function playSoundEvent(audio: ToneGenerator, ev: SoundEvent, onWallBreak
     audio.playStringBattle(ev.sbSound, ev.frequency);
     return;
   }
+  // --- string-battle-alive --- the final duel's riser, heartbeat, swell, tail and drone
+  if (ev.sbDuel) {
+    audio.playStringDuel(ev.sbDuel, ev.frequency, ev.sbDuelBpm, ev.sbDuelSpeed, ev.level);
+    return;
+  }
   // --- gerald-vortex --- a ball swallowed by the Sound Vortex pews
   if (ev.pew) {
     audio.playPew(ev.frequency);

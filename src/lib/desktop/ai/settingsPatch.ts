@@ -12,6 +12,7 @@ import { GROW_LAWS, GROW_ON_FILL } from "@/lib/physics/modes/grow"; // --- low-f
 import type { JsonSchema } from "./jsonSchema";
 import { LC_LAYOUTS } from "@/lib/physics/landClaimPyramid"; // --- land-claim-pyramid ---
 import { WT_MODELS, WT_SOURCES } from "@/lib/physics/waveTank"; // --- wave-tank ---
+import { SB_LIFE_RULES } from "@/lib/physics/modes/stringDuel"; // --- string-battle-alive ---
 
 /*
  * --- desktop-exe --- The AI settings assistant's side of the settings: what it may change and how a patch it proposes is
@@ -52,6 +53,7 @@ export const SETTING_OPTIONS: Record<string, readonly (string | number)[]> = {
   lcLayout: LC_LAYOUTS, // --- land-claim-pyramid --- (Land Claim's layout: the arena's wall or the pyramid)
   wtModel: WT_MODELS, // --- wave-tank --- (the Wave Tank's water: the grid or the Huygens sum)
   wtSource: WT_SOURCES, // --- wave-tank --- (a wave-maker and a barrier, or point sources)
+  sbLife: SB_LIFE_RULES, // --- string-battle-alive --- (the String Battle's life rule: alive while a thread holds, or the lives; sbDuel is its duel switch)
 };
 
 const TEXT_KEYS = new Set(["topText", "bottomText", "watermarkText", "ballName", "rcCupTitle"]);

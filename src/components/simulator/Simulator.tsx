@@ -707,7 +707,7 @@ export default function Simulator() {
     const counterKey = keys?.counterOne && s.mode === "hoops" && s.hpCount === 1 ? keys.counterOne : keys?.counter; // --- bead-hoops --- (one hoop: "the bead up")
     const counter = counterKey ? String(t.raw(loopHudMessageKey(counterKey))) : "";
     return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]), locale: hudLocale /* --- bead-hoops --- (the counter's decimals on the live canvas) */ };
-  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */, s.lcLayout /* --- land-claim-pyramid --- */, s.brSymmetry, s.brSymmetryMode, s.brCapsules, s.brBalls, s.brSplit, s.brEvery /* --- brick-rebuild --- */, s.pfVariant, s.pfBoxes, s.pfSections, s.pfWellW /* --- perfect-fit --- */, s.wtSource /* --- wave-tankdmMachine, s.dmInner, s.dmOuter /* --- drawing-machine --- */]);
+  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */, s.lcLayout /* --- land-claim-pyramid --- */, s.brSymmetry, s.brSymmetryMode, s.brCapsules, s.brBalls, s.brSplit, s.brEvery /* --- brick-rebuild --- */, s.pfVariant, s.pfBoxes, s.pfSections, s.pfWellW /* --- perfect-fit --- */, s.wtSource /* --- wave-tank --- */, s.dmMachine, s.dmInner, s.dmOuter /* --- drawing-machine --- */]);
   const loopHudRef = useRef({ spec: loopHudSpec, locale: hudLocale });
   loopHudRef.current = { spec: loopHudSpec, locale: hudLocale };
   /** The HUD of a frame of `engine`'s run (null without the HUD), for the recorder and the fast export. */
@@ -1064,6 +1064,22 @@ export default function Simulator() {
     engineRef.current?.setStringBattleSettings({ title: s.sbTitle });
   }, [s.sbTitle]);
   // --- end string-circle ---
+  // --- string-battle-alive --- a change of the life rule or of the duel's switch is a rule of the fight: it restarts the battle
+  // and drops a found seed
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setStringBattleSettings(stringBattleSettingsOf(s));
+    if (s.mode === "stringBattle" && engine.getCurrentModeName() === "stringBattle") {
+      engine.initStringBattle();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.sbLife, s.sbDuel]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.sbLife, s.sbDuel]);
+  // --- end string-battle-alive ---
   // --- end odd-string-battle ---
   // --- odd-maze --- Maze: a new maze or race (columns, balls, brain, hand, clip limit) restarts the run and drops a found seed;
   // the pull and the speed follow live (and drop the seed: they change the run); the trail, fog, colours, badge and HUD follow live.
@@ -2203,6 +2219,11 @@ export default function Simulator() {
           // --- odd-string-battle --- a cut thread's pluck, a ball's shatter
           if (ev.sbSound) {
             audio.playStringBattle(ev.sbSound, ev.frequency);
+            continue;
+          }
+          // --- string-battle-alive --- the final duel's riser, heartbeat, swell, tail and drone
+          if (ev.sbDuel) {
+            audio.playStringDuel(ev.sbDuel, ev.frequency, ev.sbDuelBpm, ev.sbDuelSpeed, ev.level);
             continue;
           }
           // --- gerald-vortex --- a ball swallowed by the Sound Vortex pews
@@ -3584,7 +3605,9 @@ export default function Simulator() {
         kills: (n) => fill("Simulator.canvasSbKills", { count: n }),
         draw: t("Simulator.canvasSbDraw"),
         team: (n) => fill("Simulator.canvasTeamFallback", { n }),
+        threads: t("StringDuel.threads"), // --- string-battle-alive --- (the HUD's figure under the strings rule)
       },
+      stringDuel: { banner: t("StringDuel.banner") }, // --- string-battle-alive --- the FINAL DUEL banner
       // --- odd-power-layers ---
       powerLayers: {
         rules: {

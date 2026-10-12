@@ -137,6 +137,8 @@ export interface ArenaSoundSink {
   playStringCircle?(kind: "twang" | "snap", frequency?: number, chord?: readonly number[], level?: number): void;
   /** --- loop-foundation --- a loop family's voice (lib/audio/loopTones.ts). */
   playLoop?(kind: LoopSoundKind, frequency?: number, level?: number, opts?: LoopPlayOptions): void;
+  /** --- string-battle-alive --- a sound of the String Battle's final duel (lib/audio/stringDuelTones.ts). */
+  playStringDuel?(kind: "start" | "beat" | "cut" | "final" | "stop", frequency?: number, bpm?: number, speed?: number, level?: number): void;
 }
 
 /**
@@ -147,6 +149,7 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent, arena = 0) 
   if (ev.race) return sink.playRaceArpeggio(ev.race, ev.frequency);
   if (ev.bumper) return sink.playBumper(ev.frequency);
   if (ev.sbSound) return sink.playStringBattle(ev.sbSound, ev.frequency);
+  if (ev.sbDuel) return sink.playStringDuel?.(ev.sbDuel, ev.frequency, ev.sbDuelBpm, ev.sbDuelSpeed, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- string-battle-alive --- (the duel's soundtrack: not a wall hit)
   if (ev.pew) return sink.playPew(ev.frequency); // --- gerald-vortex --- (not a wall hit)
   if (ev.thud) return sink.playThud(ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- gerald-bullseye --- (a landing's thud, not a wall hit)
   if (ev.swoosh) return sink.playSwoosh(); // --- gerald-journey --- (a stage transition's whoosh, not a wall hit)

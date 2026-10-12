@@ -44,6 +44,34 @@ import {
   type StringCircleState,
 } from "./stringCircle";
 // --- end string-circle ---
+// --- string-battle-alive --- the strings life rule and the final duel (lib/physics/modes/stringDuel.ts)
+import {
+  DEFAULT_SB_DUEL,
+  DEFAULT_SB_LIFE,
+  SB_CIRCLE_STALL_GRACE_MS,
+  SB_CIRCLE_STALL_MS,
+  SB_CIRCLE_STRINGS_CAP,
+  SB_DUEL_AIM,
+  SB_DUEL_CUT_GAP_MS,
+  SB_DUEL_RISER_SEC,
+  SB_DUEL_TRAIL_EVERY,
+  clearTrails,
+  createDuelTrails,
+  duelBeatGapMs,
+  duelBpm,
+  duelDroneFrequency,
+  duelSurge,
+  homingTurn,
+  isSbLife,
+  pushTrail,
+  stallCap,
+  stringsHeld,
+  threadLeaders,
+  type DuelTrails,
+  type SbDuelSound,
+  type SbLife,
+} from "./stringDuel";
+// --- end string-battle-alive ---
 
 /**
  * String Battle ("stringBattle" mode, battle family – feature odd-string-battle): the oddplayground "WEB DOMINION"
@@ -82,6 +110,16 @@ import {
  * forced winner (`config.forcedWinner`) is a hard constraint here: the chosen ball never loses its last life and never
  * falls behind another ball still in the battle (`rigAbsorbs()`; under the collide rule it wins such a clash instead), and
  * it takes a clip-limit verdict it shares.
+ *
+ * --- string-battle-alive --- Two life rules (`life`, stringDuel.ts): under **strings** (the default) none of the above lives
+ * are counted – a ball lives while at least one of its own threads is anchored (a lifeline behind its heading at the spawn,
+ * one more per bounce); the cut rule snaps EVERY thread an enemy's move crosses, the touch rule takes the toucher's oldest
+ * thread per new laser touched, the collide rule the slower ball's oldest; nothing shields a ball afterwards, and its last
+ * thread gone it shatters at once (the clip limit's survivors: the most live threads, then kills, then bounces). The rig's
+ * chosen ball never loses its last thread (the hit is absorbed and it blinks `SB_RIG_BLINK_MS`). Under **lives** the battle
+ * plays exactly as described above. Under both, the finale starts the moment two balls are left – the FINAL DUEL: a quicker
+ * ramp to `finaleSpeed` (default 2×) and a surge after every 4 s without a cut, and with `duel` on the homing rebounds, the
+ * slow-motion cuts, the banner, the trails and the tension soundtrack (the `sbDuel` sound events).
  */
 
 export const SB_RULES = ["cut", "touch", "collide"] as const;
@@ -122,6 +160,10 @@ export interface StringBattleSettings {
   rate?: number;
   cut?: number;
   title?: string;
+  // --- string-battle-alive --- the life rule (strings: alive while a thread holds; lives: the counted lives) and the duel's
+  // extras – the defaults when left out (resolveStringBattleSettings() always fills them)
+  life?: SbLife;
+  duel?: boolean;
 }
 
 export const DEFAULT_STRING_BATTLE_SETTINGS: StringBattleSettings = {
@@ -131,11 +173,13 @@ export const DEFAULT_STRING_BATTLE_SETTINGS: StringBattleSettings = {
   rule: "cut",
   style: "web",
   duration: 0,
-  finaleSpeed: 1.5,
+  finaleSpeed: 2, // --- string-battle-alive --- (was 1.5: the duel gets faster)
   wobble: 0.6,
   badge: true,
   hud: true,
   ...DEFAULT_STRING_CIRCLE_SETTINGS, // --- string-circle ---
+  life: DEFAULT_SB_LIFE, // --- string-battle-alive ---
+  duel: DEFAULT_SB_DUEL, // --- string-battle-alive ---
 };
 
 /** Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
@@ -166,6 +210,9 @@ export interface StringBattleSettingFields {
   sbRate: number;
   sbCut: number;
   sbTitle: string;
+  // --- string-battle-alive --- (URL sblf, sbdl)
+  sbLife: SbLife;
+  sbDuel: boolean;
 }
 
 function clampNumber(value: unknown, range: { min: number; max: number }, fallback: number) {
@@ -189,6 +236,9 @@ export function resolveStringBattleSettings(config: Partial<StringBattleSettings
   if (typeof config.badge === "boolean") out.badge = config.badge;
   if (typeof config.hud === "boolean") out.hud = config.hud;
   resolveStringCircleInto(out as StringBattleSettings & StringCircleSettings, config); // --- string-circle --- a known arena, whole rate and cut counts, a clean title
+  // --- string-battle-alive --- a known life rule (anything else: the strings), a real boolean for the duel
+  if (isSbLife(config.life)) out.life = config.life;
+  if (typeof config.duel === "boolean") out.duel = config.duel;
   return out;
 }
 
@@ -210,6 +260,9 @@ export function stringBattleSettingsOf(source: StringBattleSettingFields): Strin
     rate: source.sbRate,
     cut: source.sbCut,
     title: source.sbTitle,
+    // --- string-battle-alive ---
+    life: source.sbLife,
+    duel: source.sbDuel,
   };
 }
 
@@ -227,6 +280,8 @@ export function stringBattleSettingFields(settings: StringBattleSettings): Strin
     sbBadge: settings.badge,
     sbHud: settings.hud,
     ...circleSettingFields(circleSettingsOf(settings)), // --- string-circle ---
+    sbLife: isSbLife(settings.life) ? settings.life : DEFAULT_SB_LIFE, // --- string-battle-alive ---
+    sbDuel: typeof settings.duel === "boolean" ? settings.duel : DEFAULT_SB_DUEL, // --- string-battle-alive ---
   };
 }
 
@@ -263,6 +318,9 @@ export function resolveStringBattleFields(source: Partial<StringBattleSettingFie
       rate: source.sbRate,
       cut: source.sbCut,
       title: source.sbTitle,
+      // --- string-battle-alive ---
+      life: source.sbLife,
+      duel: source.sbDuel,
     }),
   );
 }
@@ -282,6 +340,9 @@ export function writeStringBattleParams(settings: StringBattleSettingFields, bas
   if (settings.sbStyle !== base.sbStyle) params.set("sbst", settings.sbStyle);
   for (const [key, field] of Object.entries(BOOLEAN_KEYS)) if (settings[field] !== base[field]) params.set(key, settings[field] ? "1" : "0");
   writeStringCircleParams(settings, base, params); // --- string-circle --- sba, sbrt, sbc, sbti
+  // --- string-battle-alive --- sblf (the life rule; absent = the strings), sbdl (the duel's extras)
+  if (settings.sbLife !== base.sbLife) params.set("sblf", settings.sbLife);
+  if (settings.sbDuel !== base.sbDuel) params.set("sbdl", settings.sbDuel ? "1" : "0");
 }
 
 /** Reads the feature's URL parameters into `settings` and validates them; unknown or invalid values fall back to the defaults. */
@@ -303,6 +364,12 @@ export function readStringBattleParams(params: URLSearchParams, settings: String
     else if (raw === "0") next[field] = false;
   }
   readStringCircleParams(params, next); // --- string-circle ---
+  // --- string-battle-alive --- an unknown life rule or a duel flag other than 0 / 1 keeps what the settings hold
+  const life = params.get("sblf");
+  if (isSbLife(life)) next.sbLife = life;
+  const duel = params.get("sbdl");
+  if (duel === "1") next.sbDuel = true;
+  else if (duel === "0") next.sbDuel = false;
   Object.assign(settings, resolveStringBattleFields(next));
 }
 
@@ -354,8 +421,8 @@ export const SB_FADE_MS = 450;
 export const SB_SNAP_MS = 380;
 export const SB_DISSOLVE_MS = 800;
 export const SB_BURST_MS = 1400;
-/** The finale ramps the cruising speed over this long (simulation ms). */
-export const SB_FINALE_RAMP_MS = 2500;
+/** The finale ramps the cruising speed over this long (simulation ms). (--- string-battle-alive --- 1.5 s, was 2.5 s: the duel bites at once) */
+export const SB_FINALE_RAMP_MS = 1500;
 /** With a clip limit the finale starts this long before it (simulation ms). */
 export const SB_FINALE_LAST_MS = 6000;
 /** Plucks queued per 60 Hz step at most (a slash through a fan snaps many threads at once). */
@@ -501,21 +568,26 @@ export function lineThroughRect(x0: number, y0: number, x1: number, y1: number, 
   return true;
 }
 
-/** The finale's speed factor `sinceMs` after it started: a smooth ramp from 1 to `finaleSpeed` over `SB_FINALE_RAMP_MS`. */
-export function finaleFactor(sinceMs: number, finaleSpeed: number): number {
+/**
+ * The finale's speed factor `sinceMs` after it started: a smooth ramp from 1 to `finaleSpeed` over `SB_FINALE_RAMP_MS`,
+ * plus the duel's `surge` (--- string-battle-alive --- `duelSurge()` and what the duel banked: 0 before the duel).
+ */
+export function finaleFactor(sinceMs: number, finaleSpeed: number, surge = 0): number {
   const top = Number.isFinite(finaleSpeed) ? Math.max(1, finaleSpeed) : 1;
-  if (!(sinceMs > 0)) return 1;
+  const extra = surge > 0 ? surge : 0;
+  if (!(sinceMs > 0)) return 1 + extra;
   const x = Math.min(1, sinceMs / SB_FINALE_RAMP_MS);
-  return 1 + (top - 1) * x * x * (3 - 2 * x);
+  return 1 + (top - 1) * x * x * (3 - 2 * x) + extra;
 }
 
 /**
- * Whether the finale is due: two balls left and one of them one cut from elimination, or – with a clip limit of
- * `durationSec` – the last `SB_FINALE_LAST_MS` of it. Never once the battle is down to one ball.
+ * Whether the finale is due: --- string-battle-alive --- the moment two balls are left (whatever their lives or threads: the
+ * final duel – it used to wait until one of the two was a cut from the end), or – with a clip limit of `durationSec` – the
+ * last `SB_FINALE_LAST_MS` of it. Never once the battle is down to one ball.
  */
-export function finaleDue(alive: number, minLives: number, elapsedMs: number, durationSec: number): boolean {
+export function finaleDue(alive: number, elapsedMs: number, durationSec: number): boolean {
   if (alive <= 1) return false;
-  if (alive === 2 && minLives <= 1) return true;
+  if (alive === 2) return true;
   return durationSec > 0 && elapsedMs >= 1000 * durationSec - SB_FINALE_LAST_MS;
 }
 
@@ -540,8 +612,13 @@ export function rigAbsorbs(victim: number, forcedWinner: number, fighters: reado
   return me.lives - 1 < maxOther;
 }
 
-/** The slots that take a clip-limit verdict: the survivors with the most lives – just the rig's chosen ball when it is one of them. */
-export function timeoutLeaders(fighters: readonly { alive: boolean; lives: number }[], forcedWinner: number): number[] {
+/**
+ * The slots that take a clip-limit verdict: the survivors with the most lives – just the rig's chosen ball when it is one of
+ * them. (--- string-battle-alive --- under the strings rule, `life` "strings": the survivors with the most live threads,
+ * `threadLeaders()` – then the most kills and bounces, as `teamResult()` ranks them.)
+ */
+export function timeoutLeaders(fighters: readonly { alive: boolean; lives: number; strings?: readonly unknown[] }[], forcedWinner: number, life: SbLife = "lives"): number[] {
+  if (life === "strings") return threadLeaders(fighters.map((f) => ({ alive: f.alive, strings: f.strings ?? [] })), forcedWinner); // --- string-battle-alive ---
   let best = 0;
   for (const f of fighters) if (f.alive && f.lives > best) best = f.lives;
   const out: number[] = [];
@@ -663,6 +740,40 @@ export interface StringBattleView {
   impacts: number;
   /** --- string-circle --- The circle style's state (the arena's sides, the cadence, the cuts toward a life, the rim's coverage); null in the web and neon styles. */
   circle: StringCircleState | null;
+  // --- string-battle-alive --- the strings life rule and the final duel (stringDuel.ts)
+  /** Threads lost to an enemy so far (the strings rule: cut, touched or collided away). */
+  threadsLost: number;
+  /** Simulation time (ms) the battle came down to its last two balls (−1 before): the duel's start, with or without its extras. */
+  twoLeftMs: number;
+  /** The final duel is on: two balls left and the duel switch on (the homing, the slow-motion cuts, the banner, the trails, the soundtrack). */
+  duel: boolean;
+  /** The duel's moments – its cuts, those closer than `SB_DUEL_CUT_GAP_MS` being one –, the latest one's time (ms), cutter and victim. */
+  duelCuts: number;
+  lastDuelCutMs: number;
+  lastDuelCutter: number;
+  lastDuelVictim: number;
+  /** Simulation time (ms) of the latest hit since the battle was down to two: the surge's clock (−Infinity before). */
+  lastCutMs: number;
+  /** The surge the duel banked at its cuts, and the surge now (× the cruising speed, on top of the finale's ramp). */
+  surgeBank: number;
+  surge: number;
+  /** Ring bounces of the duel turned toward the opponent, and the largest turn (radians; at most SB_DUEL_HOMING). */
+  homings: number;
+  maxHoming: number;
+  /** Heartbeats emitted, the next one's time (simulation ms), and the duel's sound events in all. */
+  beats: number;
+  nextBeatMs: number;
+  duelSounds: number;
+  /** 60 Hz steps since the duel started (the trails take every SB_DUEL_TRAIL_EVERY-th). */
+  duelSteps: number;
+  /** The balls' comet trails, recorded during the duel. */
+  trails: DuelTrails;
+  /** The duel ended on its final cut (not a clip limit): the long slow motion and the noise tail. */
+  duelFinal: boolean;
+  /** The strings rule's stalemate rule: the latest knockout (simulation ms; 0 at the start) and the live threads a ball may keep now. */
+  lastKoMs: number;
+  threadCap: number;
+  // --- end string-battle-alive ---
 }
 
 function createView(): StringBattleView {
@@ -696,6 +807,27 @@ function createView(): StringBattleView {
     slowMos: 0,
     impacts: 0,
     circle: null, // --- string-circle ---
+    // --- string-battle-alive ---
+    threadsLost: 0,
+    twoLeftMs: -1,
+    duel: false,
+    duelCuts: 0,
+    lastDuelCutMs: -Infinity,
+    lastDuelCutter: -1,
+    lastDuelVictim: -1,
+    lastCutMs: -Infinity,
+    surgeBank: 0,
+    surge: 0,
+    homings: 0,
+    maxHoming: 0,
+    beats: 0,
+    nextBeatMs: Infinity,
+    duelSounds: 0,
+    duelSteps: 0,
+    trails: createDuelTrails(MAX_TEAMS),
+    duelFinal: false,
+    lastKoMs: 0,
+    threadCap: Infinity,
   };
 }
 
@@ -811,9 +943,33 @@ export class StringBattleMode implements GameMode {
       const color = SB_PALETTE[i % SB_PALETTE.length].color;
       const id = ctx.getNextId();
       ctx.addBall({ x, y, vx: Math.cos(heading) * base * cruise, vy: Math.sin(heading) * base * cruise, radius, radiusScale: SB_BALL_SCALE, gravityScale: 0, color, team: i });
-      v.fighters.push({ slot: i, id, color, lives: s.lives, kills: 0, alive: true, eliminatedMs: -1, hurtMs: -Infinity, cruise, preSpeed: base * cruise, x, y, px: x, py: y, radius, strings: [], stats: emptyStats() });
+      v.fighters.push({ slot: i, id, color, lives: s.life === "strings" ? 1 : s.lives /* --- string-battle-alive --- (the strings rule counts no lives: 1 while it stands) */, kills: 0, alive: true, eliminatedMs: -1, hurtMs: -Infinity, cruise, preSpeed: base * cruise, x, y, px: x, py: y, radius, strings: [], stats: emptyStats() });
     }
     v.circle = s.style === "circle" ? this.initCircle(ctx) : null; // --- string-circle ---
+    // --- string-battle-alive --- the duel's state, and under the strings rule every ball's lifeline
+    v.threadsLost = 0;
+    v.twoLeftMs = -1;
+    v.duel = false;
+    v.duelCuts = 0;
+    v.lastDuelCutMs = -Infinity;
+    v.lastDuelCutter = -1;
+    v.lastDuelVictim = -1;
+    v.lastCutMs = -Infinity;
+    v.surgeBank = 0;
+    v.surge = 0;
+    v.homings = 0;
+    v.maxHoming = 0;
+    v.beats = 0;
+    v.nextBeatMs = Infinity;
+    v.duelSounds = 0;
+    v.duelSteps = 0;
+    if (v.trails.head.length < s.balls) v.trails = createDuelTrails(s.balls);
+    clearTrails(v.trails);
+    v.duelFinal = false;
+    v.lastKoMs = 0;
+    v.threadCap = s.life === "strings" ? this.baseCap() : Infinity;
+    if (s.life === "strings") this.anchorLifelines(ctx);
+    // --- end string-battle-alive ---
   }
 
   private fighterOf(ball: Ball): SbFighter | null {
@@ -827,7 +983,11 @@ export class StringBattleMode implements GameMode {
     const v = this.view;
     // The rig follows the config (the page may pick a forced winner mid-battle); the seed finder's engines carry it from the start.
     v.forcedWinner = battleForcedWinner(ctx.config.forcedWinner, v.count);
-    if (v.finale && !v.finished) v.finaleFactor = finaleFactor(ctx.getElapsedMs() - v.finaleStartMs, v.settings.finaleSpeed);
+    // (--- string-battle-alive --- plus the duel's surge: what it banked, and the steps since its last cut)
+    if (v.finale && !v.finished) {
+      if (v.twoLeftMs >= 0) v.surge = v.surgeBank + duelSurge(ctx.getElapsedMs() - Math.max(v.twoLeftMs, v.lastCutMs));
+      v.finaleFactor = finaleFactor(ctx.getElapsedMs() - v.finaleStartMs, v.settings.finaleSpeed, v.surge);
+    }
     this.plucksThisStep = 0;
   }
 
@@ -871,7 +1031,8 @@ export class StringBattleMode implements GameMode {
   private bounce(ctx: ModeContext, ball: Ball, f: SbFighter, nx: number, ny: number, vn: number, scale: number) {
     const v = this.view;
     const now = ctx.getElapsedMs();
-    const a = this.reboundHeading(ctx, ball, nx, ny, vn); // --- string-circle --- (the heading's maths shared with the circle style)
+    let a = this.reboundHeading(ctx, ball, nx, ny, vn); // --- string-circle --- (the heading's maths shared with the circle style)
+    if (v.duel) a = this.homeIn(a, ball, f, nx, ny); // --- string-battle-alive --- (after the scatter's draw, before the cruise's: no draw of its own)
     f.cruise = 1 - SB_SPEED_SPREAD + 2 * SB_SPEED_SPREAD * ctx.random();
     const out = scale * f.cruise * ctx.getPhysicsExtras().wallBounciness;
     ball.vx = Math.cos(a) * out;
@@ -881,7 +1042,7 @@ export class StringBattleMode implements GameMode {
     const ay = v.cy + ny * v.radius;
     // The new thread; beyond the limit the oldest detaches (and fades where it was).
     let str: SbString | undefined;
-    if (f.strings.length >= v.settings.maxStrings) {
+    if (f.strings.length >= Math.min(v.settings.maxStrings, v.threadCap) /* --- string-battle-alive --- (the stalemate rule's cap) */) {
       str = f.strings.shift()!;
       this.addGhost("fade", f.slot, str.ax, str.ay, ball.x, ball.y, str.ax, str.ay, now);
     } else str = this.spareStrings.pop();
@@ -966,8 +1127,11 @@ export class StringBattleMode implements GameMode {
       }
     }
     // --- string-circle --- the circle style cuts its own way (every rival string, a life per `cut` strings cut)
-    if (v.circle) this.circleCrossings(ctx, now);
-    else if (v.settings.rule !== "collide") this.crossings(ctx, now);
+    if (v.circle) {
+      if (v.settings.life !== "strings" || !stringsHeld(now, v.twoLeftMs, v.duel)) this.circleCrossings(ctx, now); // (--- string-battle-alive --- the opening, the duel's banner)
+    } else if (v.settings.life === "strings") {
+      if (v.settings.rule !== "collide" && !stringsHeld(now, v.twoLeftMs, v.duel)) this.crossingsStrings(ctx, now); // --- string-battle-alive --- (no lives, no shield)
+    } else if (v.settings.rule !== "collide") this.crossings(ctx, now);
     for (const f of v.fighters) {
       const B = this.ballOf[f.slot];
       if (!B) continue;
@@ -1009,6 +1173,8 @@ export class StringBattleMode implements GameMode {
         }
         if (longest < 0) continue;
         this.pluck(ctx, pluckFrequency(longest, v.radius));
+        if (touch) this.noteDuelHit(ctx, now, o.slot, a.slot); // --- string-battle-alive --- (a moment of the duel: the laser's owner struck)
+        else this.noteDuelHit(ctx, now, a.slot, o.slot);
         if (!touch) this.damage(o, a, now);
         else if (this.damage(a, o, now) || now - a.hurtMs < invuln) break; // struck: no more lasers for it this sub-step
       }
@@ -1053,6 +1219,7 @@ export class StringBattleMode implements GameMode {
       f.alive = false;
       f.eliminatedMs = now;
       v.alive--;
+      v.lastKoMs = now; // --- string-battle-alive --- (the stalemate rule starts over)
       const B = this.ballOf[slot];
       const x = B ? B.x : f.x;
       const y = B ? B.y : f.y;
@@ -1090,6 +1257,11 @@ export class StringBattleMode implements GameMode {
       // Slow motion on the final cut (the camera's near-miss hook).
       ctx.noteNearMiss?.();
       v.slowMos++;
+      // --- string-battle-alive --- the duel's final cut: the long slow motion (the canvas) and the noise tail, the drone let go
+      if (v.duel) {
+        v.duelFinal = true;
+        this.duelSound(ctx, "final");
+      }
     }
   }
 
@@ -1118,16 +1290,20 @@ export class StringBattleMode implements GameMode {
       // The clip limit: the survivors with the most lives take the verdict.
       if (v.settings.duration > 0 && now >= 1000 * v.settings.duration) {
         for (const f of v.fighters) this.ballOf[f.slot] = f.alive ? (ctx.getBalls().find((b) => b.id === f.id) ?? null) : null;
-        const leaders = timeoutLeaders(v.fighters, v.forcedWinner);
+        const leaders = timeoutLeaders(v.fighters, v.forcedWinner, v.settings.life); // (--- string-battle-alive --- the strings rule: the most live threads)
         this.finish(ctx, v.circle ? coverageLeaders(leaders, v.circle.coverage.bins) : leaders, now); // --- string-circle --- (level lives: the most rim)
+        if (v.duel) this.duelSound(ctx, "stop"); // --- string-battle-alive --- (the clip ran out mid-duel: the soundtrack fades)
       } else if (!v.finale) {
-        let minLives = Infinity;
-        for (const f of v.fighters) if (f.alive && f.lives < minLives) minLives = f.lives;
-        if (finaleDue(v.alive, minLives, now, v.settings.duration)) {
+        // --- string-battle-alive --- the moment two balls are left (whatever their lives), or the clip limit's last seconds
+        if (finaleDue(v.alive, now, v.settings.duration)) {
           v.finale = true;
           v.finaleStartMs = now;
         }
       }
+      // --- string-battle-alive --- the battle is down to its last two: the final duel (its heartbeat on the battle's clock, the trails)
+      if (!v.finished && v.alive === 2 && v.twoLeftMs < 0) this.startDuel(ctx, now);
+      if (v.duel && !v.finished) this.duelStep(ctx, now);
+      if (v.settings.life === "strings" && !v.finished) this.stallStep(now);
     }
     // Retire the effects that have played out (kept in time order, so from the front); their objects are reused.
     let drop = 0;
@@ -1160,6 +1336,13 @@ export class StringBattleMode implements GameMode {
       loser = fb;
       winner = fa;
     } else return;
+    // --- string-battle-alive --- the strings rule: the slower ball loses its oldest thread (no shield; the rig only keeps the
+    // chosen ball's last one – the clash is absorbed, not turned round)
+    if (v.settings.life === "strings") {
+      const now = ctx.getElapsedMs();
+      if (!stringsHeld(now, v.twoLeftMs, v.duel) && this.takeOldest(ctx, loser, loser === fa ? a : b, winner, now)) this.pluck(ctx, bounceFrequency(loser.slot) / 2);
+      return;
+    }
     // The rig: the chosen ball wins every clash it could not afford to lose (a level one it still may).
     if (loser.slot === v.forcedWinner && rigAbsorbs(loser.slot, v.forcedWinner, v.fighters)) {
       const chosen = loser;
@@ -1167,7 +1350,10 @@ export class StringBattleMode implements GameMode {
       winner = chosen;
     }
     const now = ctx.getElapsedMs();
-    if (this.damage(loser, winner, now)) this.pluck(ctx, bounceFrequency(loser.slot) / 2);
+    if (this.damage(loser, winner, now)) {
+      this.pluck(ctx, bounceFrequency(loser.slot) / 2);
+      this.noteDuelHit(ctx, now, winner.slot, loser.slot); // --- string-battle-alive ---
+    }
   }
 
   onWallHit() {
@@ -1380,7 +1566,8 @@ export class StringBattleMode implements GameMode {
   /** A rebound off the circle style's wall: the web style's heading and fresh cruising speed, a fresh curl, the bounce credited. */
   private circleBounce(ctx: ModeContext, ball: Ball, f: SbFighter, nx: number, ny: number, vn: number, scale: number) {
     const v = this.view;
-    const a = this.reboundHeading(ctx, ball, nx, ny, vn);
+    let a = this.reboundHeading(ctx, ball, nx, ny, vn);
+    if (v.duel) a = this.homeIn(a, ball, f, nx, ny); // --- string-battle-alive --- (no draw of its own)
     f.cruise = 1 - SB_SPEED_SPREAD + 2 * SB_SPEED_SPREAD * ctx.random();
     v.circle!.curl[f.slot] = this.drawCurl(ctx);
     const out = scale * f.cruise * ctx.getPhysicsExtras().wallBounciness;
@@ -1404,7 +1591,9 @@ export class StringBattleMode implements GameMode {
   private circleCrossings(ctx: ModeContext, now: number) {
     const v = this.view;
     const c = v.circle!;
-    const shield = SB_INVULN_MS.cut;
+    // --- string-battle-alive --- under the strings rule no fan is ever shielded (and no lives are counted: the strings left decide)
+    const strings = v.settings.life === "strings";
+    const shield = strings ? 0 : SB_INVULN_MS.cut;
     const index = this.fanIndex;
     const win = this.fanWindow;
     for (const o of v.fighters) {
@@ -1415,6 +1604,7 @@ export class StringBattleMode implements GameMode {
       const n = list.length;
       let built = false;
       let removed = 0;
+      let cutter: SbFighter | null = null; // --- string-battle-alive --- (the latest rival that sliced it: a KO's killer)
       for (const a of v.fighters) {
         if (a === o || !a.alive || now - o.hurtMs < shield) continue; // (shielded by an earlier rival's slice this sub-step)
         const A = this.ballOf[a.slot];
@@ -1449,6 +1639,12 @@ export class StringBattleMode implements GameMode {
         c.lost[o.slot] += cut;
         c.cutBy[a.slot] += cut;
         c.stepCuts[o.slot] += cut;
+        // --- string-battle-alive --- the strings rule: no strings per life – a moment of the duel, and the fan's size decides
+        if (strings) {
+          cutter = a;
+          this.noteDuelHit(ctx, now, a.slot, o.slot);
+          continue;
+        }
         c.toward[o.slot] += cut;
         if (c.toward[o.slot] < c.cut) continue;
         c.toward[o.slot] = 0;
@@ -1457,12 +1653,28 @@ export class StringBattleMode implements GameMode {
       if (removed === 0) continue;
       // The cut strings leave the fan (the others keep their order); their objects are kept for the next anchors.
       const marks = this.cutMarks;
+      // --- string-battle-alive --- under the strings rule the rig's chosen flag keeps its newest string when every one was cut
+      if (strings && removed >= n && v.forcedWinner === o.slot) {
+        marks[n - 1] = 0;
+        removed--;
+        v.cuts--;
+        c.cuts--;
+        c.lost[o.slot]--;
+        if (cutter) c.cutBy[cutter.slot]--;
+        c.stepCuts[o.slot]--;
+        this.rigBlink(o, now);
+      }
       let keep = 0;
       for (let k = 0; k < n; k++) {
         if (marks[k]) this.spareStrings.push(list[k]);
         else list[keep++] = list[k];
       }
       list.length = keep;
+      // --- string-battle-alive --- under the strings rule a flag whose last string was cut is out
+      if (strings) {
+        v.threadsLost += removed;
+        if (keep === 0) this.knockOut(o, cutter, now);
+      }
     }
   }
 
@@ -1516,7 +1728,7 @@ export class StringBattleMode implements GameMode {
   private anchorString(f: SbFighter, B: Ball, ax: number, ay: number, angle: number, bornMs: number) {
     const c = this.view.circle!;
     let str: SbString | undefined;
-    if (f.strings.length >= SC_STRING_CEILING) {
+    if (f.strings.length >= Math.min(SC_STRING_CEILING, this.view.threadCap) /* --- string-battle-alive --- (the stalemate rule's cap) */) {
       str = f.strings.shift()!;
       this.addGhost("fade", f.slot, str.ax, str.ay, B.x, B.y, str.ax, str.ay, bornMs);
     } else str = this.spareStrings.pop();
@@ -1575,6 +1787,264 @@ export class StringBattleMode implements GameMode {
     }
   }
   // --- end string-circle ---
+
+  /* ------------------------------------------------------------------ --- string-battle-alive --- the strings rule and the duel */
+
+  /**
+   * The strings rule's start: every ball anchors one lifeline thread at the rim point straight behind its heading (`rimHit()`
+   * against the ring – or the circle style's circle or hexagon), so no ball is ever without a thread before its first bounce.
+   * It takes no random number: the anchor follows from the heading the ball's second draw chose, so the seeded sequence – the
+   * start's angle, then per ball its heading and cruise, then the circle style's curls – is the one it always was.
+   */
+  private anchorLifelines(ctx: ModeContext) {
+    const v = this.view;
+    const balls = ctx.getBalls();
+    const sides = v.circle ? v.circle.sides : 0;
+    const hit = this.rimPoint;
+    for (const f of v.fighters) {
+      const ball = balls.find((b) => b.id === f.id);
+      if (!ball) continue;
+      rimHit(v.cx, v.cy, v.radius, sides, ball.x, ball.y, -ball.vx, -ball.vy, hit);
+      if (v.circle) {
+        this.anchorString(f, ball, hit.x, hit.y, hit.angle, 0);
+        continue;
+      }
+      let str = this.spareStrings.pop();
+      if (!str) str = { ax: hit.x, ay: hit.y, angle: hit.angle, bornMs: 0 };
+      str.ax = hit.x;
+      str.ay = hit.y;
+      str.angle = hit.angle;
+      str.bornMs = 0;
+      str.serial = undefined;
+      f.strings.push(str);
+    }
+  }
+
+  /**
+   * The cut and touch rules under the strings rule, after every sub-step: every ball against every enemy's threads, no shield.
+   * Cut: EVERY thread of the enemy its own move crosses snaps (`cutsThread()`, the whole cuttable span, the stub next to the
+   * owner spared), one slash may take a fan. Touch: a ball that newly touches an enemy laser (it did not at the sub-step's
+   * start) loses its own oldest thread – the laser stays; one laser per enemy a sub-step. A ball whose last thread went is out.
+   */
+  private crossingsStrings(ctx: ModeContext, now: number) {
+    const v = this.view;
+    const touch = v.settings.rule === "touch";
+    const q = this.scratch;
+    for (const a of v.fighters) {
+      if (!a.alive) continue;
+      const A = this.ballOf[a.slot];
+      if (!A) continue;
+      const r2 = A.radius * A.radius;
+      for (const o of v.fighters) {
+        if (o === a || !o.alive || o.strings.length === 0) continue;
+        if (touch && a.strings.length === 0) break; // out already: no more lasers for it
+        const B = this.ballOf[o.slot];
+        if (!B) continue;
+        const reach = B.radius + A.radius + SB_REACH_GAP;
+        if (touch) {
+          let laser = -1;
+          for (let k = o.strings.length - 1; k >= 0; k--) {
+            const s = o.strings[k];
+            if (threadDistanceSq(s.ax, s.ay, B.x, B.y, A.x, A.y, reach, q) >= r2) continue;
+            if (threadDistanceSq(s.ax, s.ay, o.px, o.py, a.px, a.py, reach) < r2) continue; // still the touch it already paid for
+            laser = k;
+            break;
+          }
+          if (laser < 0) continue;
+          const s = o.strings[laser];
+          const len = Math.hypot(B.x - s.ax, B.y - s.ay);
+          if (this.takeOldest(ctx, a, A, o, now)) this.pluck(ctx, pluckFrequency(len, v.radius));
+          continue;
+        }
+        let longest = -1;
+        let lost = 0;
+        for (let k = o.strings.length - 1; k >= 0; k--) {
+          const s = o.strings[k];
+          if (!cutsThread(s.ax, s.ay, B.x, B.y, reach, a.px, a.py, A.x, A.y, q)) continue;
+          if (o.strings.length === 1 && v.forcedWinner === o.slot) {
+            this.rigBlink(o, now); // the rig: the chosen ball keeps its last thread
+            break;
+          }
+          const len = Math.hypot(B.x - s.ax, B.y - s.ay);
+          if (len > longest) longest = len;
+          this.addGhost("snap", o.slot, s.ax, s.ay, B.x, B.y, q.x, q.y, now);
+          o.strings.splice(k, 1);
+          this.spareStrings.push(s);
+          v.cuts++;
+          lost++;
+        }
+        if (lost === 0) continue;
+        this.pluck(ctx, pluckFrequency(longest, v.radius));
+        this.loseThreads(ctx, o, a, lost, now);
+      }
+    }
+  }
+
+  /**
+   * `victim` (its ball `ball`) loses its oldest thread to `attacker` – the touch and collide rules under the strings rule: it
+   * snaps where it hangs. The rig's chosen ball keeps a last thread (it blinks instead). True when a thread went.
+   */
+  private takeOldest(ctx: ModeContext, victim: SbFighter, ball: Ball, attacker: SbFighter | null, now: number): boolean {
+    const v = this.view;
+    if (v.finished || !victim.alive || victim.strings.length === 0) return false;
+    if (victim.strings.length === 1 && v.forcedWinner === victim.slot) {
+      this.rigBlink(victim, now);
+      return false;
+    }
+    const s = victim.strings.shift()!;
+    this.addGhost("snap", victim.slot, s.ax, s.ay, ball.x, ball.y, (s.ax + ball.x) / 2, (s.ay + ball.y) / 2, now);
+    this.spareStrings.push(s);
+    v.cuts++;
+    this.loseThreads(ctx, victim, attacker, 1, now);
+    return true;
+  }
+
+  /** `victim` lost `n` threads to `attacker` (null: nobody): the duel's moment, and out when its last one went. */
+  private loseThreads(ctx: ModeContext, victim: SbFighter, attacker: SbFighter | null, n: number, now: number) {
+    this.view.threadsLost += n;
+    this.noteDuelHit(ctx, now, attacker ? attacker.slot : -1, victim.slot);
+    if (victim.strings.length === 0) this.knockOut(victim, attacker, now);
+  }
+
+  /** Under the strings rule `victim` has no thread left: it is out (the shatter, the kill credit and the verdict follow in `eliminate()`). */
+  private knockOut(victim: SbFighter, attacker: SbFighter | null, now: number) {
+    const v = this.view;
+    if (!victim.alive || victim.lives <= 0) return;
+    victim.lives = 0;
+    victim.hurtMs = now;
+    v.livesLost++;
+    v.lastHurtMs = now;
+    v.lastHurtSlot = victim.slot;
+    this.killerOf[victim.slot] = attacker ? attacker.slot : -1;
+    if (!this.pending.includes(victim.slot)) this.pending.push(victim.slot);
+  }
+
+  /** The rig kept the chosen ball's last thread: it blinks (`SB_RIG_BLINK_MS`), and the absorbed hit is counted. */
+  private rigBlink(f: SbFighter, now: number) {
+    f.hurtMs = now;
+    this.view.shields++;
+  }
+
+  /**
+   * A hit landed (a thread cut or lost, a life lost) on `victim` by `cutter` (−1: nobody). Once the battle is down to two it
+   * banks the surge and restarts its clock; with the duel on, a hit more than `SB_DUEL_CUT_GAP_MS` after the last one is a
+   * moment of the duel – a slow-motion dip, a punch and a ring flash on the canvas, a swell and a drone a semitone higher.
+   */
+  private noteDuelHit(ctx: ModeContext, now: number, cutter: number, victim: number) {
+    const v = this.view;
+    if (v.twoLeftMs < 0 || v.finished) return;
+    v.surgeBank += duelSurge(now - Math.max(v.twoLeftMs, v.lastCutMs));
+    v.lastCutMs = now;
+    if (!v.duel || now - v.lastDuelCutMs < SB_DUEL_CUT_GAP_MS) return;
+    v.duelCuts++;
+    v.lastDuelCutMs = now;
+    v.lastDuelCutter = cutter;
+    v.lastDuelVictim = victim;
+    this.duelSound(ctx, "cut", duelDroneFrequency(v.duelCuts));
+  }
+
+  /** Two balls are left: the duel's clock starts (the surge) and, with the duel on, its extras – the riser, then the heartbeat. */
+  private startDuel(ctx: ModeContext, now: number) {
+    const v = this.view;
+    v.twoLeftMs = now;
+    v.duel = v.settings.duel !== false;
+    if (!v.duel) return;
+    v.duelSteps = 0;
+    clearTrails(v.trails);
+    v.nextBeatMs = now + 1000 * SB_DUEL_RISER_SEC;
+    this.duelSound(ctx, "start", duelDroneFrequency(0));
+  }
+
+  /** Once a 60 Hz step of the duel: the heartbeat on the battle's clock (100 → 160 BPM over 20 s) and the comet trails. */
+  private duelStep(ctx: ModeContext, now: number) {
+    const v = this.view;
+    for (let guard = 0; guard < 8 && now >= v.nextBeatMs; guard++) {
+      const since = v.nextBeatMs - v.twoLeftMs;
+      v.beats++;
+      this.duelSound(ctx, "beat", undefined, duelBpm(since));
+      v.nextBeatMs += duelBeatGapMs(since);
+    }
+    if (v.duelSteps++ % SB_DUEL_TRAIL_EVERY === 0) for (const f of v.fighters) if (f.alive) pushTrail(v.trails, f.slot, f.x, f.y);
+  }
+
+  /** A sound of the duel (`SoundEvent.sbDuel`, an accompaniment): its drone root, its heartbeat tempo, the speed factor now. */
+  private duelSound(ctx: ModeContext, kind: SbDuelSound, frequency?: number, bpm?: number) {
+    const v = this.view;
+    v.duelSounds++;
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency, sbDuel: kind, sbDuelBpm: bpm, sbDuelSpeed: v.finaleFactor, melody: false });
+  }
+
+  /** The strings rule's cap before any stalemate: Threads per Ball in the web and neon styles, `SB_CIRCLE_STRINGS_CAP` in the circle style. */
+  private baseCap(): number {
+    return this.view.circle ? Math.min(SC_STRING_CEILING, SB_CIRCLE_STRINGS_CAP) : this.view.settings.maxStrings;
+  }
+
+  /**
+   * The strings rule's stalemate rule, once a step: every `SB_STALL_MS` without a knockout halves the threads a ball may keep
+   * (`stallCap()`, at least one), and a fan past the cap loses its oldest threads at once, fading where they hung (never the
+   * last: no knockout comes of it). A knockout starts it over.
+   */
+  private stallStep(now: number) {
+    const v = this.view;
+    v.threadCap = v.circle ? stallCap(this.baseCap(), now - v.lastKoMs, SB_CIRCLE_STALL_MS, SB_CIRCLE_STALL_GRACE_MS) : stallCap(this.baseCap(), now - v.lastKoMs);
+    if (v.threadCap >= this.baseCap()) return;
+    for (const f of v.fighters) {
+      if (!f.alive || f.strings.length <= v.threadCap) continue;
+      const B = this.ballOf[f.slot];
+      const bx = B ? B.x : f.x;
+      const by = B ? B.y : f.y;
+      let shown = 0;
+      while (f.strings.length > v.threadCap) {
+        const s = f.strings.shift()!;
+        if (shown++ < SC_SNAP_GHOSTS) this.addGhost("fade", f.slot, s.ax, s.ay, bx, by, s.ax, s.ay, now);
+        this.spareStrings.push(s);
+      }
+    }
+  }
+
+  /**
+   * A rebound in the duel turned toward the opponent (`homingTurn()`: at most `SB_DUEL_HOMING`, after the seeded scatter), then
+   * kept off the tangent as every rebound (`SB_MIN_INCIDENCE`) – the two keep crossing each other's fans. No random number.
+   */
+  private homeIn(heading: number, ball: Ball, f: SbFighter, nx: number, ny: number): number {
+    const v = this.view;
+    let o: SbFighter | null = null;
+    for (const g of v.fighters) {
+      if (g !== f && g.alive) {
+        o = g;
+        break;
+      }
+    }
+    if (!o) return heading;
+    // the aim: just behind the opponent, across its newest thread – past the stub next to its body that no cut reaches
+    // (`SB_DUEL_AIM` of its body's radius further) – its body itself while that thread is shorter
+    let tx = o.x;
+    let ty = o.y;
+    const newest = o.strings[o.strings.length - 1];
+    if (newest) {
+      const dx = newest.ax - o.x;
+      const dy = newest.ay - o.y;
+      const len = Math.hypot(dx, dy);
+      const reach = o.radius + f.radius + SB_REACH_GAP + SB_DUEL_AIM * o.radius;
+      if (len > reach) {
+        tx = o.x + (dx / len) * reach;
+        ty = o.y + (dy / len) * reach;
+      }
+    }
+    const turned = homingTurn(heading, ball.x, ball.y, tx, ty);
+    const inward = Math.atan2(-ny, -nx);
+    let off = turned - inward;
+    off -= TWO_PI * Math.round(off / TWO_PI);
+    const maxOff = Math.PI / 2 - SB_MIN_INCIDENCE;
+    if (off > maxOff) off = maxOff;
+    else if (off < -maxOff) off = -maxOff;
+    const out = inward + off;
+    const turn = Math.abs(bearingDelta(heading, out));
+    v.homings++;
+    if (turn > v.maxHoming) v.maxHoming = turn;
+    return out;
+  }
+  // --- end string-battle-alive ---
 
   shouldSkipWallCollision() {
     return true;

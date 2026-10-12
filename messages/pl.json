@@ -1085,10 +1085,10 @@
     "sbMaxStrings": "Nici na kulkę",
     "sbMaxStringsTip": "Ile nici kulka ciągnie najwyżej, 3–40; ponad to najstarsza odczepia się i gaśnie.",
     "sbDuration": "Limit klipu",
-    "sbDurationTip": "Rozstrzygnij walkę po tylu sekundach: wygrywają ocalali z największą liczbą żyć (potem z największą liczbą eliminacji, potem odbić). Wyłączony: walka trwa do ostatniej kulki.",
+    "sbDurationTip": "Rozstrzygnij walkę po tylu sekundach: wygrywają ocalali z największą liczbą nici, a przy zasadzie żyć z największą liczbą żyć (potem z największą liczbą eliminacji, potem odbić). Wyłączony: walka trwa do ostatniej kulki.",
     "sbDurationOff": "Do ostatniej kulki",
     "sbFinaleSpeed": "Prędkość finału",
-    "sbFinaleSpeedTip": "Gdy zostają dwie kulki, a jedna jest o jedno cięcie od eliminacji (albo do limitu klipu zostało 6 s), kulki przyspieszają do tej wartości, a ich poświaty migają – końcówka robi się intensywna.",
+    "sbFinaleSpeedTip": "Gdy zostaną dwie kulki albo do limitu klipu zostanie 6 s, kulki przyspieszają do tej wartości, a ich poświaty migają. Długi pat przyspiesza je jeszcze bardziej.",
     "sbWobble": "Drganie pierścienia",
     "sbWobbleTip": "Styl neon: jak mocno pierścień drga jak galareta przy każdym uderzeniu (tylko wizualnie).",
     "sbWobbleOff": "Wył.",
@@ -2365,7 +2365,18 @@
     "modeBrickRebuild": "Rozbij cegły",
     "modeDrawingMachine": "Maszyny rysujące",
     "modePerfectFit": "Idealne dopasowanie",
-    "modeWaveTank": "Basen falowy"
+    "modeWaveTank": "Basen falowy",
+    "sbLife": "Zasada życia",
+    "sbLifeTip": "Nici trzymają kulkę przy życiu, dopóki trzyma się choć jedna jej nić, a Życia dają każdej kulce stałą liczbę żyć.",
+    "sbLifeStrings": "Nici",
+    "sbLifeLives": "Życia",
+    "sbLifeHintStrings": "Kulka żyje, dopóki trzyma się choć jedna jej nić. Gdy straci ostatnią, pęka.",
+    "sbLifeHintLives": "Każda kulka zaczyna z ustaloną liczbą żyć. Po utracie życia jest przez chwilę chroniona.",
+    "sbHintCutStrings": "Przelot przez nici rywala przecina każdą z nich. Odbijaj się często, by zyskać nowe.",
+    "sbHintTouchStrings": "Nici są laserami. Dotknięcie jednej kosztuje twoją najstarszą nić.",
+    "sbHintCollideStrings": "Każde zderzenie kosztuje wolniejszą kulkę jej najstarszą nić.",
+    "sbDuel": "Finałowy pojedynek",
+    "sbDuelTip": "Gdy zostaną dwie kulki, polują na siebie, każde cięcie zwalnia czas, a bicie serca narasta aż do końca."
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -5632,5 +5643,9 @@
     "canvasLines": "{count, plural, one {# linia zbita} few {# linie zbite} many {# linii zbitych} other {# linii zbitych}}",
     "bannerLines": "{count, plural, one {[words] linia} few {[words] linie} many {[words] linii} other {[words] linii}}",
     "numberWords": "zero|jedna|dwie|trzy|cztery|pięć|sześć|siedem|osiem|dziewięć|dziesięć|jedenaście|dwanaście|trzynaście|czternaście|piętnaście|szesnaście|siedemnaście|osiemnaście|dziewiętnaście|dwadzieścia"
+  },
+  "StringDuel": {
+    "banner": "FINAŁOWY POJEDYNEK",
+    "threads": "NICI"
   }
 }

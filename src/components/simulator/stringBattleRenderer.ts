@@ -4,6 +4,7 @@ import { SB_INVULN_MS, SB_BURST_MS, SB_PALETTE, ghostLifeMs, lineThroughRect, sb
 import type { TeamEntry } from "@/lib/teams";
 import { WobbleLayer } from "./wobbleRenderer";
 import { inCaptionColumn } from "@/lib/captions";
+import { sbShieldMs } from "@/lib/physics/modes/stringDuel"; // --- string-battle-alive ---
 
 /**
  * Canvas drawing of the String Battle (feature odd-string-battle; lib/physics/modes/stringBattle.ts), one
@@ -42,6 +43,8 @@ export interface StringBattleLabels {
   draw: string;
   /** Name of an unnamed roster team: "Team 3". */
   team: (n: number) => string;
+  /** --- string-battle-alive --- The HUD's column of live threads under the strings rule: "THREADS". */
+  threads?: string;
 }
 
 export const DEFAULT_STRING_BATTLE_LABELS: StringBattleLabels = {
@@ -53,6 +56,7 @@ export const DEFAULT_STRING_BATTLE_LABELS: StringBattleLabels = {
   kills: (n) => `${n} kill${n !== 1 ? "s" : ""}`,
   draw: "DRAW",
   team: (n) => `Team ${n}`,
+  threads: "THREADS", // --- string-battle-alive ---
 };
 
 export interface StringBattleRenderOptions {
@@ -190,6 +194,10 @@ export class StringBattleLayer {
   painted = 0;
   /** Walls wobbling this frame (neon). */
   wobbling = 0;
+  /** --- string-battle-alive --- The figures on the balls this frame, by slot ("4,4,-,3"; "-" not drawn): lives or live threads. */
+  numbers = "";
+  /** --- string-battle-alive --- The slots drawn blinking (shielded) this frame, "" for none ("2" or "0,3"). */
+  shieldedSlots = "";
 
   constructor() {
     if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
@@ -348,7 +356,7 @@ export class StringBattleLayer {
 
   private shielded(view: StringBattleView, slot: number, nowMs: number): boolean {
     const f = view.fighters[slot];
-    return !!f && f.alive && nowMs - f.hurtMs < SB_INVULN_MS[view.settings.rule];
+    return !!f && f.alive && nowMs - f.hurtMs < sbShieldMs(view.settings.life === "strings" ? "strings" : "lives", SB_INVULN_MS[view.settings.rule]); // --- string-battle-alive --- (the strings rule: the rig's blink)
   }
 
   /** World space, before the balls: ring, threads and the threads leaving. */
@@ -410,8 +418,9 @@ export class StringBattleLayer {
     if (sbHudShown(view.settings) && !view.finished) {
       ctx.setLineDash([5, 5]);
       ctx.lineWidth = 2;
+      const strings = view.settings.life === "strings"; // --- string-battle-alive --- (one cut from the end: its last thread)
       for (const f of view.fighters) {
-        if (!f.alive || f.lives !== 1) continue;
+        if (!f.alive || (strings ? f.strings.length !== 1 : f.lives !== 1)) continue;
         const B = this.at(f.slot);
         if (!B) continue;
         ctx.lineDashOffset = this.reduced ? 0 : -now * 0.03;
@@ -558,7 +567,10 @@ export class StringBattleLayer {
     ctx.shadowBlur = 0;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
+    const figures: string[] = []; // --- string-battle-alive ---
+    let blinking = ""; // --- string-battle-alive ---
     for (const f of view.fighters) {
+      figures[f.slot] = "-";
       if (!f.alive) continue;
       const B = this.at(f.slot);
       if (!B) continue;
@@ -577,13 +589,16 @@ export class StringBattleLayer {
       ctx.drawImage(this.haloSprite(look.color), B.x - haloR, B.y - haloR, 2 * haloR, 2 * haloR);
       // Body (blinking while shielded).
       const shield = this.shielded(view, f.slot, now);
+      if (shield) blinking += `${blinking ? "," : ""}${f.slot}`; // --- string-battle-alive ---
       ctx.globalAlpha = shield ? (this.reduced ? 0.55 : Math.sin(now * 0.05) > 0 ? 1 : 0.35) : 1;
       ctx.drawImage(this.bodySprite(look.color, neon), B.x - r, B.y - r, 2 * r, 2 * r);
       if (!neon) {
-        // The lives on the ball.
-        ctx.font = this.font(1.15 * r, 900);
+        // The lives on the ball (--- string-battle-alive --- under the strings rule: its live threads).
+        const shown = view.settings.life === "strings" ? f.strings.length : f.lives;
+        ctx.font = this.font((shown >= 10 ? 0.95 : 1.15) * r, 900);
         ctx.fillStyle = look.ink;
-        ctx.fillText(String(f.lives), B.x, B.y + 0.06 * r);
+        ctx.fillText(String(shown), B.x, B.y + 0.06 * r);
+        figures[f.slot] = String(shown); // --- string-battle-alive ---
       }
       ctx.globalAlpha = 1;
       if (o.showNames && o.roster.length > 0) {
@@ -597,6 +612,8 @@ export class StringBattleLayer {
         ctx.fillText(look.name, B.x, B.y - r - 0.8 * fs);
       }
     }
+    this.numbers = Array.from(figures, (x) => x ?? "-").join(","); // --- string-battle-alive ---
+    this.shieldedSlots = blinking; // --- string-battle-alive ---
     // Shatter bursts: glass shards flying out from where the ball was, and a white flash.
     for (const burst of view.bursts) {
       const age = now - burst.t0;
@@ -736,7 +753,13 @@ export class StringBattleLayer {
     ctx.font = this.font(titleFs, 900);
     const titleW = ctx.measureText(L.title).width;
     const rowW = 1.1 * fs + nameW + 0.6 * fs + 3 * 2.8 * pip + 0.5 * fs + countW;
-    const w = pad * 2 + Math.max(rowW, titleW);
+    // --- string-battle-alive --- the THREADS label beside the title (the strings rule) widens the HUD when it needs the room
+    let labelW = 0;
+    if (view.settings.life === "strings") {
+      ctx.font = this.font(0.6 * fs, 800);
+      labelW = ctx.measureText(L.threads ?? DEFAULT_STRING_BATTLE_LABELS.threads ?? "").width + 0.6 * fs;
+    }
+    const w = pad * 2 + Math.max(rowW, titleW + labelW);
     const h = pad * 2 + 1.5 * titleFs + view.count * rowH + 1.4 * fs;
     const x = right - w;
     this.hudX = x;
@@ -753,6 +776,15 @@ export class StringBattleLayer {
     ctx.fillStyle = "#ffffff";
     ctx.font = this.font(titleFs, 900);
     ctx.fillText(L.title, x + pad, top + pad + 0.6 * titleFs);
+    // --- string-battle-alive --- under the strings rule the figures are the live threads, under a small THREADS label
+    const threadsColumn = view.settings.life === "strings";
+    if (threadsColumn) {
+      ctx.textAlign = "right";
+      ctx.font = this.font(0.6 * fs, 800);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+      ctx.fillText(L.threads ?? DEFAULT_STRING_BATTLE_LABELS.threads ?? "", x + w - pad, top + pad + 0.6 * titleFs);
+      ctx.textAlign = "left";
+    }
     let y = top + pad + 1.5 * titleFs + rowH / 2;
     for (let i = 0; i < view.count; i++) {
       const f = view.fighters[i];
@@ -798,8 +830,14 @@ export class StringBattleLayer {
         cx += 2.8 * pip;
       }
       ctx.textAlign = "right";
-      ctx.fillStyle = f.kills > 0 ? "#ffffff" : "rgba(255, 255, 255, 0.55)";
-      ctx.fillText(`x${f.kills}`, x + w - pad, y);
+      if (threadsColumn) {
+        // --- string-battle-alive --- the strings rule: the row's figure is its live threads
+        ctx.fillStyle = alive ? "#ffffff" : "rgba(255, 255, 255, 0.55)";
+        ctx.fillText(String(alive ? f.strings.length : 0), x + w - pad, y);
+      } else {
+        ctx.fillStyle = f.kills > 0 ? "#ffffff" : "rgba(255, 255, 255, 0.55)";
+        ctx.fillText(`x${f.kills}`, x + w - pad, y);
+      }
       ctx.textAlign = "left";
       ctx.globalAlpha = 1;
       y += rowH;

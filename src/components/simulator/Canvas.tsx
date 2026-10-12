@@ -54,6 +54,9 @@ import { WobbleLayer } from "./wobbleRenderer";
 import { IllusionLayer, type IllusionLabels, type IllusionRenderOptions } from "./illusionRenderer";
 // --- odd-string-battle --- the String Battle's ring, threads, bodies, badge, HUD, banner and glitch bars
 import { DEFAULT_STRING_BATTLE_LABELS, StringBattleLayer, sbFaceLayout, type StringBattleLabels, type StringBattleRenderOptions } from "./stringBattleRenderer";
+// --- string-battle-alive --- the FINAL DUEL's banner, trails, ring flash, punch and slow-motion dips; every fighter's live threads
+import { DEFAULT_STRING_DUEL_LABELS, STRING_DUEL_DATA_KEYS, StringDuelLayer, writeStringDuelDataset, type StringDuelLabels } from "./stringDuelRenderer";
+import { threadsText } from "@/lib/physics/modes/stringDuel";
 import type { Ball } from "@/lib/physics/types";
 import { gapWrap } from "@/lib/physics/types";
 import type { TeamEntry } from "@/lib/teams";
@@ -195,6 +198,8 @@ export interface CanvasLabels {
   // --- odd-string-battle ---
   /** String Battle: the HUD title and thread count, the warning badge, the winner banner. */
   stringBattle?: StringBattleLabels;
+  /** --- string-battle-alive --- The FINAL DUEL banner. */
+  stringDuel?: StringDuelLabels;
   // --- odd-power-layers ---
   /** Power Layers: the rule pills, the badges, the layers left and the freedom banner. */
   powerLayers?: PowerLayersLabels;
@@ -952,6 +957,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const scLayer = new StringCircleLayer();
     const scRender: StringCircleRenderOptions = { dpr: scale, roster: NO_ROSTER, showNames: false, wallThickness: 2, labels: DEFAULT_STRING_CIRCLE_LABELS, nowMs: 0, width: 0, height: 0 };
     const scBodyColor = (ball: Ball) => scLayer.colorOf(ball.team ?? 0);
+    // --- string-battle-alive --- the duel's layer, its punch this frame and the colour of a slot in either layer
+    const duelLayer = new StringDuelLayer();
+    const duelPunch = { x: 0, y: 0 };
+    const sbSlotColor = (slot: number) => sbLayer.colorOf(slot);
+    const scSlotColor = (slot: number) => scLayer.colorOf(slot);
     // --- odd-power-layers --- the Power Layers layer (cached stack, halos, gradients) and its per-frame options
     const plLayer = new PowerLayersLayer();
     const plRender: PowerLayersRenderOptions = { wallColor: () => "#fff", showWallGlow: true, dpr: scale };
@@ -1200,6 +1210,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         else frameBudget.note(frameMs, frameMs * p.simSpeed * cam.timeScale(), engine.getElapsedMs() - simBefore); // --- unlimited ---
       } else frameBudget.reset(); // --- unlimited --- (paused or not started: no slow-motion badge)
       cam.frame(engine, frameMs, !p.isPaused && !!p.isStarted && !held); // --- camera: shake on wall breaks, slow motion on near misses, the replay at the end
+      // --- string-battle-alive --- the duel: a slow-motion dip at every cut (the final one longer), its balls drawn between steps
+      if (engine.isStringBattleMode()) {
+        const duelView = engine.getStringBattleView();
+        cam.modeSlowView = duelView.duel;
+        const cue = duelLayer.frame(duelView);
+        if (cue) cam.dip(cue.dipMs, cue.factor);
+      } else cam.modeSlowView = false;
       elapsedRef.current += frameMs;
       const time = elapsedRef.current;
       // --- camera --- while the escape replay plays, the recorded walls and balls are drawn instead of the live ones;
@@ -1327,6 +1344,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       }
       // --- odd-territory --- a bomber's blast jolts the board (the camera's own Screen Shake shakes it instead while that is on)
       if (engine.isTerritoryMode() && !(cam.settings.screenShake > 0) && tyLayer.blastJolt(engine.getTerritoryView(), engine.getElapsedMs(), Math.min(size.width, size.height), tyJolt)) ctx.translate(tyJolt.x, tyJolt.y);
+      // --- string-battle-alive --- every cut of the duel punches the camera 4 px away from the cutter
+      if (engine.isStringBattleMode() && duelLayer.punch(engine.getStringBattleView(), engine.getElapsedMs(), duelPunch)) ctx.translate(duelPunch.x, duelPunch.y);
       // --- gerald-glass --- Glass Smash scrolls the world down the shaft with its own camera: the view Camera Follow or the
       // cinematic camera set up above is dropped (back to the state saved before it, saved again for the camera restore).
       const glassView = engine.isGlassMode() ? engine.getGlassView() : null;
@@ -1752,6 +1771,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           scRender.height = size.height;
           scLayer.drawStage(ctx, sbView, drawnBalls, scRender);
         } else sbLayer.drawStage(ctx, sbView, drawnBalls, sbRender);
+        duelLayer.drawStage(ctx, sbView, sbView.circle ? scSlotColor : sbSlotColor, simNow); // --- string-battle-alive --- the ring's flash, the comet trails
       }
       // --- odd-territory --- Territory: the tile map, the pops of flipped tiles, the pegs, the frame, the blasts and the whirls.
       const tyView = engine.isTerritoryMode() ? engine.getTerritoryView() : null;
@@ -2760,6 +2780,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // --- low-findings --- the teams banner takes over only when it crowns a team (a winner past the six teams has none)
         modeTopHud = Math.max(modeTopHud, sbLayer.drawOverlay(ctx, sbView, sbRender, { inset: teamInset, dtMs: !p.isPaused && p.isStarted ? frameMs : 0, teamBanner: teamLayer.crownsBattleWinner(sbView), badgeRight: boardLeft }));
       }
+      // --- string-battle-alive --- the FINAL DUEL banner, centred in the exported square (clear of the watermark's corners)
+      if (sbView) {
+        const duelSide = Math.min(size.width, size.height);
+        duelLayer.drawBanner(ctx, sbView, sbView.circle ? scSlotColor : sbSlotColor, engine.getElapsedMs(), (size.width - duelSide) / 2, (size.height - duelSide) / 2, duelSide, (labelsRef.current ?? DEFAULT_LABELS).stringDuel ?? DEFAULT_STRING_DUEL_LABELS);
+      } else duelLayer.bannerOn = false;
       // --- odd-territory --- the HUD band (badge, PICK A SIDE, countdown, the VS line, the bar) and – without a roster (the teams banner takes over) – the winner
       // banner; the badge takes the top-right corner when the teams scoreboard sits in the top-left one, and the band is what the top captions start below
       if (tyView) {
@@ -3466,7 +3491,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           setCanvasData("sbHud", scLayer.hudDrawn ? "1" : "0");
           setCanvasData("sbBanner", scLayer.bannerDrawn ? "1" : "0");
         } else if (canvas.dataset.sbArena !== undefined) for (const key of STRING_CIRCLE_DATA_KEYS) delete canvas.dataset[key];
+        // --- string-battle-alive --- the life rule, every fighter's live threads and the final duel
+        setCanvasData("sbLife", sbView.settings.life === "lives" ? "lives" : "strings");
+        setCanvasData("sbThreads", threadsText(sbView.fighters));
+        setCanvasData("sbThreadsLost", String(sbView.threadsLost));
+        setCanvasData("sbNumbers", sbView.circle ? "" : sbLayer.numbers);
+        setCanvasData("sbShielded", sbView.circle ? "" : sbLayer.shieldedSlots);
+        writeStringDuelDataset(sbView, duelLayer, setCanvasData);
+        setCanvasData("sbDips", String(cam.dips));
       } else if (canvas.dataset.sbBalls !== undefined) {
+        for (const key of ["sbLife", "sbThreads", "sbThreadsLost", "sbNumbers", "sbShielded", "sbDips", ...STRING_DUEL_DATA_KEYS]) delete canvas.dataset[key]; // --- string-battle-alive ---
         for (const key of STRING_CIRCLE_DATA_KEYS) delete canvas.dataset[key]; // --- string-circle ---
         for (const key of ["sbBalls", "sbAlive", "sbLives", "sbKills", "sbStrings", "sbCuts", "sbLivesLost", "sbBounces", "sbRule", "sbStyle", "sbFinale", "sbSpeed", "sbFinished", "sbWinner", "sbWinnerName", "sbRig", "sbShields", "sbSlowMos", "sbGlitches", "sbStrobe", "sbPainted", "sbWobble", "sbBadge", "sbBadgeRight", "sbHud", "sbBanner", "sbReducedMotion", "sbStalePx", "sbInRing"]) delete canvas.dataset[key];
       }
@@ -3705,6 +3739,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (arenaView?.field) hud.topBand(liveSquare.y0 + HUD_BAND * sq);
         if (flView && flLayer.boxesTop < Infinity) hud.bottomBand(flLayer.boxesTop);
         if (sbView && sbView.circle && scLayer.stripTop < Infinity) hud.bottomBand(scLayer.stripTop);
+        if (sbView && duelLayer.bannerOn) hud.block(duelLayer.bannerBox.x, duelLayer.bannerBox.y, duelLayer.bannerBox.w, duelLayer.bannerBox.h); // --- string-battle-alive --- (the FINAL DUEL banner)
         if (bmLayer.drawn) hud.block(bmLayer.rect.x, bmLayer.rect.y, bmLayer.rect.w, bmLayer.rect.h);
         if (unlimitedView.on) noteCornerReadouts(hud, liveSquare, true, (unlimitedView.full ? 1 : 0) + (frameBudget.slow ? 1 : 0) + (unlimitedView.crowd > 0 ? 1 : 0), recording ? 0 : 52);
         if (uncapInfo.show) noteCornerReadouts(hud, liveSquare, false, uncapInfo.rescued > 0 ? 2 : 1, recording ? 0 : 52);

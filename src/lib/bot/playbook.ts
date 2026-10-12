@@ -533,6 +533,7 @@ export const RECIPES: readonly BotRecipe[] = [
         sbBadge: false, // the hook caption holds the top of the frame
         sbDuration: 0,
         sbFinaleSpeed: stepBetween(ctx.rng, 1.4, 2, 0.1),
+        sbLife: "lives", // --- string-battle-alive --- (the recipe's hook counts lives: "{lives} lives each"; the page's default is the strings rule)
         teams: roster(ctx, balls),
         ballCount: balls,
         twoBalls: true,
