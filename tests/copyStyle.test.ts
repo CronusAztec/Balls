@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "fs";
+import path from "path";
 import { GALLERY } from "@/content/gallery";
 import { FAQ_KEYS } from "@/lib/faq";
 import { MODE_CARD_ORDER } from "@/lib/modes";
@@ -121,6 +123,15 @@ describe("copy style (docs/COPY-STYLE.md)", () => {
         expect(length(description), `${locale} ${id}`).toBeGreaterThanOrEqual(locale === "en" ? 60 : 40);
       }
     }
+  });
+
+  // The bound above is what keeps the cards tidy: the card itself never clamps the one-liner, so a phone's narrow card
+  // (136 to 187 px on 320 to 640 px screens: five to seven lines) still shows it whole (the smoke test measures every card at 390 and 640 px).
+  it("never clamps a mode card's one-liner on the poster card", () => {
+    const card = fs.readFileSync(path.join(__dirname, "..", "src", "components", "site", "PosterCard.tsx"), "utf8");
+    const description = /<p [^>]*data-poster-description[^>]*>/.exec(card)?.[0] ?? "";
+    expect(description).not.toBe("");
+    expect(description).not.toMatch(/line-clamp|truncate|overflow-hidden|max-h-/);
   });
 
   it("keeps the simulator's section intros and long tips within their budgets", () => {

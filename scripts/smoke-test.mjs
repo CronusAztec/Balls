@@ -410,6 +410,47 @@ for (const locale of ["en", "pl", "es"]) {
   const clean = Object.values(pages).every((v) => !v.dash && !v.semi && !v.names && v.chars > 200);
   check("copy-pass: the landing, pricing, about, tiktok, gallery, download and feedback pages carry no sentence dashes, semicolons or creator names", clean, `(${JSON.stringify(pages)})`);
 }
+// --- copy-pass --- every mode card's one-liner reads in full on a phone and a small tablet: the landing's cards at 390 and
+// 640 px in every language, and the studio's mode picker (a dialog: its cards are the narrowest) at 390 px in Polish and
+// Spanish, the longest one-liners. A card that needs more lines than it shows has scrollHeight > clientHeight; a line clamp
+// on the description (computed -webkit-line-clamp) is a failure even when today's text happens to fit.
+{
+  const measure = (p, scope) =>
+    p.$$eval(`${scope} [data-poster-description]`, (els) =>
+      els.map((el) => {
+        const cs = getComputedStyle(el);
+        return { text: (el.textContent ?? "").slice(0, 30), over: el.scrollHeight - el.clientHeight, clamp: cs.webkitLineClamp || "none", width: Math.round(el.getBoundingClientRect().width), lines: Math.round(el.clientHeight / parseFloat(cs.lineHeight)) };
+      }),
+    );
+  const summary = (all) => ({ cards: all.length, cut: all.filter((c) => c.over > 1 || c.clamp !== "none").map((c) => `${c.text}… (+${c.over}px, clamp ${c.clamp})`), narrowest: Math.min(...all.map((c) => c.width)), mostLines: Math.max(...all.map((c) => c.lines)) });
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  try {
+    const pp = await phone.newPage();
+    const widths = {};
+    for (const width of [390, 640]) {
+      await pp.setViewportSize({ width, height: 900 });
+      for (const locale of ["en", "pl", "es"]) {
+        await pp.goto(`${BASE}/${locale}/`, { waitUntil: "networkidle" });
+        widths[`${locale}@${width}`] = summary(await measure(pp, "#modes"));
+      }
+    }
+    const cardCount = widths["en@390"].cards; // every mode (41 when this check was written)
+    const landingOk = cardCount >= 40 && Object.values(widths).every((w) => w.cards === cardCount && w.cut.length === 0 && w.narrowest > 100);
+    check("copy-pass: every mode card's one-liner reads in full on the landing at 390 and 640 px in English, Polish and Spanish (no clamp, nothing cut)", landingOk, `(${JSON.stringify(widths)})`);
+    await pp.setViewportSize({ width: 390, height: 844 });
+    const picker = {};
+    for (const locale of ["pl", "es"]) {
+      await pp.goto(`${BASE}/${locale}/simulator/`, { waitUntil: "networkidle" });
+      await pp.getByTestId("stage-strip").getByRole("button").first().click();
+      await pp.locator("dialog [data-poster-description]").first().waitFor({ timeout: 10000 }).catch(() => {});
+      picker[locale] = summary(await measure(pp, "dialog"));
+      await pp.keyboard.press("Escape");
+    }
+    check("copy-pass: the studio's mode picker shows every one-liner in full at 390 px in Polish and Spanish", Object.values(picker).every((w) => w.cards === cardCount && w.cut.length === 0), `(${JSON.stringify(picker)})`);
+  } finally {
+    await phone.close();
+  }
+}
 await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
 const previewImg = page.locator('img[src$="/modes/classic.webp"]').first();
 await previewImg.scrollIntoViewIfNeeded();
