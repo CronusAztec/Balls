@@ -5319,7 +5319,7 @@
     "canvasSubtitleRotate": "{others, plural, one {the other one is a copy turned round the centre} other {the other # are copies turned round the centre}}",
     "canvasBricks": "{count, plural, one {# brick} other {# bricks}}",
     "canvasBalls": "{count, plural, one {# ball} other {# balls}}",
-    "desc": "A picture of bricks fills the top of the box. Every brick a ball touches breaks, every few breaks add a ball, and at 0 bricks the picture flies back together colour by colour – then it all starts again, a seamless loop.",
+    "desc": "A picture of bricks fills the top of the box. Every brick a ball touches breaks, and every few breaks add a ball. At 0 bricks the picture flies back together colour by colour, and it all starts again.",
     "brPreset": "Preset",
     "brPresetTip": "Smash the emblem: 30 × 30 bricks, 3 balls, a new ball every 4 breaks, at the reference clip's pace. Avalanche: a new ball every break. Big picture: 100 × 100 bricks from your upload. Classic breakout: 1 ball and a paddle, no multiplying. Gold capsules: the paddle catches capsules that triple every ball. Kaleidoscope: 2 real balls and their mirror images in a mosaic.",
     "presetEmblem": "Smash the emblem",

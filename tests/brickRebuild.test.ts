@@ -473,7 +473,7 @@ describe("Brick Smash: settings, presets and the page", () => {
     for (const cat of [en, pl, es]) {
       expect(cat.Modes.brickRebuild.name).toBeTruthy();
       expect(cat.Controls.modeBrickRebuild).toBeTruthy();
-      expect(cat.Editorial.modeBrickRebuild).toBeTruthy();
+      expect(cat.Modes.brickRebuild.description.length).toBeLessThanOrEqual(cat === en ? 110 : 140);
       for (const k of ["outcomeBricksClearedBy", "outcomeLastBrickOnBar", "outcomeFinalBalls", "missNoClear"]) expect((cat.Rigged as Record<string, string>)[k], k).toBeTruthy();
     }
   });

@@ -5319,7 +5319,7 @@
     "canvasSubtitleRotate": "{others, plural, one {ta druga to kopia obrócona wokół środka} few {pozostałe # to kopie obrócone wokół środka} many {pozostałe # to kopie obrócone wokół środka} other {pozostałe # to kopie obrócone wokół środka}}",
     "canvasBricks": "{count, plural, one {# cegła} few {# cegły} many {# cegieł} other {# cegły}}",
     "canvasBalls": "{count, plural, one {# piłka} few {# piłki} many {# piłek} other {# piłki}}",
-    "desc": "Górę pudełka wypełnia obraz z cegieł. Każda cegła, której dotknie piłka, pęka, co kilka rozbitych cegieł pojawia się nowa piłka, a przy 0 cegieł obraz składa się z powrotem kolor po kolorze – i wszystko zaczyna się od nowa, w płynnej pętli.",
+    "desc": "Górę pudełka wypełnia obraz z cegieł. Każda cegła, której dotknie piłka, pęka, a co kilka rozbitych cegieł pojawia się nowa piłka. Przy 0 cegieł obraz składa się z powrotem kolor po kolorze i wszystko zaczyna się od nowa.",
     "brPreset": "Gotowe ustawienie",
     "brPresetTip": "Rozbij emblemat: 30 × 30 cegieł, 3 piłki, nowa piłka co 4 rozbite cegły, w tempie klipu wzorcowego. Lawina: nowa piłka za każdą cegłę. Duży obraz: 100 × 100 cegieł z Twojego obrazu. Klasyczny breakout: 1 piłka i paletka, bez mnożenia. Złote kapsuły: paletka łapie kapsuły, które potrajają każdą piłkę. Kalejdoskop: 2 prawdziwe piłki i ich lustrzane odbicia w mozaice.",
     "presetEmblem": "Rozbij emblemat",

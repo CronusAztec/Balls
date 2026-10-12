@@ -5319,7 +5319,7 @@
     "canvasSubtitleRotate": "{others, plural, one {la otra es una copia girada alrededor del centro} other {las otras # son copias giradas alrededor del centro}}",
     "canvasBricks": "{count, plural, one {# ladrillo} other {# ladrillos}}",
     "canvasBalls": "{count, plural, one {# bola} other {# bolas}}",
-    "desc": "Una imagen de ladrillos llena la parte de arriba de la caja. Cada ladrillo que toca una bola se rompe, cada pocos ladrillos rotos aparece una bola más y con 0 ladrillos la imagen se recompone color a color; luego todo vuelve a empezar, en un bucle perfecto.",
+    "desc": "Una imagen de ladrillos llena la parte de arriba de la caja. Cada ladrillo que toca una bola se rompe y cada pocos ladrillos rotos aparece una bola más. Con 0 ladrillos la imagen se recompone color a color y todo vuelve a empezar.",
     "brPreset": "Preajuste",
     "brPresetTip": "Rompe el emblema: 30 × 30 ladrillos, 3 bolas, una bola nueva cada 4 ladrillos rotos, al ritmo del clip de referencia. Avalancha: una bola nueva por cada ladrillo. Imagen grande: 100 × 100 ladrillos con tu imagen. Breakout clásico: 1 bola y una pala, sin multiplicarse. Cápsulas doradas: la pala atrapa cápsulas que triplican cada bola. Caleidoscopio: 2 bolas reales y sus reflejos en un mosaico.",
     "presetEmblem": "Rompe el emblema",
