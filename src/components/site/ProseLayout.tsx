@@ -10,7 +10,7 @@ import { cx } from "@/components/ui/cx";
  */
 
 /** The legal pages' "last updated" date (privacy, terms, disclaimer). */
-export const LEGAL_LAST_UPDATED = "2026-07-20";
+export const LEGAL_LAST_UPDATED = "2026-10-12"; // --- go-live-kit --- delivery, refunds, operator and support e-mail
 
 /** LEGAL_LAST_UPDATED as a long date in the page's language. */
 export function legalDate(locale: string): string {

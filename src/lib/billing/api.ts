@@ -13,6 +13,9 @@ import { PROVIDERS, isPlan, isProvider, type Plan, type Provider } from "./confi
  *   POST /portal/stripe       { email, ref, returnUrl? } → { url }   Stripe's customer portal (the reference proves the
  *                                                                     subscription is the caller's), back to returnUrl
  *
+ * --- go-live-kit --- Over the Worker's per-connection limit any POST answers 429 { error: "rate_limited", message,
+ * retryAfter } (seconds, also the Retry-After header): the connection asked too often, nothing was refused (nextClaimPoll).
+ *
  * Every checkout returns the buyer to returnUrl (the pricing page of the buyer's language, sent WITHOUT a query) with
  * `?claim=<provider>&ref=<id>` appended by the backend. Every answer is treated defensively: a network error, a non-JSON
  * body or an unknown shape is an error result, never a throw.
@@ -28,13 +31,23 @@ export type BillingErrorKind = "network" | "http" | "shape" | "server";
 
 export type BillingResult<T> = { ok: true; value: T } | { ok: false; kind: BillingErrorKind; message: string; status?: number };
 
-export type ClaimAnswer = { kind: "token"; token: string } | { kind: "pending" } | { kind: "error"; error: string; message: string };
+export type ClaimAnswer =
+  | { kind: "token"; token: string }
+  | { kind: "pending" }
+  /** `retryAfterSeconds`: when to ask again, sent with a 429 rate_limited (the Worker's `retryAfter`). */
+  | { kind: "error"; error: string; message: string; retryAfterSeconds?: number };
 
 type FetchLike = (input: string, init?: RequestInit) => Promise<Response>;
 
 /** How often a pending crypto claim asks again, and for how long. */
 export const CLAIM_POLL_MS = 5000;
 export const CLAIM_POLL_LIMIT_MS = 10 * 60 * 1000;
+/**
+ * --- go-live-kit --- The least a claim waits after the Worker's rate limit refused an ask (429 rate_limited): a minute, or the
+ * Retry-After it sent when that is longer. The limit (billing/src/app.ts RATE_LIMITS.licensePer10Min, 150 per connection and
+ * 10 minutes) covers one page's whole poll (121 asks); it bites only when several tabs or reloads poll at once.
+ */
+export const CLAIM_RATE_LIMITED_WAIT_MS = 60_000;
 /** A receipt reference: the ids Stripe, PayPal and NOWPayments hand out (letters, digits, - _ . :), at most 200 long. */
 const REF_PATTERN = /^[A-Za-z0-9_.:-]{1,200}$/;
 /** A plausible email (the backend is the judge; this only spares a round trip for an obvious typo). */
@@ -80,8 +93,31 @@ export function parseClaim(raw: unknown): ClaimAnswer | null {
   if (!isRecord(raw)) return null;
   if (typeof raw.token === "string" && raw.token.split(".").length === 3) return { kind: "token", token: raw.token.trim() };
   if (raw.pending === true) return { kind: "pending" };
-  if (typeof raw.error === "string" || typeof raw.message === "string") return { kind: "error", error: String(raw.error ?? "error"), message: String(raw.message ?? raw.error ?? "") };
+  if (typeof raw.error === "string" || typeof raw.message === "string") {
+    const retryAfter = typeof raw.retryAfter === "number" && Number.isFinite(raw.retryAfter) && raw.retryAfter > 0 ? raw.retryAfter : 0;
+    return { kind: "error", error: String(raw.error ?? "error"), message: String(raw.message ?? raw.error ?? ""), ...(retryAfter ? { retryAfterSeconds: retryAfter } : {}) };
+  }
   return null;
+}
+
+/** --- go-live-kit --- The Worker's rate limit: this connection asked too often – the purchase itself is not refused. */
+export const isRateLimited = (answer: ClaimAnswer): answer is Extract<ClaimAnswer, { kind: "error" }> => answer.kind === "error" && answer.error === "rate_limited";
+
+/** What a claim's poll does after an answer: ask again in `delayMs`, give up waiting (timeout), or stop (the answer is final). */
+export type ClaimPollStep = { kind: "ask"; delayMs: number } | { kind: "timeout" } | { kind: "stop" };
+
+/**
+ * --- go-live-kit --- The claim loop's next step, `elapsedMs` after its first ask. A pending payment asks again in
+ * CLAIM_POLL_MS; a rate limit (429 rate_limited) is not a refusal either – it asks again after max(CLAIM_RATE_LIMITED_WAIT_MS,
+ * Retry-After) and the page keeps showing what it showed. Either becomes a timeout when that ask would land past
+ * CLAIM_POLL_LIMIT_MS. A token or any other error is final.
+ */
+export function nextClaimPoll(answer: ClaimAnswer, elapsedMs: number): ClaimPollStep {
+  let delayMs: number;
+  if (answer.kind === "pending") delayMs = CLAIM_POLL_MS;
+  else if (isRateLimited(answer)) delayMs = Math.max(CLAIM_RATE_LIMITED_WAIT_MS, (answer.retryAfterSeconds ?? 0) * 1000);
+  else return { kind: "stop" };
+  return elapsedMs + delayMs > CLAIM_POLL_LIMIT_MS ? { kind: "timeout" } : { kind: "ask", delayMs };
 }
 
 /** The `?claim=<provider>&ref=<id>` a checkout returns with, or null when the URL carries none (or a malformed one). */

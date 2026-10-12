@@ -19,7 +19,7 @@ import GpuPanel from "../desktop/GpuPanel";
 import QueuePanel from "../desktop/QueuePanel";
 import AiPanel from "../desktop/AiPanel";
 import LibraryPanel from "../desktop/LibraryPanel";
-import { errorText } from "../desktop/ui";
+import { errorText, ghostBtn, primaryBtn } from "../desktop/ui"; // --- desktop-autorelease --- (the update banner's buttons)
 import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
 import type { PublishPlatform } from "@/lib/publish/platforms";
 
@@ -55,6 +55,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   const [update, setUpdate] = useState<UpdateStatus | null>(null);
   const [library, setLibrary] = useState<LibraryItem[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
+  const [updateLater, setUpdateLater] = useState<string | null>(null); // --- desktop-autorelease --- the version "Later" hid
 
   useEffect(() => {
     bridge.prefs
@@ -217,6 +218,9 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
     [queue, show, t],
   );
 
+  // --- desktop-autorelease --- no restart while a clip renders or encodes (the update then installs when the app quits)
+  const rendering = queue.state.jobs.some((j) => j.status === "rendering" || j.status === "encoding");
+
   if (!prefs) return null;
   return (
     <section ref={rootRef} className="lg:col-span-3 bg-bg/70 border border-line rounded-xl p-3 sm:p-4 space-y-4 scroll-mt-4" data-desktop-group="" data-desktop-tab={tab} aria-label={t("groupTitle")}>
@@ -250,6 +254,19 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
           ))}
         </div>
       </div>
+      {/* --- desktop-autorelease --- an update is downloaded: Restart and update / Later (hidden for this version until the next launch) */}
+      {update?.state === "ready" && update.version && updateLater !== update.version && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-ink bg-accent/10 border border-accent-dim/60 rounded-lg px-3 py-2" data-testid="desktop-update-banner" role="status">
+          <span className="flex-1">{t("update.ready", { version: update.version, progress: 100 })}</span>
+          <button type="button" className={primaryBtn} disabled={rendering} onClick={() => void bridge.update.install()} data-testid="desktop-update-restart">
+            {t("appRestartUpdate")}
+          </button>
+          <button type="button" className={ghostBtn} onClick={() => setUpdateLater(update.version)} data-testid="desktop-update-later">
+            {t("updateLater")}
+          </button>
+          {rendering && <span className="basis-full text-ink-3">{t("updateWaitRender")}</span>}
+        </div>
+      )}
       {notice && (
         <div className="flex items-center gap-2 text-xs text-ink-2 bg-surface-1 border border-line rounded-lg px-3 py-2" data-testid="desktop-notice">
           <span className="flex-1">{notice}</span>

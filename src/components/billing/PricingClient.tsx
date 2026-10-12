@@ -7,7 +7,7 @@ import { buttonClass } from "@/components/ui/Button";
 import { inputClass } from "@/components/ui/Field";
 import { IconCheck, IconWarning } from "@/components/ui/icons";
 import { cx } from "@/components/ui/cx";
-import { CLAIM_POLL_LIMIT_MS, CLAIM_POLL_MS, isEmail, isReceiptRef, parseClaimParams, pricingReturnUrl, type BillingClient } from "@/lib/billing/api";
+import { isEmail, isReceiptRef, nextClaimPoll, parseClaimParams, pricingReturnUrl, type BillingClient } from "@/lib/billing/api";
 import { PAYPAL_SUBSCRIPTIONS_URL, accountMessageKey, accountView, formatLicenseDate, paidUntilMs } from "@/lib/billing/account";
 import type { Provider } from "@/lib/billing/config";
 import { getEntitlementStore, useEntitlement } from "@/lib/billing/entitlement";
@@ -21,11 +21,12 @@ import { siteBaseUrl, useBilling, useLicenseRenewal, useStoredReceipt } from "./
 /*
  * --- paywall-gate --- The pricing page's live parts (src/app/[locale]/pricing/page.tsx renders the static ones): the
  * test-mode line, the purchase a checkout returned with (?claim=<provider>&ref=<id>: claiming, waiting for the network to
- * confirm a crypto payment – asked every 5 s for up to 10 minutes –, "You are Pro until <date>" with the receipt reference
- * to keep and "Back to your setup" when the checkout left from the studio, or the failure with Restore), the plans, this
- * browser's licence – or the one that ran out – with Manage subscription (Stripe → the customer portal, PayPal → its
- * subscriptions page, crypto → buy another period), its receipt reference, Copy licence key and Remove, Restore purchase
- * (the checkout email and the receipt reference) and Paste a licence key.
+ * confirm a crypto payment – asked every 5 s for up to 10 minutes, a minute later after a 429 rate_limited (nextClaimPoll) –,
+ * "You are Pro until <date>" with the receipt reference to keep and "Back to your setup" when the checkout left from the
+ * studio, or the failure with Restore), the plans, this browser's licence – or the one that ran out – with Manage
+ * subscription (Stripe → the customer portal, PayPal → its subscriptions page, crypto → buy another period), its receipt
+ * reference, Copy licence key and Remove, Restore purchase (the checkout email and the receipt reference) and Paste a
+ * licence key.
  */
 
 /** "until <date>": the paid period's end of a licence that expires at `expMs`, in the page's language. */
@@ -119,17 +120,21 @@ export function ClaimPanel() {
         return;
       }
       const answer = r.value;
-      if (answer.kind === "pending") {
-        if (Date.now() - started + CLAIM_POLL_MS > CLAIM_POLL_LIMIT_MS) {
-          setState({ kind: "timeout", ref });
-          return;
-        }
-        setState({ kind: "pending" });
-        timer = setTimeout(() => void ask(), CLAIM_POLL_MS);
+      // --- go-live-kit --- a pending payment asks again in 5 s; the Worker's rate limit (429 rate_limited: several tabs or
+      // reloads polling at once) is no refusal – the page keeps its state and asks again after a minute or the Retry-After
+      const step = nextClaimPoll(answer, Date.now() - started);
+      if (step.kind === "timeout") {
+        setState({ kind: "timeout", ref });
         return;
       }
-      if (answer.kind === "error") {
-        setState({ kind: "failed", message: answer.message || answer.error, ref });
+      if (step.kind === "ask") {
+        if (answer.kind === "pending") setState({ kind: "pending" });
+        timer = setTimeout(() => void ask(), step.delayMs);
+        return;
+      }
+      if (answer.kind !== "token") {
+        // a refusal: any error but the rate limit (a pending answer never gets here: it asks again or times out above)
+        setState({ kind: "failed", message: answer.kind === "error" ? answer.message || answer.error : answer.kind, ref });
         return;
       }
       const installed = await getEntitlementStore().install(answer.token, { provider, ref });

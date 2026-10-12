@@ -13,7 +13,10 @@
     "test": "vitest run",
     "smoke": "node scripts/smoke-test.mjs",
     "previews": "node scripts/generate-mode-previews.mjs",
-    "bot": "node scripts/viral-bot.mjs"
+    "bot": "node scripts/viral-bot.mjs",
+    "go-live": "node scripts/go-live.mjs",
+    "go-live:check": "node scripts/go-live-check.mjs",
+    "release:desktop": "node scripts/release/desktop-version.mjs"
   },
   "dependencies": {
     "mp4-muxer": "^5.2.2",

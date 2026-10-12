@@ -389,6 +389,68 @@ for (const locale of ["en", "pl", "es"]) {
     check(`GET /${locale}${p}`, res.status() === 200 && h1.length > 0, `(${res.status()}, h1="${h1.slice(0, 40)}")`);
   }
 }
+// --- copy-pass --- the studio guide is tips and help only, and the copy of the pages a visitor reads has no sentence dashes,
+// semicolons or other creators' names (docs/COPY-STYLE.md); the names are built from parts so this file does not spell them
+// (the Accordion renders each help row as a <button>, so the six buttons are the five troubleshooting rows and "Still stuck?")
+{
+  const names = [["gerald", "bounces"], ["odd", "playground"], ["project", ".jdm"], ["particles", "flow"], ["weapon", "ball", "arena"], ["ball", "thing", "sim"], ["loop", "mechanics"]].map((p) => p.join(""));
+  await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+  const guide = page.getByTestId("studio-guide");
+  const sections = await guide.locator("section").count();
+  const tips = await guide.locator('section[aria-labelledby="guide-tips"] li').count();
+  const help = await guide.locator('section[aria-labelledby="guide-trouble"] button').count();
+  const guideText = (await guide.innerText()).toLowerCase();
+  check("copy-pass: the studio guide is two sections (4 tips, 6 help rows) with no physics block, no mode list and no creator names", sections === 2 && tips === 4 && help === 6 && !/behind the simulation|physics engine|what each mode does/.test(guideText) && !names.some((n) => guideText.includes(n)) && !/ – |—|;/.test(guideText), `(sections ${sections}, tips ${tips}, help ${help})`);
+  const pages = {};
+  for (const p of ["", "/pricing", "/about", "/tiktok-ball-videos", "/gallery", "/download", "/feedback"]) {
+    await page.goto(`${BASE}/en${p}/`, { waitUntil: "networkidle" });
+    const text = (await page.locator("main").first().innerText()).toLowerCase();
+    pages[p || "/"] = { dash: / – |—/.test(text), semi: /;/.test(text), names: names.some((n) => text.includes(n)), chars: text.length };
+  }
+  const clean = Object.values(pages).every((v) => !v.dash && !v.semi && !v.names && v.chars > 200);
+  check("copy-pass: the landing, pricing, about, tiktok, gallery, download and feedback pages carry no sentence dashes, semicolons or creator names", clean, `(${JSON.stringify(pages)})`);
+}
+// --- copy-pass --- every mode card's one-liner reads in full on a phone and a small tablet: the landing's cards at 390 and
+// 640 px in every language, and the studio's mode picker (a dialog: its cards are the narrowest) at 390 px in Polish and
+// Spanish, the longest one-liners. A card that needs more lines than it shows has scrollHeight > clientHeight; a line clamp
+// on the description (computed -webkit-line-clamp) is a failure even when today's text happens to fit.
+{
+  const measure = (p, scope) =>
+    p.$$eval(`${scope} [data-poster-description]`, (els) =>
+      els.map((el) => {
+        const cs = getComputedStyle(el);
+        return { text: (el.textContent ?? "").slice(0, 30), over: el.scrollHeight - el.clientHeight, clamp: cs.webkitLineClamp || "none", width: Math.round(el.getBoundingClientRect().width), lines: Math.round(el.clientHeight / parseFloat(cs.lineHeight)) };
+      }),
+    );
+  const summary = (all) => ({ cards: all.length, cut: all.filter((c) => c.over > 1 || c.clamp !== "none").map((c) => `${c.text}… (+${c.over}px, clamp ${c.clamp})`), narrowest: Math.min(...all.map((c) => c.width)), mostLines: Math.max(...all.map((c) => c.lines)) });
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  try {
+    const pp = await phone.newPage();
+    const widths = {};
+    for (const width of [390, 640]) {
+      await pp.setViewportSize({ width, height: 900 });
+      for (const locale of ["en", "pl", "es"]) {
+        await pp.goto(`${BASE}/${locale}/`, { waitUntil: "networkidle" });
+        widths[`${locale}@${width}`] = summary(await measure(pp, "#modes"));
+      }
+    }
+    const cardCount = widths["en@390"].cards; // every mode (41 when this check was written)
+    const landingOk = cardCount >= 40 && Object.values(widths).every((w) => w.cards === cardCount && w.cut.length === 0 && w.narrowest > 100);
+    check("copy-pass: every mode card's one-liner reads in full on the landing at 390 and 640 px in English, Polish and Spanish (no clamp, nothing cut)", landingOk, `(${JSON.stringify(widths)})`);
+    await pp.setViewportSize({ width: 390, height: 844 });
+    const picker = {};
+    for (const locale of ["pl", "es"]) {
+      await pp.goto(`${BASE}/${locale}/simulator/`, { waitUntil: "networkidle" });
+      await pp.getByTestId("stage-strip").getByRole("button").first().click();
+      await pp.locator("dialog [data-poster-description]").first().waitFor({ timeout: 10000 }).catch(() => {});
+      picker[locale] = summary(await measure(pp, "dialog"));
+      await pp.keyboard.press("Escape");
+    }
+    check("copy-pass: the studio's mode picker shows every one-liner in full at 390 px in Polish and Spanish", Object.values(picker).every((w) => w.cards === cardCount && w.cut.length === 0), `(${JSON.stringify(picker)})`);
+  } finally {
+    await phone.close();
+  }
+}
 await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
 const previewImg = page.locator('img[src$="/modes/classic.webp"]').first();
 await previewImg.scrollIntoViewIfNeeded();
@@ -1224,6 +1286,9 @@ await smokeBlock("review-fix-recording-export", async () => {
   const seedAfter = await page.evaluate(() => document.querySelector("main canvas")?.dataset.seed ?? null);
   await page.waitForTimeout(1600);
   // (a run of a few seconds cannot be over again within 2 s; a very short one – a first-bounce escape – may be)
+  // The replay must last at least half the run. The run is measured in wall time, which a loaded runner stretches
+  // (CI once took 25 s for this 10 s run while the replay took its correct 10 s), so the reference is the shorter of the
+  // measured run and the run's set 10 s duration: an early escape still compares against its own short run.
   const earlyDownload = downloadAt !== null && downloadAt - clickedAt < 2000 && runMs > 4000;
   for (let i = 0; i < 60 && !replayDownload; i++) await page.waitForTimeout(500);
   page.off("download", onReplayDownload);
@@ -1236,7 +1301,7 @@ await smokeBlock("review-fix-recording-export", async () => {
   const replayMs = downloadAt ? downloadAt - clickedAt : null;
   check(
     "Record Video on a finished run records the run again from its seed (no half-second still of the end screen)",
-    over && stopShown && endScreenGone && seedBefore !== null && seedAfter === seedBefore && !earlyDownload && replayMs !== null && replayMs > 0.5 * runMs && replayBytes > 10000,
+    over && stopShown && endScreenGone && seedBefore !== null && seedAfter === seedBefore && !earlyDownload && replayMs !== null && replayMs > 0.5 * Math.min(runMs, 10000) && replayBytes > 10000,
     `(run ${runMs} ms, seed ${seedBefore} → ${seedAfter}, stop shown ${stopShown}, end screen gone ${endScreenGone}, download after ${replayMs} ms, ${replayBytes} bytes)`,
   );
 
@@ -7398,7 +7463,7 @@ await smokeBlock("daily-gallery", async () => {
   let copied = "";
   if (panel) {
     await page.getByRole("button", { name: /Copy challenge link/ }).click();
-    await page.getByText(/Copied – paste it anywhere/).waitFor({ timeout: 5000 }).catch(() => {});
+    await page.getByText(/Copied\. Paste it anywhere/).waitFor({ timeout: 5000 }).catch(() => {});
     copied = await page.evaluate(() => navigator.clipboard.readText()).catch(() => "");
   }
   check(
@@ -8487,6 +8552,35 @@ await smokeBlock("desktop-exe", async () => {
     const chosen = await dp.locator('[data-encoder="h264"]').innerText().catch(() => "");
     const version = await dp.getByTestId("desktop-version").innerText().catch(() => "");
     check("desktop-exe: with window.desktop the Desktop group shows the GPU, the chosen encoders and the app version", shown && gpuName.includes("NVIDIA GeForce RTX 4090") && chosen === "h264_nvenc" && version.startsWith("9.9.9"), `(shown ${shown}, encoder ${chosen}, version ${version})`);
+
+    // --- desktop-autorelease --- a downloaded update: the banner above the tabs' panels (Restart and update / Later), on every
+    // tab; Later hides it for that version only; a newer version shows it again
+    {
+      const banner = dp.getByTestId("desktop-update-banner");
+      const ready = (version) => dp.evaluate((v) => window.__fakeDesktop.emit("update", { state: "ready", version: v, progress: 1, message: null }), version);
+      await ready("9.9.10");
+      const shownGpu = await banner.waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+      const text = await banner.innerText().catch(() => "");
+      const restartEnabled = await dp.getByTestId("desktop-update-restart").isEnabled().catch(() => false);
+      await dp.getByTestId("desktop-tab-library").click().catch(() => {});
+      const shownLibrary = await banner.isVisible().catch(() => false);
+      await dp.getByTestId("desktop-update-later").click().catch(() => {});
+      const goneAfterLater = await banner.waitFor({ state: "detached", timeout: 3000 }).then(() => true).catch(() => false);
+      await ready("9.9.10");
+      await dp.waitForTimeout(300);
+      const stillGone = (await banner.count()) === 0;
+      await ready("9.9.11");
+      const newerShown = await banner.waitFor({ timeout: 3000 }).then(() => true).catch(() => false);
+      const newerText = await banner.innerText().catch(() => "");
+      check(
+        "desktop-exe: an update that is downloaded shows the banner on every tab with Restart and update / Later",
+        shownGpu && text.includes("9.9.10") && text.includes("Restart and update") && text.includes("Later") && restartEnabled && shownLibrary && goneAfterLater && stillGone && newerShown && newerText.includes("9.9.11"),
+        `(shown ${shownGpu} "${text.replace(/\s+/g, " ")}", restart enabled ${restartEnabled}, on Library ${shownLibrary}, Later hides ${goneAfterLater}, same version stays hidden ${stillGone}, newer shown ${newerShown})`,
+      );
+      await dp.evaluate(() => window.__fakeDesktop.emit("update", { state: "none", version: null, progress: null, message: null }));
+      await banner.waitFor({ state: "detached", timeout: 3000 }).catch(() => {});
+      await dp.getByTestId("desktop-tab-gpu").click().catch(() => {});
+    }
 
     await dp.evaluate(() => window.__fakeDesktop.emit("menu", "library"));
     await dp.waitForTimeout(300);
@@ -10094,9 +10188,9 @@ await smokeBlock("paywall-gate", async () => {
   /**
    * The mocked billing backend: /config, the Stripe checkout (back to its returnUrl with a claim), the claim, Restore and the
    * Stripe portal. `target` is a page or – for checks whose pages open other tabs – a whole context; `checkout` / `restore` /
-   * `portal` replace those endpoints' answers.
+   * `portal` / `claim` replace those endpoints' answers.
    */
-  const mockBilling = async (target, { claimToken, restoreToken, calls, restore, portal, checkout }) => {
+  const mockBilling = async (target, { claimToken, restoreToken, calls, restore, portal, checkout, claim }) => {
     await target.route(`${MOCK}/**`, async (route) => {
       const req = route.request();
       const pathName = new URL(req.url()).pathname.slice(new URL(MOCK).pathname.length);
@@ -10105,7 +10199,7 @@ await smokeBlock("paywall-gate", async () => {
       const json = (status, data) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) });
       if (pathName === "/config") return json(200, { plans: { monthly: { usd: 10 }, yearly: { usd: 79 } }, providers: { stripe: true, paypal: true, crypto: true }, testMode: true });
       if (pathName === "/checkout/stripe") return checkout ? checkout(body, json) : json(200, { url: `${body.returnUrl}?claim=stripe&ref=cs_test_smoke1` });
-      if (pathName === "/license/claim") return json(200, body && body.ref === "cs_test_smoke1" ? { token: claimToken } : { error: "not_found", message: "Unknown checkout" });
+      if (pathName === "/license/claim") return claim ? claim(body, json) : json(200, body && body.ref === "cs_test_smoke1" ? { token: claimToken } : { error: "not_found", message: "Unknown checkout" });
       if (pathName === "/license/restore") {
         if (restore) return restore(body, json);
         return body && body.email === "buyer@example.com" && body.ref === "sub_SMOKE123" ? json(200, { token: restoreToken }) : json(404, { error: "not_found", message: "No purchase with this email and reference" });
@@ -10209,7 +10303,7 @@ await smokeBlock("paywall-gate", async () => {
         "paywall: a free visitor's Record Video, fast export and Render batch carry the watermark tag (no lock) and run – Record records and downloads, the fast export starts; Remove watermark (account row, the line under the stage) opens the Unlock dialog",
         tags.record === 1 && tags.fast === 1 && tags.locks === 0 && /watermark/i.test(tags.title ?? "") && /watermark/i.test(tags.name) &&
           recording && recordDialog === 0 && recorded &&
-          /Free – your videos carry a watermark/.test(account) && accountStatus === "free" &&
+          /Free: your videos carry a watermark/.test(account) && accountStatus === "free" &&
           unlockDialog && dialogInfo.feature === "" && /Remove the watermark/.test(dialogInfo.title) && dialogInfo.plans === 2 && dialogInfo.pays === 6 && dialogInfo.testMode && dialogInfo.pricingLink === `${BASE_PATH}/en/pricing/` && dialogInfo.restoreLink === `${BASE_PATH}/en/pricing/#restore` && escClosed &&
           noteDialog && closeClosed && batchTag === 1 && batchLock === 0 && editable && fastStarted && fastDialog === 0 && downloaded >= 1,
         `(${JSON.stringify({ tags, recording, recordDialog, recorded, account, accountStatus, unlockDialog, dialogInfo, escClosed, noteDialog, closeClosed, batchTag, batchLock, editable, fastStarted, fastDialog, downloaded })})`,
@@ -10312,9 +10406,50 @@ await smokeBlock("paywall-gate", async () => {
         "paywall: a checkout with the mocked backend comes back with ?claim=stripe&ref=…, the claim ends Pro (“You are Pro until …”, the licence stored) and Record Video then records and downloads",
         !!checkout && checkout.plan === "yearly" && checkout.email === "Buyer@Example.com" && checkout.locale === "en" && checkout.returnUrl === `${BASE}/en/pricing/` &&
           !!claim && claim.provider === "stripe" && claim.ref === "cs_test_smoke1" && claimed && /You are Pro until/.test(claimText) && token === claimToken && cleanUrl && licence === "pro" &&
-          locks === 0 && size > 10000 && /Pro – Yearly until/.test(account),
+          locks === 0 && size > 10000 && /Pro: Yearly until/.test(account),
         `(${JSON.stringify({ checkout, claim, claimed, claimText, stored: token === claimToken, cleanUrl, licence, locks, size, account })})`,
       );
+    }
+
+    // 3b. --- go-live-kit --- A crypto payment still confirming, and the Worker's rate limit in the middle of the wait: the
+    //     claim answers pending, then 429 rate_limited (retryAfter 30 s), then pending, then the licence. The page keeps
+    //     "pending" through the 429 (no "failed", no "Too many requests"), waits a minute (the fake clock is pushed past it)
+    //     instead of 5 s, asks again and ends Pro.
+    {
+      const claimToken = signTestLicense({ sub: "crypto@example.com", plan: "monthly", provider: "crypto", days: 33 });
+      const calls = [];
+      const answers = [
+        (json) => json(200, { pending: true }),
+        (json) => json(429, { error: "rate_limited", message: "Too many requests from this connection. Please wait a minute and try again.", retryAfter: 30 }),
+        (json) => json(200, { pending: true }),
+        (json) => json(200, { token: claimToken }),
+      ];
+      let asked = 0;
+      const lp = await open(null, true);
+      await mockBilling(lp, { claimToken, restoreToken: claimToken, calls, claim: (_body, json) => (answers[Math.min(asked++, answers.length - 1)])(json) });
+      await lp.clock.install(); // the page's timers run in real time until fastForward() jumps the minute
+      const claimState = () => lp.getByTestId("billing-claim").getAttribute("data-claim-state").catch(() => null);
+      const claimCalls = () => calls.filter((c) => c.path === "/license/claim").length;
+      await lp.goto(`${BASE}/en/pricing/?claim=crypto&ref=5077125051`, { waitUntil: "networkidle" });
+      const firstPending = await lp.waitForFunction(() => document.querySelector('[data-testid="billing-claim"]')?.getAttribute("data-claim-state") === "pending", null, { timeout: 15000 }).then(() => true).catch(() => false);
+      // the second ask (5 s later) is the 429; give the page a moment to read it
+      const limitedAsked = await (async () => {
+        for (let i = 0; i < 40 && claimCalls() < 2; i++) await lp.waitForTimeout(250);
+        return claimCalls() >= 2;
+      })();
+      await lp.waitForTimeout(2500);
+      const afterLimit = { state: await claimState(), text: await lp.getByTestId("billing-claim").innerText().catch(() => ""), asks: claimCalls() };
+      // a minute on the page's clock: the third ask (pending), 5 s later the fourth (the licence)
+      await lp.clock.fastForward(61_000);
+      const claimed = await lp.waitForFunction(() => document.querySelector('[data-testid="billing-claim"]')?.getAttribute("data-claim-state") === "success", null, { timeout: 20000 }).then(() => true).catch(() => false);
+      const done = { state: await claimState(), stored: (await stored(lp)) === claimToken, asks: claimCalls(), text: await lp.getByTestId("billing-claim").innerText().catch(() => "") };
+      check(
+        "paywall: a 429 rate limit while a crypto claim is pending keeps the page waiting (no failure), it asks again after a minute and still ends Pro",
+        firstPending && limitedAsked && afterLimit.state === "pending" && afterLimit.asks === 2 && !/Too many requests|could not/i.test(afterLimit.text) &&
+          claimed && done.stored && done.asks === 4 && /You are Pro until/.test(done.text),
+        `(${JSON.stringify({ firstPending, limitedAsked, afterLimit, done })})`,
+      );
+      await lp.close();
     }
 
     // 4. An expired licence is dropped; one signed with another key is refused – both leave a free visitor.
@@ -10522,7 +10657,7 @@ await smokeBlock("paywall-gate", async () => {
       const restores = calls.filter((c) => c.path === "/license/restore");
       check(
         "paywall: a Stripe licence that expired while nobody visited is renewed on the next visit – \"Renewing your licence…\", one /license/restore with the stored receipt, then Pro (the receipt kept)",
-        renewing && /Renewing your licence/.test(renewingText) && pro && /Pro – Monthly/.test(proText) && restores.length === 1 && restores[0].body?.email === "buyer@example.com" && restores[0].body?.ref === "cs_test_abc" && stored.licence === renewed && stored.lapsed === null && JSON.parse(stored.ref ?? "null")?.ref === "cs_test_abc",
+        renewing && /Renewing your licence/.test(renewingText) && pro && /Pro: Monthly/.test(proText) && restores.length === 1 && restores[0].body?.email === "buyer@example.com" && restores[0].body?.ref === "cs_test_abc" && stored.licence === renewed && stored.lapsed === null && JSON.parse(stored.ref ?? "null")?.ref === "cs_test_abc",
         `(${JSON.stringify({ renewing, renewingText, pro, proText, restores: restores.map((c) => c.body), stored: { licence: stored.licence === renewed, ref: stored.ref, lapsed: stored.lapsed } })})`,
       );
 
@@ -10637,7 +10772,7 @@ await smokeBlock("paywall-gate", async () => {
       await page.getByRole("button", { name: /Recording/ }).click();
       const account = await page.getByTestId("billing-account").innerText().catch(() => "");
       const locks = await lockCount(page);
-      check("paywall: the suite's Pro context shows no lock and the account row says Pro", locks === 0 && /Pro – Yearly until/.test(account), `(locks ${locks}, "${account}")`);
+      check("paywall: the suite's Pro context shows no lock and the account row says Pro", locks === 0 && /Pro: Yearly until/.test(account), `(locks ${locks}, "${account}")`);
     }
   } finally {
     for (const c of contexts) await c.close().catch(() => {});
@@ -12864,7 +12999,7 @@ await smokeBlock("free-watermark", async () => {
     await free.screenshot({ path: path.join(outDir, "watermark-free-studio.png") });
     check(
       "free watermark: the pricing page (en, pl, es: Free makes videos with the watermark, Pro without, Publish is Pro), the studio's line, tag and account row and the Unlock dialog (\"Remove the watermark\") say so",
-      pricingOk && /watermark/.test(note) && /Remove the watermark/.test(note) && /watermark/i.test(recordTag ?? "") && opened && /Remove the watermark/.test(dialogText) && /watermark/.test(dialogText) && /Free – your videos carry a watermark/.test(account) && /Remove watermark/.test(account),
+      pricingOk && /watermark/.test(note) && /Remove the watermark/.test(note) && /watermark/i.test(recordTag ?? "") && opened && /Remove the watermark/.test(dialogText) && /watermark/.test(dialogText) && /Free: your videos carry a watermark/.test(account) && /Remove watermark/.test(account),
       `(${JSON.stringify({ copy: Object.fromEntries(Object.entries(copy).map(([k, v]) => [k, { h1: v.h1, watermarkRows: v.watermarkRows, proRows: v.proRows }])), note, recordTag, opened, dialog: dialogText.slice(0, 160), account })})`,
     );
   } finally {
@@ -13149,19 +13284,51 @@ await smokeBlock("desktop-ai-fix", async () => {
 // a timing line and the small model's hashtags without "#" / its unrequested platform normalised into a valid result, and
 // a failure shown without Electron's IPC prefix.
 {
-  const DESKTOP_VERSION = "1.0.3";
+  const DESKTOP_VERSION = JSON.parse(fs.readFileSync(new URL("../desktop/package.json", import.meta.url), "utf8")).version; // --- desktop-autorelease --- one source of truth
+  // --- desktop-autorelease --- GitHub's API unreachable: every locale keeps the build-time version (desktop/package.json's)
+  // and links "What's new" to the latest release page
+  const latestRelease = `https://github.com/${process.env.NEXT_PUBLIC_GITHUB_REPO || "CronusAztec/Balls"}/releases/latest`;
+  await page.route("https://api.github.com/**", (route) => route.abort());
+  // (an answer an earlier visit kept for an hour in this tab's sessionStorage is dropped first)
+  await page.goto(`${BASE}/en/download/`, { waitUntil: "domcontentloaded" });
+  await page.evaluate(() => sessionStorage.removeItem("jbl.desktopLatest")).catch(() => {});
   for (const locale of ["en", "pl", "es"]) {
     await page.goto(`${BASE}/${locale}/download/`, { waitUntil: "networkidle" });
     const notes = await page.evaluate(() => ({
       version: document.querySelector('[data-testid="download-version"]')?.textContent ?? "",
       update: document.querySelector('[data-testid="download-update-note"]')?.textContent ?? "",
       all: document.querySelector('[data-testid="download-notes"]')?.textContent ?? "",
+      whatsNew: document.querySelector('[data-testid="download-whats-new"]')?.getAttribute("href") ?? "",
     }));
     check(
       `desktop-ai-fix: /${locale}/download/ shows version ${DESKTOP_VERSION}, the one-time model download and the manual step for 1.0.2`,
-      notes.version.includes(DESKTOP_VERSION) && notes.update.includes("1.0.2") && notes.update.includes("1.0.3") && notes.all.length > notes.version.length + notes.update.length + 40,
-      `(version "${notes.version}", update note "${notes.update.slice(0, 80)}")`,
+      notes.version.includes(DESKTOP_VERSION) && notes.update.includes("1.0.2") && notes.update.includes("1.0.3") && notes.all.length > notes.version.length + notes.update.length + 40 && notes.whatsNew === latestRelease,
+      `(version "${notes.version}", what's new ${notes.whatsNew}, update note "${notes.update.slice(0, 80)}")`,
     );
+  }
+  await page.unroute("https://api.github.com/**");
+  // --- desktop-autorelease --- GitHub reports a newer release: the page shows it and links its release notes
+  {
+    const htmlUrl = "https://github.com/CronusAztec/Balls/releases/tag/desktop-v9.9.9";
+    await page.route("https://api.github.com/**", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ tag_name: "desktop-v9.9.9", html_url: htmlUrl }) }),
+    );
+    await page.goto(`${BASE}/en/download/`, { waitUntil: "networkidle" });
+    const live = await page
+      .waitForFunction(() => (document.querySelector('[data-testid="download-version"]')?.textContent ?? "").includes("9.9.9"), null, { timeout: 5000 })
+      .then(() => true)
+      .catch(() => false);
+    const shown = await page.evaluate(() => ({
+      version: document.querySelector('[data-testid="download-version"]')?.textContent ?? "",
+      whatsNew: document.querySelector('[data-testid="download-whats-new"]')?.getAttribute("href") ?? "",
+    }));
+    check(
+      "desktop-ai-fix: the download page shows the latest release GitHub reports (9.9.9) and links its What's new",
+      live && shown.version.includes("9.9.9") && shown.whatsNew === htmlUrl,
+      `(version "${shown.version}", what's new ${shown.whatsNew})`,
+    );
+    await page.evaluate(() => sessionStorage.removeItem("jbl.desktopLatest")).catch(() => {});
+    await page.unroute("https://api.github.com/**");
   }
 
   const FAKE_AI_FIX_BRIDGE = `(() => {
@@ -13935,7 +14102,9 @@ await smokeBlock("watermark-everywhere", async () => {
       const refPaused = await pause(tp);
       await snap(tp, "T0");
       await setLicence(tp, weLicence);
-      const ref = badgeCorner(await awaitMark(tp, "T0", "P0", false)); // P0: the clean frame
+      const refDiff = await awaitMark(tp, "T0", "P0", false); // P0: the clean frame
+      const ref = badgeCorner(refDiff);
+      const refBox = ref ? refDiff.zones[ref].box : null; // where the badge sits and how big it is on this canvas
       await setLicence(tp, null);
       await tp.waitForTimeout(300);
       await resume(tp);
@@ -13987,10 +14156,17 @@ await smokeBlock("watermark-everywhere", async () => {
       await snap(tp, "T1");
       const d = await diffOf(tp, "T1", "P0");
       const corner = badgeCorner(d);
+      // The run kept moving between the two paused frames, so the difference also holds moved balls and trails; a band of
+      // them in another corner zone can look like a second badge (CI 260: a 203 x 25 band bottom-right), and badgeCorner,
+      // which wants exactly one badge-like corner, answers null although the badge sits exactly where the clean frame
+      // had it. The badge therefore also counts as kept when the reference corner still carries a badge-like band at the
+      // reference badge's place and size (within a few pixels); a badge the tampering removed passes neither way.
+      const sameBox = (a, b) => !!a && !!b && Math.abs(a[0] - b[0]) <= 4 && Math.abs(a[1] - b[1]) <= 4 && Math.abs(a[2] - b[2]) <= 8 && Math.abs(a[3] - b[3]) <= 4;
+      const kept = corner ?? (ref && badgeLike(d, ref) && sameBox(d.zones[ref].box, refBox) ? ref : null);
       check(
         "watermark everywhere: DOM tampering during a live run (marked elements removed, data-pro=\"true\" and Pro classes on <html>/<body>, Pro flags in localStorage, the canvas' classes, data attributes and CSS overridden, crypto.subtle.verify and WeakMap.prototype.get patched) leaves the badge in the pixels",
-        picked && refPaused && !!ref && removed >= 1 && live > 0 && tamperPaused && !!corner,
-        `(reference badge ${ref ?? "none"}, removed ${removed}, still live ${live} px moved, badge after ${corner ?? "none"}: ${brief(d)})`,
+        picked && refPaused && !!ref && removed >= 1 && live > 0 && tamperPaused && !!kept,
+        `(reference badge ${ref ?? "none"}${refBox ? `@${refBox.join(",")}` : ""}, removed ${removed}, still live ${live} px moved, badge after ${kept ?? "none"}${kept && !corner ? " (by its place and size)" : ""}: ${brief(d)})`,
       );
     }
 
@@ -16670,6 +16846,42 @@ const RE_PRESET = "mode=classic&wc=11&gap=0.8&s=500&regl=spiral&ress=30&resp=tog
   }
 }
 // --- end ring-escape ---
+});
+
+// --- go-live-kit --- The legal sections payment reviewers read (Delivery, Cancellation and refunds, Who you are buying from) in
+// every language, the Pro prices filled in from the plans (no {placeholder} left), and the pricing page's refunds note linking
+// the terms. The smoke build sets no SUPPORT_EMAIL / LEGAL_NAME, so the terms name "the operator of" the site.
+await smokeBlock("go-live-kit", async () => {
+  for (const locale of ["en", "pl", "es"]) {
+    const res = await page.goto(`${BASE}/${locale}/terms/`, { waitUntil: "domcontentloaded" });
+    const terms = await page.evaluate(() => {
+      const section = (id) => {
+        const el = document.getElementById(id);
+        return el ? { h2: el.querySelector("h2")?.textContent?.trim() ?? "", text: el.textContent ?? "" } : null;
+      };
+      const toc = [...document.querySelectorAll('a[href*="#"]')].map((a) => a.getAttribute("href") ?? "");
+      return { pro: section("pro"), delivery: section("delivery"), refunds: section("refunds"), operator: section("operator"), toc, body: document.body.innerText };
+    });
+    const sections = [terms.pro, terms.delivery, terms.refunds, terms.operator];
+    check(
+      `go-live-kit: the ${locale} terms carry Pro, Delivery, Cancellation and refunds and Who you are buying from`,
+      res.status() === 200 && sections.every((x) => x && x.h2.length > 2 && x.text.length > 60) && ["#delivery", "#refunds", "#operator"].every((h) => terms.toc.some((t) => t.endsWith(h))),
+      `(${res.status()}, ${sections.map((x) => (x ? x.h2 : "missing")).join(" | ")})`,
+    );
+    check(
+      `go-live-kit: the ${locale} terms fill in the prices and every placeholder`,
+      /79/.test(terms.pro?.text ?? "") && /10/.test(terms.pro?.text ?? "") && !/\{(monthly|yearly|siteName|siteDomain|legalName|address)\}/.test(terms.body),
+      `(${(terms.pro?.text ?? "").slice(0, 120)})`,
+    );
+    if (locale === "en") check("go-live-kit: without LEGAL_NAME the terms name the operator of the site", (terms.operator?.text ?? "").includes("the operator of"), `(${(terms.operator?.text ?? "").slice(0, 120)})`);
+  }
+  for (const locale of ["en", "pl", "es"]) {
+    await page.goto(`${BASE}/${locale}/pricing/`, { waitUntil: "domcontentloaded" });
+    const link = page.locator('[data-testid="pricing-refunds-terms"]').first();
+    const href = (await link.getAttribute("href").catch(() => null)) ?? "";
+    const note = await link.evaluate((a) => a.closest("li")?.textContent ?? "").catch(() => "");
+    check(`go-live-kit: the ${locale} pricing notes link the refund terms`, (href === `${BASE_PATH}/${locale}/terms/#refunds` || href === `${BASE_PATH}/${locale}/terms#refunds`) && /14/.test(note), `(${href}, "${note.slice(0, 80)}")`);
+  }
 });
 
 await smokeBlock("perfect-fit", async () => {

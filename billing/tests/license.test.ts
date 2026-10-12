@@ -6,6 +6,7 @@ import {
   licenseExpiry,
   MAX_LICENSE_DAYS,
   parsePrivateJwk,
+  publicKeyFromPrivateJwk,
   signLicense,
   verifyLicense,
 } from "../src/license";
@@ -86,6 +87,11 @@ describe("licence token round trip", () => {
     expect(parsePrivateJwk(JSON.stringify(testKey.privateJwk))).not.toBeNull();
     expect(parsePrivateJwk(JSON.stringify(testKey.publicJwk))).toBeNull();
     expect(parsePrivateJwk(undefined)).toBeNull();
+  });
+
+  // --- go-live-kit --- /health reports the public half so the go-live check can compare it with the site's
+  it("derives the public key of a private JWK", async () => {
+    expect(await publicKeyFromPrivateJwk(testKey.privateJwk)).toBe(testKey.publicSpkiBase64url);
   });
 
   it("takes line 1 of a keygen as printed, {\"privateJwk\":{…}}, and signs with it", async () => {

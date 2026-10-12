@@ -17,6 +17,13 @@ do need to create a few free accounts and paste some keys.
 > video is behind the paywall: **$10/month** or **$79/year**. Cards and PayPal renew automatically;
 > crypto buys a fixed prepaid period (30 or 365 days) because crypto cannot auto-renew.
 
+> **--- go-live-kit --- The short way.** [`docs/GO-LIVE.md`](../docs/GO-LIVE.md) is the plain-language launch guide
+> (accounts, payouts, legal pages, checklists). From the site's root, `npm run go-live` asks for every key once and does
+> steps 2–8 below for you (test mode first, then `npm run go-live -- --mode live`), and `npm run go-live:check` proves the
+> site, this Worker and the providers agree. The steps below are what the wizard does, for when you want to do it by hand.
+> The prices, the plan lengths, the Stripe API version and the webhook event lists live in one file,
+> [`billing-config.json`](billing-config.json).
+
 ---
 
 ## How it fits together
@@ -58,7 +65,9 @@ This installs Wrangler (Cloudflare's CLI) locally. Run everything below from thi
    npx wrangler login
    ```
    A browser window asks you to authorise it. (On a server with no browser, create an **API token**
-   with the *Edit Cloudflare Workers* template instead and `export CLOUDFLARE_API_TOKEN=...`.)
+   with the *Edit Cloudflare Workers* template – add *Workers KV Storage: Edit* – instead and
+   `export CLOUDFLARE_API_TOKEN=...`.)
+3. Before launch, upgrade to **Workers Paid** (see "Cloudflare plan" below).
 
 ### 2. Create the storage (KV namespace)
 
@@ -69,7 +78,9 @@ npx wrangler kv namespace create ENTITLEMENTS
 ```
 
 It prints an `id`. Open `wrangler.toml` and paste it over `REPLACE_WITH_YOUR_KV_NAMESPACE_ID`. (For a
-local `wrangler dev` store, also run the same command with `--preview` and paste the `preview_id`.)
+local `wrangler dev` store, also run the same command with `--preview` and paste the `preview_id`.) The id is **not a
+secret**: commit and push `wrangler.toml` with it, so the GitHub "Deploy billing worker" workflow deploys the same storage.
+`npm run go-live` (site root) finds or creates the namespace and writes the id for you.
 
 ### 3. Generate the licence signing key pair
 
@@ -93,6 +104,10 @@ Keep line 2 for step 7 (the site's `LICENSE_PUBLIC_KEY` variable). **Never** put
 site or in Git. (The repository ships a *public* test key in `tests/fixtures/license-test-key.json` for
 development only — do not use it in production.)
 
+**The mode rule:** the Worker takes test providers (`sk_test_…`, `PAYPAL_ENV=sandbox`, `NOWPAYMENTS_SANDBOX=1`) only with
+the test licence key and live providers only with your real key – mixed settings switch the provider off (its checkout
+answers `503 provider_misconfigured`), and `GET /health` says why.
+
 ### 4. Stripe (card subscriptions)
 
 1. Create an account at <https://stripe.com>. Stay in **Test mode** (toggle, top right) until you have
@@ -106,9 +121,10 @@ development only — do not use it in production.)
 3. Add a **webhook endpoint**: Dashboard → *Developers → Webhooks → Add endpoint*.
    - URL: `https://<your-worker-subdomain>.workers.dev/webhooks/stripe` (you will know the subdomain
      after step 7; you can add the endpoint afterwards).
-   - Events to send (exactly these four):
+   - Events to send (exactly these six – the list in `billing-config.json`):
      `checkout.session.completed`, `invoice.paid`, `customer.subscription.updated`,
-     `customer.subscription.deleted`.
+     `customer.subscription.deleted`, `charge.refunded`, `charge.dispute.created`. (The last two end the
+     subscription's access when you refund a payment in full or a buyer disputes it.)
    - **API version:** pick `2025-02-24.acacia` for the endpoint (the version selector of the "Add
      endpoint" form; with the Stripe CLI, `--api-version 2025-02-24.acacia`). The Worker sends that
      version on every call it makes to Stripe, so the events and its own reads then have the same
@@ -141,10 +157,11 @@ development only — do not use it in production.)
    It prints `PAYPAL_PLAN_MONTHLY=P-...` and `PAYPAL_PLAN_YEARLY=P-...`.
 3. Add a **webhook**: Developer dashboard → your app → *Add Webhook*.
    - URL: `https://<your-worker-subdomain>.workers.dev/webhooks/paypal`.
-   - Events (exactly these five):
+   - Events (exactly these seven – the list in `billing-config.json`):
      `BILLING.SUBSCRIPTION.ACTIVATED`, `PAYMENT.SALE.COMPLETED`,
      `BILLING.SUBSCRIPTION.CANCELLED`, `BILLING.SUBSCRIPTION.SUSPENDED`,
-     `BILLING.SUBSCRIPTION.EXPIRED`.
+     `BILLING.SUBSCRIPTION.EXPIRED`, `PAYMENT.SALE.REFUNDED`, `PAYMENT.SALE.REVERSED`. (The last two end the
+     subscription's access on a full refund or a chargeback.)
    - After saving, copy the **Webhook ID**. (PayPal stays off on the site until `PAYPAL_WEBHOOK_ID`
      is set.)
 4. Store the PayPal secrets:
@@ -170,13 +187,15 @@ development only — do not use it in production.)
    ```bash
    npx wrangler secret put NOWPAYMENTS_API_KEY
    npx wrangler secret put NOWPAYMENTS_IPN_SECRET
-   npx wrangler secret put NOWPAYMENTS_SANDBOX    # the value 1 while testing; remove/0 for live
+   npx wrangler secret put NOWPAYMENTS_SANDBOX    # the value 1 while testing; 0 for live
    ```
 
 ### 7. Deploy the Worker
 
 Set the site origin in `wrangler.toml` under `[vars] SITE_ORIGIN` (it is `https://cronusaztec.github.io`
-for this repository — the scheme and host only, no path). Then:
+for this repository — the scheme and host only, no path). --- go-live-kit --- It takes several, separated by spaces: add
+your own domain next to the GitHub Pages origin (`"https://cronusaztec.github.io https://www.example.com"`) **before** you
+switch the domain's DNS, or checkouts from the new address are refused. Then:
 
 ```bash
 npm test          # make sure the suite is green
@@ -203,33 +222,74 @@ key verifies licences; the Windows app's release workflow (`desktop.yml`) builds
 The playground is always free and video creation is always Pro (see "Pricing and licences" in the main
 README). Until `BILLING_API_URL` is set the pay buttons say that payments are not configured yet; until
 `LICENSE_PUBLIC_KEY` is set the site runs in a visible **test mode** – it verifies licences with the public
-test key, so it refuses the licences this Worker signs with your real key. Set both together.
+test key, so it refuses the licences this Worker signs with your real key. Set both together – --- go-live-kit --- the site's
+deploy refuses one without the other, and the public test key, before it builds (the production guard,
+`node scripts/go-live-check.mjs --deploy-guard`). The optional `SUPPORT_EMAIL`, `LEGAL_NAME` and `LEGAL_ADDRESS` variables put
+your support address and your name and address on the terms page.
 
 ---
 
 ## Testing before going live
 
-- **Stripe:** keep Test mode on and pay with card `4242 4242 4242 4242`, any future expiry, any CVC. Use
-  the Stripe CLI (`stripe listen --forward-to <worker>/webhooks/stripe`) or the dashboard's *Send test
-  webhook* to exercise the endpoint. In the dashboard you will see the customer, the subscription and the
-  paid invoices.
-- **PayPal:** use your **sandbox** buyer account from *Testing Tools → Sandbox Accounts*. The developer
-  dashboard shows the subscription moving to **ACTIVE** and the webhook deliveries with their response
-  codes.
-- **NOWPayments:** use the **sandbox** and its test payment flow. The dashboard shows the invoice and the
-  payment status moving `waiting → confirming → confirmed → sending → finished`; the Worker grants the
-  period on `confirmed` or `finished`, whichever arrives first – one payment buys one period (30 or 365
-  days), however many statuses it reports.
-- **The Worker itself:** `npx wrangler dev` runs it locally. Copy `.dev.vars.example` to `.dev.vars`
-  first — out of the box it uses the public **test** signing key, so `/config` reports `"testMode": true`
-  and the local site can verify the licences immediately. `curl http://localhost:8787/config` should list
-  the plans and which providers you have configured. To point a local site at it, build the site without
-  `NEXT_PUBLIC_LICENSE_PUBLIC_KEY` (test mode) and, in its browser console, run
-  `localStorage.setItem("jbl.billingApi", "http://localhost:8787")` – a test-mode build only, a production
-  build ignores that key.
+Test first, with test keys and sandboxes only; then go live. This is the short form of section 6 of
+[`docs/GO-LIVE.md`](../docs/GO-LIVE.md).
 
-When everything works in test/sandbox, switch each provider to live (real `sk_live_…`, `PAYPAL_ENV=live`,
-remove `NOWPAYMENTS_SANDBOX`), re-run the secret commands with the live values, and `npm run deploy`.
+1. **Test mode.** From the site's root run `npm run go-live` (it defaults to test mode): it puts the public **test** licence
+   key and your **test** keys (`sk_test_…`, the PayPal sandbox app, the NOWPayments sandbox) into the Worker.
+   `curl https://<your-worker>/health` should say `"mode": "test"` and `"mismatches": []`.
+2. **Point the live site at it.** The live site is in test mode until `LICENSE_PUBLIC_KEY` is set. Open it, press F12 →
+   Console, run `localStorage.setItem("jbl.billingApi", "https://<your-worker>")`, reload, go to Pricing. (A test-mode
+   build only; a production build ignores that key.)
+3. **Pay with each provider.**
+   - **Stripe:** card `4242 4242 4242 4242`, any future expiry, any CVC → "You are Pro until …" → the studio records
+     without the watermark → *Manage subscription* opens the customer portal → *Restore purchase* in another browser
+     with the e-mail and the `cs_…` reference works.
+   - **PayPal:** pay with your **sandbox** buyer account from *Testing Tools → Sandbox Accounts*. The developer
+     dashboard shows the subscription moving to **ACTIVE** and the webhook deliveries with their response codes.
+   - **NOWPayments:** pay a **sandbox** invoice. Its status moves `waiting → confirming → confirmed → sending →
+     finished`; the Worker grants the period on `confirmed` or `finished`, whichever arrives first – one payment buys one
+     period (30 or 365 days), however many statuses it reports.
+   - **A refund:** refund the Stripe test payment in full (Payments → the payment → Refund): `/license/restore` for that
+     e-mail now answers `402 not_active`.
+4. **Go live.** Switch Stripe to live mode and repeat its settings there (webhook, customer portal, e-mails), create the
+   PayPal **Live** app, use your real NOWPayments keys, then run `npm run go-live -- --mode live`: it makes your real key
+   pair, puts the live keys into the Worker and sets the two GitHub variables. Push (or re-run the site's deploy) and run
+   `npm run go-live:check -- --mode live` – it must print `GO-LIVE CHECK: PASS`.
+
+**The Worker on your computer:** `npx wrangler dev` runs it locally. Copy `.dev.vars.example` to `.dev.vars` first — out of
+the box it uses the public **test** signing key (and `NOWPAYMENTS_SANDBOX=1`, the mode rule), so `/config` reports
+`"testMode": true` and the local site can verify the licences immediately. `curl http://localhost:8787/health` lists what is
+configured. To point a local site at it, build the site without `NEXT_PUBLIC_LICENSE_PUBLIC_KEY` (test mode) and, in its
+browser console, run `localStorage.setItem("jbl.billingApi", "http://localhost:8787")`.
+
+---
+
+## Health
+
+`GET /health` answers what the Worker runs with, always with status 200 (the body says what is wrong): `ok`, the licence
+key's `mode` (`live`, `test` or `unset`) and **public** half, each provider's mode and readiness, the `mismatches` that
+switch a provider off (e.g. `"stripe: live provider keys with a test licence key"`), the site origins, whether the storage
+is bound, the plans, the webhook paths and event lists and the rate limits. Price and plan ids are public identifiers; API
+keys, webhook secrets and the private key appear only as `true`/`false`, never as values. `npm run go-live:check` reads it.
+
+## Rate limits
+
+Per connection (Cloudflare's `cf-connecting-ip`) and 10 minutes: 10 checkouts, 150 licence calls (claim and restore together)
+and 10 portal links. The licence limit covers a whole pending purchase: the pricing page asks `/license/claim` every 5 seconds
+for up to 10 minutes while a crypto payment confirms (121 asks). Over a limit the Worker answers `429 rate_limited` with a
+`Retry-After` header and the same seconds in the body (`retryAfter`, readable across origins); a pay button or Restore shows
+the message, while a pending claim keeps waiting and asks again after a minute or the `Retry-After`, whichever is longer.
+Webhooks, `/config` and `/health` are never limited. Be honest about what this is: the counters live in one Worker
+isolate's memory (per Cloudflare location, reset by a redeploy), so they stop a careless loop, not a distributed attack.
+The stronger tools are a Cloudflare **WAF rate-limiting rule** once the Worker runs on a custom domain, and the Workers
+Paid plan below.
+
+## Cloudflare plan
+
+Upgrade to **Workers Paid** ($5 a month: Workers & Pages → Plans) before launch. The free plan allows 1,000 KV writes and
+1,000 KV list operations a day; every purchase writes several facts and every claim, restore and licence renewal lists the
+buyer's records, so a modest launch day can run out. The symptoms: webhooks answer 500 (the providers then retry for a
+while) and claims stay pending. The paid plan's quotas are far above this Worker's needs.
 
 ---
 
@@ -242,6 +302,7 @@ app's own origin, `app://jumpingballslive`, which no web page can claim). Errors
 | Method & path             | Body                                   | Returns                                        |
 | ------------------------- | -------------------------------------- | ---------------------------------------------- |
 | `GET /config`             | –                                      | plans, which providers are on, `testMode`      |
+| `GET /health`             | –                                      | the mode, the public key, providers, mismatches (see "Health") |
 | `POST /checkout/stripe`   | `{ plan, email?, locale, returnUrl }`  | `{ url }` (Stripe Checkout)                     |
 | `POST /checkout/paypal`   | `{ plan, locale, returnUrl }`          | `{ url }` (PayPal approve link)                 |
 | `POST /checkout/crypto`   | `{ plan, email, locale, returnUrl }`   | `{ url }` (NOWPayments invoice)                 |
@@ -297,6 +358,10 @@ period never stands in for the new payment.
   verified webhook. Nor can they open someone else's billing portal: like Restore, the portal needs the
   e-mail **and** a reference of that card subscription (an e-mail alone is not proof of anything). The
   paywall protects the revenue path, not the shipped JavaScript.
+- **Refunds and disputes end access.** A full refund, a dispute (Stripe) or a reversal (PayPal) ends that subscription's
+  access in the Worker: nothing renews or restores it any more. A licence already in a browser runs to its own expiry
+  (at most the paid period plus three days); the Worker never cancels anything at Stripe or PayPal – cancel the
+  subscription in the dashboard when you refund it.
 - **Secrets never touch Git.** The only key material in this repository is the clearly labelled public
   test key pair. Real keys live in Wrangler secrets (and, for local runs, in an un-committed `.dev.vars`).
 
@@ -311,7 +376,7 @@ All in the one KV namespace, every fact under its own key (`src/store.ts` owns t
 | `sub:<stripe\|paypal>:<subscription id>:link` | who bought it: e-mail, plan, Stripe customer, the session / order id | `checkout.session.completed`, `BILLING.SUBSCRIPTION.ACTIVATED`, the claim |
 | `sub:<stripe\|paypal>:<subscription id>:paid` | how far it is paid (only ever moves later) | `invoice.paid`, `PAYMENT.SALE.COMPLETED`, the activation, the claim |
 | `sub:<stripe\|paypal>:<subscription id>:state` | its latest status (an older event never overwrites a newer one) | `customer.subscription.updated`, PayPal's cancel / suspend / expire |
-| `sub:stripe:<subscription id>:ended` | when Stripe deleted it – its access ends there | `customer.subscription.deleted` |
+| `sub:<stripe\|paypal>:<subscription id>:ended` | when Stripe deleted it – its access ends there; `revoked` when the money was taken back (nothing of it counts any more) | `customer.subscription.deleted`; `charge.refunded` (in full), `charge.dispute.created`, `PAYMENT.SALE.REFUNDED` (in full), `PAYMENT.SALE.REVERSED` |
 | `grant:crypto:<payment id>` (`order-<order id>` when an IPN carries no payment id) | one crypto payment's prepaid days and where they start | the first `confirmed` / `finished` IPN of that payment |
 | `idx:<e-mail>:<stripe\|paypal\|crypto>:<id>` | the e-mail's index – one key per subscription or payment, read by listing the prefix | with each of the above |
 | `order:crypto:<id>`, `order:paypal:<id>` | the orders the checkouts created | the checkouts, the IPNs |

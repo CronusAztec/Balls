@@ -22,7 +22,8 @@ const CATEGORIES = ["general", "bug", "feature", "design", "other"] as const;
  * With none of them set the form explains that no channel is configured.
  */
 const ENDPOINT = process.env.NEXT_PUBLIC_FEEDBACK_ENDPOINT || "";
-const EMAIL = process.env.NEXT_PUBLIC_FEEDBACK_EMAIL || "";
+// --- go-live-kit --- the support address is the feedback channel when no other is set (a private repository has no issues)
+const EMAIL = process.env.NEXT_PUBLIC_FEEDBACK_EMAIL || process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "";
 const GITHUB_REPO = process.env.NEXT_PUBLIC_GITHUB_REPO || "";
 export type FeedbackChannel = "endpoint" | "email" | "github" | "none";
 export const FEEDBACK_CHANNEL: FeedbackChannel = ENDPOINT ? "endpoint" : EMAIL ? "email" : GITHUB_REPO ? "github" : "none";
