@@ -2317,7 +2317,29 @@
     "flTierTitle": "{group} tier list (Fight League sim)",
     "flTierSubtitle": "Ranked by simulated round-robin wins",
     "flTierDisclaimer": "Names are plain text labels of an unaffiliated fan simulation – no logos, artwork or audio.",
-    "modeBeatMachine": "Beat Machines"
+    "modeBeatMachine": "Beat Machines",
+    "lcLayout": "Layout",
+    "lcLayoutTip": "Wall: the columns line the arena's wall (the battles). Pyramid: a stepped pyramid of columns stands in the middle of a floor, shown in 3D, and the balls knock it down block by block – the summit last.",
+    "lcLayoutWall": "Wall",
+    "lcLayoutPyramid": "Pyramid",
+    "lcpDesc": "Every ball that hits a column knocks its top block off; every eighth block knocked off adds another ball. The outer steps fall first and the summit last.",
+    "lcPyramidSize": "Pyramid Size",
+    "lcPyramidSizeTip": "Columns along each side of the pyramid's base (11 makes an 11 × 11 grid). Any number from 3 can be typed.",
+    "lcpGrid": "{n} × {n}",
+    "lcSteps": "Pyramid Steps",
+    "lcStepsTip": "The steps of the pyramid: a column is as tall as the steps minus its distance from the centre, so the summit is the tallest and the outer ring the lowest.",
+    "lcBlocks": "Pyramid Blocks",
+    "lcBlocksTip": "The blocks in all: the steps are scaled so the pyramid holds exactly this many (1,144 by default). 0 keeps the steps' own count.",
+    "lcpBlocksN": "{count, plural, one {# block} other {# blocks}}",
+    "lcpBlocksNatural": "natural: {count, plural, one {# block} other {# blocks}}",
+    "lcpSummary": "{blocks, plural, one {# block} other {# blocks}}, the summit {tallest, plural, one {# block} other {# blocks}} high – {balls, plural, one {# ball} other {# balls}} when the last one falls.",
+    "lcRebuild": "Rebuild and Loop",
+    "lcRebuildTip": "When the last block falls the pyramid builds itself again and the run starts over from its first frame, so a clip of whole cycles loops forever (Export whole loops in the Recording section).",
+    "lcRebuildSec": "Rebuild Time",
+    "lcRebuildSecTip": "Seconds the rebuild takes: the columns rise back from the floor, the added balls melt into the pyramid and the first ones glide back to their corners.",
+    "lcpLoopNote": "The run loops: knocked down, a short hold, rebuilt, and the first frame again. Find Simulation searches the first cycle; the clip covers a whole one.",
+    "lcpEndNote": "The run ends when the last block falls (or at the battle duration), like a battle on the wall.",
+    "lcPresetPyramid1144": "Pyramid, 1,144 blocks"
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -3079,7 +3101,15 @@
     "hintRingOnBar": "The last ring of a loop vanishes into the hole within ±20 ms of a bar line – four beats at the BPM set under Sound. A ring run does not depend on the seed, so the search tunes the wave interval (and, with one wave, the spin friction) instead.",
     "findRingOnBar": "Find the last ring on a bar",
     "foundRingOnBar": "Found! Wave interval {interval}s, spin friction {friction}: the last ring vanishes at {time}s, on bar {bars}; {loops, plural, one {# whole loop} other {# whole loops}} in the clip",
-    "missRingOnBar": "No wave interval or spin friction within reach puts the last ring on a bar line ({tested} tried) – a ring run needs some friction to slip down."
+    "missRingOnBar": "No wave interval or spin friction within reach puts the last ring on a bar line ({tested} tried) – a ring run needs some friction to slip down.",
+    "outcomeSummitLast": "The summit falls last",
+    "hintSummitLast": "The centre column is the last one standing: its top block is the pyramid's last. Every seed's first knock-down is played to its end.",
+    "findSummitLast": "Find a Run Where the Summit Falls Last",
+    "foundSummitLast": "Found! The summit falls last, at {time}s ({duration}s clip)",
+    "missSummitLast": "Closest: {count, plural, one {# block} other {# blocks}} still stood when the summit fell ({seeds} seeds)",
+    "missNoSummit": "The summit never fell before the battle duration ran out ({seeds} seeds)",
+    "overlaySummitLast": "Tested {tested} seeds: in the closest one {count, plural, one {# block} other {# blocks}} still stood when the summit fell. Try more seeds or a longer battle.",
+    "overlayNoSummit": "Tested {tested} seeds: the summit never fell before the battle duration ran out. Try a longer battle, more balls or faster balls."
   },
   "FastExport": {
     "button": "Fast export",
@@ -4939,7 +4969,10 @@
     "canvasMore": "+[count] MORE",
     "canvasBlocks": "Blocks",
     "finderFixed": "A steal battle always lasts exactly {duration}s – its duration – whatever the seed: the seed decides who wins. Change the Duration in the Land Claim block to hit the target, or search for a winner.",
-    "fixedRunLength": "Always {duration}s – the duration; change it or search for a winner"
+    "fixedRunLength": "Always {duration}s – the duration; change it or search for a winner",
+    "pyramidTitle": "a pyramid, one block at a time",
+    "pyramidSubtitle": "every ball that hits a column knocks its top block off / every eighth block knocked off adds another ball",
+    "pyramidCounter": "{count, plural, one {{count} block} other {{count} blocks}}"
   },
   "Countries": {
     "AR": "Argentina",

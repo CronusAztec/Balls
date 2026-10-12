@@ -2493,7 +2493,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && sbView) faces.drawOverlays(ctx, balls, sbView.circle ? scBodyColor : sbBodyColor, sbFaceLayout(sbView.settings.style)); // (--- string-circle --- the circle style's colours)
       if (faces.isActive() && tyView) faces.drawOverlays(ctx, balls, tyBodyColor, null); // --- odd-territory --- faces on the team balls
       if (faces.isActive() && mazeView) faces.drawOverlays(ctx, balls, mazeBodyColor, null); // --- odd-maze --- faces on the maze runners
-      if (faces.isActive() && lcView) faces.drawOverlays(ctx, balls, lcBodyColor, null); // --- land-claim --- faces on the competitors' balls
+      if (faces.isActive() && lcView && !lcView.pyramid /* --- land-claim-pyramid --- (its balls are drawn isometrically, not where the engine keeps them) */) faces.drawOverlays(ctx, balls, lcBodyColor, null); // --- land-claim --- faces on the competitors' balls
       // --- jdm-race --- faces on the racers too
       if (faces.isActive() && raceView) faces.drawOverlays(ctx, balls, raceLayer.bodyColor, { shape: raceView.settings.shape === "circle" ? "circle" : "square", countdown: false });
       // --- jdm-arena-games --- faces on the squares
