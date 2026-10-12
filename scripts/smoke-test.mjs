@@ -14102,7 +14102,9 @@ await smokeBlock("watermark-everywhere", async () => {
       const refPaused = await pause(tp);
       await snap(tp, "T0");
       await setLicence(tp, weLicence);
-      const ref = badgeCorner(await awaitMark(tp, "T0", "P0", false)); // P0: the clean frame
+      const refDiff = await awaitMark(tp, "T0", "P0", false); // P0: the clean frame
+      const ref = badgeCorner(refDiff);
+      const refBox = ref ? refDiff.zones[ref].box : null; // where the badge sits and how big it is on this canvas
       await setLicence(tp, null);
       await tp.waitForTimeout(300);
       await resume(tp);
@@ -14154,10 +14156,17 @@ await smokeBlock("watermark-everywhere", async () => {
       await snap(tp, "T1");
       const d = await diffOf(tp, "T1", "P0");
       const corner = badgeCorner(d);
+      // The run kept moving between the two paused frames, so the difference also holds moved balls and trails; a band of
+      // them in another corner zone can look like a second badge (CI 260: a 203 x 25 band bottom-right), and badgeCorner,
+      // which wants exactly one badge-like corner, answers null although the badge sits exactly where the clean frame
+      // had it. The badge therefore also counts as kept when the reference corner still carries a badge-like band at the
+      // reference badge's place and size (within a few pixels); a badge the tampering removed passes neither way.
+      const sameBox = (a, b) => !!a && !!b && Math.abs(a[0] - b[0]) <= 4 && Math.abs(a[1] - b[1]) <= 4 && Math.abs(a[2] - b[2]) <= 8 && Math.abs(a[3] - b[3]) <= 4;
+      const kept = corner ?? (ref && badgeLike(d, ref) && sameBox(d.zones[ref].box, refBox) ? ref : null);
       check(
         "watermark everywhere: DOM tampering during a live run (marked elements removed, data-pro=\"true\" and Pro classes on <html>/<body>, Pro flags in localStorage, the canvas' classes, data attributes and CSS overridden, crypto.subtle.verify and WeakMap.prototype.get patched) leaves the badge in the pixels",
-        picked && refPaused && !!ref && removed >= 1 && live > 0 && tamperPaused && !!corner,
-        `(reference badge ${ref ?? "none"}, removed ${removed}, still live ${live} px moved, badge after ${corner ?? "none"}: ${brief(d)})`,
+        picked && refPaused && !!ref && removed >= 1 && live > 0 && tamperPaused && !!kept,
+        `(reference badge ${ref ?? "none"}${refBox ? `@${refBox.join(",")}` : ""}, removed ${removed}, still live ${live} px moved, badge after ${kept ?? "none"}${kept && !corner ? " (by its place and size)" : ""}: ${brief(d)})`,
       );
     }
 
