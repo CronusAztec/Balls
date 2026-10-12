@@ -39,5 +39,8 @@ PAYPAL_ENV=sandbox
 NOWPAYMENTS_API_KEY=
 # IPN secret (Store settings -> Instant payment notifications) used to verify every callback (crypto stays off without it).
 NOWPAYMENTS_IPN_SECRET=
-# Set to 1 to use the NOWPayments sandbox API.
-NOWPAYMENTS_SANDBOX=
+# Set to 1 to use the NOWPayments sandbox API; 0 (or empty) for the live API.
+# --- go-live-kit --- 1 here because this file signs with the TEST licence key: the Worker takes test providers (sk_test_,
+# PAYPAL_ENV=sandbox, NOWPAYMENTS_SANDBOX=1) only with the test key and live providers only with your real key – mixed
+# settings switch the provider off, and GET /health says why.
+NOWPAYMENTS_SANDBOX=1

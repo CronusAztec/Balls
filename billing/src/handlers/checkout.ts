@@ -1,6 +1,8 @@
 // The three checkout endpoints. Each validates the request, calls the provider and returns { url }.
 
-import { flagOn, providerReady } from "../env";
+import { flagOn, providerConfigured, providerMismatch } from "../env";
+import type { Env, PaymentProvider } from "../env";
+import { PLAN_USD } from "../config";
 import { ApiError, json, readJsonBody } from "../http";
 import { randomId } from "../crypto";
 import * as stripe from "../providers/stripe";
@@ -19,6 +21,20 @@ import {
 
 const BRAND_NAME = "JumpingBallsLive";
 
+/** --- go-live-kit --- The answer while a provider's live/test keys disagree with the licence key's (env.ts providerMismatch). */
+export const MISCONFIGURED_MESSAGE =
+  "Payments are switched off while the server's test and live settings disagree. Please tell the site owner.";
+
+/**
+ * A provider may start a checkout only when every secret it needs is set – the webhook's included: a payment whose webhook
+ * cannot be verified would never be recorded – (else 503 provider_unavailable) and its live/test mode is the licence key's
+ * (else 503 provider_misconfigured).
+ */
+function requireProvider(env: Env, provider: PaymentProvider, unavailable: string): void {
+  if (!providerConfigured(env, provider)) throw new ApiError("provider_unavailable", unavailable, 503);
+  if (providerMismatch(env, provider) !== null) throw new ApiError("provider_misconfigured", MISCONFIGURED_MESSAGE, 503);
+}
+
 export async function checkoutStripe(request: Request, ctx: Ctx): Promise<Response> {
   const body = await readJsonBody(request);
   const plan = requirePlan(body);
@@ -27,8 +43,8 @@ export async function checkoutStripe(request: Request, ctx: Ctx): Promise<Respon
   const returnUrl = validateReturnUrl(requireString(body, "returnUrl"), ctx.env);
 
   const { STRIPE_SECRET_KEY, STRIPE_PRICE_MONTHLY, STRIPE_PRICE_YEARLY } = ctx.env;
-  // the webhook secret too: a payment whose webhook cannot be verified would never be recorded
-  if (!providerReady(ctx.env, "stripe") || !STRIPE_SECRET_KEY || !STRIPE_PRICE_MONTHLY || !STRIPE_PRICE_YEARLY) {
+  requireProvider(ctx.env, "stripe", "Card payments are not configured.");
+  if (!STRIPE_SECRET_KEY || !STRIPE_PRICE_MONTHLY || !STRIPE_PRICE_YEARLY) {
     throw new ApiError("provider_unavailable", "Card payments are not configured.", 503);
   }
   const priceId = plan === "yearly" ? STRIPE_PRICE_YEARLY : STRIPE_PRICE_MONTHLY;
@@ -53,7 +69,8 @@ export async function checkoutPaypal(request: Request, ctx: Ctx): Promise<Respon
   const returnUrl = validateReturnUrl(requireString(body, "returnUrl"), ctx.env);
 
   const { PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET, PAYPAL_PLAN_MONTHLY, PAYPAL_PLAN_YEARLY } = ctx.env;
-  if (!providerReady(ctx.env, "paypal") || !PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET || !PAYPAL_PLAN_MONTHLY || !PAYPAL_PLAN_YEARLY) {
+  requireProvider(ctx.env, "paypal", "PayPal is not configured.");
+  if (!PAYPAL_CLIENT_ID || !PAYPAL_CLIENT_SECRET || !PAYPAL_PLAN_MONTHLY || !PAYPAL_PLAN_YEARLY) {
     throw new ApiError("provider_unavailable", "PayPal is not configured.", 503);
   }
   const planId = plan === "yearly" ? PAYPAL_PLAN_YEARLY : PAYPAL_PLAN_MONTHLY;
@@ -84,10 +101,11 @@ export async function checkoutCrypto(request: Request, ctx: Ctx): Promise<Respon
   const returnUrl = validateReturnUrl(requireString(body, "returnUrl"), ctx.env);
 
   const { NOWPAYMENTS_API_KEY } = ctx.env;
-  if (!providerReady(ctx.env, "crypto") || !NOWPAYMENTS_API_KEY) {
+  requireProvider(ctx.env, "crypto", "Crypto payments are not configured.");
+  if (!NOWPAYMENTS_API_KEY) {
     throw new ApiError("provider_unavailable", "Crypto payments are not configured.", 503);
   }
-  const priceAmount = plan === "yearly" ? 79 : 10;
+  const priceAmount = PLAN_USD[plan]; // --- go-live-kit --- billing/billing-config.json
   const apiBase = nowpayments.nowPaymentsApiBase(flagOn(ctx.env.NOWPAYMENTS_SANDBOX));
   const orderId = randomId();
 

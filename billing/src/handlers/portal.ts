@@ -5,7 +5,7 @@
 // that e-mail's card subscription (its Checkout Session id or its subscription id – the site keeps the
 // one the licence was claimed with), and the portal opens for that subscription's customer.
 
-import { ApiError, json, readJsonBody } from "../http";
+import { ApiError, json, readJsonBody, siteOrigins } from "../http";
 import { timingSafeEqual } from "../crypto";
 import { normalizeEmail, subscriptionOwner } from "../entitlements";
 import * as stripe from "../providers/stripe";
@@ -25,7 +25,7 @@ export async function portalStripe(request: Request, ctx: Ctx): Promise<Response
   const requested = optionalString(body, "returnUrl");
   const returnUrl = requested
     ? validateReturnUrl(requested, ctx.env)
-    : ctx.env.SITE_ORIGIN?.replace(/\/$/, "") || ctx.workerOrigin;
+    : siteOrigins(ctx.env.SITE_ORIGIN)[0] ?? ctx.workerOrigin; // --- go-live-kit --- the first of the site origins
 
   const facts = await ctx.repo.factsFor(email);
   const subscription = ref

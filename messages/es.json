@@ -4528,7 +4528,7 @@
       "redirecting": "Abriendo el pago…",
       "failed": "No se pudo iniciar el pago: {message}",
       "desktop": "El pago se abrió en tu navegador. Cuando hayas pagado, vuelve aquí y restaura la compra con tu correo y la referencia del recibo, o pega la clave de licencia.",
-      "emailNeeded": "Primero escribe tu correo. El pago con cripto te enviará allí el recibo.",
+      "emailNeeded": "Primero escribe tu correo. La licencia se emite a ese correo y con él restauras la compra en otro dispositivo.",
       "newTab": "El pago se abrió en una pestaña nueva. Paga allí. Este estudio se desbloquea solo cuando el pago se completa, y tu configuración se queda como está."
     },
     "email": {
@@ -4658,7 +4658,10 @@
       "crypto": "Con cripto pagas por adelantado 30 días con el plan mensual o 365 con el anual. Nada se renueva solo.",
       "licence": "Tu licencia es una clave firmada guardada en este navegador. El sitio no necesita cuenta ni contraseña.",
       "devices": "En otro dispositivo o navegador, restaura la compra con tu correo y la referencia del recibo que ves tras el pago, o pega la clave de licencia.",
-      "watermark": "La marca de agua se dibuja dentro del propio vídeo. Con una licencia Pro en este navegador, cada grabación o exportación que inicies después sale limpia."
+      "watermark": "La marca de agua se dibuja dentro del propio vídeo. Con una licencia Pro en este navegador, cada grabación o exportación que inicies después sale limpia.",
+      "refunds": "Cancela cuando quieras. Si lo pides en los 14 días siguientes, te reembolsamos el primer pago íntegro.",
+      "support": "¿Dudas sobre un pago? Escribe a {email}.",
+      "termsLink": "Términos"
     },
     "landing": {
       "line": "Jugar y exportar es gratis, con marca de agua. Pro la quita desde {price} al mes.",
@@ -4666,11 +4669,24 @@
     },
     "privacy": {
       "title": "Pagos",
-      "content": "Pro se paga con el proveedor que elijas, Stripe, PayPal o NOWPayments, en su propia página de pago y bajo su propia política de privacidad. Los datos de tu tarjeta o monedero nunca nos llegan. Nuestro servidor de facturación guarda tu correo, el plan y la referencia del pago o de la suscripción en el proveedor, para emitir, renovar y restaurar tu licencia. La licencia en sí es una clave firmada guardada en tu navegador."
+      "content": "Pro se paga con el proveedor que elijas, Stripe, PayPal o NOWPayments, en su propia página de pago y bajo su propia política de privacidad. Los datos de tu tarjeta o monedero nunca nos llegan. Nuestro servidor de facturación guarda tu correo, el plan y la referencia del pago o de la suscripción en el proveedor, para emitir, renovar y restaurar tu licencia. La licencia en sí es una clave firmada guardada en tu navegador. Estos registros se guardan en los servidores de Cloudflare mientras tu licencia pueda restaurarse y durante el tiempo que exijan las normas contables."
     },
     "terms": {
       "title": "Suscripciones Pro",
-      "content": "Jugar con el simulador y grabar o exportar vídeos es gratis. Los vídeos creados sin una licencia Pro llevan marca de agua. Pro cuesta 10 $ al mes o 79 $ al año, exporta los vídeos sin marca de agua y añade la publicación en tus cuentas. Las suscripciones con tarjeta y PayPal se renuevan automáticamente hasta que las canceles en el portal de clientes de Stripe o en tu cuenta de PayPal. Un pago con cripto compra por adelantado un periodo de 30 o 365 días que no se renueva. La licencia es válida hasta el final del periodo pagado."
+      "content": "Jugar con el simulador y grabar o exportar vídeos es gratis. Los vídeos creados sin una licencia Pro llevan marca de agua. Pro cuesta {monthly} al mes o {yearly} al año, en dólares estadounidenses. Exporta los vídeos sin marca de agua y añade la publicación en tus cuentas. Las suscripciones con tarjeta y PayPal se renuevan automáticamente hasta que las canceles en el portal de clientes de Stripe o en tu cuenta de PayPal. Un pago con cripto compra por adelantado un periodo de 30 o 365 días que no se renueva. La licencia es válida hasta el final del periodo pagado.",
+      "delivery": {
+        "title": "Entrega",
+        "content": "Pro es una licencia digital y se entrega al instante. Tras el pago, la página de precios la activa en tu navegador y muestra una referencia del recibo. Con tu correo y esa referencia puedes restaurar la licencia en cualquier otro dispositivo o en la aplicación de Windows cuando quieras. No se envía nada físico."
+      },
+      "refunds": {
+        "title": "Cancelación y reembolsos",
+        "content": "Puedes cancelar una suscripción con tarjeta o PayPal en cualquier momento, con Gestionar suscripción en la página de precios o en tu cuenta de PayPal. Seguirá activa hasta el final del periodo que hayas pagado y no se renovará. Si Pro no te ha servido, escríbenos en los 14 días siguientes a tu primer pago y te lo reembolsamos íntegramente. Las renovaciones y los pagos con cripto no son reembolsables, salvo que la ley de tu país te dé ese derecho. Un pago con cripto no se puede revertir en la red. Los reembolsos vuelven al método de pago que usaste y tardan entre 5 y 10 días hábiles en aparecer."
+      },
+      "operator": {
+        "title": "A quién le compras",
+        "named": "{siteName} y la suscripción Pro los gestiona {legalName}{address}. Los pagos los procesan Stripe, PayPal y NOWPayments. En tu extracto aparecerá {siteName} o el nombre del proveedor.",
+        "unnamed": "{siteName} y la suscripción Pro los gestiona el operador de {siteDomain}. Los pagos los procesan Stripe, PayPal y NOWPayments. En tu extracto aparecerá {siteName} o el nombre del proveedor."
+      }
     },
     "paste": {
       "title": "Pegar una clave de licencia",
@@ -4683,7 +4699,10 @@
       "failed": "No se pudo usar la clave: {message}",
       "empty": "Primero pega la clave de licencia."
     },
-    "liveMark": "Las simulaciones gratuitas y los vídeos gratuitos llevan una pequeña marca de agua de {siteName}, en una esquina del lienzo mientras juegas y en cada clip que haces. Pro la quita de ambos."
+    "liveMark": "Las simulaciones gratuitas y los vídeos gratuitos llevan una pequeña marca de agua de {siteName}, en una esquina del lienzo mientras juegas y en cada clip que haces. Pro la quita de ambos.",
+    "support": {
+      "lead": "También puedes escribirnos a"
+    }
   },
   "OrbGrid": {
     "canvasHud": "{n, plural, one {{count} esfera rebotando} other {{count} esferas rebotando}}",

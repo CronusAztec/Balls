@@ -7,6 +7,7 @@ import {
   jsonResponse,
   makeHarness,
   NOW,
+  realPrivateJwk,
   SITE_ORIGIN,
   stubFetch,
   WORKER_ORIGIN,
@@ -162,5 +163,62 @@ describe("checkout without a webhook secret", () => {
       expect(res.status, path).toBe(503);
       expect((await jsonOf(res)).error).toBe("provider_unavailable");
     }
+  });
+});
+
+// --- go-live-kit --- live/test mode safety and several site origins
+describe("checkout with live and test settings mixed", () => {
+  it("answers 503 provider_misconfigured for a configured provider whose mode disagrees with the licence key", async () => {
+    stubFetch(() => {
+      throw new Error("should not be called");
+    });
+    const real = await realPrivateJwk();
+    const cases: [string, Record<string, unknown>, Parameters<typeof allProvidersEnv>[0]][] = [
+      ["/checkout/stripe", { plan: "monthly", locale: "en", returnUrl: RETURN_URL }, { STRIPE_SECRET_KEY: "sk_live_x" }],
+      ["/checkout/paypal", { plan: "monthly", locale: "en", returnUrl: RETURN_URL }, { PAYPAL_ENV: "live" }],
+      ["/checkout/crypto", { plan: "monthly", email: "buyer@example.com", locale: "en", returnUrl: RETURN_URL }, { NOWPAYMENTS_SANDBOX: "0" }],
+      // the other way round: a real licence key with test-mode providers
+      ["/checkout/stripe", { plan: "yearly", locale: "en", returnUrl: RETURN_URL }, { LICENSE_PRIVATE_JWK: real }],
+      ["/checkout/paypal", { plan: "yearly", locale: "en", returnUrl: RETURN_URL }, { LICENSE_PRIVATE_JWK: real }],
+      ["/checkout/crypto", { plan: "yearly", email: "buyer@example.com", locale: "en", returnUrl: RETURN_URL }, { LICENSE_PRIVATE_JWK: real }],
+    ];
+    for (const [path, body, vars] of cases) {
+      const { env } = makeHarness(allProvidersEnv(vars));
+      const res = await handleRequest(jsonRequest(path, body), env, { now: NOW });
+      expect(res.status, path).toBe(503);
+      expect(await jsonOf(res), path).toEqual({
+        error: "provider_misconfigured",
+        message: "Payments are switched off while the server's test and live settings disagree. Please tell the site owner.",
+      });
+    }
+  });
+
+  it("starts the checkout when the providers are live and the licence key is real", async () => {
+    stubFetch(() => jsonResponse({ url: "https://checkout.stripe.com/c/pay/cs_live_1" }));
+    const { env } = makeHarness(allProvidersEnv({ LICENSE_PRIVATE_JWK: await realPrivateJwk(), STRIPE_SECRET_KEY: "sk_live_x" }));
+    const res = await handleRequest(jsonRequest("/checkout/stripe", { plan: "monthly", locale: "en", returnUrl: RETURN_URL }), env, { now: NOW });
+    expect(res.status).toBe(200);
+  });
+
+  it("accepts a returnUrl on any of the site origins", async () => {
+    const calls: string[] = [];
+    stubFetch((_url, init) => {
+      calls.push(new URLSearchParams(init!.body as string).get("success_url") ?? "");
+      return jsonResponse({ url: "https://checkout.stripe.com/c/pay/cs_1" });
+    });
+    const { env } = makeHarness(allProvidersEnv({ SITE_ORIGIN: "https://cronusaztec.github.io https://www.example.com" }));
+    const res = await handleRequest(
+      jsonRequest("/checkout/stripe", { plan: "monthly", locale: "en", returnUrl: "https://www.example.com/en/pricing/" }),
+      env,
+      { now: NOW },
+    );
+    expect(res.status).toBe(200);
+    expect(calls[0]).toBe("https://www.example.com/en/pricing/?claim=stripe&ref={CHECKOUT_SESSION_ID}");
+    const foreign = await handleRequest(
+      jsonRequest("/checkout/stripe", { plan: "monthly", locale: "en", returnUrl: "https://example.com/en/pricing/" }),
+      env,
+      { now: NOW },
+    );
+    expect((await jsonOf(foreign)).error).toBe("invalid_return_url");
   });
 });

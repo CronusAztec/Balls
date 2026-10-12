@@ -158,3 +158,20 @@ export function isTestKey(raw: string | undefined): boolean {
   const jwk = parsePrivateJwk(raw);
   return jwk?.d === TEST_PRIVATE_D;
 }
+
+/**
+ * --- go-live-kit --- The public half of a private JWK, as the site's NEXT_PUBLIC_LICENSE_PUBLIC_KEY spells it (base64url
+ * of the SPKI DER). /health reports it, so `npm run go-live:check` can prove the site verifies with the key the Worker signs
+ * with. Only x and y go in: the private scalar never leaves this function's input.
+ */
+export async function publicKeyFromPrivateJwk(jwk: JsonWebKey): Promise<string> {
+  const key = await crypto.subtle.importKey(
+    "jwk",
+    { kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y },
+    { name: "ECDSA", namedCurve: "P-256" },
+    true,
+    ["verify"],
+  );
+  const spki = await crypto.subtle.exportKey("spki", key);
+  return bytesToBase64url(new Uint8Array(spki as ArrayBuffer));
+}
