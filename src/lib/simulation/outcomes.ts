@@ -70,9 +70,14 @@ import type { FlRunSummary } from "@/lib/physics/modes/fightLeague"; // --- fl-o
  * write the tune instead): **no-tube-conflict** – the first seeded phrase whose tubes never need a spare marble (a marble is
  * always back before its tube's next note) – and **most-in-flight** – the phrase with the most marbles out at once
  * (beatMachineFinder.ts; a plan per seed, nothing simulated).
+ *
+ * --- brick-rebuild --- Brick Smash adds three of its first smash (the run loops forever; brickRebuildFinder.ts steps each seed's
+ * smash across frames): **bricks-cleared-by** – the last brick falls within `atSec` –, **last-brick-on-bar** – it falls within
+ * ±20 ms of a bar line of the song's tempo (`atSec` is the bar's length) – and **final-balls** – at least `count` balls are in play
+ * when the smash ends.
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at", "no-tube-conflict", "most-in-flight" /* --- beat-machine --- */, "ring-on-bar" /* --- funnel-spin --- */] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at", "no-tube-conflict", "most-in-flight" /* --- beat-machine --- */, "ring-on-bar" /* --- funnel-spin --- */, "bricks-cleared-by", "last-brick-on-bar", "final-balls" /* --- brick-rebuild --- */] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
 /** --- fl-overhaul --- (Stage 5) Fight League's story outcomes (judged on `RunSummary.fl`; the run followed to its end, both-low-at to its window). */
 export const FL_STORY_OUTCOMES: readonly FinderOutcomeKind[] = ["upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at"];
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
@@ -641,6 +646,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "colourSort" && !ctx.colourSortSettles) out.push("sorted-by", "last-colour", "sorted-on-bar"); // --- colour-sort --- (its first sort: the run loops forever; none when the sort only settles)
   if (mode === "beatMachine" && ctx.bmMarbles) out.push("no-tube-conflict", "most-in-flight"); // --- beat-machine --- (seeded phrases: the marble machine's tubes)
   if (mode === "vortex" && ctx.vortexRings) out.push("ring-on-bar"); // --- funnel-spin --- (the wave interval and the friction searched, no seed)
+  if (mode === "brickRebuild") out.push("bricks-cleared-by", "last-brick-on-bar", "final-balls"); // --- brick-rebuild --- (its first smash: the run loops forever; brickRebuildFinder.ts)
   return out;
 }
 

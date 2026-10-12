@@ -113,8 +113,13 @@ export const DEFAULT_BRICK_REBUILD: Readonly<BrickRebuildSettings> = {
 /** The reference clip's box (px of a 720-wide frame): the unit of the size and speed settings, and the box's aspect. */
 export const BR_REF_BOX_W = 645;
 export const BR_REF_BOX_H = 817;
-/** The box's height (or the circle's diameter) as a share of the world's shorter side. */
-export const BR_BOX_SHARE = 0.86;
+/**
+ * The box's height (or the circle's diameter) as a share of the world's height (of its shorter side for the circle): the rest
+ * is the margin the loop HUD's title (above) and counter (below) take on a square or landscape canvas.
+ */
+export const BR_BOX_SHARE = 0.74;
+/** The most of the world's width the box takes (a portrait world: the reference clip's 645 of 720 px). */
+export const BR_BOX_WIDTH_SHARE = 0.9;
 /**
  * Memory-safety ceilings: the cells a grid holds (each a few numbers of typed state and a rect of the brick layer: 40,000 –
  * a 200 × 200 picture – is ~1 MB), the balls a board holds (full engine balls), the kaleidoscope's images of a ball (each is
@@ -217,10 +222,11 @@ export function brickField(width: number, height: number, s: Pick<BrickRebuildSe
     const cell = (2 * radius) / grid.cols;
     return { layout, cx, cy, x0: cx - radius, y0: cy - radius, x1: cx + radius, y1: cy + radius, radius, holeRadius: holeShare * radius, gx: cx - radius, gy: cy - radius, cw: cell, ch: cell, cols: grid.cols, rows: grid.cols, scale: (2 * radius) / BR_REF_BOX_H };
   }
-  let boxH = BR_BOX_SHARE * side;
+  // the box's height a share of the world's height (the shorter side in a square or landscape world), narrowed to fit its width
+  let boxH = BR_BOX_SHARE * h;
   let boxW = (boxH * BR_REF_BOX_W) / BR_REF_BOX_H;
-  if (boxW > 0.96 * w) {
-    const k = (0.96 * w) / boxW;
+  if (boxW > BR_BOX_WIDTH_SHARE * w) {
+    const k = (BR_BOX_WIDTH_SHARE * w) / boxW;
     boxW *= k;
     boxH *= k;
   }
@@ -684,10 +690,15 @@ export function rebuildOrder(cells: readonly number[] | Int32Array, field: Pick<
   return out;
 }
 
-/** The landing time (ms from the rebuild's start) of the k-th of n bricks over a rebuild of `seconds`: evenly to its end. */
+/**
+ * The landing time (ms from the rebuild's start) of the k-th of n bricks over a rebuild of `seconds`: the first lands one flight
+ * in (it leaves at the rebuild's start), the last at the rebuild's end, the others evenly between.
+ */
 export function rebuildLandMs(k: number, n: number, seconds: number): number {
   if (n <= 0 || !(seconds > 0)) return 0;
-  return (1000 * seconds * (k + 1)) / n;
+  const flight = rebuildFlightMs(seconds);
+  const span = 1000 * seconds - flight;
+  return n <= 1 ? 1000 * seconds : flight + (span * k) / (n - 1);
 }
 
 /** How long a rebuilt brick flies (ms): at most `BR_FLIGHT_MAX_SEC`, at most half the rebuild. */

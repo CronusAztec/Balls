@@ -847,6 +847,14 @@ describe("uncap-all: the guard", () => {
     bmBpm: "a tempo",
     bmDrop: "a drop height in % of the panel",
     bmReturn: "beats of the return trip",
+    // --- brick-rebuild --- (the columns, the rows, the start balls and the kaleidoscope's images are ceiled; the spawns and the
+    // splits add balls up to BR_BALL_CEILING, never past it)
+    brWall: "a share of the box in %",
+    brEvery: "a break period (the balls a run holds stop at the board's ceiling)",
+    brHp: "hit points",
+    brDuration: "seconds",
+    brSplit: "copies a split makes (the balls a run holds stop at the board's ceiling)",
+    brHole: "a share of the radius in %",
   };
 
   it("gives every whole-number setting that sizes an allocation a memory-safety ceiling", () => {
