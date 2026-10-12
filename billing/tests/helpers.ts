@@ -32,7 +32,11 @@ export function makeHarness(vars: Partial<Env> = {}): TestHarness {
   return { env, kv, repo: new Repo(kv) };
 }
 
-/** Enable every provider with placeholder secrets. */
+/**
+ * Enable every provider with placeholder secrets. --- go-live-kit --- All in TEST mode (sk_test_, the PayPal sandbox, the
+ * NOWPayments sandbox): the harness signs with the public TEST licence key, and the Worker switches off a provider whose
+ * live/test mode disagrees with the licence key's.
+ */
 export function allProvidersEnv(extra: Partial<Env> = {}): Partial<Env> {
   return {
     STRIPE_SECRET_KEY: "sk_test_x",
@@ -47,6 +51,7 @@ export function allProvidersEnv(extra: Partial<Env> = {}): Partial<Env> {
     PAYPAL_ENV: "sandbox",
     NOWPAYMENTS_API_KEY: "np_key",
     NOWPAYMENTS_IPN_SECRET: "np_ipn_secret",
+    NOWPAYMENTS_SANDBOX: "1",
     ...extra,
   };
 }
@@ -147,4 +152,11 @@ export class SlowKV extends MemoryKV {
     await this.pause();
     return super.put(key, value, options);
   }
+}
+
+/** --- go-live-kit --- A fresh real (non-test) P-256 private JWK, as LICENSE_PRIVATE_JWK holds it in production. */
+export async function realPrivateJwk(): Promise<string> {
+  const pair = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])) as CryptoKeyPair;
+  const jwk = (await crypto.subtle.exportKey("jwk", pair.privateKey)) as JsonWebKey;
+  return JSON.stringify({ kty: jwk.kty, crv: jwk.crv, x: jwk.x, y: jwk.y, d: jwk.d });
 }

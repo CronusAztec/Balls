@@ -1,9 +1,14 @@
 // PayPal REST calls and webhook verification. Plain fetch; no SDK.
 
 import { ApiError } from "../http";
+import { BILLING_CONFIG } from "../config";
 
+/** --- go-live-kit --- The events the PayPal webhook must send – exactly these (billing/billing-config.json). */
+export const PAYPAL_WEBHOOK_EVENTS: readonly string[] = BILLING_CONFIG.paypal.webhookEvents;
+
+/** The live API for PAYPAL_ENV "live" (any case, spaces trimmed – the same rule as env.ts providerMode), else the sandbox. */
 export function paypalApiBase(env: string | undefined): string {
-  return env === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
+  return env?.trim().toLowerCase() === "live" ? "https://api-m.paypal.com" : "https://api-m.sandbox.paypal.com";
 }
 
 /** An OAuth client-credentials access token. */
@@ -87,6 +92,17 @@ export async function getSubscription(
     `${apiBase}/v1/billing/subscriptions/${encodeURIComponent(subscriptionId)}`,
     { headers: { Authorization: `Bearer ${token}` } },
   );
+  if (res.status === 404) return null;
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new ApiError("paypal_error", "Could not reach the payment provider.", 502);
+  return data;
+}
+
+/** --- go-live-kit --- Fetch a sale by id (a refund names its sale; the sale names its subscription). Null on a 404. */
+export async function getSale(apiBase: string, token: string, saleId: string): Promise<Record<string, unknown> | null> {
+  const res = await fetch(`${apiBase}/v1/payments/sale/${encodeURIComponent(saleId)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   if (res.status === 404) return null;
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) throw new ApiError("paypal_error", "Could not reach the payment provider.", 502);

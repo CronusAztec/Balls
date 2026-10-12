@@ -381,7 +381,7 @@ describe("DesktopAiFix messages and the version", () => {
     const desktop = path.join(__dirname, "..", "desktop");
     const pkg = JSON.parse(fs.readFileSync(path.join(desktop, "package.json"), "utf8")) as { version: string };
     const lock = JSON.parse(fs.readFileSync(path.join(desktop, "package-lock.json"), "utf8")) as { version: string; packages: Record<string, { version?: string }> };
-    expect(DESKTOP_VERSION).toBe("1.0.3");
+    expect(DESKTOP_VERSION).toMatch(/^\d+\.\d+\.\d+$/);
     expect(pkg.version).toBe(DESKTOP_VERSION);
     expect(lock.version).toBe(DESKTOP_VERSION);
     expect(lock.packages[""].version).toBe(DESKTOP_VERSION);

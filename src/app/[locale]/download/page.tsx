@@ -5,7 +5,8 @@ import Footer from "@/components/site/Footer";
 import JsonLd from "@/components/site/JsonLd";
 import { SITE_NAME, absoluteUrl, pageUrl } from "@/lib/site";
 import { localeAlternates } from "@/i18n/alternates";
-import { DESKTOP_VERSION, LATEST_RELEASE_URL, PORTABLE_ASSET, RELEASES_URL, SETUP_ASSET, latestAssetUrl } from "@/lib/desktop/release";
+import { DESKTOP_REPO, DESKTOP_VERSION, LATEST_RELEASE_URL, PORTABLE_ASSET, RELEASES_URL, SETUP_ASSET, latestAssetUrl } from "@/lib/desktop/release";
+import LatestDesktopVersion from "@/components/site/LatestDesktopVersion"; // --- desktop-autorelease ---
 import { buttonClass } from "@/components/ui/Button";
 import { IconBolt, IconDesktop, IconDownload, IconExternal, IconFolder, IconSparkle, IconVideo, IconWarning, type IconProps } from "@/components/ui/icons";
 
@@ -16,6 +17,8 @@ import { IconBolt, IconDesktop, IconDownload, IconExternal, IconFolder, IconSpar
  * SmartScreen note, what the app adds as a ruled list with icons, and the privacy note.
  * --- desktop-ai-fix --- the current version under the downloads, that the AI model is a one-time download, and that 1.0.2
  * installs (whose updater refuses unsigned updates) take 1.0.3 by hand once.
+ * --- desktop-autorelease --- the version line asks GitHub for the latest release in the browser (LatestDesktopVersion) and
+ * links its "What's new"; the static HTML and the JSON-LD keep the build-time version.
  */
 
 const REQUIREMENTS = ["os", "gpu", "disk", "ram"] as const;
@@ -105,9 +108,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
         </p>
         {/* --- desktop-ai-fix --- the version, the one-time model download, and the manual step for 1.0.2 installs */}
         <div className="mt-4 max-w-[680px] space-y-1.5 text-sm text-ink-2" data-testid="download-notes">
-          <p className="font-medium text-ink" data-testid="download-version">
-            {fix("downloadVersion", { version: DESKTOP_VERSION })}
-          </p>
+          <LatestDesktopVersion repo={DESKTOP_REPO} fallbackVersion={DESKTOP_VERSION} fallbackUrl={LATEST_RELEASE_URL} versionTemplate={fix.raw("downloadVersion")} whatsNewTemplate={fix.raw("downloadWhatsNew")} />
           <p>{fix("downloadModelNote")}</p>
           <p className="text-warn" data-testid="download-update-note">
             {fix("downloadUpdateNote")}

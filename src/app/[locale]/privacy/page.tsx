@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import ProseLayout, { legalDate } from "@/components/site/ProseLayout";
 import { Link } from "@/i18n/navigation";
 import { SITE_DOMAIN, SITE_NAME, pageUrl } from "@/lib/site";
+import { SUPPORT_EMAIL } from "@/lib/operator"; // --- go-live-kit ---
 import { localeAlternates } from "@/i18n/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -83,6 +84,12 @@ export default async function PrivacyPage({ params }: { params: Promise<{ locale
         <p>
           {t("contact.content")} <Link href="/feedback">{t("contact.feedbackLink")}</Link>.
         </p>
+        {/* --- go-live-kit --- the support address, when the repository variable SUPPORT_EMAIL is set */}
+        {SUPPORT_EMAIL && (
+          <p>
+            {billing("support.lead")} <a href={`mailto:${SUPPORT_EMAIL}`}>{SUPPORT_EMAIL}</a>.
+          </p>
+        )}
       </section>
       {/* --- social-publish --- what the Publish block sends where (and the YouTube API Services disclosures) */}
       <section id="publishing">

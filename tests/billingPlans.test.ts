@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { BILLING_API_OVERRIDE_KEY, CHECKOUT_FROM_STORAGE_KEY, DAY_MS, GRACE_DAYS, LAPSED_RETRY_MS, LICENSE_LAPSED_STORAGE_KEY, LICENSE_REF_STORAGE_KEY, LICENSE_RENEWAL_STORAGE_KEY, LICENSE_STORAGE_KEY, LICENSE_TEST_PUBLIC_KEY, PLANS, billingApiBase, formatUsd, monthlyEquivalentUsd, plansFromConfig, yearlySavingPercent } from "@/lib/billing/config";
-import { BillingClient, isEmail, isReceiptRef, parseClaim, parseClaimParams, parseConfig, parseRedirect, pricingReturnUrl } from "@/lib/billing/api";
+import { BillingClient, CLAIM_POLL_LIMIT_MS, CLAIM_POLL_MS, CLAIM_RATE_LIMITED_WAIT_MS, isEmail, isRateLimited, isReceiptRef, nextClaimPoll, parseClaim, parseClaimParams, parseConfig, parseRedirect, pricingReturnUrl } from "@/lib/billing/api";
+import { MemoryRateLimiter } from "../billing/src/ratelimit"; // --- go-live-kit --- the Worker's own limiter (pure, no Worker types)
 import { accountMessageKey, accountView, isRenewableLapse, renewQuietly, shouldRenew, storedReceipt } from "@/lib/billing/account";
 import { createEntitlementStore, type Entitlement } from "@/lib/billing/entitlement";
 import { checkoutFrom, forgetCheckoutFrom, rememberCheckoutFrom, studioReturnPath } from "@/lib/billing/returnTo";
@@ -9,6 +10,8 @@ import { signTestLicense } from "../scripts/lib/test-license.mjs";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
+import fs from "fs"; // --- go-live-kit --- billing/billing-config.json and the terms page
+import path from "path";
 
 /*
  * --- paywall-gate --- The plans and their maths, the billing backend's answers as the site reads them (defensively), the
@@ -45,6 +48,21 @@ describe("the plans", () => {
     expect(formatUsd(79, "pl")).toContain("79");
     expect(formatUsd(79, "es")).toContain("79");
   });
+
+  // --- go-live-kit --- one source of truth for the prices: billing/billing-config.json (the Worker, its scripts, the wizard)
+  it("match billing/billing-config.json", () => {
+    const { plans } = JSON.parse(fs.readFileSync(path.resolve(__dirname, "..", "billing", "billing-config.json"), "utf8"));
+    expect(PLANS.monthly.usd).toBe(plans.monthly.usd);
+    expect(PLANS.yearly.usd).toBe(plans.yearly.usd);
+    expect(PLANS.monthly.prepaidDays).toBe(plans.monthly.days);
+    expect(PLANS.yearly.prepaidDays).toBe(plans.yearly.days);
+    for (const m of [en, pl, es] as unknown as { Billing: { terms: { content: string } } }[]) {
+      const content = m.Billing.terms.content;
+      expect(content).toContain("{monthly}");
+      expect(content).toContain("{yearly}");
+      for (const literal of ["$10", "$79", "10 $", "79 $"]) expect(content).not.toContain(literal);
+    }
+  });
 });
 
 describe("the billing backend's address", () => {
@@ -78,6 +96,9 @@ describe("the backend's answers", () => {
     expect(parseClaim({ token: "a.b.c" })).toEqual({ kind: "token", token: "a.b.c" });
     expect(parseClaim({ pending: true })).toEqual({ kind: "pending" });
     expect(parseClaim({ error: "not_found", message: "No such payment" })).toEqual({ kind: "error", error: "not_found", message: "No such payment" });
+    // --- go-live-kit --- a 429 rate_limited carries its Retry-After seconds in the body
+    expect(parseClaim({ error: "rate_limited", message: "Too many requests", retryAfter: 240 })).toEqual({ kind: "error", error: "rate_limited", message: "Too many requests", retryAfterSeconds: 240 });
+    for (const retryAfter of [0, -5, "60", Number.NaN]) expect(parseClaim({ error: "rate_limited", message: "m", retryAfter })).toEqual({ kind: "error", error: "rate_limited", message: "m" });
     expect(parseClaim({ token: "nope" })).toBeNull();
     expect(parseClaim({ pending: "yes" })).toBeNull();
     expect(parseClaim(42)).toBeNull();
@@ -111,6 +132,15 @@ describe("the backend's answers", () => {
     expect(await offline.portal("a@b.co", "cs_1")).toEqual({ ok: false, kind: "network", message: "Failed to fetch" });
     expect(await new BillingClient("https://billing.test", reply(200, { error: "no_customer", message: "No subscription for this email" })).portal("a@b.co", "cs_1")).toEqual({ ok: false, kind: "server", message: "No subscription for this email" });
   });
+
+  // --- go-live-kit --- the Worker's rate limit: the pay button shows the message
+  it("a 429 rate limit surfaces as a server error with the Worker's message", async () => {
+    const message = "Too many requests from this connection. Please wait a minute and try again.";
+    const limited = new BillingClient("https://billing.test", async () => new Response(JSON.stringify({ error: "rate_limited", message }), { status: 429, headers: { "Content-Type": "application/json", "Retry-After": "540" } }));
+    expect(await limited.checkout("stripe", { plan: "monthly", locale: "en", returnUrl: "https://site/Balls/en/pricing/" })).toEqual({ ok: false, kind: "server", message });
+    expect(await limited.portal("a@b.co", "cs_1")).toEqual({ ok: false, kind: "server", message });
+    expect(await limited.restore("a@b.co", "cs_1")).toEqual({ ok: true, value: { kind: "error", error: "rate_limited", message } });
+  });
 });
 
 describe("the claim a checkout returns with", () => {
@@ -132,6 +162,109 @@ describe("the claim a checkout returns with", () => {
     expect(isReceiptRef("sub_1PqR")).toBe(true);
     expect(isReceiptRef("I-BW452GLLEP1G")).toBe(true);
     expect(isReceiptRef("x y")).toBe(false);
+  });
+});
+
+/*
+ * --- go-live-kit --- The pricing page's claim loop (PricingClient's ClaimPanel) against the Worker's per-connection licence
+ * limit. The loop below is the panel's: ask, then nextClaimPoll() decides – ask again after its delay, time out, or stop on
+ * the answer (a token ends Pro, any other error ends "failed"). The fake Worker counts every ask with the Worker's own
+ * MemoryRateLimiter at the limit billing/src/app.ts sets and answers 429 { error: "rate_limited", message, retryAfter } over it.
+ */
+describe("a pending claim's poll and the Worker's rate limit", () => {
+  const appSource = fs.readFileSync(path.join(__dirname, "..", "billing", "src", "app.ts"), "utf8");
+  const LICENSE_LIMIT = Number(/licensePer10Min:\s*(\d+)/.exec(appSource)?.[1]);
+  const LIMITED = { error: "rate_limited", message: "Too many requests from this connection. Please wait a minute and try again." };
+
+  type End = "token" | "timeout" | "failed";
+  /** A fake Worker on one connection: `answer(n)` is the n-th allowed ask's body (pending until it says otherwise). */
+  const worker = (clock: { ms: number }, answer: (n: number) => unknown = () => ({ pending: true })) => {
+    const limiter = new MemoryRateLimiter(LICENSE_LIMIT, 600, () => clock.ms / 1000);
+    const log = { allowed: 0, limited: 0 };
+    const fetchImpl = async () => {
+      const verdict = limiter.hit("203.0.113.7");
+      if (!verdict.allowed) {
+        log.limited++;
+        return new Response(JSON.stringify({ ...LIMITED, retryAfter: verdict.retryAfterSeconds }), { status: 429, headers: { "Content-Type": "application/json", "Retry-After": String(verdict.retryAfterSeconds) } });
+      }
+      return new Response(JSON.stringify(answer(++log.allowed)), { status: 200, headers: { "Content-Type": "application/json" } });
+    };
+    return { client: new BillingClient("https://billing.test", fetchImpl), log };
+  };
+  /** One page's claim loop, as ClaimPanel runs it; `tabs` pages on the same connection take turns by their next ask's time. */
+  const run = async (client: BillingClient, clock: { ms: number }, tabs = 1) => {
+    const pages = Array.from({ length: tabs }, (_, i) => ({ started: clock.ms + i * 1000, next: clock.ms + i * 1000, end: null as End | null, delays: [] as number[], shown: [] as string[] }));
+    for (;;) {
+      const page = pages.filter((p) => !p.end).sort((a, b) => a.next - b.next)[0];
+      if (!page) return pages;
+      clock.ms = page.next;
+      const r = await client.claim("crypto", "5077125051");
+      if (!r.ok) {
+        page.end = "failed";
+        continue;
+      }
+      const step = nextClaimPoll(r.value, clock.ms - page.started);
+      if (step.kind === "timeout") page.end = "timeout";
+      else if (step.kind === "stop") page.end = r.value.kind === "token" ? "token" : "failed";
+      else {
+        if (r.value.kind === "pending") page.shown.push("pending"); // a rate limit leaves the page as it was
+        page.delays.push(step.delayMs);
+        page.next = clock.ms + step.delayMs;
+      }
+    }
+  };
+
+  it("has a licence limit that covers one page's whole poll (every 5 s for 10 minutes) with room to spare", () => {
+    expect(Number.isInteger(LICENSE_LIMIT)).toBe(true);
+    const asks = Math.floor(CLAIM_POLL_LIMIT_MS / CLAIM_POLL_MS) + 1;
+    expect(asks).toBe(121);
+    expect(LICENSE_LIMIT).toBeGreaterThanOrEqual(asks + 20);
+  });
+
+  it("decides the next step: pending asks in 5 s, a rate limit waits a minute or the Retry-After, both time out at 10 minutes, the rest stop", () => {
+    const limited = { kind: "error", error: "rate_limited", message: "m" } as const;
+    expect(isRateLimited(limited)).toBe(true);
+    expect(isRateLimited({ kind: "error", error: "not_found", message: "m" })).toBe(false);
+    expect(nextClaimPoll({ kind: "pending" }, 0)).toEqual({ kind: "ask", delayMs: CLAIM_POLL_MS });
+    expect(nextClaimPoll({ kind: "pending" }, CLAIM_POLL_LIMIT_MS - CLAIM_POLL_MS)).toEqual({ kind: "ask", delayMs: CLAIM_POLL_MS });
+    expect(nextClaimPoll({ kind: "pending" }, CLAIM_POLL_LIMIT_MS - CLAIM_POLL_MS + 1)).toEqual({ kind: "timeout" });
+    expect(nextClaimPoll(limited, 0)).toEqual({ kind: "ask", delayMs: CLAIM_RATE_LIMITED_WAIT_MS });
+    expect(CLAIM_RATE_LIMITED_WAIT_MS).toBe(60_000);
+    expect(nextClaimPoll({ ...limited, retryAfterSeconds: 20 }, 0)).toEqual({ kind: "ask", delayMs: 60_000 });
+    expect(nextClaimPoll({ ...limited, retryAfterSeconds: 200 }, 0)).toEqual({ kind: "ask", delayMs: 200_000 });
+    expect(nextClaimPoll({ ...limited, retryAfterSeconds: 200 }, 450_000)).toEqual({ kind: "timeout" });
+    expect(nextClaimPoll({ kind: "token", token: "a.b.c" }, 0)).toEqual({ kind: "stop" });
+    expect(nextClaimPoll({ kind: "error", error: "not_found", message: "Unknown order" }, 0)).toEqual({ kind: "stop" });
+  });
+
+  it("one page polls a still-pending crypto payment for the full 10 minutes without a 429 and ends as a timeout, not a failure", async () => {
+    const clock = { ms: 0 };
+    const { client, log } = worker(clock);
+    const [page] = await run(client, clock);
+    expect(page.end).toBe("timeout");
+    expect(log).toEqual({ allowed: 121, limited: 0 });
+    expect(page.delays.every((d) => d === CLAIM_POLL_MS)).toBe(true);
+  });
+
+  it("a 429 while a claim is pending does not end the poll: the page waits, asks again and still unlocks", async () => {
+    const clock = { ms: 0 };
+    // three tabs of the same purchase on one connection: 3 × 121 asks would pass the limit
+    const { client, log } = worker(clock, (n) => (n >= LICENSE_LIMIT + 1 ? { token: "a.b.c" } : { pending: true }));
+    const pages = await run(client, clock, 3);
+    expect(log.limited).toBeGreaterThan(0);
+    expect(pages.map((p) => p.end)).not.toContain("failed");
+    expect(pages.some((p) => p.end === "token")).toBe(true);
+    for (const p of pages) expect(p.delays.filter((d) => d !== CLAIM_POLL_MS).every((d) => d >= CLAIM_RATE_LIMITED_WAIT_MS)).toBe(true);
+    // and a 429 straight away, then pending, then the token: the claim ends Pro
+    const c2 = { ms: 0 };
+    const answers: Response[] = [
+      new Response(JSON.stringify({ ...LIMITED, retryAfter: 90 }), { status: 429, headers: { "Content-Type": "application/json" } }),
+      new Response(JSON.stringify({ pending: true }), { status: 200 }),
+      new Response(JSON.stringify({ token: "a.b.c" }), { status: 200 }),
+    ];
+    const scripted = new BillingClient("https://billing.test", async () => answers.shift() ?? new Response("{}", { status: 500 }));
+    const [only] = await run(scripted, c2);
+    expect(only).toMatchObject({ end: "token", delays: [90_000, CLAIM_POLL_MS], shown: ["pending"] });
   });
 });
 
@@ -328,6 +461,23 @@ describe("the Billing messages", () => {
       expect(m.Navbar.pricing.length).toBeGreaterThan(2);
       expect(m.Footer.pricing.length).toBeGreaterThan(2);
     }
+  });
+
+  // --- go-live-kit --- what payment reviewers look for on the terms page
+  it("the terms name delivery, refunds and the operator", () => {
+    const page = fs.readFileSync(path.resolve(__dirname, "..", "src", "app", "[locale]", "terms", "page.tsx"), "utf8");
+    expect(page).toContain('id="delivery"');
+    expect(page).toContain('id="refunds"');
+    expect(page).toContain('id="operator"');
+    expect(page).toContain("terms.operator.named");
+    expect(page).toContain("terms.operator.unnamed");
+    expect(page).toContain("support.lead");
+    for (const m of [en, pl, es] as unknown as { Billing: Record<string, Record<string, Record<string, string>>> }[]) {
+      expect(m.Billing.terms.operator.named).toContain("{legalName}{address}");
+      expect(m.Billing.terms.operator.unnamed).toContain("{siteDomain}");
+      expect(m.Billing.notes.support).toContain("{email}");
+    }
+    expect((en.Billing.pay as Record<string, string>).emailNeeded).not.toMatch(/receipt/i); // the crypto checkout e-mails nothing
   });
 
   it("are translated (no Polish or Spanish string left in English, the prices filled in)", () => {

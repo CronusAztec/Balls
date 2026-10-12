@@ -1118,16 +1118,13 @@ describe("exit behaviour and splat barrier in the panel", () => {
         if (lang !== "en" && key.endsWith("Tip")) expect(controls[key], `${lang} ${key}`).not.toBe(english[key]);
       }
     }
-    // The modes' descriptions say what they can do with it (Polish inflects the barrier's name: its stem).
-    const splatWord = { en: "Splat Barrier", pl: "z plam", es: "Barrera de manchas" };
+    // --- copy-pass --- the cards carry a one-liner (docs/COPY-STYLE.md); the controls are named by their own labels and tips above
     for (const [lang, catalog] of [["en", en], ["pl", pl], ["es", es]] as const) {
       const modes = (catalog as unknown as { Modes: Record<string, { description: string }> }).Modes;
-      const controls = catalog.Controls as Record<string, string>;
       for (const mode of SPLAT_MODES) {
         const description = modes[mode].description;
-        expect(description, `${lang} ${mode}`).toContain(splatWord[lang]);
-        if (supportsMovingExits(mode)) expect(description, `${lang} ${mode}`).toContain(`(${controls.exitBehavior})`);
-        else expect(description, `${lang} ${mode}`).not.toContain(controls.exitBehavior);
+        expect(description.length, `${lang} ${mode}`).toBeGreaterThanOrEqual(40);
+        expect(description.length, `${lang} ${mode}`).toBeLessThanOrEqual(lang === "en" ? 110 : 140);
       }
     }
   });

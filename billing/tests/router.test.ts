@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { jsonOf } from "./helpers";
 import { handleRequest } from "../src/app";
-import { allProvidersEnv, makeHarness, makeRequest, NOW, SITE_ORIGIN } from "./helpers";
+import { allProvidersEnv, makeHarness, makeRequest, NOW, realPrivateJwk, SITE_ORIGIN } from "./helpers";
+import { siteOrigins } from "../src/http";
 
 describe("CORS and preflight", () => {
   it("answers an OPTIONS preflight from the site origin with the CORS headers", async () => {
@@ -27,6 +28,21 @@ describe("CORS and preflight", () => {
     expect(app.headers.get("access-control-allow-headers")).toContain("Content-Type");
     const other = await handleRequest(makeRequest("GET", "/config", { origin: "app://elsewhere" }), env, { now: NOW });
     expect(other.headers.get("access-control-allow-origin")).toBeNull();
+  });
+
+  // --- go-live-kit --- the GitHub Pages origin and a custom domain at once
+  it("grants CORS to every origin SITE_ORIGIN lists (spaces or commas) and to no look-alike", async () => {
+    const { env } = makeHarness({ SITE_ORIGIN: "https://cronusaztec.github.io https://www.example.com" });
+    for (const origin of ["https://cronusaztec.github.io", "https://www.example.com"]) {
+      const res = await handleRequest(makeRequest("OPTIONS", "/checkout/stripe", { origin }), env, { now: NOW });
+      expect(res.headers.get("access-control-allow-origin"), origin).toBe(origin);
+    }
+    for (const origin of ["https://example.com", "https://evil.example.com", "https://www.example.com.evil.net"]) {
+      const res = await handleRequest(makeRequest("GET", "/config", { origin }), env, { now: NOW });
+      expect(res.headers.get("access-control-allow-origin"), origin).toBeNull();
+    }
+    expect(siteOrigins("https://a.example/, https://B.example:8443\nhttps://c.example/path ftp://d.example  ")).toEqual(["https://a.example", "https://b.example:8443"]);
+    expect(siteOrigins(undefined)).toEqual([]);
   });
 
   it("does not grant CORS to a foreign origin", async () => {
@@ -82,6 +98,26 @@ describe("/config", () => {
     const res = await handleRequest(makeRequest("GET", "/config", { origin: SITE_ORIGIN }), env, { now: NOW });
     const body = await jsonOf(res);
     expect(body.providers).toEqual({ stripe: true, paypal: true, crypto: true });
+  });
+
+  // --- go-live-kit --- live/test mode safety
+  it("keeps a provider off when its keys are live but the licence key is the test key, and the other way round", async () => {
+    const config = async (vars: Parameters<typeof makeHarness>[0]) => {
+      const { env } = makeHarness(vars);
+      return (await jsonOf(await handleRequest(makeRequest("GET", "/config", { origin: SITE_ORIGIN }), env, { now: NOW }))).providers;
+    };
+    // live Stripe keys, the public test licence key
+    expect(await config(allProvidersEnv({ STRIPE_SECRET_KEY: "sk_live_x" }))).toEqual({ stripe: false, paypal: true, crypto: true });
+    // a real licence key with test-mode providers
+    const real = await realPrivateJwk();
+    expect(await config(allProvidersEnv({ LICENSE_PRIVATE_JWK: real }))).toEqual({ stripe: false, paypal: false, crypto: false });
+    // a real licence key with live providers: every one on
+    expect(await config(allProvidersEnv({ LICENSE_PRIVATE_JWK: real, STRIPE_SECRET_KEY: "sk_live_x", PAYPAL_ENV: "live", NOWPAYMENTS_SANDBOX: "" }))).toEqual({ stripe: true, paypal: true, crypto: true });
+    expect(await config(allProvidersEnv({ LICENSE_PRIVATE_JWK: real, STRIPE_SECRET_KEY: "sk_test_x", PAYPAL_ENV: "live", NOWPAYMENTS_SANDBOX: "" }))).toEqual({ stripe: false, paypal: true, crypto: true });
+    // restricted keys count too; a key that is neither live nor test is off; no licence key at all is off
+    expect(await config(allProvidersEnv({ STRIPE_SECRET_KEY: "rk_test_x" }))).toMatchObject({ stripe: true });
+    expect(await config(allProvidersEnv({ STRIPE_SECRET_KEY: "pk_test_x" }))).toMatchObject({ stripe: false });
+    expect(await config(allProvidersEnv({ LICENSE_PRIVATE_JWK: undefined }))).toEqual({ stripe: false, paypal: false, crypto: false });
   });
 
   it("keeps a provider off until its webhook secret is set too (a payment it could not verify would never count)", async () => {

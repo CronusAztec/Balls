@@ -163,7 +163,7 @@ describe("Bouncing Orbs: registration", () => {
     for (const m of [en, pl, es]) {
       expect(m.Modes.orbGrid.name.length).toBeGreaterThan(3);
       expect(m.Modes.orbGrid.description.length).toBeGreaterThan(80);
-      expect(m.Editorial.modeOrbGrid.length).toBeGreaterThan(200);
+      expect(m.Modes.orbGrid.description.length).toBeLessThanOrEqual(140);
     }
     expect(en.Modes.orbGrid.name).toBe("Bouncing Orbs");
   });

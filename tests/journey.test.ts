@@ -288,7 +288,7 @@ describe("settings, URL and presets", () => {
       expect(m.Modes.journey.description.length).toBeGreaterThan(20);
       expect(m.Headings.modesJourney.length).toBeGreaterThan(0);
       expect(m.Controls.modeJourney.length).toBeGreaterThan(0);
-      expect(m.Editorial.modeJourney.length).toBeGreaterThan(50);
+      expect(m.Modes.journey.description.length).toBeLessThanOrEqual(140);
       expect(m.Journey.canvasBanner).toContain("[n]");
       expect(m.Journey.canvasBanner).toContain("[total]");
       expect(m.Journey.canvasBanner).toContain("[name]");

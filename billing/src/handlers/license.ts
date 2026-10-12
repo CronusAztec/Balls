@@ -70,14 +70,14 @@ async function entitlementWith(
   provider: SubscriptionProvider,
   id: string,
   written: Partial<Pick<SubscriptionFacts, "link" | "paid" | "ended">>,
-): Promise<{ ent: Entitlement | null; ownEnd: number }> {
+): Promise<{ ent: Entitlement | null; ownEnd: number; revoked: boolean }> {
   const sub = await ctx.repo.getSubscriptionFacts(provider, id);
   if (written.link) sub.link = written.link;
   if (written.paid && (!sub.paid || written.paid.periodEnd > sub.paid.periodEnd)) sub.paid = written.paid;
   if (written.ended && (!sub.ended || written.ended.at < sub.ended.at)) sub.ended = written.ended;
   const ent = deriveEntitlement(email, withSubscription(await ctx.repo.factsFor(email), sub));
   const own = ent?.sources.find((s) => s.provider === provider && s.subscriptionId === id);
-  return { ent, ownEnd: own?.periodEnd ?? 0 };
+  return { ent, ownEnd: own?.periodEnd ?? 0, revoked: !!sub.ended?.revoked };
 }
 
 async function claimStripe(ctx: Ctx, ref: string): Promise<Response> {
@@ -122,9 +122,9 @@ async function claimStripe(ctx: Ctx, ref: string): Promise<Response> {
     ended = { at: subscription.ended_at };
   }
 
-  const { ent, ownEnd } = await entitlementWith(ctx, link.email, "stripe", subscriptionId, { link, paid, ended });
+  const { ent, ownEnd, revoked } = await entitlementWith(ctx, link.email, "stripe", subscriptionId, { link, paid, ended });
   if (ent && ownEnd > ctx.now) return mintToken(ctx, ent);
-  if (subStatus && STRIPE_ENDED_STATES.has(subStatus)) notActive();
+  if (revoked || (subStatus && STRIPE_ENDED_STATES.has(subStatus))) notActive(); // --- go-live-kit --- (refunded or disputed)
   return pending(ctx); // the payment is not recorded yet (invoice.paid will move the period)
 }
 
@@ -154,8 +154,9 @@ async function claimPaypal(ctx: Ctx, ref: string): Promise<Response> {
     const link = await ctx.repo.linkSubscription("paypal", subscriptionId, { email, plan, refs });
     const periodEnd = paypal.paidThrough(sub);
     const paid = periodEnd !== null ? await ctx.repo.recordPaid("paypal", subscriptionId, { email: link.email, periodEnd, plan }) : null;
-    const { ent, ownEnd } = await entitlementWith(ctx, link.email, "paypal", subscriptionId, { link, paid });
+    const { ent, ownEnd, revoked } = await entitlementWith(ctx, link.email, "paypal", subscriptionId, { link, paid });
     if (ent && ownEnd > ctx.now) return mintToken(ctx, ent);
+    if (revoked) notActive(); // --- go-live-kit --- (refunded or reversed)
     return pending(ctx); // the first payment has not cleared yet
   }
   if (email && stored) {

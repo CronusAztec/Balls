@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { DEFAULT_PREFS, resolvePrefs, restoreWindowState, sanitizePrefs } from "../src/prefs";
-import { UpdateController, type UpdaterLike } from "../src/updater";
+import { UPDATE_INITIAL_DELAY_MS, UPDATE_INTERVAL_MS, UpdateController, type UpdaterLike, type UpdaterTimers } from "../src/updater";
 import { MENU, MENU_LABELS, menuLanguage } from "../src/menu";
 import { MEDIA_EXTENSIONS, dialogFilters, filesInArgv, mediaKindOf, mimeOf } from "../src/media";
 import { Library, uniquePath } from "../src/library";
@@ -60,6 +60,138 @@ describe("auto-update", () => {
     expect(seen.map((s) => s.state)).toEqual(["available", "downloading", "ready"]);
     expect(c.status).toMatchObject({ version: "1.2.0", progress: 1 });
   });
+
+  // --- desktop-autorelease --- the schedule (8 s after launch, then every 4 hours) and the quiet scheduled checks
+  /** Hand-written timers: they record what is scheduled; the test fires them. */
+  function fakeTimers() {
+    let next = 1;
+    const timeouts = new Map<number, { fn: () => void; ms: number }>();
+    const intervals = new Map<number, { fn: () => void; ms: number }>();
+    const timers: UpdaterTimers = {
+      setTimeout: (fn, ms) => (timeouts.set(next, { fn, ms }), next++),
+      clearTimeout: (h) => void timeouts.delete(h as number),
+      setInterval: (fn, ms) => (intervals.set(next, { fn, ms }), next++),
+      clearInterval: (h) => void intervals.delete(h as number),
+    };
+    const fireTimeouts = () => {
+      for (const [h, t] of [...timeouts]) {
+        timeouts.delete(h);
+        t.fn();
+      }
+    };
+    const tick = () => [...intervals.values()].forEach((t) => t.fn());
+    return { timers, timeouts, intervals, fireTimeouts, tick };
+  }
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  it("checks 8 s after start, then every 4 hours, and stops cleanly", async () => {
+    expect(UPDATE_INITIAL_DELAY_MS).toBe(8000);
+    expect(UPDATE_INTERVAL_MS).toBe(4 * 60 * 60 * 1000);
+    let checks = 0;
+    const c = new UpdateController(fakeUpdater(async () => void checks++), { enabled: true, packaged: true, portable: false, online: () => true, log: () => {}, emit: () => {} });
+    const t = fakeTimers();
+    c.stop(); // before start: nothing to clear
+    c.start(t.timers);
+    expect([...t.timeouts.values()].map((x) => x.ms)).toEqual([UPDATE_INITIAL_DELAY_MS]);
+    expect([...t.intervals.values()].map((x) => x.ms)).toEqual([UPDATE_INTERVAL_MS]);
+    expect(checks).toBe(0); // nothing before the first delay
+    c.start(t.timers); // a second start schedules nothing more
+    expect(t.timeouts.size + t.intervals.size).toBe(2);
+    t.fireTimeouts();
+    await settle();
+    expect(checks).toBe(1);
+    t.tick();
+    await settle();
+    t.tick();
+    await settle();
+    expect(checks).toBe(3);
+    c.stop();
+    expect(t.timeouts.size + t.intervals.size).toBe(0);
+    c.stop(); // twice is fine
+    // custom delays, and the timers cleared before the first check
+    const t2 = fakeTimers();
+    c.start(t2.timers, { initialDelayMs: 5, intervalMs: 50 });
+    expect([...t2.timeouts.values()].map((x) => x.ms)).toEqual([5]);
+    expect([...t2.intervals.values()].map((x) => x.ms)).toEqual([50]);
+    c.stop();
+    expect(t2.timeouts.size + t2.intervals.size).toBe(0);
+    // an inactive controller (portable, development build, auto-update off) schedules nothing
+    const t3 = fakeTimers();
+    for (const options of [{ portable: true, packaged: true, enabled: true }, { portable: false, packaged: false, enabled: true }, { portable: false, packaged: true, enabled: false }]) {
+      new UpdateController(fakeUpdater(async () => void checks++), { ...options, online: () => true, log: () => {}, emit: () => {} }).start(t3.timers);
+    }
+    new UpdateController(null, { enabled: true, packaged: true, portable: false, online: () => true, log: () => {}, emit: () => {} }).start(t3.timers);
+    expect(t3.timeouts.size + t3.intervals.size).toBe(0);
+  });
+
+  it("keeps quiet scheduled checks out of the way: offline, failing or while busy", async () => {
+    const logs: string[] = [];
+    const seen: UpdateStatus[] = [];
+    let online = false;
+    let calls = 0;
+    let fail = false;
+    const u = fakeUpdater(async () => {
+      calls++;
+      if (fail) throw new Error("net::ERR_CONNECTION_RESET");
+    });
+    const c = new UpdateController(u, { enabled: true, packaged: true, portable: false, online: () => online, log: (m) => logs.push(m), emit: (s) => seen.push(s) });
+    // offline: logged, the status stays as it was (no "error" for a check nobody asked for)
+    await expect(c.check({ quiet: true })).resolves.toMatchObject({ state: "idle" });
+    expect(c.status.state).toBe("idle");
+    expect(seen).toEqual([]);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toContain("offline");
+    expect(calls).toBe(0);
+    // a check or a download under way: the updater is not asked again
+    online = true;
+    (u.handlers.get("checking-for-update") as () => void)();
+    await expect(c.check({ quiet: true })).resolves.toMatchObject({ state: "checking" });
+    (u.handlers.get("download-progress") as (p: { percent: number }) => void)({ percent: 40 });
+    await expect(c.check({ quiet: true })).resolves.toMatchObject({ state: "downloading" });
+    expect(calls).toBe(0);
+    // failing: logged, the status untouched
+    (u.handlers.get("update-not-available") as () => void)();
+    fail = true;
+    const before = seen.length;
+    await expect(c.check({ quiet: true })).resolves.toMatchObject({ state: "none" });
+    expect(calls).toBe(1);
+    expect(seen.length).toBe(before);
+    expect(logs.some((l) => l.includes("ERR_CONNECTION_RESET"))).toBe(true);
+    // a manual check still says so
+    await expect(c.check()).resolves.toMatchObject({ state: "error", message: "net::ERR_CONNECTION_RESET" });
+    online = false;
+    await expect(c.check()).resolves.toMatchObject({ state: "error", message: "offline" });
+  });
+
+  it("leaves a downloaded update alone and hides electron-updater's own error event from a quiet check", async () => {
+    const logs: string[] = [];
+    const seen: UpdateStatus[] = [];
+    let calls = 0;
+    // electron-updater's real order on a failed check: "checking-for-update", then "error", then the promise rejects
+    const u = fakeUpdater(async () => {
+      calls++;
+      (u.handlers.get("checking-for-update") as () => void)();
+      const err = new Error("HttpError: 503");
+      (u.handlers.get("error") as (e: Error) => void)(err);
+      throw err;
+    });
+    const c = new UpdateController(u, { enabled: true, packaged: true, portable: false, online: () => true, log: (m) => logs.push(m), emit: (s) => seen.push(s) });
+    (u.handlers.get("update-not-available") as () => void)();
+    await expect(c.check({ quiet: true })).resolves.toMatchObject({ state: "none" });
+    expect(calls).toBe(1);
+    expect(seen.map((s) => s.state)).toEqual(["none", "checking", "none"]);
+    expect(logs.some((l) => l.includes("503"))).toBe(true);
+    // the same failure on a manual check is shown
+    await expect(c.check()).resolves.toMatchObject({ state: "error", message: "HttpError: 503" });
+    // an update that is available, downloading or downloaded: the schedule does not ask again (it installs on restart)
+    for (const emit of [() => (u.handlers.get("update-available") as (i: { version: string }) => void)({ version: "2.0.0" }), () => (u.handlers.get("update-downloaded") as (i: { version: string }) => void)({ version: "2.0.0" })]) {
+      emit();
+      const state = c.status.state;
+      await expect(c.check({ quiet: true })).resolves.toMatchObject({ state });
+    }
+    expect(c.status).toMatchObject({ state: "ready", version: "2.0.0" });
+    expect(calls).toBe(2);
+  });
 });
 
 describe("menu and media", () => {
@@ -70,6 +202,11 @@ describe("menu and media", () => {
     for (const lang of ["en", "pl", "es"] as const) for (const id of ids) expect(MENU_LABELS[lang][id], `${lang}.${id}`).toBeTruthy();
     expect(Object.keys(MENU_LABELS.pl).sort()).toEqual(Object.keys(MENU_LABELS.en).sort());
     expect(Object.keys(MENU_LABELS.es).sort()).toEqual(Object.keys(MENU_LABELS.en).sort());
+    // --- desktop-autorelease --- the update-ready notification (main.ts) in every language, with the version
+    for (const lang of ["en", "pl", "es"] as const) {
+      expect(MENU_LABELS[lang].updateReadyTitle, `${lang}.updateReadyTitle`).toBeTruthy();
+      expect(MENU_LABELS[lang].updateReadyBody, `${lang}.updateReadyBody`).toContain("{version}");
+    }
     expect(menuLanguage("es-MX")).toBe("es");
     expect(menuLanguage("fr")).toBe("en");
   });

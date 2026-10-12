@@ -591,7 +591,8 @@ describe("Spinning Hoops: settings, presets and the mode's registration", () => 
       const controls = m.Controls as Record<string, string>;
       for (const key of [...HOOPS_KEYS, "modeHoops", "hpCritical", "hpCriticalOne", "hpNeverLifts", "hpTurnsUnit", "hpShapeLinear", "hpShapeEase", "hpShapeSteps", ...HOOPS_PRESETS.map((p) => p.labelKey)]) expect(controls[key], `${locale} Controls.${key}`).toBeTruthy();
       expect((m.Modes as unknown as Record<string, { name: string; description: string }>).hoops.name).toBeTruthy();
-      expect((m.Editorial as Record<string, string>).modeHoops.length).toBeGreaterThan(200);
+      expect((m.Modes as unknown as Record<string, { description: string }>).hoops.description.length).toBeGreaterThanOrEqual(40);
+      expect((m.Modes as unknown as Record<string, { description: string }>).hoops.description.length).toBeLessThanOrEqual(locale === "en" ? 110 : 140);
     }
     expect(en.Modes.hoops.name).toBe("Spinning Hoops");
   });

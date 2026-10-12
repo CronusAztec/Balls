@@ -58,6 +58,13 @@ if (SAFE_MODE) app.disableHardwareAcceleration();
 /** --- desktop-ai-fix --- How long quitting waits for the local model to stop and unload. */
 const QUIT_UNLOAD_MS = 8000;
 
+/**
+ * --- desktop-autorelease --- The public site the Help menu opens: the address the app's site export was built for, baked in
+ * by desktop/scripts/build.mjs (`define`, from DESKTOP_SITE_URL – the custom domain once the repository variable CUSTOM_DOMAIN
+ * is set), the project site otherwise.
+ */
+const SITE_URL = (process.env.JBL_SITE_URL || "https://cronusaztec.github.io/Balls").replace(/\/+$/, "");
+
 const gotLock = SMOKE || app.requestSingleInstanceLock();
 if (!gotLock) {
   app.quit();
@@ -171,13 +178,29 @@ function start() {
   });
   // --- desktop-ai-fix --- a 1.0.2 install whose download was never "used": the ready model is selected
   void ai.ensureSelectedModel().catch((err: unknown) => logger.warn(`selecting a ready model: ${describeError(err)}`));
+  let updateNotified: string | null = null; // --- desktop-autorelease --- the version the Windows notification was shown for
   const updater = new UpdateController(electronUpdater.autoUpdater as unknown as ConstructorParameters<typeof UpdateController>[0], {
     enabled: prefs().autoUpdate && !SMOKE,
     packaged: app.isPackaged,
     portable: portableDir !== null,
     online: () => net.isOnline(),
     log: logger.warn,
-    emit: (s) => send(DESKTOP_EVENTS.update, s),
+    emit: (s) => {
+      send(DESKTOP_EVENTS.update, s);
+      // --- desktop-autorelease --- one Windows notification per downloaded version; the banner in the page offers Restart / Later
+      if (s.state === "ready" && s.version && s.version !== updateNotified && Notification.isSupported()) {
+        updateNotified = s.version;
+        const l = MENU_LABELS[menuLanguage(app.getLocale())];
+        const n = new Notification({ title: l.updateReadyTitle, body: l.updateReadyBody.replace("{version}", s.version) });
+        n.on("click", () => {
+          if (win) {
+            if (!win.isVisible()) win.show();
+            win.focus();
+          }
+        });
+        n.show();
+      }
+    },
   });
 
   const readPicked = async (file: string): Promise<PickedFile> => {
@@ -356,10 +379,10 @@ function start() {
         await updater.check();
         return;
       case "website":
-        await shell.openExternal("https://cronusaztec.github.io/Balls/");
+        await shell.openExternal(`${SITE_URL}/`); // --- desktop-autorelease ---
         return;
       case "download-page":
-        await shell.openExternal("https://cronusaztec.github.io/Balls/en/download/");
+        await shell.openExternal(`${SITE_URL}/en/download/`); // --- desktop-autorelease ---
         return;
       case "releases":
         await shell.openExternal("https://github.com/CronusAztec/Balls/releases");
@@ -705,6 +728,7 @@ function start() {
   // quitting mid-generation aborted the process with a Napi::Error in 1.0.2
   let quitPrepared = false;
   app.on("before-quit", (event) => {
+    updater.stop(); // --- desktop-autorelease --- no scheduled check while quitting
     quitting = true;
     ai.cancelAll();
     models.cancelAll();
@@ -749,6 +773,6 @@ function start() {
     if (!existsSync(locations.siteRoot)) logger.error(`site export missing at ${locations.siteRoot} – run \`npm run site\` in desktop/`);
     createWindow();
     logger.info(`window at ${APP_ORIGIN}`);
-    if (!SMOKE) setTimeout(() => void updater.check(), 8000);
+    if (!SMOKE) updater.start(); // --- desktop-autorelease --- 8 s after launch, then every 4 hours (quiet checks)
   });
 }

@@ -734,11 +734,11 @@ describe("captions and messages", () => {
       const modes = m.Modes as Record<string, { name: string; description: string }>;
       expect(modes.landClaim.name.length).toBeGreaterThan(3);
       expect(modes.landClaim.description.length).toBeGreaterThan(40);
-      expect((m.Editorial as Record<string, string>).modeLandClaim.length).toBeGreaterThan(200);
+      expect(modes.landClaim.description.length).toBeLessThanOrEqual(lang === "en" ? 110 : 140);
       expect((m.Controls as Record<string, string>).modeLandClaim).toBe(modes.landClaim.name);
       for (const ns of ["LandClaim", "Countries"]) expect(JSON.stringify(m[ns]).toLowerCase()).not.toContain(ACCOUNT);
       expect(JSON.stringify(m.Controls).toLowerCase()).not.toContain(ACCOUNT);
-      expect((m.Editorial as Record<string, string>).modeLandClaim.toLowerCase()).not.toContain(ACCOUNT);
+      expect(modes.landClaim.description.toLowerCase()).not.toContain(ACCOUNT);
       for (const key of ["outcomeClose", "hintClose", "findClose", "foundClose", "missClose", "progressClose", "overlayClose", "hintWinnerLandClaim", "noteFavoured"]) expect([lang, key, typeof (m.Rigged as Record<string, string>)[key]]).toEqual([lang, key, "string"]);
     }
   });
