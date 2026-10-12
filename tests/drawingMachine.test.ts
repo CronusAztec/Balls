@@ -44,7 +44,7 @@ import {
 } from "@/lib/physics/drawingMachineFields";
 import { dmPluckFrequency } from "@/lib/physics/modes/drawingMachine";
 import { defaultSettings, engineSettingKeys, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
-import { hudCounterText, loopHudCount, loopHudFrame } from "@/lib/loop/hud";
+import { drawLoopHud, hudCounterText, loopHudCount, loopHudFrame, loopHudLayout } from "@/lib/loop/hud";
 import { loopCaptionContext } from "@/lib/publish/loopCaption";
 import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
 import { startDrone } from "@/lib/audio/loopTones";
@@ -554,8 +554,56 @@ describe("Drawing Machines: settings, links, presets, the page", () => {
     expect(count).toMatchObject({ count: 8, values: { value: 8 }, decimals: 1 });
     const frame = loopHudFrame({ title: "earth and venus draw a flower", subtitle: "", counter: template, light: false }, count);
     expect(frame.counter).toBe("year 8.0");
+    expect(frame.tabular).toBe(true);
     expect(loopHudCount(dmEngine({}, 1))).toBeNull();
     expect(loopHudFrame({ title: "Three pendulums, one pen", subtitle: "a / b", counter: "", light: false, serif: true }, null)).toMatchObject({ title: "three pendulums, one pen", serif: true });
+  });
+
+  it("draws the year in tabular digits: every digit in a cell as wide as the widest, so a ticking counter keeps its width", () => {
+    // a font whose "1" is narrow (4 px) and every other digit 8 px wide, any other character 6 px
+    const glyph = (c: string) => (c === "1" ? 4 : c >= "0" && c <= "9" ? 8 : 6);
+    const draw = (counter: string) => {
+      const texts: { text: string; x: number; align: string }[] = [];
+      const ctx = {
+        font: "",
+        textAlign: "center",
+        textBaseline: "middle",
+        fillStyle: "",
+        strokeStyle: "",
+        lineWidth: 1,
+        shadowColor: "",
+        shadowBlur: 0,
+        globalAlpha: 1,
+        save() {},
+        restore() {},
+        beginPath() {},
+        moveTo() {},
+        lineTo() {},
+        stroke() {},
+        fillRect() {},
+        measureText: (s: string) => ({ width: [...s].reduce((w, c) => w + glyph(c), 0) }),
+        fillText(text: string, x: number) {
+          texts.push({ text, x, align: this.textAlign });
+        },
+      };
+      drawLoopHud(ctx as unknown as CanvasRenderingContext2D, 1080, { title: "", subtitle: "", counter, light: false, tabular: true }, loopHudLayout(1080, 1920));
+      return { texts, align: ctx.textAlign };
+    };
+    const a = draw("year 1.1");
+    const b = draw("year 8.8");
+    // "year " whole, then each digit and the point: the same left edge and the same cells for both
+    expect(a.texts.map((x) => x.text)).toEqual(["year ", "1", ".", "1"]);
+    expect(a.texts[0].x).toBeCloseTo(b.texts[0].x, 9);
+    expect(a.texts[0].x).toBeCloseTo(540 - (5 * 6 + 8 + 6 + 8) / 2, 9);
+    // the narrow "1" sits centred in its 8 px cell; the point after it starts where an "8" would end
+    expect(a.texts[1].x - b.texts[1].x).toBeCloseTo(2, 9);
+    expect(a.texts[2].x).toBeCloseTo(b.texts[2].x, 9);
+    expect(a.texts.every((x) => x.align === "left")).toBe(true);
+    expect(a.align).toBe("center");
+    // without the flag the line is drawn whole and centred, as before
+    const plain: string[] = [];
+    drawLoopHud({ ...({} as object), font: "", textAlign: "center", save() {}, restore() {}, measureText: (s: string) => ({ width: s.length * 6 }), fillText: (s: string) => plain.push(s) } as unknown as CanvasRenderingContext2D, 1080, { title: "", subtitle: "", counter: "12 bounces", light: false }, loopHudLayout(1080, 1920));
+    expect(plain).toEqual(["12 bounces"]);
   });
 
   it("writes the loop-style captions: the pendulums, Earth and Venus's 8 years, any other pair's years", () => {

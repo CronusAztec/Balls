@@ -16889,7 +16889,7 @@ await smokeBlock("drawing-machine", async () => {
 // Drawing Machines (the loop family's harmonograph and orbit flowers): one full cycle of each machine at 4× – the harmonograph
 // draws its trace, the paper scrolls exactly once (data-dm-scrolls) and the next sheet starts at the seam, the cream serif title
 // is drawn; the Earth and Venus preset's year counter reaches 8.0 (data-dm-peak-year), the five conjunctions are marked, the
-// rewind runs it back to 0.0 (data-dm-rewound-to) with one wash, and the HUD draws "year 8.0"; a link carries the dm… keys into
+// rewind runs it back to 0.0 (data-dm-rewound-to) with one wash, and the HUD draws "year 8.0" in tabular digits; a link carries the dm… keys into
 // the panel and the cycle, the machine switch moves the page to the orbits' sky, Find Simulation stays hidden (the drawing is the
 // same for every seed), and a fast export with Export whole loops keeps two whole 5 s cycles.
 {
@@ -16899,7 +16899,7 @@ await smokeBlock("drawing-machine", async () => {
       window.__dmHud = texts;
       const fillText = CanvasRenderingContext2D.prototype.fillText;
       CanvasRenderingContext2D.prototype.fillText = function (text, ...rest) {
-        if (texts.length < 6000) texts.push({ text: String(text), font: String(this.font), fill: String(this.fillStyle) });
+        if (texts.length < 30000) texts.push({ text: String(text), font: String(this.font), fill: String(this.fillStyle), align: String(this.textAlign) });
         return fillText.call(this, text, ...rest);
       };
     });
@@ -16953,12 +16953,24 @@ await smokeBlock("drawing-machine", async () => {
   }
   const o = await canvasData();
   const oHud = await page.evaluate(() => {
-    const texts = window.__dmHud || [];
-    return { year: texts.filter((t) => t.text === "year 8.0").map((t) => t.fill).slice(-1)[0] ?? null, zero: texts.some((t) => t.text === "year 0.0"), title: texts.some((t) => t.text === "earth and venus draw a flower") };
+    // the year is drawn in tabular digits: "year " whole, then each digit and the point left-aligned in its cell (LoopHudFrame.tabular),
+    // so a counter line is put back together from its amber left-aligned pieces (a word starts the next line)
+    const texts = [];
+    let line = null;
+    for (const t of window.__dmHud || []) {
+      if (t.align === "left" && t.fill === "#f2c46a") {
+        if (!line || (!/^[\d.,]/.test(t.text) && /\d/.test(line.text))) texts.push((line = { text: "", fill: t.fill, tabular: true }));
+        line.text += t.text;
+      } else {
+        line = null;
+        texts.push(t);
+      }
+    }
+    return { year: texts.filter((t) => t.text === "year 8.0").map((t) => t.fill).slice(-1)[0] ?? null, zero: texts.some((t) => t.text === "year 0.0"), title: texts.some((t) => t.text === "earth and venus draw a flower"), tabular: texts.some((t) => t.tabular && t.text === "year 8.0") };
   });
   check(
     "Drawing Machines' Earth and Venus preset runs a full cycle at 4×: the year counter reaches 8.0 and then 0.0, five conjunctions a cycle, one wash on the rewind, the amber year HUD",
-    o.dmMachine === "orbits" && oQuery.get("dmm") === "orbits" && Math.abs(Number(o.dmCycle) - 18.9) < 1e-6 && oSeen.peak === 8 && o.dmLastPeakYear === "8.0" && o.dmRewoundTo === "0.0" && o.dmConjCycle === "5" && o.dmChordsCycle === "365" && oSeen.conj === 6 && Number(o.dmPlucks) >= 6 && Number(o.dmWashes) >= 1 && Number(o.dmBeds) >= 8 && oSeen.nan === 0 && oHud.year === "#f2c46a" && oHud.zero && oHud.title,
+    o.dmMachine === "orbits" && oQuery.get("dmm") === "orbits" && Math.abs(Number(o.dmCycle) - 18.9) < 1e-6 && oSeen.peak === 8 && o.dmLastPeakYear === "8.0" && o.dmRewoundTo === "0.0" && o.dmConjCycle === "5" && o.dmChordsCycle === "365" && oSeen.conj === 6 && Number(o.dmPlucks) >= 6 && Number(o.dmWashes) >= 1 && Number(o.dmBeds) >= 8 && oSeen.nan === 0 && oHud.year === "#f2c46a" && oHud.zero && oHud.title && oHud.tabular,
     `(${JSON.stringify({ cycle: o.dmCycle, ...oSeen, lastPeak: o.dmLastPeakYear, rewoundTo: o.dmRewoundTo, conjCycle: o.dmConjCycle, chords: o.dmChordsCycle, plucks: o.dmPlucks, washes: o.dmWashes, beds: o.dmBeds, hud: oHud, query: oQuery.toString().slice(0, 160) })})`,
   );
 

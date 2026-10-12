@@ -2944,7 +2944,8 @@ the mode, `src/components/simulator/drawingMachineRenderer.ts` the picture and `
   same moment used to swallow it.) The custom clip slots of the loop family apply (the drone, the bed, the pluck, the reset).
 - **The HUD** – the loop HUD is on in Drawing Machines: "three pendulums, one pen" in a cream serif title with the rule in an
   italic serif subtitle (`LoopHudSpec.serif`), or "earth and venus draw a flower" (the bodies' names filled in, the Earth first)
-  with the amber "year 8.0" – one decimal, tabular digits (`LoopHudCounter.decimals`). The Publish caption editor's **Loop style**
+  with the amber "year 8.0" – one decimal (`LoopHudCounter.decimals`) in tabular digits (`LoopHudFrame.tabular`: every digit drawn
+  in a cell as wide as the widest, so the ticking counter never jitters). The Publish caption editor's **Loop style**
   has "3 pendulums, one pen", "earth and venus draw this every 8 years" (the 13 : 8 fact) or "two planets, one line every few days,
   {count} years", with #mathart #generativeart #physics.
 - **For tools** – the canvas mirrors `data-dm-machine`, `-time`, `-cycle`, `-cycle-index`, `-phase`, `-year`, `-peak-year`,

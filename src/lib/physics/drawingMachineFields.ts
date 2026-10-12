@@ -298,7 +298,9 @@ export function writeDrawingMachineParams(settings: DrawingMachineFields, base: 
 
 /** Reads the feature's URL parameters into `settings` and validates them; unknown or invalid values fall back. */
 export function readDrawingMachineParams(params: URLSearchParams, settings: DrawingMachineFields) {
-  const next: Partial<Record<keyof DrawingMachineFields, unknown>> = { ...settings };
+  // (only the feature's own fields: the settings object is large, and a link is parsed often)
+  const next: Partial<Record<keyof DrawingMachineFields, unknown>> = {};
+  for (const key of SETTING_KEYS) next[FIELD_OF[key]] = settings[FIELD_OF[key]];
   const machine = params.get("dmm");
   if (machine !== null) next.dmMachine = isDmMachine(machine) ? machine : settings.dmMachine;
   for (const [key, field] of Object.entries(DM_URL_KEYS)) {

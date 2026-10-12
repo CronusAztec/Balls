@@ -39,6 +39,8 @@ export interface LoopHudFrame {
   bar?: number;
   /** --- drawing-machine --- The harmonograph's paper style: a cream serif title and an italic serif subtitle (the counter stays sans). */
   serif?: boolean;
+  /** --- drawing-machine --- The counter in tabular digits (every digit as wide as the widest): a ticking "year 3.1" never jitters. */
+  tabular?: boolean;
 }
 
 /** The HUD's static words for a page: the title, the subtitle and the counter's template ("{count} bounces"). */
@@ -407,6 +409,7 @@ export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | L
   const value = counter ? counter.count : (count as number | LoopHudCount | null);
   const frame: LoopHudFrame = { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: count === null && spec.alt ? hudText(spec.alt, locale ?? spec.locale) /* --- colour-sort --- */ : hudCounterText(spec.counter, value, locale ?? spec.locale, counter?.values, counter?.decimals /* --- drawing-machine --- */), light: spec.light };
   if (spec.serif) frame.serif = true; // --- drawing-machine --- (the harmonograph's serif title and subtitle)
+  if (counter?.decimals !== undefined && frame.counter) frame.tabular = true; // --- drawing-machine --- (a fixed-decimals value ticks: tabular digits)
   const bar = count !== null && typeof count === "object" && "bar" in count ? (count as LoopHudBarCount).bar : NaN; // --- phase-spiral --- (the meter's bar)
   if (frame.counter && Number.isFinite(bar)) frame.bar = bar;
   if (spec.counterGrey) frame.counterGrey = true; // --- land-claim-pyramid ---
@@ -425,6 +428,64 @@ function fitLine(ctx: CanvasRenderingContext2D, text: string, x: number, y: numb
 /** The harmonograph's paper style: the serif family and the cream of its title (on a dark page). */
 export const LOOP_HUD_SERIF = 'Georgia, "Times New Roman", serif';
 export const LOOP_HUD_CREAM = "#f3ecdc";
+
+/** The widest digit's width in each font (measured once a font): the cell every digit of a tabular line takes. */
+const tabularCells = new Map<string, number>();
+function tabularCell(ctx: CanvasRenderingContext2D, font: string): number {
+  let cell = tabularCells.get(font);
+  if (cell === undefined) {
+    cell = 0;
+    for (let d = 0; d <= 9; d++) cell = Math.max(cell, ctx.measureText(String(d)).width);
+    if (tabularCells.size > 64) tabularCells.clear(); // (a few fonts a page: the canvas' sizes)
+    tabularCells.set(font, cell);
+  }
+  return cell;
+}
+const isDigit = (code: number) => code >= 48 && code <= 57;
+/** The width of `text` with every digit in a cell of `cell` px (the runs between digits measured whole, so their kerning stays). */
+function tabularWidth(ctx: CanvasRenderingContext2D, text: string, cell: number): number {
+  let w = 0;
+  let run = 0;
+  for (let i = 0; i <= text.length; i++) {
+    if (i < text.length && !isDigit(text.charCodeAt(i))) continue;
+    if (i > run) w += ctx.measureText(text.slice(run, i)).width;
+    if (i < text.length) w += cell;
+    run = i + 1;
+  }
+  return w;
+}
+/** `fitLine()` in tabular digits: the line centred at (`x`, `y`), every digit centred in a cell as wide as the widest digit. */
+function fitTabularLine(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, weight: string, maxWidth: number) {
+  let font = `${weight} ${size}px sans-serif`;
+  ctx.font = font;
+  let cell = tabularCell(ctx, font);
+  let w = tabularWidth(ctx, text, cell);
+  if (w > maxWidth && w > 0) {
+    font = `${weight} ${Math.max(6, Math.floor((size * maxWidth) / w))}px sans-serif`;
+    ctx.font = font;
+    cell = tabularCell(ctx, font);
+    w = tabularWidth(ctx, text, cell);
+  }
+  const align = ctx.textAlign;
+  ctx.textAlign = "left";
+  let left = x - w / 2;
+  let run = 0;
+  for (let i = 0; i <= text.length; i++) {
+    if (i < text.length && !isDigit(text.charCodeAt(i))) continue;
+    if (i > run) {
+      const part = text.slice(run, i);
+      ctx.fillText(part, left, y);
+      left += ctx.measureText(part).width;
+    }
+    if (i < text.length) {
+      const digit = text[i];
+      ctx.fillText(digit, left + (cell - ctx.measureText(digit).width) / 2, y);
+      left += cell;
+    }
+    run = i + 1;
+  }
+  ctx.textAlign = align;
+}
 // --- end drawing-machine ---
 
 /** Paints the HUD into a frame (the compositor, the live canvas). */
@@ -457,7 +518,8 @@ export function drawLoopHud(ctx: CanvasRenderingContext2D, width: number, frame:
   }
   if (frame.counter && layout.counterY >= 0) {
     ctx.fillStyle = frame.light ? LOOP_HUD_GREY_LIGHT : frame.counterGrey ? LOOP_HUD_GREY /* --- chaos-fan --- (a state label) */ : LOOP_HUD_AMBER;
-    fitLine(ctx, frame.counter, cx, layout.counterY, layout.counterSize, "700", layout.maxWidth);
+    if (frame.tabular) fitTabularLine(ctx, frame.counter, cx, layout.counterY, layout.counterSize, "700", layout.maxWidth); // --- drawing-machine ---
+    else fitLine(ctx, frame.counter, cx, layout.counterY, layout.counterSize, "700", layout.maxWidth);
     // --- phase-spiral --- a thin bar under the counter, filled to its share (inside the counter line's band)
     if (typeof frame.bar === "number" && Number.isFinite(frame.bar)) {
       const bar = hudBarRect(layout);
