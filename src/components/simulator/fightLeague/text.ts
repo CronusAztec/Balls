@@ -257,6 +257,39 @@ export class FlTextCache {
   }
 
   /**
+   * --- fl-overhaul --- (fl-overhaul fix) The width `text` would take at `size` (local px) – measured as its sprite would be
+   * (the same size bucket and font) but without building one, so fitting a name tries its candidates for free.
+   */
+  measureWidth(text: string, size: number, style: FlTextStyle): number {
+    const pg = this.measure();
+    if (!pg || !(size > 0)) return 0.6 * size * text.length;
+    const b = bucketOf(size * this.scale);
+    pg.font = flFont(style.role, b, style.weight ?? FL_FONT_WEIGHT[style.role]);
+    return Math.max(1, pg.measureText(text).width) * (size / b);
+  }
+
+  /**
+   * --- fl-overhaul --- (fl-overhaul fix) Draws `text` like `draw()` at `size` but condensed horizontally by `squeeze` (≤ 1):
+   * the letters keep their height, only their width narrows. Returns the width drawn.
+   */
+  drawCondensed(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, style: FlTextStyle, align: FlAlign, squeeze: number, alpha = 1): number {
+    if (!text || !(size > 0) || !(alpha > 0)) return 0;
+    const s = this.sprite(text, size, style);
+    if (!s) return 0;
+    const k = size / s.size;
+    const kx = k * Math.max(0.01, Math.min(1, squeeze));
+    const tw = s.textW * kx;
+    const ax = align === "left" ? x : align === "right" ? x - tw : x - tw / 2;
+    if (alpha < 1) {
+      const a = ctx.globalAlpha;
+      ctx.globalAlpha = a * alpha;
+      ctx.drawImage(s.canvas, ax + s.x0 * kx, y + s.y0 * k, s.w * kx, s.h * k);
+      ctx.globalAlpha = a;
+    } else ctx.drawImage(s.canvas, ax + s.x0 * kx, y + s.y0 * k, s.w * kx, s.h * k);
+    return tw;
+  }
+
+  /**
    * Draws `text` with its middle at `y` – left-aligned at, centred on or right-aligned to `x` – at `size` (× `pop`),
    * squeezed to `maxWidth` when wider, at `alpha`. Returns the width drawn.
    */

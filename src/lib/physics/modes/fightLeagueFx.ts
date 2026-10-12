@@ -404,6 +404,16 @@ export interface FlBoxLayout {
   compact: boolean;
   nameFs: number;
   statFs: number;
+  /**
+   * --- fl-overhaul --- (fl-overhaul fix) The cells a stat rect holds side by side: 2 (damage | speed …) or 1 – a slim box of a
+   * two-row layout stacks its compact pair in a column of single cells.
+   */
+  statCells: 1 | 2;
+  /** The smallest size its ability name may be drawn at (px: the readability floor, FL_BOX_NAME_MIN of the side). */
+  nameMin: number;
+  /** The box's row and column in the boxes' grid. */
+  row: number;
+  col: number;
 }
 
 /** The HUD's sizes for a square of `side` px with `n` fighters (`portrait`: a 9:16 export – the right 10 % stays free of text). */
@@ -444,26 +454,100 @@ export interface FlHudLayout {
   boxes: FlBoxLayout[];
   boxesTop: number;
   boxesBottom: number;
+  /** --- fl-overhaul --- (fl-overhaul fix) The boxes' rows: 1 (a duel, a free-for-all of 3) or 2 (four and six fighters). */
+  boxRows: number;
 }
 
-/** Whether `match` keeps the full ability boxes (two stat lines): the duel and the 2v2; the free-for-alls use compact ones. */
+/**
+ * Whether `match` keeps the full ability boxes (all four stats: two lines of two): the duel and the 2v2; the free-for-alls
+ * and the 3v3 use compact ones (damage and one more).
+ */
 export function flFullBoxes(match: string, n: number): boolean {
-  // (--- fl-overhaul --- Stage 5: a 3v3's six boxes are compact – one stat line each, like the free-for-alls')
+  // (--- fl-overhaul --- Stage 5: a 3v3's six boxes are compact – one stat pair each, like the free-for-alls')
   return n <= 2 || match === "2v2";
 }
 
 /** The readability floors of the HUD (share of the square's side; at 1080 px: 26 px box names, 20 px stat lines). */
 export const FL_BOX_NAME_MIN = 0.0245;
 export const FL_BOX_STAT_MIN = 0.0186;
+/**
+ * --- fl-overhaul --- (fl-overhaul fix) The narrowest a box's ability name is condensed (its width only – the letters keep
+ * their height): a name still too wide at the floor's size and this squeeze is ellipsised (`flFitBoxName()`).
+ */
+export const FL_BOX_NAME_SQUEEZE = 0.75;
+/** A slim box's stat cell (one glyph and '×1.00' in mono) in stat font sizes. */
+export const FL_STAT_CELL_EM = 4.2;
+
+/** Where slot `slot`'s ability box sits in a grid of `rows` rows of `perRow` boxes (the names band's order, mirrored). */
+export function flBoxCell(match: string, slot: number, rows: number, perRow: number): { row: number; col: number } {
+  if (rows < 2) return { row: 0, col: slot };
+  // a 2v2: each team a column (A over B on the left, C over D on the right), as its names band stacks them
+  if (match === "2v2") return { row: slot % 2, col: slot < 2 ? 0 : 1 };
+  // a 3v3: each team a row (A B C over D E F); a free-for-all of 4: the corners its names band puts them in
+  return { row: Math.floor(slot / perRow), col: slot % perRow };
+}
+
+/** How an ability name is drawn in its box: the text (the name, or its ellipsised start), its size and horizontal squeeze. */
+export interface FlNameFit {
+  text: string;
+  size: number;
+  /** The horizontal scale (1: as set; never under FL_BOX_NAME_SQUEEZE unless even one letter and the ellipsis do not fit). */
+  squeeze: number;
+  /** Whether the name was cut (ellipsised). */
+  cut: boolean;
+}
+
+/**
+ * --- fl-overhaul --- (fl-overhaul fix) Fits an ability name into a box's name column of `maxWidth` px WITHOUT drawing it
+ * under the readability floor `minSize`: at `size` when it fits; else smaller, down to `minSize`; else at `minSize`, condensed
+ * horizontally down to `minSqueeze` (the letters keep their height); else its longest start that fits that way, ellipsised
+ * ('Super Mega Death…' – at a word's end when that costs at most three letters). `measure(text, size)` is the text's width.
+ */
+export function flFitBoxName(name: string, size: number, minSize: number, maxWidth: number, measure: (text: string, size: number) => number, minSqueeze: number = FL_BOX_NAME_SQUEEZE): FlNameFit {
+  const floor = Math.min(minSize, size);
+  const room = Math.max(1, maxWidth);
+  let w = measure(name, size);
+  if (w <= room) return { text: name, size, squeeze: 1, cut: false };
+  const fs = Math.max(floor, (size * room) / w);
+  w = measure(name, fs);
+  let squeeze = Math.min(1, room / Math.max(1e-9, w));
+  if (squeeze >= minSqueeze) return { text: name, size: fs, squeeze, cut: false };
+  // the longest start that fits condensed (at most `minSqueeze`), at the floor
+  let text = "";
+  for (let n = name.length - 1; n >= 1; n--) {
+    let start = name.slice(0, n).replace(/[\s,.:;!?/&+–—-]+$/u, "");
+    if (start.length === 0) continue;
+    const space = name.lastIndexOf(" ", n);
+    if (space > 0 && n - space <= 3) {
+      const word = name.slice(0, space).replace(/[\s,.:;!?/&+–—-]+$/u, "");
+      if (word.length > 0) start = word;
+    }
+    const candidate = `${start}…`;
+    w = measure(candidate, fs);
+    text = candidate;
+    squeeze = Math.min(1, room / Math.max(1e-9, w));
+    if (squeeze >= minSqueeze) break;
+  }
+  if (text === "") {
+    text = name;
+    squeeze = Math.min(1, room / Math.max(1e-9, measure(name, fs)));
+  }
+  return { text, size: fs, squeeze, cut: text !== name };
+}
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 /**
  * The HUD's layout for a square of `side` px: the names band (FL_ARENA_TOP: the names, an HP bar under each, the source
- * line, the lead bar), the arena (FL_ARENA_FRAC), the ability boxes under it – one row, ending a badge's height and inset
- * (and a hair) above the square's bottom, so the watermark badge of a portrait export (bottom corners, BADGE_INSET from the
- * edge) never covers a meter or a stat line – and the font sizes the tests hold to the readability minimums at 1080 px.
+ * line, the lead bar), the arena (FL_ARENA_FRAC), the ability boxes under it – ending a badge's height and inset (and a
+ * hair) above the square's bottom, so the watermark badge of a portrait export (bottom corners, BADGE_INSET from the edge)
+ * never covers a meter or a stat line – and the font sizes the tests hold to the readability minimums at 1080 px.
  * `ballRadius` is a size-1 fighter's radius in display px (the HP number inside it).
+ *
+ * --- fl-overhaul --- (fl-overhaul fix) The boxes take one row for two and three fighters and two rows for four and six
+ * (`flBoxCell()`: a 2v2's teams in columns, a 3v3's in rows, a free-for-all's corners) – slim boxes whose name runs the box's
+ * width beside the portrait, the meter under it and the stats stacked at the right edge (a 2v2's four in two lines of two,
+ * a compact pair in one column), so a long ability name keeps its readable size (`flFitBoxName()`).
  */
 export function flHudLayout(side: number, n: number, match: string, portrait: boolean, ballRadius: number): FlHudLayout {
   const S = Math.max(1, side);
@@ -484,30 +568,67 @@ export function flHudLayout(side: number, n: number, match: string, portrait: bo
   // the boxes end a badge's height and inset (and a hair) above the square's bottom
   const boxesBottom = S * (1 - BADGE_INSET - BADGE_HEIGHT) - 0.002 * S;
   const full = flFullBoxes(match, n);
-  const perRow = Math.max(1, n);
-  const gap = 0.014 * S;
-  const h = boxesBottom - boxesTop;
-  const w = (right - left - (perRow - 1) * gap) / perRow;
+  const rows = n >= 4 ? 2 : 1;
+  const perRow = Math.max(1, Math.ceil(n / rows));
+  const gap = (rows > 1 ? 0.01 : 0.014) * S;
+  const bandH = boxesBottom - boxesTop;
+  const nameMin = FL_BOX_NAME_MIN * S;
   const boxes: FlBoxLayout[] = [];
-  for (let i = 0; i < n; i++) {
-    const x = left + i * (w + gap);
-    const y = boxesTop;
+  if (rows > 1) {
+    // --- fl-overhaul --- (fl-overhaul fix) two rows of slim boxes: [portrait] [the name over the meter] [the stats]
+    const rowGap = 0.003 * S;
+    const h = (bandH - rowGap) / 2;
+    const w = (right - left - (perRow - 1) * gap) / perRow;
     const pad = 0.004 * S;
-    const nameFsBox = full ? clamp(0.32 * h, FL_BOX_NAME_MIN * S, 0.028 * S) : clamp(0.36 * h, FL_BOX_NAME_MIN * S, 0.03 * S);
-    const statFs = full ? clamp(0.235 * h, FL_BOX_STAT_MIN * S, 0.021 * S) : clamp(0.28 * h, FL_BOX_STAT_MIN * S, 0.022 * S);
+    const nameFsBox = clamp(0.62 * h, nameMin, 0.028 * S);
+    const statFs = Math.max(FL_BOX_STAT_MIN * S, Math.min(0.021 * S, 0.49 * h));
     const meterH = Math.max(3, 0.0065 * S);
-    const portraitSide = Math.min(h - 2 * pad, (full ? 0.062 : 0.046) * S, 0.3 * w);
-    const portraitRect: FlRect = { x: x + pad, y: y + (h - portraitSide) / 2, w: portraitSide, h: portraitSide };
-    const tx = portraitRect.x + portraitSide + pad;
-    const tw = Math.max(1, x + w - pad - tx);
-    let cy = y + 0.003 * S;
-    const name: FlRect = { x: tx, y: cy, w: tw, h: nameFsBox };
-    cy += nameFsBox + 0.0015 * S;
-    const meter: FlRect = { x: tx, y: cy, w: tw, h: meterH };
-    cy += meterH + 0.0015 * S;
-    const stats: FlRect[] = [{ x: tx, y: cy, w: tw, h: statFs }];
-    if (full) stats.push({ x: tx, y: cy + statFs + 0.0005 * S, w: tw, h: statFs });
-    boxes.push({ box: { x, y, w, h }, name, meter, stats, portrait: portraitRect, compact: !full, nameFs: nameFsBox, statFs });
+    const nameGap = 0.001 * S;
+    const portraitSide = Math.max(1, Math.min(h - 0.006 * S, 0.046 * S, 0.3 * w));
+    const statCells: 1 | 2 = full ? 2 : 1;
+    const statW = statCells * FL_STAT_CELL_EM * statFs;
+    for (let i = 0; i < n; i++) {
+      const { row, col } = flBoxCell(match, i, rows, perRow);
+      const x = left + col * (w + gap);
+      const y = boxesTop + row * (h + rowGap);
+      const portraitRect: FlRect = { x: x + pad, y: y + (h - portraitSide) / 2, w: portraitSide, h: portraitSide };
+      const tx = portraitRect.x + portraitSide + pad;
+      const sx = x + w - pad - statW;
+      const tw = Math.max(1, sx - pad - tx);
+      const top = y + Math.max(0, (h - (nameFsBox + nameGap + meterH)) / 2);
+      const name: FlRect = { x: tx, y: top, w: tw, h: nameFsBox };
+      const meter: FlRect = { x: tx, y: top + nameFsBox + nameGap, w: tw, h: meterH };
+      const sy = y + Math.max(0, (h - 2 * statFs) / 2);
+      const stats: FlRect[] = [
+        { x: sx, y: sy, w: statW, h: statFs },
+        { x: sx, y: sy + statFs, w: statW, h: statFs },
+      ];
+      boxes[i] = { box: { x, y, w, h }, name, meter, stats, portrait: portraitRect, compact: !full, nameFs: nameFsBox, statFs, statCells, nameMin, row, col };
+    }
+  } else {
+    // one row (two or three fighters): the full boxes (a duel: two stat lines) or the compact ones (one)
+    const h = bandH;
+    const w = (right - left - (perRow - 1) * gap) / perRow;
+    for (let i = 0; i < n; i++) {
+      const x = left + i * (w + gap);
+      const y = boxesTop;
+      const pad = 0.004 * S;
+      const nameFsBox = full ? clamp(0.32 * h, FL_BOX_NAME_MIN * S, 0.028 * S) : clamp(0.36 * h, FL_BOX_NAME_MIN * S, 0.03 * S);
+      const statFs = full ? clamp(0.235 * h, FL_BOX_STAT_MIN * S, 0.021 * S) : clamp(0.28 * h, FL_BOX_STAT_MIN * S, 0.022 * S);
+      const meterH = Math.max(3, 0.0065 * S);
+      const portraitSide = Math.min(h - 2 * pad, (full ? 0.062 : 0.046) * S, 0.3 * w);
+      const portraitRect: FlRect = { x: x + pad, y: y + (h - portraitSide) / 2, w: portraitSide, h: portraitSide };
+      const tx = portraitRect.x + portraitSide + pad;
+      const tw = Math.max(1, x + w - pad - tx);
+      let cy = y + 0.003 * S;
+      const name: FlRect = { x: tx, y: cy, w: tw, h: nameFsBox };
+      cy += nameFsBox + 0.0015 * S;
+      const meter: FlRect = { x: tx, y: cy, w: tw, h: meterH };
+      cy += meterH + 0.0015 * S;
+      const stats: FlRect[] = [{ x: tx, y: cy, w: tw, h: statFs }];
+      if (full) stats.push({ x: tx, y: cy + statFs + 0.0005 * S, w: tw, h: statFs });
+      boxes.push({ box: { x, y, w, h }, name, meter, stats, portrait: portraitRect, compact: !full, nameFs: nameFsBox, statFs, statCells: 2, nameMin, row: 0, col: i });
+    }
   }
   return {
     side: S,
@@ -539,6 +660,7 @@ export function flHudLayout(side: number, n: number, match: string, portrait: bo
     boxes,
     boxesTop,
     boxesBottom: boxes.length > 0 ? Math.max(...boxes.map((b) => b.box.y + b.box.h)) : boxesTop,
+    boxRows: n > 0 ? rows : 0,
   };
 }
 
