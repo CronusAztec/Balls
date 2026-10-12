@@ -1225,7 +1225,11 @@ Feature gerald-vortex: a Gerald-family mode without rings that owns its playfiel
     faint spokes and the sound rings as its mesh (flashing as a ring of marbles sinks past), the spout's dark elliptical hole, the
     pale 1.5 px rim (#9fb3e0); the marbles are drawn by the layer as glossy spheres, projected at draw time from their (r, θ)
     and depth-sorted far to near (`funnelDepthKey()`, `funnelDrawOrder()`), every one behind the front lip, which is stroked last
-    (`lipDepth()`). A stagger run can be seen in perspective too (its balls at their projections).
+    (`lipDepth()`). A stagger run can be seen in perspective too (its balls at their projections). From above, the ring release's
+    marbles are the layer's too (`FunnelLayer.drawTopBodies()`: the same glossy spheres at their top-view places, sized by the
+    depth cue): each wears its own hue, more colours than the page's ball sprites are cached for (`SPRITE_CACHE_CAP`, 64), so the
+    page's ball pass would re-create most sprites every frame (Galaxy's 360). The stagger release from above keeps the page's
+    balls (faces, emoji, trails, glow).
   - **Sound** (the loop library's `ToneGenerator.playLoop()`, on the simulation clock: live, the fast export and the batch render
     alike): every lap of a ring (its first marble crossing θ = 0) a glock chime on C major pentatonic from C5, degree
     floor(speedNorm · 8) of its lap rate between the first lap's and the hole's (`chimeDegree()`), so the chimes climb and crowd as
@@ -1252,13 +1256,14 @@ Feature gerald-vortex: a Gerald-family mode without rings that owns its playfiel
     `-time-ms`; the section `data-fs-release`, `-view`, `-marbles`, `-cycle` and `-descent`.
   - **Tests** – `tests/vortex.test.ts` (the funnel spin-up blocks): a ring of N stays evenly spaced to 1e-9 rad, the lap rate rises
     as r falls, L is kept to 1e-9 without friction, the depth order at the lip (and the renderer strokes the lip after the last
-    marble), the stagger / top fingerprint unchanged, the perspective placement (90° = the top view), the Ring of 24 loop (42
+    marble), the stagger / top fingerprint unchanged, the perspective placement (90° = the top view), the ring release drawn by the
+    layer from above too (Galaxy, Doubling: no sprite or gradient, each body on its ball, size and colour), the Ring of 24 loop (42
     marbles swallowed in the first cycle, the refill on the seam, the next cycle replaying the first), replays at 30 / 60 / 120 fps
     (pinned), the sounds (chimes, hiss, bed, kicks, wash, cut) and their playback on `tests/fakeAudio.ts`, the run without the
     loop, the finder, the HUD's readout, the caption, the settings, URL and presets. The smoke test (section 44, block
     `funnel-spin`) runs the Ring of 24 preset for 24 s at 2× (42 marbles swallowed, the refill on the loop point), checks the
-    controls, the URL round trip, the perspective's drawing, the HUD, the sounds, the bar-line search and a free visitor's
-    watermark, and fast-exports two whole loops.
+    controls, the URL round trip, the perspective's drawing, the HUD, the sounds, Galaxy's 30+ fps from above (no sprite made a
+    frame), the bar-line search and a free visitor's watermark, and fast-exports two whole loops.
 
 ### Viral video bot
 Feature viral-bot: the owner asked for "a bot that makes videos like project.jdm and the other accounts that go viral". The
@@ -2771,7 +2776,8 @@ links and presets, `src/lib/physics/modes/beatMachine.ts` the mode, `src/compone
   `bmDx` / `bmDy` 7.5 / 7.9 % [0–20], Return beats `bmRt` 4 [0–64]; marbles: Bars `bmB` 10 [2–48], Drop height `bmDh` 28 %
   [1–90], Rebound `bmRb` 0.3 [0–1.5], Marbles per tube `bmMt` auto (0) [0–50], Loop beats `bmL` 32 [1–1024], Phrase bass `bmBs`;
   and the HUD's Note counter `bmC`. Memory-safety ceilings: `bmSteps`, `bmBars`, `bmPerTube`, `bmLoopBeats`. A change re-plans
-  and restarts the run (the counter follows live), as does a new scale, root or loaded melody. Far past the sliders the machine
+  and restarts the run (the counter follows live), as does a new scale, root or loaded melody – while Beat Machines is the mode:
+  those three are every mode's, so elsewhere a change of them leaves a found seed and its "Found!" line alone. Far past the sliders the machine
   still plans and plays without stalling: a tube holds at most 200 marbles (`BM_TUBE_CEILING`; a longer trip reuses them), a
   hop's gravity stops at `BM_G_CEILING`, and a loop shorter than a step plays its last four loops' events a step and counts the
   rest (`BM_LOOPS_PER_STEP`; past 4,096 marbles the in-flight count reads the trips and the seams go unchecked).
@@ -2801,8 +2807,8 @@ links and presets, `src/lib/physics/modes/beatMachine.ts` the mode, `src/compone
   marble needed before it is back (or a spare), the staircase's beat-long flights and its (steps + return) · 60 / BPM loop,
   continuous trajectories at every join, the same plan for the same seed, the engine's notes × loops and seam state, 30 / 60 / 120
   fps replays, the sounds through a real ToneGenerator on `tests/fakeAudio.ts`, the finder, the links and presets and the renderer.
-  The smoke test (section 43, block `beat-machine`) runs every preset for two loops at 2×, checks a link, the two outcomes and a
-  whole-loop fast export.
+  The smoke test (section 43, block `beat-machine`) runs every preset for two loops at 2×, checks a link, the two outcomes, that a
+  scale change drops the found tune, a whole-loop fast export and that a found Classic seed survives a scale and root change.
 
 ### Ring Escape (Classic, the loop family)
 --- ring-escape --- The loop family's oldest reel, a ball working its way out through a spiral of rainbow rings ("it takes three
