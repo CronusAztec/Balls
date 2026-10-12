@@ -64,10 +64,10 @@ traffic a month) are far above what you need.
 
 **How it is switched on:** repository **Settings → Pages → Build and deployment → Source: GitHub Actions**. It already is.
 
-**What happens on every push:** every time code is pushed to the default branch, GitHub runs the checks (lint, types, unit
-tests, the build – about 6 minutes), then the browser test on four machines at once (about 12–15 minutes), and only when
-everything is green it publishes the new site. **From push to live: about 25 minutes.** Other branches are checked but
-never published.
+**What happens on every push:** every time code is pushed to the product branch (`claude/optimistic-johnson-46x3qg`, or
+`main` once you rename it), GitHub runs the checks (lint, types, unit tests, the build – about 6 minutes), then the browser
+test on four machines at once (about 12–15 minutes), and only when everything is green it publishes the new site. **From
+push to live: about 25 minutes.** Other branches are checked but never published.
 
 **Your own address (optional).** Buy a name at a registrar (Cloudflare Registrar, Namecheap, Porkbun…), for example
 `jumpingballs.live`. Then:
@@ -82,22 +82,23 @@ never published.
 3. In GitHub: **Settings → Pages → Custom domain** → type `www.yourdomain.com` → **Save**. GitHub checks the DNS and
    issues a certificate. This takes minutes to an hour (new DNS records can take up to 24–48 hours to spread).
 4. When the box turns green, tick **Enforce HTTPS**.
-5. Push anything (or **Actions → "Build and deploy to GitHub Pages" → Run workflow**). The workflow reads the Pages
-   settings and builds the site for the new address by itself. Old `cronusaztec.github.io/Balls/…` links redirect.
+5. **Settings → Secrets and variables → Actions → Variables** → add `CUSTOM_DOMAIN` = your domain without `https://`
+   (for example `jumpingballs.live`). Then push anything (or **Actions → "Build and deploy to GitHub Pages" → Run
+   workflow**): the site is built for the new address. Without the variable the workflow falls back to the Pages
+   settings. Old `cronusaztec.github.io/Balls/…` links redirect.
 6. Also protect the name: your GitHub profile → **Settings → Pages → Verified domains** → add it.
 
 ---
 
 ## 3. One push updates everything
 
-| What | How it updates today | Where to watch |
+| What | How it updates | Where to watch |
 | --- | --- | --- |
-| Website | every push to the default branch (about 25 minutes) | Actions → "Build and deploy to GitHub Pages" |
-| Payment Worker | by hand: **Actions → "Deploy billing worker" → Run workflow** (needs the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, section 9), or `npm run go-live` | Actions → "Deploy billing worker" |
-| Windows app | push a tag such as `desktop-v1.0.4`, or **Actions → "Windows app" → Run workflow** with a version and "publish" ticked (section 11) | Actions → "Windows app"; GitHub → Releases |
+| Website | every push to the product branch (about 25 minutes) | Actions → "Build and deploy to GitHub Pages" |
+| Payment Worker | the first time by hand: **Actions → "Deploy billing worker" → Run workflow** (needs the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, section 9), or `npm run go-live`. After that, once the repository variable `BILLING_AUTODEPLOY` is `1`, every push that changes `billing/` | Actions → "Deploy billing worker" |
+| Windows app | a push that raises the version in `desktop/package.json` (`npm run release:desktop -- 1.0.4`, section 11) | Actions → "Windows app"; GitHub → Releases |
 
-The release kit (a separate change) makes the Worker and the Windows app update by themselves on a push as well; when it
-lands, `docs/RELEASING.md` describes it.
+[`docs/RELEASING.md`](RELEASING.md) describes each of these step by step, and how to undo a bad release.
 
 If a run in the Actions tab is red, nothing was published: the live site, the Worker and the app are untouched. Open the
 run, read the red step, fix, push again.
@@ -394,18 +395,13 @@ developer can first move the app's releases to a separate public repository; do 
 
 ## 11. Windows app releases
 
-The app's version lives in two places that must match: `desktop/package.json` (`"version"`) and
-`src/lib/desktop/release.ts` (`DESKTOP_VERSION`). To release, for example, 1.0.4:
+The app's version lives in places that must match: `desktop/package.json` (`"version"`), `desktop/package-lock.json`
+and `src/lib/desktop/release.ts` (`DESKTOP_VERSION`). To release, for example, 1.0.4:
 
-1. Change both to `1.0.4`, commit and push.
-2. Push a tag:
-
-   ```bash
-   git tag desktop-v1.0.4
-   git push origin desktop-v1.0.4
-   ```
-
-   Or **Actions → "Windows app" → Run workflow** with version `1.0.4` and **publish** ticked.
+1. Run `npm run release:desktop -- 1.0.4`. It writes the version into all three files and prints three git lines.
+2. Run those lines (add, commit, push). The push that raises the version builds and publishes the release by itself.
+   A tag such as `desktop-v1.0.4`, or **Actions → "Windows app" → Run workflow** with version `1.0.4` and **publish**
+   ticked, still works too. [`docs/RELEASING.md`](RELEASING.md) has the details.
 3. About 10 minutes later **GitHub → Releases** shows "1.0.4" with the installer, the portable EXE and the update file.
    The website's download buttons point at the newest release by themselves; installed apps find the update on their own.
 
