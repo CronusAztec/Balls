@@ -13,6 +13,7 @@ import {
   makeHarness,
   makeRequest,
   NOW,
+  seedCrypto,
   seedStripe,
   SITE_ORIGIN,
   SlowKV,
@@ -298,5 +299,75 @@ describe("stripe webhook idempotency on failure", () => {
     expect(second.status).toBe(200);
     expect((await repo.entitlementFor("buyer@example.com"))!.periodEnd).toBe(periodEnd);
     expect(versions).toEqual([STRIPE_API_VERSION, STRIPE_API_VERSION]); // every Stripe call pins the API version
+  });
+});
+
+// --- go-live-kit --- money taken back ends the subscription's access
+describe("stripe refunds and disputes", () => {
+  const restore = (env: Env, email: string, ref: string) => handleRequest(jsonRequest("/license/restore", { email, ref }), env, { now: NOW });
+  /** Stripe's API as the handler asks it: the invoice in_1 of sub_1 (one of our prices) and the charge ch_1 of that invoice. */
+  const stripeApi = () =>
+    stubFetch((url) => {
+      if (url.includes("/v1/invoices/in_1")) return jsonResponse({ id: "in_1", subscription: "sub_1", lines: { data: [{ price: { id: "price_monthly" } }] } });
+      if (url.includes("/v1/charges/ch_1")) return jsonResponse({ id: "ch_1", invoice: "in_1", refunded: false });
+      throw new Error(`unexpected ${url}`);
+    });
+
+  it("ends the subscription's access on a full refund (charge.refunded) – restore then refuses, a partial refund changes nothing", async () => {
+    const { env, repo } = makeHarness(allProvidersEnv());
+    stripeApi();
+    await seedStripe(repo, { periodEnd: NOW + 20 * DAY });
+    await seedCrypto(repo, { email: "other@example.com", order: "o-x", payment: "px" }); // another buyer's prepaid period
+    // a partial refund: the subscription keeps its access
+    expect((await postWebhook(env, { id: "evt_pr", type: "charge.refunded", created: NOW, data: { object: { id: "ch_1", invoice: "in_1", refunded: false, amount_refunded: 300 } } })).status).toBe(200);
+    expect((await restore(env, "buyer@example.com", "cs_1")).status).toBe(200);
+    // the full refund
+    expect((await postWebhook(env, { id: "evt_fr", type: "charge.refunded", created: NOW, data: { object: { id: "ch_1", invoice: "in_1", refunded: true, amount_refunded: 1000 } } })).status).toBe(200);
+    const res = await restore(env, "buyer@example.com", "cs_1");
+    expect(res.status).toBe(402);
+    expect((await jsonOf(res)).error).toBe("not_active");
+    expect((await repo.entitlementFor("buyer@example.com"))!.status).toBe("canceled");
+    expect(await repo.entitlementFor("other@example.com")).toMatchObject({ provider: "crypto", periodEnd: NOW + 30 * DAY });
+  });
+
+  it("ends access on charge.dispute.created, and leaves a crypto period of the same e-mail alone", async () => {
+    const { env, repo } = makeHarness(allProvidersEnv());
+    stripeApi();
+    await seedStripe(repo, { periodEnd: NOW + 20 * DAY });
+    await seedCrypto(repo, { order: "o-c", payment: "pc", plan: "monthly", at: NOW });
+    expect((await postWebhook(env, { id: "evt_dp", type: "charge.dispute.created", created: NOW, data: { object: { id: "dp_1", charge: "ch_1", amount: 1000 } } })).status).toBe(200);
+    const ent = await repo.entitlementFor("buyer@example.com");
+    expect(ent!.sources.find((s) => s.provider === "stripe")!.periodEnd).toBe(0);
+    // the crypto period of the same e-mail is untouched
+    expect(ent).toMatchObject({ provider: "crypto", periodEnd: NOW + 30 * DAY });
+    expect((await restore(env, "buyer@example.com", "cs_1")).status).toBe(200); // its 30 prepaid days still count
+    // the card subscription alone: restore refuses it
+    const { env: env2, repo: repo2 } = makeHarness(allProvidersEnv());
+    await seedStripe(repo2, { periodEnd: NOW + 20 * DAY });
+    await postWebhook(env2, { id: "evt_dp2", type: "charge.dispute.created", created: NOW, data: { object: { id: "dp_2", charge: { id: "ch_1", invoice: "in_1" } } } });
+    expect((await restore(env2, "buyer@example.com", "cs_1")).status).toBe(402);
+  });
+
+  it("ignores a refund of another product's invoice and of a charge without an invoice", async () => {
+    const { env, repo } = makeHarness(allProvidersEnv());
+    stubFetch((url) => {
+      if (url.includes("/v1/invoices/in_other")) return jsonResponse({ id: "in_other", subscription: "sub_other", lines: { data: [{ price: { id: "price_SOMETHING_ELSE" } }] } });
+      throw new Error(`unexpected ${url}`);
+    });
+    await seedStripe(repo, { periodEnd: NOW + 20 * DAY });
+    await postWebhook(env, { id: "evt_o1", type: "charge.refunded", data: { object: { id: "ch_9", invoice: "in_other", refunded: true } } });
+    await postWebhook(env, { id: "evt_o2", type: "charge.refunded", data: { object: { id: "ch_8", refunded: true } } });
+    expect(await repo.getSubscriptionFacts("stripe", "sub_other")).toMatchObject({ ended: null });
+    expect((await restore(env, "buyer@example.com", "cs_1")).status).toBe(200);
+  });
+
+  it("keeps the refund's end when the subscription is deleted afterwards", async () => {
+    const { env, repo } = makeHarness(allProvidersEnv());
+    stripeApi();
+    await seedStripe(repo, { periodEnd: NOW + 20 * DAY });
+    await postWebhook(env, { id: "evt_r", type: "charge.refunded", created: NOW - 10, data: { object: { id: "ch_1", invoice: "in_1", refunded: true } } });
+    await postWebhook(env, { id: "evt_d", type: "customer.subscription.deleted", data: { object: { id: "sub_1", status: "canceled", ended_at: NOW } } });
+    expect((await repo.getSubscriptionFacts("stripe", "sub_1")).ended).toEqual({ at: NOW - 10, revoked: true });
+    expect((await restore(env, "buyer@example.com", "cs_1")).status).toBe(402);
   });
 });

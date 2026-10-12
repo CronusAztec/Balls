@@ -130,6 +130,24 @@ async function processStripeEvent(ctx: Ctx, event: Record<string, unknown>): Pro
       }
       return received(ctx);
     }
+    // --- go-live-kit --- Money taken back ends the subscription's access (no renewal, no restore): a FULL refund of one of
+    // its charges, or a dispute (whatever was refunded). Licences already issued run to their exp. The Worker never cancels
+    // anything at Stripe – the owner does that in the dashboard (docs/GO-LIVE.md).
+    case "charge.refunded": {
+      if (obj.refunded !== true) return received(ctx); // a partial refund changes nothing
+      return endStripeAccessForCharge(ctx, obj, eventTime);
+    }
+    case "charge.dispute.created": {
+      const chargeId = idOf(obj.charge);
+      if (!chargeId) return received(ctx);
+      let charge: Record<string, unknown> | null = obj.charge && typeof obj.charge === "object" ? asRecord(obj.charge) : null;
+      if (!charge) {
+        if (!ctx.env.STRIPE_SECRET_KEY) return received(ctx);
+        charge = await stripe.getCharge(ctx.env.STRIPE_SECRET_KEY, chargeId);
+        if (!charge) return received(ctx);
+      }
+      return endStripeAccessForCharge(ctx, charge, eventTime);
+    }
     case "customer.subscription.deleted": {
       // Ends this subscription's access now – only this subscription's: other periods of the e-mail stay.
       const subscriptionId = asString(obj.id);
@@ -142,6 +160,33 @@ async function processStripeEvent(ctx: Ctx, event: Record<string, unknown>): Pro
     default:
       return received(ctx);
   }
+}
+
+/** An id field that is either the id itself or the expanded object. */
+function idOf(value: unknown): string | undefined {
+  return asString(value) ?? asString(asRecord(value).id);
+}
+
+/**
+ * --- go-live-kit --- End the access of the subscription a charge paid for (its invoice names it): only one of ours – a
+ * known subscription, or an invoice of one of our prices. Anything that cannot be placed is acknowledged and ignored.
+ */
+async function endStripeAccessForCharge(ctx: Ctx, charge: Record<string, unknown>, eventTime: number): Promise<Response> {
+  const invoiceId = idOf(charge.invoice);
+  if (!invoiceId) return received(ctx);
+  let invoice: Record<string, unknown> | null = charge.invoice && typeof charge.invoice === "object" ? asRecord(charge.invoice) : null;
+  if (!invoice) {
+    if (!ctx.env.STRIPE_SECRET_KEY) return received(ctx);
+    invoice = await stripe.getInvoice(ctx.env.STRIPE_SECRET_KEY, invoiceId);
+    if (!invoice) return received(ctx);
+  }
+  const subscriptionId = stripe.invoiceSubscriptionId(invoice);
+  if (!subscriptionId) return received(ctx);
+  const ours = !!(await ctx.repo.getLink("stripe", subscriptionId)) || !!invoicePlan(invoice, ctx);
+  if (!ours) return received(ctx);
+  await ctx.repo.recordEnded("stripe", subscriptionId, eventTime, true);
+  await ctx.repo.recordState("stripe", subscriptionId, { status: "canceled", at: eventTime });
+  return received(ctx);
 }
 
 // --- PayPal -----------------------------------------------------------------------------------
@@ -221,6 +266,31 @@ async function processPaypalEvent(
       }
       return received(ctx);
     }
+    // --- go-live-kit --- A refunded or reversed (charged back) sale ends its subscription's access, like a Stripe refund.
+    case "PAYMENT.SALE.REFUNDED":
+    case "PAYMENT.SALE.REVERSED": {
+      let subscriptionId = asString(resource.billing_agreement_id);
+      const saleId = asString(resource.sale_id) ?? asString(resource.id);
+      let sale: Record<string, unknown> | null = null;
+      if (!subscriptionId && saleId) {
+        sale = await paypal.getSale(apiBase, token, saleId);
+        subscriptionId = asString(sale?.billing_agreement_id);
+      }
+      if (!subscriptionId) return received(ctx);
+      if (!(await ctx.repo.getLink("paypal", subscriptionId))) return received(ctx);
+      if (event.event_type === "PAYMENT.SALE.REFUNDED") {
+        // Only a full refund counts: a refund smaller than its sale changes nothing (amounts that cannot be compared count
+        // as full).
+        const refundSaleId = asString(resource.sale_id);
+        if (!sale && refundSaleId) sale = await paypal.getSale(apiBase, token, refundSaleId);
+        const refunded = paypalAmount(resource.amount);
+        const total = sale ? paypalAmount(sale.amount) : null;
+        if (refunded !== null && total !== null && refunded + 0.005 < total) return received(ctx);
+      }
+      await ctx.repo.recordEnded("paypal", subscriptionId, eventTime, true);
+      await ctx.repo.recordState("paypal", subscriptionId, { status: "canceled", at: eventTime });
+      return received(ctx);
+    }
     case "BILLING.SUBSCRIPTION.CANCELLED":
     case "BILLING.SUBSCRIPTION.SUSPENDED":
     case "BILLING.SUBSCRIPTION.EXPIRED": {
@@ -240,6 +310,14 @@ async function processPaypalEvent(
     default:
       return received(ctx);
   }
+}
+
+/** A PayPal amount ({ total: "10.00" } on sales and refunds, { value } elsewhere) as a number, null when unreadable. */
+function paypalAmount(amount: unknown): number | null {
+  const a = asRecord(amount);
+  const raw = a.total ?? a.value;
+  const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+  return Number.isFinite(n) ? n : null;
 }
 
 // --- NOWPayments (crypto) ---------------------------------------------------------------------

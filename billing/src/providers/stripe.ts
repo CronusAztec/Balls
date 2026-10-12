@@ -2,6 +2,7 @@
 
 import { hmacSha256Hex, timingSafeEqual } from "../crypto";
 import { ApiError } from "../http";
+import { BILLING_CONFIG } from "../config";
 
 const STRIPE_API = "https://api.stripe.com";
 
@@ -12,7 +13,10 @@ const STRIPE_API = "https://api.stripe.com";
  * too (billing/README.md, step 4); the webhook handlers also read the newer event shapes (the
  * subscription under an invoice's parent, the period on the subscription items).
  */
-export const STRIPE_API_VERSION = "2025-02-24.acacia";
+export const STRIPE_API_VERSION = BILLING_CONFIG.stripe.apiVersion; // --- go-live-kit --- billing/billing-config.json
+
+/** --- go-live-kit --- The events the Stripe webhook endpoint must send – exactly these (billing/billing-config.json). */
+export const STRIPE_WEBHOOK_EVENTS: readonly string[] = BILLING_CONFIG.stripe.webhookEvents;
 
 function authHeader(secretKey: string): string {
   return "Basic " + btoa(`${secretKey}:`);
@@ -107,6 +111,24 @@ export async function getSubscription(
     `${STRIPE_API}/v1/subscriptions/${encodeURIComponent(subscriptionId)}`,
     { headers: stripeHeaders(secretKey) },
   );
+  if (res.status === 404 || res.status === 400) return null;
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new ApiError("stripe_error", "Could not reach the payment provider.", 502);
+  return data;
+}
+
+/** --- go-live-kit --- Fetch an invoice by id (a refunded charge's invoice names its subscription). Returns null on a 4xx. */
+export async function getInvoice(secretKey: string, invoiceId: string): Promise<Record<string, unknown> | null> {
+  const res = await fetch(`${STRIPE_API}/v1/invoices/${encodeURIComponent(invoiceId)}`, { headers: stripeHeaders(secretKey) });
+  if (res.status === 404 || res.status === 400) return null;
+  const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+  if (!res.ok) throw new ApiError("stripe_error", "Could not reach the payment provider.", 502);
+  return data;
+}
+
+/** --- go-live-kit --- Fetch a charge by id (a dispute names its charge). Returns null on a 4xx. */
+export async function getCharge(secretKey: string, chargeId: string): Promise<Record<string, unknown> | null> {
+  const res = await fetch(`${STRIPE_API}/v1/charges/${encodeURIComponent(chargeId)}`, { headers: stripeHeaders(secretKey) });
   if (res.status === 404 || res.status === 400) return null;
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) throw new ApiError("stripe_error", "Could not reach the payment provider.", 502);

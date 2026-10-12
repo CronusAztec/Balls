@@ -1,0 +1,31 @@
+{
+  "plans": {
+    "monthly": { "usd": 10, "days": 30, "interval": "month" },
+    "yearly": { "usd": 79, "days": 365, "interval": "year" }
+  },
+  "stripe": {
+    "apiVersion": "2025-02-24.acacia",
+    "webhookPath": "/webhooks/stripe",
+    "webhookEvents": [
+      "checkout.session.completed",
+      "invoice.paid",
+      "customer.subscription.updated",
+      "customer.subscription.deleted",
+      "charge.refunded",
+      "charge.dispute.created"
+    ]
+  },
+  "paypal": {
+    "webhookPath": "/webhooks/paypal",
+    "webhookEvents": [
+      "BILLING.SUBSCRIPTION.ACTIVATED",
+      "PAYMENT.SALE.COMPLETED",
+      "BILLING.SUBSCRIPTION.CANCELLED",
+      "BILLING.SUBSCRIPTION.SUSPENDED",
+      "BILLING.SUBSCRIPTION.EXPIRED",
+      "PAYMENT.SALE.REFUNDED",
+      "PAYMENT.SALE.REVERSED"
+    ]
+  },
+  "nowpayments": { "ipnPath": "/webhooks/nowpayments" }
+}

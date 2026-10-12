@@ -1,18 +1,14 @@
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import Accordion from "./Accordion";
-import { MODE_CARD_ORDER } from "@/lib/modes";
 
 /*
- * The guide under the studio: how the physics works, what each mode does, pro tips and troubleshooting. --- site-redesign
- * --- one block per topic on the site container: the eyebrow and the heading in a narrow left column (sticky from
- * 1024 px), the content on the right – the physics as a reading column, the modes as a ruled two-column list, the tips
- * numbered like How it works, the troubleshooting as accordion rows.
+ * The guide under the studio: four tips and the troubleshooting rows. --- copy-pass --- the physics block and the mode list
+ * were removed (the mode picker and the landing cards carry each mode's one-liner, Modes.<id>.description).
  */
 export default function EditorialSections() {
   const t = useTranslations("Editorial");
-  const modes = useTranslations("Modes");
-  const tips = ["FindSimulation", "LayerEffects", "TextHooks", "ClipLength", "Presets", "Speed"];
+  const tips = ["FindSimulation", "TextHooks", "ClipLength", "Speed"];
   const troubles = ["Export", "Audio", "Speed", "Settings", "Midi"];
   const block = "grid gap-6 border-t border-line py-14 sm:py-16 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-12";
   const head = (id: string, badge: string, title: string) => (
@@ -25,25 +21,6 @@ export default function EditorialSections() {
   );
   return (
     <div className="site-container" data-testid="studio-guide">
-      <section className={block} aria-labelledby="guide-physics">
-        {head("guide-physics", t("physicsBadge"), t("physicsTitle"))}
-        <div className="prose-column space-y-4 text-base leading-relaxed text-ink-2">
-          <p>{t("physicsP1")}</p>
-          <p>{t("physicsP2")}</p>
-          <p>{t("physicsP3")}</p>
-        </div>
-      </section>
-      <section className={block} aria-labelledby="guide-modes">
-        {head("guide-modes", t("modesBadge"), t("modesTitle"))}
-        <dl className="grid grid-cols-1 gap-x-10 md:grid-cols-2">
-          {MODE_CARD_ORDER.map((id) => (
-            <div key={id} className="border-t border-line py-4">
-              <dt className="text-md font-medium text-ink">{modes(`${id}.name`)}</dt>
-              <dd className="mt-1 text-md text-ink-2">{t(`mode${id.charAt(0).toUpperCase()}${id.slice(1)}`)}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
       <section className={block} aria-labelledby="guide-tips">
         {head("guide-tips", t("tipsBadge"), t("tipsTitle"))}
         <ol className="grid grid-cols-1 gap-x-10 md:grid-cols-2">

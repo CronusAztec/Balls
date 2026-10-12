@@ -103,7 +103,7 @@ describe("mode count", () => {
 
   it("the web app manifest's description carries the count, not the placeholder", () => {
     const m = manifest();
-    expect(m.description).toContain(`${COUNT} unique modes`);
+    expect(m.description).toContain(`${COUNT} modes`);
     expect(m.description).not.toContain("{");
   });
 });
