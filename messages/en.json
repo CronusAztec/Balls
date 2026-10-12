@@ -5300,7 +5300,7 @@
     "hudOut": "out in {time} s"
   },
   "PerfectFit": {
-    "desc": "Pieces dropped straight down into a box that a solver guarantees ends exactly full: the 12 pentominoes into three rectangles, or Tetris pieces into four-line perfect clears and a twelve-line finale. Every piece placed plays the next note up.",
+    "desc": "Pieces drop straight down into a box until it is exactly full. Every piece placed plays the next note up. Pick the 12 pentominoes or Tetris perfect clears.",
     "pfPreset": "Preset",
     "pfPresetTip": "Three rectangles: the 12 pentominoes into 10 × 6, 12 × 5 and 15 × 4. Every piece fits: Tetris, four four-line clears and a twelve-line finale (70 pieces). Speed run: the rectangles at 0.15 s a piece. Big well: Tetris in a 20 × 40 well.",
     "presetThreeRects": "Three rectangles",
@@ -5308,7 +5308,7 @@
     "presetSpeedRun": "Speed run",
     "presetBigWell": "Big well",
     "pfVariant": "Puzzle",
-    "pfVariantTip": "Pentomino rectangles (the 12 shapes of five squares, each used once) or Tetris perfect clears (tetrominoes filling whole lines of a well).",
+    "pfVariantTip": "Pentominoes: the 12 shapes of five squares, each used once, fill three rectangles. Tetris: tetrominoes fill whole lines of a well and clear them.",
     "variantPento": "Pentominoes",
     "variantTetris": "Tetris",
     "pfPieceSec": "Seconds per piece",
@@ -5319,7 +5319,7 @@
     "pfBeatTip": "Every landing on the beat of the Sound section's tempo: a piece takes the power of two of beats nearest Seconds per piece, each completion whole beats, the loop whole bars.",
     "beatNote": "Landings on the beat of {bpm} BPM (the Sound section's tempo).",
     "pfSeed": "Solution seed",
-    "pfSeedTip": "Which tiling and drop order the solver picks. Auto takes a new one from every run's seed; a number keeps that solution. Find Simulation can set it.",
+    "pfSeedTip": "Which way of filling the boxes you see. Auto picks a new one every run. A number keeps that solution, and Find Simulation can set it.",
     "seedAuto": "auto",
     "pfBoxes": "Boxes",
     "pfBoxesTip": "The rectangles in order, width × height in cells, such as 10×6, 12×5, 15×4. The 12 pentominoes cover exactly 60 squares, so a box of another size stays empty.",

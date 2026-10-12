@@ -5300,7 +5300,7 @@
     "hudOut": "na zewnątrz po {time} s"
   },
   "PerfectFit": {
-    "desc": "Klocki spadają prosto w dół do pudełka, które według solvera na końcu jest wypełnione co do kratki: 12 pentomin w trzy prostokąty albo klocki Tetrisa w czyste zbicia po cztery linie i finał z dwunastoma liniami. Każdy położony klocek gra kolejną, wyższą nutę.",
+    "desc": "Klocki spadają prosto w dół, aż pudełko jest pełne co do kratki. Każdy położony klocek gra kolejną, wyższą nutę. Wybierz 12 pentomin albo czyste zbicia w Tetrisie.",
     "pfPreset": "Ustawienie",
     "pfPresetTip": "Trzy prostokąty: 12 pentomin w 10 × 6, 12 × 5 i 15 × 4. Każdy klocek pasuje: Tetris, cztery czyste zbicia po cztery linie i finał z dwunastoma (70 klocków). Speedrun: prostokąty po 0,15 s na klocek. Duża studnia: Tetris w studni 20 × 40.",
     "presetThreeRects": "Trzy prostokąty",
@@ -5308,7 +5308,7 @@
     "presetSpeedRun": "Speedrun",
     "presetBigWell": "Duża studnia",
     "pfVariant": "Łamigłówka",
-    "pfVariantTip": "Prostokąty z pentomin (12 kształtów z pięciu kwadratów, każdy użyty raz) albo czyste zbicia w Tetrisie (tetromina wypełniające całe linie studni).",
+    "pfVariantTip": "Pentomina: 12 kształtów z pięciu kwadratów, każdy użyty raz, wypełnia trzy prostokąty. Tetris: tetromina wypełniają całe linie studni i je zbijają.",
     "variantPento": "Pentomina",
     "variantTetris": "Tetris",
     "pfPieceSec": "Sekundy na klocek",
@@ -5319,7 +5319,7 @@
     "pfBeatTip": "Każde lądowanie w rytm tempa z sekcji Dźwięk: klocek trwa potęgę dwójki uderzeń najbliższą Sekundom na klocek, każde ukończenie pełne uderzenia, a pętla pełne takty.",
     "beatNote": "Lądowania w rytm {bpm} BPM (tempo z sekcji Dźwięk).",
     "pfSeed": "Ziarno rozwiązania",
-    "pfSeedTip": "Które ułożenie i którą kolejność zrzucania wybiera solver. Auto bierze nowe z ziarna każdego przebiegu; liczba zachowuje to rozwiązanie. Może je ustawić Znajdź symulację.",
+    "pfSeedTip": "Które ułożenie klocków zobaczysz. Auto wybiera nowe przy każdym przebiegu. Liczba zachowuje to rozwiązanie, a Znajdź symulację może ją ustawić.",
     "seedAuto": "auto",
     "pfBoxes": "Pudełka",
     "pfBoxesTip": "Prostokąty po kolei, szerokość × wysokość w kratkach, np. 10×6, 12×5, 15×4. 12 pentomin pokrywa dokładnie 60 kratek, więc pudełko innej wielkości zostaje puste.",

@@ -5300,7 +5300,7 @@
     "hudOut": "fuera en {time} s"
   },
   "PerfectFit": {
-    "desc": "Piezas que caen en línea recta en una caja que un solucionador garantiza que acaba llena del todo: los 12 pentominós en tres rectángulos, o piezas de Tetris en limpiezas perfectas de cuatro líneas y un final de doce. Cada pieza colocada toca la nota siguiente hacia arriba.",
+    "desc": "Las piezas caen en línea recta hasta llenar la caja del todo. Cada pieza colocada toca la nota siguiente hacia arriba. Elige los 12 pentominós o las limpiezas perfectas de Tetris.",
     "pfPreset": "Preajuste",
     "pfPresetTip": "Tres rectángulos: los 12 pentominós en 10 × 6, 12 × 5 y 15 × 4. Cada pieza encaja: Tetris, cuatro limpiezas de cuatro líneas y un final de doce (70 piezas). Speedrun: los rectángulos a 0,15 s por pieza. Pozo grande: Tetris en un pozo de 20 × 40.",
     "presetThreeRects": "Tres rectángulos",
@@ -5308,7 +5308,7 @@
     "presetSpeedRun": "Speedrun",
     "presetBigWell": "Pozo grande",
     "pfVariant": "Rompecabezas",
-    "pfVariantTip": "Rectángulos de pentominós (las 12 formas de cinco cuadrados, cada una una vez) o limpiezas perfectas de Tetris (tetrominós que llenan líneas enteras de un pozo).",
+    "pfVariantTip": "Pentominós: las 12 formas de cinco cuadrados, cada una una vez, llenan tres rectángulos. Tetris: los tetrominós llenan líneas enteras de un pozo y las limpian.",
     "variantPento": "Pentominós",
     "variantTetris": "Tetris",
     "pfPieceSec": "Segundos por pieza",
@@ -5319,7 +5319,7 @@
     "pfBeatTip": "Cada aterrizaje en el pulso del tempo de la sección Sonido: una pieza dura la potencia de dos de pulsos más cercana a Segundos por pieza, cada final pulsos completos y el bucle compases completos.",
     "beatNote": "Aterrizajes en el pulso de {bpm} BPM (el tempo de la sección Sonido).",
     "pfSeed": "Semilla de solución",
-    "pfSeedTip": "Qué teselado y qué orden de caída elige el solucionador. Auto toma uno nuevo de la semilla de cada ejecución; un número mantiene esa solución. Buscar simulación puede fijarla.",
+    "pfSeedTip": "Qué forma de llenar las cajas verás. Auto elige una nueva en cada ejecución. Un número mantiene esa solución, y Buscar simulación puede fijarla.",
     "seedAuto": "auto",
     "pfBoxes": "Cajas",
     "pfBoxesTip": "Los rectángulos en orden, ancho × alto en casillas, como 10×6, 12×5, 15×4. Los 12 pentominós cubren exactamente 60 casillas, así que una caja de otro tamaño queda vacía.",

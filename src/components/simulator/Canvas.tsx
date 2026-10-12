@@ -3269,10 +3269,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (canvas.dataset.efBalls !== undefined) for (const key of ELLIPSE_FOCI_DATA_KEYS) delete canvas.dataset[key];
       // --- beat-machine --- Beat Machines: notes, sounds, seams and the seam check, marbles in flight, spares (data-bm-*)
       if (machineView) writeBeatMachineDataset(machineView, machineLayer, setCanvasData);
+      else if (canvas.dataset.bmVariant !== undefined) for (const key of BEAT_MACHINE_DATA_KEYS) delete canvas.dataset[key];
       // --- perfect-fit --- Perfect Fit: rectangles, lines, seams and the empty box at each, pieces, sounds, the beat (data-pf-*)
       if (pfView) writePerfectFitDataset(pfView, pfLayer, setCanvasData);
       else if (canvas.dataset.pfVariant !== undefined) for (const key of PERFECT_FIT_DATA_KEYS) delete canvas.dataset[key];
-      else if (canvas.dataset.bmVariant !== undefined) for (const key of BEAT_MACHINE_DATA_KEYS) delete canvas.dataset[key];
       // --- jdm-polyrhythm --- voice, tick, alignment and cycle counts (data-poly-*) for tools and the smoke test.
       if (isPoly) {
         const view = engine.getPolyrhythmView();
