@@ -2316,7 +2316,29 @@
     "flTierStory": "PNG 9:16",
     "flTierTitle": "{group} tier list (Fight League sim)",
     "flTierSubtitle": "Ranked by simulated round-robin wins",
-    "flTierDisclaimer": "Names are plain text labels of an unaffiliated fan simulation – no logos, artwork or audio."
+    "flTierDisclaimer": "Names are plain text labels of an unaffiliated fan simulation – no logos, artwork or audio.",
+    "reDesc": "Ring Escape, after the loop family's oldest reel: lay the gaps out in a spiral, turn the rings together, paint them in a rainbow, time every ring and hear a rising note for each ring the ball gets through.",
+    "reSpiralPreset": "Ring Escape",
+    "reSpiralPresetTip": "The reel's look: a pure black page, eleven thin rainbow rings whose gaps step round in a spiral and turn together, a white ball with a short trail and the ring sounds. No title and no counter.",
+    "reSpiralPresetButton": "Rainbow spiral, 11 rings",
+    "gapLayout": "Gap Layout",
+    "gapLayoutTip": "Where each ring's gap starts. Even: spread evenly round the rings (the classic look). Random: anywhere, drawn from the run's seed. Aligned: every gap in one straight line. Spiral: each gap a fixed step round from the one inside it.",
+    "gapLayoutEven": "Even",
+    "gapLayoutRandom": "Random",
+    "gapLayoutAligned": "Aligned",
+    "gapLayoutSpiral": "Spiral",
+    "gapSpiralStep": "Spiral Step",
+    "gapSpiralStepTip": "Degrees between the gaps of neighbouring rings in the spiral layout. 0 lines them all up; the field takes any value from 0.",
+    "ringSpin": "Ring Spin",
+    "ringSpinTip": "Alternate: neighbouring rings turn opposite ways (the classic rings). Together: every ring turns the same way at the same speed, so a spiral stays a spiral while it turns.",
+    "ringSpinAlternate": "Alternate",
+    "ringSpinTogether": "Together",
+    "ringRainbow": "Rainbow by Ring",
+    "ringRainbowTip": "Colours each ring by its place: red outside, through orange, yellow and green, to cyan inside.",
+    "ringTimer": "Time in Ring",
+    "ringTimerTip": "Shows \"ring k: t s\" under the rings: how long the ball has been in the ring it is in, and \"out in t s\" once it is out. Recordings carry it.",
+    "ringSound": "Ring Sounds",
+    "ringSoundTip": "Original synthesized sounds: a soft pentatonic pluck for every bounce, pitched by the ring (outer rings low, inner rings high), a rising step for every ring the ball gets through and a warm chord when it is out."
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -3058,7 +3080,17 @@
     "leadChangesCount": "Lead changes at least",
     "bossWave": "Wave",
     "bothLowAt": "Cliffhanger at",
-    "progressBout": "Furthest: bout {bout}"
+    "progressBout": "Furthest: bout {bout}",
+    "outcomeRingAt": "First ring at",
+    "hintRingAt": "The ball gets through the first ring within ±0.5 s of the chosen second, as in \"it takes three seconds to get through the first one\". The run found is recorded to its end.",
+    "findRingAt": "Find a Run Through the First Ring at {time}s",
+    "foundRingAt": "Found! Through the first ring at {time}s",
+    "missRingAt": "Closest first ring: {time}s ({seeds} seeds)",
+    "missNoRing": "No ball got through the first ring in time ({seeds} seeds)",
+    "overlayRingAt": "Tested {tested} seeds. The closest first ring came at {closest}s (target: {target}s ±{tolerance}s).",
+    "overlayNoRing": "Tested {tested} seeds and no ball got through the first ring by {target}s. Try a later second or a bigger gap.",
+    "progressRingAt": "Closest first ring: {time}s",
+    "ringAt": "First ring at"
   },
   "FastExport": {
     "button": "Fast export",
@@ -5120,5 +5152,9 @@
     "canvasTitle": "fire from one dot, hit the other",
     "canvasSubtitle": "every bounce off the wall heads for the other dot / and every path there is the same length",
     "canvasPasses": "{count, plural, one {{count} pass} other {{count} passes}}"
+  },
+  "RingEscape": {
+    "hudRing": "ring {ring}: {time} s",
+    "hudOut": "out in {time} s"
   }
 }

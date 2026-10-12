@@ -79,6 +79,7 @@ import type { OrbGridFields } from "@/lib/physics/modes/orbGrid"; // --- orb-gri
 import FightLeagueSection, { FIGHT_LEAGUE_KEYS } from "./sections/FightLeagueSection"; // --- fight-league --- the Fight League block of the Mode row
 import LandClaimSection, { LAND_CLAIM_KEYS } from "./sections/LandClaimSection"; // --- land-claim --- the Land Claim block of the Mode row
 import ColourSortSection, { COLOUR_SORT_KEYS } from "./sections/ColourSortSection"; // --- colour-sort --- the Colour Sort block of the Mode row
+import RingEscapeSection, { RING_ESCAPE_KEYS } from "./sections/RingEscapeSection"; // --- ring-escape --- Classic's ring generation (the Wall section)
 import StarChordsSection, { STAR_CHORDS_KEYS } from "./sections/StarChordsSection"; // --- chord-stars --- the Chord Stars block of the Mode row
 import HoopsSection, { HOOPS_KEYS } from "./sections/HoopsSection"; // --- bead-hoops --- the Spinning Hoops block of the Mode row
 import VideoBeatsSection, { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection"; // --- video-beats --- the "Beats from a video" block of the Sound section
@@ -282,6 +283,7 @@ SECTION_KEYS.ball.push(...COLOUR_SORT_KEYS);
 // --- chord-stars --- the Chord Stars block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...STAR_CHORDS_KEYS);
 SECTION_KEYS.ball.push(...HOOPS_KEYS); // --- bead-hoops ---
+SECTION_KEYS.wall.push(...RING_ESCAPE_KEYS); // --- ring-escape --- Classic's gap layout, spin, rainbow, time in ring and ring sounds (the Wall section)
 // --- unlimited --- the No limits switch opens the Ball & Physics section
 SECTION_KEYS.ball.push(...UNLIMITED_KEYS);
 // --- bounce-math --- the Bounce math block (rules on every bounce, pass, collision, break, beat, bar or second) is part of the Ball & Physics section.
@@ -662,6 +664,8 @@ export default function Controls(props: ControlsProps) {
         )}
         {/* --- gerald-exit-splat --- how the exits move: with their rings, jump, flee or shrink (the ring modes with one exit a ring) */}
         <ExitBehaviorControls t={t} search={search} matches={matches} settings={s} update={update} />
+        {/* --- ring-escape --- Classic's ring generation: the gap layout and spiral step, the spin, the rainbow, the time in the ring, the ring sounds */}
+        {s.mode === "classic" && <RingEscapeSection t={t} search={search} matches={matches} settings={s} update={update} />}
         <Searchable search={search} matches={matches} labelKey="wallColor">
           <div className="space-y-2">
             <div className="flex items-center justify-between">

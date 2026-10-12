@@ -113,6 +113,7 @@ import { STAR_CHORDS_DATA_KEYS, StarChordsLayer, writeStarChordsDataset, type St
 import { HOOPS_DATA_KEYS, HoopsLayer, hoopsExtentPx, hoopsRenderTimeMs, type HoopsRenderOptions } from "./hoopsRenderer"; // --- bead-hoops ---
 import { writeChaosFanData } from "./chaosFanRenderer"; // --- chaos-fan ---
 import { drawLoopHud, loopHudBands, loopHudCount, loopHudFrame, loopHudLiveLayout, type LoopHudSpec } from "@/lib/loop/hud"; // --- loop-foundation ---
+import { RingTimerLine, ringRainbowColor, writeRingEscapeData, type RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape ---
 
 /** Strings drawn on the canvas (mode counters, "ESCAPED!" etc.). Provided by the page so they are translated. */
 export interface CanvasLabels {
@@ -373,6 +374,8 @@ export interface CanvasProps {
   /** The loop HUD's words (null = off): previewed around the ring live; the recorder draws it into every export frame. */
   loopHud?: LoopHudSpec | null;
   // --- end loop-foundation ---
+  /** --- ring-escape --- Classic's Ring Escape look: the rainbow by ring and the time-in-ring line (null outside Classic); see ringEscapeRenderer.ts. */
+  ringEscape?: RingEscapeLook | null;
 }
 
 const NO_TRAIL_COLORS: readonly string[] = []; // --- themes
@@ -516,6 +519,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     orbArenas = 1, // --- orb-grid ---
     growLook = null, // --- loop-foundation ---
     loopHud = null, // --- loop-foundation ---
+    ringEscape = null, // --- ring-escape ---
   },
   ref,
 ) {
@@ -556,6 +560,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
   growLookRef.current = growLook;
   const loopHudRef = useRef<LoopHudSpec | null>(loopHud);
   loopHudRef.current = loopHud;
+  const ringEscapeRef = useRef<RingEscapeLook | null>(ringEscape); // --- ring-escape --- (read by the draw loop)
+  ringEscapeRef.current = ringEscape;
   // --- gerald-faces --- the characters' options and chirp callback, read by the draw loop; the face layer lives with the loop
   const characterRef = useRef<CharacterRenderOptions | null>(character);
   characterRef.current = character;
@@ -991,6 +997,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const loopHudLive = { top: -Infinity, bottom: Infinity }; // --- loop-foundation --- the bands of the loop HUD this frame drew (the live watermark keeps clear of them)
     // --- low-findings --- where the live loop HUD's lines went against the ring (world px; "" while none is previewed), for data-loop-hud-live
     let loopHudLiveText = "";
+    const ringLine = new RingTimerLine(); // --- ring-escape --- the time-in-ring line (its text cached by the tenth of a second)
+    let ringLineBottom = Infinity; // --- ring-escape --- the line's top edge this frame (the live watermark's bottom band; Infinity: none)
+    const clearRingData = (key: string) => {
+      if (canvas.dataset[key] !== undefined) delete canvas.dataset[key];
+    }; // --- ring-escape --- (made once, not per frame)
     // --- unlimited --- the frame budget (whole steps only; off offline, where the export renders simulation time) and the layer
     const frameBudget = new FrameBudget();
     const uncapInfo: UncapInfo = { speed: 0, bounce: 1, rescued: 0, show: false }; // --- uncap-all --- (reused every frame)
@@ -1398,14 +1409,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- review fix (recording-export) --- a thousand rings (a link's wc=3000; the physics runs up to LIVE_RING_LIMIT): about one per pixel of
       // the band is drawn (ringLod.ts) and, in one colour (the gradient or a solid colour), all of them as one path, one stroke
       const ringStride = ringDrawStride(walls.length, arena);
-      const ringBatch = ringStride > 1 && !(p.rainbowWalls && p.rainbowWallMode !== "gradient") ? new Path2D() : null;
+      // --- ring-escape --- Classic's rainbow by ring (a colour per ring, red outside to cyan inside) instead of the wall colour
+      const ringRainbow = !!ringEscapeRef.current?.rainbow && !engine.isShatterMode();
+      const ringBatch = ringStride > 1 && !(p.rainbowWalls && p.rainbowWallMode !== "gradient") && !ringRainbow /* --- ring-escape --- */ ? new Path2D() : null;
       const strokeArc = (index: number, radius: number, from: number, to: number, alpha?: number) => {
         if (ringBatch && alpha === undefined && !wobble.active(index)) {
           ringBatch.moveTo(cx + Math.cos(from) * radius, cy + Math.sin(from) * radius);
           ringBatch.arc(cx, cy, radius, from, to);
           return;
         }
-        ctx.strokeStyle = p.rainbowWalls && p.rainbowWallMode === "gradient" ? conicGradient(alpha) : wallColor(index, alpha);
+        ctx.strokeStyle = ringRainbow ? ringRainbowColor(index, walls.length, alpha) /* --- ring-escape --- */ : p.rainbowWalls && p.rainbowWallMode === "gradient" ? conicGradient(alpha) : wallColor(index, alpha);
         if (wobble.strokeArc(ctx, index, cx, cy, radius, from, to)) return; // --- jdm-illusions --- a wobbling wall follows its displacement wave
         ctx.beginPath();
         ctx.arc(cx, cy, radius, from, to);
@@ -2145,7 +2158,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
             for (const layer of GLOW_LAYERS) {
               ctx.lineWidth = (4 + 4 * strength) * layer.widthMult;
               const alpha = strength * layer.alphaMult;
-              ctx.strokeStyle = p.rainbowWalls ? (p.rainbowWallMode === "gradient" ? conicGradient(alpha) : wallColor(wi, alpha)) : circleAlpha(alpha);
+              ctx.strokeStyle = ringRainbow ? ringRainbowColor(wi, walls.length, alpha) /* --- ring-escape --- */ : p.rainbowWalls ? (p.rainbowWallMode === "gradient" ? conicGradient(alpha) : wallColor(wi, alpha)) : circleAlpha(alpha);
               ctx.globalAlpha = layer.alphaMult > 0.2 ? 0.85 : 0.5;
               for (const arc of arcs) {
                 if (wobble.strokeArc(ctx, wi, cx, cy, wall.radius, arc.start, arc.end)) continue; // --- jdm-illusions ---
@@ -3081,6 +3094,21 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const hudRing = Math.min(ring, Math.min(size.width, size.height) / 2);
         loopHudLiveText = [cy - hudRing, cy + hudRing, hudFrame.title ? hudLayout.titleY : -1, hudLayout.titleSize, hudFrame.counter ? hudLayout.counterY : -1, hudLayout.counterSize].map((v) => v.toFixed(1)).join(",");
       }
+      // --- ring-escape --- Classic's time in the ring: "ring k: t s" in the loop HUD's amber counter style under the rings (inside
+      // the recorded square, so the clips carry it), "out in t s" once the ball is out; data-ring-* for tools and the smoke test
+      {
+        const reLook = ringEscapeRef.current;
+        const reView = reLook ? engine.getRingEscapeView() : null;
+        ringLineBottom = Infinity;
+        let reText = "";
+        if (reLook && reView && reLook.timer) {
+          reText = ringLine.textAt(reView, engine.getElapsedMs(), reLook);
+          const outer = walls.length > 0 ? walls[walls.length - 1].radius : arena;
+          const bands = ringLine.draw(ctx, size.width, size.height, cy, Math.min(outer, Math.min(size.width, size.height) / 2), reText, reLook.light);
+          ringLineBottom = bands.bottom;
+        } else ringLine.y = -1;
+        writeRingEscapeData(setCanvasData, clearRingData, reView, reLook, walls, reText, ringLine.y);
+      }
 
       // --- captions --- countdown, wall counter, progress bar, question and text captions inside the exported square (so
       // recordings have them), animated on the simulation clock; live, they keep clear of the page's buttons and the scoreboard,
@@ -3604,6 +3632,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         // the recorder draws it into the export frame, clear of the badge there)
         hud.topBand(loopHudLive.top);
         hud.bottomBand(loopHudLive.bottom);
+        hud.bottomBand(ringLineBottom); // --- ring-escape --- (the time-in-ring line under the rings)
         const exportSize = recording ? exportSizeRef.current : null;
         // the Top / Bottom Text: the canvas' own lines, or while recording the recorder's (it draws them into the export frame)
         if (p.topText || p.bottomText) {

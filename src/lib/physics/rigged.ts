@@ -273,6 +273,7 @@ export class RigDirector {
   private cx = 0;
   private cy = 0;
   private spin = 0;
+  private spinTogether = false; // --- ring-escape --- (Classic's rings all turning the same way: `ringSpin` together)
   private shatter = false;
   private baseSpeed = 400;
   private gravity = 0;
@@ -331,6 +332,7 @@ export class RigDirector {
     this.cx = config.width / 2;
     this.cy = config.height / 2;
     this.spin = ringsHeld ? 0 : (config.rotationSpeed ?? 1) * 0.8; // (the engine's `wallRotationRate()`)
+    this.spinTogether = mode === "classic" && config.ringSpin === "together"; // --- ring-escape ---
     this.shatter = mode === "shatter";
     this.baseSpeed = config.ballSpeed || 400;
     this.gravity = gravityAccel;
@@ -812,6 +814,7 @@ export class RigDirector {
 
   /** Angular speed (rad/s) of wall `w`, as the engine turns it: even walls one way, odd walls the other. */
   private rate(w: number): number {
+    if (this.spinTogether) return this.spin; // --- ring-escape --- (Classic's rings turning together)
     return w % 2 === 0 ? this.spin : -this.spin;
   }
 }

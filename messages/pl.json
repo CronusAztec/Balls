@@ -2316,7 +2316,29 @@
     "flTierStory": "PNG 9:16",
     "flTierTitle": "{group} – lista tierów (symulacja Fight League)",
     "flTierSubtitle": "Ranking według zwycięstw w symulowanym turnieju każdy z każdym",
-    "flTierDisclaimer": "Imiona to zwykłe etykiety tekstowe niezależnej symulacji fanowskiej – bez logo, grafik i dźwięków."
+    "flTierDisclaimer": "Imiona to zwykłe etykiety tekstowe niezależnej symulacji fanowskiej – bez logo, grafik i dźwięków.",
+    "reDesc": "Ucieczka z pierścieni, na wzór najstarszego filmu z rodziny pętli: ułóż szczeliny w spiralę, obracaj pierścienie razem, pomaluj je w tęczę, mierz czas w każdym pierścieniu i słuchaj rosnącego dźwięku za każdy pierścień, przez który przejdzie piłka.",
+    "reSpiralPreset": "Ucieczka z pierścieni",
+    "reSpiralPresetTip": "Wygląd z filmu: czysto czarne tło, jedenaście cienkich tęczowych pierścieni, których szczeliny przesuwają się spiralnie i obracają razem, biała piłka z krótkim śladem i dźwięki pierścieni. Bez tytułu i bez licznika.",
+    "reSpiralPresetButton": "Tęczowa spirala, 11 pierścieni",
+    "gapLayout": "Układ szczelin",
+    "gapLayoutTip": "Gdzie zaczyna się szczelina każdego pierścienia. Równy: rozłożone równo dookoła (klasyczny wygląd). Losowy: w dowolnym miejscu, z seeda przebiegu. W linii: wszystkie szczeliny w jednej prostej. Spirala: każda szczelina o stały krok dalej niż ta w pierścieniu wewnątrz.",
+    "gapLayoutEven": "Równy",
+    "gapLayoutRandom": "Losowy",
+    "gapLayoutAligned": "W linii",
+    "gapLayoutSpiral": "Spirala",
+    "gapSpiralStep": "Krok spirali",
+    "gapSpiralStepTip": "Stopnie między szczelinami sąsiednich pierścieni w układzie spirali. 0 ustawia je wszystkie w linii; pole przyjmuje każdą wartość od 0.",
+    "ringSpin": "Obrót pierścieni",
+    "ringSpinTip": "Naprzemienny: sąsiednie pierścienie obracają się w przeciwne strony (klasyczne pierścienie). Razem: każdy pierścień obraca się w tę samą stronę z tą samą prędkością, więc spirala obraca się, pozostając spiralą.",
+    "ringSpinAlternate": "Naprzemienny",
+    "ringSpinTogether": "Razem",
+    "ringRainbow": "Tęcza według pierścieni",
+    "ringRainbowTip": "Koloruje każdy pierścień według jego miejsca: czerwony na zewnątrz, przez pomarańczowy, żółty i zielony, do błękitnego w środku.",
+    "ringTimer": "Czas w pierścieniu",
+    "ringTimerTip": "Pokazuje pod pierścieniami „pierścień k: t s”: jak długo piłka jest w obecnym pierścieniu, a po wydostaniu się „na zewnątrz po t s”. Nagrania to zawierają.",
+    "ringSound": "Dźwięki pierścieni",
+    "ringSoundTip": "Oryginalne, syntezowane dźwięki: miękkie pentatoniczne szarpnięcie przy każdym odbiciu, o wysokości zależnej od pierścienia (zewnętrzne nisko, wewnętrzne wysoko), rosnący dźwięk za każdy pokonany pierścień i ciepły akord, gdy piłka jest na zewnątrz."
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -3058,7 +3080,17 @@
     "leadChangesCount": "Zmian prowadzenia co najmniej",
     "bossWave": "Fala",
     "bothLowAt": "Cliffhanger w",
-    "progressBout": "Najdalej: walka {bout}"
+    "progressBout": "Najdalej: walka {bout}",
+    "outcomeRingAt": "Pierwszy pierścień w",
+    "hintRingAt": "Piłka przechodzi przez pierwszy pierścień w granicach ±0,5 s od wybranej sekundy, jak w „przejście przez pierwszy zajmuje trzy sekundy”. Znaleziony przebieg jest nagrywany do końca.",
+    "findRingAt": "Znajdź przejście przez pierwszy pierścień w {time}s",
+    "foundRingAt": "Znaleziono! Przez pierwszy pierścień w {time}s",
+    "missRingAt": "Najbliższy pierwszy pierścień: {time}s ({seeds} seedów)",
+    "missNoRing": "Żadna piłka nie przeszła na czas przez pierwszy pierścień ({seeds} seedów)",
+    "overlayRingAt": "Sprawdzono {tested} seedów. Najbliższy pierwszy pierścień padł w {closest}s (cel: {target}s ±{tolerance}s).",
+    "overlayNoRing": "Sprawdzono {tested} seedów i żadna piłka nie przeszła przez pierwszy pierścień do {target}s. Spróbuj późniejszej sekundy lub większej szczeliny.",
+    "progressRingAt": "Najbliższy pierwszy pierścień: {time}s",
+    "ringAt": "Pierwszy pierścień w"
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -5120,5 +5152,9 @@
     "canvasTitle": "strzel z jednej kropki, traf w drugą",
     "canvasSubtitle": "każde odbicie od ściany prowadzi do drugiej kropki / a każda droga tam ma tę samą długość",
     "canvasPasses": "{count, plural, one {{count} przejście} few {{count} przejścia} other {{count} przejść}}"
+  },
+  "RingEscape": {
+    "hudRing": "pierścień {ring}: {time} s",
+    "hudOut": "na zewnątrz po {time} s"
   }
 }

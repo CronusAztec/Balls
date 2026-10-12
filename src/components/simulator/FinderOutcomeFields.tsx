@@ -60,6 +60,7 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   sudden: "outcomeSudden",
   champion: "outcomeChampion",
   "boss-falls-at": "outcomeBossFallsAt",
+  "ring-at": "outcomeRingAt", // --- ring-escape ---
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -96,6 +97,7 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   sudden: "hintSudden",
   champion: "hintChampion",
   "boss-falls-at": "hintBossFallsAt",
+  "ring-at": "hintRingAt", // --- ring-escape ---
 };
 
 /** --- fl-overhaul --- (Stage 5) An outcome's label key (`Rigged.*`): the story outcomes' generic texts name it. */
@@ -349,6 +351,34 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
         </div>
       )}
       {/* --- end chaos-fan --- */}
+      {/* --- ring-escape --- the first ring at a chosen second ± 0.5 s (the escape slider's range and field) */}
+      {outcome === "ring-at" && (
+        <div className="space-y-1.5" data-testid="finder-ring-at">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-ring-at">
+              {r("ringAt")}
+            </label>
+            <span className="text-xs font-mono text-accent">
+              {escapeAt.toFixed(1)}s ±{ESCAPE_AT_TOLERANCE_SEC}s
+            </span>
+          </div>
+          <input
+            id="find-ring-at"
+            type="range"
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={escapeAt}
+            disabled={disabled}
+            onChange={(e) => onEscapeAt(Number(e.target.value))}
+            aria-label={r("ringAt")}
+            className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
+            style={sliderStyle(escapeAt, range.min, range.max)}
+          />
+          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r("ringAt")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" />
+        </div>
+      )}
+      {/* --- end ring-escape --- */}
       {/* --- colour-sort --- the sort's time limit (the escape slider's range and field) and the colour to be sorted last */}
       {outcome === "sorted-by" && (
         <div className="space-y-1.5" data-testid="finder-sorted-by">
@@ -482,6 +512,8 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findLastColour", { name: c.winnerName });
     case "sorted-on-bar":
       return t("Rigged.findSortedOnBar");
+    case "ring-at": // --- ring-escape ---
+      return t("Rigged.findRingAt", { time: c.escapeAt.toFixed(1) });
     default:
       return null;
   }
@@ -541,6 +573,8 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundLastColour", { name: c.winnerName, time: (result.sortedAt ?? 0).toFixed(2) });
     case "sorted-on-bar":
       return t("Rigged.foundSortedOnBar", { time: (result.sortedAt ?? 0).toFixed(2) });
+    case "ring-at": // --- ring-escape ---
+      return t("Rigged.foundRingAt", { time: (result.ringAt ?? 0).toFixed(2) });
     default:
       return null;
   }
@@ -600,6 +634,8 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return t("Rigged.missLastColour", { name: c.winnerName, seeds: result.seedsTested });
     case "sorted-on-bar":
       return result.sortedAt === undefined ? t("Rigged.missNoSort", { seeds: result.seedsTested }) : t("Rigged.missSortedOnBar", { offset: barOffsetText(result.sortedAt, c.barSec), seeds: result.seedsTested });
+    case "ring-at": // --- ring-escape ---
+      return result.ringAt === undefined ? t("Rigged.missNoRing", { seeds: result.seedsTested }) : t("Rigged.missRingAt", { time: result.ringAt.toFixed(1), seeds: result.seedsTested });
     default:
       return null;
   }
@@ -665,6 +701,10 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return t("Rigged.overlayLastColour", { tested: result.seedsTested, name: c.winnerName });
     case "sorted-on-bar":
       return result.sortedAt === undefined ? t("Rigged.overlayNoSort", { tested: result.seedsTested }) : t("Rigged.overlaySortedOnBar", { tested: result.seedsTested, offset: barOffsetText(result.sortedAt, c.barSec) });
+    case "ring-at": // --- ring-escape ---
+      return result.ringAt === undefined
+        ? t("Rigged.overlayNoRing", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) })
+        : t("Rigged.overlayRingAt", { tested: result.seedsTested, closest: result.ringAt.toFixed(1), target: c.escapeAt.toFixed(1), tolerance: ESCAPE_AT_TOLERANCE_SEC });
     default:
       return null;
   }
@@ -702,5 +742,6 @@ export function outcomeProgressText(t: Translate, outcome: FinderOutcomeKind | n
   if (outcome === "close") return progress.bestDuration < 100 ? t("Rigged.progressClose", { margin: progress.bestDuration.toFixed(1) }) : null; // --- land-claim ---
   if (outcome === "all-up-by") return progress.bestDuration > 0 ? t("Rigged.progressAllUpBy", { time: progress.bestDuration.toFixed(1) }) : null; // --- bead-hoops ---
   if (outcome === "diverges-at") return progress.bestDuration > 0 ? t("Rigged.progressDivergesAt", { time: progress.bestDuration.toFixed(1) }) : null; // --- chaos-fan ---
+  if (outcome === "ring-at") return progress.bestDuration > 0 ? t("Rigged.progressRingAt", { time: progress.bestDuration.toFixed(1) }) : null; // --- ring-escape ---
   return null;
 }

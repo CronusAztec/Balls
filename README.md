@@ -95,6 +95,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Phase Spiral** | The Metronomes & Polyrhythms rings as the loop-clip account's "watch the spiral straighten into one line" reel (feature phase-spiral, `src/lib/physics/phaseSpiral.ts`): **Arms** put 1–8 dots on every ring (any whole number typed; rings and spiral layouts), evenly spaced on as many spokes, and a dot steps one spoke a tick – ring i still ticks i + 1 times a cycle, so the polyrhythm, its chord and its finish stay the classic ones while the picture winds into a k-armed spiral, passes through interference patterns and straightens into the spokes **exactly once a cycle**, on the alignment. The **in-line meter** shows "in line N%" over a thin amber bar – the arms-fold resultant \|mean e^{i·k·θ}\| of the dot angles (100 % at every alignment, near 0 in between) – under the disc or as the loop HUD's counter; **comet tails** (0–1 s of motion, the classic 0.18 s by default) fade behind every dot; the **spiral colours** go blue inside to red outside on a dark disc; **loop sounds** play a pentatonic pluck a tick (inner rings low), risers as the meter crosses 50, 75 and 90 % that stop on the alignment's open chord and bell. An endless run (Cycles 0) is a seamless loop for **Export whole loops**. The **Phase spiral, 20 rings × 3 arms** preset brings the clip's navy page and loop HUD. See [Phase Spiral](#phase-spiral-the-loop-clip-family). |
 | **Focus Shot** | A rhythm-family mode of the loop family (`ellipseFoci`, feature ellipse-foci) after the loop-clip account's whispering-gallery clip: an elliptical pool – a pool table with a wooden rim, a copper rail and green felt, or a neon or thin outline – with its two foci marked, and a volley of balls (72 by default, 1–720 on the slider, any whole number typed) fired at once from one focus every way, coloured around the hue wheel by launch angle, with tapering comet trails. Every focus–wall–focus path is 2a long, so at the speed 2a / T the whole volley converges on the other focus every transit T – a white bloom – alternating foci, while every pass collapses the swarm onto the long axis. The motion is analytic (the ray–ellipse quadratic and the reflection about the ellipse's normal, no drift: a seed replays exactly at any frame rate and in the fast export). At a convergence: **Refire** (a fresh volley every Passes per loop – a seamless loop of passes × T that Export whole loops cuts to), **Collapse** or **Every pass**; eccentricity, size, transit time, spread and start angle, launch focus, orientation, trail length, a paths overlay. Sound: a descending pentatonic pluck per wall hit, an impact (kick, noise crack, chord) on every convergence after a 0.4 s pre-drop, a groove bed at 8 · 60 / T BPM; the lowercase loop HUD ("fire from one dot, hit the other") and an optional pass counter; Find Simulation's **Converges on the beat** and **Longest collapse**; five presets. See [Focus Shot](#focus-shot). |
 | **Colour Sort** | An escape-family mode (`colourSort`, feature colour-sort) after the loop family's colour-sorting rings ("360 mixed balls, sorted by four rings"): **Colours** × **Balls per Colour** (`csc` 4, `csn` 90 – 360 balls) start packed in the core of K concentric rings – K − 1 gated rings and a closed outer wall, at (k + 1) / K of its radius – and move as a constant-speed gas (**Ball Speed** `csv`, 220 px/s of a 720-wide frame; no gravity). Every gated ring is **Gates per Ring** arcs and gates (`csg` 4, **Gate Width** `csw` 35°) with a white pin at each arc end, turning at the **Inner Ring Spin** (`css`, 31°/s) times the **Spin Falloff** per ring outward (`csf`, ×0.8), in **Alternate Directions** (`csa`). A gate is a one-way colour filter – the **Gate Rule** (`csu`): outward and never the ring's own colour (the reference), outward and only its own colour, or both ways but never its own – and refuses every other ball like an arc, reflected in the ring's turning frame: red never leaves the core, orange stops at the orange ring, green at the green one and blue reaches the outer band – a bullseye. (Both ways lets sorted balls wander back in, so that sort never completes: it settles at an equilibrium – about 200 / 360 – and the cycle ends once the count stops rising, on the minor chord, with no Find Simulation outcomes.) The loop HUD's amber counter "n / 360 sorted" (a ball in its own band) climbs with a long tail to the completion chord (A2 with its 1.7 Hz tremolo, minor when the **Time Limit** `csl` ran out first), then reads "mixing again": a critically damped spring pulls every ball back to its exact frame-0 place over the **Remix** (`csm`, 2.8 s) under a noise wash, and the next cycle replays the first – the loop contract reports every seam, so Export whole loops cuts a recording into seamless cycles. Every gate pass plucks its colour's note of A major pentatonic (at most six a tick). **Ball Contacts** (`csx`) are off by default – a ghost gas, the reference clip's pace and cheap for thousands of balls –, on: elastic contacts; **Ball Size** (`csr`, 4.5 px), **Refusal Flashes** (`csh`). Five presets (Bullseye sort, Rainbow 7, One-gate torture, Ten thousand, Reverse rule) and Find Simulation's **All sorted within**, **Last colour** and **Sorted on a bar line** (±20 ms) outcomes. Every number is uncapped (20,000 balls a run at most). See "Colour Sort" below |
+| **Ring Escape (Classic)** | --- ring-escape --- The loop family's oldest reel ("it takes three seconds to get through the first one 🔊") as options of Classic's own rings (no new mode; `src/lib/physics/ringEscape.ts`; Wall Settings in Classic): a **gap layout** – even (as always), random (seeded), aligned or a **spiral** whose gaps step round by **Spiral step** degrees (`regl`, `ress`; 0–90° on the slider, any angle typed) –, the rings turning **together** so the spiral stays a spiral (`resp`), a **rainbow by ring** (red outside to cyan inside, `rerb`), **Time in ring** – "ring k: t s" in amber under the rings, "out in t s" once out, recorded with the clip (`retm`) – and original **ring sounds** – a pentatonic pluck per bounce pitched by the ring, a rising step per ring escaped, a chord at the way out (`resn`). **Find Simulation** gets **First ring at** (the first ring escaped within ±0.5 s of a chosen second) and the preset **Rainbow spiral, 11 rings** is the poster's look. See [Ring Escape](#ring-escape-classic-the-loop-family) |
 
 ## Design
 
@@ -2663,6 +2664,54 @@ the mode, `src/components/simulator/ellipseFociRenderer.ts` the picture, `sectio
   the finder, the links and presets, and the renderer's budgets. The smoke test (section 41, block `ellipse-foci`) runs 20 s at
   4× (no NaN, at least four convergences, the HUD, the bloom), compares a whole-loop fast export's sound events with live play,
   and checks a preset's link and the on-the-beat search.
+
+### Ring Escape (Classic, the loop family)
+--- ring-escape --- The loop family's oldest reel, a ball working its way out through a spiral of rainbow rings ("it takes three
+seconds to get through the first one 🔊"), built from **Classic's own rings** – no new mode (the pure parts in
+`src/lib/physics/ringEscape.ts`, the timer and the sounds in `modes/classic.ts` in delimited blocks, the drawing in
+`src/components/simulator/ringEscapeRenderer.ts`, the controls in `sections/RingEscapeSection.tsx`, under Wall
+Settings in Classic). Only the poster and the caption were seen, so every quantity is a setting and the preset is the poster's look.
+
+- **Gap layout** (`gapLayout`, URL `regl`): `even` – gap k at 2π·k / n, the classic rings (the default: every old run, link and
+  fingerprint replays exactly; the engine keeps its own formula) –, `random` – gap k anywhere, one draw a ring from the run's
+  seeded RNG (`engine.random()`, inner to outer, right after the seed is reset and before the ball's launch angle, so a seed
+  replays its layout) –, `aligned` – every gap at θ0 – or `spiral` – gap k at θ0 + k · **Spiral step** (`gapSpiralStep`, URL
+  `ress`, degrees: 0–90 on the slider by halves, any angle from 0 typed; it is an angle, so it engages no extreme-values runtime).
+  θ0 = 0 (`RING_GAP_THETA0`), every start taken modulo 2π. A new layout or step lays Classic's rings out anew live (the rotations
+  from 0, the broken rings stay broken) and drops a found seed. Only Classic reads it; Shatter and the other ring modes keep theirs.
+- **Ring spin** (`ringSpin`, URL `resp`): `alternate` (neighbouring rings opposite ways, as always) or `together` (every ring the
+  same way at the same speed, so the spiral turns as one). The rig's flight prediction turns its rings the same way (never escape
+  and the forced winner keep their promise).
+- **Rainbow by ring** (`ringRainbow`, URL `rerb`): the rings red outside, through orange, yellow and green, to cyan inside
+  (`ringRainbowHue()`), the wall glow in the same colours; the canvas only.
+- **Time in ring** (`ringTimer`, URL `retm`): ClassicMode keeps a `RingTimer` from the broken rings and the simulation clock (the
+  ring the run is in, when it entered it, the first escape, the way out; `engine.getRingEscapeView()`), and the canvas draws "ring
+  k: t s" – one decimal, the page's separator, lowercase – in the loop HUD's amber counter style under the rings, "out in t s"
+  once the last ring is behind the ball. It is inside the recorded square, so every clip carries it, and the live watermark keeps
+  its badge clear of it (a bottom band). The canvas reports the run in `data-ring-*` (layout, spin, rings, escaped, current ring,
+  first escape, the way out, the gaps' starts in degrees, the line's text).
+- **Ring sounds** (`ringSound`, URL `resn`; original synthesis through the loop foundation's `ToneGenerator.playLoop()`, so the
+  live page, the fast export, the batch render and the bot sound alike): every wall bounce is a pentatonic pluck on its ring's
+  fixed degree of C major pentatonic (`ringPluckHz()`: 12 degrees over the rings, the outer, bigger rings low – C3 – the inner ones
+  high – E5 –, the inner half bright), level 0.8–1 by the radial impact speed, instead of the instrument's tone; every ring
+  escaped is a progress-ladder step one degree higher (`ringStepHz()`, G5 up, wrapping after 13 degrees), the last one accented,
+  and the way out the completion chord on G2 with its ding. The voice budget (6 new notes a tick, 24 sounding, same-pitch merges)
+  is the ToneGenerator's. The wall break keeps its own sound.
+- **Find Simulation** (`ring-at`, offered in Classic while one of these options is on – the classic list is unchanged otherwise):
+  the first ring escaped within ±0.5 s of the chosen second (the target field of "Escapes at"), "Found! Through the first ring at
+  2.87s"; a run that misses is dropped at once, a match is followed to its end, so the clip is the whole escape.
+- **The preset** "Rainbow spiral, 11 rings" (`RING_ESCAPE_PRESET`): a pure black page, eleven thin rainbow rings, the spiral at
+  30° turning together, the gaps 0.8 rad and the ball at 500 (the first ring takes about 1.7 s at the median, one seed in seven
+  gets through it at 3 ± 0.5 s; the way out about 30 s), a white ball with a short white trail, the ring sounds; no title and no
+  counter, like the poster. A Classic run ends with its escape, as ever: it reports no seamless cycle, so Export whole loops
+  leaves its clips as they are.
+- **Tests**: `tests/ringEscape.test.ts` (the spiral puts gap k at θ0 + k · step, the aligned, even and random layouts, the classic
+  rings untouched by default, live relayouts, the rings turning together and never escape with them, the timer, the line's
+  words in en / pl / es, the plucks' key and register, the ladder and the chord, their scheduling on the fake Web Audio graph,
+  ring-at's predicates and a found seed whose first ring a fresh engine replays within the tolerance, the run at 30, 60 and 120
+  fps and a pinned fingerprint, the rainbow, the settings, links and presets, the translations); the smoke test's block
+  `ring-escape` applies the preset from Wall Settings and from a link, checks the spiral's gaps, the rainbow, the timer line and its pixels, the URL round
+  trip, finds a first ring at 3 s and records the clip with the free watermark.
 
 ## Windows app
 

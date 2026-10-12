@@ -5,6 +5,7 @@ import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
 import { exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
 import { respawnConfigOf } from "@/lib/physics/respawn"; // --- gerald-conveyor ---
+import { ringEscapeConfigOf } from "@/lib/physics/ringEscape"; // --- ring-escape ---
 import { riggedConfigOf } from "@/lib/physics/rigged";
 import type { ModeId, PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import type { FightSoundKind } from "@/lib/physics/types"; // --- fight-league ---
@@ -78,6 +79,7 @@ export function arenaPhysicsConfig(s: SimulatorSettings, withTimeline = true): O
     ...obstacleConfigOf(s),
     ...exitSplatConfigOf(s), // --- gerald-exit-splat ---
     ...respawnConfigOf(s), // --- gerald-conveyor --- the respawn timer of Classic and Multiply (arenas 2…n follow a new period, as the page does)
+    ...ringEscapeConfigOf(s), // --- ring-escape --- Classic's gap layout, spin and ring sounds (every arena's rings like the page's)
     ...riggedConfigOf(s),
     ...(withTimeline ? { timeline: engineTimelineOf(s) } : {}),
   };

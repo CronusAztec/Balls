@@ -61,9 +61,13 @@ import type { FlRunSummary } from "@/lib/physics/modes/fightLeague"; // --- fl-o
  * cut there), **decider** (a series goes the distance), **sudden** (decided in sudden death), **champion** (a bracket won by the
  * pinned entrant `team`) and **boss-falls-at** (the boss falls at wave `count`); **close** takes the winner's HP share as its
  * margin (≤ FL_CLOSE).
+ *
+ * --- ring-escape --- Classic's Ring Escape adds **ring-at**: the first ring escaped – the innermost broken, the hook "it takes
+ * three seconds to get through the first one" – within ±`toleranceSec` (0.5 s) of a target second (`RunSummary.firstRingMs`); a
+ * match is followed to the run's end, so the clip is the whole escape.
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at"] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at", "ring-at" /* --- ring-escape --- */] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
 /** --- fl-overhaul --- (Stage 5) Fight League's story outcomes (judged on `RunSummary.fl`; the run followed to its end, both-low-at to its window). */
 export const FL_STORY_OUTCOMES: readonly FinderOutcomeKind[] = ["upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at"];
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
@@ -151,6 +155,8 @@ export interface RunSummary {
   // --- end colour-sort ---
   /** --- fl-overhaul --- (Stage 5) Fight League's story of the run (`flRunSummary()`): the deciding match's and the show's. */
   fl?: FlRunSummary;
+  /** --- ring-escape --- Classic: real time (ms) the first ring was escaped, −1 or absent when none was. */
+  firstRingMs?: number;
 }
 
 // --- land-claim ---
@@ -218,6 +224,8 @@ export function outcomeHorizonMs(outcome: FinderOutcome, maxSimMs: number, mode?
     case "sudden":
     case "champion":
     case "boss-falls-at":
+      return Math.max(clipMs, maxSimMs);
+    case "ring-at": // --- ring-escape --- (until the window has passed without a ring, or the end of a matching run)
       return Math.max(clipMs, maxSimMs);
     case "escapes-at":
       // Until the target has passed without an escape, or a moment after a matching one (the run's own end).
@@ -436,6 +444,8 @@ export function outcomeMatches(outcome: FinderOutcome, run: RunSummary): boolean
       return (run.sortedMs ?? -1) >= 0 && (run.lastColour ?? -1) === (outcome.team ?? -1);
     case "sorted-on-bar":
       return sortedOnBar(outcome, run.sortedMs ?? -1);
+    case "ring-at": // --- ring-escape ---
+      return ringAtMatches(outcome, run);
     default:
       return false;
   }
@@ -502,6 +512,8 @@ function outcomeMissOf(outcome: FinderOutcome, run: RunSummary): number {
       return (run.sortedMs ?? -1) < 0 ? Infinity : outcomeMatches(outcome, run) ? 0 : 1;
     case "sorted-on-bar":
       return (run.sortedMs ?? -1) < 0 ? Infinity : barLineDistanceMs(run.sortedMs ?? 0, 1000 * (outcome.atSec ?? barSeconds(120))) / 1000;
+    case "ring-at": // --- ring-escape --- the seconds between the first ring and the target (no ring: Infinity)
+      return (run.firstRingMs ?? -1) < 0 ? Infinity : Math.abs((run.firstRingMs ?? 0) / 1000 - (outcome.atSec ?? 0));
     default:
       return Infinity;
   }
@@ -549,6 +561,8 @@ export function outcomeFigure(outcome: FinderOutcome, run: RunSummary): number {
     case "last-colour":
     case "sorted-on-bar":
       return (run.sortedMs ?? -1) >= 0 ? (run.sortedMs ?? 0) / 1000 : 0;
+    case "ring-at": // --- ring-escape --- (the first ring escaped, 0 without one)
+      return (run.firstRingMs ?? -1) >= 0 ? (run.firstRingMs ?? 0) / 1000 : 0;
     default:
       return run.durationMs / 1000;
   }
@@ -590,6 +604,8 @@ export interface OutcomeContext {
   colourSortSettles?: boolean;
   /** --- chaos-fan --- The Double Pendulum runs its chaos fan: the split's time can be searched (diverges-at). */
   dpFan?: boolean;
+  /** --- ring-escape --- Classic runs a Ring Escape option (`ringEscapeActive()`): the first ring's time can be searched (ring-at). */
+  ringEscape?: boolean;
 }
 
 /**
@@ -626,6 +642,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   if (mode === "doublePendulum" && ctx.dpFan) out.push("diverges-at"); // --- chaos-fan --- (the split at a chosen second)
   if (mode === "ellipseFoci") out.push("converge-on-beat", "longest-collapse"); // --- ellipse-foci --- (the transit on the tempo; the start angle)
   if (mode === "colourSort" && !ctx.colourSortSettles) out.push("sorted-by", "last-colour", "sorted-on-bar"); // --- colour-sort --- (its first sort: the run loops forever; none when the sort only settles)
+  if (mode === "classic" && ctx.ringEscape) out.push("ring-at"); // --- ring-escape --- (the first ring at a chosen second)
   return out;
 }
 
@@ -640,6 +657,25 @@ export function hoopsOutcomeSettled(outcome: FinderOutcome, elapsedMs: number, a
   return false;
 }
 // --- end bead-hoops ---
+
+// --- ring-escape ---
+/**
+ * Whether a Classic run being simulated can stop for ring-at: its first ring came outside the window, or the window passed
+ * without one. A match is followed on (to the run's own end, which settles every outcome), so the found clip is the whole run.
+ */
+export function ringOutcomeSettled(outcome: FinderOutcome, elapsedMs: number, firstRingMs: number): boolean {
+  if (outcome.kind !== "ring-at") return false;
+  const tol = 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC);
+  const at = 1000 * (outcome.atSec ?? 0);
+  if (firstRingMs < 0) return elapsedMs > at + tol + FILL_SLACK_MS;
+  return Math.abs(firstRingMs - at) > tol + 1e-6;
+}
+/** ring-at: the first ring escaped within the window around the target. */
+function ringAtMatches(outcome: FinderOutcome, run: RunSummary): boolean {
+  const at = run.firstRingMs ?? -1;
+  return at >= 0 && Math.abs(at - 1000 * (outcome.atSec ?? 0)) <= 1000 * (outcome.toleranceSec ?? ESCAPE_AT_TOLERANCE_SEC) + 1e-6;
+}
+// --- end ring-escape ---
 
 // --- chaos-fan ---
 /** Whether a chaos-fan run being simulated can stop for diverges-at: the fan has split (in the window or not), or the window passed without it. */
