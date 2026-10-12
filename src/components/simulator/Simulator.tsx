@@ -95,6 +95,7 @@ import { BRICK_REBUILD_RESTART_FIELDS, brickRebuildHudKeys, brickRebuildHudValue
 import { brickField } from "@/lib/physics/brickRebuild"; // --- brick-rebuild ---
 import type { BrickPicture } from "@/lib/physics/brickPicture"; // --- brick-rebuild ---
 import { brickUploadStore, rasteriseBrickPicture, type BrickUpload } from "./brickUpload"; // --- brick-rebuild ---
+import { PF_RESTART_FIELDS, parseBoxes, perfectFitHudKeys, perfectFitSettingsOf, perfectFitTetrisPieces } from "@/lib/physics/perfectFit"; // --- perfect-fit ---
 import { WholeLoopCut, waitForDrawnFrame } from "@/lib/loop/loopContract"; // --- low-findings --- (waitForDrawnFrame)
 import type { LoopClipSlotId } from "@/lib/audio/loopClips";
 import type { LoopClipView, LoopClipsPanelProps } from "./sections/LoopClipsSection";
@@ -427,6 +428,7 @@ export default function Simulator() {
     engine.setBeatMachineSettings(beatMachineSettingsOf(s, audioRef.current?.getCustomNotes() ?? [])); // --- beat-machine --- (before the init: the plan is made there; the loaded melody for its source)
     engine.setBrickRebuildSettings(brickRebuildSettingsOf(s)); // --- brick-rebuild --- (before the init: the grid, the balls and the variants apply there)
     engine.setBrickRebuildPicture(brickPictureRef.current); // --- brick-rebuild --- (the uploaded picture's bricks, when loaded)
+    engine.setPerfectFitSettings(perfectFitSettingsOf(s)); // --- perfect-fit --- (before the init: the plan is made there, on the page's tempo)
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -656,6 +658,15 @@ export default function Simulator() {
       return { title: s.loopHudTitle || t(words.title, values), subtitle: s.loopHudSubtitle || t(words.subtitle, values), counter: String(t.raw(words.counter)), light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
     }
     // --- end brick-rebuild ---
+    // --- perfect-fit --- the variant's words ("all 12 pentominoes" / "every piece fits"); the box's label and the lines cleared are
+    // drawn under the box or the well by the mode itself, so the HUD has no counter
+    if (s.mode === "perfectFit") {
+      const words = perfectFitHudKeys(s.pfVariant);
+      const rects = parseBoxes(s.pfBoxes).filter((b) => b.w * b.h === 60 && Math.min(b.w, b.h) >= 4).length;
+      const subtitle = s.pfVariant === "tetris" ? t(words.subtitle, { count: perfectFitTetrisPieces({ pfWellW: s.pfWellW, pfSections: s.pfSections }) }) : rects === 3 ? t(words.subtitle) : t("PerfectFit.canvasSubtitlePentoCount", { count: rects });
+      return { title: s.loopHudTitle || t(words.title), subtitle: s.loopHudSubtitle || subtitle, counter: "", light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
+    }
+    // --- end perfect-fit ---
     // --- funnel-spin --- the ring release's words ("why marbles speed up in a funnel", a two-line subtitle) and, with the lap
     // readout, the newest ring's lap ("lap 1.23 s")
     if (s.mode === "vortex" && s.vxRelease === "rings") {
@@ -675,7 +686,7 @@ export default function Simulator() {
     const counterKey = keys?.counterOne && s.mode === "hoops" && s.hpCount === 1 ? keys.counterOne : keys?.counter; // --- bead-hoops --- (one hoop: "the bead up")
     const counter = counterKey ? String(t.raw(loopHudMessageKey(counterKey))) : "";
     return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]), locale: hudLocale /* --- bead-hoops --- (the counter's decimals on the live canvas) */ };
-  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */, s.lcLayout /* --- land-claim-pyramid --- */, s.brSymmetry, s.brSymmetryMode, s.brCapsules, s.brBalls, s.brSplit, s.brEvery /* --- brick-rebuild --- */]);
+  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */, s.lcLayout /* --- land-claim-pyramid --- */, s.brSymmetry, s.brSymmetryMode, s.brCapsules, s.brBalls, s.brSplit, s.brEvery /* --- brick-rebuild --- */, s.pfVariant, s.pfBoxes, s.pfSections, s.pfWellW /* --- perfect-fit --- */]);
   const loopHudRef = useRef({ spec: loopHudSpec, locale: hudLocale });
   loopHudRef.current = { spec: loopHudSpec, locale: hudLocale };
   /** The HUD of a frame of `engine`'s run (null without the HUD), for the recorder and the fast export. */
@@ -1301,6 +1312,27 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [brRunKey, s.brPicture, s.brText, s.brOrder, s.brOutline]);
   // --- end brick-rebuild ---
+  // --- perfect-fit --- Perfect Fit: a change of the puzzles, the timing or the solution seed (PF_RESTART_FIELDS) – or of the Sound
+  // section's tempo while the landings follow the beat – re-plans and restarts the run and drops a found result (only while
+  // Perfect Fit is the mode: in another one a change only moves the remembered key, and a later switch plans with it).
+  const pfRunKey = [...PF_RESTART_FIELDS.map((key) => String(s[key])), s.pfBeat ? s.bpm : ""].join("|");
+  const pfRunKeyRef = useRef(pfRunKey);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setPerfectFitSettings(perfectFitSettingsOf(s));
+    if (pfRunKeyRef.current === pfRunKey) return;
+    pfRunKeyRef.current = pfRunKey;
+    if (s.mode !== "perfectFit") return;
+    setSearchResult((r) => (r?.found ? null : r));
+    if (engine.getCurrentModeName() === "perfectFit") {
+      engine.initMode("perfectFit");
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pfRunKey]);
+  // --- end perfect-fit ---
   // --- colour-sort --- Colour Sort: a change of the sort (colours, balls, gates, spin, speed, size, contacts, remix, rule, time
   // limit) restarts it and drops a found seed; the refusal flashes only change the drawing and follow live.
   const colourSortKey = COLOUR_SORT_ENGINE_KEYS.map((key) => String((s as unknown as Record<string, unknown>)[key])).join("|");
@@ -1830,7 +1862,7 @@ export default function Simulator() {
   // --- orb-grid --- a field that never settles (the period property, no gravity): no run length to search for (the other outcomes stay)
   const orbEndless = s.mode === "orbGrid" && orbGridNeverSettles(orbGridSettingsOf(s), s.gravity);
   const flShow = s.mode === "fightLeague" ? flShowKind({ match: s.flMatch, bestOf: s.flBestOf }) : undefined; // --- fl-overhaul --- (Stage 5) the show's own outcomes
-  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, flShow, flSides: s.mode === "fightLeague" ? flSideCount(s.flMatch, [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flFighterE, s.flFighterF]) : 0, flDecider: flBestOfGames(s.flBestOf) > 1 /* --- fl-overhaul --- (Stage 5) */, dpFan: s.mode === "doublePendulum" && s.dpFan /* --- chaos-fan --- */, colourSortSettles: s.mode === "colourSort" && csSortSettles(s.csRule) /* --- colour-sort --- */, bmMarbles: s.mode === "beatMachine" && s.bmVariant === "marbles" /* --- beat-machine --- */, vortexRings: s.mode === "vortex" && s.vxRelease === "rings" /* --- funnel-spin --- */, lcPyramid: s.mode === "landClaim" && s.lcLayout === "pyramid", lcPyramidLoop: s.mode === "landClaim" && s.lcLayout === "pyramid" && s.lcRebuild /* --- land-claim-pyramid --- */, ringEscape: s.mode === "classic" && ringEscapeActive(s) /* --- ring-escape --- */ });
+  const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, flShow, flSides: s.mode === "fightLeague" ? flSideCount(s.flMatch, [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flFighterE, s.flFighterF]) : 0, flDecider: flBestOfGames(s.flBestOf) > 1 /* --- fl-overhaul --- (Stage 5) */, dpFan: s.mode === "doublePendulum" && s.dpFan /* --- chaos-fan --- */, colourSortSettles: s.mode === "colourSort" && csSortSettles(s.csRule) /* --- colour-sort --- */, bmMarbles: s.mode === "beatMachine" && s.bmVariant === "marbles" /* --- beat-machine --- */, vortexRings: s.mode === "vortex" && s.vxRelease === "rings" /* --- funnel-spin --- */, lcPyramid: s.mode === "landClaim" && s.lcLayout === "pyramid", lcPyramidLoop: s.mode === "landClaim" && s.lcLayout === "pyramid" && s.lcRebuild /* --- land-claim-pyramid --- */, ringEscape: s.mode === "classic" && ringEscapeActive(s) /* --- ring-escape --- */, pfPento: s.mode === "perfectFit" && s.pfVariant === "pento" /* --- perfect-fit --- */ });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }), t("Rigged.challengers") /* --- fl-overhaul --- (Stage 5: a boss rush's side 1) */);
   const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
@@ -3241,6 +3273,7 @@ export default function Simulator() {
           ellipseFoci: ellipseFociSettingsOf(settings), // --- ellipse-foci --- (the transit and the start angle are searched, not seeds)
           beatMachine: beatMachineSettingsOf(settings, audioRef.current?.getCustomNotes() ?? []), // --- beat-machine --- (seeded phrases are searched: a plan a seed)
           brickRebuild: brickRebuildSettingsOf(settings), // --- brick-rebuild --- (its first smash: cleared by, on a bar line, the balls at its end)
+          perfectFit: perfectFitSettingsOf(settings), // --- perfect-fit --- (solution seeds are searched, or the beat: a plan a seed)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },
@@ -3313,8 +3346,17 @@ export default function Simulator() {
         fsRunKeyRef.current = FUNNEL_SPIN_RESTART_FIELDS.map((key) => String({ ...settings, ...foundFs }[key])).join("|");
         update({ ...foundFs, recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration - 1e-6)) });
       }
+      // --- perfect-fit --- the solution seed with the most pieces on the floor, or the landings on the beat, and the clip: whole loops
+      // of the run (the restart effect's key is moved first, so the change keeps the result on the page)
+      const foundPf = settings.mode === "perfectFit" && result.perfectFit ? (result.outcome === "landings-on-beat" ? { pfBeat: true } : { pfSeed: result.perfectFit.seed }) : null;
+      if (foundPf) {
+        const next = { ...settings, ...foundPf };
+        pfRunKeyRef.current = [...PF_RESTART_FIELDS.map((key) => String(next[key])), next.pfBeat ? next.bpm : ""].join("|");
+        update({ ...foundPf, recordingDuration: Math.max(RANGES.recordingDuration.min, Math.ceil(result.duration - 1e-6)) }); // (whole seconds: Export whole loops cuts the clip to the loops)
+      }
       engine.setConfig({ ballRadius: settings.ballRadius });
       initEngineForMode(engine, settings);
+      if (foundPf) initEngineForMode(engine, { ...settings, ...foundPf }); // --- perfect-fit ---
       if (foundFs) initEngineForMode(engine, { ...settings, ...foundFs }); // --- funnel-spin ---
       if (foundStars) initEngineForMode(engine, { ...settings, ...foundStars }); // --- chord-stars ---
       if (foundEf) initEngineForMode(engine, { ...settings, ...foundEf }); // --- ellipse-foci ---
@@ -3382,6 +3424,7 @@ export default function Simulator() {
 
   /* ------------------------------------------------------------ canvas labels */
 
+  const pfNumber = useMemo(() => new Intl.NumberFormat(hudLocale), [hudLocale]); // --- perfect-fit --- (the classic counts: "2,339")
   const labels = useMemo<CanvasLabels>(() => {
     const fill = (key: string, vars: Record<string, string | number>) => {
       let text = t(key);
@@ -3707,8 +3750,18 @@ export default function Simulator() {
           beat: (names) => t("FightLeague.canvasBeat").replace("[names]", () => names),
         },
       },
+      // --- perfect-fit --- the box as the account writes it (rows × columns), its classic count in the page's style, the Tetris
+      // counter and a clear's banner in words ("four lines")
+      perfectFit: {
+        box: (rows, cols) => fill("PerfectFit.canvasBox", { rows, cols }),
+        ways: (count) => fill("PerfectFit.canvasWays", { count: pfNumber.format(count) }),
+        noDrop: t("PerfectFit.canvasNoDrop"),
+        noTiling: t("PerfectFit.canvasNoTiling"),
+        lines: (count) => t("PerfectFit.canvasLines", { count }),
+        banner: (count) => t("PerfectFit.bannerLines", { count }).replace("[words]", String(t("PerfectFit.numberWords")).split("|")[count] ?? String(count)),
+      },
     };
-  }, [t]);
+  }, [t, pfNumber /* --- perfect-fit --- */]);
 
   // --- gerald-faces --- what the canvas needs to draw the ball characters, and the cat chirp through the ToneGenerator
   const characterRender = useMemo(
@@ -3795,7 +3848,7 @@ export default function Simulator() {
   }, [s.mode, s.teams, s.rcRacers, s.rcStandings, s.rcMiniMap, s.rcCup, s.rcCupTitle, s.rcFeature, raceCup, t]);
 
   // "Find Simulation" only makes sense for a run that can finish (see runNeverFinishes: endless modes, Rain, countdown off, cycles at never).
-  const showFinder = settings.mode === "brickRebuild" /* --- brick-rebuild --- (its first smash's outcomes) */ || (settings.mode === "landClaim" && settings.lcLayout === "pyramid") /* --- land-claim-pyramid --- (the summit's fall is always there to find) */ || settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || (settings.mode === "doublePendulum" && settings.dpFan) /* --- chaos-fan --- (a looping fan still has its split to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "ellipseFoci" /* --- ellipse-foci --- (the convergences on the beat, the longest collapse) */ || (settings.mode === "beatMachine" && settings.bmVariant === "marbles") /* --- beat-machine --- (the marble machine's seeded phrases) */ || (settings.mode === "vortex" && settings.vxRelease === "rings") /* --- funnel-spin --- (a looping ring run still has its last ring's vanish to put on a bar line) */ || (settings.mode === "colourSort" && !csSortSettles(settings.csRule)) /* --- colour-sort --- (its first sort's outcomes; a rule that lets balls back in only settles: nothing to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */, hoops: hoopsSettingsOf(settings) /* --- bead-hoops --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
+  const showFinder = settings.mode === "perfectFit" /* --- perfect-fit --- (the solution seeds and the beat) */ || settings.mode === "brickRebuild" /* --- brick-rebuild --- (its first smash's outcomes) */ || (settings.mode === "landClaim" && settings.lcLayout === "pyramid") /* --- land-claim-pyramid --- (the summit's fall is always there to find) */ || settings.mode === "orbGrid" /* --- orb-rhythm --- (a field that never settles still has its in-phase moment to find) */ || (settings.mode === "doublePendulum" && settings.dpFan) /* --- chaos-fan --- (a looping fan still has its split to find) */ || settings.mode === "hoops" /* --- bead-hoops --- (a looping run still has its lift order and its "all up" moment to find) */ || settings.mode === "ellipseFoci" /* --- ellipse-foci --- (the convergences on the beat, the longest collapse) */ || (settings.mode === "beatMachine" && settings.bmVariant === "marbles") /* --- beat-machine --- (the marble machine's seeded phrases) */ || (settings.mode === "vortex" && settings.vxRelease === "rings") /* --- funnel-spin --- (a looping ring run still has its last ring's vanish to put on a bar line) */ || (settings.mode === "colourSort" && !csSortSettles(settings.csRule)) /* --- colour-sort --- (its first sort's outcomes; a rule that lets balls back in only settles: nothing to find) */ || !runNeverFinishes(settings.mode, { drop: dropSettingsOf(settings), box: boxSettingsOf(settings), pendulum: pendulumSettingsOf(settings), polyrhythm: polyrhythmSettingsOf(settings), doublePendulum: doublePendulumSettingsOf(settings), illusion: illusionSettingsOf(settings), ...jdmRhythmFinderSettingsOf(settings) /* --- jdm-rhythm-runner --- */, vortex: vortexSettingsOf(settings) /* --- gerald-vortex --- (the loop) */, paintPicture: !!paintPicture /* --- review fix (modes-rhythm) --- */, grow: growFillSettingsOf(settings) /* --- loop-foundation --- */, hoops: hoopsSettingsOf(settings) /* --- bead-hoops --- */ }); // --- jdm-double-pendulum --- (endless) --- jdm-illusions --- (illusion)
   // --- jdm-polyrhythm --- a fixed-length run explains itself in the words of its mode.
   const finderFixedKey = settings.mode === "polyrhythm" ? "Simulator.finderFixedPolyrhythm" : settings.mode === "doublePendulum" ? "Simulator.finderFixedDoublePendulum" : settings.mode === "illusion" ? "Simulator.finderFixedIllusion" : "Simulator.finderFixed"; // --- jdm-double-pendulum --- (the clip length) --- jdm-illusions --- (illusion)
   // --- odd-power-layers --- Power Layers explains a fixed run length as its hit count × the bounce period.

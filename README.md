@@ -15,7 +15,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 
 | Area | What you get |
 | --- | --- |
-| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Colour Sort, Brick Smash, Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Beat Machines, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops, Focus Shot), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
+| **Game modes** | One per id in `MODE_IDS` (`src/lib/physics/types.ts`; the pages and metadata fill `{count}` with `MODE_CARD_ORDER.length`, every mode having a card) – each a small plugin class, grouped into families on the mode cards: **escape** (the ring modes – Classic, Accumulation, Multiply, Lines, Paint, Target, Portal, Shatter, Color Match, Grow (with its fill-and-loop upgrade) – plus Colour Sort, Brick Smash, Conveyor Belt, Power Layers and Multipliers), **rhythm** (the sound-first modes: Ball Drop, Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms, Bouncing Orbs, Collision Playground, Chord Stars, Circle Illusion, Square Battle Royale, Capture the Flag, Fight League, Beat Runner, Paddle Keep-Up, Beat Drop, Beat Machines, Perfect Fit, Double Pendulum Harp, Square Racing Grand Prix, Bullseye, Sound Vortex, Glass Smash, Spinning Hoops, Focus Shot), **battle** (String Battle, Territory, Maze Escape, Land Claim) and **journey** (Journey) |
 | **Physics** | Ball speed, size, gravity, bounciness ("bouncier each hit"), two balls, wall count, thickness, gap size, rotation |
 | **Physics extras** | Air drag, horizontal and vertical wind, spin (wall contact spins the ball, a Magnus-style force curves its flight, custom ball images and emoji rotate with it), wall bounciness (restitution), breathing walls (radii pulse, gaps follow; collision-safe at every amplitude and speed) and rotating gravity – all deterministic (seeds and Find Simulation include them) and off by default, in the "Advanced physics" groups of the Ball and Wall sections, shared via the URL (`drag`, `wx`, `wy`, `spin`, `wb`, `bw`, `bws`, `rg`) |
 | **Merge & split balls** | A ball-interaction setting in the Ball section: balls **bounce** (default), **merge** into one bigger ball on contact (area and momentum conserved, colours blended, a particle burst and a low tone), **split** in two every time a ball breaks through a wall (half the area each, diverging velocities, a high tone – down to a smallest size and up to a ball cap) or **pass** through each other. Works in the two-ball modes and Multiply, is deterministic (seeds and Find Simulation include it) and shared via the URL (`bi`, `smr`, `mb`) |
@@ -102,6 +102,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Go-live kit** | Everything between "it works" and "strangers pay" (feature go-live-kit, owner request 8): [`docs/GO-LIVE.md`](docs/GO-LIVE.md), a plain-language launch guide with sixteen sections – costs, hosting and a custom domain, the four accounts (Cloudflare, Stripe, PayPal, NOWPayments with your own payout wallets), test first then live, payouts, licence keys, GitHub variables, legal pages, taxes, a launch-day and a monthly checklist, the fee table and what to do when something breaks; **`npm run go-live`**, a wizard that asks for every key once (hidden, checked by its shape and mode), finds or creates the KV storage, deploys the Worker, makes the licence key pair, finds or creates the Stripe prices and PayPal plans (never twice), stores every secret with `wrangler secret put` on standard input only and sets the GitHub variables and secrets (`--dry-run`, `--skip`, `--mode`); **`npm run go-live:check`**, 17 PASS/FAIL checks of the Worker (`/health`, mode, providers, webhooks, CORS, `/config`, storage), the site (online, not in test mode, the same public key as the Worker, pointing at it, the legal sections), Stripe/PayPal/NOWPayments (prices, plans, webhook endpoints, the customer portal) and GitHub. The Worker gains `GET /health`, live/test mode safety (mixed keys switch a provider off: `503 provider_misconfigured`), refunds, disputes and reversals that end a subscription's access, per-connection rate limits (`429 rate_limited`), several site origins and one price file, [`billing/billing-config.json`](billing/billing-config.json); the terms gain Delivery, Cancellation and refunds and Who you are buying from (`SUPPORT_EMAIL`, `LEGAL_NAME`, `LEGAL_ADDRESS` repository variables); `deploy.yml` refuses a half-configured or test-key production deploy (`node scripts/go-live-check.mjs --deploy-guard`) |
 | **Auto-release (desktop-autorelease)** | One push updates everything: the website deploys from the product branch only (`CUSTOM_DOMAIN` switches it to a domain root; optional Cloudflare Pages), the billing Worker deploys on changes to `billing/` with a health check, and a version bump in `desktop/package.json` (`npm run release:desktop -- 1.0.4`) builds, smoke-runs and publishes the Windows release that electron-updater serves; the app checks every 4 hours, shows a Restart / Later banner and a notification, never interrupts a render. [docs/RELEASING.md](docs/RELEASING.md) |
 | **Brick Smash** | An escape-family mode of the loop family (`brickRebuild`, feature brick-rebuild) after the loop-clip account's Breakout picture smash ("we smashed our own logo"), with its gold-capsule ("from 3 balls to 280") and kaleidoscope ("the other fourteen are reflections") variants: a box whose top 78 % is a 30 × 30 picture of one-hit bricks – the built-in emblem (an original navy field, teal ring and amber square), **your own uploaded logo** (cover-fitted, quantised to ≤ 8 colours by seeded k-means; it stays in the page – no link, preset or project file carries it) or typed text in a pixel font – smashed by hollow balls that sweep through the grid (no tunnelling at any speed or size) and add a ball every 4th break; at 0 bricks gravity drops them, the bricks fly back colour layer by colour layer while the counter climbs back, and the start balls reappear on the seam, so Export whole loops records a clip that repeats forever. Pentatonic plucks by row, a groove that drops on a bar line, a wash and a ding over the rebuild; Find Simulation searches a smash cleared by a time, a last brick on the downbeat or a final ball count. See [Brick Smash](#brick-smash). |
+| **Perfect Fit** | --- perfect-fit --- A rhythm-family mode of the loop family (`perfectFit`) after the loop-clip account's packing reels ("same 12 pieces, three perfect rectangles", "70 pieces, not one out of place"): pieces dropped straight down into a container that a solver guarantees ends exactly full, with an audible progress ladder. **Pentominoes** – the 12 pieces lift out of a tray one by one, glide above their columns already in their final orientation and fall straight into a 10 × 6 box (a small squash on landing), then the box flashes, its 60 unit squares burst out and fade and the same pieces fill 12 × 5, then 15 × 4 (`pfBx`, any W × H list; 0.55 s a piece, 24.2 s a loop); under the box "6 × 10" and "one of 2,339 ways" (1,010 and 368 for the others). The tiling is an exact cover (Algorithm X with dancing links, a seeded column order) whose drop order lets every piece fall vertically: a tiling with no such order is rejected, so 3 × 20 – two tilings, neither droppable – shows "can't be built by dropping". **Tetris** – 70 tetrominoes fall at a constant speed into a 10 × 16 well in their final column and rotation: four four-line perfect clears (a vertical I last, under a gold "four lines" banner, each section faster) and a held twelve-line finale that flashes cream-white (`pfSc` 4,4,4,4,12, `pfW` × `pfH`, `pfHd`), "N lines cleared" under the well, an empty well at the 18 s loop point. Every piece plays the next degree up the pentatonic (the chip voice in Tetris) over a soft landing thump, a rectangle the completion chord and a crack, a clear the chord and a 0.3 s hard silence – original synthesis through the loop sounds. Seconds per piece, Fall feel, Land on the beat (every landing on the Sound section's tempo), Solution seed (`pfS`, `pfF`, `pfB`, `pfSd`), four presets, the loop HUD ("all 12 pentominoes", "every piece fits"), the loop contract and Find Simulation's **Most pieces on the floor** and **Every landing on the beat**. See [Perfect Fit](#perfect-fit). |
 
 ## Design
 
@@ -2173,6 +2174,7 @@ daily card) shows its mode at its **hero moment** – mid-action, with the payof
 | `colourSort` | the bullseye almost sorted: every colour in its own band, the last stragglers slipping through the turning gates | 1 | 9 s | `lh=0` | – |
 | `beatMachine` | the marble xylophone mid-tune: marbles falling from their tubes onto the rainbow bars, one bouncing off a struck bar, others riding the lift | 1 | 3.5 s | `lh=0` | zoom 1.15 |
 | `brickRebuild` | the emblem half smashed: a hundred hollow balls tearing through the navy field, the teal ring and the amber square, grey ghosts of the last bricks shrinking away | 1 | 9 s | `brV=600&lh=0` | – |
+| `perfectFit` | the 10 × 6 box two-thirds full of glossy pentominoes, one falling straight into its slot, the tray above thinning out | 1 | 5.1 s | `lh=0` | – |
 
 ### Watermark on every free simulation
 Feature watermark-everywhere – the owner's request (2026-10-04): "add the watermark to all simulations made without pro". The
@@ -2951,6 +2953,94 @@ Mode row (its labels in the `BrickRebuild` namespace of `messages/*.json`) and `
   reference preset at 4× through the rebuild – the counter reaching 0 and then 900, the seam, the plucks and the HUD – and measures
   its frame rate at 1× with about 200 balls; it also checks the block, the link, an uploaded picture, the outcomes (a found run played
   back to its second) and a whole-loop fast export, with the free watermark clear of the HUD.
+
+### Perfect Fit
+Feature perfect-fit – the loop-clip account's packing reels ("same 12 pieces, three perfect rectangles", "70 pieces, not one out of
+place"), rebuilt as one rhythm-family mode (`perfectFit`): pieces dropped straight down into a container that a solver guarantees
+ends exactly full. `src/lib/simulation/polyominoPlan.ts` is the planner, `src/lib/physics/perfectFit.ts` the settings, links and
+presets, `src/lib/physics/modes/perfectFit.ts` the mode, `src/components/simulator/perfectFitRenderer.ts` the picture,
+`sections/PerfectFitSection.tsx` the controls and `src/lib/simulation/perfectFitFinder.ts` Find Simulation.
+
+- **Pieces** – the 12 free pentominoes (F I L N P T U V W X Y Z, each its own vivid colour, 30° of hue apart) and the 7 one-sided
+  tetrominoes in the guideline colours; `fixedOrientations()` gives 63 fixed orientations for the pentominoes (rotations and
+  mirror images) and 19 for the tetrominoes (rotations only: S and Z, J and L are different pieces). Any polyomino works there,
+  so hexominoes are a `PieceSet` away.
+- **Exact cover** – `DancingLinks` is Knuth's Algorithm X on typed arrays: a column per box cell and per piece, a row per
+  placement. The column taken at each level has the fewest rows, ties broken by a seeded column order, and each column's rows are
+  tried in a seeded order, so every seed picks a different tiling (`searchTilings()`, `tileBox()`; memoised per box and seed,
+  `PF_MEMO_SIZE` plans). The search is exact: 10 × 6 has 9,356 covers – 2,339 up to the box's four symmetries.
+- **Drop order** – a piece can fall straight down when every cell above its cells in its columns is still empty and it rests on
+  the floor or a placed cell; for a whole tiling that holds exactly when "is directly below" between its pieces has no cycle, and
+  every topological order is then a valid drop order (`dropOrder()`: lowest first, then leftmost). The check runs inside the
+  search (`DropGuard`): a placement that closes a cycle is rejected at once and the search moves on – a cycle never opens again.
+  3 × 20 has 2 tilings (8 with their mirror images) and every one has a cycle, so it yields "no droppable solution"; 2 × 30 and
+  1 × 60 have none at all, and a box that is not 60 cells is refused at once (`status` "none" / "size": the box is shown empty
+  with its words, then the next one). X can never land last: its arms would hide two cells nothing could fill afterwards.
+  `simulateDrops()` drops a plan's pieces from above the box one by one – the tests' proof that each lands exactly on its target.
+- **Perfect clears** – `planPerfectClear()` fills a section of L lines of a W-wide well by hole-free tetromino drops: a seeded
+  search that always covers the lowest, leftmost empty cell with a drop that fits the stack exactly (an exact cover whose every
+  solution is droppable by construction). A four-line section keeps a seeded column for a vertical I that lands last, so no row
+  is full before it (the classic four-line clear); a taller section (the held finale) fills the whole width and holds its rows
+  until its last piece. Wider or taller chunks are blocks of at most 10 × 12 side by side and bands stacked, each one of its
+  size's 16 solved blocks (the "pre-solved library", memoised), the whole chunk mirrored by the seed. Sections whose W × L is not a
+  multiple of 4 are left out; the well is drawn at least as tall as its tallest section.
+- **The timeline** – rectangles: a piece every Seconds per piece (0.55 s), lifting out of the tray 0.945 slot before it lands
+  (lift 0.12, travel 0.15, fall 0.25 of the reel's 0.55 s; the fall's curve u^(1 + Fall feel): 0 a constant speed, 1 gravity
+  from rest), a 0.08 slot squash; then the flash (0.15 s), the scatter of the 60 unit squares (seeded velocities and gravity,
+  0.8 s) and the label's crossfade into the next box (0.5 s): 3 × 8.05 = 24.15 s a loop. Tetris: a piece spawns just above the
+  well as the last one lands and falls through its slot at a constant speed, each section 0.82 × the last's slot (0.3 s first);
+  a clear's banner 0.55 s, then the hard cut and 0.3 s of silence; the finale's cream flash 1 s, then 0.5 s of empty well: about
+  18.1 s. With **Land on the beat** a piece takes the power of two of beats nearest Seconds per piece (… ¼, ½, 1, 2 … beats), every
+  completion and every start whole beats and the loop whole bars, so every landing is on the Sound section's beat grid.
+- **The mode** – the "none" ring layout; the pieces are not engine balls: the plan is a pure function of the simulation clock, the
+  canvas draws every piece at the frame's own time, and one anchor ball stays pinned in the middle (no gravity, `ballsMayRest`,
+  `ballsPassThrough`, not drawn) – bounce math's "bounce" fires on every landing. Events are emitted over (last step, now], so the
+  live page, the fast export, the batch render and the finder replay a seed exactly at any frame rate. The seeded choices: one
+  `ctx.random()` draw at init, the solution seed when Solution seed is 0 (auto); everything else comes from the solution seed.
+  The loop contract reports the plan's loop and every seam is an empty box with a full tray (`data-pf-seams-empty`).
+- **Settings** (the Mode row; uncapped number fields, the slider in brackets; labels in the `PerfectFit` namespace) – Puzzle `pfV`
+  pento / tetris (a switch moves a default Seconds per piece and page to the other's), Seconds per piece `pfS` 0.55 [0.05–5],
+  Fall feel `pfF` 1 [0–10], Land on the beat `pfB`, Solution seed `pfSd` auto (0) [0–99999]; rectangles: Boxes `pfBx`
+  "10×6, 12×5, 15×4" (W × H, at most 64; the panel names each box's count or why it stays empty); Tetris: Lines per section `pfSc`
+  "4,4,4,4,12", Well width / height `pfW` / `pfH` 10 × 16 [4–100 × 4–200; memory-safety ceilings 1,000 × 2,000], Hold the last
+  clears `pfHd`. A run plans at most `PF_PIECE_CEILING` (10,000) pieces. A change re-plans and restarts the run (the tempo too
+  while the landings follow the beat).
+- **The picture** – the rectangles on an indigo gradient (#1c1f4a → #15173a): the tray of 12 pieces in their final orientations
+  (two rows of six, at most 45 % of a box cell), the box (#14163a, a lighter 1 px border, a faint grid) 90 % of the square wide or
+  as tall as fits, glossy rounded cells (20 % corners, a lighter top bevel, a soft offset shadow; one cached `Path2D` per
+  orientation), the white bold "6 × 10" (rows × columns, as the account writes it) and the grey "one of 2,339 ways" under the box;
+  Tetris on near-black (#0a0b14): the well with a 2 px slate border (#5a5f8a) and a faint grid, the guideline colours with a darker
+  bevel, a landed piece's brief glow, a translucent khaki band with the gold (#e5b04a) "four lines" over a clear, the finale's
+  rows flashing cream-white under "twelve lines" and the grey "N lines cleared" under the well. The words under the box are one
+  centred block of the watermark's HUD report (`labelRect`), live and in the exports, and they end above the bottom 9 % of the
+  square, so the badge keeps its bottom corners under the box instead of covering the pieces; a piece lifted out of the tray's
+  top row never leaves the square (`PF_LIFT_TOP`).
+- **Sound** (original synthesis, no audio copied: loop-foundation's `ToneGenerator.playLoop()`) – the progress ladder: each piece
+  leaving the tray plays the next degree of the major pentatonic up from C5 (`"step"`, sine + 3f, the last piece +3 dB), wrapping
+  after 13 and starting again with every box, and its landing the soft thump (`"land"`); a completed rectangle plays the
+  completion chord (`"chord"` on G2) with a noise crack (`"impact"`). Tetris pieces play the ladder as they land on the chip voice
+  (`"step"` with the new `SoundEvent.loopChip`, a square) over the thump; a clear plays the chord under its banner, then
+  `"cut"` silences every loop voice for the 0.3 s before the next section; the finale plays the chord and the crack.
+- **Find Simulation** – **Most pieces on the floor** (the rectangles): of 24 solution seeds, the one whose rectangles rest the
+  most pieces on the box's floor – the page keeps it as the Solution seed; **Every landing on the beat**: turns Land on the beat
+  on at the page's tempo. A plan per seed, nothing simulated; the clip is the whole loops that fit the target. The Publish caption
+  editor's **Loop style** has "same 12 pieces, three perfect rectangles 🔊" with the 2,339 / 1,010 / 368 fact, or "70 pieces, not
+  one out of place 🔊", and #puzzle #creativecoding #animation.
+- **Extending** – a new piece set is a `PieceSet` (its pieces and `fixedOrientations()`); a box's classic count goes into
+  `PENTOMINO_WAYS`; a new completion effect into `drawPento()` / `drawTetris()` of the renderer, timed by the puzzle's phases.
+- **For tools** – the canvas mirrors `data-pf-variant`, `-time`, `-loop`, `-loop-index`, `-seams`, `-seams-empty`,
+  `-seam-cells`, `-puzzle`, `-puzzles`, `-placed`, `-landed`, `-lifts`, `-rects`, `-rects-loop`, `-rects-max`, `-lines`,
+  `-lines-max`, `-lines-total`, `-clears`, `-sounds`, `-occupied`, `-pieces`, `-floor`, `-seed`, `-status`, `-beat`,
+  `-beat-error`, `-drawn`, `-scatter`, `-banner`, `-label` and `-balls`; the section `data-pf-variant`, `-boxes`, `-fits`, `-lines`
+  and `-pieces`.
+- **Tests** – `tests/polyominoPlan.test.ts`: the 63 orientations, the 10 × 6 exact cover, simulated vertical drops landing every
+  piece on its target, 3 × 20's 8 tilings all refused, every Tetris chunk clearing exactly 4 rows (an I last) and the finale 12,
+  the same plan for the same seed, the timelines (24.15 s, about 18 s, every landing on the beat grid), the engine's rectangles
+  and lines per loop with an empty box at every seam, 30 / 60 / 120 fps replays, the sounds through a real ToneGenerator on
+  `tests/fakeAudio.ts`, the finder, the links and presets and the renderer. The smoke test (section 47, block `perfect-fit`) runs
+  both presets to the end at 4× (3 rectangles, 28 lines, an empty box at the loop point), checks a link and the panel, the two
+  outcomes, a whole-loop fast export, the watermark tag on Record Video and Fast export for a free visitor and the live
+  watermark against the words under the box.
 
 ## Windows app
 

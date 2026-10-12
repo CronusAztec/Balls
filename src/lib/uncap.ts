@@ -232,6 +232,10 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   brBalls: BOARD_BALL_CEILING,
   brSymmetry: 256,
   // --- end brick-rebuild ---
+  // --- perfect-fit --- Perfect Fit's Tetris well: its columns and rows (a cell each in the drawing; the pieces a run plans stop at
+  // PF_PIECE_CEILING of lib/simulation/polyominoPlan.ts, the sections past it are left out)
+  pfWellW: 1_000,
+  pfWellH: 2_000,
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

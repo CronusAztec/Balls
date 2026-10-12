@@ -75,6 +75,7 @@ export const HERO_MOMENTS: Record<ModeId, HeroMoment> = {
   ellipseFoci: { moment: "the volley mid-flight on the felt: a rainbow arc of comets bouncing off the rail toward the far focus", query: "lh=0&efTr=0.45", seed: 2, atSec: 2.2, tint: "#93d119" }, // --- ellipse-foci ---
   beatMachine: { moment: "the marble xylophone mid-tune: marbles falling from their tubes onto the rainbow bars, one bouncing off a struck bar, others riding the lift", query: "lh=0", seed: 1, atSec: 3.5, camera: { zoom: 1.15 }, tint: "#c08a3f" }, // --- beat-machine ---
   brickRebuild: { moment: "the emblem half smashed: a hundred hollow balls tearing through the navy field, the teal ring and the amber square, grey ghosts of the last bricks shrinking away", query: "brV=600&lh=0", seed: 1, atSec: 9, tint: "#2fb7b4" }, // --- brick-rebuild ---
+  perfectFit: { moment: "the 10 × 6 box two-thirds full of glossy pentominoes, one falling straight into its slot, the tray above thinning out", query: "lh=0", seed: 1, atSec: 5.1, tint: "#7a6bff" }, // --- perfect-fit ---
 };
 
 /** The modes of `ids` (MODE_IDS) without a hero moment in `table`: the generator refuses to run while any is missing. */

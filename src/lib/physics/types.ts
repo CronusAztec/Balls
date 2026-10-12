@@ -87,6 +87,8 @@ export const MODE_IDS = [
   "beatMachine",
   // --- brick-rebuild --- Brick Smash (a picture of bricks smashed by multiplying balls, then rebuilt colour layer by colour layer; the loop family)
   "brickRebuild",
+  // --- perfect-fit --- Perfect Fit (pentomino rectangles and Tetris perfect clears dropped into a container that ends exactly full; the loop family)
+  "perfectFit",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -449,6 +451,10 @@ export interface SoundEvent {
   /** The completion chord held 2 s with its 1.7 Hz tremolo before it decays (Colour Sort's resolve). */
   loopTremolo?: boolean;
   // --- end ellipse-foci --- --- end colour-sort ---
+  // --- perfect-fit ---
+  /** A "step" of the progress ladder on the chip voice (square, Perfect Fit's Tetris pieces) instead of the sine ladder. */
+  loopChip?: boolean;
+  // --- end perfect-fit ---
 }
 
 // --- loop-foundation --- the voices of the loop sound families (lib/audio/loopTones.ts; `ToneGenerator.playLoop()`)

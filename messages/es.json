@@ -2362,7 +2362,8 @@
     "ringTimerTip": "Muestra «anillo k: t s» bajo los anillos: cuánto tiempo lleva la bola en el anillo actual, y «fuera en t s» cuando ya ha salido. Las grabaciones lo incluyen.",
     "ringSound": "Sonidos de los anillos",
     "ringSoundTip": "Sonidos sintetizados originales: un punteo pentatónico suave en cada rebote, afinado según el anillo (los exteriores graves, los interiores agudos), una nota que sube por cada anillo superado y un acorde cálido cuando la bola sale.",
-    "modeBrickRebuild": "Rompeladrillos"
+    "modeBrickRebuild": "Rompeladrillos",
+    "modePerfectFit": "Encaje perfecto"
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -2533,6 +2534,10 @@
     "brickRebuild": {
       "name": "Rompeladrillos",
       "description": "Una imagen de ladrillos destrozada por bolas que se multiplican. Luego se reconstruye color a color."
+    },
+    "perfectFit": {
+      "name": "Encaje perfecto",
+      "description": "Las piezas caen en línea recta hasta llenar la caja del todo. No sobra ni una casilla."
     }
   },
   "FAQ": {
@@ -3104,7 +3109,17 @@
     "missBricksClearedBy": "La ronda más rápida tardó {time}s ({seeds} semillas)",
     "missLastBrickOnBar": "El último ladrillo más cercano cayó a {offset}s de una línea de compás ({seeds} semillas)",
     "missFinalBalls": "Máximo de bolas al terminar una ronda: {balls} ({seeds} semillas)",
-    "missNoClear": "Ninguna ronda rompió todos los ladrillos dentro de su límite de tiempo ({seeds} semillas): sube el límite, las bolas o su velocidad"
+    "missNoClear": "Ninguna ronda rompió todos los ladrillos dentro de su límite de tiempo ({seeds} semillas): sube el límite, las bolas o su velocidad",
+    "outcomeMostOnFloor": "Más piezas en el fondo",
+    "outcomeLandingsOnBeat": "Cada aterrizaje a tiempo",
+    "hintMostOnFloor": "Prueba semillas de solución y se queda con la que tiene más piezas apoyadas en el fondo de la caja.",
+    "hintLandingsOnBeat": "Pone cada aterrizaje en el pulso del tempo de la sección Sonido: cada pieza dura una potencia de dos de pulsos y el bucle pasa a ser de compases completos.",
+    "findMostOnFloor": "Buscar más piezas en el fondo",
+    "findLandingsOnBeat": "Poner cada aterrizaje a tiempo",
+    "foundMostOnFloor": "¡Encontrada! {floor} de {pieces} piezas caen en el fondo (semilla de solución {seed})",
+    "foundLandingsOnBeat": "¡Listo! Cada aterrizaje en el pulso de {bpm} BPM, un bucle de {loop} s, {loops, plural, one {# bucle completo} other {# bucles completos}} en el clip",
+    "missPerfectFit": "Ninguna caja de la lista se puede llenar dejando caer las 12 piezas ({seeds} semillas)",
+    "overlayPerfectFit": "Se probaron {tested} semillas de solución: ninguna caja de la lista se puede construir dejando caer piezas. Usa cajas de 60 casillas, como 10×6, 12×5 o 15×4."
   },
   "FastExport": {
     "button": "Exportación rápida",
@@ -5181,7 +5196,11 @@
     "brickRebuildCapsules": "de {count} bolas a cientos",
     "brickRebuildCapsulesFact": "Cada cápsula dorada que atrapa la pala divide cada bola en juego en tres. Tres capturas convierten 3 bolas en 81; cinco, en 729: la misma aritmética que doblar una hoja de papel en tres.",
     "brickRebuildKaleidoscope": "solo {count} de estas bolas son reales",
-    "brickRebuildKaleidoscopeFact": "El resto son reflejos: las bolas reales rebotan dentro de una cuña del círculo con paredes de espejo, y cada ladrillo que rompen se rompe también en cada copia reflejada, así que el mosaico siempre queda perfectamente simétrico, como la vista de un caleidoscopio."
+    "brickRebuildKaleidoscopeFact": "El resto son reflejos: las bolas reales rebotan dentro de una cuña del círculo con paredes de espejo, y cada ladrillo que rompen se rompe también en cada copia reflejada, así que el mosaico siempre queda perfectamente simétrico, como la vista de un caleidoscopio.",
+    "perfectFitPento": "las mismas {count} piezas, tres rectángulos perfectos",
+    "perfectFitPentoFact": "los 12 pentominós cubren 60 cuadrados. llenan una caja de 6×10 de 2339 maneras distintas, una de 5×12 de 1010 y una de 4×15 de 368. la de 3×20 solo tiene 2 soluciones y ninguna se puede construir dejando caer las piezas en línea recta, así que no está aquí.",
+    "perfectFitTetris": "{count} piezas, ni una fuera de sitio",
+    "perfectFitTetrisFact": "cada pieza cae en línea recta en su columna y su giro finales. cuatro secciones terminan en una limpieza perfecta de cuatro líneas y las últimas 30 piezas forman 12 filas completas que desaparecen juntas: 280 cuadrados, 28 líneas, el pozo vacío."
   },
   "ColourSort": {
     "canvasTitle": "cada anillo solo detiene su propio color",
@@ -5396,5 +5415,56 @@
     "brOutline": "Bolas huecas",
     "brOutlineTip": "Bolas blancas con un borde oscuro fino, como en el clip de referencia. Desactivado: las bolas usan tu aspecto de bola (color, imagen, caras).",
     "canvasCounter": "{count} ladrillos"
+  },
+  "PerfectFit": {
+    "desc": "Las piezas caen en línea recta hasta llenar la caja del todo. Cada pieza colocada toca la nota siguiente hacia arriba. Elige los 12 pentominós o las limpiezas perfectas de Tetris.",
+    "pfPreset": "Preajuste",
+    "pfPresetTip": "Tres rectángulos: los 12 pentominós en 10 × 6, 12 × 5 y 15 × 4. Cada pieza encaja: Tetris, cuatro limpiezas de cuatro líneas y un final de doce (70 piezas). Speedrun: los rectángulos a 0,15 s por pieza. Pozo grande: Tetris en un pozo de 20 × 40.",
+    "presetThreeRects": "Tres rectángulos",
+    "presetEveryPiece": "Cada pieza encaja",
+    "presetSpeedRun": "Speedrun",
+    "presetBigWell": "Pozo grande",
+    "pfVariant": "Rompecabezas",
+    "pfVariantTip": "Pentominós: las 12 formas de cinco cuadrados, cada una una vez, llenan tres rectángulos. Tetris: los tetrominós llenan líneas enteras de un pozo y las limpian.",
+    "variantPento": "Pentominós",
+    "variantTetris": "Tetris",
+    "pfPieceSec": "Segundos por pieza",
+    "pfPieceSecTip": "Lo que tarda cada pieza desde la bandeja hasta que aterriza. En Tetris es el de la primera sección: cada sección siguiente va un poco más rápido.",
+    "pfFall": "Sensación de caída",
+    "pfFallTip": "Cómo recorre la pieza el último tramo: 0 es velocidad constante, 1 una caída libre desde el reposo, valores mayores un aterrizaje más tardío y más fuerte.",
+    "pfBeat": "Aterrizar a tiempo",
+    "pfBeatTip": "Cada aterrizaje en el pulso del tempo de la sección Sonido: una pieza dura la potencia de dos de pulsos más cercana a Segundos por pieza, cada final pulsos completos y el bucle compases completos.",
+    "beatNote": "Aterrizajes en el pulso de {bpm} BPM (el tempo de la sección Sonido).",
+    "pfSeed": "Semilla de solución",
+    "pfSeedTip": "Qué forma de llenar las cajas verás. Auto elige una nueva en cada ejecución. Un número mantiene esa solución, y Buscar simulación puede fijarla.",
+    "seedAuto": "auto",
+    "pfBoxes": "Cajas",
+    "pfBoxesTip": "Los rectángulos en orden, ancho × alto en casillas, como 10×6, 12×5, 15×4. Los 12 pentominós cubren exactamente 60 casillas, así que una caja de otro tamaño queda vacía.",
+    "boxNoteWays": "{w} × {h}: una de {ways, number} maneras de llenarla.",
+    "boxNoteNoDrop": "{w} × {h}: tiene teselados, pero ninguno se puede construir dejando caer las piezas en línea recta.",
+    "boxNoteNone": "{w} × {h}: demasiado estrecha, las 12 piezas no la llenan.",
+    "boxNoteSize": "{w} × {h} son {area} casillas: las 12 piezas necesitan exactamente 60.",
+    "boxNoteOther": "{w} × {h}: el solucionador busca un teselado que se pueda dejar caer.",
+    "pfSections": "Líneas por sección",
+    "pfSectionsTip": "Cada número es una sección del pozo que termina en una limpieza perfecta, como 4,4,4,4,12. Una sección de cuatro líneas termina con una I vertical cayendo en el último hueco.",
+    "sectionsNote": "{lines} líneas, {pieces} piezas.",
+    "pfWellW": "Ancho del pozo",
+    "pfWellWTip": "Columnas del pozo. Ancho × líneas debe ser múltiplo de 4; si no, esa sección se omite.",
+    "pfWellH": "Alto del pozo",
+    "pfWellHTip": "Filas del pozo; crece para que quepa su sección más alta.",
+    "pfHold": "Retener las últimas limpiezas",
+    "pfHoldTip": "La última sección guarda sus filas completas hasta que aterriza su última pieza y luego las limpia todas a la vez. Desactivado: limpia de cuatro en cuatro líneas.",
+    "canvasTitlePento": "los 12 pentominós",
+    "canvasSubtitlePento": "tres rectángulos, los mismos 60 cuadrados",
+    "canvasSubtitlePentoCount": "{count, plural, one {# rectángulo} other {# rectángulos}}, los mismos 60 cuadrados",
+    "canvasBox": "[rows] × [cols]",
+    "canvasWays": "una de [count] maneras",
+    "canvasNoDrop": "no se puede construir dejando caer",
+    "canvasNoTiling": "las 12 piezas no la llenan",
+    "canvasTitleTetris": "cada pieza encaja",
+    "canvasSubtitleTetris": "{count} piezas, ni una fuera de sitio",
+    "canvasLines": "{count, plural, one {# línea completada} other {# líneas completadas}}",
+    "bannerLines": "{count, plural, one {[words] línea} other {[words] líneas}}",
+    "numberWords": "cero|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieciséis|diecisiete|dieciocho|diecinueve|veinte"
   }
 }

@@ -39,6 +39,7 @@ import { STAR_CHORDS_KEYS } from "./sections/StarChordsSection"; // --- chord-st
 import { HOOPS_KEYS } from "./sections/HoopsSection"; // --- bead-hoops ---
 import { ELLIPSE_FOCI_KEYS } from "./sections/EllipseFociSection"; // --- ellipse-foci ---
 import { BEAT_MACHINE_KEYS } from "./sections/BeatMachineSection"; // --- beat-machine ---
+import { PERFECT_FIT_KEYS } from "./sections/PerfectFitSection"; // --- perfect-fit ---
 import { RING_ESCAPE_KEYS } from "./sections/RingEscapeSection"; // --- ring-escape ---
 import { BRICK_REBUILD_KEYS } from "./sections/BrickRebuildSection"; // --- brick-rebuild ---
 import { VIDEO_BEATS_KEYS } from "./sections/VideoBeatsSection";
@@ -71,6 +72,8 @@ export function wallControlsOf(mode: ModeId): { wallCount: boolean; thickness: b
   if (mode === "beatMachine") return { wallCount: false, thickness: false, gapControls: false, gapSize: false };
   // --- brick-rebuild --- Brick Smash has no rings: its box (or its kaleidoscope's circle) and its bricks are the mode's own
   if (mode === "brickRebuild") return { wallCount: false, thickness: false, gapControls: false, gapSize: false };
+  // --- perfect-fit --- Perfect Fit has no rings: its box or well and its pieces are the mode's own
+  if (mode === "perfectFit") return { wallCount: false, thickness: false, gapControls: false, gapSize: false };
   // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop) --- odd-territory --- (territory) --- odd-maze --- (maze)
   const wallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "grow", "portal", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey", "bullseye", "beatDrop", "territory", "maze"].includes(mode) && !isArenaGameMode(mode) && !isJdmRhythmMode(mode) && mode !== "landClaim" /* --- land-claim --- (no rings) */;
   // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop) --- odd-territory --- (territory) --- odd-maze --- (maze)
@@ -131,6 +134,7 @@ export const MODE_BLOCK_KEYS: Readonly<Partial<Record<ModeId, readonly string[]>
   ellipseFoci: ELLIPSE_FOCI_KEYS, // --- ellipse-foci ---
   beatMachine: BEAT_MACHINE_KEYS, // --- beat-machine ---
   brickRebuild: BRICK_REBUILD_KEYS, // --- brick-rebuild ---
+  perfectFit: PERFECT_FIT_KEYS, // --- perfect-fit ---
 };
 
 /** The keys of every mode's block. */

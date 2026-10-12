@@ -70,6 +70,9 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "bricks-cleared-by": "outcomeBricksClearedBy",
   "last-brick-on-bar": "outcomeLastBrickOnBar",
   "final-balls": "outcomeFinalBalls",
+  // --- perfect-fit ---
+  "most-on-floor": "outcomeMostOnFloor",
+  "landings-on-beat": "outcomeLandingsOnBeat",
 };
 
 const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
@@ -116,6 +119,9 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "bricks-cleared-by": "hintBricksClearedBy",
   "last-brick-on-bar": "hintLastBrickOnBar",
   "final-balls": "hintFinalBalls",
+  // --- perfect-fit ---
+  "most-on-floor": "hintMostOnFloor",
+  "landings-on-beat": "hintLandingsOnBeat",
 };
 
 /** --- fl-overhaul --- (Stage 5) An outcome's label key (`Rigged.*`): the story outcomes' generic texts name it. */
@@ -576,6 +582,11 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findLastBrickOnBar");
     case "final-balls":
       return t("Rigged.findFinalBalls", { count: c.count ?? 1 });
+    // --- perfect-fit ---
+    case "most-on-floor":
+      return t("Rigged.findMostOnFloor");
+    case "landings-on-beat":
+      return t("Rigged.findLandingsOnBeat");
     default:
       return null;
   }
@@ -651,6 +662,11 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
     case "last-brick-on-bar":
     case "final-balls":
       return t(result.outcome === "final-balls" ? "Rigged.foundFinalBalls" : result.outcome === "last-brick-on-bar" ? "Rigged.foundLastBrickOnBar" : "Rigged.foundBricksClearedBy", brickRebuildValues(result));
+    // --- perfect-fit --- (the pieces on the floor and the solution seed; the beat and the loops in the clip)
+    case "most-on-floor":
+      return t("Rigged.foundMostOnFloor", { floor: result.perfectFit?.floor ?? 0, pieces: result.perfectFit?.pieces ?? 0, seed: result.perfectFit?.seed ?? 0 });
+    case "landings-on-beat":
+      return t("Rigged.foundLandingsOnBeat", { bpm: (result.perfectFit?.beatSec ?? 0) > 0 ? Math.round(60 / (result.perfectFit?.beatSec ?? 1)) : 0, loop: (result.perfectFit?.loopSec ?? 0).toFixed(2), loops: result.perfectFit?.loops ?? 0 });
     default:
       return null;
   }
@@ -725,6 +741,10 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
     case "last-brick-on-bar":
     case "final-balls":
       return brickRebuildMissText(t, result);
+    // --- perfect-fit --- (no box of the list can be filled by dropping: nothing to land)
+    case "most-on-floor":
+    case "landings-on-beat":
+      return t("Rigged.missPerfectFit", { seeds: result.seedsTested });
     default:
       return null;
   }
@@ -806,6 +826,10 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
     case "last-brick-on-bar":
     case "final-balls":
       return brickRebuildMissText(t, result);
+    // --- perfect-fit ---
+    case "most-on-floor":
+    case "landings-on-beat":
+      return t("Rigged.overlayPerfectFit", { tested: result.seedsTested });
     default:
       return null;
   }

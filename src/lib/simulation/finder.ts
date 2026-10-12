@@ -65,6 +65,8 @@ import type { EllipseFociSettings } from "@/lib/physics/ellipseFoci"; // --- ell
 import { findEllipseFociRun, type EllipseFociFound } from "./ellipseFociFinder"; // --- ellipse-foci ---
 import type { BeatMachineSettings } from "@/lib/physics/beatMachine"; // --- beat-machine ---
 import { findBeatMachineRun, type BeatMachineFound } from "./beatMachineFinder"; // --- beat-machine ---
+import type { PerfectFitSettings } from "@/lib/physics/perfectFit"; // --- perfect-fit ---
+import { findPerfectFitRun, type PerfectFitFound } from "./perfectFitFinder"; // --- perfect-fit ---
 import { findFunnelSpinRun, type FunnelSpinFound } from "./funnelSpinFinder"; // --- funnel-spin ---
 import type { BrickRebuildSettings } from "@/lib/physics/brickRebuild"; // --- brick-rebuild ---
 import { resolveBrickRebuildSettings } from "@/lib/physics/modes/brickRebuild"; // --- brick-rebuild ---
@@ -264,6 +266,13 @@ export interface ModeSettings {
    * Its run loops forever, so the finder searches its first smash's outcomes (brickRebuildFinder.ts).
    */
   brickRebuild?: Partial<BrickRebuildSettings>;
+  // --- perfect-fit ---
+  /**
+   * Perfect Fit: the puzzles, the timing, the solution seed and the page's tempo (see lib/physics/perfectFit.ts); the defaults
+   * when left out. Every box ends exactly full by construction and the run loops forever, so the finder searches solution seeds
+   * or puts the landings on the beat instead (perfectFitFinder.ts).
+   */
+  perfectFit?: Partial<PerfectFitSettings>;
 }
 
 // --- odd-string-battle ---
@@ -360,6 +369,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "beatMachine") return true;
   // --- brick-rebuild --- it smashes, rebuilds and smashes again forever (its outcomes search the first smash)
   if (mode === "brickRebuild") return true;
+  // --- perfect-fit --- the puzzles loop forever (the finder searches solution seeds or the beat instead)
+  if (mode === "perfectFit") return true;
   return false;
 }
 
@@ -511,6 +522,8 @@ export interface FinderResult {
   // --- beat-machine ---
   /** Beat Machines: the phrase found's spares and the most marbles out at once, the loop and the loops in the clip. */
   beatMachine?: BeatMachineFound;
+  /** --- perfect-fit --- Perfect Fit: the solution seed with the most pieces on the floor, or the landings on the beat; the loop and the loops in the clip. */
+  perfectFit?: PerfectFitFound;
   /** --- funnel-spin --- The Sound Vortex's ring release: the wave interval and the friction that put the last ring's vanish on a bar line. */
   funnelSpin?: FunnelSpinFound;
   // --- land-claim-pyramid ---
@@ -596,6 +609,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "ellipseFoci") engine.setEllipseFociSettings(settings.ellipseFoci ?? {}); // --- ellipse-foci ---
   if (mode === "beatMachine") engine.setBeatMachineSettings(settings.beatMachine ?? {}); // --- beat-machine ---
   if (mode === "brickRebuild") engine.setBrickRebuildSettings(settings.brickRebuild ?? {}); // --- brick-rebuild ---
+  if (mode === "perfectFit") engine.setPerfectFitSettings(settings.perfectFit ?? {}); // --- perfect-fit ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -819,6 +833,11 @@ export function findSimulation(
     if (request.mode === "brickRebuild") {
       const horizonSec = resolveBrickRebuildSettings(request.modeSettings.brickRebuild).duration + 1;
       findBrickRebuildRun(request, horizonSec, (seed) => createEngineForSettings(request.physicsConfig, "brickRebuild", request.modeSettings, seed), onProgress, signal, now, schedule).then(resolve);
+      return;
+    }
+    // --- perfect-fit --- every box ends exactly full by construction: the search is over solution seeds (a plan a seed), or the beat
+    if (request.mode === "perfectFit") {
+      resolve(findPerfectFitRun(request));
       return;
     }
     // --- funnel-spin --- a ring run does not depend on the seed: the search fits the wave interval and the friction to the bar lines

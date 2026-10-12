@@ -9,6 +9,7 @@ import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulum
 import { ELLIPSE_FOCI_DATA_KEYS, EllipseFociLayer, ellipseFociExtentPx, writeEllipseFociDataset, type EllipseFociRenderOptions } from "./ellipseFociRenderer"; // --- ellipse-foci ---
 import { BEAT_MACHINE_DATA_KEYS, BeatMachineLayer, beatMachineExtentPx, writeBeatMachineDataset, type BeatMachineRenderOptions } from "./beatMachineRenderer"; // --- beat-machine ---
 import { BRICK_REBUILD_DATA_KEYS, BrickRebuildLayer, brickRebuildExtentPx, writeBrickRebuildDataset, type BrickRebuildRenderOptions } from "./brickRebuildRenderer"; // --- brick-rebuild ---
+import { PERFECT_FIT_DATA_KEYS, PERFECT_FIT_ENGLISH, PerfectFitLayer, perfectFitExtentPx, writePerfectFitDataset, type PerfectFitLabels, type PerfectFitRenderOptions } from "./perfectFitRenderer"; // --- perfect-fit ---
 // --- jdm-polyrhythm ---
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
 import { inLinePercent } from "@/lib/physics/phaseSpiral"; // --- phase-spiral ---
@@ -243,6 +244,9 @@ export interface CanvasLabels {
   // --- string-circle ---
   /** The String Battle's circle style: the title line, the winner banner and its share of the rim, the standings strip's "+N". */
   stringCircle?: StringCircleLabels;
+  // --- perfect-fit ---
+  /** Perfect Fit: the box's "6 × 10", "one of 2,339 ways", the Tetris counter and a clear's banner ("four lines"). */
+  perfectFit?: PerfectFitLabels;
 }
 
 export interface CanvasHandle {
@@ -881,6 +885,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- brick-rebuild --- Brick Smash's layer (the cached bricks, the ghosts, the flights) and its per-frame options
     const brLayer = new BrickRebuildLayer();
     const brRender: BrickRebuildRenderOptions = { dpr: scale, hudOn: false };
+    // --- perfect-fit --- Perfect Fit's layer (the cached piece paths) and its per-frame options
+    const pfLayer = new PerfectFitLayer();
+    const pfRender: PerfectFitRenderOptions = { dpr: scale, showGlow: false };
     // --- gerald-faces --- ball characters (faces, name label, squash); the Box / Pendulum / Polyrhythm / Collide bodies get faces through drawOverlays()
     const faces = new FaceLayer();
     facesRef.current = faces;
@@ -1637,6 +1644,15 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         brRender.ballsLabel = (labelsRef.current ?? DEFAULT_LABELS).brickRebuild?.balls;
         brLayer.drawStage(ctx, brView, brRender);
       }
+      // --- perfect-fit --- Perfect Fit: the box (or the well), its grid and the words under it, from the plan at the frame's own time
+      const pfView = engine.isPerfectFitMode() ? engine.getPerfectFitView() : null;
+      const pfT = pfView ? hoopsRenderTimeMs(engine.getElapsedMs(), engine.getStepRemainderMs(), accumulator) / 1000 : 0;
+      const pfLabels = pfView ? ((labelsRef.current ?? DEFAULT_LABELS).perfectFit ?? PERFECT_FIT_ENGLISH) : PERFECT_FIT_ENGLISH;
+      if (pfView) {
+        pfRender.dpr = scale;
+        pfRender.showGlow = p.showGlow;
+        pfLayer.drawStage(ctx, pfView, pfT, pfRender, pfLabels);
+      } else pfLayer.labelRect.w = 0;
 
       // --- jdm-polyrhythm --- Metronomes & Polyrhythms: the stage (rings / polygons, chords, semicircles, metronome bodies, spiral).
       const isPoly = engine.isPolyrhythmMode();
@@ -2293,6 +2309,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (efView) efLayer.drawBodies(ctx, efView, efRender); // --- ellipse-foci --- the volley by hue, the convergence bloom
       else if (machineView) machineLayer.drawBodies(ctx, machineView, machineT, machineRender); // --- beat-machine --- the stairs' ball and its trail, or the glossy marbles
       else if (brView && brLayer.drawsBodies(brView)) brLayer.drawBodies(ctx, brView, balls, brRender); // --- brick-rebuild --- hollow balls with their kaleidoscope images, the rebuild's fades
+      else if (pfView) pfLayer.drawBodies(ctx, pfView, pfT, pfRender, pfLabels); // --- perfect-fit --- the tray, the falling and landed pieces, the scatter, the banners (the anchor ball is not drawn)
       else if (vortexView && vortexLayer.drawsBodies(vortexView)) vortexLayer.drawBodies(ctx, vortexView, vortexRender); // --- funnel-spin --- the perspective's glossy marbles, far to near, under the front lip (--- review fix (funnel-spin) --- and the ring release's from above: a hue a marble outruns the sprite cache below)
       else if (isPoly) drawPolyrhythmVoices(ctx, engine.getPolyrhythmView(), polyRender); // --- jdm-polyrhythm ---
       // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
@@ -3118,7 +3135,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       loopHudLive.bottom = Infinity;
       loopHudLiveText = "";
       if (hudSpec && !recordingRef.current) {
-        const ring = brView ? brickRebuildExtentPx(brView) /* --- brick-rebuild --- (the box and its counters, or the circle) */ : machineView ? beatMachineExtentPx(machineView) /* --- beat-machine --- (the machine's box) */ : efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : vortexView && vortexView.funnel.view === "perspective" ? funnelExtentPx(vortexView) /* --- funnel-spin --- (the perspective's whole funnel) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
+        const ring = pfView ? perfectFitExtentPx(pfView) /* --- perfect-fit --- (the square: the tray, the box and its words) */ : brView ? brickRebuildExtentPx(brView) /* --- brick-rebuild --- (the box and its counters, or the circle) */ : machineView ? beatMachineExtentPx(machineView) /* --- beat-machine --- (the machine's box) */ : efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : vortexView && vortexView.funnel.view === "perspective" ? funnelExtentPx(vortexView) /* --- funnel-spin --- (the perspective's whole funnel) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
         const liveTop = (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
         const hudFrame = loopHudFrame(hudSpec, loopHudCount(engine));
         const hudLayout = loopHudLiveLayout(size.width, size.height, cy, Math.min(ring, Math.min(size.width, size.height) / 2), liveTop);
@@ -3274,6 +3291,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- brick-rebuild --- Brick Smash: the phase, the bricks, the balls, the seams, the first clear, the rebuild, the layer (data-br-*)
       if (brView) writeBrickRebuildDataset(brView, brLayer, setCanvasData);
       else if (canvas.dataset.brPhase !== undefined) for (const key of BRICK_REBUILD_DATA_KEYS) delete canvas.dataset[key];
+      // --- perfect-fit --- Perfect Fit: rectangles, lines, seams and the empty box at each, pieces, sounds, the beat (data-pf-*)
+      if (pfView) writePerfectFitDataset(pfView, pfLayer, setCanvasData);
+      else if (canvas.dataset.pfVariant !== undefined) for (const key of PERFECT_FIT_DATA_KEYS) delete canvas.dataset[key];
       // --- jdm-polyrhythm --- voice, tick, alignment and cycle counts (data-poly-*) for tools and the smoke test.
       if (isPoly) {
         const view = engine.getPolyrhythmView();
@@ -3673,6 +3693,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         hud.topBand(loopHudLive.top);
         hud.bottomBand(loopHudLive.bottom);
         hud.bottomBand(ringLineBottom); // --- ring-escape --- (the time-in-ring line under the rings)
+        if (pfView && pfLayer.labelRect.w > 0) hud.block(pfLayer.labelRect.x, pfLayer.labelRect.y, pfLayer.labelRect.w, pfLayer.labelRect.h); // --- perfect-fit --- (the words under the box or the well)
         const exportSize = recording ? exportSizeRef.current : null;
         // the Top / Bottom Text: the canvas' own lines, or while recording the recorder's (it draws them into the export frame)
         if (p.topText || p.bottomText) {

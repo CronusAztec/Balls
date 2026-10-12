@@ -24,6 +24,7 @@ export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly s
   beatMachine: ["#marbles", "#animation", "#creativecoding"], // --- beat-machine ---
   brickRebuild: ["#breakout", "#simulation", "#creativecoding"], // --- brick-rebuild --- (the reference clips' own tags)
   vortex: ["#simulation", "#physics", "#marbles"], // --- funnel-spin --- (the funnel clip's own tags: no #creativecoding)
+  perfectFit: ["#puzzle", "#creativecoding", "#animation"], // --- perfect-fit ---
 };
 /** Any other mode's topic tags. */
 export const LOOP_CAPTION_DEFAULT_TAGS = ["#physics", "#bouncingball"] as const;
@@ -153,6 +154,17 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     const cols = whole(br.brCols);
     const rows = whole(br.brRows);
     return { mode: s.mode, hookKey: "brickRebuild", factKey: "brickRebuildFact", count: cols !== null && rows !== null ? cols * rows : null };
+  }
+  // --- perfect-fit --- the rectangles by their pieces ("same {count} pieces, three perfect rectangles" and the 2,339 fact), the
+  // perfect clears by theirs ("{count} pieces, not one out of place" and the lines they clear)
+  if (s.mode === "perfectFit") {
+    const pf = s as { pfVariant?: string; pfWellW?: number; pfSections?: string };
+    if (pf.pfVariant === "tetris") {
+      const w = typeof pf.pfWellW === "number" && Number.isFinite(pf.pfWellW) ? Math.max(1, Math.round(pf.pfWellW)) : 10;
+      const pieces = String(pf.pfSections ?? "").split(/[\s,;]+/).filter((x) => /^\d+$/.test(x)).reduce((n, x) => n + ((w * Number(x)) % 4 === 0 ? (w * Number(x)) / 4 : 0), 0);
+      return { mode: s.mode, hookKey: "perfectFitTetris", factKey: "perfectFitTetrisFact", count: pieces > 0 ? pieces : null };
+    }
+    return { mode: s.mode, hookKey: "perfectFitPento", factKey: "perfectFitPentoFact", count: 12 };
   }
   if (s.mode === "grow") {
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };

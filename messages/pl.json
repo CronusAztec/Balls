@@ -2362,7 +2362,8 @@
     "ringTimerTip": "Pokazuje pod pierścieniami „pierścień k: t s”: jak długo piłka jest w obecnym pierścieniu, a po wydostaniu się „na zewnątrz po t s”. Nagrania to zawierają.",
     "ringSound": "Dźwięki pierścieni",
     "ringSoundTip": "Oryginalne, syntezowane dźwięki: miękkie pentatoniczne szarpnięcie przy każdym odbiciu, o wysokości zależnej od pierścienia (zewnętrzne nisko, wewnętrzne wysoko), rosnący dźwięk za każdy pokonany pierścień i ciepły akord, gdy piłka jest na zewnątrz.",
-    "modeBrickRebuild": "Rozbij cegły"
+    "modeBrickRebuild": "Rozbij cegły",
+    "modePerfectFit": "Idealne dopasowanie"
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -2533,6 +2534,10 @@
     "brickRebuild": {
       "name": "Rozbij cegły",
       "description": "Obraz z cegieł rozbijają piłki, których wciąż przybywa. Potem obraz odbudowuje się kolor po kolorze."
+    },
+    "perfectFit": {
+      "name": "Idealne dopasowanie",
+      "description": "Klocki spadają prosto w dół, aż pudełko jest pełne co do kratki. Nie zostaje ani jedno puste pole."
     }
   },
   "FAQ": {
@@ -3104,7 +3109,17 @@
     "missBricksClearedBy": "Najszybsze rozbijanie trwało {time}s ({seeds} ziaren)",
     "missLastBrickOnBar": "Najbliższa ostatnia cegła pękła {offset}s od kreski taktowej ({seeds} ziaren)",
     "missFinalBalls": "Najwięcej piłek na koniec rozbijania: {balls} ({seeds} ziaren)",
-    "missNoClear": "Żadne rozbijanie nie zbiło wszystkich cegieł w limicie czasu ({seeds} ziaren) – wydłuż limit, dodaj piłek albo je przyspiesz"
+    "missNoClear": "Żadne rozbijanie nie zbiło wszystkich cegieł w limicie czasu ({seeds} ziaren) – wydłuż limit, dodaj piłek albo je przyspiesz",
+    "outcomeMostOnFloor": "Najwięcej klocków na dnie",
+    "outcomeLandingsOnBeat": "Każde lądowanie w rytm",
+    "hintMostOnFloor": "Sprawdza ziarna rozwiązania i zostawia to, w którym najwięcej klocków leży na dnie pudełka.",
+    "hintLandingsOnBeat": "Ustawia każde lądowanie w rytm tempa z sekcji Dźwięk: każdy klocek trwa potęgę dwójki uderzeń, a pętla staje się pełnymi taktami.",
+    "findMostOnFloor": "Znajdź najwięcej klocków na dnie",
+    "findLandingsOnBeat": "Ustaw każde lądowanie w rytm",
+    "foundMostOnFloor": "Znaleziono! {floor} z {pieces} klocków ląduje na dnie (ziarno rozwiązania {seed})",
+    "foundLandingsOnBeat": "Gotowe! Każde lądowanie w rytm {bpm} BPM, pętla {loop} s, {loops, plural, one {# pełna pętla} few {# pełne pętle} many {# pełnych pętli} other {# pełnej pętli}} w klipie",
+    "missPerfectFit": "Żadnego pudełka z listy nie da się wypełnić, zrzucając 12 klocków (ziaren: {seeds})",
+    "overlayPerfectFit": "Sprawdzono {tested} ziaren rozwiązania: żadnego pudełka z listy nie da się zbudować zrzucaniem. Użyj pudełek z 60 kratek, np. 10×6, 12×5 albo 15×4."
   },
   "FastExport": {
     "button": "Szybki eksport",
@@ -5181,7 +5196,11 @@
     "brickRebuildCapsules": "od {count} piłek do setek",
     "brickRebuildCapsulesFact": "Każda złota kapsuła złapana przez paletkę dzieli każdą piłkę w grze na trzy. Trzy chwyty zmieniają 3 piłki w 81, pięć – w 729: ta sama arytmetyka co przy składaniu kartki na trzy.",
     "brickRebuildKaleidoscope": "prawdziwych piłek jest tu tylko {count}",
-    "brickRebuildKaleidoscopeFact": "Reszta to odbicia: prawdziwe piłki odbijają się w jednym wycinku koła o lustrzanych ściankach, a każda cegła, którą rozbiją, pęka też w każdej lustrzanej kopii – więc mozaika zawsze pozostaje idealnie symetryczna, jak obraz w kalejdoskopie."
+    "brickRebuildKaleidoscopeFact": "Reszta to odbicia: prawdziwe piłki odbijają się w jednym wycinku koła o lustrzanych ściankach, a każda cegła, którą rozbiją, pęka też w każdej lustrzanej kopii – więc mozaika zawsze pozostaje idealnie symetryczna, jak obraz w kalejdoskopie.",
+    "perfectFitPento": "te same {count} klocków, trzy idealne prostokąty",
+    "perfectFitPentoFact": "12 pentomin pokrywa 60 kratek. pudełko 6×10 wypełniają na 2339 sposobów, 5×12 na 1010, a 4×15 na 368. 3×20 ma tylko 2 rozwiązania i żadnego nie da się zbudować, zrzucając klocki prosto w dół, więc go tu nie ma.",
+    "perfectFitTetris": "{count} klocków, każdy na swoim miejscu",
+    "perfectFitTetrisFact": "każdy klocek spada prosto w dół w swojej docelowej kolumnie i obrocie. cztery sekcje kończą się czystym zbiciem czterech linii, a ostatnie 30 klocków buduje 12 pełnych rzędów, które znikają razem: 280 kratek, 28 linii, pusta studnia."
   },
   "ColourSort": {
     "canvasTitle": "każdy pierścień zatrzymuje tylko swój kolor",
@@ -5396,5 +5415,56 @@
     "brOutline": "Puste piłki",
     "brOutlineTip": "Białe piłki z cienką ciemną obwódką, jak w klipie wzorcowym. Wyłączone: piłki wyglądają tak, jak ustawisz (kolor, obraz, twarze).",
     "canvasCounter": "cegły: {count}"
+  },
+  "PerfectFit": {
+    "desc": "Klocki spadają prosto w dół, aż pudełko jest pełne co do kratki. Każdy położony klocek gra kolejną, wyższą nutę. Wybierz 12 pentomin albo czyste zbicia w Tetrisie.",
+    "pfPreset": "Ustawienie",
+    "pfPresetTip": "Trzy prostokąty: 12 pentomin w 10 × 6, 12 × 5 i 15 × 4. Każdy klocek pasuje: Tetris, cztery czyste zbicia po cztery linie i finał z dwunastoma (70 klocków). Speedrun: prostokąty po 0,15 s na klocek. Duża studnia: Tetris w studni 20 × 40.",
+    "presetThreeRects": "Trzy prostokąty",
+    "presetEveryPiece": "Każdy klocek pasuje",
+    "presetSpeedRun": "Speedrun",
+    "presetBigWell": "Duża studnia",
+    "pfVariant": "Łamigłówka",
+    "pfVariantTip": "Pentomina: 12 kształtów z pięciu kwadratów, każdy użyty raz, wypełnia trzy prostokąty. Tetris: tetromina wypełniają całe linie studni i je zbijają.",
+    "variantPento": "Pentomina",
+    "variantTetris": "Tetris",
+    "pfPieceSec": "Sekundy na klocek",
+    "pfPieceSecTip": "Ile trwa droga klocka z tacki do lądowania. W Tetrisie to czas pierwszej sekcji: każda kolejna jest trochę szybsza.",
+    "pfFall": "Charakter spadania",
+    "pfFallTip": "Jak klocek pokonuje ostatni odcinek: 0 to stała prędkość, 1 swobodne spadanie od zera, wyższe wartości późniejsze, mocniejsze lądowanie.",
+    "pfBeat": "Lądowanie w rytm",
+    "pfBeatTip": "Każde lądowanie w rytm tempa z sekcji Dźwięk: klocek trwa potęgę dwójki uderzeń najbliższą Sekundom na klocek, każde ukończenie pełne uderzenia, a pętla pełne takty.",
+    "beatNote": "Lądowania w rytm {bpm} BPM (tempo z sekcji Dźwięk).",
+    "pfSeed": "Ziarno rozwiązania",
+    "pfSeedTip": "Które ułożenie klocków zobaczysz. Auto wybiera nowe przy każdym przebiegu. Liczba zachowuje to rozwiązanie, a Znajdź symulację może ją ustawić.",
+    "seedAuto": "auto",
+    "pfBoxes": "Pudełka",
+    "pfBoxesTip": "Prostokąty po kolei, szerokość × wysokość w kratkach, np. 10×6, 12×5, 15×4. 12 pentomin pokrywa dokładnie 60 kratek, więc pudełko innej wielkości zostaje puste.",
+    "boxNoteWays": "{w} × {h}: jeden z {ways, number} sposobów, by je wypełnić.",
+    "boxNoteNoDrop": "{w} × {h}: ma ułożenia, ale żadnego nie da się zbudować, zrzucając klocki prosto w dół.",
+    "boxNoteNone": "{w} × {h}: za wąskie, 12 klocków go nie wypełni.",
+    "boxNoteSize": "{w} × {h} to {area} kratek: 12 klocków potrzebuje dokładnie 60.",
+    "boxNoteOther": "{w} × {h}: solver szuka ułożenia, które da się zrzucić.",
+    "pfSections": "Linie w sekcjach",
+    "pfSectionsTip": "Każda liczba to sekcja studni zakończona czystym zbiciem, np. 4,4,4,4,12. Sekcja z czterech linii kończy się pionowym I wpadającym w ostatnią szczelinę.",
+    "sectionsNote": "Linie: {lines}, klocki: {pieces}.",
+    "pfWellW": "Szerokość studni",
+    "pfWellWTip": "Kolumny studni. Szerokość × linie musi być wielokrotnością 4, inaczej ta sekcja zostaje pominięta.",
+    "pfWellH": "Wysokość studni",
+    "pfWellHTip": "Rzędy studni; rośnie, by pomieścić najwyższą sekcję.",
+    "pfHold": "Wstrzymaj ostatnie zbicia",
+    "pfHoldTip": "Ostatnia sekcja trzyma pełne rzędy, aż wyląduje jej ostatni klocek, a potem zbija je wszystkie naraz. Wyłączone: zbija po cztery linie.",
+    "canvasTitlePento": "wszystkie 12 pentomin",
+    "canvasSubtitlePento": "trzy prostokąty, te same 60 kratek",
+    "canvasSubtitlePentoCount": "{count, plural, one {# prostokąt} few {# prostokąty} many {# prostokątów} other {# prostokąta}}, te same 60 kratek",
+    "canvasBox": "[rows] × [cols]",
+    "canvasWays": "jeden z [count] sposobów",
+    "canvasNoDrop": "nie da się zbudować zrzucaniem",
+    "canvasNoTiling": "12 klocków go nie wypełni",
+    "canvasTitleTetris": "każdy klocek pasuje",
+    "canvasSubtitleTetris": "{count} klocków, każdy na swoim miejscu",
+    "canvasLines": "{count, plural, one {# linia zbita} few {# linie zbite} many {# linii zbitych} other {# linii zbitych}}",
+    "bannerLines": "{count, plural, one {[words] linia} few {[words] linie} many {[words] linii} other {[words] linii}}",
+    "numberWords": "zero|jedna|dwie|trzy|cztery|pięć|sześć|siedem|osiem|dziewięć|dziesięć|jedenaście|dwanaście|trzynaście|czternaście|piętnaście|szesnaście|siedemnaście|osiemnaście|dziewiętnaście|dwadzieścia"
   }
 }

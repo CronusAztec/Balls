@@ -848,6 +848,7 @@ describe("uncap-all: the guard", () => {
     bmBpm: "a tempo",
     bmDrop: "a drop height in % of the panel",
     bmReturn: "beats of the return trip",
+    pfSeed: "a solution seed (the plan's search order)", // --- perfect-fit --- (the well's columns and rows are ceiled)
     lcSteps: "a pyramid's steps (its heights stop at the blocks' ceiling, LCP_BLOCK_CEILING: a taller pyramid is scaled down to it)", // --- land-claim-pyramid ---
     // --- brick-rebuild --- (the columns, the rows, the start balls and the kaleidoscope's images are ceiled; the spawns and the
     // splits add balls up to BR_BALL_CEILING, never past it)
