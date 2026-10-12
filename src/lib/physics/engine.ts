@@ -75,11 +75,15 @@ import { EllipseFociMode, type EllipseFociView } from "./modes/ellipseFoci"; // 
 import type { EllipseFociSettings } from "./ellipseFoci"; // --- ellipse-foci ---
 import { BeatMachineMode, type BeatMachineView } from "./modes/beatMachine"; // --- beat-machine ---
 import type { BeatMachineSettings } from "./beatMachine"; // --- beat-machine ---
+import { WaveTankMode, type WaveTankView } from "./modes/waveTank"; // --- wave-tank ---
+import type { WaveTankSettings } from "./waveTank"; // --- wave-tank ---
 import { BrickRebuildMode, type BrickRebuildView } from "./modes/brickRebuild"; // --- brick-rebuild ---
 import type { BrickRebuildSettings } from "./brickRebuild"; // --- brick-rebuild ---
 import type { BrickPicture } from "./brickPicture"; // --- brick-rebuild ---
 import { DrawingMachineMode, type DrawingMachineView } from "./modes/drawingMachine"; // --- drawing-machine ---
 import type { DrawingMachineSettings } from "./drawingMachine"; // --- drawing-machine ---
+import { PerfectFitMode, type PerfectFitView } from "./modes/perfectFit"; // --- perfect-fit ---
+import type { PerfectFitSettings } from "./perfectFit"; // --- perfect-fit ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -334,10 +338,14 @@ export class PhysicsEngine {
   readonly ellipseFociMode = new EllipseFociMode();
   // --- beat-machine --- Beat Machines: marbles dropped onto tuned bars on the beat, or a ball hopping down a musical staircase
   readonly beatMachineMode = new BeatMachineMode();
+  // --- wave-tank --- Wave Tank: a ripple tank's crests through 1, 2 or 7 gaps, a row of bells along its front
+  readonly waveTankMode = new WaveTankMode();
   // --- brick-rebuild --- Brick Smash: a picture of bricks smashed by multiplying balls, then rebuilt colour layer by colour layer
   readonly brickRebuildMode = new BrickRebuildMode();
   // --- drawing-machine --- Drawing Machines: a three-pendulum harmonograph, or two planets drawing an orbit flower
   readonly drawingMachineMode = new DrawingMachineMode();
+  // --- perfect-fit --- Perfect Fit: pentominoes or tetrominoes dropped straight down into a box a solver guarantees ends exactly full
+  readonly perfectFitMode = new PerfectFitMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -751,6 +759,10 @@ export class PhysicsEngine {
   initBeatMachine() {
     this.activateMode(this.beatMachineMode, "none");
   }
+  // --- wave-tank --- the mode owns its tank (no rings; its one ball a pinned placeholder)
+  initWaveTank() {
+    this.activateMode(this.waveTankMode, "none");
+  }
   // --- brick-rebuild --- the mode owns its box (or its kaleidoscope's circle): no rings
   initBrickRebuild() {
     this.activateMode(this.brickRebuildMode, "none");
@@ -758,6 +770,10 @@ export class PhysicsEngine {
   // --- drawing-machine --- the mode owns its machine (no rings; the pen or the planets pinned to the clock)
   initDrawingMachine() {
     this.activateMode(this.drawingMachineMode, "none");
+  }
+  // --- perfect-fit --- the mode owns its box and pieces (no rings; one anchor ball pinned to the middle)
+  initPerfectFit() {
+    this.activateMode(this.perfectFitMode, "none");
   }
 
   /** Convenience: (re)start the simulation for a mode id. */
@@ -871,12 +887,18 @@ export class PhysicsEngine {
       // --- beat-machine ---
       case "beatMachine":
         return this.initBeatMachine();
+      // --- wave-tank ---
+      case "waveTank":
+        return this.initWaveTank();
       // --- brick-rebuild ---
       case "brickRebuild":
         return this.initBrickRebuild();
       // --- drawing-machine ---
       case "drawingMachine":
         return this.initDrawingMachine();
+      // --- perfect-fit ---
+      case "perfectFit":
+        return this.initPerfectFit();
     }
   }
 
@@ -2016,6 +2038,33 @@ export class PhysicsEngine {
     return this.currentMode === this.beatMachineMode ? this.beatMachineMode.hudCount() : null;
   }
   // --- end beat-machine ---
+  // --- wave-tank ---
+  isWaveTankMode() {
+    return this.currentMode === this.waveTankMode;
+  }
+  getWaveTankSettings(): WaveTankSettings {
+    return this.waveTankMode.getSettings();
+  }
+  /** The water, the sections and the grid apply on the next `initWaveTank()`; the bells, the scan, the ridges, the tilt, the bass and the label at once. */
+  setWaveTankSettings(settings: Partial<WaveTankSettings>) {
+    this.waveTankMode.setSettings(settings);
+  }
+  /** Live Wave Tank state (the ridges, the bells, the section) for the canvas; the same object every call. */
+  getWaveTankView(): WaveTankView {
+    return this.waveTankMode.getView();
+  }
+  getWaveTankProgress() {
+    return this.waveTankMode.getProgress();
+  }
+  /** The loop HUD's label in Wave Tank: the section's gaps (null in another mode or with the label off). */
+  getWaveTankHudCount(): number | null {
+    return this.currentMode === this.waveTankMode ? this.waveTankMode.hudCount() : null;
+  }
+  /** The run joined a live audio graph again (resumed): the section root is sent with the next step. */
+  refreshWaveTankRoot() {
+    if (this.currentMode === this.waveTankMode) this.waveTankMode.refreshRoot();
+  }
+  // --- end wave-tank ---
   // --- brick-rebuild ---
   isBrickRebuildMode() {
     return this.currentMode === this.brickRebuildMode;
@@ -2064,6 +2113,25 @@ export class PhysicsEngine {
     return this.currentMode === this.drawingMachineMode ? this.drawingMachineMode.hudCount() : null;
   }
   // --- end drawing-machine ---
+  // --- perfect-fit ---
+  isPerfectFitMode() {
+    return this.currentMode === this.perfectFitMode;
+  }
+  getPerfectFitSettings(): PerfectFitSettings {
+    return this.perfectFitMode.getSettings();
+  }
+  /** The puzzles, the timing and the solution seed apply on the next `initPerfectFit()`. */
+  setPerfectFitSettings(settings: Partial<PerfectFitSettings>) {
+    this.perfectFitMode.setSettings(settings);
+  }
+  /** Live Perfect Fit state (the plan, the frame, the counters) for the canvas; the same object every call. */
+  getPerfectFitView(): PerfectFitView {
+    return this.perfectFitMode.getView();
+  }
+  getPerfectFitProgress() {
+    return this.perfectFitMode.getProgress();
+  }
+  // --- end perfect-fit ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

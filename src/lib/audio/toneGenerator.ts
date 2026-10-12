@@ -59,6 +59,7 @@ import { startRollingHiss, type RollingHissHandle } from "./funnelTones"; // ---
 export type { LoopPlayOptions } from "./loopEvents";
 import { scheduleKick as scheduleLoopKick } from "./beatDropTones";
 import { schedulePhraseBass } from "./loopTones"; // --- beat-machine --- (the machines' phrase bass)
+import { scanGain, startSectionRoot, type SectionRootHandle } from "./loopTones"; // --- wave-tank --- (the bell row's clip level, the section root)
 import type { LoopSoundKind } from "@/lib/physics/types";
 import { frequencyToMidi } from "./scales";
 // --- end loop-foundation ---
@@ -145,6 +146,8 @@ export function hitPitches(wallIndex: number, pitch: number | undefined, chord: 
 /** The clip slot that stands in for a loop sound's synthesis (null: none). */
 const LOOP_CLIP_OF: Partial<Record<LoopSoundKind, LoopClipSlotId>> = { pluck: "bounce", bar: "barStrike", chime: "chime", step: "progressStep", land: "land", chord: "completion", impact: "impact", glide: "reset", wash: "reset", bed: "bed", drone: "drone" };
 // --- end loop-foundation ---
+// --- wave-tank --- a scanned bell is a tuned-bar strike: the owner's bar-strike clip rings in its place, as loud as the strike
+LOOP_CLIP_OF.scan = "barStrike";
 
 export class ToneGenerator {
   private audioContext: AudioContext | null = null;
@@ -1270,6 +1273,9 @@ export class ToneGenerator {
   private loopDrone: DroneHandle | null = null;
   private loopDroneEnergy = 1;
   private loopHiss: RollingHissHandle | null = null; // --- funnel-spin ---
+  // --- wave-tank --- the section root under the scanned bells (or the owner's drone clip in its place)
+  private loopRoot: SectionRootHandle | null = null;
+  private loopRootClip = false;
 
   /** The owner's custom clips of the loop families (the panel loads, trims and clears them; the session keeps them). */
   getLoopClips(): LoopClipSlots {
@@ -1353,7 +1359,7 @@ export class ToneGenerator {
             return;
           }
           this.loopVoices[verdict.slot % this.loopVoices.length] = null;
-          if (slot && this.loopClips.play(ctx, out, slot, time, { frequency: pitch, level: l })) return;
+          if (slot && this.loopClips.play(ctx, out, slot, time, { frequency: pitch, level: kind === "scan" ? scanGain(l, 1) : l /* --- wave-tank --- (a scanned bell's clip as loud as its strike) */ })) return;
           if (kind === "pluck") this.loopVoices[verdict.slot % this.loopVoices.length] = schedulePentaPluck(ctx, out, pitch, time, { level: l, t60, bright: opts.bright });
           else if (kind === "bar") scheduleBarStrike(ctx, out, pitch, time, this.loopBudget.noise(time) ? noise() : null, { level: l });
           else if (kind === "chime") scheduleChime(ctx, out, pitch, time, { level: l });
@@ -1446,6 +1452,25 @@ export class ToneGenerator {
           this.loopHiss?.stop(time);
           this.loopHiss = null;
           return;
+        // --- wave-tank --- the section root (loopTones' startSectionRoot: a sine + 2f ~13 dB under the bells): "root" starts it on
+        // `frequency` or crossfades to it over 1 s, "rootStop" fades it out; a loaded drone clip loops in its place
+        case "root": {
+          if (this.loopClips.has("drone")) {
+            if (!this.loopRootClip) this.loopClips.play(ctx, this.masterGain, "drone", time, { level: 1 });
+            this.loopRootClip = true;
+            return;
+          }
+          const hz = f ?? 55;
+          if (this.loopRoot) this.loopRoot.setRoot(hz, time);
+          else this.loopRoot = startSectionRoot(ctx, this.masterGain, hz, time, l);
+          return;
+        }
+        case "rootStop":
+          this.loopRoot?.stop(time);
+          this.loopRoot = null;
+          if (this.loopRootClip) this.loopClips.stopLoop("drone", time);
+          this.loopRootClip = false;
+          return;
       }
     } catch (err) {
       console.error(`Error playing the loop sound ${kind}:`, err);
@@ -1463,6 +1488,10 @@ export class ToneGenerator {
     this.loopDrone = null;
     this.loopHiss?.stop(time); // --- funnel-spin ---
     this.loopHiss = null;
+    this.loopRoot?.stop(time); // --- wave-tank ---
+    this.loopRoot = null;
+    if (this.loopRootClip) this.loopClips.stopLoop("drone", time);
+    this.loopRootClip = false;
   }
   // --- end loop-foundation ---
 

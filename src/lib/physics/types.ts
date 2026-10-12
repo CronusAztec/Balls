@@ -85,10 +85,14 @@ export const MODE_IDS = [
   "ellipseFoci",
   // --- beat-machine --- Beat Machines (the marble xylophone and the eight-step staircase: every note a ball landing on the beat; the loop family)
   "beatMachine",
+  // --- wave-tank --- Wave Tank (a ripple tank: crests through 1, 2 or 7 gaps drawn as perspective ridge lines, sonified by a row of bells; the loop family)
+  "waveTank",
   // --- brick-rebuild --- Brick Smash (a picture of bricks smashed by multiplying balls, then rebuilt colour layer by colour layer; the loop family)
   "brickRebuild",
   // --- drawing-machine --- Drawing Machines (a three-pendulum harmonograph and the planets' orbit flowers; the loop family)
   "drawingMachine",
+  // --- perfect-fit --- Perfect Fit (pentomino rectangles and Tetris perfect clears dropped into a container that ends exactly full; the loop family)
+  "perfectFit",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -455,13 +459,19 @@ export interface SoundEvent {
   /** A "drone" event's pen speed (0–1 of its top speed): the drone's ripple and the pen's scratch follow it (Drawing Machines). */
   loopSpeed?: number;
   // --- end drawing-machine ---
+  // --- perfect-fit ---
+  /** A "step" of the progress ladder on the chip voice (square, Perfect Fit's Tetris pieces) instead of the sine ladder. */
+  loopChip?: boolean;
+  // --- end perfect-fit ---
 }
 
 // --- loop-foundation --- the voices of the loop sound families (lib/audio/loopTones.ts; `ToneGenerator.playLoop()`)
 export const LOOP_SOUND_KINDS = ["pluck", "bar", "chime", "ding", "step", "land", "chord", "riser", "impact", "kick", "glide", "wash", "ratchet", "scan", "cut", "bed", "bedStop", "drone", "droneStop", "bass" /* --- beat-machine --- the phrase bass of a machine (loopTones.ts schedulePhraseBass) */] as const;
 // --- funnel-spin --- the Sound Vortex ring release's rolling hiss: "hiss" starts it or sets its level, "hissStop" fades it out
 export const FUNNEL_SOUND_KINDS = ["hiss", "hissStop"] as const;
-export type LoopSoundKind = (typeof LOOP_SOUND_KINDS)[number] | (typeof FUNNEL_SOUND_KINDS)[number];
+// --- wave-tank --- the section root under the Wave Tank's scanned bells: "root" starts it on a frequency or crossfades to it (1 s), "rootStop" fades it out
+export const WAVE_TANK_SOUND_KINDS = ["root", "rootStop"] as const;
+export type LoopSoundKind = (typeof LOOP_SOUND_KINDS)[number] | (typeof FUNNEL_SOUND_KINDS)[number] | (typeof WAVE_TANK_SOUND_KINDS)[number] /* --- wave-tank --- */;
 
 // --- fight-league --- the sound families of Fight League's weapons, abilities and KOs
 export type FightSoundKind = "blade" | "blunt" | "arrow" | "gun" | "fire" | "magic" | "ability" | "ko" | "block";

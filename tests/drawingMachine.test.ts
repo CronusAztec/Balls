@@ -516,7 +516,8 @@ describe("Drawing Machines: settings, links, presets, the page", () => {
 
   it("joins the rhythm family with a card, a hero moment and its words in en, pl and es", () => {
     expect(MODE_CATEGORIES.drawingMachine).toBe("rhythm");
-    expect(MODE_CARD_ORDER.indexOf("drawingMachine")).toBe(MODE_CARD_ORDER.indexOf("beatMachine") + 1);
+    expect(MODE_CARD_ORDER.indexOf("drawingMachine")).toBe(MODE_CARD_ORDER.indexOf("waveTank") + 1);
+    expect(MODE_CARD_ORDER.indexOf("waveTank")).toBe(MODE_CARD_ORDER.indexOf("beatMachine") + 2);
     expect(HERO_MOMENTS.drawingMachine.query).toContain("dmm=orbits");
     const keys = (o: unknown): string[] => (o && typeof o === "object" ? Object.entries(o).flatMap(([k, v]) => (typeof v === "object" ? keys(v).map((x) => `${k}.${x}`) : [k])) : []);
     const catalogs = [en, pl, es] as unknown as Record<string, Record<string, unknown>>[];

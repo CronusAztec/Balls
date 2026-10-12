@@ -115,11 +115,15 @@ import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDef
 import { BM_ENGINE_KEYS, BM_RANGES, beatMachineModeDefaults, defaultBeatMachineFields, readBeatMachineParams, resolveBeatMachineFields, writeBeatMachineParams, type BeatMachineFields } from "@/lib/physics/beatMachine";
 // --- ring-escape --- Classic's Ring Escape: the gap layout, the spiral step, the spin, the rainbow by ring, the time in the ring, the ring sounds
 import { RING_ESCAPE_RANGES, defaultRingEscapeFields, readRingEscapeParams, resolveRingEscapeFields, writeRingEscapeParams, type GapLayout, type RingEscapeFields, type RingSpin } from "@/lib/physics/ringEscape";
+// --- wave-tank --- Wave Tank (a ripple tank: crests through 1, 2 or 7 gaps, a row of bells along its front)
+import { WT_ENGINE_KEYS, WT_RANGES, defaultWaveTankFields, readWaveTankParams, resolveWaveTankFields, waveTankModeDefaults, writeWaveTankParams, type WaveTankFields } from "@/lib/physics/waveTank";
 // --- brick-rebuild --- Brick Smash (a picture of bricks smashed by multiplying balls, then rebuilt colour layer by colour layer)
 import { BRICK_REBUILD_ENGINE_KEYS, BRICK_REBUILD_RANGES, brickRebuildModeDefaults, defaultBrickRebuildFields, readBrickRebuildParams, resolveBrickRebuildFields, writeBrickRebuildParams, type BrickRebuildFields } from "@/lib/physics/brickRebuildSettings";
 // --- drawing-machine --- Drawing Machines (the three-pendulum harmonograph and the planets' orbit flowers)
 import { DM_RANGES } from "@/lib/physics/drawingMachine";
 import { DM_ENGINE_KEYS, defaultDrawingMachineFields, drawingMachineModeDefaults, readDrawingMachineParams, resolveDrawingMachineFields, writeDrawingMachineParams, type DrawingMachineFields } from "@/lib/physics/drawingMachineFields";
+// --- perfect-fit --- Perfect Fit (pentomino rectangles and Tetris perfect clears dropped into a box that ends exactly full)
+import { PF_ENGINE_KEYS, PF_RANGES, defaultPerfectFitFields, perfectFitModeDefaults, readPerfectFitParams, resolvePerfectFitFields, writePerfectFitParams, type PerfectFitFields } from "@/lib/physics/perfectFit";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -1232,6 +1236,34 @@ export interface SimulatorSettings {
   /** Plucks per bounce, a rising step per ring escaped, the chord at the way out (URL `resn`). */
   ringSound: boolean;
   // --- end ring-escape ---
+  // --- wave-tank --- Wave Tank (lib/physics/waveTank.ts; URL wt…: wtM, wtSrc, wtG, wtW, wtWe, wtD, wtL, wtV, wtY, wtN, wtS, wtWr, wtB, wtSr, wtR, wtT, wtBs, wtLb)
+  wtModel: WaveTankFields["wtModel"];
+  wtSource: WaveTankFields["wtSource"];
+  /** The sections: gap counts in order, each optionally with its seconds ("1, 2, 7"; "1@11, 2@9, 7@10"). */
+  wtGaps: string;
+  /** Gap width and the width the last section grows to (0: none), gap spacing – in wavelengths. */
+  wtWidth: number;
+  wtWidthEnd: number;
+  wtSpacing: number;
+  /** Wavelength (% of the tank's width), wave speed (1 = 0.3 tank widths a second), damping (per radian). */
+  wtWavelength: number;
+  wtSpeed: number;
+  wtDamping: number;
+  /** Grid columns (the rows follow at 4/3). */
+  wtCols: number;
+  /** Seconds a section holds when its entry names none, and the first section's seconds that close the loop. */
+  wtSection: number;
+  wtWrap: number;
+  /** Bells along the front and the scan's strikes a second. */
+  wtBells: number;
+  wtScanRate: number;
+  /** Ridge lines drawn and the view's tilt (°). */
+  wtRidges: number;
+  wtTilt: number;
+  /** The section's root bass, and the loop HUD's section label. */
+  wtBass: boolean;
+  wtLabel: boolean;
+  // --- end wave-tank ---
   // --- brick-rebuild --- Brick Smash (lib/physics/brickRebuildSettings.ts; URL br…): the grid (`brC`, `brR`), the wall's share (`brW`),
   // the start balls and the spawn period (`brB`, `brE`), the balls' speed and size (`brV`, `brS`), the bricks' hits (`brH`), the
   // smash's limit (`brT`), the settle and the rebuild with its order (`brSt`, `brRb`, `brO`), the picture and its text (`brP`,
@@ -1298,6 +1330,24 @@ export interface SimulatorSettings {
   dmInk: DrawingMachineFields["dmInk"];
   dmSound: boolean;
   // --- end drawing-machine ---
+  // --- perfect-fit --- Perfect Fit (lib/physics/perfectFit.ts): the rectangles or the perfect clears (URL pf…)
+  /** pento | tetris (URL `pfV`). */
+  pfVariant: PerfectFitFields["pfVariant"];
+  /** The pentomino boxes, "10×6, 12×5, 15×4" (URL `pfBx`). */
+  pfBoxes: string;
+  /** Seconds a piece takes (URL `pfS`) and the fall's feel (URL `pfF`). */
+  pfPieceSec: number;
+  pfFall: number;
+  /** The solution seed, 0 = from the run's seed (URL `pfSd`). */
+  pfSeed: number;
+  /** Tetris: lines per section (URL `pfSc`), the well (URL `pfW`, `pfH`), hold the last section's clears (URL `pfHd`). */
+  pfSections: string;
+  pfWellW: number;
+  pfWellH: number;
+  pfHold: boolean;
+  /** Every landing on the beat of the Sound section's tempo (URL `pfB`). */
+  pfBeat: boolean;
+  // --- end perfect-fit ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -1319,11 +1369,18 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- drawing-machine --- the feature's fields, and in Drawing Machines only the harmonograph's look (the dark wood, the loop HUD on)
     ...defaultDrawingMachineFields(),
     ...drawingMachineModeDefaults(mode),
+    ...defaultPerfectFitFields() /* --- perfect-fit --- */,
+    ...perfectFitModeDefaults(mode) /* --- perfect-fit --- (in Perfect Fit only: the indigo page,
+    the loop HUD on) */,
+    ...defaultWaveTankFields(),
+    ...waveTankModeDefaults(mode) /* --- wave-tank --- (and in Wave Tank only the clip's navy page,
+    the loop HUD on) */,
   };
 }
 
+
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */> {
   return {
     mode,
     gravity: 300,
@@ -1552,8 +1609,10 @@ export const RANGES = {
   ...EF_RANGES, // --- ellipse-foci ---
   ...BM_RANGES, // --- beat-machine ---
   ...RING_ESCAPE_RANGES, // --- ring-escape --- (the spiral's step)
+  ...WT_RANGES, // --- wave-tank ---
   ...BRICK_REBUILD_RANGES, // --- brick-rebuild ---
   ...DM_RANGES, // --- drawing-machine ---
+  ...PF_RANGES, // --- perfect-fit ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1813,8 +1872,10 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
   writeBeatMachineParams(settings, base, params); // --- beat-machine ---: bmV, bmBpm, bmSt, bmDx, bmDy, bmB, bmDh, bmRb, bmRt, bmMt, bmSrc, bmN, bmL, bmBs, bmC
   writeRingEscapeParams(settings, base, params); // --- ring-escape ---: regl, ress, resp, rerb, retm, resn
+  writeWaveTankParams(settings, base, params); // --- wave-tank ---: wtM, wtSrc, wtG, wtW, wtWe, wtD, wtL, wtV, wtY, wtN, wtS, wtWr, wtB, wtSr, wtR, wtT, wtBs, wtLb
   writeBrickRebuildParams(settings, base, params); // --- brick-rebuild ---: brC, brR, brW, brB, brE, brV, brS, brH, brT, brSt, brRb, brO, brP, brTx, brD, brBd, brCp, brCc, brSp, brK, brKm, brHo, brOl
   writeDrawingMachineParams(settings, base, params); // --- drawing-machine ---: dmm, dmf, dmdt, dmrr, dmtau, dmax, dmay, dmar, dmpx, dmpy, dmpr, dmds, dmss, dmbi, dmbo, dmp, dmq, dmx, dmrad, dmld, dmy, dmspy, dmh, dmrw, dmpg, dmi, dms
+  writePerfectFitParams(settings, base, params); // --- perfect-fit ---: pfV, pfBx, pfS, pfF, pfSd, pfSc, pfW, pfH, pfHd, pfB
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1987,8 +2048,10 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
   readBeatMachineParams(params, settings); // --- beat-machine --- (valid numbers from their minimum up, known options, a clean list, real booleans)
   readRingEscapeParams(params, settings); // --- ring-escape --- (known layouts and spins, a step from 0 up, real booleans)
+  readWaveTankParams(params, settings); // --- wave-tank --- (valid numbers from their minimum up, known options, a clean list, real booleans)
   readBrickRebuildParams(params, settings); // --- brick-rebuild --- (valid numbers from their minimum up, known options, clean text, real booleans)
   readDrawingMachineParams(params, settings); // --- drawing-machine --- (valid numbers from their minimum up, whole ratios, known names, real booleans)
+  readPerfectFitParams(params, settings); // --- perfect-fit --- (valid numbers from their minimum up, a known variant, clean lists, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -2211,8 +2274,10 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   hoops: rangeKeys(HOOPS_RANGES), // --- bead-hoops --- (every number of the hoops, the spin and the beads is physics)
   ellipseFoci: [...EF_ENGINE_KEYS], // --- ellipse-foci --- (the volley, the pool and the timing; the trail is the canvas')
   beatMachine: [...BM_ENGINE_KEYS], // --- beat-machine --- (every number of the machine is the plan's)
+  waveTank: [...WT_ENGINE_KEYS], // --- wave-tank --- (the water, the sections, the bells and the ridges' samples; the tilt is the canvas')
   brickRebuild: [...BRICK_REBUILD_ENGINE_KEYS], // --- brick-rebuild --- (the grid, the balls, the phases and the variants; the picture is the canvas')
   drawingMachine: [...DM_ENGINE_KEYS], // --- drawing-machine --- (every number of the machines is the clock's: the drawing and its timing)
+  perfectFit: [...PF_ENGINE_KEYS], // --- perfect-fit --- (every number of the puzzles is the plan's)
 };
 // --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
@@ -2463,8 +2528,10 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveEllipseFociFields(merged)); // --- ellipse-foci --- valid numbers from their minimum up, known options, real booleans
   Object.assign(merged, resolveBeatMachineFields(merged)); // --- beat-machine --- valid numbers from their minimum up, known options, a clean list, real booleans
   Object.assign(merged, resolveRingEscapeFields(merged)); // --- ring-escape --- known layouts and spins, a step from 0 up, real booleans
+  Object.assign(merged, resolveWaveTankFields(merged)); // --- wave-tank --- valid numbers from their minimum up, known options, a clean list, real booleans
   Object.assign(merged, resolveBrickRebuildFields(merged)); // --- brick-rebuild --- valid numbers from their minimum up, known options, clean text, real booleans
   Object.assign(merged, resolveDrawingMachineFields(merged)); // --- drawing-machine --- valid numbers from their minimum up, whole ratios, known names, real booleans
+  Object.assign(merged, resolvePerfectFitFields(merged)); // --- perfect-fit --- valid numbers from their minimum up, a known variant, clean lists, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)

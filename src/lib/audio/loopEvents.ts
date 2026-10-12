@@ -32,5 +32,5 @@ export interface LoopPlayOptions {
 export function loopPlayOptions(ev: SoundEvent): LoopPlayOptions {
   // --- ellipse-foci --- (the groove bed's minor chords) --- colour-sort --- (the completion chord's tremolo and minor colour)
   // --- drawing-machine --- (a drone's pen speed: its ripple and scratch)
-  return { durationSec: ev.loopSec, toFrequency: ev.loopTo, bright: ev.loopBright, chord: ev.chord, last: ev.accent, tremolo: ev.loopTremolo, minor: ev.loopMinor, speed: ev.loopSpeed };
+  return { durationSec: ev.loopSec, toFrequency: ev.loopTo, bright: ev.loopBright, chord: ev.chord, last: ev.accent, tremolo: ev.loopTremolo, minor: ev.loopMinor, speed: ev.loopSpeed, ...(ev.loopChip ? { chip: true } : {}) /* --- perfect-fit --- (the chip ladder) */ };
 }

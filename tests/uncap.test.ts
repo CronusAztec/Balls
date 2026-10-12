@@ -523,6 +523,7 @@ describe("uncap-all review fixes: only the settings a run's engine reads engage 
   NOT_ENGINE.add("efTrail"); // --- ellipse-foci --- Focus Shot's comet trails are the picture's (the canvas cuts them from the corners)
   for (const key of ["vxElevation", "vxFunnelDepth"]) NOT_ENGINE.add(key); // --- funnel-spin --- the Sound Vortex's perspective camera and drawn depth are the picture's
   NOT_ENGINE.add("gapSpiralStep"); // --- ring-escape --- Classic's spiral step is an angle: any value is a layout, never an extreme (it engages nothing)
+  NOT_ENGINE.add("wtTilt"); // --- wave-tank --- the Wave Tank's view tilt is the picture's (the canvas projects the water)
 
   it("classifies every setting: read by some mode's engine, or the clip's, the text's, the sound's or the picture's", () => {
     const read = new Set<string>();
@@ -848,6 +849,7 @@ describe("uncap-all: the guard", () => {
     bmBpm: "a tempo",
     bmDrop: "a drop height in % of the panel",
     bmReturn: "beats of the return trip",
+    pfSeed: "a solution seed (the plan's search order)", // --- perfect-fit --- (the well's columns and rows are ceiled)
     lcSteps: "a pyramid's steps (its heights stop at the blocks' ceiling, LCP_BLOCK_CEILING: a taller pyramid is scaled down to it)", // --- land-claim-pyramid ---
     // --- brick-rebuild --- (the columns, the rows, the start balls and the kaleidoscope's images are ceiled; the spawns and the
     // splits add balls up to BR_BALL_CEILING, never past it)

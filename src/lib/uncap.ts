@@ -223,6 +223,12 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   bmBars: 1_000,
   bmPerTube: 200,
   bmLoopBeats: 4_096,
+  // --- wave-tank --- Wave Tank: the grid's columns (its rows follow at 4/3 and its sponge at ¾ of a wavelength: ~4 M cells at the
+  // ceiling – the solver lowers a grid that would still need more, WT_CELL_CEILING), the bells (each sampled, smoothed and drawn
+  // every step) and the ridge lines (each up to 512 samples a frame)
+  wtCols: 1_700,
+  wtBells: ENTITY_CEILING,
+  wtRidges: 4_096,
   // --- brick-rebuild --- Brick Smash (`BR_*_CEILING` of lib/physics/brickRebuild.ts – a test keeps them equal): the grid's
   // columns and rows (a few typed numbers a cell and a rect of the cached brick layer; their product stops at 40,000 cells in
   // the mode, the aspect kept), the start balls (full engine balls: the board's ceiling, spawns and splits included) and the
@@ -232,6 +238,10 @@ export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
   brBalls: BOARD_BALL_CEILING,
   brSymmetry: 256,
   // --- end brick-rebuild ---
+  // --- perfect-fit --- Perfect Fit's Tetris well: its columns and rows (a cell each in the drawing; the pieces a run plans stop at
+  // PF_PIECE_CEILING of lib/simulation/polyominoPlan.ts, the sections past it are left out)
+  pfWellW: 1_000,
+  pfWellH: 2_000,
   // --- review fix (uncap-all) --- list settings: their length is what allocates (`LIST_CEILING_KEYS`)
   obstacles: OBSTACLE_CEILING,
   captions: CAPTION_CEILING,

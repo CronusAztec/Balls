@@ -22,9 +22,11 @@ export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly s
   polyrhythm: ["#math", "#polyrhythm", "#creativecoding"], // --- phase-spiral ---
   ellipseFoci: ["#math", "#geometry", "#creativecoding"], // --- ellipse-foci ---
   beatMachine: ["#marbles", "#animation", "#creativecoding"], // --- beat-machine ---
+  waveTank: ["#physics", "#waves", "#creativecoding"], // --- wave-tank ---
   brickRebuild: ["#breakout", "#simulation", "#creativecoding"], // --- brick-rebuild --- (the reference clips' own tags)
   vortex: ["#simulation", "#physics", "#marbles"], // --- funnel-spin --- (the funnel clip's own tags: no #creativecoding)
   drawingMachine: ["#mathart", "#generativeart", "#physics"], // --- drawing-machine --- (the harmonograph's caption had no #creativecoding)
+  perfectFit: ["#puzzle", "#creativecoding", "#animation"], // --- perfect-fit ---
 };
 /** Any other mode's topic tags. */
 export const LOOP_CAPTION_DEFAULT_TAGS = ["#physics", "#bouncingball"] as const;
@@ -143,6 +145,12 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     const n = stairs ? bm.bmSteps : bm.bmBars;
     return { mode: s.mode, hookKey: stairs ? "beatMachineStairs" : "beatMachineMarbles", factKey: stairs ? "beatMachineStairsFact" : "beatMachineMarblesFact", count: typeof n === "number" && Number.isFinite(n) ? n : null };
   }
+  // --- wave-tank --- the ripple tank by its largest grating ("the double slit, in water", led by nothing: the reel's own hook is
+  // wordless) and Young's fact; two point sources their own words
+  if (s.mode === "waveTank") {
+    const points = (s as { wtSource?: string }).wtSource === "points";
+    return { mode: s.mode, hookKey: points ? "waveTankPoints" : "waveTank", factKey: points ? "waveTankPointsFact" : "waveTankFact", count: null };
+  }
   // --- brick-rebuild --- Brick Smash by its picture's bricks ("we smashed the logo: {count} bricks, then put them all back"), the gold
   // capsules by the start balls ("{count} balls, and every gold capsule triples them"), the kaleidoscope by its real balls ("only
   // {count} of these balls are real"), each with the fact of its rule
@@ -167,6 +175,17 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     }
     const swinging = [dm.dmAmpX, dm.dmAmpY, dm.dmAmpR].filter((a) => typeof a === "number" && a > 0).length;
     return { mode: s.mode, hookKey: "drawingMachineHarmonograph", factKey: "drawingMachineHarmonographFact", count: swinging };
+  }
+  // --- perfect-fit --- the rectangles by their pieces ("same {count} pieces, three perfect rectangles" and the 2,339 fact), the
+  // perfect clears by theirs ("{count} pieces, not one out of place" and the lines they clear)
+  if (s.mode === "perfectFit") {
+    const pf = s as { pfVariant?: string; pfWellW?: number; pfSections?: string };
+    if (pf.pfVariant === "tetris") {
+      const w = typeof pf.pfWellW === "number" && Number.isFinite(pf.pfWellW) ? Math.max(1, Math.round(pf.pfWellW)) : 10;
+      const pieces = String(pf.pfSections ?? "").split(/[\s,;]+/).filter((x) => /^\d+$/.test(x)).reduce((n, x) => n + ((w * Number(x)) % 4 === 0 ? (w * Number(x)) / 4 : 0), 0);
+      return { mode: s.mode, hookKey: "perfectFitTetris", factKey: "perfectFitTetrisFact", count: pieces > 0 ? pieces : null };
+    }
+    return { mode: s.mode, hookKey: "perfectFitPento", factKey: "perfectFitPentoFact", count: 12 };
   }
   if (s.mode === "grow") {
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };
