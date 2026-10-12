@@ -37,6 +37,8 @@ export interface LoopHudFrame {
   counterGrey?: boolean;
   /** --- phase-spiral --- A thin bar under the counter filled to this share (0–1; Metronomes & Polyrhythms' "in line 87%"); none when left out. */
   bar?: number;
+  /** --- low-findings-2 --- The spec's `topBand`: the title block stacks under the mode's own band. */
+  topBand?: number;
 }
 
 /** The HUD's static words for a page: the title, the subtitle and the counter's template ("{count} bounces"). */
@@ -53,6 +55,16 @@ export interface LoopHudSpec {
   states?: Readonly<Record<string, string>>;
   /** --- land-claim-pyramid --- The counter in grey instead of amber (Land Claim's pyramid: the clip's grey "1144 blocks"). */
   counterGrey?: boolean;
+  /**
+   * --- low-findings-2 --- A band of the mode's own at the top of the exported square, a share of its side (Land Claim's HUD band
+   * with its title, counters and bars): the HUD's title, rule and subtitle stack under it wherever they would cover it.
+   */
+  topBand?: number;
+  /**
+   * --- low-findings-2 --- Classic's Ring Escape with its Time in ring on: the counter is the time in the ring ("ring 3: 1.4 s",
+   * "out in 11.2 s" once out), from these two templates (`{ring}`, `{time}`) and the run's ring timer (`LoopHudRingTime`).
+   */
+  ringTimer?: { ring: string; out: string };
 }
 
 /** Translation keys (namespace `LoopHud`) of the modes with words of their own; any other mode's title is its name. */
@@ -64,6 +76,26 @@ export const LOOP_HUD_MODE_TEXT: Readonly<Partial<Record<ModeId, { title: string
   ellipseFoci: { title: "EllipseFoci.canvasTitle", subtitle: "EllipseFoci.canvasSubtitle", counter: "EllipseFoci.canvasPasses" }, // --- ellipse-foci --- (its own namespace)
   beatMachine: { title: "BeatMachine.canvasTitleMarbles", subtitle: "BeatMachine.canvasSubtitleMarbles", counter: "BeatMachine.canvasCounterMarbles" }, // --- beat-machine --- (the marble machine's; the page picks the variant's: beatMachineHudKeys())
 };
+
+// --- low-findings-2 ---
+/**
+ * Whether a Metronomes & Polyrhythms page plays the phase spiral its loop words describe ("each ring gains one lap on the
+ * next", "watch the spiral straighten into one line"): harmonic rings, each one lap ahead of the next (the caption's test too).
+ */
+export function isPhaseSpiralPage(s: { prLayout?: string; prTempos?: string }): boolean {
+  return s.prLayout === "rings" && s.prTempos === "harmonic";
+}
+
+/**
+ * The loop HUD's word keys of `mode` on this page (`LOOP_HUD_MODE_TEXT`): Metronomes & Polyrhythms away from the phase spiral –
+ * another layout, another tempo series – keeps only its in-line meter's counter (the title is then the mode's name, no subtitle).
+ */
+export function loopHudModeText(mode: ModeId, s: { prLayout?: string; prTempos?: string }): { title?: string; subtitle?: string; counter: string; counterOne?: string } | undefined {
+  const keys = LOOP_HUD_MODE_TEXT[mode];
+  if (keys && mode === "polyrhythm" && !isPhaseSpiralPage(s)) return { counter: keys.counter };
+  return keys;
+}
+// --- end low-findings-2 ---
 
 // --- chord-stars --- a counter toward a total ("stars closed 3/5") and a subtitle of two lines
 /** A counter with the total it counts toward: the template's `{count}` and `{total}`. */
@@ -111,7 +143,7 @@ export interface LoopHudLayout {
  * at the bottom of the arena's square, which fills the height) it moves up just above it; in a portrait frame the counter is
  * in the bar under the square, far from the badge, and stays at 85 %.
  */
-export function loopHudLayout(width: number, height: number): LoopHudLayout {
+export function loopHudLayout(width: number, height: number, topBand = 0 /* --- low-findings-2 --- (a mode's own band: the title block stacks under it) */): LoopHudLayout {
   const w = Number.isFinite(width) && width > 0 ? width : 0;
   const h = Number.isFinite(height) && height > 0 ? height : 0;
   const unit = Math.min(w, h);
@@ -130,7 +162,7 @@ export function loopHudLayout(width: number, height: number): LoopHudLayout {
     const half = HUD_LINE_HALF * counterSize;
     if (counterY + half > badgeTop && counterY - half < badgeBottom + badge.shadowPad) counterY = badgeTop - half - 0.25 * counterSize;
   }
-  return {
+  const layout: LoopHudLayout = {
     titleY,
     titleSize,
     ruleY,
@@ -141,7 +173,47 @@ export function loopHudLayout(width: number, height: number): LoopHudLayout {
     counterSize,
     maxWidth: 0.86 * w,
   };
+  // --- low-findings-2 --- a mode's own band at the top of the square: the title block under it where it would cover it (a
+  // square or landscape frame; a portrait frame's title sits in the bar above the square and stays)
+  if (topBand > 0 && w > 0 && h > 0) {
+    const square = exportSquare(w, h);
+    if (titleY + HUD_LINE_HALF * titleSize > square.y) stackLoopHudBelow(layout, square.y + topBand * square.height);
+  }
+  return layout;
 }
+
+// --- low-findings-2 ---
+/** The gap between a mode's band and the title stacked under it, in title sizes. */
+export const HUD_STACK_GAP = 0.25;
+
+/**
+ * Moves the title, the rule and the subtitle down so the title's line starts `HUD_STACK_GAP` under `y` (a mode's own band: Land
+ * Claim's HUD); a layout whose title already sits lower, or that leaves the title out (−1), stays as it is. Changes `layout`.
+ */
+export function stackLoopHudBelow(layout: LoopHudLayout, y: number): LoopHudLayout {
+  if (!(layout.titleY >= 0) || !Number.isFinite(y)) return layout;
+  const shift = y + HUD_STACK_GAP * layout.titleSize - (layout.titleY - HUD_LINE_HALF * layout.titleSize);
+  if (shift <= 0) return layout;
+  layout.titleY += shift;
+  if (layout.ruleY >= 0) layout.ruleY += shift;
+  if (layout.subtitleY >= 0) layout.subtitleY += shift;
+  return layout;
+}
+
+/**
+ * How much of the exported square's side the stacked title block takes under a mode's band (the gap, the title, the rule and
+ * the subtitle's lines at the export's sizes of a square frame): the room the mode's picture leaves for it (Land Claim's pyramid).
+ */
+export function loopHudStackShare(spec: Pick<LoopHudSpec, "title" | "subtitle">): number {
+  if (!spec.title && !spec.subtitle) return 0;
+  const title = 0.07;
+  const subtitle = 0.032;
+  const lines = subtitleLines(spec.subtitle).length;
+  const titleBlock = (HUD_STACK_GAP + 2 * HUD_LINE_HALF) * title;
+  if (lines === 0) return titleBlock;
+  return (HUD_STACK_GAP + HUD_LINE_HALF + 0.66) * title + (0.95 + (lines - 1) * HUD_SUBTITLE_LEADING + HUD_LINE_HALF) * subtitle;
+}
+// --- end low-findings-2 ---
 
 /** Half a HUD line's height, in font sizes (the band a line covers around its centre). */
 export const HUD_LINE_HALF = 0.6;
@@ -283,6 +355,41 @@ const HOOPS_COUNTER = { count: 0, values: { rate: 0, total: 0 } };
 export interface LoopHudState {
   state: string;
 }
+// --- low-findings-2 ---
+/** Classic's time in the ring for the counter (Ring Escape): the ring the run is in, of how many, the seconds in it, and out yet. */
+export interface LoopHudRingTime {
+  ringSec: number;
+  ring: number;
+  rings: number;
+  out: boolean;
+}
+/** The ring time, reused every frame. */
+const RING_TIME: LoopHudRingTime = { ringSec: 0, ring: 1, rings: 0, out: false };
+const ringTimeFormats = new Map<string, Intl.NumberFormat>();
+/** Seconds with one decimal, in the page's style ("1.4"; "1,4" in Polish and Spanish). */
+function oneDecimal(value: number, locale?: string): string {
+  if (!locale) return value.toFixed(1);
+  let format = ringTimeFormats.get(locale);
+  if (!format) {
+    try {
+      format = new Intl.NumberFormat(locale, { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false });
+    } catch {
+      return value.toFixed(1);
+    }
+    ringTimeFormats.set(locale, format);
+  }
+  return format.format(value);
+}
+/**
+ * The time-in-ring line ("ring k: t s" down to the tenth below, "out in t s" once the last ring is behind; lowercase, the page's
+ * decimal separator): the loop HUD's counter with Ring Escape's timer on, and the line under the rings without the HUD.
+ */
+export function ringTimeText(templates: { ring: string; out: string }, time: Pick<LoopHudRingTime, "ringSec" | "ring" | "rings" | "out">, locale?: string): string {
+  const seconds = oneDecimal(Math.floor(10 * time.ringSec + 1e-6) / 10, locale);
+  const template = time.out ? templates.out : templates.ring;
+  return hudText(template.replace("{ring}", String(Math.min(time.ring, Math.max(1, time.rings)))).replace("{time}", seconds), locale);
+}
+// --- end low-findings-2 ---
 /** The fan's state, reused every frame. */
 const FAN_STATE: LoopHudState = { state: "forwards" };
 // --- end chaos-fan ---
@@ -313,7 +420,20 @@ export function loopHudCount(engine: {
   getBeatMachineHudCount?(): LoopHudCount | null; // --- beat-machine ---
   getVortexView?(): { funnel: { release: string; lapReadout: boolean; newestWave: number; lapSec: number; waveLaps: ArrayLike<number> } }; // --- funnel-spin ---
   getLandClaimView?(): { pyramid: { shown: number } | null }; // --- land-claim-pyramid ---
-}): number | LoopHudCount | LoopHudCounter | LoopHudState | null {
+  getRingEscapeView?(): { rings: number; ring: number; enteredMs: number; outMs: number } | null; // --- low-findings-2 ---
+  getElapsedMs?(): number; // --- low-findings-2 ---
+}): number | LoopHudCount | LoopHudCounter | LoopHudState | LoopHudRingTime | null {
+  // --- low-findings-2 --- Classic's time in the ring (the counter of a page with Ring Escape's timer on: `LoopHudSpec.ringTimer`)
+  if (engine.getCurrentModeName() === "classic" && engine.getRingEscapeView && engine.getElapsedMs) {
+    const view = engine.getRingEscapeView();
+    if (view && view.rings > 0) {
+      RING_TIME.out = view.outMs >= 0;
+      RING_TIME.ringSec = RING_TIME.out ? view.outMs / 1000 : Math.max(0, engine.getElapsedMs() - view.enteredMs) / 1000;
+      RING_TIME.ring = view.ring;
+      RING_TIME.rings = view.rings;
+      return RING_TIME;
+    }
+  }
   // --- land-claim-pyramid --- Land Claim's pyramid: the blocks standing (counting down to the summit's fall, back up in the rebuild)
   if (engine.getCurrentModeName() === "landClaim" && engine.getLandClaimView) {
     const pyramid = engine.getLandClaimView().pyramid;
@@ -370,7 +490,13 @@ export function loopHudCount(engine: {
 }
 
 /** One frame of the HUD from the page's words and the run's counter. */
-export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | LoopHudCounter | LoopHudState | null, locale?: string): LoopHudFrame {
+export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | LoopHudCounter | LoopHudState | LoopHudRingTime | null, locale?: string): LoopHudFrame {
+  // --- low-findings-2 --- Classic's time in the ring: the counter with Ring Escape's timer on, none without it
+  if (count !== null && typeof count === "object" && "ringSec" in count) {
+    const frame: LoopHudFrame = { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: spec.ringTimer ? ringTimeText(spec.ringTimer, count, locale ?? spec.locale) : hudCounterText(spec.counter, null), light: spec.light };
+    if (spec.topBand) frame.topBand = spec.topBand;
+    return frame;
+  }
   // --- chaos-fan --- a state: its label from the spec, grey (nothing without a label)
   if (count !== null && typeof count === "object" && "state" in count) return { title: hudText(spec.title, locale), subtitle: hudText(spec.subtitle, locale), counter: hudText(spec.states?.[count.state] ?? "", locale ?? spec.locale), light: spec.light, counterGrey: true };
   const counter = count !== null && typeof count === "object" && "values" in count ? count : null; // --- bead-hoops --- (a counter with values)
@@ -379,6 +505,7 @@ export function loopHudFrame(spec: LoopHudSpec, count: number | LoopHudCount | L
   const bar = count !== null && typeof count === "object" && "bar" in count ? (count as LoopHudBarCount).bar : NaN; // --- phase-spiral --- (the meter's bar)
   if (frame.counter && Number.isFinite(bar)) frame.bar = bar;
   if (spec.counterGrey) frame.counterGrey = true; // --- land-claim-pyramid ---
+  if (spec.topBand) frame.topBand = spec.topBand; // --- low-findings-2 ---
   return frame;
 }
 

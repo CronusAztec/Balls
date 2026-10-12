@@ -889,7 +889,7 @@ describe("bounce math in the engine", () => {
     };
     for (const mode of MODE_IDS) {
       const engine = createEngineForSettings({ ...config, bounceMath: bmConfig(listen) }, mode, { ...modeSettings, ...settingsFor[mode] }, 7);
-      const seconds = mode === "doublePendulum" ? 12 : 10;
+      const seconds = mode === "doublePendulum" ? 12 : mode === "hoops" ? 13 /* --- low-findings-2 --- (its first bead lifts about 11 s in since the payoff retune) */ : 10;
       run(engine, seconds, () => engine.consumeSoundEvents());
       const fires = engine.getBounceMathView().fires;
       expect(bounceTriggerApplies("bounce", mode), mode).toBe(true);

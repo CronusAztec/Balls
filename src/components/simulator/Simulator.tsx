@@ -12,6 +12,7 @@ import { parseSeed } from "@/lib/recording/batch"; // --- viral-bot ---
 import { useSearchParams } from "next/navigation";
 import Canvas, { type CanvasHandle, type CanvasLabels } from "./Canvas";
 import Controls, { sectionDefaults, sliderStyle, type ControlSection } from "./Controls";
+import { ballControlsOf } from "./panelKeys"; // --- low-findings-2 --- (the page's ball colour where a mode's balls are its own)
 import type { MusicTrackInfo } from "./sections/MusicSection";
 import type { PaintBeatInfo, PaintPictureInfo } from "./sections/PicturePaintSection";
 import type { ThemeImageInfo, ThemeImageProps } from "./sections/ThemeSection"; // --- themes
@@ -47,7 +48,7 @@ import { ToneGenerator, type MusicSettings } from "@/lib/audio/toneGenerator";
 import { loadMidiFrequencies, parseMidiToFrequencies } from "@/lib/audio/midi";
 import { SONGS } from "@/lib/audio/songs";
 import { EXPORT_BASE_NAME, VideoRecorder } from "@/lib/recording/recorder";
-import { particlePalette, themeById, themeCarryOver } from "@/lib/themes"; // --- themes
+import { modeChangeCarryOver, particlePalette, themeById } from "@/lib/themes"; // --- themes
 import { FINDER_DEPTH_BUDGET_MS, findSimulation, runNeverFinishes, seedSurvivesResize, type FinderResult } from "@/lib/simulation/finder";
 import { characterOf, characterRenderOptions } from "@/lib/character/character"; // --- gerald-faces ---
 import type { ChirpKind } from "@/lib/audio/characterVoice"; // --- gerald-faces ---
@@ -71,7 +72,7 @@ import type { RingEscapeLook } from "./ringEscapeRenderer"; // --- ring-escape -
 import type { CanvasCaptionOptions } from "./captionsRenderer";
 import { captionCarryOver, captionRenderOptions } from "@/lib/captions";
 // --- rigged ---
-import FinderOutcomeFields, { FinderOutcomeSelect, outcomeButtonText, outcomeFoundText, outcomeMissText, outcomeOverlayText, outcomeProgressText, teamChoiceNames } from "./FinderOutcomeFields";
+import FinderOutcomeFields, { FinderOutcomeSelect, divergeTargetUnreachable, outcomeButtonText, outcomeFoundText, outcomeMissText, outcomeOverlayText, outcomeProgressText, teamChoiceNames } from "./FinderOutcomeFields";
 import { BATTLE_WINNER_MODES, forcedWinnerApplies, neverEscapeApplies, rigNeverFinishes, riggedConfigOf } from "@/lib/physics/rigged"; // --- odd-string-battle --- (BATTLE_WINNER_MODES)
 import { availableOutcomes, effectiveOutcome, type FinderOutcome, type FinderOutcomeKind } from "@/lib/simulation/outcomes";
 // --- timeline ---
@@ -79,7 +80,8 @@ import TimelineBar from "./TimelineBar";
 import { useTimelineLivePublisher } from "./timelineLive";
 import { engineTimelineOf, serializeKeyframes, timelineCarryOver } from "@/lib/simulation/timeline";
 import { doublePendulumSettingsOf } from "@/lib/physics/modes/doublePendulum"; // --- jdm-double-pendulum ---
-import { chaosFanClipSec } from "@/lib/physics/chaosFan"; // --- chaos-fan ---
+import { chaosFanClipSec, fanForwardSteps, fanSplitLatestSec, FAN_STEPS_PER_SEC } from "@/lib/physics/chaosFan"; // --- chaos-fan --- (--- low-findings-2 --- the split's reach)
+import { ESCAPE_AT_TOLERANCE_SEC } from "@/lib/simulation/outcomes"; // --- low-findings-2 ---
 import { powerLayersSettingsOf } from "@/lib/physics/modes/powerLayers"; // --- odd-power-layers ---
 // --- fast-render ---
 import { FastRenderHost, FastRenderUnsupportedError, downloadExport, fastRenderSupported, pickExportFormat, renderFast } from "@/lib/recording/fastRender";
@@ -87,7 +89,7 @@ import { loopPlayOptions } from "@/lib/audio/loopEvents"; // --- loop-foundation
 // --- loop-foundation --- Grow's fill and loop, the loop contract (whole loops) and the loop HUD
 import { growFillSettingsOf, growRunFinishes } from "@/lib/physics/growFill";
 import { growLookOf } from "./growRenderer";
-import { LOOP_HUD_MODE_TEXT, isLightColor, loopHudCount, loopHudFrame, type LoopHudSpec } from "@/lib/loop/hud";
+import { isLightColor, loopHudCount, loopHudFrame, loopHudModeText, type LoopHudSpec } from "@/lib/loop/hud"; // (--- low-findings-2 --- the words by the page: loopHudModeText())
 import { loopHudMessageKey } from "@/lib/loop/hud"; // --- ellipse-foci ---
 import { EF_RESTART_FIELDS, ellipseFociSettingsOf } from "@/lib/physics/ellipseFoci"; // --- ellipse-foci ---
 import { BM_RESTART_FIELDS, beatMachineHudKeys, beatMachineSettingsOf } from "@/lib/physics/beatMachine"; // --- beat-machine ---
@@ -155,7 +157,7 @@ import { flShowClipEstimateSec } from "@/lib/physics/modes/fightLeagueShow";
 import { flClipBridge, measureFlKoSec } from "./fightLeague/makeClip";
 import { CAPTION_WINNER_TOKEN, MAX_CAPTIONS } from "@/lib/captions";
 // --- end fl-overhaul ---
-import { landClaimClipSec, landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land-claim ---
+import { LC_HUD_BAND, landClaimClipSec, landClaimSettingsOf } from "@/lib/physics/modes/landClaim"; // --- land-claim --- (--- low-findings-2 --- LC_HUD_BAND: the loop HUD stacks under it)
 import { COLOUR_SORT_ENGINE_KEYS, COLOUR_SORT_HUD_KEYS, colourSortCounterTemplate, colourSortSettingsOf, colourSortTotal } from "@/lib/physics/colourSortSettings"; // --- colour-sort ---
 import { csSortSettles } from "@/lib/physics/modes/colourSort"; // --- colour-sort --- (a rule that lets balls back in only settles: no first sort to find)
 import { starChordsSettingsOf } from "@/lib/physics/starChords"; // --- chord-stars ---
@@ -648,17 +650,17 @@ export default function Simulator() {
     // --- end funnel-spin ---
     // --- land-claim-pyramid --- Land Claim's pyramid: "a pyramid, one block at a time", the rule under it, the blocks standing in grey
     if (s.mode === "landClaim" && s.lcLayout === "pyramid") {
-      return { title: s.loopHudTitle || t("LandClaim.pyramidTitle"), subtitle: s.loopHudSubtitle || t("LandClaim.pyramidSubtitle"), counter: String(t.raw("LandClaim.pyramidCounter")), counterGrey: true, light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
+      return { title: s.loopHudTitle || t("LandClaim.pyramidTitle"), subtitle: s.loopHudSubtitle || t("LandClaim.pyramidSubtitle"), counter: String(t.raw("LandClaim.pyramidCounter")), counterGrey: true, light: isLightColor(s.backgroundColors[0]), locale: hudLocale, topBand: s.lcHud ? LC_HUD_BAND : undefined /* --- low-findings-2 --- (Land Claim's own band on too: the title block under it) */ };
     }
     // --- end land-claim-pyramid ---
-    const keys = LOOP_HUD_MODE_TEXT[s.mode];
+    const keys = loopHudModeText(s.mode, { prLayout: s.prLayout, prTempos: s.prTempos }); // --- low-findings-2 --- (the phase spiral's words on the phase spiral only)
     // (--- ellipse-foci --- a mode's words may live in its own namespace: `loopHudMessageKey()`)
-    const title = s.loopHudTitle || (keys ? t(loopHudMessageKey(keys.title)) : t(`Modes.${s.mode}.name`));
-    const subtitle = s.loopHudSubtitle || (keys ? t(loopHudMessageKey(keys.subtitle)) : "");
+    const title = s.loopHudTitle || (keys?.title ? t(loopHudMessageKey(keys.title)) : t(`Modes.${s.mode}.name`));
+    const subtitle = s.loopHudSubtitle || (keys?.subtitle ? t(loopHudMessageKey(keys.subtitle)) : "");
     const counterKey = keys?.counterOne && s.mode === "hoops" && s.hpCount === 1 ? keys.counterOne : keys?.counter; // --- bead-hoops --- (one hoop: "the bead up")
     const counter = counterKey ? String(t.raw(loopHudMessageKey(counterKey))) : "";
-    return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]), locale: hudLocale /* --- bead-hoops --- (the counter's decimals on the live canvas) */ };
-  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */, s.lcLayout /* --- land-claim-pyramid --- */]);
+    return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]), locale: hudLocale /* --- bead-hoops --- (the counter's decimals on the live canvas) */, topBand: s.mode === "landClaim" && s.lcHud ? LC_HUD_BAND : undefined /* --- low-findings-2 --- */, ringTimer: s.mode === "classic" && s.ringTimer ? { ring: String(t.raw("RingEscape.hudRing")), out: String(t.raw("RingEscape.hudOut")) } : undefined /* --- low-findings-2 --- (Ring Escape's time in the ring: the HUD's counter) */ };
+  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */, s.lcLayout /* --- land-claim-pyramid --- */, s.prLayout, s.prTempos, s.lcHud, s.ringTimer /* --- low-findings-2 --- */]);
   const loopHudRef = useRef({ spec: loopHudSpec, locale: hudLocale });
   loopHudRef.current = { spec: loopHudSpec, locale: hudLocale };
   /** The HUD of a frame of `engine`'s run (null without the HUD), for the recorder and the fast export. */
@@ -795,7 +797,7 @@ export default function Simulator() {
   useEffect(() => {
     engineRef.current?.setPolyrhythmSettings(polyrhythmSettingsOf(s));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [s.prArms, s.prAlignMeter, s.prTrail, s.prLoopSound, s.prPalette]);
+  }, [s.prArms, s.prAlignMeter, s.prTrail, s.prLoopSound, s.prPalette, s.loopHud /* --- low-findings-2 --- (the meter in the HUD: the rings keep the field) */]);
   // --- end jdm-polyrhythm ---
   // --- jdm-collisions --- Collision Playground: a change of the playground (count, sizes, container, physics, variants) restarts it.
   useEffect(() => {
@@ -1782,6 +1784,9 @@ export default function Simulator() {
   const flShow = s.mode === "fightLeague" ? flShowKind({ match: s.flMatch, bestOf: s.flBestOf }) : undefined; // --- fl-overhaul --- (Stage 5) the show's own outcomes
   const finderOutcomes = availableOutcomes(s.mode, { endless: finderEndless || orbEndless, neverEscape: s.neverEscape, ballCount, orbRhythm: s.ogModel === "rhythm" /* --- orb-rhythm --- */, growFinish: s.mode === "grow" && growRunFinishes(growFillSettingsOf(s)) /* --- loop-foundation --- */, flShow, flSides: s.mode === "fightLeague" ? flSideCount(s.flMatch, [s.flFighterA, s.flFighterB, s.flFighterC, s.flFighterD, s.flFighterE, s.flFighterF]) : 0, flDecider: flBestOfGames(s.flBestOf) > 1 /* --- fl-overhaul --- (Stage 5) */, dpFan: s.mode === "doublePendulum" && s.dpFan /* --- chaos-fan --- */, colourSortSettles: s.mode === "colourSort" && csSortSettles(s.csRule) /* --- colour-sort --- */, bmMarbles: s.mode === "beatMachine" && s.bmVariant === "marbles" /* --- beat-machine --- */, vortexRings: s.mode === "vortex" && s.vxRelease === "rings" /* --- funnel-spin --- */, lcPyramid: s.mode === "landClaim" && s.lcLayout === "pyramid", lcPyramidLoop: s.mode === "landClaim" && s.lcLayout === "pyramid" && s.lcRebuild /* --- land-claim-pyramid --- */, ringEscape: s.mode === "classic" && ringEscapeActive(s) /* --- ring-escape --- */ });
   const finderOutcome = effectiveOutcome(findOutcome, finderOutcomes);
+  // --- low-findings-2 --- the chaos fan run backwards only splits on its forward run: a later "Splits at" is said, never searched
+  const divergeLatestSec = s.mode === "doublePendulum" && s.dpFan ? fanSplitLatestSec(s, ESCAPE_AT_TOLERANCE_SEC) : null;
+  const divergeUnreachable = divergeTargetUnreachable(finderOutcome, findEscapeAt, divergeLatestSec);
   const winnerNames = teamChoiceNames(s, (kind, n) => t(kind === "team" ? "Rigged.teamN" : "Rigged.ballN", { n }), t("Rigged.challengers") /* --- fl-overhaul --- (Stage 5: a boss rush's side 1) */);
   const findWinnerTeam = Math.max(0, Math.min(findWinner, winnerNames.length - 1));
   const outcomeText = { duration: findDuration, escapeAt: findEscapeAt, winnerName: winnerNames[findWinnerTeam] ?? "", barSec: barSeconds(s.bpm) /* --- loop-foundation --- (fill on a bar line) */ };
@@ -1957,7 +1962,7 @@ export default function Simulator() {
         musicStartOffset: settings.musicStartOffset,
         ...characterOf(settings), // --- gerald-faces --- the character follows the ball into every mode
       };
-      Object.assign(fresh, themeCarryOver(themeLookRef.current)); // --- themes: the background, particles and a picked theme's colours carry over
+      Object.assign(fresh, modeChangeCarryOver(themeLookRef.current, defaultSettings(themeLookRef.current.mode))); // --- themes: the background, particles and a picked theme's colours carry over (--- low-findings-2 --- a background still the old mode's default gives way to the new mode's own)
       Object.assign(fresh, teamCarryOver(themeLookRef.current)); // --- teams --- the roster (and so its balls) and the scoreboard switches carry over
       Object.assign(fresh, obstacleSettingsOf(themeLookRef.current)); // --- obstacle-editor --- the obstacle layout and bumper boost carry over
       Object.assign(fresh, exitSplatCarryOver(themeLookRef.current)); // --- gerald-exit-splat --- the exit behaviour and the splat barrier carry over (ring modes)
@@ -3834,7 +3839,7 @@ export default function Simulator() {
               watermarkText={s.watermarkText}
               rainbowWalls={s.rainbowWalls}
               rainbowWallMode={s.rainbowWallMode}
-              rainbowBall={s.rainbowBall}
+              rainbowBall={s.rainbowBall && ballControlsOf(s.mode).color /* --- low-findings-2 --- (Colour Sort's colours are the sort: never a rainbow over them) */}
               lineColor={s.lineColor}
               rainbowLines={s.rainbowLines}
               ballImage={ballImage}
@@ -3984,7 +3989,7 @@ export default function Simulator() {
         </div>
         <div className="ml-auto flex items-center gap-1.5">
           {finderShown && (
-            <Button variant="secondary" size="sm" onClick={isSearching ? cancelFinder : runFinder} disabled={isRecording} icon={<IconTarget size={16} />} title={t("Controls.findSimulationTip")}>
+            <Button variant="secondary" size="sm" onClick={isSearching ? cancelFinder : runFinder} disabled={isRecording || (!isSearching && divergeUnreachable) /* --- low-findings-2 --- (a split the fan can never meet: the field says why) */} icon={<IconTarget size={16} />} title={t("Controls.findSimulationTip")}>
               <span className="sr-only @[52rem]:not-sr-only">
                 {isSearching ? t("Controls.cancelSearch") : (outcomeButtonText(t, finderOutcome, outcomeText) /* --- rigged --- */ ?? (mpCountSearch ? t("Controls.mpFindTarget", { target: settings.mpTarget }) : t("Controls.findDurationSimulation", { duration: findDuration })))}
               </span>
@@ -4036,7 +4041,7 @@ export default function Simulator() {
             </div>
           </div>
           {/* --- rigged --- an outcome search's explanation and fields */}
-          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ landClaim={settings.mode === "landClaim"} /* --- land-claim --- */ count={findCount} onCount={(n) => setFindCount(Math.max(1, Math.round(n)))} /* --- fl-overhaul --- (Stage 5) */ />}
+          {finderOutcome !== null && <FinderOutcomeFields outcome={finderOutcome} escapeAt={findEscapeAt} onEscapeAt={setFindEscapeAt} winner={findWinnerTeam} onWinner={setFindWinner} teamNames={winnerNames} disabled={isSearching} battle={BATTLE_WINNER_MODES.includes(settings.mode) && settings.mode !== "maze"} /* --- odd-string-battle --- --- odd-maze --- (the maze's winner is the first ball out: the classic hint) */ territory={settings.mode === "territory"} /* --- odd-territory --- */ landClaim={settings.mode === "landClaim"} /* --- land-claim --- */ count={findCount} onCount={(n) => setFindCount(Math.max(1, Math.round(n)))} /* --- fl-overhaul --- (Stage 5) */ divergeLatestSec={divergeLatestSec} forwardSec={fanForwardSteps(settings.dpForwardSec) / FAN_STEPS_PER_SEC} /* --- low-findings-2 --- */ />}
           {isSearching && searchProgress && (
             <div className="space-y-1.5" data-search-arena={searchProgress.arena ?? 0 /* --- split-screen --- */}>
               <div className="h-1 w-full overflow-hidden rounded-full bg-surface-3">

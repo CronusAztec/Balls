@@ -11,6 +11,8 @@ import type { FlDivision, FlPrimitive, FlShape, FlWeaponKind } from "@/lib/physi
  * 0.25), so a row's `p` gains only balance its own layers.
  *
  * AVOID-LIST – the review list every row below was checked against (and any new row must be): ORIGINAL SYNTHESIS ONLY.
+ * (--- low-findings-2 --- the gestures a row could reproduce by its shape alone – the jump's chip sweep, the spin-dash's
+ * climbing revs, the coin's fourth – are also checked by machine: flAvoidList.ts, on every row of every table in the tests.)
  *  - No sample, rip, re-recording or re-synthesis of a source cue: no film's energy-blade hum, ignition or swing recording;
  *    no respirator breath; no monster's, dinosaur's or giant ape's roar recording (ours are formant growls); no shooter's
  *    shield-recharge, rifle or shotgun recording; no block game's fuse hiss, explosion, hurt or teleport sound; no
@@ -578,7 +580,9 @@ export const FL_SIGNATURES: Readonly<Record<string, FlSignature>> = {
   // ---------------------------------------------------------------- Nintendo & Sega (tint: chip chirp on swings and charges)
   mario: {
     roles: {
-      intro: "intro(120) p25 330>990/110 d120 p.46",
+      // (--- low-findings-2 --- our own bouncy chip "boing" – a pulse dipping a fourth, then a blip a fifth above – where a fast
+      // rising pulse sweep, the plumber's jump of the avoid-list, was)
+      intro: "intro(120) p25 F*2>F*1.5/60 d110 p.42 + p12 F*3 d60 p.16 @50",
       charge: "charge(350) p25 1046.5 d50 p.31 + p25 1568 v6/8 d300 p.32 @50",
       sustain: "sustain(held) p12 F*2 a6.67/.9 e20/100/.8/200h p.18 + sin F*8 v8/30 a10/.5 e20/100/.8/200h p.09",
       shoot: "shoot(70) p25 800>400/60 d70 p.4 + wn hp3000 d15 p.3",
@@ -613,7 +617,9 @@ export const FL_SIGNATURES: Readonly<Record<string, FlSignature>> = {
   sonic: {
     roles: {
       charge: "charge(331) sin 2093 m3.5i1>0/200 d250 p.28 L.4 + sin 3136 m3.5i1>0/200 d300 p.28 @30 R.4",
-      telegraph: "telegraph(400) saw 200>500/120 a28/.6 lp2500 e5/120 p.3 x3/130^1.25 + pn bp800>2000/400 e300/100 p.68",
+      // (--- low-findings-2 --- one smooth spool-up – a fluttering triangle rising a twelfth under the rushing air – where three
+      // climbing saw revs, the spin-dash rev of the avoid-list, were)
+      telegraph: "telegraph(400) tri F>F*3/380 v10/25 e40/360 p.2 + pn bp800>2000/400 e300/100 p.68",
       fire: "fire(255) pn bp800>4000/250q1 e5/250 p2.4 + sin 300>1500/200 e5/200 p.19",
     },
   },

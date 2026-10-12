@@ -141,11 +141,11 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // --- land-claim --- (recorded when the mode was added: no rings – the wall of columns is the mode's own)
   landClaim: { samples: [[328386,444514],[369351,237432],[436782,420717],[255355,223244],[467695,452667],[322641,326623],[561586,483469],[293545,478909]], broken: [], walls: [] },
   // --- colour-sort --- (recorded when the mode was added: no engine rings – the gated rings are the mode's own)
-  colourSort: { samples: [[393348,65150],[481309,441554],[461922,69477],[427489,474419],[563529,137950],[376391,479386],[613529,263068],[333910,451468]], broken: [], walls: [] },
+  colourSort: { samples: [[428671,291624],[295831,217294],[390295,139676],[231963,361743],[289419,173666],[475265,407123],[276559,250180],[274916,433961]], broken: [], walls: [] }, // --- low-findings-2 --- (re-recorded for the new defaults, 300 px/s with contacts on; tests/colourSort.test.ts still pins the old run)
   // --- chord-stars --- (the balls pinned to the clock: the pentagram's and the first heptagram's ball at 2.5, 5, 7.5 and 10 s)
   starChords: { samples: [[514893,467278],[349436,287981],[226115,232202],[424452,483190],[566459,262864],[398333,227610],[292533,411349],[249339,295602]], broken: [], walls: [] },
   // --- bead-hoops --- (recorded when the mode was added: no rings – the beads ride the mode's own hoops, the outer two sampled)
-  hoops: { samples: [[398959,524996],[399063,503568],[400439,524949],[400329,503540],[190985,380152],[247202,433490],[411377,358020],[409929,373831]], broken: [], walls: [] },
+  hoops: { samples: [[398986,524998],[399065,503569],[400330,524996],[400295,503568],[400183,524988],[400151,503563],[392731,524873],[395308,503513]], broken: [], walls: [] }, // --- low-findings-2 --- (re-recorded for the payoff retune: the first lift now comes about 11 s in)
   // --- ellipse-foci --- (recorded when the mode was added: no rings – the pool is the mode's own; ball 0 flies along the long axis)
   ellipseFoci: { samples: [[400000,453000],[427781,451787],[400000,338250],[349647,348614],[400000,70500],[336279,132331],[400000,389250],[506404,234010]], broken: [], walls: [] },
   beatMachine: { samples: [[184568,193082],[226197,193082],[184568,193082],[226197,193082],[184568,193082],[226197,193082],[213295,377851],[226197,246444]], broken: [], walls: [] }, // --- beat-machine ---

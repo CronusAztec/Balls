@@ -29,7 +29,7 @@ import {
   tickPhaseModArms,
   writePhaseSpiralParams,
 } from "@/lib/physics/phaseSpiral";
-import { DEFAULT_POLYRHYTHM_SETTINGS, POLY_METER_OUTER_SHARE, buildTempoSeries, resolvePolyrhythmSettings, tickPhaseMod2, type PolyrhythmSettings } from "@/lib/physics/modes/polyrhythm";
+import { DEFAULT_POLYRHYTHM_SETTINGS, POLY_METER_OUTER_SHARE, POLY_OUTER_SHARE, buildTempoSeries, polyOuterShare, polyrhythmSettingsOf, resolvePolyrhythmSettings, tickPhaseMod2, type PolyrhythmSettings } from "@/lib/physics/modes/polyrhythm"; // (--- low-findings-2 --- polyOuterShare, polyrhythmSettingsOf)
 import { TAIL_RAD_PER_SEC, drawInLineMeter, tailArc } from "@/components/simulator/phaseSpiralRenderer";
 import { drawPolyrhythmStage, drawPolyrhythmVoices } from "@/components/simulator/polyrhythmRenderer";
 import { PHASE_SPIRAL_KEYS } from "@/components/simulator/sections/PhaseSpiralSection";
@@ -44,7 +44,7 @@ import { playSoundEvent } from "@/lib/recording/fastRender";
 import { RANGES, defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { MEMORY_CEILINGS, memoryCeiling } from "@/lib/uncap";
 import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/finder";
-import { LOOP_HUD_MODE_TEXT, drawLoopHud, loopHudCount, loopHudFrame, loopHudLayout } from "@/lib/loop/hud";
+import { LOOP_HUD_MODE_TEXT, drawLoopHud, isPhaseSpiralPage, loopHudCount, loopHudFrame, loopHudLayout, loopHudModeText } from "@/lib/loop/hud"; // (--- low-findings-2 --- isPhaseSpiralPage, loopHudModeText)
 import { WholeLoopCut } from "@/lib/loop/loopContract";
 import { loopCaption, loopCaptionContext } from "@/lib/publish/loopCaption";
 import en from "../messages/en.json";
@@ -241,6 +241,44 @@ describe("Phase Spiral: arms", () => {
     const S = meter.getPolyrhythmView().geometry!.field.side;
     expect(meter.getPolyrhythmView().geometry!.outerRadius).toBeLessThanOrEqual(POLY_METER_OUTER_SHARE * S);
     expect(plain.getPolyrhythmView().geometry!.outerRadius).toBeGreaterThan(POLY_METER_OUTER_SHARE * S);
+  });
+});
+
+// --- low-findings-2 --- the meter in the loop HUD: the rings keep the field; the phase spiral's words on the phase spiral only
+describe("Phase Spiral: the meter's place and the loop HUD's words", () => {
+  it("keeps the rings on the whole field when the loop HUD shows the meter (the canvas leaves it out under the disc)", () => {
+    const S = engineOf().getPolyrhythmView().geometry!.field.side;
+    const inHud = engineOf({ ...SPIRAL, meterInHud: true });
+    const plain = engineOf({ ...SPIRAL, alignMeter: false });
+    expect(inHud.getPolyrhythmView().geometry!.outerRadius).toBeCloseTo(plain.getPolyrhythmView().geometry!.outerRadius, 9);
+    expect(inHud.getPolyrhythmView().geometry!.outerRadius).toBeGreaterThan(POLY_METER_OUTER_SHARE * S);
+    expect([polyOuterShare({ alignMeter: true }), polyOuterShare({ alignMeter: true, meterInHud: true }), polyOuterShare({ alignMeter: false, meterInHud: false })]).toEqual([POLY_METER_OUTER_SHARE, POLY_OUTER_SHARE, POLY_OUTER_SHARE]);
+    // the page's loop HUD decides it (only when on: the settings of a page without it are as before), live too
+    expect(polyrhythmSettingsOf({ ...defaultSettings("polyrhythm"), loopHud: true }).meterInHud).toBe(true);
+    expect("meterInHud" in polyrhythmSettingsOf(defaultSettings("polyrhythm"))).toBe(false);
+    const live = engineOf();
+    const before = live.getPolyrhythmView().geometry!.outerRadius;
+    live.setPolyrhythmSettings({ meterInHud: true });
+    run(live, 1);
+    expect(live.getPolyrhythmView().geometry!.outerRadius).toBeGreaterThan(before);
+    live.setPolyrhythmSettings({ meterInHud: false });
+    run(live, 1);
+    expect(live.getPolyrhythmView().geometry!.outerRadius).toBeCloseTo(before, 9);
+  });
+
+  it("puts the phase spiral's words on the phase spiral only: harmonic rings; any other layout or tempo series keeps the meter's counter", () => {
+    expect(loopHudModeText("polyrhythm", { prLayout: "rings", prTempos: "harmonic" })).toEqual(LOOP_HUD_MODE_TEXT.polyrhythm);
+    for (const [prLayout, prTempos] of [["arcs", "harmonic"], ["metronomes", "harmonic"], ["spiral", "harmonic"], ["rings", "arithmetic"], ["rings", "custom"]]) {
+      expect(isPhaseSpiralPage({ prLayout, prTempos }), `${prLayout} ${prTempos}`).toBe(false);
+      expect(loopHudModeText("polyrhythm", { prLayout, prTempos }), `${prLayout} ${prTempos}`).toEqual({ counter: LOOP_HUD_MODE_TEXT.polyrhythm!.counter });
+    }
+    // the page's defaults are the phase spiral; the other modes' words do not depend on the polyrhythm fields
+    expect(isPhaseSpiralPage(defaultSettings("polyrhythm"))).toBe(true);
+    expect(loopHudModeText("hoops", { prLayout: "arcs", prTempos: "custom" })).toEqual(LOOP_HUD_MODE_TEXT.hoops);
+    expect(loopHudModeText("classic", { prLayout: "arcs" })).toBeUndefined();
+    // the caption follows the same test
+    expect(loopCaptionContext({ mode: "polyrhythm", recordingDuration: 20, prLayout: "arcs", prTempos: "harmonic", prCount: 20 } as never).hookKey).not.toBe("phaseSpiral");
+    expect(loopCaptionContext({ mode: "polyrhythm", recordingDuration: 20, prLayout: "rings", prTempos: "harmonic", prCount: 20 } as never).hookKey).toBe("phaseSpiral");
   });
 });
 

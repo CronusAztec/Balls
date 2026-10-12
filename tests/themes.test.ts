@@ -16,6 +16,7 @@ import {
   normalizeHexColor,
   particlePalette,
   resolveThemeSettings,
+  modeChangeCarryOver, // --- low-findings-2 ---
   themeById,
   themeCarryOver,
   themePatch,
@@ -199,6 +200,35 @@ describe("theme settings", () => {
     expect(kept).toMatchObject({ themeId: "ocean", ballColor: "#123456", circleColor: themed.circleColor, rainbowWalls: false });
     const next = { ...defaultSettings("drop"), ...kept };
     expect(isThemeIntact(next)).toBe(false); // the tweak survives the mode change
+  });
+
+  // --- low-findings-2 --- a mode with its own page (Focus Shot's navy) shows it on the first switch from the cards
+  it("give way to the new mode's own page when the background is still the old mode's default, keep a picked one", () => {
+    const switchTo = (from: SimulatorSettings, mode: SimulatorSettings["mode"]) => ({ ...defaultSettings(mode), ...modeChangeCarryOver(from, defaultSettings(from.mode)) });
+    const focus = defaultSettings("ellipseFoci");
+    expect(focus.backgroundColors).toEqual(["#060912", "#060912"]);
+    // the default classic page → Focus Shot's navy page (the first switch), and back → classic's own page
+    const there = switchTo(defaultSettings("classic"), "ellipseFoci");
+    expect([there.backgroundType, there.backgroundColors]).toEqual([focus.backgroundType, focus.backgroundColors]);
+    expect(settingsToSearchParams(there).get("bg1")).toBeNull();
+    const back = switchTo(there, "classic");
+    expect(back.backgroundColors).toEqual(defaultSettings("classic").backgroundColors);
+    for (const mode of ["starChords", "beatMachine", "colourSort", "drop"] as const) expect(switchTo(defaultSettings("classic"), mode).backgroundColors, mode).toEqual(defaultSettings(mode).backgroundColors);
+    // the default's colours in another case are still the default
+    const upper = { ...defaultSettings("classic"), backgroundColors: defaultSettings("classic").backgroundColors.map((c) => c.toUpperCase()) };
+    expect(switchTo(upper, "ellipseFoci").backgroundColors).toEqual(focus.backgroundColors);
+    // a picked colour, gradient, picture or theme carries over as before
+    const picked = { ...defaultSettings("classic"), backgroundColors: ["#112233", "#1e293b"] };
+    expect(switchTo(picked, "ellipseFoci").backgroundColors).toEqual(["#112233", "#1e293b"]);
+    const gradient = { ...defaultSettings("classic"), backgroundType: "gradient" as const };
+    expect(switchTo(gradient, "ellipseFoci").backgroundType).toBe("gradient");
+    const picture = { ...defaultSettings("classic"), backgroundType: "image" as const };
+    expect(switchTo(picture, "ellipseFoci").backgroundType).toBe("image");
+    const themed = applyTheme(defaultSettings("classic"), "ocean");
+    expect(switchTo(themed, "ellipseFoci").backgroundColors).toEqual(themed.backgroundColors);
+    // the rest of the carry-over is untouched
+    const styled = { ...defaultSettings("classic"), particleStyle: "sparks" as SimulatorSettings["particleStyle"], backgroundDim: 0.5 };
+    expect(switchTo(styled, "ellipseFoci")).toMatchObject({ particleStyle: "sparks", backgroundDim: 0.5 });
   });
 
   it("colour the particles with the scene only while a theme is picked", () => {

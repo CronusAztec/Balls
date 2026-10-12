@@ -35,12 +35,13 @@ import {
   lcPyramidShownHeight,
   lcPyramidStepOf,
   lcPyramidSummitCells,
+  lcPyramidSummitHeight, // --- low-findings-2 ---
   lcPyramidTotal,
   readLcPyramidParams,
   writeLcPyramidParams,
   type LcPyramidSettingFields,
 } from "@/lib/physics/landClaimPyramid";
-import { DEFAULT_LAND_CLAIM_SETTINGS, LAND_CLAIM_RANGES, landClaimSettingFields, landClaimSettingsOf, resolveLandClaimSettings, type LandClaimSettings } from "@/lib/physics/modes/landClaim";
+import { DEFAULT_LAND_CLAIM_SETTINGS, LAND_CLAIM_RANGES, LC_HUD_BAND, landClaimSettingFields, landClaimSettingsOf, resolveLandClaimSettings, type LandClaimSettings } from "@/lib/physics/modes/landClaim";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import type { PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import { RANGES, defaultSettings, inactiveEngineKeys, pastAnyMemoryCeiling, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
@@ -54,7 +55,7 @@ import { loopPlayOptions } from "@/lib/audio/loopEvents";
 import { midiToFrequency } from "@/lib/audio/scales";
 import { DEFAULT_MUSIC_SETTINGS, ToneGenerator } from "@/lib/audio/toneGenerator";
 import { playSoundEvent } from "@/lib/recording/fastRender";
-import { loopHudCount, loopHudFrame } from "@/lib/loop/hud";
+import { HUD_LINE_HALF, loopHudCount, loopHudFrame, loopHudLayout, loopHudStackShare, stackLoopHudBelow, subtitleLines } from "@/lib/loop/hud"; // (--- low-findings-2 --- the stacked HUD)
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { lcPyramidLayout } from "@/components/simulator/landClaimPyramidRenderer";
 import en from "../messages/en.json";
@@ -675,3 +676,82 @@ describe("Land Claim pyramid: the picture and the words", () => {
 // The pinned fingerprints of the replay test (6 s of a seed-7 run on an 800 × 800 canvas).
 const PINNED_SOLO = { heights: 861028709, balls: 632650526, land: "82", events: "82,10,7,210,29,84,84" };
 const PINNED_TRIO = { heights: 49887922, balls: 4130995091, land: "40,35,33", events: "108,13,61,292,67,115,115" };
+
+/* ------------------------------------------------------------------ --- low-findings-2 --- */
+
+describe("Land Claim pyramid: the summit of any size, the stacked HUDs, the competitors' words", () => {
+  it("works the summit's height out for any Pyramid Size, the same as the built grid's tallest column", () => {
+    const tallest = (g: number, s: number, b: number) => {
+      const h = lcPyramidHeights(g, s, b);
+      let top = 0;
+      for (let k = 0; k < h.length; k++) top = Math.max(top, h[k]);
+      return top;
+    };
+    for (const g of [1, 2, 3, 4, 7, 10, 11, 12, 25, 40]) {
+      for (const st of [1, 2, 3, 6, 9, 30]) {
+        for (const b of [0, 1, 3, 5, 17, 100, 1144, 5000, 40_000]) expect([g, st, b, lcPyramidSummitHeight(g, st, b)]).toEqual([g, st, b, tallest(g, st, b)]);
+      }
+    }
+    // past the panel's 400 (which it does not build): the same as a built grid, never 0
+    for (const [g, st, b] of [[401, 6, 0], [450, 200, 0], [420, 12, 1144], [401, 400, 0]] as const) expect([g, st, b, lcPyramidSummitHeight(g, st, b)]).toEqual([g, st, b, tallest(g, st, b)]);
+    expect(lcPyramidSummitHeight(1000, 6, 0)).toBe(6);
+    expect(lcPyramidSummitHeight(5000, 5000, 0)).toBeGreaterThan(0);
+    expect(lcPyramidSummitHeight(1e9, 1e9, 0)).toBeGreaterThan(0);
+    expect(lcPyramidSummitHeight(1e9, 13, 1144)).toBeGreaterThan(0);
+    // the panel's line reads it (the summary's words take any count)
+    for (const m of [en, pl, es]) expect((m.Controls as Record<string, string>).lcpSummary).toContain("{tallest");
+  });
+
+  it("stacks the loop HUD's title block under Land Claim's band in a square frame (a portrait frame's title stays above the square), and the pyramid under both", () => {
+    const words = { title: en.LandClaim.pyramidTitle, subtitle: en.LandClaim.pyramidSubtitle };
+    for (const [w, h] of [[1080, 1080], [1280, 720], [720, 720]]) {
+      const plain = loopHudLayout(w, h);
+      const stacked = loopHudLayout(w, h, LC_HUD_BAND);
+      const side = Math.min(w, h);
+      const sqTop = (h - side) / 2;
+      const bandBottom = sqTop + LC_HUD_BAND * side;
+      expect(plain.titleY - HUD_LINE_HALF * plain.titleSize).toBeLessThan(bandBottom); // (the overlap it fixes)
+      expect(stacked.titleY - HUD_LINE_HALF * stacked.titleSize).toBeGreaterThanOrEqual(bandBottom - 1e-6);
+      expect(stacked.subtitleY - stacked.ruleY).toBeCloseTo(plain.subtitleY - plain.ruleY, 9);
+      expect([stacked.counterY, stacked.titleSize]).toEqual([plain.counterY, plain.titleSize]);
+      // the block's bottom stays inside the room the pyramid leaves it (the share of the side under the band)
+      const lines = subtitleLines(words.subtitle).length;
+      const blockBottom = stacked.subtitleY + (lines - 1) * 1.2 * stacked.subtitleSize + HUD_LINE_HALF * stacked.subtitleSize;
+      expect(blockBottom).toBeLessThanOrEqual(bandBottom + loopHudStackShare(words) * side + 1e-6 + 2);
+    }
+    // portrait (the clips' 9:16): the title sits in the bar above the square, untouched
+    expect(loopHudLayout(1080, 1920, LC_HUD_BAND)).toEqual(loopHudLayout(1080, 1920));
+    // stacking moves only a title that would cover the band, and never one left out
+    const lower = { ...loopHudLayout(1080, 1080), titleY: 600 };
+    expect(stackLoopHudBelow({ ...lower }, 216)).toEqual(lower);
+    const out = { ...loopHudLayout(1080, 1080), titleY: -1, ruleY: -1, subtitleY: -1 };
+    expect(stackLoopHudBelow({ ...out }, 216)).toEqual(out);
+    expect(loopHudStackShare({ title: "", subtitle: "" })).toBe(0);
+    expect(loopHudFrame({ title: "t", subtitle: "", counter: "", light: false, topBand: LC_HUD_BAND }, null).topBand).toBe(LC_HUD_BAND);
+    // the pyramid under the band and the stacked block, still fitted to the square
+    const p = pyramid().getLandClaimView().pyramid!;
+    const share = loopHudStackShare(words);
+    const alone = lcPyramidLayout(p, true);
+    const both = lcPyramidLayout(p, true, undefined, share);
+    const side = p.field.side;
+    const sqTop = p.field.cy - side / 2;
+    expect(both.top).toBeGreaterThanOrEqual(sqTop + (LC_HUD_BAND + share) * side - 1e-6);
+    expect(both.top).toBeGreaterThan(alone.top);
+    expect(both.bottom).toBeLessThanOrEqual(sqTop + side + 1e-6);
+    expect(both.k).toBeGreaterThan(0);
+    expect(lcPyramidLayout(p, true, undefined, 0)).toEqual(alone);
+  });
+
+  it("words the Competitors for the pyramid: from one, alone in yellow, in every language", () => {
+    for (const m of [en, pl, es]) {
+      const c = m.Controls as Record<string, string>;
+      expect(c.lcTeamsTipPyramid).toMatch(/\b1\b/);
+      expect(c.lcTeamsTipPyramid).toMatch(/12/);
+      expect(c.lcpSoloNote).toContain("{name}");
+      for (const text of [c.lcTeamsTipPyramid, c.lcpSoloNote]) expect(text).not.toMatch(/ – | — |;/);
+    }
+    expect(en.Controls.lcTeamsTip).toMatch(/2 to 12/);
+    expect(en.Controls.lcTeamsTipPyramid).toMatch(/1 to 12/);
+    expect(en.Controls.lcTeamsTipPyramid).toMatch(/yellow/);
+  });
+});

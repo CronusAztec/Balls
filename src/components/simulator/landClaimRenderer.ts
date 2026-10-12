@@ -82,6 +82,8 @@ export interface LandClaimRenderOptions {
   labels: LandClaimLabels;
   /** Simulation time now (ms). */
   nowMs: number;
+  /** --- low-findings-2 --- The loop HUD's title block stacked under the HUD band (a share of the square's side; 0 or absent: none). */
+  loopHudStack?: number;
 }
 
 const TWO_PI = Math.PI * 2;
@@ -335,7 +337,7 @@ export class LandClaimLayer {
     this.refreshLooks(view, o);
     // --- land-claim-pyramid --- the pyramid's slab and floor (its columns are drawn with the balls, back to front)
     if (view.pyramid) {
-      this.pyramid.drawStage(ctx, view, view.pyramid);
+      this.pyramid.drawStage(ctx, view, view.pyramid, o.loopHudStack ?? 0 /* --- low-findings-2 --- */);
       this.pops = 0;
       return;
     }

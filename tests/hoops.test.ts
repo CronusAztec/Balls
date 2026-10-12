@@ -229,6 +229,27 @@ describe("Spinning Hoops: the bead on a spinning hoop", () => {
 describe("Spinning Hoops: the spin's schedule", () => {
   const settingsOf = (patch: Partial<HoopsSettings>) => resolveHoopsSettings({ ...DEFAULT_HOOPS_SETTINGS, ...patch });
 
+  // --- low-findings-2 --- the loop family's convention: the payoff (the chord as the last bead lifts) and the top hold after it
+  // land in 65–85 % of the cycle on the defaults, for every seed (the tuning before it put the chord at 44 %, the hold's end at 61 %)
+  it("lands the default loop's payoff in 65–85 % of the cycle: the chord as the last bead lifts, then the top hold", () => {
+    const sc = hoopsSchedule(DEFAULT_HOOPS_SETTINGS);
+    for (const seed of [1, 7, 42, 1234]) {
+      const engine = engineOf({}, seed);
+      const events = run(engine, sc.cycle);
+      const [chord] = ofKind(events, "chord");
+      expect(ofKind(events, "chord"), `seed ${seed}`).toHaveLength(1);
+      expect(ofKind(events, "bar"), `seed ${seed}`).toHaveLength(8);
+      const at = chord.t / sc.cycle;
+      expect(at, `seed ${seed}: the chord at ${(100 * at).toFixed(1)} %`).toBeGreaterThanOrEqual(0.65);
+      expect(at, `seed ${seed}`).toBeLessThanOrEqual(0.85);
+      expect((sc.up + sc.hold) / sc.cycle, "the top hold's end").toBeLessThanOrEqual(0.85);
+      expect(chord.t, `seed ${seed}: the last bead lifts on the ramp`).toBeLessThan(sc.up);
+    }
+    const before = hoopsSchedule(settingsOf(EARLY));
+    const early = run(engineOf(EARLY, 7), before.cycle);
+    expect(ofKind(early, "chord")[0].t / before.cycle).toBeLessThan(0.65);
+  });
+
   it("a cycle is the ramp, the top hold (stretched by less than a turn), the mirrored return and the rest: whole turns", () => {
     const sc = hoopsSchedule(DEFAULT_HOOPS_SETTINGS);
     expect([sc.up, sc.down, sc.settle, sc.loop]).toEqual([20.5, 4, HOOPS_SETTLE_SEC, true]); // --- low-findings-2 --- (the payoff retune)
@@ -311,7 +332,7 @@ describe("Spinning Hoops: the spin's schedule", () => {
       [{ ...EARLY }, 25, 7, { state: 352939752, balls: 1408551317, sounds: 1590370778, counts: "8,8,16,1,0", order: "" }],
       [{ ...EARLY, count: 2, radiusMin: 0.4, rampShape: "steps" }, 25, 3, { state: 2416355523, balls: 1068521239, sounds: 804856254, counts: "2,2,12,1,0", order: "" }],
       [{ ...EARLY, count: 1, radiusMax: 0.75, radiusMin: 0.75, rampSec: 20, rampShape: "ease", omegaEnd: 0.9, damping: 0.8 }, 12, 11, { state: 2606840233, balls: 1046182795, sounds: 1971007996, counts: "1,0,4,0,1", order: "0" }],
-      [{}, 30, 7, { state: 0, balls: 0, sounds: 0, counts: "", order: "" }],
+      [{}, 30, 7, { state: 1509423324, balls: 723169975, sounds: 2003062712, counts: "8,8,17,1,0", order: "" }],
     ];
     for (const [hoops, seconds, seed, expected] of pinned) {
       expect(fingerprint(hoops, 1000 / 60, seconds, seed), `60 fps ${JSON.stringify(hoops)}`).toEqual(expected);

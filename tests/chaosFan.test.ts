@@ -24,6 +24,7 @@ import {
   fanForwardSteps,
   fanHue,
   fanOffset,
+  fanSplitLatestSec, // --- low-findings-2 ---
   fanSubsteps,
   fanSwingDegree,
   fanSwingFrequency,
@@ -33,7 +34,9 @@ import {
 } from "@/lib/physics/chaosFan";
 import { DEFAULT_DOUBLE_PENDULUM_SETTINGS, DOUBLE_PENDULUM_RANGES, chaosFanBobPx, chaosFanField, doublePendulumSettingsOf, resolveDoublePendulumSettings, type DoublePendulumSettings } from "@/lib/physics/modes/doublePendulum";
 import { CHAOS_FAN_DATA_KEYS, bucketFan, drawChaosFan, fanLineAlpha, hslRgb, writeChaosFanData } from "@/components/simulator/chaosFanRenderer";
-import { CHAOS_FAN_KEYS, SPREAD_PICKS, formatSpreadDeg } from "@/components/simulator/sections/ChaosFanSection";
+import { CHAOS_FAN_KEYS, SPREAD_LOG_TRACK, SPREAD_PICKS, formatSpreadDeg } from "@/components/simulator/sections/ChaosFanSection";
+import { divergeTargetUnreachable } from "@/components/simulator/FinderOutcomeFields"; // --- low-findings-2 ---
+import { logTrackEnd, logTrackPosition, logTrackValue } from "@/components/simulator/logTrack"; // --- low-findings-2 ---
 import { DOUBLE_PENDULUM_KEYS } from "@/components/simulator/sections/DoublePendulumSection";
 import { MODE_BLOCK_KEYS } from "@/components/simulator/panelKeys";
 import type { PhysicsEngine } from "@/lib/physics/engine";
@@ -691,5 +694,62 @@ describe("Chaos fan: the picture, the caption and the words", () => {
       for (const key of ["dpFanGroup", "dpFanTip", "dpFanDesc", "dpFanPresetsTip", "dpFanPresetHairApart", "dpFanPresetThreads", "dpFanPresetTwoApart", "dpFanCountTip", "dpSpreadDegTip", "dpSpreadPicks", "dpColourByTip", "dpColourByIndex", "dpColourBySingle", "dpPalindromeTip", "dpFanLoopLine", "dpFanForwardOnly", "dpForwardSecTip", "dpDivergePxTip"]) expect(controls[key], key).toBeTruthy();
       expect(JSON.stringify(messages).toLowerCase().includes("bor" + "is")).toBe(false);
     }
+  });
+});
+
+/* ------------------------------------------------------------------ --- low-findings-2 --- */
+
+describe("Chaos fan: the split's reach and the spread's logarithmic track", () => {
+  it("bounds Splits at by the forward run when the fan runs backwards (the window must open by its end), and not at all when it runs on", () => {
+    expect(fanSplitLatestSec({ dpPalindrome: true, dpForwardSec: 10 }, 0.5)).toBeCloseTo(10.5, 12);
+    expect(fanSplitLatestSec({ dpPalindrome: true, dpForwardSec: 2.26 }, 0.5)).toBeCloseTo(fanForwardSteps(2.26) / 60 + 0.5, 12);
+    expect(fanSplitLatestSec({ dpPalindrome: false, dpForwardSec: 10 }, 0.5)).toBeNull();
+    // the extremes stay allowed where reachable: the bound itself is fine, a hair past it is not, no bound is never out of reach
+    expect([divergeTargetUnreachable("diverges-at", 10.5, 10.5), divergeTargetUnreachable("diverges-at", 10.51, 10.5), divergeTargetUnreachable("diverges-at", 1e6, null), divergeTargetUnreachable("escapes-at", 99, 10.5), divergeTargetUnreachable(null, 99, 10.5)]).toEqual([false, true, false, false, false]);
+    // the words, in every language, with the forward run and the bound filled in
+    for (const m of [en, pl, es]) {
+      const words = (m.Rigged as Record<string, string>).divergeAtUnreachable;
+      expect(words).toContain("{forward}");
+      expect(words).toContain("{max}");
+      expect(words).not.toMatch(/ – | — |;/);
+    }
+  });
+
+  it("never splits past the forward run on a palindrome: a fan's first split comes on its way out (the seeds the finder follows)", () => {
+    const request = (palindrome: boolean): FinderRequest => ({ physicsConfig: config, mode: "doublePendulum", modeSettings: { ...base, doublePendulum: fanSettings({ fanCount: 20, palindrome, forwardSec: 4 }) }, targetDurationSec: 20, toleranceSec: 0.5, maxSeeds: 10, maxSimTimeSec: 60, outcome: { kind: "diverges-at", clipSec: 8, atSec: 30 } });
+    const forward = (fanSplitLatestSec({ dpPalindrome: true, dpForwardSec: 4 }, 0) ?? 0) * 1000;
+    const onwards: number[] = [];
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      // the same seed run on forwards splits when it splits; run backwards after 4 s it splits only if that came by then
+      const free = simulateOutcomeRun(seed, request(false), request(false).outcome!).divergeMs ?? -1;
+      const back = simulateOutcomeRun(seed, request(true), request(true).outcome!).divergeMs ?? -1;
+      onwards.push(free);
+      expect(back, `seed ${seed}`).toBe(free >= 0 && free <= forward + 1e-6 ? free : -1);
+    }
+    // (the seeds split on both sides of the forward run's end: the check above sees both cases)
+    expect(onwards.some((ms) => ms > forward)).toBe(true);
+    expect(onwards.some((ms) => ms >= 0 && ms <= forward)).toBe(true);
+  });
+
+  it("puts the start spread on a logarithmic track: every decade from a millionth to a degree the same length, 0 at its left end", () => {
+    const spec = { ...SPREAD_LOG_TRACK, high: RANGES.dpSpreadDeg.max, min: RANGES.dpSpreadDeg.min };
+    const end = logTrackEnd(spec);
+    expect(end).toBe(601);
+    expect([logTrackValue(0, spec), logTrackValue(1, spec), logTrackValue(end, spec)]).toEqual([0, 0.000001, 1]);
+    // the quick picks sit a whole number of decades apart and come back exactly
+    expect(SPREAD_PICKS.map((deg) => logTrackPosition(deg, spec))).toEqual([1, 201, 301, 401, 501]);
+    for (const deg of SPREAD_PICKS) expect(logTrackValue(logTrackPosition(deg, spec), spec)).toBe(deg);
+    // monotonic, and the sub-thousandth regime the fan is about takes half the track (300 positions, not one pixel of a linear one)
+    let last = -1;
+    for (let pos = 0; pos <= end; pos++) {
+      const value = logTrackValue(pos, spec);
+      expect(value).toBeGreaterThan(last);
+      last = value;
+    }
+    expect(SPREAD_PICKS.filter((deg) => deg < 0.001).length).toBe(2);
+    expect(logTrackPosition(0.001, spec) - logTrackPosition(0.000001, spec)).toBe(300);
+    // anything the number field holds sits on the track: 0, below a millionth, between positions, past a degree
+    expect([logTrackPosition(0, spec), logTrackPosition(5e-9, spec), logTrackPosition(0.00123, spec), logTrackPosition(45, spec), logTrackPosition(Number.NaN, spec)]).toEqual([0, 1, 310, end, 0]);
+    expect(logTrackValue(310, spec)).toBe(0.00123);
   });
 });

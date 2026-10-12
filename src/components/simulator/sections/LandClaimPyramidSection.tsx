@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import Tooltip from "../Tooltip";
 import { Searchable, Slider, Toggle, onBtn, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
-import { LC_LAYOUTS, LCP_BLOCK_CEILING, lcPyramidBallsAfter, lcPyramidClipSec, lcPyramidHeights, lcPyramidNaturalTotal, lcPyramidTotal, type LcLayout } from "@/lib/physics/landClaimPyramid";
+import { LC_LAYOUTS, LCP_BLOCK_CEILING, lcPyramidBallsAfter, lcPyramidClipSec, lcPyramidHeights, lcPyramidNaturalTotal, lcPyramidSummitHeight, lcPyramidTotal, type LcLayout } from "@/lib/physics/landClaimPyramid";
 
 /*
  * --- land-claim-pyramid --- The pyramid layout's block of the Land Claim controls (LandClaimSection.tsx renders it under the
@@ -37,7 +37,9 @@ export default function LandClaimPyramidSection({ t, search, matches, settings: 
   const natural = lcPyramidNaturalTotal(s.lcPyramidSize, s.lcSteps);
   // The run's numbers: its blocks and its tallest column (a grid past a few hundred columns is counted by its formula, not built).
   const { built, tallest } = useMemo(() => {
-    if (!pyramid || s.lcPyramidSize > 400) return { built: s.lcBlocks > 0 ? Math.min(s.lcBlocks, LCP_BLOCK_CEILING) : Math.min(natural, LCP_BLOCK_CEILING), tallest: 0 };
+    // (--- low-findings-2 --- past 400 the summit's height is worked out ring by ring: lcPyramidSummitHeight(), any size)
+    if (!pyramid) return { built: s.lcBlocks > 0 ? Math.min(s.lcBlocks, LCP_BLOCK_CEILING) : Math.min(natural, LCP_BLOCK_CEILING), tallest: 0 };
+    if (s.lcPyramidSize > 400) return { built: s.lcBlocks > 0 ? Math.min(s.lcBlocks, LCP_BLOCK_CEILING) : Math.min(natural, LCP_BLOCK_CEILING), tallest: lcPyramidSummitHeight(s.lcPyramidSize, s.lcSteps, s.lcBlocks) };
     const heights = lcPyramidHeights(s.lcPyramidSize, s.lcSteps, s.lcBlocks);
     let top = 0;
     for (let k = 0; k < heights.length; k++) if (heights[k] > top) top = heights[k];

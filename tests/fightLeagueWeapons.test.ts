@@ -362,7 +362,8 @@ describe("fight league fair hit pipeline", () => {
     expect(numbers).toBeLessThan(hits);
   });
 
-  it("trades melee hits fairly: a clash parries both, and mirror matches rarely end in a double KO, slot A winning about half", { timeout: 120_000 }, async () => {
+  // (--- low-findings-2 --- every fighter's mirror match on 8 seeds, ~55 s on a loaded machine: a timeout with room, the sample whole)
+  it("trades melee hits fairly: a clash parries both, and mirror matches rarely end in a double KO, slot A winning about half", { timeout: 360_000 }, async () => {
     const m = await mirrorStats();
     console.log(`mirror matches: ${m.games} games, double KO ${(100 * m.doubleKo).toFixed(1)} %, slot A ${(100 * m.slotA).toFixed(1)} % of ${m.decided} decided`);
     expect(m.doubleKo).toBeLessThanOrEqual(0.06);
@@ -584,7 +585,7 @@ const BEFORE = {
 };
 
 describe("fight league probe table (before → after this stage's rules)", () => {
-  it("prints the probe numbers the golden re-record quotes", { timeout: 120_000 }, async () => {
+  it("prints the probe numbers the golden re-record quotes", { timeout: 360_000 /* --- low-findings-2 --- (the mirror matches too, when it runs first or alone) */ }, async () => {
     const melee = meleeMedianFirstHit();
     const mirror = await mirrorStats();
     const after = {

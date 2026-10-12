@@ -29,8 +29,9 @@ import { ENTITY_CEILING, atLeastMin, memoryCeiling } from "@/lib/uncap";
  * time-out, since not every ball made it – so a cycle lasts ~20–40 s, not the whole time limit. The one-way rules end only
  * sorted or at the time limit (a stalled tail is still a sort to finish).
  *
- * The loop: when every ball is sorted (or the sort has settled, or at the sort's time limit) the completion chord plays; half
- * a second later the remix starts ("mixing again", `remix` s): the gates stop filtering, the contacts switch off and a
+ * The loop: when every ball is sorted (or the sort has settled, or at the sort's time limit) the completion chord plays and the
+ * bullseye holds for half a second (`CS_HOLD_SEC`: every gate shut, so the census and the plucks rest); then the remix starts
+ * ("mixing again", `remix` s): the gates stop filtering, the contacts switch off and a
  * critically damped spring pulls every ball back to its own place of the frame-0 packing (`remixOffset()`, exact at the
  * remix's end), while each ring is eased onto an angle its gates repeat at (a whole number of gate periods from its frame-0
  * angle). At the seam – the first step at or after the remix's end – every ball takes its frame-0 place and launch velocity
@@ -92,6 +93,13 @@ export interface ColourSortSettings {
   flashes: boolean;
 }
 
+/**
+ * --- low-findings-2 --- Elastic contacts are the default (the spec's norm; the ghost gas is the option for very large counts,
+ * as in the Ten thousand preset), at 300 px/s: with the crowded red core the reference 360 then sort in 11.5–17 s (median about
+ * 14.7 s over 20 seeds), the reference clip's pace and the ghost gas's at 220 px/s (median about 14.8 s), so the completion
+ * still lands at about 80 % of the cycle (the loop family's 65–85 %). At 220 px/s with contacts the sort would take 15–30 s and
+ * the completion would fall past 85 %.
+ */
 export const DEFAULT_COLOUR_SORT: Readonly<ColourSortSettings> = {
   colours: 4,
   perColour: 90,
@@ -100,9 +108,9 @@ export const DEFAULT_COLOUR_SORT: Readonly<ColourSortSettings> = {
   spin: 31,
   falloff: 0.8,
   alternate: true,
-  speed: 220,
+  speed: 300,
   size: 4.5,
-  collisions: false,
+  collisions: true,
   remix: 2.8,
   rule: "outwardNotOwn",
   limit: 60,
@@ -1065,6 +1073,9 @@ export class ColourSortMode implements GameMode {
   private gateOpen(k: number, angle: number): boolean {
     if (k >= this.K - 1) return false;
     const v = this.view;
+    // --- low-findings-2 --- the hold after the completion chord holds the bullseye: every gate shut, so no ball passes – the
+    // census, the plucks and the refusal flashes rest until the remix (the balls still drift within their bands)
+    if (v.phase === "hold") return false;
     return inGate(angle, v.ringAngle[k], v.gatePhase[k], v.gatePeriod, v.gateWidth);
   }
 
@@ -1437,14 +1448,32 @@ export class ColourSortMode implements GameMode {
    * neither does the remix (its places are analytic).
    */
   stepSpeedBound(ctx: ModeContext, stepSec: number): number {
-    if (this.view.phase === "remix" || !this.settings.collisions) return 0;
+    // --- low-findings-2 --- planned for the phase the step runs in: the engine asks before onPreUpdate, so the step that
+    // crosses the seam is planned for the frame-0 launch the seam puts on the balls (as the run's first step was), never for
+    // the remix's last, resting state – else a cycle with contacts would not replay the first
+    const phase = this.stepPhase(ctx.getElapsedMs());
+    if (phase === "remix" || !this.settings.collisions) return 0;
     let fastest = 0;
-    for (const ball of ctx.getBalls()) {
-      const v2 = ball.vx * ball.vx + ball.vy * ball.vy;
-      if (v2 > fastest) fastest = v2;
+    if (phase === "sort" && this.view.phase !== "sort") {
+      for (let k = 0; k < this.n; k++) {
+        const v2 = (this.u0[k] * this.u0[k] + this.w0[k] * this.w0[k]) * this.vT * this.vT;
+        if (v2 > fastest) fastest = v2;
+      }
+    } else {
+      for (const ball of ctx.getBalls()) {
+        const v2 = ball.vx * ball.vx + ball.vy * ball.vy;
+        if (v2 > fastest) fastest = v2;
+      }
     }
     fastest = Math.sqrt(fastest);
     return (fastest * stepSec) / 4 > 0.5 * this.rho ? fastest : 0;
+  }
+  /** --- low-findings-2 --- The phase a step starting at `t0` (ms) runs in: onPreUpdate's transitions (the hold's end, the seam) applied. */
+  private stepPhase(t0: number): CsPhase {
+    let phase = this.view.phase;
+    if (phase === "hold" && t0 >= this.holdEndMs - PHASE_EPS_MS) phase = this.seamMs > this.holdEndMs + PHASE_EPS_MS ? "remix" : "sort";
+    if (phase === "remix" && t0 >= this.seamMs - PHASE_EPS_MS) phase = "sort";
+    return phase;
   }
   /** A Colour Sort run loops forever (the finder searches its first sort's outcomes instead of a length). */
   isFinished() {

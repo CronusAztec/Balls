@@ -25,6 +25,9 @@ export interface ChaosFanSectionProps {
 /** Search keys of the controls rendered here (DOUBLE_PENDULUM_KEYS spreads them: SECTION_KEYS.ball and MODE_BLOCK_KEYS). */
 export const CHAOS_FAN_KEYS = ["dpFan", "dpFanPresets", "dpFanCount", "dpSpreadDeg", "dpColourBy", "dpPalindrome", "dpForwardSec", "dpDivergePx"];
 
+/** --- low-findings-2 --- The spread slider's logarithmic track: a millionth of a degree to the range's top, 100 positions a decade (the number field stays exact). */
+export const SPREAD_LOG_TRACK = { low: 0.000001, perDecade: 100 } as const;
+
 /** The spread's quick picks (degrees): a millionth, a ten-thousandth, a thousandth, a hundredth and a tenth. */
 export const SPREAD_PICKS = [0.000001, 0.0001, 0.001, 0.01, 0.1] as const;
 
@@ -80,7 +83,7 @@ export default function ChaosFanSection({ t, search, matches, settings: s, updat
           <Slider t={t} search={search} matches={matches} labelKey="dpFanCount" tipKey="dpFanCountTip" value={s.dpFanCount} range={RANGES.dpFanCount} onChange={(v) => update({ dpFanCount: v })} display={built < s.dpFanCount ? `${built} / ${s.dpFanCount}` : String(s.dpFanCount)} />
           <Searchable search={search} matches={matches} labelKey="dpSpreadDeg">
             <div className="space-y-1.5">
-              <Slider t={t} search="" matches={matches} labelKey="dpSpreadDeg" tipKey="dpSpreadDegTip" value={s.dpSpreadDeg} range={RANGES.dpSpreadDeg} onChange={(v) => update({ dpSpreadDeg: v })} display={formatSpreadDeg(s.dpSpreadDeg)} />
+              <Slider t={t} search="" matches={matches} labelKey="dpSpreadDeg" tipKey="dpSpreadDegTip" value={s.dpSpreadDeg} range={RANGES.dpSpreadDeg} onChange={(v) => update({ dpSpreadDeg: v })} display={formatSpreadDeg(s.dpSpreadDeg)} log={SPREAD_LOG_TRACK} /* --- low-findings-2 --- logarithmic: every decade from a millionth to a degree the same length */ />
               <div className="grid grid-cols-5 gap-1" role="group" aria-labelledby={spreadId}>
                 <span id={spreadId} className="sr-only">
                   {t("dpSpreadPicks")}

@@ -85,6 +85,16 @@ export function wallControlsOf(mode: ModeId): { wallCount: boolean; thickness: b
   return { wallCount, thickness, gapControls, gapSize };
 }
 
+/**
+ * --- low-findings-2 --- The Ball section's core controls in a mode: Ball Speed, Ball Size and Ball Color (with its Rainbow switch).
+ * Colour Sort's balls are the mode's own – their speed and size are the Colour Sort block's, and their colours are the sort
+ * itself (a single colour or a rainbow would hide what is sorted) – so the page-level three are not shown there.
+ */
+export function ballControlsOf(mode: ModeId): { speed: boolean; size: boolean; color: boolean } {
+  if (mode === "colourSort") return { speed: false, size: false, color: false };
+  return { speed: true, size: true, color: true };
+}
+
 /** The arena games' block: the battle's controls in Battle Royale, the flag's in Capture the Flag (the heading and the nudge in both). */
 const ARENA_KEYS_OF = (mode: "battle" | "ctf") => ARENA_GAME_KEYS.filter((key) => !key.startsWith(mode === "battle" ? "ctf" : "bt"));
 
@@ -189,7 +199,9 @@ export function sectionKeyShown(key: string, p: PanelShown, multipliers: boolean
   if (key === "ballCount") return MULTI_BALL_MODES.includes(p.mode);
   if (key === "respawnEvery") return showsRespawn(p.mode); // --- gerald-conveyor --- the respawn timer of Classic and Multiply
   if (BALL_INTERACTION_SET.has(key)) return TWO_BALL_MODES.includes(p.mode);
-  if (key === "ballColor") return !p.ballPicture;
+  if (key === "ballColor") return !p.ballPicture && ballControlsOf(p.mode).color; // --- low-findings-2 --- (and ballSpeed / ballSize below)
+  if (key === "ballSpeed") return ballControlsOf(p.mode).speed;
+  if (key === "ballSize") return ballControlsOf(p.mode).size;
   if (MULTIPLIER_GROUP_SET.has(key)) return multipliers;
   const walls = wallControlsOf(p.mode);
   if (key === "wallCount") return walls.wallCount;

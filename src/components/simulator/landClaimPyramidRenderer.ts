@@ -57,8 +57,10 @@ export interface LcPyramidLayout {
 /**
  * The layout of `p` on a canvas of the run's size: the slab and the full pyramid fitted to `FIT_WIDTH` of the square's width
  * and to its height – under Land Claim's HUD band when `hud`, else within ±`FIT_HALF` of the square's middle – and centred.
+ * --- low-findings-2 --- With the loop HUD on as well its title block stacks under the band (`stack`: its share of the side), and
+ * the pyramid starts under that.
  */
-export function lcPyramidLayout(p: LcPyramidView, hud: boolean, out: LcPyramidLayout = { ox: 0, oy: 0, k: 1, block: 0, top: 0, bottom: 0 }): LcPyramidLayout {
+export function lcPyramidLayout(p: LcPyramidView, hud: boolean, out: LcPyramidLayout = { ox: 0, oy: 0, k: 1, block: 0, top: 0, bottom: 0 }, stack = 0 /* --- low-findings-2 --- (the loop HUD's title block under the band: a share of the side) */): LcPyramidLayout {
   const f = p.field;
   const side = f.side;
   const summit = p.steps * f.cell * STEP_RISE;
@@ -68,7 +70,7 @@ export function lcPyramidLayout(p: LcPyramidView, hud: boolean, out: LcPyramidLa
   const down = f.half + SLAB * f.half;
   const wide = 2 * COS30 * f.floor;
   const sqTop = f.cy - side / 2;
-  const bandTop = hud ? sqTop + LC_HUD_BAND * side + 0.02 * side : f.cy - FIT_HALF * side;
+  const bandTop = hud ? sqTop + (LC_HUD_BAND + Math.max(0, stack)) * side + 0.02 * side : f.cy - FIT_HALF * side;
   const bandBottom = hud ? sqTop + side - 0.03 * side : f.cy + FIT_HALF * side;
   const k = Math.min((FIT_WIDTH * side) / Math.max(1e-9, wide), (bandBottom - bandTop) / Math.max(1e-9, up + down));
   out.k = k > 0 ? k : 1;
@@ -157,8 +159,8 @@ export class LandClaimPyramidLayer {
   }
 
   /** World space, under everything: the slab, the floor and the grid the pyramid stands on. */
-  drawStage(ctx: CanvasRenderingContext2D, view: LandClaimView, p: LcPyramidView) {
-    const L = lcPyramidLayout(p, view.settings.hud, this.layout);
+  drawStage(ctx: CanvasRenderingContext2D, view: LandClaimView, p: LcPyramidView, stack = 0 /* --- low-findings-2 --- (the loop HUD stacked under the band) */) {
+    const L = lcPyramidLayout(p, view.settings.hud, this.layout, stack);
     this.top = L.top;
     this.bottom = L.bottom;
     this.scale = L.k;

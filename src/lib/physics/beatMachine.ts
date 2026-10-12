@@ -306,7 +306,9 @@ const BOOL_KEYS: Readonly<Record<string, "bmBass" | "bmCounter">> = { bmBs: "bmB
 /** Writes the fields that differ from `base` (the mode's defaults): bmV, bmBpm, bmSt, bmDx, bmDy, bmB, bmDh, bmRb, bmRt, bmMt, bmSrc, bmN, bmL, bmBs, bmC. */
 export function writeBeatMachineParams(settings: BeatMachineFields, base: BeatMachineFields, params: URLSearchParams) {
   if (settings.bmVariant !== base.bmVariant) params.set("bmV", settings.bmVariant);
-  for (const [key, field] of Object.entries(BM_URL_KEYS)) if (settings[field] !== base[field]) params.set(key, formatNumber(settings[field]));
+  // --- low-findings-2 --- the tempo against the one a reader assumes: the written variant's own (80 for the stairs), else the base's
+  const bpmBase = settings.bmVariant !== base.bmVariant && isBmVariant(settings.bmVariant) ? BM_VARIANT_BPM[settings.bmVariant] : base.bmBpm;
+  for (const [key, field] of Object.entries(BM_URL_KEYS)) if (settings[field] !== (field === "bmBpm" ? bpmBase : base[field])) params.set(key, formatNumber(settings[field]));
   if (settings.bmSource !== base.bmSource) params.set("bmSrc", settings.bmSource);
   if (settings.bmNotes !== base.bmNotes) params.set("bmN", settings.bmNotes);
   for (const [key, field] of Object.entries(BOOL_KEYS)) if (settings[field] !== base[field]) params.set(key, settings[field] ? "1" : "0");
@@ -317,6 +319,9 @@ export function readBeatMachineParams(params: URLSearchParams, settings: BeatMac
   const next: Partial<Record<keyof BeatMachineFields, unknown>> = { ...settings };
   const variant = params.get("bmV");
   if (variant !== null) next.bmVariant = variant;
+  // --- low-findings-2 --- a link that names another variant but no tempo plays that variant's own (bmV=stairs: 80 BPM, like
+  // its presets and a switch on the panel), never the page's 100
+  if (isBmVariant(variant) && variant !== settings.bmVariant && params.get("bmBpm") === null) next.bmBpm = BM_VARIANT_BPM[variant];
   for (const [key, field] of Object.entries(BM_URL_KEYS)) {
     const raw = params.get(key);
     if (raw !== null) next[field] = raw;

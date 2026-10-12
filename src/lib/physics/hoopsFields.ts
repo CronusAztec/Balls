@@ -158,7 +158,7 @@ export const HOOPS_LOOK = {
 
 /**
  * A preset's fields: **8 rainbow hoops** (the defaults: eight hoops from 0.75 to 0.25 of the half side – the rig leaves the
- * loop HUD its margins –, 0.13 → 1.2 turns a second over 12 s, a 6 s return), **One hoop, slow** (one hoop at 0.75, an eased
+ * loop HUD its margins –, 0.13 → 1.05 turns a second over 20.5 s, a 1 s hold, a 4 s return), **One hoop, slow** (one hoop at 0.75, an eased
  * 20 s ramp to 0.9 turns a second) and **Twin hoops** (two hoops at 0.75 and 0.4, the spin in two steps: one bead a step).
  */
 export function hoopsPresetFields(id: HoopsPreset["id"]): HoopsFields {

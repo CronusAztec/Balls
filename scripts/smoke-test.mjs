@@ -273,6 +273,22 @@ const recordingRetry = (minWindows, floor) => async () => {
   ]);
   return { timingOk: fpsOk(f, minWindows, floor), extra: `(recorded again: ${fpsNote(f)})` };
 };
+/**
+ * --- low-findings-2 --- A retry that measures once more when the machine itself is the cause: if `retry` misses and the 1-minute
+ * load average is above the core count, it waits (up to `waitMs`) for the load to fall back to the cores – the other builds of a
+ * shared host come and go – and then runs `retry` one more time. The floor it measures against is unchanged; a quiet machine, or
+ * one that stays loaded past the wait, gets the result of the one retry as before (strict timing still fails it).
+ */
+const loadAwareRetry = (retry, waitMs = 45_000) => async () => {
+  const first = await retry();
+  const cpus = os.cpus().length || 1;
+  if (first.timingOk || os.loadavg()[0] <= cpus) return first;
+  const loadBefore = os.loadavg()[0];
+  const until = Date.now() + waitMs;
+  while (Date.now() < until && os.loadavg()[0] > cpus) await page.waitForTimeout(3000);
+  const second = await retry();
+  return { timingOk: second.timingOk, extra: `${second.extra}, after the load ${loadBefore.toFixed(1)} → ${os.loadavg()[0].toFixed(1)} on ${cpus} cores (the retry before it: ${first.extra})` };
+};
 /** A retry for the frame rate of a run that keeps going: `ms` more of frames – valid only while the run's clock moves on. */
 const fpsRetry = (ms, minWindows, avgFloor, lowFloor = avgFloor) => async () => {
   const before = await simClock();
@@ -11612,7 +11628,8 @@ await smokeBlock("fight-league", async () => {
     await download.saveAs(file);
     size = fs.statSync(file).size;
   }
-  await timingCheck("a 1080×1920 fight league recording keeps 20+ fps and downloads", size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, recordingRetry(5, 20));
+  // (--- low-findings-2 --- on a loaded host the retry waits for the load to fall back and records once more: the floor stays 20)
+  await timingCheck("a 1080×1920 fight league recording keeps 20+ fps and downloads", size > 10000, fpsOk(fps, 5, 20), `(${size} bytes, ${fpsNote(fps)}, floor 20${loadNote()})`, loadAwareRetry(recordingRetry(5, 20)));
 }
 // --- fl-overhaul --- (Stage 3) that 9:16 recording drew the plates in its bars
 {
@@ -12009,7 +12026,7 @@ const FL_HEAVY = "mode=fightLeague&flM=ffa4&fl1=venom&fl2=walterwhite&fl3=jonesy
     size > 10000 && during.flFighters === "4" && during.flBoxRows === "2" && Number(during.flBoxNameFs) >= 26 && Number(during.flBoxNameSqueeze) >= 0.75 /* --- fl-overhaul --- (fl-overhaul fix) */,
     fpsOk(fps, 5, 20),
     `(${size} bytes, fighters ${during.flFighters}, plates ${during.flPlates}, boxes in ${during.flBoxRows} rows, box names at ${during.flBoxNameFs} px of 1080 squeezed to ${during.flBoxNameSqueeze} (${during.flBoxNamesCut} cut), render ${during.flRenderMs} ms, ${fpsNote(fps)}, floor 20${loadNote()})`,
-    recordingRetry(5, 20),
+    loadAwareRetry(recordingRetry(5, 20)), // --- low-findings-2 --- (a loaded host: once more after its load falls back)
   );
 }
 {
@@ -14852,11 +14869,12 @@ await smokeBlock("bead-hoops", async () => {
 // --- bead-hoops ---
 // 40. Spinning Hoops: the preview image and the card under the rhythm heading; URL → the Spinning Hoops block of the Mode row
 // (hoops, radii, gravity, spins, ramp and its shape, hold, return, damping, tilt, chime, bed – the line naming the spins the
-// beads lift at) with Find Simulation's outcomes, controls → URL and the search box; a 20 s headless run of the defaults
+// beads lift at) with Find Simulation's outcomes, controls → URL and the search box; a 22 s headless run of the defaults
 // (mode=hoops) whose eight beads lift in strict size order (data-hoops-order 0,…,7, the eight tuned-bar strikes rising in
 // pitch – OscillatorNode.start instrumented) under the loop HUD's lowercase title and amber counter at 30+ fps, then the cycle
-// closing on its seam with every bead settled (data-loop-cycle 23.2 s); the Twin hoops preset (one bead a step, the navy
-// page, a clip of one cycle); Find Simulation's "Lifts in size order" and "All up within 12 s", found and played back; a fast
+// closing on its seam with every bead settled (data-loop-cycle 28.6 s since the payoff retune of low-findings-2); the Twin hoops
+// preset (one bead a step, the navy page, a clip of one cycle); Find Simulation's "Lifts in size order" and "All up within 20 s",
+// found and played back; a fast
 // export with Export whole loops – one whole cycle, the HUD in its frames, the bars and chimes in its own audio; and a free
 // visitor's page – the watermark tag on Record Video and Fast export, the live badge clear of the HUD's title and counter.
 {
@@ -14930,7 +14948,7 @@ await smokeBlock("bead-hoops", async () => {
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(1000);
   const fps = await pageFrameRates(3000);
-  const lifted = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.hoopsLifts) >= 8, null, { timeout: 20_000 }).then(() => true).catch(() => false);
+  const lifted = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.hoopsLifts) >= 8, null, { timeout: 30_000 }).then(() => true).catch(() => false);
   const up = await canvasData();
   await page.screenshot({ path: path.join(outDir, "sim-spinning-hoops.png") });
   // the bars' fundamentals: the G pentatonic from G3, one degree a hoop (bigger is lower), in the order they first sounded
@@ -14941,8 +14959,8 @@ await smokeBlock("bead-hoops", async () => {
   const title = heard.texts.some((t) => t.text === "spin faster, and the beads climb");
   const counter = heard.texts.filter((t) => /^\d+\.\d\d turns a second · \d of 8 beads up$/.test(t.text)).map((t) => t.fill).slice(-1)[0] ?? null;
   await timingCheck(
-    "a 20 s Spinning Hoops run lifts its eight beads in strict size order, a rising bar note each, under the lowercase title and the amber counter, at 30+ fps",
-    lifted && up.hoopsCount === "8" && up.hoopsOrder === "0,1,2,3,4,5,6,7" && up.hoopsOrdered === "1" && Number(up.hoopsLifts) === 8 && up.hoopsAllUp !== "" && Number(up.hoopsAllUp) > 4 && Number(up.hoopsAllUp) < 14 && inOrder && Number(up.hoopsTicks) >= 5 && title && counter === "#f2c46a" && up.loopHud === "1" && Math.abs(Number(up.loopCycle) - 23.2) < 0.002,
+    "a 22 s Spinning Hoops run lifts its eight beads in strict size order, a rising bar note each, under the lowercase title and the amber counter, at 30+ fps",
+    lifted && up.hoopsCount === "8" && up.hoopsOrder === "0,1,2,3,4,5,6,7" && up.hoopsOrdered === "1" && Number(up.hoopsLifts) === 8 && up.hoopsAllUp !== "" && Number(up.hoopsAllUp) > 12 && Number(up.hoopsAllUp) < 20.5 && inOrder && Number(up.hoopsTicks) >= 5 && title && counter === "#f2c46a" && up.loopHud === "1" && Math.abs(Number(up.loopCycle) - 28.6) < 0.002,
     fpsOk(fps, 4, 30),
     `(${JSON.stringify({ order: up.hoopsOrder, lifts: up.hoopsLifts, allUp: up.hoopsAllUp, ticks: up.hoopsTicks, omega: up.hoopsOmega, side: up.hoopsSide, cycle: up.loopCycle, firsts, title, counter })}, ${fpsNote(fps)}, floor 30${loadNote()})`,
     fpsRetry(3000, 4, 30),
@@ -14951,10 +14969,10 @@ await smokeBlock("bead-hoops", async () => {
   await page.getByRole("button", { name: "4x", exact: true }).click();
   const sealed = await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.hoopsCycle) >= 1, null, { timeout: 30_000 }).then(() => true).catch(() => false);
   const seam = await canvasData();
-  check("the return settles every bead and the cycle closes on its seam (one seam, eight settles, 15 turns a cycle)", sealed && Number(seam.hoopsSettles) >= 8 && Number(seam.loopSeams) >= 1 && Number(seam.hoopsTicks) >= 15 && seam.hoopsDone === "0", `(${JSON.stringify({ cycle: seam.hoopsCycle, settles: seam.hoopsSettles, seams: seam.loopSeams, ticks: seam.hoopsTicks, phase: seam.hoopsPhase })})`);
+  check("the return settles every bead and the cycle closes on its seam (one seam, eight settles, 16 turns a cycle)", sealed && Number(seam.hoopsSettles) >= 8 && Number(seam.loopSeams) >= 1 && Number(seam.hoopsTicks) >= 16 && seam.hoopsDone === "0", `(${JSON.stringify({ cycle: seam.hoopsCycle, settles: seam.hoopsSettles, seams: seam.loopSeams, ticks: seam.hoopsTicks, phase: seam.hoopsPhase })})`);
 }
 {
-  // The Twin hoops preset: two hoops lifting on two steps, the navy page and a clip of one cycle (24 s).
+  // The Twin hoops preset: two hoops lifting on two steps, the navy page and a clip of one cycle (29 s).
   await page.goto(`${BASE}/en/simulator/?mode=hoops`, { waitUntil: "networkidle" });
   await page.locator('[data-hoops-preset="twin"]').first().click();
   await page.waitForTimeout(400);
@@ -14963,7 +14981,7 @@ await smokeBlock("bead-hoops", async () => {
   await page.getByRole("button", { name: "4x", exact: true }).click();
   await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.hoopsLifts) >= 2, null, { timeout: 20_000 }).catch(() => {});
   const twin = await canvasData();
-  check("the Twin hoops preset: two hoops in two steps, both beads up in order, the navy page, the loop HUD and a clip of one cycle", query.get("hpn") === "2" && query.get("hprn") === "0.4" && query.get("hps") === "steps" && query.get("bg1") === "#0b1020" && query.get("lh") === "1" && query.get("dur") === "24" && twin.hoopsCount === "2" && twin.hoopsOrder === "0,1" && twin.loopHud === "1", `(${query.toString()}, ${JSON.stringify({ count: twin.hoopsCount, order: twin.hoopsOrder, lifts: twin.hoopsLifts })})`);
+  check("the Twin hoops preset: two hoops in two steps, both beads up in order, the navy page, the loop HUD and a clip of one cycle", query.get("hpn") === "2" && query.get("hprn") === "0.4" && query.get("hps") === "steps" && query.get("bg1") === "#0b1020" && query.get("lh") === "1" && query.get("dur") === "29" && twin.hoopsCount === "2" && twin.hoopsOrder === "0,1" && twin.loopHud === "1", `(${query.toString()}, ${JSON.stringify({ count: twin.hoopsCount, order: twin.hoopsOrder, lifts: twin.hoopsLifts })})`);
 }
 {
   // Find Simulation on a looping run: no length to find, but the lift order and "all up within" – found and played back.
@@ -14974,10 +14992,10 @@ await smokeBlock("bead-hoops", async () => {
   const order = page.getByText(/Found!|Didn't find simulation/).first();
   const orderText = await order.waitFor({ timeout: 60_000 }).then(() => order.innerText()).catch(() => "timeout");
   const dur = new URLSearchParams(page.url().split("?")[1] || "").get("dur");
-  check("Find Simulation offers Lifts in size order and All up within for a looping Spinning Hoops run and finds one in strict size order (a clip of one whole cycle)", options.join(",") === "lift-order,all-up-by" && /Found! The beads lift in strict size order/.test(orderText) && dur === "24", `(${JSON.stringify({ options, text: orderText, dur })})`);
+  check("Find Simulation offers Lifts in size order and All up within for a looping Spinning Hoops run and finds one in strict size order (a clip of one whole cycle)", options.join(",") === "lift-order,all-up-by" && /Found! The beads lift in strict size order/.test(orderText) && dur === "29", `(${JSON.stringify({ options, text: orderText, dur })})`);
   await page.locator("#find-outcome").selectOption("all-up-by").catch(() => {});
-  await page.locator("#find-all-up-by").evaluate(setRangeValue, "12").catch(() => {});
-  await page.getByRole("button", { name: /Find All Up within 12\.0s/ }).click();
+  await page.locator("#find-all-up-by").evaluate(setRangeValue, "20").catch(() => {});
+  await page.getByRole("button", { name: /Find All Up within 20\.0s/ }).click();
   const found = page.getByText(/Found! All up at|Didn't find simulation/).first();
   const at = await found.waitFor({ timeout: 60_000 }).then(() => found.innerText()).catch(() => "timeout");
   let played = {};
@@ -14987,10 +15005,10 @@ await smokeBlock("bead-hoops", async () => {
     await page.waitForFunction(() => !!document.querySelector("main canvas")?.dataset.hoopsAllUp, null, { timeout: 30_000 }).catch(() => {});
     played = await canvasData();
   }
-  check("Find Simulation finds a Spinning Hoops run with every bead up within 12 s, and it plays back", /Found! All up at \d/.test(at) && Number(played.hoopsAllUp) > 0 && Number(played.hoopsAllUp) <= 12 && played.hoopsOrdered === "1", `("${at}", played: ${JSON.stringify({ allUp: played.hoopsAllUp, order: played.hoopsOrder })})`);
+  check("Find Simulation finds a Spinning Hoops run with every bead up within 20 s, and it plays back", /Found! All up at \d/.test(at) && Number(played.hoopsAllUp) > 0 && Number(played.hoopsAllUp) <= 20 && played.hoopsOrdered === "1", `("${at}", played: ${JSON.stringify({ allUp: played.hoopsAllUp, order: played.hoopsOrder })})`);
 }
 {
-  // ⚡ A fast export with Export whole loops (on by default) of a 30 s clip: one whole cycle (23.2 s), the HUD in its frames,
+  // ⚡ A fast export with Export whole loops (on by default) of a 30 s clip: one whole cycle (28.6 s), the HUD in its frames,
   // the bars and chimes through its own audio.
   await page.goto(`${BASE}/en/simulator/?mode=hoops&lh=1&dur=30&res=500x500&xfps=30`, { waitUntil: "networkidle" });
   const webCodecs = await page.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined" && typeof OfflineAudioContext !== "undefined");
@@ -15029,8 +15047,8 @@ await smokeBlock("bead-hoops", async () => {
     const status = await panel.getAttribute("data-fast-export");
     const heard = await page.evaluate(() => ({ osc: window.__hpOfflineOsc.length, bars: window.__hpOfflineOsc.filter((f) => Math.abs(f - 196) < 0.5).length, hud: window.__hpFrameTexts.filter((t) => t === "spin faster, and the beads climb").length }));
     check(
-      "a Spinning Hoops fast export with Export whole loops lasts one whole cycle (23.2 s within a frame), carries the HUD and plays its bars and chimes through its own audio",
-      status === "done" && bytes > 10000 && loops === 1 && Math.abs(seconds - 23.2) <= 1 / 30 + 0.002 && Math.abs(cycle - 23.2) < 0.002 && heard.hud >= 10 && heard.osc >= 20 && heard.bars >= 1 && gain !== null && Number.isFinite(Number(gain)),
+      "a Spinning Hoops fast export with Export whole loops lasts one whole cycle (28.6 s within a frame), carries the HUD and plays its bars and chimes through its own audio",
+      status === "done" && bytes > 10000 && loops === 1 && Math.abs(seconds - 28.6) <= 1 / 30 + 0.002 && Math.abs(cycle - 28.6) < 0.002 && heard.hud >= 10 && heard.osc >= 20 && heard.bars >= 1 && gain !== null && Number.isFinite(Number(gain)),
       `(${JSON.stringify({ status, bytes, seconds, cycle, loops, gain, heard })})`,
     );
   } else check("without WebCodecs the Spinning Hoops fast export is not checked (Record Video is covered above)", true);
@@ -15215,6 +15233,39 @@ await smokeBlock("ellipse-foci", async () => {
     `(${JSON.stringify({ outcomes, labelled, foundText, query: foundQuery.toString() })})`,
   );
 }
+{
+  // --- low-findings-2 --- Focus Shot picked from the mode cards on a page still wearing Classic's own background shows its own
+  // navy page on the first switch (the link carries no other background, the canvas' edge is the navy), and Classic picked
+  // back gets its own page again; a background someone picked would still carry over (tests/themes.test.ts)
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  const edge = () =>
+    page.evaluate(() => {
+      const c = document.querySelector("main canvas");
+      const g = c?.getContext("2d");
+      if (!c || !g) return null;
+      const d = g.getImageData(2, Math.floor(c.height / 2), 1, 1).data;
+      return [d[0], d[1], d[2]];
+    });
+  // (the card by its picture: a name may appear in another card's words)
+  const pickCardOf = async (mode) => {
+    await page.getByTestId("stage-strip").getByRole("button").first().click();
+    await page.locator('dialog [role="button"]', { has: page.locator(`img[src$="/modes/${mode}.webp"]`) }).first().click();
+  };
+  await pickCardOf("ellipseFoci").catch(() => {});
+  await page.waitForFunction(() => new URLSearchParams(location.search).get("mode") === "ellipseFoci", null, { timeout: 10_000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  const there = { query: new URLSearchParams(page.url().split("?")[1] || ""), edge: await edge() };
+  await pickCardOf("classic").catch(() => {});
+  await page.waitForFunction(() => new URLSearchParams(location.search).get("mode") === "classic", null, { timeout: 10_000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  const back = { query: new URLSearchParams(page.url().split("?")[1] || ""), edge: await edge() };
+  const near = (rgb, want) => !!rgb && rgb.every((v, i) => Math.abs(v - want[i]) <= 3);
+  check(
+    "Focus Shot picked from the mode cards shows its own navy page on the first switch, and Classic picked back its own page",
+    there.query.get("mode") === "ellipseFoci" && !there.query.has("bg1") && !there.query.has("bgt") && near(there.edge, [6, 9, 18]) && back.query.get("mode") === "classic" && !back.query.has("bg1") && near(back.edge, [10, 10, 10]),
+    `(${JSON.stringify({ there: { query: there.query.toString(), edge: there.edge }, back: { query: back.query.toString(), edge: back.edge } })})`,
+  );
+}
 // --- end ellipse-foci ---
 });
 
@@ -15244,7 +15295,7 @@ await smokeBlock("colour-sort", async () => {
   check("the Colour Sort card is on the landing page under the escape heading", card === 1 && inEscape, `(cards=${card}, in the escape group=${inEscape})`);
 }
 {
-  await page.goto(`${BASE}/en/simulator/?mode=colourSort&csc=5&csg=3&csw=20&csu=bothWaysNotOwn&csx=1&csh=1`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/en/simulator/?mode=colourSort&csc=5&csg=3&csw=20&csu=bothWaysNotOwn&csx=0&csh=1`, { waitUntil: "networkidle" });
   const section = page.getByTestId("colour-sort-section");
   const value = (label) => section.locator(`input[type="range"][aria-label="${label}"]`).inputValue().catch(() => "?");
   const values = { csc: await value("Colours"), csg: await value("Gates per ring"), csw: await value("Gate width") };
@@ -15257,16 +15308,32 @@ await smokeBlock("colour-sort", async () => {
   const bothHint = await section.innerText().then((text) => /settles at an equilibrium/.test(text) && /Find Simulation has no sort to search/.test(text)).catch(() => false);
   check(
     "colour sort loads from URL",
-    values.csc === "5" && values.csg === "3" && values.csw === "20" && both === "true" && contacts === "true" && flashes === "true" && noRingControls,
+    values.csc === "5" && values.csg === "3" && values.csw === "20" && both === "true" && contacts === "false" && flashes === "true" && noRingControls, // (--- low-findings-2 --- contacts are on by default: the link turns them off)
     `(${JSON.stringify(values)}, both ways=${both}, contacts=${contacts}, flashes=${flashes}, ring controls hidden=${noRingControls})`,
   );
   check("Both ways hides Find Simulation (its sort settles, it never completes) and its hint says so", bothFinder.strip === 0 && bothFinder.outcome === 0 && bothHint, `(${JSON.stringify({ ...bothFinder, hint: bothHint })})`);
+  // --- low-findings-2 --- the page's Ball Speed, Ball Size and Ball Color (with Rainbow) are not shown in Colour Sort: its balls,
+  // their speed, size and colours are its own (Classic still shows all three for the same search)
+  {
+    const pageBallControls = async () => {
+      await page.getByPlaceholder("Search settings...").fill("ball");
+      await page.waitForTimeout(300);
+      const found = { speed: await page.locator('input[aria-label="Ball Speed"]').count(), size: await page.locator('input[aria-label="Ball Size"]').count(), color: await page.getByText("Ball Color", { exact: true }).count() };
+      await page.getByPlaceholder("Search settings...").fill("");
+      return found;
+    };
+    const inSort = await pageBallControls();
+    await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+    const inClassic = await pageBallControls();
+    check("Colour Sort leaves out the page's Ball Speed, Ball Size and Ball Color (its balls are its own), Classic keeps them", inSort.speed === 0 && inSort.size === 0 && inSort.color === 0 && inClassic.speed >= 1 && inClassic.size >= 1 && inClassic.color >= 1, `(${JSON.stringify({ inSort, inClassic })})`);
+    await page.goto(`${BASE}/en/simulator/?mode=colourSort&csc=5&csg=3&csw=20&csu=bothWaysNotOwn&csx=0&csh=1`, { waitUntil: "networkidle" });
+  }
   await section.getByTestId("cs-rule").getByRole("button", { name: /Out, own only/ }).click();
   await section.locator('input[type="range"][aria-label="Gates per ring"]').evaluate(setRangeValue, "6");
   await page.waitForTimeout(300);
   {
     const query = new URLSearchParams(page.url().split("?")[1] || "");
-    check("colour sort mirrors into the URL", query.get("mode") === "colourSort" && query.get("csu") === "outwardOwnOnly" && query.get("csg") === "6" && query.get("csc") === "5" && query.get("csx") === "1", `(${query.toString()})`);
+    check("colour sort mirrors into the URL", query.get("mode") === "colourSort" && query.get("csu") === "outwardOwnOnly" && query.get("csg") === "6" && query.get("csc") === "5" && query.get("csx") === "0", `(${query.toString()})`);
   }
   {
     // a one-way rule sorts completely: Find Simulation's three outcomes are back, the colour picker naming the palette
@@ -15573,7 +15640,8 @@ await smokeBlock("chaos-fan", async () => {
   const section = page.getByTestId("chaos-fan-section");
   const toggle = (label) => section.getByRole("switch", { name: switchName(label) });
   {
-    const values = { dpfn: await sliderValue("Fan pendulums"), dpfs: await sliderValue("Start spread"), dpfd: await sliderValue("Split at") };
+    // (--- low-findings-2 --- the spread's slider is logarithmic – its value is a track position –, its number field the exact degrees)
+    const values = { dpfn: await sliderValue("Fan pendulums"), dpfs: await page.locator('[data-number-field="dpSpreadDeg"]').inputValue().catch(() => "?"), dpfd: await sliderValue("Split at") };
     const single = await section.locator('[data-dp-colour-by="single"]').getAttribute("aria-pressed");
     const fan = await toggle("Chaos fan").getAttribute("aria-checked");
     const backwards = await toggle("Run backwards").getAttribute("aria-checked");
@@ -15596,6 +15664,29 @@ await smokeBlock("chaos-fan", async () => {
     const query = new URLSearchParams(page.url().split("?")[1] || "");
     check("the chaos fan mirrors into the URL (the palindrome back on, the forward run, the colours, a millionth of a degree)", query.get("dpf") === "1" && !query.has("dpfp") && query.get("dpff") === "8" && !query.has("dpfc") && query.get("dpfs") === "0.000001" && query.get("dpfn") === "350", `(${query.toString()})`);
   }
+  // --- low-findings-2 --- the spread's track is logarithmic: a thousandth of a degree sits mid-track, every decade the same length,
+  // and a drag to the middle gives exactly a thousandth (the number field shows it)
+  {
+    await section.locator('[data-dp-spread-pick="0.001"]').click();
+    await page.waitForTimeout(200);
+    const spread = page.locator('input[type="range"][aria-label="Start spread"]');
+    const track = { end: Number(await spread.getAttribute("max").catch(() => "0")), at: Number(await spread.inputValue().catch(() => "-1")) };
+    const picks = [];
+    for (const deg of ["0.000001", "0.0001", "0.01", "0.1"]) {
+      await section.locator(`[data-dp-spread-pick="${deg}"]`).click();
+      await page.waitForTimeout(100);
+      picks.push(Number(await spread.inputValue().catch(() => "-1")));
+    }
+    await spread.evaluate(setRangeValue, String(Math.round(track.end / 2)));
+    await page.waitForTimeout(200);
+    const middle = await page.locator('[data-number-field="dpSpreadDeg"]').inputValue().catch(() => "?");
+    const decade = track.end > 0 ? (track.end - 1) / 6 : 0;
+    check(
+      "the start spread's slider is logarithmic: a thousandth of a degree mid-track, every decade the same length, the middle exactly a thousandth",
+      track.end > 100 && Math.abs(track.at - track.end / 2) <= 1 && Math.abs(picks[0] - 1) <= 0 && Math.abs(picks[1] - (1 + 2 * decade)) <= 1 && Math.abs(picks[2] - (1 + 4 * decade)) <= 1 && Math.abs(picks[3] - (1 + 5 * decade)) <= 1 && middle === "0.001",
+      `(${JSON.stringify({ track, picks, middle })})`,
+    );
+  }
   await page.getByPlaceholder("Search settings...").fill("start spread");
   const found = await page.locator('input[aria-label="Start spread"]').isVisible();
   const hidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
@@ -15606,6 +15697,20 @@ await smokeBlock("chaos-fan", async () => {
   // Find Simulation on a looping fan: the split at a chosen second (±0.5 s), found and played back.
   await page.goto(`${BASE}/en/simulator/?mode=doublePendulum&dpf=1&dpfn=60`, { waitUntil: "networkidle" });
   const options = await page.locator("#find-outcome option").evaluateAll((els) => els.map((e) => e.value)).catch(() => []);
+  // --- low-findings-2 --- a split past the forward run (10 s, run backwards) can never come: the field says so, the button waits
+  {
+    await page.locator("#find-diverge-at").evaluate(setRangeValue, "11").catch(() => {});
+    await page.waitForTimeout(200);
+    const late = { message: await page.getByTestId("finder-diverge-unreachable").innerText().catch(() => ""), disabled: await page.getByRole("button", { name: /Find a Run That Splits at 11\.0s/ }).isDisabled().catch(() => false) };
+    await page.locator("#find-diverge-at").evaluate(setRangeValue, "10.5").catch(() => {});
+    await page.waitForTimeout(200);
+    const edge = { message: await page.getByTestId("finder-diverge-unreachable").count(), disabled: await page.getByRole("button", { name: /Find a Run That Splits at 10\.5s/ }).isDisabled().catch(() => true) };
+    check(
+      "Splits at past the fan's forward run says plainly that the fan only splits on its 10 s forward run (pick 10.5 s or less), and Find waits; 10.5 s itself is allowed",
+      /only split during its forward run of 10\.0 s\. Pick 10\.5 s or less/.test(late.message) && late.disabled && edge.message === 0 && !edge.disabled,
+      `(${JSON.stringify({ late, edge })})`,
+    );
+  }
   await page.locator("#find-diverge-at").evaluate(setRangeValue, "7").catch(() => {});
   await page.getByRole("button", { name: /Find a Run That Splits at 7\.0s/ }).click();
   const found = page.getByText(/Found! The fan splits at|Didn't find simulation/).first();
@@ -15994,6 +16099,19 @@ await smokeBlock("beat-machine", async () => {
     linkInfo.variant === "stairs" && linkInfo.source === "scale" && linkInfo.beats === "8" && linkInfo.loop === "4" && linkRun.bmVariant === "stairs" && linkRun.bmNotes === "5" && Math.abs(Number(linkRun.bmLoop) - 4) < 1e-3 && linkRun.loopCycle !== undefined && linkQuery.get("bmSt") === "5" && linkQuery.get("bmRt") === "3",
     `(${JSON.stringify({ linkInfo, run: { variant: linkRun.bmVariant, notes: linkRun.bmNotes, loop: linkRun.bmLoop, cycle: linkRun.loopCycle }, query: linkQuery.toString() })})`,
   );
+  // --- low-findings-2 --- a link naming the stairs but no tempo plays the stairs at their own 80 BPM (as their presets and the
+  // panel's switch do), and the page's own link still leaves the tempo out
+  await page.goto(`${BASE}/en/simulator/?mode=beatMachine&bmV=stairs`, { waitUntil: "networkidle" });
+  {
+    const stairsSection = page.getByTestId("beat-machine-section");
+    const info = { bpm: await page.locator('[data-number-field="bmBpm"]').first().inputValue().catch(() => "?"), beats: Number(await stairsSection.getAttribute("data-bm-beats").catch(() => "0")), loop: Number(await stairsSection.getAttribute("data-bm-loop").catch(() => "0")) };
+    const query = new URLSearchParams(page.url().split("?")[1] || "");
+    check(
+      "a Beat Machines link with bmV=stairs and no bmBpm plays the stairs at their own 80 BPM (every beat 0.75 s), its link still without bmBpm",
+      info.bpm === "80" && info.beats > 0 && Math.abs(info.loop - info.beats * 0.75) < 0.01 && query.get("bmV") === "stairs" && !query.has("bmBpm"),
+      `(${JSON.stringify({ info, query: query.toString() })})`,
+    );
+  }
 
   // Find Simulation: the marble machine's two outcomes; the busiest seeded tune is found and its whole loops become the clip.
   await page.goto(`${BASE}/en/simulator/?mode=beatMachine&bmMt=2`, { waitUntil: "networkidle" });
@@ -16722,6 +16840,35 @@ const RE_PRESET = "mode=classic&wc=11&gap=0.8&s=500&regl=spiral&ress=30&resp=tog
     "a Ring Escape run: the rings in a rainbow (cyan inside, red outside), \"ring k: t s\" in amber under them (its pixels on the canvas), the plucks on C major pentatonic and a rising step for every ring escaped",
     escaped && rainbow && /^ring \d+: \d+\.\d s$/.test(run.ringTimerText ?? "") && Number(run.ringCurrent) === Number(run.ringEscaped) + 1 && Number(run.ringFirstMs) > 0 && seen.fill === "#f2c46a" && seen.amber >= 20 && Number(run.ringTimerY) > 0 && plucks >= 5 && steps >= 2,
     `(${JSON.stringify({ escaped, rainbow, ends: [seen.cyan, seen.red], strokes: seen.strokes.slice(0, 14), text: run.ringTimerText, texts: seen.texts, current: run.ringCurrent, escapedRings: run.ringEscaped, first: run.ringFirstMs, fill: seen.fill, amber: seen.amber, y: run.ringTimerY, plucks, steps, osc: seen.osc.length })})`,
+  );
+}
+{
+  // --- low-findings-2 --- the loop HUD on with Time in ring: the HUD's own counter shows "ring k: t s" (once a frame, where the
+  // HUD's counter goes), and the line under the rings gives way
+  await page.goto(`${BASE}/en/simulator/?${RE_PRESET}&retm=1&lh=1`, { waitUntil: "networkidle" });
+  await page.evaluate(() => {
+    const main = () => document.querySelector("main canvas");
+    window.__reHud = { texts: 0, ys: [] };
+    const fillText = CanvasRenderingContext2D.prototype.fillText;
+    CanvasRenderingContext2D.prototype.fillText = function (text, x, y, ...rest) {
+      if (this.canvas === main() && /^(ring \d+: \d+\.\d s|out in \d+\.\d s)$/.test(String(text))) {
+        window.__reHud.texts++;
+        const m = this.getTransform();
+        const at = Math.round(m.d * y + m.f);
+        if (!window.__reHud.ys.includes(at) && window.__reHud.ys.length < 50) window.__reHud.ys.push(at);
+      }
+      return fillText.call(this, text, x, y, ...rest);
+    };
+  });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.waitForTimeout(2000);
+  const hud = await canvasData();
+  const counted = await page.evaluate(() => ({ ...window.__reHud }));
+  const live = String(hud.loopHudLive ?? "").split(",").map(Number);
+  check(
+    "Ring Escape with the loop HUD on: the HUD's counter shows the time in the ring (\"ring k: t s\" where the counter goes), in one place only, never twice",
+    hud.loopHud === "1" && /^ring \d+: \d+\.\d s$/.test(hud.ringTimerText ?? "") && live.length === 6 && live[4] > 0 && Math.abs(Number(hud.ringTimerY) - live[4]) < 0.2 && counted.texts > 0 && counted.ys.length === 1,
+    `(${JSON.stringify({ text: hud.ringTimerText, y: hud.ringTimerY, live, counted })})`,
   );
 }
 {

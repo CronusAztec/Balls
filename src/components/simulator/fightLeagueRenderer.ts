@@ -135,6 +135,8 @@ export class FightLeagueLayer {
    */
   boxRows = 0;
   boxNameMin = 0;
+  /** --- low-findings-2 --- The smallest size a fighter's name was drawn at in the names band last frame (a share of the square's side; 0: none). */
+  bandNameMin = 0;
   boxNameSqueeze = 1;
   boxNamesCut = 0;
   // --- fl-overhaul --- (Stage 3)
@@ -407,6 +409,7 @@ export class FightLeagueLayer {
     this.boxesTop = Infinity;
     this.boxRows = 0;
     this.boxNameMin = 0;
+    this.bandNameMin = 0; // --- low-findings-2 ---
     this.boxNameSqueeze = 1;
     this.boxNamesCut = 0;
     this.cards.vsShown = false;
@@ -432,6 +435,7 @@ export class FightLeagueLayer {
       this.boxesDrawn = this.hud.boxesDrawn;
       this.boxRows = this.hud.boxesDrawn > 0 ? lay.boxRows : 0;
       this.boxNameMin = this.hud.boxNameMin;
+      this.bandNameMin = Number.isFinite(this.hud.bandNameMin) ? this.hud.bandNameMin : 0; // --- low-findings-2 ---
       this.boxNameSqueeze = this.hud.boxNameSqueeze;
       this.boxNamesCut = this.hud.boxNamesCut;
       // --- fl-overhaul --- (Stage 5) a boss rush's boss bar across the top of the arena and its challengers' queue
@@ -591,6 +595,7 @@ export const FIGHT_LEAGUE_DATA_KEYS = [
   // the 1080 px square (never under the 26 px floor), the narrowest horizontal squeeze (≥ 0.75) and how many were ellipsised
   "flBoxRows",
   "flBoxNameFs",
+  "flBandNameFs", // --- low-findings-2 ---
   "flBoxNameSqueeze",
   "flBoxNamesCut",
   // --- end fl-overhaul ---
@@ -778,6 +783,7 @@ export class FightLeagueDataset {
     // --- fl-overhaul --- (fl-overhaul fix) the boxes' rows and names
     set("flBoxRows", String(layer.boxRows));
     set("flBoxNameFs", layer.boxNameMin > 0 ? (layer.boxNameMin * 1080).toFixed(1) : "");
+    set("flBandNameFs", layer.bandNameMin > 0 ? (layer.bandNameMin * 1080).toFixed(1) : ""); // --- low-findings-2 --- (the names band's smallest name, at 1080 px)
     set("flBoxNameSqueeze", layer.boxNameMin > 0 ? layer.boxNameSqueeze.toFixed(3) : "");
     set("flBoxNamesCut", String(layer.boxNamesCut));
     // --- end fl-overhaul ---

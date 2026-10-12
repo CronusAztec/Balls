@@ -65,7 +65,7 @@ describe("PhysicsEngine", () => {
         expect(Number.isFinite(ball.y)).toBe(true);
       }
     }
-  });
+  }, 20_000); // --- low-findings-2 --- (Colour Sort's 360 balls now collide by default: past vitest's 5 s default on a loaded runner)
 
   it("classic mode eventually finishes (the ball escapes every wall)", () => {
     const request: FinderRequest = {

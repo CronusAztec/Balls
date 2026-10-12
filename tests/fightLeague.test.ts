@@ -1050,7 +1050,8 @@ describe("fight league forced winner", () => {
     expect([off.finishMs, off.hits, off.winnerTeam, off.forcedWinner]).toEqual([plain.finishMs, plain.hits, plain.winnerTeam, -1]);
   });
 
-  it("holds against Acid Blood: the chosen side wins every seed against a reflecting Alien, both sides (no double KO)", () => {
+  // (--- low-findings-2 --- 48 rigged fights of up to 70 s each: a generous timeout of its own, the fights all kept)
+  it("holds against Acid Blood: the chosen side wins every seed against a reflecting Alien, both sides (no double KO)", { timeout: 240_000 }, () => {
     // (with Predator or Gerald chosen, most of these were lost or ended in a double KO while reflected damage bypassed the backstop)
     for (const [a, b] of [["predator", "alien"], ["gerald", "alien"]]) {
       for (let seed = 1; seed <= 12; seed++) {

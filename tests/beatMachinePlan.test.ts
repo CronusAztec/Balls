@@ -32,6 +32,7 @@ import {
   BM_PRESET_IDS,
   BM_RANGES,
   BM_RESTART_FIELDS,
+  BM_VARIANT_BPM, // --- low-findings-2 ---
   DEFAULT_BEAT_MACHINE_FIELDS,
   beatMachinePresetPatch,
   beatMachineSettingsOf,
@@ -520,6 +521,26 @@ describe("Beat Machines: settings, links, presets, the page", () => {
     expect(resolveBeatMachineFields({ bmDrop: 500, bmRebound: 9 })).toMatchObject({ bmDrop: 500, bmRebound: 9 });
     // bounce math's bmr / bmh and the beat markers' bm are other keys
     expect(settingsFromSearchParams(new URLSearchParams("mode=beatMachine&bm=1,2")).bmVariant).toBe("marbles");
+  });
+
+  // --- low-findings-2 --- a link naming the stairs but no tempo plays the stairs' own 80 BPM (its presets' and the panel switch's)
+  it("reads a link's variant without a tempo at that variant's own tempo, and writes the tempo only when it differs from it", () => {
+    expect(settingsFromSearchParams(new URLSearchParams("mode=beatMachine&bmV=stairs")).bmBpm).toBe(BM_VARIANT_BPM.stairs);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=beatMachine&bmV=stairs&bmBpm=100")).bmBpm).toBe(100);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=beatMachine&bmV=marbles")).bmBpm).toBe(BM_VARIANT_BPM.marbles);
+    expect(settingsFromSearchParams(new URLSearchParams("mode=beatMachine")).bmBpm).toBe(BM_VARIANT_BPM.marbles);
+    for (const [variant, bpm, written] of [["stairs", 80, null], ["stairs", 100, "100"], ["stairs", 123, "123"], ["marbles", 100, null], ["marbles", 80, "80"]] as const) {
+      const s = { ...defaultSettings("beatMachine"), bmVariant: variant, bmBpm: bpm };
+      const params = settingsToSearchParams(s);
+      expect([variant, bpm, params.get("bmBpm")]).toEqual([variant, bpm, written]);
+      const back = settingsFromSearchParams(params);
+      expect([variant, bpm, back.bmVariant, back.bmBpm]).toEqual([variant, bpm, variant, bpm]);
+    }
+    // the stairs presets travel in a link and come back at their tempo
+    for (const id of BM_PRESET_IDS) {
+      const s = { ...defaultSettings("beatMachine"), ...beatMachinePresetPatch(id) };
+      expect([id, settingsFromSearchParams(settingsToSearchParams(s)).bmBpm]).toEqual([id, s.bmBpm]);
+    }
   });
 
   it("runs past its memory-safety ceilings at the ceiling, keeping the typed value", () => {

@@ -110,6 +110,11 @@ export interface PolyrhythmSettings extends PhaseSpiralSettings /* --- phase-spi
   numbers: boolean;
   /** The run finishes after this many cycles, with every voice back in phase; 0 = never. */
   cycles: number;
+  /**
+   * --- low-findings-2 --- The page's loop HUD shows the in-line meter (its counter and bar): the canvas leaves the meter out
+   * under the disc, so the rings keep the whole field (`POLY_OUTER_SHARE`) instead of making room for it. Absent: false.
+   */
+  meterInHud?: boolean;
 }
 
 export const DEFAULT_POLY_CUSTOM = "3,4,5,7";
@@ -212,6 +217,7 @@ export function resolvePolyrhythmSettings(config: Partial<PolyrhythmSettings> | 
   if (isPolyPitchBy(config.pitchBy)) out.pitchBy = config.pitchBy;
   if (typeof config.numbers === "boolean") out.numbers = config.numbers;
   if (config.cycles !== undefined) out.cycles = Math.round(clampNumber(config.cycles, R.prCycles, out.cycles));
+  if (typeof config.meterInHud === "boolean") out.meterInHud = config.meterInHud; // --- low-findings-2 ---
   Object.assign(out, resolvePhaseSpiralSettings({ ...DEFAULT_PHASE_SPIRAL_SETTINGS, ...pickPhaseSpiral(config) })); // --- phase-spiral ---
   return out;
 }
@@ -228,7 +234,7 @@ function pickPhaseSpiral(config: Partial<PolyrhythmSettings>): Partial<PhaseSpir
 }
 
 /** Picks the Metronomes & Polyrhythms settings out of a bigger object (the SimulatorSettings, a preset…) for `engine.setPolyrhythmSettings()`. */
-export function polyrhythmSettingsOf(source: PolyrhythmSettingFields): PolyrhythmSettings {
+export function polyrhythmSettingsOf(source: PolyrhythmSettingFields & { loopHud?: boolean; mode?: string } /* --- low-findings-2 --- (a Metronomes & Polyrhythms page's loop HUD: the meter's place) */): PolyrhythmSettings {
   return {
     count: source.prCount,
     layout: source.prLayout,
@@ -244,6 +250,7 @@ export function polyrhythmSettingsOf(source: PolyrhythmSettingFields): Polyrhyth
     numbers: source.prNumbers,
     cycles: source.prCycles,
     ...phaseSpiralSettingsOf(source), // --- phase-spiral ---
+    ...(source.loopHud === true && source.mode === "polyrhythm" ? { meterInHud: true } : {}), // --- low-findings-2 --- (its loop HUD shows the meter)
   };
 }
 
@@ -460,6 +467,14 @@ export interface PolyGeometry {
 export const POLY_OUTER_SHARE = 0.46;
 export const POLY_METER_OUTER_SHARE = 0.4;
 // --- end phase-spiral ---
+
+/**
+ * --- low-findings-2 --- The outer orbit's share for these settings: the smaller one only while the in-line meter is drawn under
+ * the disc – with the page's loop HUD on, its counter and bar show the meter and the rings keep the whole field.
+ */
+export function polyOuterShare(s: Pick<PolyrhythmSettings, "alignMeter" | "meterInHud">): number {
+  return s.alignMeter && !s.meterInHud ? POLY_METER_OUTER_SHARE : POLY_OUTER_SHARE;
+}
 
 /** Turns of the spiral the tick points lie on. */
 export const SPIRAL_TURNS = 1;
@@ -813,12 +828,14 @@ export class PolyrhythmMode implements GameMode {
     v.settings.trail = s.trail;
     v.settings.loopSound = s.loopSound;
     v.settings.palette = s.palette;
+    const meterMoved = live.meterInHud !== s.meterInHud; // --- low-findings-2 --- (the meter in the loop HUD or under the disc)
+    v.settings.meterInHud = s.meterInHud;
     const dotsChanged = this.allocDots();
     if (live.palette !== s.palette) {
       this.computeColors();
       this.ballsDirty = true;
     }
-    if (dotsChanged || live.alignMeter !== s.alignMeter) {
+    if (dotsChanged || live.alignMeter !== s.alignMeter || meterMoved) {
       this.rebuildGeometry();
       this.placeAll();
       this.ballsDirty = true;
@@ -1183,7 +1200,7 @@ export class PolyrhythmMode implements GameMode {
 
   private rebuildGeometry() {
     const v = this.view;
-    v.geometry = buildPolyGeometry(this.width, this.height, v.settings.layout, v.settings.arcStyle, v.count, this.ballRadius, v.direction, v.settings.alignMeter ? POLY_METER_OUTER_SHARE : POLY_OUTER_SHARE /* --- phase-spiral --- */);
+    v.geometry = buildPolyGeometry(this.width, this.height, v.settings.layout, v.settings.arcStyle, v.count, this.ballRadius, v.direction, polyOuterShare(v.settings) /* --- phase-spiral --- (--- low-findings-2 --- the meter's room only under the disc) */);
   }
 
   /** Places every voice at the current step (exact phases from the step counter). */

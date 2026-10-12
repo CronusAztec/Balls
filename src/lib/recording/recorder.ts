@@ -163,7 +163,7 @@ export function drawRecordingFrame(
   }
   // --- loop-foundation --- the loop HUD at export resolution (the title in the bar above a portrait frame's square, the counter below)
   const hud = options.loopHud?.();
-  if (hud) drawLoopHud(ctx, width, hud, loopHudLayout(width, height));
+  if (hud) drawLoopHud(ctx, width, hud, loopHudLayout(width, height, hud.topBand /* --- low-findings-2 --- (stacked under a mode's band) */));
   // --- free-watermark --- the frame's pixels get the mark here, in the compositor's own canvas
   // --- watermark-everywhere --- unless the copied source is the page's live canvas and its frame already carries the live
   // mark (lib/watermark/live.ts places it where the video layout does while it is recorded): one badge per frame, never two.

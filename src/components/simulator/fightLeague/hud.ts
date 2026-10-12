@@ -179,6 +179,9 @@ export class FlHudPainter {
   private readonly stats: (StatText | undefined)[] = [];
   /** --- fl-overhaul --- (fl-overhaul fix) Each slot's fitted ability name. */
   private readonly nameFits: (NameFitEntry | undefined)[] = [];
+  /** --- low-findings-2 --- Each slot's fitted name in the names band (and what the last frame drew of them: the smallest size, a share of the side). */
+  private readonly bandFits: (NameFitEntry | undefined)[] = [];
+  bandNameMin = 0;
   /**
    * What the last frame's boxes drew of their ability names (the data attributes and the smoke test): the smallest size as a
    * share of the square's side, the narrowest squeeze and how many were ellipsised.
@@ -199,6 +202,7 @@ export class FlHudPainter {
       this.generation = view.generation;
       this.stats.length = 0;
       this.nameFits.length = 0;
+      this.bandFits.length = 0; // --- low-findings-2 ---
       this.timerSec = -1;
     }
   }
@@ -216,6 +220,7 @@ export class FlHudPainter {
     const hud = fr.pal.hud;
     const stacked = n > 2;
     const now = fr.now;
+    this.bandNameMin = Infinity; // --- low-findings-2 ---
     for (const f of fighters) {
       // (--- fl-overhaul --- Stage 5: a 3v3's teams in three rows a side)
       const teams = view.match === "2v2" || view.match === "3v3";
@@ -241,7 +246,11 @@ export class FlHudPainter {
       const tx = right ? edge - 2.6 * dot : edge + 2.6 * dot;
       const inline = !!lay.inlineBars; // (--- fl-overhaul --- Stage 5: a 3v3 – the short name, its bar beside it)
       const maxW = (inline ? 0.17 : stacked ? 0.3 : 0.4) * lay.side;
-      const w = fr.text.draw(ctx, inline ? flShortName(f.row) : f.row.name, tx, ny, lay.nameFs, this.nameStyle(fr, f), right ? "right" : "left", maxW, alpha);
+      // --- low-findings-2 --- fitted like an ability name: smaller down to the band's readability floor, then condensed, then
+      // ellipsised – never squeezed uniformly under the floor
+      const fit = this.bandNameFit(fr, f, inline ? flShortName(f.row) : f.row.name, lay.nameFs, lay.nameMin, maxW);
+      if (lay.side > 0) this.bandNameMin = Math.min(this.bandNameMin, fit.size / lay.side);
+      const w = fr.text.drawCondensed(ctx, fit.text, tx, ny, fit.size, this.nameStyle(fr, f), right ? "right" : "left", fit.squeeze, alpha);
       if (!f.alive) {
         ctx.save();
         ctx.strokeStyle = "#ef4444";
@@ -411,6 +420,21 @@ export class FlHudPainter {
     if (e && e.name === name && e.size === b.nameFs && e.min === b.nameMin && e.width === b.name.w && e.scale === scale && e.epoch === epoch) return e.fit;
     const fit = flFitBoxName(name, b.nameFs, b.nameMin, b.name.w, (text, size) => fr.text.measureWidth(text, size, BOX_NAME_STYLE));
     this.nameFits[f.slot] = { name, size: b.nameFs, min: b.nameMin, width: b.name.w, scale, epoch, fit };
+    return fit;
+  }
+
+  /**
+   * --- low-findings-2 --- Slot `f`'s name in the names band fitted to `width` px without going under `min` (`flFitBoxName()`),
+   * refitted only when the name, the sizes, the width, the device scale or the fonts change.
+   */
+  private bandNameFit(fr: FlFrame, f: FlFighter, name: string, size: number, min: number, width: number): FlNameFit {
+    const scale = fr.text.scale;
+    const epoch = flFontEpoch();
+    const e = this.bandFits[f.slot];
+    if (e && e.name === name && e.size === size && e.min === min && e.width === width && e.scale === scale && e.epoch === epoch) return e.fit;
+    const style = this.nameStyle(fr, f);
+    const fit = flFitBoxName(name, size, min, width, (text, px) => fr.text.measureWidth(text, px, style));
+    this.bandFits[f.slot] = { name, size, min, width, scale, epoch, fit };
     return fit;
   }
 

@@ -26,7 +26,7 @@ import {
 } from "@/lib/physics/modes/landClaim";
 // --- land-claim-pyramid --- the pyramid layout's block, its preset and its one-competitor range
 import LandClaimPyramidSection, { LAND_CLAIM_PYRAMID_KEYS } from "./LandClaimPyramidSection";
-import { LCP_PRESET_IDS, LCP_TEAMS_RANGE, isLcpPresetId, lcPyramidPresetPatch, type LcpPresetId } from "@/lib/physics/landClaimPyramid";
+import { LCP_PRESET_IDS, LCP_SOLO_NAME, LCP_TEAMS_RANGE, isLcpPresetId, lcPyramidPresetPatch, type LcpPresetId } from "@/lib/physics/landClaimPyramid";
 
 export interface LandClaimSectionProps {
   t: Translate;
@@ -158,10 +158,10 @@ export default function LandClaimSection({ t, search, matches, settings: s, upda
         </div>
       </Searchable>
       )}
-      <Slider t={t} search={search} matches={matches} labelKey="lcTeams" tipKey="lcTeamsTip" value={s.lcTeams} range={wall ? LC_WALL_TEAMS_RANGE : LCP_TEAMS_RANGE /* --- land-claim-pyramid --- (a battle from two, a pyramid from one) */} onChange={(v) => update({ lcTeams: v })} display={String(s.lcTeams)} />
+      <Slider t={t} search={search} matches={matches} labelKey="lcTeams" tipKey={wall ? "lcTeamsTip" : "lcTeamsTipPyramid" /* --- low-findings-2 --- (the pyramid's own words: from one, alone in yellow) */} value={s.lcTeams} range={wall ? LC_WALL_TEAMS_RANGE : LCP_TEAMS_RANGE /* --- land-claim-pyramid --- (a battle from two, a pyramid from one) */} onChange={(v) => update({ lcTeams: v })} display={String(s.lcTeams)} />
       {!search && (
         <p className="text-xs text-ink-3 leading-relaxed" data-testid="lc-teams-note">
-          {fromRoster > 0 ? t("lcRosterNote", { count: fromRoster, teams: s.lcTeams }) : t("lcPaletteNote", { names: LC_PALETTE.slice(0, Math.min(4, Math.max(2, s.lcTeams))).map((p) => p.name).join(" · ") })}
+          {fromRoster > 0 ? t("lcRosterNote", { count: fromRoster, teams: s.lcTeams }) : !wall && s.lcTeams <= 1 ? t("lcpSoloNote", { name: LCP_SOLO_NAME }) /* --- low-findings-2 --- (a pyramid played alone: the clip's yellow) */ : t("lcPaletteNote", { names: LC_PALETTE.slice(0, Math.min(4, Math.max(2, s.lcTeams))).map((p) => p.name).join(" · ") })}
         </p>
       )}
       <Slider t={t} search={search} matches={matches} labelKey="lcBalls" tipKey="lcBallsTip" value={s.lcBalls} range={RANGES.lcBalls} onChange={(v) => update({ lcBalls: v })} display={t("lcBallsEach", { count: s.lcBalls })} />
