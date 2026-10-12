@@ -2770,7 +2770,8 @@ links and presets, `src/lib/physics/modes/beatMachine.ts` the mode, `src/compone
   `bmDx` / `bmDy` 7.5 / 7.9 % [0–20], Return beats `bmRt` 4 [0–64]; marbles: Bars `bmB` 10 [2–48], Drop height `bmDh` 28 %
   [1–90], Rebound `bmRb` 0.3 [0–1.5], Marbles per tube `bmMt` auto (0) [0–50], Loop beats `bmL` 32 [1–1024], Phrase bass `bmBs`;
   and the HUD's Note counter `bmC`. Memory-safety ceilings: `bmSteps`, `bmBars`, `bmPerTube`, `bmLoopBeats`. A change re-plans
-  and restarts the run (the counter follows live), as does a new scale, root or loaded melody. Far past the sliders the machine
+  and restarts the run (the counter follows live), as does a new scale, root or loaded melody – while Beat Machines is the mode:
+  those three are every mode's, so elsewhere a change of them leaves a found seed and its "Found!" line alone. Far past the sliders the machine
   still plans and plays without stalling: a tube holds at most 200 marbles (`BM_TUBE_CEILING`; a longer trip reuses them), a
   hop's gravity stops at `BM_G_CEILING`, and a loop shorter than a step plays its last four loops' events a step and counts the
   rest (`BM_LOOPS_PER_STEP`; past 4,096 marbles the in-flight count reads the trips and the seams go unchecked).
@@ -2800,8 +2801,8 @@ links and presets, `src/lib/physics/modes/beatMachine.ts` the mode, `src/compone
   marble needed before it is back (or a spare), the staircase's beat-long flights and its (steps + return) · 60 / BPM loop,
   continuous trajectories at every join, the same plan for the same seed, the engine's notes × loops and seam state, 30 / 60 / 120
   fps replays, the sounds through a real ToneGenerator on `tests/fakeAudio.ts`, the finder, the links and presets and the renderer.
-  The smoke test (section 43, block `beat-machine`) runs every preset for two loops at 2×, checks a link, the two outcomes and a
-  whole-loop fast export.
+  The smoke test (section 43, block `beat-machine`) runs every preset for two loops at 2×, checks a link, the two outcomes, that a
+  scale change drops the found tune, a whole-loop fast export and that a found Classic seed survives a scale and root change.
 
 ## Windows app
 

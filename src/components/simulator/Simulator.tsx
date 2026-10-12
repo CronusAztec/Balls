@@ -1183,7 +1183,10 @@ export default function Simulator() {
   // --- end ellipse-foci ---
   // --- beat-machine --- Beat Machines: a change of the machine, the tempo or the phrase (BM_RESTART_FIELDS), of the Sound section's
   // scale or root, or of the loaded melody while it is the source, re-plans and restarts the run and drops a found result; the
-  // note counter follows live.
+  // note counter follows live. --- review fix (beat-machine) --- Only while Beat Machines is the mode: the scale, the root and
+  // the loaded melody are every mode's, so in another mode a change of them only moves the remembered key (a found Classic
+  // seed keeps its "Found!" line), and a later switch to Beat Machines plans the run with them (the mode's init) without a
+  // second restart here.
   const bmRunKey = [...BM_RESTART_FIELDS.map((key) => String(s[key])), s.scale, s.rootNote, s.bmSource === "melody" ? `${customSoundId}:${customSoundNoteCount}` : ""].join("|");
   const bmRunKeyRef = useRef(bmRunKey);
   useEffect(() => {
@@ -1192,8 +1195,9 @@ export default function Simulator() {
     engine.setBeatMachineSettings(beatMachineSettingsOf(s, audioRef.current?.getCustomNotes() ?? []));
     if (bmRunKeyRef.current === bmRunKey) return;
     bmRunKeyRef.current = bmRunKey;
+    if (s.mode !== "beatMachine") return;
     setSearchResult((r) => (r?.found ? null : r));
-    if (s.mode === "beatMachine" && engine.getCurrentModeName() === "beatMachine") {
+    if (engine.getCurrentModeName() === "beatMachine") {
       engine.initMode("beatMachine");
       audioRef.current?.resetLoop();
       setFinished(false);

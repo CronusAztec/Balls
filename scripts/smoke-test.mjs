@@ -15735,8 +15735,8 @@ await smokeBlock("beat-machine", async () => {
 // (data-bm-seam-error), no NaN; the marble machine's lift moves its rungs and the loaded melody becomes the "Load your melody"
 // preset's tune (data-bm-source); the staircase draws the loop HUD's two-line title on one line ("each step plays a note"); a
 // link carries the bm… keys into the panel and the plan; Find Simulation offers the marble machine's two outcomes and finds
-// the busiest tune; a fast export with Export whole loops keeps two whole 9 s staircase loops and emits notes × loops plucks
-// (the export's hidden canvas).
+// the busiest tune, which a scale change drops; a fast export with Export whole loops keeps two whole 9 s staircase loops and
+// emits notes × loops plucks (the export's hidden canvas); outside Beat Machines a scale and root change keeps a found Classic seed.
 {
   const bmPresets = [
     { id: "eightSteps", variant: "stairs", loop: 9, notes: 8 },
@@ -15829,6 +15829,19 @@ await smokeBlock("beat-machine", async () => {
     bmOutcomes.join(",") === "no-tube-conflict,most-in-flight" && busyLabelled && /Found! Up to \d+ marbles in flight at once/.test(busyText) && busyQuery.get("dur") !== null && Number(busyQuery.get("dur")) >= 19,
     `(${JSON.stringify({ outcomes: bmOutcomes, labelled: busyLabelled, text: busyText, query: busyQuery.toString() })})`,
   );
+  // --- review fix (beat-machine) --- the Sound section's scale is part of a Beat Machines run (its bars and notes): a change
+  // re-plans it and drops the found tune.
+  {
+    await page.getByRole("button", { name: /Custom Sound/ }).click().catch(() => {});
+    const scaleSelect = page.locator("#scale-select");
+    const from = await scaleSelect.inputValue().catch(() => "");
+    const to = from === "minor" ? "major" : "minor";
+    await scaleSelect.selectOption(to).catch(() => {});
+    await page.waitForTimeout(600);
+    const left = await page.getByText(/Found!/).count();
+    const scale = await scaleSelect.inputValue().catch(() => "");
+    check("Beat Machines: a scale change re-plans the run and drops its found tune", /Found!/.test(busyText) && scale === to && left === 0, `(${JSON.stringify({ found: busyText, from, to: scale, foundLinesLeft: left })})`);
+  }
 
   // ⚡ A fast export of a 20 s staircase clip with Export whole loops (on by default): two whole 9 s loops, and the export's
   // engine plays notes × loops plucks by its seams (read off its hidden canvas while it renders).
@@ -15870,6 +15883,38 @@ await smokeBlock("beat-machine", async () => {
       `(${JSON.stringify({ status, bytes, seconds, loops, exported })})`,
     );
   } else check("without WebCodecs the Beat Machines fast export is not checked (the live runs are covered above)", true);
+}
+{
+  // --- review fix (beat-machine) --- the scale, the root and the loaded melody are every mode's: outside Beat Machines a change
+  // of them leaves a found seed alone (Classic: the "Found!" line, the ready bar and the seed stay). A 30 s classic search
+  // practically never misses, but its seeds come from Date.now(), so it keeps up to three tries.
+  await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+  let ready = false;
+  for (let attempt = 0; attempt < 3 && !ready; attempt++) {
+    if (attempt > 0) await page.getByRole("button", { name: /Try Again|Search Again|Try again/ }).first().click().catch(() => page.getByRole("button", { name: /Find 30s Simulation/ }).click());
+    else await page.getByRole("button", { name: /Find 30s Simulation/ }).click();
+    ready = await page.getByText(/Ready to start simulation for/).first().waitFor({ timeout: 120_000 }).then(() => true).catch(() => false);
+  }
+  const foundText = ready ? await page.getByText(/Found!/).first().innerText().catch(() => "") : "";
+  const seed = (await canvasData()).seed;
+  await page.getByRole("button", { name: /Custom Sound/ }).click().catch(() => {});
+  // (the root note shows once the scale is not chromatic)
+  await page.locator("#scale-select").selectOption("pentatonic").catch(() => {});
+  const rootD = page.getByRole("group", { name: "Root note" }).getByRole("button", { name: "D", exact: true });
+  await rootD.click({ timeout: 10000 }).catch(() => {});
+  await page.waitForTimeout(600);
+  const after = {
+    found: await page.getByText(/Found!/).first().isVisible().catch(() => false),
+    ready: await page.getByText(/Ready to start simulation for/).first().isVisible().catch(() => false),
+    seed: (await canvasData()).seed,
+    scale: await page.locator("#scale-select").inputValue().catch(() => ""),
+    root: await rootD.getAttribute("aria-pressed").catch(() => null),
+  };
+  check(
+    "outside Beat Machines a scale and root change keeps a found seed (Classic: Found!, the ready bar and the seed stay)",
+    ready && /Found!/.test(foundText) && !!seed && after.found && after.ready && after.seed === seed && after.scale === "pentatonic" && after.root === "true",
+    `(${JSON.stringify({ foundText, seed, after })})`,
+  );
 }
 // --- end beat-machine ---
 });
