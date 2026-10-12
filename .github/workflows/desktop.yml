@@ -8,15 +8,21 @@ name: Windows app
 #   4. a smoke run of the packaged app (`--smoke`: loads the simulator, checks the bridge and that the local AI starts,
 #      reports the GPU, exits 0) – --- desktop-ai-fix --- with JBL_SMOKE_MODEL, a small GGUF (actions/cache) on which the
 #      packaged app runs one Settings and one Captions job through its AI panel, AiService and llama.cpp (GPU auto),
-#   5. the EXEs as workflow artifacts and – on a `desktop-v*` tag, or a manual run with a version and "publish" ticked –
-#      a GitHub Release with the versioned EXEs, their blockmaps, electron-updater's latest.yml and copies under fixed
-#      names (JumpingBallsLive-Setup.exe, JumpingBallsLive-portable.exe) that the site's download page links through
-#      …/releases/latest/download/.
+#   5. the EXEs as workflow artifacts and – on a release – a GitHub Release with the versioned EXEs, their blockmaps,
+#      electron-updater's latest.yml and copies under fixed names (JumpingBallsLive-Setup.exe, JumpingBallsLive-portable.exe)
+#      that the site's download page links through …/releases/latest/download/.
+# --- desktop-autorelease --- A release happens (a) when a push to the product branch changes the version in
+# desktop/package.json and no tag desktop-v<version> exists yet (`npm run release:desktop -- 1.0.4`, commit, push – the
+# `decide` job compares desktop/package.json with the previous commit and asks GitHub for the tag), (b) on a pushed tag
+# desktop-v*, (c) on a manual run with "publish" ticked. The release job creates the tag and the release with the workflow
+# token, which starts no second run. Pull requests build and test only. docs/RELEASING.md explains it for the owner.
 on:
   push:
     tags: ["desktop-v*"]
+    branches: ["claude/optimistic-johnson-46x3qg", "main"]
+    paths: ["desktop/package.json"]
   pull_request:
-    paths: ["desktop/**", "src/lib/desktop/**", "src/components/simulator/desktop/**", ".github/workflows/desktop.yml"]
+    paths: ["desktop/**", "src/lib/desktop/**", "src/components/simulator/desktop/**", ".github/workflows/desktop.yml", ".github/actions/site-url/**", "scripts/release/**"]
   workflow_dispatch:
     inputs:
       version:
@@ -32,20 +38,55 @@ on:
         type: boolean
         default: false
 
+# --- desktop-autorelease --- read-only by default; only the release job may write (the tag and the release).
 permissions:
-  contents: write
+  contents: read
 
+# --- desktop-autorelease --- a newer pull-request push supersedes its build; a release build (a tag or a branch push) is never
+# cancelled – a second push to the branch queues behind it.
 concurrency:
   group: desktop-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # --- desktop-autorelease --- what this run is: the version, whether to build, whether to release (scripts/release/desktop-version.mjs)
+  decide:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.decide.outputs.version }}
+      build: ${{ steps.decide.outputs.build }}
+      release: ${{ steps.decide.outputs.release }}
+    steps:
+      - name: Check out (this commit and its parent)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Version, build, release?
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INPUT_VERSION: ${{ inputs.version }}
+          INPUT_PUBLISH: ${{ inputs.publish }}
+        run: node scripts/release/desktop-version.mjs --decide
+
   build:
+    needs: decide
+    if: needs.decide.outputs.build == 'true'
     runs-on: windows-latest
     # --- desktop-ai-fix --- 60 → 90: the smoke run now also runs two real AI jobs on the CPU (bounded: JBL_SMOKE_AI_TIMEOUT_MS)
     timeout-minutes: 90
+    permissions:
+      contents: read
+      pages: read # the site-url action's Pages settings lookup
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      version: ${{ needs.decide.outputs.version }}
     defaults:
       run:
         shell: bash
@@ -63,22 +104,27 @@ jobs:
             desktop/package-lock.json
 
       - name: Version
-        id: version
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/desktop-v* ]]; then v="${GITHUB_REF#refs/tags/desktop-v}";
-          elif [[ -n "${{ inputs.version }}" ]]; then v="${{ inputs.version }}";
-          else v="$(node -p "require('./desktop/package.json').version")"; fi
-          if ! [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then echo "::error::'$v' is not a semantic version"; exit 1; fi
-          echo "version=$v" >> "$GITHUB_OUTPUT"
-          cd desktop && npm version "$v" --no-git-tag-version --allow-same-version
+        env:
+          VERSION: ${{ needs.decide.outputs.version }}
+        run: cd desktop && npm version "$VERSION" --no-git-tag-version --allow-same-version
 
       - name: Install the site's dependencies
         run: npm ci
 
+      # --- desktop-autorelease --- the share links the app bakes in follow the site's real address (CUSTOM_DOMAIN, Pages settings)
+      - name: Work out the public URL
+        id: site
+        uses: ./.github/actions/site-url
+        with:
+          custom-domain: ${{ vars.CUSTOM_DOMAIN }}
+          site-host: ${{ vars.SITE_HOST }}
+          cf-pages-project: ${{ vars.CF_PAGES_PROJECT }}
+          token: ${{ github.token }}
+
       - name: Build the site for the app (empty base path)
         run: node desktop/scripts/build-site.mjs
         env:
-          DESKTOP_SITE_URL: https://cronusaztec.github.io/Balls
+          DESKTOP_SITE_URL: ${{ steps.site.outputs.url }}
           NEXT_PUBLIC_GITHUB_REPO: ${{ github.repository }}
           # --- paywall-gate / billing-backend --- the same public licence key and billing Worker origin as the website
           # (deploy.yml), so the app verifies the Worker's real licences and its Restore reaches the Worker (which grants the
@@ -113,7 +159,10 @@ jobs:
       - name: Package the installer and the portable EXE
         working-directory: desktop
         env:
-          JBL_CUDA: ${{ inputs.cuda && '1' || '0' }}
+          # --- desktop-autorelease --- the manual input, or the repository variable DESKTOP_CUDA=1 for automatic releases
+          JBL_CUDA: ${{ (inputs.cuda || vars.DESKTOP_CUDA == '1') && '1' || '0' }}
+          # --- desktop-autorelease --- baked into the main process (desktop/scripts/build.mjs `define`): the Help menu's links
+          DESKTOP_SITE_URL: ${{ steps.site.outputs.url }}
         run: npm run dist
 
       # --- desktop-ai-fix --- the real AI path in CI: the smallest catalog model (Qwen2.5-1.5B Q4_K_M, 1.1 GB), cached, its
@@ -150,7 +199,7 @@ jobs:
       - name: Fixed-name copies for the site's download links
         working-directory: desktop/release
         run: |
-          v="${{ steps.version.outputs.version }}"
+          v="${{ needs.decide.outputs.version }}"
           cp "JumpingBallsLive-Setup-$v.exe" JumpingBallsLive-Setup.exe
           cp "JumpingBallsLive-$v-portable.exe" JumpingBallsLive-portable.exe
           ls -la
@@ -159,30 +208,33 @@ jobs:
       - name: Upload the EXEs
         uses: actions/upload-artifact@v4
         with:
-          name: JumpingBallsLive-windows-${{ steps.version.outputs.version }}
+          name: JumpingBallsLive-windows-${{ needs.decide.outputs.version }}
           path: |
             desktop/release/*.exe
             desktop/release/*.blockmap
             desktop/release/latest.yml
             desktop/release/SHA256SUMS.txt
           if-no-files-found: error
-          retention-days: 30
+          retention-days: 14
 
   release:
-    needs: build
-    if: startsWith(github.ref, 'refs/tags/desktop-v') || (github.event_name == 'workflow_dispatch' && inputs.publish)
+    needs: [decide, build]
+    if: needs.decide.outputs.release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # the tag and the release
     steps:
       - name: Download the EXEs
         uses: actions/download-artifact@v4
         with:
-          name: JumpingBallsLive-windows-${{ needs.build.outputs.version }}
+          name: JumpingBallsLive-windows-${{ needs.decide.outputs.version }}
           path: dist
 
       - name: Publish the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ needs.build.outputs.version }}
+          VERSION: ${{ needs.decide.outputs.version }}
         run: |
           tag="desktop-v$VERSION"
           notes="JumpingBallsLive for Windows $VERSION.
@@ -195,5 +247,20 @@ jobs:
           if gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
             gh release upload "$tag" dist/* --clobber --repo "$GITHUB_REPOSITORY"
           else
-            gh release create "$tag" dist/* --repo "$GITHUB_REPOSITORY" --title "JumpingBallsLive for Windows $VERSION" --notes "$notes" --target "$GITHUB_SHA"
+            gh release create "$tag" dist/* --repo "$GITHUB_REPOSITORY" --title "JumpingBallsLive for Windows $VERSION" --notes "$notes" --generate-notes --target "$GITHUB_SHA"
           fi
+
+      # --- desktop-autorelease --- what every installed app reads: the newest release's latest.yml must name this version
+      - name: electron-updater sees the release
+        env:
+          VERSION: ${{ needs.decide.outputs.version }}
+        run: |
+          for i in $(seq 1 12); do
+            if curl -fsSL --max-time 20 "https://github.com/$GITHUB_REPOSITORY/releases/latest/download/latest.yml" | grep -q "^version: $VERSION\$"; then
+              echo "…/releases/latest/download/latest.yml serves $VERSION"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::error title=latest.yml does not serve $VERSION::https://github.com/$GITHUB_REPOSITORY/releases/latest/download/latest.yml names another version after 2 minutes. Is a newer release marked as the latest? Installed apps read this file."
+          exit 1

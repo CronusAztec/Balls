@@ -1,29 +1,61 @@
 name: Deploy billing worker
 
-# --- billing-backend --- Manually deploys the Cloudflare Worker in billing/ (Stripe, PayPal and
-# NOWPayments subscriptions that issue signed licences). It is never triggered by a push: the site and
-# the Worker deploy independently, and the Worker holds live payment secrets. Run it from the Actions
-# tab after you have set the repository secrets below and the Worker's own secrets with `wrangler secret
-# put` (see billing/README.md).
+# --- billing-backend --- Deploys the Cloudflare Worker in billing/ (Stripe, PayPal and NOWPayments subscriptions that issue
+# signed licences). Run it from the Actions tab after you have set the repository secrets below and the Worker's own secrets
+# with `wrangler secret put` (see billing/README.md).
+# --- desktop-autorelease --- It also runs by itself on a push to the product branch that changes billing/** (or this file),
+# once the repository variable BILLING_AUTODEPLOY is `1` – switch it on after the first manual deploy has worked. Guards first
+# (the secrets, the KV id, the custom domain in SITE_ORIGIN), then wrangler deploy, then a health check of the live Worker.
 #
 # Required repository secrets (Settings -> Secrets and variables -> Actions -> Secrets):
-#   CLOUDFLARE_API_TOKEN   - a token with the "Edit Cloudflare Workers" permissions
+#   CLOUDFLARE_API_TOKEN   - a token with the "Edit Cloudflare Workers" permissions (and "Workers KV Storage: Edit")
 #   CLOUDFLARE_ACCOUNT_ID  - your Cloudflare account id
+# Repository variables read: BILLING_AUTODEPLOY (1 = deploy on push), BILLING_API_URL (the health check), CUSTOM_DOMAIN (the guard).
 on:
   workflow_dispatch:
+  push:
+    branches: ["claude/optimistic-johnson-46x3qg", "main"]
+    paths: ["billing/**", ".github/workflows/billing-deploy.yml"]
 
 permissions:
   contents: read
 
+# One deploy at a time; a second push waits instead of cancelling one in progress.
+concurrency:
+  group: billing-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
+    if: github.event_name == 'workflow_dispatch' || vars.BILLING_AUTODEPLOY == '1'
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: billing
     steps:
       - name: Check out
         uses: actions/checkout@v5
+
+      - name: Check the secrets and wrangler.toml
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CUSTOM_DOMAIN: ${{ vars.CUSTOM_DOMAIN }}
+        run: |
+          ok=1
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error title=CLOUDFLARE_API_TOKEN is missing::Settings → Secrets and variables → Actions → Secrets → New repository secret: a Cloudflare API token with 'Edit Cloudflare Workers' and 'Workers KV Storage: Edit'."; ok=0; }
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error title=CLOUDFLARE_ACCOUNT_ID is missing::Cloudflare dashboard → Workers & Pages → Account ID (right-hand column); add it as a repository secret."; ok=0; }
+          if grep -q "REPLACE_WITH_YOUR_KV_NAMESPACE_ID" wrangler.toml; then
+            echo "::error title=billing/wrangler.toml still has the KV placeholder::Create the namespace once (cd billing && npx wrangler kv namespace create ENTITLEMENTS) and commit its id into wrangler.toml – the id is not a secret (npm run go-live does this)."; ok=0
+          fi
+          if [ -n "$CUSTOM_DOMAIN" ]; then
+            d="$(printf '%s' "$CUSTOM_DOMAIN" | tr '[:upper:]' '[:lower:]' | sed -E 's#[[:space:]]##g; s#^https?://##; s#/.*$##')"
+            if ! grep -E '^SITE_ORIGIN *=' wrangler.toml | grep -Fq "https://$d"; then
+              echo "::error title=SITE_ORIGIN does not list https://$d::The site is served from CUSTOM_DOMAIN=$d. Add https://$d to SITE_ORIGIN in billing/wrangler.toml (npm run go-live does it), commit and push. The Worker that is live now keeps running."; ok=0
+            fi
+          fi
+          [ "$ok" = 1 ]
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -47,3 +79,34 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: billing
+
+      # --- desktop-autorelease --- the live Worker answers: GET /health (when the Worker has it) or GET /config. Neither body
+      # holds a secret (booleans and public ids only). A Worker that answers but reports a problem is a warning, not a failure.
+      - name: Health check
+        env:
+          BILLING_API_URL: ${{ vars.BILLING_API_URL }}
+        run: |
+          if [ -z "$BILLING_API_URL" ]; then
+            echo "::warning title=BILLING_API_URL is not set::Set the repository variable to the Worker URL wrangler printed above (https://….workers.dev) so the site and this check know it."
+            exit 0
+          fi
+          base="${BILLING_API_URL%/}"
+          body=""
+          for path in /health /config; do
+            for i in 1 2 3 4 5 6; do
+              code="$(curl -sS --max-time 15 -H 'Accept: application/json' -o body.json -w '%{http_code}' "$base$path" || echo 000)"
+              if [ "$code" = "200" ]; then body="$(cat body.json)"; break 2; fi
+              if [ "$code" = "404" ]; then break; fi
+              sleep 5
+            done
+          done
+          rm -f body.json
+          if [ -z "$body" ]; then
+            echo "::error title=The Worker does not answer::$base/health and $base/config did not answer 200 after the deploy."
+            exit 1
+          fi
+          printf '%s' "$body" | node -e '
+            let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
+              const j = JSON.parse(s); console.log(JSON.stringify(j, null, 2));
+              if (j.ok === false) console.log("::warning title=The Worker reports a problem::" + (Array.isArray(j.mismatches) ? j.mismatches.join("; ") : "see /health"));
+            });'

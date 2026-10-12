@@ -97,6 +97,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Colour Sort** | An escape-family mode (`colourSort`, feature colour-sort) after the loop family's colour-sorting rings ("360 mixed balls, sorted by four rings"): **Colours** × **Balls per Colour** (`csc` 4, `csn` 90 – 360 balls) start packed in the core of K concentric rings – K − 1 gated rings and a closed outer wall, at (k + 1) / K of its radius – and move as a constant-speed gas (**Ball Speed** `csv`, 220 px/s of a 720-wide frame; no gravity). Every gated ring is **Gates per Ring** arcs and gates (`csg` 4, **Gate Width** `csw` 35°) with a white pin at each arc end, turning at the **Inner Ring Spin** (`css`, 31°/s) times the **Spin Falloff** per ring outward (`csf`, ×0.8), in **Alternate Directions** (`csa`). A gate is a one-way colour filter – the **Gate Rule** (`csu`): outward and never the ring's own colour (the reference), outward and only its own colour, or both ways but never its own – and refuses every other ball like an arc, reflected in the ring's turning frame: red never leaves the core, orange stops at the orange ring, green at the green one and blue reaches the outer band – a bullseye. (Both ways lets sorted balls wander back in, so that sort never completes: it settles at an equilibrium – about 200 / 360 – and the cycle ends once the count stops rising, on the minor chord, with no Find Simulation outcomes.) The loop HUD's amber counter "n / 360 sorted" (a ball in its own band) climbs with a long tail to the completion chord (A2 with its 1.7 Hz tremolo, minor when the **Time Limit** `csl` ran out first), then reads "mixing again": a critically damped spring pulls every ball back to its exact frame-0 place over the **Remix** (`csm`, 2.8 s) under a noise wash, and the next cycle replays the first – the loop contract reports every seam, so Export whole loops cuts a recording into seamless cycles. Every gate pass plucks its colour's note of A major pentatonic (at most six a tick). **Ball Contacts** (`csx`) are off by default – a ghost gas, the reference clip's pace and cheap for thousands of balls –, on: elastic contacts; **Ball Size** (`csr`, 4.5 px), **Refusal Flashes** (`csh`). Five presets (Bullseye sort, Rainbow 7, One-gate torture, Ten thousand, Reverse rule) and Find Simulation's **All sorted within**, **Last colour** and **Sorted on a bar line** (±20 ms) outcomes. Every number is uncapped (20,000 balls a run at most). See "Colour Sort" below |
 | **Beat Machines** | A rhythm-family mode of the loop family (`beatMachine`, feature beat-machine) after the loop-clip account's "every note is a marble" and "eight steps. eight notes. one phrase" clips: kinetic music machines in which every note is a ball landing on a tuned target exactly on the beat, with a mechanical return path so the machine loops forever. **Marble xylophone** – 10 rainbow bars (2–48, any number typed) low to high, a tube of marbles in each bar's colour above it, a brass floor, a ladder lift with moving rungs and a top rail: each marble leaves its tube at t_note − √(2h/g) so it strikes its bar on the beat, rebounds through the gap to the floor, rolls to the lift, waits for the next free rung, rides up and rolls back along the rail into its own tube; the tubes are first in, first out and hold as many marbles as the tune needs (a marble that cannot be back in time gives its tube a spare); 32 beats at 100 BPM loop in 19.2 s. **Staircase** – one cream ball hops down 8 steps (1–64) in identical arcs of one beat (80 BPM: 749 ms), every landing a note, then drops into a hook, rolls round the U-shaped return track and is tipped back onto step 1 exactly `returnBeats` (4) beats later – (steps + return) beats a loop, progress dots under the panel. The notes: a seeded original phrase, a scale run, the melody loaded under Sound or a typed list (bar numbers or note names); the Sound section's scale and root tune the bars and steps. Sound (original synthesis through `ToneGenerator.playLoop()`, scheduled from the plan): tuned-bar strikes and a phrase bass every two bars, pentatonic plucks and a reset glide that ends at the loop point. Four presets (Eight steps, Scale staircase, Marble xylophone, Load your melody), the loop HUD ("every note is a marble", "each step plays a note") with an optional note counter, the loop contract for **Export whole loops**, and Find Simulation's **No tube conflict** and **Most marbles in flight**. See [Beat Machines](#beat-machines). |
 | **Funnel Spin-up (Sound Vortex)** | The Sound Vortex's ring waves and perspective view (feature funnel-spin) after the loop family's "watch the ring of 24 spin up as it drops" clip: **Release** one by one (the Sound Vortex as it was) or as **ring waves** – 6, 12 and 24 marbles released every 4.5 s, evenly spaced on the rim with the same speed and spin, each wave one polar state (`src/lib/physics/funnelSpin.ts`, `funnelRun.ts`) so it stays a perfect ring all the way down. The spin friction acts on the angular momentum and the radial motion separately: L is nearly kept while friction lets the ring slip lower, so its lap climbs from the 5 s first lap to about 2.3 laps a second by the hole (about 11×, 12.5 s down with the defaults; without friction a ring orbits the rim for ever). After the last ring and a refill gap the first wave comes back: a seamless loop the whole-loop export cuts on. **View** from above or in **perspective** – a translucent navy gravity well seen from the camera elevation (25° by default, 90° is the top view), a mesh of rings and spokes, the spout narrowing to a dark hole, glossy rainbow marbles depth-sorted behind the pale front lip (`components/simulator/funnelRenderer.ts`). Original sounds through the loop library: a glock chime a lap pitched by the ring's spin, a rolling hiss following the marbles' speed (`src/lib/audio/funnelTones.ts`), a groove bed at the page's tempo and a noise wash before every refill. Presets Ring of 24, Galaxy (360 from above), Coin funnel and Doubling (1 … 256); the loop HUD's "why marbles speed up in a funnel" with an optional lap readout; Find Simulation's **Last ring on a bar** fits the wave interval and the friction; a loop-style caption. See [Sound Vortex](#sound-vortex) |
+| **Auto-release (desktop-autorelease)** | One push updates everything: the website deploys from the product branch only (`CUSTOM_DOMAIN` switches it to a domain root; optional Cloudflare Pages), the billing Worker deploys on changes to `billing/` with a health check, and a version bump in `desktop/package.json` (`npm run release:desktop -- 1.0.4`) builds, smoke-runs and publishes the Windows release that electron-updater serves; the app checks every 4 hours, shows a Restart / Later banner and a notification, never interrupts a render. [docs/RELEASING.md](docs/RELEASING.md) |
 
 ## Design
 
@@ -210,9 +211,10 @@ The repository ships with `.github/workflows/deploy.yml`:
    The workflow cannot do this for you; until it is done the *deploy* job stops with a message saying so.
    Private repositories need a paid GitHub plan (Pro, Team or Enterprise) for Pages; public repositories work on
    the free plan.
-2. **Push to the default branch** (or run the workflow manually from the *Actions* tab). Every push is linted,
-   type-checked, unit-tested and built; pushes to the default branch then run the browser smoke test (the `smoke` job)
-   and are published only once it passes.
+2. **Push to the product branch** (`claude/optimistic-johnson-46x3qg`, or `main` once renamed; both are listed in
+   `deploy.yml`). Every push to any branch is linted, type-checked, unit-tested and built; pushes to the product branch
+   then run the browser smoke test (four shards) and are published only once it passes. A manual run from another branch
+   builds and checks only. (--- desktop-autorelease ---)
 3. The site appears at `https://<user>.github.io/<repo>/` – for this repository
    `https://cronusaztec.github.io/Balls/`. The workflow reads the site URL from the repository's Pages settings
    on every run (falling back to that conventional URL while Pages is off) and builds with the matching base path.
@@ -224,9 +226,19 @@ accepts a cross-origin JSON POST, e.g. Formspree) or `FEEDBACK_EMAIL`. Until one
 tells visitors that no channel is configured. `ANALYTICS_SCRIPT_URL` and `ANALYTICS_SITE_ID` variables are passed
 to the build the same way.
 
-**Custom domain**: set it under *Settings → Pages → Custom domain* and point its DNS at GitHub Pages. For
-Actions-based deployments GitHub ignores a `CNAME` file; the workflow picks the domain up from the Pages settings
-and builds for the domain root (no base path) on the next run.
+**Custom domain**: set it under *Settings → Pages → Custom domain*, point its DNS at GitHub Pages, and set the repository
+variable `CUSTOM_DOMAIN` to the bare domain (e.g. `jumpingballs.live`) – the next run builds for the domain root (empty base
+path, `out/CNAME`; `.github/actions/site-url` resolves the address for both workflows), the Windows app's share links follow,
+and `billing-deploy.yml` checks that the Worker's `SITE_ORIGIN` lists it (the website run warns until it does). Without the
+variable the workflow still picks a domain up from the Pages settings.
+
+**Cloudflare Pages (optional)**: the repository variable `SITE_HOST=cloudflare-pages` deploys the same `out/` to Cloudflare
+Pages (the `deploy-cloudflare` job) instead of GitHub Pages; it needs the variable `CF_PAGES_PROJECT` (the project, created
+once with `npx wrangler pages project create <name> --production-branch main`) and the secrets `CLOUDFLARE_API_TOKEN` /
+`CLOUDFLARE_ACCOUNT_ID`. The Windows app's downloads and updates still come from GitHub Releases, so the repository stays
+public.
+
+Shipping an update, step by step, for the owner: [docs/RELEASING.md](docs/RELEASING.md).
 
 **Other static hosts** (Netlify, Cloudflare Pages, S3, nginx…): run `npm run build` with `NEXT_PUBLIC_SITE_URL`
 set and upload `out/`. Point the host's "not found" page at `404.html`.
@@ -2944,20 +2956,30 @@ to the console.
 
 ### Release workflow
 
-`.github/workflows/desktop.yml` runs on `windows-latest` for pull requests that touch the app, for `desktop-v*` tags and by
-hand (inputs `version`, `publish`, `cuda`): it builds the site with an empty base path, installs the app, type-checks and
-tests it, packages the NSIS installer and the portable EXE, smoke-runs the packaged `JumpingBallsLive.exe --smoke`, uploads
-the EXEs (plus blockmaps, `latest.yml` and `SHA256SUMS.txt`) as a workflow artifact and – for a tag or a manual run with
-`publish` – creates the GitHub Release `desktop-v<version>` with them and fixed-name copies (`JumpingBallsLive-Setup.exe`,
-`JumpingBallsLive-portable.exe`) that the download page links as `…/releases/latest/download/<name>`. To release: bump
-`desktop/package.json` (or pass `version`), push the tag `desktop-v1.2.3`. electron-updater reads the newest release's
-`latest.yml`, so keep app releases the repository's "latest" release.
+`.github/workflows/desktop.yml` runs for pull requests that touch the app, for `desktop-v*` tags, by hand (inputs `version`,
+`publish`, `cuda`) **and for a push to the product branch that changes the version in `desktop/package.json`**
+(--- desktop-autorelease ---: `npm run release:desktop -- 1.2.3`, commit, push). The `decide` job
+(`scripts/release/desktop-version.mjs --decide`) compares the version with the one before the push and checks that the tag
+`desktop-v<version>` does not exist yet; `build` (on `windows-latest`) builds the site with an empty base path for the
+address `.github/actions/site-url` resolves (`CUSTOM_DOMAIN`, the Pages settings), installs the app, type-checks and tests
+it, packages the NSIS installer and the portable EXE (with the CUDA build when the input `cuda` or the variable
+`DESKTOP_CUDA=1` asks), smoke-runs the packaged `JumpingBallsLive.exe --smoke` and uploads the EXEs (plus blockmaps,
+`latest.yml` and `SHA256SUMS.txt`) as a workflow artifact; `release` – the only job with `contents: write` – creates the tag
+and the GitHub Release `desktop-v<version>` with them, fixed-name copies (`JumpingBallsLive-Setup.exe`,
+`JumpingBallsLive-portable.exe`) that the download page links as `…/releases/latest/download/<name>` and GitHub's generated
+notes, then checks that `…/releases/latest/download/latest.yml` names the version. A release build is never cancelled by a
+newer push. electron-updater reads the newest release's `latest.yml`, so keep app releases the repository's "latest"
+release. The app checks 8 s after launch and every 4 hours, downloads in the background, shows a banner (Restart and update
+/ Later) and a Windows notification, installs on quit; the GPU tab keeps the manual check. The download page shows the
+build-time version and then asks GitHub's API which release is the latest (with a "What's new" link to it). The owner's
+step-by-step guide: [docs/RELEASING.md](docs/RELEASING.md).
 
 **Code signing**: the EXEs are unsigned until a certificate is configured – Windows SmartScreen then shows "Windows protected
 your PC" (**More info → Run anyway**), which the download page explains. To sign, add the repository secrets `WIN_CSC_LINK`
 (the .pfx certificate, base64-encoded, or an HTTPS URL to it) and `WIN_CSC_KEY_PASSWORD`; the workflow passes them to
-electron-builder, which signs both EXEs. Never commit certificates, keys, models or built binaries (`.gitignore` covers
-`desktop/node_modules`, `dist`, `release` and `*.gguf`).
+electron-builder, which signs both EXEs. Once a certificate is in use it must stay in use – signed installs refuse unsigned
+updates. Never commit certificates, keys, models or built binaries (`.gitignore` covers `desktop/node_modules`, `dist`,
+`release` and `*.gguf`).
 
 ### Tests and what is verified where
 
@@ -3109,7 +3131,9 @@ kept out of the site's `tsc`/ESLint/Vitest/build. A non-developer, step-by-step 
 the secrets, the webhook event lists, the two GitHub repository variables (`BILLING_API_URL`,
 `LICENSE_PUBLIC_KEY`) the site reads, test/sandbox testing and the trust model — is in
 [`billing/README.md`](billing/README.md); deploy it from the **Actions → "Deploy billing worker"**
-workflow (it type-checks and runs the Worker's own suite first: `cd billing && npm ci && npm run check && npm test`).
+workflow (and, with the repository variable `BILLING_AUTODEPLOY=1`, automatically on every push that changes `billing/`; the
+workflow checks the secrets, the KV id and the custom domain first and probes `/health` or `/config` afterwards); it
+type-checks and runs the Worker's own suite first (`cd billing && npm ci && npm run check && npm test`).
 The site's half of the contract – the Unlock dialog, the licence store, the guard, test mode – is described in
 [Pricing and licences](#pricing-and-licences); `src/lib/billing/api.ts` and `src/lib/billing/license.ts` document the
 endpoints and the licence format both sides share.

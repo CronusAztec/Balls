@@ -4381,7 +4381,9 @@
       "library": "Biblioteka: każdy wyrenderowany klip z miniaturą, długością i tekstem posta – odtwórz, pokaż w folderze, wyrenderuj ponownie albo usuń."
     },
     "privacyTitle": "Prywatność",
-    "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline; wpisany klucz do chmury jest zapisany w zaszyfrowanej postaci na Twoim komputerze i wysyłany tylko do wybranego dostawcy. Aplikacja łączy się z internetem tylko po to, by pobrać model, o który poprosisz, i sprawdzić aktualizacje na GitHubie."
+    "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline; wpisany klucz do chmury jest zapisany w zaszyfrowanej postaci na Twoim komputerze i wysyłany tylko do wybranego dostawcy. Aplikacja łączy się z internetem tylko po to, by pobrać model, o który poprosisz, i sprawdzić aktualizacje na GitHubie.",
+    "updateLater": "Później",
+    "updateWaitRender": "Trwa renderowanie – poczekaj, aż kolejka się skończy, albo zamknij aplikację: aktualizacja zainstaluje się przy zamykaniu."
   },
   "Territory": {
     "canvasVs": "VS",
@@ -5080,7 +5082,8 @@
     "tryCpu": "Uruchom na procesorze",
     "downloadVersion": "Wersja {version}",
     "downloadModelNote": "Model AI pobierasz z poziomu aplikacji tylko raz (1–2,5 GB); potem AI działa offline.",
-    "downloadUpdateNote": "Masz wersję 1.0.2? Jej wbudowany aktualizator nie zainstaluje 1.0.3 – pobierz raz instalator powyżej; od wersji 1.0.3 aplikacja aktualizuje się sama."
+    "downloadUpdateNote": "Masz wersję 1.0.2? Jej wbudowany aktualizator nie zainstaluje 1.0.3 – pobierz raz instalator powyżej; od wersji 1.0.3 aplikacja aktualizuje się sama.",
+    "downloadWhatsNew": "Co nowego w {version}"
   },
   "LoopHud": {
     "growTitle": "rośnie z każdym odbiciem",

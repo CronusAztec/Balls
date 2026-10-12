@@ -47,6 +47,17 @@ describe("Desktop messages", () => {
     // Keys built at run time: every status, tab, preset, codec, task and update state.
     for (const group of ["status", "tab", "preset", "codec", "aiTask", "aiTaskHint", "aiPlaceholder", "update", "queueSource", "open", "ending", "requirements", "features"]) expect(Object.keys((en.Desktop as unknown as Record<string, Tree>)[group]).length).toBeGreaterThan(1);
   });
+  // --- desktop-autorelease --- the update banner's Later and its note while a render runs, and the download page's "What's new"
+  it("has the update banner's and the download page's new texts in every language", () => {
+    for (const m of [en, pl, es] as unknown as { Desktop: Record<string, unknown>; DesktopAiFix: Record<string, unknown> }[]) {
+      for (const key of ["updateLater", "updateWaitRender", "appRestartUpdate"]) expect(typeof m.Desktop[key], key).toBe("string");
+      expect(m.DesktopAiFix.downloadWhatsNew).toContain("{version}");
+      expect(m.DesktopAiFix.downloadVersion).toContain("{version}");
+    }
+    const page = fs.readFileSync(path.join(__dirname, "..", "src", "app", "[locale]", "download", "page.tsx"), "utf8");
+    expect(page).toContain('fix.raw("downloadVersion")');
+    expect(page).toContain('fix.raw("downloadWhatsNew")');
+  });
 });
 
 describe("download links", () => {
