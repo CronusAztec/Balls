@@ -85,6 +85,8 @@ export const MODE_IDS = [
   "ellipseFoci",
   // --- beat-machine --- Beat Machines (the marble xylophone and the eight-step staircase: every note a ball landing on the beat; the loop family)
   "beatMachine",
+  // --- brick-rebuild --- Brick Smash (a picture of bricks smashed by multiplying balls, then rebuilt colour layer by colour layer; the loop family)
+  "brickRebuild",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

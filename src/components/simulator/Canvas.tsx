@@ -8,6 +8,7 @@ import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions 
 import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulumTrails, type PendulumRenderOptions } from "./pendulumRenderer";
 import { ELLIPSE_FOCI_DATA_KEYS, EllipseFociLayer, ellipseFociExtentPx, writeEllipseFociDataset, type EllipseFociRenderOptions } from "./ellipseFociRenderer"; // --- ellipse-foci ---
 import { BEAT_MACHINE_DATA_KEYS, BeatMachineLayer, beatMachineExtentPx, writeBeatMachineDataset, type BeatMachineRenderOptions } from "./beatMachineRenderer"; // --- beat-machine ---
+import { BRICK_REBUILD_DATA_KEYS, BrickRebuildLayer, brickRebuildExtentPx, writeBrickRebuildDataset, type BrickRebuildRenderOptions } from "./brickRebuildRenderer"; // --- brick-rebuild ---
 // --- jdm-polyrhythm ---
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
 import { inLinePercent } from "@/lib/physics/phaseSpiral"; // --- phase-spiral ---
@@ -149,6 +150,8 @@ export interface CanvasLabels {
   polyrhythmAligned: (n: number, cycles: number) => string;
   /** --- phase-spiral --- The in-line meter under the disc ("in line 87%"; English without it). */
   polyrhythmInLine?: (pct: number) => string;
+  /** --- brick-rebuild --- Brick Smash's counters under the box ("N bricks", "N balls"; English without them). */
+  brickRebuild?: { bricks: (n: number) => string; balls: (n: number) => string };
   /** Picture Paint HUD hints: the schedule state and the beat the ball moves to. */
   paintOnSchedule: string;
   paintBehind: string;
@@ -875,6 +878,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- beat-machine --- Beat Machines' layer and its per-frame options
     const machineLayer = new BeatMachineLayer();
     const machineRender: BeatMachineRenderOptions = { dpr: scale, showGlow: false };
+    // --- brick-rebuild --- Brick Smash's layer (the cached bricks, the ghosts, the flights) and its per-frame options
+    const brLayer = new BrickRebuildLayer();
+    const brRender: BrickRebuildRenderOptions = { dpr: scale, hudOn: false };
     // --- gerald-faces --- ball characters (faces, name label, squash); the Box / Pendulum / Polyrhythm / Collide bodies get faces through drawOverlays()
     const faces = new FaceLayer();
     facesRef.current = faces;
@@ -1621,6 +1627,16 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         machineRender.showGlow = p.showGlow;
         machineLayer.drawStage(ctx, machineView, machineT, machineRender);
       }
+      // --- brick-rebuild --- Brick Smash: the box (or the kaleidoscope's circle), the cached bricks, the breaks' ghosts, the paddle
+      // and its capsules, the rebuild's bricks in flight and – without the loop HUD – the counters under the box
+      const brView = engine.isBrickRebuildMode() ? engine.getBrickRebuildView() : null;
+      if (brView) {
+        brRender.dpr = scale;
+        brRender.hudOn = !!loopHudRef.current;
+        brRender.bricksLabel = (labelsRef.current ?? DEFAULT_LABELS).brickRebuild?.bricks;
+        brRender.ballsLabel = (labelsRef.current ?? DEFAULT_LABELS).brickRebuild?.balls;
+        brLayer.drawStage(ctx, brView, brRender);
+      }
 
       // --- jdm-polyrhythm --- Metronomes & Polyrhythms: the stage (rings / polygons, chords, semicircles, metronome bodies, spiral).
       const isPoly = engine.isPolyrhythmMode();
@@ -2276,6 +2292,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (starView) starLayer.drawBodies(ctx, starView, starRender); // --- chord-stars --- the balls with their glow
       else if (efView) efLayer.drawBodies(ctx, efView, efRender); // --- ellipse-foci --- the volley by hue, the convergence bloom
       else if (machineView) machineLayer.drawBodies(ctx, machineView, machineT, machineRender); // --- beat-machine --- the stairs' ball and its trail, or the glossy marbles
+      else if (brView && brLayer.drawsBodies(brView)) brLayer.drawBodies(ctx, brView, balls, brRender); // --- brick-rebuild --- hollow balls with their kaleidoscope images, the rebuild's fades
       else if (vortexView && vortexLayer.drawsBodies(vortexView)) vortexLayer.drawBodies(ctx, vortexView, vortexRender); // --- funnel-spin --- the perspective's glossy marbles, far to near, under the front lip (--- review fix (funnel-spin) --- and the ring release's from above: a hue a marble outruns the sprite cache below)
       else if (isPoly) drawPolyrhythmVoices(ctx, engine.getPolyrhythmView(), polyRender); // --- jdm-polyrhythm ---
       // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
@@ -2492,6 +2509,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (fading) ctx.restore();
         ctx.globalAlpha = 1;
       });
+      if (brView && !brLayer.drawsBodies(brView) && brView.images > 1) brLayer.drawBodies(ctx, brView, balls, brRender, true); // --- brick-rebuild --- (the page's ball look: the kaleidoscope's images of its real balls)
       // --- gerald-faces --- faces on the shapes / bobs / voices / orbs the Bouncing Shapes, Pendulum Wave, Metronomes &
       // Polyrhythms and Collision Playground renderers drew (the ball colour is the body colour of all but the shapes)
       if (faces.isActive() && (isBox || isPendulum || isPoly || isCollide || isMult)) {
@@ -3100,7 +3118,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       loopHudLive.bottom = Infinity;
       loopHudLiveText = "";
       if (hudSpec && !recordingRef.current) {
-        const ring = machineView ? beatMachineExtentPx(machineView) /* --- beat-machine --- (the machine's box) */ : efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : vortexView && vortexView.funnel.view === "perspective" ? funnelExtentPx(vortexView) /* --- funnel-spin --- (the perspective's whole funnel) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
+        const ring = brView ? brickRebuildExtentPx(brView) /* --- brick-rebuild --- (the box and its counters, or the circle) */ : machineView ? beatMachineExtentPx(machineView) /* --- beat-machine --- (the machine's box) */ : efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : vortexView && vortexView.funnel.view === "perspective" ? funnelExtentPx(vortexView) /* --- funnel-spin --- (the perspective's whole funnel) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
         const liveTop = (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
         const hudFrame = loopHudFrame(hudSpec, loopHudCount(engine));
         const hudLayout = loopHudLiveLayout(size.width, size.height, cy, Math.min(ring, Math.min(size.width, size.height) / 2), liveTop);
@@ -3253,6 +3271,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- beat-machine --- Beat Machines: notes, sounds, seams and the seam check, marbles in flight, spares (data-bm-*)
       if (machineView) writeBeatMachineDataset(machineView, machineLayer, setCanvasData);
       else if (canvas.dataset.bmVariant !== undefined) for (const key of BEAT_MACHINE_DATA_KEYS) delete canvas.dataset[key];
+      // --- brick-rebuild --- Brick Smash: the phase, the bricks, the balls, the seams, the first clear, the rebuild, the layer (data-br-*)
+      if (brView) writeBrickRebuildDataset(brView, brLayer, setCanvasData);
+      else if (canvas.dataset.brPhase !== undefined) for (const key of BRICK_REBUILD_DATA_KEYS) delete canvas.dataset[key];
       // --- jdm-polyrhythm --- voice, tick, alignment and cycle counts (data-poly-*) for tools and the smoke test.
       if (isPoly) {
         const view = engine.getPolyrhythmView();

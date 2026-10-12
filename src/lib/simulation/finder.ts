@@ -66,6 +66,9 @@ import { findEllipseFociRun, type EllipseFociFound } from "./ellipseFociFinder";
 import type { BeatMachineSettings } from "@/lib/physics/beatMachine"; // --- beat-machine ---
 import { findBeatMachineRun, type BeatMachineFound } from "./beatMachineFinder"; // --- beat-machine ---
 import { findFunnelSpinRun, type FunnelSpinFound } from "./funnelSpinFinder"; // --- funnel-spin ---
+import type { BrickRebuildSettings } from "@/lib/physics/brickRebuild"; // --- brick-rebuild ---
+import { resolveBrickRebuildSettings } from "@/lib/physics/modes/brickRebuild"; // --- brick-rebuild ---
+import { findBrickRebuildRun, type BrickRebuildFound } from "./brickRebuildFinder"; // --- brick-rebuild ---
 import { funnelTiming } from "@/lib/physics/funnelSpin"; // --- funnel-spin ---
 
 /**
@@ -255,6 +258,12 @@ export interface ModeSettings {
    * seeded phrases instead (beatMachineFinder.ts).
    */
   beatMachine?: Partial<BeatMachineSettings>;
+  // --- brick-rebuild ---
+  /**
+   * Brick Smash: the grid, the balls, the phases and the variants (see lib/physics/brickRebuild.ts); the defaults when left out.
+   * Its run loops forever, so the finder searches its first smash's outcomes (brickRebuildFinder.ts).
+   */
+  brickRebuild?: Partial<BrickRebuildSettings>;
 }
 
 // --- odd-string-battle ---
@@ -349,6 +358,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "ellipseFoci") return true;
   // --- beat-machine --- the machine loops forever (the finder searches seeded phrases instead)
   if (mode === "beatMachine") return true;
+  // --- brick-rebuild --- it smashes, rebuilds and smashes again forever (its outcomes search the first smash)
+  if (mode === "brickRebuild") return true;
   return false;
 }
 
@@ -510,6 +521,8 @@ export interface FinderResult {
   // --- end land-claim-pyramid ---
   /** --- ring-escape --- Classic: when the first ring was escaped (seconds) in the run found – or in the closest one – when one was. */
   ringAt?: number;
+  /** --- brick-rebuild --- Brick Smash: the first smash's clear, its balls then and its distance from a bar line, and the first cycle. */
+  brickRebuild?: BrickRebuildFound;
 }
 
 /**
@@ -582,6 +595,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "hoops") engine.setHoopsSettings(settings.hoops ?? {}); // --- bead-hoops ---
   if (mode === "ellipseFoci") engine.setEllipseFociSettings(settings.ellipseFoci ?? {}); // --- ellipse-foci ---
   if (mode === "beatMachine") engine.setBeatMachineSettings(settings.beatMachine ?? {}); // --- beat-machine ---
+  if (mode === "brickRebuild") engine.setBrickRebuildSettings(settings.brickRebuild ?? {}); // --- brick-rebuild ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);
@@ -799,6 +813,12 @@ export function findSimulation(
     // --- beat-machine --- every note lands on its beat by construction: the search is over seeded phrases (a plan a seed)
     if (request.mode === "beatMachine") {
       resolve(findBeatMachineRun(request, (seed) => createEngineForSettings(request.physicsConfig, "beatMachine", request.modeSettings, seed).getBeatMachineView().plan));
+      return;
+    }
+    // --- brick-rebuild --- the run loops forever: the search is over its first smash, each seed's stepped across frames
+    if (request.mode === "brickRebuild") {
+      const horizonSec = resolveBrickRebuildSettings(request.modeSettings.brickRebuild).duration + 1;
+      findBrickRebuildRun(request, horizonSec, (seed) => createEngineForSettings(request.physicsConfig, "brickRebuild", request.modeSettings, seed), onProgress, signal, now, schedule).then(resolve);
       return;
     }
     // --- funnel-spin --- a ring run does not depend on the seed: the search fits the wave interval and the friction to the bar lines

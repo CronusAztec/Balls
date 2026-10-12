@@ -115,6 +115,8 @@ import { EF_ENGINE_KEYS, EF_RANGES, defaultEllipseFociFields, ellipseFociModeDef
 import { BM_ENGINE_KEYS, BM_RANGES, beatMachineModeDefaults, defaultBeatMachineFields, readBeatMachineParams, resolveBeatMachineFields, writeBeatMachineParams, type BeatMachineFields } from "@/lib/physics/beatMachine";
 // --- ring-escape --- Classic's Ring Escape: the gap layout, the spiral step, the spin, the rainbow by ring, the time in the ring, the ring sounds
 import { RING_ESCAPE_RANGES, defaultRingEscapeFields, readRingEscapeParams, resolveRingEscapeFields, writeRingEscapeParams, type GapLayout, type RingEscapeFields, type RingSpin } from "@/lib/physics/ringEscape";
+// --- brick-rebuild --- Brick Smash (a picture of bricks smashed by multiplying balls, then rebuilt colour layer by colour layer)
+import { BRICK_REBUILD_ENGINE_KEYS, BRICK_REBUILD_RANGES, brickRebuildModeDefaults, defaultBrickRebuildFields, readBrickRebuildParams, resolveBrickRebuildFields, writeBrickRebuildParams, type BrickRebuildFields } from "@/lib/physics/brickRebuildSettings";
 
 /**
  * Every user-facing simulator setting lives in this one object. The controls panel,
@@ -1227,6 +1229,35 @@ export interface SimulatorSettings {
   /** Plucks per bounce, a rising step per ring escaped, the chord at the way out (URL `resn`). */
   ringSound: boolean;
   // --- end ring-escape ---
+  // --- brick-rebuild --- Brick Smash (lib/physics/brickRebuildSettings.ts; URL br…): the grid (`brC`, `brR`), the wall's share (`brW`),
+  // the start balls and the spawn period (`brB`, `brE`), the balls' speed and size (`brV`, `brS`), the bricks' hits (`brH`), the
+  // smash's limit (`brT`), the settle and the rebuild with its order (`brSt`, `brRb`, `brO`), the picture and its text (`brP`,
+  // `brTx`; an upload stays in the page), the groove (`brD`, `brBd`), the gold capsules (`brCp`, `brCc`, `brSp`), the kaleidoscope
+  // (`brK`, `brKm`, `brHo`) and the outlined balls (`brOl`)
+  brCols: number;
+  brRows: number;
+  brWall: number;
+  brBalls: number;
+  brEvery: number;
+  brSpeed: number;
+  brSize: number;
+  brHp: number;
+  brDuration: number;
+  brSettle: number;
+  brRebuild: number;
+  brOrder: BrickRebuildFields["brOrder"];
+  brPicture: BrickRebuildFields["brPicture"];
+  brText: string;
+  brDrop: number;
+  brBed: boolean;
+  brCapsules: boolean;
+  brCapsuleChance: number;
+  brSplit: number;
+  brSymmetry: number;
+  brSymmetryMode: BrickRebuildFields["brSymmetryMode"];
+  brHole: number;
+  brOutline: boolean;
+  // --- end brick-rebuild ---
 }
 
 export const RESOLUTIONS = ["500x500", "1280x720", "1920x1080", "1080x1920"] as const;
@@ -1239,11 +1270,11 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
   // --- ring-escape --- Classic's Ring Escape fields join the core defaults here, outside the one big literal below: past about
   // 550 properties that literal leaves V8's fast path and every call gets 10–20× slower (links, presets, the finder, the daily
   // deals all build settings), so further fields are better spread in here too.
-  return { ...coreDefaultSettings(mode), ...defaultRingEscapeFields() };
+  return { ...coreDefaultSettings(mode), ...defaultRingEscapeFields(), ...defaultBrickRebuildFields(), ...brickRebuildModeDefaults(mode) }; // --- brick-rebuild --- (its fields, and in Brick Smash only the reference clip's look: the cream page, the loop HUD on)
 }
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */> {
   return {
     mode,
     gravity: 300,
@@ -1472,6 +1503,7 @@ export const RANGES = {
   ...EF_RANGES, // --- ellipse-foci ---
   ...BM_RANGES, // --- beat-machine ---
   ...RING_ESCAPE_RANGES, // --- ring-escape --- (the spiral's step)
+  ...BRICK_REBUILD_RANGES, // --- brick-rebuild ---
 } as const;
 
 /* ------------------------------------------------------------------ URL sharing */
@@ -1731,6 +1763,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeEllipseFociParams(settings, base, params); // --- ellipse-foci ---: efN, efE, efS, efT, efP, efA, efAim, efTr, efF, efO, efR, efK, efPa, efB, efC
   writeBeatMachineParams(settings, base, params); // --- beat-machine ---: bmV, bmBpm, bmSt, bmDx, bmDy, bmB, bmDh, bmRb, bmRt, bmMt, bmSrc, bmN, bmL, bmBs, bmC
   writeRingEscapeParams(settings, base, params); // --- ring-escape ---: regl, ress, resp, rerb, retm, resn
+  writeBrickRebuildParams(settings, base, params); // --- brick-rebuild ---: brC, brR, brW, brB, brE, brV, brS, brH, brT, brSt, brRb, brO, brP, brTx, brD, brBd, brCp, brCc, brSp, brK, brKm, brHo, brOl
   writeBounceMathParams(settings, params); // --- bounce-math ---: bmr, bmh
   writeUnlimitedValues(settings, params); // --- unlimited --- values past their range under their own keys, the rest in `infx`
   return params;
@@ -1903,6 +1936,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readEllipseFociParams(params, settings); // --- ellipse-foci --- (valid numbers from their minimum up, known options, real booleans)
   readBeatMachineParams(params, settings); // --- beat-machine --- (valid numbers from their minimum up, known options, a clean list, real booleans)
   readRingEscapeParams(params, settings); // --- ring-escape --- (known layouts and spins, a step from 0 up, real booleans)
+  readBrickRebuildParams(params, settings); // --- brick-rebuild --- (valid numbers from their minimum up, known options, clean text, real booleans)
   readBounceMathParams(params, settings); // --- bounce-math --- (invalid rules dropped)
   readUnlimitedValues(params, settings); // --- unlimited --- (with `inf=1`: big values unclamped, invalid ones back to the default)
   resolveBounciness(settings, params.get("bnc") !== null); // --- uncap-all --- (an old link's `bounce=1` means 1.03)
@@ -2125,6 +2159,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   hoops: rangeKeys(HOOPS_RANGES), // --- bead-hoops --- (every number of the hoops, the spin and the beads is physics)
   ellipseFoci: [...EF_ENGINE_KEYS], // --- ellipse-foci --- (the volley, the pool and the timing; the trail is the canvas')
   beatMachine: [...BM_ENGINE_KEYS], // --- beat-machine --- (every number of the machine is the plan's)
+  brickRebuild: [...BRICK_REBUILD_ENGINE_KEYS], // --- brick-rebuild --- (the grid, the balls, the phases and the variants; the picture is the canvas')
 };
 // --- gerald-exit-splat --- the moving exits' numbers are read by the engines of the ring modes with one exit a ring, the splat
 // barrier's by the ring modes that splat (no other mode reads either: a value past its slider there engages nothing)
@@ -2375,6 +2410,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveEllipseFociFields(merged)); // --- ellipse-foci --- valid numbers from their minimum up, known options, real booleans
   Object.assign(merged, resolveBeatMachineFields(merged)); // --- beat-machine --- valid numbers from their minimum up, known options, a clean list, real booleans
   Object.assign(merged, resolveRingEscapeFields(merged)); // --- ring-escape --- known layouts and spins, a step from 0 up, real booleans
+  Object.assign(merged, resolveBrickRebuildFields(merged)); // --- brick-rebuild --- valid numbers from their minimum up, known options, clean text, real booleans
   Object.assign(merged, resolveBounceMathFields(merged)); // --- bounce-math --- invalid rules dropped, a real boolean
   restoreUnlimitedPreset(preset, merged); // --- unlimited --- (switch on: stored big values kept, invalid ones back to the default)
   resolveBounciness(merged, typeof preset.bounciness === "number"); // --- uncap-all --- (a preset from before it: its Bouncier switch)
