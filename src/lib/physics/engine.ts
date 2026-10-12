@@ -75,6 +75,8 @@ import { EllipseFociMode, type EllipseFociView } from "./modes/ellipseFoci"; // 
 import type { EllipseFociSettings } from "./ellipseFoci"; // --- ellipse-foci ---
 import { BeatMachineMode, type BeatMachineView } from "./modes/beatMachine"; // --- beat-machine ---
 import type { BeatMachineSettings } from "./beatMachine"; // --- beat-machine ---
+import { WaveTankMode, type WaveTankView } from "./modes/waveTank"; // --- wave-tank ---
+import type { WaveTankSettings } from "./waveTank"; // --- wave-tank ---
 import { advanceObstacles, hasSpinningObstacles, resolveBallObstacle, type Obstacle } from "./obstacles";
 import { SpatialHash, createPairBuffer } from "./spatialHash"; // --- gerald-multipliers --- the ball pass of big multiplier runs
 import { PAIR_STEP_BUDGET, beginPairStep } from "./spatialHash"; // --- uncap-all ---
@@ -329,6 +331,8 @@ export class PhysicsEngine {
   readonly ellipseFociMode = new EllipseFociMode();
   // --- beat-machine --- Beat Machines: marbles dropped onto tuned bars on the beat, or a ball hopping down a musical staircase
   readonly beatMachineMode = new BeatMachineMode();
+  // --- wave-tank --- Wave Tank: a ripple tank's crests through 1, 2 or 7 gaps, a row of bells along its front
+  readonly waveTankMode = new WaveTankMode();
   // --- video-beats --- On beat: the ring modes' flights retimed so the wall hits land on the beat grid (onBeat.ts)
   private readonly onBeat = new OnBeatController();
   private onBeatWorld: OnBeatWorld | null = null;
@@ -742,6 +746,10 @@ export class PhysicsEngine {
   initBeatMachine() {
     this.activateMode(this.beatMachineMode, "none");
   }
+  // --- wave-tank --- the mode owns its tank (no rings; its one ball a pinned placeholder)
+  initWaveTank() {
+    this.activateMode(this.waveTankMode, "none");
+  }
 
   /** Convenience: (re)start the simulation for a mode id. */
   initMode(mode: ModeId) {
@@ -854,6 +862,9 @@ export class PhysicsEngine {
       // --- beat-machine ---
       case "beatMachine":
         return this.initBeatMachine();
+      // --- wave-tank ---
+      case "waveTank":
+        return this.initWaveTank();
     }
   }
 
@@ -1993,6 +2004,33 @@ export class PhysicsEngine {
     return this.currentMode === this.beatMachineMode ? this.beatMachineMode.hudCount() : null;
   }
   // --- end beat-machine ---
+  // --- wave-tank ---
+  isWaveTankMode() {
+    return this.currentMode === this.waveTankMode;
+  }
+  getWaveTankSettings(): WaveTankSettings {
+    return this.waveTankMode.getSettings();
+  }
+  /** The water, the sections and the grid apply on the next `initWaveTank()`; the bells, the scan, the ridges, the tilt, the bass and the label at once. */
+  setWaveTankSettings(settings: Partial<WaveTankSettings>) {
+    this.waveTankMode.setSettings(settings);
+  }
+  /** Live Wave Tank state (the ridges, the bells, the section) for the canvas; the same object every call. */
+  getWaveTankView(): WaveTankView {
+    return this.waveTankMode.getView();
+  }
+  getWaveTankProgress() {
+    return this.waveTankMode.getProgress();
+  }
+  /** The loop HUD's label in Wave Tank: the section's gaps (null in another mode or with the label off). */
+  getWaveTankHudCount(): number | null {
+    return this.currentMode === this.waveTankMode ? this.waveTankMode.hudCount() : null;
+  }
+  /** The run joined a live audio graph again (resumed): the section root is sent with the next step. */
+  refreshWaveTankRoot() {
+    if (this.currentMode === this.waveTankMode) this.waveTankMode.refreshRoot();
+  }
+  // --- end wave-tank ---
   /** Pegs, bars and straight walls in play (see obstacles.ts); the canvas draws them in the wall colour. */
   getObstacles() {
     return this.obstacles;

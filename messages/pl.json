@@ -2361,7 +2361,8 @@
     "ringTimer": "Czas w pierścieniu",
     "ringTimerTip": "Pokazuje pod pierścieniami „pierścień k: t s”: jak długo piłka jest w obecnym pierścieniu, a po wydostaniu się „na zewnątrz po t s”. Nagrania to zawierają.",
     "ringSound": "Dźwięki pierścieni",
-    "ringSoundTip": "Oryginalne, syntezowane dźwięki: miękkie pentatoniczne szarpnięcie przy każdym odbiciu, o wysokości zależnej od pierścienia (zewnętrzne nisko, wewnętrzne wysoko), rosnący dźwięk za każdy pokonany pierścień i ciepły akord, gdy piłka jest na zewnątrz."
+    "ringSoundTip": "Oryginalne, syntezowane dźwięki: miękkie pentatoniczne szarpnięcie przy każdym odbiciu, o wysokości zależnej od pierścienia (zewnętrzne nisko, wewnętrzne wysoko), rosnący dźwięk za każdy pokonany pierścień i ciepły akord, gdy piłka jest na zewnątrz.",
+    "modeWaveTank": "Basen falowy"
   },
   "Modes": {
     "previewAlt": "Podgląd trybu {name}",
@@ -2528,6 +2529,10 @@
     "beatMachine": {
       "name": "Maszyny rytmu",
       "description": "Muzyczne maszyny, w których każda nuta to kulka lądująca dokładnie w rytm: kulkowy ksylofon zasilany rurkami i windą albo jedna kulka skacząca po ośmiostopniowych muzycznych schodach."
+    },
+    "waveTank": {
+      "name": "Basen falowy",
+      "description": "Basen falowy w perspektywie: proste fale przeciskają się przez 1, 2, a potem 7 szczelin, rozchodzą się wachlarzem, krzyżują w prążki i odchodzą wąskimi wiązkami, a rząd dzwonków z przodu gra to, co dzieje się w wodzie."
     }
   },
   "FAQ": {
@@ -2652,7 +2657,8 @@
     "modeHoops": "Bez pierścieni: 1–16 współśrodkowych obręczy (domyślnie osiem, czerwona na zewnątrz, fioletowa w środku) wiruje razem wokół pionowej średnicy, rysowanych na wprost i spłaszczanych przez obrót, więc wyglądają trójwymiarowo, a na każdej jeden koralik ślizga się bez tarcia. Obroty rosną – równo, łagodnie albo schodkami – a każda obręcz ma prędkość krytyczną √(g/R): poniżej niej grawitacja trzyma koralik na dnie, powyżej koralik wspina się do punktu równowagi arccos(g/(Rω²)), tym wyżej, im szybsze obroty. Większe obręcze unoszą koraliki pierwsze, więc koraliki wspinają się ściśle według rozmiaru, a każde uniesienie to nuta strojonej sztabki o wysokości zależnej od obręczy; dzwonek dźwięczy co obrót, akord pada, gdy wszystkie są w górze, a licznik pokazuje obroty i uniesione koraliki. Z włączonym powrotem obroty zwalniają, aż każdy koralik znów spocznie, a pętla zaczyna się płynnie od nowa – gotowa na eksport całych pętli; Znajdź symulację szuka przebiegu ściśle według rozmiaru albo takiego, w którym wszystkie koraliki są w górze przed wybranym czasem.",
     "modeColourSort": "Maszyna sortująca: 360 kulek w czterech kolorach startuje stłoczonych w czerwonym środku tarczy z obracających się pierścieni i porusza się jak gaz o stałej prędkości. Każdy pierścień to rząd łuków z bramkami pomiędzy nimi, a bramka to jednokierunkowy filtr kolorów: otwiera się tylko na zewnątrz i nigdy dla kulek w kolorze pierścienia. Czerwone nigdy więc nie opuszczą środka, pomarańczowe miną czerwony pierścień, ale zatrzymają się na swoim, zielone dotrą o pierścień dalej, a niebieskie aż do zewnętrznego pasa – mieszanka sama układa się w tarczę, a bursztynowy licznik wspina się do 360 / 360 posortowanych z długą, trzymającą w napięciu końcówką. Każde przejście przez bramkę szarpie nutę swojego koloru w pentatonice A-dur, ostatnia posortowana kulka wywołuje ciepły akord zakończenia, a remiks ściąga wszystkie kulki z powrotem do dokładnie pierwszej klatki pod miękkim szumem, więc nagranie pełnych cykli zapętla się bez szwu. Wybierz kolory i liczbę kulek każdego z nich, bramki i ich szerokość, obrót pierścieni, regułę (albo ją odwróć), zderzenia albo gaz-widmo dla tysięcy kulek – a Znajdź symulację wyszuka sortowanie w limicie czasu, kolor, który skończy ostatni, albo ostatnią kulkę na kresce taktowej.",
     "modeEllipseFoci": "Eliptyczny stół bilardowy z dwoma zaznaczonymi ogniskami. Salwa piłek – domyślnie 72, pokolorowanych kołem barw według kąta wystrzału – wylatuje z jednego ogniska w tej samej chwili, we wszystkie strony. Elipsa kieruje każdy strzał z jednego ogniska po odbiciu od ściany prosto przez drugie, a każda taka droga ma tę samą długość, więc cała salwa zbiega się w drugim ognisku jedno przejście później, potem z powrotem w pierwszym, za każdym razem z białym rozbłyskiem, a każde przejście zwęża rój ku długiej osi. Ponowny strzał wypuszcza nową salwę pod błyskiem co kilka przejść, więc klip zapętla się bez szwu; odbicia od ściany schodzą po pentatonicznej drabinie, każda zbieżność ląduje na kresce taktowej ze stopą, trzaskiem i akordem, a Znajdź symulację ustawia zbieżności w rytm strony albo znajduje kąt startowy najdłuższego zapadania.",
-    "modeBeatMachine": "Dwie kinetyczne maszyny muzyczne, które zapętlają się bez końca. W kulkowym ksylofonie dziesięć tęczowych sztabek stoi pod dziesięcioma rurkami: każda kulka wypada ze swojej rurki dokładnie w chwili, w której grawitacja doniesie ją na sztabkę w rytm, odbija się przez szczelinę na podłogę, toczy się do windy, wjeżdża na górę i wraca górną szyną do swojej rurki. Na schodach jedna kulka skacze ze stopnia na stopień, jednym identycznym łukiem na każde uderzenie, a każde lądowanie to nuta; potem wpada do haczyka i torem powrotnym wraca na górę akurat na kolejną frazę. Melodia to oryginalna fraza z ziarna, gama, wpisana lista albo wczytana melodia."
+    "modeBeatMachine": "Dwie kinetyczne maszyny muzyczne, które zapętlają się bez końca. W kulkowym ksylofonie dziesięć tęczowych sztabek stoi pod dziesięcioma rurkami: każda kulka wypada ze swojej rurki dokładnie w chwili, w której grawitacja doniesie ją na sztabkę w rytm, odbija się przez szczelinę na podłogę, toczy się do windy, wjeżdża na górę i wraca górną szyną do swojej rurki. Na schodach jedna kulka skacze ze stopnia na stopień, jednym identycznym łukiem na każde uderzenie, a każde lądowanie to nuta; potem wpada do haczyka i torem powrotnym wraca na górę akurat na kolejną frazę. Melodia to oryginalna fraza z ziarna, gama, wpisana lista albo wczytana melodia.",
+    "modeWaveTank": "Basen falowy narysowany czterdziestoma liniami grzbietów, jak stary wykres pulsara. Generator fal z tyłu wysyła proste grzbiety na łupkową przegrodę. Przy jednej szczelinie woda rozchodzi się wachlarzem; przy dwóch wachlarze nakładają się i tam, gdzie grzbiet trafia na dolinę, powstają nieruchome prążki; przy siedmiu fale wzmacniają się tylko w kilku kierunkach i woda odchodzi wąskimi wiązkami – z tego samego powodu płyta CD rozszczepia światło na kolory. Jedenaście dzwonków z przodu dzwoni po kolei, każdy tak głośno, jak mocno faluje pod nim woda, więc słychać, gdzie trafiają wiązki. Pętla trwa 30 sekund i kończy się pierwszą klatką."
   },
   "Footer": {
     "navLabel": "Stopka",
@@ -5190,7 +5196,11 @@
     "beatMachineStairs": "{count} stopni. {count} nut. jedna fraza",
     "beatMachineStairsFact": "Każdy skok to ten sam łuk i trwa dokładnie jedno uderzenie: grawitację i prędkość wybicia wylicza się z tempa, wysokości stopnia i wysokości łuku. Po ostatnim stopniu kulka wraca torem na górę i ląduje na pierwszym stopniu dokładnie wtedy, gdy zaczyna się kolejna fraza.",
     "funnelSpin": "patrz, jak pierścień {count} kulek rozkręca się, opadając",
-    "funnelSpinFact": "Kulka tocząca się po lejku zachowuje prawie cały swój obrót, a tarcie odbiera jej energię i pozwala opadać. Ten sam obrót na ciaśniejszym kole to szybsze okrążenie – dlatego łyżwiarka kręci się szybciej, gdy przyciąga ramiona – więc każdy pierścień okrąża dno mniej więcej jedenaście razy szybciej niż krawędź."
+    "funnelSpinFact": "Kulka tocząca się po lejku zachowuje prawie cały swój obrót, a tarcie odbiera jej energię i pozwala opadać. Ten sam obrót na ciaśniejszym kole to szybsze okrążenie – dlatego łyżwiarka kręci się szybciej, gdy przyciąga ramiona – więc każdy pierścień okrąża dno mniej więcej jedenaście razy szybciej niż krawędź.",
+    "waveTank": "podwójna szczelina w wodzie",
+    "waveTankFact": "Jedna szczelina zamienia prostą falę w wachlarz. Dwie szczeliny dają dwa wachlarze, które się nakładają: gdzie grzbiety się spotykają, woda rośnie, gdzie grzbiet trafia na dolinę, wygładza się, i przez basen biegną ciche prążki. Siedem szczelin zgadza się tylko w kilku kierunkach, więc woda odchodzi wąskimi wiązkami – tak drobne rowki płyty CD rozszczepiają światło na kolory. Thomas Young zobaczył takie prążki w świetle słonecznym w 1803 roku i pomogły one pokazać, że światło jest falą. Dzwonki z przodu grają wodę pod sobą: wiązki dzwonią, prążki milczą.",
+    "waveTankPoints": "dwa źródła, jeden staw",
+    "waveTankPointsFact": "Dwa źródła kołyszące się w tym samym rytmie wysyłają kręgi, które się krzyżują. Gdzie grzbiet jednego trafia na dolinę drugiego, woda stoi płasko, wzdłuż zakrzywionych cichych linii; pomiędzy nimi faluje dwa razy wyżej. Dzwonki z przodu milkną tam, gdzie dochodzi do nich cicha linia."
   },
   "ColourSort": {
     "canvasTitle": "każdy pierścień zatrzymuje tylko swój kolor",
@@ -5317,5 +5327,64 @@
   "RingEscape": {
     "hudRing": "pierścień {ring}: {time} s",
     "hudOut": "na zewnątrz po {time} s"
+  },
+  "WaveTank": {
+    "canvasTitle": "podwójna szczelina w wodzie",
+    "canvasSubtitle": "każda szczelina wysyła własne fale / grzbiet z grzbietem rośnie, grzbiet z doliną cichnie",
+    "canvasTitlePoints": "fale, które się krzyżują",
+    "canvasSubtitlePoints": "każde źródło wysyła kręgi fal / gdzie grzbiet spotyka dolinę, woda stoi",
+    "sectionOne": "{count} szczelina",
+    "sectionMany": "{count, plural, one {{count} szczelina} few {{count} szczeliny} many {{count} szczelin} other {{count} szczeliny}}",
+    "sectionSources": "{count, plural, one {{count} źródło} few {{count} źródła} many {{count} źródeł} other {{count} źródła}}",
+    "desc": "Basen falowy widziany od przodu: generator fal z tyłu wysyła proste grzbiety na przegrodę z 1, 2 albo 7 szczelinami. Fale ze szczelin rozchodzą się, nakładają w prążki albo odchodzą wąskimi wiązkami, a rząd dzwonków z przodu dzwoni tak głośno, jak mocno faluje pod nim woda.",
+    "wtPreset": "Gotowe ustawienie",
+    "wtPresetTip": "Gotowe baseny: podwójna szczelina (1, 2, potem 7 szczelin w 30-sekundowej pętli), jedna szczelina coraz szersza, siatka 15 szczelin, dwa źródła bez przegrody i dywan Talbota drobnej siatki.",
+    "presetDoubleSlit": "Podwójna szczelina",
+    "presetWidthSweep": "Coraz szersza szczelina",
+    "presetGrating15": "Siatka 15",
+    "presetTwoSources": "Dwa źródła",
+    "presetTalbot": "Dywan Talbota",
+    "wtModel": "Model wody",
+    "wtModelTip": "Siatka: równanie falowe liczone na siatce komórek, aż do samych szczelin. Suma Huygensa: każda szczelina jako rząd drobnych źródeł, których fale się sumują – lżejsza i dokładna z dala od szczelin.",
+    "modelGrid": "Siatka",
+    "modelHuygens": "Suma Huygensa",
+    "wtSource": "Źródło",
+    "wtSourceTip": "Generator fal: listwa z tyłu wysyła proste grzbiety na przegrodę. Źródła punktowe: bez przegrody – w miejscu każdej szczeliny kołysze się małe źródło.",
+    "sourceLine": "Generator + przegroda",
+    "sourcePoints": "Źródła punktowe",
+    "wtGaps": "Szczeliny w sekcjach",
+    "wtGapsTip": "Liczby szczelin w przegrodzie po kolei, jedna sekcja na liczbę, np. 1, 2, 7. Własną długość sekcji podasz po @: 1@11, 2@9, 7@10. Pętla to wszystkie sekcje razem.",
+    "loopNote": "Pętla: {loop} s · sekcje {sections} · etykieta zmienia się w {changes} s",
+    "wtSection": "Długość sekcji",
+    "wtSectionTip": "Ile sekund trwa sekcja, gdy jej wpis nie podaje własnej długości.",
+    "wtWrap": "Zawinięcie",
+    "wtWrapTip": "Sekundy pierwszej sekcji przeniesione na koniec pętli, tak że trwa ona przez punkt pętli (klip zaczyna się w środku sekcji i kończy tym samym obrazem).",
+    "wtWidth": "Szerokość szczeliny",
+    "wtWidthTip": "Szerokość każdej szczeliny w długościach fali. Wąska szczelina rozchodzi się szerokim wachlarzem, szeroka przepuszcza prostą wiązkę.",
+    "wtWidthEnd": "Poszerz do",
+    "wtWidthEndTip": "Szczeliny rosną od szerokości szczeliny w pierwszej sekcji do tej szerokości w ostatniej (0 – każda sekcja taka sama).",
+    "widthEndOff": "wył.",
+    "wtSpacing": "Rozstaw szczelin",
+    "wtSpacingTip": "Odległość między środkami sąsiednich szczelin w długościach fali. Większy rozstaw zagęszcza prążki.",
+    "wtWavelength": "Długość fali",
+    "wtWavelengthTip": "Długość jednej fali jako część szerokości basenu. Częstotliwość źródła jest zaokrąglana tak, by w pętli mieściła się całkowita liczba fal.",
+    "wtSpeed": "Prędkość fal",
+    "wtSpeedTip": "Jak szybko biegną grzbiety (1 = 0,3 szerokości basenu na sekundę).",
+    "wtDamping": "Tłumienie",
+    "wtDampingTip": "Jak mocno woda wycisza fale w biegu (0 – wcale).",
+    "wtCols": "Kolumny siatki",
+    "wtColsTip": "Liczba komórek w poprzek basenu (wierszy jest w proporcji 4 : 3). Więcej komórek to drobniejszy obraz i więcej obliczeń; siatka ponad ok. 4 mln komórek zostaje zmniejszona.",
+    "wtBells": "Dzwonki",
+    "wtBellsTip": "Dzwonki wzdłuż przedniej krawędzi, od niskiego z lewej do wysokiego z prawej. Każdy dzwoni tak głośno, jak mocno faluje pod nim woda.",
+    "wtScanRate": "Tempo skanowania",
+    "wtScanRateTip": "Uderzenia na sekundę, gdy kursor biegnie tam i z powrotem wzdłuż dzwonków.",
+    "wtRidges": "Linie grzbietów",
+    "wtRidgesTip": "Iloma liniami rysowana jest woda, od tyłu do przodu.",
+    "wtTilt": "Nachylenie",
+    "wtTiltTip": "Jak stromo kamera patrzy w dół na basen (0° – z boku).",
+    "wtBass": "Bas podstawy",
+    "wtBassTip": "Cichy bas pod dzwonkami, który zmienia się z każdą sekcją.",
+    "wtLabel": "Etykieta sekcji",
+    "wtLabelTip": "Pokazuje pod basenem liczbę szczelin bieżącej sekcji (włącza nakładkę pętli)."
   }
 }

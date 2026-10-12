@@ -98,7 +98,7 @@ describe("the loop contract: whole cycles", () => {
       expect(engine.getLoopSeams()).toBeNull();
       expect(engine.getCycleSeconds()).toBeNull();
     }
-    for (const mode of MODE_IDS) if (mode !== "grow" && mode !== "starChords" /* --- chord-stars --- (it loops from its start: tests/starChords.test.ts) */ && mode !== "hoops" /* --- bead-hoops --- (it loops by default: below) */ && mode !== "ellipseFoci" /* --- ellipse-foci --- (a refire run loops from its start: below) */ && mode !== "colourSort" /* --- colour-sort --- (it always loops: tests/colourSort.test.ts checks its seams) */ && mode !== "beatMachine" /* --- beat-machine --- (it always loops: below) */) expect([mode, createEngineForSettings(config, mode, modeSettings, 3).getLoopSeams()]).toEqual([mode, null]);
+    for (const mode of MODE_IDS) if (mode !== "grow" && mode !== "starChords" /* --- chord-stars --- (it loops from its start: tests/starChords.test.ts) */ && mode !== "hoops" /* --- bead-hoops --- (it loops by default: below) */ && mode !== "ellipseFoci" /* --- ellipse-foci --- (a refire run loops from its start: below) */ && mode !== "colourSort" /* --- colour-sort --- (it always loops: tests/colourSort.test.ts checks its seams) */ && mode !== "beatMachine" /* --- beat-machine --- (it always loops: below) */ && mode !== "waveTank" /* --- wave-tank --- (it always loops: below) */) expect([mode, createEngineForSettings(config, mode, modeSettings, 3).getLoopSeams()]).toEqual([mode, null]);
     // --- bead-hoops --- Spinning Hoops loops by default (its return ramp: a seamless cycle of whole turns); without the return it
     // reports no seams, like every mode that does not loop
     expect(createEngineForSettings(config, "hoops", modeSettings, 3).getLoopSeams()).toMatchObject({ count: 0, lastMs: -1 });
@@ -109,13 +109,15 @@ describe("the loop contract: whole cycles", () => {
     // --- beat-machine --- the marble xylophone loops every 32 beats at 100 BPM, the staircase every (8 + 4) beats at 80 BPM
     expect(createEngineForSettings(config, "beatMachine", modeSettings, 3).getLoopSeams()).toMatchObject({ count: 0, lastMs: -1, nextMs: 19200 });
     expect(createEngineForSettings(config, "beatMachine", { ...modeSettings, beatMachine: { variant: "stairs", bpm: 80 } }, 3).getCycleSeconds()).toBeCloseTo(9, 9);
+    // --- wave-tank --- the ripple tank loops through its sections: 1, 2 and 7 gaps of 10 s each
+    expect(createEngineForSettings(config, "waveTank", { ...modeSettings, waveTank: { model: "huygens" } }, 3).getLoopSeams()).toMatchObject({ count: 0, lastMs: -1, nextMs: 30000 });
   });
 });
 
 describe("the loop settings: Export whole loops and the loop HUD", () => {
   it("defaults to whole loops on and the HUD off, and round-trips through links and presets", () => {
     expect(DEFAULT_LOOP_FIELDS).toEqual({ exportWholeLoops: true, loopHud: false, loopHudTitle: "", loopHudSubtitle: "" });
-    for (const mode of MODE_IDS) expect(defaultSettings(mode)).toMatchObject(mode === "starChords" || mode === "ellipseFoci" /* --- ellipse-foci --- */ || mode === "beatMachine" /* --- beat-machine --- */ || mode === "colourSort" /* --- colour-sort --- (its counter is the mode: its own defaults turn the HUD on) */ ? { ...DEFAULT_LOOP_FIELDS, loopHud: true } : DEFAULT_LOOP_FIELDS); // --- chord-stars --- (its look starts with the HUD on)
+    for (const mode of MODE_IDS) expect(defaultSettings(mode)).toMatchObject(mode === "starChords" || mode === "ellipseFoci" /* --- ellipse-foci --- */ || mode === "beatMachine" /* --- beat-machine --- */ || mode === "waveTank" /* --- wave-tank --- */ || mode === "colourSort" /* --- colour-sort --- (its counter is the mode: its own defaults turn the HUD on) */ ? { ...DEFAULT_LOOP_FIELDS, loopHud: true } : DEFAULT_LOOP_FIELDS); // --- chord-stars --- (its look starts with the HUD on)
     const s = { ...defaultSettings("grow"), exportWholeLoops: false, loopHud: true, loopHudTitle: "Every bounce, bigger", loopHudSubtitle: "watch the end" };
     const params = settingsToSearchParams(s);
     expect([params.get("wl"), params.get("lh"), params.get("lht"), params.get("lhs")]).toEqual(["0", "1", "Every bounce, bigger", "watch the end"]);

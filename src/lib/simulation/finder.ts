@@ -65,6 +65,7 @@ import type { EllipseFociSettings } from "@/lib/physics/ellipseFoci"; // --- ell
 import { findEllipseFociRun, type EllipseFociFound } from "./ellipseFociFinder"; // --- ellipse-foci ---
 import type { BeatMachineSettings } from "@/lib/physics/beatMachine"; // --- beat-machine ---
 import { findBeatMachineRun, type BeatMachineFound } from "./beatMachineFinder"; // --- beat-machine ---
+import type { WaveTankSettings } from "@/lib/physics/waveTank"; // --- wave-tank ---
 import { findFunnelSpinRun, type FunnelSpinFound } from "./funnelSpinFinder"; // --- funnel-spin ---
 import { funnelTiming } from "@/lib/physics/funnelSpin"; // --- funnel-spin ---
 
@@ -255,6 +256,12 @@ export interface ModeSettings {
    * seeded phrases instead (beatMachineFinder.ts).
    */
   beatMachine?: Partial<BeatMachineSettings>;
+  // --- wave-tank ---
+  /**
+   * Wave Tank: the water, the sections and the bells (see lib/physics/waveTank.ts); the defaults when left out. The tank loops
+   * forever and has no randomness at all, so there is nothing to search: the fast export and the batch render build it here.
+   */
+  waveTank?: Partial<WaveTankSettings>;
 }
 
 // --- odd-string-battle ---
@@ -349,6 +356,8 @@ export function runNeverFinishes(mode: ModeId, settings: Pick<ModeSettings, "dro
   if (mode === "ellipseFoci") return true;
   // --- beat-machine --- the machine loops forever (the finder searches seeded phrases instead)
   if (mode === "beatMachine") return true;
+  // --- wave-tank --- the tank loops forever and every seed is the same run (no randomness): nothing to search
+  if (mode === "waveTank") return true;
   return false;
 }
 
@@ -582,6 +591,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "hoops") engine.setHoopsSettings(settings.hoops ?? {}); // --- bead-hoops ---
   if (mode === "ellipseFoci") engine.setEllipseFociSettings(settings.ellipseFoci ?? {}); // --- ellipse-foci ---
   if (mode === "beatMachine") engine.setBeatMachineSettings(settings.beatMachine ?? {}); // --- beat-machine ---
+  if (mode === "waveTank") engine.setWaveTankSettings(settings.waveTank ?? {}); // --- wave-tank ---
   if (settings.onBeat) engine.setOnBeat(settings.onBeat); // --- video-beats ---
   engine.setCinematicEnabled(settings.cinematicEnabled ?? true); // --- review fix (modes-rhythm) --- (as the page's initEngineForMode)
   engine.setSeed(seed);

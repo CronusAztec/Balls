@@ -8,6 +8,7 @@ import { drawBoxArena, drawBoxCornerFlash, drawBoxShapes, type BoxRenderOptions 
 import { drawPendulumBobs, drawPendulumChordFlash, drawPendulumRig, drawPendulumTrails, type PendulumRenderOptions } from "./pendulumRenderer";
 import { ELLIPSE_FOCI_DATA_KEYS, EllipseFociLayer, ellipseFociExtentPx, writeEllipseFociDataset, type EllipseFociRenderOptions } from "./ellipseFociRenderer"; // --- ellipse-foci ---
 import { BEAT_MACHINE_DATA_KEYS, BeatMachineLayer, beatMachineExtentPx, writeBeatMachineDataset, type BeatMachineRenderOptions } from "./beatMachineRenderer"; // --- beat-machine ---
+import { WAVE_TANK_DATA_KEYS, WaveTankLayer, waveTankExtentPx, writeWaveTankDataset, type WaveTankRenderOptions } from "./waveTankRenderer"; // --- wave-tank ---
 // --- jdm-polyrhythm ---
 import { drawPolyrhythmAlignFlash, drawPolyrhythmStage, drawPolyrhythmVoices, type PolyrhythmRenderOptions } from "./polyrhythmRenderer";
 import { inLinePercent } from "@/lib/physics/phaseSpiral"; // --- phase-spiral ---
@@ -875,6 +876,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     // --- beat-machine --- Beat Machines' layer and its per-frame options
     const machineLayer = new BeatMachineLayer();
     const machineRender: BeatMachineRenderOptions = { dpr: scale, showGlow: false };
+    // --- wave-tank --- Wave Tank's layer (the ridges' buffers) and its per-frame options
+    const waveLayer = new WaveTankLayer();
+    const waveRender: WaveTankRenderOptions = { dpr: scale, showGlow: false, background: "#070b17" };
     // --- gerald-faces --- ball characters (faces, name label, squash); the Box / Pendulum / Polyrhythm / Collide bodies get faces through drawOverlays()
     const faces = new FaceLayer();
     facesRef.current = faces;
@@ -1621,6 +1625,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         machineRender.showGlow = p.showGlow;
         machineLayer.drawStage(ctx, machineView, machineT, machineRender);
       }
+      // --- wave-tank --- Wave Tank: the ridge lines back to front with the barrier among them, the wave-maker and the bells
+      const waveView = engine.isWaveTankMode() ? engine.getWaveTankView() : null;
+      if (waveView) {
+        waveRender.dpr = scale;
+        waveRender.showGlow = p.showGlow;
+        waveRender.background = p.backgroundColor;
+        waveLayer.drawStage(ctx, waveView, engine.getElapsedMs() / 1000, waveRender);
+      }
 
       // --- jdm-polyrhythm --- Metronomes & Polyrhythms: the stage (rings / polygons, chords, semicircles, metronome bodies, spiral).
       const isPoly = engine.isPolyrhythmMode();
@@ -2276,6 +2288,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       else if (starView) starLayer.drawBodies(ctx, starView, starRender); // --- chord-stars --- the balls with their glow
       else if (efView) efLayer.drawBodies(ctx, efView, efRender); // --- ellipse-foci --- the volley by hue, the convergence bloom
       else if (machineView) machineLayer.drawBodies(ctx, machineView, machineT, machineRender); // --- beat-machine --- the stairs' ball and its trail, or the glossy marbles
+      else if (waveView) { /* --- wave-tank --- the tank is the stage: its placeholder ball is not drawn */ }
       else if (vortexView && vortexLayer.drawsBodies(vortexView)) vortexLayer.drawBodies(ctx, vortexView, vortexRender); // --- funnel-spin --- the perspective's glossy marbles, far to near, under the front lip (--- review fix (funnel-spin) --- and the ring release's from above: a hue a marble outruns the sprite cache below)
       else if (isPoly) drawPolyrhythmVoices(ctx, engine.getPolyrhythmView(), polyRender); // --- jdm-polyrhythm ---
       // --- jdm-collisions --- Collision Playground: hundreds of orbs (or lollipops) batched by colour.
@@ -3100,7 +3113,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       loopHudLive.bottom = Infinity;
       loopHudLiveText = "";
       if (hudSpec && !recordingRef.current) {
-        const ring = machineView ? beatMachineExtentPx(machineView) /* --- beat-machine --- (the machine's box) */ : efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : vortexView && vortexView.funnel.view === "perspective" ? funnelExtentPx(vortexView) /* --- funnel-spin --- (the perspective's whole funnel) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
+        const ring = waveView ? waveTankExtentPx(waveView) /* --- wave-tank --- (the tank, its crests and its bells) */ : machineView ? beatMachineExtentPx(machineView) /* --- beat-machine --- (the machine's box) */ : efView ? ellipseFociExtentPx(efView) /* --- ellipse-foci --- (the pool and its rim) */ : vortexView && vortexView.funnel.view === "perspective" ? funnelExtentPx(vortexView) /* --- funnel-spin --- (the perspective's whole funnel) */ : hoopsView ? hoopsExtentPx(hoopsView) /* --- bead-hoops --- (the hoops, the axis' tip and the pivot) */ : (engine.getCircularWalls()[0]?.radius ?? (starView ? starView.field.radius /* --- chord-stars --- (its own circle) */ : arena));
         const liveTop = (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0;
         const hudFrame = loopHudFrame(hudSpec, loopHudCount(engine));
         const hudLayout = loopHudLiveLayout(size.width, size.height, cy, Math.min(ring, Math.min(size.width, size.height) / 2), liveTop);
@@ -3253,6 +3266,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- beat-machine --- Beat Machines: notes, sounds, seams and the seam check, marbles in flight, spares (data-bm-*)
       if (machineView) writeBeatMachineDataset(machineView, machineLayer, setCanvasData);
       else if (canvas.dataset.bmVariant !== undefined) for (const key of BEAT_MACHINE_DATA_KEYS) delete canvas.dataset[key];
+      // --- wave-tank --- Wave Tank: the section and its changes, the seam check, the bells' levels and strikes, NaN guard (data-wt-*)
+      if (waveView) writeWaveTankDataset(waveView, waveLayer, setCanvasData);
+      else if (canvas.dataset.wtModel !== undefined) for (const key of WAVE_TANK_DATA_KEYS) delete canvas.dataset[key];
       // --- jdm-polyrhythm --- voice, tick, alignment and cycle counts (data-poly-*) for tools and the smoke test.
       if (isPoly) {
         const view = engine.getPolyrhythmView();

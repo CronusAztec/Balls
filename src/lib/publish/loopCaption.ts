@@ -22,6 +22,7 @@ export const LOOP_CAPTION_TOPIC_TAGS: Readonly<Partial<Record<ModeId, readonly s
   polyrhythm: ["#math", "#polyrhythm", "#creativecoding"], // --- phase-spiral ---
   ellipseFoci: ["#math", "#geometry", "#creativecoding"], // --- ellipse-foci ---
   beatMachine: ["#marbles", "#animation", "#creativecoding"], // --- beat-machine ---
+  waveTank: ["#physics", "#waves", "#creativecoding"], // --- wave-tank ---
   vortex: ["#simulation", "#physics", "#marbles"], // --- funnel-spin --- (the funnel clip's own tags: no #creativecoding)
 };
 /** Any other mode's topic tags. */
@@ -140,6 +141,12 @@ export function loopCaptionContext(s: { mode: ModeId; growLaw?: string; growStep
     const stairs = bm.bmVariant === "stairs";
     const n = stairs ? bm.bmSteps : bm.bmBars;
     return { mode: s.mode, hookKey: stairs ? "beatMachineStairs" : "beatMachineMarbles", factKey: stairs ? "beatMachineStairsFact" : "beatMachineMarblesFact", count: typeof n === "number" && Number.isFinite(n) ? n : null };
+  }
+  // --- wave-tank --- the ripple tank by its largest grating ("the double slit, in water", led by nothing: the reel's own hook is
+  // wordless) and Young's fact; two point sources their own words
+  if (s.mode === "waveTank") {
+    const points = (s as { wtSource?: string }).wtSource === "points";
+    return { mode: s.mode, hookKey: points ? "waveTankPoints" : "waveTank", factKey: points ? "waveTankPointsFact" : "waveTankFact", count: null };
   }
   if (s.mode === "grow") {
     if (s.growLaw === "multiply") return { mode: s.mode, hookKey: "growMultiply", factKey: "growMultiplyFact", count: s.growStep ?? null };

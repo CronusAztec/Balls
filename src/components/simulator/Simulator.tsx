@@ -91,6 +91,7 @@ import { LOOP_HUD_MODE_TEXT, isLightColor, loopHudCount, loopHudFrame, type Loop
 import { loopHudMessageKey } from "@/lib/loop/hud"; // --- ellipse-foci ---
 import { EF_RESTART_FIELDS, ellipseFociSettingsOf } from "@/lib/physics/ellipseFoci"; // --- ellipse-foci ---
 import { BM_RESTART_FIELDS, beatMachineHudKeys, beatMachineSettingsOf } from "@/lib/physics/beatMachine"; // --- beat-machine ---
+import { WT_RESTART_FIELDS, waveTankHudKeys, waveTankSettingsOf } from "@/lib/physics/waveTank"; // --- wave-tank ---
 import { WholeLoopCut, waitForDrawnFrame } from "@/lib/loop/loopContract"; // --- low-findings --- (waitForDrawnFrame)
 import type { LoopClipSlotId } from "@/lib/audio/loopClips";
 import type { LoopClipView, LoopClipsPanelProps } from "./sections/LoopClipsSection";
@@ -418,6 +419,7 @@ export default function Simulator() {
     engine.setStarChordsSettings(starChordsSettingsOf(s)); // --- chord-stars ---
     engine.setEllipseFociSettings(ellipseFociSettingsOf(s)); // --- ellipse-foci --- (before the init: the volley, the pool and the timing apply there)
     engine.setBeatMachineSettings(beatMachineSettingsOf(s, audioRef.current?.getCustomNotes() ?? [])); // --- beat-machine --- (before the init: the plan is made there; the loaded melody for its source)
+    engine.setWaveTankSettings(waveTankSettingsOf(s)); // --- wave-tank --- (before the init: the water, the sections and the grid are built there)
     engine.initMode(s.mode);
     engine.setAccumulationTimerMax(1000 * s.accumulationTime);
     engine.setSpikesEnabled(s.spikesEnabled);
@@ -639,6 +641,12 @@ export default function Simulator() {
       return { title: s.loopHudTitle || t(words.title).replace(" / ", " "), subtitle: s.loopHudSubtitle || t(words.subtitle), counter: String(t.raw(words.counter)), light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
     }
     // --- end beat-machine ---
+    // --- wave-tank --- "the double slit, in water" with its rule in grey, and the section's label ("2 gaps") in amber
+    if (s.mode === "waveTank") {
+      const words = waveTankHudKeys(s.wtSource);
+      return { title: s.loopHudTitle || t(words.title), subtitle: s.loopHudSubtitle || t(words.subtitle), counter: String(t.raw(words.counter)), light: isLightColor(s.backgroundColors[0]), locale: hudLocale };
+    }
+    // --- end wave-tank ---
     // --- funnel-spin --- the ring release's words ("why marbles speed up in a funnel", a two-line subtitle) and, with the lap
     // readout, the newest ring's lap ("lap 1.23 s")
     if (s.mode === "vortex" && s.vxRelease === "rings") {
@@ -658,7 +666,7 @@ export default function Simulator() {
     const counterKey = keys?.counterOne && s.mode === "hoops" && s.hpCount === 1 ? keys.counterOne : keys?.counter; // --- bead-hoops --- (one hoop: "the bead up")
     const counter = counterKey ? String(t.raw(loopHudMessageKey(counterKey))) : "";
     return { title, subtitle, counter, light: isLightColor(s.backgroundColors[0]), locale: hudLocale /* --- bead-hoops --- (the counter's decimals on the live canvas) */ };
-  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */, s.lcLayout /* --- land-claim-pyramid --- */]);
+  }, [s.loopHud, s.loopHudTitle, s.loopHudSubtitle, s.mode, s.backgroundColors, t, s.hpCount /* --- bead-hoops --- */, hudLocale, s.csRule, s.csColours, s.csPerColour /* --- colour-sort --- */, s.dpFan, s.dpFanCount /* --- chaos-fan --- */, s.bmVariant /* --- beat-machine --- */, s.vxRelease, s.vxLapReadout /* --- funnel-spin --- */, s.lcLayout /* --- land-claim-pyramid --- */, s.wtSource /* --- wave-tank --- */]);
   const loopHudRef = useRef({ spec: loopHudSpec, locale: hudLocale });
   loopHudRef.current = { spec: loopHudSpec, locale: hudLocale };
   /** The HUD of a frame of `engine`'s run (null without the HUD), for the recorder and the fast export. */
@@ -1251,6 +1259,35 @@ export default function Simulator() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bmRunKey, s.bmCounter]);
   // --- end beat-machine ---
+  // --- wave-tank --- Wave Tank: a change of the water (WT_RESTART_FIELDS: the model, the source, the sections, the gaps, the
+  // wave, the grid) rebuilds and restarts the run; the bells, the scan, the ridges, the tilt, the bass and the label follow live.
+  // The section root holds a note: it stops while the run is paused (or over, or another mode runs) and is sent again when it resumes.
+  const wtRunKey = WT_RESTART_FIELDS.map((key) => String(s[key])).join("|");
+  const wtRunKeyRef = useRef(wtRunKey);
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setWaveTankSettings(waveTankSettingsOf(s));
+    if (wtRunKeyRef.current === wtRunKey) return;
+    wtRunKeyRef.current = wtRunKey;
+    if (s.mode !== "waveTank") return;
+    if (engine.getCurrentModeName() === "waveTank") {
+      engine.initMode("waveTank");
+      audioRef.current?.resetLoop();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wtRunKey, s.wtBells, s.wtScanRate, s.wtRidges, s.wtTilt, s.wtBass, s.wtLabel]);
+  const wtRootLive = s.mode === "waveTank" && isStarted && !isPaused && !finished;
+  const wtRootLiveRef = useRef(false);
+  useEffect(() => {
+    const was = wtRootLiveRef.current;
+    wtRootLiveRef.current = wtRootLive;
+    const engine = engineRef.current;
+    if (wtRootLive && !was && engine && engine.getElapsedMs() > 0) engine.refreshWaveTankRoot();
+    else if (!wtRootLive && was) audioRef.current?.resetLoop();
+  }, [wtRootLive]);
+  // --- end wave-tank ---
   // --- colour-sort --- Colour Sort: a change of the sort (colours, balls, gates, spin, speed, size, contacts, remix, rule, time
   // limit) restarts it and drops a found seed; the refusal flashes only change the drawing and follow live.
   const colourSortKey = COLOUR_SORT_ENGINE_KEYS.map((key) => String((s as unknown as Record<string, unknown>)[key])).join("|");
@@ -3189,6 +3226,7 @@ export default function Simulator() {
           hoops: hoopsSettingsOf(settings), // --- bead-hoops --- (the hoops, the spin, the beads and the return)
           ellipseFoci: ellipseFociSettingsOf(settings), // --- ellipse-foci --- (the transit and the start angle are searched, not seeds)
           beatMachine: beatMachineSettingsOf(settings, audioRef.current?.getCustomNotes() ?? []), // --- beat-machine --- (seeded phrases are searched: a plan a seed)
+          waveTank: waveTankSettingsOf(settings), // --- wave-tank --- (nothing to search: the tank has no randomness)
           onBeat: videoBeatsRef.current.onBeatConfig, // --- video-beats --- (the ring modes' flights timed onto the grid)
           paintPicture: !!paintPicture, // --- review fix (modes-rhythm) --- (Picture Paint is not searched)
         },

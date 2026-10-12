@@ -2361,7 +2361,8 @@
     "ringTimer": "Time in Ring",
     "ringTimerTip": "Shows \"ring k: t s\" under the rings: how long the ball has been in the ring it is in, and \"out in t s\" once it is out. Recordings carry it.",
     "ringSound": "Ring Sounds",
-    "ringSoundTip": "Original synthesized sounds: a soft pentatonic pluck for every bounce, pitched by the ring (outer rings low, inner rings high), a rising step for every ring the ball gets through and a warm chord when it is out."
+    "ringSoundTip": "Original synthesized sounds: a soft pentatonic pluck for every bounce, pitched by the ring (outer rings low, inner rings high), a rising step for every ring the ball gets through and a warm chord when it is out.",
+    "modeWaveTank": "Wave Tank"
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -2528,6 +2529,10 @@
     "beatMachine": {
       "name": "Beat Machines",
       "description": "Music machines where every note is a ball landing on the beat: a marble xylophone fed by tubes and a lift, or one ball hopping down an eight-step musical staircase."
+    },
+    "waveTank": {
+      "name": "Wave Tank",
+      "description": "A ripple tank in perspective: straight waves squeeze through 1, 2 and then 7 gaps, fan out, cross into stripes and leave as sharp beams, while a row of bells plays the water along the front."
     }
   },
   "FAQ": {
@@ -2652,7 +2657,8 @@
     "modeHoops": "No rings: 1–16 concentric hoops (eight by default, red outside, violet inside) spin together about their vertical diameter, drawn face-on and squashed by the spin so they read as 3D, each carrying one bead that slides without friction. The spin ramps up – steadily, eased or in steps – and every hoop has a critical speed, √(g/R): below it gravity keeps the bead at the bottom, past it the bead climbs to its balance point arccos(g/(Rω²)), higher the faster the spin. Bigger hoops lift first, so the beads climb in strict size order, each lift a tuned bar note pitched by its hoop; a chime ticks every turn, a chord lands when every bead is up, and the counter reads the spin and the beads up. With Return on the spin ramps back down until every bead rests again and the loop starts over seamlessly, ready for Export whole loops; Find Simulation searches for a run in strict size order or one with every bead up within a time.",
     "modeColourSort": "A sorting machine: 360 balls in four colours start packed in the red core of a bullseye of turning rings and move as a constant-speed gas. Every ring is a row of arcs with gates between them, and a gate is a one-way colour filter: it opens outwards only, and never for balls of the ring's own colour. So red can never leave the core, orange gets past the red ring but stops at its own, green makes it one ring further and blue goes all the way out to the outer band – the mix sorts itself into a bullseye while the amber counter climbs to 360 / 360 sorted with a long, suspenseful tail. Every gate pass plucks its colour's note in A major pentatonic, the last ball sorted lands a warm completion chord, and a remix pulls every ball back into the exact first frame under a soft noise wash, so a recording of whole cycles loops seamlessly. Pick the colours and the balls of each, the gates and their width, the rings' spin, the rule (or reverse it), contacts or a ghost gas for thousands of balls – and let Find Simulation search for a sort within a time limit, the colour that finishes last or a final ball on a bar line.",
     "modeEllipseFoci": "An elliptical pool table with its two foci marked. A volley of balls – 72 by default, coloured around the hue wheel by launch angle – leaves one focus at the same moment, every way. An ellipse sends every shot from one focus off its wall straight through the other, and every such path has the same length, so the whole volley converges on the other focus one transit later, then back on the first, with a white bloom each time, while every pass narrows the swarm onto the long axis. Refire starts a fresh volley under the flash every few passes, so the clip loops seamlessly; the wall hits run down a pentatonic ladder, every convergence lands a kick, a crack and a chord on a bar line, and Find Simulation puts the convergences on the page's beat or finds the start angle of the longest collapse.",
-    "modeBeatMachine": "Two kinetic music machines that loop forever. In the marble xylophone, ten rainbow bars sit under ten tubes: each marble leaves its tube at exactly the moment that lets gravity land it on its bar on the beat, rebounds through the gap to the floor, rolls to the lift, rides up and rolls back along the top rail into its own tube. On the staircase one ball hops from step to step, one identical arc a beat, every landing a note, then drops into a hook and rides the return track back to the top just in time for the next phrase. The tune is an original seeded phrase, a scale run, a list you type or the melody you load."
+    "modeBeatMachine": "Two kinetic music machines that loop forever. In the marble xylophone, ten rainbow bars sit under ten tubes: each marble leaves its tube at exactly the moment that lets gravity land it on its bar on the beat, rebounds through the gap to the floor, rolls to the lift, rides up and rolls back along the top rail into its own tube. On the staircase one ball hops from step to step, one identical arc a beat, every landing a note, then drops into a hook and rides the return track back to the top just in time for the next phrase. The tune is an original seeded phrase, a scale run, a list you type or the melody you load.",
+    "modeWaveTank": "A ripple tank drawn as forty ridge lines, like an old pulsar plot. A wave-maker along the back sends straight crests at a slate barrier. With one gap the water fans out; with two the fans overlap and still stripes appear wherever a crest meets a trough; with seven the overlaps only add up in a few directions, and the water leaves as sharp beams – the reason a CD splits light into colours. Eleven bells along the front ring in turn, each as loud as the water moving under it, so you can hear where the beams land. The loop lasts 30 seconds and closes on its first frame."
   },
   "Footer": {
     "navLabel": "Footer",
@@ -5190,7 +5196,11 @@
     "beatMachineStairs": "{count} steps. {count} notes. one phrase",
     "beatMachineStairsFact": "Every hop is the same arc and takes exactly one beat: the gravity and the take-off speed are worked out from the tempo, the drop of a step and the height of the arc. After the last step the ball rides the return track back to the top, landing on the first step just as the next phrase begins.",
     "funnelSpin": "watch the ring of {count} spin up as it drops",
-    "funnelSpinFact": "A marble rolling round a funnel keeps nearly all of its spin while friction drains its energy and lets it sink. The same spin on a tighter circle is a faster lap – the reason a figure skater spins faster pulling their arms in – so every ring here laps about eleven times faster at the bottom than on the rim."
+    "funnelSpinFact": "A marble rolling round a funnel keeps nearly all of its spin while friction drains its energy and lets it sink. The same spin on a tighter circle is a faster lap – the reason a figure skater spins faster pulling their arms in – so every ring here laps about eleven times faster at the bottom than on the rim.",
+    "waveTank": "the double slit, in water",
+    "waveTankFact": "One gap turns a straight wave into a fan. Two gaps make two fans that overlap: where crests line up the water climbs, where a crest lands on a trough it goes flat, and quiet stripes run across the tank. Seven gaps only agree in a handful of directions, so the water leaves as narrow beams, which is how the fine grooves of a CD split light into colours. Thomas Young saw these stripes with sunlight in 1803, and they helped show that light is a wave. The bells along the front sound out the water under them: the beams ring, the stripes stay silent.",
+    "waveTankPoints": "two sources, one pond",
+    "waveTankPointsFact": "Two sources bobbing in step send out rings that cross. Where a crest of one meets a trough of the other the water stays flat, along curved quiet lines; in between it swells twice as high. The bells along the front fall silent wherever a quiet line reaches them."
   },
   "ColourSort": {
     "canvasTitle": "each ring stops only its own colour",
@@ -5317,5 +5327,64 @@
   "RingEscape": {
     "hudRing": "ring {ring}: {time} s",
     "hudOut": "out in {time} s"
+  },
+  "WaveTank": {
+    "canvasTitle": "the double slit, in water",
+    "canvasSubtitle": "every gap sends out its own ripples / crest on crest rises, crest on trough goes still",
+    "canvasTitlePoints": "ripples that cross",
+    "canvasSubtitlePoints": "each source sends out rings of ripples / where a crest meets a trough the water stays still",
+    "sectionOne": "{count} gap",
+    "sectionMany": "{count, plural, one {{count} gap} other {{count} gaps}}",
+    "sectionSources": "{count, plural, one {{count} source} other {{count} sources}}",
+    "desc": "A ripple tank seen from the front: a wave-maker at the back sends straight crests at a barrier with 1, 2 or 7 gaps. The ripples from the gaps spread, overlap into stripes or leave as sharp beams, and a row of bells along the front rings as loud as the water moves under each one.",
+    "wtPreset": "Preset",
+    "wtPresetTip": "Ready-made tanks: the double slit (1, 2, then 7 gaps over a 30 s loop), one gap growing wider, a 15-gap grating, two sources without a barrier and the Talbot carpet of a fine grating.",
+    "presetDoubleSlit": "Double slit",
+    "presetWidthSweep": "Single-slit width sweep",
+    "presetGrating15": "Grating 15",
+    "presetTwoSources": "Two sources",
+    "presetTalbot": "Talbot carpet",
+    "wtModel": "Water model",
+    "wtModelTip": "Grid: the wave equation solved on a grid of cells, right up to the gaps. Huygens sum: every gap as a row of tiny sources whose ripples add up – lighter, and exact far from the gaps.",
+    "modelGrid": "Grid",
+    "modelHuygens": "Huygens sum",
+    "wtSource": "Source",
+    "wtSourceTip": "Wave-maker: a bar along the back sends straight crests at the barrier. Point sources: no barrier – a small source bobs where each gap would be.",
+    "sourceLine": "Wave-maker + barrier",
+    "sourcePoints": "Point sources",
+    "wtGaps": "Gaps per section",
+    "wtGapsTip": "The barrier's gap counts in order, one section each, e.g. 1, 2, 7. Give a section its own length with @: 1@11, 2@9, 7@10. The loop is all the sections together.",
+    "loopNote": "Loop: {loop} s · sections {sections} · the label changes at {changes} s",
+    "wtSection": "Section length",
+    "wtSectionTip": "Seconds a section lasts when its entry gives no length of its own.",
+    "wtWrap": "Wrap",
+    "wtWrapTip": "Seconds of the first section moved to the end of the loop, so it runs across the loop point (the clip starts mid-section and ends on the same picture).",
+    "wtWidth": "Gap width",
+    "wtWidthTip": "How wide each gap is, in wavelengths. A narrow gap fans out wide; a wide one lets a straight beam through.",
+    "wtWidthEnd": "Widen to",
+    "wtWidthEndTip": "Grows the gaps from Gap width in the first section to this width in the last (0 keeps every section the same).",
+    "widthEndOff": "off",
+    "wtSpacing": "Gap spacing",
+    "wtSpacingTip": "Distance between the centres of neighbouring gaps, in wavelengths. Wider spacing packs the stripes closer together.",
+    "wtWavelength": "Wavelength",
+    "wtWavelengthTip": "Length of one wave as a share of the tank's width. The source's pitch is rounded so a whole number of waves fits the loop.",
+    "wtSpeed": "Wave speed",
+    "wtSpeedTip": "How fast the crests travel (1 = 0.3 tank widths a second).",
+    "wtDamping": "Damping",
+    "wtDampingTip": "How much the water calms the waves as they travel (0 = not at all).",
+    "wtCols": "Grid columns",
+    "wtColsTip": "Cells across the tank (the rows follow at 4 : 3). More cells look finer and take longer; a grid past about 4 million cells is made smaller.",
+    "wtBells": "Bells",
+    "wtBellsTip": "Bells along the front edge, low to high from left to right. Each one rings as loud as the water moves under it.",
+    "wtScanRate": "Scan rate",
+    "wtScanRateTip": "Strikes a second as the cursor sweeps back and forth along the bells.",
+    "wtRidges": "Ridge lines",
+    "wtRidgesTip": "How many lines draw the water, from the back to the front.",
+    "wtTilt": "Tilt",
+    "wtTiltTip": "How steeply the camera looks down at the tank (0° = from the side).",
+    "wtBass": "Root bass",
+    "wtBassTip": "A quiet bass note under the bells that changes with every section.",
+    "wtLabel": "Section label",
+    "wtLabelTip": "Shows the gap count of the current section under the tank (turns the loop HUD on)."
   }
 }

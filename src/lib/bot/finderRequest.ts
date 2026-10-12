@@ -34,6 +34,7 @@ import { starChordsSettingsOf } from "@/lib/physics/starChords"; // --- chord-st
 import { hoopsSettingsOf } from "@/lib/physics/hoopsFields"; // --- bead-hoops ---
 import { ellipseFociSettingsOf } from "@/lib/physics/ellipseFoci"; // --- ellipse-foci ---
 import { beatMachineSettingsOf } from "@/lib/physics/beatMachine"; // --- beat-machine ---
+import { waveTankSettingsOf } from "@/lib/physics/waveTank"; // --- wave-tank ---
 import { multiplierConfigOf } from "@/lib/physics/multipliers";
 import { obstacleConfigOf } from "@/lib/physics/obstacleEditor";
 import { exitSplatConfigOf } from "@/lib/physics/exitSplat"; // --- gerald-exit-splat ---
@@ -165,6 +166,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     hoops: hoopsSettingsOf(s), // --- bead-hoops --- (the hoops, the spin, the beads, the return)
     ellipseFoci: ellipseFociSettingsOf(s), // --- ellipse-foci ---
     beatMachine: beatMachineSettingsOf(s), // --- beat-machine --- (the bot has no loaded melody: that source plays the original phrase)
+    waveTank: waveTankSettingsOf(s), // --- wave-tank --- (the fast export and the batch render build the same water)
   };
 }
 

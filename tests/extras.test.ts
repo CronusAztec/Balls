@@ -149,6 +149,7 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   // --- ellipse-foci --- (recorded when the mode was added: no rings – the pool is the mode's own; ball 0 flies along the long axis)
   ellipseFoci: { samples: [[400000,453000],[427781,451787],[400000,338250],[349647,348614],[400000,70500],[336279,132331],[400000,389250],[506404,234010]], broken: [], walls: [] },
   beatMachine: { samples: [[184568,193082],[226197,193082],[184568,193082],[226197,193082],[184568,193082],[226197,193082],[213295,377851],[226197,246444]], broken: [], walls: [] }, // --- beat-machine ---
+  waveTank: { samples: [[400000,300000],[400000,300000],[400000,300000],[400000,300000]], broken: [], walls: [] }, // --- wave-tank --- (recorded when the mode was added: no rings; its one ball a placeholder pinned at the tank's centre)
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

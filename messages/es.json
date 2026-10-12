@@ -2361,7 +2361,8 @@
     "ringTimer": "Tiempo en el anillo",
     "ringTimerTip": "Muestra «anillo k: t s» bajo los anillos: cuánto tiempo lleva la bola en el anillo actual, y «fuera en t s» cuando ya ha salido. Las grabaciones lo incluyen.",
     "ringSound": "Sonidos de los anillos",
-    "ringSoundTip": "Sonidos sintetizados originales: un punteo pentatónico suave en cada rebote, afinado según el anillo (los exteriores graves, los interiores agudos), una nota que sube por cada anillo superado y un acorde cálido cuando la bola sale."
+    "ringSoundTip": "Sonidos sintetizados originales: un punteo pentatónico suave en cada rebote, afinado según el anillo (los exteriores graves, los interiores agudos), una nota que sube por cada anillo superado y un acorde cálido cuando la bola sale.",
+    "modeWaveTank": "Cubeta de ondas"
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -2528,6 +2529,10 @@
     "beatMachine": {
       "name": "Máquinas de ritmo",
       "description": "Máquinas musicales en las que cada nota es una bola que cae justo a tiempo: un xilófono de canicas alimentado por tubos y un elevador, o una bola que salta por una escalera musical de ocho peldaños."
+    },
+    "waveTank": {
+      "name": "Cubeta de ondas",
+      "description": "Una cubeta de ondas en perspectiva: ondas rectas pasan por 1, 2 y luego 7 rendijas, se abren en abanico, se cruzan en franjas y salen en haces estrechos, mientras una fila de campanas toca el agua en el borde delantero."
     }
   },
   "FAQ": {
@@ -2652,7 +2657,8 @@
     "modeHoops": "Sin anillos: 1–16 aros concéntricos (ocho por defecto, rojo por fuera, violeta por dentro) giran juntos alrededor de su diámetro vertical, dibujados de frente y aplastados por el giro para que se vean en 3D, cada uno con una cuenta que se desliza sin rozamiento. El giro acelera –de forma constante, suave o por escalones– y cada aro tiene una velocidad crítica, √(g/R): por debajo, la gravedad mantiene la cuenta en el fondo; por encima, la cuenta sube hasta su punto de equilibrio arccos(g/(Rω²)), más alto cuanto más rápido el giro. Los aros más grandes levantan primero, así que las cuentas suben en estricto orden de tamaño, cada subida una nota de lámina afinada según su aro; una campanilla suena en cada vuelta, un acorde llega cuando todas están arriba y el contador muestra el giro y las cuentas arriba. Con el regreso activado, el giro baja hasta que todas las cuentas reposan y el bucle vuelve a empezar sin costuras, listo para exportar bucles completos; Buscar simulación encuentra una partida en estricto orden de tamaño o una con todas las cuentas arriba dentro de un tiempo.",
     "modeColourSort": "Una máquina de clasificar: 360 bolas de cuatro colores empiezan apiñadas en el centro rojo de una diana de anillos que giran y se mueven como un gas a velocidad constante. Cada anillo es una fila de arcos con puertas entre ellos, y cada puerta es un filtro de color de un solo sentido: solo se abre hacia fuera y nunca para las bolas del color del anillo. Así el rojo nunca sale del centro, el naranja pasa el anillo rojo pero se queda en el suyo, el verde llega un anillo más allá y el azul sale hasta la franja exterior: la mezcla se ordena sola en una diana mientras el contador ámbar sube hasta 360 / 360 ordenadas con una cola larga y llena de suspense. Cada paso por una puerta pulsa la nota de su color en la pentatónica de la mayor, la última bola ordenada desata un cálido acorde final y una remezcla devuelve todas las bolas exactamente al primer fotograma bajo un suave soplo de ruido, así que una grabación de ciclos completos se repite sin costuras. Elige los colores y las bolas de cada uno, las puertas y su anchura, el giro de los anillos, la regla (o inviértela), choques o un gas fantasma para miles de bolas, y deja que Buscar simulación encuentre una clasificación dentro de un límite de tiempo, el color que termina último o una última bola en una barra de compás.",
     "modeEllipseFoci": "Una mesa de billar elíptica con sus dos focos marcados. Una ráfaga de bolas – 72 por defecto, coloreadas por la rueda de tonos según el ángulo de salida – sale de un foco en el mismo instante, en todas direcciones. Una elipse manda cada tiro de un foco, tras rebotar en su pared, justo por el otro, y todos esos caminos miden lo mismo, así que la ráfaga entera converge en el otro foco una pasada después, luego de vuelta en el primero, cada vez con un destello blanco, mientras cada pasada estrecha el enjambre sobre el eje mayor. Redisparar lanza una ráfaga nueva bajo el destello cada pocas pasadas, así que el clip se repite sin costuras; los rebotes bajan por una escalera pentatónica, cada convergencia cae en una línea de compás con bombo, chasquido y acorde, y Buscar simulación pone las convergencias a ritmo de la página o encuentra el ángulo inicial del colapso más largo.",
-    "modeBeatMachine": "Dos máquinas musicales cinéticas que se repiten sin fin. En el xilófono de canicas, diez láminas de arcoíris esperan bajo diez tubos: cada canica sale de su tubo en el instante exacto para que la gravedad la deje sobre su lámina a tiempo, rebota por el hueco hasta el suelo, rueda hasta el elevador, sube y vuelve por el riel superior a su propio tubo. En la escalera, una bola salta de peldaño en peldaño, un arco idéntico por pulso, y cada aterrizaje es una nota; luego cae en un gancho y la pista de vuelta la sube justo a tiempo para la siguiente frase. La melodía es una frase original de la semilla, una escala, una lista que escribes o la melodía que cargas."
+    "modeBeatMachine": "Dos máquinas musicales cinéticas que se repiten sin fin. En el xilófono de canicas, diez láminas de arcoíris esperan bajo diez tubos: cada canica sale de su tubo en el instante exacto para que la gravedad la deje sobre su lámina a tiempo, rebota por el hueco hasta el suelo, rueda hasta el elevador, sube y vuelve por el riel superior a su propio tubo. En la escalera, una bola salta de peldaño en peldaño, un arco idéntico por pulso, y cada aterrizaje es una nota; luego cae en un gancho y la pista de vuelta la sube justo a tiempo para la siguiente frase. La melodía es una frase original de la semilla, una escala, una lista que escribes o la melodía que cargas.",
+    "modeWaveTank": "Una cubeta de ondas dibujada con cuarenta líneas de cresta, como un viejo gráfico de un púlsar. Un generador al fondo lanza crestas rectas contra una barrera de pizarra. Con una rendija el agua se abre en abanico; con dos, los abanicos se superponen y aparecen franjas quietas donde una cresta se encuentra con un valle; con siete, las ondas solo se suman en unas pocas direcciones y el agua sale en haces estrechos, la razón por la que un CD separa la luz en colores. Once campanas en el borde delantero suenan por turnos, cada una tan fuerte como se mueve el agua bajo ella, así que se oye dónde llegan los haces. El bucle dura 30 segundos y termina en su primer fotograma."
   },
   "Footer": {
     "navLabel": "Pie de página",
@@ -5190,7 +5196,11 @@
     "beatMachineStairs": "{count} peldaños. {count} notas. una frase",
     "beatMachineStairsFact": "Cada salto es el mismo arco y dura exactamente un pulso: la gravedad y la velocidad de salida se calculan a partir del tempo, la caída de un peldaño y la altura del arco. Tras el último peldaño, la bola vuelve arriba por la pista y aterriza en el primer peldaño justo cuando empieza la siguiente frase.",
     "funnelSpin": "mira cómo el anillo de {count} acelera al caer",
-    "funnelSpinFact": "Una canica que rueda por un embudo conserva casi todo su giro mientras el rozamiento le quita energía y la deja bajar. El mismo giro en un círculo más cerrado es una vuelta más rápida – por eso una patinadora gira más deprisa al recoger los brazos – así que cada anillo da vueltas unas once veces más rápido abajo que en el borde."
+    "funnelSpinFact": "Una canica que rueda por un embudo conserva casi todo su giro mientras el rozamiento le quita energía y la deja bajar. El mismo giro en un círculo más cerrado es una vuelta más rápida – por eso una patinadora gira más deprisa al recoger los brazos – así que cada anillo da vueltas unas once veces más rápido abajo que en el borde.",
+    "waveTank": "la doble rendija, en agua",
+    "waveTankFact": "Una rendija convierte una onda recta en un abanico. Dos rendijas dan dos abanicos que se superponen: donde las crestas coinciden el agua sube, donde una cresta cae en un valle se queda plana, y franjas tranquilas cruzan la cubeta. Siete rendijas solo coinciden en unas pocas direcciones, así que el agua sale en haces estrechos, que es como los finos surcos de un CD separan la luz en colores. Thomas Young vio estas franjas con luz del sol en 1803 y ayudaron a demostrar que la luz es una onda. Las campanas del borde delantero tocan el agua que tienen debajo: los haces suenan, las franjas callan.",
+    "waveTankPoints": "dos fuentes, un estanque",
+    "waveTankPointsFact": "Dos fuentes que oscilan a la vez lanzan anillos que se cruzan. Donde una cresta de una encuentra un valle de la otra, el agua se queda plana a lo largo de líneas tranquilas y curvas; entre ellas sube el doble. Las campanas del borde delantero callan allí donde les llega una línea tranquila."
   },
   "ColourSort": {
     "canvasTitle": "cada anillo solo detiene su propio color",
@@ -5317,5 +5327,64 @@
   "RingEscape": {
     "hudRing": "anillo {ring}: {time} s",
     "hudOut": "fuera en {time} s"
+  },
+  "WaveTank": {
+    "canvasTitle": "la doble rendija, en agua",
+    "canvasSubtitle": "cada rendija lanza sus propias ondas / cresta con cresta sube, cresta con valle se calma",
+    "canvasTitlePoints": "ondas que se cruzan",
+    "canvasSubtitlePoints": "cada fuente lanza anillos de ondas / donde una cresta encuentra un valle, el agua se queda quieta",
+    "sectionOne": "{count} rendija",
+    "sectionMany": "{count, plural, one {{count} rendija} other {{count} rendijas}}",
+    "sectionSources": "{count, plural, one {{count} fuente} other {{count} fuentes}}",
+    "desc": "Una cubeta de ondas vista de frente: un generador al fondo lanza crestas rectas contra una barrera con 1, 2 o 7 rendijas. Las ondas de las rendijas se abren, se superponen en franjas o salen en haces estrechos, y una fila de campanas en el borde delantero suena tan fuerte como se mueve el agua bajo cada una.",
+    "wtPreset": "Ajuste",
+    "wtPresetTip": "Cubetas listas: la doble rendija (1, 2 y luego 7 rendijas en un bucle de 30 s), una rendija cada vez más ancha, una red de 15 rendijas, dos fuentes sin barrera y la alfombra de Talbot de una red fina.",
+    "presetDoubleSlit": "Doble rendija",
+    "presetWidthSweep": "Rendija cada vez más ancha",
+    "presetGrating15": "Red de 15",
+    "presetTwoSources": "Dos fuentes",
+    "presetTalbot": "Alfombra de Talbot",
+    "wtModel": "Modelo del agua",
+    "wtModelTip": "Malla: la ecuación de onda resuelta en una malla de celdas, hasta las mismas rendijas. Suma de Huygens: cada rendija como una fila de fuentes diminutas cuyas ondas se suman; más ligera y exacta lejos de las rendijas.",
+    "modelGrid": "Malla",
+    "modelHuygens": "Suma de Huygens",
+    "wtSource": "Fuente",
+    "wtSourceTip": "Generador: una barra al fondo lanza crestas rectas contra la barrera. Fuentes puntuales: sin barrera; una pequeña fuente oscila donde estaría cada rendija.",
+    "sourceLine": "Generador + barrera",
+    "sourcePoints": "Fuentes puntuales",
+    "wtGaps": "Rendijas por sección",
+    "wtGapsTip": "El número de rendijas de la barrera en orden, una sección cada uno, p. ej. 1, 2, 7. Da a una sección su propia duración con @: 1@11, 2@9, 7@10. El bucle son todas las secciones juntas.",
+    "loopNote": "Bucle: {loop} s · secciones {sections} · la etiqueta cambia a los {changes} s",
+    "wtSection": "Duración de sección",
+    "wtSectionTip": "Segundos que dura una sección cuando su entrada no indica otra duración.",
+    "wtWrap": "Envoltura",
+    "wtWrapTip": "Segundos de la primera sección que pasan al final del bucle, para que cruce el punto del bucle (el clip empieza a mitad de la sección y termina con la misma imagen).",
+    "wtWidth": "Ancho de rendija",
+    "wtWidthTip": "Ancho de cada rendija, en longitudes de onda. Una rendija estrecha se abre en abanico; una ancha deja pasar un haz recto.",
+    "wtWidthEnd": "Ensanchar hasta",
+    "wtWidthEndTip": "Hace crecer las rendijas desde el ancho de rendija en la primera sección hasta este ancho en la última (0 deja todas las secciones iguales).",
+    "widthEndOff": "no",
+    "wtSpacing": "Separación de rendijas",
+    "wtSpacingTip": "Distancia entre los centros de rendijas vecinas, en longitudes de onda. Más separación junta más las franjas.",
+    "wtWavelength": "Longitud de onda",
+    "wtWavelengthTip": "Longitud de una onda como parte del ancho de la cubeta. La frecuencia de la fuente se redondea para que quepa un número entero de ondas en el bucle.",
+    "wtSpeed": "Velocidad de las ondas",
+    "wtSpeedTip": "Lo rápido que avanzan las crestas (1 = 0,3 anchos de cubeta por segundo).",
+    "wtDamping": "Amortiguación",
+    "wtDampingTip": "Cuánto calma el agua las ondas mientras avanzan (0 = nada).",
+    "wtCols": "Columnas de la malla",
+    "wtColsTip": "Celdas a lo ancho de la cubeta (las filas siguen en proporción 4 : 3). Más celdas se ven más finas y tardan más; una malla de más de unos 4 millones de celdas se reduce.",
+    "wtBells": "Campanas",
+    "wtBellsTip": "Campanas a lo largo del borde delantero, de grave a agudo de izquierda a derecha. Cada una suena tan fuerte como se mueve el agua bajo ella.",
+    "wtScanRate": "Ritmo de barrido",
+    "wtScanRateTip": "Golpes por segundo mientras el cursor va y viene por las campanas.",
+    "wtRidges": "Líneas de cresta",
+    "wtRidgesTip": "Cuántas líneas dibujan el agua, de atrás hacia delante.",
+    "wtTilt": "Inclinación",
+    "wtTiltTip": "Cuánto mira la cámara hacia abajo a la cubeta (0° = de lado).",
+    "wtBass": "Bajo de fondo",
+    "wtBassTip": "Una nota grave y suave bajo las campanas que cambia con cada sección.",
+    "wtLabel": "Etiqueta de sección",
+    "wtLabelTip": "Muestra bajo la cubeta el número de rendijas de la sección actual (activa el HUD del bucle)."
   }
 }
