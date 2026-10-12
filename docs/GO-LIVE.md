@@ -494,7 +494,7 @@ monthly payout statements of all three, and ask an accountant in your country be
 | A payment button is missing | that provider is off: a secret is missing, or test and live keys are mixed | open `https://<your Worker>/health` – `mismatches` names the problem; run the wizard again |
 | "The customer portal could not open" | the Stripe customer portal was never saved in live mode | Stripe (live) → Settings → Billing → Customer portal → **Save** |
 | A purchase stays "pending" | crypto: the network is still confirming (normal for a few minutes); card/PayPal: the webhook does not reach the Worker | check the webhook page at Stripe/PayPal for red deliveries; the URL and the events must match section 5 |
-| "Too many requests from this connection" | the Worker's rate limit (10 checkouts per 10 minutes per connection) | wait 10 minutes |
+| "Too many requests from this connection" | the Worker's rate limit per connection and 10 minutes: 10 checkouts, 150 licence checks (a page waiting for a payment uses about 120), 10 portal links | wait 10 minutes; a page waiting for a payment waits by itself and keeps checking |
 | Webhooks answer 500, many claims pending | the Cloudflare free plan's daily storage quota is used up | upgrade to Workers Paid (section 4.1) |
 | A red run in GitHub Actions | a check failed; nothing was published | open the run, read the red step |
 

@@ -10188,9 +10188,9 @@ await smokeBlock("paywall-gate", async () => {
   /**
    * The mocked billing backend: /config, the Stripe checkout (back to its returnUrl with a claim), the claim, Restore and the
    * Stripe portal. `target` is a page or – for checks whose pages open other tabs – a whole context; `checkout` / `restore` /
-   * `portal` replace those endpoints' answers.
+   * `portal` / `claim` replace those endpoints' answers.
    */
-  const mockBilling = async (target, { claimToken, restoreToken, calls, restore, portal, checkout }) => {
+  const mockBilling = async (target, { claimToken, restoreToken, calls, restore, portal, checkout, claim }) => {
     await target.route(`${MOCK}/**`, async (route) => {
       const req = route.request();
       const pathName = new URL(req.url()).pathname.slice(new URL(MOCK).pathname.length);
@@ -10199,7 +10199,7 @@ await smokeBlock("paywall-gate", async () => {
       const json = (status, data) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(data) });
       if (pathName === "/config") return json(200, { plans: { monthly: { usd: 10 }, yearly: { usd: 79 } }, providers: { stripe: true, paypal: true, crypto: true }, testMode: true });
       if (pathName === "/checkout/stripe") return checkout ? checkout(body, json) : json(200, { url: `${body.returnUrl}?claim=stripe&ref=cs_test_smoke1` });
-      if (pathName === "/license/claim") return json(200, body && body.ref === "cs_test_smoke1" ? { token: claimToken } : { error: "not_found", message: "Unknown checkout" });
+      if (pathName === "/license/claim") return claim ? claim(body, json) : json(200, body && body.ref === "cs_test_smoke1" ? { token: claimToken } : { error: "not_found", message: "Unknown checkout" });
       if (pathName === "/license/restore") {
         if (restore) return restore(body, json);
         return body && body.email === "buyer@example.com" && body.ref === "sub_SMOKE123" ? json(200, { token: restoreToken }) : json(404, { error: "not_found", message: "No purchase with this email and reference" });
@@ -10409,6 +10409,47 @@ await smokeBlock("paywall-gate", async () => {
           locks === 0 && size > 10000 && /Pro: Yearly until/.test(account),
         `(${JSON.stringify({ checkout, claim, claimed, claimText, stored: token === claimToken, cleanUrl, licence, locks, size, account })})`,
       );
+    }
+
+    // 3b. --- go-live-kit --- A crypto payment still confirming, and the Worker's rate limit in the middle of the wait: the
+    //     claim answers pending, then 429 rate_limited (retryAfter 30 s), then pending, then the licence. The page keeps
+    //     "pending" through the 429 (no "failed", no "Too many requests"), waits a minute (the fake clock is pushed past it)
+    //     instead of 5 s, asks again and ends Pro.
+    {
+      const claimToken = signTestLicense({ sub: "crypto@example.com", plan: "monthly", provider: "crypto", days: 33 });
+      const calls = [];
+      const answers = [
+        (json) => json(200, { pending: true }),
+        (json) => json(429, { error: "rate_limited", message: "Too many requests from this connection. Please wait a minute and try again.", retryAfter: 30 }),
+        (json) => json(200, { pending: true }),
+        (json) => json(200, { token: claimToken }),
+      ];
+      let asked = 0;
+      const lp = await open(null, true);
+      await mockBilling(lp, { claimToken, restoreToken: claimToken, calls, claim: (_body, json) => (answers[Math.min(asked++, answers.length - 1)])(json) });
+      await lp.clock.install(); // the page's timers run in real time until fastForward() jumps the minute
+      const claimState = () => lp.getByTestId("billing-claim").getAttribute("data-claim-state").catch(() => null);
+      const claimCalls = () => calls.filter((c) => c.path === "/license/claim").length;
+      await lp.goto(`${BASE}/en/pricing/?claim=crypto&ref=5077125051`, { waitUntil: "networkidle" });
+      const firstPending = await lp.waitForFunction(() => document.querySelector('[data-testid="billing-claim"]')?.getAttribute("data-claim-state") === "pending", null, { timeout: 15000 }).then(() => true).catch(() => false);
+      // the second ask (5 s later) is the 429; give the page a moment to read it
+      const limitedAsked = await (async () => {
+        for (let i = 0; i < 40 && claimCalls() < 2; i++) await lp.waitForTimeout(250);
+        return claimCalls() >= 2;
+      })();
+      await lp.waitForTimeout(2500);
+      const afterLimit = { state: await claimState(), text: await lp.getByTestId("billing-claim").innerText().catch(() => ""), asks: claimCalls() };
+      // a minute on the page's clock: the third ask (pending), 5 s later the fourth (the licence)
+      await lp.clock.fastForward(61_000);
+      const claimed = await lp.waitForFunction(() => document.querySelector('[data-testid="billing-claim"]')?.getAttribute("data-claim-state") === "success", null, { timeout: 20000 }).then(() => true).catch(() => false);
+      const done = { state: await claimState(), stored: (await stored(lp)) === claimToken, asks: claimCalls(), text: await lp.getByTestId("billing-claim").innerText().catch(() => "") };
+      check(
+        "paywall: a 429 rate limit while a crypto claim is pending keeps the page waiting (no failure), it asks again after a minute and still ends Pro",
+        firstPending && limitedAsked && afterLimit.state === "pending" && afterLimit.asks === 2 && !/Too many requests|could not/i.test(afterLimit.text) &&
+          claimed && done.stored && done.asks === 4 && /You are Pro until/.test(done.text),
+        `(${JSON.stringify({ firstPending, limitedAsked, afterLimit, done })})`,
+      );
+      await lp.close();
     }
 
     // 4. An expired licence is dropped; one signed with another key is refused – both leave a free visitor.

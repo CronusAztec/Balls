@@ -366,7 +366,7 @@ function fakeWorld(over: Partial<World> = {}) {
     storage: true,
     plans: { monthly: { usd: 10, days: 30 }, yearly: { usd: 79, days: 365 } },
     webhooks: {},
-    limits: { checkoutPer10Min: 10, licensePer10Min: 60, portalPer10Min: 10 },
+    limits: { checkoutPer10Min: 10, licensePer10Min: 150, portalPer10Min: 10 },
   };
   const pricing = `<!DOCTYPE html><html><head><script src="/Balls/_next/static/chunks/webpack-1.js" async=""></script></head><body><main>Pricing</main><script>self.__next_f.push([1,"3:I[1234,[\\"static/chunks/app/%5Blocale%5D/pricing/page-2.js\\"],\\"PricingPlans\\"]"])</script></body></html>`;
   const chunks: Record<string, string> = {

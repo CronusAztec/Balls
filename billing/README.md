@@ -274,9 +274,12 @@ keys, webhook secrets and the private key appear only as `true`/`false`, never a
 
 ## Rate limits
 
-Per connection (Cloudflare's `cf-connecting-ip`) and 10 minutes: 10 checkouts, 60 licence calls (claim and restore together)
-and 10 portal links. Over the limit the Worker answers `429 rate_limited` with a `Retry-After` header; the site shows the
-message. Webhooks, `/config` and `/health` are never limited. Be honest about what this is: the counters live in one Worker
+Per connection (Cloudflare's `cf-connecting-ip`) and 10 minutes: 10 checkouts, 150 licence calls (claim and restore together)
+and 10 portal links. The licence limit covers a whole pending purchase: the pricing page asks `/license/claim` every 5 seconds
+for up to 10 minutes while a crypto payment confirms (121 asks). Over a limit the Worker answers `429 rate_limited` with a
+`Retry-After` header and the same seconds in the body (`retryAfter`, readable across origins); a pay button or Restore shows
+the message, while a pending claim keeps waiting and asks again after a minute or the `Retry-After`, whichever is longer.
+Webhooks, `/config` and `/health` are never limited. Be honest about what this is: the counters live in one Worker
 isolate's memory (per Cloudflare location, reset by a redeploy), so they stop a careless loop, not a distributed attack.
 The stronger tools are a Cloudflare **WAF rate-limiting rule** once the Worker runs on a custom domain, and the Workers
 Paid plan below.

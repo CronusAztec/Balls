@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { jsonOf } from "./helpers";
-import { handleRequest } from "../src/app";
+import { handleRequest, RATE_LIMITS } from "../src/app";
 import type { RateLimiters } from "../src/app";
 import { MemoryRateLimiter, RATE_LIMIT_MAX_KEYS } from "../src/ratelimit";
 import { buildSignatureHeader } from "../src/providers/stripe";
@@ -9,9 +9,9 @@ import { allProvidersEnv, makeHarness, makeRequest, NOW, SITE_ORIGIN } from "./h
 /** --- go-live-kit --- The per-connection rate limits on checkouts, licences and the portal. */
 
 const fresh = (): RateLimiters => ({
-  checkout: new MemoryRateLimiter(10, 600, () => NOW),
-  license: new MemoryRateLimiter(60, 600, () => NOW),
-  portal: new MemoryRateLimiter(10, 600, () => NOW),
+  checkout: new MemoryRateLimiter(RATE_LIMITS.checkoutPer10Min, 600, () => NOW),
+  license: new MemoryRateLimiter(RATE_LIMITS.licensePer10Min, 600, () => NOW),
+  portal: new MemoryRateLimiter(RATE_LIMITS.portalPer10Min, 600, () => NOW),
 });
 
 const RETURN_URL = `${SITE_ORIGIN}/Balls/en/pricing/`;
@@ -61,8 +61,10 @@ describe("rate limits through the Worker", () => {
     }
     const res = await handleRequest(checkout("1.2.3.4"), env, { now: NOW, limiters });
     expect(res.status).toBe(429);
-    expect(await jsonOf(res)).toEqual({ error: "rate_limited", message: "Too many requests from this connection. Please wait a minute and try again." });
-    expect(Number(res.headers.get("retry-after"))).toBeGreaterThan(0);
+    const body = (await jsonOf(res)) as { retryAfter: number };
+    expect(body).toEqual({ error: "rate_limited", message: "Too many requests from this connection. Please wait a minute and try again.", retryAfter: 600 });
+    // the seconds in the body as well: the site's page cannot read Retry-After across origins (CORS does not expose it)
+    expect(Number(res.headers.get("retry-after"))).toBe(body.retryAfter);
     expect(res.headers.get("access-control-allow-origin")).toBe(SITE_ORIGIN);
     expect((await handleRequest(checkout("5.6.7.8"), env, { now: NOW, limiters })).status).toBe(400);
   });
@@ -86,14 +88,32 @@ describe("rate limits through the Worker", () => {
     }
   });
 
-  it("limits the licence calls at 60 and the portal at 10 per connection", async () => {
+  it("limits the licence calls at 150 and the portal at 10 per connection", async () => {
     const { env } = makeHarness(allProvidersEnv());
     const limiters = fresh();
     const post = (path: string) =>
       handleRequest(makeRequest("POST", path, { body: "{}", headers: { "cf-connecting-ip": "1.1.1.1", "content-type": "application/json" } }), env, { now: NOW, limiters });
-    for (let i = 0; i < 60; i++) expect((await post(i % 2 ? "/license/claim" : "/license/restore")).status).toBe(400);
+    expect(RATE_LIMITS.licensePer10Min).toBe(150);
+    for (let i = 0; i < 150; i++) expect((await post(i % 2 ? "/license/claim" : "/license/restore")).status).toBe(400);
     expect((await post("/license/claim")).status).toBe(429);
     for (let i = 0; i < 10; i++) expect((await post("/portal/stripe")).status).toBe(400);
     expect((await post("/portal/stripe")).status).toBe(429);
+  });
+
+  // The pricing page polls a pending claim every 5 s for up to 10 minutes (src/lib/billing/api.ts CLAIM_POLL_MS and
+  // CLAIM_POLL_LIMIT_MS): one page's whole poll – the first ask and 120 more – plus a restore stays under the limit.
+  it("lets one pricing page poll a pending claim for its full 10 minutes without a 429", async () => {
+    const { env } = makeHarness(allProvidersEnv());
+    let now = NOW;
+    const limiters: RateLimiters = { ...fresh(), license: new MemoryRateLimiter(RATE_LIMITS.licensePer10Min, 600, () => now) };
+    const post = (path: string) =>
+      handleRequest(makeRequest("POST", path, { body: "{}", headers: { "cf-connecting-ip": "2.2.2.2", "content-type": "application/json" } }), env, { now, limiters });
+    const statuses = new Set<number>();
+    expect((await post("/license/restore")).status).toBe(400);
+    for (let t = 0; t <= 600_000; t += 5000) {
+      now = NOW + t / 1000;
+      statuses.add((await post("/license/claim")).status);
+    }
+    expect([...statuses]).toEqual([400]);
   });
 });

@@ -36,9 +36,11 @@ function configResponse(ctx: Ctx): Response {
 }
 
 // --- go-live-kit --- Rate limits per connection (cf-connecting-ip) and 10 minutes, kept in this isolate's memory
-// (ratelimit.ts says what that does and does not stop). Webhooks, /config and /health are never limited.
+// (ratelimit.ts says what that does and does not stop). Webhooks, /config and /health are never limited. The licence limit
+// covers a whole pending claim: the pricing page asks /license/claim every 5 s for up to 10 minutes (121 asks, CLAIM_POLL_MS
+// and CLAIM_POLL_LIMIT_MS in src/lib/billing/api.ts), with room for a restore or two; over it, the page waits and asks again.
 const WINDOW_SECONDS = 600;
-export const RATE_LIMITS = { checkoutPer10Min: 10, licensePer10Min: 60, portalPer10Min: 10 } as const;
+export const RATE_LIMITS = { checkoutPer10Min: 10, licensePer10Min: 150, portalPer10Min: 10 } as const;
 const checkoutLimiter = new MemoryRateLimiter(RATE_LIMITS.checkoutPer10Min, WINDOW_SECONDS);
 const licenseLimiter = new MemoryRateLimiter(RATE_LIMITS.licensePer10Min, WINDOW_SECONDS);
 const portalLimiter = new MemoryRateLimiter(RATE_LIMITS.portalPer10Min, WINDOW_SECONDS);
@@ -49,10 +51,13 @@ export interface RateLimiters {
   portal: MemoryRateLimiter;
 }
 
-/** The 429 a connection over its limit gets: a stable code, a plain message, Retry-After and the CORS headers. */
+/**
+ * The 429 a connection over its limit gets: a stable code, a plain message, Retry-After and the CORS headers. The seconds are
+ * in the body too (`retryAfter`): a cross-origin page cannot read a Retry-After header that CORS does not expose.
+ */
 function rateLimited(retryAfterSeconds: number, cors: Record<string, string>): Response {
   return json(
-    { error: "rate_limited", message: "Too many requests from this connection. Please wait a minute and try again." },
+    { error: "rate_limited", message: "Too many requests from this connection. Please wait a minute and try again.", retryAfter: retryAfterSeconds },
     429,
     { ...cors, "Retry-After": String(retryAfterSeconds) },
   );
