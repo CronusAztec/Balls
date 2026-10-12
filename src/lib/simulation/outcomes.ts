@@ -78,9 +78,14 @@ import type { FlRunSummary } from "@/lib/physics/modes/fightLeague"; // --- fl-o
  * --- ring-escape --- Classic's Ring Escape adds **ring-at**: the first ring escaped – the innermost broken, the hook "it takes
  * three seconds to get through the first one" – within ±`toleranceSec` (0.5 s) of a target second (`RunSummary.firstRingMs`); a
  * match is followed to the run's end, so the clip is the whole escape.
+ *
+ * --- brick-rebuild --- Brick Smash adds three of its first smash (the run loops forever; brickRebuildFinder.ts steps each seed's
+ * smash across frames): **bricks-cleared-by** – the last brick falls within `atSec` –, **last-brick-on-bar** – it falls within
+ * ±20 ms of a bar line of the song's tempo (`atSec` is the bar's length) – and **final-balls** – at least `count` balls are in play
+ * when the smash ends.
  */
 
-export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at", "no-tube-conflict", "most-in-flight" /* --- beat-machine --- */, "ring-on-bar" /* --- funnel-spin --- */, "summit-last" /* --- land-claim-pyramid --- */, "ring-at" /* --- ring-escape --- */] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
+export const FINDER_OUTCOMES = ["duration", "never-escapes", "escapes-at", "winner", "never-settles", "resolves-at", "double-ko", "close", "fills-by", "fill-on-bar", "star-set", "lift-order", "all-up-by", "diverges-at" /* --- chaos-fan --- */, "converge-on-beat", "longest-collapse", "sorted-by", "last-colour", "sorted-on-bar", /* --- fl-overhaul --- (Stage 5) */ "upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at", "no-tube-conflict", "most-in-flight" /* --- beat-machine --- */, "ring-on-bar" /* --- funnel-spin --- */, "summit-last" /* --- land-claim-pyramid --- */, "ring-at" /* --- ring-escape --- */, "bricks-cleared-by", "last-brick-on-bar", "final-balls" /* --- brick-rebuild --- */] as const; // --- orb-grid --- (never-settles, resolves-at) --- fight-league --- (double-ko) --- land-claim --- (close) --- loop-foundation --- (fills-by, fill-on-bar) --- chord-stars --- (star-set) --- bead-hoops --- (lift-order, all-up-by) --- chaos-fan --- (diverges-at) --- ellipse-foci --- (converge-on-beat, longest-collapse) --- colour-sort --- (sorted-by, last-colour, sorted-on-bar)
 /** --- fl-overhaul --- (Stage 5) Fight League's story outcomes (judged on `RunSummary.fl`; the run followed to its end, both-low-at to its window). */
 export const FL_STORY_OUTCOMES: readonly FinderOutcomeKind[] = ["upset", "clutch", "perfect", "comeback", "ability-finish", "lead-changes", "both-low-at", "decider", "sudden", "champion", "boss-falls-at"];
 export type FinderOutcomeKind = (typeof FINDER_OUTCOMES)[number];
@@ -687,6 +692,7 @@ export function availableOutcomes(mode: ModeId, ctx: OutcomeContext): FinderOutc
   }
   // --- end land-claim-pyramid ---
   if (mode === "classic" && ctx.ringEscape) out.push("ring-at"); // --- ring-escape --- (the first ring at a chosen second)
+  if (mode === "brickRebuild") out.push("bricks-cleared-by", "last-brick-on-bar", "final-balls"); // --- brick-rebuild --- (its first smash: the run loops forever; brickRebuildFinder.ts)
   return out;
 }
 
