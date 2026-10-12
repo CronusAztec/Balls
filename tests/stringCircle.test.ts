@@ -111,8 +111,10 @@ const modeSettings: ModeSettings = {
 
 const STEP = 1000 / 60;
 
+// --- string-battle-alive --- these battles play the lives rule (pinned: the strings rule is the default now; its circle style is
+// covered by tests/stringBattleAlive.test.ts)
 function circle(patch: Partial<StringBattleSettings> = {}, seed = 11, cfg: PhysicsConfig = config) {
-  return createEngineForSettings(cfg, "stringBattle", { ...modeSettings, stringBattle: { style: "circle", ...patch } }, seed);
+  return createEngineForSettings(cfg, "stringBattle", { ...modeSettings, stringBattle: { style: "circle", life: "lives", ...patch } }, seed);
 }
 
 function run(engine: ReturnType<typeof circle>, ms: number, events: SoundEvent[] = []) {
@@ -184,7 +186,7 @@ function probe(cfg: PhysicsConfig = config): Probe {
 /** A circle-style battle started in a probe context. */
 function fight(settings: Partial<StringBattleSettings>) {
   const mode = new StringBattleMode();
-  mode.setSettings({ style: "circle", ...settings });
+  mode.setSettings({ style: "circle", life: "lives", ...settings }); // --- string-battle-alive --- (the lives rule pinned)
   const pr = probe();
   mode.init(pr.ctx);
   return { mode, pr, view: mode.getView() };
@@ -595,7 +597,7 @@ describe("string circle rules", () => {
 
   it("lets the rig absorb a life of the forced winner (it never loses its last life)", () => {
     const mode = new StringBattleMode();
-    mode.setSettings({ style: "circle", balls: 2, lives: 1, cut: 5 });
+    mode.setSettings({ style: "circle", balls: 2, lives: 1, cut: 5, life: "lives" }); // --- string-battle-alive --- (the lives rule pinned)
     const pr = probe({ ...config, forcedWinner: 0 });
     mode.init(pr.ctx);
     mode.onPreUpdate(pr.ctx);
@@ -611,7 +613,8 @@ describe("string circle rules", () => {
 
 describe("the string circle battle", () => {
   it("anchors strings at its cadence from every ball to the rim point straight ahead of it", () => {
-    const engine = circle({ balls: 2, rate: 30, cut: 100_000 }, 3);
+    // --- string-battle-alive --- two balls start in the final duel, whose homing reshapes the run: pinned off to keep this replay
+    const engine = circle({ balls: 2, rate: 30, cut: 100_000, duel: false }, 3);
     const v = engine.getStringBattleView();
     const c = v.circle!;
     run(engine, 1000);
@@ -765,7 +768,7 @@ describe("the string circle battle", () => {
       return h;
     }
     function fingerprint(patch: Partial<SimulatorSettings>, frameMs: number) {
-      const s = { ...defaultSettings("stringBattle"), sbStyle: "circle", ...patch } as SimulatorSettings;
+      const s = { ...defaultSettings("stringBattle"), sbStyle: "circle", sbLife: "lives" /* --- string-battle-alive --- (the lives rule pinned) */, ...patch } as SimulatorSettings;
       const engine = createEngineForSettings(physicsConfigOfSettings(s, { width: 800, height: 450 }), "stringBattle", modeSettingsOfSettings(s), 7);
       let sounds = 0;
       for (let i = 0; i < Math.round(6000 / frameMs); i++) {
@@ -825,7 +828,7 @@ describe("the string circle battle", () => {
 describe("string circle: finder, teams banner and drawing", () => {
   it("offers the String Battle's outcomes and finds a battle the chosen flag wins – which plays out that way", { timeout: 120_000 }, async () => {
     expect(availableOutcomes("stringBattle", { endless: false, neverEscape: false, ballCount: 3 })).toEqual(["duration", "winner"]);
-    const stringBattle = { style: "circle" as const, balls: 3, lives: 2 };
+    const stringBattle = { style: "circle" as const, balls: 3, lives: 2, life: "lives" as const }; // --- string-battle-alive --- lives rule pinned
     const outcome = { kind: "winner" as const, clipSec: 90, team: 1 };
     const request: FinderRequest = { targetDurationSec: 30, toleranceSec: 0.5, maxSeeds: 40, maxSimTimeSec: 120, physicsConfig: config, mode: "stringBattle", modeSettings: { ...modeSettings, stringBattle }, outcome };
     const found = await withFrames(() => findSimulation(request, () => undefined));
@@ -1122,7 +1125,7 @@ describe("--- low-findings --- string circle", () => {
     const roster = stringCirclePresetPatch("mega12").teams;
     const seen = { past: 0, inside: 0 };
     for (let seed = 1; seed <= 12 && (seen.past === 0 || seen.inside === 0); seed++) {
-      const engine = createEngineForSettings(config, "stringBattle", { ...modeSettings, stringBattle: { style: "web", balls: 12, lives: 1 } }, seed);
+      const engine = createEngineForSettings(config, "stringBattle", { ...modeSettings, stringBattle: { style: "web", balls: 12, lives: 1, life: "lives" } }, seed);
       runToEnd(engine);
       const v = engine.getStringBattleView();
       expect(v.finished).toBe(true);
@@ -1143,7 +1146,7 @@ describe("--- low-findings --- string circle", () => {
     expect(seen.past).toBeGreaterThan(0);
     expect(seen.inside).toBeGreaterThan(0);
     // up to six balls the teams' verdict announces the battle, whoever won it; without a roster the battle's banner always does
-    const small = createEngineForSettings(config, "stringBattle", { ...modeSettings, stringBattle: { style: "web", balls: 4, lives: 1 } }, 3);
+    const small = createEngineForSettings(config, "stringBattle", { ...modeSettings, stringBattle: { style: "web", balls: 4, lives: 1, life: "lives" } }, 3);
     runToEnd(small);
     const teams = new TeamLayer();
     teams.beginFrame(small, { roster: roster.slice(0, 4), showNames: true, showScoreboard: true, position: "top-left", labels: LABELS });

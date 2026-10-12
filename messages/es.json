@@ -1085,10 +1085,10 @@
     "sbMaxStrings": "Hilos por bola",
     "sbMaxStringsTip": "Cuántos hilos arrastra una bola como máximo, 3–40; a partir de ahí el más antiguo se suelta y se desvanece.",
     "sbDuration": "Límite del clip",
-    "sbDurationTip": "Decide la batalla tras estos segundos: ganan las supervivientes con más vidas (después, las de más eliminaciones y después, las de más rebotes). Desactivado: la batalla sigue hasta que quede una bola.",
+    "sbDurationTip": "Decide la batalla tras estos segundos: ganan las supervivientes con más hilos, o con más vidas con la regla de vidas (después, las de más eliminaciones y después, las de más rebotes). Desactivado: la batalla sigue hasta que quede una bola.",
     "sbDurationOff": "Hasta que quede una",
     "sbFinaleSpeed": "Velocidad del final",
-    "sbFinaleSpeedTip": "Cuando quedan dos bolas y a una le falta un corte para caer (o faltan 6 s para el límite del clip), las bolas aceleran hasta este valor y sus halos parpadean: el final se pone intenso.",
+    "sbFinaleSpeedTip": "Cuando quedan dos bolas, o faltan 6 s para el límite del clip, las bolas aceleran hasta este valor y sus halos parpadean. Un punto muerto largo las acelera aún más.",
     "sbWobble": "Temblor del anillo",
     "sbWobbleTip": "Estilo neón: cuánto tiembla el anillo como gelatina con cada golpe (solo visual).",
     "sbWobbleOff": "No",
@@ -2361,7 +2361,18 @@
     "ringTimer": "Tiempo en el anillo",
     "ringTimerTip": "Muestra «anillo k: t s» bajo los anillos: cuánto tiempo lleva la bola en el anillo actual, y «fuera en t s» cuando ya ha salido. Las grabaciones lo incluyen.",
     "ringSound": "Sonidos de los anillos",
-    "ringSoundTip": "Sonidos sintetizados originales: un punteo pentatónico suave en cada rebote, afinado según el anillo (los exteriores graves, los interiores agudos), una nota que sube por cada anillo superado y un acorde cálido cuando la bola sale."
+    "ringSoundTip": "Sonidos sintetizados originales: un punteo pentatónico suave en cada rebote, afinado según el anillo (los exteriores graves, los interiores agudos), una nota que sube por cada anillo superado y un acorde cálido cuando la bola sale.",
+    "sbLife": "Regla de vida",
+    "sbLifeTip": "Hilos mantiene viva una bola mientras le quede un hilo, y Vidas da a cada bola un número fijo de vidas.",
+    "sbLifeStrings": "Hilos",
+    "sbLifeLives": "Vidas",
+    "sbLifeHintStrings": "Una bola vive mientras le quede un hilo. Si pierde el último, estalla.",
+    "sbLifeHintLives": "Cada bola empieza con un número fijo de vidas. Tras perder una, queda protegida un momento.",
+    "sbHintCutStrings": "Cruzar hilos rivales corta cada uno que atraviesas. Rebota a menudo para tender nuevos.",
+    "sbHintTouchStrings": "Los hilos son láseres. Tocar uno te cuesta tu hilo más antiguo.",
+    "sbHintCollideStrings": "Cada choque le cuesta a la bola más lenta su hilo más antiguo.",
+    "sbDuel": "Duelo final",
+    "sbDuelTip": "Cuando quedan dos bolas se persiguen, cada corte frena el tiempo y un latido crece hasta el final."
   },
   "Modes": {
     "previewAlt": "Vista previa del modo {name}",
@@ -5279,5 +5290,9 @@
   "RingEscape": {
     "hudRing": "anillo {ring}: {time} s",
     "hudOut": "fuera en {time} s"
+  },
+  "StringDuel": {
+    "banner": "DUELO FINAL",
+    "threads": "HILOS"
   }
 }

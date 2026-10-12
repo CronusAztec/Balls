@@ -39,6 +39,7 @@ import { ILLUSION_RANGES, defaultIllusionFields, readIllusionParams, resolveIllu
 import { WOBBLE_RANGES } from "@/lib/physics/wobble";
 // --- odd-string-battle --- the String Battle mode (oddplayground's WEB DOMINION)
 import { STRING_BATTLE_RANGES, defaultStringBattleFields, readStringBattleParams, resolveStringBattleFields, writeStringBattleParams, type SbRule, type SbStyle } from "@/lib/physics/modes/stringBattle";
+import type { SbLife } from "@/lib/physics/modes/stringDuel"; // --- string-battle-alive ---
 import type { ScArena } from "@/lib/physics/modes/stringCircle"; // --- string-circle ---
 // --- odd-power-layers --- the Power Layers mode (oddplayground)
 import { POWER_LAYERS_RANGES, defaultPowerLayersFields, powerLayersModeDefaults, readPowerLayersParams, resolvePowerLayersFields, writePowerLayersParams, type PlBadge, type PlSequence } from "@/lib/physics/modes/powerLayers";
@@ -584,6 +585,12 @@ export interface SimulatorSettings {
   /** The circle style's title line, "" = the translated STRING CIRCLE (URL `sbti`). */
   sbTitle: string;
   // --- end string-circle ---
+  // --- string-battle-alive --- the life rule and the final duel (lib/physics/modes/stringDuel.ts)
+  /** strings (default): a ball lives while one of its threads holds | lives: the counted lives of `sbLives` (URL `sblf`). */
+  sbLife: SbLife;
+  /** The final duel's extras: homing, slow-motion cuts, the banner, trails and the tension soundtrack (URL `sbdl`). */
+  sbDuel: boolean;
+  // --- end string-battle-alive ---
   // --- end odd-string-battle ---
   // --- odd-power-layers --- Power Layers (lib/physics/modes/powerLayers.ts): a ball smashing a stack of rainbow layers
   /** Layers in the stack, 20–800 (URL `pll`). */
@@ -1704,7 +1711,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeTimelineParams(settings, params); // --- timeline ---: kf
   writeDoublePendulumParams(settings, base, params); // --- jdm-double-pendulum ---: dpn, dpsg, dpl1–3, dpm1–3, dpg, dpa1–3, dprs, dpd, dptr, dpst, dpsl, dpo, dpsp, dpen
   writeIllusionParams(settings, base, params); // --- jdm-illusions ---: ilt, ilb, ilr, ild, ilp, ilpt, ils, iltr, ilrv, ilc, wob
-  writeStringBattleParams(settings, base, params); // --- odd-string-battle ---: sbn, sbl, sbm, sbr, sbst, sbd, sbf, sbw, sbb, sbh
+  writeStringBattleParams(settings, base, params); // --- odd-string-battle ---: sbn, sbl, sbm, sbr, sbst, sbd, sbf, sbw, sbb, sbh (--- string-battle-alive --- sblf, sbdl)
   writePowerLayersParams(settings, base, params); // --- odd-power-layers ---: pll, plq, pld, plsp, plb, plp
   writeRaceParams(settings, base, params); // --- jdm-race ---: rcn, rcs, rcl, rclp, rcf, rccam, rccup, rcct, rcw, rcst, rcmm
   writeArenaGameParams(settings, base, params); // --- jdm-arena-games ---: btn, bthp, btd, bta, bts, btp, ctfn, ctfw, arn

@@ -447,6 +447,18 @@ export interface SoundEvent {
   /** The completion chord held 2 s with its 1.7 Hz tremolo before it decays (Colour Sort's resolve). */
   loopTremolo?: boolean;
   // --- end ellipse-foci --- --- end colour-sort ---
+  // --- string-battle-alive ---
+  /**
+   * A sound of the String Battle's final duel (`ToneGenerator.playStringDuel()`, lib/audio/stringDuelTones.ts) instead of a
+   * bounce: "start" – the riser into a low tom and the tension drone on its root `frequency` –, "beat" – a heartbeat at
+   * `sbDuelBpm` –, "cut" – a swell, the drone a semitone higher on `frequency` –, "final" – the long noise tail, the drone let
+   * go – and "stop" (the drone let go). `sbDuelSpeed` (the duel's speed factor) opens the drone's low-pass. Sent with
+   * `melody: false`, so a page that does not know it plays an accompaniment hit, never a melody note.
+   */
+  sbDuel?: "start" | "beat" | "cut" | "final" | "stop";
+  sbDuelBpm?: number;
+  sbDuelSpeed?: number;
+  // --- end string-battle-alive ---
 }
 
 // --- loop-foundation --- the voices of the loop sound families (lib/audio/loopTones.ts; `ToneGenerator.playLoop()`)

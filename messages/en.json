@@ -1085,10 +1085,10 @@
     "sbMaxStrings": "Threads per Ball",
     "sbMaxStringsTip": "How many threads a ball drags at most, 3–40; beyond that the oldest one detaches and fades.",
     "sbDuration": "Clip Limit",
-    "sbDurationTip": "Judge the battle after this many seconds: the survivors with the most lives win (then the most kills, then the most bounces). Off: the battle goes on until one ball remains.",
+    "sbDurationTip": "Judge the battle after this many seconds: the survivors with the most threads win, or the most lives under the lives rule (then the most kills, then the most bounces). Off: the battle goes on until one ball remains.",
     "sbDurationOff": "Until one is left",
     "sbFinaleSpeed": "Finale Speed",
-    "sbFinaleSpeedTip": "When two balls are left and one of them is a cut from elimination (or the clip limit is 6 s away) the balls speed up to this and their halos strobe – the end gets intense.",
+    "sbFinaleSpeedTip": "When two balls are left, or the clip limit is 6 s away, the balls speed up to this and their halos strobe. A long stalemate speeds them up even more.",
     "sbWobble": "Ring Wobble",
     "sbWobbleTip": "Neon style: how much the ring wobbles like jelly on every hit (visual only).",
     "sbWobbleOff": "Off",
@@ -2361,7 +2361,18 @@
     "ringTimer": "Time in Ring",
     "ringTimerTip": "Shows \"ring k: t s\" under the rings: how long the ball has been in the ring it is in, and \"out in t s\" once it is out. Recordings carry it.",
     "ringSound": "Ring Sounds",
-    "ringSoundTip": "Original synthesized sounds: a soft pentatonic pluck for every bounce, pitched by the ring (outer rings low, inner rings high), a rising step for every ring the ball gets through and a warm chord when it is out."
+    "ringSoundTip": "Original synthesized sounds: a soft pentatonic pluck for every bounce, pitched by the ring (outer rings low, inner rings high), a rising step for every ring the ball gets through and a warm chord when it is out.",
+    "sbLife": "Life Rule",
+    "sbLifeTip": "Strings keeps a ball alive while one of its threads holds, and Lives gives every ball a set number of lives.",
+    "sbLifeStrings": "Strings",
+    "sbLifeLives": "Lives",
+    "sbLifeHintStrings": "A ball lives while one of its threads holds. Lose the last one and it shatters.",
+    "sbLifeHintLives": "Every ball starts with a set number of lives. A lost life shields it for a moment.",
+    "sbHintCutStrings": "Crossing enemy threads cuts every one you pass. Bounce often to grow new ones.",
+    "sbHintTouchStrings": "The threads are lasers. Touching one costs you your oldest thread.",
+    "sbHintCollideStrings": "Every crash costs the slower ball its oldest thread.",
+    "sbDuel": "Final Duel",
+    "sbDuelTip": "When two balls are left they hunt each other, every cut slows time, and a heartbeat builds to the end."
   },
   "Modes": {
     "previewAlt": "{name} mode preview",
@@ -5279,5 +5290,9 @@
   "RingEscape": {
     "hudRing": "ring {ring}: {time} s",
     "hudOut": "out in {time} s"
+  },
+  "StringDuel": {
+    "banner": "FINAL DUEL",
+    "threads": "THREADS"
   }
 }

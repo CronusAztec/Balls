@@ -94,8 +94,10 @@ const modeSettings: ModeSettings = {
 
 const STEP = 1000 / 60;
 
+// --- string-battle-alive --- the battles below play the lives rule (`life: "lives"` pinned: the strings rule is the default now and has
+// its own tests in tests/stringBattleAlive.test.ts); a test about the strings rule passes `life: "strings"`
 function battle(stringBattle: Partial<StringBattleSettings> = {}, seed = 42, cfg: PhysicsConfig = config) {
-  return createEngineForSettings(cfg, "stringBattle", { ...modeSettings, stringBattle }, seed);
+  return createEngineForSettings(cfg, "stringBattle", { ...modeSettings, stringBattle: { life: "lives", ...stringBattle } }, seed);
 }
 
 /** Runs until the battle ends (or `maxMs`), collecting the sound events; returns the simulated time. */
@@ -184,7 +186,7 @@ function probe(cfg: PhysicsConfig = config): Probe {
 /** A mode with `settings` started in a probe context. */
 function fight(settings: Partial<StringBattleSettings>, cfg: PhysicsConfig = config) {
   const mode = new StringBattleMode();
-  mode.setSettings(settings);
+  mode.setSettings({ life: "lives", ...settings }); // --- string-battle-alive --- (the lives rule pinned, as `battle()`)
   const pr = probe(cfg);
   mode.init(pr.ctx);
   return { mode, pr, view: mode.getView() };
@@ -383,12 +385,13 @@ describe("thread geometry", () => {
     expect(finaleFactor(SB_FINALE_RAMP_MS / 2, 2)).toBeCloseTo(1.5, 9);
     expect(finaleFactor(SB_FINALE_RAMP_MS * 3, 2.5)).toBeCloseTo(2.5, 9);
     expect(finaleFactor(SB_FINALE_RAMP_MS, 0.5)).toBe(1);
-    expect(finaleDue(3, 1, 0, 0)).toBe(false);
-    expect(finaleDue(2, 2, 0, 0)).toBe(false);
-    expect(finaleDue(2, 1, 0, 0)).toBe(true);
-    expect(finaleDue(1, 1, 0, 0)).toBe(false);
-    expect(finaleDue(4, 4, 30_000 - SB_FINALE_LAST_MS, 30)).toBe(true);
-    expect(finaleDue(4, 4, 30_000 - SB_FINALE_LAST_MS - 1, 30)).toBe(false);
+    // --- string-battle-alive --- the finale is due the moment two balls are left (it used to wait for one a cut from the end)
+    expect(finaleDue(3, 0, 0)).toBe(false);
+    expect(finaleDue(2, 0, 0)).toBe(true);
+    expect(finaleDue(1, 0, 0)).toBe(false);
+    expect(finaleDue(4, 30_000 - SB_FINALE_LAST_MS, 30)).toBe(true);
+    expect(finaleDue(4, 30_000 - SB_FINALE_LAST_MS - 1, 30)).toBe(false);
+    expect(finaleDue(1, 30_000, 30)).toBe(false);
   });
 
   it("judges a clip limit by lives, and the rig keeps its chosen ball in the lead", () => {
@@ -616,7 +619,7 @@ describe("the combat rules", () => {
     expect(view.forcedWinner).toBe(-1);
   });
 
-  it("the clip limit judges the survivors by lives; the finale starts with two balls, one a cut from the end", () => {
+  it("the clip limit judges the survivors by lives; the finale starts the moment two balls are left", () => {
     const { mode, pr, view } = fight({ balls: 3, lives: 3, duration: 20 });
     view.fighters[0].lives = 2;
     view.fighters[2].lives = 1;
@@ -629,12 +632,9 @@ describe("the combat rules", () => {
     expect(view.finished).toBe(true);
     expect(view.winner).toBe(1);
     expect(pr.escapes).toEqual([1]);
-    // Without a clip limit: two balls left and one at its last life.
+    // Without a clip limit: two balls left, whatever their lives (--- string-battle-alive --- it used to wait for a last life).
     const two = fight({ balls: 2, lives: 3 });
     two.pr.setTime(5000);
-    two.mode.onPostUpdate(two.pr.ctx);
-    expect(two.view.finale).toBe(false);
-    two.view.fighters[1].lives = 1;
     two.mode.onPostUpdate(two.pr.ctx);
     expect(two.view.finale).toBe(true);
     expect(two.view.finaleStartMs).toBe(5000);
@@ -699,7 +699,7 @@ describe("the String Battle in the engine", () => {
     const events: SoundEvent[] = [];
     runBattle(engine, 120_000, events);
     const view = engine.getStringBattleView();
-    const notes = events.filter((e) => e.type === "hit" && !e.sbSound);
+    const notes = events.filter((e) => e.type === "hit" && !e.sbSound && !e.sbDuel); // (--- string-battle-alive --- the duel's soundtrack apart)
     expect(notes.length).toBe(view.bounces);
     expect(new Set(notes.map((e) => e.frequency))).toEqual(new Set([0, 1, 2, 3].map(bounceFrequency)));
     expect(events.filter((e) => e.sbSound === "shatter").length).toBe(view.count - 1);
@@ -814,7 +814,7 @@ describe("Find Simulation and the forced winner", () => {
     maxSimTimeSec: 120,
     physicsConfig: config,
     mode: "stringBattle",
-    modeSettings: { ...modeSettings, stringBattle: {} },
+    modeSettings: { ...modeSettings, stringBattle: { life: "lives" } }, // --- string-battle-alive --- (the lives rule pinned, as `battle()`)
     ...patch,
   });
 
@@ -857,7 +857,7 @@ describe("Find Simulation and the forced winner", () => {
   });
 
   it("judges a battle's winner at its end, not the clip's: lives 9 and a 30 s clip", () => {
-    const req = request({ maxSimTimeSec: 60, modeSettings: { ...modeSettings, stringBattle: { lives: 9 } } });
+    const req = request({ maxSimTimeSec: 60, modeSettings: { ...modeSettings, stringBattle: { lives: 9, life: "lives" } } });
     let matched = 0;
     for (let seed = 1; seed <= 8; seed++) {
       const engine = battle({ lives: 9 }, seed);
@@ -885,7 +885,7 @@ describe("Find Simulation and the forced winner", () => {
   });
 
   it("finds a battle a chosen ball wins with lives 9 and a 30 s clip – and the found seed plays out that way", { timeout: 60_000 }, async () => {
-    const stringBattle = { lives: 9 };
+    const stringBattle = { lives: 9, life: "lives" as const };
     const outcome = { kind: "winner" as const, clipSec: 30, team: 2 };
     const found = await withFrames(() => findSimulation(request({ maxSimTimeSec: 60, outcome, modeSettings: { ...modeSettings, stringBattle } }), () => undefined));
     expect(found.found).toBe(true);
@@ -914,16 +914,18 @@ describe("Find Simulation and the forced winner", () => {
 
   it("never finds a battle that ended in a double KO: the found battle's chosen ball is the last one standing", { timeout: 60_000 }, async () => {
     // The smoke test's nine-life search as the page sends it (a 16:9 frame, the 800 × 450 world): a battle ACID (slot 2) wins.
-    const page = { ...finderRequestOfSettings(settingsFromSearchParams(new URLSearchParams("mode=stringBattle&sbl=9")), { width: 800, height: 450 }, 60), targetDurationSec: 30, maxSeeds: 1000 };
+    // (--- string-battle-alive --- the lives rule pinned: `sblf=lives`, the strings rule being the default now)
+    const page = { ...finderRequestOfSettings(settingsFromSearchParams(new URLSearchParams("mode=stringBattle&sbl=9&sblf=lives")), { width: 800, height: 450 }, 60), targetDurationSec: 30, maxSeeds: 1000 };
     const outcome = { kind: "winner" as const, clipSec: 30, team: 2 };
     const replay = (seed: number) => {
       const engine = createEngineForSettings(page.physicsConfig, page.mode, page.modeSettings, seed);
       runBattle(engine, 60_000);
       return engine.getStringBattleView();
     };
-    // Seed 1461257034: ACID and VIOLET, a life each, cut each other's last thread in the same step at 29.2 s – nobody is left
-    // standing, and the shared verdict crowns ACID on the kills (2 to 1): the page's banner says ACID wins.
-    const DOUBLE_KO = 1461257034;
+    // Seed 216: the last two, a life each, cut each other's last thread in the same step at 28 s – nobody is left standing, and
+    // the shared verdict crowns ACID on the kills: the page's banner says ACID wins. (--- string-battle-alive --- re-recorded: the
+    // finale now starts at two balls left and homes them in on each other, so the old seed 1461257034 ends with ACID alone.)
+    const DOUBLE_KO = 216;
     const ko = replay(DOUBLE_KO);
     expect(ko.finished && ko.alive === 0 && ko.winner === 2, "the seed still ends in a double KO that crowns ACID").toBe(true);
     expect(ko.fighters.map((f) => f.lives)).toEqual([0, 0, 0, 0]);
@@ -1173,17 +1175,23 @@ describe("review fixes (modes-gerald-odd)", () => {
 describe("--- low-findings --- the smoke test's pinned default battle", () => {
   /** The `seed=` of the smoke check "a default string battle ends with one ball standing" (scripts/smoke-test.mjs). */
   const STRING_BATTLE_ONE_STANDING = 4;
-  /** A default battle that ends in a double KO (the last two balls shatter in the same step): why the check pins its seed. */
-  const DEFAULT_DOUBLE_KO = 1374;
-  const page = finderRequestOfSettings(settingsFromSearchParams(new URLSearchParams("mode=stringBattle")), { width: 800, height: 450 }, 120);
-  const play = (seed: number) => {
-    const engine = createEngineForSettings(page.physicsConfig, page.mode, page.modeSettings, seed);
+  /**
+   * A default lives battle that ends in a double KO (the last two balls shatter in the same step): why the check pins its seed.
+   * (--- string-battle-alive --- re-recorded, 1374 → 641: the finale now starts at two balls left and homes them in, so 1374 ends
+   * with one standing. The check pins the lives rule, `sblf=lives`: it counts lives, and the strings rule is the default now. It
+   * pins the final duel off too, `sbdl=0`: its soundtrack is off the ladder the check holds the bounce notes to.)
+   */
+  const DEFAULT_DOUBLE_KO = 641;
+  const page = finderRequestOfSettings(settingsFromSearchParams(new URLSearchParams("mode=stringBattle&sblf=lives")), { width: 800, height: 450 }, 120);
+  const checked = finderRequestOfSettings(settingsFromSearchParams(new URLSearchParams("mode=stringBattle&sblf=lives&sbdl=0")), { width: 800, height: 450 }, 120);
+  const play = (seed: number, request = page) => {
+    const engine = createEngineForSettings(request.physicsConfig, request.mode, request.modeSettings, seed);
     runBattle(engine, 240_000);
     return engine.getStringBattleView();
   };
 
   it("ends with one ball standing – as the check asks: three balls out of lives, a dozen cuts and lives lost or more", () => {
-    const v = play(STRING_BATTLE_ONE_STANDING);
+    const v = play(STRING_BATTLE_ONE_STANDING, checked);
     expect(v.finished).toBe(true);
     expect(v.alive).toBe(1);
     expect(v.winner).toBeGreaterThanOrEqual(0);
@@ -1191,10 +1199,10 @@ describe("--- low-findings --- the smoke test's pinned default battle", () => {
     expect(v.fighters.filter((f) => f.lives === 0)).toHaveLength(3);
     expect(v.cuts).toBeGreaterThanOrEqual(12);
     expect(v.livesLost).toBeGreaterThanOrEqual(12);
-    expect(fs.readFileSync(path.join(__dirname, "..", "scripts/smoke-test.mjs"), "utf8")).toContain(`/en/simulator/?mode=stringBattle&seed=${STRING_BATTLE_ONE_STANDING}\``);
+    expect(fs.readFileSync(path.join(__dirname, "..", "scripts/smoke-test.mjs"), "utf8")).toContain(`/en/simulator/?mode=stringBattle&sblf=lives&sbdl=0&seed=${STRING_BATTLE_ONE_STANDING}\``);
   });
 
-  it("while a random default battle may end with nobody standing (the mode's shared verdict)", () => {
+  it("while a random default lives battle may end with nobody standing (the mode's shared verdict)", () => {
     const v = play(DEFAULT_DOUBLE_KO);
     expect(v.finished).toBe(true);
     expect(v.alive).toBe(0);

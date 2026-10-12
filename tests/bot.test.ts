@@ -831,9 +831,10 @@ describe("the day plans of the pinned dates", () => {
 // win between them, the planner's words name nobody
 describe("--- low-findings --- the planner's words for a double KO", () => {
   const recipe = recipeById("string-battle")!;
-  const request = finderRequestOfSettings(settingsFromSearchParams(new URLSearchParams("mode=stringBattle")), { width: 800, height: 450 }, 120);
-  /** Default battles (tests/stringBattle.test.ts): 1374 ends with nobody standing, 4 with one ball standing. */
-  const DOUBLE_KO = 1374;
+  // (--- string-battle-alive --- the recipe's lives rule pinned, `sblf=lives`: the strings rule is the page's default now)
+  const request = finderRequestOfSettings(settingsFromSearchParams(new URLSearchParams("mode=stringBattle&sblf=lives")), { width: 800, height: 450 }, 120);
+  /** Default lives battles (tests/stringBattle.test.ts): 641 ends with nobody standing, 4 with one ball standing (re-recorded 1374 → 641 with the final duel). */
+  const DOUBLE_KO = 641;
   const ONE_STANDING = 4;
 
   it("reports the double KO in the run's facts and names no winner for it, while the mode's verdict still crowns one", () => {
@@ -846,7 +847,7 @@ describe("--- low-findings --- the planner's words for a double KO", () => {
     for (let t = 0; t < 240_000 && !engine.isSimulationFinished(); t += 1000 / 60) engine.update(1000 / 60, 0);
     expect(engine.getStringBattleView().alive).toBe(0);
     expect(engine.getStringBattleView().winner).toBeGreaterThanOrEqual(0);
-    const settings = settingsFromSearchParams(new URLSearchParams("mode=stringBattle"));
+    const settings = settingsFromSearchParams(new URLSearchParams("mode=stringBattle&sblf=lives"));
     const timing = clipTiming(recipe, settings, ko, "resolved", "standard");
     expect(passesFinderPredicates(recipe, ko, timing, "resolved", 4).winner).toBe(-1);
     for (const [locale, c] of Object.entries(COPY)) {
@@ -863,7 +864,7 @@ describe("--- low-findings --- the planner's words for a double KO", () => {
   it("keeps the winner's words for a battle with one ball standing, and for a recipe without double-KO words", () => {
     const won = simulateFacts(request, ONE_STANDING, recipe, 240);
     expect(won.summary.doubleKo).toBe(false);
-    const settings = settingsFromSearchParams(new URLSearchParams("mode=stringBattle"));
+    const settings = settingsFromSearchParams(new URLSearchParams("mode=stringBattle&sblf=lives"));
     expect(passesFinderPredicates(recipe, won, clipTiming(recipe, settings, won, "resolved", "standard"), "resolved", 4).winner).toBeGreaterThanOrEqual(0);
     expect(payoffKeyOf(copy, recipe, won)).toBe("payoff");
     expect(payoffKeyOf(copy, recipe, null)).toBe("payoff");

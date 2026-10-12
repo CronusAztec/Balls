@@ -45,6 +45,7 @@ const modeSettings: ModeSettings = {
   twoBalls: false,
   drop: {},
   box: {},
+  stringBattle: { life: "lives" }, // --- string-battle-alive --- the String Battle's baseline plays the lives rule (the strings rule is the default now)
 };
 
 const ALL_EXTRAS_ON: PhysicsExtras = {

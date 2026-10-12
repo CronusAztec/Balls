@@ -17,6 +17,7 @@ import {
   shakeAmplitude,
   slowViewEligible,
   shakeOffset,
+  slowMoTimeScale, // --- string-battle-alive ---
   stepCameraView,
   type CameraSettings,
   type CameraTransform,
@@ -109,8 +110,37 @@ export class CinematicCamera {
   timeScale(): number {
     const s = this.settings;
     this.scaleNow = s.slowMoOnNearMiss && this.phase === "idle" ? this.slowMo.timeScale(s.slowMoMs, s.slowMoFactor) : 1;
+    // --- string-battle-alive --- a mode's own dip (the String Battle's duel cuts), whatever the switch: the slower of the two
+    if (this.phase === "idle" && this.dipElapsed < this.dipMs) this.scaleNow = Math.min(this.scaleNow, slowMoTimeScale(this.dipElapsed, this.dipMs, this.dipFactor));
     return this.scaleNow;
   }
+
+  // --- string-battle-alive ---
+  /** Real ms into the mode's slow-motion dip (Infinity: none), its length and its time scale. */
+  private dipElapsed = Infinity;
+  private dipMs = 0;
+  private dipFactor = 1;
+  /** Dips started this run (mirrored as data-camera-dips). */
+  dips = 0;
+  /**
+   * A mode asks for the balls to be drawn between steps (the String Battle's duel, whose cuts dip into slow motion with the
+   * slow-motion switch off too): `slowView()` interpolates while it is set, as it does with the switch on.
+   */
+  modeSlowView = false;
+
+  /**
+   * A short slow-motion dip a mode asks for (the String Battle's duel: every cut, the final one longer): `ms` of real time
+   * eased down to `factor` and back (`slowMoTimeScale()`), independent of the slow-motion switch, counted in the slow motion's
+   * lag (`getSlowLagMs()`: a recording is extended by it). A dip inside a dip starts it again. Ignored around the replay.
+   */
+  dip(ms: number, factor: number) {
+    if (this.phase !== "idle" || !(ms > 0)) return;
+    this.dipElapsed = 0;
+    this.dipMs = ms;
+    this.dipFactor = Number.isFinite(factor) ? factor : 1;
+    this.dips++;
+  }
+  // --- end string-battle-alive ---
 
   getPhase(): ReplayPhase {
     return this.phase;
@@ -182,6 +212,8 @@ export class CinematicCamera {
       this.slowFrames = 0;
       this.slowStill = 0;
       this.slowLagMs = 0;
+      this.dipElapsed = Infinity; // --- string-battle-alive ---
+      this.dips = 0;
       this.drawnId = NaN;
       this.lastBreaks = engine.getWallBreakSerial();
       this.lastMisses = engine.getNearMissSerial();
@@ -192,7 +224,7 @@ export class CinematicCamera {
 
   /** The live view is drawn between steps: slow motion on, a ring mode, and no replay around. */
   private interpolating(engine: PhysicsEngine) {
-    return this.settings.slowMoOnNearMiss && this.phase === "idle" && slowViewEligible(engine.getCurrentModeName());
+    return (this.settings.slowMoOnNearMiss || this.modeSlowView) /* --- string-battle-alive --- */ && this.phase === "idle" && slowViewEligible(engine.getCurrentModeName());
   }
 
   private recording(engine: PhysicsEngine) {
@@ -249,6 +281,7 @@ export class CinematicCamera {
     if (this.phase === "idle") this.slowLagMs += frameMs * (1 - this.scaleNow);
     this.shakeAge += frameMs;
     this.slowMo.advance(frameMs, s.slowMoMs);
+    if (this.dipElapsed < this.dipMs) this.dipElapsed += frameMs; // --- string-battle-alive --- (the dip runs in real time)
 
     if (this.phase === "idle") {
       if (s.replayOnEscape && replayEligible(engine.getCurrentModeName()) && engine.isSimulationFinished()) {
