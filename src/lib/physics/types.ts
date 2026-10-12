@@ -84,6 +84,8 @@ export const MODE_IDS = [
   "ellipseFoci",
   // --- beat-machine --- Beat Machines (the marble xylophone and the eight-step staircase: every note a ball landing on the beat; the loop family)
   "beatMachine",
+  // --- drawing-machine --- Drawing Machines (a three-pendulum harmonograph and the planets' orbit flowers; the loop family)
+  "drawingMachine",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -436,6 +438,10 @@ export interface SoundEvent {
   /** The completion chord held 2 s with its 1.7 Hz tremolo before it decays (Colour Sort's resolve). */
   loopTremolo?: boolean;
   // --- end ellipse-foci --- --- end colour-sort ---
+  // --- drawing-machine ---
+  /** A "drone" event's pen speed (0–1 of its top speed): the drone's ripple and the pen's scratch follow it (Drawing Machines). */
+  loopSpeed?: number;
+  // --- end drawing-machine ---
 }
 
 // --- loop-foundation --- the voices of the loop sound families (lib/audio/loopTones.ts; `ToneGenerator.playLoop()`)
