@@ -162,6 +162,36 @@ describe("auto-update", () => {
     online = false;
     await expect(c.check()).resolves.toMatchObject({ state: "error", message: "offline" });
   });
+
+  it("leaves a downloaded update alone and hides electron-updater's own error event from a quiet check", async () => {
+    const logs: string[] = [];
+    const seen: UpdateStatus[] = [];
+    let calls = 0;
+    // electron-updater's real order on a failed check: "checking-for-update", then "error", then the promise rejects
+    const u = fakeUpdater(async () => {
+      calls++;
+      (u.handlers.get("checking-for-update") as () => void)();
+      const err = new Error("HttpError: 503");
+      (u.handlers.get("error") as (e: Error) => void)(err);
+      throw err;
+    });
+    const c = new UpdateController(u, { enabled: true, packaged: true, portable: false, online: () => true, log: (m) => logs.push(m), emit: (s) => seen.push(s) });
+    (u.handlers.get("update-not-available") as () => void)();
+    await expect(c.check({ quiet: true })).resolves.toMatchObject({ state: "none" });
+    expect(calls).toBe(1);
+    expect(seen.map((s) => s.state)).toEqual(["none", "checking", "none"]);
+    expect(logs.some((l) => l.includes("503"))).toBe(true);
+    // the same failure on a manual check is shown
+    await expect(c.check()).resolves.toMatchObject({ state: "error", message: "HttpError: 503" });
+    // an update that is available, downloading or downloaded: the schedule does not ask again (it installs on restart)
+    for (const emit of [() => (u.handlers.get("update-available") as (i: { version: string }) => void)({ version: "2.0.0" }), () => (u.handlers.get("update-downloaded") as (i: { version: string }) => void)({ version: "2.0.0" })]) {
+      emit();
+      const state = c.status.state;
+      await expect(c.check({ quiet: true })).resolves.toMatchObject({ state });
+    }
+    expect(c.status).toMatchObject({ state: "ready", version: "2.0.0" });
+    expect(calls).toBe(2);
+  });
 });
 
 describe("menu and media", () => {

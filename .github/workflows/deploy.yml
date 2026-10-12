@@ -1,8 +1,8 @@
 name: Build and deploy to GitHub Pages
 
-# Every push is linted, type-checked, unit-tested and built. Pushes to the repository's default
-# branch (and manual runs from any branch) then run the browser smoke test against a base-path
-# build and, once it passes, are published to GitHub Pages.
+# Every push is linted, type-checked, unit-tested and built. Pushes to the product branch (and
+# manual runs from it) then run the browser smoke test against a base-path build and, once it
+# passes, are published to GitHub Pages.
 # One-time setup: Settings → Pages → "Build and deployment" → Source: "GitHub Actions".
 # --- desktop-autorelease --- Only the product branch deploys: claude/optimistic-johnson-46x3qg (today) or main (when the owner
 # renames it in the GitHub UI – both are listed so nothing needs editing that day). Every other branch – and a manual run from

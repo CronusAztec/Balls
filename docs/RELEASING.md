@@ -4,9 +4,11 @@ This page is for the owner. It explains what happens after you push a change, ho
 Windows app, and how to undo a bad release. The full launch checklist (payments, legal pages, the domain) is in
 [GO-LIVE.md](GO-LIVE.md).
 
-The **product branch** is `claude/optimistic-johnson-46x3qg`. If you rename it to `main` in GitHub (Settings → Branches),
-everything keeps working: both names are listed in the workflows. Other branches are only built and checked; they never
-publish anything, not even when someone presses "Run workflow" on them.
+The **product branch** is `claude/optimistic-johnson-46x3qg`. If you rename it to `main` in GitHub (Settings → General →
+Default branch → the pencil icon), everything keeps working: both names are listed in the workflows. Other branches are
+only built and checked: the website never deploys from them, not even when someone presses "Run workflow" on them. The
+Worker and the Windows app deploy from another branch only when you pick that branch in **Run workflow** yourself
+("Deploy billing worker", or "Windows app" with **publish** ticked).
 
 ## What updates when
 
@@ -103,6 +105,8 @@ The browser test saves screenshots: open the run, scroll to **Artifacts** and do
    commit, push, and deploy the Worker. Until then the Worker deploy stops and the website run warns you.
 5. If you run the publish relay, add the new address to its `RELAY_ALLOWED_ORIGINS`.
 6. Protect the name: your profile → Settings → Pages → **Verified domains** → add it.
+
+The whole launch (payments, legal pages, the domain and the Worker together) is in [GO-LIVE.md](GO-LIVE.md).
 
 ## Hosting
 
