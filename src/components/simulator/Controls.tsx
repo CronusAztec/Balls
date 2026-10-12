@@ -14,6 +14,7 @@ import MusicSection, { MUSIC_BED_KEYS, type MusicTrackInfo } from "./sections/Mu
 import PendulumWaveSection, { PENDULUM_WAVE_KEYS } from "./sections/PendulumWaveSection";
 import EllipseFociSection, { ELLIPSE_FOCI_KEYS } from "./sections/EllipseFociSection"; // --- ellipse-foci --- the Focus Shot block of the Mode row
 import BeatMachineSection, { BEAT_MACHINE_KEYS } from "./sections/BeatMachineSection"; // --- beat-machine --- the Beat Machines block of the Mode row
+import BrickRebuildSection, { BRICK_REBUILD_KEYS } from "./sections/BrickRebuildSection"; // --- brick-rebuild --- the Brick Smash block of the Mode row
 import PerfectFitSection, { PERFECT_FIT_KEYS } from "./sections/PerfectFitSection"; // --- perfect-fit --- the Perfect Fit block of the Mode row
 import { BALL_PHYSICS_EXTRA_KEYS, BallPhysicsExtras, WALL_PHYSICS_EXTRA_KEYS, WallPhysicsExtras } from "./sections/PhysicsExtrasSection";
 import PicturePaintSection, { PICTURE_PAINT_KEYS, type PaintBeatInfo, type PaintPictureInfo } from "./sections/PicturePaintSection";
@@ -277,6 +278,7 @@ SECTION_KEYS.ball.push(...CONVEYOR_KEYS, ...RESPAWN_KEYS);
 SECTION_KEYS.ball.push(...ORB_GRID_KEYS);
 SECTION_KEYS.ball.push(...ELLIPSE_FOCI_KEYS); // --- ellipse-foci --- the Focus Shot block of the Mode row
 SECTION_KEYS.ball.push(...BEAT_MACHINE_KEYS); // --- beat-machine --- the Beat Machines block of the Mode row
+SECTION_KEYS.ball.push(...BRICK_REBUILD_KEYS); // --- brick-rebuild --- the Brick Smash block of the Mode row
 SECTION_KEYS.ball.push(...PERFECT_FIT_KEYS); // --- perfect-fit --- the Perfect Fit block of the Mode row
 // --- fight-league --- the Fight League block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...FIGHT_LEAGUE_KEYS);
@@ -359,12 +361,13 @@ export default function Controls(props: ControlsProps) {
   // --- colour-sort --- the Colour Sort block's labels live in their own namespace: the search and the palette read them there too
   const colourSortT = useTranslations("ColourSort");
   const beatMachineT = useTranslations("BeatMachine"); // --- beat-machine --- (its block's labels live in their own namespace too)
+  const brickRebuildT = useTranslations("BrickRebuild"); // --- brick-rebuild --- (its block's labels live in their own namespace too)
   const vortexT = useTranslations("Vortex"); // --- funnel-spin --- (the ring release's and the perspective's labels live under Vortex)
   const perfectFitT = useTranslations("PerfectFit"); // --- perfect-fit --- (its block's labels live in their own namespace too)
   const matches = (key: string) => {
     if (!search) return true;
     const q = search.toLowerCase();
-    const label = t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : "";
+    const label = t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : brickRebuildT.has(key) ? brickRebuildT(key) /* --- brick-rebuild --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : "";
     return key.toLowerCase().includes(q) || label.toLowerCase().includes(q);
   };
   const sectionMatches = (keys: string[]) => !search || keys.some(matches);
@@ -386,6 +389,7 @@ export default function Controls(props: ControlsProps) {
     pendulum: t("modePendulum"),
     ellipseFoci: t("modeEllipseFoci"), // --- ellipse-foci ---
     beatMachine: t("modeBeatMachine"), // --- beat-machine ---
+    brickRebuild: t("modeBrickRebuild"), // --- brick-rebuild ---
     perfectFit: t("modePerfectFit"), // --- perfect-fit ---
     polyrhythm: t("modePolyrhythm"), // --- jdm-polyrhythm ---
     // --- jdm-collisions ---
@@ -501,6 +505,7 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "pendulum" && !!search && <PendulumWaveSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {s.mode === "ellipseFoci" && !!search && <EllipseFociSection t={t} search={search} matches={matches} settings={s} update={update} /> /* --- ellipse-foci --- */}
       {s.mode === "beatMachine" && !!search && <BeatMachineSection t={t} search={search} matches={matches} settings={s} update={update} /> /* --- beat-machine --- */}
+      {s.mode === "brickRebuild" && !!search && <BrickRebuildSection t={t} search={search} matches={matches} settings={s} update={update} /> /* --- brick-rebuild --- */}
       {s.mode === "perfectFit" && !!search && <PerfectFitSection t={t} search={search} matches={matches} settings={s} update={update} /> /* --- perfect-fit --- */}
       {s.mode === "polyrhythm" && !!search && <PolyrhythmSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- jdm-collisions --- */}
@@ -1342,6 +1347,8 @@ export default function Controls(props: ControlsProps) {
         return <EllipseFociSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "beatMachine": // --- beat-machine ---
         return <BeatMachineSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      case "brickRebuild": // --- brick-rebuild ---
+        return <BrickRebuildSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "perfectFit": // --- perfect-fit ---
         return <PerfectFitSection t={t} search={search} matches={matches} settings={s} update={update} />;
       case "polyrhythm": // --- jdm-polyrhythm ---
@@ -1503,7 +1510,7 @@ export default function Controls(props: ControlsProps) {
     const labels = Object.fromEntries(railItems.map((item) => [item.id, item.label]));
     const groups: PaletteGroup[] = paletteKeyGroups(paletteShown, sections.map((item) => item.id), !!props.project).map((g) => ({ ...g, label: labels[g.section] }));
     const out: PaletteEntry[] = railItems.map((item) => ({ kind: "section", section: item.id, key: item.id, label: item.label, sectionLabel: item.label }));
-    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : null /* --- colour-sort --- */))];
+    return [...out, ...paletteControlEntries(groups, (key) => (t.has(key) ? t(key) : colourSortT.has(key) ? colourSortT(key) : beatMachineT.has(key) ? beatMachineT(key) /* --- beat-machine --- */ : vortexT.has(key) ? vortexT(key) /* --- funnel-spin --- */ : brickRebuildT.has(key) ? brickRebuildT(key) /* --- brick-rebuild --- */ : perfectFitT.has(key) ? perfectFitT(key) /* --- perfect-fit --- */ : null /* --- colour-sort --- */))];
     // The labels follow the language, the entries the mode and the settings that show or hide a control (paletteState).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [paletteOpen, t, paletteState, sections.length, !!props.project]);

@@ -66,6 +66,10 @@ const OUTCOME_LABELS: Record<FinderOutcomeKind, string> = {
   "ring-on-bar": "outcomeRingOnBar", // --- funnel-spin ---
   "summit-last": "outcomeSummitLast", // --- land-claim-pyramid ---
   "ring-at": "outcomeRingAt", // --- ring-escape ---
+  // --- brick-rebuild ---
+  "bricks-cleared-by": "outcomeBricksClearedBy",
+  "last-brick-on-bar": "outcomeLastBrickOnBar",
+  "final-balls": "outcomeFinalBalls",
   // --- perfect-fit ---
   "most-on-floor": "outcomeMostOnFloor",
   "landings-on-beat": "outcomeLandingsOnBeat",
@@ -111,6 +115,10 @@ const OUTCOME_HINTS: Record<FinderOutcomeKind, string> = {
   "ring-on-bar": "hintRingOnBar", // --- funnel-spin ---
   "summit-last": "hintSummitLast", // --- land-claim-pyramid ---
   "ring-at": "hintRingAt", // --- ring-escape ---
+  // --- brick-rebuild ---
+  "bricks-cleared-by": "hintBricksClearedBy",
+  "last-brick-on-bar": "hintLastBrickOnBar",
+  "final-balls": "hintFinalBalls",
   // --- perfect-fit ---
   "most-on-floor": "hintMostOnFloor",
   "landings-on-beat": "hintLandingsOnBeat",
@@ -237,13 +245,13 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
     <div className="space-y-3" data-testid="finder-outcome-fields">
       <p className="text-xs text-ink-3 leading-relaxed" data-testid="finder-outcome-hint">{r(hintKey(outcome, battle, territory, landClaim))}</p>
       {/* --- fl-overhaul --- (Stage 5) the fewest lead changes, the wave the boss falls at */}
-      {(outcome === "lead-changes" || outcome === "boss-falls-at") && (
+      {(outcome === "lead-changes" || outcome === "boss-falls-at" || outcome === "final-balls") /* --- brick-rebuild --- (final-balls: the fewest balls at the smash's end) */ && (
         <div className="space-y-1.5" data-testid="finder-count">
           <div className="flex items-center justify-between">
             <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-count">
-              {r(outcome === "lead-changes" ? "leadChangesCount" : "bossWave")}
+              {r(outcome === "lead-changes" ? "leadChangesCount" : outcome === "final-balls" ? "finalBallsCount" : "bossWave")}
             </label>
-            <span className="text-xs font-mono text-accent">{outcome === "lead-changes" ? `≥ ${count}` : count}</span>
+            <span className="text-xs font-mono text-accent">{outcome === "lead-changes" || outcome === "final-balls" ? `≥ ${count}` : count}</span>
           </div>
           <input
             id="find-count"
@@ -254,11 +262,11 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
             value={count}
             disabled={disabled}
             onChange={(e) => onCount?.(Number(e.target.value))}
-            aria-label={r(outcome === "lead-changes" ? "leadChangesCount" : "bossWave")}
+            aria-label={r(outcome === "lead-changes" ? "leadChangesCount" : outcome === "final-balls" ? "finalBallsCount" : "bossWave")}
             className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
             style={sliderStyle(count, countRange.min, countRange.max)}
           />
-          <NumberField value={count} onCommit={(n) => onCount?.(Math.max(1, Math.round(n)))} label={r(outcome === "lead-changes" ? "leadChangesCount" : "bossWave")} range={countRange} rules={{ min: countRange.min, integer: true }} disabled={disabled} settingKey="findCount" />
+          <NumberField value={count} onCommit={(n) => onCount?.(Math.max(1, Math.round(n)))} label={r(outcome === "lead-changes" ? "leadChangesCount" : outcome === "final-balls" ? "finalBallsCount" : "bossWave")} range={countRange} rules={{ min: countRange.min, integer: true }} disabled={disabled} settingKey="findCount" />
         </div>
       )}
       {(outcome === "escapes-at" || outcome === "resolves-at" || outcome === "both-low-at") /* --- orb-grid --- (--- fl-overhaul --- Stage 5: the cliffhanger's second) */ && (
@@ -435,6 +443,32 @@ export default function FinderOutcomeFields({ outcome, escapeAt, onEscapeAt, win
         </div>
       )}
       {/* --- end colour-sort --- */}
+      {/* --- brick-rebuild --- the smash's time limit for its last brick (the escape slider's range and field) */}
+      {outcome === "bricks-cleared-by" && (
+        <div className="space-y-1.5" data-testid="finder-cleared-by">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-cleared-by">
+              {r("clearedBy")}
+            </label>
+            <span className="text-xs font-mono text-accent">≤ {escapeAt.toFixed(1)}s</span>
+          </div>
+          <input
+            id="find-cleared-by"
+            type="range"
+            min={range.min}
+            max={range.max}
+            step={range.step}
+            value={escapeAt}
+            disabled={disabled}
+            onChange={(e) => onEscapeAt(Number(e.target.value))}
+            aria-label={r("clearedBy")}
+            className="w-full h-1.5 bg-surface-2 rounded-full appearance-none cursor-pointer disabled:opacity-50"
+            style={sliderStyle(escapeAt, range.min, range.max)}
+          />
+          <NumberField value={escapeAt} onCommit={onEscapeAt} label={r("clearedBy")} range={range} rules={{ min: range.min }} disabled={disabled} settingKey="findEscapeAt" />
+        </div>
+      )}
+      {/* --- end brick-rebuild --- */}
       {(outcome === "winner" || outcome === "champion") /* (--- fl-overhaul --- Stage 5: a bracket's champion among its pinned entrants) */ && (
         <div className="space-y-1.5">
           <label className="text-xs font-bold uppercase tracking-wider text-ink-3" htmlFor="find-winner">
@@ -462,6 +496,8 @@ export interface OutcomeTextContext {
   winnerName: string;
   /** --- loop-foundation --- The bar's length (s) a fill-on-bar search aims at (four beats at the page's BPM). */
   barSec?: number;
+  /** --- brick-rebuild --- final-balls: the fewest balls in play when the smash ends (the count field). */
+  count?: number;
 }
 
 // --- loop-foundation ---
@@ -539,6 +575,13 @@ export function outcomeButtonText(t: Translate, outcome: FinderOutcomeKind | nul
       return t("Rigged.findSummitLast");
     case "ring-at": // --- ring-escape ---
       return t("Rigged.findRingAt", { time: c.escapeAt.toFixed(1) });
+    // --- brick-rebuild ---
+    case "bricks-cleared-by":
+      return t("Rigged.findBricksClearedBy", { time: c.escapeAt.toFixed(1) });
+    case "last-brick-on-bar":
+      return t("Rigged.findLastBrickOnBar");
+    case "final-balls":
+      return t("Rigged.findFinalBalls", { count: c.count ?? 1 });
     // --- perfect-fit ---
     case "most-on-floor":
       return t("Rigged.findMostOnFloor");
@@ -614,6 +657,11 @@ export function outcomeFoundText(t: Translate, result: FinderResult, c: OutcomeT
       return t("Rigged.foundSummitLast", { time: (result.summitAt ?? 0).toFixed(1), duration: result.duration.toFixed(1) });
     case "ring-at": // --- ring-escape ---
       return t("Rigged.foundRingAt", { time: (result.ringAt ?? 0).toFixed(2) });
+    // --- brick-rebuild --- (the last brick's second, its distance from the bar line, the balls then; the clip is the first loop)
+    case "bricks-cleared-by":
+    case "last-brick-on-bar":
+    case "final-balls":
+      return t(result.outcome === "final-balls" ? "Rigged.foundFinalBalls" : result.outcome === "last-brick-on-bar" ? "Rigged.foundLastBrickOnBar" : "Rigged.foundBricksClearedBy", brickRebuildValues(result));
     // --- perfect-fit --- (the pieces on the floor and the solution seed; the beat and the loops in the clip)
     case "most-on-floor":
       return t("Rigged.foundMostOnFloor", { floor: result.perfectFit?.floor ?? 0, pieces: result.perfectFit?.pieces ?? 0, seed: result.perfectFit?.seed ?? 0 });
@@ -688,6 +736,11 @@ export function outcomeMissText(t: Translate, result: FinderResult, c: OutcomeTe
       return result.duration < 0 ? t("Rigged.missNoSummit", { seeds: result.seedsTested }) : t("Rigged.missSummitLast", { count: Math.round(result.duration), seeds: result.seedsTested });
     case "ring-at": // --- ring-escape ---
       return result.ringAt === undefined ? t("Rigged.missNoRing", { seeds: result.seedsTested }) : t("Rigged.missRingAt", { time: result.ringAt.toFixed(1), seeds: result.seedsTested });
+    // --- brick-rebuild --- (the closest smash: its last brick, its distance from the bar line, its balls; none ever cleared)
+    case "bricks-cleared-by":
+    case "last-brick-on-bar":
+    case "final-balls":
+      return brickRebuildMissText(t, result);
     // --- perfect-fit --- (no box of the list can be filled by dropping: nothing to land)
     case "most-on-floor":
     case "landings-on-beat":
@@ -769,6 +822,10 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return result.ringAt === undefined
         ? t("Rigged.overlayNoRing", { tested: result.seedsTested, target: c.escapeAt.toFixed(1) })
         : t("Rigged.overlayRingAt", { tested: result.seedsTested, closest: result.ringAt.toFixed(1), target: c.escapeAt.toFixed(1), tolerance: ESCAPE_AT_TOLERANCE_SEC });
+    case "bricks-cleared-by": // --- brick-rebuild ---
+    case "last-brick-on-bar":
+    case "final-balls":
+      return brickRebuildMissText(t, result);
     // --- perfect-fit ---
     case "most-on-floor":
     case "landings-on-beat":
@@ -777,6 +834,21 @@ export function outcomeOverlayText(t: Translate, result: FinderResult, c: Outcom
       return null;
   }
 }
+
+// --- brick-rebuild ---
+/** A Brick Smash result's figures for the texts: the last brick's second, its offset from the bar line (s), the balls, the loop and the seeds. */
+function brickRebuildValues(result: FinderResult) {
+  const br = result.brickRebuild;
+  return { time: (br?.clearedSec ?? 0).toFixed(2), offset: ((br?.barOffsetMs ?? 0) / 1000).toFixed(3), balls: br?.balls ?? 0, cycle: (br?.cycleSec ?? 0).toFixed(1), seeds: result.seedsTested };
+}
+/** A Brick Smash search that found nothing: the closest smash (no smash cleared at all: its own line). */
+function brickRebuildMissText(t: Translate, result: FinderResult): string {
+  const v = brickRebuildValues(result);
+  if (result.outcome === "final-balls") return t("Rigged.missFinalBalls", v);
+  if ((result.brickRebuild?.clearedSec ?? -1) < 0) return t("Rigged.missNoClear", v);
+  return t(result.outcome === "last-brick-on-bar" ? "Rigged.missLastBrickOnBar" : "Rigged.missBricksClearedBy", v);
+}
+// --- end brick-rebuild ---
 
 // --- chord-stars ---
 /** A Chord Stars result's stars as the panel shows them ("5/2, 7/3, 8/3"; the first twelve of a bigger set, then "…"). */

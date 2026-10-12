@@ -85,6 +85,8 @@ export const MODE_IDS = [
   "ellipseFoci",
   // --- beat-machine --- Beat Machines (the marble xylophone and the eight-step staircase: every note a ball landing on the beat; the loop family)
   "beatMachine",
+  // --- brick-rebuild --- Brick Smash (a picture of bricks smashed by multiplying balls, then rebuilt colour layer by colour layer; the loop family)
+  "brickRebuild",
   // --- perfect-fit --- Perfect Fit (pentomino rectangles and Tetris perfect clears dropped into a container that ends exactly full; the loop family)
   "perfectFit",
 ] as const;
