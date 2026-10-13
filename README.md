@@ -3336,6 +3336,13 @@ src/app/[locale]/download/     the download page (en / pl / es, in the sitemap, 
   or cannot start removes its half-written MP4, so nothing that looks like a finished clip is left and a retry keeps the name). The journal is written after every change
   (`JsonFileStore`: temporary file, fsync, rename, `.bak`); after a crash or restart the interrupted job goes back to the
   queue (a render cannot resume half-way – it starts over, at most `MAX_ATTEMPTS` times) and the panel offers **Resume**.
+- **The site deployer for the VPS (vps-site-deployer)** – `deploy/vps/`: a systemd timer on the server (`install.sh`, once) runs
+  `jbl-deploy.sh` every five minutes; when the watched branch has a new commit whose GitHub `build` check is green it fetches that
+  commit, runs the production guard, builds the static site for the domain's root, stamps `out/build.txt`, runs `wrangler deploy`
+  and only then calls it deployed (the live `/build.txt` names the commit). Outbound calls only, no port, an unprivileged user with
+  systemd's sandboxing, the Cloudflare token in a file only that user reads; a failed commit is not retried for six hours, a rollback is
+  `jbl-deploy.sh --sha <hash>`. `deploy/vps/README.md` has the trust model and the day-to-day commands; `tests/vpsDeploy.test.ts` runs
+  the whole script against stand-ins.
 - **My fighters and modes (custom-content)** – two more AI jobs, **New fighter** and **New mode**, make content that is kept on
   the player's own computer (`custom-content.json` in the app's data folder, a crash-safe `JsonFileStore` through the bridge's
   `custom.load` / `custom.save`; nothing is sent anywhere) and ships in no installer and in no source. No code is generated or run:
