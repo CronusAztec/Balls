@@ -20,12 +20,12 @@ import path from "path";
  */
 
 describe("the plans", () => {
-  it("are $10 a month or $79 a year, a saving of 34 %", () => {
-    expect(PLANS.monthly.usd).toBe(10);
-    expect(PLANS.yearly.usd).toBe(79);
-    expect(yearlySavingPercent()).toBe(34);
-    expect(monthlyEquivalentUsd("yearly")).toBe(6.58);
-    expect(monthlyEquivalentUsd("monthly")).toBe(10);
+  it("are $6.99 a month or $49 a year, a saving of 42 %", () => {
+    expect(PLANS.monthly.usd).toBe(6.99);
+    expect(PLANS.yearly.usd).toBe(49);
+    expect(yearlySavingPercent()).toBe(42);
+    expect(monthlyEquivalentUsd("yearly")).toBe(4.08);
+    expect(monthlyEquivalentUsd("monthly")).toBe(6.99);
     expect(yearlySavingPercent({ monthly: { usd: 10, months: 1 }, yearly: { usd: 120, months: 12 } })).toBe(0);
     expect(yearlySavingPercent({ monthly: { usd: 10, months: 1 }, yearly: { usd: 200, months: 12 } })).toBe(0);
   });
@@ -38,15 +38,17 @@ describe("the plans", () => {
 
   it("take the backend's prices when they are sane", () => {
     expect(plansFromConfig({ plans: { monthly: { usd: 12 }, yearly: { usd: 99 } } })).toMatchObject({ monthly: { usd: 12, prepaidDays: 30 }, yearly: { usd: 99, prepaidDays: 365 } });
-    expect(plansFromConfig({ plans: { monthly: { usd: -1 }, yearly: { usd: "79" } } })).toMatchObject({ monthly: { usd: 10 }, yearly: { usd: 79 } });
-    expect(plansFromConfig(null)).toMatchObject({ monthly: { usd: 10 }, yearly: { usd: 79 } });
+    expect(plansFromConfig({ plans: { monthly: { usd: -1 }, yearly: { usd: "49" } } })).toMatchObject({ monthly: { usd: 6.99 }, yearly: { usd: 49 } });
+    expect(plansFromConfig(null)).toMatchObject({ monthly: { usd: 6.99 }, yearly: { usd: 49 } });
   });
 
   it("format in the page's language", () => {
-    expect(formatUsd(10, "en")).toBe("$10");
-    expect(formatUsd(6.58, "en")).toBe("$6.58");
-    expect(formatUsd(79, "pl")).toContain("79");
-    expect(formatUsd(79, "es")).toContain("79");
+    expect(formatUsd(49, "en")).toBe("$49");
+    expect(formatUsd(6.99, "en")).toBe("$6.99");
+    expect(formatUsd(4.08, "en")).toBe("$4.08");
+    expect(formatUsd(6.99, "pl")).toContain("6,99");
+    expect(formatUsd(6.99, "es")).toContain("6,99");
+    expect(formatUsd(49, "pl")).toContain("49");
   });
 
   // --- go-live-kit --- one source of truth for the prices: billing/billing-config.json (the Worker, its scripts, the wizard)

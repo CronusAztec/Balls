@@ -4,7 +4,7 @@
 //   PAYPAL_CLIENT_ID=... PAYPAL_CLIENT_SECRET=... PAYPAL_ENV=sandbox node scripts/paypal-create-plans.mjs
 //
 // PAYPAL_ENV is "sandbox" (default) or "live". The prices come from billing/billing-config.json (--- go-live-kit --- the one
-// source of truth: $10/month, $79/year). Re-running it is safe: when a product named "JumpingBallsLive Pro" already exists,
+// source of truth: $6.99/month, $49/year). Re-running it is safe: when a product named "JumpingBallsLive Pro" already exists,
 // its ACTIVE plans with the same price and interval are reused instead of creating duplicates. Paste the printed ids into
 // the Worker as PAYPAL_PLAN_MONTHLY / PAYPAL_PLAN_YEARLY (`npm run go-live` in the site's root does it for you).
 

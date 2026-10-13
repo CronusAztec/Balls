@@ -3,6 +3,7 @@ import { jsonOf } from "./helpers";
 import { handleRequest } from "../src/app";
 import { allProvidersEnv, makeHarness, makeRequest, NOW, realPrivateJwk, SITE_ORIGIN } from "./helpers";
 import { siteOrigins } from "../src/http";
+import type { Env } from "../src/env";
 
 describe("CORS and preflight", () => {
   it("answers an OPTIONS preflight from the site origin with the CORS headers", async () => {
@@ -12,6 +13,19 @@ describe("CORS and preflight", () => {
     expect(res.headers.get("access-control-allow-origin")).toBe(SITE_ORIGIN);
     expect(res.headers.get("access-control-allow-methods")).toContain("POST");
     expect(res.headers.get("vary")).toBe("Origin");
+  });
+
+  it("allows every origin SITE_ORIGIN lists (commas), and none it does not", async () => {
+    const { env } = makeHarness();
+    const listed: Env = { ...env, SITE_ORIGIN: "https://jumpingballslive.com, https://www.jumpingballslive.com/,https://cronusaztec.github.io" };
+    for (const origin of ["https://jumpingballslive.com", "https://www.jumpingballslive.com", "https://cronusaztec.github.io"]) {
+      const res = await handleRequest(makeRequest("OPTIONS", "/config", { origin }), listed, { now: NOW });
+      expect(res.headers.get("access-control-allow-origin")).toBe(origin);
+    }
+    const other = await handleRequest(makeRequest("OPTIONS", "/config", { origin: "https://evil.example" }), listed, { now: NOW });
+    expect(other.headers.get("access-control-allow-origin")).toBeNull();
+    expect(siteOrigins(" https://a.example/ ,, https://b.example ")).toEqual(["https://a.example", "https://b.example"]);
+    expect(siteOrigins(undefined)).toEqual([]);
   });
 
   it("allows any localhost origin for development", async () => {
@@ -88,7 +102,7 @@ describe("/config", () => {
     const res = await handleRequest(makeRequest("GET", "/config", { origin: SITE_ORIGIN }), env, { now: NOW });
     expect(res.status).toBe(200);
     const body = await jsonOf(res);
-    expect(body.plans).toEqual({ monthly: { usd: 10 }, yearly: { usd: 79 } });
+    expect(body.plans).toEqual({ monthly: { usd: 6.99 }, yearly: { usd: 49 } });
     expect(body.providers).toEqual({ stripe: false, paypal: false, crypto: false });
     expect(body.testMode).toBe(true); // the harness uses the public test key
   });

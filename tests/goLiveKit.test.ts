@@ -34,7 +34,12 @@ import testKey from "./fixtures/license-test-key.json";
  */
 
 const ROOT = path.resolve(__dirname, "..");
-const WRANGLER = fs.readFileSync(path.join(ROOT, "billing", "wrangler.toml"), "utf8");
+// The committed file carries the live storage id and origins; the wizard's job is to patch a fresh copy of it, so these tests
+// start from the file with its placeholder id and the single Pages origin it is first generated with.
+const WRANGLER = fs
+  .readFileSync(path.join(ROOT, "billing", "wrangler.toml"), "utf8")
+  .replace(/^(\s*id\s*=\s*)"[0-9a-f]{32}"/m, '$1"REPLACE_WITH_YOUR_KV_NAMESPACE_ID"')
+  .replace(/^SITE_ORIGIN\s*=.*$/m, 'SITE_ORIGIN = "https://cronusaztec.github.io"');
 const CONFIG = JSON.parse(fs.readFileSync(path.join(ROOT, "billing", "billing-config.json"), "utf8"));
 
 /** A fresh real P-256 key pair: { privateJwk, publicKey } as the key generator prints them. */
@@ -366,7 +371,7 @@ function fakeWorld(over: Partial<World> = {}) {
     siteOrigins: ["https://cronusaztec.github.io"],
     desktopOrigin: "app://jumpingballslive",
     storage: true,
-    plans: { monthly: { usd: 10, days: 30 }, yearly: { usd: 79, days: 365 } },
+    plans: { monthly: { usd: CONFIG.plans.monthly.usd, days: 30 }, yearly: { usd: CONFIG.plans.yearly.usd, days: 365 } },
     webhooks: {},
     limits: { checkoutPer10Min: 10, licensePer10Min: 150, portalPer10Min: 10 },
   };
@@ -385,7 +390,7 @@ function fakeWorld(over: Partial<World> = {}) {
       const origin = new Headers(init.headers).get("origin") ?? "";
       return new Response(null, { status: 204, headers: origin === "https://cronusaztec.github.io" ? { "access-control-allow-origin": origin } : {} });
     }
-    if (url === `${WORKER}/config`) return json({ plans: { monthly: { usd: 10 }, yearly: { usd: 79 } }, providers: { stripe: true, paypal: true, crypto: true }, testMode: w.testMode });
+    if (url === `${WORKER}/config`) return json({ plans: { monthly: { usd: CONFIG.plans.monthly.usd }, yearly: { usd: CONFIG.plans.yearly.usd } }, providers: { stripe: true, paypal: true, crypto: true }, testMode: w.testMode });
     for (const p of ["/webhooks/stripe", "/webhooks/paypal", "/webhooks/nowpayments"]) {
       if (url === `${WORKER}${p}` && method === "POST") {
         const status = w.webhookStatus[p] ?? 400;
@@ -396,14 +401,14 @@ function fakeWorld(over: Partial<World> = {}) {
     if (url === `${SITE}/en/terms/`) return new Response(w.terms, { status: 200 });
     if (chunks[url] !== undefined) return new Response(chunks[url], { status: 200 });
     // Stripe
-    if (url === "https://api.stripe.com/v1/prices/price_monthly1") return json({ id: "price_monthly1", active: true, currency: "usd", unit_amount: 1000, recurring: { interval: "month" } });
-    if (url === "https://api.stripe.com/v1/prices/price_yearly01") return json({ id: "price_yearly01", active: true, currency: "usd", unit_amount: 7900, recurring: { interval: "year" } });
+    if (url === "https://api.stripe.com/v1/prices/price_monthly1") return json({ id: "price_monthly1", active: true, currency: "usd", unit_amount: Math.round(CONFIG.plans.monthly.usd * 100), recurring: { interval: "month" } });
+    if (url === "https://api.stripe.com/v1/prices/price_yearly01") return json({ id: "price_yearly01", active: true, currency: "usd", unit_amount: Math.round(CONFIG.plans.yearly.usd * 100), recurring: { interval: "year" } });
     if (url.startsWith("https://api.stripe.com/v1/webhook_endpoints")) return json({ data: [{ url: `${WORKER}/webhooks/stripe`, status: "enabled", enabled_events: CONFIG.stripe.webhookEvents }] });
     if (url.startsWith("https://api.stripe.com/v1/billing_portal/configurations")) return json({ data: [{ id: "bpc_1", active: true }] });
     // PayPal
     if (url === "https://api-m.paypal.com/v1/oauth2/token") return json({ access_token: "tok" });
-    if (url === "https://api-m.paypal.com/v1/billing/plans/P-MONTHLY0123") return json({ status: "ACTIVE", billing_cycles: [{ pricing_scheme: { fixed_price: { value: "10", currency_code: "USD" } } }] });
-    if (url === "https://api-m.paypal.com/v1/billing/plans/P-YEARLY01234") return json({ status: "ACTIVE", billing_cycles: [{ pricing_scheme: { fixed_price: { value: "79.00", currency_code: "USD" } } }] });
+    if (url === "https://api-m.paypal.com/v1/billing/plans/P-MONTHLY0123") return json({ status: "ACTIVE", billing_cycles: [{ pricing_scheme: { fixed_price: { value: String(CONFIG.plans.monthly.usd), currency_code: "USD" } } }] });
+    if (url === "https://api-m.paypal.com/v1/billing/plans/P-YEARLY01234") return json({ status: "ACTIVE", billing_cycles: [{ pricing_scheme: { fixed_price: { value: CONFIG.plans.yearly.usd.toFixed(2), currency_code: "USD" } } }] });
     if (url === "https://api-m.paypal.com/v1/notifications/webhooks") return json({ webhooks: [{ url: `${WORKER}/webhooks/paypal`, event_types: CONFIG.paypal.webhookEvents.map((name: string) => ({ name })) }] });
     // NOWPayments
     if (url === "https://api.nowpayments.io/v1/status") return json({ message: "OK" });

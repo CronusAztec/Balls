@@ -5,9 +5,9 @@
 export const MAX_BODY_BYTES = 20 * 1024;
 
 /**
- * --- go-live-kit --- The site origins SITE_ORIGIN lists: one or more, separated by spaces or commas (the GitHub Pages
- * origin and a custom domain, e.g. "https://cronusaztec.github.io https://www.example.com"). Trailing slashes are dropped and
- * anything that is not a bare http(s) origin (a path, a query, another scheme) is ignored.
+ * --- go-live-kit --- The site origins SITE_ORIGIN lists: one or more, separated by spaces or commas (the site is served at
+ * jumpingballslive.com and www.jumpingballslive.com, so both are listed). Trailing slashes are dropped and anything that is
+ * not a bare http(s) origin (a path, a query, another scheme) is ignored.
  */
 export function siteOrigins(value: string | undefined): string[] {
   const out: string[] = [];

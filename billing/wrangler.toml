@@ -2,12 +2,12 @@ name = "jumpingballslive-billing"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
-# The site's public origin. CORS and every returnUrl are checked against it (localhost is also allowed
-# in development). Override it per environment if you deploy the site somewhere else.
-# --- go-live-kit --- one or more origins separated by spaces – the GitHub Pages origin and your custom domain, e.g.
-# "https://cronusaztec.github.io https://www.example.com". `npm run go-live` (in the site's root) sets it for you.
+# The site's public origins: CORS and every returnUrl are checked against them (localhost is also allowed in
+# development). Several are separated by spaces or commas; the first is where the Stripe portal returns to when the site
+# names no page. The site is served at jumpingballslive.com (and www) by the root wrangler.toml's Worker.
+# --- go-live-kit --- `npm run go-live` (in the site's root) sets it for you.
 [vars]
-SITE_ORIGIN = "https://cronusaztec.github.io"
+SITE_ORIGIN = "https://jumpingballslive.com https://www.jumpingballslive.com"
 
 # The entitlement store. Create the namespace once with:
 #   wrangler kv namespace create ENTITLEMENTS
@@ -17,7 +17,7 @@ SITE_ORIGIN = "https://cronusaztec.github.io"
 # and add preview_id too).
 [[kv_namespaces]]
 binding = "ENTITLEMENTS"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+id = "f0d89f3fc6da4cd38fef90df645654d1"
 # preview_id = "REPLACE_WITH_YOUR_PREVIEW_KV_NAMESPACE_ID"
 
 # Every secret (LICENSE_PRIVATE_JWK, the Stripe / PayPal / NOWPayments keys) is set with

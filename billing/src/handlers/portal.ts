@@ -21,7 +21,7 @@ export async function portalStripe(request: Request, ctx: Ctx): Promise<Response
   const ref = (optionalString(body, "ref") ?? "").trim();
   // Where the portal's "return" link goes: the page the site names (its pricing page – the site may
   // live under a path, e.g. /Balls/ on GitHub Pages), checked like a checkout's returnUrl; without one,
-  // the site's origin.
+  // the site's (first) origin.
   const requested = optionalString(body, "returnUrl");
   const returnUrl = requested
     ? validateReturnUrl(requested, ctx.env)

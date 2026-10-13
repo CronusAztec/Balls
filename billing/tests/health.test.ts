@@ -26,7 +26,7 @@ describe("/health", () => {
       siteOrigins: [SITE_ORIGIN],
       desktopOrigin: "app://jumpingballslive",
       storage: true,
-      plans: { monthly: { usd: 10, days: 30 }, yearly: { usd: 79, days: 365 } },
+      plans: { monthly: { usd: 6.99, days: 30 }, yearly: { usd: 49, days: 365 } },
       limits: { checkoutPer10Min: 10, licensePer10Min: 150, portalPer10Min: 10 },
     });
     for (const p of ["stripe", "paypal", "crypto"]) expect(body.providers[p]).toMatchObject({ configured: false, mode: null, ready: false });

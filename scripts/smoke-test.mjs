@@ -10339,7 +10339,7 @@ await smokeBlock("paywall-gate", async () => {
           h1: document.querySelector("h1")?.textContent ?? "",
           prices: ["monthly", "yearly"].map((p) => document.querySelector(`[data-testid="price-${p}"]`)?.textContent ?? ""),
           pays: ["monthly", "yearly"].map((p) => [...document.querySelectorAll(`[data-testid="plan-${p}"] [data-pay]`)].map((b) => b.getAttribute("data-pay")).join(",")),
-          save: document.querySelector('[data-testid="plan-yearly"]')?.textContent?.includes("34") ?? false,
+          save: document.querySelector('[data-testid="plan-yearly"]')?.textContent?.includes("42") ?? false,
           testMode: !!document.querySelector('[data-testid="billing-test-mode"]'),
           rows: document.querySelectorAll("[data-compare-row]").length,
           proOnly: document.querySelectorAll('[data-compare-free="0"]').length,
@@ -10350,14 +10350,14 @@ await smokeBlock("paywall-gate", async () => {
         pricing[locale].status = res.status();
       }
       await fp.screenshot({ path: path.join(outDir, "paywall-pricing-es.png"), fullPage: true });
-      const pricingOk = (p, locale) => p.status === 200 && p.h1.length > 5 && p.lang === locale && p.prices[0].includes("10") && p.prices[1].includes("79") && p.pays.every((x) => x === "stripe,paypal,crypto") && p.save && p.testMode && p.rows === 12 && p.proOnly === 1 && p.watermarked === 5 && p.restore; // --- free-watermark --- (Publish is Pro only; Free makes the other five with the watermark)
+      const pricingOk = (p, locale) => p.status === 200 && p.h1.length > 5 && p.lang === locale && /6[.,]99/.test(p.prices[0]) && p.prices[1].includes("49") && p.pays.every((x) => x === "stripe,paypal,crypto") && p.save && p.testMode && p.rows === 12 && p.proOnly === 1 && p.watermarked === 5 && p.restore; // --- free-watermark --- (Publish is Pro only; Free makes the other five with the watermark)
       const sitemapXml = await (await fp.request.get(`${BASE}/sitemap.xml`)).text();
       await fp.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
       const navHref = await fp.locator("header").getByRole("link", { name: "Pricing", exact: true }).first().getAttribute("href").catch(() => null);
       const footerHref = await fp.locator("footer").getByRole("link", { name: "Pricing", exact: true }).first().getAttribute("href").catch(() => null);
       const heroHref = await fp.getByTestId("hero-pricing").getByRole("link").getAttribute("href").catch(() => null);
       check(
-        "paywall: /pricing/ shows both plans ($10 a month, $79 a year, save 34%) with Card, PayPal and Crypto, the Free / Pro table and the test-mode line in English, Polish and Spanish; the navbar, the footer and the landing's call to action link it and it is in the sitemap",
+        "paywall: /pricing/ shows both plans ($6.99 a month, $49 a year, save 42%) with Card, PayPal and Crypto, the Free / Pro table and the test-mode line in English, Polish and Spanish; the navbar, the footer and the landing's call to action link it and it is in the sitemap",
         ["en", "pl", "es"].every((l) => pricingOk(pricing[l], l)) && ["en", "pl", "es"].every((l) => sitemapXml.includes(`${BASE}/${l}/pricing/`)) && navHref === `${BASE_PATH}/en/pricing/` && footerHref === `${BASE_PATH}/en/pricing/` && heroHref === `${BASE_PATH}/en/pricing/`,
         `(${JSON.stringify(pricing)}, nav ${navHref}, footer ${footerHref}, hero ${heroHref})`,
       );

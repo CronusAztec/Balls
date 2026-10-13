@@ -124,7 +124,7 @@ describe("checkout – crypto", () => {
     expect(res.status).toBe(200);
     expect((await jsonOf(res)).url).toBe("https://nowpayments.io/invoice/1");
 
-    expect(invoiceBody.price_amount).toBe(79);
+    expect(invoiceBody.price_amount).toBe(49);
     expect(invoiceBody.price_currency).toBe("usd");
     expect(invoiceBody.ipn_callback_url).toBe(`${WORKER_ORIGIN}/webhooks/nowpayments`);
     const orderId = invoiceBody.order_id as string;

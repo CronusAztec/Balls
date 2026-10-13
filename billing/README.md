@@ -14,7 +14,7 @@ types, Vitest). Everything the owner has to do is below. You do **not** need to 
 do need to create a few free accounts and paste some keys.
 
 > **What the visitor sees.** The playground (physics, sounds, all the controls) stays free. Exporting a
-> video is behind the paywall: **$10/month** or **$79/year**. Cards and PayPal renew automatically;
+> video is behind the paywall: **$6.99/month** or **$49/year**. Cards and PayPal renew automatically;
 > crypto buys a fixed prepaid period (30 or 365 days) because crypto cannot auto-renew.
 
 > **--- go-live-kit --- The short way.** [`docs/GO-LIVE.md`](../docs/GO-LIVE.md) is the plain-language launch guide
@@ -117,7 +117,7 @@ answers `503 provider_misconfigured`), and `GET /health` says why.
    STRIPE_SECRET_KEY=sk_test_xxx node scripts/stripe-create-prices.mjs
    ```
    It prints `STRIPE_PRICE_MONTHLY=price_...` and `STRIPE_PRICE_YEARLY=price_...`. (Or create a product
-   "JumpingBallsLive Pro" by hand in the dashboard with a $10/month and a $79/year recurring price.)
+   "JumpingBallsLive Pro" by hand in the dashboard with a $6.99/month and a $49/year recurring price.)
 3. Add a **webhook endpoint**: Dashboard → *Developers → Webhooks → Add endpoint*.
    - URL: `https://<your-worker-subdomain>.workers.dev/webhooks/stripe` (you will know the subdomain
      after step 7; you can add the endpoint afterwards).
@@ -192,10 +192,11 @@ answers `503 provider_misconfigured`), and `GET /health` says why.
 
 ### 7. Deploy the Worker
 
-Set the site origin in `wrangler.toml` under `[vars] SITE_ORIGIN` (it is `https://cronusaztec.github.io`
-for this repository — the scheme and host only, no path). --- go-live-kit --- It takes several, separated by spaces: add
-your own domain next to the GitHub Pages origin (`"https://cronusaztec.github.io https://www.example.com"`) **before** you
-switch the domain's DNS, or checkouts from the new address are refused. Then:
+Set the site's origin in `wrangler.toml` under `[vars] SITE_ORIGIN` — the scheme and host only, no path. --- go-live-kit ---
+It takes several, separated by spaces or commas, when the site is served from more than one place (for this repository
+`https://jumpingballslive.com` and `https://www.jumpingballslive.com`; the first one is where the Stripe portal returns to
+when the site names no page). Add a new domain **before** you switch its DNS, or checkouts from the new address are
+refused. Then:
 
 ```bash
 npm test          # make sure the suite is green

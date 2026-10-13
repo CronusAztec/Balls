@@ -13,7 +13,7 @@ import { rememberCheckoutFrom, sessionStore } from "@/lib/billing/returnTo";
 import { siteBaseUrl, useBilling } from "./useBilling";
 
 /*
- * --- paywall-gate --- The two Pro plans side by side – $10 a month and $79 a year ("save 34%") – each with the pay buttons
+ * --- paywall-gate --- The two Pro plans side by side – $6.99 a month and $49 a year ("save 42%") – each with the pay buttons
  * of the providers the backend has on (all three while payments are not configured, which then only says so): "Card
  * (Stripe)" (Apple Pay and Google Pay come with Stripe Checkout), "PayPal" and "Crypto – BTC, ETH, USDT and 300+ coins";
  * one email field above them (the card and crypto checkouts use it; PayPal brings its own). A pay button asks the backend

@@ -3,7 +3,7 @@
 //
 //   STRIPE_SECRET_KEY=sk_test_... node scripts/stripe-create-prices.mjs
 //
-// The prices come from billing/billing-config.json (--- go-live-kit --- the one source of truth: $10/month, $79/year).
+// The prices come from billing/billing-config.json (--- go-live-kit --- the one source of truth: $6.99/month, $49/year).
 // Re-running it is safe: when a product named "JumpingBallsLive Pro" already exists, its active recurring prices with the
 // same amount and interval are reused instead of creating duplicates. Use a test key (sk_test_...) first; re-run with the
 // live key when you go live (live and test mode are separate in Stripe). Paste the printed ids into the Worker as

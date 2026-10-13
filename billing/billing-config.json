@@ -1,7 +1,7 @@
 {
   "plans": {
-    "monthly": { "usd": 10, "days": 30, "interval": "month" },
-    "yearly": { "usd": 79, "days": 365, "interval": "year" }
+    "monthly": { "usd": 6.99, "days": 30, "interval": "month" },
+    "yearly": { "usd": 49, "days": 365, "interval": "year" }
   },
   "stripe": {
     "apiVersion": "2025-02-24.acacia",
