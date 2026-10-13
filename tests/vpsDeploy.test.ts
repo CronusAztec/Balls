@@ -89,7 +89,7 @@ esac`);
     log,
     run(args = [], env = {}) {
       fs.writeFileSync(log, "");
-      const r = spawnSync("bash", [SCRIPT, ...args], { encoding: "utf8", env: { ...base, ...env }, timeout: 60_000 });
+      const r = spawnSync("bash", [SCRIPT, ...args], { encoding: "utf8", env: { ...base, ...env } as NodeJS.ProcessEnv, timeout: 60_000 });
       return { status: r.status, stdout: `${r.stdout}${r.stderr}`, calls: fs.readFileSync(log, "utf8").split("\n").filter(Boolean) };
     },
     result: () => JSON.parse(fs.readFileSync(path.join(state, "last-result.json"), "utf8")),
