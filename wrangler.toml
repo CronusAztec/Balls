@@ -1,12 +1,11 @@
 # --- cloudflare-site --- The public site on Cloudflare: the static export in ./out served as Workers static assets by the
-# "jumpingballslive" Worker, with jumpingballslive.com attached to it as a custom domain. Build first (root deployment,
-# so no base path):
+# "jumpingballslive" Worker, with jumpingballslive.com and www attached to it as custom domains. GitHub only keeps the code
+# (the repository can be private); .github/workflows/deploy.yml builds the export for the root of the domain (no base path) and
+# deploys it with the Wrangler that billing/package-lock.json pins, after the checks and the browser test, on every push to the
+# product branch. By hand:
 #   NEXT_PUBLIC_SITE_URL=https://jumpingballslive.com NEXT_PUBLIC_BASE_PATH= npm run build
-# then deploy with Wrangler (installed by the billing package: `cd billing && npm ci`):
-#   npx --prefix billing wrangler deploy
-# .github/workflows/cloudflare-deploy.yml does both on every push to the default branch. GitHub Pages
-# (.github/workflows/deploy.yml) keeps publishing the same site under its own URL; the two deploys are independent.
-# The billing Worker in billing/ has its own wrangler.toml.
+#   (cd billing && npm ci) && npx --prefix billing wrangler deploy
+# The billing Worker in billing/ has its own wrangler.toml; the Windows app's downloads are an R2 bucket, not part of this Worker.
 name = "jumpingballslive"
 compatibility_date = "2026-10-12"
 

@@ -6,7 +6,7 @@
   "description": "JumpingBallsLive for Windows: the whole simulator in a desktop app, with GPU video rendering and a built-in AI studio",
   "author": "JumpingBallsLive",
   "license": "UNLICENSED",
-  "homepage": "https://cronusaztec.github.io/Balls/",
+  "homepage": "https://jumpingballslive.com/",
   "type": "module",
   "main": "dist/main.js",
   "scripts": {

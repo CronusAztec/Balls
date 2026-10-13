@@ -11,6 +11,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:ci": "node scripts/test-ci.mjs",
     "smoke": "node scripts/smoke-test.mjs",
     "previews": "node scripts/generate-mode-previews.mjs",
     "bot": "node scripts/viral-bot.mjs",

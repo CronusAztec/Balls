@@ -11,8 +11,8 @@ export interface Env {
 
   // [vars]
   /**
-   * The site's public origin, e.g. https://cronusaztec.github.io. CORS and returnUrl are checked against it. --- go-live-kit
-   * --- One or more, separated by spaces or commas (the GitHub Pages origin and a custom domain).
+   * The site's public origin, e.g. https://jumpingballslive.com. CORS and returnUrl are checked against it. --- go-live-kit
+   * --- One or more, separated by spaces or commas (the apex domain and www).
    */
   SITE_ORIGIN?: string;
 

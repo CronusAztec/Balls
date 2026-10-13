@@ -6,8 +6,8 @@ Playing is free. Free videos carry a small watermark and a Pro licence removes i
 
 Built with **Next.js 15 (App Router) · React 19 · TypeScript · Tailwind CSS v4 · next-intl**.
 Everything runs client-side: physics, rendering, audio and video encoding happen in the visitor's browser.
-The site is exported as plain static files, so it deploys to **GitHub Pages** (workflow included) or any
-static host – no server required.
+The site is exported as plain static files, so it deploys to **Cloudflare** (workflow included; the live site is
+<https://jumpingballslive.com>) or any static host – no server required.
 
 ## Features
 
@@ -34,7 +34,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **Controls UX** | Collapsible sections, setting search, advanced-options toggle, per-section reset, keyboard shortcuts (Space, R), 1×–8× playback speed, FPS counter, auto-pause when off-screen |
 | **Site** | Landing page (hero, mode cards, about, how-it-works, illustrated instructions, features, FAQ), simulator page with the guide under the studio (four tips and the troubleshooting rows, written to [docs/COPY-STYLE.md](docs/COPY-STYLE.md)), About, TikTok page, Feedback form (GitHub issue / email / any form endpoint), Privacy, Terms, Disclaimer, localised 404 |
 | **i18n & SEO** | English, Polish and Spanish (`/en`, `/pl`, `/es`), hreflang alternates, sitemap, robots, Open Graph, JSON-LD (WebSite, WebApplication, FAQPage) |
-| **Hosting** | Static export (`out/`) with base-path support, GitHub Actions workflow that lints, tests, builds and publishes to GitHub Pages, localised 404 page, root page that redirects to the visitor's language |
+| **Hosting** | Static export (`out/`) with base-path support, GitHub Actions workflow that lints, tests, builds and publishes to Cloudflare, localised 404 page, root page that redirects to the visitor's language |
 | **Ball characters & the Gerald persona** | A vector face on the ball in every mode – **Face** none / dot / cute / cool / cat / angry (URL `face`): two eyes whose pupils look along the flight, a blink on a seeded schedule (the same seed blinks at the same moments in every run and every recording) and expressions driven by what happens – an "ouch" squint on hard hits, wide eyes when a wall breaks, a grin at the escape or the finish, closed happy eyes at rest; the cat adds ears and whiskers and, with **Cat Sounds** (`fsnd`) while no hit sample is used, a synthesised meow-like chirp through the ToneGenerator (beat lock, scale snap, music-bed ducking, recording). A **name label** under the ball with a subtle outline (`bn`, `nl`), render-only **squash & stretch** on impact (`sq`, 0–1), the face over a custom image or emoji as an option (`fimg`) and a **Meet Gerald** button (the site's demo persona: cute face, name "Gerald", squash). Drawn procedurally into the canvas (so recordings have it) and scaled with the ball size, on the Bouncing Shapes, Pendulum Wave, Metronomes & Polyrhythms and Collision Playground bodies too (the first 80 of a crowd); purely visual, so seeds and Find Simulation are untouched. In the "Character" group at the top of the Ball section, with a live preview of the face |
 | **Themes & backgrounds** | One-click looks at the top of the Visual section: ten curated themes (Neon, Pastel, Mono, Sunset, Ocean, Retro, Candy, Matrix, Aurora, Luxe) as small colour-swatch cards. Picking one merges its wall, ball, line, background and trail colours and its particle style into the settings – every colour stays individually editable, the card then reads "edited" and a second click restores the theme; the Default card goes back to the plain look. Backgrounds: solid, top-to-bottom gradient or an uploaded picture (kept in memory, cover-fitted, darkened by a dim slider); the reactive background still flashes on top, and vertical exports continue the background into the letterbox bars. Particle styles for the bursts at wall breaks and finishes: confetti (default), sparks, petals, pixels, bubbles – visual only, so seeds and Find Simulation are unaffected. Colour trail in two custom colours instead of the rainbow. Shared via the URL (`theme`, `bgt`, `bg1`, `bg2`, `bgd`, `ps`, `trc`; the picture never travels) |
 | **Metronomes & Polyrhythms** | A rhythm-family mode (`polyrhythm`) for the project.jdm polyrhythm / tempo-phase-shift formats: 2–400 voices tick at their own tempos and every tick is a note. Four layouts – **rings** (a dot per concentric ring orbiting a whole number of times per cycle, ticking at 12 o'clock – the 3:4:5 visualiser; **polygons** draws every ring as a polygon with as many corners as its ratio, turning once per cycle), **arcs** (dots sliding along the parallel chords of a circle or along concentric semicircles, ticking at both ends), **metronomes** (a grid of pendulum metronomes ticking at both extremes) and **spiral** (orbiting dots whose tick points lie on a spiral) – switchable mid-run. Tempos: **harmonic** (ratios 1…N per cycle), **BPM steps** (base BPM + i × step, a Reich-style tempo phase shift) or a **custom** ratio list such as `3,4,5,7`. The moment every voice ticks together is computed exactly and plays an accented chord with a screen flash; accent every k-th tick, pitch by voice (scale degree) or by ratio (harmonics of C3), optional numbers on the dots; finishes after N cycles (always the same length – the finder says so) or never. Exact integer arithmetic on the step counter, so 400 voices replay bit for bit and stay cheap. Settings in the Mode row, shared via the URL (`prn`, `prl`, `pras`, `prt`, `prcu`, `prcs`, `prb`, `prbs`, `prp`, `pra`, `prpb`, `prnum`, `prc`) |
@@ -71,7 +71,7 @@ Every range given below is a slider's **comfort range** only: the number field n
 | **User accounts (user-accounts)** | An **Account** page (`/account`, in the navbar, and a dialog in the Publish block) where a visitor creates an account with an email and a password, signs in on any browser or in the Windows app, and **connects any number of TikTok, Instagram and YouTube accounts** – each through the platform's own sign-in popup, listed per platform with avatar and handle, with Reconnect and Disconnect. The accounts live on the relay (`relay/`, which gained sign-up, sign-in, sign-out, change password and delete account; scrypt-hashed passwords, hashed sessions, rate limits), the signed-in user's session becomes the Publish block's relay profile, so **Send to selected** and the desktop Library's Publish reach every connected channel; creating an account and connecting channels is free, sending is Pro. Built into the website, the installed PWA and the Windows EXE alike (see [User accounts](#user-accounts)) |
 | **Wide sliders** (was No limits) | The **Wide sliders** switch at the top of the Ball & Physics section (`unlimited`, URL `inf=1` – the old No limits key, kept for old links – saved in presets, project files and share codes; off by default) stretches the slider of every uncapped setting past its comfort range on a logarithmic track up to **1B**. It no longer gates anything else: every value is uncapped whether it is on or off (see the Uncapped row), and turning it off changes no value – the track pins at its end. |
 | **Uncapped everything** | No parameter has a maximum any more (feature uncap-all, `src/lib/uncap.ts`): every slider in every section has a **number field** next to it (type any finite number – `1e9`, `2.5M`, `0.0001`, `1,5`; Enter, leaving the field or ↑/↓ commit it, invalid text keeps the old value and says why), and the other numeric controls got the same field (the BPM, the clip length, the text size, the rotation speed, timeline keyframes, the batch sweep, the bot, the export frame rate, arena overrides, obstacle rows, Find Simulation's times). A value past its slider pins the track at its end with a faint tint and a "beyond the slider" tooltip, the readout shows it short (1.2M), and links, presets, project files and share codes carry it exactly. The engine runs it as typed – no speed, size, gravity, rotation, restitution or multiplier ceiling – and engages its extreme-values machinery by itself (planned sub-steps and time dilation, time-slicing, the crowd, cheaper drawing) only when a value is past its slider, so at the defaults nothing changes. **Bouncier** is now a numeric **Bounciness** (`bnc`; the old `bounce=1` means 1.03, off = 1): every bounce adds (Bounciness − 1) × the Ball Speed to the rebound, forever – 3, 100, 1e6 – and the canvas shows the fastest ball's speed (**⚡ 12.3K PX/S**) climbing. The only ceilings left are memory-safety ceilings on what a value allocates (a million crowd balls, 10,000 rings, 5,000 entities of a mode…), past which the run says **ARENA FULL**; numbers that overflow the float range are put back at the centre with **NUMBERS OVERFLOWED**. |
-| **Windows app (desktop-exe)** | The whole simulator as a downloadable Windows EXE (`desktop/`, Electron): an installer (per user, no admin) and a portable EXE from [GitHub Releases](https://github.com/CronusAztec/Balls/releases/latest), linked from a **Download for Windows** button on the landing page and the `/download` page. Inside the app a **Desktop studio** group appears under the simulator: **GPU** (the graphics card and what Chromium accelerates, the fast export encoding on the GPU first – `hardwareAcceleration: "prefer-hardware"` with the software fallback kept – bundled ffmpeg with NVENC / AMF / Quick Sync picked automatically after a test encode, a benchmark), **Render queue** (seeds, share links or the viral bot's plan × resolutions × frame rates × H.264 / HEVC / AV1 × TikTok / Reels / Shorts / 4K 60 presets, rendered through the fast export and saved straight into a folder – progress, cancel, retry, and a crash-safe journal that resumes after a restart), **AI studio** (a local GGUF model through llama.cpp – downloaded once with its licence shown, resumable and checksummed, GPU offload via CUDA / Vulkan – or your own Anthropic / OpenAI-compatible key: it plans videos with the viral bot and Find Simulation as tools, writes hooks, captions and hashtags, changes settings on request with Undo and pitches ideas from the virality playbook; every reply is validated before it is applied) and **Library** (thumbnails, length, size, play, show in folder, re-render, delete, and one-click **Publish** – to the accounts ticked in the Publish block, or a quick share to the clip's platform). Native menu, tray, shortcuts, file dialogs, drag and drop, single instance and auto-update; the website itself is unchanged |
+| **Windows app (desktop-exe)** | The whole simulator as a downloadable Windows EXE (`desktop/`, Electron): an installer (per user, no admin) and a portable EXE from the downloads host (`https://downloads.jumpingballslive.com`, a Cloudflare R2 bucket), linked from a **Download for Windows** button on the landing page and the `/download` page. Inside the app a **Desktop studio** group appears under the simulator: **GPU** (the graphics card and what Chromium accelerates, the fast export encoding on the GPU first – `hardwareAcceleration: "prefer-hardware"` with the software fallback kept – bundled ffmpeg with NVENC / AMF / Quick Sync picked automatically after a test encode, a benchmark), **Render queue** (seeds, share links or the viral bot's plan × resolutions × frame rates × H.264 / HEVC / AV1 × TikTok / Reels / Shorts / 4K 60 presets, rendered through the fast export and saved straight into a folder – progress, cancel, retry, and a crash-safe journal that resumes after a restart), **AI studio** (a local GGUF model through llama.cpp – downloaded once with its licence shown, resumable and checksummed, GPU offload via CUDA / Vulkan – or your own Anthropic / OpenAI-compatible key: it plans videos with the viral bot and Find Simulation as tools, writes hooks, captions and hashtags, changes settings on request with Undo and pitches ideas from the virality playbook; every reply is validated before it is applied) and **Library** (thumbnails, length, size, play, show in folder, re-render, delete, and one-click **Publish** – to the accounts ticked in the Publish block, or a quick share to the clip's platform). Native menu, tray, shortcuts, file dialogs, drag and drop, single instance and auto-update; the website itself is unchanged |
 | **Site design – the stage and the desk** | One calm, dark interface for the whole site (feature site-redesign, see [Design](#design)): semantic colour tokens with a single lime accent, three self-hosted type roles (display, interface, mono readouts), a small component kit in `src/components/ui/`, a landing page with a live 9:16 preview and a modes wall, and a studio in three zones – a rail of control groups, the stage with its readout strip and transport bar, and the panel – with a mode picker dialog and a command palette (Ctrl/Cmd+K). Reading pages share one 680 px column; the gallery is a wall of poster cards. Every setting, URL key, preset, share link and keyboard shortcut works as before |
 | **Territory (oddplayground)** | A battle-family mode (`territory`, feature odd-territory) after oddplayground's pong-wars reels ("Vortex VS Bomber – One bounce can flip the board"): a tile map in the exported square – **Board Columns** 12–48 (`tyc`, default 24; the rows follow the board's shape) – split into **2 or 4 team regions** (`tyt`: top / bottom or quadrants), **Balls per Team** 1–8 (`tyb`). A ball passes through tiles of its own colour and bounces off any other, converting the tile it hit with a note pitched by team and row. A **power per team** (`typ`, e.g. `vortex,bomber,painter,ghost`): the **vortex** curves its path and drags a whirl whose spiral arms convert enemy tiles, the **bomber** arms and blows on its next bounce off an enemy tile (shock ring, debris, wall-break sound, the board jolts), taking every tile in its reach – one bounce can flip the board –, the **painter** dashes through enemy territory painting a trail, the **ghost** passes through enemy tiles and converts a 3×3 block on every wall bounce – **Power Every** 1–10 s (`tye`), **Power Reach** 1–8 tiles (`tyr`); the powers are tuned to win about as often as each other on the default board. The HUD band: the FLASHING LIGHTS badge (`tybg`), PICK A SIDE, the countdown (**Countdown** 10–120 s, `tyd`; the clip length follows it), "VORTEX 52% VS BOMBER 48%" and a live percentage bar (`tyh`); an optional dotted grid whose dots deflect the balls (`typg`). The most tiles at the end win (winner banner + confetti, DRAW on a level top); a team roster lends its colours and names, Find Simulation searches a winner, the Forced Winner rigs one. The Ball Size has no maximum: a ball wider than a tile takes the tiles under its contact edge – a dent the shape of its front on every hit –, big balls that crowd the board pass through each other (ARENA FULL) and a ball wider than the board eats the arena |
 | **Maze Escape** | A battle-family mode (`maze`, feature odd-maze) after oddplayground's maze reels ("who else thought that was blood"): a seeded perfect maze (6–40 columns on the slider, `mzc`; the rows follow the portrait field) with glowing green walls on near-black, a red entrance slot in the top wall and an exit gap in the bottom wall. 1–8 balls (`mzn`; the Teams roster colours and names the first six) queue in a chute above the entrance and drop in a moment apart, then move physically – a downward pull (`mzg`), perfectly elastic walls, their own speed (`mzs`) – in micro-steps against a cell-indexed wall grid, so no ball ever tunnels through a wall at any speed. A **brain** steers them by nudging the velocity at every cell centre: **bounce** (pure physics), **wall follower** (left, right or alternating hand, `mzh`) or **explorer** (prefers the cells it has not visited – a depth-first search) (`mzb`). Every cell a ball visits is painted in blood red (opacity `mzt`, colour `mztc`, or each ball's own colour `mzto`), every wall hit is a note whose pitch follows the cell's BFS distance to the exit – the melody climbs as a ball closes in – and the first ball through the exit wins (wall-break sound, shake, slow motion as the leader reaches the exit cell, the winner banner with its deadpan caption); the others keep going until every ball is out or the clip limit (`mzd`, then the ball nearest the exit wins). A HUD with a distance-to-exit bar per ball (`mzhud`), the "FLASHING LIGHTS" badge (`mzbg`), fog over the unvisited cells (`mzf`) and the wall colour (`mzwc`). Deterministic: Find Simulation searches the run length or the winner; the rigged forced winner steers the shortest way and the exit stays closed to the others until it is out |
@@ -197,6 +197,7 @@ Other scripts:
 npm run typecheck                          # tsc --noEmit
 npm run lint                               # eslint
 npm test                                   # vitest unit tests (engine, physics extras, ball interactions, obstacles, Ball Drop, Bouncing Shapes, MIDI parser, settings, hit samples, song slicer, scales, instruments, music bed, beat detection, beat clock, Picture Paint)
+npm run test:ci                            # the same tests the way CI runs them: scripts/test-ci.mjs does not fail a run in which every test passed and the only error is vitest's own "Timeout calling onTaskUpdate" (a busy machine)
 npm run smoke                              # headless-browser end-to-end checks; build and `npm start` first (see scripts/smoke-test.mjs)
 npm run smoke -- --shard 2/4               # --- smoke-sharding --- one of four balanced parts (SMOKE_SHARD=2/4 too); --list prints the split
 SMOKE_ONLY=fight-league npm run smoke      # --- smoke-sharding --- single blocks by title (comma-separated, * for any characters)
@@ -215,57 +216,46 @@ npm run go-live                            # --- go-live-kit --- the launch wiza
 npm run go-live:check                      # --- go-live-kit --- proves the site, the billing Worker, the providers and GitHub agree (PASS/FAIL per check)
 ```
 
-## Deploying to GitHub Pages
+## Deploying (Cloudflare, jumpingballslive.com)
 
-The repository ships with `.github/workflows/deploy.yml`:
+GitHub only keeps the code and runs the builds, so the repository can be private. The live site at
+**https://jumpingballslive.com** (and `www`) is the static export served as the static assets of the `jumpingballslive`
+Cloudflare Worker (`wrangler.toml` at the repository root attaches both addresses to it). The repository ships
+`.github/workflows/deploy.yml`:
 
-1. **Enable Pages once**: repository *Settings → Pages → Build and deployment → Source: GitHub Actions*.
-   The workflow cannot do this for you; until it is done the *deploy* job stops with a message saying so.
-   Private repositories need a paid GitHub plan (Pro, Team or Enterprise) for Pages; public repositories work on
-   the free plan.
+1. **Add two repository secrets once** (*Settings → Secrets and variables → Actions → Secrets*): `CLOUDFLARE_API_TOKEN` (the
+   token the billing Worker's workflow uses: *Edit Cloudflare Workers*) and `CLOUDFLARE_ACCOUNT_ID`. Until they exist the
+   *deploy* job stops with a message that names the missing one.
 2. **Push to the product branch** (`claude/optimistic-johnson-46x3qg`, or `main` once renamed; both are listed in
-   `deploy.yml`). Every push to any branch is linted, type-checked, unit-tested and built; pushes to the product branch
-   then run the browser smoke test (four shards) and are published only once it passes. A manual run from another branch
-   builds and checks only. (--- desktop-autorelease ---)
-3. The site appears at `https://<user>.github.io/<repo>/` – for this repository
-   `https://cronusaztec.github.io/Balls/`. The workflow reads the site URL from the repository's Pages settings
-   on every run (falling back to that conventional URL while Pages is off) and builds with the matching base path.
+   `deploy.yml`). Every push to any branch is linted and type-checked (a private repository has 2,000 free Actions minutes a
+   month, so nothing more runs on other branches); pushes to the product branch also run the unit tests (`npm run test:ci`),
+   build the site for the root of the domain (no base path) and run the browser smoke test (four shards), and are published
+   only once it passes. A manual run from another branch checks only. (--- desktop-autorelease ---)
+3. The last step asks `https://jumpingballslive.com/build.txt` (a file the build stamps with the commit) until it names the
+   pushed commit, and fails if it does not: a deploy that did not reach the domain is red, not silent.
+
+By hand: `NEXT_PUBLIC_SITE_URL=https://jumpingballslive.com NEXT_PUBLIC_BASE_PATH= npm run build`, then
+`npx --prefix billing wrangler deploy` (Wrangler comes with `cd billing && npm ci`).
 
 **Feedback form**: on a public repository with Issues enabled the deployed form opens a prefilled GitHub issue
 (visitors need a GitHub account). On a private repository, or to use another channel, set a repository
 *Variable* (Settings → Secrets and variables → Actions → Variables): `FEEDBACK_ENDPOINT` (a form endpoint that
-accepts a cross-origin JSON POST, e.g. Formspree) or `FEEDBACK_EMAIL`. Until one of these applies the form
+accepts a cross-origin JSON POST, e.g. Formspree), `FEEDBACK_EMAIL` or `SUPPORT_EMAIL`. Until one of these applies the form
 tells visitors that no channel is configured. `ANALYTICS_SCRIPT_URL` and `ANALYTICS_SITE_ID` variables are passed
 to the build the same way.
 
-**Custom domain**: set it under *Settings → Pages → Custom domain*, point its DNS at GitHub Pages, and set the repository
-variable `CUSTOM_DOMAIN` to the bare domain (e.g. `jumpingballs.live`) – the next run builds for the domain root (empty base
-path, `out/CNAME`; `.github/actions/site-url` resolves the address for both workflows), the Windows app's share links follow,
-and `billing-deploy.yml` checks that the Worker's `SITE_ORIGIN` lists it (the website run warns until it does). Without the
-variable the workflow still picks a domain up from the Pages settings.
+**Another domain**: the repository variable `CUSTOM_DOMAIN` (the bare domain, e.g. `example.com`; empty: `jumpingballslive.com`)
+makes the next run build for that domain (`.github/actions/site-url` resolves the address for both workflows), the Windows
+app's share links follow, and `billing-deploy.yml` checks that the Worker's `SITE_ORIGIN` lists it (the website run warns
+until it does). `wrangler.toml`'s two `routes` name the domains the Worker answers on.
 
-**Cloudflare Pages (optional)**: the repository variable `SITE_HOST=cloudflare-pages` deploys the same `out/` to Cloudflare
-Pages (the `deploy-cloudflare` job) instead of GitHub Pages; it needs the variable `CF_PAGES_PROJECT` (the project, created
-once with `npx wrangler pages project create <name> --production-branch main`) and the secrets `CLOUDFLARE_API_TOKEN` /
-`CLOUDFLARE_ACCOUNT_ID`. The Windows app's downloads and updates still come from GitHub Releases, so the repository stays
-public.
+**The Windows app's downloads and updates** come from a Cloudflare R2 bucket served at `https://downloads.jumpingballslive.com`
+(see *Release workflow* below), not from GitHub, so nothing a visitor needs depends on the repository being public.
 
 Shipping an update, step by step, for the owner: [docs/RELEASING.md](docs/RELEASING.md).
 
-**Other static hosts** (Netlify, Cloudflare Pages, S3, nginx…): run `npm run build` with `NEXT_PUBLIC_SITE_URL`
-set and upload `out/`. Point the host's "not found" page at `404.html`.
-
-### Deploying to Cloudflare (jumpingballslive.com)
-
---- cloudflare-site --- The live site at **https://jumpingballslive.com** is the same export served as the static assets of
-the `jumpingballslive` Cloudflare Worker (`wrangler.toml` at the repository root, the domain attached to the Worker as a
-custom domain). `.github/workflows/cloudflare-deploy.yml` builds it for the root of the domain (no base path) and deploys
-it on every push to the default branch, or on demand from the *Actions* tab. It needs the same two repository secrets as
-the billing Worker's workflow (`CLOUDFLARE_API_TOKEN` with the *Edit Cloudflare Workers* permissions and
-`CLOUDFLARE_ACCOUNT_ID`) and reads the same repository variables as the GitHub Pages build. By hand:
-`NEXT_PUBLIC_SITE_URL=https://jumpingballslive.com NEXT_PUBLIC_BASE_PATH= npm run build`, then
-`npx --prefix billing wrangler deploy` (Wrangler comes with `cd billing && npm ci`). The GitHub Pages deploy is unchanged
-and keeps publishing to `https://cronusaztec.github.io/Balls/`.
+**Other static hosts** (Netlify, Cloudflare Pages, GitHub Pages, S3, nginx…): run `npm run build` with `NEXT_PUBLIC_SITE_URL`
+(and `NEXT_PUBLIC_BASE_PATH` for a sub-folder) set and upload `out/`. Point the host's "not found" page at `404.html`.
 
 The browser smoke test (`scripts/smoke-test.mjs`, ~45 minutes on one runner) gates every deploy: the `smoke` job of
 `deploy.yml` – --- smoke-sharding --- a matrix of four shards that run at once, about 12 minutes each (see
@@ -412,7 +402,7 @@ public/
   hitSounds/*.wav       built-in hit samples: click, pluck, kick (generated)
   og.png                social preview image – Open Graph / Twitter card of every page (generated: scripts/generate-og.mjs)
 scripts/                asset generators, postexport.mjs (404.html/.nojekyll), obfuscate.mjs (the export's obfuscation step), serve-static.mjs (GitHub-Pages-like server), smoke test (smoke-test.mjs; smoke/ splits it into shards, balanced by smoke-timing.json, and judges a CI run's shards: verdict.mjs)
-.github/workflows/      deploy.yml (lint · test · build · smoke shards · publish to GitHub Pages) · smoke.yml (browser test, four shards)
+.github/workflows/      deploy.yml (lint · test · build · smoke shards · publish to Cloudflare) · smoke.yml (browser test, four shards)
 src/
   app/[locale]/         pages (landing, simulator, about, tiktok-ball-videos, feedback, privacy, terms, disclaimer, not-found)
   app/(static)/         locale-less pages of the static export: "/" (language redirect) and "/404"
@@ -1392,7 +1382,7 @@ one planner. Everything is client-side or runs on your own machine / runner – 
   committed TEST key. --- free-watermark --- Without a licence the page takes (no `BOT_LICENSE` on a production build) it
   renders anyway and says that the clips carry the watermark; a `BOT_LICENSE` the page refuses stops it with a clear message.
 - **Scheduled job** – `.github/workflows/bot.yml`: every day at 05:47 UTC and by hand (inputs `count`, `platform`, `post`) it
-  installs (with ffmpeg, when the runner lacks it, checked for its libx264 and aac encoders), builds with the Pages base path,
+  installs (with ffmpeg, when the runner lacks it, checked for its libx264 and aac encoders), builds for the root of jumpingballslive.com,
   serves `out/`, runs the CLI (which converts the WebM clips to MP4) and uploads `bot-output` as an artifact kept 14 days.
   It posts only when run by hand with `post` ticked and the `IG_USER_ID`, `IG_ACCESS_TOKEN` and `BOT_VIDEO_BASE_URL` secrets
   plus a `BOT_UPLOAD_COMMAND` repository variable (the command that uploads `bot-output` to that public folder, e.g.
@@ -1460,7 +1450,7 @@ the Render queue names it through `{siteName}`) and the portable data folder (`d
 (`BANNER` in `scripts/obfuscate.mjs` – `tests/obfuscate.test.ts` repeats it and the smoke test's code-obfuscation check its start, so
 change all three together), `LICENSE` and the README's [Licence](#licence) section (the terms page reads `{siteName}`).
 `SITE_DOMAIN` – the address the legal pages name the site by – is not hard-coded: it is `NEXT_PUBLIC_SITE_URL` without the scheme
-(`cronusaztec.github.io/Balls` on GitHub Pages), so a custom domain set in the Pages settings (which `deploy.yml` turns into
+(`jumpingballslive.com`), so a domain set with the variable `CUSTOM_DOMAIN` (which `deploy.yml` turns into
 `NEXT_PUBLIC_SITE_URL`) shows up there on the next deploy; `NEXT_PUBLIC_SITE_DOMAIN` overrides it. The footer shows the site name;
 --- low-findings --- the videos and live simulations of a visitor without a Pro licence carry the site's watermark – its name and
 `SITE_DOMAIN` (see [Free-video watermark](#free-video-watermark) and [Watermark on every free simulation](#watermark-on-every-free-simulation)) –
@@ -1628,9 +1618,9 @@ it still offers the third and explains the other two in a line each.
     enable **YouTube Data API v3**; *OAuth consent screen* → External, add the scopes `…/auth/youtube.upload` and
     `…/auth/youtube.readonly`, add yourself (and anyone who will connect) as **Test users**; *Credentials → Create
     credentials → OAuth client ID → Web application* → **Authorized JavaScript origins**: the site's origin without a path
-    (`https://cronusaztec.github.io` for this repository, `http://localhost:3000` for local runs) – no redirect URI is needed.
+    (`https://jumpingballslive.com` and `https://www.jumpingballslive.com` for this repository, `http://localhost:3000` for local runs) – no redirect URI is needed.
     Put the client ID (it is public) in the block's **YouTube app setup** or build with `NEXT_PUBLIC_YOUTUBE_CLIENT_ID` (on
-    GitHub Pages: the repository variable `YOUTUBE_CLIENT_ID`, passed by `deploy.yml`). Until Google verifies the app it works
+    the live site: the repository variable `YOUTUBE_CLIENT_ID`, passed by `deploy.yml`). Until Google verifies the app it works
     for its test users, and videos uploaded by an unaudited API project are locked to private (request the YouTube API
     Services audit to upload publicly); an upload costs about 1,600 of the default 10,000 daily quota units.
 - **Path B – the relay** (`relay/`, see [relay/README.md](relay/README.md)): TikTok's Login Kit and Content Posting API need
@@ -1661,7 +1651,7 @@ it still offers the third and explains the other two in a line each.
   scopes and the redirect URIs (`<relay>/oauth/<platform>/callback`) are in [relay/README.md](relay/README.md). In short:
   - **Deploy**: on [Render](https://render.com) a *Web Service* from this repository with Root Directory `relay`, Start
     Command `node server.mjs` and the variables of `relay/.env.example` – `RELAY_PUBLIC_URL` (its `https://…onrender.com`
-    address), `RELAY_ALLOWED_ORIGINS=https://cronusaztec.github.io`, `RELAY_ADMIN_KEY`, the app keys, and `RELAY_DATA_DIR` on a
+    address), `RELAY_ALLOWED_ORIGINS=https://jumpingballslive.com,https://www.jumpingballslive.com`, `RELAY_ADMIN_KEY`, the app keys, and `RELAY_DATA_DIR` on a
     persistent disk (Fly.io / Railway / any Docker host: `relay/Dockerfile`, a volume at `/data`; locally `node relay/server.mjs`).
   - **Keys for several people**: `curl -X POST <relay>/api/keys -H "Authorization: Bearer $RELAY_ADMIN_KEY" -d '{"label":"Alice"}'`
     prints a key once (`GET /api/keys` lists them, `DELETE /api/keys/:id` revokes one and forgets its accounts); each person
@@ -3388,7 +3378,7 @@ src/app/[locale]/download/     the download page (en / pl / es, in the sitemap, 
   for songs / videos / projects, drag and drop of media anywhere on the window (a song becomes the music bed, a video the
   "Beats from a video" source, a MIDI file the melody, a picture the ball, a project file is opened), a single instance
   (a second start focuses the window and opens the files it was given), logs in the data folder (Help → Open logs), and
-  auto-update from GitHub Releases (electron-updater; installed builds only, never an error when offline).
+  auto-update from the downloads host (electron-updater's generic provider; installed builds only, never an error when offline).
 - **Publish** – `src/lib/desktop/publish.ts` is the extension point; the Publish feature registers its paths there while the
   Desktop group is shown (`src/lib/publish/desktopTargets.ts`): **Publish to your accounts** puts the Library clip into the
   Publish block with its post copy as the draft and sends it in one click to every account ticked there (the relay's TikTok,
@@ -3429,18 +3419,22 @@ to the console.
 (--- desktop-autorelease ---: `npm run release:desktop -- 1.2.3`, commit, push). The `decide` job
 (`scripts/release/desktop-version.mjs --decide`) compares the version with the one before the push and checks that the tag
 `desktop-v<version>` does not exist yet; `build` (on `windows-latest`) builds the site with an empty base path for the
-address `.github/actions/site-url` resolves (`CUSTOM_DOMAIN`, the Pages settings), installs the app, type-checks and tests
+address `.github/actions/site-url` resolves (`CUSTOM_DOMAIN`, else jumpingballslive.com), installs the app, type-checks and tests
 it, packages the NSIS installer and the portable EXE (with the CUDA build when the input `cuda` or the variable
-`DESKTOP_CUDA=1` asks), smoke-runs the packaged `JumpingBallsLive.exe --smoke` and uploads the EXEs (plus blockmaps,
-`latest.yml` and `SHA256SUMS.txt`) as a workflow artifact; `release` – the only job with `contents: write` – creates the tag
-and the GitHub Release `desktop-v<version>` with them, fixed-name copies (`JumpingBallsLive-Setup.exe`,
-`JumpingBallsLive-portable.exe`) that the download page links as `…/releases/latest/download/<name>` and GitHub's generated
-notes, then checks that `…/releases/latest/download/latest.yml` names the version. A release build is never cancelled by a
-newer push. electron-updater reads the newest release's `latest.yml`, so keep app releases the repository's "latest"
-release. The app checks 8 s after launch and every 4 hours, downloads in the background, shows a banner (Restart and update
-/ Later) and a Windows notification, installs on quit; the GPU tab keeps the manual check. The download page shows the
-build-time version and then asks GitHub's API which release is the latest (with a "What's new" link to it). The owner's
-step-by-step guide: [docs/RELEASING.md](docs/RELEASING.md).
+`DESKTOP_CUDA=1` asks; the upload takes 300 MiB per file at most, so not yet with it), smoke-runs the packaged
+`JumpingBallsLive.exe --smoke` and uploads the EXEs (plus blockmaps, `latest.yml` and `SHA256SUMS.txt`) as a workflow
+artifact; `release` – the only job with `contents: write` – first checks the two Cloudflare secrets, then publishes to the
+downloads host (`scripts/release/publish-downloads.mjs`: the versioned files, the fixed-name copies
+`JumpingBallsLive-Setup.exe` / `JumpingBallsLive-portable.exe` that the download page links, and `latest.yml` last), checks
+that `latest.yml` there names the version and the installer has the built size, and only then creates the tag and the GitHub
+Release `desktop-v<version>` with the same files and GitHub's generated notes (the archive; while the repository is public
+it also checks that `…/releases/latest/download/latest.yml` names the version, because apps older than 1.1.0 read it). A
+release build is never cancelled by a newer push. electron-updater (the generic provider, `JBL_UPDATE_URL` at build time)
+reads `latest.yml` from the downloads host. The app checks 8 s after launch and every 4 hours, downloads in the background,
+shows a banner (Restart and update / Later) and a Windows notification, installs on quit; the GPU tab keeps the manual check.
+The download page shows the build-time version (`DESKTOP_VERSION`, bumped by `npm run release:desktop` in the push that
+deploys the site). The owner's step-by-step guide, with the one-time R2 setup and the order for making the repository private:
+[docs/RELEASING.md](docs/RELEASING.md).
 
 **Code signing**: the EXEs are unsigned until a certificate is configured – Windows SmartScreen then shows "Windows protected
 your PC" (**More info → Run anyway**), which the download page explains. To sign, add the repository secrets `WIN_CSC_LINK`

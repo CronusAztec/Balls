@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import fs from "fs";
 import path from "path";
+import { deployGuard } from "../scripts/go-live-check.mjs";
 
 /*
  * --- desktop-autorelease --- "One push updates everything": the workflows deploy the website only from the product branch, the
  * billing Worker on billing/ changes (once BILLING_AUTODEPLOY is on) and the Windows app on a version bump. Text checks (no YAML
- * dependency) of the strings that decide what runs where.
+ * dependency) of the strings that decide what runs where. The repository is private and only keeps the code: the website goes to
+ * Cloudflare (a Worker serving jumpingballslive.com), the Windows app's downloads and updates to a Cloudflare R2 bucket.
  */
 
 const ROOT = path.join(__dirname, "..");
@@ -29,37 +31,82 @@ describe("deploy.yml: the website", () => {
   const deploy = read(".github/workflows/deploy.yml");
 
   it("deploys only from the product branch (claude/optimistic-johnson-46x3qg or main), pushed or run by hand", () => {
-    expect(deploy.split(BRANCHES).length - 1).toBe(5);
+    expect(deploy.split(BRANCHES).length - 1).toBe(4);
     expect(deploy).toContain(`  DEPLOY: \${{ ${BRANCHES} }}\n`);
-    for (const job of ["smoke", "smoke-summary", "deploy", "deploy-cloudflare"]) expect(jobIf(jobSection(deploy, job)), job).toContain(BRANCHES);
+    for (const job of ["smoke", "smoke-summary", "deploy"]) expect(jobIf(jobSection(deploy, job)), job).toContain(BRANCHES);
     expect(jobIf(jobSection(deploy, "smoke-summary"))).toMatch(/^always\(\) && /);
     // a manual run from another branch no longer deploys it
     for (const m of deploy.matchAll(/\n\s+if: (.+)/g)) expect(m[1]).not.toContain("workflow_dispatch");
     expect(deploy).not.toContain("default_branch");
   });
 
-  it("takes the site's address from the site-url action and writes out/CNAME for a custom domain", () => {
-    expect(deploy).toContain("uses: ./.github/actions/site-url");
-    expect(deploy).toContain("custom-domain: ${{ vars.CUSTOM_DOMAIN }}");
-    expect(deploy).toContain("site-host: ${{ vars.SITE_HOST }}");
-    expect(deploy).toContain("      - name: Work out the public URL and base path\n        id: site\n");
-    expect(deploy).toContain("out/CNAME");
-    expect(deploy).toContain("if: steps.site.outputs.domain != ''");
-    expect(deploy).toContain("NEXT_PUBLIC_BASE_PATH: ${{ steps.site.outputs.base }}");
-    expect(deploy).toContain("grep -E '^SITE_ORIGIN *=' billing/wrangler.toml");
+  it("lints and type-checks every push, and runs the unit tests, the build and the upload only where it deploys", () => {
+    const build = jobSection(deploy, "build");
+    // a private repository has 2,000 free Actions minutes a month: a feature branch costs the lint and the type check only
+    expect(build).toContain("      - name: Lint\n        run: npm run lint\n");
+    expect(build).toContain("      - name: Type-check\n        run: npm run typecheck\n");
+    for (const step of ["Unit tests", "Production guard (billing)", "Cache the Next.js build", "Build static site", "Stamp the build", "Upload the site"]) {
+      expect(build, step).toMatch(new RegExp(`      - name: ${step.replace(/[()]/g, "\\$&")}\\n        if: env\\.DEPLOY == 'true'\\n`));
+    }
+    // the unit tests run through the wrapper that ignores vitest's own worker-reporting timeout (scripts/test-ci.mjs)
+    expect(build).toContain("        if: env.DEPLOY == 'true'\n        run: npm run test:ci\n");
   });
 
-  it("publishes to GitHub Pages, or to Cloudflare Pages when SITE_HOST says so, and checks the site answers", () => {
-    const pages = jobSection(deploy, "deploy");
-    const cloudflare = jobSection(deploy, "deploy-cloudflare");
-    expect(jobIf(pages)).toContain("vars.SITE_HOST != 'cloudflare-pages'");
-    expect(jobIf(cloudflare)).toContain("vars.SITE_HOST == 'cloudflare-pages'");
-    expect(cloudflare).toContain("needs: [build, smoke, smoke-summary]");
-    expect(cloudflare).toContain("wrangler@3 pages deploy out");
-    expect(cloudflare).toContain("name: site-out");
-    expect(pages).toContain("- name: The site answers");
-    expect(deploy).toContain("if: env.DEPLOY == 'true' && steps.site.outputs.host == 'github-pages'");
-    expect(deploy).toContain("if: env.DEPLOY == 'true' && steps.site.outputs.host == 'cloudflare-pages'");
+  it("takes the site's address from the site-url action (CUSTOM_DOMAIN, else jumpingballslive.com)", () => {
+    expect(deploy).toContain("uses: ./.github/actions/site-url");
+    expect(deploy).toContain("custom-domain: ${{ vars.CUSTOM_DOMAIN }}");
+    expect(deploy).not.toContain("site-host:");
+    expect(deploy).toContain("      - name: Work out the public URL and base path\n        id: site\n");
+    expect(deploy).toContain("NEXT_PUBLIC_BASE_PATH: ${{ steps.site.outputs.base }}");
+    expect(deploy).toContain("grep -E '^SITE_ORIGIN *=' billing/wrangler.toml");
+    // the feedback form's GitHub channel only for a public repository with issues
+    expect(deploy).toContain("NEXT_PUBLIC_GITHUB_REPO: ${{ (github.event.repository.private == false && github.event.repository.has_issues == true) && github.repository || '' }}");
+  });
+
+  it("publishes to the jumpingballslive Cloudflare Worker – never to GitHub Pages – and asks the live site for the build", () => {
+    const job = jobSection(deploy, "deploy");
+    expect(job).toContain("needs: [build, smoke, smoke-summary]");
+    expect(job).toContain("name: site-out");
+    const order = ["- name: Check the Cloudflare secrets", "- name: Download the site", "- name: Install Wrangler", "- name: Deploy to Cloudflare", "- name: The new build answers", "- name: The downloads host answers"].map((n) => job.indexOf(n));
+    expect(order.every((i) => i > -1)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    expect(job).toContain("run: npm ci --prefix billing");
+    expect(job).toContain("run: npx --prefix billing wrangler deploy");
+    expect(job).toContain("$URL/build.txt");
+    expect(deploy).toContain('run: printf \'%s\\n\' "$GITHUB_SHA" > out/build.txt');
+    expect(deploy).not.toMatch(/pages-artifact|deploy-pages|configure-pages|cloudflare-pages|wrangler@3 pages|out\/CNAME/);
+    // the Worker is the one wrangler.toml names, with the domain and www attached
+    const wrangler = read("wrangler.toml");
+    expect(wrangler).toMatch(/^name = "jumpingballslive"$/m);
+    expect(wrangler).toContain('{ pattern = "jumpingballslive.com", custom_domain = true }');
+    expect(wrangler).toContain('{ pattern = "www.jumpingballslive.com", custom_domain = true }');
+    expect(wrangler).toContain('directory = "./out"');
+    expect(fs.existsSync(path.join(ROOT, ".github/workflows/cloudflare-deploy.yml"))).toBe(false);
+  });
+});
+
+describe("the live billing values both workflows build in", () => {
+  const key = (text: string) => /\n {2}LICENSE_PUBLIC_KEY: \$\{\{ vars\.LICENSE_PUBLIC_KEY \|\| '([^']+)' \}\}\n/.exec(text)?.[1] ?? "";
+  const url = (text: string) => /\n {2}BILLING_API_URL: \$\{\{ vars\.BILLING_API_URL \|\| '([^']+)' \}\}\n/.exec(text)?.[1] ?? "";
+  const deploy = read(".github/workflows/deploy.yml");
+  const desktop = read(".github/workflows/desktop.yml");
+
+  it("are the same pair in the website's workflow and the app's, and the deploy guard accepts it", () => {
+    expect(key(deploy)).not.toBe("");
+    expect(url(deploy)).toMatch(/^https:\/\/jumpingballslive-billing\./);
+    expect(key(desktop)).toBe(key(deploy));
+    expect(url(desktop)).toBe(url(deploy));
+    expect(deployGuard({ LICENSE_PUBLIC_KEY: key(deploy), BILLING_API_URL: url(deploy) }).ok).toBe(true);
+    // both builds read the pair from env, so a repository variable replaces it in one place
+    expect(deploy).toContain("NEXT_PUBLIC_LICENSE_PUBLIC_KEY: ${{ env.LICENSE_PUBLIC_KEY }}");
+    expect(desktop).toContain("NEXT_PUBLIC_BILLING_API: ${{ env.BILLING_API_URL }}");
+  });
+
+  it("make the production guard check the pair the build uses, and the Worker allow the site's origins", () => {
+    expect(deploy).toContain("      - name: Production guard (billing)\n        if: env.DEPLOY == 'true'\n        run: node scripts/go-live-check.mjs --deploy-guard\n");
+    const wrangler = read("billing/wrangler.toml");
+    const origins = /^SITE_ORIGIN\s*=\s*"([^"]*)"/m.exec(wrangler)?.[1].split(/[\s,]+/) ?? [];
+    expect(origins).toEqual(["https://jumpingballslive.com", "https://www.jumpingballslive.com"]);
   });
 });
 
@@ -84,16 +131,42 @@ describe("desktop.yml: the Windows app", () => {
     expect(jobSection(desktop, "release")).toContain("contents: write");
   });
 
-  it("bakes the site's real address into the app, honours DESKTOP_CUDA and checks what installed apps will read", () => {
+  it("bakes the site's real address into the app and honours DESKTOP_CUDA", () => {
     expect(desktop).toContain("uses: ./.github/actions/site-url");
     expect(desktop.split("DESKTOP_SITE_URL: ${{ steps.site.outputs.url }}").length - 1).toBe(2);
     expect(desktop).not.toContain("DESKTOP_SITE_URL: https://");
     expect(desktop).toContain("JBL_CUDA: ${{ (inputs.cuda || vars.DESKTOP_CUDA == '1') && '1' || '0' }}");
-    expect(desktop).toContain("--generate-notes");
-    expect(desktop).toContain("releases/latest/download/latest.yml");
     expect(desktop).toContain("retention-days: 14");
     expect(desktop).toContain("JumpingBallsLive-Setup.exe");
     expect(desktop).toContain("JumpingBallsLive-portable.exe");
+    // nothing the app is built from needs GitHub: no Pages lookup, no GitHub issues as the feedback channel
+    expect(desktop).not.toContain("pages: read");
+    expect(desktop).not.toContain("NEXT_PUBLIC_GITHUB_REPO");
+    expect(desktop).toContain("NEXT_PUBLIC_PUBLISH_RELAY_URL: ${{ vars.PUBLISH_RELAY_URL || 'https://relay.jumpingballslive.com' }}");
+  });
+
+  it("publishes to the downloads host first, checks it, and only then archives the release on GitHub", () => {
+    const release = jobSection(desktop, "release");
+    const order = [
+      "- name: Check the Cloudflare secrets",
+      "- name: Install Wrangler",
+      "- name: Download the EXEs",
+      "- name: Publish to the downloads host (Cloudflare R2)",
+      "- name: The downloads host serves it",
+      "- name: Publish the GitHub Release",
+    ].map((n) => release.indexOf(n));
+    expect(order.every((i) => i > -1)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    expect(release).toContain('run: node scripts/release/publish-downloads.mjs --dir dist --version "$VERSION" --bucket "$R2_BUCKET"');
+    expect(release).toContain('run: node scripts/release/publish-downloads.mjs --verify --dir dist --version "$VERSION" --url "$DOWNLOADS_URL"');
+    expect(desktop).toContain("DOWNLOADS_URL: ${{ vars.DOWNLOADS_URL || 'https://downloads.jumpingballslive.com' }}");
+    expect(desktop).toContain("R2_BUCKET: ${{ vars.R2_BUCKET || 'jumpingballslive-downloads' }}");
+    // the installed apps' update feed is the downloads host (electron-builder writes it into app-update.yml)
+    expect(desktop).toContain("JBL_UPDATE_URL: ${{ env.DOWNLOADS_URL }}");
+    // the GitHub release stays as the archive; while the repository is public it is also what apps older than 1.1.0 read
+    expect(release).toContain("--generate-notes");
+    expect(release).toContain("- name: Apps older than 1.1.0 see the release (public repository)\n        if: github.event.repository.private == false\n");
+    expect(release).toContain("releases/latest/download/latest.yml");
   });
 });
 
@@ -123,12 +196,16 @@ describe("billing-deploy.yml: the payment Worker", () => {
 });
 
 describe("the site-url action, the release helper and the docs", () => {
-  it("is a composite action with the four outputs", () => {
+  it("is a composite action with the three outputs, jumpingballslive.com unless CUSTOM_DOMAIN says otherwise, and no GitHub Pages", () => {
     const action = read(".github/actions/site-url/action.yml");
     expect(action).toContain("using: composite");
-    for (const output of ["url", "base", "domain", "host"]) expect(action).toMatch(new RegExp(`\\n {2}${output}:\\n {4}description: `));
+    for (const output of ["url", "base", "domain"]) expect(action).toMatch(new RegExp(`\\n {2}${output}:\\n {4}description: `));
     expect(action).toContain("CUSTOM_DOMAIN");
-    expect(action).toContain('gh api "repos/${GITHUB_REPOSITORY}/pages"');
+    expect(action).toContain('domain="jumpingballslive.com"');
+    // no lookup of GitHub's Pages settings and no <owner>.github.io fallback: the site is on Cloudflare
+    expect(action).not.toContain("gh api");
+    expect(action).not.toContain("github.io");
+    expect(action).not.toContain("GH_TOKEN");
   });
 
   it("has npm run release:desktop and docs/RELEASING.md that names it", () => {
@@ -136,7 +213,7 @@ describe("the site-url action, the release helper and the docs", () => {
     expect(pkg.scripts["release:desktop"]).toBe("node scripts/release/desktop-version.mjs");
     const doc = read("docs/RELEASING.md");
     expect(doc).toContain("npm run release:desktop");
-    for (const heading of ["What updates when", "Ship a website change", "Release the Windows app", "Ship a Worker change", "Reading the Actions tab", "Roll back", "Your own domain", "Hosting", "Code signing (optional)", "Variables and secrets"]) {
+    for (const heading of ["What updates when", "Ship a website change", "Release the Windows app", "Ship a Worker change", "Reading the Actions tab", "Roll back", "Your own domain", "Hosting", "The downloads host", "Making the repository private", "Code signing (optional)", "Variables and secrets"]) {
       expect(doc, heading).toMatch(new RegExp(`\\n## ${heading.replace(/[()]/g, "\\$&")}\\n`));
     }
     expect(read("README.md")).toContain("docs/RELEASING.md");

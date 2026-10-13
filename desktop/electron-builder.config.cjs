@@ -15,6 +15,11 @@
  * reads them from the environment (see .github/workflows/desktop.yml). Unsigned builds trigger SmartScreen
  * ("More info" → "Run anyway").
  *
+ * Updates: every installed app reads latest.yml from the downloads host (https://downloads.jumpingballslive.com, a Cloudflare R2
+ * bucket that scripts/release/publish-downloads.mjs fills on a release – see .github/workflows/desktop.yml), never from GitHub, so
+ * the repository can be private. `electron-builder --publish never` still writes latest.yml and the app's app-update.yml from the
+ * `publish` entry below. JBL_UPDATE_URL points a build at another host (a test bucket).
+ *
  * --- desktop-ai-fix --- `signtoolOptions.publisherName` only with a certificate: electron-builder writes it into the app's
  * app-update.yml, and electron-updater then refuses every update that is not signed by that publisher
  * (ERR_UPDATER_INVALID_SIGNATURE). 1.0.2 shipped it unsigned with the name set, so it cannot update itself to an unsigned
@@ -23,6 +28,8 @@
 const withCuda = process.env.JBL_CUDA === "1";
 /** --- desktop-ai-fix --- A code-signing certificate is configured (the workflow sets WIN_CSC_LINK only when the secret exists). */
 const signed = !!process.env.WIN_CSC_LINK;
+/** The update feed's address: the folder of latest.yml, the installers and their blockmaps. */
+const updateUrl = (process.env.JBL_UPDATE_URL || "https://downloads.jumpingballslive.com").replace(/\/+$/, "");
 
 module.exports = {
   appId: "com.jumpingballslive.desktop",
@@ -76,5 +83,5 @@ module.exports = {
   },
   portable: { artifactName: "JumpingBallsLive-${version}-portable.${ext}" },
   linux: { target: ["dir"], icon: "../public/icons/icon-512.png", category: "Video" },
-  publish: [{ provider: "github", owner: "CronusAztec", repo: "Balls", releaseType: "release" }],
+  publish: [{ provider: "generic", url: updateUrl }],
 };

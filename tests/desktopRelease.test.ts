@@ -4,12 +4,10 @@ import os from "os";
 import path from "path";
 import { bumpFiles, checkConsistency, compareSemver, decideRelease, hasPrereleaseSuffix, isSemver, nextPatch, readVersion, VERSION_FILES } from "../scripts/release/desktop-version.mjs";
 import { spawnSync } from "child_process"; // --- low-findings-2 ---
-import { LATEST_CACHE_KEY, LATEST_CACHE_MS, parseLatest } from "@/components/site/LatestDesktopVersion";
 
 /*
  * --- desktop-autorelease --- the Windows app's release rules (scripts/release/desktop-version.mjs, the `decide` job of
- * .github/workflows/desktop.yml), the one-command bump (npm run release:desktop -- <version>) and the download page's
- * latest-release answer.
+ * .github/workflows/desktop.yml) and the one-command bump (npm run release:desktop -- <version>).
  */
 
 const ROOT = path.join(__dirname, "..");
@@ -144,20 +142,5 @@ describe("the version bump", () => {
     const { version, problems } = checkConsistency(ROOT);
     expect(problems).toEqual([]);
     expect(isSemver(version)).toBe(true);
-  });
-});
-
-describe("the download page's latest release", () => {
-  it("accepts a desktop-v<x.y.z> release with its page, and nothing else", () => {
-    const url = "https://github.com/CronusAztec/Balls/releases/tag/desktop-v1.0.4";
-    expect(parseLatest({ tag_name: "desktop-v1.0.4", html_url: url, name: "x" })).toEqual({ version: "1.0.4", url });
-    expect(parseLatest({ tag_name: "v1.0.4", html_url: url })).toBeNull();
-    expect(parseLatest({ tag_name: "desktop-v1.0", html_url: url })).toBeNull();
-    expect(parseLatest({ tag_name: "desktop-v1.0.4" })).toBeNull();
-    expect(parseLatest({ tag_name: "desktop-v1.0.4", html_url: "" })).toBeNull();
-    expect(parseLatest(null)).toBeNull();
-    expect(parseLatest("desktop-v1.0.4")).toBeNull();
-    expect(LATEST_CACHE_KEY).toBe("jbl.desktopLatest");
-    expect(LATEST_CACHE_MS).toBe(60 * 60 * 1000);
   });
 });

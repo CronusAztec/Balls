@@ -4,7 +4,7 @@ import path from "path";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
-import { LATEST_RELEASE_URL, PORTABLE_ASSET, SETUP_ASSET, latestAssetUrl, versionedAssetNames } from "@/lib/desktop/release";
+import { DOWNLOADS_URL, PORTABLE_ASSET, SETUP_ASSET, latestAssetUrl, versionedAssetNames } from "@/lib/desktop/release";
 import { extensionOfName, mediaKindOfName } from "@/lib/desktop/mediaKinds";
 import { postText, publishTargets, registerPublishTarget } from "@/lib/desktop/publish";
 import { bridgeChatModel } from "@/lib/desktop/ai/bridgeModel";
@@ -47,24 +47,32 @@ describe("Desktop messages", () => {
     // Keys built at run time: every status, tab, preset, codec, task and update state.
     for (const group of ["status", "tab", "preset", "codec", "aiTask", "aiTaskHint", "aiPlaceholder", "update", "queueSource", "open", "ending", "requirements", "features"]) expect(Object.keys((en.Desktop as unknown as Record<string, Tree>)[group]).length).toBeGreaterThan(1);
   });
-  // --- desktop-autorelease --- the update banner's Later and its note while a render runs, and the download page's "What's new"
+  // --- desktop-autorelease --- the update banner's Later and its note while a render runs, and the download page's version line
   it("has the update banner's and the download page's new texts in every language", () => {
     for (const m of [en, pl, es] as unknown as { Desktop: Record<string, unknown>; DesktopAiFix: Record<string, unknown> }[]) {
-      for (const key of ["updateLater", "updateWaitRender", "appRestartUpdate"]) expect(typeof m.Desktop[key], key).toBe("string");
-      expect(m.DesktopAiFix.downloadWhatsNew).toContain("{version}");
+      for (const key of ["updateLater", "updateWaitRender", "appRestartUpdate", "checksums"]) expect(typeof m.Desktop[key], key).toBe("string");
       expect(m.DesktopAiFix.downloadVersion).toContain("{version}");
     }
     const page = fs.readFileSync(path.join(__dirname, "..", "src", "app", "[locale]", "download", "page.tsx"), "utf8");
-    expect(page).toContain('fix.raw("downloadVersion")');
-    expect(page).toContain('fix.raw("downloadWhatsNew")');
+    expect(page).toContain('fix("downloadVersion", { version: DESKTOP_VERSION })');
+  });
+  // The repository is private: no text sends a visitor to GitHub for the downloads, the update source or the release notes.
+  it("does not send anyone to GitHub for downloads, updates or release notes", () => {
+    for (const m of [en, pl, es] as unknown as { Desktop: Record<string, string>; DesktopAiFix: Record<string, string> }[]) {
+      for (const key of ["setupBody", "appAutoUpdate", "smartScreenBody", "privacyBody", "checksums"]) expect(m.Desktop[key], key).not.toMatch(/GitHub Releases|GitHubie|en GitHub|public source|publicznego kodu|código público/);
+      expect(m.Desktop.allReleases).toBeUndefined();
+      expect(m.DesktopAiFix.downloadWhatsNew).toBeUndefined();
+    }
+    const page = fs.readFileSync(path.join(__dirname, "..", "src", "app", "[locale]", "download", "page.tsx"), "utf8");
+    expect(page).not.toMatch(/github\.com|DESKTOP_REPO|RELEASES_URL|LATEST_RELEASE_URL/);
   });
 });
 
 describe("download links", () => {
-  it("point at the latest GitHub release with fixed and versioned names", () => {
-    expect(LATEST_RELEASE_URL).toBe("https://github.com/CronusAztec/Balls/releases/latest");
-    expect(latestAssetUrl(SETUP_ASSET)).toBe("https://github.com/CronusAztec/Balls/releases/latest/download/JumpingBallsLive-Setup.exe");
-    expect(latestAssetUrl(PORTABLE_ASSET)).toBe("https://github.com/CronusAztec/Balls/releases/latest/download/JumpingBallsLive-portable.exe");
+  it("point at the downloads host with fixed and versioned names, and the app updates from the same host", () => {
+    expect(DOWNLOADS_URL).toBe("https://downloads.jumpingballslive.com");
+    expect(latestAssetUrl(SETUP_ASSET)).toBe("https://downloads.jumpingballslive.com/JumpingBallsLive-Setup.exe");
+    expect(latestAssetUrl(PORTABLE_ASSET)).toBe("https://downloads.jumpingballslive.com/JumpingBallsLive-portable.exe");
     expect(versionedAssetNames("1.2.0")).toEqual({ setup: "JumpingBallsLive-Setup-1.2.0.exe", portable: "JumpingBallsLive-1.2.0-portable.exe" });
     // electron-builder names the artifacts the same way.
     const config = fs.readFileSync(path.join(__dirname, "..", "desktop", "electron-builder.config.cjs"), "utf8");
@@ -73,6 +81,14 @@ describe("download links", () => {
     const workflow = fs.readFileSync(path.join(__dirname, "..", ".github", "workflows", "desktop.yml"), "utf8");
     expect(workflow).toContain(SETUP_ASSET);
     expect(workflow).toContain(PORTABLE_ASSET);
+    // electron-updater reads latest.yml from the same host (the generic provider), not from GitHub Releases
+    expect(config).toContain('publish: [{ provider: "generic", url: updateUrl }]');
+    expect(config).toContain('(process.env.JBL_UPDATE_URL || "https://downloads.jumpingballslive.com")');
+    expect(config).not.toMatch(/provider: "github"/);
+    // and the built config really says so (what electron-builder writes into the app's app-update.yml)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const built = require("../desktop/electron-builder.config.cjs") as { publish: { provider: string; url: string }[] };
+    expect(built.publish).toEqual([{ provider: "generic", url: DOWNLOADS_URL }]);
   });
 });
 

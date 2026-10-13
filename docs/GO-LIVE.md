@@ -28,15 +28,15 @@ Three parts:
 
 | Part | Where it lives | Who visits it |
 | --- | --- | --- |
-| The website | GitHub Pages, built from the repository | everyone |
+| The website | Cloudflare (a Worker serving jumpingballslive.com), built from the repository by GitHub Actions | everyone |
 | The payment server (the Worker) | Cloudflare Workers | the website, Stripe, PayPal, NOWPayments |
-| The Windows app | GitHub Releases of the repository | people who download it |
+| The Windows app | Cloudflare R2 (downloads.jumpingballslive.com), built from the repository by GitHub Actions | people who download it |
 
 **Monthly costs**
 
 | What | Cost |
 | --- | --- |
-| GitHub (public repository, Pages, Actions, Releases) | free |
+| GitHub (the private repository and Actions: 2,000 free minutes a month) | free |
 | Cloudflare **Workers Paid** (needed before launch – see section 4.1) | $5 a month |
 | Your own domain name (optional) | about $10–15 a year |
 | Payment fees | a share of each sale – see the table in section 15 |
@@ -58,35 +58,31 @@ address for customer questions (for example a new `support@…` or a separate Gm
 
 ## 2. The website address and hosting
 
-Your website is a folder of ready-made files. GitHub builds that folder from the code and serves it for free from
-**GitHub Pages**. Today the address is <https://cronusaztec.github.io/Balls/>. The limits (1 GB of site, about 100 GB of
-traffic a month) are far above what you need.
+Your website is a folder of ready-made files. GitHub builds that folder from the code and **Cloudflare** serves it, at
+<https://jumpingballslive.com> (and `www.jumpingballslive.com`): the folder is the static assets of a Cloudflare Worker named
+`jumpingballslive`, and `wrangler.toml` at the repository root attaches both addresses to it. GitHub only keeps the code, so
+the repository can be private (section 10).
 
-**How it is switched on:** repository **Settings → Pages → Build and deployment → Source: GitHub Actions**. It already is.
+**How it is switched on:** two repository secrets, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` – the same two the
+payment Worker uses (section 9). Without them the deploy stops with a message that says which one is missing.
 
 **What happens on every push:** every time code is pushed to the product branch (`claude/optimistic-johnson-46x3qg`, or
 `main` once you rename it), GitHub runs the checks (lint, types, unit tests, the build – about 6 minutes), then the browser
-test on four machines at once (about 12–15 minutes), and only when everything is green it publishes the new site. **From
-push to live: about 25 minutes.** Other branches are checked but never published.
+test on four machines at once (about 12–15 minutes), and only when everything is green it publishes the new site to
+Cloudflare and asks jumpingballslive.com for the new build. **From push to live: about 25 minutes.** Other branches only get
+the lint and the type check (a private repository has a monthly allowance of Actions minutes) and are never published.
 
-**Your own address (optional).** Buy a name at a registrar (Cloudflare Registrar, Namecheap, Porkbun…), for example
-`jumpingballs.live`. Then:
+**Another address (optional).** `jumpingballslive.com` is the default. To serve the site from another domain that is on your
+Cloudflare account:
 
 1. **First tell the Worker about the new address**, or checkouts from it will be refused. Run `npm run go-live` again (it
    asks "Do you have your own domain for the site?") – or add the address to `SITE_ORIGIN` in `billing/wrangler.toml`
    yourself (several addresses are separated by spaces) and deploy the Worker (section 3).
-2. At the registrar, open the DNS settings and add:
-   - a **CNAME** record: name `www`, value `cronusaztec.github.io` (no `/Balls`);
-   - for the bare name (`@`) four **A** records: `185.199.108.153`, `185.199.109.153`, `185.199.110.153`,
-     `185.199.111.153`.
-3. In GitHub: **Settings → Pages → Custom domain** → type `www.yourdomain.com` → **Save**. GitHub checks the DNS and
-   issues a certificate. This takes minutes to an hour (new DNS records can take up to 24–48 hours to spread).
-4. When the box turns green, tick **Enforce HTTPS**.
-5. **Settings → Secrets and variables → Actions → Variables** → add `CUSTOM_DOMAIN` = your domain without `https://`
-   (for example `jumpingballs.live`). Then push anything (or **Actions → "Build and deploy to GitHub Pages" → Run
-   workflow**): the site is built for the new address. Without the variable the workflow falls back to the Pages
-   settings. Old `cronusaztec.github.io/Balls/…` links redirect.
-6. Also protect the name: your GitHub profile → **Settings → Pages → Verified domains** → add it.
+2. In `wrangler.toml` (the repository root) change the two `routes` patterns – the bare name and `www` – to the new domain.
+3. **Settings → Secrets and variables → Actions → Variables** → add `CUSTOM_DOMAIN` = your domain without `https://`
+   (for example `example.com`). Then push anything (or **Actions → "Build and deploy the site" → Run workflow**): the site is
+   built for the new address and the next Windows release uses it for its links.
+4. If you run the publish relay, add the new address to its `RELAY_ALLOWED_ORIGINS`.
 
 ---
 
@@ -94,9 +90,9 @@ push to live: about 25 minutes.** Other branches are checked but never published
 
 | What | How it updates | Where to watch |
 | --- | --- | --- |
-| Website | every push to the product branch (about 25 minutes) | Actions → "Build and deploy to GitHub Pages" |
+| Website | every push to the product branch (about 25 minutes) | Actions → "Build and deploy the site" |
 | Payment Worker | the first time by hand: **Actions → "Deploy billing worker" → Run workflow** (needs the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, section 9), or `npm run go-live`. After that, once the repository variable `BILLING_AUTODEPLOY` is `1`, every push that changes `billing/` | Actions → "Deploy billing worker" |
-| Windows app | a push that raises the version in `desktop/package.json` (`npm run release:desktop -- 1.0.4`, section 11) | Actions → "Windows app"; GitHub → Releases |
+| Windows app | a push that raises the version in `desktop/package.json` (`npm run release:desktop -- 1.0.4`, section 11) | Actions → "Windows app"; <https://downloads.jumpingballslive.com/latest.yml> |
 
 [`docs/RELEASING.md`](RELEASING.md) describes each of these step by step, and how to undo a bad release.
 
@@ -126,8 +122,7 @@ until section 6 says otherwise.
 1. Sign up at <https://dashboard.stripe.com/register>.
 2. **Activate payments** (the banner on the home page). The questionnaire asks for: your country, whether you are an
    individual or a company, your legal name, address, date of birth, an ID document, a tax number where your country has
-   one, your **bank account** (this is where the money goes), the website (`https://cronusaztec.github.io/Balls/` or your
-   domain), and a product description – write "Pro subscription for a browser video tool".
+   one, your **bank account** (this is where the money goes), the website (`https://jumpingballslive.com`), and a product description – write "Pro subscription for a browser video tool".
 3. **Settings → Business → Public details**: the support e-mail, and the **statement descriptor** `JUMPINGBALLSLIVE`
    (what buyers see on their card statement).
 4. **Settings → Emails → Successful payments: on.** Stripe then e-mails each buyer a receipt.
@@ -200,7 +195,7 @@ npm run go-live -- --mode live
    (`https://jumpingballslive-billing.<your-name>.workers.dev`).
 4. The licence key: in test mode the public test key; in live mode it makes your own key pair (or keeps the one the Worker
    already has).
-5. **Stripe:** the secret key; the two prices (it finds or creates "JumpingBallsLive Pro" at $10 a month and $79 a year –
+5. **Stripe:** the secret key; the two prices (it finds or creates "JumpingBallsLive Pro" at $6.99 a month and $49 a year –
    running it twice never makes duplicates); whether you use Stripe Tax; then it shows the webhook to add (below) and asks
    for its **signing secret** (`whsec_…`).
 6. **PayPal:** the Client ID and the Secret; the two plans (found or created the same way); the webhook to add, then its
@@ -282,7 +277,7 @@ mix them, that payment button disappears from the site and `https://<your Worker
    npm run go-live -- --mode live
    ```
 
-5. The wizard sets the GitHub variables. Push anything, or **Actions → "Build and deploy to GitHub Pages" → Run
+5. The wizard sets the GitHub variables. Push anything, or **Actions → "Build and deploy the site" → Run
    workflow**. About 25 minutes later the site is live (the yellow test line is gone).
 6. Run:
 
@@ -301,10 +296,10 @@ mix them, that payment button disappears from the site and `https://<your Worker
   redemptions **1**, with a customer-facing **promotion code** `GOLIVE`. Buy Monthly on the live pricing page with that
   code. The licence arrives. Then Stripe → **Customers** → that customer → cancel the subscription, and deactivate the
   coupon.
-- **PayPal:** from a second PayPal account (a friend's, or your personal one) buy Monthly for real ($10). It unlocks. Then
+- **PayPal:** from a second PayPal account (a friend's, or your personal one) buy Monthly for real ($6.99). It unlocks. Then
   PayPal → **Activity** → the payment → **Refund**, and cancel the subscription (**Settings → Payments → Manage automatic
   payments**, or in the PayPal app).
-- **Crypto:** pay Monthly from your own wallet in a cheap coin – USDT on TRON, LTC or DOGE – about $10. It unlocks after
+- **Crypto:** pay Monthly from your own wallet in a cheap coin – USDT on TRON, LTC or DOGE – about $7. It unlocks after
   the network confirms it (minutes). The money arrives in your payout wallet minus about 0.5 % and the network fee.
 
 ---
@@ -328,7 +323,7 @@ subscription too, so it does not charge again.
 
 **Disputes (chargebacks).** Stripe → **Payments → Disputes**: answer before the deadline with the evidence – the
 purchase, the licence activation (the receipt reference), the terms link
-(`https://cronusaztec.github.io/Balls/en/terms/#refunds`). Stripe charges a fee per dispute (about $15), refunded if you
+(`https://jumpingballslive.com/en/terms/#refunds`). Stripe charges a fee per dispute (about $15), refunded if you
 win. PayPal: **Resolution Center**.
 
 ---
@@ -381,15 +376,19 @@ key, stops the deploy with a message saying which.
 
 ---
 
-## 10. Why the repository stays public
+## 10. The repository can be private
 
-Keep the repository **public**. The Windows app is downloaded from GitHub Releases, and the installed app checks GitHub
-Releases for updates; both work without a login only while the repository is public – a private repository would break
-every download and every self-update, and GitHub Pages would then need a paid plan (GitHub Pro, $4 a month). Being public
-is safe: the website's code is scrambled (obfuscated) before it is published, and every secret – the payment keys, the
-private licence key – lives in the Cloudflare Worker, never in the repository. If you ever want the source private, a
-developer can first move the app's releases to a separate public repository; do not switch the visibility before that
-(Settings → General → Danger zone → Change visibility).
+GitHub only keeps the code and runs the builds. Nothing a visitor or an installed app needs lives in the repository: the
+website is served by Cloudflare, the Windows app's downloads and updates by Cloudflare R2 (`downloads.jumpingballslive.com`,
+[RELEASING.md](RELEASING.md), "The downloads host"), the payment keys and the licence signing key sit in the Cloudflare
+Worker, and the accounts in the publish relay on your server. So the repository can be switched to private (Settings →
+General → Danger zone → Change visibility) – **after** the steps in [RELEASING.md](RELEASING.md), "Making the repository
+private": the older Windows app versions look for updates in GitHub Releases, which a private repository hides.
+
+Two things change with it. A private repository has **2,000 free Actions minutes a month** (a website deploy takes about 60,
+a Windows release about 25, the daily viral-video bot about 6) – when they run out nothing deploys until the next month, so
+watch Settings → Billing, or take GitHub Pro. And the feedback form can no longer open a GitHub issue (visitors cannot see
+the repository): set the repository variable `FEEDBACK_EMAIL` (or `SUPPORT_EMAIL`) to the address that should get feedback.
 
 ---
 
@@ -436,7 +435,7 @@ access by itself.
 
 ## 13. Taxes in one paragraph
 
-The prices ($10 a month, $79 a year) do not include tax. What you earn from Pro is your taxable income. Many countries also
+The prices ($6.99 a month, $49 a year) do not include tax. What you earn from Pro is your taxable income. Many countries also
 charge VAT or sales tax on digital services sold to consumers: in the EU, VAT applies from the first sale to an EU consumer
 for a seller outside the EU (inside the EU through the One-Stop-Shop scheme), and US states have their own thresholds.
 **Stripe Tax** can work out and collect the tax on card payments (Stripe → **Settings → Tax** → add your registrations,
@@ -447,7 +446,7 @@ monthly payout statements of all three, and ask an accountant in your country be
 
 ## 14. Launch-day checklist
 
-1. [ ] The repository stays public (section 10).
+1. [ ] The downloads host works and the repository can go private (section 10; RELEASING.md).
 2. [ ] Cloudflare **Workers Paid** is active.
 3. [ ] The bank account is linked and confirmed at **Stripe** and at **PayPal**.
 4. [ ] The **payout wallets** are set at NOWPayments (or auto-conversion with one wallet).

@@ -60,10 +60,10 @@ const QUIT_UNLOAD_MS = 8000;
 
 /**
  * --- desktop-autorelease --- The public site the Help menu opens: the address the app's site export was built for, baked in
- * by desktop/scripts/build.mjs (`define`, from DESKTOP_SITE_URL – the custom domain once the repository variable CUSTOM_DOMAIN
- * is set), the project site otherwise.
+ * by desktop/scripts/build.mjs (`define`, from DESKTOP_SITE_URL – jumpingballslive.com unless the repository variable CUSTOM_DOMAIN
+ * names another domain).
  */
-const SITE_URL = (process.env.JBL_SITE_URL || "https://cronusaztec.github.io/Balls").replace(/\/+$/, "");
+const SITE_URL = (process.env.JBL_SITE_URL || "https://jumpingballslive.com").replace(/\/+$/, "");
 
 const gotLock = SMOKE || app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -384,9 +384,6 @@ function start() {
         return;
       case "download-page":
         await shell.openExternal(`${SITE_URL}/en/download/`); // --- desktop-autorelease ---
-        return;
-      case "releases":
-        await shell.openExternal("https://github.com/CronusAztec/Balls/releases");
         return;
       case "about":
         await dialog.showMessageBox({ type: "info", title: "JumpingBallsLive", message: `JumpingBallsLive ${app.getVersion()}`, detail: `Electron ${process.versions.electron} · Chromium ${process.versions.chrome}\n${locations.dataDir}` });

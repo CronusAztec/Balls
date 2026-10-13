@@ -5,20 +5,19 @@ import Footer from "@/components/site/Footer";
 import JsonLd from "@/components/site/JsonLd";
 import { SITE_NAME, absoluteUrl, pageUrl } from "@/lib/site";
 import { localeAlternates } from "@/i18n/alternates";
-import { DESKTOP_REPO, DESKTOP_VERSION, LATEST_RELEASE_URL, PORTABLE_ASSET, RELEASES_URL, SETUP_ASSET, latestAssetUrl } from "@/lib/desktop/release";
-import LatestDesktopVersion from "@/components/site/LatestDesktopVersion"; // --- desktop-autorelease ---
+import { DESKTOP_VERSION, PORTABLE_ASSET, SETUP_ASSET, latestAssetUrl } from "@/lib/desktop/release";
 import { buttonClass } from "@/components/ui/Button";
-import { IconBolt, IconDesktop, IconDownload, IconExternal, IconFolder, IconSparkle, IconVideo, IconWarning, type IconProps } from "@/components/ui/icons";
+import { IconBolt, IconDesktop, IconDownload, IconFolder, IconSparkle, IconVideo, IconWarning, type IconProps } from "@/components/ui/icons";
 
 /*
- * --- desktop-exe --- The download page of the Windows app: the latest installer and portable EXE from GitHub Releases, the
+ * --- desktop-exe --- The download page of the Windows app: the latest installer and portable EXE from the downloads host, the
  * requirements, the SmartScreen note (the EXE is unsigned until a code-signing certificate is set up) and what the app adds.
  * --- site-redesign --- the two downloads side by side (the installer first, in the accent), then the requirements and the
  * SmartScreen note, what the app adds as a ruled list with icons, and the privacy note.
  * --- desktop-ai-fix --- the current version under the downloads, that the AI model is a one-time download, and that 1.0.2
  * installs (whose updater refuses unsigned updates) take 1.0.3 by hand once.
- * --- desktop-autorelease --- the version line asks GitHub for the latest release in the browser (LatestDesktopVersion) and
- * links its "What's new"; the static HTML and the JSON-LD keep the build-time version.
+ * --- desktop-autorelease --- the version line is the build-time version (DESKTOP_VERSION): a release bumps it in the same push
+ * that deploys the site. GitHub is not involved: the downloads come from jumpingballslive.com's own host (src/lib/desktop/release.ts).
  */
 
 const REQUIREMENTS = ["os", "gpu", "disk", "ram"] as const;
@@ -97,18 +96,16 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
             </a>
           </section>
         </div>
-        <p className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          <a href={LATEST_RELEASE_URL} className="inline-flex items-center gap-1.5 font-medium text-accent hover:text-accent-strong" data-testid="download-releases">
-            {t("allReleases")}
-            <IconExternal size={14} />
-          </a>
-          <a href={RELEASES_URL} className="text-ink-3 hover:text-ink-2">
-            GitHub Releases
+        <p className="mt-4 text-sm">
+          <a href={latestAssetUrl("SHA256SUMS.txt")} className="text-ink-3 hover:text-ink-2" data-testid="download-checksums" rel="nofollow">
+            {t("checksums")}
           </a>
         </p>
         {/* --- desktop-ai-fix --- the version, the one-time model download, and the manual step for 1.0.2 installs */}
         <div className="mt-4 max-w-[680px] space-y-1.5 text-sm text-ink-2" data-testid="download-notes">
-          <LatestDesktopVersion repo={DESKTOP_REPO} fallbackVersion={DESKTOP_VERSION} fallbackUrl={LATEST_RELEASE_URL} versionTemplate={fix.raw("downloadVersion")} whatsNewTemplate={fix.raw("downloadWhatsNew")} />
+          <p className="font-medium text-ink" data-testid="download-version">
+            {fix("downloadVersion", { version: DESKTOP_VERSION })}
+          </p>
           <p>{fix("downloadModelNote")}</p>
           <p className="text-warn" data-testid="download-update-note">
             {fix("downloadUpdateNote")}

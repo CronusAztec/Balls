@@ -1,9 +1,9 @@
 name: Browser smoke test
 
-# Builds the site under a base path, serves it like GitHub Pages does and runs the headless
-# Chromium end-to-end checks (every page and locale, every mode, recording, seed finder...)
-# on pull requests and on demand. Pushes to the default branch run the same suite as the
-# `smoke` job of deploy.yml, which gates the Pages deploy.
+# Builds the site under a base path, serves it the way the deployed site is served (static files, a 404 page) and runs the
+# headless Chromium end-to-end checks (every page and locale, every mode, recording, seed finder...)
+# on pull requests and on demand. Pushes to the product branch run the same suite as the
+# `smoke` job of deploy.yml, which gates the deploy to Cloudflare.
 # --- smoke-sharding --- The suite runs as 4 shards on 4 runners at once (SMOKE_SHARD=x/4: every block of the suite in exactly
 # one of them, balanced by scripts/smoke-timing.json – README "Smoke test shards"); smoke-summary merges their screenshots and
 # slowest blocks and fails unless every shard passed.

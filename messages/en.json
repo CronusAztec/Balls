@@ -4249,7 +4249,7 @@
     "appCheckUpdates": "Check for updates",
     "appRestartUpdate": "Restart and update",
     "appOpenLogs": "Open logs",
-    "appAutoUpdate": "Update automatically from GitHub Releases",
+    "appAutoUpdate": "Update automatically",
     "appCloseToTray": "Closing the window keeps the app in the tray (renders go on)",
     "update": {
       "idle": "not checked yet",
@@ -4426,12 +4426,12 @@
     "title": "{siteName} for Windows",
     "intro": "Everything the simulator does in the browser, plus what a browser cannot. Your GPU renders the videos, a queue works through batches while you do something else, and an AI studio on your PC plans clips and writes captions, offline.",
     "setupTitle": "Installer",
-    "setupBody": "Installs for your user only, no administrator rights, with a Start menu entry. Updates itself from GitHub Releases.",
+    "setupBody": "Installs for your user only, no administrator rights, with a Start menu entry. Updates itself.",
     "setupButton": "Download the installer (.exe)",
     "portableTitle": "Portable",
     "portableBody": "One EXE that runs without installing, from a folder or a USB stick. Keeps its models and library next to it. Does not update itself.",
     "portableButton": "Download the portable EXE",
-    "allReleases": "All versions and release notes on GitHub",
+    "checksums": "SHA-256 checksums",
     "requirementsTitle": "Requirements",
     "requirements": {
       "os": "Windows 10 or 11, 64-bit",
@@ -4440,7 +4440,7 @@
       "ram": "8 GB of RAM, 16 GB for the local AI"
     },
     "smartScreenTitle": "“Windows protected your PC”?",
-    "smartScreenBody": "The EXE is not code-signed yet, so Windows SmartScreen warns before the first start. Click More info, then Run anyway. The files are built from the public source by GitHub Actions and listed with checksums on the release page.",
+    "smartScreenBody": "The EXE is not code-signed yet, so Windows SmartScreen warns before the first start. Click More info, then Run anyway. The files are built automatically by GitHub Actions. Their checksums are linked under the download buttons.",
     "featuresTitle": "What the app adds",
     "features": {
       "gpu": "GPU video. The fast export encodes on the graphics card, with H.264, HEVC or AV1 through NVENC, AMF or Quick Sync.",
@@ -4449,7 +4449,7 @@
       "library": "Library. Every clip you rendered with its thumbnail, length and post text. Play, show in folder, re-render or delete."
     },
     "privacyTitle": "Privacy",
-    "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app goes online only to download a model you asked for and to check GitHub for updates.",
+    "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app goes online only to download a model you asked for and to check for updates. Signing in to your account and publishing to your channels use the internet too.",
     "updateLater": "Later",
     "updateWaitRender": "A render is running. Wait for the queue to finish, or quit the app and the update installs as it closes."
   },
@@ -5172,8 +5172,7 @@
     "tryCpu": "Run on the CPU instead",
     "downloadVersion": "Version {version}",
     "downloadModelNote": "The AI model is a one-time download from inside the app, up to 2.5 GB. After that the AI works offline.",
-    "downloadUpdateNote": "Using 1.0.2? Its updater cannot install 1.0.3. Download the installer above once. From 1.0.3 on the app updates itself.",
-    "downloadWhatsNew": "What's new in {version}"
+    "downloadUpdateNote": "Using 1.0.2? Its updater cannot install 1.0.3. Download the installer above once. From 1.0.3 on the app updates itself."
   },
   "LoopHud": {
     "growTitle": "it grows with every bounce",

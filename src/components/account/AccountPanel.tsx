@@ -63,6 +63,12 @@ function ServerSettings({ a, t }: { a: AccountSnapshot; t: Translate }) {
   const id = useId();
   const [value, setValue] = useState("");
   const missing = a.ready && !a.relayUrl;
+  // The block opens by itself while there is no server to talk to, and then stays as the visitor leaves it: saving the address
+  // must not close it on the "Connected to …" line that answers the save.
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (missing) setOpen(true);
+  }, [missing]);
   let host = "";
   try {
     host = a.relayUrl ? new URL(a.relayUrl).host : "";
@@ -70,7 +76,7 @@ function ServerSettings({ a, t }: { a: AccountSnapshot; t: Translate }) {
     host = a.relayUrl;
   }
   return (
-    <details className="mt-6 border-t border-line pt-4 text-sm" open={missing} data-testid="account-server">
+    <details className="mt-6 border-t border-line pt-4 text-sm" open={open} onToggle={(e) => setOpen(e.currentTarget.open)} data-testid="account-server">
       <summary className="cursor-pointer select-none text-ink-2">{t("server.summary")}</summary>
       <div className="mt-3 space-y-3">
         <p className="text-ink-3">{missing ? t("server.none") : t("server.intro")}</p>

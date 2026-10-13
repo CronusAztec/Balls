@@ -8467,8 +8467,8 @@ await smokeBlock("desktop-exe", async () => {
 // the app's preload exposes): GPU panel, render queue (a real fast export saved through the bridge, with its ffmpeg pass
 // requested), menu actions, Library and the AI settings assistant (an invalid patch retried, the valid one applied, Undo).
 {
-  const repo = process.env.NEXT_PUBLIC_GITHUB_REPO || "CronusAztec/Balls";
-  const latest = `https://github.com/${repo}/releases/latest`;
+  // the downloads host (src/lib/desktop/release.ts): the repository is private, so nothing links to GitHub
+  const downloads = (process.env.NEXT_PUBLIC_DOWNLOADS_URL || "https://downloads.jumpingballslive.com").replace(/\/+$/, "");
   const titles = { en: "for Windows", pl: "dla Windows", es: "para Windows" };
   for (const locale of ["en", "pl", "es"]) {
     const res = await page.goto(`${BASE}/${locale}/download/`, { waitUntil: "networkidle" });
@@ -8476,13 +8476,14 @@ await smokeBlock("desktop-exe", async () => {
       h1: document.querySelector("h1")?.textContent ?? "",
       setup: document.querySelector('[data-testid="download-setup"]')?.getAttribute("href") ?? "",
       portable: document.querySelector('[data-testid="download-portable"]')?.getAttribute("href") ?? "",
-      releases: document.querySelector('[data-testid="download-releases"]')?.getAttribute("href") ?? "",
+      checksums: document.querySelector('[data-testid="download-checksums"]')?.getAttribute("href") ?? "",
+      githubLinks: document.querySelectorAll('a[href*="github.com"]').length,
       requirements: document.querySelectorAll('[data-testid="download-requirements"] li').length,
       smartScreen: document.querySelector('[data-testid="download-smartscreen"]')?.textContent ?? "",
     }));
     check(
       `desktop-exe: /${locale}/download/ links the latest installer and portable EXE, lists the requirements and explains SmartScreen`,
-      res.status() === 200 && info.h1.includes(titles[locale]) && info.setup === `${latest}/download/JumpingBallsLive-Setup.exe` && info.portable === `${latest}/download/JumpingBallsLive-portable.exe` && info.releases === latest && info.requirements === 4 && info.smartScreen.length > 40,
+      res.status() === 200 && info.h1.includes(titles[locale]) && info.setup === `${downloads}/JumpingBallsLive-Setup.exe` && info.portable === `${downloads}/JumpingBallsLive-portable.exe` && info.checksums === `${downloads}/SHA256SUMS.txt` && info.githubLinks === 0 && info.requirements === 4 && info.smartScreen.length > 40,
       `(${res.status()}, h1="${info.h1}", setup=${info.setup}, requirements=${info.requirements})`,
     );
   }
@@ -13307,50 +13308,21 @@ await smokeBlock("desktop-ai-fix", async () => {
 // a failure shown without Electron's IPC prefix.
 {
   const DESKTOP_VERSION = JSON.parse(fs.readFileSync(new URL("../desktop/package.json", import.meta.url), "utf8")).version; // --- desktop-autorelease --- one source of truth
-  // --- desktop-autorelease --- GitHub's API unreachable: every locale keeps the build-time version (desktop/package.json's)
-  // and links "What's new" to the latest release page
-  const latestRelease = `https://github.com/${process.env.NEXT_PUBLIC_GITHUB_REPO || "CronusAztec/Balls"}/releases/latest`;
-  await page.route("https://api.github.com/**", (route) => route.abort());
-  // (an answer an earlier visit kept for an hour in this tab's sessionStorage is dropped first)
-  await page.goto(`${BASE}/en/download/`, { waitUntil: "domcontentloaded" });
-  await page.evaluate(() => sessionStorage.removeItem("jbl.desktopLatest")).catch(() => {});
+  // --- desktop-autorelease --- every locale shows the build-time version (desktop/package.json's, bumped with src/lib/desktop/release.ts
+  // by npm run release:desktop in the push that deploys the site); nothing asks GitHub, and there is no release-notes link
   for (const locale of ["en", "pl", "es"]) {
     await page.goto(`${BASE}/${locale}/download/`, { waitUntil: "networkidle" });
     const notes = await page.evaluate(() => ({
       version: document.querySelector('[data-testid="download-version"]')?.textContent ?? "",
       update: document.querySelector('[data-testid="download-update-note"]')?.textContent ?? "",
       all: document.querySelector('[data-testid="download-notes"]')?.textContent ?? "",
-      whatsNew: document.querySelector('[data-testid="download-whats-new"]')?.getAttribute("href") ?? "",
+      whatsNew: document.querySelectorAll('[data-testid="download-whats-new"]').length,
     }));
     check(
       `desktop-ai-fix: /${locale}/download/ shows version ${DESKTOP_VERSION}, the one-time model download and the manual step for 1.0.2`,
-      notes.version.includes(DESKTOP_VERSION) && notes.update.includes("1.0.2") && notes.update.includes("1.0.3") && notes.all.length > notes.version.length + notes.update.length + 40 && notes.whatsNew === latestRelease,
-      `(version "${notes.version}", what's new ${notes.whatsNew}, update note "${notes.update.slice(0, 80)}")`,
+      notes.version.includes(DESKTOP_VERSION) && notes.update.includes("1.0.2") && notes.update.includes("1.0.3") && notes.all.length > notes.version.length + notes.update.length + 40 && notes.whatsNew === 0,
+      `(version "${notes.version}", update note "${notes.update.slice(0, 80)}")`,
     );
-  }
-  await page.unroute("https://api.github.com/**");
-  // --- desktop-autorelease --- GitHub reports a newer release: the page shows it and links its release notes
-  {
-    const htmlUrl = "https://github.com/CronusAztec/Balls/releases/tag/desktop-v9.9.9";
-    await page.route("https://api.github.com/**", (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ tag_name: "desktop-v9.9.9", html_url: htmlUrl }) }),
-    );
-    await page.goto(`${BASE}/en/download/`, { waitUntil: "networkidle" });
-    const live = await page
-      .waitForFunction(() => (document.querySelector('[data-testid="download-version"]')?.textContent ?? "").includes("9.9.9"), null, { timeout: 5000 })
-      .then(() => true)
-      .catch(() => false);
-    const shown = await page.evaluate(() => ({
-      version: document.querySelector('[data-testid="download-version"]')?.textContent ?? "",
-      whatsNew: document.querySelector('[data-testid="download-whats-new"]')?.getAttribute("href") ?? "",
-    }));
-    check(
-      "desktop-ai-fix: the download page shows the latest release GitHub reports (9.9.9) and links its What's new",
-      live && shown.version.includes("9.9.9") && shown.whatsNew === htmlUrl,
-      `(version "${shown.version}", what's new ${shown.whatsNew})`,
-    );
-    await page.evaluate(() => sessionStorage.removeItem("jbl.desktopLatest")).catch(() => {});
-    await page.unroute("https://api.github.com/**");
   }
 
   const FAKE_AI_FIX_BRIDGE = `(() => {

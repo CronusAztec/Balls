@@ -12,8 +12,8 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const alias = { "@": path.resolve(root, "../src") };
 const common = { bundle: true, platform: "node", target: "node22", sourcemap: true, logLevel: "info", alias, absWorkingDir: root };
 // --- desktop-autorelease --- the public site the app's Help menu opens (main.ts SITE_URL): the address its site export was built
-// for (DESKTOP_SITE_URL, which desktop.yml takes from .github/actions/site-url – the custom domain once CUSTOM_DOMAIN is set)
-const SITE_URL = (process.env.DESKTOP_SITE_URL || "https://cronusaztec.github.io/Balls").replace(/\/+$/, "");
+// for (DESKTOP_SITE_URL, which desktop.yml takes from .github/actions/site-url – jumpingballslive.com unless CUSTOM_DOMAIN names another)
+const SITE_URL = (process.env.DESKTOP_SITE_URL || "https://jumpingballslive.com").replace(/\/+$/, "");
 
 await build({
   ...common,

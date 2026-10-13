@@ -1,8 +1,10 @@
 import type { UpdateStatus } from "@/lib/desktop/contract";
 
 /*
- * --- desktop-exe --- Auto-update from GitHub Releases (electron-updater reads latest.yml of the newest release of
- * CronusAztec/Balls, downloads the new installer in the background and installs it when the app quits). It runs only in an
+ * --- desktop-exe --- Auto-update from the downloads host (electron-updater's generic provider reads latest.yml at
+ * https://downloads.jumpingballslive.com – the address electron-builder wrote into the app's app-update.yml, see
+ * desktop/electron-builder.config.cjs – downloads the new installer in the background and installs it when the app quits;
+ * versions before 1.1.0 read GitHub Releases instead). It runs only in an
  * installed build with auto-update on; the portable EXE cannot replace itself, so it only links the download. Offline, or
  * whatever goes wrong, the status says "error" in the Help menu / GPU panel and the app carries on – an update check
  * never throws into the app.

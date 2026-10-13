@@ -328,10 +328,12 @@ describe("the deploy guard", () => {
     expect(deployGuard({ LICENSE_PUBLIC_KEY: pair.publicKey, BILLING_API_URL: "https://x.workers.dev/" }).ok).toBe(true);
   });
 
-  it("is the step deploy.yml runs before the build, on deploys only, with the two variables", () => {
+  it("is the step deploy.yml runs before the build, on deploys only, on the two variables the workflow's env supplies", () => {
     const deploy = fs.readFileSync(path.join(ROOT, ".github", "workflows", "deploy.yml"), "utf8");
     const step = deploy.slice(deploy.indexOf("      - name: Production guard (billing)"));
-    expect(step).toMatch(/^ {6}- name: Production guard \(billing\)\n {8}if: env\.DEPLOY == 'true'\n {8}env:\n {10}LICENSE_PUBLIC_KEY: \$\{\{ vars\.LICENSE_PUBLIC_KEY \}\}\n {10}BILLING_API_URL: \$\{\{ vars\.BILLING_API_URL \}\}\n {8}run: node scripts\/go-live-check\.mjs --deploy-guard\n/);
+    expect(step).toMatch(/^ {6}- name: Production guard \(billing\)\n {8}if: env\.DEPLOY == 'true'\n {8}run: node scripts\/go-live-check\.mjs --deploy-guard\n/);
+    // the workflow-level env holds the two (a repository variable, else the live value) – the same names the guard reads
+    expect(deploy).toMatch(/\n {2}LICENSE_PUBLIC_KEY: \$\{\{ vars\.LICENSE_PUBLIC_KEY \|\| '[^']+' \}\}\n {2}BILLING_API_URL: \$\{\{ vars\.BILLING_API_URL \|\| '[^']+' \}\}\n/);
     expect(deploy.indexOf("Production guard (billing)")).toBeLessThan(deploy.indexOf("- name: Build static site"));
     for (const file of ["deploy.yml", "desktop.yml"]) {
       const text = fs.readFileSync(path.join(ROOT, ".github", "workflows", file), "utf8");

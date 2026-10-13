@@ -8,9 +8,12 @@ name: Windows app
 #   4. a smoke run of the packaged app (`--smoke`: loads the simulator, checks the bridge and that the local AI starts,
 #      reports the GPU, exits 0) – --- desktop-ai-fix --- with JBL_SMOKE_MODEL, a small GGUF (actions/cache) on which the
 #      packaged app runs one Settings and one Captions job through its AI panel, AiService and llama.cpp (GPU auto),
-#   5. the EXEs as workflow artifacts and – on a release – a GitHub Release with the versioned EXEs, their blockmaps,
-#      electron-updater's latest.yml and copies under fixed names (JumpingBallsLive-Setup.exe, JumpingBallsLive-portable.exe)
-#      that the site's download page links through …/releases/latest/download/.
+#   5. the EXEs as workflow artifacts and – on a release – their publication: to the downloads host (a Cloudflare R2 bucket
+#      that https://downloads.jumpingballslive.com serves: the versioned EXEs, their blockmaps, electron-updater's latest.yml and
+#      copies under fixed names – JumpingBallsLive-Setup.exe, JumpingBallsLive-portable.exe – that the site's download page links
+#      to; scripts/release/publish-downloads.mjs), then as a GitHub Release with the same files (the archive; while the repository
+#      is public it is also where apps older than 1.1.0 look for updates). Nothing that users download or update from needs the
+#      repository to be public. One-time setup: docs/RELEASING.md, "The downloads host".
 # --- desktop-autorelease --- A release happens (a) when a push to the product branch changes the version in
 # desktop/package.json and no tag desktop-v<version> exists yet (`npm run release:desktop -- 1.0.4`, commit, push – the
 # `decide` job compares desktop/package.json with the previous commit and asks GitHub for the tag), (b) on a pushed tag
@@ -41,6 +44,14 @@ on:
 # --- desktop-autorelease --- read-only by default; only the release job may write (the tag and the release).
 permissions:
   contents: read
+
+env:
+  # The paywall's two public values, the same live pair as deploy.yml (a repository variable replaces either; tests keep them equal).
+  LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY || 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5Q9-e4H4jsJ0U34xlaAeMGIHpq5mV260PbJs0fVCZx5x3HgT9OTNN6Jk1WtKDGPxj6GkusFBjURGz240mV941A' }}
+  BILLING_API_URL: ${{ vars.BILLING_API_URL || 'https://jumpingballslive-billing.jumpingballslive.workers.dev' }}
+  # The downloads host (the update feed, the installers) and the R2 bucket behind it.
+  DOWNLOADS_URL: ${{ vars.DOWNLOADS_URL || 'https://downloads.jumpingballslive.com' }}
+  R2_BUCKET: ${{ vars.R2_BUCKET || 'jumpingballslive-downloads' }}
 
 # --- desktop-autorelease --- a newer pull-request push supersedes its build; a release build (a tag or a branch push) is never
 # cancelled – a second push to the branch queues behind it.
@@ -84,7 +95,6 @@ jobs:
     timeout-minutes: 90
     permissions:
       contents: read
-      pages: read # the site-url action's Pages settings lookup
     outputs:
       version: ${{ needs.decide.outputs.version }}
     defaults:
@@ -111,30 +121,31 @@ jobs:
       - name: Install the site's dependencies
         run: npm ci
 
-      # --- desktop-autorelease --- the share links the app bakes in follow the site's real address (CUSTOM_DOMAIN, Pages settings)
+      # --- desktop-autorelease --- the share links the app bakes in follow the site's real address (CUSTOM_DOMAIN, else jumpingballslive.com)
       - name: Work out the public URL
         id: site
         uses: ./.github/actions/site-url
         with:
           custom-domain: ${{ vars.CUSTOM_DOMAIN }}
-          site-host: ${{ vars.SITE_HOST }}
-          cf-pages-project: ${{ vars.CF_PAGES_PROJECT }}
-          token: ${{ github.token }}
 
       - name: Build the site for the app (empty base path)
         run: node desktop/scripts/build-site.mjs
         env:
           DESKTOP_SITE_URL: ${{ steps.site.outputs.url }}
-          NEXT_PUBLIC_GITHUB_REPO: ${{ github.repository }}
           # --- paywall-gate / billing-backend --- the same public licence key and billing Worker origin as the website
           # (deploy.yml), so the app verifies the Worker's real licences and its Restore reaches the Worker (which grants the
-          # app's app://jumpingballslive origin CORS). Empty while unset: the app is then in test mode, like the site.
-          NEXT_PUBLIC_LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY }}
-          NEXT_PUBLIC_BILLING_API: ${{ vars.BILLING_API_URL }}
+          # app's app://jumpingballslive origin CORS).
+          NEXT_PUBLIC_LICENSE_PUBLIC_KEY: ${{ env.LICENSE_PUBLIC_KEY }}
+          NEXT_PUBLIC_BILLING_API: ${{ env.BILLING_API_URL }}
           # --- user-accounts --- the relay the app's Account page signs in to and connects TikTok, Instagram and YouTube
-          # through (the same repository variable as the website's deploy.yml). The relay allows the app's own origin
-          # (app://jumpingballslive) by itself. Empty while unset: the Account page then asks for the relay's address.
-          NEXT_PUBLIC_PUBLISH_RELAY_URL: ${{ vars.PUBLISH_RELAY_URL }}
+          # through (the same default as the website's deploy.yml). The relay allows the app's own origin
+          # (app://jumpingballslive) by itself.
+          NEXT_PUBLIC_PUBLISH_RELAY_URL: ${{ vars.PUBLISH_RELAY_URL || 'https://relay.jumpingballslive.com' }}
+          # The app's own copy of the download page links to the downloads host (src/lib/desktop/release.ts).
+          NEXT_PUBLIC_DOWNLOADS_URL: ${{ env.DOWNLOADS_URL }}
+          # The feedback form (the repository is private: no GitHub issues) and the legal pages, as on the website.
+          NEXT_PUBLIC_FEEDBACK_ENDPOINT: ${{ vars.FEEDBACK_ENDPOINT }}
+          NEXT_PUBLIC_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
           # --- go-live-kit --- the operator's public details the legal pages show (docs/GO-LIVE.md); empty while unset.
           NEXT_PUBLIC_SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
           NEXT_PUBLIC_LEGAL_NAME: ${{ vars.LEGAL_NAME }}
@@ -171,6 +182,8 @@ jobs:
           JBL_CUDA: ${{ (inputs.cuda || vars.DESKTOP_CUDA == '1') && '1' || '0' }}
           # --- desktop-autorelease --- baked into the main process (desktop/scripts/build.mjs `define`): the Help menu's links
           DESKTOP_SITE_URL: ${{ steps.site.outputs.url }}
+          # the update feed electron-builder writes into the app (app-update.yml): latest.yml on the downloads host
+          JBL_UPDATE_URL: ${{ env.DOWNLOADS_URL }}
         run: npm run dist
 
       # --- desktop-ai-fix --- the real AI path in CI: the smallest catalog model (Qwen2.5-1.5B Q4_K_M, 1.1 GB), cached, its
@@ -229,16 +242,60 @@ jobs:
     needs: [decide, build]
     if: needs.decide.outputs.release == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     permissions:
       contents: write # the tag and the release
     steps:
+      # Secrets cannot be tested in `if:`, so the first step fails with a plain message when they are missing – before anything
+      # is published.
+      - name: Check the Cloudflare secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          ok=1
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error title=CLOUDFLARE_API_TOKEN is missing::Settings → Secrets and variables → Actions → Secrets: the Cloudflare API token, with 'Workers R2 Storage: Edit' added (docs/RELEASING.md, 'The downloads host'). Then re-run this workflow."; ok=0; }
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error title=CLOUDFLARE_ACCOUNT_ID is missing::Cloudflare dashboard → Workers & Pages → Account ID (right-hand column); add it as a repository secret, then re-run this workflow."; ok=0; }
+          [ "$ok" = 1 ]
+
+      - name: Check out (the upload script and the pinned Wrangler)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            billing
+            scripts/release
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # Wrangler comes from the billing package, at the version its lock file pins.
+      - name: Install Wrangler
+        run: npm ci --prefix billing
+
       - name: Download the EXEs
         uses: actions/download-artifact@v4
         with:
           name: JumpingBallsLive-windows-${{ needs.decide.outputs.version }}
           path: dist
 
+      # The versioned files first, latest.yml last: an installed app that asks in between still sees the old version.
+      - name: Publish to the downloads host (Cloudflare R2)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          VERSION: ${{ needs.decide.outputs.version }}
+        run: node scripts/release/publish-downloads.mjs --dir dist --version "$VERSION" --bucket "$R2_BUCKET"
+
+      # --- desktop-autorelease --- what every installed app reads: latest.yml on the downloads host must name this version
+      # (and the fixed-name installer must be the file that was built).
+      - name: The downloads host serves it
+        env:
+          VERSION: ${{ needs.decide.outputs.version }}
+        run: node scripts/release/publish-downloads.mjs --verify --dir dist --version "$VERSION" --url "$DOWNLOADS_URL"
+
+      # The archive: the same files as a GitHub Release (private or public). The tag it creates is what the `decide` job asks for.
       - name: Publish the GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -247,8 +304,9 @@ jobs:
           tag="desktop-v$VERSION"
           notes="JumpingBallsLive for Windows $VERSION.
 
-          - **Installer** (per user, no admin): JumpingBallsLive-Setup-$VERSION.exe – updates itself from this page.
+          - **Installer** (per user, no admin): JumpingBallsLive-Setup-$VERSION.exe – updates itself.
           - **Portable**: JumpingBallsLive-$VERSION-portable.exe – runs without installing.
+          - **Downloads for everyone:** $DOWNLOADS_URL/JumpingBallsLive-Setup.exe and $DOWNLOADS_URL/JumpingBallsLive-portable.exe
           - **Coming from 1.0.2?** Its updater refuses unsigned updates: install this version once by hand (later versions update themselves).
 
           Unsigned builds: Windows SmartScreen shows \"Windows protected your PC\" – click *More info* → *Run anyway*. Checksums: SHA256SUMS.txt."
@@ -258,8 +316,11 @@ jobs:
             gh release create "$tag" dist/* --repo "$GITHUB_REPOSITORY" --title "JumpingBallsLive for Windows $VERSION" --notes "$notes" --generate-notes --target "$GITHUB_SHA"
           fi
 
-      # --- desktop-autorelease --- what every installed app reads: the newest release's latest.yml must name this version
-      - name: electron-updater sees the release
+      # While the repository is public, apps older than 1.1.0 still look for updates in GitHub Releases: the newest release's
+      # latest.yml must name this version for them. (A private repository has no public release feed; those apps then need the
+      # download page – docs/RELEASING.md says when to make the repository private.)
+      - name: Apps older than 1.1.0 see the release (public repository)
+        if: github.event.repository.private == false
         env:
           VERSION: ${{ needs.decide.outputs.version }}
         run: |
@@ -270,5 +331,5 @@ jobs:
             fi
             sleep 10
           done
-          echo "::error title=latest.yml does not serve $VERSION::https://github.com/$GITHUB_REPOSITORY/releases/latest/download/latest.yml names another version after 2 minutes. Is a newer release marked as the latest? Installed apps read this file."
+          echo "::error title=latest.yml does not serve $VERSION::https://github.com/$GITHUB_REPOSITORY/releases/latest/download/latest.yml names another version after 2 minutes. Is a newer release marked as the latest? Apps older than 1.1.0 read this file."
           exit 1

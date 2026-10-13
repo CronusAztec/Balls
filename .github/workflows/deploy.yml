@@ -1,37 +1,38 @@
-name: Build and deploy to GitHub Pages
+name: Build and deploy the site
 
-# Every push is linted, type-checked, unit-tested and built. Pushes to the product branch (and
-# manual runs from it) then run the browser smoke test against a base-path build and, once it
-# passes, are published to GitHub Pages.
-# One-time setup: Settings → Pages → "Build and deployment" → Source: "GitHub Actions".
+# Every push is linted and type-checked. Pushes to the product branch (and manual runs from it) are then also unit-tested and
+# built, run through the browser smoke test and, once all of it passes, published to https://jumpingballslive.com: the static
+# export (out/) becomes the static assets of the "jumpingballslive" Cloudflare Worker (wrangler.toml at the repository root) that
+# jumpingballslive.com and www are attached to. GitHub only keeps the code, so the repository can be private (GitHub Pages is not
+# used: a private repository needs a paid GitHub plan for it).
+# One-time setup: the repository secrets CLOUDFLARE_API_TOKEN (a token with "Edit Cloudflare Workers", shared with
+# billing-deploy.yml) and CLOUDFLARE_ACCOUNT_ID. The deploy job says so by itself when they are missing.
 # --- desktop-autorelease --- Only the product branch deploys: claude/optimistic-johnson-46x3qg (today) or main (when the owner
 # renames it in the GitHub UI – both are listed so nothing needs editing that day). Every other branch – and a manual run from
-# one – is built and checked, nothing more. The repository variable CUSTOM_DOMAIN switches the build to a custom domain (empty
-# base path, out/CNAME); SITE_HOST=cloudflare-pages deploys the same out/ to Cloudflare Pages instead of GitHub Pages
-# (docs/RELEASING.md). `env` is not available in a job-level `if`, so the branch test below is repeated verbatim in the smoke,
-# smoke-summary, deploy and deploy-cloudflare jobs (tests/releaseWorkflows.test.ts keeps the copies identical).
+# one – is only linted and type-checked (a private repository has 2,000 free Actions minutes a month; the unit tests, the build
+# and the browser tests take about 60 of them per run). `env` is not available in a job-level `if`, so the branch test below is
+# repeated verbatim in the smoke, smoke-summary and deploy jobs (tests/releaseWorkflows.test.ts keeps the copies identical).
 on:
   push:
   workflow_dispatch:
 
-# --- review fix (site-static) --- read-only by default; only the deploy job gets the Pages and OIDC write scopes (the build
-# job runs `npm ci` with third-party install scripts).
+# --- review fix (site-static) --- read-only by default (the build job runs `npm ci` with third-party install scripts).
 permissions:
   contents: read
 
 env:
   DEPLOY: ${{ contains(fromJSON('["refs/heads/claude/optimistic-johnson-46x3qg","refs/heads/main"]'), github.ref) }}
+  # --- paywall-gate / billing-backend --- the paywall's two public values (billing/README.md step 8): the licence public key the
+  # site verifies licences with and the billing Worker's origin. A repository variable overrides either; without one the live
+  # values below apply (desktop.yml carries the same two, tests/releaseWorkflows.test.ts keeps them equal).
+  LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY || 'MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5Q9-e4H4jsJ0U34xlaAeMGIHpq5mV260PbJs0fVCZx5x3HgT9OTNN6Jk1WtKDGPxj6GkusFBjURGz240mV941A' }}
+  BILLING_API_URL: ${{ vars.BILLING_API_URL || 'https://jumpingballslive-billing.jumpingballslive.workers.dev' }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pages: read # the Pages settings lookup below (custom domain)
-    # --- desktop-autorelease --- the site's address and host, for the deploy-cloudflare job
     outputs:
       url: ${{ steps.site.outputs.url }}
-      host: ${{ steps.site.outputs.host }}
     # A newer push to the same branch supersedes a build that is still running.
     concurrency:
       group: build-${{ github.ref }}
@@ -55,93 +56,85 @@ jobs:
       - name: Type-check
         run: npm run typecheck
 
+      # scripts/test-ci.mjs is `vitest run`, except that it does not fail a run in which every test passed and the only error is
+      # vitest's own "Timeout calling onTaskUpdate" (a heavy simulation test starved its reporting channel on a busy runner).
       - name: Unit tests
-        run: npm test
+        if: env.DEPLOY == 'true'
+        run: npm run test:ci
 
       - name: Work out the public URL and base path
         id: site
         uses: ./.github/actions/site-url
         with:
           custom-domain: ${{ vars.CUSTOM_DOMAIN }}
-          site-host: ${{ vars.SITE_HOST }}
-          cf-pages-project: ${{ vars.CF_PAGES_PROJECT }}
-          token: ${{ github.token }}
 
-      # --- go-live-kit --- a deploy to the default branch must be all-live or all-test: the billing variables set together
-      # (and never the public TEST key), or both empty while payments are not configured yet.
+      # --- go-live-kit --- a deploy to the product branch must be all-live or all-test: the billing values set together (and
+      # never the public TEST key). The workflow's env supplies the live pair unless a repository variable replaces it.
       - name: Production guard (billing)
         if: env.DEPLOY == 'true'
-        env:
-          LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY }}
-          BILLING_API_URL: ${{ vars.BILLING_API_URL }}
         run: node scripts/go-live-check.mjs --deploy-guard
 
       # --- review fix (site-static) --- Next's build cache (the "No build cache found" warning)
       - name: Cache the Next.js build
+        if: env.DEPLOY == 'true'
         uses: actions/cache@v5
         with:
           path: .next/cache
-          key: ${{ runner.os }}-nextjs-pages-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'messages/**') }}
+          key: ${{ runner.os }}-nextjs-site-${{ hashFiles('package-lock.json') }}-${{ hashFiles('src/**', 'messages/**') }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-pages-${{ hashFiles('package-lock.json') }}-
+            ${{ runner.os }}-nextjs-site-${{ hashFiles('package-lock.json') }}-
 
       - name: Date of the deployed commit (sitemap lastmod)
+        if: env.DEPLOY == 'true'
         run: echo "SITEMAP_LASTMOD=$(git log -1 --format=%cI)" >> "$GITHUB_ENV"
 
       # `npm run build` without next's own lint pass: the Lint step above already ran ESLint on the whole repository.
       - name: Build static site
+        if: env.DEPLOY == 'true'
         run: npx next build --no-lint && node scripts/postexport.mjs
         env:
           NEXT_PUBLIC_SITE_URL: ${{ steps.site.outputs.url }}
           NEXT_PUBLIC_BASE_PATH: ${{ steps.site.outputs.base }}
-          # Feedback form: by default it opens issues on this repository, but only where visitors
-          # can (public repository with Issues on). Repository variables (Settings → Secrets and
-          # variables → Actions → Variables) take precedence and are the way to go for a private site.
+          # Feedback form: by default it opens issues on this repository, but only where visitors can (a public repository with
+          # Issues on). A private repository has none, so the form then needs FEEDBACK_ENDPOINT, FEEDBACK_EMAIL or SUPPORT_EMAIL
+          # (repository variables: Settings → Secrets and variables → Actions → Variables).
           NEXT_PUBLIC_GITHUB_REPO: ${{ (github.event.repository.private == false && github.event.repository.has_issues == true) && github.repository || '' }}
           NEXT_PUBLIC_FEEDBACK_ENDPOINT: ${{ vars.FEEDBACK_ENDPOINT }}
           NEXT_PUBLIC_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
           NEXT_PUBLIC_ANALYTICS_SCRIPT_URL: ${{ vars.ANALYTICS_SCRIPT_URL }}
           NEXT_PUBLIC_ANALYTICS_SITE_ID: ${{ vars.ANALYTICS_SITE_ID }}
-          # --- social-publish --- the Publish block: a Google OAuth client ID for direct YouTube uploads and a relay URL
-          # the relay form suggests (both public values; each visitor can also enter their own in the block).
+          # --- social-publish / user-accounts --- the Publish block and the Account page: a Google OAuth client ID for direct
+          # YouTube uploads and the relay (https://relay.jumpingballslive.com) they sign in to and publish through. Both are
+          # public values; each visitor can also enter their own relay in the page.
           NEXT_PUBLIC_YOUTUBE_CLIENT_ID: ${{ vars.YOUTUBE_CLIENT_ID }}
-          NEXT_PUBLIC_PUBLISH_RELAY_URL: ${{ vars.PUBLISH_RELAY_URL }}
-          # --- paywall-gate --- the licence public key (base64url SPKI, `node scripts/billing-keygen.mjs` line 2) and the billing
-          # Worker's origin – both public. Empty while unset: the site is then in test mode and the pay buttons say payments are
-          # not configured. (The smoke job builds without them on purpose: it records with test licences.)
-          NEXT_PUBLIC_LICENSE_PUBLIC_KEY: ${{ vars.LICENSE_PUBLIC_KEY }}
-          NEXT_PUBLIC_BILLING_API: ${{ vars.BILLING_API_URL }}
+          NEXT_PUBLIC_PUBLISH_RELAY_URL: ${{ vars.PUBLISH_RELAY_URL || 'https://relay.jumpingballslive.com' }}
+          NEXT_PUBLIC_LICENSE_PUBLIC_KEY: ${{ env.LICENSE_PUBLIC_KEY }}
+          NEXT_PUBLIC_BILLING_API: ${{ env.BILLING_API_URL }}
+          # The download page's links: the downloads host (a repository variable DOWNLOADS_URL replaces the default).
+          NEXT_PUBLIC_DOWNLOADS_URL: ${{ vars.DOWNLOADS_URL }}
           # --- go-live-kit --- the operator's public details the legal pages show (docs/GO-LIVE.md); empty while unset.
           NEXT_PUBLIC_SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
           NEXT_PUBLIC_LEGAL_NAME: ${{ vars.LEGAL_NAME }}
           NEXT_PUBLIC_LEGAL_ADDRESS: ${{ vars.LEGAL_ADDRESS }}
 
-      # --- desktop-autorelease --- GitHub ignores CNAME for Actions deployments, but out/ then works on any static host as is.
-      - name: Custom domain file (out/CNAME)
-        if: steps.site.outputs.domain != ''
-        env:
-          DOMAIN: ${{ steps.site.outputs.domain }}
-        run: printf '%s\n' "$DOMAIN" > out/CNAME && echo "wrote out/CNAME ($DOMAIN)"
+      # The deploy job asks the live site for this file to learn that the new build is the one being served.
+      - name: Stamp the build
+        if: env.DEPLOY == 'true'
+        run: printf '%s\n' "$GITHUB_SHA" > out/build.txt
 
       # --- desktop-autorelease --- the billing Worker allows exactly the origins in SITE_ORIGIN: a site on a new domain whose
       # Worker does not list it gets CORS errors on every checkout. A warning here; billing-deploy.yml refuses to deploy until fixed.
-      - name: The billing Worker knows the custom domain
-        if: env.DEPLOY == 'true' && steps.site.outputs.domain != ''
+      - name: The billing Worker knows the site's domain
+        if: env.DEPLOY == 'true'
         env:
           DOMAIN: ${{ steps.site.outputs.domain }}
         run: |
           if ! grep -E '^SITE_ORIGIN *=' billing/wrangler.toml | grep -Fq "https://$DOMAIN"; then
-            echo "::warning title=billing/wrangler.toml does not list https://$DOMAIN::Add https://$DOMAIN to SITE_ORIGIN in billing/wrangler.toml (npm run go-live does it), commit, and run the 'Deploy billing worker' workflow, or checkouts from the new domain are refused (CORS)."
+            echo "::warning title=billing/wrangler.toml does not list https://$DOMAIN::Add https://$DOMAIN to SITE_ORIGIN in billing/wrangler.toml, commit, and run the 'Deploy billing worker' workflow, or checkouts from the new domain are refused (CORS)."
           fi
 
-      - name: Upload site artifact (GitHub Pages)
-        if: env.DEPLOY == 'true' && steps.site.outputs.host == 'github-pages'
-        uses: actions/upload-pages-artifact@v5
-        with:
-          path: out
-
-      - name: Upload site artifact (Cloudflare Pages)
-        if: env.DEPLOY == 'true' && steps.site.outputs.host == 'cloudflare-pages'
+      - name: Upload the site
+        if: env.DEPLOY == 'true'
         uses: actions/upload-artifact@v6
         with:
           name: site-out
@@ -296,82 +289,32 @@ jobs:
         run: node scripts/smoke/verdict.mjs
 
   deploy:
+    # Publishes out/ as the static assets of the Cloudflare Worker "jumpingballslive" (wrangler.toml at the repository root, which
+    # also attaches jumpingballslive.com and www to it), then asks the live site for the build stamp to learn that this build is
+    # the one being served. Secrets cannot be tested in `if:`, so the first step fails with a plain message when they are missing.
     needs: [build, smoke, smoke-summary]
-    if: vars.SITE_HOST != 'cloudflare-pages' && contains(fromJSON('["refs/heads/claude/optimistic-johnson-46x3qg","refs/heads/main"]'), github.ref)
+    if: contains(fromJSON('["refs/heads/claude/optimistic-johnson-46x3qg","refs/heads/main"]'), github.ref)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     permissions:
       contents: read
-      pages: write
-      id-token: write
     # One deployment at a time; a queued run waits instead of cancelling one in progress.
     concurrency:
-      group: pages
+      group: site-deploy
       cancel-in-progress: false
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      # The workflow token cannot switch Pages on; a person has to do it once in the repository
-      # settings. Fail with instructions instead of the raw API error.
-      - name: Check that GitHub Pages is enabled
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if ! gh api "repos/${GITHUB_REPOSITORY}/pages" --silent 2>/dev/null; then
-            echo "::error title=GitHub Pages is not enabled for this repository::Enable it once under Settings → Pages → Build and deployment → Source: \"GitHub Actions\", then re-run this workflow. Private repositories need GitHub Pro, Team or Enterprise for Pages; otherwise make the repository public."
-            exit 1
-          fi
-
-      - name: Configure GitHub Pages
-        uses: actions/configure-pages@v6
-
-      - name: Deploy
-        id: deployment
-        uses: actions/deploy-pages@v5
-
-      # --- desktop-autorelease --- the published site answers (a warning, not a failure: a fresh custom domain can take up to
-      # 48 h of DNS propagation)
-      - name: The site answers
-        env:
-          URL: ${{ steps.deployment.outputs.page_url }}
-        run: |
-          for i in $(seq 1 12); do
-            if curl -fsS --max-time 20 "${URL%/}/en/" | grep -q "<html"; then echo "live: ${URL%/}/en/"; exit 0; fi
-            sleep 10
-          done
-          echo "::warning title=The site did not answer within 2 minutes::${URL%/}/en/ – a new custom domain can take up to 48 h of DNS propagation; check Settings → Pages."
-
-  # --- desktop-autorelease --- the optional host: Cloudflare Pages (free, private repositories allowed, the same Cloudflare account
-  # as the billing Worker). On when the repository variable SITE_HOST is `cloudflare-pages`; the deploy job above then skips.
-  # One-time: `npx wrangler pages project create <name> --production-branch main`, the variable CF_PAGES_PROJECT=<name>, and the
-  # secrets CLOUDFLARE_API_TOKEN (a token that also has "Cloudflare Pages: Edit") / CLOUDFLARE_ACCOUNT_ID. Secrets cannot be
-  # tested in `if:`, so the first step fails with a plain message when they are missing. The Windows app's downloads and updates
-  # still come from GitHub Releases, which need a public repository (docs/RELEASING.md, "Hosting").
-  deploy-cloudflare:
-    needs: [build, smoke, smoke-summary]
-    if: vars.SITE_HOST == 'cloudflare-pages' && contains(fromJSON('["refs/heads/claude/optimistic-johnson-46x3qg","refs/heads/main"]'), github.ref)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: read
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    environment:
-      name: cloudflare-pages
-      url: ${{ needs.build.outputs.url }}
-    steps:
-      - name: Check the Cloudflare secrets and the project name
+      - name: Check the Cloudflare secrets
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
         run: |
           ok=1
-          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error title=CLOUDFLARE_API_TOKEN is missing::Settings → Secrets and variables → Actions → Secrets → New repository secret: a Cloudflare API token with 'Cloudflare Pages: Edit' (and 'Edit Cloudflare Workers' for the billing Worker)."; ok=0; }
-          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error title=CLOUDFLARE_ACCOUNT_ID is missing::Cloudflare dashboard → Workers & Pages → Account ID (right-hand column); add it as a repository secret."; ok=0; }
-          [ -n "$CF_PAGES_PROJECT" ] || { echo "::error title=CF_PAGES_PROJECT is missing::Create the Pages project once (npx wrangler pages project create <name> --production-branch main) and set the repository variable CF_PAGES_PROJECT to its name."; ok=0; }
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || { echo "::error title=CLOUDFLARE_API_TOKEN is missing::Settings → Secrets and variables → Actions → Secrets → New repository secret: a Cloudflare API token with 'Edit Cloudflare Workers' (the one billing-deploy.yml uses), then re-run this workflow."; ok=0; }
+          [ -n "$CLOUDFLARE_ACCOUNT_ID" ] || { echo "::error title=CLOUDFLARE_ACCOUNT_ID is missing::Cloudflare dashboard → Workers & Pages → Account ID (right-hand column); add it as a repository secret, then re-run this workflow."; ok=0; }
           [ "$ok" = 1 ]
+
+      - name: Check out
+        uses: actions/checkout@v5
 
       - name: Download the site
         uses: actions/download-artifact@v7
@@ -383,10 +326,44 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 22
+          cache: npm
+          cache-dependency-path: billing/package-lock.json
 
-      - name: Deploy to Cloudflare Pages
+      # Wrangler comes from the billing package, at the version its lock file pins.
+      - name: Install Wrangler
+        run: npm ci --prefix billing
+
+      - name: Deploy to Cloudflare
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          CF_PAGES_PROJECT: ${{ vars.CF_PAGES_PROJECT }}
-        run: npx --yes wrangler@3 pages deploy out --project-name "$CF_PAGES_PROJECT" --branch main --commit-hash "$GITHUB_SHA" --commit-dirty=true
+        run: npx --prefix billing wrangler deploy
+
+      - name: The new build answers
+        env:
+          URL: ${{ needs.build.outputs.url }}
+        run: |
+          last="no answer"
+          for i in $(seq 1 18); do
+            code="$(curl -s --max-time 20 -o answer.txt -w '%{http_code}' "$URL/build.txt?x=$i" || true)"
+            if [ "$code" = 200 ] && [ "$(tr -d '[:space:]' < answer.txt)" = "$GITHUB_SHA" ]; then
+              echo "live: $URL is serving $GITHUB_SHA"
+              exit 0
+            fi
+            last="HTTP $code, $(head -c 80 answer.txt 2> /dev/null | tr -d '\n')"
+            sleep 10
+          done
+          echo "::error title=The site does not serve this build::$URL/build.txt does not name $GITHUB_SHA after 3 minutes (last answer: $last). If the domain is not attached to the Worker named in wrangler.toml, see Cloudflare dashboard → Workers & Pages → jumpingballslive → Settings → Domains & Routes; a 403 or a challenge page means a Cloudflare bot or firewall rule is turning GitHub's runners away (Security → Bots / WAF)."
+          exit 1
+
+      # The download page links to the downloads host (a Cloudflare R2 bucket). A warning, not a failure, while it is not set up yet
+      # or the first release has not been published (docs/RELEASING.md, "The downloads host").
+      - name: The downloads host answers
+        env:
+          DOWNLOADS_URL: ${{ vars.DOWNLOADS_URL || 'https://downloads.jumpingballslive.com' }}
+        run: |
+          if curl -fsSI --max-time 20 "$DOWNLOADS_URL/JumpingBallsLive-Setup.exe" > /dev/null; then
+            echo "$DOWNLOADS_URL serves the installer"
+          else
+            echo "::warning title=The Download buttons point at $DOWNLOADS_URL, which does not serve the installer yet::Set up the downloads host and publish a Windows release (docs/RELEASING.md, 'The downloads host'); until then the website's Download buttons show an error page."
+          fi

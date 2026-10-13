@@ -4249,7 +4249,7 @@
     "appCheckUpdates": "Buscar actualizaciones",
     "appRestartUpdate": "Reiniciar y actualizar",
     "appOpenLogs": "Abrir registros",
-    "appAutoUpdate": "Actualizar automáticamente desde GitHub Releases",
+    "appAutoUpdate": "Actualizar automáticamente",
     "appCloseToTray": "Al cerrar la ventana la aplicación sigue en la bandeja (los renderizados continúan)",
     "update": {
       "idle": "aún sin comprobar",
@@ -4426,12 +4426,12 @@
     "title": "{siteName} para Windows",
     "intro": "Todo lo que hace el simulador en el navegador y lo que un navegador no puede. Tu GPU renderiza los vídeos, una cola procesa lotes mientras haces otra cosa y un estudio de IA en tu PC planifica clips y escribe descripciones, sin conexión.",
     "setupTitle": "Instalador",
-    "setupBody": "Se instala solo para tu usuario, sin permisos de administrador y con acceso en el menú Inicio. Se actualiza solo desde GitHub Releases.",
+    "setupBody": "Se instala solo para tu usuario, sin permisos de administrador y con acceso en el menú Inicio. Se actualiza solo.",
     "setupButton": "Descargar el instalador (.exe)",
     "portableTitle": "Portátil",
     "portableBody": "Un solo EXE que funciona sin instalar, desde una carpeta o un pendrive. Guarda sus modelos y su biblioteca al lado. No se actualiza solo.",
     "portableButton": "Descargar el EXE portátil",
-    "allReleases": "Todas las versiones y notas de lanzamiento en GitHub",
+    "checksums": "Sumas de verificación SHA-256",
     "requirementsTitle": "Requisitos",
     "requirements": {
       "os": "Windows 10 u 11 de 64 bits",
@@ -4440,7 +4440,7 @@
       "ram": "8 GB de RAM, 16 GB para la IA local"
     },
     "smartScreenTitle": "¿«Windows protegió tu PC»?",
-    "smartScreenBody": "El EXE todavía no tiene firma digital, así que Windows SmartScreen avisa antes del primer inicio. Haz clic en «Más información» y luego en «Ejecutar de todas formas». GitHub Actions compila los archivos a partir del código público y la página de la versión los lista con sus sumas de verificación.",
+    "smartScreenBody": "El EXE todavía no tiene firma digital, así que Windows SmartScreen avisa antes del primer inicio. Haz clic en «Más información» y luego en «Ejecutar de todas formas». GitHub Actions compila los archivos automáticamente y sus sumas de verificación están enlazadas bajo los botones de descarga.",
     "featuresTitle": "Qué añade la aplicación",
     "features": {
       "gpu": "Vídeo en la GPU. La exportación rápida codifica en la tarjeta gráfica, en H.264, HEVC o AV1 con NVENC, AMF o Quick Sync.",
@@ -4449,7 +4449,7 @@
       "library": "Biblioteca. Cada clip que renderizaste, con su miniatura, duración y texto de publicación. Reprodúcelo, ábrelo en su carpeta, vuelve a renderizarlo o bórralo."
     },
     "privacyTitle": "Privacidad",
-    "privacyBody": "Todo funciona en tu PC. La IA local funciona sin conexión. Una clave de la nube que introduzcas se guarda cifrada y solo se envía al proveedor que elegiste. La aplicación solo se conecta para descargar un modelo que pediste y buscar actualizaciones en GitHub.",
+    "privacyBody": "Todo funciona en tu PC. La IA local funciona sin conexión. Una clave de la nube que introduzcas se guarda cifrada y solo se envía al proveedor que elegiste. La aplicación solo se conecta para descargar un modelo que pediste y buscar actualizaciones. Iniciar sesión en tu cuenta y publicar en tus canales también usan internet.",
     "updateLater": "Más tarde",
     "updateWaitRender": "Hay un renderizado en curso. Espera a que termine la cola o cierra la aplicación, y la actualización se instalará al cerrar."
   },
@@ -5172,8 +5172,7 @@
     "tryCpu": "Ejecutar en la CPU",
     "downloadVersion": "Versión {version}",
     "downloadModelNote": "El modelo de IA se descarga una sola vez desde la aplicación, hasta 2,5 GB. Después, la IA funciona sin conexión.",
-    "downloadUpdateNote": "¿Tienes la 1.0.2? Su actualizador no puede instalar la 1.0.3. Descarga una vez el instalador de arriba. Desde la 1.0.3, la aplicación se actualiza sola.",
-    "downloadWhatsNew": "Novedades de {version}"
+    "downloadUpdateNote": "¿Tienes la 1.0.2? Su actualizador no puede instalar la 1.0.3. Descarga una vez el instalador de arriba. Desde la 1.0.3, la aplicación se actualiza sola."
   },
   "LoopHud": {
     "growTitle": "crece con cada rebote",

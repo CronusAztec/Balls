@@ -4249,7 +4249,7 @@
     "appCheckUpdates": "Sprawdź aktualizacje",
     "appRestartUpdate": "Uruchom ponownie i zaktualizuj",
     "appOpenLogs": "Otwórz logi",
-    "appAutoUpdate": "Aktualizuj automatycznie z GitHub Releases",
+    "appAutoUpdate": "Aktualizuj automatycznie",
     "appCloseToTray": "Zamknięcie okna zostawia aplikację w zasobniku (renderowanie trwa)",
     "update": {
       "idle": "jeszcze nie sprawdzano",
@@ -4426,12 +4426,12 @@
     "title": "{siteName} dla Windows",
     "intro": "Wszystko, co symulator robi w przeglądarce, i to, czego przeglądarka nie potrafi. Twoje GPU renderuje filmy, kolejka przerabia całe serie, gdy robisz coś innego, a studio AI na Twoim komputerze planuje klipy i pisze opisy, offline.",
     "setupTitle": "Instalator",
-    "setupBody": "Instaluje się tylko dla Twojego użytkownika, bez uprawnień administratora, z wpisem w menu Start. Aktualizuje się sam z GitHub Releases.",
+    "setupBody": "Instaluje się tylko dla Twojego użytkownika, bez uprawnień administratora, z wpisem w menu Start. Aktualizuje się sam.",
     "setupButton": "Pobierz instalator (.exe)",
     "portableTitle": "Wersja przenośna",
     "portableBody": "Jeden plik EXE, który działa bez instalacji, z folderu albo pendrive’a. Trzyma modele i bibliotekę obok siebie. Nie aktualizuje się sam.",
     "portableButton": "Pobierz przenośny EXE",
-    "allReleases": "Wszystkie wersje i informacje o wydaniach na GitHubie",
+    "checksums": "Sumy kontrolne SHA-256",
     "requirementsTitle": "Wymagania",
     "requirements": {
       "os": "Windows 10 lub 11, 64-bitowy",
@@ -4440,7 +4440,7 @@
       "ram": "8 GB RAM, 16 GB dla lokalnej AI"
     },
     "smartScreenTitle": "„System Windows ochronił ten komputer”?",
-    "smartScreenBody": "Plik EXE nie jest jeszcze podpisany cyfrowo, więc Windows SmartScreen ostrzega przed pierwszym uruchomieniem. Kliknij „Więcej informacji”, a potem „Uruchom mimo to”. Pliki buduje GitHub Actions z publicznego kodu, a strona wydania podaje je z sumami kontrolnymi.",
+    "smartScreenBody": "Plik EXE nie jest jeszcze podpisany cyfrowo, więc Windows SmartScreen ostrzega przed pierwszym uruchomieniem. Kliknij „Więcej informacji”, a potem „Uruchom mimo to”. Pliki buduje automatycznie GitHub Actions, a ich sumy kontrolne są pod przyciskami pobierania.",
     "featuresTitle": "Co dodaje aplikacja",
     "features": {
       "gpu": "Wideo na GPU. Szybki eksport koduje na karcie graficznej, w H.264, HEVC lub AV1 przez NVENC, AMF albo Quick Sync.",
@@ -4449,7 +4449,7 @@
       "library": "Biblioteka. Każdy wyrenderowany klip z miniaturą, długością i tekstem posta. Odtwórz, pokaż w folderze, wyrenderuj ponownie albo usuń."
     },
     "privacyTitle": "Prywatność",
-    "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja łączy się z internetem tylko po to, by pobrać model, o który poprosisz, i sprawdzić aktualizacje na GitHubie.",
+    "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja łączy się z internetem tylko po to, by pobrać model, o który poprosisz, i sprawdzić aktualizacje. Logowanie do konta i publikowanie na Twoich kanałach też korzystają z internetu.",
     "updateLater": "Później",
     "updateWaitRender": "Trwa renderowanie. Poczekaj, aż kolejka się skończy, albo zamknij aplikację, a aktualizacja zainstaluje się przy zamykaniu."
   },
@@ -5172,8 +5172,7 @@
     "tryCpu": "Uruchom na procesorze",
     "downloadVersion": "Wersja {version}",
     "downloadModelNote": "Model AI pobierasz z poziomu aplikacji tylko raz, do 2,5 GB. Potem AI działa offline.",
-    "downloadUpdateNote": "Masz wersję 1.0.2? Jej aktualizator nie zainstaluje 1.0.3. Pobierz raz instalator powyżej. Od wersji 1.0.3 aplikacja aktualizuje się sama.",
-    "downloadWhatsNew": "Co nowego w {version}"
+    "downloadUpdateNote": "Masz wersję 1.0.2? Jej aktualizator nie zainstaluje 1.0.3. Pobierz raz instalator powyżej. Od wersji 1.0.3 aplikacja aktualizuje się sama."
   },
   "LoopHud": {
     "growTitle": "rośnie z każdym odbiciem",

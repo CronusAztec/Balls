@@ -20,7 +20,7 @@ export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || `http://localhost:3
 
 /**
  * --- review fix (site-static) --- The address the site is served from, as the legal pages name it: derived from the deploy URL
- * (cronusaztec.github.io/Balls on GitHub Pages; a custom domain set in the Pages settings switches NEXT_PUBLIC_SITE_URL in
+ * (jumpingballslive.com on the live site; the CUSTOM_DOMAIN variable switches NEXT_PUBLIC_SITE_URL in
  * deploy.yml and so this too), never a hard-coded domain nobody serves. NEXT_PUBLIC_SITE_DOMAIN overrides it.
  */
 export const SITE_DOMAIN = (process.env.NEXT_PUBLIC_SITE_DOMAIN || SITE_URL.replace(/^https?:\/\//, "")).replace(/\/+$/, "");
