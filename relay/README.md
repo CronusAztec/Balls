@@ -64,6 +64,47 @@ fly deploy
 On Railway: **New Project → Deploy from GitHub repo**, set the service's root directory to `relay`, add a volume mounted at
 `/data`, and the same variables (Railway sets `PORT`).
 
+### Your own VPS (Docker + Caddy)
+
+A VPS is the simplest home for the relay when accounts matter: it has a real disk (nothing is wiped on a restart), never
+sleeps and costs a few dollars a month whatever the traffic. `relay/deploy/` is a kit for it: Docker Compose runs the relay and
+[Caddy](https://caddyserver.com), which fetches and renews the HTTPS certificate by itself. You need a Debian or Ubuntu
+server (1 GB of memory is plenty) that you can log in to as root over SSH or through the provider's web console, a name for the
+relay (for example `relay.jumpingballslive.com`) and ports 80 and 443 free.
+
+1. **DNS**: add an **A record** for that name pointing at the server's IP address. In Cloudflare set it to **DNS only** (the
+   grey cloud): behind the orange cloud every visitor would reach Caddy as a Cloudflare address and the sign-up limits would
+   count them all as one.
+2. **Run the installer on the server**, once:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/CronusAztec/Balls/BRANCH/relay/deploy/install.sh | sudo bash -s -- relay.example.com --branch BRANCH
+   ```
+
+   `BRANCH` is the branch with the kit (the product branch once the kit is merged). Read the script first if you like: it is
+   [`relay/deploy/install.sh`](deploy/install.sh), about 250 lines. It installs Docker and git if they are missing, puts the
+   code in `/opt/jumpingballslive`, writes `relay/deploy/.env` (the domain, `RELAY_PUBLIC_URL` and `RELAY_ALLOWED_ORIGINS`,
+   which defaults to this project's three site addresses; `--origins https://a.example,https://b.example` changes them),
+   opens ports 80 and 443 when `ufw` is already on, starts the relay and Caddy, waits until the relay answers on HTTPS and
+   installs a nightly backup. It checks everything before it changes anything and stops with a plain message when something is
+   off (another program on port 80, a wrong DNS record, another operating system).
+3. **Check it**: `https://relay.example.com/api/health` answers with `{"ok":true,…}`.
+4. **Platform keys**: register the TikTok, Meta and Google apps with the redirect URIs
+   `https://relay.example.com/oauth/<platform>/callback` (see below), put their keys into `/opt/jumpingballslive/relay/deploy/.env`
+   (the `.env.example` beside it lists the names) and run `docker compose up -d` in that folder.
+
+Day to day, from `/opt/jumpingballslive/relay/deploy`: `docker compose logs -f` shows the logs, `docker compose restart` restarts,
+and running the installer command again **updates** (it fetches the branch and rebuilds; your `.env` and data are kept).
+The data (accounts, their tokens, uploaded clips) is the folder `relay/deploy/data`; the nightly backup
+(`/var/backups/jbl-relay`, 14 days, readable by root only) tars it, and a backup holds every account's tokens, so copy it
+somewhere private and never publish it. To restore: `docker compose down`, unpack the archive over `relay/deploy`, `docker compose up -d`.
+To remove everything: `docker compose down -v`, then delete `/opt/jumpingballslive` and `/etc/cron.d/jbl-relay-backup`.
+
+Good practice for the server itself: log in with an SSH key and turn password logins off, keep it updated
+(`unattended-upgrades` on Debian and Ubuntu) and let only ports 22, 80 and 443 in. The relay is never reachable except through
+Caddy (Compose publishes only Caddy's ports). Caddy ignores an `X-Forwarded-For` a visitor sends and sets the visitor's real
+address itself, so the relay's default (`RELAY_PROXY_HOPS=1`) counts the right address and no `RELAY_CLIENT_IP_HEADER` is needed.
+
 ## User accounts (sign up, sign in)
 
 Besides access keys, the relay has **user accounts**: anyone opens the site's (or the Windows app's) **Account** page, creates

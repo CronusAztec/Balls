@@ -1,6 +1,8 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { containerStatusRequest, createReelContainerRequest, permalinkRequest, publishRequest } from "../src/lib/bot/instagram";
 import {
@@ -832,5 +834,86 @@ describe("user accounts", () => {
     expect(blocked.status).toBe(429);
     expect(blocked.json.error.code).toBe("rate_limited");
     expect((await from("2.2.2.2", 11)).status).toBe(201); // another visitor behind the same proxy is not affected
+  });
+});
+
+/* --- vps-deploy --- The kit that runs the relay on a VPS (relay/deploy): its files agree with the relay and with each other. */
+
+describe("the VPS kit", () => {
+  const dir = fileURLToPath(new URL("./deploy/", import.meta.url));
+  const read = (name) => fs.readFileSync(path.join(dir, name), "utf8");
+  const serverSource = fs.readFileSync(fileURLToPath(new URL("./server.mjs", import.meta.url)), "utf8");
+  let hasBash = true;
+  try {
+    execFileSync("bash", ["--version"], { stdio: "ignore" });
+  } catch {
+    hasBash = false;
+  }
+  /** Whether `code` succeeds after loading the installer's functions (without running it). */
+  const bash = (code) => {
+    try {
+      execFileSync("bash", ["-c", `JBL_SOURCE_ONLY=1 source '${path.join(dir, "install.sh")}'; ${code}`], { stdio: "ignore" });
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  it("has every file the installer and the README name, the installer executable", () => {
+    for (const name of ["docker-compose.yml", "Caddyfile", ".env.example", "install.sh"]) expect(fs.existsSync(path.join(dir, name)), name).toBe(true);
+    expect(fs.statSync(path.join(dir, "install.sh")).mode & 0o111).not.toBe(0);
+    expect(read("install.sh")).toMatch(/^#!\/usr\/bin\/env bash\nset|^#!\/usr\/bin\/env bash\n#[^]*\nset -euo pipefail/m);
+  });
+
+  it("documents only variables the relay (or Compose and Caddy) reads", () => {
+    const names = [...read(".env.example").matchAll(/^#?\s*([A-Z][A-Z0-9_]+)=/gm)].map((m) => m[1]);
+    expect(names).toEqual(expect.arrayContaining(["RELAY_DOMAIN", "RELAY_PUBLIC_URL", "RELAY_ALLOWED_ORIGINS", "TIKTOK_CLIENT_KEY", "IG_APP_ID", "YT_CLIENT_ID"]));
+    for (const name of names) {
+      if (name === "RELAY_DOMAIN") {
+        expect(read("docker-compose.yml") + read("Caddyfile")).toContain(name);
+      } else {
+        expect(serverSource, `${name} is documented in .env.example but server.mjs never reads it`).toContain(`env.${name}`);
+      }
+    }
+  });
+
+  it("points Caddy, the health check and the relay at one port", () => {
+    expect(read("Caddyfile")).toMatch(/reverse_proxy relay:8787/);
+    expect(read("docker-compose.yml")).toMatch(/PORT: "8787"/);
+    expect(read("docker-compose.yml")).toMatch(/127\.0\.0\.1:8787\/api\/health/);
+    expect(fs.readFileSync(fileURLToPath(new URL("./Dockerfile", import.meta.url)), "utf8")).toMatch(/PORT=8787/);
+    // The relay is reached only through Caddy: nothing publishes 8787 on the host.
+    expect(read("docker-compose.yml")).not.toMatch(/-\s*"?8787:8787/);
+    // Caddy sets the visitor's address itself, which is what the relay's limits count by default: no client-IP header is configured.
+    expect(read(".env.example")).not.toMatch(/^RELAY_CLIENT_IP_HEADER=/m);
+  });
+
+  it.skipIf(!hasBash)("parses, and its checks accept what it should and refuse the rest", () => {
+    expect(() => execFileSync("bash", ["-n", path.join(dir, "install.sh")])).not.toThrow();
+    for (const ok of ["relay.example.com", "a-b.c.example.org", "relay.jumpingballslive.com"]) expect(bash(`valid_domain '${ok}'`), ok).toBe(true);
+    for (const bad of ["", "relay", "-a.example.com", "a..example.com", "exa mple.com", "a.example.com;rm -rf /", "relay.example.com/path", "https://relay.example.com"]) expect(bash(`valid_domain '${bad}'`), bad).toBe(false);
+    for (const ok of ["claude/optimistic-johnson-46x3qg", "main", "release-1.2"]) expect(bash(`valid_branch '${ok}'`), ok).toBe(true);
+    for (const bad of ["--evil", "a b", "a;b", "$(x)", ""]) expect(bash(`valid_branch '${bad}'`), bad).toBe(false);
+    expect(bash("valid_origins 'https://a.example,https://www.a.example,http://localhost:3000'")).toBe(true);
+    for (const bad of ["", "https://a.example/path", "ftp://a.example", "https://a.example,", "a.example", "https://a.example;x"]) expect(bash(`valid_origins '${bad}'`), bad).toBe(false);
+    // The defaults the installer ships are valid by its own rules.
+    expect(bash('valid_origins "$DEFAULT_ORIGINS" && valid_branch "$DEFAULT_BRANCH"')).toBe(true);
+  });
+
+  it.skipIf(!hasBash)("refuses a missing or bad domain before it touches anything", () => {
+    const run = (...args) => {
+      try {
+        execFileSync("bash", [path.join(dir, "install.sh"), ...args], { stdio: "pipe", encoding: "utf8" });
+        return { status: 0, err: "" };
+      } catch (err) {
+        return { status: err.status, err: String(err.stderr) };
+      }
+    };
+    expect(run("--help").status).toBe(0);
+    expect(run().err).toMatch(/give the relay's domain/);
+    expect(run("not a domain").err).toMatch(/not a valid domain/);
+    expect(run("relay.example.com", "--branch", "--evil").err).toMatch(/not a valid branch/);
+    expect(run("relay.example.com", "--origins", "https://a.example/x").err).toMatch(/origins/);
+    expect(run("relay.example.com", "--nonsense").err).toMatch(/unknown option/);
   });
 });

@@ -1,0 +1,7 @@
+# One site: the relay's domain. Caddy fetches the certificate, redirects HTTP to HTTPS and passes everything to the relay.
+# Caddy ignores an X-Forwarded-For a visitor sends and sets the visitor's real address itself, which is what the relay's
+# sign-up and sign-in limits count (RELAY_PROXY_HOPS=1, the default). Keep this record DNS only (a grey cloud) in Cloudflare:
+# behind Cloudflare's orange cloud every visitor would look like a Cloudflare address.
+{$RELAY_DOMAIN} {
+	reverse_proxy relay:8787
+}

@@ -1,0 +1,43 @@
+# JumpingBallsLive relay on a VPS (feature vps-deploy): the relay plus Caddy, which gets and renews the HTTPS certificate by
+# itself. Start it with install.sh (same folder), or by hand: copy .env.example to .env, fill it in, `docker compose up -d --build`.
+name: jbl-relay
+
+services:
+  relay:
+    build: ..                      # relay/Dockerfile: node:22-alpine, one file, no dependencies
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PORT: "8787"
+      RELAY_DATA_DIR: /data
+    volumes:
+      - ./data:/data               # keys, accounts with their tokens, uploaded clips: back this folder up
+    expose:
+      - "8787"                     # reachable only by Caddy, never from the internet directly
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on:
+      relay:
+        condition: service_healthy
+    ports:
+      - "80:80"                    # the certificate check and the redirect to HTTPS
+      - "443:443"
+      - "443:443/udp"              # HTTP/3
+    environment:
+      RELAY_DOMAIN: ${RELAY_DOMAIN:?set RELAY_DOMAIN in .env, e.g. relay.example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data           # the certificate: keep it, Let's Encrypt limits how often one can be issued
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:
