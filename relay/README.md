@@ -82,7 +82,7 @@ relay (for example `relay.jumpingballslive.com`) and ports 80 and 443 free.
    ```
 
    `BRANCH` is the branch with the kit (the product branch once the kit is merged). Read the script first if you like: it is
-   [`relay/deploy/install.sh`](deploy/install.sh), about 250 lines. It installs Docker and git if they are missing, puts the
+   [`relay/deploy/install.sh`](deploy/install.sh), a few hundred lines with a comment on every step. It installs Docker and git if they are missing, puts the
    code in `/opt/jumpingballslive`, writes `relay/deploy/.env` (the domain, `RELAY_PUBLIC_URL` and `RELAY_ALLOWED_ORIGINS`,
    which defaults to this project's three site addresses; `--origins https://a.example,https://b.example` changes them),
    opens ports 80 and 443 when `ufw` is already on, starts the relay and Caddy, waits until the relay answers on HTTPS and
@@ -92,6 +92,21 @@ relay (for example `relay.jumpingballslive.com`) and ports 80 and 443 free.
 4. **Platform keys**: register the TikTok, Meta and Google apps with the redirect URIs
    `https://relay.example.com/oauth/<platform>/callback` (see below), put their keys into `/opt/jumpingballslive/relay/deploy/.env`
    (the `.env.example` beside it lists the names) and run `docker compose up -d` in that folder.
+
+**A server that already has a web server on ports 80 and 443.** The installer stops with a message instead of breaking it. If
+the program is a **Caddy** (the message says so), run the same command again with `--use-existing-caddy`: it does **not** start
+a second Caddy. The relay runs on its own, on `127.0.0.1:8787` where nothing outside the server can reach it, and the relay's
+domain is added to your Caddy's Caddyfile as one more site (`relay.example.com { reverse_proxy 127.0.0.1:8787 }`). It is built
+for a server that serves other things, so before it touches your Caddy it checks the config with `caddy validate`, saves a copy
+next to it (`Caddyfile.bak.pre-jbl-relay.<time>`), reloads Caddy gracefully (no downtime), asks every other site in the Caddyfile
+for its home page before and after, and puts the Caddyfile back and reloads again if the check fails, the reload fails or any
+other site answers differently. It waits to do any of this until the domain's A record points at the server (your Caddy would
+start asking Let's Encrypt for a certificate at once), so add the record first or run the command a second time; a Caddy
+configured with JSON instead of a Caddyfile is left alone with instructions (`--caddyfile PATH` names a Caddyfile that is not in
+the usual place). For nginx, Apache or anything else on the ports, run only the relay (`docker compose up -d` in `relay/deploy`
+without `COMPOSE_PROFILES=caddy` in `.env`) and pass your domain to `127.0.0.1:8787` with that server's own proxy settings:
+let it set `X-Forwarded-For` to the visitor's address (nginx: `proxy_set_header X-Forwarded-For $remote_addr;`), because the
+relay counts sign-ups by that.
 
 Day to day, from `/opt/jumpingballslive/relay/deploy`: `docker compose logs -f` shows the logs, `docker compose restart` restarts,
 and running the installer command again **updates** (it fetches the branch and rebuilds; your `.env` and data are kept).

@@ -1,5 +1,7 @@
-# JumpingBallsLive relay on a VPS (feature vps-deploy): the relay plus Caddy, which gets and renews the HTTPS certificate by
-# itself. Start it with install.sh (same folder), or by hand: copy .env.example to .env, fill it in, `docker compose up -d --build`.
+# JumpingBallsLive relay on a VPS (feature vps-deploy): the relay, and – with COMPOSE_PROFILES=caddy in .env – Caddy, which gets and
+# renews the HTTPS certificate by itself. Start it with install.sh (same folder), or by hand: copy .env.example to .env, fill it in,
+# `docker compose up -d --build`. On a server that already has a web server on ports 80 and 443 leave the profile out: only the
+# relay runs, on 127.0.0.1:8787, and your Caddy (or nginx) passes the relay's domain to it (install.sh --use-existing-caddy).
 name: jbl-relay
 
 services:
@@ -12,8 +14,9 @@ services:
       RELAY_DATA_DIR: /data
     volumes:
       - ./data:/data               # keys, accounts with their tokens, uploaded clips: back this folder up
-    expose:
-      - "8787"                     # reachable only by Caddy, never from the internet directly
+    ports:
+      - "127.0.0.1:8787:8787"      # this server only: the bundled Caddy reaches the relay on Docker's network, a Caddy or nginx already
+                                   # on the host reaches it here. Never published to the internet.
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/api/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 30s
@@ -22,6 +25,7 @@ services:
       start_period: 10s
 
   caddy:
+    profiles: ["caddy"]            # off unless .env says COMPOSE_PROFILES=caddy (install.sh does that when ports 80 and 443 are free)
     image: caddy:2
     restart: unless-stopped
     depends_on:

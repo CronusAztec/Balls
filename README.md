@@ -1757,8 +1757,9 @@ steps to host it are in [relay/README.md](relay/README.md)); the page, the insta
   `NEXT_PUBLIC_PUBLISH_RELAY_URL` to the app's site build (as `deploy.yml` does for the website); without it the Account page
   asks for the relay's address.
 - **Set it up** – host the relay ([relay/README.md](relay/README.md): Render, Fly.io, Railway, any Docker host or your own VPS
-  with `relay/deploy/install.sh` – Docker Compose and Caddy for HTTPS, one command, a nightly backup – and in every case a persistent
-  disk for `RELAY_DATA_DIR`), register the TikTok, Meta and Google apps' redirect URIs (`<relay>/oauth/<platform>/callback`), set
+  with `relay/deploy/install.sh` – Docker Compose and Caddy for HTTPS, one command, a nightly backup; with `--use-existing-caddy` it
+  joins a Caddy that already serves other sites on the server, backed up, validated, checked before and after and rolled back on any
+  difference – and in every case a persistent disk for `RELAY_DATA_DIR`), register the TikTok, Meta and Google apps' redirect URIs (`<relay>/oauth/<platform>/callback`), set
   `RELAY_ALLOWED_ORIGINS` to the site's origin and the repository variable `PUBLISH_RELAY_URL` to the relay's address, and
   redeploy the site and the app. Free play never needs an account; the privacy page says what an account stores.
 - **Tests and checks** – `tests/account.test.ts` (the client against a scripted relay, the stored session, the controller – sign up,

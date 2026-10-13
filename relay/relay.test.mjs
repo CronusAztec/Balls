@@ -1,4 +1,4 @@
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -871,6 +871,8 @@ describe("the VPS kit", () => {
     for (const name of names) {
       if (name === "RELAY_DOMAIN") {
         expect(read("docker-compose.yml") + read("Caddyfile")).toContain(name);
+      } else if (name === "COMPOSE_PROFILES") {
+        expect(read("docker-compose.yml")).toContain('profiles: ["caddy"]'); // read by Docker Compose, not by the relay
       } else {
         expect(serverSource, `${name} is documented in .env.example but server.mjs never reads it`).toContain(`env.${name}`);
       }
@@ -882,8 +884,11 @@ describe("the VPS kit", () => {
     expect(read("docker-compose.yml")).toMatch(/PORT: "8787"/);
     expect(read("docker-compose.yml")).toMatch(/127\.0\.0\.1:8787\/api\/health/);
     expect(fs.readFileSync(fileURLToPath(new URL("./Dockerfile", import.meta.url)), "utf8")).toMatch(/PORT=8787/);
-    // The relay is reached only through Caddy: nothing publishes 8787 on the host.
-    expect(read("docker-compose.yml")).not.toMatch(/-\s*"?8787:8787/);
+    // The relay is never published to the internet: only on the server's own loopback, for a Caddy or nginx already on the host.
+    expect(read("docker-compose.yml")).toMatch(/- "127\.0\.0\.1:8787:8787"/);
+    expect(read("docker-compose.yml")).not.toMatch(/- "(0\.0\.0\.0:)?8787:8787"/);
+    // The bundled Caddy is optional: it only starts with COMPOSE_PROFILES=caddy.
+    expect(read("docker-compose.yml")).toMatch(/profiles: \["caddy"\]/);
     // Caddy sets the visitor's address itself, which is what the relay's limits count by default: no client-IP header is configured.
     expect(read(".env.example")).not.toMatch(/^RELAY_CLIENT_IP_HEADER=/m);
   });
@@ -915,5 +920,164 @@ describe("the VPS kit", () => {
     expect(run("relay.example.com", "--branch", "--evil").err).toMatch(/not a valid branch/);
     expect(run("relay.example.com", "--origins", "https://a.example/x").err).toMatch(/origins/);
     expect(run("relay.example.com", "--nonsense").err).toMatch(/unknown option/);
+    expect(run("relay.example.com", "--caddyfile", "/etc/caddy/Caddyfile").err).toMatch(/only goes with --use-existing-caddy/);
+    expect(run("relay.example.com", "--use-existing-caddy", "--caddyfile", "relative/Caddyfile").err).toMatch(/plain absolute path/);
+  });
+
+  /* The mode for a server that already has a Caddy on ports 80 and 443: the relay's site is added to that Caddy's Caddyfile. */
+  describe.skipIf(!hasBash)("sharing a Caddy that is already on the server", () => {
+    const install = path.join(dir, "install.sh");
+    const SAMPLE = [
+      "{",
+      "\temail admin@example.test",
+      "}",
+      "",
+      "odoreeci.tech {",
+      "\treverse_proxy 127.0.0.1:3000",
+      "}",
+      "",
+      "www.odoreeci.tech {",
+      "\tredir https://odoreeci.tech{uri}",
+      "}",
+      "",
+      "arvio.beanerbox.com, www.arvio.beanerbox.com {",
+      "\treverse_proxy localhost:4000",
+      "\t# relay.jumpingballslive.com is only a comment here",
+      "}",
+      "",
+      ":8080 {",
+      '\trespond "ok"',
+      "}",
+      "",
+    ].join("\n");
+
+    const BASH = fs.existsSync("/bin/bash") ? "/bin/bash" : "bash"; // found by its path, so a test can empty PATH
+    /** Runs bash code with the installer's functions loaded; `env` adds environment variables, `vars` sets shell variables after the load (the script initialises its own). */
+    const sh = (code, env = {}, vars = "") => spawnSync(BASH, ["-c", `JBL_SOURCE_ONLY=1 source '${install}'; ${vars} ${code}`], { encoding: "utf8", env: { ...process.env, ...env } });
+
+    /** A scratch folder with a Caddyfile, a stand-in for `caddy` and one for `curl` (which says 200 until the reload "breaks" something). */
+    function scratch(caddyfile = SAMPLE) {
+      const root = tmp();
+      cleanups.push(() => fs.rmSync(root, { recursive: true, force: true }));
+      const bin = path.join(root, "bin");
+      fs.mkdirSync(bin);
+      fs.writeFileSync(path.join(root, "Caddyfile"), caddyfile);
+      // validate passes, or fails from the FAIL_AFTER-th call on; any other command succeeds
+      fs.writeFileSync(path.join(bin, "caddy"), '#!/bin/sh\n[ "$1" = validate ] || exit 0\nn=$(cat "$STUB_COUNT" 2>/dev/null || echo 0)\necho $((n + 1)) > "$STUB_COUNT"\n[ -n "$FAIL_AFTER" ] && [ "$n" -ge "$FAIL_AFTER" ] && exit 1\nexit 0\n', { mode: 0o755 });
+      // the site check: 200 per site, 502 once the "reload" has created the marker file
+      fs.writeFileSync(path.join(bin, "curl"), '#!/bin/sh\nif [ -e "$STUB_BREAK" ]; then printf 502; else printf 200; fi\n', { mode: 0o755 });
+      const env = {
+        PATH: `${bin}:${process.env.PATH}`,
+        STUB_COUNT: path.join(root, "validations"),
+        STUB_BREAK: path.join(root, "broken"),
+        RELOADS: path.join(root, "reloads"),
+        JBL_CADDY_BIN: path.join(bin, "caddy"),
+        JBL_RELOAD_WAIT: "0",
+        JBL_RELOAD_CMD: `echo reload >> '${path.join(root, "reloads")}'`,
+      };
+      const file = path.join(root, "Caddyfile");
+      return { root, env, file, backups: () => fs.readdirSync(root).filter((n) => n.startsWith("Caddyfile.bak.pre-jbl-relay.")), reloads: () => (fs.existsSync(env.RELOADS) ? fs.readFileSync(env.RELOADS, "utf8").trim().split("\n").length : 0) };
+    }
+
+    it("finds the running Caddy's config from the process list", () => {
+      const find = (input) => spawnSync("bash", ["-c", `JBL_SOURCE_ONLY=1 source '${install}'; config_from_ps`], { input, encoding: "utf8" }).stdout.trim();
+      expect(find("/usr/sbin/nginx -g daemon off;\n/usr/bin/caddy run --environ --config /etc/caddy/Caddyfile\n")).toBe("/etc/caddy/Caddyfile");
+      expect(find("caddy run --config=/srv/web/Caddyfile --adapter caddyfile\n")).toBe("/srv/web/Caddyfile");
+      expect(find("/usr/sbin/nginx -g daemon off;\n/usr/bin/caddy version\n")).toBe("");
+      // text that merely mentions a Caddy command (an editor, a shell with a long command line) is not a Caddy
+      expect(find('bash -c echo "/usr/bin/caddy run --config /etc/evil/Caddyfile"\nvim /etc/caddy/Caddyfile caddy run --config /x\n')).toBe("");
+    });
+
+    it("recognises a site by the labels of its block, not by text inside one", () => {
+      const { file } = scratch();
+      const has = (domain) => sh(`site_present '${file}' '${domain}'`).status === 0;
+      for (const yes of ["odoreeci.tech", "www.odoreeci.tech", "WWW.Odoreeci.TECH", "arvio.beanerbox.com", "www.arvio.beanerbox.com"]) expect(has(yes), yes).toBe(true);
+      for (const no of ["relay.jumpingballslive.com", "odoreeci", "tech", "beanerbox.com", "example.test"]) expect(has(no), no).toBe(false);
+    });
+
+    it("lists the plain host names the Caddy serves, leaving out ports, the options block and the named one", () => {
+      const { file } = scratch();
+      const out = sh(`plain_sites '${file}' 'www.odoreeci.tech'`).stdout.trim().split("\n");
+      expect(out).toEqual(["odoreeci.tech", "arvio.beanerbox.com", "www.arvio.beanerbox.com"]);
+    });
+
+    it("adds the relay's site after a backup, reloads, and leaves the rest of the Caddyfile byte for byte", () => {
+      const t = scratch();
+      const r = sh('wire_existing_caddy relay.jumpingballslive.com; echo "WIRED=$WIRED"', t.env, `CADDYFILE='${t.file}';`);
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout).toContain("WIRED=1");
+      const now = fs.readFileSync(t.file, "utf8");
+      expect(now.startsWith(SAMPLE)).toBe(true);
+      expect(now.slice(SAMPLE.length)).toBe("\n\n# JumpingBallsLive relay (added by relay/deploy/install.sh)\nrelay.jumpingballslive.com {\n\treverse_proxy 127.0.0.1:8787\n}\n");
+      expect(t.backups()).toHaveLength(1);
+      expect(fs.readFileSync(path.join(t.root, t.backups()[0]), "utf8")).toBe(SAMPLE);
+      expect(t.reloads()).toBe(1);
+      // A second run finds the site and does nothing: no second block, no second backup, no second reload.
+      const again = sh("wire_existing_caddy relay.jumpingballslive.com", t.env, `CADDYFILE='${t.file}';`);
+      expect(again.status).toBe(0);
+      expect(fs.readFileSync(t.file, "utf8")).toBe(now);
+      expect(t.backups()).toHaveLength(1);
+      expect(t.reloads()).toBe(1);
+    });
+
+    it("puts the Caddyfile back when Caddy refuses it, without reloading", () => {
+      const t = scratch();
+      const r = sh("wire_existing_caddy relay.jumpingballslive.com", { ...t.env, FAIL_AFTER: "1" }, `CADDYFILE='${t.file}';`); // the check before the edit passes, the one after fails
+      expect(r.status).not.toBe(0);
+      expect(r.stderr).toMatch(/exactly as it was/);
+      expect(fs.readFileSync(t.file, "utf8")).toBe(SAMPLE);
+      expect(t.reloads()).toBe(0);
+    });
+
+    it("puts the Caddyfile back when the reload fails", () => {
+      const t = scratch();
+      const r = sh("wire_existing_caddy relay.jumpingballslive.com", { ...t.env, JBL_RELOAD_CMD: "false" }, `CADDYFILE='${t.file}';`);
+      expect(r.status).not.toBe(0);
+      expect(r.stderr).toMatch(/would not reload/);
+      expect(fs.readFileSync(t.file, "utf8")).toBe(SAMPLE);
+    });
+
+    it("puts the Caddyfile back, and reloads again, when another site answers differently afterwards", () => {
+      const t = scratch();
+      const r = sh("wire_existing_caddy relay.jumpingballslive.com", { ...t.env, JBL_RELOAD_CMD: `echo reload >> '${t.env.RELOADS}'; touch '${t.env.STUB_BREAK}'` }, `CADDYFILE='${t.file}';`);
+      expect(r.status).not.toBe(0);
+      expect(r.stderr).toMatch(/answered differently/);
+      expect(r.stderr).toMatch(/odoreeci\.tech 200/); // what it was before
+      expect(r.stderr).toMatch(/odoreeci\.tech 502/); // what it became
+      expect(fs.readFileSync(t.file, "utf8")).toBe(SAMPLE);
+      expect(t.reloads()).toBe(2); // once with the new site, once to take it away again
+    });
+
+    it("keeps its hands off a config it cannot edit safely", () => {
+      const t = scratch();
+      const json = path.join(t.root, "caddy.json");
+      fs.writeFileSync(json, "{}");
+      expect(sh("wire_existing_caddy relay.jumpingballslive.com", t.env, `CADDYFILE='${json}';`).stderr).toMatch(/JSON/);
+      expect(sh("wire_existing_caddy relay.jumpingballslive.com", t.env, `CADDYFILE='${path.join(t.root, "nope")}';`).stderr).toMatch(/does not exist/);
+      expect(sh("wire_existing_caddy relay.jumpingballslive.com", { ...t.env, JBL_CADDY_BIN: "", PATH: "/nonexistent" }, `CADDYFILE='${t.file}';`).stderr).toMatch(/no caddy command/);
+      expect(fs.readFileSync(t.file, "utf8")).toBe(SAMPLE);
+      expect(t.backups()).toHaveLength(0);
+    });
+
+    it("starts Caddy in a container only when it is not sharing one", () => {
+      const root = tmp();
+      cleanups.push(() => fs.rmSync(root, { recursive: true, force: true }));
+      fs.mkdirSync(path.join(root, "relay", "deploy"), { recursive: true });
+      const env = fs.existsSync(path.join(root, "relay", "deploy", ".env")) ? "" : path.join(root, "relay", "deploy", ".env");
+      const write = (existing) => sh(`DIR='${root}'; EXISTING_CADDY=${existing ? 1 : 0}; write_env relay.example.com https://a.example`);
+      expect(write(false).status).toBe(0);
+      let text = fs.readFileSync(env, "utf8");
+      expect(text).toContain("RELAY_DOMAIN=relay.example.com\nRELAY_PUBLIC_URL=https://relay.example.com\nRELAY_ALLOWED_ORIGINS=https://a.example\n");
+      expect(text).toMatch(/^COMPOSE_PROFILES=caddy$/m);
+      expect(fs.statSync(env).mode & 0o777).toBe(0o600);
+      // The owner's own additions survive a second run, and switching to a shared Caddy takes the profile away.
+      fs.appendFileSync(env, "TIKTOK_CLIENT_KEY=abc\n");
+      expect(write(true).status).toBe(0);
+      text = fs.readFileSync(env, "utf8");
+      expect(text).toContain("TIKTOK_CLIENT_KEY=abc");
+      expect(text).not.toMatch(/COMPOSE_PROFILES/);
+      expect(write(false).status).toBe(0);
+      expect(fs.readFileSync(env, "utf8").match(/COMPOSE_PROFILES=caddy/g)).toHaveLength(1);
+    });
   });
 });
