@@ -7,7 +7,8 @@ import { SITE_NAME } from "@/lib/site";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { buttonClass } from "@/components/ui/Button";
 import IconButton from "@/components/ui/IconButton";
-import { IconArrowLeft, IconArrowRight, IconClose, IconMenu } from "@/components/ui/icons";
+import { IconArrowLeft, IconArrowRight, IconClose, IconMenu, IconUsers } from "@/components/ui/icons";
+import { useAccountHint } from "@/lib/account/hint"; // --- user-accounts ---
 import { cx } from "@/components/ui/cx";
 
 /*
@@ -24,6 +25,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
   const gallery = useTranslations("Gallery"); // --- daily-gallery ---
   const desktop = useTranslations("DesktopLink"); // --- desktop-exe --- (a small namespace: every page hands it to the client)
   const pathname = usePathname();
+  const signedInAs = useAccountHint(); // --- user-accounts --- the name of who is signed in (nothing until the page has read its storage)
   const [menuOpen, setMenuOpen] = useState(false);
   const studio = variant === "studio";
   const menuId = useId();
@@ -50,6 +52,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
     { href: "/about", label: t("nav.about") },
   ];
   const isCurrent = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  const accountLabel = signedInAs ?? nav("account"); // --- user-accounts ---
 
   return (
     <header className="sticky top-0 z-40 h-14 border-b border-line bg-bg">
@@ -90,6 +93,18 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
+          {/* --- user-accounts --- the account: its name once signed in, "Account" before */}
+          <Link
+            href="/account"
+            aria-current={isCurrent("/account") ? "page" : undefined}
+            title={nav("account")}
+            data-testid="navbar-account"
+            data-signed-in={signedInAs ? "1" : "0"}
+            className={cx("hidden h-8 max-w-[10rem] items-center gap-1.5 rounded-md px-2 text-sm font-medium transition-colors duration-150 hover:bg-surface-2 hover:text-ink md:inline-flex", isCurrent("/account") ? "text-ink" : "text-ink-2")}
+          >
+            <IconUsers size={16} />
+            <span className="truncate">{accountLabel}</span>
+          </Link>
           <div className="hidden md:block">
             <LanguageSwitcher />
           </div>
@@ -131,6 +146,16 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
                   {link.label}
                 </Link>
               ))}
+              {/* --- user-accounts --- */}
+              <Link
+                href="/account"
+                aria-current={isCurrent("/account") ? "page" : undefined}
+                onClick={() => setMenuOpen(false)}
+                className={cx("flex h-12 items-center gap-2 border-b border-line text-base font-medium", isCurrent("/account") ? "text-ink" : "text-ink-2 hover:text-ink")}
+              >
+                <IconUsers size={18} />
+                <span className="truncate">{accountLabel}</span>
+              </Link>
             </nav>
             <LanguageSwitcher isMobileMenu />
             {!studio && (

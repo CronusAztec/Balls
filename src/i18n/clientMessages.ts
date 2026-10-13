@@ -22,6 +22,7 @@ export const PAGE_CLIENT_NAMESPACES: Readonly<Record<string, readonly string[]>>
   "": ["Modes", "FAQ", "Daily"], // --- site-redesign --- the live preview, the modes wall, the FAQ, the daily card
   "/feedback": ["Feedback"],
   "/pricing": ["Billing"], // --- paywall-gate --- the plans, the claim, the licence and Restore purchase
+  "/account": ["Account"], // --- user-accounts --- sign up, sign in, the connected channels
 };
 
 /** The static 404 page (a client component end to end): the NotFound text, the navbar and the footer. */

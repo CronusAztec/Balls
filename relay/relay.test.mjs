@@ -23,6 +23,10 @@ import {
   tiktokChunks,
   tiktokErrorMessage,
   coverMsOf, // --- mode-thumbnails ---
+  RateLimiter, // --- user-accounts ---
+  hashPassword,
+  normalizeEmail,
+  verifyPassword,
 } from "./server.mjs";
 
 /*
@@ -278,7 +282,8 @@ describe("helpers", () => {
     const cfg = readConfig({ PORT: "9000", RELAY_ALLOWED_ORIGINS: "https://a.example/, http://localhost:3000", IG_LOGIN: "instagram", TIKTOK_SOURCE: "pull", RELAY_MAX_UPLOAD_MB: "50" });
     expect(cfg.port).toBe(9000);
     expect(cfg.publicUrl).toBe("http://localhost:9000");
-    expect(cfg.allowedOrigins).toEqual(["https://a.example", "http://localhost:3000"]);
+    expect(cfg.allowedOrigins).toEqual(["https://a.example", "http://localhost:3000", "app://jumpingballslive"]); // --- user-accounts --- the Windows app is always allowed
+    expect(readConfig({ RELAY_ALLOW_APP: "0" }).allowedOrigins).toEqual([]);
     expect(cfg.instagram.login).toBe("instagram");
     expect(cfg.tiktok.source).toBe("pull");
     expect(cfg.maxUploadBytes).toBe(50 * MB);
@@ -660,3 +665,138 @@ describe("the cover frame", () => {
   });
 });
 // --- end mode-thumbnails ---
+
+/* --- user-accounts --- Sign-up, sign-in, sessions: a user's connected accounts follow them to every browser. */
+
+describe("user accounts", () => {
+  const signup = (base, email = "alice@example.com", password = "correct horse", extra = {}) => api(base, "/api/auth/signup", { method: "POST", body: { email, password, ...extra }, origin: "https://site.example" });
+
+  it("hashes passwords with scrypt and normalises emails", async () => {
+    const hash = await hashPassword("s3cret-pass");
+    expect(hash).toMatch(/^scrypt\$[0-9a-f]{32}\$[0-9a-f]{128}$/);
+    expect(await verifyPassword("s3cret-pass", hash)).toBe(true);
+    expect(await verifyPassword("s3cret-pasS", hash)).toBe(false);
+    expect(await verifyPassword("x", "garbage")).toBe(false);
+    expect(await hashPassword("s3cret-pass")).not.toBe(hash); // salted
+    expect(normalizeEmail("  Alice@Example.COM ")).toBe("alice@example.com");
+    expect(normalizeEmail("nope")).toBeNull();
+    expect(normalizeEmail("a@b")).toBeNull();
+  });
+
+  it("limits attempts per key in a sliding window", () => {
+    let t = 0;
+    const limiter = new RateLimiter({ now: () => t });
+    expect([1, 2, 3].map(() => limiter.hit("k", 3, 1000))).toEqual([true, true, true]);
+    expect(limiter.hit("k", 3, 1000)).toBe(false);
+    expect(limiter.hit("other", 3, 1000)).toBe(true);
+    t = 1500;
+    expect(limiter.hit("k", 3, 1000)).toBe(true);
+  });
+
+  it("signs up, then the session token acts as the user's key and never exposes the password hash", async () => {
+    const { base, dir } = await startRelay({ fetchImpl: platformMock([]).fetchImpl });
+    const health = await api(base, "/api/health");
+    expect(health.json.signup).toBe(true);
+    const made = await signup(base, "Alice@Example.com", "correct horse", { name: "  Alice  " });
+    expect(made.status).toBe(201);
+    expect(made.json.user).toEqual(expect.objectContaining({ email: "alice@example.com", name: "Alice" }));
+    expect(made.json.token).toMatch(/^jbs_/);
+    expect(Date.parse(made.json.expiresAt)).toBeGreaterThan(Date.now());
+    expect(JSON.stringify(made.json)).not.toMatch(/scrypt|passwordHash/);
+    const me = await api(base, "/api/me", { key: made.json.token });
+    expect(me.status).toBe(200);
+    expect(me.json.user.email).toBe("alice@example.com");
+    expect((await api(base, "/api/accounts", { key: made.json.token })).json.accounts).toEqual([]);
+    // Only hashes reach the disk.
+    const disk = fs.readFileSync(path.join(dir, "relay.json"), "utf8");
+    expect(disk).not.toContain(made.json.token);
+    expect(disk).not.toContain("correct horse");
+    // An admin key is not a user.
+    const key = await adminKey(base, "Bob");
+    expect((await api(base, "/api/me", { key: key.key })).json.user).toBeNull();
+    // The user's key is listed for the admin but cannot be used as an access key.
+    const keys = (await api(base, "/api/keys", { key: ENV.RELAY_ADMIN_KEY })).json.keys;
+    expect(keys.find((k) => k.label === "alice@example.com")).toEqual(expect.objectContaining({ user: true }));
+    expect((await api(base, "/api/accounts", { key: "jbs_forged" })).status).toBe(401);
+  });
+
+  it("refuses bad emails, short passwords, duplicates and closed sign-up", async () => {
+    const { base } = await startRelay({ fetchImpl: platformMock([]).fetchImpl });
+    expect((await signup(base, "not-an-email")).json.error.code).toBe("bad_email");
+    expect((await signup(base, "a@example.com", "short")).json.error.code).toBe("weak_password");
+    expect((await signup(base, "a@example.com", "x".repeat(201))).json.error.code).toBe("bad_password");
+    expect((await signup(base, "a@example.com")).status).toBe(201);
+    const dup = await signup(base, "A@EXAMPLE.com", "another password");
+    expect(dup.status).toBe(409);
+    expect(dup.json.error.code).toBe("email_taken");
+    const closed = await startRelay({ fetchImpl: platformMock([]).fetchImpl, env: { RELAY_SIGNUP: "off" } });
+    expect((await api(closed.base, "/api/health")).json.signup).toBe(false);
+    expect((await signup(closed.base)).json.error.code).toBe("signup_closed");
+  });
+
+  it("signs in with the right password only and rate-limits guesses", async () => {
+    const { base } = await startRelay({ fetchImpl: platformMock([]).fetchImpl });
+    await signup(base);
+    const login = (password, email = "alice@example.com") => api(base, "/api/auth/login", { method: "POST", body: { email, password } });
+    const ok = await login("correct horse");
+    expect(ok.status).toBe(200);
+    expect(ok.json.token).toMatch(/^jbs_/);
+    expect((await api(base, "/api/me", { key: ok.json.token })).json.user.email).toBe("alice@example.com");
+    expect((await login("wrong password")).json.error.code).toBe("bad_credentials");
+    expect((await login("whatever", "nobody@example.com")).json.error.code).toBe("bad_credentials");
+    for (let i = 0; i < 12; i++) await login("wrong password");
+    expect((await login("correct horse")).json.error.code).toBe("rate_limited");
+  });
+
+  it("signs out one session, changes the password (ending the others) and deletes the account with its connections", async () => {
+    const { fetchImpl } = platformMock([
+      { method: "POST", url: "https://oauth2.googleapis.com/token", reply: { body: { access_token: "ya29.first", expires_in: 3599, refresh_token: "yt-refresh-1", scope: "https://www.googleapis.com/auth/youtube.upload" } } },
+      { method: "GET", url: "https://www.googleapis.com/youtube/v3/channels", reply: { body: { items: [{ id: "UC123", snippet: { title: "Smoke Channel", customUrl: "@smokechannel" } }] } } },
+    ]);
+    const { base, relay } = await startRelay({ fetchImpl });
+    const first = (await signup(base)).json;
+    const second = (await api(base, "/api/auth/login", { method: "POST", body: { email: "alice@example.com", password: "correct horse" } })).json;
+    // Connect a YouTube channel through the session token.
+    expect((await signIn(base, first.token, "youtube", "yt-code")).callback.status).toBe(200);
+    expect((await api(base, "/api/accounts", { key: second.token })).json.accounts).toHaveLength(1); // the same user from a second browser
+    // Logout ends only that session.
+    expect((await api(base, "/api/auth/logout", { method: "POST", key: second.token })).json.ok).toBe(true);
+    expect((await api(base, "/api/me", { key: second.token })).status).toBe(401);
+    expect((await api(base, "/api/me", { key: first.token })).status).toBe(200);
+    // Change the password: wrong current, weak new, then right.
+    const change = (current, next, key = first.token) => api(base, "/api/auth/password", { method: "POST", key, body: { current, next } });
+    expect((await change("nope nope", "a brand new one")).json.error.code).toBe("bad_credentials");
+    expect((await change("correct horse", "short")).json.error.code).toBe("weak_password");
+    const third = (await api(base, "/api/auth/login", { method: "POST", body: { email: "alice@example.com", password: "correct horse" } })).json;
+    expect((await change("correct horse", "a brand new one")).json.ok).toBe(true);
+    expect((await api(base, "/api/me", { key: third.token })).status).toBe(401); // other sessions end
+    expect((await api(base, "/api/me", { key: first.token })).status).toBe(200); // the one that changed it stays
+    expect((await api(base, "/api/auth/login", { method: "POST", body: { email: "alice@example.com", password: "correct horse" } })).status).toBe(401);
+    // Deleting needs the password and takes the connected accounts with it.
+    expect((await api(base, "/api/auth/user", { method: "DELETE", key: first.token, body: { password: "wrong one" } })).status).toBe(401);
+    expect(relay.store.data.accounts).toHaveLength(1);
+    expect((await api(base, "/api/auth/user", { method: "DELETE", key: first.token, body: { password: "a brand new one" } })).json.ok).toBe(true);
+    expect(relay.store.data.accounts).toHaveLength(0);
+    expect(relay.store.data.users).toHaveLength(0);
+    expect((await api(base, "/api/me", { key: first.token })).status).toBe(401);
+    expect((await signup(base)).status).toBe(201); // the email is free again
+  });
+
+  it("expires sessions and keeps users across a restart", async () => {
+    let t = 1_700_000_000_000;
+    const dir = tmp();
+    cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const store = new Store(path.join(dir, "relay.json"), { now: () => t });
+    const user = store.createUser({ email: "a@example.com", name: "A", passwordHash: await hashPassword("password1") });
+    const session = store.createSession(user.id, 1000);
+    expect(store.sessionFor(session.token)?.userId).toBe(user.id);
+    const again = new Store(path.join(dir, "relay.json"), { now: () => t });
+    expect(again.userByEmail("a@example.com")?.id).toBe(user.id);
+    expect(again.sessionFor(session.token)?.userId).toBe(user.id);
+    t += 1001;
+    expect(again.sessionFor(session.token)).toBeNull();
+    // Revoking the user's key through the admin API removes the user too.
+    expect(again.deleteKey(user.keyId)).toBe(true);
+    expect(again.userByEmail("a@example.com")).toBeNull();
+  });
+});

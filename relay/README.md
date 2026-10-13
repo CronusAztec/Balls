@@ -63,6 +63,29 @@ fly deploy
 On Railway: **New Project → Deploy from GitHub repo**, set the service's root directory to `relay`, add a volume mounted at
 `/data`, and the same variables (Railway sets `PORT`).
 
+## User accounts (sign up, sign in)
+
+Besides access keys, the relay has **user accounts**: anyone opens the site's (or the Windows app's) **Account** page, creates
+an account with an email and a password, and connects their own TikTok, Instagram and YouTube accounts – as many as they
+like. They sign in on another browser, the installed app or another computer and everything is there.
+
+- A sign-up or sign-in answers with a **session token** (`jbs_…`, 30 days, `RELAY_SESSION_DAYS`). It works exactly like an
+  access key (`Authorization: Bearer …`), so every call below – accounts, connect links, publishing, jobs – is the user's own.
+  The page keeps it in the browser and gives the Publish block a relay profile named after the user's email.
+- Passwords are stored as **scrypt** hashes with a random salt, sessions as SHA-256 hashes; neither goes back to a browser.
+  Sign-ups are limited to 10 per hour per address, sign-ins to 30 per 15 minutes per address and 10 per 15 minutes per email
+  (an unknown email takes as long as a wrong password). Changing the password ends the user's other sessions; deleting the
+  account forgets the user, their sessions and every connected account.
+- `RELAY_SIGNUP=off` closes sign-up (existing users and access keys keep working). With a team relay you may prefer that, and
+  hand out keys with `POST /api/keys` instead. An admin's key list (`GET /api/keys`) shows user accounts as keys with
+  `user: true`; revoking one deletes that user.
+- The Windows app's origin `app://jumpingballslive` is allowed to call the relay without being listed in
+  `RELAY_ALLOWED_ORIGINS` (`RELAY_ALLOW_APP=0` turns that off), and the sign-in popup reports back to it.
+- Behind a proxy (every host above), the limits go by the last `X-Forwarded-For` entry (`RELAY_TRUST_PROXY=1`, the default).
+
+For the site and the app to use the relay, build them with its address: the repository variable `PUBLISH_RELAY_URL` (passed as
+`NEXT_PUBLIC_PUBLISH_RELAY_URL` by `deploy.yml` and `desktop.yml`). Without it the Account page asks the visitor for the address.
+
 ## Access keys (several people on one relay)
 
 The admin key (`RELAY_ADMIN_KEY`) only manages keys; it cannot post.
@@ -148,8 +171,13 @@ All JSON; `Authorization: Bearer <access key>` unless noted; CORS for the origin
 
 | Method and path | What it does |
 | --- | --- |
-| `GET /api/health` | No key. `{ ok, name, version, platforms: { tiktok, instagram, youtube } }` – which platforms have app keys |
-| `GET /api/me` | The key's `{ id, label }` and the platforms |
+| `GET /api/health` | No key. `{ ok, name, version, platforms: { tiktok, instagram, youtube }, signup }` – which platforms have app keys, and whether the relay takes new accounts |
+| `GET /api/me` | The key's `{ id, label }`, the signed-in `user` (or `null` for an access key) and the platforms |
+| `POST /api/auth/signup` | No key. `{ email, password, name? }` → `201 { token, expiresAt, user }`; `400 bad_email` / `weak_password` (8–200 characters), `409 email_taken`, `403 signup_closed`, `429 rate_limited` |
+| `POST /api/auth/login` | No key. `{ email, password }` → `{ token, expiresAt, user }`; `401 bad_credentials`, `429 rate_limited` |
+| `POST /api/auth/logout` | Session token. Ends that session |
+| `POST /api/auth/password` | Session token. `{ current, next }`; ends the user's other sessions |
+| `DELETE /api/auth/user` | Session token. `{ password }`; deletes the user, their sessions and every connected account |
 | `POST /api/keys` | **Admin key.** `{ label }` → `{ id, label, key }` (the key is shown once) |
 | `GET /api/keys` / `DELETE /api/keys/:id` | **Admin key.** List keys (no secrets) / revoke one and forget its accounts |
 | `GET /api/accounts` | The key's accounts: `{ id, platform, name, handle, avatar, connectedAt, status: ok \| expired, note }` |
@@ -174,4 +202,5 @@ publish flows of all three platforms against mocked platform endpoints, with the
 - Serve it over **HTTPS** only (every host above does). Keys travel in the `Authorization` header, never in URLs.
 - `RELAY_ALLOWED_ORIGINS` is the CORS allow-list and the list of pages a sign-in popup may report back to.
 - Clip URLs are 128-bit random and expire after `RELAY_MEDIA_TTL_HOURS` (24 h by default).
-- There is no rate limiting: give keys only to people you trust, and revoke a key you no longer need.
+- Sign-up and sign-in are rate limited (see User accounts); everything else is not, so give access keys only to people you
+  trust, revoke a key you no longer need and consider `RELAY_SIGNUP=off` on a private relay.

@@ -17,10 +17,19 @@
  *     upload; with retries and messages that say what to do (an app not yet approved included);
  *   - ACCESS KEYS: the admin (RELAY_ADMIN_KEY) creates one per person (POST /api/keys); every key sees only the accounts
  *     it connected, so a team or several creators share one relay, each with their own TikTok / Instagram / YouTube accounts.
+ *   - USER ACCOUNTS (--- user-accounts ---): anyone can sign up with an email and a password (POST /api/auth/signup, off with
+ *     RELAY_SIGNUP=off); the user gets a session token that works exactly like an access key (`Authorization: Bearer jbs_…`),
+ *     so the accounts a user connects – any number of TikTok, Instagram and YouTube ones – follow them to every browser and
+ *     to the Windows app. Passwords are kept only as scrypt hashes, sessions only as SHA-256 hashes.
  *
  * API (JSON, CORS for RELAY_ALLOWED_ORIGINS; `Authorization: Bearer <key>`):
  *   GET    /api/health                   no key: name, version, the platforms with app keys
- *   GET    /api/me                       the key's label and the platforms
+ *   GET    /api/me                       the key's label, the signed-in user (or null) and the platforms
+ *   POST   /api/auth/signup              { email, password, name? } → { token, expiresAt, user } – a new user account
+ *   POST   /api/auth/login               { email, password } → { token, expiresAt, user }
+ *   POST   /api/auth/logout              ends the session of the token sent
+ *   POST   /api/auth/password            { current, next } → changes the password, ends the user's other sessions
+ *   DELETE /api/auth/user                { password } → deletes the user, their sessions and every connected account
  *   POST   /api/keys        (admin)      { label } → { id, label, key } – the key is shown once
  *   GET    /api/keys        (admin)      the keys (no secrets) and their account counts
  *   DELETE /api/keys/:id    (admin)      revokes a key and forgets its accounts
@@ -48,6 +57,8 @@ export const RELAY_NAME = "jumpingballslive-relay";
 export const RELAY_VERSION = "1.0.0";
 export const PLATFORMS = ["tiktok", "instagram", "youtube"];
 export const VISIBILITIES = ["public", "unlisted", "private"];
+/** The origin of the Windows app's pages (desktop/src/protocol.ts APP_ORIGIN). */
+export const APP_ORIGIN = "app://jumpingballslive";
 const MB = 1024 * 1024;
 
 /* ================================================================== configuration */
@@ -64,8 +75,13 @@ export function readConfig(env = process.env) {
     port,
     host: env.RELAY_HOST || "0.0.0.0",
     publicUrl: String(env.RELAY_PUBLIC_URL || `http://localhost:${port}`).replace(/\/+$/, ""),
-    allowedOrigins: list(env.RELAY_ALLOWED_ORIGINS),
+    // --- user-accounts --- the Windows app's own origin (app://jumpingballslive: only that app can have it, a browser page cannot)
+    // is always allowed, so the exe signs in and connects channels without another setting (RELAY_ALLOW_APP=0 turns it off).
+    allowedOrigins: [...list(env.RELAY_ALLOWED_ORIGINS), ...(env.RELAY_ALLOW_APP === "0" ? [] : [APP_ORIGIN])],
     adminKey: String(env.RELAY_ADMIN_KEY || ""),
+    signup: String(env.RELAY_SIGNUP || "").toLowerCase() !== "off", // --- user-accounts --- anyone may create an account
+    sessionTtlMs: Math.max(1, Number(env.RELAY_SESSION_DAYS || 30)) * 24 * 3600 * 1000,
+    trustProxy: env.RELAY_TRUST_PROXY !== "0",
     dataDir: path.resolve(env.RELAY_DATA_DIR || "relay-data"),
     maxUploadBytes: Math.max(1, Number(env.RELAY_MAX_UPLOAD_MB || 300)) * MB,
     mediaTtlMs: Math.max(1, Number(env.RELAY_MEDIA_TTL_HOURS || 24)) * 3600 * 1000,
@@ -128,6 +144,67 @@ export function redact(text, secrets) {
   return out;
 }
 
+/* ================================================================== --- user-accounts --- passwords and limits */
+
+const scrypt = (password, salt) =>
+  new Promise((resolve, reject) => {
+    crypto.scrypt(String(password), salt, 64, { N: 16384, r: 8, p: 1, maxmem: 64 * MB }, (err, key) => (err ? reject(err) : resolve(key)));
+  });
+
+export const PASSWORD_MIN = 8;
+export const PASSWORD_MAX = 200;
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** An email in its stored form (trimmed, lower-cased), or null when it is not one. */
+export function normalizeEmail(value) {
+  const email = String(value ?? "").trim().toLowerCase();
+  return email.length <= 254 && EMAIL_PATTERN.test(email) ? email : null;
+}
+
+/** "scrypt$<salt>$<hash>" (hex) of a password. */
+export async function hashPassword(password) {
+  const salt = crypto.randomBytes(16);
+  const key = await scrypt(password, salt);
+  return `scrypt$${salt.toString("hex")}$${key.toString("hex")}`;
+}
+
+/** Whether `password` is the one `stored` was made of (constant time). */
+export async function verifyPassword(password, stored) {
+  const [kind, saltHex, keyHex] = String(stored || "").split("$");
+  if (kind !== "scrypt" || !saltHex || !keyHex) return false;
+  const expected = Buffer.from(keyHex, "hex");
+  const actual = await scrypt(password, Buffer.from(saltHex, "hex"));
+  return expected.length === actual.length && crypto.timingSafeEqual(expected, actual);
+}
+
+/** What an unknown email is checked against, so that it takes as long as a wrong password. */
+const DUMMY_PASSWORD_HASH = `scrypt$${"00".repeat(16)}$${"00".repeat(64)}`;
+
+/** A sliding-window limiter: `hit(key, max, windowMs)` is false once `key` was hit `max` times within the window. */
+export class RateLimiter {
+  constructor({ now = () => Date.now() } = {}) {
+    this.now = now;
+    this.hits = new Map();
+  }
+
+  hit(key, max, windowMs) {
+    const now = this.now();
+    const recent = (this.hits.get(key) ?? []).filter((t) => now - t < windowMs);
+    if (recent.length >= max) {
+      this.hits.set(key, recent);
+      return false;
+    }
+    recent.push(now);
+    this.hits.set(key, recent);
+    return true;
+  }
+
+  sweep(windowMs = 3600 * 1000) {
+    const now = this.now();
+    for (const [key, list] of this.hits) if (list.every((t) => now - t >= windowMs)) this.hits.delete(key);
+  }
+}
+
 /* ================================================================== the account store */
 
 /**
@@ -138,14 +215,16 @@ export class Store {
   constructor(file, { now = () => Date.now() } = {}) {
     this.file = file;
     this.now = now;
-    this.data = { version: 1, keys: [], accounts: [] };
+    this.data = { version: 1, keys: [], accounts: [], users: [], sessions: [] };
     this.load();
   }
 
   load() {
     try {
       const raw = JSON.parse(fs.readFileSync(this.file, "utf8"));
-      if (raw && Array.isArray(raw.keys) && Array.isArray(raw.accounts)) this.data = { version: 1, keys: raw.keys, accounts: raw.accounts };
+      if (raw && Array.isArray(raw.keys) && Array.isArray(raw.accounts)) {
+        this.data = { version: 1, keys: raw.keys, accounts: raw.accounts, users: Array.isArray(raw.users) ? raw.users : [], sessions: Array.isArray(raw.sessions) ? raw.sessions : [] };
+      }
     } catch (err) {
       if (err && err.code !== "ENOENT") throw new Error(`Cannot read ${this.file}: ${err.message}`);
     }
@@ -180,15 +259,104 @@ export class Store {
   }
 
   listKeys() {
-    return this.data.keys.map((k) => ({ id: k.id, label: k.label, createdAt: k.createdAt, accounts: this.data.accounts.filter((a) => a.keyId === k.id).length }));
+    return this.data.keys.map((k) => ({ id: k.id, label: k.label, createdAt: k.createdAt, user: !!k.userId, accounts: this.data.accounts.filter((a) => a.keyId === k.id).length }));
   }
 
   /** Revokes a key and forgets its accounts. */
   deleteKey(id) {
-    const before = this.data.keys.length;
+    const key = this.data.keys.find((k) => k.id === id);
+    if (!key) return false;
     this.data.keys = this.data.keys.filter((k) => k.id !== id);
-    if (this.data.keys.length === before) return false;
     this.data.accounts = this.data.accounts.filter((a) => a.keyId !== id);
+    // --- user-accounts --- a user's key goes with the user (and their sessions)
+    if (key.userId) {
+      this.data.users = this.data.users.filter((u) => u.id !== key.userId);
+      this.data.sessions = this.data.sessions.filter((x) => x.userId !== key.userId);
+    }
+    this.save();
+    return true;
+  }
+
+  /* ---------------------------------------------------------- --- user-accounts --- users and their sessions */
+
+  /** The user with this (lower-cased) email, or null. */
+  userByEmail(email) {
+    return this.data.users.find((u) => u.email === email) ?? null;
+  }
+
+  userById(id) {
+    return this.data.users.find((u) => u.id === id) ?? null;
+  }
+
+  /**
+   * A new user and the key that owns their accounts (the key has no secret of its own: it is reached only through the
+   * user's sessions). `passwordHash` comes from hashPassword(). Throws RelayHttpError 409 when the email is taken.
+   */
+  createUser({ email, name, passwordHash }) {
+    if (this.userByEmail(email)) throw new RelayHttpError(409, "email_taken", "An account with this email already exists – sign in instead.");
+    const userId = `u_${randomHex(6)}`;
+    const key = { id: `k_${randomHex(6)}`, label: email, hash: "", userId, createdAt: iso(this.now()) };
+    const user = { id: userId, email, name, passwordHash, keyId: key.id, createdAt: iso(this.now()) };
+    this.data.keys.push(key);
+    this.data.users.push(user);
+    this.save();
+    return user;
+  }
+
+  setPassword(userId, passwordHash, exceptSessionId = null) {
+    const user = this.userById(userId);
+    if (!user) return false;
+    user.passwordHash = passwordHash;
+    this.data.sessions = this.data.sessions.filter((x) => x.userId !== userId || x.id === exceptSessionId);
+    this.save();
+    return true;
+  }
+
+  /** Deletes a user, their sessions, their key and every account connected through it. */
+  deleteUser(userId) {
+    const user = this.userById(userId);
+    if (!user) return false;
+    this.data.users = this.data.users.filter((u) => u.id !== userId);
+    this.data.sessions = this.data.sessions.filter((x) => x.userId !== userId);
+    this.data.keys = this.data.keys.filter((k) => k.id !== user.keyId);
+    this.data.accounts = this.data.accounts.filter((a) => a.keyId !== user.keyId);
+    this.save();
+    return true;
+  }
+
+  /** A session for the user: the token is returned once and kept only as its SHA-256. At most 20 sessions per user. */
+  createSession(userId, ttlMs) {
+    const token = `jbs_${crypto.randomBytes(32).toString("base64url")}`;
+    const now = this.now();
+    const record = { id: `s_${randomHex(6)}`, userId, hash: sha256(token), createdAt: iso(now), expiresAt: now + ttlMs };
+    this.data.sessions = this.data.sessions.filter((x) => x.expiresAt > now);
+    const mine = this.data.sessions.filter((x) => x.userId === userId);
+    if (mine.length >= 20) {
+      const drop = new Set(mine.slice(0, mine.length - 19).map((x) => x.id));
+      this.data.sessions = this.data.sessions.filter((x) => !drop.has(x.id));
+    }
+    this.data.sessions.push(record);
+    this.save();
+    return { token, id: record.id, expiresAt: record.expiresAt };
+  }
+
+  /** The live session of a token, or null. */
+  sessionFor(token) {
+    if (!token || typeof token !== "string" || !token.startsWith("jbs_")) return null;
+    const hash = Buffer.from(sha256(token), "hex");
+    const now = this.now();
+    let found = null;
+    for (const x of this.data.sessions) {
+      const other = Buffer.from(String(x.hash), "hex");
+      if (other.length === hash.length && crypto.timingSafeEqual(other, hash) && x.expiresAt > now) found = x;
+    }
+    return found;
+  }
+
+  deleteSession(id) {
+    const before = this.data.sessions.length;
+    this.data.sessions = this.data.sessions.filter((x) => x.id !== id);
+    if (this.data.sessions.length === before) return false;
     this.save();
     return true;
   }
@@ -990,6 +1158,7 @@ export function createRelay(options = {}) {
   const states = new StateStore({ now });
   const media = new MediaStore(path.join(cfg.dataDir, "media"), { ttlMs: cfg.mediaTtlMs, now });
   const jobs = new Map();
+  const limiter = new RateLimiter({ now }); // --- user-accounts --- sign-up / sign-in attempts
   const ctx = {
     cfg,
     fetch: options.fetch ?? ((url, init) => fetch(url, init)),
@@ -1024,10 +1193,48 @@ export function createRelay(options = {}) {
     const m = /^Bearer\s+(.+)$/i.exec(String(req.headers.authorization || ""));
     return m ? m[1].trim() : "";
   };
+  /**
+   * The key a request acts as: an access key, or – --- user-accounts --- – the key of the user a session token belongs to
+   * (`req.session` / `req.user` are set then). Everything below (accounts, publishing, jobs) is owned by that key.
+   */
   const requireKey = (req) => {
-    const key = store.keyFor(bearer(req));
+    const token = bearer(req);
+    if (token.startsWith("jbs_")) {
+      const session = store.sessionFor(token);
+      const user = session ? store.userById(session.userId) : null;
+      const key = user ? store.data.keys.find((k) => k.id === user.keyId) : null;
+      if (!key) throw new RelayHttpError(401, "session_expired", "Your session has ended – sign in again.");
+      req.session = session;
+      req.user = user;
+      return key;
+    }
+    const key = store.keyFor(token);
     if (!key) throw new RelayHttpError(401, "unauthorized", "Unknown access key – ask the relay's admin for one (POST /api/keys).");
     return key;
+  };
+  const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, createdAt: u.createdAt });
+  /** The address a request came from (the proxy's last X-Forwarded-For entry when RELAY_TRUST_PROXY is on). */
+  const clientIp = (req) => {
+    if (cfg.trustProxy) {
+      const forwarded = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean);
+      if (forwarded.length) return forwarded[forwarded.length - 1];
+    }
+    return req.socket?.remoteAddress || "unknown";
+  };
+  const readJson = async (req, limit = 16 * 1024) => {
+    const body = await readBody(req, limit);
+    try {
+      const value = body.length ? JSON.parse(body.toString("utf8")) : {};
+      if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("not an object");
+      return value;
+    } catch {
+      throw new RelayHttpError(400, "bad_request", "Expected a JSON object.");
+    }
+  };
+  const tooMany = (retryMinutes) => new RelayHttpError(429, "rate_limited", `Too many attempts – try again in about ${retryMinutes} minutes.`);
+  const sessionAnswer = (user) => {
+    const created = store.createSession(user.id, cfg.sessionTtlMs);
+    return { token: created.token, expiresAt: new Date(created.expiresAt).toISOString(), user: publicUser(user) };
   };
   const requireAdmin = (req) => {
     if (!cfg.adminKey) throw new RelayHttpError(403, "forbidden", "RELAY_ADMIN_KEY is not set on this relay.");
@@ -1116,10 +1323,71 @@ export function createRelay(options = {}) {
     if (method === "OPTIONS") return void res.writeHead(204).end();
 
     if (url.pathname === "/" && method === "GET") return sendJson(res, 200, { name: RELAY_NAME, version: RELAY_VERSION, docs: "https://github.com/CronusAztec/Balls/tree/main/relay" });
-    if (url.pathname === "/api/health" && method === "GET") return sendJson(res, 200, { ok: true, name: RELAY_NAME, version: RELAY_VERSION, platforms: platforms() });
+    if (url.pathname === "/api/health" && method === "GET") return sendJson(res, 200, { ok: true, name: RELAY_NAME, version: RELAY_VERSION, platforms: platforms(), signup: cfg.signup });
     if (url.pathname === "/api/me" && method === "GET") {
       const key = requireKey(req);
-      return sendJson(res, 200, { name: RELAY_NAME, version: RELAY_VERSION, key: { id: key.id, label: key.label }, platforms: platforms() });
+      return sendJson(res, 200, { name: RELAY_NAME, version: RELAY_VERSION, key: { id: key.id, label: key.label }, user: req.user ? publicUser(req.user) : null, platforms: platforms() });
+    }
+
+    // --- user-accounts --- sign up, sign in, sign out, change the password, delete the account
+    if (parts[0] === "api" && parts[1] === "auth") {
+      const action = parts[2];
+      if (parts.length === 3 && method === "POST" && action === "signup") {
+        if (!cfg.signup) throw new RelayHttpError(403, "signup_closed", "This relay is not taking new accounts (RELAY_SIGNUP=off).");
+        const ip = clientIp(req);
+        if (!limiter.hit(`signup:${ip}`, 10, 3600 * 1000)) throw tooMany(60);
+        const body = await readJson(req);
+        const email = normalizeEmail(body.email);
+        if (!email) throw new RelayHttpError(400, "bad_email", "Enter a valid email address.");
+        const password = typeof body.password === "string" ? body.password : "";
+        if (password.length < PASSWORD_MIN) throw new RelayHttpError(400, "weak_password", `Use a password of at least ${PASSWORD_MIN} characters.`);
+        if (password.length > PASSWORD_MAX) throw new RelayHttpError(400, "bad_password", `Use a password of at most ${PASSWORD_MAX} characters.`);
+        const name = (typeof body.name === "string" ? body.name.trim() : "").slice(0, 60) || email.split("@")[0];
+        const user = store.createUser({ email, name, passwordHash: await hashPassword(password) });
+        return sendJson(res, 201, sessionAnswer(user));
+      }
+      if (parts.length === 3 && method === "POST" && action === "login") {
+        const ip = clientIp(req);
+        const body = await readJson(req);
+        const email = normalizeEmail(body.email);
+        const password = typeof body.password === "string" ? body.password.slice(0, PASSWORD_MAX) : "";
+        if (!limiter.hit(`login:${ip}`, 30, 15 * 60 * 1000) || (email && !limiter.hit(`login-email:${email}`, 10, 15 * 60 * 1000))) throw tooMany(15);
+        const user = email ? store.userByEmail(email) : null;
+        // An unknown email costs the same time as a wrong password.
+        const ok = await verifyPassword(password, user ? user.passwordHash : DUMMY_PASSWORD_HASH);
+        if (!user || !ok) throw new RelayHttpError(401, "bad_credentials", "Wrong email or password.");
+        return sendJson(res, 200, sessionAnswer(user));
+      }
+      if (parts.length === 3 && method === "POST" && action === "logout") {
+        requireKey(req);
+        if (!req.session) throw new RelayHttpError(400, "not_a_session", "Only a signed-in session can be signed out.");
+        store.deleteSession(req.session.id);
+        return sendJson(res, 200, { ok: true });
+      }
+      if (parts.length === 3 && method === "POST" && action === "password") {
+        requireKey(req);
+        if (!req.user) throw new RelayHttpError(400, "not_a_session", "Sign in with your email and password to change it.");
+        if (!limiter.hit(`password:${req.user.id}`, 10, 15 * 60 * 1000)) throw tooMany(15);
+        const body = await readJson(req);
+        const current = typeof body.current === "string" ? body.current.slice(0, PASSWORD_MAX) : "";
+        const next = typeof body.next === "string" ? body.next : "";
+        if (!(await verifyPassword(current, req.user.passwordHash))) throw new RelayHttpError(401, "bad_credentials", "The current password is wrong.");
+        if (next.length < PASSWORD_MIN) throw new RelayHttpError(400, "weak_password", `Use a password of at least ${PASSWORD_MIN} characters.`);
+        if (next.length > PASSWORD_MAX) throw new RelayHttpError(400, "bad_password", `Use a password of at most ${PASSWORD_MAX} characters.`);
+        store.setPassword(req.user.id, await hashPassword(next), req.session.id);
+        return sendJson(res, 200, { ok: true });
+      }
+      if (parts.length === 3 && method === "DELETE" && action === "user") {
+        requireKey(req);
+        if (!req.user) throw new RelayHttpError(400, "not_a_session", "Sign in with your email and password to delete the account.");
+        if (!limiter.hit(`password:${req.user.id}`, 10, 15 * 60 * 1000)) throw tooMany(15);
+        const body = await readJson(req);
+        const password = typeof body.password === "string" ? body.password.slice(0, PASSWORD_MAX) : "";
+        if (!(await verifyPassword(password, req.user.passwordHash))) throw new RelayHttpError(401, "bad_credentials", "The password is wrong.");
+        store.deleteUser(req.user.id);
+        return sendJson(res, 200, { ok: true });
+      }
+      throw new RelayHttpError(404, "not_found", "Not found.");
     }
 
     if (parts[0] === "api" && parts[1] === "keys") {
@@ -1267,6 +1535,7 @@ export function createRelay(options = {}) {
   function sweep() {
     media.sweep();
     states.sweep();
+    limiter.sweep();
     for (const [id, job] of jobs) if (now() - Date.parse(job.createdAt) > cfg.mediaTtlMs) jobs.delete(id);
   }
 
@@ -1278,7 +1547,7 @@ export function createRelay(options = {}) {
     return new Promise((resolve) => server.listen(port, host, () => resolve(server)));
   }
 
-  return { cfg, ctx, store, states, media, jobs, handle, runJob, sweep, listen };
+  return { cfg, ctx, store, states, media, jobs, limiter, handle, runJob, sweep, listen };
 }
 
 /* ================================================================== main */
@@ -1307,8 +1576,8 @@ async function main() {
   }
   const relay = createRelay({ config: cfg });
   const warn = [];
-  if (!cfg.adminKey) warn.push("RELAY_ADMIN_KEY is not set: POST /api/keys is off (use `node relay/server.mjs create-key <label>`).");
-  if (cfg.allowedOrigins.length === 0) warn.push("RELAY_ALLOWED_ORIGINS is empty: browsers cannot call the relay (add e.g. https://cronusaztec.github.io).");
+  if (!cfg.adminKey) warn.push("RELAY_ADMIN_KEY is not set: POST /api/keys is off (use `node relay/server.mjs create-key <label>`). Users can still sign up (RELAY_SIGNUP).");
+  if (cfg.allowedOrigins.every((o) => o === APP_ORIGIN)) warn.push("RELAY_ALLOWED_ORIGINS is empty: browsers cannot call the relay (add e.g. https://cronusaztec.github.io).");
   if (!process.env.RELAY_PUBLIC_URL) warn.push(`RELAY_PUBLIC_URL is not set: OAuth callbacks and clip URLs use ${cfg.publicUrl}.`);
   const apps = configuredPlatforms(cfg);
   await relay.listen();

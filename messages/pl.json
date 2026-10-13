@@ -14,7 +14,8 @@
     "openMenu": "Otwórz menu",
     "closeMenu": "Zamknij menu",
     "back": "Wróć",
-    "pricing": "Cennik"
+    "pricing": "Cennik",
+    "account": "Konto"
   },
   "SimulatorPage": {
     "heading": "Symulator fizyki piłki",
@@ -2717,7 +2718,7 @@
     },
     "publishing": {
       "title": "12. Publikowanie na TikToku, Instagramie i YouTube",
-      "content": "Blok Publikuj w symulatorze wysyła klip tylko wtedy, gdy klikniesz przycisk wysyłania lub udostępniania. Szybkie udostępnianie przekazuje plik do arkusza udostępniania urządzenia albo go pobiera. Wysyłka na YouTube idzie prosto z twojej przeglądarki do Google z tokenem dostępu przechowywanym w pamięci lokalnej przeglądarki (usunięcie konta w bloku go kasuje). TikTok, Instagram – i YouTube, jeśli wybierzesz – idą przez serwer relay prowadzony przez osobę, która dała ci klucz dostępu: przechowuje on połączone konta z ich tokenami i trzyma każdy wysłany klip pod trudnym do odgadnięcia linkiem przez 24 godziny, aby platforma mogła go pobrać.",
+      "content": "Blok Publikuj w symulatorze wysyła klip tylko wtedy, gdy klikniesz przycisk wysyłania lub udostępniania. Szybkie udostępnianie przekazuje plik do arkusza udostępniania urządzenia albo go pobiera. Wysyłka na YouTube idzie prosto z twojej przeglądarki do Google z tokenem dostępu przechowywanym w pamięci lokalnej przeglądarki (usunięcie konta w bloku go kasuje). TikTok, Instagram – i YouTube, jeśli wybierzesz – idą przez serwer relay. Logujesz się do niego kluczem dostępu od osoby, która go prowadzi, albo kontem założonym na stronie Konto. Dla konta relay przechowuje twój adres e-mail, podane imię, hash hasła z solą (nigdy samo hasło) i połączone kanały wraz z tokenami, dopóki nie usuniesz konta na tej stronie. Relay trzyma też każdy wysłany klip pod trudnym do odgadnięcia linkiem przez 24 godziny, aby platforma mogła go pobrać.",
       "youtube1": "Wysyłka na YouTube korzysta z usług YouTube API: wysyłając, akceptujesz",
       "ytTermsLink": "Warunki korzystania z YouTube",
       "youtube2": ", a Google przetwarza dane zgodnie z",
@@ -4152,7 +4153,10 @@
       }
     },
     "loopStyle": "Styl pętli",
-    "loopStyleTip": "Słowa klipów z pętlą: hasło małymi literami zaczynające się od liczby i kończące 🔊, prosty fakt oraz #satisfying #oddlysatisfying z tagami tematu (twoje zmiany zostaną zastąpione)"
+    "loopStyleTip": "Słowa klipów z pętlą: hasło małymi literami zaczynające się od liczby i kończące 🔊, prosty fakt oraz #satisfying #oddlysatisfying z tagami tematu (twoje zmiany zostaną zastąpione)",
+    "accountSignedOut": "Załóż konto lub zaloguj się, by mieć swoje kanały na każdym urządzeniu.",
+    "accountSignedIn": "Zalogowano jako {name}. Twoje kanały są poniżej.",
+    "accountLink": "Konto"
   },
   "Unlimited": {
     "label": "Szerokie suwaki",
@@ -5651,5 +5655,103 @@
   "StringDuel": {
     "banner": "FINAŁOWY POJEDYNEK",
     "threads": "NICI"
+  },
+  "Account": {
+    "metaTitle": "Twoje konto – {siteName}",
+    "metaDescription": "Załóż darmowe konto i połącz dowolnie wiele kont TikTok, Instagram i YouTube. Idą z tobą do każdej przeglądarki i do aplikacji na Windows.",
+    "eyebrow": "Konto",
+    "title": "Jedno konto dla wszystkich kanałów",
+    "lede": "Zarejestruj się raz. Połącz tyle kont TikTok, Instagram i YouTube, ile chcesz. Idą z tobą do każdej przeglądarki i do aplikacji na Windows.",
+    "free": "Założenie konta i łączenie kanałów jest darmowe. Wysyłanie klipów ze studia to funkcja Pro.",
+    "tabs": {
+      "label": "Formularz konta",
+      "signUp": "Załóż konto",
+      "signIn": "Zaloguj się"
+    },
+    "form": {
+      "name": "Imię",
+      "nameHint": "Opcjonalnie. Widoczne tylko na tej stronie.",
+      "email": "E-mail",
+      "password": "Hasło",
+      "passwordHint": "Co najmniej 8 znaków.",
+      "createAccount": "Załóż konto",
+      "signIn": "Zaloguj się",
+      "working": "Chwileczkę…",
+      "agree": "Zakładając konto, akceptujesz <terms>regulamin</terms> i <privacy>politykę prywatności</privacy>."
+    },
+    "server": {
+      "summary": "Serwer",
+      "intro": "Konta działają na relayu. Ta wersja używa adresu poniżej. Zmień go tylko, jeśli prowadzisz własny relay.",
+      "label": "Adres relaya",
+      "placeholder": "https://moj-relay.onrender.com",
+      "save": "Użyj tego serwera",
+      "reset": "Użyj domyślnego",
+      "none": "Ta wersja nie ma serwera kont. Otwórz Serwer poniżej i wpisz adres swojego relaya.",
+      "checking": "Sprawdzanie serwera…",
+      "unreachable": "Serwer nie odpowiada. Sprawdź adres i spróbuj ponownie.",
+      "closed": "Ten serwer nie przyjmuje nowych kont. Zaloguj się.",
+      "ready": "Połączono z {host}."
+    },
+    "signedIn": {
+      "title": "Zalogowano jako {name}",
+      "signOut": "Wyloguj się",
+      "note": "Twoje kanały zostają połączone na każdym urządzeniu, na którym się zalogujesz."
+    },
+    "connections": {
+      "title": "Połączone kanały",
+      "intro": "Połącz wszystkie konta, na których publikujesz. W studiu zaznacz te, do których ma trafić klip.",
+      "count": "{count, plural, =0 {brak kont} one {# konto} few {# konta} many {# kont} other {# konta}}",
+      "loading": "Wczytywanie kanałów…",
+      "connect": "Połącz {platform}",
+      "another": "Dodaj kolejne konto {platform}",
+      "notSetUp": "{platform} nie jest jeszcze skonfigurowany na tym serwerze.",
+      "waiting": "Dokończ logowanie do {platform} w oknie, które się otworzyło…",
+      "cancel": "Anuluj",
+      "popupBlocked": "Okno logowania zostało zablokowane.",
+      "openSignIn": "Otwórz stronę logowania",
+      "disconnect": "Rozłącz {name}",
+      "reconnect": "Połącz ponownie",
+      "reload": "Odśwież listę",
+      "relayError": "Nie udało się wczytać listy kanałów: {error}"
+    },
+    "next": {
+      "title": "Wyślij pierwszy klip",
+      "text": "Nagraj lub wyeksportuj klip, potem otwórz Nagrywanie i Publikuj. Twoje kanały już tam są.",
+      "studio": "Otwórz studio"
+    },
+    "security": {
+      "title": "Bezpieczeństwo",
+      "currentPassword": "Obecne hasło",
+      "newPassword": "Nowe hasło",
+      "changePassword": "Zmień hasło",
+      "deleteTitle": "Usuń konto",
+      "deleteWarning": "To usuwa twoje konto i rozłącza wszystkie kanały. Nie można tego cofnąć.",
+      "deletePassword": "Twoje hasło",
+      "delete": "Usuń moje konto"
+    },
+    "notice": {
+      "passwordChanged": "Hasło zmienione. Na innych urządzeniach wylogowano cię.",
+      "sessionEnded": "Sesja się skończyła. Zaloguj się ponownie.",
+      "deleted": "Konto usunięte.",
+      "signedOut": "Wylogowano."
+    },
+    "errors": {
+      "network": "Nie można połączyć się z serwerem. Sprawdź internet i adres serwera.",
+      "badUrl": "To nie jest prawidłowy adres serwera.",
+      "badEmail": "Wpisz prawidłowy adres e-mail.",
+      "weakPassword": "Użyj hasła o długości co najmniej 8 znaków.",
+      "bad_email": "Wpisz prawidłowy adres e-mail.",
+      "weak_password": "Użyj hasła o długości co najmniej 8 znaków.",
+      "bad_password": "To hasło jest za długie.",
+      "email_taken": "Konto z tym adresem e-mail już istnieje. Zaloguj się.",
+      "bad_credentials": "Zły e-mail lub hasło.",
+      "rate_limited": "Za dużo prób. Odczekaj kilka minut i spróbuj ponownie.",
+      "signup_closed": "Ten serwer nie przyjmuje nowych kont.",
+      "session_expired": "Sesja się skończyła. Zaloguj się ponownie.",
+      "unauthorized": "Nie jesteś zalogowany. Zaloguj się ponownie.",
+      "server": "Serwer zawiódł. Spróbuj za chwilę.",
+      "unknown": "Coś poszło nie tak. Spróbuj ponownie."
+    },
+    "close": "Zamknij"
   }
 }

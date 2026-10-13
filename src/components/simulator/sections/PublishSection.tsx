@@ -16,6 +16,9 @@ import { SITE_NAME } from "@/lib/site";
 import { isDesktopApp } from "@/lib/desktop/bridge"; // --- desktop-exe ---
 import { gate } from "@/lib/billing/unlock"; // --- paywall-gate --- Publish sends videos: a Pro feature (a free visitor gets the Unlock dialog)
 import LockBadge from "@/components/billing/LockBadge"; // --- paywall-gate ---
+import Dialog from "@/components/ui/Dialog"; // --- user-accounts ---
+import AccountPanel from "@/components/account/AccountPanel"; // --- user-accounts ---
+import { useAccountHint } from "@/lib/account/hint"; // --- user-accounts ---
 
 import { IconClose, IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
 /*
@@ -469,6 +472,9 @@ export default function PublishSection({ t, search, matches, bot, loopCaptionOf 
   const c = getPublishController();
   const s = useSyncExternalStore(c.subscribe, c.getSnapshot, c.getServerSnapshot);
   const locale = useLocale();
+  const accountT = useTranslations("Account"); // --- user-accounts ---
+  const signedInAs = useAccountHint(); // --- user-accounts ---
+  const [accountOpen, setAccountOpen] = useState(false); // --- user-accounts --- the account dialog
   const [now, setNow] = useState(() => Date.now());
   // --- desktop-exe --- inside the Windows app (no direct YouTube sign-in there: app:// is no origin Google accepts)
   const [inApp, setInApp] = useState(false);
@@ -551,6 +557,18 @@ export default function PublishSection({ t, search, matches, bot, loopCaptionOf 
             <li>{p("pathRelay")}</li>
             <li>{p("pathShare")}</li>
           </ul>
+        )}
+        {/* --- user-accounts --- who is signed in, and the account dialog (sign up, sign in, connect channels) without leaving the studio */}
+        <p className="text-xs text-ink-3 leading-snug" data-testid="publish-account-line" data-signed-in={signedInAs ? "1" : "0"}>
+          {signedInAs ? p("accountSignedIn", { name: signedInAs }) : p("accountSignedOut")}{" "}
+          <button type="button" onClick={() => setAccountOpen(true)} className="text-accent underline cursor-pointer" data-testid="publish-account-open">
+            {p("accountLink")}
+          </button>
+        </p>
+        {accountOpen && (
+          <Dialog title={accountT("eyebrow")} closeLabel={accountT("close")} onClose={() => setAccountOpen(false)} bodyClassName="p-4 sm:p-6">
+            <AccountPanel embedded />
+          </Dialog>
         )}
         <Accounts s={s} p={p} now={now} inApp={inApp} />
         {inApp && (

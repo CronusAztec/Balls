@@ -18165,6 +18165,101 @@ await smokeBlock("string-battle-alive", async () => {
 // --- end string-battle-alive ---
 });
 
+// --- user-accounts --- The Account page (/account): sign up against a stubbed relay, the signed-in view with the channels of the
+// relay – two TikTok accounts and a YouTube channel –, the navbar showing the name, the session handed to the Publish block as
+// the relay profile "account", the account dialog inside the studio's Publish block, a session the relay no longer knows
+// signing the user out, and sign out taking the profile away again.
+await smokeBlock("user-accounts", async () => {
+  const origin = new URL(BASE).origin;
+  const RELAY = "https://relay.accounts.test";
+  const state = { alive: true, signups: [], logouts: 0 };
+  const accountCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  try {
+    const p = await accountCtx.newPage();
+    const accErrors = [];
+    p.on("pageerror", (e) => accErrors.push(`pageerror: ${e.message}`));
+    await accountCtx.route(`${RELAY}/**`, async (route) => {
+      const req = route.request();
+      const url = new URL(req.url());
+      const cors = { "access-control-allow-origin": origin, "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, DELETE, OPTIONS" };
+      const json = (body, status = 200) => route.fulfill({ status, headers: cors, contentType: "application/json", body: JSON.stringify(body) });
+      if (req.method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+      const user = { id: "u_smoke", email: "smoke@example.com", name: "Smokey" };
+      if (url.pathname === "/api/health") return json({ ok: true, platforms: { tiktok: true, instagram: false, youtube: true }, signup: true });
+      if (url.pathname === "/api/auth/signup" && req.method() === "POST") {
+        state.signups.push(req.postDataJSON());
+        return json({ token: "jbs_smoketoken", expiresAt: new Date(Date.now() + 30 * 864e5).toISOString(), user }, 201);
+      }
+      const authed = req.headers().authorization === "Bearer jbs_smoketoken";
+      if (!authed || !state.alive) return json({ error: { code: "session_expired", message: "Your session has ended" } }, 401);
+      if (url.pathname === "/api/me") return json({ name: "jumpingballslive-relay", version: "1.0.0", key: { id: "k_1", label: user.email }, user, platforms: { tiktok: true, instagram: false, youtube: true } });
+      if (url.pathname === "/api/accounts") {
+        return json({ accounts: [
+          { id: "a_t1", platform: "tiktok", name: "Smoke Tok", handle: "@smoketok", avatar: null, status: "ok" },
+          { id: "a_t2", platform: "tiktok", name: "Second Tok", handle: "@tok2", avatar: null, status: "ok" },
+          { id: "a_y1", platform: "youtube", name: "Smoke Channel", handle: "@smokechannel", avatar: null, status: "expired" },
+        ] });
+      }
+      if (url.pathname === "/api/auth/logout") {
+        state.logouts++;
+        return json({ ok: true });
+      }
+      return json({ error: { code: "not_found", message: "Not found." } }, 404);
+    });
+    await p.goto(`${BASE}/en/account/`, { waitUntil: "networkidle" });
+    await p.getByTestId("account-signed-out").waitFor();
+    // The build may or may not carry a relay address: set one explicitly in the Server block.
+    await p.getByTestId("account-server").evaluate((el) => (el.open = true));
+    await p.getByLabel("Relay address").fill(RELAY);
+    await p.getByRole("button", { name: "Use this server" }).click();
+    await p.getByText(`Connected to relay.accounts.test.`).waitFor({ timeout: 10000 });
+    await p.getByLabel("Email").fill("smoke@example.com");
+    await p.getByLabel("Name").fill("Smokey");
+    await p.getByLabel("Password", { exact: true }).fill("correct horse");
+    await p.getByTestId("account-submit").click();
+    await p.getByTestId("account-signed-in").waitFor({ timeout: 10000 });
+    const name = (await p.getByTestId("account-name").innerText()).trim();
+    const tiktok = await p.locator('[data-account-platform="tiktok"] [data-account-channel]').count();
+    await p.locator('[data-account-platform="youtube"] [data-account-channel]').waitFor();
+    const youtubeReconnect = await p.locator('[data-account-platform="youtube"]').getByRole("button", { name: "Reconnect" }).count();
+    const instagramOff = await p.locator('[data-account-connect="instagram"]').isDisabled();
+    const tiktokOn = !(await p.locator('[data-account-connect="tiktok"]').isDisabled());
+    const nav = await p.getByTestId("navbar-account").innerText();
+    check("user accounts: sign up on the Account page lists the relay's channels per platform, connects only what the relay has apps for, and the navbar names the user", name === "Signed in as Smokey" && tiktok === 2 && youtubeReconnect === 1 && instagramOff && tiktokOn && nav.trim() === "Smokey" && state.signups[0]?.email === "smoke@example.com" && state.signups[0]?.name === "Smokey", `(${JSON.stringify({ name, tiktok, youtubeReconnect, instagramOff, tiktokOn, nav: nav.trim(), signups: state.signups })})`);
+    const profile = async () => p.evaluate(() => JSON.parse(localStorage.getItem("jumpingballslive_publish") || "{}").relayProfiles?.map((r) => ({ id: r.id, label: r.label, url: r.url })) ?? []);
+    const profiles = await profile();
+    check("user accounts: the session is the Publish block's relay profile", profiles.length === 1 && profiles[0].id === "account" && profiles[0].label === "smoke@example.com" && profiles[0].url === RELAY, `(${JSON.stringify(profiles)})`);
+    // The studio: the Publish block says who is signed in and opens the account in a dialog.
+    await p.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    await p.getByRole("button", { name: /Recording/i }).first().click();
+    const line = p.getByTestId("publish-account-line");
+    await line.waitFor({ timeout: 10000 });
+    await p.getByTestId("publish-account-open").click();
+    await p.locator('dialog[open] [data-testid="account-signed-in"]').waitFor({ timeout: 10000 });
+    const lineText = (await line.innerText()).trim();
+    const nextHidden = (await p.locator("dialog[open] #account-next").count()) === 0;
+    check("user accounts: the studio's Publish block names the signed-in user and opens the account in a dialog", /Signed in as Smokey/.test(lineText) && nextHidden, `(${lineText})`);
+    await p.keyboard.press("Escape");
+    // A session the relay forgot signs the user out on the next visit.
+    state.alive = false;
+    await p.goto(`${BASE}/en/account/`, { waitUntil: "networkidle" });
+    await p.getByTestId("account-signed-out").waitFor({ timeout: 10000 });
+    check("user accounts: a session the relay no longer knows signs the user out and removes the profile", (await profile()).length === 0 && (await p.getByTestId("account-notice").innerText()).includes("Your session ended"));
+    // Sign out of a live session.
+    state.alive = true;
+    await p.getByTestId("account-tab-login").click();
+    await p.evaluate(() => localStorage.setItem("jumpingballslive_account", JSON.stringify({ version: 1, relayUrl: "https://relay.accounts.test", token: "jbs_smoketoken", expiresAt: Date.now() + 864e5, user: { id: "u_smoke", email: "smoke@example.com", name: "Smokey" } })));
+    await p.reload({ waitUntil: "networkidle" });
+    await p.getByTestId("account-signout").click();
+    await p.getByTestId("account-signed-out").waitFor();
+    check("user accounts: sign out ends the session on the relay and clears this browser", state.logouts === 1 && (await profile()).length === 0 && (await p.evaluate(() => !localStorage.getItem("jumpingballslive_account"))));
+    const bad = accErrors.filter((e) => !IGNORED_CONSOLE.test(e));
+    check("user accounts: no page errors", bad.length === 0, bad.length ? `\n   ${bad.slice(0, 5).join("\n   ")}` : "");
+  } finally {
+    await accountCtx.close().catch(() => {});
+  }
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

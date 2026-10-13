@@ -370,7 +370,7 @@ Where: the repository → **Settings → Secrets and variables → Actions**. Th
 | `LEGAL_ADDRESS` | variable | your business address in the terms |
 | `FEEDBACK_EMAIL` / `FEEDBACK_ENDPOINT` | variable | where the feedback form sends messages (optional) |
 | `ANALYTICS_SCRIPT_URL` / `ANALYTICS_SITE_ID` | variable | a privacy-friendly analytics script (optional) |
-| `YOUTUBE_CLIENT_ID` / `PUBLISH_RELAY_URL` | variable | the Publish feature's YouTube upload and relay (optional) |
+| `YOUTUBE_CLIENT_ID` / `PUBLISH_RELAY_URL` | variable | the Publish feature's YouTube upload and relay, and the relay the Account page (website and Windows app) signs in to (optional) |
 | `CLOUDFLARE_API_TOKEN` | secret | lets the "Deploy billing worker" workflow deploy the Worker |
 | `CLOUDFLARE_ACCOUNT_ID` | secret | your Cloudflare account, for the same workflow |
 | `WIN_CSC_LINK` / `WIN_CSC_KEY_PASSWORD` | secret | a code-signing certificate for the Windows app (optional, section 11) |

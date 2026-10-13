@@ -14,7 +14,8 @@
     "openMenu": "Abrir menú",
     "closeMenu": "Cerrar menú",
     "back": "Volver",
-    "pricing": "Precios"
+    "pricing": "Precios",
+    "account": "Cuenta"
   },
   "SimulatorPage": {
     "heading": "Simulador de física de pelotas",
@@ -2717,7 +2718,7 @@
     },
     "publishing": {
       "title": "12. Publicar en TikTok, Instagram y YouTube",
-      "content": "El bloque Publicar del simulador solo envía un clip cuando pulsas un botón de enviar o compartir. El envío rápido pasa el archivo al menú de compartir de tu dispositivo o lo descarga. Las subidas a YouTube van directamente de tu navegador a Google con un token de acceso guardado en el almacenamiento local del navegador (al quitar la cuenta en el bloque se borra). TikTok, Instagram – y YouTube, si lo eliges – pasan por un servidor relay gestionado por quien te dio su clave de acceso: guarda las cuentas que conectas con sus tokens y conserva cada clip subido en un enlace imposible de adivinar durante 24 horas para que la plataforma pueda descargarlo.",
+      "content": "El bloque Publicar del simulador solo envía un clip cuando pulsas un botón de enviar o compartir. El envío rápido pasa el archivo al menú de compartir de tu dispositivo o lo descarga. Las subidas a YouTube van directamente de tu navegador a Google con un token de acceso guardado en el almacenamiento local del navegador (al quitar la cuenta en el bloque se borra). TikTok, Instagram – y YouTube, si lo eliges – pasan por un servidor relay. Entras con una clave de acceso de quien lo gestiona o con una cuenta que creas en la página Cuenta. Para una cuenta, el relay guarda tu correo electrónico, el nombre que diste, un hash con sal de tu contraseña (nunca la contraseña) y los canales que conectas con sus tokens, hasta que borres la cuenta en esa página. El relay también conserva cada clip subido en un enlace imposible de adivinar durante 24 horas para que la plataforma pueda descargarlo.",
       "youtube1": "Las subidas a YouTube usan los Servicios de la API de YouTube: al subir aceptas las",
       "ytTermsLink": "Condiciones de servicio de YouTube",
       "youtube2": ", y Google trata los datos según la",
@@ -4152,7 +4153,10 @@
       }
     },
     "loopStyle": "Estilo bucle",
-    "loopStyleTip": "Las palabras de los clips en bucle: un gancho en minúsculas que empieza con un número y termina en 🔊, un dato sencillo y #satisfying #oddlysatisfying con las etiquetas del tema (tus cambios se sustituyen)"
+    "loopStyleTip": "Las palabras de los clips en bucle: un gancho en minúsculas que empieza con un número y termina en 🔊, un dato sencillo y #satisfying #oddlysatisfying con las etiquetas del tema (tus cambios se sustituyen)",
+    "accountSignedOut": "Crea una cuenta o inicia sesión para tener tus canales en cada dispositivo.",
+    "accountSignedIn": "Sesión iniciada como {name}. Tus canales están abajo.",
+    "accountLink": "Cuenta"
   },
   "Unlimited": {
     "label": "Deslizadores amplios",
@@ -5651,5 +5655,103 @@
   "StringDuel": {
     "banner": "DUELO FINAL",
     "threads": "HILOS"
+  },
+  "Account": {
+    "metaTitle": "Tu cuenta – {siteName}",
+    "metaDescription": "Crea una cuenta gratis y conecta tantas cuentas de TikTok, Instagram y YouTube como quieras. Te siguen en cada navegador y en la app de Windows.",
+    "eyebrow": "Cuenta",
+    "title": "Una cuenta para todos tus canales",
+    "lede": "Regístrate una vez. Conecta tantas cuentas de TikTok, Instagram y YouTube como quieras. Te siguen en cada navegador y en la app de Windows.",
+    "free": "Crear la cuenta y conectar canales es gratis. Enviar clips desde el estudio es una función Pro.",
+    "tabs": {
+      "label": "Formulario de la cuenta",
+      "signUp": "Crear cuenta",
+      "signIn": "Iniciar sesión"
+    },
+    "form": {
+      "name": "Nombre",
+      "nameHint": "Opcional. Solo se muestra en esta página.",
+      "email": "Correo electrónico",
+      "password": "Contraseña",
+      "passwordHint": "Mínimo 8 caracteres.",
+      "createAccount": "Crear cuenta",
+      "signIn": "Iniciar sesión",
+      "working": "Un momento…",
+      "agree": "Al crear la cuenta aceptas los <terms>términos</terms> y la <privacy>política de privacidad</privacy>."
+    },
+    "server": {
+      "summary": "Servidor",
+      "intro": "Las cuentas viven en un relay. Esta versión usa la dirección de abajo. Cámbiala solo si tienes tu propio relay.",
+      "label": "Dirección del relay",
+      "placeholder": "https://mi-relay.onrender.com",
+      "save": "Usar este servidor",
+      "reset": "Usar el predeterminado",
+      "none": "Esta versión no tiene un servidor de cuentas. Abre Servidor más abajo e introduce la dirección de tu relay.",
+      "checking": "Comprobando el servidor…",
+      "unreachable": "El servidor no responde. Revisa la dirección e inténtalo de nuevo.",
+      "closed": "Este servidor no admite cuentas nuevas. Inicia sesión.",
+      "ready": "Conectado a {host}."
+    },
+    "signedIn": {
+      "title": "Sesión iniciada como {name}",
+      "signOut": "Cerrar sesión",
+      "note": "Tus canales siguen conectados en cada dispositivo donde inicies sesión."
+    },
+    "connections": {
+      "title": "Canales conectados",
+      "intro": "Conecta todas las cuentas en las que publicas. En el estudio, marca a cuáles debe ir cada clip.",
+      "count": "{count, plural, =0 {sin cuentas} one {# cuenta} other {# cuentas}}",
+      "loading": "Cargando tus canales…",
+      "connect": "Conectar {platform}",
+      "another": "Añadir otra cuenta de {platform}",
+      "notSetUp": "{platform} aún no está configurado en este servidor.",
+      "waiting": "Termina de iniciar sesión en {platform} en la ventana que se ha abierto…",
+      "cancel": "Cancelar",
+      "popupBlocked": "Se ha bloqueado la ventana de inicio de sesión.",
+      "openSignIn": "Abrir la página de inicio de sesión",
+      "disconnect": "Desconectar {name}",
+      "reconnect": "Reconectar",
+      "reload": "Recargar la lista",
+      "relayError": "No se pudo cargar la lista de canales: {error}"
+    },
+    "next": {
+      "title": "Envía tu primer clip",
+      "text": "Graba o exporta un clip y abre Grabación y Publicar. Tus canales ya están ahí.",
+      "studio": "Abrir el estudio"
+    },
+    "security": {
+      "title": "Seguridad",
+      "currentPassword": "Contraseña actual",
+      "newPassword": "Contraseña nueva",
+      "changePassword": "Cambiar contraseña",
+      "deleteTitle": "Eliminar la cuenta",
+      "deleteWarning": "Se elimina tu cuenta y se desconectan todos los canales. No se puede deshacer.",
+      "deletePassword": "Tu contraseña",
+      "delete": "Eliminar mi cuenta"
+    },
+    "notice": {
+      "passwordChanged": "Contraseña cambiada. Se cerró la sesión en tus otros dispositivos.",
+      "sessionEnded": "Tu sesión ha terminado. Inicia sesión de nuevo.",
+      "deleted": "Cuenta eliminada.",
+      "signedOut": "Sesión cerrada."
+    },
+    "errors": {
+      "network": "No se puede conectar con el servidor. Revisa tu conexión y la dirección.",
+      "badUrl": "Esa dirección de servidor no es válida.",
+      "badEmail": "Introduce un correo electrónico válido.",
+      "weakPassword": "Usa una contraseña de al menos 8 caracteres.",
+      "bad_email": "Introduce un correo electrónico válido.",
+      "weak_password": "Usa una contraseña de al menos 8 caracteres.",
+      "bad_password": "Esa contraseña es demasiado larga.",
+      "email_taken": "Ya existe una cuenta con este correo. Inicia sesión.",
+      "bad_credentials": "Correo o contraseña incorrectos.",
+      "rate_limited": "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
+      "signup_closed": "Este servidor no admite cuentas nuevas.",
+      "session_expired": "Tu sesión ha terminado. Inicia sesión de nuevo.",
+      "unauthorized": "No has iniciado sesión. Inicia sesión de nuevo.",
+      "server": "El servidor ha fallado. Inténtalo de nuevo en un momento.",
+      "unknown": "Algo ha salido mal. Inténtalo de nuevo."
+    },
+    "close": "Cerrar"
   }
 }
