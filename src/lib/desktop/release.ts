@@ -28,4 +28,4 @@ export function versionedAssetNames(version: string): { setup: string; portable:
  * (tests/desktopAiFix.test.ts checks it, and its lock file's), so a release bumps both: `npm run release:desktop` writes this
  * line, and the push that carries it also deploys the site, so the page names the version the downloads serve.
  */
-export const DESKTOP_VERSION = "1.0.3";
+export const DESKTOP_VERSION = "1.1.0";
