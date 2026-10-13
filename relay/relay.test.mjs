@@ -902,7 +902,12 @@ describe("the VPS kit", () => {
     expect(bash("valid_origins 'https://a.example,https://www.a.example,http://localhost:3000'")).toBe(true);
     for (const bad of ["", "https://a.example/path", "ftp://a.example", "https://a.example,", "a.example", "https://a.example;x"]) expect(bash(`valid_origins '${bad}'`), bad).toBe(false);
     // The defaults the installer ships are valid by its own rules.
-    expect(bash('valid_origins "$DEFAULT_ORIGINS" && valid_branch "$DEFAULT_BRANCH"')).toBe(true);
+    expect(bash('valid_origins "$DEFAULT_ORIGINS" && valid_branch "$DEFAULT_BRANCH" && valid_repo "$REPO"')).toBe(true);
+    // The site is on Cloudflare: the old GitHub Pages address is not a default origin any more.
+    expect(bash('[[ "$DEFAULT_ORIGINS" != *github.io* ]] && [[ "$DEFAULT_ORIGINS" == "https://jumpingballslive.com,https://www.jumpingballslive.com" ]]')).toBe(true);
+    // A git address: https, ssh:// or scp-style – never with a user name or token inside, never an option.
+    for (const ok of ["https://github.com/CronusAztec/Balls.git", "git@github.com:CronusAztec/Balls.git", "ssh://git@github.com/CronusAztec/Balls.git", "https://git.example.com:8443/team/app"]) expect(bash(`valid_repo '${ok}'`), ok).toBe(true);
+    for (const bad of ["", "--upload-pack=x", "https://user:token@github.com/a/b.git", "http://github.com/a/b.git", "file:///etc/passwd", "git@github.com:a/b;rm -rf /", "github.com/a/b", "https://github.com/a b", "$(x)"]) expect(bash(`valid_repo '${bad}'`), bad).toBe(false);
   });
 
   it.skipIf(!hasBash)("refuses a missing or bad domain before it touches anything", () => {
@@ -922,6 +927,66 @@ describe("the VPS kit", () => {
     expect(run("relay.example.com", "--nonsense").err).toMatch(/unknown option/);
     expect(run("relay.example.com", "--caddyfile", "/etc/caddy/Caddyfile").err).toMatch(/only goes with --use-existing-caddy/);
     expect(run("relay.example.com", "--use-existing-caddy", "--caddyfile", "relative/Caddyfile").err).toMatch(/plain absolute path/);
+    // a private repository: the address and its deploy key are checked before anything is touched
+    expect(run("relay.example.com", "--repo", "https://user:token@github.com/a/b.git").err).toMatch(/no user name or token inside/);
+    expect(run("relay.example.com", "--repo").err).toMatch(/needs a git address/);
+    expect(run("relay.example.com", "--deploy-key", "relative/key").err).toMatch(/plain absolute path/);
+    expect(run("relay.example.com", "--deploy-key", "/nonexistent/jbl_deploy", "--repo", "git@github.com:a/b.git").err).toMatch(/does not exist/);
+  });
+
+  it.skipIf(!hasBash)("checks the deploy key: an SSH address, a file only its owner can read", () => {
+    const root = tmp();
+    cleanups.push(() => fs.rmSync(root, { recursive: true, force: true }));
+    const key = path.join(root, "jbl_deploy");
+    fs.writeFileSync(key, "-----BEGIN OPENSSH PRIVATE KEY-----\nx\n-----END OPENSSH PRIVATE KEY-----\n", { mode: 0o600 });
+    const check = (repo, mode) => {
+      fs.chmodSync(key, mode);
+      return spawnSync("bash", ["-c", `JBL_SOURCE_ONLY=1 source '${path.join(dir, "install.sh")}'; REPO='${repo}'; check_deploy_key '${key}'`], { encoding: "utf8" });
+    };
+    expect(check("git@github.com:a/b.git", 0o600).status).toBe(0);
+    expect(check("git@github.com:a/b.git", 0o400).status).toBe(0);
+    expect(check("git@github.com:a/b.git", 0o644).stderr).toMatch(/chmod 600/);
+    expect(check("git@github.com:a/b.git", 0o640).stderr).toMatch(/chmod 600/);
+    expect(check("https://github.com/a/b.git", 0o600).stderr).toMatch(/goes with an SSH address/);
+  });
+
+  it.skipIf(!hasBash)("gets the code with the deploy key, switches an existing checkout's remote only when asked, and explains a refusal", () => {
+    const root = tmp();
+    cleanups.push(() => fs.rmSync(root, { recursive: true, force: true }));
+    const bin = path.join(root, "bin");
+    const checkout = path.join(root, "checkout");
+    fs.mkdirSync(bin);
+    fs.mkdirSync(path.join(checkout, ".git"), { recursive: true });
+    fs.mkdirSync(path.join(checkout, "relay", "deploy"), { recursive: true });
+    fs.writeFileSync(path.join(checkout, "relay", "deploy", "docker-compose.yml"), "services: {}\n");
+    const log = path.join(root, "git.log");
+    // a stand-in git that records its arguments and the environment the installer gave it; GIT_FAIL makes the fetch fail
+    fs.writeFileSync(path.join(bin, "git"), `#!/bin/sh\necho "$GIT_SSH_COMMAND|$GIT_TERMINAL_PROMPT|$*" >> '${log}'\ncase "$*" in *"remote get-url"*) echo git@github.com:a/b.git;; esac\ncase "$*" in *fetch*) [ -z "$GIT_FAIL" ] || exit 128;; esac\nexit 0\n`, { mode: 0o755 });
+    const run = (vars, env = {}) =>
+      spawnSync("bash", ["-c", `JBL_SOURCE_ONLY=1 source '${path.join(dir, "install.sh")}'; DIR='${checkout}'; ${vars} fetch_code main`], { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, ...env } });
+
+    // no key, no --repo: the remote is left alone, git never waits for a password
+    let r = run("");
+    expect(r.status).toBe(0);
+    let lines = fs.readFileSync(log, "utf8").trim().split("\n");
+    expect(lines.some((l) => l.includes("remote set-url"))).toBe(false);
+    expect(lines.find((l) => l.includes("fetch"))).toMatch(/^\|0\|/);
+
+    // --repo and --deploy-key: the remote is switched, and every git command carries the key (IdentitiesOnly, no prompts)
+    fs.writeFileSync(log, "");
+    r = run("REPO='git@github.com:a/b.git'; REPO_GIVEN=1; DEPLOY_KEY='/root/.ssh/jbl_deploy';");
+    expect(r.status).toBe(0);
+    lines = fs.readFileSync(log, "utf8").trim().split("\n");
+    expect(lines.find((l) => l.includes("remote set-url origin git@github.com:a/b.git"))).toBeTruthy();
+    const fetchLine = lines.find((l) => l.includes("fetch")) ?? "";
+    expect(fetchLine).toContain("ssh -i /root/.ssh/jbl_deploy -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes");
+
+    // a refusal (a private repository without a key) ends with the way out, not with git's raw message alone
+    r = run("", { GIT_FAIL: "1" });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toMatch(/could not get branch main from git@github\.com:a\/b\.git/);
+    expect(r.stderr).toMatch(/--deploy-key/);
+    expect(r.stderr).toMatch(/A private repository/);
   });
 
   /* The mode for a server that already has a Caddy on ports 80 and 443: the relay's site is added to that Caddy's Caddyfile. */

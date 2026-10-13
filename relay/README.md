@@ -3,7 +3,7 @@
 A small, self-hosted server that lets the simulator's **Publish** block (Recording section) and the viral bot's CLI post
 clips to **TikTok**, **Instagram** and **YouTube** accounts – several per platform, for several people.
 
-The site itself is a static export on GitHub Pages: it cannot keep an app secret, and it cannot give Instagram or TikTok a
+The site itself is a static export on Cloudflare: it cannot keep an app secret, and it cannot give Instagram or TikTok a
 public URL to download a clip from. The relay does exactly those two things and nothing else:
 
 - it holds the **app secrets** (TikTok client secret, Meta app secret, Google client secret) in its environment and runs
@@ -41,7 +41,7 @@ front and use that URL as `RELAY_PUBLIC_URL`).
 2. **Root Directory** `relay`, **Runtime** Node, **Build Command** `npm install` (there is nothing to install), **Start
    Command** `node server.mjs`.
 3. **Environment**: the variables of `.env.example` – at least `RELAY_PUBLIC_URL` (the `https://<name>.onrender.com`
-   address Render gives you), `RELAY_ALLOWED_ORIGINS` (`https://cronusaztec.github.io` for this repository's Pages site),
+   address Render gives you), `RELAY_ALLOWED_ORIGINS` (`https://jumpingballslive.com,https://www.jumpingballslive.com` for this repository's site),
    `RELAY_CLIENT_IP_HEADER=CF-Connecting-IP` (so the sign-up limits count visitors, not Render's proxy), `RELAY_ADMIN_KEY`
    (optional: only for access keys) and the app keys of the platforms you want.
 4. Keys and accounts live in `RELAY_DATA_DIR`: on the free tier the disk is wiped on every deploy / restart, so add a
@@ -57,7 +57,7 @@ cd relay
 fly launch --no-deploy            # or: docker build -t jbl-relay .
 fly volumes create relay_data --size 1
 # fly.toml: [mounts] source = "relay_data", destination = "/data"   and   [http_service] internal_port = 8787
-fly secrets set RELAY_PUBLIC_URL=https://<app>.fly.dev RELAY_ALLOWED_ORIGINS=https://cronusaztec.github.io RELAY_ADMIN_KEY=… TIKTOK_CLIENT_KEY=… …
+fly secrets set RELAY_PUBLIC_URL=https://<app>.fly.dev RELAY_ALLOWED_ORIGINS=https://jumpingballslive.com,https://www.jumpingballslive.com RELAY_ADMIN_KEY=… TIKTOK_CLIENT_KEY=… …
 fly deploy
 ```
 
@@ -84,7 +84,7 @@ relay (for example `relay.jumpingballslive.com`) and ports 80 and 443 free.
    `BRANCH` is the branch with the kit (the product branch once the kit is merged). Read the script first if you like: it is
    [`relay/deploy/install.sh`](deploy/install.sh), a few hundred lines with a comment on every step. It installs Docker and git if they are missing, puts the
    code in `/opt/jumpingballslive`, writes `relay/deploy/.env` (the domain, `RELAY_PUBLIC_URL` and `RELAY_ALLOWED_ORIGINS`,
-   which defaults to this project's three site addresses; `--origins https://a.example,https://b.example` changes them),
+   which defaults to this project's two site addresses; `--origins https://a.example,https://b.example` changes them),
    opens ports 80 and 443 when `ufw` is already on, starts the relay and Caddy, waits until the relay answers on HTTPS and
    installs a nightly backup. It checks everything before it changes anything and stops with a plain message when something is
    off (another program on port 80, a wrong DNS record, another operating system).
@@ -107,6 +107,29 @@ the usual place). For nginx, Apache or anything else on the ports, run only the 
 without `COMPOSE_PROFILES=caddy` in `.env`) and pass your domain to `127.0.0.1:8787` with that server's own proxy settings:
 let it set `X-Forwarded-For` to the visitor's address (nginx: `proxy_set_header X-Forwarded-For $remote_addr;`), because the
 relay counts sign-ups by that.
+
+**A private repository.** The one-liner above downloads the installer from GitHub, which only works while the repository is
+public. Once it is private, the server needs a read-only key of its own (a *deploy key*: it can read this one repository and
+nothing else):
+
+1. On the server: `ssh-keygen -t ed25519 -N "" -C jbl-relay-deploy -f /root/.ssh/jbl_deploy` (the file is created readable by
+   root only) and `cat /root/.ssh/jbl_deploy.pub`.
+2. In GitHub: the repository → **Settings → Deploy keys → Add deploy key** → paste the line from step 1, leave **Allow write
+   access** off.
+3. Run the installer **from the checkout it made earlier** (no download needed) and tell it where to get the code:
+
+   ```bash
+   bash /opt/jumpingballslive/relay/deploy/install.sh relay.example.com --repo git@github.com:OWNER/REPO.git --deploy-key /root/.ssh/jbl_deploy
+   ```
+
+   It points the checkout's `origin` at that address, uses the key for its git commands only (the first connection accepts
+   GitHub's host key), updates the code and restarts the relay; `.env` and the data stay as they are. Later updates are the
+   same command. On a server with no checkout yet, clone the repository once with the same key
+   (`GIT_SSH_COMMAND="ssh -i /root/.ssh/jbl_deploy -o IdentitiesOnly=yes" git clone git@github.com:OWNER/REPO.git /opt/jumpingballslive`)
+   and run the installer from it. If you shared a Caddy before, add `--use-existing-caddy` as before.
+
+After the site moved to `jumpingballslive.com`, the `.env` of an older install may still list `https://cronusaztec.github.io` in
+`RELAY_ALLOWED_ORIGINS`; take it out (and run `docker compose up -d` in `relay/deploy`) when you no longer use that address.
 
 Day to day, from `/opt/jumpingballslive/relay/deploy`: `docker compose logs -f` shows the logs, `docker compose restart` restarts,
 and running the installer command again **updates** (it fetches the branch and rebuilds; your `.env` and data are kept).
@@ -221,7 +244,7 @@ days and the relay refreshes them when they get old.
 2. **OAuth consent screen**: External; scopes `.../auth/youtube.upload` and `.../auth/youtube.readonly`; add yourself (and
    whoever connects) as **Test users** while the app is in *Testing*.
 3. **Credentials → Create credentials → OAuth client ID → Web application**: **Authorized redirect URI**
-   `<relay>/oauth/youtube/callback` (for the browser-only path, add the site's origin – e.g. `https://cronusaztec.github.io`
+   `<relay>/oauth/youtube/callback` (for the browser-only path, add the site's origin – e.g. `https://jumpingballslive.com`
    – under **Authorized JavaScript origins** of the same or another client).
 4. Client ID / secret → `YT_CLIENT_ID` / `YT_CLIENT_SECRET`.
 5. While the consent screen is in *Testing*, refresh tokens expire after **7 days** (reconnect, or publish the app). Videos

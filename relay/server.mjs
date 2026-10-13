@@ -1347,7 +1347,7 @@ export function createRelay(options = {}) {
     cors(req, res, false);
     if (method === "OPTIONS") return void res.writeHead(204).end();
 
-    if (url.pathname === "/" && method === "GET") return sendJson(res, 200, { name: RELAY_NAME, version: RELAY_VERSION, docs: "https://github.com/CronusAztec/Balls/tree/main/relay" });
+    if (url.pathname === "/" && method === "GET") return sendJson(res, 200, { name: RELAY_NAME, version: RELAY_VERSION, docs: "https://jumpingballslive.com/" });
     if (url.pathname === "/api/health" && method === "GET") return sendJson(res, 200, { ok: true, name: RELAY_NAME, version: RELAY_VERSION, platforms: platforms(), signup: cfg.signup });
     if (url.pathname === "/api/me" && method === "GET") {
       const key = requireKey(req);
@@ -1602,7 +1602,7 @@ async function main() {
   const relay = createRelay({ config: cfg });
   const warn = [];
   if (!cfg.adminKey) warn.push("RELAY_ADMIN_KEY is not set: POST /api/keys is off (use `node relay/server.mjs create-key <label>`). Users can still sign up (RELAY_SIGNUP).");
-  if (cfg.allowedOrigins.every((o) => o === APP_ORIGIN)) warn.push("RELAY_ALLOWED_ORIGINS is empty: browsers cannot call the relay (add e.g. https://cronusaztec.github.io).");
+  if (cfg.allowedOrigins.every((o) => o === APP_ORIGIN)) warn.push("RELAY_ALLOWED_ORIGINS is empty: browsers cannot call the relay (add e.g. https://jumpingballslive.com).");
   if (!process.env.RELAY_PUBLIC_URL) warn.push(`RELAY_PUBLIC_URL is not set: OAuth callbacks and clip URLs use ${cfg.publicUrl}.`);
   const apps = configuredPlatforms(cfg);
   await relay.listen();

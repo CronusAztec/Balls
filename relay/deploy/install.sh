@@ -1,11 +1,17 @@
 #!/usr/bin/env bash
 # JumpingBallsLive relay on a VPS (feature vps-deploy): one command, safe to run again (a second run updates).
 #
+#   bash /opt/jumpingballslive/relay/deploy/install.sh relay.example.com        (again, from the checkout this script made: an update)
 #   curl -fsSL https://raw.githubusercontent.com/CronusAztec/Balls/BRANCH/relay/deploy/install.sh | bash -s -- relay.example.com --branch BRANCH
+#       (the one-liner only works while the repository is public; a private one needs --repo and --deploy-key, below)
 #
 # Options:  --branch NAME          the branch to deploy (default: the product branch)
+#           --repo URL             the git address to get the code from (default: this project's, https://github.com/CronusAztec/Balls.git).
+#                                  A private repository: its SSH address, git@github.com:OWNER/REPO.git, with --deploy-key.
+#           --deploy-key PATH      the private half of a READ-ONLY deploy key of that repository (GitHub: Settings → Deploy keys, "Allow
+#                                  write access" off), a file only root can read (chmod 600). Used for the git commands of this script only.
 #           --origins LIST         the sites allowed to call the relay: comma-separated https origins, no paths
-#                                  (default: this project's three: jumpingballslive.com, www.jumpingballslive.com, cronusaztec.github.io)
+#                                  (default: this project's two: jumpingballslive.com and www.jumpingballslive.com)
 #           --use-existing-caddy   a Caddy already holds ports 80 and 443 on this server: do not start a second one, add the relay's
 #                                  domain to the existing one as one more site. Its Caddyfile is backed up first, checked before and
 #                                  after, and put back if the check fails or another site on the server answers differently afterwards.
@@ -20,10 +26,12 @@
 set -euo pipefail
 
 REPO="https://github.com/CronusAztec/Balls.git"
+REPO_GIVEN=0
+DEPLOY_KEY=""
 DIR="/opt/jumpingballslive"
 BACKUPS="/var/backups/jbl-relay"
 DEFAULT_BRANCH="claude/optimistic-johnson-46x3qg"
-DEFAULT_ORIGINS="https://jumpingballslive.com,https://www.jumpingballslive.com,https://cronusaztec.github.io"
+DEFAULT_ORIGINS="https://jumpingballslive.com,https://www.jumpingballslive.com"
 RELAY_PORT=8787
 EXISTING_CADDY=0
 CADDYFILE=""
@@ -41,10 +49,12 @@ die() {
 
 usage() {
   cat <<'EOF'
-Usage: install.sh DOMAIN [--branch NAME] [--origins https://a.example,https://b.example]
+Usage: install.sh DOMAIN [--branch NAME] [--repo URL [--deploy-key PATH]] [--origins https://a.example,https://b.example]
                          [--use-existing-caddy [--caddyfile PATH]] [--skip-dns-check] [--no-firewall]
   DOMAIN               the name the relay answers on, e.g. relay.example.com (its A record must point at this server, DNS only)
   --branch             the branch of the repository to deploy
+  --repo               the git address to get the code from (a private repository: git@github.com:OWNER/REPO.git)
+  --deploy-key         the private key file of that repository's read-only deploy key (chmod 600)
   --origins            the sites allowed to call the relay (comma-separated origins, no paths)
   --use-existing-caddy add the relay to the Caddy already on this server instead of starting a second one
   --caddyfile          that Caddy's config file (default: found from the running Caddy, else /etc/caddy/Caddyfile)
@@ -63,6 +73,26 @@ valid_origins() {
 }
 
 valid_path() { [[ "$1" =~ ^/[A-Za-z0-9._/@+-]+$ ]]; }
+
+# A git address: https://host/path, ssh://git@host/path or git@host:path. No user name or token inside an https address: a private
+# repository is reached with a deploy key (--deploy-key), which never appears in a command line, the process list or .git/config.
+valid_repo() {
+  [[ "$1" != -* ]] && [[ "$1" =~ ^(https://[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9._/-]+|ssh://git@[A-Za-z0-9.-]+(:[0-9]+)?/[A-Za-z0-9._/-]+|git@[A-Za-z0-9.-]+:[A-Za-z0-9._/-]+)$ ]]
+}
+
+# The deploy key is a readable file that only its owner can read (ssh itself refuses anything else), for an SSH address.
+check_deploy_key() {
+  local key="$1"
+  valid_path "$key" || die "'$key' is not a plain absolute path"
+  [ -f "$key" ] || die "the deploy key $key does not exist"
+  [[ "$REPO" != https://* ]] || die "--deploy-key goes with an SSH address: --repo git@github.com:OWNER/REPO.git"
+  local mode
+  mode="$(stat -c %a "$key" 2>/dev/null || echo "")"
+  case "$mode" in
+    400 | 600) ;;
+    *) die "ssh refuses a key that others can read: chmod 600 $key" ;;
+  esac
+}
 
 check_os() {
   [ -r /etc/os-release ] || die "cannot tell the operating system (no /etc/os-release); this installer is for Debian or Ubuntu"
@@ -99,14 +129,21 @@ ensure_docker() {
 fetch_code() {
   local branch="$1"
   say "Getting the code (branch $branch)"
+  # never wait for a password on the terminal: a repository that wants one fails at once, with the hint below
+  export GIT_TERMINAL_PROMPT=0
+  if [ -n "$DEPLOY_KEY" ]; then
+    export GIT_SSH_COMMAND="ssh -i $DEPLOY_KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+  fi
+  local hint="If the repository is private, give this script a read-only deploy key: --repo git@github.com:OWNER/REPO.git --deploy-key /root/.ssh/jbl_deploy (relay/README.md, \"A private repository\")"
   if [ -d "$DIR/.git" ]; then
-    git -C "$DIR" fetch --quiet --depth 1 origin "$branch" </dev/null
+    if [ "$REPO_GIVEN" = 1 ]; then git -C "$DIR" remote set-url origin "$REPO"; fi
+    git -C "$DIR" fetch --quiet --depth 1 origin "$branch" </dev/null || die "could not get branch $branch from $(git -C "$DIR" remote get-url origin). $hint"
     git -C "$DIR" checkout --quiet --force -B deploy FETCH_HEAD
   else
     if [ -e "$DIR" ] && [ -n "$(ls -A "$DIR" 2>/dev/null)" ]; then
       die "$DIR exists and is not a checkout of this project: move it away first"
     fi
-    git clone --quiet --depth 1 --branch "$branch" "$REPO" "$DIR" </dev/null
+    git clone --quiet --depth 1 --branch "$branch" "$REPO" "$DIR" </dev/null || die "could not get branch $branch from $REPO. $hint"
   fi
   [ -f "$DIR/relay/deploy/docker-compose.yml" ] || die "branch $branch has no relay/deploy kit: use --branch with a branch that has it"
 }
@@ -396,6 +433,17 @@ main() {
         branch="$2"
         shift 2
         ;;
+      --repo)
+        [ $# -ge 2 ] || die "--repo needs a git address"
+        REPO="$2"
+        REPO_GIVEN=1
+        shift 2
+        ;;
+      --deploy-key)
+        [ $# -ge 2 ] || die "--deploy-key needs the path of a private key file"
+        DEPLOY_KEY="$2"
+        shift 2
+        ;;
       --origins)
         [ $# -ge 2 ] || die "--origins needs a comma-separated list"
         origins="$2"
@@ -436,6 +484,8 @@ main() {
   fi
   valid_domain "$domain" || die "'$domain' is not a valid domain name"
   valid_branch "$branch" || die "'$branch' is not a valid branch name"
+  valid_repo "$REPO" || die "--repo must be https://host/owner/repo.git or git@host:owner/repo.git (no user name or token inside: use --deploy-key)"
+  if [ -n "$DEPLOY_KEY" ]; then check_deploy_key "$DEPLOY_KEY"; fi
   valid_origins "$origins" || die "--origins must be comma-separated http(s) origins without paths, e.g. https://example.com,https://www.example.com"
   if [ -n "$CADDYFILE" ]; then
     [ "$EXISTING_CADDY" = 1 ] || die "--caddyfile only goes with --use-existing-caddy"
@@ -459,4 +509,4 @@ main() {
 }
 
 # JBL_SOURCE_ONLY=1 loads the functions without running them (relay/relay.test.mjs tests the checks and the Caddyfile edit that way).
-[ "${JBL_SOURCE_ONLY:-0}" = 1 ] || main "$@"
+[ "${JBL_SOURCE_ONLY:-0}" = 1 ] || { main "$@"; exit $?; }
