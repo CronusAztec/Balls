@@ -5,7 +5,7 @@ Windows app, and how to undo a bad release. The full launch checklist (payments,
 [GO-LIVE.md](GO-LIVE.md).
 
 GitHub only keeps the code and runs the builds: the website is served by Cloudflare, the Windows app's downloads and updates
-by Cloudflare too (the downloads host), so the repository can be private ("Making the repository private" below).
+by the Releases of a second, public repository that holds the installers only (the downloads repository), so this repository can be private ("Making the repository private" below).
 
 The **product branch** is `claude/optimistic-johnson-46x3qg`. If you rename it to `main` in GitHub (Settings → General →
 Default branch → the pencil icon), everything keeps working: both names are listed in the workflows. Other branches only get
@@ -19,7 +19,7 @@ Worker and the Windows app deploy from another branch only when you pick that br
 | --- | --- | --- | --- |
 | Website (jumpingballslive.com) | every push to the product branch | about 25 min | Actions → "Build and deploy the site" |
 | Payment Worker (Cloudflare) | a push that changes `billing/`, once the variable `BILLING_AUTODEPLOY` is `1` (the first deploy is by hand) | about 2 min, then a health check | Actions → "Deploy billing worker" |
-| Windows app | a push that changes the version in `desktop/package.json` | 8–15 min to the release; installed apps update within 4 hours or at their next start | Actions → "Windows app", then <https://downloads.jumpingballslive.com/latest.yml> |
+| Windows app | a push that changes the version in `desktop/package.json` | 8–15 min to the release; installed apps update within 4 hours or at their next start | Actions → "Windows app", then <https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download/latest.yml> |
 
 ## Ship a website change
 
@@ -47,9 +47,9 @@ it serves and fails if it is not this one. **A red run publishes nothing**: the 
    git push
    ```
 
-4. Watch Actions → "Windows app" (8–15 minutes). When it is green, <https://downloads.jumpingballslive.com> serves the
+4. Watch Actions → "Windows app" (8–15 minutes). When it is green, <https://github.com/CronusAztec/jumpingballslive-windows/releases/latest> serves the
    installer, the portable EXE, `SHA256SUMS.txt` (checksums) and `latest.yml` (what installed apps read), and GitHub →
-   Releases keeps `desktop-v1.0.4` as the archive (its notes list the changes since the last release by themselves). The
+   Releases in this repository keeps `desktop-v1.0.4` as the archive (its notes list the changes since the last release by themselves). The
    same push deploys the website, whose download page then names the new version.
 
 What your users see: the installed app checks 8 seconds after it starts and then every 4 hours. It downloads the update in
@@ -59,7 +59,7 @@ they click Restart or when they close the app. It never interrupts a render: Res
 - People on **1.0.2** must install the new version once by hand (its updater refuses unsigned updates). The download page
   and the release notes say so.
 - The **portable EXE** never updates itself; people download the new one from the download page.
-- Apps older than **1.1.0** look for updates in GitHub Releases, not on the downloads host: they only find a release while
+- Apps older than **1.1.0** look for updates in this repository's GitHub Releases, not in the downloads repository: they only find a release while
   the repository is public ("Making the repository private").
 
 ## Ship a Worker change
@@ -95,9 +95,10 @@ The browser test saves screenshots: open the run, scroll to **Artifacts** and do
 - **Worker**: revert the commit and push, or Cloudflare dashboard → Workers & Pages → the Worker → **Deployments** →
   **Rollback** (instant).
 - **Windows app**: apps that already installed the bad version keep it until you publish a higher one, so the real fix is
-  the next version (`npm run release:desktop -- 1.0.5`). To stop new downloads and updates at once: Cloudflare dashboard →
-  R2 → the bucket → delete `latest.yml`, `JumpingBallsLive-Setup.exe` and `JumpingBallsLive-portable.exe` (the download
-  buttons and update checks then fail until the fixed release is published). The GitHub release can stay as the archive.
+  the next version (`npm run release:desktop -- 1.0.5`). To stop new downloads and updates at once: open the downloads repository
+  (`CronusAztec/jumpingballslive-windows`) → Releases → the bad release → **Edit** → untick "Set as the latest release" and
+  tick the previous release's (or delete the bad one). The download buttons and update checks then serve the previous
+  release. The release in this repository can stay as the archive.
 
 ## Your own domain
 
@@ -114,7 +115,7 @@ add the address to the publish relay's `RELAY_ALLOWED_ORIGINS`. [GO-LIVE.md](GO-
 | The code, the builds | GitHub (a private repository and Actions) | free: 2,000 Actions minutes a month |
 | The website | a Cloudflare Worker with static assets | free plan |
 | The payment server | a Cloudflare Worker + KV | Workers Paid, $5 a month |
-| The Windows app's downloads and updates | a Cloudflare R2 bucket at `downloads.jumpingballslive.com` | free up to 10 GB |
+| The Windows app's downloads and updates | the Releases of a second, public GitHub repository (`jumpingballslive-windows`, installers only, no source code) | free |
 | The publish relay (accounts, TikTok / Instagram / YouTube connections) | your own server, `relay.jumpingballslive.com` | the server |
 
 **Actions minutes.** A private repository on the free GitHub plan has 2,000 minutes a month (GitHub Pro: 3,000). A website
@@ -125,36 +126,41 @@ minutes run out nothing deploys until the next month; take GitHub Pro or switch 
 The website's code people can see is scrambled (obfuscated), and every secret (payment keys, the licence signing key) lives
 in the Cloudflare Worker, not in the repository.
 
-## The downloads host
+## The downloads repository
 
-The installers and the update feed live in a Cloudflare R2 bucket that `downloads.jumpingballslive.com` serves, so nothing
-depends on GitHub. One-time setup, in the Cloudflare dashboard (the account that has `jumpingballslive.com`):
+The installers and the update feed live in the Releases of a second GitHub repository that is **public** and holds nothing
+else – no source code – so this repository can be private. The site's Download buttons and every installed app read
+`https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download/<file>`. Nothing depends on Cloudflare R2
+or on this repository being public. One-time setup:
 
-1. **R2 object storage** → enable R2 (Cloudflare may ask for a payment method first; the free allowance is 10 GB of
-   storage, a million uploads and ten million downloads a month, and downloads cost nothing – a release uses about 0.6 GB,
-   so about fifteen releases fit before the first cent).
-2. **Create bucket** → name it `jumpingballslive-downloads` (another name works if you set the repository variable
-   `R2_BUCKET` to it).
-3. Open the bucket (R2 object storage → Overview → the bucket) → **Settings → Custom Domains → Add** →
-   `downloads.jumpingballslive.com` → **Continue** → **Connect Domain** (Cloudflare creates the DNS record itself because the
-   domain is on your account). Wait until its status says **Active** (a few minutes; **Retry connection** if it sticks).
-4. **My Profile → API Tokens** → the token behind the repository secret `CLOUDFLARE_API_TOKEN` → **Edit** → add the
-   permission **Account → Workers R2 Storage → Edit** → save. The token's value does not change; no secret needs updating.
-5. Release the Windows app ("Release the Windows app" above), or run **Actions → "Windows app" → Run workflow** with **publish** ticked.
-   When it is green, <https://downloads.jumpingballslive.com/latest.yml> names the version and the website's download
-   buttons work.
+1. Create the repository `jumpingballslive-windows` under the same GitHub account: **Public**, with a README (a release needs
+   a first commit to point at; the README should only say what the app is and link the website). Done once.
+2. Create a token that can publish there and nowhere else: GitHub → your avatar → Settings → Developer settings →
+   Personal access tokens → **Fine-grained tokens** → Generate new token → Resource owner: your account → Repository access:
+   **Only select repositories** → `jumpingballslive-windows` → Permissions → Repository permissions → **Contents: Read and
+   write** → generate and copy it. Choose the longest expiry offered; a release fails with a plain message when it has expired.
+3. In this repository: Settings → Secrets and variables → Actions → **New repository secret** → name `DOWNLOADS_REPO_TOKEN`,
+   value the token.
+4. Release the Windows app ("Release the Windows app" above), or run **Actions → "Windows app" → Run workflow** with **publish**
+   ticked. When it is green, <https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download/latest.yml>
+   names the version and the website's download buttons work.
 
-The release job stops with a plain message if the two Cloudflare secrets are missing, and publishes nothing – no GitHub
-release either – when the upload fails, so a re-run starts clean. wrangler uploads at most 300 MiB per file: the installers
-are 150 MB; the CUDA build (`DESKTOP_CUDA=1`, about 180 MB more) would not fit.
+The release job stops with a plain message if the token is missing, creates the release as a draft with every file and
+publishes it in one step (an installed app that asks in between still sees the previous release), and publishes nothing – no
+release in this repository either – when that fails, so a re-run starts clean. GitHub accepts release files up to 2 GiB:
+the installers are 150 MB, and the CUDA build (`DESKTOP_CUDA=1`, about 180 MB more) fits too.
+
+Please keep this repository's name (`CronusAztec/jumpingballslive-windows`): it is built into every installed app's update
+address and cannot be changed for apps that are already installed (GitHub redirects a renamed repository, but do not rely on
+it). The repository variable `DOWNLOADS_REPO` only changes where new builds publish.
 
 ## Making the repository private
 
-Everything a visitor or an installed app needs is on Cloudflare, with one exception: **apps older than 1.1.0** look for
+Everything a visitor or an installed app needs is on Cloudflare or in the downloads repository, with one exception: **apps older than 1.1.0** look for
 updates in GitHub Releases, which a private repository hides. In this order:
 
-1. Do "The downloads host" above and release the Windows app once. That release is the bridge: older apps find it in GitHub
-   Releases (the repository is still public) and install it, and from then on every app looks at the downloads host.
+1. Do "The downloads repository" above and release the Windows app once. That release is the bridge: older apps find it in this
+   repository's GitHub Releases (still public) and install it, and from then on every app looks at the downloads repository.
 2. Wait. An app checks 8 seconds after it starts and every 4 hours, so anyone who opens it in the next days is updated.
    Whoever opens an old app only after the switch stays on the old version and must download the new one from the website
    once. About two weeks is a fair wait.
@@ -185,14 +191,15 @@ Set them under GitHub → Settings → Secrets and variables → Actions (the **
 | `BILLING_AUTODEPLOY` | variable | `1` deploys the payment Worker on every push that changes `billing/` |
 | `BILLING_API_URL` | variable | the Worker's address (`https://….workers.dev`); empty: the live one built into the workflows |
 | `LICENSE_PUBLIC_KEY` | variable | the public half of the licence key; empty: the live one built into the workflows |
-| `DOWNLOADS_URL` | variable | where the Windows app is downloaded and updated from; empty: `https://downloads.jumpingballslive.com` |
-| `R2_BUCKET` | variable | the R2 bucket behind it; empty: `jumpingballslive-downloads` |
-| `DESKTOP_CUDA` | variable | `1` packs the NVIDIA (CUDA) build of the local AI into automatic releases (about 180 MB more – too big for the upload today) |
+| `DOWNLOADS_REPO` | variable | the public repository new Windows releases are published to; empty: `CronusAztec/jumpingballslive-windows` |
+| `DOWNLOADS_URL` | variable | where the site links and the app updates from; empty: that repository's `releases/latest/download` |
+| `DESKTOP_CUDA` | variable | `1` packs the NVIDIA (CUDA) build of the local AI into automatic releases (about 180 MB more) |
 | `FEEDBACK_ENDPOINT`, `FEEDBACK_EMAIL` | variables | where the feedback form sends messages (with the repository private, set one of them or `SUPPORT_EMAIL`) |
 | `ANALYTICS_SCRIPT_URL`, `ANALYTICS_SITE_ID` | variables | the visitor statistics script, if you use one |
 | `YOUTUBE_CLIENT_ID` | variable | the Google sign-in for direct YouTube uploads from the Publish block |
 | `PUBLISH_RELAY_URL` | variable | the publish relay the Account page and the Publish block use; empty: `https://relay.jumpingballslive.com` |
-| `CLOUDFLARE_API_TOKEN` | secret | deploys the website and the Worker and uploads the Windows app; needs "Edit Cloudflare Workers" (with the zone permissions for custom domains), "Workers KV Storage: Edit" and "Workers R2 Storage: Edit" |
+| `CLOUDFLARE_API_TOKEN` | secret | deploys the website and the Worker; needs "Edit Cloudflare Workers" (with the zone permissions for custom domains) and "Workers KV Storage: Edit" |
 | `CLOUDFLARE_ACCOUNT_ID` | secret | your Cloudflare account id (Workers & Pages → right-hand column) |
+| `DOWNLOADS_REPO_TOKEN` | secret | a fine-grained token with Contents: Read and write on the downloads repository only; publishes the Windows app |
 | `WIN_CSC_LINK` | secret | the code-signing certificate (.pfx as base64) |
 | `WIN_CSC_KEY_PASSWORD` | secret | its password |

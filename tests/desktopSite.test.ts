@@ -69,10 +69,10 @@ describe("Desktop messages", () => {
 });
 
 describe("download links", () => {
-  it("point at the downloads host with fixed and versioned names, and the app updates from the same host", () => {
-    expect(DOWNLOADS_URL).toBe("https://downloads.jumpingballslive.com");
-    expect(latestAssetUrl(SETUP_ASSET)).toBe("https://downloads.jumpingballslive.com/JumpingBallsLive-Setup.exe");
-    expect(latestAssetUrl(PORTABLE_ASSET)).toBe("https://downloads.jumpingballslive.com/JumpingBallsLive-portable.exe");
+  it("point at the downloads repository with fixed and versioned names, and the app updates from the same place", () => {
+    expect(DOWNLOADS_URL).toBe("https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download");
+    expect(latestAssetUrl(SETUP_ASSET)).toBe("https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download/JumpingBallsLive-Setup.exe");
+    expect(latestAssetUrl(PORTABLE_ASSET)).toBe("https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download/JumpingBallsLive-portable.exe");
     expect(versionedAssetNames("1.2.0")).toEqual({ setup: "JumpingBallsLive-Setup-1.2.0.exe", portable: "JumpingBallsLive-1.2.0-portable.exe" });
     // electron-builder names the artifacts the same way.
     const config = fs.readFileSync(path.join(__dirname, "..", "desktop", "electron-builder.config.cjs"), "utf8");
@@ -81,9 +81,9 @@ describe("download links", () => {
     const workflow = fs.readFileSync(path.join(__dirname, "..", ".github", "workflows", "desktop.yml"), "utf8");
     expect(workflow).toContain(SETUP_ASSET);
     expect(workflow).toContain(PORTABLE_ASSET);
-    // electron-updater reads latest.yml from the same host (the generic provider), not from GitHub Releases
+    // electron-updater reads latest.yml from the same place (the generic provider on the downloads repository's latest release)
     expect(config).toContain('publish: [{ provider: "generic", url: updateUrl }]');
-    expect(config).toContain('(process.env.JBL_UPDATE_URL || "https://downloads.jumpingballslive.com")');
+    expect(config).toContain('(process.env.JBL_UPDATE_URL || "https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download")');
     expect(config).not.toMatch(/provider: "github"/);
     // and the built config really says so (what electron-builder writes into the app's app-update.yml)
     // eslint-disable-next-line @typescript-eslint/no-require-imports

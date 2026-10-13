@@ -110,7 +110,7 @@ jobs:
           NEXT_PUBLIC_PUBLISH_RELAY_URL: ${{ vars.PUBLISH_RELAY_URL || 'https://relay.jumpingballslive.com' }}
           NEXT_PUBLIC_LICENSE_PUBLIC_KEY: ${{ env.LICENSE_PUBLIC_KEY }}
           NEXT_PUBLIC_BILLING_API: ${{ env.BILLING_API_URL }}
-          # The download page's links: the downloads host (a repository variable DOWNLOADS_URL replaces the default).
+          # The download page's links: the downloads repository's latest release (a repository variable DOWNLOADS_URL replaces the default).
           NEXT_PUBLIC_DOWNLOADS_URL: ${{ vars.DOWNLOADS_URL }}
           # --- go-live-kit --- the operator's public details the legal pages show (docs/GO-LIVE.md); empty while unset.
           NEXT_PUBLIC_SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
@@ -356,14 +356,14 @@ jobs:
           echo "::error title=The site does not serve this build::$URL/build.txt does not name $GITHUB_SHA after 3 minutes (last answer: $last). If the domain is not attached to the Worker named in wrangler.toml, see Cloudflare dashboard → Workers & Pages → jumpingballslive → Settings → Domains & Routes; a 403 or a challenge page means a Cloudflare bot or firewall rule is turning GitHub's runners away (Security → Bots / WAF)."
           exit 1
 
-      # The download page links to the downloads host (a Cloudflare R2 bucket). A warning, not a failure, while it is not set up yet
-      # or the first release has not been published (docs/RELEASING.md, "The downloads host").
-      - name: The downloads host answers
+      # The download page links to the downloads repository (public, releases only). A warning, not a failure, while it does not exist
+      # yet or the first release has not been published (docs/RELEASING.md, "The downloads repository").
+      - name: The downloads repository answers
         env:
-          DOWNLOADS_URL: ${{ vars.DOWNLOADS_URL || 'https://downloads.jumpingballslive.com' }}
+          DOWNLOADS_URL: ${{ vars.DOWNLOADS_URL || 'https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download' }}
         run: |
-          if curl -fsSI --max-time 20 "$DOWNLOADS_URL/JumpingBallsLive-Setup.exe" > /dev/null; then
+          if curl -fsSIL --max-time 20 "$DOWNLOADS_URL/JumpingBallsLive-Setup.exe" > /dev/null; then
             echo "$DOWNLOADS_URL serves the installer"
           else
-            echo "::warning title=The Download buttons point at $DOWNLOADS_URL, which does not serve the installer yet::Set up the downloads host and publish a Windows release (docs/RELEASING.md, 'The downloads host'); until then the website's Download buttons show an error page."
+            echo "::warning title=The Download buttons point at $DOWNLOADS_URL, which does not serve the installer yet::Create the public downloads repository and publish a Windows release (docs/RELEASING.md, 'The downloads repository'); until then the website's Download buttons show an error page."
           fi

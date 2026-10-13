@@ -7,7 +7,7 @@ import { deployGuard } from "../scripts/go-live-check.mjs";
  * --- desktop-autorelease --- "One push updates everything": the workflows deploy the website only from the product branch, the
  * billing Worker on billing/ changes (once BILLING_AUTODEPLOY is on) and the Windows app on a version bump. Text checks (no YAML
  * dependency) of the strings that decide what runs where. The repository is private and only keeps the code: the website goes to
- * Cloudflare (a Worker serving jumpingballslive.com), the Windows app's downloads and updates to a Cloudflare R2 bucket.
+ * Cloudflare (a Worker serving jumpingballslive.com), the Windows app's downloads and updates to a public, releases-only GitHub repository.
  */
 
 const ROOT = path.join(__dirname, "..");
@@ -67,7 +67,7 @@ describe("deploy.yml: the website", () => {
     const job = jobSection(deploy, "deploy");
     expect(job).toContain("needs: [build, smoke, smoke-summary]");
     expect(job).toContain("name: site-out");
-    const order = ["- name: Check the Cloudflare secrets", "- name: Download the site", "- name: Install Wrangler", "- name: Deploy to Cloudflare", "- name: The new build answers", "- name: The downloads host answers"].map((n) => job.indexOf(n));
+    const order = ["- name: Check the Cloudflare secrets", "- name: Download the site", "- name: Install Wrangler", "- name: Deploy to Cloudflare", "- name: The new build answers", "- name: The downloads repository answers"].map((n) => job.indexOf(n));
     expect(order.every((i) => i > -1)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
     expect(job).toContain("run: npm ci --prefix billing");
@@ -145,23 +145,23 @@ describe("desktop.yml: the Windows app", () => {
     expect(desktop).toContain("NEXT_PUBLIC_PUBLISH_RELAY_URL: ${{ vars.PUBLISH_RELAY_URL || 'https://relay.jumpingballslive.com' }}");
   });
 
-  it("publishes to the downloads host first, checks it, and only then archives the release on GitHub", () => {
+  it("publishes to the downloads repository first, checks it, and only then archives the release on GitHub", () => {
     const release = jobSection(desktop, "release");
     const order = [
-      "- name: Check the Cloudflare secrets",
-      "- name: Install Wrangler",
+      "- name: Check the downloads repository token",
       "- name: Download the EXEs",
-      "- name: Publish to the downloads host (Cloudflare R2)",
-      "- name: The downloads host serves it",
+      "- name: Publish to the downloads repository",
+      "- name: The downloads repository serves it",
       "- name: Publish the GitHub Release",
     ].map((n) => release.indexOf(n));
     expect(order.every((i) => i > -1)).toBe(true);
     expect([...order].sort((x, y) => x - y)).toEqual(order);
-    expect(release).toContain('run: node scripts/release/publish-downloads.mjs --dir dist --version "$VERSION" --bucket "$R2_BUCKET"');
+    expect(release).toContain('run: node scripts/release/publish-downloads.mjs --dir dist --version "$VERSION" --repo "$DOWNLOADS_REPO"');
     expect(release).toContain('run: node scripts/release/publish-downloads.mjs --verify --dir dist --version "$VERSION" --url "$DOWNLOADS_URL"');
-    expect(desktop).toContain("DOWNLOADS_URL: ${{ vars.DOWNLOADS_URL || 'https://downloads.jumpingballslive.com' }}");
-    expect(desktop).toContain("R2_BUCKET: ${{ vars.R2_BUCKET || 'jumpingballslive-downloads' }}");
-    // the installed apps' update feed is the downloads host (electron-builder writes it into app-update.yml)
+    expect(desktop).toContain("DOWNLOADS_REPO: ${{ vars.DOWNLOADS_REPO || 'CronusAztec/jumpingballslive-windows' }}");
+    expect(desktop).toContain("GH_TOKEN: ${{ secrets.DOWNLOADS_REPO_TOKEN }}");
+    expect(release).not.toMatch(/wrangler|CLOUDFLARE|R2_BUCKET/i);
+    // the installed apps' update feed is the downloads repository (electron-builder writes it into app-update.yml)
     expect(desktop).toContain("JBL_UPDATE_URL: ${{ env.DOWNLOADS_URL }}");
     // the GitHub release stays as the archive; while the repository is public it is also what apps older than 1.1.0 read
     expect(release).toContain("--generate-notes");
@@ -213,7 +213,7 @@ describe("the site-url action, the release helper and the docs", () => {
     expect(pkg.scripts["release:desktop"]).toBe("node scripts/release/desktop-version.mjs");
     const doc = read("docs/RELEASING.md");
     expect(doc).toContain("npm run release:desktop");
-    for (const heading of ["What updates when", "Ship a website change", "Release the Windows app", "Ship a Worker change", "Reading the Actions tab", "Roll back", "Your own domain", "Hosting", "The downloads host", "Making the repository private", "Code signing (optional)", "Variables and secrets"]) {
+    for (const heading of ["What updates when", "Ship a website change", "Release the Windows app", "Ship a Worker change", "Reading the Actions tab", "Roll back", "Your own domain", "Hosting", "The downloads repository", "Making the repository private", "Code signing (optional)", "Variables and secrets"]) {
       expect(doc, heading).toMatch(new RegExp(`\\n## ${heading.replace(/[()]/g, "\\$&")}\\n`));
     }
     expect(read("README.md")).toContain("docs/RELEASING.md");

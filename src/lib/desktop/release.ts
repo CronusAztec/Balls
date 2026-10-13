@@ -1,14 +1,17 @@
 /*
- * --- desktop-exe --- Where the Windows app is downloaded from: the downloads host, https://downloads.jumpingballslive.com, a
- * Cloudflare R2 bucket that the desktop workflow (.github/workflows/desktop.yml, scripts/release/publish-downloads.mjs) fills on
- * every release. It holds the installer and the portable EXE twice – with the version in the name
+ * --- desktop-exe --- Where the Windows app is downloaded from: the Releases of a second, public GitHub repository that holds
+ * the installers and nothing else (https://github.com/CronusAztec/jumpingballslive-windows – no source code), so the source
+ * repository can be private. The desktop workflow (.github/workflows/desktop.yml, scripts/release/publish-downloads.mjs)
+ * publishes every release there: the installer and the portable EXE twice – with the version in the name
  * (JumpingBallsLive-Setup-<version>.exe, what electron-updater's latest.yml points at) and under fixed names, so the download
- * links never change – and latest.yml, the feed every installed app reads (desktop/electron-builder.config.cjs). GitHub plays no
- * part in downloads or updates, so the repository can be private. NEXT_PUBLIC_DOWNLOADS_URL (the repository variable
- * DOWNLOADS_URL) points the site at another host.
+ * links never change – and latest.yml, the feed every installed app reads (desktop/electron-builder.config.cjs).
+ * ".../releases/latest/download/<name>" always names the file of the newest release. NEXT_PUBLIC_DOWNLOADS_URL (the repository
+ * variable DOWNLOADS_URL) points the site at another host.
  */
 
-export const DOWNLOADS_URL = (process.env.NEXT_PUBLIC_DOWNLOADS_URL || "https://downloads.jumpingballslive.com").replace(/\/+$/, "");
+/** The public repository that holds the installers (owner/name). */
+export const DOWNLOADS_REPO = "CronusAztec/jumpingballslive-windows";
+export const DOWNLOADS_URL = (process.env.NEXT_PUBLIC_DOWNLOADS_URL || `https://github.com/${DOWNLOADS_REPO}/releases/latest/download`).replace(/\/+$/, "");
 
 /** The fixed names of the latest assets. */
 export const SETUP_ASSET = "JumpingBallsLive-Setup.exe";

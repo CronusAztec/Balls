@@ -30,7 +30,7 @@ Three parts:
 | --- | --- | --- |
 | The website | Cloudflare (a Worker serving jumpingballslive.com), built from the repository by GitHub Actions | everyone |
 | The payment server (the Worker) | Cloudflare Workers | the website, Stripe, PayPal, NOWPayments |
-| The Windows app | Cloudflare R2 (downloads.jumpingballslive.com), built from the repository by GitHub Actions | people who download it |
+| The Windows app | the Releases of a public installers-only GitHub repository (jumpingballslive-windows), built from this repository by GitHub Actions | people who download it |
 
 **Monthly costs**
 
@@ -92,7 +92,7 @@ Cloudflare account:
 | --- | --- | --- |
 | Website | every push to the product branch (about 25 minutes) | Actions → "Build and deploy the site" |
 | Payment Worker | the first time by hand: **Actions → "Deploy billing worker" → Run workflow** (needs the secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`, section 9), or `npm run go-live`. After that, once the repository variable `BILLING_AUTODEPLOY` is `1`, every push that changes `billing/` | Actions → "Deploy billing worker" |
-| Windows app | a push that raises the version in `desktop/package.json` (`npm run release:desktop -- 1.0.4`, section 11) | Actions → "Windows app"; <https://downloads.jumpingballslive.com/latest.yml> |
+| Windows app | a push that raises the version in `desktop/package.json` (`npm run release:desktop -- 1.0.4`, section 11) | Actions → "Windows app"; <https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download/latest.yml> |
 
 [`docs/RELEASING.md`](RELEASING.md) describes each of these step by step, and how to undo a bad release.
 
@@ -379,8 +379,8 @@ key, stops the deploy with a message saying which.
 ## 10. The repository can be private
 
 GitHub only keeps the code and runs the builds. Nothing a visitor or an installed app needs lives in the repository: the
-website is served by Cloudflare, the Windows app's downloads and updates by Cloudflare R2 (`downloads.jumpingballslive.com`,
-[RELEASING.md](RELEASING.md), "The downloads host"), the payment keys and the licence signing key sit in the Cloudflare
+website is served by Cloudflare, the Windows app's downloads and updates by the Releases of a public installers-only repository (`jumpingballslive-windows`,
+[RELEASING.md](RELEASING.md), "The downloads repository"), the payment keys and the licence signing key sit in the Cloudflare
 Worker, and the accounts in the publish relay on your server. So the repository can be switched to private (Settings →
 General → Danger zone → Change visibility) – **after** the steps in [RELEASING.md](RELEASING.md), "Making the repository
 private": the older Windows app versions look for updates in GitHub Releases, which a private repository hides.
@@ -446,7 +446,7 @@ monthly payout statements of all three, and ask an accountant in your country be
 
 ## 14. Launch-day checklist
 
-1. [ ] The downloads host works and the repository can go private (section 10; RELEASING.md).
+1. [ ] The downloads repository works and this repository can go private (section 10; RELEASING.md).
 2. [ ] Cloudflare **Workers Paid** is active.
 3. [ ] The bank account is linked and confirmed at **Stripe** and at **PayPal**.
 4. [ ] The **payout wallets** are set at NOWPayments (or auto-conversion with one wallet).

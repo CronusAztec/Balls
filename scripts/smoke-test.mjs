@@ -8467,8 +8467,9 @@ await smokeBlock("desktop-exe", async () => {
 // the app's preload exposes): GPU panel, render queue (a real fast export saved through the bridge, with its ffmpeg pass
 // requested), menu actions, Library and the AI settings assistant (an invalid patch retried, the valid one applied, Undo).
 {
-  // the downloads host (src/lib/desktop/release.ts): the repository is private, so nothing links to GitHub
-  const downloads = (process.env.NEXT_PUBLIC_DOWNLOADS_URL || "https://downloads.jumpingballslive.com").replace(/\/+$/, "");
+  // the downloads repository's latest release (src/lib/desktop/release.ts): the source repository is private, so the only GitHub
+  // address the page may carry is the public installers-only repository's
+  const downloads = (process.env.NEXT_PUBLIC_DOWNLOADS_URL || "https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download").replace(/\/+$/, "");
   const titles = { en: "for Windows", pl: "dla Windows", es: "para Windows" };
   for (const locale of ["en", "pl", "es"]) {
     const res = await page.goto(`${BASE}/${locale}/download/`, { waitUntil: "networkidle" });
@@ -8477,7 +8478,7 @@ await smokeBlock("desktop-exe", async () => {
       setup: document.querySelector('[data-testid="download-setup"]')?.getAttribute("href") ?? "",
       portable: document.querySelector('[data-testid="download-portable"]')?.getAttribute("href") ?? "",
       checksums: document.querySelector('[data-testid="download-checksums"]')?.getAttribute("href") ?? "",
-      githubLinks: document.querySelectorAll('a[href*="github.com"]').length,
+      githubLinks: [...document.querySelectorAll('a[href*="github.com"]')].filter((a) => !(a.getAttribute("href") ?? "").startsWith("https://github.com/CronusAztec/jumpingballslive-windows/")).length,
       requirements: document.querySelectorAll('[data-testid="download-requirements"] li').length,
       smartScreen: document.querySelector('[data-testid="download-smartscreen"]')?.textContent ?? "",
     }));

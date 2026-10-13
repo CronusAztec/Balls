@@ -5,7 +5,7 @@
 # product branch. By hand:
 #   NEXT_PUBLIC_SITE_URL=https://jumpingballslive.com NEXT_PUBLIC_BASE_PATH= npm run build
 #   (cd billing && npm ci) && npx --prefix billing wrangler deploy
-# The billing Worker in billing/ has its own wrangler.toml; the Windows app's downloads are an R2 bucket, not part of this Worker.
+# The billing Worker in billing/ has its own wrangler.toml; the Windows app's downloads are the Releases of a separate public repository (installers only), not part of this Worker.
 name = "jumpingballslive"
 compatibility_date = "2026-10-12"
 

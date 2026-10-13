@@ -10,7 +10,7 @@ import { buttonClass } from "@/components/ui/Button";
 import { IconBolt, IconDesktop, IconDownload, IconFolder, IconSparkle, IconVideo, IconWarning, type IconProps } from "@/components/ui/icons";
 
 /*
- * --- desktop-exe --- The download page of the Windows app: the latest installer and portable EXE from the downloads host, the
+ * --- desktop-exe --- The download page of the Windows app: the latest installer and portable EXE from the downloads repository, the
  * requirements, the SmartScreen note (the EXE is unsigned until a code-signing certificate is set up) and what the app adds.
  * --- site-redesign --- the two downloads side by side (the installer first, in the accent), then the requirements and the
  * SmartScreen note, what the app adds as a ruled list with icons, and the privacy note.

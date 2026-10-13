@@ -1,8 +1,8 @@
 import type { UpdateStatus } from "@/lib/desktop/contract";
 
 /*
- * --- desktop-exe --- Auto-update from the downloads host (electron-updater's generic provider reads latest.yml at
- * https://downloads.jumpingballslive.com – the address electron-builder wrote into the app's app-update.yml, see
+ * --- desktop-exe --- Auto-update from the downloads repository (electron-updater's generic provider reads latest.yml at
+ * https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download – the address electron-builder wrote into the app's app-update.yml, see
  * desktop/electron-builder.config.cjs – downloads the new installer in the background and installs it when the app quits;
  * versions before 1.1.0 read GitHub Releases instead). It runs only in an
  * installed build with auto-update on; the portable EXE cannot replace itself, so it only links the download. Offline, or
