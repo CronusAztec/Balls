@@ -4356,19 +4356,25 @@
       "videos": "Twórz filmy",
       "copy": "Opisy i hashtagi",
       "settings": "Asystent ustawień",
-      "ideas": "Pomysły"
+      "ideas": "Pomysły",
+      "fighter": "Nowy wojownik",
+      "mode": "Nowy tryb"
     },
     "aiTaskHint": {
       "videos": "Opisz, jakich klipów chcesz: AI zaplanuje je wiralowym botem i funkcją Znajdź symulację, napisze teksty dla każdej platformy i doda je do kolejki.",
       "copy": "Tytuły, haczyki, opisy i zestawy hashtagów dla bloku Publikuj – do klipu na stronie.",
       "settings": "Powiedz, co zmienić – AI zaproponuje sprawdzoną zmianę ustawień i ją zastosuje (z cofnięciem).",
-      "ideas": "Świeże pomysły na klipy oparte na poradniku o wiralności."
+      "ideas": "Świeże pomysły na klipy oparte na poradniku o wiralności.",
+      "fighter": "Opisz wojownika do Ball Fight League – AI zaprojektuje go z broni i umiejętności, które ma aplikacja, zadba o uczciwe liczby i zapisze go na tym komputerze (dywizja Wildcard).",
+      "mode": "Opisz tryb gry – AI zbuduje go z mechanik, które aplikacja już ma (tryb bazowy plus ustawienia), zastosuje (z cofnięciem) i zapisze na tym komputerze."
     },
     "aiPlaceholder": {
       "videos": "pięć satysfakcjonujących klipów ze szkłem na poniedziałek",
       "copy": "mocniej, z pytaniem na końcu (opcjonalnie)",
       "settings": "piłka dwa razy szybsza i tęczowa, bez grawitacji",
-      "ideas": "pomysły na rytmiczną serię w tym tygodniu (opcjonalnie)"
+      "ideas": "pomysły na rytmiczną serię w tym tygodniu (opcjonalnie)",
+      "fighter": "malutka kulka-ninja z gwiazdkami, która teleportuje się za przeciwnika",
+      "mode": "spokojny tryb, w którym wiele pastelowych kulek powoli wypełnia szklankę przy cichym pianinie"
     },
     "aiPrompt": "Czego chcesz",
     "aiPlatforms": "Platformy",
@@ -5752,5 +5758,28 @@
       "unknown": "Coś poszło nie tak. Spróbuj ponownie."
     },
     "close": "Zamknij"
+  },
+  "CustomContent": {
+    "fighterTitle": "Zapisano wojownika: {name}",
+    "modeTitle": "Zapisano tryb: {name}",
+    "adjusted": "Dostosowano do uczciwych limitów: {list}",
+    "kept": "Zapisane tylko na tym komputerze – nigdzie nie jest wysyłane.",
+    "role": "Rola",
+    "weapon": "Broń",
+    "ability": "Umiejętność",
+    "stats": "HP · prędkość · atak · obrażenia · czar · rozmiar",
+    "fightWith": "Walcz nim",
+    "fightWithHint": "Wstawia go do miejsca A w Ball Fight League.",
+    "playMode": "Zagraj w ten tryb",
+    "undo": "Cofnij",
+    "delete": "Usuń",
+    "mineTitle": "Moje twory",
+    "myFighters": "Moi wojownicy ({count})",
+    "myModes": "Moje tryby ({count})",
+    "none": "Na razie nic – stwórz wojownika lub tryb powyżej.",
+    "limit": "Osiągnięto limit {max}: usuń jeden, aby stworzyć kolejny.",
+    "saveFailed": "Nie udało się zapisać na tym komputerze: {error}",
+    "modeNotApplied": "Ten tryb nie pasuje już do strony: {error}",
+    "balanced": "Wyważony próbnymi walkami: wygrywa około {rate}% pojedynków z wojownikami z gry."
   }
 }

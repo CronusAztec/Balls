@@ -3336,6 +3336,25 @@ src/app/[locale]/download/     the download page (en / pl / es, in the sitemap, 
   or cannot start removes its half-written MP4, so nothing that looks like a finished clip is left and a retry keeps the name). The journal is written after every change
   (`JsonFileStore`: temporary file, fsync, rename, `.bak`); after a crash or restart the interrupted job goes back to the
   queue (a render cannot resume half-way – it starts over, at most `MAX_ATTEMPTS` times) and the panel offers **Resume**.
+- **My fighters and modes (custom-content)** – two more AI jobs, **New fighter** and **New mode**, make content that is kept on
+  the player's own computer (`custom-content.json` in the app's data folder, a crash-safe `JsonFileStore` through the bridge's
+  `custom.load` / `custom.save`; nothing is sent anywhere) and ships in no installer and in no source. No code is generated or run:
+  a **fighter** is a data row like the 147 built-in ones. The model only picks from lists (a role, two colours, a weapon kind and a
+  few optional numbers, an ability primitive and its numbers – `ai/customFighter.ts`; the local model is held to the schema by a
+  grammar); `fightLeagueCustom.ts` builds the row and clamps everything: stats inside the role's template, weapon numbers in a band
+  around the kind's defaults with the damage per second capped at 1.2× the kind's, ability numbers inside the ranges the built-in
+  roster uses (`PRIMITIVE_PARAMS`, inside `FL_PRIMITIVE_LIMITS`) with a damage budget per primitive (`EFFECT_BUDGET`). Then the app
+  **balances it by playing fights** (`simulation/flBalance.ts`, the headless engine the page already runs for Find Simulation): 48
+  duels against a panel of twelve built-in fighters, each pair on both sides of the arena, and one strength scale – damage 0.45–2.4,
+  attack speed 0.85–1.25, cast speed 0.7–1.3, the three power stats the built-in roster is tuned with – is bisected until the fighter
+  wins 30–58 % of them (the built-ins win 6–83 %, 40 % in the middle). Measured with every ability primitive at its extreme
+  a new fighter won 19–73 % on seeds the balancer never played, and with every weapon kind at its extreme 0–56 %: only a slow tank
+  with one of the weakest weapons (bomb, whip, web) stays weak even at full strength, and nothing ends up unbeatable. Custom fighters join the **Wildcard** division at start-up under ids `my-…` (`setCustomFighters`, a live view
+  of `FL_ROSTER` / `FL_BY_ID` the pickers subscribe to), are excluded from the roster's tuning hash and README table, and are
+  limited to 24. A **mode** is built from the mechanics the app already has: a base mode plus a settings patch the settings
+  assistant's checker validates (`ai/customMode.ts`), applied with **Undo**, listed under **My creations** to play again or delete
+  (limited to 24). Tests: `tests/customContent.test.ts` (clamps, every primitive and weapon kind played through the real engine,
+  the registry, the stored document, the balancer on seeds it never played, the bridge).
 - **AI studio** – one tool-call loop (`ai/agent.ts`) for every job: each model reply must be one JSON object – a tool call or
   the final answer – and is validated (`jsonSchema.ts`: the envelope, the tool's argument schema and checks, the answer's
   schema and the task's checks) before anything runs or is applied; invalid replies go back to the model with the errors,

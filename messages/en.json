@@ -4356,19 +4356,25 @@
       "videos": "Make videos",
       "copy": "Captions & hashtags",
       "settings": "Settings assistant",
-      "ideas": "Ideas"
+      "ideas": "Ideas",
+      "fighter": "New fighter",
+      "mode": "New mode"
     },
     "aiTaskHint": {
       "videos": "Describe the clips you want: the AI plans them with the viral bot and Find Simulation, writes the copy per platform and queues them.",
       "copy": "Titles, hooks, captions and hashtag sets for the Publish block, for the clip on the page.",
       "settings": "Say what to change – the AI proposes a checked settings patch and applies it (with Undo).",
-      "ideas": "Fresh clip ideas grounded in the virality playbook."
+      "ideas": "Fresh clip ideas grounded in the virality playbook.",
+      "fighter": "Describe a fighter for the Ball Fight League – the AI designs it from the weapons and abilities the app has, keeps it fair and saves it on this computer (Wildcard division).",
+      "mode": "Describe a game mode – the AI builds it from the mechanics the app already has (a base mode plus settings), applies it (with Undo) and saves it on this computer."
     },
     "aiPlaceholder": {
       "videos": "five satisfying glass clips for Monday",
       "copy": "punchier, with a question at the end (optional)",
       "settings": "make the ball twice as fast and rainbow, no gravity",
-      "ideas": "ideas for a rhythm series this week (optional)"
+      "ideas": "ideas for a rhythm series this week (optional)",
+      "fighter": "a tiny ninja ball with throwing stars that blinks behind its enemy",
+      "mode": "a calm mode where many pastel balls fill a glass, slowly, with soft piano"
     },
     "aiPrompt": "What you want",
     "aiPlatforms": "Platforms",
@@ -5752,5 +5758,28 @@
       "unknown": "Something went wrong. Try again."
     },
     "close": "Close"
+  },
+  "CustomContent": {
+    "fighterTitle": "Fighter saved: {name}",
+    "modeTitle": "Mode saved: {name}",
+    "adjusted": "Adjusted to fair limits: {list}",
+    "kept": "Saved on this computer only – it is never sent anywhere.",
+    "role": "Role",
+    "weapon": "Weapon",
+    "ability": "Ability",
+    "stats": "HP · speed · attack · damage · cast · size",
+    "fightWith": "Fight with it",
+    "fightWithHint": "Puts it in slot A of the Ball Fight League.",
+    "playMode": "Play this mode",
+    "undo": "Undo",
+    "delete": "Delete",
+    "mineTitle": "My creations",
+    "myFighters": "My fighters ({count})",
+    "myModes": "My modes ({count})",
+    "none": "Nothing yet – make a fighter or a mode above.",
+    "limit": "You have reached the limit of {max}: delete one to make another.",
+    "saveFailed": "Could not save on this computer: {error}",
+    "modeNotApplied": "This mode no longer fits the page: {error}",
+    "balanced": "Balanced by test fights: it wins about {rate}% of duels against built-in fighters."
   }
 }

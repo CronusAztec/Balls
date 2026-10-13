@@ -4356,19 +4356,25 @@
       "videos": "Crear vídeos",
       "copy": "Textos y hashtags",
       "settings": "Asistente de ajustes",
-      "ideas": "Ideas"
+      "ideas": "Ideas",
+      "fighter": "Nuevo luchador",
+      "mode": "Nuevo modo"
     },
     "aiTaskHint": {
       "videos": "Describe los clips que quieres: la IA los planifica con el bot viral y Buscar simulación, escribe los textos para cada plataforma y los añade a la cola.",
       "copy": "Títulos, ganchos, descripciones y hashtags para el bloque Publicar, para el clip de la página.",
       "settings": "Di qué quieres cambiar: la IA propone un cambio de ajustes comprobado y lo aplica (con deshacer).",
-      "ideas": "Ideas nuevas de clips basadas en la guía de viralidad."
+      "ideas": "Ideas nuevas de clips basadas en la guía de viralidad.",
+      "fighter": "Describe un luchador para la Ball Fight League: la IA lo diseña con las armas y habilidades de la app, lo mantiene equilibrado y lo guarda en este ordenador (división Wildcard).",
+      "mode": "Describe un modo de juego: la IA lo construye con las mecánicas que la app ya tiene (un modo base más ajustes), lo aplica (con deshacer) y lo guarda en este ordenador."
     },
     "aiPlaceholder": {
       "videos": "cinco clips satisfactorios de cristal para el lunes",
       "copy": "más directo, con una pregunta al final (opcional)",
       "settings": "la bola el doble de rápida y arcoíris, sin gravedad",
-      "ideas": "ideas para una serie rítmica esta semana (opcional)"
+      "ideas": "ideas para una serie rítmica esta semana (opcional)",
+      "fighter": "una bola ninja diminuta con shuriken que se teletransporta tras su rival",
+      "mode": "un modo tranquilo donde muchas bolas pastel llenan un vaso despacio, con piano suave"
     },
     "aiPrompt": "Lo que quieres",
     "aiPlatforms": "Plataformas",
@@ -5752,5 +5758,28 @@
       "unknown": "Algo ha salido mal. Inténtalo de nuevo."
     },
     "close": "Cerrar"
+  },
+  "CustomContent": {
+    "fighterTitle": "Luchador guardado: {name}",
+    "modeTitle": "Modo guardado: {name}",
+    "adjusted": "Ajustado a límites justos: {list}",
+    "kept": "Guardado solo en este ordenador: no se envía a ningún sitio.",
+    "role": "Rol",
+    "weapon": "Arma",
+    "ability": "Habilidad",
+    "stats": "PV · velocidad · ataque · daño · lanzamiento · tamaño",
+    "fightWith": "Luchar con él",
+    "fightWithHint": "Lo pone en la posición A de la Ball Fight League.",
+    "playMode": "Jugar este modo",
+    "undo": "Deshacer",
+    "delete": "Eliminar",
+    "mineTitle": "Mis creaciones",
+    "myFighters": "Mis luchadores ({count})",
+    "myModes": "Mis modos ({count})",
+    "none": "Todavía nada: crea un luchador o un modo arriba.",
+    "limit": "Has alcanzado el límite de {max}: elimina uno para crear otro.",
+    "saveFailed": "No se pudo guardar en este ordenador: {error}",
+    "modeNotApplied": "Este modo ya no encaja con la página: {error}",
+    "balanced": "Equilibrado con combates de prueba: gana alrededor del {rate}% de los duelos contra luchadores incluidos."
   }
 }

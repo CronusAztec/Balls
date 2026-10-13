@@ -17,6 +17,8 @@ export interface AppLocations {
   thumbsDir: string;
   logsDir: string;
   journalFile: string;
+  /** --- custom-content --- The player's own fighters and modes. */
+  customFile: string;
   libraryFile: string;
 }
 
@@ -32,6 +34,7 @@ export function appLocations(options: { packaged: boolean; resourcesPath: string
     thumbsDir: path.join(dataDir, "thumbnails"),
     logsDir: path.join(dataDir, "logs"),
     journalFile: path.join(dataDir, "render-journal.json"),
+    customFile: path.join(dataDir, "custom-content.json"),
     libraryFile: path.join(dataDir, "library.json"),
   };
 }
