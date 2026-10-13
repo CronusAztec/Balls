@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Installs the site deployer on the VPS (feature vps-site-deployer): one command, safe to run again.
 #
-#   git clone https://github.com/CronusAztec/Balls.git && cd Balls && sudo bash deploy/vps/install.sh
+#   git clone --branch claude/nice-davinci-sn70l7 https://github.com/CronusAztec/Balls.git && cd Balls && sudo bash deploy/vps/install.sh
+#   (--branch until this folder is on the repository's default branch; after the merge to main: `--branch main`)
 #   (read deploy/vps/README.md and jbl-deploy.sh first – it is short; this runs as root)
 #
 # Options:  --branch NAME     the branch to watch and deploy (default: claude/nice-davinci-sn70l7; after the merge: main)
@@ -37,7 +38,7 @@ while [ $# -gt 0 ]; do
     --swap) SWAP=1; shift ;;
     --no-first-run) FIRST_RUN=0; shift ;;
     --reconfigure) RECONFIGURE=1; shift ;;
-    -h|--help) sed -n '2,19p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done

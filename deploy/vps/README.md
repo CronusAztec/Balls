@@ -5,7 +5,7 @@ anyone typing the build commands**: you install it once; after that, whatever la
 is built and deployed within about ten minutes.
 
 ```
-git clone https://github.com/CronusAztec/Balls.git && cd Balls
+git clone --branch claude/nice-davinci-sn70l7 https://github.com/CronusAztec/Balls.git && cd Balls   # (--branch main after the merge)
 sudo bash deploy/vps/install.sh            # asks for the Cloudflare token once, then deploys the branch's newest commit
 ```
 
