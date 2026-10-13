@@ -1731,8 +1731,9 @@ steps to host it are in [relay/README.md](relay/README.md)); the page, the insta
   works for a session exactly as for an access key, and a user's TikTok, Instagram and YouTube accounts (any number each) follow them
   to every device. Passwords: scrypt (N 16384) with a random salt, an unknown email costs as much time as a wrong password; sessions
   are kept as SHA-256 only; at most 20 per user. Limits: 10 sign-ups an hour per address, 30 sign-ins per 15 minutes per address
-  and 10 per 15 minutes per email, 10 password checks per 15 minutes per user (`RateLimiter`; behind a proxy the address is the
-  last `X-Forwarded-For` entry, `RELAY_TRUST_PROXY`). `RELAY_SIGNUP=off` closes sign-up; the Windows app's origin
+  and 10 per 15 minutes per email, 10 password checks per 15 minutes per user (`RateLimiter`; the address is `clientIpOf()`: the
+  header named by `RELAY_CLIENT_IP_HEADER` – on Render `CF-Connecting-IP` – else `X-Forwarded-For` counted from the right by
+  `RELAY_PROXY_HOPS`, never the leftmost entry; `RELAY_TRUST_PROXY=0` uses the socket's address). `RELAY_SIGNUP=off` closes sign-up; the Windows app's origin
   `app://jumpingballslive` is always allowed (`RELAY_ALLOW_APP=0` turns that off), so the exe needs no extra relay setting.
 - **The page's side** (`src/lib/account/`) – `client.ts` (`AccountClient`: health, sign up, sign in, me, sign out, change
   password, delete; relay errors become codes the page translates), `store.ts` (the session – relay address, token, user – in

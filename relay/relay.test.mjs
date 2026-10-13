@@ -24,6 +24,7 @@ import {
   tiktokErrorMessage,
   coverMsOf, // --- mode-thumbnails ---
   RateLimiter, // --- user-accounts ---
+  clientIpOf,
   hashPassword,
   normalizeEmail,
   verifyPassword,
@@ -798,5 +799,38 @@ describe("user accounts", () => {
     // Revoking the user's key through the admin API removes the user too.
     expect(again.deleteKey(user.keyId)).toBe(true);
     expect(again.userByEmail("a@example.com")).toBeNull();
+  });
+
+  it("finds the visitor's address behind proxies without trusting what a caller writes", () => {
+    const h = (xff, extra = {}) => ({ "x-forwarded-for": xff, ...extra });
+    expect(clientIpOf(h("9.9.9.9, 1.1.1.1"), "10.0.0.1")).toBe("1.1.1.1"); // one proxy: the last entry, never the leftmost
+    expect(clientIpOf(h("9.9.9.9, 1.1.1.1, 172.16.0.1"), "10.0.0.1", { proxyHops: 2 })).toBe("1.1.1.1"); // Cloudflare in front of Render's balancer
+    expect(clientIpOf(h("1.1.1.1"), "10.0.0.1", { proxyHops: 3 })).toBe("1.1.1.1"); // fewer entries than proxies: the first
+    const cf = { clientIpHeader: "cf-connecting-ip" };
+    expect(clientIpOf({ "cf-connecting-ip": "2.2.2.2", ...h("9.9.9.9, 172.16.0.1") }, "10.0.0.1", cf)).toBe("2.2.2.2"); // the named header wins
+    expect(clientIpOf({ "cf-connecting-ip": "2606:4700::1", ...h("9.9.9.9") }, "10.0.0.1", cf)).toBe("2606:4700::1");
+    expect(clientIpOf(h("9.9.9.9, 1.1.1.1"), "10.0.0.1", cf)).toBe("1.1.1.1"); // header missing: the forwarded entries
+    expect(clientIpOf({ "cf-connecting-ip": "not an address <script>", ...h("1.1.1.1") }, "10.0.0.1", cf)).toBe("1.1.1.1"); // junk is ignored
+    expect(clientIpOf(h("1.1.1.1"), "10.0.0.1", { trustProxy: false, ...cf })).toBe("10.0.0.1"); // RELAY_TRUST_PROXY=0: the socket
+    expect(clientIpOf({}, "10.0.0.1")).toBe("10.0.0.1");
+    expect(clientIpOf({}, undefined)).toBe("unknown");
+  });
+
+  it("reads the proxy settings from the environment", () => {
+    expect(readConfig({})).toMatchObject({ trustProxy: true, clientIpHeader: "", proxyHops: 1 });
+    expect(readConfig({ RELAY_CLIENT_IP_HEADER: " CF-Connecting-IP ", RELAY_PROXY_HOPS: "2" })).toMatchObject({ clientIpHeader: "cf-connecting-ip", proxyHops: 2 });
+    expect(readConfig({ RELAY_PROXY_HOPS: "0" }).proxyHops).toBe(1);
+    expect(readConfig({ RELAY_PROXY_HOPS: "many" }).proxyHops).toBe(1);
+    expect(readConfig({ RELAY_TRUST_PROXY: "0" }).trustProxy).toBe(false);
+  });
+
+  it("limits sign-ups per visitor by the trusted header, not by the proxy's address or a forged X-Forwarded-For", async () => {
+    const { base } = await startRelay({ fetchImpl: platformMock([]).fetchImpl, env: { RELAY_CLIENT_IP_HEADER: "CF-Connecting-IP" } });
+    const from = (ip, n, xff = "6.6.6.6") => api(base, "/api/auth/signup", { method: "POST", body: { email: `user${n}@example.com`, password: "correct horse" }, headers: { "CF-Connecting-IP": ip, "X-Forwarded-For": xff } });
+    for (let i = 0; i < 10; i++) expect((await from("1.1.1.1", i)).status).toBe(201);
+    const blocked = await from("1.1.1.1", 10, "7.7.7.7"); // a different forged X-Forwarded-For does not buy another bucket
+    expect(blocked.status).toBe(429);
+    expect(blocked.json.error.code).toBe("rate_limited");
+    expect((await from("2.2.2.2", 11)).status).toBe(201); // another visitor behind the same proxy is not affected
   });
 });

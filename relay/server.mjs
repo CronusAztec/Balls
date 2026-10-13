@@ -82,6 +82,10 @@ export function readConfig(env = process.env) {
     signup: String(env.RELAY_SIGNUP || "").toLowerCase() !== "off", // --- user-accounts --- anyone may create an account
     sessionTtlMs: Math.max(1, Number(env.RELAY_SESSION_DAYS || 30)) * 24 * 3600 * 1000,
     trustProxy: env.RELAY_TRUST_PROXY !== "0",
+    // --- user-accounts --- which header the proxy in front sets to the visitor's address (Render: CF-Connecting-IP), and how many
+    // proxies append to X-Forwarded-For when none does. The sign-up and sign-in limits go by this address.
+    clientIpHeader: String(env.RELAY_CLIENT_IP_HEADER || "").trim().toLowerCase(),
+    proxyHops: Math.max(1, Math.floor(Number(env.RELAY_PROXY_HOPS)) || 1),
     dataDir: path.resolve(env.RELAY_DATA_DIR || "relay-data"),
     maxUploadBytes: Math.max(1, Number(env.RELAY_MAX_UPLOAD_MB || 300)) * MB,
     mediaTtlMs: Math.max(1, Number(env.RELAY_MEDIA_TTL_HOURS || 24)) * 3600 * 1000,
@@ -1144,6 +1148,33 @@ export function callbackPage({ ok, platform, accounts = [], message = "", origin
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title><style>body{font:15px/1.5 system-ui,sans-serif;background:#0b0b0f;color:#e4e4e7;display:grid;place-items:center;min-height:100vh;margin:0;padding:24px;text-align:center}h1{font-size:18px;color:${ok ? "#93d119" : "#f87171"}}</style></head><body><main><h1>${title}</h1>${body}</main>${script}</body></html>`;
 }
 
+/** What an address header may hold: IPv4 or IPv6 characters, nothing a caller could use to grow the limiter's keys. */
+const IP_TEXT = /^[0-9a-fA-F:.]{2,45}$/;
+
+/**
+ * --- user-accounts --- The address a request came from, for the sign-up and sign-in limits. Behind a proxy the socket's address is
+ * the proxy's, so (when `trustProxy`):
+ *  - `clientIpHeader` (RELAY_CLIENT_IP_HEADER) names a header the proxy sets to the visitor's address and overwrites whatever a
+ *    caller sent – on Render, `CF-Connecting-IP` (Cloudflare sets it on every request to a web service, Render's own guidance);
+ *    use it only where that holds, since a caller can send any header when nothing in front removes it;
+ *  - otherwise X-Forwarded-For counted from the right: each trusted proxy appends the address it saw, so with `proxyHops`
+ *    proxies the visitor is the entry that many places from the end (1: the last entry; Cloudflare in front of Render's load
+ *    balancer: 2). The leftmost entry is never used, a caller writes it.
+ * Falls back to the socket's address.
+ */
+export function clientIpOf(headers, remoteAddress, { trustProxy = true, clientIpHeader = "", proxyHops = 1 } = {}) {
+  if (trustProxy) {
+    if (clientIpHeader) {
+      const value = String(headers[clientIpHeader] ?? "").split(",")[0].trim();
+      if (IP_TEXT.test(value)) return value;
+    }
+    const forwarded = String(headers["x-forwarded-for"] ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+    const entry = forwarded[Math.max(0, forwarded.length - Math.max(1, proxyHops))];
+    if (entry && IP_TEXT.test(entry)) return entry;
+  }
+  return remoteAddress || "unknown";
+}
+
 /* ================================================================== the relay */
 
 /**
@@ -1213,14 +1244,8 @@ export function createRelay(options = {}) {
     return key;
   };
   const publicUser = (u) => ({ id: u.id, email: u.email, name: u.name, createdAt: u.createdAt });
-  /** The address a request came from (the proxy's last X-Forwarded-For entry when RELAY_TRUST_PROXY is on). */
-  const clientIp = (req) => {
-    if (cfg.trustProxy) {
-      const forwarded = String(req.headers["x-forwarded-for"] || "").split(",").map((x) => x.trim()).filter(Boolean);
-      if (forwarded.length) return forwarded[forwarded.length - 1];
-    }
-    return req.socket?.remoteAddress || "unknown";
-  };
+  /** The address a request came from, for the sign-up and sign-in limits (see clientIpOf). */
+  const clientIp = (req) => clientIpOf(req.headers, req.socket?.remoteAddress, cfg);
   const readJson = async (req, limit = 16 * 1024) => {
     const body = await readBody(req, limit);
     try {

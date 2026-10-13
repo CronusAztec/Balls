@@ -42,7 +42,8 @@ front and use that URL as `RELAY_PUBLIC_URL`).
    Command** `node server.mjs`.
 3. **Environment**: the variables of `.env.example` – at least `RELAY_PUBLIC_URL` (the `https://<name>.onrender.com`
    address Render gives you), `RELAY_ALLOWED_ORIGINS` (`https://cronusaztec.github.io` for this repository's Pages site),
-   `RELAY_ADMIN_KEY` and the app keys of the platforms you want.
+   `RELAY_CLIENT_IP_HEADER=CF-Connecting-IP` (so the sign-up limits count visitors, not Render's proxy), `RELAY_ADMIN_KEY`
+   (optional: only for access keys) and the app keys of the platforms you want.
 4. Keys and accounts live in `RELAY_DATA_DIR`: on the free tier the disk is wiped on every deploy / restart, so add a
    **Persistent Disk** (a paid add-on) mounted at e.g. `/var/data` and set `RELAY_DATA_DIR=/var/data`, or reconnect after a
    restart. Free instances also sleep when idle – the first request after a pause takes ~30 s (it just waits).
@@ -81,7 +82,13 @@ like. They sign in on another browser, the installed app or another computer and
   `user: true`; revoking one deletes that user.
 - The Windows app's origin `app://jumpingballslive` is allowed to call the relay without being listed in
   `RELAY_ALLOWED_ORIGINS` (`RELAY_ALLOW_APP=0` turns that off), and the sign-in popup reports back to it.
-- Behind a proxy (every host above), the limits go by the last `X-Forwarded-For` entry (`RELAY_TRUST_PROXY=1`, the default).
+- The limits go by the visitor's address, which behind a proxy is not the socket's. **On Render set
+  `RELAY_CLIENT_IP_HEADER=CF-Connecting-IP`**: Cloudflare sets that header on every request to a Render web service and
+  overwrites what a caller sent (Render's own guidance for the client address). Without it the relay counts `X-Forwarded-For`
+  from the right (`RELAY_PROXY_HOPS`, default 1 – the last entry; Cloudflare in front of Render's balancer is 2), and never
+  uses the leftmost entry, which a caller writes. On Fly.io use `Fly-Client-IP`. Only name a header the proxy overwrites: where
+  nothing in front removes it (the relay reached directly), a caller could send it and dodge the limits. `RELAY_TRUST_PROXY=0`
+  ignores all of these and uses the socket's address.
 
 For the site and the app to use the relay, build them with its address: the repository variable `PUBLISH_RELAY_URL` (passed as
 `NEXT_PUBLIC_PUBLISH_RELAY_URL` by `deploy.yml` and `desktop.yml`). Without it the Account page asks the visitor for the address.
