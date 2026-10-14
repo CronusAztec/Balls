@@ -52,10 +52,28 @@ token during the build – the same trust a GitHub Actions deploy needs, moved t
 | pause / resume | `sudo systemctl stop jbl-deploy.timer` / `sudo systemctl start jbl-deploy.timer` |
 | settings (branch, feedback e-mail, legal details) | `/etc/jbl-deploy/env`, listed at the top of `jbl-deploy.sh` |
 
-Once the repository is private, set `JBL_FEEDBACK_GITHUB_REPO=` (empty) and `JBL_FEEDBACK_EMAIL=…` in that file – the feedback form can
-no longer open GitHub issues – and give the service read access to the code (the script fetches from `JBL_GIT_URL`; a private
-repository needs a read-only deploy key, as in `relay/README.md`, "A private repository"). The checks gate (`JBL_REQUIRE_GREEN=1`) also
-needs the public checks API: with a private repository set `JBL_REQUIRE_GREEN=0` or add a read token.
+## When the repository is private
+
+The deployer reads the repository (`git ls-remote`, `git fetch`) and GitHub's check results anonymously, which only works while it is
+public. For a private repository give it **one read-only token**, **before** you switch the visibility:
+
+1. GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token. Resource owner: you.
+   Repository access: **Only select repositories** → `Balls`. Permissions → Repository: **Contents: Read-only** and **Checks: Read-only**
+   (Metadata: Read-only is added by itself). The longest expiry GitHub offers; put the date in your calendar – a token that has expired
+   makes the deployer log `cannot read main … JBL_GITHUB_TOKEN` and stop deploying.
+2. On the server, in your existing checkout: `cd ~/Balls && git pull origin main && sudo bash deploy/vps/install.sh --private`.
+   It asks for the token (typing is hidden), checks it against the repository, its newest commit and its checks, saves it in
+   `/etc/jbl-deploy/env`, stops the feedback form from opening GitHub issues and asks for an e-mail address for it instead.
+3. Look at `journalctl -u jbl-deploy -n 20`, or wait for the next deploy, and only then make the repository private.
+
+What the token can and cannot do: read the code and the check results of that one repository – no writing, no other repository, nothing
+else on your account. It is used for three calls (`git ls-remote`, `git fetch`, the checks lookup) and never reaches the build: `npm`,
+Next.js and the repository's own scripts run without it and without the Cloudflare token; `wrangler` gets only the Cloudflare token.
+A fresh server needs the same token to clone the code the first time (`git -c http.extraHeader="Authorization: Basic $(printf
+'x-access-token:%s' "$TOKEN" | base64 -w0)" clone --branch main https://github.com/CronusAztec/Balls.git`, with `TOKEN` read by `read -rs TOKEN`).
+
+Without the Checks permission set `JBL_REQUIRE_GREEN=0` in the settings file: the deployer then deploys every new commit of the branch
+without waiting for GitHub's lint, type check and unit tests – only do that if you trust whoever can push.
 
 ## How the AI that makes the changes uses it
 

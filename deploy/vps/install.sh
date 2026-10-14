@@ -10,6 +10,10 @@
 #           --swap            make a 2 GB swap file when the server has less than 3.5 GB of memory + swap (the build needs about 2 GB)
 #           --no-first-run    install and start the timer, but do not deploy right now (the timer's first run is 2 minutes after this)
 #           --reconfigure     ask for the Cloudflare token and account ID again (a normal re-run keeps /etc/jbl-deploy/env)
+#           --private         the repository is (or is about to be) PRIVATE: ask for a read-only GitHub token for it, keep it with the other
+#                             settings and stop asking the feedback form to open GitHub issues. Run it BEFORE you switch the repository to private.
+#                             Create the token at GitHub → Settings → Developer settings → Fine-grained tokens: Only select repositories →
+#                             this one; permissions Contents: Read-only and Checks: Read-only (Metadata is added by itself); the longest expiry.
 #
 # For Debian or Ubuntu with systemd, as root. It installs git, curl and Node.js 22 when they are missing, creates the unprivileged user
 # `jbldeploy`, keeps the Cloudflare token in /etc/jbl-deploy/env (readable by that user only; nothing here prints it), and starts a
@@ -22,6 +26,7 @@ REPO="CronusAztec/Balls"
 SWAP=0
 FIRST_RUN=1
 RECONFIGURE=0
+PRIVATE=0
 DEFAULT_ACCOUNT="a1a1303c1defe6eafca7065581715c2e"
 USER_NAME="jbldeploy"
 STATE="/var/lib/jbl-deploy"
@@ -29,6 +34,14 @@ CONF_DIR="/etc/jbl-deploy"
 BIN_DIR="/opt/jbl-deploy"
 
 say() { printf '==> %s\n' "$*"; }
+# set_conf KEY VALUE: KEY='VALUE' in $CONF (replaces that line, keeps every other line and the file's owner and mode). VALUE has no quote.
+set_conf() {
+  local tmp
+  tmp="$(mktemp)"
+  { grep -v "^$1=" "$CONF" || true; printf "%s='%s'\n" "$1" "$2"; } >"$tmp"
+  cat "$tmp" >"$CONF"
+  rm -f "$tmp"
+}
 # What was typed or pasted at a prompt, without the invisible bits a terminal adds: the "bracketed paste" markers (ESC[200~ ... ESC[201~,
 # which show up as ^[[200~ ... ~), other control characters and every space or line break.
 clean_input() { printf '%s' "$1" | LC_ALL=C sed -E 's/(\x1b)?\[20[01]~//g' | LC_ALL=C tr -d '\000-\037\177[:space:]'; }
@@ -41,7 +54,8 @@ while [ $# -gt 0 ]; do
     --swap) SWAP=1; shift ;;
     --no-first-run) FIRST_RUN=0; shift ;;
     --reconfigure) RECONFIGURE=1; shift ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    --private) PRIVATE=1; shift ;;
+    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
@@ -140,6 +154,37 @@ if [ ! -f "$CONF" ] || [ "$RECONFIGURE" = 1 ]; then
   say "settings saved in $CONF"
 else
   say "keeping the settings in $CONF (--reconfigure asks again); the branch there is not changed by this run"
+fi
+
+# ------------------------------------------------------------------ a private repository: one read-only GitHub token
+if [ "$PRIVATE" = 1 ]; then
+  gh_token="${JBL_GITHUB_TOKEN:-}"
+  if [ -z "$gh_token" ]; then
+    [ -r /dev/tty ] || die "no terminal to ask on: run with JBL_GITHUB_TOKEN in the environment"
+    read -r -s -p "GitHub token for $REPO (read-only: Contents + Checks; nothing is shown): " gh_token </dev/tty
+    echo
+  fi
+  gh_token="$(clean_input "$gh_token")"
+  [[ "$gh_token" =~ ^(github_pat_[A-Za-z0-9_]{20,255}|gh[pousr]_[A-Za-z0-9]{20,255})$ ]] || die "that does not look like a GitHub token (${#gh_token} characters after cleaning; fine-grained ones start with github_pat_)"
+  say "checking the token with GitHub (the repository, its newest commit and its checks)"
+  api() { printf 'Authorization: Bearer %s\nAccept: application/vnd.github+json\n' "$gh_token" | curl -fsS --max-time 30 -H @- "https://api.github.com/repos/$REPO$1" 2>/dev/null; }
+  # (each answer is kept in a variable first: `curl | grep -q` fails under pipefail when grep stops reading early)
+  reply="$(api "" || true)"
+  grep -q '"full_name"' <<<"$reply" || die "GitHub does not show $REPO to this token: select that repository for it, with Contents: Read-only"
+  reply="$(api "/commits/$BRANCH" || true)"
+  head_sha="$(grep -m1 -oE '"sha": *"[0-9a-f]{40}"' <<<"$reply" | grep -oE '[0-9a-f]{40}' || true)"
+  [ -n "$head_sha" ] || die "the token cannot read the commits of $BRANCH (Contents: Read-only, and the branch name?)"
+  reply="$(api "/commits/$head_sha/check-runs?per_page=1" || true)"
+  grep -q '"total_count"' <<<"$reply" || die "the token cannot read the checks (add Checks: Read-only), or run with JBL_REQUIRE_GREEN=0 in $CONF"
+  set_conf JBL_GITHUB_TOKEN "$gh_token"
+  set_conf JBL_FEEDBACK_GITHUB_REPO ""
+  unset gh_token
+  say "the GitHub token is saved in $CONF; the feedback form no longer opens GitHub issues (it needs an e-mail address):"
+  if [ -r /dev/tty ] && ! grep -q "^JBL_FEEDBACK_EMAIL=" "$CONF"; then
+    read -r -p "    feedback e-mail address (Enter to set it later in $CONF): " feedback </dev/tty
+    feedback="$(clean_input "$feedback")"
+    if [[ "$feedback" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then set_conf JBL_FEEDBACK_EMAIL "$feedback"; fi
+  fi
 fi
 
 # ------------------------------------------------------------------ systemd
