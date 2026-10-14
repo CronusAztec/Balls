@@ -29,6 +29,9 @@ CONF_DIR="/etc/jbl-deploy"
 BIN_DIR="/opt/jbl-deploy"
 
 say() { printf '==> %s\n' "$*"; }
+# What was typed or pasted at a prompt, without the invisible bits a terminal adds: the "bracketed paste" markers (ESC[200~ ... ESC[201~,
+# which show up as ^[[200~ ... ~), other control characters and every space or line break.
+clean_input() { printf '%s' "$1" | LC_ALL=C sed -E 's/(\x1b)?\[20[01]~//g' | LC_ALL=C tr -d '\000-\037\177[:space:]'; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 while [ $# -gt 0 ]; do
@@ -113,8 +116,10 @@ if [ ! -f "$CONF" ] || [ "$RECONFIGURE" = 1 ]; then
     fi
     account="${account:-$DEFAULT_ACCOUNT}"
   fi
-  [[ "$token" =~ ^[A-Za-z0-9_-]{20,200}$ ]] || die "that does not look like a Cloudflare API token"
-  [[ "$account" =~ ^[0-9a-f]{32}$ ]] || die "the account ID is 32 hex characters"
+  token="$(clean_input "$token")"
+  account="$(clean_input "$account")"
+  [[ "$token" =~ ^[A-Za-z0-9_-]{20,200}$ ]] || die "that does not look like a Cloudflare API token (${#token} characters after cleaning; they are about 40 letters, digits, - and _)"
+  [[ "$account" =~ ^[0-9a-f]{32}$ ]] || die "the account ID is 32 hex characters (this is ${#account})"
   say "checking the token with Cloudflare"
   check="$(curl -fsS --max-time 30 -H "Authorization: Bearer $token" https://api.cloudflare.com/client/v4/user/tokens/verify 2>/dev/null || true)"
   printf '%s' "$check" | grep -q '"success":true' || die "Cloudflare did not accept the token (create a new one: My Profile → API Tokens)"
