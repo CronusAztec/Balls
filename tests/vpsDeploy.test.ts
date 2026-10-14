@@ -312,6 +312,20 @@ describe("install.sh and uninstall.sh", () => {
     expect(install).not.toMatch(/ufw|iptables|listen|0\.0\.0\.0|ssh/i); // opens nothing, logs nobody in
   });
 
+  it("cleans what a terminal adds to a pasted token (paste markers, spaces, line breaks) and nothing else", () => {
+    const fn = read("install.sh").match(/^clean_input\(\) \{.*\}$/m)?.[0];
+    expect(fn).toBeTruthy();
+    const run = (input: string) => spawnSync("bash", ["-c", `${fn}\nclean_input "$1"`, "_", input], { encoding: "utf8" }).stdout;
+    const token = "cfut_WutBJfmN0IDWZcQTApjTAP9Vs84tFlY69pWAxAtRbd3-x_";
+    expect(run(token)).toBe(token);
+    expect(run(`\u001b[200~${token}\u001b[201~`)).toBe(token); // the markers as sent
+    expect(run(`[200~${token}~`.replace(/~$/, ""))).toBe(token); // the escape lost on the way
+    expect(run(`  ${token}\r\n\t`)).toBe(token);
+    expect(run(`${token.slice(0, 20)} ${token.slice(20)}`)).toBe(token); // a break inside
+    expect(run("a1a1303c1defe6eafca7065581715c2e\u001b[201~")).toBe("a1a1303c1defe6eafca7065581715c2e");
+    expect(run("")).toBe("");
+  });
+
   it("uninstall removes the timer and the service, and the token only with --purge", () => {
     const un = read("uninstall.sh");
     expect(un).toContain("systemctl disable --now jbl-deploy.timer");
