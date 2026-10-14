@@ -27,6 +27,8 @@ export const IPC = {
   renderCancel: "render:cancel",
   journalLoad: "journal:load",
   journalSave: "journal:save",
+  customLoad: "custom:load", // --- custom-content --- the player's own fighters and modes (kept in the data folder)
+  customSave: "custom:save",
   libraryList: "library:list",
   libraryRemove: "library:remove",
   libraryReveal: "library:reveal",
@@ -445,6 +447,11 @@ export interface DesktopApi {
     load(): Promise<unknown>;
     save(journal: unknown): Promise<void>;
   };
+  /** --- custom-content --- The player's own fighters and modes, as one document (src/lib/desktop/custom.ts); null until something is saved. */
+  custom: {
+    load(): Promise<unknown>;
+    save(content: unknown): Promise<void>;
+  };
   library: {
     list(): Promise<LibraryItem[]>;
     remove(id: string, deleteFile: boolean): Promise<LibraryItem[]>;
@@ -508,6 +515,8 @@ export const BRIDGE_METHODS = {
   "render.cancel": IPC.renderCancel,
   "journal.load": IPC.journalLoad,
   "journal.save": IPC.journalSave,
+  "custom.load": IPC.customLoad,
+  "custom.save": IPC.customSave,
   "library.list": IPC.libraryList,
   "library.remove": IPC.libraryRemove,
   "library.reveal": IPC.libraryReveal,
@@ -575,6 +584,9 @@ export function checkIpcArgs(channel: IpcChannel, args: readonly unknown[]): str
       return isString(a) && typeof b === "boolean" ? null : "library.remove(id, deleteFile)";
     case IPC.journalSave:
       return a !== undefined ? null : "journal.save(journal)";
+    case IPC.customSave:
+      // an object of at most ~1 MB once written (24 fighters and 24 modes are a few dozen kB)
+      return a && typeof a === "object" && !Array.isArray(a) && JSON.stringify(a).length <= 1_000_000 ? null : "custom.save(content)";
     case IPC.aiChat: {
       const r = a as Partial<AiChatRequest> | null;
       if (!r || typeof r !== "object" || !isString(r.requestId) || !Array.isArray(r.messages) || r.messages.length === 0) return "ai.chat(request)";

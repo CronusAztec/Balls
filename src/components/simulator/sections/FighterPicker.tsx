@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import Dialog from "@/components/ui/Dialog";
 import { useMediaQuery } from "@/components/ui/useMediaQuery";
 import { cx } from "@/components/ui/cx";
 import type { Translate } from "../ControlPrimitives";
 import { FL_RANDOM, flRandomToken, isFlSlotValue, parseFlRandom } from "@/lib/physics/modes/fightLeague";
-import { FL_BY_ID, FL_CONFERENCE_IDS, FL_CONFERENCES, FL_ROSTER, conferenceOf, fightersOf, type FlConference, type FlDivision, type FlFighterRow, type FlRole } from "@/lib/physics/modes/fightLeagueRoster";
+import { FL_BY_ID, FL_CONFERENCE_IDS, FL_CONFERENCES, FL_ROSTER, conferenceOf, customFightersVersion, fightersOf, subscribeCustomFighters, type FlConference, type FlDivision, type FlFighterRow, type FlRole } from "@/lib/physics/modes/fightLeagueRoster";
 import { flTypeAhead, searchFighters } from "@/lib/physics/modes/fightLeagueSearch";
 
 /*
@@ -133,6 +133,7 @@ export interface FighterPickerProps {
 
 export default function FighterPicker({ t, slot, value, onChange }: FighterPickerProps) {
   const fl = useTranslations("FightLeague");
+  useSyncExternalStore(subscribeCustomFighters, customFightersVersion, () => 0); // --- custom-content --- the player's own fighters join the roster after start
   const letter = "ABCDEF"[slot] ?? "A"; // (--- fl-overhaul --- Stage 5: slots E and F)
   const [open, setOpen] = useState(false);
   const row = FL_BY_ID.get(value) ?? null;
@@ -183,6 +184,7 @@ export default function FighterPicker({ t, slot, value, onChange }: FighterPicke
 
 function PickerDialog({ t, letter, value, onClose, onPick, tokenLabel }: { t: Translate; letter: string; value: string; onClose: () => void; onPick: (value: string) => void; tokenLabel: (value: string) => string }) {
   const fl = useTranslations("FightLeague");
+  const customVersion = useSyncExternalStore(subscribeCustomFighters, customFightersVersion, () => 0); // --- custom-content ---
   const wide = useMediaQuery("(min-width: 640px)");
   const cols = wide ? 5 : 3;
   const [query, setQuery] = useState("");
@@ -207,7 +209,7 @@ function PickerDialog({ t, letter, value, onClose, onPick, tokenLabel }: { t: Tr
     return [...randoms, ...fightersOf(tab).map(fighter)];
     // tokenLabel and fl are stable for a render's locale.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, tab]);
+  }, [query, tab, customVersion]);
 
   // The active tile of a new list: the slot's current value when it is in it, else the first one (state adjusted while
   // rendering, not in an effect).

@@ -73,7 +73,7 @@ export function flPrimitivesTableMarkdown(): string {
           .map(([field, b]) => [b.min !== undefined ? `${field} ≥ ${num(b.min)}` : "", b.max !== undefined ? `${field} ≤ ${num(b.max)}` : ""].filter(Boolean).join(", "))
           .join(", ")
       : "–";
-    const users = FL_ROSTER.filter((r) => r.ability.effects.some((e) => e.p === p));
+    const users = FL_ROSTER.filter((r) => !r.custom && r.ability.effects.some((e) => e.p === p));
     lines.push(`| ${p} | ${telegraphClass(p)} | ${text} | ${users.length} | ${users.slice(0, 3).map((r) => cell(r.name)).join(", ") || "–"} |`);
   }
   return lines.join("\n");

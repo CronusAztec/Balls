@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useTranslations } from "next-intl";
 import Tooltip from "../Tooltip";
 import NumberField from "../NumberField";
 import { Searchable, Slider, Toggle, onBtn, selectClass, type Matcher, type Translate } from "../ControlPrimitives";
 import { RANGES, type SimulatorSettings } from "@/lib/settings";
 import { FL_ARENAS, FL_MATCHES, FL_RANDOM, flPanelValue, type FlArena, type FlMatch } from "@/lib/physics/modes/fightLeague";
-import { FL_BY_ID, FL_DIVISIONS, FL_PRESETS, fightersOf } from "@/lib/physics/modes/fightLeagueRoster";
+import { FL_BY_ID, FL_DIVISIONS, FL_PRESETS, customFightersVersion, fightersOf, subscribeCustomFighters } from "@/lib/physics/modes/fightLeagueRoster";
 // --- fl-overhaul --- (Stage 2) the fighter picker, its random tokens and the list view behind a toggle
 import FighterPicker from "./FighterPicker";
 import { flRandomToken, parseFlRandom } from "@/lib/physics/modes/fightLeague";
@@ -96,6 +96,7 @@ function currentPreset(s: SimulatorSettings): string | null {
  */
 export default function FightLeagueSection({ t, search, matches, settings: s, update }: FightLeagueSectionProps) {
   const fl = useTranslations("FightLeague");
+  useSyncExternalStore(subscribeCustomFighters, customFightersVersion, () => 0); // --- custom-content --- the player's own fighters join the roster after start
   // --- fl-overhaul --- (Stage 2)
   const [listView, setListView] = useState(false);
   useEffect(() => {
@@ -223,7 +224,7 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
                   <FighterPicker t={t} slot={i} value={id} onChange={set} />
                 )}
                 <p className="text-xs text-ink-3 leading-relaxed" data-testid={`fl-fighter-desc-${SLOT_LETTERS[i]}`}>
-                  {row ? fl(`fighter_${row.id}`) : scope ? t("flRandomHintScope", { group: scope }) : t(s.flSameDivision ? "flRandomHintDivision" : "flRandomHint")}
+                  {row ? (row.custom ? row.description : fl(`fighter_${row.id}`)) : scope ? t("flRandomHintScope", { group: scope }) : t(s.flSameDivision ? "flRandomHintDivision" : "flRandomHint")}
                   {row && <span className="block text-ink-2">{t("flAbility", { name: row.ability.name })}</span>}
                   {row && (
                     <span className="block text-ink-2" data-testid={`fl-fighter-role-${SLOT_LETTERS[i]}`}>

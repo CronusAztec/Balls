@@ -8,6 +8,12 @@ import { runAgent, type AgentEvent, type AgentTask } from "@/lib/desktop/ai/agen
 import { bridgeChatModel } from "@/lib/desktop/ai/bridgeModel";
 import { selectPlaybookContext } from "@/lib/desktop/ai/playbookContext";
 import { changedKeys, patchFromChanges, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
+import { customFighterTask, fighterFromAnswer } from "@/lib/desktop/ai/customFighter";
+import { customModeFrom, customModeTask, type CustomModeResult, type CustomModeSpec } from "@/lib/desktop/ai/customMode";
+import { MAX_CUSTOM_FIGHTERS, buildCustomFighter } from "@/lib/physics/modes/fightLeagueCustom";
+import { balanceCustomFighter } from "@/lib/simulation/flBalance";
+import { FL_BY_ID, type FlFighterRow } from "@/lib/physics/modes/fightLeagueRoster";
+import type { CustomContentApi } from "./useCustomContent";
 import { PlanStore, copyTask, ideasTask, makeVideosTask, settingsTask, type CopyResult, type IdeasResult, type MakeVideosResult, type SettingsResult } from "@/lib/desktop/ai/studio";
 import type { ClipPlan } from "@/lib/bot/planner";
 import type { DesktopPageHooks } from "./pageHooks";
@@ -25,14 +31,17 @@ import { messageOf, stripIpcPrefix } from "@/lib/desktop/errors"; // --- desktop
  * choice (prefs.aiGpu) for the status panel.
  */
 
-export const AI_TASKS = ["videos", "copy", "settings", "ideas"] as const;
+export const AI_TASKS = ["videos", "copy", "settings", "ideas", "fighter", "mode"] as const; // --- custom-content --- (fighter, mode: the player's own, kept on this computer)
 export type AiTaskKind = (typeof AI_TASKS)[number];
 
 export type AiResult =
   | { kind: "videos"; result: MakeVideosResult; plans: ClipPlan[] }
   | { kind: "copy"; result: CopyResult }
   | { kind: "settings"; result: SettingsResult; changed: string[] }
-  | { kind: "ideas"; result: IdeasResult };
+  | { kind: "ideas"; result: IdeasResult }
+  // --- custom-content --- a fighter saved (and the numbers the builder had to bring inside the limits), a mode saved and applied
+  | { kind: "fighter"; row: FlFighterRow; notes: string[]; winRate: number | null }
+  | { kind: "mode"; spec: CustomModeSpec; result: CustomModeResult; changed: string[] };
 
 export interface AiLogLine {
   kind: "tool" | "result" | "invalid" | "error" | "progress" | "turn" | "timing";
@@ -68,6 +77,10 @@ export interface DesktopAiApi {
   run: (prompt: string, options: { platforms: BotPlatform[]; existing: string }) => void;
   stop: () => void;
   undoSettings: () => void;
+  /** --- custom-content --- Applies a saved mode to the page (with Undo); an error text when it no longer fits, else null. */
+  applyMode: (spec: CustomModeSpec) => string | null;
+  /** --- custom-content --- Puts a fighter in slot A of the Ball Fight League (switching to that mode), with Undo. */
+  fightWith: (id: string) => void;
   refresh: () => void;
   download: (id: string) => void;
   cancelDownload: (id: string) => void;
@@ -85,7 +98,7 @@ export interface DesktopAiApi {
   setGpu: (mode: "auto" | "off") => void;
 }
 
-export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObject<DesktopPageHooks>, onClips: (result: MakeVideosResult, plans: ClipPlan[]) => void, onPrefsChanged: () => void): DesktopAiApi {
+export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObject<DesktopPageHooks>, onClips: (result: MakeVideosResult, plans: ClipPlan[]) => void, onPrefsChanged: () => void, custom?: CustomContentApi): DesktopAiApi {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [models, setModels] = useState<ModelEntry[]>([]);
   const [progress, setProgress] = useState<Record<string, ModelProgressEvent>>({});
@@ -130,6 +143,48 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
 
   const stop = useCallback(() => abortRef.current?.abort(), []);
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  /** --- custom-content --- Checks a saved patch against the page as it is now and applies it with an Undo (the settings assistant's way); the keys it changed. */
+  const applyPatch = useCallback(
+    (patch: Record<string, unknown>): string[] => {
+      const page = pageRef.current;
+      const checked = validateSettingsPatch(page.settings, patch);
+      if (!checked.ok) throw new Error(checked.errors.join("; "));
+      const changed = changedKeys(page.settings, checked.patch);
+      setUndo(page.settings);
+      const { mode, ...rest } = checked.patch;
+      if (mode && mode !== page.settings.mode) {
+        page.changeMode(mode);
+        setTimeout(() => pageRef.current.update(rest), 0);
+      } else page.update(rest);
+      return changed;
+    },
+    [pageRef],
+  );
+
+  const fightWith = useCallback(
+    (id: string) => {
+      const p = pageRef.current;
+      setUndo(p.settings);
+      if (p.settings.mode !== "fightLeague") {
+        p.changeMode("fightLeague");
+        setTimeout(() => pageRef.current.update({ flFighterA: id }), 0);
+      } else p.update({ flFighterA: id });
+    },
+    [pageRef],
+  );
+
+  const applyMode = useCallback(
+    (spec: CustomModeSpec): string | null => {
+      try {
+        applyPatch(spec.patch);
+        return null;
+      } catch (err) {
+        return aiErrorText(err);
+      }
+    },
+    [applyPatch],
+  );
 
   const run = useCallback(
     (prompt: string, options: { platforms: BotPlatform[]; existing: string }) => {
@@ -202,6 +257,34 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
               setTimeout(() => pageRef.current.update(rest), 0);
             } else pageRef.current.update(rest);
             setResult({ kind: "settings", result: out.result, changed });
+          } else if (task === "fighter") {
+            if (!custom) throw new Error("This computer cannot keep custom fighters here.");
+            if (custom.content.fighters.length >= MAX_CUSTOM_FIGHTERS) throw new Error(`You have ${MAX_CUSTOM_FIGHTERS} custom fighters: delete one to make another.`);
+            const taken = new Set(FL_BY_ID.keys());
+            const out = await runAgent(model, customFighterTask(prompt, page.locale, taken), { onEvent, signal: controller.signal });
+            if (!out.ok) throw new Error(out.error);
+            const built = fighterFromAnswer(out.result, taken);
+            if (!built.ok) throw new Error(built.errors.join("; "));
+            // test fights against built-in fighters set its damage, attack speed and cast speed (simulation/flBalance.ts)
+            setLog((l) => [...l, { kind: "progress", text: "Balancing…" }]);
+            const balanced = await balanceCustomFighter(built.spec, {
+              signal: controller.signal,
+              onProgress: (done, total) => setLog((l) => (l.length && l[l.length - 1].kind === "progress" ? [...l.slice(0, -1), { kind: "progress", text: `Balancing… ${done}/${total}` }] : [...l, { kind: "progress", text: `Balancing… ${done}/${total}` }])),
+            });
+            const final = buildCustomFighter(balanced.spec, taken);
+            if (!final.ok) throw new Error(final.errors.join("; "));
+            if (!(await custom.addFighter(final.spec))) throw new Error("The fighter could not be saved on this computer.");
+            setResult({ kind: "fighter", row: final.row, notes: built.notes, winRate: balanced.after });
+          } else if (task === "mode") {
+            if (!custom) throw new Error("This computer cannot keep custom modes here.");
+            const before = pageRef.current.settings;
+            const out = await runAgent(model, customModeTask(prompt, before, page.locale), { onEvent, signal: controller.signal });
+            if (!out.ok) throw new Error(out.error);
+            const spec = customModeFrom(out.result, pageRef.current.settings, new Set(custom.content.modes.map((m) => m.id)));
+            if (!spec) throw new Error("The mode did not pass the settings check.");
+            if (!(await custom.addMode(spec))) throw new Error("The mode could not be saved on this computer (or you have reached the limit).");
+            const changed = applyPatch(spec.patch);
+            setResult({ kind: "mode", spec, result: out.result, changed });
           } else {
             if (playbookRef.current === null) playbookRef.current = await bridge.ai.playbook();
             const context = selectPlaybookContext(playbookRef.current, prompt, 4500);
@@ -220,7 +303,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
         }
       })();
     },
-    [bridge, model, running, task, pageRef, onClips, refresh],
+    [bridge, model, running, task, pageRef, onClips, refresh, custom, applyPatch],
   );
 
   const undoSettings = useCallback(() => {
@@ -257,6 +340,8 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
     run,
     stop,
     undoSettings,
+    applyMode,
+    fightWith,
     refresh,
     download: (id) => bridge && wrap(() => bridge.ai.downloadModel(id).then(setModels)),
     cancelDownload: (id) => bridge && wrap(() => bridge.ai.cancelDownload(id)),

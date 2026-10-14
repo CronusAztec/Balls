@@ -46,7 +46,7 @@ describe("preload bridge", () => {
     expect(got).toEqual(["queue"]);
     expect(() => api.on("nope" as never, () => {})).toThrow(/Unknown desktop event/);
     // Nothing of Electron or Node leaks into the page.
-    expect(Object.keys(api).sort()).toEqual(["ai", "apiVersion", "dialogs", "gpu", "info", "journal", "library", "log", "on", "openLogs", "prefs", "render", "update"]);
+    expect(Object.keys(api).sort()).toEqual(["ai", "apiVersion", "custom", "dialogs", "gpu", "info", "journal", "library", "log", "on", "openLogs", "prefs", "render", "update"]);
   });
 
   // --- review fix (desktop-exe) --- a sign-in popup (blank, then the relay's or Google's site) never gets the bridge

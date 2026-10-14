@@ -94,7 +94,7 @@ const RANDOM = "random";
 const RANDOM_PREFIX = "random:";
 
 /** Case-insensitive lookups of every id a token may name (division ids are camelCase: starWars, modernAnime). */
-const ID_LOWER = new Map<string, string>(FL_ROSTER.map((r) => [r.id.toLowerCase(), r.id]));
+const ID_LOWER = { get: (lower: string): string | undefined => FL_ROSTER.find((r) => r.id.toLowerCase() === lower)?.id }; // --- custom-content --- read at call time (the player's own fighters join the roster later)
 const DIVISION_LOWER = new Map<string, FlDivision>(FL_DIVISIONS.map((d) => [d.toLowerCase(), d]));
 const CONFERENCE_LOWER = new Map<string, FlConference>((Object.keys(FL_CONFERENCES) as FlConference[]).map((c) => [c.toLowerCase(), c]));
 

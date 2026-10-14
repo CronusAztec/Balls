@@ -143,6 +143,7 @@ function start() {
   /* ---------------------------------------------------------------- services */
   const library = new Library(locations.libraryFile, locations.thumbsDir);
   const journal = new JsonFileStore(locations.journalFile);
+  const custom = new JsonFileStore(locations.customFile); // --- custom-content ---
   const saver = new RenderSaver({
     outputFolder,
     ffmpeg: () => ffmpeg()?.path ?? null,
@@ -295,6 +296,8 @@ function start() {
     [IPC.renderCancel]: (jobId) => saver.cancel(jobId as string),
     [IPC.journalLoad]: () => journal.read(),
     [IPC.journalSave]: (value) => journal.write(value),
+    [IPC.customLoad]: () => custom.read(),
+    [IPC.customSave]: (value) => custom.write(value),
     [IPC.libraryList]: () => library.list(),
     [IPC.libraryRemove]: (id, deleteFile) => library.remove(id as string, deleteFile as boolean, (file) => shell.trashItem(file)),
     [IPC.libraryReveal]: async (id) => {

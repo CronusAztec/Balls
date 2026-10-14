@@ -15,6 +15,7 @@ import type { ClipPlan } from "@/lib/bot/planner";
 import type { DesktopPageHooks } from "../desktop/pageHooks";
 import { useRenderQueue } from "../desktop/useRenderQueue";
 import { useDesktopAi } from "../desktop/useDesktopAi";
+import { useCustomContent } from "../desktop/useCustomContent"; // --- custom-content ---
 import GpuPanel from "../desktop/GpuPanel";
 import QueuePanel from "../desktop/QueuePanel";
 import AiPanel from "../desktop/AiPanel";
@@ -103,7 +104,8 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   const reloadPrefs = useCallback(() => {
     bridge.prefs.get().then(setPrefs).catch(() => {});
   }, [bridge]);
-  const ai = useDesktopAi(bridge, pageRef, addAiClips, reloadPrefs);
+  const custom = useCustomContent(bridge); // --- custom-content --- the player's own fighters (they join the roster here) and modes
+  const ai = useDesktopAi(bridge, pageRef, addAiClips, reloadPrefs, custom);
 
   // --- desktop-exe --- the Publish feature's paths as the Library's one-click targets (lib/publish/desktopTargets.ts):
   // the accounts ticked in the Publish block, and the quick share of the clip's platform
@@ -279,7 +281,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
       )}
       {tab === "gpu" && <GpuPanel bridge={bridge} prefs={prefs} info={info} update={update} onPrefs={changePrefs} />}
       {tab === "queue" && <QueuePanel bridge={bridge} queue={queue} page={page} folder={prefs.outputFolder} onFolder={(outputFolder) => changePrefs({ outputFolder })} />}
-      {tab === "ai" && <AiPanel ai={ai} prefs={prefs} page={page} onQueueTab={() => show("queue")} bridge={bridge} /* --- desktop-ai-fix --- (the AI status panel) */ />}
+      {tab === "ai" && <AiPanel ai={ai} custom={custom} prefs={prefs} page={page} onQueueTab={() => show("queue")} bridge={bridge} /* --- desktop-ai-fix --- (the AI status panel) */ />}
       {tab === "library" && <LibraryPanel bridge={bridge} items={library} onRefresh={refreshLibrary} onRerender={(item) => void rerender(item)} />}
     </section>
   );

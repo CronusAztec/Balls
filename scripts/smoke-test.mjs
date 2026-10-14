@@ -16977,6 +16977,8 @@ const RE_PRESET = "mode=classic&wc=11&gap=0.8&s=500&regl=spiral&ress=30&resp=tog
 // every language, the Pro prices filled in from the plans (no {placeholder} left), and the pricing page's refunds note linking
 // the terms. The smoke build sets no SUPPORT_EMAIL / LEGAL_NAME, so the terms name "the operator of" the site.
 await smokeBlock("go-live-kit", async () => {
+  const billingPlans = JSON.parse(fs.readFileSync(new URL("../billing/billing-config.json", import.meta.url), "utf8")).plans;
+  const goLivePriceForms = [billingPlans.monthly.usd, billingPlans.yearly.usd].map((usd) => new RegExp(`(^|[^0-9])${String(usd).replace(".", "[.,]")}([^0-9]|$)`));
   for (const locale of ["en", "pl", "es"]) {
     const res = await page.goto(`${BASE}/${locale}/terms/`, { waitUntil: "domcontentloaded" });
     const terms = await page.evaluate(() => {
@@ -16995,7 +16997,8 @@ await smokeBlock("go-live-kit", async () => {
     );
     check(
       `go-live-kit: the ${locale} terms fill in the prices and every placeholder`,
-      /79/.test(terms.pro?.text ?? "") && /10/.test(terms.pro?.text ?? "") && !/\{(monthly|yearly|siteName|siteDomain|legalName|address)\}/.test(terms.body),
+      // the prices are the plans' (billing/billing-config.json: 6.99 a month, 49 a year), a comma or a point as the language writes them
+      goLivePriceForms.every((re) => re.test(terms.pro?.text ?? "")) && !/\{(monthly|yearly|siteName|siteDomain|legalName|address)\}/.test(terms.body),
       `(${(terms.pro?.text ?? "").slice(0, 120)})`,
     );
     if (locale === "en") check("go-live-kit: without LEGAL_NAME the terms name the operator of the site", (terms.operator?.text ?? "").includes("the operator of"), `(${(terms.operator?.text ?? "").slice(0, 120)})`);

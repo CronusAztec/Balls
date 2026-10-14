@@ -516,6 +516,8 @@ export interface FlFighterRow {
   isNew: boolean;
   /** The body's look (visual only). */
   look?: FlLook;
+  /** --- custom-content --- A fighter the player made with the app's AI (fightLeagueCustom.ts): in Wildcard, kept on this device, never in the built-in roster's tuning, hashes or README table. */
+  custom?: true;
 }
 
 /** The roster: every division's rows (fightLeagueRows/<division>.ts), in `FL_DIVISIONS` order. */
@@ -546,10 +548,80 @@ const ROWS_BY_DIVISION: Readonly<Record<FlDivision, readonly FlFighterRow[]>> = 
  * fighter wins more than 75 % or fewer than 25 % of a round robin (tests/fightLeague.test.ts prints the tables; the damage
  * stat is the tuner's – scripts/fl-balance.mjs).
  */
-export const FL_ROSTER: readonly FlFighterRow[] = FL_DIVISIONS.flatMap((division) => ROWS_BY_DIVISION[division]);
+const ROSTER: FlFighterRow[] = FL_DIVISIONS.flatMap((division) => ROWS_BY_DIVISION[division]);
+export const FL_ROSTER: readonly FlFighterRow[] = ROSTER;
 
 /** The roster by id. */
-export const FL_BY_ID: ReadonlyMap<string, FlFighterRow> = new Map(FL_ROSTER.map((row) => [row.id, row]));
+const BY_ID = new Map(ROSTER.map((row) => [row.id, row]));
+export const FL_BY_ID: ReadonlyMap<string, FlFighterRow> = BY_ID;
+
+/* ------------------------------------------------------------------ --- custom-content --- the player's own fighters */
+
+/**
+ * --- custom-content --- The player's own fighters (made with the Windows app's AI, fightLeagueCustom.ts) join the roster at run
+ * time: after the built-in rows (Wildcard is the last division, so the division order holds), under ids that start with `my-`.
+ * The built-in rows, their tuning, hashes and tables never see them (`custom` rows are left out of `flDivisionHash`).
+ * `FL_ROSTER` and `FL_BY_ID` are the live views: whoever reads them at call time sees the custom fighters, and
+ * `subscribeCustomFighters` tells a page when to read again.
+ */
+let customVersion = 0;
+const customListeners = new Set<() => void>();
+
+/** Replaces the custom fighters by `rows` (each `custom: true`, id `my-…`, division Wildcard; anything else is ignored). */
+export function setCustomFighters(rows: readonly FlFighterRow[]): void {
+  for (let i = ROSTER.length - 1; i >= 0; i--) {
+    if (ROSTER[i].custom) {
+      BY_ID.delete(ROSTER[i].id);
+      ROSTER.splice(i, 1);
+    }
+  }
+  for (const row of rows) {
+    if (!row.custom || row.division !== "wildcard" || !row.id.startsWith("my-") || BY_ID.has(row.id)) continue;
+    ROSTER.push(row);
+    BY_ID.set(row.id, row);
+  }
+  customVersion++;
+  customListeners.forEach((listener) => listener());
+}
+
+/**
+ * Makes `row` findable by id (`FL_BY_ID`) without putting it in the roster, the pickers or the listeners' view – the balancer's
+ * test fights (simulation/flBalance.ts) use it for a fighter that is not made yet. Returns the function that takes it out again.
+ */
+export function addTemporaryFighter(row: FlFighterRow): () => void {
+  const had = BY_ID.get(row.id);
+  BY_ID.set(row.id, row);
+  return () => {
+    if (had) BY_ID.set(row.id, had);
+    else BY_ID.delete(row.id);
+  };
+}
+
+/** Runs `body` with `row` findable by id (`addTemporaryFighter`). */
+export function withTemporaryFighter<T>(row: FlFighterRow, body: () => T): T {
+  const remove = addTemporaryFighter(row);
+  try {
+    return body();
+  } finally {
+    remove();
+  }
+}
+
+/** The custom fighters now in the roster, in order. */
+export function customFighters(): FlFighterRow[] {
+  return ROSTER.filter((row) => row.custom);
+}
+
+/** A number that changes whenever the custom fighters do (a React `useSyncExternalStore` snapshot). */
+export function customFightersVersion(): number {
+  return customVersion;
+}
+
+/** Calls `listener` after every `setCustomFighters`; returns the unsubscribe. */
+export function subscribeCustomFighters(listener: () => void): () => void {
+  customListeners.add(listener);
+  return () => void customListeners.delete(listener);
+}
 
 /** Whether `id` names a fighter of the roster. */
 export function isFlFighterId(value: unknown): value is string {
@@ -739,7 +811,7 @@ export function flHash(text: string): string {
 
 /** The fingerprint of a division's fighting data (stats, weapons, abilities, intents – not the names or looks): the ratings' staleness check. */
 export function flDivisionHash(division: FlDivision): string {
-  return flHash(JSON.stringify(fightersOf(division).map((r) => [r.id, r.stats, r.weapons, r.ability, r.intent ?? null])));
+  return flHash(JSON.stringify(fightersOf(division).filter((r) => !r.custom).map((r) => [r.id, r.stats, r.weapons, r.ability, r.intent ?? null])));
 }
 
 /** The fingerprint of the whole roster's fighting data: the hash of the division hashes joined in `FL_DIVISIONS` order. */
@@ -754,7 +826,7 @@ export function flRosterHash(): string {
  */
 export function rosterTableMarkdown(): string {
   const lines = ["| Division | Fighter | Source | Weapon | HP · speed · attack · damage · cast · size | Ability (primitives) | Role | New | Look |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"];
-  for (const r of FL_ROSTER) {
+  for (const r of FL_ROSTER.filter((row) => !row.custom)) {
     const s = r.stats;
     const stats = [s.hp, s.speed, s.attackSpeed, s.damage, s.castSpeed, s.size].join(" · ");
     const prims = r.ability.effects.map((e) => e.p.replace(/[A-Z]/g, (c) => ` ${c.toLowerCase()}`)).join(" + ");

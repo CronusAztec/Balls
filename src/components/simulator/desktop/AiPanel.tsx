@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { CLOUD_DEFAULTS, type CloudProvider, type DesktopApi, type DesktopPrefs } from "@/lib/desktop/contract";
 import { BOT_PLATFORMS, type BotPlatform } from "@/lib/bot/playbook";
 import { AI_TASKS, type DesktopAiApi } from "./useDesktopAi";
+import type { CustomContentApi } from "./useCustomContent"; // --- custom-content ---
+import { weaponLabel } from "@/lib/physics/modes/fightLeagueRoster";
 import type { DesktopPageHooks } from "./pageHooks";
 import { Bar, Card, Chip, formatBytes, ghostBtn, inputClass, primaryBtn } from "./ui";
 import { applyCopyToPublish } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the copy goes into the Publish block's draft
@@ -22,9 +24,11 @@ import AiSetupCard, { needsSetup } from "./AiSetupCard";
  * failure on the GPU, a switch to the CPU.
  */
 
-export default function AiPanel({ ai, prefs, page, onQueueTab, bridge }: { ai: DesktopAiApi; prefs: DesktopPrefs; page: DesktopPageHooks; onQueueTab: () => void; bridge?: DesktopApi }) {
+export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }: { ai: DesktopAiApi; custom: CustomContentApi; prefs: DesktopPrefs; page: DesktopPageHooks; onQueueTab: () => void; bridge?: DesktopApi }) {
   const t = useTranslations("Desktop");
   const tx = useTranslations("DesktopAiFix"); // --- desktop-ai-fix ---
+  const tc = useTranslations("CustomContent"); // --- custom-content ---
+  const [modeNote, setModeNote] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("");
   const [platforms, setPlatforms] = useState<BotPlatform[]>(["reels"]);
   const [existing, setExisting] = useState("");
@@ -305,6 +309,84 @@ export default function AiPanel({ ai, prefs, page, onQueueTab, bridge }: { ai: D
             <p className="text-xs text-ink-3 font-mono" data-testid="ai-changed">{ai.result.changed.join(", ") || t("aiNothingChanged")}</p>
           </Card>
         )}
+
+
+        {/* --- custom-content --- a fighter or a mode the AI just made (already saved on this computer) */}
+        {ai.result?.kind === "fighter" && (
+          <Card
+            title={tc("fighterTitle", { name: ai.result.row.name })}
+            testId="ai-fighter-result"
+            actions={
+              <button type="button" className={primaryBtn} onClick={() => ai.result?.kind === "fighter" && ai.fightWith(ai.result.row.id)} title={tc("fightWithHint")} data-testid="ai-fight-with">
+                {tc("fightWith")}
+              </button>
+            }
+          >
+            <p className="text-xs text-ink">{ai.result.row.description}</p>
+            <dl className="text-xs grid grid-cols-[auto_1fr] gap-x-3 gap-y-1">
+              <dt className="text-ink-3">{tc("role")}</dt>
+              <dd className="text-ink">{ai.result.row.role}</dd>
+              <dt className="text-ink-3">{tc("weapon")}</dt>
+              <dd className="text-ink">{weaponLabel(ai.result.row)}</dd>
+              <dt className="text-ink-3">{tc("ability")}</dt>
+              <dd className="text-ink">
+                {ai.result.row.ability.name} <span className="text-ink-3">({ai.result.row.ability.effects.map((e) => e.p).join(" + ")})</span>
+              </dd>
+              <dt className="text-ink-3">{tc("stats")}</dt>
+              <dd className="text-ink font-mono">{[ai.result.row.stats.hp, ai.result.row.stats.speed, ai.result.row.stats.attackSpeed, ai.result.row.stats.damage, ai.result.row.stats.castSpeed, ai.result.row.stats.size].join(" · ")}</dd>
+            </dl>
+            {ai.result.winRate !== null && <p className="text-xs text-ink-3">{tc("balanced", { rate: Math.round(ai.result.winRate * 100) })}</p>}
+            {ai.result.notes.length > 0 && <p className="text-xs text-ink-3">{tc("adjusted", { list: ai.result.notes.join(", ") })}</p>}
+            <p className="text-xs text-accent">{tc("kept")}</p>
+          </Card>
+        )}
+
+        {ai.result?.kind === "mode" && (
+          <Card title={tc("modeTitle", { name: ai.result.spec.name })} testId="ai-mode-result" actions={ai.undo ? <button type="button" className={ghostBtn} onClick={ai.undoSettings} data-testid="ai-undo">{tc("undo")}</button> : undefined}>
+            <p className="text-xs text-ink">{ai.result.spec.description}</p>
+            <p className="text-xs text-ink-3 font-mono" data-testid="ai-changed">{ai.result.changed.join(", ") || t("aiNothingChanged")}</p>
+            <p className="text-xs text-accent">{tc("kept")}</p>
+          </Card>
+        )}
+
+        <Card title={tc("mineTitle")} testId="ai-my-creations">
+          {custom.error && <p className="text-xs text-warn">{tc("saveFailed", { error: custom.error })}</p>}
+          {modeNote && <p className="text-xs text-warn">{tc("modeNotApplied", { error: modeNote })}</p>}
+          {custom.content.fighters.length === 0 && custom.content.modes.length === 0 && <p className="text-xs text-ink-3">{tc("none")}</p>}
+          {custom.content.fighters.length > 0 && (
+            <div className="space-y-1.5">
+              <h4 className="text-xs font-semibold text-ink-2">{tc("myFighters", { count: custom.content.fighters.length })}</h4>
+              <ul className="space-y-1">
+                {custom.content.fighters.map((f) => (
+                  <li key={f.id} className="flex items-center gap-2 text-xs rounded-lg border border-line p-2">
+                    <span className="inline-block h-3 w-3 rounded-full border border-line-strong" style={{ background: f.body }} aria-hidden />
+                    <span className="flex-1 min-w-0">
+                      <span className="font-semibold text-ink">{f.name}</span> <span className="text-ink-3">{f.role} · {f.weapon.kind} · {f.ability.name}</span>
+                    </span>
+                    <button type="button" className={`${primaryBtn} !py-0.5`} onClick={() => f.id && ai.fightWith(f.id)}>{tc("fightWith")}</button>
+                    <button type="button" className={`${ghostBtn} !py-0.5`} onClick={() => f.id && void custom.removeFighter(f.id)}>{tc("delete")}</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {custom.content.modes.length > 0 && (
+            <div className="space-y-1.5">
+              <h4 className="text-xs font-semibold text-ink-2">{tc("myModes", { count: custom.content.modes.length })}</h4>
+              <ul className="space-y-1">
+                {custom.content.modes.map((m) => (
+                  <li key={m.id} className="flex items-center gap-2 text-xs rounded-lg border border-line p-2">
+                    <span className="flex-1 min-w-0">
+                      <span className="font-semibold text-ink">{m.name}</span> <span className="text-ink-3">{m.description}</span>
+                    </span>
+                    <button type="button" className={`${primaryBtn} !py-0.5`} onClick={() => setModeNote(ai.applyMode(m))}>{tc("playMode")}</button>
+                    <button type="button" className={`${ghostBtn} !py-0.5`} onClick={() => void custom.removeMode(m.id)}>{tc("delete")}</button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </Card>
 
         {ai.result?.kind === "ideas" && (
           <Card title={t("aiIdeasTitle")}>
