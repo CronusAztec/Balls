@@ -52,7 +52,7 @@ case "$1" in
 esac
 exit 0`);
   stub("npm", `echo "npm $* | cf=\${CLOUDFLARE_API_TOKEN:+set} gh=\${JBL_GITHUB_TOKEN:+set}" >> "$STUB_LOG"; [ "$STUB_FAIL" = npm ] && exit 1; exit 0`);
-  stub("npx", `echo "npx $* | token=\${CLOUDFLARE_API_TOKEN:+set} site=$NEXT_PUBLIC_SITE_URL base=[$NEXT_PUBLIC_BASE_PATH] gh=$NEXT_PUBLIC_GITHUB_REPO billing=$NEXT_PUBLIC_BILLING_API relay=$NEXT_PUBLIC_PUBLISH_RELAY_URL gh=\${JBL_GITHUB_TOKEN:+set}" >> "$STUB_LOG"
+  stub("npx", `echo "npx $* | token=\${CLOUDFLARE_API_TOKEN:+set} site=$NEXT_PUBLIC_SITE_URL base=[$NEXT_PUBLIC_BASE_PATH] gh=$NEXT_PUBLIC_GITHUB_REPO billing=$NEXT_PUBLIC_BILLING_API relay=$NEXT_PUBLIC_PUBLISH_RELAY_URL gh=\${JBL_GITHUB_TOKEN:+set} feedback=[$NEXT_PUBLIC_FEEDBACK_ENDPOINT] analytics=[$NEXT_PUBLIC_ANALYTICS_SCRIPT_URL|$NEXT_PUBLIC_ANALYTICS_SITE_ID] youtube=[$NEXT_PUBLIC_YOUTUBE_CLIENT_ID] downloads=[$NEXT_PUBLIC_DOWNLOADS_URL] support=[$NEXT_PUBLIC_SUPPORT_EMAIL] legal=[$NEXT_PUBLIC_LEGAL_NAME]" >> "$STUB_LOG"
 case "$*" in
   *"next build"*) [ "$STUB_FAIL" = build ] && exit 1; mkdir -p out ;;
   *wrangler*) [ "$STUB_FAIL" = wrangler ] && exit 1; [ "$STUB_FAIL" = nolive ] || cp out/build.txt "$STUB_LIVE" ;;
@@ -116,11 +116,53 @@ describe("jbl-deploy.sh: a new commit on the branch", () => {
     expect(sb.file("last-failed")).toBeNull();
     // the build is for the root of the domain with the live billing values, the token reaches only wrangler's process
     const build = r.calls.find((c) => c.includes("next build"))!;
-    expect(build).toContain("site=https://jumpingballslive.com base=[] gh=CronusAztec/Balls");
+    expect(build).toContain("site=https://jumpingballslive.com base=[] gh= billing="); // the source repository is private: the feedback form must not open its issues by default
     expect(build).toContain("billing=https://jumpingballslive-billing.jumpingballslive.workers.dev");
     expect(build).toContain("relay=https://relay.jumpingballslive.com");
     expect(r.calls.find((c) => c.includes("go-live-check.mjs"))).toContain("lk=set billing=https://jumpingballslive-billing");
     expect(r.calls.find((c) => c.includes("wrangler deploy"))).toContain("token=set");
+  });
+
+  it("passes the operator's public details and the optional public build settings on to the build, and nothing when they are unset", () => {
+    const plain = sandbox().run();
+    expect(plain.status, plain.stdout).toBe(0);
+    const bare = plain.calls.find((c) => c.includes("next build"))!;
+    expect(bare).toContain("feedback=[] analytics=[|] youtube=[] downloads=[] support=[] legal=[]");
+    expect(plain.stdout).toContain("warning: JBL_SUPPORT_EMAIL is not set"); // the journal says so on every build until it is
+
+    const conf = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "jbl-deploy-conf-")), "env");
+    cleanups.push(() => fs.rmSync(path.dirname(conf), { recursive: true, force: true }));
+    fs.writeFileSync(
+      conf,
+      [
+        "JBL_SUPPORT_EMAIL='support@example.com'",
+        "JBL_LEGAL_NAME='Jan Kowalski'",
+        "JBL_FEEDBACK_ENDPOINT='https://forms.example.com/f'",
+        "JBL_ANALYTICS_SCRIPT_URL='https://stats.example.com/script.js'",
+        "JBL_ANALYTICS_SITE_ID='abc123'",
+        "JBL_YOUTUBE_CLIENT_ID='123-abc.apps.googleusercontent.com'",
+        "JBL_DOWNLOADS_URL='https://downloads.example.com/latest'",
+        "JBL_FEEDBACK_GITHUB_REPO='someone/public-repo'",
+      ].join("\n"),
+    );
+    const set = sandbox().run([], { JBL_DEPLOY_CONF: conf });
+    expect(set.status, set.stdout).toBe(0);
+    const build = set.calls.find((c) => c.includes("next build"))!;
+    expect(build).toContain("gh=someone/public-repo");
+    expect(build).toContain("feedback=[https://forms.example.com/f] analytics=[https://stats.example.com/script.js|abc123]");
+    expect(build).toContain("youtube=[123-abc.apps.googleusercontent.com] downloads=[https://downloads.example.com/latest] support=[support@example.com] legal=[Jan Kowalski]");
+    expect(set.stdout).not.toContain("JBL_SUPPORT_EMAIL is not set");
+  });
+
+  it("says in --status when it cannot read the repository, instead of staying silent (the repository went private)", () => {
+    const sb = sandbox();
+    const r = sb.run([], { STUB_LSREMOTE: "fail" });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toContain("cannot read main of CronusAztec/Balls");
+    expect(r.stdout).toContain("JBL_GITHUB_TOKEN is not set");
+    expect(sb.result()).toMatchObject({ state: "unreachable" });
+    expect(sb.result().message).toContain("JBL_GITHUB_TOKEN is not set");
+    expect(r.calls.some((c) => c.includes("npm ci"))).toBe(false);
   });
 
   it("does nothing, and asks GitHub only once, when the commit is the one already deployed", () => {
@@ -361,6 +403,32 @@ describe("install.sh and uninstall.sh", () => {
       expect(line, line).not.toMatch(/\b(echo|say|logger|tee)\b|>&2|printf '%s\\n' "\$token"/);
     }
     expect(install).not.toMatch(/ufw|iptables|listen|0\.0\.0\.0|ssh/i); // opens nothing, logs nobody in
+  });
+
+  it("cleans a typed name or address for the single-quoted settings file and keeps what is written readable by bash", () => {
+    const fn = read("install.sh").match(/^clean_text\(\) \{.*\}$/m)?.[0];
+    expect(fn).toBeTruthy();
+    const run = (input: string) => spawnSync("bash", ["-c", `${fn}\nclean_text "$1"`, "_", input], { encoding: "utf8" }).stdout;
+    expect(run("Anna Nowak")).toBe("Anna Nowak");
+    expect(run("\u001b[200~Anna Nowak\u001b[201~")).toBe("Anna Nowak"); // the paste markers
+    expect(run("  Jan\tKowalski  ")).toBe("JanKowalski"); // control characters go, edge spaces go
+    expect(run("Jan O'Brien")).toBe("Jan O\u2019Brien"); // a single quote would end the quoting
+    expect(run("ul. Długa 5, 00-001 Warszawa")).toBe("ul. Długa 5, 00-001 Warszawa");
+    // whatever it returns is safe between single quotes and sourced back unchanged (no expansion, no command execution)
+    const hostile = run("a $HOME `id` $(id) \\ b");
+    const conf = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "jbl-conf-")), "env");
+    cleanups.push(() => fs.rmSync(path.dirname(conf), { recursive: true, force: true }));
+    fs.writeFileSync(conf, `JBL_LEGAL_NAME='${hostile}'\n`);
+    const back = spawnSync("bash", ["-c", `. "${conf}"; printf '%s' "$JBL_LEGAL_NAME"`], { encoding: "utf8" });
+    expect(back.stdout).toBe(hostile);
+    expect(hostile).toContain("$HOME");
+  });
+
+  it("asks for the support e-mail, the legal name and the address, and warns when no support e-mail is set", () => {
+    const install = read("install.sh");
+    for (const key of ["JBL_SUPPORT_EMAIL", "JBL_LEGAL_NAME", "JBL_LEGAL_ADDRESS"]) expect(install, key).toContain(`grep -q "^${key}=" "$CONF"`);
+    expect(install).toContain("NOTE: no support e-mail is set");
+    expect(read("jbl-deploy.sh")).toContain('JBL_FEEDBACK_GITHUB_REPO="${JBL_FEEDBACK_GITHUB_REPO-}"');
   });
 
   it("looks for a new commit every ten minutes unless --every says otherwise, and refuses a nonsense interval before touching anything", () => {

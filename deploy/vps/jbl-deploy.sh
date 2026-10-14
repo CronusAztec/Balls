@@ -17,8 +17,12 @@
 #                      It is used for `git ls-remote`, `git fetch` and the checks lookup, and for nothing else. Each token reaches only the
 #                      step that needs it: the build (npm, Next.js, the repository's own scripts) sees neither it nor the Cloudflare token.
 #   JBL_REPO (CronusAztec/Balls)   JBL_BRANCH (main)   JBL_SITE_URL (https://jumpingballslive.com)
-#   JBL_REQUIRE_GREEN (1)   JBL_FEEDBACK_GITHUB_REPO (the repo, while it is public with Issues on; empty once it is private)
-#   JBL_FEEDBACK_EMAIL, JBL_SUPPORT_EMAIL, JBL_LEGAL_NAME, JBL_LEGAL_ADDRESS   the operator's public details the legal pages show
+#   JBL_REQUIRE_GREEN (1)   JBL_FEEDBACK_GITHUB_REPO (empty: the feedback form opens no GitHub issues; set it to OWNER/NAME only while that
+#                      repository is public with Issues on)
+#   JBL_SUPPORT_EMAIL, JBL_FEEDBACK_EMAIL, JBL_LEGAL_NAME, JBL_LEGAL_ADDRESS   the operator's public details the legal pages and the
+#                      feedback form show (without a support e-mail the site has no way to be reached: scripts/go-live-check.mjs warns)
+#   JBL_FEEDBACK_ENDPOINT, JBL_ANALYTICS_SCRIPT_URL, JBL_ANALYTICS_SITE_ID, JBL_YOUTUBE_CLIENT_ID, JBL_DOWNLOADS_URL   optional public build
+#                      settings, passed on as NEXT_PUBLIC_* exactly like the GitHub Actions deploy does (empty: off / the built-in default)
 #   JBL_RELAY_URL (https://relay.jumpingballslive.com)   JBL_STATE_DIR (/var/lib/jbl-deploy)   JBL_GIT_URL (https://github.com/<repo>.git)
 #   JBL_RETRY_SECONDS (21600)
 # `jbl-deploy.sh --status` prints the last result; `jbl-deploy.sh --sha <40 hex>` deploys that commit now (a rollback): a person naming
@@ -45,7 +49,8 @@ JBL_VERIFY_WAIT="${JBL_VERIFY_WAIT:-10}"
 # The paywall's two public values: the live licence key and the billing Worker (the same defaults as .github/workflows/deploy.yml).
 LICENSE_PUBLIC_KEY="${LICENSE_PUBLIC_KEY:-MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE5Q9-e4H4jsJ0U34xlaAeMGIHpq5mV260PbJs0fVCZx5x3HgT9OTNN6Jk1WtKDGPxj6GkusFBjURGz240mV941A}"
 BILLING_API_URL="${BILLING_API_URL:-https://jumpingballslive-billing.jumpingballslive.workers.dev}"
-JBL_FEEDBACK_GITHUB_REPO="${JBL_FEEDBACK_GITHUB_REPO-$JBL_REPO}"
+# (empty by default: the source repository is private, so a feedback form that opens its issues would send visitors to a 404)
+JBL_FEEDBACK_GITHUB_REPO="${JBL_FEEDBACK_GITHUB_REPO-}"
 
 WORK="$JBL_STATE_DIR/work"
 SHA_RE='^[0-9a-f]{40}$'
@@ -70,7 +75,7 @@ gh_git() {
 scrub() { env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID -u JBL_GITHUB_TOKEN "$@"; }
 
 # a JSON file the next reader (a person, or the AI that pushed the commit) can look at: jbl-deploy.sh --status
-write_result() { # state(ok|failed|waiting|skipped) sha message
+write_result() { # state(ok|failed|waiting|skipped|unreachable) sha message
   node -e '
     const [state, sha, message, dir] = process.argv.slice(1);
     require("fs").writeFileSync(dir + "/last-result.json", JSON.stringify({ state, sha, message, at: new Date().toISOString() }, null, 2) + "\n");
@@ -106,6 +111,7 @@ else
     hint=""
     [ -n "${JBL_GITHUB_TOKEN:-}" ] || hint=", or the repository is private and JBL_GITHUB_TOKEN is not set"
     logline "cannot read $JBL_BRANCH of $JBL_REPO from GitHub (network, the branch is gone$hint): nothing to do"
+    write_result unreachable "" "cannot read $JBL_BRANCH of $JBL_REPO from GitHub$hint"
     exit 0
   fi
   if [ "$HEAD_SHA" = "$(state_get last-ok)" ]; then exit 0; fi
@@ -196,6 +202,7 @@ STEP="production guard (the live billing keys)"
 scrub env LICENSE_PUBLIC_KEY="$LICENSE_PUBLIC_KEY" BILLING_API_URL="$BILLING_API_URL" node scripts/go-live-check.mjs --deploy-guard
 
 STEP="build the site"
+[ -n "${JBL_SUPPORT_EMAIL:-}" ] || logline "warning: JBL_SUPPORT_EMAIL is not set in $CONF, so the site is built with no way for visitors to reach you (deploy/vps/README.md, \"Say who runs the site\")"
 scrub env \
   SITEMAP_LASTMOD="$(git log -1 --format=%cI "$HEAD_SHA" 2>/dev/null || date -u +%FT%TZ)" \
   NEXT_PUBLIC_SITE_URL="$JBL_SITE_URL" \
@@ -205,6 +212,11 @@ scrub env \
   NEXT_PUBLIC_SUPPORT_EMAIL="${JBL_SUPPORT_EMAIL:-}" \
   NEXT_PUBLIC_LEGAL_NAME="${JBL_LEGAL_NAME:-}" \
   NEXT_PUBLIC_LEGAL_ADDRESS="${JBL_LEGAL_ADDRESS:-}" \
+  NEXT_PUBLIC_FEEDBACK_ENDPOINT="${JBL_FEEDBACK_ENDPOINT:-}" \
+  NEXT_PUBLIC_ANALYTICS_SCRIPT_URL="${JBL_ANALYTICS_SCRIPT_URL:-}" \
+  NEXT_PUBLIC_ANALYTICS_SITE_ID="${JBL_ANALYTICS_SITE_ID:-}" \
+  NEXT_PUBLIC_YOUTUBE_CLIENT_ID="${JBL_YOUTUBE_CLIENT_ID:-}" \
+  NEXT_PUBLIC_DOWNLOADS_URL="${JBL_DOWNLOADS_URL:-}" \
   NEXT_PUBLIC_PUBLISH_RELAY_URL="${JBL_RELAY_URL:-https://relay.jumpingballslive.com}" \
   NEXT_PUBLIC_LICENSE_PUBLIC_KEY="$LICENSE_PUBLIC_KEY" \
   NEXT_PUBLIC_BILLING_API="$BILLING_API_URL" \

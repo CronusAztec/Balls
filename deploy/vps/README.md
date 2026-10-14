@@ -51,7 +51,7 @@ token during the build – the same trust a GitHub Actions deploy needs, moved t
 | change the token | `sudo bash deploy/vps/install.sh --reconfigure` |
 | pause / resume | `sudo systemctl stop jbl-deploy.timer` / `sudo systemctl start jbl-deploy.timer` |
 | change how often it looks (5 to 1440 minutes, default 10) | `cd ~/Balls && git pull origin main && sudo bash deploy/vps/install.sh --every 10` (keeps the settings; a run without `--every` sets 10 again) |
-| settings (branch, feedback e-mail, legal details) | `/etc/jbl-deploy/env`, listed at the top of `jbl-deploy.sh` |
+| settings (branch, support e-mail, legal name and address, optional public build settings) | `/etc/jbl-deploy/env`, listed at the top of `jbl-deploy.sh`; a change is built into the site by the next deploy, or at once with `--sha` (see "Say who runs the site") |
 
 ## When the repository is private
 
@@ -75,6 +75,27 @@ A fresh server needs the same token to clone the code the first time (`git -c ht
 
 Without the Checks permission set `JBL_REQUIRE_GREEN=0` in the settings file: the deployer then deploys every new commit of the branch
 without waiting for GitHub's lint, type check and unit tests – only do that if you trust whoever can push.
+
+## Say who runs the site
+
+The legal pages, the pricing page and the feedback form show the operator's details, and payment providers, card networks and ad platforms
+expect a named operator and a way to reach them. They come from `/etc/jbl-deploy/env` and are built into the pages, so an empty value means
+the live site says "the operator of jumpingballslive.com" and has no contact route:
+
+| Setting | Shown where |
+| --- | --- |
+| `JBL_SUPPORT_EMAIL` | the legal pages, the pricing page (payment questions), the footer imprint, the feedback form (it writes to this address unless `JBL_FEEDBACK_EMAIL` says another) |
+| `JBL_LEGAL_NAME`, `JBL_LEGAL_ADDRESS` | the terms and privacy pages ("who runs the site"), the footer imprint |
+| `JBL_FEEDBACK_ENDPOINT` | optional: a form backend that receives the feedback form's POST instead of an e-mail |
+| `JBL_FEEDBACK_GITHUB_REPO` | leave empty while the repository is private: the form would open issues that visitors cannot see (the default is empty) |
+| `JBL_ANALYTICS_SCRIPT_URL`, `JBL_ANALYTICS_SITE_ID`, `JBL_YOUTUBE_CLIENT_ID`, `JBL_DOWNLOADS_URL` | optional public build settings, the same as the repository variables of the GitHub deploy |
+
+`sudo bash deploy/vps/install.sh` asks for the support e-mail, the name and the address (Enter skips one; it asks again next time) and prints a
+note while no support e-mail is set. To change them later, edit the file (single quotes around each value) and rebuild the deployed commit:
+`sudo -u jbldeploy /opt/jbl-deploy/jbl-deploy.sh --sha "$(cat /var/lib/jbl-deploy/last-ok)"`. Check with `curl -s https://jumpingballslive.com/en/terms/ | grep -c mailto`.
+
+When the deployer cannot read the repository (a private repository without a token, an expired token) `--status` says so
+(`"state": "unreachable"`) and `journalctl -u jbl-deploy` names the reason; before this it only logged and stayed quiet.
 
 ## How the AI that makes the changes uses it
 

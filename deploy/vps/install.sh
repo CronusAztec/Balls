@@ -47,6 +47,9 @@ set_conf() {
 # What was typed or pasted at a prompt, without the invisible bits a terminal adds: the "bracketed paste" markers (ESC[200~ ... ESC[201~,
 # which show up as ^[[200~ ... ~), other control characters and every space or line break.
 clean_input() { printf '%s' "$1" | LC_ALL=C sed -E 's/(\x1b)?\[20[01]~//g' | LC_ALL=C tr -d '\000-\037\177[:space:]'; }
+# A line of free text typed or pasted at a prompt (a name, an address) made safe for the settings file, which is read by bash between single
+# quotes: no paste markers, no control characters, no single quote (it becomes a typographic apostrophe), no leading or trailing spaces.
+clean_text() { printf '%s' "$1" | LC_ALL=C sed -E 's/(\x1b)?\[20[01]~//g' | LC_ALL=C tr -d '\000-\037\177' | sed -E "s/'/’/g; s/^ +//; s/ +\$//"; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 while [ $# -gt 0 ]; do
@@ -149,8 +152,11 @@ if [ ! -f "$CONF" ] || [ "$RECONFIGURE" = 1 ]; then
     printf "JBL_REPO='%s'\n" "$REPO"
     printf "JBL_BRANCH='%s'\n" "$BRANCH"
     printf '# JBL_REQUIRE_GREEN=1            deploy only commits whose "build" check on GitHub is green (0: deploy any)\n'
-    printf '# JBL_FEEDBACK_GITHUB_REPO=      empty once the repository is private (the feedback form then needs JBL_FEEDBACK_EMAIL)\n'
-    printf '# JBL_FEEDBACK_EMAIL=\n# JBL_SUPPORT_EMAIL=\n# JBL_LEGAL_NAME=\n# JBL_LEGAL_ADDRESS=\n'
+    printf '# JBL_FEEDBACK_GITHUB_REPO=      leave empty while the repository is private (a form that opens its issues sends visitors to a 404)\n'
+    printf '# JBL_SUPPORT_EMAIL=             shown on the legal pages, the pricing page and the footer; the feedback form uses it too\n'
+    printf '# JBL_FEEDBACK_EMAIL=            only if the feedback form should write to another address\n'
+    printf '# JBL_LEGAL_NAME=                who runs the site (terms and privacy pages)\n# JBL_LEGAL_ADDRESS=             postal address (terms and privacy pages)\n'
+    printf '# JBL_FEEDBACK_ENDPOINT=  JBL_ANALYTICS_SCRIPT_URL=  JBL_ANALYTICS_SITE_ID=  JBL_YOUTUBE_CLIENT_ID=  JBL_DOWNLOADS_URL=   (optional, see jbl-deploy.sh)\n'
   } >"$CONF"
   chown root:"$USER_NAME" "$CONF"
   chmod 0640 "$CONF"
@@ -190,6 +196,29 @@ if [ "$PRIVATE" = 1 ]; then
     if [[ "$feedback" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then set_conf JBL_FEEDBACK_EMAIL "$feedback"; fi
   fi
 fi
+
+# ------------------------------------------------------------------ the operator's public details
+# Without them the live site has no way to be reached (the legal pages say "the operator", the feedback form has no channel) and card
+# networks, payment providers and ad platforms expect a named operator and a contact. Enter skips a question; the next run asks again.
+if [ -r /dev/tty ] && [ -w "$CONF" ]; then
+  if ! grep -q "^JBL_SUPPORT_EMAIL=" "$CONF"; then
+    read -r -p "support e-mail address the site shows to visitors (Enter to set it later in $CONF): " answer </dev/tty
+    answer="$(clean_input "$answer")"
+    if [[ "$answer" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then set_conf JBL_SUPPORT_EMAIL "$answer"; elif [ -n "$answer" ]; then say "that does not look like an e-mail address: skipped"; fi
+  fi
+  if ! grep -q "^JBL_LEGAL_NAME=" "$CONF"; then
+    read -r -p "name of the person or company that runs the site (terms and privacy pages; Enter to skip): " answer </dev/tty
+    answer="$(clean_text "$answer")"
+    if [ -n "$answer" ] && [ "${#answer}" -le 120 ]; then set_conf JBL_LEGAL_NAME "$answer"; elif [ -n "$answer" ]; then say "longer than 120 characters: skipped"; fi
+  fi
+  if ! grep -q "^JBL_LEGAL_ADDRESS=" "$CONF"; then
+    read -r -p "postal address for the same pages (Enter to skip): " answer </dev/tty
+    answer="$(clean_text "$answer")"
+    if [ -n "$answer" ] && [ "${#answer}" -le 200 ]; then set_conf JBL_LEGAL_ADDRESS "$answer"; elif [ -n "$answer" ]; then say "longer than 200 characters: skipped"; fi
+  fi
+  unset answer
+fi
+grep -q "^JBL_SUPPORT_EMAIL=" "$CONF" || say "NOTE: no support e-mail is set. Until it is, the live site shows no way to reach you. Put JBL_SUPPORT_EMAIL='you@example.com' in $CONF, then run: sudo -u $USER_NAME $BIN_DIR/jbl-deploy.sh --sha <the deployed commit> (rebuilds with it)"
 
 # ------------------------------------------------------------------ systemd
 cat >/etc/systemd/system/jbl-deploy.service <<EOF
