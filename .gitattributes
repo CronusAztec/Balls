@@ -1,0 +1,11 @@
+# Text files keep LF line ends on every platform. Without this a Windows checkout (Git for Windows defaults to core.autocrlf=true,
+# and the "Windows app" workflow runs on windows-latest) writes CRLF, and tests that read a source file as text and match across a
+# line break fail there (desktop/tests/about.test.ts did), which turns the app's release red.
+* text=auto eol=lf
+*.png binary
+*.webp binary
+*.ico binary
+*.wav binary
+*.mid binary
+*.woff2 binary
+*.exe binary

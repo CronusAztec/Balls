@@ -435,12 +435,12 @@ describe("launch-check: a run against an older build", () => {
     expect(byId(results, "A5").status).toBe("FAIL");
     expect(byId(results, "A5").detail).toContain("PayPal");
     for (const id of ["A5b", "A6", "A10", "A11", "B1", "B6"]) expect(byId(results, id).status, id).toBe("WARN");
-    expect(byId(results, "A3").status).toBe("WARN"); // the old privacy page has no mailto
+    expect(byId(results, "A3").status).toBe("FAIL"); // the old privacy page has no mailto: nobody can reach the operator
   });
 
   it("warns that nobody can reach the operator, with the steps, when the privacy page has no mailto", async () => {
     const { results } = await run({ pages: ({ route }) => (route === "/privacy" ? { body: "<h1>Privacy</h1><p>No address.</p>" } : {}) });
-    expect(byId(results, "A3").status).toBe("WARN");
+    expect(byId(results, "A3").status).toBe("FAIL");
     expect(byId(results, "A3").detail).toContain("JBL_SUPPORT_EMAIL");
   });
 

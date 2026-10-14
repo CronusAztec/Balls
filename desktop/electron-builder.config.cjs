@@ -56,7 +56,8 @@ module.exports = {
     "!node_modules/node-llama-cpp/templates/**",
   ],
   extraResources: [
-    { from: "../out", to: "site", filter: ["**/*"] },
+    // (the 27 social cards of the website, out/og, are for link previews on the web: the app never shows them, so they stay out of the installer and of every update)
+    { from: "../out", to: "site", filter: ["**/*", "!og/**"] },
     { from: "../docs/virality-playbook.md", to: "playbook/virality-playbook.md" },
   ],
   asar: true,

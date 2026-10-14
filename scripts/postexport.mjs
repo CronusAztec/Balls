@@ -75,7 +75,10 @@ if (process.env.OBFUSCATE === "0") {
 // also lists the names as a second guard).
 {
   const info = buildInfo.resolveBuildInfo();
-  const written = buildInfo.writeBuildFiles(out, info, { siteUrl: process.env.NEXT_PUBLIC_SITE_URL, basePath: process.env.NEXT_PUBLIC_BASE_PATH });
+  // (the address: the variable the build used, else what the build wrote into robots.txt – the VPS deployer runs `next build` with
+  // the site's settings and this script without them – else a local address, which makes the channel "development")
+  const builtFor = process.env.NEXT_PUBLIC_SITE_URL || buildInfo.siteUrlFromRobots(out) || undefined;
+  const written = buildInfo.writeBuildFiles(out, info, { siteUrl: builtFor, basePath: process.env.NEXT_PUBLIC_SITE_URL ? process.env.NEXT_PUBLIC_BASE_PATH : "" });
   // --- static-headers --- Wrangler deploys only the last block of a path: the X-Build block just appended is a second /* block, so it is folded into the one from public/_headers
   const merged = mergeHeaderFile(out);
   if (merged.length) console.log(`postexport: merged the repeated header rule${merged.length > 1 ? "s" : ""} ${merged.join(", ")} in out/_headers into one block each`);

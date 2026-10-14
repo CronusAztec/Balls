@@ -21,6 +21,7 @@ const read = (file: string) => fs.readFileSync(path.join(ROOT, file), "utf8");
 
 /* ------------------------------------------------------------------------------------------------ links never prefetch */
 
+const routerSpy = vi.hoisted(() => ({ prefetch: vi.fn() }));
 vi.mock("next-intl/navigation", () => ({
   createNavigation: () => ({
     Link: function NextIntlLink() {
@@ -28,7 +29,7 @@ vi.mock("next-intl/navigation", () => ({
     },
     redirect: () => undefined,
     usePathname: () => "/",
-    useRouter: () => ({}),
+    useRouter: () => routerSpy,
     getPathname: () => "/",
   }),
 }));
@@ -43,6 +44,30 @@ describe("links do not prefetch by default", () => {
     expect(props({ prefetch: undefined }).props.prefetch).toBe(false);
     expect(props({ prefetch: true }).props.prefetch).toBe(true);
     expect(props({ prefetch: null }).props.prefetch).toBeNull();
+  });
+
+  it("warms the studio up on intent (pointer over, finger down, focus) and swallows a failure", async () => {
+    const { useWarmUp } = await import("@/i18n/navigation");
+    const warm = useWarmUp("/simulator");
+    expect(Object.keys(warm).sort()).toEqual(["onFocus", "onPointerEnter", "onTouchStart"]);
+    routerSpy.prefetch.mockClear();
+    warm.onPointerEnter();
+    warm.onTouchStart();
+    warm.onFocus();
+    expect(routerSpy.prefetch).toHaveBeenCalledTimes(3);
+    expect(routerSpy.prefetch).toHaveBeenCalledWith("/simulator");
+    routerSpy.prefetch.mockImplementationOnce(() => {
+      throw new Error("offline");
+    });
+    expect(() => warm.onFocus()).not.toThrow();
+  });
+
+  it("is on the links that lead to the studio only: the hero button, the header's studio link and call to action, and the mobile sheet's", () => {
+    expect(read("src/components/site/Hero.tsx")).toContain("<StudioLink");
+    expect(read("src/components/site/StudioLink.tsx")).toContain('useWarmUp("/simulator")');
+    const navbar = read("src/components/site/Navbar.tsx");
+    expect((navbar.match(/\{\.\.\.warm\}/g) ?? []).length).toBe(2);
+    expect(navbar).toContain('link.href === "/simulator" ? warm : {}');
   });
 
   it("is the only Link the site uses: nothing imports next/link or next-intl's navigation directly, and no page opts back in", () => {
@@ -193,13 +218,17 @@ describe.skipIf(!hasExport)(`built export (skipped: no export built by this tree
     for (const page of LANDING_PAGES) {
       if (!fs.existsSync(path.join(OUT, page, "index.html"))) continue;
       let total = 0;
+      let found = 0;
       for (const script of initialScripts(page)) {
-        const file = path.join(OUT, script);
-        if (!fs.existsSync(file)) continue; // a script of another base path or host
+        // an export built under a base path (the CI smoke build: /smoke) names its scripts /smoke/_next/..., the files are under out/_next/...
+        const file = path.join(OUT, script.includes("_next/") ? script.slice(script.indexOf("_next/")) : script);
+        if (!fs.existsSync(file)) continue; // a script of another host
+        found++;
         const bytes = fs.statSync(file).size;
         total += bytes;
         expect(bytes, `${page}: ${script} is ${(bytes / 1024).toFixed(0)} KB`).toBeLessThanOrEqual(MAX_INITIAL_SCRIPT_BYTES);
       }
+      expect(found, `${page}: the guard resolved only ${found} of its initial scripts to files in the export`).toBeGreaterThan(5); // never a vacuous pass
       expect(total, `${page}: initial scripts are ${(total / 1024).toFixed(0)} KB`).toBeLessThanOrEqual(MAX_INITIAL_SCRIPTS_TOTAL_BYTES);
     }
   });

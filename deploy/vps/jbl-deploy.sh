@@ -217,11 +217,12 @@ scrub env \
   NEXT_PUBLIC_ANALYTICS_SITE_ID="${JBL_ANALYTICS_SITE_ID:-}" \
   NEXT_PUBLIC_YOUTUBE_CLIENT_ID="${JBL_YOUTUBE_CLIENT_ID:-}" \
   NEXT_PUBLIC_DOWNLOADS_URL="${JBL_DOWNLOADS_URL:-}" \
+  JBL_BUILD_SHA="$HEAD_SHA" \
   NEXT_PUBLIC_PUBLISH_RELAY_URL="${JBL_RELAY_URL:-https://relay.jumpingballslive.com}" \
   NEXT_PUBLIC_LICENSE_PUBLIC_KEY="$LICENSE_PUBLIC_KEY" \
   NEXT_PUBLIC_BILLING_API="$BILLING_API_URL" \
   npx next build --no-lint
-scrub node scripts/postexport.mjs
+scrub env NEXT_PUBLIC_SITE_URL="$JBL_SITE_URL" NEXT_PUBLIC_BASE_PATH="" JBL_BUILD_SHA="$HEAD_SHA" node scripts/postexport.mjs
 printf '%s\n' "$HEAD_SHA" >out/build.txt
 
 STEP="wrangler deploy"

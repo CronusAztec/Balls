@@ -48,7 +48,7 @@ describe("window title and tray tooltip", () => {
 
   it("is wired into the window, the tray and the log in main.ts", () => {
     const main = fs.readFileSync(path.join(__dirname, "..", "src", "main.ts"), "utf8");
-    expect(main).toMatch(/title,\n\s+backgroundColor/); // the constructor's title is the computed one
+    expect(main).toMatch(/\btitle,\s+backgroundColor/); // the constructor's title is the computed one (\s+: a Windows checkout has CRLF line ends)
     expect(main).toContain('win.on("page-title-updated"');
     expect(main).toContain("event.preventDefault()");
     expect(main).toContain("windowTitle({ version: app.getVersion()");

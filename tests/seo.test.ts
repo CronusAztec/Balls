@@ -523,4 +523,19 @@ describe("JSON-LD", () => {
       expect(own.filter((type) => !["CollectionPage", "WebSite", "ItemList", "ListItem", "Question", "Answer", "FAQPage"].includes(type)), name).toEqual([]);
     }
   });
+
+  it("cannot be closed early by a value: `<` is escaped, so a name with </script> opens no markup", async () => {
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const React = await import("react");
+    (globalThis as { React?: unknown }).React = React; // (vitest compiles .tsx with the classic JSX runtime)
+    const { createElement } = React;
+    const { default: JsonLd } = await import("@/components/site/JsonLd");
+    const html = renderToStaticMarkup(createElement(JsonLd, { data: { "@context": "https://schema.org", name: "Evil </script><script>alert(1)</script> Ltd" } }));
+    expect(html.match(/<script/g)).toHaveLength(1);
+    expect(html.match(/<\/script>/g)).toHaveLength(1);
+    expect(html).toContain("\\u003c/script>");
+    // the escaped text is the same JSON: it parses back to the original value
+    const body = /<script[^>]*>([\s\S]*)<\/script>/.exec(html)![1].replace(/&quot;/g, '"');
+    expect(JSON.parse(body).name).toBe("Evil </script><script>alert(1)</script> Ltd");
+  });
 });

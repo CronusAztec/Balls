@@ -296,7 +296,7 @@ describe("the public release's notes (scripts/release/publish-downloads.mjs)", (
     const desktop = read(".github/workflows/desktop.yml");
     expect(desktop).toContain('node scripts/changelog.mjs --notes app "$VERSION"');
     expect(desktop).toContain("--generate-notes");
-    const checkout = /name: Check out \(the publish script\)\n\s+uses: actions\/checkout@v4\n\s+with:\n\s+sparse-checkout: \|\n((?: {12}\S.*\n)+)/.exec(desktop)?.[1] ?? "";
+    const checkout = /name: Check out \(the publish script\)\r?\n\s+uses: actions\/checkout@v4\r?\n\s+with:\r?\n\s+sparse-checkout: \|\r?\n((?: {12}\S.*\r?\n)+)/.exec(desktop)?.[1] ?? "";
     expect(checkout.split("\n").map((l) => l.trim()).filter(Boolean)).toEqual(["scripts/release", "src/content"]);
     // the script resolves the data from its own place, whatever the working directory
     expect(read("scripts/release/publish-downloads.mjs")).toContain('from "../changelog.mjs"');
@@ -331,14 +331,13 @@ describe("the changelog page in the site", () => {
     expect(page).not.toMatch(/robots:\s*\{\s*index:\s*false/);
   });
 
-  // the seo agent owns src/app/sitemap.ts and the identity agent the footer: asserted as soon as they list the page
-  const listed = /["']\/changelog["']/.test(read("src/app/sitemap.ts"));
-  it.skipIf(!listed)("is in the sitemap in every language", () => {
+  it("is in the sitemap in every language", () => {
+    expect(read("src/app/sitemap.ts")).toMatch(/["']\/changelog["']/);
     const entries = sitemap().filter((e) => e.url.includes("/changelog/"));
     expect(entries.map((e) => e.url).sort()).toEqual(LOCALES.map((l) => pageUrl(l, "/changelog")).sort());
   });
-  const footerLinks = /href:\s*["']\/changelog["']/.test(read("src/components/site/Footer.tsx"));
-  it.skipIf(!footerLinks)("is linked from the footer with a text in every language", () => {
+  it("is linked from the footer with a text in every language", () => {
+    expect(read("src/components/site/Footer.tsx")).toMatch(/href:\s*["']\/changelog["']/);
     for (const locale of LOCALES) expect((CATALOGS[locale] as unknown as { Footer: Record<string, string> }).Footer.changelog, locale).toBeTruthy();
   });
 

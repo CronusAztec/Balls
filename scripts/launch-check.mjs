@@ -457,7 +457,7 @@ export async function runChecks({ site = DEFAULT_SITE, billing = DEFAULT_BILLING
     else {
       const without = privacy.filter((p) => reachable(p.res) && !/href=["']mailto:/i.test(p.res.text));
       if (without.length === 0) push("A3", "privacy-contact", "PASS", "the privacy page of every language has a mailto link");
-      else push("A3", "privacy-contact", "WARN", `no mailto link on the privacy page (${without.map((p) => p.locale).join(", ")}): nobody can reach the operator, and ad platforms and card networks expect that. Set JBL_SUPPORT_EMAIL, JBL_LEGAL_NAME and JBL_LEGAL_ADDRESS in /etc/jbl-deploy/env and rebuild (docs/ADS.md section 12, step 1)`);
+      else push("A3", "privacy-contact", "FAIL", `no mailto link on the privacy page (${without.map((p) => p.locale).join(", ")}): nobody can reach the operator, and ad platforms and card networks expect that. Set JBL_SUPPORT_EMAIL, JBL_LEGAL_NAME and JBL_LEGAL_ADDRESS in /etc/jbl-deploy/env and rebuild (docs/ADS.md section 12, step 1)`);
     }
   }
 
@@ -682,7 +682,10 @@ export async function browserCampaignCheck(site, { launch } = {}) {
   const args = typeof process.getuid === "function" && process.getuid() === 0 ? ["--no-sandbox"] : [];
   const browser = await (launch ?? ((o) => chromium.launch(o)))({ args, executablePath: process.env.CHROME_PATH || undefined });
   try {
-    const page = await browser.newPage();
+    // Global Privacy Control on: the site's own gate then keeps these visits out of the owner's real statistics (the check only reads the address)
+    const context = typeof browser.newContext === "function" ? await browser.newContext() : null;
+    if (context) await context.addInitScript(() => Object.defineProperty(navigator, "globalPrivacyControl", { value: true }));
+    const page = await (context ?? browser).newPage();
     const query = "utm_source=launchcheck&utm_medium=paid_social&utm_campaign=2610_launch_creators&gclid=launchcheck";
     const tried = [];
     for (const target of [`${site}/en/?${query}`, `${site}/en/simulator/?${query}`, `${site}/?${query}`]) {

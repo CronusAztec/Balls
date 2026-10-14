@@ -67,7 +67,7 @@ esac`);
   stub("sleep", "exit 0");
   stub("node", `case "$1" in
   scripts/go-live-check.mjs) echo "node $* | lk=\${LICENSE_PUBLIC_KEY:+set} billing=$BILLING_API_URL cf=\${CLOUDFLARE_API_TOKEN:+set} gh=\${JBL_GITHUB_TOKEN:+set}" >> "$STUB_LOG"; [ "$STUB_FAIL" = guard ] && exit 1; exit 0 ;;
-  scripts/postexport.mjs) echo "node $* | cf=\${CLOUDFLARE_API_TOKEN:+set} gh=\${JBL_GITHUB_TOKEN:+set}" >> "$STUB_LOG"; mkdir -p out; exit 0 ;;
+  scripts/postexport.mjs) echo "node $* | cf=\${CLOUDFLARE_API_TOKEN:+set} gh=\${JBL_GITHUB_TOKEN:+set} site=[$NEXT_PUBLIC_SITE_URL] base=[$NEXT_PUBLIC_BASE_PATH] sha=[$JBL_BUILD_SHA]" >> "$STUB_LOG"; mkdir -p out; exit 0 ;;
   *) exec "${process.execPath}" "$@" ;;
 esac`);
   fs.writeFileSync(checks, GREEN);
@@ -121,6 +121,14 @@ describe("jbl-deploy.sh: a new commit on the branch", () => {
     expect(build).toContain("relay=https://relay.jumpingballslive.com");
     expect(r.calls.find((c) => c.includes("go-live-check.mjs"))).toContain("lk=set billing=https://jumpingballslive-billing");
     expect(r.calls.find((c) => c.includes("wrangler deploy"))).toContain("token=set");
+    // postexport (version.json's address, the commit) gets the site's address and the commit as well, not only the build: the settings file is not exported
+    const post = r.calls.find((c) => c.includes("postexport.mjs"))!;
+    expect(post).toContain(`site=[https://jumpingballslive.com] base=[] sha=[${SHA_A}]`);
+    expect(post).not.toMatch(/cf=set|gh=set/);
+    const script = fs.readFileSync(SCRIPT, "utf8");
+    const at = script.indexOf('JBL_BUILD_SHA="$HEAD_SHA"');
+    expect(at).toBeGreaterThan(-1); // the build learns the commit too
+    expect(at).toBeLessThan(script.indexOf("npx next build --no-lint"));
   });
 
   it("passes the operator's public details and the optional public build settings on to the build, and nothing when they are unset", () => {
@@ -422,6 +430,17 @@ describe("install.sh and uninstall.sh", () => {
     const back = spawnSync("bash", ["-c", `. "${conf}"; printf '%s' "$JBL_LEGAL_NAME"`], { encoding: "utf8" });
     expect(back.stdout).toBe(hostile);
     expect(hostile).toContain("$HOME");
+  });
+
+  it("does not stop at a prompt when there is no terminal: /dev/tty exists but cannot be opened (cloud-init, ssh without -t)", () => {
+    const install = read("install.sh");
+    const fn = install.match(/^have_tty\(\) \{.*\}$/m)?.[0];
+    expect(fn).toBeTruthy();
+    expect(install).not.toContain("[ -r /dev/tty ]");
+    // every optional prompt tolerates a failed read, so `set -e` cannot end the script before the units are written
+    for (const line of install.split("\n").filter((l) => /read -r -p .*<\/dev\/tty/.test(l))) expect(line, line).toMatch(/\|\| \w+=""$/);
+    const r = spawnSync("setsid", ["-w", "bash", "-c", `set -e\n${fn}\nif have_tty; then read -r -p "x " a </dev/tty || a=""; fi\necho after`], { encoding: "utf8" });
+    expect(r.stdout.trim().endsWith("after"), `${r.stdout}${r.stderr}`).toBe(true);
   });
 
   it("asks for the support e-mail, the legal name and the address, and warns when no support e-mail is set", () => {

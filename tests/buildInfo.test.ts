@@ -17,6 +17,7 @@ import {
   headersWith,
   nextEnv,
   resolveBuildInfo,
+  siteUrlFromRobots,
   toUtcIso,
   versionJson,
   writeBuildFiles,
@@ -203,6 +204,23 @@ describe("labels, ids and the client twin", () => {
 describe("version.json and the X-Build rule", () => {
   const info = resolveBuildInfo({ root: fakeRoot("1.10.0", "1.3.0"), run: fakeGit(HEAD, "2026-10-13T18:28:27-07:00"), env: {} });
   const now = new Date("2026-10-14T02:05:11.456Z");
+
+  it("reads the address the export was built for back from robots.txt, for a postexport that runs without NEXT_PUBLIC_SITE_URL (the VPS deployer's)", () => {
+    const out = tmpDir();
+    expect(siteUrlFromRobots(out)).toBeNull(); // no robots.txt
+    fs.writeFileSync(path.join(out, "robots.txt"), "User-Agent: *\nAllow: /\n\nSitemap: https://jumpingballslive.com/sitemap.xml\n");
+    expect(siteUrlFromRobots(out)).toBe("https://jumpingballslive.com");
+    fs.writeFileSync(path.join(out, "robots.txt"), "User-Agent: *\nSitemap: http://localhost:3000/smoke/sitemap.xml\n");
+    expect(siteUrlFromRobots(out)).toBe("http://localhost:3000/smoke"); // a sub-folder site keeps its folder
+    fs.writeFileSync(path.join(out, "robots.txt"), "User-Agent: *\nAllow: /\n");
+    expect(siteUrlFromRobots(out)).toBeNull();
+    // and what the postexport script does with it: the live site is "production", not "development"
+    fs.writeFileSync(path.join(out, "robots.txt"), "Sitemap: https://jumpingballslive.com/sitemap.xml\n");
+    writeBuildFiles(out, info, { siteUrl: siteUrlFromRobots(out) ?? undefined, basePath: "", now });
+    const json = JSON.parse(fs.readFileSync(path.join(out, "version.json"), "utf8"));
+    expect(json).toMatchObject({ channel: "production", siteUrl: "https://jumpingballslive.com", changelogUrl: "https://jumpingballslive.com/en/changelog/" });
+    expect(fs.readFileSync(path.join(ROOT, "scripts", "postexport.mjs"), "utf8")).toContain("buildInfo.siteUrlFromRobots(out)");
+  });
 
   it("writes version.json with exactly the documented keys", () => {
     const out = tmpDir();

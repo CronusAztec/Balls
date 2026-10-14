@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ATTRIBUTION_PARAMS, ATTRIBUTION_MAX_LENGTH, preservedParams, withAttribution, withoutAttribution } from "@/lib/analytics/attribution";
+import { ATTRIBUTION_PARAMS, ATTRIBUTION_MAX_LENGTH, carriesClaim, preservedParams, withAttribution, withoutAttribution } from "@/lib/analytics/attribution";
 import { CTA_IDS, EVENTS, MARKUP_EVENTS, MAX_PROP_LENGTH, PROP_VALUES, QUEUE_LIMIT, createTracker, sanitizeProps, trackingAllowed, type EventName, type TrackEnv, type Tracker } from "@/lib/analytics/track";
 import { PRO_FEATURES } from "@/lib/billing/guard";
 import { PLAN_IDS, PLANS, PROVIDERS } from "@/lib/billing/config";
@@ -796,6 +796,33 @@ describe("the loader: no request to any service behind a gate", () => {
       expect(added).toEqual([]);
       expect(clickListeners).toEqual([]);
     }
+  });
+
+  it("holds the script back while the address carries a checkout receipt, and adds it once the page has removed it", async () => {
+    expect(carriesClaim("?claim=stripe&ref=cs_test_123")).toBe(true);
+    expect(carriesClaim("?utm_source=x&claim=crypto")).toBe(true);
+    expect(carriesClaim("?utm_source=x&ref=producthunt")).toBe(false); // ref= alone is a campaign tag, not a receipt
+    expect(carriesClaim("")).toBe(false);
+    expect(carriesClaim(undefined)).toBe(false);
+    const location = { protocol: "https:", hostname: "jumpingballslive.com", search: "?claim=stripe&ref=cs_test_123" };
+    const timers: { fn: () => void; cleared: boolean }[] = [];
+    const win = fakeWindow({
+      location,
+      setInterval: (fn: () => void) => timers.push({ fn, cleared: false }),
+      clearInterval: () => void (timers[0].cleared = true),
+    });
+    const { added, cleanups } = await mount(win, URL_OK);
+    expect(added).toEqual([]); // nothing was sent to the service: the address holds the receipt
+    expect(timers).toHaveLength(1);
+    timers[0].fn(); // still there: a pending crypto claim, a failed one
+    expect(added).toEqual([]);
+    location.search = ""; // the claim was settled and the page replaced the address
+    timers[0].fn();
+    expect(added).toHaveLength(1);
+    expect(timers[0].cleared).toBe(true);
+    // leaving the page stops the wait
+    const stop = cleanups.find((c) => typeof c === "function") as (() => void) | undefined;
+    stop?.();
   });
 
   it("adds nothing for an address that is not http(s)", async () => {

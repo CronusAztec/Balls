@@ -69,3 +69,12 @@ export function withoutAttribution(href: string): string {
 export function isAttributionParam(name: string): name is AttributionParam {
   return ALLOWED.has(name);
 }
+
+/**
+ * --- analytics --- Whether the address carries a checkout receipt: the billing Worker sends a buyer back to /pricing/?claim=<provider>&ref=<receipt>,
+ * and the receipt reference alone is enough to be issued a licence, so no statistics script may be loaded (it would send the whole address
+ * with its first page view) until the claim has been settled and the page has removed the query itself.
+ */
+export function carriesClaim(search: string | null | undefined): boolean {
+  return /[?&]claim=/.test(search ?? "");
+}

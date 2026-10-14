@@ -244,6 +244,23 @@ function clearBuildFiles(outDir) {
   return touched;
 }
 
+/**
+ * The address the export was built for, read back from out/robots.txt (`Sitemap: <site url>/sitemap.xml`, written by `next build`
+ * from NEXT_PUBLIC_SITE_URL), for a postexport that runs without that variable: the VPS deployer passes the build's settings to
+ * `next build` only, and a copy of it that was installed before this existed keeps doing so. null when robots.txt has no such line.
+ * @param {string} outDir
+ * @returns {string | null}
+ */
+function siteUrlFromRobots(outDir) {
+  try {
+    const text = fs.readFileSync(path.join(outDir, "robots.txt"), "utf8");
+    const m = /^\s*Sitemap:\s*(https?:\/\/\S+?)\/sitemap\.xml\s*$/im.exec(text);
+    return m ? m[1].replace(/\/+$/, "") : null;
+  } catch {
+    return null;
+  }
+}
+
 module.exports = {
   HEADERS_MARKER,
   VERSION_JSON_KEYS,
@@ -257,6 +274,7 @@ module.exports = {
   headersWith,
   nextEnv,
   resolveBuildInfo,
+  siteUrlFromRobots,
   toUtcIso,
   versionJson,
   writeBuildFiles,

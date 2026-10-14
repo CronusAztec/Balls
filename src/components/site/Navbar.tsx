@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Link, usePathname } from "@/i18n/navigation";
+import { Link, usePathname, useWarmUp } from "@/i18n/navigation";
 import { SITE_NAME } from "@/lib/site";
 import LanguageSwitcher from "./LanguageSwitcher";
 import { buttonClass } from "@/components/ui/Button";
@@ -44,6 +44,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
     return () => document.removeEventListener("keydown", onKey);
   }, [menuOpen]);
 
+  const warm = useWarmUp("/simulator"); // --- link-warm-up --- the studio is loaded when a visitor shows intent, not in the background
   const links = [
     { href: "/simulator", label: t("nav.studio"), track: "nav_studio" },
     { href: "/gallery", label: gallery("navLabel"), track: "nav_gallery" },
@@ -84,6 +85,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
                 href={link.href}
                 aria-current={current ? "page" : undefined}
                 {...tracked(link.track)}
+                {...(link.href === "/simulator" ? warm : {})}
                 className={cx(
                   "relative inline-flex h-full items-center px-3 text-sm font-medium transition-colors duration-150",
                   current ? "text-ink after:absolute after:inset-x-3 after:bottom-[-1px] after:h-px after:bg-accent" : "text-ink-2 hover:text-ink",
@@ -112,7 +114,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
             <LanguageSwitcher />
           </div>
           {!studio && (
-            <Link href="/simulator" className={buttonClass({ variant: "primary", size: "sm", className: "hidden sm:inline-flex" })} {...tracked("nav_cta")}>
+            <Link href="/simulator" className={buttonClass({ variant: "primary", size: "sm", className: "hidden sm:inline-flex" })} {...tracked("nav_cta")} {...warm}>
               {t("nav.openStudio")}
               <IconArrowRight size={16} />
             </Link>
@@ -163,7 +165,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
             </nav>
             <LanguageSwitcher isMobileMenu />
             {!studio && (
-              <Link href="/simulator" onClick={() => setMenuOpen(false)} className={buttonClass({ variant: "primary", size: "md", block: true })} {...tracked("nav_cta")}>
+              <Link href="/simulator" onClick={() => setMenuOpen(false)} className={buttonClass({ variant: "primary", size: "md", block: true })} {...tracked("nav_cta")} {...warm}>
                 {t("nav.openStudio")}
               </Link>
             )}

@@ -50,6 +50,9 @@ clean_input() { printf '%s' "$1" | LC_ALL=C sed -E 's/(\x1b)?\[20[01]~//g' | LC_
 # A line of free text typed or pasted at a prompt (a name, an address) made safe for the settings file, which is read by bash between single
 # quotes: no paste markers, no control characters, no single quote (it becomes a typographic apostrophe), no leading or trailing spaces.
 clean_text() { printf '%s' "$1" | LC_ALL=C sed -E 's/(\x1b)?\[20[01]~//g' | LC_ALL=C tr -d '\000-\037\177' | sed -E "s/'/’/g; s/^ +//; s/ +\$//"; }
+# Is there a terminal to ask on? /dev/tty exists on a machine with no terminal (cloud-init, Ansible, a remote command run without a terminal) but cannot be opened there,
+# and a failed `read ... </dev/tty` would end the whole script under `set -e` before the service and the timer were written.
+have_tty() { { : </dev/tty; } 2>/dev/null; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 while [ $# -gt 0 ]; do
@@ -61,7 +64,7 @@ while [ $# -gt 0 ]; do
     --every) [ $# -ge 2 ] || die "--every needs a number of minutes"; EVERY="$2"; shift 2 ;;
     --reconfigure) RECONFIGURE=1; shift ;;
     --private) PRIVATE=1; shift ;;
-    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
@@ -127,13 +130,13 @@ if [ ! -f "$CONF" ] || [ "$RECONFIGURE" = 1 ]; then
   token="${CLOUDFLARE_API_TOKEN:-}"
   account="${CLOUDFLARE_ACCOUNT_ID:-}"
   if [ -z "$token" ]; then
-    [ -r /dev/tty ] || die "no terminal to ask on: run with CLOUDFLARE_API_TOKEN (and CLOUDFLARE_ACCOUNT_ID) in the environment"
+    have_tty || die "no terminal to ask on: run with CLOUDFLARE_API_TOKEN (and CLOUDFLARE_ACCOUNT_ID) in the environment"
     read -r -s -p "Cloudflare API token (Edit Cloudflare Workers + the zone's DNS edit; nothing is shown): " token </dev/tty
     echo
   fi
   if [ -z "$account" ]; then
-    if [ -r /dev/tty ]; then
-      read -r -p "Cloudflare account ID [$DEFAULT_ACCOUNT]: " account </dev/tty
+    if have_tty; then
+      read -r -p "Cloudflare account ID [$DEFAULT_ACCOUNT]: " account </dev/tty || account=""
     fi
     account="${account:-$DEFAULT_ACCOUNT}"
   fi
@@ -170,7 +173,7 @@ fi
 if [ "$PRIVATE" = 1 ]; then
   gh_token="${JBL_GITHUB_TOKEN:-}"
   if [ -z "$gh_token" ]; then
-    [ -r /dev/tty ] || die "no terminal to ask on: run with JBL_GITHUB_TOKEN in the environment"
+    have_tty || die "no terminal to ask on: run with JBL_GITHUB_TOKEN in the environment"
     read -r -s -p "GitHub token for $REPO (read-only: Contents + Checks; nothing is shown): " gh_token </dev/tty
     echo
   fi
@@ -190,8 +193,8 @@ if [ "$PRIVATE" = 1 ]; then
   set_conf JBL_FEEDBACK_GITHUB_REPO ""
   unset gh_token
   say "the GitHub token is saved in $CONF; the feedback form no longer opens GitHub issues (it needs an e-mail address):"
-  if [ -r /dev/tty ] && ! grep -q "^JBL_FEEDBACK_EMAIL=" "$CONF"; then
-    read -r -p "    feedback e-mail address (Enter to set it later in $CONF): " feedback </dev/tty
+  if have_tty && ! grep -q "^JBL_FEEDBACK_EMAIL=" "$CONF"; then
+    read -r -p "    feedback e-mail address (Enter to set it later in $CONF): " feedback </dev/tty || feedback=""
     feedback="$(clean_input "$feedback")"
     if [[ "$feedback" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then set_conf JBL_FEEDBACK_EMAIL "$feedback"; fi
   fi
@@ -200,19 +203,19 @@ fi
 # ------------------------------------------------------------------ the operator's public details
 # Without them the live site has no way to be reached (the legal pages say "the operator", the feedback form has no channel) and card
 # networks, payment providers and ad platforms expect a named operator and a contact. Enter skips a question; the next run asks again.
-if [ -r /dev/tty ] && [ -w "$CONF" ]; then
+if have_tty && [ -w "$CONF" ]; then
   if ! grep -q "^JBL_SUPPORT_EMAIL=" "$CONF"; then
-    read -r -p "support e-mail address the site shows to visitors (Enter to set it later in $CONF): " answer </dev/tty
+    read -r -p "support e-mail address the site shows to visitors (Enter to set it later in $CONF): " answer </dev/tty || answer=""
     answer="$(clean_input "$answer")"
     if [[ "$answer" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then set_conf JBL_SUPPORT_EMAIL "$answer"; elif [ -n "$answer" ]; then say "that does not look like an e-mail address: skipped"; fi
   fi
   if ! grep -q "^JBL_LEGAL_NAME=" "$CONF"; then
-    read -r -p "name of the person or company that runs the site (terms and privacy pages; Enter to skip): " answer </dev/tty
+    read -r -p "name of the person or company that runs the site (terms and privacy pages; Enter to skip): " answer </dev/tty || answer=""
     answer="$(clean_text "$answer")"
     if [ -n "$answer" ] && [ "${#answer}" -le 120 ]; then set_conf JBL_LEGAL_NAME "$answer"; elif [ -n "$answer" ]; then say "longer than 120 characters: skipped"; fi
   fi
   if ! grep -q "^JBL_LEGAL_ADDRESS=" "$CONF"; then
-    read -r -p "postal address for the same pages (Enter to skip): " answer </dev/tty
+    read -r -p "postal address for the same pages (Enter to skip): " answer </dev/tty || answer=""
     answer="$(clean_text "$answer")"
     if [ -n "$answer" ] && [ "${#answer}" -le 200 ]; then set_conf JBL_LEGAL_ADDRESS "$answer"; elif [ -n "$answer" ]; then say "longer than 200 characters: skipped"; fi
   fi

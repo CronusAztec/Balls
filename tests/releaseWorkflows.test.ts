@@ -124,6 +124,13 @@ describe("desktop.yml: the Windows app", () => {
     expect(jobIf(jobSection(desktop, "release"))).toBe("needs.decide.outputs.release == 'true'");
   });
 
+  it("names its job 'Windows build': the VPS deployer takes a green check run called 'build' as its go-ahead, and that must be the website's alone", () => {
+    expect(jobSection(read(".github/workflows/desktop.yml"), "build")).toMatch(/\n {4}name: Windows build\n/);
+    // the check run of a job without a name is called after its id: deploy.yml's job id is "build" and it must keep no name of its own
+    expect(jobSection(read(".github/workflows/deploy.yml"), "build")).not.toMatch(/\n {4}name:/);
+    expect(read("deploy/vps/jbl-deploy.sh")).toContain('r.name === "build"');
+  });
+
   it("never cancels a release build and writes only in the release job", () => {
     expect(desktop).toContain("cancel-in-progress: ${{ github.event_name == 'pull_request' }}");
     expect(/\npermissions:\n {2}contents: read\n/.test(desktop)).toBe(true);

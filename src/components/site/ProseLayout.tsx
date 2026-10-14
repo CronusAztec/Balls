@@ -58,7 +58,7 @@ export default function ProseLayout({
         <div className={cx(hasToc && "xl:grid xl:grid-cols-[minmax(0,1fr)_680px_minmax(0,1fr)] xl:gap-12")}>
           {hasToc && (
             <nav aria-label={tocLabel} className="hidden xl:block">
-              <div className="sticky top-24 max-w-[220px]">
+              <div className="sticky top-24 max-h-[calc(100vh-8rem)] max-w-[220px] overflow-y-auto">
                 <p className="eyebrow text-ink-3">{tocLabel}</p>
                 <ol className="mt-4 space-y-1 border-l border-line">
                   {toc.map((entry) => (
