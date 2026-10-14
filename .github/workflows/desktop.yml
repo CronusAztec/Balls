@@ -89,6 +89,10 @@ jobs:
         run: node scripts/release/desktop-version.mjs --decide
 
   build:
+    # A name of its own: the check run of a job without one is called after its id, and the VPS deployer (deploy/vps/jbl-deploy.sh)
+    # takes a green check run named "build" – the website's lint, type check and unit tests in deploy.yml – as the go-ahead to deploy.
+    # This Windows job must never be mistaken for it (tests/releaseWorkflows.test.ts keeps the two names apart).
+    name: Windows build
     needs: decide
     if: needs.decide.outputs.build == 'true'
     runs-on: windows-latest
@@ -260,6 +264,7 @@ jobs:
         with:
           sparse-checkout: |
             scripts/release
+            src/content
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -294,7 +299,13 @@ jobs:
           VERSION: ${{ needs.decide.outputs.version }}
         run: |
           tag="desktop-v$VERSION"
-          notes="JumpingBallsLive for Windows $VERSION.
+          # --- changelog --- the notes start with the changelog's entry for this version, the same text as the public release
+          # (scripts/changelog.mjs --notes reads src/content/changelog.json); a version without an entry gets the short line
+          entry="$(node scripts/changelog.mjs --notes app "$VERSION" 2>/dev/null || true)"
+          [ -n "$entry" ] || entry="JumpingBallsLive for Windows $VERSION."
+          notes="$entry
+
+          **Downloads**
 
           - **Installer** (per user, no admin): JumpingBallsLive-Setup-$VERSION.exe – updates itself.
           - **Portable**: JumpingBallsLive-$VERSION-portable.exe – runs without installing.

@@ -1,4 +1,5 @@
 import type { BeforeInstallPromptEvent } from "@/lib/pwa";
+import { track } from "@/lib/analytics/track"; // --- analytics ---
 
 /**
  * Chrome's install prompt, kept for the "Install app" button (feature pwa). The browser fires
@@ -24,6 +25,7 @@ export function listenForInstallPrompt(): void {
   });
   window.addEventListener("appinstalled", () => {
     deferred = null;
+    track("pwa_installed"); // --- analytics --- (README "Analytics events")
     emit();
   });
 }
@@ -49,6 +51,7 @@ export async function promptInstall(): Promise<"accepted" | "dismissed" | "unava
   try {
     await event.prompt();
     const choice = await event.userChoice;
+    track("pwa_install", { outcome: choice.outcome }); // --- analytics --- (accepted or dismissed)
     return choice.outcome;
   } catch {
     return "unavailable";

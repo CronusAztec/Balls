@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Navbar from "./Navbar";
 import Footer from "./Footer";
 import { cx } from "@/components/ui/cx";
+import { LEGAL_LAST_UPDATED } from "@/lib/legalDates";
 
 /*
  * --- site-redesign --- The reading pages (about, the TikTok guide, feedback, privacy, terms, disclaimer, download): the
@@ -9,8 +10,8 @@ import { cx } from "@/components/ui/cx";
  * 1280 px, a sticky table of contents in the left margin. The column's typography is `.prose-body` in globals.css.
  */
 
-/** The legal pages' "last updated" date (privacy, terms, disclaimer). */
-export const LEGAL_LAST_UPDATED = "2026-10-12"; // --- go-live-kit --- delivery, refunds, operator and support e-mail
+// (the constant lives in src/lib/legalDates.ts so the sitemap can read it without this layout; re-exported for the pages)
+export { LEGAL_LAST_UPDATED };
 
 /** LEGAL_LAST_UPDATED as a long date in the page's language. */
 export function legalDate(locale: string): string {
@@ -57,7 +58,7 @@ export default function ProseLayout({
         <div className={cx(hasToc && "xl:grid xl:grid-cols-[minmax(0,1fr)_680px_minmax(0,1fr)] xl:gap-12")}>
           {hasToc && (
             <nav aria-label={tocLabel} className="hidden xl:block">
-              <div className="sticky top-24 max-w-[220px]">
+              <div className="sticky top-24 max-h-[calc(100vh-8rem)] max-w-[220px] overflow-y-auto">
                 <p className="eyebrow text-ink-3">{tocLabel}</p>
                 <ol className="mt-4 space-y-1 border-l border-line">
                   {toc.map((entry) => (

@@ -9,6 +9,7 @@
 #           --repo OWNER/NAME the repository (default: CronusAztec/Balls)
 #           --swap            make a 2 GB swap file when the server has less than 3.5 GB of memory + swap (the build needs about 2 GB)
 #           --no-first-run    install and start the timer, but do not deploy right now (the timer's first run is 2 minutes after this)
+#           --every MINUTES   how often the timer looks for a new commit: 5 to 1440 minutes (default: 10; a re-run without it sets 10 again)
 #           --reconfigure     ask for the Cloudflare token and account ID again (a normal re-run keeps /etc/jbl-deploy/env)
 #           --private         the repository is (or is about to be) PRIVATE: ask for a read-only GitHub token for it, keep it with the other
 #                             settings and stop asking the feedback form to open GitHub issues. Run it BEFORE you switch the repository to private.
@@ -17,7 +18,7 @@
 #
 # For Debian or Ubuntu with systemd, as root. It installs git, curl and Node.js 22 when they are missing, creates the unprivileged user
 # `jbldeploy`, keeps the Cloudflare token in /etc/jbl-deploy/env (readable by that user only; nothing here prints it), and starts a
-# timer that runs /opt/jbl-deploy/jbl-deploy.sh every five minutes. That script only makes outbound calls (GitHub, Cloudflare); this
+# timer that runs /opt/jbl-deploy/jbl-deploy.sh every ten minutes. That script only makes outbound calls (GitHub, Cloudflare); this
 # installer opens no port and gives nobody a login. Remove it all with deploy/vps/uninstall.sh.
 set -euo pipefail
 
@@ -25,6 +26,7 @@ BRANCH="main"
 REPO="CronusAztec/Balls"
 SWAP=0
 FIRST_RUN=1
+EVERY=10
 RECONFIGURE=0
 PRIVATE=0
 DEFAULT_ACCOUNT="a1a1303c1defe6eafca7065581715c2e"
@@ -45,6 +47,12 @@ set_conf() {
 # What was typed or pasted at a prompt, without the invisible bits a terminal adds: the "bracketed paste" markers (ESC[200~ ... ESC[201~,
 # which show up as ^[[200~ ... ~), other control characters and every space or line break.
 clean_input() { printf '%s' "$1" | LC_ALL=C sed -E 's/(\x1b)?\[20[01]~//g' | LC_ALL=C tr -d '\000-\037\177[:space:]'; }
+# A line of free text typed or pasted at a prompt (a name, an address) made safe for the settings file, which is read by bash between single
+# quotes: no paste markers, no control characters, no single quote (it becomes a typographic apostrophe), no leading or trailing spaces.
+clean_text() { printf '%s' "$1" | LC_ALL=C sed -E 's/(\x1b)?\[20[01]~//g' | LC_ALL=C tr -d '\000-\037\177' | sed -E "s/'/’/g; s/^ +//; s/ +\$//"; }
+# Is there a terminal to ask on? /dev/tty exists on a machine with no terminal (cloud-init, Ansible, a remote command run without a terminal) but cannot be opened there,
+# and a failed `read ... </dev/tty` would end the whole script under `set -e` before the service and the timer were written.
+have_tty() { { : </dev/tty; } 2>/dev/null; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 while [ $# -gt 0 ]; do
@@ -53,13 +61,15 @@ while [ $# -gt 0 ]; do
     --repo) REPO="${2:-}"; shift 2 ;;
     --swap) SWAP=1; shift ;;
     --no-first-run) FIRST_RUN=0; shift ;;
+    --every) [ $# -ge 2 ] || die "--every needs a number of minutes"; EVERY="$2"; shift 2 ;;
     --reconfigure) RECONFIGURE=1; shift ;;
     --private) PRIVATE=1; shift ;;
-    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
 
+[[ "$EVERY" =~ ^[0-9]{1,4}$ ]] && [ "$EVERY" -ge 5 ] && [ "$EVERY" -le 1440 ] || die "--every must be a whole number of minutes from 5 to 1440"
 [ "$(id -u)" = 0 ] || die "run as root: sudo bash deploy/vps/install.sh"
 [[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || die "--repo must look like OWNER/NAME"
 [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]] || die "--branch has characters a branch name does not"
@@ -120,13 +130,13 @@ if [ ! -f "$CONF" ] || [ "$RECONFIGURE" = 1 ]; then
   token="${CLOUDFLARE_API_TOKEN:-}"
   account="${CLOUDFLARE_ACCOUNT_ID:-}"
   if [ -z "$token" ]; then
-    [ -r /dev/tty ] || die "no terminal to ask on: run with CLOUDFLARE_API_TOKEN (and CLOUDFLARE_ACCOUNT_ID) in the environment"
+    have_tty || die "no terminal to ask on: run with CLOUDFLARE_API_TOKEN (and CLOUDFLARE_ACCOUNT_ID) in the environment"
     read -r -s -p "Cloudflare API token (Edit Cloudflare Workers + the zone's DNS edit; nothing is shown): " token </dev/tty
     echo
   fi
   if [ -z "$account" ]; then
-    if [ -r /dev/tty ]; then
-      read -r -p "Cloudflare account ID [$DEFAULT_ACCOUNT]: " account </dev/tty
+    if have_tty; then
+      read -r -p "Cloudflare account ID [$DEFAULT_ACCOUNT]: " account </dev/tty || account=""
     fi
     account="${account:-$DEFAULT_ACCOUNT}"
   fi
@@ -145,8 +155,11 @@ if [ ! -f "$CONF" ] || [ "$RECONFIGURE" = 1 ]; then
     printf "JBL_REPO='%s'\n" "$REPO"
     printf "JBL_BRANCH='%s'\n" "$BRANCH"
     printf '# JBL_REQUIRE_GREEN=1            deploy only commits whose "build" check on GitHub is green (0: deploy any)\n'
-    printf '# JBL_FEEDBACK_GITHUB_REPO=      empty once the repository is private (the feedback form then needs JBL_FEEDBACK_EMAIL)\n'
-    printf '# JBL_FEEDBACK_EMAIL=\n# JBL_SUPPORT_EMAIL=\n# JBL_LEGAL_NAME=\n# JBL_LEGAL_ADDRESS=\n'
+    printf '# JBL_FEEDBACK_GITHUB_REPO=      leave empty while the repository is private (a form that opens its issues sends visitors to a 404)\n'
+    printf '# JBL_SUPPORT_EMAIL=             shown on the legal pages, the pricing page and the footer; the feedback form uses it too\n'
+    printf '# JBL_FEEDBACK_EMAIL=            only if the feedback form should write to another address\n'
+    printf '# JBL_LEGAL_NAME=                who runs the site (terms and privacy pages)\n# JBL_LEGAL_ADDRESS=             postal address (terms and privacy pages)\n'
+    printf '# JBL_FEEDBACK_ENDPOINT=  JBL_ANALYTICS_SCRIPT_URL=  JBL_ANALYTICS_SITE_ID=  JBL_YOUTUBE_CLIENT_ID=  JBL_DOWNLOADS_URL=   (optional, see jbl-deploy.sh)\n'
   } >"$CONF"
   chown root:"$USER_NAME" "$CONF"
   chmod 0640 "$CONF"
@@ -160,7 +173,7 @@ fi
 if [ "$PRIVATE" = 1 ]; then
   gh_token="${JBL_GITHUB_TOKEN:-}"
   if [ -z "$gh_token" ]; then
-    [ -r /dev/tty ] || die "no terminal to ask on: run with JBL_GITHUB_TOKEN in the environment"
+    have_tty || die "no terminal to ask on: run with JBL_GITHUB_TOKEN in the environment"
     read -r -s -p "GitHub token for $REPO (read-only: Contents + Checks; nothing is shown): " gh_token </dev/tty
     echo
   fi
@@ -180,12 +193,35 @@ if [ "$PRIVATE" = 1 ]; then
   set_conf JBL_FEEDBACK_GITHUB_REPO ""
   unset gh_token
   say "the GitHub token is saved in $CONF; the feedback form no longer opens GitHub issues (it needs an e-mail address):"
-  if [ -r /dev/tty ] && ! grep -q "^JBL_FEEDBACK_EMAIL=" "$CONF"; then
-    read -r -p "    feedback e-mail address (Enter to set it later in $CONF): " feedback </dev/tty
+  if have_tty && ! grep -q "^JBL_FEEDBACK_EMAIL=" "$CONF"; then
+    read -r -p "    feedback e-mail address (Enter to set it later in $CONF): " feedback </dev/tty || feedback=""
     feedback="$(clean_input "$feedback")"
     if [[ "$feedback" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then set_conf JBL_FEEDBACK_EMAIL "$feedback"; fi
   fi
 fi
+
+# ------------------------------------------------------------------ the operator's public details
+# Without them the live site has no way to be reached (the legal pages say "the operator", the feedback form has no channel) and card
+# networks, payment providers and ad platforms expect a named operator and a contact. Enter skips a question; the next run asks again.
+if have_tty && [ -w "$CONF" ]; then
+  if ! grep -q "^JBL_SUPPORT_EMAIL=" "$CONF"; then
+    read -r -p "support e-mail address the site shows to visitors (Enter to set it later in $CONF): " answer </dev/tty || answer=""
+    answer="$(clean_input "$answer")"
+    if [[ "$answer" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$ ]]; then set_conf JBL_SUPPORT_EMAIL "$answer"; elif [ -n "$answer" ]; then say "that does not look like an e-mail address: skipped"; fi
+  fi
+  if ! grep -q "^JBL_LEGAL_NAME=" "$CONF"; then
+    read -r -p "name of the person or company that runs the site (terms and privacy pages; Enter to skip): " answer </dev/tty || answer=""
+    answer="$(clean_text "$answer")"
+    if [ -n "$answer" ] && [ "${#answer}" -le 120 ]; then set_conf JBL_LEGAL_NAME "$answer"; elif [ -n "$answer" ]; then say "longer than 120 characters: skipped"; fi
+  fi
+  if ! grep -q "^JBL_LEGAL_ADDRESS=" "$CONF"; then
+    read -r -p "postal address for the same pages (Enter to skip): " answer </dev/tty || answer=""
+    answer="$(clean_text "$answer")"
+    if [ -n "$answer" ] && [ "${#answer}" -le 200 ]; then set_conf JBL_LEGAL_ADDRESS "$answer"; elif [ -n "$answer" ]; then say "longer than 200 characters: skipped"; fi
+  fi
+  unset answer
+fi
+grep -q "^JBL_SUPPORT_EMAIL=" "$CONF" || say "NOTE: no support e-mail is set. Until it is, the live site shows no way to reach you. Put JBL_SUPPORT_EMAIL='you@example.com' in $CONF, then run: sudo -u $USER_NAME $BIN_DIR/jbl-deploy.sh --sha <the deployed commit> (rebuilds with it)"
 
 # ------------------------------------------------------------------ systemd
 cat >/etc/systemd/system/jbl-deploy.service <<EOF
@@ -222,11 +258,11 @@ SystemCallArchitectures=native
 EOF
 cat >/etc/systemd/system/jbl-deploy.timer <<EOF
 [Unit]
-Description=Look for a new commit of the site every five minutes
+Description=Look for a new commit of the site every $EVERY minutes
 
 [Timer]
 OnBootSec=2min
-OnUnitInactiveSec=5min
+OnUnitInactiveSec=${EVERY}min
 AccuracySec=30s
 
 [Install]
@@ -246,5 +282,6 @@ Done. The deployer watches $BRANCH of $REPO and deploys what lands there (when G
   last result      sudo -u $USER_NAME $BIN_DIR/jbl-deploy.sh --status
   deploy a commit  sudo -u $USER_NAME $BIN_DIR/jbl-deploy.sh --sha <40-character hash>   (a rollback is the same with an older one)
   pause            sudo systemctl stop jbl-deploy.timer        (resume: sudo systemctl start jbl-deploy.timer)
+  how often        every $EVERY minutes after the last run finished (change: sudo bash deploy/vps/install.sh --every MINUTES)
   remove           sudo bash deploy/vps/uninstall.sh [--purge]
 EOF

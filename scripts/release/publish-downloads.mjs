@@ -13,6 +13,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { readReleases, releaseNotes } from "../changelog.mjs"; // --- changelog --- the release body starts with the changelog's entry
 
 /** GitHub accepts files up to 2 GiB per release asset. */
 export const MAX_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024 - 1;
@@ -69,20 +70,31 @@ export function planUploads(files, version, latestYml) {
 }
 
 /**
- * The `gh` calls that publish a release, in order: look for it, create it as a draft with every file (or add the files to the
- * existing one), then publish it as the latest.
- * @param {string} repo @param {string} dir @param {string} version @param {string[]} names @param {boolean} exists
+ * --- changelog --- The body of the public release: the changelog's notes for this version (scripts/changelog.mjs, a headline and
+ * one bullet per item), then the download and checksum lines. A version without an entry gets the short text it always had.
+ * The notes name no repository and no address, so a private source repository never shows in a public release.
+ * @param {string} version @param {string | null} [entry] the Markdown of releaseNotes(), or null/empty when there is none
  */
-export function ghCalls(repo, dir, version, names, exists) {
-  const tag = `v${version}`;
-  const files = names.map((n) => path.join(dir, n));
-  const notes = [
-    `JumpingBallsLive for Windows ${version}.`,
-    "",
+export function releaseBody(version, entry = null) {
+  const notes = entry && entry.trim() ? [entry.trim(), "", "**Downloads**", ""] : [`JumpingBallsLive for Windows ${version}.`, ""];
+  return [
+    ...notes,
     `- Installer (per user, no admin): JumpingBallsLive-Setup-${version}.exe – updates itself.`,
     `- Portable: JumpingBallsLive-${version}-portable.exe – runs without installing.`,
     "- Unsigned builds: Windows SmartScreen shows \"Windows protected your PC\" – click More info, then Run anyway. Checksums: SHA256SUMS.txt.",
   ].join("\n");
+}
+
+/**
+ * The `gh` calls that publish a release, in order: look for it, create it as a draft with every file (or add the files to the
+ * existing one), then publish it as the latest.
+ * @param {string} repo @param {string} dir @param {string} version @param {string[]} names @param {boolean} exists
+ * @param {string | null} [entry] --- changelog --- the changelog's notes for this version (see releaseBody)
+ */
+export function ghCalls(repo, dir, version, names, exists, entry = null) {
+  const tag = `v${version}`;
+  const files = names.map((n) => path.join(dir, n));
+  const notes = releaseBody(version, entry);
   return [
     exists
       ? ["release", "upload", tag, ...files, "--clobber", "--repo", repo]
@@ -125,7 +137,15 @@ function upload(opts) {
       exists = false; // no such release yet (or the repository cannot be read: the create below then says why)
     }
   }
-  for (const args of ghCalls(opts.repo, dir, opts.version, names, exists)) {
+  // --- changelog --- the release notes are the changelog's entry for this app version, if there is one
+  let entry = null;
+  try {
+    entry = releaseNotes(readReleases(), "app", opts.version);
+  } catch (err) {
+    console.log(`::warning title=The changelog was not read::${err instanceof Error ? err.message : String(err)}`);
+  }
+  console.log(entry ? `release notes: the changelog entry for Windows app ${opts.version}` : `release notes: no changelog entry for Windows app ${opts.version}, using the short text`);
+  for (const args of ghCalls(opts.repo, dir, opts.version, names, exists, entry)) {
     console.log(`${opts.dryRun ? "would run" : "running"} gh ${args.slice(0, 3).join(" ")}${args.length > 3 ? " …" : ""}`);
     if (!opts.dryRun) execFileSync("gh", args, { stdio: "inherit" });
   }

@@ -1,0 +1,7 @@
+/*
+ * --- legal-copy --- The legal pages' "last updated" date (privacy, terms, disclaimer), in a module of its own so that the sitemap and
+ * the tests can read it without loading the page layout (which pulls in the navbar and next-intl's navigation).
+ */
+
+/** The legal pages' "last updated" date (privacy, terms, disclaimer). */
+export const LEGAL_LAST_UPDATED = "2026-10-14"; // --- go-live-kit --- delivery, refunds, operator and support e-mail; --- legal-copy --- the controller block, cookies, advertising, rights, Windows app, Fight League notice

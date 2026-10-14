@@ -1,0 +1,1182 @@
+{
+  "releases": [
+    {
+      "id": "site-1-10-0",
+      "product": "site",
+      "version": "1.10.0",
+      "date": "2026-10-14",
+      "headline": {
+        "en": "Versions, a changelog and pages ready to share",
+        "pl": "Wersje, dziennik zmian i strony gotowe do udostępniania",
+        "es": "Versiones, registro de cambios y web lista para compartir"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "The footer shows which version and build you are on, and /version.json names the build that is live.",
+            "pl": "Stopka pokazuje, z jakiej wersji i kompilacji korzystasz, a /version.json podaje kompilację, która jest teraz opublikowana.",
+            "es": "El pie de página muestra qué versión y compilación usas, y /version.json indica la compilación que está en línea."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "A changelog page lists the releases of the website and the Windows app, newest first.",
+            "pl": "Strona z dziennikiem zmian wymienia wydania strony i aplikacji na Windows, od najnowszego.",
+            "es": "Una página con el registro de cambios recoge las versiones de la web y de la app de Windows, la más reciente primero."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "A press page has the facts, the description in three lengths, the logo files and the brand colours.",
+            "pl": "Strona dla prasy zawiera fakty, opis w trzech długościach, pliki logo i kolory marki.",
+            "es": "Una página de prensa reúne los datos, la descripción en tres longitudes, los archivos del logo y los colores de la marca."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Shared links to the main pages show a picture made for the page and the language, and every page has its own title and description.",
+            "pl": "Udostępnione linki do głównych stron pokazują obrazek przygotowany dla danej strony i języka, a każda strona ma własny tytuł i opis.",
+            "es": "Los enlaces compartidos de las páginas principales muestran una imagen hecha para cada página e idioma, y cada página tiene su propio título y descripción."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Pages open faster on phones. The landing, pricing and download pages no longer load the studio's code up front, and the offline copy downloads later, not on a slow or metered connection.",
+            "pl": "Strony otwierają się szybciej na telefonach. Strona główna, cennik i pobieranie nie ładują już od razu kodu studia, a kopia offline pobiera się później i nie przy wolnym łączu ani z limitem danych.",
+            "es": "Las páginas abren más rápido en el móvil. La portada, los precios y la descarga ya no cargan de entrada el código del estudio, y la copia sin conexión llega después, no con conexión lenta o con límite de datos."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The privacy policy, the terms, the disclaimer and the download page are clearer about cookies, what is free and what the Windows app sends.",
+            "pl": "Polityka prywatności, regulamin, zastrzeżenia i strona pobierania jaśniej mówią o plikach cookie, o tym, co jest darmowe, i o tym, co wysyła aplikacja na Windows.",
+            "es": "La política de privacidad, los términos, el aviso legal y la página de descarga son más claros sobre las cookies, lo que es gratis y lo que envía la app de Windows."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "The pricing page no longer mentions PayPal, which is switched off, and no longer scrolls sideways on phones.",
+            "pl": "Cennik nie wspomina już o PayPalu, który jest wyłączony, i nie przewija się na boki na telefonach.",
+            "es": "La página de precios ya no menciona PayPal, que está desactivado, y ya no se desplaza hacia los lados en el móvil."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "Offline, a page you had not opened before now shows the offline page instead of the browser's error page.",
+            "pl": "Bez internetu nieodwiedzona wcześniej strona pokazuje teraz stronę offline zamiast błędu przeglądarki.",
+            "es": "Sin conexión, una página que no habías abierto antes muestra ahora la página sin conexión en lugar del error del navegador."
+          }
+        }
+      ]
+    },
+    {
+      "id": "app-1-3-0",
+      "product": "app",
+      "version": "1.3.0",
+      "date": "2026-10-14",
+      "headline": {
+        "en": "Your version, and what changed in it",
+        "pl": "Twoja wersja i to, co się w niej zmieniło",
+        "es": "Tu versión y lo que cambió en ella"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "The window title shows the app version, and says portable or safe mode when they apply.",
+            "pl": "Tytuł okna pokazuje wersję aplikacji i informuje, gdy działa wersja przenośna albo tryb bezpieczny.",
+            "es": "El título de la ventana muestra la versión de la aplicación e indica si es la versión portátil o el modo seguro."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The About dialog lists the app version, how it is installed and the website build inside it, with Copy details and What's new buttons.",
+            "pl": "Okno O programie podaje wersję aplikacji, sposób instalacji i wersję strony wewnątrz niej, z przyciskami Kopiuj szczegóły i Co nowego.",
+            "es": "El cuadro Acerca de indica la versión de la aplicación, cómo está instalada y la versión del sitio que lleva dentro, con los botones Copiar detalles y Novedades."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "A What's new entry in the Help menu opens the changelog.",
+            "pl": "Pozycja Co nowego w menu Pomoc otwiera dziennik zmian.",
+            "es": "La entrada Novedades del menú Ayuda abre el registro de cambios."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "From the next update on, the app shows what's new in that version once, with a link to its release in the changelog.",
+            "pl": "Od następnej aktualizacji aplikacja raz pokazuje, co nowego w danej wersji, z linkiem do niej w dzienniku zmian.",
+            "es": "A partir de la próxima actualización, la app muestra una vez las novedades de esa versión, con un enlace a ella en el registro de cambios."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The App card on the GPU tab shows the website build and the install type, with a Copy details button.",
+            "pl": "Karta Aplikacja na zakładce GPU pokazuje wersję strony i sposób instalacji, z przyciskiem Kopiuj szczegóły.",
+            "es": "La tarjeta Aplicación de la pestaña GPU muestra la versión del sitio y el tipo de instalación, con un botón Copiar detalles."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The privacy policy and terms inside the app are updated, including what the app sends and where.",
+            "pl": "Polityka prywatności i regulamin w aplikacji są zaktualizowane, także o to, co aplikacja wysyła i dokąd.",
+            "es": "La política de privacidad y los términos dentro de la aplicación están actualizados, también con lo que envía la aplicación y adónde."
+          }
+        }
+      ]
+    },
+    {
+      "id": "site-1-9-0",
+      "product": "site",
+      "version": "1.9.0",
+      "date": "2026-10-13",
+      "headline": {
+        "en": "Accounts, a lower price and its own web address",
+        "pl": "Konta, niższa cena i własny adres w sieci",
+        "es": "Cuentas, un precio más bajo y dirección propia"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Accounts arrive. Sign up once and sign in on any browser or in the Windows app.",
+            "pl": "Pojawiają się konta. Załóż konto raz i loguj się w każdej przeglądarce oraz w aplikacji na Windows.",
+            "es": "Llegan las cuentas. Regístrate una vez e inicia sesión en cualquier navegador o en la app de Windows."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Pro now costs $6.99 a month or $49 a year.",
+            "pl": "Pro kosztuje teraz 6,99 USD miesięcznie lub 49 USD rocznie.",
+            "es": "Pro cuesta ahora 6,99 US$ al mes o 49 US$ al año."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The site has its own web address, with and without www.",
+            "pl": "Strona ma własny adres internetowy, z www i bez www.",
+            "es": "El sitio tiene su propia dirección web, con y sin www."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Windows downloads now come from a new public installers page, and the download page links a checksum for every file.",
+            "pl": "Pobrania dla Windows pochodzą teraz z nowej, publicznej strony z instalatorami, a strona pobierania podaje link do sum kontrolnych każdego pliku.",
+            "es": "Las descargas para Windows vienen ahora de una nueva página pública de instaladores, y la página de descarga enlaza las sumas de comprobación de cada archivo."
+          }
+        }
+      ]
+    },
+    {
+      "id": "app-1-2-0",
+      "product": "app",
+      "version": "1.2.0",
+      "date": "2026-10-13",
+      "headline": {
+        "en": "The AI makes fighters and modes",
+        "pl": "AI tworzy wojowników i tryby",
+        "es": "La IA crea luchadores y modos"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "New fighter. Describe one and the AI builds a Fight League fighter with a weapon and an ability.",
+            "pl": "Nowy wojownik. Opisz go, a AI zbuduje wojownika Ligi walk z bronią i zdolnością.",
+            "es": "Nuevo luchador. Descríbelo y la IA crea un luchador de la Liga de combate con un arma y una habilidad."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The app tests your fighter in practice fights and balances it against the built-in fighters.",
+            "pl": "Aplikacja testuje Twojego wojownika w walkach próbnych i wyważa go względem wojowników z gry.",
+            "es": "La app prueba a tu luchador en combates de prueba y lo equilibra frente a los luchadores incluidos."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "New mode. The AI picks a base mode and tunes its settings, and you can undo it.",
+            "pl": "Nowy tryb. AI wybiera tryb bazowy i dostraja jego ustawienia, a Ty możesz to cofnąć.",
+            "es": "Nuevo modo. La IA elige un modo base y afina su configuración, y tú puedes deshacerlo."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The My creations list shows what you made. Play a mode, delete anything or fight with a fighter.",
+            "pl": "Lista Moje twory pokazuje wszystkie Twoje twory. Zagraj w tryb, usuń dowolny twór albo walcz wojownikiem.",
+            "es": "La lista Mis creaciones muestra lo que has creado. Juega un modo, borra lo que quieras o lucha con un luchador."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Your creations are saved on your PC only, and each list holds up to 24 of them.",
+            "pl": "Twoje twory zapisują się tylko na Twoim komputerze, a każda lista mieści do 24 pozycji.",
+            "es": "Tus creaciones se guardan solo en tu PC, y cada lista admite hasta 24."
+          }
+        }
+      ]
+    },
+    {
+      "id": "app-1-1-0",
+      "product": "app",
+      "version": "1.1.0",
+      "date": "2026-10-13",
+      "headline": {
+        "en": "Accounts and a new update feed",
+        "pl": "Konta i nowe źródło aktualizacji",
+        "es": "Cuentas y un nuevo canal de actualizaciones"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "The Account page lets you sign in to the same account you use on the website.",
+            "pl": "Strona Konto pozwala zalogować się na to samo konto, którego używasz na stronie internetowej.",
+            "es": "La página Cuenta te deja iniciar sesión con la misma cuenta que usas en el sitio web."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The installed app checks for updates soon after it starts and every four hours.",
+            "pl": "Zainstalowana aplikacja sprawdza aktualizacje krótko po uruchomieniu i co cztery godziny.",
+            "es": "La app instalada busca actualizaciones poco después de abrirse y cada cuatro horas."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "A finished download shows a Windows notification and a banner with Restart and update. The button waits while a render is running.",
+            "pl": "Gotowa aktualizacja pokazuje powiadomienie Windows i baner z przyciskiem Uruchom ponownie i zaktualizuj. Przycisk czeka, dopóki trwa renderowanie.",
+            "es": "Una actualización lista muestra una notificación de Windows y un aviso con Reiniciar y actualizar. El botón espera mientras hay un renderizado en marcha."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Downloads and updates now come from a new public installers page, with checksums for every file.",
+            "pl": "Pobrania i aktualizacje pochodzą teraz z nowej, publicznej strony z instalatorami, z sumami kontrolnymi każdego pliku.",
+            "es": "Las descargas y las actualizaciones vienen ahora de una nueva página pública de instaladores, con sumas de comprobación de cada archivo."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Using 1.0.3 or older? Download the installer once, because those versions cannot find new updates.",
+            "pl": "Masz wersję 1.0.3 lub starszą? Pobierz instalator raz ręcznie, bo te wersje nie znajdą nowych aktualizacji.",
+            "es": "¿Usas la versión 1.0.3 o una anterior? Descarga el instalador una vez, porque esas versiones no encuentran las actualizaciones nuevas."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The app includes the modes added since 1.0.3, such as Focus Shot, Brick Smash and Colour Sort.",
+            "pl": "Aplikacja ma tryby dodane od wersji 1.0.3, na przykład Strzał w ognisko, Rozbij cegły i Sortowanie kolorów.",
+            "es": "La app incluye los modos añadidos desde la versión 1.0.3, como Tiro al foco, Rompeladrillos y Clasificar colores."
+          }
+        }
+      ]
+    },
+    {
+      "id": "site-1-8-0",
+      "product": "site",
+      "version": "1.8.0",
+      "date": "2026-10-12",
+      "headline": {
+        "en": "Beat machines, pyramids and plainer words",
+        "pl": "Maszyny rytmu, piramidy i prostsze słowa",
+        "es": "Máquinas de ritmo, pirámides y palabras más claras"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Beat Machines joins the modes. Sound Vortex can now send rings of marbles down in waves.",
+            "pl": "Maszyny rytmu dołączają do trybów, a Dźwiękowy wir potrafi teraz zrzucać pierścienie kulek falami.",
+            "es": "Las Máquinas de ritmo se suman a los modos, y el Vórtice sonoro envía ahora anillos de canicas en oleadas."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Land Claim can build a stepped pyramid and knock it down, summit last.",
+            "pl": "Podbój terenu potrafi zbudować schodkową piramidę i zburzyć ją, szczytem na końcu.",
+            "es": "Conquista de terreno puede levantar una pirámide escalonada y derribarla, con la cima al final."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Classic gets Ring Escape options, such as a spiral of gaps, rainbow rings and a time-in-ring display.",
+            "pl": "Tryb Klasyczny dostaje opcje Ucieczki z pierścieni, takie jak spirala szczelin, tęczowe pierścienie i czas w pierścieniu.",
+            "es": "Clásico estrena opciones de Escape de anillos, como una espiral de huecos, anillos arcoíris y el tiempo en cada anillo."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Brick Smash, Perfect Fit and Wave Tank join the modes.",
+            "pl": "Rozbij cegły, Idealne dopasowanie i Basen falowy dołączają do trybów.",
+            "es": "Rompeladrillos, Encaje perfecto y Cubeta de ondas se suman a los modos."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The Drawing Machines mode draws with pendulums, or with Earth and Venus.",
+            "pl": "Tryb Maszyny rysujące rysuje wahadłami albo ruchem Ziemi i Wenus.",
+            "es": "El modo Máquinas de dibujo dibuja con péndulos, o con la Tierra y Venus."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Every page and panel now reads shorter and plainer, in English, Polish and Spanish.",
+            "pl": "Teksty na każdej stronie i w każdym panelu są teraz krótsze i prostsze, po angielsku, polsku i hiszpańsku.",
+            "es": "Las páginas y los paneles usan ahora textos más cortos y claros, en inglés, polaco y español."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "String Battle balls stay alive while a string holds, and the last two meet in a final duel.",
+            "pl": "W Bitwie na nici piłka żyje, dopóki trzyma się choć jedna jej nić, a ostatnie dwie spotykają się w finałowym pojedynku.",
+            "es": "En Batalla de hilos, una pelota sigue viva mientras aguante un hilo, y las dos últimas se enfrentan en un duelo final."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "Mode card text now reads in full on phones and small tablets.",
+            "pl": "Tekst na kartach trybów jest teraz w całości widoczny na telefonach i małych tabletach.",
+            "es": "El texto de las tarjetas de modo ya se lee completo en móviles y tabletas pequeñas."
+          }
+        }
+      ]
+    },
+    {
+      "id": "site-1-7-0",
+      "product": "site",
+      "version": "1.7.0",
+      "date": "2026-10-11",
+      "headline": {
+        "en": "Fight League overhaul and more loops",
+        "pl": "Nowa Liga walk i kolejne pętle",
+        "es": "Liga de combate renovada y más bucles"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Focus Shot and Colour Sort join the modes.",
+            "pl": "Strzał w ognisko i Sortowanie kolorów dołączają do trybów.",
+            "es": "Tiro al foco y Clasificar colores se suman a los modos."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The Double Pendulum can swing a chaos fan, and the metronome rings can wind into a Phase Spiral.",
+            "pl": "Podwójne wahadło może rozhuśtać wachlarz chaosu, a pierścienie metronomów zwinąć się w Spiralę faz.",
+            "es": "El péndulo doble puede lanzar un abanico del caos, y los anillos de metrónomos pueden enroscarse en una Espiral de fase."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Fight League gets a much bigger roster, sorted into divisions.",
+            "pl": "Liga walk zyskuje dużo większą obsadę, podzieloną na dywizje.",
+            "es": "La Liga de combate gana una plantilla mucho mayor, ordenada en divisiones."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Fight League adds team fights, best-of series, brackets and boss rushes.",
+            "pl": "Liga walk dodaje walki drużynowe, serie, drabinki i boss rushe.",
+            "es": "La Liga de combate añade combates por equipos, series, cuadros y boss rush."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Every fight has a VS card, a countdown, its own sounds and an announcer, and ends in a slow-motion finish.",
+            "pl": "Każda walka ma kartę VS, odliczanie, własne dźwięki i komentatora, a kończy się finałem w zwolnionym tempie.",
+            "es": "Cada combate tiene su cartel VS, cuenta atrás, sonidos propios y un locutor, y termina con un final a cámara lenta."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The Make a clip button builds a fight video for you, and a tier list card ranks the fighters.",
+            "pl": "Przycisk Zrób klip buduje film z walki, a karta z listą tierów szereguje wojowników.",
+            "es": "El botón Crear un clip monta un vídeo de combate por ti, y una tarjeta de tier list ordena a los luchadores."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Fights are fairer, and they go to sudden death when time runs out.",
+            "pl": "Walki są uczciwsze, a gdy kończy się czas, przechodzą w nagłą śmierć.",
+            "es": "Los combates son más justos y, si se acaba el tiempo, pasan a muerte súbita."
+          }
+        }
+      ]
+    },
+    {
+      "id": "site-1-6-0",
+      "product": "site",
+      "version": "1.6.0",
+      "date": "2026-10-05",
+      "headline": {
+        "en": "Mode pictures and the first loop clips",
+        "pl": "Obrazki trybów i pierwsze klipy w pętli",
+        "es": "Imágenes de los modos y primeros clips en bucle"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Every mode card shows its mode mid-action, with the payoff on screen.",
+            "pl": "Każda karta trybu pokazuje tryb w akcji, z finałem na ekranie.",
+            "es": "Cada tarjeta de modo muestra el modo en plena acción, con el desenlace a la vista."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Grow can fill its ring and then start again as a loop.",
+            "pl": "Tryb Rośnij potrafi wypełnić swój pierścień i zacząć od nowa jako pętla.",
+            "es": "Crecer puede llenar su anillo y volver a empezar como un bucle."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The Export whole loops option cuts a clip to a whole number of cycles.",
+            "pl": "Opcja Eksportuj całe pętle przycina klip do pełnej liczby cykli.",
+            "es": "La opción Exportar bucles completos recorta un clip a un número entero de ciclos."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "New original sounds for loop clips, such as plucks, tuned bars and a finishing chord.",
+            "pl": "Nowe, autorskie dźwięki do klipów w pętli, na przykład szarpane struny, strojone sztabki i akord na zakończenie.",
+            "es": "Nuevos sonidos originales para clips en bucle, como punteos, láminas afinadas y un acorde final."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Chord Stars and Spinning Hoops join the modes.",
+            "pl": "Gwiazdy cięciw i Wirujące obręcze dołączają do trybów.",
+            "es": "Estrellas de cuerdas y Aros giratorios se suman a los modos."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Free visitors now see the watermark on the live canvas too. Pro removes it everywhere.",
+            "pl": "Darmowi użytkownicy widzą teraz znak wodny także w trwającej symulacji. Pro usuwa go wszędzie.",
+            "es": "Los visitantes gratuitos ven ahora la marca de agua también en la simulación en vivo. Pro la quita en todas partes."
+          }
+        }
+      ]
+    },
+    {
+      "id": "app-1-0-3",
+      "product": "app",
+      "version": "1.0.3",
+      "date": "2026-10-05",
+      "headline": {
+        "en": "An AI that works with small models",
+        "pl": "AI, która radzi sobie z małymi modelami",
+        "es": "Una IA que funciona con modelos pequeños"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "An AI status panel shows the runtime, the model, your cloud provider, the network and the last error.",
+            "pl": "Panel stanu AI pokazuje środowisko uruchomieniowe, model, dostawcę chmury, sieć i ostatni błąd.",
+            "es": "Un panel de estado de la IA muestra el motor, el modelo, tu proveedor de nube, la red y el último error."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The Run checks button tests everything, Copy report gathers the details, and a switch forces CPU only.",
+            "pl": "Przycisk Sprawdź testuje wszystko, Kopiuj raport zbiera szczegóły, a przełącznik wymusza pracę tylko na CPU.",
+            "es": "El botón Comprobar lo prueba todo, Copiar informe reúne los detalles y un interruptor fuerza el uso de solo CPU."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Pro plans and the small watermark on free videos arrive in the app.",
+            "pl": "Plany Pro i mały znak wodny na darmowych filmach pojawiają się w aplikacji.",
+            "es": "Los planes Pro y la pequeña marca de agua de los vídeos gratuitos llegan a la app."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Mode pictures arrive too, along with new modes such as Conveyor Belt, Bouncing Orbs and Land Claim.",
+            "pl": "Pojawiają się też obrazki trybów oraz nowe tryby, na przykład Taśmociąg, Skaczące kule i Podbój terenu.",
+            "es": "Llegan también las imágenes de los modos y modos nuevos, como Cinta transportadora, Esferas saltarinas y Conquista de terreno."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "A first-run card helps you pick a model, and a finished download is selected for you.",
+            "pl": "Karta pierwszego uruchomienia pomaga wybrać model, a gotowe pobranie jest zaznaczane za Ciebie.",
+            "es": "Una tarjeta de primer uso te ayuda a elegir un modelo, y la descarga terminada se selecciona sola."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The AI shows its progress, such as Reading the request and Writing.",
+            "pl": "AI pokazuje postęp, na przykład Czytam polecenie i Piszę.",
+            "es": "La IA muestra su progreso, por ejemplo Leyendo la petición y Escribiendo."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "The AI studio now works with small local models. Replies are cleaned up and checked first.",
+            "pl": "Studio AI działa teraz z małymi modelami lokalnymi. Odpowiedzi są najpierw porządkowane i sprawdzane.",
+            "es": "El estudio de IA ya funciona con modelos locales pequeños. Las respuestas se limpian y se revisan antes."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "Model downloads and cloud calls now work behind a company proxy or an antivirus that scans HTTPS.",
+            "pl": "Pobieranie modeli i wywołania chmury działają teraz za firmowym proxy i antywirusem skanującym HTTPS.",
+            "es": "La descarga de modelos y las llamadas a la nube ya funcionan tras un proxy de empresa o un antivirus que analiza HTTPS."
+          }
+        }
+      ]
+    },
+    {
+      "id": "site-1-5-0",
+      "product": "site",
+      "version": "1.5.0",
+      "date": "2026-10-04",
+      "headline": {
+        "en": "Pro plans, Bouncing Orbs and Fight League",
+        "pl": "Plany Pro, Skaczące kule i Liga walk",
+        "es": "Planes Pro, Esferas saltarinas y Liga de combate"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Pro plans arrive on the pricing page. Restore a purchase on any device with your email and receipt reference.",
+            "pl": "Na stronie z cennikiem pojawiają się plany Pro. Zakup przywrócisz na każdym urządzeniu e-mailem i numerem z potwierdzenia.",
+            "es": "Los planes Pro llegan a la página de precios. Restaura la compra en cualquier dispositivo con tu correo y la referencia del recibo."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Free videos carry a small watermark that is drawn into the picture. Pro removes it and adds Publish.",
+            "pl": "Darmowe filmy mają mały znak wodny wrysowany w obraz. Pro go usuwa i dodaje publikowanie.",
+            "es": "Los vídeos gratuitos llevan una pequeña marca de agua dibujada en la imagen. Pro la quita y añade Publicar."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Bouncing Orbs fills a field with thousands of orbs that bounce on their own spot, with a metronome and polyrhythms.",
+            "pl": "Skaczące kule wypełniają pole tysiącami kul, z których każda odbija się w swoim miejscu, z metronomem i polirytmami.",
+            "es": "El modo Esferas saltarinas llena un campo con miles de esferas que rebotan cada una en su sitio, con metrónomo y polirritmos."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Land Claim lets balls knock blocks off columns for their colour. The most blocks wins.",
+            "pl": "W Podboju terenu piłki strącają bloki z kolumn dla swojego koloru. Wygrywa ten, kto zbierze najwięcej.",
+            "es": "En Conquista de terreno, las pelotas derriban bloques de las columnas para su color. Gana quien consiga más."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Fight League is a duel mode where each fighter is a ball with its own weapon and ability.",
+            "pl": "Liga walk to tryb pojedynków, w którym każdy wojownik jest piłką z własną bronią i zdolnością.",
+            "es": "La Liga de combate es un modo de duelos en el que cada luchador es una pelota con su propia arma y habilidad."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "String Battle gets a round String Circle style, where flag balls fan their strings to the rim.",
+            "pl": "Bitwa na nici zyskuje styl Krąg strun, w którym piłki z flagami rozpościerają struny aż do obręczy.",
+            "es": "Batalla de hilos estrena el estilo Círculo de cuerdas, en el que pelotas con bandera abren sus cuerdas hasta el borde."
+          }
+        }
+      ]
+    },
+    {
+      "id": "site-1-4-0",
+      "product": "site",
+      "version": "1.4.0",
+      "date": "2026-10-01",
+      "headline": {
+        "en": "A new look and no limits",
+        "pl": "Nowy wygląd i brak limitów",
+        "es": "Un aspecto nuevo y sin límites"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "The whole site has a new calm, dark look. The studio has a control rail, a stage and a panel.",
+            "pl": "Cała strona ma nowy, spokojny, ciemny wygląd. Studio ma pasek grup, scenę i panel.",
+            "es": "Todo el sitio estrena un aspecto sereno y oscuro. El estudio tiene una barra de controles, un escenario y un panel."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Every slider has a number field that takes any value, and Wide sliders stretch them far past their usual range.",
+            "pl": "Każdy suwak ma pole liczbowe, które przyjmuje dowolną wartość, a Szerokie suwaki rozciągają je daleko poza zwykły zakres.",
+            "es": "Cada deslizador tiene un campo numérico que acepta cualquier valor, y los Deslizadores amplios los estiran mucho más allá de su rango habitual."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Territory and Maze Escape join the modes.",
+            "pl": "Terytorium i Ucieczka z labiryntu dołączają do trybów.",
+            "es": "Territorio y Escape del laberinto se suman a los modos."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Conveyor Belt drops a new ball every few seconds. Classic and Multiply can respawn balls on a timer.",
+            "pl": "Taśmociąg zrzuca nową piłkę co kilka sekund. Klasyczny i Mnożenie mogą odradzać piłki co ustalony czas.",
+            "es": "Cinta transportadora suelta una pelota nueva cada pocos segundos. Clásico y Multiplicar pueden reponer pelotas con un temporizador."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Ring exits can jump, flee or shrink. A splat barrier leaves paint where the ball hits.",
+            "pl": "Wyjścia z pierścieni potrafią skakać, uciekać albo się zwężać. Bariera z plam zostawia farbę tam, gdzie uderza piłka.",
+            "es": "Las salidas de los anillos pueden saltar, huir o encogerse. Una barrera de manchas deja pintura donde golpea la pelota."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "A Windows app page offers an installer and a portable EXE.",
+            "pl": "Strona aplikacji na Windows oferuje instalator i przenośny plik EXE.",
+            "es": "La página de la app de Windows ofrece un instalador y un EXE portátil."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Find Simulation keeps searching for up to 25 seconds when its first seeds find nothing.",
+            "pl": "Znajdź symulację szuka dalej, do 25 sekund, gdy pierwsze ziarna nic nie dadzą.",
+            "es": "Buscar simulación sigue buscando hasta 25 segundos cuando sus primeras semillas no encuentran nada."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The simulation runs in one fixed world, so a seed plays the same on every screen.",
+            "pl": "Symulacja działa w jednym stałym świecie, więc to samo ziarno gra tak samo na każdym ekranie.",
+            "es": "La simulación corre en un mundo fijo, así que una misma semilla se ve igual en cualquier pantalla."
+          }
+        }
+      ]
+    },
+    {
+      "id": "app-1-0-2",
+      "product": "app",
+      "version": "1.0.2",
+      "date": "2026-10-01",
+      "headline": {
+        "en": "The new look and more modes",
+        "pl": "Nowy wygląd i więcej trybów",
+        "es": "El nuevo aspecto y más modos"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "The app takes on the new calm, dark look of the site.",
+            "pl": "Aplikacja przejmuje nowy, spokojny, ciemny wygląd strony.",
+            "es": "La app adopta el nuevo aspecto sereno y oscuro del sitio."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Territory and Maze Escape come to the app.",
+            "pl": "Terytorium i Ucieczka z labiryntu trafiają do aplikacji.",
+            "es": "Territorio y Escape del laberinto llegan a la app."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Every slider takes any number you type.",
+            "pl": "Każdy suwak przyjmuje dowolną liczbę, którą wpiszesz.",
+            "es": "Cada deslizador acepta cualquier número que escribas."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The simulation runs in one fixed world, so a seed plays the same on every screen.",
+            "pl": "Symulacja działa w jednym stałym świecie, więc to samo ziarno gra tak samo na każdym ekranie.",
+            "es": "La simulación corre en un mundo fijo, así que una misma semilla se ve igual en cualquier pantalla."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Find Simulation keeps searching for up to 25 seconds when its first seeds find nothing.",
+            "pl": "Znajdź symulację szuka dalej, do 25 sekund, gdy pierwsze ziarna nic nie dadzą.",
+            "es": "Buscar simulación sigue buscando hasta 25 segundos cuando sus primeras semillas no encuentran nada."
+          }
+        }
+      ]
+    },
+    {
+      "id": "app-1-0-1",
+      "product": "app",
+      "version": "1.0.1",
+      "date": "2026-10-01",
+      "headline": {
+        "en": "Fixes for the AI and cancelled renders",
+        "pl": "Poprawki AI i anulowanych renderów",
+        "es": "Correcciones de la IA y de renderizados cancelados"
+      },
+      "items": [
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "The local AI now starts in the installed app.",
+            "pl": "Lokalna AI uruchamia się teraz w zainstalowanej aplikacji.",
+            "es": "La IA local ya arranca en la app instalada."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "A cancelled render no longer leaves a half-written MP4 behind.",
+            "pl": "Anulowany render nie zostawia już po sobie niedokończonego pliku MP4.",
+            "es": "Un renderizado cancelado ya no deja un MP4 a medio escribir."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "String Battle credits every kill when you run more than six balls.",
+            "pl": "Bitwa na nici zalicza każdą eliminację, gdy gra więcej niż sześć piłek.",
+            "es": "Batalla de hilos cuenta cada eliminación cuando juegan más de seis pelotas."
+          }
+        }
+      ]
+    },
+    {
+      "id": "app-1-0-0",
+      "product": "app",
+      "version": "1.0.0",
+      "date": "2026-10-01",
+      "headline": {
+        "en": "The first Windows app",
+        "pl": "Pierwsza aplikacja na Windows",
+        "es": "La primera app de Windows"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Install it for your user only, with no administrator rights, or run the portable EXE from a folder or a USB stick.",
+            "pl": "Zainstaluj ją tylko dla siebie, bez praw administratora, albo uruchom przenośny plik EXE z folderu lub pamięci USB.",
+            "es": "Instálala solo para tu usuario, sin permisos de administrador, o ejecuta el EXE portátil desde una carpeta o un USB."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The whole simulator runs in the app, with no browser needed.",
+            "pl": "Cały symulator działa w aplikacji, bez przeglądarki.",
+            "es": "Todo el simulador funciona dentro de la app, sin necesidad de navegador."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The app encodes videos on your graphics card, in H.264, HEVC or AV1 where the card supports them, and falls back to the processor.",
+            "pl": "Aplikacja koduje filmy na karcie graficznej, w H.264, HEVC lub AV1, jeśli karta je obsługuje, a w razie potrzeby przechodzi na procesor.",
+            "es": "La app codifica los vídeos en tu tarjeta gráfica, en H.264, HEVC o AV1 si la tarjeta los admite, y recurre al procesador si hace falta."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "A render queue works through seeds, share links and viral bot plans while you do something else. It saves to a folder, lets you retry failures and carries on after a restart.",
+            "pl": "Kolejka renderowania przerabia ziarna, linki do udostępniania i plany wiralowego bota, gdy robisz coś innego. Zapisuje do folderu, pozwala ponowić nieudane zadania i wznawia pracę po restarcie.",
+            "es": "Una cola de renderizado procesa semillas, enlaces para compartir y planes del bot viral mientras haces otra cosa. Guarda en una carpeta, te deja reintentar los fallos y continúa tras reiniciar."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "An AI studio plans clips, writes captions and hashtags and changes settings. Download a model once to run it offline, or use your own cloud key.",
+            "pl": "Studio AI planuje klipy, pisze opisy i hashtagi oraz zmienia ustawienia. Pobierz model raz, by działał offline, albo użyj własnego klucza chmurowego.",
+            "es": "Un estudio de IA planifica clips, escribe textos y hashtags y cambia ajustes. Descarga un modelo una vez para usarlo sin conexión, o usa tu propia clave de la nube."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "A library keeps every clip you rendered, with its thumbnail, length and post text.",
+            "pl": "Biblioteka zachowuje każdy wyrenderowany klip, z miniaturą, długością i tekstem posta.",
+            "es": "Una biblioteca guarda cada clip que renderizas, con su miniatura, duración y texto de publicación."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The app has menus in English, Polish and Spanish, and it stays in the tray when you close the window.",
+            "pl": "Aplikacja ma menu po angielsku, polsku i hiszpańsku i zostaje w zasobniku po zamknięciu okna.",
+            "es": "La app tiene menús en inglés, polaco y español, y se queda en la bandeja al cerrar la ventana."
+          }
+        }
+      ]
+    },
+    {
+      "id": "site-1-3-0",
+      "product": "site",
+      "version": "1.3.0",
+      "date": "2026-09-30",
+      "headline": {
+        "en": "Races, beats and a daily challenge",
+        "pl": "Wyścigi, rytm i wyzwanie dnia",
+        "es": "Carreras, ritmo y un reto diario"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Race two or four arenas on one canvas and in one recording.",
+            "pl": "Zorganizuj wyścig dwóch lub czterech aren na jednym ekranie i w jednym nagraniu.",
+            "es": "Pon a competir dos o cuatro arenas en una misma pantalla y en una sola grabación."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Sound Vortex, Bullseye and Journey join the modes.",
+            "pl": "Dźwiękowy wir, W dziesiątkę i Podróż dołączają do trybów.",
+            "es": "Vórtice sonoro, Diana y Viaje se suman a los modos."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Beat Drop lands on every beat. Follow the beat of a song, a video or markers you place.",
+            "pl": "Spadanie w rytm ląduje równo z rytmem. Podążaj za rytmem piosenki, wideo albo własnych znaczników.",
+            "es": "Caída al ritmo aterriza en cada pulso. Sigue el ritmo de una canción, de un vídeo o de marcas que coloques tú."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The viral video bot plans clips with a hook in the first seconds and the payoff at the end.",
+            "pl": "Bot do wiralowych filmów planuje klipy z haczykiem na początku i finałem na końcu.",
+            "es": "El bot de vídeos virales planifica clips con un gancho en los primeros segundos y el desenlace al final."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The daily challenge gives everyone one mode and one seed a day. The gallery holds ready-made setups to open.",
+            "pl": "Wyzwanie dnia daje wszystkim jeden tryb i jedno ziarno dziennie. W galerii czekają gotowe ustawienia do otwarcia.",
+            "es": "El reto diario da a todos un modo y una semilla al día. La galería guarda configuraciones listas para abrir."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Install the site as an app. The home page works offline, and so does the simulator once you have opened it.",
+            "pl": "Zainstaluj stronę jako aplikację. Strona główna działa offline, a symulator też, gdy raz go otworzysz.",
+            "es": "Instala la web como una app. La página de inicio funciona sin conexión, y el simulador también cuando lo has abierto una vez."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Bounce math changes any value by a step on every bounce, gap pass or beat.",
+            "pl": "Matematyka odbić zmienia wartość o krok przy każdym odbiciu, przejściu przez szczelinę lub uderzeniu rytmu.",
+            "es": "Las matemáticas del rebote cambian cualquier valor con un paso en cada rebote, paso por un hueco o pulso."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Publish prepares a caption and hashtags for TikTok, Instagram and YouTube. It opens the share sheet on a phone, or downloads the clip and opens the upload page on a computer.",
+            "pl": "Publikuj przygotowuje opis i hashtagi dla TikToka, Instagrama i YouTube. Na telefonie otwiera menu udostępniania, a na komputerze pobiera klip i otwiera stronę wysyłania.",
+            "es": "Publicar prepara un texto y hashtags para TikTok, Instagram y YouTube. En el móvil abre el menú de compartir, y en el ordenador descarga el clip y abre la página de subida."
+          }
+        }
+      ]
+    },
+    {
+      "id": "site-1-2-0",
+      "product": "site",
+      "version": "1.2.0",
+      "date": "2026-09-29",
+      "headline": {
+        "en": "Fast export, project files and more modes",
+        "pl": "Szybki eksport, pliki projektu i więcej trybów",
+        "es": "Exportación rápida, archivos de proyecto y más modos"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Fast export renders a clip frame by frame, usually faster than real time. Batch render queues many and packs them in a ZIP.",
+            "pl": "Szybki eksport renderuje klip klatka po klatce, zwykle szybciej niż w czasie rzeczywistym. Renderowanie seryjne ustawia wiele klipów w kolejce i pakuje je w ZIP.",
+            "es": "La exportación rápida renderiza un clip fotograma a fotograma, normalmente más rápido que en tiempo real. El renderizado por lotes pone en cola muchos y los empaqueta en un ZIP."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Save a project file with every setting, or share a short code instead of a long link.",
+            "pl": "Zapisz plik projektu ze wszystkimi ustawieniami albo udostępnij krótki kod zamiast długiego linku.",
+            "es": "Guarda un archivo de proyecto con todos los ajustes, o comparte un código corto en lugar de un enlace largo."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Place pegs, bumpers and spinners in the ring modes, and add animated captions such as countdowns.",
+            "pl": "Rozmieszczaj kołki, odbijacze i obrotowe belki w trybach z pierścieniami i dodawaj animowane napisy, na przykład odliczanie.",
+            "es": "Coloca clavos, rebotadores y aspas giratorias en los modos de anillos, y añade subtítulos animados, como cuentas atrás."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Choose how a run ends, such as the winner, and Find Simulation looks for it. Keyframes change settings as the clip plays.",
+            "pl": "Wybierz, jak ma się skończyć przebieg, na przykład zwycięzcą, a Znajdź symulację go poszuka. Klatki kluczowe zmieniają ustawienia w trakcie klipu.",
+            "es": "Elige cómo termina una partida, por ejemplo con un ganador, y Buscar simulación la busca. Los fotogramas clave cambian los ajustes mientras suena el clip."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Square Racing Grand Prix, Square Battle Royale and Capture the Flag join the modes.",
+            "pl": "Wyścig kwadratów Grand Prix, Battle Royale kwadratów i Zdobądź flagę dołączają do trybów.",
+            "es": "Gran Premio de Cuadrados, Battle Royale de cuadrados y Captura la bandera se suman a los modos."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "String Battle, Power Layers and Circle Illusion join the modes.",
+            "pl": "Bitwa na nici, Warstwy mocy i Iluzja okręgu dołączają do trybów.",
+            "es": "Batalla de hilos, Capas de poder e Ilusión del círculo se suman a los modos."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Beat Runner, Paddle Keep-Up and Double Pendulum Harp join the modes.",
+            "pl": "Bieg w rytmie, Piłka na platformie i Harfa z podwójnym wahadłem dołączają do trybów.",
+            "es": "Carrera al ritmo, Pelota en la plataforma y Arpa de doble péndulo se suman a los modos."
+          }
+        }
+      ]
+    },
+    {
+      "id": "site-1-1-0",
+      "product": "site",
+      "version": "1.1.0",
+      "date": "2026-09-29",
+      "headline": {
+        "en": "Looks, faces and a camera",
+        "pl": "Wygląd, buźki i kamera",
+        "es": "Aspectos, caras y una cámara"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Ball Drop, Bouncing Shapes and Pendulum Wave join the modes.",
+            "pl": "Spadające piłki, Odbijające się kształty i Fala wahadeł dołączają do trybów.",
+            "es": "Caída de pelotas, Formas que rebotan y Onda de péndulos se suman a los modos."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Metronomes & Polyrhythms brings hundreds of ticking voices, and Collision Playground hundreds of bumping orbs.",
+            "pl": "Metronomy i polirytmy to setki tykających głosów, a Poligon zderzeń to setki zderzających się kul.",
+            "es": "El modo Metrónomos y polirritmos trae cientos de voces que marcan el pulso, y Parque de colisiones, cientos de esferas que chocan."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Glass Smash and Multipliers join the modes. A ball drops through floors of glass, and gates clone balls into hundreds.",
+            "pl": "Rozbijanie szkła i Mnożniki dołączają do trybów. Piłka spada przez piętra ze szkła, a bramki klonują piłki aż do setek.",
+            "es": "Rompecristales y Multiplicadores se suman a los modos. Una pelota cae por pisos de cristal, y unas puertas clonan las pelotas hasta cientos."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Picture Paint reveals a picture of your own in Paint mode, and can follow the beat of a song.",
+            "pl": "Malowanie obrazka odsłania Twój własny obrazek w trybie Malowanie i potrafi podążać za rytmem piosenki.",
+            "es": "Pintar una imagen revela una imagen tuya en el modo Pintar y puede seguir el ritmo de una canción."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Pick one of ten themes with one click, or put your own picture behind the arena.",
+            "pl": "Wybierz jeden z dziesięciu motywów jednym kliknięciem albo ustaw własny obrazek za areną.",
+            "es": "Elige uno de diez temas con un clic, o pon tu propia imagen detrás de la arena."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Give the ball a face. It looks where it flies, blinks and reacts to hard hits.",
+            "pl": "Nadaj piłce buźkę. Patrzy tam, dokąd leci, mruga i reaguje na mocne uderzenia.",
+            "es": "Dale una cara a la pelota. Mira hacia donde vuela, parpadea y reacciona a los golpes fuertes."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Put balls into teams. A scoreboard keeps score, and a winner banner appears when the run ends.",
+            "pl": "Podziel piłki na drużyny. Tablica wyników liczy punkty, a na koniec pojawia się baner zwycięzcy.",
+            "es": "Reparte las pelotas en equipos. Un marcador cuenta los puntos y, al terminar, aparece un cartel con el ganador."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "A cinematic camera zooms in, shakes on wall breaks, slows down on near misses and replays the escape.",
+            "pl": "Filmowa kamera przybliża obraz, drży przy przebiciu ściany, zwalnia przy otarciach i powtarza ucieczkę.",
+            "es": "Una cámara de cine se acerca, tiembla cuando se rompe una pared, va a cámara lenta en los casi-escapes y repite la fuga."
+          }
+        }
+      ]
+    },
+    {
+      "id": "site-1-0-0",
+      "product": "site",
+      "version": "1.0.0",
+      "date": "2026-09-28",
+      "headline": {
+        "en": "The first release",
+        "pl": "Pierwsze wydanie",
+        "es": "La primera versión"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Ring modes where a ball bounces its way out, such as Classic, Multiply and Paint.",
+            "pl": "Tryby z pierścieniami, w których piłka wybija sobie drogę na zewnątrz, na przykład Klasyczny, Mnożenie i Malowanie.",
+            "es": "Modos con anillos en los que una pelota rebota hasta salir, como Clásico, Multiplicar y Pintar."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Record a vertical clip with sound. You get an MP4, or a WebM in browsers that cannot make one.",
+            "pl": "Nagraj pionowy klip z dźwiękiem. Dostaniesz MP4, a w przeglądarkach, które go nie tworzą, WebM.",
+            "es": "Graba un clip vertical con sonido. Obtienes un MP4, o un WebM en los navegadores que no pueden crearlo."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Find Simulation searches for a run that lasts exactly as long as your clip needs.",
+            "pl": "Znajdź symulację szuka przebiegu, który trwa dokładnie tyle, ile potrzebuje Twój klip.",
+            "es": "Buscar simulación encuentra una partida que dura justo lo que necesita tu clip."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Every setting lives in the link, so you can share a setup. Presets save in your browser.",
+            "pl": "Każde ustawienie jest w linku, więc możesz udostępnić całą konfigurację. Presety zapisują się w przeglądarce.",
+            "es": "Cada ajuste vive en el enlace, así que puedes compartir tu configuración. Los presets se guardan en tu navegador."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Pick a built-in melody or one of seven instruments. Snap the notes to a scale or lock them to a tempo.",
+            "pl": "Wybierz wbudowaną melodię lub jeden z siedmiu instrumentów. Dopasuj nuty do skali albo zablokuj je na tempie.",
+            "es": "Elige una melodía incluida o uno de siete instrumentos. Ajusta las notas a una escala o fíjalas a un tempo."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Use your own hit sound. Slice a song so each bounce plays the next bit, or add a music bed that dips on every bounce.",
+            "pl": "Użyj własnego dźwięku uderzenia. Potnij piosenkę tak, by każde odbicie grało jej kolejny kawałek, albo dodaj muzykę w tle, która ścisza się przy każdym odbiciu.",
+            "es": "Usa tu propio sonido de golpe. Corta una canción para que cada rebote reproduzca el trozo siguiente, o añade una música de fondo que baja con cada rebote."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Add wind, drag and breathing walls. Let balls merge when they touch, or split each time one breaks a wall.",
+            "pl": "Dodaj wiatr, opór i oddychające ściany. Pozwól piłkom łączyć się przy zetknięciu albo dzielić za każdym razem, gdy jedna przebije ścianę.",
+            "es": "Añade viento, resistencia y paredes que respiran. Deja que las pelotas se fusionen al tocarse, o se dividan cada vez que una rompa una pared."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The site speaks English, Polish and Spanish.",
+            "pl": "Strona działa po angielsku, polsku i hiszpańsku.",
+            "es": "El sitio habla inglés, polaco y español."
+          }
+        }
+      ]
+    }
+  ]
+}

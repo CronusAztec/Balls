@@ -21,28 +21,53 @@ Worker and the Windows app deploy from another branch only when you pick that br
 | Payment Worker (Cloudflare) | a push that changes `billing/`, once the variable `BILLING_AUTODEPLOY` is `1` (the first deploy is by hand) | about 2 min, then a health check | Actions → "Deploy billing worker" |
 | Windows app | a push that changes the version in `desktop/package.json` | 8–15 min to the release; installed apps update within 4 hours or at their next start | Actions → "Windows app", then <https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download/latest.yml> |
 
+**Which build is live?** Every build names itself with three facts: the release version (`version` in `package.json`), the
+commit and the commit's date. The footer of every page shows them (`v1.10.0 · 8fa8dbb · 2026-10-14`, the full commit in the
+tooltip, a link to the changelog), <https://jumpingballslive.com/version.json> says what is live right now (also the full
+commit, the build id `1.10.0+8fa8dbb` and when it was built), and the page source has `<meta name="jbl-build" content="1.10.0+8fa8dbb">`.
+`curl -sI https://jumpingballslive.com/en/ | grep -i x-build` shows the same id as a header. The footer shows the build a page
+was loaded from, so a tab that has been open for days shows an older one until it is reloaded; `version.json` is always the live
+one. The Windows app shows its own version in the title bar, in **Help → About** and in the Desktop group (GPU tab, App card),
+together with the website build inside it.
+
 ## Ship a website change
 
 1. Edit the files (or ask your developer to).
-2. `git add <the files>`
-3. `git commit -m "Say what changed"`
-4. `git push`
+2. Say it in the changelog (a change visitors can notice; skip it for a change nobody sees). Put a release at the top of
+   `releases` in `src/content/changelog.json`: the next website version (1.10.0 → 1.10.1 for a fix, 1.11.0 for something new), today's
+   date, a headline of at most 60 characters and the items, each written in English, Polish and Spanish. Raise `version` in
+   `package.json` to the same number with `npm version 1.10.1 --no-git-tag-version`, then run `npm run changelog` to rewrite
+   `CHANGELOG.md`. The entry, the version bump and `CHANGELOG.md` go in the same commit: `npx vitest run tests/changelog.test.ts
+   tests/copyStyle.test.ts` fails when one of them is missing or an entry breaks the copy style. The entry appears on
+   `/en/changelog/`, `/pl/changelog/` and `/es/changelog/` when the site deploys.
+3. `git add <the files>` (with `src/content/changelog.json`, `CHANGELOG.md`, `package.json` and `package-lock.json`)
+4. `git commit -m "Say what changed"`
+5. `git push`
 
 The Actions tab then shows the run: the checks and the build take about 6 minutes, the browser test runs on four machines
 at once for about 12–15 minutes, and the deploy takes a minute or two; the last step asks jumpingballslive.com which build
-it serves and fails if it is not this one. **A red run publishes nothing**: the site that is live stays as it was.
+it serves and fails if it is not this one. **A red run publishes nothing**: the site that is live stays as it was. When it is
+green, open <https://jumpingballslive.com/version.json>: `siteVersion` is the version you set in `package.json` and `commit`
+starts with the commit you pushed (the footer of a freshly loaded page says the same).
 
 ## Release the Windows app
 
 1. Pick the next version. It must always be higher than the last one: 1.0.3 → 1.0.4 → 1.0.5 … Raise the second number
    for bigger changes (1.0.9 → 1.1.0). Three plain numbers only: a version like 1.0.4-rc.1 is refused (the website and the
    download page only show x.y.z releases).
-2. Run `npm run release:desktop -- 1.0.4`. It writes the version into three files – `desktop/package.json`,
-   `desktop/package-lock.json` and `src/lib/desktop/release.ts` – and prints three git lines.
-3. Run the three lines it printed:
+2. Say it in the changelog: put a release for the Windows app at the top of `releases` in `src/content/changelog.json` (its
+   `product` is `app`, its `version` the one you picked, a headline and the items in English, Polish and Spanish), then run
+   `npm run changelog`. The entry goes in the same commit as the version bump, because the app carries the site: the changelog page
+   inside the app must list its own version, and the same entry becomes the notes of both GitHub releases (`node
+   scripts/changelog.mjs --notes app 1.0.4` prints them; a version without an entry gets a one-line text). The first time an
+   updated app starts it shows "What's new in 1.0.4" once, with a link to this entry, but only an app that already has the
+   notice does: 1.3.0 is the first version with it and only remembers its own version, so a 1.2.0 install updated to 1.3.0
+   sees nothing, and the notice first appears at the update after that.
+3. Run `npm run release:desktop -- 1.0.4`. It writes the version into three files – `desktop/package.json`,
+   `desktop/package-lock.json` and `src/lib/desktop/release.ts` – and prints three git lines. Add the changelog files to the first one:
 
    ```
-   git add desktop/package.json desktop/package-lock.json src/lib/desktop/release.ts
+   git add desktop/package.json desktop/package-lock.json src/lib/desktop/release.ts src/content/changelog.json CHANGELOG.md
    git commit -m "Windows app 1.0.4"
    git push
    ```
@@ -51,6 +76,19 @@ it serves and fails if it is not this one. **A red run publishes nothing**: the 
    installer, the portable EXE, `SHA256SUMS.txt` (checksums) and `latest.yml` (what installed apps read), and GitHub →
    Releases in this repository keeps `desktop-v1.0.4` as the archive (its notes list the changes since the last release by themselves). The
    same push deploys the website, whose download page then names the new version.
+
+When the release comes in a pull request, do not merge until the pull request's **Windows app** check is green (on a pull
+request that workflow builds, tests, packages and smoke-runs the app; it publishes nothing). The website deploys within about ten
+minutes of the merge, on its own and without waiting for the Windows job, and from then on the download page, the press page and the
+changelog already name the new version. After the merge watch Actions → "Windows app" and the `version:` line of
+<https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download/latest.yml>: it must show the new version. On a
+red run fix forward as the next patch version (1.3.0 → 1.3.1) with the same notes; re-running the failed run repairs a transient failure.
+
+Check the release on a PC after installing it: the title bar reads `JumpingBallsLive 1.0.4` (with `· portable` for the portable EXE),
+**Help → About** names the app version, whether it is the installer or the portable EXE and the website build inside it (its
+version and commit are the website's own, see "Which build is live?" above), **Copy details** puts those lines on the clipboard
+for a support message, and **Help → What's new** opens the changelog. The release job's smoke run already fails when the app's
+site has no `version.json`.
 
 What your users see: the installed app checks 8 seconds after it starts and then every 4 hours. It downloads the update in
 the background, shows a Windows notification and a banner with **Restart and update** and **Later**, and installs it when
@@ -84,6 +122,8 @@ and when that worked, add the repository variable `BILLING_AUTODEPLOY` with the 
   timeout, for example).
 - **Grey** – skipped or cancelled. A newer push cancels the older run of the website on purpose; a Windows release is
   never cancelled.
+- **Is it really live?** A green run and the commit named in <https://jumpingballslive.com/version.json> are the proof. If the
+  run is green but `version.json` still names an older commit, the domain is serving another deployment (see "Roll back").
 
 The browser test saves screenshots: open the run, scroll to **Artifacts** and download `smoke-screenshots`.
 
@@ -91,7 +131,9 @@ The browser test saves screenshots: open the run, scroll to **Artifacts** and do
 
 - **Website**: GitHub → the commit → **Revert**, then push the revert (or merge it). About 25 minutes later the old site
   is back. Faster: Cloudflare dashboard → Workers & Pages → `jumpingballslive` → **Deployments** → the previous one →
-  **Rollback** (instant; the next push deploys the repository's state again).
+  **Rollback** (instant; the next push deploys the repository's state again). Afterwards `version.json` names the build that
+  is live again, so check it: after a dashboard rollback it shows the earlier commit, after a revert it shows the revert commit
+  (with the version `package.json` holds at that commit).
 - **Worker**: revert the commit and push, or Cloudflare dashboard → Workers & Pages → the Worker → **Deployments** →
   **Rollback** (instant).
 - **Windows app**: apps that already installed the bad version keep it until you publish a higher one, so the real fix is

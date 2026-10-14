@@ -2,7 +2,7 @@
 
 jumpingballslive.com is a static export served by a Cloudflare Worker. This puts a new version of it there **from your VPS, without
 anyone typing the build commands**: you install it once; after that, whatever lands on the watched branch (and passes GitHub's checks)
-is built and deployed within about ten minutes.
+is built and deployed by the next look after GitHub's check turns green: at most ten minutes later, plus the build of about five.
 
 ```
 git clone --branch main https://github.com/CronusAztec/Balls.git && cd Balls
@@ -13,7 +13,7 @@ Debian or Ubuntu with systemd; about 2 GB of memory for the build (`--swap` make
 
 ## What it does, and what it does not
 
-* Every five minutes `jbl-deploy.sh` asks GitHub which commit the branch is at. If that is not the commit already deployed it
+* Every ten minutes `jbl-deploy.sh` asks GitHub which commit the branch is at. If that is not the commit already deployed it
   waits for the repository's own check (the `build` job of *Build and deploy the site*: lint and type check) to be **green**, fetches
   exactly that commit, runs the **production guard** (the live billing keys – a build with the test keys is refused), builds the site
   for the root of the domain, stamps `out/build.txt` with the commit, runs `wrangler deploy` and asks the live site for `/build.txt`
@@ -47,10 +47,12 @@ token during the build – the same trust a GitHub Actions deploy needs, moved t
 | last result | `sudo -u jbldeploy /opt/jbl-deploy/jbl-deploy.sh --status` |
 | deploy now instead of waiting | `sudo systemctl start jbl-deploy.service` |
 | deploy a particular commit (a rollback) | `sudo -u jbldeploy /opt/jbl-deploy/jbl-deploy.sh --sha <40-character hash>` |
+| which build is live (release, full commit, commit date, build id) | `curl -s https://jumpingballslive.com/version.json` (the footer of every page shows the same as `v1.10.0 · 8fa8dbb · 2026-10-14`; `curl -sI https://jumpingballslive.com/en/ \| grep -i x-build` shows the id as a header) |
 | a rollback in Cloudflare itself | dashboard → Workers & Pages → `jumpingballslive` → Deployments → Rollback |
 | change the token | `sudo bash deploy/vps/install.sh --reconfigure` |
 | pause / resume | `sudo systemctl stop jbl-deploy.timer` / `sudo systemctl start jbl-deploy.timer` |
-| settings (branch, feedback e-mail, legal details) | `/etc/jbl-deploy/env`, listed at the top of `jbl-deploy.sh` |
+| change how often it looks (5 to 1440 minutes, default 10) | `cd ~/Balls && git pull origin main && sudo bash deploy/vps/install.sh --every 10` (keeps the settings; a run without `--every` sets 10 again) |
+| settings (branch, support e-mail, legal name and address, optional public build settings) | `/etc/jbl-deploy/env`, listed at the top of `jbl-deploy.sh`; a change is built into the site by the next deploy, or at once with `--sha` (see "Say who runs the site") |
 
 ## When the repository is private
 
@@ -75,10 +77,33 @@ A fresh server needs the same token to clone the code the first time (`git -c ht
 Without the Checks permission set `JBL_REQUIRE_GREEN=0` in the settings file: the deployer then deploys every new commit of the branch
 without waiting for GitHub's lint, type check and unit tests – only do that if you trust whoever can push.
 
+## Say who runs the site
+
+The legal pages, the pricing page and the feedback form show the operator's details, and payment providers, card networks and ad platforms
+expect a named operator and a way to reach them. They come from `/etc/jbl-deploy/env` and are built into the pages, so an empty value means
+the live site says "the operator of jumpingballslive.com" and has no contact route:
+
+| Setting | Shown where |
+| --- | --- |
+| `JBL_SUPPORT_EMAIL` | the legal pages, the pricing page (payment questions), the footer imprint, the feedback form (it writes to this address unless `JBL_FEEDBACK_EMAIL` says another) |
+| `JBL_LEGAL_NAME`, `JBL_LEGAL_ADDRESS` | the terms and privacy pages ("who runs the site"), the footer imprint |
+| `JBL_FEEDBACK_ENDPOINT` | optional: a form backend that receives the feedback form's POST instead of an e-mail |
+| `JBL_FEEDBACK_GITHUB_REPO` | leave empty while the repository is private: the form would open issues that visitors cannot see (the default is empty) |
+| `JBL_ANALYTICS_SCRIPT_URL`, `JBL_ANALYTICS_SITE_ID`, `JBL_YOUTUBE_CLIENT_ID`, `JBL_DOWNLOADS_URL` | optional public build settings, the same as the repository variables of the GitHub deploy |
+
+`sudo bash deploy/vps/install.sh` asks for the support e-mail, the name and the address (Enter skips one; it asks again next time) and prints a
+note while no support e-mail is set. To change them later, edit the file (single quotes around each value) and rebuild the deployed commit:
+`sudo -u jbldeploy /opt/jbl-deploy/jbl-deploy.sh --sha "$(cat /var/lib/jbl-deploy/last-ok)"`. Check with `curl -s https://jumpingballslive.com/en/terms/ | grep -c mailto`.
+
+When the deployer cannot read the repository (a private repository without a token, an expired token) `--status` says so
+(`"state": "unreachable"`) and `journalctl -u jbl-deploy` names the reason; before this it only logged and stayed quiet.
+
 ## How the AI that makes the changes uses it
 
 It pushes to the watched branch, waits for GitHub's check to go green, and then reads `https://jumpingballslive.com/build.txt`: when it
-prints the commit it pushed, the deploy happened. It has no access to this server and needs none.
+prints the commit it pushed, the deploy happened. `https://jumpingballslive.com/version.json` says more (the release version, the full
+commit, its date): the site's own build writes it, so it works with the deployer script as it is installed now, with no re-install.
+It has no access to this server and needs none.
 
 Tests: `tests/vpsDeploy.test.ts` runs the whole script against stand-ins for git, npm, npx, node's two build scripts and curl: the order
 of the steps, a red or pending check, a failing step, the retry window, the lock, a rollback by hash and the status file.

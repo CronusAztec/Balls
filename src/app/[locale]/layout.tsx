@@ -3,9 +3,10 @@ import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getMessages, getTranslations, setRequestLocale } from "next-intl/server";
 import { routing } from "@/i18n/routing";
-import { SITE_NAME, SITE_URL, absoluteUrl, pageUrl } from "@/lib/site";
+import { SITE_NAME, SITE_URL, absoluteUrl } from "@/lib/site";
+import { pageMetadata } from "@/lib/seo"; // --- seo ---
+import { buildId } from "@/lib/buildInfo"; // --- build-identity ---
 import Analytics from "@/components/site/Analytics";
-import { localeAlternates } from "@/i18n/alternates";
 import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
 // --- pwa ---
 import PwaRegister from "@/components/site/PwaRegister";
@@ -28,18 +29,28 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const t = await getTranslations({ locale, namespace: "Layout" });
   const title = t("metaTitle", { siteName: SITE_NAME });
   const description = t("metaDescription", { count: MODE_CARD_ORDER.length });
+  // --- seo --- the home page's head (title, canonical, hreflang, Open Graph, Twitter, the language's card): lib/seo.ts builds
+  // every page's head the same way. The default card, for a page or a language without a card of its own, is the simulator screenshot.
+  const home = await pageMetadata({ locale, path: "", title, description, image: "home", fallbackImageUrl: absoluteUrl("/og.png") });
   return {
     metadataBase: new URL(SITE_URL),
-    title,
-    description,
+    ...home,
     // Absolute URLs so they stay correct when the site lives in a sub-folder (GitHub Pages).
-    icons: { icon: absoluteUrl("/icon.svg"), apple: absoluteUrl(PWA_ICON_FILES.appleTouch) },
+    // --- seo --- the .ico for old browsers and crawlers (32 and 48 px, public/favicon.ico), the SVG for current ones, 48 and 192 px PNGs (Google lists a favicon in multiples of 48 px)
+    icons: {
+      icon: [
+        { url: absoluteUrl("/favicon.ico"), type: "image/x-icon", sizes: "32x32 48x48" },
+        { url: absoluteUrl("/icon.svg"), type: "image/svg+xml", sizes: "any" },
+        { url: absoluteUrl("/icons/icon-48.png"), type: "image/png", sizes: "48x48" },
+        { url: absoluteUrl(PWA_ICON_FILES.icon192), type: "image/png", sizes: "192x192" },
+      ],
+      apple: absoluteUrl(PWA_ICON_FILES.appleTouch),
+    },
     // --- pwa --- installable app: the web app manifest (src/app/manifest.ts) and the iOS home-screen title
     manifest: assetPath("/manifest.webmanifest"),
     appleWebApp: { capable: true, title: SITE_NAME, statusBarStyle: "black-translucent" },
-    alternates: { canonical: pageUrl(locale), languages: localeAlternates("") },
-    openGraph: { title, description, url: pageUrl(locale), siteName: SITE_NAME, type: "website", images: [absoluteUrl("/og.png")] },
-    twitter: { card: "summary_large_image", title, description, images: [absoluteUrl("/og.png")] },
+    // --- build-identity --- <meta name="jbl-build" content="1.10.0+8fa8dbb"> on every page: which build served it (view-source, ad review tools)
+    other: { "jbl-build": buildId() },
   };
 }
 

@@ -10,6 +10,8 @@ import { PLAN_IDS, PROVIDERS, formatUsd, monthlyEquivalentUsd, plansFromConfig, 
 import { useEntitlement } from "@/lib/billing/entitlement";
 import { isDesktopApp } from "@/lib/desktop/bridge";
 import { rememberCheckoutFrom, sessionStore } from "@/lib/billing/returnTo";
+import { assetPath } from "@/lib/site"; // --- legal-copy ---
+import { track } from "@/lib/analytics/track"; // --- analytics ---
 import { siteBaseUrl, useBilling } from "./useBilling";
 
 /*
@@ -43,7 +45,9 @@ export default function PlanCards({ variant = "page" }: { variant?: "page" | "di
 
   const plans = plansFromConfig(billing.config);
   const saving = yearlySavingPercent(plans);
-  const shown: Provider[] = billing.config ? PROVIDERS.filter((p) => billing.config!.providers[p]) : [...PROVIDERS];
+  // --- legal-copy --- Until the backend has said which providers are on (the static page, a slow or failed /config), PayPal is not offered: it
+  // is off on the live backend, and a pay button the page then takes back would be a promise the HTML made before payment.
+  const shown: Provider[] = billing.config ? PROVIDERS.filter((p) => billing.config!.providers[p]) : billing.configState === "unconfigured" ? [...PROVIDERS] : PROVIDERS.filter((p) => p !== "paypal");
   const compact = variant === "dialog";
 
   const pay = async (plan: Plan, provider: Provider) => {
@@ -85,6 +89,7 @@ export default function PlanCards({ variant = "page" }: { variant?: "page" | "di
       setNote({ tone: "danger", text: t("pay.failed", { message: r.message }) });
       return;
     }
+    track("checkout_start", { plan, provider, from: compact ? "dialog" : "page" }); // --- analytics --- (the backend gave a checkout address; README "Analytics events")
     if (desktop) {
       // the app sends web pages to the system browser: the purchase is restored here afterwards with the receipt's reference
       window.open(r.value, "_blank");
@@ -116,7 +121,10 @@ export default function PlanCards({ variant = "page" }: { variant?: "page" | "di
           {t("email.label")}
         </label>
         <input id={emailId} type="email" autoComplete="email" inputMode="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t("email.placeholder")} className={inputClass} data-testid="billing-email" />
-        <p className="text-xs leading-relaxed text-ink-3">{t("email.hint")}</p>
+        <p className="text-xs leading-relaxed text-ink-3">
+          {t("email.hint")}
+          {shown.includes("paypal") && ` ${t("email.hintPaypal")}` /* --- legal-copy --- the PayPal sentence only when PayPal is offered */}
+        </p>
       </div>
       <div className={cx("grid grid-cols-1 gap-4", compact ? "sm:grid-cols-2" : "md:grid-cols-2")}>
         {PLAN_IDS.map((plan) => {
@@ -164,6 +172,16 @@ export default function PlanCards({ variant = "page" }: { variant?: "page" | "di
           );
         })}
       </div>
+      {/* --- legal-copy --- under the pay buttons: the currency, the tax and the Terms (a plain link: the Unlock dialog is studio code, and it opens the Terms in a new tab so the setup stays) */}
+      <p className="text-xs leading-relaxed text-ink-3" data-testid="billing-checkout-line">
+        {t.rich("checkout.line", {
+          terms: (chunks) => (
+            <a href={assetPath(`/${locale}/terms/`)} className="underline hover:text-ink-2" {...(compact ? { target: "_blank", rel: "noopener" } : {})} data-testid="billing-checkout-terms">
+              {chunks}
+            </a>
+          ),
+        })}
+      </p>
       {note && (
         <p role="status" data-testid="billing-pay-note" className={cx("text-sm leading-relaxed", note.tone === "danger" ? "text-danger" : note.tone === "warn" ? "text-warn" : "text-ink-2")}>
           {note.text}

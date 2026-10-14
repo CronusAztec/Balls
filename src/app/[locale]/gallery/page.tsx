@@ -8,8 +8,8 @@ import { Link } from "@/i18n/navigation";
 import { hasLocale } from "next-intl";
 import { routing, type Locale } from "@/i18n/routing";
 import { GALLERY, galleryHref } from "@/content/gallery";
-import { SITE_NAME, absoluteUrl, assetPath, pageUrl } from "@/lib/site";
-import { localeAlternates } from "@/i18n/alternates";
+import { SITE_NAME, assetPath, pageUrl } from "@/lib/site";
+import { breadcrumbJsonLd, itemListJsonLd, pageMetadata } from "@/lib/seo"; // --- seo ---
 import { buttonClass } from "@/components/ui/Button";
 import { IconArrowRight, IconPlay } from "@/components/ui/icons";
 
@@ -28,14 +28,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Gallery" });
   const v = { siteName: SITE_NAME, count: GALLERY.length };
-  const title = t("metaTitle", v);
-  const description = t("metaDescription", v);
-  return {
-    title,
-    description,
-    alternates: { canonical: pageUrl(locale, "/gallery"), languages: localeAlternates("/gallery") },
-    openGraph: { title, description, url: pageUrl(locale, "/gallery"), siteName: SITE_NAME, type: "website", images: [absoluteUrl(`/gallery/${GALLERY[0].id}.webp`)] },
-  };
+  return pageMetadata({ locale, path: "/gallery", title: t("metaTitle", v), description: t("metaDescription", v) }); // --- seo ---
 }
 
 export default async function GalleryPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -45,15 +38,13 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
   const t = await getTranslations({ locale, namespace: "Gallery" });
   const modes = await getTranslations({ locale, namespace: "Modes" });
   const v = { siteName: SITE_NAME, count: GALLERY.length };
-  const listJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "ItemList",
-    name: t("title", v),
-    itemListElement: GALLERY.map((preset, i) => ({ "@type": "ListItem", position: i + 1, name: preset.name[lang], url: `${pageUrl(locale, "/simulator")}?${preset.query}` })),
-  };
+  // --- seo --- the list (builders in lib/seo.ts) and the trail Home > Gallery
+  const listJsonLd = itemListJsonLd({ name: t("title", v), items: GALLERY.map((preset) => ({ name: preset.name[lang], url: `${pageUrl(locale, "/simulator")}?${preset.query}` })) });
+  const breadcrumbs = await breadcrumbJsonLd(locale, [{ name: t("badge"), path: "/gallery" }]);
   return (
     <div className="min-h-screen bg-bg text-ink">
       <JsonLd data={listJsonLd} />
+      <JsonLd data={breadcrumbs} />
       <Navbar />
       <main id="content">
         <div className="site-container py-12 sm:py-16 lg:py-20">
@@ -90,6 +81,8 @@ export default async function GalleryPage({ params }: { params: Promise<{ locale
                           aria-label={t("tryAria", { name })}
                           className="mt-3 inline-flex items-center gap-1.5 self-start text-sm font-medium text-accent after:absolute after:inset-0 after:content-[''] hover:text-accent-strong"
                           data-testid="gallery-try"
+                          data-track="cta_click"
+                          data-track-id="gallery_try"
                         >
                           <IconPlay size={14} />
                           {t("tryIt")}

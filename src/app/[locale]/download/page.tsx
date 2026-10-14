@@ -3,10 +3,12 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import Navbar from "@/components/site/Navbar";
 import Footer from "@/components/site/Footer";
 import JsonLd from "@/components/site/JsonLd";
-import { SITE_NAME, absoluteUrl, pageUrl } from "@/lib/site";
-import { localeAlternates } from "@/i18n/alternates";
+import { SITE_NAME } from "@/lib/site";
+import { breadcrumbJsonLd, pageMetadata, softwareApplicationJsonLd } from "@/lib/seo"; // --- seo ---
 import { DESKTOP_VERSION, PORTABLE_ASSET, SETUP_ASSET, latestAssetUrl } from "@/lib/desktop/release";
 import { buttonClass } from "@/components/ui/Button";
+import { Link } from "@/i18n/navigation"; // --- legal-copy ---
+import { PLANS, formatUsd } from "@/lib/billing/config"; // --- legal-copy --- the price in the free note comes from the plans
 import { IconBolt, IconDesktop, IconDownload, IconFolder, IconSparkle, IconVideo, IconWarning, type IconProps } from "@/components/ui/icons";
 
 /*
@@ -14,8 +16,10 @@ import { IconBolt, IconDesktop, IconDownload, IconFolder, IconSparkle, IconVideo
  * requirements, the SmartScreen note (the EXE is unsigned until a code-signing certificate is set up) and what the app adds.
  * --- site-redesign --- the two downloads side by side (the installer first, in the accent), then the requirements and the
  * SmartScreen note, what the app adds as a ruled list with icons, and the privacy note.
- * --- desktop-ai-fix --- the current version under the downloads, that the AI model is a one-time download, and that 1.0.2
- * installs (whose updater refuses unsigned updates) take 1.0.3 by hand once.
+ * --- desktop-ai-fix --- the current version under the downloads and that the AI model is a one-time download.
+ * --- legal-copy --- under the buttons: that the download is free and what the free version lacks (a watermark; Pro costs the plans'
+ * monthly price), and inline Terms and Privacy links; the SmartScreen / Chrome note is honest (unsigned, what the warnings say, how
+ * to check the SHA-256 or scan the file); the third-party software and sound notices close the page.
  * --- desktop-autorelease --- the version line is the build-time version (DESKTOP_VERSION): a release bumps it in the same push
  * that deploys the site. GitHub is not involved: the downloads come from jumpingballslive.com's own host (src/lib/desktop/release.ts).
  */
@@ -32,14 +36,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Desktop" });
   const v = { siteName: SITE_NAME };
-  const title = t("metaTitle", v);
-  const description = t("metaDescription", v);
-  return {
-    title,
-    description,
-    alternates: { canonical: pageUrl(locale, "/download"), languages: localeAlternates("/download") },
-    openGraph: { title, description, url: pageUrl(locale, "/download"), siteName: SITE_NAME, type: "website", images: [absoluteUrl("/og.png")] },
-  };
+  return pageMetadata({ locale, path: "/download", title: t("metaTitle", v), description: t("metaDescription", v) }); // --- seo ---
 }
 
 export default async function DownloadPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -48,21 +45,13 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
   const t = await getTranslations({ locale, namespace: "Desktop" });
   const fix = await getTranslations({ locale, namespace: "DesktopAiFix" }); // --- desktop-ai-fix ---
   const v = { siteName: SITE_NAME };
-  const appJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "SoftwareApplication",
-    name: `${SITE_NAME} for Windows`,
-    operatingSystem: "Windows 10, Windows 11",
-    applicationCategory: "MultimediaApplication",
-    downloadUrl: latestAssetUrl(SETUP_ASSET),
-    softwareVersion: DESKTOP_VERSION, // --- desktop-ai-fix ---
-    url: pageUrl(locale, "/download"),
-    description: t("metaDescription", v),
-    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-  };
+  // --- seo --- (builders in lib/seo.ts: the version, the release notes link and the date of the newest release come with it) and the trail Home > Download
+  const appJsonLd = softwareApplicationJsonLd({ locale, description: t("metaDescription", v), downloadUrl: latestAssetUrl(SETUP_ASSET), version: DESKTOP_VERSION }); // --- desktop-ai-fix ---
+  const breadcrumbs = await breadcrumbJsonLd(locale, [{ name: t("badge"), path: "/download" }]);
   return (
     <div className="min-h-screen bg-bg text-ink">
       <JsonLd data={appJsonLd} />
+      <JsonLd data={breadcrumbs} />
       <Navbar />
       <main id="content" className="site-container py-12 sm:py-16 lg:py-20" data-testid="download-page">
         <header className="max-w-[680px]">
@@ -80,7 +69,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
               {t("setupTitle")}
             </h2>
             <p className="text-md text-ink-2">{t("setupBody")}</p>
-            <a href={latestAssetUrl(SETUP_ASSET)} className={buttonClass({ variant: "primary", size: "md", className: "mt-auto self-start" })} data-testid="download-setup" rel="nofollow">
+            <a href={latestAssetUrl(SETUP_ASSET)} className={buttonClass({ variant: "primary", size: "md", className: "mt-auto self-start" })} data-testid="download-setup" data-track="download_click" data-track-kind="setup" rel="nofollow">
               <IconDownload size={16} />
               {t("setupButton")}
             </a>
@@ -90,14 +79,24 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
               {t("portableTitle")}
             </h2>
             <p className="text-md text-ink-2">{t("portableBody")}</p>
-            <a href={latestAssetUrl(PORTABLE_ASSET)} className={buttonClass({ variant: "secondary", size: "md", className: "mt-auto self-start" })} data-testid="download-portable" rel="nofollow">
+            <a href={latestAssetUrl(PORTABLE_ASSET)} className={buttonClass({ variant: "secondary", size: "md", className: "mt-auto self-start" })} data-testid="download-portable" data-track="download_click" data-track-kind="portable" rel="nofollow">
               <IconDownload size={16} />
               {t("portableButton")}
             </a>
           </section>
         </div>
+        {/* --- legal-copy --- what the download costs and what the free version lacks, and the Terms and Privacy links right under the buttons */}
+        <div className="mt-4 max-w-[680px] space-y-1.5 text-md text-ink-2" data-testid="download-terms">
+          <p data-testid="download-free-note">{t("setupNote", { price: formatUsd(PLANS.monthly.usd, locale) })}</p>
+          <p data-testid="download-legal">
+            {t.rich("setupLegal", {
+              terms: (chunks) => <Link href="/terms" className="font-medium text-accent hover:text-accent-strong">{chunks}</Link>,
+              privacy: (chunks) => <Link href="/privacy" className="font-medium text-accent hover:text-accent-strong">{chunks}</Link>,
+            })}
+          </p>
+        </div>
         <p className="mt-4 text-sm">
-          <a href={latestAssetUrl("SHA256SUMS.txt")} className="text-ink-3 hover:text-ink-2" data-testid="download-checksums" rel="nofollow">
+          <a href={latestAssetUrl("SHA256SUMS.txt")} className="text-ink-3 hover:text-ink-2" data-testid="download-checksums" data-track="download_click" data-track-kind="checksums" rel="nofollow">
             {t("checksums")}
           </a>
         </p>
@@ -107,9 +106,6 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
             {fix("downloadVersion", { version: DESKTOP_VERSION })}
           </p>
           <p>{fix("downloadModelNote")}</p>
-          <p className="text-warn" data-testid="download-update-note">
-            {fix("downloadUpdateNote")}
-          </p>
         </div>
 
         <div className="mt-16 grid grid-cols-1 gap-x-12 gap-y-10 border-t border-line pt-10 lg:grid-cols-2">
@@ -131,6 +127,17 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
               {t("smartScreenTitle")}
             </h2>
             <p className="mt-3 text-md text-ink-2">{t("smartScreenBody")}</p>
+            {/* --- legal-copy --- the file can be checked before it is run: its SHA-256 against the checksums, or a VirusTotal scan */}
+            <p className="mt-3 text-md text-ink-2">
+              {t.rich("smartScreenVerify", {
+                virustotal: (chunks) => (
+                  <a href="https://www.virustotal.com/gui/home/search" target="_blank" rel="noopener noreferrer" className="font-medium text-accent hover:text-accent-strong">
+                    {chunks}
+                  </a>
+                ),
+              })}
+            </p>
+            <p className="mt-3 text-md text-ink-2">{t("smartScreenSteps")}</p>
           </section>
         </div>
 
@@ -155,6 +162,16 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
             {t("privacyTitle")}
           </h2>
           <p className="mt-3 text-md text-ink-2">{t("privacyBody")}</p>
+        </section>
+
+        {/* --- legal-copy --- ffmpeg (GPL v3), Electron / Chromium / llama.cpp and the model licences, and where the built-in sounds come from */}
+        <section className="mt-16 max-w-[680px] border-t border-line pt-10" aria-labelledby="dl-notices" data-testid="download-notices">
+          <h2 id="dl-notices" className="text-xl font-bold text-ink">
+            {t("privacyNoticesTitle")}
+          </h2>
+          <p className="mt-3 text-md text-ink-2">{t("privacyNoticesFfmpeg")}</p>
+          <p className="mt-3 text-md text-ink-2">{t("privacyNoticesOther")}</p>
+          <p className="mt-3 text-md text-ink-2">{t("privacyAudio")}</p>
         </section>
       </main>
       <Footer />

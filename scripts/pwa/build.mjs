@@ -6,6 +6,11 @@
  *    simulator pages of every language with their RSC payloads, the offline page, the manifest, every
  *    /_next/static file and the public assets) and a version hash of every exported file, so each deploy
  *    is a new worker whose caches replace the old ones.
+ * --- precache-split --- The list is split in two (splitPrecache): the CRITICAL files (the landing of every language, the
+ * offline page, manifest, icons, CSS, fonts: about half a megabyte) are fetched by the worker's install; the DEFERRED rest
+ * (the studio, the mode pictures, the sounds, the other chunks: several megabytes) only when the page asks for it after it has
+ * settled, and never on a Save-Data, cellular or slow connection (src/lib/pwa.ts shouldPrecacheRest). What is not cached up
+ * front is cached the first time it is used, like every other page.
  * The site name, colours and base path come from out/manifest.webmanifest (src/app/manifest.ts).
  */
 import crypto from "crypto";
@@ -17,10 +22,23 @@ export const OFFLINE_FILE = "offline.html";
 export const MANIFEST_FILE = "manifest.webmanifest";
 /** Pages of every language that work offline from the first visit on. */
 export const SHELL_PAGES = ["", "simulator"];
-/** Public files that are not part of the app itself (social preview, crawler files, the host's 404 page). */
-const NOT_PRECACHED = new Set(["og.png", "robots.txt", "sitemap.xml", "404.html", SW_FILE]);
+/**
+ * Public files that are not part of the app itself: the social preview, crawler files, the host's 404 page, and the files the host
+ * reads or the build stamps (a `_headers` or `_redirects` file is never served, so a worker that listed it would get a 404 for it, and a
+ * failed fetch fails the whole install; version.json / build.txt change with every build and say nothing the app needs offline).
+ */
+export const NOT_PRECACHED = new Set(["og.png", "robots.txt", "sitemap.xml", "404.html", SW_FILE, "version.json", "build.txt", "_headers", "_redirects"]);
+/** Folders of the same kind: the per-page social cards (og/…) and the press kit's downloads (press/…). */
+export const NOT_PRECACHED_PREFIXES = ["og/", "press/"];
 /** Files larger than this are cached when first used instead of on install. */
 export const MAX_PRECACHE_FILE_BYTES = 4 * 1024 * 1024;
+/** --- precache-split --- The critical files (what the worker's install downloads, 0.8 MB unpacked today, about a fifth of that on the wire) may not grow beyond this: the build stops instead. */
+export const MAX_CRITICAL_PRECACHE_BYTES = 1.5 * 1024 * 1024;
+
+/** True for a file the worker must never list: an exact name or a folder of NOT_PRECACHED. */
+export function isNotPrecached(file) {
+  return NOT_PRECACHED.has(file) || NOT_PRECACHED_PREFIXES.some((prefix) => file.startsWith(prefix));
+}
 
 /** Every file under `dir` as a sorted list of posix paths relative to it (dot files skipped). */
 export function listFiles(dir) {
@@ -68,13 +86,37 @@ export function selectPrecache(files, { locales, shellPages = SHELL_PAGES, sizes
     }
   }
   for (const file of files) {
-    if (NOT_PRECACHED.has(file) || file === OFFLINE_FILE) continue;
+    if (isNotPrecached(file) || file === OFFLINE_FILE) continue;
     if (!file.startsWith("_next/static/") && PAGE_EXT.test(file)) continue;
     if (file.endsWith(".map")) continue;
     if ((sizes[file] ?? 0) > maxFileBytes) continue;
     add(file);
   }
   return [...new Set(urls)];
+}
+
+/**
+ * --- precache-split --- Splits a precache list (selectPrecache) into the files the worker's install downloads and the rest.
+ * critical: the root redirect, the offline page, the manifest and the icons, the stylesheets and fonts, and the landing page of
+ * every locale (HTML + RSC payload) – what a first visitor on a bad connection needs for the app to be installable and to show its
+ * offline page; deferred: everything else (the studio shells and chunks, mode pictures, sounds), cached when the page asks for it
+ * on a good connection, or on first use. Every url lands in exactly one of the two, in the list's order.
+ */
+export function splitPrecache(urls, { locales }) {
+  const landing = new Set(locales.flatMap((locale) => [`${locale}/`, `${locale}/index.txt`]));
+  const isCritical = (url) =>
+    url === "" ||
+    url === OFFLINE_FILE ||
+    url === MANIFEST_FILE ||
+    url === "icon.svg" ||
+    landing.has(url) ||
+    url.startsWith("icons/") ||
+    url.startsWith("_next/static/css/") ||
+    url.startsWith("_next/static/media/");
+  const critical = [];
+  const deferred = [];
+  for (const url of urls) (isCritical(url) ? critical : deferred).push(url);
+  return { critical, deferred };
 }
 
 /** Version of an export: a hash over every file's path and content (and the worker's template), 16 hex digits. */
@@ -223,12 +265,25 @@ export function buildPwa(outDir, { root = process.cwd() } = {}) {
   const files = listFiles(outDir).filter((f) => f !== SW_FILE);
   const sizes = Object.fromEntries(files.map((f) => [f, fs.statSync(path.join(outDir, f)).size]));
   const precache = selectPrecache(files, { locales, sizes });
+  const { critical, deferred } = splitPrecache(precache, { locales });
   const version = hashExport(outDir, files, template);
   const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
   const cachePrefix = String(pkg.name || "site").replace(/[^a-z0-9-]/gi, "-");
-  fs.writeFileSync(path.join(outDir, SW_FILE), renderServiceWorker(template, { version, cachePrefix, offlinePage: OFFLINE_FILE, concurrency: 6, precache }));
 
   const urlToFile = new Map(files.map((f) => [fileToUrlPath(f), f]));
-  const bytes = precache.reduce((sum, url) => sum + (sizes[urlToFile.get(url)] ?? 0), 0);
-  return { version, precache, bytes, locales, basePath };
+  const sum = (urls) => urls.reduce((total, url) => total + (sizes[urlToFile.get(url)] ?? 0), 0);
+  const criticalBytes = sum(critical);
+  const deferredBytes = sum(deferred);
+  if (criticalBytes > MAX_CRITICAL_PRECACHE_BYTES) {
+    throw new Error(
+      `pwa: the worker's install would download ${(criticalBytes / 1048576).toFixed(2)} MB unpacked (limit ${(MAX_CRITICAL_PRECACHE_BYTES / 1048576).toFixed(1)} MB): ` +
+        `a first visitor on a phone pays for it. Largest critical files: ${critical.map((u) => [u, sum([u])]).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([u, n]) => `${u} (${(n / 1024).toFixed(0)} KB)`).join(", ")}. ` +
+        `Move the file out of the critical set (splitPrecache) or out of the precache (NOT_PRECACHED).`,
+    );
+  }
+  fs.writeFileSync(
+    path.join(outDir, SW_FILE),
+    renderServiceWorker(template, { version, cachePrefix, offlinePage: OFFLINE_FILE, concurrency: 6, restConcurrency: 3, critical, deferred }),
+  );
+  return { version, precache, critical, deferred, bytes: criticalBytes + deferredBytes, criticalBytes, deferredBytes, locales, basePath };
 }

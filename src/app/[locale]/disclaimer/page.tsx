@@ -2,20 +2,18 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import ProseLayout, { legalDate } from "@/components/site/ProseLayout";
 import { Link } from "@/i18n/navigation";
-import { SITE_DOMAIN, SITE_NAME, pageUrl } from "@/lib/site";
-import { localeAlternates } from "@/i18n/alternates";
+import { SITE_DOMAIN, SITE_NAME } from "@/lib/site";
+import JsonLd from "@/components/site/JsonLd"; // --- seo ---
+import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
+import { SUPPORT_EMAIL } from "@/lib/operator"; // --- legal-copy ---
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Disclaimer" });
-  return {
-    title: t("metaTitle", { siteName: SITE_NAME }),
-    description: t("metaDescription", { siteName: SITE_NAME }),
-    alternates: { canonical: pageUrl(locale, "/disclaimer"), languages: localeAlternates("/disclaimer") },
-  };
+  return pageMetadata({ locale, path: "/disclaimer", title: t("metaTitle", { siteName: SITE_NAME }), description: t("metaDescription", { siteName: SITE_NAME }) }); // --- seo ---
 }
 
-const PLAIN = ["general", "noGuarantee", "noAffiliation", "yourContent", "asIs", "externalLinks"] as const;
+const PLAIN = ["general", "noGuarantee", "noAffiliation", "fanMade" /* --- legal-copy --- the Fight League notice */, "yourContent", "asIs", "externalLinks"] as const;
 // --- site-redesign --- the sections in page order (their ids are the table of contents' anchors)
 const SECTIONS = [...PLAIN, "changes", "contact"] as const;
 
@@ -23,6 +21,7 @@ export default async function DisclaimerPage({ params }: { params: Promise<{ loc
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "Disclaimer" });
+  const breadcrumbs = await breadcrumbJsonLd(locale, [{ name: t("title"), path: "/disclaimer" }]); // --- seo --- the trail Home > this page (last child: the prose rules space siblings)
   const site = await getTranslations({ locale, namespace: "SiteRedesign" });
   const v = { siteName: SITE_NAME, siteDomain: SITE_DOMAIN };
   return (
@@ -37,6 +36,15 @@ export default async function DisclaimerPage({ params }: { params: Promise<{ loc
         <section key={k} id={k}>
           <h2>{t(`${k}.title`)}</h2>
           <p>{t(`${k}.content`, v)}</p>
+          {/* --- legal-copy --- Fight League is a fan-made simulation: how a rights holder asks for a name to be removed (the support
+              address when the build has one, else the feedback page) */}
+          {k === "fanMade" && (
+            <p>
+              {SUPPORT_EMAIL
+                ? t.rich("fanMade.rightsEmail", { email: SUPPORT_EMAIL, mail: (chunks) => <a href={`mailto:${SUPPORT_EMAIL}`}>{chunks}</a> })
+                : t.rich("fanMade.rightsForm", { link: (chunks) => <Link href="/feedback">{chunks}</Link> })}
+            </p>
+          )}
         </section>
       ))}
       <section id="changes">
@@ -51,6 +59,7 @@ export default async function DisclaimerPage({ params }: { params: Promise<{ loc
           {t("contact.content")} <Link href="/feedback">{t("feedbackLink")}</Link>.
         </p>
       </section>
+      <JsonLd data={breadcrumbs} />
     </ProseLayout>
   );
 }

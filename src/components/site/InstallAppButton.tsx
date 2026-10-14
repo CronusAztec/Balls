@@ -21,6 +21,8 @@ export default function InstallAppButton() {
         onClick={() => void promptInstall()}
         title={t("installAppTip", { siteName: SITE_NAME })}
         data-testid="pwa-install"
+        data-track="cta_click"
+        data-track-id="footer_install"
         className="inline-flex h-8 items-center gap-1.5 rounded-md border border-line px-3 text-sm font-medium text-ink-2 transition-colors duration-150 hover:border-line-strong hover:text-ink cursor-pointer"
       >
         <IconDownload size={16} />

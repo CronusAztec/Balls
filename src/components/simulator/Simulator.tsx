@@ -112,6 +112,9 @@ import { FastExportButton, FastExportStatus, type FastExportState } from "./sect
 // --- project-files ---
 import ProjectDropZone from "./ProjectDropZone";
 import { ShareCodeNotice, useShareCodeLoader, useShortShareLink } from "./shareLinks";
+import { withAttribution } from "@/lib/analytics/attribution"; // --- analytics --- the ad link's campaign names survive the settings mirror
+import { landedOnThisPage, trackClipExport, trackShareOpen, trackSimStart } from "@/lib/analytics/events"; // --- analytics --- (README "Analytics events")
+import { track } from "@/lib/analytics/track"; // --- analytics ---
 import { SoftCeilingNotice } from "./softCeilingNotice"; // --- review fix (security-robustness) ---
 import { useProjectFiles, type MediaUploadOptions, type ProjectUploads } from "./useProjectFiles";
 // --- jdm-race ---
@@ -2100,7 +2103,7 @@ export default function Simulator() {
     if (typeof window === "undefined") return;
     const params = settingsToSearchParams(settings);
     if (new URLSearchParams(window.location.search).get("flDbg") === "1") params.set("flDbg", "1"); // --- fl-overhaul --- (Stage 3) Fight League's hit shapes: a URL-only switch the mirror keeps (the canvas reads it once it mounts)
-    window.history.replaceState(null, "", `${window.location.pathname}?${params.toString()}`);
+    window.history.replaceState(null, "", `${window.location.pathname}?${withAttribution(params, window.location.search).toString()}`); // --- analytics --- (utm_*, gclid, fbclid, ttclid… stay: lib/analytics/attribution.ts)
   }, [settings]);
 
   /* ------------------------------------------------------------ mode change */
@@ -2199,6 +2202,16 @@ export default function Simulator() {
     setIsStarted(true);
     setAudioEnabled(true);
     setIsPaused(false);
+  }, []);
+  // --- analytics --- sim_start: the first run of this page load (the mode and how the studio was reached – no settings, no seed);
+  // share_open for a daily-challenge link that opened the page itself. Both do nothing without a statistics script (lib/analytics/track.ts).
+  useEffect(() => {
+    if (isStarted) trackSimStart(settings.mode, !!dailyAtLoad);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isStarted]);
+  useEffect(() => {
+    if (dailyAtLoad && landedOnThisPage()) trackShareOpen("daily");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sound events + audio analyser + finished detection, polled once per frame.
@@ -2481,6 +2494,7 @@ export default function Simulator() {
     if (recorder) {
       const blob = await recorder.stopRecording();
       if (blob) recorder.downloadBlob(blob, EXPORT_BASE_NAME);
+      if (blob) trackClipExport({ kind: "record", mode: themeLookRef.current.mode, res: themeLookRef.current.recordingResolution, secs: themeLookRef.current.recordingDuration }); // --- analytics --- (README "Analytics events")
       if (blob) offerPublishClip({ blob, name: EXPORT_BASE_NAME, source: "recording", mode: themeLookRef.current.mode, seed: engineRef.current?.getSeed() ?? null, loopCaption: loopCaptionContext(themeLookRef.current) /* --- low-findings --- (the clip's own loop-style words) */ }); // --- social-publish ---
     }
     setIsRecording(false);
@@ -2734,6 +2748,7 @@ export default function Simulator() {
       if (!result) setFastExport({ status: "cancelled" });
       else {
         if (!batchJob) downloadExport(result.blob, result.format.extension); // --- batch-render --- (not for a batch job)
+        if (!batchJob) trackClipExport({ kind: "fast", mode: s.mode, res: s.recordingResolution, secs: result.durationSec, watermark: result.watermarked ? "free" : "pro" }); // --- analytics --- (a batch counts its ZIP instead)
         if (!batchJob) offerPublishClip({ blob: result.blob, name: `${EXPORT_BASE_NAME}.${result.format.extension}`, source: "fast", durationSec: result.durationSec, mode: s.mode, seed, loopCaption: loopCaptionContext(s) /* --- low-findings --- */ }); // --- social-publish --- (a batch job's clip is offered by the batch, under its name)
         setFastExport({ status: "done", durationSec: result.durationSec, wallMs: result.wallMs, extension: result.format.extension, bytes: result.blob.size, digest: result.digest, loopCycles: result.loopCycles, loopCycleSec: result.loopCycleSec, loudnessGainDb: result.loudnessGainDb /* --- loop-foundation --- */ });
       }
@@ -3165,6 +3180,7 @@ export default function Simulator() {
   });
   // --- review fix (recording-export) --- (a share code decoded while a batch runs is not put over the batch's settings)
   const shareCode = useShareCodeLoader(searchParams.toString(), (shared) => {
+    trackShareOpen("code"); // --- analytics --- (a share link that decoded: how the studio was reached)
     if (!batchActiveRef.current) loadPresetSettings(shared);
   });
   const shortShareLink = useShortShareLink(settings);
@@ -3521,6 +3537,7 @@ export default function Simulator() {
   const copyShareLink = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(shortShareLink.get() ?? (await shortShareLink.make())); // --- project-files --- the short ?c= link (the long one without CompressionStream)
+      track("share_copy"); // --- analytics --- (README "Analytics events")
       setShareCopied(true);
       setTimeout(() => setShareCopied(false), 2000);
     } catch {

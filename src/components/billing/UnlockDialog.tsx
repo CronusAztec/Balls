@@ -11,6 +11,7 @@ import PlanCards from "./PlanCards";
 import TestModeNote from "./TestModeNote";
 import { pricingHref, useBilling, useLicenseRenewal, useNewTabLinks } from "./useBilling";
 import { SITE_NAME } from "@/lib/site"; // --- watermark-everywhere ---
+import { track } from "@/lib/analytics/track"; // --- analytics ---
 
 /*
  * --- free-watermark --- Titled "Remove the watermark" now: the account row's button, the note under the stage and the lock
@@ -27,7 +28,14 @@ import { SITE_NAME } from "@/lib/site"; // --- watermark-everywhere ---
 
 export function UnlockDialogHost() {
   const [request, setRequest] = useState<UnlockRequest | null>(null);
-  useEffect(() => subscribeUnlock(setRequest), []);
+  useEffect(
+    () =>
+      subscribeUnlock((next) => {
+        setRequest(next);
+        track("unlock_open", next.feature ? { feature: next.feature } : undefined); // --- analytics --- (once per request: which locked action sells; README "Analytics events")
+      }),
+    [],
+  );
   useLicenseRenewal(); // the studio renews a subscription's licence quietly near its end (the host is always mounted there)
   if (!request) return null;
   return <UnlockDialog key={request.serial} feature={request.feature} onClose={() => setRequest(null)} />;

@@ -81,6 +81,27 @@ export interface DesktopInfo {
   logFile: string;
   /** How the app was started: "--smoke" runs load the page, report and quit. */
   smoke: boolean;
+  /** --- build-identity --- The portable EXE (data beside it, no self-update); absent or false: the installer (or a checkout). */
+  portable?: boolean;
+  /** --- build-identity --- Started with --safe-mode / JBL_SAFE_MODE=1 (GPU acceleration off). */
+  safeMode?: boolean;
+}
+
+/**
+ * --- build-identity --- The website build inside the app: the parts of the site export's version.json (scripts/lib/build-info.cjs)
+ * the main process shows in About, the log, the diagnostics and the --smoke result. The page has the same facts compiled in
+ * (src/lib/buildInfo.ts), so this never travels over the bridge.
+ */
+export interface SiteStamp {
+  siteVersion: string;
+  /** "1.10.0+8fa8dbb". */
+  build: string;
+  commit: string | null;
+  commitShort: string | null;
+  /** UTC, "2026-10-14T01:57:35Z". */
+  commitDate: string | null;
+  /** The Windows app version the export was built for (null: unknown). */
+  desktopVersion: string | null;
 }
 
 export type LogLevel = "info" | "warn" | "error";

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import ProseLayout from "@/components/site/ProseLayout";
 import { Link } from "@/i18n/navigation";
-import { SITE_NAME, pageUrl } from "@/lib/site";
-import { localeAlternates } from "@/i18n/alternates";
+import { SITE_NAME } from "@/lib/site";
+import JsonLd from "@/components/site/JsonLd"; // --- seo ---
+import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 import { buttonClass } from "@/components/ui/Button";
 import { IconArrowRight } from "@/components/ui/icons";
 
@@ -11,12 +12,14 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "About" });
   const v = { siteName: SITE_NAME };
-  return {
+  // --- seo --- the card carries the page's short social title and line (the search title and description are longer)
+  return pageMetadata({
+    locale,
+    path: "/about",
     title: t("metaTitle", v),
     description: t("metaDescription", v),
-    alternates: { canonical: pageUrl(locale, "/about"), languages: localeAlternates("/about") },
-    openGraph: { title: t("metaOgTitle", v), description: t("metaOgDescription", v) },
-  };
+    social: { title: t("metaOgTitle", v), description: t("metaOgDescription", v) },
+  });
 }
 
 /*
@@ -27,6 +30,7 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "About" });
+  const breadcrumbs = await breadcrumbJsonLd(locale, [{ name: t("badge"), path: "/about" }]); // --- seo --- the trail Home > this page (last child: the prose rules space siblings)
   const v = { siteName: SITE_NAME };
   const link = (href: string) =>
     function RichLink(chunks: React.ReactNode) {
@@ -72,6 +76,7 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
           <IconArrowRight size={16} />
         </Link>
       </div>
+      <JsonLd data={breadcrumbs} />
     </ProseLayout>
   );
 }

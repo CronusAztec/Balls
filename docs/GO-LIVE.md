@@ -99,6 +99,13 @@ Cloudflare account:
 If a run in the Actions tab is red, nothing was published: the live site, the Worker and the app are untouched. Open the
 run, read the red step, fix, push again.
 
+**Which build is live?** The footer of every page shows `v1.10.0 · 8fa8dbb · 2026-10-14` (the release in `package.json`, the
+commit and its date), and <https://jumpingballslive.com/version.json> names the same build for whoever asks the server
+(`curl -s https://jumpingballslive.com/version.json`, with the full commit and `build` = `1.10.0+8fa8dbb`; `curl -sI
+https://jumpingballslive.com/en/ | grep -i x-build` shows the id as a header). Nothing in this setup needs a change for that:
+the build reads its own commit. The Windows app shows its version in the title bar and in Help → About, together with the
+website build inside it.
+
 ---
 
 ## 4. Payments: create the accounts
@@ -403,6 +410,9 @@ and `src/lib/desktop/release.ts` (`DESKTOP_VERSION`). To release, for example, 1
    ticked, still works too. [`docs/RELEASING.md`](RELEASING.md) has the details.
 3. About 10 minutes later **GitHub → Releases** shows "1.0.4" with the installer, the portable EXE and the update file.
    The website's download buttons point at the newest release by themselves; installed apps find the update on their own.
+4. On a Windows PC, install it once and look: the title bar says `JumpingBallsLive 1.0.4`, **Help → About** names the same version
+   and the website build inside the app, and **Help → What's new** opens the changelog. (The release job's smoke run already
+   fails when the app's site has no `version.json`.)
 
 **Code signing is optional.** Without a certificate Windows SmartScreen shows a blue warning the first time; people press
 **More info → Run anyway**. With a code-signing certificate (from a certificate authority, about $200–400 a year) set the
@@ -416,20 +426,29 @@ Stripe's and PayPal's reviewers read your terms and privacy pages before they ap
 
 - **Pro subscriptions** – the prices (filled in from the price file), what renews and what does not.
 - **Delivery** – Pro is a digital licence, delivered at once, restorable on any device; nothing is shipped.
-- **Cancellation and refunds** – cancel any time; a **first payment is refunded in full when asked within 14 days**;
-  renewals and crypto are not refundable unless local law says otherwise; refunds take 5–10 business days.
+- **Cancellation and refunds** – cancel a card subscription any time; a **first card payment is refunded in full when asked
+  within 14 days**; renewals and crypto payments are not refundable unless local law says otherwise (the pricing page says the
+  same); refunds take 5–10 business days.
 - **Who you are buying from** – your name and address from the variables `LEGAL_NAME` and `LEGAL_ADDRESS`, or "the
   operator of <your site>" while they are empty.
 - The **support e-mail** (`SUPPORT_EMAIL`) on the terms, the privacy policy and the pricing page.
+- The **privacy policy** opens with *Who is responsible* (the same name, address and support e-mail; while they are empty it
+  sends people to the feedback form), says the site sets no cookies, and names Cloudflare Web Analytics, the counter
+  Cloudflare adds to the site by itself. If you switch that off in the Cloudflare dashboard, delete its sentence
+  (`Privacy.information.analytics` in `messages/*.json`) the same day.
+- The legal and pricing copy does not mention **PayPal** while it is off. When you turn it on, restore PayPal in
+  `Billing.terms` (the content, refunds and operator texts) and `Billing.privacy.content`; the pay button and the email
+  hint appear by themselves once the Worker lists it. `tests/legalCopy.test.ts` names the strings that may mention it.
 
 The pages are dated (the "Last updated" line). Set the three variables (the wizard asks for them), and give Stripe
 (**Settings → Business → Public details**) and PayPal (**Business information**) the same name, address and support
 e-mail.
 
-**Honouring the 14-day rule:** when someone writes within 14 days of their first payment, refund it in full – Stripe:
-**Payments** → the payment → **Refund**; PayPal: **Activity** → the payment → **Refund**; crypto: NOWPayments' refund tool
-with the buyer's wallet address (manual). Then cancel the subscription so it does not renew. The refund ends their Pro
-access by itself.
+**Honouring the 14-day rule:** when someone writes within 14 days of their first card payment, refund it in full – Stripe:
+**Payments** → the payment → **Refund** (PayPal, if it is ever switched on, is treated like a card: **Activity** → the payment →
+**Refund**). Then cancel the subscription so it does not renew. The refund ends their Pro access by itself. A crypto buyer has no
+14-day right in the terms, because a crypto payment cannot be reversed on the network: refund one by hand (NOWPayments' refund
+tool, which needs the buyer's wallet address) only where the law of their country requires it, or as goodwill.
 
 ---
 
@@ -459,6 +478,98 @@ monthly payout statements of all three, and ask an accountant in your country be
 10. [ ] Someone watches the support inbox.
 11. [ ] The terms show today's "Last updated" date and your details.
 12. [ ] A note in a safe place (a password manager): the Worker's address, the public licence key, and today's date.
+13. [ ] The footer shows the release you intend to launch, <https://jumpingballslive.com/version.json> names the commit that is
+    on the product branch, and `curl -sI https://jumpingballslive.com/en/ | grep -i x-build` answers with the same id. The Windows
+    app's title bar and Help → About show the version you released.
+
+### 14.1 Search and sharing (once, after the site is live)
+
+The site publishes its sitemap, its robots rules and a social card for every page. Three things only you can do, because they need
+your accounts:
+
+1. **Google Search Console** (<https://search.google.com/search-console>): **Add property → Domain** → `jumpingballslive.com`. Google shows
+   a TXT record; add it in **Cloudflare → DNS → Records → Add record** (type TXT, name `@`, the value pasted) and press **Verify**.
+   Then **Sitemaps → Add a new sitemap** → `sitemap.xml`. Then **URL inspection**: paste `https://jumpingballslive.com/en/` and
+   `https://jumpingballslive.com/en/simulator/` and press **Request indexing**. Never use the bare domain as an address to
+   inspect or to advertise: it only redirects to a language.
+2. **Bing Webmaster Tools** (<https://www.bing.com/webmasters>): **Add a site → Import from Google Search Console**. The sitemap comes
+   with it.
+3. **Check the cards.** Chat apps and social sites keep the first picture they saw for a link, so paste the address of a page
+   into **Facebook's Sharing Debugger** (<https://developers.facebook.com/tools/debug/>) and press **Scrape Again**: the title, the
+   description and the 1200×630 card should be the page's own. Do it for `/en/`, `/pl/`, `/es/` and `/en/simulator/`. For X, use its
+   card validator if it still offers one, else start a new post with the link (you do not have to send it) and look at the preview.
+   Repeat this after every change to a card (`npm run og:cards`, commit, deploy).
+
+Nothing else is needed for the contact details: once `SUPPORT_EMAIL` and `LEGAL_NAME` are set (section 12) the next deploy adds
+them to the site's structured data by itself.
+
+### 14.2 Publish and ads (before any money is spent)
+
+The website has a press page (`/press`: facts, descriptions in three lengths, logo files, colours, a contact) and an ad kit,
+[`docs/ADS.md`](ADS.md): what to say and never say, where a click lands, the copy of every platform in English, Polish and
+Spanish, how to make the creatives with the product itself, how to measure without pixels, and the list below in full. Do these in
+this order. Each one is only yours to do:
+
+1. **Put the current build live.** The deployer (section 3) does it when you push; check with `curl -s https://jumpingballslive.com/version.json`
+   (the commit and the `build` id) and `curl -s https://jumpingballslive.com/build.txt`. An older build is missing the press page,
+   the changelog, the fixed claims and the headers.
+2. **Say who runs the site, and answer the mailbox.** Create the support address (Cloudflare → **Email Routing**), put
+   `JBL_SUPPORT_EMAIL`, `JBL_FEEDBACK_EMAIL`, `JBL_LEGAL_NAME` and `JBL_LEGAL_ADDRESS` in `/etc/jbl-deploy/env` and rebuild the live
+   commit (`deploy/vps/README.md`, "Say who runs the site"). Ad platforms and card networks expect a visible contact.
+3. **Cloudflare, once.** **SSL/TLS → Edge Certificates → Always Use HTTPS**, and a redirect rule from `www` to the bare domain
+   (**Rules → Redirect Rules**; `npm run launch:check` prints the exact rule). Menu names move: confirm in the dashboard.
+4. **The statistics service**, if you want conversions in the report: Plausible or Umami, then `JBL_ANALYTICS_SCRIPT_URL` and
+   `JBL_ANALYTICS_SITE_ID`, then the goals `clip_export`, `checkout_start` and `purchase` (README, "Analytics events"). Without it
+   you read clicks, plus Stripe.
+5. **Decide PayPal and Publish.** Both are off today and no ad may mention either. Turn PayPal on in the Worker, or leave it off.
+   Register the TikTok, Meta and Google apps for Publish, or keep selling share and export only.
+6. **Sign the Windows app** (section 11) before any ad for it. Until then ads send people to the website, never to the download.
+7. **Ad accounts.** Google Ads, Meta Business (verify the business and the domain, name the EU beneficiary and payer) and TikTok
+   Ads, with the same legal name and address everywhere; the brand handles; a lawyer's read of the privacy and refund text and of the
+   ad wording ([`docs/ADS.md`](ADS.md) section 12).
+8. **Render the creatives** with the viral bot (`--family escape` or `rhythm`, never the default: it includes Fight League clips),
+   name each file as its `utm_content`, preview them in each platform, then **start small**: one campaign per platform, three creatives, a
+   daily cap, and read it after 7 days.
+
+**Before any paid click: the Fight League card.** The landing pages (`/en/`, `/pl/`, `/es/`) show the Fight League mode card, and
+its picture is a frame with third-party character names (see [`docs/ADS.md`](ADS.md), section 2, and the legal audit). Until you
+have decided what to do about it (take the card and its picture off the landing page, replace them with a neutral picture, or
+accept the risk after a lawyer's read), do not send paid traffic from TikTok, Meta or Google to those three pages. The pages that
+do not show it are the gallery, `/en/tiktok-ball-videos/`, `/en/pricing/` and `/en/download/`; none of them pitches the product to
+a creator as well as the landing page does, so use them only as `docs/ADS.md` section 4 says (Meta viewer ads to the gallery,
+Google Search to the TikTok page) and hold the TikTok creator ads until the card is decided.
+
+**Run the launch check** from a checkout (Node 22, no install needed for the default run) against the live site:
+
+```
+npm run launch:check                                  # about 5 seconds, GET and HEAD requests only
+npm run launch:check -- --browser                     # also opens the landing page and the studio in Chromium (npx playwright install chromium)
+npm run launch:check -- --analytics stats.example.com # the site's code must name your statistics service
+npm run launch:check -- --commit HEAD                 # FAIL unless the live build is this checkout's commit
+npm run launch:check -- --json                        # the results as JSON
+```
+
+(Behind an HTTPS proxy add `NODE_USE_ENV_PROXY=1`. The `http://` and `www` checks read what a proxy answers, so run those from a
+direct connection.) Each line is `PASS`, `FAIL`, `WARN` or `SKIP`; the last line is `LAUNCH CHECK: PASS`, `PASS (n warnings)` or
+`FAIL (n failed, m warnings)` and the exit code is 1 on any FAIL. What the checks look at: `A1` the build names itself (`/build.txt`,
+`/version.json`, the `jbl-build` meta and the `X-Build` header agree), `A2` every public page in every language answers 200 with its
+own canonical address, the hreflang set, a social card (a reachable 1200×630 PNG), a title of at most 60 characters and a description
+of 70 to 160, `A3` the privacy page has a mailto, `A4` no visitor sees a build variable or an unfilled placeholder, `A5` the pricing
+page names only the payment methods the billing Worker has on, `A6` the pricing page does not sell Publish while no channel can be
+connected, `A7` the installer, the portable EXE and the checksums download and `latest.yml` is the version the site names, `A8` the
+statistics service is in the site's code, `A9` the campaign names survive the landing page and the studio, `A10` `http` and `www`
+redirect, `A11` the security headers, and `B1` to `B6` the sitemap and robots, no page kept out of search, valid structured data, the
+Fight League notice, the ad copy's price and mode count against the live site, and `security.txt`.
+
+**What must be green before you spend on ads**
+
+- `npm run go-live:check` has no FAIL, and a real card payment and a refund worked in live mode (section 6c).
+- `npm run launch:check` has **no FAIL**, and these warnings are cleared: `A3` (a contact), `A5b` and `A6` (the claims), `A10` (http and
+  www), `B4` (the Fight League notice). `A11` and `B6` can wait. Run it with `--browser` once: `A9` must pass, or the studio must
+  stay out of every ad.
+- The support mailbox answers, the privacy page names the statistics service if you installed one, and nothing in an ad is on the
+  banned list ([`docs/ADS.md`](ADS.md) section 2).
+- Windows ads: only after step 6.
 
 ---
 

@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import fs from "fs";
 import path from "path";
 import { GALLERY } from "@/content/gallery";
+import { CHANGELOG } from "@/content/changelog"; // --- changelog ---
 import { FAQ_KEYS } from "@/lib/faq";
 import { MODE_CARD_ORDER } from "@/lib/modes";
+import { IntlMessageFormat } from "intl-messageformat"; // --- seo --- (plural forms in a meta string)
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -25,7 +27,7 @@ function flatten(node: unknown, prefix = "", out: Record<string, string> = {}): 
   return out;
 }
 
-const SITE_NAMESPACES = ["Headings", "Navbar", "SimulatorPage", "Layout", "HowItWorks", "Modes", "FAQ", "Editorial", "Footer", "NotFound", "Feedback", "TikTokBallVideos", "About", "Gallery", "Pwa", "Daily", "Billing", "Watermark", "DesktopLink", "SiteRedesign"];
+const SITE_NAMESPACES = ["Headings", "Navbar", "SimulatorPage", "Layout", "HowItWorks", "Modes", "FAQ", "Editorial", "Footer", "NotFound", "Feedback", "TikTokBallVideos", "About", "Gallery", "Pwa", "Daily", "Billing", "Watermark", "DesktopLink", "SiteRedesign", "Changelog", "ChangelogLive", "WhatsNew" /* --- changelog --- */, "Seo" /* --- seo --- the social cards' copy */, "Press" /* --- press --- the press page */];
 const DOWNLOAD_PREFIXES = ["Desktop.metaTitle", "Desktop.metaDescription", "Desktop.badge", "Desktop.title", "Desktop.intro", "Desktop.setup", "Desktop.portable", "Desktop.requirements", "Desktop.smartScreen", "Desktop.features", "Desktop.privacy", "DesktopAiFix.download", "Desktop.update" /* --- low-findings-2 --- (the Windows app's update banner) */];
 const SECTION_INTRO = /^Controls\.[A-Za-z]+Desc$/;
 const TIPS = ["boxSpeedRatioTip", "pwLayoutTip", "prLayoutTip", "glassGatesTip", "captionsTip", "captionTypeTip", "sbRuleTip", "batchRenderTip", "mzBrainTip", "exitBehaviorTip", "splatBarrierTip", "ogRhythmTip", "scStarPresetsTip", "flMakeClipTip"].map((k) => `Controls.${k}`).concat(["BatchRender.listHint", "ViralBot.manual.steps"]);
@@ -34,6 +36,7 @@ const COLOUR_SORT_INTRO = "ColourSort.csDesc";
 /** Is this key one a visitor reads (docs/COPY-STYLE.md's scope)? */
 function covered(key: string): boolean {
   if (SITE_NAMESPACES.includes(key.split(".")[0])) return true;
+  if (/^(Privacy|Terms|Disclaimer|Account|Press)\.meta(Title|Description)$/.test(key)) return true; // --- seo --- the search snippets of the pages whose body text is legal copy
   if (DOWNLOAD_PREFIXES.some((p) => key === p || key.startsWith(p))) return true;
   return SECTION_INTRO.test(key) || TIPS.includes(key) || key === COLOUR_SORT_INTRO;
 }
@@ -46,6 +49,11 @@ function coveredStrings(locale: Locale): [string, string][] {
   for (const preset of GALLERY) {
     out.push([`Gallery:${preset.id}.name`, preset.name[locale]]);
     out.push([`Gallery:${preset.id}.description`, preset.description[locale]]);
+  }
+  // --- changelog --- the releases of src/content/changelog.json: `Changelog:<release id>.headline` and `Changelog:<release id>.<item>`
+  for (const release of CHANGELOG) {
+    out.push([`Changelog:${release.id}.headline`, release.headline[locale]]);
+    release.items.forEach((item, i) => out.push([`Changelog:${release.id}.${i}`, item.text[locale]]));
   }
   return out;
 }
@@ -75,6 +83,11 @@ function matching(locale: Locale, re: RegExp): [string, string][] {
   return Object.entries(FLAT[locale]).filter(([key]) => re.test(key));
 }
 
+/** --- seo --- The namespaces whose metaTitle and metaDescription are a page's search snippet. */
+const META_NAMESPACES = ["Layout", "SimulatorPage", "About", "TikTokBallVideos", "Billing", "Gallery", "Desktop", "Changelog" /* --- changelog --- */, "Privacy", "Terms", "Disclaimer", "Feedback", "Account", "Press"];
+/** A meta string as a search result shows it, the placeholders at their longest: 100 modes, the site name and domain, the two prices as Polish and Spanish write a dollar amount. */
+const renderMeta = (text: string, locale: Locale) => String(new IntlMessageFormat(text, locale).format({ siteName: "JumpingBallsLive", siteDomain: "jumpingballslive.com", count: 100, monthly: "6,99 USD", yearly: "49 USD" }));
+
 const sentences = (text: string) => (text.match(/[.!?](\s|$)/g) ?? []).length;
 const length = (text: string) => [...text].length;
 
@@ -83,7 +96,7 @@ describe("copy style (docs/COPY-STYLE.md)", () => {
     for (const locale of Object.keys(LOCALES) as Locale[]) {
       const keys = coveredStrings(locale).map(([key]) => key);
       expect(keys.length, locale).toBeGreaterThan(600);
-      for (const key of [...TIPS, COLOUR_SORT_INTRO, "SiteRedesign.hero.sub", "Desktop.intro", "DesktopAiFix.downloadModelNote", "Controls.sbDesc", "Desktop.update.available", "Desktop.update.ready" /* --- low-findings-2 --- */]) expect(keys, `${locale} ${key}`).toContain(key);
+      for (const key of [...TIPS, COLOUR_SORT_INTRO, "SiteRedesign.hero.sub", "Desktop.intro", "DesktopAiFix.downloadModelNote", "Controls.sbDesc", "Desktop.update.available", "Desktop.update.ready" /* --- low-findings-2 --- */, "Changelog.title", "WhatsNew.body", `Changelog:${CHANGELOG[0].id}.headline`, `Changelog:${CHANGELOG[0].id}.0` /* --- changelog --- */]) expect(keys, `${locale} ${key}`).toContain(key);
     }
   });
 
@@ -154,11 +167,28 @@ describe("copy style (docs/COPY-STYLE.md)", () => {
       }
     }
     for (const [key, text] of matching("en", /^HowItWorks\.step\d+\.description$/)) expect(length(text), key).toBeLessThanOrEqual(110);
-    const metas = ["Layout", "SimulatorPage", "About", "TikTokBallVideos", "Billing", "Gallery", "Desktop"].map((ns) => `${ns}.metaDescription`);
+    // --- seo --- every page's search snippet, as rendered: 70 to 160 characters (a search result shows about 160). Press has one once its page exists.
+    const metas = META_NAMESPACES.filter((ns) => typeof FLAT.en[`${ns}.metaDescription`] === "string").map((ns) => `${ns}.metaDescription`);
+    expect(metas.length).toBeGreaterThanOrEqual(META_NAMESPACES.length - 1);
     for (const locale of Object.keys(LOCALES) as Locale[]) {
       for (const key of metas) {
         expect(typeof FLAT[locale][key], `${locale} ${key}`).toBe("string");
-        expect(length(FLAT[locale][key]), `${locale} ${key}`).toBeLessThanOrEqual(240);
+        expect(length(renderMeta(FLAT[locale][key], locale)), `${locale} ${key}: ${renderMeta(FLAT[locale][key], locale)}`).toBeLessThanOrEqual(160);
+        expect(length(renderMeta(FLAT[locale][key], locale)), `${locale} ${key}: ${renderMeta(FLAT[locale][key], locale)}`).toBeGreaterThanOrEqual(70);
+      }
+    }
+  });
+
+  it("keeps every page title within 60 characters as rendered, the site name and its separator included", () => {
+    // --- seo --- Google cuts a title at about 60 characters. " – JumpingBallsLive" is 19 of them (the separator is 3 and the name 16), which leaves a headline of 41.
+    const titles = META_NAMESPACES.filter((ns) => typeof FLAT.en[`${ns}.metaTitle`] === "string").map((ns) => `${ns}.metaTitle`);
+    expect(titles.length).toBeGreaterThanOrEqual(META_NAMESPACES.length - 1);
+    for (const locale of Object.keys(LOCALES) as Locale[]) {
+      for (const key of titles) {
+        const rendered = renderMeta(FLAT[locale][key], locale);
+        expect(length(rendered), `${locale} ${key}: ${rendered}`).toBeLessThanOrEqual(60);
+        expect(length(rendered), `${locale} ${key}: ${rendered}`).toBeGreaterThanOrEqual(10);
+        expect(rendered, `${locale} ${key}`).not.toMatch(/[{}]/);
       }
     }
   });

@@ -9,6 +9,9 @@
  *                                              80 % safe circle so any launcher mask (circle, squircle…) keeps it;
  *  - public/icons/apple-touch-icon.png (180)   iOS home screen: opaque (iOS fills transparency with black) and
  *                                              slightly inset, as iOS rounds the corners itself.
+ *  - public/icons/icon-48.png                  --- seo --- a 48 px "any" icon (Google lists a site's favicon in multiples of 48 px);
+ *  - public/favicon.ico                        --- seo --- 32 and 48 px PNG images in one ICO file: what browsers, Bing and old
+ *                                              crawlers ask for at /favicon.ico when a page names no icon (the layout names them all).
  * The background is the site's page colour (PWA_BACKGROUND_COLOR in src/lib/pwa.ts).
  */
 import { chromium } from "playwright";
@@ -30,7 +33,31 @@ const ICONS = [
   // within 38.4 % – inside the maskable safe zone (a circle of radius 40 %).
   { file: "icon-maskable-512.png", size: 512, scale: 0.8, opaque: true },
   { file: "apple-touch-icon.png", size: 180, scale: 0.86, opaque: true },
+  // --- seo --- the browser-tab sizes: icon-48.png is a file of its own, both sizes also go into public/favicon.ico
+  { file: "icon-48.png", size: 48, scale: 1, opaque: false, ico: true },
+  { file: null, size: 32, scale: 1, opaque: false, ico: true },
 ];
+
+/** --- seo --- An ICO file holding PNG images (every browser since Vista reads them): the 6-byte header, one 16-byte entry per image, then the PNGs. */
+function buildIco(images) {
+  const header = Buffer.alloc(6);
+  header.writeUInt16LE(1, 2); // type: icon
+  header.writeUInt16LE(images.length, 4);
+  let offset = header.length + 16 * images.length;
+  const entries = images.map(({ size, png }) => {
+    const entry = Buffer.alloc(16);
+    entry[0] = size >= 256 ? 0 : size; // width, height (0 means 256)
+    entry[1] = size >= 256 ? 0 : size;
+    entry.writeUInt16LE(1, 4); // colour planes
+    entry.writeUInt16LE(32, 6); // bits per pixel
+    entry.writeUInt32LE(png.length, 8);
+    entry.writeUInt32LE(offset, 12);
+    offset += png.length;
+    return entry;
+  });
+  return Buffer.concat([header, ...entries, ...images.map(({ png }) => png)]);
+}
+const icoImages = [];
 
 const launchOpts = {};
 if (process.env.CHROME_PATH) launchOpts.executablePath = process.env.CHROME_PATH;
@@ -46,10 +73,17 @@ try {
         `<img src="${dataUrl}" width="${inner}" height="${inner}" style="display:block"></body></html>`,
     );
     await page.waitForFunction(() => [...document.images].every((img) => img.complete && img.naturalWidth > 0));
+    const png = await page.screenshot({ omitBackground: !icon.opaque, clip: { x: 0, y: 0, width: icon.size, height: icon.size } });
+    if (icon.ico) icoImages.push({ size: icon.size, png });
+    if (!icon.file) continue; // an image that only goes into favicon.ico
     const file = path.join(outDir, icon.file);
-    await page.screenshot({ path: file, omitBackground: !icon.opaque, clip: { x: 0, y: 0, width: icon.size, height: icon.size } });
+    fs.writeFileSync(file, png);
     console.log(`generate-icons: wrote ${path.relative(root, file)} (${icon.size}×${icon.size}${icon.opaque ? `, on ${background}` : ", transparent"})`);
   }
 } finally {
   await browser.close();
 }
+// --- seo --- public/favicon.ico: the 32 and 48 px images, smallest first
+const icoFile = path.join(root, "public", "favicon.ico");
+fs.writeFileSync(icoFile, buildIco(icoImages.sort((a, b) => a.size - b.size)));
+console.log(`generate-icons: wrote ${path.relative(root, icoFile)} (${icoImages.map((i) => `${i.size}×${i.size}`).join(" and ")})`);

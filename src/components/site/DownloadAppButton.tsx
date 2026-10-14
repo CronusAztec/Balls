@@ -14,7 +14,7 @@ export default function DownloadAppButton({ label, note, fallback = null }: { la
   useEffect(() => setInApp(isDesktopApp()), []);
   if (inApp) return <>{fallback}</>;
   return (
-    <Link href="/download" className={buttonClass({ variant: "secondary", size: "md" })} title={note} data-testid="hero-download">
+    <Link href="/download" className={buttonClass({ variant: "secondary", size: "md" })} title={note} data-testid="hero-download" data-track="cta_click" data-track-id="hero_download">
       <IconDownload size={18} />
       {label}
     </Link>

@@ -478,7 +478,13 @@ describe("the Billing messages", () => {
       expect(m.Billing.terms.operator.named).toContain("{legalName}{address}");
       expect(m.Billing.terms.operator.unnamed).toContain("{siteDomain}");
       expect(m.Billing.notes.support).toContain("{email}");
+      // --- review fix (copy) --- one refund rule: the pricing note and the terms both say 14 days, both name crypto as not refundable
+      expect(m.Billing.notes.refunds, "pricing note").toContain("14");
+      expect((m.Billing.terms.refunds as unknown as { content: string }).content, "terms").toContain("14");
     }
+    const refundRule = (text: string) => [/first card payment/i, /crypto/i, /not refundable/i].every((re) => re.test(text));
+    expect(refundRule(en.Billing.notes.refunds), "en pricing note").toBe(true);
+    expect(refundRule((en.Billing.terms.refunds as unknown as { content: string }).content), "en terms").toBe(true);
     expect((en.Billing.pay as Record<string, string>).emailNeeded).not.toMatch(/receipt/i); // the crypto checkout e-mails nothing
   });
 

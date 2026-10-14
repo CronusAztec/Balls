@@ -123,22 +123,26 @@ export default function LivePreview() {
   const name = modes(`${mode}.name`);
   return (
     <figure className="mx-auto w-[min(270px,72vw)] lg:mx-0" aria-label={t("hero.previewLabel", { mode: name })}>
-      <Link href={`/simulator?mode=${mode}`} className="group block rounded-[var(--radius-stage)]" aria-label={t("hero.previewOpen", { mode: name })} data-testid="live-preview">
-        <div ref={frameRef} className="relative aspect-[9/16] overflow-hidden rounded-[var(--radius-stage)] border border-line-strong bg-black transition-colors duration-150 group-hover:border-ink-3">
-          {view === "live" ? (
-            <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
-          ) : (
-            <div aria-hidden="true" className="absolute inset-0 bg-black bg-contain bg-center bg-no-repeat" style={{ backgroundImage: `url("${assetPath(`/modes/${mode}.webp`)}")` }} />
-          )}
-          <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between px-3 pt-3">
-            <span className="eyebrow inline-flex items-center gap-1.5 text-ink-2">
-              <span className={cx("h-1.5 w-1.5 rounded-full", view === "live" ? "bg-accent" : "bg-ink-3")} />
-              {view === "live" ? t("hero.live") : t("hero.preview")}
-            </span>
-            <span className="eyebrow text-ink-3">9:16</span>
+      {/* --- perf-pass --- the "Live" / "9:16" badges sit over the frame but outside the link: a link whose accessible name does not contain its
+          visible text fails WCAG 2.5.3 (label in name), and the badges are decoration, so the link carries no text and is named by its label */}
+      <div className="relative">
+        <Link href={`/simulator?mode=${mode}`} className="group block rounded-[var(--radius-stage)]" aria-label={t("hero.previewOpen", { mode: name })} data-testid="live-preview">
+          <div ref={frameRef} className="relative aspect-[9/16] overflow-hidden rounded-[var(--radius-stage)] border border-line-strong bg-black transition-colors duration-150 group-hover:border-ink-3">
+            {view === "live" ? (
+              <canvas ref={canvasRef} className="absolute inset-0 h-full w-full" aria-hidden="true" />
+            ) : (
+              <div aria-hidden="true" className="absolute inset-0 bg-black bg-contain bg-center bg-no-repeat" style={{ backgroundImage: `url("${assetPath(`/modes/${mode}.webp`)}")` }} />
+            )}
           </div>
+        </Link>
+        <div aria-hidden="true" className="pointer-events-none absolute inset-x-px top-px flex items-center justify-between px-3 pt-3">
+          <span className="eyebrow inline-flex items-center gap-1.5 text-ink-2">
+            <span className={cx("h-1.5 w-1.5 rounded-full", view === "live" ? "bg-accent" : "bg-ink-3")} />
+            {view === "live" ? t("hero.live") : t("hero.preview")}
+          </span>
+          <span className="eyebrow text-ink-3">9:16</span>
         </div>
-      </Link>
+      </div>
       <figcaption className="mt-3 flex items-center justify-between gap-3">
         <span className="truncate text-sm font-medium text-ink">{name}</span>
         <span className="flex items-center gap-1.5" aria-hidden="true">

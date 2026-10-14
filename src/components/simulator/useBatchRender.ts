@@ -27,6 +27,7 @@ import {
   type BatchJobPlan, // --- viral-bot ---
 } from "@/lib/recording/batch";
 import { zipBlobs } from "@/lib/recording/zip";
+import { trackClipExport } from "@/lib/analytics/events"; // --- analytics ---
 import { jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields"; // --- jdm-rhythm-runner ---
 import type { FastExportState } from "./sections/FastExportSection";
 import { offerPublishClip } from "@/lib/publish/clips"; // --- social-publish ---
@@ -418,6 +419,7 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
     try {
       const zip = await zipBlobs(all);
       downloadExport(zip, "zip", batchZipBase(new Date()));
+      trackClipExport({ kind: "batch", secs: [...files.current.values()].reduce((sum, f) => sum + (f.durationSec ?? 0), 0) }); // --- analytics --- (one event per ZIP the visitor got; README "Analytics events")
     } catch (err) {
       console.warn("Batch ZIP failed:", err);
       setZipFailed(true);

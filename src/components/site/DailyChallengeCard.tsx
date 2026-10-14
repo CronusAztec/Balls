@@ -6,7 +6,7 @@ import { Link } from "@/i18n/navigation";
 import { assetPath } from "@/lib/site";
 import { buttonClass } from "@/components/ui/Button";
 import { IconCalendar, IconCheck, IconFlame, IconPlay } from "@/components/ui/icons";
-import { DAILY_PARAM, dailyStreak, formatRunSeconds, loadDailyHistory, msUntilNextChallenge, todaysChallenge, type DailyChallenge } from "@/lib/daily";
+import { DAILY_PARAM, dailyStreak, formatRunSeconds, loadDailyHistory, msUntilNextChallenge, todaysChallengeCore, type DailyChallengeCore } from "@/lib/dailyCore"; // --- daily-core --- not lib/daily: that one pulls in every mode's settings
 
 /*
  * --- daily-gallery --- "Today's challenge" on the landing page, below the hero: today's mode (its card picture), number,
@@ -16,7 +16,7 @@ import { DAILY_PARAM, dailyStreak, formatRunSeconds, loadDailyHistory, msUntilNe
  */
 
 interface CardState {
-  challenge: DailyChallenge;
+  challenge: DailyChallengeCore;
   streak: number;
   todayMs: number | null;
   nextMs: number;
@@ -24,7 +24,7 @@ interface CardState {
 
 function readState(): CardState {
   const now = new Date();
-  const challenge = todaysChallenge(now);
+  const challenge = todaysChallengeCore(now);
   const history = loadDailyHistory();
   return { challenge, streak: dailyStreak(history, challenge.date), todayMs: history[challenge.date] ?? null, nextMs: msUntilNextChallenge(now) };
 }

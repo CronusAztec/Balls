@@ -5,6 +5,7 @@ import { RelayClient, RelayError, normalizeRelayUrl, xhrSendForm, type RelayAcco
 import { quickShare as runQuickShare, shareText, type ShareEnv } from "./share";
 import { addRecent, defaultPublishState, loadPublishState, newId, relayKey, savePublishState, youtubeKey, type PublishStoredState, type RecentSend, type StoredYouTubeAccount } from "./store";
 import { readVideoInfo } from "./thumbnail";
+import { track } from "@/lib/analytics/track"; // --- analytics ---
 import { YouTubeError, fetchMyChannel, gisOf, loadGoogleIdentity, requestYouTubeToken, uploadToYouTube, type FetchLike, type GisOauth2, type YouTubeToken } from "./youtube";
 
 /*
@@ -381,6 +382,7 @@ export class PublishController {
       const old = this.snap.stored.youtubeAccounts.find((a) => a.id === ch.id);
       this.upsertYouTube({ ...ch, accessToken: token.accessToken, expiresAt: token.expiresAt, addedAt: old?.addedAt ?? this.deps.now() });
       this.set({ youtube: { status: "idle", error: null, code: null } });
+      track("channel_connected", { platform: "youtube" }); // --- analytics --- (README "Analytics events")
     } catch (err) {
       this.set({ youtube: { status: "idle", error: err instanceof YouTubeError && err.code === "cancelled" ? null : message(err), code: errorCode(err) } });
     }
@@ -567,6 +569,7 @@ export class PublishController {
         const added = data.accounts.map((a) => (a && typeof a === "object" && typeof (a as { id?: unknown }).id === "string" ? relayKey(profile.id, (a as { id: string }).id) : null)).filter((k): k is string => !!k && !this.snap.stored.checked.includes(k));
         if (added.length) this.setStored({ checked: [...this.snap.stored.checked, ...added] });
       }
+      if (data.type === "connected" && !done) track("channel_connected", { platform }); // --- analytics --- (the relay's sign-in page reported an account; README "Analytics events")
       finish(data.type === "error" ? data.message || "The sign-in failed." : null);
     };
     const poll = win.setInterval(() => {
@@ -705,6 +708,7 @@ export class PublishController {
   private logItem(key: string, clip: PublishClip): void {
     const i = this.snap.sends.find((x) => x.key === key);
     if (!i || (i.status !== "published" && i.status !== "failed")) return;
+    if (i.status === "published") track("publish_sent", { platform: i.platform, via: "api" }); // --- analytics --- (README "Analytics events")
     this.addRecentEntry({ clip: clip.name, platform: i.platform, account: i.label, via: i.via, status: i.status, link: i.link, error: i.error });
   }
 
@@ -751,8 +755,12 @@ export class PublishController {
     const result = await runQuickShare({ platform, file, text: shareText(platform, post), title: post.title, env: env ?? { navigator: win.navigator, document: win.document, open: (url, target) => win.open(url, target) } });
     if (result.method === "share") {
       this.set({ share: { platform, kind: result.outcome, copied: result.copied, opened: false, downloaded: false } });
-      if (result.outcome === "shared") this.addRecentEntry({ clip: clip.name, platform, account: "", via: "share", status: "shared", link: null, error: null });
+      if (result.outcome === "shared") {
+        track("publish_sent", { platform, via: "share" }); // --- analytics --- (the share sheet took the clip)
+        this.addRecentEntry({ clip: clip.name, platform, account: "", via: "share", status: "shared", link: null, error: null });
+      }
     } else {
+      if (result.opened || result.downloaded) track("publish_sent", { platform, via: "share" }); // --- analytics --- (download + clipboard + the platform's upload page: counted when the page opened or the clip downloaded)
       this.set({ share: { platform, kind: "desktop", copied: result.copied, opened: result.opened, downloaded: result.downloaded } });
       this.addRecentEntry({ clip: clip.name, platform, account: "", via: "share", status: "opened", link: result.url, error: null });
     }

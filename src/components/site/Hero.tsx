@@ -1,5 +1,6 @@
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import StudioLink from "./StudioLink"; // --- link-warm-up ---
 import { buttonClass } from "@/components/ui/Button";
 import { IconArrowRight } from "@/components/ui/icons";
 import { modesForFilter } from "@/lib/siteDesign";
@@ -28,10 +29,10 @@ export default function Hero() {
           </h1>
           <p className="mt-6 max-w-[46ch] text-base text-ink-2 sm:text-lg">{t("hero.sub", { count })}</p>
           <div className="mt-8 flex flex-wrap items-center gap-3">
-            <Link href="/simulator" className={buttonClass({ variant: "primary", size: "md" })}>
+            <StudioLink className={buttonClass({ variant: "primary", size: "md" })} data-track="cta_click" data-track-id="hero_studio">
               {t("nav.openStudio")}
               <IconArrowRight size={18} />
-            </Link>
+            </StudioLink>
             <DownloadAppButton
               label={desktop("heroButton")}
               note={desktop("heroNote")}
@@ -45,7 +46,7 @@ export default function Hero() {
           {/* --- paywall-gate --- what is free and what Pro costs, under the call to action */}
           <p className="mt-4 max-w-[46ch] text-sm text-ink-3" data-testid="hero-pricing">
             {billing("landing.line", { price: formatUsd(PLANS.monthly.usd, locale) })}{" "}
-            <Link href="/pricing" className="font-medium text-accent hover:text-accent-strong">
+            <Link href="/pricing" className="font-medium text-accent hover:text-accent-strong" data-track="cta_click" data-track-id="hero_pricing">
               {billing("landing.link")}
             </Link>
           </p>
