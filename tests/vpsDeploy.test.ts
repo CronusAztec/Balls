@@ -28,7 +28,7 @@ afterEach(() => {
 interface Sandbox {
   state: string;
   log: string;
-  run: (args?: string[], env?: Record<string, string>) => { status: number | null; stdout: string; calls: string[] };
+  run: (args?: string[], env?: Record<string, string>) => { status: number | null; stdout: string; calls: string[]; auth: string[]; stdin: string };
   result: () => { state: string; sha: string; message: string; at: string };
   file: (name: string) => string | null;
   setChecks: (json: string) => void;
@@ -45,13 +45,14 @@ function sandbox(): Sandbox {
   fs.mkdirSync(bin);
   const stub = (name: string, body: string) => fs.writeFileSync(path.join(bin, name), `#!/bin/sh\n${body}\n`, { mode: 0o755 });
   stub("git", `echo "git $*" >> "$STUB_LOG"
+echo "$1 auth=\${GIT_CONFIG_VALUE_0:+yes}" >> "$STUB_LOG.auth"
 case "$1" in
   ls-remote) [ "$STUB_LSREMOTE" = fail ] && exit 2; printf '%s\\t%s\\n' "$STUB_HEAD" "$3" ;;
   log) echo "2026-10-13T00:00:00+00:00" ;;
 esac
 exit 0`);
-  stub("npm", `echo "npm $*" >> "$STUB_LOG"; [ "$STUB_FAIL" = npm ] && exit 1; exit 0`);
-  stub("npx", `echo "npx $* | token=\${CLOUDFLARE_API_TOKEN:+set} site=$NEXT_PUBLIC_SITE_URL base=[$NEXT_PUBLIC_BASE_PATH] gh=$NEXT_PUBLIC_GITHUB_REPO billing=$NEXT_PUBLIC_BILLING_API relay=$NEXT_PUBLIC_PUBLISH_RELAY_URL" >> "$STUB_LOG"
+  stub("npm", `echo "npm $* | cf=\${CLOUDFLARE_API_TOKEN:+set} gh=\${JBL_GITHUB_TOKEN:+set}" >> "$STUB_LOG"; [ "$STUB_FAIL" = npm ] && exit 1; exit 0`);
+  stub("npx", `echo "npx $* | token=\${CLOUDFLARE_API_TOKEN:+set} site=$NEXT_PUBLIC_SITE_URL base=[$NEXT_PUBLIC_BASE_PATH] gh=$NEXT_PUBLIC_GITHUB_REPO billing=$NEXT_PUBLIC_BILLING_API relay=$NEXT_PUBLIC_PUBLISH_RELAY_URL gh=\${JBL_GITHUB_TOKEN:+set}" >> "$STUB_LOG"
 case "$*" in
   *"next build"*) [ "$STUB_FAIL" = build ] && exit 1; mkdir -p out ;;
   *wrangler*) [ "$STUB_FAIL" = wrangler ] && exit 1; [ "$STUB_FAIL" = nolive ] || cp out/build.txt "$STUB_LIVE" ;;
@@ -59,14 +60,14 @@ esac
 exit 0`);
   stub("curl", `echo "curl $*" >> "$STUB_LOG"
 case "$*" in
-  *api.github.com*) cat "$STUB_CHECKS" ;;
+  *api.github.com*) cat >> "$STUB_LOG.stdin" 2>/dev/null; cat "$STUB_CHECKS" ;;
   *build.txt*) cat "$STUB_LIVE" 2>/dev/null || exit 22 ;;
   *) exit 22 ;;
 esac`);
   stub("sleep", "exit 0");
   stub("node", `case "$1" in
-  scripts/go-live-check.mjs) echo "node $* | lk=\${LICENSE_PUBLIC_KEY:+set} billing=$BILLING_API_URL" >> "$STUB_LOG"; [ "$STUB_FAIL" = guard ] && exit 1; exit 0 ;;
-  scripts/postexport.mjs) echo "node $*" >> "$STUB_LOG"; mkdir -p out; exit 0 ;;
+  scripts/go-live-check.mjs) echo "node $* | lk=\${LICENSE_PUBLIC_KEY:+set} billing=$BILLING_API_URL cf=\${CLOUDFLARE_API_TOKEN:+set} gh=\${JBL_GITHUB_TOKEN:+set}" >> "$STUB_LOG"; [ "$STUB_FAIL" = guard ] && exit 1; exit 0 ;;
+  scripts/postexport.mjs) echo "node $* | cf=\${CLOUDFLARE_API_TOKEN:+set} gh=\${JBL_GITHUB_TOKEN:+set}" >> "$STUB_LOG"; mkdir -p out; exit 0 ;;
   *) exec "${process.execPath}" "$@" ;;
 esac`);
   fs.writeFileSync(checks, GREEN);
@@ -88,9 +89,10 @@ esac`);
     state,
     log,
     run(args = [], env = {}) {
-      fs.writeFileSync(log, "");
+      for (const f of [log, `${log}.auth`, `${log}.stdin`]) fs.writeFileSync(f, "");
       const r = spawnSync("bash", [SCRIPT, ...args], { encoding: "utf8", env: { ...base, ...env } as NodeJS.ProcessEnv, timeout: 60_000 });
-      return { status: r.status, stdout: `${r.stdout}${r.stderr}`, calls: fs.readFileSync(log, "utf8").split("\n").filter(Boolean) };
+      const lines = (f: string) => fs.readFileSync(f, "utf8").split("\n").filter(Boolean);
+      return { status: r.status, stdout: `${r.stdout}${r.stderr}`, calls: lines(log), auth: lines(`${log}.auth`), stdin: fs.readFileSync(`${log}.stdin`, "utf8") };
     },
     result: () => JSON.parse(fs.readFileSync(path.join(state, "last-result.json"), "utf8")),
     file: (name) => (fs.existsSync(path.join(state, name)) ? fs.readFileSync(path.join(state, name), "utf8").trim() : null),
@@ -152,6 +154,54 @@ describe("jbl-deploy.sh: a new commit on the branch", () => {
     expect(sb.run([], { STUB_LSREMOTE: "fail" }).calls).toHaveLength(1);
     expect(sb.run([], { STUB_HEAD: "" }).calls).toHaveLength(1);
     expect(sb.file("last-failed")).toBeNull();
+  });
+});
+
+describe("jbl-deploy.sh: tokens reach only the step that needs them", () => {
+  it("keeps the Cloudflare token out of the install, the guard and the build, and gives it to wrangler alone", () => {
+    const sb = sandbox();
+    const r = sb.run();
+    expect(r.status, r.stdout).toBe(0);
+    for (const needle of ["npm ci --no-audit", "npm ci --prefix billing", "go-live-check.mjs", "next build", "postexport.mjs"]) {
+      const line = r.calls.find((c) => c.includes(needle))!;
+      expect(line, needle).toBeTruthy();
+      expect(line, needle).not.toMatch(/(token|cf)=set/);
+    }
+    expect(r.calls.find((c) => c.includes("wrangler deploy"))).toContain("token=set");
+  });
+
+  it("without a GitHub token talks to a public repository: no credential on any git command or API call", () => {
+    const sb = sandbox();
+    const r = sb.run();
+    expect(r.auth.some((l) => l.includes("auth=yes"))).toBe(false);
+    expect(r.stdin).not.toContain("Authorization");
+    expect(r.stdin).toContain("Accept: application/vnd.github+json");
+  });
+
+  it("with JBL_GITHUB_TOKEN (a private repository) signs ls-remote, fetch and the checks lookup, and nothing else", () => {
+    const sb = sandbox();
+    const token = "github_pat_TESTTOKEN0123456789abcdefghij";
+    const r = sb.run([], { JBL_GITHUB_TOKEN: token });
+    expect(r.status, r.stdout).toBe(0);
+    const signed = r.auth.filter((l) => l.includes("auth=yes")).map((l) => l.split(" ")[0]);
+    expect(signed).toEqual(["ls-remote", "fetch"]);
+    expect(r.auth.filter((l) => l.startsWith("init ") || l.startsWith("checkout ") || l.startsWith("clean ")).every((l) => l.endsWith("auth="))).toBe(true);
+    expect(r.stdin).toContain(`Authorization: Bearer ${token}`);
+    // never in an argument list (any user of the server can read those), never in the output, never in the build
+    expect(r.calls.join("\n")).not.toContain(token);
+    expect(r.stdout).not.toContain(token);
+    for (const needle of ["npm ci", "go-live-check.mjs", "next build", "postexport.mjs", "wrangler deploy"]) {
+      expect(r.calls.find((c) => c.includes(needle)), needle).not.toMatch(/gh=set/);
+    }
+    expect(sb.file("last-ok")).toBe(SHA_A);
+  });
+
+  it("says a private repository needs the token when GitHub cannot be read without it, or the checks cannot be seen", () => {
+    const sb = sandbox();
+    expect(sb.run([], { STUB_LSREMOTE: "fail" }).stdout).toContain("JBL_GITHUB_TOKEN is not set");
+    expect(sb.run([], { STUB_LSREMOTE: "fail", JBL_GITHUB_TOKEN: "github_pat_x".padEnd(40, "x") }).stdout).not.toContain("JBL_GITHUB_TOKEN is not set");
+    sb.setChecks("Not Found");
+    expect(sb.run().stdout).toContain("a private repository needs JBL_GITHUB_TOKEN");
   });
 });
 
@@ -324,6 +374,39 @@ describe("install.sh and uninstall.sh", () => {
     expect(run(`${token.slice(0, 20)} ${token.slice(20)}`)).toBe(token); // a break inside
     expect(run("a1a1303c1defe6eafca7065581715c2e\u001b[201~")).toBe("a1a1303c1defe6eafca7065581715c2e");
     expect(run("")).toBe("");
+  });
+
+  it("--private asks for a read-only GitHub token, checks it against the repository, its commits and its checks, and never prints it", () => {
+    const install = read("install.sh");
+    expect(install).toContain("--private) PRIVATE=1");
+    expect(install).toContain("Contents: Read-only");
+    expect(install).toContain("Checks: Read-only");
+    expect(install).toContain("github_pat_[A-Za-z0-9_]{20,255}");
+    expect(install).toContain('set_conf JBL_GITHUB_TOKEN "$gh_token"');
+    expect(install).toContain('set_conf JBL_FEEDBACK_GITHUB_REPO ""');
+    expect(install).toContain("-H @-"); // the token goes to curl on stdin, not on its command line
+    for (const line of install.split("\n").filter((l) => /\$gh_token\b|\$\{gh_token\}/.test(l))) {
+      expect(line, line).not.toMatch(/\b(echo|say|logger|tee)\b|>&2/);
+      if (/curl/.test(line)) expect(line, line).not.toMatch(/Bearer \$gh_token[^\\]*"https/);
+    }
+  });
+
+  it("set_conf replaces one setting, keeps every other line and survives odd characters in the others", () => {
+    const fn = read("install.sh").match(/^set_conf\(\) \{[\s\S]*?^\}$/m)?.[0];
+    expect(fn).toBeTruthy();
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-conf-"));
+    cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const conf = path.join(dir, "env");
+    fs.writeFileSync(conf, "# comment with / and & and $\nCLOUDFLARE_API_TOKEN='abc'\nJBL_GITHUB_TOKEN='old'\nJBL_BRANCH='main'\n", { mode: 0o640 });
+    const run = (key: string, value: string) => spawnSync("bash", ["-c", `CONF="${conf}"\n${fn}\nset_conf "$1" "$2"`, "_", key, value], { encoding: "utf8" });
+    expect(run("JBL_GITHUB_TOKEN", "github_pat_NEW").status).toBe(0);
+    expect(run("JBL_FEEDBACK_GITHUB_REPO", "").status).toBe(0);
+    const text = fs.readFileSync(conf, "utf8");
+    expect(text).toBe("# comment with / and & and $\nCLOUDFLARE_API_TOKEN='abc'\nJBL_BRANCH='main'\nJBL_GITHUB_TOKEN='github_pat_NEW'\nJBL_FEEDBACK_GITHUB_REPO=''\n");
+    expect((fs.statSync(conf).mode & 0o777).toString(8)).toBe("640");
+    // the file reads back as shell
+    const back = spawnSync("bash", ["-c", `. "${conf}"; printf '%s|%s|%s' "$JBL_GITHUB_TOKEN" "$JBL_FEEDBACK_GITHUB_REPO" "$JBL_BRANCH"`], { encoding: "utf8" });
+    expect(back.stdout).toBe("github_pat_NEW||main");
   });
 
   it("uninstall removes the timer and the service, and the token only with --purge", () => {

@@ -166,9 +166,15 @@ updates in GitHub Releases, which a private repository hides. In this order:
    once. About two weeks is a fair wait.
 3. Set the repository variable `FEEDBACK_EMAIL` (or `FEEDBACK_ENDPOINT` / `SUPPORT_EMAIL`): the feedback form can no longer
    open a GitHub issue for visitors.
-4. Settings → General → Danger zone → **Change visibility** → **Make private**.
-5. If the publish relay runs on your own server and was installed from this repository, its `git pull` needs a credential
+4. If the website is deployed by the VPS deployer (`deploy/vps/`), give it its read-only token **first**: on the server
+   `cd ~/Balls && git pull origin main && sudo bash deploy/vps/install.sh --private` (`deploy/vps/README.md`, "When the repository
+   is private" – the token is a fine-grained one for this repository with Contents and Checks read-only). It reads the code
+   anonymously until then, so it stops deploying the moment the repository is private without it.
+5. Settings → General → Danger zone → **Change visibility** → **Make private**.
+6. If the publish relay runs on your own server and was installed from this repository, its `git pull` needs a credential
    from then on – see `relay/README.md`, "A private repository".
+7. Actions minutes: a private repository has 2,000 free a month, and one pull request runs the whole browser test (about an hour of
+   runner time), one Windows release about 25 (Windows counts double). See "Hosting" above; deploying from the VPS does not use them.
 
 ## Code signing (optional)
 

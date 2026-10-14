@@ -13,6 +13,9 @@
 #
 # Settings come from /etc/jbl-deploy/env (written by install.sh, readable by the service only):
 #   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID   required: the token needs "Edit Cloudflare Workers" and the zone's DNS edit
+#   JBL_GITHUB_TOKEN   only for a PRIVATE repository: a fine-grained token for that one repository, read-only (Contents: Read, Checks: Read).
+#                      It is used for `git ls-remote`, `git fetch` and the checks lookup, and for nothing else. Each token reaches only the
+#                      step that needs it: the build (npm, Next.js, the repository's own scripts) sees neither it nor the Cloudflare token.
 #   JBL_REPO (CronusAztec/Balls)   JBL_BRANCH (main)   JBL_SITE_URL (https://jumpingballslive.com)
 #   JBL_REQUIRE_GREEN (1)   JBL_FEEDBACK_GITHUB_REPO (the repo, while it is public with Issues on; empty once it is private)
 #   JBL_FEEDBACK_EMAIL, JBL_SUPPORT_EMAIL, JBL_LEGAL_NAME, JBL_LEGAL_ADDRESS   the operator's public details the legal pages show
@@ -20,15 +23,15 @@
 #   JBL_RETRY_SECONDS (21600)
 # `jbl-deploy.sh --status` prints the last result; `jbl-deploy.sh --sha <40 hex>` deploys that commit now (a rollback): a person naming
 # a commit on the server decides, so neither the branch nor GitHub's checks are asked.
-set -euo pipefail
+set -Eeuo pipefail # (-E: the failure handler below also runs for a command that fails inside a function)
 
 CONF="${JBL_DEPLOY_CONF:-/etc/jbl-deploy/env}"
 if [ -r "$CONF" ]; then
-  set -a
+  # (not exported: a setting reaches a child process only where it is passed on purpose, below)
   # shellcheck disable=SC1090
   . "$CONF"
-  set +a
 fi
+export GIT_TERMINAL_PROMPT=0 # a private repository without a token fails at once instead of waiting for a password
 
 JBL_REPO="${JBL_REPO:-CronusAztec/Balls}"
 JBL_BRANCH="${JBL_BRANCH:-main}"
@@ -51,6 +54,20 @@ logline() { printf '%s jbl-deploy: %s\n' "$(date -u +%FT%TZ)" "$*"; }
 now() { date +%s; }
 state_get() { cat "$JBL_STATE_DIR/$1" 2>/dev/null || true; }
 state_set() { printf '%s\n' "$2" >"$JBL_STATE_DIR/$1"; }
+
+# git that talks to GitHub: with JBL_GITHUB_TOKEN the credential travels in the environment of that one command (never in its arguments,
+# which any user on the server could read), without it the repository must be public
+gh_git() {
+  if [ -n "${JBL_GITHUB_TOKEN:-}" ]; then
+    local basic
+    basic="$(printf 'x-access-token:%s' "$JBL_GITHUB_TOKEN" | base64 | tr -d '\n')"
+    GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=http.extraHeader GIT_CONFIG_VALUE_0="Authorization: Basic $basic" git "$@"
+  else
+    git "$@"
+  fi
+}
+# runs a command of the build without any of the tokens
+scrub() { env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID -u JBL_GITHUB_TOKEN "$@"; }
 
 # a JSON file the next reader (a person, or the AI that pushed the commit) can look at: jbl-deploy.sh --status
 write_result() { # state(ok|failed|waiting|skipped) sha message
@@ -85,8 +102,10 @@ fi
 if [ -n "$FORCED_SHA" ]; then
   HEAD_SHA="$FORCED_SHA"
 else
-  if ! HEAD_SHA="$(git ls-remote "$JBL_GIT_URL" "refs/heads/$JBL_BRANCH" 2>/dev/null | cut -f1)" || ! [[ "$HEAD_SHA" =~ $SHA_RE ]]; then
-    logline "cannot read $JBL_BRANCH of $JBL_REPO from GitHub (network, or the branch is gone): nothing to do"
+  if ! HEAD_SHA="$(gh_git ls-remote "$JBL_GIT_URL" "refs/heads/$JBL_BRANCH" 2>/dev/null | cut -f1)" || ! [[ "$HEAD_SHA" =~ $SHA_RE ]]; then
+    hint=""
+    [ -n "${JBL_GITHUB_TOKEN:-}" ] || hint=", or the repository is private and JBL_GITHUB_TOKEN is not set"
+    logline "cannot read $JBL_BRANCH of $JBL_REPO from GitHub (network, the branch is gone$hint): nothing to do"
     exit 0
   fi
   if [ "$HEAD_SHA" = "$(state_get last-ok)" ]; then exit 0; fi
@@ -98,7 +117,10 @@ fi
 
 # ------------------------------------------------------------------ 2. the repository's own checks
 if [ "$JBL_REQUIRE_GREEN" = "1" ] && [ -z "$FORCED_SHA" ]; then
-  runs="$(curl -fsS --max-time 30 -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/$JBL_REPO/commits/$HEAD_SHA/check-runs?per_page=100" 2>/dev/null || true)"
+  runs="$({
+    [ -z "${JBL_GITHUB_TOKEN:-}" ] || printf 'Authorization: Bearer %s\n' "$JBL_GITHUB_TOKEN"
+    printf 'Accept: application/vnd.github+json\n'
+  } | curl -fsS --max-time 30 -H @- "https://api.github.com/repos/$JBL_REPO/commits/$HEAD_SHA/check-runs?per_page=100" 2>/dev/null || true)"
   verdict="$(printf '%s' "$runs" | node -e '
     let s = "";
     process.stdin.on("data", (c) => (s += c)).on("end", () => {
@@ -123,7 +145,9 @@ if [ "$JBL_REQUIRE_GREEN" = "1" ] && [ -z "$FORCED_SHA" ]; then
       exit 0
       ;;
     *)
-      logline "$HEAD_SHA: the repository's checks are not finished yet ($verdict): waiting"
+      hint=""
+      [ "$verdict" != "unknown" ] || [ -n "${JBL_GITHUB_TOKEN:-}" ] || hint=" - a private repository needs JBL_GITHUB_TOKEN"
+      logline "$HEAD_SHA: the repository's checks are not finished yet ($verdict$hint): waiting"
       write_result waiting "$HEAD_SHA" "checks: $verdict"
       exit 0
       ;;
@@ -146,7 +170,6 @@ if [ -z "${CLOUDFLARE_API_TOKEN:-}" ] || [ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]; th
   STEP="settings (CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID are missing in $CONF)"
   false
 fi
-export CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID
 
 started="$(now)"
 logline "deploying $HEAD_SHA ($JBL_BRANCH of $JBL_REPO)"
@@ -160,36 +183,37 @@ if [ ! -d .git ]; then
   git remote add origin "$JBL_GIT_URL"
 fi
 git remote set-url origin "$JBL_GIT_URL"
-git fetch -q --depth 1 origin "$HEAD_SHA"
+gh_git fetch -q --depth 1 origin "$HEAD_SHA"
 git checkout -qf "$HEAD_SHA"
 git clean -fdq
 rm -rf out
 
 STEP="install the dependencies"
-npm ci --no-audit --no-fund --loglevel=error
-npm ci --prefix billing --no-audit --no-fund --loglevel=error
+scrub npm ci --no-audit --no-fund --loglevel=error
+scrub npm ci --prefix billing --no-audit --no-fund --loglevel=error
 
 STEP="production guard (the live billing keys)"
-LICENSE_PUBLIC_KEY="$LICENSE_PUBLIC_KEY" BILLING_API_URL="$BILLING_API_URL" node scripts/go-live-check.mjs --deploy-guard
+scrub env LICENSE_PUBLIC_KEY="$LICENSE_PUBLIC_KEY" BILLING_API_URL="$BILLING_API_URL" node scripts/go-live-check.mjs --deploy-guard
 
 STEP="build the site"
-SITEMAP_LASTMOD="$(git log -1 --format=%cI "$HEAD_SHA" 2>/dev/null || date -u +%FT%TZ)" \
-NEXT_PUBLIC_SITE_URL="$JBL_SITE_URL" \
-NEXT_PUBLIC_BASE_PATH="" \
-NEXT_PUBLIC_GITHUB_REPO="$JBL_FEEDBACK_GITHUB_REPO" \
-NEXT_PUBLIC_FEEDBACK_EMAIL="${JBL_FEEDBACK_EMAIL:-}" \
-NEXT_PUBLIC_SUPPORT_EMAIL="${JBL_SUPPORT_EMAIL:-}" \
-NEXT_PUBLIC_LEGAL_NAME="${JBL_LEGAL_NAME:-}" \
-NEXT_PUBLIC_LEGAL_ADDRESS="${JBL_LEGAL_ADDRESS:-}" \
-NEXT_PUBLIC_PUBLISH_RELAY_URL="${JBL_RELAY_URL:-https://relay.jumpingballslive.com}" \
-NEXT_PUBLIC_LICENSE_PUBLIC_KEY="$LICENSE_PUBLIC_KEY" \
-NEXT_PUBLIC_BILLING_API="$BILLING_API_URL" \
+scrub env \
+  SITEMAP_LASTMOD="$(git log -1 --format=%cI "$HEAD_SHA" 2>/dev/null || date -u +%FT%TZ)" \
+  NEXT_PUBLIC_SITE_URL="$JBL_SITE_URL" \
+  NEXT_PUBLIC_BASE_PATH="" \
+  NEXT_PUBLIC_GITHUB_REPO="$JBL_FEEDBACK_GITHUB_REPO" \
+  NEXT_PUBLIC_FEEDBACK_EMAIL="${JBL_FEEDBACK_EMAIL:-}" \
+  NEXT_PUBLIC_SUPPORT_EMAIL="${JBL_SUPPORT_EMAIL:-}" \
+  NEXT_PUBLIC_LEGAL_NAME="${JBL_LEGAL_NAME:-}" \
+  NEXT_PUBLIC_LEGAL_ADDRESS="${JBL_LEGAL_ADDRESS:-}" \
+  NEXT_PUBLIC_PUBLISH_RELAY_URL="${JBL_RELAY_URL:-https://relay.jumpingballslive.com}" \
+  NEXT_PUBLIC_LICENSE_PUBLIC_KEY="$LICENSE_PUBLIC_KEY" \
+  NEXT_PUBLIC_BILLING_API="$BILLING_API_URL" \
   npx next build --no-lint
-node scripts/postexport.mjs
+scrub node scripts/postexport.mjs
 printf '%s\n' "$HEAD_SHA" >out/build.txt
 
 STEP="wrangler deploy"
-npx --prefix billing wrangler deploy
+env -u JBL_GITHUB_TOKEN CLOUDFLARE_API_TOKEN="$CLOUDFLARE_API_TOKEN" CLOUDFLARE_ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" npx --prefix billing wrangler deploy
 
 # ------------------------------------------------------------------ 4. the live site names the commit
 STEP="verify: the live site does not serve $HEAD_SHA after $((JBL_VERIFY_TRIES * JBL_VERIFY_WAIT)) seconds"
