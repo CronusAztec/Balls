@@ -1,0 +1,62 @@
+{
+  "releases": [
+    {
+      "id": "site-1-9-0",
+      "product": "site",
+      "version": "1.9.0",
+      "date": "2026-10-13",
+      "headline": {
+        "en": "Accounts, new prices and a home of its own",
+        "pl": "Konta, nowe ceny i własny adres",
+        "es": "Cuentas, precios nuevos y dirección propia"
+      },
+      "items": [
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Pro now costs $6.99 a month or $49 a year.",
+            "pl": "Pro kosztuje teraz 6,99 USD miesięcznie albo 49 USD rocznie.",
+            "es": "Pro cuesta ahora 6,99 USD al mes o 49 USD al año."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The site has its own web address, with and without www.",
+            "pl": "Strona ma własny adres, z www i bez www.",
+            "es": "El sitio tiene su propia dirección web, con y sin www."
+          }
+        }
+      ]
+    },
+    {
+      "id": "app-1-2-0",
+      "product": "app",
+      "version": "1.2.0",
+      "date": "2026-10-13",
+      "headline": {
+        "en": "The AI makes fighters and modes",
+        "pl": "Sztuczna inteligencja tworzy bohaterów i tryby",
+        "es": "La IA crea luchadores y modos"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "New fighter. Describe one and the AI builds a Fight League fighter with a weapon and an ability.",
+            "pl": "Nowy bohater. Opisz go, a sztuczna inteligencja zbuduje wojownika Fight League z bronią i umiejętnością.",
+            "es": "Luchador nuevo. Descríbelo y la IA crea un luchador de Fight League con un arma y una habilidad."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Everything you make stays on your PC and is never sent anywhere.",
+            "pl": "Wszystko, co stworzysz, zostaje na Twoim komputerze i nigdzie nie jest wysyłane.",
+            "es": "Todo lo que creas se queda en tu PC y no se envía a ningún sitio."
+          }
+        }
+      ]
+    }
+  ]
+}
