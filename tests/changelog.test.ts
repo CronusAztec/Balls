@@ -320,8 +320,9 @@ describe("the changelog page in the site", () => {
   it("is a static, indexable, localised page: metadata with canonical and alternates, a <time> per release, a heading with the version, the headline", () => {
     const page = read("src/app/[locale]/changelog/page.tsx");
     expect(page).toContain("export async function generateMetadata");
-    expect(page).toContain('pageUrl(locale, "/changelog")');
-    expect(page).toContain('localeAlternates("/changelog")');
+    // --- seo --- the canonical, the language alternates and the social tags come from the shared helper (src/lib/seo.ts, tests/seo.test.ts)
+    expect(page).toContain('pageMetadata({ locale, path: "/changelog"');
+    expect(page).toContain('pageUrl(locale, "/changelog")'); // the JSON-LD's own address
     expect(page).toContain("setRequestLocale(locale)");
     expect(page).toContain("<time dateTime={r.date}");
     expect(page).toContain('t(r.product === "app" ? "releaseApp" : "releaseSite", { version: r.version })');
