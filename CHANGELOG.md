@@ -1,6 +1,6 @@
 # Changelog
 
-Everything that changed in JumpingBallsLive, newest first: the website ("Website x.y.z") and the Windows app ("Windows app x.y.z").
+The releases of JumpingBallsLive, newest first: the website ("Website x.y.z") and the Windows app ("Windows app x.y.z").
 The website's version is the `version` in `package.json`, the Windows app's is the one in `desktop/package.json`.
 The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 
@@ -14,13 +14,13 @@ Versions, a changelog and pages ready to share
 ### New
 
 - The footer shows which version and build you are on, and /version.json names the build that is live.
-- A changelog page lists every update to the website and the Windows app, newest first.
+- A changelog page lists the releases of the website and the Windows app, newest first.
 - A press page has the facts, the description in three lengths, the logo files and the brand colours.
 
 ### Improved
 
-- Shared links show a picture made for the page and the language, and every page has its own title and description.
-- Pages open faster on phones: the landing, pricing and download pages no longer fetch the whole studio in the background.
+- Shared links to the main pages show a picture made for the page and the language, and every page has its own title and description.
+- Pages open faster on phones. The landing, pricing and download pages no longer load the studio's code up front, and the offline copy downloads later, not on a slow or metered connection.
 - The privacy policy, the terms, the disclaimer and the download page are clearer about cookies, what is free and what the Windows app sends.
 
 ### Fixed
@@ -37,7 +37,7 @@ Your version, and what changed in it
 - The window title shows the app version, and says portable or safe mode when they apply.
 - The About dialog lists the app version, how it is installed and the website build inside it, with Copy details and What's new buttons.
 - A What's new entry in the Help menu opens the changelog.
-- After an update the app shows what's new in that version once, with a link to its release in the changelog.
+- From the next update on, the app shows what's new in that version once, with a link to its release in the changelog.
 
 ### Improved
 
@@ -54,7 +54,7 @@ Accounts, a lower price and its own web address
 
 ### Improved
 
-- Pro now costs less. It is $6.99 a month or $49 a year, down from $10 and $79.
+- Pro now costs $6.99 a month or $49 a year.
 - The site has its own web address, with and without www.
 - Windows downloads now come from a new public installers page, and the download page links a checksum for every file.
 
@@ -218,7 +218,6 @@ Fixes for the AI and cancelled renders
 
 - The local AI now starts in the installed app.
 - A cancelled render no longer leaves a half-written MP4 behind.
-- Links and presets with very large values open with Wide sliders on.
 - String Battle credits every kill when you run more than six balls.
 
 ## Windows app 1.0.0 · 2026-10-01
@@ -246,7 +245,7 @@ Races, beats and a daily challenge
 - Beat Drop lands on every beat. Follow the beat of a song, a video or markers you place.
 - The viral video bot plans clips with a hook in the first seconds and the payoff at the end.
 - The daily challenge gives everyone one mode and one seed a day. The gallery holds ready-made setups to open.
-- Install the site as an app. The home page and the simulator work offline once you have opened them.
+- Install the site as an app. The home page works offline, and so does the simulator once you have opened it.
 - Bounce math changes any value by a step on every bounce, gap pass or beat.
 - Publish prepares a caption and hashtags for TikTok, Instagram and YouTube. It opens the share sheet on a phone, or downloads the clip and opens the upload page on a computer.
 

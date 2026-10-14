@@ -46,9 +46,9 @@
         {
           "kind": "improved",
           "text": {
-            "en": "Pages open faster on phones. The landing, pricing and download pages no longer load the studio's code up front, and the full offline copy downloads later, and not on a slow or metered connection.",
-            "pl": "Strony otwierają się szybciej na telefonach. Strona główna, cennik i pobieranie nie ładują już od razu kodu studia, a pełna kopia offline pobiera się później i nie przy wolnym łączu ani z limitem danych.",
-            "es": "Las páginas abren más rápido en el móvil. La portada, los precios y la descarga ya no cargan de entrada el código del estudio, y la copia completa sin conexión se descarga más tarde y no con una conexión lenta o con límite de datos."
+            "en": "Pages open faster on phones. The landing, pricing and download pages no longer load the studio's code up front, and the offline copy downloads later, not on a slow or metered connection.",
+            "pl": "Strony otwierają się szybciej na telefonach. Strona główna, cennik i pobieranie nie ładują już od razu kodu studia, a kopia offline pobiera się później i nie przy wolnym łączu ani z limitem danych.",
+            "es": "Las páginas abren más rápido en el móvil. La portada, los precios y la descarga ya no cargan de entrada el código del estudio, y la copia sin conexión llega después, no con conexión lenta o con límite de datos."
           }
         },
         {

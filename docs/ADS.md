@@ -40,7 +40,7 @@ Nothing in an ad, a caption, a creative, a landing page link text or the press k
 | "Best", "number one", "#1", "ultimate", "unlimited", any comparison with a named app, creator or price | Unprovable. The comment in `src/lib/billing/config.ts` that mentions competitors' prices is not for ads |
 | PayPal | It is off in the live billing Worker. A line may say "card or crypto" |
 | "Publish to TikTok, Instagram and YouTube" | No visitor can connect a channel yet (the relay's `/api/health` lists every platform as off). Say "post", "share" or "export", and never "publish" |
-| Fight League, any fighter, and any franchise or character name (Marvel, DC, Nintendo, Pokémon, Star Wars, Thor, Loki and the rest of the roster) | The mode is a fan-made simulation and the names belong to their owners. No ad, creative, hook or press line uses a fighter name or footage of that mode. The bot's default `--family all` includes Fight League clips, so always pass `--family escape` or `--family rhythm` (section 7) |
+| Fight League, any fighter, and any franchise or character name (Marvel, DC, Nintendo, Pokémon, Star Wars, Thor, Loki and the rest of the roster) | The mode is a fan-made simulation and the names belong to their owners. No ad, creative, hook or press line uses a fighter name or footage of that mode. The bot's default `--family all` includes Fight League clips, so always pass `--family escape` or `--family rhythm` (section 7). The landing pages show the mode card too: section 4 says where paid traffic may land until the owner has decided about it |
 | Third-party music, platform logos or an "official" or "endorsed by" line | Use the built-in tones and the public-domain melodies. Platform names are used only to say where a clip can go ("for TikTok, Reels and Shorts") |
 | The Windows app, until the installer is code signed | Section 3, audience C |
 | Other creators' or accounts' names, or a clip title | House rule (`docs/COPY-STYLE.md`) |
@@ -67,6 +67,8 @@ Rules, in this order:
 3. Every link carries the UTM names below. The studio keeps them in the address bar (`ATTRIBUTION_PARAMS` in `src/lib/analytics/attribution.ts`: `utm_source`, `utm_medium`, `utm_campaign`, `utm_term`, `utm_content`, `utm_id`, `gclid`, `gbraid`, `wbraid`, `fbclid`, `ttclid`, `msclkid`, `twclid`, `rdt_cid`). The ad platforms add their own click ids.
 4. Lower case, no spaces. `_` between the words of a campaign, `-` inside a recipe name.
 
+**Open decision, the Fight League card (owner decision B3).** The landing pages `/en/`, `/pl/` and `/es/` show the Fight League mode card in the modes wall, and their FAQ names the mode. The card's picture is a frame with third-party character names, which belong to their owners (section 2 and the legal audit). Until the owner has decided what to do about it, do not send paid traffic from TikTok, Meta or Google to those three pages, and ignore the first row of the table below. The pages that do not show the card are the gallery (its presets have names of their own and none from that mode), `/en/tiktok-ball-videos/`, `/en/pricing/` and `/en/download/` (checked in the code on 14 October 2026: only the landing page has the modes wall and the FAQ, and the studio's mode picker has the card too). None of them pitches the product to a creator as well as the landing page does: the gallery shows finished looks to viewers, the TikTok page is written for search, pricing opens on the price and the download page is for the Windows app, which is on hold. So the honest plan is this. Point Meta's viewer ads at the gallery of the ad's language, point Google Search at `/en/tiktok-ball-videos/`, and hold the TikTok creator ads until the card is dealt with. The three ways out are to take the card and its picture off the landing page, to replace them with a neutral picture and a line that names no character, or to accept the risk after counsel has read the legal audit.
+
 | Audience | Destination | Why |
 | --- | --- | --- |
 | Creators, social (A) | `/en/`, `/pl/`, `/es/` | The promise, the price line and the live preview in one screen. Nothing on it rewrites the address |
@@ -84,7 +86,7 @@ Rules, in this order:
 | `utm_term` | Google keyword only | `{keyword}` (ValueTrack) |
 | `utm_id` | the platform's campaign id | `{campaignid}` (Google), `__CAMPAIGN_ID__` (TikTok macro), `{{campaign.id}}` (Meta) **[confirm the macros in each UI]** |
 
-Final URLs, one per use (English; for Polish and Spanish change `/en/` to `/pl/` or `/es/` and the last letters of `utm_content`):
+Final URLs, one per use (English; for Polish and Spanish change `/en/` to `/pl/` or `/es/` and the last letters of `utm_content`). The rows that land on a landing page (`/en/`, `/pl/`, `/es/`) are on hold until the Fight League decision above:
 
 | Use | Final URL |
 | --- | --- |
@@ -153,12 +155,12 @@ Display URL: `jumpingballslive.com/ball-physics/video-maker`. The path is for sh
 | Headline 10 | Pro usuwa znak wodny | 20 / 30 |
 | Headline 11 | Pro od 6,99 USD miesięcznie | 27 / 30 |
 | Headline 12 | Nagraj, eksportuj, wrzuć | 24 / 30 |
-| Headline 13 | Dzienne wyzwanie z piłką | 24 / 30 |
+| Headline 13 | Wyzwanie dnia z piłką | 21 / 30 |
 | Headline 14 | JumpingBallsLive | 16 / 30 |
 | Headline 15 | Symulator fizyki piłek | 22 / 30 |
 | Description 1 | Wybierz jeden z 45 trybów, dostrój fizykę i naciśnij start. Za darmo, bez konta. | 80 / 90 |
 | Description 2 | Wyeksportuj pionowy klip 1080×1920 pod TikToka, Reels i Shorts. Darmowe mają znak wodny. | 88 / 90 |
-| Description 3 | Pierścienie do ucieczki, rytmiczne maszyny i pojedynki. Każde odbicie może zagrać nutę. | 87 / 90 |
+| Description 3 | Pierścienie do ucieczki, maszyny rytmu i pojedynki. Każde odbicie może zagrać nutę. | 83 / 90 |
 | Description 4 | Pro usuwa znak wodny od 6,99 USD miesięcznie. Zrezygnujesz w każdej chwili. | 75 / 90 |
 | Path 1 | fizyka-pilek | 12 / 15 |
 | Path 2 | generator-wideo | 15 / 15 |
@@ -185,7 +187,7 @@ Display URL: `jumpingballslive.com/fizyka-pilek/generator-wideo`. The path is fo
 | Headline 14 | JumpingBallsLive | 16 / 30 |
 | Headline 15 | Simulador de pelotas | 20 / 30 |
 | Description 1 | Elige uno de los 45 modos, ajusta la física y dale al play. Gratis y sin cuenta. | 80 / 90 |
-| Description 2 | Exporta un clip vertical 1080×1920 para TikTok, Reels y Shorts. Los gratis llevan marca. | 88 / 90 |
+| Description 2 | Exporta un clip vertical 1080×1920 para TikTok, Reels y Shorts. Gratis, con marca de agua. | 90 / 90 |
 | Description 3 | Anillos de escape, máquinas de ritmo y duelos. Cada rebote puede tocar una nota. | 80 / 90 |
 | Description 4 | Pro quita la marca de agua desde 6,99 US$ al mes. Cancela cuando quieras. | 73 / 90 |
 | Path 1 | fisica-pelotas | 14 / 15 |
@@ -281,7 +283,7 @@ Limits: primary text 125 characters visible (the field takes more), headline 27 
 
 | Field | Text | Chars |
 | --- | --- | --- |
-| Primary text | The ball physics studio for Windows. Your GPU renders the clips and a queue works through batches for you. | 106 / 125 |
+| Primary text | The ball physics studio for Windows. Your graphics card encodes the clips and a queue works through batches for you. | 116 / 125 |
 | Headline | Free Windows Download | 21 / 27 |
 | Description | Free download | 13 / 30 |
 
@@ -289,7 +291,7 @@ Limits: primary text 125 characters visible (the field takes more), headline 27 
 
 | Field | Text | Chars |
 | --- | --- | --- |
-| Primary text | Studio fizyki piłek na Windows. Twoje GPU renderuje klipy, a kolejka przerabia serie za Ciebie. | 95 / 125 |
+| Primary text | Studio fizyki piłek na Windows. Karta graficzna koduje klipy, a kolejka przerabia serie za Ciebie. | 98 / 125 |
 | Headline | Darmowa aplikacja Windows | 25 / 27 |
 | Description | Pobierz za darmo | 16 / 30 |
 
@@ -297,7 +299,7 @@ Limits: primary text 125 characters visible (the field takes more), headline 27 
 
 | Field | Text | Chars |
 | --- | --- | --- |
-| Primary text | El estudio de física de pelotas para Windows. Tu GPU renderiza los clips y una cola procesa lotes por ti. | 105 / 125 |
+| Primary text | El estudio de física de pelotas para Windows. Tu tarjeta gráfica codifica los clips y una cola procesa lotes por ti. | 116 / 125 |
 | Headline | App gratis para Windows | 23 / 27 |
 | Description | Descarga gratuita | 17 / 30 |
 
@@ -428,7 +430,7 @@ Limits: headline 40, long headline 90, description 90, business name 25. Vertica
 | Headline 5 | Pro quita la marca de agua | 26 / 40 |
 | Long headline | Crea clips satisfactorios de física de pelotas. Gratis, sin cuenta, exporta en vertical. | 88 / 90 |
 | Description 1 | Elige uno de los 45 modos, ajusta la física y dale al play. Gratis y sin cuenta. | 80 / 90 |
-| Description 2 | Exporta un clip vertical 1080×1920 para TikTok, Reels y Shorts. Los gratis llevan marca. | 88 / 90 |
+| Description 2 | Exporta un clip vertical 1080×1920 para TikTok, Reels y Shorts. Gratis, con marca de agua. | 90 / 90 |
 | Business name | JumpingBallsLive | 16 / 25 |
 
 ## 6. Creative specs and safe zones
@@ -527,7 +529,7 @@ Phase A uses no ad-platform pixel, sets no cookie and shows no consent banner. T
 
 ## 9. KPIs and the test plan
 
-The funnel, all on the web: impression → click → landing view → `sim_start` → `clip_export` → `unlock_open` → `checkout_start` → `purchase`. Read the cost per click, per `sim_start`, per `clip_export` and per `purchase`, the refund rate (a first payment is refundable for 14 days), and the share rate (`share_copy` per `clip_export`).
+The funnel, all on the web: impression → click → landing view → `sim_start` → `clip_export` → `unlock_open` → `checkout_start` → `purchase`. Read the cost per click, per `sim_start`, per `clip_export` and per `purchase`, the refund rate (a first card payment is refundable for 14 days), and the share rate (`share_copy` per `clip_export`).
 
 **No baseline exists** in the repository or on the live site. Set targets after the first 7 days and promise none. A reading is worth nothing before about 100 clicks per cell.
 
@@ -562,9 +564,9 @@ Stop rule: pause a cell after 300 clicks with no `clip_export`. That points at t
 - **Claims and "free".** The watermark and the price are stated above the fold of the landing page (the hero's price line). No PayPal, no Publish. "Cancel any time" is true for a card only.
 - **Substantiation.** No "viral", no comparative price claims, no "best". Platform names are descriptive only, and the Disclaimer says the site is not affiliated with them.
 - **Intellectual property.** No Fight League, no third-party music, no platform logos in a creative. Counsel reviews the use of "TikTok", "Reels" and "Shorts" in ad text (Google keeps a trademark complaint list).
-- **Privacy and consent.** Phase A has no pixels and no cookies, honours Do Not Track and Global Privacy Control, and is off in the Windows app. A pixel needs a consent banner and a change to the privacy policy first.
+- **Privacy and consent.** Phase A has no pixels and no cookies. The action counter (the statistics service) honours Do Not Track and Global Privacy Control and is off in the Windows app. Cloudflare Web Analytics, which the edge adds to page views, honours neither signal. Do not declare "honours Do Not Track" for the whole of phase A in an ad platform's data-practice form. A pixel needs a consent banner and a change to the privacy policy first.
 - **Photosensitivity.** No flashing recipes. Preview each clip.
-- **Payments.** Refund wording (14 days for a first payment, crypto not refundable) is reviewed against the EU withdrawal rules for digital content. The statement descriptor, VAT and sales tax are set up (`docs/GO-LIVE.md`, sections 12 and 13).
+- **Payments.** The refund rule is one rule on the pricing page (`Billing.notes.refunds`), in the terms (`Billing.terms.refunds`) and here: a first card payment is refunded in full when asked within 14 days, and renewals and crypto payments are not refundable unless the law of the buyer's country says so. The wording is reviewed against the EU withdrawal rules for digital content. The statement descriptor, VAT and sales tax are set up (`docs/GO-LIVE.md`, sections 12 and 13).
 - **Business identity and contact.** The operator's name, address and support e-mail are visible (the variables `JBL_LEGAL_NAME`, `JBL_LEGAL_ADDRESS`, `JBL_SUPPORT_EMAIL`) and the advertiser accounts use the same name and address.
 - **Children.** The product is not directed at children under 13 (`Privacy.children`): exclude under 18 where the platform allows it.
 - **Software distribution.** The installer is unsigned (`Desktop.smartScreenBody`): no Windows ad until it is signed. Checksums are published with every release.
@@ -575,7 +577,7 @@ Only the owner can do these. They are in order.
 
 1. **The support mailbox and the operator's details.** Create the support address (Cloudflare → Email Routing → forward `support@jumpingballslive.com` to an inbox that someone reads). On the VPS put `JBL_SUPPORT_EMAIL`, `JBL_FEEDBACK_EMAIL`, `JBL_LEGAL_NAME` and `JBL_LEGAL_ADDRESS` in `/etc/jbl-deploy/env`, then rebuild the live commit: `sudo -u jbldeploy /opt/jbl-deploy/jbl-deploy.sh --sha "$(cat /var/lib/jbl-deploy/last-ok)"`. Check with `curl -s https://jumpingballslive.com/en/privacy/ | grep -c mailto`. Without these the site has no way to be reached, and ad platforms and card networks expect one.
 2. **Cloudflare settings.** In the dashboard of the domain: SSL/TLS → Edge Certificates → Always Use HTTPS, and a redirect rule from `www.jumpingballslive.com` to `jumpingballslive.com` (Rules → Redirect Rules, keep the path and the query). `npm run launch:check` tells you which of the two is missing. The names of the menus move: confirm in the dashboard.
-3. **The statistics service.** Choose Plausible or Umami (Cloudflare Web Analytics cannot count events), install it (hosted, or on the VPS), set `JBL_ANALYTICS_SCRIPT_URL` and `JBL_ANALYTICS_SITE_ID` in `/etc/jbl-deploy/env`, redeploy as in step 1, create the goals `clip_export`, `checkout_start` and `purchase`, and check with a real browser. The privacy policy names the service by the script's host.
+3. **The statistics service.** Choose Plausible or Umami (Cloudflare Web Analytics cannot count events), install it (hosted, or on the VPS), set `JBL_ANALYTICS_SCRIPT_URL` and `JBL_ANALYTICS_SITE_ID` in `/etc/jbl-deploy/env`, redeploy as in step 1, create the goals `clip_export`, `checkout_start` and `purchase`, and check with a real browser. The privacy policy names the service by the script's host. Before spending, confirm in the service's dashboard that it stores no query string other than `utm_*` (the studio's address also carries the run's settings, and the service sees the whole address), and that the receipt reference of a checkout return (`?claim=` and `ref=`) never appears in it: the site keeps the script off while that reference is in the address.
 4. **PayPal and Publish.** Decide PayPal: turn it on in the billing Worker (then restore it in the legal copy, `docs/GO-LIVE.md` section 12), or leave it off and keep it out of every ad. Decide Publish: register the TikTok, Meta and Google apps and pass their reviews, or keep selling "share" and "export" only.
 5. **Code signing.** Buy a code-signing certificate and set `WIN_CSC_LINK` and `WIN_CSC_KEY_PASSWORD` (`docs/GO-LIVE.md`, section 11) before any Windows ad.
 6. **Ad accounts and verification.** Google Ads (advertiser verification with the legal name and country), Meta Business (business verification, domain verification with a DNS TXT record in Cloudflare, and the beneficiary and payer for the EU), TikTok Ads (a business account). Use the same legal name and address everywhere. Verify the domain in Google Search Console (`docs/GO-LIVE.md`, section 14.1). Create the brand handles (TikTok, Instagram, YouTube, X, Reddit): the site's structured data carries `sameAs` once they exist.

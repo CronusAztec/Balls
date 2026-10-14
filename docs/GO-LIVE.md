@@ -426,8 +426,9 @@ Stripe's and PayPal's reviewers read your terms and privacy pages before they ap
 
 - **Pro subscriptions** – the prices (filled in from the price file), what renews and what does not.
 - **Delivery** – Pro is a digital licence, delivered at once, restorable on any device; nothing is shipped.
-- **Cancellation and refunds** – cancel any time; a **first payment is refunded in full when asked within 14 days**;
-  renewals and crypto are not refundable unless local law says otherwise; refunds take 5–10 business days.
+- **Cancellation and refunds** – cancel a card subscription any time; a **first card payment is refunded in full when asked
+  within 14 days**; renewals and crypto payments are not refundable unless local law says otherwise (the pricing page says the
+  same); refunds take 5–10 business days.
 - **Who you are buying from** – your name and address from the variables `LEGAL_NAME` and `LEGAL_ADDRESS`, or "the
   operator of <your site>" while they are empty.
 - The **support e-mail** (`SUPPORT_EMAIL`) on the terms, the privacy policy and the pricing page.
@@ -443,10 +444,11 @@ The pages are dated (the "Last updated" line). Set the three variables (the wiza
 (**Settings → Business → Public details**) and PayPal (**Business information**) the same name, address and support
 e-mail.
 
-**Honouring the 14-day rule:** when someone writes within 14 days of their first payment, refund it in full – Stripe:
-**Payments** → the payment → **Refund**; PayPal: **Activity** → the payment → **Refund**; crypto: NOWPayments' refund tool
-with the buyer's wallet address (manual). Then cancel the subscription so it does not renew. The refund ends their Pro
-access by itself.
+**Honouring the 14-day rule:** when someone writes within 14 days of their first card payment, refund it in full – Stripe:
+**Payments** → the payment → **Refund** (PayPal, if it is ever switched on, is treated like a card: **Activity** → the payment →
+**Refund**). Then cancel the subscription so it does not renew. The refund ends their Pro access by itself. A crypto buyer has no
+14-day right in the terms, because a crypto payment cannot be reversed on the network: refund one by hand (NOWPayments' refund
+tool, which needs the buyer's wallet address) only where the law of their country requires it, or as goodwill.
 
 ---
 
@@ -528,6 +530,14 @@ this order. Each one is only yours to do:
 8. **Render the creatives** with the viral bot (`--family escape` or `rhythm`, never the default: it includes Fight League clips),
    name each file as its `utm_content`, preview them in each platform, then **start small**: one campaign per platform, three creatives, a
    daily cap, and read it after 7 days.
+
+**Before any paid click: the Fight League card.** The landing pages (`/en/`, `/pl/`, `/es/`) show the Fight League mode card, and
+its picture is a frame with third-party character names (see [`docs/ADS.md`](ADS.md), section 2, and the legal audit). Until you
+have decided what to do about it (take the card and its picture off the landing page, replace them with a neutral picture, or
+accept the risk after a lawyer's read), do not send paid traffic from TikTok, Meta or Google to those three pages. The pages that
+do not show it are the gallery, `/en/tiktok-ball-videos/`, `/en/pricing/` and `/en/download/`; none of them pitches the product to
+a creator as well as the landing page does, so use them only as `docs/ADS.md` section 4 says (Meta viewer ads to the gallery,
+Google Search to the TikTok page) and hold the TikTok creator ads until the card is decided.
 
 **Run the launch check** from a checkout (Node 22, no install needed for the default run) against the live site:
 

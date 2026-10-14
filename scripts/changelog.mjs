@@ -27,7 +27,7 @@ export const KIND_NAMES = { new: "New", improved: "Improved", fixed: "Fixed" };
 export const HEADER = [
   "# Changelog",
   "",
-  `Everything that changed in ${SITE_NAME}, newest first: the website ("Website x.y.z") and the Windows app ("Windows app x.y.z").`,
+  `The releases of ${SITE_NAME}, newest first: the website ("Website x.y.z") and the Windows app ("Windows app x.y.z").`,
   "The website's version is the `version` in `package.json`, the Windows app's is the one in `desktop/package.json`.",
   "The site shows the same list, in English, Polish and Spanish, at `/changelog`.",
   "",

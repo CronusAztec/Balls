@@ -18629,7 +18629,7 @@ await smokeBlock("changelog", async () => {
   const names = {
     en: /^(Website|Windows app) \d+\.\d+\.\d+$/,
     pl: /^(Strona WWW|Aplikacja na Windows) \d+\.\d+\.\d+$/,
-    es: /^(Web|Aplicación de Windows) \d+\.\d+\.\d+$/,
+    es: /^(Web|App de Windows) \d+\.\d+\.\d+$/,
   };
   const months = { pl: /października|września|listopada/, es: /octubre|septiembre|noviembre/ };
   const versionOf = (name) => (/(\d+)\.(\d+)\.(\d+)$/.exec(name) || []).slice(1).map(Number);

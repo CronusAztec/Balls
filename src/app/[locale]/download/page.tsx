@@ -131,7 +131,7 @@ export default async function DownloadPage({ params }: { params: Promise<{ local
             <p className="mt-3 text-md text-ink-2">
               {t.rich("smartScreenVerify", {
                 virustotal: (chunks) => (
-                  <a href="https://www.virustotal.com/" target="_blank" rel="noopener noreferrer" className="font-medium text-accent hover:text-accent-strong">
+                  <a href="https://www.virustotal.com/gui/home/search" target="_blank" rel="noopener noreferrer" className="font-medium text-accent hover:text-accent-strong">
                     {chunks}
                   </a>
                 ),

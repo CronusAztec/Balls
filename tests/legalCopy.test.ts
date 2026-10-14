@@ -152,6 +152,12 @@ describe("the privacy page", () => {
       expect(flat["Privacy.information.events.content"], locale).toContain("{host}");
       expect(flat["Privacy.advertising.campaign"], locale).toContain("{host}");
     });
+    // --- review fix (copy) --- the service sees the whole address: the campaign name, the ad click identifier and, in the studio, the run's settings
+    expect(en.Privacy.information.events.content).toContain("ad click identifier");
+    expect(en.Privacy.information.events.content).toContain("settings of your run");
+    expect(en.Privacy.information.events.content).not.toMatch(/never receives your email, your settings/);
+    expect(en.Privacy.advertising.campaign).toContain("ad click identifier");
+    expect(en.Privacy.windowsApp.licence.content).toMatch(/buy, restore or manage Pro/);
   });
   it("says what the Windows app sends where, as desktop/src does it", () => {
     const updater = read("desktop", "src", "updater.ts");
