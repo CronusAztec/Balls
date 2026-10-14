@@ -133,14 +133,19 @@ jobs:
             echo "::warning title=billing/wrangler.toml does not list https://$DOMAIN::Add https://$DOMAIN to SITE_ORIGIN in billing/wrangler.toml, commit, and run the 'Deploy billing worker' workflow, or checkouts from the new domain are refused (CORS)."
           fi
 
+      # --- artifact-quota --- The site goes to the `deploy` job of this same run, so one day is enough. A private repository has a
+      # small Actions storage quota; when it is full, the upload fails, and that must not turn this job red: the VPS deployer reads the
+      # result of this `build` job (deploy/vps/README.md) and the checks above are what it stands for. (Then `deploy` has no site to
+      # download and fails – the VPS deploys anyway.)
       - name: Upload the site
         if: env.DEPLOY == 'true'
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: site-out
           path: out
           include-hidden-files: true
-          retention-days: 7
+          retention-days: 1
 
   # --- review fix (site-static) --- the browser smoke test (scripts/smoke-test.mjs: base path, 404, every page and mode,
   # recording...) gates every deploy. Feature-branch pushes skip it and stay fast; .github/workflows/smoke.yml runs it on pull
@@ -223,13 +228,16 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:3000/smoke/en/ > /dev/null && break; sleep 1; done
           npm run smoke
 
+      # --- artifact-quota --- screenshots are for looking at, not a result: a day's retention, and a full storage quota does not fail the shard
       - name: Upload screenshots
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: smoke-screenshots-${{ matrix.shard }}
           path: smoke-output/shard-${{ matrix.shard }}
           if-no-files-found: ignore
+          retention-days: 1
 
   # --- smoke-sharding --- The four shards' screenshots in one artifact (smoke-screenshots, a folder per shard), their slowest blocks
   # merged (and checked: every block of the suite ran in exactly one shard), and the gate: it fails unless every shard passed.
@@ -265,11 +273,13 @@ jobs:
 
       - name: Upload the merged screenshots
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: smoke-screenshots
           path: smoke-screenshots
           if-no-files-found: ignore
+          retention-days: 1
 
       # The verdict the deploy waits for (scripts/smoke/verdict.mjs): every shard passed and every block of the suite ran in exactly
       # one of them. A run a newer push superseded (its build cancelled before the shards, or its shards cancelled while a newer

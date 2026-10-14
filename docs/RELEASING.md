@@ -125,7 +125,10 @@ and when that worked, add the repository variable `BILLING_AUTODEPLOY` with the 
 - **Is it really live?** A green run and the commit named in <https://jumpingballslive.com/version.json> are the proof. If the
   run is green but `version.json` still names an older commit, the domain is serving another deployment (see "Roll back").
 
-The browser test saves screenshots: open the run, scroll to **Artifacts** and download `smoke-screenshots`.
+The browser test saves screenshots: open the run, scroll to **Artifacts** and download `smoke-screenshots` (kept for one day: a private
+repository has a small storage quota for Actions artifacts, and a full quota only costs the screenshots, not the result of the run).
+If a run fails with "Artifact storage quota has been hit", old artifacts fill it: GitHub → the repository → **Actions** → open an old
+run → delete its artifacts (or the run itself); GitHub recalculates the usage every 6 to 12 hours.
 
 ## Roll back
 

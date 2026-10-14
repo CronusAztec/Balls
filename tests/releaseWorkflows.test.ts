@@ -40,6 +40,20 @@ describe("deploy.yml: the website", () => {
     expect(deploy).not.toContain("default_branch");
   });
 
+  it("keeps every artifact for a day and never lets a full Actions storage quota fail a job (the VPS deployer reads the build job)", () => {
+    // A private repository has a small artifact quota. When it was full, the last step of `build` (the site upload) failed and the
+    // VPS deployer saw a red build for a commit whose lint, types, tests and build had all passed.
+    for (const file of [".github/workflows/deploy.yml", ".github/workflows/smoke.yml"]) {
+      const steps = read(file).split("\n      - name: ").slice(1).filter((s) => s.includes("actions/upload-artifact@"));
+      expect(steps.length, file).toBeGreaterThan(0);
+      for (const step of steps) {
+        const name = step.split("\n")[0];
+        expect(step, `${file}: ${name}`).toContain("        continue-on-error: true\n");
+        expect(step, `${file}: ${name}`).toContain("          retention-days: 1\n");
+      }
+    }
+  });
+
   it("lints and type-checks every push, and runs the unit tests, the build and the upload only where it deploys", () => {
     const build = jobSection(deploy, "build");
     // a private repository has 2,000 free Actions minutes a month: a feature branch costs the lint and the type check only

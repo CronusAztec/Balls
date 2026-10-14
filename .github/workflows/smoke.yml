@@ -59,13 +59,16 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://localhost:3000/smoke/en/ > /dev/null && break; sleep 1; done
           npm run smoke
 
+      # --- artifact-quota --- screenshots are for looking at, not a result: a day's retention, and a full storage quota does not fail the shard
       - name: Upload screenshots
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: smoke-screenshots-${{ matrix.shard }}
           path: smoke-output/shard-${{ matrix.shard }}
           if-no-files-found: ignore
+          retention-days: 1
 
   # --- smoke-sharding --- The four shards' screenshots in one artifact (smoke-screenshots, a folder per shard), their slowest blocks
   # merged (and checked: every block of the suite ran in exactly one shard), and the verdict: it fails unless every shard passed.
@@ -97,11 +100,13 @@ jobs:
 
       - name: Upload the merged screenshots
         if: always()
+        continue-on-error: true
         uses: actions/upload-artifact@v6
         with:
           name: smoke-screenshots
           path: smoke-screenshots
           if-no-files-found: ignore
+          retention-days: 1
 
       - name: Every shard passed
         if: always()
