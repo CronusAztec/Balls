@@ -9799,6 +9799,10 @@ await smokeBlock("review-fix-site-redesign", async () => {
     const p = await desk.newPage();
     watchSr(p);
     await p.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
+    // The page goes quiet before it has hydrated now that nothing is prefetched in the background (--- perf ---): wait until React
+    // owns the studio, so that the first Ctrl+K reaches its key handler (a key pressed earlier is lost and the palette never opens).
+    await p.waitForFunction(() => { const el = document.querySelector('[data-testid="stage-strip"]'); return !!el && Object.keys(el).some((k) => k.startsWith("__reactFiber$")); }, null, { timeout: 15000 });
+    await p.waitForTimeout(300);
 
     // 1. The palette in Classic with Show Advanced Options off: one Gravity is offered (not Bouncing Shapes' too), Ball Drop's
     // Gravity Variation is not; Enter shows the slider (through the search box) with the focus on it; the next rail click
