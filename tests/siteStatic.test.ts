@@ -143,13 +143,16 @@ describe("sitemap", () => {
     expect(new Set(entries.map((e) => e.url)).size).toBe(entries.length);
   });
 
-  it("stamps the deployed commit's date, never the build time", () => {
+  it("stamps the deployed commit's date, never the build time (the pages that carry a date of their own keep it: tests/seo.test.ts)", () => {
+    // --- seo --- the changelog, the download page and the legal pages state when they changed; every other page takes the deploy date
+    const withoutOwnDate = () => sitemap().filter((e) => !/\/(changelog|download|privacy|terms|disclaimer)\/$/.test(e.url));
+    expect(withoutOwnDate().length).toBeGreaterThan(20);
     vi.stubEnv("SITEMAP_LASTMOD", "");
-    expect(sitemap().every((e) => e.lastModified === undefined)).toBe(true);
+    expect(withoutOwnDate().every((e) => e.lastModified === undefined)).toBe(true);
     vi.stubEnv("SITEMAP_LASTMOD", "2026-09-30T12:34:56+02:00");
-    expect(sitemap().every((e) => e.lastModified === "2026-09-30T12:34:56+02:00")).toBe(true);
+    expect(withoutOwnDate().every((e) => e.lastModified === "2026-09-30T12:34:56+02:00")).toBe(true);
     vi.stubEnv("SITEMAP_LASTMOD", "not a date");
-    expect(sitemap().every((e) => e.lastModified === undefined)).toBe(true);
+    expect(withoutOwnDate().every((e) => e.lastModified === undefined)).toBe(true);
   });
 });
 

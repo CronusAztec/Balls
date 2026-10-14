@@ -22,6 +22,9 @@ import {
   todaysChallenge,
   utcDateKey,
 } from "@/lib/daily";
+import { dailyChallengeCore, dailyKeyFromParam, dailyPoolEntry, todaysChallengeCore } from "@/lib/dailyCore"; // --- daily-core ---
+import * as dailyCore from "@/lib/dailyCore";
+import * as daily from "@/lib/daily";
 import { PhysicsEngine } from "@/lib/physics/engine";
 import { MODE_IDS } from "@/lib/physics/types";
 import { settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
@@ -231,3 +234,38 @@ const DAILY_FIXTURE: { date: string; seed: number; mode: string; number: number 
   { date: "2026-10-15", seed: 1912929479, mode: "race", number: 16 },
   { date: "2027-01-08", seed: 858940638, mode: "shatter", number: 101 },
 ];
+
+// --- daily-core --- the landing page's card imports lib/dailyCore (no settings); lib/daily is the same plus the settings query
+describe("daily challenge: the settings-free core", () => {
+  it("is what lib/daily is made of: every core name is re-exported, and the challenge is the core's plus its query", () => {
+    for (const name of Object.keys(dailyCore)) expect((daily as Record<string, unknown>)[name]).toBe((dailyCore as Record<string, unknown>)[name]);
+    let day = DAILY_EPOCH;
+    for (let i = 0; i < 3 * DAILY_POOL.length; i++) {
+      const full = dailyChallenge(day);
+      const core = dailyChallengeCore(day);
+      expect(core).toEqual({ date: day, number: i + 1, seed: dailySeed(day), mode: DAILY_POOL[dailyPoolIndex(i)].mode });
+      expect(Object.keys(full)).toEqual([...Object.keys(core), "query"]);
+      expect({ date: full.date, number: full.number, seed: full.seed, mode: full.mode }).toEqual(core);
+      expect(full.query).toBe(poolEntryQuery(dailyPoolEntry(day)));
+      day = addDays(day, 1);
+    }
+    const now = new Date("2026-10-14T12:00:00Z");
+    expect(todaysChallengeCore(now)).toEqual(dailyChallengeCore("2026-10-14"));
+    expect(pick(todaysChallenge(now))).toEqual(pick(todaysChallengeCore(now)));
+    expect(() => dailyChallengeCore("2026-02-30")).toThrow(/not a date key/);
+    expect(() => dailyPoolEntry("nope")).toThrow(/not a date key/);
+  });
+
+  it("opens the same links as before: dailyFromParam is dailyKeyFromParam plus the challenge", () => {
+    const now = new Date("2026-10-14T12:00:00Z");
+    const values: (string | null | undefined)[] = ["1", "today", "TRUE", " true ", "2026-09-30", "2026-10-15", "2026-10-16", "2026-09-29", "2026-02-30", "yesterday", "", null, undefined, "0"];
+    for (const value of values) {
+      const key = dailyKeyFromParam(value, now);
+      expect(dailyFromParam(value, now)).toEqual(key === null ? null : dailyChallenge(key));
+    }
+    expect(dailyKeyFromParam("1", now)).toBe("2026-10-14");
+    expect(dailyKeyFromParam("2026-10-15", now)).toBe("2026-10-15");
+    expect(dailyKeyFromParam("2026-10-16", now)).toBeNull();
+    expect(dailyKeyFromParam("2026-09-29", now)).toBeNull();
+  });
+});

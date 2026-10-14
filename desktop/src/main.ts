@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, Notification, Tray, dialog, ipcMain, nativeImage, net, protocol, safeStorage, screen, session, shell, type MenuItemConstructorOptions } from "electron";
+import { app, BrowserWindow, Menu, Notification, Tray, clipboard, dialog, ipcMain, nativeImage, net, protocol, safeStorage, screen, session, shell, type MenuItemConstructorOptions } from "electron";
 import fs from "fs/promises";
 import { existsSync, statSync } from "fs";
 import path from "path";
@@ -33,6 +33,9 @@ import { describeError } from "@/lib/desktop/errors";
 import { networkDeps } from "./net";
 import { mirrorConsole } from "./consoleMirror";
 import { runAiDiagnostics, type DiagnosticsDeps } from "./ai/diagnostics";
+// --- build-identity --- the window title, Help > About (Copy details, What's new), the website build read from the site's version.json
+import { ABOUT_LABELS_EN, aboutLines, aboutText, installKind, updatesMode, type AboutFacts } from "@/lib/desktop/aboutText";
+import { APP_TITLE, aboutAnswer, aboutButtons, aboutLabelsOf, changelogUrl, readSiteStamp, siteLabel, smokeIdentity, trayTip, windowTitle } from "./about";
 
 /*
  * --- desktop-exe --- The Windows app's main process: the whole simulator (the site's static export on app://), GPU video
@@ -75,7 +78,12 @@ if (!gotLock) {
 function start() {
   const locations = appLocations({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, appPath: app.getAppPath(), userData: app.getPath("userData"), portableDir });
   const logger = new Logger(locations.logsDir);
-  logger.info(`start ${app.getName()} ${app.getVersion()} electron ${process.versions.electron} site ${locations.siteRoot}${SAFE_MODE ? " (safe mode)" : ""}`);
+  // --- build-identity --- the website build inside this app (the site export's version.json; null when it has none)
+  const siteStamp = readSiteStamp(locations.siteRoot);
+  logger.info(
+    `start ${app.getName()} ${app.getVersion()} electron ${process.versions.electron} site ${locations.siteRoot}${SAFE_MODE ? " (safe mode)" : ""}${portableDir ? " (portable)" : ""} ` +
+      `website build ${siteStamp ? [siteStamp.build, siteStamp.commitDate].filter(Boolean).join(" ") : "unknown"}`,
+  );
   process.on("uncaughtException", (err) => logger.error(`uncaught: ${err.stack ?? err.message}`));
   process.on("unhandledRejection", (err) => logger.error(`unhandled rejection: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`));
   mirrorConsole(console, (level, message) => logger.write(level, message)); // --- desktop-ai-fix --- node-llama-cpp's backend choice and fallbacks
@@ -222,6 +230,8 @@ function start() {
     dataDir: locations.dataDir,
     logFile: logger.file,
     smoke: SMOKE,
+    portable: portableDir !== null, // --- build-identity ---
+    safeMode: SAFE_MODE,
   });
 
   /* ---------------------------------------------------------------- --- desktop-ai-fix --- the AI status panel */
@@ -246,7 +256,7 @@ function start() {
     nodeFetch: globalThis.fetch,
     appFetch: http.aiFetch,
     facts: () => ({
-      app: { name: app.getName(), version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node, packaged: app.isPackaged, portable: portableDir !== null, safeMode: SAFE_MODE, dataDir: withoutHome(locations.dataDir) },
+      app: { name: app.getName(), version: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, node: process.versions.node, packaged: app.isPackaged, portable: portableDir !== null, safeMode: SAFE_MODE, dataDir: withoutHome(locations.dataDir), site: siteStamp ? { build: siteStamp.build, commit: siteStamp.commit, commitDate: siteStamp.commitDate } : null /* --- build-identity --- */ },
       os: { platform: process.platform, arch: process.arch, type: os.type(), release: os.release(), version: typeof os.version === "function" ? os.version() : "", cpus: `${os.cpus().length} × ${os.cpus()[0]?.model ?? "?"}`, ram: `${gbText(os.freemem())} free of ${gbText(os.totalmem())}` },
     }),
     gpu: async () => (await gpuStatus()).devices.map((d) => ({ name: d.name, vendor: d.vendor, driver: d.driver, active: d.active })),
@@ -368,6 +378,43 @@ function start() {
     }
     send(DESKTOP_EVENTS.menu, action);
   };
+  // --- build-identity --- Help > About: the app version and how it is installed, the website build inside it, Electron, updates, data
+  // and log folders. "Copy details" puts the same lines (English, the Windows user name hidden) on the clipboard and the dialog
+  // comes back saying "Copied"; "What's new" opens the changelog page; Close (or Escape) ends it.
+  const aboutFacts = (): AboutFacts => ({
+    name: APP_TITLE,
+    version: app.getVersion(),
+    install: installKind({ packaged: app.isPackaged, portable: portableDir !== null }),
+    arch: process.arch,
+    safeMode: SAFE_MODE,
+    siteLabel: siteLabel(siteStamp),
+    electron: process.versions.electron,
+    chrome: process.versions.chrome,
+    node: process.versions.node,
+    updates: updatesMode({ packaged: app.isPackaged, portable: portableDir !== null, autoUpdate: prefs().autoUpdate }),
+    dataDir: locations.dataDir,
+    logFile: logger.file,
+  });
+  const showAbout = async () => {
+    const facts = aboutFacts();
+    const language = menuLanguage(app.getLocale());
+    let copied = false;
+    for (;;) {
+      const options = { type: "info" as const, title: APP_TITLE, message: `${facts.name} ${facts.version}`, detail: aboutLines(facts, aboutLabelsOf(labels)).join("\n"), buttons: aboutButtons(labels, copied), defaultId: 2, cancelId: 2, noLink: true };
+      const answer = aboutAnswer((win && !win.isDestroyed() ? await dialog.showMessageBox(win, options) : await dialog.showMessageBox(options)).response);
+      if (answer === "copy") {
+        try {
+          clipboard.writeText(aboutText(facts, ABOUT_LABELS_EN, { redact: true }));
+          copied = true;
+        } catch (err) {
+          logger.warn(`about: copying the details failed: ${describeError(err)}`);
+        }
+        continue;
+      }
+      if (answer === "whats-new") await shell.openExternal(changelogUrl(SITE_URL, language));
+      return;
+    }
+  };
   const runCommand = async (command: string) => {
     switch (command) {
       case "output-folder": {
@@ -388,8 +435,11 @@ function start() {
       case "download-page":
         await shell.openExternal(`${SITE_URL}/en/download/`); // --- desktop-autorelease ---
         return;
+      case "changelog":
+        await shell.openExternal(changelogUrl(SITE_URL, menuLanguage(app.getLocale()))); // --- build-identity --- what changed, on the public site
+        return;
       case "about":
-        await dialog.showMessageBox({ type: "info", title: "JumpingBallsLive", message: `JumpingBallsLive ${app.getVersion()}`, detail: `Electron ${process.versions.electron} · Chromium ${process.versions.chrome}\n${locations.dataDir}` });
+        await showAbout();
         return;
       case "reload":
         win?.webContents.reload();
@@ -425,7 +475,7 @@ function start() {
       const image = nativeImage.createFromPath(iconPath);
       if (image.isEmpty()) return;
       tray = new Tray(image.resize({ width: 16, height: 16 }));
-      tray.setToolTip(labels.trayTip);
+      tray.setToolTip(trayTip(labels.trayTip, app.getVersion())); // --- build-identity --- "JumpingBallsLive 1.3.0"
       tray.setContextMenu(
         Menu.buildFromTemplate([
           { label: labels.show, click: () => (win ? (win.show(), win.focus()) : createWindow()) },
@@ -456,6 +506,8 @@ function start() {
   function createWindow() {
     const displays = screen.getAllDisplays().map((d) => d.workArea);
     const state = restoreWindowState(store.get("window"), displays, screen.getPrimaryDisplay().workArea);
+    // --- build-identity --- the title bar and the taskbar say which build runs ("JumpingBallsLive 1.3.0 · portable"), not the page's <title>
+    const title = windowTitle({ version: app.getVersion(), portable: portableDir !== null, safeMode: SAFE_MODE }, { portable: labels.aboutPortable, safeMode: labels.aboutSafeMode });
     win = new BrowserWindow({
       x: state.x,
       y: state.y,
@@ -464,7 +516,7 @@ function start() {
       minWidth: 800,
       minHeight: 600,
       show: false,
-      title: "JumpingBallsLive",
+      title,
       backgroundColor: "#020617",
       icon: existsSync(iconPath) ? iconPath : undefined,
       webPreferences: {
@@ -478,6 +530,10 @@ function start() {
       },
     });
     if (state.maximized) win.maximize();
+    win.on("page-title-updated", (event) => {
+      event.preventDefault(); // --- build-identity --- keep the app's title (the page's <title> is for browsers and search results)
+      if (win && !win.isDestroyed() && win.getTitle() !== title) win.setTitle(title);
+    });
     win.once("ready-to-show", () => win?.show());
     let saveTimer: ReturnType<typeof setTimeout> | undefined;
     const saveState = () => {
@@ -609,6 +665,17 @@ function start() {
       out.localAi = llama;
       if (!llama.ok) ok = false;
       out.update = updater.status;
+      // --- build-identity --- which build this is: the app, the title it shows, the website build in its site export. A PACKAGED run
+      // fails without a readable version.json, so the pipeline can never ship an EXE whose website build cannot be told.
+      out.appVersion = app.getVersion();
+      out.windowTitle = win && !win.isDestroyed() ? win.getTitle() : null;
+      out.siteBuild = siteStamp;
+      const identity = smokeIdentity({ packaged: app.isPackaged, stamp: siteStamp, appVersion: app.getVersion() });
+      if (identity.note) {
+        logger.warn(`smoke: ${identity.note}`);
+        out[identity.ok ? "identityNote" : "identityError"] = identity.note;
+      }
+      if (!identity.ok) ok = false;
       // --- desktop-ai-fix --- the AI status panel's checks answer in the package (quick: no network, no model load)
       const diagnosis = await runAiDiagnostics(diagnosticsDeps, { deep: false });
       out.aiDiagnose = diagnosis.checks.map((c) => `${c.id}:${c.level}:${c.code}`);

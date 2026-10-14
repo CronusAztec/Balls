@@ -1,9 +1,9 @@
 {
   "name": "jumpingballslive",
-  "version": "1.0.0",
+  "version": "1.10.0",
   "private": true,
   "license": "UNLICENSED",
-  "description": "JumpingBallsLive \u2013 free browser-based ball physics simulator for TikTok, Reels and Shorts, exported as a static site for GitHub Pages",
+  "description": "JumpingBallsLive – free browser-based ball physics simulator for TikTok, Reels and Shorts, exported as a static site for GitHub Pages",
   "scripts": {
     "dev": "next dev",
     "build": "next build && node scripts/postexport.mjs",
@@ -14,10 +14,14 @@
     "test:ci": "node scripts/test-ci.mjs",
     "smoke": "node scripts/smoke-test.mjs",
     "previews": "node scripts/generate-mode-previews.mjs",
+    "og:cards": "node scripts/generate-og-cards.mjs",
     "bot": "node scripts/viral-bot.mjs",
     "go-live": "node scripts/go-live.mjs",
     "go-live:check": "node scripts/go-live-check.mjs",
-    "release:desktop": "node scripts/release/desktop-version.mjs"
+    "launch:check": "node scripts/launch-check.mjs",
+    "release:desktop": "node scripts/release/desktop-version.mjs",
+    "changelog": "node scripts/changelog.mjs --write",
+    "changelog:check": "node scripts/changelog.mjs --check"
   },
   "dependencies": {
     "mp4-muxer": "^5.2.2",

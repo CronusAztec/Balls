@@ -19,11 +19,11 @@
   },
   "SimulatorPage": {
     "heading": "Symulator fizyki piłki",
-    "metaTitle": "Symulator fizyki piłki na TikToka i Reels – {siteName}",
+    "metaTitle": "Symulator fizyki piłki z {count} trybami – {siteName}",
     "metaDescription": "Symulator fizyki piłki z {count} trybami. Zabawa i eksport za darmo, bez rejestracji i instalacji. Pionowe MP4 na TikToka. Pro usuwa znak wodny."
   },
   "Layout": {
-    "metaTitle": "Satysfakcjonujący symulator fizyki piłki na TikToka i Reels – {siteName}",
+    "metaTitle": "Satysfakcjonujący symulator fizyki piłki – {siteName}",
     "metaDescription": "Symulator fizyki piłki w przeglądarce z {count} trybami, za darmo i bez rejestracji. Eksportuj filmy MP4 na TikToka, Reels i Shorts. Pro usuwa znak wodny.",
     "browserRequirements": "Wymaga nowoczesnej przeglądarki z włączonym JavaScriptem",
     "featuresModes": "{count, plural, one {# tryb symulacji} few {# tryby symulacji} many {# trybów symulacji} other {# trybu symulacji}}",
@@ -2567,7 +2567,7 @@
   "FAQ": {
     "q1": {
       "question": "Czy {siteName} jest darmowy?",
-      "answer": "Tak. Każdy tryb, każde ustawienie i nagrywanie są darmowe, bez konta. Darmowe filmy mają mały znak wodny, a Pro usuwa go za 6,99 $ miesięcznie lub 49 $ rocznie."
+      "answer": "Tak. Każdy tryb, każde ustawienie i nagrywanie są darmowe, bez konta. Darmowe filmy mają mały znak wodny, a Pro usuwa go za {monthly} miesięcznie lub {yearly} rocznie."
     },
     "q2": {
       "question": "Jakie formaty i rozmiary filmów mogę eksportować?",
@@ -2575,7 +2575,7 @@
     },
     "q3": {
       "question": "Czy mogę używać filmów komercyjnie?",
-      "answer": "Tak. Wszystko, co stworzysz, należy do Ciebie. Publikuj, gdzie chcesz, bez podawania źródła."
+      "answer": "Tak. Wszystko, co stworzysz, należy do Ciebie i możesz to publikować, gdzie chcesz, bez podawania źródła. Nazwy postaci w Fight League należą do ich właścicieli."
     },
     "q4": {
       "question": "Czy muszę coś instalować?",
@@ -2610,7 +2610,7 @@
     "tipTextHooksTitle": "Dodaj haczyk",
     "tipTextHooksBody": "Napis u góry w stylu „Czy ucieknie?” daje widzom powód, by zostać. Zadbaj, by był czytelny na telefonie.",
     "tipClipLengthTitle": "Niech będzie krótko",
-    "tipClipLengthBody": "Na TikToku i Reels najlepiej działa od 15 do 30 sekund. Ustaw długość w sekcji Nagrywanie i wybierz 1080×1920.",
+    "tipClipLengthBody": "Krótkie klipy po 15–30 sekund to dobry początek. Ustaw długość w sekcji Nagrywanie i wybierz 1080×1920.",
     "tipSpeedTitle": "Szybki podgląd, nagrywanie przy 1×",
     "tipSpeedBody": "Przy ustawianiu przewijaj długi przebieg z prędkością od 2× do 8×. Przed nagraniem wróć do 1×.",
     "troubleBadge": "Pomoc",
@@ -2639,7 +2639,12 @@
     "shortcuts": "Skróty klawiszowe",
     "pauseResume": "Pauza/Wznów",
     "restart": "Restart",
-    "pricing": "Cennik"
+    "pricing": "Cennik",
+    "changelog": "Dziennik zmian",
+    "press": "Dla prasy",
+    "operatedBy": "Serwis prowadzi {name}",
+    "buildTip": "Kompilacja {commit} · {date}. Zobacz, co się zmieniło.",
+    "buildTipDev": "Kompilacja lokalna. Zobacz, co się zmieniło."
   },
   "NotFound": {
     "title": "Nie znaleziono strony",
@@ -2651,95 +2656,164 @@
     "title": "Polityka prywatności",
     "lastUpdated": "Ostatnia aktualizacja",
     "metaTitle": "Polityka prywatności – {siteName}",
-    "metaDescription": "Polityka prywatności serwisu {siteDomain}",
+    "metaDescription": "Jak {siteName} traktuje Twoje dane. Co zostaje w przeglądarce, co jest wysyłane przy publikowaniu lub płatności i jakiej pamięci używa strona.",
     "introduction": {
-      "title": "1. Wprowadzenie",
-      "content": "Witamy w serwisie {siteDomain} („my”, „nasz”). Szanujemy Twoją prywatność i ograniczamy ilość informacji związanych z korzystaniem z tej strony do minimum. Ta polityka wyjaśnia, co jest zbierane, jak jest wykorzystywane i jakie masz prawa."
+      "title": "Wprowadzenie",
+      "content": "Witamy w serwisie {siteDomain} („my”, „nasz”). Szanujemy Twoją prywatność i ograniczamy ilość informacji związanych z korzystaniem z tej strony do minimum. Ta polityka dotyczy strony internetowej i aplikacji na Windows. Wyjaśnia, co jest zbierane, jak jest wykorzystywane i jakie masz prawa."
     },
     "information": {
-      "title": "2. Jakie informacje zbieramy",
+      "title": "Jakie informacje zbieramy",
       "subtitle": "Zbieramy minimum niezbędne do działania i ulepszania serwisu:",
       "analytics": {
-        "label": "Dane analityczne:",
-        "content": "Jeśli analityka jest włączona, korzystamy z usługi dbającej o prywatność, która rejestruje anonimowe statystyki, takie jak wyświetlenia stron, typ przeglądarki, rozmiar ekranu i przybliżony region. Nie identyfikuje ona Ciebie osobiście."
+        "label": "Statystyki odwiedzin:",
+        "content": "Na stronie internetowej liczymy odwiedziny za pomocą Cloudflare Web Analytics. Raportuje on otwartą stronę, serwis, z którego przychodzisz, Twój kraj, typ urządzenia, przeglądarkę i system operacyjny. Cloudflare zapewnia, że nie używa do tego plików cookie ani pamięci lokalnej i nie śledzi ludzi między stronami."
       },
       "localStorage": {
         "label": "Dane w pamięci lokalnej:",
-        "content": "Ustawienia symulatora i presety są przechowywane w pamięci lokalnej przeglądarki. Nigdy nie opuszczają Twojego urządzenia i nie są wysyłane na nasze serwery."
+        "content": "Ustawienia i presety są przechowywane w pamięci lokalnej przeglądarki na Twoim urządzeniu i nie są wysyłane na nasze serwery. W tym samym miejscu znajdują się licencja Pro oraz, jeśli z nich korzystasz, logowanie do konta i połączenia do publikowania. Trafiają one tylko do usługi, do której należą, jak opisano niżej."
       },
       "images": {
         "label": "Wgrane obrazki i dźwięki:",
-        "content": "Własne obrazki piłki, pliki MIDI i klipy dźwiękowe są przetwarzane wyłącznie w przeglądarce. Nic nie jest wgrywane, przechowywane ani przesyłane."
+        "content": "Własne obrazki piłki, pliki MIDI i klipy dźwiękowe są przetwarzane wyłącznie w przeglądarce. Nie są wgrywane. Klip, który z nich zrobisz, opuszcza Twoje urządzenie tylko wtedy, gdy go opublikujesz."
+      },
+      "events": {
+        "label": "Liczenie działań:",
+        "content": "Liczymy też kilka działań, takich jak uruchomienie symulatora, eksport klipu czy otwarcie płatności, za pomocą usługi statystycznej pod adresem {host}. Zapisuje ona stronę, nazwę kampanii z linku, serwis, z którego przychodzisz, przeglądarkę, rozmiar ekranu i kraj. Nigdy nie dostaje Twojego e-maila, ustawień ani tego, co tworzysz. Nie działa, gdy przeglądarka wysyła sygnał Do Not Track lub Global Privacy Control, ani w aplikacji na Windows."
+      },
+      "account": {
+        "label": "Dane konta:",
+        "content": "Jeśli założysz konto, serwer relay przechowuje Twój adres e-mail, podane imię i hash hasła z solą. Zobacz Publikowanie poniżej."
+      },
+      "payment": {
+        "label": "Dane płatności:",
+        "content": "Jeśli kupisz Pro, nasz serwer rozliczeń przechowuje Twój e-mail, plan i identyfikator płatności u dostawcy. Zobacz Płatności poniżej."
       }
     },
     "howWeUse": {
-      "title": "3. Jak wykorzystujemy informacje",
-      "content": "Dane analityczne służą wyłącznie do zrozumienia, jak używana jest strona, abyśmy mogli ją ulepszać. Nie sprzedajemy, nie udostępniamy ani nie przekazujemy zebranych danych podmiotom trzecim w celach marketingowych."
+      "title": "Jak wykorzystujemy informacje",
+      "content": "Statystyki odwiedzin pokazują nam, jak używana jest strona, abyśmy mogli ją ulepszać. E-mail i identyfikator płatności służą do wydawania, odnawiania i przywracania Twojej licencji Pro. Nie sprzedajemy Twoich danych i nie udostępniamy ich sieciom reklamowym."
     },
     "cookies": {
-      "title": "4. Pliki cookie i śledzenie",
-      "content": "Możemy używać minimalnej liczby plików cookie lub podobnych technologii do celów analitycznych i zapamiętania języka. Nie śledzą Cię one na innych stronach i nie zbierają danych osobowych."
+      "title": "Pliki cookie i śledzenie",
+      "content": "Ta strona nie ustawia plików cookie. Język jest częścią adresu strony, a ustawienia zostają w pamięci lokalnej przeglądarki. Strony płatności Stripe i NOWPayments oraz strony logowania TikToka, Instagrama i Google należą do tych firm i mogą ustawiać własne pliki cookie."
     },
     "thirdParty": {
-      "title": "5. Usługi podmiotów trzecich",
-      "content": "Zewnętrzne usługi analityczne, jeśli są włączone, mogą zbierać anonimowe dane o użytkowaniu zgodnie z własną polityką prywatności."
+      "title": "Usługi podmiotów trzecich",
+      "intro": "Te firmy przetwarzają dane dla nas lub dla Ciebie. Każda robi to zgodnie z własną polityką prywatności.",
+      "cloudflare": {
+        "name": "Cloudflare",
+        "use": "obsługuje stronę, liczy odwiedziny i prowadzi serwer rozliczeń. Jako gospodarz serwera widzi Twój adres IP, gdy ładujesz stronę."
+      },
+      "stripe": {
+        "name": "Stripe",
+        "use": "przyjmuje płatności kartą na własnej stronie płatności."
+      },
+      "nowpayments": {
+        "name": "NOWPayments",
+        "use": "przyjmuje płatności kryptowalutą na własnej stronie płatności."
+      },
+      "google": {
+        "name": "Google",
+        "use": "otrzymuje klip, gdy publikujesz go na YouTube."
+      },
+      "github": {
+        "name": "GitHub",
+        "use": "przechowuje instalatory aplikacji na Windows i pliki aktualizacji."
+      },
+      "huggingface": {
+        "name": "Hugging Face",
+        "use": "przechowuje modele AI, które aplikacja na Windows pobiera na Twoją prośbę."
+      }
     },
     "retention": {
-      "title": "6. Przechowywanie danych",
-      "content": "Dane analityczne są przechowywane wyłącznie w formie zagregowanej. Poza danymi rozliczeniowymi zakupu Pro (zobacz Płatności poniżej) nie zbieramy danych osobowych. Dane w pamięci lokalnej możesz w każdej chwili wyczyścić w ustawieniach przeglądarki."
+      "title": "Przechowywanie danych",
+      "content": "Dane w pamięci lokalnej zostają na Twoim urządzeniu, dopóki nie wyczyścisz ich w ustawieniach przeglądarki. Statystyki odwiedzin przechowują usługi, które je tworzą, zgodnie z własnymi zasadami. Serwer rozliczeń trzyma Twój e-mail, plan i identyfikator dostawcy tak długo, jak można przywrócić Twoją licencję i jak wymagają tego przepisy rachunkowe. Konto na serwerze relay jest przechowywane, dopóki nie usuniesz go na stronie Konto, a klip wgrany na relay jest usuwany po 24 godzinach."
     },
     "children": {
-      "title": "7. Prywatność dzieci",
+      "title": "Prywatność dzieci",
       "content": "Serwis nie jest skierowany do dzieci poniżej 13. roku życia i świadomie nie zbieramy od nich danych osobowych."
     },
     "changes": {
-      "title": "8. Zmiany w polityce",
+      "title": "Zmiany w polityce",
       "content": "Możemy od czasu do czasu aktualizować tę politykę. Zmiany pojawią się na tej stronie wraz ze zaktualizowaną datą."
     },
-    "adsenseNotice": {
-      "title": "9. Reklamy",
-      "line1": "Możemy wyświetlać reklamy za pośrednictwem zewnętrznej usługi reklamowej, np. Google AdSense. Takie usługi używają plików cookie do wyświetlania dopasowanych reklam na podstawie Twojej aktywności i zbierają dane nieosobowe, takie jak typ przeglądarki i odwiedzone strony.",
-      "line2": "Więcej dowiesz się w",
-      "privacyLink": "Polityce prywatności Google",
-      "line3": "oraz",
-      "termsLink": "Warunkach korzystania z usług Google",
-      "line4": ". Z reklam spersonalizowanych możesz zrezygnować w",
-      "optOutLink": "Ustawieniach reklam",
-      "line5": "."
-    },
     "consent": {
-      "title": "10. Zgoda na pliki cookie",
-      "content": "Tam, gdzie wymaga tego prawo, zostaniesz poproszony o zgodę na nieistotne pliki cookie, zanim zostaną ustawione. Wybór możesz zmienić w każdej chwili w ustawieniach przeglądarki."
+      "title": "Zgoda",
+      "content": "Strona nie ustawia plików cookie i nie ładuje znaczników reklamowych, więc nie pokazuje banera cookie. Jeśli dodamy coś, co wymaga Twojej zgody, zapytamy o nią, zanim to ruszy."
     },
     "contact": {
-      "title": "11. Kontakt",
+      "title": "Kontakt",
       "content": "Masz pytania dotyczące tej polityki? Skontaktuj się z nami przez",
       "feedbackLink": "formularz opinii"
     },
     "publishing": {
-      "title": "12. Publikowanie na TikToku, Instagramie i YouTube",
-      "content": "Blok Publikuj w symulatorze wysyła klip tylko wtedy, gdy klikniesz przycisk wysyłania lub udostępniania. Szybkie udostępnianie przekazuje plik do arkusza udostępniania urządzenia albo go pobiera. Wysyłka na YouTube idzie prosto z twojej przeglądarki do Google z tokenem dostępu przechowywanym w pamięci lokalnej przeglądarki (usunięcie konta w bloku go kasuje). TikTok, Instagram – i YouTube, jeśli wybierzesz – idą przez serwer relay. Logujesz się do niego kluczem dostępu od osoby, która go prowadzi, albo kontem założonym na stronie Konto. Dla konta relay przechowuje twój adres e-mail, podane imię, hash hasła z solą (nigdy samo hasło) i połączone kanały wraz z tokenami, dopóki nie usuniesz konta na tej stronie. Relay trzyma też każdy wysłany klip pod trudnym do odgadnięcia linkiem przez 24 godziny, aby platforma mogła go pobrać.",
+      "title": "Publikowanie na TikToku, Instagramie i YouTube",
+      "content": "Blok Publikuj w studiu wysyła klip tylko wtedy, gdy klikniesz przycisk wysyłania lub udostępniania. Szybkie udostępnianie przekazuje plik do arkusza udostępniania Twojego urządzenia albo go pobiera i niczego nam nie wysyła. Wysyłka na YouTube idzie z Twojej przeglądarki prosto do Google, z tokenem dostępu przechowywanym w pamięci lokalnej przeglądarki. Usunięcie konta w bloku kasuje token. Klipy wysyłane na TikToka i Instagram oraz, jeśli tak wybierzesz, na YouTube idą przez serwer relay. Logujesz się do niego kluczem dostępu od osoby, która go prowadzi, albo kontem założonym na stronie Konto.",
       "youtube1": "Wysyłka na YouTube korzysta z usług YouTube API: wysyłając, akceptujesz",
       "ytTermsLink": "Warunki korzystania z YouTube",
       "youtube2": ", a Google przetwarza dane zgodnie z",
       "googlePrivacyLink": "Polityką prywatności Google",
       "youtube3": ". Dostęp tej strony możesz w każdej chwili cofnąć w",
       "revokeLink": "ustawieniach dostępu aplikacji innych firm na koncie Google",
-      "youtube4": "."
+      "youtube4": ".",
+      "relay": "Dla konta relay przechowuje Twój adres e-mail, podane imię, hash hasła z solą, a nigdy samo hasło, oraz połączone kanały wraz z tokenami. Trzyma je, dopóki nie usuniesz konta na stronie Konto. Relay trzyma też każdy wysłany klip pod trudnym do odgadnięcia linkiem przez 24 godziny, aby platforma mogła go pobrać.",
+      "availability": "To, czy da się połączyć kanał, zależy od platform, które relay ma włączone. Strona Konto mówi, kiedy żadna nie jest włączona."
+    },
+    "controller": {
+      "title": "Kto odpowiada za dane",
+      "named": "{siteName} prowadzi {legalName}{address}.",
+      "unnamed": "{siteName} prowadzi operator serwisu {siteDomain}.",
+      "writeTo": "W sprawie swoich danych napisz na <mail>{email}</mail>.",
+      "useForm": "W sprawie swoich danych skorzystaj z <link>formularza opinii</link>."
+    },
+    "rights": {
+      "title": "Twoje prawa",
+      "content": "Możesz poprosić nas o kopię swoich danych, ich poprawienie lub usunięcie. Konto możesz usunąć sam na stronie Konto. Dane z pamięci lokalnej nigdy do nas nie trafiają, więc czyścisz je w przeglądarce. Jeśli mieszkasz w UE, w Wielkiej Brytanii lub w innym kraju z prawem o ochronie danych, możesz też złożyć skargę do organu ochrony danych.",
+      "requestEmail": "Aby złożyć prośbę, napisz na <mail>{email}</mail>.",
+      "requestForm": "Aby złożyć prośbę, skorzystaj z <link>formularza opinii</link>."
+    },
+    "advertising": {
+      "title": "Reklamy",
+      "content": "Na tej stronie nie wyświetlamy reklam. Reklamujemy {siteName} na innych platformach. Nie ładujemy pikseli ani znaczników reklamowych i nie przekazujemy sieciom reklamowym niczego o tym, co tu robisz.",
+      "campaign": "Link z naszej reklamy zawiera nazwę kampanii. Zapisuje ją usługa statystyczna pod adresem {host}, żebyśmy widzieli, które reklamy przyprowadzają odwiedzających."
+    },
+    "windowsApp": {
+      "title": "Aplikacja na Windows",
+      "intro": "Aplikacja na Windows uruchamia studio na Twoim komputerze. Nie wysyła nam danych o użyciu ani raportów o awariach. Klipy, biblioteka i ustawienia zostają na Twoim komputerze. Aplikacja łączy się z internetem tylko w tych sprawach:",
+      "updates": {
+        "label": "Aktualizacje:",
+        "content": "Jeśli aktualizacje automatyczne są włączone, zainstalowana aplikacja pyta GitHub o mały plik z numerem najnowszej wersji, wkrótce po uruchomieniu, a potem co cztery godziny. Gdy jest nowa wersja, pobiera z GitHub nowy instalator. Wersja przenośna tego nie sprawdza."
+      },
+      "licence": {
+        "label": "Licencja Pro:",
+        "content": "Gdy subskrypcja kartą ma się odnowić, aplikacja pyta serwer rozliczeń o odnowioną licencję. Wysyła Twój e-mail i numer z potwierdzenia."
+      },
+      "models": {
+        "label": "Modele AI:",
+        "content": "Model jest pobierany z Hugging Face tylko na Twoją prośbę. Przycisk Sprawdź też łączy się z Hugging Face, żeby przetestować połączenie."
+      },
+      "cloud": {
+        "label": "AI w chmurze:",
+        "content": "Jeśli wpiszesz klucz dostawcy w chmurze, aplikacja wysyła Twoje zapytania do tego dostawcy. Klucz jest zapisany w postaci zaszyfrowanej na Twoim komputerze i nie trafia nigdzie indziej."
+      },
+      "accounts": {
+        "label": "Konto i publikowanie:",
+        "content": "Logowanie i publikowanie korzystają z serwera relay i z platform, jak opisano wyżej."
+      }
     }
   },
   "Terms": {
     "title": "Regulamin",
     "lastUpdated": "Ostatnia aktualizacja",
     "metaTitle": "Regulamin – {siteName}",
-    "metaDescription": "Regulamin serwisu {siteDomain}",
+    "metaDescription": "Zasady korzystania z {siteName}. Twoje filmy, plany Free i Pro, płatności i zwroty oraz to, czego narzędzie nie obiecuje.",
     "acceptance": {
       "title": "1. Akceptacja regulaminu",
       "content": "Korzystając z serwisu {siteDomain} („Serwis”), akceptujesz niniejszy regulamin. Jeśli nie zgadzasz się z którymkolwiek jego punktem, nie korzystaj z Serwisu."
     },
     "description": {
       "title": "2. Opis usługi",
-      "content": "{siteName} to przeglądarkowe narzędzie do symulacji fizyki, służące do tworzenia animacji odbijającej się piłki, dostosowywania ich wyglądu i zachowania oraz eksportowania jako plików wideo. Korzystanie z symulatora i eksport filmów są darmowe; filmy wyeksportowane bez licencji Pro mają znak wodny (zob. Subskrypcje Pro). Serwis jest udostępniany „tak jak jest”, bez gwarancji dostępności ani ciągłości działania."
+      "content": "{siteName} to przeglądarkowe narzędzie do symulacji fizyki, służące do tworzenia animacji odbijającej się piłki, dostosowywania ich wyglądu i zachowania oraz eksportowania jako plików wideo. Korzystanie z symulatora i eksport filmów są darmowe, a filmy wyeksportowane bez licencji Pro mają znak wodny (zob. Subskrypcje Pro). Aplikacja na Windows jest częścią Serwisu i ten regulamin też jej dotyczy. Serwis jest udostępniany „tak jak jest”, bez gwarancji dostępności ani ciągłości działania."
     },
     "ugc": {
       "title": "3. Treści użytkowników",
@@ -2747,7 +2821,7 @@
       "item1": "Wgrywać własne obrazki, pliki MIDI i klipy dźwiękowe do swoich symulacji.",
       "item2": "Tworzyć i eksportować nagrania wideo symulacji.",
       "item3": "Zapisywać presety symulacji w pamięci lokalnej przeglądarki.",
-      "footer": "Zachowujesz pełne prawa do wszystkiego, co stworzysz w Serwisie, i możesz wykorzystywać wyeksportowane filmy w dowolnym celu, także komercyjnym, bez podawania źródła. Wzmianka o {siteDomain} jest zawsze mile widziana."
+      "footer": "Zachowujesz prawa do wszystkiego, co stworzysz w Serwisie, i możesz wykorzystywać wyeksportowane filmy w dowolnym celu, także komercyjnym, bez podawania źródła. Nie daje Ci to praw do nazw ani dzieł należących do innych, na przykład do nazw postaci w Fight League. Wzmianka o {siteDomain} jest zawsze mile widziana."
     },
     "acceptable": {
       "title": "4. Dozwolone użycie",
@@ -2759,7 +2833,7 @@
     },
     "intellectual": {
       "title": "5. Własność intelektualna",
-      "content": "Serwis, w tym jego kod, projekt i branding, należy do operatora serwisu {siteName}. Filmy i obrazy, które tworzysz za jego pomocą, należą do Ciebie."
+      "content": "Serwis, w tym jego kod, projekt i branding, należy do operatora serwisu {siteName}. Filmy i obrazy, które tworzysz za jego pomocą, należą do Ciebie. Nazwy postaci i serii, które pojawiają się w Fight League, należą do ich właścicieli, jak wyjaśnia strona Zastrzeżenia."
     },
     "warranties": {
       "title": "6. Wyłączenie gwarancji",
@@ -2820,6 +2894,12 @@
     "contact": {
       "title": "Kontakt",
       "content": "Masz pytania dotyczące zastrzeżeń? Napisz do nas przez"
+    },
+    "fanMade": {
+      "title": "Symulacja stworzona przez fanów",
+      "content": "Fight League to symulacja stworzona przez fanów. Nazwy postaci i serii należą do ich właścicieli. {siteName} nie jest z nimi powiązany, przez nich wspierany ani sponsorowany i nie używa ich logo, grafik, sprite’ów ani dźwięków.",
+      "rightsEmail": "Właściciele praw mogą napisać na <mail>{email}</mail>, aby usunąć nazwę.",
+      "rightsForm": "Właściciele praw mogą poprosić o usunięcie nazwy przez <link>stronę opinii</link>."
     }
   },
   "Feedback": {
@@ -2849,19 +2929,20 @@
     "submitGithub": "Otwórz zgłoszenie na GitHubie",
     "successEmail": "Twój program pocztowy powinien się teraz otworzyć z wypełnioną wiadomością. Jeśli nic się nie stało, przeglądarka może blokować linki mailto.",
     "successGithub": "W nowej karcie otworzył się formularz zgłoszenia na GitHubie z Twoją wiadomością. Wyślij go tam, aby zakończyć.",
-    "notConfigured": "Ta strona nie ma jeszcze skonfigurowanego kanału opinii. Jeśli ją prowadzisz, ustaw NEXT_PUBLIC_FEEDBACK_ENDPOINT, NEXT_PUBLIC_FEEDBACK_EMAIL lub NEXT_PUBLIC_GITHUB_REPO przed budowaniem.",
-    "openManually": "Jeśli nic się nie otworzyło, użyj tego linku."
+    "notConfigured": "Opinie są teraz niedostępne. Spróbuj ponownie później.",
+    "openManually": "Jeśli nic się nie otworzyło, użyj tego linku.",
+    "emailInstead": "Napisz zamiast tego na {email}."
   },
   "TikTokBallVideos": {
-    "metaTitle": "Twórz filmy z odbijającą się piłką na TikToka w {siteName}",
-    "metaDescription": "Twórz filmy z odbijającą się piłką na TikToka w {siteName}, z {count} trybami i własną fizyką. Darmowy pionowy eksport 1080×1920, bez rejestracji. Pro usuwa znak wodny.",
+    "metaTitle": "Filmy z odbijającą się piłką na TikToka – {siteName}",
+    "metaDescription": "Twórz filmy z piłką na TikToka w {siteName}, z {count} trybami i własną fizyką. Pionowy eksport 1080×1920 za darmo, bez konta. Pro usuwa znak wodny.",
     "badge": "Treści na TikToka",
     "navLabel": "Filmy z piłką na TikToka",
     "title": "Filmy z odbijającą się piłką na TikToka",
-    "p1": "Filmy z odbijającą się piłką to jeden z najpewniejszych formatów na TikToku. Piłka uwięziona w pierścieniach próbuje się wydostać, a ludzie zostają, żeby zobaczyć, czy jej się uda. {siteName} powstał właśnie do takich klipów, za darmo i z pionowym eksportem. Pro usuwa znak wodny.",
-    "p2": "Napięcie jest wbudowane. Piłka przyspiesza, szczelina wydaje się za mała, aż w końcu piłka się prześlizguje i ściana pęka. Mieści się to w 15–60 sekundach, czyli tam, gdzie zaangażowanie na TikToku jest najwyższe.",
-    "h2_1": "Dlaczego to działa na TikToku",
-    "p3": "TikTok nagradza filmy, które ludzie oglądają do końca i puszczają ponownie. Fizyka piłki daje jedno i drugie. Dodaj melodię, a każde uderzenie w ścianę zagra kolejną nutę.",
+    "p1": "Filmy z odbijającą się piłką łatwo się ogląda. Piłka uwięziona w pierścieniach próbuje się wydostać, a ludzie zostają, żeby zobaczyć, czy jej się uda. {siteName} powstał właśnie do takich klipów, za darmo i z pionowym eksportem. Pro usuwa znak wodny.",
+    "p2": "Napięcie jest wbudowane. Piłka przyspiesza, szczelina wydaje się za mała, aż w końcu piłka się prześlizguje i ściana pęka. Mieści się to w klipie na 15–60 sekund.",
+    "h2_1": "Dlaczego ludzie oglądają do końca",
+    "p3": "Piłka, która może uciec, daje powód, żeby obejrzeć klip do końca i obejrzeć go jeszcze raz. Dodaj melodię, a każde uderzenie w ścianę zagra kolejną nutę.",
     "p4": "Bez dialogów, bez twarzy, bez przygotowań. Czysty wizualny haczyk, który działa nawet na kogoś, kto przewija w pół oka.",
     "h2_2": "Eksportuj we właściwym formacie",
     "p5": "TikTok chce pionu 9:16, czyli 1080×1920. {siteName} nagrywa w tym rozmiarze, więc nie ma kadrowania ani edytora. Ustaw długość, nagraj, pobierz.",
@@ -2873,7 +2954,7 @@
   },
   "About": {
     "metaTitle": "O {siteName}, kreatorze filmów z fizyką piłki",
-    "metaDescription": "Dlaczego powstał {siteName}. Przeglądarkowe narzędzie do filmów z odbijającą się piłką, które dobrze radzą sobie na TikToku, Reels i Shorts. Zabawa i eksport za darmo. Pro usuwa znak wodny.",
+    "metaDescription": "Dlaczego powstał {siteName}. Narzędzie w przeglądarce do robienia filmów z odbijającą się piłką na TikToka, Reels i Shorts. Za darmo.",
     "metaOgTitle": "O {siteName}",
     "metaOgDescription": "Dlaczego {siteName} istnieje i dla kogo jest.",
     "badge": "O nas",
@@ -3871,7 +3952,7 @@
   },
   "Gallery": {
     "navLabel": "Galeria",
-    "metaTitle": "Galeria presetów – {count, plural, one {# gotowa symulacja} few {# gotowe symulacje} many {# gotowych symulacji} other {# gotowej symulacji}} piłek | {siteName}",
+    "metaTitle": "Galeria gotowych symulacji piłek – {siteName}",
     "metaDescription": "{count, plural, one {# gotowe ustawienie} few {# gotowe ustawienia} other {# gotowych ustawień}} z piłkami. Neonowe ucieczki, galaktyki wahadeł, string art, bitwy i wyścigi. Otwórz w darmowym symulatorze i dopasuj do siebie.",
     "badge": "Galeria",
     "title": "Galeria presetów",
@@ -4188,7 +4269,7 @@
   "DesktopLink": {
     "navLabel": "Aplikacja Windows",
     "heroButton": "Pobierz dla Windows",
-    "heroNote": "Pobieranie za darmo · renderowanie na GPU · wbudowana AI"
+    "heroNote": "Pobieranie za darmo · kodowanie wideo na GPU · wbudowana AI"
   },
   "Desktop": {
     "groupTitle": "Studio desktopowe",
@@ -4427,10 +4508,10 @@
     "libDelete": "Usuń plik",
     "libDeleteConfirm": "Przenieść {name} do kosza?",
     "metaTitle": "Pobierz {siteName} dla Windows",
-    "metaDescription": "Symulator {siteName} jako aplikacja na Windows. Renderuj klipy na GPU, całą kolejkę prosto do folderu i planuj filmy z wbudowaną AI, która działa offline. Do pobrania za darmo. Filmy bez Pro mają znak wodny.",
+    "metaDescription": "Symulator jako aplikacja na Windows. Karta graficzna koduje klipy, kolejka przerabia serie do folderu, a AI offline planuje filmy. Pobierz za darmo.",
     "badge": "Aplikacja Windows",
     "title": "{siteName} dla Windows",
-    "intro": "Wszystko, co symulator robi w przeglądarce, i to, czego przeglądarka nie potrafi. Twoje GPU renderuje filmy, kolejka przerabia całe serie, gdy robisz coś innego, a studio AI na Twoim komputerze planuje klipy i pisze opisy, offline.",
+    "intro": "Wszystko, co symulator robi w przeglądarce, i to, czego przeglądarka nie potrafi. Karta graficzna koduje filmy, kolejka przerabia całe serie, gdy robisz coś innego, a studio AI na Twoim komputerze planuje klipy i pisze opisy, offline.",
     "setupTitle": "Instalator",
     "setupBody": "Instaluje się tylko dla Twojego użytkownika, bez uprawnień administratora, z wpisem w menu Start. Aktualizuje się sam.",
     "setupButton": "Pobierz instalator (.exe)",
@@ -4445,19 +4526,35 @@
       "disk": "Około 500 MB na aplikację i do 2,5 GB na model AI, pobierany przy pierwszym użyciu.",
       "ram": "8 GB RAM, 16 GB dla lokalnej AI"
     },
-    "smartScreenTitle": "„System Windows ochronił ten komputer”?",
-    "smartScreenBody": "Plik EXE nie jest jeszcze podpisany cyfrowo, więc Windows SmartScreen ostrzega przed pierwszym uruchomieniem. Kliknij „Więcej informacji”, a potem „Uruchom mimo to”. Pliki buduje automatycznie GitHub Actions, a ich sumy kontrolne są pod przyciskami pobierania.",
+    "smartScreenTitle": "Ostrzeżenie z Chrome lub Windows?",
+    "smartScreenBody": "Instalator nie jest jeszcze podpisany cyfrowo. Chrome może napisać, że plik nie jest często pobierany, a Windows SmartScreen może pokazać „System Windows ochronił ten komputer”. Oba ostrzeżenia pojawiają się przy plikach, które do tej pory pobrało niewiele osób.",
     "featuresTitle": "Co dodaje aplikacja",
     "features": {
-      "gpu": "Wideo na GPU. Szybki eksport koduje na karcie graficznej, w H.264, HEVC lub AV1 przez NVENC, AMF albo Quick Sync.",
+      "gpu": "Wideo na GPU. Szybki eksport koduje na karcie graficznej, w H.264 i HEVC przez NVENC, AMF albo Quick Sync oraz w AV1 na nowszych kartach.",
       "queue": "Kolejka renderowania. Ziarna, linki albo plan wiralowego bota, w każdej wybranej rozdzielczości, liczbie klatek i kodeku, zapisywane prosto do folderu. Postęp, anulowanie, ponawianie i wznawianie po restarcie.",
       "ai": "Studio AI. Lokalny model, pobierany raz, albo Twój własny klucz do chmury planuje klipy, pisze haczyki, opisy i hashtagi oraz zmienia ustawienia na prośbę.",
       "library": "Biblioteka. Każdy wyrenderowany klip z miniaturą, długością i tekstem posta. Odtwórz, pokaż w folderze, wyrenderuj ponownie albo usuń."
     },
     "privacyTitle": "Prywatność",
-    "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja łączy się z internetem tylko po to, by pobrać model, o który poprosisz, i sprawdzić aktualizacje. Logowanie do konta i publikowanie na Twoich kanałach też korzystają z internetu.",
+    "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja nie wysyła nam danych o użyciu. Łączy się z internetem, żeby sprawdzić aktualizacje, odnowić licencję Pro, pobrać model, o który poprosisz, oraz dla funkcji konta i publikowania, z których korzystasz. Polityka prywatności opisuje każdy z tych przypadków.",
     "updateLater": "Później",
-    "updateWaitRender": "Trwa renderowanie. Poczekaj, aż kolejka się skończy, albo zamknij aplikację, a aktualizacja zainstaluje się przy zamykaniu."
+    "updateWaitRender": "Trwa renderowanie. Poczekaj, aż kolejka się skończy, albo zamknij aplikację, a aktualizacja zainstaluje się przy zamykaniu.",
+    "appSite": "Wersja strony",
+    "appInstall": "Instalacja",
+    "appInstallSetup": "Instalator",
+    "appInstallPortable": "Wersja przenośna · nowe wersje pobierasz ze strony pobierania",
+    "appInstallDev": "Uruchomienie deweloperskie",
+    "appCopyDetails": "Kopiuj szczegóły",
+    "appCopied": "Skopiowano",
+    "appWhatsNew": "Co nowego",
+    "setupNote": "Pobieranie i używanie jest darmowe. Filmy zrobione bez Pro mają mały znak wodny. Pro kosztuje {price} miesięcznie.",
+    "setupLegal": "Pobierając, akceptujesz <terms>Regulamin</terms>. <privacy>Polityka prywatności</privacy> mówi, co aplikacja wysyła i dokąd.",
+    "smartScreenVerify": "Zanim go uruchomisz, sprawdź plik. W PowerShellu polecenie Get-FileHash z nazwą pliku wypisze jego SHA-256, które musi zgadzać się z wierszem tego pliku w sumach kontrolnych. Możesz też przeskanować plik w <virustotal>VirusTotal</virustotal>.",
+    "smartScreenSteps": "Jeśli sprawdzenia się zgadzają, wybierz w Chrome „Zachowaj”, a w Windows „Więcej informacji” i „Uruchom mimo to”.",
+    "privacyNoticesTitle": "Oprogramowanie i dźwięki innych autorów",
+    "privacyNoticesFfmpeg": "ffmpeg, którego aplikacja używa do kodowania filmów, jest objęty licencją GNU GPL w wersji 3. To niezmieniona wersja z gyan.dev, działa jako osobny program i ma przy sobie tekst licencji oraz link do kodu źródłowego.",
+    "privacyNoticesOther": "Aplikacja korzysta też z Electron, Chromium, node-llama-cpp i llama.cpp. Teksty licencji ffmpeg, Electron, Chromium i node-llama-cpp są w folderze instalacji. Modele AI to osobne pobrania na ich własnych licencjach, które aplikacja pokazuje przed pobraniem. Studio AI może uruchamiać Llama 3.2. Built with Llama.",
+    "privacyAudio": "Wbudowane dźwięki zsyntetyzowaliśmy sami. Wbudowane melodie to utwory w domenie publicznej."
   },
   "Territory": {
     "canvasVs": "VS",
@@ -4572,10 +4669,10 @@
   },
   "Billing": {
     "metaTitle": "Cennik – {siteName}",
-    "metaDescription": "Baw się każdym trybem i eksportuj filmy za darmo, z małym znakiem wodnym. Pro usuwa go za {monthly} miesięcznie lub {yearly} rocznie, kartą, przez PayPal albo w krypto.",
+    "metaDescription": "Baw się każdym trybem i eksportuj filmy za darmo, z małym znakiem wodnym. Pro usuwa go za {monthly} miesięcznie lub {yearly} rocznie, kartą lub w krypto.",
     "eyebrow": "Cennik",
     "title": "Baw się i eksportuj za darmo. Z Pro bez znaku wodnego.",
-    "lede": "Każdy tryb, każde ustawienie i każdy dźwięk są darmowe, bez konta. Tworzenie filmów też. Darmowe filmy mają mały znak wodny. Pro eksportuje je bez niego i dodaje publikowanie.",
+    "lede": "Każdy tryb, każde ustawienie i każdy dźwięk są darmowe, bez konta. Tworzenie filmów też. Darmowe filmy mają mały znak wodny. Pro eksportuje je bez niego i dodaje szybkie udostępnianie na TikToka, Instagram i YouTube.",
     "testMode": "Licencjonowanie działa w trybie testowym. Płatności nie są jeszcze skonfigurowane.",
     "why": "Darmowe filmy mają mały znak wodny. Pro go usuwa.",
     "proTag": "Pro",
@@ -4608,8 +4705,9 @@
     "email": {
       "label": "E-mail",
       "placeholder": "ty@example.com",
-      "hint": "Używają go płatności kartą i kryptowalutą, a także przywracanie zakupu na innym urządzeniu. PayPal korzysta z adresu Twojego konta PayPal.",
-      "invalid": "To nie wygląda na adres e-mail."
+      "hint": "Używają go płatności kartą i kryptowalutą, a także przywracanie zakupu na innym urządzeniu.",
+      "invalid": "To nie wygląda na adres e-mail.",
+      "hintPaypal": "PayPal korzysta z adresu Twojego konta PayPal."
     },
     "compare": {
       "title": "Darmowy i Pro",
@@ -4633,7 +4731,7 @@
         "fastExport": "Szybki eksport, renderowany klatka po klatce",
         "batch": "Renderowanie seryjne, wiele klipów w jednym ZIP-ie",
         "bot": "Filmy renderowane przez bota",
-        "publish": "Publikowanie na TikToku, Instagramie i YouTube",
+        "publish": "Udostępnianie na TikToka, Instagram i YouTube przez arkusz udostępniania lub pobranie",
         "desktop": "Kolejka renderowania i kodowanie na GPU w aplikacji na komputer"
       },
       "withWatermark": "Ze znakiem wodnym",
@@ -4654,7 +4752,7 @@
     },
     "restore": {
       "title": "Przywróć zakup",
-      "intro": "Na innym urządzeniu lub w innej przeglądarce podaj e-mail użyty przy płatności i numer z potwierdzenia. Widać go po płatności i w sekcji Twoja licencja na urządzeniu, na którym zapłacono. To identyfikator sesji lub subskrypcji Stripe, identyfikator subskrypcji PayPal albo numer zamówienia krypto.",
+      "intro": "Na innym urządzeniu lub w innej przeglądarce podaj e-mail użyty przy płatności i numer z potwierdzenia. Widać go po płatności i w sekcji Twoja licencja na urządzeniu, na którym zapłacono. To identyfikator sesji lub subskrypcji Stripe albo numer zamówienia krypto.",
       "ref": "Numer referencyjny",
       "refPlaceholder": "sub_… · I-… · nr zamówienia",
       "refInvalid": "Skopiuj numer z potwierdzenia. Tylko litery, cyfry, myślniki i podkreślenia.",
@@ -4714,7 +4812,7 @@
       "fastExport": "Szybki eksport",
       "batch": "Renderowanie seryjne",
       "bot": "Renderowanie klipów bota",
-      "publish": "Publikowanie",
+      "publish": "Szybkie udostępnianie na TikToka, Instagram i YouTube",
       "renderQueue": "Kolejka renderowania w aplikacji",
       "download": "Pobieranie wyrenderowanych filmów"
     },
@@ -4728,7 +4826,7 @@
     },
     "notes": {
       "title": "Dobrze wiedzieć",
-      "renew": "Subskrypcje kartą i przez PayPal odnawiają się same, dopóki ich nie anulujesz. Zrobisz to w każdej chwili przyciskiem Zarządzaj subskrypcją na tej stronie.",
+      "renew": "Subskrypcje kartą odnawiają się same, dopóki ich nie anulujesz. Zrobisz to w każdej chwili przyciskiem Zarządzaj subskrypcją na tej stronie.",
       "crypto": "Krypto opłaca z góry okres 30 dni w planie miesięcznym albo 365 w rocznym. Nic nie odnawia się samo.",
       "licence": "Licencja to podpisany klucz zapisany w tej przeglądarce. Strona nie potrzebuje konta ani hasła.",
       "devices": "Na innym urządzeniu lub w innej przeglądarce przywróć zakup e-mailem i numerem z potwierdzenia pokazanym po płatności albo wklej klucz licencji.",
@@ -4743,23 +4841,24 @@
     },
     "privacy": {
       "title": "Płatności",
-      "content": "Za Pro płacisz u wybranego dostawcy, czyli w Stripe, PayPal albo NOWPayments, na jego własnej stronie płatności i zgodnie z jego polityką prywatności. Dane karty ani portfela nigdy do nas nie trafiają. Nasz serwer rozliczeń przechowuje Twój e-mail, plan i identyfikator płatności lub subskrypcji u dostawcy, aby wydać, odnowić i przywrócić licencję. Sama licencja to podpisany klucz zapisany w Twojej przeglądarce. Te dane przechowujemy na serwerach Cloudflare tak długo, jak można przywrócić Twoją licencję i jak wymagają tego przepisy rachunkowe."
+      "content": "Za Pro płacisz przez Stripe kartą albo przez NOWPayments kryptowalutą, na własnej stronie płatności dostawcy i zgodnie z jego polityką prywatności. Dane karty ani portfela nigdy do nas nie trafiają. Nasz serwer rozliczeń, który działa w Cloudflare, przechowuje Twój e-mail, plan i identyfikator płatności lub subskrypcji u dostawcy, aby wydać, odnowić i przywrócić licencję. Sama licencja to podpisany klucz zapisany w Twojej przeglądarce. Te dane przechowujemy tak długo, jak można przywrócić Twoją licencję i jak wymagają tego przepisy rachunkowe.",
+      "renewals": "Gdy Twoja licencja zaraz wygaśnie albo przed chwilą wygasła, strona i aplikacja na Windows pytają serwer rozliczeń, czy subskrypcja kartą się odnowiła. Wysyłają Twój e-mail i numer z potwierdzenia."
     },
     "terms": {
       "title": "Subskrypcje Pro",
-      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe. Filmy utworzone bez licencji Pro mają znak wodny. Pro kosztuje {monthly} miesięcznie lub {yearly} rocznie, w dolarach amerykańskich. Eksportuje filmy bez znaku wodnego i dodaje publikowanie na Twoich kontach. Subskrypcje kartą i przez PayPal odnawiają się automatycznie, dopóki ich nie anulujesz w portalu klienta Stripe lub na koncie PayPal. Płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu.",
+      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe. Filmy utworzone bez licencji Pro mają znak wodny. Pro kosztuje {monthly} miesięcznie lub {yearly} rocznie, w dolarach amerykańskich, a przy płatności może zostać doliczony podatek. Eksportuje filmy bez znaku wodnego i dodaje szybkie udostępnianie na TikToka, Instagram i YouTube przez arkusz udostępniania urządzenia lub pobranie. Subskrypcje kartą odnawiają się automatycznie, dopóki ich nie anulujesz w portalu klienta Stripe. Płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu.",
       "delivery": {
         "title": "Dostawa",
         "content": "Pro to licencja cyfrowa dostarczana od razu. Po płatności strona cennika aktywuje ją w Twojej przeglądarce i pokazuje numer referencyjny potwierdzenia. Za pomocą e-maila i tego numeru możesz w każdej chwili przywrócić licencję na innym urządzeniu lub w aplikacji na Windows. Nic nie jest wysyłane pocztą."
       },
       "refunds": {
         "title": "Anulowanie i zwroty",
-        "content": "Subskrypcję kartą lub przez PayPal możesz anulować w każdej chwili, przyciskiem Zarządzaj subskrypcją na stronie cennika albo na swoim koncie PayPal. Trwa ona wtedy do końca opłaconego okresu i się nie odnawia. Jeśli Pro Ci nie odpowiada, napisz do nas w ciągu 14 dni od pierwszej płatności, a zwrócimy ją w całości. Odnowienia i płatności kryptowalutą nie podlegają zwrotowi, chyba że prawo Twojego kraju daje Ci takie uprawnienie. Płatności kryptowalutą nie da się cofnąć w sieci. Zwrot trafia na użytą metodę płatności i pojawia się na koncie po 5–10 dniach roboczych."
+        "content": "Subskrypcję kartą możesz anulować w każdej chwili, przyciskiem Zarządzaj subskrypcją na stronie cennika. Trwa ona wtedy do końca opłaconego okresu i się nie odnawia. Jeśli Pro Ci nie odpowiada, napisz do nas w ciągu 14 dni od pierwszej płatności, a zwrócimy ją w całości. Odnowienia i płatności kryptowalutą nie podlegają zwrotowi, chyba że prawo Twojego kraju daje Ci takie uprawnienie. Płatności kryptowalutą nie da się cofnąć w sieci. Zwrot trafia na użytą metodę płatności i pojawia się na koncie po 5–10 dniach roboczych."
       },
       "operator": {
         "title": "Od kogo kupujesz",
-        "named": "{siteName} i subskrypcję Pro prowadzi {legalName}{address}. Płatności obsługują Stripe, PayPal i NOWPayments. Na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności.",
-        "unnamed": "{siteName} i subskrypcję Pro prowadzi operator serwisu {siteDomain}. Płatności obsługują Stripe, PayPal i NOWPayments. Na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności."
+        "named": "{siteName} i subskrypcję Pro prowadzi {legalName}{address}. Płatności obsługują Stripe dla kart i NOWPayments dla kryptowalut. Na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności.",
+        "unnamed": "{siteName} i subskrypcję Pro prowadzi operator serwisu {siteDomain}. Płatności obsługują Stripe dla kart i NOWPayments dla kryptowalut. Na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności."
       }
     },
     "paste": {
@@ -4776,6 +4875,9 @@
     "liveMark": "Darmowe symulacje i darmowe filmy mają mały znak wodny {siteName}, w rogu płótna podczas zabawy i w każdym klipie, który zrobisz. Pro usuwa go z obu.",
     "support": {
       "lead": "Możesz też napisać do nas na adres"
+    },
+    "checkout": {
+      "line": "Ceny podajemy w dolarach amerykańskich. Przy płatności może zostać doliczony podatek. Płacąc, akceptujesz <terms>Regulamin</terms>."
     }
   },
   "OrbGrid": {
@@ -5177,8 +5279,7 @@
     "cpuNote": "Model działa na procesorze: każdy krok może trwać minutę lub dłużej. Karta graficzna (Vulkan) jest dużo szybsza; model 1.5B też jest szybszy, ale najlepiej sprawdza się w Ustawieniach i Pomysłach.",
     "tryCpu": "Uruchom na procesorze",
     "downloadVersion": "Wersja {version}",
-    "downloadModelNote": "Model AI pobierasz z poziomu aplikacji tylko raz, do 2,5 GB. Potem AI działa offline.",
-    "downloadUpdateNote": "Masz wersję 1.0.2? Jej aktualizator nie zainstaluje 1.0.3. Pobierz raz instalator powyżej. Od wersji 1.0.3 aplikacja aktualizuje się sama."
+    "downloadModelNote": "Model AI pobierasz z poziomu aplikacji tylko raz, do 2,5 GB. Potem AI działa offline."
   },
   "LoopHud": {
     "growTitle": "rośnie z każdym odbiciem",
@@ -5663,11 +5764,11 @@
   },
   "Account": {
     "metaTitle": "Twoje konto – {siteName}",
-    "metaDescription": "Załóż darmowe konto i połącz dowolnie wiele kont TikTok, Instagram i YouTube. Idą z tobą do każdej przeglądarki i do aplikacji na Windows.",
+    "metaDescription": "Zaloguj się lub załóż darmowe konto, aby zarządzać kanałami TikTok, Instagram i YouTube, które połączysz, w każdej przeglądarce i w aplikacji na Windows.",
     "eyebrow": "Konto",
     "title": "Jedno konto dla wszystkich kanałów",
-    "lede": "Zarejestruj się raz. Połącz tyle kont TikTok, Instagram i YouTube, ile chcesz. Idą z tobą do każdej przeglądarki i do aplikacji na Windows.",
-    "free": "Założenie konta i łączenie kanałów jest darmowe. Wysyłanie klipów ze studia to funkcja Pro.",
+    "lede": "Konto trzyma Twoje kanały TikTok, Instagram i YouTube w jednym miejscu, w każdej przeglądarce i w aplikacji na Windows. Potrzebujesz go tylko do łączenia kanałów.",
+    "free": "Założenie konta jest darmowe. Udostępnianie klipu ze studia to funkcja Pro.",
     "tabs": {
       "label": "Formularz konta",
       "signUp": "Załóż konto",
@@ -5721,7 +5822,7 @@
     },
     "next": {
       "title": "Wyślij pierwszy klip",
-      "text": "Nagraj lub wyeksportuj klip, potem otwórz Nagrywanie i Publikuj. Twoje kanały już tam są.",
+      "text": "Nagraj lub wyeksportuj klip, potem otwórz Nagrywanie i Publikuj. Połączone kanały znajdziesz tam na liście.",
       "studio": "Otwórz studio"
     },
     "security": {
@@ -5757,7 +5858,11 @@
       "server": "Serwer zawiódł. Spróbuj za chwilę.",
       "unknown": "Coś poszło nie tak. Spróbuj ponownie."
     },
-    "close": "Zamknij"
+    "close": "Zamknij",
+    "closed": {
+      "title": "Łączenie kanałów nie jest jeszcze otwarte",
+      "text": "Na tym serwerze nie jest włączona żadna platforma, więc na razie nie da się połączyć żadnego kanału. Konto jest potrzebne tylko do łączenia kanałów."
+    }
   },
   "CustomContent": {
     "fighterTitle": "Zapisano wojownika: {name}",
@@ -5781,5 +5886,157 @@
     "saveFailed": "Nie udało się zapisać na tym komputerze: {error}",
     "modeNotApplied": "Ten tryb nie pasuje już do strony: {error}",
     "balanced": "Wyważony próbnymi walkami: wygrywa około {rate}% pojedynków z wojownikami z gry."
+  },
+  "Changelog": {
+    "metaTitle": "Dziennik zmian – {siteName}",
+    "metaDescription": "Co zmieniło się w {siteName} i w aplikacji na Windows, od najnowszych. Nowe tryby, poprawki i usprawnienia.",
+    "badge": "Dziennik zmian",
+    "title": "Co nowego w {siteName}",
+    "intro": "Każda aktualizacja strony i aplikacji na Windows, od najnowszej.",
+    "filterLabel": "Pokaż",
+    "filterAll": "Wszystko",
+    "filterSite": "Strona WWW",
+    "filterApp": "Aplikacja na Windows",
+    "releaseSite": "Strona WWW {version}",
+    "releaseApp": "Aplikacja na Windows {version}",
+    "kindNew": "Nowe",
+    "kindImproved": "Ulepszone",
+    "kindFixed": "Naprawione",
+    "outro": "Czegoś brakuje albo coś nie działa? Napisz do nas.",
+    "feedback": "Wyślij opinię",
+    "download": "Pobierz aplikację na Windows",
+    "buildLine": "Ta strona pochodzi z wersji {build}."
+  },
+  "ChangelogLive": {
+    "youRun": "Używasz wersji {version} aplikacji na Windows.",
+    "jump": "Zobacz, co w niej jest"
+  },
+  "WhatsNew": {
+    "title": "Co nowego w wersji {version}",
+    "body": "Aplikacja na Windows została zaktualizowana. Zobacz, co zmieniło się w tej wersji.",
+    "link": "Zobacz dziennik zmian",
+    "dismiss": "Zamknij"
+  },
+  "Seo": {
+    "breadcrumbHome": "Strona główna",
+    "cardAlt": "{siteName}. {title} {sub}",
+    "defaultAlt": "Symulator {siteName}: piłka odbija się w kolorowych pierścieniach.",
+    "card": {
+      "home": {
+        "title": "Satysfakcjonująca fizyka piłek na TikToka.",
+        "sub": "Wybierz tryb, dostrój fizykę, wyeksportuj pionowy klip. Za darmo, bez konta."
+      },
+      "simulator": {
+        "title": "Dostrój fizykę. Naciśnij start.",
+        "sub": "Za darmo, bez konta. Wyeksportuj pionowy klip, gdy wygląda dobrze."
+      },
+      "gallery": {
+        "title": "Gotowe symulacje piłek",
+        "sub": "Otwórz preset, dopasuj go do siebie i wyeksportuj klip."
+      },
+      "download": {
+        "title": "Symulator jako aplikacja na Windows",
+        "sub": "Karta graficzna koduje klipy, a kolejka przerabia całe serie. Pobierz za darmo."
+      },
+      "pricing": {
+        "title": "Baw się i eksportuj za darmo",
+        "sub": "Pro usuwa znak wodny. Płać kartą lub w krypto."
+      },
+      "about": {
+        "title": "Dlaczego powstał {siteName}",
+        "sub": "Narzędzie w przeglądarce do robienia filmów z odbijającą się piłką."
+      },
+      "tiktok-ball-videos": {
+        "title": "Filmy z odbijającą się piłką na TikToka",
+        "sub": "Wybierz tryb, nagraj klip i opublikuj. Format pionowy 1080×1920, bez konta."
+      },
+      "changelog": {
+        "title": "Co nowego w {siteName}",
+        "sub": "Każda aktualizacja strony i aplikacji na Windows, od najnowszej."
+      },
+      "press": {
+        "title": "{siteName} dla prasy",
+        "sub": "Fakty, historia i kontakt w jednym miejscu."
+      }
+    }
+  },
+  "Press": {
+    "metaTitle": "Materiały dla prasy – {siteName}",
+    "metaDescription": "Fakty, opisy, logo i kolory do pisania o {siteName}, darmowym narzędziu w przeglądarce do filmów z fizyką piłek, oraz kontakt z nami.",
+    "badge": "Dla prasy",
+    "title": "{siteName} dla prasy",
+    "intro": "Fakty, historia i kontakt w jednym miejscu. Korzystaj ze wszystkiego, a jeśli czegoś brakuje, napisz do nas.",
+    "metaWebsite": "Strona {label}",
+    "metaApp": "Aplikacja na Windows {version}",
+    "facts": {
+      "title": "Fakty w skrócie",
+      "whatLabel": "Czym jest",
+      "whatValue": "Darmowe studio fizyki piłek w przeglądarce. Wybierz tryb, dostrój fizykę i nagraj pionowy klip na TikToka, Reels albo Shorts.",
+      "platformsLabel": "Platformy",
+      "platformsValue": "Każda nowoczesna przeglądarka, także jako instalowalna aplikacja internetowa, oraz aplikacja na Windows 10 i 11, 64-bitowa.",
+      "modesLabel": "Tryby",
+      "modesValue": "{count, plural, one {# tryb symulacji} few {# tryby symulacji} many {# trybów symulacji} other {# trybu symulacji}}",
+      "exportLabel": "Eksport wideo",
+      "exportValue": "Pion 1080×1920, Full HD 1920×1080, HD 1280×720 i kwadrat 500×500, od 10 do 120 sekund. MP4 w Chrome i Safari, WebM w Firefoksie.",
+      "languagesLabel": "Języki",
+      "languagesValue": "angielski, polski i hiszpański",
+      "freeLabel": "Wersja darmowa",
+      "freeValue": "Każdy tryb, każde ustawienie i każdy eksport, bez konta. Klipy mają mały znak wodny, który usuwa Pro.",
+      "priceLabel": "Cena Pro",
+      "priceValue": "{monthly} miesięcznie lub {yearly} rocznie. Plan roczny jest tańszy o {percent}%.",
+      "releasedLabel": "Pierwsze wydanie",
+      "websiteLabel": "Wersja strony",
+      "appLabel": "Wersja aplikacji na Windows",
+      "operatorLabel": "Prowadzi",
+      "contactLabel": "Kontakt",
+      "contactFeedback": "Strona opinii",
+      "note": "Każde wydanie jest na <changelog>dzienniku zmian</changelog>. Aplikacja na Windows jest na <download>stronie pobierania</download>."
+    },
+    "about": {
+      "title": "Opisy",
+      "intro": "Trzy długości. Skopiuj tę, która pasuje, i zostaw nazwę tak, jak jest zapisana.",
+      "shortLabel": "Krótki · {words} słów",
+      "mediumLabel": "Średni · {words} słów",
+      "longLabel": "Długi · {words} słów",
+      "short": "{siteName} to darmowe studio fizyki piłek w przeglądarce. Wybierz tryb, dostrój fizykę i wyeksportuj pionowy klip na TikToka, Reels albo Shorts.",
+      "medium": "{siteName} to darmowe studio fizyki piłek, które działa w przeglądarce, bez konta i bez instalacji. Wybierz jeden z {count} trybów, dostrój fizykę i wyeksportuj pionowy film na TikToka, Reels albo Shorts. Każdy tryb i każdy eksport jest darmowy. Darmowe klipy mają mały znak wodny, a Pro usuwa go za {monthly} miesięcznie lub {yearly} rocznie.",
+      "long": "{siteName} to darmowe studio fizyki piłek, które działa w przeglądarce, bez konta i bez instalacji. Zaczęło się od prostego problemu. Filmy z odbijającą się piłką były wszędzie, a zrobienie własnego trwało zbyt długo. Teraz twórca otwiera kartę, wybiera jeden z {count} trybów, dostraja fizykę i eksportuje pionowy film na TikToka, Reels albo Shorts. Każdy tryb, każde ustawienie i każdy eksport jest darmowy. Darmowe klipy mają mały znak wodny, a Pro usuwa go za {monthly} miesięcznie lub {yearly} rocznie. Aplikacja na Windows dodaje kodowanie wideo na GPU, kolejkę renderowania i studio AI, które planuje klipy i pisze opisy. {siteName} to mały, niezależny projekt, dostępny po angielsku, polsku i hiszpańsku."
+    },
+    "brand": {
+      "title": "Logo i kolory",
+      "intro": "Znak to kula z gradientem w przerwanym pierścieniu.",
+      "logoAlt": "Logo {siteName}",
+      "cardAlt": "Karta {siteName} do udostępniania",
+      "fileSvg": "Logo, SVG",
+      "filePng512": "Logo, PNG 512 × 512",
+      "filePng192": "Logo, PNG 192 × 192",
+      "fileCard": "Karta do udostępniania, PNG 1200 × 630",
+      "filesNote": "Logo w PNG ma przezroczyste tło.",
+      "coloursTitle": "Kolory",
+      "colourAccent": "Akcent",
+      "colourAccentLight": "Akcent, jasny",
+      "colourBackground": "Tło",
+      "colourText": "Tekst"
+    },
+    "usage": {
+      "title": "Jak używać nazwy i logo",
+      "items": [
+        "Nazwę zapisuj jako {siteName}, jednym słowem, z wielkimi literami J, B i L.",
+        "Używaj logo w oryginalnej postaci. Nie zmieniaj kolorów, nie rozciągaj, nie obracaj i nie dodawaj efektów, a wokół zostaw trochę miejsca.",
+        "Zrzuty ekranu i klipy z darmowej wersji możesz wykorzystywać. Zostaw znak wodny na miejscu.",
+        "Opisuj go jako darmowe studio fizyki piłek w przeglądarce. Nie pisz, że obiecuje wyświetlenia, obserwujących ani dochód.",
+        "TikTok, Instagram, YouTube i Windows należą do swoich właścicieli. {siteName} nie jest z nimi powiązany."
+      ]
+    },
+    "notIncluded": {
+      "title": "Poza materiałami dla prasy",
+      "body": "Nazwy i nagrania z Fight League nie należą do tych materiałów. Ten tryb to symulacja stworzona przez fanów, a nazwy jego postaci należą do ich właścicieli. Nie używaj ich ani nagrań z tego trybu w artykułach, miniaturach ani reklamach. Aby usunąć nazwę, <contact>napisz do nas</contact>."
+    },
+    "contact": {
+      "title": "Kontakt",
+      "withEmail": "W sprawie pytań, cytatów lub sprostowań napisz na <mail>{email}</mail>.",
+      "withoutEmail": "W sprawie pytań, cytatów lub sprostowań skorzystaj ze <feedback>strony opinii</feedback>. Wiadomość trafia do osoby, która buduje {siteName}.",
+      "operator": "{siteName} prowadzi {name}."
+    }
   }
 }

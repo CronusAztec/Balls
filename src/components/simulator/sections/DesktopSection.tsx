@@ -20,6 +20,7 @@ import GpuPanel from "../desktop/GpuPanel";
 import QueuePanel from "../desktop/QueuePanel";
 import AiPanel from "../desktop/AiPanel";
 import LibraryPanel from "../desktop/LibraryPanel";
+import WhatsNew from "../desktop/WhatsNew"; // --- changelog ---
 import { errorText, ghostBtn, primaryBtn } from "../desktop/ui"; // --- desktop-autorelease --- (the update banner's buttons)
 import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
 import type { PublishPlatform } from "@/lib/publish/platforms";
@@ -42,7 +43,12 @@ export default function DesktopSection({ page }: { page: DesktopPageHooks }) {
   const [bridge, setBridge] = useState<DesktopApi | null>(null);
   useEffect(() => setBridge(getDesktop()), []);
   if (!bridge) return null;
-  return <DesktopStudio bridge={bridge} page={page} />;
+  return (
+    <>
+      <DesktopStudio bridge={bridge} page={page} />
+      <WhatsNew /* --- changelog --- the notice after an update (fixed on the screen, so it takes no place in the grid) */ />
+    </>
+  );
 }
 
 function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPageHooks }) {

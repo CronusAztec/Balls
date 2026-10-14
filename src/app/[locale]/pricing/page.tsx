@@ -8,9 +8,9 @@ import { ClaimPanel, LicencePanel, PasteKeyForm, PricingPlans, PricingTestMode, 
 import { IconLock } from "@/components/billing/LockBadge";
 import { IconCheck, IconMinus } from "@/components/ui/icons";
 import { pageClientNamespaces, pickMessages } from "@/i18n/clientMessages";
-import { localeAlternates } from "@/i18n/alternates";
 import { PLANS, formatUsd, yearlySavingPercent } from "@/lib/billing/config";
-import { SITE_NAME, absoluteUrl, pageUrl } from "@/lib/site";
+import { SITE_NAME } from "@/lib/site";
+import { breadcrumbJsonLd, pageMetadata, productJsonLd } from "@/lib/seo"; // --- seo ---
 import { SUPPORT_EMAIL } from "@/lib/operator"; // --- go-live-kit ---
 import { Link } from "@/i18n/navigation"; // --- go-live-kit --- the refunds note links the terms
 
@@ -31,14 +31,8 @@ const NOTES = ["renew", "refunds" /* --- go-live-kit --- */, "crypto", "licence"
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Billing" });
-  const title = t("metaTitle", { siteName: SITE_NAME });
   const description = t("metaDescription", { siteName: SITE_NAME, monthly: formatUsd(PLANS.monthly.usd, locale), yearly: formatUsd(PLANS.yearly.usd, locale) });
-  return {
-    title,
-    description,
-    alternates: { canonical: pageUrl(locale, "/pricing"), languages: localeAlternates("/pricing") },
-    openGraph: { title, description, url: pageUrl(locale, "/pricing"), siteName: SITE_NAME, type: "website", images: [absoluteUrl("/og.png")] },
-  };
+  return pageMetadata({ locale, path: "/pricing", title: t("metaTitle", { siteName: SITE_NAME }), description }); // --- seo ---
 }
 
 /** --- free-watermark --- Included, with a word under the tick ("With watermark" on Free, "No watermark" on Pro). */
@@ -71,26 +65,19 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "Billing" });
   const clientMessages = pickMessages(await getMessages(), pageClientNamespaces("/pricing"));
-  const offersJsonLd = {
-    "@context": "https://schema.org",
-    "@type": "Product",
-    name: `${SITE_NAME} Pro`,
+  // --- seo --- (builders in lib/seo.ts) the product with its two offers, and the trail Home > Pricing
+  const offersJsonLd = productJsonLd({
+    locale,
     description: t("lede"),
-    url: pageUrl(locale, "/pricing"),
-    offers: (["monthly", "yearly"] as const).map((plan) => ({
-      "@type": "Offer",
-      name: t(`plan.${plan}`),
-      price: PLANS[plan].usd.toFixed(2),
-      priceCurrency: "USD",
-      url: pageUrl(locale, "/pricing"),
-      priceSpecification: { "@type": "UnitPriceSpecification", price: PLANS[plan].usd.toFixed(2), priceCurrency: "USD", billingDuration: plan === "monthly" ? "P1M" : "P1Y" },
-    })),
-  };
+    offers: (["monthly", "yearly"] as const).map((plan) => ({ name: t(`plan.${plan}`), usd: PLANS[plan].usd, duration: plan === "monthly" ? ("P1M" as const) : ("P1Y" as const) })),
+  });
+  const breadcrumbs = await breadcrumbJsonLd(locale, [{ name: t("eyebrow"), path: "/pricing" }]);
   const row = "border-b border-line";
   return (
     <NextIntlClientProvider messages={clientMessages}>
       <div className="min-h-screen bg-bg text-ink">
         <JsonLd data={offersJsonLd} />
+        <JsonLd data={breadcrumbs} />
         <Navbar />
         <main id="content" className="site-container py-12 sm:py-16 lg:py-20" data-testid="pricing-page">
           <header className="max-w-[680px]">
@@ -121,7 +108,8 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
               {t("compare.title")}
             </h2>
             <p className="mt-2 max-w-[680px] text-md text-ink-2">{t("why")}</p>
-            <div className="mt-6 overflow-x-auto">
+            {/* relative: the table's sr-only labels are absolutely positioned and would otherwise escape this scroller and widen the page on a phone */}
+            <div className="relative mt-6 overflow-x-auto">
               <table className="w-full min-w-[480px] border-collapse text-left text-md" data-testid="pricing-compare">
                 <caption className="sr-only">{t("compare.title")}</caption>
                 <thead>

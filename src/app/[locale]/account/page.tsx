@@ -5,8 +5,8 @@ import Navbar from "@/components/site/Navbar";
 import Footer from "@/components/site/Footer";
 import AccountPanel from "@/components/account/AccountPanel";
 import { pageClientNamespaces, pickMessages } from "@/i18n/clientMessages";
-import { localeAlternates } from "@/i18n/alternates";
-import { SITE_NAME, pageUrl } from "@/lib/site";
+import { pageMetadata } from "@/lib/seo"; // --- seo ---
+import { SITE_NAME } from "@/lib/site";
 
 /*
  * --- user-accounts --- The account page: create an account or sign in, and connect any number of TikTok, Instagram and
@@ -17,12 +17,7 @@ import { SITE_NAME, pageUrl } from "@/lib/site";
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Account" });
-  return {
-    title: t("metaTitle", { siteName: SITE_NAME }),
-    description: t("metaDescription"),
-    alternates: { canonical: pageUrl(locale, "/account"), languages: localeAlternates("/account") },
-    robots: { index: false },
-  };
+  return pageMetadata({ locale, path: "/account", title: t("metaTitle", { siteName: SITE_NAME }), description: t("metaDescription"), noindex: true }); // --- seo ---
 }
 
 export default async function AccountPage({ params }: { params: Promise<{ locale: string }> }) {

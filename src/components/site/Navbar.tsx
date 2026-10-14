@@ -45,12 +45,14 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
   }, [menuOpen]);
 
   const links = [
-    { href: "/simulator", label: t("nav.studio") },
-    { href: "/gallery", label: gallery("navLabel") },
-    { href: "/download", label: desktop("navLabel") } /* --- desktop-exe --- */,
-    { href: "/pricing", label: nav("pricing") } /* --- paywall-gate --- */,
-    { href: "/about", label: t("nav.about") },
+    { href: "/simulator", label: t("nav.studio"), track: "nav_studio" },
+    { href: "/gallery", label: gallery("navLabel"), track: "nav_gallery" },
+    { href: "/download", label: desktop("navLabel"), track: "nav_download" } /* --- desktop-exe --- */,
+    { href: "/pricing", label: nav("pricing"), track: "nav_pricing" } /* --- paywall-gate --- */,
+    { href: "/about", label: t("nav.about"), track: null },
   ];
+  // --- analytics --- the links that lead to a conversion step are counted by the one delegated click listener (lib/analytics/track.ts)
+  const tracked = (id: string | null) => (id ? { "data-track": "cta_click", "data-track-id": id } : {});
   const isCurrent = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   const accountLabel = signedInAs ?? nav("account"); // --- user-accounts ---
 
@@ -68,7 +70,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
               <span className="sr-only">{nav("back")}</span>
             </Link>
           )}
-          <Link href="/" className="min-w-0 truncate rounded-sm font-display text-[17px] font-bold tracking-[-0.02em] text-ink" aria-label={studio ? undefined : nav("goHome")}>
+          <Link href="/" className="min-w-0 truncate rounded-sm font-display text-[17px] font-bold tracking-[-0.02em] text-ink" title={studio ? undefined : nav("goHome")}>
             <span>{SITE_NAME}</span>
           </Link>
         </div>
@@ -81,6 +83,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
                 key={link.href}
                 href={link.href}
                 aria-current={current ? "page" : undefined}
+                {...tracked(link.track)}
                 className={cx(
                   "relative inline-flex h-full items-center px-3 text-sm font-medium transition-colors duration-150",
                   current ? "text-ink after:absolute after:inset-x-3 after:bottom-[-1px] after:h-px after:bg-accent" : "text-ink-2 hover:text-ink",
@@ -109,7 +112,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
             <LanguageSwitcher />
           </div>
           {!studio && (
-            <Link href="/simulator" className={buttonClass({ variant: "primary", size: "sm", className: "hidden sm:inline-flex" })}>
+            <Link href="/simulator" className={buttonClass({ variant: "primary", size: "sm", className: "hidden sm:inline-flex" })} {...tracked("nav_cta")}>
               {t("nav.openStudio")}
               <IconArrowRight size={16} />
             </Link>
@@ -141,6 +144,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
                   href={link.href}
                   aria-current={isCurrent(link.href) ? "page" : undefined}
                   onClick={() => setMenuOpen(false)}
+                  {...tracked(link.track)}
                   className={cx("flex h-12 items-center border-b border-line text-base font-medium", isCurrent(link.href) ? "text-ink" : "text-ink-2 hover:text-ink")}
                 >
                   {link.label}
@@ -159,7 +163,7 @@ export default function Navbar({ variant = "default" }: { variant?: "default" | 
             </nav>
             <LanguageSwitcher isMobileMenu />
             {!studio && (
-              <Link href="/simulator" onClick={() => setMenuOpen(false)} className={buttonClass({ variant: "primary", size: "md", block: true })}>
+              <Link href="/simulator" onClick={() => setMenuOpen(false)} className={buttonClass({ variant: "primary", size: "md", block: true })} {...tracked("nav_cta")}>
                 {t("nav.openStudio")}
               </Link>
             )}

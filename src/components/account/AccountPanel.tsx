@@ -412,5 +412,17 @@ export default function AccountPanel({ embedded = false }: { embedded?: boolean 
   const t = useTranslations("Account");
   const { snapshot: a } = useAccount();
   if (!a.ready) return <div className="min-h-[240px]" aria-busy="true" data-testid="account-loading" />;
-  return a.session ? <SignedIn a={a} t={t} embedded={embedded} /> : <SignedOut a={a} t={t} embedded={embedded} />;
+  // --- legal-copy --- the relay's own answer decides: when its health lists no platform, no channel can be connected, and the page says so
+  const noPlatform = a.healthStatus === "ok" && !!a.health && !a.health.platforms.tiktok && !a.health.platforms.instagram && !a.health.platforms.youtube;
+  return (
+    <>
+      {noPlatform && (
+        <div role="status" className="mb-6 max-w-[640px] rounded-xl border border-warn/30 bg-warn/5 p-4" data-testid="account-channels-closed">
+          <p className="text-md font-medium text-ink">{t("closed.title")}</p>
+          <p className="mt-1 text-sm leading-relaxed text-ink-2">{t("closed.text")}</p>
+        </div>
+      )}
+      {a.session ? <SignedIn a={a} t={t} embedded={embedded} /> : <SignedOut a={a} t={t} embedded={embedded} />}
+    </>
+  );
 }

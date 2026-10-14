@@ -399,7 +399,7 @@ for (const asset of ["/notes/fur-elise.mid", "/wallBreak/pop.wav", "/hitSounds/c
 await smokeBlock("pages", async () => {
 // 1. Static pages in every locale
 for (const locale of ["en", "pl", "es"]) {
-  for (const p of ["", "/simulator" /* --- review fix (site-static) --- its sr-only heading */, "/about", "/tiktok-ball-videos", "/feedback", "/privacy", "/terms", "/disclaimer", "/gallery" /* --- daily-gallery --- */]) {
+  for (const p of ["", "/simulator" /* --- review fix (site-static) --- its sr-only heading */, "/about", "/tiktok-ball-videos", "/feedback", "/privacy", "/terms", "/disclaimer", "/gallery" /* --- daily-gallery --- */, "/changelog" /* --- changelog --- */, "/press" /* --- press --- */]) {
     const res = await page.goto(`${BASE}/${locale}${p}/`, { waitUntil: "networkidle" });
     const h1 = await page.locator("h1").first().innerText().catch(() => "");
     check(`GET /${locale}${p}`, res.status() === 200 && h1.length > 0, `(${res.status()}, h1="${h1.slice(0, 40)}")`);
@@ -418,13 +418,110 @@ for (const locale of ["en", "pl", "es"]) {
   const guideText = (await guide.innerText()).toLowerCase();
   check("copy-pass: the studio guide is two sections (4 tips, 6 help rows) with no physics block, no mode list and no creator names", sections === 2 && tips === 4 && help === 6 && !/behind the simulation|physics engine|what each mode does/.test(guideText) && !names.some((n) => guideText.includes(n)) && !/ – |—|;/.test(guideText), `(sections ${sections}, tips ${tips}, help ${help})`);
   const pages = {};
-  for (const p of ["", "/pricing", "/about", "/tiktok-ball-videos", "/gallery", "/download", "/feedback"]) {
+  for (const p of ["", "/pricing", "/about", "/tiktok-ball-videos", "/gallery", "/download", "/feedback", "/changelog" /* --- changelog --- */, "/press" /* --- press --- */]) {
     await page.goto(`${BASE}/en${p}/`, { waitUntil: "networkidle" });
     const text = (await page.locator("main").first().innerText()).toLowerCase();
     pages[p || "/"] = { dash: / – |—/.test(text), semi: /;/.test(text), names: names.some((n) => text.includes(n)), chars: text.length };
   }
   const clean = Object.values(pages).every((v) => !v.dash && !v.semi && !v.names && v.chars > 200);
-  check("copy-pass: the landing, pricing, about, tiktok, gallery, download and feedback pages carry no sentence dashes, semicolons or creator names", clean, `(${JSON.stringify(pages)})`);
+  check("copy-pass: the landing, pricing, about, tiktok, gallery, download, feedback, changelog and press pages carry no sentence dashes, semicolons or creator names", clean, `(${JSON.stringify(pages)})`);
+}
+// --- press --- The press page (/press): in every language a 200 with its own title, canonical and hreflang set, the fact sheet
+// with the build label and the Windows app version, the prices of the billing config, the description in three lengths (each
+// labelled with its measured word count), working logo downloads, the colours, the Fight League note, a link to the changelog,
+// the contact (the operator's e-mail or the feedback page) and no sideways scroll on a phone.
+{
+  const desktopVersion = JSON.parse(fs.readFileSync(new URL("../desktop/package.json", import.meta.url), "utf8")).version;
+  const plans = JSON.parse(fs.readFileSync(new URL("../billing/billing-config.json", import.meta.url), "utf8")).plans;
+  const money = (n) => (Number.isInteger(n) ? `$${n}` : `$${n.toFixed(2)}`);
+  const titles = { en: /^Press kit/, pl: /^Materiały dla prasy/, es: /^Dossier de prensa/ };
+  const info = {};
+  for (const locale of ["en", "pl", "es"]) {
+    const res = await page.goto(`${BASE}/${locale}/press/`, { waitUntil: "networkidle" });
+    info[locale] = {
+      status: res.status(),
+      ...(await page.evaluate(() => ({
+        lang: document.documentElement.lang,
+        title: document.title,
+        h1: document.querySelectorAll("h1").length,
+        canonical: document.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? "",
+        alternates: [...document.querySelectorAll('link[rel="alternate"][hreflang]')].map((l) => l.getAttribute("hreflang")).sort(),
+        facts: document.querySelector('[data-testid="press-facts"]')?.textContent ?? "",
+        website: document.querySelector('[data-testid="press-website-version"]')?.textContent ?? "",
+        app: document.querySelector('[data-testid="press-app-version"]')?.textContent ?? "",
+        versions: document.querySelector('[data-testid="press-versions"]')?.textContent ?? "",
+        boiler: ["short", "medium", "long"].map((k) => {
+          const li = document.querySelector(`[data-testid="press-boilerplate-${k}"]`);
+          const [label, text] = [...(li?.querySelectorAll("p") ?? [])].map((p) => p.textContent ?? "");
+          return { label, words: text.trim().split(/\s+/).filter(Boolean).length, raw: /[{}]/.test(text) };
+        }),
+        downloads: [...document.querySelectorAll('[data-testid="press-downloads"] a[download]')].map((a) => a.href),
+        colours: document.querySelector('[data-testid="press-colours"]')?.textContent ?? "",
+        notIncluded: document.querySelector('[data-testid="press-not-included"]')?.textContent ?? "",
+        changelog: [...document.querySelectorAll("main a")].some((a) => /\/changelog\/?$/.test(new URL(a.href).pathname)),
+        mailto: [...document.querySelectorAll('main a[href^="mailto:"]')].length,
+        feedback: [...document.querySelectorAll("main a")].some((a) => /\/feedback\/?$/.test(new URL(a.href).pathname)),
+        text: document.querySelector("main")?.innerText ?? "",
+      }))),
+    };
+  }
+  const en = info.en;
+  check(
+    "press: /en/, /pl/ and /es/ press pages are localised with their own title, canonical, hreflang set and one h1",
+    ["en", "pl", "es"].every((l) => info[l].status === 200 && info[l].lang === l && titles[l].test(info[l].title) && info[l].title.length <= 60 && info[l].title.endsWith("JumpingBallsLive") && info[l].h1 === 1 && info[l].canonical === `${BASE}/${l}/press/` && info[l].alternates.join() === "en,es,pl,x-default"),
+    `(${JSON.stringify(Object.fromEntries(Object.entries(info).map(([l, v]) => [l, [v.status, v.title, v.canonical]])))})`,
+  );
+  check(
+    "press: the fact sheet names the website build label, the Windows app version, the Pro prices of the billing config and the number of modes",
+    ["en", "pl", "es"].every((l) => info[l].website.startsWith("v") && info[l].versions.includes(info[l].website) && info[l].app === desktopVersion && info[l].versions.includes(desktopVersion) && !/[{}]/.test(info[l].facts)) &&
+      en.facts.includes(money(plans.monthly.usd)) && en.facts.includes(money(plans.yearly.usd)) && /\d{2,3} simulation modes/.test(en.facts),
+    `(website "${en.website}", app "${en.app}")`,
+  );
+  check(
+    "press: the description comes in three lengths (about 25, 60 and 120 words), labelled with the measured count, with no raw placeholder",
+    ["en", "pl", "es"].every((l) => {
+      const [s, m, g] = info[l].boiler;
+      return s.words >= 18 && s.words <= 32 && m.words >= 48 && m.words <= 75 && g.words >= 95 && g.words <= 140 && info[l].boiler.every((b) => b.label.includes(String(b.words)) && !b.raw);
+    }),
+    `(${JSON.stringify(info.en.boiler)})`,
+  );
+  {
+    // the logo files and the social card download for real (200, an image), and the colours are the code's
+    const statuses = [];
+    for (const href of en.downloads) {
+      const res = await page.request.get(href);
+      statuses.push(`${new URL(href).pathname.split("/").slice(-2).join("/")} ${res.status()} ${res.headers()["content-type"] ?? ""}`);
+    }
+    check("press: the logo (SVG, two PNGs) and the social card are listed for download and every file answers with an image", en.downloads.length === 4 && statuses.every((s) => / 200 image\//.test(s)), `(${statuses.join("; ")})`);
+    check("press: the brand colours are shown with their hex values", ["#93d119", "#b0f02a", "#0b0b0d", "#f2f2ed"].every((hex) => en.colours.includes(hex)), `(${en.colours})`);
+  }
+  check(
+    "press: the Fight League note says its names and footage are not part of the kit, in every language",
+    ["en", "pl", "es"].every((l) => info[l].notIncluded.includes("Fight League")) && /not part of this kit/.test(en.notIncluded),
+    `(${en.notIncluded.slice(0, 80)})`,
+  );
+  check(
+    "press: links to the changelog, and the contact is the operator's e-mail when one is set, else the feedback page",
+    ["en", "pl", "es"].every((l) => info[l].changelog && (info[l].mailto > 0 || info[l].feedback)),
+    `(changelog ${en.changelog}, mailto ${en.mailto}, feedback ${en.feedback})`,
+  );
+  check("press: the page has no sentence dashes, semicolons or raw placeholders in any language", ["en", "pl", "es"].every((l) => !/ – |—|;/.test(info[l].text) && !/[{}]/.test(info[l].text)), "");
+  {
+    const phone = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    try {
+      const pp = await phone.newPage();
+      const overflow = {};
+      for (const locale of ["en", "pl", "es"]) {
+        await pp.goto(`${BASE}/${locale}/press/`, { waitUntil: "networkidle" });
+        const w = await pp.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
+        if (w.scroll > w.inner) overflow[locale] = w;
+      }
+      check("press: the press page does not scroll sideways at 390 px in English, Polish and Spanish", Object.keys(overflow).length === 0, `(${JSON.stringify(overflow)})`);
+    } finally {
+      await phone.close();
+    }
+  }
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
 }
 // --- copy-pass --- every mode card's one-liner reads in full on a phone and a small tablet: the landing's cards at 390 and
 // 640 px in every language, and the studio's mode picker (a dialog: its cards are the narrowest) at 390 px in Polish and
@@ -463,6 +560,17 @@ for (const locale of ["en", "pl", "es"]) {
       await pp.keyboard.press("Escape");
     }
     check("copy-pass: the studio's mode picker shows every one-liner in full at 390 px in Polish and Spanish", Object.values(picker).every((w) => w.cards === cardCount && w.cut.length === 0), `(${JSON.stringify(picker)})`);
+    // --- perf-pass --- the pricing page does not scroll sideways on a phone (its compare table's sr-only labels once escaped the
+    // table's scroller and made the document 449 px wide at 390 px), nor do the other pages a paid visitor lands on
+    const overflow = {};
+    for (const locale of ["en", "pl", "es"]) {
+      for (const p of ["/pricing", "/download", ""]) {
+        await pp.goto(`${BASE}/${locale}${p}/`, { waitUntil: "networkidle" });
+        const w = await pp.evaluate(() => ({ scroll: document.documentElement.scrollWidth, inner: window.innerWidth }));
+        if (w.scroll > w.inner) overflow[`${locale}${p || "/"}`] = w;
+      }
+    }
+    check("perf-pass: /pricing/, /download/ and the landing have scrollWidth <= innerWidth at 390 px in English, Polish and Spanish (no sideways scroll)", Object.keys(overflow).length === 0, `(${JSON.stringify(overflow)})`);
   } finally {
     await phone.close();
   }
@@ -7525,6 +7633,36 @@ await smokeBlock("pwa", async () => {
     swRes.ok() && /javascript/.test(swRes.headers()["content-type"] ?? "") && !!version && swText.includes('"offline.html"') && swText.includes('"_next/static/'),
     `(${swRes.status()}, ${swRes.headers()["content-type"]}, version ${version})`,
   );
+  // --- build-identity --- which build is this: /version.json (written after the worker, so it is not in the precache), the footer's
+  // stamp (its own element, naming the release, the commit and its day), the jbl-build meta tag on the page, the tooltip's full commit
+  {
+    const vRes = await page.request.get(`${BASE}/version.json`);
+    const v = vRes.ok() ? await vRes.json().catch(() => null) : null;
+    const keys = ["schema", "name", "siteVersion", "build", "commit", "commitShort", "commitDate", "builtAt", "channel", "desktopVersion", "siteUrl", "changelogUrl"];
+    check(
+      "pwa: /version.json is JSON with the release version, the commit and the build id",
+      !!v && JSON.stringify(Object.keys(v)) === JSON.stringify(keys) && v.schema === 1 && /^\d+\.\d+\.\d+$/.test(v.siteVersion) && v.build === `${v.siteVersion}+${v.commitShort ?? "dev"}` && (v.commit === null || /^[0-9a-f]{40}$/.test(v.commit)) && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(v.builtAt) && /javascript|json/.test(vRes.headers()["content-type"] ?? ""),
+      `(${vRes.status()}, ${vRes.headers()["content-type"]}, ${JSON.stringify(v && { siteVersion: v.siteVersion, build: v.build, commitDate: v.commitDate })})`,
+    );
+    check(
+      "pwa: the worker's precache lists neither version.json nor _headers nor build.txt",
+      swRes.ok() && !/"(?:[^"\n]*\/)?(?:version\.json|_headers|build\.txt)"/.test(swText),
+      "",
+    );
+    await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+    const stamp = await page.evaluate(() => {
+      const el = document.querySelector('[data-testid="build-stamp"]');
+      const footer = el?.closest("footer") ?? null;
+      return { text: el?.textContent ?? null, title: el?.getAttribute("title") ?? "", href: el?.getAttribute("href") ?? null, own: !!el && !!footer && footer.innerText.split("\n").some((line) => /^© \d{4} JumpingBallsLive$/.test(line.trim())) && !/©[^\n]*v\d/.test(footer.innerText), meta: document.querySelector('meta[name="jbl-build"]')?.getAttribute("content") ?? null };
+    });
+    const expected = v ? (v.commit ? `v${v.siteVersion} · ${v.commitShort}${v.commitDate ? ` · ${v.commitDate.slice(0, 10)}` : ""}` : `v${v.siteVersion} · dev`) : null;
+    check(
+      "pwa: the footer stamp names the same build as /version.json, in its own element beside the © line, and links the changelog",
+      !!v && stamp.text === expected && stamp.own && !!stamp.href?.endsWith("/en/changelog/") && (!v.commit || (stamp.title.includes(v.commit) && stamp.title.includes(v.commitDate ?? ""))),
+      `(stamp "${stamp.text}", expected "${expected}", href ${stamp.href}, own line ${stamp.own})`,
+    );
+    check("pwa: every page carries <meta name=\"jbl-build\"> with the build id of /version.json", !!v && stamp.meta === v.build, `(meta ${stamp.meta}, build ${v?.build})`);
+  }
   const manRes = await page.request.get(`${BASE}/manifest.webmanifest`);
   const manifest = manRes.ok() ? await manRes.json().catch(() => null) : null;
   check(
@@ -7570,6 +7708,15 @@ await smokeBlock("pwa", async () => {
       req.socket.destroy();
       return;
     }
+    // --- perf-pass --- like Cloudflare's Workers assets (html_handling): /offline.html answers 307 to /offline, so the worker's fetch of the
+    // offline page arrives with the "redirected" flag, which a navigation may not be answered with (the worker rebuilds the response)
+    const requested = (req.url ?? "").split("?")[0];
+    if (requested === `${basePath}/offline.html`) {
+      res.writeHead(307, { location: `${basePath}/offline` });
+      res.end();
+      return;
+    }
+    if (requested === `${basePath}/offline`) req.url = `${basePath}/offline.html`;
     const isSw = (req.url ?? "").split("?")[0] === `${basePath}/sw.js`;
     const up = http.request(
       { hostname: upstream.hostname, port: upstream.port, path: req.url, method: req.method, headers: { ...req.headers, host: upstream.host, "accept-encoding": "identity" } },
@@ -7608,6 +7755,38 @@ await smokeBlock("pwa", async () => {
   try {
     await off.goto(`${PROXY}/en/`, { waitUntil: "networkidle" });
     const controlled = await off.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 60000 }).then(() => true).catch(() => false);
+    // --- perf-pass --- the install downloads the critical files only; the rest (the studio, the pictures, the sounds) arrives when the page
+    // asks, a few seconds after the worker is ready (src/components/site/PwaRegister.tsx), so wait until the cache holds the whole list
+    const swConfig = (() => {
+      try {
+        return JSON.parse(swText.match(/const CONFIG = (\{[\s\S]*?\n\});/)[1]);
+      } catch {
+        return null;
+      }
+    })();
+    const wanted = swConfig ? swConfig.critical.length + swConfig.deferred.length : 0;
+    // (polled from here: waitForFunction does not wait for a promise a predicate returns)
+    const cacheSize = (suffix) => off.evaluate(async (s) => {
+      const key = (await caches.keys()).find((k) => k.endsWith(s));
+      return key ? (await (await caches.open(key)).keys()).length : 0;
+    }, suffix).catch(() => 0);
+    let filled = false;
+    for (let i = 0; i < 90 && wanted > 0 && !filled; i++) {
+      filled = (await cacheSize(`:${version}`)) >= wanted;
+      if (!filled) await off.waitForTimeout(1000);
+    }
+    check(
+      "pwa: sw.js splits its list into the critical files (landing pages, offline page, manifest, icons, CSS, fonts) and the deferred rest (the studio, the mode pictures, the sounds, the chunks), and the page asks for the rest once it has settled",
+      !!swConfig &&
+        ["", "offline.html", "manifest.webmanifest", "en/", "pl/", "es/", "icons/icon-512.png"].every((u) => swConfig.critical.includes(u)) &&
+        swConfig.critical.some((u) => u.startsWith("_next/static/css/")) &&
+        !swConfig.critical.some((u) => u.startsWith("modes/") || u.startsWith("hitSounds/") || u.includes("simulator")) &&
+        ["en/simulator/", "pl/simulator/"].every((u) => swConfig.deferred.includes(u)) &&
+        swConfig.deferred.some((u) => u.startsWith("modes/")) &&
+        swConfig.critical.length < 40 &&
+        filled,
+      `(critical ${swConfig?.critical.length}, deferred ${swConfig?.deferred.length}, whole list cached=${filled})`,
+    );
     const cached = await off.evaluate(async () => {
       const out = {};
       for (const key of await caches.keys()) out[key] = (await (await caches.open(key)).keys()).map((r) => new URL(r.url).pathname);
@@ -7620,6 +7799,15 @@ await smokeBlock("pwa", async () => {
       controlled && !!current && current.includes(`:${basePath}/:`) && [`${basePath}/en/simulator/`, `${basePath}/pl/`, `${basePath}/offline.html`, `${basePath}/icons/icon-512.png`].every((p) => shell.includes(p)) && shell.some((p) => p.includes("/_next/static/")),
       `(controlled=${controlled}, caches=${JSON.stringify(Object.fromEntries(Object.entries(cached).map(([k, v]) => [k, v.length])))})`,
     );
+
+    const offlineStored = await off
+      .evaluate(async ({ suffix, url }) => {
+        const key = (await caches.keys()).find((k) => k.endsWith(suffix));
+        const res = key ? await (await caches.open(key)).match(url) : null;
+        return res ? { status: res.status, redirected: res.redirected, body: (await res.text()).includes("data-pwa-offline") } : null;
+      }, { suffix: `:${version}`, url: `${PROXY}/offline.html` })
+      .catch(() => null);
+    check("pwa: the offline page is cached as a plain 200 although the host redirected /offline.html to /offline (a navigation cannot be answered with a redirected response)", !!offlineStored && offlineStored.status === 200 && offlineStored.redirected === false && offlineStored.body, `(${JSON.stringify(offlineStored)})`);
 
     proxyState.offline = true;
     const offSim = await off.goto(`${PROXY}/en/simulator/?mode=classic`, { waitUntil: "load", timeout: 30000 }).catch(() => null);
@@ -7661,6 +7849,17 @@ await smokeBlock("pwa", async () => {
       await off.waitForTimeout(1000);
     }
     const swapped = keys.some((k) => k.endsWith(`:${version}-deploy1`)) && !keys.some((k) => k.endsWith(`:${version}`));
+    // --- perf-pass --- the new worker installs the critical files only: the studio page of the new deploy is cached once the page asks again
+    for (let i = 0; i < 90; i++) {
+      const has = await off
+        .evaluate(async ({ suffix, url }) => {
+          const key = (await caches.keys()).find((k) => k.endsWith(suffix));
+          return !!key && !!(await (await caches.open(key)).match(url));
+        }, { suffix: `:${version}-deploy1`, url: `${PROXY}/en/simulator/` })
+        .catch(() => false);
+      if (has) break;
+      await off.waitForTimeout(1000);
+    }
     proxyState.offline = true;
     await off.goto(`${PROXY}/en/simulator/`, { waitUntil: "load", timeout: 30000 }).catch(() => null);
     const offlineMarker = await marker();
@@ -8574,6 +8773,27 @@ await smokeBlock("desktop-exe", async () => {
     const chosen = await dp.locator('[data-encoder="h264"]').innerText().catch(() => "");
     const version = await dp.getByTestId("desktop-version").innerText().catch(() => "");
     check("desktop-exe: with window.desktop the Desktop group shows the GPU, the chosen encoders and the app version", shown && gpuName.includes("NVIDIA GeForce RTX 4090") && chosen === "h264_nvenc" && version.startsWith("9.9.9"), `(shown ${shown}, encoder ${chosen}, version ${version})`);
+
+    // --- build-identity --- the App card names the website build (the label /version.json describes), how the app is installed, and
+    // "Copy details" puts the About text on the clipboard (a stand-in clipboard here: English, the Windows user name hidden)
+    {
+      const v = await (await dp.request.get(`${BASE}/version.json`)).json().catch(() => null);
+      const label = v ? (v.commit ? `v${v.siteVersion} · ${v.commitShort}${v.commitDate ? ` · ${v.commitDate.slice(0, 10)}` : ""}` : `v${v.siteVersion} · dev`) : null;
+      await dp.evaluate(() => {
+        window.__copied = [];
+        Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text) => void window.__copied.push(text) } });
+      });
+      const siteBuild = await dp.getByTestId("desktop-site-build").innerText().catch(() => "");
+      const install = await dp.getByTestId("desktop-install").innerText().catch(() => "");
+      await dp.getByTestId("desktop-copy-details").click().catch(() => {});
+      const copied = await dp.waitForFunction(() => window.__copied.length > 0, null, { timeout: 5000 }).then(() => dp.evaluate(() => window.__copied[0])).catch(() => "");
+      const changelog = await dp.getByTestId("desktop-changelog-link").getAttribute("href").catch(() => null);
+      check(
+        "desktop-exe: the App card shows the website build, the install type, a changelog link and copies the About details",
+        !!label && siteBuild === label && install === "Installer" && /\/en\/changelog\/$/.test(changelog ?? "") && copied.startsWith("JumpingBallsLive 9.9.9\nApp: 9.9.9 · installer · x64\n") && copied.includes(`Website build: ${label}\n`) && copied.includes("Electron 44.5.1 · Chromium 146.0") && copied.includes("Data: C:/Users/~/AppData/Roaming/JumpingBallsLive") && !copied.includes("smoke"),
+        `(site build "${siteBuild}" vs "${label}", install "${install}", link ${changelog}, copied ${JSON.stringify(copied.slice(0, 160))})`,
+      );
+    }
 
     // --- desktop-autorelease --- a downloaded update: the banner above the tabs' panels (Restart and update / Later), on every
     // tab; Later hides it for that version only; a newer version shows it again
@@ -13302,7 +13522,7 @@ const orbBoxPixels = (box) =>
 
 await smokeBlock("desktop-ai-fix", async () => {
 // --- desktop-ai-fix --- the Windows app's AI fix on the website's side: the download page shows the version (1.0.3) and says
-// the model is a one-time download and that 1.0.2 installs take 1.0.3 by hand; with a stand-in window.desktop that has
+// the model is a one-time download (--- legal-copy --- the 1.0.2 note is gone); with a stand-in window.desktop that has
 // ai.diagnose, the AI tab shows the first-run card (its download button downloads the default model), the AI status panel
 // (five rows, Run checks, Copy report as JSON without the key, CPU only), a Captions run with "Reading the request… N s",
 // a timing line and the small model's hashtags without "#" / its unrequested platform normalised into a valid result, and
@@ -13320,8 +13540,9 @@ await smokeBlock("desktop-ai-fix", async () => {
       whatsNew: document.querySelectorAll('[data-testid="download-whats-new"]').length,
     }));
     check(
-      `desktop-ai-fix: /${locale}/download/ shows version ${DESKTOP_VERSION}, the one-time model download and the manual step for 1.0.2`,
-      notes.version.includes(DESKTOP_VERSION) && notes.update.includes("1.0.2") && notes.update.includes("1.0.3") && notes.all.length > notes.version.length + notes.update.length + 40 && notes.whatsNew === 0,
+      // --- legal-copy --- the 1.0.2 note was stale from 1.0.3 on: the page shows the version and the model note, and no update note
+      `desktop-ai-fix: /${locale}/download/ shows version ${DESKTOP_VERSION} and the one-time model download, with no stale note for 1.0.2`,
+      notes.version.includes(DESKTOP_VERSION) && notes.update === "" && notes.all.length > notes.version.length + 40 && !/1\.0\.2/.test(notes.all) && notes.whatsNew === 0,
       `(version "${notes.version}", update note "${notes.update.slice(0, 80)}")`,
     );
   }
@@ -14087,19 +14308,84 @@ await smokeBlock("watermark-everywhere", async () => {
       );
     }
 
-    // (b) DOM tampering during a live run leaves the mark in the pixels. The clean frame to compare with is taken first (the
-    // licence on and off on a paused frame): after the tampering nothing may switch the licence – React would re-render the
-    // Watermark tags the tampering deleted and trip over them.
+    // (b) DOM tampering during a live run leaves the mark in the pixels. The tampering and the seconds after it run on the LIVE
+    // run (balls moving, the gate re-checking every second, thousands of frames). The mark is then told apart from the frame on
+    // a FROZEN one, of the very simulation frame that was tampered with: pause, snapshot the tampered (free) frame T1, put the
+    // test licence into storage QUIETLY (no storage event: the live gate polls the stored licence every second, while the app's
+    // entitlement store listens to events only, so React never re-renders the Watermark tags the tampering deleted and trips
+    // over them) and snapshot the same paused frame again once the gate has taken it in: P1, now clean. Whatever moves (balls,
+    // trails) is in both frames and cancels, so the difference is the mark; it is looked for only where the badge goes (the
+    // reference badge's place and its mirror image) and must be the WHOLE badge there: as many changed pixels and as tall and
+    // wide as the reference one, which the licence on and off on a paused frame BEFORE the tampering measured. Moved balls can
+    // therefore neither hide the badge (CI 285: a band of them outranked it in a zone's densest band, the clean frame being
+    // 2.7 s of simulation older) nor stand in for one the tampering removed (that leaves T1 equal to P1). P1 is only taken for
+    // clean when a later frame does not differ from it where the badge goes: the gate marks every frame for an instant while it
+    // verifies a licence it has just seen change. (If the gate ever stops polling the stored licence, P1 never comes clean and
+    // the check fails: it cannot pass by it.)
     {
       const tp = await openWe(null);
       const { picked } = await startView(tp, "mode=classic");
       await tp.waitForTimeout(500);
-      const refPaused = await pause(tp);
-      await snap(tp, "T0");
+      /**
+       * Pauses the run and waits until the paused canvas stands still – a run coasts on for up to a second after Pause (balls
+       * and trails settle) – and leaves that still frame in snapshot `name`; resolves with whether it paused and stood still.
+       */
+      const freeze = async (p, name) => {
+        if (!(await pause(p))) return false;
+        for (let i = 0; i < 40; i++) {
+          await snap(p, "S0");
+          await p.waitForTimeout(150);
+          await snap(p, name);
+          if ((await p.evaluate((n) => window.__we.moved("S0", n), name)) <= 150) return true;
+        }
+        return false;
+      };
+      /**
+       * How snapshots `a` and `b` differ (by more than 60 brightness levels) where the badge goes: in the badge-sized place `box`
+       * (its box in the reference) and its mirror image on the other side of the exported square – per place the number of changed
+       * pixels and the box of its changed columns and rows – so that nothing outside those two places can pose as the badge.
+       */
+      const markAt = (p, a, b, box) =>
+        p.evaluate(
+          ([x, y, [bx, by, bw, bh]]) => {
+            const A = window.__we.snaps[x];
+            const B = window.__we.snaps[y];
+            if (!A || !B || A.w !== B.w || A.h !== B.h || !(bw > 0)) return { here: { n: 0, box: null }, other: { n: 0, box: null } };
+            const luma = (d, i) => 0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2];
+            const middle = A.w / 2; // the exported square is centred: its mirror axis
+            const look = (left) => {
+              const pad = 6;
+              const x0 = Math.max(0, Math.floor(left - pad));
+              const y0 = Math.max(0, by - pad);
+              const x1 = Math.min(A.w, Math.ceil(left + bw + pad));
+              const y1 = Math.min(A.h, by + bh + pad);
+              const cols = new Int32Array(x1 - x0);
+              const rows = new Int32Array(y1 - y0);
+              let n = 0;
+              for (let py = y0; py < y1; py++) {
+                for (let px = x0; px < x1; px++) {
+                  const i = 4 * (py * A.w + px);
+                  if (Math.abs(luma(A.data, i) - luma(B.data, i)) > 60) {
+                    n++;
+                    cols[px - x0]++;
+                    rows[py - y0]++;
+                  }
+                }
+              }
+              const xs = [...cols.keys()].filter((c) => cols[c] >= 2);
+              const ys = [...rows.keys()].filter((r) => rows[r] >= 3);
+              return { n, box: xs.length && ys.length ? [x0 + xs[0], y0 + ys[0], xs[xs.length - 1] - xs[0] + 1, ys[ys.length - 1] - ys[0] + 1] : null };
+            };
+            return { here: look(bx), other: look(2 * middle - bx - bw) };
+          },
+          [a, b, box ?? [0, 0, 0, 0]],
+        );
+      const refPaused = await freeze(tp, "T0");
       await setLicence(tp, weLicence);
       const refDiff = await awaitMark(tp, "T0", "P0", false); // P0: the clean frame
       const ref = badgeCorner(refDiff);
-      const refBox = ref ? refDiff.zones[ref].box : null; // where the badge sits and how big it is on this canvas
+      const refBox = ref ? refDiff.zones[ref].box : null; // how big the badge is on this canvas
+      const refN = ref ? refDiff.zones[ref].n : 0; // and how many pixels it changes (844 in every CI run so far)
       await setLicence(tp, null);
       await tp.waitForTimeout(300);
       await resume(tp);
@@ -14147,21 +14433,38 @@ await smokeBlock("watermark-everywhere", async () => {
       await tp.waitForTimeout(300);
       await snap(tp, "L2");
       const live = await tp.evaluate(() => window.__we.moved("L1", "L2")); // still running after the tampering
-      const tamperPaused = await pause(tp);
-      await snap(tp, "T1");
-      const d = await diffOf(tp, "T1", "P0");
-      const corner = badgeCorner(d);
-      // The run kept moving between the two paused frames, so the difference also holds moved balls and trails; a band of
-      // them in another corner zone can look like a second badge (CI 260: a 203 x 25 band bottom-right), and badgeCorner,
-      // which wants exactly one badge-like corner, answers null although the badge sits exactly where the clean frame
-      // had it. The badge therefore also counts as kept when the reference corner still carries a badge-like band at the
-      // reference badge's place and size (within a few pixels); a badge the tampering removed passes neither way.
-      const sameBox = (a, b) => !!a && !!b && Math.abs(a[0] - b[0]) <= 4 && Math.abs(a[1] - b[1]) <= 4 && Math.abs(a[2] - b[2]) <= 8 && Math.abs(a[3] - b[3]) <= 4;
-      const kept = corner ?? (ref && badgeLike(d, ref) && sameBox(d.zones[ref].box, refBox) ? ref : null);
+      // Freeze the tampered run for the comparison. T1 is the tampered frame once the paused canvas stands still: it carries the
+      // badge or it does not, and the clean frame below is taken of the very same simulation frame.
+      const frozen = await freeze(tp, "T1");
+      // The clean twin of that frame: the test licence goes into storage without a storage event (the gate sees it within a
+      // second, then verifies it); P1 is the first frame in which the badge is gone.
+      await tp.evaluate((token) => localStorage.setItem("jbl.license", token), weLicence);
+      let first = null;
+      for (let i = 0; i < 40; i++) {
+        await tp.waitForTimeout(150);
+        await snap(tp, "P1");
+        first = await markAt(tp, "T1", "P1", refBox);
+        // (a badge on both sides is the tampered frame's on one and the not yet cleaned P1's on the other: the badge changed sides
+        // in between, the gate has not yet taken the licence in – wait on)
+        if (Math.max(first.here.n, first.other.n) >= 0.5 * refN && Math.min(first.here.n, first.other.n) < 0.25 * refN) break;
+      }
+      // P1 must be the settled clean frame, not the instant in which the gate marks every frame while it verifies a licence it has
+      // just seen change (that would show a badge in P1 and none in T1 – a tampered frame that is clean): a later frame, which
+      // verification has long finished for, must not differ from P1 where the badge goes.
+      await tp.waitForTimeout(600);
+      await snap(tp, "P2");
+      const later = await markAt(tp, "P1", "P2", refBox);
+      const settled = Math.max(later.here.n, later.other.n) < 0.25 * refN;
+      const d = await diffOf(tp, "T1", "P1");
+      // The whole badge, not a fragment of it: where the reference badge was or on the other side of the square (it changes
+      // sides every 6 s of the page's clock, paused or not), as many changed pixels as the reference badge changed, as tall and
+      // as wide as it.
+      const at = first.here.n >= first.other.n ? first.here : first.other;
+      const wholeBadge = !!at.box && at.n >= 0.7 * refN && at.n <= 1.4 * refN && Math.abs(at.box[2] - refBox[2]) <= 8 && Math.abs(at.box[3] - refBox[3]) <= 3;
       check(
         "watermark everywhere: DOM tampering during a live run (marked elements removed, data-pro=\"true\" and Pro classes on <html>/<body>, Pro flags in localStorage, the canvas' classes, data attributes and CSS overridden, crypto.subtle.verify and WeakMap.prototype.get patched) leaves the badge in the pixels",
-        picked && refPaused && !!ref && removed >= 1 && live > 0 && tamperPaused && !!kept,
-        `(reference badge ${ref ?? "none"}${refBox ? `@${refBox.join(",")}` : ""}, removed ${removed}, still live ${live} px moved, badge after ${kept ?? "none"}${kept && !corner ? " (by its place and size)" : ""}: ${brief(d)})`,
+        picked && refPaused && !!ref && refN > 0 && removed >= 1 && live > 0 && frozen && settled && wholeBadge,
+        `(reference badge ${ref ?? "none"}${refBox ? `@${refBox.join(",")} n${refN}` : ""}, removed ${removed}, still live ${live} px moved, frozen ${frozen}, clean twin settled ${settled}, badge after the tampering ${wholeBadge ? "kept" : "NOT whole"} n${at.n}${at.box ? `@${at.box.join(",")}` : ""} (same side n${first.here.n}, other side n${first.other.n}): ${brief(d)})`,
       );
     }
 
@@ -17010,6 +17313,55 @@ await smokeBlock("go-live-kit", async () => {
     const note = await link.evaluate((a) => a.closest("li")?.textContent ?? "").catch(() => "");
     check(`go-live-kit: the ${locale} pricing notes link the refund terms`, (href === `${BASE_PATH}/${locale}/terms/#refunds` || href === `${BASE_PATH}/${locale}/terms#refunds`) && /14/.test(note), `(${href}, "${note.slice(0, 80)}")`);
   }
+  // --- legal-copy --- the privacy policy opens with who is responsible and says what the site does (no cookies, the rights, advertising,
+  // the Windows app); the disclaimer carries the Fight League notice; the pricing page names no PayPal before payment and gives the
+  // checkout line with a Terms link; the download page says what is free and links the Terms and the Privacy Policy under the buttons.
+  // The smoke build sets no SUPPORT_EMAIL / LEGAL_NAME, so the contact is the feedback form.
+  for (const locale of ["en", "pl", "es"]) {
+    await page.goto(`${BASE}/${locale}/privacy/`, { waitUntil: "domcontentloaded" });
+    const privacy = await page.evaluate(() => {
+      const section = (id) => document.getElementById(id);
+      return {
+        ids: [...document.querySelectorAll("main section[id]")].map((el) => el.id),
+        controllerHref: section("controller")?.querySelector('a[href*="/feedback"]')?.getAttribute("href") ?? "",
+        controllerText: section("controller")?.textContent ?? "",
+        h2: [...document.querySelectorAll("main section h2")].map((h) => h.textContent ?? ""),
+        cookies: section("cookies")?.textContent ?? "",
+        body: document.body.innerText,
+      };
+    });
+    check(
+      `legal-copy: the ${locale} privacy policy opens with who is responsible, numbers its sections and covers cookies, rights, advertising and the Windows app`,
+      ["introduction", "controller", "information", "cookies", "rights", "advertising", "consent", "payments", "windowsApp"].every((id) => privacy.ids.includes(id)) &&
+        privacy.ids.indexOf("controller") === 1 && privacy.controllerHref.includes("/feedback") && privacy.controllerText.length > 40 &&
+        privacy.h2[0].startsWith("1. ") && privacy.h2[1].startsWith("2. ") && privacy.cookies.length > 60 && !/AdSense|adsbygoogle/.test(privacy.body) && !/\{[a-zA-Z]+\}|<\/?(mail|link)>/.test(privacy.body),
+      `(${privacy.ids.join()}, controller "${privacy.controllerText.slice(0, 60)}", ${privacy.controllerHref})`,
+    );
+    await page.goto(`${BASE}/${locale}/disclaimer/`, { waitUntil: "domcontentloaded" });
+    const fanMade = await page.evaluate(() => ({ text: document.getElementById("fanMade")?.textContent ?? "", href: document.getElementById("fanMade")?.querySelector('a[href*="/feedback"]')?.getAttribute("href") ?? "" }));
+    check(`legal-copy: the ${locale} disclaimer carries the Fight League fan-made notice and a way to ask for a name to be removed`, /Fight League/.test(fanMade.text) && fanMade.text.length > 120 && fanMade.href.includes("/feedback"), `(${fanMade.text.slice(0, 80)}, ${fanMade.href})`);
+    await page.goto(`${BASE}/${locale}/pricing/`, { waitUntil: "networkidle" });
+    const pricingLegal = await page.evaluate(() => ({
+      paypal: /paypal/i.test(document.querySelector("main")?.innerText ?? ""),
+      line: document.querySelector('[data-testid="billing-checkout-line"]')?.textContent ?? "",
+      href: document.querySelector('[data-testid="billing-checkout-terms"]')?.getAttribute("href") ?? "",
+      shareRow: document.querySelector('[data-compare-row="publish"]')?.textContent ?? "",
+    }));
+    // (the smoke build has no billing address: its test-mode pricing page shows all three pay buttons, so the PayPal word is only the button's)
+    check(`legal-copy: the ${locale} pricing page has the checkout line with a Terms link and a share row that promises no publishing`, pricingLegal.line.length > 40 && pricingLegal.href.endsWith(`/${locale}/terms/`) && pricingLegal.shareRow.length > 30 && !/publish|publik|publicar/i.test(pricingLegal.shareRow), `(${pricingLegal.line.slice(0, 60)}, ${pricingLegal.href}, "${pricingLegal.shareRow.slice(0, 60)}")`);
+    await page.goto(`${BASE}/${locale}/download/`, { waitUntil: "domcontentloaded" });
+    const downloadLegal = await page.evaluate(() => ({
+      free: document.querySelector('[data-testid="download-free-note"]')?.textContent ?? "",
+      links: [...document.querySelectorAll('[data-testid="download-legal"] a')].map((a) => a.getAttribute("href") ?? ""),
+      notices: document.querySelector('[data-testid="download-notices"]')?.textContent ?? "",
+      smart: document.querySelector('[data-testid="download-smartscreen"]')?.textContent ?? "",
+    }));
+    check(
+      `legal-copy: the ${locale} download page says what is free and what Pro costs, links the Terms and the Privacy Policy under the buttons, and carries the third-party notice`,
+      /[0-9][.,]99/.test(downloadLegal.free) && downloadLegal.links.some((h) => h.endsWith(`/${locale}/terms/`)) && downloadLegal.links.some((h) => h.endsWith(`/${locale}/privacy/`)) && /ffmpeg/.test(downloadLegal.notices) && /Get-FileHash/.test(downloadLegal.smart) && !/GitHub Actions/.test(downloadLegal.smart),
+      `(${downloadLegal.free.slice(0, 70)}, ${downloadLegal.links.join()})`,
+    );
+  }
 });
 
 await smokeBlock("wave-tank", async () => {
@@ -18202,6 +18554,32 @@ await smokeBlock("user-accounts", async () => {
     const tiktokOn = !(await p.locator('[data-account-connect="tiktok"]').isDisabled());
     const nav = await p.getByTestId("navbar-account").innerText();
     check("user accounts: sign up on the Account page lists the relay's channels per platform, connects only what the relay has apps for, and the navbar names the user", name === "Signed in as Smokey" && tiktok === 2 && youtubeReconnect === 1 && instagramOff && tiktokOn && nav.trim() === "Smokey" && state.signups[0]?.email === "smoke@example.com" && state.signups[0]?.name === "Smokey", `(${JSON.stringify({ name, tiktok, youtubeReconnect, instagramOff, tiktokOn, nav: nav.trim(), signups: state.signups })})`);
+    // --- legal-copy --- this relay has apps for TikTok and YouTube, so the page does not say channels cannot be connected; a relay whose
+    // health lists no platform makes it say so (the notice reads the relay's own answer, nothing is switched by hand)
+    const closedHidden = (await p.getByTestId("account-channels-closed").count()) === 0;
+    const closedCtx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    let closedShown = false;
+    let closedText = "";
+    try {
+      const RELAY_NONE = "https://relay.nothing.test";
+      await closedCtx.route(`${RELAY_NONE}/**`, async (route) => {
+        const cors = { "access-control-allow-origin": origin, "access-control-allow-headers": "authorization, content-type", "access-control-allow-methods": "GET, POST, DELETE, OPTIONS" };
+        if (route.request().method() === "OPTIONS") return route.fulfill({ status: 204, headers: cors });
+        return route.fulfill({ status: 200, headers: cors, contentType: "application/json", body: JSON.stringify({ ok: true, platforms: { tiktok: false, instagram: false, youtube: false }, signup: true }) });
+      });
+      const cp = await closedCtx.newPage();
+      await cp.goto(`${BASE}/en/account/`, { waitUntil: "networkidle" });
+      await cp.getByTestId("account-signed-out").waitFor();
+      await cp.getByTestId("account-server").evaluate((el) => (el.open = true));
+      await cp.getByLabel("Relay address").fill(RELAY_NONE);
+      await cp.getByRole("button", { name: "Use this server" }).click();
+      await cp.getByText("Connected to relay.nothing.test.").waitFor({ timeout: 10000 });
+      closedShown = await cp.getByTestId("account-channels-closed").isVisible();
+      closedText = (await cp.getByTestId("account-channels-closed").innerText().catch(() => "")).replace(/\s+/g, " ");
+    } finally {
+      await closedCtx.close().catch(() => {});
+    }
+    check("user accounts: the Account page says channel connections are not open yet only when the relay's health lists no platform", closedHidden && closedShown && /not open yet/.test(closedText), `(hidden with platforms ${closedHidden}, shown with none ${closedShown}, "${closedText.slice(0, 80)}")`);
     const profile = async () => p.evaluate(() => JSON.parse(localStorage.getItem("jumpingballslive_publish") || "{}").relayProfiles?.map((r) => ({ id: r.id, label: r.label, url: r.url })) ?? []);
     const profiles = await profile();
     check("user accounts: the session is the Publish block's relay profile", profiles.length === 1 && profiles[0].id === "account" && profiles[0].label === "smoke@example.com" && profiles[0].url === RELAY, `(${JSON.stringify(profiles)})`);
@@ -18233,6 +18611,221 @@ await smokeBlock("user-accounts", async () => {
     check("user accounts: no page errors", bad.length === 0, bad.length ? `\n   ${bad.slice(0, 5).join("\n   ")}` : "");
   } finally {
     await accountCtx.close().catch(() => {});
+  }
+});
+
+// --- changelog --- The changelog page (/changelog): in every language a 200 with its own title, canonical and hreflang set, a line
+// with the newest website and Windows app versions, one section per release (the product and version as its heading, the
+// headline, the date as a <time>, the items), newest first, anchors that land clear of the sticky header, the filter chips
+// working with scripts switched off, no sentence dashes or GitHub links, no sideways scroll on a phone, a link in the footer and
+// a place in the sitemap; and, with a stand-in window.desktop, the Windows app's "you run version x" note and its "What's new
+// in x" notice (once after the version rises, absent on the website).
+await smokeBlock("changelog", async () => {
+  const titles = { en: /^Changelog\b/, pl: /^Dziennik zmian\b/, es: /^Registro de cambios\b/ };
+  const names = {
+    en: /^(Website|Windows app) \d+\.\d+\.\d+$/,
+    pl: /^(Strona WWW|Aplikacja na Windows) \d+\.\d+\.\d+$/,
+    es: /^(Web|Aplicación de Windows) \d+\.\d+\.\d+$/,
+  };
+  const months = { pl: /października|września|listopada/, es: /octubre|septiembre|noviembre/ };
+  const versionOf = (name) => (/(\d+)\.(\d+)\.(\d+)$/.exec(name) || []).slice(1).map(Number);
+  const cmpVersions = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+  const falling = (list) => list.every((v, i) => i === 0 || cmpVersions(list[i - 1], v) > 0);
+  let newestApp = "";
+  for (const locale of ["en", "pl", "es"]) {
+    const res = await page.goto(`${BASE}/${locale}/changelog/`, { waitUntil: "networkidle" });
+    const info = await page.evaluate(() => {
+      const sections = [...document.querySelectorAll('[data-testid="changelog-list"] section[id]')];
+      return {
+        lang: document.documentElement.lang,
+        title: document.title,
+        h1: document.querySelectorAll("h1").length,
+        canonical: document.querySelector('link[rel="canonical"]')?.getAttribute("href") ?? "",
+        alternates: [...document.querySelectorAll('link[rel="alternate"][hreflang]')].map((l) => l.getAttribute("hreflang")).sort(),
+        sections: sections.map((el) => ({
+          id: el.id,
+          product: el.closest("li")?.getAttribute("data-product") ?? "",
+          name: el.querySelector("h2")?.textContent?.trim() ?? "",
+          headline: el.querySelector('[data-testid="changelog-headline"]')?.textContent?.trim() ?? "",
+          order: [...(el.querySelector("header")?.children ?? [])].map((c) => c.tagName).join(),
+          date: el.querySelector("time")?.getAttribute("datetime") ?? "",
+          timeText: el.querySelector("time")?.textContent ?? "",
+          items: el.querySelectorAll("ul > li").length,
+        })),
+        versionLine: { text: document.querySelector('[data-testid="changelog-versions"]')?.textContent?.replace(/\s+/g, " ").trim() ?? "", hrefs: [...document.querySelectorAll('[data-testid="changelog-versions"] a')].map((a) => a.getAttribute("href")) },
+        headings: [...document.querySelectorAll("main h1, main h2, main h3")].map((h) => h.tagName),
+        jsonLd: [...document.querySelectorAll('script[type="application/ld+json"]')].map((s) => { try { return JSON.parse(s.textContent ?? "{}")["@type"]; } catch { return "invalid"; } }),
+        text: document.querySelector("main")?.innerText ?? "",
+        links: [...document.querySelectorAll("main a[href]")].map((a) => a.getAttribute("href") ?? ""),
+      };
+    });
+    const secs = info.sections;
+    const dates = secs.map((s) => s.date);
+    const idOf = (s) => `${s.product}-${versionOf(s.name).join("-")}`;
+    const firstSite = secs.find((s) => s.product === "site");
+    const firstApp = secs.find((s) => s.product === "app");
+    if (locale === "en") newestApp = firstApp ? versionOf(firstApp.name).join(".") : "";
+    check(
+      `changelog: /${locale}/changelog/ is a localised page with its title, canonical, hreflang set and structured data`,
+      res.status() === 200 && info.lang === locale && titles[locale].test(info.title) && info.title.length <= 60 && info.title.endsWith("JumpingBallsLive") && info.h1 === 1 && info.canonical === `${BASE}/${locale}/changelog/` && info.alternates.join() === "en,es,pl,x-default" && info.jsonLd.includes("CollectionPage"),
+      `(${res.status()}, lang ${info.lang}, "${info.title}", h1 ${info.h1}, canonical ${info.canonical}, hreflang ${info.alternates.join()}, ld ${info.jsonLd.join()})`,
+    );
+    check(
+      `changelog: /${locale}/changelog/ lists the releases newest first, each with its product and version as the heading, the headline, a <time> and items`,
+      secs.length >= 2 && secs.every((s) => names[locale].test(s.name) && s.id === idOf(s) && s.headline.length > 3 && s.order === "H2,P,TIME" && /^\d{4}-\d{2}-\d{2}$/.test(s.date) && s.items >= 1) && dates.join() === [...dates].sort().reverse().join() && ["site", "app"].every((p) => falling(secs.filter((s) => s.product === p).map((s) => versionOf(s.name)))) && info.headings[0] === "H1" && info.headings.slice(1).every((h) => h === "H2") && (locale === "en" || secs.some((s) => months[locale].test(s.timeText))),
+      `(${secs.length} releases: ${secs.slice(0, 4).map((s) => `${s.id} "${s.name}" ${s.date}`).join(" | ")}, headings ${[...new Set(info.headings)].join()})`,
+    );
+    check(
+      `changelog: /${locale}/changelog/ names the newest website and Windows app versions at the top, each a link to its section`,
+      !!firstSite && !!firstApp && info.versionLine.text === `${firstSite.name} · ${firstApp.name}` && info.versionLine.hrefs.join() === `#${firstSite.id},#${firstApp.id}`,
+      `("${info.versionLine.text}", ${info.versionLine.hrefs.join()}, first site ${firstSite?.id}, first app ${firstApp?.id})`,
+    );
+    check(
+      `changelog: /${locale}/changelog/ has no sentence dashes or semicolons and no GitHub link`,
+      !/ – |—|;/.test(info.text) && !info.links.some((h) => /github\.com/.test(h)),
+      `(${(/ – |—|;/.exec(info.text) || ["clean"])[0]}, ${info.links.filter((h) => /github\.com/.test(h)).join()})`,
+    );
+  }
+
+  // an anchor lands the section clear of the sticky 56 px header
+  await page.goto(`${BASE}/en/changelog/`, { waitUntil: "networkidle" });
+  const firstId = await page.locator('[data-testid="changelog-list"] section[id]').first().getAttribute("id");
+  // the second release (the last one cannot scroll to the top of a page that ends below it)
+  const anchorId = await page.locator('[data-testid="changelog-list"] section[id]').nth(1).getAttribute("id");
+  await page.goto(`${BASE}/en/changelog/#${anchorId}`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(600);
+  const landed = await page.evaluate((id) => Math.round(document.getElementById(id)?.getBoundingClientRect().top ?? -999), anchorId);
+  check("changelog: a release anchor scrolls the section below the sticky header", landed >= 56 && landed <= 200, `(#${anchorId} top ${landed}px, first ${firstId})`);
+
+  // every release stays on the page, the older ones too, with their items visible and no script needed
+  const plain = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1280, height: 900 } });
+  try {
+    const p = await plain.newPage();
+    await p.goto(`${BASE}/en/changelog/`, { waitUntil: "load" });
+    const itemsShown = await p.$$eval('[data-testid="changelog-list"] section[id]', (els) => els.map((el) => [...el.querySelectorAll("ul > li p")].filter((x) => x.getBoundingClientRect().height > 0).length === el.querySelectorAll("ul > li").length));
+    check("changelog: every release lists all its items on the page, the oldest too, without scripts", itemsShown.length >= 2 && itemsShown.every(Boolean), `(${itemsShown.length} releases, all shown ${itemsShown.every(Boolean)})`);
+    // the filter chips are radio buttons: they work with scripts off
+    const visible = async (product) => p.$$eval(`[data-testid="changelog-list"] li[data-product="${product}"]`, (els) => els.filter((el) => getComputedStyle(el).display !== "none").length);
+    const total = { site: await p.locator('li[data-product="site"]').count(), app: await p.locator('li[data-product="app"]').count() };
+    const all = { site: await visible("site"), app: await visible("app") };
+    await p.locator('label[for="cl-app"]').click();
+    const onlyApp = { site: await visible("site"), app: await visible("app"), checked: await p.locator("#cl-app").isChecked() };
+    await p.locator('label[for="cl-site"]').click();
+    const onlySite = { site: await visible("site"), app: await visible("app") };
+    await p.locator('label[for="cl-all"]').click();
+    const back = { site: await visible("site"), app: await visible("app") };
+    check(
+      "changelog: the filter chips show one product or everything with scripts switched off",
+      total.site > 0 && total.app > 0 && all.site === total.site && all.app === total.app && onlyApp.site === 0 && onlyApp.app === total.app && onlyApp.checked && onlySite.app === 0 && onlySite.site === total.site && back.site === total.site && back.app === total.app,
+      `(total ${JSON.stringify(total)}, all ${JSON.stringify(all)}, app ${JSON.stringify(onlyApp)}, site ${JSON.stringify(onlySite)}, back ${JSON.stringify(back)})`,
+    );
+    // a radio group: one legend, the chips are labelled
+    const group = await p.evaluate(() => ({ legend: document.querySelector("fieldset legend")?.textContent ?? "", radios: document.querySelectorAll('fieldset input[type="radio"][name="changelog-filter"]').length, labelled: [...document.querySelectorAll('fieldset input[type="radio"]')].every((i) => !!document.querySelector(`label[for="${i.id}"]`)) }));
+    check("changelog: the filter is a labelled radio group", group.legend.length > 0 && group.radios === 3 && group.labelled, `(${JSON.stringify(group)})`);
+  } finally {
+    await plain.close().catch(() => {});
+  }
+
+  // a phone: nothing scrolls sideways in the longest language
+  const phone = await browser.newContext({ viewport: { width: 320, height: 640 } });
+  try {
+    const p = await phone.newPage();
+    const overflow = {};
+    for (const locale of ["en", "pl", "es"]) {
+      await p.goto(`${BASE}/${locale}/changelog/`, { waitUntil: "networkidle" });
+      overflow[locale] = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    }
+    check("changelog: no sideways scroll at 320 px in English, Polish and Spanish", Object.values(overflow).every((n) => n <= 0), `(${JSON.stringify(overflow)})`);
+  } finally {
+    await phone.close().catch(() => {});
+  }
+
+  // the footer links it and the sitemap lists it in every language
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  const footerHref = await page.locator('footer a[href$="/changelog/"]').first().getAttribute("href").catch(() => null);
+  const sitemapXml = await (await page.request.get(`${BASE}/sitemap.xml`)).text();
+  check("changelog: the footer links /changelog/ and the sitemap lists it in every language", footerHref === `${BASE_PATH}/en/changelog/` && ["en", "pl", "es"].every((l) => sitemapXml.includes(`${BASE}/${l}/changelog/`)), `(footer ${footerHref})`);
+
+  // inside the Windows app (a stand-in window.desktop): the page's note names the version and links its release, and the
+  // simulator shows "What's new" once after the version has risen. The stand-in answers info() and never answers anything else
+  // (the Desktop group stays empty), which is all these two read. The website shows neither.
+  const web = await page.locator('[data-testid="changelog-your-version"]').count();
+  await page.goto(`${BASE}/en/changelog/`, { waitUntil: "networkidle" });
+  const webNote = await page.locator('[data-testid="changelog-your-version"]').count();
+  await page.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(500);
+  const webNotice = await page.locator('[data-testid="desktop-whatsnew"]').count();
+  const appId = `app-${newestApp.replace(/\./g, "-")}`;
+  const app = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  try {
+    await app.addInitScript((version) => {
+      const pending = () => new Promise(() => {});
+      const deep = () => new Proxy(function () {}, { get: (_t, key) => (key === "then" || typeof key === "symbol" ? undefined : deep()), apply: pending });
+      const base = { apiVersion: 1, info: async () => ({ appName: "JumpingBallsLive", version, electron: "0", chrome: "0", platform: "win32", arch: "x64", packaged: true, dataDir: "", logFile: "", smoke: false }), on: () => () => {} };
+      window.desktop = new Proxy(base, { get: (t, key) => (key in t ? t[key] : typeof key === "symbol" ? undefined : deep()) });
+    }, newestApp);
+    const p = await app.newPage();
+    const appErrors = [];
+    p.on("pageerror", (e) => appErrors.push(e.message));
+    await p.goto(`${BASE}/en/changelog/`, { waitUntil: "networkidle" });
+    const note = p.locator('[data-testid="changelog-your-version"]');
+    await note.waitFor({ timeout: 10000 }).catch(() => {});
+    const text = (await note.innerText().catch(() => "")).replace(/\s+/g, " ");
+    const href = await note.locator("a").getAttribute("href").catch(() => null);
+    check("changelog: the website shows no version note, the Windows app names its version and links the release", web === 0 && webNote === 0 && newestApp !== "" && text.includes(`You run version ${newestApp} of the Windows app.`) && href === `#${appId}`, `(web ${webNote}, "${text}", ${href})`);
+
+    // "What's new": the first run stores the version and says nothing, a rise shows the notice once with a link to the release
+    const KEY = "jumpingballslive_whatsnew";
+    const stored = () => p.evaluate((k) => localStorage.getItem(k), KEY);
+    const notice = p.locator('[data-testid="desktop-whatsnew"]');
+    const open = async (locale = "en") => {
+      await p.goto(`${BASE}/${locale}/simulator/`, { waitUntil: "networkidle" });
+      await p.waitForTimeout(600);
+    };
+    await p.evaluate((k) => localStorage.removeItem(k), KEY);
+    await open();
+    const first = { shown: await notice.count(), stored: await stored() };
+    await p.evaluate((k) => localStorage.setItem(k, "0.0.1"), KEY);
+    await open();
+    await notice.waitFor({ timeout: 5000 }).catch(() => {});
+    const box = await notice.boundingBox().catch(() => null);
+    const viewport = p.viewportSize();
+    const shown = {
+      count: await notice.count(),
+      text: (await notice.innerText().catch(() => "")).replace(/\s+/g, " "),
+      href: await p.getByTestId("desktop-whatsnew-link").getAttribute("href").catch(() => null),
+      inView: !!box && !!viewport && box.y >= 0 && box.y + box.height <= viewport.height && box.x >= 0 && box.x + box.width <= viewport.width,
+      stored: await stored(),
+    };
+    await open();
+    const again = await notice.count();
+    check(
+      "changelog: the Windows app says What's new once after the version rises, with a link to that release, and nothing on a first run or the website",
+      webNotice === 0 && first.shown === 0 && first.stored === newestApp && shown.count === 1 && shown.text.includes(`What's new in ${newestApp}`) && shown.text.includes("Dismiss") && shown.href === `${BASE_PATH}/en/changelog/#${appId}` && shown.inView && shown.stored === newestApp && again === 0,
+      `(website ${webNotice}, first run ${JSON.stringify(first)}, after a rise ${JSON.stringify(shown)}, again ${again})`,
+    );
+    // Dismiss hides it; the link opens the release on the changelog page; Polish reads its own text
+    await p.evaluate((k) => localStorage.setItem(k, "0.0.1"), KEY);
+    await open();
+    await notice.waitFor({ timeout: 5000 }).catch(() => {});
+    await p.getByTestId("desktop-whatsnew-dismiss").click().catch(() => {});
+    const dismissed = (await notice.count()) === 0;
+    await p.evaluate((k) => localStorage.setItem(k, "0.0.1"), KEY);
+    await open("pl");
+    await notice.waitFor({ timeout: 5000 }).catch(() => {});
+    const polish = (await notice.innerText().catch(() => "")).replace(/\s+/g, " ");
+    await p.getByTestId("desktop-whatsnew-link").click().catch(() => {});
+    await p.waitForURL(new RegExp(`/pl/changelog/#${appId}$`), { timeout: 10000 }).catch(() => {});
+    await p.waitForTimeout(600);
+    const target = await p.evaluate((id) => ({ url: location.pathname + location.hash, top: Math.round(document.getElementById(id)?.getBoundingClientRect().top ?? -999) }), appId);
+    check(
+      "changelog: Dismiss hides the What's new notice, it reads in Polish, and its link opens the release on the changelog page",
+      dismissed && polish.includes(`Co nowego w wersji ${newestApp}`) && target.url === `${BASE_PATH}/pl/changelog/#${appId}` && target.top >= 56 && target.top <= 200,
+      `(dismissed ${dismissed}, "${polish}", ${JSON.stringify(target)})`,
+    );
+    check("changelog: no page errors in the Windows app's notices", appErrors.length === 0, appErrors.length ? `\n   ${appErrors.slice(0, 5).join("\n   ")}` : "");
+  } finally {
+    await app.close().catch(() => {});
   }
 });
 

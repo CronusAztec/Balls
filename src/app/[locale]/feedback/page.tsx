@@ -4,18 +4,13 @@ import { NextIntlClientProvider } from "next-intl";
 import { pageClientNamespaces, pickMessages } from "@/i18n/clientMessages"; // --- review fix (performance) ---
 import ProseLayout from "@/components/site/ProseLayout";
 import FeedbackForm from "@/components/site/FeedbackForm";
-import { SITE_NAME, pageUrl } from "@/lib/site";
-import { localeAlternates } from "@/i18n/alternates";
+import { SITE_NAME } from "@/lib/site";
+import { pageMetadata } from "@/lib/seo"; // --- seo ---
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Feedback" });
-  return {
-    title: t("metaTitle", { siteName: SITE_NAME }),
-    description: t("metaDescription", { siteName: SITE_NAME }),
-    alternates: { canonical: pageUrl(locale, "/feedback"), languages: localeAlternates("/feedback") },
-    robots: { index: false },
-  };
+  return pageMetadata({ locale, path: "/feedback", title: t("metaTitle", { siteName: SITE_NAME }), description: t("metaDescription", { siteName: SITE_NAME }), noindex: true }); // --- seo ---
 }
 
 /* --- site-redesign --- the form in the reading column, on a panel under the title and the lede. */

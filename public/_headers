@@ -1,0 +1,35 @@
+# --- static-headers --- Security and caching headers of the static export. Cloudflare Workers static assets (wrangler.toml
+# [assets]) reads this file from the root of ./out, applies it to the files it serves and never serves the file itself. Rules that
+# match one URL add up. Wrangler keeps only ONE block per path (the last), so a path is named once here; scripts/postexport.mjs adds
+# the X-Build header to the /* block at the end (scripts/lib/headers-file.mjs folds the block it appends into this one).
+# scripts/pwa/build.mjs keeps this file (and _redirects) out of the service worker's precache: a worker that listed it would get a 404.
+# Not a Content-Security-Policy: that needs its own audit (inline scripts of the static export, the billing Worker, the analytics beacon).
+
+# Build output with a content hash in its name never changes: cache it for a year (a repeat visit makes no request for it)
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Pictures and sounds with fixed names: a day. Pages (HTML), sw.js, offline.html, manifest.webmanifest, version.json and
+# the og* cards keep the host's default (revalidate every time), so a deploy shows up at once.
+/modes/*
+  Cache-Control: public, max-age=86400
+/gallery/*
+  Cache-Control: public, max-age=86400
+/icons/*
+  Cache-Control: public, max-age=86400
+/notes/*
+  Cache-Control: public, max-age=86400
+/hitSounds/*
+  Cache-Control: public, max-age=86400
+/wallBreak/*
+  Cache-Control: public, max-age=86400
+
+# Every URL: no sniffing of file types, other sites get only the origin as referrer, no framing by other sites, no camera,
+# microphone, location or screen capture (the site uses none), and HTTPS only for six months (no includeSubDomains or preload:
+# the billing and relay hosts are other subdomains). This is the block the X-Build header joins.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), display-capture=()
+  Strict-Transport-Security: max-age=15552000

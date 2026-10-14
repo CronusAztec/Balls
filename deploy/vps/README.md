@@ -47,6 +47,7 @@ token during the build – the same trust a GitHub Actions deploy needs, moved t
 | last result | `sudo -u jbldeploy /opt/jbl-deploy/jbl-deploy.sh --status` |
 | deploy now instead of waiting | `sudo systemctl start jbl-deploy.service` |
 | deploy a particular commit (a rollback) | `sudo -u jbldeploy /opt/jbl-deploy/jbl-deploy.sh --sha <40-character hash>` |
+| which build is live (release, full commit, commit date, build id) | `curl -s https://jumpingballslive.com/version.json` (the footer of every page shows the same as `v1.10.0 · 8fa8dbb · 2026-10-14`; `curl -sI https://jumpingballslive.com/en/ \| grep -i x-build` shows the id as a header) |
 | a rollback in Cloudflare itself | dashboard → Workers & Pages → `jumpingballslive` → Deployments → Rollback |
 | change the token | `sudo bash deploy/vps/install.sh --reconfigure` |
 | pause / resume | `sudo systemctl stop jbl-deploy.timer` / `sudo systemctl start jbl-deploy.timer` |
@@ -100,7 +101,9 @@ When the deployer cannot read the repository (a private repository without a tok
 ## How the AI that makes the changes uses it
 
 It pushes to the watched branch, waits for GitHub's check to go green, and then reads `https://jumpingballslive.com/build.txt`: when it
-prints the commit it pushed, the deploy happened. It has no access to this server and needs none.
+prints the commit it pushed, the deploy happened. `https://jumpingballslive.com/version.json` says more (the release version, the full
+commit, its date): the site's own build writes it, so it works with the deployer script as it is installed now, with no re-install.
+It has no access to this server and needs none.
 
 Tests: `tests/vpsDeploy.test.ts` runs the whole script against stand-ins for git, npm, npx, node's two build scripts and curl: the order
 of the steps, a red or pending check, a failing step, the retry window, the lock, a rollback by hash and the status file.

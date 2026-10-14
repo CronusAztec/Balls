@@ -23,6 +23,7 @@ export const PAGE_CLIENT_NAMESPACES: Readonly<Record<string, readonly string[]>>
   "/feedback": ["Feedback"],
   "/pricing": ["Billing"], // --- paywall-gate --- the plans, the claim, the licence and Restore purchase
   "/account": ["Account"], // --- user-accounts --- sign up, sign in, the connected channels
+  "/changelog": ["ChangelogLive"], // --- changelog --- the Windows app's "you run version x" note (the page's own text is read on the server)
 };
 
 /** The static 404 page (a client component end to end): the NotFound text, the navbar and the footer. */

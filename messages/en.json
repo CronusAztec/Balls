@@ -19,11 +19,11 @@
   },
   "SimulatorPage": {
     "heading": "Ball Physics Simulator",
-    "metaTitle": "Ball Physics Simulator for TikTok and Reels – {siteName}",
+    "metaTitle": "Ball Physics Simulator, {count} Modes – {siteName}",
     "metaDescription": "Ball physics simulator with {count} modes. Free to play and export, no sign-up, no install. Vertical MP4 for TikTok. Pro removes the watermark."
   },
   "Layout": {
-    "metaTitle": "Satisfying Ball Physics Simulator for TikTok and Reels – {siteName}",
+    "metaTitle": "Satisfying Ball Physics Simulator – {siteName}",
     "metaDescription": "Ball physics simulator in your browser. {count} modes, free, no sign-up. Export MP4 videos for TikTok, Reels and Shorts. Pro removes the watermark.",
     "browserRequirements": "Requires a modern web browser with JavaScript enabled",
     "featuresModes": "{count} simulation modes",
@@ -2567,7 +2567,7 @@
   "FAQ": {
     "q1": {
       "question": "Is {siteName} free to use?",
-      "answer": "Yes. Every mode, every setting and recording are free, with no account. Free videos carry a small watermark, and Pro removes it for $6.99 a month or $49 a year."
+      "answer": "Yes. Every mode, every setting and recording are free, with no account. Free videos carry a small watermark, and Pro removes it for {monthly} a month or {yearly} a year."
     },
     "q2": {
       "question": "What video formats and sizes can I export?",
@@ -2575,7 +2575,7 @@
     },
     "q3": {
       "question": "Can I use the videos commercially?",
-      "answer": "Yes. Everything you make is yours to post anywhere, with no credit needed."
+      "answer": "Yes. Everything you make is yours to post anywhere, with no credit needed. The names of characters in Fight League belong to their owners."
     },
     "q4": {
       "question": "Do I need to install anything?",
@@ -2610,7 +2610,7 @@
     "tipTextHooksTitle": "Add a hook",
     "tipTextHooksBody": "A line at the top like “Will it escape?” gives viewers a reason to stay. Keep it big enough to read on a phone.",
     "tipClipLengthTitle": "Keep it short",
-    "tipClipLengthBody": "15 to 30 seconds does best on TikTok and Reels. Set the length in Recording and pick 1080×1920.",
+    "tipClipLengthBody": "Short clips of 15 to 30 seconds are a good start. Set the length in Recording and pick 1080×1920.",
     "tipSpeedTitle": "Preview fast, record at 1×",
     "tipSpeedBody": "Use 2× to 8× to skip through a long run while you set it up. Go back to 1× before you record.",
     "troubleBadge": "Help",
@@ -2639,7 +2639,12 @@
     "shortcuts": "Keyboard shortcuts",
     "pauseResume": "Pause/Resume",
     "restart": "Restart",
-    "pricing": "Pricing"
+    "pricing": "Pricing",
+    "changelog": "Changelog",
+    "press": "Press",
+    "operatedBy": "Operated by {name}",
+    "buildTip": "Build {commit} · {date}. See what changed.",
+    "buildTipDev": "Local build. See what changed."
   },
   "NotFound": {
     "title": "Page not found",
@@ -2651,95 +2656,164 @@
     "title": "Privacy Policy",
     "lastUpdated": "Last updated",
     "metaTitle": "Privacy Policy – {siteName}",
-    "metaDescription": "Privacy policy for {siteDomain}",
+    "metaDescription": "How {siteName} handles your data. What stays in your browser, what is sent when you publish or pay, and the storage the site uses.",
     "introduction": {
-      "title": "1. Introduction",
-      "content": "Welcome to {siteDomain} (\"we\", \"our\", \"us\"). We respect your privacy and keep the amount of information connected to your use of this site as small as possible. This policy explains what is collected, how it is used and what your rights are."
+      "title": "Introduction",
+      "content": "Welcome to {siteDomain} (\"we\", \"our\", \"us\"). We respect your privacy and keep the amount of information connected to your use of this site as small as possible. This policy covers the website and the Windows app. It explains what is collected, how it is used and what your rights are."
     },
     "information": {
-      "title": "2. Information We Collect",
+      "title": "Information We Collect",
       "subtitle": "We collect the minimum needed to run and improve the service:",
       "analytics": {
-        "label": "Analytics data:",
-        "content": "If analytics are enabled, we use a privacy-focused service that records anonymous usage statistics such as page views, browser type, screen size and approximate region. It does not identify you personally."
+        "label": "Visit statistics:",
+        "content": "On the website we count visits with Cloudflare Web Analytics. It reports the page that was opened, the site you came from, your country, your device type, your browser and your operating system. Cloudflare says it uses no cookies or local storage for this and does not track people across sites."
       },
       "localStorage": {
         "label": "Local storage data:",
-        "content": "Your simulator settings and presets are stored in your browser's local storage. They never leave your device and are not sent to our servers."
+        "content": "Your settings and presets are stored in your browser's local storage on your device and are not sent to our servers. The same place holds your Pro licence and, if you use them, your account sign-in and publishing connections. Those go only to the service they belong to, as described below."
       },
       "images": {
         "label": "Uploaded images and audio:",
-        "content": "Custom ball images, MIDI files and sound clips are processed entirely in your browser. Nothing is uploaded, stored or transmitted."
+        "content": "Custom ball images, MIDI files and sound clips are processed entirely in your browser. They are not uploaded. A clip you make with them leaves your device only if you publish it."
+      },
+      "events": {
+        "label": "Action counts:",
+        "content": "We also count a few actions, such as starting the simulator, exporting a clip or opening the checkout, with a statistics service at {host}. It records the page, the campaign name in the link, the site you came from, your browser, your screen size and your country. It never receives your email, your settings or what you make. It does not run if your browser sends Do Not Track or Global Privacy Control, and it does not run in the Windows app."
+      },
+      "account": {
+        "label": "Account data:",
+        "content": "If you create an account, the relay server keeps your email address, the name you gave and a salted hash of your password. See Publishing below."
+      },
+      "payment": {
+        "label": "Payment data:",
+        "content": "If you buy Pro, our billing server keeps your email, the plan and the payment provider's reference. See Payments below."
       }
     },
     "howWeUse": {
-      "title": "3. How We Use Your Information",
-      "content": "Analytics data is used only to understand how the site is used so we can improve it. We do not sell, share or transfer collected data to third parties for marketing."
+      "title": "How We Use Your Information",
+      "content": "Visit statistics show us how the site is used so that we can improve it. Your email and the payment reference are used to issue, renew and restore your Pro licence. We do not sell your data and we do not share it with advertising networks."
     },
     "cookies": {
-      "title": "4. Cookies and Tracking",
-      "content": "We may use minimal cookies or similar technologies for analytics and to remember your language. They do not track you across other websites and do not collect personal information."
+      "title": "Cookies and Tracking",
+      "content": "This site sets no cookies. Your language is part of the page address, and your settings stay in your browser's local storage. The payment pages of Stripe and NOWPayments, and the sign-in pages of TikTok, Instagram and Google, belong to those companies and may set their own cookies."
     },
     "thirdParty": {
-      "title": "5. Third-Party Services",
-      "content": "Third-party analytics services, where enabled, may collect anonymous usage data under their own privacy policies."
+      "title": "Third-Party Services",
+      "intro": "These companies handle data for us or for you. Each does so under its own privacy policy.",
+      "cloudflare": {
+        "name": "Cloudflare",
+        "use": "serves the site, counts visits and runs the billing server. As the host it sees your IP address when you load a page."
+      },
+      "stripe": {
+        "name": "Stripe",
+        "use": "takes card payments on its own checkout page."
+      },
+      "nowpayments": {
+        "name": "NOWPayments",
+        "use": "takes crypto payments on its own checkout page."
+      },
+      "google": {
+        "name": "Google",
+        "use": "receives the clip when you publish to YouTube."
+      },
+      "github": {
+        "name": "GitHub",
+        "use": "hosts the Windows app's installers and update files."
+      },
+      "huggingface": {
+        "name": "Hugging Face",
+        "use": "hosts the AI models that the Windows app downloads when you ask."
+      }
     },
     "retention": {
-      "title": "6. Data Retention",
-      "content": "Analytics data is kept only in aggregate form. Apart from the billing details of a Pro purchase (see Payments below), we collect no personally identifiable information. Local storage data can be cleared at any time through your browser settings."
+      "title": "Data Retention",
+      "content": "Local storage data stays on your device until you clear it in your browser settings. Visit statistics are kept by the services that produce them, under their own rules. The billing server keeps your email, the plan and the provider's reference for as long as your licence can be restored and accounting rules require. An account on the relay is kept until you delete it on the Account page, and a clip uploaded to the relay is deleted after 24 hours."
     },
     "children": {
-      "title": "7. Children's Privacy",
+      "title": "Children's Privacy",
       "content": "The service is not directed at children under 13 and we do not knowingly collect personal information from children."
     },
     "changes": {
-      "title": "8. Changes to This Policy",
+      "title": "Changes to This Policy",
       "content": "We may update this policy from time to time. Changes appear on this page with an updated revision date."
     },
-    "adsenseNotice": {
-      "title": "9. Advertising",
-      "line1": "We may display advertisements through a third-party ad service such as Google AdSense. Such services use cookies to show relevant ads based on your browsing and collect non-personal information such as browser type and pages viewed.",
-      "line2": "You can learn more in the",
-      "privacyLink": "Google Privacy Policy",
-      "line3": "and the",
-      "termsLink": "Google Terms of Service",
-      "line4": ". You can opt out of personalised advertising at",
-      "optOutLink": "Ad Settings",
-      "line5": "."
-    },
     "consent": {
-      "title": "10. Cookie Consent",
-      "content": "Where required by law, you will be asked to consent to non-essential cookies before they are set. You can change your choice at any time through your browser settings."
+      "title": "Consent",
+      "content": "The site sets no cookies and loads no advertising tags, so it shows no cookie banner. If we add anything that needs your consent, we will ask before it runs."
     },
     "contact": {
-      "title": "11. Contact",
+      "title": "Contact",
       "content": "Questions about this policy? Reach us through our",
       "feedbackLink": "feedback form"
     },
     "publishing": {
-      "title": "12. Publishing to TikTok, Instagram and YouTube",
-      "content": "The simulator's Publish block sends a clip only when you click a send or share button. Quick share hands the file to your device's share sheet or downloads it. Uploads to YouTube go straight from your browser to Google with an access token kept in your browser's local storage (removing the account in the block deletes it). TikTok, Instagram – and YouTube, if you choose – go through a relay server. You sign in to it with an access key from whoever runs it, or with an account you create on the Account page. For an account the relay stores your email address, the name you gave, a salted hash of your password (never the password itself) and the channels you connect with their tokens, until you delete the account on that page. The relay also keeps each uploaded clip at an unguessable link for 24 hours so the platform can fetch it.",
+      "title": "Publishing to TikTok, Instagram and YouTube",
+      "content": "The studio's Publish block sends a clip only when you click a send or share button. Quick share hands the file to your device's share sheet or downloads it, and sends nothing to us. An upload to YouTube goes from your browser straight to Google, with an access token kept in your browser's local storage. Removing the account in the block deletes the token. Uploads to TikTok and Instagram, and to YouTube if you choose, go through a relay server. You sign in to it with an access key from whoever runs it, or with an account you create on the Account page.",
       "youtube1": "YouTube uploads use the YouTube API Services: by uploading you agree to the",
       "ytTermsLink": "YouTube Terms of Service",
       "youtube2": ", and Google processes the data under the",
       "googlePrivacyLink": "Google Privacy Policy",
       "youtube3": ". You can revoke this site's access at any time in your",
       "revokeLink": "Google account's third-party access settings",
-      "youtube4": "."
+      "youtube4": ".",
+      "relay": "For an account the relay keeps your email address, the name you gave, a salted hash of your password and never the password itself, and the channels you connect with their tokens. It keeps them until you delete the account on the Account page. The relay also keeps each uploaded clip at an unguessable link for 24 hours so that the platform can fetch it.",
+      "availability": "Whether a channel can be connected depends on the platforms the relay has switched on. The Account page says when none is."
+    },
+    "controller": {
+      "title": "Who is responsible",
+      "named": "{siteName} is run by {legalName}{address}.",
+      "unnamed": "{siteName} is run by the operator of {siteDomain}.",
+      "writeTo": "For anything about your data, write to <mail>{email}</mail>.",
+      "useForm": "For anything about your data, use the <link>feedback form</link>."
+    },
+    "rights": {
+      "title": "Your Rights",
+      "content": "You can ask us for a copy of your data, to correct it or to delete it. You can delete an account yourself on the Account page. Local storage data never reaches us, so you clear it in your browser. If you are in the EU, the UK or another country with data protection law, you can also complain to your data protection authority.",
+      "requestEmail": "To make a request, write to <mail>{email}</mail>.",
+      "requestForm": "To make a request, use the <link>feedback form</link>."
+    },
+    "advertising": {
+      "title": "Advertising",
+      "content": "We do not show ads on this site. We advertise {siteName} on other platforms. We load no advertising pixels or tags and share nothing about what you do here with ad networks.",
+      "campaign": "A link from one of our ads carries a campaign name. The statistics service at {host} records it, so that we can see which ads bring visitors."
+    },
+    "windowsApp": {
+      "title": "The Windows App",
+      "intro": "The Windows app runs the studio on your PC. It sends us no usage data and no crash reports. Your clips, library and settings stay on your PC. The app goes online only for the following:",
+      "updates": {
+        "label": "Updates:",
+        "content": "If automatic updates are on, the installed app asks GitHub for a small file that names the newest version, shortly after it starts and then every four hours. It downloads a new installer from GitHub when there is one. The portable EXE does not check."
+      },
+      "licence": {
+        "label": "Your Pro licence:",
+        "content": "When a card subscription is about to renew, the app asks the billing server for the renewed licence. It sends your email and the receipt reference."
+      },
+      "models": {
+        "label": "AI models:",
+        "content": "A model is downloaded from Hugging Face only when you ask. The Run checks button also contacts Hugging Face to test the connection."
+      },
+      "cloud": {
+        "label": "Cloud AI:",
+        "content": "If you enter a key for a cloud provider, the app sends your requests to that provider. The key is stored encrypted on your PC and goes nowhere else."
+      },
+      "accounts": {
+        "label": "Account and publishing:",
+        "content": "Signing in and publishing use the relay server and the platforms, as described above."
+      }
     }
   },
   "Terms": {
     "title": "Terms of Service",
     "lastUpdated": "Last updated",
     "metaTitle": "Terms of Service – {siteName}",
-    "metaDescription": "Terms of service for {siteDomain}",
+    "metaDescription": "The rules for using {siteName}. Your videos, the Free and Pro plans, billing and refunds, and what the tool does not promise.",
     "acceptance": {
       "title": "1. Acceptance of Terms",
       "content": "By using {siteDomain} (\"the Service\") you agree to these Terms of Service. If you do not agree with any part of them, please do not use the Service."
     },
     "description": {
       "title": "2. Description of Service",
-      "content": "{siteName} is a browser-based physics simulation tool for creating bouncing-ball animations, customising their look and behaviour and exporting them as video files. Using the simulator and exporting videos is free; videos exported without a Pro licence carry a watermark (see Pro subscriptions). The Service is provided \"as is\" without any guarantee of availability or uptime."
+      "content": "{siteName} is a browser-based physics simulation tool for creating bouncing-ball animations, customising their look and behaviour and exporting them as video files. Using the simulator and exporting videos is free, and videos exported without a Pro licence carry a watermark (see Pro subscriptions). The Windows app is part of the Service, and these terms apply to it too. The Service is provided \"as is\" without any guarantee of availability or uptime."
     },
     "ugc": {
       "title": "3. User-Generated Content",
@@ -2747,7 +2821,7 @@
       "item1": "Upload custom images, MIDI files and sound clips to use in your simulations.",
       "item2": "Create and export video recordings of simulations.",
       "item3": "Save simulation presets to your browser's local storage.",
-      "footer": "You keep full ownership of anything you create with the Service and may use exported videos for any purpose, including commercially, without attribution. A mention of {siteDomain} is always appreciated."
+      "footer": "You keep ownership of anything you create with the Service and may use exported videos for any purpose, including commercially, without attribution. This gives you no rights in names or works that belong to others, such as the character names in Fight League. A mention of {siteDomain} is always appreciated."
     },
     "acceptable": {
       "title": "4. Acceptable Use",
@@ -2759,7 +2833,7 @@
     },
     "intellectual": {
       "title": "5. Intellectual Property",
-      "content": "The Service, including its code, design and branding, belongs to the operator of {siteName}. Videos and images you create with it are yours."
+      "content": "The Service, including its code, design and branding, belongs to the operator of {siteName}. Videos and images you create with it are yours. The names of characters and franchises that appear in Fight League belong to their owners, as the disclaimer explains."
     },
     "warranties": {
       "title": "6. Disclaimer of Warranties",
@@ -2820,6 +2894,12 @@
     "contact": {
       "title": "Contact",
       "content": "Questions about this disclaimer? Reach out through the"
+    },
+    "fanMade": {
+      "title": "Fan-made simulation",
+      "content": "Fight League is a fan-made simulation. Character names and franchise names belong to their owners. {siteName} is not affiliated with, endorsed by or sponsored by them, and uses no logos, artwork, sprites or audio from them.",
+      "rightsEmail": "Rights holders can write to <mail>{email}</mail> to have a name removed.",
+      "rightsForm": "Rights holders can ask for a name to be removed through the <link>feedback page</link>."
     }
   },
   "Feedback": {
@@ -2849,8 +2929,9 @@
     "submitGithub": "Open a GitHub issue",
     "successEmail": "Your email app should now open with the message prefilled. If nothing happened, your browser may be blocking mailto links.",
     "successGithub": "A GitHub issue form with your message opened in a new tab. Submit it there to finish.",
-    "notConfigured": "This site has no feedback channel configured yet. If you run it, set NEXT_PUBLIC_FEEDBACK_ENDPOINT, NEXT_PUBLIC_FEEDBACK_EMAIL or NEXT_PUBLIC_GITHUB_REPO before building.",
-    "openManually": "If nothing opened, use this link."
+    "notConfigured": "Feedback is not available right now. Please try again later.",
+    "openManually": "If nothing opened, use this link.",
+    "emailInstead": "Write to {email} instead."
   },
   "TikTokBallVideos": {
     "metaTitle": "Make Bouncing Ball Videos for TikTok with {siteName}",
@@ -2858,10 +2939,10 @@
     "badge": "TikTok Content",
     "navLabel": "TikTok Ball Videos",
     "title": "Bouncing Ball Videos for TikTok",
-    "p1": "Bouncing-ball videos are one of the steadiest formats on TikTok. A ball trapped in rings tries to bounce its way out, and people stay to see if it does. {siteName} is built for exactly these clips, free, with a vertical export. Pro removes the watermark.",
-    "p2": "The tension is built in. The ball speeds up, the gap looks too small, then it slips through and the wall breaks. That fits in 15 to 60 seconds, which is where TikTok engagement peaks.",
-    "h2_1": "Why It Works on TikTok",
-    "p3": "TikTok rewards videos people watch to the end and replay. Ball physics does both. Add a melody and every wall hit plays the next note.",
+    "p1": "Bouncing-ball videos are easy to follow. A ball trapped in rings tries to bounce its way out, and people stay to see if it does. {siteName} is built for exactly these clips, free, with a vertical export. Pro removes the watermark.",
+    "p2": "The tension is built in. The ball speeds up, the gap looks too small, then it slips through and the wall breaks. That fits in a clip of 15 to 60 seconds.",
+    "h2_1": "Why People Keep Watching",
+    "p3": "A ball that might escape gives people a reason to watch to the end, and to watch again. Add a melody and every wall hit plays the next note.",
     "p4": "No dialogue, no face, no setup. A clean visual hook that works even for someone half-scrolling.",
     "h2_2": "Export in the Right Format",
     "p5": "TikTok wants 9:16 vertical, 1080×1920. {siteName} records at that size, so there is no cropping and no editor. Set the length, press record, download.",
@@ -2873,7 +2954,7 @@
   },
   "About": {
     "metaTitle": "About {siteName}, the Ball Physics Video Maker",
-    "metaDescription": "Why {siteName} exists. A browser tool for the bouncing-ball videos that do well on TikTok, Reels and Shorts. Free to play and export. Pro removes the watermark.",
+    "metaDescription": "Why {siteName} exists. A browser tool for making bouncing-ball videos for TikTok, Reels and Shorts. Free to play and export.",
     "metaOgTitle": "About {siteName}",
     "metaOgDescription": "Why {siteName} exists and who it is for.",
     "badge": "About",
@@ -3871,7 +3952,7 @@
   },
   "Gallery": {
     "navLabel": "Gallery",
-    "metaTitle": "Preset Gallery – {count} Ready-Made Ball Simulations | {siteName}",
+    "metaTitle": "Ready-Made Ball Simulations – {siteName}",
     "metaDescription": "{count} ready-made bouncing-ball setups. Neon escapes, pendulum galaxies, string art, battles and races. Open one in the free simulator and make it yours.",
     "badge": "Gallery",
     "title": "Preset gallery",
@@ -4188,7 +4269,7 @@
   "DesktopLink": {
     "navLabel": "Windows app",
     "heroButton": "Download for Windows",
-    "heroNote": "Free download · GPU rendering · built-in AI"
+    "heroNote": "Free download · GPU video encoding · built-in AI"
   },
   "Desktop": {
     "groupTitle": "Desktop studio",
@@ -4427,10 +4508,10 @@
     "libDelete": "Delete file",
     "libDeleteConfirm": "Move {name} to the recycle bin?",
     "metaTitle": "Download {siteName} for Windows",
-    "metaDescription": "The {siteName} simulator as a Windows app. Render clips on your GPU, batch-render a queue into a folder and plan videos with a built-in AI that works offline. Free download. Videos rendered without Pro carry a watermark.",
+    "metaDescription": "The simulator as a Windows app. Your graphics card encodes the clips, a queue batch-renders into a folder and an offline AI plans videos. Free download.",
     "badge": "Windows app",
     "title": "{siteName} for Windows",
-    "intro": "Everything the simulator does in the browser, plus what a browser cannot. Your GPU renders the videos, a queue works through batches while you do something else, and an AI studio on your PC plans clips and writes captions, offline.",
+    "intro": "Everything the simulator does in the browser, plus what a browser cannot. Your graphics card encodes the videos, a queue works through batches while you do something else, and an AI studio on your PC plans clips and writes captions, offline.",
     "setupTitle": "Installer",
     "setupBody": "Installs for your user only, no administrator rights, with a Start menu entry. Updates itself.",
     "setupButton": "Download the installer (.exe)",
@@ -4445,19 +4526,35 @@
       "disk": "About 500 MB for the app and up to 2.5 GB for an AI model, downloaded on first use.",
       "ram": "8 GB of RAM, 16 GB for the local AI"
     },
-    "smartScreenTitle": "“Windows protected your PC”?",
-    "smartScreenBody": "The EXE is not code-signed yet, so Windows SmartScreen warns before the first start. Click More info, then Run anyway. The files are built automatically by GitHub Actions. Their checksums are linked under the download buttons.",
+    "smartScreenTitle": "A warning from Chrome or Windows?",
+    "smartScreenBody": "The installer is not code-signed yet. Chrome may say the file is not commonly downloaded, and Windows SmartScreen may show “Windows protected your PC”. Both appear for files that few people have downloaded so far.",
     "featuresTitle": "What the app adds",
     "features": {
-      "gpu": "GPU video. The fast export encodes on the graphics card, with H.264, HEVC or AV1 through NVENC, AMF or Quick Sync.",
+      "gpu": "GPU video. The fast export encodes on the graphics card, with H.264 and HEVC through NVENC, AMF or Quick Sync, and with AV1 on newer cards.",
       "queue": "Render queue. Seeds, share links or the viral bot's plan, in every resolution, frame rate and codec you pick, saved straight into a folder. Progress, cancel, retry and resume after a restart.",
       "ai": "AI studio. A local model, downloaded once, or your own cloud key plans clips, writes hooks, captions and hashtags, and changes settings on request.",
       "library": "Library. Every clip you rendered with its thumbnail, length and post text. Play, show in folder, re-render or delete."
     },
     "privacyTitle": "Privacy",
-    "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app goes online only to download a model you asked for and to check for updates. Signing in to your account and publishing to your channels use the internet too.",
+    "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app sends us no usage data. It goes online to check for updates, to renew your Pro licence, to download a model you asked for, and for the account and publishing features you use. The privacy policy lists each one.",
     "updateLater": "Later",
-    "updateWaitRender": "A render is running. Wait for the queue to finish, or quit the app and the update installs as it closes."
+    "updateWaitRender": "A render is running. Wait for the queue to finish, or quit the app and the update installs as it closes.",
+    "appSite": "Website build",
+    "appInstall": "Install",
+    "appInstallSetup": "Installer",
+    "appInstallPortable": "Portable · new versions come from the Download page",
+    "appInstallDev": "Development run",
+    "appCopyDetails": "Copy details",
+    "appCopied": "Copied",
+    "appWhatsNew": "What's new",
+    "setupNote": "Free to download and use. Videos made without Pro carry a small watermark. Pro costs {price} a month.",
+    "setupLegal": "By downloading you accept the <terms>Terms</terms>. The <privacy>Privacy Policy</privacy> says what the app sends and where.",
+    "smartScreenVerify": "Before you run it, check the file. In PowerShell, Get-FileHash followed by the file name prints its SHA-256, which must match the line for that file in the checksums. You can also scan the file on <virustotal>VirusTotal</virustotal>.",
+    "smartScreenSteps": "If the checks pass, choose Keep in Chrome, then More info and Run anyway in Windows.",
+    "privacyNoticesTitle": "Third-party software and sounds",
+    "privacyNoticesFfmpeg": "ffmpeg, which the app uses to encode videos, is licensed under the GNU GPL version 3. It is the unmodified gyan.dev build, runs as a separate program and comes with its licence text and a link to its source code.",
+    "privacyNoticesOther": "The app is also built on Electron, Chromium, node-llama-cpp and llama.cpp. The licence texts of ffmpeg, Electron, Chromium and node-llama-cpp are in the install folder. AI models are separate downloads under their own licences, which the app shows before you download. The AI studio can run Llama 3.2. Built with Llama.",
+    "privacyAudio": "The built-in sounds are synthesised by us. The built-in melodies are public-domain tunes."
   },
   "Territory": {
     "canvasVs": "VS",
@@ -4572,10 +4669,10 @@
   },
   "Billing": {
     "metaTitle": "Pricing – {siteName}",
-    "metaDescription": "Play with every mode and export videos for free, with a small watermark. Pro removes it for {monthly} a month or {yearly} a year, by card, PayPal or crypto.",
+    "metaDescription": "Play with every mode and export videos for free, with a small watermark. Pro removes it for {monthly} a month or {yearly} a year, by card or crypto.",
     "eyebrow": "Pricing",
     "title": "Play and export for free. Go Pro to drop the watermark.",
-    "lede": "Every mode, every setting and every sound is free, with no account. So is making videos. Free videos carry a small watermark. Pro exports them clean and adds Publish.",
+    "lede": "Every mode, every setting and every sound is free, with no account. So is making videos. Free videos carry a small watermark. Pro exports them clean and adds quick share to TikTok, Instagram and YouTube.",
     "testMode": "Licensing is in test mode. Payments are not configured yet.",
     "why": "Free videos carry a small watermark. Pro removes it.",
     "proTag": "Pro",
@@ -4608,8 +4705,9 @@
     "email": {
       "label": "Email",
       "placeholder": "you@example.com",
-      "hint": "The card and crypto checkouts use it, and it restores the purchase on another device. PayPal uses the email of your PayPal account.",
-      "invalid": "That does not look like an email address."
+      "hint": "The card and crypto checkouts use it, and it restores the purchase on another device.",
+      "invalid": "That does not look like an email address.",
+      "hintPaypal": "PayPal uses the email of your PayPal account."
     },
     "compare": {
       "title": "Free and Pro",
@@ -4633,7 +4731,7 @@
         "fastExport": "Fast export, rendered offline frame by frame",
         "batch": "Batch render, many clips in one ZIP",
         "bot": "The viral bot's renders",
-        "publish": "Publish to TikTok, Instagram and YouTube",
+        "publish": "Share to TikTok, Instagram and YouTube with the share sheet or a download",
         "desktop": "The desktop app's render queue and GPU encoding"
       },
       "withWatermark": "With watermark",
@@ -4654,7 +4752,7 @@
     },
     "restore": {
       "title": "Restore purchase",
-      "intro": "On another device or browser, enter the email you paid with and the receipt reference. It is shown after the payment and under Your licence on the device you paid on. It is the Stripe session or subscription id, the PayPal subscription id or the crypto order id.",
+      "intro": "On another device or browser, enter the email you paid with and the receipt reference. It is shown after the payment and under Your licence on the device you paid on. It is the Stripe session or subscription id or the crypto order id.",
       "ref": "Receipt reference",
       "refPlaceholder": "sub_… · I-… · order id",
       "refInvalid": "Copy the reference from your receipt. Letters, digits, hyphens and underscores only.",
@@ -4714,7 +4812,7 @@
       "fastExport": "The fast export",
       "batch": "The batch render",
       "bot": "Rendering the viral bot's clips",
-      "publish": "Publishing",
+      "publish": "Quick share to TikTok, Instagram and YouTube",
       "renderQueue": "The desktop render queue",
       "download": "Downloading rendered videos"
     },
@@ -4728,7 +4826,7 @@
     },
     "notes": {
       "title": "Good to know",
-      "renew": "Card and PayPal subscriptions renew by themselves until you cancel. Cancel any time with Manage subscription on this page.",
+      "renew": "Card subscriptions renew by themselves until you cancel. Cancel any time with Manage subscription on this page.",
       "crypto": "Crypto pays for a prepaid period of 30 days on the monthly plan or 365 on the yearly one. Nothing renews by itself.",
       "licence": "Your licence is a signed key kept in this browser. The site needs no account and no password.",
       "devices": "On another device or browser, restore the purchase with your email and the receipt reference shown after the payment, or paste the licence key.",
@@ -4743,23 +4841,24 @@
     },
     "privacy": {
       "title": "Payments",
-      "content": "Pro is paid through the provider you choose, Stripe, PayPal or NOWPayments, on its own checkout page and under its own privacy policy. Your card or wallet details never reach us. Our billing server keeps your email, the plan and the provider's payment or subscription reference, so it can issue, renew and restore your licence. The licence itself is a signed key stored in your browser. We keep these records on Cloudflare's servers for as long as your licence can be restored and accounting rules require."
+      "content": "Pro is paid through Stripe for cards or NOWPayments for crypto, on the provider's own checkout page and under its own privacy policy. Your card or wallet details never reach us. Our billing server, which runs on Cloudflare, keeps your email, the plan and the provider's payment or subscription reference, so that it can issue, renew and restore your licence. The licence itself is a signed key stored in your browser. We keep these records for as long as your licence can be restored and accounting rules require.",
+      "renewals": "When your licence is about to run out or has just run out, the site and the Windows app ask the billing server whether your card subscription renewed. They send your email and the receipt reference."
     },
     "terms": {
       "title": "Pro subscriptions",
-      "content": "Playing with the simulator and recording or exporting videos is free. Videos made without a Pro licence carry a watermark. Pro costs {monthly} a month or {yearly} a year in US dollars. It exports videos without the watermark and adds publishing to your accounts. Card and PayPal subscriptions renew automatically until you cancel them in Stripe's customer portal or your PayPal account. A crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for.",
+      "content": "Playing with the simulator and recording or exporting videos is free. Videos made without a Pro licence carry a watermark. Pro costs {monthly} a month or {yearly} a year in US dollars, and tax may be added at checkout. It exports videos without the watermark and adds quick share to TikTok, Instagram and YouTube with your device's share sheet or a download. Card subscriptions renew automatically until you cancel them in Stripe's customer portal. A crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for.",
       "delivery": {
         "title": "Delivery",
         "content": "Pro is a digital licence, delivered at once. After the payment the pricing page activates it in your browser and shows a receipt reference. With your email and that reference you can restore the licence on any other device or in the Windows app at any time. Nothing is shipped."
       },
       "refunds": {
         "title": "Cancellation and refunds",
-        "content": "You can cancel a card or PayPal subscription at any time, with Manage subscription on the pricing page or in your PayPal account. It then runs to the end of the period you have paid for and does not renew. If Pro did not work for you, write to us within 14 days of your first payment and we refund it in full. Renewals and crypto payments are not refundable unless the law of your country gives you that right. A crypto payment cannot be reversed on the network. Refunds go back to the payment method you used and take 5–10 business days to show."
+        "content": "You can cancel a card subscription at any time, with Manage subscription on the pricing page. It then runs to the end of the period you have paid for and does not renew. If Pro did not work for you, write to us within 14 days of your first payment and we refund it in full. Renewals and crypto payments are not refundable unless the law of your country gives you that right. A crypto payment cannot be reversed on the network. Refunds go back to the payment method you used and take 5–10 business days to show."
       },
       "operator": {
         "title": "Who you are buying from",
-        "named": "{siteName} and the Pro subscription are run by {legalName}{address}. Payments are processed by Stripe, PayPal and NOWPayments. Your statement shows {siteName} or the provider's name.",
-        "unnamed": "{siteName} and the Pro subscription are run by the operator of {siteDomain}. Payments are processed by Stripe, PayPal and NOWPayments. Your statement shows {siteName} or the provider's name."
+        "named": "{siteName} and the Pro subscription are run by {legalName}{address}. Payments are processed by Stripe for cards and NOWPayments for crypto. Your statement shows {siteName} or the provider's name.",
+        "unnamed": "{siteName} and the Pro subscription are run by the operator of {siteDomain}. Payments are processed by Stripe for cards and NOWPayments for crypto. Your statement shows {siteName} or the provider's name."
       }
     },
     "paste": {
@@ -4776,6 +4875,9 @@
     "liveMark": "Free simulations and free videos carry a small {siteName} watermark, in a corner of the canvas while you play and in every clip you make. Pro removes it from both.",
     "support": {
       "lead": "You can also email us at"
+    },
+    "checkout": {
+      "line": "Prices are in US dollars. Tax may be added at checkout. By paying you accept the <terms>Terms</terms>."
     }
   },
   "OrbGrid": {
@@ -5177,8 +5279,7 @@
     "cpuNote": "The model runs on the CPU: each step can take a minute or more. A GPU (Vulkan) is much faster; the 1.5B model is quicker too, but best kept for Settings and Ideas.",
     "tryCpu": "Run on the CPU instead",
     "downloadVersion": "Version {version}",
-    "downloadModelNote": "The AI model is a one-time download from inside the app, up to 2.5 GB. After that the AI works offline.",
-    "downloadUpdateNote": "Using 1.0.2? Its updater cannot install 1.0.3. Download the installer above once. From 1.0.3 on the app updates itself."
+    "downloadModelNote": "The AI model is a one-time download from inside the app, up to 2.5 GB. After that the AI works offline."
   },
   "LoopHud": {
     "growTitle": "it grows with every bounce",
@@ -5663,11 +5764,11 @@
   },
   "Account": {
     "metaTitle": "Your account – {siteName}",
-    "metaDescription": "Create a free account and connect as many TikTok, Instagram and YouTube accounts as you like. They follow you to every browser and the Windows app.",
+    "metaDescription": "Sign in or create a free account to manage the TikTok, Instagram and YouTube channels you connect, in every browser and the Windows app.",
     "eyebrow": "Account",
     "title": "One account for all your channels",
-    "lede": "Sign up once. Connect as many TikTok, Instagram and YouTube accounts as you like. They follow you to every browser and to the Windows app.",
-    "free": "Creating an account and connecting channels is free. Sending clips from the studio is a Pro feature.",
+    "lede": "An account keeps your TikTok, Instagram and YouTube channels together, in every browser and in the Windows app. You only need one to connect channels.",
+    "free": "Creating an account is free. Sharing a clip from the studio is a Pro feature.",
     "tabs": {
       "label": "Account form",
       "signUp": "Create account",
@@ -5721,7 +5822,7 @@
     },
     "next": {
       "title": "Send your first clip",
-      "text": "Record or export a clip, then open Recording and Publish. Your channels are already there.",
+      "text": "Record or export a clip, then open Recording and Publish. The channels you connect are listed there.",
       "studio": "Open the studio"
     },
     "security": {
@@ -5757,7 +5858,11 @@
       "server": "The server failed. Try again in a moment.",
       "unknown": "Something went wrong. Try again."
     },
-    "close": "Close"
+    "close": "Close",
+    "closed": {
+      "title": "Channel connections are not open yet",
+      "text": "No platform is switched on for this server, so no channel can be connected for now. An account is only needed to connect channels."
+    }
   },
   "CustomContent": {
     "fighterTitle": "Fighter saved: {name}",
@@ -5781,5 +5886,157 @@
     "saveFailed": "Could not save on this computer: {error}",
     "modeNotApplied": "This mode no longer fits the page: {error}",
     "balanced": "Balanced by test fights: it wins about {rate}% of duels against built-in fighters."
+  },
+  "Changelog": {
+    "metaTitle": "Changelog – {siteName}",
+    "metaDescription": "What changed in {siteName} and in the Windows app, newest first. New modes, fixes and improvements.",
+    "badge": "Changelog",
+    "title": "What's new in {siteName}",
+    "intro": "Every update to the website and the Windows app, newest first.",
+    "filterLabel": "Show",
+    "filterAll": "Everything",
+    "filterSite": "Website",
+    "filterApp": "Windows app",
+    "releaseSite": "Website {version}",
+    "releaseApp": "Windows app {version}",
+    "kindNew": "New",
+    "kindImproved": "Improved",
+    "kindFixed": "Fixed",
+    "outro": "Something missing or broken? Tell us.",
+    "feedback": "Send feedback",
+    "download": "Get the Windows app",
+    "buildLine": "This page comes from build {build}."
+  },
+  "ChangelogLive": {
+    "youRun": "You run version {version} of the Windows app.",
+    "jump": "See what is in it"
+  },
+  "WhatsNew": {
+    "title": "What's new in {version}",
+    "body": "The Windows app has been updated. See what changed in this version.",
+    "link": "Read the changelog",
+    "dismiss": "Dismiss"
+  },
+  "Seo": {
+    "breadcrumbHome": "Home",
+    "cardAlt": "{siteName}. {title} {sub}",
+    "defaultAlt": "The {siteName} simulator: a ball bouncing out of rings of colour.",
+    "card": {
+      "home": {
+        "title": "Satisfying ball physics, made for TikTok.",
+        "sub": "Pick a mode, tune the physics, export a vertical clip. Free, in your browser."
+      },
+      "simulator": {
+        "title": "Tune the physics. Press play.",
+        "sub": "Free in your browser, no account. Export a vertical clip when it looks right."
+      },
+      "gallery": {
+        "title": "Ready-made ball simulations",
+        "sub": "Open a preset, make it yours and export the clip."
+      },
+      "download": {
+        "title": "The simulator as a Windows app",
+        "sub": "A graphics card encodes the clips and a queue runs batches. Free to download."
+      },
+      "pricing": {
+        "title": "Play and export for free",
+        "sub": "Pro drops the watermark. Pay by card or crypto."
+      },
+      "about": {
+        "title": "Why {siteName} exists",
+        "sub": "A browser tool for making bouncing ball videos."
+      },
+      "tiktok-ball-videos": {
+        "title": "Bouncing ball videos for TikTok",
+        "sub": "Pick a mode, record the clip, post it. Vertical 1080×1920, no sign-up."
+      },
+      "changelog": {
+        "title": "What's new in {siteName}",
+        "sub": "Every update to the website and the Windows app, newest first."
+      },
+      "press": {
+        "title": "{siteName} for the press",
+        "sub": "The facts, the story and how to reach us in one place."
+      }
+    }
+  },
+  "Press": {
+    "metaTitle": "Press kit – {siteName}",
+    "metaDescription": "Facts, descriptions, logos and colours for writing about {siteName}, a free browser tool for ball physics videos, and how to reach us.",
+    "badge": "Press",
+    "title": "{siteName} for the press",
+    "intro": "The facts, the story and how to reach us in one place. Use anything here, and write to us if something is missing.",
+    "metaWebsite": "Website {label}",
+    "metaApp": "Windows app {version}",
+    "facts": {
+      "title": "Fact sheet",
+      "whatLabel": "What it is",
+      "whatValue": "A free ball physics studio in the browser. Pick a mode, tune the physics and record a vertical clip for TikTok, Reels or Shorts.",
+      "platformsLabel": "Platforms",
+      "platformsValue": "Any modern browser, also as an installable web app, and a Windows app for Windows 10 and 11, 64-bit.",
+      "modesLabel": "Modes",
+      "modesValue": "{count} simulation modes",
+      "exportLabel": "Video export",
+      "exportValue": "Vertical 1080×1920, Full HD 1920×1080, HD 1280×720 and square 500×500, from 10 to 120 seconds. MP4 in Chrome and Safari, WebM in Firefox.",
+      "languagesLabel": "Languages",
+      "languagesValue": "English, Polish and Spanish",
+      "freeLabel": "Free version",
+      "freeValue": "Every mode, every setting and every export, with no account. Clips carry a small watermark that Pro removes.",
+      "priceLabel": "Pro price",
+      "priceValue": "{monthly} a month or {yearly} a year. The yearly plan saves {percent}%.",
+      "releasedLabel": "First release",
+      "websiteLabel": "Website version",
+      "appLabel": "Windows app version",
+      "operatorLabel": "Operated by",
+      "contactLabel": "Contact",
+      "contactFeedback": "Feedback page",
+      "note": "Every release is listed on the <changelog>changelog</changelog>. The Windows app is on the <download>download page</download>."
+    },
+    "about": {
+      "title": "Descriptions",
+      "intro": "Three lengths. Copy the one that fits and keep the name as written.",
+      "shortLabel": "Short · {words} words",
+      "mediumLabel": "Medium · {words} words",
+      "longLabel": "Long · {words} words",
+      "short": "{siteName} is a free ball physics studio in the browser. Pick a mode, tune the physics and export a vertical clip for TikTok, Reels or Shorts.",
+      "medium": "{siteName} is a free ball physics studio that runs in the browser, with no account and nothing to install. Pick one of {count} modes, tune the physics and export a vertical video for TikTok, Reels or Shorts. Every mode and every export is free. Free clips carry a small watermark, and Pro removes it for {monthly} a month or {yearly} a year.",
+      "long": "{siteName} is a free ball physics studio that runs in the browser, with no account and nothing to install. It began with a simple problem. Bouncing-ball videos were everywhere, and every way to make one was slow. Now a creator can open a tab, pick one of {count} modes, tune the physics and export a vertical video for TikTok, Reels or Shorts. Every mode, setting and export is free. Free clips carry a small watermark, and Pro removes it for {monthly} a month or {yearly} a year. A Windows app adds GPU video encoding, a render queue and an AI studio that plans clips and writes captions. {siteName} is a small independent project, available in English, Polish and Spanish."
+    },
+    "brand": {
+      "title": "Logo and colours",
+      "intro": "The mark is a gradient ball inside a broken ring.",
+      "logoAlt": "{siteName} logo",
+      "cardAlt": "{siteName} social card",
+      "fileSvg": "Logo, SVG",
+      "filePng512": "Logo, PNG 512 × 512",
+      "filePng192": "Logo, PNG 192 × 192",
+      "fileCard": "Social card, PNG 1200 × 630",
+      "filesNote": "The PNG logos have a transparent background.",
+      "coloursTitle": "Colours",
+      "colourAccent": "Accent",
+      "colourAccentLight": "Accent, light",
+      "colourBackground": "Background",
+      "colourText": "Text"
+    },
+    "usage": {
+      "title": "Using the name and the logo",
+      "items": [
+        "Write the name as {siteName}, one word, with capitals J, B and L.",
+        "Use the logo as it is. Do not recolour, stretch, rotate or add effects, and leave some space around it.",
+        "Screenshots and clips made with the free version are fine to use. Leave the watermark in place.",
+        "Describe it as a free ball physics studio in the browser. Do not say it promises views, followers or income.",
+        "TikTok, Instagram, YouTube and Windows belong to their owners. {siteName} is not affiliated with them."
+      ]
+    },
+    "notIncluded": {
+      "title": "Not part of the press kit",
+      "body": "Fight League names and footage are not part of this kit. That mode is a fan-made simulation, and the names of its characters belong to their owners. Please do not use them, or footage of that mode, in articles, thumbnails or ads. To have a name removed, <contact>write to us</contact>."
+    },
+    "contact": {
+      "title": "Contact",
+      "withEmail": "For questions, quotes or corrections, write to <mail>{email}</mail>.",
+      "withoutEmail": "For questions, quotes or corrections, use the <feedback>feedback page</feedback>. It reaches the person who builds {siteName}.",
+      "operator": "{siteName} is operated by {name}."
+    }
   }
 }

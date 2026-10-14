@@ -10,8 +10,17 @@
  *    network's answer is returned (and cached) whenever there is one, so a new deploy is never hidden behind
  *    a cached page; the cache (and offline.html for pages that were never cached) only answers offline;
  *  - /_next/static (content-hashed) and the public assets (icons, previews, melodies, sounds): CACHE FIRST.
- * install precaches the app shell and takes over at once (skipWaiting); activate deletes this site's caches
- * of older versions and claims the open pages.
+ * install precaches the CRITICAL files (the landing of every language, the offline page, manifest, icons, CSS and
+ * fonts: CONFIG.critical, about half a megabyte) and takes over at once (skipWaiting); activate deletes this site's
+ * caches of older versions and claims the open pages. --- precache-split --- The DEFERRED files (CONFIG.deferred: the
+ * studio, mode pictures, sounds, the other chunks) are fetched when the page posts {type: "precache-rest"} – it does
+ * so a few seconds after it has settled, and not on a Save-Data, cellular or slow connection (src/lib/pwa.ts) – a few
+ * at a time, at low priority, skipping what is cached already and what fails. Without that message they are cached the
+ * first time they are used, by the strategies above. Content-hashed files of an older version's cache are carried
+ * over at install, so a new deploy downloads only what changed.
+ * --- offline-redirect --- A response a navigation is answered with must not carry the "redirected" flag (the browser
+ * turns it into a network error): the host may answer /offline.html with a redirect to /offline, so every response
+ * is rebuilt without the flag when it is stored and when it is served from the cache (clean).
  */
 /* eslint-disable */
 "use strict";
@@ -71,31 +80,91 @@ function cacheable(response) {
   return !!response && response.ok && response.type === "basic" && !response.redirected;
 }
 
-/** Fetches the precache list into `cache`, a few at a time, past the HTTP cache (a new version must not pick up old copies). */
-async function precache(cache, relatives) {
+/**
+ * A response without the "redirected" flag: a navigation may not be answered with a redirected response (Chrome: "a redirected
+ * response was used for a request whose redirect mode is not follow"), and a host that serves /offline.html through a redirect
+ * to /offline hands the worker one. The body and headers are kept; a response that did not redirect is returned as it is.
+ */
+async function clean(response) {
+  if (!response || !response.redirected) return response;
+  return new Response(await response.blob(), { status: response.status, statusText: response.statusText, headers: response.headers });
+}
+
+/** The copy of a content-hashed build file in an older version's cache (null when there is none). */
+async function previousCopy(url, oldCaches) {
+  for (const name of oldCaches) {
+    const reused = await (await caches.open(name)).match(cacheKey(url), { ignoreVary: true });
+    if (reused) return reused;
+  }
+  return null;
+}
+
+/**
+ * Fetches `relatives` into `cache`, `concurrency` at a time. Content-hashed /_next/static files never change: the copy of an older
+ * version's cache is reused, and a plain fetch (not "reload") lets the browser's HTTP cache answer for what the page just loaded.
+ * Every other file goes past the HTTP cache (a new version must not pick up old copies). `strict`: a file that cannot be fetched
+ * throws (the install fails and the next navigation retries); otherwise it is skipped, and the run ends when this version's cache
+ * is gone (a newer worker took over). `low`: low fetch priority, so the page's own requests come first.
+ */
+async function precache(cache, relatives, { concurrency = CONFIG.concurrency || 6, strict = true, low = false } = {}) {
   const oldCaches = (await caches.keys()).filter((k) => k.startsWith(cachePrefix()) && k !== cacheName());
   let next = 0;
   const worker = async () => {
     while (next < relatives.length) {
-      const url = scopeUrl(relatives[next++]);
-      // Content-hashed build files never change: reuse the previous version's copy instead of downloading it again.
-      if (url.includes("/_next/static/")) {
-        let reused = null;
-        for (const name of oldCaches) {
-          reused = await (await caches.open(name)).match(cacheKey(url), { ignoreVary: true });
-          if (reused) break;
-        }
+      const relative = relatives[next++];
+      if (!strict && !(await caches.keys()).includes(cacheName())) return;
+      const url = scopeUrl(relative);
+      const hashed = url.includes("/_next/static/");
+      try {
+        const reused = hashed ? await previousCopy(url, oldCaches) : null;
         if (reused) {
           await cache.put(cacheKey(url), reused);
           continue;
         }
+        const init = { cache: hashed ? "default" : "reload", credentials: "same-origin" };
+        if (low) init.priority = "low";
+        const response = await fetch(new Request(url, init));
+        if (!response.ok) throw new Error(`precache: ${url} answered ${response.status}`);
+        await cache.put(cacheKey(url), await clean(response));
+      } catch (err) {
+        if (strict) throw err;
       }
-      const response = await fetch(new Request(url, { cache: "reload", credentials: "same-origin" }));
-      if (!response.ok) throw new Error(`precache: ${url} answered ${response.status}`);
-      await cache.put(cacheKey(url), response);
     }
   };
-  await Promise.all(Array.from({ length: Math.min(CONFIG.concurrency || 6, relatives.length) }, worker));
+  await Promise.all(Array.from({ length: Math.min(concurrency, relatives.length) }, worker));
+}
+
+/** Copies the content-hashed deferred files an older version has cached into `cache` (no network: only what is there already). */
+async function carryOver(cache, relatives) {
+  const oldCaches = (await caches.keys()).filter((k) => k.startsWith(cachePrefix()) && k !== cacheName());
+  if (!oldCaches.length) return;
+  for (const relative of relatives) {
+    const url = scopeUrl(relative);
+    if (!url.includes("/_next/static/")) continue;
+    const reused = await previousCopy(url, oldCaches);
+    if (reused) await cache.put(cacheKey(url), reused);
+  }
+}
+
+let restRun = null;
+
+/** Caches the deferred files that are not cached yet; one run at a time (a second request joins the running one). */
+function precacheRest() {
+  if (!restRun) {
+    restRun = (async () => {
+      const cache = await caches.open(cacheName());
+      const missing = [];
+      for (const relative of CONFIG.deferred) {
+        if (!(await cache.match(cacheKey(scopeUrl(relative)), { ignoreVary: true }))) missing.push(relative);
+      }
+      await precache(cache, missing, { concurrency: CONFIG.restConcurrency || 3, strict: false, low: true });
+    })()
+      .catch(() => {})
+      .finally(() => {
+        restRun = null;
+      });
+  }
+  return restRun;
 }
 
 self.addEventListener("install", (event) => {
@@ -103,7 +172,8 @@ self.addEventListener("install", (event) => {
     (async () => {
       const cache = await caches.open(cacheName());
       try {
-        await precache(cache, CONFIG.precache);
+        await precache(cache, CONFIG.critical);
+        await carryOver(cache, CONFIG.deferred);
       } catch (err) {
         // A half-filled cache of a version that failed to install is useless; the next navigation retries.
         await caches.delete(cacheName());
@@ -112,6 +182,12 @@ self.addEventListener("install", (event) => {
       await self.skipWaiting();
     })(),
   );
+});
+
+// --- precache-split --- the page asks for the deferred files when the connection and the moment are right (PwaRegister.tsx)
+self.addEventListener("message", (event) => {
+  const data = event.data;
+  if (data && typeof data === "object" && data.type === "precache-rest") event.waitUntil(precacheRest());
 });
 
 self.addEventListener("activate", (event) => {
@@ -156,10 +232,10 @@ async function networkFirst(event) {
     return response;
   } catch (err) {
     const cached = await matchPage(cache, request.url);
-    if (cached) return cached;
+    if (cached) return clean(cached);
     if (request.mode === "navigate") {
       const offline = await cache.match(cacheKey(scopeUrl(CONFIG.offlinePage)), { ignoreVary: true });
-      if (offline) return offline;
+      if (offline) return clean(offline);
     }
     return Response.error();
   }

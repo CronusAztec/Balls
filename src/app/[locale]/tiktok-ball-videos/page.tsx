@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import ProseLayout from "@/components/site/ProseLayout";
 import { Link } from "@/i18n/navigation";
-import { SITE_NAME, pageUrl } from "@/lib/site";
-import { localeAlternates } from "@/i18n/alternates";
+import { SITE_NAME } from "@/lib/site";
+import JsonLd from "@/components/site/JsonLd"; // --- seo ---
+import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 import { MODE_CARD_ORDER } from "@/lib/modes"; // --- review fix (ui-i18n) --- the mode count comes from the code
 import { buttonClass } from "@/components/ui/Button";
 import { IconArrowRight } from "@/components/ui/icons";
@@ -12,11 +13,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "TikTokBallVideos" });
   const v = { siteName: SITE_NAME, count: MODE_CARD_ORDER.length };
-  return {
-    title: t("metaTitle", v),
-    description: t("metaDescription", v),
-    alternates: { canonical: pageUrl(locale, "/tiktok-ball-videos"), languages: localeAlternates("/tiktok-ball-videos") },
-  };
+  return pageMetadata({ locale, path: "/tiktok-ball-videos", title: t("metaTitle", v), description: t("metaDescription", v) }); // --- seo ---
 }
 
 /* --- site-redesign --- the TikTok guide in the reading column: the lede, three sections, the call to action. */
@@ -24,6 +21,7 @@ export default async function TikTokPage({ params }: { params: Promise<{ locale:
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "TikTokBallVideos" });
+  const breadcrumbs = await breadcrumbJsonLd(locale, [{ name: t("badge"), path: "/tiktok-ball-videos" }]); // --- seo --- the trail Home > this page (last child: the prose rules space siblings)
   const v = { siteName: SITE_NAME };
   return (
     <ProseLayout eyebrow={t("badge")} title={t("title")} lede={t("p1", v)}>
@@ -44,11 +42,12 @@ export default async function TikTokPage({ params }: { params: Promise<{ locale:
         <p>{t("p8", v)}</p>
       </section>
       <div className="not-prose border-t border-line pt-8">
-        <Link href="/simulator?mode=classic" className={buttonClass({ variant: "primary", size: "md" })}>
+        <Link href="/simulator?mode=classic" className={buttonClass({ variant: "primary", size: "md" })} data-track="cta_click" data-track-id="tiktok_cta">
           {t("cta")}
           <IconArrowRight size={16} />
         </Link>
       </div>
+      <JsonLd data={breadcrumbs} />
     </ProseLayout>
   );
 }

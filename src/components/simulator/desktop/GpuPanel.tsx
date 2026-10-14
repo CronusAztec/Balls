@@ -1,20 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import type { BenchmarkResult, DesktopApi, DesktopInfo, DesktopPrefs, EncoderProbe, GpuStatus, UpdateStatus } from "@/lib/desktop/contract";
 import { lastVideoAcceleration, setHardwarePreferred } from "@/lib/desktop/gpuEncode";
+import { aboutText, installKind, updatesMode } from "@/lib/desktop/aboutText"; // --- build-identity ---
+import { buildLabel } from "@/lib/buildInfo"; // --- build-identity ---
+import { SITE_NAME, pageUrl } from "@/lib/site"; // --- build-identity ---
 import { Card, errorText, ghostBtn, inputClass, primaryBtn } from "./ui";
 
 /*
  * --- desktop-exe --- The GPU panel: the GPU Chromium runs on and what it accelerates (video encode / decode, WebGPU), the
  * fast export's GPU preference and what the last export used, ffmpeg (bundled or a full build the user points to) with
  * every encoder it lists, whether its test encode worked and which one is used per codec, a benchmark, and the app's
- * version, update state and logs.
+ * version, update state and logs. --- build-identity --- The App card also names the website build inside the app, how the app
+ * is installed (a portable EXE does not update itself), copies those details for a support message and links the changelog.
  */
 
 export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bridge: DesktopApi; prefs: DesktopPrefs; info: DesktopInfo | null; update: UpdateStatus | null; onPrefs: (patch: Partial<DesktopPrefs>) => void }) {
   const t = useTranslations("Desktop");
+  const locale = useLocale();
+  const [copied, setCopied] = useState(false); // --- build-identity ---
   const [gpu, setGpu] = useState<GpuStatus | null>(null);
   const [probe, setProbe] = useState<EncoderProbe | null>(null);
   const [probing, setProbing] = useState(false);
@@ -38,6 +44,41 @@ export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bri
     bridge.gpu.status().then(setGpu).catch((err: unknown) => setError(errorText(err)));
     runProbe(false);
   }, [bridge, runProbe]);
+
+  // --- build-identity --- "Copy details": the About text (English, the Windows user name hidden) for a support message
+  useEffect(() => {
+    if (!copied) return;
+    const timer = setTimeout(() => setCopied(false), 2500);
+    return () => clearTimeout(timer);
+  }, [copied]);
+  const copyDetails = () => {
+    if (!info) return;
+    const text = aboutText(
+      {
+        name: SITE_NAME,
+        version: info.version,
+        install: installKind({ packaged: info.packaged, portable: info.portable === true }),
+        arch: info.arch,
+        safeMode: info.safeMode === true,
+        siteLabel: buildLabel(),
+        electron: info.electron,
+        chrome: info.chrome,
+        updates: updatesMode({ packaged: info.packaged, portable: info.portable === true, autoUpdate: prefs.autoUpdate }),
+        dataDir: info.dataDir,
+        logFile: info.logFile,
+      },
+      undefined,
+      { redact: true },
+    );
+    try {
+      void navigator.clipboard.writeText(text).then(
+        () => setCopied(true),
+        (err: unknown) => setError(errorText(err)),
+      );
+    } catch (err) {
+      setError(errorText(err));
+    }
+  };
 
   const last = lastVideoAcceleration();
   const yes = (v: boolean) => (v ? t("gpuYes") : t("gpuNo"));
@@ -200,6 +241,10 @@ export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bri
         <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
           <dt className="text-ink-3">{t("appVersion")}</dt>
           <dd className="text-ink" data-testid="desktop-version">{info ? `${info.version} (Electron ${info.electron})` : "…"}</dd>
+          <dt className="text-ink-3">{t("appSite")}</dt>
+          <dd className="text-ink num" data-testid="desktop-site-build">{buildLabel()}</dd>
+          <dt className="text-ink-3">{t("appInstall")}</dt>
+          <dd className="text-ink-2" data-testid="desktop-install">{info ? (info.portable ? t("appInstallPortable") : info.packaged ? t("appInstallSetup") : t("appInstallDev")) : "…"}</dd>
           <dt className="text-ink-3">{t("appData")}</dt>
           <dd className="text-ink-2 break-all">{info?.dataDir ?? "…"}</dd>
           <dt className="text-ink-3">{t("appUpdate")}</dt>
@@ -217,6 +262,13 @@ export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bri
           <button type="button" className={ghostBtn} onClick={() => void bridge.openLogs()}>
             {t("appOpenLogs")}
           </button>
+          {/* --- build-identity --- */}
+          <button type="button" className={ghostBtn} onClick={copyDetails} disabled={!info} data-testid="desktop-copy-details">
+            {copied ? t("appCopied") : t("appCopyDetails")}
+          </button>
+          <a href={pageUrl(locale, "/changelog")} target="_blank" rel="noreferrer" className={`${ghostBtn} inline-block`} data-testid="desktop-changelog-link">
+            {t("appWhatsNew")}
+          </a>
         </div>
         <label className="flex items-center gap-2 text-xs text-ink-2 cursor-pointer">
           <input type="checkbox" checked={prefs.autoUpdate} onChange={(e) => onPrefs({ autoUpdate: e.target.checked })} className="w-4 h-4" style={{ accentColor: "#93d119" }} />

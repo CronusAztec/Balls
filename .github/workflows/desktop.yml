@@ -260,6 +260,7 @@ jobs:
         with:
           sparse-checkout: |
             scripts/release
+            src/content
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -294,7 +295,13 @@ jobs:
           VERSION: ${{ needs.decide.outputs.version }}
         run: |
           tag="desktop-v$VERSION"
-          notes="JumpingBallsLive for Windows $VERSION.
+          # --- changelog --- the notes start with the changelog's entry for this version, the same text as the public release
+          # (scripts/changelog.mjs --notes reads src/content/changelog.json); a version without an entry gets the short line
+          entry="$(node scripts/changelog.mjs --notes app "$VERSION" 2>/dev/null || true)"
+          [ -n "$entry" ] || entry="JumpingBallsLive for Windows $VERSION."
+          notes="$entry
+
+          **Downloads**
 
           - **Installer** (per user, no admin): JumpingBallsLive-Setup-$VERSION.exe – updates itself.
           - **Portable**: JumpingBallsLive-$VERSION-portable.exe – runs without installing.

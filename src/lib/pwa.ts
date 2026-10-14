@@ -118,3 +118,37 @@ export interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
   readonly userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform?: string }>;
 }
+
+/*
+ * --- precache-split --- When the page asks the worker for the deferred part of the precache (scripts/pwa/build.mjs splitPrecache,
+ * scripts/pwa/sw.template.js): a few seconds after it has settled and only when the visitor's connection can bear a few megabytes
+ * that nothing on the page needs yet. PwaRegister.tsx posts the message, the worker answers by caching what is not cached yet.
+ */
+
+/** The message the page posts to the service worker: cache the deferred files now (scripts/pwa/sw.template.js listens for it). */
+export const PRECACHE_REST_MESSAGE = "precache-rest";
+/** How long after the worker is ready the page waits before asking (its own late requests, such as the hero's engine, come first). */
+export const PRECACHE_REST_DELAY_MS = 8000;
+
+/** The part of the Network Information API the gate reads (Chromium browsers; absent in Safari and Firefox). */
+export interface ConnectionHints {
+  saveData?: boolean;
+  /** "cellular", "wifi", … (Android only). */
+  type?: string;
+  /** "slow-2g", "2g", "3g" or "4g", estimated from the measured round-trip time and bandwidth. */
+  effectiveType?: string;
+}
+
+/**
+ * Whether the page should ask the worker to cache the deferred files now. No on Save-Data, on a cellular link and on a link that
+ * measures as 3g or slower: the visitor keeps those megabytes (what they open is cached the first time it is used anyway). Yes on
+ * the other connections that report themselves. A browser that reports nothing (Safari, Firefox) cannot be told apart from a
+ * metered phone, so there only a returning visitor (the worker already controlled the page when it loaded) gets the full precache.
+ */
+export function shouldPrecacheRest(connection: ConnectionHints | null | undefined, opts: { returning: boolean }): boolean {
+  if (!connection) return opts.returning;
+  if (connection.saveData) return false;
+  if (connection.type === "cellular") return false;
+  if (/^(slow-2g|2g|3g)$/.test(connection.effectiveType ?? "")) return false;
+  return true;
+}

@@ -14,6 +14,8 @@ import { getEntitlementStore, useEntitlement } from "@/lib/billing/entitlement";
 import { decodeLicense, type LicenseError } from "@/lib/billing/license";
 import { checkoutFrom, forgetCheckoutFrom, sessionStore } from "@/lib/billing/returnTo";
 import { isDesktopApp } from "@/lib/desktop/bridge";
+import { trackPurchase } from "@/lib/analytics/events"; // --- analytics ---
+import { track } from "@/lib/analytics/track"; // --- analytics ---
 import PlanCards from "./PlanCards";
 import TestModeNote from "./TestModeNote";
 import { siteBaseUrl, useBilling, useLicenseRenewal, useStoredReceipt } from "./useBilling";
@@ -144,6 +146,7 @@ export function ClaimPanel() {
         return;
       }
       // the reference stays on screen (and in this browser): it restores the purchase on another device or in the desktop app
+      trackPurchase(ref, installed.payload.plan, provider); // --- analytics --- (plan, provider and the plan's list price in USD; the reference is only compared, never sent; README "Analytics events")
       setState({ kind: "success", until: installed.payload.exp * 1000, ref });
       // the purchase is in this browser now: a reload need not claim it again
       try {
@@ -382,6 +385,7 @@ export function RestoreForm() {
       setState({ kind: "failed", message: licenseErrorText(t, installed.error) });
       return;
     }
+    track("restore", { via: "email_ref" }); // --- analytics --- (README "Analytics events")
     setState({ kind: "success", until: installed.payload.exp * 1000 });
   };
   return (
@@ -452,6 +456,7 @@ export function PasteKeyForm() {
       return;
     }
     setKey("");
+    track("restore", { via: "key" }); // --- analytics --- (a licence key pasted from another device)
     setState({ kind: "success", until: installed.payload.exp * 1000 });
   };
   return (

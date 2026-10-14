@@ -2,19 +2,16 @@ import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import ProseLayout, { legalDate } from "@/components/site/ProseLayout";
 import { Link } from "@/i18n/navigation";
-import { SITE_DOMAIN, SITE_NAME, pageUrl } from "@/lib/site";
+import { SITE_DOMAIN, SITE_NAME } from "@/lib/site";
+import JsonLd from "@/components/site/JsonLd"; // --- seo ---
+import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
 import { LEGAL_ADDRESS, LEGAL_NAME, SUPPORT_EMAIL } from "@/lib/operator"; // --- go-live-kit ---
 import { PLANS, formatUsd } from "@/lib/billing/config"; // --- go-live-kit --- the prices in the Pro section come from the plans
-import { localeAlternates } from "@/i18n/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "Terms" });
-  return {
-    title: t("metaTitle", { siteName: SITE_NAME }),
-    description: t("metaDescription", { siteDomain: SITE_DOMAIN }),
-    alternates: { canonical: pageUrl(locale, "/terms"), languages: localeAlternates("/terms") },
-  };
+  return pageMetadata({ locale, path: "/terms", title: t("metaTitle", { siteName: SITE_NAME }), description: t("metaDescription", { siteName: SITE_NAME, siteDomain: SITE_DOMAIN }) }); // --- seo ---
 }
 
 const PLAIN = ["intellectual", "warranties", "liability", "changes"] as const;
@@ -27,6 +24,7 @@ export default async function TermsPage({ params }: { params: Promise<{ locale: 
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "Terms" });
+  const breadcrumbs = await breadcrumbJsonLd(locale, [{ name: t("title"), path: "/terms" }]); // --- seo --- the trail Home > this page (last child: the prose rules space siblings)
   const site = await getTranslations({ locale, namespace: "SiteRedesign" });
   const billing = await getTranslations({ locale, namespace: "Billing" }); // --- paywall-gate --- the Pro subscriptions section
   const v = { siteName: SITE_NAME, siteDomain: SITE_DOMAIN };
@@ -109,6 +107,7 @@ export default async function TermsPage({ params }: { params: Promise<{ locale: 
           </p>
         )}
       </section>
+      <JsonLd data={breadcrumbs} />
     </ProseLayout>
   );
 }

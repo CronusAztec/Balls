@@ -2,6 +2,7 @@ import { AccountClient, AccountError, checkCredentials, type AccountErrorCode, t
 import { ACCOUNT_EVENT, loadAccount, saveAccount, type StoredAccount } from "./store";
 import { getPublishController } from "@/lib/publish/controller";
 import { normalizeRelayUrl } from "@/lib/publish/relayClient";
+import { track } from "@/lib/analytics/track"; // --- analytics ---
 
 /*
  * --- user-accounts --- The account's state and actions, outside React (a module-level controller the Account page reads with
@@ -219,6 +220,7 @@ export class AccountController {
       const answer = mode === "signup" ? await client.signup(email, password, name) : await client.login(email, password);
       this.adopt({ version: 1, relayUrl: client.base, token: answer.token, expiresAt: Date.parse(answer.expiresAt) || this.deps.now() + 30 * 24 * 3600 * 1000, user: answer.user });
       this.set({ busy: false });
+      if (mode === "signup") track("signup"); // --- analytics --- (an account was made; no email, no name; README "Analytics events")
       return true;
     } catch (err) {
       this.set({ busy: false, error: message(err), errorCode: codeOf(err) });

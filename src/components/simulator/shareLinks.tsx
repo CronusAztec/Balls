@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { useTranslations } from "next-intl";
 import { SHARE_CODE_PARAM, decodeShareCode, encodeShareCode, mergeShareParams, shareCodeUrl } from "@/lib/shareCode";
 import { settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
+import { withoutAttribution } from "@/lib/analytics/attribution"; // --- analytics ---
 
 import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
 /**
@@ -49,7 +50,7 @@ export function useShortShareLink(settings: SimulatorSettings): ShortShareLink {
       get: () => (cache.current && cache.current.key === keyRef.current ? shareCodeUrl(pageAddress(), cache.current.code) : null),
       make: async () => {
         const code = await encodeShareCode(new URLSearchParams(keyRef.current)).catch(() => null);
-        return code ? shareCodeUrl(pageAddress(), code) : window.location.href;
+        return code ? shareCodeUrl(pageAddress(), code) : withoutAttribution(window.location.href); // --- analytics --- (the ad that brought the visitor is not part of the link they share)
       },
     }),
     [],
