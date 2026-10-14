@@ -1477,7 +1477,7 @@
     "bounceMathShowValues": "Show values",
     "bounceMathShowValuesTip": "A small badge on the video with the bounciness, speed, size and gravity of the ball that bounced last and how often each rule fired.",
     "publish": "Publish",
-    "publishTip": "Send the finished clip to your TikTok, Instagram and YouTube accounts – several per platform – in one click: YouTube straight from the browser, TikTok and Instagram through a small relay you host, or the no-setup share buttons.",
+    "publishTip": "Share the finished clip to TikTok, Instagram and YouTube with the share sheet or a download. Sending in one click needs connected accounts: a relay, or your own Google client ID for YouTube.",
     "publishAccounts": "Accounts (TikTok, Instagram, YouTube)",
     "publishQuickShare": "Quick share",
     "unlimited": "Wide sliders",
@@ -2666,7 +2666,7 @@
       "subtitle": "We collect the minimum needed to run and improve the service:",
       "analytics": {
         "label": "Visit statistics:",
-        "content": "On the website we count visits with Cloudflare Web Analytics. It reports the page that was opened, the site you came from, your country, your device type, your browser and your operating system. Cloudflare says it uses no cookies or local storage for this and does not track people across sites."
+        "content": "On the website we count visits with Cloudflare Web Analytics. It reports the page that was opened, the site you came from, your country, your device type, your browser and your operating system. Cloudflare says it uses no cookies or local storage for this and does not fingerprint visitors."
       },
       "localStorage": {
         "label": "Local storage data:",
@@ -2678,7 +2678,7 @@
       },
       "events": {
         "label": "Action counts:",
-        "content": "We also count a few actions, such as starting the simulator, exporting a clip or opening the checkout, with a statistics service at {host}. It records the page, the campaign name in the link, the site you came from, your browser, your screen size and your country. It never receives your email, your settings or what you make. It does not run if your browser sends Do Not Track or Global Privacy Control, and it does not run in the Windows app."
+        "content": "We also count a few actions, such as starting the simulator, exporting a clip or opening the checkout, with a statistics service at {host}. It records the address of the page, including any campaign name or ad click identifier in it, the site you came from, your browser, your screen size and your country. In the studio that address also holds the settings of your run, so the service can see them. It never receives your email or your receipt reference. It does not run if your browser sends Do Not Track or Global Privacy Control, and it does not run in the Windows app."
       },
       "account": {
         "label": "Account data:",
@@ -2775,7 +2775,7 @@
     "advertising": {
       "title": "Advertising",
       "content": "We do not show ads on this site. We advertise {siteName} on other platforms. We load no advertising pixels or tags and share nothing about what you do here with ad networks.",
-      "campaign": "A link from one of our ads carries a campaign name. The statistics service at {host} records it, so that we can see which ads bring visitors."
+      "campaign": "A link from one of our ads carries a campaign name and may carry an ad click identifier. The statistics service at {host} records both, so that we can see which ads bring visitors."
     },
     "windowsApp": {
       "title": "The Windows App",
@@ -2786,7 +2786,7 @@
       },
       "licence": {
         "label": "Your Pro licence:",
-        "content": "When a card subscription is about to renew, the app asks the billing server for the renewed licence. It sends your email and the receipt reference."
+        "content": "When you buy, restore or manage Pro, or when a card subscription is about to renew, the app talks to the billing server. It sends your email and, depending on the step, the plan or the receipt reference."
       },
       "models": {
         "label": "AI models:",
@@ -2798,7 +2798,7 @@
       },
       "accounts": {
         "label": "Account and publishing:",
-        "content": "Signing in and publishing use the relay server and the platforms, as described above."
+        "content": "Signing in, publishing and checking whether the relay is up use the relay server and the platforms, as described above."
       }
     }
   },
@@ -2967,7 +2967,7 @@
     "h2_2": "Privacy by default",
     "p5": "Your work stays with you. Presets live in your browser and videos render on your own machine. We do not want your data. The details are in our <privacy>privacy policy</privacy>.",
     "h2_3": "Who makes this",
-    "p6": "{siteName} is a small independent project. New modes and settings appear because creators ask for them. Write in through the <feedback>feedback page</feedback> and the note reaches the person building the tool.",
+    "p6": "{siteName} is a small independent project. New modes and settings appear because creators ask for them. Write in through the <feedback>feedback page</feedback>.",
     "h2_4": "Where it is going",
     "p7": "The core stays free. More modes, more effects, fewer steps between an idea and a posted clip. Go make a ball smash through some walls.",
     "cta": "Open the simulator",
@@ -3486,7 +3486,7 @@
   },
   "ViralBot": {
     "title": "Viral video bot",
-    "intro": "Plans clips the way the accounts that go viral make them (docs/virality-playbook.md): a one-line rule in the first seconds, a countdown on screen, the payoff in the last seconds, endings that alternate – scored, rendered and captioned.",
+    "intro": "Plans clips the way the accounts that go viral make them: a one-line rule in the first seconds, a countdown on screen, the payoff in the last seconds, endings that alternate. Every plan is scored, rendered and captioned.",
     "platform": "Platform",
     "platforms": {
       "reels": "Reels",
@@ -3965,10 +3965,10 @@
   },
   "Pwa": {
     "installApp": "Install app",
-    "installAppTip": "Install {siteName} on this device. It opens in its own window, starts from your home screen and works offline.",
+    "installAppTip": "Install {siteName} on this device. It opens in its own window and starts from your home screen. The home page works offline, and so does the simulator once its files have downloaded in the background.",
     "offlinePageTitle": "Offline – {siteName}",
     "offlineTitle": "You're offline",
-    "offlineBody": "This page is not saved on this device yet. The home page and the simulator work offline once you have opened them online. Reconnect, or open the simulator below.",
+    "offlineBody": "This page is not saved on this device yet. The home page works offline. The simulator works offline once its files have downloaded in the background, which does not start on a slow or metered connection. Reconnect, or open the simulator below.",
     "offlineRetry": "Try again",
     "offlineSimulator": "Open the simulator"
   },
@@ -4075,7 +4075,7 @@
     "hudRule": "#[n] ×[fires]"
   },
   "Publish": {
-    "intro": "Send the finished clip to TikTok, Instagram and YouTube – to as many accounts as you connect – in one click, or share it to the apps with no set-up.",
+    "intro": "Share the finished clip to TikTok, Instagram and YouTube with the share sheet or a download. To send in one click, connect accounts through a relay, or your own Google client ID for YouTube.",
     "noClip": "No clip yet. Record a video, run a fast export, a batch or the bot's render – every finished clip lands here – or choose a video file.",
     "sources": {
       "recording": "Recording",
@@ -4146,7 +4146,7 @@
       "unlisted": "Uploaded as unlisted – only people with the link can see it."
     },
     "retry": "Try again",
-    "relayIntro": "A relay is a small server you host yourself (relay/ in the repository): it keeps the TikTok, Instagram and YouTube app secrets and posts for you. Add its URL and your access key; several people can share one relay, each with a key of their own.",
+    "relayIntro": "A relay is a small server that keeps the TikTok, Instagram and YouTube app secrets and posts for you. Add its URL and your access key. Several people can share one relay, each with a key of their own.",
     "useRelay": "Use {label}",
     "testConnection": "Test",
     "removeRelay": "Remove {label}",
@@ -4185,7 +4185,7 @@
     "quickHint": "No accounts needed: on a phone the share sheet offers the TikTok, Instagram and YouTube apps; on a computer the clip downloads, the caption is copied and the upload page opens.",
     "pathDirect": "YouTube, direct: add a Google OAuth client ID under “YouTube app setup” and connect your channels – uploads go straight from this browser.",
     "appYouTube": "In the app, YouTube channels connect through your relay (Google's sign-in does not accept the app as a website) – or use the quick share.",
-    "pathRelay": "TikTok, Instagram (and YouTube) through your relay: deploy relay/ from the repository, then add its URL and your key under “Relay”.",
+    "pathRelay": "TikTok and Instagram go through a relay, and YouTube can too. Add its URL and your key under “Relay”.",
     "pathShare": "Or just use the quick share above – nothing to set up.",
     "visibility": "Visibility",
     "visibilities": {
@@ -4527,7 +4527,7 @@
       "ram": "8 GB of RAM, 16 GB for the local AI"
     },
     "smartScreenTitle": "A warning from Chrome or Windows?",
-    "smartScreenBody": "The installer is not code-signed yet. Chrome may say the file is not commonly downloaded, and Windows SmartScreen may show “Windows protected your PC”. Both appear for files that few people have downloaded so far.",
+    "smartScreenBody": "The installer is not code-signed yet, and neither is the portable EXE. Chrome may say the file is not commonly downloaded, and Windows SmartScreen may show “Windows protected your PC”. Windows does not know the publisher yet.",
     "featuresTitle": "What the app adds",
     "features": {
       "gpu": "GPU video. The fast export encodes on the graphics card, with H.264 and HEVC through NVENC, AMF or Quick Sync, and with AV1 on newer cards.",
@@ -4536,7 +4536,7 @@
       "library": "Library. Every clip you rendered with its thumbnail, length and post text. Play, show in folder, re-render or delete."
     },
     "privacyTitle": "Privacy",
-    "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app sends us no usage data. It goes online to check for updates, to renew your Pro licence, to download a model you asked for, and for the account and publishing features you use. The privacy policy lists each one.",
+    "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app sends us no usage data. It goes online to check for updates, to buy, restore or renew your Pro licence, to download a model you asked for, and for the account and publishing features you use. The privacy policy lists each one.",
     "updateLater": "Later",
     "updateWaitRender": "A render is running. Wait for the queue to finish, or quit the app and the update installs as it closes.",
     "appSite": "Website build",
@@ -4549,11 +4549,11 @@
     "appWhatsNew": "What's new",
     "setupNote": "Free to download and use. Videos made without Pro carry a small watermark. Pro costs {price} a month.",
     "setupLegal": "By downloading you accept the <terms>Terms</terms>. The <privacy>Privacy Policy</privacy> says what the app sends and where.",
-    "smartScreenVerify": "Before you run it, check the file. In PowerShell, Get-FileHash followed by the file name prints its SHA-256, which must match the line for that file in the checksums. You can also scan the file on <virustotal>VirusTotal</virustotal>.",
+    "smartScreenVerify": "Before you run it, check the file. In PowerShell, Get-FileHash followed by the file name prints its SHA-256, which must match the line for that file in the checksums, ignoring upper and lower case. You can also search for the SHA-256 on <virustotal>VirusTotal</virustotal>.",
     "smartScreenSteps": "If the checks pass, choose Keep in Chrome, then More info and Run anyway in Windows.",
     "privacyNoticesTitle": "Third-party software and sounds",
     "privacyNoticesFfmpeg": "ffmpeg, which the app uses to encode videos, is licensed under the GNU GPL version 3. It is the unmodified gyan.dev build, runs as a separate program and comes with its licence text and a link to its source code.",
-    "privacyNoticesOther": "The app is also built on Electron, Chromium, node-llama-cpp and llama.cpp. The licence texts of ffmpeg, Electron, Chromium and node-llama-cpp are in the install folder. AI models are separate downloads under their own licences, which the app shows before you download. The AI studio can run Llama 3.2. Built with Llama.",
+    "privacyNoticesOther": "The app is also built on Electron, Chromium, node-llama-cpp and llama.cpp. The licence texts of ffmpeg, Electron, Chromium and node-llama-cpp are shipped with the app. AI models are separate downloads under their own licences, which the app shows before you download. The AI studio can run Llama 3.2. Built with Llama.",
     "privacyAudio": "The built-in sounds are synthesised by us. The built-in melodies are public-domain tunes."
   },
   "Territory": {
@@ -4831,7 +4831,7 @@
       "licence": "Your licence is a signed key kept in this browser. The site needs no account and no password.",
       "devices": "On another device or browser, restore the purchase with your email and the receipt reference shown after the payment, or paste the licence key.",
       "watermark": "The watermark is drawn into the video itself. With a Pro licence in this browser, every recording or export you start afterwards is clean.",
-      "refunds": "Cancel any time. Ask within 14 days and we refund your first payment in full.",
+      "refunds": "Ask within 14 days of your first card payment and we refund it in full. Renewals and crypto payments are not refundable unless the law says so.",
       "support": "Questions about a payment? Email {email}.",
       "termsLink": "Terms"
     },
@@ -4853,7 +4853,7 @@
       },
       "refunds": {
         "title": "Cancellation and refunds",
-        "content": "You can cancel a card subscription at any time, with Manage subscription on the pricing page. It then runs to the end of the period you have paid for and does not renew. If Pro did not work for you, write to us within 14 days of your first payment and we refund it in full. Renewals and crypto payments are not refundable unless the law of your country gives you that right. A crypto payment cannot be reversed on the network. Refunds go back to the payment method you used and take 5–10 business days to show."
+        "content": "You can cancel a card subscription at any time, with Manage subscription on the pricing page. It then runs to the end of the period you have paid for and does not renew. Write to us within 14 days of your first card payment and we refund it in full. Renewals and crypto payments are not refundable unless the law of your country gives you that right. A crypto payment cannot be reversed on the network. Refunds go back to the payment method you used and take 5–10 business days to show."
       },
       "operator": {
         "title": "Who you are buying from",
@@ -5764,10 +5764,10 @@
   },
   "Account": {
     "metaTitle": "Your account – {siteName}",
-    "metaDescription": "Sign in or create a free account to manage the TikTok, Instagram and YouTube channels you connect, in every browser and the Windows app.",
+    "metaDescription": "Sign in or create a free account. It is only needed to connect TikTok, Instagram and YouTube channels through a relay, in every browser and the Windows app.",
     "eyebrow": "Account",
     "title": "One account for all your channels",
-    "lede": "An account keeps your TikTok, Instagram and YouTube channels together, in every browser and in the Windows app. You only need one to connect channels.",
+    "lede": "An account is only for connecting your TikTok, Instagram and YouTube channels through a relay. It works in every browser and in the Windows app.",
     "free": "Creating an account is free. Sharing a clip from the studio is a Pro feature.",
     "tabs": {
       "label": "Account form",
@@ -5892,7 +5892,7 @@
     "metaDescription": "What changed in {siteName} and in the Windows app, newest first. New modes, fixes and improvements.",
     "badge": "Changelog",
     "title": "What's new in {siteName}",
-    "intro": "Every update to the website and the Windows app, newest first.",
+    "intro": "The releases of the website and the Windows app, newest first.",
     "filterLabel": "Show",
     "filterAll": "Everything",
     "filterSite": "Website",
@@ -5952,7 +5952,7 @@
       },
       "changelog": {
         "title": "What's new in {siteName}",
-        "sub": "Every update to the website and the Windows app, newest first."
+        "sub": "The releases of the website and the Windows app, newest first."
       },
       "press": {
         "title": "{siteName} for the press",
@@ -6035,7 +6035,7 @@
     "contact": {
       "title": "Contact",
       "withEmail": "For questions, quotes or corrections, write to <mail>{email}</mail>.",
-      "withoutEmail": "For questions, quotes or corrections, use the <feedback>feedback page</feedback>. It reaches the person who builds {siteName}.",
+      "withoutEmail": "For questions, quotes or corrections, use the <feedback>feedback page</feedback>.",
       "operator": "{siteName} is operated by {name}."
     }
   }

@@ -1477,7 +1477,7 @@
     "bounceMathShowValues": "Mostrar valores",
     "bounceMathShowValuesTip": "Una pequeña insignia en el vídeo con la elasticidad, la velocidad, el tamaño y la gravedad de la pelota que rebotó por última vez y cuántas veces se activó cada regla.",
     "publish": "Publicar",
-    "publishTip": "Envía el clip terminado a tus cuentas de TikTok, Instagram y YouTube – varias por plataforma – con un clic: a YouTube directamente desde el navegador, a TikTok e Instagram a través de un pequeño relay que alojas tú, o con los botones de compartir sin configuración.",
+    "publishTip": "Comparte el clip terminado en TikTok, Instagram y YouTube con el menú de compartir o una descarga. Enviar con un clic requiere cuentas conectadas: un relay o, en YouTube, tu propio ID de cliente de Google.",
     "publishAccounts": "Cuentas (TikTok, Instagram, YouTube)",
     "publishQuickShare": "Envío rápido",
     "unlimited": "Deslizadores amplios",
@@ -2666,7 +2666,7 @@
       "subtitle": "Recopilamos lo mínimo necesario para operar y mejorar el servicio:",
       "analytics": {
         "label": "Estadísticas de visitas:",
-        "content": "En el sitio web contamos las visitas con Cloudflare Web Analytics. Informa de la página abierta, del sitio del que vienes, de tu país, del tipo de dispositivo, del navegador y del sistema operativo. Cloudflare indica que para esto no usa cookies ni almacenamiento local y que no rastrea a las personas entre sitios."
+        "content": "En el sitio web contamos las visitas con Cloudflare Web Analytics. Informa de la página abierta, del sitio del que vienes, de tu país, del tipo de dispositivo, del navegador y del sistema operativo. Cloudflare indica que para esto no usa cookies ni almacenamiento local y que no identifica a los visitantes por las características de su dispositivo."
       },
       "localStorage": {
         "label": "Datos de almacenamiento local:",
@@ -2678,7 +2678,7 @@
       },
       "events": {
         "label": "Recuento de acciones:",
-        "content": "También contamos algunas acciones, como iniciar el simulador, exportar un clip o abrir el pago, con un servicio de estadísticas en {host}. Registra la página, el nombre de la campaña del enlace, el sitio del que vienes, el navegador, el tamaño de pantalla y el país. Nunca recibe tu correo, tus ajustes ni lo que creas. No se ejecuta si tu navegador envía Do Not Track o Global Privacy Control, ni en la app de Windows."
+        "content": "También contamos algunas acciones, como iniciar el simulador, exportar un clip o abrir el pago, con un servicio de estadísticas en {host}. Registra la dirección de la página, con el nombre de campaña o el identificador de clic de anuncio que lleve, el sitio del que vienes, el navegador, el tamaño de pantalla y el país. En el estudio esa dirección también contiene los ajustes de tu simulación, así que el servicio puede verlos. Nunca recibe tu correo ni la referencia del recibo. No se ejecuta si tu navegador envía Do Not Track o Global Privacy Control, ni en la app de Windows."
       },
       "account": {
         "label": "Datos de la cuenta:",
@@ -2702,7 +2702,7 @@
       "intro": "Estas empresas tratan datos por nosotros o por ti. Cada una lo hace bajo su propia política de privacidad.",
       "cloudflare": {
         "name": "Cloudflare",
-        "use": "sirve el sitio, cuenta las visitas y ejecuta el servidor de facturación. Como alojamiento, ve tu dirección IP cuando cargas una página."
+        "use": "sirve el sitio, cuenta las visitas y ejecuta el servidor de facturación. Como proveedor de alojamiento, ve tu dirección IP cuando cargas una página."
       },
       "stripe": {
         "name": "Stripe",
@@ -2768,14 +2768,14 @@
     },
     "rights": {
       "title": "Tus derechos",
-      "content": "Puedes pedirnos una copia de tus datos, que los corrijamos o que los borremos. Puedes borrar una cuenta tú mismo en la página Cuenta. Los datos del almacenamiento local nunca nos llegan, así que los borras en tu navegador. Si estás en la UE, en el Reino Unido o en otro país con ley de protección de datos, también puedes presentar una reclamación ante tu autoridad de protección de datos.",
+      "content": "Puedes pedirnos una copia de tus datos, que los corrijamos o que los borremos. Puedes borrar tu cuenta directamente en la página Cuenta. Los datos del almacenamiento local nunca nos llegan, así que los borras en tu navegador. Si estás en la UE, en el Reino Unido o en otro país con ley de protección de datos, también puedes presentar una reclamación ante tu autoridad de protección de datos. En España es la AEPD.",
       "requestEmail": "Para hacer una solicitud, escribe a <mail>{email}</mail>.",
       "requestForm": "Para hacer una solicitud, usa el <link>formulario de comentarios</link>."
     },
     "advertising": {
       "title": "Publicidad",
       "content": "No mostramos anuncios en este sitio. Anunciamos {siteName} en otras plataformas. No cargamos píxeles ni etiquetas publicitarias y no compartimos con redes publicitarias nada de lo que haces aquí.",
-      "campaign": "Un enlace de uno de nuestros anuncios lleva el nombre de una campaña. El servicio de estadísticas de {host} lo registra para que veamos qué anuncios traen visitantes."
+      "campaign": "Un enlace de uno de nuestros anuncios lleva el nombre de una campaña y puede llevar un identificador de clic de anuncio. El servicio de estadísticas de {host} registra ambos, para que veamos qué anuncios traen visitantes."
     },
     "windowsApp": {
       "title": "La app de Windows",
@@ -2786,7 +2786,7 @@
       },
       "licence": {
         "label": "Tu licencia Pro:",
-        "content": "Cuando una suscripción con tarjeta está a punto de renovarse, la app pide al servidor de facturación la licencia renovada. Envía tu correo y la referencia del recibo."
+        "content": "Cuando compras, restauras o gestionas Pro, o cuando una suscripción con tarjeta está a punto de renovarse, la app se conecta con el servidor de facturación. Envía tu correo y, según el paso, el plan o la referencia del recibo."
       },
       "models": {
         "label": "Modelos de IA:",
@@ -2798,7 +2798,7 @@
       },
       "accounts": {
         "label": "Cuenta y publicación:",
-        "content": "Iniciar sesión y publicar usan el servidor relay y las plataformas, como se describe arriba."
+        "content": "Iniciar sesión, publicar y comprobar si el relay está activo usan el servidor relay y las plataformas, como se describe arriba."
       }
     }
   },
@@ -2806,7 +2806,7 @@
     "title": "Términos del servicio",
     "lastUpdated": "Última actualización",
     "metaTitle": "Términos del servicio – {siteName}",
-    "metaDescription": "Las reglas para usar {siteName}. Tus vídeos, los planes Free y Pro, los pagos y reembolsos, y lo que la herramienta no promete.",
+    "metaDescription": "Las reglas para usar {siteName}. Tus vídeos, el plan gratuito y Pro, los pagos y reembolsos, y lo que la herramienta no promete.",
     "acceptance": {
       "title": "1. Aceptación de los términos",
       "content": "Al usar {siteDomain} («el Servicio») aceptas estos Términos del servicio. Si no estás de acuerdo con alguna parte, por favor no uses el Servicio."
@@ -2897,7 +2897,7 @@
     },
     "fanMade": {
       "title": "Simulación hecha por fans",
-      "content": "Fight League es una simulación hecha por fans. Los nombres de los personajes y de las franquicias pertenecen a sus propietarios. {siteName} no está afiliado, respaldado ni patrocinado por ellos y no usa sus logos, ilustraciones, sprites ni audio.",
+      "content": "La Liga de combate, o Fight League, es una simulación hecha por fans. Los nombres de los personajes y de las franquicias pertenecen a sus propietarios. {siteName} no está afiliado, respaldado ni patrocinado por ellos y no usa sus logos, ilustraciones, sprites ni audio.",
       "rightsEmail": "Los titulares de derechos pueden escribir a <mail>{email}</mail> para que se quite un nombre.",
       "rightsForm": "Los titulares de derechos pueden pedir que se quite un nombre a través de la <link>página de comentarios</link>."
     }
@@ -2967,7 +2967,7 @@
     "h2_2": "Privacidad por defecto",
     "p5": "Tu trabajo se queda contigo. Los presets viven en tu navegador y los vídeos se procesan en tu equipo. No queremos tus datos. Los detalles están en nuestra <privacy>política de privacidad</privacy>.",
     "h2_3": "Quién lo hace",
-    "p6": "{siteName} es un proyecto pequeño e independiente. Los nuevos modos y ajustes llegan porque los piden los creadores. Escribe desde la <feedback>página de comentarios</feedback> y tu nota llegará a quien construye la herramienta.",
+    "p6": "{siteName} es un proyecto pequeño e independiente. Los nuevos modos y ajustes llegan porque los piden los creadores. Escríbenos desde la <feedback>página de comentarios</feedback>.",
     "h2_4": "Hacia dónde va",
     "p7": "Lo esencial sigue siendo gratis. Más modos, más efectos y menos pasos entre una idea y un clip publicado. Ve y haz que una pelota rompa unas cuantas paredes.",
     "cta": "Abrir el simulador",
@@ -3486,7 +3486,7 @@
   },
   "ViralBot": {
     "title": "Bot de vídeos virales",
-    "intro": "Planifica clips como los hacen las cuentas que se vuelven virales (docs/virality-playbook.md): la regla en una frase en los primeros segundos, una cuenta atrás en pantalla, el desenlace en los últimos segundos y finales que se alternan – con puntuación, render y texto de publicación.",
+    "intro": "Planifica clips como los hacen las cuentas que se vuelven virales: la regla en una frase en los primeros segundos, una cuenta atrás en pantalla, el desenlace en los últimos segundos y finales que se alternan. Cada plan lleva puntuación, render y texto de publicación.",
     "platform": "Plataforma",
     "platforms": {
       "reels": "Reels",
@@ -3965,10 +3965,10 @@
   },
   "Pwa": {
     "installApp": "Instalar la aplicación",
-    "installAppTip": "Instala {siteName} en este dispositivo. Se abre en su propia ventana, arranca desde la pantalla de inicio y funciona sin conexión.",
+    "installAppTip": "Instala {siteName} en este dispositivo. Se abre en su propia ventana y arranca desde la pantalla de inicio. La página de inicio funciona sin conexión, y el simulador también cuando sus archivos se han descargado en segundo plano.",
     "offlinePageTitle": "Sin conexión – {siteName}",
     "offlineTitle": "Estás sin conexión",
-    "offlineBody": "Esta página aún no está guardada en este dispositivo. La página de inicio y el simulador funcionan sin conexión cuando los has abierto con conexión. Vuelve a conectarte o abre el simulador aquí abajo.",
+    "offlineBody": "Esta página aún no está guardada en este dispositivo. La página de inicio funciona sin conexión. El simulador también, cuando sus archivos se han descargado en segundo plano, algo que no ocurre con una conexión lenta o con límite de datos. Vuelve a conectarte o abre el simulador aquí abajo.",
     "offlineRetry": "Reintentar",
     "offlineSimulator": "Abrir el simulador"
   },
@@ -4075,7 +4075,7 @@
     "hudRule": "#[n] ×[fires]"
   },
   "Publish": {
-    "intro": "Envía el clip terminado a TikTok, Instagram y YouTube – a tantas cuentas como conectes – con un clic, o compártelo con las apps sin configurar nada.",
+    "intro": "Comparte el clip terminado en TikTok, Instagram y YouTube con el menú de compartir o una descarga. Para enviarlo con un clic, conecta tus cuentas a través de un relay o, en YouTube, con tu propio ID de cliente de Google.",
     "noClip": "Todavía no hay clip. Graba un vídeo, haz una exportación rápida, un lote o el render del bot – cada clip terminado aparece aquí – o elige un archivo de vídeo.",
     "sources": {
       "recording": "Grabación",
@@ -4146,7 +4146,7 @@
       "unlisted": "Subido como oculto: solo quien tenga el enlace puede verlo."
     },
     "retry": "Reintentar",
-    "relayIntro": "Un relay es un pequeño servidor que alojas tú (relay/ en el repositorio): guarda los secretos de las apps de TikTok, Instagram y YouTube y publica por ti. Añade su URL y tu clave de acceso; varias personas pueden compartir un relay, cada una con su propia clave.",
+    "relayIntro": "Un relay es un pequeño servidor que guarda los secretos de las apps de TikTok, Instagram y YouTube y publica por ti. Añade su URL y tu clave de acceso. Varias personas pueden compartir un relay, cada una con su propia clave.",
     "useRelay": "Usar {label}",
     "testConnection": "Probar",
     "removeRelay": "Quitar {label}",
@@ -4185,7 +4185,7 @@
     "quickHint": "Sin cuentas: en el móvil, el menú de compartir ofrece las apps de TikTok, Instagram y YouTube; en el ordenador, el clip se descarga, la descripción se copia y se abre la página de subida.",
     "pathDirect": "YouTube, directo: añade un ID de cliente de Google OAuth en «Configuración de la app de YouTube» y conecta tus canales; las subidas salen directamente de este navegador.",
     "appYouTube": "En la app, los canales de YouTube se conectan a través de tu relé (el inicio de sesión de Google no acepta la app como sitio web), o usa compartir rápido.",
-    "pathRelay": "TikTok, Instagram (y YouTube) a través de tu relay: despliega relay/ del repositorio y añade su URL y tu clave en «Relay».",
+    "pathRelay": "TikTok e Instagram pasan por un relay, y YouTube también puede. Añade su URL y tu clave en «Relay».",
     "pathShare": "O usa sin más el envío rápido de arriba: no hay nada que configurar.",
     "visibility": "Visibilidad",
     "visibilities": {
@@ -4267,7 +4267,7 @@
     "finderEndless": "Con estos valores la simulación nunca termina, así que no hay nada que buscar: sigue y sigue (mejor grábala)."
   },
   "DesktopLink": {
-    "navLabel": "App para Windows",
+    "navLabel": "App de Windows",
     "heroButton": "Descargar para Windows",
     "heroNote": "Descarga gratuita · codificación de vídeo en la GPU · IA integrada"
   },
@@ -4509,7 +4509,7 @@
     "libDeleteConfirm": "¿Mover {name} a la papelera?",
     "metaTitle": "Descarga {siteName} para Windows",
     "metaDescription": "El simulador como app de Windows. Tu tarjeta gráfica codifica los clips, una cola procesa lotes y una IA sin conexión planifica vídeos. Descarga gratis.",
-    "badge": "App para Windows",
+    "badge": "App de Windows",
     "title": "{siteName} para Windows",
     "intro": "Todo lo que hace el simulador en el navegador y lo que un navegador no puede. Tu tarjeta gráfica codifica los vídeos, una cola procesa lotes mientras haces otra cosa y un estudio de IA en tu PC planifica clips y escribe descripciones, sin conexión.",
     "setupTitle": "Instalador",
@@ -4527,7 +4527,7 @@
       "ram": "8 GB de RAM, 16 GB para la IA local"
     },
     "smartScreenTitle": "¿Una advertencia de Chrome o de Windows?",
-    "smartScreenBody": "El instalador todavía no tiene firma digital. Chrome puede avisar de que el archivo no se descarga habitualmente y Windows SmartScreen puede mostrar «Windows protegió tu PC». Ambos avisos aparecen con archivos que hasta ahora han descargado pocas personas.",
+    "smartScreenBody": "El instalador todavía no tiene firma digital, y el EXE portátil tampoco. Chrome puede avisar de que el archivo no se descarga habitualmente y Windows SmartScreen puede mostrar «Windows protegió su PC». Windows todavía no conoce al editor.",
     "featuresTitle": "Qué añade la aplicación",
     "features": {
       "gpu": "Vídeo en la GPU. La exportación rápida codifica en la tarjeta gráfica, en H.264 y HEVC con NVENC, AMF o Quick Sync, y en AV1 con tarjetas más recientes.",
@@ -4536,7 +4536,7 @@
       "library": "Biblioteca. Cada clip que renderizaste, con su miniatura, duración y texto de publicación. Reprodúcelo, ábrelo en su carpeta, vuelve a renderizarlo o bórralo."
     },
     "privacyTitle": "Privacidad",
-    "privacyBody": "Todo funciona en tu PC. La IA local funciona sin conexión. Una clave de la nube que introduzcas se guarda cifrada y solo se envía al proveedor que elegiste. La app no nos envía datos de uso. Se conecta para buscar actualizaciones, renovar tu licencia Pro, descargar un modelo que pediste y para las funciones de cuenta y publicación que uses. La política de privacidad los detalla todos.",
+    "privacyBody": "Todo funciona en tu PC. La IA local funciona sin conexión. Una clave de la nube que introduzcas se guarda cifrada y solo se envía al proveedor que elegiste. La app no nos envía datos de uso. Se conecta para buscar actualizaciones, comprar, restaurar o renovar tu licencia Pro, descargar un modelo que pediste y para las funciones de cuenta y publicación que uses. La política de privacidad los detalla todos.",
     "updateLater": "Más tarde",
     "updateWaitRender": "Hay un renderizado en curso. Espera a que termine la cola o cierra la aplicación, y la actualización se instalará al cerrar.",
     "appSite": "Versión del sitio",
@@ -4547,13 +4547,13 @@
     "appCopyDetails": "Copiar detalles",
     "appCopied": "Copiado",
     "appWhatsNew": "Novedades",
-    "setupNote": "Descargarla y usarla es gratis. Los vídeos hechos sin Pro llevan una pequeña marca de agua. Pro cuesta {price} al mes.",
+    "setupNote": "Descargar y usar la app es gratis. Los vídeos hechos sin Pro llevan una pequeña marca de agua. Pro cuesta {price} al mes.",
     "setupLegal": "Al descargar aceptas los <terms>Términos</terms>. La <privacy>Política de privacidad</privacy> explica qué envía la app y adónde.",
-    "smartScreenVerify": "Antes de ejecutarlo, comprueba el archivo. En PowerShell, Get-FileHash seguido del nombre del archivo muestra su SHA-256, que debe coincidir con la línea de ese archivo en las sumas de verificación. También puedes analizar el archivo en <virustotal>VirusTotal</virustotal>.",
+    "smartScreenVerify": "Antes de ejecutarlo, comprueba el archivo. En PowerShell, Get-FileHash seguido del nombre del archivo muestra su SHA-256, que debe coincidir con la línea de ese archivo en las sumas de verificación, sin distinguir mayúsculas de minúsculas. También puedes buscar ese SHA-256 en <virustotal>VirusTotal</virustotal>.",
     "smartScreenSteps": "Si las comprobaciones coinciden, elige Conservar en Chrome y, en Windows, Más información y Ejecutar de todas formas.",
     "privacyNoticesTitle": "Software y sonidos de terceros",
     "privacyNoticesFfmpeg": "ffmpeg, que la app usa para codificar vídeos, tiene licencia GNU GPL versión 3. Es la compilación de gyan.dev sin modificar, se ejecuta como un programa aparte y viene con el texto de su licencia y un enlace a su código fuente.",
-    "privacyNoticesOther": "La app también se basa en Electron, Chromium, node-llama-cpp y llama.cpp. Los textos de licencia de ffmpeg, Electron, Chromium y node-llama-cpp están en la carpeta de instalación. Los modelos de IA son descargas aparte con sus propias licencias, que la app muestra antes de descargar. El estudio de IA puede ejecutar Llama 3.2. Built with Llama.",
+    "privacyNoticesOther": "La app también se basa en Electron, Chromium, node-llama-cpp y llama.cpp. Los textos de licencia de ffmpeg, Electron, Chromium y node-llama-cpp se incluyen con la app. Los modelos de IA son descargas aparte con sus propias licencias, que la app muestra antes de descargar. El estudio de IA puede ejecutar Llama 3.2. Built with Llama.",
     "privacyAudio": "Los sonidos integrados los sintetizamos nosotros. Las melodías integradas son temas de dominio público."
   },
   "Territory": {
@@ -4831,7 +4831,7 @@
       "licence": "Tu licencia es una clave firmada guardada en este navegador. El sitio no necesita cuenta ni contraseña.",
       "devices": "En otro dispositivo o navegador, restaura la compra con tu correo y la referencia del recibo que ves tras el pago, o pega la clave de licencia.",
       "watermark": "La marca de agua se dibuja dentro del propio vídeo. Con una licencia Pro en este navegador, cada grabación o exportación que inicies después sale limpia.",
-      "refunds": "Cancela cuando quieras. Si lo pides en los 14 días siguientes, te reembolsamos el primer pago íntegro.",
+      "refunds": "Pídelo en los 14 días siguientes a tu primer pago con tarjeta y te lo reembolsamos íntegramente. Las renovaciones y los pagos con cripto no son reembolsables, salvo que la ley diga otra cosa.",
       "support": "¿Dudas sobre un pago? Escribe a {email}.",
       "termsLink": "Términos"
     },
@@ -4842,18 +4842,18 @@
     "privacy": {
       "title": "Pagos",
       "content": "Pro se paga con Stripe para tarjetas o con NOWPayments para cripto, en la página de pago del propio proveedor y bajo su propia política de privacidad. Los datos de tu tarjeta o monedero nunca nos llegan. Nuestro servidor de facturación, que funciona en Cloudflare, guarda tu correo, el plan y la referencia del pago o de la suscripción en el proveedor, para emitir, renovar y restaurar tu licencia. La licencia en sí es una clave firmada guardada en tu navegador. Estos registros se guardan mientras tu licencia pueda restaurarse y durante el tiempo que exijan las normas contables.",
-      "renewals": "Cuando tu licencia está a punto de acabar o acaba de acabar, el sitio y la app de Windows preguntan al servidor de facturación si tu suscripción con tarjeta se renovó. Envían tu correo y la referencia del recibo."
+      "renewals": "Cuando tu licencia está a punto de terminar o ha terminado hace poco, el sitio y la app de Windows preguntan al servidor de facturación si tu suscripción con tarjeta se renovó. Envían tu correo y la referencia del recibo."
     },
     "terms": {
       "title": "Suscripciones Pro",
       "content": "Jugar con el simulador y grabar o exportar vídeos es gratis. Los vídeos creados sin una licencia Pro llevan marca de agua. Pro cuesta {monthly} al mes o {yearly} al año, en dólares estadounidenses, y al pagar pueden añadirse impuestos. Exporta los vídeos sin marca de agua y añade el envío rápido a TikTok, Instagram y YouTube con el menú de compartir del dispositivo o una descarga. Las suscripciones con tarjeta se renuevan automáticamente hasta que las canceles en el portal de clientes de Stripe. Un pago con cripto compra por adelantado un periodo de 30 o 365 días que no se renueva. La licencia es válida hasta el final del periodo pagado.",
       "delivery": {
         "title": "Entrega",
-        "content": "Pro es una licencia digital y se entrega al instante. Tras el pago, la página de precios la activa en tu navegador y muestra una referencia del recibo. Con tu correo y esa referencia puedes restaurar la licencia en cualquier otro dispositivo o en la aplicación de Windows cuando quieras. No se envía nada físico."
+        "content": "Pro es una licencia digital y se entrega al instante. Tras el pago, la página de precios la activa en tu navegador y muestra una referencia del recibo. Con tu correo y esa referencia puedes restaurar la licencia en cualquier otro dispositivo o en la app de Windows cuando quieras. No se envía nada físico."
       },
       "refunds": {
         "title": "Cancelación y reembolsos",
-        "content": "Puedes cancelar una suscripción con tarjeta en cualquier momento, con Gestionar suscripción en la página de precios. Seguirá activa hasta el final del periodo que hayas pagado y no se renovará. Si Pro no te ha servido, escríbenos en los 14 días siguientes a tu primer pago y te lo reembolsamos íntegramente. Las renovaciones y los pagos con cripto no son reembolsables, salvo que la ley de tu país te dé ese derecho. Un pago con cripto no se puede revertir en la red. Los reembolsos vuelven al método de pago que usaste y tardan entre 5 y 10 días hábiles en aparecer."
+        "content": "Puedes cancelar una suscripción con tarjeta en cualquier momento, con Gestionar suscripción en la página de precios. Seguirá activa hasta el final del periodo que hayas pagado y no se renovará. Escríbenos en los 14 días siguientes a tu primer pago con tarjeta y te lo reembolsamos íntegramente. Las renovaciones y los pagos con cripto no son reembolsables, salvo que la ley de tu país te dé ese derecho. Un pago con cripto no se puede revertir en la red. Los reembolsos vuelven al método de pago que usaste y tardan entre 5 y 10 días hábiles en aparecer."
       },
       "operator": {
         "title": "A quién le compras",
@@ -5764,10 +5764,10 @@
   },
   "Account": {
     "metaTitle": "Tu cuenta – {siteName}",
-    "metaDescription": "Inicia sesión o crea una cuenta gratis para gestionar los canales de TikTok, Instagram y YouTube que conectes, en cada navegador y en la app de Windows.",
+    "metaDescription": "Inicia sesión o crea una cuenta gratis. Sirve para conectar canales de TikTok, Instagram y YouTube con un relay, en cada navegador y en la app de Windows.",
     "eyebrow": "Cuenta",
     "title": "Una cuenta para todos tus canales",
-    "lede": "Una cuenta reúne tus canales de TikTok, Instagram y YouTube, en cada navegador y en la app de Windows. Solo la necesitas para conectar canales.",
+    "lede": "Una cuenta solo sirve para conectar tus canales de TikTok, Instagram y YouTube a través de un relay. Funciona en cada navegador y en la app de Windows.",
     "free": "Crear la cuenta es gratis. Compartir un clip desde el estudio es una función Pro.",
     "tabs": {
       "label": "Formulario de la cuenta",
@@ -5889,31 +5889,31 @@
   },
   "Changelog": {
     "metaTitle": "Registro de cambios – {siteName}",
-    "metaDescription": "Qué ha cambiado en {siteName} y en la aplicación de Windows, de lo más nuevo a lo más antiguo. Modos nuevos, arreglos y mejoras.",
+    "metaDescription": "Qué ha cambiado en {siteName} y en la app de Windows, de lo más nuevo a lo más antiguo. Modos nuevos, arreglos y mejoras.",
     "badge": "Registro de cambios",
     "title": "Novedades de {siteName}",
-    "intro": "Cada actualización de la web y de la aplicación de Windows, de la más reciente a la más antigua.",
+    "intro": "Las versiones de la web y de la app de Windows, la más reciente primero.",
     "filterLabel": "Mostrar",
     "filterAll": "Todo",
     "filterSite": "Web",
-    "filterApp": "Aplicación de Windows",
+    "filterApp": "App de Windows",
     "releaseSite": "Web {version}",
-    "releaseApp": "Aplicación de Windows {version}",
+    "releaseApp": "App de Windows {version}",
     "kindNew": "Nuevo",
     "kindImproved": "Mejorado",
     "kindFixed": "Arreglado",
     "outro": "¿Falta algo o no funciona? Cuéntanoslo.",
     "feedback": "Enviar comentarios",
     "download": "Descargar para Windows",
-    "buildLine": "Esta página procede de la versión {build}."
+    "buildLine": "Esta página procede de la compilación {build}."
   },
   "ChangelogLive": {
-    "youRun": "Usas la versión {version} de la aplicación de Windows.",
+    "youRun": "Usas la versión {version} de la app de Windows.",
     "jump": "Mira qué incluye"
   },
   "WhatsNew": {
     "title": "Novedades de la versión {version}",
-    "body": "La aplicación de Windows se ha actualizado. Mira qué ha cambiado en esta versión.",
+    "body": "La app de Windows se ha actualizado. Mira qué ha cambiado en esta versión.",
     "link": "Ver el registro de cambios",
     "dismiss": "Cerrar"
   },
@@ -5952,7 +5952,7 @@
       },
       "changelog": {
         "title": "Novedades de {siteName}",
-        "sub": "Cada actualización de la web y de la app de Windows, la más reciente primero."
+        "sub": "Las versiones de la web y de la app de Windows, la más reciente primero."
       },
       "press": {
         "title": "{siteName} para la prensa",
@@ -5967,30 +5967,30 @@
     "title": "{siteName} para la prensa",
     "intro": "Los datos, la historia y cómo contactarnos en un solo sitio. Usa lo que necesites y escríbenos si falta algo.",
     "metaWebsite": "Web {label}",
-    "metaApp": "Aplicación de Windows {version}",
+    "metaApp": "App de Windows {version}",
     "facts": {
       "title": "Datos clave",
       "whatLabel": "Qué es",
       "whatValue": "Un estudio gratuito de física de pelotas en el navegador. Elige un modo, ajusta la física y graba un clip vertical para TikTok, Reels o Shorts.",
       "platformsLabel": "Plataformas",
-      "platformsValue": "Cualquier navegador moderno, también como aplicación web instalable, y una aplicación para Windows 10 y 11 de 64 bits.",
+      "platformsValue": "Cualquier navegador moderno, también como aplicación web instalable, y una app para Windows 10 y 11 de 64 bits.",
       "modesLabel": "Modos",
       "modesValue": "{count} modos de simulación",
       "exportLabel": "Exportación de vídeo",
       "exportValue": "Vertical 1080×1920, Full HD 1920×1080, HD 1280×720 y cuadrado 500×500, de 10 a 120 segundos. MP4 en Chrome y Safari, WebM en Firefox.",
       "languagesLabel": "Idiomas",
-      "languagesValue": "inglés, polaco y español",
+      "languagesValue": "Inglés, polaco y español",
       "freeLabel": "Versión gratuita",
       "freeValue": "Todos los modos, todos los ajustes y todas las exportaciones, sin cuenta. Los clips llevan una pequeña marca de agua que Pro quita.",
       "priceLabel": "Precio de Pro",
       "priceValue": "{monthly} al mes o {yearly} al año. El plan anual ahorra un {percent} %.",
       "releasedLabel": "Primera versión",
       "websiteLabel": "Versión de la web",
-      "appLabel": "Versión de la aplicación de Windows",
+      "appLabel": "Versión de la app de Windows",
       "operatorLabel": "Gestionado por",
       "contactLabel": "Contacto",
       "contactFeedback": "Página de comentarios",
-      "note": "Cada versión está en el <changelog>registro de cambios</changelog>. La aplicación de Windows está en la <download>página de descarga</download>."
+      "note": "Cada versión está en el <changelog>registro de cambios</changelog>. La app de Windows está en la <download>página de descarga</download>."
     },
     "about": {
       "title": "Descripciones",
@@ -6000,7 +6000,7 @@
       "longLabel": "Larga · {words} palabras",
       "short": "{siteName} es un estudio gratuito de física de pelotas en el navegador. Elige un modo, ajusta la física y exporta un clip vertical para TikTok, Reels o Shorts.",
       "medium": "{siteName} es un estudio gratuito de física de pelotas que funciona en el navegador, sin cuenta y sin instalar nada. Elige uno de los {count} modos, ajusta la física y exporta un vídeo vertical para TikTok, Reels o Shorts. Todos los modos y todas las exportaciones son gratis. Los clips gratuitos llevan una pequeña marca de agua y Pro la quita por {monthly} al mes o {yearly} al año.",
-      "long": "{siteName} es un estudio gratuito de física de pelotas que funciona en el navegador, sin cuenta y sin instalar nada. Empezó con un problema sencillo. Los vídeos de pelotas rebotando estaban por todas partes y hacer uno era lento. Ahora un creador abre una pestaña, elige uno de los {count} modos, ajusta la física y exporta un vídeo vertical para TikTok, Reels o Shorts. Todos los modos, ajustes y exportaciones son gratis. Los clips gratuitos llevan una pequeña marca de agua y Pro la quita por {monthly} al mes o {yearly} al año. Una aplicación para Windows añade codificación de vídeo en la GPU, una cola de renderizado y un estudio de IA que planifica clips y escribe descripciones. {siteName} es un proyecto pequeño e independiente, disponible en inglés, polaco y español."
+      "long": "{siteName} es un estudio gratuito de física de pelotas que funciona en el navegador, sin cuenta y sin instalar nada. Empezó con un problema sencillo. Los vídeos de pelotas rebotando estaban por todas partes y hacer uno era lento. Ahora un creador abre una pestaña, elige uno de los {count} modos, ajusta la física y exporta un vídeo vertical para TikTok, Reels o Shorts. Todos los modos, ajustes y exportaciones son gratis. Los clips gratuitos llevan una pequeña marca de agua y Pro la quita por {monthly} al mes o {yearly} al año. Una app de Windows añade codificación de vídeo en la GPU, una cola de renderizado y un estudio de IA que planifica clips y escribe descripciones. {siteName} es un proyecto pequeño e independiente, disponible en inglés, polaco y español."
     },
     "brand": {
       "title": "Logotipo y colores",
@@ -6030,12 +6030,12 @@
     },
     "notIncluded": {
       "title": "Fuera del dossier de prensa",
-      "body": "Los nombres y las grabaciones de Fight League no forman parte de este dossier. Ese modo es una simulación hecha por fans y los nombres de sus personajes pertenecen a sus propietarios. No los uses, ni tampoco grabaciones de ese modo, en artículos, miniaturas ni anuncios. Para que se quite un nombre, <contact>escríbenos</contact>."
+      "body": "Los nombres y las grabaciones de Fight League no forman parte de este dossier. Ese modo es una simulación hecha por fans y los nombres de sus personajes pertenecen a sus propietarios. No uses esos nombres ni grabaciones de ese modo en artículos, miniaturas ni anuncios. Para que se quite un nombre, <contact>escríbenos</contact>."
     },
     "contact": {
       "title": "Contacto",
-      "withEmail": "Para preguntas, citas o correcciones, escribe a <mail>{email}</mail>.",
-      "withoutEmail": "Para preguntas, citas o correcciones, usa la <feedback>página de comentarios</feedback>. Llega a quien construye {siteName}.",
+      "withEmail": "Para preguntas, declaraciones o correcciones, escribe a <mail>{email}</mail>.",
+      "withoutEmail": "Para preguntas, declaraciones o correcciones, usa la <feedback>página de comentarios</feedback>.",
       "operator": "{siteName} está gestionado por {name}."
     }
   }

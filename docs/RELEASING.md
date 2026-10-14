@@ -60,7 +60,9 @@ starts with the commit you pushed (the footer of a freshly loaded page says the 
    `npm run changelog`. The entry goes in the same commit as the version bump, because the app carries the site: the changelog page
    inside the app must list its own version, and the same entry becomes the notes of both GitHub releases (`node
    scripts/changelog.mjs --notes app 1.0.4` prints them; a version without an entry gets a one-line text). The first time an
-   updated app starts it shows "What's new in 1.0.4" once, with a link to this entry.
+   updated app starts it shows "What's new in 1.0.4" once, with a link to this entry, but only an app that already has the
+   notice does: 1.3.0 is the first version with it and only remembers its own version, so a 1.2.0 install updated to 1.3.0
+   sees nothing, and the notice first appears at the update after that.
 3. Run `npm run release:desktop -- 1.0.4`. It writes the version into three files – `desktop/package.json`,
    `desktop/package-lock.json` and `src/lib/desktop/release.ts` – and prints three git lines. Add the changelog files to the first one:
 
@@ -74,6 +76,13 @@ starts with the commit you pushed (the footer of a freshly loaded page says the 
    installer, the portable EXE, `SHA256SUMS.txt` (checksums) and `latest.yml` (what installed apps read), and GitHub →
    Releases in this repository keeps `desktop-v1.0.4` as the archive (its notes list the changes since the last release by themselves). The
    same push deploys the website, whose download page then names the new version.
+
+When the release comes in a pull request, do not merge until the pull request's **Windows app** check is green (on a pull
+request that workflow builds, tests, packages and smoke-runs the app; it publishes nothing). The website deploys within about ten
+minutes of the merge, on its own and without waiting for the Windows job, and from then on the download page, the press page and the
+changelog already name the new version. After the merge watch Actions → "Windows app" and the `version:` line of
+<https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download/latest.yml>: it must show the new version. On a
+red run fix forward as the next patch version (1.3.0 → 1.3.1) with the same notes; re-running the failed run repairs a transient failure.
 
 Check the release on a PC after installing it: the title bar reads `JumpingBallsLive 1.0.4` (with `· portable` for the portable EXE),
 **Help → About** names the app version, whether it is the installer or the portable EXE and the website build inside it (its

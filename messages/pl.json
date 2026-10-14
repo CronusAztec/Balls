@@ -1477,7 +1477,7 @@
     "bounceMathShowValues": "Pokaż wartości",
     "bounceMathShowValuesTip": "Mała plakietka na filmie ze sprężystością, prędkością, rozmiarem i grawitacją piłki, która odbiła się ostatnia, oraz liczbą uruchomień każdej reguły.",
     "publish": "Publikuj",
-    "publishTip": "Wyślij gotowy klip na swoje konta TikTok, Instagram i YouTube – po kilka na platformę – jednym kliknięciem: na YouTube prosto z przeglądarki, na TikToka i Instagrama przez mały relay, który hostujesz sam, albo przyciskami udostępniania bez konfiguracji.",
+    "publishTip": "Udostępnij gotowy klip na TikToku, Instagramie i YouTube przez arkusz udostępniania lub pobranie. Wysyłanie jednym kliknięciem wymaga połączonych kont: relay albo, dla YouTube, własnego identyfikatora klienta Google.",
     "publishAccounts": "Konta (TikTok, Instagram, YouTube)",
     "publishQuickShare": "Szybkie udostępnianie",
     "unlimited": "Szerokie suwaki",
@@ -2666,7 +2666,7 @@
       "subtitle": "Zbieramy minimum niezbędne do działania i ulepszania serwisu:",
       "analytics": {
         "label": "Statystyki odwiedzin:",
-        "content": "Na stronie internetowej liczymy odwiedziny za pomocą Cloudflare Web Analytics. Raportuje on otwartą stronę, serwis, z którego przychodzisz, Twój kraj, typ urządzenia, przeglądarkę i system operacyjny. Cloudflare zapewnia, że nie używa do tego plików cookie ani pamięci lokalnej i nie śledzi ludzi między stronami."
+        "content": "Na stronie internetowej liczymy odwiedziny za pomocą Cloudflare Web Analytics. Raportuje on otwartą stronę, serwis, z którego przychodzisz, Twój kraj, typ urządzenia, przeglądarkę i system operacyjny. Cloudflare podaje, że nie używa do tego plików cookie ani pamięci lokalnej i nie rozpoznaje odwiedzających po cechach urządzenia."
       },
       "localStorage": {
         "label": "Dane w pamięci lokalnej:",
@@ -2678,7 +2678,7 @@
       },
       "events": {
         "label": "Liczenie działań:",
-        "content": "Liczymy też kilka działań, takich jak uruchomienie symulatora, eksport klipu czy otwarcie płatności, za pomocą usługi statystycznej pod adresem {host}. Zapisuje ona stronę, nazwę kampanii z linku, serwis, z którego przychodzisz, przeglądarkę, rozmiar ekranu i kraj. Nigdy nie dostaje Twojego e-maila, ustawień ani tego, co tworzysz. Nie działa, gdy przeglądarka wysyła sygnał Do Not Track lub Global Privacy Control, ani w aplikacji na Windows."
+        "content": "Liczymy też kilka działań, takich jak uruchomienie symulatora, eksport klipu czy przejście do płatności, za pomocą usługi statystycznej pod adresem {host}. Zapisuje ona adres strony wraz z nazwą kampanii lub identyfikatorem kliknięcia reklamy, jeśli adres je zawiera, a także serwis, z którego przychodzisz, przeglądarkę, rozmiar ekranu i kraj. W studiu ten adres zawiera też ustawienia Twojej symulacji, więc usługa może je zobaczyć. Nigdy nie dostaje Twojego e-maila ani numeru z potwierdzenia. Nie działa, gdy przeglądarka wysyła sygnał Do Not Track lub Global Privacy Control, ani w aplikacji na Windows."
       },
       "account": {
         "label": "Dane konta:",
@@ -2702,7 +2702,7 @@
       "intro": "Te firmy przetwarzają dane dla nas lub dla Ciebie. Każda robi to zgodnie z własną polityką prywatności.",
       "cloudflare": {
         "name": "Cloudflare",
-        "use": "obsługuje stronę, liczy odwiedziny i prowadzi serwer rozliczeń. Jako gospodarz serwera widzi Twój adres IP, gdy ładujesz stronę."
+        "use": "obsługuje stronę, liczy odwiedziny i prowadzi serwer rozliczeń. Jako dostawca hostingu widzi Twój adres IP, gdy ładujesz stronę."
       },
       "stripe": {
         "name": "Stripe",
@@ -2727,7 +2727,7 @@
     },
     "retention": {
       "title": "Przechowywanie danych",
-      "content": "Dane w pamięci lokalnej zostają na Twoim urządzeniu, dopóki nie wyczyścisz ich w ustawieniach przeglądarki. Statystyki odwiedzin przechowują usługi, które je tworzą, zgodnie z własnymi zasadami. Serwer rozliczeń trzyma Twój e-mail, plan i identyfikator dostawcy tak długo, jak można przywrócić Twoją licencję i jak wymagają tego przepisy rachunkowe. Konto na serwerze relay jest przechowywane, dopóki nie usuniesz go na stronie Konto, a klip wgrany na relay jest usuwany po 24 godzinach."
+      "content": "Dane w pamięci lokalnej zostają na Twoim urządzeniu, dopóki nie wyczyścisz ich w ustawieniach przeglądarki. Statystyki odwiedzin przechowują usługi, które je tworzą, zgodnie z własnymi zasadami. Serwer rozliczeń trzyma Twój e-mail, plan i identyfikator dostawcy tak długo, jak można przywrócić Twoją licencję i jak wymagają tego przepisy rachunkowe. Konto na serwerze relay jest przechowywane, dopóki nie usuniesz konta na stronie Konto, a klip wgrany na relay jest usuwany po 24 godzinach."
     },
     "children": {
       "title": "Prywatność dzieci",
@@ -2739,7 +2739,7 @@
     },
     "consent": {
       "title": "Zgoda",
-      "content": "Strona nie ustawia plików cookie i nie ładuje znaczników reklamowych, więc nie pokazuje banera cookie. Jeśli dodamy coś, co wymaga Twojej zgody, zapytamy o nią, zanim to ruszy."
+      "content": "Strona nie ustawia plików cookie i nie ładuje znaczników reklamowych, więc nie pokazuje banera cookie. Jeśli dodamy coś, co wymaga Twojej zgody, zapytamy o nią, zanim to uruchomimy."
     },
     "contact": {
       "title": "Kontakt",
@@ -2748,7 +2748,7 @@
     },
     "publishing": {
       "title": "Publikowanie na TikToku, Instagramie i YouTube",
-      "content": "Blok Publikuj w studiu wysyła klip tylko wtedy, gdy klikniesz przycisk wysyłania lub udostępniania. Szybkie udostępnianie przekazuje plik do arkusza udostępniania Twojego urządzenia albo go pobiera i niczego nam nie wysyła. Wysyłka na YouTube idzie z Twojej przeglądarki prosto do Google, z tokenem dostępu przechowywanym w pamięci lokalnej przeglądarki. Usunięcie konta w bloku kasuje token. Klipy wysyłane na TikToka i Instagram oraz, jeśli tak wybierzesz, na YouTube idą przez serwer relay. Logujesz się do niego kluczem dostępu od osoby, która go prowadzi, albo kontem założonym na stronie Konto.",
+      "content": "Blok Publikuj w studiu wysyła klip tylko wtedy, gdy klikniesz przycisk wysyłania lub udostępniania. Szybkie udostępnianie przekazuje plik do arkusza udostępniania Twojego urządzenia albo go pobiera i niczego nam nie wysyła. Wysyłka na YouTube idzie z Twojej przeglądarki prosto do Google, z tokenem dostępu przechowywanym w pamięci lokalnej przeglądarki. Usunięcie konta w bloku kasuje token. Klipy wysyłane na TikToka i Instagrama oraz, jeśli tak wybierzesz, na YouTube idą przez serwer relay. Logujesz się do niego kluczem dostępu od osoby, która go prowadzi, albo kontem założonym na stronie Konto.",
       "youtube1": "Wysyłka na YouTube korzysta z usług YouTube API: wysyłając, akceptujesz",
       "ytTermsLink": "Warunki korzystania z YouTube",
       "youtube2": ", a Google przetwarza dane zgodnie z",
@@ -2768,14 +2768,14 @@
     },
     "rights": {
       "title": "Twoje prawa",
-      "content": "Możesz poprosić nas o kopię swoich danych, ich poprawienie lub usunięcie. Konto możesz usunąć sam na stronie Konto. Dane z pamięci lokalnej nigdy do nas nie trafiają, więc czyścisz je w przeglądarce. Jeśli mieszkasz w UE, w Wielkiej Brytanii lub w innym kraju z prawem o ochronie danych, możesz też złożyć skargę do organu ochrony danych.",
+      "content": "Możesz poprosić nas o kopię swoich danych, ich poprawienie lub usunięcie. Konto usuniesz samodzielnie na stronie Konto. Dane z pamięci lokalnej nigdy do nas nie trafiają, więc czyścisz je w przeglądarce. Jeśli mieszkasz w UE, w Wielkiej Brytanii lub w innym kraju z przepisami o ochronie danych, możesz też złożyć skargę do organu nadzorczego. W Polsce jest nim Prezes UODO.",
       "requestEmail": "Aby złożyć prośbę, napisz na <mail>{email}</mail>.",
       "requestForm": "Aby złożyć prośbę, skorzystaj z <link>formularza opinii</link>."
     },
     "advertising": {
       "title": "Reklamy",
       "content": "Na tej stronie nie wyświetlamy reklam. Reklamujemy {siteName} na innych platformach. Nie ładujemy pikseli ani znaczników reklamowych i nie przekazujemy sieciom reklamowym niczego o tym, co tu robisz.",
-      "campaign": "Link z naszej reklamy zawiera nazwę kampanii. Zapisuje ją usługa statystyczna pod adresem {host}, żebyśmy widzieli, które reklamy przyprowadzają odwiedzających."
+      "campaign": "Link z naszej reklamy zawiera nazwę kampanii i może zawierać identyfikator kliknięcia reklamy. Usługa statystyczna pod adresem {host} zapisuje oba, żebyśmy widzieli, które reklamy przyprowadzają odwiedzających."
     },
     "windowsApp": {
       "title": "Aplikacja na Windows",
@@ -2786,7 +2786,7 @@
       },
       "licence": {
         "label": "Licencja Pro:",
-        "content": "Gdy subskrypcja kartą ma się odnowić, aplikacja pyta serwer rozliczeń o odnowioną licencję. Wysyła Twój e-mail i numer z potwierdzenia."
+        "content": "Gdy kupujesz, przywracasz lub zarządzasz Pro albo gdy subskrypcja kartą ma się odnowić, aplikacja łączy się z serwerem rozliczeń. Wysyła Twój e-mail oraz, zależnie od kroku, plan lub numer z potwierdzenia."
       },
       "models": {
         "label": "Modele AI:",
@@ -2798,7 +2798,7 @@
       },
       "accounts": {
         "label": "Konto i publikowanie:",
-        "content": "Logowanie i publikowanie korzystają z serwera relay i z platform, jak opisano wyżej."
+        "content": "Logowanie, publikowanie i sprawdzanie, czy relay działa, korzystają z serwera relay i z platform, jak opisano wyżej."
       }
     }
   },
@@ -2897,7 +2897,7 @@
     },
     "fanMade": {
       "title": "Symulacja stworzona przez fanów",
-      "content": "Fight League to symulacja stworzona przez fanów. Nazwy postaci i serii należą do ich właścicieli. {siteName} nie jest z nimi powiązany, przez nich wspierany ani sponsorowany i nie używa ich logo, grafik, sprite’ów ani dźwięków.",
+      "content": "Liga walk, czyli Fight League, to symulacja stworzona przez fanów. Nazwy postaci i serii należą do ich właścicieli. {siteName} nie jest z nimi powiązany, przez nich wspierany ani sponsorowany i nie używa ich logo, grafik, sprite’ów ani dźwięków.",
       "rightsEmail": "Właściciele praw mogą napisać na <mail>{email}</mail>, aby usunąć nazwę.",
       "rightsForm": "Właściciele praw mogą poprosić o usunięcie nazwy przez <link>stronę opinii</link>."
     }
@@ -2967,7 +2967,7 @@
     "h2_2": "Prywatność domyślnie",
     "p5": "Twoja praca zostaje u Ciebie. Presety są w Twojej przeglądarce, a filmy renderują się na Twoim urządzeniu. Nie chcemy Twoich danych. Szczegóły znajdziesz w naszej <privacy>polityce prywatności</privacy>.",
     "h2_3": "Kto to tworzy",
-    "p6": "{siteName} to mały, niezależny projekt. Nowe tryby i ustawienia pojawiają się, bo proszą o nie twórcy. Napisz przez <feedback>stronę opinii</feedback>, a wiadomość trafi do osoby, która buduje to narzędzie.",
+    "p6": "{siteName} to mały, niezależny projekt. Nowe tryby i ustawienia pojawiają się, bo proszą o nie twórcy. Napisz przez <feedback>stronę opinii</feedback>.",
     "h2_4": "Dokąd zmierzamy",
     "p7": "Podstawa zostaje darmowa. Więcej trybów, więcej efektów i mniej kroków od pomysłu do opublikowanego klipu. Śmiało, niech piłka rozbije kilka ścian.",
     "cta": "Otwórz symulator",
@@ -3486,7 +3486,7 @@
   },
   "ViralBot": {
     "title": "Bot do wiralowych filmów",
-    "intro": "Planuje klipy tak, jak robią je konta, które robią zasięgi (docs/virality-playbook.md): zasada w jednym zdaniu na pierwsze sekundy, odliczanie na ekranie, finał w ostatnich sekundach, naprzemienne zakończenia – z oceną, renderem i opisem.",
+    "intro": "Planuje klipy tak, jak robią je konta, które robią zasięgi: zasada w jednym zdaniu na pierwsze sekundy, odliczanie na ekranie, finał w ostatnich sekundach, naprzemienne zakończenia. Każdy plan dostaje ocenę, render i opis.",
     "platform": "Platforma",
     "platforms": {
       "reels": "Reels",
@@ -3965,10 +3965,10 @@
   },
   "Pwa": {
     "installApp": "Zainstaluj aplikację",
-    "installAppTip": "Zainstaluj {siteName} na tym urządzeniu. Otwiera się we własnym oknie, startuje z ekranu głównego i działa offline.",
+    "installAppTip": "Zainstaluj {siteName} na tym urządzeniu. Otwiera się we własnym oknie i startuje z ekranu głównego. Strona główna działa offline, a symulator też, gdy jego pliki pobiorą się w tle.",
     "offlinePageTitle": "Offline – {siteName}",
     "offlineTitle": "Jesteś offline",
-    "offlineBody": "Ta strona nie jest jeszcze zapisana na tym urządzeniu. Strona główna i symulator działają offline, gdy raz otworzysz je online. Połącz się ponownie albo otwórz symulator poniżej.",
+    "offlineBody": "Ta strona nie jest jeszcze zapisana na tym urządzeniu. Strona główna działa offline. Symulator też, gdy jego pliki pobiorą się w tle. Nie dzieje się to przy wolnym łączu ani w sieci z limitem danych. Połącz się ponownie albo otwórz symulator poniżej.",
     "offlineRetry": "Spróbuj ponownie",
     "offlineSimulator": "Otwórz symulator"
   },
@@ -4075,7 +4075,7 @@
     "hudRule": "#[n] ×[fires]"
   },
   "Publish": {
-    "intro": "Wyślij gotowy klip na TikToka, Instagrama i YouTube – na tyle kont, ile połączysz – jednym kliknięciem, albo udostępnij go w aplikacjach bez żadnej konfiguracji.",
+    "intro": "Udostępnij gotowy klip na TikToku, Instagramie i YouTube przez arkusz udostępniania lub pobranie. Aby wysyłać jednym kliknięciem, połącz konta przez relay albo, dla YouTube, własny identyfikator klienta Google.",
     "noClip": "Nie ma jeszcze klipu. Nagraj wideo, uruchom szybki eksport, serię albo renderowanie bota – każdy gotowy klip trafia tutaj – lub wybierz plik wideo.",
     "sources": {
       "recording": "Nagranie",
@@ -4146,7 +4146,7 @@
       "unlisted": "Wysłano jako niepubliczny – zobaczą go tylko osoby z linkiem."
     },
     "retry": "Spróbuj ponownie",
-    "relayIntro": "Relay to mały serwer, który hostujesz sam (katalog relay/ w repozytorium): przechowuje sekrety aplikacji TikToka, Instagrama i YouTube i publikuje za ciebie. Dodaj jego adres i swój klucz dostępu; z jednego relaya może korzystać kilka osób, każda z własnym kluczem.",
+    "relayIntro": "Relay to mały serwer, który przechowuje sekrety aplikacji TikToka, Instagrama i YouTube i publikuje za Ciebie. Dodaj jego adres i swój klucz dostępu. Z jednego relaya może korzystać kilka osób, każda z własnym kluczem.",
     "useRelay": "Używaj: {label}",
     "testConnection": "Test",
     "removeRelay": "Usuń: {label}",
@@ -4185,7 +4185,7 @@
     "quickHint": "Bez kont: na telefonie arkusz udostępniania pokazuje aplikacje TikTok, Instagram i YouTube; na komputerze klip się pobiera, opis trafia do schowka i otwiera się strona przesyłania.",
     "pathDirect": "YouTube bezpośrednio: dodaj identyfikator klienta Google OAuth w „Konfiguracji aplikacji YouTube” i połącz swoje kanały – wysyłka idzie prosto z tej przeglądarki.",
     "appYouTube": "W aplikacji kanały YouTube łączysz przez swój relay (logowanie Google nie akceptuje aplikacji jako strony) – albo użyj szybkiego udostępniania.",
-    "pathRelay": "TikTok, Instagram (i YouTube) przez twój relay: wdróż katalog relay/ z repozytorium, a potem dodaj jego adres i swój klucz w sekcji „Relay”.",
+    "pathRelay": "TikTok i Instagram idą przez relay, a YouTube też może. Dodaj jego adres i swój klucz w sekcji „Relay”.",
     "pathShare": "Albo po prostu użyj szybkiego udostępniania powyżej – nic nie trzeba konfigurować.",
     "visibility": "Widoczność",
     "visibilities": {
@@ -4527,7 +4527,7 @@
       "ram": "8 GB RAM, 16 GB dla lokalnej AI"
     },
     "smartScreenTitle": "Ostrzeżenie z Chrome lub Windows?",
-    "smartScreenBody": "Instalator nie jest jeszcze podpisany cyfrowo. Chrome może napisać, że plik nie jest często pobierany, a Windows SmartScreen może pokazać „System Windows ochronił ten komputer”. Oba ostrzeżenia pojawiają się przy plikach, które do tej pory pobrało niewiele osób.",
+    "smartScreenBody": "Instalator nie jest jeszcze podpisany cyfrowo, wersja przenośna też. Chrome może napisać, że plik nie jest często pobierany, a Windows SmartScreen może pokazać „System Windows ochronił ten komputer”. Windows nie zna jeszcze wydawcy.",
     "featuresTitle": "Co dodaje aplikacja",
     "features": {
       "gpu": "Wideo na GPU. Szybki eksport koduje na karcie graficznej, w H.264 i HEVC przez NVENC, AMF albo Quick Sync oraz w AV1 na nowszych kartach.",
@@ -4536,7 +4536,7 @@
       "library": "Biblioteka. Każdy wyrenderowany klip z miniaturą, długością i tekstem posta. Odtwórz, pokaż w folderze, wyrenderuj ponownie albo usuń."
     },
     "privacyTitle": "Prywatność",
-    "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja nie wysyła nam danych o użyciu. Łączy się z internetem, żeby sprawdzić aktualizacje, odnowić licencję Pro, pobrać model, o który poprosisz, oraz dla funkcji konta i publikowania, z których korzystasz. Polityka prywatności opisuje każdy z tych przypadków.",
+    "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja nie wysyła nam danych o użyciu. Łączy się z internetem, żeby sprawdzić aktualizacje, kupić, przywrócić lub odnowić licencję Pro, pobrać model, o który poprosisz, oraz dla funkcji konta i publikowania, z których korzystasz. Polityka prywatności opisuje każdy z tych przypadków.",
     "updateLater": "Później",
     "updateWaitRender": "Trwa renderowanie. Poczekaj, aż kolejka się skończy, albo zamknij aplikację, a aktualizacja zainstaluje się przy zamykaniu.",
     "appSite": "Wersja strony",
@@ -4549,11 +4549,11 @@
     "appWhatsNew": "Co nowego",
     "setupNote": "Pobieranie i używanie jest darmowe. Filmy zrobione bez Pro mają mały znak wodny. Pro kosztuje {price} miesięcznie.",
     "setupLegal": "Pobierając, akceptujesz <terms>Regulamin</terms>. <privacy>Polityka prywatności</privacy> mówi, co aplikacja wysyła i dokąd.",
-    "smartScreenVerify": "Zanim go uruchomisz, sprawdź plik. W PowerShellu polecenie Get-FileHash z nazwą pliku wypisze jego SHA-256, które musi zgadzać się z wierszem tego pliku w sumach kontrolnych. Możesz też przeskanować plik w <virustotal>VirusTotal</virustotal>.",
-    "smartScreenSteps": "Jeśli sprawdzenia się zgadzają, wybierz w Chrome „Zachowaj”, a w Windows „Więcej informacji” i „Uruchom mimo to”.",
+    "smartScreenVerify": "Zanim go uruchomisz, sprawdź plik. W PowerShellu polecenie Get-FileHash z nazwą pliku wypisze jego skrót SHA-256, który musi zgadzać się z wierszem tego pliku w sumach kontrolnych, bez względu na wielkość liter. Możesz też wyszukać ten skrót w <virustotal>VirusTotal</virustotal>.",
+    "smartScreenSteps": "Jeśli suma kontrolna się zgadza, wybierz w Chrome „Zachowaj”, a w Windows „Więcej informacji” i „Uruchom mimo to”.",
     "privacyNoticesTitle": "Oprogramowanie i dźwięki innych autorów",
-    "privacyNoticesFfmpeg": "ffmpeg, którego aplikacja używa do kodowania filmów, jest objęty licencją GNU GPL w wersji 3. To niezmieniona wersja z gyan.dev, działa jako osobny program i ma przy sobie tekst licencji oraz link do kodu źródłowego.",
-    "privacyNoticesOther": "Aplikacja korzysta też z Electron, Chromium, node-llama-cpp i llama.cpp. Teksty licencji ffmpeg, Electron, Chromium i node-llama-cpp są w folderze instalacji. Modele AI to osobne pobrania na ich własnych licencjach, które aplikacja pokazuje przed pobraniem. Studio AI może uruchamiać Llama 3.2. Built with Llama.",
+    "privacyNoticesFfmpeg": "ffmpeg, którego aplikacja używa do kodowania filmów, jest objęty licencją GNU GPL w wersji 3. To niezmieniona wersja z gyan.dev, uruchamiana jako osobny program, z dołączonym tekstem licencji i linkiem do kodu źródłowego.",
+    "privacyNoticesOther": "Aplikacja korzysta też z Electron, Chromium, node-llama-cpp i llama.cpp. Teksty licencji ffmpeg, Electron, Chromium i node-llama-cpp są dołączone do aplikacji. Modele AI to osobne pobrania na ich własnych licencjach, które aplikacja pokazuje przed pobraniem. Studio AI może uruchamiać Llama 3.2. Built with Llama.",
     "privacyAudio": "Wbudowane dźwięki zsyntetyzowaliśmy sami. Wbudowane melodie to utwory w domenie publicznej."
   },
   "Territory": {
@@ -4672,7 +4672,7 @@
     "metaDescription": "Baw się każdym trybem i eksportuj filmy za darmo, z małym znakiem wodnym. Pro usuwa go za {monthly} miesięcznie lub {yearly} rocznie, kartą lub w krypto.",
     "eyebrow": "Cennik",
     "title": "Baw się i eksportuj za darmo. Z Pro bez znaku wodnego.",
-    "lede": "Każdy tryb, każde ustawienie i każdy dźwięk są darmowe, bez konta. Tworzenie filmów też. Darmowe filmy mają mały znak wodny. Pro eksportuje je bez niego i dodaje szybkie udostępnianie na TikToka, Instagram i YouTube.",
+    "lede": "Każdy tryb, każde ustawienie i każdy dźwięk są darmowe, bez konta. Tworzenie filmów też. Darmowe filmy mają mały znak wodny. Pro eksportuje je bez niego i dodaje szybkie udostępnianie na TikToku, Instagramie i YouTube.",
     "testMode": "Licencjonowanie działa w trybie testowym. Płatności nie są jeszcze skonfigurowane.",
     "why": "Darmowe filmy mają mały znak wodny. Pro go usuwa.",
     "proTag": "Pro",
@@ -4731,7 +4731,7 @@
         "fastExport": "Szybki eksport, renderowany klatka po klatce",
         "batch": "Renderowanie seryjne, wiele klipów w jednym ZIP-ie",
         "bot": "Filmy renderowane przez bota",
-        "publish": "Udostępnianie na TikToka, Instagram i YouTube przez arkusz udostępniania lub pobranie",
+        "publish": "Udostępnianie na TikToku, Instagramie i YouTube przez arkusz udostępniania lub pobranie",
         "desktop": "Kolejka renderowania i kodowanie na GPU w aplikacji na komputer"
       },
       "withWatermark": "Ze znakiem wodnym",
@@ -4812,7 +4812,7 @@
       "fastExport": "Szybki eksport",
       "batch": "Renderowanie seryjne",
       "bot": "Renderowanie klipów bota",
-      "publish": "Szybkie udostępnianie na TikToka, Instagram i YouTube",
+      "publish": "Szybkie udostępnianie na TikToku, Instagramie i YouTube",
       "renderQueue": "Kolejka renderowania w aplikacji",
       "download": "Pobieranie wyrenderowanych filmów"
     },
@@ -4831,7 +4831,7 @@
       "licence": "Licencja to podpisany klucz zapisany w tej przeglądarce. Strona nie potrzebuje konta ani hasła.",
       "devices": "Na innym urządzeniu lub w innej przeglądarce przywróć zakup e-mailem i numerem z potwierdzenia pokazanym po płatności albo wklej klucz licencji.",
       "watermark": "Znak wodny jest wrysowany w sam film. Z licencją Pro w tej przeglądarce każde nagranie lub eksport, które potem rozpoczniesz, jest czyste.",
-      "refunds": "Anulujesz w każdej chwili. Jeśli poprosisz w ciągu 14 dni, zwrócimy całą pierwszą płatność.",
+      "refunds": "Napisz w ciągu 14 dni od pierwszej płatności kartą, a zwrócimy ją w całości. Odnowienia i płatności kryptowalutą nie podlegają zwrotowi, chyba że przepisy mówią inaczej.",
       "support": "Pytania o płatność? Napisz na {email}.",
       "termsLink": "Regulamin"
     },
@@ -4846,14 +4846,14 @@
     },
     "terms": {
       "title": "Subskrypcje Pro",
-      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe. Filmy utworzone bez licencji Pro mają znak wodny. Pro kosztuje {monthly} miesięcznie lub {yearly} rocznie, w dolarach amerykańskich, a przy płatności może zostać doliczony podatek. Eksportuje filmy bez znaku wodnego i dodaje szybkie udostępnianie na TikToka, Instagram i YouTube przez arkusz udostępniania urządzenia lub pobranie. Subskrypcje kartą odnawiają się automatycznie, dopóki ich nie anulujesz w portalu klienta Stripe. Płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu.",
+      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe. Filmy utworzone bez licencji Pro mają znak wodny. Pro kosztuje {monthly} miesięcznie lub {yearly} rocznie, w dolarach amerykańskich, a przy płatności może zostać doliczony podatek. Eksportuje filmy bez znaku wodnego i dodaje szybkie udostępnianie na TikToku, Instagramie i YouTube przez arkusz udostępniania urządzenia lub pobranie. Subskrypcje kartą odnawiają się automatycznie, dopóki ich nie anulujesz w portalu klienta Stripe. Płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu.",
       "delivery": {
         "title": "Dostawa",
         "content": "Pro to licencja cyfrowa dostarczana od razu. Po płatności strona cennika aktywuje ją w Twojej przeglądarce i pokazuje numer referencyjny potwierdzenia. Za pomocą e-maila i tego numeru możesz w każdej chwili przywrócić licencję na innym urządzeniu lub w aplikacji na Windows. Nic nie jest wysyłane pocztą."
       },
       "refunds": {
         "title": "Anulowanie i zwroty",
-        "content": "Subskrypcję kartą możesz anulować w każdej chwili, przyciskiem Zarządzaj subskrypcją na stronie cennika. Trwa ona wtedy do końca opłaconego okresu i się nie odnawia. Jeśli Pro Ci nie odpowiada, napisz do nas w ciągu 14 dni od pierwszej płatności, a zwrócimy ją w całości. Odnowienia i płatności kryptowalutą nie podlegają zwrotowi, chyba że prawo Twojego kraju daje Ci takie uprawnienie. Płatności kryptowalutą nie da się cofnąć w sieci. Zwrot trafia na użytą metodę płatności i pojawia się na koncie po 5–10 dniach roboczych."
+        "content": "Subskrypcję kartą możesz anulować w każdej chwili, przyciskiem Zarządzaj subskrypcją na stronie cennika. Trwa ona wtedy do końca opłaconego okresu i się nie odnawia. Napisz do nas w ciągu 14 dni od pierwszej płatności kartą, a zwrócimy ją w całości. Odnowienia i płatności kryptowalutą nie podlegają zwrotowi, chyba że prawo Twojego kraju daje Ci takie uprawnienie. Płatności kryptowalutą nie da się cofnąć w sieci. Zwrot trafia na użytą metodę płatności i pojawia się na koncie po 5–10 dniach roboczych."
       },
       "operator": {
         "title": "Od kogo kupujesz",
@@ -5764,10 +5764,10 @@
   },
   "Account": {
     "metaTitle": "Twoje konto – {siteName}",
-    "metaDescription": "Zaloguj się lub załóż darmowe konto, aby zarządzać kanałami TikTok, Instagram i YouTube, które połączysz, w każdej przeglądarce i w aplikacji na Windows.",
+    "metaDescription": "Zaloguj się lub załóż darmowe konto. Służy tylko do łączenia kanałów TikTok, Instagram i YouTube przez relay, w przeglądarce i w aplikacji na Windows.",
     "eyebrow": "Konto",
     "title": "Jedno konto dla wszystkich kanałów",
-    "lede": "Konto trzyma Twoje kanały TikTok, Instagram i YouTube w jednym miejscu, w każdej przeglądarce i w aplikacji na Windows. Potrzebujesz go tylko do łączenia kanałów.",
+    "lede": "Konto służy tylko do łączenia Twoich kanałów TikTok, Instagram i YouTube przez relay. Działa w każdej przeglądarce i w aplikacji na Windows.",
     "free": "Założenie konta jest darmowe. Udostępnianie klipu ze studia to funkcja Pro.",
     "tabs": {
       "label": "Formularz konta",
@@ -5892,7 +5892,7 @@
     "metaDescription": "Co zmieniło się w {siteName} i w aplikacji na Windows, od najnowszych. Nowe tryby, poprawki i usprawnienia.",
     "badge": "Dziennik zmian",
     "title": "Co nowego w {siteName}",
-    "intro": "Każda aktualizacja strony i aplikacji na Windows, od najnowszej.",
+    "intro": "Wydania strony i aplikacji na Windows, od najnowszego.",
     "filterLabel": "Pokaż",
     "filterAll": "Wszystko",
     "filterSite": "Strona WWW",
@@ -5952,7 +5952,7 @@
       },
       "changelog": {
         "title": "Co nowego w {siteName}",
-        "sub": "Każda aktualizacja strony i aplikacji na Windows, od najnowszej."
+        "sub": "Wydania strony i aplikacji na Windows, od najnowszego."
       },
       "press": {
         "title": "{siteName} dla prasy",
@@ -5979,7 +5979,7 @@
       "exportLabel": "Eksport wideo",
       "exportValue": "Pion 1080×1920, Full HD 1920×1080, HD 1280×720 i kwadrat 500×500, od 10 do 120 sekund. MP4 w Chrome i Safari, WebM w Firefoksie.",
       "languagesLabel": "Języki",
-      "languagesValue": "angielski, polski i hiszpański",
+      "languagesValue": "Angielski, polski i hiszpański",
       "freeLabel": "Wersja darmowa",
       "freeValue": "Każdy tryb, każde ustawienie i każdy eksport, bez konta. Klipy mają mały znak wodny, który usuwa Pro.",
       "priceLabel": "Cena Pro",
@@ -5990,7 +5990,7 @@
       "operatorLabel": "Prowadzi",
       "contactLabel": "Kontakt",
       "contactFeedback": "Strona opinii",
-      "note": "Każde wydanie jest na <changelog>dzienniku zmian</changelog>. Aplikacja na Windows jest na <download>stronie pobierania</download>."
+      "note": "Każde wydanie znajdziesz w <changelog>dzienniku zmian</changelog>. Aplikacja na Windows jest na <download>stronie pobierania</download>."
     },
     "about": {
       "title": "Opisy",
@@ -6024,18 +6024,18 @@
         "Nazwę zapisuj jako {siteName}, jednym słowem, z wielkimi literami J, B i L.",
         "Używaj logo w oryginalnej postaci. Nie zmieniaj kolorów, nie rozciągaj, nie obracaj i nie dodawaj efektów, a wokół zostaw trochę miejsca.",
         "Zrzuty ekranu i klipy z darmowej wersji możesz wykorzystywać. Zostaw znak wodny na miejscu.",
-        "Opisuj go jako darmowe studio fizyki piłek w przeglądarce. Nie pisz, że obiecuje wyświetlenia, obserwujących ani dochód.",
+        "Opisuj serwis jako darmowe studio fizyki piłek w przeglądarce. Nie pisz, że obiecuje wyświetlenia, obserwujących ani dochód.",
         "TikTok, Instagram, YouTube i Windows należą do swoich właścicieli. {siteName} nie jest z nimi powiązany."
       ]
     },
     "notIncluded": {
       "title": "Poza materiałami dla prasy",
-      "body": "Nazwy i nagrania z Fight League nie należą do tych materiałów. Ten tryb to symulacja stworzona przez fanów, a nazwy jego postaci należą do ich właścicieli. Nie używaj ich ani nagrań z tego trybu w artykułach, miniaturach ani reklamach. Aby usunąć nazwę, <contact>napisz do nas</contact>."
+      "body": "Nazwy i nagrania z trybu Liga walk, czyli Fight League, nie wchodzą w skład tych materiałów. Ten tryb to symulacja stworzona przez fanów, a nazwy jego postaci należą do ich właścicieli. Nie używaj ich ani nagrań z tego trybu w artykułach, miniaturach ani reklamach. Aby usunąć nazwę, <contact>napisz do nas</contact>."
     },
     "contact": {
       "title": "Kontakt",
-      "withEmail": "W sprawie pytań, cytatów lub sprostowań napisz na <mail>{email}</mail>.",
-      "withoutEmail": "W sprawie pytań, cytatów lub sprostowań skorzystaj ze <feedback>strony opinii</feedback>. Wiadomość trafia do osoby, która buduje {siteName}.",
+      "withEmail": "Z pytaniami, prośbami o wypowiedź lub sprostowaniami napisz na <mail>{email}</mail>.",
+      "withoutEmail": "Z pytaniami, prośbami o wypowiedź lub sprostowaniami skorzystaj ze <feedback>strony opinii</feedback>.",
       "operator": "{siteName} prowadzi {name}."
     }
   }

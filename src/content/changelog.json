@@ -15,16 +15,16 @@
           "kind": "new",
           "text": {
             "en": "The footer shows which version and build you are on, and /version.json names the build that is live.",
-            "pl": "Stopka pokazuje, z jakiej wersji i kompilacji korzystasz, a /version.json podaje kompilację, która działa na żywo.",
+            "pl": "Stopka pokazuje, z jakiej wersji i kompilacji korzystasz, a /version.json podaje kompilację, która jest teraz opublikowana.",
             "es": "El pie de página muestra qué versión y compilación usas, y /version.json indica la compilación que está en línea."
           }
         },
         {
           "kind": "new",
           "text": {
-            "en": "A changelog page lists every update to the website and the Windows app, newest first.",
-            "pl": "Strona z dziennikiem zmian wymienia każdą aktualizację strony i aplikacji na Windows, od najnowszej.",
-            "es": "Una página con el registro de cambios recoge cada actualización de la web y de la aplicación de Windows, la más reciente primero."
+            "en": "A changelog page lists the releases of the website and the Windows app, newest first.",
+            "pl": "Strona z dziennikiem zmian wymienia wydania strony i aplikacji na Windows, od najnowszego.",
+            "es": "Una página con el registro de cambios recoge las versiones de la web y de la app de Windows, la más reciente primero."
           }
         },
         {
@@ -38,17 +38,17 @@
         {
           "kind": "improved",
           "text": {
-            "en": "Shared links show a picture made for the page and the language, and every page has its own title and description.",
-            "pl": "Udostępnione linki pokazują obrazek przygotowany dla danej strony i języka, a każda strona ma własny tytuł i opis.",
-            "es": "Los enlaces compartidos muestran una imagen hecha para cada página e idioma, y cada página tiene su propio título y descripción."
+            "en": "Shared links to the main pages show a picture made for the page and the language, and every page has its own title and description.",
+            "pl": "Udostępnione linki do głównych stron pokazują obrazek przygotowany dla danej strony i języka, a każda strona ma własny tytuł i opis.",
+            "es": "Los enlaces compartidos de las páginas principales muestran una imagen hecha para cada página e idioma, y cada página tiene su propio título y descripción."
           }
         },
         {
           "kind": "improved",
           "text": {
-            "en": "Pages open faster on phones: the landing, pricing and download pages no longer fetch the whole studio in the background.",
-            "pl": "Strony otwierają się szybciej na telefonach: strona główna, cennik i pobieranie nie ściągają już w tle całego studia.",
-            "es": "Las páginas abren más rápido en el móvil: la portada, los precios y la descarga ya no descargan todo el estudio en segundo plano."
+            "en": "Pages open faster on phones. The landing, pricing and download pages no longer load the studio's code up front, and the full offline copy downloads later, and not on a slow or metered connection.",
+            "pl": "Strony otwierają się szybciej na telefonach. Strona główna, cennik i pobieranie nie ładują już od razu kodu studia, a pełna kopia offline pobiera się później i nie przy wolnym łączu ani z limitem danych.",
+            "es": "Las páginas abren más rápido en el móvil. La portada, los precios y la descarga ya no cargan de entrada el código del estudio, y la copia completa sin conexión se descarga más tarde y no con una conexión lenta o con límite de datos."
           }
         },
         {
@@ -56,7 +56,7 @@
           "text": {
             "en": "The privacy policy, the terms, the disclaimer and the download page are clearer about cookies, what is free and what the Windows app sends.",
             "pl": "Polityka prywatności, regulamin, zastrzeżenia i strona pobierania jaśniej mówią o plikach cookie, o tym, co jest darmowe, i o tym, co wysyła aplikacja na Windows.",
-            "es": "La política de privacidad, los términos, el aviso legal y la página de descarga son más claros sobre las cookies, lo que es gratis y lo que envía la aplicación de Windows."
+            "es": "La política de privacidad, los términos, el aviso legal y la página de descarga son más claros sobre las cookies, lo que es gratis y lo que envía la app de Windows."
           }
         },
         {
@@ -92,7 +92,7 @@
           "kind": "new",
           "text": {
             "en": "The window title shows the app version, and says portable or safe mode when they apply.",
-            "pl": "Tytuł okna pokazuje wersję aplikacji i informuje, gdy działa wersja przenośna albo tryb awaryjny.",
+            "pl": "Tytuł okna pokazuje wersję aplikacji i informuje, gdy działa wersja przenośna albo tryb bezpieczny.",
             "es": "El título de la ventana muestra la versión de la aplicación e indica si es la versión portátil o el modo seguro."
           }
         },
@@ -115,9 +115,9 @@
         {
           "kind": "new",
           "text": {
-            "en": "After an update the app shows what's new in that version once, with a link to its release in the changelog.",
-            "pl": "Po aktualizacji aplikacja raz pokazuje, co nowego w tej wersji, z linkiem do niej w dzienniku zmian.",
-            "es": "Tras una actualización, la aplicación muestra una vez las novedades de esa versión, con un enlace a ella en el registro de cambios."
+            "en": "From the next update on, the app shows what's new in that version once, with a link to its release in the changelog.",
+            "pl": "Od następnej aktualizacji aplikacja raz pokazuje, co nowego w danej wersji, z linkiem do niej w dzienniku zmian.",
+            "es": "A partir de la próxima actualización, la app muestra una vez las novedades de esa versión, con un enlace a ella en el registro de cambios."
           }
         },
         {
@@ -153,16 +153,16 @@
           "kind": "new",
           "text": {
             "en": "Accounts arrive. Sign up once and sign in on any browser or in the Windows app.",
-            "pl": "Pojawiają się konta. Załóż konto raz i loguj się w każdej przeglądarce oraz w aplikacji Windows.",
-            "es": "Llegan las cuentas. Regístrate una vez e inicia sesión en cualquier navegador o en la app para Windows."
+            "pl": "Pojawiają się konta. Załóż konto raz i loguj się w każdej przeglądarce oraz w aplikacji na Windows.",
+            "es": "Llegan las cuentas. Regístrate una vez e inicia sesión en cualquier navegador o en la app de Windows."
           }
         },
         {
           "kind": "improved",
           "text": {
-            "en": "Pro now costs less. It is $6.99 a month or $49 a year, down from $10 and $79.",
-            "pl": "Pro kosztuje teraz mniej. To 6,99 $ miesięcznie lub 49 $ rocznie, zamiast 10 $ i 79 $.",
-            "es": "Pro cuesta ahora menos. Son 6,99 $ al mes o 49 $ al año, en lugar de 10 $ y 79 $."
+            "en": "Pro now costs $6.99 a month or $49 a year.",
+            "pl": "Pro kosztuje teraz 6,99 USD miesięcznie lub 49 USD rocznie.",
+            "es": "Pro cuesta ahora 6,99 US$ al mes o 49 US$ al año."
           }
         },
         {
@@ -466,7 +466,7 @@
           "kind": "new",
           "text": {
             "en": "Grow can fill its ring and then start again as a loop.",
-            "pl": "Rośnij potrafi wypełnić swój pierścień i zacząć od nowa jako pętla.",
+            "pl": "Tryb Rośnij potrafi wypełnić swój pierścień i zacząć od nowa jako pętla.",
             "es": "Crecer puede llenar su anillo y volver a empezar como un bucle."
           }
         },
@@ -697,8 +697,8 @@
           "kind": "new",
           "text": {
             "en": "A Windows app page offers an installer and a portable EXE.",
-            "pl": "Strona aplikacji Windows oferuje instalator i przenośny plik EXE.",
-            "es": "La página de la app para Windows ofrece un instalador y un EXE portátil."
+            "pl": "Strona aplikacji na Windows oferuje instalator i przenośny plik EXE.",
+            "es": "La página de la app de Windows ofrece un instalador y un EXE portátil."
           }
         },
         {
@@ -802,14 +802,6 @@
         {
           "kind": "fixed",
           "text": {
-            "en": "Links and presets with very large values open with Wide sliders on.",
-            "pl": "Linki i presety z bardzo dużymi wartościami otwierają się z włączonymi Szerokimi suwakami.",
-            "es": "Los enlaces y presets con valores muy grandes se abren con los Deslizadores amplios activados."
-          }
-        },
-        {
-          "kind": "fixed",
-          "text": {
             "en": "String Battle credits every kill when you run more than six balls.",
             "pl": "Bitwa na nici zalicza każdą eliminację, gdy gra więcej niż sześć piłek.",
             "es": "Batalla de hilos cuenta cada eliminación cuando juegan más de seis pelotas."
@@ -824,8 +816,8 @@
       "date": "2026-10-01",
       "headline": {
         "en": "The first Windows app",
-        "pl": "Pierwsza aplikacja Windows",
-        "es": "La primera app para Windows"
+        "pl": "Pierwsza aplikacja na Windows",
+        "es": "La primera app de Windows"
       },
       "items": [
         {
@@ -940,9 +932,9 @@
         {
           "kind": "new",
           "text": {
-            "en": "Install the site as an app. The home page and the simulator work offline once you have opened them.",
-            "pl": "Zainstaluj stronę jako aplikację. Strona główna i symulator działają offline, gdy raz je otworzysz.",
-            "es": "Instala el sitio como una app. La página de inicio y el simulador funcionan sin conexión una vez que los has abierto."
+            "en": "Install the site as an app. The home page works offline, and so does the simulator once you have opened it.",
+            "pl": "Zainstaluj stronę jako aplikację. Strona główna działa offline, a symulator też, gdy raz go otworzysz.",
+            "es": "Instala la web como una app. La página de inicio funciona sin conexión, y el simulador también cuando lo has abierto una vez."
           }
         },
         {
