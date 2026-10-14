@@ -9,6 +9,7 @@
 #           --repo OWNER/NAME the repository (default: CronusAztec/Balls)
 #           --swap            make a 2 GB swap file when the server has less than 3.5 GB of memory + swap (the build needs about 2 GB)
 #           --no-first-run    install and start the timer, but do not deploy right now (the timer's first run is 2 minutes after this)
+#           --every MINUTES   how often the timer looks for a new commit: 5 to 1440 minutes (default: 10; a re-run without it sets 10 again)
 #           --reconfigure     ask for the Cloudflare token and account ID again (a normal re-run keeps /etc/jbl-deploy/env)
 #           --private         the repository is (or is about to be) PRIVATE: ask for a read-only GitHub token for it, keep it with the other
 #                             settings and stop asking the feedback form to open GitHub issues. Run it BEFORE you switch the repository to private.
@@ -17,7 +18,7 @@
 #
 # For Debian or Ubuntu with systemd, as root. It installs git, curl and Node.js 22 when they are missing, creates the unprivileged user
 # `jbldeploy`, keeps the Cloudflare token in /etc/jbl-deploy/env (readable by that user only; nothing here prints it), and starts a
-# timer that runs /opt/jbl-deploy/jbl-deploy.sh every five minutes. That script only makes outbound calls (GitHub, Cloudflare); this
+# timer that runs /opt/jbl-deploy/jbl-deploy.sh every ten minutes. That script only makes outbound calls (GitHub, Cloudflare); this
 # installer opens no port and gives nobody a login. Remove it all with deploy/vps/uninstall.sh.
 set -euo pipefail
 
@@ -25,6 +26,7 @@ BRANCH="main"
 REPO="CronusAztec/Balls"
 SWAP=0
 FIRST_RUN=1
+EVERY=10
 RECONFIGURE=0
 PRIVATE=0
 DEFAULT_ACCOUNT="a1a1303c1defe6eafca7065581715c2e"
@@ -53,13 +55,15 @@ while [ $# -gt 0 ]; do
     --repo) REPO="${2:-}"; shift 2 ;;
     --swap) SWAP=1; shift ;;
     --no-first-run) FIRST_RUN=0; shift ;;
+    --every) [ $# -ge 2 ] || die "--every needs a number of minutes"; EVERY="$2"; shift 2 ;;
     --reconfigure) RECONFIGURE=1; shift ;;
     --private) PRIVATE=1; shift ;;
-    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,27p' "$0"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
 
+[[ "$EVERY" =~ ^[0-9]{1,4}$ ]] && [ "$EVERY" -ge 5 ] && [ "$EVERY" -le 1440 ] || die "--every must be a whole number of minutes from 5 to 1440"
 [ "$(id -u)" = 0 ] || die "run as root: sudo bash deploy/vps/install.sh"
 [[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || die "--repo must look like OWNER/NAME"
 [[ "$BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]] || die "--branch has characters a branch name does not"
@@ -222,11 +226,11 @@ SystemCallArchitectures=native
 EOF
 cat >/etc/systemd/system/jbl-deploy.timer <<EOF
 [Unit]
-Description=Look for a new commit of the site every five minutes
+Description=Look for a new commit of the site every $EVERY minutes
 
 [Timer]
 OnBootSec=2min
-OnUnitInactiveSec=5min
+OnUnitInactiveSec=${EVERY}min
 AccuracySec=30s
 
 [Install]
@@ -246,5 +250,6 @@ Done. The deployer watches $BRANCH of $REPO and deploys what lands there (when G
   last result      sudo -u $USER_NAME $BIN_DIR/jbl-deploy.sh --status
   deploy a commit  sudo -u $USER_NAME $BIN_DIR/jbl-deploy.sh --sha <40-character hash>   (a rollback is the same with an older one)
   pause            sudo systemctl stop jbl-deploy.timer        (resume: sudo systemctl start jbl-deploy.timer)
+  how often        every $EVERY minutes after the last run finished (change: sudo bash deploy/vps/install.sh --every MINUTES)
   remove           sudo bash deploy/vps/uninstall.sh [--purge]
 EOF

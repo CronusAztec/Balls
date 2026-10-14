@@ -350,7 +350,8 @@ describe("install.sh and uninstall.sh", () => {
       "ReadWritePaths=$STATE",
       "RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX",
       "CapabilityBoundingSet=",
-      "OnUnitInactiveSec=5min",
+      "OnUnitInactiveSec=${EVERY}min",
+      "EVERY=10",
     ]) expect(install, line).toContain(line);
     expect(install).toContain("chmod 0640");
     expect(install).toContain('chown root:"$USER_NAME" "$CONF"');
@@ -360,6 +361,30 @@ describe("install.sh and uninstall.sh", () => {
       expect(line, line).not.toMatch(/\b(echo|say|logger|tee)\b|>&2|printf '%s\\n' "\$token"/);
     }
     expect(install).not.toMatch(/ufw|iptables|listen|0\.0\.0\.0|ssh/i); // opens nothing, logs nobody in
+  });
+
+  it("looks for a new commit every ten minutes unless --every says otherwise, and refuses a nonsense interval before touching anything", () => {
+    const install = read("install.sh");
+    expect(install).toMatch(/^EVERY=10$/m);
+    expect(install).toContain("Description=Look for a new commit of the site every $EVERY minutes");
+    expect(install).toContain("OnUnitInactiveSec=${EVERY}min");
+    expect(read("jbl-deploy.sh")).toContain("runs this every ten minutes");
+    const run = (...args: string[]) => spawnSync("bash", [path.join(DIR, "install.sh"), ...args], { encoding: "utf8" });
+    for (const bad of ["0", "4", "1441", "abc", "10min", "-5", "99999", ""]) {
+      const r = run("--every", bad);
+      expect(r.status, `--every '${bad}'`).toBe(1);
+      expect(r.stderr, `--every '${bad}'`).toContain("--every must be a whole number of minutes from 5 to 1440");
+    }
+    const bare = run("--every");
+    expect(bare.status).toBe(1);
+    expect(bare.stderr).toContain("--every needs a number of minutes");
+    // The accepting side is checked on the validation line alone: a good value would go on to install for real on a machine that has systemd.
+    const check = install.match(/^\[\[ "\$EVERY" =~.*$/m)?.[0];
+    expect(check).toBeTruthy();
+    for (const good of ["5", "10", "60", "1440"]) {
+      const r = spawnSync("bash", ["-c", `die() { echo "$*" >&2; exit 1; }\nEVERY="$1"\n${check}`, "_", good], { encoding: "utf8" });
+      expect(r.status, `--every ${good}: ${r.stderr}`).toBe(0);
+    }
   });
 
   it("cleans what a terminal adds to a pasted token (paste markers, spaces, line breaks) and nothing else", () => {

@@ -2,7 +2,7 @@
 
 jumpingballslive.com is a static export served by a Cloudflare Worker. This puts a new version of it there **from your VPS, without
 anyone typing the build commands**: you install it once; after that, whatever lands on the watched branch (and passes GitHub's checks)
-is built and deployed within about ten minutes.
+is built and deployed by the next look after GitHub's check turns green: at most ten minutes later, plus the build of about five.
 
 ```
 git clone --branch main https://github.com/CronusAztec/Balls.git && cd Balls
@@ -13,7 +13,7 @@ Debian or Ubuntu with systemd; about 2 GB of memory for the build (`--swap` make
 
 ## What it does, and what it does not
 
-* Every five minutes `jbl-deploy.sh` asks GitHub which commit the branch is at. If that is not the commit already deployed it
+* Every ten minutes `jbl-deploy.sh` asks GitHub which commit the branch is at. If that is not the commit already deployed it
   waits for the repository's own check (the `build` job of *Build and deploy the site*: lint and type check) to be **green**, fetches
   exactly that commit, runs the **production guard** (the live billing keys – a build with the test keys is refused), builds the site
   for the root of the domain, stamps `out/build.txt` with the commit, runs `wrangler deploy` and asks the live site for `/build.txt`
@@ -50,6 +50,7 @@ token during the build – the same trust a GitHub Actions deploy needs, moved t
 | a rollback in Cloudflare itself | dashboard → Workers & Pages → `jumpingballslive` → Deployments → Rollback |
 | change the token | `sudo bash deploy/vps/install.sh --reconfigure` |
 | pause / resume | `sudo systemctl stop jbl-deploy.timer` / `sudo systemctl start jbl-deploy.timer` |
+| change how often it looks (5 to 1440 minutes, default 10) | `cd ~/Balls && git pull origin main && sudo bash deploy/vps/install.sh --every 10` (keeps the settings; a run without `--every` sets 10 again) |
 | settings (branch, feedback e-mail, legal details) | `/etc/jbl-deploy/env`, listed at the top of `jbl-deploy.sh` |
 
 ## When the repository is private

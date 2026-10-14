@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # jbl-deploy (feature vps-site-deployer): puts the website on Cloudflare from the VPS, by itself, whenever the watched branch moves.
 #
-# A systemd timer (install.sh) runs this every five minutes. It only ever CALLS OUT – to GitHub (git, the checks API) and to
+# A systemd timer (install.sh) runs this every ten minutes. It only ever CALLS OUT – to GitHub (git, the checks API) and to
 # Cloudflare (Wrangler) – and listens on no port, so nobody can reach in through it. One run:
 #   1. asks GitHub which commit the branch is at (git ls-remote); stops when that commit is the one already deployed,
 #   2. (JBL_REQUIRE_GREEN=1) waits until the repository's own checks – the "build" job of "Build and deploy the site": lint and type
