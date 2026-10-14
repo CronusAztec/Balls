@@ -13,7 +13,7 @@
 #
 # Settings come from /etc/jbl-deploy/env (written by install.sh, readable by the service only):
 #   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID   required: the token needs "Edit Cloudflare Workers" and the zone's DNS edit
-#   JBL_REPO (CronusAztec/Balls)   JBL_BRANCH (claude/nice-davinci-sn70l7)   JBL_SITE_URL (https://jumpingballslive.com)
+#   JBL_REPO (CronusAztec/Balls)   JBL_BRANCH (main)   JBL_SITE_URL (https://jumpingballslive.com)
 #   JBL_REQUIRE_GREEN (1)   JBL_FEEDBACK_GITHUB_REPO (the repo, while it is public with Issues on; empty once it is private)
 #   JBL_FEEDBACK_EMAIL, JBL_SUPPORT_EMAIL, JBL_LEGAL_NAME, JBL_LEGAL_ADDRESS   the operator's public details the legal pages show
 #   JBL_RELAY_URL (https://relay.jumpingballslive.com)   JBL_STATE_DIR (/var/lib/jbl-deploy)   JBL_GIT_URL (https://github.com/<repo>.git)
@@ -31,7 +31,7 @@ if [ -r "$CONF" ]; then
 fi
 
 JBL_REPO="${JBL_REPO:-CronusAztec/Balls}"
-JBL_BRANCH="${JBL_BRANCH:-claude/nice-davinci-sn70l7}"
+JBL_BRANCH="${JBL_BRANCH:-main}"
 JBL_SITE_URL="${JBL_SITE_URL:-https://jumpingballslive.com}"
 JBL_REQUIRE_GREEN="${JBL_REQUIRE_GREEN:-1}"
 JBL_STATE_DIR="${JBL_STATE_DIR:-/var/lib/jbl-deploy}"

@@ -108,7 +108,7 @@ describe("jbl-deploy.sh: a new commit on the branch", () => {
     const order = ["git ls-remote", "api.github.com/repos/CronusAztec/Balls/commits/" + SHA_A + "/check-runs", `git fetch -q --depth 1 origin ${SHA_A}`, `git checkout -qf ${SHA_A}`, "npm ci --no-audit", "npm ci --prefix billing", "go-live-check.mjs --deploy-guard", "next build --no-lint", "postexport.mjs", "--prefix billing wrangler deploy", "/build.txt"].map((n) => index(r.calls, n));
     expect(order.every((i) => i >= 0), JSON.stringify(r.calls)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
-    expect(index(r.calls, "git ls-remote https://github.com/CronusAztec/Balls.git refs/heads/claude/nice-davinci-sn70l7")).toBe(0);
+    expect(index(r.calls, "git ls-remote https://github.com/CronusAztec/Balls.git refs/heads/main")).toBe(0);
     expect(sb.file("last-ok")).toBe(SHA_A);
     expect(sb.result()).toMatchObject({ state: "ok", sha: SHA_A });
     expect(sb.file("last-failed")).toBeNull();
@@ -141,8 +141,8 @@ describe("jbl-deploy.sh: a new commit on the branch", () => {
 
   it("takes the repository, the branch and the site from its settings", () => {
     const sb = sandbox();
-    const r = sb.run([], { JBL_REPO: "me/site", JBL_BRANCH: "main", JBL_SITE_URL: "https://example.org" });
-    expect(r.calls[0]).toBe("git ls-remote https://github.com/me/site.git refs/heads/main");
+    const r = sb.run([], { JBL_REPO: "me/site", JBL_BRANCH: "release", JBL_SITE_URL: "https://example.org" });
+    expect(r.calls[0]).toBe("git ls-remote https://github.com/me/site.git refs/heads/release");
     expect(r.calls.find((c) => c.includes("next build"))).toContain("site=https://example.org");
     expect(r.calls.find((c) => c.includes("/build.txt"))).toContain("https://example.org/build.txt");
   });

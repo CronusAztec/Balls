@@ -5,7 +5,7 @@ anyone typing the build commands**: you install it once; after that, whatever la
 is built and deployed within about ten minutes.
 
 ```
-git clone --branch claude/nice-davinci-sn70l7 https://github.com/CronusAztec/Balls.git && cd Balls   # (--branch main after the merge)
+git clone --branch main https://github.com/CronusAztec/Balls.git && cd Balls
 sudo bash deploy/vps/install.sh            # asks for the Cloudflare token once, then deploys the branch's newest commit
 ```
 
@@ -33,8 +33,8 @@ token during the build – the same trust a GitHub Actions deploy needs, moved t
 * Give the token only what it needs: *Edit Cloudflare Workers* and the zone's *DNS: Edit* for `jumpingballslive.com`
   (not Global API Key, not account-wide admin). It never needs R2 or the billing Worker's secrets.
 * Keep write access to the repository to yourself and the AI session you trust, and turn on two-factor sign-in on GitHub.
-* The watched branch defaults to `claude/nice-davinci-sn70l7`. After the pull request is merged, switch to `main`:
-  `sudo sed -i "s#^JBL_BRANCH=.*#JBL_BRANCH='main'#" /etc/jbl-deploy/env`.
+* The watched branch is `main` (`JBL_BRANCH` in `/etc/jbl-deploy/env`; `install.sh --branch NAME` writes another one). Turn on branch
+  protection for `main` in GitHub (require the `build` check) if more people than you can push there.
 * Making the repository private (planned after the Windows apps have updated) also closes the door to pull requests from strangers.
 * To stop everything at once: `sudo systemctl stop jbl-deploy.timer`. To undo it all: `sudo bash deploy/vps/uninstall.sh --purge`,
   then roll the token in Cloudflare.

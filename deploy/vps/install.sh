@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Installs the site deployer on the VPS (feature vps-site-deployer): one command, safe to run again.
 #
-#   git clone --branch claude/nice-davinci-sn70l7 https://github.com/CronusAztec/Balls.git && cd Balls && sudo bash deploy/vps/install.sh
-#   (--branch until this folder is on the repository's default branch; after the merge to main: `--branch main`)
+#   git clone --branch main https://github.com/CronusAztec/Balls.git && cd Balls && sudo bash deploy/vps/install.sh
+#   (--branch main: the repository's default branch on GitHub may still be another one)
 #   (read deploy/vps/README.md and jbl-deploy.sh first – it is short; this runs as root)
 #
-# Options:  --branch NAME     the branch to watch and deploy (default: claude/nice-davinci-sn70l7; after the merge: main)
+# Options:  --branch NAME     the branch to watch and deploy (default: main)
 #           --repo OWNER/NAME the repository (default: CronusAztec/Balls)
 #           --swap            make a 2 GB swap file when the server has less than 3.5 GB of memory + swap (the build needs about 2 GB)
 #           --no-first-run    install and start the timer, but do not deploy right now (the timer's first run is 2 minutes after this)
@@ -17,7 +17,7 @@
 # installer opens no port and gives nobody a login. Remove it all with deploy/vps/uninstall.sh.
 set -euo pipefail
 
-BRANCH="claude/nice-davinci-sn70l7"
+BRANCH="main"
 REPO="CronusAztec/Balls"
 SWAP=0
 FIRST_RUN=1
