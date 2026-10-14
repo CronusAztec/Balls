@@ -1,26 +1,34 @@
 # The site deployer for the VPS
 
 jumpingballslive.com is a static export served by a Cloudflare Worker. This puts a new version of it there **from your VPS, without
-anyone typing the build commands**: you install it once; after that, whatever lands on the watched branch (and passes GitHub's checks)
-is built and deployed by the next look after GitHub's check turns green: at most ten minutes later, plus the build of about five.
+anyone typing the build commands**: you install it once; after that, whatever lands on the watched branch (and passes the `build` job
+on GitHub) is built and deployed by the next look after that job turns green: at most ten minutes later, plus the build of about five.
 
 ```
 git clone --branch main https://github.com/CronusAztec/Balls.git && cd Balls
 sudo bash deploy/vps/install.sh            # asks for the Cloudflare token once, then deploys the branch's newest commit
 ```
 
-Debian or Ubuntu with systemd; about 2 GB of memory for the build (`--swap` makes a swap file when the server has less).
+Debian or Ubuntu with systemd; about 2 GB of memory for the build (`--swap` makes a swap file when the server has less). With a private
+repository the clone needs the token too: see "When the repository is private".
 
 ## What it does, and what it does not
 
 * Every ten minutes `jbl-deploy.sh` asks GitHub which commit the branch is at. If that is not the commit already deployed it
-  waits for the repository's own check (the `build` job of *Build and deploy the site*: lint and type check) to be **green**, fetches
-  exactly that commit, runs the **production guard** (the live billing keys – a build with the test keys is refused), builds the site
+  waits for the repository's own check – the `build` job of the workflow *Build and deploy the site* (lint, type check, unit tests and the
+  production build) – to be **green**, fetches exactly that commit, runs the **production guard** (the live billing keys – a build with the test keys is refused), builds the site
   for the root of the domain, stamps `out/build.txt` with the commit, runs `wrangler deploy` and asks the live site for `/build.txt`
   until it names that commit. Only then is it "deployed".
+* The `build` job is read through GitHub's **Actions API**: the runs of `deploy.yml` for that commit on the watched branch, then the jobs
+  of each run. Only a job named exactly `build` of that workflow counts, so the Windows build and the smoke tests can never open the gate,
+  and a failing smoke or deploy job does not close it. Only runs of the watched branch count: pushed to a feature branch first, the same
+  commit gets only the lint and the type check there, and that green must not release it. While the job is queued or running, or GitHub
+  cannot be read, it waits and deploys nothing. A re-run that turns a red build green deploys if it is green before the deployer looks
+  again. A red build it has already seen is recorded as a failed commit and not looked at again for six hours: re-run it and then deploy it
+  yourself with `sudo -u jbldeploy /opt/jbl-deploy/jbl-deploy.sh --sha <40-character hash>` (or wait out the six hours).
 * A commit that failed is not retried for six hours; a newer commit is tried at once. The state is in `/var/lib/jbl-deploy`
   (`last-result.json`, `last-ok`, `last-failed`), the log in `journalctl -u jbl-deploy`.
-* **It opens no port and gives nobody a login.** It only calls out: GitHub (git, the checks API) and Cloudflare (Wrangler, npm's
+* **It opens no port and gives nobody a login.** It only calls out: GitHub (git, the Actions API) and Cloudflare (Wrangler, npm's
   registry). Nothing can connect *to* it. The service runs as the unprivileged user `jbldeploy` with systemd's sandboxing
   (no new privileges, read-only system, no home folders, no devices, network only).
 * The Cloudflare token lives in `/etc/jbl-deploy/env`, mode 0640, owner `root:jbldeploy`. `install.sh` never prints it.
@@ -49,33 +57,54 @@ token during the build – the same trust a GitHub Actions deploy needs, moved t
 | deploy a particular commit (a rollback) | `sudo -u jbldeploy /opt/jbl-deploy/jbl-deploy.sh --sha <40-character hash>` |
 | which build is live (release, full commit, commit date, build id) | `curl -s https://jumpingballslive.com/version.json` (the footer of every page shows the same as `v1.10.0 · 8fa8dbb · 2026-10-14`; `curl -sI https://jumpingballslive.com/en/ \| grep -i x-build` shows the id as a header) |
 | a rollback in Cloudflare itself | dashboard → Workers & Pages → `jumpingballslive` → Deployments → Rollback |
-| change the token | `sudo bash deploy/vps/install.sh --reconfigure` |
+| change the Cloudflare token | `sudo bash deploy/vps/install.sh --reconfigure` (it writes the settings file anew, so with a private repository run `sudo bash deploy/vps/install.sh --reconfigure --private` and give the GitHub token again; with the stop-gap below: `sudo JBL_REQUIRE_GREEN=0 bash deploy/vps/install.sh --reconfigure --private`) |
 | pause / resume | `sudo systemctl stop jbl-deploy.timer` / `sudo systemctl start jbl-deploy.timer` |
-| change how often it looks (5 to 1440 minutes, default 10) | `cd ~/Balls && git pull origin main && sudo bash deploy/vps/install.sh --every 10` (keeps the settings; a run without `--every` sets 10 again) |
+| change how often it looks (5 to 1440 minutes, default 10) | `cd ~/Balls && git pull origin main && sudo bash deploy/vps/install.sh --every 10` (keeps the settings; a run without `--every` sets 10 again; with a private repository pull as in "When the repository is private", steps 2 and 3, instead of the plain `git pull origin main`) |
 | settings (branch, support e-mail, legal name and address, optional public build settings) | `/etc/jbl-deploy/env`, listed at the top of `jbl-deploy.sh`; a change is built into the site by the next deploy, or at once with `--sha` (see "Say who runs the site") |
 
 ## When the repository is private
 
-The deployer reads the repository (`git ls-remote`, `git fetch`) and GitHub's check results anonymously, which only works while it is
-public. For a private repository give it **one read-only token**, **before** you switch the visibility:
+The deployer reads the repository (`git ls-remote`, `git fetch`) and the result of the workflow's `build` job anonymously, which only works
+while it is public. For a private repository give it **one read-only token** (before you switch the visibility, or at once if the repository
+is private already: until then it cannot read anything and deploys nothing):
 
 1. GitHub → Settings → Developer settings → Personal access tokens → **Fine-grained tokens** → Generate new token. Resource owner: you.
-   Repository access: **Only select repositories** → `Balls`. Permissions → Repository: **Contents: Read-only** and **Checks: Read-only**
+   Repository access: **Only select repositories** → `Balls`. Permissions → Repository: **Contents: Read-only** and **Actions: Read-only**
    (Metadata: Read-only is added by itself). The longest expiry GitHub offers; put the date in your calendar – a token that has expired
-   makes the deployer log `cannot read main … JBL_GITHUB_TOKEN` and stop deploying.
-2. On the server, in your existing checkout: `cd ~/Balls && git pull origin main && sudo bash deploy/vps/install.sh --private`.
-   It asks for the token (typing is hidden), checks it against the repository, its newest commit and its checks, saves it in
-   `/etc/jbl-deploy/env`, stops the feedback form from opening GitHub issues and asks for an e-mail address for it instead.
-3. Look at `journalctl -u jbl-deploy -n 20`, or wait for the next deploy, and only then make the repository private.
+   makes the deployer log `cannot read main of … from GitHub (… or the token in JBL_GITHUB_TOKEN has expired)`, `--status` say
+   `"state": "unreachable"`, and stop deploying; make a new token (this step) and do step 4 again.
+   GitHub's token form has no Checks permission at all, so do not look for one: the deployer reads the workflow's `build` job through the Actions API instead.
+2. On the server, in the browser terminal, go to the existing checkout and type the token (paste it and press Enter; nothing is shown):
+   `cd ~/Balls && read -rs TOKEN`
+3. Pull the new code with it, in the same terminal. A private repository refuses the plain `git pull origin main` (it asks for a password), so
+   this line hands the token over for this one command: `git -c http.extraHeader="Authorization: Basic $(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)" pull origin main`
+4. `sudo bash deploy/vps/install.sh --private`. It asks for the token again (typing is hidden), checks it against the repository, its newest
+   commit and the workflow runs, saves it in `/etc/jbl-deploy/env`, installs the new `jbl-deploy.sh`, stops the feedback form from opening
+   GitHub issues and asks for an e-mail address for it instead. A server that already has the token and only needs the new script (keeping
+   the settings) runs `sudo bash deploy/vps/install.sh --every 10` after steps 2 and 3 instead.
+5. Look at `journalctl -u jbl-deploy -n 20`, or wait for the next deploy. If the repository is not private yet, make it private only now.
+   Then type `unset TOKEN`, so that the terminal forgets the token.
 
-What the token can and cannot do: read the code and the check results of that one repository – no writing, no other repository, nothing
-else on your account. It is used for three calls (`git ls-remote`, `git fetch`, the checks lookup) and never reaches the build: `npm`,
-Next.js and the repository's own scripts run without it and without the Cloudflare token; `wrangler` gets only the Cloudflare token.
-A fresh server needs the same token to clone the code the first time (`git -c http.extraHeader="Authorization: Basic $(printf
+Steps 2 and 3 are also the way to update the checkout later (for example before `install.sh --every …`) once the repository is private.
+`install.sh --reconfigure` (a new Cloudflare token) writes the settings file anew and so drops the GitHub token: run it as `--reconfigure --private`.
+
+If the installer says "the token cannot read GitHub Actions", the token lacks *Actions: Read-only*: open the token's page on GitHub, add it
+under Repository permissions (the token itself does not change) and run step 4 again. The same words appear in `journalctl -u jbl-deploy` and
+in `--status` while the deployer is waiting for that reason.
+
+What the token can and cannot do: read the code and the workflow results of that one repository – no writing, no other repository, nothing
+else on your account (it cannot start, cancel or change a workflow; it can read the logs and artifacts of workflow runs). It is used for three
+calls (`git ls-remote`, `git fetch`, the workflow-run lookup: the runs of *Build and deploy the site* for the commit and their jobs) and never
+reaches the build: `npm`, Next.js and the repository's own scripts run without it and without the Cloudflare token; `wrangler` gets only the
+Cloudflare token. A fresh server needs the same token to clone the code the first time (`git -c http.extraHeader="Authorization: Basic $(printf
 'x-access-token:%s' "$TOKEN" | base64 -w0)" clone --branch main https://github.com/CronusAztec/Balls.git`, with `TOKEN` read by `read -rs TOKEN`).
 
-Without the Checks permission set `JBL_REQUIRE_GREEN=0` in the settings file: the deployer then deploys every new commit of the branch
-without waiting for GitHub's lint, type check and unit tests – only do that if you trust whoever can push.
+**Without the Actions permission** (a token with *Contents: Read-only* only) run the installer with `JBL_REQUIRE_GREEN=0`:
+`sudo JBL_REQUIRE_GREEN=0 bash deploy/vps/install.sh --private`. It skips the Actions check and writes `JBL_REQUIRE_GREEN='0'` into the
+settings file (writing that line there yourself has the same effect). The trade-off: the deployer then deploys every new commit of the
+branch without waiting for GitHub's lint, type check, unit tests and production build, even one whose `build` job is red – only do that
+if you trust whoever can push, and look at the commit's result on GitHub yourself. To turn the gate back on, add *Actions: Read-only* to the
+token and remove the line: `sudo sed -i '/^JBL_REQUIRE_GREEN=/d' /etc/jbl-deploy/env`.
 
 ## Say who runs the site
 
@@ -106,4 +135,6 @@ commit, its date): the site's own build writes it, so it works with the deployer
 It has no access to this server and needs none.
 
 Tests: `tests/vpsDeploy.test.ts` runs the whole script against stand-ins for git, npm, npx, node's two build scripts and curl: the order
-of the steps, a red or pending check, a failing step, the retry window, the lock, a rollback by hash and the status file.
+of the steps, the `build` job read through the Actions API (green, red, pending, no run yet, an unreadable answer, a token without the
+Actions permission, several runs of one commit, jobs that must not count), a failing step, the retry window, the lock, a rollback by hash
+and the status file.

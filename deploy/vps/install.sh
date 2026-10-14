@@ -12,9 +12,13 @@
 #           --every MINUTES   how often the timer looks for a new commit: 5 to 1440 minutes (default: 10; a re-run without it sets 10 again)
 #           --reconfigure     ask for the Cloudflare token and account ID again (a normal re-run keeps /etc/jbl-deploy/env)
 #           --private         the repository is (or is about to be) PRIVATE: ask for a read-only GitHub token for it, keep it with the other
-#                             settings and stop asking the feedback form to open GitHub issues. Run it BEFORE you switch the repository to private.
+#                             settings and stop asking the feedback form to open GitHub issues. Run it before you switch the repository to
+#                             private, or at once when it is private already (the deployer cannot read it without the token).
 #                             Create the token at GitHub → Settings → Developer settings → Fine-grained tokens: Only select repositories →
-#                             this one; permissions Contents: Read-only and Checks: Read-only (Metadata is added by itself); the longest expiry.
+#                             this one; permissions Contents: Read-only and Actions: Read-only (Metadata is added by itself); the longest expiry.
+#                             (GitHub's token form has no Checks permission; the deployer reads the "build" job of the site workflow through
+#                             the Actions API instead.) With JBL_REQUIRE_GREEN=0 in the environment, or already in the settings file, the
+#                             Actions permission is not needed and not checked: every new commit is then deployed without waiting for GitHub.
 #
 # For Debian or Ubuntu with systemd, as root. It installs git, curl and Node.js 22 when they are missing, creates the unprivileged user
 # `jbldeploy`, keeps the Cloudflare token in /etc/jbl-deploy/env (readable by that user only; nothing here prints it), and starts a
@@ -54,6 +58,8 @@ clean_text() { printf '%s' "$1" | LC_ALL=C sed -E 's/(\x1b)?\[20[01]~//g' | LC_A
 # and a failed `read ... </dev/tty` would end the whole script under `set -e` before the service and the timer were written.
 have_tty() { { : </dev/tty; } 2>/dev/null; }
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
+# Does the settings file turn the gate off (JBL_REQUIRE_GREEN=0, however the value is quoted)? A commented line does not.
+gate_is_off() { grep -Eq "^JBL_REQUIRE_GREEN=['\"]?0['\"]?[[:space:]]*$" "$CONF"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -64,7 +70,7 @@ while [ $# -gt 0 ]; do
     --every) [ $# -ge 2 ] || die "--every needs a number of minutes"; EVERY="$2"; shift 2 ;;
     --reconfigure) RECONFIGURE=1; shift ;;
     --private) PRIVATE=1; shift ;;
-    -h|--help) sed -n '2,22p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,26p' "$0"; exit 0 ;;
     *) die "unknown option $1 (see --help)" ;;
   esac
 done
@@ -154,7 +160,7 @@ if [ ! -f "$CONF" ] || [ "$RECONFIGURE" = 1 ]; then
     printf "CLOUDFLARE_ACCOUNT_ID='%s'\n" "$account"
     printf "JBL_REPO='%s'\n" "$REPO"
     printf "JBL_BRANCH='%s'\n" "$BRANCH"
-    printf '# JBL_REQUIRE_GREEN=1            deploy only commits whose "build" check on GitHub is green (0: deploy any)\n'
+    printf '# JBL_REQUIRE_GREEN=1            deploy only commits whose "build" job of the site workflow (deploy.yml) is green on GitHub (0: deploy any)\n'
     printf '# JBL_FEEDBACK_GITHUB_REPO=      leave empty while the repository is private (a form that opens its issues sends visitors to a 404)\n'
     printf '# JBL_SUPPORT_EMAIL=             shown on the legal pages, the pricing page and the footer; the feedback form uses it too\n'
     printf '# JBL_FEEDBACK_EMAIL=            only if the feedback form should write to another address\n'
@@ -174,12 +180,12 @@ if [ "$PRIVATE" = 1 ]; then
   gh_token="${JBL_GITHUB_TOKEN:-}"
   if [ -z "$gh_token" ]; then
     have_tty || die "no terminal to ask on: run with JBL_GITHUB_TOKEN in the environment"
-    read -r -s -p "GitHub token for $REPO (read-only: Contents + Checks; nothing is shown): " gh_token </dev/tty
+    read -r -s -p "GitHub token for $REPO (read-only: Contents + Actions; nothing is shown): " gh_token </dev/tty
     echo
   fi
   gh_token="$(clean_input "$gh_token")"
   [[ "$gh_token" =~ ^(github_pat_[A-Za-z0-9_]{20,255}|gh[pousr]_[A-Za-z0-9]{20,255})$ ]] || die "that does not look like a GitHub token (${#gh_token} characters after cleaning; fine-grained ones start with github_pat_)"
-  say "checking the token with GitHub (the repository, its newest commit and its checks)"
+  say "checking the token with GitHub (the repository, its newest commit and its workflow runs)"
   api() { printf 'Authorization: Bearer %s\nAccept: application/vnd.github+json\n' "$gh_token" | curl -fsS --max-time 30 -H @- "https://api.github.com/repos/$REPO$1" 2>/dev/null; }
   # (each answer is kept in a variable first: `curl | grep -q` fails under pipefail when grep stops reading early)
   reply="$(api "" || true)"
@@ -187,8 +193,19 @@ if [ "$PRIVATE" = 1 ]; then
   reply="$(api "/commits/$BRANCH" || true)"
   head_sha="$(grep -m1 -oE '"sha": *"[0-9a-f]{40}"' <<<"$reply" | grep -oE '[0-9a-f]{40}' || true)"
   [ -n "$head_sha" ] || die "the token cannot read the commits of $BRANCH (Contents: Read-only, and the branch name?)"
-  reply="$(api "/commits/$head_sha/check-runs?per_page=1" || true)"
-  grep -q '"total_count"' <<<"$reply" || die "the token cannot read the checks (add Checks: Read-only), or run with JBL_REQUIRE_GREEN=0 in $CONF"
+  # The gate of the deployer is the "build" job of deploy.yml, read through the Actions API (jbl-deploy.sh, section 2). JBL_REQUIRE_GREEN=0
+  # (in the environment of this run, or already in the settings file) is the way to go on with a token that has no Actions permission.
+  require_green="${JBL_REQUIRE_GREEN:-}"
+  if [ -z "$require_green" ] && gate_is_off; then require_green=0; fi
+  if [ "$require_green" = 0 ]; then
+    say "JBL_REQUIRE_GREEN=0: the Actions permission is not checked; every new commit will be deployed without waiting for GitHub's build job"
+    set_conf JBL_REQUIRE_GREEN 0
+  else
+    reply="$(api "/actions/workflows/deploy.yml/runs?per_page=1" || true)"
+    grep -q '"total_count"' <<<"$reply" || die "the token cannot read GitHub Actions: add \"Actions: Read-only\" to it (GitHub → Settings → Developer settings → Fine-grained tokens → the token → Repository permissions).
+       GitHub's token form has no \"Checks\" permission, so do not look for one.
+       To go on without it, run with JBL_REQUIRE_GREEN=0 (sudo JBL_REQUIRE_GREEN=0 bash deploy/vps/install.sh --private) or put JBL_REQUIRE_GREEN='0' in $CONF; every new commit is then deployed without waiting for GitHub's build job"
+  fi
   set_conf JBL_GITHUB_TOKEN "$gh_token"
   set_conf JBL_FEEDBACK_GITHUB_REPO ""
   unset gh_token
@@ -275,9 +292,14 @@ if [ "$FIRST_RUN" = 1 ]; then
   systemctl start --no-block jbl-deploy.service
 fi
 
+if gate_is_off; then
+  gate="every new commit, WITHOUT waiting for GitHub: JBL_REQUIRE_GREEN=0 in $CONF"
+else
+  gate="when the build job of the site workflow on GitHub is green"
+fi
 cat <<EOF
 
-Done. The deployer watches $BRANCH of $REPO and deploys what lands there (when GitHub's checks for it are green).
+Done. The deployer watches $BRANCH of $REPO and deploys what lands there ($gate).
   progress / log   journalctl -u jbl-deploy -f
   last result      sudo -u $USER_NAME $BIN_DIR/jbl-deploy.sh --status
   deploy a commit  sudo -u $USER_NAME $BIN_DIR/jbl-deploy.sh --sha <40-character hash>   (a rollback is the same with an older one)

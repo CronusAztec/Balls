@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # jbl-deploy (feature vps-site-deployer): puts the website on Cloudflare from the VPS, by itself, whenever the watched branch moves.
 #
-# A systemd timer (install.sh) runs this every ten minutes. It only ever CALLS OUT – to GitHub (git, the checks API) and to
+# A systemd timer (install.sh) runs this every ten minutes. It only ever CALLS OUT – to GitHub (git, the Actions API) and to
 # Cloudflare (Wrangler) – and listens on no port, so nobody can reach in through it. One run:
 #   1. asks GitHub which commit the branch is at (git ls-remote); stops when that commit is the one already deployed,
-#   2. (JBL_REQUIRE_GREEN=1) waits until the repository's own checks – the "build" job of "Build and deploy the site": lint and type
-#      check – are green for that commit, and never deploys a red one,
+#   2. (JBL_REQUIRE_GREEN=1) waits until the repository's own check – the "build" job of the workflow "Build and deploy the site": lint,
+#      type check, unit tests and the production build – is green for that commit on the watched branch, and never deploys a red one. The
+#      job is read through the Actions API (the workflow's runs for the commit, then their jobs), because a fine-grained token has no
+#      "Checks" permission at all but can have "Actions: Read-only"; only a job named exactly "build" of deploy.yml counts (section 2 below),
 #   3. fetches exactly that commit, installs, runs the production guard (the live billing keys, never the test ones), builds the static
 #      site for the domain's root, stamps it with the commit (out/build.txt) and runs `wrangler deploy`,
 #   4. asks the live site for /build.txt until it names the commit, and only then calls it deployed.
@@ -13,11 +15,12 @@
 #
 # Settings come from /etc/jbl-deploy/env (written by install.sh, readable by the service only):
 #   CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID   required: the token needs "Edit Cloudflare Workers" and the zone's DNS edit
-#   JBL_GITHUB_TOKEN   only for a PRIVATE repository: a fine-grained token for that one repository, read-only (Contents: Read, Checks: Read).
-#                      It is used for `git ls-remote`, `git fetch` and the checks lookup, and for nothing else. Each token reaches only the
-#                      step that needs it: the build (npm, Next.js, the repository's own scripts) sees neither it nor the Cloudflare token.
+#   JBL_GITHUB_TOKEN   only for a PRIVATE repository: a fine-grained token for that one repository, read-only (Contents: Read, Actions: Read).
+#                      It is used for `git ls-remote`, `git fetch` and the workflow-run lookup, and for nothing else. Each token reaches only
+#                      the step that needs it: the build (npm, Next.js, the repository's own scripts) sees neither it nor the Cloudflare token.
 #   JBL_REPO (CronusAztec/Balls)   JBL_BRANCH (main)   JBL_SITE_URL (https://jumpingballslive.com)
-#   JBL_REQUIRE_GREEN (1)   JBL_FEEDBACK_GITHUB_REPO (empty: the feedback form opens no GitHub issues; set it to OWNER/NAME only while that
+#   JBL_REQUIRE_GREEN (1: wait for the build job described above; 0: deploy every new commit, for a token that has no Actions permission)
+#   JBL_FEEDBACK_GITHUB_REPO (empty: the feedback form opens no GitHub issues; set it to OWNER/NAME only while that
 #                      repository is public with Issues on)
 #   JBL_SUPPORT_EMAIL, JBL_FEEDBACK_EMAIL, JBL_LEGAL_NAME, JBL_LEGAL_ADDRESS   the operator's public details the legal pages and the
 #                      feedback form show (without a support e-mail the site has no way to be reached: scripts/go-live-check.mjs warns)
@@ -73,6 +76,19 @@ gh_git() {
 }
 # runs a command of the build without any of the tokens
 scrub() { env -u CLOUDFLARE_API_TOKEN -u CLOUDFLARE_ACCOUNT_ID -u JBL_GITHUB_TOKEN "$@"; }
+# one read-only GET of the GitHub API for $JBL_REPO ($1: the path after /repos/OWNER/NAME): the answer goes to $api_body, the HTTP status to
+# $api_code (000: no answer at all). The credential travels on curl's stdin (-H @-), never in its arguments; there is no -f, so the status
+# survives (what a 403 or 404 means depends on whether a token is set). Without JBL_GITHUB_TOKEN it works for a public repository.
+gh_api() {
+  local out
+  out="$({
+    [ -z "${JBL_GITHUB_TOKEN:-}" ] || printf 'Authorization: Bearer %s\n' "$JBL_GITHUB_TOKEN"
+    printf 'Accept: application/vnd.github+json\n'
+  } | curl -sS --max-time 30 -w '\n%{http_code}' -H @- "https://api.github.com/repos/$JBL_REPO$1" 2>/dev/null || true)"
+  api_code="${out##*$'\n'}"
+  [[ "$api_code" =~ ^[0-9]{3}$ ]] || api_code=000
+  api_body="${out%$'\n'*}"
+}
 
 # a JSON file the next reader (a person, or the AI that pushed the commit) can look at: jbl-deploy.sh --status
 write_result() { # state(ok|failed|waiting|skipped|unreachable) sha message
@@ -108,7 +124,7 @@ if [ -n "$FORCED_SHA" ]; then
   HEAD_SHA="$FORCED_SHA"
 else
   if ! HEAD_SHA="$(gh_git ls-remote "$JBL_GIT_URL" "refs/heads/$JBL_BRANCH" 2>/dev/null | cut -f1)" || ! [[ "$HEAD_SHA" =~ $SHA_RE ]]; then
-    hint=""
+    hint=", or the token in JBL_GITHUB_TOKEN has expired"
     [ -n "${JBL_GITHUB_TOKEN:-}" ] || hint=", or the repository is private and JBL_GITHUB_TOKEN is not set"
     logline "cannot read $JBL_BRANCH of $JBL_REPO from GitHub (network, the branch is gone$hint): nothing to do"
     write_result unreachable "" "cannot read $JBL_BRANCH of $JBL_REPO from GitHub$hint"
@@ -122,25 +138,100 @@ else
 fi
 
 # ------------------------------------------------------------------ 2. the repository's own checks
+# The gate is the job named exactly "build" of .github/workflows/deploy.yml ("Build and deploy the site": lint, type check, unit tests, the
+# production build) for this commit, in the runs of the watched branch. It is read through the Actions API: the workflow's runs for the
+# commit and the branch, then the jobs of each run (up to five runs, newest first). Not through the commit's check runs: a fine-grained
+# token has no "Checks" permission, but "Actions: Read-only" covers both calls. Runs of other workflows are never asked, and only the exact
+# name counts, so the Windows workflow's "Windows build" and the "smoke (shard N of 4)" jobs cannot open the gate, and a failing smoke or
+# deploy job does not close it. Only the watched branch counts: the same commit is often pushed to a feature branch first, and there the
+# "build" job is green after the lint and the type check alone (the unit tests and the production build are for the product branch).
+#   green    some build job completed with success (so a re-run that turns a red build green deploys, and a newer run that is still
+#            going does not matter)
+#   red      build jobs exist, all of them completed and none succeeded, and no run of the commit is still going: the commit is recorded
+#            as failed (and, as any failed commit, not looked at again for six hours, even if it is re-run and turns green meanwhile)
+#   pending  a build job is queued or running, a run of the commit is still going, or the push has not started a run (or its build job) yet
+#   unknown  GitHub did not answer or the answer cannot be read
+#   denied   a token is set and GitHub refuses the lookup (403 or 404): the token lacks "Actions: Read-only"
+# Only green deploys; every other verdict waits for the next run.
+build_verdict() { # SHA: sets $verdict and $why (a few words for the journal)
+  local ids="" id words word green=0 open=0 going=0 failed=0 trouble=""
+  gh_api "/actions/workflows/deploy.yml/runs?head_sha=$1&per_page=5&branch=$JBL_BRANCH"
+  if [ "$api_code" = 200 ]; then
+    # (the commit and the branch are checked again here, whatever GitHub listed; "going" after the ids: a listed run is not finished)
+    ids="$(printf '%s' "$api_body" | node -e '
+      let s = "";
+      process.stdin.on("data", (c) => (s += c)).on("end", () => {
+        try {
+          const [sha, branch] = process.argv.slice(1);
+          const runs = JSON.parse(s).workflow_runs.filter((r) => r.head_sha === sha && r.head_branch === branch).slice(0, 5);
+          console.log(runs.length ? runs.map((r) => r.id).join(" ") + (runs.some((r) => r.status !== "completed") ? " going" : "") : "none");
+        } catch {
+          console.log("unknown");
+        }
+      });
+    ' "$1" "$JBL_BRANCH" 2>/dev/null || echo unknown)"
+    if [ "$ids" = unknown ]; then trouble="the answer cannot be read"; ids=""; fi
+  else
+    trouble="$api_code"
+  fi
+  for id in $ids; do
+    if [ "$id" = going ]; then going=1; continue; fi
+    [[ "$id" =~ ^[0-9]+$ ]] || continue
+    gh_api "/actions/runs/$id/jobs?per_page=100"
+    if [ "$api_code" != 200 ]; then trouble="$api_code"; continue; fi
+    words="$(printf '%s' "$api_body" | node -e '
+      let s = "";
+      process.stdin.on("data", (c) => (s += c)).on("end", () => {
+        try {
+          const builds = JSON.parse(s).jobs.filter((r) => r.name === "build");
+          for (const r of builds) console.log(r.status !== "completed" ? "open" : r.conclusion === "success" ? "success" : "failed");
+        } catch {
+          console.log("unknown");
+        }
+      });
+    ' 2>/dev/null || echo unknown)"
+    for word in $words; do
+      case "$word" in
+        success) green=1 ;;
+        open) open=1 ;;
+        failed) failed=1 ;;
+        *) trouble="the answer cannot be read" ;;
+      esac
+    done
+    if [ "$green" = 1 ]; then break; fi
+  done
+  why=""
+  if [ "$green" = 1 ]; then
+    verdict=green
+  elif [ "$open" = 1 ] || [ "$going" = 1 ]; then
+    verdict=pending
+    why="the build job has not finished"
+    [ "$open" = 1 ] || why="a run of the workflow for this commit is still going"
+  elif [ -n "$trouble" ]; then
+    verdict=unknown
+    why="$trouble"
+    case "$trouble" in
+      000) why="GitHub did not answer" ;;
+      403 | 404)
+        why="GitHub answered HTTP $trouble"
+        if [ -n "${JBL_GITHUB_TOKEN:-}" ]; then
+          verdict=denied
+          why="the token cannot read GitHub Actions: add Actions: Read-only (GitHub answered HTTP $trouble)"
+        fi
+        ;;
+      [0-9][0-9][0-9]) why="GitHub answered HTTP $trouble" ;;
+    esac
+  elif [ "$failed" = 1 ]; then
+    verdict=red
+  else
+    verdict=pending
+    why="no run of the workflow for this commit yet"
+    [ "$ids" = none ] || why="the workflow has no build job for this commit yet"
+  fi
+}
+
 if [ "$JBL_REQUIRE_GREEN" = "1" ] && [ -z "$FORCED_SHA" ]; then
-  runs="$({
-    [ -z "${JBL_GITHUB_TOKEN:-}" ] || printf 'Authorization: Bearer %s\n' "$JBL_GITHUB_TOKEN"
-    printf 'Accept: application/vnd.github+json\n'
-  } | curl -fsS --max-time 30 -H @- "https://api.github.com/repos/$JBL_REPO/commits/$HEAD_SHA/check-runs?per_page=100" 2>/dev/null || true)"
-  verdict="$(printf '%s' "$runs" | node -e '
-    let s = "";
-    process.stdin.on("data", (c) => (s += c)).on("end", () => {
-      try {
-        const runs = JSON.parse(s).check_runs.filter((r) => r.name === "build");
-        if (!runs.length) return console.log("none");
-        if (runs.some((r) => r.status === "completed" && r.conclusion === "success")) return console.log("green");
-        if (runs.every((r) => r.status === "completed")) return console.log("red");
-        console.log("pending");
-      } catch {
-        console.log("unknown");
-      }
-    });
-  ' 2>/dev/null || echo unknown)"
+  build_verdict "$HEAD_SHA"
   case "$verdict" in
     green) ;;
     red)
@@ -150,11 +241,16 @@ if [ "$JBL_REQUIRE_GREEN" = "1" ] && [ -z "$FORCED_SHA" ]; then
       state_set last-failed-at "$(now)"
       exit 0
       ;;
+    denied)
+      logline "$HEAD_SHA: $why: waiting (or set JBL_REQUIRE_GREEN=0 in $CONF to deploy without asking GitHub)"
+      write_result waiting "$HEAD_SHA" "$why"
+      exit 0
+      ;;
     *)
       hint=""
       [ "$verdict" != "unknown" ] || [ -n "${JBL_GITHUB_TOKEN:-}" ] || hint=" - a private repository needs JBL_GITHUB_TOKEN"
-      logline "$HEAD_SHA: the repository's checks are not finished yet ($verdict$hint): waiting"
-      write_result waiting "$HEAD_SHA" "checks: $verdict"
+      logline "$HEAD_SHA: the repository's checks are not finished yet ($verdict: $why$hint): waiting"
+      write_result waiting "$HEAD_SHA" "checks: $verdict ($why)"
       exit 0
       ;;
   esac
