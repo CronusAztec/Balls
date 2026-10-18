@@ -168,9 +168,11 @@ describe("the privacy page", () => {
     expect(read("desktop", "electron-builder.config.cjs")).toContain("https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download"); // the update feed is on GitHub
     expect(read("desktop", "src", "ai", "diagnostics.ts")).toContain('NETWORK_TEST_URL = "https://huggingface.co/');
     expect(read("src", "lib", "billing", "config.ts")).toContain("RENEWAL_RETRY_MS"); // the licence renewals the app and the site ask the billing server for
-    // "no usage data, no crash reports": nothing in the app's code collects either
+    // "no usage data, no crash reports": nothing in the app's code collects either. (The names are those of collectors: Electron's
+    // crashReporter and the telemetry services. --- social-postiz --- The Postiz client's `analytics` methods read the user's own
+    // channel statistics from the user's own Postiz, with their key, which collects nothing about them: the word alone is not a hit.)
     const appCode = walk(path.join(ROOT, "desktop", "src")).filter((f) => f.endsWith(".ts"));
-    const collectors = appCode.filter((f) => /crashReporter|telemetry|analytics|sentry|bugsnag/i.test(fs.readFileSync(f, "utf8")));
+    const collectors = appCode.filter((f) => /crashReporter|telemetry|sentry|bugsnag|posthog|mixpanel|amplitude|gtag\(|googletagmanager|@vercel\/analytics|google-analytics|segment\.io/i.test(fs.readFileSync(f, "utf8")));
     expect(collectors.map((f) => path.relative(ROOT, f))).toEqual([]);
     expect(en.Privacy.windowsApp.intro).toContain("no usage data and no crash reports");
   });
