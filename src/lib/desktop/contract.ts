@@ -51,6 +51,12 @@ export const IPC = {
   updateInstall: "update:install",
   updateState: "update:state", // --- low-findings-2 --- the updater's status as it is (no check)
   aiDiagnose: "ai:diagnose", // --- desktop-ai-fix --- the AI status / diagnostics panel
+  // --- social-postiz --- the Accounts tab: the Postiz key, the channels connected in Postiz and its notices (phase 1 of docs/SOCIAL-AUTOPILOT.md)
+  socialKeyStatus: "social:key-status",
+  socialKeySet: "social:key-set",
+  socialKeyForget: "social:key-forget",
+  socialChannels: "social:channels",
+  socialNotices: "social:notices",
 } as const;
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
 
@@ -420,6 +426,61 @@ export interface AiDiagnosis {
   report: Record<string, unknown>;
 }
 
+/* ------------------------------------------------------------------ Postiz (--- social-postiz ---) */
+
+/** The Postiz cloud API; a self-hosted Postiz gives its backend address instead (with or without /public/v1). */
+export const POSTIZ_DEFAULT_URL = "https://api.postiz.com";
+/** The longest address and key the page may send. */
+export const POSTIZ_FIELD_MAX = 500;
+
+/** Whether a Postiz key is stored and where it points – never the key itself. */
+export interface PostizKeyStatus {
+  configured: boolean;
+  baseUrl: string;
+  /** This PC can seal a key (safeStorage works); without it no key is kept. */
+  encryption: boolean;
+}
+
+export interface PostizKeyInput {
+  baseUrl: string;
+  /** Stored sealed, never returned. */
+  apiKey: string;
+}
+
+/** The Postiz workspace a key belongs to. */
+export interface PostizOrganization {
+  id: string;
+  name: string;
+}
+
+/** A channel connected inside Postiz (TikTok, Instagram, YouTube, …). */
+export interface PostizChannel {
+  id: string;
+  name: string;
+  /** Postiz's provider identifier: "tiktok", "instagram", "instagram-standalone", "youtube", "x", "linkedin", … */
+  platform: string;
+  picture: string | null;
+  /** Postiz turned the channel off (an expired login, a plan limit). */
+  disabled: boolean;
+  /** The customer the channel is filed under in Postiz (agencies), null for the workspace itself. */
+  customer: { id: string; name: string } | null;
+}
+
+/** One of Postiz's own notices (a login that expired, a post that failed). */
+export interface PostizNotice {
+  id: string;
+  content: string;
+  /** ISO time. */
+  createdAt: string;
+  read: boolean;
+}
+
+/** What a saved key answered with. */
+export interface PostizConnection {
+  organization: PostizOrganization;
+  channels: PostizChannel[];
+}
+
 /* ------------------------------------------------------------------ updates */
 
 export interface UpdateStatus {
@@ -504,6 +565,22 @@ export interface DesktopApi {
     /** --- low-findings-2 --- The updater's status as it is, without a check (the page's mount: the quiet schedule does the checking). */
     status(): Promise<UpdateStatus>;
   };
+  /** --- social-postiz --- The Accounts tab: the Postiz key (stored sealed on this PC), the channels connected in Postiz and its notices. */
+  social: {
+    key: {
+      status(): Promise<PostizKeyStatus>;
+      /** Checks the key with Postiz and keeps it; a refused key throws and the previous key stays. */
+      set(input: PostizKeyInput): Promise<PostizConnection>;
+      forget(): Promise<PostizKeyStatus>;
+    };
+    channels: {
+      /** Cached for a minute; `refresh` asks Postiz again. Empty without a key. */
+      list(refresh?: boolean): Promise<PostizChannel[]>;
+    };
+    notices: {
+      list(page?: number): Promise<PostizNotice[]>;
+    };
+  };
   /** Subscribes to an event from the main process; returns the unsubscribe. */
   on<K extends DesktopEventName>(event: K, listener: (payload: DesktopEventMap[K]) => void): () => void;
 }
@@ -560,6 +637,12 @@ export const BRIDGE_METHODS = {
   "update.install": IPC.updateInstall,
   "update.status": IPC.updateState, // --- low-findings-2 ---
   "ai.diagnose": IPC.aiDiagnose, // --- desktop-ai-fix ---
+  // --- social-postiz ---
+  "social.key.status": IPC.socialKeyStatus,
+  "social.key.set": IPC.socialKeySet,
+  "social.key.forget": IPC.socialKeyForget,
+  "social.channels.list": IPC.socialChannels,
+  "social.notices.list": IPC.socialNotices,
 } as const satisfies Record<string, IpcChannel>;
 
 /** `log` is fire-and-forget (`ipcRenderer.send`); every other channel is a request. */
@@ -630,6 +713,19 @@ export function checkIpcArgs(channel: IpcChannel, args: readonly unknown[]): str
       if (c.apiKey !== undefined && !isString(c.apiKey)) return "ai.setCloud: apiKey";
       return null;
     }
+    // --- social-postiz --- the Postiz key (both fields bounded; the main process checks the address's scheme), the channel
+    // list's refresh flag and the notices' page
+    case IPC.socialKeySet: {
+      const k = a as Partial<PostizKeyInput> | null;
+      if (!k || typeof k !== "object" || Array.isArray(k)) return "social.key.set(input)";
+      if (!isString(k.baseUrl) || k.baseUrl.length > POSTIZ_FIELD_MAX) return "social.key.set: baseUrl";
+      if (!isString(k.apiKey) || k.apiKey.length === 0 || k.apiKey.length > POSTIZ_FIELD_MAX) return "social.key.set: apiKey";
+      return null;
+    }
+    case IPC.socialChannels:
+      return a === undefined || typeof a === "boolean" ? null : "social.channels.list(refresh?)";
+    case IPC.socialNotices:
+      return a === undefined || (typeof a === "number" && Number.isInteger(a) && a >= 0) ? null : "social.notices.list(page?)";
     default:
       return null;
   }

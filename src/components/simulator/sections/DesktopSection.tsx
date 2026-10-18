@@ -20,6 +20,7 @@ import GpuPanel from "../desktop/GpuPanel";
 import QueuePanel from "../desktop/QueuePanel";
 import AiPanel from "../desktop/AiPanel";
 import LibraryPanel from "../desktop/LibraryPanel";
+import AccountsPanel from "../desktop/AccountsPanel"; // --- social-postiz --- the Postiz key and channels
 import WhatsNew from "../desktop/WhatsNew"; // --- changelog ---
 import { errorText, ghostBtn, primaryBtn } from "../desktop/ui"; // --- desktop-autorelease --- (the update banner's buttons)
 import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
@@ -33,9 +34,9 @@ import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
  * upload handlers. On the website it renders nothing and changes nothing.
  */
 
-export const DESKTOP_TABS = ["gpu", "queue", "ai", "library"] as const;
+export const DESKTOP_TABS = ["gpu", "queue", "ai", "library", "accounts" /* --- social-postiz --- */] as const;
 export type DesktopTab = (typeof DESKTOP_TABS)[number];
-const TAB_ICONS: Record<DesktopTab, string> = { gpu: "🖥️", queue: "🎞️", ai: "🤖", library: "📚" };
+const TAB_ICONS: Record<DesktopTab, string> = { gpu: "🖥️", queue: "🎞️", ai: "🤖", library: "📚", accounts: "📣" };
 /** --- desktop-exe --- The Publish platforms by their own names (the same in every language). */
 const PLATFORM_NAMES: Record<PublishPlatform, string> = { tiktok: "TikTok", instagram: "Instagram", youtube: "YouTube" };
 
@@ -289,6 +290,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
       {tab === "queue" && <QueuePanel bridge={bridge} queue={queue} page={page} folder={prefs.outputFolder} onFolder={(outputFolder) => changePrefs({ outputFolder })} />}
       {tab === "ai" && <AiPanel ai={ai} custom={custom} prefs={prefs} page={page} onQueueTab={() => show("queue")} bridge={bridge} /* --- desktop-ai-fix --- (the AI status panel) */ />}
       {tab === "library" && <LibraryPanel bridge={bridge} items={library} onRefresh={refreshLibrary} onRerender={(item) => void rerender(item)} />}
+      {tab === "accounts" && <AccountsPanel bridge={bridge} /* --- social-postiz --- */ />}
     </section>
   );
 }

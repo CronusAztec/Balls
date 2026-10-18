@@ -26,6 +26,10 @@ import { UpdateController } from "./updater";
 import { MENU, MENU_LABELS, menuLanguage } from "./menu";
 import { MAX_PICKED_BYTES, dialogFilters, filesInArgv, mediaKindOf, mimeOf } from "./media";
 import { registerHandlers, type HandlerTable } from "./handlers";
+// --- social-postiz --- the Postiz key (sealed like the cloud AI key) and the Accounts tab's channels and notices
+import { DEFAULT_POSTIZ, PostizKeyStore, type PostizSettings } from "./social/keys";
+import { SocialService } from "./social/service";
+import type { PostizKeyInput } from "@/lib/desktop/contract";
 // --- desktop-ai-fix --- net.fetch for every main-process request, node-llama-cpp's console lines in main.log, the AI status panel
 import os from "os";
 import type { AiDiagnoseOptions } from "@/lib/desktop/contract";
@@ -88,7 +92,7 @@ function start() {
   process.on("unhandledRejection", (err) => logger.error(`unhandled rejection: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`));
   mirrorConsole(console, (level, message) => logger.write(level, message)); // --- desktop-ai-fix --- node-llama-cpp's backend choice and fallbacks
 
-  const store = new Store<{ prefs: DesktopPrefs; window: WindowState; cloud: CloudSettings }>({ name: "config", defaults: { prefs: DEFAULT_PREFS, window: DEFAULT_WINDOW, cloud: DEFAULT_CLOUD } });
+  const store = new Store<{ prefs: DesktopPrefs; window: WindowState; cloud: CloudSettings; postiz: PostizSettings }>({ name: "config", defaults: { prefs: DEFAULT_PREFS, window: DEFAULT_WINDOW, cloud: DEFAULT_CLOUD, postiz: DEFAULT_POSTIZ } });
   const prefs = (): DesktopPrefs => resolvePrefs(store.get("prefs"));
   const setPrefs = (patch: Partial<DesktopPrefs>) => store.set("prefs", { ...prefs(), ...sanitizePrefs(patch) });
 
@@ -187,6 +191,16 @@ function start() {
   });
   // --- desktop-ai-fix --- a 1.0.2 install whose download was never "used": the ready model is selected
   void ai.ensureSelectedModel().catch((err: unknown) => logger.warn(`selecting a ready model: ${describeError(err)}`));
+  // --- social-postiz --- the Postiz key store (its own block of the config, sealed with the same SecretBox) and the Accounts tab's service
+  const social = new SocialService(
+    new PostizKeyStore({
+      settings: () => ({ ...DEFAULT_POSTIZ, ...(store.get("postiz") ?? {}) }),
+      setSettings: (settings) => store.set("postiz", settings),
+      secrets,
+      fetch: http.aiFetch,
+      log: (level, message) => logger.write(level, message),
+    }),
+  );
   let updateNotified: string | null = null; // --- desktop-autorelease --- the version the Windows notification was shown for
   const updater = new UpdateController(electronUpdater.autoUpdater as unknown as ConstructorParameters<typeof UpdateController>[0], {
     enabled: prefs().autoUpdate && !SMOKE,
@@ -366,6 +380,12 @@ function start() {
     [IPC.updateState]: () => updater.status, // --- low-findings-2 --- (the page's mount reads it: no check at every start)
     [IPC.updateInstall]: () => updater.install(),
     [IPC.aiDiagnose]: (options) => runAiDiagnostics(diagnosticsDeps, (options ?? {}) as AiDiagnoseOptions), // --- desktop-ai-fix ---
+    // --- social-postiz ---
+    [IPC.socialKeyStatus]: () => social.keyStatus(),
+    [IPC.socialKeySet]: (input) => social.setKey(input as PostizKeyInput),
+    [IPC.socialKeyForget]: () => social.forgetKey(),
+    [IPC.socialChannels]: (refresh) => social.listChannels(refresh === true),
+    [IPC.socialNotices]: (page) => social.listNotices(typeof page === "number" ? page : 0),
   };
 
   /* ---------------------------------------------------------------- window, menu, tray */

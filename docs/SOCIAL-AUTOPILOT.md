@@ -145,6 +145,8 @@ Rules in code:
 
 1. **Postiz client and key** – `social/postiz.ts` + `keys.ts` with tests against a stand-in Postiz server (every endpoint above,
    401/413/429/5xx, MP4-only); the Accounts tab (key, channels, notices); the `social` bridge namespace. Pro-gated (`publish`).
+   **Built** (2026-10-18): `desktop/src/social/{postiz,keys,service}.ts`, the `social` namespace (`key`, `channels`, `notices`),
+   `AccountsPanel.tsx`; tests in `desktop/tests/postiz.test.ts` and `tests/desktopSocial.test.ts`.
 2. **Post a Library clip through Postiz** – the Library's "Publish to Postiz" target; the approval card with the TikTok, Instagram
    and YouTube forms (and the generic form); transcode to MP4 when needed; upload; create; outcome polling; the Queue tab's
    "posted" and "failed" lists.

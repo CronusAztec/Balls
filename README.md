@@ -3712,6 +3712,29 @@ To add a studio job: give its task a `name`, bound its strings in the answer sch
 `normaliseFinal` for what a small model gets wrong, and a `finalHint` when its schema is long. To add a status check: a row
 in `runAiDiagnostics()` with its codes, and their texts under `DesktopAiFix.check` in every messages file (tested).
 
+### Windows app: Postiz (social autopilot, phase 1)
+
+Feature social-postiz (docs/SOCIAL-AUTOPILOT.md). The app posts through **Postiz** (postiz.com, cloud or self-hosted), where the
+creator has already connected TikTok, Instagram, YouTube and the rest; the app never holds a platform token. Phase 1 is the
+plumbing and the Accounts tab:
+
+- `desktop/src/social/postiz.ts` – `PostizClient` over Node's fetch and FormData: `<base>/public/v1/...` whatever the user typed
+  (`https://api.postiz.com`, with or without `/public/v1`, or a self-hosted backend address), the raw key in `Authorization`
+  (no "Bearer"), every endpoint the later phases use (`is-connected`, `me`, `integrations`, `integration-settings`, `upload`,
+  `posts`, status / settings / delete, `find-slot`, `analytics`, `notifications`), typed results and a `PostizError` with a
+  code (`unauthorized`, `rateLimited` with Retry-After, `tooLarge`, `network`, …) and a message the user may read. Uploads
+  are checked before anything is sent (MP4 up to 1 GB, images up to 10 MB). The key never appears in a message or a log line.
+- `desktop/src/social/keys.ts` – the key sealed with the same `SecretBox` (safeStorage) as the cloud AI key, in the config's
+  `postiz` block; a new key is checked with Postiz before it replaces the old one; `forget` removes it.
+- the `social` bridge namespace (`key.status/set/forget`, `channels.list(refresh?)`, `notices.list(page?)`), every argument
+  checked in `checkIpcArgs`; the channel list is cached for a minute.
+- the Desktop group's **Accounts** tab (`AccountsPanel.tsx`): paste the address and the key (Postiz → Settings → Developers →
+  Public API), the channels with picture, name, platform and a "disabled" badge, Postiz's notices, Refresh, Forget key.
+  Saving a key is Pro (`publish`), like the Library's Publish targets.
+
+Tests: `desktop/tests/postiz.test.ts` (the client against a stand-in server, the key store, the cache, the bridge channels) and
+`tests/desktopSocial.test.ts` (the tab in every state, the Pro gate, the strings in three languages). Posting itself is phase 2.
+
 ## Browser support
 
 Chrome, Edge and Safari export MP4; Firefox exports WebM. Recording uses `canvas.captureStream()` and
