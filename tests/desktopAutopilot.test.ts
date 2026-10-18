@@ -172,7 +172,7 @@ describe("the plan task", () => {
 /* ------------------------------------------------------------------ the trigger and the quiet hours */
 
 const settings = (patch: Partial<AutopilotSettings> = {}): AutopilotSettings => ({ ...DEFAULT_AUTOPILOT, enabled: true, channels: ["int-tt"], ...patch });
-const queued = (patch: Partial<SocialQueueItem> = {}): SocialQueueItem => ({ id: "q1", clipId: "clip-1", channels: [{ integrationId: "int-tt", platform: "tiktok", text: "t", settings: { __type: "tiktok" } }], when: "now", status: "proposed", by: "ai", reason: "r", createdAt: iso(NOW - 3_600_000), postIds: [], error: null, log: [], ...patch });
+const queued = (patch: Partial<SocialQueueItem> = {}): SocialQueueItem => ({ id: "q1", clipId: "clip-1", channels: [{ integrationId: "int-tt", platform: "tiktok", text: "t", settings: { __type: "tiktok" } }], when: "now", status: "proposed", by: "ai", origin: "ai", reason: "r", createdAt: iso(NOW - 3_600_000), postIds: [], error: null, log: [], ...patch });
 
 describe("shouldPlanNow (the page's 15-minute check)", () => {
   it("plans when the autopilot is on, a channel is ticked, the last run is older than proposeHours and today's budget has room", () => {
@@ -188,7 +188,7 @@ describe("shouldPlanNow (the page's 15-minute check)", () => {
     expect(planRefusal(settings({ perDay: 3 }), today, NOW)).toBe("dayFull");
     expect(planRefusal(settings({ perDay: 4 }), today, NOW)).toBeNull();
     expect(proposalsLeftToday(settings({ perDay: 5 }), today, NOW)).toBe(2);
-    expect(proposalsToday([queued({ createdAt: iso(local(2026, 9, 18, 23, 59)) }), queued({ id: "u", by: "user" }), queued({ id: "t", createdAt: iso(local(2026, 9, 19, 0, 0)) })], NOW).map((i) => i.id)).toEqual(["t"]);
+    expect(proposalsToday([queued({ createdAt: iso(local(2026, 9, 18, 23, 59)) }), queued({ id: "u", by: "user", origin: "user" }), queued({ id: "t", createdAt: iso(local(2026, 9, 19, 0, 0)) })], NOW).map((i) => i.id)).toEqual(["t"]);
     expect(shouldPlanNow(settings({ perDay: 1 }), [queued()], NOW)).toBe(false);
   });
 
@@ -297,6 +297,8 @@ describe("the Proposed group", () => {
     expect(html).toContain(en.Desktop.postizProposedBy.ai);
     expect(html).toContain(en.Desktop.postizQueueStatus.proposed);
     expect(html.match(/data-testid="postiz-proposal-text"/g)).toHaveLength(2);
+    // --- review fix --- the textarea's key follows the text, so a merged newer proposal replaces what the uncontrolled field shows
+    expect(fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "PostsPanel.tsx"), "utf8")).toMatch(/<textarea key=\{`\$\{item\.id\}:\$\{c\.integrationId\}:\$\{c\.text\}`\}/);
     expect(html).toContain("Which floor breaks first?");
     expect(html).toContain("Gerald drops through glass floors.");
     for (const id of ["postiz-proposal-review", "postiz-proposal-skip", "postiz-proposal-remove"]) expect(disabled(attr(html, id)), id).toBe(false);

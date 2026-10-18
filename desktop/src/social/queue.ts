@@ -25,7 +25,7 @@ export const QUEUE_LOG_MAX = 20;
 export interface SocialQueueDeps {
   store: JsonFileStore<SocialQueueItem[]>;
   /** The only way to Postiz: the card's request, run as it is. */
-  poster: Pick<ClipPoster, "postClip">;
+  poster: Pick<ClipPoster, "postClip"> & { readonly busy?: boolean };
   emit: (items: SocialQueueItem[]) => void;
   log?: (level: "info" | "warn" | "error", message: string) => void;
   now?: () => number;
@@ -59,6 +59,7 @@ export function sanitizeQueueItem(raw: unknown): SocialQueueItem | null {
     when: r.when === "now" || r.when === "draft" || (typeof r.when === "string" && Number.isFinite(Date.parse(r.when))) ? (r.when as string) : null,
     status: r.status as SocialQueueStatus,
     by: r.by === "user" ? "user" : "ai",
+    origin: r.origin === "user" || (r.origin === undefined && r.by === "user") ? "user" : "ai",
     reason: typeof r.reason === "string" ? r.reason.slice(0, 300) : "",
     createdAt: r.createdAt,
     postIds: Array.isArray(r.postIds) ? r.postIds.filter((p): p is { channelId: string; postId: string } => !!p && typeof p === "object" && typeof (p as { postId?: unknown }).postId === "string" && typeof (p as { channelId?: unknown }).channelId === "string") : [],
@@ -95,19 +96,28 @@ export class SocialQueue {
 
   /** The items, newest first (the file is read once, then kept in memory). */
   private async all(): Promise<SocialQueueItem[]> {
-    if (!this.items) {
-      const raw = await this.deps.store.read();
-      const list = Array.isArray(raw) ? raw.map(sanitizeQueueItem).filter((i): i is SocialQueueItem => i !== null) : [];
-      // --- an app that crashed mid-approve left an item "approved" with no post ids: it is a failed one now, the user may approve again
-      for (const item of list) {
-        if (item.status === "approved") {
-          item.status = "failed";
-          item.error = "The app closed while this post was on its way. Check the Posts tab before you approve it again.";
-          item.log = [...item.log, { at: new Date(this.now()).toISOString(), text: "restored after a restart: not completed" }].slice(-QUEUE_LOG_MAX);
-        }
+    if (this.items) return this.items;
+    // --- review fix (social-autopilot) --- one read only: a call that arrives while the file is still being read waits for the
+    // same promise instead of starting a second read that could overwrite a write made in between
+    this.loading ??= this.readAll();
+    return this.loading;
+  }
+
+  private loading: Promise<SocialQueueItem[]> | null = null;
+
+  private async readAll(): Promise<SocialQueueItem[]> {
+    const raw = await this.deps.store.read();
+    const list = Array.isArray(raw) ? raw.map(sanitizeQueueItem).filter((i): i is SocialQueueItem => i !== null) : [];
+    // --- an app that crashed mid-approve left an item "approved" with no post ids: it is a failed one now, the user may approve again
+    for (const item of list) {
+      if (item.status === "approved") {
+        item.status = "failed";
+        item.error = "The app closed while this post was on its way. Check the Posts tab before you approve it again.";
+        item.log = [...item.log, { at: new Date(this.now()).toISOString(), text: "restored after a restart: not completed" }].slice(-QUEUE_LOG_MAX);
       }
-      this.items = trimQueue(list, this.now()).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
     }
+    // --- a write that landed while the file was being read (a propose in the same tick) must not be undone by this older list
+    this.items ??= trimQueue(list, this.now()).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
     return this.items;
   }
 
@@ -175,6 +185,7 @@ export class SocialQueue {
         when: p.when,
         status: "proposed",
         by,
+        origin: by,
         reason: p.reason.slice(0, 300),
         createdAt: this.stamp(),
         postIds: [],
@@ -199,6 +210,8 @@ export class SocialQueue {
     const item = items[index];
     if (item.status !== "proposed" && item.status !== "failed") throw new Error(`This proposal was already ${item.status}`);
     if (request.clipId !== item.clipId) throw new Error("The approved request is for another clip than the proposal");
+    // --- review fix (social-autopilot) --- asked before the item is written "approved", so another clip's upload does not turn this one "failed"
+    if (this.deps.poster.busy) throw new Error("A clip is already on its way to Postiz. Wait for it to finish, then approve this one.");
     items[index] = this.withLog({ ...item, status: "approved", error: null, channels: item.channels.map((c) => ({ ...c, text: request.channels.find((r) => r.id === c.integrationId)?.text ?? c.text })), when: request.when }, `approved by the user for ${request.channels.length} channel(s), ${request.when}`);
     await this.commit(items);
     try {

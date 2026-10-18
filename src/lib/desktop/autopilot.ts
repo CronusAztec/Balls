@@ -117,7 +117,7 @@ export function startOfLocalDay(now: number): number {
 /** The queue's proposals the autopilot made today (still proposed or already acted on: each counts against `perDay`). */
 export function proposalsToday(queue: readonly SocialQueueItem[], now: number): SocialQueueItem[] {
   const day = startOfLocalDay(now);
-  return queue.filter((i) => i.by === "ai" && Date.parse(i.createdAt) >= day && Date.parse(i.createdAt) <= now + 60_000);
+  return queue.filter((i) => i.origin === "ai" && Date.parse(i.createdAt) >= day && Date.parse(i.createdAt) <= now + 60_000);
 }
 
 /** Why a planning run is not due (null: run it). */

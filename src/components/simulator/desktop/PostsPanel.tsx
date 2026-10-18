@@ -183,7 +183,7 @@ export function ProposedView({ items, library, channels, busy, error, onReview, 
                     <span>
                       {channels.find((ch) => ch.id === c.integrationId)?.name ?? c.integrationId} <span className="text-ink-3">· {platformLabel(c.platform)}</span>
                     </span>
-                    <textarea className={`${inputClass} min-h-[3.5rem]`} defaultValue={c.text} disabled={locked} onBlur={(e) => e.target.value !== c.text && onText(item.id, c.integrationId, e.target.value)} data-testid="postiz-proposal-text" />
+                    <textarea key={`${item.id}:${c.integrationId}:${c.text}`} className={`${inputClass} min-h-[3.5rem]`} defaultValue={c.text} disabled={locked} onBlur={(e) => e.target.value !== c.text && onText(item.id, c.integrationId, e.target.value)} data-testid="postiz-proposal-text" />
                   </label>
                 ))}
                 <div className="flex flex-wrap gap-2 items-center">

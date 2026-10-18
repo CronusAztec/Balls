@@ -205,6 +205,47 @@ describe("the proposal queue", () => {
     expect((await q2.list())[0].log).toHaveLength(QUEUE_LOG_MAX);
   });
 
+  it("keeps the origin of a proposal through an edit and an approval (the daily budget counts the planner's, not the user's)", async () => {
+    const { q, store } = queue();
+    await q.propose([proposal("clip-1")], "ai");
+    await q.propose([proposal("clip-2")], "user");
+    let items = await q.edit("q1", { channels: [{ integrationId: "int-tt", text: "Edited by hand" }] });
+    expect(items.find((i) => i.id === "q1")).toMatchObject({ by: "user", origin: "ai" });
+    expect(items.find((i) => i.id === "q2")).toMatchObject({ by: "user", origin: "user" });
+    await q.approve("q1", request("clip-1"));
+    items = await q.list();
+    expect(items.find((i) => i.id === "q1")).toMatchObject({ status: "posted", by: "user", origin: "ai" });
+    // an older file without the field: the planner's text that the user edited is counted as the user's (never over-counted)
+    const legacy = (store.value() ?? []).map(({ origin: _origin, ...rest }) => rest);
+    const { q: restored } = queue({ store: memoryStore<SocialQueueItem[]>(legacy as unknown as SocialQueueItem[]) });
+    expect((await restored.list()).map((i) => [i.id, i.origin])).toEqual([["q2", "user"], ["q1", "user"]]);
+  });
+
+  it("reads the file once: a propose that lands while the first read is pending is not undone by it", async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const stored: SocialQueueItem[] = [];
+    const writes: SocialQueueItem[][] = [];
+    const store = { read: async () => (await gate, stored), write: async (v: SocialQueueItem[]) => void writes.push(v) } as unknown as JsonFileStore<SocialQueueItem[]>;
+    let n = 0;
+    const q = new SocialQueue({ store, poster: { postClip: vi.fn() }, emit: () => undefined, now: () => NOW, id: () => `q${++n}` });
+    const loading = q.load();
+    const proposing = q.propose([proposal("clip-1")], "ai");
+    release();
+    await Promise.all([loading, proposing]);
+    expect((await q.list()).map((i) => i.id)).toEqual(["q1"]);
+    expect(writes.at(-1)?.map((i) => i.id)).toEqual(["q1"]);
+  });
+
+  it("approve refuses while another clip is on its way, before the item is marked approved", async () => {
+    const postClip = vi.fn();
+    const q = new SocialQueue({ store: memoryStore<SocialQueueItem[]>().store, poster: { postClip, busy: true }, emit: () => undefined, now: () => NOW, id: () => "q1" });
+    await q.propose([proposal("clip-1")], "ai");
+    await expect(q.approve("q1", request("clip-1"))).rejects.toThrow(/already on its way/);
+    expect(postClip).not.toHaveBeenCalled();
+    expect((await q.get("q1"))?.status).toBe("proposed");
+  });
+
   it("remove refuses an item that is on its way to Postiz", async () => {
     let release: () => void = () => {};
     const gate = new Promise<void>((r) => (release = r));

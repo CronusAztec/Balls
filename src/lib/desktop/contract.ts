@@ -655,6 +655,8 @@ export interface SocialQueueItem {
   status: SocialQueueStatus;
   /** Who wrote the text as it stands: the planner, or the user after an edit. */
   by: SocialQueueBy;
+  /** Who made the proposal, fixed at creation: an edit or an approval never changes it (the daily budget counts "ai"). */
+  origin: SocialQueueBy;
   /** The planner's one sentence: why this clip, why this time. */
   reason: string;
   /** ISO time. */
