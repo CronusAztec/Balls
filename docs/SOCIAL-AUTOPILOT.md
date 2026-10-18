@@ -1,12 +1,12 @@
-# Social autopilot: connected accounts, tokens on the user's PC, an approval queue
+# Social autopilot: videos made locally, posted through Postiz, every post approved by the user
 
-> **Status (2026-10-18): draft, being revised.** The owner chose to post through Postiz (postiz.com) instead of the app talking to
-> each platform itself; the videos are still made locally. Sections 1 and 5 (what the platforms allow, what stays out of scope)
-> still hold; sections 2 to 4 (tokens on the PC, a relay exchange mode, per-platform clients) are superseded by the Postiz design.
+Design (2026-10-18, revised the same day for Postiz). The Windows app keeps making the videos with the local AI (the render queue
+and the AI studio that exist today) and hands finished clips to **Postiz** (postiz.com, cloud or self-hosted), where the creator has
+already connected their TikTok, Instagram, YouTube and other channels. Postiz holds the platform logins and posts from its own
+servers at the scheduled time; the app never sees a platform token. The user gives the app one thing: their Postiz API key.
 
-Design (2026-10-18). What the Windows app will do with a creator's own TikTok, Instagram and YouTube accounts, how the sign-in
-tokens stay on the creator's computer, and what the platforms' official rules allow. Facts about the platforms come from their
-developer documentation as read on 2026-10-18; the relay and app facts from the code (relay/server.mjs, desktop/src, src/lib/publish).
+Facts about Postiz come from docs.postiz.com, the Postiz OpenAPI description and the postiz-app source on 2026-10-18; facts about
+the platforms from their developer documentation the same day.
 
 ## 1. What the platforms allow (the ceiling)
 
@@ -38,79 +38,125 @@ Meta App Review with Business Verification (until then only people with a role o
 (until then sign-ins die after 7 days). These are the owner's applications, with the relay's callback addresses and the site's privacy
 and terms pages. docs/RELEASING.md gets a section.
 
-## 2. Where the logins live
+## 2. Postiz does the connecting and the posting
 
-Today the relay keeps every connected account's tokens in `relay.json` on the server and does the posting. The new design keeps the
-tokens on the creator's PC, sealed with Windows' DPAPI through Electron's `safeStorage` (the `SecretBox` the app already uses for
-the cloud AI key), and the Electron main process talks to the platforms directly.
+| | Who does it |
+|---|---|
+| Connect a TikTok / Instagram / YouTube account | the user, inside Postiz (Add channel): Postiz runs the OAuth and keeps the tokens |
+| Keep the login alive (token refresh) | Postiz |
+| Post at the scheduled time, retry, report the link or the error | Postiz's servers (the app can be closed) |
+| Make the video, the caption and the hashtags | the app, locally (render queue + AI studio) |
+| Decide what goes out, when, with which settings | the user, on the approval card in the app |
+| Upload the clip and create the post | the app, with the user's API key |
 
-What the relay still has to do, because the platforms require the app secret for it:
+What the app needs from the user: the Postiz **API key** (Settings → Developers → Public API in Postiz; one key per workspace,
+no scopes, it never expires on its own) and, for a self-hosted Postiz, its backend address. The key is sealed with Windows'
+`safeStorage` in the same `SecretBox` the app uses for the cloud AI key, and never leaves the PC except in the `Authorization`
+header to the Postiz address the user set. Pasting a key into the app is the user's consent for the app to act on that
+workspace; "Forget key" removes it.
 
-| Step | TikTok | Instagram | YouTube |
-|---|---|---|---|
-| Authorization code → tokens | relay (secret) | relay (secret, plus the 60-day exchange) | **PC** (public client, PKCE, no secret) |
-| Refresh | relay (secret) | PC (`refresh_access_token`, no secret) | PC (no secret) |
-| Redirect address | loopback `http://127.0.0.1:<port>` (TikTok allows it for desktop apps), code + PKCE verifier handed to the relay | the relay's HTTPS callback (Meta documents only HTTPS) | loopback on the PC |
-| Posting and account actions | PC | PC (the clip still needs a public URL for 24 h: the relay's `/media` store, or the user's own upload later) | PC |
+Postiz API facts the design relies on (base `https://api.postiz.com/public/v1`, or `<backend>/public/v1` self-hosted;
+header `Authorization: <key>` without "Bearer"):
 
-New relay mode, `RELAY_TOKENS=client`: the OAuth callback and the new `POST /api/oauth/exchange` and `POST /api/oauth/refresh`
-return the tokens **once, to the signed-in user's app** (over the user's session) instead of storing them. The relay's state store
-keeps no tokens in that mode; backups hold none. The existing server-side mode stays for the website (a browser cannot keep a token
-safe) and is unchanged.
+- `GET /is-connected`, `GET /me`, `GET /integrations` – check the key, list the channels (id, name, platform identifier, picture,
+  disabled flag).
+- `POST /upload` (multipart field `file`, **MP4 only**, up to 1 GB; images 10 MB) → `{id, path}`. The app's renders are MP4 already
+  (the WebM fast export is transcoded by the bundled ffmpeg before upload).
+- `POST /posts` – `type: now | schedule | draft`, `date` (UTC), one `posts[]` entry per channel with `value[{content,
+  image:[{id,path,thumbnailTimestamp}]}]` and the provider `settings` (`__type` is mandatory). Returns the post ids. Rate limit:
+  90 create calls an hour (100 on the cloud); the app batches every channel of one clip into one call.
+- `GET /integration-settings/:id` – the provider's rules, length limits and settings schema (the app renders the TikTok, Instagram
+  and YouTube forms from the schemas it knows, and falls back to this for other platforms).
+- `GET /posts?startDate&endDate` – state `QUEUE | PUBLISHED | ERROR | DRAFT`, `releaseURL`, `error`: how the app learns the outcome
+  (no webhook reaches a desktop app).
+- `PUT /posts/:id/status` (draft ↔ schedule), `PUT /posts/:id/settings`, `DELETE /posts/:id` (**removes the whole group**: the app
+  deletes one channel's post only after a confirmation that names the other channels in the group).
+- `GET /find-slot/:id` – Postiz's next free slot for a channel ("Next free slot" on the card).
+- `GET /analytics/:integration?date=7|30|90`, `GET /analytics/post/:postId` – the Insights card.
+- `GET /notifications` – Postiz's own notices (a token that expired, a post that failed), shown under Accounts.
 
-Threat model: the token on the PC is as safe as the Windows account (DPAPI, user-bound). The relay sees TikTok and Instagram tokens
-in transit at exchange and refresh time and forgets them. A stolen app secret still only lets an attacker mint tokens for users who
-sign in at the attacker's relay, which is why the app pins the relay address of the build.
+Provider settings the approval card must collect (Postiz validates them, so the card never sends a post Postiz would refuse):
+
+- **TikTok** `__type:"tiktok"`: `privacy_level` (PUBLIC_TO_EVERYONE | MUTUAL_FOLLOW_FRIENDS | FOLLOWER_OF_CREATOR | SELF_ONLY),
+  `duet`, `stitch`, `comment`, `brand_content_toggle`, `brand_organic_toggle`, `content_posting_method` (DIRECT_POST | UPLOAD),
+  `video_made_with_ai`, optional `title` (≤ 90). TikTok's audit rules require the user to choose privacy and the three interaction
+  settings every time, with no defaults – the card shows them unset. Until TikTok audits the Postiz app in use, posts go out
+  SELF_ONLY whatever was chosen; the card says so.
+- **Instagram** `__type:"instagram"` (Facebook-linked) or `"instagram-standalone"`: `post_type` post (a Reel when the media is one
+  video) | story; optional trial reel, collaborators. Reels are always public. Postiz asks for MP4 ≤ 300 MB, 1920 px wide, 25 Mbps.
+- **YouTube** `__type:"youtube"`: `title` (2–100), `type` public | private | unlisted, `selfDeclaredMadeForKids`, `tags`, optional
+  `thumbnail` (an uploaded image). The description is the post content (≤ 5000).
+- Other channels the user connected in Postiz (Threads, Bluesky, Mastodon, X, LinkedIn, Facebook pages, Pinterest, …): the card
+  offers them with the settings form from `/integration-settings`, or caption-only where Postiz needs only `__type`.
+
+What is still true from the platform rules (section 1): the user must consent to each post before it is created, so the app never
+calls `POST /posts` with `type: now` or `schedule` for anything the user has not approved on its card. Drafts (`type: draft`) are
+how the autopilot's proposals could also appear inside Postiz's calendar; the app keeps its own queue as the source of truth and
+only mirrors approved posts to Postiz.
 
 ## 3. The pieces
 
 ```
-Windows app (Electron main)                                 relay (Node, the owner's server)
-  social/tokens.ts      sealed token store (SecretBox)        /api/oauth/exchange   TikTok + Instagram code → tokens (secret)
-  social/oauth.ts       loopback listener, PKCE, state        /api/oauth/refresh    TikTok refresh (secret)
-  social/platforms/     tiktok.ts instagram.ts youtube.ts     /oauth/:p/callback    (RELAY_TOKENS=client: hands tokens to the app once)
-  social/queue.ts       approval queue + scheduler            /media                public clip URL for Instagram (24 h)
-  social/audit.ts       what the app did, when, on whose say
-page (React, app:// only)
-  Accounts tab: connect / disconnect, what each connection may do, "Forget everything"
-  Queue tab: proposals → Approve / Edit / Skip; scheduled posts; results with links
-  Autopilot card: what it may propose, how often, quiet hours; "Propose now"
-AI studio (existing agent framework)
-  task "plan": from the render queue's finished clips + playbook → proposals (clip, caption per platform, time, platform settings left for the user)
-  task "reply": draft replies to new comments (YouTube, Instagram) → proposals
+Windows app, Electron main (Node 22, no new dependencies)          Postiz (cloud or the user's own server)
+  social/postiz.ts     API client: key check, channels, upload,      /is-connected /me /integrations
+                       posts, status, settings, delete, slots,       /upload /posts /find-slot
+                       analytics, notifications (fetch + FormData)   /analytics /notifications
+  social/keys.ts       the sealed API key + base URL (SecretBox,
+                       electron-store "postiz" block)
+  social/queue.ts      the approval queue: items, states, the
+                       scheduler that creates approved posts at
+                       the right moment, outcome polling
+  social/transcode.ts  WebM → MP4 (bundled ffmpeg) before upload
+  social/audit.ts      social-audit.json: every call that changed
+                       something, with the time and who approved
+page (React, app:// only; the Desktop group gets two tabs)
+  Accounts tab   paste the key (and address), channels with their platform and picture, Postiz notices, Insights, Forget key
+  Queue tab      proposals → Approve (opens the settings card) / Edit / Skip; scheduled; posted (with links); failed (with the
+                 Postiz error and Retry); "Next free slot"
+  Autopilot card what it may propose (which channels, how many a day, quiet hours, caption language); "Propose now"
+AI studio (the existing agent framework; the model is local by default)
+  task "plan"    finished clips in the Library + the viral playbook + the channels' recent performance (analytics) →
+                 proposals: clip, per-channel caption/title/hashtags, a suggested time (Postiz's free slot), never the TikTok
+                 privacy/interaction settings (the user picks those)
+  task "copy"    (exists) per-platform copy, now addressed to the channels Postiz lists
 ```
 
-Bridge: a new `social` namespace on `window.desktop` (contract.ts, preload, handlers, the ipc test's key list), with methods
-`accounts.list/connect/disconnect/forget`, `queue.list/approve/edit/skip/retry`, `settings.get/set`, `inbox.list` (comments),
-`insights.get`, and events `social:queue`, `social:progress`. Every method is argument-checked in `checkIpcArgs` as today.
+Bridge: one new `social` namespace on `window.desktop` (contract.ts, preload.ts, handlers.ts, the key list in
+desktop/tests/ipc.test.ts): `key.status/set/forget`, `channels.list`, `queue.list/propose/approve/edit/skip/retry/remove`,
+`posts.recent`, `slots.next(channelId)`, `insights.get(channelId|postId, days)`, `notices.list`, `settings.get/set`; events
+`social:queue` (the queue changed), `social:progress` (an upload under way). Every argument is checked in `checkIpcArgs`.
 
-The approval queue item: `{ id, kind: post|reply|edit|delete, accountId, platform, clipId?, text, settings (privacy, comments, duet,
-stitch, aiLabel, brandedContent), when, status: proposed|approved|scheduled|running|done|failed|skipped, result {link}, by: ai|user,
-log[] }`. **A proposed item never runs. An approved item runs at `when`, while the app is open (tray counts). If the app was closed
-past `when`, the item waits for the user's confirmation again (it does not post late on its own). TikTok settings must be chosen
-by the user on the approval card (no defaults); YouTube uses `publishAt` so the scheduling is the platform's.**
+Queue item: `{ id, clipId (Library item), channels: [{ integrationId, platform, text, settings }], when (UTC ISO | "now"),
+status: proposed | approved | uploading | created | published | failed | skipped, postIds[], links[], error, by: ai | user,
+log[] }`.
 
-Rate and spam guards (hard limits in code, not settings): at most 1 post per account per 20 minutes, 15 TikTok posts per creator
-per day, Instagram's live `content_publishing_limit`, YouTube's 100 uploads per day; replies only to comments the user has seen in
-the Queue tab; the AI's reply drafts are marked and the user edits or approves each one. An audit log (`social-audit.json`) lists
-every action with the time, the account and who approved it, shown under Accounts → History.
+Rules in code:
+- A **proposed** item never reaches Postiz. **Approve** collects the provider settings, uploads the clip once, and creates the post
+  (`schedule` with `when`, or `now`). From then on Postiz owns the timing: the app may be closed.
+- The app checks outcomes while open (every 2 minutes while anything is in QUEUE, plus on start): PUBLISHED → link, ERROR → the
+  Postiz error on the card with Retry (a new post; the failed one is deleted after confirmation).
+- Guards: 1 upload at a time; at most 1 approved post per channel per 20 minutes; respect 429 with backoff; never more than 60
+  create calls an hour from one key (Postiz allows 90); TikTok DIRECT_POST notes the "private until audited" rule on the card.
+- The AI's text is marked `by: ai` until the user edits or approves it. Nothing the AI wrote is sent unedited without the user
+  seeing it on the card.
+- Audit log and a "Forget key" that also clears the queue's Postiz ids.
 
 ## 4. Phases
 
-1. **Token store and sign-in on the PC** (relay client mode + exchange/refresh endpoints; app: loopback OAuth for YouTube and
-   TikTok, relay callback for Instagram; sealed store; Accounts tab; tests with stand-in platform servers).
-2. **Posting from the PC** (platform clients ported from relay/server.mjs's adapters, which already take an injected `ctx`;
-   Instagram's clip goes through the relay's `/media`; one approval card per post; the Library's Publish target uses the queue).
-3. **Queue and scheduler** (approval states, `when`, the "app was closed" rule, YouTube `publishAt`, retries, audit log, Queue tab).
-4. **Account actions** (YouTube: edit, delete, playlists, thumbnails; Instagram: comments on/off, delete; comments inbox for both
-   with reply/hide/delete; insights cards).
-5. **Autopilot proposals** (AI tasks "plan" and "reply" through the existing agent framework; settings for cadence and quiet hours;
-   every proposal lands in the queue).
-6. **Copy, legal, release** (privacy policy: what the app stores on the PC and what passes through the relay; terms: the platforms'
-   rules; relay README; changelog Windows app 1.4.0; docs/RELEASING.md on the three platform applications).
+1. **Postiz client and key** – `social/postiz.ts` + `keys.ts` with tests against a stand-in Postiz server (every endpoint above,
+   401/413/429/5xx, MP4-only); the Accounts tab (key, channels, notices); the `social` bridge namespace. Pro-gated (`publish`).
+2. **Post a Library clip through Postiz** – the Library's "Publish to Postiz" target; the approval card with the TikTok, Instagram
+   and YouTube forms (and the generic form); transcode to MP4 when needed; upload; create; outcome polling; the Queue tab's
+   "posted" and "failed" lists.
+3. **Queue and schedule** – `when`, "Next free slot", drafts, edit/skip/retry/remove, the audit log, restore after a restart.
+4. **Autopilot proposals** – the "plan" AI task, the Autopilot card (channels, cadence, quiet hours), proposals in the Queue tab;
+   Insights cards from Postiz analytics feed the planner.
+5. **Copy, legal, release** – privacy policy (the key stays on the PC; clips go to the user's Postiz; what Postiz sees), terms
+   (Postiz's and the platforms' rules), the download and pricing pages ("post through Postiz" replaces "share"), changelog
+   Windows app 1.4.0, docs (RELEASING, this file), and the website's Account page: no longer the place to connect channels (it
+   points to Postiz), the relay's channel-connect code is retired in a later cleanup.
 
-Each phase ships behind the existing `publish` entitlement (Pro), is covered by vitest with stand-in HTTP servers, and gets a
-read-only review (deploy safety, security, copy) before it reaches `main`.
+Each phase: vitest with stand-in servers, the desktop tests, a read-only review (security, copy), then `main`.
 
 ## 5. Out of scope, on purpose
 
