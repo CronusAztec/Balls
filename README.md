@@ -3768,6 +3768,36 @@ upload then one create with the exact body; progress; the three guards; the 429 
 argument checks; `social:slot` through the guard), `tests/desktopSocial.test.ts` (the card in every state in three languages,
 the Posts tab) and `tests/desktopPublish.test.ts` (the target registers only when configured and is Pro-gated).
 
+Phases 3–4 (feature social-autopilot) add the proposal queue and the autopilot. The autopilot only proposes; nothing is
+posted until the user approves it on the card:
+
+- `desktop/src/social/queue.ts` – `SocialQueue` in `social-queue.json` (crash-safe, restored on start): items
+  `{ id, clipId, channels: [{ integrationId, platform, text, settings }], when, status proposed | approved | skipped | posted |
+  failed, by ai | user, reason, createdAt, postIds, error, log }`. A `proposed` item never reaches Postiz; `approve(id, request)`
+  runs `ClipPoster.postClip` with the request the approval card produced (the only approval path) and marks the item posted or
+  failed; `edit` / `skip` / `remove`; at most 200 items, proposals older than 14 days dropped, duplicates for the same clip
+  and channel merged; TikTok's privacy and interaction keys are never stored from a proposal; `social:queue` event on every
+  change. `desktop/src/social/autopilot.ts` keeps the settings block (`enabled` off by default, `channels`, `perDay` 1–5,
+  quiet hours "HH:MM" 22:00–08:00, `language`, `proposeHours` 6, `lastPlannedAt`), sanitised by `src/lib/desktop/autopilot.ts`.
+- the `social` bridge gains `queue.list/propose/approve/edit/skip/remove` and `autopilot.get/set`; `checkIpcArgs` bounds the
+  proposals (1–5 a call, channels like the post request, no TikTok user-only settings) and the edit.
+- `src/lib/desktop/ai/plan.ts` – the AI studio's **Plan posts** task (the agent framework, pure): unposted clips, the
+  autopilot's channels, the day's budget, the quiet hours, the local time, a playbook excerpt and the recent outcomes →
+  proposals with ids as enums, texts within the platform limits, `when` outside the quiet hours and within 48 h; `checkFinal`
+  refuses unknown ids and TikTok's settings. `planRun.ts` gathers the inputs over the bridge; the AI panel shows the result
+  with **Send to queue**; `useAutopilot.ts` (mounted by the Desktop group's section) checks every 15 minutes with
+  `shouldPlanNow` and runs the planner while the autopilot is on, the AI can answer and today's budget has room.
+- the Posts tab: the **Proposed** group on top (thumbnail, channels, editable text, when, the reason, Review and approve →
+  the card prefilled, the user completes TikTok's choices and approves; Skip; Remove) and the **Autopilot** card (toggle,
+  channel checkboxes, per day, quiet hours, language, Propose now, "The autopilot only proposes. Nothing is posted until you
+  approve it here.").
+
+Tests: `desktop/tests/socialQueue.test.ts` (persist and restore, merge, the cap and the 14-day drop, approve runs the poster
+exactly once and only with the card's request, skip / remove / edit, events, the settings' sanitising and quiet hours, the
+argument checks through the guard) and `tests/desktopAutopilot.test.ts` (the plan task's schema and checks, a scripted model,
+`shouldPlanNow`, the quiet hours, `runPlanner` over a fake bridge, the Proposed group and Autopilot card in three languages,
+the card prefilled from a proposal, the strings).
+
 ## Browser support
 
 Chrome, Edge and Safari export MP4; Firefox exports WebM. Recording uses `canvas.captureStream()` and

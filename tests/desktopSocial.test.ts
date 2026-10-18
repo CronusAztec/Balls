@@ -182,7 +182,7 @@ describe("saving a Postiz key is Pro", () => {
 });
 
 describe("the social bridge namespace", () => {
-  it("has the five phase-1 methods, the seven of phase 2, and their argument checks", () => {
+  it("has the five phase-1 methods, the seven of phase 2, the eight of phases 3–4, and their argument checks", () => {
     const social = Object.entries(BRIDGE_METHODS).filter(([k]) => k.startsWith("social."));
     expect(social).toEqual([
       ["social.key.status", "social:key-status"],
@@ -198,6 +198,15 @@ describe("the social bridge namespace", () => {
       ["social.audit", "social:audit"],
       ["social.channelSettings", "social:channel-settings"],
       ["social.slot", "social:slot"],
+      // --- social-autopilot --- phases 3–4
+      ["social.queue.list", "social:queue-list"],
+      ["social.queue.propose", "social:queue-propose"],
+      ["social.queue.approve", "social:queue-approve"],
+      ["social.queue.edit", "social:queue-edit"],
+      ["social.queue.skip", "social:queue-skip"],
+      ["social.queue.remove", "social:queue-remove"],
+      ["social.autopilot.get", "social:autopilot-get"],
+      ["social.autopilot.set", "social:autopilot-set"],
     ]);
     expect(EVENT_CHANNELS.socialProgress).toBe("social:progress");
     expect(checkIpcArgs(IPC.socialKeySet, [{ baseUrl: POSTIZ_DEFAULT_URL, apiKey: "k" }])).toBeNull();
@@ -281,7 +290,7 @@ describe("the Postiz approval card", () => {
   it("is opened from the Library's target and sits above the tabs; the Posts tab is the sixth", () => {
     const section = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "sections", "DesktopSection.tsx"), "utf8");
     expect(section).toMatch(/export const DESKTOP_TABS = \["gpu", "queue", "ai", "library", "accounts"[^,\]]*, "posts"/);
-    expect(section).toMatch(/tab === "posts" && <PostsPanel/);
+    expect(section).toMatch(/tab === "posts" && \(\s*<PostsPanel/); // --- social-autopilot --- (the panel takes the autopilot and Review now)
     expect(section).toMatch(/postizCard && <PostizPostCard/);
     expect(section).toContain("onOpenPostizCard: (item) =>");
   });

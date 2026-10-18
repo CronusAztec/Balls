@@ -4441,7 +4441,8 @@
       "settings": "Settings assistant",
       "ideas": "Ideas",
       "fighter": "New fighter",
-      "mode": "New mode"
+      "mode": "New mode",
+      "plan": "Plan posts"
     },
     "aiTaskHint": {
       "videos": "Describe the clips you want: the AI plans them with the viral bot and Find Simulation, writes the copy per platform and queues them.",
@@ -4449,7 +4450,8 @@
       "settings": "Say what to change – the AI proposes a checked settings patch and applies it (with Undo).",
       "ideas": "Fresh clip ideas grounded in the virality playbook.",
       "fighter": "Describe a fighter for the Ball Fight League – the AI designs it from the weapons and abilities the app has, keeps it fair and saves it on this computer (Wildcard division).",
-      "mode": "Describe a game mode – the AI builds it from the mechanics the app already has (a base mode plus settings), applies it (with Undo) and saves it on this computer."
+      "mode": "Describe a game mode – the AI builds it from the mechanics the app already has (a base mode plus settings), applies it (with Undo) and saves it on this computer.",
+      "plan": "Proposals for the Posts tab: which unposted clip, for which channels, with the text and a time. Nothing is posted until you approve each one on its card."
     },
     "aiPlaceholder": {
       "videos": "five satisfying glass clips for Monday",
@@ -4457,7 +4459,8 @@
       "settings": "make the ball twice as fast and rainbow, no gravity",
       "ideas": "ideas for a rhythm series this week (optional)",
       "fighter": "a tiny ninja ball with throwing stars that blinks behind its enemy",
-      "mode": "a calm mode where many pastel balls fill a glass, slowly, with soft piano"
+      "mode": "a calm mode where many pastel balls fill a glass, slowly, with soft piano",
+      "plan": "no prompt needed: the planner reads the Library and your channels"
     },
     "aiPrompt": "What you want",
     "aiPlatforms": "Platforms",
@@ -4648,6 +4651,57 @@
     "postizDeleteConfirm": "Delete this post? Postiz drops it for every channel it was created for, not only {channel}. A video already published may stay on that platform.",
     "postizDeleted": "The post was removed from Postiz.",
     "postizRetryNoClip": "The clip of this post is not in the Library any more, so the card cannot open for it.",
+    "postizProposedTitle": "Proposed · {count}",
+    "postizProposedIntro": "What the autopilot and the AI studio suggest posting. Check the text, then review and approve on the card. Skip keeps the clip for later. Remove drops the proposal.",
+    "postizProposedEmpty": "No proposals waiting. Turn on the autopilot below or press Propose now.",
+    "postizProposedReview": "Review and approve",
+    "postizProposedSkip": "Skip",
+    "postizProposedRemove": "Remove",
+    "postizProposedHint": "Approve happens on the card, where you also choose TikTok's audience and interactions.",
+    "postizProposedReason": "Why: {reason}",
+    "postizProposedClipGone": "This clip is not in the Library any more.",
+    "postizProposedBy": {
+      "ai": "written by the AI",
+      "user": "edited by you"
+    },
+    "postizQueueStatus": {
+      "proposed": "Proposed",
+      "approved": "On its way",
+      "skipped": "Skipped",
+      "posted": "Posted",
+      "failed": "Failed"
+    },
+    "postizAutopilotTitle": "Autopilot",
+    "postizAutopilotIntro": "While the app is open, the autopilot looks at your unposted clips, the playbook and what did well, and proposes posts for the channels you tick.",
+    "postizAutopilotHonest": "The autopilot only proposes. Nothing is posted until you approve it here.",
+    "postizAutopilotEnable": "Propose posts while the app is open",
+    "postizAutopilotChannels": "Channels it may propose for",
+    "postizAutopilotPerDay": "Proposals a day",
+    "postizAutopilotQuietFrom": "Quiet from",
+    "postizAutopilotQuietTo": "to",
+    "postizAutopilotLanguage": "Caption language",
+    "postizAutopilotLang": {
+      "en": "English",
+      "pl": "Polish",
+      "es": "Spanish"
+    },
+    "postizAutopilotEvery": "At most one planning run every {hours} hours.",
+    "postizAutopilotLastPlanned": "Last run {date}.",
+    "postizAutopilotNever": "No run yet.",
+    "postizAutopilotProposeNow": "Propose now",
+    "postizAutopilotPlanning": "Planning…",
+    "postizAutopilotProposed": "{count, plural, =0 {Nothing new to propose.} one {# proposal added above.} other {# proposals added above.}}",
+    "postizAutopilotFailed": "The planner could not answer. Try again in a moment.",
+    "postizAutopilotNote": {
+      "noClips": "Every clip in the Library is posted or proposed already. Render a new one first.",
+      "noChannels": "Tick at least one channel first.",
+      "dayFull": "Today's proposals are all made. The autopilot continues tomorrow.",
+      "needsAi": "The AI studio needs a model or a key before it can plan."
+    },
+    "aiPlanTitle": "Proposed posts · {count}",
+    "aiPlanSend": "Send to queue",
+    "aiPlanHint": "Send to queue puts these in the Posts tab. Nothing is posted until you approve each one on its card.",
+    "aiPlanSent": "Sent to the Posts tab. Review and approve each one there.",
     "metaTitle": "Download {siteName} for Windows",
     "metaDescription": "The simulator as a Windows app. Your graphics card encodes the clips, a queue batch-renders into a folder and an offline AI plans videos. Free download.",
     "badge": "Windows app",

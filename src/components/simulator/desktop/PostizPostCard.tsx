@@ -45,6 +45,29 @@ import { Bar, Card, errorText, formatBytes, formatSeconds, ghostBtn, inputClass,
 export interface CardPrefill {
   channelIds?: string[];
   texts?: Record<string, string>;
+  /** --- social-autopilot --- A queued proposal under review: Approve goes through `queue.approve` and marks it. */
+  queueItemId?: string;
+  /** --- social-autopilot --- The proposal's settings per channel (a YouTube title; never TikTok's choices, which the user makes here). */
+  settings?: Record<string, Record<string, unknown>>;
+  /** --- social-autopilot --- The proposed time: "now", "draft" or a UTC ISO time. */
+  when?: "now" | "draft" | string | null;
+  /** --- social-autopilot --- The planner's sentence, shown on the card. */
+  reason?: string;
+}
+
+/** --- social-autopilot --- A proposal's settings laid over the platform's defaults, TikTok's user-only choices left out whatever came. */
+export function prefilledSettings(defaults: CardChannel["settings"], proposed: Record<string, unknown> | undefined): CardChannel["settings"] {
+  if (!proposed) return defaults;
+  const extra = { ...proposed };
+  for (const key of ["privacy_level", "comment", "duet", "stitch", "__type"]) delete extra[key];
+  return { ...defaults, ...extra } as CardChannel["settings"];
+}
+
+/** --- social-autopilot --- The card's "when" for a proposal's time (a time that has passed falls back to now). */
+export function prefilledWhen(when: CardPrefill["when"], now: number = Date.now()): CardDraft["when"] {
+  if (when === "draft") return { kind: "draft" };
+  if (typeof when === "string" && when !== "now" && Date.parse(when) > now) return { kind: "schedule", local: isoToLocal(when) };
+  return { kind: "now" };
 }
 
 export interface PostCardState {
@@ -68,12 +91,12 @@ export interface PostCardState {
 export const POLL_EVERY_MS = 5_000;
 export const POLL_FOR_MS = 3 * 60_000;
 
-export function initialCardState(item: LibraryItem): PostCardState {
-  return { channels: null, schemas: {}, draft: { clipId: item.id, channels: [], when: { kind: "now" } }, prepared: null, busy: false, progress: null, result: null, outcomes: {}, polling: false, error: null, slotBusy: false };
+export function initialCardState(item: LibraryItem, prefill?: CardPrefill): PostCardState {
+  return { channels: null, schemas: {}, draft: { clipId: item.id, channels: [], when: prefill?.when !== undefined ? prefilledWhen(prefill.when) : { kind: "now" } }, prepared: null, busy: false, progress: null, result: null, outcomes: {}, polling: false, error: null, slotBusy: false };
 }
 
 export default function PostizPostCard({ bridge, item, prefill, onClose, onPosted }: { bridge: DesktopApi; item: LibraryItem; prefill?: CardPrefill; onClose: () => void; onPosted?: () => void }) {
-  const [state, setState] = useState<PostCardState>(() => initialCardState(item));
+  const [state, setState] = useState<PostCardState>(() => initialCardState(item, prefill));
   const patch = useCallback((p: Partial<PostCardState> | ((s: PostCardState) => Partial<PostCardState>)) => setState((s) => ({ ...s, ...(typeof p === "function" ? p(s) : p) })), []);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // --- review fix (social-postiz) --- an in-flight `posts()` answer after the card closed may neither patch nor re-arm the timer
@@ -87,7 +110,16 @@ export default function PostizPostCard({ bridge, item, prefill, onClose, onPoste
       .then((channels) => {
         if (gone) return;
         const picked = (prefill?.channelIds ?? []).map((id) => channels.find((c) => c.id === id)).filter((c): c is PostizChannel => !!c && !c.disabled);
-        patch((s) => ({ channels, draft: { ...s.draft, channels: picked.map((c) => cardChannelOf(c, item.meta, prefill?.texts?.[c.id])) } }));
+        patch((s) => ({
+          channels,
+          draft: {
+            ...s.draft,
+            channels: picked.map((c) => {
+              const channel = cardChannelOf(c, item.meta, prefill?.texts?.[c.id]);
+              return { ...channel, settings: prefilledSettings(channel.settings, prefill?.settings?.[c.id]) }; // --- social-autopilot ---
+            }),
+          },
+        }));
         for (const c of picked) if (familyOf(c.platform) === "other") void loadSchema(c.id);
       })
       .catch((err: unknown) => !gone && patch({ error: errorText(err) }));
@@ -156,7 +188,9 @@ export default function PostizPostCard({ bridge, item, prefill, onClose, onPoste
     if (state.busy) return;
     patch({ busy: true, error: null, result: null, outcomes: {}, progress: null });
     try {
-      const result = await bridge.social.post(toRequest(state.draft));
+      const request = toRequest(state.draft);
+      // --- social-autopilot --- a queued proposal is approved through the queue (which runs the same post and marks the item)
+      const result = prefill?.queueItemId ? await bridge.social.queue.approve(prefill.queueItemId, request) : await bridge.social.post(request);
       patch({ result, busy: false, polling: state.draft.when.kind === "now" });
       onPosted?.();
       if (state.draft.when.kind === "now") poll(result, Date.now());
@@ -177,7 +211,7 @@ export default function PostizPostCard({ bridge, item, prefill, onClose, onPoste
     }
   };
 
-  return <PostizPostCardView item={item} state={state} onDraft={setDraft} onApprove={() => void approve()} onClose={onClose} onSlot={() => void slot()} />;
+  return <PostizPostCardView item={item} state={state} onDraft={setDraft} onApprove={() => void approve()} onClose={onClose} onSlot={() => void slot()} reason={prefill?.reason} />;
 }
 
 /* ------------------------------------------------------------------ the view */
@@ -186,7 +220,7 @@ const radio = "accent-[#93d119]";
 const fieldLabel = "text-xs text-ink-2 flex flex-col gap-1";
 const row = "flex flex-wrap gap-3 text-xs text-ink-2 items-center";
 
-export function PostizPostCardView({ item, state, now = Date.now(), onDraft, onApprove, onClose, onSlot }: { item: LibraryItem; state: PostCardState; now?: number; onDraft: (draft: CardDraft) => void; onApprove: () => void; onClose: () => void; onSlot: () => void }) {
+export function PostizPostCardView({ item, state, now = Date.now(), onDraft, onApprove, onClose, onSlot, reason }: { item: LibraryItem; state: PostCardState; now?: number; onDraft: (draft: CardDraft) => void; onApprove: () => void; onClose: () => void; onSlot: () => void; reason?: string }) {
   const t = useTranslations("Desktop");
   const { channels, draft, schemas, prepared, busy, progress, result, outcomes, polling, error } = state;
   const generic: Record<string, GenericField[]> = Object.fromEntries(draft.channels.filter((c) => familyOf(c.platform) === "other").map((c) => [c.id, genericFieldsOf(schemas[c.id])]));
@@ -226,6 +260,12 @@ export function PostizPostCardView({ item, state, now = Date.now(), onDraft, onA
       }
     >
       <p className="text-xs text-ink-2">{t("postizCardIntro")}</p>
+      {/* --- social-autopilot --- the planner's reason, when the card reviews a proposal */}
+      {reason && (
+        <p className="text-xs text-ink-3" data-testid="postiz-card-reason">
+          {t("postizProposedReason", { reason })}
+        </p>
+      )}
       {/* the clip */}
       <div className="flex gap-3 items-start" data-testid="postiz-card-clip">
         <div className="w-24 h-24 bg-black rounded-lg grid place-items-center overflow-hidden shrink-0">

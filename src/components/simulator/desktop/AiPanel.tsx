@@ -214,7 +214,7 @@ export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }:
                 {t("aiStop")}
               </button>
             ) : (
-              <button type="button" className={primaryBtn} disabled={!canRun || (ai.task !== "copy" && ai.task !== "ideas" && !prompt.trim())} onClick={() => ai.run(prompt.trim(), { platforms, existing })} data-testid="ai-run">
+              <button type="button" className={primaryBtn} disabled={!canRun || (ai.task !== "copy" && ai.task !== "ideas" && ai.task !== "plan" /* --- social-autopilot --- */ && !prompt.trim())} onClick={() => ai.run(prompt.trim(), { platforms, existing })} data-testid="ai-run">
                 {t("aiRun")}
               </button>
             )}
@@ -387,6 +387,43 @@ export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }:
             </div>
           )}
         </Card>
+
+        {/* --- social-autopilot --- the planner's proposals: shown here, queued on "Send to queue", posted only from the approval card */}
+        {ai.result?.kind === "plan" && (
+          <Card
+            title={t("aiPlanTitle", { count: ai.result.proposals.length })}
+            testId="ai-plan-result"
+            actions={
+              <button type="button" className={primaryBtn} disabled={ai.result.sent || ai.result.proposals.length === 0} onClick={() => void ai.sendToQueue()} data-testid="ai-plan-send">
+                {t("aiPlanSend")}
+              </button>
+            }
+          >
+            <p className="text-xs text-ink-3">{ai.result.sent ? t("aiPlanSent") : t("aiPlanHint")}</p>
+            <ul className="space-y-2">
+              {ai.result.result.proposals.map((p) => (
+                <li key={p.clipId} className="rounded-lg border border-line p-2 text-xs space-y-1" data-testid="ai-plan-proposal">
+                  <div className="flex gap-2 items-center">
+                    <span className="font-semibold text-ink flex-1">{p.clipId}</span>
+                    <span className="text-ink-3">{p.when === "now" ? t("postizWhenNow") : new Date(p.when).toLocaleString()}</span>
+                  </div>
+                  <p className="text-ink-2">{p.reason}</p>
+                  {p.channels.map((c) => {
+                    const channel = ai.result?.kind === "plan" ? ai.result.channels.find((ch) => ch.id === c.integrationId) : undefined;
+                    return (
+                      <div key={c.integrationId} className="rounded-lg bg-surface-2/40 p-2 space-y-0.5">
+                        <p className="text-ink-3">{channel ? `${channel.name} · ${channel.platform}` : c.integrationId}</p>
+                        {c.title && <p className="font-semibold text-ink">{c.title}</p>}
+                        <p className="text-ink-2 whitespace-pre-wrap">{c.text}</p>
+                        {c.hashtags && c.hashtags.length > 0 && <p className="text-ink-3">{c.hashtags.join(" ")}</p>}
+                      </div>
+                    );
+                  })}
+                </li>
+              ))}
+            </ul>
+          </Card>
+        )}
 
         {ai.result?.kind === "ideas" && (
           <Card title={t("aiIdeasTitle")}>

@@ -32,6 +32,11 @@ import { SocialService } from "./social/service";
 import { SocialAudit } from "./social/audit"; // --- social-postiz --- phase 2: posting a Library clip, with its audit log
 import { ClipPoster } from "./social/posting";
 import { SOCIAL_POSTS_DAYS, type PostizKeyInput, type SocialPostRequest } from "@/lib/desktop/contract";
+// --- social-autopilot --- the proposal queue (restored on start; approve runs the card's request) and the autopilot's settings
+import { SocialQueue } from "./social/queue";
+import { AutopilotStore } from "./social/autopilot";
+import type { AutopilotSettings, SocialProposalInput, SocialQueueBy, SocialQueueEdit } from "@/lib/desktop/contract";
+import { DEFAULT_AUTOPILOT } from "@/lib/desktop/autopilot";
 // --- desktop-ai-fix --- net.fetch for every main-process request, node-llama-cpp's console lines in main.log, the AI status panel
 import os from "os";
 import type { AiDiagnoseOptions } from "@/lib/desktop/contract";
@@ -94,7 +99,7 @@ function start() {
   process.on("unhandledRejection", (err) => logger.error(`unhandled rejection: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`));
   mirrorConsole(console, (level, message) => logger.write(level, message)); // --- desktop-ai-fix --- node-llama-cpp's backend choice and fallbacks
 
-  const store = new Store<{ prefs: DesktopPrefs; window: WindowState; cloud: CloudSettings; postiz: PostizSettings }>({ name: "config", defaults: { prefs: DEFAULT_PREFS, window: DEFAULT_WINDOW, cloud: DEFAULT_CLOUD, postiz: DEFAULT_POSTIZ } });
+  const store = new Store<{ prefs: DesktopPrefs; window: WindowState; cloud: CloudSettings; postiz: PostizSettings; autopilot: AutopilotSettings }>({ name: "config", defaults: { prefs: DEFAULT_PREFS, window: DEFAULT_WINDOW, cloud: DEFAULT_CLOUD, postiz: DEFAULT_POSTIZ, autopilot: DEFAULT_AUTOPILOT } });
   const prefs = (): DesktopPrefs => resolvePrefs(store.get("prefs"));
   const setPrefs = (patch: Partial<DesktopPrefs>) => store.set("prefs", { ...prefs(), ...sanitizePrefs(patch) });
 
@@ -213,6 +218,20 @@ function start() {
     run: runFfmpeg,
     audit: socialAudit,
     emit: (e) => send(DESKTOP_EVENTS.socialProgress, e),
+    log: (level, message) => logger.write(level, message),
+  });
+  // --- social-autopilot --- the proposal queue (social-queue.json; a proposal never reaches Postiz, approve runs the card's
+  // request through the same poster) and the autopilot's settings (their own block, sanitised like the preferences)
+  const socialQueue = new SocialQueue({
+    store: new JsonFileStore(locations.socialQueueFile),
+    poster,
+    emit: (items) => send(DESKTOP_EVENTS.socialQueue, items),
+    log: (level, message) => logger.write(level, message),
+  });
+  const autopilot = new AutopilotStore({
+    settings: () => store.get("autopilot"),
+    setSettings: (settings) => store.set("autopilot", settings),
+    defaultLanguage: menuLanguage(app.getLocale()),
     log: (level, message) => logger.write(level, message),
   });
   let updateNotified: string | null = null; // --- desktop-autorelease --- the version the Windows notification was shown for
@@ -408,6 +427,16 @@ function start() {
     [IPC.socialAudit]: (limit) => socialAudit.recent(typeof limit === "number" ? limit : 50),
     [IPC.socialChannelSettings]: (channelId) => social.channelSettings(channelId as string),
     [IPC.socialSlot]: (channelId) => social.slot(channelId as string),
+    // --- social-autopilot --- (every argument checked in checkIpcArgs: proposals bounded and free of TikTok's user-only
+    // settings, approve carries the card's request, the autopilot patch is sanitised field by field)
+    [IPC.socialQueueList]: () => socialQueue.list(),
+    [IPC.socialQueuePropose]: (proposals, by) => socialQueue.propose(proposals as SocialProposalInput[], by as SocialQueueBy),
+    [IPC.socialQueueApprove]: (id, request) => socialQueue.approve(id as string, request as SocialPostRequest),
+    [IPC.socialQueueEdit]: (id, patch) => socialQueue.edit(id as string, patch as SocialQueueEdit),
+    [IPC.socialQueueSkip]: (id) => socialQueue.skip(id as string),
+    [IPC.socialQueueRemove]: (id) => socialQueue.remove(id as string),
+    [IPC.socialAutopilotGet]: () => autopilot.get(),
+    [IPC.socialAutopilotSet]: (patch) => autopilot.set(patch),
   };
 
   /* ---------------------------------------------------------------- window, menu, tray */
@@ -876,6 +905,11 @@ function start() {
       return new Response(body, { status: res.status, headers: { "content-type": contentType(res.file), "cache-control": "no-cache" } });
     });
     registerHandlers(ipcMain, table, logger.warn);
+    // --- social-autopilot --- the proposal queue restored on start (an approve the app closed in the middle of becomes failed)
+    void socialQueue.load().then(
+      (items) => logger.info(`social queue restored: ${items.length} item(s), ${items.filter((i) => i.status === "proposed").length} proposed`),
+      (err: unknown) => logger.warn(`social queue: ${describeError(err)}`),
+    );
     // --- desktop-ai-fix --- the smoke run's model (JBL_SMOKE_MODEL) is selected before the page asks for the AI status
     if (SMOKE && process.env.JBL_SMOKE_MODEL) await prepareSmokeModel(process.env.JBL_SMOKE_MODEL).catch((err: unknown) => void (smokeModelError = describeError(err)));
     buildMenu();

@@ -103,9 +103,10 @@ Windows app, Electron main (Node 22, no new dependencies)          Postiz (cloud
                        analytics, notifications (fetch + FormData)   /analytics /notifications
   social/keys.ts       the sealed API key + base URL (SecretBox,
                        electron-store "postiz" block)
-  social/queue.ts      the approval queue: items, states, the
-                       scheduler that creates approved posts at
-                       the right moment, outcome polling
+  social/queue.ts      the proposal queue: items, states, merge,
+                       cap, approve = the card's request through
+                       ClipPoster (built: phase 3)
+  social/autopilot.ts  the autopilot's settings block (phase 4)
   social/transcode.ts  WebM → MP4 (bundled ffmpeg) before upload
   social/audit.ts      social-audit.json: every call that changed
                        something, with the time and who approved
@@ -164,8 +165,46 @@ Rules in code:
    and `tests/desktopPublish.test.ts`. Not in this phase: a thumbnail-frame picker (`thumbnailMs` travels but the card does
    not set it), edit / skip of a post, restoring a half-finished post after a restart (phase 3).
 3. **Queue and schedule** – `when`, "Next free slot", drafts, edit/skip/retry/remove, the audit log, restore after a restart.
+   **Built** (2026-10-18): `desktop/src/social/queue.ts` (`SocialQueue` in `social-queue.json` through the crash-safe
+   JsonFileStore, restored on start; item `{ id, clipId, channels: [{ integrationId, platform, text, settings }], when,
+   status proposed | approved | skipped | posted | failed, by ai | user, reason, createdAt, postIds[], error, log[] }`). Rules
+   in code: a `proposed` item never calls Postiz (nothing in the file reaches Postiz except `approve`); `approve(id, request)`
+   runs the existing `ClipPoster.postClip` with the request the approval card produced – the card is the only approval path –
+   and marks the item posted (the post ids) or failed (the error, Approve may run again); `edit` (text, settings, when: the
+   text is the user's from then on), `skip`, `remove` (refused while a post is on its way), `list`; at most 200 items
+   (finished ones go first), proposals older than 14 days are dropped, a proposal for a clip and channel already `proposed` is
+   merged into that item (the user's edits stay); an item left `approved` by a crash is restored as failed; TikTok's privacy
+   and interaction keys are stripped from anything proposed or read back from the file; the `social:queue` event carries the
+   whole list on every change. Bridge: `social.queue.list/propose/approve/edit/skip/remove`, every argument checked in
+   `checkIpcArgs` (`checkSocialProposals`: 1–5 proposals a call, channels bounded like the post request, no TikTok user-only
+   settings, `when` in the future or null; `checkSocialQueueEdit`). The Posts tab's **Proposed** group on top: thumbnail,
+   channels, the text (editable), when, the planner's reason, status, who wrote it, **Review and approve** (the card opens
+   prefilled with the texts, a YouTube title and the time; the user chooses TikTok's audience and interactions there and
+   clicks Approve, which goes through `queue.approve`), Skip, Remove. Tests: `desktop/tests/socialQueue.test.ts`,
+   `tests/desktopAutopilot.test.ts`. Not in this phase: "Retry" of a failed Postiz post as a queue item (the Posts tab's
+   Retry still opens the card directly), Postiz drafts mirrored into the queue.
 4. **Autopilot proposals** – the "plan" AI task, the Autopilot card (channels, cadence, quiet hours), proposals in the Queue tab;
    Insights cards from Postiz analytics feed the planner.
+   **Built** (2026-10-18): the settings (`desktop/src/social/autopilot.ts`, the config's `autopilot` block, sanitised field by
+   field in `src/lib/desktop/autopilot.ts`: `enabled` false by default, `channels`, `perDay` 1..5, `quietFrom`/`quietTo`
+   "HH:MM" local 22:00–08:00, `language` en | pl | es (the app's), `proposeHours` 6, `lastPlannedAt`), the bridge's
+   `social.autopilot.get/set`; the AI task **plan** (`src/lib/desktop/ai/plan.ts`, pure, on the agent framework like
+   `copyTask`: the unposted clips, the autopilot's channels, the budget, the quiet hours, the local time, a playbook excerpt
+   and the recent PUBLISHED / ERROR outcomes → `{ proposals: [{ clipId, channels: [{ integrationId, text, title?,
+   hashtags? }], when, reason }] }`, ids as enums, ≤ perDay, texts within `lib/publish/platforms.ts`' limits, `when`
+   outside the quiet hours and within 48 h, `checkFinal` refusing unknown ids and TikTok's privacy / interaction settings;
+   temperature 0.6, 1500 tokens, 4 steps); `planRun.ts` gathers the inputs over the bridge and turns the answer into queue
+   proposals (`__type` and a YouTube title are the only settings). The page runs it two ways: the AI studio's **Plan posts**
+   job with a result card and **Send to queue** (`useDesktopAi.ts`, `AiPanel.tsx`), and the trigger in `useAutopilot.ts`
+   (mounted by the Desktop group's section, so it runs while the group is shown whichever tab is open): every 15 minutes
+   `shouldPlanNow(settings, queue, now)` – enabled, a channel ticked, the last run older than `proposeHours`, fewer than
+   `perDay` of the AI's proposals today – and, when the AI can answer and no studio job is on, the planner runs and
+   `queue.propose(…, "ai")`; `lastPlannedAt` is written after every run. The Posts tab's **Autopilot** card: the toggle, the
+   channel checkboxes from `social.channels`, per day, quiet hours, language, "Propose now", and the line "The autopilot
+   only proposes. Nothing is posted until you approve it here." Strings in en / pl / es. Tests: `tests/desktopAutopilot.test.ts`
+   (the task's schema and checks, a scripted model, `shouldPlanNow`, the quiet hours, `runPlanner` over a fake bridge, the two
+   cards in three languages, the card prefilled from a proposal). Not in this phase: Postiz analytics (Insights) as a planner
+   input beyond the outcome list, a planner that runs with the app closed (by design it never does).
 5. **Copy, legal, release** – privacy policy (the key stays on the PC; clips go to the user's Postiz; what Postiz sees), terms
    (Postiz's and the platforms' rules), the download and pricing pages ("post through Postiz" replaces "share"), changelog
    Windows app 1.4.0, docs (RELEASING, this file), and the website's Account page: no longer the place to connect channels (it

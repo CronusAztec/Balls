@@ -22,6 +22,8 @@ export interface AppLocations {
   libraryFile: string;
   /** --- social-postiz --- Every post created or removed through Postiz, with the time and who approved it. */
   socialAuditFile: string;
+  /** --- social-autopilot --- The proposal queue (restored on start). */
+  socialQueueFile: string;
 }
 
 export function appLocations(options: { packaged: boolean; resourcesPath: string; appPath: string; userData: string; portableDir?: string | null }): AppLocations {
@@ -39,5 +41,6 @@ export function appLocations(options: { packaged: boolean; resourcesPath: string
     customFile: path.join(dataDir, "custom-content.json"),
     libraryFile: path.join(dataDir, "library.json"),
     socialAuditFile: path.join(dataDir, "social-audit.json"), // --- social-postiz ---
+    socialQueueFile: path.join(dataDir, "social-queue.json"), // --- social-autopilot ---
   };
 }

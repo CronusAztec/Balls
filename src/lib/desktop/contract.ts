@@ -66,6 +66,16 @@ export const IPC = {
   socialAudit: "social:audit",
   socialChannelSettings: "social:channel-settings",
   socialSlot: "social:slot",
+  // --- social-autopilot --- phases 3–4: the proposal queue (a proposal never reaches Postiz; approve runs the card's request)
+  // and the autopilot's settings
+  socialQueueList: "social:queue-list",
+  socialQueuePropose: "social:queue-propose",
+  socialQueueApprove: "social:queue-approve",
+  socialQueueEdit: "social:queue-edit",
+  socialQueueSkip: "social:queue-skip",
+  socialQueueRemove: "social:queue-remove",
+  socialAutopilotGet: "social:autopilot-get",
+  socialAutopilotSet: "social:autopilot-set",
 } as const;
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
 
@@ -78,6 +88,7 @@ export const DESKTOP_EVENTS = {
   renderProgress: "render:progress",
   update: "update:status",
   socialProgress: "social:progress", // --- social-postiz --- a clip on its way to Postiz (transcode, upload, create)
+  socialQueue: "social:queue", // --- social-autopilot --- the proposal queue changed (the whole list travels)
 } as const;
 export type DesktopEventChannel = (typeof DESKTOP_EVENTS)[keyof typeof DESKTOP_EVENTS];
 
@@ -612,6 +623,144 @@ export function checkSocialPostRequest(value: unknown, now: number = Date.now())
   return null;
 }
 
+/* --- social-autopilot --- phases 3–4: the proposal queue and the autopilot (docs/SOCIAL-AUTOPILOT.md, sections 3–4) --- */
+
+/** How many items the queue keeps, how old a proposal may get before it is dropped, how many proposals one call may add. */
+export const SOCIAL_QUEUE_MAX = 200;
+export const SOCIAL_PROPOSAL_MAX_AGE_DAYS = 14;
+export const SOCIAL_PROPOSALS_PER_CALL = 5;
+/** The longest reason a planner may give and the longest log line an item keeps. */
+export const SOCIAL_REASON_MAX = 300;
+/** TikTok's settings the user must choose every time: never proposed, never accepted from the AI path. */
+export const TIKTOK_USER_ONLY_KEYS: readonly string[] = ["privacy_level", "comment", "duet", "stitch"];
+
+export type SocialQueueStatus = "proposed" | "approved" | "skipped" | "posted" | "failed";
+export type SocialQueueBy = "ai" | "user";
+
+/** One channel of a queued proposal: the text and whatever settings are known (incomplete: the card completes them). */
+export interface SocialQueueChannel {
+  integrationId: string;
+  platform: string;
+  text: string;
+  settings: Record<string, unknown>;
+}
+
+/** An item of social-queue.json. */
+export interface SocialQueueItem {
+  id: string;
+  clipId: string;
+  channels: SocialQueueChannel[];
+  /** "now", "draft", a UTC ISO time, or null (the card decides). */
+  when: "now" | "draft" | string | null;
+  status: SocialQueueStatus;
+  /** Who wrote the text as it stands: the planner, or the user after an edit. */
+  by: SocialQueueBy;
+  /** The planner's one sentence: why this clip, why this time. */
+  reason: string;
+  /** ISO time. */
+  createdAt: string;
+  postIds: { channelId: string; postId: string }[];
+  error: string | null;
+  log: { at: string; text: string }[];
+}
+
+/** What `queue.propose` takes (from the planner or the AI panel's "Send to queue"). */
+export interface SocialProposalInput {
+  clipId: string;
+  channels: { integrationId: string; platform: string; text: string; settings?: Record<string, unknown> }[];
+  when: "now" | "draft" | string | null;
+  reason: string;
+}
+
+/** What `queue.edit` changes: the text or settings of some channels, and when. */
+export interface SocialQueueEdit {
+  channels?: { integrationId: string; text?: string; settings?: Record<string, unknown> }[];
+  when?: "now" | "draft" | string | null;
+}
+
+export const AUTOPILOT_LANGUAGES = ["en", "pl", "es"] as const;
+export type AutopilotLanguage = (typeof AUTOPILOT_LANGUAGES)[number];
+
+/** The autopilot's settings (the config's `autopilot` block). It only proposes, and only while the app is open. */
+export interface AutopilotSettings {
+  enabled: boolean;
+  /** The Postiz channels (integration ids) it may propose for. */
+  channels: string[];
+  /** 1..5 proposals a day. */
+  perDay: number;
+  /** "HH:MM" local: no proposed time falls between them. */
+  quietFrom: string;
+  quietTo: string;
+  language: AutopilotLanguage;
+  /** At most one planning run every this many hours while the app is open. */
+  proposeHours: number;
+  /** ISO time of the last planning run (null: never). */
+  lastPlannedAt: string | null;
+}
+
+/** The TikTok choices the user must make, found in a settings object (empty when none). */
+export function tiktokUserOnlyKeysIn(settings: unknown): string[] {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return [];
+  return Object.keys(settings as Record<string, unknown>).filter((k) => TIKTOK_USER_ONLY_KEYS.includes(k));
+}
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v) && Object.getPrototypeOf(v) === Object.prototype;
+
+/** Whether `when` is one of the two words, null, or an ISO time in the future. */
+export function isQueueWhen(when: unknown, now: number = Date.now()): boolean {
+  return when === null || isSocialWhen(when, now);
+}
+
+/** Validates `queue.propose(proposals, by)` (an error message, or null). The AI path never carries TikTok's user-only settings. */
+export function checkSocialProposals(value: unknown, by: unknown, now: number = Date.now()): string | null {
+  if (!Array.isArray(value) || value.length === 0 || value.length > SOCIAL_PROPOSALS_PER_CALL) return `social.queue.propose: 1 to ${SOCIAL_PROPOSALS_PER_CALL} proposals`;
+  if (by !== "ai" && by !== "user") return 'social.queue.propose: by must be "ai" or "user"';
+  for (const raw of value) {
+    const p = raw as Partial<SocialProposalInput> | null;
+    if (!isPlainObject(p)) return "social.queue.propose: proposal";
+    if (typeof p.clipId !== "string" || p.clipId.length === 0 || p.clipId.length >= 512) return "social.queue.propose: clipId";
+    if (!Array.isArray(p.channels) || p.channels.length === 0 || p.channels.length > SOCIAL_MAX_CHANNELS) return `social.queue.propose: channels (1 to ${SOCIAL_MAX_CHANNELS})`;
+    const seen = new Set<string>();
+    for (const c of p.channels as Partial<SocialProposalInput["channels"][number]>[]) {
+      if (!isPlainObject(c)) return "social.queue.propose: channel";
+      if (typeof c.integrationId !== "string" || c.integrationId.length === 0 || c.integrationId.length >= 512) return "social.queue.propose: channel integrationId";
+      if (seen.has(c.integrationId)) return "social.queue.propose: duplicate channel";
+      seen.add(c.integrationId);
+      if (typeof c.platform !== "string" || c.platform.length === 0 || c.platform.length > 60) return "social.queue.propose: channel platform";
+      if (typeof c.text !== "string" || c.text.length > SOCIAL_MAX_TEXT) return `social.queue.propose: channel text (at most ${SOCIAL_MAX_TEXT} characters)`;
+      if (c.settings !== undefined) {
+        if (!isPlainObject(c.settings) || JSON.stringify(c.settings).length > SOCIAL_MAX_SETTINGS_JSON) return "social.queue.propose: channel settings";
+        const forbidden = tiktokUserOnlyKeysIn(c.settings);
+        if (forbidden.length) return `social.queue.propose: TikTok's ${forbidden.join(", ")} are chosen by the user on the card, never proposed`;
+      }
+    }
+    if (!isQueueWhen(p.when, now)) return 'social.queue.propose: when must be "now", "draft", null or an ISO time in the future';
+    if (typeof p.reason !== "string" || p.reason.length > SOCIAL_REASON_MAX) return `social.queue.propose: reason (at most ${SOCIAL_REASON_MAX} characters)`;
+  }
+  return null;
+}
+
+/** Validates `queue.edit(id, patch)` (an error message, or null). */
+export function checkSocialQueueEdit(value: unknown, now: number = Date.now()): string | null {
+  const e = value as Partial<SocialQueueEdit> | null;
+  if (!isPlainObject(e)) return "social.queue.edit(id, patch)";
+  if (e.when !== undefined && !isQueueWhen(e.when, now)) return 'social.queue.edit: when must be "now", "draft", null or an ISO time in the future';
+  if (e.channels !== undefined) {
+    if (!Array.isArray(e.channels) || e.channels.length > SOCIAL_MAX_CHANNELS) return "social.queue.edit: channels";
+    for (const c of e.channels as Partial<NonNullable<SocialQueueEdit["channels"]>[number]>[]) {
+      if (!isPlainObject(c) || typeof c.integrationId !== "string" || c.integrationId.length === 0 || c.integrationId.length >= 512) return "social.queue.edit: channel integrationId";
+      if (c.text !== undefined && (typeof c.text !== "string" || c.text.length > SOCIAL_MAX_TEXT)) return `social.queue.edit: channel text (at most ${SOCIAL_MAX_TEXT} characters)`;
+      if (c.settings !== undefined) {
+        if (!isPlainObject(c.settings) || JSON.stringify(c.settings).length > SOCIAL_MAX_SETTINGS_JSON) return "social.queue.edit: channel settings";
+        const forbidden = tiktokUserOnlyKeysIn(c.settings);
+        if (forbidden.length) return `social.queue.edit: TikTok's ${forbidden.join(", ")} are chosen on the card`;
+      }
+    }
+  }
+  for (const key of Object.keys(e)) if (key !== "channels" && key !== "when") return `social.queue.edit: unknown field "${key}"`;
+  return null;
+}
+
 /* ------------------------------------------------------------------ updates */
 
 export interface UpdateStatus {
@@ -631,6 +780,7 @@ export interface DesktopEventMap {
   renderProgress: RenderProgressEvent;
   update: UpdateStatus;
   socialProgress: SocialProgressEvent; // --- social-postiz ---
+  socialQueue: SocialQueueItem[]; // --- social-autopilot ---
 }
 export type DesktopEventName = keyof DesktopEventMap;
 
@@ -725,6 +875,22 @@ export interface DesktopApi {
     channelSettings(channelId: string): Promise<SocialChannelSettings>;
     /** Postiz's next free slot for a channel ("Next free slot" on the card). */
     slot(channelId: string): Promise<SocialSlot>;
+    /** --- social-autopilot --- The proposal queue (social-queue.json). A proposal never reaches Postiz: `approve` runs the card's request. */
+    queue: {
+      list(): Promise<SocialQueueItem[]>;
+      /** Adds proposals (at most 5 a call); a proposal for a clip and channel already proposed is merged into that item. */
+      propose(proposals: SocialProposalInput[], by: SocialQueueBy): Promise<SocialQueueItem[]>;
+      /** The card's Approve for a queued item: runs the post with the request the card produced, marks the item posted or failed. */
+      approve(id: string, request: SocialPostRequest): Promise<SocialPostResult>;
+      edit(id: string, patch: SocialQueueEdit): Promise<SocialQueueItem[]>;
+      skip(id: string): Promise<SocialQueueItem[]>;
+      remove(id: string): Promise<SocialQueueItem[]>;
+    };
+    /** --- social-autopilot --- The autopilot's settings (it only proposes, never posts). */
+    autopilot: {
+      get(): Promise<AutopilotSettings>;
+      set(patch: Partial<AutopilotSettings>): Promise<AutopilotSettings>;
+    };
   };
   /** Subscribes to an event from the main process; returns the unsubscribe. */
   on<K extends DesktopEventName>(event: K, listener: (payload: DesktopEventMap[K]) => void): () => void;
@@ -739,6 +905,7 @@ export const EVENT_CHANNELS: Record<DesktopEventName, DesktopEventChannel> = {
   renderProgress: DESKTOP_EVENTS.renderProgress,
   update: DESKTOP_EVENTS.update,
   socialProgress: DESKTOP_EVENTS.socialProgress, // --- social-postiz ---
+  socialQueue: DESKTOP_EVENTS.socialQueue, // --- social-autopilot ---
 };
 
 /**
@@ -796,6 +963,15 @@ export const BRIDGE_METHODS = {
   "social.audit": IPC.socialAudit,
   "social.channelSettings": IPC.socialChannelSettings,
   "social.slot": IPC.socialSlot,
+  // --- social-autopilot ---
+  "social.queue.list": IPC.socialQueueList,
+  "social.queue.propose": IPC.socialQueuePropose,
+  "social.queue.approve": IPC.socialQueueApprove,
+  "social.queue.edit": IPC.socialQueueEdit,
+  "social.queue.skip": IPC.socialQueueSkip,
+  "social.queue.remove": IPC.socialQueueRemove,
+  "social.autopilot.get": IPC.socialAutopilotGet,
+  "social.autopilot.set": IPC.socialAutopilotSet,
 } as const satisfies Record<string, IpcChannel>;
 
 /** `log` is fire-and-forget (`ipcRenderer.send`); every other channel is a request. */
@@ -840,6 +1016,8 @@ export function checkIpcArgs(channel: IpcChannel, args: readonly unknown[]): str
     case IPC.socialPostDelete:
     case IPC.socialChannelSettings:
     case IPC.socialSlot:
+    case IPC.socialQueueSkip: // --- social-autopilot --- a queue item's id
+    case IPC.socialQueueRemove:
       return isString(a) && a.length > 0 && a.length < 512 ? null : `${channel}(id)`;
     case IPC.libraryRemove:
       return isString(a) && typeof b === "boolean" ? null : "library.remove(id, deleteFile)";
@@ -891,6 +1069,18 @@ export function checkIpcArgs(channel: IpcChannel, args: readonly unknown[]): str
       return a === undefined || (typeof a === "number" && Number.isInteger(a) && a >= 1 && a <= SOCIAL_POSTS_MAX_DAYS) ? null : `social.posts(days? 1 to ${SOCIAL_POSTS_MAX_DAYS})`;
     case IPC.socialAudit:
       return a === undefined || (typeof a === "number" && Number.isInteger(a) && a >= 1 && a <= 1000) ? null : "social.audit(limit? 1 to 1000)";
+    // --- social-autopilot --- the proposals (bounded like the post request, at most 5 a call, no TikTok user-only settings), an
+    // approve with the card's request, an edit, and the autopilot's patch (sanitised field by field in the main process)
+    case IPC.socialQueuePropose:
+      return checkSocialProposals(a, b);
+    case IPC.socialQueueApprove:
+      if (!isString(a) || a.length === 0 || a.length >= 512) return "social.queue.approve(id, request)";
+      return checkSocialPostRequest(b);
+    case IPC.socialQueueEdit:
+      if (!isString(a) || a.length === 0 || a.length >= 512) return "social.queue.edit(id, patch)";
+      return checkSocialQueueEdit(b);
+    case IPC.socialAutopilotSet:
+      return a && typeof a === "object" && !Array.isArray(a) && JSON.stringify(a).length <= 20_000 ? null : "social.autopilot.set(patch)";
     default:
       return null;
   }

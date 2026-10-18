@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { DesktopApi, LibraryItem, PostizNotice, SocialAuditEntry, SocialPostOutcome } from "@/lib/desktop/contract";
+import { AUTOPILOT_LANGUAGES, type AutopilotSettings, type DesktopApi, type LibraryItem, type PostizChannel, type PostizNotice, type SocialAuditEntry, type SocialPostOutcome, type SocialQueueItem } from "@/lib/desktop/contract";
+import { AUTOPILOT_PER_DAY_MAX, AUTOPILOT_PER_DAY_MIN } from "@/lib/desktop/autopilot"; // --- social-autopilot ---
 import type { CardPrefill } from "./PostizPostCard";
+import type { AutopilotApi } from "./useAutopilot"; // --- social-autopilot ---
 import { platformLabel } from "./AccountsPanel";
-import { Card, dangerBtn, errorText, ghostBtn } from "./ui";
+import { Card, dangerBtn, errorText, ghostBtn, inputClass, primaryBtn } from "./ui";
 
 /*
  * --- social-postiz --- The Posts tab (phase 2 of docs/SOCIAL-AUTOPILOT.md): what became of the posts the user approved, as
@@ -40,7 +42,24 @@ export function clipOfPost(postId: string, audit: readonly SocialAuditEntry[], l
   return library.find((i) => i.id === entry.clipId && i.exists) ?? null;
 }
 
-export default function PostsPanel({ bridge, onRetry, onAccounts }: { bridge: DesktopApi; onRetry: (item: LibraryItem, prefill: CardPrefill) => void; onAccounts: () => void }) {
+/** --- social-autopilot --- The card's prefill for a queued proposal: its channels, texts, settings, time, reason and id. */
+export function prefillOfProposal(item: SocialQueueItem): CardPrefill {
+  return {
+    queueItemId: item.id,
+    channelIds: item.channels.map((c) => c.integrationId),
+    texts: Object.fromEntries(item.channels.map((c) => [c.integrationId, c.text])),
+    settings: Object.fromEntries(item.channels.map((c) => [c.integrationId, c.settings])),
+    when: item.when,
+    reason: item.reason,
+  };
+}
+
+/** --- social-autopilot --- The queue items the Proposed group shows: waiting for review, on their way, or failed (Review again). */
+export function proposedItems(queue: readonly SocialQueueItem[]): SocialQueueItem[] {
+  return queue.filter((i) => i.status === "proposed" || i.status === "approved" || i.status === "failed");
+}
+
+export default function PostsPanel({ bridge, onRetry, onAccounts, autopilot, onReview }: { bridge: DesktopApi; onRetry: (item: LibraryItem, prefill: CardPrefill) => void; onAccounts: () => void; autopilot?: AutopilotApi; onReview?: (item: LibraryItem, prefill: CardPrefill) => void }) {
   const t = useTranslations("Desktop");
   const [state, setState] = useState<PostsViewState>({ configured: null, posts: [], notices: [], error: null, message: null, busy: false });
   const patch = useCallback((p: Partial<PostsViewState>) => setState((s) => ({ ...s, ...p })), []);
@@ -87,7 +106,191 @@ export default function PostsPanel({ bridge, onRetry, onAccounts }: { bridge: De
     }
   };
 
-  return <PostsView state={state} onRefresh={() => void load()} onRetry={(p) => void retry(p)} onDelete={(p) => void remove(p)} onAccounts={onAccounts} />;
+  // --- social-autopilot --- Review and approve: the card opens prefilled for the proposal's clip (the user completes TikTok's choices there)
+  const review = (item: SocialQueueItem) => {
+    const clip = autopilot?.library.find((i) => i.id === item.clipId && i.exists);
+    if (!clip) {
+      patch({ error: t("postizRetryNoClip") });
+      return;
+    }
+    onReview?.(clip, prefillOfProposal(item));
+  };
+
+  return (
+    <div className="space-y-4">
+      {autopilot && state.configured && (
+        <ProposedView items={proposedItems(autopilot.queue)} library={autopilot.library} channels={autopilot.channels} busy={autopilot.busy} error={autopilot.error} onReview={review} onSkip={(id) => void autopilot.skip(id)} onRemove={(id) => void autopilot.remove(id)} onText={(id, channelId, text) => void autopilot.editText(id, channelId, text)} />
+      )}
+      {autopilot && state.configured && <AutopilotView settings={autopilot.settings} channels={autopilot.channels} planning={autopilot.planning} note={autopilot.note} busy={autopilot.busy} onChange={(p) => void autopilot.setSettings(p)} onProposeNow={() => void autopilot.proposeNow()} />}
+      <PostsView state={state} onRefresh={() => void load()} onRetry={(p) => void retry(p)} onDelete={(p) => void remove(p)} onAccounts={onAccounts} />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ --- social-autopilot --- the Proposed group */
+
+export function ProposedView({ items, library, channels, busy, error, onReview, onSkip, onRemove, onText }: { items: SocialQueueItem[]; library: readonly LibraryItem[]; channels: readonly PostizChannel[]; busy: boolean; error: string | null; onReview: (item: SocialQueueItem) => void; onSkip: (id: string) => void; onRemove: (id: string) => void; onText: (id: string, channelId: string, text: string) => void }) {
+  const t = useTranslations("Desktop");
+  const time = (when: SocialQueueItem["when"]) => {
+    if (when === "now" || when === null) return t("postizWhenNow");
+    if (when === "draft") return t("postizWhenDraft");
+    const at = Date.parse(when);
+    return Number.isFinite(at) ? new Date(at).toLocaleString() : when;
+  };
+  return (
+    <Card title={t("postizProposedTitle", { count: items.length })} testId="postiz-proposed">
+      <p className="text-xs text-ink-2">{t("postizProposedIntro")}</p>
+      {error && (
+        <p className="text-xs text-danger" role="alert" data-testid="postiz-proposed-error">
+          {error}
+        </p>
+      )}
+      {items.length === 0 ? (
+        <p className="text-xs text-ink-3" data-testid="postiz-proposed-empty">
+          {t("postizProposedEmpty")}
+        </p>
+      ) : (
+        <ul className="space-y-2">
+          {items.map((item) => {
+            const clip = library.find((i) => i.id === item.clipId);
+            const locked = busy || item.status === "approved";
+            return (
+              <li key={item.id} className="rounded-lg border border-line bg-surface-2/40 p-3 space-y-2 text-xs" data-testid="postiz-proposal" data-status={item.status} data-by={item.by} data-queue-id={item.id}>
+                <div className="flex gap-3 items-start">
+                  <div className="w-16 h-16 bg-black rounded-lg grid place-items-center overflow-hidden shrink-0">
+                    {clip?.thumbnail ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={clip.thumbnail} alt={clip.meta.title} className="h-full object-contain" />
+                    ) : (
+                      <span className="text-[10px] text-ink-3">MP4</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <p className="text-ink font-semibold truncate">{clip ? clip.meta.title || clip.fileName : t("postizProposedClipGone")}</p>
+                    <p className="text-ink-3">
+                      {item.channels.map((c) => channels.find((ch) => ch.id === c.integrationId)?.name ?? platformLabel(c.platform)).join(" · ")} · {time(item.when)} · {t(`postizQueueStatus.${item.status}`)} · {t(`postizProposedBy.${item.by}`)}
+                    </p>
+                    {item.reason && <p className="text-ink-2">{t("postizProposedReason", { reason: item.reason })}</p>}
+                    {item.status === "failed" && item.error && (
+                      <p className="text-danger" data-testid="postiz-proposal-error">
+                        {item.error}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {item.channels.map((c) => (
+                  <label key={c.integrationId} className="flex flex-col gap-1 text-ink-2">
+                    <span>
+                      {channels.find((ch) => ch.id === c.integrationId)?.name ?? c.integrationId} <span className="text-ink-3">· {platformLabel(c.platform)}</span>
+                    </span>
+                    <textarea className={`${inputClass} min-h-[3.5rem]`} defaultValue={c.text} disabled={locked} onBlur={(e) => e.target.value !== c.text && onText(item.id, c.integrationId, e.target.value)} data-testid="postiz-proposal-text" />
+                  </label>
+                ))}
+                <div className="flex flex-wrap gap-2 items-center">
+                  <button type="button" className={primaryBtn} disabled={locked || !clip?.exists} onClick={() => onReview(item)} data-testid="postiz-proposal-review">
+                    {t("postizProposedReview")}
+                  </button>
+                  <button type="button" className={ghostBtn} disabled={locked} onClick={() => onSkip(item.id)} data-testid="postiz-proposal-skip">
+                    {t("postizProposedSkip")}
+                  </button>
+                  <button type="button" className={dangerBtn} disabled={locked} onClick={() => onRemove(item.id)} data-testid="postiz-proposal-remove">
+                    {t("postizProposedRemove")}
+                  </button>
+                  <span className="text-ink-3">{t("postizProposedHint")}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+/* ------------------------------------------------------------------ --- social-autopilot --- the Autopilot card */
+
+export function AutopilotView({ settings, channels, planning, note, busy, onChange, onProposeNow }: { settings: AutopilotSettings | null; channels: readonly PostizChannel[]; planning: boolean; note: AutopilotApi["note"]; busy: boolean; onChange: (patch: Partial<AutopilotSettings>) => void; onProposeNow: () => void }) {
+  const t = useTranslations("Desktop");
+  const s = settings;
+  const noteText = () => {
+    if (!note) return null;
+    if (note.key === "proposed") return t("postizAutopilotProposed", { count: note.count ?? 0 });
+    if (note.key === "error") return note.error ?? t("postizAutopilotFailed");
+    return t(`postizAutopilotNote.${note.key}`);
+  };
+  return (
+    <Card
+      title={t("postizAutopilotTitle")}
+      testId="postiz-autopilot"
+      actions={
+        <button type="button" className={primaryBtn} disabled={!s || planning || busy || s.channels.length === 0} onClick={onProposeNow} data-testid="postiz-autopilot-now">
+          {planning ? t("postizAutopilotPlanning") : t("postizAutopilotProposeNow")}
+        </button>
+      }
+    >
+      <p className="text-xs text-ink-2">{t("postizAutopilotIntro")}</p>
+      <p className="text-xs text-accent" data-testid="postiz-autopilot-honest">
+        {t("postizAutopilotHonest")}
+      </p>
+      {s && (
+        <div className="space-y-2 text-xs text-ink-2" data-testid="postiz-autopilot-form" data-enabled={s.enabled ? "1" : "0"}>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input type="checkbox" className="accent-[#93d119]" checked={s.enabled} disabled={busy} onChange={(e) => onChange({ enabled: e.target.checked })} data-testid="postiz-autopilot-enabled" />
+            {t("postizAutopilotEnable")}
+          </label>
+          <div className="space-y-1">
+            <p className="text-ink">{t("postizAutopilotChannels")}</p>
+            {channels.length === 0 ? (
+              <p className="text-ink-3">{t("postizChannelsEmpty")}</p>
+            ) : (
+              <ul className="flex flex-wrap gap-2">
+                {channels.map((c) => (
+                  <li key={c.id}>
+                    <label className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg border cursor-pointer ${c.disabled ? "opacity-50 border-line text-ink-3" : s.channels.includes(c.id) ? "border-accent bg-accent/15 text-accent" : "border-line-strong bg-surface-2"}`} data-testid="postiz-autopilot-channel" data-on={s.channels.includes(c.id) ? "1" : "0"}>
+                      <input type="checkbox" className="accent-[#93d119]" checked={s.channels.includes(c.id)} disabled={busy || c.disabled} onChange={(e) => onChange({ channels: e.target.checked ? [...s.channels, c.id] : s.channels.filter((id) => id !== c.id) })} />
+                      {c.name} <span className="text-ink-3">· {platformLabel(c.platform)}</span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-3 items-center">
+            <label className="flex items-center gap-2">
+              {t("postizAutopilotPerDay")}
+              <input type="number" className={`${inputClass} w-16`} min={AUTOPILOT_PER_DAY_MIN} max={AUTOPILOT_PER_DAY_MAX} value={s.perDay} disabled={busy} onChange={(e) => onChange({ perDay: Number(e.target.value) })} data-testid="postiz-autopilot-perday" />
+            </label>
+            <label className="flex items-center gap-2">
+              {t("postizAutopilotQuietFrom")}
+              <input type="time" className={inputClass} value={s.quietFrom} disabled={busy} onChange={(e) => onChange({ quietFrom: e.target.value })} data-testid="postiz-autopilot-quiet-from" />
+            </label>
+            <label className="flex items-center gap-2">
+              {t("postizAutopilotQuietTo")}
+              <input type="time" className={inputClass} value={s.quietTo} disabled={busy} onChange={(e) => onChange({ quietTo: e.target.value })} data-testid="postiz-autopilot-quiet-to" />
+            </label>
+            <label className="flex items-center gap-2">
+              {t("postizAutopilotLanguage")}
+              <select className={inputClass} value={s.language} disabled={busy} onChange={(e) => onChange({ language: e.target.value as AutopilotSettings["language"] })} data-testid="postiz-autopilot-language">
+                {AUTOPILOT_LANGUAGES.map((l) => (
+                  <option key={l} value={l}>
+                    {t(`postizAutopilotLang.${l}`)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="text-ink-3">
+            {t("postizAutopilotEvery", { hours: s.proposeHours })} {s.lastPlannedAt ? t("postizAutopilotLastPlanned", { date: new Date(s.lastPlannedAt).toLocaleString() }) : t("postizAutopilotNever")}
+          </p>
+        </div>
+      )}
+      {noteText() && (
+        <p className={`text-xs ${note?.key === "error" ? "text-danger" : "text-ink-2"}`} data-testid="postiz-autopilot-note">
+          {noteText()}
+        </p>
+      )}
+    </Card>
+  );
 }
 
 /** The tab as a function of its state (the tests render it with every state). */

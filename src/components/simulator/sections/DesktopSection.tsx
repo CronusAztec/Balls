@@ -16,6 +16,7 @@ import type { DesktopPageHooks } from "../desktop/pageHooks";
 import { useRenderQueue } from "../desktop/useRenderQueue";
 import { useDesktopAi } from "../desktop/useDesktopAi";
 import { useCustomContent } from "../desktop/useCustomContent"; // --- custom-content ---
+import { useAutopilot } from "../desktop/useAutopilot"; // --- social-autopilot --- the proposal queue, the settings and the 15-minute trigger (it only proposes)
 import GpuPanel from "../desktop/GpuPanel";
 import QueuePanel from "../desktop/QueuePanel";
 import AiPanel from "../desktop/AiPanel";
@@ -129,6 +130,11 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   }, [bridge]);
   const custom = useCustomContent(bridge); // --- custom-content --- the player's own fighters (they join the roster here) and modes
   const ai = useDesktopAi(bridge, pageRef, addAiClips, reloadPrefs, custom);
+  // --- social-autopilot --- the trigger runs while the Desktop group is shown (whichever tab), only when the AI can answer and
+  // no studio job is on; its proposals go to the queue, where the Posts tab's "Review and approve" opens the card
+  const aiRef = useRef(ai);
+  aiRef.current = ai;
+  const autopilot = useAutopilot(bridge, page.locale, useCallback(() => !!aiRef.current.status?.ready && !aiRef.current.running, []));
 
   // --- desktop-exe --- the Publish feature's paths as the Library's one-click targets (lib/publish/desktopTargets.ts):
   // the accounts ticked in the Publish block, and the quick share of the clip's platform
@@ -314,13 +320,26 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
         </div>
       )}
       {/* --- social-postiz --- the approval card, above whatever tab is open (it stays while the user looks at the Library or the Posts tab) */}
-      {postizCard && <PostizPostCard key={`${postizCard.item.id}:${postizCard.prefill ? "retry" : "new"}`} bridge={bridge} item={postizCard.item} prefill={postizCard.prefill} onClose={() => setPostizCard(null)} />}
+      {postizCard && <PostizPostCard key={`${postizCard.item.id}:${postizCard.prefill?.queueItemId ?? (postizCard.prefill ? "retry" : "new")}`} bridge={bridge} item={postizCard.item} prefill={postizCard.prefill} onClose={() => setPostizCard(null)} />}
       {tab === "gpu" && <GpuPanel bridge={bridge} prefs={prefs} info={info} update={update} onPrefs={changePrefs} />}
       {tab === "queue" && <QueuePanel bridge={bridge} queue={queue} page={page} folder={prefs.outputFolder} onFolder={(outputFolder) => changePrefs({ outputFolder })} />}
       {tab === "ai" && <AiPanel ai={ai} custom={custom} prefs={prefs} page={page} onQueueTab={() => show("queue")} bridge={bridge} /* --- desktop-ai-fix --- (the AI status panel) */ />}
       {tab === "library" && <LibraryPanel bridge={bridge} items={library} onRefresh={refreshLibrary} onRerender={(item) => void rerender(item)} />}
       {tab === "accounts" && <AccountsPanel bridge={bridge} /* --- social-postiz --- */ />}
-      {tab === "posts" && <PostsPanel bridge={bridge} onRetry={(item, prefill) => setPostizCard({ item, prefill })} onAccounts={() => show("accounts")} /* --- social-postiz --- phase 2 */ />}
+      {tab === "posts" && (
+        <PostsPanel
+          bridge={bridge}
+          onRetry={(item, prefill) => setPostizCard({ item, prefill })}
+          onAccounts={() => show("accounts")}
+          /* --- social-postiz --- phase 2 */
+          autopilot={autopilot}
+          onReview={(item, prefill) => {
+            setPostizCard({ item, prefill });
+            setTimeout(() => document.querySelector("[data-testid=postiz-post-card]")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+          }}
+          /* --- social-autopilot --- phases 3–4: the Proposed group and the Autopilot card */
+        />
+      )}
     </section>
   );
 }

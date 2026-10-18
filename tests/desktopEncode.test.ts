@@ -76,7 +76,7 @@ describe("IPC contract", () => {
     for (const c of channels) expect(known.has(c)).toBe(true);
     // Every request channel is reachable from the bridge (log is the one fire-and-forget channel).
     for (const c of Object.values(IPC)) expect(channels.includes(c as never) || SEND_CHANNELS.includes(c)).toBe(true);
-    expect(Object.keys(EVENT_CHANNELS).sort()).toEqual(["aiToken", "menu", "modelProgress", "openFile", "renderProgress", "socialProgress" /* --- social-postiz --- */, "update"]);
+    expect(Object.keys(EVENT_CHANNELS).sort()).toEqual(["aiToken", "menu", "modelProgress", "openFile", "renderProgress", "socialProgress" /* --- social-postiz --- */, "socialQueue" /* --- social-autopilot --- */, "update"]);
   });
   it("checks what the page sends", () => {
     expect(checkIpcArgs(IPC.log, ["info", "hello"])).toBeNull();

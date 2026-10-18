@@ -19,6 +19,10 @@ import type { ClipPlan } from "@/lib/bot/planner";
 import type { DesktopPageHooks } from "./pageHooks";
 import { studioPorts } from "./studioPorts";
 import { messageOf, stripIpcPrefix } from "@/lib/desktop/errors"; // --- desktop-ai-fix --- the IPC prefix gone wherever it sits
+// --- social-autopilot --- the "plan" job: proposals for the Posts tab's queue (never a post)
+import { runPlanner } from "@/lib/desktop/ai/planRun";
+import type { PlanResult } from "@/lib/desktop/ai/plan";
+import type { PostizChannel, SocialProposalInput } from "@/lib/desktop/contract";
 
 /*
  * --- desktop-exe --- The AI panel's state: the model manager (catalog, downloads with progress, a picked GGUF, the cloud
@@ -31,7 +35,7 @@ import { messageOf, stripIpcPrefix } from "@/lib/desktop/errors"; // --- desktop
  * choice (prefs.aiGpu) for the status panel.
  */
 
-export const AI_TASKS = ["videos", "copy", "settings", "ideas", "fighter", "mode"] as const; // --- custom-content --- (fighter, mode: the player's own, kept on this computer)
+export const AI_TASKS = ["videos", "copy", "settings", "ideas", "fighter", "mode", "plan" /* --- social-autopilot --- proposals for the Posts tab */] as const; // --- custom-content --- (fighter, mode: the player's own, kept on this computer)
 export type AiTaskKind = (typeof AI_TASKS)[number];
 
 export type AiResult =
@@ -41,7 +45,9 @@ export type AiResult =
   | { kind: "ideas"; result: IdeasResult }
   // --- custom-content --- a fighter saved (and the numbers the builder had to bring inside the limits), a mode saved and applied
   | { kind: "fighter"; row: FlFighterRow; notes: string[]; winRate: number | null }
-  | { kind: "mode"; spec: CustomModeSpec; result: CustomModeResult; changed: string[] };
+  | { kind: "mode"; spec: CustomModeSpec; result: CustomModeResult; changed: string[] }
+  // --- social-autopilot --- the planner's proposals (queued only when the user presses "Send to queue"; posted only from the card)
+  | { kind: "plan"; result: PlanResult; proposals: SocialProposalInput[]; channels: PostizChannel[]; sent: boolean };
 
 export interface AiLogLine {
   kind: "tool" | "result" | "invalid" | "error" | "progress" | "turn" | "timing";
@@ -96,6 +102,8 @@ export interface DesktopAiApi {
   now: number;
   /** --- desktop-ai-fix --- Run the local model on the GPU when one works ("auto") or on the CPU only ("off"). */
   setGpu: (mode: "auto" | "off") => void;
+  /** --- social-autopilot --- Puts the plan's proposals in the queue (as the AI's); the Posts tab shows them for review. */
+  sendToQueue: () => Promise<void>;
 }
 
 export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObject<DesktopPageHooks>, onClips: (result: MakeVideosResult, plans: ClipPlan[]) => void, onPrefsChanged: () => void, custom?: CustomContentApi): DesktopAiApi {
@@ -285,6 +293,15 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
             if (!(await custom.addMode(spec))) throw new Error("The mode could not be saved on this computer (or you have reached the limit).");
             const changed = applyPatch(spec.patch);
             setResult({ kind: "mode", spec, result: out.result, changed });
+          } else if (task === "plan") {
+            // --- social-autopilot --- the plan job: proposals only (the user sends them to the queue, and approves each on the card)
+            if (playbookRef.current === null) playbookRef.current = await bridge.ai.playbook();
+            const out = await runPlanner(bridge, model, { locale: page.locale, playbook: playbookRef.current, onEvent, signal: controller.signal, ignoreBudget: true });
+            if (!out.ok) {
+              if (out.reason === "model") throw new Error(out.error);
+              throw new Error(out.reason === "noChannels" ? "Tick at least one channel in the Autopilot card of the Posts tab first." : out.reason === "noClips" ? "Every clip in the Library is posted or proposed already. Render a new one first." : "Today's proposals are all made.");
+            }
+            setResult({ kind: "plan", result: out.result, proposals: out.proposals, channels: out.channels, sent: false });
           } else {
             if (playbookRef.current === null) playbookRef.current = await bridge.ai.playbook();
             const context = selectPlaybookContext(playbookRef.current, prompt, 4500);
@@ -305,6 +322,19 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
     },
     [bridge, model, running, task, pageRef, onClips, refresh, custom, applyPatch],
   );
+
+  // --- social-autopilot --- "Send to queue": the proposals become `proposed` items (by the AI); nothing is posted
+  const sendToQueue = useCallback(async () => {
+    const r = result;
+    if (!bridge || !r || r.kind !== "plan" || r.sent || r.proposals.length === 0) return;
+    setMessage(null);
+    try {
+      await bridge.social.queue.propose(r.proposals.slice(0, 5), "ai");
+      setResult({ ...r, sent: true });
+    } catch (err) {
+      setError(aiErrorText(err));
+    }
+  }, [bridge, result]);
 
   const undoSettings = useCallback(() => {
     if (!undo) return;
@@ -368,5 +398,6 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
     turn,
     now,
     setGpu: (mode) => bridge && wrap(() => bridge.prefs.set({ aiGpu: mode })),
+    sendToQueue, // --- social-autopilot ---
   };
 }

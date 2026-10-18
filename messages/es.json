@@ -4441,7 +4441,8 @@
       "settings": "Asistente de ajustes",
       "ideas": "Ideas",
       "fighter": "Nuevo luchador",
-      "mode": "Nuevo modo"
+      "mode": "Nuevo modo",
+      "plan": "Planificar publicaciones"
     },
     "aiTaskHint": {
       "videos": "Describe los clips que quieres: la IA los planifica con el bot viral y Buscar simulación, escribe los textos para cada plataforma y los añade a la cola.",
@@ -4449,7 +4450,8 @@
       "settings": "Di qué quieres cambiar: la IA propone un cambio de ajustes comprobado y lo aplica (con deshacer).",
       "ideas": "Ideas nuevas de clips basadas en la guía de viralidad.",
       "fighter": "Describe un luchador para la Ball Fight League: la IA lo diseña con las armas y habilidades de la app, lo mantiene equilibrado y lo guarda en este ordenador (división Wildcard).",
-      "mode": "Describe un modo de juego: la IA lo construye con las mecánicas que la app ya tiene (un modo base más ajustes), lo aplica (con deshacer) y lo guarda en este ordenador."
+      "mode": "Describe un modo de juego: la IA lo construye con las mecánicas que la app ya tiene (un modo base más ajustes), lo aplica (con deshacer) y lo guarda en este ordenador.",
+      "plan": "Propuestas para la pestaña Publicaciones: qué clip sin publicar, para qué canales, con el texto y una hora. No se publica nada hasta que apruebes cada una en su tarjeta."
     },
     "aiPlaceholder": {
       "videos": "cinco clips satisfactorios de cristal para el lunes",
@@ -4457,7 +4459,8 @@
       "settings": "la bola el doble de rápida y arcoíris, sin gravedad",
       "ideas": "ideas para una serie rítmica esta semana (opcional)",
       "fighter": "una bola ninja diminuta con shuriken que se teletransporta tras su rival",
-      "mode": "un modo tranquilo donde muchas bolas pastel llenan un vaso despacio, con piano suave"
+      "mode": "un modo tranquilo donde muchas bolas pastel llenan un vaso despacio, con piano suave",
+      "plan": "sin indicación: el planificador lee la Biblioteca y tus canales"
     },
     "aiPrompt": "Lo que quieres",
     "aiPlatforms": "Plataformas",
@@ -4648,6 +4651,57 @@
     "postizDeleteConfirm": "¿Eliminar esta publicación? Postiz la elimina para todos los canales para los que se creó, no solo para {channel}. Un vídeo ya publicado puede seguir en la plataforma.",
     "postizDeleted": "La publicación se eliminó de Postiz.",
     "postizRetryNoClip": "El clip de esta publicación ya no está en la Biblioteca, así que la tarjeta no puede abrirse para él.",
+    "postizProposedTitle": "Propuestas · {count}",
+    "postizProposedIntro": "Lo que el piloto automático y el estudio de IA proponen publicar. Revisa el texto y luego apruébalo en la tarjeta. Omitir guarda el clip para más tarde. Eliminar borra la propuesta.",
+    "postizProposedEmpty": "No hay propuestas. Activa el piloto automático abajo o pulsa Proponer ahora.",
+    "postizProposedReview": "Revisar y aprobar",
+    "postizProposedSkip": "Omitir",
+    "postizProposedRemove": "Eliminar",
+    "postizProposedHint": "Apruebas en la tarjeta, donde también eliges la audiencia y las interacciones de TikTok.",
+    "postizProposedReason": "Por qué: {reason}",
+    "postizProposedClipGone": "Este clip ya no está en la Biblioteca.",
+    "postizProposedBy": {
+      "ai": "escrito por la IA",
+      "user": "editado por ti"
+    },
+    "postizQueueStatus": {
+      "proposed": "Propuesta",
+      "approved": "En camino",
+      "skipped": "Omitida",
+      "posted": "Publicada",
+      "failed": "Fallida"
+    },
+    "postizAutopilotTitle": "Piloto automático",
+    "postizAutopilotIntro": "Con la app abierta, el piloto automático mira tus clips sin publicar, la guía y lo que funcionó, y propone publicaciones para los canales que marques.",
+    "postizAutopilotHonest": "El piloto automático solo propone. No se publica nada hasta que lo apruebes aquí.",
+    "postizAutopilotEnable": "Proponer publicaciones mientras la app está abierta",
+    "postizAutopilotChannels": "Canales para los que puede proponer",
+    "postizAutopilotPerDay": "Propuestas al día",
+    "postizAutopilotQuietFrom": "Silencio desde",
+    "postizAutopilotQuietTo": "hasta",
+    "postizAutopilotLanguage": "Idioma de los textos",
+    "postizAutopilotLang": {
+      "en": "inglés",
+      "pl": "polaco",
+      "es": "español"
+    },
+    "postizAutopilotEvery": "Como mucho una planificación cada {hours} horas.",
+    "postizAutopilotLastPlanned": "Última {date}.",
+    "postizAutopilotNever": "Aún no ha planificado.",
+    "postizAutopilotProposeNow": "Proponer ahora",
+    "postizAutopilotPlanning": "Planificando…",
+    "postizAutopilotProposed": "{count, plural, =0 {Nada nuevo que proponer.} one {# propuesta añadida arriba.} other {# propuestas añadidas arriba.}}",
+    "postizAutopilotFailed": "El planificador no pudo responder. Prueba en un momento.",
+    "postizAutopilotNote": {
+      "noClips": "Todos los clips de la Biblioteca ya están publicados o propuestos. Renderiza uno nuevo primero.",
+      "noChannels": "Marca al menos un canal primero.",
+      "dayFull": "Las propuestas de hoy ya están hechas. El piloto automático sigue mañana.",
+      "needsAi": "El estudio de IA necesita un modelo o una clave antes de planificar."
+    },
+    "aiPlanTitle": "Publicaciones propuestas · {count}",
+    "aiPlanSend": "Enviar a la cola",
+    "aiPlanHint": "Enviar a la cola las pone en la pestaña Publicaciones. No se publica nada hasta que apruebes cada una en su tarjeta.",
+    "aiPlanSent": "Enviadas a la pestaña Publicaciones. Revisa y aprueba cada una allí.",
     "metaTitle": "Descarga {siteName} para Windows",
     "metaDescription": "El simulador como app de Windows. Tu tarjeta gráfica codifica los clips, una cola procesa lotes y una IA sin conexión planifica vídeos. Descarga gratis.",
     "badge": "App de Windows",
