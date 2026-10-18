@@ -84,6 +84,19 @@ export interface DesktopPublishOptions {
   /** The page's navigator (clipboard) and how a web page opens (the app sends it to the browser). */
   navigator?: ShareNavigator | null;
   openUrl?: (url: string) => void;
+  /**
+   * --- social-postiz --- "Post with Postiz" (phase 2 of docs/SOCIAL-AUTOPILOT.md): registered only while a Postiz key is
+   * stored (`configured`), Pro-gated like the others; the click opens the approval card for the clip, nothing is sent.
+   */
+  postiz?: {
+    configured: boolean;
+    /** The target's name ("Postiz") and the button's text ("Post with Postiz"). */
+    label: string;
+    button: string;
+    /** The Library's status line once the card is open. */
+    opened: string;
+    onOpenPostizCard: (item: LibraryItem) => void;
+  };
 }
 
 /** One click: the clip to every account ticked in the Publish block; the first published post's link, or why not. */
@@ -146,8 +159,25 @@ async function proOnly<T>(send: () => Promise<T>): Promise<T> {
 /** Registers the Library's Publish targets; returns their unregistration. */
 export function registerDesktopPublishTargets(labels: DesktopPublishLabels, options: DesktopPublishOptions = {}): () => void {
   const controller = options.controller ?? getPublishController();
+  const postiz = options.postiz;
   const offs = [
     registerPublishTarget({ id: "publish", label: labels.accounts, publish: (clip) => proOnly(() => publishToAccounts(controller, clip, labels, options)) /* --- paywall-gate --- */ }),
+    // --- social-postiz --- only with a stored key; the clip's bytes stay on disk (the app reads them on Approve)
+    ...(postiz?.configured
+      ? [
+          registerPublishTarget({
+            id: "postiz",
+            label: postiz.label,
+            button: postiz.button,
+            needsFile: false,
+            publish: (clip) =>
+              proOnly(async () => {
+                postiz.onOpenPostizCard(clip.item);
+                return { message: postiz.opened };
+              }),
+          }),
+        ]
+      : []),
     ...PUBLISH_PLATFORMS.map((platform) =>
       registerPublishTarget({
         id: `share-${platform}`,

@@ -22,6 +22,13 @@ export interface PublishTarget {
   id: string;
   /** The button's label (already localised by the feature). */
   label: string;
+  /** --- social-postiz --- The whole button text, when "Publish to {label}" is not it ("Post with Postiz"). */
+  button?: string;
+  /**
+   * --- social-postiz --- False when the target only opens something (the Postiz card) and does not need the clip's bytes:
+   * the Library then hands it an empty `File` instead of reading the clip through the app.
+   */
+  needsFile?: boolean;
   /** Whether the target offers this clip (every clip when absent). */
   available?(item: LibraryItem): boolean;
   /** Publishes the clip: the post's link and/or a line for the Library to show (localised), or nothing. */

@@ -35,7 +35,8 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
     setStatus(t("libPublishing", { target: target.label }));
     setPublishing(true);
     try {
-      const file = pickedToFile(await bridge.library.read(item.id));
+      // --- social-postiz --- a target that only opens a card (Post with Postiz) gets no bytes: the app reads the clip itself later
+      const file = target.needsFile === false ? new File([], item.fileName, { type: "video/mp4" }) : pickedToFile(await bridge.library.read(item.id));
       const result = await target.publish({ item, file, title: item.meta.title, caption: item.meta.caption ?? "", hashtags: item.meta.hashtags });
       setStatus(result && result.message ? result.message : result && result.url ? t("libPublishedAt", { url: result.url }) : t("libPublished", { target: target.label }));
     } catch (err) {
@@ -117,8 +118,8 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
                   </button>
                   {/* --- desktop-exe --- publish hook: one button per target the Publish feature registered */}
                   {targets.filter((target) => !target.available || target.available(item)).map((target) => (
-                    <button key={target.id} type="button" className={`${primaryBtn} !py-0.5`} disabled={!item.exists} onClick={() => void publish(target, item)}>
-                      {t("libPublishTo", { target: target.label })}
+                    <button key={target.id} type="button" className={`${primaryBtn} !py-0.5`} disabled={!item.exists} onClick={() => void publish(target, item)} data-testid={`library-target-${target.id}`}>
+                      {target.button ?? t("libPublishTo", { target: target.label }) /* --- social-postiz --- ("Post with Postiz") */}
                     </button>
                   ))}
                   <button type="button" className={`${ghostBtn} !py-0.5`} onClick={() => remove(item, false)}>

@@ -29,7 +29,9 @@ import { registerHandlers, type HandlerTable } from "./handlers";
 // --- social-postiz --- the Postiz key (sealed like the cloud AI key) and the Accounts tab's channels and notices
 import { DEFAULT_POSTIZ, PostizKeyStore, type PostizSettings } from "./social/keys";
 import { SocialService } from "./social/service";
-import type { PostizKeyInput } from "@/lib/desktop/contract";
+import { SocialAudit } from "./social/audit"; // --- social-postiz --- phase 2: posting a Library clip, with its audit log
+import { ClipPoster } from "./social/posting";
+import { SOCIAL_POSTS_DAYS, type PostizKeyInput, type SocialPostRequest } from "@/lib/desktop/contract";
 // --- desktop-ai-fix --- net.fetch for every main-process request, node-llama-cpp's console lines in main.log, the AI status panel
 import os from "os";
 import type { AiDiagnoseOptions } from "@/lib/desktop/contract";
@@ -192,15 +194,27 @@ function start() {
   // --- desktop-ai-fix --- a 1.0.2 install whose download was never "used": the ready model is selected
   void ai.ensureSelectedModel().catch((err: unknown) => logger.warn(`selecting a ready model: ${describeError(err)}`));
   // --- social-postiz --- the Postiz key store (its own block of the config, sealed with the same SecretBox) and the Accounts tab's service
-  const social = new SocialService(
-    new PostizKeyStore({
-      settings: () => ({ ...DEFAULT_POSTIZ, ...(store.get("postiz") ?? {}) }),
-      setSettings: (settings) => store.set("postiz", settings),
-      secrets,
-      fetch: http.aiFetch,
-      log: (level, message) => logger.write(level, message),
-    }),
-  );
+  const postizKeys = new PostizKeyStore({
+    settings: () => ({ ...DEFAULT_POSTIZ, ...(store.get("postiz") ?? {}) }),
+    setSettings: (settings) => store.set("postiz", settings),
+    secrets,
+    fetch: http.aiFetch,
+    log: (level, message) => logger.write(level, message),
+  });
+  // phase 2: every post created or removed goes to social-audit.json; the poster transcodes (bundled ffmpeg, the render queue's
+  // encoder choice), uploads once and creates once per approved card
+  const socialAudit = new SocialAudit(new JsonFileStore(locations.socialAuditFile));
+  const social = new SocialService(postizKeys, Date.now, socialAudit);
+  const poster = new ClipPoster({
+    library,
+    client: () => postizKeys.client(),
+    ffmpeg: () => ffmpeg()?.path ?? null,
+    probe: () => probe(),
+    run: runFfmpeg,
+    audit: socialAudit,
+    emit: (e) => send(DESKTOP_EVENTS.socialProgress, e),
+    log: (level, message) => logger.write(level, message),
+  });
   let updateNotified: string | null = null; // --- desktop-autorelease --- the version the Windows notification was shown for
   const updater = new UpdateController(electronUpdater.autoUpdater as unknown as ConstructorParameters<typeof UpdateController>[0], {
     enabled: prefs().autoUpdate && !SMOKE,
@@ -386,6 +400,14 @@ function start() {
     [IPC.socialKeyForget]: () => social.forgetKey(),
     [IPC.socialChannels]: (refresh) => social.listChannels(refresh === true),
     [IPC.socialNotices]: (page) => social.listNotices(typeof page === "number" ? page : 0),
+    // phase 2 (every argument checked in checkIpcArgs: ids, the post request's channels and `when`, the day and limit counts)
+    [IPC.socialPrepare]: (clipId) => poster.prepareClip(clipId as string),
+    [IPC.socialPost]: (request) => poster.postClip(request as SocialPostRequest),
+    [IPC.socialPosts]: (days) => social.recentPosts(typeof days === "number" ? days : SOCIAL_POSTS_DAYS),
+    [IPC.socialPostDelete]: (postId) => social.deletePost(postId as string),
+    [IPC.socialAudit]: (limit) => socialAudit.recent(typeof limit === "number" ? limit : 50),
+    [IPC.socialChannelSettings]: (channelId) => social.channelSettings(channelId as string),
+    [IPC.socialSlot]: (channelId) => social.slot(channelId as string),
   };
 
   /* ---------------------------------------------------------------- window, menu, tray */

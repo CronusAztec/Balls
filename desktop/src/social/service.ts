@@ -4,8 +4,11 @@
  * lists are empty rather than errors: the page reads `key.status()` first and shows the paste card.
  */
 
-import type { PostizChannel, PostizConnection, PostizKeyInput, PostizKeyStatus, PostizNotice } from "@/lib/desktop/contract";
+import { SOCIAL_POSTS_DAYS, type PostizChannel, type PostizConnection, type PostizKeyInput, type PostizKeyStatus, type PostizNotice, type SocialChannelSettings, type SocialPostOutcome, type SocialSlot } from "@/lib/desktop/contract";
+import type { SocialAudit } from "./audit";
 import type { PostizKeyStore } from "./keys";
+import { recentPosts } from "./outcomes";
+import { PostizError } from "./postiz";
 
 /** How long the channel list is served from memory. */
 export const CHANNELS_CACHE_MS = 60_000;
@@ -16,7 +19,44 @@ export class SocialService {
   constructor(
     private readonly keys: PostizKeyStore,
     private readonly now: () => number = Date.now,
+    /** Phase 2: the audit log a delete is written to (without it, deletes are refused). */
+    private readonly audit: SocialAudit | null = null,
   ) {}
+
+  private clientOrThrow() {
+    const client = this.keys.client();
+    if (!client) throw new PostizError("unauthorized", "Paste the Postiz API key in the Accounts tab first");
+    return client;
+  }
+
+  /* ---------------------------------------------------------------- phase 2: outcomes, delete, settings, slots */
+
+  /** The posts of the last `days` and the next (scheduled ones too), newest first; empty without a key. */
+  async recentPosts(days = SOCIAL_POSTS_DAYS): Promise<SocialPostOutcome[]> {
+    const client = this.keys.client();
+    if (!client) return [];
+    return recentPosts(client, days, this.now());
+  }
+
+  /** Removes a post – Postiz removes its whole group (the page has confirmed that) – and writes the audit line. */
+  async deletePost(postId: string): Promise<void> {
+    const client = this.clientOrThrow();
+    if (!this.audit) throw new Error("The audit log is not available, so nothing was removed");
+    await client.deletePost(postId);
+    await this.audit.record({ action: "deletePost", channels: [], postIds: [postId], clipId: null, when: null });
+  }
+
+  /** The provider's rules and settings schema for a channel (the card's generic form). */
+  async channelSettings(channelId: string): Promise<SocialChannelSettings> {
+    return this.clientOrThrow().integrationSettings(channelId);
+  }
+
+  /** Postiz's next free slot for a channel. */
+  async slot(channelId: string): Promise<SocialSlot> {
+    const slot = await this.clientOrThrow().findSlot(channelId);
+    if (!slot.date || !Number.isFinite(Date.parse(slot.date))) throw new PostizError("unknown", "Postiz did not name a free slot for this channel");
+    return { date: new Date(slot.date).toISOString() };
+  }
 
   keyStatus(): PostizKeyStatus {
     return this.keys.status();

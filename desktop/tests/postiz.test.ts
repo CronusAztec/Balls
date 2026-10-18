@@ -421,8 +421,8 @@ describe("the social bridge channels", () => {
     expect(BRIDGE_METHODS["social.key.forget"]).toBe("social:key-forget");
     expect(BRIDGE_METHODS["social.channels.list"]).toBe("social:channels");
     expect(BRIDGE_METHODS["social.notices.list"]).toBe("social:notices");
-    // phase 2's channels are not there yet
-    expect(Object.values(IPC).filter((c) => c.startsWith("social:")).sort()).toEqual(["social:channels", "social:key-forget", "social:key-set", "social:key-status", "social:notices"]);
+    // phase 1's five channels and phase 2's seven (postizPosting.test.ts checks the latter's arguments)
+    expect(Object.values(IPC).filter((c) => c.startsWith("social:")).sort()).toEqual(["social:audit", "social:channel-settings", "social:channels", "social:key-forget", "social:key-set", "social:key-status", "social:notices", "social:post", "social:post-delete", "social:posts", "social:prepare", "social:slot"]);
     const table = Object.fromEntries(Object.values(IPC).map((c) => [c, vi.fn()])) as unknown as HandlerTable;
     const handled: string[] = [];
     registerHandlers({ handle: (c) => handled.push(c), on: () => {} }, table);

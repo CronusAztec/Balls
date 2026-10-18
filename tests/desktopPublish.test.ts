@@ -7,6 +7,7 @@ import { applyCopyToPublish, draftOfLibraryClip, publishPlatformOf, publishToAcc
 import { PUBLISH_STORAGE_KEY } from "@/lib/publish/store";
 import { emptyDraft } from "@/lib/publish/caption";
 import type { FetchLike } from "@/lib/publish/youtube";
+import { EntitlementRequiredError, type EntitlementDecision } from "@/lib/billing/guard"; // --- social-postiz ---
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
@@ -16,6 +17,14 @@ import es from "../messages/es.json";
  * the accounts ticked in the Publish block (the relay), or quick-shares it to its platform; the AI's post copy goes into the
  * Publish block's draft. Every network call against a mocked fetch.
  */
+
+// --- social-postiz --- the Pro guard as a spy over the real one (the page's entitlement store answers "free" in a test)
+const requireEntitlementMock = vi.hoisted(() => vi.fn());
+vi.mock("@/lib/billing/guard", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/billing/guard")>();
+  requireEntitlementMock.mockImplementation(actual.requireEntitlement);
+  return { ...actual, requireEntitlement: requireEntitlementMock };
+});
 
 const json = (body: unknown, init: ResponseInit = {}) => new Response(JSON.stringify(body), { status: 200, headers: { "Content-Type": "application/json" }, ...init });
 
@@ -228,5 +237,69 @@ describe("the Library's Publish targets (desktop app)", () => {
     expect(en.Desktop.libPublishHint).not.toMatch(/once the Publish feature is installed/);
     expect(pl.Desktop.libPublishHint).not.toMatch(/po zainstalowaniu/);
     expect(es.Desktop.libPublishHint).not.toMatch(/cuando esté instalada/);
+  });
+});
+
+/* --- social-postiz --- phase 2: "Post with Postiz" in the Library, only with a stored key, Pro-gated, opening the card */
+describe("the Library's Postiz target", () => {
+  afterEach(() => resetPublishClips());
+
+  it("registers only when a Postiz key is stored, with its own button text and no need for the clip's bytes", () => {
+    const c = controller(relayFetch(true).fetchImpl, null);
+    const open = vi.fn();
+    const postiz = { configured: false, label: "Postiz", button: "Post with Postiz", opened: "OPENED", onOpenPostizCard: open };
+    let off = registerDesktopPublishTargets(labels, { controller: c, postiz });
+    try {
+      expect(publishTargets().map((t) => t.id)).toEqual(["publish", "share-tiktok", "share-instagram", "share-youtube"]);
+    } finally {
+      off();
+    }
+    off = registerDesktopPublishTargets(labels, { controller: c, postiz: { ...postiz, configured: true } });
+    try {
+      const targets = publishTargets();
+      expect(targets.map((t) => t.id)).toEqual(["publish", "postiz", "share-tiktok", "share-instagram", "share-youtube"]);
+      const target = targets.find((t) => t.id === "postiz")!;
+      expect(target.label).toBe("Postiz");
+      expect(target.button).toBe("Post with Postiz");
+      expect(target.needsFile).toBe(false);
+      expect(target.available).toBeUndefined(); // every clip, whatever platform it was rendered for
+    } finally {
+      off();
+    }
+    expect(publishTargets()).toEqual([]);
+  });
+
+  it("is Pro-gated: without an entitlement the click opens the Unlock dialog and the card never opens", async () => {
+    const c = controller(relayFetch(true).fetchImpl, null);
+    const open = vi.fn();
+    const off = registerDesktopPublishTargets(labels, { controller: c, postiz: { configured: true, label: "Postiz", button: "Post with Postiz", opened: "OPENED", onOpenPostizCard: open } });
+    try {
+      const target = publishTargets().find((t) => t.id === "postiz")!;
+      // the page's entitlement store answers "free" in a test: the guard refuses before the card opens
+      await expect(target.publish(clipOf(item("tiktok")))).rejects.toBeInstanceOf(EntitlementRequiredError);
+      expect(open).not.toHaveBeenCalled();
+      // the other targets are gated the same way
+      await expect(publishTargets().find((t) => t.id === "publish")!.publish(clipOf(item("tiktok")))).rejects.toBeInstanceOf(EntitlementRequiredError);
+    } finally {
+      off();
+    }
+  });
+
+  it("opens the card for the clip once the guard passes", async () => {
+    const c = controller(relayFetch(true).fetchImpl, null);
+    const open = vi.fn();
+    const grant: EntitlementDecision = { ok: true, feature: "publish", plan: "monthly", expiresAt: Date.now() + 60_000 };
+    requireEntitlementMock.mockResolvedValueOnce(grant);
+    const off = registerDesktopPublishTargets(labels, { controller: c, postiz: { configured: true, label: "Postiz", button: "Post with Postiz", opened: "OPENED", onOpenPostizCard: open } });
+    try {
+      const target = publishTargets().find((t) => t.id === "postiz")!;
+      await expect(target.publish(clipOf(item("reels")))).resolves.toEqual({ message: "OPENED" });
+      expect(open).toHaveBeenCalledTimes(1);
+      expect(open.mock.calls[0][0]).toMatchObject({ id: "lib1" });
+      // nothing was staged in the Publish block and nothing was sent: the card does the posting after the user approves
+      expect(publishClips()).toEqual([]);
+    } finally {
+      off();
+    }
   });
 });

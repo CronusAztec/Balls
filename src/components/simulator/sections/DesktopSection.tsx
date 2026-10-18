@@ -21,6 +21,8 @@ import QueuePanel from "../desktop/QueuePanel";
 import AiPanel from "../desktop/AiPanel";
 import LibraryPanel from "../desktop/LibraryPanel";
 import AccountsPanel from "../desktop/AccountsPanel"; // --- social-postiz --- the Postiz key and channels
+import PostizPostCard, { type CardPrefill } from "../desktop/PostizPostCard"; // --- social-postiz --- phase 2: the approval card and the Posts tab
+import PostsPanel from "../desktop/PostsPanel";
 import WhatsNew from "../desktop/WhatsNew"; // --- changelog ---
 import { errorText, ghostBtn, primaryBtn } from "../desktop/ui"; // --- desktop-autorelease --- (the update banner's buttons)
 import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
@@ -34,9 +36,9 @@ import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
  * upload handlers. On the website it renders nothing and changes nothing.
  */
 
-export const DESKTOP_TABS = ["gpu", "queue", "ai", "library", "accounts" /* --- social-postiz --- */] as const;
+export const DESKTOP_TABS = ["gpu", "queue", "ai", "library", "accounts" /* --- social-postiz --- */, "posts" /* --- social-postiz --- phase 2: what became of the posts ("queue" is the render queue) */] as const;
 export type DesktopTab = (typeof DESKTOP_TABS)[number];
-const TAB_ICONS: Record<DesktopTab, string> = { gpu: "🖥️", queue: "🎞️", ai: "🤖", library: "📚", accounts: "📣" };
+const TAB_ICONS: Record<DesktopTab, string> = { gpu: "🖥️", queue: "🎞️", ai: "🤖", library: "📚", accounts: "📣", posts: "📬" };
 /** --- desktop-exe --- The Publish platforms by their own names (the same in every language). */
 const PLATFORM_NAMES: Record<PublishPlatform, string> = { tiktok: "TikTok", instagram: "Instagram", youtube: "YouTube" };
 
@@ -64,6 +66,9 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   const [library, setLibrary] = useState<LibraryItem[]>([]);
   const [notice, setNotice] = useState<string | null>(null);
   const [updateLater, setUpdateLater] = useState<string | null>(null); // --- desktop-autorelease --- the version "Later" hid
+  // --- social-postiz --- phase 2: whether a Postiz key is stored (the Library's "Post with Postiz" needs one) and the open card
+  const [postizConfigured, setPostizConfigured] = useState(false);
+  const [postizCard, setPostizCard] = useState<{ item: LibraryItem; prefill?: CardPrefill } | null>(null);
 
   useEffect(() => {
     bridge.prefs
@@ -94,6 +99,17 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   const refreshLibrary = useCallback(() => {
     bridge.library.list().then(setLibrary).catch(() => {});
   }, [bridge]);
+  // --- social-postiz --- the key's status, read again whenever the tab changes (a key saved or forgotten in Accounts)
+  useEffect(() => {
+    let gone = false;
+    bridge.social.key
+      .status()
+      .then((s) => !gone && setPostizConfigured(s.configured))
+      .catch(() => {});
+    return () => {
+      gone = true;
+    };
+  }, [bridge, tab]);
 
   const queue = useRenderQueue(bridge, pageRef, prefs?.outputFolder ?? "", refreshLibrary);
   const addAiClips = useCallback(
@@ -132,9 +148,20 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
           reveal: (item) => void bridge.library.reveal(item.id).catch(() => {}),
           navigator: typeof navigator !== "undefined" ? navigator : null,
           openUrl: (url) => void window.open(url, "_blank"),
+          // --- social-postiz --- phase 2: "Post with Postiz" opens the approval card (only while a key is stored)
+          postiz: {
+            configured: postizConfigured,
+            label: t("postizTargetLabel"),
+            button: t("postizPostButton"),
+            opened: t("postizCardOpened"),
+            onOpenPostizCard: (item) => {
+              setPostizCard({ item });
+              setTimeout(() => document.querySelector("[data-testid=postiz-post-card]")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+            },
+          },
         },
       ),
-    [bridge, t],
+    [bridge, t, postizConfigured],
   );
 
   const show = useCallback((next: DesktopTab) => {
@@ -286,11 +313,14 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
           </button>
         </div>
       )}
+      {/* --- social-postiz --- the approval card, above whatever tab is open (it stays while the user looks at the Library or the Posts tab) */}
+      {postizCard && <PostizPostCard key={`${postizCard.item.id}:${postizCard.prefill ? "retry" : "new"}`} bridge={bridge} item={postizCard.item} prefill={postizCard.prefill} onClose={() => setPostizCard(null)} />}
       {tab === "gpu" && <GpuPanel bridge={bridge} prefs={prefs} info={info} update={update} onPrefs={changePrefs} />}
       {tab === "queue" && <QueuePanel bridge={bridge} queue={queue} page={page} folder={prefs.outputFolder} onFolder={(outputFolder) => changePrefs({ outputFolder })} />}
       {tab === "ai" && <AiPanel ai={ai} custom={custom} prefs={prefs} page={page} onQueueTab={() => show("queue")} bridge={bridge} /* --- desktop-ai-fix --- (the AI status panel) */ />}
       {tab === "library" && <LibraryPanel bridge={bridge} items={library} onRefresh={refreshLibrary} onRerender={(item) => void rerender(item)} />}
       {tab === "accounts" && <AccountsPanel bridge={bridge} /* --- social-postiz --- */ />}
+      {tab === "posts" && <PostsPanel bridge={bridge} onRetry={(item, prefill) => setPostizCard({ item, prefill })} onAccounts={() => show("accounts")} /* --- social-postiz --- phase 2 */ />}
     </section>
   );
 }

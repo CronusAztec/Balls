@@ -3733,7 +3733,40 @@ plumbing and the Accounts tab:
   Saving a key is Pro (`publish`), like the Library's Publish targets.
 
 Tests: `desktop/tests/postiz.test.ts` (the client against a stand-in server, the key store, the cache, the bridge channels) and
-`tests/desktopSocial.test.ts` (the tab in every state, the Pro gate, the strings in three languages). Posting itself is phase 2.
+`tests/desktopSocial.test.ts` (the tab in every state, the Pro gate, the strings in three languages).
+
+Phase 2 posts a Library clip through Postiz, after the user approves it on a card. Nothing reaches Postiz any other way:
+
+- `desktop/src/social/posting.ts` – `ClipPoster`: `prepareClip(libraryItemId)` hands an MP4 through as it is and turns a WebM
+  (the fast export) into an MP4 with the bundled ffmpeg (H.264 on the render queue's encoder choice, AAC, a hidden temporary
+  file next to the clip, removed after the upload), both within Postiz's 1 GB; `postClip(request)` uploads once and makes ONE
+  `POST /posts` with an entry per channel (text, the full provider `settings`, `now` / `schedule` with the UTC date / `draft`),
+  reporting `social:progress` (transcoding, uploading, creating, done). Guards: one clip on its way at a time, at most one
+  created post per channel every 20 minutes and under 60 create calls an hour (both read from the audit log, so they hold
+  across a restart), a 429 waited once for Postiz's Retry-After.
+- `desktop/src/social/outcomes.ts` – `GET /posts` for `days` back and forward (scheduled posts show too), mapped to
+  `{ id, channel, state QUEUE | PUBLISHED | ERROR | DRAFT, publishDate, releaseUrl, error, content }`; `social/audit.ts` –
+  `social-audit.json` in the data folder (every create and delete with the time, channels, post ids, clip and `by: "user"`).
+- the `social` bridge gains `prepare`, `post`, `posts(days?)`, `postDelete`, `audit(limit?)`, `channelSettings(id)`, `slot(id)`
+  and the `social:progress` event; `checkIpcArgs` bounds every argument (`checkSocialPostRequest`: 1–20 channels, text ≤ 5000,
+  plain-object settings with `__type` ≤ 20 000 JSON characters, `when` in the future).
+- the page: `src/lib/desktop/socialCard.ts` (the card's rules, pure) and `PostizPostCard.tsx` – opened by the Library's
+  **Post with Postiz** target (`lib/publish/desktopTargets.ts`, registered only while a key is stored, Pro-gated like the
+  others, no bytes read until Approve) and by the **Posts** tab's Retry. Channels to tick (disabled ones greyed), the text
+  pre-filled from the clip's caption and hashtags within `lib/publish/platforms.ts`' limits, and the provider forms: TikTok's
+  audience and comments / duet / stitch as choices with no default (Approve waits for them), content disclosure (branded
+  content cannot be SELF_ONLY), DIRECT_POST or UPLOAD (the TikTok inbox, finished in the app within 24 h), "made with AI" on by
+  default, and the note that TikTok posts privately until it has audited the Postiz app in use; Instagram post (a Reel, public)
+  or story, collaborators; YouTube title (2–100), visibility and made-for-kids with no default, tags; Postiz's
+  `/integration-settings` schema for other platforms. When: now, a schedule in local time (must be in the future, "Next free
+  slot" asks Postiz) or a draft in Postiz. Approve says what will happen, a progress line follows, and the outcome per channel is
+  polled every 5 s for up to 3 minutes. `PostsPanel.tsx` lists the last two weeks (and the next) as Scheduled / Posted / Failed /
+  Drafts with the link or Postiz's error, Retry and Delete (a confirmation says every channel of the post goes), plus the notices.
+
+Tests: `desktop/tests/postizPosting.test.ts` (pass-through, transcode and size refusal with a fake ffmpeg and file system; one
+upload then one create with the exact body; progress; the three guards; the 429 retry; the audit; the outcomes; delete; the
+argument checks; `social:slot` through the guard), `tests/desktopSocial.test.ts` (the card in every state in three languages,
+the Posts tab) and `tests/desktopPublish.test.ts` (the target registers only when configured and is Pro-gated).
 
 ## Browser support
 

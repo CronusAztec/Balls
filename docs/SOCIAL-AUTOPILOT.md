@@ -79,12 +79,12 @@ Provider settings the approval card must collect (Postiz validates them, so the 
 
 - **TikTok** `__type:"tiktok"`: `privacy_level` (PUBLIC_TO_EVERYONE | MUTUAL_FOLLOW_FRIENDS | FOLLOWER_OF_CREATOR | SELF_ONLY),
   `duet`, `stitch`, `comment`, `brand_content_toggle`, `brand_organic_toggle`, `content_posting_method` (DIRECT_POST | UPLOAD),
-  `video_made_with_ai`, optional `title` (≤ 90). TikTok's audit rules require the user to choose privacy and the three interaction
+  `video_made_with_ai`, `autoAddMusic` ("yes" | "no"), optional `title` (≤ 90). TikTok's audit rules require the user to choose privacy and the three interaction
   settings every time, with no defaults – the card shows them unset. Until TikTok audits the Postiz app in use, posts go out
   SELF_ONLY whatever was chosen; the card says so.
 - **Instagram** `__type:"instagram"` (Facebook-linked) or `"instagram-standalone"`: `post_type` post (a Reel when the media is one
   video) | story; optional trial reel, collaborators. Reels are always public. Postiz asks for MP4 ≤ 300 MB, 1920 px wide, 25 Mbps.
-- **YouTube** `__type:"youtube"`: `title` (2–100), `type` public | private | unlisted, `selfDeclaredMadeForKids`, `tags`, optional
+- **YouTube** `__type:"youtube"`: `title` (2–100), `type` public | private | unlisted, `selfDeclaredMadeForKids` ("yes" | "no"), `tags`, optional
   `thumbnail` (an uploaded image). The description is the post content (≤ 5000).
 - Other channels the user connected in Postiz (Threads, Bluesky, Mastodon, X, LinkedIn, Facebook pages, Pinterest, …): the card
   offers them with the settings form from `/integration-settings`, or caption-only where Postiz needs only `__type`.
@@ -147,9 +147,22 @@ Rules in code:
    401/413/429/5xx, MP4-only); the Accounts tab (key, channels, notices); the `social` bridge namespace. Pro-gated (`publish`).
    **Built** (2026-10-18): `desktop/src/social/{postiz,keys,service}.ts`, the `social` namespace (`key`, `channels`, `notices`),
    `AccountsPanel.tsx`; tests in `desktop/tests/postiz.test.ts` and `tests/desktopSocial.test.ts`.
-2. **Post a Library clip through Postiz** – the Library's "Publish to Postiz" target; the approval card with the TikTok, Instagram
-   and YouTube forms (and the generic form); transcode to MP4 when needed; upload; create; outcome polling; the Queue tab's
+2. **Post a Library clip through Postiz** – the Library's "Post with Postiz" target; the approval card with the TikTok, Instagram
+   and YouTube forms (and the generic form); transcode to MP4 when needed; upload; create; outcome polling; the Posts tab's
    "posted" and "failed" lists.
+   **Built** (2026-10-18): `desktop/src/social/{posting,outcomes,audit}.ts` (`ClipPoster.prepareClip/postClip`: MP4 pass-through
+   or the bundled ffmpeg's H.264 + AAC transcode into a hidden temporary file next to the clip, one upload, ONE `POST /posts`
+   with every channel, `social:progress` events; the guards: one clip at a time, one post per channel every 20 minutes and
+   under 60 creates an hour from `social-audit.json`, a 429 waited once; `recentPosts(days)` reads `days` back and forward
+   so scheduled posts show), the `social` bridge's `prepare`, `post`, `posts`, `postDelete`, `audit`, `channelSettings`,
+   `slot`; the page's `src/lib/desktop/socialCard.ts` (the card's rules, pure) with `PostizPostCard.tsx` (TikTok's privacy and
+   comment / duet / stitch as yes-no choices with no default, branded content blocked at SELF_ONLY, DIRECT_POST or UPLOAD
+   explained, "made with AI" on by default; Instagram post or story; YouTube title, visibility, made-for-kids; Postiz's schema
+   for the rest; now / schedule with "Next free slot" / draft; Approve says what will happen; the outcome polled for 3 minutes)
+   and `PostsPanel.tsx` (the **Posts** tab: Scheduled / Posted / Failed / Drafts, Retry through the audit log's clip id, Delete
+   after a confirmation naming the group rule); tests in `desktop/tests/postizPosting.test.ts`, `tests/desktopSocial.test.ts`
+   and `tests/desktopPublish.test.ts`. Not in this phase: a thumbnail-frame picker (`thumbnailMs` travels but the card does
+   not set it), edit / skip of a post, restoring a half-finished post after a restart (phase 3).
 3. **Queue and schedule** – `when`, "Next free slot", drafts, edit/skip/retry/remove, the audit log, restore after a restart.
 4. **Autopilot proposals** – the "plan" AI task, the Autopilot card (channels, cadence, quiet hours), proposals in the Queue tab;
    Insights cards from Postiz analytics feed the planner.

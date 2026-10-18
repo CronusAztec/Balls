@@ -76,6 +76,8 @@ export interface PostizCreatePostsBody {
 export interface PostizCreatedPost {
   postId: string;
   integration: string;
+  /** The group Postiz filed the posts under, when its answer carried it (phase 2 shows it with the result). */
+  group?: string;
 }
 
 /** `GET /posts`: a post as Postiz lists it (one row per channel). */
@@ -374,7 +376,8 @@ export class PostizClient {
     const list = Array.isArray(data) ? data : (asRecord(data)?.posts as unknown[] | undefined) ?? [];
     return list.map((raw) => {
       const r = asRecord(raw) ?? {};
-      return { postId: asString(r.postId ?? r.id), integration: asString(r.integration) };
+      const group = asString(r.group);
+      return { postId: asString(r.postId ?? r.id), integration: asString(r.integration), ...(group ? { group } : {}) };
     });
   }
 

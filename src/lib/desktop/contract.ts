@@ -57,6 +57,15 @@ export const IPC = {
   socialKeyForget: "social:key-forget",
   socialChannels: "social:channels",
   socialNotices: "social:notices",
+  // --- social-postiz --- phase 2: a Library clip through Postiz (prepare the MP4, post after the card's approval), the
+  // outcomes, deleting a post, the audit log, a channel's settings schema and Postiz's next free slot
+  socialPrepare: "social:prepare",
+  socialPost: "social:post",
+  socialPosts: "social:posts",
+  socialPostDelete: "social:post-delete",
+  socialAudit: "social:audit",
+  socialChannelSettings: "social:channel-settings",
+  socialSlot: "social:slot",
 } as const;
 export type IpcChannel = (typeof IPC)[keyof typeof IPC];
 
@@ -68,6 +77,7 @@ export const DESKTOP_EVENTS = {
   modelProgress: "ai:model-progress",
   renderProgress: "render:progress",
   update: "update:status",
+  socialProgress: "social:progress", // --- social-postiz --- a clip on its way to Postiz (transcode, upload, create)
 } as const;
 export type DesktopEventChannel = (typeof DESKTOP_EVENTS)[keyof typeof DESKTOP_EVENTS];
 
@@ -481,6 +491,127 @@ export interface PostizConnection {
   channels: PostizChannel[];
 }
 
+/* --- phase 2: posting a Library clip (docs/SOCIAL-AUTOPILOT.md, section 2) --- */
+
+/** The most channels one post may go to, the longest text per channel and the biggest provider settings object (as JSON). */
+export const SOCIAL_MAX_CHANNELS = 20;
+export const SOCIAL_MAX_TEXT = 5000;
+export const SOCIAL_MAX_SETTINGS_JSON = 20_000;
+/** How many days of outcomes the Posts tab asks for by default, and the most it may ask for. */
+export const SOCIAL_POSTS_DAYS = 14;
+export const SOCIAL_POSTS_MAX_DAYS = 90;
+
+/** The clip as Postiz will take it: an MP4 (the WebM fast export transcoded by the bundled ffmpeg), within 1 GB. */
+export interface SocialPreparedClip {
+  path: string;
+  bytes: number;
+  type: "video/mp4";
+  durationSec: number | null;
+  width: number | null;
+  height: number | null;
+  /** The file is a temporary MP4 made from the clip (removed after the upload), not the Library file itself. */
+  transcoded: boolean;
+}
+
+/** One channel of a post as the card approved it: the text and the provider's settings (`__type` mandatory). */
+export interface SocialPostChannel {
+  id: string;
+  platform: string;
+  text: string;
+  settings: { __type: string } & Record<string, unknown>;
+}
+
+/** What Approve sends: the clip, the channels with their text and settings, and when ("now", "draft" or a UTC ISO time in the future). */
+export interface SocialPostRequest {
+  clipId: string;
+  channels: SocialPostChannel[];
+  when: "now" | "draft" | string;
+  /** The video frame (ms) Postiz uses as the thumbnail, when chosen. */
+  thumbnailMs?: number;
+}
+
+export interface SocialPostResult {
+  postIds: { channelId: string; postId: string }[];
+  /** Postiz's group of the posts when it said (deleting one removes the group). */
+  group: string | null;
+}
+
+/** A clip on its way: the bundled ffmpeg's transcode, the upload, the create call, done. */
+export interface SocialProgressEvent {
+  clipId: string;
+  phase: "transcoding" | "uploading" | "creating" | "done";
+  /** 0–100. */
+  percent: number;
+}
+
+export type SocialPostState = "QUEUE" | "PUBLISHED" | "ERROR" | "DRAFT";
+
+/** A post as Postiz lists it (one row per channel): how the app learns the outcome. */
+export interface SocialPostOutcome {
+  id: string;
+  channel: { id: string; name: string; platform: string; picture: string | null } | null;
+  state: SocialPostState;
+  /** ISO time. */
+  publishDate: string;
+  releaseUrl: string | null;
+  error: string | null;
+  content: string;
+}
+
+/** One line of social-audit.json: every call that created or removed posts, with who approved it. */
+export interface SocialAuditEntry {
+  /** ISO time. */
+  at: string;
+  action: "createPosts" | "deletePost";
+  channels: string[];
+  postIds: string[];
+  by: "user";
+  clipId: string | null;
+  when: string | null;
+}
+
+/** Postiz's next free slot for a channel. */
+export interface SocialSlot {
+  /** ISO time. */
+  date: string;
+}
+
+/** The provider's rules and settings schema (`GET /integration-settings/:id`), as Postiz sends them. */
+export type SocialChannelSettings = Record<string, unknown>;
+
+/** Whether `when` is one of the two words or an ISO time that lies in the future. */
+export function isSocialWhen(when: unknown, now: number = Date.now()): when is string {
+  if (typeof when !== "string") return false;
+  if (when === "now" || when === "draft") return true;
+  if (when.length > 40 || !/^\d{4}-\d{2}-\d{2}T/.test(when)) return false;
+  const at = Date.parse(when);
+  return Number.isFinite(at) && at > now;
+}
+
+/** Validates the card's post request before the main process acts on it (an error message, or null). */
+export function checkSocialPostRequest(value: unknown, now: number = Date.now()): string | null {
+  const r = value as Partial<SocialPostRequest> | null;
+  if (!r || typeof r !== "object" || Array.isArray(r)) return "social.post(request)";
+  if (typeof r.clipId !== "string" || r.clipId.length === 0 || r.clipId.length >= 512) return "social.post: clipId";
+  if (!Array.isArray(r.channels) || r.channels.length === 0 || r.channels.length > SOCIAL_MAX_CHANNELS) return `social.post: channels (1 to ${SOCIAL_MAX_CHANNELS})`;
+  const seen = new Set<string>(); // --- review fix (social-postiz) --- one entry per channel (Postiz would create two posts)
+  for (const c of r.channels as Partial<SocialPostChannel>[]) {
+    if (!c || typeof c !== "object" || Array.isArray(c)) return "social.post: channel";
+    if (typeof c.id !== "string" || c.id.length === 0 || c.id.length >= 512) return "social.post: channel id";
+    if (seen.has(c.id)) return "social.post: duplicate channel id";
+    seen.add(c.id);
+    if (typeof c.platform !== "string" || c.platform.length === 0 || c.platform.length > 60) return "social.post: channel platform";
+    if (typeof c.text !== "string" || c.text.length > SOCIAL_MAX_TEXT) return `social.post: channel text (at most ${SOCIAL_MAX_TEXT} characters)`;
+    const s = c.settings as unknown;
+    if (!s || typeof s !== "object" || Array.isArray(s) || Object.getPrototypeOf(s) !== Object.prototype) return "social.post: channel settings must be a plain object";
+    if (typeof (s as { __type?: unknown }).__type !== "string") return "social.post: channel settings.__type";
+    if (JSON.stringify(s).length > SOCIAL_MAX_SETTINGS_JSON) return "social.post: channel settings too large";
+  }
+  if (!isSocialWhen(r.when, now)) return 'social.post: when must be "now", "draft" or an ISO time in the future';
+  if (r.thumbnailMs !== undefined && (typeof r.thumbnailMs !== "number" || !Number.isInteger(r.thumbnailMs) || r.thumbnailMs < 0)) return "social.post: thumbnailMs";
+  return null;
+}
+
 /* ------------------------------------------------------------------ updates */
 
 export interface UpdateStatus {
@@ -499,6 +630,7 @@ export interface DesktopEventMap {
   modelProgress: ModelProgressEvent;
   renderProgress: RenderProgressEvent;
   update: UpdateStatus;
+  socialProgress: SocialProgressEvent; // --- social-postiz ---
 }
 export type DesktopEventName = keyof DesktopEventMap;
 
@@ -580,6 +712,19 @@ export interface DesktopApi {
     notices: {
       list(page?: number): Promise<PostizNotice[]>;
     };
+    /** Phase 2: the clip as Postiz will take it (an MP4 within 1 GB; a WebM is transcoded first). */
+    prepare(clipId: string): Promise<SocialPreparedClip>;
+    /** Approve on the card: one upload, then one create call with every channel. Nothing reaches Postiz any other way. */
+    post(request: SocialPostRequest): Promise<SocialPostResult>;
+    /** The posts of the last `days` (and the next: scheduled ones too) with their state, link or error. */
+    posts(days?: number): Promise<SocialPostOutcome[]>;
+    /** Removes a post – and with it every channel of its group (the page confirms first). */
+    postDelete(postId: string): Promise<void>;
+    audit(limit?: number): Promise<SocialAuditEntry[]>;
+    /** The provider's rules and settings schema for a channel (the generic settings form). */
+    channelSettings(channelId: string): Promise<SocialChannelSettings>;
+    /** Postiz's next free slot for a channel ("Next free slot" on the card). */
+    slot(channelId: string): Promise<SocialSlot>;
   };
   /** Subscribes to an event from the main process; returns the unsubscribe. */
   on<K extends DesktopEventName>(event: K, listener: (payload: DesktopEventMap[K]) => void): () => void;
@@ -593,6 +738,7 @@ export const EVENT_CHANNELS: Record<DesktopEventName, DesktopEventChannel> = {
   modelProgress: DESKTOP_EVENTS.modelProgress,
   renderProgress: DESKTOP_EVENTS.renderProgress,
   update: DESKTOP_EVENTS.update,
+  socialProgress: DESKTOP_EVENTS.socialProgress, // --- social-postiz ---
 };
 
 /**
@@ -643,6 +789,13 @@ export const BRIDGE_METHODS = {
   "social.key.forget": IPC.socialKeyForget,
   "social.channels.list": IPC.socialChannels,
   "social.notices.list": IPC.socialNotices,
+  "social.prepare": IPC.socialPrepare,
+  "social.post": IPC.socialPost,
+  "social.posts": IPC.socialPosts,
+  "social.postDelete": IPC.socialPostDelete,
+  "social.audit": IPC.socialAudit,
+  "social.channelSettings": IPC.socialChannelSettings,
+  "social.slot": IPC.socialSlot,
 } as const satisfies Record<string, IpcChannel>;
 
 /** `log` is fire-and-forget (`ipcRenderer.send`); every other channel is a request. */
@@ -683,6 +836,10 @@ export function checkIpcArgs(channel: IpcChannel, args: readonly unknown[]): str
     case IPC.aiModelSelect:
     case IPC.aiModelRemove:
     case IPC.aiCancel:
+    case IPC.socialPrepare: // --- social-postiz --- a Library item's id, a Postiz post's or channel's id
+    case IPC.socialPostDelete:
+    case IPC.socialChannelSettings:
+    case IPC.socialSlot:
       return isString(a) && a.length > 0 && a.length < 512 ? null : `${channel}(id)`;
     case IPC.libraryRemove:
       return isString(a) && typeof b === "boolean" ? null : "library.remove(id, deleteFile)";
@@ -726,6 +883,14 @@ export function checkIpcArgs(channel: IpcChannel, args: readonly unknown[]): str
       return a === undefined || typeof a === "boolean" ? null : "social.channels.list(refresh?)";
     case IPC.socialNotices:
       return a === undefined || (typeof a === "number" && Number.isInteger(a) && a >= 0) ? null : "social.notices.list(page?)";
+    // --- social-postiz --- phase 2: the card's post request (every channel bounded, `when` in the future), the outcome window
+    // in days and the audit's limit
+    case IPC.socialPost:
+      return checkSocialPostRequest(a);
+    case IPC.socialPosts:
+      return a === undefined || (typeof a === "number" && Number.isInteger(a) && a >= 1 && a <= SOCIAL_POSTS_MAX_DAYS) ? null : `social.posts(days? 1 to ${SOCIAL_POSTS_MAX_DAYS})`;
+    case IPC.socialAudit:
+      return a === undefined || (typeof a === "number" && Number.isInteger(a) && a >= 1 && a <= 1000) ? null : "social.audit(limit? 1 to 1000)";
     default:
       return null;
   }
