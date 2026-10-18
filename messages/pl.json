@@ -4000,7 +4000,8 @@
       "fast": "Szybki eksport",
       "batch": "Seria",
       "bot": "Bot viralowy",
-      "file": "Plik"
+      "file": "Plik",
+      "edit": "Edytor klipów"
     },
     "seconds": "{sec} s",
     "megabytes": "{mb} MB",
@@ -4152,7 +4153,9 @@
       }
     },
     "loopStyle": "Styl pętli",
-    "loopStyleTip": "Słowa klipów z pętlą: hasło małymi literami zaczynające się od liczby i kończące 🔊, prosty fakt oraz #satisfying #oddlysatisfying z tagami tematu (twoje zmiany zostaną zastąpione)"
+    "loopStyleTip": "Słowa klipów z pętlą: hasło małymi literami zaczynające się od liczby i kończące 🔊, prosty fakt oraz #satisfying #oddlysatisfying z tagami tematu (twoje zmiany zostaną zastąpione)",
+    "editClip": "Edytuj na TikToka",
+    "editClipTip": "Wejdź w akcję, dodaj hak i planszę końcową i wyrenderuj pionowy plik"
   },
   "Unlimited": {
     "label": "Szerokie suwaki",
@@ -4447,7 +4450,8 @@
     "privacyTitle": "Prywatność",
     "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja łączy się z internetem tylko po to, by pobrać model, o który poprosisz, i sprawdzić aktualizacje na GitHubie.",
     "updateLater": "Później",
-    "updateWaitRender": "Trwa renderowanie. Poczekaj, aż kolejka się skończy, albo zamknij aplikację, a aktualizacja zainstaluje się przy zamykaniu."
+    "updateWaitRender": "Trwa renderowanie. Poczekaj, aż kolejka się skończy, albo zamknij aplikację, a aktualizacja zainstaluje się przy zamykaniu.",
+    "libEdit": "Edytuj na TikToka"
   },
   "Territory": {
     "canvasVs": "VS",
@@ -5651,5 +5655,44 @@
   "StringDuel": {
     "banner": "FINAŁOWY POJEDYNEK",
     "threads": "NICI"
+  },
+  "ClipEditor": {
+    "title": "Edytor klipów",
+    "close": "Zamknij",
+    "intro": "Zacznij tam, gdzie jest akcja, przybliż pierścień, zostaw pytanie i swój adres na ekranie od pierwszej klatki i zakończ planszą z nazwą strony. Podgląd pokazuje plik klatka po klatce.",
+    "previewAlt": "Podgląd cięcia",
+    "scrub": "Czas podglądu",
+    "seconds": "{sec} s",
+    "sourceLength": "źródło {sec} s",
+    "start": "Początek w źródle",
+    "length": "Długość akcji",
+    "zoom": "Przybliżenie",
+    "card": "Plansza końcowa",
+    "hook": "Hak u góry",
+    "hookPlaceholder": "Pytanie, na którego odpowiedź widz czeka",
+    "url": "Adres pod hakiem i na planszy",
+    "ideas": {
+      "escape": "Czy ucieknie?",
+      "winner": "Czerwony czy niebieski?",
+      "wait": "Poczekaj na ostatnie odbicie",
+      "count": "Ile odbić?"
+    },
+    "cardTitle": "Zrób własny",
+    "cardNote": "za darmo, w przeglądarce",
+    "phase": {
+      "prepare": "Otwieranie wideo…",
+      "frames": "Klatka {frame} z {frames} · {percent} %",
+      "audio": "Cięcie dźwięku · {percent} %",
+      "finish": "Zapisywanie pliku…"
+    },
+    "renderDownload": "Renderuj i pobierz",
+    "renderSave": "Renderuj i zapisz w Bibliotece",
+    "downloadAgain": "Pobierz ponownie",
+    "cancel": "Anuluj",
+    "downloaded": "Pobrano: {sec} s, {mb} MB. Cięcie jest też wśród klipów w Publikuj.",
+    "savedLibrary": "Zapisano w Bibliotece: {sec} s, {mb} MB. Cięcie jest też wśród klipów w Publikuj.",
+    "watermarked": "Darmowe eksporty mają znak wodny. Pro go usuwa.",
+    "unsupported": "Ta przeglądarka nie koduje wideo. Chrome lub Edge potrafią, a także aplikacja na Windows.",
+    "tip": "Zacznij od ruchu, nie od nieruchomego pierścienia: większość widzów decyduje w pierwszej sekundzie. 8 do 15 sekund, które dobrze się zapętlają, działa lepiej niż długi klip."
   }
 }

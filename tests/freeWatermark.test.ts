@@ -629,9 +629,17 @@ describe("the compositor of every output path draws it", () => {
     walk(path.join(ROOT, "src"));
     const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     const makers = files.filter((f) => /new MediaRecorder\(|\.captureStream\(|new VideoEncoder\(|new VideoFrame\(/.test(strip(fs.readFileSync(f, "utf8")))).map((f) => path.relative(ROOT, f));
-    expect(makers.sort()).toEqual(["src/lib/recording/fastRender.ts", "src/lib/recording/recorder.ts"]);
+    // --- clip-editor --- the third maker re-encodes a finished export (lib/clipEdit): it seals once and draw.ts stamps every frame
+    expect(makers.sort()).toEqual(["src/lib/clipEdit/render.ts", "src/lib/recording/fastRender.ts", "src/lib/recording/recorder.ts"]);
+    const clipEdit = strip(fs.readFileSync(path.join(ROOT, "src/lib/clipEdit/render.ts"), "utf8"));
+    expect(clipEdit).toMatch(/const seal = await sealWatermark\(\);/);
+    for (const c of clipEdit.match(/drawEditFrame\([^;]*\);/g) ?? []) expect(c).toMatch(/\{ seal, clipMs: /);
+    expect((clipEdit.match(/drawEditFrame\(/g) ?? []).length).toBe(1);
+    const clipDraw = strip(fs.readFileSync(path.join(ROOT, "src/lib/clipEdit/draw.ts"), "utf8"));
+    // stamped last: after the stamp nothing else is drawn
+    expect(clipDraw).toMatch(/stampFrame\(ctx, mark\.seal, \{ width, height, clipMs: mark\.clipMs \}\);\s*\}\s*$/);
     // both compositors seal once and hand the seal to drawRecordingFrame with every frame; the compositor stamps it
-    for (const f of makers) {
+    for (const f of makers.filter((f) => f !== "src/lib/clipEdit/render.ts")) {
       const src = strip(fs.readFileSync(path.join(ROOT, f), "utf8"));
       expect(src, f).toMatch(/sealWatermark\(\)/);
       const calls = src.match(/drawRecordingFrame\([^;]*\);/g) ?? [];

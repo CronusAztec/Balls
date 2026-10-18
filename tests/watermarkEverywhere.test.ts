@@ -577,9 +577,10 @@ describe("the wiring: every live canvas stamps its frames last, offline canvases
       }
     };
     walk("src");
-    // every canvas that plays a simulation stamps it; the panel's other two draw no simulation (the face icon of the ball
-    // characters, the beats of an imported video's waveform)
-    const notSimulations = ["src/components/simulator/sections/CharacterSection.tsx", "src/components/simulator/sections/VideoBeatsSection.tsx"];
+    // every canvas that plays a simulation stamps it; the panel's other three draw no simulation (the face icon of the ball
+    // characters, the beats of an imported video's waveform, --- clip-editor --- the preview of a finished export's cut,
+    // which lib/clipEdit/draw.ts stamps with the page's seal like the file it previews)
+    const notSimulations = ["src/components/simulator/sections/CharacterSection.tsx", "src/components/simulator/sections/VideoBeatsSection.tsx", "src/components/simulator/clipEditor/ClipEditorDialog.tsx"];
     expect(canvases.filter((f) => !notSimulations.includes(f)).sort()).toEqual(["src/components/simulator/Canvas.tsx", "src/components/simulator/splitScreenCanvas.tsx", "src/components/site/LivePreview.tsx"]);
     for (const f of notSimulations) expect(read(f), f).not.toMatch(/PhysicsEngine|createEngineForSettings|engine\.update\(/);
   });

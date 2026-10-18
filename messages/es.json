@@ -4000,7 +4000,8 @@
       "fast": "Exportación rápida",
       "batch": "Lote",
       "bot": "Bot viral",
-      "file": "Archivo"
+      "file": "Archivo",
+      "edit": "Editor de clips"
     },
     "seconds": "{sec} s",
     "megabytes": "{mb} MB",
@@ -4152,7 +4153,9 @@
       }
     },
     "loopStyle": "Estilo bucle",
-    "loopStyleTip": "Las palabras de los clips en bucle: un gancho en minúsculas que empieza con un número y termina en 🔊, un dato sencillo y #satisfying #oddlysatisfying con las etiquetas del tema (tus cambios se sustituyen)"
+    "loopStyleTip": "Las palabras de los clips en bucle: un gancho en minúsculas que empieza con un número y termina en 🔊, un dato sencillo y #satisfying #oddlysatisfying con las etiquetas del tema (tus cambios se sustituyen)",
+    "editClip": "Editar para TikTok",
+    "editClipTip": "Entra en la acción, añade un gancho y una tarjeta final y renderiza un archivo vertical"
   },
   "Unlimited": {
     "label": "Deslizadores amplios",
@@ -4447,7 +4450,8 @@
     "privacyTitle": "Privacidad",
     "privacyBody": "Todo funciona en tu PC. La IA local funciona sin conexión. Una clave de la nube que introduzcas se guarda cifrada y solo se envía al proveedor que elegiste. La aplicación solo se conecta para descargar un modelo que pediste y buscar actualizaciones en GitHub.",
     "updateLater": "Más tarde",
-    "updateWaitRender": "Hay un renderizado en curso. Espera a que termine la cola o cierra la aplicación, y la actualización se instalará al cerrar."
+    "updateWaitRender": "Hay un renderizado en curso. Espera a que termine la cola o cierra la aplicación, y la actualización se instalará al cerrar.",
+    "libEdit": "Editar para TikTok"
   },
   "Territory": {
     "canvasVs": "VS",
@@ -5651,5 +5655,44 @@
   "StringDuel": {
     "banner": "DUELO FINAL",
     "threads": "HILOS"
+  },
+  "ClipEditor": {
+    "title": "Editor de clips",
+    "close": "Cerrar",
+    "intro": "Entra donde está la acción, acerca el anillo, deja una pregunta y tu dirección en pantalla desde el primer fotograma y termina con una tarjeta que nombra el sitio. La vista previa muestra el archivo fotograma a fotograma.",
+    "previewAlt": "Vista previa del corte",
+    "scrub": "Tiempo de la vista previa",
+    "seconds": "{sec} s",
+    "sourceLength": "origen {sec} s",
+    "start": "Inicio en el origen",
+    "length": "Duración de la acción",
+    "zoom": "Acercar",
+    "card": "Tarjeta final",
+    "hook": "Gancho arriba",
+    "hookPlaceholder": "Una pregunta que el espectador espera ver respondida",
+    "url": "Dirección bajo el gancho y en la tarjeta",
+    "ideas": {
+      "escape": "¿Escapará?",
+      "winner": "¿Rojo o azul?",
+      "wait": "Espera al último rebote",
+      "count": "¿Cuántos rebotes?"
+    },
+    "cardTitle": "Crea el tuyo",
+    "cardNote": "gratis, en tu navegador",
+    "phase": {
+      "prepare": "Abriendo el vídeo…",
+      "frames": "Fotograma {frame} de {frames} · {percent} %",
+      "audio": "Cortando el sonido · {percent} %",
+      "finish": "Escribiendo el archivo…"
+    },
+    "renderDownload": "Renderizar y descargar",
+    "renderSave": "Renderizar y guardar en la Biblioteca",
+    "downloadAgain": "Descargar de nuevo",
+    "cancel": "Cancelar",
+    "downloaded": "Descargado: {sec} s, {mb} MB. El corte también está en los clips de Publicar.",
+    "savedLibrary": "Guardado en la Biblioteca: {sec} s, {mb} MB. El corte también está en los clips de Publicar.",
+    "watermarked": "Las exportaciones gratuitas llevan la marca de agua. Pro la quita.",
+    "unsupported": "Este navegador no puede codificar vídeo. Chrome o Edge sí pueden, y también la aplicación de Windows.",
+    "tip": "Empieza con movimiento, no con un anillo quieto: la mayoría decide en el primer segundo. De 8 a 15 segundos que se repiten bien funcionan mejor que un clip largo."
   }
 }

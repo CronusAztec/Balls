@@ -4000,7 +4000,8 @@
       "fast": "Fast export",
       "batch": "Batch",
       "bot": "Viral bot",
-      "file": "File"
+      "file": "File",
+      "edit": "Clip editor"
     },
     "seconds": "{sec} s",
     "megabytes": "{mb} MB",
@@ -4152,7 +4153,9 @@
       }
     },
     "loopStyle": "Loop style",
-    "loopStyleTip": "The loop clips' words: a lowercase hook led by a number and ending in 🔊, a plain fact, and #satisfying #oddlysatisfying with the topic's tags (your edits are replaced)"
+    "loopStyleTip": "The loop clips' words: a lowercase hook led by a number and ending in 🔊, a plain fact, and #satisfying #oddlysatisfying with the topic's tags (your edits are replaced)",
+    "editClip": "Edit for TikTok",
+    "editClipTip": "Cut in on the action, add a hook and an end card, and render a vertical file"
   },
   "Unlimited": {
     "label": "Wide sliders",
@@ -4447,7 +4450,8 @@
     "privacyTitle": "Privacy",
     "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app goes online only to download a model you asked for and to check GitHub for updates.",
     "updateLater": "Later",
-    "updateWaitRender": "A render is running. Wait for the queue to finish, or quit the app and the update installs as it closes."
+    "updateWaitRender": "A render is running. Wait for the queue to finish, or quit the app and the update installs as it closes.",
+    "libEdit": "Edit for TikTok"
   },
   "Territory": {
     "canvasVs": "VS",
@@ -5651,5 +5655,44 @@
   "StringDuel": {
     "banner": "FINAL DUEL",
     "threads": "THREADS"
+  },
+  "ClipEditor": {
+    "title": "Clip editor",
+    "close": "Close",
+    "intro": "Cut in where the action is, crop in on the ring, keep a question and your address on screen from the first frame, and end on a card that names the site. The preview shows the file frame for frame.",
+    "previewAlt": "Preview of the cut",
+    "scrub": "Preview time",
+    "seconds": "{sec} s",
+    "sourceLength": "source {sec} s",
+    "start": "Start in the source",
+    "length": "Length of action",
+    "zoom": "Crop in",
+    "card": "End card",
+    "hook": "Hook at the top",
+    "hookPlaceholder": "A question the viewer waits to see answered",
+    "url": "Address under the hook and on the card",
+    "ideas": {
+      "escape": "Will it escape?",
+      "winner": "Red or blue?",
+      "wait": "Wait for the last bounce",
+      "count": "How many bounces?"
+    },
+    "cardTitle": "Make your own",
+    "cardNote": "free, in your browser",
+    "phase": {
+      "prepare": "Opening the video…",
+      "frames": "Frame {frame} of {frames} · {percent} %",
+      "audio": "Cutting the sound · {percent} %",
+      "finish": "Writing the file…"
+    },
+    "renderDownload": "Render and download",
+    "renderSave": "Render and save to Library",
+    "downloadAgain": "Download again",
+    "cancel": "Cancel",
+    "downloaded": "Downloaded: {sec} s, {mb} MB. The cut is in the Publish clips too.",
+    "savedLibrary": "Saved to the Library: {sec} s, {mb} MB. The cut is in the Publish clips too.",
+    "watermarked": "Free exports carry the watermark. Pro removes it.",
+    "unsupported": "This browser cannot encode video. Chrome or Edge can, and so can the Windows app.",
+    "tip": "Start on motion, not on a still ring: most viewers decide in the first second. 8 to 15 seconds that loop cleanly do better than a long clip."
   }
 }

@@ -8,6 +8,7 @@ import { onPublishTargetsChange, postText, publishTargets, type PublishTarget } 
 import { Card, dangerBtn, errorText, formatBytes, formatSeconds, ghostBtn, primaryBtn } from "./ui";
 
 import { IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
+import ClipEditorDialog, { type ClipEditorSource } from "../clipEditor/ClipEditorDialog"; // --- clip-editor ---
 /*
  * --- desktop-exe --- The Library: the clips the render queue saved, newest first – thumbnail, length, size, encoder, the
  * post copy – with Open, Show in folder, Re-render (the clip's simulator link and seed back into the queue), Copy post text,
@@ -24,8 +25,19 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
   const [publishing, setPublishing] = useState(false);
   const [publishes, setPublishes] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
+  // --- clip-editor --- the clip being cut for TikTok (its file read through the bridge) and the Library entry it came from
+  const [editing, setEditing] = useState<{ source: ClipEditorSource; item: LibraryItem } | null>(null);
   const targets = useSyncExternalStore(onPublishTargetsChange, publishTargets, () => noTargets);
   useEffect(onRefresh, [onRefresh]);
+
+  const edit = async (item: LibraryItem) => {
+    try {
+      const file = pickedToFile(await bridge.library.read(item.id));
+      setEditing({ source: { blob: file, name: item.fileName, mode: item.meta.mode, seed: item.meta.seed }, item });
+    } catch (err) {
+      setStatus(errorText(err));
+    }
+  };
 
   const remove = (item: LibraryItem, deleteFile: boolean) => {
     if (deleteFile && !window.confirm(t("libDeleteConfirm", { name: item.fileName }))) return;
@@ -61,6 +73,7 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
         </>
       }
     >
+      {editing && <ClipEditorDialog source={editing.source} onClose={() => setEditing(null)} desktop={{ bridge, meta: { title: editing.item.meta.title, link: editing.item.meta.link, caption: editing.item.meta.caption, hashtags: editing.item.meta.hashtags }, onSaved: onRefresh }} />}
       {/* --- low-findings --- the status line says whether a publish is under way and how many have finished, so a tool waits for an outcome */}
       {status && (
         <p className="text-xs text-ink-2" data-testid="desktop-library-status" data-library-publishing={publishing ? "1" : "0"} data-library-publishes={publishes} role="status">
@@ -102,6 +115,10 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
                   </button>
                   <button type="button" className={`${ghostBtn} !py-0.5`} onClick={() => onRerender(item)}>
                     {t("libRerender")}
+                  </button>
+                  {/* --- clip-editor --- */}
+                  <button type="button" className={`${ghostBtn} !py-0.5`} disabled={!item.exists} onClick={() => void edit(item)} data-testid="library-edit">
+                    {t("libEdit")}
                   </button>
                   <button
                     type="button"

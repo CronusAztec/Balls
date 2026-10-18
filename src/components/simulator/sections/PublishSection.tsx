@@ -13,11 +13,12 @@ import { accountViews, getPublishController, sendPlan, type AccountView, type Pu
 import { defaultDraft } from "@/lib/publish/copy";
 import { PUBLISH_PLATFORMS, VISIBILITIES, type PublishPlatform, type Visibility } from "@/lib/publish/platforms";
 import { SITE_NAME } from "@/lib/site";
-import { isDesktopApp } from "@/lib/desktop/bridge"; // --- desktop-exe ---
+import { getDesktop, isDesktopApp } from "@/lib/desktop/bridge"; // --- desktop-exe --- · --- clip-editor --- (getDesktop: in the Windows app the cut is saved to the Library)
 import { gate } from "@/lib/billing/unlock"; // --- paywall-gate --- Publish sends videos: a Pro feature (a free visitor gets the Unlock dialog)
 import LockBadge from "@/components/billing/LockBadge"; // --- paywall-gate ---
 
 import { IconClose, IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
+import ClipEditorDialog from "../clipEditor/ClipEditorDialog"; // --- clip-editor ---
 /*
  * --- social-publish --- The "Publish" block of the Recording section (after the Viral video bot block): the clip to send
  * (the last recording, fast export, batch or bot clip, or a picked file), its words per platform with the platforms'
@@ -67,8 +68,11 @@ function CounterBadge({ c, p }: { c: Counter; p: Translate }) {
 function ClipCard({ s, clip, p, t }: { s: PublishSnapshot; clip: PublishClip | null; p: Translate; t: Translate }) {
   const c = getPublishController();
   const thumb = clip ? s.thumbs[clip.id] : null;
+  const [editing, setEditing] = useState<PublishClip | null>(null); // --- clip-editor ---
+  const desktop = getDesktop();
   return (
     <div className="space-y-2">
+      {editing && <ClipEditorDialog source={{ blob: editing.blob, name: editing.name, mode: editing.mode, seed: editing.seed }} onClose={() => setEditing(null)} desktop={desktop ? { bridge: desktop } : null} />}
       {clip ? (
         <div className="flex gap-2.5 items-center rounded-lg bg-surface-2/50 border border-line-strong/40 p-2" data-publish-clip-source={clip.source} data-publish-clip-name={clip.name}>
           {thumb ? (
@@ -90,6 +94,10 @@ function ClipCard({ s, clip, p, t }: { s: PublishSnapshot; clip: PublishClip | n
               {modeLabel(t, clip.mode) && <span>· {modeLabel(t, clip.mode)}</span>}
             </div>
           </div>
+          {/* --- clip-editor --- the cut for TikTok: start, length, crop-in, hook, end card */}
+          <button type="button" onClick={() => setEditing(clip)} className={`${smallBtn} border border-accent/50 text-accent hover:bg-accent/10`} title={p("editClipTip")} data-testid="publish-edit-clip">
+            {p("editClip")}
+          </button>
           <button type="button" onClick={() => c.removeClip(clip.id)} className={`${smallBtn} ${offBtn}`} aria-label={p("removeClip")} title={p("removeClip")}>
             <IconClose size={14} />
           </button>
