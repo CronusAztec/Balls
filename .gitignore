@@ -57,3 +57,6 @@ yarn-error.log*
 # --- fl-overhaul --- (Stage 4) the owner's licensed fight sounds and exported clip sets stay on the device, never in the repository
 fight-sounds/
 *.jumpingballslive.zip
+
+# graphify output (generated; rebuild with: graphify update .)
+/graphify-out/
