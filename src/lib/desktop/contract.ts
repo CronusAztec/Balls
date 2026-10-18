@@ -664,7 +664,7 @@ export interface SocialQueueItem {
   log: { at: string; text: string }[];
 }
 
-/** What `queue.propose` takes (from the planner or the AI panel's "Send to queue"). */
+/** What `queue.propose` takes (from the planner or the AI panel's "Send to Posts tab"). */
 export interface SocialProposalInput {
   clipId: string;
   channels: { integrationId: string; platform: string; text: string; settings?: Record<string, unknown> }[];

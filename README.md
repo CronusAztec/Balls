@@ -3785,7 +3785,7 @@ posted until the user approves it on the card:
   autopilot's channels, the day's budget, the quiet hours, the local time, a playbook excerpt and the recent outcomes →
   proposals with ids as enums, texts within the platform limits, `when` outside the quiet hours and within 48 h; `checkFinal`
   refuses unknown ids and TikTok's settings. `planRun.ts` gathers the inputs over the bridge; the AI panel shows the result
-  with **Send to queue**; `useAutopilot.ts` (mounted by the Desktop group's section) checks every 15 minutes with
+  with **Send to Posts tab**; `useAutopilot.ts` (mounted by the Desktop group's section) checks every 15 minutes with
   `shouldPlanNow` and runs the planner while the autopilot is on, the AI can answer and today's budget has room.
 - the Posts tab: the **Proposed** group on top (thumbnail, channels, editable text, when, the reason, Review and approve →
   the card prefilled, the user completes TikTok's choices and approves; Skip; Remove) and the **Autopilot** card (toggle,

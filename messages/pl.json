@@ -4442,7 +4442,7 @@
       "ideas": "Pomysły",
       "fighter": "Nowy wojownik",
       "mode": "Nowy tryb",
-      "plan": "Planuj posty"
+      "plan": "Zaplanuj posty"
     },
     "aiTaskHint": {
       "videos": "Opisz, jakich klipów chcesz: AI zaplanuje je wiralowym botem i funkcją Znajdź symulację, napisze teksty dla każdej platformy i doda je do kolejki.",
@@ -4451,7 +4451,7 @@
       "ideas": "Świeże pomysły na klipy oparte na poradniku o wiralności.",
       "fighter": "Opisz wojownika do Ball Fight League – AI zaprojektuje go z broni i umiejętności, które ma aplikacja, zadba o uczciwe liczby i zapisze go na tym komputerze (dywizja Wildcard).",
       "mode": "Opisz tryb gry – AI zbuduje go z mechanik, które aplikacja już ma (tryb bazowy plus ustawienia), zastosuje (z cofnięciem) i zapisze na tym komputerze.",
-      "plan": "Propozycje do karty Posty: który nieopublikowany klip, dla jakich kanałów, z tekstem i terminem. Nic nie zostanie opublikowane, dopóki nie zatwierdzisz każdego na jego karcie."
+      "plan": "Propozycje do zakładki Posty: który nieopublikowany klip, dla jakich kanałów, z tekstem i terminem. Nic nie zostanie opublikowane, dopóki nie zatwierdzisz każdej na jej karcie."
     },
     "aiPlaceholder": {
       "videos": "pięć satysfakcjonujących klipów ze szkłem na poniedziałek",
@@ -4652,12 +4652,12 @@
     "postizDeleted": "Post został usunięty z Postiz.",
     "postizRetryNoClip": "Klipu tego posta nie ma już w Bibliotece, więc nie da się otworzyć dla niego karty.",
     "postizProposedTitle": "Propozycje · {count}",
-    "postizProposedIntro": "Co autopilot i studio AI proponują opublikować. Sprawdź tekst, potem przejrzyj i zatwierdź na karcie. Pomiń zostawia klip na później. Usuń kasuje propozycję.",
+    "postizProposedIntro": "Co autopilot i studio AI proponują opublikować. Popraw tekst, jeśli chcesz, i naciśnij Przejrzyj i zatwierdź, aby otworzyć kartę. Pomiń zostawia klip na później. Usuń wycofuje propozycję.",
     "postizProposedEmpty": "Brak propozycji. Włącz autopilota poniżej albo naciśnij Zaproponuj teraz.",
     "postizProposedReview": "Przejrzyj i zatwierdź",
     "postizProposedSkip": "Pomiń",
     "postizProposedRemove": "Usuń",
-    "postizProposedHint": "Zatwierdzasz na karcie, tam też wybierasz widoczność i interakcje TikToka.",
+    "postizProposedHint": "Zatwierdzasz na karcie, tam też wybierasz odbiorców i interakcje na TikToku.",
     "postizProposedReason": "Dlaczego: {reason}",
     "postizProposedClipGone": "Tego klipu nie ma już w Bibliotece.",
     "postizProposedBy": {
@@ -4666,13 +4666,13 @@
     },
     "postizQueueStatus": {
       "proposed": "Zaproponowane",
-      "approved": "W drodze",
+      "approved": "Wysłane do Postiz",
       "skipped": "Pominięte",
       "posted": "Opublikowane",
       "failed": "Nieudane"
     },
     "postizAutopilotTitle": "Autopilot",
-    "postizAutopilotIntro": "Gdy aplikacja jest otwarta, autopilot przegląda nieopublikowane klipy, poradnik i to, co się sprawdziło, i proponuje posty dla zaznaczonych kanałów.",
+    "postizAutopilotIntro": "Gdy aplikacja jest otwarta, autopilot przegląda nieopublikowane klipy, poradnik i to, co się sprawdziło. Proponuje posty dla zaznaczonych kanałów.",
     "postizAutopilotHonest": "Autopilot tylko proponuje. Nic nie zostanie opublikowane, dopóki tego tutaj nie zatwierdzisz.",
     "postizAutopilotEnable": "Proponuj posty, gdy aplikacja jest otwarta",
     "postizAutopilotChannels": "Kanały, dla których może proponować",
@@ -4686,11 +4686,11 @@
       "es": "hiszpański"
     },
     "postizAutopilotEvery": "Najwyżej jedno planowanie co {hours} godz.",
-    "postizAutopilotLastPlanned": "Ostatnie {date}.",
+    "postizAutopilotLastPlanned": "Ostatni raz {date}.",
     "postizAutopilotNever": "Jeszcze nie planował.",
     "postizAutopilotProposeNow": "Zaproponuj teraz",
-    "postizAutopilotPlanning": "Planuję…",
-    "postizAutopilotProposed": "{count, plural, =0 {Nic nowego do zaproponowania.} one {# propozycja dodana powyżej.} few {# propozycje dodane powyżej.} other {# propozycji dodanych powyżej.}}",
+    "postizAutopilotPlanning": "Planowanie…",
+    "postizAutopilotProposed": "{count, plural, =0 {Nic nowego do zaproponowania.} one {# propozycja dodana powyżej.} few {# propozycje dodane powyżej.} many {# propozycji dodanych powyżej.} other {# propozycji dodanych powyżej.}}",
     "postizAutopilotFailed": "Planer nie odpowiedział. Spróbuj za chwilę.",
     "postizAutopilotNote": {
       "noClips": "Każdy klip z Biblioteki jest już opublikowany albo zaproponowany. Najpierw wyrenderuj nowy.",
@@ -4699,9 +4699,9 @@
       "needsAi": "Studio AI potrzebuje modelu albo klucza, zanim zacznie planować."
     },
     "aiPlanTitle": "Proponowane posty · {count}",
-    "aiPlanSend": "Wyślij do kolejki",
-    "aiPlanHint": "Wyślij do kolejki umieszcza je w karcie Posty. Nic nie zostanie opublikowane, dopóki nie zatwierdzisz każdego na jego karcie.",
-    "aiPlanSent": "Wysłane do karty Posty. Przejrzyj i zatwierdź tam każdy z nich.",
+    "aiPlanSend": "Wyślij do zakładki Posty",
+    "aiPlanHint": "Wyślij do zakładki Posty dodaje je jako propozycje. Nic nie zostanie opublikowane, dopóki nie zatwierdzisz każdego na jego karcie.",
+    "aiPlanSent": "Wysłane do zakładki Posty. Przejrzyj i zatwierdź tam każdy z nich.",
     "metaTitle": "Pobierz {siteName} dla Windows",
     "metaDescription": "Symulator jako aplikacja na Windows. Karta graficzna koduje klipy, kolejka przerabia serie do folderu, a AI offline planuje filmy. Pobierz za darmo.",
     "badge": "Aplikacja Windows",

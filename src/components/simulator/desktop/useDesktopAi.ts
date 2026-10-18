@@ -46,7 +46,7 @@ export type AiResult =
   // --- custom-content --- a fighter saved (and the numbers the builder had to bring inside the limits), a mode saved and applied
   | { kind: "fighter"; row: FlFighterRow; notes: string[]; winRate: number | null }
   | { kind: "mode"; spec: CustomModeSpec; result: CustomModeResult; changed: string[] }
-  // --- social-autopilot --- the planner's proposals (queued only when the user presses "Send to queue"; posted only from the card)
+  // --- social-autopilot --- the planner's proposals (queued only when the user presses "Send to Posts tab"; posted only from the card)
   | { kind: "plan"; result: PlanResult; proposals: SocialProposalInput[]; channels: PostizChannel[]; sent: boolean };
 
 export interface AiLogLine {
@@ -323,7 +323,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
     [bridge, model, running, task, pageRef, onClips, refresh, custom, applyPatch],
   );
 
-  // --- social-autopilot --- "Send to queue": the proposals become `proposed` items (by the AI); nothing is posted
+  // --- social-autopilot --- "Send to Posts tab": the proposals become `proposed` items (by the AI); nothing is posted
   const sendToQueue = useCallback(async () => {
     const r = result;
     if (!bridge || !r || r.kind !== "plan" || r.sent || r.proposals.length === 0) return;

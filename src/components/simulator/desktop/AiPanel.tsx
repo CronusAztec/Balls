@@ -388,7 +388,7 @@ export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }:
           )}
         </Card>
 
-        {/* --- social-autopilot --- the planner's proposals: shown here, queued on "Send to queue", posted only from the approval card */}
+        {/* --- social-autopilot --- the planner's proposals: shown here, queued on "Send to Posts tab", posted only from the approval card */}
         {ai.result?.kind === "plan" && (
           <Card
             title={t("aiPlanTitle", { count: ai.result.proposals.length })}

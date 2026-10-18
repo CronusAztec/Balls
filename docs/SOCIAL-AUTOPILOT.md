@@ -195,7 +195,7 @@ Rules in code:
    outside the quiet hours and within 48 h, `checkFinal` refusing unknown ids and TikTok's privacy / interaction settings;
    temperature 0.6, 1500 tokens, 4 steps); `planRun.ts` gathers the inputs over the bridge and turns the answer into queue
    proposals (`__type` and a YouTube title are the only settings). The page runs it two ways: the AI studio's **Plan posts**
-   job with a result card and **Send to queue** (`useDesktopAi.ts`, `AiPanel.tsx`), and the trigger in `useAutopilot.ts`
+   job with a result card and **Send to Posts tab** (`useDesktopAi.ts`, `AiPanel.tsx`), and the trigger in `useAutopilot.ts`
    (mounted by the Desktop group's section, so it runs while the group is shown whichever tab is open): every 15 minutes
    `shouldPlanNow(settings, queue, now)` – enabled, a channel ticked, the last run older than `proposeHours`, fewer than
    `perDay` of the AI's proposals today – and, when the AI can answer and no studio job is on, the planner runs and
