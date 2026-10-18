@@ -191,17 +191,36 @@ jobs:
           JBL_UPDATE_URL: ${{ env.DOWNLOADS_URL }}
         run: npm run dist
 
+      # --- smoke-ai-budget --- The two real AI jobs of the smoke need CPU: on GitHub's 2-core runners (a private repository)
+      # llama.cpp gets one math core and the first job produced nothing in 20 minutes (run 38553491882), while the model itself
+      # loaded fine. With fewer than JBL_SMOKE_AI_MIN_CPUS processors the smoke still runs (window, bridge, canvas, llama.cpp
+      # start) without the two AI jobs, and says so in the log; a larger runner, or a public repository, runs them again.
+      - name: AI jobs in the smoke?
+        id: smoke-ai
+        env:
+          JBL_SMOKE_AI_MIN_CPUS: "4"
+        run: |
+          cpus="$(nproc)"
+          if [ "$cpus" -ge "$JBL_SMOKE_AI_MIN_CPUS" ]; then
+            echo "ai=true" >> "$GITHUB_OUTPUT"
+            echo "$cpus processors: the smoke runs the two AI jobs"
+          else
+            echo "ai=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=AI jobs skipped in the smoke::$cpus processors (fewer than $JBL_SMOKE_AI_MIN_CPUS): the packaged app is smoke-run without the two AI jobs"
+          fi
+
       # --- desktop-ai-fix --- the real AI path in CI: the smallest catalog model (Qwen2.5-1.5B Q4_K_M, 1.1 GB), cached, its
       # SHA-256 the catalog's (desktop/src/models/catalog.ts)
       - name: Smoke model (cache)
         id: smoke-model
+        if: steps.smoke-ai.outputs.ai == 'true'
         uses: actions/cache@v4
         with:
           path: .cache/smoke-model
           key: smoke-gguf-qwen2.5-1.5b-instruct-q4_k_m-6a1a2eb6d156
 
       - name: Smoke model (download on a cache miss)
-        if: steps.smoke-model.outputs.cache-hit != 'true'
+        if: steps.smoke-ai.outputs.ai == 'true' && steps.smoke-model.outputs.cache-hit != 'true'
         run: |
           mkdir -p .cache/smoke-model
           curl -fsSL --retry 4 --retry-delay 5 -o .cache/smoke-model/qwen2.5-1.5b-instruct-q4_k_m.gguf \
@@ -214,8 +233,9 @@ jobs:
         env:
           JBL_SMOKE_DATA: ${{ runner.temp }}\jbl-smoke-data
           JBL_SMOKE_TIMEOUT_MS: "120000"
-          # --- desktop-ai-fix --- one Settings and one Captions job on this model, GPU auto (the runner has none: the CPU)
-          JBL_SMOKE_MODEL: ${{ github.workspace }}\.cache\smoke-model\qwen2.5-1.5b-instruct-q4_k_m.gguf
+          # --- desktop-ai-fix --- one Settings and one Captions job on this model, GPU auto (the runner has none: the CPU);
+          # --- smoke-ai-budget --- empty (so: no AI jobs) on a runner with too few processors
+          JBL_SMOKE_MODEL: ${{ steps.smoke-ai.outputs.ai == 'true' && format('{0}\.cache\smoke-model\qwen2.5-1.5b-instruct-q4_k_m.gguf', github.workspace) || '' }}
           JBL_SMOKE_AI_TIMEOUT_MS: "1200000"
           JBL_VERBOSE: "1"
         run: |

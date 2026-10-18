@@ -189,6 +189,23 @@ describe("desktop.yml: the Windows app", () => {
     expect(release).toContain("- name: Apps older than 1.1.0 see the release (public repository)\n        if: github.event.repository.private == false\n");
     expect(release).toContain("releases/latest/download/latest.yml");
   });
+
+  it("runs the smoke's two AI jobs only on a runner with enough processors, and smoke-runs the packaged app on every runner", () => {
+    // --- smoke-ai-budget --- on GitHub's 2-core runners (a private repository) llama.cpp gets one math core and the first AI
+    // job produced nothing in 20 minutes, so no release went out; the smoke without the two jobs is what every runner can do
+    const build = jobSection(desktop, "build");
+    expect(build).toMatch(/- name: AI jobs in the smoke\?\n {8}id: smoke-ai\n/);
+    expect(build).toContain('JBL_SMOKE_AI_MIN_CPUS: "4"');
+    expect(build).toContain('echo "ai=true" >> "$GITHUB_OUTPUT"');
+    expect(build).toContain('echo "ai=false" >> "$GITHUB_OUTPUT"');
+    expect(build).toContain("- name: Smoke model (cache)\n        id: smoke-model\n        if: steps.smoke-ai.outputs.ai == 'true'\n");
+    expect(build).toContain("if: steps.smoke-ai.outputs.ai == 'true' && steps.smoke-model.outputs.cache-hit != 'true'\n");
+    expect(build).toContain("JBL_SMOKE_MODEL: ${{ steps.smoke-ai.outputs.ai == 'true' && format('{0}\\.cache\\smoke-model\\qwen2.5-1.5b-instruct-q4_k_m.gguf', github.workspace) || '' }}");
+    // the smoke itself has no condition: it runs on every runner
+    const smoke = /- name: Smoke-run the packaged app\n((?: {8}.+\n)+)/.exec(build)?.[1] ?? "";
+    expect(smoke).not.toContain("\n        if:");
+    expect(smoke).toContain('grep -q "SMOKE OK" smoke.log');
+  });
 });
 
 describe("billing-deploy.yml: the payment Worker", () => {
