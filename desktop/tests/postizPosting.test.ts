@@ -165,7 +165,7 @@ describe("ClipPoster.prepareClip", () => {
     expect(ready.transcoded).toBe(true);
     expect(ready.type).toBe("video/mp4");
     expect(ready.bytes).toBe(777);
-    expect(path.dirname(ready.path)).toBe(path.dirname("C:/Videos/fast.webm"));
+    expect(path.normalize(path.dirname(ready.path))).toBe(path.normalize("C:/Videos")); // path.join gives backslashes on Windows
     expect(path.basename(ready.path)).toMatch(/^\.fast-postiz-[0-9a-f]{8}\.mp4$/);
     // the banner was read for the length, the frame and the rate; then the transcode
     expect(runs).toHaveLength(2);
@@ -233,7 +233,7 @@ describe("ClipPoster.prepareClip", () => {
     const others = ["C:/Videos/.glass-postiz-cafebabe.mp4", "C:/Videos/.fast-postiz-notes.txt", "C:/Videos/fast-postiz-deadbeef.mp4", "C:/Videos/.fastest-postiz-deadbeef.mp4"];
     const { poster: p, removed, files } = poster(postizServer(), { extraFiles: [...stale, ...others] });
     const ready = await p.prepareClip("webm");
-    expect(removed.sort()).toEqual([...stale].sort());
+    expect(removed.map((f) => f.replace(/\\/g, "/")).sort()).toEqual([...stale].sort()); // the sweep joins the directory and the name: backslashes on Windows
     for (const f of others) expect(files.has(f)).toBe(true);
     expect(files.has(ready.path)).toBe(true);
     // the kept file survives a second run
