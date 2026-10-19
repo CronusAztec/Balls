@@ -1,7 +1,7 @@
 import type { SimulatorSettings } from "@/lib/settings";
 import type { ClipPlan } from "@/lib/bot/planner";
 import type { BotPlatform } from "@/lib/bot/playbook";
-import type { MadeClip } from "./ai/studio";
+import { clipCutSpec, type MadeClip } from "./ai/studio"; // --- ai-cut --- (clipCutSpec: the model's five fields plus the site's address)
 import type { OutputPreset } from "./presets";
 import type { BatchClipSource } from "./renderQueue";
 
@@ -32,7 +32,7 @@ export function planSource(plan: ClipPlan): BatchClipSource {
   };
 }
 
-/** A clip the AI planned: its plan's settings and seed, the AI's name and copy. */
+/** A clip the AI planned: its plan's settings and seed, the AI's name and copy – and its TikTok cut when the run asked for one (--- ai-cut ---). */
 export function aiClipSource(clip: MadeClip, plan: ClipPlan): BatchClipSource {
   return {
     name: clip.name.trim() || plan.id,
@@ -40,5 +40,6 @@ export function aiClipSource(clip: MadeClip, plan: ClipPlan): BatchClipSource {
     settings: plan.settings,
     seed: plan.seed,
     meta: { title: clip.title, platform: clip.platform as BotPlatform, hook: clip.hook, caption: clip.caption, hashtags: clip.hashtags, link: plan.shareUrl },
+    cut: clip.cut ? clipCutSpec(clip.cut) : null, // --- ai-cut --- the model never writes the address: the site's goes on
   };
 }

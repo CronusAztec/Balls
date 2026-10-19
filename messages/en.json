@@ -4451,7 +4451,13 @@
     "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app goes online only to download a model you asked for and to check GitHub for updates.",
     "updateLater": "Later",
     "updateWaitRender": "A render is running. Wait for the queue to finish, or quit the app and the update installs as it closes.",
-    "libEdit": "Edit for TikTok"
+    "libEdit": "Edit for TikTok",
+    "aiCut": "Also cut each clip for TikTok after rendering",
+    "aiCutTip": "The AI picks where the cut starts, how long it keeps, the crop-in, the hook on the frame and the end card. The cut is saved in the Library next to the clip.",
+    "aiCutLine": "Cut {start} to {end} s · crop-in {zoom} % · \"{hook}\"",
+    "jobCut": "+ TikTok cut",
+    "jobCutting": "Cutting for TikTok",
+    "jobCutFailed": "The TikTok cut of {name} failed: {error}. The clip itself is in the Library."
   },
   "Territory": {
     "canvasVs": "VS",
@@ -5693,6 +5699,10 @@
     "savedLibrary": "Saved to the Library: {sec} s, {mb} MB. The cut is in the Publish clips too.",
     "watermarked": "Free exports carry the watermark. Pro removes it.",
     "unsupported": "This browser cannot encode video. Chrome or Edge can, and so can the Windows app.",
-    "tip": "Start on motion, not on a still ring: most viewers decide in the first second. 8 to 15 seconds that loop cleanly do better than a long clip."
+    "tip": "Start on motion, not on a still ring: most viewers decide in the first second. 8 to 15 seconds that loop cleanly do better than a long clip.",
+    "suggest": "Suggest with AI",
+    "suggesting": "Asking the AI…",
+    "suggested": "AI: {summary}",
+    "suggestFailed": "The AI could not propose a cut: {error}"
   }
 }

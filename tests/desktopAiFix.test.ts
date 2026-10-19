@@ -13,8 +13,11 @@ import type { AiMessage } from "@/lib/desktop/contract";
 import { checkIpcArgs, IPC } from "@/lib/desktop/contract";
 import { validateJson } from "@/lib/desktop/ai/jsonSchema";
 import { DEFAULT_TEMPERATURE, RETRY_TEMPERATURE_STEP, replySchema, runAgent, type ChatModel, type ChatOptions } from "@/lib/desktop/ai/agent";
-import { PlanStore, copyFinal, copyTask, makeVideosTask, recipeList, settingsTask, type CopyResult, type MakeVideosResult, type StudioPorts } from "@/lib/desktop/ai/studio";
-import { fitText, normaliseCopyResult, normaliseHashtags, normaliseMakeVideosResult, normalisePlatform, resolvePlanId, slugifyClipName, withoutPlaceholders } from "@/lib/desktop/ai/normalise";
+import { PlanStore, clipCutSpec, clipEditTask, copyFinal, copyTask, makeVideosTask, recipeList, settingsTask, type CopyResult, type MakeVideosResult, type StudioPorts } from "@/lib/desktop/ai/studio";
+import { fitText, normaliseCopyResult, normaliseHashtags, normaliseMakeVideosResult, normalisePlatform, resolvePlanId, slugifyClipName, withoutPlaceholders, type PlanFacts } from "@/lib/desktop/ai/normalise";
+// --- ai-cut ---
+import { DEFAULT_CLIP_EDIT } from "@/lib/clipEdit/spec";
+import type { ClipBeats } from "@/lib/clipEdit/propose";
 import { CORE_SETTING_KEYS, MAX_RELEVANT_SETTINGS, relevantAssistantSettings } from "@/lib/desktop/ai/settingsFilter";
 import { assistantSettings, settingsCatalog } from "@/lib/desktop/ai/settingsPatch";
 import { foldSystemNotes } from "@/lib/desktop/ai/conversation";
@@ -122,6 +125,24 @@ describe("reply normalisers (the replies 1.0.2's local models gave)", () => {
     expect(fixed.clips[0]).toEqual({ planId: "ep012-ring-escape-111", name: "Monday ring escape", title: "Ring escape", hook: "Can it escape in 24 seconds?", caption: "Which ring?", hashtags: ["#physics", "#satisfying", "#ringescape"], platform: "reels" });
     expect(fixed.clips.map((c) => c.planId)).toEqual(["ep012-ring-escape-111", "new_plan_12345"]); // the second clip of plan 1 dropped; the invented id stays for the checks
   });
+
+  // --- ai-cut --- the cut rides with the clip: snapped when the model wrote one, never added when it did not
+  it("keeps a clip's cut when the model wrote one, snapped to the plan's beats, and adds none when it did not", () => {
+    const beats: ClipBeats = { durationSec: 20, mode: "glass", firstImpactSec: 0.8, payoffSec: 12, cutGapSec: null, ending: "resolved", seamlessLoop: false, hook: "Can it escape?" };
+    const plans: PlanFacts[] = [{ id: "p-1", platform: "reels", hashtags: ["#a", "#b", "#c"], vars: {}, beats }];
+    const clip = { planId: "p-1", name: "a", title: "t", hook: "Will it break the last pane?", caption: "c", hashtags: ["#a", "#b", "#c"], platform: "reels" };
+    // strings for numbers, a length past the file, a zoom and a card off the steps, an empty hook, an address of the model's own
+    const fixed = normaliseMakeVideosResult({ summary: "", clips: [{ ...clip, cut: { startSec: "1", lengthSec: 99, zoom: "1.3", hook: "", cardSec: 1.2, url: "not-yours" } }] }, plans) as MakeVideosResult;
+    expect(fixed.clips[0].cut).toEqual({ startSec: 1, lengthSec: 19, zoom: 1.25, hook: "Will it break the last pane?", cardSec: 1 });
+    expect(fixed.clips[0].cut).not.toHaveProperty("url");
+    expect(clipCutSpec(fixed.clips[0].cut as NonNullable<MakeVideosResult["clips"][number]["cut"]>, { ...DEFAULT_CLIP_EDIT, url: "mine" })).toEqual({ startSec: 1, lengthSec: 19, zoom: 1.25, hook: "Will it break the last pane?", url: "mine", cardSec: 1 });
+    const plain = normaliseMakeVideosResult({ summary: "", clips: [clip] }, plans) as MakeVideosResult;
+    expect(plain.clips[0]).toEqual(clip);
+    expect(plain.clips[0]).not.toHaveProperty("cut");
+    // A plan the normaliser knows no beats of (an older caller) leaves the cut as written, for the checks.
+    const raw = normaliseMakeVideosResult({ summary: "", clips: [{ ...clip, cut: { startSec: 1 } }] }, [{ ...plans[0], beats: undefined }]) as MakeVideosResult;
+    expect(raw.clips[0].cut).toEqual({ startSec: 1 });
+  });
 });
 
 describe("the reply envelope, rebuilt every turn", () => {
@@ -197,6 +218,27 @@ describe("the reply envelope, rebuilt every turn", () => {
     const model = scripted(['{"action":"final","result":{"items":[{"platform":"tiktok","title":"Ring escape","hook":"Can it escape?","caption":"Which ring breaks first?","hashtags":["physics","satisfying","bouncingball"]}]}}']);
     const out = await runAgent<CopyResult>(model, task);
     expect(out).toMatchObject({ ok: true, retries: 0, result: { items: [{ platform: "reels", hashtags: ["#physics", "#satisfying", "#bouncingball"] }] } });
+  });
+
+  // --- ai-cut --- no new tool: the envelope keeps its count with cuts on; the cut task names itself in every request
+  it("keeps the envelope's count with cuts on, and the cut task names itself ('cut', within the IPC's 40 characters) in every request", async () => {
+    const store = new PlanStore();
+    store.add({ ...plan, id: "p-1" });
+    const task = makeVideosTask("x", { copy, locale: "en", platform: "reels", store, ports: ports(), cut: true });
+    const turn = task.turn?.();
+    expect(replySchema(turn?.tools ?? [], turn?.final ?? null).oneOf).toHaveLength(4);
+    expect(replySchema(task.tools, null).oneOf).toHaveLength(3);
+    const beats: ClipBeats = { durationSec: 12, mode: "classic", firstImpactSec: null, payoffSec: null, cutGapSec: null, ending: null, seamlessLoop: false, hook: null };
+    const cut = clipEditTask("", { locale: "en", beats, base: DEFAULT_CLIP_EDIT, ideas: [] });
+    expect(cut.name).toBe("cut");
+    expect(cut.name?.length ?? 99).toBeLessThanOrEqual(40);
+    expect(checkIpcArgs(IPC.aiChat, [{ requestId: "r", messages: [{ role: "user", content: "x" }], task: cut.name }])).toBeNull();
+    expect(replySchema(cut.tools, cut.final).oneOf).toBeUndefined(); // one alternative: the answer
+    const model = scripted(["not json", '{"action":"final","result":{"startSec":0,"lengthSec":10,"zoom":1,"hook":"","cardSec":0,"summary":""}}']);
+    const out = await runAgent(model, cut);
+    expect(out).toMatchObject({ ok: true, retries: 1, result: { startSec: 0, lengthSec: 10, zoom: 1, hook: DEFAULT_CLIP_EDIT.hook, cardSec: 0, summary: "" } }); // no beats, no hook of its own: the base's
+    expect(model.options.every((o) => o.task === "cut")).toBe(true);
+    expect(model.options.map((o) => o.temperature)).toEqual([0.5, 0.5 + RETRY_TEMPERATURE_STEP]);
   });
 
   it("bounds the clip name for the grammar", () => {

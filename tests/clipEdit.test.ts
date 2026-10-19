@@ -185,6 +185,44 @@ describe("the editor in the page and in the Windows app", () => {
     expect(dialog).not.toMatch(/PhysicsEngine|createEngineForSettings/);
   });
 
+  // --- ai-cut --- the dialog opens on the cut it is handed and asks the app's AI for one; only the user's edits are remembered
+  it("opens pre-filled, asks the app's AI from inside, and remembers only what the user changed", () => {
+    const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx");
+    expect(dialog).toMatch(/initialSpec\?: Partial<ClipEditSpec>/);
+    expect(dialog).toMatch(/useState<ClipEditSpec>\(\(\) => parseClipEdit\(\{ \.\.\.loadClipEdit\(\), \.\.\.initialSpec \}\)\)/);
+    // the suggest hook on the desktop side: the open source's length and the spec on screen in, a spec and a summary out
+    expect(dialog).toMatch(/suggest\?: \(input: \{ durationSec: number; current: ClipEditSpec; request\?: string; signal\?: AbortSignal \}\) => Promise<\{ spec: ClipEditSpec; summary: string \}>/);
+    expect(dialog).toMatch(/desktop\?\.suggest && durationSec !== null && \(/);
+    expect(dialog).toContain('data-testid="clip-edit-suggest"');
+    expect(dialog).toContain('data-testid="clip-edit-suggested"');
+    expect(dialog).toMatch(/\{suggesting \? t\("suggesting"\) : t\("suggest"\)\}/);
+    expect(dialog).toMatch(/t\("suggested", \{ summary: suggestion\.summary \}\)/);
+    expect(dialog).toMatch(/t\("suggestFailed", \{ error \}\)/);
+    // the proposal lands through the same floors as the stored spec, and the Render button waits for it
+    expect(dialog).toMatch(/setSpec\(parseClipEdit\(proposed\)\)/);
+    expect(dialog).toMatch(/const canRender = [^\n]*!suggesting/);
+    // persistence moved from "every spec change" into the user's own edits: no effect saves the spec any more
+    expect(dialog).not.toMatch(/useEffect\(\(\) => saveClipEdit\(spec\)/);
+    expect(dialog).toMatch(/const set = <K extends keyof ClipEditSpec>[\s\S]*?saveClipEdit\(next\);[\s\S]*?setSpec\(next\);/);
+    expect(dialog).not.toMatch(/saveClipEdit\((?!next\))/);
+    // closing the dialog drops a proposal still on its way
+    expect(dialog).toMatch(/suggestAbortRef\.current\?\.abort\(\)/);
+    // the old ids a smoke tool looks for stay
+    for (const id of ["clip-edit-render", "clip-edit-hook", "clip-edit-url", "clip-edit-scrub", "clip-edit-done", "clip-edit-error"]) expect(dialog).toContain(`data-testid="${id}"`);
+    expect(dialog).toContain("data-clip-editor={render.status}");
+
+    const library = read("src/components/simulator/desktop/LibraryPanel.tsx");
+    expect(library).toMatch(/onSuggestCut\?: LibrarySuggestCut/);
+    expect(library).toMatch(/export type LibrarySuggestCut = \(item: LibraryItem, input: \{ durationSec: number; current: ClipEditSpec; request\?: string; signal\?: AbortSignal \}\) => Promise<\{ spec: ClipEditSpec; summary: string \}>/);
+    // a master opens with its proposed cut whole; a cut file (queueJobId `<job>-cut`) only with the look it was made with
+    expect(library).toMatch(/<ClipEditorDialog source=\{editing\.source\} initialSpec=\{initialCut\(editing\.item\)\}/);
+    expect(library).toMatch(/queueJobId\?\.endsWith\("-cut"\)\) return \{ zoom: cut\.zoom, hook: cut\.hook, url: cut\.url, cardSec: cut\.cardSec \}/);
+    expect(read("src/components/simulator/desktop/useRenderQueue.ts")).toMatch(/queueJobId: `\$\{job\.id\}-cut`/);
+    expect(library).toMatch(/suggest: onSuggestCut \? \(input\) => onSuggestCut\(editing\.item, input\) : undefined/);
+    // the Library's own words are Desktop keys only: the editor's live in ClipEditor
+    expect(library).not.toMatch(/t\("suggest/);
+  });
+
   it("has its words in every language", () => {
     const flat = (o: Record<string, unknown>, prefix = ""): string[] => Object.entries(o).flatMap(([k, v]) => (typeof v === "string" ? [`${prefix}${k}`] : flat(v as Record<string, unknown>, `${prefix}${k}.`)));
     const keys = (loc: string) => {
@@ -202,5 +240,12 @@ describe("the editor in the page and in the Windows app", () => {
     const all = new Set(en.editor);
     for (const m of dialog.matchAll(/\bt\("([A-Za-z0-9_.]+)"/g)) expect(all.has(m[1]), m[1]).toBe(true);
     for (const group of ["ideas", "phase"]) expect(en.editor.filter((k) => k.startsWith(`${group}.`)).length).toBeGreaterThan(1);
+    // --- ai-cut --- the AI button's words, with their variables, in every language
+    for (const loc of ["en", "es", "pl"]) {
+      const editor = (JSON.parse(read(`messages/${loc}.json`)) as { ClipEditor: Record<string, string> }).ClipEditor;
+      for (const key of ["suggest", "suggesting", "suggested", "suggestFailed"]) expect(typeof editor[key], `${loc}.${key}`).toBe("string");
+      expect(editor.suggested).toContain("{summary}");
+      expect(editor.suggestFailed).toContain("{error}");
+    }
   });
 });

@@ -7,6 +7,7 @@
  * travel both ways. It is pure (no Electron, no DOM), so the site builds without the app's dependencies and the app's
  * tests (desktop/tests/ipc.test.ts) check that the preload and the main process implement exactly these channels.
  */
+import type { ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut --- (a type only: the main process never loads the page's modules)
 
 /** Bumped when a channel changes shape; the page ignores a bridge of another major version (`getDesktop()`). */
 export const DESKTOP_API_VERSION = 1;
@@ -227,6 +228,8 @@ export interface LibraryMeta {
   caption: string | null;
   hashtags: string[];
   queueJobId: string | null;
+  /** --- ai-cut --- The TikTok cut proposed for the clip (lib/clipEdit/spec.ts), when the AI or the editor made one: a master carries it so "Edit for TikTok" opens pre-filled; a cut carries the spec it was made with. */
+  cut?: ClipEditSpec;
 }
 
 export interface SavedRender {

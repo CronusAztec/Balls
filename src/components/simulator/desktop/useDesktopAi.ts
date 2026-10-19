@@ -65,7 +65,8 @@ export interface DesktopAiApi {
   result: AiResult | null;
   error: string | null;
   undo: SimulatorSettings | null;
-  run: (prompt: string, options: { platforms: BotPlatform[]; existing: string }) => void;
+  /** --- ai-cut --- `cut`: Make videos also answers a TikTok cut per clip (the queue cuts it after the render). */
+  run: (prompt: string, options: { platforms: BotPlatform[]; existing: string; cut?: boolean }) => void;
   stop: () => void;
   undoSettings: () => void;
   refresh: () => void;
@@ -132,7 +133,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const run = useCallback(
-    (prompt: string, options: { platforms: BotPlatform[]; existing: string }) => {
+    (prompt: string, options: { platforms: BotPlatform[]; existing: string; cut?: boolean }) => {
       if (!bridge || !model || running) return;
       const page = pageRef.current;
       const controller = new AbortController();
@@ -177,7 +178,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
           if (task === "videos") {
             const store = new PlanStore();
             const ports = studioPorts({ copy: page.copy, locale: page.locale, getWorld: page.getWorld });
-            const out = await runAgent(model, makeVideosTask(prompt, { copy: page.copy, locale: page.locale, platform, store, ports }), { onEvent, signal: controller.signal });
+            const out = await runAgent(model, makeVideosTask(prompt, { copy: page.copy, locale: page.locale, platform, store, ports, cut: options.cut === true /* --- ai-cut --- */ }), { onEvent, signal: controller.signal });
             if (!out.ok) throw new Error(out.error);
             const plans = out.result.clips.map((c) => store.get(c.planId)).filter((p): p is ClipPlan => !!p);
             setResult({ kind: "videos", result: out.result, plans });

@@ -4451,7 +4451,13 @@
     "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja łączy się z internetem tylko po to, by pobrać model, o który poprosisz, i sprawdzić aktualizacje na GitHubie.",
     "updateLater": "Później",
     "updateWaitRender": "Trwa renderowanie. Poczekaj, aż kolejka się skończy, albo zamknij aplikację, a aktualizacja zainstaluje się przy zamykaniu.",
-    "libEdit": "Edytuj na TikToka"
+    "libEdit": "Edytuj na TikToka",
+    "aiCut": "Po renderowaniu przytnij też każdy klip na TikToka",
+    "aiCutTip": "AI wybiera, gdzie zaczyna się cięcie, ile zostaje, przybliżenie, hak na klatce i planszę końcową. Cięcie trafia do Biblioteki obok klipu.",
+    "aiCutLine": "Cięcie od {start} do {end} s · przybliżenie {zoom} % · \"{hook}\"",
+    "jobCut": "+ cięcie TikTok",
+    "jobCutting": "Cięcie na TikToka",
+    "jobCutFailed": "Cięcie na TikToka klipu {name} nie powiodło się: {error}. Sam klip jest w Bibliotece."
   },
   "Territory": {
     "canvasVs": "VS",
@@ -5693,6 +5699,10 @@
     "savedLibrary": "Zapisano w Bibliotece: {sec} s, {mb} MB. Cięcie jest też wśród klipów w Publikuj.",
     "watermarked": "Darmowe eksporty mają znak wodny. Pro go usuwa.",
     "unsupported": "Ta przeglądarka nie koduje wideo. Chrome lub Edge potrafią, a także aplikacja na Windows.",
-    "tip": "Zacznij od ruchu, nie od nieruchomego pierścienia: większość widzów decyduje w pierwszej sekundzie. 8 do 15 sekund, które dobrze się zapętlają, działa lepiej niż długi klip."
+    "tip": "Zacznij od ruchu, nie od nieruchomego pierścienia: większość widzów decyduje w pierwszej sekundzie. 8 do 15 sekund, które dobrze się zapętlają, działa lepiej niż długi klip.",
+    "suggest": "Zaproponuj z AI",
+    "suggesting": "Pytam AI…",
+    "suggested": "AI: {summary}",
+    "suggestFailed": "AI nie zaproponowało cięcia: {error}"
   }
 }

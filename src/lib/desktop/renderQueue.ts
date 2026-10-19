@@ -1,6 +1,7 @@
 import { resolveProjectSettings } from "@/lib/project";
 import { RESOLUTIONS, type SimulatorSettings } from "@/lib/settings";
 import { isLinkSeed } from "@/lib/recording/batch"; // --- low-findings --- (was MAX_SEED: a negative found seed was lost)
+import { parseClipEdit, type ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut ---
 import { VIDEO_CODECS, type LibraryMeta, type VideoCodec } from "./contract";
 import { OUTPUT_PRESETS, type OutputPreset } from "./presets";
 import { safeFileBase } from "./fileNames";
@@ -45,6 +46,11 @@ export interface QueueJobSpec {
   codec: VideoCodec;
   preset: OutputPreset;
   meta: Omit<LibraryMeta, "queueJobId" | "seed" | "mode" | "link"> & { link?: string };
+  /**
+   * --- ai-cut --- The TikTok cut (lib/clipEdit/spec.ts) the page makes of the file once it is rendered and saved: a second
+   * Library item next to the master, from the AI's plan or a re-render of a clip that had one. Null or absent: no cut.
+   */
+  cut?: ClipEditSpec | null;
 }
 
 export interface QueueJobOutput {
@@ -241,6 +247,8 @@ export interface BatchClipSource {
   settings: SimulatorSettings;
   seed: number;
   meta?: QueueJobSpec["meta"];
+  /** --- ai-cut --- The cut every job of the clip carries (see `QueueJobSpec.cut`). */
+  cut?: ClipEditSpec | null;
 }
 
 export interface QueueBatchOptions {
@@ -279,7 +287,7 @@ export function expandBatch(clips: readonly BatchClipSource[], options: QueueBat
             if (fpsList.length > 1 && !platform) parts.push(`${fps}fps`);
             if (codecs.length > 1) parts.push(codec);
             if (presets.length > 1 || platform) parts.push(preset);
-            specs.push({ name: parts.join("-"), source: clip.source, settings: clip.settings, seed: clip.seed, resolution, fps, codec, preset, meta: clip.meta ?? { ...EMPTY_META, title: clip.name } });
+            specs.push({ name: parts.join("-"), source: clip.source, settings: clip.settings, seed: clip.seed, resolution, fps, codec, preset, meta: clip.meta ?? { ...EMPTY_META, title: clip.name }, cut: clip.cut ?? null /* --- ai-cut --- */ });
           }
         }
       }
@@ -299,6 +307,7 @@ export interface QueueJournal {
 }
 
 export function journalOf(state: QueueState, now: number): QueueJournal {
+  // (--- ai-cut --- the jobs go in as they are, their `cut` with them: the field is additive, the version stays)
   return { format: QUEUE_JOURNAL_FORMAT, version: QUEUE_JOURNAL_VERSION, savedAt: now, running: state.running, jobs: state.jobs };
 }
 
@@ -359,6 +368,7 @@ function restoreJob(raw: unknown, now: number): QueueJob | null {
     codec: (VIDEO_CODECS as readonly string[]).includes(raw.codec as string) ? (raw.codec as VideoCodec) : "h264",
     preset: (OUTPUT_PRESETS as readonly string[]).includes(raw.preset as string) ? (raw.preset as OutputPreset) : "native",
     meta: restoreMeta(raw.meta, name),
+    cut: isObject(raw.cut) ? parseClipEdit(raw.cut) : null, // --- ai-cut --- (floors junk numbers; anything but an object is no cut)
     status,
     progress: status === "done" ? 1 : 0,
     attempts: status === "queued" && !resumed ? 0 : attempts,

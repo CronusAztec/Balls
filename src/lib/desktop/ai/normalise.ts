@@ -1,4 +1,7 @@
 import { BOT_PLATFORMS, type BotPlatform } from "@/lib/bot/playbook";
+// --- ai-cut --- the cut a clip carries (lib/clipEdit): snapped the way the standalone cut task's answer is
+import { DEFAULT_CLIP_EDIT, type ClipEditSpec } from "@/lib/clipEdit/spec";
+import { fitHook, snapClipEdit, type ClipBeats } from "@/lib/clipEdit/propose";
 
 /*
  * --- desktop-ai-fix --- Per-task reply normalisers: they run on a model's answer BEFORE it is validated (agent.ts,
@@ -17,6 +20,24 @@ export const HASHTAGS_MAX = 15;
 export const HASHTAG_MAX_CHARS = 60;
 /** A clip's file name (the schema's `^[A-Za-z0-9][A-Za-z0-9 _-]{0,59}$`). */
 export const CLIP_NAME_MAX = 60;
+
+/**
+ * --- ai-cut --- A cut as a model answers it: a spec (lib/clipEdit/spec.ts) without its address. The address is never the
+ * model's – it is the user's remembered one or the site's – so the answer's schema has no room for it (additionalProperties
+ * false); `clipCutSpec` puts the base's back for the editor and the render queue.
+ */
+export type ClipCut = Omit<ClipEditSpec, "url">;
+
+/** The five fields of a spec a model answers. */
+export function clipCutOf(spec: ClipEditSpec): ClipCut {
+  const { startSec, lengthSec, zoom, hook, cardSec } = spec;
+  return { startSec, lengthSec, zoom, hook, cardSec };
+}
+
+/** A model's cut as a full spec: the base's address (the user's remembered spec, else the site's) under the model's cut. */
+export function clipCutSpec(cut: ClipCut, base: ClipEditSpec = DEFAULT_CLIP_EDIT): ClipEditSpec {
+  return { ...clipCutOf({ ...base, ...cut }), url: base.url };
+}
 
 const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
@@ -178,6 +199,8 @@ export interface PlanFacts {
   hashtags: readonly string[];
   /** Values for placeholders a model copied into its text ({seconds}, {episode}). */
   vars: Readonly<Record<string, string | number>>;
+  /** --- ai-cut --- The plan's beats (lib/clipEdit/propose.ts), to snap the clip's cut to when the run asked for cuts. */
+  beats?: ClipBeats;
 }
 
 /** The plan a clip names: its id as written, trimmed, in any case – or "1", "2"… for the first, second… plan of the run. */
@@ -193,12 +216,15 @@ export function resolvePlanId(value: unknown, plans: readonly PlanFacts[]): Plan
   return undefined;
 }
 
-const CLIP_KEYS = ["planId", "name", "title", "hook", "caption", "hashtags", "platform"] as const;
+const CLIP_KEYS = ["planId", "name", "title", "hook", "caption", "hashtags", "platform", "cut" /* --- ai-cut --- */] as const;
 
 /**
  * The Make videos answer: each clip's planId resolved against the run's plans, its platform the plan's (a clip renders with
  * the preset its plan was made for), its name slugified, its text fitted (placeholders filled from the plan), its hashtags
  * normalised and topped up from the plan's own; a second clip for the same plan is dropped and a missing summary is "".
+ * --- ai-cut --- A clip's cut (when the run asked for cuts) is snapped to its plan's beats – numbers from strings, floors,
+ * the steps, the file's length – with the clip's own hook under it when the model left the cut's empty; a clip without a
+ * cut gets none here (the schema reports it when one was required).
  */
 export function normaliseMakeVideosResult(result: unknown, plans: readonly PlanFacts[]): unknown {
   if (!isObject(result) || !Array.isArray(result.clips)) return result;
@@ -217,6 +243,11 @@ export function normaliseMakeVideosResult(result: unknown, plans: readonly PlanF
     if ("hook" in clip) clip.hook = fitText(clip.hook, 120, vars);
     if ("caption" in clip) clip.caption = fitText(clip.caption, 2200, vars);
     if ("hashtags" in clip) clip.hashtags = normaliseHashtags(clip.hashtags, plan?.hashtags ?? []);
+    // --- ai-cut --- the cut: snapped to the plan's beats, the address never the model's
+    if ("cut" in clip && plan?.beats) {
+      const raw = isObject(clip.cut) ? clip.cut : {};
+      clip.cut = clipCutOf(snapClipEdit({ ...raw, hook: fitHook(raw.hook) || fitHook(clip.hook) }, plan.beats, DEFAULT_CLIP_EDIT));
+    }
     const key = typeof clip.planId === "string" ? clip.planId : `#${i}`;
     if (seen.has(key)) return;
     seen.add(key);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import type { DesktopApi, DesktopInfo, DesktopPrefs, LibraryItem, MediaKind, UpdateStatus } from "@/lib/desktop/contract";
 import { getDesktop, pickedToFile } from "@/lib/desktop/bridge";
@@ -18,7 +18,10 @@ import { useDesktopAi } from "../desktop/useDesktopAi";
 import GpuPanel from "../desktop/GpuPanel";
 import QueuePanel from "../desktop/QueuePanel";
 import AiPanel from "../desktop/AiPanel";
-import LibraryPanel from "../desktop/LibraryPanel";
+import LibraryPanel, { type LibrarySuggestCut } from "../desktop/LibraryPanel";
+import { suggestCut } from "../desktop/aiCut"; // --- ai-cut --- the local AI proposes a cut for a Library clip
+import { beatsOfLibraryItem } from "@/lib/clipEdit/propose"; // --- ai-cut ---
+import { parseClipEdit } from "@/lib/clipEdit/spec"; // --- ai-cut ---
 import { errorText, ghostBtn, primaryBtn } from "../desktop/ui"; // --- desktop-autorelease --- (the update banner's buttons)
 import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
 import type { PublishPlatform } from "@/lib/publish/platforms";
@@ -46,6 +49,10 @@ export default function DesktopSection({ page }: { page: DesktopPageHooks }) {
 
 function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPageHooks }) {
   const t = useTranslations("Desktop");
+  // --- ai-cut --- the Clip editor's words the queue's cut step and the AI's hook examples use (its own namespace, not Desktop's)
+  const editor = useTranslations("ClipEditor");
+  const cutCard = useMemo(() => ({ title: editor("cardTitle"), note: editor("cardNote") }), [editor]);
+  const hookIdeas = useMemo(() => (["escape", "winner", "wait", "count"] as const).map((k) => editor(`ideas.${k}`)), [editor]);
   const pageRef = useRef(page);
   pageRef.current = page;
   const rootRef = useRef<HTMLElement>(null);
@@ -87,7 +94,8 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
     bridge.library.list().then(setLibrary).catch(() => {});
   }, [bridge]);
 
-  const queue = useRenderQueue(bridge, pageRef, prefs?.outputFolder ?? "", refreshLibrary);
+  // --- ai-cut --- a job that carries a cut is cut after it is saved; a cut that fails is said here, the clip itself is in the Library
+  const queue = useRenderQueue(bridge, pageRef, prefs?.outputFolder ?? "", refreshLibrary, { card: cutCard, onFailed: (job, error) => setNotice(t("jobCutFailed", { name: job.name, error })) });
   const addAiClips = useCallback(
     (result: MakeVideosResult, plans: ClipPlan[]) => {
       const specs = result.clips.flatMap((clip) => {
@@ -104,6 +112,9 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
     bridge.prefs.get().then(setPrefs).catch(() => {});
   }, [bridge]);
   const ai = useDesktopAi(bridge, pageRef, addAiClips, reloadPrefs);
+  // --- ai-cut --- "Suggest with AI" in the Library's Clip editor: the clip's beats as far as a Library item knows them, the
+  // user's current spec as the base, the editor's hook ideas as examples (offered only while the app's AI is ready)
+  const suggestLibraryCut = useCallback<LibrarySuggestCut>((item, input) => suggestCut(bridge, pageRef.current.locale, beatsOfLibraryItem(item, input.durationSec), parseClipEdit(input.current), hookIdeas, input.request ?? "", input.signal), [bridge, hookIdeas]);
 
   // --- desktop-exe --- the Publish feature's paths as the Library's one-click targets (lib/publish/desktopTargets.ts):
   // the accounts ticked in the Publish block, and the quick share of the clip's platform
@@ -209,7 +220,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
         const r = await resolveLinkSettings(item.meta.link);
         if (!r.ok) throw new Error(t("libRerenderFailed"));
         const settings = linkJobSettings(r.settings, pageRef.current.settings);
-        const clip = { ...seedSource(settings, linkSeed(item.meta.link) ?? item.meta.seed, { kind: "link", link: item.meta.link }), name: item.fileName.replace(/\.[^.]+$/, ""), meta: { title: item.meta.title, platform: item.meta.platform, hook: item.meta.hook, caption: item.meta.caption, hashtags: item.meta.hashtags, link: item.meta.link } };
+        const clip = { ...seedSource(settings, linkSeed(item.meta.link) ?? item.meta.seed, { kind: "link", link: item.meta.link }), name: item.fileName.replace(/\.[^.]+$/, ""), meta: { title: item.meta.title, platform: item.meta.platform, hook: item.meta.hook, caption: item.meta.caption, hashtags: item.meta.hashtags, link: item.meta.link }, cut: item.meta.cut ?? null /* --- ai-cut --- a re-render makes the cut again */ };
         const codec = item.encoder?.startsWith("hevc") || item.encoder === "libx265" ? "hevc" : item.encoder?.startsWith("av1") || item.encoder?.includes("av1") ? "av1" : "h264";
         queue.add(expandBatch([clip], { resolutions: [settings.recordingResolution], fps: [resolveFastExportFps(settings.fastExportFps) >= 60 ? 60 : 30] /* the render queue renders 30 or 60 fps; uncap-all lets the page export any rate */, codecs: [codec], presets: [presetForPlatform(item.meta.platform)] }));
         show("queue");
@@ -280,7 +291,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
       {tab === "gpu" && <GpuPanel bridge={bridge} prefs={prefs} info={info} update={update} onPrefs={changePrefs} />}
       {tab === "queue" && <QueuePanel bridge={bridge} queue={queue} page={page} folder={prefs.outputFolder} onFolder={(outputFolder) => changePrefs({ outputFolder })} />}
       {tab === "ai" && <AiPanel ai={ai} prefs={prefs} page={page} onQueueTab={() => show("queue")} bridge={bridge} /* --- desktop-ai-fix --- (the AI status panel) */ />}
-      {tab === "library" && <LibraryPanel bridge={bridge} items={library} onRefresh={refreshLibrary} onRerender={(item) => void rerender(item)} />}
+      {tab === "library" && <LibraryPanel bridge={bridge} items={library} onRefresh={refreshLibrary} onRerender={(item) => void rerender(item)} onSuggestCut={ai.status?.ready ? suggestLibraryCut : undefined /* --- ai-cut --- */} />}
     </section>
   );
 }
