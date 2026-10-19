@@ -7,6 +7,33 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Windows app 1.4.1 · 2026-10-19
+
+Third-party licences in the Help menu
+
+### New
+
+- Help has a Third-party licences entry. It opens the notices file: ffmpeg under the GPL with an offer of its source code, Electron, Chromium, llama.cpp, the fonts and the model licences.
+
+### Improved
+
+- The model list no longer offers Qwen2.5 3B, whose licence allows research only. Qwen3 4B covers that size and allows commercial use.
+
+## Website 1.11.1 · 2026-10-19
+
+Clearer terms, a licences page and one secure address
+
+### New
+
+- A third-party licences page lists the packages and fonts the site is built with, each with its licence text.
+
+### Improved
+
+- The terms add the EU and UK right of withdrawal, keep your consumer rights in the liability and warranty clauses, and add an age rule, AI features, how to report content and the law that applies.
+- The privacy policy names the legal basis of each use, the retention periods, where the data goes, the one-month answer time and a switch that turns the action counts off in your browser.
+- Plain http addresses and the www address now lead to the secure bare domain, and the site publishes a security.txt for researchers.
+- Fight League division names are generic words and a fan-made badge is drawn on the canvas. The viral video bot is now the Clip planner, and it does not promise views.
+
 ## Windows app 1.4.0 · 2026-10-19
 
 Post through Postiz, with an autopilot that proposes

@@ -1,6 +1,88 @@
 {
   "releases": [
     {
+      "id": "app-1-4-1",
+      "product": "app",
+      "version": "1.4.1",
+      "date": "2026-10-19",
+      "headline": {
+        "en": "Third-party licences in the Help menu",
+        "pl": "Licencje składników w menu Pomoc",
+        "es": "Licencias de terceros en el menú Ayuda"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Help has a Third-party licences entry. It opens the notices file: ffmpeg under the GPL with an offer of its source code, Electron, Chromium, llama.cpp, the fonts and the model licences.",
+            "pl": "W menu Pomoc jest pozycja Licencje składników. Otwiera plik z informacjami: ffmpeg na licencji GPL z ofertą kodu źródłowego, Electron, Chromium, llama.cpp, czcionki i licencje modeli.",
+            "es": "El menú Ayuda tiene la entrada Licencias de terceros. Abre el archivo de avisos: ffmpeg bajo la GPL con una oferta de su código fuente, Electron, Chromium, llama.cpp, las fuentes y las licencias de los modelos."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The model list no longer offers Qwen2.5 3B, whose licence allows research only. Qwen3 4B covers that size and allows commercial use.",
+            "pl": "Lista modeli nie oferuje już Qwen2.5 3B, którego licencja pozwala tylko na badania. Qwen3 4B ma ten rozmiar i pozwala na użycie komercyjne.",
+            "es": "La lista de modelos ya no ofrece Qwen2.5 3B, cuya licencia solo permite investigación. Qwen3 4B cubre ese tamaño y permite el uso comercial."
+          }
+        }
+      ]
+    },
+    {
+      "id": "site-1-11-1",
+      "product": "site",
+      "version": "1.11.1",
+      "date": "2026-10-19",
+      "headline": {
+        "en": "Clearer terms, a licences page and one secure address",
+        "pl": "Jaśniejszy regulamin, licencje i jeden bezpieczny adres",
+        "es": "Términos más claros, licencias y una dirección segura"
+      },
+      "items": [
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The terms add the EU and UK right of withdrawal, keep your consumer rights in the liability and warranty clauses, and add an age rule, AI features, how to report content and the law that applies.",
+            "pl": "Regulamin dodaje prawo odstąpienia w UE i Wielkiej Brytanii, zachowuje Twoje prawa konsumenta oraz dodaje zasadę wieku, funkcje AI, zgłaszanie treści i prawo właściwe.",
+            "es": "Los términos añaden el derecho de desistimiento en la UE y el Reino Unido, conservan tus derechos de consumidor y añaden una regla de edad, las funciones de IA, cómo denunciar contenido y la ley aplicable."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The privacy policy names the legal basis of each use, the retention periods, where the data goes, the one-month answer time and a switch that turns the action counts off in your browser.",
+            "pl": "Polityka prywatności podaje podstawę prawną każdego użycia, okresy przechowywania, gdzie trafiają dane, miesięczny czas odpowiedzi i przełącznik, który wyłącza liczenie działań w Twojej przeglądarce.",
+            "es": "La política de privacidad indica la base legal de cada uso, los plazos de conservación, adónde van los datos, el plazo de respuesta de un mes y un interruptor que apaga el recuento de acciones en tu navegador."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "A third-party licences page lists the packages and fonts the site is built with, each with its licence text.",
+            "pl": "Strona licencji zewnętrznych wymienia pakiety i czcionki, z których zbudowana jest strona, każdy z tekstem licencji.",
+            "es": "Una página de licencias de terceros enumera los paquetes y las fuentes con que está hecha la web, cada uno con el texto de su licencia."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Plain http addresses and the www address now lead to the secure bare domain, and the site publishes a security.txt for researchers.",
+            "pl": "Adresy http i adres z www prowadzą teraz do bezpiecznej domeny bez www, a strona publikuje plik security.txt dla badaczy.",
+            "es": "Las direcciones http y la dirección con www llevan ahora al dominio seguro sin www, y la web publica un security.txt para investigadores."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Fight League division names are generic words and a fan-made badge is drawn on the canvas. The viral video bot is now the Clip planner, and it does not promise views.",
+            "pl": "Nazwy dywizji w Fight League to ogólne słowa, a na planszy widać odznakę parodii fanowskiej. Bot wideo nazywa się teraz Planer klipów i nie obiecuje wyświetleń.",
+            "es": "Los nombres de las divisiones de Fight League son palabras genéricas y en el lienzo se dibuja una insignia de parodia hecha por fans. El bot de vídeo ahora es el Planificador de clips y no promete visualizaciones."
+          }
+        }
+      ]
+    },
+    {
       "id": "app-1-4-0",
       "product": "app",
       "version": "1.4.0",

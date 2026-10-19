@@ -207,7 +207,7 @@ describe("Help > What's new", () => {
   it("is a Help menu entry with its own command, handled by the main process", () => {
     const help = MENU.find((g) => g.id === "help")!;
     const entries = help.entries.map((e) => (e === "separator" ? "-" : e.id));
-    expect(entries).toEqual(["website", "downloadPage", "whatsNew", "-", "openLogs", "checkUpdates", "about"]);
+    expect(entries).toEqual(["website", "downloadPage", "whatsNew", "-", "openLogs", "checkUpdates", "thirdParty", "about"]);
     const entry = help.entries.find((e) => e !== "separator" && e.id === "whatsNew");
     expect(entry).toMatchObject({ run: { command: "changelog" } });
     // every command in the menu has a case in main.ts

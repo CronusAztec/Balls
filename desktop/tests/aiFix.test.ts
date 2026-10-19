@@ -657,6 +657,6 @@ describe("packaging: unsigned builds can update each other", () => {
     expect(load().win.signtoolOptions).toEqual({ publisherName: "JumpingBallsLive" });
     // files / asarUnpack / extraResources stay as 1.0.2 shipped them (verified complete).
     expect(unsigned.asarUnpack).toEqual(["node_modules/ffmpeg-static/**", "node_modules/node-llama-cpp/bins/**", "node_modules/node-llama-cpp/llama/**", "node_modules/@node-llama-cpp/**"]);
-    expect(unsigned.extraResources).toHaveLength(2);
+    expect(unsigned.extraResources).toHaveLength(3); // the site, the playbook and THIRD-PARTY-NOTICES.txt (--- legal-review ---)
   });
 });
