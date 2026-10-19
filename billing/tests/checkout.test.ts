@@ -45,6 +45,47 @@ describe("checkout – stripe", () => {
     expect(form.get("metadata[plan]")).toBe("monthly");
     expect(form.get("success_url")).toBe(`${RETURN_URL}?claim=stripe&ref={CHECKOUT_SESSION_ID}`);
     expect(form.get("cancel_url")).toBe(RETURN_URL);
+    // the "I agree to the Terms" checkbox: express consent to the terms and to immediate performance
+    expect(form.get("consent_collection[terms_of_service]")).toBe("required");
+  });
+
+  it("opens the checkout without the consent checkbox, and warns the owner, when Stripe has no Terms of Service URL yet", async () => {
+    const { env } = makeHarness(allProvidersEnv());
+    const warnings: string[] = [];
+    const warn = vi.spyOn(console, "warn").mockImplementation((...args: unknown[]) => void warnings.push(args.join(" ")));
+    const bodies: URLSearchParams[] = [];
+    stubFetch((_url, init) => {
+      const form = new URLSearchParams(init!.body as string);
+      bodies.push(form);
+      if (form.has("consent_collection[terms_of_service]")) {
+        return jsonResponse(
+          { error: { type: "invalid_request_error", param: "consent_collection[terms_of_service]", message: "To collect terms of service agreement, you must set the Terms of Service URL in your Public details settings." } },
+          400,
+        );
+      }
+      return jsonResponse({ id: "cs_test_1", url: "https://checkout.stripe.com/c/pay/cs_test_1" });
+    });
+    const res = await handleRequest(jsonRequest("/checkout/stripe", { plan: "monthly", locale: "en", returnUrl: RETURN_URL }), env, { now: NOW });
+    warn.mockRestore();
+    expect(res.status).toBe(200);
+    expect((await jsonOf(res)).url).toBe("https://checkout.stripe.com/c/pay/cs_test_1");
+    // the second session is the same checkout without the checkbox
+    expect(bodies).toHaveLength(2);
+    expect(bodies[1].has("consent_collection[terms_of_service]")).toBe(false);
+    expect(bodies[1].get("line_items[0][price]")).toBe(bodies[0].get("line_items[0][price]"));
+    expect(warnings.join("\n")).toContain("Terms of Service URL");
+  });
+
+  it("keeps every other Stripe error generic", async () => {
+    const { env } = makeHarness(allProvidersEnv());
+    stubFetch(() => jsonResponse({ error: { type: "api_error", message: "Something went wrong" } }, 500));
+    const res = await handleRequest(
+      jsonRequest("/checkout/stripe", { plan: "monthly", locale: "en", returnUrl: RETURN_URL }),
+      env,
+      { now: NOW },
+    );
+    expect(res.status).toBe(502);
+    expect((await jsonOf(res)).error).toBe("stripe_error");
   });
 
   it("refuses a returnUrl that is not on the site", async () => {

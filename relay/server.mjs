@@ -34,7 +34,7 @@
  *   GET    /api/keys        (admin)      the keys (no secrets) and their account counts
  *   DELETE /api/keys/:id    (admin)      revokes a key and forgets its accounts
  *   GET    /api/accounts                 the key's accounts
- *   DELETE /api/accounts/:id             disconnects one
+ *   DELETE /api/accounts/:id             disconnects one (and revokes its token at the platform, where one exists)
  *   POST   /api/connect/:platform        { origin } → { url }: a one-time sign-in link for a popup
  *   GET    /connect/:platform?state=…    starts the OAuth sign-in (redirects to the platform)
  *   GET    /oauth/:platform/callback     stores the account, tells the opener (postMessage) and closes the popup
@@ -60,6 +60,15 @@ export const VISIBILITIES = ["public", "unlisted", "private"];
 /** The origin of the Windows app's pages (desktop/src/protocol.ts APP_ORIGIN). */
 export const APP_ORIGIN = "app://jumpingballslive";
 const MB = 1024 * 1024;
+const DAY_MS = 24 * 3600 * 1000;
+/** --- data-retention --- A YouTube channel's cached name / handle / avatar is dropped when the account was not used for 30 days (Google's Authorized Data rule). */
+export const PROFILE_MAX_AGE_MS = 30 * DAY_MS;
+/** --- data-retention --- An account whose sign-in has been expired for 90 days is purged (its token is dead; nothing is left to publish with). */
+export const EXPIRED_ACCOUNT_MAX_AGE_MS = 90 * DAY_MS;
+/** --- data-retention --- A user who has not signed in or used a session for 24 months counts as inactive (GET /api/health with the admin key). */
+export const INACTIVE_USER_MS = 24 * 30 * DAY_MS;
+/** --- data-retention --- lastSeenAt is written at most this often per session (every request would rewrite the file). */
+const SEEN_INTERVAL_MS = 3600 * 1000;
 
 /* ================================================================== configuration */
 
@@ -316,23 +325,68 @@ export class Store {
     return true;
   }
 
-  /** Deletes a user, their sessions, their key and every account connected through it. */
+  /** Deletes a user, their sessions, their key and every account connected through it. Returns the removed accounts (for the platform revocation), or null. */
   deleteUser(userId) {
     const user = this.userById(userId);
-    if (!user) return false;
+    if (!user) return null;
+    const removed = this.data.accounts.filter((a) => a.keyId === user.keyId);
     this.data.users = this.data.users.filter((u) => u.id !== userId);
     this.data.sessions = this.data.sessions.filter((x) => x.userId !== userId);
     this.data.keys = this.data.keys.filter((k) => k.id !== user.keyId);
     this.data.accounts = this.data.accounts.filter((a) => a.keyId !== user.keyId);
     this.save();
+    return removed;
+  }
+
+  /**
+   * --- data-retention --- Records that a session (and its user) was just used; written at most once an hour per session so a
+   * busy client does not rewrite the file on every request.
+   */
+  touchSession(session, user) {
+    const now = this.now();
+    const last = session.lastSeenAt ? Date.parse(session.lastSeenAt) : 0;
+    if (now - last < SEEN_INTERVAL_MS) return false;
+    session.lastSeenAt = iso(now);
+    if (user) user.lastSeenAt = iso(now);
+    this.save();
     return true;
+  }
+
+  /** --- data-retention --- How many users have not been seen (signed in or used a session) for `maxAgeMs`. */
+  inactiveUsers(maxAgeMs) {
+    const cutoff = this.now() - maxAgeMs;
+    return this.data.users.filter((u) => Date.parse(u.lastSeenAt || u.createdAt) < cutoff).length;
+  }
+
+  /**
+   * --- data-retention --- The storage limits, run with the other sweeps: drops the cached channel name / handle / avatar of
+   * YouTube accounts not used for `profileMaxAgeMs` (they come back on the next use, when the token is refreshed) and purges
+   * accounts whose sign-in has been expired for `expiredMaxAgeMs`. Returns what it did.
+   */
+  sweep({ profileMaxAgeMs = PROFILE_MAX_AGE_MS, expiredMaxAgeMs = EXPIRED_ACCOUNT_MAX_AGE_MS } = {}) {
+    const now = this.now();
+    let profilesDropped = 0;
+    const before = this.data.accounts.length;
+    this.data.accounts = this.data.accounts.filter((a) => a.status !== "expired" || now - Date.parse(a.expiredAt || a.updatedAt || a.connectedAt) <= expiredMaxAgeMs);
+    for (const a of this.data.accounts) {
+      if (a.platform !== "youtube" || (a.name == null && a.handle == null && a.avatar == null)) continue;
+      if (now - Date.parse(a.lastUsedAt || a.updatedAt || a.connectedAt) > profileMaxAgeMs) {
+        Object.assign(a, { name: null, handle: null, avatar: null });
+        profilesDropped++;
+      }
+    }
+    const accountsPurged = before - this.data.accounts.length;
+    if (profilesDropped || accountsPurged) this.save();
+    return { profilesDropped, accountsPurged };
   }
 
   /** A session for the user: the token is returned once and kept only as its SHA-256. At most 20 sessions per user. */
   createSession(userId, ttlMs) {
     const token = `jbs_${crypto.randomBytes(32).toString("base64url")}`;
     const now = this.now();
-    const record = { id: `s_${randomHex(6)}`, userId, hash: sha256(token), createdAt: iso(now), expiresAt: now + ttlMs };
+    const record = { id: `s_${randomHex(6)}`, userId, hash: sha256(token), createdAt: iso(now), expiresAt: now + ttlMs, lastSeenAt: iso(now) };
+    const user = this.userById(userId);
+    if (user) user.lastSeenAt = iso(now);
     this.data.sessions = this.data.sessions.filter((x) => x.expiresAt > now);
     const mine = this.data.sessions.filter((x) => x.userId === userId);
     if (mine.length >= 20) {
@@ -372,7 +426,8 @@ export class Store {
       account = { id: `a_${randomHex(8)}`, keyId, platform, providerId: String(providerId), connectedAt: iso(this.now()) };
       this.data.accounts.push(account);
     }
-    Object.assign(account, fields, { status: "ok", note: fields.note ?? null, updatedAt: iso(this.now()) });
+    Object.assign(account, fields, { status: "ok", note: fields.note ?? null, updatedAt: iso(this.now()), lastUsedAt: iso(this.now()) });
+    delete account.expiredAt;
     this.save();
     return account;
   }
@@ -397,6 +452,9 @@ export class Store {
   updateAccount(id, patch) {
     const account = this.data.accounts.find((a) => a.id === id);
     if (!account) return null;
+    // --- data-retention --- remember when the sign-in went bad (the 90-day purge counts from there)
+    if (patch.status === "expired" && account.status !== "expired") patch = { ...patch, expiredAt: iso(this.now()) };
+    if (patch.status === "ok") delete account.expiredAt;
     Object.assign(account, patch, { updatedAt: iso(this.now()) });
     this.save();
     return account;
@@ -1090,6 +1148,41 @@ async function youtubePublish(ctx, account, post, media, visibility, update) {
 
 /* ================================================================== the adapters */
 
+/* ================================================================== disconnecting */
+
+/** The platforms' token revocation endpoints. Meta has none for a long-lived Instagram / Page token: that one is only forgotten here. */
+export const REVOKE = {
+  youtube: "https://oauth2.googleapis.com/revoke",
+  tiktok: "https://open.tiktokapis.com/v2/oauth/revoke/",
+};
+
+/**
+ * Revokes a disconnected account's token at its platform, so the grant ends there and not only in this file: Google takes the
+ * refresh token (or the access token when there is none), TikTok the access token with the app's key and secret. Instagram
+ * (Meta) has no revoke endpoint for the long-lived tokens of the basic flow – the token is deleted here and dies on its own
+ * (60 days; Page tokens when the user removes the app). Never throws: a failure is logged and the local deletion stands.
+ */
+export async function revokeAtPlatform(ctx, account) {
+  const { cfg } = ctx;
+  const tokens = account?.tokens ?? {};
+  try {
+    if (account.platform === "youtube") {
+      const token = tokens.refresh || tokens.access;
+      if (!token) return { revoked: false, reason: "no token" };
+      const res = await platformCall(ctx, REVOKE.youtube, form({ token }), { retries: 0, what: "the Google token revocation" });
+      return res.ok ? { revoked: true } : { revoked: false, reason: `HTTP ${res.status}` };
+    }
+    if (account.platform === "tiktok") {
+      if (!tokens.access) return { revoked: false, reason: "no token" };
+      const res = await platformCall(ctx, REVOKE.tiktok, form({ client_key: cfg.tiktok.clientKey, client_secret: cfg.tiktok.clientSecret, token: tokens.access }), { retries: 0, what: "the TikTok token revocation" });
+      return res.ok ? { revoked: true } : { revoked: false, reason: `HTTP ${res.status}` };
+    }
+    return { revoked: false, reason: "no revoke endpoint" };
+  } catch (err) {
+    return { revoked: false, reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 const ADAPTERS = {
   tiktok: { authorizeUrl: tiktokAuthorizeUrl, exchange: tiktokExchange, refresh: tiktokRefresh, publish: tiktokPublish, needsRefresh: (a, now) => typeof a.tokens?.expiresAt === "number" && a.tokens.expiresAt - now < 5 * 60 * 1000 },
   instagram: { authorizeUrl: instagramAuthorizeUrl, exchange: instagramExchange, refresh: instagramRefresh, publish: instagramPublish, needsRefresh: (a) => a.meta?.login === "instagram" },
@@ -1235,6 +1328,7 @@ export function createRelay(options = {}) {
       const user = session ? store.userById(session.userId) : null;
       const key = user ? store.data.keys.find((k) => k.id === user.keyId) : null;
       if (!key) throw new RelayHttpError(401, "session_expired", "Your session has ended – sign in again.");
+      store.touchSession(session, user); // --- data-retention ---
       req.session = session;
       req.user = user;
       return key;
@@ -1270,16 +1364,38 @@ export function createRelay(options = {}) {
     if (!platforms()[platform]) throw new RelayHttpError(400, "not_configured", `This relay has no ${platform} app keys (see relay/.env.example).`);
   };
 
-  /** Refreshes an account's token when it needs it; marks it expired when that fails. */
+  /**
+   * Refreshes an account's token when it needs it; marks it expired when that fails. Every use is recorded (lastUsedAt),
+   * and a refreshed YouTube token also re-reads the channel's name / handle / avatar, so what is shown is never older than
+   * the last use (the 30-day sweep in Store.sweep drops it otherwise).
+   */
   async function freshAccount(account) {
     const adapter = ADAPTERS[account.platform];
-    if (!adapter.needsRefresh(account, now())) return account;
+    const used = iso(now());
+    if (!adapter.needsRefresh(account, now())) return store.updateAccount(account.id, { lastUsedAt: used }) ?? account;
     try {
       const tokens = await adapter.refresh(ctx, account);
-      return store.updateAccount(account.id, { tokens, status: "ok" }) ?? account;
+      const patch = { tokens, status: "ok", lastUsedAt: used };
+      if (account.platform === "youtube") {
+        try {
+          const { name, handle, avatar } = await youtubeChannel(ctx, tokens.access);
+          Object.assign(patch, { name, handle, avatar });
+        } catch {
+          /* the profile is only a label; publishing goes on with the fresh token */
+        }
+      }
+      return store.updateAccount(account.id, patch) ?? account;
     } catch (err) {
       if (err instanceof PlatformError && err.expired) store.updateAccount(account.id, { status: "expired" });
       throw err;
+    }
+  }
+
+  /** Revokes the tokens of accounts that were just deleted locally; failures are logged and never undo the deletion. */
+  async function revokeAll(accounts) {
+    for (const account of accounts) {
+      const result = await revokeAtPlatform(ctx, account);
+      if (!result.revoked && result.reason !== "no revoke endpoint") log.warn?.(`[relay] ${account.platform} token of ${account.id} not revoked at the platform (${redact(result.reason, secrets())}) – deleted locally.`);
     }
   }
 
@@ -1348,7 +1464,12 @@ export function createRelay(options = {}) {
     if (method === "OPTIONS") return void res.writeHead(204).end();
 
     if (url.pathname === "/" && method === "GET") return sendJson(res, 200, { name: RELAY_NAME, version: RELAY_VERSION, docs: "https://jumpingballslive.com/" });
-    if (url.pathname === "/api/health" && method === "GET") return sendJson(res, 200, { ok: true, name: RELAY_NAME, version: RELAY_VERSION, platforms: platforms(), signup: cfg.signup });
+    if (url.pathname === "/api/health" && method === "GET") {
+      const health = { ok: true, name: RELAY_NAME, version: RELAY_VERSION, platforms: platforms(), signup: cfg.signup };
+      // --- data-retention --- with the admin key: how many users have been away for 24 months (the relay sends no e-mail, so it only counts them)
+      if (cfg.adminKey && sameSecret(bearer(req), cfg.adminKey)) health.storage = { inactiveUsers24Months: store.inactiveUsers(INACTIVE_USER_MS), users: store.data.users.length, accounts: store.data.accounts.length };
+      return sendJson(res, 200, health);
+    }
     if (url.pathname === "/api/me" && method === "GET") {
       const key = requireKey(req);
       return sendJson(res, 200, { name: RELAY_NAME, version: RELAY_VERSION, key: { id: key.id, label: key.label }, user: req.user ? publicUser(req.user) : null, platforms: platforms() });
@@ -1409,7 +1530,8 @@ export function createRelay(options = {}) {
         const body = await readJson(req);
         const password = typeof body.password === "string" ? body.password.slice(0, PASSWORD_MAX) : "";
         if (!(await verifyPassword(password, req.user.passwordHash))) throw new RelayHttpError(401, "bad_credentials", "The password is wrong.");
-        store.deleteUser(req.user.id);
+        const removed = store.deleteUser(req.user.id) ?? [];
+        await revokeAll(removed);
         return sendJson(res, 200, { ok: true });
       }
       throw new RelayHttpError(404, "not_found", "Not found.");
@@ -1428,14 +1550,24 @@ export function createRelay(options = {}) {
         }
         return sendJson(res, 201, store.createKey(label));
       }
-      if (parts.length === 3 && method === "DELETE") return store.deleteKey(parts[2]) ? sendJson(res, 200, { ok: true }) : sendError(res, 404, "not_found", "No such key.");
+      if (parts.length === 3 && method === "DELETE") {
+        const removed = store.accountsFor(parts[2]);
+        if (!store.deleteKey(parts[2])) return sendError(res, 404, "not_found", "No such key.");
+        await revokeAll(removed);
+        return sendJson(res, 200, { ok: true });
+      }
       throw new RelayHttpError(405, "method", "Method not allowed.");
     }
 
     if (parts[0] === "api" && parts[1] === "accounts") {
       const key = requireKey(req);
       if (parts.length === 2 && method === "GET") return sendJson(res, 200, { accounts: store.accountsFor(key.id).map(publicAccount) });
-      if (parts.length === 3 && method === "DELETE") return store.removeAccount(key.id, parts[2]) ? sendJson(res, 200, { ok: true }) : sendError(res, 404, "not_found", "No such account for this key.");
+      if (parts.length === 3 && method === "DELETE") {
+        const account = store.account(key.id, parts[2]);
+        if (!account || !store.removeAccount(key.id, parts[2])) return sendError(res, 404, "not_found", "No such account for this key.");
+        await revokeAll([account]);
+        return sendJson(res, 200, { ok: true });
+      }
       throw new RelayHttpError(405, "method", "Method not allowed.");
     }
 
@@ -1556,12 +1688,14 @@ export function createRelay(options = {}) {
     }
   }
 
-  /** Drops old clips and finished jobs (every 10 minutes when listening). */
+  /** Drops old clips and finished jobs, stale YouTube profiles and long-expired accounts (every 10 minutes when listening). */
   function sweep() {
     media.sweep();
     states.sweep();
     limiter.sweep();
     for (const [id, job] of jobs) if (now() - Date.parse(job.createdAt) > cfg.mediaTtlMs) jobs.delete(id);
+    const { profilesDropped, accountsPurged } = store.sweep(); // --- data-retention ---
+    if (profilesDropped || accountsPurged) log.info?.(`[relay] retention: dropped ${profilesDropped} stale YouTube profile(s), purged ${accountsPurged} long-expired account(s).`);
   }
 
   function listen(port = cfg.port, host = cfg.host) {

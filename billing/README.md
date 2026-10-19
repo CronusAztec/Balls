@@ -136,7 +136,15 @@ answers `503 provider_misconfigured`), and `GET /health` says why.
      (step 7), add the endpoint with the Worker's URL, then `wrangler secret put STRIPE_WEBHOOK_SECRET`
      – the card button appears on the site after that. (The same holds for PayPal's
      `PAYPAL_WEBHOOK_ID` and NOWPayments' `NOWPAYMENTS_IPN_SECRET` below.)
-4. Store the Stripe secrets in the Worker:
+4. **Settings → Business → Public details → Terms of Service URL**: set it to the site's terms page
+   (`https://jumpingballslive.com/en/terms/`). The checkout asks every buyer to tick "I agree to the
+   Terms" (`consent_collection[terms_of_service]=required`), which records their express consent to the
+   terms and to the subscription starting at once. Stripe shows that checkbox only when this URL is set:
+   without it Stripe refuses the session, the Worker opens the same checkout without the checkbox (the
+   pricing page's own "By paying you ... accept the Terms" line still stands) and writes "Stripe needs the
+   Terms of Service URL in Settings → Business → Public details before the checkout can ask for consent"
+   to its log (`npx wrangler tail`). Set the URL in Test mode and again in live mode.
+5. Store the Stripe secrets in the Worker:
    ```bash
    npx wrangler secret put STRIPE_SECRET_KEY        # sk_test_... (sk_live_... when you go live)
    npx wrangler secret put STRIPE_WEBHOOK_SECRET    # whsec_...

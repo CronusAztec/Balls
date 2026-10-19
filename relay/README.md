@@ -257,17 +257,17 @@ All JSON; `Authorization: Bearer <access key>` unless noted; CORS for the origin
 
 | Method and path | What it does |
 | --- | --- |
-| `GET /api/health` | No key. `{ ok, name, version, platforms: { tiktok, instagram, youtube }, signup }` – which platforms have app keys, and whether the relay takes new accounts |
+| `GET /api/health` | No key. `{ ok, name, version, platforms: { tiktok, instagram, youtube }, signup }` – which platforms have app keys, and whether the relay takes new accounts. With the **admin key** also `storage: { inactiveUsers24Months, users, accounts }` (see Data retention) |
 | `GET /api/me` | The key's `{ id, label }`, the signed-in `user` (or `null` for an access key) and the platforms |
 | `POST /api/auth/signup` | No key. `{ email, password, name? }` → `201 { token, expiresAt, user }`; `400 bad_email` / `weak_password` (8–200 characters), `409 email_taken`, `403 signup_closed`, `429 rate_limited` |
 | `POST /api/auth/login` | No key. `{ email, password }` → `{ token, expiresAt, user }`; `401 bad_credentials`, `429 rate_limited` |
 | `POST /api/auth/logout` | Session token. Ends that session |
 | `POST /api/auth/password` | Session token. `{ current, next }`; ends the user's other sessions |
-| `DELETE /api/auth/user` | Session token. `{ password }`; deletes the user, their sessions and every connected account |
+| `DELETE /api/auth/user` | Session token. `{ password }`; deletes the user, their sessions and every connected account, revoking each account's token at its platform (see Data retention) |
 | `POST /api/keys` | **Admin key.** `{ label }` → `{ id, label, key }` (the key is shown once) |
-| `GET /api/keys` / `DELETE /api/keys/:id` | **Admin key.** List keys (no secrets) / revoke one and forget its accounts |
+| `GET /api/keys` / `DELETE /api/keys/:id` | **Admin key.** List keys (no secrets) / revoke one and forget its accounts (their tokens are revoked at the platforms) |
 | `GET /api/accounts` | The key's accounts: `{ id, platform, name, handle, avatar, connectedAt, status: ok \| expired, note }` |
-| `DELETE /api/accounts/:id` | Disconnect one of the key's accounts |
+| `DELETE /api/accounts/:id` | Disconnect one of the key's accounts: it is deleted here and its token revoked at the platform (Google, TikTok; Meta has no revoke endpoint) |
 | `POST /api/connect/:platform` | `{ origin }` → `{ url }`: a one-time link (10 minutes) to open in a popup |
 | `GET /connect/:platform?state=…` | Starts the platform's OAuth sign-in |
 | `GET /oauth/:platform/callback` | Stores the account(s), `postMessage`s `{ source: "jumpingballslive-relay", type: "connected" \| "error", platform, accounts }` to the site and closes |
@@ -290,3 +290,25 @@ publish flows of all three platforms against mocked platform endpoints, with the
 - Clip URLs are 128-bit random and expire after `RELAY_MEDIA_TTL_HOURS` (24 h by default).
 - Sign-up and sign-in are rate limited (see User accounts); everything else is not, so give access keys only to people you
   trust, revoke a key you no longer need and consider `RELAY_SIGNUP=off` on a private relay.
+
+## Data retention
+
+What the relay keeps, and for how long (the sweep runs every 10 minutes, together with the 24 h clip TTL):
+
+- **Disconnecting revokes.** `DELETE /api/accounts/:id`, `DELETE /api/auth/user` and the admin's `DELETE /api/keys/:id`
+  delete the account(s) here and then revoke the token at the platform: Google (`POST https://oauth2.googleapis.com/revoke`
+  with the refresh token, or the access token when there is none) and TikTok (`POST
+  https://open.tiktokapis.com/v2/oauth/revoke/` with the app's key and secret and the access token). **Instagram / Meta has no
+  revoke endpoint** for the long-lived tokens of the basic flow, so that token is only deleted here and dies on its own (an
+  Instagram Login token after 60 days; a Page token when the user removes the app under Facebook → Settings → Business
+  integrations). A failed revocation (network, platform error) is logged and never undoes the local deletion.
+- **YouTube Authorized Data (30 days).** Every use of a connected account (a publish, a token refresh, a new sign-in) is
+  recorded as `lastUsedAt`, and a refreshed YouTube token re-reads the channel's name, handle and avatar. A YouTube
+  account not used for 30 days loses its cached name / handle / avatar (`GET /api/accounts` then shows `youtube` as the
+  name until the next publish, which fetches them again); the grant itself stays, so publishing keeps working.
+- **Dead accounts (90 days).** An account whose sign-in is `expired` (the token could not be refreshed) is purged 90 days
+  after it went bad – nothing can be published with it, and the user is asked to connect again anyway.
+- **Users and sessions.** `lastSeenAt` is recorded on each session and its user (at most once an hour). Users are **never**
+  purged automatically: a purge of inactive users needs an e-mail warning first and the relay cannot send e-mail. Instead
+  `GET /api/health` with the admin key reports `storage.inactiveUsers24Months` (users not seen for 24 months) so the
+  operator can warn and delete them by hand (`DELETE /api/keys/:id` with the user's key id from `GET /api/keys`).

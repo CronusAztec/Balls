@@ -30,6 +30,11 @@ import {
   hashPassword,
   normalizeEmail,
   verifyPassword,
+  EXPIRED_ACCOUNT_MAX_AGE_MS, // --- data-retention ---
+  INACTIVE_USER_MS,
+  PROFILE_MAX_AGE_MS,
+  REVOKE,
+  revokeAtPlatform,
 } from "./server.mjs";
 
 /*
@@ -78,9 +83,9 @@ const ENV = {
   YT_CLIENT_SECRET: "yt-secret-abcdef",
 };
 
-async function startRelay({ env = {}, fetchImpl, youtubeChunk = 256 * 1024 } = {}) {
+async function startRelay({ env = {}, fetchImpl, youtubeChunk = 256 * 1024, now } = {}) {
   const dir = tmp();
-  const relay = createRelay({ env: { ...ENV, RELAY_DATA_DIR: dir, ...env }, fetch: fetchImpl, sleep: async () => {}, pollMs: 0, retryDelayMs: 0, youtubeChunk, log: { warn() {}, error() {} } });
+  const relay = createRelay({ env: { ...ENV, RELAY_DATA_DIR: dir, ...env }, fetch: fetchImpl, now, sleep: async () => {}, pollMs: 0, retryDelayMs: 0, youtubeChunk, log: { warn() {}, error() {} } });
   const server = await relay.listen(0, "127.0.0.1");
   const base = `http://127.0.0.1:${server.address().port}`;
   cleanups.push(async () => {
@@ -838,6 +843,168 @@ describe("user accounts", () => {
 });
 
 /* --- vps-deploy --- The kit that runs the relay on a VPS (relay/deploy): its files agree with the relay and with each other. */
+
+
+// --- data-retention --- disconnecting revokes at the platform; Authorized Data and dead accounts do not outlive their use
+describe("disconnecting and data retention", () => {
+  const DAY = 24 * 3600 * 1000;
+  const signup = (base, email = "alice@example.com", password = "correct horse") => api(base, "/api/auth/signup", { method: "POST", body: { email, password }, origin: "https://site.example" });
+
+  it("revokes the token at Google and TikTok when an account is disconnected, and deletes locally even when the platform fails", async () => {
+    const { fetchImpl, calls } = platformMock([
+      { method: "POST", url: REVOKE.youtube, reply: { body: {} } },
+      { method: "POST", url: REVOKE.tiktok, reply: { status: 500, body: { error: { code: "internal_error" } } } },
+    ]);
+    const { relay, base } = await startRelay({ fetchImpl });
+    const alice = await adminKey(base, "Alice");
+    const keyId = relay.store.keyFor(alice.key).id;
+    const yt = relay.store.upsertAccount(keyId, "youtube", "UC1", { name: "Chan", tokens: { access: "ya29.x", refresh: "yt-refresh-1", expiresAt: 0 } });
+    const tt = relay.store.upsertAccount(keyId, "tiktok", "open-1", { name: "Tok", tokens: { access: "tt-access-1", refresh: "tt-refresh-1", expiresAt: 0 } });
+    const ig = relay.store.upsertAccount(keyId, "instagram", "1784001", { name: "IG", tokens: { access: "page-token-1" }, meta: { login: "facebook", igUserId: "1784001" } });
+    const bob = await adminKey(base, "Bob");
+    expect((await api(base, `/api/accounts/${yt.id}`, { method: "DELETE", key: bob.key })).status).toBe(404); // not Bob's
+    expect(calls).toHaveLength(0);
+
+    for (const acc of [yt, tt, ig]) expect((await api(base, `/api/accounts/${acc.id}`, { method: "DELETE", key: alice.key })).json.ok).toBe(true);
+    expect(relay.store.data.accounts).toHaveLength(0);
+    expect((await api(base, `/api/accounts/${yt.id}`, { method: "DELETE", key: alice.key })).status).toBe(404);
+
+    // Google: the refresh token, form-encoded. TikTok: app key, secret and the access token. Meta: nothing to call.
+    expect(calls.map((c) => c.url)).toEqual([REVOKE.youtube, REVOKE.tiktok]);
+    expect(calls[0].headers["Content-Type"]).toBe("application/x-www-form-urlencoded");
+    expect(Object.fromEntries(new URLSearchParams(calls[0].body))).toEqual({ token: "yt-refresh-1" });
+    expect(Object.fromEntries(new URLSearchParams(calls[1].body))).toEqual({ client_key: "tt-client-key", client_secret: "tt-secret-abcdef", token: "tt-access-1" });
+
+    // Without a refresh token Google gets the access token; a network error never throws; Instagram says why it did nothing.
+    const ctx = relay.ctx;
+    expect(await revokeAtPlatform(ctx, { platform: "youtube", tokens: { access: "ya29.only" } })).toEqual({ revoked: true });
+    expect(Object.fromEntries(new URLSearchParams(calls.at(-1).body))).toEqual({ token: "ya29.only" });
+    expect(await revokeAtPlatform({ ...ctx, fetch: async () => { throw new Error("ECONNRESET"); } }, { platform: "tiktok", tokens: { access: "t" } })).toMatchObject({ revoked: false, reason: /ECONNRESET/ });
+    expect(await revokeAtPlatform(ctx, { platform: "instagram", tokens: { access: "page" } })).toEqual({ revoked: false, reason: "no revoke endpoint" });
+    expect(await revokeAtPlatform(ctx, { platform: "youtube", tokens: {} })).toEqual({ revoked: false, reason: "no token" });
+  });
+
+  it("revokes every connected account when a user deletes their account or the admin revokes a key", async () => {
+    const { fetchImpl, calls } = platformMock([
+      { method: "POST", url: REVOKE.youtube, reply: { body: {} } },
+      { method: "POST", url: REVOKE.tiktok, reply: { body: { data: {}, error: { code: "ok" } } } },
+    ]);
+    const { relay, base } = await startRelay({ fetchImpl });
+    const alice = (await signup(base)).json;
+    const keyId = relay.store.userByEmail("alice@example.com").keyId;
+    relay.store.upsertAccount(keyId, "youtube", "UC1", { name: "Chan", tokens: { access: "ya29.x", refresh: "yt-refresh-u", expiresAt: 0 } });
+    relay.store.upsertAccount(keyId, "tiktok", "open-1", { name: "Tok", tokens: { access: "tt-access-u", expiresAt: 0 } });
+    expect((await api(base, "/api/auth/user", { method: "DELETE", key: alice.token, body: { password: "correct horse" } })).json.ok).toBe(true);
+    expect(relay.store.data.accounts).toHaveLength(0);
+    expect(calls.map((c) => [c.url, new URLSearchParams(c.body).get("token")])).toEqual([
+      [REVOKE.youtube, "yt-refresh-u"],
+      [REVOKE.tiktok, "tt-access-u"],
+    ]);
+
+    const bob = await adminKey(base, "Bob");
+    relay.store.upsertAccount(relay.store.keyFor(bob.key).id, "youtube", "UC2", { name: "Bob's", tokens: { access: "ya29.b", refresh: "yt-refresh-b", expiresAt: 0 } });
+    expect((await api(base, `/api/keys/${bob.id}`, { method: "DELETE", key: ENV.RELAY_ADMIN_KEY })).json.ok).toBe(true);
+    expect(new URLSearchParams(calls.at(-1).body).get("token")).toBe("yt-refresh-b");
+  });
+
+  it("records each use of an account and re-reads the YouTube channel when its token is refreshed", async () => {
+    let t = Date.UTC(2026, 0, 1);
+    const clip = Buffer.alloc(1000, 1);
+    const { fetchImpl, calls } = platformMock([
+      { method: "POST", url: "https://oauth2.googleapis.com/token", reply: { body: { access_token: "ya29.fresh", expires_in: 3599 } } },
+      { method: "GET", url: "https://www.googleapis.com/youtube/v3/channels", reply: { body: { items: [{ id: "UC123", snippet: { title: "Renamed Channel", customUrl: "@renamed", thumbnails: { default: { url: "https://yt.test/new.png" } } } }] } } },
+      { method: "POST", url: "https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable", reply: { headers: { Location: "https://upload.youtube.test/s" }, body: "" } },
+      { method: "PUT", url: "https://upload.youtube.test/s", reply: { status: 200, body: { id: "yt1" } } },
+    ]);
+    const { relay, base } = await startRelay({ fetchImpl, now: () => t });
+    const alice = await adminKey(base, "Alice");
+    const keyId = relay.store.keyFor(alice.key).id;
+    const yt = relay.store.upsertAccount(keyId, "youtube", "UC123", { name: "Old Name", handle: "@old", avatar: "https://yt.test/old.png", tokens: { access: "ya29.old", refresh: "yt-refresh", expiresAt: 0 } });
+    expect(yt.lastUsedAt).toBe(new Date(t).toISOString());
+    t += 40 * DAY;
+    const fd = new FormData();
+    fd.append("accounts", yt.id);
+    fd.append("caption", "Hi");
+    fd.append("file", new Blob([clip], { type: "video/mp4" }), "c.mp4");
+    const started = await api(base, "/api/publish", { method: "POST", key: alice.key, body: fd });
+    const job = await waitJob(base, alice.key, started.json.jobId);
+    expect(job.status).toBe("done");
+    const after = relay.store.account(keyId, yt.id);
+    expect(after.lastUsedAt).toBe(new Date(t).toISOString());
+    expect(after).toMatchObject({ name: "Renamed Channel", handle: "@renamed", avatar: "https://yt.test/new.png" });
+    expect(calls.find((c) => c.url.startsWith("https://www.googleapis.com/youtube/v3/channels")).headers.Authorization).toBe("Bearer ya29.fresh");
+    // An account whose profile the sweep dropped shows its platform as the name until the next use.
+    t += PROFILE_MAX_AGE_MS + 1;
+    expect(relay.store.sweep()).toEqual({ profilesDropped: 1, accountsPurged: 0 });
+    expect((await api(base, "/api/accounts", { key: alice.key })).json.accounts[0]).toMatchObject({ name: "youtube", handle: null, avatar: null, status: "ok" });
+  });
+
+  it("drops stale YouTube profiles after 30 days and purges accounts expired for 90 days, in the sweep", () => {
+    let t = Date.UTC(2026, 0, 1);
+    const dir = tmp();
+    cleanups.push(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const file = path.join(dir, "relay.json");
+    const store = new Store(file, { now: () => t });
+    const key = store.createKey("Alice");
+    const yt = store.upsertAccount(key.id, "youtube", "UC1", { name: "Chan", handle: "@chan", avatar: "https://a/1.png", tokens: { access: "a", refresh: "r", expiresAt: 0 } });
+    const tt = store.upsertAccount(key.id, "tiktok", "open-1", { name: "Tok", handle: "@tok", avatar: "https://a/2.png", tokens: { access: "a", expiresAt: 0 } });
+    const dead = store.upsertAccount(key.id, "tiktok", "open-dead", { name: "Dead", tokens: { access: "a", expiresAt: 0 } });
+    t += 10 * DAY;
+    store.updateAccount(dead.id, { status: "expired" });
+    expect(store.account(key.id, dead.id).expiredAt).toBe(new Date(t).toISOString());
+    store.updateAccount(dead.id, { status: "expired" }); // marked again: the first date stands
+    expect(store.account(key.id, dead.id).expiredAt).toBe(new Date(t).toISOString());
+    t += 20 * DAY; // the live accounts: 30 days unused, the dead one: 20 days expired
+    expect(store.sweep()).toEqual({ profilesDropped: 0, accountsPurged: 0 });
+    t += 1;
+    expect(store.sweep()).toEqual({ profilesDropped: 1, accountsPurged: 0 });
+    expect(store.account(key.id, yt.id)).toMatchObject({ name: null, handle: null, avatar: null, tokens: { refresh: "r" } }); // the grant stays, the label goes
+    expect(store.account(key.id, tt.id)).toMatchObject({ name: "Tok", handle: "@tok" }); // only YouTube's Authorized Data has the 30-day rule
+    expect(publicAccount(store.account(key.id, yt.id)).name).toBe("youtube");
+    expect(store.sweep()).toEqual({ profilesDropped: 0, accountsPurged: 0 }); // idempotent
+    t += EXPIRED_ACCOUNT_MAX_AGE_MS - 20 * DAY - 1; // the dead one: exactly 90 days
+    expect(store.sweep()).toEqual({ profilesDropped: 0, accountsPurged: 0 });
+    t += 1;
+    expect(store.sweep()).toEqual({ profilesDropped: 0, accountsPurged: 1 });
+    expect(store.account(key.id, dead.id)).toBeNull();
+    expect(store.accountsFor(key.id)).toHaveLength(2);
+    // A use clears the expiry; the state survives a restart.
+    store.updateAccount(yt.id, { status: "expired" });
+    store.updateAccount(yt.id, { status: "ok", lastUsedAt: new Date(t).toISOString() });
+    expect(store.account(key.id, yt.id).expiredAt).toBeUndefined();
+    expect(new Store(file, { now: () => t }).accountsFor(key.id).map((a) => a.id).sort()).toEqual([yt.id, tt.id].sort());
+    expect(store.sweep.bind(store)).not.toThrow();
+  });
+
+  it("records when sessions and users were last seen, and counts users away for 24 months for the admin", async () => {
+    let t = Date.UTC(2026, 0, 1);
+    const { relay, base } = await startRelay({ fetchImpl: platformMock([]).fetchImpl, now: () => t });
+    const alice = (await signup(base)).json;
+    const user = relay.store.userByEmail("alice@example.com");
+    const session = relay.store.data.sessions[0];
+    expect(session.lastSeenAt).toBe(new Date(t).toISOString());
+    expect(user.lastSeenAt).toBe(new Date(t).toISOString());
+    t += 30 * 60 * 1000; // half an hour later: used, but not written again (at most once an hour)
+    expect((await api(base, "/api/me", { key: alice.token })).status).toBe(200);
+    expect(session.lastSeenAt).toBe(new Date(t - 30 * 60 * 1000).toISOString());
+    t += 31 * 60 * 1000;
+    expect((await api(base, "/api/me", { key: alice.token })).status).toBe(200);
+    expect(session.lastSeenAt).toBe(new Date(t).toISOString());
+    expect(user.lastSeenAt).toBe(new Date(t).toISOString());
+    expect(JSON.parse(fs.readFileSync(path.join(relay.cfg.dataDir, "relay.json"), "utf8")).users[0].lastSeenAt).toBe(new Date(t).toISOString());
+
+    expect((await api(base, "/api/health")).json.storage).toBeUndefined(); // the public answer says nothing about users
+    expect((await api(base, "/api/health", { key: "not-admin" })).json.storage).toBeUndefined();
+    expect((await api(base, "/api/health", { key: ENV.RELAY_ADMIN_KEY })).json.storage).toEqual({ inactiveUsers24Months: 0, users: 1, accounts: 0 });
+    await signup(base, "bob@example.com");
+    t += INACTIVE_USER_MS + 1;
+    expect((await api(base, "/api/health", { key: ENV.RELAY_ADMIN_KEY })).json.storage).toEqual({ inactiveUsers24Months: 2, users: 2, accounts: 0 });
+    expect(relay.store.inactiveUsers(INACTIVE_USER_MS)).toBe(2);
+    // The relay's sweep leaves users alone (no e-mail to warn them with) – only the count is exposed.
+    relay.sweep();
+    expect(relay.store.data.users).toHaveLength(2);
+  });
+});
 
 describe("the VPS kit", () => {
   const dir = fileURLToPath(new URL("./deploy/", import.meta.url));

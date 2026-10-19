@@ -43,10 +43,30 @@ async function stripeFetch(
   });
   const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
   if (!res.ok) {
+    if (isTermsOfServiceUrlError(data)) throw stripeTermsUrlMissing();
     // Keep the provider's message out of our response; log-free, code-stable error instead.
     throw new ApiError("stripe_error", "Could not reach the payment provider.", 502);
   }
   return data;
+}
+
+/** The owner-facing message when the account has no Terms of Service URL and the checkout asks for consent. */
+export const STRIPE_TERMS_URL_MISSING_MESSAGE =
+  "Stripe needs the Terms of Service URL in Settings → Business → Public details before the checkout can ask for consent.";
+
+function stripeTermsUrlMissing(): ApiError {
+  return new ApiError("stripe_terms_url_missing", STRIPE_TERMS_URL_MISSING_MESSAGE, 503); // caught by createCheckoutSession
+}
+
+/**
+ * Stripe refuses a Checkout Session with `consent_collection[terms_of_service]=required` while the
+ * account has no Terms of Service URL; its error message names `terms_of_service` (and the parameter
+ * is `consent_collection[terms_of_service]`). That one error we recognise and explain to the owner.
+ */
+function isTermsOfServiceUrlError(data: Record<string, unknown>): boolean {
+  const error = data.error && typeof data.error === "object" ? (data.error as Record<string, unknown>) : {};
+  const text = `${typeof error.message === "string" ? error.message : ""} ${typeof error.param === "string" ? error.param : ""}`;
+  return /terms[_ ]of[_ ]service/i.test(text);
 }
 
 export interface StripeCheckoutInput {
@@ -75,8 +95,22 @@ export async function createCheckoutSession(
   form.set("metadata[locale]", input.locale);
   if (input.email) form.set("customer_email", input.email);
   if (input.automaticTax) form.set("automatic_tax[enabled]", "true");
-
-  const session = await stripeFetch(secretKey, "POST", "/v1/checkout/sessions", form);
+  // The "I agree to the Terms" checkbox: Stripe records the buyer's express consent to the terms (and
+  // to the subscription starting at once) with the session. Stripe shows it only when the account's
+  // Terms of Service URL is set (Dashboard → Settings → Business → Public details). Without that URL
+  // Stripe refuses the session: then the checkout opens WITHOUT the checkbox (the pricing page's own
+  // line "By paying you ... accept the Terms" still stands) and the owner is told in the Worker's log,
+  // so a missing dashboard setting never stops a sale.
+  form.set("consent_collection[terms_of_service]", "required");
+  let session: Record<string, unknown>;
+  try {
+    session = await stripeFetch(secretKey, "POST", "/v1/checkout/sessions", form);
+  } catch (err) {
+    if (!(err instanceof ApiError) || err.code !== "stripe_terms_url_missing") throw err;
+    console.warn(`stripe: ${STRIPE_TERMS_URL_MISSING_MESSAGE} The checkout opened without the consent checkbox.`);
+    form.delete("consent_collection[terms_of_service]");
+    session = await stripeFetch(secretKey, "POST", "/v1/checkout/sessions", form);
+  }
   const url = session.url;
   if (typeof url !== "string") {
     throw new ApiError("stripe_error", "The payment provider did not return a checkout URL.", 502);
