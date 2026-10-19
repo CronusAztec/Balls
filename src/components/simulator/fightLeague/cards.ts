@@ -18,7 +18,7 @@ import { flFont } from "./text";
  * --- fl-overhaul --- (Stage 3) Fight League's cards and banners (screen space, inside the exported square):
  *
  *  - the VS card 2.0 on the intro's 1500 ms – a 55 % veil, two diagonal panels sliding in (each side's body colour with an
- *    accent edge, its ball at 2.2× with its weapon, the name, division, source and role chip, a handicap's tag), VS slamming
+ *    accent edge, its ball at 2.2× with its weapon, the name, division and role chip, a handicap's tag), VS slamming
  *    in at 300 ms with a ring burst, 3-2-1 popping under it at 450 / 800 / 1150 ms, the panels sliding out at 1350 ms and
  *    FIGHT! at 1500 ms (2v2: a panel per team in its team colour – the team rings' – with its members' chips stacked, each in
  *    its fighter's colours; a free-for-all: a chip per fighter in the corner it starts in);
@@ -187,7 +187,7 @@ export class FlCardsPainter {
     if (lost) this.strike(ctx, cx - drawn / 2, cx + drawn / 2, cy, S, alpha);
   }
 
-  /** A panel's texts: the name (or "[name] wins!"), the division, the source and the role chip (a handicap's tag). */
+  /** A panel's texts: the name (or "[name] wins!"), the division and the role chip (a handicap's tag); never the source (legal audit). */
   private panelText(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, L: FightLeagueLabels, f: FlFighter, cx: number, y: number, maxW: number, S: number, alpha: number, lost: boolean, won: boolean) {
     const a = alpha * (lost ? 0.6 : 1);
     const title = won ? fr.text.upperOf(L.wins(f.row.name)) : fr.text.upperOf(f.row.name);
@@ -195,7 +195,6 @@ export class FlCardsPainter {
     if (lost) this.strike(ctx, cx - tw / 2, cx + tw / 2, y, S, alpha);
     const small: FlTextStyle = { role: "ui", color: "#ffffff", stroke: INK, strokeK: 0.14, weight: 700 };
     fr.text.draw(ctx, L.division(f.row.division), cx, y + 0.062 * S, 0.026 * S, small, "center", maxW, a);
-    fr.text.draw(ctx, f.row.source, cx, y + 0.094 * S, 0.02 * S, { ...small, weight: 600 }, "center", maxW, a);
     // the role chip
     const role = fr.text.upperOf(L.role(f.row.role));
     const chipFs = 0.019 * S;

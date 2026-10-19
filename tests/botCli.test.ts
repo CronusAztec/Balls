@@ -29,7 +29,7 @@ describe("viral-bot CLI", () => {
   });
 
   it("parses its options and refuses bad ones", () => {
-    expect(parseArgs([])).toMatchObject({ count: 3, platform: "reels", out: "bot-output", family: "all", bucket: "auto", ending: "auto", locale: "en", dryRun: false, post: false });
+    expect(parseArgs([])).toMatchObject({ count: 3, platform: "reels", out: "bot-output", family: "default" /* --- legal-audit --- no Fight League clips unless asked */, bucket: "auto", ending: "auto", locale: "en", dryRun: false, post: false });
     expect(parseArgs(["--count", "5", "--platform", "shorts", "--out", "x", "--date", "2026-10-01", "--family", "escape", "--ending", "resolved", "--dry-run"])).toMatchObject({ count: 5, platform: "shorts", out: "x", date: "2026-10-01", family: "escape", ending: "resolved", dryRun: true });
     expect(parseArgs(["--count=2", "--locale=pl", "--bucket=long", "--post"])).toMatchObject({ count: 2, locale: "pl", bucket: "long", post: true });
     expect(parseArgs(["--post-only", "--out", "done"])).toMatchObject({ postOnly: true, post: false, out: "done" });
@@ -167,7 +167,8 @@ describe("viral-bot CLI --plan", () => {
     for (const bad of [["--plan", "--post"], ["--plan", "--post-only"], ["--plan", "--dry-run"]]) expect(() => parseArgs(bad)).toThrow();
   });
 
-  it("prints the 7 days from --date without writing anything, a fight recipe among them", { timeout: 120_000 }, () => {
+  // --- legal-audit --- without --family the rotation holds escape and rhythm clips only; --family all brings the Fight League recipes back
+  it("prints the 7 days from --date without writing anything: no fight recipe by default, one with --family all", { timeout: 120_000 }, () => {
     const out = fs.mkdtempSync(path.join(os.tmpdir(), "bot-plan-"));
     try {
       const log = execFileSync(process.execPath, [CLI, "--plan", "--date", "2026-10-05", "--out", out], { cwd: ROOT, env, encoding: "utf8" });
@@ -176,7 +177,12 @@ describe("viral-bot CLI --plan", () => {
       expect(days[0]).toMatch(/^ {2}2026-10-05 {2}day +7 /);
       expect(days[6]).toMatch(/^ {2}2026-10-11 /);
       for (const d of days) expect(d.split(", ")).toHaveLength(3);
-      expect(log).toMatch(/fight-(duel|upset|bracket|boss) \(battle\)/);
+      expect(log).toContain("(family default,");
+      expect(log).not.toMatch(/\(battle\)/);
+      expect(log).not.toMatch(/fight-/);
+      expect(fs.readdirSync(out)).toEqual([]);
+      const all = execFileSync(process.execPath, [CLI, "--plan", "--date", "2026-10-05", "--family", "all", "--out", out], { cwd: ROOT, env, encoding: "utf8" });
+      expect(all).toMatch(/fight-(duel|upset|bracket|boss) \(battle\)/);
       expect(fs.readdirSync(out)).toEqual([]);
     } finally {
       fs.rmSync(out, { recursive: true, force: true });

@@ -1427,7 +1427,7 @@
     "vbOnBeatRange": "On beat range",
     "vbOnBeatRangeTip": "How much faster or slower On beat may make a flight. Wider lands more hits on the beat, narrower keeps the motion more natural.",
     "projectMediumBeatMedia": "Beat video / audio",
-    "viralBot": "Viral video bot",
+    "viralBot": "Clip planner",
     "viralBotTip": "Plans clips after the playbook of the accounts that go viral (a one-line hook, a countdown, the payoff in the last seconds, alternating endings), scores each one, renders them all with the fast export and downloads a ZIP with the videos, captions, a manifest and a posting schedule.",
     "modeJourney": "Journey",
     "journeyTitle": "Journey",
@@ -1739,7 +1739,7 @@
     "flRandomHintDivision": "Picked by the seed from the first fighter's division.",
     "flAbility": "Ability: {name}",
     "flSameDivision": "Random Stays In Division",
-    "flSameDivisionTip": "A random slot picks from the division of the first fighter chosen, so a matchup stays in its genre (Marvel vs Marvel, Star Wars vs Star Wars).",
+    "flSameDivisionTip": "A random slot picks from the division of the first fighter chosen, so a matchup stays in its genre (comics vs comics, space saga vs space saga).",
     "flHp": "HP",
     "flHpTip": "Every fighter's hit points (a fighter's row may give it a little more or less). Type any number from 1.",
     "flTimeCap": "Time Cap",
@@ -2261,7 +2261,7 @@
     "flBestOfOne": "1 match",
     "flBestOfN": "Bo{n}",
     "flEntrants": "Entrants",
-    "flEntrantsTip": "Comma-separated fighter ids and tokens: random, random:<division or genre>, division:<id> (the whole division in roster order). Empty: the format's own pool – the division of fighter A (a boss rush: the boss's, Marvel for Gerald). Unknown names are dropped.",
+    "flEntrantsTip": "Comma-separated fighter ids and tokens: random, random:<division or genre>, division:<id> (the whole division in roster order). Empty: the format's own pool – the division of fighter A (a boss rush: the boss's, Comics A for Gerald). Unknown names are dropped.",
     "flBracketSize": "Bracket Size",
     "flBracketSizeTip": "Entrants of the bracket, from 2 (no maximum; a run builds at most 256). A size that is not a power of two gives byes to the top seeds. Each bout is a duel with a time cap of at most 45 s and sudden death; Best Of applies to the final only.",
     "flSeeding": "Seeding",
@@ -2633,6 +2633,7 @@
     "about": "About",
     "tiktok": "TikTok Videos",
     "disclaimer": "Disclaimer",
+    "licences": "Third-party licences",
     "privacy": "Privacy Policy",
     "terms": "Terms of Service",
     "feedback": "Feedback",
@@ -2735,7 +2736,7 @@
     },
     "transfers": {
       "title": "Where your data goes",
-      "content": "Cloudflare, Stripe, GitHub, Hugging Face and Google are based in the United States and may process data there. Each one is certified under the EU-US Data Privacy Framework or works under the EU standard contractual clauses, which keep EU and UK protection in place. Postiz and any cloud AI provider you choose are your own providers, and their location is in their own policies."
+      "content": "Cloudflare, Stripe, GitHub, Hugging Face and Google are based in the United States and may process data there. Each one is certified under the EU-US Data Privacy Framework and its UK extension, or works under the EU standard contractual clauses and their UK addendum, which keep EU and UK protection in place. Postiz and any cloud AI provider you choose are your own providers, and their location is in their own policies."
     },
     "retention": {
       "title": "Data Retention",
@@ -2743,7 +2744,7 @@
     },
     "children": {
       "title": "Children's Privacy",
-      "content": "The service is not directed at children under 13. You must be at least 16 to create an account and 18 to buy Pro. If we learn that we hold data of a younger child, we delete it. Parents can write to us at the address above."
+      "content": "The service is not directed at children under 13. You must be at least 16 to create an account and 18 to buy Pro. If we learn that we hold data of a child under 16, we delete it. Parents can write to us at the address above."
     },
     "changes": {
       "title": "Changes to This Policy",
@@ -2832,7 +2833,7 @@
     },
     "description": {
       "title": "Description of Service",
-      "content": "{siteName} is a browser-based physics simulation tool for creating bouncing-ball animations, customising their look and behaviour and exporting them as video files. Using the simulator and exporting videos is free, and videos exported without a Pro licence carry a watermark (see Pro subscriptions). The Windows app is part of the Service, and these terms apply to it too. The Service is provided \"as is\" without any guarantee of availability or uptime."
+      "content": "{siteName} is a browser-based physics simulation tool for creating bouncing-ball animations, customising their look and behaviour and exporting them as video files. Using the simulator and exporting videos is free, and videos exported without a Pro licence carry a watermark (see Pro subscriptions). The Windows app is part of the Service, and these terms apply to it too. The free service is provided as it is, without any guarantee of availability or uptime."
     },
     "ugc": {
       "title": "User-Generated Content",
@@ -2855,7 +2856,7 @@
     },
     "age": {
       "title": "Age",
-      "content": "You must be at least 16 to create an account and at least 18 to buy Pro, or have the agreement of a parent or guardian who accepts these terms for you. The service is not directed at children under 13."
+      "content": "You must be at least 16 to create an account. You must be at least 18 to buy Pro, or have a parent or guardian who accepts these terms for you and makes the payment. The service is not directed at children under 13."
     },
     "intellectual": {
       "title": "Intellectual Property",
@@ -2945,6 +2946,17 @@
       "rightsEmail": "Rights holders can write to <mail>{email}</mail> to have a name removed.",
       "rightsForm": "Rights holders can ask for a name to be removed through the <link>feedback page</link>."
     }
+  },
+  "Licences": {
+    "metaTitle": "Third-party licences – {siteName}",
+    "metaDescription": "The open source packages and fonts {siteName} is built with, each with its licence text, and where the Windows app lists its own.",
+    "title": "Third-party licences",
+    "lede": "{siteName} is built with open source software. This page lists every package the website ships and the fonts it uses, each with its licence text.",
+    "packagesTitle": "Packages",
+    "fontsTitle": "Fonts",
+    "fontsText": "Space Grotesk, Hanken Grotesk and JetBrains Mono are served from this site under the SIL Open Font License 1.1.",
+    "appTitle": "The Windows app",
+    "appText": "The Windows app lists every third-party component under Help, Third-party licences. That covers ffmpeg under the GNU GPL version 3, Electron, Chromium and llama.cpp."
   },
   "Feedback": {
     "title": "Send Us Feedback",
@@ -3533,8 +3545,8 @@
     "finderBeats": "On beat: {beats} beats hit by {hits} timed wall hits"
   },
   "ViralBot": {
-    "title": "Viral video bot",
-    "intro": "Plans clips the way the accounts that go viral make them: a one-line rule in the first seconds, a countdown on screen, the payoff in the last seconds, endings that alternate. Every plan is scored, rendered and captioned.",
+    "title": "Clip planner",
+    "intro": "Plans clips with a one-line rule in the first seconds, a countdown on screen and the payoff in the last seconds, with endings that alternate. Every plan is scored, rendered and captioned. It does not promise views.",
     "platform": "Platform",
     "platforms": {
       "reels": "Reels",
@@ -3674,7 +3686,7 @@
     },
     "schedule": {
       "title": "Posting schedule",
-      "intro": "Planned by the {siteName} viral video bot for {date} ({platform}). Endings alternate so resolved and cliffhanger clips can be compared.",
+      "intro": "Planned by the {siteName} clip planner for {date} ({platform}). Endings alternate so resolved and cliffhanger clips can be compared.",
       "time": "Time",
       "file": "File",
       "recipe": "Recipe",
@@ -3709,16 +3721,16 @@
         "hashtags": "#ringescape #bouncingballescape #canitescape"
       },
       "pipEscape": {
-        "name": "Pip escapes",
-        "series": "Pip Escapes",
-        "hook": "Pip always escapes. Day {episode}.",
-        "cliffHook": "Pip always escapes… right?",
-        "payoff": "FREE! Pip made it 🎉",
-        "cliffQuestion": "Will Pip make it? 👇",
-        "postQuestion": "Which wall was the hardest for Pip?",
-        "cliffPostQuestion": "Does Pip get out today? Yes or no 👇",
-        "keywords": "Pip the bouncing ball with a face escapes rotating rings – a new struggle every day in this satisfying physics simulation.",
-        "hashtags": "#pip #bouncingcharacter #dailystruggle"
+        "name": "Gerald escapes",
+        "series": "Gerald Escapes",
+        "hook": "Gerald always escapes. Day {episode}.",
+        "cliffHook": "Gerald always escapes… right?",
+        "payoff": "FREE! Gerald made it 🎉",
+        "cliffQuestion": "Will Gerald make it? 👇",
+        "postQuestion": "Which wall was the hardest for Gerald?",
+        "cliffPostQuestion": "Does Gerald get out today? Yes or no 👇",
+        "keywords": "Gerald the bouncing ball with a face escapes rotating rings – a new struggle every day in this satisfying physics simulation.",
+        "hashtags": "#gerald #bouncingcharacter #dailystruggle"
       },
       "growFill": {
         "name": "Grow until it fills",
@@ -3751,7 +3763,7 @@
         "postQuestion": "What was the biggest multiplier you saw?",
         "cliffPostQuestion": "Final count – higher or lower than 500? 👇",
         "keywords": "A multiplier board simulation: balls fall through x2 and x4 gates and multiply until the board overflows.",
-        "hashtags": "#multiplier #plinko #x2"
+        "hashtags": "#multiplier #x2"
       },
       "powerLayers": {
         "name": "Power layers",
@@ -3799,13 +3811,13 @@
       },
       "glassSmash": {
         "name": "Glass smash",
-        "series": "Pip vs Glass",
-        "hook": "Pip vs {stages} floors of glass.",
+        "series": "Gerald vs Glass",
+        "hook": "Gerald vs {stages} floors of glass.",
         "payoff": "HOME! 🏠",
         "cliffQuestion": "Will the glass hold? 👇",
         "postQuestion": "Which floor was the toughest?",
-        "cliffPostQuestion": "Does Pip get home? Yes or no 👇",
-        "keywords": "Pip the bouncing ball smashes floors of glass on the way home, every crack a piano note.",
+        "cliffPostQuestion": "Does Gerald get home? Yes or no 👇",
+        "keywords": "Gerald the bouncing ball smashes floors of glass on the way home, every crack a piano note.",
         "hashtags": "#glasssmash #glassbreaking #asmrglass"
       },
       "stringBattle": {
@@ -3917,7 +3929,7 @@
       "label": "Cover",
       "at": "{sec} s – {why}",
       "title": "Covers",
-      "intro": "The frame to set as each clip's cover (the bot sends it to Instagram and TikTok itself when it posts):",
+      "intro": "The frame to set as each clip's cover (the planner sends it to Instagram and TikTok itself when it posts):",
       "sources": {
         "payoff": "the payoff on screen",
         "cut": "the last moment before the cut",
@@ -3926,20 +3938,20 @@
       }
     },
     "fightDivisions": {
-      "marvel": "Marvel",
-      "dc": "DC",
-      "nintendo": "Nintendo & Sega",
-      "league": "League of Legends",
+      "marvel": "Comics A",
+      "dc": "Comics B",
+      "nintendo": "Platformers",
+      "league": "MOBA",
       "fighting": "Fighting games",
       "legends": "Game legends",
       "shonen": "Shonen anime",
-      "starWars": "Star Wars",
+      "starWars": "Space saga",
       "fantasy": "Fantasy",
       "monsters": "Movie monsters",
       "action": "Action movies",
       "tv": "TV",
       "wildcard": "Wildcard",
-      "pokemon": "Pokémon",
+      "pokemon": "Pocket monsters",
       "modernAnime": "Modern anime",
       "sandbox": "Sandbox & online games",
       "horror": "Horror movies",
@@ -4124,12 +4136,12 @@
   },
   "Publish": {
     "intro": "Share the finished clip to TikTok, Instagram and YouTube with the share sheet or a download. To send in one click, connect accounts through a relay, or your own Google client ID for YouTube.",
-    "noClip": "No clip yet. Record a video, run a fast export, a batch or the bot's render – every finished clip lands here – or choose a video file.",
+    "noClip": "No clip yet. Record a video, run a fast export, a batch or the clip planner's render – every finished clip lands here – or choose a video file.",
     "sources": {
       "recording": "Recording",
       "fast": "Fast export",
       "batch": "Batch",
-      "bot": "Viral bot",
+      "bot": "Clip planner",
       "file": "File"
     },
     "seconds": "{sec} s",
@@ -4141,7 +4153,7 @@
     "wordsTitle": "Words per platform",
     "tabAll": "All platforms",
     "regenerate": "Suggest",
-    "regenerateTip": "Write the title, caption and hashtags again from the viral bot's copy (your edits are replaced)",
+    "regenerateTip": "Write the title, caption and hashtags again from the clip planner's copy (your edits are replaced)",
     "fieldTitle": "Title (YouTube)",
     "fieldCaption": "Caption / description",
     "fieldHashtags": "Hashtags",
@@ -4397,7 +4409,7 @@
     "queueSource": {
       "seeds": "This setup",
       "random": "Random seeds",
-      "bot": "Viral bot plan"
+      "bot": "Planned clips"
     },
     "queueListPlaceholder": "One per line: seeds (123456), share links, or a link followed by seeds. Empty: the page's current run.",
     "queueListLabel": "Seeds and links",
@@ -4406,8 +4418,8 @@
     "queueListInvalid": "unreadable lines: {lines}",
     "queueRandomCount": "Clips",
     "queueRandomCeiling": "The queue holds at most {max} jobs (its memory-safety ceiling): that many seeds are drawn.",
-    "queueBotHint": "Queues every clip of the viral bot's last plan (plan it in the Recording section's Bot block first).",
-    "queueNoBotPlan": "There is no viral bot plan yet – plan clips in the Recording section first.",
+    "queueBotHint": "Queues every clip of the clip planner's last plan. Plan it first in the Clip planner block of the Recording section.",
+    "queueNoBotPlan": "There is no clip plan yet. Plan clips in the Recording section first.",
     "queueResolutions": "Resolutions",
     "queueFps": "Frame rate",
     "queueCodecs": "Codecs",
@@ -4494,7 +4506,7 @@
       "plan": "Plan posts"
     },
     "aiTaskHint": {
-      "videos": "Describe the clips you want: the AI plans them with the viral bot and Find Simulation, writes the copy per platform and queues them.",
+      "videos": "Describe the clips you want: the AI plans them with the clip planner and Find Simulation, writes the copy per platform and queues them.",
       "copy": "Titles, hooks, captions and hashtag sets for the Publish block, for the clip on the page.",
       "settings": "Say what to change – the AI proposes a checked settings patch and applies it (with Undo).",
       "ideas": "Fresh clip ideas grounded in the virality playbook.",
@@ -4775,7 +4787,7 @@
     "featuresTitle": "What the app adds",
     "features": {
       "gpu": "GPU video. The fast export encodes on the graphics card, with H.264 and HEVC through NVENC, AMF or Quick Sync, and with AV1 on newer cards.",
-      "queue": "Render queue. Seeds, share links or the viral bot's plan, in every resolution, frame rate and codec you pick, saved straight into a folder. Progress, cancel, retry and resume after a restart.",
+      "queue": "Render queue. Seeds, share links or the clip planner's plan, in every resolution, frame rate and codec you pick, saved straight into a folder. Progress, cancel, retry and resume after a restart.",
       "ai": "AI studio. A local model, downloaded once, or your own cloud key plans clips, writes hooks, captions and hashtags, and changes settings on request.",
       "library": "Library. Every clip you rendered with its thumbnail, length and post text. Play, show in folder, re-render or delete.",
       "postiz": "Post through Postiz. Pro sends a Library clip to TikTok, Instagram and YouTube through your own Postiz account, and you approve every post on a card. The autopilot proposes posts, you approve them."
@@ -4797,7 +4809,7 @@
     "smartScreenVerify": "Before you run it, check the file. In PowerShell, Get-FileHash followed by the file name prints its SHA-256, which must match the line for that file in the checksums, ignoring upper and lower case. You can also search for the SHA-256 on <virustotal>VirusTotal</virustotal>.",
     "smartScreenSteps": "If the checks pass, choose Keep in Chrome, then More info and Run anyway in Windows.",
     "privacyNoticesTitle": "Third-party software and sounds",
-    "privacyNoticesFfmpeg": "ffmpeg, which the app uses to encode videos, is licensed under the GNU GPL version 3. It is the unmodified gyan.dev build, runs as a separate program and comes with its licence text and a link to its source code.",
+    "privacyNoticesFfmpeg": "ffmpeg, which the app uses to encode videos, is licensed under the GNU GPL version 3. It is the unmodified gyan.dev essentials build of FFmpeg 6.1.1, runs as a separate program and comes with its licence text. Its source code is available from the build's publisher and from the FFmpeg project, and we send it on request. The app lists every third-party component under Help, Third-party licences.",
     "privacyNoticesOther": "The app is also built on Electron, Chromium, node-llama-cpp and llama.cpp. The licence texts of ffmpeg, Electron, Chromium and node-llama-cpp are shipped with the app. AI models are separate downloads under their own licences, which the app shows before you download. The AI studio can run Llama 3.2. Built with Llama.",
     "privacyAudio": "The built-in sounds are synthesised by us. The built-in melodies are public-domain tunes."
   },
@@ -4975,7 +4987,7 @@
         "record": "Record Video, up to 1080×1920, with sound",
         "fastExport": "Fast export, rendered offline frame by frame",
         "batch": "Batch render, many clips in one ZIP",
-        "bot": "The viral bot's renders",
+        "bot": "The clip planner's renders",
         "publish": "Share to TikTok, Instagram and YouTube with the share sheet or a download",
         "postiz": "Posting from the Windows app to TikTok, Instagram and YouTube through Postiz, every post approved by you",
         "desktop": "The desktop app's render queue and GPU encoding"
@@ -5021,7 +5033,7 @@
       "failed": "The customer portal could not open: {message}",
       "copyKey": "Copy licence key",
       "copied": "Copied",
-      "copyHint": "The viral bot's command line takes this key as BOT_LICENSE.",
+      "copyHint": "The clip planner's command line takes this key as BOT_LICENSE.",
       "remove": "Remove from this browser",
       "removeConfirm": "Remove the licence from this browser? You can restore it later with your receipt.",
       "reference": "Receipt reference",
@@ -5057,7 +5069,7 @@
       "record": "Record Video",
       "fastExport": "The fast export",
       "batch": "The batch render",
-      "bot": "Rendering the viral bot's clips",
+      "bot": "Rendering the clip planner's clips",
       "publish": "Quick share to TikTok, Instagram and YouTube",
       "renderQueue": "The desktop render queue",
       "download": "Downloading rendered videos"
@@ -5148,14 +5160,14 @@
     "canvasRhythmTimeSub": "in phase every {cycle}s"
   },
   "FightLeague": {
-    "division_marvel": "Marvel",
-    "division_dc": "DC",
-    "division_nintendo": "Nintendo & Sega",
-    "division_league": "League of Legends",
+    "division_marvel": "Comics A",
+    "division_dc": "Comics B",
+    "division_nintendo": "Platformers",
+    "division_league": "MOBA",
     "division_fighting": "Fighting games",
     "division_legends": "Game legends",
     "division_shonen": "Shonen anime",
-    "division_starWars": "Star Wars",
+    "division_starWars": "Space saga",
     "division_fantasy": "Fantasy",
     "division_monsters": "Movie monsters",
     "division_action": "Action movies",
@@ -5237,7 +5249,7 @@
     "fighter_nightking": "Throws slow, heavy ice spears; Raise the Dead summons three wights for four seconds.",
     "fighter_gerald": "Our own ball headbutts its way through the league; Mega Bounce doubles its speed and damage for three seconds.",
     "canvasSudden": "SUDDEN DEATH!",
-    "division_pokemon": "Pokémon",
+    "division_pokemon": "Pocket monsters",
     "division_modernAnime": "Modern anime",
     "division_sandbox": "Sandbox & online games",
     "division_horror": "Horror movies",
@@ -5365,6 +5377,7 @@
     "canvasRound_qf": "QUARTER-FINAL",
     "canvasRound_sf": "SEMI-FINAL",
     "canvasRound_final": "FINAL",
+    "canvasFanMade": "Fan-made parody. Not affiliated.",
     "canvasChampion": "CHAMPION",
     "canvasBossFalls": "THE BOSS FALLS – [name]",
     "canvasBossSurvives": "BOSS SURVIVES [n]/[total]",

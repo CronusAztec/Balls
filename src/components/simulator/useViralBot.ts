@@ -176,7 +176,7 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
       const count = !(wanted >= BOT_COUNT_RANGE.min) ? BOT_COUNT_RANGE.min : wanted > CLIP_CEILING ? CLIP_CEILING : wanted; // --- uncap-all --- (the clips' memory-safety ceiling, not the slider's 20)
       const date = request?.date && parseIsoDate(request.date) ? request.date : localIsoDate(new Date());
       const custom = kind === "custom";
-      const family = request?.family !== undefined ? (isBotFamily(request.family) ? request.family : "all") : custom ? opts.family : "all";
+      const family = request?.family !== undefined ? (isBotFamily(request.family) || request.family === "default" ? request.family : "all") : custom ? opts.family : "all"; // --- legal-audit --- "default": the CLI without --family (no Fight League clips)
       const bucket = request?.bucket !== undefined ? (isLengthBucket(request.bucket) ? request.bucket : "auto") : custom ? opts.bucket : "auto";
       const ending = request?.ending !== undefined ? (isEndingChoice(request.ending) ? request.ending : "auto") : custom ? opts.ending : "auto";
       setPlanning({ current: 1, total: count, seeds: 0 });

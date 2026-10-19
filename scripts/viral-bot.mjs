@@ -3,7 +3,7 @@
  * the simulator's fast export in headless Chromium and writes the videos, a caption file per clip, manifest.json and
  * posting-schedule.md – and, only with --post, publishes them to Instagram as Reels through the Graph API.
  *
- *   node scripts/viral-bot.mjs --count 5 --platform reels --out bot-output [--date YYYY-MM-DD] [--family escape]
+ *   node scripts/viral-bot.mjs --count 5 --platform reels --out bot-output [--date YYYY-MM-DD] [--family escape]  (no --family: escape and rhythm, never Fight League)
  *                              [--bucket standard] [--ending resolved] [--locale en] [--max-seeds 24] [--dry-run] [--post]
  *
  * Rendering needs the exported site served (BASE_URL, default http://localhost:3000 plus NEXT_PUBLIC_BASE_PATH; see
@@ -46,7 +46,7 @@ const USAGE = `Usage: node scripts/viral-bot.mjs [options]
   --platform P       reels | tiktok | shorts (default reels)
   --out DIR          output folder (default bot-output)
   --date YYYY-MM-DD  the day to plan (default: today) – the same date gives the same plan
-  --family F         all | escape | rhythm | battle (default all)
+  --family F         default | all | escape | rhythm | battle (default: escape and rhythm; only all and battle plan Fight League clips)
   --bucket B         auto | short | standard | long (default auto: the platform's)
   --ending E         auto | resolved | cliffhanger (default auto: alternating)
   --locale L         en | pl | es (captions and hashtags; default en)
@@ -71,7 +71,7 @@ class UsageError extends Error {}
 
 /** Parses the command line (exported for the tests). */
 export function parseArgs(argv) {
-  const opts = { count: 3, platform: "reels", out: "bot-output", date: null, family: "all", bucket: "auto", ending: "auto", locale: "en", maxSeeds: 24, dryRun: false, post: false, postOnly: false, help: false, relay: null, relayKey: null, accounts: [] /* --- social-publish --- */, plan: false /* --- fl-overhaul --- (Stage 6) */ };
+  const opts = { count: 3, platform: "reels", out: "bot-output", date: null, family: "default", bucket: "auto", ending: "auto", locale: "en", maxSeeds: 24, dryRun: false, post: false, postOnly: false, help: false, relay: null, relayKey: null, accounts: [] /* --- social-publish --- */, plan: false /* --- fl-overhaul --- (Stage 6) */ };
   const value = (i, name) => {
     const v = argv[i + 1];
     if (v === undefined || v.startsWith("--")) throw new UsageError(`${name} needs a value`);
@@ -106,7 +106,7 @@ export function parseArgs(argv) {
         break;
       case "--family":
         opts.family = take();
-        if (!["all", "escape", "rhythm", "battle"].includes(opts.family)) throw new UsageError("--family must be all, escape, rhythm or battle");
+        if (!["default", "all", "escape", "rhythm", "battle"].includes(opts.family)) throw new UsageError("--family must be default, all, escape, rhythm or battle");
         break;
       case "--bucket":
         opts.bucket = take();

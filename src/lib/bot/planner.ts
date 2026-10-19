@@ -16,6 +16,7 @@ import { FL_WIN_HOLD_SEC, flBothLowNow, flRunSummary, flShowKind } from "@/lib/p
 import { FL_FINALE_SEC } from "@/lib/physics/modes/fightLeagueFx";
 import { flClipWinnerName } from "@/lib/physics/modes/fightLeagueClip";
 import {
+  BOT_DEFAULT_FAMILIES,
   BOT_EPOCH,
   BOT_FAMILIES,
   BOT_FRAME,
@@ -40,6 +41,7 @@ import {
   recipesOfFamily,
   supportsBucket,
   type BotFamily,
+  type BotFamilyChoice,
   type BotPlatform,
   type BotRecipe,
   type ChecklistId,
@@ -1060,8 +1062,10 @@ export interface DaySlot {
  * day, and every family's recipes are split into two alternating halves – even days use one, odd days the other – so no
  * recipe is planned two days in a row, whatever the count. Within its half a family's recipes rotate every other day.
  */
-export function daySlots(dayIndex: number, count: number, family?: BotFamily | "all", salt = "", bucket?: LengthBucket): DaySlot[] {
-  const families: BotFamily[] = family && family !== "all" ? [family] : [0, 1, 2].map((k) => BOT_FAMILIES[mod(dayIndex + k, BOT_FAMILIES.length)]);
+export function daySlots(dayIndex: number, count: number, family?: BotFamilyChoice, salt = "", bucket?: LengthBucket): DaySlot[] {
+  // --- legal-audit --- "default" (the CLI without --family) keeps the rotation but leaves the battle family out; only "all" and "battle" plan the Fight League recipes
+  const rotation = [0, 1, 2].map((k) => BOT_FAMILIES[mod(dayIndex + k, BOT_FAMILIES.length)]);
+  const families: BotFamily[] = !family || family === "all" ? rotation : family === "default" ? rotation.filter((f) => BOT_DEFAULT_FAMILIES.includes(f)) : [family];
   const parity = mod(dayIndex, 2);
   // Today's half of each family – the recipes that can fill the bucket asked for, when some can (a subset keeps the halves apart).
   const pools = families.map((f) => {
@@ -1092,7 +1096,7 @@ export interface DayPlan {
 }
 
 export interface DayOptions extends Omit<PlanOptions, "episode" | "index" | "date" | "postingTime"> {
-  family?: BotFamily | "all";
+  family?: BotFamilyChoice;
   /** Anything but "" plans a different set of clips for the same day (the panel's "Plan clips"; "Today's plan" has none). */
   salt?: string;
 }

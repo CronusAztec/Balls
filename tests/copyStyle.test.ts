@@ -84,7 +84,7 @@ function matching(locale: Locale, re: RegExp): [string, string][] {
 }
 
 /** --- seo --- The namespaces whose metaTitle and metaDescription are a page's search snippet. */
-const META_NAMESPACES = ["Layout", "SimulatorPage", "About", "TikTokBallVideos", "Billing", "Gallery", "Desktop", "Changelog" /* --- changelog --- */, "Privacy", "Terms", "Disclaimer", "Feedback", "Account", "Press"];
+const META_NAMESPACES = ["Layout", "SimulatorPage", "About", "TikTokBallVideos", "Billing", "Gallery", "Desktop", "Changelog" /* --- changelog --- */, "Privacy", "Terms", "Disclaimer", "Feedback", "Account", "Press", "Licences" /* --- legal-audit --- */];
 /** A meta string as a search result shows it, the placeholders at their longest: 100 modes, the site name and domain, the two prices as Polish and Spanish write a dollar amount. */
 const renderMeta = (text: string, locale: Locale) => String(new IntlMessageFormat(text, locale).format({ siteName: "JumpingBallsLive", siteDomain: "jumpingballslive.com", count: 100, monthly: "6,99 USD", yearly: "49 USD" }));
 

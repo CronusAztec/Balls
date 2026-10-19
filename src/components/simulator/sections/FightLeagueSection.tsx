@@ -214,7 +214,7 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
                         {division !== "wildcard" && <option value={flRandomToken(division)}>{t("flPickerRandomDivision", { division: fl(`division_${division}`) })}</option>}
                         {fightersOf(division).map((r) => (
                           <option key={r.id} value={r.id}>
-                            {`${r.name} – ${r.source}`}
+                            {r.name}
                           </option>
                         ))}
                       </optgroup>

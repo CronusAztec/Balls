@@ -253,7 +253,7 @@ describe("fight league roster", () => {
     expect(FL_ROSTER.filter((r) => !r.isNew).map((r) => r.id).sort()).toEqual([...OLD_IDS].sort());
     expect(["pikachu", "charizard", "steve", "zeus"].map((id) => FL_BY_ID.get(id)!.division)).toEqual(["pokemon", "pokemon", "sandbox", "legends"]);
     expect(FL_DIVISIONS.slice(12)).toEqual(["pokemon", "modernAnime", "sandbox", "horror", "animated", "cartoons", "wildcard"]);
-    expect(FL_DIVISIONS.slice(12, 18).map((d) => FL_DIVISION_LABELS[d])).toEqual(["Pokémon", "Modern anime", "Sandbox & online games", "Horror movies", "Animated movies", "Cartoons"]);
+    expect(FL_DIVISIONS.slice(12, 18).map((d) => FL_DIVISION_LABELS[d])).toEqual(["Pocket monsters", "Modern anime", "Sandbox & online games", "Horror movies", "Animated movies", "Cartoons"]);
     expect(FL_ROSTER.map((r) => r.id)).toEqual(FL_DIVISIONS.flatMap((d) => fightersOf(d).map((r) => r.id)));
   });
 
@@ -347,7 +347,7 @@ describe("fight league roster", () => {
       "Godzilla vs King Kong",
       "Alien vs Predator",
       "Homelander vs Omni-Man",
-      "Avengers free-for-all",
+      "Comics A free-for-all",
       "2v2: Naruto + Sasuke vs Goku + Vegeta",
       // --- fl-overhaul --- (Stage 2)
       "Ryu vs Ken",
@@ -359,7 +359,7 @@ describe("fight league roster", () => {
       "Spider-Man vs Venom",
       "Deadpool vs Wolverine",
       "Kratos vs Zeus",
-      "Justice League free-for-all",
+      "Comics B free-for-all",
       "Batman vs Superman",
       "Straw Hats vs Team 7: Luffy + Zoro vs Naruto + Sasuke",
       "Gojo vs Sukuna",
@@ -377,7 +377,7 @@ describe("fight league roster", () => {
       "King Kong vs T-Rex",
       "Jon Snow vs Night King",
       "Aang vs Zuko",
-      "Pokémon free-for-all",
+      "Pocket monsters free-for-all",
       "Steve vs Creeper",
       "Sandbox free-for-all",
       "Freddy Krueger vs Jason Voorhees",

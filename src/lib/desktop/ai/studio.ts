@@ -213,7 +213,7 @@ export function makeVideosTurn(store: PlanStore, tools: readonly AgentTool[]): A
 export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool[] {
   const planClips: AgentTool = {
     name: "plan_clips",
-    description: "Plans clips with the viral bot (settings, a physics seed whose payoff lands at the right moment, hook, caption). Returns the plans with their planId.",
+    description: "Plans clips with the clip planner (settings, a physics seed whose payoff lands at the right moment, hook, caption). Returns the plans with their planId.",
     args: {
       type: "object",
       properties: {

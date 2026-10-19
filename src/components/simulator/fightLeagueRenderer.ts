@@ -20,6 +20,7 @@ import { FlBodiesPainter } from "./fightLeague/bodies";
 import { FlCardsPainter } from "./fightLeague/cards";
 import { drawDebug } from "./fightLeague/debug";
 import { FlFrame, type FightLeagueLabels, type FightLeagueRenderOptions } from "./fightLeague/frame";
+import { BADGE_HEIGHT, BADGE_INSET } from "@/lib/watermark/layout"; // --- legal-audit --- the fan-made badge sits in the watermark strip
 import { FlFxPainter } from "./fightLeague/fx";
 import { FlHudPainter } from "./fightLeague/hud";
 import { arenaLook, matchDivision, stagePalette } from "./fightLeague/palette";
@@ -94,6 +95,7 @@ export const DEFAULT_FIGHT_LEAGUE_LABELS: FightLeagueLabels = {
   winsPlate: (name) => `${name} WINS`,
   division: (id) => FL_DIVISION_LABELS[id as FlDivision] ?? id,
   role: (id) => cap(id),
+  fanMade: "Fan-made parody. Not affiliated.",
   shows: DEFAULT_FL_SHOW_LABELS, // --- fl-overhaul --- (Stage 5)
 };
 
@@ -454,6 +456,9 @@ export class FightLeagueLayer {
         this.cards.shown.add("champion");
       } else this.cards.drawVerdict(ctx, fr, view, L, lay, ox, oy, this.bodies, this.weapons, kind, this.shows);
     } else if (view.matchOver && !view.finished && show.phase === "card") this.shows.drawInterlude(ctx, fr, view, L, lay, ox, oy);
+    // --- legal-audit --- the permanent fan-made badge: small and muted, centred in the strip under the ability boxes (the
+    // watermark badge keeps to a corner), HUD or not, in the recording too
+    fr.text.draw(ctx, L.fanMade, ox + side / 2, oy + side * (1 - BADGE_INSET - BADGE_HEIGHT / 2), 0.016 * side, { role: "ui", color: fr.pal.hud.source, stroke: null, weight: 600 }, "center", 0.5 * side, 0.85);
     ctx.restore();
     this.vsShown = this.cards.vsShown;
     this.bannerShown = this.cards.bannerShown;

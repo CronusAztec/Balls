@@ -3849,6 +3849,7 @@ export default function Simulator() {
         winsPlate: (name) => t("FightLeague.canvasWinsPlate").replace("[name]", () => name),
         division: (id) => t(`FightLeague.division_${id}`),
         role: (id) => t(`FightLeague.role_${id}`),
+        fanMade: t("FightLeague.canvasFanMade"), // --- legal-audit --- the permanent badge
         // --- end fl-overhaul ---
         // --- fl-overhaul --- (Stage 5) the story's tags, the shows' banners and cards, the win chance (a name may hold "$&")
         shows: {

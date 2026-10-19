@@ -58,7 +58,7 @@ export const GALLERY: readonly GalleryPreset[] = [
     mode: "stringBattle",
     query: "mode=stringBattle&sbst=neon&seed=228323246",
     previewAt: 6,
-    name: { en: "Neon Web Dominion", pl: "Neonowa dominacja sieci", es: "Dominio de la red neón" },
+    name: { en: "Neon Web", pl: "Neonowa sieć", es: "Red de neón" },
     description: {
       en: "Four balls drag fans of glowing threads across a neon moiré, cutting each other's strings until one rules the web.",
       pl: "Cztery piłki ciągną wachlarze świecących nici przez neonową mory i przecinają sobie nawzajem sznurki, aż jedna zapanuje nad siecią.",

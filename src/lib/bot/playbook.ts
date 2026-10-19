@@ -20,6 +20,10 @@ import { FIGHT_RECIPES } from "./fightRecipes"; // --- fl-overhaul --- (Stage 6)
 /** The three series the bot rotates day by day (docs/virality-playbook.md §3.11): escapes, music-first rhythm, battles. */
 export const BOT_FAMILIES = ["escape", "rhythm", "battle"] as const;
 export type BotFamily = (typeof BOT_FAMILIES)[number];
+/** --- legal-audit --- The families a plan draws from when none is asked for: never the battle family, whose Fight League recipes name third-party characters. `--family all` or `--family battle` asks for them explicitly. */
+export const BOT_DEFAULT_FAMILIES: readonly BotFamily[] = ["escape", "rhythm"];
+/** A family choice: one family, "all" of them or the "default" set (BOT_DEFAULT_FAMILIES). */
+export type BotFamilyChoice = BotFamily | "all" | "default";
 
 export const BOT_PLATFORMS = ["reels", "tiktok", "shorts"] as const;
 export type BotPlatform = (typeof BOT_PLATFORMS)[number];
@@ -124,8 +128,8 @@ export const SERIES_ROSTER: readonly TeamEntry[] = [
   { name: "Tang", color: "#ff9a3c", emoji: "🍊" },
 ];
 
-/** §1 geraldbounces: one character with a face and a promise; ours is Pip (our own, not theirs). */
-export const MASCOT = { name: "Pip", face: "cute" as const, color: "#f9f871" };
+/** §1 geraldbounces: one character with a face and a promise; ours is Gerald, the site's own character. */
+export const MASCOT = { name: "Gerald", face: "cute" as const, color: "#f9f871" };
 
 /** §3.6: a note per bounce – piano or xylophone by default. The voices are the synth's (lib/audio/instruments.ts). */
 export const INSTRUMENT_PRESETS = {
@@ -190,7 +194,7 @@ export interface BotRecipe {
   strategy: PayoffStrategy;
   /** Teams from the series roster it plays with (0: none). */
   teams?: boolean;
-  /** Pip plays the ball (face and name). */
+  /** Gerald plays the ball (face and name). */
   character?: boolean;
   /** The mode's own notes are the melody (rhythm recipes): no MIDI melody on top. */
   musicFirst?: boolean;

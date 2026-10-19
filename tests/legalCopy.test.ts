@@ -429,7 +429,7 @@ describe("legal audit: the terms page", () => {
     expect(en.Terms.warranties.content).toContain("consumers keep every right the law gives them");
     expect(en.Terms.changes.content).toContain("at least 30 days notice");
     expect(en.Terms.changes.content).toContain("we refund the unused part of the period");
-    expect(en.Terms.age.content).toBe("You must be at least 16 to create an account and at least 18 to buy Pro, or have the agreement of a parent or guardian who accepts these terms for you. The service is not directed at children under 13.");
+    expect(en.Terms.age.content).toBe("You must be at least 16 to create an account. You must be at least 18 to buy Pro, or have a parent or guardian who accepts these terms for you and makes the payment. The service is not directed at children under 13.");
     expect(en.Terms.termination.title).toBe("Ending the service");
     expect(en.Terms.law.title).toBe("Law and disputes");
     expect(en.Terms.law.content).toContain("governed by the law of {country}");
@@ -484,7 +484,7 @@ describe("legal audit: the privacy page", () => {
     expect(en.Privacy.retention.content).toContain("Its session tokens expire after 30 days.");
     expect(en.Privacy.rights.content).toContain("We answer a request within one month.");
     expect(en.Privacy.rights.content).toContain("we honour the Global Privacy Control signal");
-    expect(en.Privacy.children.content).toBe("The service is not directed at children under 13. You must be at least 16 to create an account and 18 to buy Pro. If we learn that we hold data of a younger child, we delete it. Parents can write to us at the address above.");
+    expect(en.Privacy.children.content).toBe("The service is not directed at children under 13. You must be at least 16 to create an account and 18 to buy Pro. If we learn that we hold data of a child under 16, we delete it. Parents can write to us at the address above.");
     for (const id of ["legalBases", "transfers"]) expect(page, id).toContain(`<section id="${id}">`);
     each((locale, flat) => {
       for (const key of ["Privacy.legalBases.title", "Privacy.legalBases.content", "Privacy.transfers.title", "Privacy.transfers.content"]) expect(flat[key], `${locale} ${key}`).toBeTruthy();

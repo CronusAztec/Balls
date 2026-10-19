@@ -57,6 +57,8 @@ export interface FightLeagueLabels {
   /** A division's and a role's display names (the VS card's chips). */
   division: (id: string) => string;
   role: (id: string) => string;
+  /** The small permanent badge at the bottom of the square: "Fan-made parody. Not affiliated." (legal audit). */
+  fanMade: string;
   /** --- fl-overhaul --- (Stage 5) the story's and the shows' words (absent: the English defaults, `DEFAULT_FL_SHOW_LABELS`). */
   shows?: FlShowLabels;
 }

@@ -1427,7 +1427,7 @@
     "vbOnBeatRange": "Zakres Na bit",
     "vbOnBeatRangeTip": "O ile szybszy lub wolniejszy może być lot. Szerszy zakres trafia więcej uderzeń w bit, węższy zostawia bardziej naturalny ruch.",
     "projectMediumBeatMedia": "Wideo / audio z bitami",
-    "viralBot": "Bot do wiralowych filmów",
+    "viralBot": "Planer klipów",
     "viralBotTip": "Planuje klipy według przepisu kont, które robią zasięgi (hook w jednym zdaniu, odliczanie, finał w ostatnich sekundach, naprzemienne zakończenia), ocenia każdy z nich, renderuje wszystkie szybkim eksportem i pobiera ZIP z filmami, opisami, manifestem i harmonogramem publikacji.",
     "modeJourney": "Podróż",
     "journeyTitle": "Podróż",
@@ -1739,7 +1739,7 @@
     "flRandomHintDivision": "Wybierany przez seed z dywizji pierwszego zawodnika.",
     "flAbility": "Zdolność: {name}",
     "flSameDivision": "Losowy z tej samej dywizji",
-    "flSameDivisionTip": "Losowy slot wybiera z dywizji pierwszego wybranego zawodnika, więc pojedynek zostaje w swoim gatunku (Marvel kontra Marvel, Star Wars kontra Star Wars).",
+    "flSameDivisionTip": "Losowy slot wybiera z dywizji pierwszego wybranego zawodnika, więc pojedynek zostaje w swoim gatunku (komiks kontra komiks, kosmiczna saga kontra kosmiczna saga).",
     "flHp": "PŻ",
     "flHpTip": "Punkty życia każdego zawodnika (wiersz zawodnika może dać mu trochę więcej lub mniej). Wpisz dowolną liczbę od 1.",
     "flTimeCap": "Limit czasu",
@@ -2261,7 +2261,7 @@
     "flBestOfOne": "1 mecz",
     "flBestOfN": "Bo{n}",
     "flEntrants": "Uczestnicy",
-    "flEntrantsTip": "Identyfikatory zawodników i tokeny po przecinku: random, random:<dywizja lub gatunek>, division:<id> (cała dywizja w kolejności składu). Puste: pula formatu – dywizja zawodnika A (w boss rushu: dywizja bossa, dla Geralda Marvel). Nieznane nazwy są pomijane.",
+    "flEntrantsTip": "Identyfikatory zawodników i tokeny po przecinku: random, random:<dywizja lub gatunek>, division:<id> (cała dywizja w kolejności składu). Puste: pula formatu – dywizja zawodnika A (w boss rushu: dywizja bossa, dla Geralda Komiks A). Nieznane nazwy są pomijane.",
     "flBracketSize": "Rozmiar drabinki",
     "flBracketSizeTip": "Liczba uczestników drabinki, od 2 (bez górnej granicy; przebieg buduje najwyżej 256). Rozmiar, który nie jest potęgą dwójki, daje wolne losy najwyżej rozstawionym. Każda walka to pojedynek z limitem czasu najwyżej 45 s i nagłą śmiercią; Do wygranych dotyczy tylko finału.",
     "flSeeding": "Rozstawienie",
@@ -2633,6 +2633,7 @@
     "about": "O nas",
     "tiktok": "Filmy na TikToka",
     "disclaimer": "Zastrzeżenia",
+    "licences": "Licencje zewnętrzne",
     "privacy": "Polityka prywatności",
     "terms": "Regulamin",
     "feedback": "Opinie",
@@ -2699,7 +2700,7 @@
     },
     "legalBases": {
       "title": "Dlaczego możemy przetwarzać Twoje dane",
-      "content": "Przetwarzamy dane na następujących podstawach prawnych. Prowadzenie strony, relay i aplikacji na Windows oraz odpowiadanie Ci: nasz uzasadniony interes w prowadzeniu usługi oraz umowa z Tobą, gdy kupisz Pro lub założysz konto. Wydawanie, odnawianie i przywracanie licencji oraz przechowywanie dokumentacji płatności: umowa oraz wiążące nas przepisy podatkowe i rachunkowe. Liczenie odwiedzin i kilku działań: nasz uzasadniony interes w wiedzy, jak strona jest używana, bez plików cookie i z możliwością rezygnacji przez Do Not Track, Global Privacy Control lub przełącznik powyżej. Wysyłanie klipu na platformę lub do Postiz: Twoje żądanie, za każdym razem, gdy naciskasz wyślij lub zatwierdzasz. Nic nie jest przetwarzane na podstawie zgody poza przypadkami, gdy o nią prosimy."
+      "content": "Przetwarzamy dane na następujących podstawach prawnych. Prowadzenie strony, relay i aplikacji na Windows oraz odpowiadanie Ci: nasz prawnie uzasadniony interes w prowadzeniu usługi oraz umowa z Tobą, gdy kupisz Pro lub założysz konto. Wydawanie, odnawianie i przywracanie licencji oraz przechowywanie dokumentacji płatności: umowa oraz wiążące nas przepisy podatkowe i rachunkowe. Liczenie odwiedzin i kilku działań: nasz prawnie uzasadniony interes w tym, by wiedzieć, jak strona jest używana, bez plików cookie i z możliwością rezygnacji przez Do Not Track, Global Privacy Control lub przełącznik powyżej. Wysyłanie klipu na platformę lub do Postiz: Twoje żądanie, za każdym razem, gdy naciskasz Wyślij lub zatwierdzasz. Nic nie jest przetwarzane na podstawie zgody poza przypadkami, gdy o nią prosimy."
     },
     "cookies": {
       "title": "Pliki cookie i śledzenie",
@@ -2735,7 +2736,7 @@
     },
     "transfers": {
       "title": "Gdzie trafiają Twoje dane",
-      "content": "Cloudflare, Stripe, GitHub, Hugging Face i Google mają siedziby w Stanach Zjednoczonych i mogą tam przetwarzać dane. Każda z tych firm ma certyfikat EU-US Data Privacy Framework lub działa na podstawie standardowych klauzul umownych UE, które utrzymują ochronę obowiązującą w UE i Wielkiej Brytanii. Postiz i wybrany przez Ciebie dostawca AI w chmurze to Twoi własni dostawcy, a ich lokalizację opisują ich własne polityki."
+      "content": "Cloudflare, Stripe, GitHub, Hugging Face i Google mają siedziby w Stanach Zjednoczonych i mogą tam przetwarzać dane. Każda z tych firm ma certyfikat EU-US Data Privacy Framework z rozszerzeniem dla Wielkiej Brytanii lub działa na podstawie standardowych klauzul umownych UE z brytyjskim aneksem, które utrzymują ochronę obowiązującą w UE i Wielkiej Brytanii. Postiz i wybrany przez Ciebie dostawca AI w chmurze to Twoi własni dostawcy, a ich lokalizację opisują ich własne polityki."
     },
     "retention": {
       "title": "Przechowywanie danych",
@@ -2743,7 +2744,7 @@
     },
     "children": {
       "title": "Prywatność dzieci",
-      "content": "Serwis nie jest skierowany do dzieci poniżej 13 lat. Musisz mieć co najmniej 16 lat, aby założyć konto, i 18 lat, aby kupić Pro. Jeśli dowiemy się, że mamy dane młodszego dziecka, usuwamy je. Rodzice mogą napisać do nas na adres podany wyżej."
+      "content": "Serwis nie jest skierowany do dzieci poniżej 13 lat. Musisz mieć co najmniej 16 lat, aby założyć konto, i 18 lat, aby kupić Pro. Jeśli dowiemy się, że mamy dane dziecka poniżej 16 lat, usuwamy je. Rodzice mogą napisać do nas na adres podany wyżej."
     },
     "changes": {
       "title": "Zmiany w polityce",
@@ -2855,7 +2856,7 @@
     },
     "age": {
       "title": "Wiek",
-      "content": "Musisz mieć co najmniej 16 lat, aby założyć konto, i co najmniej 18 lat, aby kupić Pro, albo mieć zgodę rodzica lub opiekuna, który akceptuje ten regulamin w Twoim imieniu. Serwis nie jest skierowany do dzieci poniżej 13 lat."
+      "content": "Musisz mieć co najmniej 16 lat, aby założyć konto. Musisz mieć co najmniej 18 lat, aby kupić Pro, albo mieć rodzica lub opiekuna, który akceptuje ten regulamin w Twoim imieniu i dokonuje płatności. Serwis nie jest skierowany do dzieci poniżej 13 lat."
     },
     "intellectual": {
       "title": "Własność intelektualna",
@@ -2863,11 +2864,11 @@
     },
     "ai": {
       "title": "Funkcje AI",
-      "content": "Aplikacja na Windows może uruchamiać model AI na Twoim komputerze albo wysyłać Twoje zapytania do dostawcy chmurowego z kluczem, który wpiszesz. Wyniki AI mogą być błędne, powtarzalne lub nieodpowiednie. Sprawdzasz każdy podpis, ustawienie i post, zanim ich użyjesz. Nic nie jest publikowane, dopóki tego nie zatwierdzisz. Modele to osobne pliki do pobrania na własnych licencjach, które aplikacja pokazuje przed pobraniem, a Ty odpowiadasz za korzystanie z modelu zgodnie z jego licencją. Dostawca chmurowy przetwarza Twoje zapytania na własnych warunkach. Nie widzimy Twoich zapytań ani wyników."
+      "content": "Aplikacja na Windows może uruchamiać model AI na Twoim komputerze albo wysyłać Twoje zapytania do dostawcy chmurowego z kluczem, który wpiszesz. Wyniki AI mogą być błędne, powtarzalne lub nieodpowiednie. Sprawdzasz każdy opis, ustawienie i post, zanim ich użyjesz. Nic nie jest publikowane, dopóki tego nie zatwierdzisz. Modele to osobne pliki do pobrania na własnych licencjach, które aplikacja pokazuje przed pobraniem, a Ty odpowiadasz za korzystanie z modelu zgodnie z jego licencją. Dostawca chmurowy przetwarza Twoje zapytania na własnych warunkach. Nie widzimy Twoich zapytań ani wyników."
     },
     "takedown": {
       "title": "Zgłaszanie treści",
-      "content": "Relay przechowuje opublikowany klip do 24 godzin, aby platforma mogła go pobrać. Jeśli uważasz, że klip lub konto na relay narusza Twoje prawa lub łamie prawo, napisz na {email}, podając link, opis prawa lub przepisu, którego dotyczy zgłoszenie, swoje dane kontaktowe i oświadczenie, że zgłoszenie składasz w dobrej wierze. Gdy zgłoszenie jest zasadne, usuwamy lub blokujemy treść, informujemy osobę, która ją wgrała, dlaczego, i zamykamy konta osób naruszających prawa wielokrotnie.",
+      "content": "Relay przechowuje opublikowany klip do 24 godzin, aby platforma mogła go pobrać. Jeśli uważasz, że klip lub konto na relay narusza Twoje prawa lub łamie prawo, napisz na {email}, podając link, opis prawa lub przepisu, którego dotyczy zgłoszenie, swoje dane kontaktowe i oświadczenie, że zgłoszenie składasz w dobrej wierze. Gdy zgłoszenie jest zasadne, usuwamy lub blokujemy treść, podajemy osobie, która ją wgrała, powód, i zamykamy konta osób, które naruszają prawa wielokrotnie.",
       "agent": "Pełnomocnik ds. praw autorskich: {legalName}, {address}, {email}."
     },
     "warranties": {
@@ -2876,7 +2877,7 @@
     },
     "liability": {
       "title": "Ograniczenie odpowiedzialności",
-      "content": "Nic w tym regulaminie nie ogranicza naszej odpowiedzialności za śmierć lub uszczerbek na zdrowiu spowodowane naszym zaniedbaniem, za oszustwo, za rażące niedbalstwo lub umyślne działanie ani za nic, czego prawo nie pozwala ograniczyć. Nic tu nie odbiera Ci praw, które masz jako konsument na mocy prawa swojego kraju. Poza tym nie odpowiadamy za straty pośrednie, takie jak utracone przychody, zyski, dane, wyświetlenia czy obserwujący. Nasza łączna odpowiedzialność wobec subskrybenta Pro jest ograniczona do kwoty zapłaconej nam w ciągu dwunastu miesięcy przed roszczeniem. Przy darmowym korzystaniu jest ograniczona do 50 dolarów amerykańskich."
+      "content": "Nic w tym regulaminie nie ogranicza naszej odpowiedzialności za śmierć lub uszczerbek na zdrowiu spowodowane naszym niedbalstwem, za oszustwo, za rażące niedbalstwo lub winę umyślną ani za nic, czego prawo nie pozwala ograniczyć. Nic tu nie odbiera Ci praw, które masz jako konsument na mocy prawa swojego kraju. Poza tym nie odpowiadamy za straty pośrednie, takie jak utrata przychodów, zysków, danych, wyświetleń czy obserwujących. Nasza łączna odpowiedzialność wobec subskrybenta Pro jest ograniczona do kwoty zapłaconej nam w ciągu dwunastu miesięcy przed roszczeniem. Przy darmowym korzystaniu jest ograniczona do 50 dolarów amerykańskich."
     },
     "termination": {
       "title": "Zakończenie korzystania",
@@ -2896,7 +2897,7 @@
       "content": "Masz pytania dotyczące regulaminu? Skontaktuj się z nami przez",
       "feedbackLink": "formularz opinii"
     },
-    "proprietaryNotice": "{siteName}, postać Gerald w tej postaci, jej grafika oraz nazwa i logo {siteName} należą do nas. Kod źródłowy jest zaciemniony i nie może być kopiowany, modyfikowany, poddawany inżynierii wstecznej, rozpowszechniany, publicznie wyświetlany ani wykorzystywany komercyjnie bez pisemnej zgody właściciela."
+    "proprietaryNotice": "{siteName}, postać Gerald taka, jak jest tu narysowana, jej grafika oraz nazwa i logo {siteName} należą do nas. Kod źródłowy jest zaciemniony i nie może być kopiowany, modyfikowany, poddawany inżynierii wstecznej, rozpowszechniany, publicznie wyświetlany ani wykorzystywany komercyjnie bez pisemnej zgody właściciela."
   },
   "Disclaimer": {
     "title": "Zastrzeżenia",
@@ -2945,6 +2946,17 @@
       "rightsEmail": "Właściciele praw mogą napisać na <mail>{email}</mail>, aby usunąć nazwę.",
       "rightsForm": "Właściciele praw mogą poprosić o usunięcie nazwy przez <link>stronę opinii</link>."
     }
+  },
+  "Licences": {
+    "metaTitle": "Licencje zewnętrzne – {siteName}",
+    "metaDescription": "Pakiety open source i czcionki, z których zbudowano {siteName}, każdy z tekstem licencji, oraz gdzie aplikacja na Windows wymienia swoje.",
+    "title": "Licencje zewnętrzne",
+    "lede": "{siteName} powstał z oprogramowania open source. Ta strona wymienia każdy pakiet, który trafia na stronę, i używane czcionki, każdy z tekstem licencji.",
+    "packagesTitle": "Pakiety",
+    "fontsTitle": "Czcionki",
+    "fontsText": "Space Grotesk, Hanken Grotesk i JetBrains Mono są serwowane z tej strony na licencji SIL Open Font License 1.1.",
+    "appTitle": "Aplikacja na Windows",
+    "appText": "Aplikacja na Windows wymienia każdy komponent zewnętrzny w menu Pomoc, Licencje zewnętrzne. Są tam ffmpeg na licencji GNU GPL w wersji 3, Electron, Chromium i llama.cpp."
   },
   "Feedback": {
     "title": "Podziel się opinią",
@@ -3533,8 +3545,8 @@
     "finderBeats": "Na bit: trafione bity {beats} dzięki {hits} zaplanowanym uderzeniom"
   },
   "ViralBot": {
-    "title": "Bot do wiralowych filmów",
-    "intro": "Planuje klipy tak, jak robią je konta, które robią zasięgi: zasada w jednym zdaniu na pierwsze sekundy, odliczanie na ekranie, finał w ostatnich sekundach, naprzemienne zakończenia. Każdy plan dostaje ocenę, render i opis.",
+    "title": "Planer klipów",
+    "intro": "Planuje klipy z zasadą w jednym zdaniu na pierwsze sekundy, odliczaniem na ekranie i finałem w ostatnich sekundach, z naprzemiennymi zakończeniami. Każdy plan dostaje ocenę, render i opis. Nie obiecuje wyświetleń.",
     "platform": "Platforma",
     "platforms": {
       "reels": "Reels",
@@ -3674,7 +3686,7 @@
     },
     "schedule": {
       "title": "Harmonogram publikacji",
-      "intro": "Zaplanowane przez bota wiralowych filmów {siteName} na {date} ({platform}). Zakończenia są naprzemienne, żeby porównać klipy rozstrzygnięte i cliffhangery.",
+      "intro": "Zaplanowane przez planer klipów {siteName} na {date} ({platform}). Zakończenia są naprzemienne, żeby porównać klipy rozstrzygnięte i cliffhangery.",
       "time": "Godzina",
       "file": "Plik",
       "recipe": "Przepis",
@@ -3709,16 +3721,16 @@
         "hashtags": "#ringescape #ucieczkapilki #czyucieknie"
       },
       "pipEscape": {
-        "name": "Pip ucieka",
-        "series": "Pip ucieka",
-        "hook": "Pip zawsze ucieka. Dzień {episode}.",
-        "cliffHook": "Pip zawsze ucieka… prawda?",
-        "payoff": "WOLNOŚĆ! Pip dał radę 🎉",
-        "cliffQuestion": "Czy Pip da radę? 👇",
-        "postQuestion": "Która ściana była dla Pipa najtrudniejsza?",
-        "cliffPostQuestion": "Czy Pip dziś się wydostanie? Tak czy nie 👇",
-        "keywords": "Pip, odbijająca się piłka z buźką, ucieka z obracających się pierścieni – codziennie nowe wyzwanie w satysfakcjonującej symulacji fizyki.",
-        "hashtags": "#pip #postacpilka #codziennewyzwanie"
+        "name": "Gerald ucieka",
+        "series": "Gerald ucieka",
+        "hook": "Gerald zawsze ucieka. Dzień {episode}.",
+        "cliffHook": "Gerald zawsze ucieka… prawda?",
+        "payoff": "WOLNOŚĆ! Gerald dał radę 🎉",
+        "cliffQuestion": "Czy Gerald da radę? 👇",
+        "postQuestion": "Która ściana była dla Geralda najtrudniejsza?",
+        "cliffPostQuestion": "Czy Gerald dziś się wydostanie? Tak czy nie 👇",
+        "keywords": "Gerald, odbijająca się piłka z buźką, ucieka z obracających się pierścieni – codziennie nowe wyzwanie w satysfakcjonującej symulacji fizyki.",
+        "hashtags": "#gerald #postacpilka #codziennewyzwanie"
       },
       "growFill": {
         "name": "Rośnie, aż wypełni",
@@ -3751,7 +3763,7 @@
         "postQuestion": "Jaki największy mnożnik udało ci się zobaczyć?",
         "cliffPostQuestion": "Wynik końcowy – więcej czy mniej niż 500? 👇",
         "keywords": "Symulacja planszy mnożników: piłki spadają przez bramki x2 i x4 i mnożą się, aż plansza się przepełni.",
-        "hashtags": "#mnoznik #plinko #x2"
+        "hashtags": "#mnoznik #x2"
       },
       "powerLayers": {
         "name": "Warstwy mocy",
@@ -3799,13 +3811,13 @@
       },
       "glassSmash": {
         "name": "Rozbijanie szkła",
-        "series": "Pip kontra szkło",
-        "hook": "Pip kontra piętra szkła: {stages}.",
+        "series": "Gerald kontra szkło",
+        "hook": "Gerald kontra piętra szkła: {stages}.",
         "payoff": "W DOMU! 🏠",
         "cliffQuestion": "Szkło wytrzyma? 👇",
         "postQuestion": "Które piętro było najtwardsze?",
-        "cliffPostQuestion": "Czy Pip dotrze do domu? Tak czy nie 👇",
-        "keywords": "Pip, odbijająca się piłka, rozbija kolejne piętra szkła w drodze do domu, a każde pęknięcie to nuta fortepianu.",
+        "cliffPostQuestion": "Czy Gerald dotrze do domu? Tak czy nie 👇",
+        "keywords": "Gerald, odbijająca się piłka, rozbija kolejne piętra szkła w drodze do domu, a każde pęknięcie to nuta fortepianu.",
         "hashtags": "#rozbijanieszkla #pekajaceszklo #asmrszklo"
       },
       "stringBattle": {
@@ -3917,7 +3929,7 @@
       "label": "Okładka",
       "at": "{sec} s – {why}",
       "title": "Okładki",
-      "intro": "Klatka, którą warto ustawić jako okładkę każdego klipu (publikując, bot sam przekazuje ją Instagramowi i TikTokowi):",
+      "intro": "Klatka, którą warto ustawić jako okładkę każdego klipu (publikując, planer sam przekazuje ją Instagramowi i TikTokowi):",
       "sources": {
         "payoff": "rozstrzygnięcie na ekranie",
         "cut": "ostatnia chwila przed cięciem",
@@ -3926,20 +3938,20 @@
       }
     },
     "fightDivisions": {
-      "marvel": "Marvel",
-      "dc": "DC",
-      "nintendo": "Nintendo i Sega",
-      "league": "League of Legends",
+      "marvel": "Komiks A",
+      "dc": "Komiks B",
+      "nintendo": "Platformówki",
+      "league": "MOBA",
       "fighting": "Bijatyki",
       "legends": "Legendy gier",
       "shonen": "Anime shōnen",
-      "starWars": "Star Wars",
+      "starWars": "Kosmiczna saga",
       "fantasy": "Fantasy",
       "monsters": "Potwory z filmów",
       "action": "Kino akcji",
       "tv": "Seriale",
       "wildcard": "Dzika karta",
-      "pokemon": "Pokémon",
+      "pokemon": "Kieszonkowe potwory",
       "modernAnime": "Współczesne anime",
       "sandbox": "Gry sandbox i online",
       "horror": "Horrory",
@@ -4124,12 +4136,12 @@
   },
   "Publish": {
     "intro": "Udostępnij gotowy klip na TikToku, Instagramie i YouTube przez arkusz udostępniania lub pobranie. Aby wysyłać jednym kliknięciem, połącz konta przez relay albo, dla YouTube, własny identyfikator klienta Google.",
-    "noClip": "Nie ma jeszcze klipu. Nagraj wideo, uruchom szybki eksport, serię albo renderowanie bota – każdy gotowy klip trafia tutaj – lub wybierz plik wideo.",
+    "noClip": "Nie ma jeszcze klipu. Nagraj wideo, uruchom szybki eksport, serię albo renderowanie planera klipów – każdy gotowy klip trafia tutaj – lub wybierz plik wideo.",
     "sources": {
       "recording": "Nagranie",
       "fast": "Szybki eksport",
       "batch": "Seria",
-      "bot": "Bot viralowy",
+      "bot": "Planer klipów",
       "file": "Plik"
     },
     "seconds": "{sec} s",
@@ -4141,7 +4153,7 @@
     "wordsTitle": "Tekst dla każdej platformy",
     "tabAll": "Wszystkie platformy",
     "regenerate": "Zaproponuj",
-    "regenerateTip": "Napisz tytuł, opis i hashtagi od nowa na podstawie tekstów bota viralowego (twoje zmiany zostaną zastąpione)",
+    "regenerateTip": "Napisz tytuł, opis i hashtagi od nowa na podstawie tekstów planera klipów (twoje zmiany zostaną zastąpione)",
     "fieldTitle": "Tytuł (YouTube)",
     "fieldCaption": "Opis",
     "fieldHashtags": "Hashtagi",
@@ -4397,7 +4409,7 @@
     "queueSource": {
       "seeds": "Obecne ustawienia",
       "random": "Losowe ziarna",
-      "bot": "Plan wiralowego bota"
+      "bot": "Zaplanowane klipy"
     },
     "queueListPlaceholder": "Jedno w linii: ziarna (123456), linki do udostępniania albo link z ziarnami. Puste: obecny przebieg strony.",
     "queueListLabel": "Ziarna i linki",
@@ -4406,8 +4418,8 @@
     "queueListInvalid": "nieczytelne linie: {lines}",
     "queueRandomCount": "Klipy",
     "queueRandomCeiling": "Kolejka mieści najwyżej {max} zadań (jej limit bezpieczeństwa pamięci): tyle ziaren zostanie wylosowanych.",
-    "queueBotHint": "Dodaje każdy klip z ostatniego planu wiralowego bota (najpierw zaplanuj go w bloku Bot w sekcji Nagrywanie).",
-    "queueNoBotPlan": "Nie ma jeszcze planu wiralowego bota – najpierw zaplanuj klipy w sekcji Nagrywanie.",
+    "queueBotHint": "Dodaje każdy klip z ostatniego planu planera klipów. Najpierw zaplanuj go w bloku Planer klipów w sekcji Nagrywanie.",
+    "queueNoBotPlan": "Nie ma jeszcze planu klipów. Najpierw zaplanuj klipy w sekcji Nagrywanie.",
     "queueResolutions": "Rozdzielczości",
     "queueFps": "Liczba klatek",
     "queueCodecs": "Kodeki",
@@ -4494,7 +4506,7 @@
       "plan": "Zaplanuj posty"
     },
     "aiTaskHint": {
-      "videos": "Opisz, jakich klipów chcesz: AI zaplanuje je wiralowym botem i funkcją Znajdź symulację, napisze teksty dla każdej platformy i doda je do kolejki.",
+      "videos": "Opisz, jakich klipów chcesz: AI zaplanuje je planerem klipów i funkcją Znajdź symulację, napisze teksty dla każdej platformy i doda je do kolejki.",
       "copy": "Tytuły, haczyki, opisy i zestawy hashtagów dla bloku Publikuj – do klipu na stronie.",
       "settings": "Powiedz, co zmienić – AI zaproponuje sprawdzoną zmianę ustawień i ją zastosuje (z cofnięciem).",
       "ideas": "Świeże pomysły na klipy oparte na poradniku o wiralności.",
@@ -4775,7 +4787,7 @@
     "featuresTitle": "Co dodaje aplikacja",
     "features": {
       "gpu": "Wideo na GPU. Szybki eksport koduje na karcie graficznej, w H.264 i HEVC przez NVENC, AMF albo Quick Sync oraz w AV1 na nowszych kartach.",
-      "queue": "Kolejka renderowania. Ziarna, linki albo plan wiralowego bota, w każdej wybranej rozdzielczości, liczbie klatek i kodeku, zapisywane prosto do folderu. Postęp, anulowanie, ponawianie i wznawianie po restarcie.",
+      "queue": "Kolejka renderowania. Ziarna, linki albo plan planera klipów, w każdej wybranej rozdzielczości, liczbie klatek i kodeku, zapisywane prosto do folderu. Postęp, anulowanie, ponawianie i wznawianie po restarcie.",
       "ai": "Studio AI. Lokalny model, pobierany raz, albo Twój własny klucz do chmury planuje klipy, pisze haczyki, opisy i hashtagi oraz zmienia ustawienia na prośbę.",
       "library": "Biblioteka. Każdy wyrenderowany klip z miniaturą, długością i tekstem posta. Odtwórz, pokaż w folderze, wyrenderuj ponownie albo usuń.",
       "postiz": "Publikowanie przez Postiz. Pro wysyła klip z biblioteki na TikToka, Instagrama i YouTube przez Twoje własne konto Postiz, a każdy post zatwierdzasz na karcie. Autopilot proponuje posty, Ty je zatwierdzasz."
@@ -4797,7 +4809,7 @@
     "smartScreenVerify": "Zanim go uruchomisz, sprawdź plik. W PowerShellu polecenie Get-FileHash z nazwą pliku wypisze jego skrót SHA-256, który musi zgadzać się z wierszem tego pliku w sumach kontrolnych, bez względu na wielkość liter. Możesz też wyszukać ten skrót w <virustotal>VirusTotal</virustotal>.",
     "smartScreenSteps": "Jeśli suma kontrolna się zgadza, wybierz w Chrome „Zachowaj”, a w Windows „Więcej informacji” i „Uruchom mimo to”.",
     "privacyNoticesTitle": "Oprogramowanie i dźwięki innych autorów",
-    "privacyNoticesFfmpeg": "ffmpeg, którego aplikacja używa do kodowania filmów, jest objęty licencją GNU GPL w wersji 3. To niezmieniona wersja z gyan.dev, uruchamiana jako osobny program, z dołączonym tekstem licencji i linkiem do kodu źródłowego.",
+    "privacyNoticesFfmpeg": "ffmpeg, którego aplikacja używa do kodowania filmów, jest objęty licencją GNU GPL w wersji 3. To niezmieniona wersja essentials z gyan.dev, FFmpeg 6.1.1, uruchamiana jako osobny program, z dołączonym tekstem licencji. Jej kod źródłowy jest dostępny u wydawcy tej wersji i w projekcie FFmpeg, a na życzenie wysyłamy go sami. Aplikacja wymienia każdy komponent zewnętrzny w menu Pomoc, Licencje zewnętrzne.",
     "privacyNoticesOther": "Aplikacja korzysta też z Electron, Chromium, node-llama-cpp i llama.cpp. Teksty licencji ffmpeg, Electron, Chromium i node-llama-cpp są dołączone do aplikacji. Modele AI to osobne pobrania na ich własnych licencjach, które aplikacja pokazuje przed pobraniem. Studio AI może uruchamiać Llama 3.2. Built with Llama.",
     "privacyAudio": "Wbudowane dźwięki zsyntetyzowaliśmy sami. Wbudowane melodie to utwory w domenie publicznej."
   },
@@ -4975,7 +4987,7 @@
         "record": "Nagraj wideo, do 1080×1920, z dźwiękiem",
         "fastExport": "Szybki eksport, renderowany klatka po klatce",
         "batch": "Renderowanie seryjne, wiele klipów w jednym ZIP-ie",
-        "bot": "Filmy renderowane przez bota",
+        "bot": "Filmy renderowane przez planer klipów",
         "publish": "Udostępnianie na TikToku, Instagramie i YouTube przez arkusz udostępniania lub pobranie",
         "postiz": "Posty z aplikacji na Windows na TikToka, Instagrama i YouTube przez Postiz, każdy zatwierdzany przez Ciebie",
         "desktop": "Kolejka renderowania i kodowanie na GPU w aplikacji na komputer"
@@ -5021,7 +5033,7 @@
       "failed": "Nie udało się otworzyć portalu klienta: {message}",
       "copyKey": "Kopiuj klucz licencji",
       "copied": "Skopiowano",
-      "copyHint": "Wiersz poleceń bota przyjmuje ten klucz jako BOT_LICENSE.",
+      "copyHint": "Wiersz poleceń planera klipów przyjmuje ten klucz jako BOT_LICENSE.",
       "remove": "Usuń z tej przeglądarki",
       "removeConfirm": "Usunąć licencję z tej przeglądarki? Możesz ją później przywrócić z potwierdzenia zakupu.",
       "reference": "Numer referencyjny",
@@ -5057,7 +5069,7 @@
       "record": "Nagraj wideo",
       "fastExport": "Szybki eksport",
       "batch": "Renderowanie seryjne",
-      "bot": "Renderowanie klipów bota",
+      "bot": "Renderowanie klipów planera klipów",
       "publish": "Szybkie udostępnianie na TikToku, Instagramie i YouTube",
       "renderQueue": "Kolejka renderowania w aplikacji",
       "download": "Pobieranie wyrenderowanych filmów"
@@ -5092,7 +5104,7 @@
     },
     "terms": {
       "title": "Subskrypcje Pro",
-      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe. Filmy utworzone bez licencji Pro mają znak wodny. Pro kosztuje {monthly} miesięcznie lub {yearly} rocznie, w dolarach amerykańskich, a przy płatności może zostać doliczony podatek. Kasa pokazuje pełną kwotę przed zapłatą. Pro eksportuje filmy bez znaku wodnego i dodaje szybkie udostępnianie na TikToku, Instagramie i YouTube przez arkusz udostępniania urządzenia lub pobranie. Subskrypcje kartą odnawiają się automatycznie, dopóki ich nie anulujesz w portalu klienta Stripe. Płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu.",
+      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe. Filmy utworzone bez licencji Pro mają znak wodny. Pro kosztuje {monthly} miesięcznie lub {yearly} rocznie, w dolarach amerykańskich, a przy płatności może zostać doliczony podatek. Strona płatności pokazuje pełną kwotę, zanim zapłacisz. Pro eksportuje filmy bez znaku wodnego i dodaje szybkie udostępnianie na TikToku, Instagramie i YouTube przez arkusz udostępniania urządzenia lub pobranie. Subskrypcje kartą odnawiają się automatycznie, dopóki ich nie anulujesz w portalu klienta Stripe. Płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu.",
       "delivery": {
         "title": "Dostawa",
         "content": "Pro to licencja cyfrowa dostarczana od razu. Po płatności strona cennika aktywuje ją w Twojej przeglądarce i pokazuje numer referencyjny potwierdzenia. Za pomocą e-maila i tego numeru możesz w każdej chwili przywrócić licencję na innym urządzeniu lub w aplikacji na Windows. Nic nie jest wysyłane pocztą."
@@ -5103,7 +5115,7 @@
       },
       "withdrawal": {
         "title": "Prawo odstąpienia w UE i Wielkiej Brytanii",
-        "content": "Jeśli jesteś konsumentem w UE lub w Wielkiej Brytanii, możesz odstąpić od zakupu Pro w ciągu 14 dni od płatności bez podania przyczyny. Wyślij nam jednoznaczne oświadczenie e-mailem na {email}. Możesz skorzystać z poniższego wzoru. Zwracamy pieniądze w ciągu 14 dni od Twojej wiadomości, na użytą metodę płatności lub na adres portfela, który podasz przy płatności kryptowalutą. Pro zaczyna działać od razu, na Twoją prośbę. Jeśli korzystasz z Pro przed odstąpieniem, możemy zatrzymać część ceny proporcjonalną do wykorzystanych dni. Po pierwszym okresie ta sama zasada dotyczy każdego odnowienia.",
+        "content": "Jeśli jesteś konsumentem w UE lub w Wielkiej Brytanii, możesz odstąpić od zakupu Pro w ciągu 14 dni od płatności bez podania przyczyny. Wyślij nam jednoznaczne oświadczenie e-mailem na {email}. Możesz skorzystać z poniższego wzoru. Zwracamy pieniądze w ciągu 14 dni od Twojej wiadomości, na użytą metodę płatności, a przy płatności kryptowalutą na adres portfela, który nam podasz. Pro zaczyna działać od razu, na Twoją prośbę. Jeśli przed odstąpieniem korzystasz z Pro, możemy zatrzymać część ceny proporcjonalną do wykorzystanych dni. Po pierwszym okresie ta sama zasada dotyczy każdego odnowienia.",
         "form": "Wzór formularza odstąpienia. Do {legalName}, {email}: Odstępuję od umowy o subskrypcję Pro kupioną dnia {date} z adresem e-mail {buyerEmail} i numerem z potwierdzenia {ref}. Imię i nazwisko, data.",
         "formDate": "data",
         "formEmail": "Twój e-mail",
@@ -5115,7 +5127,7 @@
         "named": "{siteName} i subskrypcję Pro prowadzi {legalName}{address}. Płatności obsługują Stripe dla kart i NOWPayments dla kryptowalut. Na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności.",
         "unnamed": "{siteName} i subskrypcję Pro prowadzi operator serwisu {siteDomain}. Płatności obsługują Stripe dla kart i NOWPayments dla kryptowalut. Na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności.",
         "vat": "Numer VAT: {vat}.",
-        "registration": "Zarejestrowany jako {registration}."
+        "registration": "Wpis w rejestrze: {registration}."
       }
     },
     "paste": {
@@ -5134,7 +5146,7 @@
       "lead": "Możesz też napisać do nas na adres"
     },
     "checkout": {
-      "line": "Ceny podajemy w dolarach amerykańskich. Podatek doliczamy przy płatności tam, gdzie wymaga go Twój kraj, a kasa pokazuje pełną kwotę przed zapłatą. Plan kartą odnawia się w tej samej cenie, dopóki go nie anulujesz. Płacąc, prosisz o natychmiastowe uruchomienie Pro i akceptujesz <terms>Regulamin</terms>."
+      "line": "Ceny podajemy w dolarach amerykańskich. Podatek doliczamy przy płatności tam, gdzie wymaga go Twój kraj, a strona płatności pokazuje pełną kwotę, zanim zapłacisz. Plan kartą odnawia się w tej samej cenie, dopóki go nie anulujesz. Płacąc, prosisz o natychmiastowe uruchomienie Pro i akceptujesz <terms>Regulamin</terms>."
     }
   },
   "OrbGrid": {
@@ -5148,14 +5160,14 @@
     "canvasRhythmTimeSub": "w fazie co {cycle} s"
   },
   "FightLeague": {
-    "division_marvel": "Marvel",
-    "division_dc": "DC",
-    "division_nintendo": "Nintendo i Sega",
-    "division_league": "League of Legends",
+    "division_marvel": "Komiks A",
+    "division_dc": "Komiks B",
+    "division_nintendo": "Platformówki",
+    "division_league": "MOBA",
     "division_fighting": "Bijatyki",
     "division_legends": "Legendy gier",
     "division_shonen": "Anime shōnen",
-    "division_starWars": "Star Wars",
+    "division_starWars": "Kosmiczna saga",
     "division_fantasy": "Fantasy",
     "division_monsters": "Potwory z filmów",
     "division_action": "Kino akcji",
@@ -5237,7 +5249,7 @@
     "fighter_nightking": "Rzuca wolnymi, ciężkimi lodowymi włóczniami; Raise the Dead przywołuje trzy upiory na cztery sekundy.",
     "fighter_gerald": "Nasza własna kulka przebija się przez ligę główką; Mega Bounce podwaja jej prędkość i obrażenia na trzy sekundy.",
     "canvasSudden": "NAGŁA ŚMIERĆ!",
-    "division_pokemon": "Pokémon",
+    "division_pokemon": "Kieszonkowe potwory",
     "division_modernAnime": "Współczesne anime",
     "division_sandbox": "Gry sandbox i online",
     "division_horror": "Horrory",
@@ -5365,6 +5377,7 @@
     "canvasRound_qf": "ĆWIERĆFINAŁ",
     "canvasRound_sf": "PÓŁFINAŁ",
     "canvasRound_final": "FINAŁ",
+    "canvasFanMade": "Parodia fanowska. Bez powiązań.",
     "canvasChampion": "MISTRZ",
     "canvasBossFalls": "BOSS POKONANY – [name]",
     "canvasBossSurvives": "BOSS PRZETRWAŁ [n]/[total]",

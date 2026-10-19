@@ -1427,7 +1427,7 @@
     "vbOnBeatRange": "Margen de Al compás",
     "vbOnBeatRangeTip": "Cuánto más rápido o más lento puede ir un vuelo. Un margen más amplio pone más golpes en el pulso; uno más estrecho deja un movimiento más natural.",
     "projectMediumBeatMedia": "Vídeo / audio de pulsos",
-    "viralBot": "Bot de vídeos virales",
+    "viralBot": "Planificador de clips",
     "viralBotTip": "Planifica clips según la receta de las cuentas que se vuelven virales (un gancho de una frase, una cuenta atrás, el desenlace en los últimos segundos, finales alternos), puntúa cada uno, los renderiza todos con la exportación rápida y descarga un ZIP con los vídeos, los textos, un manifiesto y un calendario de publicación.",
     "modeJourney": "Viaje",
     "journeyTitle": "Viaje",
@@ -1739,7 +1739,7 @@
     "flRandomHintDivision": "Lo elige la semilla en la división del primer luchador.",
     "flAbility": "Habilidad: {name}",
     "flSameDivision": "Aleatorio en la misma división",
-    "flSameDivisionTip": "Un hueco aleatorio elige en la división del primer luchador elegido, así el enfrentamiento se queda en su género (Marvel contra Marvel, Star Wars contra Star Wars).",
+    "flSameDivisionTip": "Un hueco aleatorio elige en la división del primer luchador elegido, así el enfrentamiento se queda en su género (cómics contra cómics, saga espacial contra saga espacial).",
     "flHp": "Vida",
     "flHpTip": "Los puntos de vida de cada luchador (la fila de un luchador puede darle un poco más o menos). Escribe cualquier número desde 1.",
     "flTimeCap": "Límite de tiempo",
@@ -2261,7 +2261,7 @@
     "flBestOfOne": "1 combate",
     "flBestOfN": "Bo{n}",
     "flEntrants": "Participantes",
-    "flEntrantsTip": "Identificadores de luchadores y fichas separados por comas: random, random:<división o género>, division:<id> (la división entera en orden de plantilla). Vacío: la reserva propia del formato – la división del luchador A (en un boss rush: la del jefe, Marvel para Gerald). Los nombres desconocidos se descartan.",
+    "flEntrantsTip": "Identificadores de luchadores y fichas separados por comas: random, random:<división o género>, division:<id> (la división entera en orden de plantilla). Vacío: la reserva propia del formato – la división del luchador A (en un boss rush: la del jefe, Cómics A para Gerald). Los nombres desconocidos se descartan.",
     "flBracketSize": "Tamaño del cuadro",
     "flBracketSizeTip": "Participantes del cuadro, desde 2 (sin máximo; una partida crea como mucho 256). Un tamaño que no es potencia de dos da pases directos a los mejores cabezas de serie. Cada combate es un duelo con un límite de tiempo de 45 s como máximo y muerte súbita; Al mejor de se aplica solo a la final.",
     "flSeeding": "Cabezas de serie",
@@ -2633,6 +2633,7 @@
     "about": "Acerca de",
     "tiktok": "Vídeos para TikTok",
     "disclaimer": "Aviso legal",
+    "licences": "Licencias de terceros",
     "privacy": "Política de privacidad",
     "terms": "Términos del servicio",
     "feedback": "Comentarios",
@@ -2735,15 +2736,15 @@
     },
     "transfers": {
       "title": "A dónde van tus datos",
-      "content": "Cloudflare, Stripe, GitHub, Hugging Face y Google tienen su sede en Estados Unidos y pueden tratar datos allí. Cada una está certificada bajo el EU-US Data Privacy Framework o trabaja con las cláusulas contractuales tipo de la UE, que mantienen la protección de la UE y el Reino Unido. Postiz y cualquier proveedor de IA en la nube que elijas son tus propios proveedores, y su ubicación está en sus propias políticas."
+      "content": "Cloudflare, Stripe, GitHub, Hugging Face y Google tienen su sede en Estados Unidos y pueden tratar datos allí. Cada una está certificada bajo el EU-US Data Privacy Framework y su extensión para el Reino Unido, o trabaja con las cláusulas contractuales tipo de la UE y su anexo para el Reino Unido, que mantienen la protección de la UE y el Reino Unido. Postiz y cualquier proveedor de IA en la nube que elijas son tus propios proveedores, y su ubicación está en sus propias políticas."
     },
     "retention": {
       "title": "Conservación de datos",
-      "content": "Los datos del almacenamiento local se quedan en tu dispositivo hasta que los borres. El servidor de facturación guarda tu correo, el plan y la referencia del proveedor mientras tu licencia pueda restaurarse y durante 10 años desde el último pago, el plazo de conservación contable más largo que puede aplicarse a nosotros. Después se borran. Los registros de webhooks se borran a los 30 días. Una cuenta en el relay se conserva hasta que la borres en la página Cuenta. Sus tokens de sesión caducan a los 30 días. Un clip subido al relay se borra a las 24 horas. Las estadísticas de visitas las conservan los servicios que las generan, según sus propias normas."
+      "content": "Los datos del almacenamiento local se quedan en tu dispositivo hasta que los borres. El servidor de facturación guarda tu correo, el plan y la referencia del proveedor mientras tu licencia pueda restaurarse y durante 10 años desde el último pago, el plazo de conservación contable más largo que puede aplicársenos. Después se borran. Los registros de webhooks se borran a los 30 días. Una cuenta en el relay se conserva hasta que la borres en la página Cuenta. Sus tokens de sesión caducan a los 30 días. Un clip subido al relay se borra a las 24 horas. Las estadísticas de visitas las conservan los servicios que las generan, según sus propias normas."
     },
     "children": {
       "title": "Privacidad de los menores",
-      "content": "El servicio no está dirigido a menores de 13 años. Debes tener al menos 16 años para crear una cuenta y 18 para comprar Pro. Si descubrimos que tenemos datos de un menor de esa edad, los borramos. Los padres pueden escribirnos a la dirección indicada arriba."
+      "content": "El servicio no está dirigido a menores de 13 años. Debes tener al menos 16 años para crear una cuenta y 18 para comprar Pro. Si descubrimos que tenemos datos de un menor de 16 años, los borramos. Los padres pueden escribirnos a la dirección indicada arriba."
     },
     "changes": {
       "title": "Cambios en esta política",
@@ -2855,7 +2856,7 @@
     },
     "age": {
       "title": "Edad",
-      "content": "Debes tener al menos 16 años para crear una cuenta y al menos 18 para comprar Pro, o contar con el acuerdo de un padre, madre o tutor que acepte estos términos por ti. El servicio no está dirigido a menores de 13 años."
+      "content": "Debes tener al menos 16 años para crear una cuenta. Debes tener al menos 18 años para comprar Pro, o contar con un padre, madre o tutor que acepte estos términos por ti y haga el pago. El servicio no está dirigido a menores de 13 años."
     },
     "intellectual": {
       "title": "Propiedad intelectual",
@@ -2884,7 +2885,7 @@
     },
     "changes": {
       "title": "Cambios en estos términos",
-      "content": "Podemos cambiar estos términos por una buena razón, como un cambio en la ley, en el servicio o en la forma de cobrar. Para un cambio que afecte a Pro avisamos con al menos 30 días por correo o en esta página antes de que se aplique. Si no lo aceptas, puedes cancelar antes de que se aplique y te reembolsamos la parte no usada del periodo. Seguir usando el servicio tras un cambio solo vale como aceptación para el servicio gratuito."
+      "content": "Podemos cambiar estos términos por una buena razón, como un cambio en la ley, en el servicio o en la forma de cobrar. Para un cambio que afecte a Pro avisamos con al menos 30 días de antelación, por correo o en esta página. Si no lo aceptas, puedes cancelar antes de que se aplique y te reembolsamos la parte no usada del periodo. Seguir usando el servicio tras un cambio solo vale como aceptación para el servicio gratuito."
     },
     "law": {
       "title": "Ley y disputas",
@@ -2945,6 +2946,17 @@
       "rightsEmail": "Los titulares de derechos pueden escribir a <mail>{email}</mail> para que se quite un nombre.",
       "rightsForm": "Los titulares de derechos pueden pedir que se quite un nombre a través de la <link>página de comentarios</link>."
     }
+  },
+  "Licences": {
+    "metaTitle": "Licencias de terceros – {siteName}",
+    "metaDescription": "Los paquetes de código abierto y las fuentes con que está hecho {siteName}, cada uno con su licencia, y dónde la app de Windows lista las suyas.",
+    "title": "Licencias de terceros",
+    "lede": "{siteName} está hecho con software de código abierto. Esta página lista cada paquete que el sitio incluye y las fuentes que usa, cada uno con el texto de su licencia.",
+    "packagesTitle": "Paquetes",
+    "fontsTitle": "Fuentes",
+    "fontsText": "Space Grotesk, Hanken Grotesk y JetBrains Mono se sirven desde este sitio bajo la SIL Open Font License 1.1.",
+    "appTitle": "La app de Windows",
+    "appText": "La app de Windows lista cada componente de terceros en Ayuda, Licencias de terceros. Incluye ffmpeg bajo la GNU GPL versión 3, Electron, Chromium y llama.cpp."
   },
   "Feedback": {
     "title": "Envíanos tus comentarios",
@@ -3533,8 +3545,8 @@
     "finderBeats": "Al compás: {beats} pulsos alcanzados con {hits} golpes cronometrados"
   },
   "ViralBot": {
-    "title": "Bot de vídeos virales",
-    "intro": "Planifica clips como los hacen las cuentas que se vuelven virales: la regla en una frase en los primeros segundos, una cuenta atrás en pantalla, el desenlace en los últimos segundos y finales que se alternan. Cada plan lleva puntuación, render y texto de publicación.",
+    "title": "Planificador de clips",
+    "intro": "Planifica clips con una regla de una frase en los primeros segundos, una cuenta atrás en pantalla y el desenlace en los últimos segundos, con finales que se alternan. Cada plan lleva puntuación, render y texto de publicación. No promete visualizaciones.",
     "platform": "Plataforma",
     "platforms": {
       "reels": "Reels",
@@ -3674,7 +3686,7 @@
     },
     "schedule": {
       "title": "Calendario de publicación",
-      "intro": "Planificado por el bot de vídeos virales de {siteName} para el {date} ({platform}). Los finales se alternan para comparar clips resueltos y cliffhangers.",
+      "intro": "Planificado por el planificador de clips de {siteName} para el {date} ({platform}). Los finales se alternan para comparar clips resueltos y cliffhangers.",
       "time": "Hora",
       "file": "Archivo",
       "recipe": "Receta",
@@ -3709,16 +3721,16 @@
         "hashtags": "#escapedeanillos #pelotaescapa #podraescapar"
       },
       "pipEscape": {
-        "name": "Pip escapa",
-        "series": "Pip escapa",
-        "hook": "Pip siempre escapa. Día {episode}.",
-        "cliffHook": "Pip siempre escapa… ¿verdad?",
-        "payoff": "¡LIBRE! Pip lo logró 🎉",
-        "cliffQuestion": "¿Lo logrará Pip? 👇",
-        "postQuestion": "¿Qué pared fue la más difícil para Pip?",
-        "cliffPostQuestion": "¿Sale Pip hoy? Sí o no 👇",
-        "keywords": "Pip, la pelota con cara, escapa de anillos giratorios – un reto nuevo cada día en esta simulación física tan satisfactoria.",
-        "hashtags": "#pip #pelotaconcara #retodiario"
+        "name": "Gerald escapa",
+        "series": "Gerald escapa",
+        "hook": "Gerald siempre escapa. Día {episode}.",
+        "cliffHook": "Gerald siempre escapa… ¿verdad?",
+        "payoff": "¡LIBRE! Gerald lo logró 🎉",
+        "cliffQuestion": "¿Lo logrará Gerald? 👇",
+        "postQuestion": "¿Qué pared fue la más difícil para Gerald?",
+        "cliffPostQuestion": "¿Sale Gerald hoy? Sí o no 👇",
+        "keywords": "Gerald, la pelota con cara, escapa de anillos giratorios – un reto nuevo cada día en esta simulación física tan satisfactoria.",
+        "hashtags": "#gerald #pelotaconcara #retodiario"
       },
       "growFill": {
         "name": "Crece hasta llenarlo",
@@ -3751,7 +3763,7 @@
         "postQuestion": "¿Cuál fue el multiplicador más grande que viste?",
         "cliffPostQuestion": "Cuenta final: ¿más o menos de 500? 👇",
         "keywords": "Simulación de un tablero de multiplicadores: las pelotas caen por puertas x2 y x4 y se multiplican hasta desbordar el tablero.",
-        "hashtags": "#multiplicador #plinko #x2"
+        "hashtags": "#multiplicador #x2"
       },
       "powerLayers": {
         "name": "Capas de poder",
@@ -3799,13 +3811,13 @@
       },
       "glassSmash": {
         "name": "Rompe el cristal",
-        "series": "Pip contra el cristal",
-        "hook": "Pip contra {stages} pisos de cristal.",
+        "series": "Gerald contra el cristal",
+        "hook": "Gerald contra {stages} pisos de cristal.",
         "payoff": "¡EN CASA! 🏠",
         "cliffQuestion": "¿Aguantará el cristal? 👇",
         "postQuestion": "¿Qué piso fue el más duro?",
-        "cliffPostQuestion": "¿Llega Pip a casa? Sí o no 👇",
-        "keywords": "Pip, la pelota que rebota, rompe pisos de cristal de camino a casa y cada grieta es una nota de piano.",
+        "cliffPostQuestion": "¿Llega Gerald a casa? Sí o no 👇",
+        "keywords": "Gerald, la pelota que rebota, rompe pisos de cristal de camino a casa y cada grieta es una nota de piano.",
         "hashtags": "#rompercristal #cristalroto #asmrcristal"
       },
       "stringBattle": {
@@ -3917,7 +3929,7 @@
       "label": "Portada",
       "at": "{sec} s – {why}",
       "title": "Portadas",
-      "intro": "El fotograma que conviene poner como portada de cada clip (al publicar, el bot se lo pasa él mismo a Instagram y TikTok):",
+      "intro": "El fotograma que conviene poner como portada de cada clip (al publicar, el planificador se lo pasa él mismo a Instagram y TikTok):",
       "sources": {
         "payoff": "el desenlace en pantalla",
         "cut": "el último instante antes del corte",
@@ -3926,20 +3938,20 @@
       }
     },
     "fightDivisions": {
-      "marvel": "Marvel",
-      "dc": "DC",
-      "nintendo": "Nintendo y Sega",
-      "league": "League of Legends",
+      "marvel": "Cómics A",
+      "dc": "Cómics B",
+      "nintendo": "Plataformas",
+      "league": "MOBA",
       "fighting": "Juegos de lucha",
       "legends": "Leyendas de los videojuegos",
       "shonen": "Anime shōnen",
-      "starWars": "Star Wars",
+      "starWars": "Saga espacial",
       "fantasy": "Fantasía",
       "monsters": "Monstruos del cine",
       "action": "Cine de acción",
       "tv": "Series",
       "wildcard": "Comodín",
-      "pokemon": "Pokémon",
+      "pokemon": "Monstruos de bolsillo",
       "modernAnime": "Anime moderno",
       "sandbox": "Juegos sandbox y online",
       "horror": "Cine de terror",
@@ -4124,12 +4136,12 @@
   },
   "Publish": {
     "intro": "Comparte el clip terminado en TikTok, Instagram y YouTube con el menú de compartir o una descarga. Para enviarlo con un clic, conecta tus cuentas a través de un relay o, en YouTube, con tu propio ID de cliente de Google.",
-    "noClip": "Todavía no hay clip. Graba un vídeo, haz una exportación rápida, un lote o el render del bot – cada clip terminado aparece aquí – o elige un archivo de vídeo.",
+    "noClip": "Todavía no hay clip. Graba un vídeo, haz una exportación rápida, un lote o el render del planificador de clips – cada clip terminado aparece aquí – o elige un archivo de vídeo.",
     "sources": {
       "recording": "Grabación",
       "fast": "Exportación rápida",
       "batch": "Lote",
-      "bot": "Bot viral",
+      "bot": "Planificador de clips",
       "file": "Archivo"
     },
     "seconds": "{sec} s",
@@ -4141,7 +4153,7 @@
     "wordsTitle": "Textos por plataforma",
     "tabAll": "Todas las plataformas",
     "regenerate": "Sugerir",
-    "regenerateTip": "Vuelve a escribir el título, la descripción y los hashtags con los textos del bot viral (tus cambios se sustituyen)",
+    "regenerateTip": "Vuelve a escribir el título, la descripción y los hashtags con los textos del planificador de clips (tus cambios se sustituyen)",
     "fieldTitle": "Título (YouTube)",
     "fieldCaption": "Descripción",
     "fieldHashtags": "Hashtags",
@@ -4397,7 +4409,7 @@
     "queueSource": {
       "seeds": "Esta configuración",
       "random": "Semillas aleatorias",
-      "bot": "Plan del bot viral"
+      "bot": "Clips planificados"
     },
     "queueListPlaceholder": "Uno por línea: semillas (123456), enlaces para compartir o un enlace seguido de semillas. Vacío: la partida actual de la página.",
     "queueListLabel": "Semillas y enlaces",
@@ -4406,8 +4418,8 @@
     "queueListInvalid": "líneas ilegibles: {lines}",
     "queueRandomCount": "Clips",
     "queueRandomCeiling": "La cola admite como máximo {max} trabajos (su techo de seguridad de memoria): se sortean esas semillas.",
-    "queueBotHint": "Añade todos los clips del último plan del bot viral (planéalo primero en el bloque Bot de la sección Grabación).",
-    "queueNoBotPlan": "Todavía no hay un plan del bot viral: planifica clips primero en la sección Grabación.",
+    "queueBotHint": "Añade todos los clips del último plan del planificador de clips. Planéalo primero en el bloque Planificador de clips de la sección Grabación.",
+    "queueNoBotPlan": "Todavía no hay un plan de clips. Planifica clips primero en la sección Grabación.",
     "queueResolutions": "Resoluciones",
     "queueFps": "Fotogramas por segundo",
     "queueCodecs": "Códecs",
@@ -4494,7 +4506,7 @@
       "plan": "Planificar publicaciones"
     },
     "aiTaskHint": {
-      "videos": "Describe los clips que quieres: la IA los planifica con el bot viral y Buscar simulación, escribe los textos para cada plataforma y los añade a la cola.",
+      "videos": "Describe los clips que quieres: la IA los planifica con el planificador de clips y Buscar simulación, escribe los textos para cada plataforma y los añade a la cola.",
       "copy": "Títulos, ganchos, descripciones y hashtags para el bloque Publicar, para el clip de la página.",
       "settings": "Di qué quieres cambiar: la IA propone un cambio de ajustes comprobado y lo aplica (con deshacer).",
       "ideas": "Ideas nuevas de clips basadas en la guía de viralidad.",
@@ -4775,7 +4787,7 @@
     "featuresTitle": "Qué añade la aplicación",
     "features": {
       "gpu": "Vídeo en la GPU. La exportación rápida codifica en la tarjeta gráfica, en H.264 y HEVC con NVENC, AMF o Quick Sync, y en AV1 con tarjetas más recientes.",
-      "queue": "Cola de renderizado. Semillas, enlaces o el plan del bot viral, en cada resolución, velocidad de fotogramas y códec que elijas, guardados directamente en una carpeta. Progreso, cancelación, reintentos y reanudación tras un reinicio.",
+      "queue": "Cola de renderizado. Semillas, enlaces o el plan del planificador de clips, en cada resolución, velocidad de fotogramas y códec que elijas, guardados directamente en una carpeta. Progreso, cancelación, reintentos y reanudación tras un reinicio.",
       "ai": "Estudio de IA. Un modelo local, descargado una vez, o tu propia clave en la nube planifica clips, escribe ganchos, descripciones y hashtags, y cambia ajustes cuando se lo pides.",
       "library": "Biblioteca. Cada clip que renderizaste, con su miniatura, duración y texto de publicación. Reprodúcelo, ábrelo en su carpeta, vuelve a renderizarlo o bórralo.",
       "postiz": "Publicar con Postiz. Pro envía un clip de la biblioteca a TikTok, Instagram y YouTube a través de tu propia cuenta de Postiz, y cada publicación la apruebas en una tarjeta. El autopiloto propone publicaciones y tú las apruebas."
@@ -4797,7 +4809,7 @@
     "smartScreenVerify": "Antes de ejecutarlo, comprueba el archivo. En PowerShell, Get-FileHash seguido del nombre del archivo muestra su SHA-256, que debe coincidir con la línea de ese archivo en las sumas de verificación, sin distinguir mayúsculas de minúsculas. También puedes buscar ese SHA-256 en <virustotal>VirusTotal</virustotal>.",
     "smartScreenSteps": "Si las comprobaciones coinciden, elige Conservar en Chrome y, en Windows, Más información y Ejecutar de todas formas.",
     "privacyNoticesTitle": "Software y sonidos de terceros",
-    "privacyNoticesFfmpeg": "ffmpeg, que la app usa para codificar vídeos, tiene licencia GNU GPL versión 3. Es la compilación de gyan.dev sin modificar, se ejecuta como un programa aparte y viene con el texto de su licencia y un enlace a su código fuente.",
+    "privacyNoticesFfmpeg": "ffmpeg, que la app usa para codificar vídeos, tiene licencia GNU GPL versión 3. Es la compilación essentials de gyan.dev de FFmpeg 6.1.1 sin modificar, se ejecuta como un programa aparte y viene con el texto de su licencia. Su código fuente está disponible en el editor de la compilación y en el proyecto FFmpeg, y lo enviamos a petición. La app lista cada componente de terceros en Ayuda, Licencias de terceros.",
     "privacyNoticesOther": "La app también se basa en Electron, Chromium, node-llama-cpp y llama.cpp. Los textos de licencia de ffmpeg, Electron, Chromium y node-llama-cpp se incluyen con la app. Los modelos de IA son descargas aparte con sus propias licencias, que la app muestra antes de descargar. El estudio de IA puede ejecutar Llama 3.2. Built with Llama.",
     "privacyAudio": "Los sonidos integrados los sintetizamos nosotros. Las melodías integradas son temas de dominio público."
   },
@@ -4975,7 +4987,7 @@
         "record": "Grabar vídeo, hasta 1080×1920, con sonido",
         "fastExport": "Exportación rápida, renderizada fotograma a fotograma",
         "batch": "Renderizado por lotes, muchos clips en un ZIP",
-        "bot": "Los vídeos que renderiza el bot viral",
+        "bot": "Los vídeos que renderiza el planificador de clips",
         "publish": "Compartir en TikTok, Instagram y YouTube con el menú de compartir o una descarga",
         "postiz": "Publicaciones desde la app de Windows en TikTok, Instagram y YouTube a través de Postiz, cada una aprobada por ti",
         "desktop": "La cola de renderizado y la codificación por GPU de la app de escritorio"
@@ -5021,7 +5033,7 @@
       "failed": "No se pudo abrir el portal de clientes: {message}",
       "copyKey": "Copiar clave de licencia",
       "copied": "Copiada",
-      "copyHint": "La línea de comandos del bot viral acepta esta clave como BOT_LICENSE.",
+      "copyHint": "La línea de comandos del planificador de clips acepta esta clave como BOT_LICENSE.",
       "remove": "Quitar de este navegador",
       "removeConfirm": "¿Quitar la licencia de este navegador? Puedes restaurarla después con tu recibo.",
       "reference": "Referencia del recibo",
@@ -5057,7 +5069,7 @@
       "record": "Grabar vídeo",
       "fastExport": "La exportación rápida",
       "batch": "El renderizado por lotes",
-      "bot": "Renderizar los clips del bot viral",
+      "bot": "Renderizar los clips del planificador de clips",
       "publish": "El envío rápido a TikTok, Instagram y YouTube",
       "renderQueue": "La cola de renderizado de escritorio",
       "download": "Descargar vídeos renderizados"
@@ -5092,7 +5104,7 @@
     },
     "terms": {
       "title": "Suscripciones Pro",
-      "content": "Jugar con el simulador y grabar o exportar vídeos es gratis. Los vídeos creados sin una licencia Pro llevan marca de agua. Pro cuesta {monthly} al mes o {yearly} al año, en dólares estadounidenses, y al pagar pueden añadirse impuestos. El pago muestra el total antes de que pagues. Pro exporta los vídeos sin marca de agua y añade el envío rápido a TikTok, Instagram y YouTube con el menú de compartir del dispositivo o una descarga. Las suscripciones con tarjeta se renuevan automáticamente hasta que las canceles en el portal de clientes de Stripe. Un pago con cripto compra por adelantado un periodo de 30 o 365 días que no se renueva. La licencia es válida hasta el final del periodo pagado.",
+      "content": "Jugar con el simulador y grabar o exportar vídeos es gratis. Los vídeos creados sin una licencia Pro llevan marca de agua. Pro cuesta {monthly} al mes o {yearly} al año, en dólares estadounidenses, y al pagar pueden añadirse impuestos. La página de pago muestra el total antes de que pagues. Pro exporta los vídeos sin marca de agua y añade el envío rápido a TikTok, Instagram y YouTube con el menú de compartir del dispositivo o una descarga. Las suscripciones con tarjeta se renuevan automáticamente hasta que las canceles en el portal de clientes de Stripe. Un pago con cripto compra por adelantado un periodo de 30 o 365 días que no se renueva. La licencia es válida hasta el final del periodo pagado.",
       "delivery": {
         "title": "Entrega",
         "content": "Pro es una licencia digital y se entrega al instante. Tras el pago, la página de precios la activa en tu navegador y muestra una referencia del recibo. Con tu correo y esa referencia puedes restaurar la licencia en cualquier otro dispositivo o en la app de Windows cuando quieras. No se envía nada físico."
@@ -5104,7 +5116,7 @@
       "withdrawal": {
         "title": "Derecho de desistimiento en la UE y el Reino Unido",
         "content": "Si eres consumidor en la UE o en el Reino Unido, puedes desistir de una compra de Pro en los 14 días siguientes al pago sin dar ninguna razón. Envíanos una declaración clara por correo a {email}. Puedes usar el modelo de formulario de abajo. Reembolsamos en los 14 días siguientes a tu mensaje, al método de pago que usaste o a la dirección de monedero que nos des para un pago con cripto. Pro empieza de inmediato a petición tuya. Si usaste Pro antes de desistir, podemos quedarnos con una parte del precio proporcional a los días usados. Después del primer periodo, la misma regla se aplica a cada renovación.",
-        "form": "Modelo de formulario de desistimiento. A {legalName}, {email}: Desisto de mi contrato de suscripción Pro comprada el {date} con el correo {buyerEmail} y la referencia de recibo {ref}. Nombre, fecha.",
+        "form": "Modelo de formulario de desistimiento. A {legalName}, {email}: Desisto de mi contrato de suscripción Pro comprada el {date} con el correo {buyerEmail} y la referencia del recibo {ref}. Nombre, fecha.",
         "formDate": "fecha",
         "formEmail": "tu correo",
         "formRef": "referencia del recibo",
@@ -5115,7 +5127,7 @@
         "named": "{siteName} y la suscripción Pro los gestiona {legalName}{address}. Los pagos los procesan Stripe para tarjetas y NOWPayments para cripto. En tu extracto aparecerá {siteName} o el nombre del proveedor.",
         "unnamed": "{siteName} y la suscripción Pro los gestiona el operador de {siteDomain}. Los pagos los procesan Stripe para tarjetas y NOWPayments para cripto. En tu extracto aparecerá {siteName} o el nombre del proveedor.",
         "vat": "Número de IVA: {vat}.",
-        "registration": "Registrado como {registration}."
+        "registration": "Datos de registro: {registration}."
       }
     },
     "paste": {
@@ -5134,7 +5146,7 @@
       "lead": "También puedes escribirnos a"
     },
     "checkout": {
-      "line": "Los precios están en dólares estadounidenses. Los impuestos se añaden al pagar donde tu país los cobre, y el pago muestra el total antes de que pagues. Un plan con tarjeta se renueva al mismo precio hasta que lo canceles. Al pagar nos pides que activemos Pro de inmediato y aceptas los <terms>Términos</terms>."
+      "line": "Los precios están en dólares estadounidenses. Los impuestos se añaden al pagar donde tu país los cobre, y la página de pago muestra el total antes de pagar. Un plan con tarjeta se renueva al mismo precio hasta que lo canceles. Al pagar nos pides que activemos Pro de inmediato y aceptas los <terms>Términos</terms>."
     }
   },
   "OrbGrid": {
@@ -5148,14 +5160,14 @@
     "canvasRhythmTimeSub": "en fase cada {cycle} s"
   },
   "FightLeague": {
-    "division_marvel": "Marvel",
-    "division_dc": "DC",
-    "division_nintendo": "Nintendo y Sega",
-    "division_league": "League of Legends",
+    "division_marvel": "Cómics A",
+    "division_dc": "Cómics B",
+    "division_nintendo": "Plataformas",
+    "division_league": "MOBA",
     "division_fighting": "Juegos de lucha",
     "division_legends": "Leyendas de los videojuegos",
     "division_shonen": "Anime shōnen",
-    "division_starWars": "Star Wars",
+    "division_starWars": "Saga espacial",
     "division_fantasy": "Fantasía",
     "division_monsters": "Monstruos del cine",
     "division_action": "Cine de acción",
@@ -5237,7 +5249,7 @@
     "fighter_nightking": "Lanza lanzas de hielo lentas y pesadas; Raise the Dead invoca tres espectros durante cuatro segundos.",
     "fighter_gerald": "Nuestra propia bola se abre paso en la liga a cabezazos; Mega Bounce duplica su velocidad y su daño durante tres segundos.",
     "canvasSudden": "¡MUERTE SÚBITA!",
-    "division_pokemon": "Pokémon",
+    "division_pokemon": "Monstruos de bolsillo",
     "division_modernAnime": "Anime moderno",
     "division_sandbox": "Juegos sandbox y online",
     "division_horror": "Cine de terror",
@@ -5365,6 +5377,7 @@
     "canvasRound_qf": "CUARTOS DE FINAL",
     "canvasRound_sf": "SEMIFINAL",
     "canvasRound_final": "FINAL",
+    "canvasFanMade": "Parodia hecha por fans. Sin afiliación.",
     "canvasChampion": "CAMPEÓN",
     "canvasBossFalls": "CAE EL JEFE – [name]",
     "canvasBossSurvives": "EL JEFE SOBREVIVE [n]/[total]",

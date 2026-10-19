@@ -44,6 +44,7 @@ export default function Footer() {
     { href: "/privacy", label: t("privacy") },
     { href: "/terms", label: t("terms") },
     { href: "/disclaimer", label: t("disclaimer") },
+    { href: "/licences", label: t("licences") } /* --- legal-audit --- the third-party licences */,
   ];
   const familyLabel = (id: string) => (FAMILY_HEADINGS[id] ? headings(FAMILY_HEADINGS[id]) : s.has(`families.${id}`) ? s(`families.${id}`) : id);
   const linkClass = "text-sm text-ink-2 transition-colors duration-150 hover:text-ink [@media(pointer:coarse)]:py-1.5"; // --- perf-pass --- 17 px high links get a 29 px target on touch screens

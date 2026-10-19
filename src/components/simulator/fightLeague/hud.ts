@@ -287,7 +287,7 @@ export class FlHudPainter {
       const hx = right ? bx - 0.008 * lay.side : bx + bw + 0.008 * lay.side;
       // (an outline in the opposite tone: the number reads where a long name's descenders reach down to the bar)
       fr.text.number(ctx, hpText, hx, by + bh / 2, hfs, hud.dark ? "#f4f4f5" : INK, hud.dark ? "rgba(0, 0, 0, 0.6)" : "#ffffff", right ? "right" : "left", alpha);
-      if (!stacked) fr.text.draw(ctx, f.row.source, right ? edge : edge, oy + lay.sourceY, lay.sourceFs, { role: "ui", color: hud.source, stroke: null, weight: 600 }, right ? "right" : "left", 0.4 * lay.side, alpha);
+      // (legal audit: the source line is gone – a franchise name never reaches the canvas)
       this.namesDrawn++;
     }
     // the centre column: the small VS (a duel) and the timer pill

@@ -55,21 +55,21 @@ export function isFlDivision(value: unknown): value is FlDivision {
   return typeof value === "string" && (FL_DIVISIONS as readonly string[]).includes(value);
 }
 
-/** English division labels (the README, tests and tools; the panel translates them: `FightLeague.division_<id>`). */
+/** English division labels (the README, tests and tools; the panel translates them: `FightLeague.division_<id>`). Generic genre words, never a company or franchise name (legal audit). */
 export const FL_DIVISION_LABELS: Readonly<Record<FlDivision, string>> = {
-  marvel: "Marvel",
-  dc: "DC",
-  nintendo: "Nintendo & Sega",
-  league: "League of Legends",
+  marvel: "Comics A",
+  dc: "Comics B",
+  nintendo: "Platformers",
+  league: "MOBA",
   fighting: "Fighting games",
   legends: "Game legends",
   shonen: "Shonen anime",
-  starWars: "Star Wars",
+  starWars: "Space saga",
   fantasy: "Fantasy",
   monsters: "Movie monsters",
   action: "Action movies",
   tv: "TV",
-  pokemon: "Pokémon",
+  pokemon: "Pocket monsters",
   modernAnime: "Modern anime",
   sandbox: "Sandbox & online games",
   horror: "Horror movies",
@@ -731,7 +731,7 @@ export const FL_PRESETS: readonly FlPreset[] = [
   duel("godzilla-kong", "Godzilla vs King Kong", "godzilla", "kingkong"),
   duel("alien-predator", "Alien vs Predator", "alien", "predator"),
   duel("homelander-omniman", "Homelander vs Omni-Man", "homelander", "omniman"),
-  ffa("avengers", "Avengers free-for-all", ["thor", "ironman", "captainamerica", "hulk"]),
+  ffa("avengers", "Comics A free-for-all", ["thor", "ironman", "captainamerica", "hulk"]),
   team("naruto-dbz", "2v2: Naruto + Sasuke vs Goku + Vegeta", ["naruto", "sasuke", "goku", "vegeta"]),
   // --- fl-overhaul --- (Stage 2: the research's 36 more, every one inside one division)
   duel("ryu-ken", "Ryu vs Ken", "ryu", "ken"),
@@ -743,7 +743,7 @@ export const FL_PRESETS: readonly FlPreset[] = [
   duel("spiderman-venom", "Spider-Man vs Venom", "spiderman", "venom"),
   duel("deadpool-wolverine", "Deadpool vs Wolverine", "deadpool", "wolverine"),
   duel("kratos-zeus", "Kratos vs Zeus", "kratos", "zeus"),
-  ffa("justice-league", "Justice League free-for-all", ["superman", "batman", "wonderwoman", "flash"]),
+  ffa("justice-league", "Comics B free-for-all", ["superman", "batman", "wonderwoman", "flash"]),
   duel("batman-superman", "Batman vs Superman", "batman", "superman"),
   team("strawhats-team7", "Straw Hats vs Team 7: Luffy + Zoro vs Naruto + Sasuke", ["luffy", "zoro", "naruto", "sasuke"]),
   duel("gojo-sukuna", "Gojo vs Sukuna", "gojo", "sukuna"),
@@ -761,7 +761,7 @@ export const FL_PRESETS: readonly FlPreset[] = [
   duel("kong-trex", "King Kong vs T-Rex", "kingkong", "trex"),
   duel("jonsnow-nightking", "Jon Snow vs Night King", "jonsnow", "nightking"),
   duel("aang-zuko", "Aang vs Zuko", "aang", "zuko"),
-  ffa("pokemon-ffa", "Pokémon free-for-all", ["pikachu", "charizard", "greninja", "lucario"]),
+  ffa("pokemon-ffa", "Pocket monsters free-for-all", ["pikachu", "charizard", "greninja", "lucario"]),
   duel("steve-creeper", "Steve vs Creeper", "steve", "creeper"),
   ffa("sandbox-ffa", "Sandbox free-for-all", ["steve", "jonesy", "noob", "crewmate"]),
   duel("freddy-jason", "Freddy Krueger vs Jason Voorhees", "freddy", "jason"),
@@ -785,13 +785,13 @@ export const FL_PRESETS: readonly FlPreset[] = [
   trio("avengers-3v3", "3v3: Thor + Iron Man + Captain America vs Thanos + Loki + Venom", ["thor", "ironman", "captainamerica", "thanos", "loki", "venom"]),
   trio("shonen-3v3", "3v3: Goku + Naruto + Luffy vs Frieza + Itachi + Sasuke", ["goku", "naruto", "luffy", "frieza", "itachi", "sasuke"]),
   trio("starwars-3v3", "3v3: Luke + Obi-Wan + Yoda vs Vader + Palpatine + Kylo Ren", ["luke", "obiwan", "yoda", "vader", "palpatine", "kyloren"]),
-  bracket("marvel-8", "Marvel bracket (8)", ["thor", "loki"], "random:marvel", 8),
+  bracket("marvel-8", "Comics A bracket (8)", ["thor", "loki"], "random:marvel", 8),
   bracket("shonen-8", "Shonen bracket (8)", ["goku", "naruto"], "random:shonen", 8),
   bracket("games-16", "Video games bracket (16)", ["mario", "masterchief"], "random:games", 16),
   bracket("anime-16", "Anime bracket (16)", ["goku", "gojo"], "random:anime", 16),
   bracket("movies-16", "Movies bracket (16)", ["luke", "johnwick"], "random:movies", 16),
-  boss("gerald-marvel", "Boss rush: Gerald vs Marvel", "gerald", "random:marvel", 6),
-  boss("gerald-starwars", "Boss rush: Gerald vs Star Wars", "gerald", "random:starWars", 6),
+  boss("gerald-marvel", "Boss rush: Gerald vs Comics A", "gerald", "random:marvel", 6),
+  boss("gerald-starwars", "Boss rush: Gerald vs Space saga", "gerald", "random:starWars", 6),
   boss("gerald-horror", "Boss rush: Gerald vs Horror movies", "gerald", "random:horror", 6),
   boss("gerald-cartoons", "Boss rush: Gerald vs Cartoons", "gerald", "random:cartoons", 6),
   rework("loki-buffed", "Rework: Loki buffed vs Thor", "thor", "loki", { damage: [1, 1.25] }),
@@ -820,17 +820,17 @@ export function flRosterHash(): string {
 }
 
 /**
- * A Markdown table of the roster (the README's, between its `<!-- fl-roster -->` markers): division, fighter, source, weapon,
+ * A Markdown table of the roster (the README's, between its `<!-- fl-roster -->` markers): division, fighter, weapon (never the source: legal audit),
  * the stats (HP % · speed · attack speed · damage · cast speed · size), the ability with its primitives, the role, whether it
  * is new and (--- fl-overhaul --- Stage 7) its look (the body's pattern · crest; "–" for a row without one).
  */
 export function rosterTableMarkdown(): string {
-  const lines = ["| Division | Fighter | Source | Weapon | HP · speed · attack · damage · cast · size | Ability (primitives) | Role | New | Look |", "| --- | --- | --- | --- | --- | --- | --- | --- | --- |"];
+  const lines = ["| Division | Fighter | Weapon | HP · speed · attack · damage · cast · size | Ability (primitives) | Role | New | Look |", "| --- | --- | --- | --- | --- | --- | --- | --- |"];
   for (const r of FL_ROSTER.filter((row) => !row.custom)) {
     const s = r.stats;
     const stats = [s.hp, s.speed, s.attackSpeed, s.damage, s.castSpeed, s.size].join(" · ");
     const prims = r.ability.effects.map((e) => e.p.replace(/[A-Z]/g, (c) => ` ${c.toLowerCase()}`)).join(" + ");
-    lines.push(`| ${FL_DIVISION_LABELS[r.division]} | ${r.name} | ${r.source} | ${weaponLabel(r)} | ${stats} | ${r.ability.name} (${prims}${r.ability.ultimate ? ", ultimate" : ""}) | ${r.role} | ${r.isNew ? "new" : ""} | ${r.look ? `${r.look.pattern} · ${r.look.crest}` : "–"} |`);
+    lines.push(`| ${FL_DIVISION_LABELS[r.division]} | ${r.name} | ${weaponLabel(r)} | ${stats} | ${r.ability.name} (${prims}${r.ability.ultimate ? ", ultimate" : ""}) | ${r.role} | ${r.isNew ? "new" : ""} | ${r.look ? `${r.look.pattern} · ${r.look.crest}` : "–"} |`);
   }
   return lines.join("\n");
 }

@@ -9,7 +9,7 @@ import { LEGAL_LAST_UPDATED } from "@/lib/legalDates"; // --- seo --- the legal 
  * Rendered at build time into out/sitemap.xml. Add new static routes here – only indexable ones: a page whose metadata says
  * `robots: { index: false }` (the feedback form, the account page) stays out (--- review fix (site-static) ---).
  */
-const STATIC_PATHS: readonly string[] = ["", "/simulator", "/about", "/tiktok-ball-videos", "/privacy", "/terms", "/disclaimer", "/gallery" /* --- daily-gallery --- the preset gallery */, "/download" /* --- desktop-exe --- the Windows app */, "/pricing" /* --- paywall-gate --- Free and Pro */, "/changelog" /* --- changelog --- what changed, newest first */, "/press" /* --- press --- the press page */];
+const STATIC_PATHS: readonly string[] = ["", "/simulator", "/about", "/tiktok-ball-videos", "/privacy", "/terms", "/disclaimer", "/gallery" /* --- daily-gallery --- the preset gallery */, "/download" /* --- desktop-exe --- the Windows app */, "/pricing" /* --- paywall-gate --- Free and Pro */, "/changelog" /* --- changelog --- what changed, newest first */, "/press" /* --- press --- the press page */, "/licences" /* --- legal-audit --- the third-party licences */];
 
 export const dynamic = "force-static";
 

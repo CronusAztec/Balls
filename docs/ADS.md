@@ -40,7 +40,7 @@ Nothing in an ad, a caption, a creative, a landing page link text or the press k
 | "Best", "number one", "#1", "ultimate", "unlimited", any comparison with a named app, creator or price | Unprovable. The comment in `src/lib/billing/config.ts` that mentions competitors' prices is not for ads |
 | PayPal | It is off in the live billing Worker. A line may say "card or crypto" |
 | "Publish to TikTok, Instagram and YouTube" | No visitor can connect a channel yet (the relay's `/api/health` lists every platform as off). Say "post", "share" or "export", and never "publish" |
-| Fight League, any fighter, and any franchise or character name (Marvel, DC, Nintendo, Pokémon, Star Wars, Thor, Loki and the rest of the roster) | The mode is a fan-made simulation and the names belong to their owners. No ad, creative, hook or press line uses a fighter name or footage of that mode. The bot's default `--family all` includes Fight League clips, so always pass `--family escape` or `--family rhythm` (section 7). The landing pages show the mode card too: section 4 says where paid traffic may land until the owner has decided about it |
+| Fight League, any fighter, and any franchise or character name (Marvel, DC, Nintendo, Pokémon, Star Wars, Thor, Loki and the rest of the roster) | The mode is a fan-made simulation and the names belong to their owners. No ad, creative, hook or press line uses a fighter name or footage of that mode. The bot without `--family` plans escape and rhythm clips only. `--family all` and `--family battle` are the only way to get Fight League clips, so never pass them for the kit and pass `--family escape` or `--family rhythm` (section 7). The landing pages show the mode card too: section 4 says where paid traffic may land until the owner has decided about it |
 | Third-party music, platform logos or an "official" or "endorsed by" line | Use the built-in tones and the public-domain melodies. Platform names are used only to say where a clip can go ("for TikTok, Reels and Shorts") |
 | The Windows app, until the installer is code signed | Section 3, audience C |
 | Other creators' or accounts' names, or a clip title | House rule (`docs/COPY-STYLE.md`) |
@@ -473,7 +473,7 @@ The viral bot (README "Viral video bot", `docs/virality-playbook.md`) plans a cl
 | `grow-fill` | escape | For viewers of satisfying clips: the ball grows with every bounce until it fills the ring. | 2026-10-19 | `node scripts/viral-bot.mjs --date 2026-10-19 --count 1 --family escape --platform tiktok --bucket standard --ending resolved --out ads-bot-output` |
 | `pendulum-wave` | rhythm | For viewers: pendulums drift out of step and meet again in a chord. Sound is the hook, so the ad says to turn it on. | 2026-10-15 | `node scripts/viral-bot.mjs --date 2026-10-15 --count 1 --family rhythm --platform tiktok --bucket standard --ending resolved --out ads-bot-output` |
 | `drop-symphony` | rhythm | For viewers: balls fall through pegs and every peg is a note. Sound is the hook. | 2026-10-17 | `node scripts/viral-bot.mjs --date 2026-10-17 --count 1 --family rhythm --platform tiktok --bucket standard --ending resolved --out ads-bot-output` |
-| `glass-smash` | rhythm | For creators: Pip, the bot's own ball with a face, drops through floors of glass and every landing cracks a pane. | 2026-10-14 | `node scripts/viral-bot.mjs --date 2026-10-14 --count 1 --family rhythm --platform tiktok --bucket standard --ending resolved --out ads-bot-output` |
+| `glass-smash` | rhythm | For creators: Gerald, the bot's own ball with a face, drops through floors of glass and every landing cracks a pane. | 2026-10-14 | `node scripts/viral-bot.mjs --date 2026-10-14 --count 1 --family rhythm --platform tiktok --bucket standard --ending resolved --out ads-bot-output` |
 
 The hook lines, as the bot writes them (`ViralBot.recipes.<recipe>.hook` in `messages/*.json`; the `{…}` parts come from the plan, so each clip states its own numbers):
 
@@ -484,11 +484,11 @@ The hook lines, as the bot writes them (`ViralBot.recipes.<recipe>.hook` in `mes
 | `grow-fill` | It grows every bounce. Watch it fill the ring. | Rośnie z każdym odbiciem. Patrz, jak wypełni krąg. | Crece con cada rebote. Mira cómo llena el anillo. |
 | `pendulum-wave` | {count} pendulums. Wait for the chord. | Wahadła: {count}. Czekaj na akord. | {count} péndulos. Espera al acorde. |
 | `drop-symphony` | {count} balls. Every peg is a note. | Piłki: {count}. Każdy kołek to nuta. | {count} pelotas. Cada clavo es una nota. |
-| `glass-smash` | Pip vs {stages} floors of glass. | Pip kontra piętra szkła: {stages}. | Pip contra {stages} pisos de cristal. |
+| `glass-smash` | Gerald vs {stages} floors of glass. | Gerald kontra piętra szkła: {stages}. | Gerald contra {stages} pisos de cristal. |
 
 Every command above plans exactly that recipe for that date: the bot's plan is a function of the date, the family, the count and the length bucket (`daySlots()` in `src/lib/bot/planner.ts`), so the same date always gives the same recipe, and `tests/adCopy.test.ts` re-computes the plan for every row. A recipe comes back on a fixed cycle (escape recipes every 6 days, rhythm recipes every 4 days: the rotation is in `node scripts/viral-bot.mjs --plan --date 2026-10-14 --family escape --count 1 --platform tiktok --bucket standard`). Use `--locale pl` or `--locale es` for Polish and Spanish: the studio then loads in that language and the hook, the captions and the hashtags are in it.
 
-**Always pass `--family escape` or `--family rhythm`.** The default, `--family all`, and `--family battle` also plan Fight League clips (fight-duel, fight-upset, fight-bracket, fight-boss), which this kit never uses. The battle family also holds the `territory` recipe with its flashing badge.
+**Always pass `--family escape` or `--family rhythm`.** Without `--family` the bot plans escape and rhythm clips and no Fight League clip (the legal audit), while `--family all` and `--family battle` plan Fight League clips (fight-duel, fight-upset, fight-bracket, fight-boss), which this kit never uses. The battle family also holds the `territory` recipe with its flashing badge.
 
 **How to produce, four ways** (a clean video needs a Pro licence: without one the clips carry the watermark):
 
@@ -507,7 +507,7 @@ The bot prints each clip's plan (recipe, mode, seed, length, payoff time, score 
 
 **Name every creative as its `utm_content`** (rename the file the bot wrote): `c01_ring-escape_9x16_15s_en.mp4`. Test three hook lines per recipe and the resolved ending against the cut-before-the-result ending (the bot alternates them when `--ending` is left at `auto`).
 
-**Do not use:** any `battle` family recipe (Fight League and the flashing badge), the `race` recipes (the 3-2-1 gate opens at 1.8 s, so the first impact comes late: `docs/virality-playbook.md`), and any clip with a song other than the built-in tones and the public-domain melodies. The mascot of the bot's clips is Pip, the ball with a face. Who owns the artwork of Pip and of the Gerald persona is for the owner to confirm with counsel (the legal audit lists it as unverified).
+**Do not use:** any `battle` family recipe (Fight League and the flashing badge), the `race` recipes (the 3-2-1 gate opens at 1.8 s, so the first impact comes late: `docs/virality-playbook.md`), and any clip with a song other than the built-in tones and the public-domain melodies. The mascot of the bot's clips is Gerald, the ball with a face. Who owns the artwork of Gerald and of the Gerald persona is for the owner to confirm with counsel (the legal audit lists it as unverified).
 
 ## 8. Measurement, phase A: no pixels
 
