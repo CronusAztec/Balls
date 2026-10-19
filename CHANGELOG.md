@@ -7,6 +7,29 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Windows app 1.4.0 · 2026-10-19
+
+Post through Postiz, with an autopilot that proposes
+
+### New
+
+- The Accounts tab takes your Postiz API key. It is stored encrypted on your PC and used only with your own Postiz, where your channels are connected.
+- Post with Postiz sends a clip from the Library to TikTok, Instagram or YouTube through Postiz. Every post goes out only after you approve it on a card.
+- The approval card asks for the TikTok, Instagram and YouTube settings of each post, such as the audience, the comments and the title.
+- The Posts tab lists what is scheduled, posted, failed and drafted in Postiz, with retry and delete.
+- The autopilot proposes posts for your unposted clips, within the channels, the daily number and the quiet hours you set. It never posts by itself. Nothing goes out until you approve it.
+- The AI studio has a Plan posts job that drafts proposals and sends them to the Posts tab.
+
+## Website 1.11.0 · 2026-10-19
+
+The Account page points to Postiz for the Windows app
+
+### Improved
+
+- The Account page says that an account serves the browser studio's relay, and that the Windows app connects channels in Postiz and posts from its Accounts and Posts tabs.
+- The privacy policy and the terms describe posting through Postiz from the Windows app: what stays on your PC, what goes to your Postiz and whose rules apply.
+- The download and pricing pages name posting through Postiz among the Windows app's Pro features, with the autopilot that proposes posts you approve.
+
 ## Website 1.10.0 · 2026-10-14
 
 Versions, a changelog and pages ready to share

@@ -3712,7 +3712,7 @@ To add a studio job: give its task a `name`, bound its strings in the answer sch
 `normaliseFinal` for what a small model gets wrong, and a `finalHint` when its schema is long. To add a status check: a row
 in `runAiDiagnostics()` with its codes, and their texts under `DesktopAiFix.check` in every messages file (tested).
 
-### Windows app: Postiz (social autopilot, phase 1)
+### Windows app: Postiz (social autopilot)
 
 Feature social-postiz (docs/SOCIAL-AUTOPILOT.md). The app posts through **Postiz** (postiz.com, cloud or self-hosted), where the
 creator has already connected TikTok, Instagram, YouTube and the rest; the app never holds a platform token. Phase 1 is the
@@ -3791,6 +3791,16 @@ posted until the user approves it on the card:
   the card prefilled, the user completes TikTok's choices and approves; Skip; Remove) and the **Autopilot** card (toggle,
   channel checkboxes, per day, quiet hours, language, Propose now, "The autopilot only proposes. Nothing is posted until you
   approve it here.").
+
+Phase 5 (copy, legal, release, 2026-10-19): channels are connected in **Postiz**, not on the website's Account page. The
+Account page (`Account.*`) now says it serves the browser studio's relay, and a callout on top of its panel (`Account.postiz.*`)
+sends Windows app users to postiz.com and the download page; the relay sign-in and channel UI stay for the browser studio
+(tests/account.test.ts). The privacy policy has a "Postiz:" item under the Windows app and a paragraph under publishing (the
+key stays encrypted on the PC, a clip and its text go to the user's own Postiz only on Approve, Postiz posts under its own terms
+and privacy policy, we receive nothing), the terms a clause under Acceptable Use (Postiz's terms and the platforms' rules
+apply, Postiz is not ours, the user answers for what they approve), and the download and pricing pages name posting through
+Postiz as a Pro feature with the autopilot that only proposes. Windows app 1.4.0 and website 1.11.0 carry it (the changelog,
+docs/RELEASING.md). Nothing is scheduled by the app itself and TikTok posts stay private until TikTok audits the Postiz app.
 
 Tests: `desktop/tests/socialQueue.test.ts` (persist and restore, merge, the cap and the 14-day drop, approve runs the poster
 exactly once and only with the card's request, skip / remove / edit, events, the settings' sanitising and quiet hours, the

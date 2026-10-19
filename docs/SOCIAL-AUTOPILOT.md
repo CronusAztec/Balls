@@ -209,6 +209,20 @@ Rules in code:
    (Postiz's and the platforms' rules), the download and pricing pages ("post through Postiz" replaces "share"), changelog
    Windows app 1.4.0, docs (RELEASING, this file), and the website's Account page: no longer the place to connect channels (it
    points to Postiz), the relay's channel-connect code is retired in a later cleanup.
+   **Built** (2026-10-19): the privacy policy's Windows app list has a "Postiz:" item (`Privacy.windowsApp.postiz`: the key
+   encrypted on the PC, a clip and its text to the user's own Postiz only on Approve, Postiz posts under its own terms and
+   privacy policy, we receive nothing) and the publishing section a paragraph with the same facts (`Privacy.publishing.postiz`);
+   the terms' Acceptable Use section a clause (`Terms.acceptable.postiz`: Postiz's terms and the platforms' rules apply, Postiz is
+   not operated by us, the user answers for every post they approve); `LEGAL_LAST_UPDATED` 2026-10-19. The download page's
+   feature list has "Post through Postiz" (`Desktop.features.postiz`) and the pricing page's comparison a Pro-only row
+   (`Billing.compare.create.postiz`, the smoke test counts 13 rows and 2 Pro-only ones); both say the autopilot proposes and
+   the user approves, neither promises scheduling or public TikTok posts. The Account page (`Account.metaDescription`,
+   `lede`, `free`) now serves the browser studio's relay, and a callout on top of the panel (`Account.postiz.*`,
+   `data-testid="account-postiz"`) links to postiz.com and the download page in en / pl / es; the relay sign-in and channel UI
+   stay for the browser studio. Changelog: Windows app 1.4.0 and website 1.11.0 (same day) in `src/content/changelog.json`,
+   `CHANGELOG.md` regenerated, `npm run release:desktop -- 1.4.0` and `npm version 1.11.0`. README ("Windows app: Postiz")
+   and docs/RELEASING.md (the smoke step's AI jobs on 2-core runners) updated. Still to do: the relay's channel-connect
+   retirement (the browser studio uses it), Postiz in the privacy policy's third-party list with its own policy link.
 
 Each phase: vitest with stand-in servers, the desktop tests, a read-only review (security, copy), then `main`.
 

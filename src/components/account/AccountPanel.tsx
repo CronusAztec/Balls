@@ -18,6 +18,8 @@ import { assetPath } from "@/lib/site";
  * number of TikTok, Instagram and YouTube accounts, each added through the platform's own sign-in popup and kept on the
  * relay – then a pointer to the studio's Publish block, and Security (change the password, delete the account). The account's
  * state is lib/account/controller.ts; the channels are the Publish controller's relay accounts of the account's profile.
+ * --- social-postiz --- The Windows app no longer connects channels here: a callout on top (Account.postiz) sends it to Postiz,
+ * where the channels are connected, and to the download page. The relay UI below stays for the browser studio.
  */
 
 const PLATFORM_NAMES: Record<PublishPlatform, string> = { tiktok: "TikTok", instagram: "Instagram", youtube: "YouTube" };
@@ -416,6 +418,19 @@ export default function AccountPanel({ embedded = false }: { embedded?: boolean 
   const noPlatform = a.healthStatus === "ok" && !!a.health && !a.health.platforms.tiktok && !a.health.platforms.instagram && !a.health.platforms.youtube;
   return (
     <>
+      {/* --- social-postiz --- the Windows app connects channels in Postiz and posts from its Accounts and Posts tabs, not here */}
+      <div className="mb-6 max-w-[640px] rounded-xl border border-line bg-surface-1 p-4" data-testid="account-postiz">
+        <p className="text-md font-medium text-ink">{t("postiz.title")}</p>
+        <p className="mt-1 text-sm leading-relaxed text-ink-2">{t("postiz.text")}</p>
+        <p className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+          <a href="https://postiz.com" target="_blank" rel="noopener noreferrer" className="text-accent underline">
+            {t("postiz.link")}
+          </a>
+          <SiteLink href="/download" embedded={embedded} className="text-accent underline">
+            {t("postiz.download")}
+          </SiteLink>
+        </p>
+      </div>
       {noPlatform && (
         <div role="status" className="mb-6 max-w-[640px] rounded-xl border border-warn/30 bg-warn/5 p-4" data-testid="account-channels-closed">
           <p className="text-md font-medium text-ink">{t("closed.title")}</p>

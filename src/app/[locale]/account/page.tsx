@@ -10,8 +10,9 @@ import { SITE_NAME } from "@/lib/site";
 
 /*
  * --- user-accounts --- The account page: create an account or sign in, and connect any number of TikTok, Instagram and
- * YouTube accounts. The same static page serves the website and the Windows app (app://). It is personal, so it is left out of
- * the search index and the sitemap; the live part is components/account/AccountPanel.tsx (the Account namespace).
+ * YouTube accounts for the browser studio's relay. The same static page serves the website and the Windows app (app://), where
+ * --- social-postiz --- the channels are connected in Postiz instead and the panel's callout says so. It is personal, so it is
+ * left out of the search index and the sitemap; the live part is components/account/AccountPanel.tsx (the Account namespace).
  */
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {

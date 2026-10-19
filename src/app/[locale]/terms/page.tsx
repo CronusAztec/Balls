@@ -86,6 +86,8 @@ export default async function TermsPage({ params }: { params: Promise<{ locale: 
           <li>{t("acceptable.item3")}</li>
           <li>{t("acceptable.item4")}</li>
         </ul>
+        {/* --- social-postiz --- posting through Postiz from the Windows app: Postiz's terms and the platforms' rules apply, the user answers for what they approve */}
+        <p>{t("acceptable.postiz")}</p>
       </section>
       {PLAIN.map((k) => (
         <section key={k} id={k}>

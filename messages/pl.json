@@ -2757,7 +2757,8 @@
       "revokeLink": "ustawieniach dostępu aplikacji innych firm na koncie Google",
       "youtube4": ".",
       "relay": "Dla konta relay przechowuje Twój adres e-mail, podane imię, hash hasła z solą, a nigdy samo hasło, oraz połączone kanały wraz z tokenami. Trzyma je, dopóki nie usuniesz konta na stronie Konto. Relay trzyma też każdy wysłany klip pod trudnym do odgadnięcia linkiem przez 24 godziny, aby platforma mogła go pobrać.",
-      "availability": "To, czy da się połączyć kanał, zależy od platform, które relay ma włączone. Strona Konto mówi, kiedy żadna nie jest włączona."
+      "availability": "To, czy da się połączyć kanał, zależy od platform, które relay ma włączone. Strona Konto mówi, kiedy żadna nie jest włączona.",
+      "postiz": "Aplikacja na Windows może też publikować przez Postiz, zewnętrzną usługę na postiz.com, w chmurze albo na własnym serwerze, w której łączysz swoje kanały. Aplikacja wysyła klip i tekst posta do Twojego Postiz tylko wtedy, gdy zatwierdzisz post. Postiz publikuje na platformach na własnych warunkach i według własnej polityki prywatności. My nie otrzymujemy nic."
     },
     "controller": {
       "title": "Kto odpowiada za dane",
@@ -2796,6 +2797,10 @@
         "label": "AI w chmurze:",
         "content": "Jeśli wpiszesz klucz dostawcy w chmurze, aplikacja wysyła Twoje zapytania do tego dostawcy. Klucz jest zapisany w postaci zaszyfrowanej na Twoim komputerze i nie trafia nigdzie indziej."
       },
+      "postiz": {
+        "label": "Postiz:",
+        "content": "Jeśli wkleisz klucz API Postiz, jest on zapisany w postaci zaszyfrowanej na Twoim komputerze i trafia tylko do Twojego Postiz, na postiz.com albo na Twoim własnym serwerze. Klip i tekst posta idą do Twojego Postiz tylko wtedy, gdy zatwierdzisz post na jego karcie. Postiz publikuje je potem na platformach na własnych warunkach i według własnej polityki prywatności. Aplikacja nie wysyła nam o tym nic."
+      },
       "accounts": {
         "label": "Konto i publikowanie:",
         "content": "Logowanie, publikowanie i sprawdzanie, czy relay działa, korzystają z serwera relay i z platform, jak opisano wyżej."
@@ -2829,7 +2834,8 @@
       "item1": "Zakłócać, przeciążać ani ingerować w infrastrukturę Serwisu.",
       "item2": "Używać zautomatyzowanych narzędzi do kopiowania kodu lub zasobów Serwisu.",
       "item3": "Wgrywać treści nielegalnych, szkodliwych lub naruszających prawa własności intelektualnej innych osób.",
-      "item4": "Przedstawiać Serwisu jako własnego produktu."
+      "item4": "Przedstawiać Serwisu jako własnego produktu.",
+      "postiz": "Publikowanie przez Postiz z aplikacji na Windows podlega warunkom Postiz oraz zasadom TikToka, Instagrama i YouTube. Postiz to zewnętrzna usługa, której nie prowadzimy. Odpowiadasz za każdy post, który zatwierdzasz, i za jego treść."
     },
     "intellectual": {
       "title": "5. Własność intelektualna",
@@ -4728,7 +4734,8 @@
       "gpu": "Wideo na GPU. Szybki eksport koduje na karcie graficznej, w H.264 i HEVC przez NVENC, AMF albo Quick Sync oraz w AV1 na nowszych kartach.",
       "queue": "Kolejka renderowania. Ziarna, linki albo plan wiralowego bota, w każdej wybranej rozdzielczości, liczbie klatek i kodeku, zapisywane prosto do folderu. Postęp, anulowanie, ponawianie i wznawianie po restarcie.",
       "ai": "Studio AI. Lokalny model, pobierany raz, albo Twój własny klucz do chmury planuje klipy, pisze haczyki, opisy i hashtagi oraz zmienia ustawienia na prośbę.",
-      "library": "Biblioteka. Każdy wyrenderowany klip z miniaturą, długością i tekstem posta. Odtwórz, pokaż w folderze, wyrenderuj ponownie albo usuń."
+      "library": "Biblioteka. Każdy wyrenderowany klip z miniaturą, długością i tekstem posta. Odtwórz, pokaż w folderze, wyrenderuj ponownie albo usuń.",
+      "postiz": "Publikowanie przez Postiz. Pro wysyła klip z biblioteki na TikToka, Instagrama i YouTube przez Twoje własne konto Postiz, a każdy post zatwierdzasz na karcie. Autopilot proponuje posty, Ty je zatwierdzasz."
     },
     "privacyTitle": "Prywatność",
     "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja nie wysyła nam danych o użyciu. Łączy się z internetem, żeby sprawdzić aktualizacje, kupić, przywrócić lub odnowić licencję Pro, pobrać model, o który poprosisz, oraz dla funkcji konta i publikowania, z których korzystasz. Polityka prywatności opisuje każdy z tych przypadków.",
@@ -4927,6 +4934,7 @@
         "batch": "Renderowanie seryjne, wiele klipów w jednym ZIP-ie",
         "bot": "Filmy renderowane przez bota",
         "publish": "Udostępnianie na TikToku, Instagramie i YouTube przez arkusz udostępniania lub pobranie",
+        "postiz": "Posty z aplikacji na Windows na TikToka, Instagrama i YouTube przez Postiz, każdy zatwierdzany przez Ciebie",
         "desktop": "Kolejka renderowania i kodowanie na GPU w aplikacji na komputer"
       },
       "withWatermark": "Ze znakiem wodnym",
@@ -5959,11 +5967,17 @@
   },
   "Account": {
     "metaTitle": "Twoje konto – {siteName}",
-    "metaDescription": "Zaloguj się lub załóż darmowe konto. Służy tylko do łączenia kanałów TikTok, Instagram i YouTube przez relay, w przeglądarce i w aplikacji na Windows.",
+    "metaDescription": "Zaloguj się lub załóż darmowe konto do relay studia w przeglądarce. W aplikacji na Windows kanały łączysz w Postiz, a posty idą przez aplikację.",
     "eyebrow": "Konto",
     "title": "Jedno konto dla wszystkich kanałów",
-    "lede": "Konto służy tylko do łączenia Twoich kanałów TikTok, Instagram i YouTube przez relay. Działa w każdej przeglądarce i w aplikacji na Windows.",
-    "free": "Założenie konta jest darmowe. Udostępnianie klipu ze studia to funkcja Pro.",
+    "lede": "Konto służy tylko studiu w przeglądarce, które łączy kanały TikTok, Instagram i YouTube przez relay. W aplikacji na Windows kanały łączysz w Postiz, a posty idą przez zakładki Konta i Posty w aplikacji.",
+    "free": "Założenie konta jest darmowe. Udostępnianie klipu ze studia i publikowanie przez Postiz to funkcje Pro.",
+    "postiz": {
+      "title": "Aplikacja na Windows: publikuj przez Postiz",
+      "text": "Aplikacja na Windows nie używa tego konta do kanałów. Kanały TikTok, Instagram i YouTube łączysz w Postiz. Wklej klucz API Postiz w zakładce Konta w aplikacji, a posty idą przez zakładkę Posty, każdy zatwierdzony przez Ciebie.",
+      "link": "Otwórz Postiz",
+      "download": "Pobierz aplikację na Windows"
+    },
     "tabs": {
       "label": "Formularz konta",
       "signUp": "Załóż konto",

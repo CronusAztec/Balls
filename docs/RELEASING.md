@@ -77,6 +77,16 @@ starts with the commit you pushed (the footer of a freshly loaded page says the 
    Releases in this repository keeps `desktop-v1.0.4` as the archive (its notes list the changes since the last release by themselves). The
    same push deploys the website, whose download page then names the new version.
 
+The release job packages, signs (when a certificate is set) and smoke-runs the packaged app on every run: the window, the
+bridge, the canvas and the start of llama.cpp. The two real AI jobs of that smoke (a Settings run and a Captions run on the
+small model) need a runner with at least 4 processors: GitHub's 2-core runners, which a **private** repository gets, have one
+core left for the maths and the first job produced nothing in 20 minutes there, so the workflow skips the two jobs on them and
+the release goes through without them. They run whenever a runner with 4 or more cores is used: a manual **Run workflow** on a
+larger runner, or every push once the repository is public again. Until then a version bump still produces the installers, only
+the AI jobs are unexercised in CI (run `npm run smoke` with `JBL_SMOKE_MODEL` on a PC before a release that changes the AI
+studio). Should the job still go red, the website deploys from the same push regardless, and the download page then names a
+version the installers do not have yet until the run is repaired or the next patch version is released.
+
 When the release comes in a pull request, do not merge until the pull request's **Windows app** check is green (on a pull
 request that workflow builds, tests, packages and smoke-runs the app; it publishes nothing). The website deploys within about ten
 minutes of the merge, on its own and without waiting for the Windows job, and from then on the download page, the press page and the

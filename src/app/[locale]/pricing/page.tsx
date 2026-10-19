@@ -23,7 +23,7 @@ import { Link } from "@/i18n/navigation"; // --- go-live-kit --- the refunds not
  */
 
 const PLAY_ROWS = ["modes", "sound", "finder", "presets", "gallery", "editor"] as const;
-const CREATE_ROWS = ["record", "fastExport", "batch", "bot", "publish", "desktop"] as const;
+const CREATE_ROWS = ["record", "fastExport", "batch", "bot", "publish", "postiz", "desktop"] as const; // --- social-postiz --- postiz: the Windows app's posting through Postiz, Pro only
 /** --- free-watermark --- the video-making rows Free has too – with the watermark (Publish stays Pro). */
 const WATERMARKED_ROWS: readonly string[] = ["record", "fastExport", "batch", "bot", "desktop"];
 const NOTES = ["renew", "refunds" /* --- go-live-kit --- */, "crypto", "licence", "devices", "watermark" /* --- free-watermark --- */] as const;

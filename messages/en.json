@@ -2757,7 +2757,8 @@
       "revokeLink": "Google account's third-party access settings",
       "youtube4": ".",
       "relay": "For an account the relay keeps your email address, the name you gave, a salted hash of your password and never the password itself, and the channels you connect with their tokens. It keeps them until you delete the account on the Account page. The relay also keeps each uploaded clip at an unguessable link for 24 hours so that the platform can fetch it.",
-      "availability": "Whether a channel can be connected depends on the platforms the relay has switched on. The Account page says when none is."
+      "availability": "Whether a channel can be connected depends on the platforms the relay has switched on. The Account page says when none is.",
+      "postiz": "The Windows app can also post through Postiz, a third party at postiz.com, cloud or self-hosted, where you connect your channels. The app sends a clip and its post text to your Postiz only when you approve a post. Postiz posts to the platforms under its own terms and privacy policy. We receive nothing."
     },
     "controller": {
       "title": "Who is responsible",
@@ -2796,6 +2797,10 @@
         "label": "Cloud AI:",
         "content": "If you enter a key for a cloud provider, the app sends your requests to that provider. The key is stored encrypted on your PC and goes nowhere else."
       },
+      "postiz": {
+        "label": "Postiz:",
+        "content": "If you paste a Postiz API key, it is stored encrypted on your PC and is sent only to your Postiz, at postiz.com or on your own server. A clip and its post text go to your Postiz only when you approve a post on its card. Postiz then posts to the platforms under its own terms and privacy policy. The app sends us nothing about it."
+      },
       "accounts": {
         "label": "Account and publishing:",
         "content": "Signing in, publishing and checking whether the relay is up use the relay server and the platforms, as described above."
@@ -2829,7 +2834,8 @@
       "item1": "Disrupt, overload or interfere with the Service's infrastructure.",
       "item2": "Use automated tools to scrape or copy the Service's code or assets.",
       "item3": "Upload content that is illegal, harmful or infringes the intellectual property rights of others.",
-      "item4": "Present the Service as your own product."
+      "item4": "Present the Service as your own product.",
+      "postiz": "Posting through Postiz from the Windows app is subject to Postiz's terms and to the rules of TikTok, Instagram and YouTube. Postiz is a third party and is not operated by us. You are responsible for every post you approve and for the content it carries."
     },
     "intellectual": {
       "title": "5. Intellectual Property",
@@ -4728,7 +4734,8 @@
       "gpu": "GPU video. The fast export encodes on the graphics card, with H.264 and HEVC through NVENC, AMF or Quick Sync, and with AV1 on newer cards.",
       "queue": "Render queue. Seeds, share links or the viral bot's plan, in every resolution, frame rate and codec you pick, saved straight into a folder. Progress, cancel, retry and resume after a restart.",
       "ai": "AI studio. A local model, downloaded once, or your own cloud key plans clips, writes hooks, captions and hashtags, and changes settings on request.",
-      "library": "Library. Every clip you rendered with its thumbnail, length and post text. Play, show in folder, re-render or delete."
+      "library": "Library. Every clip you rendered with its thumbnail, length and post text. Play, show in folder, re-render or delete.",
+      "postiz": "Post through Postiz. Pro sends a Library clip to TikTok, Instagram and YouTube through your own Postiz account, and you approve every post on a card. The autopilot proposes posts, you approve them."
     },
     "privacyTitle": "Privacy",
     "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app sends us no usage data. It goes online to check for updates, to buy, restore or renew your Pro licence, to download a model you asked for, and for the account and publishing features you use. The privacy policy lists each one.",
@@ -4927,6 +4934,7 @@
         "batch": "Batch render, many clips in one ZIP",
         "bot": "The viral bot's renders",
         "publish": "Share to TikTok, Instagram and YouTube with the share sheet or a download",
+        "postiz": "Posting from the Windows app to TikTok, Instagram and YouTube through Postiz, every post approved by you",
         "desktop": "The desktop app's render queue and GPU encoding"
       },
       "withWatermark": "With watermark",
@@ -5959,11 +5967,17 @@
   },
   "Account": {
     "metaTitle": "Your account – {siteName}",
-    "metaDescription": "Sign in or create a free account. It is only needed to connect TikTok, Instagram and YouTube channels through a relay, in every browser and the Windows app.",
+    "metaDescription": "Sign in or create a free account for the browser studio's relay. In the Windows app, channels are connected in Postiz and posts go through the app.",
     "eyebrow": "Account",
     "title": "One account for all your channels",
-    "lede": "An account is only for connecting your TikTok, Instagram and YouTube channels through a relay. It works in every browser and in the Windows app.",
-    "free": "Creating an account is free. Sharing a clip from the studio is a Pro feature.",
+    "lede": "An account is only for the browser studio, which connects TikTok, Instagram and YouTube channels through a relay. In the Windows app, channels are connected in Postiz and posts go through the app's Accounts and Posts tabs.",
+    "free": "Creating an account is free. Sharing a clip from the studio and posting through Postiz are Pro features.",
+    "postiz": {
+      "title": "Windows app: post through Postiz",
+      "text": "The Windows app does not use this account for channels. Your TikTok, Instagram and YouTube channels are connected in Postiz. Paste your Postiz API key in the app's Accounts tab, and posts go through the Posts tab, each one approved by you.",
+      "link": "Open Postiz",
+      "download": "Get the Windows app"
+    },
     "tabs": {
       "label": "Account form",
       "signUp": "Create account",

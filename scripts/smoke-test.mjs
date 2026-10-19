@@ -10576,7 +10576,7 @@ await smokeBlock("paywall-gate", async () => {
         pricing[locale].status = res.status();
       }
       await fp.screenshot({ path: path.join(outDir, "paywall-pricing-es.png"), fullPage: true });
-      const pricingOk = (p, locale) => p.status === 200 && p.h1.length > 5 && p.lang === locale && /6[.,]99/.test(p.prices[0]) && p.prices[1].includes("49") && p.pays.every((x) => x === "stripe,paypal,crypto") && p.save && p.testMode && p.rows === 12 && p.proOnly === 1 && p.watermarked === 5 && p.restore; // --- free-watermark --- (Publish is Pro only; Free makes the other five with the watermark)
+      const pricingOk = (p, locale) => p.status === 200 && p.h1.length > 5 && p.lang === locale && /6[.,]99/.test(p.prices[0]) && p.prices[1].includes("49") && p.pays.every((x) => x === "stripe,paypal,crypto") && p.save && p.testMode && p.rows === 13 && p.proOnly === 2 && p.watermarked === 5 && p.restore; // --- free-watermark --- (Publish and --- social-postiz --- posting through Postiz are Pro only; Free makes the other five with the watermark)
       const sitemapXml = await (await fp.request.get(`${BASE}/sitemap.xml`)).text();
       await fp.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
       const navHref = await fp.locator("header").getByRole("link", { name: "Pricing", exact: true }).first().getAttribute("href").catch(() => null);
@@ -13231,7 +13231,7 @@ await smokeBlock("free-watermark", async () => {
     }
     const pricingOk =
       /watermark/i.test(copy.en.h1) && /znaku wodnego/i.test(copy.pl.h1) && /marca de agua/i.test(copy.es.h1) &&
-      ["en", "pl", "es"].every((l) => copy[l].watermarkRows === 5 && copy[l].proRows === 1) &&
+      ["en", "pl", "es"].every((l) => copy[l].watermarkRows === 5 && copy[l].proRows === 2) && // --- social-postiz --- Publish and Postiz posting are the Pro-only rows
       /With watermark/.test(copy.en.table) && /No watermark/.test(copy.en.table) && /Ze znakiem wodnym/.test(copy.pl.table) && /Sin marca de agua/.test(copy.es.table);
     await free.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
     await free.getByTestId("free-watermark-note").waitFor({ timeout: 10000 }).catch(() => {});

@@ -9,7 +9,7 @@ import { DESKTOP_VERSION, PORTABLE_ASSET, SETUP_ASSET, latestAssetUrl } from "@/
 import { buttonClass } from "@/components/ui/Button";
 import { Link } from "@/i18n/navigation"; // --- legal-copy ---
 import { PLANS, formatUsd } from "@/lib/billing/config"; // --- legal-copy --- the price in the free note comes from the plans
-import { IconBolt, IconDesktop, IconDownload, IconFolder, IconSparkle, IconVideo, IconWarning, type IconProps } from "@/components/ui/icons";
+import { IconBolt, IconDesktop, IconDownload, IconFolder, IconSparkle, IconUsers, IconVideo, IconWarning, type IconProps } from "@/components/ui/icons";
 
 /*
  * --- desktop-exe --- The download page of the Windows app: the latest installer and portable EXE from the downloads repository, the
@@ -25,11 +25,12 @@ import { IconBolt, IconDesktop, IconDownload, IconFolder, IconSparkle, IconVideo
  */
 
 const REQUIREMENTS = ["os", "gpu", "disk", "ram"] as const;
-const FEATURES: readonly (readonly ["gpu" | "queue" | "ai" | "library", (p: IconProps) => React.ReactNode])[] = [
+const FEATURES: readonly (readonly ["gpu" | "queue" | "ai" | "library" | "postiz", (p: IconProps) => React.ReactNode])[] = [
   ["gpu", IconBolt],
   ["queue", IconVideo],
   ["ai", IconSparkle],
   ["library", IconFolder],
+  ["postiz", IconUsers], // --- social-postiz --- posting through the user's Postiz (Pro), every post approved on a card
 ];
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {

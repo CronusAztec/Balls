@@ -2757,7 +2757,8 @@
       "revokeLink": "ajustes de acceso de terceros de tu cuenta de Google",
       "youtube4": ".",
       "relay": "Para una cuenta, el relay guarda tu correo electrónico, el nombre que diste, un hash con sal de tu contraseña, nunca la contraseña, y los canales que conectas con sus tokens. Los conserva hasta que borres la cuenta en la página Cuenta. El relay también conserva cada clip subido en un enlace imposible de adivinar durante 24 horas para que la plataforma pueda descargarlo.",
-      "availability": "Que se pueda conectar un canal depende de las plataformas que el relay tenga activadas. La página Cuenta avisa cuando no hay ninguna."
+      "availability": "Que se pueda conectar un canal depende de las plataformas que el relay tenga activadas. La página Cuenta avisa cuando no hay ninguna.",
+      "postiz": "La app de Windows también puede publicar a través de Postiz, un tercero en postiz.com, en la nube o en tu propio servidor, donde conectas tus canales. La app envía un clip y el texto de su publicación a tu Postiz solo cuando apruebas la publicación. Postiz publica en las plataformas bajo sus propios términos y su propia política de privacidad. Nosotros no recibimos nada."
     },
     "controller": {
       "title": "Quién es responsable",
@@ -2796,6 +2797,10 @@
         "label": "IA en la nube:",
         "content": "Si introduces una clave de un proveedor en la nube, la app envía tus peticiones a ese proveedor. La clave se guarda cifrada en tu PC y no va a ningún otro sitio."
       },
+      "postiz": {
+        "label": "Postiz:",
+        "content": "Si pegas una clave API de Postiz, se guarda cifrada en tu PC y solo se envía a tu Postiz, en postiz.com o en tu propio servidor. Un clip y el texto de su publicación van a tu Postiz solo cuando apruebas la publicación en su tarjeta. Postiz la publica después en las plataformas bajo sus propios términos y su propia política de privacidad. La app no nos envía nada al respecto."
+      },
       "accounts": {
         "label": "Cuenta y publicación:",
         "content": "Iniciar sesión, publicar y comprobar si el relay está activo usan el servidor relay y las plataformas, como se describe arriba."
@@ -2829,7 +2834,8 @@
       "item1": "Interrumpir, sobrecargar o interferir con la infraestructura del Servicio.",
       "item2": "Usar herramientas automatizadas para extraer o copiar el código o los recursos del Servicio.",
       "item3": "Subir contenido ilegal, dañino o que infrinja derechos de propiedad intelectual de terceros.",
-      "item4": "Presentar el Servicio como producto propio."
+      "item4": "Presentar el Servicio como producto propio.",
+      "postiz": "Publicar a través de Postiz desde la app de Windows está sujeto a los términos de Postiz y a las normas de TikTok, Instagram y YouTube. Postiz es un tercero que no gestionamos nosotros. Eres responsable de cada publicación que apruebas y de su contenido."
     },
     "intellectual": {
       "title": "5. Propiedad intelectual",
@@ -4728,7 +4734,8 @@
       "gpu": "Vídeo en la GPU. La exportación rápida codifica en la tarjeta gráfica, en H.264 y HEVC con NVENC, AMF o Quick Sync, y en AV1 con tarjetas más recientes.",
       "queue": "Cola de renderizado. Semillas, enlaces o el plan del bot viral, en cada resolución, velocidad de fotogramas y códec que elijas, guardados directamente en una carpeta. Progreso, cancelación, reintentos y reanudación tras un reinicio.",
       "ai": "Estudio de IA. Un modelo local, descargado una vez, o tu propia clave en la nube planifica clips, escribe ganchos, descripciones y hashtags, y cambia ajustes cuando se lo pides.",
-      "library": "Biblioteca. Cada clip que renderizaste, con su miniatura, duración y texto de publicación. Reprodúcelo, ábrelo en su carpeta, vuelve a renderizarlo o bórralo."
+      "library": "Biblioteca. Cada clip que renderizaste, con su miniatura, duración y texto de publicación. Reprodúcelo, ábrelo en su carpeta, vuelve a renderizarlo o bórralo.",
+      "postiz": "Publicar con Postiz. Pro envía un clip de la biblioteca a TikTok, Instagram y YouTube a través de tu propia cuenta de Postiz, y cada publicación la apruebas en una tarjeta. El autopiloto propone publicaciones y tú las apruebas."
     },
     "privacyTitle": "Privacidad",
     "privacyBody": "Todo funciona en tu PC. La IA local funciona sin conexión. Una clave de la nube que introduzcas se guarda cifrada y solo se envía al proveedor que elegiste. La app no nos envía datos de uso. Se conecta para buscar actualizaciones, comprar, restaurar o renovar tu licencia Pro, descargar un modelo que pediste y para las funciones de cuenta y publicación que uses. La política de privacidad los detalla todos.",
@@ -4927,6 +4934,7 @@
         "batch": "Renderizado por lotes, muchos clips en un ZIP",
         "bot": "Los vídeos que renderiza el bot viral",
         "publish": "Compartir en TikTok, Instagram y YouTube con el menú de compartir o una descarga",
+        "postiz": "Publicaciones desde la app de Windows en TikTok, Instagram y YouTube a través de Postiz, cada una aprobada por ti",
         "desktop": "La cola de renderizado y la codificación por GPU de la app de escritorio"
       },
       "withWatermark": "Con marca de agua",
@@ -5959,11 +5967,17 @@
   },
   "Account": {
     "metaTitle": "Tu cuenta – {siteName}",
-    "metaDescription": "Inicia sesión o crea una cuenta gratis. Sirve para conectar canales de TikTok, Instagram y YouTube con un relay, en cada navegador y en la app de Windows.",
+    "metaDescription": "Inicia sesión o crea una cuenta gratis para el relay del estudio web. En la app de Windows los canales se conectan en Postiz y los posts pasan por la app.",
     "eyebrow": "Cuenta",
     "title": "Una cuenta para todos tus canales",
-    "lede": "Una cuenta solo sirve para conectar tus canales de TikTok, Instagram y YouTube a través de un relay. Funciona en cada navegador y en la app de Windows.",
-    "free": "Crear la cuenta es gratis. Compartir un clip desde el estudio es una función Pro.",
+    "lede": "Una cuenta solo sirve para el estudio en el navegador, que conecta canales de TikTok, Instagram y YouTube a través de un relay. En la app de Windows los canales se conectan en Postiz y las publicaciones pasan por las pestañas Cuentas y Publicaciones de la app.",
+    "free": "Crear la cuenta es gratis. Compartir un clip desde el estudio y publicar a través de Postiz son funciones Pro.",
+    "postiz": {
+      "title": "App de Windows: publica a través de Postiz",
+      "text": "La app de Windows no usa esta cuenta para los canales. Tus canales de TikTok, Instagram y YouTube se conectan en Postiz. Pega tu clave API de Postiz en la pestaña Cuentas de la app, y las publicaciones pasan por la pestaña Publicaciones, cada una aprobada por ti.",
+      "link": "Abrir Postiz",
+      "download": "Descargar la app de Windows"
+    },
     "tabs": {
       "label": "Formulario de la cuenta",
       "signUp": "Crear cuenta",

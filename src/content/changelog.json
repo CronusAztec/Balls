@@ -1,6 +1,104 @@
 {
   "releases": [
     {
+      "id": "app-1-4-0",
+      "product": "app",
+      "version": "1.4.0",
+      "date": "2026-10-19",
+      "headline": {
+        "en": "Post through Postiz, with an autopilot that proposes",
+        "pl": "Publikuj przez Postiz, z autopilotem, który proponuje",
+        "es": "Publica a través de Postiz, con un autopiloto que propone"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "The Accounts tab takes your Postiz API key. It is stored encrypted on your PC and used only with your own Postiz, where your channels are connected.",
+            "pl": "Zakładka Konta przyjmuje Twój klucz API Postiz. Jest zapisany w postaci zaszyfrowanej na Twoim komputerze i używany tylko z Twoim własnym Postiz, w którym masz połączone kanały.",
+            "es": "La pestaña Cuentas acepta tu clave API de Postiz. Se guarda cifrada en tu PC y se usa solo con tu propio Postiz, donde tienes conectados tus canales."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Post with Postiz sends a clip from the Library to TikTok, Instagram or YouTube through Postiz. Every post goes out only after you approve it on a card.",
+            "pl": "Opublikuj przez Postiz wysyła klip z biblioteki na TikToka, Instagrama lub YouTube przez Postiz. Każdy post wychodzi dopiero po tym, jak zatwierdzisz go na karcie.",
+            "es": "Publicar con Postiz envía un clip de la biblioteca a TikTok, Instagram o YouTube a través de Postiz. Cada publicación sale solo después de que la apruebes en una tarjeta."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The approval card asks for the TikTok, Instagram and YouTube settings of each post, such as the audience, the comments and the title.",
+            "pl": "Karta zatwierdzania pyta o ustawienia TikToka, Instagrama i YouTube dla każdego posta, na przykład odbiorców, komentarze i tytuł.",
+            "es": "La tarjeta de aprobación pide los ajustes de TikTok, Instagram y YouTube de cada publicación, como la audiencia, los comentarios y el título."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The Posts tab lists what is scheduled, posted, failed and drafted in Postiz, with retry and delete.",
+            "pl": "Zakładka Posty pokazuje, co w Postiz jest zaplanowane, opublikowane, nieudane i w szkicach, z ponowieniem i usuwaniem.",
+            "es": "La pestaña Publicaciones muestra lo programado, publicado, fallido y en borradores en Postiz, con reintento y eliminación."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The autopilot proposes posts for your unposted clips, within the channels, the daily number and the quiet hours you set. It never posts by itself. Nothing goes out until you approve it.",
+            "pl": "Autopilot proponuje posty dla nieopublikowanych klipów, w ramach kanałów, dziennej liczby i godzin ciszy, które ustawisz. Sam nigdy nie publikuje. Nic nie wychodzi, dopóki tego nie zatwierdzisz.",
+            "es": "El autopiloto propone publicaciones para tus clips sin publicar, dentro de los canales, el número diario y las horas de silencio que fijes. Nunca publica por su cuenta. Nada sale hasta que lo apruebes."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "The AI studio has a Plan posts job that drafts proposals and sends them to the Posts tab.",
+            "pl": "Studio AI ma zadanie Zaplanuj posty, które przygotowuje propozycje i wysyła je do zakładki Posty.",
+            "es": "El estudio de IA tiene la tarea Planificar publicaciones, que prepara propuestas y las envía a la pestaña Publicaciones."
+          }
+        }
+      ]
+    },
+    {
+      "id": "site-1-11-0",
+      "product": "site",
+      "version": "1.11.0",
+      "date": "2026-10-19",
+      "headline": {
+        "en": "The Account page points to Postiz for the Windows app",
+        "pl": "Strona Konto kieruje aplikację na Windows do Postiz",
+        "es": "La página Cuenta remite a Postiz para la app de Windows"
+      },
+      "items": [
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The Account page says that an account serves the browser studio's relay, and that the Windows app connects channels in Postiz and posts from its Accounts and Posts tabs.",
+            "pl": "Strona Konto mówi, że konto służy relay studia w przeglądarce, a aplikacja na Windows łączy kanały w Postiz i publikuje z zakładek Konta i Posty.",
+            "es": "La página Cuenta explica que la cuenta sirve al relay del estudio web, y que la app de Windows conecta los canales en Postiz y publica desde sus pestañas Cuentas y Publicaciones."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The privacy policy and the terms describe posting through Postiz from the Windows app: what stays on your PC, what goes to your Postiz and whose rules apply.",
+            "pl": "Polityka prywatności i regulamin opisują publikowanie przez Postiz z aplikacji na Windows: co zostaje na Twoim komputerze, co idzie do Twojego Postiz i czyje zasady obowiązują.",
+            "es": "La política de privacidad y los términos describen la publicación a través de Postiz desde la app de Windows: qué se queda en tu PC, qué va a tu Postiz y qué normas se aplican."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The download and pricing pages name posting through Postiz among the Windows app's Pro features, with the autopilot that proposes posts you approve.",
+            "pl": "Strony pobierania i cennika wymieniają publikowanie przez Postiz wśród funkcji Pro aplikacji na Windows, z autopilotem, który proponuje posty do Twojego zatwierdzenia.",
+            "es": "Las páginas de descarga y de precios incluyen la publicación a través de Postiz entre las funciones Pro de la app de Windows, con el autopiloto que propone publicaciones que tú apruebas."
+          }
+        }
+      ]
+    },
+    {
       "id": "site-1-10-0",
       "product": "site",
       "version": "1.10.0",

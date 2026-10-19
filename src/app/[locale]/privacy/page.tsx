@@ -49,8 +49,8 @@ const THIRD_PARTY = [
   ["huggingface", "https://huggingface.co/privacy"],
 ] as const;
 
-/** The Windows app's network uses, in the order the list shows them (desktop/src: updater.ts, models, ai/cloud.ts, the billing and relay calls of the bundled site). */
-const APP_USES = ["updates", "licence", "models", "cloud", "accounts"] as const;
+/** The Windows app's network uses, in the order the list shows them (desktop/src: updater.ts, models, ai/cloud.ts, social/postiz.ts, the billing and relay calls of the bundled site). --- social-postiz --- Postiz: the key stays on the PC, a clip goes to the user's own Postiz only on Approve. */
+const APP_USES = ["updates", "licence", "models", "cloud", "postiz", "accounts"] as const;
 
 /**
  * The host of the optional action-counting service: the build's NEXT_PUBLIC_ANALYTICS_SCRIPT_URL (src/components/site/Analytics.tsx
@@ -166,6 +166,8 @@ export default async function PrivacyPage({ params }: { params: Promise<{ locale
         <p>{t("publishing.content")}</p>
         <p>{t("publishing.relay")}</p>
         <p>{t("publishing.availability")}</p>
+        {/* --- social-postiz --- the Windows app posts through the user's own Postiz, only after Approve; we receive nothing */}
+        <p>{t("publishing.postiz")}</p>
         <p>
           {t("publishing.youtube1")}{" "}
           <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer">
