@@ -17,6 +17,7 @@ import { buildPwa } from "./pwa/build.mjs";
 import { obfuscateExport } from "./obfuscate.mjs"; // --- code-obfuscation ---
 import buildInfo from "./lib/build-info.cjs"; // --- build-identity ---
 import { mergeHeaderFile, restoreStaticHeaders } from "./lib/headers-file.mjs"; // --- static-headers ---
+import { mailtoFromHtml, securityTxt } from "./lib/security-txt.mjs"; // --- security-txt ---
 
 const out = path.resolve(process.cwd(), "out");
 if (!fs.existsSync(out)) {
@@ -33,6 +34,19 @@ if (fs.existsSync(localised404)) {
 }
 
 fs.writeFileSync(path.join(out, ".nojekyll"), "");
+
+// --- security-txt --- /.well-known/security.txt from the support address the build knows (a dot path: never precached)
+{
+  const privacyPage = path.join(out, "en", "privacy", "index.html");
+  const contact = (process.env.NEXT_PUBLIC_SUPPORT_EMAIL || process.env.JBL_SUPPORT_EMAIL || "").trim() || (fs.existsSync(privacyPage) ? mailtoFromHtml(fs.readFileSync(privacyPage, "utf8")) : "");
+  if (contact) {
+    fs.mkdirSync(path.join(out, ".well-known"), { recursive: true });
+    fs.writeFileSync(path.join(out, ".well-known", "security.txt"), securityTxt({ contact, siteUrl: process.env.NEXT_PUBLIC_SITE_URL || buildInfo.siteUrlFromRobots(out) || "" }));
+    console.log(`postexport: wrote out/.well-known/security.txt (contact ${contact})`);
+  } else {
+    console.warn("postexport: no support address (NEXT_PUBLIC_SUPPORT_EMAIL) and no mailto link on the privacy page: out/.well-known/security.txt not written");
+  }
+}
 
 // --- code-obfuscation --- obfuscate the shipped JS and drop stray source maps BEFORE the service worker is built, so
 // its version hash and precache (scripts/pwa/build.mjs) see the final, obfuscated files. OBFUSCATE=0 skips it (debug).

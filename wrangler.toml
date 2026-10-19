@@ -8,6 +8,9 @@
 # The billing Worker in billing/ has its own wrangler.toml; the Windows app's downloads are the Releases of a separate public repository (installers only), not part of this Worker.
 name = "jumpingballslive"
 compatibility_date = "2026-10-12"
+# --- canonical-redirects --- the only code: http → https and www → the bare domain (worker/redirects.mjs); everything else is
+# handed to the static assets. Replaces the dashboard's "Always Use HTTPS" and the www Redirect Rule, which may stay on.
+main = "worker/redirects.mjs"
 
 # Preview URL: https://jumpingballslive.jumpingballslive.workers.dev
 workers_dev = true
@@ -21,6 +24,9 @@ routes = [
 
 [assets]
 directory = "./out"
+# --- canonical-redirects --- the script above sees every request first and serves the assets through this binding
+binding = "ASSETS"
+run_worker_first = true
 # Unknown URLs get the localised 404 page (scripts/postexport.mjs writes out/404.html), like GitHub Pages.
 not_found_handling = "404-page"
 # Every page is exported as <route>/index.html (next.config.ts: trailingSlash), so /x redirects to /x/.

@@ -556,13 +556,13 @@ export async function runChecks({ site = DEFAULT_SITE, billing = DEFAULT_BILLING
       const to = http.ok ? (http.headers.get("location") ?? "") : "";
       if (!http.ok) notes.push(`http:// ${why(http)} (test it from a direct connection: a proxy hides this)`);
       else if (http.status >= 300 && http.status < 400 && /^https:\/\//i.test(to)) notes.push("http:// redirects to https");
-      else problems.push(`http://${u.host}/en/ answered ${http.status}${http.status >= 300 && http.status < 400 ? ` to ${to || "nowhere"}` : " and did not redirect"}: Cloudflare dashboard → SSL/TLS → Edge Certificates → turn on "Always Use HTTPS" (behind a proxy this reads the proxy's answer: confirm from a direct connection)`);
+      else problems.push(`http://${u.host}/en/ answered ${http.status}${http.status >= 300 && http.status < 400 ? ` to ${to || "nowhere"}` : " and did not redirect"}: the site's Worker makes this redirect since website 1.11.1 (worker/redirects.mjs), so deploy a current build; or Cloudflare dashboard → SSL/TLS → Edge Certificates → turn on "Always Use HTTPS" (behind a proxy this reads the proxy's answer: confirm from a direct connection)`);
       if (!u.host.startsWith("www.")) {
         const www = await request(fetchImpl, `https://www.${u.host}/${LOCALES[0]}/?x=1`, { redirect: "manual" });
         const wto = www.ok ? (www.headers.get("location") ?? "") : "";
         if (!www.ok) notes.push(`www ${why(www)} (a visitor who types www gets an error: add a proxied DNS record for www and the rule below)`);
         else if (www.status >= 300 && www.status < 400 && new RegExp(`^https://${u.host.replace(/\./g, "\\.")}/`, "i").test(wto)) notes.push("www redirects to the bare domain");
-        else problems.push(`https://www.${u.host}/en/ answered ${www.status}${www.status >= 300 && www.status < 400 ? ` to ${wto || "nowhere"}` : ", it serves a second copy of the site"}: Cloudflare dashboard → Rules → Redirect Rules → Create rule: hostname equals www.${u.host}, dynamic redirect to concat("https://${u.host}", http.request.uri.path), status 301, preserve the query string (the www DNS record must exist and be proxied)`);
+        else problems.push(`https://www.${u.host}/en/ answered ${www.status}${www.status >= 300 && www.status < 400 ? ` to ${wto || "nowhere"}` : ", it serves a second copy of the site"}: the site's Worker makes this redirect since website 1.11.1 (worker/redirects.mjs), so deploy a current build; or Cloudflare dashboard → Rules → Redirect Rules → Create rule: hostname equals www.${u.host}, dynamic redirect to concat("https://${u.host}", http.request.uri.path), status 301, preserve the query string (the www DNS record must exist and be proxied)`);
       }
     }
     push("A10", "redirects", problems.length || notes.some((n) => /cannot be reached/.test(n)) ? "WARN" : "PASS", [...problems, ...notes].join("; ") || "not applicable (the site is served over http)");

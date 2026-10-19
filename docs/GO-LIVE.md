@@ -516,8 +516,11 @@ this order. Each one is only yours to do:
 2. **Say who runs the site, and answer the mailbox.** Create the support address (Cloudflare → **Email Routing**), put
    `JBL_SUPPORT_EMAIL`, `JBL_FEEDBACK_EMAIL`, `JBL_LEGAL_NAME` and `JBL_LEGAL_ADDRESS` in `/etc/jbl-deploy/env` and rebuild the live
    commit (`deploy/vps/README.md`, "Say who runs the site"). Ad platforms and card networks expect a visible contact.
-3. **Cloudflare, once.** **SSL/TLS → Edge Certificates → Always Use HTTPS**, and a redirect rule from `www` to the bare domain
-   (**Rules → Redirect Rules**; `npm run launch:check` prints the exact rule). Menu names move: confirm in the dashboard.
+3. **The two canonical redirects** (http → https, `www` → the bare domain) are made by the site's Worker itself
+   (`worker/redirects.mjs`, `run_worker_first` in `wrangler.toml`) since website 1.11.1, so a deploy of that build is enough.
+   `npm run launch:check` (A10) confirms both from outside. The dashboard settings (**SSL/TLS → Edge Certificates → Always Use
+   HTTPS**, **Rules → Redirect Rules**) are no longer needed and may stay on. The build also writes `/.well-known/security.txt`
+   with the support address, so a security researcher knows where to write.
 4. **The statistics service**, if you want conversions in the report: Plausible or Umami, then `JBL_ANALYTICS_SCRIPT_URL` and
    `JBL_ANALYTICS_SITE_ID`, then the goals `clip_export`, `checkout_start` and `purchase` (README, "Analytics events"). Without it
    you read clicks, plus Stripe.
