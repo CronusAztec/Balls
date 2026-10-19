@@ -29,7 +29,7 @@ export const DEFAULT_BILLING = "https://jumpingballslive-billing.jumpingballsliv
 export const DEFAULT_RELAY = "https://relay.jumpingballslive.com";
 export const LOCALES = ["en", "pl", "es"];
 /** The public, indexable pages (the route after the language; "" is the landing page). The feedback form and the account page are noindex and left out. */
-export const PAGES = ["", "/simulator", "/gallery", "/download", "/pricing", "/about", "/tiktok-ball-videos", "/changelog", "/press", "/privacy", "/terms", "/disclaimer"];
+export const PAGES = ["", "/simulator", "/gallery", "/download", "/pricing", "/about", "/tiktok-ball-videos", "/changelog", "/press", "/privacy", "/terms", "/disclaimer", "/licences"];
 /** Pages whose visible text is also read for developer strings (the feedback form shows one when its endpoint is not set up). */
 export const EXTRA_TEXT_PAGES = ["/feedback"];
 export const OG_SIZE = { width: 1200, height: 630 };
