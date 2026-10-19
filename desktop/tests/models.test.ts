@@ -83,7 +83,9 @@ describe("model catalog", () => {
       expect(m.size).toBeGreaterThan(500_000_000);
       expect(m.licence.length).toBeGreaterThan(3);
     }
-    expect(modelById("qwen2.5-3b-instruct-q4km")?.commercial).toBe(false);
+    // --- legal-review --- no research-only model is offered: every catalogue model allows commercial use
+    expect(modelById("qwen2.5-3b-instruct-q4km")).toBeUndefined();
+    for (const m of MODEL_CATALOG) expect(m.commercial, m.id).toBe(true);
   });
 });
 

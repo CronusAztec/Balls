@@ -208,6 +208,13 @@ describe("menu and media", () => {
       expect(MENU_LABELS[lang].updateReadyBody, `${lang}.updateReadyBody`).toContain("{version}");
     }
     expect(menuLanguage("es-MX")).toBe("es");
+    // --- legal-review --- Help opens the third-party notices, which ship in the resources folder with the GPL source offer
+    const help = MENU.find((g) => g.id === "help")!.entries.filter((e) => e !== "separator") as { id: string; run: { command?: string } }[];
+    expect(help.find((e) => e.id === "thirdParty")?.run.command).toBe("third-party");
+    const packaging = createRequire(import.meta.url)("../electron-builder.config.cjs") as { extraResources: { from: string; to: string }[] };
+    expect(packaging.extraResources).toContainEqual({ from: "THIRD-PARTY-NOTICES.txt", to: "THIRD-PARTY-NOTICES.txt" });
+    const notices = fs.readFileSync(path.join(__dirname, "..", "THIRD-PARTY-NOTICES.txt"), "utf8").replace(/\s+/g, " ");
+    for (const term of ["GNU General Public License, version 3", "gyan.dev", "Source code offer", "three years", "Electron", "Chromium", "llama.cpp", "Llama 3.2 Community License", "Open Font License"]) expect(notices).toContain(term);
     expect(menuLanguage("fr")).toBe("en");
   });
   it("knows the media kinds and the files passed on the command line", () => {

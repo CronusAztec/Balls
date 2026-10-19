@@ -1,0 +1,48 @@
+JumpingBallsLive for Windows: third-party software and licences
+================================================================
+
+This app is built with the open-source software below. Each component keeps its own
+licence; the licence texts named here ship with the app, in the folder "resources"
+next to the executable (installer) or next to the portable EXE.
+
+ffmpeg (GNU General Public License, version 3)
+  The app encodes videos with ffmpeg, which runs as a separate program. It is the
+  unmodified FFmpeg 6.1.1 "essentials" static build by gyan.dev, downloaded by the
+  ffmpeg-static package at build time. Its licence text and the build's README are
+  in resources\app.asar.unpacked\node_modules\ffmpeg-static (ffmpeg.LICENSE,
+  ffmpeg.README). The README names the exact FFmpeg source commit and the libraries
+  the build links.
+  Source code offer (GPLv3 section 6): the complete corresponding source code of
+  this ffmpeg build is available from the publisher of the build at
+  https://www.gyan.dev/ffmpeg/builds/ and the FFmpeg project at
+  https://ffmpeg.org/download.html. We also send it on request, at no charge beyond
+  the cost of the medium, for three years from the release of this app version.
+  Write to the support address shown on https://jumpingballslive.com/en/privacy/.
+  The GPL applies to ffmpeg only. The rest of the app is a separate work that calls
+  ffmpeg as an external program.
+
+Electron (MIT) and Chromium (BSD-style and other licences)
+  LICENSE.electron.txt and LICENSES.chromium.html in the resources folder.
+
+node-llama-cpp (MIT) and llama.cpp (MIT)
+  The local AI runtime. LICENSE in resources\app.asar.unpacked\node_modules\node-llama-cpp.
+
+electron-store (MIT), electron-updater (MIT), @anthropic-ai/sdk (MIT)
+  Their LICENSE files are inside resources\app.asar in their node_modules folders.
+
+The website inside the app
+  Next.js, React, next-intl, mp4-muxer and webm-muxer (all MIT). The fonts Space
+  Grotesk, Hanken Grotesk and JetBrains Mono are used under the SIL Open Font
+  License 1.1.
+
+AI models
+  Models are separate downloads, under their own licences, which the app shows before
+  a download. The default model, Llama 3.2, is licensed under the
+  Llama 3.2 Community License, Copyright (c) Meta Platforms, Inc. All Rights Reserved.
+  "Built with Llama".
+  The Qwen models offered are licensed under Apache License 2.0, Copyright (c) Alibaba
+  Cloud.
+
+Sounds and melodies
+  The built-in sound effects are synthesised by us. The built-in melodies are
+  public-domain tunes.

@@ -42,9 +42,11 @@ describe("app:// resolution", () => {
     const packaged = appLocations({ packaged: true, resourcesPath: "/app/resources", appPath: "/app/resources/app.asar", userData: "/home/u/.config/JumpingBallsLive" });
     expect(packaged.siteRoot).toBe(path.join("/app/resources", "site"));
     expect(packaged.playbook).toBe(path.join("/app/resources", "playbook", "virality-playbook.md"));
+    expect(packaged.noticesFile).toBe(path.join("/app/resources", "THIRD-PARTY-NOTICES.txt")); // --- legal-review ---
     expect(packaged.modelsDir).toBe(path.join("/home/u/.config/JumpingBallsLive", "models"));
     const dev = appLocations({ packaged: false, resourcesPath: "", appPath: "/repo/desktop", userData: "/tmp/u" });
     expect(dev.siteRoot).toBe(path.resolve("/repo/out"));
+    expect(dev.noticesFile).toBe(path.resolve("/repo/desktop/THIRD-PARTY-NOTICES.txt"));
     const portable = appLocations({ packaged: true, resourcesPath: "/r", appPath: "/r/app.asar", userData: "/u", portableDir: "/usb" });
     expect(portable.dataDir).toBe(path.join("/usb", "JumpingBallsLive-data"));
   });

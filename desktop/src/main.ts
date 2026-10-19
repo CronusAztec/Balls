@@ -509,6 +509,9 @@ function start() {
       case "changelog":
         await shell.openExternal(changelogUrl(SITE_URL, menuLanguage(app.getLocale()))); // --- build-identity --- what changed, on the public site
         return;
+      case "third-party": // --- legal-review --- the notices file ships in the resources folder (electron-builder extraResources)
+        await shell.openPath(locations.noticesFile);
+        return;
       case "about":
         await showAbout();
         return;

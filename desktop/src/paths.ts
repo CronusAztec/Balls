@@ -11,6 +11,8 @@ export interface AppLocations {
   /** The site's static export (index.html of every page, _next/static…). */
   siteRoot: string;
   playbook: string;
+  /** --- legal-review --- Third-party software and licences (THIRD-PARTY-NOTICES.txt), opened from Help. */
+  noticesFile: string;
   /** Models, library index, render journal, thumbnails, logs. */
   dataDir: string;
   modelsDir: string;
@@ -29,10 +31,12 @@ export interface AppLocations {
 export function appLocations(options: { packaged: boolean; resourcesPath: string; appPath: string; userData: string; portableDir?: string | null }): AppLocations {
   const siteRoot = options.packaged ? path.join(options.resourcesPath, "site") : path.resolve(options.appPath, "..", "out");
   const playbook = options.packaged ? path.join(options.resourcesPath, "playbook", "virality-playbook.md") : path.resolve(options.appPath, "..", "docs", "virality-playbook.md");
+  const noticesFile = options.packaged ? path.join(options.resourcesPath, "THIRD-PARTY-NOTICES.txt") : path.resolve(options.appPath, "THIRD-PARTY-NOTICES.txt");
   const dataDir = options.portableDir ? path.join(options.portableDir, "JumpingBallsLive-data") : options.userData;
   return {
     siteRoot,
     playbook,
+    noticesFile,
     dataDir,
     modelsDir: path.join(dataDir, "models"),
     thumbsDir: path.join(dataDir, "thumbnails"),

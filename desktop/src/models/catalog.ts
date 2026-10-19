@@ -47,18 +47,8 @@ export const MODEL_CATALOG: readonly ModelSpec[] = [
     commercial: true,
     params: "4B",
   },
-  {
-    id: "qwen2.5-3b-instruct-q4km",
-    name: "Qwen2.5 3B Instruct (Q4_K_M)",
-    file: "qwen2.5-3b-instruct-q4_k_m.gguf",
-    url: "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf",
-    size: 2_104_932_768,
-    sha256: "626b4a6678b86442240e33df819e00132d3ba7dddfe1cdc4fbb18e0a9615c62d",
-    licence: "Qwen Research License (non-commercial)",
-    licenceUrl: "https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/blob/main/LICENSE",
-    commercial: false,
-    params: "3B",
-  },
+  // --- legal-review --- Qwen2.5 3B left out: its Qwen Research License allows research and evaluation only, and this app
+  // writes captions for posts (Qwen3 4B covers the same size under Apache-2.0).
   {
     id: "qwen2.5-1.5b-instruct-q4km",
     name: "Qwen2.5 1.5B Instruct (Q4_K_M) – small PCs",

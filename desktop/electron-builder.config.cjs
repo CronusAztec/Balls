@@ -59,6 +59,8 @@ module.exports = {
     // (the 27 social cards of the website, out/og, are for link previews on the web: the app never shows them, so they stay out of the installer and of every update)
     { from: "../out", to: "site", filter: ["**/*", "!og/**"] },
     { from: "../docs/virality-playbook.md", to: "playbook/virality-playbook.md" },
+    // --- legal-review --- the third-party notices (ffmpeg GPLv3 with the source offer, Electron, Chromium, llama.cpp, fonts, models)
+    { from: "THIRD-PARTY-NOTICES.txt", to: "THIRD-PARTY-NOTICES.txt" },
   ],
   asar: true,
   // node-llama-cpp's llama/ files are unpacked too: it checks its grammars folder with fs.access, which Electron's asar
