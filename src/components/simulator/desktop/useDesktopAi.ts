@@ -66,7 +66,7 @@ export interface DesktopAiApi {
   error: string | null;
   undo: SimulatorSettings | null;
   /** --- ai-cut --- `cut`: Make videos also answers a TikTok cut per clip (the queue cuts it after the render). */
-  run: (prompt: string, options: { platforms: BotPlatform[]; existing: string; cut?: boolean }) => void;
+  run: (prompt: string, options: { platforms: BotPlatform[]; existing: string; cut?: boolean; start?: boolean /* --- ai-cut --- the queue starts right away */ }) => void;
   stop: () => void;
   undoSettings: () => void;
   refresh: () => void;
@@ -86,7 +86,7 @@ export interface DesktopAiApi {
   setGpu: (mode: "auto" | "off") => void;
 }
 
-export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObject<DesktopPageHooks>, onClips: (result: MakeVideosResult, plans: ClipPlan[]) => void, onPrefsChanged: () => void): DesktopAiApi {
+export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObject<DesktopPageHooks>, onClips: (result: MakeVideosResult, plans: ClipPlan[], options: { start: boolean } /* --- ai-cut --- */) => void, onPrefsChanged: () => void): DesktopAiApi {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [models, setModels] = useState<ModelEntry[]>([]);
   const [progress, setProgress] = useState<Record<string, ModelProgressEvent>>({});
@@ -133,7 +133,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
   useEffect(() => () => abortRef.current?.abort(), []);
 
   const run = useCallback(
-    (prompt: string, options: { platforms: BotPlatform[]; existing: string; cut?: boolean }) => {
+    (prompt: string, options: { platforms: BotPlatform[]; existing: string; cut?: boolean; start?: boolean }) => {
       if (!bridge || !model || running) return;
       const page = pageRef.current;
       const controller = new AbortController();
@@ -182,7 +182,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
             if (!out.ok) throw new Error(out.error);
             const plans = out.result.clips.map((c) => store.get(c.planId)).filter((p): p is ClipPlan => !!p);
             setResult({ kind: "videos", result: out.result, plans });
-            onClips(out.result, plans);
+            onClips(out.result, plans, { start: options.start === true }); // --- ai-cut --- (one click: the queue starts when asked)
           } else if (task === "copy") {
             const out = await runAgent(model, copyTask(prompt, { locale: page.locale, platforms: options.platforms.length ? options.platforms : ["tiktok", "reels", "shorts"], settings: page.settings, existing: options.existing }), { onEvent, signal: controller.signal });
             if (!out.ok) throw new Error(out.error);

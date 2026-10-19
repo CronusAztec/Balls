@@ -13,10 +13,10 @@ import { planClip } from "@/lib/bot/planner";
 import type { BotCopy } from "@/lib/bot/copy";
 import type { AiChatRequest, AiMessage, DesktopApi } from "@/lib/desktop/contract";
 import { extractJson, validateJson, type JsonSchema } from "@/lib/desktop/ai/jsonSchema";
-import { normaliseReply, replySchema, runAgent, type AgentEvent, type ChatModel } from "@/lib/desktop/ai/agent";
+import { normaliseReply, replySchema, runAgent, type AgentEvent, type ChatModel, type AgentTool } from "@/lib/desktop/ai/agent";
 import { assistantSettings, changedKeys, changesSchema, invertPatch, isModeSettingKey, patchFromChanges, settingsCatalog, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import { MODE_IDS } from "@/lib/physics/types"; // --- low-findings-2 ---
-import { CLIP_CUT, PlanStore, clipCutSpec, clipEditTask, copyTask, ideasTask, makeVideosTask, planSummary, settingsTask, type ClipCutResult, type MakeVideosResult, type SettingsResult, type StudioPorts } from "@/lib/desktop/ai/studio";
+import { CLIP_CUT, PlanStore, clipCutSpec, clipEditTask, copyTask, ideasTask, makeVideosTask, makeVideosTools, planSummary, settingsTask, type ClipCutResult, type MakeVideosResult, type SettingsResult, type StudioPorts } from "@/lib/desktop/ai/studio";
 import { selectPlaybookContext, splitPlaybook } from "@/lib/desktop/ai/playbookContext";
 // --- ai-cut --- the cut task and Make videos' per-clip cut
 import { DEFAULT_CLIP_EDIT } from "@/lib/clipEdit/spec";
@@ -347,7 +347,7 @@ describe("--- ai-cut --- the cut task", () => {
     expect(system).toContain('"zoom":<1|1.15|1.25|1.4|1.6>'); // the answer's shape in a line (finalHint), not its schema
     expect(system).not.toContain('"additionalProperties"');
     expect(model.calls[0][1].content).toBe("Propose the cut.");
-    expect([t.name, t.maxSteps, t.temperature, t.maxTokens, t.tools.length]).toEqual(["cut", 3, 0.5, 220, 0]);
+    expect([t.name, t.maxSteps, t.temperature, t.maxTokens, t.tools.length]).toEqual(["cut", 3, 0.5, 400, 0]);
     expect(t.final.required).toEqual(["startSec", "lengthSec", "zoom", "hook", "cardSec", "summary"]);
     expect(t.final.properties?.zoom).toEqual({ enum: ZOOM_STEPS });
     expect(CLIP_CUT.additionalProperties).toBe(false);
@@ -402,6 +402,30 @@ describe("--- ai-cut --- Make videos with cuts", () => {
     findSimulation: async () => ({ found: false, seed: 0, durationSec: 0 }),
   });
   const clip = (cut: string) => `{"planId":"${plan.id}-1","name":"glass escape","title":"Glass","hook":"Can it escape?","caption":"Which pane?","hashtags":["#physics","#asmr","#satisfying"],"platform":"reels"${cut}}`;
+
+  // --- ai-cut --- a new seed has its own payoff: the cut is suggested and checked against it, not the plan's old second
+  it("find_simulation refreshes the plan's beats for the new seed and hands back a current suggested cut", async () => {
+    const ctx = { signal: new AbortController().signal, progress: () => {} } as unknown as Parameters<AgentTool["run"]>[1];
+    const measured: StudioPorts = { ...ports(), findSimulation: async (_s, request) => ({ found: true, seed: 9, durationSec: request.targetSec, payoffSec: 13.5 }) };
+    const store = new PlanStore();
+    store.add({ ...plan, id: "p-1" });
+    const find = makeVideosTools(store, measured).find((tool) => tool.name === "find_simulation")!;
+    const out = (await find.run({ planId: "p-1", targetSec: 20, outcome: "escapes-at", atSec: 14 }, ctx)) as { suggestedCut: { startSec: number; lengthSec: number } };
+    const after = store.get("p-1")!;
+    expect(after.payoff).toMatchObject({ atSec: 13.5, cutGapSec: null }); // the finder's measured escape wins over the second asked for
+    expect(after.timing).toMatchObject({ clipSec: 20, found: true, firstImpactSec: null });
+    expect(out.suggestedCut.startSec + out.suggestedCut.lengthSec).toBeCloseTo(15, 5); // payoff + 1.5 s
+    expect(out.suggestedCut).not.toHaveProperty("url");
+    // no measured escape: the second asked for; a run searched by length or for never escaping has no payoff at all
+    const asked: StudioPorts = { ...ports(), findSimulation: async (_s, request) => ({ found: true, seed: 9, durationSec: request.targetSec }) };
+    const store2 = new PlanStore();
+    store2.add({ ...plan, id: "p-2" });
+    const find2 = makeVideosTools(store2, asked).find((tool) => tool.name === "find_simulation")!;
+    await find2.run({ planId: "p-2", targetSec: 20, outcome: "escapes-at", atSec: 14 }, ctx);
+    expect(store2.get("p-2")!.payoff.atSec).toBe(14);
+    await find2.run({ planId: "p-2", targetSec: 30, outcome: "duration" }, ctx);
+    expect(store2.get("p-2")!.payoff.atSec).toBeNull();
+  });
 
   it("asks for a cut per clip only when the run wants cuts: required in the schema, its steps as enums, the plan's suggestedCut to start from", () => {
     const store = new PlanStore();

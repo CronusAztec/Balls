@@ -4457,7 +4457,12 @@
     "aiCutLine": "Cięcie od {start} do {end} s · przybliżenie {zoom} % · \"{hook}\"",
     "jobCut": "+ cięcie TikTok",
     "jobCutting": "Cięcie na TikToka",
-    "jobCutFailed": "Cięcie na TikToka klipu {name} nie powiodło się: {error}. Sam klip jest w Bibliotece."
+    "jobCutFailed": "Cięcie na TikToka klipu {name} nie powiodło się: {error}. Sam klip jest w Bibliotece.",
+    "aiStart": "Od razu zacznij renderować",
+    "aiStartTip": "Klipy trafiają do kolejki renderowania, która rusza od razu: jedno polecenie i pliki są w Bibliotece.",
+    "aiClipsStarted": "Dodano do kolejki renderowania, renderuje się teraz.",
+    "aiStartedNotice": "{count, plural, one {# klip} few {# klipy} other {# klipów}} od AI dodano do kolejki renderowania i renderuje się.",
+    "jobCutSaved": "Cięcie na TikToka klipu {name} jest w Bibliotece."
   },
   "Territory": {
     "canvasVs": "VS",

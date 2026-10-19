@@ -173,7 +173,13 @@ export async function renderClipEdit(options: ClipEditOptions): Promise<ClipEdit
   if (!format) throw new FastRenderUnsupportedError();
   if (signal?.aborted) return null;
 
-  const opened = await openSourceVideo(options.source, signal);
+  let opened: Awaited<ReturnType<typeof openSourceVideo>>;
+  try {
+    opened = await openSourceVideo(options.source, signal);
+  } catch (err) {
+    if (signal?.aborted) return null; // cancelled while the source was loading: not a failure
+    throw err;
+  }
   const { video } = opened;
   let videoEncoder: VideoEncoder | null = null;
   let audioEncoder: AudioEncoder | null = null;

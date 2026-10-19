@@ -4457,7 +4457,12 @@
     "aiCutLine": "Corte de {start} a {end} s · acercar {zoom} % · \"{hook}\"",
     "jobCut": "+ corte TikTok",
     "jobCutting": "Cortando para TikTok",
-    "jobCutFailed": "El corte para TikTok de {name} falló: {error}. El clip en sí está en la Biblioteca."
+    "jobCutFailed": "El corte para TikTok de {name} falló: {error}. El clip en sí está en la Biblioteca.",
+    "aiStart": "Empezar a renderizar ya",
+    "aiStartTip": "Los clips van a la cola de render y esta arranca al momento: un mensaje y los archivos quedan en la Biblioteca.",
+    "aiClipsStarted": "Añadidos a la cola de render, renderizando ahora.",
+    "aiStartedNotice": "{count, plural, one {# clip} other {# clips}} de la IA añadidos a la cola de render y renderizando.",
+    "jobCutSaved": "El corte para TikTok de {name} está en la Biblioteca."
   },
   "Territory": {
     "canvasVs": "VS",

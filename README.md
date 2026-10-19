@@ -3439,8 +3439,10 @@ WebCodecs, every frame stamped again with the run's watermark seal). The Windows
   its beats (`beatsOfLibraryItem`: length, mode, hook) and the user's current spec, with the editor's hook ideas as examples.
 
 The AI never sees pixels: `suggestClipEdit` works the baseline out of the plan's beats (first impact, payoff second,
-cliffhanger gap, a seamless loop is kept whole) and the model adjusts it. Nothing changed in `desktop/src` or the IPC
-contract: the cut rides `ai:chat` like every task, and the app only saves the bytes it is handed. Tests:
+cliffhanger gap, a seamless loop is kept whole) and the model adjusts it. Nothing changed in `desktop/src`, and the IPC
+contract only gained the optional `LibraryMeta.cut` type named above (a payload field `render.save` stores verbatim; no
+channel changed shape): the cut rides `ai:chat` like every task, and the app only saves the bytes it is handed. With
+"Start rendering right away" ticked, one prompt ends with the masters and their cuts in the Library. Tests:
 `tests/clipPropose.test.ts`, `tests/clipEdit.test.ts`, `tests/desktopAi.test.ts`, `tests/desktopAiFix.test.ts`,
 `tests/desktopQueue.test.ts`, `desktop/tests/ai.test.ts`.
 

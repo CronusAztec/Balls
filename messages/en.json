@@ -4457,7 +4457,12 @@
     "aiCutLine": "Cut {start} to {end} s · crop-in {zoom} % · \"{hook}\"",
     "jobCut": "+ TikTok cut",
     "jobCutting": "Cutting for TikTok",
-    "jobCutFailed": "The TikTok cut of {name} failed: {error}. The clip itself is in the Library."
+    "jobCutFailed": "The TikTok cut of {name} failed: {error}. The clip itself is in the Library.",
+    "aiStart": "Start rendering right away",
+    "aiStartTip": "The clips go to the render queue and it starts at once: one prompt, then the files are in the Library.",
+    "aiClipsStarted": "Added to the render queue, rendering now.",
+    "aiStartedNotice": "{count, plural, one {# clip} other {# clips}} from the AI added to the render queue and rendering.",
+    "jobCutSaved": "The TikTok cut of {name} is in the Library."
   },
   "Territory": {
     "canvasVs": "VS",

@@ -69,7 +69,7 @@ export function studioPorts(options: StudioPortOptions): StudioPorts {
       // --- finder-depth --- the page's budget: nothing in the first 300 seeds and seeds are cheap – on while it lasts
       const result = await find({ ...base, targetDurationSec: request.targetSec, toleranceSec: 0.5, maxSeeds: 300, depthBudgetMs: FINDER_DEPTH_BUDGET_MS, ...(outcome ? { outcome } : {}) }, (p) => progress(seedProgressLine(p)), signal);
       if (signal?.aborted) throw new DOMException("cancelled", "AbortError");
-      return { found: result.found, seed: result.seed, durationSec: result.duration, endless: result.endless };
+      return { found: result.found, seed: result.seed, durationSec: result.duration, endless: result.endless, payoffSec: typeof result.escapeAt === "number" ? result.escapeAt : null /* --- ai-cut --- */ };
     },
   };
 }

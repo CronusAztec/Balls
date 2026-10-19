@@ -4,6 +4,7 @@ import type { BotPlatform } from "@/lib/bot/playbook";
 import { clipCutSpec, type MadeClip } from "./ai/studio"; // --- ai-cut --- (clipCutSpec: the model's five fields plus the site's address)
 import type { OutputPreset } from "./presets";
 import type { BatchClipSource } from "./renderQueue";
+import { DEFAULT_CLIP_EDIT, type ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut ---
 
 /*
  * --- desktop-exe --- Where render-queue clips come from: the page's own setup with a list of seeds or links, the viral bot's
@@ -33,13 +34,13 @@ export function planSource(plan: ClipPlan): BatchClipSource {
 }
 
 /** A clip the AI planned: its plan's settings and seed, the AI's name and copy – and its TikTok cut when the run asked for one (--- ai-cut ---). */
-export function aiClipSource(clip: MadeClip, plan: ClipPlan): BatchClipSource {
+export function aiClipSource(clip: MadeClip, plan: ClipPlan, base: ClipEditSpec = DEFAULT_CLIP_EDIT /* --- ai-cut --- the user's remembered spec: its address goes on the cut */): BatchClipSource {
   return {
     name: clip.name.trim() || plan.id,
     source: { kind: "ai", melodyId: plan.melodyId },
     settings: plan.settings,
     seed: plan.seed,
     meta: { title: clip.title, platform: clip.platform as BotPlatform, hook: clip.hook, caption: clip.caption, hashtags: clip.hashtags, link: plan.shareUrl },
-    cut: clip.cut ? clipCutSpec(clip.cut) : null, // --- ai-cut --- the model never writes the address: the site's goes on
+    cut: clip.cut ? clipCutSpec(clip.cut, base) : null, // --- ai-cut --- the model never writes the address: the base's goes on
   };
 }

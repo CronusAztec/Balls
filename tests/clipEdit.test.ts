@@ -47,6 +47,8 @@ describe("the clip edit spec", () => {
   it("names the file after its source", () => {
     expect(editFileName("jumpingballslive-export.mp4")).toBe("jumpingballslive-export-tiktok.mp4");
     expect(editFileName("clip.webm", "webm")).toBe("clip-tiktok.webm");
+    // a TikTok render is already named so: its cut is "-cut", never "-tiktok-tiktok"
+    expect(editFileName("Pip-tiktok.mp4")).toBe("Pip-tiktok-cut.mp4");
     expect(editFileName("")).toBe("jumpingballslive-clip-tiktok.mp4");
   });
 });
@@ -216,7 +218,8 @@ describe("the editor in the page and in the Windows app", () => {
     expect(library).toMatch(/export type LibrarySuggestCut = \(item: LibraryItem, input: \{ durationSec: number; current: ClipEditSpec; request\?: string; signal\?: AbortSignal \}\) => Promise<\{ spec: ClipEditSpec; summary: string \}>/);
     // a master opens with its proposed cut whole; a cut file (queueJobId `<job>-cut`) only with the look it was made with
     expect(library).toMatch(/<ClipEditorDialog source=\{editing\.source\} initialSpec=\{initialCut\(editing\.item\)\}/);
-    expect(library).toMatch(/queueJobId\?\.endsWith\("-cut"\)\) return \{ zoom: cut\.zoom, hook: cut\.hook, url: cut\.url, cardSec: cut\.cardSec \}/);
+    expect(library).toMatch(/queueJobId\?\.endsWith\("-cut"\)\) return \{ zoom: cut\.zoom, hook: cut\.hook, cardSec: cut\.cardSec \}/);
+    expect(library).not.toMatch(/url: cut\.url/); // the address stays the user's remembered one
     expect(read("src/components/simulator/desktop/useRenderQueue.ts")).toMatch(/queueJobId: `\$\{job\.id\}-cut`/);
     expect(library).toMatch(/suggest: onSuggestCut \? \(input\) => onSuggestCut\(editing\.item, input\) : undefined/);
     // the Library's own words are Desktop keys only: the editor's live in ClipEditor

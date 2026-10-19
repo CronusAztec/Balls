@@ -118,6 +118,8 @@ describe("render queue state machine", () => {
     expect(q.running).toBe(false);
     expect(q.jobs.every((j) => j.status === "cancelled")).toBe(true);
     expect(clearFinished(q).jobs).toEqual([]);
+    // --- ai-cut --- the done job whose TikTok cut still runs keeps its row (its bar and Cancel live there)
+    expect(clearFinished(q, q.jobs[0].id).jobs.map((j) => j.id)).toEqual([q.jobs[0].id]);
   });
 
   it("summarises the queue", () => {

@@ -64,6 +64,8 @@ export interface FindAnswer {
   seed: number;
   durationSec: number;
   endless?: boolean;
+  /** --- ai-cut --- The found run's first escape (s) when the finder measured one: the new seed's payoff. */
+  payoffSec?: number | null;
 }
 
 export interface StudioPorts {
@@ -118,7 +120,7 @@ export function planSummary(plan: ClipPlan) {
     loop: beats.seamlessLoop,
     suggestedCut: clipCutOf(suggestClipEdit(beats, DEFAULT_CLIP_EDIT)),
     score: plan.score,
-    suggestedCaption: plan.post.caption.slice(0, 160), // --- ai-cut --- (was 300: ten plans with their cuts stay near the tool result's 4,000 characters)
+    suggestedCaption: plan.post.caption.slice(0, 160), // --- ai-cut --- (was 300; a summary is ~800 characters with its beats and cut, so plan_clips has its own result budget, PLAN_CLIPS_RESULT_CHARS)
     suggestedHashtags: plan.post.hashtags,
   };
 }
@@ -213,17 +215,27 @@ export const MAKE_VIDEOS_FINAL: JsonSchema = {
  * required too – the grammar makes the local model write it, no optional-field ambiguity; off, the property does not exist.
  */
 export function makeVideosFinal(planIds: readonly string[], platforms: readonly BotPlatform[], cut = false): JsonSchema {
-  const clips = (MAKE_VIDEOS_FINAL.properties as Record<string, JsonSchema>).clips;
+  const base = cut ? withClipCut(MAKE_VIDEOS_FINAL) : MAKE_VIDEOS_FINAL;
+  const clips = (base.properties as Record<string, JsonSchema>).clips;
   const item = clips.items as JsonSchema;
-  const properties = { ...item.properties, planId: { enum: [...planIds] }, platform: { enum: [...new Set(platforms)] }, ...(cut ? { cut: CLIP_CUT } : {}) };
-  const required = cut ? [...(item.required ?? []), "cut"] : item.required;
+  const properties = { ...item.properties, planId: { enum: [...planIds] }, platform: { enum: [...new Set(platforms)] } };
   return {
-    ...MAKE_VIDEOS_FINAL,
+    ...base,
     properties: {
-      ...MAKE_VIDEOS_FINAL.properties,
-      clips: { ...clips, items: { ...item, properties, required } },
+      ...base.properties,
+      clips: { ...clips, items: { ...item, properties } },
     },
   };
+}
+
+/**
+ * --- ai-cut --- The Make videos answer with each clip's `cut` (CLIP_CUT) required. Both the prompt's schema and the turn's
+ * grammar are built from it: a cloud model sees only the prompt, so the schema it reads must ask for the cut too.
+ */
+export function withClipCut(schema: JsonSchema): JsonSchema {
+  const clips = (schema.properties as Record<string, JsonSchema>).clips;
+  const item = clips.items as JsonSchema;
+  return { ...schema, properties: { ...schema.properties, clips: { ...clips, items: { ...item, properties: { ...item.properties, cut: CLIP_CUT }, required: [...(item.required ?? []), "cut"] } } } };
 }
 
 /** --- desktop-ai-fix --- A tool whose planId must be one of `planIds` (the grammar then cannot name another). */
@@ -250,6 +262,9 @@ export function makeVideosTurn(store: PlanStore, tools: readonly AgentTool[], cu
     hint: `planId must be one of: ${ids.join(", ")}.`,
   };
 }
+
+/** --- ai-cut --- plan_clips' result in the conversation: ten summaries of ~800 characters (beats and the suggested cut included) fit whole; the local context grows for it (desktop/src/ai/local.ts contextSizeFor). */
+export const PLAN_CLIPS_RESULT_CHARS = 10_000;
 
 export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool[] {
   const planClips: AgentTool = {
@@ -281,6 +296,7 @@ export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool
       for (const plan of plans) store.add(plan);
       return { clips: plans.map(planSummary) };
     },
+    maxResultChars: PLAN_CLIPS_RESULT_CHARS, // --- ai-cut ---
   };
   const findSimulation: AgentTool = {
     name: "find_simulation",
@@ -310,9 +326,14 @@ export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool
       const answer = await ports.findSimulation({ ...plan.settings, recordingDuration: Math.max(10, Math.min(120, targetSec)) }, request, ctx.signal, ctx.progress);
       if (answer.found) {
         const recordingDuration = Math.max(10, Math.min(120, Math.ceil(Math.max(targetSec, answer.durationSec || 0))));
-        store.update(plan.id, { seed: answer.seed, settings: { ...plan.settings, recordingDuration }, timing: { ...plan.timing, clipSec: answer.durationSec || targetSec, found: true } });
+        // --- ai-cut --- the new seed's beats: its escape second when the finder measured one (else the one asked for; none
+        // for a run searched by length or for never escaping), no cut before the result, an unmeasured first impact – so a
+        // cut is suggested and checked against this run, not the plan's old seed
+        const payoffSec = answer.payoffSec ?? (request.outcome === "escapes-at" ? request.atSec : null);
+        store.update(plan.id, { seed: answer.seed, settings: { ...plan.settings, recordingDuration }, timing: { ...plan.timing, clipSec: answer.durationSec || targetSec, found: true, firstImpactSec: null }, payoff: { ...plan.payoff, atSec: payoffSec, cutGapSec: null } });
       }
-      return { planId: plan.id, found: answer.found, seed: answer.found ? answer.seed : plan.seed, durationSec: answer.durationSec, endless: answer.endless ?? false };
+      const updated = store.get(plan.id) as ClipPlan;
+      return { planId: plan.id, found: answer.found, seed: answer.found ? answer.seed : plan.seed, durationSec: answer.durationSec, endless: answer.endless ?? false, suggestedCut: clipCutOf(suggestClipEdit(beatsOfPlan(updated), DEFAULT_CLIP_EDIT)) /* --- ai-cut --- */ };
     },
   };
   const setClipSettings: AgentTool = {
@@ -366,7 +387,7 @@ export function makeVideosTask(request: string, options: { copy: BotCopy; locale
     system,
     user: request,
     tools,
-    final: MAKE_VIDEOS_FINAL,
+    final: cut ? withClipCut(MAKE_VIDEOS_FINAL) : MAKE_VIDEOS_FINAL, // --- ai-cut --- (the prompt's schema, which is all a cloud model sees)
     checkFinal: (result) => {
       const errors: string[] = [];
       for (const clip of result.clips) {
@@ -429,7 +450,7 @@ export function clipEditTask(request: string, options: { locale: string; beats: 
     name: "cut",
     maxSteps: 3,
     temperature: 0.5,
-    maxTokens: 220,
+    maxTokens: 400, // the envelope's note (up to 400 characters, which the local grammar does not make optional), the hook and the summary
   };
 }
 

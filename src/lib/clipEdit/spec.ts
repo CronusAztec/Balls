@@ -31,6 +31,8 @@ export const CLIP_EDIT_RANGES = {
 } as const;
 
 export const CLIP_EDIT_TEXT_MAX = 60;
+/** The shortest cut (the length slider's floor): what a model's answer must leave room for before the file's end. */
+export const SHORTEST_CUT_SEC = CLIP_EDIT_RANGES.lengthSec.min;
 
 export const DEFAULT_CLIP_EDIT: ClipEditSpec = { startSec: 3, lengthSec: 11, zoom: 1.25, hook: "Will it escape?", url: SITE_DOMAIN, cardSec: 1.5 };
 
@@ -182,8 +184,8 @@ export function hookLayout(w: number = CLIP_EDIT_OUTPUT.width, h: number = CLIP_
   return { hookFont, urlFont, hookY: Math.round(0.095 * h), urlY: Math.round(0.095 * h + 1.35 * hookFont + 0.55 * urlFont), padX: Math.round(0.4 * hookFont), padY: Math.round(0.3 * hookFont) };
 }
 
-/** `<source base>-tiktok.mp4`: the edited file next to its source's name. */
+/** `<source base>-tiktok.mp4`: the edited file next to its source's name (`-cut` when the source is a TikTok render already named so). */
 export function editFileName(sourceName: string, extension = "mp4"): string {
   const base = sourceName.replace(/\.(mp4|webm|mov|m4v|mkv)$/i, "").trim() || `${SITE_SLUG}-clip`;
-  return `${base}-tiktok.${extension}`;
+  return /-tiktok$/i.test(base) ? `${base}-cut.${extension}` : `${base}-tiktok.${extension}`;
 }

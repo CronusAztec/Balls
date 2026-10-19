@@ -72,6 +72,8 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const card = useMemo(() => ({ title: t("cardTitle"), note: t("cardNote") }), [t]);
   const rendering = render.status === "rendering";
   const suggesting = suggestion.status === "running";
+  // the spec is the user's or the AI's, never both at once: no edits while a suggestion is on its way
+  const busy = rendering || suggesting;
 
   // The source, opened once for the preview; the seal of the preview's frames (the file's run seals again).
   useEffect(() => {
@@ -127,6 +129,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
     const controller = new AbortController();
     suggestAbortRef.current?.abort();
     suggestAbortRef.current = controller;
+    setRender((r) => (r.status === "error" ? { status: "idle" } : r)); // the one error slot shows the newest failure
     setSuggestion({ status: "running" });
     try {
       const { spec: proposed, summary } = await ask({ durationSec, current: fitted, signal: controller.signal });
@@ -145,6 +148,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const start = useCallback(async () => {
     const controller = new AbortController();
     abortRef.current = controller;
+    setSuggestion((s) => (s.status === "error" ? { status: "idle" } : s)); // the one error slot shows the newest failure
     setRender({ status: "rendering", progress: { phase: "prepare", progress: 0, frame: 0, frames: 0 } });
     try {
       const result = await renderClipEdit({ source: source.blob, spec: fitted, card, signal: controller.signal, onProgress: (progress) => setRender({ status: "rendering", progress }) });
@@ -152,8 +156,10 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
       const name = editFileName(source.name, result.format.extension);
       let where: "downloaded" | "saved" = "downloaded";
       if (desktop) {
-        const meta: LibraryMeta = { title: desktop.meta?.title ?? name, mode: desktop.meta?.mode ?? source.mode ?? "", seed: desktop.meta?.seed ?? source.seed ?? 0, link: desktop.meta?.link ?? "", platform: "tiktok", hook: fitted.hook, caption: desktop.meta?.caption ?? null, hashtags: desktop.meta?.hashtags ?? [], queueJobId: null };
-        await desktop.bridge.render.save({ jobId: `edit-${Date.now().toString(36)}`, folder: "", name: name.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta });
+        // a cut file, as the queue names them (`<job>-cut`): the Library opens it with its look only, and keeps what it was cut with
+        const jobId = `edit-${Date.now().toString(36)}-cut`;
+        const meta: LibraryMeta = { title: desktop.meta?.title ?? name, mode: desktop.meta?.mode ?? source.mode ?? "", seed: desktop.meta?.seed ?? source.seed ?? 0, link: desktop.meta?.link ?? "", platform: "tiktok", hook: fitted.hook, caption: desktop.meta?.caption ?? null, hashtags: desktop.meta?.hashtags ?? [], queueJobId: jobId, cut: result.spec };
+        await desktop.bridge.render.save({ jobId, folder: "", name: name.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta });
         desktop.onSaved?.();
         where = "saved";
       } else downloadExport(result.blob, result.format.extension, name.replace(/\.[a-z0-9]+$/i, ""));
@@ -177,7 +183,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
           <span>{label}</span>
           <span className="tabular-nums text-ink">{format(fitted[key])}</span>
         </span>
-        <input type="range" min={range.min} max={top} step={range.step} value={fitted[key]} disabled={rendering} onChange={(e) => set(key, Number(e.target.value))} className="w-full accent-accent" data-testid={`clip-edit-${key}`} />
+        <input type="range" min={range.min} max={top} step={range.step} value={fitted[key]} disabled={busy} onChange={(e) => set(key, Number(e.target.value))} className="w-full accent-accent" data-testid={`clip-edit-${key}`} />
       </label>
     );
   };
@@ -214,18 +220,18 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
           </div>
           <label className="block text-xs text-ink-2 space-y-1">
             <span>{t("hook")}</span>
-            <input type="text" value={spec.hook} maxLength={CLIP_EDIT_TEXT_MAX} disabled={rendering} onChange={(e) => set("hook", e.target.value)} placeholder={t("hookPlaceholder")} className={`${inputClass} w-full`} data-testid="clip-edit-hook" />
+            <input type="text" value={spec.hook} maxLength={CLIP_EDIT_TEXT_MAX} disabled={busy} onChange={(e) => set("hook", e.target.value)} placeholder={t("hookPlaceholder")} className={`${inputClass} w-full`} data-testid="clip-edit-hook" />
           </label>
           <div className="flex flex-wrap gap-1.5">
             {HOOK_IDEAS.map((idea) => (
-              <button key={idea} type="button" disabled={rendering} onClick={() => set("hook", t(`ideas.${idea}`))} className={`${btn} bg-surface-2 text-ink-2 hover:text-ink border border-line`}>
+              <button key={idea} type="button" disabled={busy} onClick={() => set("hook", t(`ideas.${idea}`))} className={`${btn} bg-surface-2 text-ink-2 hover:text-ink border border-line`}>
                 {t(`ideas.${idea}`)}
               </button>
             ))}
           </div>
           <label className="block text-xs text-ink-2 space-y-1">
             <span>{t("url")}</span>
-            <input type="text" value={spec.url} maxLength={CLIP_EDIT_TEXT_MAX} disabled={rendering} onChange={(e) => set("url", e.target.value)} placeholder={DEFAULT_CLIP_EDIT.url} className={`${inputClass} w-full`} data-testid="clip-edit-url" />
+            <input type="text" value={spec.url} maxLength={CLIP_EDIT_TEXT_MAX} disabled={busy} onChange={(e) => set("url", e.target.value)} placeholder={DEFAULT_CLIP_EDIT.url} className={`${inputClass} w-full`} data-testid="clip-edit-url" />
           </label>
 
           {render.status === "rendering" && (

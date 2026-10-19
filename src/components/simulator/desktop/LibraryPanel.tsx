@@ -27,14 +27,15 @@ export type LibrarySuggestCut = (item: LibraryItem, input: { durationSec: number
 const noTargets: PublishTarget[] = [];
 
 /**
- * --- ai-cut --- What "Edit for TikTok" opens with: a master's proposed cut whole; a cut file (the queue names its
- * `queueJobId` `<job>-cut`) only the look it was made with – its offsets were measured on the master, not on it.
+ * --- ai-cut --- What "Edit for TikTok" opens with: a master's proposed cut; a cut file (the queue and the editor name its
+ * `queueJobId` `<job>-cut`) only the look it was made with – its offsets were measured on the master, not on it. Never the
+ * address: that stays the user's remembered one (the editor's own spec), whatever the cut was burned with.
  */
 function initialCut(item: LibraryItem): Partial<ClipEditSpec> | undefined {
   const cut = item.meta.cut;
   if (!cut) return undefined;
-  if (item.meta.queueJobId?.endsWith("-cut")) return { zoom: cut.zoom, hook: cut.hook, url: cut.url, cardSec: cut.cardSec };
-  return cut;
+  if (item.meta.queueJobId?.endsWith("-cut")) return { zoom: cut.zoom, hook: cut.hook, cardSec: cut.cardSec };
+  return { startSec: cut.startSec, lengthSec: cut.lengthSec, zoom: cut.zoom, hook: cut.hook, cardSec: cut.cardSec };
 }
 
 export default function LibraryPanel({ bridge, items, onRefresh, onRerender, onSuggestCut }: { bridge: DesktopApi; items: LibraryItem[]; onRefresh: () => void; onRerender: (item: LibraryItem) => void; onSuggestCut?: LibrarySuggestCut }) {

@@ -104,6 +104,8 @@ export interface RenderQueueApi {
 export interface RenderQueueCut {
   card: EditCardText;
   onFailed?: (job: QueueJob, message: string) => void;
+  /** The cut is in the Library (`watermarked`: a free run, stamped again at the output's size). */
+  onCut?: (job: QueueJob, result: { watermarked: boolean }) => void;
 }
 
 export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObject<DesktopPageHooks>, folder: string, onSaved: () => void, cut?: RenderQueueCut): RenderQueueApi {
@@ -247,6 +249,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
               const cutMeta: LibraryMeta = { ...meta, platform: "tiktok", hook: result.spec.hook, queueJobId: `${job.id}-cut` /* the cut, not the master: the Library tells them apart */, cut: result.spec };
               await bridge.render.save({ jobId: `${job.id}-cut`, folder, name: fileName.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta: cutMeta });
               offerPublishClip({ blob: result.blob, name: fileName, source: "edit", durationSec: result.durationSec, mode: job.settings.mode, seed: job.seed });
+              cutDeps.onCut?.(job, { watermarked: result.watermarked });
             }
           } catch (err) {
             const message = err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") : String(err);
@@ -337,7 +340,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
     retryAllFailed: () => apply((s) => retryFailed(s, Date.now())),
     remove: (id) => apply((s) => removeJob(s, id)),
     move: (id, delta) => apply((s) => moveJob(s, id, delta)),
-    clearDone: () => apply((s) => clearFinished(s)),
+    clearDone: () => apply((s) => clearFinished(s, cutRun.current?.jobId ?? null)), // --- ai-cut --- (the row of a cut in progress stays)
     dismissResume: () => setResumable(null),
     lastError,
     cutting, // --- ai-cut ---

@@ -7,7 +7,7 @@
  * that runs long, a length past the file – so a slip costs no retry. Pure, website-safe: the page uses the same rules.
  */
 import { fitText } from "@/lib/desktop/ai/normalise";
-import { CLIP_EDIT_TEXT_MAX, fitClipEdit, parseClipEdit, type ClipEditSpec } from "./spec";
+import { CLIP_EDIT_TEXT_MAX, SHORTEST_CUT_SEC, fitClipEdit, parseClipEdit, type ClipEditSpec } from "./spec";
 
 /** The beats of a clip, as far as they are known (null: not measured). */
 export interface ClipBeats {
@@ -59,7 +59,8 @@ export function beatsOfLibraryItem(item: { durationSec: number | null; meta: { m
   return { durationSec: length !== null && Number.isFinite(length) && length > 0 ? length : 0, mode: item.meta.mode, firstImpactSec: null, payoffSec: null, cutGapSec: null, ending: null, seamlessLoop: false, hook: item.meta.hook || null };
 }
 
-const nearest = (steps: readonly number[], v: number): number => steps.reduce((best, s) => (Math.abs(s - v) < Math.abs(best - v) ? s : best), steps[0]);
+/** The step nearest to `v` (a tie goes to the later step: a 0.5 s card becomes 1 s, not none). */
+const nearest = (steps: readonly number[], v: number): number => steps.reduce((best, s) => (Math.abs(s - v) <= Math.abs(best - v) ? s : best), steps[0]);
 
 /** A hook fitted to the pill: one line of at most CLIP_EDIT_TEXT_MAX characters, cut at a space, "" when there is none. */
 export function fitHook(value: unknown): string {
@@ -76,7 +77,9 @@ export function fitHook(value: unknown): string {
 export function suggestClipEdit(beats: ClipBeats, base: ClipEditSpec): ClipEditSpec {
   const d = beats.durationSec > 0 ? beats.durationSec : base.startSec + base.lengthSec;
   const hook = beats.hook ? fitHook(beats.hook) || base.hook : base.hook;
-  if (beats.seamlessLoop) return fitClipEdit({ ...base, startSec: 0, lengthSec: tenth(d), hook, cardSec: 0 }, d);
+  // the crop-in and the card on their steps: the suggestion is what a model is shown and the grammar lets it answer
+  const zoom = nearest(ZOOM_STEPS, base.zoom);
+  if (beats.seamlessLoop) return fitClipEdit({ ...base, startSec: 0, lengthSec: tenth(d), zoom, hook, cardSec: 0 }, d);
   const motion = beats.firstImpactSec !== null && beats.firstImpactSec >= 0 ? Math.max(0, beats.firstImpactSec - CUT_SEC.beforeMotion) : CUT_SEC.noBeatsStart;
   const cliffhanger = beats.ending === "cliffhanger" || beats.cutGapSec !== null;
   const payoff = beats.payoffSec !== null && beats.payoffSec >= 0 ? beats.payoffSec : null;
@@ -87,7 +90,7 @@ export function suggestClipEdit(beats: ClipBeats, base: ClipEditSpec): ClipEditS
   let start = Math.max(motion, end - CUT_SEC.max);
   if (end - start < CUT_SEC.min) start = Math.max(0, end - CUT_SEC.min);
   if (start > end) start = Math.max(0, end - 1);
-  return fitClipEdit({ ...base, startSec: tenth(start), lengthSec: tenth(Math.max(0.5, end - start)), hook, cardSec: cliffhanger ? 0 : base.cardSec }, d);
+  return fitClipEdit({ ...base, startSec: tenth(start), lengthSec: tenth(Math.max(0.5, end - start)), zoom, hook, cardSec: cliffhanger ? 0 : nearest(CARD_STEPS, base.cardSec) }, d);
 }
 
 /** A number as a model wrote it (a string one coerced), else `fallback`: the floors are parseClipEdit's. */
@@ -108,7 +111,12 @@ export function snapClipEdit(raw: unknown, beats: ClipBeats, base: ClipEditSpec)
   const hook = fitHook(typeof r.hook === "string" ? r.hook : base.hook) || (beats.hook ? fitHook(beats.hook) : "") || base.hook;
   const parsed = parseClipEdit({ startSec: numOr(r.startSec, base.startSec), lengthSec: numOr(r.lengthSec, base.lengthSec), zoom: numOr(r.zoom, base.zoom), cardSec: numOr(r.cardSec, base.cardSec), hook, url: base.url });
   const spec: ClipEditSpec = { ...parsed, zoom: nearest(ZOOM_STEPS, parsed.zoom), cardSec: nearest(CARD_STEPS, parsed.cardSec), hook, url: base.url };
-  return beats.durationSec > 0 ? fitClipEdit(spec, beats.durationSec) : spec;
+  if (beats.durationSec <= 0) return spec;
+  // a start in the file's last moments is pulled back so the schema's shortest cut (lengthSec at least its floor) survives
+  // the fit: otherwise the answer would fail its own check on every retry (a file shorter than the floor is kept whole)
+  const floor = SHORTEST_CUT_SEC;
+  if (beats.durationSec >= floor) spec.startSec = Math.min(spec.startSec, Math.floor((beats.durationSec - floor) * 10 + 1e-9) / 10);
+  return fitClipEdit(spec, beats.durationSec);
 }
 
 /**

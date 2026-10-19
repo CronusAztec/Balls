@@ -21,7 +21,7 @@ import AiPanel from "../desktop/AiPanel";
 import LibraryPanel, { type LibrarySuggestCut } from "../desktop/LibraryPanel";
 import { suggestCut } from "../desktop/aiCut"; // --- ai-cut --- the local AI proposes a cut for a Library clip
 import { beatsOfLibraryItem } from "@/lib/clipEdit/propose"; // --- ai-cut ---
-import { parseClipEdit } from "@/lib/clipEdit/spec"; // --- ai-cut ---
+import { loadClipEdit, parseClipEdit } from "@/lib/clipEdit/spec"; // --- ai-cut ---
 import { errorText, ghostBtn, primaryBtn } from "../desktop/ui"; // --- desktop-autorelease --- (the update banner's buttons)
 import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
 import type { PublishPlatform } from "@/lib/publish/platforms";
@@ -95,16 +95,26 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   }, [bridge]);
 
   // --- ai-cut --- a job that carries a cut is cut after it is saved; a cut that fails is said here, the clip itself is in the Library
-  const queue = useRenderQueue(bridge, pageRef, prefs?.outputFolder ?? "", refreshLibrary, { card: cutCard, onFailed: (job, error) => setNotice(t("jobCutFailed", { name: job.name, error })) });
+  const queue = useRenderQueue(bridge, pageRef, prefs?.outputFolder ?? "", refreshLibrary, {
+    card: cutCard,
+    onFailed: (job, error) => setNotice(t("jobCutFailed", { name: job.name, error })),
+    // a saved cut is said too, with the free run's mark named as the editor names it (a cut stamps the frames again)
+    onCut: (job, result) => setNotice(result.watermarked ? `${t("jobCutSaved", { name: job.name })} ${editor("watermarked")}` : t("jobCutSaved", { name: job.name })),
+  });
   const addAiClips = useCallback(
-    (result: MakeVideosResult, plans: ClipPlan[]) => {
+    (result: MakeVideosResult, plans: ClipPlan[], options: { start: boolean }) => {
+      const base = loadClipEdit(); // --- ai-cut --- the user's remembered spec: its address goes on every cut of this run
       const specs = result.clips.flatMap((clip) => {
         const plan = plans.find((p) => p.id === clip.planId);
         if (!plan) return [];
-        return expandBatch([aiClipSource(clip, plan)], { resolutions: ["1080x1920"], fps: [60], codecs: ["h264"], presets: [presetForPlatform(clip.platform)] });
+        return expandBatch([aiClipSource(clip, plan, base)], { resolutions: ["1080x1920"], fps: [60], codecs: ["h264"], presets: [presetForPlatform(clip.platform)] });
       });
       const added = queue.add(specs);
-      setNotice(t("aiQueuedNotice", { count: added }));
+      // --- ai-cut --- one click from the prompt to the files: the queue starts when the panel asked for it
+      if (options.start && added > 0) {
+        queue.start();
+        setNotice(t("aiStartedNotice", { count: added }));
+      } else setNotice(t("aiQueuedNotice", { count: added }));
     },
     [queue, t],
   );
@@ -220,7 +230,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
         const r = await resolveLinkSettings(item.meta.link);
         if (!r.ok) throw new Error(t("libRerenderFailed"));
         const settings = linkJobSettings(r.settings, pageRef.current.settings);
-        const clip = { ...seedSource(settings, linkSeed(item.meta.link) ?? item.meta.seed, { kind: "link", link: item.meta.link }), name: item.fileName.replace(/\.[^.]+$/, ""), meta: { title: item.meta.title, platform: item.meta.platform, hook: item.meta.hook, caption: item.meta.caption, hashtags: item.meta.hashtags, link: item.meta.link }, cut: item.meta.cut ?? null /* --- ai-cut --- a re-render makes the cut again */ };
+        const clip = { ...seedSource(settings, linkSeed(item.meta.link) ?? item.meta.seed, { kind: "link", link: item.meta.link }), name: item.fileName.replace(/\.[^.]+$/, ""), meta: { title: item.meta.title, platform: item.meta.platform, hook: item.meta.hook, caption: item.meta.caption, hashtags: item.meta.hashtags, link: item.meta.link }, cut: item.meta.queueJobId?.endsWith("-cut") ? null : (item.meta.cut ?? null) /* --- ai-cut --- a master's re-render makes its cut again; a cut file's re-render is the master alone */ };
         const codec = item.encoder?.startsWith("hevc") || item.encoder === "libx265" ? "hevc" : item.encoder?.startsWith("av1") || item.encoder?.includes("av1") ? "av1" : "h264";
         queue.add(expandBatch([clip], { resolutions: [settings.recordingResolution], fps: [resolveFastExportFps(settings.fastExportFps) >= 60 ? 60 : 30] /* the render queue renders 30 or 60 fps; uncap-all lets the page export any rate */, codecs: [codec], presets: [presetForPlatform(item.meta.platform)] }));
         show("queue");
@@ -232,7 +242,8 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   );
 
   // --- desktop-autorelease --- no restart while a clip renders or encodes (the update then installs when the app quits)
-  const rendering = queue.state.jobs.some((j) => j.status === "rendering" || j.status === "encoding");
+  // --- ai-cut --- a cut in progress counts: its job is done already, but a restart now would lose the cut
+  const rendering = queue.state.jobs.some((j) => j.status === "rendering" || j.status === "encoding") || queue.cutting !== null;
 
   if (!prefs) return null;
   return (
@@ -255,7 +266,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
             >
               <span className="mr-1">{TAB_ICONS[id]}</span>
               {t(`tab.${id}`)}
-              {id === "queue" && queue.state.jobs.some((j) => j.status === "queued" || j.status === "rendering" || j.status === "encoding") && <span className="ml-1.5 text-xs text-accent-strong">●</span>}
+              {id === "queue" && (rendering || queue.state.jobs.some((j) => j.status === "queued")) && <span className="ml-1.5 text-xs text-accent-strong">●</span>}
             </button>
           ))}
         </nav>

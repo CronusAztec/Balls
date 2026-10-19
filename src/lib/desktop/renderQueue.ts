@@ -202,8 +202,8 @@ export function removeJob(state: QueueState, id: string): QueueState {
 }
 
 /** Removes the finished jobs (done, failed, cancelled). */
-export function clearFinished(state: QueueState): QueueState {
-  const jobs = state.jobs.filter((j) => !isFinished(j));
+export function clearFinished(state: QueueState, keep: string | null = null /* --- ai-cut --- the done job whose cut still runs */): QueueState {
+  const jobs = state.jobs.filter((j) => !isFinished(j) || j.id === keep);
   return jobs.length === state.jobs.length ? state : { ...state, jobs };
 }
 

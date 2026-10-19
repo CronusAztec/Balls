@@ -213,6 +213,14 @@ describe("the snap of a model's answer", () => {
     expect(snapClipEdit({ startSec: -2, lengthSec: 1, zoom: 0.3, hook: "x", cardSec: -1 }, beats(), DEFAULT_CLIP_EDIT)).toMatchObject({ startSec: 0, lengthSec: 3, zoom: 1, cardSec: 0 });
   });
 
+  it("suggests a crop-in and a card on the steps a model may answer, a half-second card rounding up to a card", () => {
+    const odd = { ...DEFAULT_CLIP_EDIT, zoom: 1.3, cardSec: 0.5 };
+    expect(suggestClipEdit(beats(), odd)).toMatchObject({ zoom: 1.25, cardSec: 1 });
+    expect(suggestClipEdit(beats({ ending: "cliffhanger", cutGapSec: 0.8 }), odd)).toMatchObject({ zoom: 1.25, cardSec: 0 });
+    expect(suggestClipEdit(beats({ seamlessLoop: true }), odd)).toMatchObject({ zoom: 1.25, cardSec: 0 });
+    expect(snapClipEdit({ startSec: 0, lengthSec: 8, zoom: 1, hook: "x", cardSec: 0.5 }, beats(), DEFAULT_CLIP_EDIT).cardSec).toBe(1);
+  });
+
   it("snaps the zoom to the nearest step and the card to the nearest length", () => {
     const zoom = (z: unknown) => snapClipEdit({ startSec: 0, lengthSec: 8, zoom: z, hook: "x", cardSec: 1 }, beats(), DEFAULT_CLIP_EDIT).zoom;
     expect(zoom(1.3)).toBe(1.25);
@@ -257,9 +265,14 @@ describe("the snap of a model's answer", () => {
 
   it("fits the cut to the file: a huge length or start is fitted, never past the end", () => {
     expect(snapClipEdit({ startSec: -2, lengthSec: 999, zoom: 1.25, hook: "x", cardSec: 1.5 }, beats(), DEFAULT_CLIP_EDIT)).toMatchObject({ startSec: 0, lengthSec: 16.2 });
+    // a start in the file's last moments is pulled back so the schema's shortest cut (3 s) survives the fit: the answer
+    // must pass its own check, else the run would retry into the same wall every time
     const late = snapClipEdit({ startSec: 500, lengthSec: 999, zoom: 1.25, hook: "x", cardSec: 1.5 }, beats(), DEFAULT_CLIP_EDIT);
-    expect(late.startSec).toBeCloseTo(15.2, 9);
-    expect(late.lengthSec).toBe(1);
+    expect(late.startSec).toBeCloseTo(13.2, 9);
+    expect(late.lengthSec).toBeCloseTo(3, 9);
+    expect(snapClipEdit({ startSec: 15, lengthSec: 2, zoom: 1.25, hook: "x", cardSec: 1.5 }, beats(), DEFAULT_CLIP_EDIT)).toMatchObject({ startSec: 13.2, lengthSec: 3 });
+    // a file shorter than the floor is kept whole
+    expect(snapClipEdit({ startSec: 1, lengthSec: 5, zoom: 1.25, hook: "x", cardSec: 1.5 }, beats({ durationSec: 2.4 }), DEFAULT_CLIP_EDIT)).toMatchObject({ startSec: 1, lengthSec: 1.4 });
     const nan = snapClipEdit({ startSec: "abc", lengthSec: Infinity, zoom: NaN, hook: "x", cardSec: {} }, beats(), mine);
     expect(nan).toMatchObject({ startSec: 3, lengthSec: 11, zoom: 1.4, cardSec: 2 }); // not numbers: the base's
   });
