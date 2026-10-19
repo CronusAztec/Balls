@@ -20,6 +20,7 @@ import {
   main,
   missingSecurityHeaders,
   modeCountOf,
+  operatorIdentity,
   pageAddress,
   parseLatestYml,
   pngSize,
@@ -50,6 +51,10 @@ const COPY_MODES = adCopyFacts(JSON.parse(fs.readFileSync(path.join(ROOT, "docs/
 const DESCRIPTION = `Ball physics simulator in your browser. ${COPY_MODES} modes, free, no sign-up. Export MP4 videos for TikTok, Reels and Shorts.`;
 
 const DISCLAIMER_BODY = '<h1>Disclaimer</h1><p>Fight League is a fan-made simulation. Character names belong to their owners. <a href="mailto:support@example.com">Write to us</a>.</p>';
+// --- legal-audit --- the legal pages as the current build renders them with LEGAL_NAME and LEGAL_ADDRESS set (A12 reads the sections by id)
+const PRIVACY_BODY = '<h1>Privacy</h1><section id="introduction"><h2>1. Introduction</h2><p>Welcome.</p></section><section id="controller"><h2>2. Who is responsible</h2><p>JumpingBallsLive is run by Example Studio Ltd, 1 High Street, Town.</p><p>For anything about your data, write to <a href="mailto:support@example.com">support@example.com</a>.</p></section>';
+const TERMS_BODY = '<h1>Terms</h1><section id="operator"><h2>7. Who you are buying from</h2><p>JumpingBallsLive and the Pro subscription are run by Example Studio Ltd, 1 High Street, Town. Payments are processed by Stripe for cards and NOWPayments for crypto.</p></section><p><a href="mailto:support@example.com">Write to us</a>.</p>';
+const BODIES: Record<string, string> = { "/disclaimer": DISCLAIMER_BODY, "/privacy": PRIVACY_BODY, "/terms": TERMS_BODY };
 
 /** A description of its own for every page of every language (two pages that share one are a warning of A2g). */
 const descriptionOf = (locale: string, route: string) => `${DESCRIPTION} [${locale}${route || "/"}]`;
@@ -88,7 +93,7 @@ ${image ? `<meta property="og:image" content="${image}"/>` : ""}
 <meta name="twitter:card" content="summary_large_image"/>
 ${(o.jsonLd ?? [`{"@context":"https://schema.org","@type":"BreadcrumbList"}`]).map((j) => `<script type="application/ld+json">${j}</script>`).join("\n")}
 <style>.x{color:red}</style><script>self.__next_f.push([1,"undefined NEXT_PUBLIC_BILLING_API {count}"])</script></head>
-<body><main>${o.body ?? (o.route === "/disclaimer" ? DISCLAIMER_BODY : '<h1>Welcome</h1><p>Make a ball clip. <a href="mailto:support@example.com">Write to us</a>.</p>')}</main></body></html>`;
+<body><main>${o.body ?? BODIES[o.route] ?? '<h1>Welcome</h1><p>Make a ball clip. <a href="mailto:support@example.com">Write to us</a>.</p>'}</main></body></html>`;
 }
 
 function png(width: number, height: number): Uint8Array {
@@ -357,7 +362,7 @@ describe("launch-check: a run against a site that is ready", () => {
     expect(results.filter((r: { status: string }) => r.status === "FAIL").map((r: { id: string; detail: string }) => `${r.id} ${r.detail}`)).toEqual([]);
     expect(ok).toBe(true);
     const ids = results.map((r: { id: string }) => r.id);
-    expect(ids).toEqual(["A1", "A2", "A2b", "A2c", "A2d", "A2e", "A2f", "A2g", "A3", "A4", "A5", "A5b", "A6", "A7", "A8", "A9", "A10", "A11", "B1", "B2", "B3", "B4", "B5", "B6"]);
+    expect(ids).toEqual(["A1", "A2", "A2b", "A2c", "A2d", "A2e", "A2f", "A2g", "A3", "A4", "A5", "A5b", "A6", "A7", "A8", "A9", "A10", "A11", "A12", "B1", "B2", "B3", "B4", "B5", "B6"]);
     expect(byId(results, "A8").status).toBe("SKIP");
     expect(byId(results, "A9").status).toBe("SKIP");
     expect(results.filter((r: { status: string }) => r.status === "WARN").map((r: { id: string; detail: string }) => `${r.id} ${r.detail}`)).toEqual([]);
@@ -442,6 +447,19 @@ describe("launch-check: a run against an older build", () => {
     const { results } = await run({ pages: ({ route }) => (route === "/privacy" ? { body: "<h1>Privacy</h1><p>No address.</p>" } : {}) });
     expect(byId(results, "A3").status).toBe("FAIL");
     expect(byId(results, "A3").detail).toContain("JBL_SUPPORT_EMAIL");
+  });
+
+  // --- legal-audit --- A12: the operator's name and postal address
+  it("fails the operator identity when the privacy page names no postal address or the terms fall back to the operator of the domain", async () => {
+    expect(operatorIdentity({ privacyHtml: PRIVACY_BODY, termsHtml: TERMS_BODY })).toEqual([]);
+    expect(operatorIdentity({ privacyHtml: PRIVACY_BODY.replace(", 1 High Street, Town", ""), termsHtml: TERMS_BODY })).toEqual([expect.stringContaining("no postal address")]);
+    expect(operatorIdentity({ privacyHtml: PRIVACY_BODY, termsHtml: TERMS_BODY.replace("Example Studio Ltd, 1 High Street, Town", "the operator of jumpingballslive.com") })).toEqual([expect.stringContaining("the operator of")]);
+    expect(operatorIdentity({ privacyHtml: "<h1>Privacy</h1><p>No address.</p>", termsHtml: "<h1>Terms</h1>" })).toHaveLength(2);
+    const { results } = await run({ pages: ({ route }) => (route === "/privacy" ? { body: PRIVACY_BODY.replace("Example Studio Ltd, 1 High Street, Town", "the operator of jumpingballslive.com") } : {}) });
+    expect(byId(results, "A12").status).toBe("FAIL");
+    for (const name of ["JBL_LEGAL_NAME", "JBL_LEGAL_ADDRESS", "JBL_SUPPORT_EMAIL", "EU and UK law"]) expect(byId(results, "A12").detail).toContain(name);
+    expect(byId((await run(OLD)).results, "A12").status).toBe("FAIL"); // the old privacy page has no controller section
+    expect(byId((await run({})).results, "A12")).toMatchObject({ status: "PASS" });
   });
 
   it("gives the exact Cloudflare step for http and www, and notes a proxy", async () => {

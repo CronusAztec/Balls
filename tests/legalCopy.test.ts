@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import { IntlMessageFormat } from "intl-messageformat";
@@ -100,10 +100,10 @@ describe("publishing claims", () => {
 describe("the privacy page", () => {
   const page = read("src", "app", "[locale]", "privacy", "page.tsx");
   it("starts with a controller block: the operator's name, address and support address, else the feedback form", () => {
-    expect(page).toContain('import { LEGAL_ADDRESS, LEGAL_NAME, SUPPORT_EMAIL } from "@/lib/operator"');
+    expect(page).toMatch(/import \{ [^}]*\bLEGAL_ADDRESS\b[^}]*\bLEGAL_NAME\b[^}]*\bSUPPORT_EMAIL\b[^}]* \} from "@\/lib\/operator"/);
     expect(page).toContain('t("controller.named"');
     expect(page).toContain('t("controller.unnamed"');
-    expect(page).toContain('reach("controller.writeTo", "controller.useForm")');
+    expect(page).toContain('reach("controller.writeTo", "controller.useForm", "controller.useNone")');
     each((locale, flat) => {
       expect(flat["Privacy.controller.named"], locale).toMatch(/\{legalName\}\{address\}/);
       expect(flat["Privacy.controller.unnamed"], locale).toContain("{siteDomain}");
@@ -116,7 +116,7 @@ describe("the privacy page", () => {
   it("numbers its sections from one list, controller second, and renders the rights, advertising, consent and Windows app sections", () => {
     const order = /const ORDER = \[([\s\S]*?)\] as const;/.exec(page)?.[1].match(/"(\w+)"/g)?.map((s) => s.replace(/"/g, "")) ?? [];
     expect(order.slice(0, 3)).toEqual(["introduction", "controller", "information"]);
-    for (const id of ["rights", "advertising", "consent", "publishing", "payments", "windowsApp", "contact"]) expect(order, id).toContain(id);
+    for (const id of ["legalBases", "transfers", "rights", "advertising", "consent", "publishing", "payments", "windowsApp", "contact"]) expect(order, id).toContain(id);
     for (const id of order.filter((x) => x !== "payments")) each((locale, flat) => expect(flat[`Privacy.${id}.title`], `${locale} ${id}`).toBeTruthy());
     expect(page).toContain("const heading = (id: SectionId) => `${ORDER.indexOf(id) + 1}. ${label(id)}`");
     // the titles carry no number of their own any more
@@ -243,7 +243,12 @@ describe("prices", () => {
     each((locale, flat) => {
       expect(flat["Billing.checkout.line"], locale).toMatch(/<terms>[^<]+<\/terms>/);
     });
-    expect(en.Billing.checkout.line).toBe("Prices are in US dollars. Tax may be added at checkout. By paying you accept the <terms>Terms</terms>.");
+    // --- legal-audit --- the tax where it is charged, the total before paying, the renewal at the same price, Pro started at once on request
+    expect(en.Billing.checkout.line).toBe("Prices are in US dollars. Tax is added at checkout where your country charges it, and the checkout shows the total before you pay. A card plan renews at the same price until you cancel. By paying you ask us to start Pro at once and accept the <terms>Terms</terms>.");
+    expect(en.Billing.plan.yearlyNote).toBe("Billed {price} once a year. Renews every year. Cancel any time.");
+    each((locale, flat) => expect(flat["Billing.plan.yearlyNote"], locale).toContain("{price}"));
+    expect(read("src", "components", "billing", "PlanCards.tsx")).toContain('t("plan.yearlyNote", { price: formatUsd(plans.yearly.usd, locale) })'); // the amount billed, not a monthly equivalent
+    expect(en.Billing.terms.content).toContain("The checkout shows the total before you pay.");
     const cards = read("src", "components", "billing", "PlanCards.tsx");
     expect(cards).toContain('t.rich("checkout.line"');
     expect(cards).toContain("assetPath(`/${locale}/terms/`)");
@@ -337,6 +342,242 @@ describe("feedback", () => {
     });
     expect(en.Feedback.notConfigured).toBe("Feedback is not available right now. Please try again later.");
     expect(en.Feedback.emailInstead).toBe("Write to {email} instead.");
+  });
+});
+
+/*
+ * --- legal-audit --- The findings of the legal audit: operator identity, the EU and UK right of withdrawal, consumer-safe liability,
+ * warranty and change clauses, the new terms sections (age, AI, takedown, termination, law), the privacy additions (legal bases,
+ * transfers, retention periods, the one-month answer, the ages, the opt-out switch, no public issue form for a rights request),
+ * the account's age confirmation and the YouTube terms under the Connect YouTube control.
+ */
+describe("legal audit: the terms page", () => {
+  const page = read("src", "app", "[locale]", "terms", "page.tsx");
+  const order = /const ORDER = \[([\s\S]*?)\] as const;/.exec(page)?.[1].match(/"(\w+)"/g)?.map((s) => s.replace(/"/g, "")) ?? [];
+  const BILLING = ["pro", "delivery", "refunds", "withdrawal", "operator"];
+  it("numbers its sections from one list and renders every one, the new ones included, with a title in every language", () => {
+    expect(order.slice(0, 2)).toEqual(["acceptance", "description"]);
+    for (const id of ["pro", "delivery", "refunds", "withdrawal", "operator", "ugc", "acceptable", "age", "intellectual", "ai", "takedown", "warranties", "liability", "termination", "changes", "law", "contact"]) expect(order, id).toContain(id);
+    expect(order.indexOf("withdrawal")).toBe(order.indexOf("refunds") + 1); // the withdrawal section follows the refunds
+    expect(page).toContain("const heading = (id: SectionId) => `${ORDER.indexOf(id) + 1}. ${label(id)}`");
+    // every section is rendered: by a literal id, or through the plain() helper from one of the PLAIN_* lists
+    const plainIds = [...page.matchAll(/const PLAIN_\w+: readonly SectionId\[\] = \[([^\]]*)\]/g)].flatMap((m) => (m[1].match(/"(\w+)"/g) ?? []).map((x) => x.replace(/"/g, "")));
+    for (const id of order) expect(page.includes(`id="${id}"`) || plainIds.includes(id), id).toBe(true);
+    expect(plainIds).toContain("liability");
+    each((locale, flat) => {
+      for (const id of order) {
+        const key = BILLING.includes(id) ? (id === "pro" ? "Billing.terms.title" : `Billing.terms.${id}.title`) : `Terms.${id}.title`;
+        expect(flat[key], `${locale} ${key}`).toBeTruthy();
+        expect(flat[key], `${locale} ${key}`).not.toMatch(/^\d+\./); // the titles carry no number of their own any more
+      }
+    });
+  });
+  it("gives the operator's VAT number and register entry when set, on the terms, the privacy policy and the footer", () => {
+    const operator = read("src", "lib", "operator.ts");
+    for (const name of ["LEGAL_VAT_ID", "LEGAL_REGISTRATION", "LEGAL_COUNTRY"]) expect(operator).toContain(`export const ${name} = (process.env.NEXT_PUBLIC_${name} || "").trim();`);
+    each((locale, flat) => {
+      expect(flat["Billing.terms.operator.vat"], locale).toContain("{vat}");
+      expect(flat["Billing.terms.operator.registration"], locale).toContain("{registration}");
+      expect(flat["Footer.vatNumber"], locale).toContain("{vat}");
+    });
+    expect(en.Billing.terms.operator.vat).toBe("VAT number: {vat}.");
+    expect(en.Billing.terms.operator.registration).toBe("Registered as {registration}.");
+    expect(page).toContain('billing("terms.operator.vat", { vat: LEGAL_VAT_ID })');
+    expect(page).toContain('billing("terms.operator.registration", { registration: LEGAL_REGISTRATION })');
+    const privacy = read("src", "app", "[locale]", "privacy", "page.tsx");
+    expect(privacy).toContain('billing("terms.operator.vat", { vat: LEGAL_VAT_ID })');
+    const footer = read("src", "components", "site", "Footer.tsx");
+    expect(footer).toContain('{LEGAL_NAME && LEGAL_VAT_ID && <p data-testid="footer-vat">{t("vatNumber", { vat: LEGAL_VAT_ID })}</p>}');
+    expect(footer.indexOf("footer-vat")).toBeGreaterThan(footer.indexOf("footer-imprint"));
+    // the deploy passes the three variables through like LEGAL_NAME
+    const deploy = read(".github", "workflows", "deploy.yml");
+    for (const name of ["LEGAL_VAT_ID", "LEGAL_REGISTRATION", "LEGAL_COUNTRY"]) expect(deploy).toContain(`NEXT_PUBLIC_${name}: \${{ vars.${name} }}`);
+    const vps = read("deploy", "vps", "jbl-deploy.sh");
+    for (const name of ["LEGAL_VAT_ID", "LEGAL_REGISTRATION", "LEGAL_COUNTRY"]) expect(vps).toContain(`NEXT_PUBLIC_${name}="\${JBL_${name}:-}"`);
+    for (const name of ["JBL_LEGAL_VAT_ID", "JBL_LEGAL_REGISTRATION", "JBL_LEGAL_COUNTRY"]) expect(read("deploy", "vps", "README.md")).toContain(name);
+    for (const name of ["LEGAL_VAT_ID", "LEGAL_REGISTRATION", "LEGAL_COUNTRY"]) expect(read("docs", "GO-LIVE.md")).toContain(`\`${name}\``);
+  });
+  it("refunds any first payment within 14 days and gives EU and UK consumers the right of withdrawal, with a model form", () => {
+    expect(en.Billing.terms.refunds.content).toContain("Any first payment, by card or by crypto, is refunded in full if you ask within 14 days of paying.");
+    expect(en.Billing.terms.refunds.content).toContain("Renewals are not refundable unless the law of your country gives you that right.");
+    expect(en.Billing.terms.refunds.content).toContain("legal right to withdraw within 14 days");
+    expect(en.Billing.notes.refunds).toBe("Ask within 14 days of a first payment and we refund it in full. In the EU and the UK you can also withdraw within 14 days of any payment. Renewals are otherwise not refundable.");
+    expect(en.Billing.terms.withdrawal.title).toBe("Right of withdrawal in the EU and the UK");
+    expect(en.Billing.terms.withdrawal.content).toContain("within 14 days of the payment without giving a reason");
+    expect(en.Billing.terms.withdrawal.content).toContain("We refund within 14 days of your message");
+    expect(en.Billing.terms.withdrawal.form).toMatch(/^Model withdrawal form\. To \{legalName\}, \{email\}:/);
+    each((locale, flat) => {
+      expect(flat["Billing.terms.refunds.content"], locale).toContain("{email}");
+      expect(flat["Billing.terms.refunds.content"], locale).toContain("14");
+      expect(flat["Billing.terms.withdrawal.content"], locale).toContain("{email}");
+      for (const ph of ["{legalName}", "{email}", "{date}", "{buyerEmail}", "{ref}"]) expect(flat["Billing.terms.withdrawal.form"], `${locale} ${ph}`).toContain(ph);
+      for (const key of ["formDate", "formEmail", "formRef", "operatorFallback"]) expect(flat[`Billing.terms.withdrawal.${key}`], `${locale} ${key}`).toBeTruthy();
+      expect(flat["Billing.notes.refunds"], locale).toContain("14");
+    });
+    // the page fills the form: the operator's name (else "the operator"), the support address (else the site), the placeholders as bracketed words
+    expect(page).toContain('legalName: LEGAL_NAME || billing("terms.withdrawal.operatorFallback")');
+    expect(page).toContain("const contact = SUPPORT_EMAIL || SITE_DOMAIN;");
+    expect(page).toContain('billing("terms.refunds.content", { email: contact })');
+    expect(page).toContain('date: bracket("terms.withdrawal.formDate")');
+    const form = render(en.Billing.terms.withdrawal.form, "en", { legalName: "Example Studio Ltd", email: "help@example.com", date: "[date]", buyerEmail: "[your email]", ref: "[receipt reference]" });
+    expect(form).toBe("Model withdrawal form. To Example Studio Ltd, help@example.com: I withdraw from my contract for the Pro subscription bought on [date] with the email [your email] and the receipt reference [receipt reference]. Name, date.");
+  });
+  it("keeps consumer rights in the liability, warranty and change clauses, and adds age, AI, takedown, termination and law", () => {
+    expect(en.Terms.liability.content).toMatch(/^Nothing in these terms limits our liability for death or personal injury/);
+    expect(en.Terms.liability.content).toContain("limited to the amount paid to us in the twelve months before the claim");
+    expect(en.Terms.liability.content).toContain("For free use it is limited to 50 US dollars.");
+    expect(en.Terms.warranties.content).toContain("consumers keep every right the law gives them");
+    expect(en.Terms.changes.content).toContain("at least 30 days notice");
+    expect(en.Terms.changes.content).toContain("we refund the unused part of the period");
+    expect(en.Terms.age.content).toBe("You must be at least 16 to create an account and at least 18 to buy Pro, or have the agreement of a parent or guardian who accepts these terms for you. The service is not directed at children under 13.");
+    expect(en.Terms.termination.title).toBe("Ending the service");
+    expect(en.Terms.law.title).toBe("Law and disputes");
+    expect(en.Terms.law.content).toContain("governed by the law of {country}");
+    expect(en.Terms.law.content).toContain("We do not take part in consumer arbitration.");
+    expect(en.Terms.law.countryFallback).toBe("the country where the operator is established");
+    expect(page).toContain('t("law.content", { country: LEGAL_COUNTRY || t("law.countryFallback") })');
+    expect(en.Terms.ai.title).toBe("AI features");
+    expect(en.Terms.ai.content).toContain("Nothing is posted until you approve it.");
+    expect(en.Terms.ai.content).toContain("We do not see your prompts or outputs.");
+    expect(en.Terms.ugc.licence).toContain("store the clip for up to 24 hours");
+    expect(page).toContain('<p>{t("ugc.licence")}</p>');
+    expect(en.Terms.takedown.title).toBe("Reporting content");
+    expect(en.Terms.takedown.content).toContain("write to {email}");
+    expect(en.Terms.takedown.content).toContain("close the accounts of repeat infringers");
+    expect(en.Terms.takedown.agent).toBe("Copyright agent: {legalName}, {address}, {email}.");
+    expect(page).toMatch(/\{LEGAL_NAME && SUPPORT_EMAIL && <p data-testid="terms-copyright-agent">\{t\("takedown\.agent"/); // only when the build names both
+    expect(en.Terms.acceptable.youtube).toBe("Uploading to YouTube through the Service means you also agree to the YouTube Terms of Service.");
+    expect(page).toContain('<p>{t("acceptable.youtube")}</p>');
+    expect(en.Terms.proprietaryNotice).toMatch(/^\{siteName\}, the Gerald character as drawn here, its artwork and the \{siteName\} name and logo are ours\./);
+    expect(en.Disclaimer.asIs.content).toMatch(/Nothing here limits the rights you have as a consumer under the law of your country\.$/);
+    each((locale, flat) => {
+      for (const key of ["Terms.age.content", "Terms.termination.content", "Terms.law.content", "Terms.law.countryFallback", "Terms.ai.content", "Terms.ugc.licence", "Terms.takedown.content", "Terms.takedown.agent", "Terms.acceptable.youtube"]) expect(flat[key], `${locale} ${key}`).toBeTruthy();
+      expect(flat["Terms.law.content"], locale).toContain("{country}");
+      expect(flat["Terms.takedown.content"], locale).toContain("{email}");
+      for (const ph of ["{legalName}", "{address}", "{email}"]) expect(flat["Terms.takedown.agent"], locale).toContain(ph);
+      expect(flat["Terms.liability.content"], locale).toContain("50");
+      expect(flat["Terms.changes.content"], locale).toContain("30");
+      expect(flat["Terms.age.content"], locale).toMatch(/16/);
+      expect(flat["Terms.age.content"], locale).toMatch(/18/);
+      expect(flat["Terms.acceptable.youtube"], locale).toContain("YouTube");
+    });
+  });
+  it("has the same keys in every language for every legal namespace", () => {
+    for (const ns of ["Privacy", "Terms", "Billing", "Disclaimer", "Publish", "About", "Footer", "Account"]) {
+      const keysOf = (locale: Locale) => Object.keys(FLAT[locale]).filter((k) => k.startsWith(`${ns}.`)).sort();
+      expect(keysOf("pl"), `${ns} pl`).toEqual(keysOf("en"));
+      expect(keysOf("es"), `${ns} es`).toEqual(keysOf("en"));
+    }
+  });
+});
+
+describe("legal audit: the privacy page", () => {
+  const page = read("src", "app", "[locale]", "privacy", "page.tsx");
+  it("states the legal bases, where the data goes, the retention periods, the one-month answer and the ages", () => {
+    expect(en.Privacy.legalBases.title).toBe("Why we may process your data");
+    expect(en.Privacy.legalBases.content).toMatch(/^We process data on these legal grounds\./);
+    expect(en.Privacy.legalBases.content).toContain("Nothing is processed on the basis of consent except where we ask for it.");
+    expect(en.Privacy.transfers.title).toBe("Where your data goes");
+    expect(en.Privacy.transfers.content).toContain("EU-US Data Privacy Framework");
+    expect(en.Privacy.retention.content).toContain("for 10 years after the last payment");
+    expect(en.Privacy.retention.content).toContain("Webhook records are deleted after 30 days.");
+    expect(en.Privacy.retention.content).toContain("Its session tokens expire after 30 days.");
+    expect(en.Privacy.rights.content).toContain("We answer a request within one month.");
+    expect(en.Privacy.rights.content).toContain("we honour the Global Privacy Control signal");
+    expect(en.Privacy.children.content).toBe("The service is not directed at children under 13. You must be at least 16 to create an account and 18 to buy Pro. If we learn that we hold data of a younger child, we delete it. Parents can write to us at the address above.");
+    for (const id of ["legalBases", "transfers"]) expect(page, id).toContain(`<section id="${id}">`);
+    each((locale, flat) => {
+      for (const key of ["Privacy.legalBases.title", "Privacy.legalBases.content", "Privacy.transfers.title", "Privacy.transfers.content"]) expect(flat[key], `${locale} ${key}`).toBeTruthy();
+      expect(flat["Privacy.retention.content"], locale).toContain("10");
+      expect(flat["Privacy.retention.content"], locale).toContain("30");
+      expect(flat["Privacy.children.content"], locale).toMatch(/16/);
+      expect(flat["Privacy.children.content"], locale).toMatch(/18/);
+    });
+  });
+  it("never routes a rights request to a public GitHub issue form", async () => {
+    // the page: the support address, else the feedback form only when it reaches the operator privately, else the postal address
+    expect(page).toContain('import { FEEDBACK_REACHES_OPERATOR,');
+    expect(page).toMatch(/SUPPORT_EMAIL \? t\.rich\(withEmail, \{ email: SUPPORT_EMAIL, mail \}\) : FEEDBACK_REACHES_OPERATOR \? t\.rich\(withForm, \{ link: form \}\) : t\(withNone\)/);
+    expect(page).toContain('reach("rights.requestEmail", "rights.requestForm", "rights.requestNone")');
+    expect(en.Privacy.rights.requestNone).toBe("To make a request, write to the operator at the address above.");
+    expect(en.Privacy.controller.useNone).toBe("For anything about your data, write to the operator at the address above.");
+    each((locale, flat) => {
+      expect(flat["Privacy.rights.requestNone"], locale).not.toMatch(/<link>/);
+      expect(flat["Privacy.controller.useNone"], locale).not.toMatch(/<link>/);
+    });
+    // the flag follows the feedback form's own channel order (FeedbackForm.tsx): an endpoint or an e-mail is private, GitHub or nothing is not
+    const form = read("src", "components", "site", "FeedbackForm.tsx");
+    expect(form).toContain('export const FEEDBACK_CHANNEL: FeedbackChannel = ENDPOINT ? "endpoint" : EMAIL ? "email" : GITHUB_REPO ? "github" : "none";');
+    const load = async (env: Record<string, string>) => {
+      vi.resetModules();
+      for (const name of ["NEXT_PUBLIC_FEEDBACK_ENDPOINT", "NEXT_PUBLIC_FEEDBACK_EMAIL", "NEXT_PUBLIC_SUPPORT_EMAIL", "NEXT_PUBLIC_GITHUB_REPO"]) vi.stubEnv(name, env[name] ?? "");
+      try {
+        return (await import("@/lib/operator")).FEEDBACK_REACHES_OPERATOR;
+      } finally {
+        vi.unstubAllEnvs();
+      }
+    };
+    expect(await load({ NEXT_PUBLIC_GITHUB_REPO: "owner/repo" })).toBe(false);
+    expect(await load({})).toBe(false);
+    expect(await load({ NEXT_PUBLIC_FEEDBACK_ENDPOINT: "https://formspree.io/f/x", NEXT_PUBLIC_GITHUB_REPO: "owner/repo" })).toBe(true);
+    expect(await load({ NEXT_PUBLIC_FEEDBACK_EMAIL: "help@example.com" })).toBe(true);
+    expect(await load({ NEXT_PUBLIC_SUPPORT_EMAIL: "help@example.com" })).toBe(true);
+  });
+  it("offers a switch that turns the action counts off in this browser, which the tracker honours", () => {
+    const track = read("src", "lib", "analytics", "track.ts");
+    expect(track).toContain('export const STATS_OFF_KEY = "jbl.stats.off";');
+    expect(track).toContain("if (statsOff(win)) return false;");
+    const island = read("src", "components", "site", "StatsOptOut.tsx");
+    expect(island.startsWith('"use client"')).toBe(true);
+    expect(island).toContain("STATS_OFF_KEY");
+    expect(island).not.toMatch(/useTranslations/); // the labels come from the server page: no catalogue reaches the browser for it
+    expect(page).toContain('import StatsOptOut from "@/components/site/StatsOptOut"');
+    expect(page).toContain('{k === "events" && <StatsOptOut labels={optOutLabels} />}'); // only in the action-counts item, which exists only with a statistics service (host)
+    expect(en.Privacy.information.events.optOut).toBe("Turn the action counts off in this browser.");
+    expect(en.Privacy.information.events.optedOut).toBe("Action counts are off in this browser.");
+    expect(en.Privacy.information.events.optIn).toBe("Turn them back on.");
+    each((locale, flat) => {
+      for (const key of ["optOut", "optedOut", "optIn"]) expect(flat[`Privacy.information.events.${key}`], `${locale} ${key}`).toBeTruthy();
+    });
+  });
+});
+
+describe("legal audit: the account form, the Connect YouTube control and the small copy", () => {
+  it("has the sign-up confirm the age of 16 with the terms and privacy links", () => {
+    expect(en.Account.form.agree).toBe("By creating an account you confirm that you are at least 16 and accept the <terms>terms</terms> and the <privacy>privacy policy</privacy>.");
+    each((locale, flat) => {
+      expect(flat["Account.form.agree"], locale).toMatch(/16/);
+      expect(flat["Account.form.agree"], locale).toMatch(/<terms>[^<]+<\/terms>/);
+      expect(flat["Account.form.agree"], locale).toMatch(/<privacy>[^<]+<\/privacy>/);
+    });
+  });
+  it("shows the YouTube Terms of Service, the Google Privacy Policy and the revoke link under the Connect YouTube control", () => {
+    const section = read("src", "components", "simulator", "sections", "PublishSection.tsx");
+    expect(section).toContain('p.rich("ytTerms"');
+    expect(section.indexOf('p.rich("ytTerms"')).toBeGreaterThan(section.indexOf('data-publish-connect="youtube-direct"'));
+    for (const url of ["https://www.youtube.com/t/terms", "https://policies.google.com/privacy", "https://myaccount.google.com/connections"]) {
+      expect(section, url).toContain(url);
+      expect(read("src", "app", "[locale]", "privacy", "page.tsx"), url).toContain(url); // the same links as the privacy policy
+    }
+    expect(en.Publish.ytTerms).toBe("Uploads use the YouTube API Services. By connecting you agree to the <yt>YouTube Terms of Service</yt> and the <google>Google Privacy Policy</google>. You can revoke access in your <revoke>Google account</revoke>.");
+    each((locale, flat) => {
+      for (const tag of ["yt", "google", "revoke"]) expect(flat["Publish.ytTerms"], `${locale} ${tag}`).toMatch(new RegExp(`<${tag}>[^<]+</${tag}>`));
+    });
+  });
+  it("names the hero for short video, calls the TikTok page a guide, adds the accessibility statement and the Postiz terms line", () => {
+    expect(en.SiteRedesign.hero.title).toBe("Satisfying ball physics for short video.");
+    expect(en.TikTokBallVideos.badge).toBe("Guide");
+    expect(pl.TikTokBallVideos.badge).toBe("Poradnik");
+    expect(es.TikTokBallVideos.badge).toBe("Guía");
+    expect(en.About.accessibility.title).toBe("Accessibility");
+    expect(en.About.accessibility.text).toContain("WCAG 2.1 AA");
+    expect(read("src", "app", "[locale]", "about", "page.tsx")).toContain('t("accessibility.text")');
+    expect(en.Desktop.postizIntro).toMatch(/Your use of Postiz is under Postiz's own terms, and a paid Postiz plan may be needed for its API\.$/);
+    each((locale, flat) => {
+      expect(flat["SiteRedesign.hero.title"], locale).not.toMatch(/TikTok/);
+      expect(flat["About.accessibility.text"], locale).toContain("WCAG 2.1 AA");
+      expect(flat["Desktop.postizIntro"], locale).toContain("Postiz");
+    });
   });
 });
 

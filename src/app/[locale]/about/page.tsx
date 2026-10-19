@@ -62,6 +62,11 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
         <h2>{t("h2_2")}</h2>
         <p>{t.rich("p5", { ...v, privacy: link("/privacy") })}</p>
       </section>
+      {/* --- legal-audit --- the accessibility statement: WCAG 2.1 AA as the aim, reduced motion, the keyboard, where to report a barrier */}
+      <section>
+        <h2>{t("accessibility.title")}</h2>
+        <p>{t("accessibility.text")}</p>
+      </section>
       <section>
         <h2>{t("h2_3")}</h2>
         <p>{t.rich("p6", { ...v, feedback: link("/feedback") })}</p>

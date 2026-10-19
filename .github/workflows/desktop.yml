@@ -155,6 +155,10 @@ jobs:
           NEXT_PUBLIC_SUPPORT_EMAIL: ${{ vars.SUPPORT_EMAIL }}
           NEXT_PUBLIC_LEGAL_NAME: ${{ vars.LEGAL_NAME }}
           NEXT_PUBLIC_LEGAL_ADDRESS: ${{ vars.LEGAL_ADDRESS }}
+          # --- legal-audit --- the VAT number, the register entry and the country (the terms' governing law); empty while unset.
+          NEXT_PUBLIC_LEGAL_VAT_ID: ${{ vars.LEGAL_VAT_ID }}
+          NEXT_PUBLIC_LEGAL_REGISTRATION: ${{ vars.LEGAL_REGISTRATION }}
+          NEXT_PUBLIC_LEGAL_COUNTRY: ${{ vars.LEGAL_COUNTRY }}
 
       - name: Install the app's dependencies
         working-directory: desktop

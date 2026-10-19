@@ -7,7 +7,8 @@
  * Gates (all must hold, else `track()` returns silently and the loader injects nothing, so a visitor behind a gate makes no
  * request to the service): a browser window; a build-time script address that is an absolute http(s) URL; a page served over
  * http or https (not app:// or file://); not the Windows app (`window.desktop`); no Do Not Track (`navigator.doNotTrack`,
- * `window.doNotTrack`, `navigator.msDoNotTrack`); no Global Privacy Control (`navigator.globalPrivacyControl`).
+ * `window.doNotTrack`, `navigator.msDoNotTrack`); no Global Privacy Control (`navigator.globalPrivacyControl`); and the visitor
+ * has not switched the action counts off on the privacy page (localStorage `jbl.stats.off` = "1", --- legal-audit ---).
  *
  * What may be sent is a fixed list: the event names and the props of each are in `EVENTS` (and in the README table, which a test
  * keeps equal); a prop is a short token or a number, never an email, receipt reference, licence, seed, address or free text.
@@ -75,6 +76,9 @@ export const PROP_VALUES: Readonly<Record<string, readonly string[]>> = {
 /** The only events a click on markup may send (`data-track="…"`, the props from `data-track-<prop>`). */
 export const MARKUP_EVENTS: readonly EventName[] = ["cta_click", "download_click"];
 
+/** The privacy page's opt-out switch: with this localStorage key set to "1" nothing is counted in this browser (components/site/StatsOptOut.tsx). */
+export const STATS_OFF_KEY = "jbl.stats.off";
+
 /** The most events waited on while the script loads; the oldest go first. */
 export const QUEUE_LIMIT = 20;
 /** The longest string prop kept (longer ones are cut). */
@@ -122,6 +126,16 @@ interface VendorWindow {
   doNotTrack?: unknown;
   navigator?: { doNotTrack?: unknown; msDoNotTrack?: unknown; globalPrivacyControl?: unknown };
   location?: { protocol?: string };
+  localStorage?: { getItem?: (key: string) => unknown };
+}
+
+/** True when the visitor switched the action counts off in this browser (a storage that throws or is missing counts as not off). */
+function statsOff(win: VendorWindow): boolean {
+  try {
+    return win.localStorage?.getItem?.(STATS_OFF_KEY) === "1";
+  } catch {
+    return false;
+  }
 }
 
 const isHttpUrl = (value: string): boolean => {
@@ -145,6 +159,7 @@ export function trackingAllowed(env: TrackEnv = defaultEnv()): boolean {
     const off = (v: unknown) => v === "1" || v === 1 || v === "yes";
     if (off(nav?.doNotTrack) || off(win.doNotTrack) || off(nav?.msDoNotTrack)) return false;
     if (nav?.globalPrivacyControl === true) return false;
+    if (statsOff(win)) return false; // the privacy page's switch
     return true;
   } catch {
     return false;

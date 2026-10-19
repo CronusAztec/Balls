@@ -6,7 +6,8 @@ import { Link } from "@/i18n/navigation";
 import { SITE_DOMAIN, SITE_NAME } from "@/lib/site";
 import JsonLd from "@/components/site/JsonLd"; // --- seo ---
 import { breadcrumbJsonLd, pageMetadata } from "@/lib/seo";
-import { LEGAL_ADDRESS, LEGAL_NAME, SUPPORT_EMAIL } from "@/lib/operator"; // --- go-live-kit --- (--- legal-copy --- the controller block shows all three)
+import { FEEDBACK_REACHES_OPERATOR, LEGAL_ADDRESS, LEGAL_NAME, LEGAL_REGISTRATION, LEGAL_VAT_ID, SUPPORT_EMAIL } from "@/lib/operator"; // --- go-live-kit --- (--- legal-copy --- the controller block shows all three; --- legal-audit --- VAT, register, and whether the feedback form is private)
+import StatsOptOut from "@/components/site/StatsOptOut"; // --- legal-audit --- the action counts' opt-out switch (a client island)
 
 /*
  * --- legal-copy --- The privacy policy states what the code does and nothing else: who runs the site (the operator's details from
@@ -16,6 +17,9 @@ import { LEGAL_ADDRESS, LEGAL_NAME, SUPPORT_EMAIL } from "@/lib/operator"; // --
  * advertising (the product is advertised elsewhere, no ad pixels load), the Windows app's network use (desktop/src), publishing and
  * payments. The section numbers are computed from ORDER so a section can be added without renumbering the messages.
  * tests/legalCopy.test.ts pins the claims that must stay true.
+ * --- legal-audit --- The legal bases, where the data goes (US providers under the Data Privacy Framework or the standard clauses),
+ * retention with its periods, the one-month answer, the ages (16 for an account, 18 for Pro), the VAT number and register entry of
+ * the controller, an opt-out switch for the action counts, and never a public GitHub issue form as the way to make a rights request.
  */
 
 /** The page's sections in order: their ids are the table of contents' anchors; "payments" reads the Billing namespace. */
@@ -23,9 +27,11 @@ const ORDER = [
   "introduction",
   "controller",
   "information",
+  "legalBases",
   "howWeUse",
   "cookies",
   "thirdParty",
+  "transfers",
   "retention",
   "rights",
   "children",
@@ -82,10 +88,13 @@ export default async function PrivacyPage({ params }: { params: Promise<{ locale
   const v = { siteName: SITE_NAME, siteDomain: SITE_DOMAIN, host };
   const label = (id: SectionId) => (id === "payments" ? billing("privacy.title") : t(`${id}.title`));
   const heading = (id: SectionId) => `${ORDER.indexOf(id) + 1}. ${label(id)}`;
-  // The two ways to reach the operator: the support address when the build has one, else the feedback form.
+  // The ways to reach the operator: the support address when the build has one, else the feedback form when it reaches the operator
+  // privately (an endpoint or an e-mail), else the postal address above. --- legal-audit --- A rights request never goes to a public
+  // GitHub issue form (FEEDBACK_REACHES_OPERATOR is false for the GitHub channel and for no channel at all).
   const mail = (chunks: ReactNode) => <a href={`mailto:${SUPPORT_EMAIL}`}>{chunks}</a>;
   const form = (chunks: ReactNode) => <Link href="/feedback">{chunks}</Link>;
-  const reach = (withEmail: string, withForm: string) => (SUPPORT_EMAIL ? t.rich(withEmail, { email: SUPPORT_EMAIL, mail }) : t.rich(withForm, { link: form }));
+  const reach = (withEmail: string, withForm: string, withNone: string) => (SUPPORT_EMAIL ? t.rich(withEmail, { email: SUPPORT_EMAIL, mail }) : FEEDBACK_REACHES_OPERATOR ? t.rich(withForm, { link: form }) : t(withNone));
+  const optOutLabels = { optOut: t("information.events.optOut"), optedOut: t("information.events.optedOut"), optIn: t("information.events.optIn") };
   return (
     <ProseLayout
       eyebrow={site("footer.legal")}
@@ -102,7 +111,13 @@ export default async function PrivacyPage({ params }: { params: Promise<{ locale
       <section id="controller">
         <h2>{heading("controller")}</h2>
         <p>{LEGAL_NAME ? t("controller.named", { ...v, legalName: LEGAL_NAME, address: LEGAL_ADDRESS ? `, ${LEGAL_ADDRESS}` : "" }) : t("controller.unnamed", v)}</p>
-        <p>{reach("controller.writeTo", "controller.useForm")}</p>
+        {/* --- legal-audit --- the VAT number and the register entry, when the owner set them */}
+        {LEGAL_NAME && (LEGAL_VAT_ID || LEGAL_REGISTRATION) && (
+          <p data-testid="privacy-controller-identity">
+            {[LEGAL_VAT_ID && billing("terms.operator.vat", { vat: LEGAL_VAT_ID }), LEGAL_REGISTRATION && billing("terms.operator.registration", { registration: LEGAL_REGISTRATION })].filter(Boolean).join(" ")}
+          </p>
+        )}
+        <p>{reach("controller.writeTo", "controller.useForm", "controller.useNone")}</p>
       </section>
       <section id="information">
         <h2>{heading("information")}</h2>
@@ -111,9 +126,16 @@ export default async function PrivacyPage({ params }: { params: Promise<{ locale
           {(["analytics", ...(host ? ["events"] : []), "localStorage", "images", "account", "payment"] as const).map((k) => (
             <li key={k}>
               <strong>{t(`information.${k}.label`)}</strong> {t(`information.${k}.content`, v)}
+              {/* --- legal-audit --- the switch that turns the action counts off in this browser (only with a statistics service) */}
+              {k === "events" && <StatsOptOut labels={optOutLabels} />}
             </li>
           ))}
         </ul>
+      </section>
+      {/* --- legal-audit --- the legal bases, one per purpose */}
+      <section id="legalBases">
+        <h2>{heading("legalBases")}</h2>
+        <p>{t("legalBases.content")}</p>
       </section>
       <section id="howWeUse">
         <h2>{heading("howWeUse")}</h2>
@@ -137,6 +159,11 @@ export default async function PrivacyPage({ params }: { params: Promise<{ locale
           ))}
         </ul>
       </section>
+      {/* --- legal-audit --- where the data goes: the US providers and the transfer basis */}
+      <section id="transfers">
+        <h2>{heading("transfers")}</h2>
+        <p>{t("transfers.content")}</p>
+      </section>
       <section id="retention">
         <h2>{heading("retention")}</h2>
         <p>{t("retention.content")}</p>
@@ -144,7 +171,7 @@ export default async function PrivacyPage({ params }: { params: Promise<{ locale
       <section id="rights">
         <h2>{heading("rights")}</h2>
         <p>{t("rights.content")}</p>
-        <p>{reach("rights.requestEmail", "rights.requestForm")}</p>
+        <p>{reach("rights.requestEmail", "rights.requestForm", "rights.requestNone")}</p>
       </section>
       <section id="children">
         <h2>{heading("children")}</h2>

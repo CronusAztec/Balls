@@ -115,7 +115,8 @@ the live site says "the operator of jumpingballslive.com" and has no contact rou
 | Setting | Shown where |
 | --- | --- |
 | `JBL_SUPPORT_EMAIL` | the legal pages, the pricing page (payment questions), the footer imprint, the feedback form (it writes to this address unless `JBL_FEEDBACK_EMAIL` says another) |
-| `JBL_LEGAL_NAME`, `JBL_LEGAL_ADDRESS` | the terms and privacy pages ("who runs the site"), the footer imprint |
+| `JBL_LEGAL_NAME`, `JBL_LEGAL_ADDRESS` | the terms and privacy pages ("who runs the site"), the footer imprint. EU and UK law require the trader's name and geographic address on a site that sells, and `npm run launch:check` (A12) fails while they are empty |
+| `JBL_LEGAL_VAT_ID`, `JBL_LEGAL_REGISTRATION`, `JBL_LEGAL_COUNTRY` | optional: the VAT number ("VAT number: …" on the terms, the privacy page and the footer imprint), the register entry ("Registered as …") and the operator's country as visitors should read it (the terms' "Law and disputes" section names it as the governing law). Each is passed on as `NEXT_PUBLIC_LEGAL_*`, like `JBL_LEGAL_NAME` |
 | `JBL_FEEDBACK_ENDPOINT` | optional: a form backend that receives the feedback form's POST instead of an e-mail |
 | `JBL_FEEDBACK_GITHUB_REPO` | leave empty while the repository is private: the form would open issues that visitors cannot see (the default is empty) |
 | `JBL_ANALYTICS_SCRIPT_URL`, `JBL_ANALYTICS_SITE_ID`, `JBL_YOUTUBE_CLIENT_ID`, `JBL_DOWNLOADS_URL` | optional public build settings, the same as the repository variables of the GitHub deploy |

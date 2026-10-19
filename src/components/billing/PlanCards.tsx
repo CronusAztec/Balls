@@ -6,7 +6,7 @@ import { buttonClass } from "@/components/ui/Button";
 import { inputClass } from "@/components/ui/Field";
 import { cx } from "@/components/ui/cx";
 import { isEmail, pricingReturnUrl } from "@/lib/billing/api";
-import { PLAN_IDS, PROVIDERS, formatUsd, monthlyEquivalentUsd, plansFromConfig, yearlySavingPercent, type Plan, type Provider } from "@/lib/billing/config";
+import { PLAN_IDS, PROVIDERS, formatUsd, plansFromConfig, yearlySavingPercent, type Plan, type Provider } from "@/lib/billing/config";
 import { useEntitlement } from "@/lib/billing/entitlement";
 import { isDesktopApp } from "@/lib/desktop/bridge";
 import { rememberCheckoutFrom, sessionStore } from "@/lib/billing/returnTo";
@@ -148,7 +148,7 @@ export default function PlanCards({ variant = "page" }: { variant?: "page" | "di
                 </span>
                 <span className="text-md text-ink-2">{t(yearly ? "plan.perYear" : "plan.perMonth")}</span>
               </p>
-              <p className="text-sm text-ink-2">{yearly ? t("plan.yearlyNote", { price: formatUsd(monthlyEquivalentUsd("yearly", plans), locale) }) : t("plan.monthlyNote")}</p>
+              <p className="text-sm text-ink-2">{yearly ? t("plan.yearlyNote", { price: formatUsd(plans.yearly.usd, locale) }) : t("plan.monthlyNote") /* --- legal-audit --- the yearly note names the amount billed, not a monthly equivalent */}</p>
               <div className="mt-auto flex flex-col gap-2 pt-1" role="group" aria-label={t("pay.label")}>
                 {shown.map((provider) => (
                   <button

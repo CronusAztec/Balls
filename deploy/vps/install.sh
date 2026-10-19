@@ -164,7 +164,7 @@ if [ ! -f "$CONF" ] || [ "$RECONFIGURE" = 1 ]; then
     printf '# JBL_FEEDBACK_GITHUB_REPO=      leave empty while the repository is private (a form that opens its issues sends visitors to a 404)\n'
     printf '# JBL_SUPPORT_EMAIL=             shown on the legal pages, the pricing page and the footer; the feedback form uses it too\n'
     printf '# JBL_FEEDBACK_EMAIL=            only if the feedback form should write to another address\n'
-    printf '# JBL_LEGAL_NAME=                who runs the site (terms and privacy pages)\n# JBL_LEGAL_ADDRESS=             postal address (terms and privacy pages)\n'
+    printf '# JBL_LEGAL_NAME=                who runs the site (terms and privacy pages)\n# JBL_LEGAL_ADDRESS=             postal address (terms and privacy pages)\n# JBL_LEGAL_VAT_ID=              VAT number, if you have one (terms, privacy, footer)\n# JBL_LEGAL_REGISTRATION=        trade register entry, if any (terms, privacy)\n# JBL_LEGAL_COUNTRY=             your country, the governing law named in the terms\n'
     printf '# JBL_FEEDBACK_ENDPOINT=  JBL_ANALYTICS_SCRIPT_URL=  JBL_ANALYTICS_SITE_ID=  JBL_YOUTUBE_CLIENT_ID=  JBL_DOWNLOADS_URL=   (optional, see jbl-deploy.sh)\n'
   } >"$CONF"
   chown root:"$USER_NAME" "$CONF"

@@ -24,6 +24,8 @@
 #                      repository is public with Issues on)
 #   JBL_SUPPORT_EMAIL, JBL_FEEDBACK_EMAIL, JBL_LEGAL_NAME, JBL_LEGAL_ADDRESS   the operator's public details the legal pages and the
 #                      feedback form show (without a support e-mail the site has no way to be reached: scripts/go-live-check.mjs warns)
+#   JBL_LEGAL_VAT_ID, JBL_LEGAL_REGISTRATION, JBL_LEGAL_COUNTRY   the VAT number, the register entry and the country (the terms' governing
+#                      law), shown when set
 #   JBL_FEEDBACK_ENDPOINT, JBL_ANALYTICS_SCRIPT_URL, JBL_ANALYTICS_SITE_ID, JBL_YOUTUBE_CLIENT_ID, JBL_DOWNLOADS_URL   optional public build
 #                      settings, passed on as NEXT_PUBLIC_* exactly like the GitHub Actions deploy does (empty: off / the built-in default)
 #   JBL_RELAY_URL (https://relay.jumpingballslive.com)   JBL_STATE_DIR (/var/lib/jbl-deploy)   JBL_GIT_URL (https://github.com/<repo>.git)
@@ -308,6 +310,9 @@ scrub env \
   NEXT_PUBLIC_SUPPORT_EMAIL="${JBL_SUPPORT_EMAIL:-}" \
   NEXT_PUBLIC_LEGAL_NAME="${JBL_LEGAL_NAME:-}" \
   NEXT_PUBLIC_LEGAL_ADDRESS="${JBL_LEGAL_ADDRESS:-}" \
+  NEXT_PUBLIC_LEGAL_VAT_ID="${JBL_LEGAL_VAT_ID:-}" \
+  NEXT_PUBLIC_LEGAL_REGISTRATION="${JBL_LEGAL_REGISTRATION:-}" \
+  NEXT_PUBLIC_LEGAL_COUNTRY="${JBL_LEGAL_COUNTRY:-}" \
   NEXT_PUBLIC_FEEDBACK_ENDPOINT="${JBL_FEEDBACK_ENDPOINT:-}" \
   NEXT_PUBLIC_ANALYTICS_SCRIPT_URL="${JBL_ANALYTICS_SCRIPT_URL:-}" \
   NEXT_PUBLIC_ANALYTICS_SITE_ID="${JBL_ANALYTICS_SITE_ID:-}" \

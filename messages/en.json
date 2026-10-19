@@ -2643,6 +2643,7 @@
     "changelog": "Changelog",
     "press": "Press",
     "operatedBy": "Operated by {name}",
+    "vatNumber": "VAT number: {vat}",
     "buildTip": "Build {commit} · {date}. See what changed.",
     "buildTipDev": "Local build. See what changed."
   },
@@ -2678,7 +2679,10 @@
       },
       "events": {
         "label": "Action counts:",
-        "content": "We also count a few actions, such as starting the simulator, exporting a clip or opening the checkout, with a statistics service at {host}. It records the address of the page, including any campaign name or ad click identifier in it, the site you came from, your browser, your screen size and your country. In the studio that address also holds the settings of your run, so the service can see them. It never receives your email or your receipt reference. It does not run if your browser sends Do Not Track or Global Privacy Control, and it does not run in the Windows app."
+        "content": "We also count a few actions, such as starting the simulator, exporting a clip or opening the checkout, with a statistics service at {host}. It records the address of the page, including any campaign name or ad click identifier in it, the site you came from, your browser, your screen size and your country. In the studio that address also holds the settings of your run, so the service can see them. It never receives your email or your receipt reference. It does not run if your browser sends Do Not Track or Global Privacy Control, and it does not run in the Windows app.",
+        "optOut": "Turn the action counts off in this browser.",
+        "optedOut": "Action counts are off in this browser.",
+        "optIn": "Turn them back on."
       },
       "account": {
         "label": "Account data:",
@@ -2692,6 +2696,10 @@
     "howWeUse": {
       "title": "How We Use Your Information",
       "content": "Visit statistics show us how the site is used so that we can improve it. Your email and the payment reference are used to issue, renew and restore your Pro licence. We do not sell your data and we do not share it with advertising networks."
+    },
+    "legalBases": {
+      "title": "Why we may process your data",
+      "content": "We process data on these legal grounds. To run the site, the relay and the Windows app and to answer you: our legitimate interest in running the service, and the contract with you once you buy Pro or create an account. To issue, renew and restore your licence and to keep payment records: the contract and the tax and accounting laws that bind us. To count visits and a few actions: our legitimate interest in knowing how the site is used, with no cookies and an opt out through Do Not Track, Global Privacy Control or the switch above. To send a clip to a platform or to Postiz: your request, each time you press send or approve. Nothing is processed on the basis of consent except where we ask for it."
     },
     "cookies": {
       "title": "Cookies and Tracking",
@@ -2725,13 +2733,17 @@
         "use": "hosts the AI models that the Windows app downloads when you ask."
       }
     },
+    "transfers": {
+      "title": "Where your data goes",
+      "content": "Cloudflare, Stripe, GitHub, Hugging Face and Google are based in the United States and may process data there. Each one is certified under the EU-US Data Privacy Framework or works under the EU standard contractual clauses, which keep EU and UK protection in place. Postiz and any cloud AI provider you choose are your own providers, and their location is in their own policies."
+    },
     "retention": {
       "title": "Data Retention",
-      "content": "Local storage data stays on your device until you clear it in your browser settings. Visit statistics are kept by the services that produce them, under their own rules. The billing server keeps your email, the plan and the provider's reference for as long as your licence can be restored and accounting rules require. An account on the relay is kept until you delete it on the Account page, and a clip uploaded to the relay is deleted after 24 hours."
+      "content": "Local storage data stays on your device until you clear it. The billing server keeps your email, the plan and the provider's reference for as long as your licence can be restored and for 10 years after the last payment, the longest accounting retention period that can apply to us. Then it is deleted. Webhook records are deleted after 30 days. An account on the relay is kept until you delete it on the Account page. Its session tokens expire after 30 days. A clip uploaded to the relay is deleted after 24 hours. Visit statistics are kept by the services that produce them under their own rules."
     },
     "children": {
       "title": "Children's Privacy",
-      "content": "The service is not directed at children under 13 and we do not knowingly collect personal information from children."
+      "content": "The service is not directed at children under 13. You must be at least 16 to create an account and 18 to buy Pro. If we learn that we hold data of a younger child, we delete it. Parents can write to us at the address above."
     },
     "changes": {
       "title": "Changes to This Policy",
@@ -2765,13 +2777,15 @@
       "named": "{siteName} is run by {legalName}{address}.",
       "unnamed": "{siteName} is run by the operator of {siteDomain}.",
       "writeTo": "For anything about your data, write to <mail>{email}</mail>.",
-      "useForm": "For anything about your data, use the <link>feedback form</link>."
+      "useForm": "For anything about your data, use the <link>feedback form</link>.",
+      "useNone": "For anything about your data, write to the operator at the address above."
     },
     "rights": {
       "title": "Your Rights",
-      "content": "You can ask us for a copy of your data, to correct it or to delete it. You can delete an account yourself on the Account page. Local storage data never reaches us, so you clear it in your browser. If you are in the EU, the UK or another country with data protection law, you can also complain to your data protection authority.",
+      "content": "You can ask us for a copy of your data, to correct it or to delete it. You can delete an account yourself on the Account page. Local storage data never reaches us, so you clear it in your browser. If you are in the EU, the UK or another country with data protection law, you can also complain to your data protection authority. We answer a request within one month. You can also ask us to restrict processing, to object to it or to receive your data in a common file format. We do not sell personal data and we honour the Global Privacy Control signal.",
       "requestEmail": "To make a request, write to <mail>{email}</mail>.",
-      "requestForm": "To make a request, use the <link>feedback form</link>."
+      "requestForm": "To make a request, use the <link>feedback form</link>.",
+      "requestNone": "To make a request, write to the operator at the address above."
     },
     "advertising": {
       "title": "Advertising",
@@ -2813,52 +2827,76 @@
     "metaTitle": "Terms of Service – {siteName}",
     "metaDescription": "The rules for using {siteName}. Your videos, the Free and Pro plans, billing and refunds, and what the tool does not promise.",
     "acceptance": {
-      "title": "1. Acceptance of Terms",
+      "title": "Acceptance of Terms",
       "content": "By using {siteDomain} (\"the Service\") you agree to these Terms of Service. If you do not agree with any part of them, please do not use the Service."
     },
     "description": {
-      "title": "2. Description of Service",
+      "title": "Description of Service",
       "content": "{siteName} is a browser-based physics simulation tool for creating bouncing-ball animations, customising their look and behaviour and exporting them as video files. Using the simulator and exporting videos is free, and videos exported without a Pro licence carry a watermark (see Pro subscriptions). The Windows app is part of the Service, and these terms apply to it too. The Service is provided \"as is\" without any guarantee of availability or uptime."
     },
     "ugc": {
-      "title": "3. User-Generated Content",
+      "title": "User-Generated Content",
       "subtitle": "When using the Service you may:",
       "item1": "Upload custom images, MIDI files and sound clips to use in your simulations.",
       "item2": "Create and export video recordings of simulations.",
       "item3": "Save simulation presets to your browser's local storage.",
-      "footer": "You keep ownership of anything you create with the Service and may use exported videos for any purpose, including commercially, without attribution. This gives you no rights in names or works that belong to others, such as the character names in Fight League. A mention of {siteDomain} is always appreciated."
+      "footer": "You keep ownership of anything you create with the Service and may use exported videos for any purpose, including commercially, without attribution. This gives you no rights in names or works that belong to others, such as the character names in Fight League. A mention of {siteDomain} is always appreciated.",
+      "licence": "You keep your rights in what you upload. When you publish through the relay, you give us permission to store the clip for up to 24 hours and to send it to the platforms you chose, and nothing more. You confirm that you have the rights to everything in the clip and that it breaks no law and no platform rule."
     },
     "acceptable": {
-      "title": "4. Acceptable Use",
+      "title": "Acceptable Use",
       "subtitle": "You agree not to:",
       "item1": "Disrupt, overload or interfere with the Service's infrastructure.",
       "item2": "Use automated tools to scrape or copy the Service's code or assets.",
       "item3": "Upload content that is illegal, harmful or infringes the intellectual property rights of others.",
       "item4": "Present the Service as your own product.",
-      "postiz": "Posting through Postiz from the Windows app is subject to Postiz's terms and to the rules of TikTok, Instagram and YouTube. Postiz is a third party and is not operated by us. You are responsible for every post you approve and for the content it carries."
+      "postiz": "Posting through Postiz from the Windows app is subject to Postiz's terms and to the rules of TikTok, Instagram and YouTube. Postiz is a third party and is not operated by us. You are responsible for every post you approve and for the content it carries.",
+      "youtube": "Uploading to YouTube through the Service means you also agree to the YouTube Terms of Service."
+    },
+    "age": {
+      "title": "Age",
+      "content": "You must be at least 16 to create an account and at least 18 to buy Pro, or have the agreement of a parent or guardian who accepts these terms for you. The service is not directed at children under 13."
     },
     "intellectual": {
-      "title": "5. Intellectual Property",
+      "title": "Intellectual Property",
       "content": "The Service, including its code, design and branding, belongs to the operator of {siteName}. Videos and images you create with it are yours. The names of characters and franchises that appear in Fight League belong to their owners, as the disclaimer explains."
     },
+    "ai": {
+      "title": "AI features",
+      "content": "The Windows app can run an AI model on your PC or send your requests to a cloud provider with a key you enter. AI output can be wrong, repetitive or unsuitable. You check every caption, setting and post before you use it. Nothing is posted until you approve it. The models are separate downloads under their own licences, which the app shows before a download, and you are responsible for using a model within its licence. A cloud provider processes your requests under its own terms. We do not see your prompts or outputs."
+    },
+    "takedown": {
+      "title": "Reporting content",
+      "content": "The relay stores a published clip for up to 24 hours so that a platform can fetch it. If you believe a clip or an account on the relay infringes your rights or breaks the law, write to {email} with the link, a description of the right or the law concerned, your contact details and a statement that your report is made in good faith. We remove or disable the content when the report is well founded, tell the person who uploaded it why, and close the accounts of repeat infringers.",
+      "agent": "Copyright agent: {legalName}, {address}, {email}."
+    },
     "warranties": {
-      "title": "6. Disclaimer of Warranties",
-      "content": "The Service is provided on an \"as is\" and \"as available\" basis without warranties of any kind, express or implied, including reliability, accuracy or fitness for a particular purpose. We do not guarantee that the Service will be uninterrupted or error-free."
+      "title": "Disclaimer of Warranties",
+      "content": "The free service is provided as it is and as available. We do not promise that it is uninterrupted, error free or suited to a particular purpose. Pro is a paid digital service, and consumers keep every right the law gives them if it does not work as described. Nothing in this section limits those rights."
     },
     "liability": {
-      "title": "7. Limitation of Liability",
-      "content": "To the fullest extent permitted by law, the operator of {siteName} is not liable for any indirect, incidental, special or consequential damages arising from your use of the Service, including loss of data, revenue or profits."
+      "title": "Limitation of Liability",
+      "content": "Nothing in these terms limits our liability for death or personal injury caused by our negligence, for fraud, for gross negligence or wilful misconduct, or for anything the law does not allow us to limit. Nothing here takes away the rights you have as a consumer under the law of your country. Beyond that, we are not liable for indirect loss, such as lost revenue, profits, data, views or followers. Our total liability to a Pro subscriber is limited to the amount paid to us in the twelve months before the claim. For free use it is limited to 50 US dollars."
+    },
+    "termination": {
+      "title": "Ending the service",
+      "content": "You can stop using the service at any time, delete an account on the Account page and cancel Pro as described in the Pro subscriptions section. We may suspend or end access for a serious breach of these terms, for example uploading illegal content or attacking the relay. If we end a paid plan without such a breach, we refund the unused part of the period."
     },
     "changes": {
-      "title": "8. Changes to These Terms",
-      "content": "We may update these terms at any time. Changes are posted on this page with a new date, and continued use of the Service after a change means you accept the revised terms."
+      "title": "Changes to These Terms",
+      "content": "We may change these terms for a good reason, such as a change in the law, in the service or in the way we charge. For a change that affects Pro we give at least 30 days notice by email or on this page before it applies. If you do not accept it, you can cancel before it applies and we refund the unused part of the period. Continued use after a change applies only to the free service."
+    },
+    "law": {
+      "title": "Law and disputes",
+      "content": "These terms are governed by the law of {country}. If you are a consumer, you also keep the protection of the mandatory law of the country where you live, and you can bring a claim in its courts. We do not take part in consumer arbitration. If a part of these terms is found invalid, the rest stays in force. These terms are the whole agreement between you and us about the service.",
+      "countryFallback": "the country where the operator is established"
     },
     "contact": {
-      "title": "9. Contact",
+      "title": "Contact",
       "content": "Questions about these terms? Reach us through our",
       "feedbackLink": "feedback form"
     },
-    "proprietaryNotice": "{siteName}, including the Gerald character, its name and its artwork, is proprietary software. Its source code is obfuscated and may not be copied, modified, reverse-engineered, redistributed, publicly displayed or used commercially without the owner's written permission."
+    "proprietaryNotice": "{siteName}, the Gerald character as drawn here, its artwork and the {siteName} name and logo are ours. The source code is obfuscated and may not be copied, modified, reverse-engineered, redistributed, publicly displayed or used commercially without the owner's written permission."
   },
   "Disclaimer": {
     "title": "Disclaimer",
@@ -2883,7 +2921,7 @@
     },
     "asIs": {
       "title": "\"As is\" basis",
-      "content": "The tool is provided \"as is\" and \"as available\" without warranties of any kind. We do not warrant that the site will be uninterrupted, error-free or compatible with every browser or device, and features may change or be removed without notice. To the fullest extent permitted by law, {siteName} is not liable for any loss or damage arising from your use of, or inability to use, the site."
+      "content": "The tool is provided \"as is\" and \"as available\" without warranties of any kind. We do not warrant that the site will be uninterrupted, error-free or compatible with every browser or device, and features may change or be removed without notice. To the fullest extent permitted by law, {siteName} is not liable for any loss or damage arising from your use of, or inability to use, the site. Nothing here limits the rights you have as a consumer under the law of your country."
     },
     "externalLinks": {
       "title": "External links",
@@ -2942,7 +2980,7 @@
   "TikTokBallVideos": {
     "metaTitle": "Make Bouncing Ball Videos for TikTok with {siteName}",
     "metaDescription": "Make bouncing-ball videos for TikTok with {siteName}. {count} modes, custom physics, free vertical 1080×1920 export, no sign-up. Pro removes the watermark.",
-    "badge": "TikTok Content",
+    "badge": "Guide",
     "navLabel": "TikTok Ball Videos",
     "title": "Bouncing Ball Videos for TikTok",
     "p1": "Bouncing-ball videos are easy to follow. A ball trapped in rings tries to bounce its way out, and people stay to see if it does. {siteName} is built for exactly these clips, free, with a vertical export. Pro removes the watermark.",
@@ -2972,6 +3010,10 @@
     "p4": "We also stay out of your way. The simulator updates as you change things, so you learn by doing. Settings have plain names.",
     "h2_2": "Privacy by default",
     "p5": "Your work stays with you. Presets live in your browser and videos render on your own machine. We do not want your data. The details are in our <privacy>privacy policy</privacy>.",
+    "accessibility": {
+      "title": "Accessibility",
+      "text": "We aim to meet WCAG 2.1 AA. The simulator respects reduced motion and the pages work with a keyboard. Tell us through the feedback page if something is in your way."
+    },
     "h2_3": "Who makes this",
     "p6": "{siteName} is a small independent project. New modes and settings appear because creators ask for them. Write in through the <feedback>feedback page</feedback>.",
     "h2_4": "Where it is going",
@@ -4128,6 +4170,7 @@
     "relayNoApp": "The relay has no {platform} app keys",
     "needsClientId": "Set up the YouTube app below first",
     "connectGoogle": "Connect YouTube",
+    "ytTerms": "Uploads use the YouTube API Services. By connecting you agree to the <yt>YouTube Terms of Service</yt> and the <google>Google Privacy Policy</google>. You can revoke access in your <revoke>Google account</revoke>.",
     "connecting": "Connecting…",
     "connectViaRelay": "via relay",
     "connectPlatform": "Connect {platform}",
@@ -4519,7 +4562,7 @@
     "libDelete": "Delete file",
     "libDeleteConfirm": "Move {name} to the recycle bin?",
     "postizTitle": "Postiz",
-    "postizIntro": "Connect your TikTok, Instagram and YouTube channels inside Postiz, then paste the API key from Postiz here. The app will post your clips through Postiz. The key stays on this PC.",
+    "postizIntro": "Connect your TikTok, Instagram and YouTube channels inside Postiz, then paste the API key from Postiz here. The app will post your clips through Postiz. The key stays on this PC. Your use of Postiz is under Postiz's own terms, and a paid Postiz plan may be needed for its API.",
     "postizWhereKey": "Where to find the key: Postiz → Settings → Developers → Public API.",
     "postizUrl": "Postiz address",
     "postizUrlHint": "Leave the address as it is for Postiz cloud. For your own Postiz server, paste the address of its API.",
@@ -4799,7 +4842,7 @@
     },
     "hero": {
       "eyebrow": "Ball physics studio",
-      "title": "Satisfying ball physics, made for TikTok.",
+      "title": "Satisfying ball physics for short video.",
       "sub": "Pick one of {count} modes, tune the physics and press play. Free, in your browser, no account. Export a vertical clip ready to post. Pro removes the watermark.",
       "seeModes": "See the modes",
       "live": "Live",
@@ -4887,7 +4930,7 @@
       "perMonth": "/ month",
       "perYear": "/ year",
       "monthlyNote": "Renews every month. Cancel any time.",
-      "yearlyNote": "That is {price} a month, billed once a year.",
+      "yearlyNote": "Billed {price} once a year. Renews every year. Cancel any time.",
       "save": "Save {percent}%"
     },
     "pay": {
@@ -5034,7 +5077,7 @@
       "licence": "Your licence is a signed key kept in this browser. The site needs no account and no password.",
       "devices": "On another device or browser, restore the purchase with your email and the receipt reference shown after the payment, or paste the licence key.",
       "watermark": "The watermark is drawn into the video itself. With a Pro licence in this browser, every recording or export you start afterwards is clean.",
-      "refunds": "Ask within 14 days of your first card payment and we refund it in full. Renewals and crypto payments are not refundable unless the law says so.",
+      "refunds": "Ask within 14 days of a first payment and we refund it in full. In the EU and the UK you can also withdraw within 14 days of any payment. Renewals are otherwise not refundable.",
       "support": "Questions about a payment? Email {email}.",
       "termsLink": "Terms"
     },
@@ -5049,19 +5092,30 @@
     },
     "terms": {
       "title": "Pro subscriptions",
-      "content": "Playing with the simulator and recording or exporting videos is free. Videos made without a Pro licence carry a watermark. Pro costs {monthly} a month or {yearly} a year in US dollars, and tax may be added at checkout. It exports videos without the watermark and adds quick share to TikTok, Instagram and YouTube with your device's share sheet or a download. Card subscriptions renew automatically until you cancel them in Stripe's customer portal. A crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for.",
+      "content": "Playing with the simulator and recording or exporting videos is free. Videos made without a Pro licence carry a watermark. Pro costs {monthly} a month or {yearly} a year in US dollars, and tax may be added at checkout. The checkout shows the total before you pay. Pro exports videos without the watermark and adds quick share to TikTok, Instagram and YouTube with your device's share sheet or a download. Card subscriptions renew automatically until you cancel them in Stripe's customer portal. A crypto payment buys a prepaid period of 30 or 365 days that does not renew. A licence stays valid until the end of the period paid for.",
       "delivery": {
         "title": "Delivery",
         "content": "Pro is a digital licence, delivered at once. After the payment the pricing page activates it in your browser and shows a receipt reference. With your email and that reference you can restore the licence on any other device or in the Windows app at any time. Nothing is shipped."
       },
       "refunds": {
         "title": "Cancellation and refunds",
-        "content": "You can cancel a card subscription at any time, with Manage subscription on the pricing page. It then runs to the end of the period you have paid for and does not renew. Write to us within 14 days of your first card payment and we refund it in full. Renewals and crypto payments are not refundable unless the law of your country gives you that right. A crypto payment cannot be reversed on the network. Refunds go back to the payment method you used and take 5–10 business days to show."
+        "content": "You can cancel a card subscription at any time with Manage subscription on the pricing page. It then runs to the end of the period you have paid for and does not renew. Any first payment, by card or by crypto, is refunded in full if you ask within 14 days of paying. Write to {email} with the email you paid with and the receipt reference. For a crypto refund we also need a wallet address to send it to. Refunds reach a card in 5 to 10 business days. Renewals are not refundable unless the law of your country gives you that right. If you live in the EU or the UK, you also have the legal right to withdraw within 14 days of a purchase, as the next section explains."
+      },
+      "withdrawal": {
+        "title": "Right of withdrawal in the EU and the UK",
+        "content": "If you are a consumer in the EU or the UK, you can withdraw from a Pro purchase within 14 days of the payment without giving a reason. Send us a clear statement by email to {email}. You can use the model form below. We refund within 14 days of your message, to the payment method you used, or to a wallet address you give us for a crypto payment. Pro starts at once at your request. If you used Pro before withdrawing, we may keep a share of the price in proportion to the days used. After the first period, the same rule applies to each renewal.",
+        "form": "Model withdrawal form. To {legalName}, {email}: I withdraw from my contract for the Pro subscription bought on {date} with the email {buyerEmail} and the receipt reference {ref}. Name, date.",
+        "formDate": "date",
+        "formEmail": "your email",
+        "formRef": "receipt reference",
+        "operatorFallback": "the operator"
       },
       "operator": {
         "title": "Who you are buying from",
         "named": "{siteName} and the Pro subscription are run by {legalName}{address}. Payments are processed by Stripe for cards and NOWPayments for crypto. Your statement shows {siteName} or the provider's name.",
-        "unnamed": "{siteName} and the Pro subscription are run by the operator of {siteDomain}. Payments are processed by Stripe for cards and NOWPayments for crypto. Your statement shows {siteName} or the provider's name."
+        "unnamed": "{siteName} and the Pro subscription are run by the operator of {siteDomain}. Payments are processed by Stripe for cards and NOWPayments for crypto. Your statement shows {siteName} or the provider's name.",
+        "vat": "VAT number: {vat}.",
+        "registration": "Registered as {registration}."
       }
     },
     "paste": {
@@ -5080,7 +5134,7 @@
       "lead": "You can also email us at"
     },
     "checkout": {
-      "line": "Prices are in US dollars. Tax may be added at checkout. By paying you accept the <terms>Terms</terms>."
+      "line": "Prices are in US dollars. Tax is added at checkout where your country charges it, and the checkout shows the total before you pay. A card plan renews at the same price until you cancel. By paying you ask us to start Pro at once and accept the <terms>Terms</terms>."
     }
   },
   "OrbGrid": {
@@ -5992,7 +6046,7 @@
       "createAccount": "Create account",
       "signIn": "Sign in",
       "working": "One moment…",
-      "agree": "By creating an account you accept the <terms>terms</terms> and the <privacy>privacy policy</privacy>."
+      "agree": "By creating an account you confirm that you are at least 16 and accept the <terms>terms</terms> and the <privacy>privacy policy</privacy>."
     },
     "server": {
       "summary": "Server",

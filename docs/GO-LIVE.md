@@ -131,7 +131,11 @@ until section 6 says otherwise.
    individual or a company, your legal name, address, date of birth, an ID document, a tax number where your country has
    one, your **bank account** (this is where the money goes), the website (`https://jumpingballslive.com`), and a product description – write "Pro subscription for a browser video tool".
 3. **Settings → Business → Public details**: the support e-mail, and the **statement descriptor** `JUMPINGBALLSLIVE`
-   (what buyers see on their card statement).
+   (what buyers see on their card statement). Also set the **Terms of Service URL** there to
+   `https://jumpingballslive.com/en/terms/`: the checkout then asks every buyer to tick "I agree to the Terms" (their express
+   consent to the terms and to the subscription starting at once). While the URL is empty Stripe refuses the checkbox, the
+   checkout opens without it and the Worker's log says "Stripe needs the Terms of Service URL in Settings → Business → Public
+   details before the checkout can ask for consent". Set it in Test mode and again in live mode.
 4. **Settings → Emails → Successful payments: on.** Stripe then e-mails each buyer a receipt.
 5. **Settings → Billing → Customer portal**: allow customers to **cancel subscriptions** and to **update payment methods**,
    then press **Save**. Without this one press the "Manage subscription" button on the pricing page cannot open.
@@ -370,6 +374,9 @@ Where: the repository → **Settings → Secrets and variables → Actions**. Th
 | `SUPPORT_EMAIL` | variable | the support address on the terms, privacy and pricing pages; also the feedback form's channel |
 | `LEGAL_NAME` | variable | your name or business name in the terms ("Who you are buying from") |
 | `LEGAL_ADDRESS` | variable | your business address in the terms |
+| `LEGAL_VAT_ID` | variable | your VAT number, shown as "VAT number: …" on the terms, the privacy policy and the footer (optional) |
+| `LEGAL_REGISTRATION` | variable | your register entry, shown as "Registered as …" (optional) |
+| `LEGAL_COUNTRY` | variable | your country as visitors should read it: the terms' "Law and disputes" names it as the governing law (optional) |
 | `FEEDBACK_EMAIL` / `FEEDBACK_ENDPOINT` | variable | where the feedback form sends messages (optional) |
 | `ANALYTICS_SCRIPT_URL` / `ANALYTICS_SITE_ID` | variable | a privacy-friendly analytics script (optional) |
 | `YOUTUBE_CLIENT_ID` / `PUBLISH_RELAY_URL` | variable | the Publish feature's YouTube upload and relay, and the relay the Account page (website and Windows app) signs in to (optional) |
@@ -426,11 +433,18 @@ Stripe's and PayPal's reviewers read your terms and privacy pages before they ap
 
 - **Pro subscriptions** – the prices (filled in from the price file), what renews and what does not.
 - **Delivery** – Pro is a digital licence, delivered at once, restorable on any device; nothing is shipped.
-- **Cancellation and refunds** – cancel a card subscription any time; a **first card payment is refunded in full when asked
-  within 14 days**; renewals and crypto payments are not refundable unless local law says otherwise (the pricing page says the
-  same); refunds take 5–10 business days.
+- **Cancellation and refunds** – cancel a card subscription any time; **any first payment, by card or by crypto, is refunded in
+  full when asked within 14 days** (a crypto refund needs the buyer's wallet address); renewals are not refundable unless local
+  law says otherwise (the pricing page says the same); a card refund takes 5–10 business days.
+- **Right of withdrawal in the EU and the UK** – a consumer there may withdraw from any Pro payment within 14 days without a
+  reason, with a model form on the page; the refund is due within 14 days of their message, less a share for the days of Pro
+  already used. Honour it like the 14-day rule below, for each renewal too.
 - **Who you are buying from** – your name and address from the variables `LEGAL_NAME` and `LEGAL_ADDRESS`, or "the
-  operator of <your site>" while they are empty.
+  operator of <your site>" while they are empty. EU and UK law require a trader's name and geographic address on a site that
+  sells: `npm run launch:check` (A12) fails while the English privacy page shows no postal address or the terms show the
+  fallback. `LEGAL_VAT_ID` adds "VAT number: …" and `LEGAL_REGISTRATION` "Registered as …" to both pages and the footer
+  imprint, and `LEGAL_COUNTRY` (the country's name as visitors should read it) is the governing law named in the terms'
+  "Law and disputes" section, else "the country where the operator is established".
 - The **support e-mail** (`SUPPORT_EMAIL`) on the terms, the privacy policy and the pricing page.
 - The **privacy policy** opens with *Who is responsible* (the same name, address and support e-mail; while they are empty it
   sends people to the feedback form), says the site sets no cookies, and names Cloudflare Web Analytics, the counter
@@ -440,15 +454,17 @@ Stripe's and PayPal's reviewers read your terms and privacy pages before they ap
   `Billing.terms` (the content, refunds and operator texts) and `Billing.privacy.content`; the pay button and the email
   hint appear by themselves once the Worker lists it. `tests/legalCopy.test.ts` names the strings that may mention it.
 
-The pages are dated (the "Last updated" line). Set the three variables (the wizard asks for them), and give Stripe
+The pages are dated (the "Last updated" line). Set the three variables (the wizard asks for them; `LEGAL_VAT_ID`,
+`LEGAL_REGISTRATION` and `LEGAL_COUNTRY` are set by hand under **Variables**), and give Stripe
 (**Settings → Business → Public details**) and PayPal (**Business information**) the same name, address and support
 e-mail.
 
-**Honouring the 14-day rule:** when someone writes within 14 days of their first card payment, refund it in full – Stripe:
+**Honouring the 14-day rule:** when someone writes within 14 days of their first payment, refund it in full – Stripe:
 **Payments** → the payment → **Refund** (PayPal, if it is ever switched on, is treated like a card: **Activity** → the payment →
-**Refund**). Then cancel the subscription so it does not renew. The refund ends their Pro access by itself. A crypto buyer has no
-14-day right in the terms, because a crypto payment cannot be reversed on the network: refund one by hand (NOWPayments' refund
-tool, which needs the buyer's wallet address) only where the law of their country requires it, or as goodwill.
+**Refund**). Then cancel the subscription so it does not renew. The refund ends their Pro access by itself. A crypto payment cannot
+be reversed on the network, so refund it by hand to the wallet address the buyer gives you (NOWPayments' refund tool, or a transfer
+from your own wallet). An EU or UK consumer who withdraws from a renewal gets the renewal back the same way, less the share for
+the days already used, within 14 days of their message.
 
 ---
 
@@ -472,7 +488,7 @@ monthly payout statements of all three, and ask an accountant in your country be
 5. [ ] Stripe live mode: public details, statement descriptor, receipts e-mail on, customer portal **saved**.
 6. [ ] `npm run go-live -- --mode live` has finished without an error.
 7. [ ] The GitHub variables are set: `LICENSE_PUBLIC_KEY`, `BILLING_API_URL`, `SUPPORT_EMAIL` (and `LEGAL_NAME`,
-   `LEGAL_ADDRESS` if you use them).
+   `LEGAL_ADDRESS`, `LEGAL_VAT_ID`, `LEGAL_REGISTRATION`, `LEGAL_COUNTRY` if you use them).
 8. [ ] The site has redeployed and `npm run go-live:check -- --mode live` says `GO-LIVE CHECK: PASS`.
 9. [ ] The three first purchases of section 6(c) are done – and refunded or cancelled.
 10. [ ] Someone watches the support inbox.

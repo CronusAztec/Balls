@@ -259,6 +259,28 @@ function Accounts({ s, p, now, inApp }: { s: PublishSnapshot; p: Translate; now:
                 {platform === "youtube" ? (profile && relayApps?.youtube ? relayButton("youtube", p("connectViaRelay")) : null) : relayButton(platform, p("connectPlatform", { platform: PLATFORM_NAMES[platform] }))}
               </span>
             </div>
+            {/* --- legal-audit --- under the Connect YouTube control: the YouTube API Services terms, Google's privacy policy and where to revoke access (the same links as the privacy policy's Publishing section) */}
+            {platform === "youtube" && !inApp && (
+              <p className="text-xs text-ink-3 leading-snug" data-testid="publish-yt-terms">
+                {p.rich("ytTerms", {
+                  yt: (chunks) => (
+                    <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer" className="underline">
+                      {chunks}
+                    </a>
+                  ),
+                  google: (chunks) => (
+                    <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">
+                      {chunks}
+                    </a>
+                  ),
+                  revoke: (chunks) => (
+                    <a href="https://myaccount.google.com/connections" target="_blank" rel="noopener noreferrer" className="underline">
+                      {chunks}
+                    </a>
+                  ),
+                })}
+              </p>
+            )}
             {list.length > 0 && (
               <ul className="space-y-1 pl-1">
                 {list.map((a) => (

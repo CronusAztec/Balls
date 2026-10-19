@@ -2643,6 +2643,7 @@
     "changelog": "Dziennik zmian",
     "press": "Dla prasy",
     "operatedBy": "Serwis prowadzi {name}",
+    "vatNumber": "Numer VAT: {vat}",
     "buildTip": "Kompilacja {commit} · {date}. Zobacz, co się zmieniło.",
     "buildTipDev": "Kompilacja lokalna. Zobacz, co się zmieniło."
   },
@@ -2678,7 +2679,10 @@
       },
       "events": {
         "label": "Liczenie działań:",
-        "content": "Liczymy też kilka działań, takich jak uruchomienie symulatora, eksport klipu czy przejście do płatności, za pomocą usługi statystycznej pod adresem {host}. Zapisuje ona adres strony wraz z nazwą kampanii lub identyfikatorem kliknięcia reklamy, jeśli adres je zawiera, a także serwis, z którego przychodzisz, przeglądarkę, rozmiar ekranu i kraj. W studiu ten adres zawiera też ustawienia Twojej symulacji, więc usługa może je zobaczyć. Nigdy nie dostaje Twojego e-maila ani numeru z potwierdzenia. Nie działa, gdy przeglądarka wysyła sygnał Do Not Track lub Global Privacy Control, ani w aplikacji na Windows."
+        "content": "Liczymy też kilka działań, takich jak uruchomienie symulatora, eksport klipu czy przejście do płatności, za pomocą usługi statystycznej pod adresem {host}. Zapisuje ona adres strony wraz z nazwą kampanii lub identyfikatorem kliknięcia reklamy, jeśli adres je zawiera, a także serwis, z którego przychodzisz, przeglądarkę, rozmiar ekranu i kraj. W studiu ten adres zawiera też ustawienia Twojej symulacji, więc usługa może je zobaczyć. Nigdy nie dostaje Twojego e-maila ani numeru z potwierdzenia. Nie działa, gdy przeglądarka wysyła sygnał Do Not Track lub Global Privacy Control, ani w aplikacji na Windows.",
+        "optOut": "Wyłącz liczenie działań w tej przeglądarce.",
+        "optedOut": "Liczenie działań jest wyłączone w tej przeglądarce.",
+        "optIn": "Włącz je ponownie."
       },
       "account": {
         "label": "Dane konta:",
@@ -2692,6 +2696,10 @@
     "howWeUse": {
       "title": "Jak wykorzystujemy informacje",
       "content": "Statystyki odwiedzin pokazują nam, jak używana jest strona, abyśmy mogli ją ulepszać. E-mail i identyfikator płatności służą do wydawania, odnawiania i przywracania Twojej licencji Pro. Nie sprzedajemy Twoich danych i nie udostępniamy ich sieciom reklamowym."
+    },
+    "legalBases": {
+      "title": "Dlaczego możemy przetwarzać Twoje dane",
+      "content": "Przetwarzamy dane na następujących podstawach prawnych. Prowadzenie strony, relay i aplikacji na Windows oraz odpowiadanie Ci: nasz uzasadniony interes w prowadzeniu usługi oraz umowa z Tobą, gdy kupisz Pro lub założysz konto. Wydawanie, odnawianie i przywracanie licencji oraz przechowywanie dokumentacji płatności: umowa oraz wiążące nas przepisy podatkowe i rachunkowe. Liczenie odwiedzin i kilku działań: nasz uzasadniony interes w wiedzy, jak strona jest używana, bez plików cookie i z możliwością rezygnacji przez Do Not Track, Global Privacy Control lub przełącznik powyżej. Wysyłanie klipu na platformę lub do Postiz: Twoje żądanie, za każdym razem, gdy naciskasz wyślij lub zatwierdzasz. Nic nie jest przetwarzane na podstawie zgody poza przypadkami, gdy o nią prosimy."
     },
     "cookies": {
       "title": "Pliki cookie i śledzenie",
@@ -2725,13 +2733,17 @@
         "use": "przechowuje modele AI, które aplikacja na Windows pobiera na Twoją prośbę."
       }
     },
+    "transfers": {
+      "title": "Gdzie trafiają Twoje dane",
+      "content": "Cloudflare, Stripe, GitHub, Hugging Face i Google mają siedziby w Stanach Zjednoczonych i mogą tam przetwarzać dane. Każda z tych firm ma certyfikat EU-US Data Privacy Framework lub działa na podstawie standardowych klauzul umownych UE, które utrzymują ochronę obowiązującą w UE i Wielkiej Brytanii. Postiz i wybrany przez Ciebie dostawca AI w chmurze to Twoi własni dostawcy, a ich lokalizację opisują ich własne polityki."
+    },
     "retention": {
       "title": "Przechowywanie danych",
-      "content": "Dane w pamięci lokalnej zostają na Twoim urządzeniu, dopóki nie wyczyścisz ich w ustawieniach przeglądarki. Statystyki odwiedzin przechowują usługi, które je tworzą, zgodnie z własnymi zasadami. Serwer rozliczeń trzyma Twój e-mail, plan i identyfikator dostawcy tak długo, jak można przywrócić Twoją licencję i jak wymagają tego przepisy rachunkowe. Konto na serwerze relay jest przechowywane, dopóki nie usuniesz konta na stronie Konto, a klip wgrany na relay jest usuwany po 24 godzinach."
+      "content": "Dane w pamięci lokalnej zostają na Twoim urządzeniu, dopóki ich nie wyczyścisz. Serwer rozliczeń trzyma Twój e-mail, plan i identyfikator dostawcy tak długo, jak można przywrócić Twoją licencję, oraz przez 10 lat od ostatniej płatności, czyli najdłuższy okres przechowywania dokumentacji księgowej, jaki może nas dotyczyć. Potem je usuwa. Zapisy webhooków są usuwane po 30 dniach. Konto na relay jest przechowywane, dopóki nie usuniesz go na stronie Konto. Jego tokeny sesji wygasają po 30 dniach. Klip wgrany na relay jest usuwany po 24 godzinach. Statystyki odwiedzin przechowują usługi, które je tworzą, zgodnie z własnymi zasadami."
     },
     "children": {
       "title": "Prywatność dzieci",
-      "content": "Serwis nie jest skierowany do dzieci poniżej 13. roku życia i świadomie nie zbieramy od nich danych osobowych."
+      "content": "Serwis nie jest skierowany do dzieci poniżej 13 lat. Musisz mieć co najmniej 16 lat, aby założyć konto, i 18 lat, aby kupić Pro. Jeśli dowiemy się, że mamy dane młodszego dziecka, usuwamy je. Rodzice mogą napisać do nas na adres podany wyżej."
     },
     "changes": {
       "title": "Zmiany w polityce",
@@ -2765,13 +2777,15 @@
       "named": "{siteName} prowadzi {legalName}{address}.",
       "unnamed": "{siteName} prowadzi operator serwisu {siteDomain}.",
       "writeTo": "W sprawie swoich danych napisz na <mail>{email}</mail>.",
-      "useForm": "W sprawie swoich danych skorzystaj z <link>formularza opinii</link>."
+      "useForm": "W sprawie swoich danych skorzystaj z <link>formularza opinii</link>.",
+      "useNone": "W sprawie swoich danych napisz do operatora na adres podany wyżej."
     },
     "rights": {
       "title": "Twoje prawa",
-      "content": "Możesz poprosić nas o kopię swoich danych, ich poprawienie lub usunięcie. Konto usuniesz samodzielnie na stronie Konto. Dane z pamięci lokalnej nigdy do nas nie trafiają, więc czyścisz je w przeglądarce. Jeśli mieszkasz w UE, w Wielkiej Brytanii lub w innym kraju z przepisami o ochronie danych, możesz też złożyć skargę do organu nadzorczego. W Polsce jest nim Prezes UODO.",
+      "content": "Możesz poprosić nas o kopię swoich danych, ich poprawienie lub usunięcie. Konto usuniesz samodzielnie na stronie Konto. Dane z pamięci lokalnej nigdy do nas nie trafiają, więc czyścisz je w przeglądarce. Jeśli mieszkasz w UE, w Wielkiej Brytanii lub w innym kraju z przepisami o ochronie danych, możesz też złożyć skargę do organu nadzorczego. W Polsce jest nim Prezes UODO. Na prośbę odpowiadamy w ciągu miesiąca. Możesz też poprosić o ograniczenie przetwarzania, wnieść sprzeciw lub otrzymać swoje dane w popularnym formacie pliku. Nie sprzedajemy danych osobowych i respektujemy sygnał Global Privacy Control.",
       "requestEmail": "Aby złożyć prośbę, napisz na <mail>{email}</mail>.",
-      "requestForm": "Aby złożyć prośbę, skorzystaj z <link>formularza opinii</link>."
+      "requestForm": "Aby złożyć prośbę, skorzystaj z <link>formularza opinii</link>.",
+      "requestNone": "Aby złożyć prośbę, napisz do operatora na adres podany wyżej."
     },
     "advertising": {
       "title": "Reklamy",
@@ -2813,52 +2827,76 @@
     "metaTitle": "Regulamin – {siteName}",
     "metaDescription": "Zasady korzystania z {siteName}. Twoje filmy, plany Free i Pro, płatności i zwroty oraz to, czego narzędzie nie obiecuje.",
     "acceptance": {
-      "title": "1. Akceptacja regulaminu",
+      "title": "Akceptacja regulaminu",
       "content": "Korzystając z serwisu {siteDomain} („Serwis”), akceptujesz niniejszy regulamin. Jeśli nie zgadzasz się z którymkolwiek jego punktem, nie korzystaj z Serwisu."
     },
     "description": {
-      "title": "2. Opis usługi",
+      "title": "Opis usługi",
       "content": "{siteName} to przeglądarkowe narzędzie do symulacji fizyki, służące do tworzenia animacji odbijającej się piłki, dostosowywania ich wyglądu i zachowania oraz eksportowania jako plików wideo. Korzystanie z symulatora i eksport filmów są darmowe, a filmy wyeksportowane bez licencji Pro mają znak wodny (zob. Subskrypcje Pro). Aplikacja na Windows jest częścią Serwisu i ten regulamin też jej dotyczy. Serwis jest udostępniany „tak jak jest”, bez gwarancji dostępności ani ciągłości działania."
     },
     "ugc": {
-      "title": "3. Treści użytkowników",
+      "title": "Treści użytkowników",
       "subtitle": "Korzystając z Serwisu, możesz:",
       "item1": "Wgrywać własne obrazki, pliki MIDI i klipy dźwiękowe do swoich symulacji.",
       "item2": "Tworzyć i eksportować nagrania wideo symulacji.",
       "item3": "Zapisywać presety symulacji w pamięci lokalnej przeglądarki.",
-      "footer": "Zachowujesz prawa do wszystkiego, co stworzysz w Serwisie, i możesz wykorzystywać wyeksportowane filmy w dowolnym celu, także komercyjnym, bez podawania źródła. Nie daje Ci to praw do nazw ani dzieł należących do innych, na przykład do nazw postaci w Fight League. Wzmianka o {siteDomain} jest zawsze mile widziana."
+      "footer": "Zachowujesz prawa do wszystkiego, co stworzysz w Serwisie, i możesz wykorzystywać wyeksportowane filmy w dowolnym celu, także komercyjnym, bez podawania źródła. Nie daje Ci to praw do nazw ani dzieł należących do innych, na przykład do nazw postaci w Fight League. Wzmianka o {siteDomain} jest zawsze mile widziana.",
+      "licence": "Zachowujesz prawa do tego, co wgrywasz. Publikując przez relay, pozwalasz nam przechowywać klip do 24 godzin i wysłać go do wybranych przez Ciebie platform, i nic więcej. Potwierdzasz, że masz prawa do wszystkiego, co jest w klipie, i że nie narusza on prawa ani zasad żadnej platformy."
     },
     "acceptable": {
-      "title": "4. Dozwolone użycie",
+      "title": "Dozwolone użycie",
       "subtitle": "Zobowiązujesz się nie:",
       "item1": "Zakłócać, przeciążać ani ingerować w infrastrukturę Serwisu.",
       "item2": "Używać zautomatyzowanych narzędzi do kopiowania kodu lub zasobów Serwisu.",
       "item3": "Wgrywać treści nielegalnych, szkodliwych lub naruszających prawa własności intelektualnej innych osób.",
       "item4": "Przedstawiać Serwisu jako własnego produktu.",
-      "postiz": "Publikowanie przez Postiz z aplikacji na Windows podlega warunkom Postiz oraz zasadom TikToka, Instagrama i YouTube. Postiz to zewnętrzna usługa, której nie prowadzimy. Odpowiadasz za każdy post, który zatwierdzasz, i za jego treść."
+      "postiz": "Publikowanie przez Postiz z aplikacji na Windows podlega warunkom Postiz oraz zasadom TikToka, Instagrama i YouTube. Postiz to zewnętrzna usługa, której nie prowadzimy. Odpowiadasz za każdy post, który zatwierdzasz, i za jego treść.",
+      "youtube": "Wgrywanie na YouTube przez Serwis oznacza, że akceptujesz też Warunki korzystania z YouTube."
+    },
+    "age": {
+      "title": "Wiek",
+      "content": "Musisz mieć co najmniej 16 lat, aby założyć konto, i co najmniej 18 lat, aby kupić Pro, albo mieć zgodę rodzica lub opiekuna, który akceptuje ten regulamin w Twoim imieniu. Serwis nie jest skierowany do dzieci poniżej 13 lat."
     },
     "intellectual": {
-      "title": "5. Własność intelektualna",
+      "title": "Własność intelektualna",
       "content": "Serwis, w tym jego kod, projekt i branding, należy do operatora serwisu {siteName}. Filmy i obrazy, które tworzysz za jego pomocą, należą do Ciebie. Nazwy postaci i serii, które pojawiają się w Fight League, należą do ich właścicieli, jak wyjaśnia strona Zastrzeżenia."
     },
+    "ai": {
+      "title": "Funkcje AI",
+      "content": "Aplikacja na Windows może uruchamiać model AI na Twoim komputerze albo wysyłać Twoje zapytania do dostawcy chmurowego z kluczem, który wpiszesz. Wyniki AI mogą być błędne, powtarzalne lub nieodpowiednie. Sprawdzasz każdy podpis, ustawienie i post, zanim ich użyjesz. Nic nie jest publikowane, dopóki tego nie zatwierdzisz. Modele to osobne pliki do pobrania na własnych licencjach, które aplikacja pokazuje przed pobraniem, a Ty odpowiadasz za korzystanie z modelu zgodnie z jego licencją. Dostawca chmurowy przetwarza Twoje zapytania na własnych warunkach. Nie widzimy Twoich zapytań ani wyników."
+    },
+    "takedown": {
+      "title": "Zgłaszanie treści",
+      "content": "Relay przechowuje opublikowany klip do 24 godzin, aby platforma mogła go pobrać. Jeśli uważasz, że klip lub konto na relay narusza Twoje prawa lub łamie prawo, napisz na {email}, podając link, opis prawa lub przepisu, którego dotyczy zgłoszenie, swoje dane kontaktowe i oświadczenie, że zgłoszenie składasz w dobrej wierze. Gdy zgłoszenie jest zasadne, usuwamy lub blokujemy treść, informujemy osobę, która ją wgrała, dlaczego, i zamykamy konta osób naruszających prawa wielokrotnie.",
+      "agent": "Pełnomocnik ds. praw autorskich: {legalName}, {address}, {email}."
+    },
     "warranties": {
-      "title": "6. Wyłączenie gwarancji",
-      "content": "Serwis jest udostępniany „tak jak jest” i „w miarę dostępności”, bez jakichkolwiek gwarancji, wyraźnych lub dorozumianych, w tym dotyczących niezawodności, dokładności lub przydatności do określonego celu. Nie gwarantujemy, że Serwis będzie działał nieprzerwanie ani bezbłędnie."
+      "title": "Wyłączenie gwarancji",
+      "content": "Darmowa usługa jest udostępniana taka, jaka jest, i w miarę dostępności. Nie obiecujemy, że będzie działać nieprzerwanie, bezbłędnie ani że nada się do określonego celu. Pro to płatna usługa cyfrowa, a konsumenci zachowują wszystkie prawa, które daje im prawo, jeśli nie działa ona zgodnie z opisem. Nic w tej sekcji nie ogranicza tych praw."
     },
     "liability": {
-      "title": "7. Ograniczenie odpowiedzialności",
-      "content": "W najszerszym zakresie dozwolonym przez prawo operator serwisu {siteName} nie ponosi odpowiedzialności za jakiekolwiek pośrednie, przypadkowe, szczególne lub wynikowe szkody wynikające z korzystania z Serwisu, w tym utratę danych, przychodów lub zysków."
+      "title": "Ograniczenie odpowiedzialności",
+      "content": "Nic w tym regulaminie nie ogranicza naszej odpowiedzialności za śmierć lub uszczerbek na zdrowiu spowodowane naszym zaniedbaniem, za oszustwo, za rażące niedbalstwo lub umyślne działanie ani za nic, czego prawo nie pozwala ograniczyć. Nic tu nie odbiera Ci praw, które masz jako konsument na mocy prawa swojego kraju. Poza tym nie odpowiadamy za straty pośrednie, takie jak utracone przychody, zyski, dane, wyświetlenia czy obserwujący. Nasza łączna odpowiedzialność wobec subskrybenta Pro jest ograniczona do kwoty zapłaconej nam w ciągu dwunastu miesięcy przed roszczeniem. Przy darmowym korzystaniu jest ograniczona do 50 dolarów amerykańskich."
+    },
+    "termination": {
+      "title": "Zakończenie korzystania",
+      "content": "Możesz przestać korzystać z Serwisu w każdej chwili, usunąć konto na stronie Konto i anulować Pro w sposób opisany w sekcji Subskrypcje Pro. Możemy zawiesić lub zakończyć dostęp za poważne naruszenie regulaminu, na przykład wgranie nielegalnych treści lub atak na serwer relay. Jeśli zakończymy płatny plan bez takiego naruszenia, zwracamy niewykorzystaną część okresu."
     },
     "changes": {
-      "title": "8. Zmiany regulaminu",
-      "content": "Możemy aktualizować regulamin w dowolnym momencie. Zmiany są publikowane na tej stronie z nową datą, a dalsze korzystanie z Serwisu po zmianie oznacza akceptację zmienionego regulaminu."
+      "title": "Zmiany regulaminu",
+      "content": "Możemy zmienić regulamin z ważnego powodu, na przykład z powodu zmiany prawa, usługi lub sposobu naliczania opłat. O zmianie dotyczącej Pro informujemy co najmniej 30 dni wcześniej e-mailem lub na tej stronie, zanim zacznie obowiązywać. Jeśli jej nie akceptujesz, możesz anulować przed jej wejściem w życie, a my zwrócimy niewykorzystaną część okresu. Dalsze korzystanie po zmianie oznacza akceptację tylko w przypadku darmowej usługi."
+    },
+    "law": {
+      "title": "Prawo i spory",
+      "content": "Regulamin podlega prawu kraju {country}. Jeśli jesteś konsumentem, zachowujesz też ochronę bezwzględnie obowiązujących przepisów kraju, w którym mieszkasz, i możesz dochodzić roszczeń przed jego sądami. Nie bierzemy udziału w arbitrażu konsumenckim. Jeśli część regulaminu okaże się nieważna, reszta pozostaje w mocy. Regulamin stanowi całość umowy między Tobą a nami dotyczącej Serwisu.",
+      "countryFallback": "siedziby operatora"
     },
     "contact": {
-      "title": "9. Kontakt",
+      "title": "Kontakt",
       "content": "Masz pytania dotyczące regulaminu? Skontaktuj się z nami przez",
       "feedbackLink": "formularz opinii"
     },
-    "proprietaryNotice": "{siteName}, w tym postać Gerald, jej nazwa i grafika, to oprogramowanie własnościowe. Jego kod źródłowy jest zaciemniony (obfuskowany) i nie może być kopiowany, modyfikowany, poddawany inżynierii wstecznej, rozpowszechniany, publicznie wyświetlany ani wykorzystywany komercyjnie bez pisemnej zgody właściciela."
+    "proprietaryNotice": "{siteName}, postać Gerald w tej postaci, jej grafika oraz nazwa i logo {siteName} należą do nas. Kod źródłowy jest zaciemniony i nie może być kopiowany, modyfikowany, poddawany inżynierii wstecznej, rozpowszechniany, publicznie wyświetlany ani wykorzystywany komercyjnie bez pisemnej zgody właściciela."
   },
   "Disclaimer": {
     "title": "Zastrzeżenia",
@@ -2883,7 +2921,7 @@
     },
     "asIs": {
       "title": "Udostępnianie „tak jak jest”",
-      "content": "Narzędzie jest udostępniane „tak jak jest” i „w miarę dostępności”, bez jakichkolwiek gwarancji. Nie gwarantujemy, że strona będzie działać nieprzerwanie, bezbłędnie ani na każdej przeglądarce i urządzeniu, a funkcje mogą się zmieniać lub znikać bez uprzedzenia. W najszerszym zakresie dozwolonym przez prawo {siteName} nie odpowiada za żadne straty ani szkody wynikające z korzystania lub niemożności korzystania ze strony."
+      "content": "Narzędzie jest udostępniane „tak jak jest” i „w miarę dostępności”, bez jakichkolwiek gwarancji. Nie gwarantujemy, że strona będzie działać nieprzerwanie, bezbłędnie ani na każdej przeglądarce i urządzeniu, a funkcje mogą się zmieniać lub znikać bez uprzedzenia. W najszerszym zakresie dozwolonym przez prawo {siteName} nie odpowiada za żadne straty ani szkody wynikające z korzystania lub niemożności korzystania ze strony. Nic tu nie ogranicza praw, które masz jako konsument na mocy prawa swojego kraju."
     },
     "externalLinks": {
       "title": "Linki zewnętrzne",
@@ -2942,7 +2980,7 @@
   "TikTokBallVideos": {
     "metaTitle": "Filmy z odbijającą się piłką na TikToka – {siteName}",
     "metaDescription": "Twórz filmy z piłką na TikToka w {siteName}, z {count} trybami i własną fizyką. Pionowy eksport 1080×1920 za darmo, bez konta. Pro usuwa znak wodny.",
-    "badge": "Treści na TikToka",
+    "badge": "Poradnik",
     "navLabel": "Filmy z piłką na TikToka",
     "title": "Filmy z odbijającą się piłką na TikToka",
     "p1": "Filmy z odbijającą się piłką łatwo się ogląda. Piłka uwięziona w pierścieniach próbuje się wydostać, a ludzie zostają, żeby zobaczyć, czy jej się uda. {siteName} powstał właśnie do takich klipów, za darmo i z pionowym eksportem. Pro usuwa znak wodny.",
@@ -2972,6 +3010,10 @@
     "p4": "Staramy się też nie wchodzić Ci w drogę. Symulator zmienia się na bieżąco, więc uczysz się w praktyce. Ustawienia mają proste nazwy.",
     "h2_2": "Prywatność domyślnie",
     "p5": "Twoja praca zostaje u Ciebie. Presety są w Twojej przeglądarce, a filmy renderują się na Twoim urządzeniu. Nie chcemy Twoich danych. Szczegóły znajdziesz w naszej <privacy>polityce prywatności</privacy>.",
+    "accessibility": {
+      "title": "Dostępność",
+      "text": "Staramy się spełniać WCAG 2.1 AA. Symulator respektuje ograniczenie animacji, a strony działają z klawiaturą. Jeśli coś Ci przeszkadza, powiedz nam przez stronę opinii."
+    },
     "h2_3": "Kto to tworzy",
     "p6": "{siteName} to mały, niezależny projekt. Nowe tryby i ustawienia pojawiają się, bo proszą o nie twórcy. Napisz przez <feedback>stronę opinii</feedback>.",
     "h2_4": "Dokąd zmierzamy",
@@ -4128,6 +4170,7 @@
     "relayNoApp": "Relay nie ma kluczy aplikacji {platform}",
     "needsClientId": "Najpierw skonfiguruj aplikację YouTube poniżej",
     "connectGoogle": "Połącz YouTube",
+    "ytTerms": "Wysyłka korzysta z usług YouTube API. Łącząc konto, akceptujesz <yt>Warunki korzystania z YouTube</yt> i <google>Politykę prywatności Google</google>. Dostęp możesz cofnąć na swoim <revoke>koncie Google</revoke>.",
     "connecting": "Łączenie…",
     "connectViaRelay": "przez relay",
     "connectPlatform": "Połącz {platform}",
@@ -4519,7 +4562,7 @@
     "libDelete": "Usuń plik",
     "libDeleteConfirm": "Przenieść {name} do kosza?",
     "postizTitle": "Postiz",
-    "postizIntro": "Podłącz swoje kanały TikTok, Instagram i YouTube w Postiz, a potem wklej tu klucz API z Postiz. Aplikacja będzie publikować twoje klipy przez Postiz. Klucz zostaje na tym komputerze.",
+    "postizIntro": "Podłącz swoje kanały TikTok, Instagram i YouTube w Postiz, a potem wklej tu klucz API z Postiz. Aplikacja będzie publikować twoje klipy przez Postiz. Klucz zostaje na tym komputerze. Korzystasz z Postiz na jego własnych warunkach, a jego API może wymagać płatnego planu Postiz.",
     "postizWhereKey": "Gdzie znaleźć klucz: Postiz → Settings → Developers → Public API.",
     "postizUrl": "Adres Postiz",
     "postizUrlHint": "Dla Postiz w chmurze zostaw adres bez zmian. Dla własnego serwera Postiz wklej adres jego API.",
@@ -4799,7 +4842,7 @@
     },
     "hero": {
       "eyebrow": "Studio fizyki piłek",
-      "title": "Satysfakcjonująca fizyka piłek, gotowa na TikToka.",
+      "title": "Satysfakcjonująca fizyka piłek do krótkich filmów.",
       "sub": "Wybierz jeden z {count} trybów, dostrój fizykę i naciśnij start. Za darmo, w przeglądarce, bez konta. Wyeksportuj pionowy klip gotowy do publikacji. Pro usuwa znak wodny.",
       "seeModes": "Zobacz tryby",
       "live": "Na żywo",
@@ -4887,7 +4930,7 @@
       "perMonth": "/ miesiąc",
       "perYear": "/ rok",
       "monthlyNote": "Odnawia się co miesiąc. Możesz zrezygnować w każdej chwili.",
-      "yearlyNote": "To {price} miesięcznie, płatne raz w roku.",
+      "yearlyNote": "Płatne {price} raz w roku. Odnawia się co rok. Anuluj w każdej chwili.",
       "save": "Oszczędzasz {percent}%"
     },
     "pay": {
@@ -5034,7 +5077,7 @@
       "licence": "Licencja to podpisany klucz zapisany w tej przeglądarce. Strona nie potrzebuje konta ani hasła.",
       "devices": "Na innym urządzeniu lub w innej przeglądarce przywróć zakup e-mailem i numerem z potwierdzenia pokazanym po płatności albo wklej klucz licencji.",
       "watermark": "Znak wodny jest wrysowany w sam film. Z licencją Pro w tej przeglądarce każde nagranie lub eksport, które potem rozpoczniesz, jest czyste.",
-      "refunds": "Napisz w ciągu 14 dni od pierwszej płatności kartą, a zwrócimy ją w całości. Odnowienia i płatności kryptowalutą nie podlegają zwrotowi, chyba że przepisy mówią inaczej.",
+      "refunds": "Poproś w ciągu 14 dni od pierwszej płatności, a zwrócimy ją w całości. W UE i Wielkiej Brytanii możesz też odstąpić w ciągu 14 dni od każdej płatności. Odnowienia poza tym nie podlegają zwrotowi.",
       "support": "Pytania o płatność? Napisz na {email}.",
       "termsLink": "Regulamin"
     },
@@ -5049,19 +5092,30 @@
     },
     "terms": {
       "title": "Subskrypcje Pro",
-      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe. Filmy utworzone bez licencji Pro mają znak wodny. Pro kosztuje {monthly} miesięcznie lub {yearly} rocznie, w dolarach amerykańskich, a przy płatności może zostać doliczony podatek. Eksportuje filmy bez znaku wodnego i dodaje szybkie udostępnianie na TikToku, Instagramie i YouTube przez arkusz udostępniania urządzenia lub pobranie. Subskrypcje kartą odnawiają się automatycznie, dopóki ich nie anulujesz w portalu klienta Stripe. Płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu.",
+      "content": "Zabawa symulatorem oraz nagrywanie i eksport filmów są darmowe. Filmy utworzone bez licencji Pro mają znak wodny. Pro kosztuje {monthly} miesięcznie lub {yearly} rocznie, w dolarach amerykańskich, a przy płatności może zostać doliczony podatek. Kasa pokazuje pełną kwotę przed zapłatą. Pro eksportuje filmy bez znaku wodnego i dodaje szybkie udostępnianie na TikToku, Instagramie i YouTube przez arkusz udostępniania urządzenia lub pobranie. Subskrypcje kartą odnawiają się automatycznie, dopóki ich nie anulujesz w portalu klienta Stripe. Płatność kryptowalutą opłaca z góry okres 30 lub 365 dni, który się nie odnawia. Licencja jest ważna do końca opłaconego okresu.",
       "delivery": {
         "title": "Dostawa",
         "content": "Pro to licencja cyfrowa dostarczana od razu. Po płatności strona cennika aktywuje ją w Twojej przeglądarce i pokazuje numer referencyjny potwierdzenia. Za pomocą e-maila i tego numeru możesz w każdej chwili przywrócić licencję na innym urządzeniu lub w aplikacji na Windows. Nic nie jest wysyłane pocztą."
       },
       "refunds": {
         "title": "Anulowanie i zwroty",
-        "content": "Subskrypcję kartą możesz anulować w każdej chwili, przyciskiem Zarządzaj subskrypcją na stronie cennika. Trwa ona wtedy do końca opłaconego okresu i się nie odnawia. Napisz do nas w ciągu 14 dni od pierwszej płatności kartą, a zwrócimy ją w całości. Odnowienia i płatności kryptowalutą nie podlegają zwrotowi, chyba że prawo Twojego kraju daje Ci takie uprawnienie. Płatności kryptowalutą nie da się cofnąć w sieci. Zwrot trafia na użytą metodę płatności i pojawia się na koncie po 5–10 dniach roboczych."
+        "content": "Subskrypcję kartą możesz anulować w każdej chwili przyciskiem Zarządzaj subskrypcją na stronie cennika. Trwa ona wtedy do końca opłaconego okresu i się nie odnawia. Każdą pierwszą płatność, kartą lub kryptowalutą, zwracamy w całości, jeśli poprosisz w ciągu 14 dni od zapłaty. Napisz na {email}, podając e-mail użyty przy płatności i numer z potwierdzenia. Do zwrotu w kryptowalucie potrzebujemy też adresu portfela, na który go wysłać. Zwrot na kartę trwa od 5 do 10 dni roboczych. Odnowienia nie podlegają zwrotowi, chyba że prawo Twojego kraju daje Ci takie uprawnienie. Jeśli mieszkasz w UE lub w Wielkiej Brytanii, masz też ustawowe prawo odstąpienia w ciągu 14 dni od zakupu, co wyjaśnia następna sekcja."
+      },
+      "withdrawal": {
+        "title": "Prawo odstąpienia w UE i Wielkiej Brytanii",
+        "content": "Jeśli jesteś konsumentem w UE lub w Wielkiej Brytanii, możesz odstąpić od zakupu Pro w ciągu 14 dni od płatności bez podania przyczyny. Wyślij nam jednoznaczne oświadczenie e-mailem na {email}. Możesz skorzystać z poniższego wzoru. Zwracamy pieniądze w ciągu 14 dni od Twojej wiadomości, na użytą metodę płatności lub na adres portfela, który podasz przy płatności kryptowalutą. Pro zaczyna działać od razu, na Twoją prośbę. Jeśli korzystasz z Pro przed odstąpieniem, możemy zatrzymać część ceny proporcjonalną do wykorzystanych dni. Po pierwszym okresie ta sama zasada dotyczy każdego odnowienia.",
+        "form": "Wzór formularza odstąpienia. Do {legalName}, {email}: Odstępuję od umowy o subskrypcję Pro kupioną dnia {date} z adresem e-mail {buyerEmail} i numerem z potwierdzenia {ref}. Imię i nazwisko, data.",
+        "formDate": "data",
+        "formEmail": "Twój e-mail",
+        "formRef": "numer z potwierdzenia",
+        "operatorFallback": "operatora serwisu"
       },
       "operator": {
         "title": "Od kogo kupujesz",
         "named": "{siteName} i subskrypcję Pro prowadzi {legalName}{address}. Płatności obsługują Stripe dla kart i NOWPayments dla kryptowalut. Na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności.",
-        "unnamed": "{siteName} i subskrypcję Pro prowadzi operator serwisu {siteDomain}. Płatności obsługują Stripe dla kart i NOWPayments dla kryptowalut. Na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności."
+        "unnamed": "{siteName} i subskrypcję Pro prowadzi operator serwisu {siteDomain}. Płatności obsługują Stripe dla kart i NOWPayments dla kryptowalut. Na wyciągu zobaczysz {siteName} lub nazwę dostawcy płatności.",
+        "vat": "Numer VAT: {vat}.",
+        "registration": "Zarejestrowany jako {registration}."
       }
     },
     "paste": {
@@ -5080,7 +5134,7 @@
       "lead": "Możesz też napisać do nas na adres"
     },
     "checkout": {
-      "line": "Ceny podajemy w dolarach amerykańskich. Przy płatności może zostać doliczony podatek. Płacąc, akceptujesz <terms>Regulamin</terms>."
+      "line": "Ceny podajemy w dolarach amerykańskich. Podatek doliczamy przy płatności tam, gdzie wymaga go Twój kraj, a kasa pokazuje pełną kwotę przed zapłatą. Plan kartą odnawia się w tej samej cenie, dopóki go nie anulujesz. Płacąc, prosisz o natychmiastowe uruchomienie Pro i akceptujesz <terms>Regulamin</terms>."
     }
   },
   "OrbGrid": {
@@ -5992,7 +6046,7 @@
       "createAccount": "Załóż konto",
       "signIn": "Zaloguj się",
       "working": "Chwileczkę…",
-      "agree": "Zakładając konto, akceptujesz <terms>regulamin</terms> i <privacy>politykę prywatności</privacy>."
+      "agree": "Zakładając konto, potwierdzasz, że masz co najmniej 16 lat, i akceptujesz <terms>regulamin</terms> oraz <privacy>politykę prywatności</privacy>."
     },
     "server": {
       "summary": "Serwer",

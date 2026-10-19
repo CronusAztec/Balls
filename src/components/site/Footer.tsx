@@ -5,7 +5,7 @@ import { Link, usePathname } from "@/i18n/navigation";
 import { LOCALE_OPTIONS } from "@/i18n/routing";
 import { SITE_NAME } from "@/lib/site";
 import { BUILD_COMMIT, BUILD_COMMIT_DATE, buildLabel } from "@/lib/buildInfo"; // --- build-identity ---
-import { LEGAL_NAME } from "@/lib/operator"; // --- build-identity --- the imprint line (empty until the owner sets NEXT_PUBLIC_LEGAL_NAME)
+import { LEGAL_NAME, LEGAL_VAT_ID } from "@/lib/operator"; // --- build-identity --- the imprint line (empty until the owner sets NEXT_PUBLIC_LEGAL_NAME); --- legal-audit --- the VAT number after it
 import { modeFamilies } from "@/lib/siteDesign";
 import InstallAppButton from "@/components/site/InstallAppButton"; // --- pwa ---
 import Kbd from "@/components/ui/Kbd";
@@ -114,6 +114,8 @@ export default function Footer() {
             </p>
             {/* --- build-identity --- who runs the site: nothing while NEXT_PUBLIC_LEGAL_NAME is empty */}
             {LEGAL_NAME && <p data-testid="footer-imprint">{t("operatedBy", { name: LEGAL_NAME })}</p>}
+            {/* --- legal-audit --- the VAT number, when the owner set NEXT_PUBLIC_LEGAL_VAT_ID (EU law wants it on a site that sells) */}
+            {LEGAL_NAME && LEGAL_VAT_ID && <p data-testid="footer-vat">{t("vatNumber", { vat: LEGAL_VAT_ID })}</p>}
             {/* --- build-identity --- the build this page was loaded from: release, commit, commit date. Its own element (the © line
                 stays as it is), the full commit and date in the tooltip, a link to what changed. /version.json says what is live. */}
             <p>

@@ -9,7 +9,7 @@
 //   NODE_USE_ENV_PROXY=1 npm run launch:check               (behind an HTTPS proxy, Node 22.21 or newer)
 //
 // Every check prints `PASS|FAIL|WARN|SKIP  <id>  <title> – <detail>`; the last line is `LAUNCH CHECK: PASS`, `PASS (n warnings)` or
-// `FAIL (n failed, m warnings)`, and the exit code is 1 on any FAIL. A WARN is something to decide on, not a blocker. The ids A1 to A11 are
+// `FAIL (n failed, m warnings)`, and the exit code is 1 on any FAIL. A WARN is something to decide on, not a blocker. The ids A1 to A12 are
 // the ad-readiness list of docs/ADS.md (audit-ads, section 8), B1 and up are the checks the SEO, legal and performance audits asked for.
 // docs/GO-LIVE.md section 14.2 and docs/ADS.md section 10 say what must be green before spending. Node only, no dependency
 // (Playwright is loaded only with --browser). Nothing is written, nothing is sent but GET and HEAD requests.
@@ -167,6 +167,34 @@ export function headProblems(head, { site, locale, route }) {
   if (!head.og.locale) problems.og.push("no og:locale");
   if (head.twitter.card !== "summary_large_image") problems.og.push(`twitter:card is ${head.twitter.card ?? "missing"}`);
   if (route !== "" && /noindex/i.test(head.robots ?? "")) problems.robots.push("noindex");
+  return problems;
+}
+
+/** The inner HTML of the `<section id="…">` of a page, or null when the page has none (an older build). */
+export function sectionHtml(html, id) {
+  const m = new RegExp(`<section[^>]*\\bid="${id}"[^>]*>([\\s\\S]*?)</section>`, "i").exec(String(html));
+  return m ? m[1] : null;
+}
+
+/**
+ * --- legal-audit --- What is missing of the operator's identity on the English legal pages (empty when nothing is): the privacy
+ * page's "Who is responsible" paragraph must hold a postal address (the heuristic: a digit and a comma after the name, which
+ * "Site is run by A. Person." has not and "Site is run by A. Person, 1 High Street, Town." has), and the terms' "Who you are buying
+ * from" section must name someone rather than fall back to "the operator of <domain>". EU and UK law require a trader's name and
+ * geographic address on a site that sells.
+ */
+export function operatorIdentity({ privacyHtml, termsHtml }) {
+  const problems = [];
+  const controller = sectionHtml(privacyHtml, "controller");
+  if (controller === null) problems.push("the privacy page has no \"Who is responsible\" section (an older build)");
+  else {
+    const first = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(controller);
+    const text = visibleText(first ? first[1] : controller);
+    if (!/\d/.test(text) || !text.includes(",")) problems.push(`the privacy page names no postal address ("${text.slice(0, 90)}")`);
+  }
+  const operator = sectionHtml(termsHtml, "operator");
+  if (operator === null) problems.push("the terms have no \"Who you are buying from\" section (an older build)");
+  else if (/\bthe operator of\b/i.test(visibleText(operator))) problems.push("the terms name \"the operator of\" the domain instead of a person or company");
   return problems;
 }
 
@@ -575,6 +603,17 @@ export async function runChecks({ site = DEFAULT_SITE, billing = DEFAULT_BILLING
     else {
       const missing = missingSecurityHeaders(home.res.headers);
       push("A11", "security-headers", missing.length ? "WARN" : "PASS", missing.length ? `/en/ lacks ${missing.join(", ")}: public/_headers in this repository sets them, so the live site is an older build, or the host does not apply the file` : "Strict-Transport-Security, X-Content-Type-Options, Referrer-Policy, X-Frame-Options and Permissions-Policy are sent");
+    }
+  }
+
+  // A12 – the operator's name and postal address are on the legal pages (--- legal-audit ---)
+  {
+    const privacy = pages.find((p) => p.locale === "en" && p.route === "/privacy" && reachable(p.res));
+    const terms = pages.find((p) => p.locale === "en" && p.route === "/terms" && reachable(p.res));
+    if (!privacy || !terms) push("A12", "operator-identity", "SKIP", "needs the English privacy and terms pages (A2)");
+    else {
+      const problems = operatorIdentity({ privacyHtml: privacy.res.text, termsHtml: terms.res.text });
+      push("A12", "operator-identity", problems.length ? "FAIL" : "PASS", problems.length ? `${listed(problems)}. EU and UK law require the trader's name and geographic address on a site that sells. Set JBL_LEGAL_NAME, JBL_LEGAL_ADDRESS and JBL_SUPPORT_EMAIL in /etc/jbl-deploy/env and rebuild (deploy/vps/README.md, "Say who runs the site")` : "the privacy page names the operator with a postal address and the terms say who you are buying from");
     }
   }
 
