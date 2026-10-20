@@ -760,7 +760,8 @@ describe("settings, URL and presets", () => {
     expect(defaultSettings("beatDrop").ballRadius).toBe(BEAT_DROP_BALL_RADIUS);
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
-      if (mode !== "beatDrop" && mode !== "powerLayers") expect(d.ballRadius).toBe(8);
+      // --- merge-ring / spiral-glass --- two more modes with a ball size of their own (24 px tiers, 11 px spiral balls)
+      if (mode !== "beatDrop" && mode !== "powerLayers" && mode !== "mergeRing" && mode !== "spiralGlass") expect(d.ballRadius).toBe(8);
       expect(resolveBeatDropFields(d)).toEqual(defaultBeatDropFields());
       const params = settingsToSearchParams(d);
       for (const key of ["bdk", "bdd", "bds", "bdh", "bda", "bdsn", "bdc", "bdt"]) expect(params.has(key)).toBe(false);

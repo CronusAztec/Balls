@@ -304,7 +304,8 @@ describe("settings, URL and presets", () => {
       const d = defaultSettings(mode);
       expect(resolvePowerLayersFields(d)).toEqual(defaultPowerLayersFields());
       // The mode's own ball size applies to Power Layers only: every other mode keeps its default.
-      expect(d.ballRadius).toBe(mode === "powerLayers" ? 10 : mode === "beatDrop" ? 14 : 8); // --- beat-drop --- (Beat Drop has its own 14 px ball too)
+      // --- beat-drop --- Beat Drop has its own 14 px ball too; --- merge-ring / spiral-glass --- 24 px tiers and 11 px spiral balls
+      expect(d.ballRadius).toBe(mode === "powerLayers" ? 10 : mode === "beatDrop" ? 14 : mode === "mergeRing" ? 24 : mode === "spiralGlass" ? 11 : 8);
     }
     const params = settingsToSearchParams(defaultSettings("powerLayers"));
     for (const key of ["pll", "plq", "pld", "plsp", "plb", "plp", "r"]) expect(params.has(key)).toBe(false);

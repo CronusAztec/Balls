@@ -52,6 +52,10 @@ function scripted(replies: string[]): ChatModel & { calls: AiMessage[][] } {
 
 // a Monday at 12:00 local time (the planner reasons in this PC's time zone; the fixtures are built the same way)
 const NOW = new Date(2026, 9, 19, 12, 0, 0, 0).getTime();
+// --- review fix --- the card reads the real clock for a proposal's time, so the fixture's time is a week ahead of today (a fixed date went past and the card fell back to Now)
+const AHEAD = new Date(Date.now() + 7 * 86_400_000);
+AHEAD.setUTCHours(18, 30, 0, 0);
+const AHEAD_ISO = AHEAD.toISOString();
 const local = (y: number, mo: number, d: number, h: number, mi = 0) => new Date(y, mo, d, h, mi).getTime();
 const iso = (ms: number) => new Date(ms).toISOString();
 
@@ -275,7 +279,7 @@ const proposal: SocialQueueItem = queued({
     { integrationId: "int-tt", platform: "tiktok", text: "Which floor breaks first?\n\n#glass", settings: { __type: "tiktok" } },
     { integrationId: "int-yt", platform: "youtube", text: "Gerald drops through glass floors.", settings: { __type: "youtube", title: "Glass smash" } },
   ],
-  when: "2026-10-19T18:30:00.000Z",
+  when: AHEAD_ISO,
   reason: "Evening posts did well last week.",
 });
 
@@ -398,7 +402,7 @@ describe("Review and approve", () => {
       channelIds: ["int-tt", "int-yt"],
       texts: { "int-tt": "Which floor breaks first?\n\n#glass", "int-yt": "Gerald drops through glass floors." },
       settings: { "int-tt": { __type: "tiktok" }, "int-yt": { __type: "youtube", title: "Glass smash" } },
-      when: "2026-10-19T18:30:00.000Z",
+      when: AHEAD_ISO,
       reason: "Evening posts did well last week.",
     });
     // the card's time from the proposal's: a schedule when it is still ahead, now when it has passed, a draft as a draft
@@ -406,7 +410,7 @@ describe("Review and approve", () => {
     expect(prefilledWhen("2026-10-19T18:30:00.000Z", Date.parse("2026-10-20T00:00:00.000Z"))).toEqual({ kind: "now" });
     expect(prefilledWhen("draft")).toEqual({ kind: "draft" });
     expect(prefilledWhen(null)).toEqual({ kind: "now" });
-    expect(initialCardState(libraryItem, prefill).draft.when).toEqual({ kind: "schedule", local: isoToLocal("2026-10-19T18:30:00.000Z") });
+    expect(initialCardState(libraryItem, prefill).draft.when).toEqual({ kind: "schedule", local: isoToLocal(AHEAD_ISO) });
     expect(initialCardState(libraryItem).draft.when).toEqual({ kind: "now" });
   });
 
@@ -425,7 +429,7 @@ describe("Review and approve", () => {
       { ...tt, text: "Which floor breaks first?\n\n#glass", settings: prefilled },
       { ...yt, text: "Gerald drops through glass floors.", settings: prefilledSettings(yt.settings, { __type: "youtube", title: "Glass smash" }) },
     ];
-    const state: PostCardState = { ...initialCardState(libraryItem, prefillOfProposal(proposal)), channels, draft: { clipId: "clip-1", channels: draftChannels, when: { kind: "schedule", local: isoToLocal("2026-10-19T18:30:00.000Z") } } };
+    const state: PostCardState = { ...initialCardState(libraryItem, prefillOfProposal(proposal)), channels, draft: { clipId: "clip-1", channels: draftChannels, when: { kind: "schedule", local: isoToLocal(AHEAD_ISO) } } };
     const html = withIntl(createElement(PostizPostCardView, { item: libraryItem, state, now: NOW, onDraft: () => {}, onApprove: () => {}, onClose: () => {}, onSlot: () => {}, reason: proposal.reason }));
     expect(attr(html, "postiz-card-reason")).toBeTruthy();
     expect(html).toContain("Why: Evening posts did well last week.");
@@ -442,7 +446,7 @@ describe("Review and approve", () => {
     expect(cardProblems(chosen, NOW)).toEqual([]);
     const request = toRequest(chosen);
     expect(request.channels[0].settings).toMatchObject({ privacy_level: "SELF_ONLY", comment: true, duet: false, stitch: false, title: "T" });
-    expect(request.when).toBe("2026-10-19T18:30:00.000Z");
+    expect(request.when).toBe(AHEAD_ISO);
     const card = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "PostizPostCard.tsx"), "utf8");
     expect(card).toContain("prefill?.queueItemId ? await bridge.social.queue.approve(prefill.queueItemId, request) : await bridge.social.post(request)");
   });
