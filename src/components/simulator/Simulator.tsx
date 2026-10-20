@@ -147,6 +147,7 @@ import { FUNNEL_SPIN_RESTART_FIELDS } from "@/lib/physics/funnelSpin"; // --- fu
 import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- gerald-journey ---
 import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- gerald-bullseye ---
 import { mergeRingSettingsOf } from "@/lib/physics/modes/mergeRing"; // --- merge-ring ---
+import { spiralGlassSettingsOf } from "@/lib/physics/modes/spiralGlass"; // --- spiral-glass ---
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
 import { conveyorSettingsOf } from "@/lib/physics/modes/conveyor";
 // --- orb-grid --- Bouncing Orbs (thousands of varied bouncing orbs forming a 3D wave)
@@ -424,6 +425,7 @@ export default function Simulator() {
     engine.setJourneySettings(journeySettingsOf(s)); // --- gerald-journey ---
     engine.setBullseyeSettings(bullseyeSettingsOf(s)); // --- gerald-bullseye ---
     engine.setMergeRingSettings(mergeRingSettingsOf(s)); // --- merge-ring ---
+    engine.setSpiralGlassSettings(spiralGlassSettingsOf(s)); // --- spiral-glass ---
     engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeatRef.current)); // --- beat-drop ---
     engine.setTerritorySettings(territorySettingsOf(s)); // --- odd-territory ---
     engine.setMazeSettings(mazeSettingsOf(s)); // --- odd-maze ---
@@ -1569,6 +1571,25 @@ export default function Simulator() {
     engineRef.current?.setMergeRingSettings({ rainbow: s.mrRainbow });
   }, [s.mrRainbow]);
   // --- end merge-ring ---
+  // --- spiral-glass --- Spiral Glass: a change of the turns, the hit points, the speed, the ball cap or the chip time restarts the
+  // run and drops a found seed; the rainbow line follows live.
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setSpiralGlassSettings(spiralGlassSettingsOf(s));
+    if (s.mode === "spiralGlass" && engine.getCurrentModeName() === "spiralGlass") {
+      engine.initSpiralGlass();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.sgTurns, s.sgGlassHp, s.sgSpeed, s.sgMaxBalls, s.sgChipEvery]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.sgTurns, s.sgGlassHp, s.sgSpeed, s.sgMaxBalls, s.sgChipEvery]);
+  useEffect(() => {
+    engineRef.current?.setSpiralGlassSettings({ rainbow: s.sgRainbow });
+  }, [s.sgRainbow]);
+  // --- end spiral-glass ---
   // --- gerald-conveyor --- Conveyor Belt: a change of the interval, the ball count, the arena, the freeze or the variety restarts
   // the run and drops a found seed; the Sound section's scale and root (the peg, bowl and ring-pass notes) follow live. The
   // respawn timer of Classic and Multiply travels in the physics config (so the finder and the exports run it); a new period
@@ -2042,6 +2063,7 @@ export default function Simulator() {
         engine.setVortexSettings(vortexSettingsOf(arena)); // --- gerald-vortex --- (the depth cue, scale and root follow live; the rest waits for a restart)
         engine.setBullseyeSettings(bullseyeSettingsOf(arena)); // --- gerald-bullseye --- (the scale and root follow live; the rest waits for a restart)
         engine.setMergeRingSettings({ rainbow: arena.mrRainbow }); // --- merge-ring --- (the rainbow rim follows live; the rest waits for a restart)
+        engine.setSpiralGlassSettings({ rainbow: arena.sgRainbow }); // --- spiral-glass --- (the rainbow line follows live; the rest waits for a restart)
         engine.setBeatDropSettings({ sound: arena.bdSound, colorMode: arena.bdColorMode, trail: arena.bdTrail, clipSec: arena.recordingDuration, scale: arena.scale, rootNote: arena.rootNote }); // --- beat-drop --- (what a landing plays, the colours, the trail, the clip and the scale follow live; the plan waits for a restart)
         const bounceMath = engineRef.current?.config.bounceMath; // --- bounce-math --- the page's rules follow live
         if (bounceMath && engine.config.bounceMath !== bounceMath) engine.setConfig({ bounceMath });
@@ -3403,6 +3425,7 @@ export default function Simulator() {
           journey: journeySettingsOf(settings), // --- gerald-journey ---
           bullseye: bullseyeSettingsOf(settings), // --- gerald-bullseye ---
           mergeRing: mergeRingSettingsOf(settings), // --- merge-ring --- (every run ends with the final form or an overflow)
+          spiralGlass: spiralGlassSettingsOf(settings), // --- spiral-glass --- (every run ends with the glass cleared or a timeout)
           beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
           territory: territorySettingsOf(settings), // --- odd-territory --- (every run lasts its countdown: the finder searches its winner)
           maze: mazeSettingsOf(settings), // --- odd-maze ---
@@ -3748,6 +3771,17 @@ export default function Simulator() {
         finalSub: (merges, seconds) => fill("MergeRing.canvasFinalSub", { merges, seconds }),
         overflowTitle: t("MergeRing.canvasOverflow"),
         overflowSub: (top, merges) => fill("MergeRing.canvasOverflowSub", { top, merges }),
+      },
+      // --- spiral-glass ---
+      spiralGlass: {
+        title: t("SpiralGlass.canvasTitle"),
+        caption: t("SpiralGlass.caption"),
+        tiles: (left, total) => fill("SpiralGlass.canvasTiles", { left, total }),
+        count: (n) => fill("SpiralGlass.canvasCount", { count: n }),
+        clearedTitle: t("SpiralGlass.canvasCleared"),
+        clearedSub: (count, seconds) => fill("SpiralGlass.canvasClearedSub", { count, seconds }),
+        timeoutTitle: t("SpiralGlass.canvasTimeout"),
+        timeoutSub: (tiles) => fill("SpiralGlass.canvasTimeoutSub", { tiles }),
       },
       // --- gerald-conveyor ---
       conveyor: {

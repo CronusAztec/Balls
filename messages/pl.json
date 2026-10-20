@@ -1484,6 +1484,22 @@
     "mrRainbow": "Tęczowa obręcz",
     "mrRainbowTip": "Pierścień to cienka tęcza, która powoli się obraca. Wyłączony rysuje go w kolorze ściany.",
     "mrRunInfo": "{tiers} poziomów. Ziarno decyduje, kiedy pojawi się ostateczna forma albo pierścień się przepełni, więc Znajdź symulację może trafić w długość klipu.",
+    "modeSpiralGlass": "Szklana spirala",
+    "sgTitle": "Szklana spirala",
+    "sgDesc": "Kulki biegną po spirali z matowego szkła i wykruszają je od zewnątrz do środka. Każde okrążenie obok odznaki dodaje kulkę. Bieg kończy się, gdy szkła już nie ma.",
+    "sgTurns": "Zwoje",
+    "sgTurnsTip": "Ile zwojów ma spirala, od 3 do 10. Każdy zwój to pas 36 szklanych płytek. Więcej zwojów to dłuższy bieg.",
+    "sgGlassHp": "Wytrzymałość szkła",
+    "sgGlassHpTip": "Ile uderzeń wytrzyma płytka, zanim zniknie, od 1 do 5. Grube szkło dłużej trzyma kulki na zewnętrznych pasach.",
+    "sgSpeed": "Prędkość kulek",
+    "sgSpeedTip": "Jak szybko kulki biegną kanałem, w szerokościach pola na sekundę. Szybsze kulki prędzej kończą okrążenie i prędzej się mnożą.",
+    "sgMaxBalls": "Maks. kulek",
+    "sgMaxBallsTip": "Ile kulek spirala mieści naraz. Odznaka liczy dalej, ale kolejne kulki już nie wchodzą.",
+    "sgChipEvery": "Czas odłupania",
+    "sgChipEveryTip": "Ile sekund kulka trze o płytkę, zanim odłupie jedno trafienie. Krótkie czasy szybko czyszczą szkło.",
+    "sgRainbow": "Tęczowa linia",
+    "sgRainbowTip": "Linia spirali powoli przechodzi przez odcienie, a szkło przejmuje ich lekki odcień. Wyłączona rysuje ją w kolorze ściany.",
+    "sgRunInfo": "{turns} zwojów, {tiles} płytek. Ziarno decyduje, kiedy pękają pasy i jak układają się okrążenia, więc Znajdź symulację może trafić w długość klipu.",
     "bounceMath": "Matematyka odbić",
     "bounceMathTip": "Reguły, które zmieniają wartość o matematyczny krok za każdym razem, gdy coś się dzieje – piłka staje się sprężystsza, szybsza albo większa przy każdym odbiciu, grawitacja odwraca się co takt, piłka pulsuje w rytm muzyki. Reguły działają w kolejności listy i nie ma górnej granicy, dopóki nie ustawisz maksimum.",
     "bounceMathRules": "Reguły matematyki odbić",
@@ -2516,6 +2532,10 @@
     "mergeRing": {
       "name": "Pierścień fuzji",
       "description": "Kulki spadają do tęczowego pierścienia i łączą się poziom po poziomie. Czy ostateczna forma pojawi się przed przepełnieniem?"
+    },
+    "spiralGlass": {
+      "name": "Szklana spirala",
+      "description": "Kulki krążą po szklanej spirali i wykruszają ją od zewnątrz. Każde okrążenie dodaje kulkę. Czy kulka się pomnoży?"
     },
     "beatDrop": {
       "name": "Spadanie w rytm",
@@ -4028,6 +4048,16 @@
     "tier8": "Klejnot",
     "tier9": "Słońce",
     "tier10": "Nieskończoność"
+  },
+  "SpiralGlass": {
+    "caption": "Czy kulka się pomnoży?",
+    "canvasTitle": "SZKLANA SPIRALA",
+    "canvasTiles": "PŁYTKI [left]/[total]",
+    "canvasCount": "x[count]",
+    "canvasCleared": "SZKŁO ZBITE",
+    "canvasClearedSub": "x[count] w [seconds] s",
+    "canvasTimeout": "KONIEC CZASU",
+    "canvasTimeoutSub": "Zostało płytek: [tiles]"
   },
   "Daily": {
     "cardBadge": "Wyzwanie dnia",

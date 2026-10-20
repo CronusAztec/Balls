@@ -9,12 +9,13 @@ This file is generated from `src/content/changelog.json`. Do not edit it by hand
 
 ## Website 1.12.0 · 2026-10-20
 
-Merge Ring joins the modes
+Merge Ring and Spiral Glass join the modes
 
 ### New
 
 - Merge Ring is a new rhythm mode. Balls drop through a chute into a rainbow ring and two of the same tier fuse into the next one. The run ends with the final form or an overflow.
 - Every tier has its own emblem, colour and note. A ladder beside the ring lights the tiers reached, and Find Simulation searches for the final form at your clip length.
+- Spiral Glass is a new rhythm mode. Balls circle a spiral of frosted glass and chip it away from the outside in, and every lap past the badge adds a ball. The run ends when the glass is cleared.
 
 ## Windows app 1.4.1 · 2026-10-19
 

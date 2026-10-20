@@ -6,9 +6,9 @@
       "version": "1.12.0",
       "date": "2026-10-20",
       "headline": {
-        "en": "Merge Ring joins the modes",
-        "pl": "Pierścień fuzji dołącza do trybów",
-        "es": "El Anillo de fusión se une a los modos"
+        "en": "Merge Ring and Spiral Glass join the modes",
+        "pl": "Pierścień fuzji i Szklana spirala dołączają do trybów",
+        "es": "Anillo de fusión y Espiral de cristal se unen a los modos"
       },
       "items": [
         {
@@ -25,6 +25,14 @@
             "en": "Every tier has its own emblem, colour and note. A ladder beside the ring lights the tiers reached, and Find Simulation searches for the final form at your clip length.",
             "pl": "Każdy poziom ma własny emblemat, kolor i nutę. Drabinka obok pierścienia podświetla osiągnięte poziomy, a Znajdź symulację szuka ostatecznej formy na długość Twojego klipu.",
             "es": "Cada nivel tiene su propio emblema, color y nota. Una escalera junto al anillo ilumina los niveles alcanzados y Buscar simulación busca la forma final para la duración de tu clip."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Spiral Glass is a new rhythm mode. Balls circle a spiral of frosted glass and chip it away from the outside in, and every lap past the badge adds a ball. The run ends when the glass is cleared.",
+            "pl": "Szklana spirala to nowy tryb rytmiczny. Kulki krążą po spirali z matowego szkła i wykruszają je od zewnątrz, a każde okrążenie obok odznaki dodaje kulkę. Bieg kończy się, gdy szkło zniknie.",
+            "es": "Espiral de cristal es un nuevo modo rítmico. Las bolas giran por una espiral de cristal esmerilado y la rompen de fuera hacia dentro. Cada vuelta por la insignia añade una bola y la tirada termina sin cristal."
           }
         }
       ]

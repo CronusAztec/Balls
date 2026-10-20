@@ -38,7 +38,7 @@ export const WALL_BREAK_SOUNDS: { id: string; name: string; url: string }[] = [
 
 // --- gerald-glass ---
 /** Id of the built-in wall-break clip a mode plays when no wall-break sound was chosen (Glass Smash shatters its panes with the glass clip). */
-export const MODE_WALL_BREAK_SOUNDS: Partial<Record<string, string>> = { glass: "glass" };
+export const MODE_WALL_BREAK_SOUNDS: Partial<Record<string, string>> = { glass: "glass", spiralGlass: "glass" /* --- spiral-glass --- every tile shattered */ };
 
 /** The wall-break sound in effect: the chosen one, else the mode's own default (null = the classic arpeggio). */
 export function modeWallBreakSound(mode: string, chosen: string | null): string | null {

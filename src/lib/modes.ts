@@ -147,6 +147,12 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("bullseye");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "mergeRing");
 }
+// --- spiral-glass --- Spiral Glass joins the rhythm family right after Merge Ring (balls circling a glass spiral, every chip a
+// note climbing inward, every lap a ball more)
+{
+  const at = MODE_CARD_ORDER.indexOf("mergeRing");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "spiralGlass");
+}
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -239,6 +245,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   perfectFit: "rhythm",
   // --- merge-ring --- every merge a pentatonic note up the tiers, every landing a thud, the final form a chord: the sound-first family
   mergeRing: "rhythm",
+  // --- spiral-glass --- every chip a pentatonic note climbing inward, every lap the multiplier's arpeggio, the clear a chord: the sound-first family
+  spiralGlass: "rhythm",
 };
 
 /** The modes of a category in card order. */

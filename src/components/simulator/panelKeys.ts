@@ -12,6 +12,7 @@ import { BOT_KEYS } from "./sections/BotSection";
 import { BOX_ARENA_KEYS } from "./sections/BoxArenaSection";
 import { BULLSEYE_KEYS } from "./sections/BullseyeSection";
 import { MERGE_RING_KEYS } from "./sections/MergeRingSection"; // --- merge-ring ---
+import { SPIRAL_GLASS_KEYS } from "./sections/SpiralGlassSection"; // --- spiral-glass ---
 import { CAPTION_KEYS } from "./sections/CaptionsSection";
 import { COLLISION_PLAYGROUND_KEYS } from "./sections/CollisionPlaygroundSection";
 import { DOUBLE_PENDULUM_KEYS } from "./sections/DoublePendulumSection";
@@ -83,6 +84,8 @@ export function wallControlsOf(mode: ModeId): { wallCount: boolean; thickness: b
   if (mode === "perfectFit") return { wallCount: false, thickness: false, gapControls: false, gapSize: false };
   // --- merge-ring --- Merge Ring has no engine rings: its rim and chute walls are the mode's own, drawn with the wall thickness
   if (mode === "mergeRing") return { wallCount: false, thickness: true, gapControls: false, gapSize: false };
+  // --- spiral-glass --- Spiral Glass has no engine rings: its spiral line is the mode's own, drawn with the wall thickness
+  if (mode === "spiralGlass") return { wallCount: false, thickness: true, gapControls: false, gapSize: false };
   // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-journey --- (journey: a rings stage's size sets its ring count; Gap Size and Rotation still apply) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop) --- odd-territory --- (territory) --- odd-maze --- (maze)
   const wallCount = !["lines", "accumulation", "multiply", "paint", "target", "colorMatch", "grow", "portal", "drop", "box", "pendulum", "polyrhythm", "collide", "glass", "multipliers", "doublePendulum", "illusion", "race", "stringBattle", "powerLayers", "vortex", "journey", "bullseye", "beatDrop", "territory", "maze"].includes(mode) && !isArenaGameMode(mode) && !isJdmRhythmMode(mode) && mode !== "landClaim" /* --- land-claim --- (no rings) */;
   // --- jdm-illusions --- (illusion) --- jdm-race --- (race) --- jdm-arena-games --- (battle, ctf) --- odd-string-battle --- (stringBattle) --- odd-power-layers --- (powerLayers) --- gerald-vortex --- (vortex) --- gerald-bullseye --- (bullseye) --- beat-drop --- (beatDrop) --- odd-territory --- (territory) --- odd-maze --- (maze)
@@ -141,6 +144,7 @@ export const MODE_BLOCK_KEYS: Readonly<Partial<Record<ModeId, readonly string[]>
   journey: JOURNEY_KEYS,
   bullseye: BULLSEYE_KEYS,
   mergeRing: MERGE_RING_KEYS, // --- merge-ring ---
+  spiralGlass: SPIRAL_GLASS_KEYS, // --- spiral-glass ---
   beatDrop: BEAT_DROP_KEYS,
   territory: TERRITORY_KEYS, // --- odd-territory ---
   maze: MAZE_KEYS, // --- odd-maze ---

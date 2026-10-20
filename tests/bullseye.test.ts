@@ -166,8 +166,9 @@ describe("settings, URL and presets", () => {
     expect(MODE_CATEGORIES.bullseye).toBe("rhythm");
     expect(MODE_CARD_ORDER).toContain("bullseye");
     const rhythm = modesInCategory("rhythm");
-    expect(rhythm.indexOf("bullseye")).toBe(rhythm.indexOf("vortex") - 2); // --- merge-ring --- (Merge Ring sits between Bullseye and the Sound Vortex)
+    expect(rhythm.indexOf("bullseye")).toBe(rhythm.indexOf("vortex") - 3); // --- merge-ring --- --- spiral-glass --- (Merge Ring and Spiral Glass sit between Bullseye and the Sound Vortex)
     expect(rhythm.indexOf("mergeRing")).toBe(rhythm.indexOf("bullseye") + 1);
+    expect(rhythm.indexOf("spiralGlass")).toBe(rhythm.indexOf("mergeRing") + 1);
     expect(rhythm.at(-1)).toBe("glass");
     expect(runNeverFinishes("bullseye", { drop: {}, box: {} })).toBe(false);
     expect(fixedRunDurationSec("bullseye", {})).toBeNull();

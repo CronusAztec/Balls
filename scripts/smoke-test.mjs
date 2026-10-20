@@ -18907,6 +18907,78 @@ await smokeBlock("merge-ring", async () => {
 // --- end merge-ring ---
 });
 
+await smokeBlock("spiral-glass", async () => {
+// --- spiral-glass ---
+// 50. Spiral Glass (the "will the ball multiply?" reels): the preview image and the card under the rhythm heading; URL → the
+// Spiral Glass block of the Mode row (turns, glass strength, ball speed, max balls, chip time, rainbow line, the run summary),
+// controls → URL and the search box, no ring controls; a fast run at 8× (three turns, one hit point) chips the glass away –
+// the badge counts up, tiles go, shards and notes play – and ends with GLASS CLEARED under its banner (data-spiral-*).
+{
+  const res = await page.request.get(`${BASE}/modes/spiralGlass.webp`);
+  check("asset /modes/spiralGlass.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Spiral Glass card is on the landing page", (await page.locator('img[src$="/modes/spiralGlass.webp"]').count()) === 1);
+}
+{
+  const block = page.getByTestId("spiral-glass");
+  const sgToggle = (label) => block.getByRole("switch", { name: switchName(label) });
+  const sgSlider = (label) => block.locator(`input[aria-label="${label}"]`);
+  await page.goto(`${BASE}/en/simulator/?mode=spiralGlass&sgt=8&sgh=3&sgv=1.2&sgm=25&sgc=0.5&sgr=0`, { waitUntil: "networkidle" });
+  {
+    const values = { sgt: await sgSlider("Turns").inputValue(), sgh: await sgSlider("Glass Strength").inputValue(), sgv: await sgSlider("Ball Speed").inputValue(), sgm: await sgSlider("Max Balls").inputValue(), sgc: await sgSlider("Chip Time").inputValue() };
+    const rainbow = await sgToggle("Rainbow Line").getAttribute("aria-checked");
+    const runText = await page.getByTestId("spiral-glass-run").innerText();
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
+    check(
+      "spiral glass loads from the URL",
+      values.sgt === "8" && values.sgh === "3" && values.sgv === "1.2" && values.sgm === "25" && values.sgc === "0.5" && rainbow === "false" && /\b8 turns\b/.test(runText) && /\b288 tiles\b/.test(runText) && finderShown && noRingControls,
+      `(${JSON.stringify(values)}, rainbow=${rainbow}, "${runText}", finder shown=${finderShown}, no ring controls=${noRingControls})`,
+    );
+  }
+  await sgSlider("Turns").evaluate(setRangeValue, "5");
+  await sgSlider("Max Balls").evaluate(setRangeValue, "10");
+  await sgToggle("Rainbow Line").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    check(
+      "spiral glass mirrors into the URL",
+      /(^|&)sgt=5(&|$)/.test(query) && /(^|&)sgm=10(&|$)/.test(query) && /(^|&)sgh=3(&|$)/.test(query) && /(^|&)sgv=1\.2(&|$)/.test(query) && /(^|&)sgc=0\.5(&|$)/.test(query) && !/(^|&)sgr=/.test(query),
+      `(${query})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("chip time");
+  const found = await page.locator('input[aria-label="Chip Time"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the spiral glass controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // A fast run at 8×: three turns of one-hit glass, fast balls, a chip every 0.1 s: the glass is cleared within the budget.
+  await page.goto(`${BASE}/en/simulator/?mode=spiralGlass&sgt=3&sgh=1&sgv=1.5&sgc=0.1`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  let countMax = 0;
+  const deadline = Date.now() + 90_000;
+  let data = await canvasData();
+  while (Date.now() < deadline) {
+    data = await canvasData();
+    countMax = Math.max(countMax, Number(data.spiralCount) || 0);
+    if (data.spiralFinished === "1") break;
+    await page.waitForTimeout(250);
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-spiral-glass.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check(
+    "spiral glass: a fast run chips the glass away, multiplies the balls, and ends with GLASS CLEARED",
+    done && data.spiralFinished === "1" && data.spiralCleared === "1" && data.spiralTimeout === "0" && data.spiralTiles === "0" && data.spiralTilesTotal === "108" && Number(data.spiralShatters) === 108 && Number(data.spiralChips) >= 108 && Number(data.spiralNotes) >= 20 && countMax >= 3 && Number(data.spiralBalls) >= 3 && Number(data.spiralBalls) <= 40,
+    `(finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("spiral"))))}, count reached ${countMax})`,
+  );
+}
+// --- end spiral-glass ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

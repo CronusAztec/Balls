@@ -95,6 +95,8 @@ export const MODE_IDS = [
   "perfectFit",
   // --- merge-ring --- Merge Ring (balls drop through a chute into a rainbow ring and fuse tier by tier toward the final form)
   "mergeRing",
+  // --- spiral-glass --- Spiral Glass (balls circle a glass spiral and chip it away from the outside in, multiplying every lap)
+  "spiralGlass",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];

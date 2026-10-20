@@ -68,6 +68,9 @@ export type { BullseyeSettings, BullseyeLayout, BullseyeView } from "./bullseye"
 // --- merge-ring ---
 export { MergeRingMode } from "./mergeRing";
 export type { MergeRingSettings, MergeRingLayout, MergeRingView } from "./mergeRing";
+// --- spiral-glass ---
+export { SpiralGlassMode } from "./spiralGlass";
+export type { SpiralGlassSettings, SpiralGlassLayout, SpiralGlassView } from "./spiralGlass";
 // --- beat-drop ---
 export { BeatDropMode } from "./beatDrop";
 export type { BeatDropSettings, BeatDropView, BeatDropField, BeatDropSound, BeatDropColorMode } from "./beatDrop";

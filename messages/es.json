@@ -1484,6 +1484,22 @@
     "mrRainbow": "Borde arcoíris",
     "mrRainbowTip": "El anillo es un arcoíris fino que gira despacio. Apagado lo dibuja en el color de la pared.",
     "mrRunInfo": "{tiers} niveles. La semilla decide cuándo aparece la forma final o se desborda el anillo, así que Buscar simulación puede dar con la duración de tu clip.",
+    "modeSpiralGlass": "Espiral de cristal",
+    "sgTitle": "Espiral de cristal",
+    "sgDesc": "Las bolas corren por una espiral de cristal esmerilado y lo van rompiendo de fuera hacia dentro. Cada vuelta por la insignia añade una bola. La tirada termina cuando no queda cristal.",
+    "sgTurns": "Vueltas",
+    "sgTurnsTip": "Cuántas vueltas da la espiral, de 3 a 10. Cada vuelta es una banda de 36 losetas de cristal. Más vueltas son una tirada más larga.",
+    "sgGlassHp": "Resistencia del cristal",
+    "sgGlassHpTip": "Golpes que aguanta una loseta antes de desaparecer, de 1 a 5. El cristal grueso retiene más tiempo a las bolas en las bandas exteriores.",
+    "sgSpeed": "Velocidad de las bolas",
+    "sgSpeedTip": "A qué velocidad corren las bolas por el canal, en anchos de campo por segundo. Las bolas rápidas completan antes la vuelta y se multiplican antes.",
+    "sgMaxBalls": "Bolas máximas",
+    "sgMaxBallsTip": "Cuántas bolas caben en la espiral a la vez. La insignia sigue contando, pero no entran más bolas.",
+    "sgChipEvery": "Tiempo de astillado",
+    "sgChipEveryTip": "Segundos que una bola roza una loseta antes de quitarle un golpe. Los tiempos cortos limpian el cristal rápido.",
+    "sgRainbow": "Línea arcoíris",
+    "sgRainbowTip": "La línea de la espiral recorre despacio los tonos y el cristal toma un leve tinte. Apagada se dibuja en el color de la pared.",
+    "sgRunInfo": "{turns} vueltas, {tiles} losetas. La semilla decide cuándo se abren las bandas y cómo encajan las vueltas, así que Buscar simulación puede dar con la duración de tu clip.",
     "bounceMath": "Matemáticas del rebote",
     "bounceMathTip": "Reglas que cambian un valor con un paso matemático cada vez que pasa algo: la pelota rebota más, va más rápido o crece en cada rebote, la gravedad se invierte en cada compás, la pelota late al ritmo. Las reglas se aplican en el orden de la lista y no hay límite superior salvo que pongas un máximo.",
     "bounceMathRules": "Reglas de matemáticas del rebote",
@@ -2516,6 +2532,10 @@
     "mergeRing": {
       "name": "Anillo de fusión",
       "description": "Las bolas caen en un anillo arcoíris y se fusionan nivel a nivel. ¿Aparece la forma final antes de que se desborde?"
+    },
+    "spiralGlass": {
+      "name": "Espiral de cristal",
+      "description": "Las bolas giran por una espiral de cristal y la rompen de fuera hacia dentro. Cada vuelta añade una bola. ¿Se multiplicará la bola?"
     },
     "beatDrop": {
       "name": "Caída al ritmo",
@@ -4028,6 +4048,16 @@
     "tier8": "Gema",
     "tier9": "Sol",
     "tier10": "Infinito"
+  },
+  "SpiralGlass": {
+    "caption": "¿Se multiplicará la bola?",
+    "canvasTitle": "ESPIRAL DE CRISTAL",
+    "canvasTiles": "LOSETAS [left]/[total]",
+    "canvasCount": "x[count]",
+    "canvasCleared": "CRISTAL LIMPIO",
+    "canvasClearedSub": "x[count] en [seconds] s",
+    "canvasTimeout": "SE ACABÓ EL TIEMPO",
+    "canvasTimeoutSub": "Quedan [tiles] losetas"
   },
   "Daily": {
     "cardBadge": "Reto diario",

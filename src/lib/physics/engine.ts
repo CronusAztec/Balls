@@ -51,6 +51,8 @@ import { JourneyMode, type JourneySettings, type JourneyView } from "./modes/jou
 import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/bullseye";
 // --- merge-ring --- Merge Ring (balls fusing tier by tier in a rainbow ring)
 import { MergeRingMode, type MergeRingSettings, type MergeRingView } from "./modes/mergeRing";
+// --- spiral-glass --- Spiral Glass (balls circling a glass spiral, chipping it away from the outside in)
+import { SpiralGlassMode, type SpiralGlassSettings, type SpiralGlassView } from "./modes/spiralGlass";
 // --- beat-drop --- Beat Drop (obstructions that fly in on the beat)
 import { BeatDropMode, type BeatDropSettings, type BeatDropView } from "./modes/beatDrop";
 import { OnBeatController, type OnBeatConfig, type OnBeatStats, type OnBeatWorld } from "./onBeat"; // --- video-beats ---
@@ -316,6 +318,8 @@ export class PhysicsEngine {
   readonly bullseyeMode = new BullseyeMode();
   // --- merge-ring ---
   readonly mergeRingMode = new MergeRingMode();
+  // --- spiral-glass ---
+  readonly spiralGlassMode = new SpiralGlassMode();
   // --- beat-drop ---
   readonly beatDropMode = new BeatDropMode();
   // --- odd-territory --- Territory: pong-wars teams painting a tile map
@@ -720,6 +724,10 @@ export class PhysicsEngine {
   initMergeRing() {
     this.activateMode(this.mergeRingMode, "none");
   }
+  // --- spiral-glass --- the mode owns its spiral and its glass (no engine rings, no obstacles)
+  initSpiralGlass() {
+    this.activateMode(this.spiralGlassMode, "none");
+  }
   // --- beat-drop --- the mode owns its scene (no rings)
   initBeatDrop() {
     this.activateMode(this.beatDropMode, "none");
@@ -863,6 +871,9 @@ export class PhysicsEngine {
       // --- merge-ring ---
       case "mergeRing":
         return this.initMergeRing();
+      // --- spiral-glass ---
+      case "spiralGlass":
+        return this.initSpiralGlass();
       // --- beat-drop ---
       case "beatDrop":
         return this.initBeatDrop();
@@ -1816,6 +1827,25 @@ export class PhysicsEngine {
     return this.mergeRingMode.getProgress();
   }
   // --- end merge-ring ---
+  // --- spiral-glass ---
+  isSpiralGlassMode() {
+    return this.currentMode === this.spiralGlassMode;
+  }
+  getSpiralGlassSettings(): SpiralGlassSettings {
+    return this.spiralGlassMode.getSettings();
+  }
+  /** The turns, the hit points, the speed, the ball cap and the chip time apply on the next `initSpiralGlass()`; the rainbow at once. */
+  setSpiralGlassSettings(settings: Partial<SpiralGlassSettings>) {
+    this.spiralGlassMode.setSettings(settings);
+  }
+  /** Live Spiral Glass state (layout, tiles, shards, pops, the count, the clear, the timeout) for the canvas and the HUD; the same object every call. */
+  getSpiralGlassView(): SpiralGlassView {
+    return this.spiralGlassMode.getView();
+  }
+  getSpiralGlassProgress() {
+    return this.spiralGlassMode.getProgress();
+  }
+  // --- end spiral-glass ---
   // --- beat-drop ---
   isBeatDropMode() {
     return this.currentMode === this.beatDropMode;

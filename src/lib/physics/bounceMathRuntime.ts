@@ -103,6 +103,8 @@ export const BOUNCE_MATH_BREAK_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_MO
 (BOUNCE_MATH_COLLIDE_MODES as ModeId[]).push("territory");
 // --- merge-ring --- Merge Ring: its balls hit each other in the engine's pair pass, and every merge is a ball hit too
 (BOUNCE_MATH_COLLIDE_MODES as ModeId[]).push("mergeRing");
+// --- spiral-glass --- Spiral Glass: every tile shattered plays the wall-break sound (no pair pass: the balls queue, never hit)
+(BOUNCE_MATH_BREAK_MODES as ModeId[]).push("spiralGlass");
 (BOUNCE_MATH_BREAK_MODES as ModeId[]).push("territory");
 // --- odd-maze --- the Maze's winner breaks out through the exit with the wall-break sound
 (BOUNCE_MATH_BREAK_MODES as ModeId[]).push("maze");

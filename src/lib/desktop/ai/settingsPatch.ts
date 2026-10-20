@@ -185,6 +185,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   vortex: "vx",
   bullseye: "by",
   mergeRing: "mr", // --- merge-ring ---
+  spiralGlass: "sg", // --- spiral-glass ---
   beatDrop: "bd",
   territory: "ty", // --- odd-territory ---
   maze: "mz", // --- odd-maze ---

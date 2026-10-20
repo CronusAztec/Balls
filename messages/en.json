@@ -1484,6 +1484,22 @@
     "mrRainbow": "Rainbow Rim",
     "mrRainbowTip": "The ring is a thin rainbow that turns slowly. Off draws it in the wall colour.",
     "mrRunInfo": "{tiers} tiers. The seed decides when the final form appears or the ring overflows, so Find Simulation can hit your clip length.",
+    "modeSpiralGlass": "Spiral Glass",
+    "sgTitle": "Spiral Glass",
+    "sgDesc": "Balls run along a spiral of frosted glass and chip it away from the outside in. Every lap past the badge adds a ball. The run ends when the glass is gone.",
+    "sgTurns": "Turns",
+    "sgTurnsTip": "How many turns the spiral makes, from 3 to 10. Every turn is a band of 36 glass tiles. More turns mean a longer run.",
+    "sgGlassHp": "Glass Strength",
+    "sgGlassHpTip": "Hits a tile takes before it is gone, from 1 to 5. Thick glass holds the balls on the outer bands longer.",
+    "sgSpeed": "Ball Speed",
+    "sgSpeedTip": "How fast the balls run along the channel, in field widths per second. Faster balls lap sooner and multiply sooner.",
+    "sgMaxBalls": "Max Balls",
+    "sgMaxBallsTip": "How many balls the spiral holds at once. The badge keeps counting past it, but no more balls come in.",
+    "sgChipEvery": "Chip Time",
+    "sgChipEveryTip": "Seconds a ball grinds on a tile before it chips one hit off. Short times clear the glass fast.",
+    "sgRainbow": "Rainbow Line",
+    "sgRainbowTip": "The spiral line cycles slowly through the hues and the glass takes a faint tint of it. Off draws it in the wall colour.",
+    "sgRunInfo": "{turns} turns, {tiles} tiles. The seed decides when the bands break open and how the laps line up, so Find Simulation can hit your clip length.",
     "bounceMath": "Bounce math",
     "bounceMathTip": "Rules that change a value by a mathematical step every time something happens – the ball gets bouncier, faster or bigger on every bounce, gravity flips every bar, the ball pumps on the beat. Rules apply in list order, and there is no upper limit unless you set a max.",
     "bounceMathRules": "Bounce math rules",
@@ -2516,6 +2532,10 @@
     "mergeRing": {
       "name": "Merge Ring",
       "description": "Balls drop into a rainbow ring and fuse tier by tier. Does the final form appear before it overflows?"
+    },
+    "spiralGlass": {
+      "name": "Spiral Glass",
+      "description": "Balls circle a glass spiral and chip it away from the outside in. Every lap adds a ball. Will it multiply?"
     },
     "beatDrop": {
       "name": "Beat Drop",
@@ -4028,6 +4048,16 @@
     "tier8": "Gem",
     "tier9": "Sun",
     "tier10": "Infinity"
+  },
+  "SpiralGlass": {
+    "caption": "Will the ball multiply?",
+    "canvasTitle": "SPIRAL GLASS",
+    "canvasTiles": "TILES [left]/[total]",
+    "canvasCount": "x[count]",
+    "canvasCleared": "GLASS CLEARED",
+    "canvasClearedSub": "x[count] in [seconds]s",
+    "canvasTimeout": "TIME'S UP",
+    "canvasTimeoutSub": "[tiles] tiles left"
   },
   "Daily": {
     "cardBadge": "Daily challenge",

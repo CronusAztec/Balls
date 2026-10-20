@@ -156,6 +156,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   perfectFit: { samples: [[400000,300000],[400000,300000],[400000,300000],[400000,300000]], broken: [], walls: [] }, // --- perfect-fit --- (no rings; the pieces are the plan's, the one anchor ball stays pinned to the middle)
   // --- merge-ring --- Merge Ring: its own rim and chute, no rings; recorded when the mode was added (seed 12345, defaults: 7 tiers, a ball every 0.9 s, tiers 1–2 spawned, gravity ×1).
   mergeRing: { samples: [[402095,551416],[402237,408113],[375269,563302],[411252,564341],[327449,553443],[486095,552306],[328612,553807],[462859,559764]], broken: [], walls: [] },
+  // --- spiral-glass --- Spiral Glass: its own spiral and glass, no rings; recorded when the mode was added (seed 12345, defaults: 6 turns, 2 hit points, speed 0.8, 40 balls, a chip every 0.25 s; one ball for the first 10 s, boring the outer band).
+  spiralGlass: { samples: [[306921,490708],[208474,353011],[248535,195946],[393080,126942]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {
