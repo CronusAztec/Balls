@@ -57,6 +57,14 @@ import { HEAL_TEXT, MULT_TEXT, damageText, type FlTextStyle } from "./text";
  * along its last velocity with four afterimages) and its shards, the side callouts (combos, BLOCK, DODGE!, IMMUNE,
  * INTERRUPTED!, CLASH!, the ability's name rising), every primitive's telegraph preview (`FL_PRIM_FX`), the KO finale's
  * speed lines and spotlight, and the ultimates' super flash. Every age runs on the effects' clock (the finale's warp).
+ *
+ * --- fl-noir --- The hit particles (`FlParticles`, on every stage – white on noir, the stage's palette elsewhere): on every
+ * hit a burst of round dots of mixed sizes (big slow puffs and small fast dots), grey square debris chips and a few red and
+ * orange sparks; a heavy impact, a bomb's burst and a KO add a smoke cloud of soft circles that expands and fades; a wall slam
+ * its dust. A fixed pool of FL_PARTICLE_CAP (512) typed-array slots filled from the event ring as its events appear (the analytic
+ * hash seeded by the event's time: the same particles for the same fight at any frame rate), each particle's position a
+ * function of its age (no integration, no allocation a frame), drawn as one path a kind – the dots, the chips, each spark
+ * colour – and the smoke puffs from the cached glow sprite: a handful of drawImage calls at most.
  */
 
 /** Simulation ms the effects last. */
@@ -123,6 +131,94 @@ export const FL_PRIM_FX: Readonly<Record<FlPrimitive, FlPrimFx>> = {
 const SPARK_COLORS: string[] = [];
 const FAN: number[] = [];
 
+/* ------------------------------------------------------------------ --- fl-noir --- the hit particles */
+
+/** The particle pool's size (the oldest slot is reused when it is full). */
+export const FL_PARTICLE_CAP = 512;
+const P_DOT = 0;
+const P_CHIP = 1;
+const P_SPARK = 2;
+const P_SPARK2 = 3;
+const P_PUFF = 4;
+
+/**
+ * The hit particles' pool: typed arrays allocated once, a ring of FL_PARTICLE_CAP slots. A particle is its start, its
+ * velocity (world px a second, eased to a stop over its life), its birth (simulation ms), its life (ms), its size (world
+ * px) and its kind.
+ */
+export class FlParticles {
+  readonly x0 = new Float32Array(FL_PARTICLE_CAP);
+  readonly y0 = new Float32Array(FL_PARTICLE_CAP);
+  readonly vx = new Float32Array(FL_PARTICLE_CAP);
+  readonly vy = new Float32Array(FL_PARTICLE_CAP);
+  readonly born = new Float64Array(FL_PARTICLE_CAP).fill(-Infinity);
+  readonly life = new Float32Array(FL_PARTICLE_CAP);
+  readonly size = new Float32Array(FL_PARTICLE_CAP);
+  readonly kind = new Uint8Array(FL_PARTICLE_CAP);
+  private head = 0;
+  /** The event serial the pool has read up to. */
+  seen = 0;
+  /** Particles spawned this run (data-fl-particles). */
+  spawned = 0;
+
+  reset(serial: number) {
+    this.born.fill(-Infinity);
+    this.head = 0;
+    this.seen = serial;
+    this.spawned = 0;
+  }
+
+  spawn(kind: number, x: number, y: number, vx: number, vy: number, born: number, life: number, size: number) {
+    const i = this.head;
+    this.head = (i + 1) % FL_PARTICLE_CAP;
+    this.kind[i] = kind;
+    this.x0[i] = x;
+    this.y0[i] = y;
+    this.vx[i] = vx;
+    this.vy[i] = vy;
+    this.born[i] = born;
+    this.life[i] = life;
+    this.size[i] = size;
+    this.spawned++;
+  }
+
+  /**
+   * A burst at (x, y) of `n` round dots (every fourth a big slow puff, the rest small fast dots), `chips` grey square chips
+   * and `sparks` red and orange sparks, flying mostly along (dx, dy) within `spread` radians (a full circle without a
+   * direction), seeded by `t` (the event's time) and `salt`.
+   */
+  burst(x: number, y: number, dx: number, dy: number, spread: number, n: number, chips: number, sparks: number, unit: number, t: number, salt: number) {
+    const base = dx === 0 && dy === 0 ? 0 : Math.atan2(dy, dx);
+    const full = dx === 0 && dy === 0 ? TWO_PI : spread;
+    for (let q = 0; q < n; q++) {
+      const a = base + (hash(q, t + salt) - 0.5) * full;
+      const big = q % 4 === 0;
+      const sp = big ? (1.5 + 2.5 * hash(q, t + salt + 1)) * unit : (5 + 9 * hash(q, t + salt + 1)) * unit;
+      const size = big ? (0.2 + 0.2 * hash(q, t + salt + 2)) * unit : (0.05 + 0.09 * hash(q, t + salt + 2)) * unit;
+      this.spawn(P_DOT, x, y, Math.cos(a) * sp, Math.sin(a) * sp, t, big ? 650 + 300 * hash(q, t + salt + 3) : 320 + 260 * hash(q, t + salt + 3), size);
+    }
+    for (let q = 0; q < chips; q++) {
+      const a = base + (hash(q + 40, t + salt) - 0.5) * (full * 1.1);
+      const sp = (4 + 5 * hash(q + 40, t + salt + 1)) * unit;
+      this.spawn(P_CHIP, x, y, Math.cos(a) * sp, Math.sin(a) * sp, t, 420 + 220 * hash(q + 40, t + salt + 3), (0.09 + 0.08 * hash(q + 40, t + salt + 2)) * unit);
+    }
+    for (let q = 0; q < sparks; q++) {
+      const a = base + (hash(q + 80, t + salt) - 0.5) * (full * 0.9);
+      const sp = (7 + 6 * hash(q + 80, t + salt + 1)) * unit;
+      this.spawn(q % 2 === 0 ? P_SPARK : P_SPARK2, x, y, Math.cos(a) * sp, Math.sin(a) * sp, t, 260 + 160 * hash(q + 80, t + salt + 3), (0.06 + 0.04 * hash(q + 80, t + salt + 2)) * unit);
+    }
+  }
+
+  /** A smoke cloud at (x, y): `n` big soft circles (0.5–1 unit, growing to 2.2×) drifting apart slowly, fading over 0.6–0.9 s. */
+  cloud(x: number, y: number, n: number, unit: number, t: number, salt: number) {
+    for (let q = 0; q < n; q++) {
+      const a = hash(q + 120, t + salt) * TWO_PI;
+      const sp = (1.4 + 2.4 * hash(q + 120, t + salt + 1)) * unit;
+      this.spawn(P_PUFF, x + Math.cos(a) * 0.35 * unit, y + Math.sin(a) * 0.35 * unit, Math.cos(a) * sp, Math.sin(a) * sp, t, 600 + 300 * hash(q + 120, t + salt + 3), (0.5 + 0.5 * hash(q + 120, t + salt + 2)) * unit);
+    }
+  }
+}
+
 /** The effects painter of one layer. */
 export class FlFxPainter {
   /** Callouts and telegraphs seen this run (data-fl-callouts, data-fl-telegraphs). */
@@ -132,6 +228,8 @@ export class FlFxPainter {
   private generation = -1;
   private matchSerial = -1;
   private vignette: Sprite | null = null;
+  /** --- fl-noir --- The hit particles. */
+  readonly particles = new FlParticles();
 
   begin(view: FightLeagueView) {
     if (view.generation !== this.generation) {
@@ -139,7 +237,10 @@ export class FlFxPainter {
       this.callouts.clear();
       this.telegraphs = 0;
       this.seenTelegraph.fill(-1);
+      this.particles.reset(0); // (a restart: the ring is read from its start again)
     }
+    // a replay rewound (a seek): forget the particles of the events ahead
+    if (view.eventSerial < this.particles.seen) this.particles.reset(view.eventSerial);
     // --- fl-overhaul --- (Stage 5) a show's new match: its slots' telegraphs start over
     if (view.matchSerial !== this.matchSerial) {
       this.matchSerial = view.matchSerial;
@@ -571,6 +672,127 @@ export class FlFxPainter {
     }
   }
 
+  /** --- fl-noir --- Reads the events the pool has not seen and spawns their particles (the lite tier spawns about half). */
+  private spawnParticles(fr: FlFrame, view: FightLeagueView, unit: number) {
+    const P = this.particles;
+    const from = Math.max(P.seen, view.eventSerial - FL_EVENT_CAP);
+    const k = fr.lite ? 0.5 : 1;
+    for (let s = from; s < view.eventSerial; s++) {
+      const e = view.events[s % FL_EVENT_CAP];
+      switch (e.kind) {
+        case EV_HIT: {
+          const heavy = e.value >= 10;
+          P.burst(e.x, e.y, e.x2, e.y2, 2.8, Math.round(k * (26 + Math.min(34, 1.6 * e.value))), Math.round(k * (heavy ? 10 : 6)), Math.round(k * (heavy ? 6 : 3)), unit, e.t, e.slot);
+          if (heavy) P.cloud(e.x, e.y, Math.round(k * 6), unit, e.t, 3);
+          break;
+        }
+        case EV_IMPACT:
+          if (e.value === 1) {
+            P.cloud(e.x, e.y, Math.round(k * 10), unit, e.t, 7);
+            P.burst(e.x, e.y, 0, 0, 0, Math.round(k * 22), Math.round(k * 8), Math.round(k * 4), unit, e.t, 11);
+          }
+          break;
+        case EV_KO:
+          P.cloud(e.x, e.y, Math.round(k * 12), unit, e.t, 13);
+          P.burst(e.x, e.y, 0, 0, 0, Math.round(k * 64), Math.round(k * 14), Math.round(k * 10), unit, e.t, 17);
+          break;
+        case EV_SLAM: {
+          const d = Math.hypot(e.x2, e.y2) || 1;
+          P.burst(e.x, e.y, -e.x2 / d, -e.y2 / d, 2.2, Math.round(k * 16), Math.round(k * 5), 0, unit, e.t, 19);
+          break;
+        }
+        case EV_SHOCK:
+          if (e.aux === 1) {
+            P.cloud(e.x, e.y, Math.round(k * 8), unit, e.t, 23);
+            P.burst(e.x, e.y, 0, 0, 0, Math.round(k * 28), Math.round(k * 10), Math.round(k * 6), unit, e.t, 29);
+          }
+          break;
+        case EV_CLASH:
+          P.burst(e.x, e.y, 0, 0, 0, Math.round(k * 16), 0, Math.round(k * 4), unit, e.t, 31);
+          break;
+        default:
+          break;
+      }
+    }
+    P.seen = view.eventSerial;
+  }
+
+  /** --- fl-noir --- Draws the live particles: the dots, the chips and each spark colour as one path, the smoke puffs from the glow sprite. */
+  private drawParticles(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView) {
+    const P = this.particles;
+    const fx = fr.pal.fx;
+    ctx.save();
+    // the puffs first (under the dots), then the chips, the dots and the sparks
+    for (let i = 0; i < FL_PARTICLE_CAP; i++) {
+      if (P.kind[i] !== P_PUFF || P.born[i] === -Infinity) continue;
+      const age = this.age(fr, view, P.born[i]);
+      const life = P.life[i];
+      if (!(age >= 0) || age >= life) continue;
+      const t = age / life;
+      const u = (age / 1000) * (1 - 0.5 * t);
+      fr.glow.draw(ctx, fx.smoke, P.x0[i] + P.vx[i] * u, P.y0[i] + P.vy[i] * u, P.size[i] * (1 + 1.2 * t), 0.55 * (1 - t) * (1 - t));
+    }
+    ctx.fillStyle = fx.chip;
+    ctx.beginPath();
+    let any = false;
+    for (let i = 0; i < FL_PARTICLE_CAP; i++) {
+      if (P.kind[i] !== P_CHIP || P.born[i] === -Infinity) continue;
+      const age = this.age(fr, view, P.born[i]);
+      const life = P.life[i];
+      if (!(age >= 0) || age >= life) continue;
+      const t = age / life;
+      const u = (age / 1000) * (1 - 0.5 * t);
+      const x = P.x0[i] + P.vx[i] * u;
+      const y = P.y0[i] + P.vy[i] * u;
+      const h = P.size[i] * (1 - 0.4 * t);
+      const a = hash(i, 5) * TWO_PI + 6 * t;
+      const c = Math.cos(a) * h;
+      const sn = Math.sin(a) * h;
+      ctx.moveTo(x + c, y + sn);
+      ctx.lineTo(x - sn, y + c);
+      ctx.lineTo(x - c, y - sn);
+      ctx.lineTo(x + sn, y - c);
+      ctx.closePath();
+      any = true;
+    }
+    if (any) {
+      ctx.globalAlpha = 0.9;
+      ctx.fill();
+    }
+    for (const [kind, color] of [
+      [P_DOT, fx.dot],
+      [P_SPARK, fx.spark],
+      [P_SPARK2, fx.spark2],
+    ] as const) {
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      let drawn = false;
+      let fading = false;
+      for (let i = 0; i < FL_PARTICLE_CAP; i++) {
+        if (P.kind[i] !== kind || P.born[i] === -Infinity) continue;
+        const age = this.age(fr, view, P.born[i]);
+        const life = P.life[i];
+        if (!(age >= 0) || age >= life) continue;
+        const t = age / life;
+        const u = (age / 1000) * (1 - 0.5 * t);
+        const x = P.x0[i] + P.vx[i] * u;
+        const y = P.y0[i] + P.vy[i] * u;
+        // a dot shrinks over its last third (the path is one fill: the fade is in the size)
+        const r = P.size[i] * (t > 0.66 ? (1 - t) / 0.34 : 1);
+        if (!(r > 0.2)) continue;
+        if (t > 0.66) fading = true;
+        ctx.moveTo(x + r, y);
+        ctx.arc(x, y, r, 0, TWO_PI);
+        drawn = true;
+      }
+      if (drawn) {
+        ctx.globalAlpha = fading ? 0.92 : 1;
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
   /** The effects of the event ring, over the rim (numbers, sparks, callouts), on the effects' clock. */
   drawEvents(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, labels: FightLeagueLabels) {
     const field = view.field!;
@@ -578,6 +800,9 @@ export class FlFxPainter {
     const unit = Math.max(6, field.side * 0.065);
     const numbers = view.settings.dmgNumbers !== false;
     const smallFs = Math.max(8, 0.36 * unit);
+    // --- fl-noir --- the hit particles (spawned from the events as they appear, under the sparks and the numbers)
+    this.spawnParticles(fr, view, unit);
+    this.drawParticles(ctx, fr, view);
     // the sparks of the hits: one path a colour
     SPARK_COLORS.length = 0;
     for (let k = 0; k < n; k++) {

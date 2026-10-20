@@ -662,7 +662,7 @@ describe("the mark over Fight League's lilac stage (--- fl-overhaul ---)", () =>
     storeLicence(null);
     const seal = await sealWatermark();
     vi.stubGlobal("document", fakeDocument());
-    const view = probeRun(probeEngine({}, 1), 4000); // Thor vs Loki, mid-fight
+    const view = probeRun(probeEngine({ stage: "lilac" /* --- fl-noir --- the default is noir now */ }, 1), 4000); // Thor vs Loki, mid-fight
     const layer = new FightLeagueLayer();
     const opts = { dpr: 1, numbers: true, teamColors: null, teamBanner: false, labels: DEFAULT_FIGHT_LEAGUE_LABELS };
     layer.drawStage(fakeCanvas(800, 450).ctx as unknown as CanvasRenderingContext2D, view, opts); // (the layer reads its view as it draws)

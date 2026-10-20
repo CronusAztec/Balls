@@ -10,6 +10,7 @@ import {
   FIGHT_LEAGUE_URL_KEYS,
   FL_ARENA_FRAC,
   FL_ARENA_TOP,
+  FL_STAGES, // --- fl-noir ---
   FL_EVENT_CAP,
   FL_HIT_CHARGE,
   FL_IFRAME_MS,
@@ -447,6 +448,24 @@ describe("fight league settings, URL and presets", () => {
     for (const key of ["flFighterA", "flFighterB", "flFighterC", "flFighterD", "flMatch", "flSameDivision", "flHp", "flTimeCap", "flArena", "flHud", "flSpeedA", "flDamageB", "flAttackC", "flCastD"] as const) expect([key, back[key]]).toEqual([key, s[key]]);
     const bad = settingsFromSearchParams(new URLSearchParams("mode=fightLeague&fl1=nobody&flM=9v9&flHp=abc&flA=hex&flH=2"));
     expect(bad).toMatchObject({ flFighterA: "thor", flMatch: "1v1", flHp: 100, flArena: "square", flHud: true });
+  });
+
+  // --- fl-noir --- the noir stage is the default look; the older stages keep their names in the URL
+  it("defaults to the noir stage (flSt absent) and round-trips lilac, night and theme through flSt – an unknown stage falls back to noir", () => {
+    expect(FL_STAGES).toEqual(["noir", "lilac", "night", "theme"]);
+    expect(DEFAULT_FIGHT_LEAGUE_SETTINGS.stage).toBe("noir");
+    const base = defaultSettings("fightLeague");
+    expect(base.flStage).toBe("noir");
+    expect(settingsToSearchParams(base).has("flSt")).toBe(false);
+    for (const stage of FL_STAGES) {
+      const params = settingsToSearchParams({ ...base, flStage: stage });
+      expect([stage, params.get("flSt")]).toEqual([stage, stage === "noir" ? null : stage]);
+      expect([stage, settingsFromSearchParams(params).flStage]).toEqual([stage, stage]);
+    }
+    expect(settingsFromSearchParams(new URLSearchParams("mode=fightLeague&flSt=noir")).flStage).toBe("noir");
+    expect(settingsFromSearchParams(new URLSearchParams("mode=fightLeague&flSt=pink")).flStage).toBe("noir");
+    // presentational: never an engine key, so the stage never changes the fight
+    expect(engineSettingKeys("fightLeague")).not.toContain("flStage");
   });
 
   it("round-trips the random tokens (random, random:<division>, random:<conference>) through the settings and the URL", () => {

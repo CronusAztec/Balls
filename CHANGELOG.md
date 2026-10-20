@@ -17,6 +17,10 @@ Merge Ring and Spiral Glass join the modes
 - Every tier has its own emblem, colour and note. A ladder beside the ring lights the tiers reached, and Find Simulation searches for the final form at your clip length.
 - Spiral Glass is a new rhythm mode. Balls circle a spiral of frosted glass and chip it away from the outside in, and every lap past the badge adds a ball. The run ends when the glass is cleared.
 
+### Improved
+
+- Fight League opens on a new noir stage. A black arena with a white outline, the weapons and a pixel title above it, a stats block below, and every hit bursts into white particles, debris and sparks.
+
 ## Windows app 1.4.1 · 2026-10-19
 
 Third-party licences in the Help menu

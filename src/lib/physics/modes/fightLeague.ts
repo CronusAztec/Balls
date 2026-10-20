@@ -190,10 +190,11 @@ export function isFlArena(value: unknown): value is FlArena {
 }
 /**
  * --- fl-overhaul --- (Stage 3) The spectacle's options (presentational: they change the drawing only, live, never the fight):
- * the stage around the arena (lilac by default; night; theme – the page's background, the first release's look), the arena's
- * style, the name tags (auto: with three fighters or more).
+ * the stage around the arena (noir by default – black, a white outline arena, white hit effects –; lilac; night; theme – the
+ * page's background, the first release's look), the arena's style (ignored on noir: its arena is always clean), the name tags
+ * (auto: with three fighters or more).
  */
-export const FL_STAGES = ["lilac", "night", "theme"] as const;
+export const FL_STAGES = ["noir", "lilac", "night", "theme"] as const;
 export type FlStage = (typeof FL_STAGES)[number];
 export const FL_ARENA_STYLES = ["clean", "grid", "division", "neon"] as const;
 export type FlArenaStyle = (typeof FL_ARENA_STYLES)[number];
@@ -303,7 +304,7 @@ export interface FightLeagueSettings {
   /** --- fl-overhaul --- At the time cap with two sides or more standing: up to 10 s of sudden death in a shrinking arena first. */
   suddenDeath: boolean;
   // --- fl-overhaul --- (Stage 3) the spectacle: presentational only (the drawing follows live; never part of the fight)
-  /** The stage around the arena (URL `flSt`): lilac, night, or theme (the page's background – the first release's look). */
+  /** The stage around the arena (URL `flSt`): noir (the default), lilac, night, or theme (the page's background – the first release's look). */
   stage: FlStage;
   /** The arena's look (URL `flAs`): clean, grid, division (its genre's colours and motif), neon. */
   arenaStyle: FlArenaStyle;
@@ -366,8 +367,8 @@ export const DEFAULT_FIGHT_LEAGUE_SETTINGS: FightLeagueSettings = {
   hud: true,
   seekTurn: FL_SEEK_TURN,
   suddenDeath: true,
-  // --- fl-overhaul --- (Stage 3)
-  stage: "lilac",
+  // --- fl-overhaul --- (Stage 3; --- fl-noir --- the noir stage is the default look)
+  stage: "noir",
   arenaStyle: "clean",
   shake: FL_SHAKE,
   slowMo: true,

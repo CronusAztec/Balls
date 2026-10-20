@@ -999,7 +999,7 @@ export interface SimulatorSettings {
   flSuddenDeath: boolean;
   // --- end fl-overhaul ---
   // --- fl-overhaul --- (Stage 3) the spectacle – the drawing only, never the fight (URL `flSt`, `flAs`, `flSh`, `flSm`, `flIf`, `flDn`, `flPp`, `flTg`)
-  /** lilac (the default) | night | theme: the backdrop and the arena's palette (URL `flSt`). */
+  /** noir (the default) | lilac | night | theme: the backdrop and the arena's palette (URL `flSt`). */
   flStage: FlStage;
   /** clean | grid | division | neon: the arena floor's pattern (URL `flAs`). */
   flArenaStyle: FlArenaStyle;

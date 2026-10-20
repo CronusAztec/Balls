@@ -3,9 +3,11 @@ import { FL_FLOOR, FL_INK, flHexRgb, flLuminance, flNameColor } from "@/lib/phys
 import type { FlDivision } from "@/lib/physics/modes/fightLeagueRoster";
 
 /**
- * --- fl-overhaul --- (Stage 3) Fight League's colours: the stages (lilac – the default –, night, theme: today's look), the
- * HUD palettes keyed by stage, the arena styles (clean, grid, division, neon) with every division's rim and generic motif
- * (colours and hashed geometry only – no emblem, letter or logo), the team rings and the colour helpers.
+ * --- fl-overhaul --- (Stage 3) Fight League's colours: the stages (--- fl-noir --- noir – the default: a black stage, a thin
+ * white outline for the arena, white text and white hit effects –, lilac, night, theme: the first release's look), the HUD
+ * palettes keyed by stage, the hit effects' colours per stage, the arena styles (clean, grid, division, neon – ignored on
+ * noir, whose arena is always clean) with every division's rim and generic motif (colours and hashed geometry only – no
+ * emblem, letter or logo), the team rings and the colour helpers.
  */
 
 export { flNameColor };
@@ -44,21 +46,38 @@ export interface FlHudPalette {
   barTrack: string;
 }
 
+/** --- fl-noir --- The hit effects' colours on a stage (the particles of fx.ts: the round dots, the debris chips, the sparks, the smoke). */
+export interface FlFxPalette {
+  dot: string;
+  chip: string;
+  spark: string;
+  spark2: string;
+  smoke: string;
+  /** The knockback streaks and the speed lines. */
+  streak: string;
+}
+
 /** A stage's colours. */
 export interface FlStagePalette {
   stage: FlStage;
+  /** --- fl-noir --- The reel layout: no names band, no VS card, plain discs, the stats block (the noir stage). */
+  noir: boolean;
   /** The backdrop's vertical gradient (null: none – the theme's background shows). */
   backdropTop: string | null;
   backdropBottom: string | null;
   /** The backdrop's 45° stripes (null: none) and the night's vignette. */
   stripe: string | null;
   vignette: boolean;
-  /** The arena: its floor, its grid, its rim, its drop shadow. */
+  /** The arena: its floor, its grid, its rim (its width as a share of the side), its drop shadow (null: none). */
   floor: string;
   floorLine: string;
   rim: string;
-  shadow: string;
+  rimK: number;
+  shadow: string | null;
+  /** The decals' ink (cracks, scars) – light on a black floor. */
+  decalInk: string;
   hud: FlHudPalette;
+  fx: FlFxPalette;
 }
 
 const DARK_HUD: FlHudPalette = {
@@ -97,15 +116,40 @@ const LILAC_HUD: FlHudPalette = {
   barTrack: "rgba(30, 27, 46, 0.85)",
 };
 
-export const STAGE_PALETTES: Readonly<Record<FlStage, FlStagePalette>> = {
-  lilac: { stage: "lilac", backdropTop: "#d9cef7", backdropBottom: "#c4b4ee", stripe: "rgba(255, 255, 255, 0.03)", vignette: false, floor: FL_FLOOR, floorLine: "#ece8f7", rim: VIOLET_INK, shadow: "rgba(30, 27, 46, 0.32)", hud: LILAC_HUD },
-  night: { stage: "night", backdropTop: "#0b0b12", backdropBottom: "#0b0b12", stripe: null, vignette: true, floor: "#f1f5f9", floorLine: "#e2e8f0", rim: "#0f172a", shadow: "rgba(0, 0, 0, 0.5)", hud: DARK_HUD },
-  theme: { stage: "theme", backdropTop: null, backdropBottom: null, stripe: null, vignette: false, floor: "#f1f5f9", floorLine: "#e2e8f0", rim: "#0f172a", shadow: "rgba(0, 0, 0, 0.35)", hud: DARK_HUD },
+/** --- fl-noir --- The noir HUD: white on black (the stats block, the title, the verdict's card). */
+const NOIR_HUD: FlHudPalette = {
+  ...DARK_HUD,
+  nameStroke: "rgba(0, 0, 0, 0.85)",
+  source: "#9ca3af",
+  muted: "#a1a1aa",
+  cardFill: "#000000",
+  cardBorder: "#ffffff",
+  cardText: "#ffffff",
+  meterTrack: "#27272a",
+  statText: "#e4e4e7",
+  pillFill: "#000000",
+  pillText: "#ffffff",
+  barTrack: "rgba(39, 39, 42, 0.9)",
 };
 
-/** A stage's palette (an unknown stage: lilac). */
+/** The hit effects on a light floor (dark dots and chips) and on the noir stage (white, grey, red and orange on black). */
+const LIGHT_FX: FlFxPalette = { dot: "#1e1b2e", chip: "#6b7280", spark: "#ef4444", spark2: "#f97316", smoke: "#9ca3af", streak: "#1e1b2e" };
+const NOIR_FX: FlFxPalette = { dot: "#ffffff", chip: "#9ca3af", spark: "#ef4444", spark2: "#f97316", smoke: "#ffffff", streak: "#ffffff" };
+
+export const STAGE_PALETTES: Readonly<Record<FlStage, FlStagePalette>> = {
+  // --- fl-noir --- pitch black, a thin white square, nothing else on the field
+  noir: { stage: "noir", noir: true, backdropTop: "#000000", backdropBottom: "#000000", stripe: null, vignette: false, floor: "#000000", floorLine: "#27272a", rim: "#ffffff", rimK: 0.0035, shadow: null, decalInk: "#d4d4d8", hud: NOIR_HUD, fx: NOIR_FX },
+  lilac: { stage: "lilac", noir: false, backdropTop: "#d9cef7", backdropBottom: "#c4b4ee", stripe: "rgba(255, 255, 255, 0.03)", vignette: false, floor: FL_FLOOR, floorLine: "#ece8f7", rim: VIOLET_INK, rimK: 0.012, shadow: "rgba(30, 27, 46, 0.32)", decalInk: INK, hud: LILAC_HUD, fx: LIGHT_FX },
+  night: { stage: "night", noir: false, backdropTop: "#0b0b12", backdropBottom: "#0b0b12", stripe: null, vignette: true, floor: "#f1f5f9", floorLine: "#e2e8f0", rim: "#0f172a", rimK: 0.012, shadow: "rgba(0, 0, 0, 0.5)", decalInk: INK, hud: DARK_HUD, fx: LIGHT_FX },
+  theme: { stage: "theme", noir: false, backdropTop: null, backdropBottom: null, stripe: null, vignette: false, floor: "#f1f5f9", floorLine: "#e2e8f0", rim: "#0f172a", rimK: 0.012, shadow: "rgba(0, 0, 0, 0.35)", decalInk: INK, hud: DARK_HUD, fx: LIGHT_FX },
+};
+
+/** The default stage (new runs, an unknown URL value). */
+export const FL_DEFAULT_STAGE: FlStage = "noir";
+
+/** A stage's palette (an unknown stage: the default, noir). */
 export function stagePalette(stage: string | undefined): FlStagePalette {
-  return STAGE_PALETTES[(stage ?? "lilac") as FlStage] ?? STAGE_PALETTES.lilac;
+  return STAGE_PALETTES[(stage ?? FL_DEFAULT_STAGE) as FlStage] ?? STAGE_PALETTES[FL_DEFAULT_STAGE];
 }
 
 /* ------------------------------------------------------------------ arena styles */
@@ -158,9 +202,10 @@ export function matchDivision(view: Pick<FightLeagueView, "fighters">): FlDivisi
   return d;
 }
 
-/** The arena's look for a stage, a style and the match's division. */
+/** The arena's look for a stage, a style and the match's division (--- fl-noir --- the noir stage ignores the style: always clean, bodies outlined white). */
 export function arenaLook(pal: FlStagePalette, style: FlArenaStyle | string | undefined, division: FlDivision | null): FlArenaLook {
-  const base: FlArenaLook = { floor: pal.floor, motif: "none", motifColor: "rgba(11, 11, 15, 0.045)", rim: pal.rim, glow: null, outline: INK };
+  const base: FlArenaLook = { floor: pal.floor, motif: "none", motifColor: "rgba(11, 11, 15, 0.045)", rim: pal.rim, glow: null, outline: pal.noir ? "#f4f4f5" : INK };
+  if (pal.noir) return base;
   switch (style) {
     case "grid":
       return { ...base, motif: "grid", motifColor: pal.floorLine };

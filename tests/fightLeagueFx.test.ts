@@ -2,8 +2,9 @@ import fs from "fs";
 import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_FIGHT_LEAGUE_LABELS, FIGHT_LEAGUE_DATA_KEYS, FightLeagueDataset, FightLeagueLayer, flNameColor as layerNameColor, type FightLeagueRenderOptions } from "@/components/simulator/fightLeagueRenderer";
-import { FL_PRIM_FX } from "@/components/simulator/fightLeague/fx";
-import { TEAM_COLORS } from "@/components/simulator/fightLeague/palette";
+import { FL_PARTICLE_CAP, FL_PRIM_FX } from "@/components/simulator/fightLeague/fx";
+import { DEFAULT_FL_STATE_LABELS, FL_NOIR_BLOCK_TOP, FlNoirHudPainter, flStateOf } from "@/components/simulator/fightLeague/noir"; // --- fl-noir ---
+import { STAGE_PALETTES, TEAM_COLORS } from "@/components/simulator/fightLeague/palette";
 import { drawShot, drawSummon } from "@/components/simulator/fightLeague/projectiles";
 import { drawAirCurl, drawBow, drawCaster, drawChainHead, drawClaws, drawEnergyHand, drawFist, drawGun, drawHammerHead, drawShield, drawShieldFace, drawSword, drawTail, type FlPaint } from "@/components/simulator/fightLeague/weapons";
 import {
@@ -791,7 +792,7 @@ describe("the HUD at the 1080 px square, the watermark badge and the 9:16 plates
     for (const portrait of [false, true]) {
       for (const [match, n] of cases) {
         const label = `${match}${portrait ? " 9:16" : ""}`;
-        const engine = probeEngine({ fighters: longest.map((r) => r.id), match: match as FightLeagueSettings["match"], hp: 300, timeCap: 0 }, 1);
+        const engine = probeEngine({ fighters: longest.map((r) => r.id), match: match as FightLeagueSettings["match"], hp: 300, timeCap: 0, stage: "lilac" /* --- fl-noir --- the boxes' stage */ }, 1);
         const view = probeRun(engine, 2500); // past the VS card
         expect([label, view.fighters.map((f) => f.row.ability.name)]).toEqual([label, longest.slice(0, n).map((r) => r.ability.name)]);
         const width = 1080;
@@ -853,7 +854,7 @@ describe("the HUD at the 1080 px square, the watermark badge and the 9:16 plates
     for (const portrait of [false, true]) {
       for (const [match, n, floor] of cases) {
         const label = `${match}${portrait ? " 9:16" : ""}`;
-        const engine = probeEngine({ fighters: longest.map((r) => r.id), match: match as FightLeagueSettings["match"], hp: 300, timeCap: 0 }, 1);
+        const engine = probeEngine({ fighters: longest.map((r) => r.id), match: match as FightLeagueSettings["match"], hp: 300, timeCap: 0, stage: "lilac" /* --- fl-noir --- the band's stage */ }, 1);
         const view = probeRun(engine, 2500); // past the VS card
         const width = 1080;
         const height = portrait ? 1920 : 1080;
@@ -998,7 +999,7 @@ describe("the renderer's determinism, the spectacle's settings and the data attr
     const FIELDS = ["flStage", "flArenaStyle", "flShake", "flSlowMo", "flImpact", "flDmgNumbers", "flPlates", "flTags"] as const;
     for (const key of KEYS) expect(FIGHT_LEAGUE_URL_KEYS).toContain(key);
     const base = defaultSettings("fightLeague");
-    expect(base).toMatchObject({ flStage: "lilac", flArenaStyle: "clean", flShake: FL_SHAKE_DEFAULT, flSlowMo: true, flImpact: true, flDmgNumbers: true, flPlates: true, flTags: "auto" });
+    expect(base).toMatchObject({ flStage: "noir" /* --- fl-noir --- */, flArenaStyle: "clean", flShake: FL_SHAKE_DEFAULT, flSlowMo: true, flImpact: true, flDmgNumbers: true, flPlates: true, flTags: "auto" });
     const plain = settingsToSearchParams(base);
     for (const key of KEYS) expect([key, plain.has(key)]).toEqual([key, false]);
     const s: SimulatorSettings = { ...base, flStage: "night", flArenaStyle: "neon", flShake: 1.4, flSlowMo: false, flImpact: false, flDmgNumbers: false, flPlates: false, flTags: "on" };
@@ -1007,7 +1008,7 @@ describe("the renderer's determinism, the spectacle's settings and the data attr
     const back = settingsFromSearchParams(params);
     for (const field of FIELDS) expect([field, back[field]]).toEqual([field, s[field]]);
     const bad = settingsFromSearchParams(new URLSearchParams("mode=fightLeague&flSt=pink&flAs=lava&flTg=maybe&flSm=2&flSh=abc"));
-    expect(bad).toMatchObject({ flStage: "lilac", flArenaStyle: "clean", flTags: "auto", flSlowMo: true, flShake: FL_SHAKE_DEFAULT });
+    expect(bad).toMatchObject({ flStage: "noir", flArenaStyle: "clean", flTags: "auto", flSlowMo: true, flShake: FL_SHAKE_DEFAULT });
     expect(settingsFromSearchParams(new URLSearchParams("mode=fightLeague&flSh=-3")).flShake).toBe(0);
     expect(settingsFromSearchParams(new URLSearchParams("mode=fightLeague&flSh=7.5")).flShake).toBe(7.5); // uncapped
     // presentational: none is an engine key, so a shake past its comfort range engages nothing (a fight's own setting does)
@@ -1017,10 +1018,10 @@ describe("the renderer's determinism, the spectacle's settings and the data attr
   });
 
   it("publishes the overhaul's data attributes – the stage, the render cost, the banners and callouts shown, the counters", { timeout: 60_000 }, () => {
-    const keys = ["flStage", "flArenaStyle", "flRenderMs", "flBanners", "flFirstBlood", "flPerfect", "flClutch", "flFinale", "flShakes", "flTrails", "flTelegraphs", "flDodges", "flPlates", "flDebug", "flCallouts", "flClashes2", "flGrazes"];
+    const keys = ["flStage", "flArenaStyle", "flRenderMs", "flBanners", "flFirstBlood", "flPerfect", "flClutch", "flFinale", "flShakes", "flTrails", "flTelegraphs", "flDodges", "flPlates", "flDebug", "flCallouts", "flClashes2", "flGrazes", "flParticles"];
     for (const key of keys) expect(FIGHT_LEAGUE_DATA_KEYS).toContain(key);
     const canvases = stubDocument();
-    const engine = probeEngine(FOUR_SHOOTERS, 1);
+    const engine = probeEngine({ ...FOUR_SHOOTERS, stage: "lilac" /* --- fl-noir --- the VS card's banners are the lilac stage's */ }, 1);
     const layer = new FightLeagueLayer();
     const { ctx } = mainContext();
     const opts: FightLeagueRenderOptions = { ...OPTS, debug: true };
@@ -1041,6 +1042,129 @@ describe("the renderer's determinism, the spectacle's settings and the data attr
     expect(Number(data.flShakes)).toBeGreaterThan(0);
     expect(Number(data.flTrails)).toBeGreaterThan(0);
     expect(Number(data.flTelegraphs)).toBeGreaterThan(0);
+    expect(Number(data.flParticles)).toBeGreaterThan(0); // --- fl-noir --- the hit particles play on every stage
+  });
+});
+
+/* ------------------------------------------------------------------ --- fl-noir --- the noir stage */
+
+describe("the noir stage: the reel layout and the hit particles (--- fl-noir ---)", () => {
+  /** Every text a run's sprites were built from (the sprites' own canvases take the fillText calls). */
+  const spriteTexts = (canvases: ReadonlySet<unknown>): string[] => {
+    const texts: string[] = [];
+    for (const c of canvases) {
+      const calls = (c as FakeCanvas).ctx?.calls ?? [];
+      for (const call of calls) if (call.name === "fillText") texts.push(String(call.args[0]));
+    }
+    return texts;
+  };
+
+  it("is the default stage: black backdrop, a thin white outline, no VS card – the fight is on from the first frame, FIGHT! still flashes", { timeout: 60_000 }, () => {
+    const canvases = stubDocument();
+    const engine = probeEngine({}, 1);
+    const view = engine.getFightLeagueView();
+    expect(view.settings.stage).toBe("noir");
+    const layer = new FightLeagueLayer();
+    const { ctx } = mainContext();
+    const banners = new Set<string>();
+    probeRun(engine, 2500, (v) => {
+      drawFrame(layer, ctx, v);
+      for (const b of layer.bannersShown) banners.add(b);
+    });
+    expect(layer.vsShown).toBe(false);
+    expect(banners.has("vs")).toBe(false);
+    expect(banners.has("count")).toBe(false);
+    expect(banners.has("fight")).toBe(true);
+    expect(layer.noirOn).toBe(true);
+    // the backdrop: one flat black blit, no gradient made for it
+    expect(STAGE_PALETTES.noir).toMatchObject({ backdropTop: "#000000", backdropBottom: "#000000", floor: "#000000", rim: "#ffffff", shadow: null, noir: true });
+    expect(STAGE_PALETTES.noir.rimK).toBeLessThan(STAGE_PALETTES.lilac.rimK / 3);
+    expect(canvases.size).toBeGreaterThan(0);
+  });
+
+  it("draws the reel layout: the title in the fighters' colours with VS in white, the weapon icons, and the stats block's lines – names with HP, DMG, the state tags, the abilities", { timeout: 60_000 }, () => {
+    const canvases = stubDocument();
+    const engine = probeEngine({ fighters: ["thor", "loki"], match: "1v1" }, 3);
+    const layer = new FightLeagueLayer();
+    const { ctx } = mainContext();
+    const view = probeRun(engine, 6000, (v) => {
+      drawFrame(layer, ctx, v);
+      tally(ctx, canvases);
+    });
+    expect(layer.namesDrawn).toBe(2);
+    expect(layer.boxesDrawn).toBe(2); // the ability lines stand in for the boxes
+    expect(layer.boxesTop).toBeCloseTo((H - SIDE) / 2 + FL_NOIR_BLOCK_TOP * SIDE, 6);
+    const texts = spriteTexts(canvases);
+    expect(texts).toContain("THOR:");
+    expect(texts).toContain("LOKI:");
+    expect(texts).toContain("DMG:");
+    expect(texts).toContain("[NORMAL]");
+    expect(texts).toContain("THUNDER STRIKE");
+    expect(texts).toContain("ILLUSION");
+    // the title: pixels (fillRect runs on its own canvas), never a font – the names in their colours, VS white
+    const parts = new FlNoirHudPainter().titleParts(view, DEFAULT_FIGHT_LEAGUE_LABELS);
+    expect(parts.map((p) => p.text)).toEqual(["THOR", "VS", "LOKI"]);
+    expect(parts[0].color).toBe(layerNameColor(view.fighters[0].row.body, view.fighters[0].row.accent));
+    expect(parts[2].color).toBe(layerNameColor(view.fighters[1].row.body, view.fighters[1].row.accent));
+    expect(parts[1].color).toBe("#ffffff");
+    expect(texts).not.toContain("THOR");
+    expect(texts).not.toContain("VS");
+    // the weapon icons: the held weapons' sprites drawn on screen (the weapons painter counts its draws in play; here the layer drew two more)
+    expect(layer.weaponsDrawn).toBeGreaterThanOrEqual(2);
+    // every state has a tag and a colour; the mapping reads the statuses
+    const f = view.fighters[0];
+    expect(flStateOf(f, view.timeMs)).toMatch(/^(normal|knockback|stunned|casting|shielded|slowed|buffed|dead)$/);
+    const fake = { ...f, alive: false } as typeof f;
+    expect(flStateOf(fake, view.timeMs)).toBe("dead");
+    expect(flStateOf({ ...f, alive: true, frozenUntil: view.timeMs + 100, heldBy: -1, pinUntil: -Infinity } as typeof f, view.timeMs)).toBe("stunned");
+    expect(flStateOf({ ...f, alive: true, frozenUntil: -Infinity, heldBy: -1, pinUntil: -Infinity, telegraphUntil: view.timeMs + 100 } as typeof f, view.timeMs)).toBe("casting");
+    expect(flStateOf({ ...f, alive: true, frozenUntil: -Infinity, heldBy: -1, pinUntil: -Infinity, telegraphUntil: -1, invulnUntil: view.timeMs + 100 } as typeof f, view.timeMs)).toBe("shielded");
+    expect(flStateOf({ ...f, alive: true, frozenUntil: -Infinity, heldBy: -1, pinUntil: -Infinity, telegraphUntil: -1, invulnUntil: -Infinity, reflectUntil: -Infinity, hitMs: view.timeMs - 100, vx: 50 * f.cruise, vy: 0 } as typeof f, view.timeMs)).toBe("knockback");
+    for (const code of Object.keys(DEFAULT_FL_STATE_LABELS)) expect(typeof DEFAULT_FL_STATE_LABELS[code as keyof typeof DEFAULT_FL_STATE_LABELS]).toBe("string");
+  });
+
+  it("keeps the render contract in a portrait layout with the heavy kits, with four and six fighters (a column each) and a show's column", { timeout: 180_000 }, () => {
+    const kits: [string, Partial<FightLeagueSettings>, number, number][] = [
+      ["the heavy kit", { ...HEAVY_KIT, stage: "noir" }, 1, 15_000],
+      ["the final stage's heavy kit", { fighters: ["venom", "walterwhite", "jonesy", "jinx"], match: "ffa4", hp: 300, timeCap: 0, stage: "noir" }, 1, 15_000],
+      ["a 3v3 of six", { fighters: ["thor", "loki", "ironman", "hulk", "thanos", "spiderman"], match: "3v3", hp: 200, timeCap: 0, stage: "noir" }, 2, 12_000],
+      ["a best-of-3", { fighters: ["thor", "loki"], match: "1v1", bestOf: 3, stage: "noir" }, 2, 12_000],
+    ];
+    for (const [name, fl, seed, ms] of kits) {
+      const r = contractRun(fl, seed, OPTS, ms, true);
+      expect([name, r.worst.gradients, r.worst.patterns, r.worst.unbalanced, r.worst.foreign, r.blur]).toEqual([name, 0, 0, 0, 0, 0]);
+      expect([name, r.worst.drawImage <= 450, r.worst.fillText <= 40]).toEqual([name, true, true]);
+      expect([name, r.layer.noirOn, r.layer.boxesDrawn]).toEqual([name, true, r.view.fighters.length]);
+      expect(r.layer.particles).toBeGreaterThan(0);
+      console.log(`noir ${name}: ${r.frames} frames, worst drawImage ${r.worst.drawImage}, fillText ${r.worst.fillText}, particles ${r.layer.particles}`);
+    }
+  });
+
+  it("spawns the hit particles from the events, the same at any frame rate, within the pool – and the stage never touches the fight", { timeout: 60_000 }, () => {
+    stubDocument();
+    const run = (stage: FightLeagueSettings["stage"], step: number) => {
+      const engine = probeEngine({ fighters: ["thor", "loki"], match: "1v1", stage }, 4);
+      const layer = new FightLeagueLayer();
+      const { ctx } = mainContext();
+      const view = engine.getFightLeagueView();
+      while (engine.getElapsedMs() < 8000) {
+        engine.update(step, 0);
+        engine.consumeSoundEvents();
+        drawFrame(layer, ctx, view);
+      }
+      return { view, layer };
+    };
+    const a = run("noir", 1000 / 60);
+    const b = run("lilac", 1000 / 60);
+    // the physics are the stage's business never: the same fight on noir and lilac
+    expect(a.view.fighters.map((f) => [f.hp, f.x, f.y, f.hits])).toEqual(b.view.fighters.map((f) => [f.hp, f.x, f.y, f.hits]));
+    expect(a.view.eventSerial).toBe(b.view.eventSerial);
+    // the particles follow the events: the same count on both stages, and at 30 fps
+    expect(a.layer.particles).toBe(b.layer.particles);
+    expect(a.layer.particles).toBeGreaterThan(50);
+    const c = run("noir", 1000 / 30);
+    expect(c.layer.particles).toBe(a.layer.particles);
+    expect(FL_PARTICLE_CAP).toBeGreaterThanOrEqual(256);
   });
 });
 
@@ -1084,7 +1208,7 @@ describe("the VS card: a free-for-all's chips over their fighters' corners, a 2v
   it("fills a 2v2's panels with the team colours (the rings'), each member on a chip of its own colours; a duel's panels with its fighters' bodies", { timeout: 60_000 }, () => {
     const fills = (fl: Partial<FightLeagueSettings>, opts: FightLeagueRenderOptions = OPTS) => {
       stubDocument();
-      const view = probeRun(probeEngine(fl, 3), 1000, undefined, false);
+      const view = probeRun(probeEngine({ stage: "lilac" /* --- fl-noir --- the VS card's stage */, ...fl }, 3), 1000, undefined, false);
       const { ctx } = mainContext();
       const seen = new Set<string>();
       ctx.fill = (...args: unknown[]) => {

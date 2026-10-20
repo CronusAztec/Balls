@@ -23,6 +23,8 @@ import { FlFrame, type FightLeagueLabels, type FightLeagueRenderOptions } from "
 import { BADGE_HEIGHT, BADGE_INSET } from "@/lib/watermark/layout"; // --- legal-audit --- the fan-made badge sits in the watermark strip
 import { FlFxPainter } from "./fightLeague/fx";
 import { FlHudPainter } from "./fightLeague/hud";
+import { DEFAULT_FL_STATE_LABELS, FL_NOIR_ARENA_FRAC, FL_NOIR_ARENA_TOP, FlNoirHudPainter } from "./fightLeague/noir"; // --- fl-noir ---
+import { FL_ARENA_FRAC } from "@/lib/physics/modes/fightLeague";
 import { arenaLook, matchDivision, stagePalette } from "./fightLeague/palette";
 import { drawPlates } from "./fightLeague/plates";
 import { FlProjectilesPainter } from "./fightLeague/projectiles";
@@ -41,8 +43,8 @@ import { flRoundShort } from "@/lib/physics/modes/fightLeagueShow";
  * the facade of the renderer in components/simulator/fightLeague/ (palette, text, stage, bodies, weapons, projectiles, fx,
  * hud, cards, plates, debug). Created once with the canvas loop:
  *
- * - `drawBackdrop()` (screen space, right after the background and the theme painter): the stage – lilac by default, night, or
- *   nothing on the theme stage;
+ * - `drawBackdrop()` (screen space, right after the background and the theme painter): the stage – --- fl-noir --- noir by
+ *   default (pitch black), lilac, night, or nothing on the theme stage;
  * - `applyWorld()` (after the camera): the mode's own screen shake and the display scale of the field (the physics field
  *   keeps its size and place – the replays hold – and is drawn at FL_ARENA_FRAC under the names band of FL_ARENA_TOP);
  * - `drawStage()` (inside the world transform, under everything): the pre-rendered arena plate, the slow-time veil, the
@@ -52,7 +54,9 @@ import { flRoundShort } from "@/lib/physics/modes/fightLeagueShow";
  *   projectiles, the KO ghosts and the finale's speed lines and spotlight – then over the rim the HP bars and numbers, the
  *   name tags, the event ring's effects and callouts (and the hit shapes with flDbg=1);
  * - `drawOverlay()` (screen space, after the HUD, part of the recording): the names band, the timer and the lead bar, the
- *   ability boxes, the VS card, the super flash, the centre banners, the KO flash and the verdict's card;
+ *   ability boxes, the VS card, the super flash, the centre banners, the KO flash and the verdict's card (--- fl-noir --- on
+ *   the noir stage the reel layout instead: the weapon icons and the pixel title above the arena, the stats block below it,
+ *   no VS card – fightLeague/noir.ts);
  * - `paintExportBackdrop()` (the recorder's background hook): the stage in the export's letterbox bars and the 9:16 plates.
  *
  * Every pixel is a function of the view, its simulation clock and the options: the effects run on the effects' clock (the
@@ -97,6 +101,7 @@ export const DEFAULT_FIGHT_LEAGUE_LABELS: FightLeagueLabels = {
   role: (id) => cap(id),
   fanMade: "Fan-made parody. Not affiliated.",
   shows: DEFAULT_FL_SHOW_LABELS, // --- fl-overhaul --- (Stage 5)
+  states: DEFAULT_FL_STATE_LABELS, // --- fl-noir ---
 };
 
 /** The arena unit's share of the field (the effects' size), as the mode uses it. */
@@ -110,6 +115,8 @@ export class FightLeagueLayer {
   private readonly projectiles = new FlProjectilesPainter();
   private readonly fx = new FlFxPainter();
   private readonly hud = new FlHudPainter();
+  /** --- fl-noir --- The noir stage's HUD (the reel layout). */
+  private readonly noir = new FlNoirHudPainter();
   private readonly cards = new FlCardsPainter();
   /** --- fl-overhaul --- (Stage 5) The shows' overlays (the data attributes read what it drew). */
   readonly shows = new FlShowsPainter();
@@ -176,6 +183,14 @@ export class FightLeagueLayer {
   get trails(): number {
     return this.bodies.trails;
   }
+  /** --- fl-noir --- Hit particles spawned this run (data-fl-particles). */
+  get particles(): number {
+    return this.fx.particles.spawned;
+  }
+  /** --- fl-noir --- Whether the frame draws the noir stage (the reel layout). */
+  get noirOn(): boolean {
+    return this.fr.pal.noir;
+  }
 
   /** The page's measure of a frame's drawBodies + drawOverlay (ms): a moving average (no clock in the renderer). */
   noteRenderMs(ms: number) {
@@ -210,6 +225,17 @@ export class FightLeagueLayer {
     fr.px = dpr * dk;
     fr.pal = stagePalette(view.settings.stage);
     fr.look = arenaLook(fr.pal, view.settings.arenaStyle, matchDivision(view));
+    // --- fl-noir --- the noir arena is a smaller square lower in the frame: a render-only scale and shift of the display
+    // mapping (the physics field keeps its size and place – every replay and fingerprint holds)
+    if (fr.pal.noir && field) {
+      fr.noirK = FL_NOIR_ARENA_FRAC / FL_ARENA_FRAC;
+      fr.noirDx = 0;
+      fr.noirDy = field.sqTop + (FL_NOIR_ARENA_TOP + FL_NOIR_ARENA_FRAC / 2) * field.sqSide - field.dcy;
+    } else {
+      fr.noirK = 1;
+      fr.noirDx = 0;
+      fr.noirDy = 0;
+    }
     fr.unit = field ? Math.max(6, UNIT_FRAC * field.side) : 6;
     fr.text.begin();
     this.weapons.begin(view, fr.px);
@@ -217,6 +243,7 @@ export class FightLeagueLayer {
     this.bodies.begin(view);
     this.fx.begin(view);
     this.hud.begin(view);
+    this.noir.begin(view); // --- fl-noir ---
     this.cards.begin(view);
     this.shows.begin(view); // --- fl-overhaul --- (Stage 5)
     // where each fighter is drawn: the finale's drift, held by an impact frame (50 / 80 ms) and catching up (60 ms)
@@ -295,6 +322,13 @@ export class FightLeagueLayer {
       if (this.shakeOut.x !== 0 || this.shakeOut.y !== 0) ctx.translate(this.shakeOut.x, this.shakeOut.y);
     }
     const dk = field.dk || 1;
+    const fr = this.fr;
+    if (fr.noirK !== 1 || fr.noirDy !== 0) {
+      // --- fl-noir --- the noir arena's place and size (about the field's display centre)
+      ctx.translate(field.dcx + fr.noirDx, field.dcy + fr.noirDy);
+      ctx.scale(fr.noirK, fr.noirK);
+      ctx.translate(-field.dcx, -field.dcy);
+    }
     if (dk !== 1 || field.dcx !== field.cx || field.dcy !== field.cy) {
       ctx.translate(field.dcx, field.dcy);
       ctx.scale(dk, dk);
@@ -392,9 +426,15 @@ export class FightLeagueLayer {
     return (f.baseR / Math.max(0.05, f.row.stats.size)) * dk;
   }
 
-  /** The HUD's layout for a frame (the tests read it too). */
+  /** The HUD's layout for a frame (the tests read it too; --- fl-noir --- the noir stage's arena rect in place of the band's). */
   hudLayout(view: FightLeagueView, side: number, portrait: boolean): FlHudLayout {
-    return flHudLayout(side, view.fighters.length, view.match, portrait, this.ballRadius(view));
+    const lay = flHudLayout(side, view.fighters.length, view.match, portrait, this.ballRadius(view) * this.fr.noirK);
+    if (this.fr.pal.noir) {
+      const S = lay.side;
+      lay.arena = { x: (0.5 - FL_NOIR_ARENA_FRAC / 2) * S, y: FL_NOIR_ARENA_TOP * S, w: FL_NOIR_ARENA_FRAC * S, h: FL_NOIR_ARENA_FRAC * S };
+      lay.unit = 0.065 * lay.arena.w;
+    }
+    return lay;
   }
 
   /**
@@ -430,7 +470,20 @@ export class FightLeagueLayer {
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.shadowBlur = 0;
-    if (view.settings.hud) {
+    if (view.settings.hud && fr.pal.noir) {
+      // --- fl-noir --- the reel layout: the weapon icons and the title above the arena, the stats block (the ability lines
+      // folded in: they count as the boxes) below it
+      hudBottom = this.noir.drawTop(ctx, fr, view, L, lay, ox, oy + frame.inset, this.weapons, this.shows);
+      this.boxesTop = this.noir.drawBlock(ctx, fr, view, L, lay, ox, oy);
+      this.namesDrawn = this.noir.namesDrawn;
+      this.boxesDrawn = this.noir.abilitiesDrawn;
+      this.boxRows = this.noir.abilitiesDrawn > 0 ? 1 : 0;
+      this.boxNameMin = this.noir.abilityFsMin;
+      this.bandNameMin = 0;
+      this.boxNameSqueeze = 1;
+      this.boxNamesCut = 0;
+      if (view.show.kind === "boss") this.shows.drawBossBar(ctx, fr, view, L, lay, ox, oy);
+    } else if (view.settings.hud) {
       hudBottom = this.hud.drawBand(ctx, fr, view, L, lay, ox, oy + frame.inset, this.bodies, this.shows);
       this.boxesTop = this.hud.drawBoxes(ctx, fr, view, L, lay, ox, oy, this.bodies, this.weapons);
       this.namesDrawn = this.hud.namesDrawn;
@@ -503,6 +556,7 @@ export class FightLeagueLayer {
         y = fr.zoomY + (y - fr.zoomY) * fr.zoomK;
         r *= fr.zoomK;
       }
+      // (--- fl-noir --- the noir arena's scale and shift are in the world transform the faces are drawn under: nothing to add)
       b.x = x;
       b.y = y;
       b.radius = r;
@@ -604,6 +658,8 @@ export const FIGHT_LEAGUE_DATA_KEYS = [
   "flBoxNameSqueeze",
   "flBoxNamesCut",
   // --- end fl-overhaul ---
+  // --- fl-noir --- the hit particles spawned this run
+  "flParticles",
 ];
 
 /** Writes the data-fl-* attributes (the strings are rebuilt only when their values change). */
@@ -792,5 +848,6 @@ export class FightLeagueDataset {
     set("flBoxNameSqueeze", layer.boxNameMin > 0 ? layer.boxNameSqueeze.toFixed(3) : "");
     set("flBoxNamesCut", String(layer.boxNamesCut));
     // --- end fl-overhaul ---
+    set("flParticles", String(layer.particles)); // --- fl-noir ---
   }
 }

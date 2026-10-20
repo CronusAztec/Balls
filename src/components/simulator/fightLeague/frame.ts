@@ -1,7 +1,7 @@
 import type { FightLeagueView, FlFighter } from "@/lib/physics/modes/fightLeague";
 import type { FlShape } from "@/lib/physics/modes/fightLeagueRoster";
 import { FL_MAX_SLOTS } from "@/lib/physics/modes/fightLeagueFx";
-import { arenaLook, stagePalette, type FlArenaLook, type FlStagePalette } from "./palette";
+import { FL_DEFAULT_STAGE, arenaLook, stagePalette, type FlArenaLook, type FlStagePalette } from "./palette";
 import { GlowSprites } from "./sprites";
 import { FlTextCache } from "./text";
 
@@ -61,6 +61,20 @@ export interface FightLeagueLabels {
   fanMade: string;
   /** --- fl-overhaul --- (Stage 5) the story's and the shows' words (absent: the English defaults, `DEFAULT_FL_SHOW_LABELS`). */
   shows?: FlShowLabels;
+  /** --- fl-noir --- The noir stats block's state tags (absent: the English defaults, `DEFAULT_FL_STATE_LABELS` of noir.ts). */
+  states?: FlStateLabels;
+}
+
+/** --- fl-noir --- The state tags of the noir stage's stats block ("[NORMAL] | [KNOCKBACK]"). */
+export interface FlStateLabels {
+  normal: string;
+  knockback: string;
+  stunned: string;
+  casting: string;
+  shielded: string;
+  slowed: string;
+  buffed: string;
+  dead: string;
 }
 
 /** --- fl-overhaul --- (Stage 5) The story's tags, the shows' banners and cards, the win chance's words. */
@@ -153,8 +167,8 @@ export class FlFrame {
   /** Device px per CSS px, and per world px (dpr × the display scale of the field). */
   dpr = 1;
   px = 1;
-  pal: FlStagePalette = stagePalette("lilac");
-  look: FlArenaLook = arenaLook(stagePalette("lilac"), "clean", null);
+  pal: FlStagePalette = stagePalette(FL_DEFAULT_STAGE);
+  look: FlArenaLook = arenaLook(stagePalette(FL_DEFAULT_STAGE), "clean", null);
   /** The arena unit (world px): 6.5 % of the field's side – the effects' size. */
   unit = 6;
   readonly text = new FlTextCache();
@@ -167,6 +181,13 @@ export class FlFrame {
   readonly impactHeavy = new Uint8Array(FL_MAX_SLOTS);
   readonly heldX = new Float64Array(FL_MAX_SLOTS);
   readonly heldY = new Float64Array(FL_MAX_SLOTS);
+  /**
+   * --- fl-noir --- The noir stage draws the field smaller than the mode's display mapping (a render-only scale about the
+   * field's display centre, moved to the noir arena's place; 1 elsewhere): the world's px per display px shrink by it.
+   */
+  noirK = 1;
+  noirDx = 0;
+  noirDy = 0;
   /** The finale's push-in: its scale around (zoomX, zoomY) (1: none). */
   zoomK = 1;
   zoomX = 0;

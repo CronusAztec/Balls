@@ -3,7 +3,7 @@ import { drawCrown } from "./shows"; // --- fl-overhaul --- (Stage 5)
 import { FL_FAST_STAT, FL_FLASH_TINT_MS, FL_FLASH_WHITE_MS, FL_MAX_SLOTS, FL_SPEED_LINES_AT, FL_TRAIL_AT, bodyRimWidth, flNameColor, flSquashK } from "@/lib/physics/modes/fightLeagueFx";
 import { flShortName, type FlFighterRow } from "@/lib/physics/modes/fightLeagueRoster";
 import type { FlFrame } from "./frame";
-import { FL_STATUS_ARC_MS, GOLD, INK, RAINBOW, TEAM_COLORS, shade } from "./palette";
+import { FL_STATUS_ARC_MS, GOLD, INK, RAINBOW, TEAM_COLORS, luminance, shade } from "./palette";
 import { TWO_PI, hash, makeSprite, polygonPath, starPath, type Sprite } from "./sprites";
 import { NUM_TEXT } from "./text";
 
@@ -343,6 +343,8 @@ export class FlBodiesPainter {
       if ((strong || fast) && f.trailCount >= 3 && !fr.lite) {
         this.ribbon(ctx, fr, f, strong ? 0.35 : 0.14);
         if (strong) this.trails++;
+        // --- fl-noir --- a knockback's short white streaks along the trail (one path)
+        if (strong && fr.pal.noir) this.streaks(ctx, fr, f);
       }
       const x = fr.x(f);
       const y = fr.y(f);
@@ -351,7 +353,7 @@ export class FlBodiesPainter {
         const uy = vy / speed;
         ctx.save();
         ctx.globalAlpha = 0.5;
-        ctx.strokeStyle = INK;
+        ctx.strokeStyle = fr.pal.fx.streak;
         ctx.lineCap = "round";
         ctx.lineWidth = Math.max(1, 0.06 * f.r);
         ctx.beginPath();
@@ -383,8 +385,37 @@ export class FlBodiesPainter {
     }
   }
 
+  /** --- fl-noir --- Short white streaks beside the trail: four thin dashes between the ring's samples, fading back (one path). */
+  private streaks(ctx: CanvasRenderingContext2D, fr: FlFrame, f: FlFighter) {
+    const len = f.trail.length >> 1;
+    const n = Math.min(f.trailCount, len, 9);
+    if (n < 3) return;
+    const r = f.r;
+    ctx.save();
+    ctx.strokeStyle = fr.pal.fx.streak;
+    ctx.lineCap = "round";
+    ctx.lineWidth = Math.max(1, 0.09 * r);
+    ctx.globalAlpha = 0.7;
+    ctx.beginPath();
+    for (let k = 1; k + 1 < n; k += 2) {
+      const i = (((f.trailHead - 1 - k) % len) + len) % len;
+      const j = (((f.trailHead - 2 - k) % len) + len) % len;
+      const side = (hash(k, f.slot) - 0.5) * 1.5 * r;
+      const dx = f.trail[2 * j] - f.trail[2 * i];
+      const dy = f.trail[2 * j + 1] - f.trail[2 * i + 1];
+      const d = Math.hypot(dx, dy) || 1;
+      const nx = (-dy / d) * side;
+      const ny = (dx / d) * side;
+      ctx.moveTo(f.trail[2 * i] + nx, f.trail[2 * i + 1] + ny);
+      ctx.lineTo(f.trail[2 * j] + nx, f.trail[2 * j + 1] + ny);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
   /** A tapered ribbon through the trail ring (width 1.6 R → 0), in the look's trail colour, one fill. */
   private ribbon(ctx: CanvasRenderingContext2D, fr: FlFrame, f: FlFighter, alpha: number) {
+    const noir = fr.pal.noir; // (--- fl-noir --- a white ribbon on black)
     const len = f.trail.length >> 1;
     const n = Math.min(f.trailCount, len);
     // the points: the drawn position, then the ring newest first
@@ -409,7 +440,7 @@ export class FlBodiesPainter {
     if (m < 3) return;
     ctx.save();
     ctx.globalAlpha = alpha;
-    ctx.fillStyle = f.row.look?.trail ?? f.row.body;
+    ctx.fillStyle = noir ? "#ffffff" : (f.row.look?.trail ?? f.row.body);
     ctx.beginPath();
     for (let side = 0; side < 2; side++) {
       for (let q = 0; q < m; q++) {
@@ -487,11 +518,44 @@ export class FlBodiesPainter {
     // the winner's idle bob (6 %)
     if (winner && f.alive) by -= 0.06 * r * Math.abs(Math.sin((now / 1000) * Math.PI * 1.6));
     if (ghost) this.drawRipple(ctx, f, bx, by, now);
-    this.drawBodyAt(ctx, fr, row, bx, by, r, fr.px, 0, base, squash, dir);
-    if (hitAge >= 0 && hitAge < FL_FLASH_WHITE_MS) this.drawBodyAt(ctx, fr, row, bx, by, r, fr.px, 1, 0.9 * base, squash, dir);
-    else if (hitAge >= FL_FLASH_WHITE_MS && hitAge < FL_FLASH_TINT_MS) this.drawBodyAt(ctx, fr, row, bx, by, r, fr.px, 2, 0.4 * base * (1 - (hitAge - FL_FLASH_WHITE_MS) / (FL_FLASH_TINT_MS - FL_FLASH_WHITE_MS)), squash, dir);
+    if (fr.pal.noir) this.drawDisc(ctx, f, bx, by, r, base, hitAge);
+    else {
+      this.drawBodyAt(ctx, fr, row, bx, by, r, fr.px, 0, base, squash, dir);
+      if (hitAge >= 0 && hitAge < FL_FLASH_WHITE_MS) this.drawBodyAt(ctx, fr, row, bx, by, r, fr.px, 1, 0.9 * base, squash, dir);
+      else if (hitAge >= FL_FLASH_WHITE_MS && hitAge < FL_FLASH_TINT_MS) this.drawBodyAt(ctx, fr, row, bx, by, r, fr.px, 2, 0.4 * base * (1 - (hitAge - FL_FLASH_WHITE_MS) / (FL_FLASH_TINT_MS - FL_FLASH_WHITE_MS)), squash, dir);
+    }
     this.drawStatuses(ctx, fr, view, f, bx, by, base);
     if (f.boss) drawCrown(ctx, bx, by, r, base); // --- fl-overhaul --- (Stage 5) a boss rush's boss: our own vector crown
+  }
+
+  /**
+   * --- fl-noir --- The noir stage's fighter: a plain solid disc in its body colour (a dark body lightened so it reads on
+   * black; no pattern, no crest, no face), a one-frame scale punch on a hit (1.14 → 1 over FL_NOIR_PUNCH_MS) and the white
+   * hit flash over it – three fills, no sprite.
+   */
+  private drawDisc(ctx: CanvasRenderingContext2D, f: FlFighter, x: number, y: number, r: number, base: number, hitAge: number) {
+    const punch = hitAge >= 0 && hitAge < FL_NOIR_PUNCH_MS ? 1 + 0.14 * (1 - hitAge / FL_NOIR_PUNCH_MS) : 1;
+    const R = r * punch;
+    ctx.save();
+    ctx.globalAlpha = base;
+    ctx.fillStyle = noirBodyColor(f.row);
+    ctx.beginPath();
+    ctx.arc(x, y, R, 0, TWO_PI);
+    ctx.fill();
+    if (hitAge >= 0 && hitAge < FL_FLASH_WHITE_MS) {
+      ctx.globalAlpha = 0.9 * base;
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(x, y, R, 0, TWO_PI);
+      ctx.fill();
+    } else if (hitAge >= FL_FLASH_WHITE_MS && hitAge < FL_FLASH_TINT_MS) {
+      ctx.globalAlpha = 0.35 * base * (1 - (hitAge - FL_FLASH_WHITE_MS) / (FL_FLASH_TINT_MS - FL_FLASH_WHITE_MS));
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(x, y, R, 0, TWO_PI);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   private drawEchoes(ctx: CanvasRenderingContext2D, fr: FlFrame, f: FlFighter, base: number) {
@@ -807,9 +871,21 @@ export class FlBodiesPainter {
     return Math.max(f.hp, this.gFrom[slot] - rate * Math.max(0, (now - this.gAt[slot] - 280) / 1000));
   }
 
-  /** The HP bar under the ball (a white "just lost" ghost; blinking under 25 %) and the HP number inside. */
+  /** The HP bar under the ball (a white "just lost" ghost; blinking under 25 %) and the HP number inside (--- fl-noir --- noir: the number alone, big and bold). */
   drawHp(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, f: FlFighter, numbers: boolean) {
     const now = fr.now;
+    if (fr.pal.noir) {
+      this.ghostHp(f, now); // (the ghost follows the hits even unseen: the band's bar reads it on a stage switch)
+      if (!numbers) return;
+      const hp = Math.max(0, Math.ceil(f.hp - 1e-6));
+      const side = view.field ? view.field.sqSide / Math.max(1e-6, view.field.dk || 1) : 450;
+      const fs = Math.max(0.95 * f.r, (34 / 1080) * side / fr.noirK); // (the arena is drawn at noirK: the floor holds on screen)
+      const text = NUM_TEXT[Math.min(NUM_TEXT.length - 1, hp)] ?? String(hp);
+      const pale = luminance(noirBodyColor(f.row)) > 0.6;
+      ctx.globalAlpha = 1;
+      fr.text.number(ctx, text, fr.x(f), fr.y(f) + 0.04 * fs, fs, pale ? INK : "#ffffff", pale ? null : "rgba(0, 0, 0, 0.55)", "center");
+      return;
+    }
     const frac = Math.max(0, Math.min(1, f.hp / Math.max(1e-9, f.maxHp)));
     const ghostFrac = Math.max(frac, Math.min(1, this.ghostHp(f, now) / Math.max(1e-9, f.maxHp)));
     const r = f.r;
@@ -851,6 +927,14 @@ export class FlBodiesPainter {
   drawPortrait(ctx: CanvasRenderingContext2D, fr: FlFrame, f: FlFighter, x: number, y: number, R: number, alpha = 1, kind: 0 | 1 | 2 = 0) {
     this.drawBodyAt(ctx, fr, f.row, x, y, R, fr.dpr, kind, alpha);
   }
+}
+
+/** --- fl-noir --- The scale punch of a struck disc (ms). */
+export const FL_NOIR_PUNCH_MS = 60;
+
+/** --- fl-noir --- A fighter's disc colour on black: its body, or its name colour (lightened to read on ink) when the body is dark. */
+export function noirBodyColor(row: FlFighterRow): string {
+  return luminance(row.body) < 0.25 ? flNameColor(row.body, row.accent) : row.body;
 }
 
 /** Scratch buffers of a ribbon's points (the drawn position + the ring). */

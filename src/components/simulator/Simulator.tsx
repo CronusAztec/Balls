@@ -3920,6 +3920,17 @@ export default function Simulator() {
         role: (id) => t(`FightLeague.role_${id}`),
         fanMade: t("FightLeague.canvasFanMade"), // --- legal-audit --- the permanent badge
         // --- end fl-overhaul ---
+        // --- fl-noir --- the noir stats block's state tags
+        states: {
+          normal: t("FightLeague.canvasStateNormal"),
+          knockback: t("FightLeague.canvasStateKnockback"),
+          stunned: t("FightLeague.canvasStateStunned"),
+          casting: t("FightLeague.canvasStateCasting"),
+          shielded: t("FightLeague.canvasStateShielded"),
+          slowed: t("FightLeague.canvasStateSlowed"),
+          buffed: t("FightLeague.canvasStateBuffed"),
+          dead: t("FightLeague.canvasStateDead"),
+        },
         // --- fl-overhaul --- (Stage 5) the story's tags, the shows' banners and cards, the win chance (a name may hold "$&")
         shows: {
           upset: t("FightLeague.canvasUpset"),

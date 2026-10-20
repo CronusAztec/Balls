@@ -1,14 +1,16 @@
 import { DC_CRACK, DC_SCAR, DC_SCORCH, EV_RIM, FL_DECAL_CAP, FL_EVENT_CAP, type FightLeagueView } from "@/lib/physics/modes/fightLeague";
 import type { FlFrame } from "./frame";
-import { INK, matchDivision, withAlpha, type FlArenaLook, type FlStagePalette } from "./palette";
+import { matchDivision, withAlpha, type FlArenaLook, type FlStagePalette } from "./palette";
 import { TWO_PI, hash, makeSprite, newCanvas, polygonPath, type Sprite } from "./sprites";
 
 /**
- * --- fl-overhaul --- (Stage 3) Fight League's stage: the backdrop the mode paints over the whole canvas (lilac: a vertical
- * gradient with faint 45° stripes; night: near-black with a vignette; theme: nothing – the page's theme shows, today's
- * look), the same backdrop in the letterbox bars of an export, and the arena as a pre-rendered plate (its soft drop shadow,
- * the floor and the style's motif, the rim) drawn with one drawImage, under the live overlays: the slow-time veil and its
- * clock wipe, the decals (cracks, scorches, scars), the rim flashes and – during sudden death – the lost ground.
+ * --- fl-overhaul --- (Stage 3) Fight League's stage: the backdrop the mode paints over the whole canvas (--- fl-noir --- noir:
+ * pitch black, one flat fill; lilac: a vertical gradient with faint 45° stripes; night: near-black with a vignette; theme:
+ * nothing – the page's theme shows, the first release's look), the same backdrop in the letterbox bars of an export, and the
+ * arena as a pre-rendered plate (its soft drop shadow, the floor and the style's motif, the rim – on noir only a thin white
+ * outline, nothing else on the field) drawn with one drawImage, under the live overlays: the slow-time veil and its clock
+ * wipe, the decals (cracks, scorches, scars – light ink on the black floor), the rim flashes and – during sudden death – the
+ * lost ground.
  *
  * The backdrop is rendered once per stage, size and scale on its own canvas (its gradient, stripes and vignette) and blitted
  * – the whole canvas on the page, only the bars round the square in an export: no gradient or pattern on a steady frame, no
@@ -72,7 +74,8 @@ export class FlStagePainter {
     const g = c?.getContext("2d");
     if (!c || !g) return null;
     g.setTransform(k, 0, 0, k, 0, 0);
-    const grad = typeof g.createLinearGradient === "function" ? g.createLinearGradient(0, 0, 0, h) : null;
+    // (--- fl-noir --- a flat backdrop needs no gradient)
+    const grad = pal.backdropTop !== pal.backdropBottom && typeof g.createLinearGradient === "function" ? g.createLinearGradient(0, 0, 0, h) : null;
     if (grad) {
       grad.addColorStop(0, pal.backdropTop);
       grad.addColorStop(1, pal.backdropBottom);
@@ -140,12 +143,12 @@ export class FlStagePainter {
     const look = fr.look;
     const half = field.fullHalf > 0 ? field.fullHalf : field.half;
     const side = 2 * half;
-    const rim = Math.max(2, 0.012 * side);
+    const rim = Math.max(fr.pal.noir ? 1.5 : 2, fr.pal.rimK * side); // (--- fl-noir --- a thin white line)
     const division = matchDivision(view) ?? "none";
     const key = `${field.kind}|${field.cx}|${field.cy}|${half}|${fr.px}|${fr.pal.stage}|${look.floor}|${look.rim}|${look.motif}|${look.glow}|${division}`;
     if (key !== this.plateKey) {
       this.plateKey = key;
-      const pad = rim + 0.06 * side;
+      const pad = rim + (fr.pal.shadow ? 0.06 : 0.01) * side;
       this.plate = makeSprite({ x0: field.cx - half - pad, y0: field.cy - half - pad, x1: field.cx + half + pad, y1: field.cy + half + pad }, fr.px, (g) => paintPlate(g, field.kind, field.cx, field.cy, half, rim, look, fr.pal));
     }
     if (this.plate) {
@@ -196,7 +199,7 @@ export class FlStagePainter {
     return this.scorch;
   }
 
-  /** The live overlays on the floor: the slow-time veil, the decals and the rim flashes (inside the arena's clip). */
+  /** The live overlays on the floor: the slow-time veil, the decals (skipped on noir: a scorch is invisible on black) and the rim flashes (inside the arena's clip). */
   drawOverlays(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView) {
     const field = view.field;
     if (!field) return;
@@ -235,11 +238,11 @@ export class FlStagePainter {
       ctx.save();
       ctx.globalAlpha = a;
       if (d.kind === DC_SCORCH) {
-        const s = this.scorchSprite();
+        const s = fr.pal.noir ? null : this.scorchSprite();
         if (s) ctx.drawImage(s.canvas, d.x - d.r, d.y - d.r, 2 * d.r, 2 * d.r);
       } else if (d.kind === DC_SCAR) {
         ctx.lineCap = "round";
-        ctx.strokeStyle = "rgba(30, 27, 46, 0.55)";
+        ctx.strokeStyle = fr.pal.noir ? "rgba(212, 212, 216, 0.5)" : "rgba(30, 27, 46, 0.55)";
         ctx.lineWidth = Math.max(2, 0.35 * d.r);
         ctx.beginPath();
         ctx.moveTo(d.x, d.y);
@@ -249,7 +252,7 @@ export class FlStagePainter {
         ctx.lineWidth = Math.max(1, 0.12 * d.r);
         ctx.stroke();
       } else if (d.kind === DC_CRACK) {
-        ctx.strokeStyle = withAlpha(/^#[0-9a-f]{6}$/i.test(d.color) ? d.color : INK, 0.7);
+        ctx.strokeStyle = withAlpha(/^#[0-9a-f]{6}$/i.test(d.color) ? d.color : fr.pal.decalInk, 0.7);
         ctx.lineWidth = Math.max(1, 0.08 * d.r);
         ctx.lineJoin = "round";
         ctx.beginPath();
@@ -318,15 +321,17 @@ function paintPlate(g: CanvasRenderingContext2D, kind: string, cx: number, cy: n
     if (kind === "circle") g.arc(cx, cy, half, 0, TWO_PI);
     else g.rect(cx - half, cy - half, side, side);
   };
-  // the shadow, baked here once
-  g.save();
-  g.shadowColor = pal.shadow;
-  g.shadowBlur = 0.04 * side;
-  g.shadowOffsetY = 0.012 * side;
-  g.fillStyle = look.floor;
-  path();
-  g.fill();
-  g.restore();
+  // the shadow, baked here once (--- fl-noir --- none on noir)
+  if (pal.shadow) {
+    g.save();
+    g.shadowColor = pal.shadow;
+    g.shadowBlur = 0.04 * side;
+    g.shadowOffsetY = 0.012 * side;
+    g.fillStyle = look.floor;
+    path();
+    g.fill();
+    g.restore();
+  }
   g.fillStyle = look.floor;
   path();
   g.fill();

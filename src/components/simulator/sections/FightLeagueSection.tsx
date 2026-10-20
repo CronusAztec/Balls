@@ -52,7 +52,7 @@ export interface FightLeagueSectionProps {
 export const FIGHT_LEAGUE_KEYS = ["flTitle", "flPreset", "flMatch", "flFighters", "flSameDivision", "flHp", "flTimeCap", "flArena", "flHud", "flHandicaps", "flSeek", "flSuddenDeath"];
 // --- fl-overhaul --- (Stage 3) the Spectacle group's labels (the search finds them too)
 FIGHT_LEAGUE_KEYS.push("flSpectacle", "flStage", "flArenaStyle", "flShake", "flSlowMo", "flImpact", "flDmgNumbers", "flPlates", "flTags");
-const STAGE_LABELS: Record<FlStage, string> = { lilac: "flStageLilac", night: "flStageNight", theme: "flStageTheme" };
+const STAGE_LABELS: Record<FlStage, string> = { noir: "flStageNoir" /* --- fl-noir --- */, lilac: "flStageLilac", night: "flStageNight", theme: "flStageTheme" };
 const ARENA_STYLE_LABELS: Record<FlArenaStyle, string> = { clean: "flArenaStyleClean", grid: "flArenaStyleGrid", division: "flArenaStyleDivision", neon: "flArenaStyleNeon" };
 const TAG_LABELS: Record<FlTags, string> = { auto: "flTagsAuto", on: "flTagsOn", off: "flTagsOff" };
 // --- fl-overhaul --- (Stage 4) the Sound group's labels and the clip panel (the search finds them too)
@@ -308,7 +308,7 @@ export default function FightLeagueSection({ t, search, matches, settings: s, up
             {t("flStage")}
             <Tooltip text={t("flStageTip")} />
           </label>
-          <div className="grid grid-cols-3 gap-1" role="group" aria-label={t("flStage")}>
+          <div className="grid grid-cols-4 gap-1" role="group" aria-label={t("flStage")}>
             {FL_STAGES.map((st) => (
               <button type="button" key={st} onClick={() => update({ flStage: st })} aria-pressed={s.flStage === st} className={pick(s.flStage === st)} data-testid={`fl-stage-${st}`}>
                 {t(STAGE_LABELS[st])}

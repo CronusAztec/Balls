@@ -11611,10 +11611,11 @@ await smokeBlock("fight-league", async () => {
     `(preset ${preset}, ${JSON.stringify(Object.fromEntries(Object.entries(intro).filter(([k]) => k.startsWith("fl"))))})`,
   );
 }
-// --- fl-overhaul --- (Stage 3) the lilac stage and the VS card's banners on the intro's clock
+// --- fl-overhaul --- (Stage 3) the stages and the VS card's banners on the intro's clock (--- fl-noir --- the default is noir)
 {
-  // The default stage is lilac (data-fl-stage, a lilac pixel in the canvas's margin beside the square – flSt=night a dark
-  // one), and the VS card's banners come on the intro's clock: 'count' (3-2-1) by 1.3 s, 'fight' after 1.5 s (data-fl-banners).
+  // The default stage is noir (data-fl-stage, a black pixel in the canvas's margin beside the square, no VS card – only
+  // 'fight' after 1.5 s); flSt=lilac is the lilac one (a lilac margin) and its VS card's banners come on the intro's clock:
+  // 'count' (3-2-1) by 1.3 s, 'fight' after 1.5 s (data-fl-banners); flSt=night a dark one.
   const margin = () =>
     page.evaluate(() => {
       const c = document.querySelector("main canvas");
@@ -11623,6 +11624,11 @@ await smokeBlock("fight-league", async () => {
     });
   const at = (sec) => page.waitForFunction((s) => Number(document.querySelector("main canvas")?.dataset.flTime) >= s, sec, { timeout: 20000 }).catch(() => {});
   await page.goto(`${BASE}/en/simulator/?mode=fightLeague&seed=5`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await at(1.6);
+  const noir = await canvasData();
+  const black = await margin();
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flSt=lilac&seed=5`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await at(1.3);
   const early = await canvasData();
@@ -11638,10 +11644,12 @@ await smokeBlock("fight-league", async () => {
   const isDark = (px) => px.every((v) => v <= 45);
   const early13 = (early.flBanners || "").split(",");
   const later16 = (later.flBanners || "").split(",");
+  const noir16 = (noir.flBanners || "").split(",");
+  const isBlack = (px) => px.every((v) => v <= 8);
   check(
-    "fight league: the lilac stage (a dark one with flSt=night), and the VS card's 3-2-1 by 1.3 s and FIGHT! after 1.5 s",
-    early.flStage === "lilac" && lilac.every(isLilac) && night.flStage === "night" && dark.every(isDark) && early13.includes("vs") && early13.includes("count") && later16.includes("fight"),
-    `(stage ${early.flStage}, margin ${JSON.stringify(lilac)}; night: stage ${night.flStage}, margin ${JSON.stringify(dark)}; banners at ${early.flTime} s "${early.flBanners}", at ${later.flTime} s "${later.flBanners}")`,
+    "fight league: the noir stage by default (a black margin, no VS card, FIGHT! after 1.5 s, hit particles counted), the lilac stage with flSt=lilac (its VS card's 3-2-1 by 1.3 s and FIGHT! after 1.5 s), a dark one with flSt=night",
+    noir.flStage === "noir" && black.every(isBlack) && noir.flVs === "0" && !noir16.includes("vs") && noir16.includes("fight") && early.flStage === "lilac" && lilac.every(isLilac) && night.flStage === "night" && dark.every(isDark) && early13.includes("vs") && early13.includes("count") && later16.includes("fight"),
+    `(noir: stage ${noir.flStage}, margin ${JSON.stringify(black)}, vs ${noir.flVs}, banners "${noir.flBanners}"; lilac: stage ${early.flStage}, margin ${JSON.stringify(lilac)}; night: stage ${night.flStage}, margin ${JSON.stringify(dark)}; banners at ${early.flTime} s "${early.flBanners}", at ${later.flTime} s "${later.flBanners}")`,
   );
 }
 // --- end fl-overhaul ---

@@ -231,7 +231,8 @@ export class FlCardsPainter {
     const S = lay.side;
     const A: Rect = { x: ox + lay.arena.x, y: oy + lay.arena.y, w: lay.arena.w, h: lay.arena.h };
     const intro = view.introMs - t0;
-    if (hud && now < intro && now >= 0) {
+    // (--- fl-noir --- no start card on the noir stage: the fight is on from the first frame; FIGHT! still flashes at the launch)
+    if (hud && now < intro && now >= 0 && !fr.pal.noir) {
       const veil = now < FL_VS_VEIL_MS ? now / FL_VS_VEIL_MS : now > FL_VS_PANELS_OUT_MS ? Math.max(0, 1 - (now - FL_VS_PANELS_OUT_MS) / Math.max(1, intro - FL_VS_PANELS_OUT_MS)) : 1;
       ctx.save();
       ctx.globalAlpha = 0.55 * veil;

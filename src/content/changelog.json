@@ -34,6 +34,14 @@
             "pl": "Szklana spirala to nowy tryb rytmiczny. Kulki krążą po spirali z matowego szkła i wykruszają je od zewnątrz, a każde okrążenie obok odznaki dodaje kulkę. Bieg kończy się, gdy szkło zniknie.",
             "es": "Espiral de cristal es un nuevo modo rítmico. Las bolas giran por una espiral de cristal esmerilado y la rompen de fuera hacia dentro. Cada vuelta por la insignia añade una bola y la tirada termina sin cristal."
           }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Fight League opens on a new noir stage. A black arena with a white outline, the weapons and a pixel title above it, a stats block below, and every hit bursts into white particles, debris and sparks.",
+            "pl": "Fight League otwiera się na nowej scenie noir. Czarna arena z białym obrysem, bronie i pikselowy tytuł nad nią, blok statystyk pod nią, a każde trafienie rozpryskuje się w białe cząstki, odłamki i iskry.",
+            "es": "Fight League se abre en un nuevo escenario noir. Una arena negra con borde blanco, las armas y un título de píxeles encima, estadísticas debajo, y cada golpe estalla en partículas blancas, escombros y chispas."
+          }
         }
       ]
     },
