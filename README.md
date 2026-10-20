@@ -220,6 +220,7 @@ npm run og:cards                           # --- seo --- redraw the 27 social ca
 node relay/server.mjs                      # --- social-publish --- the self-hosted publish relay for TikTok, Instagram and YouTube (relay/README.md)
 node scripts/billing-keygen.mjs            # --- paywall-gate --- a production licence key pair: the Worker's secret, then the site's public key
 node scripts/lib/test-license.mjs          # --- paywall-gate --- prints a Pro licence signed with the committed TEST key (test-mode builds)
+node scripts/owner-license.mjs --email you@example.com --key private.json  # --- paywall-gate --- the owner's Pro licence, signed locally with the production key (live site)
 npm run go-live                            # --- go-live-kit --- the launch wizard: pastes the payment keys into the Worker and the public settings into GitHub (docs/GO-LIVE.md)
 npm run go-live:check                      # --- go-live-kit --- proves the site, the billing Worker, the providers and GitHub agree (PASS/FAIL per check)
 ```
