@@ -63,6 +63,11 @@ import {
   parseFlRandom,
   // --- fl-overhaul --- (Stage 3)
   EV_HIT,
+  // --- fl-heavy --- (Stop The World)
+  EV_HEAVY,
+  EV_KO,
+  EV_TURN,
+  telegraphMs,
   FL_FIELD_FRAC,
   FL_FIELD_TOP,
   flDisplayX,
@@ -91,6 +96,7 @@ import {
   FL_ROLES,
   FL_WEAPON_LOOKS,
   abilityClass,
+  flHeavyAbility, // --- fl-heavy ---
   conferenceOf,
   fightersOf,
   flLimitViolations,
@@ -101,6 +107,7 @@ import { flFold, flSortKey, flTypeAhead, searchFighters } from "@/lib/physics/mo
 import { FL_RATINGS_HASH, FL_STRENGTH } from "@/lib/physics/modes/fightLeagueRatings"; // --- fl-overhaul --- (Stage 2)
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import type { PhysicsEngine } from "@/lib/physics/engine";
+import { FL_IMPACT_GAP_MS } from "@/lib/physics/modes/fightLeagueFx"; // --- fl-heavy --- (EV_HEAVY's gap per target)
 import { MODE_CARD_ORDER, MODE_CATEGORIES } from "@/lib/modes";
 import { RANGES, defaultSettings, engineSettingKeys, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings, findSimulation, simulateOutcomeRun, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
@@ -563,6 +570,11 @@ describe("fight league rules", () => {
     expect(giantDamage(10, 2, 40, 100, 4, false)).toBe(40);
     expect(giantDamage(10, 2, 60, 100, 4, false)).toBe(20);
     expect(giantDamage(10, 3, 90, 100, 0, true)).toBeCloseTo(50, 9);
+    // --- fl-heavy --- a share of the foe's maximum HP: exactly 50 at HP 100, 57.5 on a 115 HP tank, never under the plain hit
+    expect(giantDamage(4.1, 1, 100, 100, 0, 0.5)).toBe(50);
+    expect(giantDamage(4.1, 1, 115, 115, 0, 0.5)).toBe(57.5);
+    expect(giantDamage(4.1, 1, 30, 100, 0, 0.25)).toBe(25);
+    expect(giantDamage(40, 1, 100, 100, 0, 0.25)).toBe(40);
   });
 
   it("tests every weapon's hit geometry against the foe's circle: blades, heads, fists, cones, rays and shields", () => {
@@ -883,7 +895,8 @@ describe("fight league abilities", () => {
     {
       const { f } = firstCast("captainfalcon");
       expect(f.giantLeft).toBe(1);
-      expect(f.giantMult).toBe(5);
+      expect(f.giantMult).toBe(1); // --- fl-heavy --- (the Falcon Punch is half the foe's maximum HP, no multiplier)
+      expect(f.giantFrac).toBe(0.5);
       mark("giantHit");
     }
     {
@@ -1871,5 +1884,279 @@ describe("fight league messages (en, pl, es)", () => {
       expect(strings).not.toContain(ACCOUNT);
       expect(strings.replace(/[^a-z]+/g, " ")).not.toContain(GAME);
     }
+  });
+});
+
+/* ------------------------------------------------------------------ --- fl-heavy --- (Stop The World) heavy hits */
+
+describe("fight league heavy hits (--- fl-heavy ---: the damage rule, EV_HEAVY, EV_TURN, the EV_KO payload, the cues)", () => {
+  type Ev = { kind: number; t: number; slot: number; value: number; x2: number; y2: number; src: number; aux: number };
+  /** Every event since `serial` with its full payload. */
+  function fullEvents(v: FightLeagueView, serial: number): Ev[] {
+    const out: Ev[] = [];
+    for (let s = Math.max(serial, v.eventSerial - FL_EVENT_CAP); s < v.eventSerial; s++) {
+      const e = v.events[s % FL_EVENT_CAP];
+      out.push({ kind: e.kind, t: e.t, slot: e.slot, value: e.value, x2: e.x2, y2: e.y2, src: e.src, aux: e.aux });
+    }
+    return out;
+  }
+  /** Steps whole frames to `untilMs` (or the fight's end), handing `each` the frame's new events and its sound cues; `true` stops. */
+  function stepFrames(engine: PhysicsEngine, untilMs: number, each: (v: FightLeagueView, events: Ev[], cues: SoundEvent[]) => boolean | void): FightLeagueView {
+    const v = engine.getFightLeagueView();
+    let serial = 0;
+    while (engine.getElapsedMs() < untilMs - 1e-6 && !engine.isSimulationFinished()) {
+      engine.update(STEP, 0);
+      const cues = engine.consumeSoundEvents() as SoundEvent[];
+      const events = fullEvents(v, serial);
+      serial = v.eventSerial;
+      if (each(v, events, cues) === true) break;
+    }
+    return v;
+  }
+  /** `id` against `foe` at the 100 HP setting, `id` casting almost at once (cast speed 40) and the foe never (0.05). */
+  function heavyEngine(id: string, foe: string, seed: number) {
+    return fightEngine({ fighters: [id, foe, "random", "random"], cast: [40, 0.05, 1, 1], hp: 100, timeCap: 0 }, seed);
+  }
+  /**
+   * The first blows of `id`'s ability on `foe` after its first cast: a giant hit's numbers (EV_DAMAGE aux 1 on the foe – never
+   * merged) or an ability source's hits (EV_HIT of slot 0 from source 7: lightning, shockwaves, blinks, beams).
+   */
+  function abilityBlows(id: string, foe: string, seed: number, giant: boolean, count = 3): number[] {
+    const engine = heavyEngine(id, foe, seed);
+    const beam = FL_BY_ID.get(id)!.ability.effects[0].p === "beam"; // (an ability beam is quiet: no EV_HIT – its ticks' numbers, 300 ms apart, never merge)
+    const out: number[] = [];
+    stepFrames(engine, 30_000, (v, events) => {
+      if (v.fighters[0].casts === 0) return;
+      for (const e of events) {
+        if (giant ? e.kind === EV_DAMAGE && e.slot === 1 && e.aux === 1 : beam ? e.kind === EV_DAMAGE && e.slot === 1 && e.src === 7 && e.aux === 0 : e.kind === EV_HIT && e.slot === 0 && e.src === 7) out.push(e.value);
+      }
+      return out.length >= count;
+    });
+    expect([id, out.length > 0]).toEqual([id, true]);
+    return out;
+  }
+
+  it("lands the Falcon Punch for exactly 50 on a 100 HP foe: an ultimate (charge 13, an 850 ms telegraph), a half-bar giant with no ×N, a critical EV_HEAVY and the cues in its tick", () => {
+    const row = FL_BY_ID.get("captainfalcon")!;
+    expect(abilityClass(row.ability)).toBe("ultimate");
+    expect(row.ability.charge).toBe(13);
+    expect(telegraphMs(row.ability)).toBe(850);
+    expect(row.ability.effects).toEqual([{ p: "giantHit", mult: 1, maxHpFrac: 0.5, knockback: 4 }]);
+    const engine = heavyEngine("captainfalcon", "gerald", 1);
+    let before = -1;
+    let punch: Ev | undefined;
+    let heavy: Ev | undefined;
+    let drop = 0;
+    let cueKeys: string[] = [];
+    stepFrames(engine, 30_000, (v, events, cues) => {
+      const foe = v.fighters[1];
+      if (v.fighters[0].casts > 0) {
+        punch = events.find((e) => e.kind === EV_DAMAGE && e.slot === 1 && e.aux === 1);
+        if (punch) {
+          heavy = events.find((e) => e.kind === EV_HEAVY);
+          drop = before - foe.hp;
+          cueKeys = cues.map((c) => `${c.flCue}|${c.flPrim ?? ""}|${c.flRow ?? ""}|${c.flLevel ?? ""}`);
+          return true;
+        }
+      }
+      before = foe.hp;
+    });
+    expect(punch).toBeDefined();
+    expect(punch!.value).toBeCloseTo(50, 6);
+    expect(punch!.x2).toBe(0); // (no gold '×N' beside a share-based number)
+    expect(drop).toBeCloseTo(50, 6);
+    expect(engine.getFightLeagueView().fighters[0].giantLeft).toBe(0);
+    // The heavy event: the target's slot, the amount, the critical tier (0.5 ≥ FL_CRIT_FRAC 0.4), the fists' source, a unit direction.
+    expect(heavy).toBeDefined();
+    expect([heavy!.slot, heavy!.value, heavy!.aux, heavy!.src]).toEqual([1, 50, 1, 0]);
+    expect(Math.hypot(heavy!.x2, heavy!.y2)).toBeCloseTo(1, 6);
+    // The cues of the same 60 Hz tick: the giant hit's thump at full level and the CRITICAL sting.
+    expect(cueKeys).toContain("impact|giantHit||1");
+    expect(cueKeys).toContain("match||critical|");
+  });
+
+  it("deals the table's HP at the 100 HP setting: the share-based giants exactly, the weapons' blows by damage × stat", () => {
+    // Share-based giants (maxHpFrac): the same number at every HP setting and on a tank.
+    for (const [id, foe, hp] of [["saitama", "gerald", 50], ["saitama", "hulk", 57.5], ["littlemac", "gerald", 25], ["ryu", "gerald", 30], ["kazuya", "gerald", 30], ["leesin", "gerald", 25], ["deku", "gerald", 30], ["buzz", "gerald", 30], ["jerry", "gerald", 25], ["ghostface", "gerald", 25]] as const) {
+      const blows = abilityBlows(id, foe, 1, true, 1);
+      expect([id, blows[0]]).toEqual([id, hp]);
+    }
+    // Ken's three hits of a tenth of the bar.
+    expect(abilityBlows("ken", "gerald", 1, true, 3)).toEqual([10, 10, 10]);
+    // Pre-stat damage set so the blow lands at its band under the row's stat (re-aimed after the tunes moved the stats: the
+    // Spin Attack 20.0 at 0.88, the Hand Slap 20.0 at 0.65, Spirit Rush kept at 3 × 8.8 (3 × 10 lifts her to 82 % in the circle), Spinning Slash 5 × 5, Chidori 4 × 6, Final
+    // Flash 7.0 a tick, Kamehameha 5.8 a tick; Omnislash 5 × 5.4 pays for Cloud's 75 % circle share in the row).
+    for (const [id, hp] of [["hulk", 25.0008], ["thanos", 25.2], ["akuma", 40.0017], ["zeus", 19.992], ["pikachu", 19.992], ["bakugo", 25.0047], ["donkeykong", 20.02], ["link", 19.976], ["steve", 25.0002], ["ahri", 8.832], ["levi", 5.0028], ["cloud", 5.4], ["sasuke", 5.994], ["enderman", 7], ["vegeta", 7.018], ["goku", 5.797]] as const) {
+      const blows = abilityBlows(id, "gerald", 1, false, 1);
+      expect([id, blows[0]]).toEqual([id, expect.closeTo(hp, 4)]);
+    }
+    // The heavy tier at today's stats: Hulk Smash, The Snap, Howitzer Impact and TNT reach a quarter of a 100 HP bar; Zeus' Fury, Thunderbolt, Hand Slap and the Spin Attack stay under it.
+    for (const [id, heavy] of [["hulk", true], ["thanos", true], ["bakugo", true], ["steve", true], ["akuma", true], ["zeus", false], ["pikachu", false], ["donkeykong", false], ["link", false]] as const) {
+      const row = FL_BY_ID.get(id)!;
+      const e = row.ability.effects[0] as { damage: number };
+      expect([id, e.damage * row.stats.damage >= 25]).toEqual([id, heavy]);
+    }
+  });
+
+  it("lands the Shoryuken's 30 on a Hadouken that carries the charge (the projectile path reads the share)", () => {
+    const values: number[] = [];
+    for (const seed of [1, 2, 3]) {
+      const engine = heavyEngine("ryu", "gerald", seed);
+      stepFrames(engine, 30_000, (v, events) => {
+        for (const e of events) if (e.kind === EV_DAMAGE && e.slot === 1 && e.aux === 1 && e.src === 1) values.push(e.value); // (source 1: the gun)
+        return values.length > 0;
+      });
+    }
+    expect(values.length).toBeGreaterThan(0);
+    for (const x of values) expect(x).toBe(30);
+  });
+
+  it("keeps every changed charge in its class and marks the heavy abilities (flHeavyAbility)", () => {
+    for (const [id, charge, ultimate] of [["captainfalcon", 13, true], ["akuma", 13, true], ["saitama", 14, true], ["hulk", 12, false], ["littlemac", 10, false], ["ryu", 10, false], ["ken", 10, false], ["kazuya", 10, false], ["leesin", 10, false], ["deku", 10, false], ["enderman", 10, false], ["link", 8, false], ["thor", 11, false], ["pikachu", 11, false], ["luke", 11, false]] as const) {
+      const a = FL_BY_ID.get(id)!.ability;
+      expect([id, a.charge, !!a.ultimate]).toEqual([id, charge, ultimate]);
+      const [lo, hi] = FL_CHARGE_RANGE[abilityClass(a)];
+      expect([id, a.charge >= lo && a.charge <= hi]).toEqual([id, true]);
+    }
+    for (const id of ["captainfalcon", "saitama", "ryu", "littlemac", "kazuya", "deku", "leesin", "buzz", "jerry", "ghostface", "akuma", "thanos", "vegeta"]) expect([id, flHeavyAbility(FL_BY_ID.get(id)!.ability)]).toEqual([id, true]);
+    for (const id of ["ken", "thor", "hulk", "batman", "johnwick", "loki"]) expect([id, flHeavyAbility(FL_BY_ID.get(id)!.ability)]).toEqual([id, false]);
+    expect(flHeavyAbility({ effects: [{ p: "giantHit", mult: 3, halfMaxHp: true }] })).toBe(true);
+    expect(flHeavyAbility({ effects: [{ p: "giantHit", mult: 3 }] })).toBe(false);
+  });
+
+  it("pushes EV_HEAVY for a heavy or lethal blow only: the target's slot and amount, the tier, the unit direction, at most one per target every FL_IMPACT_GAP_MS", () => {
+    let heavies = 0;
+    let lethal = 0;
+    for (const seed of [1, 2, 3]) {
+      const engine = heavyEngine("captainfalcon", "gerald", seed);
+      const lastBySlot = new Map<number, number>();
+      let hpBefore = [0, 0];
+      stepFrames(engine, 60_000, (v, events) => {
+        for (const e of events) {
+          if (e.kind !== EV_HEAVY) continue;
+          heavies++;
+          const target = v.fighters[e.slot];
+          const share = e.value / target.maxHp;
+          expect(Math.hypot(e.x2, e.y2)).toBeCloseTo(1, 6);
+          expect(e.src).toBeGreaterThanOrEqual(0);
+          if (e.aux === 2) {
+            lethal++;
+            expect(target.hp).toBe(0);
+          } else {
+            expect(share).toBeGreaterThanOrEqual(0.25);
+            expect(e.aux).toBe(share >= 0.4 ? 1 : 0);
+            const last = lastBySlot.get(e.slot);
+            if (last !== undefined) expect(e.t - last).toBeGreaterThanOrEqual(FL_IMPACT_GAP_MS - 1e-6);
+            lastBySlot.set(e.slot, e.t);
+          }
+        }
+        // A plain hit under the tier pushes none: Gerald's 7-damage fists on Falcon never show up unless they finish him.
+        for (const e of events) if (e.kind === EV_HEAVY && e.slot === 0 && e.aux !== 2) expect(e.value).toBeGreaterThanOrEqual(25);
+        hpBefore = [v.fighters[0].hp, v.fighters[1].hp];
+      });
+      void hpBefore;
+    }
+    expect(heavies).toBeGreaterThanOrEqual(3);
+    expect(lethal).toBeGreaterThanOrEqual(1);
+  });
+
+  it("pushes one EV_TURN per lead flip on a big hit, with the 'comeback' match cue in the same tick, never twice within FL_TURN_GAP_MS for one attacker", () => {
+    let turns = 0;
+    let clutch = 0;
+    for (const seed of [1, 2, 3, 4, 5, 6]) {
+      for (const pair of [["captainfalcon", "gerald"], ["saitama", "loki"]] as const) {
+        const engine = fightEngine({ fighters: [pair[0], pair[1], "random", "random"], cast: [8, 1, 1, 1], hp: 100, timeCap: 0 }, seed);
+        const lastBySlot = new Map<number, number>();
+        let changes = 0;
+        stepFrames(engine, 90_000, (v, events, cues) => {
+          const es = events.filter((e) => e.kind === EV_TURN);
+          expect(es.length).toBeLessThanOrEqual(1);
+          for (const e of es) {
+            turns++;
+            const a = v.fighters[e.slot];
+            expect(a.team).toBe(v.leadSide);
+            expect(e.value).toBeGreaterThan(0);
+            expect(e.value).toBeLessThanOrEqual(1);
+            expect(e.src).toBe((e.slot & 7) * 8 + 7);
+            expect(e.aux).toBe(a.hp < 0.25 * a.maxHp ? 1 : 0);
+            if (e.aux === 1) clutch++;
+            const last = lastBySlot.get(e.slot);
+            if (last !== undefined) expect(e.t - last).toBeGreaterThanOrEqual(2500 - 1e-6);
+            lastBySlot.set(e.slot, e.t);
+            expect(cues.some((c) => c.flCue === "match" && c.flRow === "comeback" && c.flFighter === e.slot)).toBe(true);
+          }
+          if (es.length > 0) changes = v.story.leadChanges;
+        });
+        const v = engine.getFightLeagueView();
+        expect(v.story.leadChanges).toBeGreaterThanOrEqual(changes > 0 ? 1 : 0);
+      }
+    }
+    expect(turns).toBeGreaterThanOrEqual(2);
+    void clutch;
+  });
+
+  it("carries the finishing blow in EV_KO (value: the victim's last hit, src: the killer) – Thor vs Loki seed 7, no re-record", () => {
+    const engine = fightEngine({}, 7);
+    const kos: Ev[] = [];
+    let victim: { lastHitAmount: number; lastHitBy: number } | undefined;
+    stepFrames(engine, 18_000, (v, events) => {
+      for (const e of events) {
+        if (e.kind !== EV_KO) continue;
+        kos.push(e);
+        victim = { lastHitAmount: v.fighters[e.slot].lastHitAmount, lastHitBy: v.fighters[e.slot].lastHitBy };
+      }
+    });
+    expect(kos).toHaveLength(1);
+    const ko = kos[0];
+    expect(ko.slot).toBe(1); // Loki falls
+    expect(ko.value).toBeGreaterThan(0);
+    expect(ko.value).toBe(victim!.lastHitAmount);
+    expect(ko.value).toBeCloseTo(14.74, 2);
+    expect(ko.src >> 3).toBe(victim!.lastHitBy);
+    expect(ko.src).toBe(7); // Thor (slot 0) × 8 + 7: an ability's source
+    expect(ko.aux).toBe(1); // the final KO
+  });
+
+  it("thumps a heavy weapon blow (Hulk Smash: urgent impact, giantHit, level 1 – silent before) and keeps the lethal blow's critical for the KO stings", () => {
+    const engine = heavyEngine("hulk", "gerald", 1);
+    let thump = false;
+    let critical = 0;
+    stepFrames(engine, 30_000, (v, events, cues) => {
+      if (!events.some((e) => e.kind === EV_HIT && e.slot === 0 && e.src === 7)) return;
+      thump = cues.some((c) => c.flCue === "impact" && c.flPrim === "giantHit" && c.flLevel === 1 && c.flFighter === 0);
+      critical += cues.filter((c) => c.flCue === "match" && c.flRow === "critical").length;
+      return true;
+    });
+    expect(thump).toBe(true);
+    expect(critical).toBe(0); // (25.0008 is heavy, not critical)
+    // The lethal blow: its EV_HEAVY is aux 2 and no 'critical' sting rides it.
+    const e2 = heavyEngine("captainfalcon", "gerald", 1);
+    let lethalCritical = 0;
+    let lethalSeen = false;
+    stepFrames(e2, 60_000, (v, events, cues) => {
+      if (events.some((e) => e.kind === EV_HEAVY && e.aux === 2 && e.slot === 1)) {
+        lethalSeen = true;
+        lethalCritical += cues.filter((c) => c.flCue === "match" && c.flRow === "critical").length;
+        return true;
+      }
+    });
+    expect(lethalSeen).toBe(true);
+    expect(lethalCritical).toBe(0);
+  });
+
+  it("replays a heavy-hit fight exactly at 60, 144 and 30 fps (the heavy events never touch the rules or the RNG)", () => {
+    const print = (frame: number) => {
+      const engine = fightEngine({ fighters: ["captainfalcon", "saitama", "random", "random"], hp: 100, timeCap: 60 }, 3);
+      while (engine.getElapsedMs() < 25_000 - 1e-6) {
+        engine.update(frame, 0);
+        engine.consumeSoundEvents();
+      }
+      const v = engine.getFightLeagueView();
+      const heavies = fullEvents(v, 0).filter((e) => e.kind === EV_HEAVY).map((e) => `${e.t.toFixed(3)}:${e.slot}:${e.value.toFixed(3)}:${e.aux}`);
+      return `${fingerprint(v)}|${heavies.join(",")}`;
+    };
+    const prints = [STEP, 1000 / 144, 1000 / 30].map(print);
+    expect(new Set(prints).size).toBe(1);
+    expect(prints[0].split("|")[1].length).toBeGreaterThan(0); // (a heavy blow landed in the recorded 25 s)
   });
 });

@@ -1,5 +1,5 @@
 import type { FightLeagueView, FlArenaStyle, FlStage } from "@/lib/physics/modes/fightLeague";
-import { FL_FLOOR, FL_INK, flHexRgb, flLuminance, flNameColor } from "@/lib/physics/modes/fightLeagueFx";
+import { FL_FLOOR, FL_INK, flHexRgb, flLighten, flLuminance, flNameColor } from "@/lib/physics/modes/fightLeagueFx";
 import type { FlDivision } from "@/lib/physics/modes/fightLeagueRoster";
 
 /**
@@ -244,6 +244,41 @@ export function withAlpha(color: string, alpha: number): string {
 export function luminance(color: string): number {
   if (!/^#[0-9a-f]{6}$/i.test(color)) return 1;
   return flLuminance(color);
+}
+
+/** The arena rim's width (world px) on a stage, for an arena of `side` world px – as the plate strokes it (a thin white line on noir). */
+export function rimWidth(pal: FlStagePalette, side: number): number {
+  return Math.max(pal.noir ? 1.5 : 2, pal.rimK * side);
+}
+
+/** --- fl-heavy --- An accent reads on the noir stage's black from this luminance up (23 of the roster's accents are darker). */
+export const FL_NOIR_ACCENT_LUMINANCE = 0.3;
+const noirAccents = new Map<string, string>();
+
+/**
+ * --- fl-heavy --- (Stop The World) A row's accent as the noir stage draws it: the accent itself when its luminance is
+ * FL_NOIR_ACCENT_LUMINANCE or more, else lightened toward white (like `noirBodyColor()`) until it is – so a number's
+ * stroke, a shock ring, a rim sweep or a wind-up ring never vanishes on black (littlemac's #111827, hulk's #6b21a8).
+ * Memoised per accent: no string is built a frame.
+ */
+export function flNoirAccent(row: { accent: string }): string {
+  const accent = row.accent;
+  const hit = noirAccents.get(accent);
+  if (hit !== undefined) return hit;
+  let out = accent;
+  if (/^#[0-9a-f]{6}$/i.test(accent) && flLuminance(accent) < FL_NOIR_ACCENT_LUMINANCE) {
+    out = "#ffffff";
+    for (let k = 0.05; k <= 1.0001; k += 0.05) {
+      const c = flLighten(accent, k);
+      if (flLuminance(c) >= FL_NOIR_ACCENT_LUMINANCE) {
+        out = c;
+        break;
+      }
+    }
+  }
+  if (noirAccents.size > 512) noirAccents.clear();
+  noirAccents.set(accent, out);
+  return out;
 }
 
 /** A grey of the same lightness (the loser's panel, a disarmed weapon). */

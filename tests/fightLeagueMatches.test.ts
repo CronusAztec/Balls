@@ -821,9 +821,12 @@ describe("fight league show replays", () => {
   const FORMATS: { name: string; fl: Fl; atMs: number; golden: string }[] = [
     { name: "1v1", fl: { fighters: THOR_LOKI }, atMs: 18_000, golden: "493c5dc1" },
     { name: "Bo3", fl: BO3, atMs: 45_000, golden: "60514b05" },
-    { name: "8-bracket", fl: BRACKET8, atMs: 70_000, golden: "15844e95" },
-    { name: "boss rush", fl: BOSS, atMs: 60_000, golden: "96e21cc0" },
-    { name: "3v3", fl: TRIO, atMs: 20_000, golden: "5e82349a" },
+    // --- fl-heavy --- (Stop The World) the 8-bracket, boss rush and 3v3 goldens re-recorded (Received values pasted): the bracket
+    // and the rush draw random fighters from the retuned rows and the Avengers 3v3 fields Thanos (The Snap 30, fists 9) and faces
+    // Hulk's division; Thor vs Loki (1v1, Bo3) are untouched and keep their hashes.
+    { name: "8-bracket", fl: BRACKET8, atMs: 70_000, golden: "86d50abf" },
+    { name: "boss rush", fl: BOSS, atMs: 60_000, golden: "e5048605" },
+    { name: "3v3", fl: TRIO, atMs: 20_000, golden: "20c26aee" },
   ];
 
   it("replays every format exactly at 60, 144 and 30 fps", { timeout: 180_000 }, () => {

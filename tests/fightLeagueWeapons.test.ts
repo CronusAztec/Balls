@@ -428,6 +428,8 @@ describe("fight league fair hit pipeline", () => {
     expect(telegraphMs(ab("thor"))).toBe(C.standard);
     expect(telegraphMs(ab("hulk"))).toBe(C.area);
     expect(telegraphMs(ab("voldemort"))).toBe(C.ultimate);
+    expect(telegraphMs(ab("captainfalcon"))).toBe(C.ultimate); // --- fl-heavy --- (the Falcon Punch: an ultimate, 850 ms)
+    expect(telegraphMs(ab("captainfalcon"))).toBe(850);
     expect(telegraphMs({ charge: 9, ultimate: true, effects: [{ p: "speedBurst" }] })).toBe(C.ultimate);
     // Dodges: over a few duels against Hulk Smash some foe got out of the area during its telegraph.
     let dodges = 0;

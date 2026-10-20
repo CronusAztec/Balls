@@ -20,6 +20,7 @@ Merge Ring and Spiral Glass join the modes
 ### Improved
 
 - Fight League opens on a new noir stage. A black arena with a white outline, the weapons and a pixel title above it, a stats block below, and every hit bursts into white particles, debris and sparks.
+- Fight League hits harder. A Falcon Punch takes half the foe's health in one blow. Every big hit freezes the frame, rings the arena and slams a huge number on screen.
 
 ## Windows app 1.4.1 · 2026-10-19
 

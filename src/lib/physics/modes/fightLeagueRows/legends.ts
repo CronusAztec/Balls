@@ -83,7 +83,7 @@ export const FL_ROWS_LEGENDS: readonly FlFighterRow[] = [
     accent: "#facc15",
     weapons: [{ kind: "gun", shape: "bolt", cooldown: 1.2, damage: 6, speed: 1.8, spread: 1, color: "#facc15" }],
     stats: S({ hp: 110, damage: 1.02 }),
-    ability: { name: "Zeus' Fury", charge: 11, effects: [{ p: "lightning", damage: 14 }] },
+    ability: { name: "Zeus' Fury", charge: 11, effects: [{ p: "lightning", damage: 19.6 }] }, // --- fl-heavy --- (20 per foe at the 1.02 stat)
     description: "The king of Olympus hurls thunderbolts; Zeus' Fury strikes every foe at once.",
     role: "ranged",
     isNew: true,
@@ -114,7 +114,7 @@ export const FL_ROWS_LEGENDS: readonly FlFighterRow[] = [
     accent: "#cbd5e1",
     weapons: [{ kind: "sword", reach: 2.3, cooldown: 0.55, damage: 12, knockback: 1.2, size: 0.3, look: "greatsword", color: "#cbd5e1" }],
     stats: S({ hp: 105, damage: 0.6 }),
-    ability: { name: "Omnislash", charge: 10, effects: [{ p: "blinkStrike", n: 5, damage: 6 }] },
+    ability: { name: "Omnislash", charge: 10, effects: [{ p: "blinkStrike", n: 5, damage: 9 }] }, // --- fl-heavy --- (5 × 5.4 at the 0.6 stat: 10 sat him exactly on the 75 % edge of the circle gate, 9 pays in the row)
     description: "A giant sword, slow and crushing; Omnislash dashes through the nearest foe five times.",
     role: "bruiser",
     isNew: true,

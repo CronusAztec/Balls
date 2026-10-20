@@ -46,6 +46,8 @@ export interface FightLeagueLabels {
   immune: string;
   interrupted: string;
   clash: string;
+  /** --- fl-heavy --- (Stop The World) The callout over a critical blow (a hit of FL_CRIT_FRAC of the foe's maximum HP or more). */
+  critical: string;
   /** "[n] HITS" (a combo). */
   combo: (n: number) => string;
   /** The bottom plate during sudden death. */
@@ -188,11 +190,21 @@ export class FlFrame {
   noirK = 1;
   noirDx = 0;
   noirDy = 0;
-  /** The finale's push-in: its scale around (zoomX, zoomY) (1: none). */
+  /** The finale's push-in and --- fl-heavy --- the heavy hit's zoom punch: the scale around (zoomX, zoomY) (1: none). */
   zoomK = 1;
   zoomX = 0;
   zoomY = 0;
   lite = false;
+  /**
+   * --- fl-heavy --- (Stop The World) The noir ink flip: for FL_KO_FLIP_MS after the lethal blow the arena fills white, the
+   * rim and every disc ink, the HP digits white (noir only, never under reduced motion or with Impact Frames off).
+   */
+  flip = false;
+  /**
+   * --- fl-heavy --- The noir opener's clock: ms since the match's intro started (fr.now − (introMs − FL_INTRO_MS)) while the
+   * noir stage is in its intro; Infinity on the other stages and once the intro is over.
+   */
+  openerAge = Infinity;
   /**
    * Draws a projectile-shaped sprite (`shape` of radius `pr` in `color`, the owner `f`'s palette) at (x, y) along `angle`
    * – the projectiles' painter, handed to the weapons' (orbiting cards, a bomb in the hand, a portrait's shot).

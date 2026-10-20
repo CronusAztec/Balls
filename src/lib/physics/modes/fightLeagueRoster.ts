@@ -455,6 +455,24 @@ export function abilityClass(ability: Pick<FlAbility, "ultimate" | "effects">): 
   return "standard";
 }
 
+/**
+ * --- fl-heavy --- (Stop The World) The heavy tier: a hit worth this share of the foe's maximum HP or more is a heavy hit
+ * ("aux 0 heavy (amount >= 0.25 x target.maxHp)"). Defined here beside `flHeavyAbility()` and re-exported by fightLeagueFx.ts
+ * with its sibling constants: the roster may not import fightLeagueFx.ts, which imports the mode, which reads FL_ROSTER and
+ * FL_DIVISIONS as it loads (a cycle a roster-first import would trip over).
+ */
+export const FL_HEAVY_FRAC = 0.25;
+
+/**
+ * --- fl-heavy --- (Stop The World) Whether an ability carries a heavy blow the renderer winds up (the ability's name slammed at
+ * the telegraph's start, three converging accent rings, the ARMED ring over a loaded punch): an ultimate, or a giant hit worth
+ * `FL_HEAVY_FRAC` of the foe's maximum HP or more (its existing `maxHpFrac`, or the old `halfMaxHp` flag: 0.5). Data only: no
+ * rule reads it.
+ */
+export function flHeavyAbility(a: Pick<FlAbility, "ultimate" | "effects">): boolean {
+  return !!a.ultimate || a.effects.some((e) => e.p === "giantHit" && (e.maxHpFrac ?? (e.halfMaxHp ? 0.5 : 0)) >= FL_HEAVY_FRAC);
+}
+
 /* ------------------------------------------------------------------ rows */
 
 export interface FlStats {

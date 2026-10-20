@@ -24,7 +24,7 @@ export const FL_ROWS_POKEMON: readonly FlFighterRow[] = [
     accent: "#ef4444",
     weapons: [{ kind: "spark", reach: 2.8, cooldown: 0.75, damage: 5, color: "#fde047" }],
     stats: S({ hp: 95, speed: 1.3, damage: 1.19, size: 0.85 }),
-    ability: { name: "Thunderbolt", charge: 11, effects: [{ p: "lightning", damage: 13 }] },
+    ability: { name: "Thunderbolt", charge: 11, effects: [{ p: "lightning", damage: 16.8 }] }, // --- fl-heavy --- (20 per foe at the 1.19 stat)
     description: "Short electric arcs at any foe in range; Thunderbolt strikes every foe with lightning.",
     role: "glass",
     isNew: false,

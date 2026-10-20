@@ -1,5 +1,6 @@
 import {
   EV_CAST,
+  EV_HEAVY,
   EV_HIT,
   EV_IMPACT,
   EV_KO,
@@ -9,10 +10,28 @@ import {
   FB_PERFECT,
   FL_BANNER_CAP,
   FL_EVENT_CAP,
+  FL_INTRO_MS,
   type FightLeagueView,
   type FlFighter,
 } from "@/lib/physics/modes/fightLeague";
-import { FL_MAX_SLOTS, FL_SHAKES, flEffectNow, flImpactBlend, flHudLayout, flShakeAt, flShakeStrength, flNameColor, type FlHudLayout } from "@/lib/physics/modes/fightLeagueFx";
+import {
+  FL_HEAVY_ZOOM_MS,
+  FL_HITSTOP_FACTOR,
+  FL_HITSTOP_KO_MS,
+  FL_HITSTOP_MS,
+  FL_KO_FLIP_MS,
+  FL_MAX_SLOTS,
+  FL_OPENER_MS,
+  FL_SHAKES,
+  flEffectNow,
+  flHeavyZoom,
+  flImpactBlend,
+  flHudLayout,
+  flShakeAt,
+  flShakeStrength,
+  flNameColor,
+  type FlHudLayout,
+} from "@/lib/physics/modes/fightLeagueFx";
 import { FL_DIVISION_LABELS, type FlDivision } from "@/lib/physics/modes/fightLeagueRoster";
 import type { Ball } from "@/lib/physics/types";
 import type { RecordingCrop } from "@/lib/recording/recorder";
@@ -25,7 +44,7 @@ import { FlFxPainter } from "./fightLeague/fx";
 import { FlHudPainter } from "./fightLeague/hud";
 import { DEFAULT_FL_STATE_LABELS, FL_NOIR_ARENA_FRAC, FL_NOIR_ARENA_TOP, FlNoirHudPainter } from "./fightLeague/noir"; // --- fl-noir ---
 import { FL_ARENA_FRAC } from "@/lib/physics/modes/fightLeague";
-import { arenaLook, matchDivision, stagePalette } from "./fightLeague/palette";
+import { INK, arenaLook, matchDivision, rimWidth, stagePalette } from "./fightLeague/palette";
 import { drawPlates } from "./fightLeague/plates";
 import { FlProjectilesPainter } from "./fightLeague/projectiles";
 import { FlStagePainter } from "./fightLeague/stage";
@@ -61,6 +80,14 @@ import { flRoundShort } from "@/lib/physics/modes/fightLeagueShow";
  *
  * Every pixel is a function of the view, its simulation clock and the options: the effects run on the effects' clock (the
  * finale's warp), randomness only through the analytic hash, no wall clock.
+ *
+ * --- fl-heavy --- (Stop The World) The heavy hits (EV_HEAVY) and lead turns (EV_TURN) the mode pushes: `cameraCue()` hands
+ * the page the hit stop (a wall-clock dip of the page camera, 90 ms, 150 on the lethal blow: the engine's clock never
+ * freezes); `begin()` finds the newest heavy hit for the zoom punch about its impact point (`flHeavyZoom()`, with the
+ * finale's push-in never past 1.2) and the noir ink flip (`fr.flip`, FL_KO_FLIP_MS after a lethal blow); `drawStage()` paints
+ * the flip (the arena white, the rim ink); `drawBodies()` adds the ARMED ring and the white wash under the HP numbers; the
+ * noir opener offsets where the discs are drawn for their first FL_OPENER_MS (sliding in from outside the arena). The effects
+ * themselves are fx.ts's, the discs' swell, heartbeat and squash bodies.ts's. data-fl-hitstops counts the cues.
  */
 
 export type { FightLeagueLabels, FightLeagueRenderOptions };
@@ -93,6 +120,7 @@ export const DEFAULT_FIGHT_LEAGUE_LABELS: FightLeagueLabels = {
   immune: "IMMUNE",
   interrupted: "INTERRUPTED!",
   clash: "CLASH!",
+  critical: "CRITICAL!", // --- fl-heavy ---
   combo: (n) => `${n} HITS`,
   suddenDeath: "SUDDEN DEATH",
   whoWins: "WHO WINS?",
@@ -106,6 +134,19 @@ export const DEFAULT_FIGHT_LEAGUE_LABELS: FightLeagueLabels = {
 
 /** The arena unit's share of the field (the effects' size), as the mode uses it. */
 const UNIT_FRAC = 0.065;
+
+/**
+ * --- fl-heavy --- (Stop The World) The camera's cue for a frame: the page camera's slow-motion dip (`cam.dip(dipMs, factor)`)
+ * that is the heavy hit's hit stop – a freeze through the page's wall clock, never the engine's: 90 real ms at factor 0.05
+ * (about 26 ms of simulation, 1 to 2 fixed steps, pass inside it), 150 ms on the lethal blow.
+ */
+export interface FlCameraCue {
+  dipMs: number;
+  factor: number;
+}
+
+/** easeOutCubic on [0, 1]. */
+const easeOutCubic = (u: number) => 1 - (1 - Math.max(0, Math.min(1, u))) ** 3;
 
 export class FightLeagueLayer {
   private readonly fr = new FlFrame();
@@ -155,6 +196,11 @@ export class FightLeagueLayer {
   shakes = 0;
   platesShown = false;
   debugOn = false;
+  /** --- fl-heavy --- Hit stops (camera dips) cued this run (data-fl-hitstops), the event serial `cameraCue()` has read up to and its generation. */
+  hitstops = 0;
+  private heavySerial = 0;
+  private cueGeneration = -1;
+  private readonly cue: FlCameraCue = { dipMs: FL_HITSTOP_MS, factor: FL_HITSTOP_FACTOR };
 
   /** The body colour of a fighter ball (the ball faces). */
   readonly bodyColor = (ball: { id: number }): string => {
@@ -191,10 +237,43 @@ export class FightLeagueLayer {
   get noirOn(): boolean {
     return this.fr.pal.noir;
   }
+  /** --- fl-heavy --- Whether the frame draws the noir ink flip (the lethal blow's FL_KO_FLIP_MS). */
+  get flipOn(): boolean {
+    return this.fr.flip;
+  }
 
   /** The page's measure of a frame's drawBodies + drawOverlay (ms): a moving average (no clock in the renderer). */
   noteRenderMs(ms: number) {
     if (Number.isFinite(ms) && ms >= 0) this.renderMs = this.renderMs === 0 ? ms : 0.9 * this.renderMs + 0.1 * ms;
+  }
+
+  /**
+   * --- fl-heavy --- (Stop The World) Once a frame after the physics steps (Canvas.tsx, beside the String Battle duel's cue):
+   * the camera's hit stop for the heavy hits that appeared since the last call – the longest of the frame, FL_HITSTOP_KO_MS
+   * for a lethal blow (aux 2) else FL_HITSTOP_MS, at FL_HITSTOP_FACTOR – or null when nothing new landed, under reduced
+   * motion or with Impact Frames off (`view.settings.impact === false`). The serial it has read up to starts over with a new
+   * generation and follows a rewind (like the particles' `seen`). Counted in `hitstops` (data-fl-hitstops). Never called by
+   * the headless tests' engine loop: the engine's clock, fingerprints and replays never see the dip.
+   */
+  cameraCue(view: FightLeagueView, reducedMotion: boolean): FlCameraCue | null {
+    if (view.generation !== this.cueGeneration) {
+      this.cueGeneration = view.generation;
+      this.heavySerial = 0;
+      this.hitstops = 0;
+    }
+    if (view.eventSerial < this.heavySerial) this.heavySerial = view.eventSerial;
+    let dip = 0;
+    for (let s = Math.max(this.heavySerial, view.eventSerial - FL_EVENT_CAP); s < view.eventSerial; s++) {
+      const e = view.events[s % FL_EVENT_CAP];
+      if (e.kind !== EV_HEAVY) continue;
+      dip = Math.max(dip, e.aux === 2 ? FL_HITSTOP_KO_MS : FL_HITSTOP_MS);
+    }
+    this.heavySerial = view.eventSerial;
+    if (!(dip > 0) || reducedMotion || view.settings.impact === false) return null;
+    this.hitstops++;
+    this.cue.dipMs = dip;
+    this.cue.factor = FL_HITSTOP_FACTOR;
+    return this.cue;
   }
 
   /** Once per frame (any entry point): the clocks, the scales, the palette, where every fighter is drawn. */
@@ -273,6 +352,10 @@ export class FightLeagueLayer {
         }
       }
     }
+    // --- fl-heavy --- the noir opener's clock: ms since the match's intro started, on noir and while the intro runs
+    const introAge = now - (view.introMs - FL_INTRO_MS);
+    fr.openerAge = fr.pal.noir && introAge >= 0 && introAge < FL_INTRO_MS + 100 ? introAge : Infinity;
+    const slideIn = field && fr.openerAge < FL_OPENER_MS ? (1 - easeOutCubic(fr.openerAge / FL_OPENER_MS)) * 1.3 * field.half : 0;
     for (const f of view.fighters) {
       if (f.slot >= FL_MAX_SLOTS) continue;
       let x = fin && f.alive ? f.finX : f.x;
@@ -283,12 +366,60 @@ export class FightLeagueLayer {
         x = fr.heldX[f.slot] + (x - fr.heldX[f.slot]) * k;
         y = fr.heldY[f.slot] + (y - fr.heldY[f.slot]) * k;
       }
+      if (slideIn > 0 && f.alive && field) {
+        // the noir opener: the disc slides in from 1.3 × half outside the arena along the vector from the centre through it
+        let nx = f.x - field.cx;
+        let ny = f.y - field.cy;
+        const d = Math.hypot(nx, ny);
+        if (d > 1e-6) {
+          nx /= d;
+          ny /= d;
+        } else {
+          nx = 0;
+          ny = -1;
+        }
+        x += nx * slideIn;
+        y += ny * slideIn;
+      }
       fr.dx[f.slot] = x;
       fr.dy[f.slot] = y;
     }
-    fr.zoomK = fin ? this.fx.zoomAt(view, now) : 1;
-    fr.zoomX = view.finale.x;
-    fr.zoomY = view.finale.y;
+    // --- fl-heavy --- the newest heavy hit: the zoom punch about its impact point (beside the finale's push-in, never past
+    // 1.2 together) and the noir ink flip for FL_KO_FLIP_MS real ms after a lethal blow
+    let punch = 1;
+    let px = view.finale.x;
+    let py = view.finale.y;
+    fr.flip = false;
+    const impactOn = view.settings.impact !== false && !o.reducedMotion;
+    {
+      // (in serial order: of two heavy hits in one step the later push is the newest)
+      let newest = -Infinity;
+      for (let s = Math.max(0, view.eventSerial - FL_EVENT_CAP); s < view.eventSerial; s++) {
+        const e = view.events[s % FL_EVENT_CAP];
+        if (e.kind !== EV_HEAVY) continue;
+        if (e.aux === 2 && fr.pal.noir && impactOn) {
+          const real = now - e.t;
+          if (real >= 0 && real < FL_KO_FLIP_MS) fr.flip = true;
+        }
+        if (e.t < newest || !impactOn) continue; // (no zoom punch with Impact Frames off or under reduced motion, like the dip and the flip)
+        const fxAge = fr.fxNow - flEffectNow(view, e.t);
+        if (fxAge >= 0 && fxAge < FL_HEAVY_ZOOM_MS) {
+          newest = e.t;
+          punch = flHeavyZoom(fxAge, e.aux === 2);
+          px = e.x;
+          py = e.y;
+        }
+      }
+    }
+    if (fin) {
+      fr.zoomK = Math.min(1.2, this.fx.zoomAt(view, now) * punch);
+      fr.zoomX = view.finale.x;
+      fr.zoomY = view.finale.y;
+    } else {
+      fr.zoomK = punch;
+      fr.zoomX = px;
+      fr.zoomY = py;
+    }
   }
 
   /* ------------------------------------------------------------------ the stage */
@@ -313,7 +444,7 @@ export class FightLeagueLayer {
       const from = Math.max(this.shakeSerial, view.eventSerial - FL_EVENT_CAP);
       for (let s = from; s < view.eventSerial; s++) {
         const e = view.events[s % FL_EVENT_CAP];
-        if ((e.kind === EV_HIT && e.value >= FL_SHAKES.hit.minDamage) || e.kind === EV_SLAM || e.kind === EV_KO || (e.kind === EV_SHOCK && e.aux <= 1) || (e.kind === EV_CAST && e.aux === 1)) this.shakes++;
+        if ((e.kind === EV_HIT && e.value >= FL_SHAKES.hit.minDamage) || e.kind === EV_SLAM || e.kind === EV_KO || (e.kind === EV_SHOCK && e.aux <= 1) || (e.kind === EV_CAST && e.aux === 1) || e.kind === EV_HEAVY /* --- fl-heavy --- */) this.shakes++;
       }
     }
     this.shakeSerial = view.eventSerial;
@@ -344,6 +475,21 @@ export class FightLeagueLayer {
     ctx.save();
     ctx.globalAlpha = 1;
     this.stagePainter.drawPlate(ctx, this.fr, view);
+    if (this.fr.flip) {
+      // --- fl-heavy --- the noir ink flip: the arena white, its rim ink at the plate's rim width (the discs fill ink too)
+      const rim = rimWidth(this.fr.pal, 2 * (field.fullHalf > 0 ? field.fullHalf : field.half));
+      ctx.fillStyle = "#ffffff";
+      ctx.strokeStyle = INK;
+      ctx.lineWidth = rim;
+      ctx.beginPath();
+      if (field.kind === "circle") ctx.arc(field.cx, field.cy, field.half, 0, TWO_PI);
+      else ctx.rect(field.cx - field.half, field.cy - field.half, 2 * field.half, 2 * field.half);
+      ctx.fill();
+      ctx.beginPath();
+      if (field.kind === "circle") ctx.arc(field.cx, field.cy, field.half + rim / 2, 0, TWO_PI);
+      else ctx.rect(field.cx - field.half - rim / 2, field.cy - field.half - rim / 2, 2 * field.half + rim, 2 * field.half + rim);
+      ctx.stroke();
+    }
     ctx.save();
     ctx.beginPath();
     if (field.kind === "circle") ctx.arc(field.cx, field.cy, field.half, 0, TWO_PI);
@@ -395,6 +541,7 @@ export class FightLeagueLayer {
     }
     // held shields go in front of their fighter (counted with the weapons drawn)
     for (const f of view.fighters) if (f.alive) weapons += this.weapons.drawShields(ctx, fr, f, fr.x(f), fr.y(f));
+    this.fx.drawArmed(ctx, fr, view); // --- fl-heavy --- the ARMED ring over a loaded heavy punch
     this.projectilesDrawn = this.projectiles.drawProjectiles(ctx, fr, view);
     this.fx.drawKoGhosts(ctx, fr, view, this.bodies);
     this.fx.drawFinale(ctx, fr, view);
@@ -403,6 +550,7 @@ export class FightLeagueLayer {
     ctx.save();
     ctx.globalAlpha = 1;
     this.zoom(ctx);
+    this.fx.drawWash(ctx, fr, view); // --- fl-heavy --- the heavy hit's white wash, under the HP numbers
     const tags = view.settings.tags === "on" || (view.settings.tags !== "off" && view.fighters.length >= 3);
     for (const f of view.fighters) {
       if (!f.alive) continue;
@@ -660,6 +808,8 @@ export const FIGHT_LEAGUE_DATA_KEYS = [
   // --- end fl-overhaul ---
   // --- fl-noir --- the hit particles spawned this run
   "flParticles",
+  // --- fl-heavy --- (Stop The World) the hit stops (camera dips) the heavy hits cued this run
+  "flHitstops",
 ];
 
 /** Writes the data-fl-* attributes (the strings are rebuilt only when their values change). */
@@ -849,5 +999,6 @@ export class FightLeagueDataset {
     set("flBoxNamesCut", String(layer.boxNamesCut));
     // --- end fl-overhaul ---
     set("flParticles", String(layer.particles)); // --- fl-noir ---
+    set("flHitstops", String(layer.hitstops)); // --- fl-heavy ---
   }
 }

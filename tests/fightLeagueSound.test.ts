@@ -3,9 +3,9 @@ import fs from "fs";
 import path from "path";
 import { execSync } from "child_process";
 import { FL_DIVISIONS, FL_ROSTER } from "@/lib/physics/modes/fightLeagueRoster";
-import { FB_CLASH, FB_VS, fightLeagueSettingsOf, resolveFightLeagueSettings, telegraphMs, type FightLeagueSettings } from "@/lib/physics/modes/fightLeague";
+import { EV_HEAVY, FB_CLASH, FB_VS, FL_EVENT_CAP, fighterPitch, fightLeagueSettingsOf, resolveFightLeagueSettings, telegraphMs, type FightLeagueSettings } from "@/lib/physics/modes/fightLeague";
 import { flBannerName } from "@/lib/physics/modes/fightLeagueFx";
-import { FL_CAT_BLOCK, FL_CAT_HIT, FL_CAT_NOTE, FL_CAT_SHOOT, FL_CAT_SWING, FL_TICK_CUES, FL_TICK_SLOTS, FlTickBudget } from "@/lib/physics/modes/fightLeagueSound";
+import { FL_CAT_BLOCK, FL_CAT_HIT, FL_CAT_NOTE, FL_CAT_SHOOT, FL_CAT_SWING, FL_TICK_CUES, FL_TICK_SLOTS, FL_TICK_URGENT, FlTickBudget } from "@/lib/physics/modes/fightLeagueSound";
 import type { PhysicsConfig, SoundEvent } from "@/lib/physics/types";
 import type { PhysicsEngine } from "@/lib/physics/engine";
 import { defaultSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
@@ -13,7 +13,7 @@ import { createEngineForSettings, type ModeSettings } from "@/lib/simulation/fin
 import { modeSettingsOfSettings, physicsConfigOfSettings } from "@/lib/bot/finderRequest";
 import { flRecipeProblems, parseFlRecipe, recipeDurationMs, scheduleFlRecipe } from "@/lib/audio/flSynth";
 import { flAvoidListProblems } from "@/lib/audio/flAvoidList"; // --- low-findings-2 ---
-import { FL_ANNOUNCER, FL_BANNER_SOUNDS, FL_DIVISION_TINTS, FL_FAMILIES, FL_FAMILY_SETS, FL_MATCH_SOUNDS, FL_SIGNATURES, FL_TIER_PEAK, FL_TRIM_F, FL_TRIM_HOLD_SEC, FL_TRIM_R, flAllRecipes, flSaberHz, flTrimKey } from "@/lib/audio/flRecipes";
+import { FL_ANNOUNCER, FL_BANNER_SOUNDS, FL_DIVISION_TINTS, FL_FAMILIES, FL_FAMILY_SETS, FL_MATCH_SOUNDS, FL_PRIMITIVE_SOUNDS, FL_SIGNATURES, FL_TIER_PEAK, FL_TRIM_F, FL_TRIM_HOLD_SEC, FL_TRIM_R, flAllRecipes, flSaberHz, flTierOf, flTrimKey } from "@/lib/audio/flRecipes";
 import { FL_RECIPE_TRIMS } from "@/lib/audio/flRecipeTrims";
 import { NO_FL_CLIPS, flResolved, resolveFlSound, type FlClipLookup, type FlSoundSettings } from "@/lib/audio/flSoundResolve";
 import { FL_BUS_RATE, FL_BUS_VOICES, FL_MAX_LOOPS, FlMixer } from "@/lib/audio/flMixer";
@@ -182,6 +182,40 @@ describe("fight league sound recipes (flRecipes.ts, flSynth.ts)", () => {
     const tick = (v: number) => resolveFlSound({ type: "hit", wallIndex: 0, flCue: "match", flRow: "tick", flVariant: v })!.voices[0].rMul;
     expect([tick(0), tick(1), tick(2)]).toEqual([1, 1.122, 1.26]);
   });
+
+  // --- fl-heavy --- (Stop The World) the CRITICAL sting: the one new row of the heavy-hit spec, on the match bus
+  it("has the 'critical' sting: a one-shot of at most 700 ms on the match bus (a driven sub drop, a crack, a thwack, a body thud, three taps), legal, trimmed and resolved under both sets", () => {
+    const text = FL_MATCH_SOUNDS.critical;
+    expect(typeof text).toBe("string");
+    const r = parseFlRecipe(text!);
+    expect([r.role, r.held, flTierOf("critical", text!)]).toEqual(["critical", false, "oneShot"]);
+    expect(r.ms).toBeLessThanOrEqual(700);
+    const ms = recipeDurationMs(r);
+    expect(ms).toBeLessThanOrEqual(700);
+    expect(Math.abs(ms - r.ms)).toBeLessThanOrEqual(Math.max(25, 0.08 * r.ms));
+    expect(flRecipeProblems(r)).toEqual([]);
+    expect(flAvoidListProblems(r)).toEqual([]);
+    expect(flTrimKey(text!, 440) in FL_RECIPE_TRIMS).toBe(true);
+    // its layers: the sub drop 70 → 24 Hz at drive 3, the band-passed white crack, the mid thwack, the brown body, three taps from 120 ms
+    expect(r.layers.map((l) => l.src)).toEqual(["sin", "wn", "sin", "bn", "sin"]);
+    const [sub, crack, thwack, body, taps] = r.layers;
+    expect([sub.glide!.f0.k, sub.glide!.f1!.k, sub.drive]).toEqual([70, 24, 3]);
+    expect([crack.filters[0].type, crack.env!.a + crack.env!.d]).toEqual(["bandpass", 35]);
+    expect(thwack.glide!.f1!.k).toBeLessThan(thwack.glide!.f0.k);
+    expect(body.filters[0].type).toBe("lowpass");
+    expect([taps.glide!.f0.k, taps.at, taps.rep!.n, taps.rep!.every]).toEqual([1320, 120, 3, 55]);
+    // resolved directly on the match bus under both sets (the attacker's stamp adds no layer), silent under the legacy set
+    const ev: SoundEvent = { type: "hit", wallIndex: 0, melody: false, flCue: "match", flRow: "critical", flFighter: 0, flId: "captainfalcon", flPitch: fighterPitch(0), flPan: -0.3, flVar: 0.2 };
+    for (const s of SETS) {
+      const res = resolveFlSound(ev, NO_FL_CLIPS, s)!;
+      expect([s.set, res.source, flResolved(res, s)]).toEqual([s.set, "match", true]);
+      expect(res.voices.map((v) => [v.source, v.bus, v.tier, v.held, v.loop, v.delay, v.gain, v.rMul, v.recipe])).toEqual([["match", "match", "oneShot", false, false, 0, 1, 1, text]]);
+    }
+    expect(resolveFlSound({ type: "hit", wallIndex: 0, flCue: "match", flRow: "critical" })!.voices[0].bus).toBe("match");
+    expect(resolveFlSound(ev, NO_FL_CLIPS, { set: "legacy", announcer: true, custom: true })!.source).toBe("silent");
+    // the banners' table does not call it: no banner is CRITICAL (the callout is the hit's own)
+    expect(Object.values(FL_BANNER_SOUNDS).some((row) => row.match === "critical")).toBe(false);
+  });
 });
 
 /* ------------------------------------------------------------------ the cues */
@@ -306,6 +340,106 @@ describe("fight league cues (fightLeague.ts → flSoundResolve.ts)", () => {
     expect(new Set(low).size).toBe(low.length);
   });
 
+  // --- fl-heavy --- (Stop The World) the heavy hits' cues: the giant hit's thump for every heavy blow, the CRITICAL sting for a critical one
+  /** `id` against `foe` at the 100 HP setting, `id` casting almost at once (cast speed 40) and the foe never (0.05). */
+  const heavyEngine = (id: string, foe: string, seed: number) => fightEngine({ fighters: [id, foe, "random", "random"], cast: [40, 0.05, 1, 1], hp: 100, timeCap: 0 }, seed);
+  /** Steps `engine` a 60 Hz tick at a time to `untilMs` (or the fight's end), handing `each` the tick's cues and its new events (kind, slot, aux); `true` stops. */
+  function heavyTicks(engine: PhysicsEngine, untilMs: number, each: (cues: SoundEvent[], events: { kind: number; slot: number; aux: number; value: number }[]) => boolean | void) {
+    const v = engine.getFightLeagueView();
+    let serial = v.eventSerial;
+    while (engine.getElapsedMs() < untilMs - 1e-6 && !engine.isSimulationFinished()) {
+      engine.update(STEP, 0);
+      const events: { kind: number; slot: number; aux: number; value: number }[] = [];
+      for (let s = Math.max(serial, v.eventSerial - FL_EVENT_CAP); s < v.eventSerial; s++) {
+        const e = v.events[s % FL_EVENT_CAP];
+        events.push({ kind: e.kind, slot: e.slot, aux: e.aux, value: e.value });
+      }
+      serial = v.eventSerial;
+      if (each(engine.consumeSoundEvents(), events) === true) break;
+    }
+  }
+  const isThump = (c: SoundEvent) => c.flCue === "impact" && c.flPrim === "giantHit";
+  const isCritical = (c: SoundEvent) => c.flCue === "match" && c.flRow === "critical";
+
+  it("thumps a heavy blow in its tick – Hulk Smash at HP 100 (a quarter of the bar): one urgent giant-hit impact at level 1 from a shockwave hit that was silent before, no 'critical' – resolved under both sets", () => {
+    const engine = heavyEngine("hulk", "gerald", 1);
+    let tick: SoundEvent[] | null = null;
+    let heavies: { kind: number; slot: number; aux: number; value: number }[] = [];
+    heavyTicks(engine, 30_000, (cues, events) => {
+      heavies = events.filter((e) => e.kind === EV_HEAVY && e.slot === 1 && e.aux === 0);
+      if (heavies.length === 0) return;
+      tick = cues;
+      return true;
+    });
+    expect(tick).not.toBeNull();
+    expect(heavies.map((e) => Math.round(e.value * 1e3) / 1e3)).toEqual([25.001]);
+    const thumps = tick!.filter(isThump);
+    expect(thumps).toHaveLength(1);
+    const thump = thumps[0];
+    // the attacker's stamp, full level (the hit's own level saturates too: 0.45 + 25 / 20), its pitch, the blunt legacy kind
+    expect([thump.flFighter, thump.flId, thump.flLevel, thump.level, thump.frequency, thump.flPitch, thump.fight]).toEqual([0, "hulk", 1, 1, fighterPitch(0), fighterPitch(0), "blunt"]);
+    expect(typeof thump.flPan).toBe("number");
+    expect(Math.abs(thump.flPan!)).toBeLessThanOrEqual(1);
+    expect(tick!.filter(isCritical)).toHaveLength(0);
+    // the only hit sound of the attacker in the tick (the shockwave's own hits are silent: the thump replaces nothing)
+    expect(tick!.filter((c) => c.flFighter === 0 && (c.flCue === "hit" || c.flCue === "impact"))).toHaveLength(1);
+    for (const s of SETS) {
+      const res = resolveFlSound(thump, NO_FL_CLIPS, s)!;
+      expect([s.set, flResolved(res, s), res.voices[0].bus, res.voices[0].tier]).toEqual([s.set, true, "ability", "oneShot"]);
+    }
+    expect(resolveFlSound(thump, NO_FL_CLIPS, SETS[1])!.voices[0].recipe).toBe(FL_PRIMITIVE_SOUNDS.giantHit.impact);
+  });
+
+  it("stings a critical blow in its tick – the Falcon Punch at HP 100 (half the bar): the thump plus one 'critical' match cue stamped with the attacker, never on the lethal blow, every cue resolved, the same at 30 and 144 fps", { timeout: 60_000 }, () => {
+    const engine = heavyEngine("captainfalcon", "gerald", 1);
+    let tick: SoundEvent[] | null = null;
+    let heavy: { kind: number; slot: number; aux: number; value: number } | undefined;
+    let lethal = false;
+    let lethalCriticals = 0;
+    heavyTicks(engine, 60_000, (cues, events) => {
+      const crit = cues.filter(isCritical);
+      if (!tick && crit.length > 0) {
+        tick = cues;
+        heavy = events.find((e) => e.kind === EV_HEAVY && e.slot === 1);
+      }
+      if (events.some((e) => e.kind === EV_HEAVY && e.slot === 1 && e.aux === 2)) {
+        lethal = true;
+        lethalCriticals += crit.length;
+        return true;
+      }
+    });
+    expect(tick).not.toBeNull();
+    expect(heavy?.aux).toBe(1);
+    expect(heavy?.value).toBeCloseTo(50, 6);
+    const crits = tick!.filter(isCritical);
+    expect(crits).toHaveLength(1);
+    const crit = crits[0];
+    expect([crit.flFighter, crit.flId, crit.flPitch, crit.flSlow, crit.flDelay]).toEqual([0, "captainfalcon", fighterPitch(0), undefined, undefined]);
+    expect(crit.flVar! >= 0 && crit.flVar! < 1).toBe(true);
+    const thumps = tick!.filter(isThump);
+    expect(thumps.map((c) => [c.flFighter, c.flId, c.flLevel])).toEqual([[0, "captainfalcon", 1]]);
+    // the sting and the thump are urgent: both pass the tick whatever else landed (the cat() classifier of the budget test calls both urgent)
+    for (const s of SETS) for (const c of tick!) expect([s.set, what(c), flResolved(resolveFlSound(c, NO_FL_CLIPS, s), s)]).toEqual([s.set, what(c), true]);
+    for (const s of SETS) expect(resolveFlSound(crit, NO_FL_CLIPS, s)!.voices.map((v) => [v.bus, v.recipe])).toEqual([["match", FL_MATCH_SOUNDS.critical]]);
+    // the lethal blow carries no 'critical' (the KO stings own it)
+    expect([lethal, lethalCriticals]).toEqual([true, 0]);
+    // stamped in the hit's 60 Hz tick, never from frame time: the same cue keys at 30 and 144 fps
+    const keys = (frameMs: number) => {
+      const e = heavyEngine("captainfalcon", "gerald", 1);
+      const out: string[] = e.consumeSoundEvents().map(cueKey);
+      while (e.getElapsedMs() < 20_000 - 1e-6) {
+        e.update(frameMs, 0);
+        for (const ev of e.consumeSoundEvents()) out.push(cueKey(ev));
+      }
+      return out;
+    };
+    const slow = keys(1000 / 30);
+    const fast = keys(1000 / 144);
+    expect(slow.filter((k) => k.startsWith("match|critical|")).length).toBeGreaterThan(0);
+    expect(slow.filter((k) => k.startsWith("impact||0|")).length).toBeGreaterThan(0);
+    expect(fast).toEqual(slow);
+  });
+
   it("keeps at most 6 budgeted cues a tick – 3 hits, 2 shots, 1 swing, 1 block, 1 note – and lets every urgent one through", { timeout: 60_000 }, () => {
     const engine = fightEngine({ fighters: ["ironman", "doomslayer", "legolas", "jinx"], match: "ffa4", hp: 150 }, 1);
     const cat = (ev: SoundEvent) => {
@@ -362,6 +496,51 @@ describe("fight league cues (fightLeague.ts → flSoundResolve.ts)", () => {
     expect(out[11]).toBe(70); // the next tick's note (the swing and this tick's note did not fit)
     expect(FL_TICK_SLOTS).toEqual([3, 1, 2, 1, 1]);
     expect(b.drain(() => undefined)).toBe(0);
+  });
+
+  // --- fl-heavy --- (Stop The World) the heavy hits' cues through the budget: a 60 s fight of fake cues
+  it("holds the tick budget through a 60 s heavy fight of fake cues: a shockwave's three thumps and three criticals pass as one of each per attacker a tick, the weapon hits keep their three, the urgent ones lead the flush", () => {
+    const b = new FlTickBudget();
+    const hit = (i: number): SoundEvent => ({ type: "hit", wallIndex: i, flCue: "hit", flFighter: i & 3, flWeapon: "fists", flPan: 0 });
+    let heavyCount = 0;
+    let turns = 0;
+    let worst = 0;
+    let drained = 0;
+    for (let tick = 0; tick < 3600; tick++) {
+      for (let i = 0; i < 6; i++) b.offer(FL_CAT_HIT, 4 + (i % 3), hit(i));
+      b.offer(FL_CAT_SWING, 1, { type: "hit", wallIndex: 90, flCue: "swing", flFighter: 1, flWeapon: "sword" });
+      // a heavy blow every 400 ms (FL_IMPACT_GAP_MS): the attacker's shockwave lands on three foes, each a critical
+      const heavy = tick % 24 === 0;
+      if (heavy) {
+        for (let foe = 1; foe <= 3; foe++) {
+          b.urgentCue({ type: "hit", wallIndex: 10 + foe, flCue: "impact", flPrim: "giantHit", flLevel: 1, flFighter: 0, flPan: 0.3 * foe - 0.6, fight: "blunt", frequency: fighterPitch(0), level: 1 });
+          b.urgentCue({ type: "hit", wallIndex: 20 + foe, flCue: "match", flRow: "critical", flFighter: 0, flPan: 0.3 * foe - 0.6 });
+        }
+      }
+      // a lead turn every 2.5 s (FL_TURN_GAP_MS): the 'comeback' sting
+      const turn = tick % 150 === 149;
+      if (turn) b.urgentCue({ type: "hit", wallIndex: 40, flCue: "match", flRow: "comeback", flFighter: 2 });
+      b.endTick();
+      const out: SoundEvent[] = [];
+      drained += b.drain((ev) => out.push(ev));
+      const urgent = out.filter((ev) => ev.flCue === "impact" || ev.flCue === "match");
+      const budgeted = out.length - urgent.length;
+      worst = Math.max(worst, budgeted);
+      expect(budgeted).toBeLessThanOrEqual(FL_TICK_CUES);
+      expect(urgent.length).toBeLessThanOrEqual(FL_TICK_URGENT);
+      expect(out.filter((ev) => ev.flCue === "hit")).toHaveLength(3);
+      expect(out.filter((ev) => ev.flCue === "swing")).toHaveLength(1);
+      if (heavy) {
+        heavyCount++;
+        expect(urgent.filter((ev) => ev.flCue === "impact").map((ev) => ev.wallIndex)).toEqual([11]);
+        expect(urgent.filter((ev) => ev.flRow === "critical").map((ev) => ev.wallIndex)).toEqual([21]);
+        expect(out.slice(0, 2).map((ev) => `${ev.flCue}:${ev.flRow ?? ev.flPrim}`)).toEqual(["impact:giantHit", "match:critical"]);
+      } else expect(urgent.filter((ev) => ev.flRow !== "comeback")).toHaveLength(0);
+      if (turn) turns++;
+      expect(urgent.filter((ev) => ev.flRow === "comeback")).toHaveLength(turn ? 1 : 0);
+    }
+    expect([heavyCount, turns, worst, b.pending()]).toEqual([150, 24, 4, 0]);
+    expect(drained).toBe(3600 * 4 + 150 * 2 + 24);
   });
 
   it("picks the same cues at 30 and 144 fps (20 seeds)", { timeout: 120_000 }, () => {
@@ -462,6 +641,25 @@ describe("fight league mixer (flMixer.ts) and the ToneGenerator's cue path", () 
     duck.mockClear();
     mixer.play(resolveFlSound(base2({ flCue: "match", flRow: "tick" }))!, p(0.3, "0:"));
     expect(duck).not.toHaveBeenCalled(); // a short tick ducks nothing
+  });
+
+  // --- fl-heavy --- (Stop The World) the CRITICAL sting on the match bus: a sting (over 0.2 s) ducks the bed, the same attacker's second within 40 ms merges
+  it("plays the 'critical' sting on the match bus beside the thump: it ducks the bed, one attacker's second within 40 ms merges, another attacker's plays", () => {
+    const graph = fakeGraph({ extended: true });
+    const ctx = graph.ctx as unknown as BaseAudioContext;
+    const duck = vi.fn();
+    const mixer = new FlMixer(ctx, ctx.destination as AudioNode, { duckBed: duck });
+    const p = (time: number, fighter: string) => ({ time, F: 329.63, R: 523.25, level: 1, pan: -0.3, variant: 0.5, slow: 1, fighter });
+    const crit = resolveFlSound(base2({ flCue: "match", flRow: "critical", flId: "captainfalcon", flFighter: 0 }))!;
+    const thump = resolveFlSound(base2({ flCue: "impact", flPrim: "giantHit", flId: "captainfalcon", flFighter: 0, flLevel: 1 }))!;
+    const before = graph.oscillators.length + graph.sources.length;
+    expect(mixer.play(thump, p(0, "0:0"))).toBeGreaterThanOrEqual(1);
+    expect(mixer.play(crit, p(0, "0:0"))).toBe(1);
+    expect(graph.oscillators.length + graph.sources.length).toBeGreaterThan(before);
+    expect(duck).toHaveBeenCalled();
+    expect(mixer.play(crit, p(0.02, "0:0"))).toBe(0); // merged: one sting per attacker within 40 ms
+    expect(mixer.play(crit, p(0.03, "0:2"))).toBe(1); // another attacker's critical in the same breath plays (the bus holds two)
+    expect(mixer.activeVoices(0.05)).toBeGreaterThanOrEqual(2);
   });
 
   it("keeps a loop on its lease: a renewal starts nothing, a stop ends it, at most four at once", () => {

@@ -11708,14 +11708,15 @@ await smokeBlock("fight-league", async () => {
 // --- fl-overhaul --- (Stage 3) that fight's spectacle on the canvas, and the KO finale at 1×
 {
   // The fight just played (seed 11 at 8×): first blood named once it happened, the callouts it showed (the ability's name rising
-  // at its cast among them), the centre banners (first blood, the winner) and the shakes it counted.
+  // at its cast among them), the centre banners (first blood, the winner), the shakes it counted and (--- fl-heavy ---) the hit
+  // stops: the KO blow always cues one (data-fl-hitstops ≥ 1).
   const d = await canvasData();
   const banners = (d.flBanners || "").split(",");
   const callouts = (d.flCallouts || "").split(",");
   check(
-    "fight league: that fight's first blood, callouts, banners and shakes are on the canvas (data-fl-first-blood, -callouts, -banners, -shakes)",
-    (d.flNames || "").split(",").includes(d.flFirstBlood) && callouts.includes("cast") && ["vs", "count", "fight", "firstBlood", "win"].every((b) => banners.includes(b)) && Number(d.flShakes) > 0,
-    `(first blood ${d.flFirstBlood}, callouts "${d.flCallouts}", banners "${d.flBanners}", shakes ${d.flShakes})`,
+    "fight league: that fight's first blood, callouts, banners, shakes and the KO blow's hit stop are on the canvas (data-fl-first-blood, -callouts, -banners, -shakes, -hitstops)",
+    (d.flNames || "").split(",").includes(d.flFirstBlood) && callouts.includes("cast") && ["vs", "count", "fight", "firstBlood", "win"].every((b) => banners.includes(b)) && Number(d.flShakes) > 0 && Number(d.flHitstops) >= 1 /* --- fl-heavy --- (the KO blow is a lethal EV_HEAVY: a 150 ms hit stop) */,
+    `(first blood ${d.flFirstBlood}, callouts "${d.flCallouts}", banners "${d.flBanners}", shakes ${d.flShakes}, hitstops ${d.flHitstops})`,
   );
 }
 {

@@ -97,9 +97,9 @@ export const FL_ROWS_MARVEL: readonly FlFighterRow[] = [
     source: MARVEL,
     body: "#4caf50",
     accent: "#6b21a8",
-    weapons: [{ kind: "fists", cooldown: 1.0, damage: 12, knockback: 1.8, size: 0.5 }],
+    weapons: [{ kind: "fists", cooldown: 1.0, damage: 10, knockback: 1.8, size: 0.5 }], // --- fl-heavy --- (12 → 10: the Hulk Smash's 25 a foe is paid by the fists; Gerald's boss rush clears stay 6–14 of 20)
     stats: S({ hp: 115, speed: 0.85, damage: 0.88, size: 1.15 }),
-    ability: { name: "Hulk Smash", charge: 11, effects: [{ p: "shockwave", radius: 4.5, damage: 14, knockback: 2.2 }] },
+    ability: { name: "Hulk Smash", charge: 12, effects: [{ p: "shockwave", radius: 4.5, damage: 28.41, knockback: 3 }] }, // --- fl-heavy --- (25.0 per foe at the 0.88 stat: the heavy tier; the area class's top charge)
     description: "Big, slow and heavy: every punch hurts and knocks the foe away, and Hulk Smash sends out a shockwave.",
     role: "tank",
     isNew: false,
@@ -134,9 +134,9 @@ export const FL_ROWS_MARVEL: readonly FlFighterRow[] = [
     source: MARVEL,
     body: "#7c3aed",
     accent: "#f59e0b",
-    weapons: [{ kind: "fists", cooldown: 1.1, damage: 12, knockback: 1.8, size: 0.5 }],
+    weapons: [{ kind: "fists", cooldown: 1.1, damage: 9, knockback: 1.8, size: 0.5 }], // --- fl-heavy --- (12 → 9: The Snap's 25 a foe is paid by the fists; Gerald's boss rush clears stay 6–14 of 20)
     stats: S({ hp: 125, speed: 0.8, size: 1.15, damage: 0.84 }),
-    ability: { name: "The Snap", charge: 13, ultimate: true, effects: [{ p: "lightning", damage: 16 }] },
+    ability: { name: "The Snap", charge: 13, ultimate: true, effects: [{ p: "lightning", damage: 30 }] }, // --- fl-heavy --- (about 25 per foe at the 0.84 stat)
     description: "The Mad Titan punches like a wrecking ball, and The Snap strikes every foe at once.",
     role: "tank",
     isNew: true,

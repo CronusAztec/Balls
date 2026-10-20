@@ -1244,6 +1244,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const cue = duelLayer.frame(duelView);
         if (cue) cam.dip(cue.dipMs, cue.factor);
       } else cam.modeSlowView = false;
+      // --- fl-heavy --- (Stop The World) Fight League's hit stop: a heavy hit freezes the page camera for 90 real ms (150 on
+      // the lethal blow) at factor 0.05 – the engine's clock and its fixed steps are untouched; bodies do not glide here, so
+      // modeSlowView stays false
+      if (engine.isFightLeagueMode()) {
+        const cue = flLayer.cameraCue(engine.getFightLeagueView(), flReduced);
+        if (cue) cam.dip(cue.dipMs, cue.factor);
+      }
       elapsedRef.current += frameMs;
       const time = elapsedRef.current;
       // --- camera --- while the escape replay plays, the recorded walls and balls are drawn instead of the live ones;

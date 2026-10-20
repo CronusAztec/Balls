@@ -6,6 +6,7 @@ import { MAX_NUDGE, MIN_WALL_ANGLE, offAxisAngle, steerToward } from "./arenaGam
 import {
   FL_BY_ID,
   FL_DIVISIONS,
+  FL_HEAVY_FRAC, // --- fl-heavy --- (Stop The World) the heavy tier's threshold (the share of the foe's maximum HP)
   FL_ROSTER,
   isFlFighterId,
   weaponOf,
@@ -24,6 +25,8 @@ import {
 } from "./fightLeagueRoster";
 // --- fl-overhaul --- (Stage 3) the finale's time warp (pure visual maths; the rules never read it)
 import { FL_COMBO_MS, FL_DAMAGE_MERGE_MS, FL_FINALE_BANNER_MS, FL_FINALE_MS, FL_IMPACT_DAMAGE, FL_IMPACT_GAP_MS, flFinaleScale } from "./fightLeagueFx";
+// --- fl-heavy --- (Stop The World) the heavy hits' tiers and the lead turn's thresholds (visual only: EV_HEAVY, EV_TURN and the cues)
+import { FL_CRIT_FRAC, FL_TURN_FRAC, FL_TURN_GAP_MS } from "./fightLeagueFx";
 // --- fl-overhaul --- (Stage 4) the sound budget per 60 Hz tick and the cues (flCue, … – lib/audio/flSoundResolve.ts plays them)
 import { FL_CAT_BLOCK, FL_CAT_HIT, FL_CAT_NOTE, FL_CAT_SHOOT, FL_CAT_SWING, FL_TICK_CUES, FlTickBudget } from "./fightLeagueSound";
 import type { FlCue } from "../types";
@@ -1919,6 +1922,13 @@ export class FlFighter {
   /** The last hit's direction (the squash and stretch). */
   hitDx = 1;
   hitDy = 0;
+  // --- fl-heavy --- (Stop The World) visual state of the heavy hits (written by hit() and stepLead(); the rules never read it)
+  /** Its last heavy hit taken (ms): EV_HEAVY at most once per target every FL_IMPACT_GAP_MS (a lethal blow always). */
+  heavyMs = -Infinity;
+  /** The amount of the last hit it took (before the HP clamp; the reflect branch writes the attacker's): EV_KO's `value`. */
+  lastHitAmount = 0;
+  /** Its last lead turn (ms): EV_TURN at most once per attacker every FL_TURN_GAP_MS. */
+  turnMs = -Infinity;
   /** The KO finale: where it is drawn (it drifts on at the finale's time scale), its velocity then, its weapons' spin. */
   finX = 0;
   finY = 0;
@@ -2182,6 +2192,27 @@ export const EV_TRAP = 22;
  * hit holds the target (x, y; `slot`) and the attacker (x2, y2; `src` >> 3) where they were for 50 ms (80 ms: `value` 1).
  */
 export const EV_IMPACT = 23;
+/**
+ * --- fl-heavy --- (Stop The World) A heavy hit landed: `value` the damage dealt (post-stat and post-giant, before the HP
+ * clamp: what the number shows), (x, y) the impact point (the target, `slot`), (x2, y2) the unit hit direction (as EV_HIT's),
+ * `color` the attacker's accent, `src` the hit's source, `aux` its tier: 0 heavy (value ≥ FL_HEAVY_FRAC 0.25 × the target's
+ * maximum HP), 1 critical (≥ FL_CRIT_FRAC 0.40), 2 lethal (the target's HP ≤ 0 after absorbLethal, any size). Pushed by hit()
+ * after noteHitVisuals when lethal, or when heavy and at most once per target every FL_IMPACT_GAP_MS (`heavyMs`). Never
+ * merged. The renderer's hit stop (the page camera's 90 ms dip, 150 ms for aux 2), white wash, noir ink flip (aux 2), zoom
+ * punch, directional shake (FL_SHAKES.heavy / heavyKo), shock rings, speed-line cone, rim pop, particles and the CRITICAL!
+ * callout (aux 1) read it; the sound stamps its thump in the same tick. No rule reads it.
+ */
+export const EV_HEAVY = 24;
+/**
+ * --- fl-heavy --- (Stop The World) The lead changed sides on a big hit: (x, y) the attacker whose blow flipped the lead
+ * (`slot`, `color` its accent, `src` (slot & 7) × 8 + 7), (x2, y2) its target's position, `value` the lead swing (the new
+ * leader's HP share minus the old leader's, 0..1), `aux` 1 when the attacker was under a quarter of its own HP (a clutch
+ * comeback), else 0. Pushed by stepLead() once per 60 Hz step when `leadSide` changes past FL_LEAD_HYSTERESIS to the team of
+ * the step's largest hit (`turnSlot`, `turnAmount`, `turnTarget`) and that hit was ≥ FL_TURN_FRAC 0.15 × the target's maximum
+ * HP or heavy, at most once per FL_TURN_GAP_MS 2500 per attacker (`turnMs`); the first lead of a match is no change. The
+ * renderer's rim sweep, COMEBACK! callout and the noir name flash read it; no shake, no particles. No rule reads it.
+ */
+export const EV_TURN = 25;
 
 export class FlEvent {
   kind = 0;
@@ -2199,6 +2230,11 @@ export class FlEvent {
    * --- fl-overhaul --- (Stage 3) A visual detail of the event: EV_DAMAGE 1 a giant hit (x2: its multiplier), 2 damage reflected
    * back; EV_SHOCK 0 a shockwave, 1 a bomb's or a rocket's burst, 2 a giant hit's ring; EV_KO 1 the final KO; EV_CAST 1 an
    * area ability. (EV_HIT's x2, y2: the hit's direction; EV_KO's: the fighter's last velocity; EV_SLAM's: its flight into the wall.)
+   * --- fl-heavy --- EV_HEAVY 0 a heavy hit (value ≥ FL_HEAVY_FRAC × the target's maximum HP), 1 a critical one (≥ FL_CRIT_FRAC),
+   * 2 the lethal blow (any size; x2, y2: the hit's direction, value: the damage dealt); EV_TURN 1 a clutch comeback (the attacker
+   * under a quarter of its own HP), else 0 (x2, y2: its target's position, value: the lead swing). EV_KO's `value` is the
+   * finishing blow's amount (0 when none) and its `src` the killer's (slot & 7) × 8 + 7 (−1 none); EV_DAMAGE's x2 is 0 for a
+   * maxHpFrac giant (no '×N' beside a share-based number).
    */
   aux = 0;
 }
@@ -2427,6 +2463,13 @@ export interface FightLeagueView {
   /** The side leading on HP share (−1: level) and when the lead last changed (ms; the lead bar's flash). */
   leadSide: number;
   leadMs: number;
+  /**
+   * --- fl-heavy --- (Stop The World) The step's largest hit, for EV_TURN: the attacker's slot (−1 none), the amount and the
+   * target's slot (hit() writes them when the amount beats `turnAmount`; stepLead() clears them at its end). Scratch, visual only.
+   */
+  turnSlot: number;
+  turnAmount: number;
+  turnTarget: number;
   /** The intro's next banner (0 vs, 1–3 the count, 4 FIGHT!, 5 done) and whether the winner's banners were written. */
   introCue: number;
   winCue: boolean;
@@ -2567,6 +2610,9 @@ function createView(): FightLeagueView {
     finale: { from: -1, until: -1, x: 0, y: 0, slot: -1 },
     leadSide: -1,
     leadMs: -Infinity,
+    turnSlot: -1, // --- fl-heavy ---
+    turnAmount: 0,
+    turnTarget: -1,
     introCue: 0,
     winCue: false,
     // --- fl-overhaul --- (Stage 5)
@@ -3072,6 +3118,9 @@ export class FightLeagueMode implements GameMode {
     v.finale.slot = -1;
     v.leadSide = -1;
     v.leadMs = -Infinity;
+    v.turnSlot = -1; // --- fl-heavy ---
+    v.turnAmount = 0;
+    v.turnTarget = -1;
     v.introCue = 0;
     v.winCue = false;
     this.koThisStep = false;
@@ -4936,12 +4985,15 @@ export class FightLeagueMode implements GameMode {
     return !(now < b.srcUntil[(a.slot & 7) * 8 + Math.min(6, q.weapon)]);
   }
 
-  /** --- fl-overhaul --- A queued melee hit's impact: its damage × the attacker's damage stat, buffs and a pending giant hit. */
+  /**
+   * --- fl-overhaul --- A queued melee hit's impact: its damage × the attacker's damage stat, buffs and a pending giant hit
+   * (--- fl-heavy --- a loaded share punch weighs × 4: a jab cannot parry a Falcon Punch).
+   */
   private impactOf(q: FlMeleeHit, now: number): number {
     const a = this.view.fighters[q.attacker];
     let x = q.damage * a.damage;
     if (now < a.dmgMulUntil) x *= a.dmgMul;
-    if (a.giantLeft > 0) x *= Math.max(1, a.giantMult);
+    if (a.giantLeft > 0) x *= Math.max(1, a.giantMult, a.giantFrac > 0 ? 4 : 1);
     return x;
   }
 
@@ -5906,6 +5958,13 @@ export class FightLeagueMode implements GameMode {
     }
     target.hitMs = now;
     target.lastHitBy = attacker.slot;
+    target.lastHitAmount = amount; // --- fl-heavy --- (EV_KO's `value`: the finishing blow)
+    if (attacker !== target && amount > v.turnAmount) {
+      // --- fl-heavy --- the step's largest hit (stepLead's EV_TURN when it flips the lead)
+      v.turnSlot = attacker.slot;
+      v.turnAmount = amount;
+      v.turnTarget = target.slot;
+    }
     target.taken++;
     attacker.hits++;
     if (weapon >= 0 && attacker.weapons[weapon]) {
@@ -5930,6 +5989,7 @@ export class FightLeagueMode implements GameMode {
       attacker.lastViaWeapon = -1;
       attacker.lastViaBy = target.slot;
       attacker.hitMs = now;
+      attacker.lastHitAmount = back; // --- fl-heavy ---
       attacker.comboCount = 0; // --- fl-overhaul --- (Stage 3: a combo breaks when its attacker takes a hit)
       this.pushEvent(EV_DAMAGE, now, attacker.x, attacker.y - attacker.r, back, attacker.slot, target.row.accent, 0, 0, (target.slot & 7) * 8 + 7, 2);
       this.snd.offer(FL_CAT_HIT, back, this.cue(target, "impact", { flPrim: "reflect", flPan: this.panAt(attacker.x) })); // --- fl-overhaul --- (Stage 4)
@@ -5948,9 +6008,18 @@ export class FightLeagueMode implements GameMode {
     target.hitDx = hx;
     target.hitDy = hy;
     target.comboCount = 0;
-    this.pushEvent(EV_DAMAGE, now, target.x, target.y - target.r, amount, target.slot, attacker.row.accent, giant > 0 ? amount / Math.max(1e-9, plain) : 0, 0, src, giant > 0 ? 1 : 0);
+    // (--- fl-heavy --- no '×N' beside a share-based giant: its number is the share of the foe's maximum HP)
+    this.pushEvent(EV_DAMAGE, now, target.x, target.y - target.r, amount, target.slot, attacker.row.accent, giant > 0 && attacker.giantFrac <= 0 ? amount / Math.max(1e-9, plain) : 0, 0, src, giant > 0 ? 1 : 0);
     if (!opts.quiet || giant > 0) this.pushEvent(EV_HIT, now, (target.x + (opts.fromX ?? attacker.x)) / 2, (target.y + (opts.fromY ?? attacker.y)) / 2, amount, attacker.slot, attacker.row.accent, hx, hy, src);
     this.noteHitVisuals(attacker, target, amount, giant > 0, weapon < 0 && (!!opts.ignoreIframes || !!opts.unblockable), opts.volley ?? 0, now);
+    // --- fl-heavy --- (Stop The World) a heavy hit (a share of the foe's maximum HP) or the lethal blow: EV_HEAVY, at most once
+    // per target every FL_IMPACT_GAP_MS (the lethal blow always). Visual state only: no rule, no clock and no draw reads it.
+    const share = amount / Math.max(1e-9, target.maxHp);
+    const lethal = target.hp <= 0;
+    if ((lethal || share >= FL_HEAVY_FRAC) && (lethal || now - target.heavyMs >= FL_IMPACT_GAP_MS)) {
+      target.heavyMs = now;
+      this.pushEvent(EV_HEAVY, now, target.x, target.y, amount, target.slot, attacker.row.accent, hx, hy, src, lethal ? 2 : share >= FL_CRIT_FRAC ? 1 : 0);
+    }
     this.hitCue(attacker, target, weapon, amount, sound, giant > 0, opts); // (--- fl-overhaul --- Stage 4)
     return HIT_LANDED;
   }
@@ -6666,7 +6735,8 @@ export class FightLeagueMode implements GameMode {
         if (!o.alive || o.team === b.team || o.hp <= 0) continue;
         if (!b.ability && b.hitMask & (1 << o.slot)) continue;
         if (!segmentHitsCircle(b.x0, b.y0, b.x1, b.y1, 0.5 * b.width, o.x, o.y, o.r)) continue;
-        const res = this.hit(ctx, f, o, b.damage, ux, uy, b.ability ? 0.35 : 0.4, "magic", { quiet: b.ability, unblockable: b.ability, fromX: b.x0, fromY: b.y0, weapon: b.weapon, sndKind: "beam" });
+        // (--- fl-heavy --- a weapon's ray hits a foe once a ray: that hit is the owner's own blow, so a loaded giant hit rides it – Buzz's Karate Chop Action)
+        const res = this.hit(ctx, f, o, b.damage, ux, uy, b.ability ? 0.35 : 0.4, "magic", { quiet: b.ability, unblockable: b.ability, fromX: b.x0, fromY: b.y0, weapon: b.weapon, sndKind: "beam", melee: !b.ability });
         if (!b.ability && res !== HIT_WINDOW) b.hitMask |= 1 << o.slot;
       }
       for (const m of v.minions) if (m.active && m.team !== b.team && segmentHitsCircle(b.x0, b.y0, b.x1, b.y1, 0.5 * b.width, m.x, m.y, m.r)) this.hitMinion(ctx, f, m, now);
@@ -6711,7 +6781,8 @@ export class FightLeagueMode implements GameMode {
       this.koThisStep = true;
       const killer = f.lastHitBy >= 0 ? v.fighters[f.lastHitBy] : null;
       if (killer && killer !== f) killer.kills++;
-      const koEvent = this.pushEvent(EV_KO, now, f.x, f.y, 0, f.slot, f.row.body, f.vx, f.vy); // (--- fl-overhaul --- Stage 3: its last velocity – the finale's ghost)
+      // (--- fl-overhaul --- Stage 3: its last velocity – the finale's ghost; --- fl-heavy --- the finishing blow's amount and the killer's source)
+      const koEvent = this.pushEvent(EV_KO, now, f.x, f.y, f.lastHitAmount, f.slot, f.row.body, f.vx, f.vy, f.lastHitBy >= 0 ? (f.lastHitBy & 7) * 8 + 7 : -1);
       if (this.koCount < 8) this.koEvents[this.koCount++] = koEvent;
       this.koCues(f, now); // --- fl-overhaul --- (Stage 4) its hums retract, its holds stop (the KO sting comes with its banner)
       ctx.noteImpact?.(); // the camera's shake (no wall-break sound)
@@ -7252,9 +7323,20 @@ export class FightLeagueMode implements GameMode {
     }
   }
 
-  /** The side in the lead on HP share (Σ hp ÷ Σ max HP; a new leader 5 % clear of the last one) and when it changed (the lead bar's flash). */
+  /**
+   * The side in the lead on HP share (Σ hp ÷ Σ max HP; a new leader 5 % clear of the last one) and when it changed (the lead bar's
+   * flash). --- fl-heavy --- (Stop The World) A lead that changes sides on the step's largest hit – one of FL_TURN_FRAC of its
+   * target's maximum HP or more, by a fighter of the new leading side, at most once per FL_TURN_GAP_MS per attacker – pushes
+   * EV_TURN and stamps the 'comeback' match cue; the step's scratch (turnSlot, turnAmount, turnTarget) is cleared every step.
+   */
   private stepLead(now: number) {
     const v = this.view;
+    const turnSlot = v.turnSlot;
+    const turnAmount = v.turnAmount;
+    const turnTarget = v.turnTarget;
+    v.turnSlot = -1;
+    v.turnAmount = 0;
+    v.turnTarget = -1;
     const hp = this.leadHp;
     const max = this.leadMax;
     hp.fill(0);
@@ -7296,6 +7378,14 @@ export class FightLeagueMode implements GameMode {
     if (v.leadSide >= 0) {
       v.leadMs = now; // (the first lead is no change)
       st.leadChanges++; // --- fl-overhaul --- (Stage 5)
+      // --- fl-heavy --- the turn: the step's largest hit flipped the lead to its attacker's side
+      const a = turnSlot >= 0 ? v.fighters[turnSlot] : undefined;
+      const t = turnTarget >= 0 ? v.fighters[turnTarget] : undefined;
+      if (a && t && a.team === best && turnAmount >= FL_TURN_FRAC * t.maxHp && now - a.turnMs >= FL_TURN_GAP_MS) {
+        a.turnMs = now;
+        this.pushEvent(EV_TURN, now, a.x, a.y, bestShare - Math.max(0, cur), a.slot, a.row.accent, t.x, t.y, (a.slot & 7) * 8 + 7, a.hp < 0.25 * a.maxHp ? 1 : 0);
+        this.snd.urgentCue(this.cue(a, "match", { flRow: "comeback" }));
+      }
     }
     v.leadSide = best;
   }
@@ -7376,11 +7466,16 @@ export class FightLeagueMode implements GameMode {
    * victim's position, as strong as its damage; `legacy` is the old kind (`fight`) for the legacy set.
    */
   private hitCue(attacker: FlFighter, target: FlFighter, weapon: number, amount: number, legacy: FlSoundKind, giant: boolean, opts: HitOptions) {
-    if (opts.sndCue === "silent") return;
+    // --- fl-heavy --- (Stop The World) a heavy hit thumps (the giant hit's impact) even where its cast's burst owns the sound;
+    // a critical one (not the lethal blow: the KO stings own that) adds the 'critical' match sting
+    const share = amount / Math.max(1e-9, target.maxHp);
+    const heavy = share >= FL_HEAVY_FRAC;
+    if (opts.sndCue === "silent" && !heavy) return;
     const level = Math.min(1, 0.45 + amount / 20);
     const base: Partial<SoundEvent> = { flPan: this.panAt(target.x), flLevel: level, fight: legacy, frequency: fighterPitch(attacker.slot), level };
-    if (giant) {
+    if (giant || heavy) {
       this.snd.urgentCue(this.cue(attacker, "impact", { ...base, flPrim: "giantHit", flLevel: 1 }));
+      if (share >= FL_CRIT_FRAC && target.hp > 0) this.snd.urgentCue(this.cue(attacker, "match", { flRow: "critical" }));
       return;
     }
     if (opts.sndPrim) {

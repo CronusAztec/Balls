@@ -348,13 +348,16 @@ export class FlCardsPainter {
     return kind;
   }
 
-  /** A white flash over the arena after each knockout. */
+  /**
+   * A white flash over the arena after each knockout (--- fl-heavy --- 0.5 for the final KO, the one the finale follows; 0.3
+   * otherwise); none while the noir ink flip holds the arena white with ink discs (a flash over it would grey the ink).
+   */
   drawKoFlash(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, lay: FlHudLayout, ox: number, oy: number) {
     const age = fr.now - view.lastKoMs;
-    if (!(age >= 0 && age < KO_FLASH_MS)) return;
+    if (!(age >= 0 && age < KO_FLASH_MS) || fr.flip) return;
     const t = age / KO_FLASH_MS;
     ctx.save();
-    ctx.globalAlpha = 0.3 * (1 - t) * (1 - t);
+    ctx.globalAlpha = (view.finale.from >= 0 ? 0.5 : 0.3) * (1 - t) * (1 - t);
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(ox + lay.arena.x, oy + lay.arena.y, lay.arena.w, lay.arena.h);
     ctx.restore();

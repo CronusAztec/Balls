@@ -128,6 +128,7 @@ export const FL_RECIPE_TRIMS: Readonly<Record<string, number>> = {
   "1dau2uu": 1.077,
   "1dbo3pq": 1.25,
   "1de7x7o": 0.977,
+  "1dfygtr": 0.4106,
   "1dq9v3s": 0.5487,
   "1drazer": 1.011,
   "1dvr9dx": 0.429,

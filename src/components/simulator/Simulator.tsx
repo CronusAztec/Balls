@@ -3912,6 +3912,7 @@ export default function Simulator() {
         immune: t("FightLeague.canvasImmune"),
         interrupted: t("FightLeague.canvasInterrupted"),
         clash: t("FightLeague.canvasClash"),
+        critical: t("FightLeague.canvasCritical"), // --- fl-heavy ---
         combo: (n) => t("FightLeague.canvasCombo").replace("[n]", () => String(n)),
         suddenDeath: t("FightLeague.canvasSuddenDeath"),
         whoWins: t("FightLeague.canvasWhoWins"),

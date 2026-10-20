@@ -22,7 +22,7 @@ export const FL_ROWS_SANDBOX: readonly FlFighterRow[] = [
     accent: "#5b3a29",
     weapons: [{ kind: "sword", damage: 8, reach: 1.7, color: "#67e8f9", look: "blade" }],
     stats: S({ damage: 1.14 }),
-    ability: { name: "TNT", charge: 11, effects: [{ p: "shockwave", radius: 4.5, damage: 18, knockback: 2, delay: 1 }] },
+    ability: { name: "TNT", charge: 11, effects: [{ p: "shockwave", radius: 4.5, damage: 21.93, knockback: 2, delay: 1 }] }, // --- fl-heavy --- (25.0 per foe at the 1.14 stat: the heavy tier)
     description: "A diamond sword; TNT drops a block that explodes in a shockwave after a one-second fuse.",
     role: "duelist",
     isNew: false,
@@ -52,7 +52,7 @@ export const FL_ROWS_SANDBOX: readonly FlFighterRow[] = [
     accent: "#c084fc",
     weapons: [{ kind: "fists", reach: 1.4, cooldown: 0.7, damage: 7 }],
     stats: S({ hp: 105, damage: 0.7 }),
-    ability: { name: "Teleport", charge: 9, effects: [{ p: "blinkStrike", n: 3, damage: 6 }] },
+    ability: { name: "Teleport", charge: 10, effects: [{ p: "blinkStrike", n: 3, damage: 10 }] }, // --- fl-heavy --- (3 × 7 at the 0.7 stat)
     description: "Long arms and a longer reach; Teleport blinks onto the nearest foe three times.",
     role: "duelist",
     isNew: true,

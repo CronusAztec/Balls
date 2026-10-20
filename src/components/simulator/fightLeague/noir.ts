@@ -1,4 +1,4 @@
-import type { FightLeagueView, FlFighter } from "@/lib/physics/modes/fightLeague";
+import { EV_TURN, FL_EVENT_CAP, type FightLeagueView, type FlFighter } from "@/lib/physics/modes/fightLeague";
 import { FL_TRAIL_AT, flNameColor, type FlHudLayout } from "@/lib/physics/modes/fightLeagueFx";
 import { flShortName } from "@/lib/physics/modes/fightLeagueRoster";
 import type { FlFrame, FightLeagueLabels, FlStateLabels } from "./frame";
@@ -164,7 +164,7 @@ export function flStateOf(f: FlFighter, now: number): FlStateCode {
 
 /**
  * The noir layout as shares of the square's side, top down: the weapon icons (0.12 S tall, centred at 0.065 S), the title
- * (0.06 S tall letters at 0.165 S, at most 0.9 S wide), the arena (a 0.6 S square from 0.205 S – the physics field drawn
+ * (0.06 S tall letters at 0.165 S, at most 0.78 S wide: the timer is right-aligned at 0.965 S on the same line), the arena (a 0.6 S square from 0.205 S – the physics field drawn
  * smaller than on the other stages: a render-only scale about its centre, `FL_NOIR_ARENA_FRAC / FL_ARENA_FRAC`, the
  * simulation untouched), then the stats block's four lines from 0.813 S, ending above the watermark badge's strip.
  */
@@ -172,7 +172,7 @@ export const FL_NOIR_ICON_Y = 0.065;
 export const FL_NOIR_ICON_H = 0.12;
 export const FL_NOIR_TITLE_Y = 0.165;
 export const FL_NOIR_TITLE_H = 0.06;
-export const FL_NOIR_TITLE_W = 0.9;
+export const FL_NOIR_TITLE_W = 0.78;
 export const FL_NOIR_ARENA_TOP = 0.205;
 export const FL_NOIR_ARENA_FRAC = 0.6;
 export const FL_NOIR_BLOCK_TOP = 0.813;
@@ -181,6 +181,8 @@ export const FL_NOIR_LINE_FS = [0.028, 0.025, 0.025, 0.025] as const;
 export const FL_NOIR_LINE_Y = [0.827, 0.8545, 0.881, 0.9075] as const;
 
 const SEP = "|";
+/** --- fl-heavy --- The new leader's name line is white for this long after a lead turn (EV_TURN). */
+export const FL_NOIR_TURN_FLASH_MS = 300;
 
 export class FlNoirHudPainter {
   /** The title sprite (one per matchup, size and device scale). */
@@ -338,12 +340,23 @@ export class FlNoirHudPainter {
     const sepStyle = this.mono(hud.muted);
     for (let i = 1; i < n; i++) for (let line = 0; line < 4; line++) fr.text.draw(ctx, SEP, left + i * colW, ys[line], fs[line], sepStyle, "center", 0, 0.8);
     const pad = 0.014 * S;
+    // --- fl-heavy --- the lead turned (EV_TURN): the new leader's name line flashes white for 300 ms (the other stages flash
+    // their lead bar from view.leadMs)
+    let turnTeam = -1;
+    for (let k = 0, m = Math.min(view.eventSerial, FL_EVENT_CAP); k < m; k++) {
+      const e = view.events[k];
+      if (e.kind !== EV_TURN) continue;
+      const age = now - e.t;
+      if (!(age >= 0) || age >= FL_NOIR_TURN_FLASH_MS) continue;
+      const a = view.fighters[e.slot];
+      if (a) turnTeam = a.team;
+    }
     for (let i = 0; i < n; i++) {
       const f = fighters[i];
       const cx = left + (i + 0.5) * colW;
       const room = colW - 2 * pad;
       const alpha = f.alive ? 1 : 0.55;
-      const color = flNameColor(f.row.body, f.row.accent);
+      const color = turnTeam >= 0 && f.team === turnTeam ? "#ffffff" : flNameColor(f.row.body, f.row.accent);
       // line 1: the name and the HP
       const name = `${fr.text.upperOf(short ? flShortName(f.row) : f.row.name)}:`;
       const hp = Math.max(0, Math.ceil(f.hp - 1e-6));

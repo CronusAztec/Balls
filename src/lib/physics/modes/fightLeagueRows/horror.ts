@@ -81,10 +81,10 @@ export const FL_ROWS_HORROR: readonly FlFighterRow[] = [
       charge: 10,
       effects: [
         { p: "invulnerable", dur: 2, untargetable: true },
-        { p: "giantHit", mult: 2.5 },
+        { p: "giantHit", mult: 1, maxHpFrac: 0.25 }, // --- fl-heavy --- (a quarter of the foe's maximum HP)
       ],
     },
-    description: "Quick knife stabs; Night Shroud hides him completely, and his next stab lands two and a half times as hard.",
+    description: "Quick knife stabs. Night Shroud hides him completely, and his next stab takes a quarter of the foe's maximum HP.",
     role: "duelist",
     isNew: true,
     look: { pattern: "hood", crest: "none" },

@@ -1045,6 +1045,11 @@ export const FL_MATCH_SOUNDS: Readonly<Record<string, string | null>> = {
   bossDefeated: "bossDefeated(1200) sin 70>30/1200 ws1.5 d1200 p.25 + bn lp700>200/1000 d1100 p.3 + wn bp900q1 d50 p.7 + bn bp400q2 d40 p.3 x8/90±40*.85",
   upset: "upset(690) saw R*0.5>R*0.53/400 lp1200 e10/380 p.12 + saw R*0.707>R*0.75/400 lp1200 e10/380 p.1 + sin 4000 d40 p.05 @450 x6/40^1.06",
   comeback: "comeback(750) pn bp300>3000/500q1 e450/50 p.9 + sin 55 d300 p.3 @450",
+  // --- fl-heavy --- (Stop The World) the CRITICAL sting of a heavy hit (40 % of the foe's bar or more, never the lethal blow – the
+  // KO stings own that), stamped by hitCue in the hit's tick beside the giant hit's thump: a driven sub drop 70 → 24 Hz, a 35 ms
+  // band-passed crack, a short mid thwack that still reads on a phone speaker, a brown body thud and three fast taps from 120 ms.
+  // One-shot, under 700 ms, so its tail fills the 90 ms hit stop and is gone before the next blow. Original synthesis, no sample.
+  critical: "critical(640) sin 70>24/520 ws3 e2/620 p.3 + wn bp1800q.8 d35 p.6 + sin 620>140/70 d90 p.14 + bn lp900 d320 p.26 + sin 1320 d70 p.08 @120 x3/55*.7",
   game: "game(480) sin 60 d150 p.35 + bar R [.1/400 .06/280] @80 + wn hp3000 d20 p.2 @80",
   seriesPoint: "seriesPoint(460) tri R e5/200 p.3 + tri R*1.5 e5/200 p.24 @160 + sin 55 d140 p.3 x2/320*.8",
   advance: "advance(345) tri R e5/160 p.3 + tri R*1.5 e5/220 p.26 @120 + wn hp4000 d30 p.1 @120",

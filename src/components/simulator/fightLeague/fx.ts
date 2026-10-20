@@ -9,6 +9,7 @@ import {
   EV_FREEZE,
   EV_GRAZE,
   EV_HEAL,
+  EV_HEAVY,
   EV_HIT,
   EV_IMMUNE,
   EV_IMPACT,
@@ -20,7 +21,9 @@ import {
   EV_SLAM,
   EV_TRANSFORM,
   EV_TRAP,
+  EV_TURN,
   FL_EVENT_CAP,
+  FL_INTRO_MS,
   FL_WALL_AHEAD,
   FL_WALL_LENGTH,
   type FightLeagueView,
@@ -32,20 +35,28 @@ import {
   FL_COMBO_MS,
   FL_GIANT_COLOR,
   FL_HEAL_COLOR,
+  FL_HEAVY_FLASH_MS,
+  FL_HEAVY_FRAC,
+  FL_NUMBER_HEAVY_MS,
+  FL_NUMBER_HEAVY_RISE,
   FL_NUMBER_MS,
   FL_NUMBER_RISE,
+  FL_OPENER_MS,
   FL_REFLECT_COLOR,
   flDamageColor,
   flEffectNow,
   flFinaleZoom,
+  flHeavyShare,
+  flNumberFs,
   flNumberPop,
+  flNumberSlam,
   flTelegraphProgress,
   flVolleyTicks,
 } from "@/lib/physics/modes/fightLeagueFx";
-import type { FlEffect, FlPrimitive } from "@/lib/physics/modes/fightLeagueRoster";
+import { flHeavyAbility, type FlEffect, type FlPrimitive } from "@/lib/physics/modes/fightLeagueRoster";
 import type { FlBodiesPainter } from "./bodies";
-import type { FlFrame, FightLeagueLabels } from "./frame";
-import { GOLD, INK, withAlpha } from "./palette";
+import { DEFAULT_FL_SHOW_LABELS, type FlFrame, type FightLeagueLabels } from "./frame";
+import { GOLD, INK, flNoirAccent, rimWidth, withAlpha } from "./palette";
 import { TWO_PI, hash, makeSprite, polygonPath, starPath, type Sprite } from "./sprites";
 import { HEAL_TEXT, MULT_TEXT, damageText, type FlTextStyle } from "./text";
 
@@ -65,6 +76,18 @@ import { HEAL_TEXT, MULT_TEXT, damageText, type FlTextStyle } from "./text";
  * hash seeded by the event's time: the same particles for the same fight at any frame rate), each particle's position a
  * function of its age (no integration, no allocation a frame), drawn as one path a kind – the dots, the chips, each spark
  * colour – and the smoke puffs from the cached glow sprite: a handful of drawImage calls at most.
+ *
+ * --- fl-heavy --- (Stop The World) The heavy hits (EV_HEAVY): the white wash of the arena (`drawWash()`, before the HP
+ * numbers), a white shock ring chased by one accent ring, a cone of speed lines along the hit, the arena rim popping in the
+ * attacker's accent, a bigger burst of particles, the CRITICAL! callout (aux 1); the huge damage number (`drawNumber()`: the
+ * heavy tier at 2.4× with the attacker's accent as its stroke, slammed in and jittering, every number divided by the noir
+ * scale so noir matches the other stages); the KO blowout to the square's edge (`drawKoBlast()`: 24 shards, 8 streaks, the
+ * finale's speed lines white on noir and a white iris ring in place of the vignette); the heavy wind-up (`drawTelegraphs()`:
+ * three accent rings converging on a fighter whose ability carries a heavy blow, the rim fading toward the accent, the
+ * ability's name slammed into the arena's top; `drawArmed()`: the ring over a loaded punch); the lead turn (EV_TURN: the
+ * accent sweeping once round the rim, COMEBACK!); the noir opener (`drawOpener()`: the arrival rings, the rim dash completing
+ * before FIGHT!, the launch wash – analytic in the frame's clock, no event, no particle). Accents on noir go through
+ * `flNoirAccent()`. Everything stays paths, cached sprites and glyph blits: nothing new costs a fillText or a gradient.
  */
 
 /** Simulation ms the effects last. */
@@ -85,9 +108,42 @@ const DODGE_MS = 600;
 const SLAM_MS = 360;
 const TRAP_MS = 420;
 const IMPACT_FLASH_MS = 90;
-const SHARDS = 12;
+/** --- fl-heavy --- The KO blowout's shards (12 on the lite tier). */
+const SHARDS = 24;
+const SHARDS_LITE = 12;
 /** The ultimates' super flash (ms). */
 export const FL_SUPER_FLASH_MS = 450;
+/* --- fl-heavy --- (Stop The World) the heavy hits' lengths (effects clock) */
+/** The white shock ring and its accent chaser (the chaser starts HEAVY_RING_LAG_MS later). */
+const HEAVY_RING_MS = 420;
+const HEAVY_RING_LAG_MS = 60;
+/** The cone of speed lines along the hit. */
+const HEAVY_CONE_MS = 240;
+/** The arena rim popping in the attacker's accent. */
+export const FL_HEAVY_EDGE_MS = 300;
+/** The CRITICAL! callout: from CRIT_FROM_MS (after the huge number's slam) to CRIT_MS. */
+const CRIT_MS = 700;
+const CRIT_FROM_MS = 140;
+/** The lead turn: the COMEBACK! callout and the accent's sweep round the rim. */
+const TURN_MS = 900;
+export const FL_TURN_SWEEP_MS = 600;
+/** A lead turn in the same tick as a heavy blow by its attacker: COMEBACK! waits this long (the number and CRITICAL! land first). */
+const TURN_LAG_MS = 500;
+/** A heavy blow by the same attacker within this of a lead turn is "the same blow" (the sweep waits for the rim pop, COMEBACK! for the number). */
+const TURN_NEAR_MS = 50;
+/** The super flash ends at the caster's first heavy blow after the cast: its fade (ms). */
+const SUPER_FLASH_END_MS = 60;
+/** The heavy wind-up's name: its floor at the 1080 square (px) and its centre line below the arena's top (in font sizes). */
+const WINDUP_FLOOR_PX = 48;
+const WINDUP_Y = 1.6;
+/** The noir opener: the arrival ring, the rim dash (from, to) and the launch wash at FIGHT!. */
+const OPENER_RING_MS = 200;
+const OPENER_DASH_FROM_MS = 600;
+const OPENER_DASH_TO_MS = 1400;
+const OPENER_WASH_MS = 60;
+/** The heavy wind-up's name: its pop and its fade after the cast. */
+const WINDUP_POP_MS = 110;
+const WINDUP_FADE_MS = 150;
 
 /** What a primitive's telegraph preview looks like (the table the renderer and the tests share). */
 export interface FlPrimFx {
@@ -253,6 +309,24 @@ export class FlFxPainter {
     return fr.fxNow - flEffectNow(view, t);
   }
 
+  /** --- fl-heavy --- Whether a heavy blow (EV_HEAVY) by the fighter in `slot` landed within TURN_NEAR_MS of `t`. */
+  private heavyNear(view: FightLeagueView, slot: number, t: number): boolean {
+    const n = Math.min(view.eventSerial, FL_EVENT_CAP);
+    for (let k = 0; k < n; k++) {
+      const e = view.events[k];
+      if (e.kind === EV_HEAVY && e.src >= 0 && e.src >> 3 === slot && Math.abs(e.t - t) <= TURN_NEAR_MS) return true;
+    }
+    return false;
+  }
+
+  /** --- fl-heavy --- Undoes the frame's zoom punch (the renderer's `zoom()`): the strokes along the rim belong to the plate, which stays still. */
+  private unzoom(ctx: CanvasRenderingContext2D, fr: FlFrame) {
+    if (fr.zoomK === 1) return;
+    ctx.translate(fr.zoomX, fr.zoomY);
+    ctx.scale(1 / fr.zoomK, 1 / fr.zoomK);
+    ctx.translate(-fr.zoomX, -fr.zoomY);
+  }
+
   /** A text callout clamped inside the arena (the display face, upper case, an ink stroke). */
   private callout(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, name: string, text: string, x: number, y: number, size: number, color: string, alpha: number, pop = 1) {
     const field = view.field;
@@ -267,7 +341,7 @@ export class FlFxPainter {
     this.callouts.add(name);
   }
 
-  /** The telegraph previews of every casting fighter (under the bodies). */
+  /** The telegraph previews of every casting fighter (under the bodies); --- fl-heavy --- a heavy ability's wind-up first. */
   drawTelegraphs(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView) {
     const now = fr.now;
     for (const f of view.fighters) {
@@ -277,7 +351,108 @@ export class FlFxPainter {
         this.telegraphs++;
       }
       const k = flTelegraphProgress(f.telegraphStart, f.telegraphUntil, now);
-      for (const e of f.row.ability.effects) this.preview(ctx, fr, view, f, e, k, now);
+      const heavy = flHeavyAbility(f.row.ability);
+      if (heavy) this.windup(ctx, fr, view, f, k);
+      // (a heavy giant hit's '×N' badge would read ×1 beside a share-based blow: the wind-up's rings stand in for it)
+      for (const e of f.row.ability.effects) if (!(heavy && e.p === "giantHit")) this.preview(ctx, fr, view, f, e, k, now);
+    }
+  }
+
+  /**
+   * --- fl-heavy --- (Stop The World) The heavy wind-up under a casting fighter whose ability carries a heavy blow: three rings
+   * in the caster's accent converging on the disc from 3.5 R to 1.05 R, a third of the telegraph apart, their line growing
+   * 0.04 R → 0.12 R (one ring on the lite tier), and the arena rim fading toward the accent (alpha 0.6 k; it snaps back to
+   * white at the cast). The disc's own swell and tremble are the bodies painter's; the ability's name is slammed in the
+   * unclipped pass (`drawWindupNames()`).
+   */
+  private windup(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, f: FlFighter, k: number) {
+    const field = view.field!;
+    const accent = fr.pal.noir ? flNoirAccent(f.row) : f.row.accent;
+    const x = fr.x(f);
+    const y = fr.y(f);
+    const R = f.r;
+    ctx.save();
+    ctx.strokeStyle = accent;
+    ctx.globalAlpha = 0.9;
+    const rings = fr.lite ? 1 : 3;
+    for (let i = 0; i < rings; i++) {
+      const u = Math.max(0, Math.min(1, 3 * k - i));
+      ctx.lineWidth = Math.max(1.5, R * (0.04 + 0.08 * u));
+      ctx.beginPath();
+      ctx.arc(x, y, R * (3.5 - 2.45 * u), 0, TWO_PI);
+      ctx.stroke();
+    }
+    // the rim toward the accent (inside the arena's clip: a stroke of the field shape just inside the rim)
+    const lw = Math.max(2, 2 * rimWidth(fr.pal, 2 * (field.fullHalf > 0 ? field.fullHalf : field.half)));
+    ctx.globalAlpha = 0.6 * k;
+    ctx.lineWidth = lw;
+    fieldPath(ctx, field, lw / 2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * --- fl-heavy --- The ability's name slammed into the arena's top centre at the telegraph's start of a heavy ability (0.5
+   * unit, 0.6 for an ultimate, never under 48 px at the 1080 square), white with the caster's accent as its stroke, popping
+   * 1.4 → 1 over 110 ms, held through the telegraph and fading 150 ms after the cast. Its centre line sits 1.6 font sizes
+   * below the arena's top edge, clear of the heavy rim pop (0.04 side inside the edge). It is the ability's 'cast' callout
+   * (data-fl-callouts), moved from the cast to the wind-up. Unclipped pass, inside the square.
+   */
+  private drawWindupNames(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, unit: number) {
+    const field = view.field!;
+    const now = fr.now;
+    for (const f of view.fighters) {
+      if (!f.alive || !flHeavyAbility(f.row.ability)) continue;
+      let alpha = 0;
+      let age = 0;
+      if (f.telegraphUntil >= 0 && f.telegraphStart >= 0 && now >= f.telegraphStart) {
+        age = now - f.telegraphStart;
+        alpha = 1;
+      } else {
+        const since = now - f.lastCastMs;
+        if (!(since >= 0) || since >= WINDUP_FADE_MS) continue;
+        age = WINDUP_POP_MS;
+        alpha = 1 - since / WINDUP_FADE_MS;
+      }
+      const ability = f.row.ability;
+      const fs = Math.max((ability.ultimate ? 0.6 : 0.5) * unit, ((WINDUP_FLOOR_PX / 1080) * field.sqSide) / Math.max(1e-6, field.dk || 1) / fr.noirK);
+      const pop = age < WINDUP_POP_MS ? 1.4 - 0.4 * (age / WINDUP_POP_MS) : 1;
+      const accent = fr.pal.noir ? flNoirAccent(f.row) : f.row.accent;
+      const style: FlTextStyle = { role: "display", color: "#ffffff", stroke: accent, strokeK: 0.16 };
+      fr.text.draw(ctx, fr.text.upperOf(ability.name), field.cx, field.cy - field.half + WINDUP_Y * fs, fs, style, "center", 2 * field.half - 4, alpha, pop);
+      this.callouts.add("cast");
+    }
+  }
+
+  /**
+   * --- fl-heavy --- ARMED: a fighter carrying a loaded heavy punch (a giant hit left after the cast, until the blow lands or
+   * it is KO'd) wears a solid accent ring at 1.3 R pulsing to 1.45 R at 2 Hz from the cast, and its ability's name small
+   * over its head (0.28 unit, white on the accent stroke). After the shields, inside the arena's clip.
+   */
+  drawArmed(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView) {
+    const field = view.field;
+    if (!field || view.matchOver) return;
+    const unit = Math.max(6, field.side * 0.065);
+    const now = fr.now;
+    for (const f of view.fighters) {
+      if (!f.alive || f.giantLeft <= 0 || f.telegraphUntil >= 0 || !flHeavyAbility(f.row.ability)) continue;
+      const x = fr.x(f);
+      const y = fr.y(f);
+      const R = f.r;
+      const since = Math.max(0, now - f.lastCastMs);
+      const pulse = 0.5 + 0.5 * Math.sin(TWO_PI * 2 * (since / 1000));
+      const accent = fr.pal.noir ? flNoirAccent(f.row) : f.row.accent;
+      ctx.save();
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = Math.max(3, 0.14 * R);
+      ctx.beginPath();
+      ctx.arc(x, y, R * (1.3 + 0.15 * pulse), 0, TWO_PI);
+      ctx.stroke();
+      ctx.restore();
+      const style: FlTextStyle = { role: "display", color: "#ffffff", stroke: accent, strokeK: 0.14 };
+      fr.text.draw(ctx, fr.text.upperOf(f.row.ability.name), x, y - 1.9 * R, Math.max(8, 0.28 * unit), style, "center", 6 * R, 0.95);
+      this.callouts.add("armed");
     }
   }
 
@@ -591,7 +766,11 @@ export class FlFxPainter {
     ctx.restore();
   }
 
-  /** The KO finale inside the arena: the speed lines converging on the KO point (0–600 ms) and the spotlight vignette. */
+  /**
+   * The KO finale inside the arena: the speed lines converging on the KO point (0–600 ms; --- fl-heavy --- in the stage's
+   * streak colour, white on noir) and the spotlight vignette (--- fl-heavy --- on noir a white iris ring closing on the KO
+   * point instead: a 30 % darkening is invisible on black).
+   */
   drawFinale(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView) {
     const fin = view.finale;
     const field = view.field;
@@ -599,23 +778,37 @@ export class FlFxPainter {
     const ms = fr.now - fin.from;
     const total = fin.until - fin.from;
     if (!(ms >= 0) || ms >= total) return;
-    // the spotlight: the rest darkened by 30 % (a cached sprite – its gradient built once)
-    const v = this.vignetteSprite();
     const fade = ms < 150 ? ms / 150 : ms > total - 250 ? Math.max(0, (total - ms) / 250) : 1;
-    if (v) {
-      const R = 1.6 * field.side;
+    if (fr.pal.noir) {
+      // the iris: a thin white ring closing from 1.6 to 1.0 × the arena's half over 600 ms (--- fl-heavy ---)
+      const u = Math.min(1, ms / 600);
+      const k = u * u * (3 - 2 * u);
       ctx.save();
-      ctx.globalAlpha = fade;
-      ctx.drawImage(v.canvas, fin.x - R, fin.y - R, 2 * R, 2 * R);
+      ctx.globalAlpha = 0.35 * fade;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = Math.max(1, 0.004 * field.side);
+      ctx.beginPath();
+      ctx.arc(fin.x, fin.y, (1.6 - 0.6 * k) * field.half, 0, TWO_PI);
+      ctx.stroke();
       ctx.restore();
+    } else {
+      // the spotlight: the rest darkened by 30 % (a cached sprite – its gradient built once)
+      const v = this.vignetteSprite();
+      if (v) {
+        const R = 1.6 * field.side;
+        ctx.save();
+        ctx.globalAlpha = fade;
+        ctx.drawImage(v.canvas, fin.x - R, fin.y - R, 2 * R, 2 * R);
+        ctx.restore();
+      }
     }
     if (ms < 600) {
       const t = ms / 600;
       ctx.save();
-      ctx.globalAlpha = 0.55 * (1 - t);
-      ctx.strokeStyle = INK;
+      ctx.globalAlpha = 0.7 * (1 - t);
+      ctx.strokeStyle = fr.pal.fx.streak;
       ctx.lineCap = "round";
-      ctx.lineWidth = Math.max(1.5, 0.006 * field.side);
+      ctx.lineWidth = Math.max(1.5, 0.008 * field.side);
       ctx.beginPath();
       for (let k = 0; k < 12; k++) {
         const a = (k / 12) * TWO_PI + 0.2 * hash(k, 41);
@@ -710,11 +903,102 @@ export class FlFxPainter {
         case EV_CLASH:
           P.burst(e.x, e.y, 0, 0, 0, Math.round(k * 16), 0, Math.round(k * 4), unit, e.t, 31);
           break;
+        case EV_HEAVY: {
+          // --- fl-heavy --- on top of the hit's own burst: 44 dots, 14 chips, 12 sparks along the hit and an 8-puff cloud (the
+          // lethal blow's cloud is EV_KO's); a lethal chip under the heavy share gets none (its zoom and shake are enough)
+          const f = view.fighters[e.slot];
+          if (!f || flHeavyShare(e.value, f.maxHp) < FL_HEAVY_FRAC) break;
+          P.burst(e.x, e.y, e.x2, e.y2, 1.6, Math.round(k * 44), Math.round(k * 14), Math.round(k * 12), unit, e.t, 37);
+          if (e.aux !== 2) P.cloud(e.x, e.y, Math.round(k * 8), unit, e.t, 41);
+          break;
+        }
         default:
           break;
       }
     }
     P.seen = view.eventSerial;
+  }
+
+  /**
+   * --- fl-heavy --- (Stop The World) The white wash under a heavy hit: the arena shape filled white at 0.45 × (1 − t)² over
+   * FL_HEAVY_FLASH_MS on lilac, night and theme (0.3 on noir, where the effects clock nearly stops during the hit stop and
+   * the held frame would otherwise sit mid grey under the white ring, the cone and the number; 0.3 under reduced motion or
+   * with Impact Frames off), the strongest of the live heavy hits. Drawn in the unclipped pass before the HP numbers (so they
+   * stay readable); none while the ink flip has the arena white already.
+   */
+  drawWash(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView) {
+    const field = view.field;
+    if (!field || fr.flip) return;
+    const n = Math.min(view.eventSerial, FL_EVENT_CAP);
+    let best = 0;
+    for (let k = 0; k < n; k++) {
+      const e = view.events[k];
+      if (e.kind !== EV_HEAVY) continue;
+      const age = this.age(fr, view, e.t);
+      if (!(age >= 0) || age >= FL_HEAVY_FLASH_MS) continue;
+      const u = 1 - age / FL_HEAVY_FLASH_MS;
+      if (u * u > best) best = u * u;
+    }
+    if (!(best > 0)) return;
+    const soft = !!fr.o?.reducedMotion || view.settings.impact === false;
+    const peak = soft || fr.pal.noir ? 0.3 : 0.45;
+    ctx.save();
+    ctx.globalAlpha = peak * best;
+    ctx.fillStyle = "#ffffff";
+    fieldPath(ctx, field);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /**
+   * --- fl-heavy --- The noir opener (noir only, the match's intro, analytic in `fr.openerAge`; no event, no particle): the
+   * discs slide in (the renderer offsets where they are drawn) and arrive on the first tick cue with a white ring 0.4 → 1.6 R
+   * over 200 ms; from 600 to 1400 ms a white dash three rim widths wide grows clockwise round the rim from the top-left
+   * corner, so the square completes right before FIGHT!; at FIGHT! a 60 ms white wash of the arena (0.35 → 0) under the
+   * banner. Unclipped pass.
+   */
+  drawOpener(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView) {
+    const field = view.field;
+    const age = fr.openerAge;
+    if (!field || !fr.pal.noir || !Number.isFinite(age) || age < FL_OPENER_MS || age >= FL_INTRO_MS + OPENER_WASH_MS) return;
+    ctx.save();
+    if (age < FL_OPENER_MS + OPENER_RING_MS) {
+      const u = (age - FL_OPENER_MS) / OPENER_RING_MS;
+      ctx.globalAlpha = 0.9 * (1 - u);
+      ctx.strokeStyle = "#ffffff";
+      ctx.beginPath();
+      let lw = 2;
+      for (const f of view.fighters) {
+        if (!f.alive) continue;
+        const R = f.r * (0.4 + 1.2 * u);
+        lw = Math.max(lw, 0.1 * f.r * (1 - u));
+        ctx.moveTo(fr.x(f) + R, fr.y(f));
+        ctx.arc(fr.x(f), fr.y(f), R, 0, TWO_PI);
+      }
+      ctx.lineWidth = lw;
+      ctx.stroke();
+    }
+    if (age >= OPENER_DASH_FROM_MS && age < OPENER_DASH_TO_MS) {
+      const k = (age - OPENER_DASH_FROM_MS) / (OPENER_DASH_TO_MS - OPENER_DASH_FROM_MS);
+      const half = field.fullHalf > 0 ? field.fullHalf : field.half;
+      const rim = rimWidth(fr.pal, 2 * half);
+      const P = perimeter(field, -rim / 2);
+      ctx.globalAlpha = 0.9;
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 3 * rim;
+      ctx.setLineDash([Math.max(0.001, k * P), P]);
+      ctx.lineDashOffset = 0;
+      fieldPath(ctx, field, -rim / 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    if (age >= FL_INTRO_MS) {
+      ctx.globalAlpha = 0.35 * (1 - (age - FL_INTRO_MS) / OPENER_WASH_MS);
+      ctx.fillStyle = "#ffffff";
+      fieldPath(ctx, field);
+      ctx.fill();
+    }
+    ctx.restore();
   }
 
   /** --- fl-noir --- Draws the live particles: the dots, the chips and each spark colour as one path, the smoke puffs from the glow sprite. */
@@ -860,10 +1144,14 @@ export class FlFxPainter {
       if (!(age >= 0)) continue;
       switch (e.kind) {
         case EV_DAMAGE: {
-          if (age >= FL_NUMBER_MS || !numbers) break;
-          this.drawNumber(ctx, fr, view, e, k, age, unit);
-          // a giant hit's crit burst: an 8-point starburst and a ring at 1.6 ×
-          if (e.aux === 1 && age < 260) {
+          if (!numbers) break;
+          // --- fl-heavy --- the heavy tier (a share of the foe's maximum HP) lives FL_NUMBER_HEAVY_MS
+          const victim = view.fighters[e.slot];
+          const heavy = flHeavyShare(e.value, victim ? victim.maxHp : 100) >= FL_HEAVY_FRAC;
+          if (age < (heavy ? FL_NUMBER_HEAVY_MS : FL_NUMBER_MS)) this.drawNumber(ctx, fr, view, e, k, age, unit, heavy);
+          // a giant hit's crit burst: an 8-point starburst and a ring at 1.6 × (not on a heavy blow: its shock ring and cone
+          // stand in, in the attacker's one colour, and the victim's HP digits stay readable on the held frame)
+          if (e.aux === 1 && age < 260 && !heavy) {
             const t = age / 260;
             const f = view.fighters[e.slot];
             const R = (f ? f.r : unit) * (1 + 0.6 * t) * 1.6;
@@ -1094,11 +1382,133 @@ export class FlFxPainter {
             ctx.stroke();
             ctx.globalAlpha = 1;
           }
-          if (f) {
-            // the ability's name rises over the caster (clamped inside the arena: never over the names' band)
+          if (f && !flHeavyAbility(f.row.ability)) {
+            // the ability's name rises over the caster (clamped inside the arena: never over the names' band); --- fl-heavy ---
+            // a heavy ability's name was slammed into the arena's top at the telegraph's start instead (drawWindupNames)
             const fs = Math.max(9, 0.36 * unit);
             const pop = t < 0.1 ? 0.7 + 3 * t : 1;
             this.callout(ctx, fr, view, "cast", f.row.ability.name, e.x, e.y - 1.9 * unit - 0.5 * unit * t, fs, withAlpha(f.row.accent, 1), t < 0.75 ? 1 : 1 - (t - 0.75) / 0.25, pop);
+          }
+          break;
+        }
+        case EV_HEAVY: {
+          // --- fl-heavy --- (Stop The World) the shock rings, the cone and the rim pop for a heavy share (a lethal chip gets
+          // the zoom, the shake and the wash only); CRITICAL! over the victim for aux 1
+          const f = view.fighters[e.slot];
+          if (!f) break;
+          const R = f.r;
+          const attacker = e.src >= 0 ? view.fighters[e.src >> 3] : undefined;
+          const accent = attacker ? (fr.pal.noir ? flNoirAccent(attacker.row) : attacker.row.accent) : e.color;
+          const heavy = flHeavyShare(e.value, f.maxHp) >= FL_HEAVY_FRAC;
+          if (heavy) {
+            if (age < HEAVY_RING_MS) {
+              // the white shock ring 1.6 R → 4.2 R (ease-out: already open on the held frame), its line tapering 0.26 unit → 0
+              const t = age / HEAVY_RING_MS;
+              const eo = 1 - (1 - t) ** 3;
+              ctx.globalAlpha = 1 - t;
+              ctx.strokeStyle = "#ffffff";
+              ctx.lineWidth = Math.max(1, 0.26 * unit * (1 - t));
+              ctx.beginPath();
+              ctx.arc(e.x, e.y, R * (1.6 + 2.6 * eo), 0, TWO_PI);
+              ctx.stroke();
+              // the accent ring chasing it 60 ms later to 3.6 R
+              if (age >= HEAVY_RING_LAG_MS) {
+                const t2 = (age - HEAVY_RING_LAG_MS) / (HEAVY_RING_MS - HEAVY_RING_LAG_MS);
+                const eo2 = 1 - (1 - t2) ** 3;
+                ctx.globalAlpha = 1 - t2;
+                ctx.strokeStyle = accent;
+                ctx.lineWidth = Math.max(1, 0.1 * unit);
+                ctx.beginPath();
+                ctx.arc(e.x, e.y, R * (1 + 2.6 * eo2), 0, TWO_PI);
+                ctx.stroke();
+              }
+            }
+            if (age < HEAVY_CONE_MS && !fr.lite) {
+              // a cone of 12 white speed lines leaving the impact point within ± 0.35 rad of the hit, 3 R long, 0.14 unit wide
+              const t = age / HEAVY_CONE_MS;
+              const base = Math.atan2(e.y2, e.x2);
+              ctx.globalAlpha = 0.8 * (1 - t);
+              ctx.strokeStyle = "#ffffff";
+              ctx.lineCap = "round";
+              ctx.lineWidth = Math.max(1, 0.14 * unit);
+              ctx.beginPath();
+              const r0 = (0.8 + 2.2 * t) * R;
+              const r1 = r0 + 3 * R;
+              for (let q = 0; q < 12; q++) {
+                const a = base + (hash(q, e.t) - 0.5) * 0.7;
+                ctx.moveTo(e.x + Math.cos(a) * r0, e.y + Math.sin(a) * r0);
+                ctx.lineTo(e.x + Math.cos(a) * r1, e.y + Math.sin(a) * r1);
+              }
+              ctx.stroke();
+            }
+            if (age < FL_HEAVY_EDGE_MS && !fr.flip) {
+              // the one-colour pop: the arena rim in the attacker's accent, inside the edge and hugging it (the rim belongs to
+              // the plate: drawn without the zoom punch); none under the ink flip, whose rim is ink
+              const t = age / FL_HEAVY_EDGE_MS;
+              const lw = Math.max(1, 0.04 * field.side * (1 - t));
+              ctx.save();
+              this.unzoom(ctx, fr);
+              ctx.globalAlpha = 0.8 * (1 - t);
+              ctx.strokeStyle = accent;
+              ctx.lineWidth = lw;
+              fieldPath(ctx, field, lw / 2);
+              ctx.stroke();
+              ctx.restore();
+            }
+            ctx.globalAlpha = 1;
+          }
+          if (e.aux === 1 && age >= CRIT_FROM_MS && age < CRIT_MS) {
+            // CRITICAL! above the huge number once its slam has landed (0.9 unit, white for its first 50 ms then the accent);
+            // below the number when the number is pinned to the arena's top
+            const ca = age - CRIT_FROM_MS;
+            const t = ca / (CRIT_MS - CRIT_FROM_MS);
+            const pop = ca < 120 ? 1.5 - 0.5 * smoothstep(ca / 120) : 1;
+            const cfs = Math.max(12, 0.9 * unit);
+            const fs = flNumberFs(e.value, f.maxHp, unit, field.sqSide, field.dk || 1, fr.noirK);
+            const npop = fr.o?.reducedMotion || view.settings.impact === false ? flNumberPop(age) : flNumberSlam(age);
+            const half = field.half;
+            const ny = Math.max(field.cy - half + 0.6 * fs * npop, Math.min(field.cy + half - 0.6 * fs * npop, e.y - 0.4 * unit - FL_NUMBER_HEAVY_RISE * unit * (age / FL_NUMBER_HEAVY_MS)));
+            // (the digits' box runs past 0.5 fs with their 0.18 stroke, the callout's with its pop: the gap counts both)
+            const gap = 0.7 * fs * npop + 0.75 * cfs * pop;
+            const cy = ny - gap >= field.cy - half + 0.7 * cfs * pop ? ny - gap : ny + gap;
+            this.callout(ctx, fr, view, "critical", labels.critical, e.x, cy, cfs, ca < 50 ? "#ffffff" : accent, t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3, pop);
+          }
+          break;
+        }
+        case EV_TURN: {
+          // --- fl-heavy --- the lead changed sides: the attacker's accent runs once round the rim (a dash a quarter of the
+          // perimeter long, clockwise from the top-left corner over 600 ms) and COMEBACK! pops over the attacker (900 ms)
+          const f = view.fighters[e.slot];
+          if (!f) break;
+          const accent = fr.pal.noir ? flNoirAccent(f.row) : f.row.accent;
+          // the turn of a heavy blow (an EV_HEAVY by the same attacker in the same tick): the sweep starts when the rim pop
+          // ends (the pop covers the whole rim in the same accent) and COMEBACK! waits for the number and CRITICAL! to land
+          const lagged = this.heavyNear(view, e.slot, e.t);
+          const sweepAge = age - (lagged ? FL_HEAVY_EDGE_MS : 0);
+          if (sweepAge >= 0 && sweepAge < FL_TURN_SWEEP_MS) {
+            const t = sweepAge / FL_TURN_SWEEP_MS;
+            const lw = Math.max(1.5, 0.012 * field.side);
+            const P = perimeter(field, lw / 2);
+            ctx.save();
+            this.unzoom(ctx, fr);
+            ctx.globalAlpha = sweepAge < FL_TURN_SWEEP_MS - 200 ? 1 : (FL_TURN_SWEEP_MS - sweepAge) / 200;
+            ctx.strokeStyle = accent;
+            ctx.lineWidth = lw;
+            ctx.lineCap = "round";
+            ctx.setLineDash([0.25 * P, P]);
+            ctx.lineDashOffset = -P * t;
+            fieldPath(ctx, field, lw / 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.lineDashOffset = 0;
+            ctx.restore();
+            ctx.globalAlpha = 1;
+          }
+          const turnAge = age - (lagged ? TURN_LAG_MS : 0);
+          if (turnAge >= 0 && turnAge < TURN_MS) {
+            const t = turnAge / TURN_MS;
+            const pop = turnAge < 120 ? 1.5 - 0.5 * smoothstep(turnAge / 120) : 1;
+            this.callout(ctx, fr, view, "comeback", (labels.shows ?? DEFAULT_FL_SHOW_LABELS).comeback, e.x, e.y - 1.6 * f.r, Math.max(10, 0.5 * unit), accent, t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3, pop);
           }
           break;
         }
@@ -1204,7 +1614,7 @@ export class FlFxPainter {
         }
         case EV_KO: {
           if (age >= KO_MS) break;
-          this.drawKoBlast(ctx, view, e, age);
+          this.drawKoBlast(ctx, fr, view, e, age);
           break;
         }
         default:
@@ -1213,52 +1623,116 @@ export class FlFxPainter {
     }
     ctx.restore();
     this.drawCombos(ctx, fr, view, labels, unit);
+    // --- fl-heavy --- the heavy wind-ups' names at the arena's top, the noir opener's strokes
+    this.drawWindupNames(ctx, fr, view, unit);
+    this.drawOpener(ctx, fr, view);
   }
 
-  /** A damage number: colour tier, pop and rise, clamped inside the arena (a giant's gold '×N' beside it). */
-  private drawNumber(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, e: FlEvent, k: number, age: number, unit: number) {
+  /**
+   * A damage number: colour tier, pop and rise, clamped inside the arena (a giant's gold '×N' beside it). --- fl-heavy ---
+   * Every number's base size is divided by the noir scale (`flNumberFs()`: noir matches the other stages); the heavy tier
+   * (`heavy`: a share of the foe's maximum HP) is 1.9× in white on the attacker's accent (strokeK 0.18), slammed 2.6 → 0.94
+   * → 1 over 140 ms, jittering 0.06 unit at 22 Hz for its first 120 ms, rising only 0.5 unit over FL_NUMBER_HEAVY_MS and
+   * holding full alpha to 75 %; the '×N' stays for a multiplier giant only (the engine sends x2 = 0 for a share giant).
+   * Reduced motion or Impact Frames off: the plain 1.35 pop, no jitter. Under the ink flip the digits are ink with no stroke.
+   */
+  private drawNumber(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, e: FlEvent, k: number, age: number, unit: number, heavy: boolean) {
     const field = view.field!;
-    const t = age / FL_NUMBER_MS;
-    const big = Math.min(1, e.value / 25);
-    const fs = Math.max(10, Math.max(0.6 * unit, (0.028 * field.sqSide) / Math.max(1e-6, field.dk || 1)) * (0.85 + 0.35 * big));
+    const victim = view.fighters[e.slot];
+    const life = heavy ? FL_NUMBER_HEAVY_MS : FL_NUMBER_MS;
+    const t = age / life;
+    const fs = flNumberFs(e.value, victim ? victim.maxHp : 100, unit, field.sqSide, field.dk || 1, fr.noirK);
     const text = damageText(e.value);
-    const color = e.aux === 1 ? FL_GIANT_COLOR : e.aux === 2 ? FL_REFLECT_COLOR : flDamageColor(e.value);
-    const xo = (hash(k, e.t) - 0.5) * 0.6 * unit;
-    const alpha = t < 0.7 ? 1 : 1 - (t - 0.7) / 0.3;
-    const pop = flNumberPop(age);
-    const w = fr.text.numberWidth(text, fs, color, INK) * pop;
+    const reduced = !!fr.o?.reducedMotion || view.settings.impact === false;
+    let color: string;
+    let stroke: string | null;
+    let strokeK = 0.12;
+    if (fr.flip) {
+      color = INK;
+      stroke = null;
+    } else if (heavy) {
+      color = "#ffffff";
+      const attacker = e.src >= 0 ? view.fighters[e.src >> 3] : undefined;
+      stroke = attacker ? (fr.pal.noir ? flNoirAccent(attacker.row) : attacker.row.accent) : e.color;
+      strokeK = 0.18;
+    } else {
+      color = e.aux === 1 ? FL_GIANT_COLOR : e.aux === 2 ? FL_REFLECT_COLOR : flDamageColor(e.value);
+      stroke = INK;
+    }
+    let xo = (hash(k, e.t) - 0.5) * 0.6 * unit;
+    if (heavy && age < 120 && !reduced) xo += 0.06 * unit * Math.sin(TWO_PI * 22 * (age / 1000)) * (1 - age / 120);
+    const hold = heavy ? 0.75 : 0.7;
+    const alpha = t < hold ? 1 : 1 - (t - hold) / (1 - hold);
+    const pop = heavy && !reduced ? flNumberSlam(age) : flNumberPop(age);
+    const w = fr.text.numberWidth(text, fs, color, stroke, strokeK) * pop;
     const half = field.half;
-    let y = e.y - 0.4 * unit - FL_NUMBER_RISE * unit * t;
+    let y = e.y - 0.4 * unit - (heavy ? FL_NUMBER_HEAVY_RISE : FL_NUMBER_RISE) * unit * t;
     y = Math.max(field.cy - half + 0.6 * fs * pop, Math.min(field.cy + half - 0.6 * fs * pop, y));
     const x = Math.max(field.cx - half + w / 2 + 2, Math.min(field.cx + half - w / 2 - 2, e.x + xo));
-    fr.text.number(ctx, text, x, y, fs, color, INK, "center", alpha, pop);
+    fr.text.number(ctx, text, x, y, fs, color, stroke, "center", alpha, pop, strokeK);
     if (e.aux === 1 && e.x2 >= 1.5) {
       const m = MULT_TEXT[Math.max(0, Math.min(99, Math.round(e.x2)))];
       fr.text.number(ctx, m, Math.min(field.cx + half - 2, x + w / 2 + 0.15 * fs), y - 0.35 * fs, 0.6 * fs, FL_GIANT_COLOR, INK, "left", alpha, pop);
     }
   }
 
-  /** A KO blast: a shock ring and the body's shards flying out (analytic). */
-  private drawKoBlast(ctx: CanvasRenderingContext2D, view: FightLeagueView, e: FlEvent, age: number) {
+  /**
+   * A KO blast (analytic): --- fl-heavy --- a shock ring expanding past the arena's edge (R + 1.6 × the field's side, ease-out,
+   * over KO_MS: it crawls through the finale's hold and completes as time returns; white on noir, the body colour elsewhere),
+   * a second ring in the body colour at 0.8 of it, 24 shards (two fill paths: white and the body colour) under the old gravity
+   * and 8 long streaks from the KO point (one stroke path). Lite: 12 shards, no streaks.
+   */
+  private drawKoBlast(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, e: FlEvent, age: number) {
     const f = view.fighters[e.slot];
+    const field = view.field!;
     const R = f ? f.r : 10;
     const t = age / KO_MS;
-    ctx.globalAlpha = 0.7 * (1 - t);
-    ctx.strokeStyle = e.color;
-    ctx.lineWidth = 3 * (1 - t) + 1;
+    const eo = 1 - (1 - t) ** 3;
+    const rad = R + 1.6 * field.side * eo;
+    ctx.globalAlpha = 0.85 * (1 - t);
+    ctx.strokeStyle = fr.pal.noir ? "#ffffff" : e.color;
+    ctx.lineWidth = Math.max(1, 0.05 * field.side * (1 - t));
     ctx.beginPath();
-    ctx.arc(e.x, e.y, R * (1 + 4 * t), 0, TWO_PI);
+    ctx.arc(e.x, e.y, rad, 0, TWO_PI);
+    ctx.stroke();
+    ctx.strokeStyle = e.color;
+    ctx.lineWidth = Math.max(1, 0.02 * field.side * (1 - t));
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, 0.8 * rad, 0, TWO_PI);
     ctx.stroke();
     const sec = age / 1000;
-    for (let s = 0; s < SHARDS; s++) {
-      const a = TWO_PI * (s / SHARDS + 0.3 * hash(s, e.slot));
-      const speed = R * (3 + 5 * hash(s, e.slot + 7));
-      const d = speed * sec * (1 - 0.35 * sec);
-      const size = R * (0.16 + 0.22 * hash(s, e.slot + 3)) * (1 - 0.6 * t);
-      ctx.globalAlpha = 1 - t;
-      ctx.fillStyle = s % 3 === 0 ? "#ffffff" : e.color;
+    if (!fr.lite) {
+      // the streaks: 8 long lines from the KO point, 0.4 side × t long, their start riding out with the ring
+      ctx.globalAlpha = 0.7 * (1 - t);
+      ctx.strokeStyle = fr.pal.fx.streak;
+      ctx.lineCap = "round";
+      ctx.lineWidth = Math.max(1.5, 0.006 * field.side);
       ctx.beginPath();
-      ctx.arc(e.x + Math.cos(a) * d, e.y + Math.sin(a) * d + 40 * sec * sec, size, 0, TWO_PI);
+      for (let s = 0; s < 8; s++) {
+        const a = TWO_PI * hash(s, e.slot + 11);
+        const r0 = R + 0.25 * field.side * eo;
+        const r1 = r0 + 0.4 * field.side * t;
+        ctx.moveTo(e.x + Math.cos(a) * r0, e.y + Math.sin(a) * r0);
+        ctx.lineTo(e.x + Math.cos(a) * r1, e.y + Math.sin(a) * r1);
+      }
+      ctx.stroke();
+    }
+    // the shards: alternating white and the body colour, one fill a colour
+    const shards = fr.lite ? SHARDS_LITE : SHARDS;
+    ctx.globalAlpha = 1 - t;
+    for (let colour = 0; colour < 2; colour++) {
+      ctx.fillStyle = colour === 0 ? "#ffffff" : e.color;
+      ctx.beginPath();
+      for (let s = colour; s < shards; s += 2) {
+        const a = TWO_PI * (s / shards + 0.3 * hash(s, e.slot));
+        const speed = R * (3 + 5 * hash(s, e.slot + 7));
+        const d = speed * sec * (1 - 0.35 * sec);
+        const size = R * (0.16 + 0.22 * hash(s, e.slot + 3)) * (1 - 0.6 * t);
+        const sx = e.x + Math.cos(a) * d;
+        const sy = e.y + Math.sin(a) * d + 40 * sec * sec;
+        ctx.moveTo(sx + size, sy);
+        ctx.arc(sx, sy, size, 0, TWO_PI);
+      }
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -1278,7 +1752,11 @@ export class FlFxPainter {
 
   /**
    * The ultimates' super flash (screen space, inside the arena's rect): a 35 % veil, a diagonal ribbon in the caster's
-   * colours carrying the ability's name, the square's edges tinted – 450 ms from the cast.
+   * colours carrying the ability's name, the square's edges tinted – 450 ms from the cast. --- fl-heavy --- A heavy ability
+   * (`flHeavyAbility()`: every ultimate) had its name slammed into the arena's top through the wind-up, so it gets no ribbon
+   * (the name was on screen already, and the ribbon crossed the huge number); the veil is white at 0.06 on noir; and the
+   * flash ends at the caster's first heavy blow after the cast (a 60 ms fade), so the frozen frame and the number own the
+   * arena. It registers the `ultimate` callout.
    */
   drawSuperFlash(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, ax: number, ay: number, aw: number, ah: number, sx: number, sy: number, side: number) {
     let best: FlFighter | null = null;
@@ -1291,28 +1769,41 @@ export class FlFxPainter {
     if (!best) return;
     const age = fr.now - best.lastCastMs;
     const t = age / FL_SUPER_FLASH_MS;
-    const fade = t < 0.15 ? t / 0.15 : t > 0.75 ? (1 - t) / 0.25 : 1;
+    let fade = t < 0.15 ? t / 0.15 : t > 0.75 ? (1 - t) / 0.25 : 1;
+    // over at the caster's first heavy blow after the cast
+    const n = Math.min(view.eventSerial, FL_EVENT_CAP);
+    let blow = Infinity;
+    for (let k = 0; k < n; k++) {
+      const e = view.events[k];
+      if (e.kind === EV_HEAVY && e.src >= 0 && e.src >> 3 === best.slot && e.t >= best.lastCastMs && e.t < blow) blow = e.t;
+    }
+    if (fr.now >= blow) fade = Math.min(fade, 1 - (fr.now - blow) / SUPER_FLASH_END_MS);
+    if (!(fade > 0)) return;
+    const heavy = flHeavyAbility(best.row.ability);
     ctx.save();
     ctx.beginPath();
     ctx.rect(ax, ay, aw, ah);
     ctx.clip();
-    ctx.globalAlpha = 0.35 * fade;
-    ctx.fillStyle = INK;
+    // (--- fl-heavy --- the veil is white on noir: an ink veil is invisible on black)
+    ctx.globalAlpha = (fr.pal.noir ? 0.06 : 0.35) * fade;
+    ctx.fillStyle = fr.pal.noir ? "#ffffff" : INK;
     ctx.fillRect(ax, ay, aw, ah);
-    // the ribbon slides across on a diagonal
-    const cx = ax + aw / 2 + (0.5 - Math.min(1, t * 2.2)) * 0.5 * aw;
-    const cy = ay + ah / 2;
-    const bandH = 0.16 * ah;
-    ctx.translate(cx, cy);
-    ctx.rotate(-0.22);
-    ctx.globalAlpha = 0.95 * fade;
-    ctx.fillStyle = best.row.body;
-    ctx.fillRect(-aw, -bandH / 2, 2 * aw, bandH);
-    ctx.fillStyle = best.row.accent;
-    ctx.fillRect(-aw, -bandH / 2 - 0.12 * bandH, 2 * aw, 0.12 * bandH);
-    ctx.fillRect(-aw, bandH / 2, 2 * aw, 0.12 * bandH);
-    const name = fr.text.upperOf(best.row.ability.name);
-    fr.text.draw(ctx, name, 0, 0, 0.62 * bandH, { role: "display", color: "#ffffff", stroke: INK, strokeK: 0.12 }, "center", 0.9 * aw, fade);
+    if (!heavy) {
+      // the ribbon slides across on a diagonal
+      const cx = ax + aw / 2 + (0.5 - Math.min(1, t * 2.2)) * 0.5 * aw;
+      const cy = ay + ah / 2;
+      const bandH = 0.16 * ah;
+      ctx.translate(cx, cy);
+      ctx.rotate(-0.22);
+      ctx.globalAlpha = 0.95 * fade;
+      ctx.fillStyle = best.row.body;
+      ctx.fillRect(-aw, -bandH / 2, 2 * aw, bandH);
+      ctx.fillStyle = best.row.accent;
+      ctx.fillRect(-aw, -bandH / 2 - 0.12 * bandH, 2 * aw, 0.12 * bandH);
+      ctx.fillRect(-aw, bandH / 2, 2 * aw, 0.12 * bandH);
+      const name = fr.text.upperOf(best.row.ability.name);
+      fr.text.draw(ctx, name, 0, 0, 0.62 * bandH, { role: "display", color: "#ffffff", stroke: INK, strokeK: 0.12 }, "center", 0.9 * aw, fade);
+    }
     ctx.restore();
     // the square's edges tinted in the caster's accent
     ctx.save();
@@ -1345,4 +1836,27 @@ function nearestFoe(view: FightLeagueView, f: FlFighter, fr: FlFrame): FlFighter
 /** `x` clamped so a label `w` wide stays inside the arena. */
 function clampX(field: { cx: number; half: number }, x: number, w: number): number {
   return Math.max(field.cx - field.half + w / 2 + 2, Math.min(field.cx + field.half - w / 2 - 2, x));
+}
+
+/** --- fl-heavy --- smoothstep on [0, 1]. */
+function smoothstep(u: number): number {
+  const x = Math.max(0, Math.min(1, u));
+  return x * x * (3 - 2 * x);
+}
+
+/**
+ * --- fl-heavy --- The arena's shape as a path, `inset` world px inside its edge (negative: outside): the circle from the
+ * right, the square from its top-left corner clockwise (the rim sweeps and the opener's dash run along it).
+ */
+function fieldPath(ctx: CanvasRenderingContext2D, field: { kind: string; cx: number; cy: number; half: number }, inset = 0) {
+  const h = field.half - inset;
+  ctx.beginPath();
+  if (field.kind === "circle") ctx.arc(field.cx, field.cy, Math.max(0.1, h), -0.75 * Math.PI, 1.25 * Math.PI);
+  else ctx.rect(field.cx - h, field.cy - h, 2 * h, 2 * h);
+}
+
+/** --- fl-heavy --- The length of `fieldPath()` (world px). */
+function perimeter(field: { kind: string; half: number }, inset = 0): number {
+  const h = Math.max(0.1, field.half - inset);
+  return field.kind === "circle" ? TWO_PI * h : 8 * h;
 }

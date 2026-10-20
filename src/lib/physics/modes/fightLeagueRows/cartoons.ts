@@ -111,10 +111,10 @@ export const FL_ROWS_CARTOONS: readonly FlFighterRow[] = [
       charge: 9,
       effects: [
         { p: "invulnerable", dur: 2.5, untargetable: true },
-        { p: "giantHit", mult: 2 },
+        { p: "giantHit", mult: 1, maxHpFrac: 0.25 }, // --- fl-heavy --- (a quarter of the foe's maximum HP)
       ],
     },
-    description: "A tiny mallet swung at top speed; Mouse Hole hides him safe away, and his next hit doubles.",
+    description: "A tiny mallet swung at top speed. Mouse Hole hides him safe away, and his next hit takes a quarter of the foe's maximum HP.",
     role: "glass",
     isNew: true,
     look: { pattern: "core", crest: "ears" },

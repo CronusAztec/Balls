@@ -313,21 +313,22 @@ export class FlTextCache {
     return tw;
   }
 
-  private atlas(size: number, color: string, stroke: string | null): Atlas | null {
+  /** A glyph strip at `size` in `color` with `stroke` (`strokeK` its width outside the glyphs as a share of the size; 0.12 by default – --- fl-heavy --- the huge numbers take 0.18). */
+  private atlas(size: number, color: string, stroke: string | null, strokeK = 0.12): Atlas | null {
     const b = bucketOf(size * this.scale);
-    const key = `${b}|${color}|${stroke ?? ""}|${this.scale}`;
+    const key = `${b}|${color}|${stroke ?? ""}|${stroke ? strokeK : 0}|${this.scale}`;
     const hit = this.atlases.get(key);
     if (hit !== undefined) return hit;
     if (this.atlases.size >= 40) {
       const oldest = this.atlases.keys().next();
       if (!oldest.done) this.atlases.delete(oldest.value);
     }
-    const built = this.buildAtlas(b, color, stroke);
+    const built = this.buildAtlas(b, color, stroke, strokeK);
     this.atlases.set(key, built);
     return built;
   }
 
-  private buildAtlas(b: number, color: string, stroke: string | null): Atlas | null {
+  private buildAtlas(b: number, color: string, stroke: string | null, strokeK: number): Atlas | null {
     const pg = this.measure();
     if (!pg) return null;
     const font = flFont("mono", b);
@@ -336,7 +337,7 @@ export class FlTextCache {
     const adv = new Float64Array(n);
     const cellW = new Float64Array(n);
     const sx = new Float64Array(n);
-    const sw = stroke ? Math.max(1.5, 0.24 * b) : 0;
+    const sw = stroke ? Math.max(1.5, 2 * strokeK * b) : 0;
     const pad = Math.ceil(sw / 2 + 2);
     let x = 0;
     for (let i = 0; i < n; i++) {
@@ -373,8 +374,8 @@ export class FlTextCache {
   }
 
   /** The width of a number string drawn from the atlas at `size`. */
-  numberWidth(text: string, size: number, color: string, stroke: string | null): number {
-    const a = this.atlas(size, color, stroke);
+  numberWidth(text: string, size: number, color: string, stroke: string | null, strokeK = 0.12): number {
+    const a = this.atlas(size, color, stroke, strokeK);
     if (!a) return 0.6 * size * text.length;
     const k = size / a.size;
     let w = 0;
@@ -389,9 +390,9 @@ export class FlTextCache {
    * Draws a number string (digits and - + × / : . %) from the digit atlas with its middle at `y`, aligned to `x`, at `size`
    * (× `pop`) and `alpha`: one drawImage a glyph. Returns the width drawn.
    */
-  number(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, color: string, stroke: string | null, align: FlAlign = "center", alpha = 1, pop = 1): number {
+  number(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, size: number, color: string, stroke: string | null, align: FlAlign = "center", alpha = 1, pop = 1, strokeK = 0.12): number {
     if (!text || !(size > 0) || !(alpha > 0)) return 0;
-    const a = this.atlas(size, color, stroke);
+    const a = this.atlas(size, color, stroke, strokeK);
     if (!a) return 0;
     const k = (size * pop) / a.size;
     let tw = 0;

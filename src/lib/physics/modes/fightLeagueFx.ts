@@ -6,6 +6,7 @@ import {
   EV_SHOCK,
   EV_SLAM,
   EV_CAST,
+  EV_HEAVY,
   FB_CLASH,
   FB_CLUTCH,
   FB_COUNT,
@@ -29,6 +30,9 @@ import {
 } from "./fightLeague";
 // --- fl-overhaul --- (Stage 5) the story's and the shows' banners (their names for data-fl-banners; PHASE 2 a centre banner)
 import { FB_BOSS_FALLS, FB_BOSS_SURVIVES, FB_CHALLENGER, FB_CHAMPION, FB_COMEBACK, FB_FINAL, FB_FINISH, FB_GAME, FB_MATCH_POINT, FB_PHASE2, FB_QUARTER_FINAL, FB_REMATCH, FB_ROUND_OF_16, FB_SEMI_FINAL, FB_SERIES_POINT, FB_SERIES_WIN, FB_UPSET, FB_WAVE } from "./fightLeague";
+// --- fl-heavy --- (Stop The World) the heavy tier's threshold lives in the roster (flHeavyAbility() needs it there); re-exported here with its siblings
+import { FL_HEAVY_FRAC } from "./fightLeagueRoster";
+export { FL_HEAVY_FRAC } from "./fightLeagueRoster";
 
 /**
  * --- fl-overhaul --- (Stage 3) Fight League's visual maths: pure functions (no DOM, no clock, no random numbers) that the mode,
@@ -39,6 +43,9 @@ import { FB_BOSS_FALLS, FB_BOSS_SURVIVES, FB_CHALLENGER, FB_CHAMPION, FB_COMEBAC
  *    `flFinaleWarp()` maps the effects' ages; `flFinaleZoom()` the 1 → 1.12 push-in),
  *  - the mode-owned screen shake (`flShakeAt()`: decaying directional shakes summed from the event ring),
  *  - the hit feedback curves (flash, squash and stretch, impact frames, the damage numbers' pop, rise and colour tiers),
+ *  - --- fl-heavy --- the heavy hits (the tiers `flHeavyShare()` measures, the hit stop's and the ink flip's lengths, the zoom
+ *    punch `flHeavyZoom()`, the huge number's size `flNumberFs()` and slam `flNumberSlam()`, the lead turn's and the low-HP
+ *    heartbeat's thresholds, the noir opener's length),
  *  - contrast (`flNameColor()` lightens a dark pair to 4.5:1 against the ink stroke, `bodyRimWidth()` rims a body that
  *    melts into the floor),
  *  - the HUD's layout at a square of `side` px (`flHudLayout()`: the names band, the boxes – clear of the watermark badge
@@ -130,7 +137,11 @@ export function flEffectNow(view: Pick<FightLeagueView, "finale">, now: number):
 export const FL_SHAKE_HZ = 22;
 /** No shake ever moves the stage further than this share of the square's side. */
 export const FL_SHAKE_CLAMP = 0.02;
-/** The shakes: amplitude (share of the square's side) and length (ms) of a hit (≥ 10 damage, × min(1, dmg/25)), a slam, an area cast, a bomb, a KO and the final KO. */
+/**
+ * The shakes: amplitude (share of the square's side) and length (ms) of a hit (≥ 10 damage, × min(1, dmg/25)), a slam, an area
+ * cast, a bomb, a KO and the final KO; --- fl-heavy --- a heavy hit (EV_HEAVY, along the hit direction: "FL_SHAKES.heavy {amp
+ * 0.014, ms 320} along the hit direction (e.x2, e.y2), 0.016 for aux 2") and the lethal blow (`heavyKo`).
+ */
 export const FL_SHAKES = {
   hit: { amp: 0.0035, ms: 220, minDamage: 10 },
   slam: { amp: 0.005, ms: 240 },
@@ -138,6 +149,8 @@ export const FL_SHAKES = {
   bomb: { amp: 0.007, ms: 320 },
   ko: { amp: 0.012, ms: 380 },
   finalKo: { amp: 0.016, ms: 380 },
+  heavy: { amp: 0.014, ms: 320 },
+  heavyKo: { amp: 0.016, ms: 320 },
 } as const;
 /** The default strength of the shake setting (`flShake`). */
 export const FL_SHAKE_DEFAULT = 0.6;
@@ -159,8 +172,9 @@ export function flShakeTerm(age: number, len: number, amp: number, dx: number, d
 
 /**
  * The stage's shake at `now` (screen px for a square of `side` px): the decaying directional shakes of the event ring – a
- * hit of 10+ damage, a slam into a wall, an area cast, a bomb's burst, a KO (the final KO harder) – summed, clamped to
- * `FL_SHAKE_CLAMP` × side and scaled by `strength` (the setting; 0 = none). Pure: the same view and clock give the same shake.
+ * hit of 10+ damage, a slam into a wall, an area cast, a bomb's burst, a KO (the final KO harder), --- fl-heavy --- a heavy
+ * hit along its direction (the lethal blow harder) – summed, clamped to `FL_SHAKE_CLAMP` × side and scaled by `strength` (the
+ * setting; 0 = none). Pure: the same view and clock give the same shake.
  */
 export function flShakeAt(view: Pick<FightLeagueView, "events" | "eventSerial">, now: number, side: number, strength: number, out: { x: number; y: number }): { x: number; y: number } {
   out.x = 0;
@@ -197,6 +211,15 @@ export function flShakeAt(view: Pick<FightLeagueView, "events" | "eventSerial">,
         const dx = d > 1e-6 ? e.x2 / d : 0;
         const dy = d > 1e-6 ? e.y2 / d : 1;
         const s = e.aux === 1 ? FL_SHAKES.finalKo : FL_SHAKES.ko;
+        flShakeTerm(age, s.ms, s.amp * side, dx, dy, out);
+        break;
+      }
+      case EV_HEAVY: {
+        // --- fl-heavy --- a heavy hit: along the hit direction (x2, y2: a unit vector), the lethal blow (aux 2) harder
+        const d = Math.hypot(e.x2, e.y2);
+        const dx = d > 1e-6 ? e.x2 / d : 0;
+        const dy = d > 1e-6 ? e.y2 / d : 1;
+        const s = e.aux === 2 ? FL_SHAKES.heavyKo : FL_SHAKES.heavy;
         flShakeTerm(age, s.ms, s.amp * side, dx, dy, out);
         break;
       }
@@ -286,6 +309,94 @@ export const FL_DAMAGE_MERGE_MS = 150;
 /** Combos: 3+ hits by one attacker on the same foe, each within 1.2 s of the last, none taken in between. */
 export const FL_COMBO_MS = 1200;
 export const FL_COMBO_MIN = 3;
+
+/* ------------------------------------------------------------------ --- fl-heavy --- (Stop The World) heavy hits */
+
+/*
+ * The spec: "A phone viewer with the sound off judges a fight by one thing: does the big hit feel big." A heavy hit (a share
+ * of the foe's maximum HP: `FL_HEAVY_FRAC`, re-exported above from the roster) stops the world: the page camera dips to
+ * `FL_HITSTOP_FACTOR` for `FL_HITSTOP_MS` (`FL_HITSTOP_KO_MS` on the lethal blow), the arena washes white, noir flips to ink
+ * on the KO blow, the bodies punch in (`flHeavyZoom()`), the stage shakes along the hit (FL_SHAKES.heavy) and the number is
+ * huge and slammed (`flNumberFs()`, `flNumberSlam()`). Everything here is pure maths over (event, clock); the mode pushes the
+ * EV_HEAVY and EV_TURN events, the renderer draws them, no rule reads any of it.
+ */
+
+/** A hit of this share of the target's maximum HP or more is CRITICAL (EV_HEAVY aux 1): "1 critical (>= 0.40 x maxHp)". */
+export const FL_CRIT_FRAC = 0.4;
+/**
+ * The hit stop: "the page camera dips to factor 0.05 for FL_HITSTOP_MS 90 real ms (aux 0 and 1) or FL_HITSTOP_KO_MS 150 (aux
+ * 2)" – a freeze, not a judder (about 26 ms of simulation pass inside the 90, about 44 inside the 150). Wall-clock, page side
+ * only (cam.dip): never in headless tests, never in the fixed 60 Hz steps.
+ */
+export const FL_HITSTOP_MS = 90;
+export const FL_HITSTOP_KO_MS = 150;
+export const FL_HITSTOP_FACTOR = 0.05;
+/** The white wash under a heavy hit: "the arena shape fills white at alpha 0.55 x (1 - t)^2 over FL_HEAVY_FLASH_MS 90 (effects clock)". */
+export const FL_HEAVY_FLASH_MS = 90;
+/** The noir ink flip on the lethal blow: "the arena fills #ffffff, the rim is stroked INK ... for FL_KO_FLIP_MS 100 real ms". */
+export const FL_KO_FLIP_MS = 100;
+/**
+ * The zoom punch about the impact point: "1 + (lethal ? 0.10 : 0.07) x (1 - smoothstep(age / 400)) larger" – the bodies and
+ * effects inside the arena clip only; the plate, the clip, the shake and the HUD stay still.
+ */
+export const FL_HEAVY_ZOOM = 0.07;
+export const FL_HEAVY_ZOOM_KO = 0.1;
+export const FL_HEAVY_ZOOM_MS = 400;
+/**
+ * The huge number: 2.4 x the base (72 px on screen at the 1080 square: the noir arena is 0.6 of the square, so the spec's 1.9
+ * read 30 % smaller than the reference reels), "rising only 0.5 unit over FL_NUMBER_HEAVY_MS 1400 (the plain tier keeps 750 ms
+ * and 0.9 unit)".
+ */
+export const FL_NUMBER_HEAVY_MS = 1400;
+export const FL_NUMBER_HEAVY_SCALE = 2.4;
+export const FL_NUMBER_HEAVY_RISE = 0.5;
+/**
+ * The lead turn (EV_TURN): "the lead changes sides on a hit of >= FL_TURN_FRAC 0.15 x target.maxHp or a heavy blow", "at most
+ * once per FL_TURN_GAP_MS 2500 per attacker".
+ */
+export const FL_TURN_FRAC = 0.15;
+export const FL_TURN_GAP_MS = 2500;
+/** The low-HP heartbeat (noir, from view state, no event): "any alive fighter under 25 percent HP wears a heartbeat". */
+export const FL_HEARTBEAT_FRAC = 0.25;
+/** The noir opener: the discs slide in from outside the arena "easing in over 0 to FL_OPENER_MS 450 (easeOutCubic)", arriving on the first tick cue. */
+export const FL_OPENER_MS = 450;
+
+/** The share of the target's maximum HP a hit of `value` took (the heavy tiers compare it with FL_HEAVY_FRAC and FL_CRIT_FRAC). */
+export function flHeavyShare(value: number, maxHp: number): number {
+  return value / Math.max(1e-9, maxHp);
+}
+
+/**
+ * The zoom punch `age` ms (effects clock) after a heavy hit: 1 + 0.07 (0.10 for the lethal blow) × (1 − smoothstep(age / 400)),
+ * 1 outside [0, FL_HEAVY_ZOOM_MS). Held at its peak on the frozen frame (the effects clock nearly stops during the dip), easing
+ * out after release. Separate from `flFinaleZoom()`, which stays 1 outside the finale.
+ */
+export function flHeavyZoom(age: number, lethal: boolean): number {
+  if (!(age >= 0) || age >= FL_HEAVY_ZOOM_MS) return 1;
+  return 1 + (lethal ? FL_HEAVY_ZOOM_KO : FL_HEAVY_ZOOM) * (1 - smooth(age / FL_HEAVY_ZOOM_MS));
+}
+
+/**
+ * A huge number's slam `age` ms after it appeared: "2.6 at 0 to 0.94 at 70 ms to 1 at 140 ms (smoothstepped)", 1 after (the
+ * plain tier keeps `flNumberPop()`).
+ */
+export function flNumberSlam(age: number): number {
+  if (!(age >= 0)) return 2.6;
+  if (age < 70) return 2.6 - (2.6 - 0.94) * smooth(age / 70);
+  if (age < 140) return 0.94 + (1 - 0.94) * smooth((age - 70) / 70);
+  return 1;
+}
+
+/**
+ * A damage number's font size (px) for a hit of `value` on a fighter of `maxHp`: the base max(0.6 unit, 0.028 × the square's
+ * side ÷ `dk`) divided by `noirK` (so noir matches the other stages: 30.2 px at the 1080 square instead of 24.5), × 1.9 for
+ * the heavy tier (`flHeavyShare()` ≥ FL_HEAVY_FRAC) or × 0.85 + 0.35 × min(1, value / 25) for the plain one, never under 10.
+ */
+export function flNumberFs(value: number, maxHp: number, unit: number, sqSide: number, dk: number, noirK: number): number {
+  const base = Math.max(0.6 * unit, (0.028 * sqSide) / (dk > 0 ? dk : 1)) / (noirK > 0 ? noirK : 1);
+  const scale = flHeavyShare(value, maxHp) >= FL_HEAVY_FRAC ? FL_NUMBER_HEAVY_SCALE : 0.85 + 0.35 * Math.min(1, value / 25);
+  return Math.max(10, base * scale);
+}
 
 /* ------------------------------------------------------------------ trails */
 

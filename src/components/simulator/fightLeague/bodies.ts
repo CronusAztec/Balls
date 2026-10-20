@@ -1,7 +1,7 @@
-import type { FightLeagueView, FlFighter } from "@/lib/physics/modes/fightLeague";
+import { FL_INTRO_MS, type FightLeagueView, type FlFighter } from "@/lib/physics/modes/fightLeague";
 import { drawCrown } from "./shows"; // --- fl-overhaul --- (Stage 5)
-import { FL_FAST_STAT, FL_FLASH_TINT_MS, FL_FLASH_WHITE_MS, FL_MAX_SLOTS, FL_SPEED_LINES_AT, FL_TRAIL_AT, bodyRimWidth, flNameColor, flSquashK } from "@/lib/physics/modes/fightLeagueFx";
-import { flShortName, type FlFighterRow } from "@/lib/physics/modes/fightLeagueRoster";
+import { FL_FAST_STAT, FL_FLASH_TINT_MS, FL_FLASH_WHITE_MS, FL_HEARTBEAT_FRAC, FL_MAX_SLOTS, FL_OPENER_MS, FL_SPEED_LINES_AT, FL_TRAIL_AT, bodyRimWidth, flNameColor, flSquashK, flTelegraphProgress } from "@/lib/physics/modes/fightLeagueFx";
+import { flHeavyAbility, flShortName, type FlFighterRow } from "@/lib/physics/modes/fightLeagueRoster";
 import type { FlFrame } from "./frame";
 import { FL_STATUS_ARC_MS, GOLD, INK, RAINBOW, TEAM_COLORS, luminance, shade } from "./palette";
 import { TWO_PI, hash, makeSprite, polygonPath, starPath, type Sprite } from "./sprites";
@@ -517,12 +517,27 @@ export class FlBodiesPainter {
     }
     // the winner's idle bob (6 %)
     if (winner && f.alive) by -= 0.06 * r * Math.abs(Math.sin((now / 1000) * Math.PI * 1.6));
+    // --- fl-heavy --- (Stop The World) the heavy wind-up: a fighter telegraphing a heavy blow swells 1 → 1.12 over the
+    // telegraph and trembles ± 0.03 R at 12 Hz along its locked aim (no tremble on the lite tier)
+    let swell = 1;
+    if (f.telegraphUntil >= 0 && flHeavyAbility(row.ability)) {
+      swell = 1 + 0.12 * flTelegraphProgress(f.telegraphStart, f.telegraphUntil, now);
+      if (!fr.lite) {
+        const ax = f.castX - x;
+        const ay = f.castY - y;
+        const d = Math.hypot(ax, ay) || 1;
+        const tremble = 0.03 * r * Math.sin(TWO_PI * 12 * (fr.fxNow / 1000));
+        bx += (ax / d) * tremble;
+        by += (ay / d) * tremble;
+      }
+    }
+    const rs = r * swell;
     if (ghost) this.drawRipple(ctx, f, bx, by, now);
-    if (fr.pal.noir) this.drawDisc(ctx, f, bx, by, r, base, hitAge);
+    if (fr.pal.noir) this.drawDisc(ctx, fr, view, f, bx, by, rs, base, hitAge);
     else {
-      this.drawBodyAt(ctx, fr, row, bx, by, r, fr.px, 0, base, squash, dir);
-      if (hitAge >= 0 && hitAge < FL_FLASH_WHITE_MS) this.drawBodyAt(ctx, fr, row, bx, by, r, fr.px, 1, 0.9 * base, squash, dir);
-      else if (hitAge >= FL_FLASH_WHITE_MS && hitAge < FL_FLASH_TINT_MS) this.drawBodyAt(ctx, fr, row, bx, by, r, fr.px, 2, 0.4 * base * (1 - (hitAge - FL_FLASH_WHITE_MS) / (FL_FLASH_TINT_MS - FL_FLASH_WHITE_MS)), squash, dir);
+      this.drawBodyAt(ctx, fr, row, bx, by, rs, fr.px, 0, base, squash, dir);
+      if (hitAge >= 0 && hitAge < FL_FLASH_WHITE_MS) this.drawBodyAt(ctx, fr, row, bx, by, rs, fr.px, 1, 0.9 * base, squash, dir);
+      else if (hitAge >= FL_FLASH_WHITE_MS && hitAge < FL_FLASH_TINT_MS) this.drawBodyAt(ctx, fr, row, bx, by, rs, fr.px, 2, 0.4 * base * (1 - (hitAge - FL_FLASH_WHITE_MS) / (FL_FLASH_TINT_MS - FL_FLASH_WHITE_MS)), squash, dir);
     }
     this.drawStatuses(ctx, fr, view, f, bx, by, base);
     if (f.boss) drawCrown(ctx, bx, by, r, base); // --- fl-overhaul --- (Stage 5) a boss rush's boss: our own vector crown
@@ -531,18 +546,38 @@ export class FlBodiesPainter {
   /**
    * --- fl-noir --- The noir stage's fighter: a plain solid disc in its body colour (a dark body lightened so it reads on
    * black; no pattern, no crest, no face), a one-frame scale punch on a hit (1.14 → 1 over FL_NOIR_PUNCH_MS) and the white
-   * hit flash over it – three fills, no sprite.
+   * hit flash over it – three fills, no sprite. --- fl-heavy --- Under the ink flip the disc fills ink with no flash; in the
+   * noir opener it arrives with a squash (1.18 → 1 over 120 ms from FL_OPENER_MS) and breathes 1 → 1.04 at 2 Hz until FIGHT!
+   * (opposite phase by slot parity; not on the lite tier); under a quarter of its HP it wears the heartbeat ring (white, at
+   * R × (1.08 + 0.08 sin 2π 1.6 Hz), 0.08 R wide, alpha 0.5; not on the lite tier).
    */
-  private drawDisc(ctx: CanvasRenderingContext2D, f: FlFighter, x: number, y: number, r: number, base: number, hitAge: number) {
+  private drawDisc(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, f: FlFighter, x: number, y: number, r: number, base: number, hitAge: number) {
     const punch = hitAge >= 0 && hitAge < FL_NOIR_PUNCH_MS ? 1 + 0.14 * (1 - hitAge / FL_NOIR_PUNCH_MS) : 1;
     const R = r * punch;
+    let sx = 1;
+    let sy = 1;
+    const op = fr.openerAge;
+    if (op >= FL_OPENER_MS && op < FL_INTRO_MS) {
+      if (op < FL_OPENER_MS + 120) {
+        const s = 1 + 0.18 * (1 - (op - FL_OPENER_MS) / 120);
+        sx = s;
+        sy = 1 / s;
+      } else if (!fr.lite) {
+        const b = 1 + 0.04 * (0.5 + 0.5 * Math.sin(TWO_PI * 2 * (fr.now / 1000) + (f.slot % 2) * Math.PI));
+        sx = b;
+        sy = b;
+      }
+    }
     ctx.save();
     ctx.globalAlpha = base;
-    ctx.fillStyle = noirBodyColor(f.row);
+    ctx.fillStyle = fr.flip ? INK : noirBodyColor(f.row);
     ctx.beginPath();
-    ctx.arc(x, y, R, 0, TWO_PI);
+    if (sx !== 1 || sy !== 1) ctx.ellipse(x, y, R * sx, R * sy, 0, 0, TWO_PI);
+    else ctx.arc(x, y, R, 0, TWO_PI);
     ctx.fill();
-    if (hitAge >= 0 && hitAge < FL_FLASH_WHITE_MS) {
+    if (fr.flip) {
+      // (the flip: no white flash on an ink disc)
+    } else if (hitAge >= 0 && hitAge < FL_FLASH_WHITE_MS) {
       ctx.globalAlpha = 0.9 * base;
       ctx.fillStyle = "#ffffff";
       ctx.beginPath();
@@ -554,6 +589,15 @@ export class FlBodiesPainter {
       ctx.beginPath();
       ctx.arc(x, y, R, 0, TWO_PI);
       ctx.fill();
+    }
+    if (!fr.lite && f.alive && !view.matchOver && f.hp / Math.max(1e-9, f.maxHp) < FL_HEARTBEAT_FRAC) {
+      const beat = Math.sin(TWO_PI * 1.6 * (fr.fxNow / 1000));
+      ctx.globalAlpha = 0.5 * base;
+      ctx.strokeStyle = fr.flip ? INK : "#ffffff";
+      ctx.lineWidth = Math.max(1, 0.08 * r);
+      ctx.beginPath();
+      ctx.arc(x, y, r * (1.08 + 0.08 * beat), 0, TWO_PI);
+      ctx.stroke();
     }
     ctx.restore();
   }
@@ -879,11 +923,13 @@ export class FlBodiesPainter {
       if (!numbers) return;
       const hp = Math.max(0, Math.ceil(f.hp - 1e-6));
       const side = view.field ? view.field.sqSide / Math.max(1e-6, view.field.dk || 1) : 450;
-      const fs = Math.max(0.95 * f.r, (34 / 1080) * side / fr.noirK); // (the arena is drawn at noirK: the floor holds on screen)
+      let fs = Math.max(0.95 * f.r, (34 / 1080) * side / fr.noirK); // (the arena is drawn at noirK: the floor holds on screen)
+      // --- fl-heavy --- the low-HP heartbeat scales the digits with the ring; under the ink flip they are white with no stroke
+      if (f.alive && !view.matchOver && f.hp / Math.max(1e-9, f.maxHp) < FL_HEARTBEAT_FRAC) fs *= 1 + 0.08 * Math.max(0, Math.sin(TWO_PI * 1.6 * (fr.fxNow / 1000)));
       const text = NUM_TEXT[Math.min(NUM_TEXT.length - 1, hp)] ?? String(hp);
-      const pale = luminance(noirBodyColor(f.row)) > 0.6;
+      const pale = !fr.flip && luminance(noirBodyColor(f.row)) > 0.6;
       ctx.globalAlpha = 1;
-      fr.text.number(ctx, text, fr.x(f), fr.y(f) + 0.04 * fs, fs, pale ? INK : "#ffffff", pale ? null : "rgba(0, 0, 0, 0.55)", "center");
+      fr.text.number(ctx, text, fr.x(f), fr.y(f) + 0.04 * fs, fs, pale ? INK : "#ffffff", fr.flip || pale ? null : "rgba(0, 0, 0, 0.55)", "center");
       return;
     }
     const frac = Math.max(0, Math.min(1, f.hp / Math.max(1e-9, f.maxHp)));
