@@ -84,10 +84,12 @@ import { flRoundShort } from "@/lib/physics/modes/fightLeagueShow";
  * --- fl-heavy --- (Stop The World) The heavy hits (EV_HEAVY) and lead turns (EV_TURN) the mode pushes: `cameraCue()` hands
  * the page the hit stop (a wall-clock dip of the page camera, 90 ms, 150 on the lethal blow: the engine's clock never
  * freezes); `begin()` finds the newest heavy hit for the zoom punch about its impact point (`flHeavyZoom()`, with the
- * finale's push-in never past 1.2) and the noir ink flip (`fr.flip`, FL_KO_FLIP_MS after a lethal blow); `drawStage()` paints
- * the flip (the arena white, the rim ink); `drawBodies()` adds the ARMED ring and the white wash under the HP numbers; the
- * noir opener offsets where the discs are drawn for their first FL_OPENER_MS (sliding in from outside the arena). The effects
- * themselves are fx.ts's, the discs' swell, heartbeat and squash bodies.ts's. data-fl-hitstops counts the cues.
+ * finale's push-in never past 1.2), the noir ink flip (`fr.flip`, FL_KO_FLIP_MS real ms after a lethal blow on the page's
+ * clock, `o.koStopMs`) and the heavy hit's real clock (`fr.heavyStopMs` from `o.heavyStopMs`: the wash, the victim's capped
+ * flash); `drawStage()` paints the flip (the arena white, the rim ink); `drawBodies()` adds the ARMED ring, the white wash and
+ * the hit particles under the HP numbers; the noir opener offsets where the discs are drawn for their first FL_OPENER_MS
+ * (sliding in from outside the arena). The effects themselves are fx.ts's, the discs' swell, heartbeat and squash
+ * bodies.ts's. data-fl-hitstops counts the cues.
  */
 
 export type { FightLeagueLabels, FightLeagueRenderOptions };
@@ -136,17 +138,25 @@ export const DEFAULT_FIGHT_LEAGUE_LABELS: FightLeagueLabels = {
 const UNIT_FRAC = 0.065;
 
 /**
- * --- fl-heavy --- (Stop The World) The camera's cue for a frame: the page camera's slow-motion dip (`cam.dip(dipMs, factor)`)
- * that is the heavy hit's hit stop – a freeze through the page's wall clock, never the engine's: 90 real ms at factor 0.05
- * (about 26 ms of simulation, 1 to 2 fixed steps, pass inside it), 150 ms on the lethal blow.
+ * --- fl-heavy --- (Stop The World) The camera's cue for a frame: the page camera's slow-motion dip
+ * (`cam.dip(dipMs, factor, rampInMs)`) that is the heavy hit's hit stop – a freeze through the page's wall clock, never the
+ * engine's: 90 real ms at factor 0.05, 150 ms on the lethal blow (`lethal`: the page starts the ink flip's real clock,
+ * `FightLeagueRenderOptions.koStopMs`). `rampInMs` 0: the dip starts already slowed, so the frame after the cue feeds the
+ * steps 0.05 × its length and holds the impact frame (measured in the page's loop: at 60 fps one or two fixed steps pass inside
+ * the 90 ms and the 150 ms, at 30 fps none or one inside the 90 ms and one or two inside the 150 ms).
  */
 export interface FlCameraCue {
   dipMs: number;
   factor: number;
+  rampInMs: number;
+  lethal: boolean;
 }
 
-/** easeOutCubic on [0, 1]. */
-const easeOutCubic = (u: number) => 1 - (1 - Math.max(0, Math.min(1, u))) ** 3;
+/** --- fl-heavy --- easeInOutCubic on [0, 1] (the noir opener's slide: most of its motion ends on the arrival's squash). */
+const easeInOutCubic = (u: number) => {
+  const x = Math.max(0, Math.min(1, u));
+  return x < 0.5 ? 4 * x * x * x : 1 - (-2 * x + 2) ** 3 / 2;
+};
 
 export class FightLeagueLayer {
   private readonly fr = new FlFrame();
@@ -200,7 +210,9 @@ export class FightLeagueLayer {
   hitstops = 0;
   private heavySerial = 0;
   private cueGeneration = -1;
-  private readonly cue: FlCameraCue = { dipMs: FL_HITSTOP_MS, factor: FL_HITSTOP_FACTOR };
+  private readonly cue: FlCameraCue = { dipMs: FL_HITSTOP_MS, factor: FL_HITSTOP_FACTOR, rampInMs: 0, lethal: false };
+  /** --- fl-heavy --- The newest lethal EV_HEAVY's time this frame (NaN: none, not noir, or Impact Frames off): the ink flip's event. */
+  private lethalT = NaN;
 
   /** The body colour of a fighter ball (the ball faces). */
   readonly bodyColor = (ball: { id: number }): string => {
@@ -273,6 +285,8 @@ export class FightLeagueLayer {
     this.hitstops++;
     this.cue.dipMs = dip;
     this.cue.factor = FL_HITSTOP_FACTOR;
+    this.cue.rampInMs = 0;
+    this.cue.lethal = dip === FL_HITSTOP_KO_MS;
     return this.cue;
   }
 
@@ -296,7 +310,10 @@ export class FightLeagueLayer {
     fr.lite = o.quality === "lite";
     this.debugOn = !!o.debug;
     const key = `${view.generation}|${view.timeMs}|${dpr}|${dk}|${view.eventSerial}|${view.settings.stage}|${view.settings.arenaStyle}`;
-    if (key === this.frameKey) return;
+    if (key === this.frameKey) {
+      this.realNow(o); // (the page's real clock moves on through a hit stop while the simulation's stands still)
+      return;
+    }
     this.frameKey = key;
     fr.now = view.timeMs;
     fr.fxNow = flEffectNow(view, view.timeMs);
@@ -355,7 +372,7 @@ export class FightLeagueLayer {
     // --- fl-heavy --- the noir opener's clock: ms since the match's intro started, on noir and while the intro runs
     const introAge = now - (view.introMs - FL_INTRO_MS);
     fr.openerAge = fr.pal.noir && introAge >= 0 && introAge < FL_INTRO_MS + 100 ? introAge : Infinity;
-    const slideIn = field && fr.openerAge < FL_OPENER_MS ? (1 - easeOutCubic(fr.openerAge / FL_OPENER_MS)) * 1.3 * field.half : 0;
+    const slideIn = field && fr.openerAge < FL_OPENER_MS ? (1 - easeInOutCubic(fr.openerAge / FL_OPENER_MS)) * 1.3 * field.half : 0;
     for (const f of view.fighters) {
       if (f.slot >= FL_MAX_SLOTS) continue;
       let x = fin && f.alive ? f.finX : f.x;
@@ -385,11 +402,13 @@ export class FightLeagueLayer {
       fr.dy[f.slot] = y;
     }
     // --- fl-heavy --- the newest heavy hit: the zoom punch about its impact point (beside the finale's push-in, never past
-    // 1.2 together) and the noir ink flip for FL_KO_FLIP_MS real ms after a lethal blow
+    // 1.2 together) and the newest lethal blow, whose noir ink flip lasts FL_KO_FLIP_MS real ms (realNow())
     let punch = 1;
     let px = view.finale.x;
     let py = view.finale.y;
-    fr.flip = false;
+    this.lethalT = NaN;
+    fr.heavyT = NaN;
+    fr.heavyHitT.fill(-Infinity);
     const impactOn = view.settings.impact !== false && !o.reducedMotion;
     {
       // (in serial order: of two heavy hits in one step the later push is the newest)
@@ -397,10 +416,10 @@ export class FightLeagueLayer {
       for (let s = Math.max(0, view.eventSerial - FL_EVENT_CAP); s < view.eventSerial; s++) {
         const e = view.events[s % FL_EVENT_CAP];
         if (e.kind !== EV_HEAVY) continue;
-        if (e.aux === 2 && fr.pal.noir && impactOn) {
-          const real = now - e.t;
-          if (real >= 0 && real < FL_KO_FLIP_MS) fr.flip = true;
-        }
+        if (e.aux === 2 && fr.pal.noir && impactOn && e.t <= now && !(e.t < this.lethalT)) this.lethalT = e.t;
+        // the newest heavy hit (the camera's latest cue) and each victim's newest (its white flash is capped)
+        if (e.t <= now && !(e.t < fr.heavyT)) fr.heavyT = e.t;
+        if (e.slot >= 0 && e.slot < FL_MAX_SLOTS && e.t <= now && e.t > fr.heavyHitT[e.slot]) fr.heavyHitT[e.slot] = e.t;
         if (e.t < newest || !impactOn) continue; // (no zoom punch with Impact Frames off or under reduced motion, like the dip and the flip)
         const fxAge = fr.fxNow - flEffectNow(view, e.t);
         if (fxAge >= 0 && fxAge < FL_HEAVY_ZOOM_MS) {
@@ -420,6 +439,29 @@ export class FightLeagueLayer {
       fr.zoomX = px;
       fr.zoomY = py;
     }
+    fr.koFlipT = this.lethalT;
+    this.realNow(o);
+  }
+
+  /**
+   * --- fl-heavy --- What runs on the page's real clock through a hit stop (the simulation's and the effects' clocks all but
+   * stand still in the dip, so a window on them would hold for the whole freeze): the noir ink flip (`fr.flip`, FL_KO_FLIP_MS
+   * of real time from the lethal blow: `o.koStopMs`, real ms since the camera's lethal hit stop began) and the heavy hit's clock
+   * (`fr.heavyStopMs`: `o.heavyStopMs`, real ms since the camera's latest cue, for the wash and the victim's capped flash; NaN
+   * when Impact Frames are off or under reduced motion, where the camera never dips). Without them (a render with no page
+   * camera, so no dip either: the simulation then runs at real speed) the simulation's and the effects' clocks. No clock is read.
+   */
+  private realNow(o: FightLeagueRenderOptions) {
+    const fr = this.fr;
+    const hs = o.heavyStopMs;
+    fr.heavyStopMs = hs !== undefined && hs >= 0 && fr.heavyT <= fr.now && fr.view?.settings.impact !== false && !o.reducedMotion ? hs : NaN;
+    const t = this.lethalT;
+    if (!(t <= fr.now)) {
+      fr.flip = false;
+      return;
+    }
+    const ko = o.koStopMs;
+    fr.flip = ko === undefined ? fr.now - t < FL_KO_FLIP_MS : ko >= 0 && ko < FL_KO_FLIP_MS;
   }
 
   /* ------------------------------------------------------------------ the stage */
@@ -549,8 +591,9 @@ export class FightLeagueLayer {
     // bars, numbers, tags and effects over the rim
     ctx.save();
     ctx.globalAlpha = 1;
+    this.fx.drawWash(ctx, fr, view); // --- fl-heavy --- the heavy hit's white wash, under the HP numbers (the arena's shape: before the zoom punch, so it never spills past the rim)
     this.zoom(ctx);
-    this.fx.drawWash(ctx, fr, view); // --- fl-heavy --- the heavy hit's white wash, under the HP numbers
+    this.fx.drawParticleLayer(ctx, fr, view); // --- fl-heavy --- the hit particles under the HP numbers (a heavy burst hid the victim's digits on the held frame)
     const tags = view.settings.tags === "on" || (view.settings.tags !== "off" && view.fighters.length >= 3);
     for (const f of view.fighters) {
       if (!f.alive) continue;

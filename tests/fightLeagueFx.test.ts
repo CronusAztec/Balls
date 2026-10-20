@@ -49,6 +49,7 @@ import {
   FL_FLOOR,
   FL_INK,
   FL_SHAKE_CLAMP,
+  FL_SHAKE_HEAVY_HZ,
   FL_SHAKE_DEFAULT,
   FL_SHAKE_REDUCED,
   FL_VS_COUNT_MS,
@@ -76,11 +77,17 @@ import {
   FL_HITSTOP_MS,
   FL_KO_FLIP_MS,
   FL_NUMBER_HEAVY_SCALE,
+  FL_NUMBER_SLAM,
+  FL_HEAVY_FLASH_CAP_MS,
+  FL_HEAVY_WASH_NOIR,
+  FL_HEAVY_WASH_REAL_MS,
   FL_OPENER_MS,
   FL_SHAKES,
   flHeavyShare,
   flHeavyZoom,
+  flNumberBlow,
   flNumberFs,
+  flNumberHeavyMs,
   flNumberSlam,
   flShakeTerm,
 } from "@/lib/physics/modes/fightLeagueFx";
@@ -504,7 +511,7 @@ describe("the looks: readable names, rimmed bodies, our own silhouettes for ever
 /* ------------------------------------------------------------------ the shake, the finale, the numbers, the banners, the trails */
 
 describe("the mode's visual maths (fightLeagueFx.ts)", () => {
-  it("shakes nothing when off, never past 0.02 × side × strength, the same for the same view and clock – and a fight does shake", { timeout: 60_000 }, () => {
+  it("shakes nothing when off, never past FL_SHAKE_CLAMP (0.03) × side × strength, the same for the same view and clock – and a fight does shake", { timeout: 60_000 }, () => {
     const engine = probeEngine(FOUR_SHOOTERS, 1);
     const out = { x: 0, y: 0 };
     const again = { x: 0, y: 0 };
@@ -1357,18 +1364,18 @@ describe("the heavy hits (--- fl-heavy ---): the hit stop, the zoom punch, the r
   const HEAVY_ROWS = ["captainfalcon", "littlemac", "ryu", "saitama", "ken", "kazuya", "leesin", "deku", "buzz", "jerry", "ghostface", "link"];
   const noirDuel = (seed: number) => probeEngine({ fighters: ["thor", "loki"], match: "1v1", stage: "noir" }, seed);
 
-  it("asks the camera for a 90 ms hit stop at factor 0.05 on a new heavy hit, 150 ms on the lethal blow – once, never under reduced motion or with Impact Frames off – and the dip lets 1 to 2 fixed steps through", () => {
+  it("asks the camera for a 90 ms hit stop at factor 0.05 on a new heavy hit, 150 ms on the lethal blow – once, never under reduced motion or with Impact Frames off – starting already slowed", () => {
     const engine = noirDuel(1);
     const view = probeRun(engine, 2000);
     const [thor, loki] = view.fighters;
     const layer = new FightLeagueLayer();
     expect(layer.cameraCue(view, false)).toBeNull();
     pushHeavy(view, thor, loki, 0.3, 0);
-    expect(layer.cameraCue(view, false)).toEqual({ dipMs: FL_HITSTOP_MS, factor: FL_HITSTOP_FACTOR });
+    expect(layer.cameraCue(view, false)).toEqual({ dipMs: FL_HITSTOP_MS, factor: FL_HITSTOP_FACTOR, rampInMs: 0, lethal: false });
     expect([FL_HITSTOP_MS, FL_HITSTOP_KO_MS, FL_HITSTOP_FACTOR]).toEqual([90, 150, 0.05]);
     expect(layer.cameraCue(view, false)).toBeNull(); // nothing new
     pushHeavy(view, thor, loki, 0.1, 2);
-    expect(layer.cameraCue(view, false)).toEqual({ dipMs: FL_HITSTOP_KO_MS, factor: FL_HITSTOP_FACTOR });
+    expect(layer.cameraCue(view, false)).toEqual({ dipMs: FL_HITSTOP_KO_MS, factor: FL_HITSTOP_FACTOR, rampInMs: 0, lethal: true });
     expect(layer.hitstops).toBe(2);
     // the longest of a frame with several
     pushHeavy(view, thor, loki, 0.3, 0);
@@ -1389,24 +1396,111 @@ describe("the heavy hits (--- fl-heavy ---): the hit stop, the zoom punch, the r
     expect(fresh.cameraCue(view, false)?.dipMs).toBe(FL_HITSTOP_KO_MS);
     expect(fresh.cameraCue(view, false)).toBeNull();
     expect(fresh.hitstops).toBe(1);
-    // the camera: a wall-clock dip, the engine's clock untouched – about 26 ms of simulation (1 to 2 fixed steps) pass inside the 90 ms freeze
-    let inside = 0;
-    for (let e = 0; e < FL_HITSTOP_MS; e++) inside += slowMoTimeScale(e, FL_HITSTOP_MS, FL_HITSTOP_FACTOR);
-    expect(inside).toBeGreaterThan(24);
-    expect(inside).toBeLessThan(30);
-    let insideKo = 0;
-    for (let e = 0; e < FL_HITSTOP_KO_MS; e++) insideKo += slowMoTimeScale(e, FL_HITSTOP_KO_MS, FL_HITSTOP_FACTOR);
-    expect(insideKo).toBeGreaterThan(36);
-    expect(insideKo).toBeLessThan(52);
+    // the camera: a wall-clock dip with no ease-in (the cue's rampInMs 0), the engine's clock untouched: its first sample is already
+    // the factor (the slow motion's own 18 ms ease-in would sample 1 there: a full frame of simulation on the frame after the hit)
+    expect(slowMoTimeScale(0, FL_HITSTOP_MS, FL_HITSTOP_FACTOR)).toBe(1);
+    expect(slowMoTimeScale(0, FL_HITSTOP_MS, FL_HITSTOP_FACTOR, 0)).toBeCloseTo(FL_HITSTOP_FACTOR, 12);
     const cam = new CinematicCamera();
-    cam.dip(FL_HITSTOP_MS, FL_HITSTOP_FACTOR);
+    cam.dip(FL_HITSTOP_MS, FL_HITSTOP_FACTOR, 0);
     const scales: number[] = [];
     for (let i = 0; i < 10; i++) {
       scales.push(cam.timeScale());
       (cam as unknown as { dipElapsed: number }).dipElapsed += 16;
     }
+    expect(scales[0]).toBeCloseTo(FL_HITSTOP_FACTOR, 12);
     expect(Math.min(...scales)).toBeLessThanOrEqual(0.06);
     expect(cam.timeScale()).toBe(1);
+  });
+
+  it("holds the impact frame in the page's loop (Canvas.tsx's order: timeScale, the fixed steps, cam.frame, cameraCue, cam.dip, drawStage) at 60 and 30 fps, and the noir ink flip lasts FL_KO_FLIP_MS real ms", { timeout: 60_000 }, () => {
+    /** The real time a frame's samples of the dip let through, from its start (no carried remainder): per fps and dip length. */
+    const insideSim: Record<number, Record<number, number>> = {};
+    const summary: string[] = [];
+    for (const fps of [60, 30]) {
+      stubDocument();
+      const engine = probeEngine({ fighters: ["captainfalcon", "littlemac", "random", "random"], match: "1v1", stage: "noir" }, 1);
+      const view = engine.getFightLeagueView();
+      const cam = new CinematicCamera();
+      const layer = new FightLeagueLayer();
+      const { ctx } = mainContext();
+      const frameMs = 1000 / fps;
+      let acc = 0;
+      let koStopMs = Infinity;
+      let flipFrames = 0;
+      const flips: number[] = [];
+      const dips: { dipMs: number; accAtCue: number; firstScale: number; firstSteps: number; steps: number; sim: number; frames: number; elapsed: number }[] = [];
+      let open: (typeof dips)[number] | null = null;
+      while (engine.getElapsedMs() < 22_000) {
+        // Canvas.tsx's draw(): the slowed clock feeds the fixed steps, the camera moves on, the cue starts the dip and the flip's clock
+        const scale = cam.timeScale();
+        acc += frameMs * scale;
+        if (acc > 250) acc = 250;
+        let steps = 0;
+        while (acc >= 16.666) {
+          engine.update(16.666, 0);
+          cam.afterStep(engine);
+          acc -= 16.666;
+          steps++;
+        }
+        cam.frame(engine, frameMs, true);
+        if (open) {
+          if (open.frames === 0) {
+            open.firstScale = scale;
+            open.firstSteps = steps;
+          }
+          open.frames++;
+          if (open.elapsed < open.dipMs) {
+            open.steps += steps;
+            open.sim += frameMs * scale;
+          }
+          open.elapsed += frameMs;
+          if (open.elapsed >= open.dipMs - 1e-9) open = null;
+        }
+        koStopMs += frameMs;
+        const cue = layer.cameraCue(view, false);
+        if (cue) {
+          expect(open).toBeNull(); // (no dip inside a dip in this duel)
+          cam.dip(cue.dipMs, cue.factor, cue.rampInMs);
+          if (cue.lethal) koStopMs = 0;
+          open = { dipMs: cue.dipMs, accAtCue: acc, firstScale: NaN, firstSteps: -1, steps: 0, sim: 0, frames: 0, elapsed: 0 };
+          dips.push(open);
+        }
+        engine.consumeSoundEvents();
+        ctx.calls.length = 0;
+        layer.drawStage(asCtx(ctx), view, { ...OPTS, koStopMs });
+        if (layer.flipOn) flipFrames++;
+        else if (flipFrames > 0) {
+          flips.push(flipFrames);
+          flipFrames = 0;
+        }
+      }
+      vi.unstubAllGlobals();
+      // three heavy hits and the lethal blow, each cued once
+      expect([fps, dips.map((d) => d.dipMs)]).toEqual([fps, [FL_HITSTOP_MS, FL_HITSTOP_MS, FL_HITSTOP_MS, FL_HITSTOP_KO_MS]]);
+      expect(layer.hitstops).toBe(4);
+      for (const d of dips) {
+        // the frame after the cue already runs at the factor: it feeds 0.05 × frameMs, so no fixed step unless the remainder the
+        // accumulator carried into the cue was within that of a step (never in this duel at 60 or 30 fps)
+        expect([fps, d.dipMs, d.firstScale]).toEqual([fps, d.dipMs, expect.closeTo(FL_HITSTOP_FACTOR, 12)]);
+        expect([fps, d.dipMs, d.firstSteps]).toEqual([fps, d.dipMs, d.accAtCue + FL_HITSTOP_FACTOR * frameMs >= 16.666 ? 1 : 0]);
+        expect([fps, d.dipMs, d.firstSteps]).toEqual([fps, d.dipMs, 0]);
+        (insideSim[fps] ??= {})[d.dipMs] = d.sim;
+      }
+      // the fixed steps inside the dip: at 60 fps one in the 90 ms (two after a carried remainder over 12.5 ms), at 30 fps none or one;
+      // one or two in the 150 ms at both
+      const stepsOf = (ms: number) => dips.filter((d) => d.dipMs === ms).map((d) => d.steps);
+      for (const n of stepsOf(FL_HITSTOP_MS)) expect([fps, n >= (fps === 60 ? 1 : 0) && n <= (fps === 60 ? 2 : 1)]).toEqual([fps, true]);
+      for (const n of stepsOf(FL_HITSTOP_KO_MS)) expect([fps, n >= 1 && n <= 2]).toEqual([fps, true]);
+      // the ink flip: one, FL_KO_FLIP_MS of real time (6 frames at 60 fps, 3 at 30) – the simulation's clock all but stands still meanwhile
+      expect([fps, flips.map((f) => f * frameMs)]).toEqual([fps, [expect.closeTo(FL_KO_FLIP_MS, 6)]]);
+      summary.push(`@${fps} fps: steps inside the 90 ms ${stepsOf(FL_HITSTOP_MS).join("/")}, inside the 150 ms ${stepsOf(FL_HITSTOP_KO_MS).join("/")}, flip ${flips.join("/")} frames`);
+    }
+    // the simulation time the dip's frames feed (from a zero remainder): about 21 and 23 ms at 60 fps, 9 and 32 ms at 30 fps
+    expect(insideSim[60][FL_HITSTOP_MS]).toBeCloseTo(20.8, 0);
+    expect(insideSim[60][FL_HITSTOP_KO_MS]).toBeCloseTo(23.3, 0);
+    expect(insideSim[30][FL_HITSTOP_MS]).toBeCloseTo(9.0, 0);
+    expect(insideSim[30][FL_HITSTOP_KO_MS]).toBeCloseTo(31.8, 0);
+    console.log(`hit stop page loop: ${summary.join("; ")}; sim fed inside the dips 60 fps ${insideSim[60][FL_HITSTOP_MS].toFixed(1)}/${insideSim[60][FL_HITSTOP_KO_MS].toFixed(1)} ms, 30 fps ${insideSim[30][FL_HITSTOP_MS].toFixed(1)}/${insideSim[30][FL_HITSTOP_KO_MS].toFixed(1)} ms`);
   });
 
   it("does the heavy maths: the zoom punch, the number's slam and size (noir matching the other stages), the share, the directional shake of a heavy hit", () => {
@@ -1417,7 +1511,7 @@ describe("the heavy hits (--- fl-heavy ---): the hit stop, the zoom punch, the r
     expect(flHeavyZoom(200, false)).toBeGreaterThan(1);
     expect(flHeavyZoom(200, false)).toBeLessThan(1.07);
     expect(flFinaleZoom(0)).toBe(1); // (the punch is its own curve: the finale's push-in stays 1 outside the finale)
-    expect(flNumberSlam(0)).toBe(2.6);
+    expect(flNumberSlam(0)).toBe(1.8); // (FL_NUMBER_SLAM: at 2.6 × the 2.4 tier the held frame's number hid both fighters)
     expect(flNumberSlam(70)).toBeCloseTo(0.94, 9);
     expect(flNumberSlam(140)).toBe(1);
     expect(flNumberSlam(1000)).toBe(1);
@@ -1438,10 +1532,20 @@ describe("the heavy hits (--- fl-heavy ---): the hit stop, the zoom punch, the r
     expect(onScreen(24.9, noirK)).toBeLessThan(40);
     expect(onScreen(5, noirK)).toBeGreaterThanOrEqual(27);
     expect(onScreen(50, noirK) / onScreen(24.9, noirK)).toBeCloseTo(FL_NUMBER_HEAVY_SCALE / (0.85 + 0.35 * Math.min(1, 24.9 / 25)), 9);
+    // the tier reads the largest one-step blow merged into the number (EV_DAMAGE's y2), not the merged value: Thunder Strike's
+    // 18.76 and the hammer's 14.74 a few steps apart read 33.50 in one number at the plain size; Death Ball's orb and burst in one
+    // step (a blow of 40.4) at the heavy one; a number with no blow (a reflected or synthetic one) reads its value
+    expect(flNumberBlow(33.5, 18.76)).toBe(18.76);
+    expect(flNumberBlow(40.4, 0)).toBe(40.4);
+    const fsAt = (value: number, blow: number) => flNumberFs(value, 100, unit, S, dk, noirK, blow);
+    expect(fsAt(33.5, 18.76)).toBeCloseTo(flNumberFs(24.9, 100, unit, S, dk, noirK) * (0.85 + 0.35) / (0.85 + 0.35 * (24.9 / 25)), 9);
+    expect(fsAt(40.4, 40.4)).toBeCloseTo(flNumberFs(50, 100, unit, S, dk, noirK), 9);
+    // a four-way's heavy numbers live shorter (they and their CRITICAL! callouts piled up in one cluster)
+    expect([flNumberHeavyMs(2), flNumberHeavyMs(3), flNumberHeavyMs(4)]).toEqual([1400, 900, 900]);
     console.log(`heavy number on screen at 1080 (noir): plain 5 → ${onScreen(5, noirK).toFixed(1)} px, plain 24.9 → ${onScreen(24.9, noirK).toFixed(1)} px, heavy 50 → ${onScreen(50, noirK).toFixed(1)} px`);
     // the shake of a heavy hit: along the hit (x2, y2), FL_SHAKES.heavy, the lethal blow FL_SHAKES.heavyKo; a zero vector falls back to (0, 1)
-    expect(FL_SHAKES.heavy).toEqual({ amp: 0.014, ms: 320 });
-    expect(FL_SHAKES.heavyKo).toEqual({ amp: 0.016, ms: 320 });
+    expect(FL_SHAKES.heavy).toEqual({ amp: 0.024, ms: 320 });
+    expect(FL_SHAKES.heavyKo).toEqual({ amp: 0.028, ms: 320 });
     const ring = () => ({ events: Array.from({ length: FL_EVENT_CAP }, () => new FlEvent()), eventSerial: 0 });
     const out = { x: 0, y: 0 };
     const want = { x: 0, y: 0 };
@@ -1456,13 +1560,30 @@ describe("the heavy hits (--- fl-heavy ---): the hit stop, the zoom punch, the r
       flShakeAt(v, 100, side, 1, out);
       want.x = 0;
       want.y = 0;
-      flShakeTerm(100, s.ms, s.amp * side, 0.6, 0.8, want);
+      flShakeTerm(100, s.ms, s.amp * side, 0.6, 0.8, want, FL_SHAKE_HEAVY_HZ);
       expect([aux, Math.hypot(out.x, out.y) > 0]).toEqual([aux, true]);
       expect(out.x).toBeCloseTo(want.x, 9);
       expect(out.y).toBeCloseTo(want.y, 9);
       expect(out.x * 0.8 - out.y * 0.6).toBeCloseTo(0, 9); // along the hit
+      // one push along the hit for its first half period (50 ms at 10 Hz: about 3 frames at 60 fps), then the spring back
+      const along = (ms: number) => (flShakeAt(v, ms, side, 1, out), out.x * 0.6 + out.y * 0.8);
+      expect([aux, [1, 17, 33, 49].every((ms) => along(ms) > 0), along(60) < 0]).toEqual([aux, true, true]);
       flShakeAt(v, 100 + s.ms, side, 1, out);
       expect(Math.hypot(out.x, out.y)).toBe(0); // over
+    }
+    // both heavy shakes stay under the clamp, so the lethal blow shakes harder than a heavy hit (under 0.02 both were cut to it)
+    expect(FL_SHAKE_CLAMP).toBe(0.03);
+    expect(FL_SHAKE_HEAVY_HZ).toBe(10);
+    expect(FL_SHAKES.heavy.amp).toBeLessThan(FL_SHAKE_CLAMP);
+    expect(FL_SHAKES.heavyKo.amp).toBeLessThan(FL_SHAKE_CLAMP);
+    {
+      const peak = (aux: number) => {
+        const v = ring();
+        pushSynthetic(v, EV_HEAVY, { t: 0, x2: 1, y2: 0, value: 30, slot: 1, aux });
+        flShakeAt(v, 25, side, 1, out);
+        return Math.hypot(out.x, out.y);
+      };
+      expect(peak(2)).toBeGreaterThan(peak(0) * 1.1);
     }
     const zero = ring();
     pushSynthetic(zero, EV_HEAVY, { t: 0, x2: 0, y2: 0, value: 30, slot: 1, aux: 0 });
@@ -1526,6 +1647,19 @@ describe("the heavy hits (--- fl-heavy ---): the hit stop, the zoom punch, the r
         } else {
           expect([f.row.id, b.x, b.y]).toEqual([f.row.id, f.x, f.y]);
         }
+      }
+      // half way through the slide: easeInOutCubic, so most of the motion ends on the arrival's squash at FL_OPENER_MS
+      probeRun(engine, FL_OPENER_MS / 2);
+      drawFrame(layer, ctx, view);
+      const mid = layer.faceBalls(engine.getBalls(), view);
+      const u = view.timeMs / FL_OPENER_MS;
+      const inOut = u < 0.5 ? 4 * u ** 3 : 1 - (-2 * u + 2) ** 3 / 2;
+      expect(u).toBeGreaterThan(0.4);
+      expect(u).toBeLessThan(0.6);
+      for (const f of view.fighters) {
+        const b = mid.find((x) => x.id === f.ballId)!;
+        const d = Math.hypot(b.x - f.x, b.y - f.y);
+        expect([stage, f.row.id, d]).toEqual([stage, f.row.id, expect.closeTo(stage === "noir" ? (1 - inOut) * 1.3 * field.half : 0, 6)]);
       }
       // at FL_OPENER_MS every disc is where it is (the frozen spawn)
       probeRun(engine, FL_OPENER_MS + 10);
@@ -1648,6 +1782,140 @@ describe("the heavy hits (--- fl-heavy ---): the hit stop, the zoom punch, the r
     expect(Number(data.flShakes)).toBeGreaterThan(shakes);
     expect(data.flHitstops).toBe("0"); // (the page's camera cue is never asked here)
     expect(FIGHT_LEAGUE_DATA_KEYS).toContain("flHitstops");
+  });
+
+  it("runs the heavy hit's wash and its victim's short white flash on the page's real clock, draws the HP digits over the particles, keeps the cone and the KO flash off the ink flip, stands the wind-up's name down over a huge number at the arena's top, tints no square edge on noir and beats the low-HP heart visibly", { timeout: 60_000 }, () => {
+    stubDocument();
+    const { ctx } = mainContext();
+    // every fill, stroke and fillRect with its style, alpha and line width and the arc its path ended on (null: none)
+    type Mark = { name: string; style: unknown; alpha: number; lw: number; arc: number[] | null };
+    const marks: Mark[] = [];
+    let arc: number[] | null = null;
+    const c = ctx as unknown as Record<string, (...a: unknown[]) => unknown>;
+    for (const name of ["beginPath", "arc", "fill", "stroke", "fillRect"]) {
+      const fn = c[name];
+      c[name] = (...a: unknown[]) => {
+        if (name === "beginPath") arc = null;
+        else if (name === "arc") arc = a as number[];
+        else marks.push({ name, style: name === "stroke" ? ctx.strokeStyle : ctx.fillStyle, alpha: ctx.globalAlpha, lw: ctx.lineWidth, arc });
+        return fn(...a);
+      };
+    }
+    const frame = (layer: FightLeagueLayer, view: FightLeagueView, opts: FightLeagueRenderOptions = OPTS) => {
+      marks.length = 0;
+      ctx.calls.length = 0;
+      drawFrame(layer, ctx, view, opts);
+      return marks.slice();
+    };
+    const white = (m: Mark) => m.style === "#ffffff";
+    const at = (layer: FightLeagueLayer, f: FlFighter) => {
+      const fr = (layer as unknown as { fr: { x(g: FlFighter): number; y(g: FlFighter): number } }).fr;
+      return { x: fr.x(f), y: fr.y(f) };
+    };
+    const centredOn = (m: Mark, p: { x: number; y: number }) => !!m.arc && Math.abs(m.arc[0] - p.x) < 1e-6 && Math.abs(m.arc[1] - p.y) < 1e-6;
+
+    const engine = noirDuel(2);
+    const view = probeRun(engine, 3000);
+    const [thor, loki] = view.fighters;
+    expect([thor.alive, loki.alive]).toEqual([true, true]);
+    // (1) a heavy hit on Loki: the wash (the arena's shape, no arc) at FL_HEAVY_WASH_NOIR × (1 − t)² over FL_HEAVY_WASH_REAL_MS
+    // of the page's real clock from the camera's cue, and Loki's white flash for FL_HEAVY_FLASH_CAP_MS of it, then its colour
+    const layer = new FightLeagueLayer();
+    frame(layer, view);
+    loki.hitMs = view.timeMs;
+    pushHeavy(view, thor, loki, 0.3, 0);
+    const washes = (ms: Mark[]) => ms.filter((m) => m.name === "fill" && white(m) && m.arc === null).map((m) => m.alpha);
+    const flashes = (ms: Mark[]) => ms.filter((m) => m.name === "fill" && white(m) && Math.abs(m.alpha - 0.9) < 1e-9 && centredOn(m, at(layer, loki))).length;
+    for (const [stop, wash, flash] of [
+      [0, FL_HEAVY_WASH_NOIR, 1],
+      [FL_HEAVY_FLASH_CAP_MS - 5, FL_HEAVY_WASH_NOIR * (1 - (FL_HEAVY_FLASH_CAP_MS - 5) / FL_HEAVY_WASH_REAL_MS) ** 2, 1],
+      [FL_HEAVY_FLASH_CAP_MS + 5, FL_HEAVY_WASH_NOIR * (1 - (FL_HEAVY_FLASH_CAP_MS + 5) / FL_HEAVY_WASH_REAL_MS) ** 2, 0],
+      [FL_HEAVY_WASH_REAL_MS + 10, 0, 0],
+    ] as const) {
+      const ms = frame(layer, view, { ...OPTS, heavyStopMs: stop });
+      expect([stop, washes(ms).map((a) => a.toFixed(6)), flashes(ms)]).toEqual([stop, wash > 0 ? [wash.toFixed(6)] : [], flash]);
+    }
+    // no page camera (no dip: the clocks are real time) – the effects' and the simulation's clocks; reduced motion: 0.3, no real clock
+    let ms = frame(layer, view);
+    expect([washes(ms).map((a) => a.toFixed(6)), flashes(ms)]).toEqual([[FL_HEAVY_WASH_NOIR.toFixed(6)], 1]);
+    ms = frame(layer, view, { ...OPTS, heavyStopMs: FL_HEAVY_WASH_REAL_MS + 10, reducedMotion: true });
+    expect([washes(ms).map((a) => a.toFixed(6)), flashes(ms)]).toEqual([["0.300000"], 1]);
+    // (2) the hit particles, then the HP digits over them, then the rest of the events
+    const order: string[] = [];
+    const parts = layer as unknown as { bodies: Record<string, (...a: unknown[]) => unknown>; fx: Record<string, (...a: unknown[]) => unknown> };
+    for (const [o, name] of [
+      [parts.bodies, "drawHp"],
+      [parts.fx, "drawParticleLayer"],
+      [parts.fx, "drawEvents"],
+    ] as const) {
+      const fn = o[name].bind(o);
+      o[name] = (...a: unknown[]) => (order.push(name), fn(...a));
+    }
+    frame(layer, view);
+    expect(order).toEqual(["drawParticleLayer", "drawHp", "drawHp", "drawEvents"]);
+    // (3) a lethal heavy blow: no cone (white strokes with no arc at 0.8) under the ink flip, the cones once the flip is over (the
+    // lethal blow's and the heavy hit's of (1), both at age 0); the
+    // KO flash stands down for the KO whose blow flipped the arena (the flip was its flash) – drawn for a KO without the flip
+    const lethal = pushHeavy(view, thor, loki, 0.5, 2);
+    const cones = (ms: Mark[]) => ms.filter((m) => m.name === "stroke" && white(m) && m.arc === null && Math.abs(m.alpha - 0.8) < 1e-9).length;
+    const koFlashes = (ms: Mark[]) => ms.filter((m) => m.name === "fillRect" && white(m) && Math.abs(m.alpha - 0.3) < 1e-9).length;
+    const lastKo = view.lastKoMs;
+    view.lastKoMs = view.timeMs;
+    const flipLayer = new FightLeagueLayer();
+    ms = frame(flipLayer, view, { ...OPTS, koStopMs: 0, heavyStopMs: 0 });
+    expect([flipLayer.flipOn, cones(ms), koFlashes(ms)]).toEqual([true, 0, 0]);
+    ms = frame(flipLayer, view, { ...OPTS, koStopMs: FL_KO_FLIP_MS + 20, heavyStopMs: FL_KO_FLIP_MS + 20 });
+    expect([flipLayer.flipOn, cones(ms), koFlashes(ms)]).toEqual([false, 2, 0]);
+    lethal.aux = 0; // (the same KO without a lethal blow's flip: the flash is the KO's)
+    ms = frame(new FightLeagueLayer(), view, { ...OPTS, koStopMs: FL_KO_FLIP_MS + 20, heavyStopMs: FL_KO_FLIP_MS + 20 });
+    expect(koFlashes(ms)).toBe(1);
+    lethal.aux = 2;
+    view.lastKoMs = lastKo;
+    // (4) the low-HP heartbeat: a white ring 0.2 R wide at 0.85 round the disc, R × (1.15 + 0.12 sin) away
+    const hp = loki.hp;
+    loki.hp = 0.2 * loki.maxHp;
+    const beatLayer = new FightLeagueLayer();
+    ms = frame(beatLayer, view, { ...OPTS, koStopMs: FL_KO_FLIP_MS + 20 }); // (past the lethal blow's ink flip of (3): the ring is white)
+    const beats = ms.filter((m) => m.name === "stroke" && white(m) && Math.abs(m.alpha - 0.85) < 1e-9 && centredOn(m, at(beatLayer, loki)));
+    expect(beats.length).toBe(1);
+    const ringR = beats[0].arc![2];
+    expect(beats[0].lw / ringR).toBeGreaterThan(0.2 / 1.28);
+    expect(beats[0].lw / ringR).toBeLessThan(0.2 / 1.02);
+    loki.hp = hp;
+
+    // (5) the wind-up's name at the arena's top stands down while a huge number sits there, and comes back when it is lower
+    const duel = probeEngine({ fighters: ["captainfalcon", "littlemac"], match: "1v1", stage: "noir" }, 1);
+    const v2 = probeRun(duel, 3000);
+    const [falcon, mac] = v2.fighters;
+    expect([falcon.alive, mac.alive, flHeavyAbility(falcon.row.ability)]).toEqual([true, true, true]);
+    falcon.telegraphStart = v2.timeMs - 100;
+    falcon.telegraphUntil = v2.timeMs + 700;
+    mac.telegraphUntil = -1;
+    mac.giantLeft = 0;
+    mac.lastCastMs = -Infinity;
+    const named = () => {
+      const l = new FightLeagueLayer();
+      frame(l, v2);
+      return l.callouts.has("cast");
+    };
+    expect(named()).toBe(true);
+    const field = v2.field!;
+    const unit = Math.max(6, field.side * 0.065);
+    const value = 0.3 * mac.maxHp; // (heavy, not critical: no CRITICAL! room asked above the number)
+    const fs = flNumberFs(value, mac.maxHp, unit, field.sqSide, field.dk || 1, FL_NOIR_ARENA_FRAC / FL_ARENA_FRAC, value);
+    const num = pushSynthetic(v2, EV_DAMAGE, { t: v2.timeMs, x: field.cx, y: field.cy - field.half + mac.r + 1.05 * fs * FL_NUMBER_SLAM + 1, value, slot: mac.slot, color: falcon.row.accent, src: (falcon.slot & 7) * 8 + 7, aux: 1, x2: 0, y2: value });
+    expect(named()).toBe(false);
+    num.y = field.cy + 0.3 * field.half;
+    expect(named()).toBe(true);
+    // (6) an ultimate's super flash tints the square's edges on lilac, not on noir (a muddy frame on black)
+    falcon.telegraphUntil = -1;
+    falcon.lastCastMs = v2.timeMs - 100;
+    const edges = (ms: Mark[]) => ms.filter((m) => m.name === "stroke" && m.style === falcon.row.accent && Math.abs(m.lw - 0.02 * SIDE) < 1e-9).length;
+    expect(edges(frame(new FightLeagueLayer(), v2))).toBe(0);
+    const lilac = probeRun(probeEngine({ fighters: ["captainfalcon", "littlemac"], match: "1v1", stage: "lilac" }, 1), 3000);
+    lilac.fighters[0].telegraphUntil = -1;
+    lilac.fighters[0].lastCastMs = lilac.timeMs - 100;
+    expect(edges(frame(new FightLeagueLayer(), lilac))).toBe(1);
   });
 
   it("keeps the render contract on noir with the heavy hits, criticals, lethal blows and lead turns firing (a synthetic storm until the mode pushes them)", { timeout: 180_000 }, () => {

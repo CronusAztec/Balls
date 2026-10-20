@@ -107,7 +107,7 @@ import { flFold, flSortKey, flTypeAhead, searchFighters } from "@/lib/physics/mo
 import { FL_RATINGS_HASH, FL_STRENGTH } from "@/lib/physics/modes/fightLeagueRatings"; // --- fl-overhaul --- (Stage 2)
 import { MODE_IDS, type PhysicsConfig, type SoundEvent } from "@/lib/physics/types";
 import type { PhysicsEngine } from "@/lib/physics/engine";
-import { FL_IMPACT_GAP_MS } from "@/lib/physics/modes/fightLeagueFx"; // --- fl-heavy --- (EV_HEAVY's gap per target)
+import { FL_HEAVY_FRAC, FL_IMPACT_GAP_MS, flHeavyShare, flNumberBlow } from "@/lib/physics/modes/fightLeagueFx"; // --- fl-heavy --- (EV_HEAVY's gap per target, the number's blow)
 import { MODE_CARD_ORDER, MODE_CATEGORIES } from "@/lib/modes";
 import { RANGES, defaultSettings, engineSettingKeys, presetToSettings, settingsFromSearchParams, settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
 import { createEngineForSettings, findSimulation, simulateOutcomeRun, type FinderRequest, type ModeSettings } from "@/lib/simulation/finder";
@@ -1996,6 +1996,77 @@ describe("fight league heavy hits (--- fl-heavy ---: the damage rule, EV_HEAVY, 
       const e = row.ability.effects[0] as { damage: number };
       expect([id, e.damage * row.stats.damage >= 25]).toEqual([id, heavy]);
     }
+  });
+
+  it("lands Electric Fly's loaded giant hit on Raiden's next zap: the spark is his own blow, 5 × 1.11 × 2.5 = 13.875 (before, the charge never landed)", () => {
+    const row = FL_BY_ID.get("raiden")!;
+    expect([row.ability.charge, row.stats.damage]).toEqual([10, 1.11]);
+    for (const seed of [1, 2, 3]) {
+      const blows = abilityBlows("raiden", "gerald", seed, true, 2);
+      expect([seed, blows]).toEqual([seed, [expect.closeTo(13.875, 9), expect.closeTo(13.875, 9)]]);
+    }
+  });
+
+  it("sums a blow over one step: Death Ball's orb and its burst on the foe push one critical EV_HEAVY of 40.4 and one number that keeps the blow (y2); Plasma Blast's bolt and burst land 29.9, the standard class's 30", () => {
+    /** The first non-lethal ability blow (source 7) on the foe after `id`'s first cast: its frame's EV_HEAVY events on the foe and its number. */
+    const firstBlow = (id: string, seed: number) => {
+      const engine = heavyEngine(id, "gerald", seed);
+      let heavies: Ev[] = [];
+      let number: Ev | undefined;
+      stepFrames(engine, 30_000, (v, events) => {
+        if (v.fighters[0].casts === 0) return;
+        const h = events.filter((e) => e.kind === EV_HEAVY && e.slot === 1 && e.src === 7 && e.aux !== 2);
+        if (h.length === 0) return;
+        heavies = h;
+        for (let k = 1; k <= 12; k++) {
+          const e = v.events[(v.eventSerial - k) % FL_EVENT_CAP];
+          if (e.kind === EV_DAMAGE && e.slot === 1 && e.src === 7) {
+            number = { kind: e.kind, t: e.t, slot: e.slot, value: e.value, x2: e.x2, y2: e.y2, src: e.src, aux: e.aux };
+            break;
+          }
+        }
+        return true;
+      });
+      return { heavies, number };
+    };
+    for (const seed of [2, 3]) {
+      const { heavies, number } = firstBlow("frieza", seed);
+      expect([seed, heavies.map((e) => [e.value, e.aux])]).toEqual([seed, [[expect.closeTo(40.4, 9), 1]]]);
+      expect([seed, number?.value, number?.y2]).toEqual([seed, expect.closeTo(40.4, 9), expect.closeTo(40.4, 9)]);
+    }
+    const plasma = FL_BY_ID.get("toothless")!;
+    expect((plasma.ability.effects[0] as { damage: number }).damage * plasma.stats.damage * 2).toBeLessThanOrEqual(30);
+    const { heavies } = firstBlow("toothless", 2);
+    expect(heavies.map((e) => [e.value, e.aux])).toEqual([[expect.closeTo(29.88, 9), 0]]);
+  });
+
+  it("draws the huge number only with a heavy blow behind it: Thunder Strike's 18.76 and the hammer's 14.74 merged into one 33.50 on Loki keep the plain tier (y2 the larger blow), every heavy-tier number has an EV_HEAVY on its victim", () => {
+    const engine = fightEngine({ fighters: ["thor", "loki", "random", "random"], match: "1v1", timeCap: 60, arena: "square" } as Partial<FightLeagueSettings>, 8919);
+    let merged: Ev | undefined;
+    let orphans = 0;
+    let heavyNumbers = 0;
+    stepFrames(engine, 60_000, (v) => {
+      for (let k = 0; k < Math.min(v.eventSerial, FL_EVENT_CAP); k++) {
+        const e = v.events[k];
+        if (e.kind !== EV_DAMAGE || !(v.timeMs - e.t < 150)) continue;
+        const victim = v.fighters[e.slot];
+        if (!victim) continue;
+        if (e.slot === 1 && Math.abs(e.value - 33.5) < 0.01) merged = { kind: e.kind, t: e.t, slot: e.slot, value: e.value, x2: e.x2, y2: e.y2, src: e.src, aux: e.aux };
+        if (flHeavyShare(flNumberBlow(e.value, e.y2), victim.maxHp) < FL_HEAVY_FRAC) continue;
+        heavyNumbers++;
+        let backed = false;
+        for (let q = 0; q < Math.min(v.eventSerial, FL_EVENT_CAP); q++) {
+          const h = v.events[q];
+          if (h.kind === EV_HEAVY && h.slot === e.slot && h.t <= e.t + 1e-6 && e.t - h.t <= FL_IMPACT_GAP_MS + 150) backed = true;
+        }
+        if (!backed) orphans++;
+      }
+    });
+    expect(merged).toBeDefined();
+    expect([merged!.value, merged!.y2]).toEqual([expect.closeTo(33.5, 2), expect.closeTo(18.76, 2)]);
+    expect(flHeavyShare(flNumberBlow(merged!.value, merged!.y2), 100)).toBeLessThan(FL_HEAVY_FRAC);
+    expect(orphans).toBe(0);
+    void heavyNumbers;
   });
 
   it("lands the Shoryuken's 30 on a Hadouken that carries the charge (the projectile path reads the share)", () => {

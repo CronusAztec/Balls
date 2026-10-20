@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "id": "site-1-13-0",
+      "product": "site",
+      "version": "1.13.0",
+      "date": "2026-10-20",
+      "headline": {
+        "en": "Fight League's big hits freeze the frame",
+        "pl": "Mocne ciosy w Fight League zatrzymują kadr",
+        "es": "Los grandes golpes de Fight League congelan la imagen"
+      },
+      "items": [
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Fight League hits harder. The big signature blows take up to half the foe's health. Every big hit freezes the frame, rings the arena and slams a huge number on screen.",
+            "pl": "Fight League uderza mocniej. Najmocniejsze ciosy specjalne zabierają nawet połowę zdrowia wroga. Każde mocne trafienie zatrzymuje kadr, otacza arenę pierścieniem i wbija na ekran wielką liczbę.",
+            "es": "Fight League golpea más fuerte. Los grandes golpes especiales quitan hasta la mitad de la vida del enemigo. Cada gran golpe congela la imagen, rodea la arena con un anillo y estampa un número enorme en pantalla."
+          }
+        }
+      ]
+    },
+    {
       "id": "site-1-12-0",
       "product": "site",
       "version": "1.12.0",
@@ -41,14 +62,6 @@
             "en": "Fight League opens on a new noir stage. A black arena with a white outline, the weapons and a pixel title above it, a stats block below, and every hit bursts into white particles, debris and sparks.",
             "pl": "Fight League otwiera się na nowej scenie noir. Czarna arena z białym obrysem, bronie i pikselowy tytuł nad nią, blok statystyk pod nią, a każde trafienie rozpryskuje się w białe cząstki, odłamki i iskry.",
             "es": "Fight League se abre en un nuevo escenario noir. Una arena negra con borde blanco, las armas y un título de píxeles encima, estadísticas debajo, y cada golpe estalla en partículas blancas, escombros y chispas."
-          }
-        },
-        {
-          "kind": "improved",
-          "text": {
-            "en": "Fight League hits harder. A Falcon Punch takes half the foe's health in one blow. Every big hit freezes the frame, rings the arena and slams a huge number on screen.",
-            "pl": "Fight League uderza mocniej. Falcon Punch zabiera połowę zdrowia wroga jednym ciosem. Każde mocne trafienie zatrzymuje kadr, otacza arenę pierścieniem i wbija na ekran wielką liczbę.",
-            "es": "Fight League golpea más fuerte. Un Falcon Punch quita la mitad de la vida del enemigo de un golpe. Cada gran golpe congela la imagen, rodea la arena con un anillo y estampa un número enorme en pantalla."
           }
         }
       ]

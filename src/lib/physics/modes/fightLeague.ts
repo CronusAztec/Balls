@@ -1929,6 +1929,15 @@ export class FlFighter {
   lastHitAmount = 0;
   /** Its last lead turn (ms): EV_TURN at most once per attacker every FL_TURN_GAP_MS. */
   turnMs = -Infinity;
+  /**
+   * This step's blow on it: the attacker (`blowBy`, −1 none) and the step (`blowStep`) whose hits add up (`blowSum`: a volley's
+   * projectile and its burst, a shotgun's pellets, two weapons at once land as one blow) and the serial of the EV_HEAVY that
+   * blow pushed (`blowHeavy`, −1 none: a later hit of the same blow grows that event in place instead of pushing another).
+   */
+  blowBy = -1;
+  blowStep = -1;
+  blowSum = 0;
+  blowHeavy = -1;
   /** The KO finale: where it is drawn (it drifts on at the finale's time scale), its velocity then, its weapons' spin. */
   finX = 0;
   finY = 0;
@@ -2193,14 +2202,16 @@ export const EV_TRAP = 22;
  */
 export const EV_IMPACT = 23;
 /**
- * --- fl-heavy --- (Stop The World) A heavy hit landed: `value` the damage dealt (post-stat and post-giant, before the HP
- * clamp: what the number shows), (x, y) the impact point (the target, `slot`), (x2, y2) the unit hit direction (as EV_HIT's),
- * `color` the attacker's accent, `src` the hit's source, `aux` its tier: 0 heavy (value ≥ FL_HEAVY_FRAC 0.25 × the target's
- * maximum HP), 1 critical (≥ FL_CRIT_FRAC 0.40), 2 lethal (the target's HP ≤ 0 after absorbLethal, any size). Pushed by hit()
- * after noteHitVisuals when lethal, or when heavy and at most once per target every FL_IMPACT_GAP_MS (`heavyMs`). Never
- * merged. The renderer's hit stop (the page camera's 90 ms dip, 150 ms for aux 2), white wash, noir ink flip (aux 2), zoom
- * punch, directional shake (FL_SHAKES.heavy / heavyKo), shock rings, speed-line cone, rim pop, particles and the CRITICAL!
- * callout (aux 1) read it; the sound stamps its thump in the same tick. No rule reads it.
+ * --- fl-heavy --- (Stop The World) A heavy blow landed: `value` the damage dealt (post-stat and post-giant, before the HP
+ * clamp) summed over the attacker's hits on the target in this 60 Hz step (a volley's projectile and its burst, a shotgun's
+ * pellets: one blow, what the merged number shows), (x, y) the impact point (the target, `slot`), (x2, y2) the unit hit
+ * direction (as EV_HIT's), `color` the attacker's accent, `src` the hit's source, `aux` its tier: 0 heavy (value ≥
+ * FL_HEAVY_FRAC 0.25 × the target's maximum HP), 1 critical (≥ FL_CRIT_FRAC 0.40), 2 lethal (the target's HP ≤ 0 after
+ * absorbLethal, any size). Pushed by hit() after noteHitVisuals when lethal, or when heavy and at most once per target every
+ * FL_IMPACT_GAP_MS (`heavyMs`); a later hit of the same blow in the same step grows that event (its value and its tier) in
+ * place. Never merged across steps. The renderer's hit stop (the page camera's 90 ms dip, 150 ms for aux 2), white wash,
+ * noir ink flip (aux 2), zoom punch, directional shake (FL_SHAKES.heavy / heavyKo), shock rings, speed-line cone, rim pop,
+ * particles and the CRITICAL! callout (aux 1) read it; the sound stamps its thump in the same tick. No rule reads it.
  */
 export const EV_HEAVY = 24;
 /**
@@ -2234,7 +2245,9 @@ export class FlEvent {
    * 2 the lethal blow (any size; x2, y2: the hit's direction, value: the damage dealt); EV_TURN 1 a clutch comeback (the attacker
    * under a quarter of its own HP), else 0 (x2, y2: its target's position, value: the lead swing). EV_KO's `value` is the
    * finishing blow's amount (0 when none) and its `src` the killer's (slot & 7) × 8 + 7 (−1 none); EV_DAMAGE's x2 is 0 for a
-   * maxHpFrac giant (no '×N' beside a share-based number).
+   * maxHpFrac giant (no '×N' beside a share-based number) and its y2 the largest blow merged into the number (the attacker's
+   * damage on the target summed over one 60 Hz step, as EV_HEAVY's `value`; 0 on a reflected number): the huge number's tier
+   * reads it, not the merged value, so two blows a step apart that merge never draw the heavy tier without a heavy blow.
    */
   aux = 0;
 }
@@ -3468,7 +3481,7 @@ export class FightLeagueMode implements GameMode {
     // --- fl-overhaul --- (Stage 3) damage on the same target from the same attacker within FL_DAMAGE_MERGE_MS adds into its last
     // number (one '-15' a shotgun volley): the number's value grows and it pops again from now
     if (kind === EV_DAMAGE && src >= 0) {
-      const merged = this.mergeDamage(t, x, y, value, slot, src, aux);
+      const merged = this.mergeDamage(t, x, y, value, slot, src, aux, y2);
       if (merged) return merged;
     }
     const e = v.events[v.eventSerial % FL_EVENT_CAP];
@@ -3487,8 +3500,11 @@ export class FightLeagueMode implements GameMode {
     return e;
   }
 
-  /** --- fl-overhaul --- (Stage 3) The recent damage number this one adds into (same target, same attacker, same look, ≤ FL_DAMAGE_MERGE_MS old), or null. */
-  private mergeDamage(t: number, x: number, y: number, value: number, slot: number, src: number, aux: number): FlEvent | null {
+  /**
+   * --- fl-overhaul --- (Stage 3) The recent damage number this one adds into (same target, same attacker, same look, ≤
+   * FL_DAMAGE_MERGE_MS old), or null. --- fl-heavy --- `blow` (y2) keeps the largest blow merged in.
+   */
+  private mergeDamage(t: number, x: number, y: number, value: number, slot: number, src: number, aux: number, blow: number): FlEvent | null {
     const v = this.view;
     const back = Math.min(12, v.eventSerial);
     for (let k = 1; k <= back; k++) {
@@ -3499,6 +3515,7 @@ export class FightLeagueMode implements GameMode {
       e.t = t;
       e.x = x;
       e.y = y;
+      if (blow > e.y2) e.y2 = blow; // --- fl-heavy ---
       return e;
     }
     return null;
@@ -4683,7 +4700,8 @@ export class FightLeagueMode implements GameMode {
           const dd = Math.hypot(t.x - f.x, t.y - f.y) || 1;
           const hx = f.x + Math.cos(bearing) * 1.1 * f.r;
           const hy = f.y + Math.sin(bearing) * 1.1 * f.r;
-          this.hitTarget(ctx, f, s.damage, (t.x - f.x) / dd, (t.y - f.y) / dd, s.knockback, "magic", { weapon: w.index, fromX: hx, fromY: hy });
+          // (--- fl-heavy --- the zap is its owner's own blow at reach: a loaded giant hit rides it, as on a beam weapon – Raiden's Electric Fly)
+          this.hitTarget(ctx, f, s.damage, (t.x - f.x) / dd, (t.y - f.y) / dd, s.knockback, "magic", { weapon: w.index, fromX: hx, fromY: hy, melee: true });
           if (this.view.match !== "1v1") this.chainSpark(ctx, f, w, t.r, now);
           break;
         }
@@ -5959,6 +5977,15 @@ export class FightLeagueMode implements GameMode {
     target.hitMs = now;
     target.lastHitBy = attacker.slot;
     target.lastHitAmount = amount; // --- fl-heavy --- (EV_KO's `value`: the finishing blow)
+    // --- fl-heavy --- this step's blow of the attacker on the target: its hits add up (a volley's projectile and its burst)
+    if (target.blowStep !== this.stepIndex || target.blowBy !== attacker.slot) {
+      target.blowStep = this.stepIndex;
+      target.blowBy = attacker.slot;
+      target.blowSum = 0;
+      target.blowHeavy = -1;
+    }
+    target.blowSum += amount;
+    const blow = target.blowSum;
     if (attacker !== target && amount > v.turnAmount) {
       // --- fl-heavy --- the step's largest hit (stepLead's EV_TURN when it flips the lead)
       v.turnSlot = attacker.slot;
@@ -6009,18 +6036,25 @@ export class FightLeagueMode implements GameMode {
     target.hitDy = hy;
     target.comboCount = 0;
     // (--- fl-heavy --- no '×N' beside a share-based giant: its number is the share of the foe's maximum HP)
-    this.pushEvent(EV_DAMAGE, now, target.x, target.y - target.r, amount, target.slot, attacker.row.accent, giant > 0 && attacker.giantFrac <= 0 ? amount / Math.max(1e-9, plain) : 0, 0, src, giant > 0 ? 1 : 0);
+    this.pushEvent(EV_DAMAGE, now, target.x, target.y - target.r, amount, target.slot, attacker.row.accent, giant > 0 && attacker.giantFrac <= 0 ? amount / Math.max(1e-9, plain) : 0, blow, src, giant > 0 ? 1 : 0);
     if (!opts.quiet || giant > 0) this.pushEvent(EV_HIT, now, (target.x + (opts.fromX ?? attacker.x)) / 2, (target.y + (opts.fromY ?? attacker.y)) / 2, amount, attacker.slot, attacker.row.accent, hx, hy, src);
     this.noteHitVisuals(attacker, target, amount, giant > 0, weapon < 0 && (!!opts.ignoreIframes || !!opts.unblockable), opts.volley ?? 0, now);
-    // --- fl-heavy --- (Stop The World) a heavy hit (a share of the foe's maximum HP) or the lethal blow: EV_HEAVY, at most once
-    // per target every FL_IMPACT_GAP_MS (the lethal blow always). Visual state only: no rule, no clock and no draw reads it.
-    const share = amount / Math.max(1e-9, target.maxHp);
+    // --- fl-heavy --- (Stop The World) a heavy blow (this step's hits of the attacker on the target, a share of its maximum HP)
+    // or the lethal blow: EV_HEAVY, at most once per target every FL_IMPACT_GAP_MS (the lethal blow always); a later hit of a blow
+    // that already pushed one grows that event (its sum, its tier) in place. Visual state only: no rule, no clock and no draw reads it.
+    const share = blow / Math.max(1e-9, target.maxHp);
     const lethal = target.hp <= 0;
-    if ((lethal || share >= FL_HEAVY_FRAC) && (lethal || now - target.heavyMs >= FL_IMPACT_GAP_MS)) {
+    const tier = lethal ? 2 : share >= FL_CRIT_FRAC ? 1 : 0;
+    const grown = target.blowHeavy >= 0 && target.blowHeavy >= v.eventSerial - FL_EVENT_CAP ? v.events[target.blowHeavy % FL_EVENT_CAP] : null;
+    if (grown && grown.kind === EV_HEAVY) {
+      grown.value = blow;
+      if (tier > grown.aux) grown.aux = tier;
+    } else if ((lethal || share >= FL_HEAVY_FRAC) && (lethal || now - target.heavyMs >= FL_IMPACT_GAP_MS)) {
       target.heavyMs = now;
-      this.pushEvent(EV_HEAVY, now, target.x, target.y, amount, target.slot, attacker.row.accent, hx, hy, src, lethal ? 2 : share >= FL_CRIT_FRAC ? 1 : 0);
+      target.blowHeavy = v.eventSerial;
+      this.pushEvent(EV_HEAVY, now, target.x, target.y, blow, target.slot, attacker.row.accent, hx, hy, src, tier);
     }
-    this.hitCue(attacker, target, weapon, amount, sound, giant > 0, opts); // (--- fl-overhaul --- Stage 4)
+    this.hitCue(attacker, target, weapon, amount, blow, sound, giant > 0, opts); // (--- fl-overhaul --- Stage 4)
     return HIT_LANDED;
   }
 
@@ -7465,10 +7499,11 @@ export class FightLeagueMode implements GameMode {
    * the hit of its weapon's kind – or its own kind (`opts.sndKind`), or its projectile's shape (an ability's volley) –, at the
    * victim's position, as strong as its damage; `legacy` is the old kind (`fight`) for the legacy set.
    */
-  private hitCue(attacker: FlFighter, target: FlFighter, weapon: number, amount: number, legacy: FlSoundKind, giant: boolean, opts: HitOptions) {
-    // --- fl-heavy --- (Stop The World) a heavy hit thumps (the giant hit's impact) even where its cast's burst owns the sound;
-    // a critical one (not the lethal blow: the KO stings own that) adds the 'critical' match sting
-    const share = amount / Math.max(1e-9, target.maxHp);
+  private hitCue(attacker: FlFighter, target: FlFighter, weapon: number, amount: number, blow: number, legacy: FlSoundKind, giant: boolean, opts: HitOptions) {
+    // --- fl-heavy --- (Stop The World) a heavy blow (`blow`: this step's hits of the attacker on the target, summed) thumps (the
+    // giant hit's impact) even where its cast's burst owns the sound; a critical one (not the lethal blow: the KO stings own that)
+    // adds the 'critical' match sting (the urgent key keeps one of each per attacker per tick)
+    const share = blow / Math.max(1e-9, target.maxHp);
     const heavy = share >= FL_HEAVY_FRAC;
     if (opts.sndCue === "silent" && !heavy) return;
     const level = Math.min(1, 0.45 + amount / 20);
@@ -7826,8 +7861,9 @@ export class FightLeagueMode implements GameMode {
       e.x = mapX(e.x);
       e.y = mapY(e.y);
       // (--- fl-overhaul --- Stage 3: a hit's direction, a KO's or a slam's velocity are vectors, not points)
-      if (e.kind === EV_HIT || e.kind === EV_KO || e.kind === EV_SLAM || (e.kind === EV_DAMAGE && e.aux === 1)) {
-        if (e.kind !== EV_HIT && e.kind !== EV_DAMAGE) {
+      // (--- fl-heavy --- EV_HEAVY's x2, y2: the hit's unit direction; EV_DAMAGE's: the '×N' and the blow, never points)
+      if (e.kind === EV_HIT || e.kind === EV_KO || e.kind === EV_SLAM || e.kind === EV_DAMAGE || e.kind === EV_HEAVY) {
+        if (e.kind !== EV_HIT && e.kind !== EV_DAMAGE && e.kind !== EV_HEAVY) {
           e.x2 *= k;
           e.y2 *= k;
         }

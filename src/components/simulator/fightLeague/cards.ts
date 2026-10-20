@@ -32,6 +32,8 @@ import { flFont } from "./text";
 const CONFETTI = 90;
 const FIGHT_FLASH_MS = 650;
 const KO_FLASH_MS = 700;
+/** --- fl-heavy --- A lethal blow (EV_HEAVY aux 2) and the KO it caused land in the same 60 Hz step: within this (ms). */
+const KO_FLIP_SAME_MS = 50;
 
 const ease = (u: number) => 1 - (1 - Math.max(0, Math.min(1, u))) ** 3;
 
@@ -333,9 +335,14 @@ export class FlCardsPainter {
       case FB_KO:
         fr.text.draw(ctx, fr.text.upperOf(L.ko), A.x + A.w / 2, A.y + 0.3 * A.h, 0.11 * S, this.display("#fde047", "rgba(253, 224, 71, 0.5)"), "center", 0.9 * A.w, fade, pop);
         break;
-      case FB_FINAL_KO:
-        fr.text.draw(ctx, fr.text.upperOf(L.ko), A.x + A.w / 2, A.y + 0.32 * A.h, 0.16 * S, this.display("#fde047", "rgba(253, 224, 71, 0.55)"), "center", 0.9 * A.w, fade, pop);
+      case FB_FINAL_KO: {
+        // --- fl-heavy --- in the arena's half away from the KO point (the finale pushes in round it, where the lethal blow's
+        // huge number and the survivor stand): the lower half when the KO was in the upper one
+        const fld = view.field;
+        const upper = !!fld && view.finale.from >= 0 && view.finale.y < fld.cy;
+        fr.text.draw(ctx, fr.text.upperOf(L.ko), A.x + A.w / 2, A.y + (upper ? 0.68 : 0.32) * A.h, 0.16 * S, this.display("#fde047", "rgba(253, 224, 71, 0.55)"), "center", 0.9 * A.w, fade, pop);
         break;
+      }
       case FB_TIME:
         fr.text.draw(ctx, fr.text.upperOf(L.time), A.x + A.w / 2, A.y + A.h / 2, 0.12 * S, this.display("#fca5a5", "rgba(248, 113, 113, 0.5)"), "center", 0.9 * A.w, fade, pop);
         break;
@@ -350,11 +357,14 @@ export class FlCardsPainter {
 
   /**
    * A white flash over the arena after each knockout (--- fl-heavy --- 0.5 for the final KO, the one the finale follows; 0.3
-   * otherwise); none while the noir ink flip holds the arena white with ink discs (a flash over it would grey the ink).
+   * otherwise); none while the noir ink flip holds the arena white with ink discs (a flash over it would grey the ink), and none
+   * after it for the KO whose lethal blow flipped the arena (`fr.koFlipT`: the flip is that KO's flash; after it the flash kept
+   * the black arena mid grey for about 400 ms while the white KO ring crossed it).
    */
   drawKoFlash(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, lay: FlHudLayout, ox: number, oy: number) {
     const age = fr.now - view.lastKoMs;
     if (!(age >= 0 && age < KO_FLASH_MS) || fr.flip) return;
+    if (fr.pal.noir && fr.koFlipT <= view.lastKoMs && view.lastKoMs - fr.koFlipT < KO_FLIP_SAME_MS) return;
     const t = age / KO_FLASH_MS;
     ctx.save();
     ctx.globalAlpha = (view.finale.from >= 0 ? 0.5 : 0.3) * (1 - t) * (1 - t);

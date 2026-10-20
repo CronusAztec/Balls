@@ -157,6 +157,19 @@ export interface FightLeagueRenderOptions {
   cameraShake?: boolean;
   /** The hit shapes (flDbg=1 in the URL; no panel control). */
   debug?: boolean;
+  /**
+   * --- fl-heavy --- Real ms since the page's camera began the lethal blow's hit stop (`FightLeagueLayer.cameraCue()`'s
+   * `lethal` cue; Infinity: none yet): the noir ink flip lasts FL_KO_FLIP_MS of it. Undefined (no page camera, no dip): the
+   * flip is timed on the simulation's clock.
+   */
+  koStopMs?: number;
+  /**
+   * --- fl-heavy --- Real ms since the page's camera began the newest heavy hit's stop (any `FightLeagueLayer.cameraCue()`;
+   * Infinity: none yet): the white wash (FL_HEAVY_WASH_REAL_MS) and the victim's capped white flash (FL_HEAVY_FLASH_CAP_MS) run
+   * on it, since the simulation's and the effects' clocks all but stand still through the dip. Undefined (no page camera, no
+   * dip): they run on the effects' and the simulation's clocks.
+   */
+  heavyStopMs?: number;
 }
 
 /** Per-frame shared state (one per layer; its arrays are reused every frame). */
@@ -196,10 +209,20 @@ export class FlFrame {
   zoomY = 0;
   lite = false;
   /**
-   * --- fl-heavy --- (Stop The World) The noir ink flip: for FL_KO_FLIP_MS after the lethal blow the arena fills white, the
+   * --- fl-heavy --- (Stop The World) The noir ink flip: for FL_KO_FLIP_MS real ms after the lethal blow the arena fills white, the
    * rim and every disc ink, the HP digits white (noir only, never under reduced motion or with Impact Frames off).
    */
   flip = false;
+  /**
+   * --- fl-heavy --- The real ms since the camera's cue of the newest heavy hit (`o.heavyStopMs` when the page's camera cued it:
+   * Impact Frames on, no reduced motion; NaN otherwise, when the effects' clock is real time), that hit's time (`heavyT`, NaN:
+   * none), the newest heavy hit's time on each slot (`heavyHitT`, −Infinity: none; its victim's white flash is capped) and the
+   * lethal blow whose noir ink flip ran (`koFlipT`, NaN: none; the KO flash stands down after it).
+   */
+  heavyStopMs = NaN;
+  heavyT = NaN;
+  readonly heavyHitT = new Float64Array(FL_MAX_SLOTS).fill(-Infinity);
+  koFlipT = NaN;
   /**
    * --- fl-heavy --- The noir opener's clock: ms since the match's intro started (fr.now − (introMs − FL_INTRO_MS)) while the
    * noir stage is in its intro; Infinity on the other stages and once the intro is over.

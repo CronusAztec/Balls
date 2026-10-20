@@ -7,6 +7,14 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Website 1.13.0 · 2026-10-20
+
+Fight League's big hits freeze the frame
+
+### Improved
+
+- Fight League hits harder. The big signature blows take up to half the foe's health. Every big hit freezes the frame, rings the arena and slams a huge number on screen.
+
 ## Website 1.12.0 · 2026-10-20
 
 Merge Ring and Spiral Glass join the modes
@@ -20,7 +28,6 @@ Merge Ring and Spiral Glass join the modes
 ### Improved
 
 - Fight League opens on a new noir stage. A black arena with a white outline, the weapons and a pixel title above it, a stats block below, and every hit bursts into white particles, debris and sparks.
-- Fight League hits harder. A Falcon Punch takes half the foe's health in one blow. Every big hit freezes the frame, rings the arena and slams a huge number on screen.
 
 ## Windows app 1.4.1 · 2026-10-19
 

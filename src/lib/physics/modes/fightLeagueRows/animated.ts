@@ -83,7 +83,7 @@ export const FL_ROWS_ANIMATED: readonly FlFighterRow[] = [
     accent: "#a78bfa",
     weapons: [{ kind: "gun", shape: "plasma", cooldown: 1.3, damage: 7, speed: 1.4, size: 0.3, color: "#a78bfa" }],
     stats: S({ speed: 1.2, damage: 0.9 }),
-    ability: { name: "Plasma Blast", charge: 10, effects: [{ p: "volley", n: 1, damage: 18, speed: 1.1, size: 0.6, shape: "plasma", explode: 3.5, color: "#a78bfa" }] },
+    ability: { name: "Plasma Blast", charge: 10, effects: [{ p: "volley", n: 1, damage: 16.6, speed: 1.1, size: 0.6, shape: "plasma", explode: 3.5, color: "#a78bfa" }] }, // --- fl-heavy --- (the bolt and its blast land on the foe it hits as one blow: 2 × 16.6 × 0.9 = 29.9, the standard class's 30)
     description: "Fast plasma shots; his Plasma Blast is one huge bolt that explodes on impact.",
     role: "ranged",
     isNew: true,

@@ -111,7 +111,7 @@ export class CinematicCamera {
     const s = this.settings;
     this.scaleNow = s.slowMoOnNearMiss && this.phase === "idle" ? this.slowMo.timeScale(s.slowMoMs, s.slowMoFactor) : 1;
     // --- string-battle-alive --- a mode's own dip (the String Battle's duel cuts), whatever the switch: the slower of the two
-    if (this.phase === "idle" && this.dipElapsed < this.dipMs) this.scaleNow = Math.min(this.scaleNow, slowMoTimeScale(this.dipElapsed, this.dipMs, this.dipFactor));
+    if (this.phase === "idle" && this.dipElapsed < this.dipMs) this.scaleNow = Math.min(this.scaleNow, slowMoTimeScale(this.dipElapsed, this.dipMs, this.dipFactor, this.dipRampIn));
     return this.scaleNow;
   }
 
@@ -120,6 +120,8 @@ export class CinematicCamera {
   private dipElapsed = Infinity;
   private dipMs = 0;
   private dipFactor = 1;
+  /** --- fl-heavy --- The dip's ease-in (real ms; undefined: slowMoTimeScale's own). */
+  private dipRampIn: number | undefined = undefined;
   /** Dips started this run (mirrored as data-camera-dips). */
   dips = 0;
   /**
@@ -132,12 +134,15 @@ export class CinematicCamera {
    * A short slow-motion dip a mode asks for (the String Battle's duel: every cut, the final one longer): `ms` of real time
    * eased down to `factor` and back (`slowMoTimeScale()`), independent of the slow-motion switch, counted in the slow motion's
    * lag (`getSlowLagMs()`: a recording is extended by it). A dip inside a dip starts it again. Ignored around the replay.
+   * --- fl-heavy --- `rampInMs` sets the ease-in (undefined: the slow motion's own): Fight League's hit stop passes 0, so the
+   * frame after the cue (whose `timeScale()` samples the dip at 0 ms) already runs at `factor` and holds the impact frame.
    */
-  dip(ms: number, factor: number) {
+  dip(ms: number, factor: number, rampInMs?: number) {
     if (this.phase !== "idle" || !(ms > 0)) return;
     this.dipElapsed = 0;
     this.dipMs = ms;
     this.dipFactor = Number.isFinite(factor) ? factor : 1;
+    this.dipRampIn = rampInMs !== undefined && rampInMs >= 0 ? rampInMs : undefined;
     this.dips++;
   }
   // --- end string-battle-alive ---

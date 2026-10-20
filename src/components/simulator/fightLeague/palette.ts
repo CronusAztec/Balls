@@ -281,6 +281,26 @@ export function flNoirAccent(row: { accent: string }): string {
   return out;
 }
 
+/** --- fl-heavy --- A heavy effect's colour on noir is the accent instead when the name colour is this light (a white body on the white rim). */
+export const FL_NOIR_HEAVY_MAX_LUMINANCE = 0.8;
+const noirHeavy = new WeakMap<object, string>();
+
+/**
+ * --- fl-heavy --- The colour of a fighter's heavy effects on the noir stage (the shock ring's chaser, the rim pop, the huge
+ * number's stroke, CRITICAL!, COMEBACK!, the rim sweep, the wind-up's rings and name, ARMED): its name colour
+ * (`flNameColor()`: the body, the colour of its title, stats line and disc), so the heavy hit reads as that fighter's –
+ * except a near-white one (luminance above FL_NOIR_HEAVY_MAX_LUMINANCE, Ryu's #f3f4f6), which would vanish on the white rim:
+ * then `flNoirAccent()`. Memoised per row (no string is built a frame).
+ */
+export function flNoirHeavyColor(row: { body: string; accent: string }): string {
+  const hit = noirHeavy.get(row);
+  if (hit !== undefined) return hit;
+  const name = flNameColor(row.body, row.accent);
+  const out = luminance(name) > FL_NOIR_HEAVY_MAX_LUMINANCE ? flNoirAccent(row) : name;
+  noirHeavy.set(row, out);
+  return out;
+}
+
 /** A grey of the same lightness (the loser's panel, a disarmed weapon). */
 export function greyOf(color: string): string {
   const [r, g, b] = flHexRgb(color);

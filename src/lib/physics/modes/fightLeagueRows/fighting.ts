@@ -149,10 +149,10 @@ export const FL_ROWS_FIGHTING: readonly FlFighterRow[] = [
     body: "#e5e7eb",
     accent: "#38bdf8",
     weapons: [{ kind: "spark", reach: 2.6, cooldown: 0.8, damage: 5, color: "#38bdf8" }],
-    stats: S({ damage: 1.32 }),
+    stats: S({ damage: 1.11 }), // --- fl-heavy --- (1.32 → 1.11 and charge 9 → 10: Electric Fly's loaded zap now lands, 5 × 1.11 × 2.5 = 13.9; at 1.32 he won 99 % of the square)
     ability: {
       name: "Electric Fly",
-      charge: 9,
+      charge: 10,
       effects: [
         { p: "speedBurst", mult: 3, dur: 1 },
         { p: "giantHit", mult: 2.5 },

@@ -1032,6 +1032,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const flReduced = prefersReducedMotion();
     let flLite = false;
     let flBodiesMs = 0;
+    // --- fl-heavy --- real ms since the camera's last lethal hit stop began (the noir ink flip's clock; Infinity: none yet) and
+    // since its last hit stop of any kind (the heavy hit's wash and the victim's capped flash)
+    let flKoStopMs = Infinity;
+    let flHeavyStopMs = Infinity;
     // --- end fl-overhaul ---
     // --- beat-drop --- Beat Drop's layer and its per-frame options (the roster's colours are rebuilt only when the roster changes)
     const bdLayer = new BeatDropLayer();
@@ -1245,11 +1249,18 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (cue) cam.dip(cue.dipMs, cue.factor);
       } else cam.modeSlowView = false;
       // --- fl-heavy --- (Stop The World) Fight League's hit stop: a heavy hit freezes the page camera for 90 real ms (150 on
-      // the lethal blow) at factor 0.05 – the engine's clock and its fixed steps are untouched; bodies do not glide here, so
-      // modeSlowView stays false
+      // the lethal blow) at factor 0.05, already slowed on the frame after the cue (ramp-in 0) – the engine's clock and its
+      // fixed steps are untouched; bodies do not glide here, so modeSlowView stays false. The lethal cue starts the noir ink
+      // flip's real clock (flRender.koStopMs), every cue the heavy hit's (flRender.heavyStopMs).
       if (engine.isFightLeagueMode()) {
+        flKoStopMs += frameMs;
+        flHeavyStopMs += frameMs;
         const cue = flLayer.cameraCue(engine.getFightLeagueView(), flReduced);
-        if (cue) cam.dip(cue.dipMs, cue.factor);
+        if (cue) {
+          cam.dip(cue.dipMs, cue.factor, cue.rampInMs);
+          flHeavyStopMs = 0;
+          if (cue.lethal) flKoStopMs = 0;
+        }
       }
       elapsedRef.current += frameMs;
       const time = elapsedRef.current;
@@ -1466,6 +1477,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         flRender.reducedMotion = flReduced;
         flRender.cameraShake = cam.settings.screenShake > 0;
         flRender.debug = flDebug;
+        flRender.koStopMs = flKoStopMs; // --- fl-heavy ---
+        flRender.heavyStopMs = flHeavyStopMs;
         flRender.labels = (labelsRef.current ?? DEFAULT_LABELS).fightLeague ?? DEFAULT_FIGHT_LEAGUE_LABELS;
         flLayer.applyWorld(ctx, flView, flRender, Math.min(size.width, size.height));
       }
