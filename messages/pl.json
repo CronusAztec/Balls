@@ -1496,7 +1496,7 @@
     "sgMaxBalls": "Maks. kulek",
     "sgMaxBallsTip": "Ile kulek spirala mieści naraz. Odznaka liczy dalej, ale kolejne kulki już nie wchodzą.",
     "sgChipEvery": "Czas odłupania",
-    "sgChipEveryTip": "Ile sekund kulka trze o płytkę, zanim odłupie jedno trafienie. Krótkie czasy szybko czyszczą szkło.",
+    "sgChipEveryTip": "Ile sekund kulka trze o płytkę, zanim odłupie jedno trafienie. Każda kulka w kolejce za nią też pcha, więc więcej kulek kruszy szybciej.",
     "sgRainbow": "Tęczowa linia",
     "sgRainbowTip": "Linia spirali powoli przechodzi przez odcienie, a szkło przejmuje ich lekki odcień. Wyłączona rysuje ją w kolorze ściany.",
     "sgRunInfo": "{turns} zwojów, {tiles} płytek. Ziarno decyduje, kiedy pękają pasy i jak układają się okrążenia, więc Znajdź symulację może trafić w długość klipu.",

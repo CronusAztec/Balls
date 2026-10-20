@@ -107,7 +107,7 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   stringBattle: { samples: [[449763,486112],[452897,216383],[588135,373311],[337304,357704],[242658,331390],[431619,300066],[541439,211811],[318923,247284]], broken: [], walls: [] },
   // --- odd-power-layers --- Power Layers: analytic flight, no rings; recorded when the mode was added (seed 12345, default: 120 layers, the power
   // doubling – 7 hits a second apart; the ball falls out of the field after the last one at 6.5 s, so the samples at 7.5 s and 10 s have no ball).
-  powerLayers: { samples: [[286594,309928],[249290,200810]], broken: [], walls: [] },
+  powerLayers: { samples: [[286594,309928],[249290,334825]], broken: [], walls: [] },
   // --- jdm-race --- Square Racing Grand Prix: no rings, 8 racers down a seeded track (seed 12345, defaults: 8 screens, one lap, the mixed library);
   // re-recorded when the obstacle push-out gap became a fraction of the field (RACE_SEPARATION_REL; review fix modes-rhythm).
   race: { samples: [[366652,232223],[410818,232223],[517030,1190987],[544823,780700],[382814,2031574],[351419,1570399],[557840,2621068],[506624,2436924]], broken: [], walls: [] },
@@ -155,9 +155,9 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   drawingMachine: { samples: [[304282,276452],[400000,309348],[472503,177637],[400000,324672]], broken: [], walls: [] }, // --- drawing-machine --- (the pen, pinned to the harmonograph's clock)
   perfectFit: { samples: [[400000,300000],[400000,300000],[400000,300000],[400000,300000]], broken: [], walls: [] }, // --- perfect-fit --- (no rings; the pieces are the plan's, the one anchor ball stays pinned to the middle)
   // --- merge-ring --- Merge Ring: its own rim and chute, no rings; recorded when the mode was added (seed 12345, defaults: 7 tiers, a ball every 0.9 s, tiers 1–2 spawned, gravity ×1).
-  mergeRing: { samples: [[402095,551416],[402237,408113],[375269,563302],[411252,564341],[327449,553443],[486095,552306],[328612,553807],[462859,559764]], broken: [], walls: [] },
+  mergeRing: { samples: [[404137,564439],[404070,533069],[399687,561280],[431084,565605],[412736,557573],[437661,565076],[426720,556389],[452090,562375]], broken: [], walls: [] },
   // --- spiral-glass --- Spiral Glass: its own spiral and glass, no rings; recorded when the mode was added (seed 12345, defaults: 6 turns, 2 hit points, speed 0.8, 40 balls, a chip every 0.25 s; one ball for the first 10 s, boring the outer band).
-  spiralGlass: { samples: [[306921,490708],[208474,353011],[248535,195946],[393080,126942]], broken: [], walls: [] },
+  spiralGlass: { samples: [[243369,453872],[264453,162907],[541556,182777],[522899,446019]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

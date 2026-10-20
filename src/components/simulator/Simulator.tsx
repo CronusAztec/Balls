@@ -2333,6 +2333,11 @@ export default function Simulator() {
             playFightEvent(audio, ev, 1);
             continue;
           }
+          // --- power-layers-crack --- a Power Layers layer giving way under the ball
+          if (ev.plCrack) {
+            audio.playPowerLayerCrack(ev.frequency, ev.level);
+            continue;
+          }
           // --- land-claim --- a knocked block's wooden click, a new ball's chime, a column's KO
           if (ev.lcSound) {
             audio.playLandClaim(ev.lcSound, ev.frequency, ev.level, ev.accent);

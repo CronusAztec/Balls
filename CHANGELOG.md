@@ -7,6 +7,19 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Website 1.12.1 · 2026-10-20
+
+Power Layers breaks layer by layer, smoother merges
+
+### Improved
+
+- Power Layers: the ball drills down through the stack one layer at a time. Every layer cracks with its own glassy note that climbs the scale, and showers its own colour.
+
+### Fixed
+
+- Merge Ring: balls land softly and settle into a pile instead of bouncing around forever, and a big ball is no longer shoved aside by a small one.
+- Spiral Glass: the spiral is a real wall now. Balls run the channel, eat the glass along it from the entrance in and queue behind the front ball, and every ball in the queue helps grind.
+
 ## Website 1.12.0 · 2026-10-20
 
 Merge Ring and Spiral Glass join the modes

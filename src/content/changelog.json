@@ -1,6 +1,43 @@
 {
   "releases": [
     {
+      "id": "site-1-12-1",
+      "product": "site",
+      "version": "1.12.1",
+      "date": "2026-10-20",
+      "headline": {
+        "en": "Power Layers breaks layer by layer, smoother merges",
+        "pl": "Warstwy mocy pękają po kolei, płynniejsze fuzje",
+        "es": "Capas de poder se rompen capa a capa, fusiones más suaves"
+      },
+      "items": [
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Power Layers: the ball drills down through the stack one layer at a time. Every layer cracks with its own glassy note that climbs the scale, and showers its own colour.",
+            "pl": "Warstwy mocy: kulka przewierca stos warstwa po warstwie. Każda warstwa pęka z własnym szklanym dźwiękiem, który wspina się po skali, i sypie się we własnym kolorze.",
+            "es": "Capas de poder: la bola perfora la pila capa a capa. Cada capa se rompe con su propia nota de cristal que sube por la escala y suelta una lluvia de su color."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "Merge Ring: balls land softly and settle into a pile instead of bouncing around forever, and a big ball is no longer shoved aside by a small one.",
+            "pl": "Pierścień fuzji: kulki lądują miękko i układają się w stos zamiast odbijać się bez końca, a małe kulki nie odpychają już dużych.",
+            "es": "Anillo de fusión: las bolas caen suavemente y se apilan en vez de rebotar sin fin, y una bola pequeña ya no aparta a una grande."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "Spiral Glass: the spiral is a real wall now. Balls run the channel, eat the glass along it from the entrance in and queue behind the front ball, and every ball in the queue helps grind.",
+            "pl": "Szklana spirala: spirala jest teraz prawdziwą ścianą. Kulki biegną kanałem, zjadają szkło wzdłuż niego od wejścia do środka i ustawiają się w kolejce za pierwszą, a każda kulka w kolejce pomaga kruszyć.",
+            "es": "Espiral de cristal: la espiral ahora es una pared de verdad. Las bolas recorren el canal, se comen el cristal desde la entrada hacia dentro y hacen cola tras la primera, y cada bola de la cola ayuda a romperlo."
+          }
+        }
+      ]
+    },
+    {
       "id": "site-1-12-0",
       "product": "site",
       "version": "1.12.0",
