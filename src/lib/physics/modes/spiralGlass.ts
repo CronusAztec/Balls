@@ -1,6 +1,6 @@
 import { SCALE_INTERVALS, midiToFrequency } from "@/lib/audio/scales";
 import type { Ball, GameMode, ModeContext } from "../types";
-import { atLeastMin } from "@/lib/uncap"; // --- uncap-all ---
+import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Spiral Glass ("spiralGlass" mode, feature spiral-glass – the "will the ball multiply?" reels). A single-arm Archimedean
@@ -95,10 +95,10 @@ export function resolveSpiralGlassSettings(config: Partial<SpiralGlassSettings> 
   const out = { ...DEFAULT_SPIRAL_GLASS_SETTINGS };
   if (!config) return out;
   const R = SPIRAL_GLASS_RANGES;
-  if (config.turns !== undefined) out.turns = Math.min(MAX_TURNS, Math.round(clampNumber(config.turns, R.sgTurns, out.turns)));
+  if (config.turns !== undefined) out.turns = memoryCeiling("sgTurns", Math.round(clampNumber(config.turns, R.sgTurns, out.turns))); // --- uncap-all --- MEMORY_CEILINGS.sgTurns = MAX_TURNS
   if (config.glassHp !== undefined) out.glassHp = Math.round(clampNumber(config.glassHp, R.sgGlassHp, out.glassHp));
   if (config.speed !== undefined) out.speed = onStep(clampNumber(config.speed, R.sgSpeed, out.speed), R.sgSpeed.step);
-  if (config.maxBalls !== undefined) out.maxBalls = Math.min(MAX_SPIRAL_BALLS, Math.round(clampNumber(config.maxBalls, R.sgMaxBalls, out.maxBalls)));
+  if (config.maxBalls !== undefined) out.maxBalls = memoryCeiling("sgMaxBalls", Math.round(clampNumber(config.maxBalls, R.sgMaxBalls, out.maxBalls))); // --- uncap-all --- MEMORY_CEILINGS.sgMaxBalls = MAX_SPIRAL_BALLS
   if (config.chipEvery !== undefined) out.chipEvery = onStep(clampNumber(config.chipEvery, R.sgChipEvery, out.chipEvery), R.sgChipEvery.step);
   if (typeof config.rainbow === "boolean") out.rainbow = config.rainbow;
   return out;

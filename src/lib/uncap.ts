@@ -114,6 +114,10 @@ export const ORB_CEILING = 250_000;
  * the preset and the panel keep the typed value; the engine builds at most this many, and the canvas says ARENA FULL.
  */
 export const MEMORY_CEILINGS: Readonly<Record<string, number>> = {
+  // --- merge-ring / spiral-glass --- the tiers (one emblem each), the spiral's turns (36 glass tiles a turn) and the spiral's ball cap
+  mrTiers: 10,
+  sgTurns: 24,
+  sgMaxBalls: 500,
   ballCount: CROWD_BALL_CEILING,
   multiplySpawnCount: CROWD_BALL_CEILING,
   wallCount: RING_CEILING,

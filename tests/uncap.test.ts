@@ -768,7 +768,8 @@ describe("uncap-all: the guard", () => {
     // The list settings – the editor's obstacles, the captions – lie far past their old design counts.)
     const oldListCounts: Record<string, number> = { obstacles: 24, captions: 8 };
     // --- odd-territory --- but Territory's teams: halves or quadrants, the per-team state sized for four – a count past them plays four
-    const atSliderEnd = new Set(["tyTeams"]);
+    // --- merge-ring --- and the tiers: ten emblems exist, the slider ends there, a count past them plays ten
+    const atSliderEnd = new Set(["tyTeams", "mrTiers"]);
     for (const [key, ceiling] of Object.entries(MEMORY_CEILINGS)) {
       if (LIST_CEILING_KEYS.has(key)) {
         expect([key, ceiling >= 40 * oldListCounts[key]]).toEqual([key, true]);
@@ -802,6 +803,8 @@ describe("uncap-all: the guard", () => {
     prAccentEvery: "an accent period",
     prCycles: "cycles of a run",
     cpAntiCollisionAt: "seconds",
+    mrSpawnTiers: "a tier number (at most the tiers, which have a ceiling)",
+    sgGlassHp: "hit points a tile takes",
     glassHp: "hit points",
     recordingDuration: "seconds (an export's frames stop at EXPORT_FRAME_CEILING)",
     sliceFadeMs: "milliseconds",
