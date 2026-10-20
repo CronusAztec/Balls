@@ -43,6 +43,7 @@ import { jdmRhythmNeverFinishes } from "@/lib/physics/modes/jdmRhythmFields";
 import { resolveVortexSettings, type VortexSettings } from "@/lib/physics/modes/vortex";
 import type { JourneySettings } from "@/lib/physics/modes/journey"; // --- gerald-journey ---
 import type { BullseyeSettings } from "@/lib/physics/modes/bullseye"; // --- gerald-bullseye ---
+import type { MergeRingSettings } from "@/lib/physics/modes/mergeRing"; // --- merge-ring ---
 // --- beat-drop ---
 import type { BeatDropSettings } from "@/lib/physics/modes/beatDrop";
 import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
@@ -172,6 +173,9 @@ export interface ModeSettings {
   // --- gerald-bullseye ---
   /** Bullseye: shots, interval, chaos, rings, the moving target and the perfect shot (see modes/bullseye.ts); the defaults when left out. Every run ends after the last landing, and the seed moves that (the last flight, the bullseyes' slow motion), so the finder searches it. */
   bullseye?: Partial<BullseyeSettings>;
+  // --- merge-ring ---
+  /** Merge Ring: tiers, interval, spawn tiers, gravity and the rainbow rim (see modes/mergeRing.ts); the defaults when left out. Every run ends with the final form or an overflow, and the seed decides when, so the finder searches it. */
+  mergeRing?: Partial<MergeRingSettings>;
   // --- beat-drop ---
   /**
    * Beat Drop: the mix, drift, scroll, bounce, anticipation, the beat it follows and the clip length (see modes/beatDrop.ts);
@@ -614,6 +618,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "vortex") engine.setVortexSettings(settings.vortex ?? {});
   if (mode === "journey") engine.setJourneySettings(settings.journey ?? {}); // --- gerald-journey ---
   if (mode === "bullseye") engine.setBullseyeSettings(settings.bullseye ?? {}); // --- gerald-bullseye ---
+  if (mode === "mergeRing") engine.setMergeRingSettings(settings.mergeRing ?? {}); // --- merge-ring ---
   if (mode === "beatDrop") engine.setBeatDropSettings(settings.beatDrop ?? {}); // --- beat-drop ---
   if (mode === "territory") engine.setTerritorySettings(settings.territory ?? {}); // --- odd-territory ---
   if (mode === "maze") engine.setMazeSettings(settings.maze ?? {}); // --- odd-maze ---

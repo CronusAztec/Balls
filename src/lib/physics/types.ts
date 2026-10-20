@@ -93,6 +93,8 @@ export const MODE_IDS = [
   "drawingMachine",
   // --- perfect-fit --- Perfect Fit (pentomino rectangles and Tetris perfect clears dropped into a container that ends exactly full; the loop family)
   "perfectFit",
+  // --- merge-ring --- Merge Ring (balls drop through a chute into a rainbow ring and fuse tier by tier toward the final form)
+  "mergeRing",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -583,6 +585,9 @@ export interface ModeContext {
   addPendingSoundEvent(event: SoundEvent): void;
   spawnWallBreakByStyle(wallIndex: number, x: number, y: number): void;
   spawnConfetti(x: number, y: number): void;
+  // --- merge-ring ---
+  /** The "merge" interaction's burst (a ring of glowing dots in `color` around a ball of `radius` at (x, y)), for a mode that fuses balls itself. */
+  spawnMergeBurst?(x: number, y: number, color: string, radius: number): void;
   /**
    * Tells the engine that `ball` just broke through (or escaped) wall `wallIndex`. Modes that break walls
    * themselves call this next to their "gap" sound event; with the "split" interaction the ball then splits

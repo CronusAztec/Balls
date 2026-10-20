@@ -81,6 +81,8 @@ import { funnelExtentPx } from "./funnelRenderer"; // --- funnel-spin --- (the l
 import { DEFAULT_JOURNEY_LABELS, JOURNEY_DATA_KEYS, JourneyLayer, writeJourneyDataset, type JourneyLabels, type JourneyRenderOptions } from "./journeyRenderer";
 // --- gerald-bullseye --- Bullseye: the target, the launcher, bumper rings, score popups, the HUD and BULLSEYE!
 import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LABELS, type BullseyeLabels, type BullseyeRenderOptions } from "./bullseyeRenderer";
+// --- merge-ring --- Merge Ring: the rainbow rim, the tier bodies and emblems, the halos, the ladder, the caption and the HUD
+import { DEFAULT_MERGE_RING_LABELS, MERGE_RING_DATA_KEYS, MergeRingDataset, MergeRingLayer, type MergeRingLabels, type MergeRingRenderOptions } from "./mergeRingRenderer";
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
 import { BOUNCE_MATH_DATA_KEYS, BounceMathLayer, DEFAULT_BOUNCE_MATH_LABELS, writeBounceMathDataset, type BounceMathHudLabels } from "./bounceMathRenderer"; // --- bounce-math ---
@@ -218,6 +220,9 @@ export interface CanvasLabels {
   // --- gerald-bullseye ---
   /** Bullseye: the HUD title, the shot counter, the total, BULLSEYE!, MISS and the final banner. */
   bullseye?: BullseyeLabels;
+  // --- merge-ring ---
+  /** Merge Ring: the HUD title, the merge counter, the top tier, the tier names, the caption and the end banners. */
+  mergeRing?: MergeRingLabels;
   // --- beat-drop ---
   /** Beat Drop: the HUD title, the tempo, the landing counter and the banner on the last landing. */
   beatDrop?: BeatDropLabels;
@@ -459,6 +464,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   vortex: DEFAULT_VORTEX_LABELS, // --- gerald-vortex ---
   journey: DEFAULT_JOURNEY_LABELS, // --- gerald-journey ---
   bullseye: DEFAULT_BULLSEYE_LABELS, // --- gerald-bullseye ---
+  mergeRing: DEFAULT_MERGE_RING_LABELS, // --- merge-ring ---
   beatDrop: DEFAULT_BEAT_DROP_LABELS, // --- beat-drop ---
   unlimited: DEFAULT_UNLIMITED_LABELS, // --- unlimited ---
   uncap: DEFAULT_UNCAP_LABELS, // --- uncap-all ---
@@ -993,6 +999,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const bullseyeLayer = new BullseyeLayer();
     const bullseyeRender: BullseyeRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
     const bullseyeData = new BullseyeDataset();
+    // --- merge-ring --- the Merge Ring layer, its per-frame options and the data-merge-* writer
+    const mergeRingLayer = new MergeRingLayer();
+    const mergeRingRender: MergeRingRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true, darkBodies: true };
+    const mergeRingData = new MergeRingDataset();
     // --- gerald-conveyor --- the Conveyor Belt's layer, its per-frame options and the data-cv-* writer
     const conveyorLayer = new ConveyorLayer();
     const conveyorRender: ConveyorRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
@@ -1420,6 +1430,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const plView = engine.isPowerLayersMode() ? engine.getPowerLayersView() : null; // --- odd-power-layers ---
       const vortexView = engine.isVortexMode() ? engine.getVortexView() : null; // --- gerald-vortex ---
       const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- gerald-bullseye ---
+      const mergeRingView = engine.isMergeRingMode() ? engine.getMergeRingView() : null; // --- merge-ring ---
       const conveyorView = engine.isConveyorMode() ? engine.getConveyorView() : null; // --- gerald-conveyor ---
       const orbView = engine.isOrbGridMode() ? engine.getOrbGridView() : null; // --- orb-grid ---
       // --- orb-rhythm --- the frame's simulation time: what the page has fed the engine, a step behind (the step that made the sound)
@@ -1890,6 +1901,14 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         bullseyeRender.wallThickness = p.wallThickness;
         bullseyeRender.showWallGlow = p.showWallGlow;
         bullseyeLayer.drawWorld(ctx, bullseyeView, bullseyeRender);
+      }
+      // --- merge-ring --- Merge Ring: the rainbow rim under the balls (the chute walls are obstacles, drawn above).
+      if (mergeRingView) {
+        mergeRingRender.wallAlpha = circleAlpha;
+        mergeRingRender.wallThickness = p.wallThickness;
+        mergeRingRender.showWallGlow = p.showWallGlow;
+        mergeRingRender.darkBodies = !faces.isActive() && !emojiCanvasRef.current && !(imageLoadedRef.current && imageRef.current);
+        mergeRingLayer.drawWorld(ctx, mergeRingView, mergeRingRender);
       }
       // --- gerald-conveyor --- Conveyor Belt: the belts, the hatch, the loading tube, the bowl's glass and the bins under the balls.
       if (conveyorView) {
@@ -2603,6 +2622,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (faces.isActive() && flView) faces.drawOverlays(ctx, flLayer.faceBalls(balls, flView), flLayer.bodyColor, null); // --- fight-league --- faces on the fighters (--- fl-overhaul --- where they are drawn)
       if (faces.isActive() && rrView && rrView.alive) faces.drawOverlays(ctx, balls, jrBodyColor, { shape: "square", countdown: false }); // --- jdm-rhythm-runner --- a face on the square
 
+      if (mergeRingView) mergeRingLayer.drawBodies(ctx, mergeRingView, balls, mergeRingRender); // --- merge-ring --- the tier bodies, rims and emblems over the balls (the emblem alone over a face, an emoji or an image)
       // --- gerald-glass --- the shards of shattered panes fly over the ball.
       if (glassView) drawGlassShards(ctx, glassView, glassView.cameraY - 40, glassView.cameraY + size.height + 40);
       if (plView) plLayer.drawParticles(ctx, plView); // --- odd-power-layers --- the shattered layers fly over the ball
@@ -2610,6 +2630,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (vortexView) vortexLayer.drawEffects(ctx, vortexView, vortexRender); // --- gerald-vortex --- the throat's shade, note pulses and splashes over the balls
       if (journeyView) journeyLayer.drawEffects(ctx, journeyView, size.height); // --- gerald-journey --- the glass stages' shards over the ball
       if (bullseyeView) bullseyeLayer.drawEffects(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS); // --- gerald-bullseye --- score popups and the bullseye's starburst
+      if (mergeRingView) mergeRingLayer.drawEffects(ctx, mergeRingView); // --- merge-ring --- the halos of the merges
       if (bdView) bdLayer.drawEffects(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender); // --- beat-drop --- ripples and puffs of the landings
       if (conveyorView) conveyorLayer.drawEffects(ctx, conveyorView); // --- gerald-conveyor --- the frost on the frozen balls
 
@@ -2732,6 +2753,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (journeyView) journeyLayer.drawOverlay(ctx, journeyView, (labelsRef.current ?? DEFAULT_LABELS).journey ?? DEFAULT_JOURNEY_LABELS);
       // --- gerald-bullseye --- Bullseye: the shot counter, the running total and BULLSEYE! (screen space, part of the recording).
       if (bullseyeView) bullseyeLayer.drawOverlay(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
+      // --- merge-ring --- Merge Ring: the merge counter, the top tier, the ladder and the caption (screen space, part of the recording).
+      if (mergeRingView) mergeRingLayer.drawOverlay(ctx, mergeRingView, (labelsRef.current ?? DEFAULT_LABELS).mergeRing ?? DEFAULT_MERGE_RING_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- gerald-conveyor --- Conveyor Belt: the title and the counter (screen space, part of the recording).
       if (conveyorView) conveyorLayer.drawOverlay(ctx, conveyorView, (labelsRef.current ?? DEFAULT_LABELS).conveyor ?? DEFAULT_CONVEYOR_LABELS, size.width, size.height, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- beat-drop --- Beat Drop: the title, the tempo, the landings and the bar's beats (screen space, part of the recording)
@@ -3055,6 +3078,12 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (bullseyeView && bullseyeView.allLanded) {
           const BY = L.bullseye ?? DEFAULT_BULLSEYE_LABELS;
           bigBanner(BY.finalTitle(bullseyeView.total), BY.finalSub(bullseyeView.bestShot + 1, bullseyeView.best, bullseyeView.bullseyes), "#a3e635");
+        }
+        // --- merge-ring --- Merge Ring: the final form (from its appearance, through the hold) or the overflow
+        if (mergeRingView && (mergeRingView.finalMs >= 0 || mergeRingView.overflowMs >= 0)) {
+          const MR = L.mergeRing ?? DEFAULT_MERGE_RING_LABELS;
+          if (mergeRingView.finalMs >= 0) bigBanner(MR.finalTitle, MR.finalSub(mergeRingView.merges, (mergeRingView.finalMs / 1000).toFixed(1)), "#f8fafc");
+          else bigBanner(MR.overflowTitle, MR.overflowSub(MR.tier(Math.max(1, mergeRingView.topTier)), mergeRingView.merges), "#fb7185");
         }
         // --- gerald-conveyor --- Conveyor Belt: every ball out (or frozen) / the arena settled (through the hold before the end)
         if (conveyorView && conveyorView.allDone) {
@@ -3678,6 +3707,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- gerald-bullseye --- shots, landings, total, best, bullseyes, scores, notes, thuds, slow motion, target, perfect shot, finished (data-bullseye-*)
       if (bullseyeView) bullseyeData.write(bullseyeView, setCanvasData);
       else if (canvas.dataset.bullseyeShots !== undefined) for (const key of BULLSEYE_DATA_KEYS) delete canvas.dataset[key];
+      // --- merge-ring --- tiers, spawned, balls, merges, top tier, notes, thuds, final, overflow, finished (data-merge-*)
+      if (mergeRingView) mergeRingData.write(mergeRingView, setCanvasData);
+      else if (canvas.dataset.mergeTiers !== undefined) for (const key of MERGE_RING_DATA_KEYS) delete canvas.dataset[key];
       // --- gerald-conveyor --- arena, balls, loaded, escaped / overflow / landed, frozen, carried, passes, notes, drops, the end (data-cv-*)
       if (conveyorView) conveyorData.write(conveyorView, setCanvasData);
       else if (canvas.dataset.cvArena !== undefined) for (const key of CONVEYOR_DATA_KEYS) delete canvas.dataset[key];
@@ -3770,6 +3802,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (vortexView || bdView) noteTitleBlock(hud, liveSquare, titleInset, bdView ? 4 : 2, "left");
         if (conveyorView) noteTitleBlock(hud, liveSquare, titleInset, 3, "right");
         if (bullseyeView) noteTitleBlock(hud, liveSquare, titleInset, 2, "both");
+        if (mergeRingView) noteTitleBlock(hud, liveSquare, titleInset, 2, "both"); // --- merge-ring ---
         if (rrView) noteRhythmBand(hud, liveSquare, !recording && (size.width - sq) / 2 < 170 ? 40 : 0, "runner");
         if (pdView) noteRhythmBand(hud, liveSquare, 0, "paddle");
         if (captionLayer.usesTop) hud.topBand(captionLayer.stackEdges.top);

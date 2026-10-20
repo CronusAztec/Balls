@@ -66,7 +66,7 @@ export const BM_SECOND = 6;
 export const BM_START = 7;
 
 /** The modes whose balls move under the engine's own physics: bounciness, speed and size act there. */
-export const BOUNCE_MATH_BALL_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_MODES, "drop", "box", "glass", "bullseye", "journey"];
+export const BOUNCE_MATH_BALL_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_MODES, "drop", "box", "glass", "bullseye", "journey", "mergeRing" /* --- merge-ring --- */];
 /** The modes where "balls" spawns copies (the ten ring modes: extra balls are ordinary balls there). */
 export const BOUNCE_MATH_SPAWN_MODES: readonly ModeId[] = OBSTACLE_EDITOR_MODES;
 /** The modes whose clock "timeScale" may scale (the engine integrates every ball there; the step planner covers it). */
@@ -101,6 +101,8 @@ export const BOUNCE_MATH_COLLIDE_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_
 export const BOUNCE_MATH_BREAK_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_MODES, "glass", "multipliers", "battle", "paddle", "powerLayers", "runner", "journey"];
 // --- odd-territory --- Territory: its balls hit each other in the engine's pair pass, and a bomber's blast plays the wall-break sound
 (BOUNCE_MATH_COLLIDE_MODES as ModeId[]).push("territory");
+// --- merge-ring --- Merge Ring: its balls hit each other in the engine's pair pass, and every merge is a ball hit too
+(BOUNCE_MATH_COLLIDE_MODES as ModeId[]).push("mergeRing");
 (BOUNCE_MATH_BREAK_MODES as ModeId[]).push("territory");
 // --- odd-maze --- the Maze's winner breaks out through the exit with the wall-break sound
 (BOUNCE_MATH_BREAK_MODES as ModeId[]).push("maze");

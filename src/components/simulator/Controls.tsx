@@ -75,6 +75,7 @@ import { defaultSplitScreenFields } from "@/lib/splitScreen";
 import VortexSection, { VORTEX_KEYS } from "./sections/VortexSection"; // --- gerald-vortex --- the Vortex block of the Mode row
 import JourneySection, { JOURNEY_KEYS } from "./sections/JourneySection"; // --- gerald-journey --- the Journey block of the Mode row
 import BullseyeSection, { BULLSEYE_KEYS } from "./sections/BullseyeSection"; // --- gerald-bullseye --- the Bullseye block of the Mode row
+import MergeRingSection, { MERGE_RING_KEYS } from "./sections/MergeRingSection"; // --- merge-ring --- the Merge Ring block of the Mode row
 import BeatDropSection, { BEAT_DROP_KEYS } from "./sections/BeatDropSection"; // --- beat-drop --- the Beat Drop block of the Mode row
 import TerritorySection, { TERRITORY_KEYS } from "./sections/TerritorySection"; // --- odd-territory --- the Territory block of the Mode row
 import MazeSection, { MAZE_KEYS } from "./sections/MazeSection"; // --- odd-maze --- the Maze block of the Mode row
@@ -267,6 +268,8 @@ SECTION_KEYS.recording.push(...BOT_KEYS);
 SECTION_KEYS.ball.push(...JOURNEY_KEYS);
 // --- gerald-bullseye --- the Bullseye block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...BULLSEYE_KEYS);
+// --- merge-ring --- the Merge Ring block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...MERGE_RING_KEYS);
 // --- beat-drop --- the Beat Drop block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...BEAT_DROP_KEYS);
 // --- odd-territory --- the Territory block of the Mode row is searched with the Ball section too.
@@ -428,6 +431,8 @@ export default function Controls(props: ControlsProps) {
     journey: t("modeJourney"),
     // --- gerald-bullseye ---
     bullseye: t("modeBullseye"),
+    // --- merge-ring ---
+    mergeRing: t("modeMergeRing"),
     // --- beat-drop ---
     beatDrop: t("modeBeatDrop"),
     // --- odd-territory ---
@@ -546,6 +551,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "journey" && !!search && <JourneySection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- gerald-bullseye --- */}
       {s.mode === "bullseye" && !!search && <BullseyeSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- merge-ring --- */}
+      {s.mode === "mergeRing" && !!search && <MergeRingSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- beat-drop --- */}
       {s.mode === "beatDrop" && !!search && <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} beatSource={props.videoBeats?.effective} />}
       {/* --- odd-territory --- */}
@@ -1410,6 +1417,9 @@ export default function Controls(props: ControlsProps) {
       // --- gerald-bullseye ---
       case "bullseye":
         return <BullseyeSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- merge-ring ---
+      case "mergeRing":
+        return <MergeRingSection t={t} search={search} matches={matches} settings={s} update={update} />;
       // --- beat-drop ---
       case "beatDrop":
         return <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} beatSource={props.videoBeats?.effective} /* --- video-beats --- */ />;

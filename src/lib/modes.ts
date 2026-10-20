@@ -141,6 +141,12 @@ MODE_CARD_ORDER.push("journey");
   const at = machines >= 0 ? machines : MODE_CARD_ORDER.indexOf("beatDrop");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "perfectFit");
 }
+// --- merge-ring --- Merge Ring joins the rhythm family right after Bullseye (balls dropped one after another into an arena, every
+// merge a note up the ladder)
+{
+  const at = MODE_CARD_ORDER.indexOf("bullseye");
+  MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "mergeRing");
+}
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -231,6 +237,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   drawingMachine: "rhythm",
   // --- perfect-fit --- every piece placed a step up the ladder, every rectangle or clear a chord: the sound-first family
   perfectFit: "rhythm",
+  // --- merge-ring --- every merge a pentatonic note up the tiers, every landing a thud, the final form a chord: the sound-first family
+  mergeRing: "rhythm",
 };
 
 /** The modes of a category in card order. */

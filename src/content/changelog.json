@@ -1,6 +1,35 @@
 {
   "releases": [
     {
+      "id": "site-1-12-0",
+      "product": "site",
+      "version": "1.12.0",
+      "date": "2026-10-20",
+      "headline": {
+        "en": "Merge Ring joins the modes",
+        "pl": "Pierścień fuzji dołącza do trybów",
+        "es": "El Anillo de fusión se une a los modos"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Merge Ring is a new rhythm mode. Balls drop through a chute into a rainbow ring and two of the same tier fuse into the next one. The run ends with the final form or an overflow.",
+            "pl": "Pierścień fuzji to nowy tryb rytmiczny. Kulki spadają rynną do tęczowego pierścienia, a dwie tego samego poziomu łączą się w kolejny. Bieg kończy ostateczna forma albo przepełnienie.",
+            "es": "Anillo de fusión es un nuevo modo rítmico. Las bolas caen por un conducto a un anillo arcoíris y dos del mismo nivel se fusionan en el siguiente. La tirada termina con la forma final o un desborde."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Every tier has its own emblem, colour and note. A ladder beside the ring lights the tiers reached, and Find Simulation searches for the final form at your clip length.",
+            "pl": "Każdy poziom ma własny emblemat, kolor i nutę. Drabinka obok pierścienia podświetla osiągnięte poziomy, a Znajdź symulację szuka ostatecznej formy na długość Twojego klipu.",
+            "es": "Cada nivel tiene su propio emblema, color y nota. Una escalera junto al anillo ilumina los niveles alcanzados y Buscar simulación busca la forma final para la duración de tu clip."
+          }
+        }
+      ]
+    },
+    {
       "id": "app-1-4-1",
       "product": "app",
       "version": "1.4.1",

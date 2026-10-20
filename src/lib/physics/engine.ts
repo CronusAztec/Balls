@@ -49,6 +49,8 @@ import { VortexMode, type VortexSettings, type VortexView } from "./modes/vortex
 import { JourneyMode, type JourneySettings, type JourneyView } from "./modes/journey";
 // --- gerald-bullseye --- Bullseye (a scoring target under a peg field)
 import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/bullseye";
+// --- merge-ring --- Merge Ring (balls fusing tier by tier in a rainbow ring)
+import { MergeRingMode, type MergeRingSettings, type MergeRingView } from "./modes/mergeRing";
 // --- beat-drop --- Beat Drop (obstructions that fly in on the beat)
 import { BeatDropMode, type BeatDropSettings, type BeatDropView } from "./modes/beatDrop";
 import { OnBeatController, type OnBeatConfig, type OnBeatStats, type OnBeatWorld } from "./onBeat"; // --- video-beats ---
@@ -312,6 +314,8 @@ export class PhysicsEngine {
   readonly journeyMode = new JourneyMode();
   // --- gerald-bullseye ---
   readonly bullseyeMode = new BullseyeMode();
+  // --- merge-ring ---
+  readonly mergeRingMode = new MergeRingMode();
   // --- beat-drop ---
   readonly beatDropMode = new BeatDropMode();
   // --- odd-territory --- Territory: pong-wars teams painting a tile map
@@ -429,6 +433,7 @@ export class PhysicsEngine {
       },
       spawnWallBreakByStyle: (wallIndex, x, y) => this.spawnWallBreakByStyle(wallIndex, x, y),
       spawnConfetti: (x, y) => this.spawnConfetti(x, y),
+      spawnMergeBurst: (x, y, color, radius) => this.spawnMergeBurst(x, y, color, radius), // --- merge-ring ---
       reportWallBreak: (ball, wallIndex) => this.reportWallBreak(ball, wallIndex),
       creditWallBreak: (ball) => this.ballStats.wall(ball), // --- teams ---
       isBouncierEnabled: () => this.bouncierEnabled,
@@ -711,6 +716,10 @@ export class PhysicsEngine {
   initBullseye() {
     this.activateMode(this.bullseyeMode, "none");
   }
+  // --- merge-ring --- the mode owns its ring and builds the chute out of obstacles (no engine rings)
+  initMergeRing() {
+    this.activateMode(this.mergeRingMode, "none");
+  }
   // --- beat-drop --- the mode owns its scene (no rings)
   initBeatDrop() {
     this.activateMode(this.beatDropMode, "none");
@@ -851,6 +860,9 @@ export class PhysicsEngine {
       // --- gerald-bullseye ---
       case "bullseye":
         return this.initBullseye();
+      // --- merge-ring ---
+      case "mergeRing":
+        return this.initMergeRing();
       // --- beat-drop ---
       case "beatDrop":
         return this.initBeatDrop();
@@ -1785,6 +1797,25 @@ export class PhysicsEngine {
     return this.bullseyeMode.getProgress();
   }
   // --- end gerald-bullseye ---
+  // --- merge-ring ---
+  isMergeRingMode() {
+    return this.currentMode === this.mergeRingMode;
+  }
+  getMergeRingSettings(): MergeRingSettings {
+    return this.mergeRingMode.getSettings();
+  }
+  /** The tiers, the interval, the spawn tiers and the gravity apply on the next `initMergeRing()`; the rainbow rim at once. */
+  setMergeRingSettings(settings: Partial<MergeRingSettings>) {
+    this.mergeRingMode.setSettings(settings);
+  }
+  /** Live Merge Ring state (layout, tiers of the balls, merges, halos, the final form, the overflow) for the canvas and the HUD; the same object every call. */
+  getMergeRingView(): MergeRingView {
+    return this.mergeRingMode.getView();
+  }
+  getMergeRingProgress() {
+    return this.mergeRingMode.getProgress();
+  }
+  // --- end merge-ring ---
   // --- beat-drop ---
   isBeatDropMode() {
     return this.currentMode === this.beatDropMode;

@@ -7,6 +7,15 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Website 1.12.0 · 2026-10-20
+
+Merge Ring joins the modes
+
+### New
+
+- Merge Ring is a new rhythm mode. Balls drop through a chute into a rainbow ring and two of the same tier fuse into the next one. The run ends with the final form or an overflow.
+- Every tier has its own emblem, colour and note. A ladder beside the ring lights the tiers reached, and Find Simulation searches for the final form at your clip length.
+
 ## Windows app 1.4.1 · 2026-10-19
 
 Third-party licences in the Help menu

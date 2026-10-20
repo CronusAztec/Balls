@@ -1452,6 +1452,7 @@
     "journeyRunInfo": "{count, plural, one {# etapa} other {# etapas}} y luego CASA. Todo viaje termina en CASA, así que Buscar simulación puede elegir una semilla para la duración de tu clip.",
     "journeyRunAuto": "Un viaje aleatorio de {count, plural, one {# etapa} other {# etapas}} y luego CASA: la semilla sortea la ruta, así que cada semilla juega una nueva.",
     "modeBullseye": "Diana",
+    "modeMergeRing": "Anillo de fusión",
     "byTitle": "Diana",
     "byDesc": "Las bolas salen desde arriba una tras otra, rebotan entre clavijas y caen en la diana. El anillo donde caen puntúa. Cada bola se queda donde cae. Un tiro al centro es ¡DIANA! con confeti y cámara lenta.",
     "byShots": "Tiros",
@@ -1470,6 +1471,19 @@
     "byRunInfo": "{shots} tiros – unos {seconds}s con el cartel final. La semilla decide dónde cae cada bola (y cuánto rebota la última), así que Buscar simulación puede acertar la duración de tu clip.",
     "byPerfectInfo": "El tiro {shot} está amañado para dar en el centro.",
     "byPerfectBeyond": "El tiro perfecto llega después del último de los {shots} tiros, así que ningún tiro está amañado.",
+    "mrTitle": "Anillo de fusión",
+    "mrDesc": "Las bolas caen por un conducto a un anillo arcoíris y se apilan. Dos bolas del mismo nivel se fusionan en el siguiente. La tirada termina con la forma final o un desborde.",
+    "mrTiers": "Niveles",
+    "mrTiersTip": "Cuántos niveles tiene la escalera, de 5 a 10. El nivel más alto es la forma final. Más niveles son más fusiones antes de que aparezca.",
+    "mrInterval": "Intervalo de caída",
+    "mrIntervalTip": "Segundos entre dos bolas que salen del conducto. Los intervalos cortos llenan el anillo rápido y arriesgan un desborde.",
+    "mrSpawnTiers": "Niveles de salida",
+    "mrSpawnTiersTip": "El nivel más alto que suelta el conducto, de 1 a 3. Los niveles bajos siempre son más probables. Las salidas altas llegan antes a la forma final.",
+    "mrGravity": "Gravedad",
+    "mrGravityTip": "Con qué fuerza caen las bolas. Las caídas más pesadas aterrizan más fuerte y se asientan antes.",
+    "mrRainbow": "Borde arcoíris",
+    "mrRainbowTip": "El anillo es un arcoíris fino que gira despacio. Apagado lo dibuja en el color de la pared.",
+    "mrRunInfo": "{tiers} niveles. La semilla decide cuándo aparece la forma final o se desborda el anillo, así que Buscar simulación puede dar con la duración de tu clip.",
     "bounceMath": "Matemáticas del rebote",
     "bounceMathTip": "Reglas que cambian un valor con un paso matemático cada vez que pasa algo: la pelota rebota más, va más rápido o crece en cada rebote, la gravedad se invierte en cada compás, la pelota late al ritmo. Las reglas se aplican en el orden de la lista y no hay límite superior salvo que pongas un máximo.",
     "bounceMathRules": "Reglas de matemáticas del rebote",
@@ -2498,6 +2512,10 @@
     "bullseye": {
       "name": "Diana",
       "description": "Las pelotas cruzan una fila de clavos y caen en una diana. Cada anillo puntúa. En el centro, pleno con confeti."
+    },
+    "mergeRing": {
+      "name": "Anillo de fusión",
+      "description": "Las bolas caen en un anillo arcoíris y se fusionan nivel a nivel. ¿Aparece la forma final antes de que se desborde?"
     },
     "beatDrop": {
       "name": "Caída al ritmo",
@@ -3990,6 +4008,26 @@
     "canvasMiss": "FALLO",
     "canvasFinal": "TOTAL [total]",
     "canvasFinalSub": "Mejor tiro #[shot]: [score] pts · dianas: [bullseyes]"
+  },
+  "MergeRing": {
+    "caption": "¿Se fusionará en su forma final?",
+    "canvasTitle": "ANILLO DE FUSIÓN",
+    "canvasMerges": "FUSIONES [count]",
+    "canvasTop": "CIMA",
+    "canvasFinal": "FORMA FINAL",
+    "canvasFinalSub": "[merges] fusiones en [seconds] s",
+    "canvasOverflow": "DESBORDE",
+    "canvasOverflowSub": "Nivel más alto [top] tras [merges] fusiones",
+    "tier1": "Punto",
+    "tier2": "Anillo",
+    "tier3": "Triángulo",
+    "tier4": "Rombo",
+    "tier5": "Estrella",
+    "tier6": "Hexágono",
+    "tier7": "Corona",
+    "tier8": "Gema",
+    "tier9": "Sol",
+    "tier10": "Infinito"
   },
   "Daily": {
     "cardBadge": "Reto diario",

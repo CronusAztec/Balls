@@ -184,6 +184,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   paddle: "pd",
   vortex: "vx",
   bullseye: "by",
+  mergeRing: "mr", // --- merge-ring ---
   beatDrop: "bd",
   territory: "ty", // --- odd-territory ---
   maze: "mz", // --- odd-maze ---

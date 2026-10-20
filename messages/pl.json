@@ -1452,6 +1452,7 @@
     "journeyRunInfo": "{count, plural, one {# etap} few {# etapy} many {# etapów} other {# etapu}}, potem DOM. Każda podróż kończy się w DOMU, więc Znajdź symulację może dobrać ziarno do długości klipu.",
     "journeyRunAuto": "Losowa podróż: {count, plural, one {# etap} few {# etapy} many {# etapów} other {# etapu}}, potem DOM – trasę losuje ziarno, więc każde ziarno to nowa droga.",
     "modeBullseye": "W dziesiątkę",
+    "modeMergeRing": "Pierścień fuzji",
     "byTitle": "W dziesiątkę",
     "byDesc": "Kulki startują z góry jedna po drugiej, odbijają się między kołkami i lądują na tarczy. Pierścień, w który trafią, daje punkty. Każda kulka zostaje tam, gdzie wylądowała. Trafienie w środek to DZIESIĄTKA! z konfetti i zwolnionym tempem.",
     "byShots": "Strzały",
@@ -1470,6 +1471,19 @@
     "byRunInfo": "Strzały: {shots} – około {seconds}s razem z końcowym banerem. Ziarno decyduje, gdzie wyląduje każda kulka (i jak długo będzie się odbijać ostatnia), więc Znajdź symulację może trafić w długość Twojego klipu.",
     "byPerfectInfo": "Strzał {shot} jest ustawiony na dziesiątkę.",
     "byPerfectBeyond": "Idealny strzał wypada po ostatnim z {shots} strzałów, więc żaden strzał nie jest ustawiony.",
+    "mrTitle": "Pierścień fuzji",
+    "mrDesc": "Kulki spadają rynną do tęczowego pierścienia i układają się w stos. Dwie kulki tego samego poziomu łączą się w kolejny. Bieg kończy ostateczna forma albo przepełnienie.",
+    "mrTiers": "Poziomy",
+    "mrTiersTip": "Ile poziomów ma drabinka, od 5 do 10. Najwyższy poziom to ostateczna forma. Więcej poziomów to więcej fuzji, zanim się pojawi.",
+    "mrInterval": "Odstęp zrzutów",
+    "mrIntervalTip": "Sekundy między dwiema kulkami opuszczającymi rynnę. Krótkie odstępy szybko zapełniają pierścień i grożą przepełnieniem.",
+    "mrSpawnTiers": "Poziomy zrzutu",
+    "mrSpawnTiersTip": "Najwyższy poziom, jaki zrzuca rynna, od 1 do 3. Niższe poziomy są zawsze bardziej prawdopodobne. Wyższe zrzuty szybciej dają ostateczną formę.",
+    "mrGravity": "Grawitacja",
+    "mrGravityTip": "Jak mocno spadają kulki. Cięższe zrzuty lądują twardziej i szybciej się układają.",
+    "mrRainbow": "Tęczowa obręcz",
+    "mrRainbowTip": "Pierścień to cienka tęcza, która powoli się obraca. Wyłączony rysuje go w kolorze ściany.",
+    "mrRunInfo": "{tiers} poziomów. Ziarno decyduje, kiedy pojawi się ostateczna forma albo pierścień się przepełni, więc Znajdź symulację może trafić w długość klipu.",
     "bounceMath": "Matematyka odbić",
     "bounceMathTip": "Reguły, które zmieniają wartość o matematyczny krok za każdym razem, gdy coś się dzieje – piłka staje się sprężystsza, szybsza albo większa przy każdym odbiciu, grawitacja odwraca się co takt, piłka pulsuje w rytm muzyki. Reguły działają w kolejności listy i nie ma górnej granicy, dopóki nie ustawisz maksimum.",
     "bounceMathRules": "Reguły matematyki odbić",
@@ -2498,6 +2512,10 @@
     "bullseye": {
       "name": "W dziesiątkę",
       "description": "Piłki lecą przez kołki na tarczę. Każdy pierścień daje punkty. Trafienie w środek to dziesiątka z konfetti."
+    },
+    "mergeRing": {
+      "name": "Pierścień fuzji",
+      "description": "Kulki spadają do tęczowego pierścienia i łączą się poziom po poziomie. Czy ostateczna forma pojawi się przed przepełnieniem?"
     },
     "beatDrop": {
       "name": "Spadanie w rytm",
@@ -3990,6 +4008,26 @@
     "canvasMiss": "PUDŁO",
     "canvasFinal": "SUMA [total]",
     "canvasFinalSub": "Najlepszy strzał #[shot]: [score] pkt · dziesiątki: [bullseyes]"
+  },
+  "MergeRing": {
+    "caption": "Czy połączy się w ostateczną formę?",
+    "canvasTitle": "PIERŚCIEŃ FUZJI",
+    "canvasMerges": "FUZJE [count]",
+    "canvasTop": "SZCZYT",
+    "canvasFinal": "OSTATECZNA FORMA",
+    "canvasFinalSub": "[merges] fuzji w [seconds] s",
+    "canvasOverflow": "PRZEPEŁNIENIE",
+    "canvasOverflowSub": "Najwyższy poziom [top] po [merges] fuzjach",
+    "tier1": "Kropka",
+    "tier2": "Pierścień",
+    "tier3": "Trójkąt",
+    "tier4": "Romb",
+    "tier5": "Gwiazda",
+    "tier6": "Sześciokąt",
+    "tier7": "Korona",
+    "tier8": "Klejnot",
+    "tier9": "Słońce",
+    "tier10": "Nieskończoność"
   },
   "Daily": {
     "cardBadge": "Wyzwanie dnia",

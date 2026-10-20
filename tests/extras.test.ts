@@ -154,6 +154,8 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   brickRebuild: { samples: [[354187,457099],[423278,502557],[316525,492702],[446556,454947],[278864,487173],[469835,503277],[241202,471769],[493113,492199]], broken: [], walls: [] }, // --- brick-rebuild --- (recorded when the mode was added: no rings – the box is the mode's own)
   drawingMachine: { samples: [[304282,276452],[400000,309348],[472503,177637],[400000,324672]], broken: [], walls: [] }, // --- drawing-machine --- (the pen, pinned to the harmonograph's clock)
   perfectFit: { samples: [[400000,300000],[400000,300000],[400000,300000],[400000,300000]], broken: [], walls: [] }, // --- perfect-fit --- (no rings; the pieces are the plan's, the one anchor ball stays pinned to the middle)
+  // --- merge-ring --- Merge Ring: its own rim and chute, no rings; recorded when the mode was added (seed 12345, defaults: 7 tiers, a ball every 0.9 s, tiers 1–2 spawned, gravity ×1).
+  mergeRing: { samples: [[402095,551416],[402237,408113],[375269,563302],[411252,564341],[327449,553443],[486095,552306],[328612,553807],[462859,559764]], broken: [], walls: [] },
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

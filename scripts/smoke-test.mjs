@@ -18833,6 +18833,80 @@ await smokeBlock("changelog", async () => {
   }
 });
 
+await smokeBlock("merge-ring", async () => {
+// --- merge-ring ---
+// 49. Merge Ring (the "will the ball merge into its final form?" reels): the preview image and the card under the rhythm
+// heading; URL → the Merge Ring block of the Mode row (tiers, drop interval, spawn tiers, gravity, rainbow rim, the run
+// summary), controls → URL and the search box, no ring controls; a fast run at 8× (tiers 1–3 spawned every 0.3 s) merges up the
+// ladder – the top tier climbs, merges and thuds are counted, every ball stays a tier – and ends with the final form or an
+// overflow under its banner (data-merge-*).
+{
+  const res = await page.request.get(`${BASE}/modes/mergeRing.webp`);
+  check("asset /modes/mergeRing.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Merge Ring card is on the landing page", (await page.locator('img[src$="/modes/mergeRing.webp"]').count()) === 1);
+}
+{
+  const block = page.getByTestId("merge-ring");
+  const mrToggle = (label) => block.getByRole("switch", { name: switchName(label) });
+  const mrSlider = (label) => block.locator(`input[aria-label="${label}"]`);
+  await page.goto(`${BASE}/en/simulator/?mode=mergeRing&mrt=8&mri=0.5&mrs=3&mrg=1.5&mrr=0`, { waitUntil: "networkidle" });
+  {
+    const values = { mrt: await mrSlider("Tiers").inputValue(), mri: await mrSlider("Drop Interval").inputValue(), mrs: await mrSlider("Spawn Tiers").inputValue(), mrg: await mrSlider("Gravity").inputValue() };
+    const rainbow = await mrToggle("Rainbow Rim").getAttribute("aria-checked");
+    const runText = await page.getByTestId("merge-ring-run").innerText();
+    const finderShown = await page.getByRole("button", { name: /Find 30s Simulation/ }).isVisible();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
+    check(
+      "merge ring loads from the URL",
+      values.mrt === "8" && values.mri === "0.5" && values.mrs === "3" && values.mrg === "1.5" && rainbow === "false" && /\b8 tiers\b/.test(runText) && finderShown && noRingControls,
+      `(${JSON.stringify(values)}, rainbow=${rainbow}, "${runText}", finder shown=${finderShown}, no ring controls=${noRingControls})`,
+    );
+  }
+  await mrSlider("Tiers").evaluate(setRangeValue, "6");
+  await mrSlider("Spawn Tiers").evaluate(setRangeValue, "1");
+  await mrToggle("Rainbow Rim").click();
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    check(
+      "merge ring mirrors into the URL",
+      /(^|&)mrt=6(&|$)/.test(query) && /(^|&)mrs=1(&|$)/.test(query) && /(^|&)mri=0\.5(&|$)/.test(query) && /(^|&)mrg=1\.5(&|$)/.test(query) && !/(^|&)mrr=/.test(query),
+      `(${query})`,
+    );
+  }
+  await page.getByPlaceholder("Search settings...").fill("drop interval");
+  const found = await page.locator('input[aria-label="Drop Interval"]').isVisible();
+  const ballSpeedHidden = !(await page.locator('input[aria-label="Ball Speed"]').isVisible());
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the merge ring controls", found && ballSpeedHidden, `(found=${found}, Ball Speed hidden=${ballSpeedHidden})`);
+}
+{
+  // A fast run at 8×: tiers 1–3 every 0.3 s climb the ladder of 6 tiers to the final form (or overflow the ring).
+  await page.goto(`${BASE}/en/simulator/?mode=mergeRing&mrt=6&mri=0.3&mrs=3`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  let topMax = 0;
+  const deadline = Date.now() + 90_000;
+  let data = await canvasData();
+  while (Date.now() < deadline) {
+    data = await canvasData();
+    topMax = Math.max(topMax, Number(data.mergeTop) || 0);
+    if (data.mergeFinished === "1") break;
+    await page.waitForTimeout(250);
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-merge-ring.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  const ended = (data.mergeFinal === "1") !== (data.mergeOverflow === "1");
+  check(
+    "merge ring: a fast run merges up the ladder, thuds, and ends with the final form or an overflow",
+    done && data.mergeFinished === "1" && ended && Number(data.mergeMerges) >= 5 && Number(data.mergeThuds) >= 3 && topMax >= 4 && Number(data.mergeBalls) <= Number(data.mergeSpawned) && (data.mergeFinal !== "1" || data.mergeTop === "6"),
+    `(finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("merge"))))}, top reached ${topMax})`,
+  );
+}
+// --- end merge-ring ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

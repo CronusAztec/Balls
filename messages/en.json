@@ -1452,6 +1452,7 @@
     "journeyRunInfo": "{count, plural, one {# stage} other {# stages}}, then HOME. Every journey ends at HOME, so Find Simulation can pick a seed for your clip length.",
     "journeyRunAuto": "A random journey of {count, plural, one {# stage} other {# stages}}, then HOME – the seed draws the route, so every seed plays a new one.",
     "modeBullseye": "Bullseye",
+    "modeMergeRing": "Merge Ring",
     "byTitle": "Bullseye",
     "byDesc": "Balls launch from the top one after another, bounce through pegs and land on the target. The ring they land in scores. Every ball sticks where it lands. A centre hit is a BULLSEYE with confetti and slow motion.",
     "byShots": "Shots",
@@ -1470,6 +1471,19 @@
     "byRunInfo": "{shots} shots – about {seconds}s with the final banner. The seed decides where every ball lands (and how long the last one bounces), so Find Simulation can hit your clip length.",
     "byPerfectInfo": "Shot {shot} is rigged to hit the bullseye.",
     "byPerfectBeyond": "The perfect shot comes after the last of the {shots} shots, so no shot is rigged.",
+    "mrTitle": "Merge Ring",
+    "mrDesc": "Balls drop through a chute into a rainbow ring and pile up. Two balls of the same tier fuse into the next one. The run ends with the final form or an overflow.",
+    "mrTiers": "Tiers",
+    "mrTiersTip": "How many tiers the ladder has, from 5 to 10. The top tier is the final form. More tiers mean more merges before it appears.",
+    "mrInterval": "Drop Interval",
+    "mrIntervalTip": "Seconds between two balls leaving the chute. Short intervals fill the ring fast and risk an overflow.",
+    "mrSpawnTiers": "Spawn Tiers",
+    "mrSpawnTiersTip": "The highest tier the chute drops, from 1 to 3. Lower tiers are always more likely. Higher spawns reach the final form sooner.",
+    "mrGravity": "Gravity",
+    "mrGravityTip": "How hard the balls fall. Heavier drops land harder and settle faster.",
+    "mrRainbow": "Rainbow Rim",
+    "mrRainbowTip": "The ring is a thin rainbow that turns slowly. Off draws it in the wall colour.",
+    "mrRunInfo": "{tiers} tiers. The seed decides when the final form appears or the ring overflows, so Find Simulation can hit your clip length.",
     "bounceMath": "Bounce math",
     "bounceMathTip": "Rules that change a value by a mathematical step every time something happens – the ball gets bouncier, faster or bigger on every bounce, gravity flips every bar, the ball pumps on the beat. Rules apply in list order, and there is no upper limit unless you set a max.",
     "bounceMathRules": "Bounce math rules",
@@ -2498,6 +2512,10 @@
     "bullseye": {
       "name": "Bullseye",
       "description": "Balls fire through pegs onto a dartboard. Every ring scores. A centre hit is a bullseye with confetti."
+    },
+    "mergeRing": {
+      "name": "Merge Ring",
+      "description": "Balls drop into a rainbow ring and fuse tier by tier. Does the final form appear before it overflows?"
     },
     "beatDrop": {
       "name": "Beat Drop",
@@ -3990,6 +4008,26 @@
     "canvasMiss": "MISS",
     "canvasFinal": "TOTAL [total]",
     "canvasFinalSub": "Best shot #[shot]: [score] pts · bullseyes: [bullseyes]"
+  },
+  "MergeRing": {
+    "caption": "Will it merge into its final form?",
+    "canvasTitle": "MERGE RING",
+    "canvasMerges": "MERGES [count]",
+    "canvasTop": "TOP",
+    "canvasFinal": "FINAL FORM",
+    "canvasFinalSub": "[merges] merges in [seconds]s",
+    "canvasOverflow": "OVERFLOW",
+    "canvasOverflowSub": "Top tier [top] after [merges] merges",
+    "tier1": "Dot",
+    "tier2": "Ring",
+    "tier3": "Triangle",
+    "tier4": "Diamond",
+    "tier5": "Star",
+    "tier6": "Hexagon",
+    "tier7": "Crown",
+    "tier8": "Gem",
+    "tier9": "Sun",
+    "tier10": "Infinity"
   },
   "Daily": {
     "cardBadge": "Daily challenge",

@@ -65,6 +65,9 @@ export type { JourneySettings, JourneyView, JourneyFields } from "./journey";
 // --- gerald-bullseye ---
 export { BullseyeMode } from "./bullseye";
 export type { BullseyeSettings, BullseyeLayout, BullseyeView } from "./bullseye";
+// --- merge-ring ---
+export { MergeRingMode } from "./mergeRing";
+export type { MergeRingSettings, MergeRingLayout, MergeRingView } from "./mergeRing";
 // --- beat-drop ---
 export { BeatDropMode } from "./beatDrop";
 export type { BeatDropSettings, BeatDropView, BeatDropField, BeatDropSound, BeatDropColorMode } from "./beatDrop";
