@@ -201,8 +201,8 @@ export class PowerLayersLayer {
         const sh = img.height - sy;
         if (sh >= 0.5) ctx.drawImage(img, 0, sy, img.width, sh, f.left, top, f.width, f.stackBottom - top);
       }
-      // The top layer glows – brighter for a moment after a hit.
-      const since = t - view.lastHitSec;
+      // The top layer glows – brighter for a moment after a layer cracked.
+      const since = t - Math.max(view.lastHitSec, view.lastCrackSec);
       const pulse = since >= 0 && since < 0.4 ? 1 - since / 0.4 : 0;
       const hue = hueIndex(layerHue(view.gone, view.layers));
       const spacing = stackH / Math.max(1, view.layers);
@@ -216,8 +216,8 @@ export class PowerLayersLayer {
       ctx.fillRect(f.left, top - 0.75, f.width, Math.max(1.5, 0.6 * spacing));
       ctx.globalCompositeOperation = "source-over";
     }
-    // The band the last hit destroyed flashes white, and a big hit lights up the whole field.
-    const flashAge = t - view.lastHitSec;
+    // The band the drill has cracked through flashes white, fading from its latest crack, and a big hit lights up the whole field.
+    const flashAge = t - view.lastCrackSec;
     if (flashAge >= 0 && flashAge < 0.35 && view.flashTo > view.flashFrom) {
       const y0 = stackTopAt(f, view.flashFrom, view.layers);
       const y1 = stackTopAt(f, view.flashTo, view.layers);

@@ -17,11 +17,13 @@ import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
  * ends the run too: a ball that has rested inside the chute, above the ring's opening, for `OVERFLOW_MS`.
  *
  * Physics: the balls are ordinary engine balls under the engine's gravity (× `gravity`, through `gravityScale`),
- * bouncing off each other in the engine's pair pass and off the chute walls, which are capsule segments of
- * ../obstacles.ts; the mode resolves the rim itself in `onBallStep()` (`rebound()` of obstacles.ts: a restitution like
- * the ring modes', the wall bounciness extra on top) and fuses the pairs in `onPostSubStep()`, after the pair pass has
- * stood every touching pair exactly against each other. Balls may rest (`ballsMayRest`: no slow-ball boost), so the pile
- * settles and keeps merging.
+ * bouncing off the chute walls, which are capsule segments of ../obstacles.ts; the mode resolves the rim itself in
+ * `onBallStep()` (`rebound()` of obstacles.ts: a soft restitution, the wall bounciness extra on top) and the balls
+ * against each other in `onPostSubStep()` (`ballsPassThrough`: not the engine's elastic, equal-mass pair pass) – a mass
+ * by area, so a big ball shoves a small one aside and not the other way round, a soft restitution (`PAIR_RESTITUTION`)
+ * and contact friction, so a drop lands on the pile with a thud and stays instead of ricocheting – and then fuses the
+ * touching pairs of one tier. Balls may rest (`ballsMayRest`: no slow-ball boost), and a ball that touches the pile or
+ * the rim loses a little speed each step (`CONTACT_DAMPING`), so the pile settles like a jar of fruit and keeps merging.
  *
  * Randomness: the spawn tiers and the launch jitter come from `ctx.random()` as the balls leave, so a seed replays
  * identically and Find Simulation can search a clip length (the seed decides when the final form or the overflow comes).
@@ -206,9 +208,18 @@ export const RING_AT = 0.42;
 export const RING_DROP_AT = 0.04;
 /** The chute's width in tier-1 ball diameters. */
 export const CHUTE_WIDTHS = 2.2;
-/** Restitution of the rim (like the ring modes' rebounds) and of the chute walls, and their contact friction. */
-export const RIM_RESTITUTION = 0.5;
-export const RIM_FRICTION = 0.04;
+/** Restitution of the rim and of the chute walls, and their contact friction. */
+export const RIM_RESTITUTION = 0.25;
+export const RIM_FRICTION = 0.08;
+/** Restitution and friction of two balls against each other, the share of an overlap one pass corrects, and the overlap it lets stand (px). */
+export const PAIR_RESTITUTION = 0.15;
+export const PAIR_FRICTION = 0.05;
+export const PAIR_CORRECTION = 0.8;
+export const PAIR_SLOP = 0.05;
+/** Passes of the pair solver a sub-step (a jammed pile settles instead of creeping). */
+export const PAIR_ITERATIONS = 4;
+/** Speed a ball touching the pile or the rim keeps per second (the pile settles instead of jiggling forever). */
+export const CONTACT_DAMPING = 0.45;
 export const CHUTE_RESTITUTION = 0.3;
 export const CHUTE_FRICTION = 0.03;
 /** Gravity (px/s²) the drops get at least – without it a ball would hang in the chute. */
@@ -259,9 +270,15 @@ export function buildMergeRingLayout(width: number, height: number, ballRadius: 
   return { width, height, side, left, top, cx, cy, radius, chuteHalf, openY, spawnY: Math.min(openY - 2 * r, r + 1), obstacles, ballRadius: r };
 }
 
-/** True when a ball at (x, y) is in the chute column above the ring's opening (the rim is open there). */
-export function inChute(L: Pick<MergeRingLayout, "cx" | "cy" | "chuteHalf">, x: number, y: number): boolean {
-  return y < L.cy && Math.abs(x - L.cx) < L.chuteHalf;
+/**
+ * True when a ball of radius `r` at (x, y) is clear of the rim through the ring's opening: in the chute column above the
+ * opening (its walls hold it there), or in the column below the opening and narrow enough to pass through it (the rim is open
+ * over it). A ball wider than that under the opening is inside the ring, held by the rim like any other.
+ */
+export function inChute(L: Pick<MergeRingLayout, "cx" | "cy" | "chuteHalf" | "openY">, x: number, y: number, r = 0): boolean {
+  const off = Math.abs(x - L.cx);
+  if (y < L.openY) return off < L.chuteHalf;
+  return y < L.cy && off + r <= L.chuteHalf;
 }
 
 /* ------------------------------------------------------------------ sound */
@@ -296,11 +313,14 @@ export const THUD_SPEED = 90;
 
 /** Simulation ms the final form holds before the run finishes. */
 export const FINAL_HOLD_MS = 2000;
-/** A ball slower than this (px/s) for `OVERFLOW_MS` inside the chute, above the ring's opening, overflows the ring. */
+/**
+ * A ball inside the chute, above the ring's opening, for `OVERFLOW_MS` while it rests (slower than this, px/s) or stands on
+ * the ball under it (the ring is full up to the opening) overflows the ring.
+ */
 export const REST_SPEED = 14;
 export const OVERFLOW_MS = 1500;
-/** The launch jitter, as a fraction of the ball radius each way (a pile that never stacks on one line). */
-export const LAUNCH_JITTER = 0.35;
+/** The launch jitter, as a fraction of the Ball Size each way, at most what the chute leaves the ball (a pile that never stacks on one line). */
+export const LAUNCH_JITTER = 0.8;
 /** Two balls of one tier closer than their radii plus this share of them fuse (the pair pass stands touching balls exactly apart). */
 export const MERGE_TOUCH = 0.02;
 /** Halos the view keeps (a ring buffer). */
@@ -376,6 +396,8 @@ export class MergeRingMode implements GameMode {
   readonly name = "mergeRing";
   /** The pile settles: no slow-ball boost. */
   readonly ballsMayRest = true;
+  /** The mode resolves the balls against each other itself (soft, by mass): not the engine's elastic pair pass. */
+  readonly ballsPassThrough = true;
   private settings: MergeRingSettings = { ...DEFAULT_MERGE_RING_SETTINGS };
   private readonly view: MergeRingView = createView();
   private layout: MergeRingLayout | null = null;
@@ -387,6 +409,11 @@ export class MergeRingMode implements GameMode {
   /** Per ball id: ms it has rested inside the chute, and when it last thudded. */
   private readonly restMs = new Map<number, number>();
   private readonly thudAt = new Map<number, number>();
+  /** Balls that touched the rim or another ball this sub-step (they get the contact damping), and the sub-step's length (s). */
+  private readonly touching = new Set<number>();
+  /** Balls that stood on a ball under them during this step (a ball held up in the chute is an overflow). */
+  private readonly supported = new Set<number>();
+  private subSec = 0;
 
   getSettings(): MergeRingSettings {
     return this.settings;
@@ -420,6 +447,8 @@ export class MergeRingMode implements GameMode {
     this.thudsThisStep = 0;
     this.restMs.clear();
     this.thudAt.clear();
+    this.touching.clear();
+    this.supported.clear();
     v.timeMs = 0;
     v.spawned = 0;
     v.balls = 0;
@@ -470,8 +499,9 @@ export class MergeRingMode implements GameMode {
     const jitter = (2 * ctx.random() - 1) * LAUNCH_JITTER;
     const base = ctx.config.ballRadius || 8;
     const radius = tierRadius(base, tier);
+    const room = Math.max(0, L.chuteHalf - radius - 1);
     ctx.addBall({
-      x: L.cx + jitter * base,
+      x: L.cx + Math.max(-room, Math.min(room, jitter * base)),
       y: L.spawnY,
       vx: 0,
       vy: 0,
@@ -492,6 +522,7 @@ export class MergeRingMode implements GameMode {
   onPreUpdate(ctx: ModeContext, dtMs: number) {
     const v = this.view;
     this.thudsThisStep = 0;
+    this.supported.clear();
     // A live change of the ball size re-spaces the chute.
     if (this.layout && (ctx.config.ballRadius || 8) !== this.layout.ballRadius) this.rebuild(ctx);
     this.clockMs += dtMs;
@@ -508,6 +539,7 @@ export class MergeRingMode implements GameMode {
     const L = this.layout;
     if (!L) return;
     const v = this.view;
+    this.subSec = dtSec;
     const tier = v.tierOf.get(ball.id);
     if (tier === undefined) return;
     ball.color = tierColor(tier);
@@ -518,7 +550,7 @@ export class MergeRingMode implements GameMode {
     const dy = ball.y - L.cy;
     const d = Math.hypot(dx, dy);
     const limit = L.radius - ball.radius;
-    if (d <= limit || d === 0 || inChute(L, ball.x, ball.y)) return;
+    if (d <= limit || d === 0 || inChute(L, ball.x, ball.y, ball.radius)) return;
     const nx = -dx / d;
     const ny = -dy / d;
     ball.x = L.cx + (dx / d) * limit;
@@ -528,16 +560,86 @@ export class MergeRingMode implements GameMode {
     const ballBounce = ball.restitution ?? 1;
     const lift = ballBounce > 1 ? (ctx.config.ballSpeed || 400) * bounciness * ballBounce : Infinity;
     const impact = rebound(ball, nx, ny, 0, 0, RIM_RESTITUTION * bounciness, RIM_FRICTION, ballBounce, lift);
+    this.touching.add(ball.id);
     if (impact < THUD_SPEED) return;
     ctx.noteBounce?.(ball); // --- bounce-math --- a rim rebound is a bounce
     const angle = Math.atan2(dy, dx);
     ctx.addWallHit(0, angle, L.radius);
     ctx.recordWallContact?.(0, angle, Math.min(1, impact / (ctx.config.ballSpeed || 400)));
+    this.thud(ctx, ball, tier, impact);
+  }
+
+  /** A landing thud of `ball` (of `tier`) at `impact` px/s – at most `MAX_THUDS_PER_STEP` a step and one a ball per `THUD_COOLDOWN_MS`. */
+  private thud(ctx: ModeContext, ball: Ball, tier: number, impact: number) {
     if (this.thudsThisStep >= MAX_THUDS_PER_STEP || this.clockMs - (this.thudAt.get(ball.id) ?? -Infinity) < THUD_COOLDOWN_MS) return;
     this.thudAt.set(ball.id, this.clockMs);
     this.thudsThisStep++;
-    v.thuds++;
+    this.view.thuds++;
     ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, frequency: thudPitch(tier), thud: true, level: Math.min(0.7, 0.25 + impact / 800) });
+  }
+
+  /**
+   * The balls against each other: every overlapping pair is pushed apart by inverse mass (mass by area) and loses its
+   * approach speed to a soft restitution, with contact friction along the touch; a hard landing on the pile thuds.
+   */
+  private resolvePairs(ctx: ModeContext, balls: Ball[]) {
+    const bounciness = ctx.getPhysicsExtras().wallBounciness;
+    const e = Math.max(0, Math.min(1, PAIR_RESTITUTION * bounciness));
+    for (let pass = 0; pass < PAIR_ITERATIONS; pass++) this.pairPass(ctx, balls, e, pass === 0);
+  }
+
+  /** One pass of the pair solver (`first`: the pass that hears the landings). */
+  private pairPass(ctx: ModeContext, balls: Ball[], e: number, first: boolean) {
+    const v = this.view;
+    for (let i = 0; i < balls.length; i++) {
+      const a = balls[i];
+      for (let j = i + 1; j < balls.length; j++) {
+        const b = balls[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const reach = a.radius + b.radius;
+        const d2 = dx * dx + dy * dy;
+        if (d2 >= reach * reach) continue;
+        const d = Math.sqrt(d2);
+        const nx = d > 1e-9 ? dx / d : 0;
+        const ny = d > 1e-9 ? dy / d : 1;
+        const ia = 1 / (a.radius * a.radius);
+        const ib = 1 / (b.radius * b.radius);
+        const share = ia + ib;
+        const push = (Math.max(0, reach - d - PAIR_SLOP) * PAIR_CORRECTION) / share;
+        a.x -= nx * push * ia;
+        a.y -= ny * push * ia;
+        b.x += nx * push * ib;
+        b.y += ny * push * ib;
+        this.touching.add(a.id);
+        this.touching.add(b.id);
+        // The upper of the two stands on the lower one.
+        if (Math.abs(dy) > 0.3 * reach) this.supported.add(dy > 0 ? a.id : b.id);
+        const rvx = b.vx - a.vx;
+        const rvy = b.vy - a.vy;
+        const rel = rvx * nx + rvy * ny;
+        if (rel >= 0) continue;
+        const jn = (-(1 + e) * rel) / share;
+        a.vx -= jn * nx * ia;
+        a.vy -= jn * ny * ia;
+        b.vx += jn * nx * ib;
+        b.vy += jn * ny * ib;
+        // Friction along the touch, at most what stops the sliding.
+        const tx = -ny;
+        const ty = nx;
+        const slide = rvx * tx + rvy * ty;
+        const jt = Math.max(-PAIR_FRICTION * jn, Math.min(PAIR_FRICTION * jn, -slide / share));
+        a.vx -= jt * tx * ia;
+        a.vy -= jt * ty * ia;
+        b.vx += jt * tx * ib;
+        b.vy += jt * ty * ib;
+        if (first && -rel >= THUD_SPEED) {
+          ctx.noteCollide?.(a, b); // --- bounce-math --- a ball hit
+          const upper = a.y < b.y ? a : b;
+          this.thud(ctx, upper, v.tierOf.get(upper.id) ?? 1, -rel);
+        }
+      }
+    }
   }
 
   /** The chute walls are silent (a glow, no note): the sounds of the mode are the merges and the thuds. */
@@ -552,8 +654,19 @@ export class MergeRingMode implements GameMode {
     const v = this.view;
     const balls = ctx.getBalls();
     const top = this.settings.tiers;
+    this.resolvePairs(ctx, balls);
+    // A ball resting on the pile or the rim settles: it keeps CONTACT_DAMPING of its speed a second.
+    if (this.touching.size > 0) {
+      const keep = Math.pow(CONTACT_DAMPING, this.subSec);
+      for (const ball of balls) {
+        if (!this.touching.has(ball.id)) continue;
+        ball.vx *= keep;
+        ball.vy *= keep;
+      }
+      this.touching.clear();
+    }
     for (const ball of balls) {
-      if (inChute(L, ball.x, ball.y)) continue;
+      if (inChute(L, ball.x, ball.y, ball.radius)) continue;
       const dx = ball.x - L.cx;
       const dy = ball.y - L.cy;
       const d = Math.hypot(dx, dy);
@@ -661,7 +774,7 @@ export class MergeRingMode implements GameMode {
     // OVERFLOW: a ball at rest inside the chute, above the ring's opening, for OVERFLOW_MS.
     for (const ball of ctx.getBalls()) {
       if (!v.tierOf.has(ball.id)) continue;
-      const resting = ball.y < L.openY && Math.hypot(ball.vx, ball.vy) < REST_SPEED;
+      const resting = ball.y < L.openY && (Math.hypot(ball.vx, ball.vy) < REST_SPEED || this.supported.has(ball.id));
       const rest = resting ? (this.restMs.get(ball.id) ?? 0) + dtMs : 0;
       this.restMs.set(ball.id, rest);
       if (rest >= OVERFLOW_MS - 1e-6 && v.overflowMs < 0) {
@@ -692,7 +805,7 @@ export class MergeRingMode implements GameMode {
       ball.vx *= k;
       ball.vy *= k;
       // Inside the ring (or the chute) after the move, whatever the rounding.
-      if (!inChute(L, ball.x, ball.y)) {
+      if (!inChute(L, ball.x, ball.y, ball.radius)) {
         const dx = ball.x - L.cx;
         const dy = ball.y - L.cy;
         const d = Math.hypot(dx, dy);

@@ -351,6 +351,13 @@ export interface SoundEvent {
   conveyor?: "hum" | "click";
   cvSec?: number;
   // --- end gerald-conveyor ---
+  // --- power-layers-crack ---
+  /**
+   * One Power Layers layer gave way under the ball: the page plays the glassy crack (`ToneGenerator.playPowerLayerCrack()`,
+   * lib/audio/powerLayerTones.ts) at `frequency`, `level` loud, instead of a bounce. Sent with `melody: false`, so a page that
+   * does not know it plays an accompaniment hit, never a melody note.
+   */
+  plCrack?: boolean;
   // --- gerald-exit-splat ---
   /**
    * A splat of the splat barrier landed (splats.ts): the page plays the wet splat (`ToneGenerator.playSplat()`) at `level`

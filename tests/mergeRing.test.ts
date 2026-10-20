@@ -112,7 +112,7 @@ function allInside(engine: PhysicsEngine, slack = 1): { ok: boolean; worst: numb
   const L = engine.getMergeRingView().layout!;
   let worst = 0;
   for (const b of engine.getBalls()) {
-    if (inChute(L, b.x, b.y)) {
+    if (inChute(L, b.x, b.y, b.radius)) {
       worst = Math.max(worst, Math.abs(b.x - L.cx) + b.radius - L.chuteHalf);
       continue;
     }
@@ -281,6 +281,9 @@ describe("layout", () => {
       expect(inChute(L, L.cx, L.openY - 5)).toBe(true);
       expect(inChute(L, L.cx + L.chuteHalf + 1, L.openY - 5)).toBe(false);
       expect(inChute(L, L.cx, L.cy + 5)).toBe(false);
+      // under the opening: a ball narrow enough to pass is clear of the rim, a wider one is in the ring
+      expect(inChute(L, L.cx, L.openY + 5, 0.5 * L.chuteHalf)).toBe(true);
+      expect(inChute(L, L.cx, L.openY + 5, 1.2 * L.chuteHalf)).toBe(false);
     }
   });
 
@@ -484,6 +487,72 @@ describe("the mode in the engine", () => {
     const moving = mergeRingEngine({ interval: 3, spawnTiers: 1 }, 2);
     run(moving, 1.4);
     expect(moving.getMergeRingView().overflowMs).toBe(-1);
+  });
+
+  it("lets the pile settle: soft landings, a big ball is not shoved about by a small one, and a resting pile stands still", () => {
+    // Slow drops: just before every drop the balls already in the ring have come to rest.
+    for (const seed of [1, 2, 3]) {
+      const engine = mergeRingEngine({ interval: 3, spawnTiers: 2 }, seed);
+      const medians: number[] = [];
+      for (let i = 1; i <= 60 * 45; i++) {
+        engine.update(STEP, 0);
+        if (engine.isSimulationFinished()) break;
+        if (i % 180 === 170 && engine.getBalls().length >= 2) {
+          const speeds = engine.getBalls().map((b) => Math.hypot(b.vx, b.vy)).sort((a, b) => a - b);
+          medians.push(speeds[speeds.length >> 1]);
+        }
+      }
+      expect(medians.length, `seed ${seed}`).toBeGreaterThan(3);
+      // (a ball a merge just made may still be rolling off the pile: most moments, not every one)
+      const still = medians.filter((m) => m < 20).length;
+      expect(still / medians.length, `seed ${seed}: ${medians.map((x) => x.toFixed(1)).join(", ")}`).toBeGreaterThanOrEqual(0.8);
+    }
+    // A small ball dropped onto a big one: the big one barely moves, the small one does not bounce back up high.
+    const engine = mergeRingEngine({ interval: 3, spawnTiers: 1 }, 4);
+    const L = engine.getMergeRingView().layout!;
+    engine.setBalls([]);
+    const base = config.ballRadius;
+    const v = engine.getMergeRingView();
+    v.tierOf.clear();
+    engine.addBall({ x: L.cx, y: L.cy + L.radius - tierRadius(base, 5), vx: 0, vy: 0, radius: tierRadius(base, 5), radiusScale: 2.68, color: "#fff", gravityScale: 1 });
+    const big = engine.getBalls()[0];
+    v.tierOf.set(big.id, 5);
+    engine.addBall({ x: L.cx + 3, y: big.y - big.radius - 4 * base, vx: 0, vy: 400, radius: base, color: "#fff", gravityScale: 1 });
+    const small = engine.getBalls()[1];
+    v.tierOf.set(small.id, 1);
+    const y0 = big.y;
+    let topAfter = Infinity;
+    let hit = false;
+    for (let i = 0; i < 60; i++) {
+      engine.update(STEP, 0);
+      const s = engine.getBalls().find((b) => b.id === small.id)!;
+      if (!hit && Math.hypot(s.x - big.x, s.y - big.y) <= s.radius + big.radius + 1) hit = true;
+      if (hit) topAfter = Math.min(topAfter, s.y);
+    }
+    expect(hit).toBe(true);
+    expect(Math.abs(big.y - y0)).toBeLessThan(2);
+    // the small ball rebounds a little at most (a soft landing): it never rises more than its own radius above the contact
+    expect(big.y - big.radius - base - topAfter).toBeLessThan(base);
+  });
+
+  it("always ends: a ring filled up to the chute overflows even while its jammed pile still creeps", () => {
+    // Fast drops of big tiers on a small landscape canvas, the gravity lifted by a loud mix (the page's audio level): some
+    // seeds fill the ring before the final form (seeds 32 and 62 once jammed there for good, 114 overflows). Every run ends
+    // – the final form or the overflow – well inside two minutes, without a storm of thuds.
+    const small: PhysicsConfig = { ...config, width: 906, height: 509, ballRadius: 24 };
+    for (const seed of [32, 62, 114, 5, 17]) {
+      const engine = mergeRingEngine({ tiers: 6, interval: 0.3, spawnTiers: 3 }, seed, small);
+      const v = engine.getMergeRingView();
+      let finishedAt = -1;
+      for (let i = 1; i <= 120 * 60 && finishedAt < 0; i++) {
+        engine.update(STEP, 0.3);
+        engine.consumeSoundEvents();
+        if (engine.isSimulationFinished()) finishedAt = engine.getElapsedMs() / 1000;
+      }
+      expect(finishedAt, `seed ${seed}`).toBeGreaterThan(0);
+      expect(v.finalMs >= 0 || v.overflowMs >= 0, `seed ${seed}`).toBe(true);
+      expect(v.thuds / finishedAt, `seed ${seed}`).toBeLessThan(20);
+    }
   });
 
   it("keeps every ball inside the ring or the chute through a long default run, merging up the ladder, and lands with thuds", () => {

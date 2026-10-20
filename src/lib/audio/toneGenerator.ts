@@ -9,6 +9,7 @@ import { raceArpeggioNotes, scheduleRaceNotes, type RaceArpeggioKind } from "./r
 import { DEFAULT_PEW_FREQUENCY, pewWaveform, schedulePewTone } from "./pewTone"; // --- gerald-vortex ---
 import { scheduleSwooshTone } from "./swooshTone"; // --- gerald-journey ---
 import { DEFAULT_THUD_FREQUENCY, scheduleThudTone, thudLevel } from "./thudTone"; // --- gerald-bullseye ---
+import { crackFrequency, crackLevel, scheduleCrack } from "./powerLayerTones"; // --- power-layers-crack ---
 import { scheduleGulpTone } from "./gulpTone"; // --- unlimited ---
 import { SPLAT_SAMPLE_GAIN, SPLAT_SAMPLE_RATE, scheduleSplatTone, splatLevel } from "./splatTone"; // --- gerald-exit-splat ---
 import { DEFAULT_ACCENT_FREQUENCY, beatDropVoices, scheduleHat, scheduleKick, schedulePadAccent, scheduleSnare, type BeatDropVoices } from "./beatDropTones"; // --- beat-drop ---
@@ -844,6 +845,34 @@ export class ToneGenerator {
     }
   }
   // --- end gerald-bullseye ---
+  // --- power-layers-crack ---
+  /**
+   * One Power Layers layer gives way under the ball (powerLayerTones.ts): a glassy crack at `frequency`, `level` loud. An effect
+   * that accompanies the level notes (never a melody note or a song slice); a hit sample plays it when the hit sound is one.
+   */
+  playPowerLayerCrack(frequency?: number, level = 1) {
+    this.initAudioGraph();
+    if (!this.audioContext || !this.masterGain) return;
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().then(() => this.schedulePowerLayerCrack(frequency, level));
+      return;
+    }
+    this.schedulePowerLayerCrack(frequency, level);
+  }
+
+  private schedulePowerLayerCrack(frequency: number | undefined, level: number) {
+    if (!this.audioContext || !this.masterGain) return;
+    try {
+      const ctx = this.audioContext;
+      const time = this.scheduleTime(ctx.currentTime);
+      const pitch = this.snap(crackFrequency(frequency));
+      if (resolveHitSoundSource(this.hitSoundMode, !!this.sampler?.isReady()) === "sample") this.sampler!.play(hitSamplePlaybackRate(0, true, pitch), time, 0.6 * crackLevel(level));
+      else scheduleCrack(ctx, this.masterGain, time, pitch, this.noiseCache.get(ctx), level);
+    } catch (err) {
+      console.error("Error playing the layer crack:", err);
+    }
+  }
+  // --- end power-layers-crack ---
   // --- unlimited ---
   /**
    * A ball ate the arena (No limits): the gulp (gulpTone.ts) – a diving swallow, a chomp and a blip. An effect, not a note

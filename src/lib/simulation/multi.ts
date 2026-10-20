@@ -133,6 +133,8 @@ export interface ArenaSoundSink {
   playFightCue?(ev: SoundEvent, levelScale?: number, arena?: number): void;
   /** --- land-claim --- a knocked block's click, a new ball's chime, a column's KO. */
   playLandClaim?(kind: "knock" | "spawn" | "ko", frequency?: number, level?: number, accent?: boolean): void;
+  /** --- power-layers-crack --- a Power Layers layer giving way (lib/audio/powerLayerTones.ts). */
+  playPowerLayerCrack?(frequency?: number, level?: number): void;
   /** --- string-circle --- the String Battle circle style's twang of the anchored strings, the snap of strings cut. */
   playStringCircle?(kind: "twang" | "snap", frequency?: number, chord?: readonly number[], level?: number): void;
   /** --- loop-foundation --- a loop family's voice (lib/audio/loopTones.ts). */
@@ -159,6 +161,7 @@ export function playArenaSound(sink: ArenaSoundSink, ev: SoundEvent, arena = 0) 
   if (ev.splat) return sink.playSplat?.((ev.level ?? 0.6) * EXTRA_ARENA_LEVEL); // --- gerald-exit-splat --- (the wet splat, not a wall hit)
   if (ev.orb) return sink.playOrb?.(ev.orb, ev.frequency, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- orb-grid --- (an orb voice's own sound, not a wall hit)
   if (ev.fight || ev.flCue) return void playFightEvent(sink, ev, EXTRA_ARENA_LEVEL, arena); // --- fight-league --- (a weapon's hit, not a wall hit; --- fl-overhaul --- every cue through the one dispatch, the arena's loops apart)
+  if (ev.plCrack) return sink.playPowerLayerCrack?.(ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- power-layers-crack --- (a layer's crack, not a wall hit)
   if (ev.lcSound) return sink.playLandClaim?.(ev.lcSound, ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, ev.accent); // --- land-claim --- (a knock, a chime, a KO: not a wall hit)
   if (ev.scSound) return sink.playStringCircle?.(ev.scSound, ev.frequency, ev.chord, (ev.level ?? 1) * EXTRA_ARENA_LEVEL); // --- string-circle --- (a twang, a snap: not a wall hit)
   if (ev.loop) return sink.playLoop?.(ev.loop, ev.frequency, (ev.level ?? 1) * EXTRA_ARENA_LEVEL, loopPlayOptions(ev)); // --- loop-foundation --- (a loop voice, not a wall hit)

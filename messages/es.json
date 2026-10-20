@@ -1496,7 +1496,7 @@
     "sgMaxBalls": "Bolas máximas",
     "sgMaxBallsTip": "Cuántas bolas caben en la espiral a la vez. La insignia sigue contando, pero no entran más bolas.",
     "sgChipEvery": "Tiempo de astillado",
-    "sgChipEveryTip": "Segundos que una bola roza una loseta antes de quitarle un golpe. Los tiempos cortos limpian el cristal rápido.",
+    "sgChipEveryTip": "Segundos que una bola roza una loseta antes de quitarle un golpe. Cada bola en la cola también empuja, así que más bolas rompen más rápido.",
     "sgRainbow": "Línea arcoíris",
     "sgRainbowTip": "La línea de la espiral recorre despacio los tonos y el cristal toma un leve tinte. Apagada se dibuja en el color de la pared.",
     "sgRunInfo": "{turns} vueltas, {tiles} losetas. La semilla decide cuándo se abren las bandas y cómo encajan las vueltas, así que Buscar simulación puede dar con la duración de tu clip.",

@@ -1496,7 +1496,7 @@
     "sgMaxBalls": "Max Balls",
     "sgMaxBallsTip": "How many balls the spiral holds at once. The badge keeps counting past it, but no more balls come in.",
     "sgChipEvery": "Chip Time",
-    "sgChipEveryTip": "Seconds a ball grinds on a tile before it chips one hit off. Short times clear the glass fast.",
+    "sgChipEveryTip": "Seconds a ball grinds on a tile before it chips one hit off. Every ball queued behind it pushes too, so more balls grind faster.",
     "sgRainbow": "Rainbow Line",
     "sgRainbowTip": "The spiral line cycles slowly through the hues and the glass takes a faint tint of it. Off draws it in the wall colour.",
     "sgRunInfo": "{turns} turns, {tiles} tiles. The seed decides when the bands break open and how the laps line up, so Find Simulation can hit your clip length.",

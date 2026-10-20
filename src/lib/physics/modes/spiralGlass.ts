@@ -4,30 +4,29 @@ import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
 
 /**
  * Spiral Glass ("spiralGlass" mode, feature spiral-glass – the "will the ball multiply?" reels). A single-arm Archimedean
- * spiral of `turns` turns drawn as a thin glowing line whose hue cycles slowly, the whole band between consecutive turns
- * filled with frosted glass cut into `TILES_PER_TURN` angular tiles of `glassHp` hit points each. The spiral's outer end
- * curls `TAIL_TURNS` of a turn past the glass (the ramp) and opens at the mouth, where the balls come in. Small coloured
- * balls run clockwise along the spiral channel at a constant speed (`speed` field sides per second) and sink inward: a
- * ball pressed against glass grinds it – one hit point per `chipEvery` seconds of contact, shards flying, a note rising
- * with the turn inward – and a tile at 0 hit points is gone (black). The glass is only reachable from the channel
- * outside it, so the band erodes from the outside in: the first ball bores the outer band open tile by tile, then the
- * balls circle the shrinking glass core in the cleared band, eating the next band from its outer face, and flow inward
- * through every gone tile. The entrance line is the ray from the centre through the badge at the bottom: every lap a
+ * spiral of `turns` turns drawn as a thin glowing line whose hue cycles slowly: the line is a wall, and the channel it winds
+ * – from the mouth at its outer end round and round to the centre – is filled with frosted glass cut into
+ * `TILES_PER_TURN` tiles a turn of `glassHp` hit points each. The spiral's outer end curls `TAIL_TURNS` of a turn past the
+ * glass (the ramp) and opens at the mouth, where the balls come in. Small coloured balls run clockwise along the channel at
+ * a constant speed (`speed` field sides per second) until they meet the glass or the ball ahead: the front ball grinds the
+ * first tile still standing – one hit point per `chipEvery` seconds of contact, shards flying, a note rising with the turn
+ * inward – and every ball queued up against it pushes too (`PUSH_CAP` at most), so the more balls there are the faster the
+ * glass goes. A tile at 0 hit points is gone (black) and the queue moves up into it: the glass is eaten along the spiral from
+ * the outside in, tile by tile. The entrance line is the ray from the centre through the badge at the bottom: every lap a
  * ball completes past it counts one up (the badge's "x n") and spawns a new ball at the mouth, up to `maxBalls`. GLASS
  * CLEARED when every tile is gone (the line flashes white, confetti, a chord, `CLEAR_HOLD_MS`, then the run finishes);
  * TIMEOUT at `TIMEOUT_MS` of simulated time, so the finder never loops forever.
  *
- * Physics: the balls are ordinary engine balls with `gravityScale` 0 and `ballsPassThrough` (no pair pass); every sub-step
- * `onBallStep()` reads the position the engine integrated, applies the inward drift and resolves it in the spiral's
- * polar frame – pushed out of intact glass radially (or, where the outer wall leaves no room, held back: the ball grinds
- * forward), kept inside the outer wall – then writes the position back with the tangential velocity. `onPostSubStep()`
- * keeps a ball from running into the one ahead of it in the channel (a queue behind a grinding ball). A ball never
- * turns around: the spiral channel leads inward by itself, and once the glass is gone the balls settle into a small
- * orbit around the centre for the celebration.
+ * Physics: the balls are ordinary engine balls with `gravityScale` 0 and `ballsPassThrough` (no pair pass), but where they
+ * are is the mode's: every ball has a place along the channel (the channel coordinate q, `channelPhi()` /
+ * `channelRadius()`: one less a turn inward, a whole number on the entrance ray), runs down it in `onBallStep()` – never
+ * into the glass front (`glassFront()`) nor past the deepest point a ball fits (`channelEnd()`) – and `onPostSubStep()` lines
+ * the balls up front to back so none runs into the one ahead (`queueGap()`), writes every ball's place and velocity back and
+ * lets the front of the queue grind. The spiral line is never crossed and no ball ever overlaps another or the glass.
  *
- * Randomness: the spawn jitter, every ball's own speed (±`SPEED_JITTER`), the chip timers' phases and the shards come
- * from `ctx.random()`, so a seed replays identically and Find Simulation can search a clip length (the seed moves when
- * the bands break open and how the laps, and so the spawns, line up).
+ * Randomness: every ball's own speed (±`SPEED_JITTER`), the grind's phase and the shards come from `ctx.random()`, so a
+ * seed replays identically and Find Simulation can search a clip length (the seed moves when the queue catches up with the
+ * glass and how the laps, and so the spawns, line up).
  */
 
 /* ------------------------------------------------------------------ settings */
@@ -43,7 +42,7 @@ export interface SpiralGlassSettings {
   maxBalls: number;
   /** The line's hue cycles slowly (off: the wall colour). */
   rainbow: boolean;
-  /** Seconds of contact per hit point chipped, 0.1–1. */
+  /** Seconds of contact per hit point chipped (per ball pushing), 0.05–1. */
   chipEvery: number;
 }
 
@@ -53,7 +52,7 @@ export const DEFAULT_SPIRAL_GLASS_SETTINGS: SpiralGlassSettings = {
   speed: 0.8,
   maxBalls: 40,
   rainbow: true,
-  chipEvery: 0.25,
+  chipEvery: 0.1,
 };
 
 /** Slider ranges, keyed by the SimulatorSettings field names so settings.ts can spread them into `RANGES`. */
@@ -62,7 +61,7 @@ export const SPIRAL_GLASS_RANGES = {
   sgGlassHp: { min: 1, max: 5, step: 1 },
   sgSpeed: { min: 0.3, max: 2, step: 0.1 },
   sgMaxBalls: { min: 1, max: 100, step: 1 },
-  sgChipEvery: { min: 0.1, max: 1, step: 0.05 },
+  sgChipEvery: { min: 0.05, max: 1, step: 0.05 },
 } as const;
 
 /** The Spiral Glass fields of the SimulatorSettings object (URL keys sgt, sgh, sgv, sgm, sgr, sgc). */
@@ -176,9 +175,6 @@ export const BALL_FIT = 0.38;
 /** How far past the mouth (radians) a ball is spawned, into the ramp. */
 export const SPAWN_IN = 0.12;
 const TWO_PI = Math.PI * 2;
-export const EPS = 0.5;
-/** A ball whose inner edge is within this many px of glass touches it (the grind never flickers as it sinks and is pushed back). */
-export const TOUCH_REACH = 2;
 
 export interface SpiralGlassLayout {
   width: number;
@@ -284,11 +280,87 @@ export function outerBoundary(L: Pick<SpiralGlassLayout, "pitch" | "turns" | "mo
   return L.pitch * (k - p / TWO_PI);
 }
 
-/** Where a ball is spawned: the middle of the ramp just past the mouth, `jitter` (−1 … 1) moving it across the ramp a little. */
-export function spawnPoint(L: SpiralGlassLayout, jitter: number): { rho: number; phi: number } {
-  const phi = L.spawnPhi;
-  const rho = 0.5 * (bandInner(L, L.turns, phi) + bandOuter(L, L.turns, phi)) + 0.25 * jitter * (L.pitch - 2 * L.ballRadius);
-  return { rho, phi };
+/* ------------------------------------------------------------------ the channel */
+
+/**
+ * The channel coordinate q runs along the spiral channel: band c at angle phi is q = c − phi / 2π, so q falls by one every
+ * turn a ball runs clockwise and is a whole number on the entrance ray (straight down). The ramp is q ∈ (turns − 1,
+ * turns − 1 + tail], the glass bands turns − 1 … 0 lie below it, and the innermost band narrows to the centre at q = −1.
+ */
+export function channelPhi(q: number): number {
+  return wrapPhi(-TWO_PI * q);
+}
+
+/** The band (channel turn) of channel coordinate `q`. */
+export function channelBand(q: number): number {
+  return Math.round(q + channelPhi(q) / TWO_PI);
+}
+
+/** Where a ball comes in: just past the mouth, on the ramp. */
+export function spawnQ(L: Pick<SpiralGlassLayout, "turns" | "spawnPhi">): number {
+  return L.turns - L.spawnPhi / TWO_PI;
+}
+
+/** The deepest a ball of radius `r` fits (the innermost band narrows to nothing at the centre). */
+export function channelEnd(L: Pick<SpiralGlassLayout, "pitch">, r: number): number {
+  return Math.min(0, (2 * r) / Math.max(1e-9, L.pitch) - 1);
+}
+
+/** The radius of a ball's centre at `q`: the middle of the channel (in the innermost band, never closer to the centre than `r`). */
+export function channelRadius(L: Pick<SpiralGlassLayout, "pitch">, q: number, r: number): number {
+  if (q >= 0) return L.pitch * (q + 0.5);
+  return Math.max(r, 0.5 * L.pitch * (q + 1));
+}
+
+/** The canvas point of a ball of radius `r` at channel coordinate `q`. */
+export function channelPoint(L: Pick<SpiralGlassLayout, "cx" | "cy" | "pitch">, q: number, r: number): { x: number; y: number } {
+  return pointOf(L, channelRadius(L, q, r), channelPhi(q));
+}
+
+/** Px of channel per unit of q at `q` (the length of a turn there). */
+export function channelSpeedScale(L: Pick<SpiralGlassLayout, "pitch">, q: number, r: number): number {
+  const rho = channelRadius(L, q, r);
+  const dRho = q >= 0 ? L.pitch : rho > r ? 0.5 * L.pitch : 0;
+  return Math.max(1e-6, Math.hypot(TWO_PI * rho, dRho));
+}
+
+/** The tile of the glass at position `j` along the channel (0: the first tile past the entrance, then inward). */
+export function tileAlong(turns: number, j: number): number {
+  const c = turns - 1 - Math.floor(j / TILES_PER_TURN);
+  return tileIndex(c, j % TILES_PER_TURN);
+}
+
+/** The q of the outer face of the tile at position `j` along the channel (where a ball coming down the channel meets it). */
+export function tileFaceQ(turns: number, j: number): number {
+  const c = turns - 1 - Math.floor(j / TILES_PER_TURN);
+  return c - (j % TILES_PER_TURN) / TILES_PER_TURN;
+}
+
+/** How far ahead of its centre (in q) a ball of radius `r` at `q` reaches: it touches a radial face that far along. */
+export function frontReach(L: Pick<SpiralGlassLayout, "pitch">, q: number, r: number): number {
+  const rho = channelRadius(L, q, r);
+  return Math.asin(Math.min(1, r / Math.max(r, rho))) / TWO_PI;
+}
+
+/**
+ * How far behind a ball at `qAhead` (in q) the next one sits when the two touch: the spacing along the channel, widened
+ * until the straight distance between their centres is a whole diameter (the channel curves: an arc is longer than its chord).
+ */
+export function queueGap(L: Pick<SpiralGlassLayout, "cx" | "cy" | "pitch">, qAhead: number, r: number): number {
+  let gap = (2 * r) / channelSpeedScale(L, qAhead + r / channelSpeedScale(L, qAhead, r), r);
+  const a = channelPoint(L, qAhead, r);
+  for (let k = 0; k < 6; k++) {
+    const b = channelPoint(L, qAhead + gap, r);
+    const d = Math.hypot(b.x - a.x, b.y - a.y);
+    if (d >= 2 * r - 1e-3 || d <= 0) break;
+    gap *= Math.min(2, (2 * r) / d);
+  }
+  return gap;
+}
+
+/** Laps a ball run from `q0` to `q` has crossed the entrance ray (the first crossing is the ramp's end, not a lap). */
+export function crossingsBetween(q0: number, q: number): number {
+  return Math.max(0, Math.floor(q0 + 1e-9) - Math.ceil(q - 1e-9) + 1);
 }
 
 /* ------------------------------------------------------------------ colours and sound */
@@ -332,17 +404,17 @@ export function clearChord(turns: number): number[] {
 /** Simulation ms the celebration holds before the run finishes, and the simulated time after which a run is a TIMEOUT. */
 export const CLEAR_HOLD_MS = 2000;
 export const TIMEOUT_MS = 600_000;
-/** The inward drift, as a share of the ball's speed (the balls sink onto the glass core, and dip only a little into a hole they pass). */
-export const INWARD_DRIFT = 0.1;
 /** Every ball's own speed differs from the setting by up to this share (the seed's). */
 export const SPEED_JITTER = 0.1;
-/** Where the front probe sits ahead of the ball (× its radius along the channel). */
-export const FRONT_REACH = 0.85;
+/** Most balls of the queue that push on the glass at once (the grind's speed-up). */
+export const PUSH_CAP = 12;
+/** A ball this close (q) to the glass front or to the ball ahead touches it (rounding never breaks a queue). */
+export const TOUCH_Q = 1e-4;
 /** The least ms between two chip notes and between two shatters' wall-break sounds (a crowd grinds far faster than a note a hit could play). */
 export const NOTE_COOLDOWN_MS = 70;
 export const SHATTER_COOLDOWN_MS = 120;
 /** The least ms between two counts of the badge: a crowd lapping together is one multiply, not a dozen. */
-export const MULTIPLY_COOLDOWN_MS = 2500;
+export const MULTIPLY_COOLDOWN_MS = 1200;
 /** Shards a chip and a shatter throw, the pool, and how long a tile flashes after a hit. */
 export const SHARDS_PER_CHIP = 3;
 export const SHARDS_PER_SHATTER = 9;
@@ -351,8 +423,6 @@ export const TILE_FLASH_MS = 260;
 /** Pops the view keeps (a ring buffer), and how long one shows. */
 export const POP_SLOTS = 16;
 export const POP_MS = 600;
-/** A new ball needs the mouth free of balls closer than this many radii. */
-export const SPAWN_GAP = 2.4;
 
 /* ------------------------------------------------------------------ view */
 
@@ -445,20 +515,19 @@ function createView(): SpiralGlassView {
 
 /** The per-ball state the mode keeps (by ball id). */
 interface BallState {
-  /** The last resolved polar place. */
-  rho: number;
-  phi: number;
-  /** The unwrapped angle travelled since the spawn (starts at the spawn angle): the entrance ray is every multiple of 2π. */
-  travel: number;
+  /** The ball's place along the channel (channel coordinate), and where it came in. */
+  q: number;
+  q0: number;
   /** Entrance crossings credited so far (the first one is the ramp's end, not a lap). */
   crossed: number;
   /** The ball's own speed (px/s). */
   speed: number;
-  /** Seconds of glass contact toward the next chip. */
-  chipTimer: number;
-  /** The tile the ball presses on this step (−1: none), and whether it is held back by glass ahead. */
+  /** The tile the ball grinds this step (−1: none), and whether glass, the ball ahead or the channel's end held it back. */
   contact: number;
   blocked: boolean;
+  /** Where it was drawn last sub-step (its velocity is the move). */
+  px: number;
+  py: number;
 }
 
 /* ------------------------------------------------------------------ the mode */
@@ -479,6 +548,12 @@ export class SpiralGlassMode implements GameMode {
   private lastShatterMs = -Infinity;
   private lastMultiplyMs = -Infinity;
   private popAt = 0;
+  /** The first tile still standing along the channel (`tilesTotal` once the glass is gone), and the grind's seconds toward its next chip. */
+  private frontier = 0;
+  private grind = 0;
+  /** The balls front to back (reused every sub-step), and the length of the sub-step in flight (s), as `onBallStep()` got it. */
+  private order: Ball[] = [];
+  private subSec = 0;
 
   getSettings(): SpiralGlassSettings {
     return this.settings;
@@ -513,6 +588,7 @@ export class SpiralGlassMode implements GameMode {
     this.lastShatterMs = -Infinity;
     this.lastMultiplyMs = -Infinity;
     this.popAt = 0;
+    this.frontier = 0;
     v.timeMs = 0;
     v.count = 1;
     v.balls = 0;
@@ -536,6 +612,8 @@ export class SpiralGlassMode implements GameMode {
     v.hpLeft = v.hpTotal;
     this.rebuild(ctx);
     ctx.setObstacles([]);
+    // The grind's phase is the seed's.
+    this.grind = ctx.random() * 0.5 * this.settings.chipEvery;
     // The first ball comes in at once (the engine then adds no default ball).
     this.spawn(ctx);
   }
@@ -551,42 +629,42 @@ export class SpiralGlassMode implements GameMode {
   }
 
   /** True while a ball sits where the next one would come in. */
-  private mouthBlocked(ctx: ModeContext): boolean {
+  private mouthBlocked(): boolean {
     const L = this.layout!;
-    const at = spawnPoint(L, 0);
-    const p = pointOf(L, at.rho, at.phi);
-    const gap = SPAWN_GAP * L.ballRadius;
-    for (const b of ctx.getBalls()) if (Math.hypot(b.x - p.x, b.y - p.y) < gap) return true;
+    const q0 = spawnQ(L);
+    const gap = queueGap(L, q0 - 2 * queueGap(L, q0, L.ballRadius), L.ballRadius);
+    for (const st of this.state.values()) if (st.q > q0 - gap - TOUCH_Q) return true;
     return false;
   }
 
-  /** A ball comes in at the mouth: its place across the ramp and its own speed are the seed's, its colour the next of the ring. */
+  /** A ball comes in at the mouth: its own speed is the seed's, its colour the next of the ring. */
   private spawn(ctx: ModeContext) {
     const L = this.layout!;
     const v = this.view;
-    const at = spawnPoint(L, 2 * ctx.random() - 1);
+    const q = spawnQ(L);
     const speed = this.speedPx() * (1 + SPEED_JITTER * (2 * ctx.random() - 1));
     const hue = v.spawned % BALL_HUES.length;
-    const p = pointOf(L, at.rho, at.phi);
-    const a = at.phi + Math.PI / 2;
-    ctx.addBall({ x: p.x, y: p.y, vx: -Math.sin(a) * speed, vy: Math.cos(a) * speed, radius: L.ballRadius, color: ballColorAt(hue), gravityScale: 0 });
+    const p = channelPoint(L, q, L.ballRadius);
+    ctx.addBall({ x: p.x, y: p.y, vx: 0, vy: 0, radius: L.ballRadius, color: ballColorAt(hue), gravityScale: 0 });
     const id = ctx.getNextId() - 1;
     v.hueOf.set(id, hue);
-    this.state.set(id, { rho: at.rho, phi: at.phi, travel: at.phi, crossed: 0, speed, chipTimer: ctx.random() * 0.5 * this.settings.chipEvery, contact: -1, blocked: false });
+    this.state.set(id, { q, q0: q, crossed: 0, speed, contact: -1, blocked: false, px: p.x, py: p.y });
     v.spawned++;
     v.balls = ctx.getBalls().length;
   }
 
-  /** A ball the mode did not spawn (a split, a bounce-math clone) is adopted where it is. */
+  /** A ball the mode did not spawn (a split, a bounce-math clone) is adopted at the channel place nearest to where it is. */
   private adopt(ctx: ModeContext, ball: Ball): BallState {
     const L = this.layout!;
     const v = this.view;
     const { rho, phi } = polarOf(L, ball.x, ball.y);
+    const band = Math.max(0, Math.min(L.turns, bandOf(L, rho, phi)));
+    const q = Math.max(channelEnd(L, L.ballRadius), Math.min(spawnQ(L), band - phi / TWO_PI));
     const hue = v.spawned % BALL_HUES.length;
     v.hueOf.set(ball.id, hue);
     ball.color = ballColorAt(hue);
     ball.gravityScale = 0;
-    const st: BallState = { rho, phi, travel: phi, crossed: 0, speed: this.speedPx() * (1 + SPEED_JITTER * (2 * ctx.random() - 1)), chipTimer: 0, contact: -1, blocked: false };
+    const st: BallState = { q, q0: q, crossed: 0, speed: this.speedPx() * (1 + SPEED_JITTER * (2 * ctx.random() - 1)), contact: -1, blocked: false, px: ball.x, py: ball.y };
     this.state.set(ball.id, st);
     v.spawned++;
     return st;
@@ -599,113 +677,108 @@ export class SpiralGlassMode implements GameMode {
     this.clockMs += dtMs;
     v.timeMs = this.clockMs;
     // The queued balls come in one per step while the mouth is free, up to the cap.
-    if (this.pending > 0 && v.clearedMs < 0 && v.timeoutMs < 0 && ctx.getBalls().length < this.settings.maxBalls && !this.mouthBlocked(ctx)) {
+    if (this.pending > 0 && v.clearedMs < 0 && v.timeoutMs < 0 && ctx.getBalls().length < this.settings.maxBalls && !this.mouthBlocked()) {
       this.pending--;
       this.spawn(ctx);
     }
     v.balls = ctx.getBalls().length;
   }
 
-  /** The outermost tile still standing in the column of `tile` (the tile itself, or one of those outside it in the same sector). */
-  private columnTop(tile: number): number {
-    const L = this.layout!;
-    const i = tile % TILES_PER_TURN;
-    let c = Math.floor(tile / TILES_PER_TURN);
-    while (c + 1 < L.turns && this.view.hp[tileIndex(c + 1, i)] > 0) c++;
-    return tileIndex(c, i);
-  }
-
-  /** True when the tile under polar (rho, phi) still has glass (false outside the glass bands). */
-  private intactAt(rho: number, phi: number): number {
-    const L = this.layout!;
-    const c = bandOf(L, rho, phi);
-    if (c < 0 || c >= L.turns) return -1;
-    const t = tileIndex(c, tileOf(phi));
-    return this.view.hp[t] > 0 ? t : -1;
-  }
-
   /**
-   * The channel: the ball the engine moved is pulled inward, pushed out of intact glass (or held back where the outer wall
-   * leaves no room: it grinds the tile ahead), kept inside the outer wall, and written back with its tangential velocity.
+   * The deepest q a ball may reach: touching the first standing tile's face, or the channel's end. A ball's reach grows as it
+   * sinks toward the centre (a quarter turn once it touches the centre), so the touching place – the least q whose distance
+   * to the face covers the reach from there – is found by bisection (the distance less the reach only grows with q).
    */
+  glassFront(): number {
+    const L = this.layout!;
+    const r = L.ballRadius;
+    const end = channelEnd(L, r);
+    if (this.frontier >= this.view.tilesTotal) return end;
+    const face = tileFaceQ(L.turns, this.frontier);
+    const clear = (q: number) => q - face - frontReach(L, q, r) >= 0;
+    let lo = Math.max(end, face);
+    if (clear(lo)) return lo;
+    let hi = Math.max(lo, face + 0.25 + 1e-6);
+    for (let k = 0; k < 40; k++) {
+      const mid = 0.5 * (lo + hi);
+      if (clear(mid)) hi = mid;
+      else lo = mid;
+    }
+    return hi;
+  }
+
+  /** The ball runs down the channel at its speed, never into the glass front nor past the channel's end. */
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number) {
     const L = this.layout;
     if (!L) return;
-    const v = this.view;
     const st = this.state.get(ball.id) ?? this.adopt(ctx, ball);
-    const r = L.ballRadius;
-    ball.radius = r;
+    this.subSec = dtSec;
+    ball.radius = L.ballRadius;
     ball.gravityScale = 0;
-    let { rho, phi } = polarOf(L, ball.x, ball.y);
-    rho = Math.max(r + 1, rho - INWARD_DRIFT * st.speed * dtSec);
-    let contact = -1;
-    let blocked = false;
-    for (let pass = 0; pass < 3; pass++) {
-      // Glass under the ball: pushed out onto that band's outer wall (band by band, should it sit in several).
-      for (let guard = 0; guard <= L.turns; guard++) {
-        const under = this.intactAt(rho - r + EPS, phi);
-        if (under < 0) break;
-        rho = bandOuter(L, Math.floor(under / TILES_PER_TURN), phi) + r;
-        contact = under;
+    const want = st.q - (st.speed * dtSec) / channelSpeedScale(L, st.q, L.ballRadius);
+    const front = this.glassFront();
+    st.blocked = want < front;
+    st.q = Math.min(st.q, Math.max(want, front));
+    st.contact = -1;
+  }
+
+  /**
+   * After the sub-step: the balls line up front to back (each at least a diameter behind the one ahead), every ball's place
+   * and velocity are written back, the laps past the entrance count, and the front of the queue grinds the glass.
+   */
+  onPostSubStep(ctx: ModeContext) {
+    const L = this.layout;
+    if (!L) return;
+    const v = this.view;
+    const r = L.ballRadius;
+    const order = this.order;
+    order.length = 0;
+    for (const b of ctx.getBalls()) if (this.state.has(b.id)) order.push(b);
+    order.sort((a, b) => this.state.get(a.id)!.q - this.state.get(b.id)!.q || a.id - b.id);
+    // The queue: a ball that caught up waits a diameter behind the one ahead; the touching run behind the front pushes.
+    let pushers = order.length > 0 ? 1 : 0;
+    let chain = true;
+    for (let i = 0; i < order.length; i++) {
+      const st = this.state.get(order[i].id)!;
+      if (i > 0) {
+        const ahead = this.state.get(order[i - 1].id)!;
+        const least = ahead.q + queueGap(L, ahead.q, r);
+        if (st.q < least + TOUCH_Q) {
+          if (st.q < least) st.blocked = true;
+          st.q = Math.max(st.q, least);
+          if (chain) pushers++;
+        } else chain = false;
       }
-      if (contact < 0) contact = this.intactAt(rho - r - TOUCH_REACH, phi);
-      // Glass ahead of the ball: lifted over it where the band outside is open and the outer wall leaves room, else held back (it grinds).
-      const phiF = wrapPhi(phi + (FRONT_REACH * r) / Math.max(rho, r));
-      const ahead = this.intactAt(rho - 0.5 * r, phiF);
-      if (ahead >= 0) {
-        const lifted = bandOuter(L, Math.floor(ahead / TILES_PER_TURN), phiF) + r;
-        if (lifted + r > outerBoundary(L, phiF) + EPS || this.intactAt(lifted - r + EPS, phiF) >= 0) {
-          // Held back: it grinds the column ahead from the outside in (never a tunnel under standing glass).
-          rho = st.rho;
-          phi = st.phi;
-          contact = this.columnTop(ahead);
-          blocked = true;
-          break;
-        }
-        rho = lifted;
-        contact = ahead;
+      const ball = order[i];
+      const p = channelPoint(L, st.q, r);
+      ball.x = p.x;
+      ball.y = p.y;
+      // The laps past the entrance ray.
+      const crossed = crossingsBetween(st.q0, st.q);
+      while (crossed > st.crossed) {
+        st.crossed++;
+        if (st.crossed >= 2) this.multiply(ctx, ball, channelRadius(L, st.q, r), channelPhi(st.q));
       }
-      const ob = outerBoundary(L, phi) - r;
-      if (rho > ob) {
-        rho = ob;
-        // Squeezed between the outer wall and the glass: held back (it grinds the glass under it).
-        const squeezed = this.intactAt(rho - r + EPS, phi);
-        if (squeezed >= 0) {
-          rho = st.rho;
-          phi = st.phi;
-          contact = this.columnTop(squeezed);
-          blocked = true;
-          break;
-        }
-      } else break;
     }
-    // The travel: the laps past the entrance ray (phi = 0, straight down) count once each, the ramp's end not.
-    let d = phi - st.phi;
-    if (d > Math.PI) d -= TWO_PI;
-    else if (d < -Math.PI) d += TWO_PI;
-    st.travel += d;
-    const laps = Math.floor(st.travel / TWO_PI + 1e-9);
-    while (laps > st.crossed) {
-      st.crossed++;
-      if (st.crossed >= 2) this.multiply(ctx, ball, rho, phi);
+    // Velocities from the moves (the trails and the HUD read them), at the sub-step's length.
+    const sub = this.subSec;
+    for (const ball of order) {
+      const st = this.state.get(ball.id)!;
+      ball.vx = sub > 0 ? (ball.x - st.px) / sub : 0;
+      ball.vy = sub > 0 ? (ball.y - st.py) / sub : 0;
+      st.px = ball.x;
+      st.py = ball.y;
     }
-    st.rho = rho;
-    st.phi = phi;
-    st.contact = contact;
-    st.blocked = blocked;
-    const p = pointOf(L, rho, phi);
-    ball.x = p.x;
-    ball.y = p.y;
-    const a = phi + Math.PI / 2;
-    ball.vx = -Math.sin(a) * st.speed;
-    ball.vy = Math.cos(a) * st.speed;
-    // The grind: one hit point per chipEvery seconds of contact (the seconds add up across the holes a ball passes; never more than one chip banked).
-    if (contact >= 0 && v.clearedMs < 0) {
-      st.chipTimer = Math.min(this.settings.chipEvery, st.chipTimer + dtSec);
-      if (st.chipTimer >= this.settings.chipEvery - 1e-9) {
-        st.chipTimer = 0;
-        this.chip(ctx, ball, st, contact);
-      }
+    // The grind: the front ball pressing on the glass (or stuck at the channel's end with glass left) chips the first
+    // standing tile, one hit point per chipEvery seconds per ball pushing.
+    if (order.length === 0 || v.clearedMs >= 0 || this.frontier >= v.tilesTotal) return;
+    const lead = this.state.get(order[0].id)!;
+    if (lead.q > this.glassFront() + TOUCH_Q) return;
+    lead.contact = tileAlong(L.turns, this.frontier);
+    this.grind += sub * Math.min(PUSH_CAP, pushers);
+    for (let k = 0; k < PUSH_CAP && this.grind >= this.settings.chipEvery - 1e-9 && this.frontier < v.tilesTotal; k++) {
+      this.grind -= this.settings.chipEvery;
+      this.chip(ctx, order[0], lead);
     }
   }
 
@@ -729,21 +802,24 @@ export class SpiralGlassMode implements GameMode {
     if (ctx.getBalls().length + this.pending < this.settings.maxBalls) this.pending++;
   }
 
-  /** A chip: the tile loses a hit point, shards fly, a note (and, on its last point, the shatter and the wall-break sound). */
-  private chip(ctx: ModeContext, ball: Ball, st: BallState, tile: number) {
+  /** A chip: the first standing tile loses a hit point, shards fly, a note (and, on its last point, the shatter and the wall-break sound). */
+  private chip(ctx: ModeContext, ball: Ball, st: BallState) {
     const v = this.view;
     const L = this.layout!;
+    const tile = tileAlong(L.turns, this.frontier);
     v.hp[tile]--;
     v.hpLeft--;
     v.chips++;
     v.hitMs[tile] = this.clockMs;
     const c = Math.floor(tile / TILES_PER_TURN);
     const gone = v.hp[tile] === 0;
-    // The shards leave the face the ball presses on: the tile's outer wall under the ball, or the middle of the tile it grinds ahead.
-    const phiC = st.blocked ? wrapPhi(st.phi + (FRONT_REACH * L.ballRadius) / Math.max(st.rho, L.ballRadius)) : st.phi;
-    const face = pointOf(L, st.blocked ? 0.5 * (bandInner(L, c, phiC) + bandOuter(L, c, phiC)) : st.rho - L.ballRadius, phiC);
+    // The shards leave the tile's face, where the ball presses on it.
+    const faceQ = tileFaceQ(L.turns, this.frontier);
+    const phiC = channelPhi(faceQ);
+    const face = pointOf(L, 0.5 * (bandInner(L, c, phiC) + bandOuter(L, c, phiC)), phiC);
     this.throwShards(ctx, face.x, face.y, phiC, gone ? SHARDS_PER_SHATTER : SHARDS_PER_CHIP, v.hueOf.get(ball.id) ?? 0);
     ctx.noteBounce?.(ball); // --- bounce-math --- a grind on the glass is the ball's bounce
+    st.contact = tile;
     if (this.clockMs - this.lastNoteMs >= NOTE_COOLDOWN_MS || gone) {
       this.lastNoteMs = this.clockMs;
       v.notes++;
@@ -752,6 +828,7 @@ export class SpiralGlassMode implements GameMode {
     if (!gone) return;
     v.shatters++;
     v.tilesLeft--;
+    while (this.frontier < v.tilesTotal && v.hp[tileAlong(L.turns, this.frontier)] <= 0) this.frontier++;
     if (this.clockMs - this.lastShatterMs >= SHATTER_COOLDOWN_MS) {
       this.lastShatterMs = this.clockMs;
       ctx.addPendingSoundEvent({ type: "gap", wallIndex: 0 });
@@ -796,52 +873,6 @@ export class SpiralGlassMode implements GameMode {
       v.shardLife[slot] = life;
       v.shardMaxLife[slot] = life;
       v.shardHue[slot] = i % 2 === 0 ? hue : -1;
-    }
-  }
-
-  /** After the sub-step: a ball that caught up with the one ahead of it in the channel waits behind it (the queue behind a grinding ball). */
-  onPostSubStep(ctx: ModeContext) {
-    const L = this.layout;
-    if (!L) return;
-    const balls = ctx.getBalls();
-    const reach = 2 * L.ballRadius;
-    const reachSq = reach * reach;
-    for (let i = 0; i < balls.length; i++) {
-      const a = balls[i];
-      const sa = this.state.get(a.id);
-      if (!sa) continue;
-      for (let j = i + 1; j < balls.length; j++) {
-        const b = balls[j];
-        const sb = this.state.get(b.id);
-        if (!sb) continue;
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        if (dx * dx + dy * dy >= reachSq - 1e-6) continue;
-        // The one behind along the channel gives way.
-        const behind = sa.travel <= sb.travel ? sa : sb;
-        const ahead = behind === sa ? sb : sa;
-        const ball = behind === sa ? a : b;
-        const cos = (behind.rho * behind.rho + ahead.rho * ahead.rho - reachSq) / (2 * behind.rho * ahead.rho);
-        if (cos >= 1) continue;
-        const delta = Math.acos(Math.max(-1, cos));
-        const phi = wrapPhi(ahead.phi - delta);
-        let d = phi - behind.phi;
-        if (d > Math.PI) d -= TWO_PI;
-        else if (d < -Math.PI) d += TWO_PI;
-        if (d > 0) continue; // (the ball ahead is the one that overlaps from behind the seam: leave it)
-        behind.travel += d;
-        behind.phi = phi;
-        // Moved back over glass it had sunk past: up onto that glass, and never through the outer wall.
-        for (let guard = 0; guard <= L.turns; guard++) {
-          const under = this.intactAt(behind.rho - L.ballRadius + EPS, phi);
-          if (under < 0) break;
-          behind.rho = bandOuter(L, Math.floor(under / TILES_PER_TURN), phi) + L.ballRadius;
-        }
-        behind.rho = Math.min(behind.rho, outerBoundary(L, phi) - L.ballRadius);
-        const p = pointOf(L, behind.rho, phi);
-        ball.x = p.x;
-        ball.y = p.y;
-      }
     }
   }
 
@@ -902,25 +933,26 @@ export class SpiralGlassMode implements GameMode {
     }
   }
 
-  /** A resize rebuilds the spiral for the new canvas and keeps every ball at its polar place (the radii scaled with the pitch). */
+  /** A resize rebuilds the spiral for the new canvas: every ball keeps its place along the channel (the speeds scale with the field). */
   onConfigChange(ctx: ModeContext, sizeChanged: boolean) {
     if (!sizeChanged || !this.layout) return true;
     const old = this.layout;
     this.rebuild(ctx);
     const L = this.layout!;
-    const k = L.pitch / old.pitch;
+    const k = L.side / old.side;
     this.view.shardCount = 0;
     for (const ball of ctx.getBalls()) {
       const st = this.state.get(ball.id);
       if (!st) continue;
-      st.rho *= k;
       st.speed *= k;
       ball.trail.length = 0;
       ball.trailIndex = 0;
       ball.radius = L.ballRadius;
-      const p = pointOf(L, st.rho, st.phi);
+      const p = channelPoint(L, st.q, L.ballRadius);
       ball.x = p.x;
       ball.y = p.y;
+      st.px = p.x;
+      st.py = p.y;
       ball.vx *= k;
       ball.vy *= k;
     }
@@ -942,9 +974,15 @@ export class SpiralGlassMode implements GameMode {
     const v = this.view;
     return { count: v.count, balls: v.balls, tilesLeft: v.tilesLeft, cleared: v.clearedMs >= 0, timeout: v.timeoutMs >= 0, finished: v.finished };
   }
-  /** The polar state of a ball (tests and tools). */
-  stateOf(id: number): { rho: number; phi: number; travel: number; crossed: number; speed: number; contact: number; blocked: boolean; chipTimer: number } | null {
+  /** The channel state of a ball (tests and tools). */
+  stateOf(id: number): { q: number; q0: number; rho: number; phi: number; crossed: number; speed: number; contact: number; blocked: boolean } | null {
     const st = this.state.get(id);
-    return st ? { rho: st.rho, phi: st.phi, travel: st.travel, crossed: st.crossed, speed: st.speed, contact: st.contact, blocked: st.blocked, chipTimer: st.chipTimer } : null;
+    const L = this.layout;
+    if (!st || !L) return null;
+    return { q: st.q, q0: st.q0, rho: channelRadius(L, st.q, L.ballRadius), phi: channelPhi(st.q), crossed: st.crossed, speed: st.speed, contact: st.contact, blocked: st.blocked };
+  }
+  /** Where the glass starts along the channel (tests and tools): the first standing tile's position, `tilesTotal` once it is all gone. */
+  getFrontier(): number {
+    return this.frontier;
   }
 }

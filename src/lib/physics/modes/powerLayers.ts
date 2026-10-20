@@ -8,18 +8,21 @@ import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
  * the recorder's centred square shows in full – with a glowing ceiling bar in its upper third and, from mid-screen
  * down, a dense stack of 20–800 thin rainbow layers (the hue sweeps down the stack and repeats). One white ball bounces
  * between the ceiling and the top of the stack with a slight seeded sideways drift; gravity pulls it down, the ceiling
- * reflects it. Every impact on the stack destroys `power` layers – they shatter into coloured particles and the stack
- * top drops – and then the power advances by the sequence: double (1, 2, 4, 8 …), fibonacci, primes, +1 per hit or
- * chaos (each power drawn from the seed between 0 and twice the record so far: some hits destroy dozens, others change
- * nothing). When no layer is left the ball falls through the bottom – freedom – with a burst, and the run ends.
+ * reflects it. Every impact on the stack destroys `power` layers, one after another: the ball drills down through them
+ * (`plungeSec()`: `PLUNGE_PER_LAYER_SEC` a layer, at most `PLUNGE_MAX_SHARE` of the period), every layer cracking as the
+ * ball's underside passes it – its own shower of coloured particles and its own glassy crack, a step up the scale per
+ * layer – and the stack top dropping with it; then the ball rebounds from the new top and the power advances by the
+ * sequence: double (1, 2, 4, 8 …), fibonacci, primes, +1 per hit or chaos (each power drawn from the seed between 0 and
+ * twice the record so far: some hits destroy dozens, others change nothing). The last hit drills through every layer
+ * left and the ball falls through the bottom – freedom – with a burst, and the run ends.
  *
- * The rhythm is exact: every bounce takes the same period T (the Bounce Speed), whatever the depth of the stack – the
- * mode solves, per bounce, the speed the ball must meet the ceiling with so that the up-leg (from the old top) plus the
- * down-leg (to the new, lower top) under the arc gravity take exactly T (`ceilingSpeed()`), so the ball speeds up as
- * the stack drops: "it gets out of control". The ball's vertical motion is analytic on the simulation clock (like
- * Pendulum Wave: `onBallStep()` overwrites the position), so the air drag, wind or keyframed gravity of the engine never
- * shift a hit. Hit k lands at T·(k + ½); after the last hit the ball leaves the field within T/2; the run finishes a
- * `FREEDOM_HOLD_SEC` celebration later. The run length is therefore the hit count times the bounce period plus the
+ * The rhythm is exact: every impact lands on the beat of the period T (the Bounce Speed), whatever the depth of the stack
+ * – after the drill the mode solves the speed the ball must meet the ceiling with so that the rebound from the new top
+ * and the fall back onto it under the arc gravity take exactly the rest of the period (`ceilingSpeed()`), so the ball
+ * speeds up as the stack drops: "it gets out of control". The ball's vertical motion is analytic on the simulation clock
+ * (like Pendulum Wave: `onBallStep()` overwrites the position), so the air drag, wind or keyframed gravity of the engine
+ * never shift a hit. Hit k lands at T·(k + ½); after the last hit the ball drills out and leaves the field within T/2;
+ * the run finishes a `FREEDOM_HOLD_SEC` celebration later. The run length is therefore the hit count times the bounce period plus the
  * hold – fixed by the settings for every sequence but chaos (`powerLayersFixedDurationSec()`), and known as soon as a
  * chaos seed's plan is drawn (`PowerLayersMode.getProgress().plannedMs`, the finder's duration predicate).
  *
@@ -31,7 +34,9 @@ import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
  * and music bed keep working): every hit is the next note of the Sound section's scale (a diatonic major scale while
  * it is chromatic), rising with the level – a new sound every level; a hit that destroys `BIG_HIT_LAYERS` or more adds a
  * chord and a whoosh (the wall-break sound, which also shakes the cinematic camera); the hit that clears the stack plays
- * a fanfare (a chord and the rising multiplier arpeggio) and the fall through the bottom the wall-break sound.
+ * a fanfare (a chord and the rising multiplier arpeggio) and the fall through the bottom the wall-break sound. Under the
+ * notes every layer cracks (`plCrack` events with `melody: false`: an octave above the level note and climbing an octave
+ * over the drill, at most one a step – `crackPitch()`), so a big hit is a rising rattle of glass.
  */
 
 /* ------------------------------------------------------------------ settings */
@@ -326,6 +331,34 @@ export function bouncePeriodSec(speed: number): number {
   return BASE_PERIOD_SEC / s;
 }
 
+/** Seconds the ball takes to drill through one layer, and the most of a period one drill (the last: `LAST_PLUNGE_SHARE`) may take. */
+export const PLUNGE_PER_LAYER_SEC = 0.045;
+export const PLUNGE_MAX_SHARE = 0.45;
+export const LAST_PLUNGE_SHARE = 0.3;
+
+/** Seconds the ball drills through the `destroyed` layers of a hit (0 for a zero-power hit) in a period of `period` s. */
+export function plungeSec(destroyed: number, period: number, last = false): number {
+  const d = Math.max(0, Math.round(destroyed));
+  if (d === 0 || !(period > 0)) return 0;
+  return Math.min((last ? LAST_PLUNGE_SHARE : PLUNGE_MAX_SHARE) * period, PLUNGE_PER_LAYER_SEC * d);
+}
+
+/** How deep (0–1 of its layers) a drill of `plunge` s is `s` s after the impact: fast at first, slowing as the layers give way (the last one evenly). */
+export function plungeDepth(s: number, plunge: number, last = false): number {
+  if (!(plunge > 0) || s >= plunge) return 1;
+  if (s <= 0) return 0;
+  const x = s / plunge;
+  return last ? x : 1 - (1 - x) * (1 - x);
+}
+
+/** Layers of a hit's `destroyed` gone at depth `depth`: the first gives way on impact, the last as the drill ends. */
+export function crackedAt(depth: number, destroyed: number): number {
+  const d = Math.max(0, Math.round(destroyed));
+  if (d === 0) return 0;
+  if (depth >= 1) return d;
+  return Math.min(d, Math.floor(Math.max(0, depth) * d) + 1);
+}
+
 /** Simulation time of hit `k` (0-based): the ball drops from the ceiling for half a period, then one hit a period. */
 export function hitTimeSec(k: number, period: number): number {
   return period * (k + 0.5);
@@ -388,6 +421,16 @@ export function levelChord(k: number, scale: ScaleId, rootNote: number): number[
   const third = Math.min(2, n - 1);
   const fifth = Math.min(4, n - 1);
   return [d, d + third, d + fifth, d + n].map((x) => midiToFrequency(degreeMidi(x, scale, rootNote)));
+}
+
+/**
+ * Pitch (Hz) of the crack of layer `j` (0-based) of the `destroyed` layers of hit `k`: an octave above the level's note,
+ * climbing the scale an octave over the drill.
+ */
+export function crackPitch(k: number, j: number, destroyed: number, scale: ScaleId, rootNote: number): number {
+  const n = levelScale(scale).length;
+  const climb = destroyed > 1 ? Math.round((n * Math.max(0, Math.min(destroyed - 1, j))) / (destroyed - 1)) : 0;
+  return midiToFrequency(degreeMidi(levelDegree(k, scale) + n + climb, scale, rootNote));
 }
 
 /** The fanfare chord when the stack is gone: the tonic triad and the octave, an octave above level 1. */
@@ -504,8 +547,9 @@ export const DRIFT_MAX = 0.45;
 
 /** Shatter particles alive at once (the oldest make room). */
 export const MAX_PL_PARTICLES = 640;
-/** Most particles one hit throws. */
+/** Most particles one hit throws, and the particles of every layer that cracks (fewer once a drill would pass the budget). */
 export const MAX_PARTICLES_PER_HIT = 120;
+export const PARTICLES_PER_LAYER = 5;
 /** Particles of the freedom burst. */
 export const FREEDOM_PARTICLES = 140;
 /** Gravity of the particles in field heights per s². */
@@ -547,9 +591,12 @@ export interface PowerLayersView {
   level: number;
   lastDestroyed: number;
   lastHitSec: number;
-  /** The layers the last hit destroyed: from `flashFrom` to `flashTo` layers gone (the renderer flashes the band). */
+  /** The layers the last hit has destroyed so far: from `flashFrom` to `flashTo` layers gone (the renderer flashes the band). */
   flashFrom: number;
   flashTo: number;
+  /** Simulation time (s) the last layer cracked, and the cracks so far (one per layer). */
+  lastCrackSec: number;
+  cracks: number;
   bigHits: number;
   lastBigSec: number;
   /** The ball's last ceiling contacts: simulation time and x (fraction of the field width), a ring of `CEILING_CONTACTS`. */
@@ -592,6 +639,8 @@ function createView(): PowerLayersView {
     lastHitSec: -Infinity,
     flashFrom: 0,
     flashTo: 0,
+    lastCrackSec: -Infinity,
+    cracks: 0,
     bigHits: 0,
     lastBigSec: -Infinity,
     ceilingSec: new Float64Array(CEILING_CONTACTS).fill(-Infinity),
@@ -637,8 +686,11 @@ export class PowerLayersMode implements GameMode {
   private clockMs = 0;
   private stepStartSec = 0;
   private sub = 0;
-  /** Hits handled so far (their layers gone, their sounds queued). */
+  /** Hits handled so far (their notes queued), and the layers cracked so far (the drill in progress included). */
   private processed = 0;
+  private cracked = 0;
+  /** Particles the drill in progress has thrown (its budget is `MAX_PARTICLES_PER_HIT`). */
+  private hitParticles = 0;
   /** The ball's x as a fraction of the room it has across the field, and its drift in field widths per second. */
   private ux = 0.5;
   private vux = 0;
@@ -647,13 +699,12 @@ export class PowerLayersMode implements GameMode {
   private gravity = 300;
   private sizeW = 0;
   private sizeH = 0;
-  /** Cache of the bounce being flown (its inputs and the solved ceiling speed). */
+  /** Cache of the bounce being flown (its inputs, the solved ceiling speed and its drill's length). */
   private cK = -99;
   private cA = NaN;
-  private cB = NaN;
   private cG = NaN;
   private cU = 0;
-  private cT1 = 0;
+  private cP = 0;
   private readonly point: FlightPoint = { y: 0, vy: 0 };
 
   getSettings(): PowerLayersSettings {
@@ -710,6 +761,8 @@ export class PowerLayersMode implements GameMode {
     this.stepStartSec = 0;
     this.sub = 0;
     this.processed = 0;
+    this.cracked = 0;
+    this.hitParticles = 0;
     this.cK = -99;
     const v = this.view;
     v.settings = { ...s };
@@ -726,6 +779,8 @@ export class PowerLayersMode implements GameMode {
     v.lastHitSec = -Infinity;
     v.flashFrom = 0;
     v.flashTo = 0;
+    v.lastCrackSec = -Infinity;
+    v.cracks = 0;
     v.bigHits = 0;
     v.lastBigSec = -Infinity;
     v.ceilingSec.fill(-Infinity);
@@ -768,27 +823,40 @@ export class PowerLayersMode implements GameMode {
     return stackTopAt(this.view.field, gone, this.plan.layers) - r;
   }
 
-  /** Solves (and caches) bounce `k`: from the top before hit k up to the ceiling and down to the top after it. */
+  /** Seconds the drill of hit `k` takes. */
+  private plunge(k: number): number {
+    const last = k >= this.plan.powers.length - 1;
+    return plungeSec(this.plan.destroyed[k] ?? 0, this.view.periodSec, last);
+  }
+
+  /**
+   * Solves (and caches) bounce `k`: after the drill of hit k, from the new top up to the ceiling and back down onto it in the
+   * rest of the period (both legs the same height: hit k + 1 lands on the top hit k left).
+   */
   private bounce(k: number, r: number, g: number) {
     const c = this.ceilingY(r);
-    const a = Math.max(1, this.topY(goneBefore(this.plan, k), r) - c);
-    const b = Math.max(1, this.topY(this.plan.goneAfter[k], r) - c);
-    if (k !== this.cK || a !== this.cA || b !== this.cB || g !== this.cG) {
+    const a = Math.max(1, this.topY(this.plan.goneAfter[k], r) - c);
+    if (k !== this.cK || a !== this.cA || g !== this.cG) {
       this.cK = k;
       this.cA = a;
-      this.cB = b;
       this.cG = g;
-      this.cU = ceilingSpeed(a, b, g, this.view.periodSec);
-      this.cT1 = fallTime(a, this.cU, g);
+      this.cP = this.plunge(k);
+      this.cU = ceilingSpeed(a, a, g, this.view.periodSec - this.cP);
     }
   }
 
-  /** Vertical speed (px/s, downward) the ball lands on the stack with at hit `k`. */
-  private impactSpeed(k: number, r: number, g: number, d0: number): number {
+  /** The last hit's way out: where its drill starts and ends, its speed through the stack, and the fall below it to the exit line. */
+  private exitLeg(r: number) {
     const T = this.view.periodSec;
-    if (k <= 0) return d0 / (T / 2) + (g * T) / 4;
-    this.bounce(k - 1, r, g);
-    return this.cU + g * (T - this.cT1);
+    const last = this.plan.powers.length - 1;
+    const from = this.topY(goneBefore(this.plan, last), r);
+    const to = this.topY(this.plan.layers, r);
+    const p = this.plunge(last);
+    const w = Math.max(0, to - from) / Math.max(1e-6, p);
+    const rest = Math.max(1e-3, T / 2 - p);
+    const e = Math.max(1, this.exitY(r) - to);
+    const acc = Math.max(0, (2 * (e - w * rest)) / (rest * rest));
+    return { from, to, p, w, rest, e, acc };
   }
 
   /** The ball's height and vertical speed at simulation time `t` (s), from the plan and the current field. */
@@ -806,21 +874,33 @@ export class PowerLayersMode implements GameMode {
       out.vy = u + g * t;
       return out;
     }
-    const k = Math.floor((t - T / 2) / T);
+    const k = Math.min(hits - 1, Math.floor((t - T / 2) / T));
+    const s = t - hitTimeSec(k, T);
     if (k >= hits - 1) {
-      // The last hit cleared the stack: the ball keeps falling and leaves the field within half a period.
-      const last = hits - 1;
-      const from = this.topY(goneBefore(this.plan, last), r);
-      const w = this.impactSpeed(last, r, g, d0);
-      const e = Math.max(1, this.exitY(r) - from);
-      const acc = Math.max(g, (2 * (e - (w * T) / 2)) / ((T / 2) * (T / 2)));
-      const s = t - hitTimeSec(last, T);
-      out.y = from + w * s + 0.5 * acc * s * s;
-      out.vy = w + acc * s;
+      // The last hit drills through every layer left, then the ball falls out of the field within half a period.
+      const x = this.exitLeg(r);
+      if (s < x.p) {
+        out.y = x.from + x.w * s;
+        out.vy = x.w;
+        return out;
+      }
+      const q = s - x.p;
+      out.y = x.to + x.w * q + 0.5 * x.acc * q * q;
+      out.vy = x.w + x.acc * q;
       return out;
     }
     this.bounce(k, r, g);
-    const sigma = t - hitTimeSec(k, T) - this.cT1;
+    if (s < this.cP) {
+      // The drill: down through the layers of hit k, fast at first and slowing as they give way.
+      const from = this.topY(goneBefore(this.plan, k), r);
+      const depth = Math.max(0, this.topY(this.plan.goneAfter[k], r) - from);
+      const x = s / this.cP;
+      out.y = from + depth * plungeDepth(s, this.cP);
+      out.vy = (2 * depth * (1 - x)) / this.cP;
+      return out;
+    }
+    // The rebound: up to the ceiling and back onto the new top, half of the rest of the period each way.
+    const sigma = s - this.cP - (T - this.cP) / 2;
     const abs = Math.abs(sigma);
     out.y = c + this.cU * abs + 0.5 * g * sigma * sigma;
     out.vy = (sigma < 0 ? -1 : 1) * (this.cU + g * abs);
@@ -833,18 +913,21 @@ export class PowerLayersMode implements GameMode {
   }
 
   /** When (s) the ball crosses the exit line after the last hit. */
-  private exitTimeSec(r: number, gravity: number): number {
+  private exitTimeSec(r: number): number {
+    const T = this.view.periodSec;
+    const x = this.exitLeg(r);
+    return hitTimeSec(this.plan.powers.length - 1, T) + x.p + Math.min(x.rest, fallTime(x.e, x.w, x.acc));
+  }
+
+  /** Layers gone at simulation time `t` (s): every hit before the last impact, and as much of its drill as the ball has passed. */
+  private goneAt(t: number): number {
     const T = this.view.periodSec;
     const hits = this.plan.powers.length;
-    const last = hits - 1;
-    const c = this.ceilingY(r);
-    const d0 = Math.max(1, this.topY(0, r) - c);
-    const g = arcGravity(d0, T, gravity);
-    const from = this.topY(goneBefore(this.plan, last), r);
-    const w = this.impactSpeed(last, r, g, d0);
-    const e = Math.max(1, this.exitY(r) - from);
-    const acc = Math.max(g, (2 * (e - (w * T) / 2)) / ((T / 2) * (T / 2)));
-    return hitTimeSec(last, T) + Math.min(T / 2, fallTime(e, w, acc));
+    if (t < T / 2 - 1e-9) return 0;
+    const k = Math.min(hits - 1, Math.floor((t - T / 2) / T + 1e-9));
+    const last = k >= hits - 1;
+    const p = this.plunge(k);
+    return goneBefore(this.plan, k) + crackedAt(plungeDepth(t - hitTimeSec(k, T), p, last), this.plan.destroyed[k]);
   }
 
   /** Puts the ball where the plan has it at time `t` (the drift gives its x). */
@@ -902,7 +985,7 @@ export class PowerLayersMode implements GameMode {
         const c = this.ceilingY(r);
         const d0 = Math.max(1, this.topY(0, r) - c);
         this.bounce(k, r, arcGravity(d0, T, this.gravity));
-        const at = hitTimeSec(k, T) + this.cT1;
+        const at = hitTimeSec(k, T) + this.cP + (T - this.cP) / 2;
         if (at > from && at <= now) {
           const slot = v.ceilingCount % CEILING_CONTACTS;
           v.ceilingSec[slot] = at;
@@ -911,10 +994,11 @@ export class PowerLayersMode implements GameMode {
         }
       }
     }
-    // The hits that landed during this step.
+    // The hits that landed during this step, then the layers the drill cracked through.
     while (this.processed < hits && hitTimeSec(this.processed, T) <= now + 1e-9) this.hit(ctx, this.processed++);
+    this.crackTo(ctx, this.goneAt(now), now);
     // Freedom: the ball fell out of the bottom.
-    if (!v.freed && this.processed >= hits && now >= this.exitTimeSec(r, this.gravity) - 1e-9) this.free(ctx, ball);
+    if (!v.freed && this.processed >= hits && now >= this.exitTimeSec(r) - 1e-9) this.free(ctx, ball);
     if (!v.finished && this.clockMs >= 1000 * v.finishSec - 1e-6) v.finished = true;
   }
 
@@ -927,19 +1011,20 @@ export class PowerLayersMode implements GameMode {
     const before = goneBefore(plan, k);
     const destroyed = plan.destroyed[k];
     const last = k === plan.powers.length - 1;
+    // A drill still cracking (a period too short for it) gives way at once: the new impact starts from the top it left.
+    if (this.cracked < before) this.crackTo(ctx, before, at);
     v.hits = k + 1;
-    v.gone = plan.goneAfter[k];
     v.lastDestroyed = destroyed;
     v.lastHitSec = at;
     v.flashFrom = before;
-    v.flashTo = v.gone;
+    v.flashTo = before;
+    this.hitParticles = 0;
     v.power = last ? plan.finalPower : plan.powers[k + 1];
     v.level = Math.min(plan.powers.length, k + 2);
     if (destroyed >= BIG_HIT_LAYERS) {
       v.bigHits++;
       v.lastBigSec = at;
     }
-    this.spawnShatter(before, v.gone, at);
     // --- bounce-math --- a hit on the stack is the ball's bounce
     if (ctx.noteBounce) {
       const ball = this.findBall(ctx);
@@ -980,7 +1065,7 @@ export class PowerLayersMode implements GameMode {
     const f = v.field;
     v.freed = true;
     const r = ball ? ball.radius : ctx.config.ballRadius || 10;
-    v.freedSec = this.exitTimeSec(r, this.gravity);
+    v.freedSec = this.exitTimeSec(r);
     v.freedX = ball ? (ball.x - f.left) / Math.max(1, f.width) : this.ux;
     const x = f.left + v.freedX * f.width;
     ctx.spawnConfetti(x, f.bottom - 0.02 * f.height);
@@ -998,15 +1083,42 @@ export class PowerLayersMode implements GameMode {
     return slot;
   }
 
-  /** The destroyed band (layers `from`…`to`) shatters: particles in the colours of its layers burst up and fall. */
-  private spawnShatter(from: number, to: number, at: number) {
+  /**
+   * The drill reached `target` layers gone: every layer it passed cracks – its particles, the stack top drops, the band
+   * flashes – and the step plays one crack (the deepest layer's pitch, louder for several at once).
+   */
+  private crackTo(ctx: ModeContext, target: number, at: number) {
+    const v = this.view;
+    const plan = this.plan;
+    const goal = Math.min(plan.layers, target);
+    if (goal <= this.cracked) return;
+    const from = this.cracked;
+    this.cracked = goal;
+    v.gone = goal;
+    v.flashTo = goal;
+    v.lastCrackSec = at;
+    v.cracks += goal - from;
+    // The particles: `PARTICLES_PER_LAYER` a layer while the hit's budget lasts, at least one a step.
+    const n = Math.max(1, Math.min(PARTICLES_PER_LAYER * (goal - from), MAX_PARTICLES_PER_HIT - this.hitParticles));
+    this.hitParticles += n;
+    this.spawnShatter(from, goal, at, n);
+    // The crack of the deepest layer this step reached, in the hit it belongs to.
+    const k = Math.max(0, this.processed - 1);
+    const before = goneBefore(plan, k);
+    const d = plan.destroyed[k] ?? 0;
+    const { scale, rootNote } = v.settings;
+    const j = Math.max(0, Math.min(d - 1, goal - 1 - before));
+    ctx.addPendingSoundEvent({ type: "hit", wallIndex: 0, plCrack: true, melody: false, frequency: crackPitch(k, j, d, scale, rootNote), level: Math.min(1, 0.55 + 0.08 * (goal - from - 1)) });
+  }
+
+  /** The cracked band (layers `from`…`to`) shatters: `n` particles in the colours of its layers burst up and fall. */
+  private spawnShatter(from: number, to: number, at: number, n: number) {
     const v = this.view;
     const d = to - from;
     if (d <= 0) return;
     const L = this.plan.layers;
     const y0 = STACK_TOP_AT + (from / L) * (STACK_BOTTOM_AT - STACK_TOP_AT);
     const y1 = STACK_TOP_AT + (to / L) * (STACK_BOTTOM_AT - STACK_TOP_AT);
-    const n = Math.min(MAX_PARTICLES_PER_HIT, 6 + 3 * d);
     const rnd = this.fx;
     for (let i = 0; i < n; i++) {
       const s = this.nextParticleSlot();

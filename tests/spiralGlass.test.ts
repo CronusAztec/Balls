@@ -9,6 +9,7 @@ import {
   MAX_SPIRAL_BALLS,
   MAX_TURNS,
   MULTIPLY_COOLDOWN_MS,
+  PUSH_CAP,
   OUTER_AT,
   SPIRAL_GLASS_BALL_RADIUS,
   SPIRAL_GLASS_RANGES,
@@ -22,20 +23,30 @@ import {
   bandOf,
   bandOuter,
   buildSpiralGlassLayout,
+  channelBand,
+  channelEnd,
+  channelPhi,
+  channelPoint,
+  channelRadius,
   chipPitch,
   clearChord,
+  crossingsBetween,
   defaultSpiralGlassFields,
+  frontReach,
   inTail,
   lineHue,
   linePoint,
   outerBoundary,
   pointOf,
   polarOf,
+  queueGap,
   resolveSpiralGlassFields,
   resolveSpiralGlassSettings,
-  spawnPoint,
+  spawnQ,
   spiralGlassModeDefaults,
   spiralGlassSettingsOf,
+  tileAlong,
+  tileFaceQ,
   tileIndex,
   tileOf,
   wrapPhi,
@@ -56,10 +67,10 @@ import type { PhysicsEngine } from "@/lib/physics/engine";
 
 /**
  * Spiral Glass (feature spiral-glass): the settings / URL / presets, the spiral geometry (polar frames, bands, tiles, the
- * outer wall, the mouth), the colours and pitches, the mode in the engine (balls never inside intact glass nor outside the
- * outer wall, chips taking hit points and throwing shards, the outer band eroding before the inner ones, the multiply on a
- * lap past the entrance with the cap and the cooldown, the cleared ending with its chord and hold, the timeout, determinism,
- * a resize), the finder and the renderer's pure helpers.
+ * outer wall, the channel coordinate, the mouth), the colours and pitches, the mode in the engine (balls running the channel,
+ * never across the spiral wall, inside intact glass nor on one another, the glass eaten along the channel from the entrance
+ * in, the queue pushing, the multiply on a lap past the entrance with the cap and the cooldown, the cleared ending with its
+ * chord and hold, the timeout, determinism, a resize), the finder and the renderer's pure helpers.
  */
 
 const config: PhysicsConfig = {
@@ -135,6 +146,38 @@ function worstPlacement(engine: PhysicsEngine): number {
   return worst;
 }
 
+/** The worst overlap of two balls, and of a ball with the spiral wall either side of its channel (px). */
+function worstChannel(engine: PhysicsEngine): number {
+  const v = engine.getSpiralGlassView();
+  const L = v.layout!;
+  const balls = engine.getBalls();
+  let worst = 0;
+  for (let i = 0; i < balls.length; i++) {
+    for (let j = i + 1; j < balls.length; j++) worst = Math.max(worst, balls[i].radius + balls[j].radius - Math.hypot(balls[i].x - balls[j].x, balls[i].y - balls[j].y));
+    const st = engine.spiralGlassMode.stateOf(balls[i].id);
+    if (!st || st.q < 0) continue;
+    // the ball's centre in the middle of its channel, a pitch wide: never through either wall
+    const c = channelBand(st.q);
+    const { rho, phi } = polarOf(L, balls[i].x, balls[i].y);
+    worst = Math.max(worst, bandInner(L, c, phi) - (rho - balls[i].radius), rho + balls[i].radius - bandOuter(L, c, phi));
+  }
+  return worst;
+}
+
+/** Clears the glass along the channel up to position `j` (tests that place a ball deep in the spiral). */
+function clearTo(engine: PhysicsEngine, j: number) {
+  const v = engine.getSpiralGlassView();
+  const L = v.layout!;
+  for (let k = 0; k < j; k++) {
+    const t = tileAlong(L.turns, k);
+    if (v.hp[t] === 0) continue;
+    v.hpLeft -= v.hp[t];
+    v.hp[t] = 0;
+    v.tilesLeft--;
+  }
+  (engine.spiralGlassMode as unknown as { frontier: number }).frontier = j;
+}
+
 /** Tiles still standing per band, outermost band first. */
 function bandsLeft(engine: PhysicsEngine): number[] {
   const v = engine.getSpiralGlassView();
@@ -151,13 +194,13 @@ function bandsLeft(engine: PhysicsEngine): number[] {
 
 describe("settings, URL and presets", () => {
   it("defaults and ranges", () => {
-    expect(defaultSpiralGlassFields()).toEqual({ sgTurns: 6, sgGlassHp: 2, sgSpeed: 0.8, sgMaxBalls: 40, sgRainbow: true, sgChipEvery: 0.25 });
+    expect(defaultSpiralGlassFields()).toEqual({ sgTurns: 6, sgGlassHp: 2, sgSpeed: 0.8, sgMaxBalls: 40, sgRainbow: true, sgChipEvery: 0.1 });
     for (const key of Object.keys(SPIRAL_GLASS_RANGES) as (keyof typeof SPIRAL_GLASS_RANGES)[]) expect(RANGES[key]).toEqual(SPIRAL_GLASS_RANGES[key]);
     expect(SPIRAL_GLASS_RANGES.sgTurns).toMatchObject({ min: 3, max: 10 });
     expect(SPIRAL_GLASS_RANGES.sgGlassHp).toMatchObject({ min: 1, max: 5 });
     expect(SPIRAL_GLASS_RANGES.sgSpeed).toMatchObject({ min: 0.3, max: 2 });
     expect(SPIRAL_GLASS_RANGES.sgMaxBalls).toMatchObject({ min: 1, max: 100 });
-    expect(SPIRAL_GLASS_RANGES.sgChipEvery).toMatchObject({ min: 0.1, max: 1 });
+    expect(SPIRAL_GLASS_RANGES.sgChipEvery).toMatchObject({ min: 0.05, max: 1 });
     for (const mode of MODE_IDS) {
       const d = defaultSettings(mode);
       expect(resolveSpiralGlassFields(d)).toEqual(defaultSpiralGlassFields());
@@ -169,7 +212,7 @@ describe("settings, URL and presets", () => {
   });
 
   it("resolve clamps onto the sliders, caps the turns and the balls at their ceilings and drops bad values", () => {
-    expect(resolveSpiralGlassSettings({ turns: 99, glassHp: 0, speed: 0.01, maxBalls: 9999, chipEvery: 0 })).toMatchObject({ turns: MAX_TURNS, glassHp: 1, speed: 0.3, maxBalls: MAX_SPIRAL_BALLS, chipEvery: 0.1 });
+    expect(resolveSpiralGlassSettings({ turns: 99, glassHp: 0, speed: 0.01, maxBalls: 9999, chipEvery: 0 })).toMatchObject({ turns: MAX_TURNS, glassHp: 1, speed: 0.3, maxBalls: MAX_SPIRAL_BALLS, chipEvery: 0.05 });
     expect(resolveSpiralGlassSettings({ turns: 1, glassHp: 9, speed: 7, maxBalls: 0, chipEvery: 3 })).toMatchObject({ turns: 3, glassHp: 9, speed: 7, maxBalls: 1, chipEvery: 3 }); // --- uncap-all --- (no maximum on the hit points, the speed and the chip time)
     expect(resolveSpiralGlassSettings({ turns: 6.4, glassHp: 2.6, speed: 1.234, maxBalls: 12.2, chipEvery: 0.333 })).toMatchObject({ turns: 6, glassHp: 3, speed: 1.2, maxBalls: 12, chipEvery: 0.35 });
     const junk = { turns: "many", glassHp: null, speed: "x", maxBalls: undefined, rainbow: "yes", chipEvery: NaN } as unknown as Partial<SpiralGlassSettings>;
@@ -193,7 +236,7 @@ describe("settings, URL and presets", () => {
     expect(back.mode).toBe("spiralGlass");
     expect(resolveSpiralGlassFields(back)).toEqual({ sgTurns: 8, sgGlassHp: 3, sgSpeed: 1.2, sgMaxBalls: 25, sgRainbow: false, sgChipEvery: 0.5 });
     const bad = settingsFromSearchParams(new URLSearchParams("mode=spiralGlass&sgt=500&sgh=abc&sgr=7&sgm=0&sgv=0&sgc=-1"));
-    expect(resolveSpiralGlassFields(bad)).toEqual({ ...defaultSpiralGlassFields(), sgTurns: MAX_TURNS, sgMaxBalls: 1, sgSpeed: 0.3, sgChipEvery: 0.1 });
+    expect(resolveSpiralGlassFields(bad)).toEqual({ ...defaultSpiralGlassFields(), sgTurns: MAX_TURNS, sgMaxBalls: 1, sgSpeed: 0.3, sgChipEvery: 0.05 });
     const preset = presetToSettings({ mode: "spiralGlass", sgTurns: 0, sgRainbow: "no", sgSpeed: 9 } as unknown as Parameters<typeof presetToSettings>[0]);
     expect(resolveSpiralGlassFields(preset)).toMatchObject({ sgTurns: 3, sgRainbow: true, sgSpeed: 9 }); // ("no" is not a boolean: the default stays)
     expect(modeSettingsOfSettings(s).spiralGlass).toEqual({ turns: 8, glassHp: 3, speed: 1.2, maxBalls: 25, rainbow: false, chipEvery: 0.5 });
@@ -304,17 +347,53 @@ describe("the spiral geometry", () => {
     expect(outerBoundary(L, L.mouthPhi + 1e-6)).toBeCloseTo(p * (7 - (1 - TAIL_TURNS)), 3);
     expect(outerBoundary(L, L.mouthPhi + 1e-6)).toBeCloseTo(L.outerRadius, 3);
     expect(outerBoundary(L, TWO_PI - 1e-6)).toBeCloseTo(6 * p, 3);
-    // the spawn point: in the ramp (band 6), the jitter moving it across the ramp
-    const at = spawnPoint(L, 0);
-    expect(at.phi).toBeCloseTo(L.spawnPhi, 12);
-    expect(bandOf(L, at.rho, at.phi)).toBe(6);
-    expect(spawnPoint(L, 1).rho).toBeGreaterThan(at.rho);
-    expect(spawnPoint(L, -1).rho).toBeLessThan(at.rho);
-    for (const j of [-1, 1]) {
-      const q = spawnPoint(L, j);
-      expect(q.rho - L.ballRadius).toBeGreaterThan(bandInner(L, 6, q.phi));
-      expect(q.rho + L.ballRadius).toBeLessThan(bandOuter(L, 6, q.phi));
+    // the channel coordinate: a band a turn, a whole number on the entrance ray, falling clockwise
+    expect(channelPhi(3)).toBeCloseTo(0, 12);
+    expect(channelPhi(2.75)).toBeCloseTo(Math.PI / 2, 9);
+    expect(channelBand(3)).toBe(3);
+    expect(channelBand(2.99)).toBe(3);
+    expect(channelBand(2.75)).toBe(3);
+    expect(channelBand(2.01)).toBe(3);
+    expect(channelRadius(L, 3, L.ballRadius)).toBeCloseTo(3.5 * p, 9);
+    expect(channelRadius(L, 2.75, L.ballRadius)).toBeCloseTo(0.5 * (bandInner(L, 3, Math.PI / 2) + bandOuter(L, 3, Math.PI / 2)), 9);
+    // the innermost band narrows to the centre: the deepest a ball fits touches its outer wall and the centre
+    const end = channelEnd(L, L.ballRadius);
+    expect(end).toBeCloseTo((2 * L.ballRadius) / p - 1, 12);
+    expect(channelRadius(L, end, L.ballRadius)).toBeCloseTo(L.ballRadius, 9);
+    expect(channelRadius(L, end - 0.1, L.ballRadius)).toBe(L.ballRadius);
+    // the mouth: just past it on the ramp (band 6, the tail sector)
+    const q0 = spawnQ(L);
+    expect(channelBand(q0)).toBe(6);
+    expect(channelPhi(q0)).toBeCloseTo(L.spawnPhi, 9);
+    expect(inTail(L, channelPhi(q0))).toBe(true);
+    const at = channelPoint(L, q0, L.ballRadius);
+    expect(bandOf(L, ...(({ rho, phi }) => [rho, phi] as const)(polarOf(L, at.x, at.y)))).toBe(6);
+    // the glass along the channel: the first tile is band 5's at the entrance, then clockwise and a band inward every turn
+    expect(tileAlong(6, 0)).toBe(tileIndex(5, 0));
+    expect(tileAlong(6, 1)).toBe(tileIndex(5, 1));
+    expect(tileAlong(6, TILES_PER_TURN)).toBe(tileIndex(4, 0));
+    expect(tileAlong(6, 6 * TILES_PER_TURN - 1)).toBe(tileIndex(0, TILES_PER_TURN - 1));
+    expect(tileFaceQ(6, 0)).toBe(5);
+    expect(tileFaceQ(6, 1)).toBeCloseTo(5 - 1 / TILES_PER_TURN, 12);
+    for (let j = 0; j < 6 * TILES_PER_TURN; j += 7) {
+      const qf = tileFaceQ(6, j) - 0.5 / TILES_PER_TURN;
+      expect(tileIndex(channelBand(qf), tileOf(channelPhi(qf)))).toBe(tileAlong(6, j));
     }
+    // a ball touches a face a quarter turn ahead at most (once it touches the centre); two touching balls sit a diameter apart
+    expect(frontReach(L, 3, L.ballRadius)).toBeCloseTo(Math.asin(L.ballRadius / (3.5 * p)) / TWO_PI, 12);
+    expect(frontReach(L, end, L.ballRadius)).toBeCloseTo(0.25, 6);
+    for (const q of [5.2, 3, 1, 0.2, -0.2, end]) {
+      const a = channelPoint(L, q, L.ballRadius);
+      const b = channelPoint(L, q + queueGap(L, q, L.ballRadius), L.ballRadius);
+      expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeGreaterThanOrEqual(2 * L.ballRadius - 1e-2);
+      expect(Math.hypot(b.x - a.x, b.y - a.y)).toBeLessThan(2.2 * L.ballRadius);
+    }
+    // the laps past the entrance: from the mouth the ramp's end is the first crossing
+    expect(crossingsBetween(q0, q0)).toBe(0);
+    expect(crossingsBetween(q0, 5.01)).toBe(0);
+    expect(crossingsBetween(q0, 5)).toBe(1);
+    expect(crossingsBetween(q0, 3.5)).toBe(2);
+    expect(crossingsBetween(q0, -0.3)).toBe(6);
   });
 
   it("colours the balls round a ring of hues, cycles the line's hue slowly, and pitches the chips up the pentatonic inward", () => {
@@ -356,8 +435,8 @@ describe("the mode in the engine", () => {
     expect(first.color).toBe(ballColorAt(0));
     expect(bandOf(L, ...(({ rho, phi }) => [rho, phi] as const)(polarOf(L, first.x, first.y)))).toBe(6);
     let worst = 0;
-    const { events } = run(engine, 12, (e) => {
-      worst = Math.max(worst, worstPlacement(e));
+    const { events } = run(engine, 4, (e) => {
+      worst = Math.max(worst, worstPlacement(e), worstChannel(e));
     });
     expect(worst).toBeLessThanOrEqual(1);
     expect(v.chips).toBeGreaterThan(10);
@@ -381,41 +460,58 @@ describe("the mode in the engine", () => {
     expect(v.count).toBe(1);
   });
 
-  it("a ball sunk into the glass is pushed back onto its outer wall, and the chip after chipEvery seconds takes a hit point and throws shards", () => {
-    const engine = spiralEngine({ chipEvery: 0.2 }, 5);
+  it("runs the channel: up against the first standing tile, grinding it a hit point per chipEvery, and on into it once it is gone", () => {
+    const engine = spiralEngine({ chipEvery: 0.2, maxBalls: 1 }, 5);
     const v = engine.getSpiralGlassView();
     const L = v.layout!;
-    run(engine, 12);
-    // Where the outer band is bored open, put the ball deep inside band 4: it is pushed out onto band 4's outer wall and grinds that tile.
-    const outer = 5;
-    let phi = -1;
-    for (let i = 3; i < TILES_PER_TURN; i++) if (v.hp[tileIndex(outer, i)] === 0 && v.hp[tileIndex(outer, i - 1)] === 0 && v.hp[tileIndex(outer, i - 2)] === 0) phi = ((i - 0.5) * TWO_PI) / TILES_PER_TURN;
-    expect(phi).toBeGreaterThan(0);
+    const mode = engine.spiralGlassMode;
     const ball = engine.getBalls()[0];
-    const q = pointOf(L, bandInner(L, 4, phi) + 0.5 * L.pitch, phi);
-    ball.x = q.x;
-    ball.y = q.y;
-    engine.update(STEP, 0);
+    // the ball comes down the ramp and stops against the first tile, touching its face, held back
+    for (let i = 0; i < 180 && !mode.stateOf(ball.id)!.blocked; i++) engine.update(STEP, 0);
     engine.consumeSoundEvents();
-    const after = polarOf(L, ball.x, ball.y);
-    expect(after.rho - L.ballRadius).toBeGreaterThanOrEqual(bandOuter(L, 4, after.phi) - 1);
+    let st = mode.stateOf(ball.id)!;
+    expect(mode.getFrontier()).toBe(0);
+    expect(st.blocked).toBe(true);
+    expect(st.q).toBeCloseTo(tileFaceQ(6, 0) + frontReach(L, st.q, L.ballRadius), 3);
     expect(worstPlacement(engine)).toBeLessThanOrEqual(1);
-    const tile = tileIndex(4, tileOf(after.phi));
-    const hpBefore = v.hp[tile] + v.hp[tile + 1];
-    const chipsBefore = v.chips;
+    // a hit point every chipEvery seconds of contact; the tile's shards fly, its note plays
+    const chips = v.chips;
     v.shardCount = 0;
-    const { events } = run(engine, 0.3);
-    expect(v.chips).toBeGreaterThan(chipsBefore);
-    expect(v.hp[tile] + v.hp[tile + 1]).toBeLessThan(hpBefore);
+    const { events } = run(engine, 1);
+    expect(v.chips - chips).toBeGreaterThanOrEqual(4);
+    expect(v.chips - chips).toBeLessThanOrEqual(6);
     expect(v.shardCount).toBeGreaterThan(0);
-    expect(events.some(({ ev }) => ev.type === "hit" && Math.abs((ev.frequency ?? 0) - chipPitch(4, 6)) < 1e-6)).toBe(true);
-    // a ball dropped into several intact bands at once climbs out of all of them, onto the outer wall if need be
-    const deep = pointOf(L, 0.5 * L.pitch, Math.PI);
-    ball.x = deep.x;
-    ball.y = deep.y;
-    engine.update(STEP, 0);
-    engine.consumeSoundEvents();
-    expect(worstPlacement(engine)).toBeLessThanOrEqual(1);
+    expect(events.some(({ ev }) => ev.type === "hit" && Math.abs((ev.frequency ?? 0) - chipPitch(5, 6)) < 1e-6)).toBe(true);
+    // two hit points a tile: the frontier has moved on and the ball followed it along the channel, never ahead of it
+    expect(mode.getFrontier()).toBeGreaterThanOrEqual(2);
+    for (let j = 0; j < mode.getFrontier(); j++) expect(v.hp[tileAlong(6, j)]).toBe(0);
+    for (let j = mode.getFrontier(); j < v.tilesTotal; j++) expect(v.hp[tileAlong(6, j)]).toBeGreaterThan(0);
+    st = mode.stateOf(ball.id)!;
+    expect(st.q).toBeGreaterThanOrEqual(tileFaceQ(6, mode.getFrontier()) - 1e-9);
+    expect(st.q).toBeLessThan(tileFaceQ(6, 0));
+    // the glass gone ahead: the ball runs on down the channel to the deepest point it fits and stays there
+    clearTo(engine, v.tilesTotal);
+    run(engine, 15, (e) => expect(worstChannel(e)).toBeLessThanOrEqual(1e-6));
+    st = mode.stateOf(ball.id)!;
+    expect(st.q).toBeCloseTo(channelEnd(L, L.ballRadius), 9);
+  });
+
+  it("the queue: balls behind wait a diameter back, never on one another, and every ball pressing behind the front grinds with it", () => {
+    let worst = 0;
+    const lone = spiralEngine({ maxBalls: 1 }, 8);
+    run(lone, 25);
+    const crowd = spiralEngine({}, 8);
+    let queued = 0;
+    run(crowd, 25, (e) => {
+      worst = Math.max(worst, worstChannel(e), worstPlacement(e));
+      const touching = e.getBalls().filter((b) => e.spiralGlassMode.stateOf(b.id)!.blocked).length;
+      queued = Math.max(queued, touching);
+    });
+    expect(worst).toBeLessThanOrEqual(1);
+    expect(queued).toBeGreaterThanOrEqual(3);
+    // more balls, more pushing: the crowd has eaten far more glass than one ball alone in the same time
+    expect(crowd.getSpiralGlassView().chips).toBeGreaterThan(1.3 * lone.getSpiralGlassView().chips);
+    expect(PUSH_CAP).toBeGreaterThan(1);
   });
 
   it("erodes the bands from the outside in through a default run and ends with GLASS CLEARED, its chord, confetti and the hold", () => {
@@ -425,14 +521,14 @@ describe("the mode in the engine", () => {
     let confetti = false;
     const firstGone: number[] = [-1, -1, -1, -1, -1, -1];
     const { events, finishedAt } = run(engine, 240, (e) => {
-      worst = Math.max(worst, worstPlacement(e));
+      worst = Math.max(worst, worstPlacement(e), worstChannel(e));
       const left = bandsLeft(e);
       for (let c = 0; c < 6; c++) if (left[c] === 0 && firstGone[c] < 0) firstGone[c] = e.getElapsedMs();
       if (e.getParticles().some((p) => p.type === "confetti")) confetti = true;
     });
     expect(worst).toBeLessThanOrEqual(1);
-    expect(finishedAt).toBeGreaterThan(30);
-    expect(finishedAt).toBeLessThan(240);
+    expect(finishedAt).toBeGreaterThan(20);
+    expect(finishedAt).toBeLessThan(60);
     expect(v.clearedMs).toBeGreaterThanOrEqual(0);
     expect(v.timeoutMs).toBe(-1);
     expect(v.tilesLeft).toBe(0);
@@ -446,8 +542,8 @@ describe("the mode in the engine", () => {
       expect(firstGone[c]).toBeGreaterThan(0);
       expect(firstGone[c]).toBeLessThan(firstGone[c + 1]);
     }
-    // the multiply: the count climbed to the cap and the balls with it, with the cooldown between counts
-    expect(v.count).toBeGreaterThanOrEqual(15);
+    // the multiply: the count climbed and the balls with it, with the cooldown between counts
+    expect(v.count).toBeGreaterThanOrEqual(8);
     expect(engine.getBalls().length).toBe(Math.min(40, v.spawned));
     expect(engine.getBalls().length).toBeLessThanOrEqual(40);
     const multiplies = events.filter(({ ev }) => ev.type === "multiplier");
@@ -477,26 +573,25 @@ describe("the mode in the engine", () => {
     expect(data.spiralCount).toBe(String(v.count));
   }, 60_000);
 
-  it("multiplies on a lap past the entrance: a ball placed a step before the entrance ray counts and queues a new ball, the ramp's end never does, the cap holds", () => {
+  it("multiplies on a lap past the entrance: a ball running past the entrance ray counts and queues a new ball, the ramp's end never does, the cap holds", () => {
     const engine = spiralEngine({ maxBalls: 3 }, 2);
     const v = engine.getSpiralGlassView();
     const L = v.layout!;
     const ball = engine.getBalls()[0];
     const st = () => engine.spiralGlassMode.stateOf(ball.id)!;
-    // the ramp's end: the first crossing (from the spawn angle round to 2π) is not a lap
+    const raw = (engine.spiralGlassMode as unknown as { state: Map<number, { q: number }> }).state;
+    // the ramp's end: the first crossing (from the mouth onto the entrance ray) is not a lap
     expect(st().crossed).toBe(0);
-    run(engine, 3);
+    for (let i = 0; i < 180 && st().crossed === 0; i++) engine.update(STEP, 0);
+    engine.consumeSoundEvents();
     expect(st().crossed).toBe(1);
     expect(v.count).toBe(1);
-    // pretend the ball has been round once more: a step before the ray, its travel one lap short of the next multiple of 2π
-    const inner = engine.spiralGlassMode as unknown as { state: Map<number, { travel: number; phi: number; rho: number }> };
-    const raw = inner.state.get(ball.id)!;
-    const phi = TWO_PI - 0.02;
-    raw.phi = phi;
-    raw.travel = 2 * TWO_PI - 0.02;
-    const q = pointOf(L, raw.rho, phi);
-    ball.x = q.x;
-    ball.y = q.y;
+    // the glass cleared to past the next lap and the ball put a hair before the ray: it runs on across it
+    const lapTo = (q: number, through: number) => {
+      clearTo(engine, through);
+      raw.get(ball.id)!.q = q;
+    };
+    lapTo(4 + 1e-4, 2 * TILES_PER_TURN);
     const { events } = run(engine, 0.5);
     expect(st().crossed).toBe(2);
     expect(v.count).toBe(2);
@@ -508,29 +603,26 @@ describe("the mode in the engine", () => {
     expect(engine.getBalls().length).toBe(2);
     const second = engine.getBalls()[1];
     expect(second.color).toBe(ballColorAt(1));
-    expect(bandOf(L, ...(({ rho, phi: p }) => [rho, p] as const)(polarOf(L, second.x, second.y)))).toBeGreaterThanOrEqual(5);
-    // the cap: two more laps (the cooldown apart) count on the badge but only one more ball comes in
+    expect(engine.spiralGlassMode.stateOf(second.id)!.q).toBeGreaterThan(4.5);
+    // the cap: more laps (the cooldown apart, the new balls' too) count on the badge but only one more ball comes in
+    const multiplies: number[] = [];
     for (let k = 0; k < 2; k++) {
-      run(engine, 3);
-      const r = inner.state.get(ball.id)!;
-      r.phi = phi;
-      r.travel = (3 + k) * TWO_PI - 0.02;
-      const p = pointOf(L, r.rho, phi);
-      ball.x = p.x;
-      ball.y = p.y;
-      run(engine, 0.5);
+      multiplies.push(...run(engine, 3).events.filter(({ ev }) => ev.type === "multiplier").map(({ t }) => t));
+      lapTo(3 - k + 1e-4, (4 + k) * TILES_PER_TURN);
+      multiplies.push(...run(engine, 0.5).events.filter(({ ev }) => ev.type === "multiplier").map(({ t }) => t));
     }
-    expect(v.count).toBe(4);
+    expect(v.count).toBeGreaterThanOrEqual(4);
+    expect(v.count).toBe(2 + multiplies.length);
     expect(engine.getBalls().length).toBe(3);
+    for (let i = 1; i < multiplies.length; i++) expect(multiplies[i] - multiplies[i - 1]).toBeGreaterThanOrEqual(MULTIPLY_COOLDOWN_MS / 1000 - 0.02);
     // the cooldown: a lap right after a count is not counted
-    const r = inner.state.get(ball.id)!;
-    r.phi = phi;
-    r.travel = 5 * TWO_PI - 0.02;
-    const p = pointOf(L, r.rho, phi);
-    ball.x = p.x;
-    ball.y = p.y;
+    (engine.spiralGlassMode as unknown as { lastMultiplyMs: number }).lastMultiplyMs = engine.getElapsedMs();
+    const count = v.count;
+    lapTo(1 + 1e-4, 6 * TILES_PER_TURN);
     run(engine, 0.2);
-    expect(v.count).toBe(4);
+    expect(st().crossed).toBeGreaterThanOrEqual(5);
+    expect(v.count).toBe(count);
+    expect(L.turns).toBe(6);
   });
 
   it("holds every ball inside the outer wall and out of intact glass with a crowd, and the queue keeps balls off each other", () => {
@@ -539,7 +631,7 @@ describe("the mode in the engine", () => {
     let worst = 0;
     let maxBalls = 0;
     run(engine, 70, (e) => {
-      worst = Math.max(worst, worstPlacement(e));
+      worst = Math.max(worst, worstPlacement(e), worstChannel(e));
       maxBalls = Math.max(maxBalls, e.getBalls().length);
       for (const b of e.getBalls()) {
         expect(Number.isFinite(b.x) && Number.isFinite(b.y)).toBe(true);
@@ -547,7 +639,7 @@ describe("the mode in the engine", () => {
       }
     });
     expect(worst).toBeLessThanOrEqual(1);
-    expect(maxBalls).toBeGreaterThan(10);
+    expect(maxBalls).toBeGreaterThan(6);
     expect(maxBalls).toBeLessThanOrEqual(60);
     expect(v.chips).toBeGreaterThan(50);
     const mode = new SpiralGlassMode();
@@ -595,7 +687,7 @@ describe("the mode in the engine", () => {
     expect(snapshot(a)).toEqual(snapshot(b));
   });
 
-  it("a canvas resize mid-run rebuilds the spiral and keeps every ball at its polar place, the tiles kept", () => {
+  it("a canvas resize mid-run rebuilds the spiral and keeps every ball at its place along the channel, the tiles kept", () => {
     const engine = spiralEngine({}, 6);
     run(engine, 20);
     const v = engine.getSpiralGlassView();

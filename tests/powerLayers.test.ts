@@ -4,6 +4,9 @@ import {
   DEFAULT_POWER_LAYERS_SETTINGS,
   FREEDOM_HOLD_SEC,
   MAX_PLAN_HITS,
+  PARTICLES_PER_LAYER,
+  PLUNGE_MAX_SHARE,
+  PLUNGE_PER_LAYER_SEC,
   POWER_LAYERS_RANGES,
   PowerSequence,
   arcGravity,
@@ -11,6 +14,8 @@ import {
   buildPowerField,
   buildPowerPlan,
   ceilingSpeed,
+  crackPitch,
+  crackedAt,
   defaultPowerLayersFields,
   degreeMidi,
   fallTime,
@@ -23,6 +28,8 @@ import {
   levelChord,
   levelPitch,
   nextPrime,
+  plungeDepth,
+  plungeSec,
   powerLayersFixedDurationSec,
   powerLayersSettingsOf,
   resolvePowerLayersFields,
@@ -235,6 +242,28 @@ describe("timing and the flight", () => {
     expect(powerLayersFixedDurationSec({ sequence: "random" })).toBeNull();
   });
 
+  it("the drill: a layer every PLUNGE_PER_LAYER_SEC up to a share of the period, the first layer on impact, the last as it ends", () => {
+    expect(plungeSec(0, 1)).toBe(0);
+    expect(plungeSec(1, 1)).toBeCloseTo(PLUNGE_PER_LAYER_SEC, 12);
+    expect(plungeSec(4, 1)).toBeCloseTo(4 * PLUNGE_PER_LAYER_SEC, 12);
+    expect(plungeSec(500, 1)).toBeCloseTo(PLUNGE_MAX_SHARE, 12);
+    expect(plungeSec(500, 0.5)).toBeCloseTo(PLUNGE_MAX_SHARE * 0.5, 12);
+    expect(plungeSec(500, 1, true)).toBeLessThan(0.5); // the last drill leaves time to fall out within half a period
+    expect(plungeDepth(0, 0.2)).toBe(0);
+    expect(plungeDepth(0.2, 0.2)).toBe(1);
+    expect(plungeDepth(0.1, 0.2)).toBeCloseTo(0.75, 12); // fast at first
+    expect(plungeDepth(0.1, 0.2, true)).toBeCloseTo(0.5, 12); // the last one evenly
+    expect(crackedAt(0, 8)).toBe(1);
+    expect(crackedAt(0.5, 8)).toBe(5);
+    expect(crackedAt(0.999, 8)).toBe(8);
+    expect(crackedAt(1, 8)).toBe(8);
+    expect(crackedAt(0.5, 0)).toBe(0);
+    // The cracks climb an octave over the drill, starting an octave above the level's note.
+    expect(Math.round(frequencyToMidi(crackPitch(0, 0, 8, "chromatic", 0)))).toBe(72);
+    expect(Math.round(frequencyToMidi(crackPitch(0, 7, 8, "chromatic", 0)))).toBe(84);
+    expect(Math.round(frequencyToMidi(crackPitch(2, 0, 1, "chromatic", 0)))).toBe(76);
+  });
+
   it("fallTime inverts d = u t + g t²/2, and ceilingSpeed times a bounce to the period", () => {
     expect(fallTime(100, 0, 200)).toBeCloseTo(1, 12);
     expect(fallTime(100, 50, 0)).toBeCloseTo(2, 12);
@@ -421,7 +450,7 @@ describe("Power Layers on the engine", () => {
 
   it("plays a rising note per level, a chord and a whoosh on a big hit, a fanfare when the stack is gone and a whoosh at freedom", () => {
     const run = runToEnd(engineFor());
-    const hits = run.sounds.filter((s) => s.event.type === "hit");
+    const hits = run.sounds.filter((s) => s.event.type === "hit" && !s.event.plCrack);
     expect(hits).toHaveLength(7);
     const notes = hits.map((s) => Math.round(frequencyToMidi(s.event.frequency!)));
     expect(notes).toEqual([60, 62, 64, 65, 67, 69, 72]);
@@ -442,11 +471,59 @@ describe("Power Layers on the engine", () => {
       const plan = engine.powerLayersMode.getPlan();
       const zero = plan.destroyed.findIndex((d) => d === 0);
       if (zero < 0 || zero === plan.destroyed.length - 1) continue;
-      const soft = runToEnd(engine).sounds.filter((s) => s.event.type === "hit");
+      const soft = runToEnd(engine).sounds.filter((s) => s.event.type === "hit" && !s.event.plCrack);
       expect(soft[zero].event.level).toBe(0.5);
       return;
     }
     throw new Error("no chaos seed with a zero-power hit");
+  });
+
+  it("destroys the layers one by one as the ball drills through them, a crack each, the ball never inside the standing stack", () => {
+    for (const pl of [{}, { layers: 800, sequence: "fibonacci" as const }, { sequence: "plusOne" as const, speed: 2 }]) {
+      const engine = engineFor(pl);
+      const view = engine.getPowerLayersView();
+      const plan = engine.powerLayersMode.getPlan();
+      const r = config.ballRadius;
+      const goneSeen: number[] = [];
+      const cracks: { atMs: number; event: SoundEvent }[] = [];
+      let worst = -Infinity;
+      for (let i = 0; i < 60 * 120 && !engine.isSimulationFinished(); i++) {
+        engine.update(STEP, 0);
+        goneSeen.push(view.gone);
+        for (const event of engine.consumeSoundEvents()) if (event.plCrack) cracks.push({ atMs: engine.getElapsedMs(), event });
+        const ball = engine.getBalls()[0];
+        if (ball && !view.freed && view.gone < view.layers) worst = Math.max(worst, ball.y + r - stackTopAt(view.field, view.gone, view.layers));
+      }
+      const label = JSON.stringify(pl);
+      expect(engine.isSimulationFinished(), label).toBe(true);
+      expect(view.cracks, label).toBe(plan.layers);
+      // The ball's underside never sinks into a layer still standing.
+      expect(worst, label).toBeLessThanOrEqual(1e-6);
+      // A hit of several layers takes several steps to drill through: the stack top drops in many small steps, not one jump per hit.
+      const drops = new Set(goneSeen).size - 1;
+      expect(drops, label).toBeGreaterThan(plan.powers.length);
+      for (let k = 0; k < plan.powers.length - 1; k++) {
+        const d = plan.destroyed[k];
+        if (d < 2) continue;
+        const states = goneSeen.filter((g) => g > goneBefore(plan, k) && g < plan.goneAfter[k]);
+        expect(states.length, `${label} hit ${k}`).toBeGreaterThan(0);
+      }
+      // A crack every step a layer gave way: accompaniments (never a melody note), never two in one step.
+      expect(cracks.length, label).toBeGreaterThan(plan.powers.length);
+      expect(cracks.every((c) => c.event.melody === false && c.event.frequency! > 0 && c.event.level! > 0), label).toBe(true);
+      expect(new Set(cracks.map((c) => c.atMs)).size, label).toBe(cracks.length);
+    }
+    // Inside one drill the cracks climb.
+    const engine = engineFor({ layers: 120, sequence: "double" });
+    const pitches: number[] = [];
+    for (let i = 0; i < 60 * 4.9; i++) {
+      engine.update(STEP, 0);
+      const t = engine.getElapsedMs();
+      for (const event of engine.consumeSoundEvents()) if (event.plCrack && t > 4500 && t < 4900) pitches.push(event.frequency!); // hit 4 destroys 16 layers
+    }
+    expect(pitches.length).toBeGreaterThan(8);
+    for (let i = 1; i < pitches.length; i++) expect(pitches[i]).toBeGreaterThanOrEqual(pitches[i - 1]);
+    expect(pitches[pitches.length - 1]).toBeGreaterThan(1.8 * pitches[0]);
   });
 
   it("throws particles in the colours of the destroyed layers and a burst at freedom", () => {
@@ -454,7 +531,7 @@ describe("Power Layers on the engine", () => {
     const view = engine.getPowerLayersView();
     for (let i = 0; i < 31; i++) engine.update(STEP, 0); // past the first hit (0.5 s)
     expect(view.hits).toBe(1);
-    expect(view.partSpawned).toBe(9);
+    expect(view.partSpawned).toBe(PARTICLES_PER_LAYER);
     expect(view.partHue[0]).toBe(layerHue(0, 120));
     const before = view.partSpawned;
     runToEnd(engine);

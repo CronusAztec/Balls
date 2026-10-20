@@ -4391,7 +4391,8 @@ const plFrameRates = async (ms) => {
     window.__plOsc = log;
     const start = OscillatorNode.prototype.start;
     OscillatorNode.prototype.start = function () {
-      if (this.frequency.value !== 1) log.push({ f: this.frequency.value, t: performance.now() });
+      // (the level notes play on the default triangle instrument; the layer cracks under them are sine voices)
+      if (this.frequency.value !== 1 && this.type === "triangle") log.push({ f: this.frequency.value, t: performance.now() });
       return start.apply(this, arguments);
     };
   });

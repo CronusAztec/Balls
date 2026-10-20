@@ -15,6 +15,19 @@ Fight League's big hits freeze the frame
 
 - Fight League hits harder. The big signature blows take up to half the foe's health. Every big hit freezes the frame, rings the arena and slams a huge number on screen.
 
+## Website 1.12.1 · 2026-10-20
+
+Power Layers breaks layer by layer, smoother merges
+
+### Improved
+
+- Power Layers: the ball drills down through the stack one layer at a time. Every layer cracks with its own glassy note that climbs the scale, and showers its own colour.
+
+### Fixed
+
+- Merge Ring: balls land softly and settle into a pile instead of bouncing around forever, and a big ball is no longer shoved aside by a small one.
+- Spiral Glass: the spiral is a real wall now. Balls run the channel, eat the glass along it from the entrance in and queue behind the front ball, and every ball in the queue helps grind.
+
 ## Website 1.12.0 · 2026-10-20
 
 Merge Ring and Spiral Glass join the modes
