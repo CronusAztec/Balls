@@ -12,11 +12,13 @@ export const CLIP_SOURCES = ["recording", "fast", "batch", "bot", "file", "edit"
 export type ClipSource = (typeof CLIP_SOURCES)[number];
 
 /**
- * --- cut-reedit --- The Windows app's Library item a clip is (a Library clip staged in the block, the queue's or the editor's
- * cut as saved): its job and its post copy. "Edit for TikTok" in the block hands them to the editor, so a cut of it is saved
- * as `<job>-cut` with that copy, the way the Library's own Edit for TikTok saves it, and the autopilot sees one video.
+ * --- cut-reedit --- The Windows app's Library item a clip is (a Library clip staged in the block, the queue's master, the
+ * queue's or the editor's cut as saved): its job and its post copy. "Edit for TikTok" in the block hands them to the editor,
+ * so a cut of it is saved as `<job>-cut` with that copy, the way the Library's own Edit for TikTok saves it, and the
+ * autopilot sees one video. A cut's `cut` is the spec it was cut from its master with: a trim of it is saved as a cut of
+ * that master (lib/clipEdit/propose.ts composeCutSpec), so the Library opens the master on the part the trim kept.
  */
-export type PublishClipLibrary = Partial<Pick<LibraryMeta, "title" | "link" | "caption" | "hashtags" | "queueJobId">>;
+export type PublishClipLibrary = Partial<Pick<LibraryMeta, "title" | "link" | "caption" | "hashtags" | "queueJobId" | "cut">>;
 
 export interface PublishClip {
   id: string;
@@ -45,6 +47,12 @@ export interface PublishClip {
   cutFile: boolean;
   /** --- cut-reedit --- The Library item the clip is, in the Windows app (null: none, a recording, a picked file, the website). */
   library: PublishClipLibrary | null;
+  /**
+   * --- badge-safe --- The file's frames are known to carry the fan-made badge (a clip the page made, or the editor's or the
+   * queue's cut: this build burns or draws it; a Library item that says so). A picked file is not known to: a Fight League
+   * cut of it draws the badge on every frame.
+   */
+  fanMadeBurned: boolean;
   createdAt: number;
 }
 
@@ -63,6 +71,8 @@ export interface OfferClipInput {
   cutFile?: boolean;
   /** --- cut-reedit --- The Library item's job and copy (absent: none). */
   library?: PublishClipLibrary | null;
+  /** --- badge-safe --- The file carries the fan-made badge (absent: a clip the page made does, a picked file does not). */
+  fanMadeBurned?: boolean;
 }
 
 /** Clips kept (each can be tens of MB). */
@@ -118,6 +128,7 @@ export function offerPublishClip(input: OfferClipInput): PublishClip {
     loopCaption: input.loopCaption ?? null, // --- low-findings ---
     cutFile: input.cutFile ?? input.source === "edit", // --- cut-reedit ---
     library: input.library ?? null, // --- cut-reedit ---
+    fanMadeBurned: input.fanMadeBurned ?? input.source !== "file", // --- badge-safe ---
     createdAt: Date.now(),
   };
   clips = [clip, ...clips].slice(0, MAX_CLIPS);

@@ -28,11 +28,12 @@ import AccountsPanel from "../desktop/AccountsPanel"; // --- social-postiz --- t
 import PostizPostCard, { type CardPrefill } from "../desktop/PostizPostCard"; // --- social-postiz --- phase 2: the approval card and the Posts tab
 import PostsPanel from "../desktop/PostsPanel";
 import WhatsNew from "../desktop/WhatsNew"; // --- changelog ---
-import UpdateButton from "../desktop/UpdateButton"; // --- manual-update --- the top bar's update control (every tab)
-import { pageMakesVideo, updateReadyKey, updateWaitKey } from "@/lib/desktop/updateButton"; // --- manual-update ---
+import UpdateButton, { useUpdateCheck } from "../desktop/UpdateButton"; // --- manual-update --- the top bar's update control (every tab)
+import { pageMakesVideo, queueMakesVideo, updateReadyKey, updateWaitKey } from "@/lib/desktop/updateButton"; // --- manual-update ---
 import { clipEditErrorKey } from "@/lib/clipEdit/render"; // --- clip-locale ---
 import { errorText, ghostBtn, primaryBtn } from "../desktop/ui"; // --- desktop-autorelease --- (the update banner's buttons)
 import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
+import { onLibraryChanged } from "@/lib/desktop/libraryChanged"; // --- cut-reedit ---
 import type { PublishPlatform } from "@/lib/publish/platforms";
 
 import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
@@ -111,6 +112,8 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   const refreshLibrary = useCallback(() => {
     bridge.library.list().then(setLibrary).catch(() => {});
   }, [bridge]);
+  // --- cut-reedit --- a clip saved outside the group (the Publish block's Clip editor) is read too
+  useEffect(() => onLibraryChanged(refreshLibrary), [refreshLibrary]);
   // --- social-postiz --- the key's status, read again whenever the tab changes (a key saved or forgotten in Accounts)
   useEffect(() => {
     let gone = false;
@@ -300,10 +303,13 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
 
   // --- desktop-autorelease --- no restart while a clip renders or encodes (the update then installs when the app quits)
   // --- ai-cut --- a cut in progress counts: its job is done already, but a restart now would lose the cut
-  const queueRendering = queue.state.jobs.some((j) => j.status === "rendering" || j.status === "encoding") || queue.cutting !== null;
+  // --- manual-update --- and a running queue with jobs left: the moment between two jobs is no end (queueMakesVideo)
+  const queueRendering = queueMakesVideo(queue.state, queue.cutting);
   // --- manual-update --- and the page's own fast export, Record video or batch: no queue job, but a restart would lose it too
   const rendering = queueRendering || pageMakesVideo(page);
   const updateBanner = update?.state === "ready" && !!update.version && updateLater !== update.version;
+  // --- manual-update --- one manual check for the top bar and the GPU tab: either click empties the note until it is answered
+  const updateCheck = useUpdateCheck(bridge);
 
   if (!prefs) return null;
   return (
@@ -332,7 +338,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
         </nav>
         <div className="ml-auto flex items-center gap-1.5 flex-wrap">
           {/* --- manual-update --- always in sight: check, the download's percent, Restart and update, or the Download page */}
-          <UpdateButton bridge={bridge} update={update} rendering={rendering} waitHint={!updateBanner} autoUpdate={prefs.autoUpdate} />
+          <UpdateButton bridge={bridge} update={update} rendering={rendering} waitHint={!updateBanner} autoUpdate={prefs.autoUpdate} asking={updateCheck.asking} onCheck={updateCheck.check} />
           {(["song", "video", "project"] as const).map((kind) => (
             <button key={kind} type="button" onClick={() => pick(kind)} className="px-2.5 py-1 rounded-lg text-xs bg-surface-1 border border-line text-ink-2 hover:text-ink cursor-pointer">
               {t(`open.${kind}`)}
@@ -364,7 +370,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
       )}
       {/* --- social-postiz --- the approval card, above whatever tab is open (it stays while the user looks at the Library or the Posts tab) */}
       {postizCard && <PostizPostCard key={`${postizCard.item.id}:${postizCard.prefill?.queueItemId ?? (postizCard.prefill ? "retry" : "new")}`} bridge={bridge} item={postizCard.item} prefill={postizCard.prefill} onClose={() => setPostizCard(null)} />}
-      {tab === "gpu" && <GpuPanel bridge={bridge} prefs={prefs} info={info} update={update} rendering={rendering} onPrefs={changePrefs} />}
+      {tab === "gpu" && <GpuPanel bridge={bridge} prefs={prefs} info={info} update={update} rendering={rendering} updateAsking={updateCheck.asking} onCheckUpdates={updateCheck.check} onPrefs={changePrefs} />}
       {tab === "queue" && <QueuePanel bridge={bridge} queue={queue} page={page} folder={prefs.outputFolder} onFolder={(outputFolder) => changePrefs({ outputFolder })} />}
       {tab === "ai" && <AiPanel ai={ai} custom={custom} prefs={prefs} page={page} onQueueTab={() => show("queue")} bridge={bridge} /* --- desktop-ai-fix --- (the AI status panel) */ />}
       {tab === "library" && <LibraryPanel bridge={bridge} items={library} onRefresh={refreshLibrary} onRerender={(item) => void rerender(item)} onSuggestCut={ai.status?.ready ? suggestLibraryCut : undefined /* --- ai-cut --- */} />}

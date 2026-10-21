@@ -18,7 +18,7 @@ import { updateReadyKey, updateWaitKey } from "@/lib/desktop/updateButton"; // -
  * is installed (a portable EXE does not update itself), copies those details for a support message and links the changelog.
  */
 
-export default function GpuPanel({ bridge, prefs, info, update, rendering = false, onPrefs }: { bridge: DesktopApi; prefs: DesktopPrefs; info: DesktopInfo | null; update: UpdateStatus | null; rendering?: boolean; onPrefs: (patch: Partial<DesktopPrefs>) => void }) {
+export default function GpuPanel({ bridge, prefs, info, update, rendering = false, updateAsking, onCheckUpdates, onPrefs }: { bridge: DesktopApi; prefs: DesktopPrefs; info: DesktopInfo | null; update: UpdateStatus | null; rendering?: boolean; updateAsking: boolean; onCheckUpdates: () => void; onPrefs: (patch: Partial<DesktopPrefs>) => void }) {
   const t = useTranslations("Desktop");
   const locale = useLocale();
   const [copied, setCopied] = useState(false); // --- build-identity ---
@@ -82,8 +82,10 @@ export default function GpuPanel({ bridge, prefs, info, update, rendering = fals
   };
 
   const last = lastVideoAcceleration();
-  // --- manual-update --- a check or a download under way: the Check for updates button waits (aria-disabled, focus kept)
-  const updateBusy = update?.state === "checking" || update?.state === "available" || update?.state === "downloading";
+  // --- manual-update --- a check or a download under way: the Check for updates button waits (aria-disabled, focus kept).
+  // A check asked here is the Desktop group's (`onCheckUpdates`, shared with the top bar): while it is asked the Updates row
+  // shows "…" and the top bar's note empties, so even the same "offline" answer is shown and said again
+  const updateBusy = updateAsking || update?.state === "checking" || update?.state === "available" || update?.state === "downloading";
   const yes = (v: boolean) => (v ? t("gpuYes") : t("gpuNo"));
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4" data-testid="desktop-gpu">
@@ -251,13 +253,13 @@ export default function GpuPanel({ bridge, prefs, info, update, rendering = fals
           <dt className="text-ink-3">{t("appData")}</dt>
           <dd className="text-ink-2 break-all">{info?.dataDir ?? "…"}</dd>
           <dt className="text-ink-3">{t("appUpdate")}</dt>
-          <dd className="text-ink-2" data-testid="desktop-update">{update ? t(update.state === "ready" ? updateReadyKey(prefs.autoUpdate) : `update.${update.state}`, { version: update.version ?? "", progress: Math.round((update.progress ?? 0) * 100) }) : "…"}</dd>
+          <dd className="text-ink-2" data-testid="desktop-update">{update && !updateAsking ? t(update.state === "ready" ? updateReadyKey(prefs.autoUpdate) : `update.${update.state}`, { version: update.version ?? "", progress: Math.round((update.progress ?? 0) * 100) }) : "…"}</dd>
         </dl>
         <div className="flex gap-2 flex-wrap">
           {/* --- manual-update --- the same rules as the top bar's button: one check at a time, no restart while a clip renders;
               busy or waiting, it is aria-disabled and ignores the click, so a keyboard user's focus stays on it, and the wait
               note is a line of its own that the button names as its description */}
-          <button type="button" className={ghostBtn} disabled={update?.state === "disabled"} aria-disabled={updateBusy || undefined} onClick={updateBusy ? undefined : () => void bridge.update.check()}>
+          <button type="button" className={ghostBtn} disabled={update?.state === "disabled"} aria-disabled={updateBusy || undefined} onClick={updateBusy ? undefined : onCheckUpdates}>
             {t("appCheckUpdates")}
           </button>
           {update?.state === "ready" && (

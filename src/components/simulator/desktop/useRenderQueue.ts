@@ -38,7 +38,7 @@ import { settingsToSearchParams } from "@/lib/settings";
 import { SITE_URL } from "@/lib/site";
 import type { DesktopPageHooks } from "./pageHooks";
 // --- ai-cut --- the job's TikTok cut: the page's own editor (lib/clipEdit) cuts the just-rendered file and the app saves it next to the master
-import { fanMadeLine, type EditCardText } from "@/lib/clipEdit/draw";
+import { fanMadeLine, fanMadeMode, type EditCardText } from "@/lib/clipEdit/draw";
 import { renderClipEdit } from "@/lib/clipEdit/render";
 import { editFileName } from "@/lib/clipEdit/spec";
 import { refitClipEdit } from "@/lib/clipEdit/propose";
@@ -205,6 +205,9 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
             settings: { ...job.settings, recordingResolution: render.resolution, fastExportFps: render.fps },
             prepare: melody !== undefined ? async () => void (await page.selectMelody(melody)) : undefined,
             download: false,
+            // --- cut-reedit --- the Publish clip is the master's Library item: a cut of it in the block is saved as `<job>-cut`
+            // with the master's copy, the way the Library's own Edit for TikTok saves it
+            library: { title: job.meta.title || job.name, link: job.meta.link ?? jobLink(job, page.locale), caption: job.meta.caption, hashtags: job.meta.hashtags, queueJobId: job.id },
           },
         ]);
         setDesktopExportCodec("h264");
@@ -232,6 +235,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
           hashtags: job.meta.hashtags,
           queueJobId: job.id,
           ...(job.cut ? { cut: job.cut } : {}), // --- ai-cut --- the master carries the proposal: "Edit for TikTok" opens pre-filled
+          ...(fanMadeMode(job.settings.mode) ? { fanMadeBurned: true } : {}), // --- badge-safe --- this build burns the badge in (its cut and a later cut of it trust it)
         };
         const saved = await bridge.render.save({ jobId: job.id, folder, name: job.name, extension: file.extension, data: await blobBytes(file.blob), durationSec: file.durationSec, transcode, meta });
         if (cancelled.current.has(job.id)) return;
@@ -248,7 +252,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
             // The plan's cut was made against the planned length (its own end: a cut that ran to the planned end stays end-anchored
             // on a file that came out shorter); refitted to the file as rendered.
             const spec = refitClipEdit(job.cut, job.cut.startSec + job.cut.lengthSec, file.durationSec);
-            const result = await renderClipEdit({ source: file.blob, spec, card: cutDeps.card, fanMade: fanMadeLine(job.settings.mode, cutDeps.fanMade), signal: controller.signal, onProgress: (p) => setCutting({ jobId: job.id, progress: p.progress }) });
+            const result = await renderClipEdit({ source: file.blob, spec, card: cutDeps.card, fanMade: fanMadeLine(job.settings.mode, cutDeps.fanMade), fanMadeBurned: true /* --- badge-safe --- the fast export just made */, signal: controller.signal, onProgress: (p) => setCutting({ jobId: job.id, progress: p.progress }) });
             if (result && !controller.signal.aborted) {
               // --- cut-cancel --- the file is made: from here it is saved, offered and announced, so no Cancel stops it now
               run.saving = true;
@@ -256,8 +260,9 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
               const fileName = editFileName(job.name, result.format.extension);
               const cutMeta: LibraryMeta = { ...meta, platform: "tiktok", hook: result.spec.hook, queueJobId: `${job.id}-cut` /* the cut, not the master: the Library tells them apart */, cut: result.spec };
               await bridge.render.save({ jobId: `${job.id}-cut`, folder, name: fileName.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta: cutMeta });
-              // --- cut-reedit --- the Publish clip is the cut's Library item: a trim of it in the block stays under `<job>-cut`
-              offerPublishClip({ blob: result.blob, name: fileName, source: "edit", durationSec: result.durationSec, mode: job.settings.mode, seed: job.seed, library: { title: cutMeta.title, link: cutMeta.link, caption: cutMeta.caption, hashtags: cutMeta.hashtags, queueJobId: cutMeta.queueJobId } });
+              // --- cut-reedit --- the Publish clip is the cut's Library item: a trim of it in the block stays under `<job>-cut`,
+              // and the spec it was cut with goes along, so the trim is saved as a cut of the master (composeCutSpec)
+              offerPublishClip({ blob: result.blob, name: fileName, source: "edit", durationSec: result.durationSec, mode: job.settings.mode, seed: job.seed, library: { title: cutMeta.title, link: cutMeta.link, caption: cutMeta.caption, hashtags: cutMeta.hashtags, queueJobId: cutMeta.queueJobId, cut: cutMeta.cut } });
               cutDeps.onCut?.(job, { watermarked: result.watermarked });
             }
           } catch (err) {

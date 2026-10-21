@@ -3620,7 +3620,11 @@ Download page after an error, and for the portable EXE or a development run a no
 Download page. Busy, the button (and the GPU tab's) is aria-disabled and ignores clicks, so a keyboard user keeps the focus, and the
 note's live region stays mounted with only its text changing. A manual
 check (that button, Help → Check for updates, the GPU tab) finds and downloads the update with "Update automatically" off too (the
-preference only drives the quiet schedule, and takes effect without a restart), one check at a time.
+preference only drives the quiet schedule, and takes effect without a restart), one check at a time. The top bar and the GPU tab
+share one check (`useUpdateCheck`): a click on either empties the note until it is answered, so a second "offline" is said again,
+and a running render queue with jobs left counts as rendering between two jobs (`queueMakesVideo`), so the wait note is said once.
+Help's Download page opens in the menu's language (`downloadPageUrl`). Every update request sends electron-updater's
+`x-user-staging-id` as one fixed value (`ANONYMOUS_STAGING_ID` in `desktop/src/updater.ts`), not the random ID it keeps per install.
 The download page shows the build-time version (`DESKTOP_VERSION`, bumped by `npm run release:desktop` in the push that
 deploys the site). The owner's step-by-step guide, with the one-time downloads-repository setup and the order for making the repository private:
 [docs/RELEASING.md](docs/RELEASING.md).
@@ -3678,8 +3682,10 @@ Feature ai-cut, on top of the Clip editor (`src/lib/clipEdit`, feature clip-edit
 browser – start, length, crop-in, a hook and the site's address on the frame, an end card – rendered by the page with
 WebCodecs, every frame stamped again with the run's watermark seal). The hook wraps onto two lines and shrinks, the address and
 the card's lines shrink, so a 60-character hook stays inside the frame (`fitTextLines`, the bot's caption rule); a Fight League
-source's cut draws the fan-made badge again, over the card too (`fanMadeLine`, --- legal-audit ---); a first cut's hook is in the
-page's language (`localClipEdit`). The Windows app's local AI drives it two ways:
+source's cut draws the fan-made badge again, over the card too (`fanMadeLine`, --- legal-audit ---), inside the platforms' safe
+zone: the source's own counts only while the crop-in leaves it there, else it is covered and drawn at its fixed spot, and a file
+not known to carry it (`LibraryMeta.fanMadeBurned` absent) gets it on every frame (`burnedBadgeShows`); a first cut's hook is in
+the page's language (`localClipEdit`). The Windows app's local AI drives it two ways:
 
 - **Make videos with cuts** – the AI panel's "Also cut each clip for TikTok after rendering" (`ai-cut`) makes Make videos
   answer a `cut` per clip (`CLIP_CUT` in `src/lib/desktop/ai/studio.ts`: startSec, lengthSec, zoom and cardSec from fixed
@@ -3694,7 +3700,7 @@ page's language (`localClipEdit`). The Windows app's local AI drives it two ways
 
 The AI never sees pixels: `suggestClipEdit` works the baseline out of the plan's beats (first impact, payoff second,
 cliffhanger gap, a seamless loop is kept whole) and the model adjusts it. Nothing changed in `desktop/src`, and the IPC
-contract only gained the optional `LibraryMeta.cut` type named above (a payload field `render.save` stores verbatim; no
+contract only gained the optional `LibraryMeta.cut` type named above (and `LibraryMeta.fanMadeBurned`) (a payload field `render.save` stores verbatim; no
 channel changed shape): the cut rides `ai:chat` like every task, and the app only saves the bytes it is handed. With
 "Start rendering right away" ticked, one prompt ends with the masters and their cuts in the Library. Tests:
 `tests/clipPropose.test.ts`, `tests/clipEdit.test.ts`, `tests/desktopAi.test.ts`, `tests/desktopAiFix.test.ts`,

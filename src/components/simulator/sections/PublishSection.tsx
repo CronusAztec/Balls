@@ -23,6 +23,7 @@ import { useAccountHint } from "@/lib/account/hint"; // --- user-accounts ---
 import { IconClose, IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
 import ClipEditorDialog from "../clipEditor/ClipEditorDialog"; // --- clip-editor ---
 import { cutFileSpec } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
+import { notifyLibraryChanged } from "@/lib/desktop/libraryChanged"; // --- cut-reedit --- a cut saved here refreshes the open Library
 /*
  * --- social-publish --- The "Publish" block of the Recording section (after the Viral video bot block): the clip to send
  * (the last recording, fast export, batch or bot clip, or a picked file), its words per platform with the platforms'
@@ -77,8 +78,9 @@ function ClipCard({ s, clip, p, t }: { s: PublishSnapshot; clip: PublishClip | n
   return (
     <div className="space-y-2">
       {/* --- cut-reedit --- a cut (the editor's, the queue's, a Library cut) opens as it is: the whole file, nothing added again.
-          A Library item's cut is saved under its job (`<job>-cut`) with its copy, as the Library's own Edit for TikTok does */}
-      {editing && <ClipEditorDialog source={{ blob: editing.blob, name: editing.name, mode: editing.mode, seed: editing.seed, botClipId: editing.botClipId, loopCaption: editing.loopCaption /* --- low-findings --- the cut keeps the bot's copy and the run's loop words */, cutFile: editing.cutFile }} initialSpec={editing.cutFile ? cutFileSpec(editing.durationSec) : undefined} onClose={() => setEditing(null)} desktop={desktop ? { bridge: desktop, meta: editing.library ?? undefined } : null} />}
+          A Library item's cut is saved under its job (`<job>-cut`) with its copy, as the Library's own Edit for TikTok does,
+          and the Desktop group's open Library reads it at once (notifyLibraryChanged) */}
+      {editing && <ClipEditorDialog source={{ blob: editing.blob, name: editing.name, mode: editing.mode, seed: editing.seed, botClipId: editing.botClipId, loopCaption: editing.loopCaption /* --- low-findings --- the cut keeps the bot's copy and the run's loop words */, cutFile: editing.cutFile, fanMadeBurned: editing.fanMadeBurned /* --- badge-safe --- */ }} initialSpec={editing.cutFile ? cutFileSpec(editing.durationSec) : undefined} onClose={() => setEditing(null)} desktop={desktop ? { bridge: desktop, meta: editing.library ?? undefined, onSaved: notifyLibraryChanged } : null} />}
       {clip ? (
         <div className="flex gap-2.5 items-center rounded-lg bg-surface-2/50 border border-line-strong/40 p-2" data-publish-clip-source={clip.source} data-publish-clip-name={clip.name}>
           {thumb ? (

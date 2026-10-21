@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { DesktopApi, UpdateStatus } from "@/lib/desktop/contract";
 import { UPDATE_LATEST_NOTE_MS, manualCheckAnswered, updateButtonBusy, updateButtonModel, updateReadyKey, updateWaitKey, type UpdateButtonModel, type UpdateButtonNote } from "@/lib/desktop/updateButton";
@@ -118,15 +118,38 @@ export function UpdateButtonView({ status, rendering = false, justChecked = fals
 }
 
 /**
+ * --- manual-update --- A manual check, shared by every control that asks for one (the top bar's button, the GPU tab's Check
+ * for updates): `asking` from the click until the answer comes back, and `check`, which starts one unless one is asked already.
+ */
+export function useUpdateCheck(bridge: DesktopApi): { asking: boolean; check: () => void } {
+  const [asking, setAsking] = useState(false);
+  const askingRef = useRef(false);
+  const check = useCallback(() => {
+    if (askingRef.current) return;
+    askingRef.current = true;
+    setAsking(true);
+    bridge.update
+      .check()
+      .catch(() => {})
+      .finally(() => {
+        askingRef.current = false;
+        setAsking(false);
+      });
+  }, [bridge]);
+  return { asking, check };
+}
+
+/**
  * The control with its behaviour: a click checks (and the check downloads what it finds, auto-update on or off), the button
  * stays busy until the answer comes back, and "You have the latest version" shows for a moment when a manual check found
  * nothing: this button's, the Help menu's or the GPU tab's, as the updater marks that "none" (checkFoundNothing). The quiet
  * schedule's checks, which pass through "checking" too, and a failed one the updater puts back to "none", never show it.
  * Nor does the marked "none" the page reads when it mounts (manualCheckAnswered): that answer may be hours old.
+ * --- manual-update --- `asking` and `onCheck` are the Desktop group's (useUpdateCheck), shared with the GPU tab's Check for
+ * updates: a click on either empties the note while it is asked, so the same "You are offline" is said again.
  */
-export default function UpdateButton({ bridge, update, rendering, waitHint, autoUpdate }: { bridge: DesktopApi; update: UpdateStatus | null; rendering: boolean; waitHint?: boolean; autoUpdate?: boolean }) {
+export default function UpdateButton({ bridge, update, rendering, waitHint, autoUpdate, asking, onCheck }: { bridge: DesktopApi; update: UpdateStatus | null; rendering: boolean; waitHint?: boolean; autoUpdate?: boolean; asking: boolean; onCheck: () => void }) {
   const locale = useLocale();
-  const [asking, setAsking] = useState(false);
   const [justChecked, setJustChecked] = useState(false);
   // --- manual-update --- the status this button saw last (null until the first one: the one read on mount is not news)
   const seen = useRef<UpdateStatus | null>(null);
@@ -144,12 +167,8 @@ export default function UpdateButton({ bridge, update, rendering, waitHint, auto
   }, [update]);
   const check = () => {
     if (asking) return;
-    setAsking(true);
     setJustChecked(false);
-    bridge.update
-      .check()
-      .catch(() => {})
-      .finally(() => setAsking(false));
+    onCheck();
   };
   return <UpdateButtonView status={update} rendering={rendering} justChecked={justChecked} asking={asking} waitHint={waitHint} autoUpdate={autoUpdate} downloadUrl={pageUrl(locale, "/download")} onCheck={check} onInstall={() => void bridge.update.install()} />;
 }

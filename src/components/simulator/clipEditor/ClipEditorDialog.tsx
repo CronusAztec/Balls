@@ -11,7 +11,7 @@ import { offerPublishClip, type PublishClipLibrary } from "@/lib/publish/clips";
 import type { LoopCaptionContext } from "@/lib/publish/loopCaption"; // --- low-findings ---
 import { sealWatermark, type WatermarkSeal } from "@/lib/watermark/seal";
 import { drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
-import { editCutJobId } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
+import { composeCutSpec, editCutJobId } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
 import { clipEditErrorKey, liveProgress, openSourceVideo, renderClipEdit, seekVideo, type ClipEditProgress, type ClipEditResult } from "@/lib/clipEdit/render";
 import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, clipTimeline, editFileName, fitClipEdit, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
 
@@ -45,10 +45,16 @@ export interface ClipEditorSource {
   loopCaption?: LoopCaptionContext | null;
   /** --- cut-reedit --- The file is a cut with its look burned in (lib/clipEdit/propose.ts `libraryEditOpen`, a Publish clip's `cutFile`). */
   cutFile?: boolean;
+  /**
+   * --- badge-safe --- The file's frames are known to carry the fan-made badge (a clip the page made, a Library item's
+   * `fanMadeBurned`). Absent, a Fight League cut draws the badge on every frame.
+   */
+  fanMadeBurned?: boolean;
 }
 
 export interface ClipEditorDesktop {
   bridge: DesktopApi;
+  /** The Library item the source is: its job and copy, and for a cut file the `cut` it was cut from its master with. */
   meta?: Partial<LibraryMeta>;
   onSaved?: () => void;
   /** --- ai-cut --- Asks the app's AI for a cut of the open source (`current`: the spec the preview shows); the signal is the dialog closing. */
@@ -102,9 +108,11 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const timeline = clipTimeline(fitted, CLIP_EDIT_OUTPUT.fps);
   const card = useMemo(() => ({ title: t("cardTitle"), note: t("cardNote") }), [t]);
   // --- legal-audit --- a Fight League source's cut carries the fan-made badge again, in the preview and in the file, where the
-  // source's own is cut away or covered (--- badge-once --- draw.ts decides frame by frame; a cut file's own counts only uncropped)
+  // source's own is cut away or covered (--- badge-once --- draw.ts decides frame by frame; a cut file's own counts only uncropped;
+  // --- badge-safe --- a file not known to carry one gets it on every frame)
   const fanMade = fanMadeLine(source.mode, fl("canvasFanMade"));
   const cutFile = source.cutFile === true;
+  const fanMadeBurned = source.fanMadeBurned === true; // --- badge-safe ---
   const rendering = render.status === "rendering";
   const suggesting = suggestion.status === "running";
   // the spec is the user's or the AI's, never both at once: no edits while a suggestion is on its way
@@ -144,10 +152,10 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
       .then(() => {
         if (token !== drawToken.current) return;
         const { video } = opened;
-        drawEditFrame(ctx, { image: video, width: video.videoWidth || canvas.width, height: video.videoHeight || canvas.height }, canvas.width, canvas.height, fitted, timeline, tSec, card, { seal, clipMs: tSec * 1000, fanMade, cutFile });
+        drawEditFrame(ctx, { image: video, width: video.videoWidth || canvas.width, height: video.videoHeight || canvas.height }, canvas.width, canvas.height, fitted, timeline, tSec, card, { seal, clipMs: tSec * 1000, fanMade, cutFile, fanMadeBurned });
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrub, fitted.startSec, fitted.lengthSec, fitted.zoom, fitted.hook, fitted.url, fitted.cardSec, durationSec, rendering, card.title, card.note, fanMade, cutFile, seal]);
+  }, [scrub, fitted.startSec, fitted.lengthSec, fitted.zoom, fitted.hook, fitted.url, fitted.cardSec, durationSec, rendering, card.title, card.note, fanMade, cutFile, fanMadeBurned, seal]);
 
   // --- ai-cut --- the user's own edits are what is remembered (not the cut the dialog opened on, not the AI's proposal;
   // --- cut-reedit --- nor a trim of a cut file, made on its neutral spec)
@@ -189,7 +197,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
     setLatest("render"); // --- clip-a11y --- the live region says this outcome next
     setRender({ status: "rendering", progress: { phase: "prepare", progress: 0, frame: 0, frames: 0 } });
     try {
-      const result = await renderClipEdit({ source: source.blob, spec: fitted, card, fanMade, cutFile, signal: controller.signal, onProgress: (progress) => setRender({ status: "rendering", progress }) });
+      const result = await renderClipEdit({ source: source.blob, spec: fitted, card, fanMade, cutFile, fanMadeBurned, signal: controller.signal, onProgress: (progress) => setRender({ status: "rendering", progress }) });
       // --- cut-cancel --- a Cancel that came while the file was finished: nothing is saved, downloaded or offered
       if (!result || controller.signal.aborted) return setRender({ status: "idle" });
       setSaving(true);
@@ -200,12 +208,16 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
         // a cut file, as the queue names them (`<job>-cut`): a Library item's cut under its job, so the Library opens that
         // master again and the autopilot takes them for one video; any other source's as its own (opened as it is)
         const jobId = `edit-${Date.now().toString(36)}-cut`;
-        const meta: LibraryMeta = { title: desktop.meta?.title ?? name, mode: desktop.meta?.mode ?? source.mode ?? "", seed: desktop.meta?.seed ?? source.seed ?? 0, link: desktop.meta?.link ?? "", platform: "tiktok", hook: fitted.hook, caption: desktop.meta?.caption ?? null, hashtags: desktop.meta?.hashtags ?? [], queueJobId: editCutJobId(desktop.meta?.queueJobId), cut: result.spec };
+        // --- cut-reedit --- a trim of a cut file is measured on that file: saved as a cut of the master (the cut file's own
+        // spec moved by the trim, its look kept), or with no spec when that is not known, so the Library opens the master's own
+        const parentCut = cutFile ? desktop.meta?.cut : undefined;
+        const cut = !cutFile ? result.spec : parentCut ? composeCutSpec(parentCut, result.spec) : undefined;
+        const meta: LibraryMeta = { title: desktop.meta?.title ?? name, mode: desktop.meta?.mode ?? source.mode ?? "", seed: desktop.meta?.seed ?? source.seed ?? 0, link: desktop.meta?.link ?? "", platform: "tiktok", hook: cut ? cut.hook : fitted.hook, caption: desktop.meta?.caption ?? null, hashtags: desktop.meta?.hashtags ?? [], queueJobId: editCutJobId(desktop.meta?.queueJobId), ...(cut ? { cut } : {}), ...(fanMade ? { fanMadeBurned: true } : {}) /* --- badge-safe --- a Fight League cut carries the badge, drawn or kept */ };
         await desktop.bridge.render.save({ jobId, folder: "", name: name.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta });
         desktop.onSaved?.();
         where = "saved";
         // --- cut-reedit --- the Publish clip is that Library item: a cut of it in the block stays under the same job
-        library = { title: meta.title, link: meta.link, caption: meta.caption, hashtags: meta.hashtags, queueJobId: meta.queueJobId };
+        library = { title: meta.title, link: meta.link, caption: meta.caption, hashtags: meta.hashtags, queueJobId: meta.queueJobId, cut: meta.cut };
       } else downloadExport(result.blob, result.format.extension, name.replace(/\.[a-z0-9]+$/i, ""));
       offerPublishClip({ blob: result.blob, name, source: "edit", durationSec: result.durationSec, mode: source.mode ?? null, seed: source.seed ?? null, botClipId: source.botClipId ?? null, loopCaption: source.loopCaption ?? null, library });
       setRender({ status: "done", result, where });
@@ -215,7 +227,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
       abortRef.current = null;
       setSaving(false);
     }
-  }, [source, fitted, card, fanMade, cutFile, desktop, t]);
+  }, [source, fitted, card, fanMade, cutFile, fanMadeBurned, desktop, t]);
 
   const number = (key: "startSec" | "lengthSec" | "zoom" | "cardSec", label: string, format: (v: number) => string, max?: number) => {
     const range = CLIP_EDIT_RANGES[key];

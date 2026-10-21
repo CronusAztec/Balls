@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import fs from "fs";
 import os from "os";
 import path from "path";
-import { APP_TITLE, aboutAnswer, aboutButtons, aboutLabelsOf, changelogUrl, readSiteStamp, siteLabel, siteStampFrom, smokeIdentity, trayTip, windowTitle } from "../src/about";
+import { APP_TITLE, aboutAnswer, aboutButtons, aboutLabelsOf, changelogUrl, downloadPageUrl, readSiteStamp, siteLabel, siteStampFrom, smokeIdentity, trayTip, windowTitle } from "../src/about";
 import { MENU, MENU_LABELS } from "../src/menu";
 import { ABOUT_LABELS_EN, aboutLines, aboutText, installKind, updatesMode, withoutUserName, type AboutFacts } from "@/lib/desktop/aboutText";
 import { createRequire } from "module";
@@ -222,5 +222,16 @@ describe("Help > What's new", () => {
     expect(changelogUrl("https://jumpingballslive.com/", "es")).toBe("https://jumpingballslive.com/es/changelog/");
     const main = fs.readFileSync(path.join(__dirname, "..", "src", "main.ts"), "utf8");
     expect(main).toContain("changelogUrl(SITE_URL, menuLanguage(app.getLocale()))");
+  });
+
+  // --- manual-update --- Help > Download page and the Download page button of Help > Check for updates open the page in the
+  // language the menu and the box speak, as the top bar's link opens the page's own
+  it("opens the Download page in the menu's language, from the menu and from the check's box", () => {
+    expect(downloadPageUrl("https://jumpingballslive.com", "pl")).toBe("https://jumpingballslive.com/pl/download/");
+    expect(downloadPageUrl("https://jumpingballslive.com/", "es")).toBe("https://jumpingballslive.com/es/download/");
+    expect(downloadPageUrl("https://jumpingballslive.com", "en")).toBe("https://jumpingballslive.com/en/download/");
+    const main = fs.readFileSync(path.join(__dirname, "..", "src", "main.ts"), "utf8");
+    expect(main).not.toContain("/en/download/");
+    expect(main.match(/shell\.openExternal\(downloadPageUrl\(SITE_URL, menuLanguage\(app\.getLocale\(\)\)\)\)/g)).toHaveLength(2);
   });
 });

@@ -57,8 +57,8 @@ export function stageLibraryClip(controller: PublishController, clip: LibraryCli
   // --- cut-reedit --- a Library cut (`<job>-cut`) is a cut here too: "Edit for TikTok" in the block opens it as it is. The
   // item's job and copy go with it, so a cut made in the block is saved as the Library's own Edit for TikTok saves it
   const meta = clip.item.meta;
-  const library = { title: meta.title, link: meta.link, caption: meta.caption, hashtags: meta.hashtags, queueJobId: meta.queueJobId };
-  const offered = offerPublishClip({ blob: clip.file, name: clip.file.name, source: "file", durationSec: clip.item.durationSec, mode: meta.mode || null, seed: Number.isFinite(meta.seed) ? meta.seed : null, cutFile: isCutJob(meta.queueJobId), library });
+  const library = { title: meta.title, link: meta.link, caption: meta.caption, hashtags: meta.hashtags, queueJobId: meta.queueJobId, cut: meta.cut };
+  const offered = offerPublishClip({ blob: clip.file, name: clip.file.name, source: "file", durationSec: clip.item.durationSec, mode: meta.mode || null, seed: Number.isFinite(meta.seed) ? meta.seed : null, cutFile: isCutJob(meta.queueJobId), library, fanMadeBurned: meta.fanMadeBurned === true /* --- badge-safe --- */ });
   stagedClips.set(clip.item.id, offered.id);
   controller.selectClip(offered.id);
   controller.setDraft(offered.id, draftOfLibraryClip(clip));

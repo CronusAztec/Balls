@@ -46,7 +46,7 @@ import { mirrorConsole } from "./consoleMirror";
 import { runAiDiagnostics, type DiagnosticsDeps } from "./ai/diagnostics";
 // --- build-identity --- the window title, Help > About (Copy details, What's new), the website build read from the site's version.json
 import { ABOUT_LABELS_EN, aboutLines, aboutText, installKind, updatesMode, type AboutFacts } from "@/lib/desktop/aboutText";
-import { APP_TITLE, aboutAnswer, aboutButtons, aboutLabelsOf, changelogUrl, readSiteStamp, siteLabel, smokeIdentity, trayTip, windowTitle } from "./about";
+import { APP_TITLE, aboutAnswer, aboutButtons, aboutLabelsOf, changelogUrl, downloadPageUrl, readSiteStamp, siteLabel, smokeIdentity, trayTip, windowTitle } from "./about";
 
 /*
  * --- desktop-exe --- The Windows app's main process: the whole simulator (the site's static export on app://), GPU video
@@ -510,7 +510,7 @@ function start() {
     const buttons = answer.download ? [labels.downloadPage, labels.aboutClose] : [labels.aboutClose];
     const options = { type: status.state === "error" ? ("warning" as const) : ("info" as const), title: APP_TITLE, message: answer.message, detail: answer.detail, buttons, defaultId: buttons.length - 1, cancelId: buttons.length - 1, noLink: true };
     const { response } = await (win && !win.isDestroyed() && win.isVisible() ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options));
-    if (answer.download && response === 0) await shell.openExternal(`${SITE_URL}/en/download/`);
+    if (answer.download && response === 0) await shell.openExternal(downloadPageUrl(SITE_URL, menuLanguage(app.getLocale()))); // the page in the box's language
   };
   const runCommand = async (command: string) => {
     switch (command) {
@@ -534,7 +534,7 @@ function start() {
         await shell.openExternal(`${SITE_URL}/`); // --- desktop-autorelease ---
         return;
       case "download-page":
-        await shell.openExternal(`${SITE_URL}/en/download/`); // --- desktop-autorelease ---
+        await shell.openExternal(downloadPageUrl(SITE_URL, menuLanguage(app.getLocale()))); // --- desktop-autorelease --- · --- manual-update --- in the menu's language
         return;
       case "changelog":
         await shell.openExternal(changelogUrl(SITE_URL, menuLanguage(app.getLocale()))); // --- build-identity --- what changed, on the public site

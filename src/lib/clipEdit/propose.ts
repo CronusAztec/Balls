@@ -178,6 +178,19 @@ export function editCutJobId(sourceJob: string | null | undefined, now: number =
 }
 
 /**
+ * --- cut-reedit --- A trim of a cut file as a cut of its master. `trim` is measured on the cut file (it opens on the neutral
+ * cutFileSpec), `parent` is the spec the cut file was cut from its master with. The trim's start moves the parent's start, its
+ * end stays inside the parent's action (a trim into the end card keeps the action to its end), and the parent's crop-in,
+ * hook, address and card stay: that is the look the trimmed file shows, so the Library reopens the master on it.
+ */
+export function composeCutSpec(parent: ClipEditSpec, trim: Pick<ClipEditSpec, "startSec" | "lengthSec">): ClipEditSpec {
+  const offset = Math.min(Math.max(0, trim.startSec), Math.max(0, parent.lengthSec - SHORTEST_CUT_SEC));
+  const end = Math.min(trim.startSec + trim.lengthSec, parent.lengthSec);
+  const lengthSec = Math.min(parent.lengthSec - offset, Math.max(SHORTEST_CUT_SEC, end - offset));
+  return { ...parent, startSec: tenth(parent.startSec + offset), lengthSec: tenth(lengthSec) };
+}
+
+/**
  * --- cut-reedit --- What "Edit for TikTok" opens for `item`, out of the Library's `items`. A master opens with the cut it
  * carries (the AI's proposal). A cut file (the queue and the editor name its `queueJobId` `<job>-cut`) already shows its
  * crop-in, hook, address, end card and badge, so none of them goes on it again: a queue cut opens its master instead (the

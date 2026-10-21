@@ -48,6 +48,17 @@ export function pageMakesVideo(page: { recording: boolean; fastExport: { status:
 }
 
 /**
+ * --- manual-update --- Whether the render queue is making a video: a job renders or encodes, a done job's cut is being made
+ * (`cutting`), or the queue runs with jobs left. Between two jobs nothing renders for a moment (the next one starts on the
+ * next render), and that gap must not count as done: the wait note would empty and fill again, and be said again, for every
+ * clip, and Restart and update would turn clickable for that moment.
+ */
+export function queueMakesVideo(state: { running: boolean; jobs: readonly { status: string }[] }, cutting: unknown): boolean {
+  if (cutting !== null && cutting !== undefined) return true;
+  return state.jobs.some((j) => j.status === "rendering" || j.status === "encoding" || (state.running && j.status === "queued"));
+}
+
+/**
  * Whether a status earns "You have the latest version": the "none" a manual check ends in, which the updater marks with
  * UPDATE_MANUAL_NONE (desktop/src/updater.ts), whichever control asked (the top bar's button, the Help menu, the GPU tab).
  * Never a bare change from "checking" to "none": the quiet schedule's checks pass through "checking" too, and a failed one is

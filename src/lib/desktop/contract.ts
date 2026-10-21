@@ -280,6 +280,11 @@ export interface LibraryMeta {
   queueJobId: string | null;
   /** --- ai-cut --- The TikTok cut proposed for the clip (lib/clipEdit/spec.ts), when the AI or the editor made one: a master carries it so "Edit for TikTok" opens pre-filled; a cut carries the spec it was made with. */
   cut?: ClipEditSpec;
+  /**
+   * --- badge-safe --- The file's frames carry the fan-made badge: a Fight League clip the queue rendered or a cut the editor
+   * made since the badge is burned in. Absent (an older clip, any other mode), a cut of it draws the badge on every frame.
+   */
+  fanMadeBurned?: boolean;
 }
 
 export interface SavedRender {

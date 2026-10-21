@@ -3,7 +3,7 @@ import fs from "fs";
 import os from "os";
 import path from "path";
 import { DEFAULT_PREFS, resolvePrefs, restoreWindowState, sanitizePrefs } from "../src/prefs";
-import { UPDATE_INITIAL_DELAY_MS, UPDATE_INTERVAL_MS, UpdateController, type UpdaterLike, type UpdaterTimers } from "../src/updater";
+import { ANONYMOUS_STAGING_ID, UPDATE_INITIAL_DELAY_MS, UPDATE_INTERVAL_MS, UpdateController, type UpdaterLike, type UpdaterTimers } from "../src/updater";
 import { MENU, MENU_LABELS, menuCheckAnswer, menuLanguage, updateReadyBody } from "../src/menu";
 import { MEDIA_EXTENSIONS, dialogFilters, filesInArgv, mediaKindOf, mimeOf } from "../src/media";
 import { Library, uniquePath } from "../src/library";
@@ -48,6 +48,22 @@ describe("auto-update", () => {
     expect(portable.status).toMatchObject({ state: "disabled", message: "portable" });
     const dev = new UpdateController(null, { enabled: true, packaged: false, portable: false, online: () => true, log: () => {}, emit: () => {} });
     await expect(dev.check()).resolves.toMatchObject({ state: "disabled" });
+  });
+  // --- manual-update --- electron-updater sends a random ID it keeps on the PC with every check (x-user-staging-id); the app has
+  // no staged rollouts, so every install sends the same value and a check names nobody
+  it("sends no ID of the install with an update check", () => {
+    const u = fakeUpdater(async () => ({}));
+    u.requestHeaders = { "user-agent": "jbl" };
+    new UpdateController(u, { enabled: true, packaged: true, portable: false, online: () => true, log: () => {}, emit: () => {} });
+    expect(u.requestHeaders).toEqual({ "user-agent": "jbl", "x-user-staging-id": ANONYMOUS_STAGING_ID });
+    expect(ANONYMOUS_STAGING_ID).toBe("00000000-0000-0000-0000-000000000000");
+    const bare = fakeUpdater(async () => ({}));
+    new UpdateController(bare, { enabled: true, packaged: true, portable: false, online: () => true, log: () => {}, emit: () => {} });
+    expect(bare.requestHeaders).toEqual({ "x-user-staging-id": ANONYMOUS_STAGING_ID });
+    // electron-updater lays these headers over its own, the stored ID among them, on the latest.yml request and the download
+    const lib = fs.readFileSync(path.join(__dirname, "..", "node_modules", "electron-updater", "out", "AppUpdater.js"), "utf8");
+    expect(lib).toMatch(/computeFinalHeaders\(headers\) \{\s+if \(this\.requestHeaders != null\) \{\s+Object\.assign\(headers, this\.requestHeaders\);/);
+    expect(lib).toMatch(/client\.setRequestHeaders\(this\.computeFinalHeaders\(\{ "x-user-staging-id": stagingUserId \}\)\);/);
   });
   it("follows electron-updater's events to 'ready'", async () => {
     const u = fakeUpdater(async () => ({}));
@@ -485,7 +501,8 @@ describe("auto-update", () => {
     expect(main).toMatch(/const answer = menuCheckAnswer\(status, labels\);/);
     // the Download page button, and the download the menu's check found: its failure, or a "ready" no notification says, gets a box
     expect(main).toMatch(/const buttons = answer\.download \? \[labels\.downloadPage, labels\.aboutClose\] : \[labels\.aboutClose\];/);
-    expect(main).toMatch(/if \(answer\.download && response === 0\) await shell\.openExternal\(`\$\{SITE_URL\}\/en\/download\/`\);/);
+    // (--- manual-update --- the Download page in the box's language, as the menu's own entry opens it: about.test.ts)
+    expect(main).toMatch(/if \(answer\.download && response === 0\) await shell\.openExternal\(downloadPageUrl\(SITE_URL, menuLanguage\(app\.getLocale\(\)\)\)\);/);
     expect(main).toMatch(/if \(menuAsked && s\.state !== "available" && s\.state !== "downloading"\) \{\s+menuAsked = false;\s+if \(s\.state === "error" \|\| \(s\.state === "ready" && !notified\)\) void showCheckAnswer\(s\);/);
     expect(main).toContain("body: updateReadyBody(l, s.version, prefs().autoUpdate)");
   });

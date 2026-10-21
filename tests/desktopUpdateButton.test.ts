@@ -9,8 +9,9 @@ import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
 import { UPDATE_MANUAL_NONE, type UpdateStatus } from "@/lib/desktop/contract";
-import { UPDATE_LATEST_NOTE_MS, checkFoundNothing, manualCheckAnswered, pageMakesVideo, updateButtonBusy, updateButtonModel, updateReadyKey, updateWaitKey } from "@/lib/desktop/updateButton";
-import { UpdateButtonView, type UpdateButtonViewProps } from "@/components/simulator/desktop/UpdateButton";
+import { UPDATE_LATEST_NOTE_MS, checkFoundNothing, manualCheckAnswered, pageMakesVideo, queueMakesVideo, updateButtonBusy, updateButtonModel, updateReadyKey, updateWaitKey } from "@/lib/desktop/updateButton";
+import { UpdateButtonView, useUpdateCheck, type UpdateButtonViewProps } from "@/components/simulator/desktop/UpdateButton";
+import GpuPanel from "@/components/simulator/desktop/GpuPanel";
 import { pageUrl } from "@/lib/site";
 
 /*
@@ -149,7 +150,7 @@ describe("the update button's states", () => {
     // the section hands the preference to the top bar, the banner and the GPU tab
     const read = (...p: string[]) => fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", ...p), "utf8");
     const section = read("sections", "DesktopSection.tsx");
-    expect(section).toMatch(/<UpdateButton [^>]*autoUpdate=\{prefs\.autoUpdate\} \/>/);
+    expect(section).toMatch(/<UpdateButton [^>]*autoUpdate=\{prefs\.autoUpdate\}[^>]*\/>/);
     expect(section).toMatch(/\{rendering && <span id="desktop-update-wait-banner" className="basis-full text-ink-3">\{t\(updateWaitKey\(prefs\.autoUpdate\)\)\}<\/span>\}/);
     expect(read("desktop", "GpuPanel.tsx")).toMatch(/\{update\?\.state === "ready" && rendering && \(\s+<p id="desktop-update-wait-gpu" className="text-xs text-ink-3" data-testid="desktop-gpu-update-wait">\s+\{t\(updateWaitKey\(prefs\.autoUpdate\)\)\}/);
     for (const file of [section, read("desktop", "GpuPanel.tsx"), read("desktop", "UpdateButton.tsx")]) expect(file).not.toMatch(/t\("updateWaitRender"\)/);
@@ -215,10 +216,86 @@ describe("the update button's states", () => {
     expect(ariaDisabled(asked)).toBe(true);
     expect(disabled(asked)).toBe(false);
     expect(updateButtonBusy(updateButtonModel(status("idle"), { asking: true }), true)).toBe(true);
-    // the component itself: one check until the answer comes back
+    // the component itself: one check until the answer comes back (the Desktop group's, shared with the GPU tab)
     const component = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "UpdateButton.tsx"), "utf8");
-    expect(component).toMatch(/if \(asking\) return;\s+setAsking\(true\);\s+setJustChecked\(false\);\s+bridge\.update\s+\.check\(\)/);
-    expect(component).toContain(".finally(() => setAsking(false))");
+    expect(component).toMatch(/if \(asking\) return;\s+setJustChecked\(false\);\s+onCheck\(\);/);
+  });
+
+  // --- manual-update --- one manual check for every control: a second click anywhere while it is asked starts nothing
+  it("asks one check at a time, whichever control asked", async () => {
+    let calls = 0;
+    let answer: () => void = () => {};
+    const bridge = { update: { check: () => ((calls += 1), new Promise<void>((resolve) => (answer = resolve))) } } as unknown as Parameters<typeof useUpdateCheck>[0];
+    const { check } = viewWithIntl(() => useUpdateCheck(bridge));
+    check();
+    check();
+    expect(calls).toBe(1);
+    answer();
+    await new Promise((r) => setTimeout(r, 0));
+    check();
+    expect(calls).toBe(2);
+  });
+
+  // --- manual-update --- the GPU tab's Check for updates pressed again while offline: the updater answers the same "offline"
+  // at once, with no "checking" between. The check is the Desktop group's, shared with the top bar: while it is asked the top
+  // bar's live region and the GPU tab's Updates row empty, so the answer is shown and said again
+  it("answers the GPU tab's Check for updates again while offline, through the top bar's live region", () => {
+    const offline = status("error", { message: "offline" });
+    const prefs = { ffmpegPath: "", autoUpdate: true, closeToTray: false, encoderOverride: "", preferHardware: true } as unknown as React.ComponentProps<typeof GpuPanel>["prefs"];
+    const bridge = {} as React.ComponentProps<typeof GpuPanel>["bridge"];
+    const gpu = (updateAsking: boolean) =>
+      renderToStaticMarkup(
+        createElement(
+          NextIntlClientProvider,
+          { locale: "en", messages: en, timeZone: "UTC" } as unknown as React.ComponentProps<typeof NextIntlClientProvider>,
+          createElement(GpuPanel, { bridge, prefs, info: null, update: offline, updateAsking, onCheckUpdates: () => {}, onPrefs: () => {} }),
+        ),
+      );
+    const row = (html: string) => html.match(/<dd[^>]*data-testid="desktop-update"[^>]*>([^<]*)<\/dd>/)?.[1];
+    const button = (html: string) => html.match(/<button[^>]*>(?:(?!<\/button>)[\s\S])*?Check for updates<\/button>/)?.[0] ?? "";
+    expect(row(gpu(false))?.replace(/&#x27;/g, "'")).toBe(en.Desktop.update.error);
+    expect(ariaDisabled(button(gpu(false)))).toBe(false);
+    expect(row(gpu(true))).toBe("…");
+    expect(ariaDisabled(button(gpu(true)))).toBe(true);
+    // the top bar's note empties too while that check is asked, and says "You are offline" again once it is answered
+    expect(text(render({ status: offline, asking: true }), "desktop-update-note")).toBe("");
+    expect(text(render({ status: offline }), "desktop-update-note")).toBe("You are offline");
+    // the GPU tab's button runs the shared check
+    const onCheckUpdates = () => {};
+    const found: React.ReactElement<{ onClick?: unknown; children?: React.ReactNode }>[] = [];
+    const walk = (node: React.ReactNode) =>
+      React.Children.forEach(node, (child) => {
+        if (!React.isValidElement(child)) return;
+        const el = child as React.ReactElement<{ onClick?: unknown; children?: React.ReactNode }>;
+        if (el.type === "button" && React.Children.toArray(el.props.children).includes(en.Desktop.appCheckUpdates)) found.push(el);
+        walk(el.props.children);
+      });
+    walk(viewWithIntl(() => GpuPanel({ bridge, prefs, info: null, update: offline, updateAsking: false, onCheckUpdates, onPrefs: () => {} })));
+    expect(found).toHaveLength(1);
+    expect(found[0].props.onClick).toBe(onCheckUpdates);
+    // both controls are handed the one check
+    const section = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "sections", "DesktopSection.tsx"), "utf8");
+    expect(section).toContain("const updateCheck = useUpdateCheck(bridge);");
+    expect(section).toContain("asking={updateCheck.asking} onCheck={updateCheck.check} />");
+    expect(section).toContain("updateAsking={updateCheck.asking} onCheckUpdates={updateCheck.check}");
+  });
+
+  // --- manual-update --- between two queue jobs nothing renders for a moment: the wait must not end and start again per clip
+  it("keeps waiting between two queue jobs, and stops when the queue does", () => {
+    const job = (status: string) => ({ status });
+    expect(queueMakesVideo({ running: true, jobs: [job("done"), job("queued")] }, null)).toBe(true);
+    expect(queueMakesVideo({ running: true, jobs: [job("rendering"), job("queued")] }, null)).toBe(true);
+    expect(queueMakesVideo({ running: false, jobs: [job("encoding")] }, null)).toBe(true);
+    expect(queueMakesVideo({ running: false, jobs: [job("done")] }, { jobId: "a", progress: 0.4 })).toBe(true);
+    // paused with jobs left, or run to its end: nothing is being made
+    expect(queueMakesVideo({ running: false, jobs: [job("done"), job("queued")] }, null)).toBe(false);
+    expect(queueMakesVideo({ running: true, jobs: [job("done"), job("failed"), job("cancelled")] }, null)).toBe(false);
+    expect(queueMakesVideo({ running: false, jobs: [] }, null)).toBe(false);
+    // the wait note stays, so its live region says it once for the whole run
+    const ready = status("ready", { version: "1.5.0", progress: 1 });
+    expect(updateButtonModel(ready, { rendering: queueMakesVideo({ running: true, jobs: [job("done"), job("queued")] }, null) }).note).toBe("waitRender");
+    const section = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "sections", "DesktopSection.tsx"), "utf8");
+    expect(section).toContain("const queueRendering = queueMakesVideo(queue.state, queue.cutting);");
   });
 
   it("says when the app is up to date, for a moment after a check", () => {
@@ -247,7 +324,7 @@ describe("the update button's states", () => {
     expect(component).toMatch(/const seen = useRef<UpdateStatus \| null>\(null\);/);
     expect(component.match(/setJustChecked\(true\)/g)).toHaveLength(1);
     // the click only asks: its answer comes back as the same marked status
-    expect(component).toMatch(/bridge\.update\s+\.check\(\)\s+\.catch\(\(\) => \{\}\)\s+\.finally\(\(\) => setAsking\(false\)\);/);
+    expect(component).toMatch(/bridge\.update\s+\.check\(\)\s+\.catch\(\(\) => \{\}\)\s+\.finally\(\(\) => \{\s+askingRef\.current = false;\s+setAsking\(false\);\s+\}\);/);
   });
 
   // --- manual-update --- the updater keeps a manual check's marked "none" until the next check, maybe hours later: the page
@@ -357,7 +434,7 @@ describe("the update button's place", () => {
   it("sits in the Desktop group's top bar, outside the tabs, with the live status and the render rule", () => {
     const section = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "sections", "DesktopSection.tsx"), "utf8");
     const top = section.slice(section.indexOf('role="tablist"'), section.indexOf("desktop-update-banner"));
-    expect(top).toContain("<UpdateButton bridge={bridge} update={update} rendering={rendering} waitHint={!updateBanner} autoUpdate={prefs.autoUpdate} />");
+    expect(top).toContain("<UpdateButton bridge={bridge} update={update} rendering={rendering} waitHint={!updateBanner} autoUpdate={prefs.autoUpdate} asking={updateCheck.asking} onCheck={updateCheck.check} />");
     expect(top.indexOf("<UpdateButton")).toBeLessThan(top.indexOf("pick(kind)"));
     expect(section.slice(section.indexOf('{tab === "gpu"'))).not.toContain("<UpdateButton");
     // the GPU panel's App card keeps its own buttons, under the same rules
@@ -369,10 +446,10 @@ describe("the update button's place", () => {
       expect(file).not.toMatch(/disabled=\{rendering\}/);
     }
     // its Check for updates keeps a keyboard user's focus while busy too: aria-disabled and no click, native disabled only for a build that cannot update
-    expect(gpu).toMatch(/const updateBusy = update\?\.state === "checking" \|\| update\?\.state === "available" \|\| update\?\.state === "downloading";/);
-    expect(gpu).toMatch(/disabled=\{update\?\.state === "disabled"\} aria-disabled=\{updateBusy \|\| undefined\} onClick=\{updateBusy \? undefined : \(\) => void bridge\.update\.check\(\)\}/);
+    expect(gpu).toMatch(/const updateBusy = updateAsking \|\| update\?\.state === "checking" \|\| update\?\.state === "available" \|\| update\?\.state === "downloading";/);
+    expect(gpu).toMatch(/disabled=\{update\?\.state === "disabled"\} aria-disabled=\{updateBusy \|\| undefined\} onClick=\{updateBusy \? undefined : onCheckUpdates\}/);
     expect(fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "ui.tsx"), "utf8")).toMatch(/export const btn = "[^"]*aria-disabled:opacity-40 aria-disabled:cursor-not-allowed"/);
-    expect(section).toContain("rendering={rendering} onPrefs={changePrefs}");
+    expect(section).toContain("rendering={rendering} updateAsking={updateCheck.asking} onCheckUpdates={updateCheck.check} onPrefs={changePrefs}");
   });
 });
 

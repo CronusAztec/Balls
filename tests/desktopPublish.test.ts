@@ -5,7 +5,8 @@ import type { LibraryItem } from "@/lib/desktop/contract";
 import { clipVideoKey } from "@/lib/desktop/autopilot"; // --- cut-reedit ---
 import { editCutJobId } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
 import { publishTargets, type PublishClip as LibraryClip } from "@/lib/desktop/publish";
-import { publishClips, resetPublishClips } from "@/lib/publish/clips";
+import { offerPublishClip, publishClips, resetPublishClips } from "@/lib/publish/clips";
+import { notifyLibraryChanged, onLibraryChanged } from "@/lib/desktop/libraryChanged"; // --- cut-reedit ---
 import { PublishController, type ControllerDeps } from "@/lib/publish/controller";
 import { applyCopyToPublish, draftOfLibraryClip, publishPlatformOf, publishToAccounts, registerDesktopPublishTargets, shareLibraryClip, stageLibraryClip, type DesktopPublishLabels } from "@/lib/publish/desktopTargets";
 import { PUBLISH_STORAGE_KEY } from "@/lib/publish/store";
@@ -245,11 +246,51 @@ describe("the Library's Publish targets (desktop app)", () => {
     expect(publishClips().find((x) => x.name === "other.mp4")?.library).toBeNull();
     // the block's editor gets it, and the queue's and the editor's own cuts are offered with theirs
     const read = (f: string) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
-    expect(read("src/components/simulator/sections/PublishSection.tsx")).toContain("desktop={desktop ? { bridge: desktop, meta: editing.library ?? undefined } : null}");
-    expect(read("src/components/simulator/desktop/useRenderQueue.ts")).toMatch(/source: "edit",[^\n]*library: \{ title: cutMeta\.title, link: cutMeta\.link, caption: cutMeta\.caption, hashtags: cutMeta\.hashtags, queueJobId: cutMeta\.queueJobId \} \}\);/);
+    // (--- cut-reedit --- and a cut saved there refreshes the Desktop group's open Library)
+    expect(read("src/components/simulator/sections/PublishSection.tsx")).toContain("desktop={desktop ? { bridge: desktop, meta: editing.library ?? undefined, onSaved: notifyLibraryChanged } : null}");
+    expect(read("src/components/simulator/desktop/useRenderQueue.ts")).toMatch(/source: "edit",[^\n]*library: \{ title: cutMeta\.title, link: cutMeta\.link, caption: cutMeta\.caption, hashtags: cutMeta\.hashtags, queueJobId: cutMeta\.queueJobId, cut: cutMeta\.cut \} \}\);/);
     const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx");
-    expect(dialog).toContain("library = { title: meta.title, link: meta.link, caption: meta.caption, hashtags: meta.hashtags, queueJobId: meta.queueJobId };");
+    expect(dialog).toContain("library = { title: meta.title, link: meta.link, caption: meta.caption, hashtags: meta.hashtags, queueJobId: meta.queueJobId, cut: meta.cut };");
     expect(dialog).toMatch(/source: "edit",[^\n]*, library \}\);/);
+    expect(dialog).toMatch(/desktop\.onSaved\?\.\(\);/);
+  });
+
+  // --- cut-reedit --- a cut saved from the Publish block's editor is in the Desktop group's open Library at once
+  it("refreshes the Desktop group's Library when the Publish block's editor saves a cut", () => {
+    let reads = 0;
+    const off = onLibraryChanged(() => (reads += 1));
+    notifyLibraryChanged();
+    expect(reads).toBe(1);
+    off();
+    notifyLibraryChanged();
+    expect(reads).toBe(1);
+    const read = (f: string) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+    // the Desktop group reads the Library again on the signal; the block's editor gives it as its onSaved
+    expect(read("src/components/simulator/sections/DesktopSection.tsx")).toContain("useEffect(() => onLibraryChanged(refreshLibrary), [refreshLibrary]);");
+    expect(read("src/components/simulator/sections/PublishSection.tsx")).toMatch(/onSaved: notifyLibraryChanged \}/);
+  });
+
+  // --- cut-reedit --- the render queue's master is the Publish clip a Windows app user meets most: it reaches the block with
+  // its Library job and copy, so "Edit for TikTok" there saves `<job>-cut` with the master's words (one video for the autopilot)
+  it("offers the render queue's master with its Library job and copy", () => {
+    const read = (f: string) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+    const queue = read("src/components/simulator/desktop/useRenderQueue.ts");
+    // the job handed to runJobs carries the same title, link, caption and hashtags as the master's LibraryMeta, and its job
+    expect(queue).toMatch(/library: \{ title: job\.meta\.title \|\| job\.name, link: job\.meta\.link \?\? jobLink\(job, page\.locale\), caption: job\.meta\.caption, hashtags: job\.meta\.hashtags, queueJobId: job\.id \},\s+\},\s+\]\);/);
+    expect(queue).toMatch(/title: job\.meta\.title \|\| job\.name,\s+mode: job\.settings\.mode,\s+seed: job\.seed,\s+link: job\.meta\.link \?\? jobLink\(job, page\.locale\),/);
+    // the batch renderer offers a handed-in job's clip with it
+    const batch = read("src/components/simulator/useBatchRender.ts");
+    expect(batch).toMatch(/library\?: PublishClipLibrary;/);
+    expect(batch).toMatch(/offerPublishClip\(\{[^\n]*source: customJob \? "bot" : "batch",[^\n]*library: customJob\?\.library \?\? null/);
+    // so a cut of it in the block is saved under the master's job, and the autopilot folds the two
+    const library = { title: "Glass smash", link: "https://x/en/simulator/?mode=glass", caption: "Which floor breaks first?", hashtags: ["#glass"], queueJobId: "job-q1" };
+    const offered = offerPublishClip({ blob: new Blob(["x"], { type: "video/mp4" }), name: "job-q1", source: "bot", botClipId: "job-q1", library });
+    expect(offered.library).toEqual(library);
+    expect(offered.cutFile).toBe(false);
+    const cutJob = editCutJobId(offered.library?.queueJobId);
+    expect(cutJob).toBe("job-q1-cut");
+    const master = { ...item("tiktok"), meta: { ...item("tiktok").meta, queueJobId: "job-q1" } } as LibraryItem;
+    expect(clipVideoKey({ meta: { ...master.meta, queueJobId: cutJob } })).toBe(clipVideoKey(master));
   });
 
   it("writes the AI's posts into the Publish block's draft, per platform – or says there is no clip yet", () => {

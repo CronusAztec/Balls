@@ -100,6 +100,11 @@ export function changelogUrl(siteUrl: string, language: string): string {
   return `${siteUrl.replace(/\/+$/, "")}/${language}/changelog/`;
 }
 
+/** --- manual-update --- Help > Download page, and the Download page button of Help > Check for updates: in the menu's language. */
+export function downloadPageUrl(siteUrl: string, language: string): string {
+  return `${siteUrl.replace(/\/+$/, "")}/${language}/download/`;
+}
+
 /**
  * The --smoke run's identity check. A packaged run fails when the bundled site has no readable version.json (the pipeline must
  * never ship an EXE whose website build cannot be told); a version.json built for another app version is only noted (a manual

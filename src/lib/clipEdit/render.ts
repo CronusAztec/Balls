@@ -32,6 +32,8 @@ export interface ClipEditOptions {
   fanMade: string | null;
   /** --- cut-reedit --- The source is a cut file (draw.ts burnedBadgeShows: its own badge is whole only with no crop-in). */
   cutFile?: boolean;
+  /** --- badge-safe --- The source's frames are known to carry the fan-made badge (draw.ts EditFrameMark.fanMadeBurned); absent, it is drawn on every frame. */
+  fanMadeBurned?: boolean;
   signal?: AbortSignal;
   onProgress?: (p: ClipEditProgress) => void;
 }
@@ -267,7 +269,7 @@ export async function renderClipEdit(options: ClipEditOptions): Promise<ClipEdit
       const t = index / fps;
       // The card holds the action's last frame: no seeking past it.
       if (t <= timeline.actionSec) await seekVideo(video, sourceTimeAt(spec, t));
-      drawEditFrame(ctx, { image: video, ...sourceSize }, width, height, spec, timeline, t, options.card, { seal, clipMs: t * 1000, fanMade: options.fanMade, cutFile: options.cutFile === true });
+      drawEditFrame(ctx, { image: video, ...sourceSize }, width, height, spec, timeline, t, options.card, { seal, clipMs: t * 1000, fanMade: options.fanMade, cutFile: options.cutFile === true, fanMadeBurned: options.fanMadeBurned === true });
       const frame = new VideoFrame(canvas, { timestamp: frameTimestampUs(index, fps), duration: frameDurationUs(index, fps) });
       videoEncoder.encode(frame, { keyFrame: isKeyFrame(index, fps) });
       frame.close();

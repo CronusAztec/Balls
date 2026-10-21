@@ -30,7 +30,7 @@ import { zipBlobs } from "@/lib/recording/zip";
 import { trackClipExport } from "@/lib/analytics/events"; // --- analytics ---
 import { jdmRhythmPlayedByHand } from "@/lib/physics/modes/jdmRhythmFields"; // --- jdm-rhythm-runner ---
 import type { FastExportState } from "./sections/FastExportSection";
-import { offerPublishClip } from "@/lib/publish/clips"; // --- social-publish ---
+import { offerPublishClip, type PublishClipLibrary } from "@/lib/publish/clips"; // --- social-publish --- · --- cut-reedit --- (PublishClipLibrary)
 import { loopCaptionContext } from "@/lib/publish/loopCaption"; // --- low-findings ---
 // --- free-watermark --- (was paywall-gate) the batch runner – the Batch block, the viral bot's renders, the desktop render queue –
 // runs for everyone: its clips are fast exports, which carry the watermark without a verified Pro licence (lib/watermark/seal.ts)
@@ -167,6 +167,11 @@ export interface CustomBatchJob {
   prepare?: () => Promise<void>;
   /** Download the clip on its own as soon as it is done (the Batch block's switch does not apply). */
   download?: boolean;
+  /**
+   * --- cut-reedit --- The Windows app's Library item the clip becomes (the render queue's master: its job and post copy). The
+   * Publish clip carries it, so a cut of it made in the Publish block is saved as `<job>-cut` with that copy.
+   */
+  library?: PublishClipLibrary;
 }
 
 /** A clip `runJobs()` rendered: its 1-based place in the jobs handed in, its file name and the file. */
@@ -367,7 +372,7 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
           const extension = result.format.extension;
           const base = uniqueFileBase(customJob ? customJob.name : batchFileBase({ mode, seed: job.seed, durationSec: result.durationSec, variant: job.variant }), extension, used); // --- viral-bot --- (its own name)
           files.current.set(job.id, { name: `${base}.${extension}`, extension, blob: result.blob, durationSec: result.durationSec });
-          offerPublishClip({ blob: result.blob, name: `${base}.${extension}`, source: customJob ? "bot" : "batch", durationSec: result.durationSec, mode, seed: job.seed, botClipId: customJob ? customJob.name : null, loopCaption: loopCaptionContext(s) /* --- low-findings --- (the job's own settings) */ }); // --- social-publish --- (a bot clip's copy comes from its plan)
+          offerPublishClip({ blob: result.blob, name: `${base}.${extension}`, source: customJob ? "bot" : "batch", durationSec: result.durationSec, mode, seed: job.seed, botClipId: customJob ? customJob.name : null, loopCaption: loopCaptionContext(s) /* --- low-findings --- (the job's own settings) */, library: customJob?.library ?? null /* --- cut-reedit --- */ }); // --- social-publish --- (a bot clip's copy comes from its plan)
           if (customJob ? customJob.download : definitionRef.current.downloadEach) downloadExport(result.blob, extension, base);
           patchJob(job.id, { status: "done", wallMs, durationSec: result.durationSec, bytes: result.blob.size, fileName: `${base}.${extension}` });
         }

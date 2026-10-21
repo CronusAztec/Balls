@@ -28,10 +28,20 @@ export interface UpdaterTimers {
   clearInterval: (handle: unknown) => void;
 }
 
+/**
+ * --- manual-update --- What every update request sends as electron-updater's `x-user-staging-id`. electron-updater makes a
+ * random ID once, keeps it in the app's data folder and sends it with every check, so the downloads host would see the same
+ * install again and again. The app has no staged rollouts (that ID only picks who gets one), so every install sends this one
+ * value instead: a check asks for the newest version and names nobody (the privacy page says so).
+ */
+export const ANONYMOUS_STAGING_ID = "00000000-0000-0000-0000-000000000000";
+
 export interface UpdaterLike {
   autoDownload: boolean;
   autoInstallOnAppQuit: boolean;
   logger: unknown;
+  /** electron-updater's headers for every request, laid over its own (its staging ID among them). */
+  requestHeaders?: Record<string, string> | null;
   on(event: string, listener: (...args: never[]) => void): unknown;
   checkForUpdates(): Promise<unknown>;
   quitAndInstall(): void;
@@ -75,6 +85,7 @@ export class UpdateController {
     // ends. prepareQuit() sets it to the preference when the app quits, and the handler reads it again then.
     u.autoInstallOnAppQuit = true;
     u.logger = null;
+    u.requestHeaders = { ...(u.requestHeaders ?? {}), "x-user-staging-id": ANONYMOUS_STAGING_ID };
     u.on("checking-for-update", () => this.set({ state: "checking", version: null, progress: null, message: null }));
     u.on("update-available", (info: { version?: string }) => this.set({ state: "available", version: info?.version ?? null, progress: 0, message: null }));
     u.on("update-not-available", () => this.set({ state: "none", version: null, progress: null, message: null }));
