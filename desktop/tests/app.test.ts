@@ -220,6 +220,7 @@ describe("auto-update", () => {
     expect(c.active).toBe(true);
     expect(c.status.state).toBe("idle");
     expect(d.u.autoDownload).toBe(true);
+    // true while the app runs: electron-updater adds its quit handler only when it is true as the download ends
     expect(d.u.autoInstallOnAppQuit).toBe(true);
     const t = fakeTimers();
     c.start(t.timers);
@@ -245,6 +246,38 @@ describe("auto-update", () => {
     expect([...t.timeouts.values()].map((x) => x.ms)).toEqual([UPDATE_INITIAL_DELAY_MS]);
     expect([...t.intervals.values()].map((x) => x.ms)).toEqual([UPDATE_INTERVAL_MS]);
     c.stop();
+  });
+
+  // --- manual-update --- electron-updater's quit handler installs a downloaded update silently when the app quits, if
+  // autoInstallOnAppQuit is true then: with "Update automatically" off, the update a manual check downloaded waits for Restart
+  // and update instead
+  it("installs a downloaded update on quit only while auto-update is on, as it is at quit time", async () => {
+    let auto = false;
+    const d = deferredUpdater();
+    const c = new UpdateController(d.u, { enabled: true, autoUpdate: () => auto, packaged: true, portable: false, online: () => true, log: () => {}, emit: () => {} });
+    const click = c.check();
+    (d.u.handlers.get("update-available") as (i: { version: string }) => void)({ version: "1.5.0" });
+    d.finish();
+    await click;
+    // the download ends with the flag still true, so electron-updater registers its quit handler
+    expect(d.u.autoInstallOnAppQuit).toBe(true);
+    (d.u.handlers.get("update-downloaded") as (i: { version: string }) => void)({ version: "1.5.0" });
+    expect(c.status.state).toBe("ready");
+    // the user picks Later and closes the app: before-quit turns the install off, the handler reads it and leaves it
+    c.prepareQuit();
+    expect(d.u.autoInstallOnAppQuit).toBe(false);
+    // the preference turned on before the quit: the update installs as the app closes
+    auto = true;
+    c.prepareQuit();
+    expect(d.u.autoInstallOnAppQuit).toBe(true);
+    // a build that cannot update has no updater to tell
+    const portable = fakeUpdater(async () => ({}));
+    portable.autoInstallOnAppQuit = true;
+    new UpdateController(portable, { enabled: true, autoUpdate: () => false, packaged: true, portable: true, online: () => true, log: () => {}, emit: () => {} }).prepareQuit();
+    expect(portable.autoInstallOnAppQuit).toBe(true);
+    // main.ts asks for it at quit, next to the schedule's stop
+    const main = fs.readFileSync(path.join(__dirname, "..", "src", "main.ts"), "utf8");
+    expect(main).toMatch(/app\.on\("before-quit", \(event\) => \{\s+updater\.stop\(\);[^\n]*\n\s+updater\.prepareQuit\(\);/);
   });
 
   it("runs one check at a time: a double click, the menu during the schedule's check, and a click during a download", async () => {

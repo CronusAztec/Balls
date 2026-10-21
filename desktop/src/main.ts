@@ -877,6 +877,7 @@ function start() {
   let quitPrepared = false;
   app.on("before-quit", (event) => {
     updater.stop(); // --- desktop-autorelease --- no scheduled check while quitting
+    updater.prepareQuit(); // --- manual-update --- with "Update automatically" off, a downloaded update does not install by itself
     quitting = true;
     ai.cancelAll();
     models.cancelAll();

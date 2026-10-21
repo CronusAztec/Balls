@@ -9,7 +9,8 @@ import { UPDATE_MANUAL_NONE, type UpdateStatus } from "@/lib/desktop/contract";
  * whatever goes wrong, the status says "error" in the Help menu / GPU panel and the app carries on – an update check
  * never throws into the app. --- manual-update --- The "Update automatically" preference drives the quiet schedule only:
  * off, nothing checks by itself, but a manual check (the top bar's update button, the Help menu, the GPU panel) still finds
- * the update and downloads it, so it always ends in "ready" and Restart and update.
+ * the update and downloads it, so it always ends in "ready" and Restart and update. Off, that download installs only on Restart
+ * and update, never by itself when the app quits (prepareQuit()).
  */
 
 /** --- desktop-autorelease --- The scheduled checks: 8 s after launch (the window is up, the page has loaded), then every 4 hours. */
@@ -70,6 +71,8 @@ export class UpdateController {
     }
     const u = updater as UpdaterLike;
     u.autoDownload = true;
+    // --- manual-update --- true while the app runs: electron-updater adds its quit handler only when this is true as a download
+    // ends. prepareQuit() sets it to the preference when the app quits, and the handler reads it again then.
     u.autoInstallOnAppQuit = true;
     u.logger = null;
     u.on("checking-for-update", () => this.set({ state: "checking", version: null, progress: null, message: null }));
@@ -203,5 +206,15 @@ export class UpdateController {
 
   install(): void {
     if (this.active && this.current.state === "ready") (this.updater as UpdaterLike).quitAndInstall();
+  }
+
+  /**
+   * --- manual-update --- Called as the app starts to quit (main.ts's before-quit): a downloaded update installs on quit only
+   * while "Update automatically" is on (as it is now: turned on after the download, it installs). Off, the update a manual
+   * check downloaded waits for Restart and update. Restart and update itself is not affected: quitAndInstall starts the
+   * installer before the app quits, and electron-updater's quit handler then leaves it alone.
+   */
+  prepareQuit(): void {
+    if (this.active) (this.updater as UpdaterLike).autoInstallOnAppQuit = this.auto;
   }
 }

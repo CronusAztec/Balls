@@ -56,9 +56,23 @@ export function checkFoundNothing(status: UpdateStatus | null | undefined): bool
   return status?.state === "none" && status.message === UPDATE_MANUAL_NONE;
 }
 
-/** A busy button (a check asked for, under way or downloading) keeps its focus: aria-disabled, never the native `disabled`. */
+/**
+ * --- manual-update --- Whether the status the page just got is a manual check's answer arriving now: a marked "none"
+ * (checkFoundNothing) after a status that was not one. The updater keeps that mark until the next check, maybe hours later
+ * (the whole session with auto-update off), so the first status the page reads (`previous` null: the mount, a reload, a
+ * change of language) is an old answer and never says "latest" again. A new check always passes through "checking" first.
+ */
+export function manualCheckAnswered(previous: UpdateStatus | null | undefined, next: UpdateStatus | null | undefined): boolean {
+  return !!previous && !checkFoundNothing(previous) && checkFoundNothing(next);
+}
+
+/**
+ * A button that cannot be clicked for now keeps its focus: aria-disabled, never the native `disabled` (which drops a
+ * keyboard user's focus to the page). That is a check asked for, under way or downloading, and Restart and update waiting
+ * for a render: the download can end while a keyboard user waits on the button.
+ */
 export function updateButtonBusy(m: UpdateButtonModel, asking = false): boolean {
-  return !m.enabled && (asking || m.kind === "checking" || m.kind === "downloading");
+  return !m.enabled && (asking || m.kind === "checking" || m.kind === "downloading" || m.kind === "install");
 }
 
 export function updateButtonModel(status: UpdateStatus | null, { rendering = false, justChecked = false, asking = false }: UpdateButtonContext = {}): UpdateButtonModel {

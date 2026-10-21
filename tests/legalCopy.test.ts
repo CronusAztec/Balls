@@ -165,6 +165,11 @@ describe("the privacy page", () => {
     expect(en.Privacy.windowsApp.updates.content).toContain("every four hours");
     expect(pl.Privacy.windowsApp.updates.content).toContain("co cztery godziny");
     expect(es.Privacy.windowsApp.updates.content).toContain("cada cuatro horas");
+    // --- manual-update --- every installed build may check by hand, auto-update on or off (main.ts), and the copy names the button
+    expect(read("desktop", "src", "main.ts")).toContain("enabled: !SMOKE,");
+    expect(en.Privacy.windowsApp.updates.content).toContain(`With automatic updates off, it asks only when you press ${en.Desktop.appCheckUpdates}.`);
+    expect(pl.Privacy.windowsApp.updates.content).toContain(`Przy wyłączonych aktualizacjach automatycznych pyta tylko wtedy, gdy klikniesz ${pl.Desktop.appCheckUpdates}.`);
+    expect(es.Privacy.windowsApp.updates.content).toContain(`Si están desactivadas, solo lo pide cuando pulsas ${es.Desktop.appCheckUpdates}.`);
     expect(read("desktop", "electron-builder.config.cjs")).toContain("https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download"); // the update feed is on GitHub
     expect(read("desktop", "src", "ai", "diagnostics.ts")).toContain('NETWORK_TEST_URL = "https://huggingface.co/');
     expect(read("src", "lib", "billing", "config.ts")).toContain("RENEWAL_RETRY_MS"); // the licence renewals the app and the site ask the billing server for

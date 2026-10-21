@@ -133,6 +133,54 @@ export function refitClipEdit(spec: ClipEditSpec, plannedSec: number, realSec: n
   return fitClipEdit(spec, realSec);
 }
 
+// --- cut-reedit --- "Edit for TikTok" on a Library item: a cut file has its look in its frames already, so it never gets a second one
+
+/** A Library item as far as the editor's opening needs it (lib/desktop/contract.ts `LibraryItem`). */
+export interface LibraryEditItem {
+  durationSec: number | null;
+  exists: boolean;
+  meta: { queueJobId: string | null; cut?: ClipEditSpec };
+}
+
+/** What "Edit for TikTok" opens: the item whose file the editor reads, the spec it starts from, and whether that file is a cut. */
+export interface LibraryEditOpen<T extends LibraryEditItem> {
+  item: T;
+  spec: Partial<ClipEditSpec> | undefined;
+  /** The file is a cut whose master is not in the Library: its look is burned in, so the editor adds none (no fan-made badge either). */
+  cutFile: boolean;
+}
+
+const CUT_SUFFIX = "-cut";
+/** A cut file's length when the Library could not measure it: longer than any clip, so the editor's fit keeps the whole file. */
+const WHOLE_FILE_SEC = 24 * 60 * 60;
+
+/**
+ * --- cut-reedit --- What "Edit for TikTok" opens for `item`, out of the Library's `items`. A master opens with the cut it
+ * carries (the AI's proposal). A cut file (the queue and the editor name its `queueJobId` `<job>-cut`) already shows its
+ * crop-in, hook, address, end card and badge, so none of them goes on it again: a queue cut opens its master instead (the
+ * item whose `queueJobId` is `<job>`) with the whole spec it was cut with, refitted to the master as the queue refits it;
+ * a cut with no master to open (the editor's own, or one whose master was forgotten or deleted) opens as it is, with nothing
+ * added. Never the address of a cut: a master's stays the user's remembered one, and a bare cut file gets none (its own is
+ * in the frame).
+ */
+export function libraryEditOpen<T extends LibraryEditItem>(item: T, items: readonly T[]): LibraryEditOpen<T> {
+  const job = item.meta.queueJobId;
+  if (!job?.endsWith(CUT_SUFFIX)) {
+    const cut = item.meta.cut;
+    return { item, spec: cut ? { startSec: cut.startSec, lengthSec: cut.lengthSec, zoom: cut.zoom, hook: cut.hook, cardSec: cut.cardSec } : undefined, cutFile: false };
+  }
+  const masterJob = job.slice(0, -CUT_SUFFIX.length);
+  const master = items.find((other) => other !== item && other.exists && other.meta.queueJobId === masterJob);
+  if (master) {
+    const cut = item.meta.cut;
+    if (!cut) return libraryEditOpen(master, items);
+    const fitted = master.durationSec ? refitClipEdit(cut, cut.startSec + cut.lengthSec, master.durationSec) : cut;
+    return { item: master, spec: { startSec: fitted.startSec, lengthSec: fitted.lengthSec, zoom: fitted.zoom, hook: fitted.hook, cardSec: fitted.cardSec }, cutFile: false };
+  }
+  // the whole file, no crop-in, no words, no card: the editor only trims it (it fits the length to the file it opens)
+  return { item, spec: { startSec: 0, lengthSec: item.durationSec ?? WHOLE_FILE_SEC, zoom: 1, hook: "", url: "", cardSec: 0 }, cutFile: true };
+}
+
 /** What is wrong with a cut, in words a model can act on ([] when nothing is). */
 export function cutProblems(spec: ClipEditSpec, beats: ClipBeats): string[] {
   const problems: string[] = [];

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CLOUD_DEFAULTS, type CloudProvider, type DesktopApi, type DesktopPrefs } from "@/lib/desktop/contract";
 import { BOT_PLATFORMS, type BotPlatform } from "@/lib/bot/playbook";
@@ -36,6 +36,10 @@ export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }:
   const [existing, setExisting] = useState("");
   const [cut, setCut] = useState(false); // --- ai-cut ---
   const [autoStart, setAutoStart] = useState(true); // --- ai-cut --- one click: the queue starts as soon as the clips are added
+  // --- ai-cut --- the two checkboxes' explanations, as their accessible descriptions (a title on the label reaches neither a
+  // screen reader nor the keyboard)
+  const cutTipId = useId();
+  const startTipId = useId();
   const [provider, setProvider] = useState<CloudProvider>("anthropic");
   const [baseUrl, setBaseUrl] = useState(CLOUD_DEFAULTS.anthropic.baseUrl);
   const [model, setModel] = useState(CLOUD_DEFAULTS.anthropic.model);
@@ -211,16 +215,27 @@ export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }:
               ))}
               {/* --- ai-cut --- the TikTok cut per clip, after the render */}
               {ai.task === "videos" && (
-                <label className="flex items-center gap-1.5 text-xs text-ink-2 cursor-pointer ml-1" title={t("aiCutTip")}>
-                  <input type="checkbox" checked={cut} onChange={(e) => setCut(e.target.checked)} className="w-4 h-4" style={{ accentColor: "#93d119" }} data-testid="ai-cut" />
-                  {t("aiCut")}
-                </label>
+                <>
+                  <label className="flex items-center gap-1.5 text-xs text-ink-2 cursor-pointer ml-1" title={t("aiCutTip")}>
+                    <input type="checkbox" checked={cut} onChange={(e) => setCut(e.target.checked)} className="w-4 h-4" style={{ accentColor: "#93d119" }} aria-describedby={cutTipId} data-testid="ai-cut" />
+                    {t("aiCut")}
+                  </label>
+                  {/* the description sits outside the label, so it does not join the checkbox's name */}
+                  <span id={cutTipId} className="sr-only">
+                    {t("aiCutTip")}
+                  </span>
+                </>
               )}
               {ai.task === "videos" && (
-                <label className="flex items-center gap-1.5 text-xs text-ink-2 cursor-pointer ml-1" title={t("aiStartTip")}>
-                  <input type="checkbox" checked={autoStart} onChange={(e) => setAutoStart(e.target.checked)} className="w-4 h-4" style={{ accentColor: "#93d119" }} data-testid="ai-start" />
-                  {t("aiStart")}
-                </label>
+                <>
+                  <label className="flex items-center gap-1.5 text-xs text-ink-2 cursor-pointer ml-1" title={t("aiStartTip")}>
+                    <input type="checkbox" checked={autoStart} onChange={(e) => setAutoStart(e.target.checked)} className="w-4 h-4" style={{ accentColor: "#93d119" }} aria-describedby={startTipId} data-testid="ai-start" />
+                    {t("aiStart")}
+                  </label>
+                  <span id={startTipId} className="sr-only">
+                    {t("aiStartTip")}
+                  </span>
+                </>
               )}
             </div>
           )}

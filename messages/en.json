@@ -2837,7 +2837,7 @@
       "intro": "The Windows app runs the studio on your PC. It sends us no usage data and no crash reports. Your clips, library and settings stay on your PC. The app goes online only for the following:",
       "updates": {
         "label": "Updates:",
-        "content": "If automatic updates are on, the installed app asks GitHub for a small file that names the newest version, shortly after it starts and then every four hours. It downloads a new installer from GitHub when there is one. The portable EXE does not check."
+        "content": "If automatic updates are on, the installed app asks GitHub for a small file that names the newest version, shortly after it starts and then every four hours. With automatic updates off, it asks only when you press Check for updates. It downloads a new installer from GitHub when there is one. The portable EXE does not check."
       },
       "licence": {
         "label": "Your Pro licence:",
@@ -6466,6 +6466,7 @@
     "suggest": "Suggest with AI",
     "suggesting": "Asking the AI…",
     "suggested": "AI: {summary}",
+    "suggestedPlain": "The AI set the cut.",
     "suggestFailed": "The AI could not propose a cut: {error}"
   }
 }

@@ -24,6 +24,10 @@ import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_ED
  * meta) and, in the Windows app, ask the local AI for one (`desktop.suggest`, the "Suggest with AI" button): the answer
  * lands in the same sliders and the same preview, to be judged and rendered like any other cut. Only the user's own edits
  * are remembered (saved as they are made), so a proposal never overwrites the spec the user settled on.
+ *
+ * --- cut-reedit --- A cut file opened as it is (`source.cutFile`: the Library has no master for it) already shows its look:
+ * the dialog draws no fan-made badge on it again and remembers none of the edits made on it (its spec is the neutral one,
+ * no address included, which must not become the look of the user's next cut).
  */
 
 export interface ClipEditorSource {
@@ -34,6 +38,8 @@ export interface ClipEditorSource {
   /** --- low-findings --- A Publish clip's viral bot clip id and "Loop style" words: the cut keeps the source's copy and run. */
   botClipId?: string | null;
   loopCaption?: LoopCaptionContext | null;
+  /** --- cut-reedit --- The file is a cut with its look burned in (lib/clipEdit/propose.ts `libraryEditOpen`). */
+  cutFile?: boolean;
 }
 
 export interface ClipEditorDesktop {
@@ -72,6 +78,8 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const specRef = useRef(spec);
   specRef.current = spec;
   const [suggestion, setSuggestion] = useState<SuggestState>({ status: "idle" });
+  // --- clip-a11y --- which of the two answers came last (the render's or the AI's): the one the live region says
+  const [latest, setLatest] = useState<"render" | "suggest">("render");
   const suggestAbortRef = useRef<AbortController | null>(null);
   const [durationSec, setDurationSec] = useState<number | null>(null);
   const [openError, setOpenError] = useState<{ error: unknown } | null>(null); // --- clip-locale --- (worded at render, in the page's language)
@@ -88,7 +96,8 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const timeline = clipTimeline(fitted, CLIP_EDIT_OUTPUT.fps);
   const card = useMemo(() => ({ title: t("cardTitle"), note: t("cardNote") }), [t]);
   // --- legal-audit --- a Fight League source's cut carries the fan-made badge again, in the preview and in the file
-  const fanMade = fanMadeLine(source.mode, fl("canvasFanMade"));
+  // (--- cut-reedit --- a cut file has it in its frames already)
+  const fanMade = source.cutFile ? null : fanMadeLine(source.mode, fl("canvasFanMade"));
   const rendering = render.status === "rendering";
   const suggesting = suggestion.status === "running";
   // the spec is the user's or the AI's, never both at once: no edits while a suggestion is on its way
@@ -133,11 +142,12 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrub, fitted.startSec, fitted.lengthSec, fitted.zoom, fitted.hook, fitted.url, fitted.cardSec, durationSec, rendering, card.title, card.note, fanMade, seal]);
 
-  // --- ai-cut --- the user's own edits are what is remembered (not the cut the dialog opened on, not the AI's proposal)
+  // --- ai-cut --- the user's own edits are what is remembered (not the cut the dialog opened on, not the AI's proposal;
+  // --- cut-reedit --- nor a trim of a cut file, made on its neutral spec)
   const set = <K extends keyof ClipEditSpec>(key: K, value: ClipEditSpec[K]) => {
     const next = { ...specRef.current, [key]: value };
     specRef.current = next;
-    saveClipEdit(next);
+    if (!source.cutFile) saveClipEdit(next);
     setSpec(next);
   };
 
@@ -150,6 +160,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
     suggestAbortRef.current = controller;
     setRender((r) => (r.status === "error" ? { status: "idle" } : r)); // the one error slot shows the newest failure
     setSuggestion({ status: "running" });
+    setLatest("suggest"); // --- clip-a11y --- the live region says this answer next
     try {
       const { spec: proposed, summary } = await ask({ durationSec, current: fitted, signal: controller.signal });
       if (controller.signal.aborted) return;
@@ -168,6 +179,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
     const controller = new AbortController();
     abortRef.current = controller;
     setSuggestion((s) => (s.status === "error" ? { status: "idle" } : s)); // the one error slot shows the newest failure
+    setLatest("render"); // --- clip-a11y --- the live region says this outcome next
     setRender({ status: "rendering", progress: { phase: "prepare", progress: 0, frame: 0, frames: 0 } });
     try {
       const result = await renderClipEdit({ source: source.blob, spec: fitted, card, fanMade, signal: controller.signal, onProgress: (progress) => setRender({ status: "rendering", progress }) });
@@ -175,7 +187,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
       const name = editFileName(source.name, result.format.extension);
       let where: "downloaded" | "saved" = "downloaded";
       if (desktop) {
-        // a cut file, as the queue names them (`<job>-cut`): the Library opens it with its look only, and keeps what it was cut with
+        // a cut file, as the queue names them (`<job>-cut`): the Library opens it as it is (no master of it there), and keeps what it was cut with
         const jobId = `edit-${Date.now().toString(36)}-cut`;
         const meta: LibraryMeta = { title: desktop.meta?.title ?? name, mode: desktop.meta?.mode ?? source.mode ?? "", seed: desktop.meta?.seed ?? source.seed ?? 0, link: desktop.meta?.link ?? "", platform: "tiktok", hook: fitted.hook, caption: desktop.meta?.caption ?? null, hashtags: desktop.meta?.hashtags ?? [], queueJobId: jobId, cut: result.spec };
         await desktop.bridge.render.save({ jobId, folder: "", name: name.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta });
@@ -212,7 +224,14 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const errorMessage = render.status === "error" ? render.message : suggestion.status === "error" ? suggestion.message : null;
   // --- clip-a11y --- the live region's words while it renders: the phase and the progress in quarters, never every frame
   const live = render.status === "rendering" ? liveProgress(render.progress) : null;
-  const liveText = !live ? "" : live.phase === "frames" ? t("framesLive", { percent: live.percent }) : t(`phase.${live.phase}`, { frame: 0, frames: 0, percent: live.percent });
+  const progressText = !live ? "" : live.phase === "frames" ? t("framesLive", { percent: live.percent }) : t(`phase.${live.phase}`, { frame: 0, frames: 0, percent: live.percent });
+  // the render's outcome and the AI's answer, shown in their lines below and said through the one live region
+  const doneText = render.status === "done" ? `${t(render.where === "saved" ? "savedLibrary" : "downloaded", { sec: render.result.durationSec.toFixed(1), mb: (render.result.blob.size / 1048576).toFixed(1) })}${render.result.watermarked ? ` ${t("watermarked")}` : ""}` : "";
+  // --- ai-cut --- a model may leave its summary out: the line then says the cut is set, never a bare "AI: "
+  const suggestedText = suggestion.status !== "done" ? "" : suggestion.summary.trim() ? t("suggested", { summary: suggestion.summary.trim() }) : t("suggestedPlain");
+  // --- clip-a11y --- the region stays mounted and only its words change (one inserted already filled is often not read): the
+  // render's progress, the AI being asked, then the newest answer. The lines below carry no role, so nothing is read twice.
+  const liveText = rendering ? progressText : suggesting ? t("suggesting") : latest === "suggest" ? suggestedText : doneText;
   const percent = render.status === "rendering" ? Math.round(render.progress.progress * 100) : 0;
 
   return (
@@ -270,14 +289,13 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
             {liveText}
           </p>
           {render.status === "done" && (
-            <p className="text-xs text-ink-2" role="status" data-testid="clip-edit-done">
-              {t(render.where === "saved" ? "savedLibrary" : "downloaded", { sec: render.result.durationSec.toFixed(1), mb: (render.result.blob.size / 1048576).toFixed(1) })}
-              {render.result.watermarked && <span> {t("watermarked")}</span>}
+            <p className="text-xs text-ink-2" data-testid="clip-edit-done">
+              {doneText}
             </p>
           )}
           {suggestion.status === "done" && (
-            <p className="text-xs text-ink-2" role="status" data-testid="clip-edit-suggested">
-              {t("suggested", { summary: suggestion.summary })}
+            <p className="text-xs text-ink-2" data-testid="clip-edit-suggested">
+              {suggestedText}
             </p>
           )}
           {errorMessage && (
@@ -296,9 +314,11 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
                 {desktop ? t("renderSave") : t("renderDownload")}
               </button>
             )}
-            {/* --- ai-cut --- only in the Windows app, once the source is open: the local AI proposes the cut */}
+            {/* --- ai-cut --- only in the Windows app, once the source is open: the local AI proposes the cut. --- clip-a11y --- While
+                it is asked (or a render runs) the button is aria-disabled with no click, never natively disabled, which would drop
+                a keyboard user's focus to the dialog */}
             {desktop?.suggest && durationSec !== null && (
-              <button type="button" className={ghostBtn} disabled={suggesting || rendering} aria-busy={suggesting} onClick={() => void suggest()} data-testid="clip-edit-suggest">
+              <button type="button" className={ghostBtn} aria-disabled={busy || undefined} aria-busy={suggesting} onClick={busy ? undefined : () => void suggest()} data-testid="clip-edit-suggest">
                 {suggesting ? t("suggesting") : t("suggest")}
               </button>
             )}

@@ -2837,7 +2837,7 @@
       "intro": "Aplikacja na Windows uruchamia studio na Twoim komputerze. Nie wysyła nam danych o użyciu ani raportów o awariach. Klipy, biblioteka i ustawienia zostają na Twoim komputerze. Aplikacja łączy się z internetem tylko w tych sprawach:",
       "updates": {
         "label": "Aktualizacje:",
-        "content": "Jeśli aktualizacje automatyczne są włączone, zainstalowana aplikacja pyta GitHub o mały plik z numerem najnowszej wersji, wkrótce po uruchomieniu, a potem co cztery godziny. Gdy jest nowa wersja, pobiera z GitHub nowy instalator. Wersja przenośna tego nie sprawdza."
+        "content": "Jeśli aktualizacje automatyczne są włączone, zainstalowana aplikacja pyta GitHub o mały plik z numerem najnowszej wersji, wkrótce po uruchomieniu, a potem co cztery godziny. Przy wyłączonych aktualizacjach automatycznych pyta tylko wtedy, gdy klikniesz Sprawdź aktualizacje. Gdy jest nowa wersja, pobiera z GitHub nowy instalator. Wersja przenośna tego nie sprawdza."
       },
       "licence": {
         "label": "Licencja Pro:",
@@ -6466,6 +6466,7 @@
     "suggest": "Zaproponuj z AI",
     "suggesting": "Pytam AI…",
     "suggested": "AI: {summary}",
+    "suggestedPlain": "AI ustawiło cięcie.",
     "suggestFailed": "AI nie zaproponowało cięcia: {error}"
   }
 }

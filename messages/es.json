@@ -2837,7 +2837,7 @@
       "intro": "La app de Windows ejecuta el estudio en tu PC. No nos envía datos de uso ni informes de fallos. Tus clips, tu biblioteca y tus ajustes se quedan en tu PC. La app se conecta a internet solo para lo siguiente:",
       "updates": {
         "label": "Actualizaciones:",
-        "content": "Si las actualizaciones automáticas están activadas, la app instalada pide a GitHub un archivo pequeño con la última versión, poco después de arrancar y luego cada cuatro horas. Cuando hay una versión nueva, descarga el instalador de GitHub. El EXE portátil no lo comprueba."
+        "content": "Si las actualizaciones automáticas están activadas, la app instalada pide a GitHub un archivo pequeño con la última versión, poco después de arrancar y luego cada cuatro horas. Si están desactivadas, solo lo pide cuando pulsas Buscar actualizaciones. Cuando hay una versión nueva, descarga el instalador de GitHub. El EXE portátil no lo comprueba."
       },
       "licence": {
         "label": "Tu licencia Pro:",
@@ -6466,6 +6466,7 @@
     "suggest": "Sugerir con IA",
     "suggesting": "Preguntando a la IA…",
     "suggested": "IA: {summary}",
+    "suggestedPlain": "La IA ajustó el corte.",
     "suggestFailed": "La IA no pudo proponer un corte: {error}"
   }
 }

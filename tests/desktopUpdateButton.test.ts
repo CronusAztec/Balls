@@ -9,7 +9,7 @@ import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
 import { UPDATE_MANUAL_NONE, type UpdateStatus } from "@/lib/desktop/contract";
-import { UPDATE_LATEST_NOTE_MS, checkFoundNothing, pageMakesVideo, updateButtonBusy, updateButtonModel } from "@/lib/desktop/updateButton";
+import { UPDATE_LATEST_NOTE_MS, checkFoundNothing, manualCheckAnswered, pageMakesVideo, updateButtonBusy, updateButtonModel } from "@/lib/desktop/updateButton";
 import { UpdateButtonView, type UpdateButtonViewProps } from "@/components/simulator/desktop/UpdateButton";
 import { pageUrl } from "@/lib/site";
 
@@ -100,18 +100,30 @@ describe("the update button's states", () => {
     expect(calls).toEqual(["install", "check", "check"]);
   });
 
-  it("keeps Restart and update disabled while a clip renders, with the existing wait note", () => {
+  it("keeps Restart and update unclickable while a clip renders, with the existing wait note", () => {
     const ready = status("ready", { version: "1.5.0", progress: 1 });
     expect(updateButtonModel(ready, { rendering: true })).toMatchObject({ kind: "install", enabled: false, note: "waitRender" });
     const html = render({ status: ready, rendering: true });
-    expect(disabled(tag(html, B))).toBe(true);
-    expect(updateButtonBusy(updateButtonModel(ready, { rendering: true }))).toBe(false); // waiting for a render is not busy
+    // --- manual-update --- the download can end while a keyboard user waits on the button (Checking…, Downloading N %): the
+    // same button turns into Restart and update and keeps the focus, aria-disabled and without a click, never natively disabled
+    expect(updateButtonBusy(updateButtonModel(ready, { rendering: true }))).toBe(true);
+    expect(ariaDisabled(tag(html, B))).toBe(true);
+    expect(disabled(tag(html, B))).toBe(false);
+    expect(tag(html, B)).not.toContain("aria-busy"); // waiting for a render, not working on the update
     expect(tag(html, B)).toContain(`title="${en.Desktop.updateWaitRender}"`);
     expect(text(html, "desktop-update-note")).toBe(en.Desktop.updateWaitRender);
     // the update banner shows the same note while it is open: the top bar then keeps it in the tooltip only
     const quiet = render({ status: ready, rendering: true, waitHint: false });
-    expect(disabled(tag(quiet, B))).toBe(true);
+    expect(ariaDisabled(tag(quiet, B))).toBe(true);
+    expect(disabled(tag(quiet, B))).toBe(false);
     expect(text(quiet, "desktop-update-note")).toBe("");
+    // and the button has no native disabled in any state: every unclickable one passes
+    for (const s of [status("idle"), status("none"), status("checking"), status("downloading", { progress: 0.2 }), ready, status("error", { message: "offline" })]) {
+      for (const ctx of [{}, { rendering: true }, { asking: true }]) expect(disabled(tag(render({ status: s, ...ctx }), B)), `${s.state} ${JSON.stringify(ctx)}`).toBe(false);
+    }
+    // its look dims the same way under aria-disabled
+    const component = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "UpdateButton.tsx"), "utf8");
+    expect(component).toMatch(/install: `[^`]*aria-disabled:opacity-40`/);
   });
 
   // --- manual-update --- the page's own fast export, Record video and batch are no queue jobs: a restart would lose them too
@@ -170,10 +182,36 @@ describe("the update button's states", () => {
     const component = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "UpdateButton.tsx"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     // no watching the status for a bare change from "checking" to "none": the note follows the updater's mark on the status
     expect(component).not.toMatch(/prevState|before === "checking"|state !== "none"/);
-    expect(component).toMatch(/useEffect\(\(\) => \{\s+if \(!checkFoundNothing\(update\)\) return;\s+setJustChecked\(true\);\s+const timer = setTimeout\(\(\) => setJustChecked\(false\), UPDATE_LATEST_NOTE_MS\);\s+return \(\) => \{\s+clearTimeout\(timer\);\s+setJustChecked\(false\);\s+\};\s+\}, \[update\]\);/);
+    expect(component).toMatch(/useEffect\(\(\) => \{\s+const previous = seen\.current;\s+seen\.current = update;\s+if \(!manualCheckAnswered\(previous, update\)\) return;\s+setJustChecked\(true\);\s+const timer = setTimeout\(\(\) => setJustChecked\(false\), UPDATE_LATEST_NOTE_MS\);\s+return \(\) => \{\s+clearTimeout\(timer\);\s+setJustChecked\(false\);\s+\};\s+\}, \[update\]\);/);
+    expect(component).toMatch(/const seen = useRef<UpdateStatus \| null>\(null\);/);
     expect(component.match(/setJustChecked\(true\)/g)).toHaveLength(1);
     // the click only asks: its answer comes back as the same marked status
     expect(component).toMatch(/bridge\.update\s+\.check\(\)\s+\.catch\(\(\) => \{\}\)\s+\.finally\(\(\) => setAsking\(false\)\);/);
+  });
+
+  // --- manual-update --- the updater keeps a manual check's marked "none" until the next check, maybe hours later: the page
+  // reads it again on every mount (a reload, a language switch, coming back to the simulator), and that is no answer to say
+  it("says it only for an answer that arrives while the button is there, never for the old one a mount reads back", () => {
+    const marked = status("none", { message: UPDATE_MANUAL_NONE });
+    /** The statuses the button gets one after another, from its mount: whether each one shows the note (the effect's rule). */
+    const notes = (...seq: (UpdateStatus | null)[]) => {
+      let seen: UpdateStatus | null = null;
+      return seq.map((next) => {
+        const previous = seen;
+        seen = next;
+        return manualCheckAnswered(previous, next);
+      });
+    };
+    // mounted with the old marked status in hand, or with nothing yet and then the old status: no note
+    expect(notes(marked)).toEqual([false]);
+    expect(notes(null, marked)).toEqual([false, false]);
+    // a check while it is there: "checking" first, then the answer says "latest" (the menu's check the same way)
+    expect(notes(marked, status("checking"), status("none"), marked)).toEqual([false, false, false, true]);
+    expect(notes(null, status("idle"), status("checking"), marked)).toEqual([false, false, false, true]);
+    // the same answer again (an unrelated re-read) is no new answer
+    expect(notes(status("checking"), marked, marked)).toEqual([false, true, false]);
+    // the schedule's "none" and an error never say it
+    expect(notes(status("checking"), status("none"), status("checking"), status("error", { message: "offline" }))).toEqual([false, false, false, false]);
   });
 
   // --- manual-update --- the live region is mounted before its text: one inserted already filled is often not read out

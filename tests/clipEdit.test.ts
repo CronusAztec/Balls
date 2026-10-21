@@ -7,6 +7,7 @@ import { CARD_FADE_SEC, CLIP_EDIT_OUTPUT, CLIP_EDIT_STORAGE_KEY, CLIP_EDIT_TEXT_
 import { drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
 import { BADGE_HEIGHT, BADGE_INSET } from "@/lib/watermark/layout";
 import { ClipEditOpenError, ClipEditSeekError, clipEditErrorKey, cutAudio, liveProgress, openSourceVideo, seekVideo } from "@/lib/clipEdit/render";
+import { libraryEditOpen, refitClipEdit, type LibraryEditItem } from "@/lib/clipEdit/propose";
 import { FastRenderUnsupportedError } from "@/lib/recording/fastRender";
 import { sealWatermark } from "@/lib/watermark/seal";
 import { fakeCanvas, fakeDocument, type FakeCall } from "./fakeCanvas";
@@ -322,7 +323,8 @@ describe("the frame compositor", () => {
     expect(render).toMatch(/fanMade: string \| null;/);
     for (const c of render.match(/drawEditFrame\([^;]*\);/g) ?? []) expect(c).toMatch(/\{ seal, clipMs: t \* 1000, fanMade: options\.fanMade \}/);
     const dialog = strip(read("src/components/simulator/clipEditor/ClipEditorDialog.tsx"));
-    expect(dialog).toMatch(/const fanMade = fanMadeLine\(source\.mode, fl\("canvasFanMade"\)\);/);
+    // (--- cut-reedit --- a cut file opened as it is has the badge in its frames already: not a second one)
+    expect(dialog).toMatch(/const fanMade = source\.cutFile \? null : fanMadeLine\(source\.mode, fl\("canvasFanMade"\)\);/);
     expect(dialog).toMatch(/useTranslations\("FightLeague"\)/);
     for (const c of dialog.match(/drawEditFrame\([^;]*\);/g) ?? []) expect(c).toMatch(/fanMade \}\);$/);
     const queue = strip(read("src/components/simulator/desktop/useRenderQueue.ts"));
@@ -386,7 +388,9 @@ describe("the editor in the page and in the Windows app", () => {
     expect(dialog).toContain('data-testid="clip-edit-suggest"');
     expect(dialog).toContain('data-testid="clip-edit-suggested"');
     expect(dialog).toMatch(/\{suggesting \? t\("suggesting"\) : t\("suggest"\)\}/);
-    expect(dialog).toMatch(/t\("suggested", \{ summary: suggestion\.summary \}\)/);
+    // a summary the model left out (normaliseFinal makes it "") says the cut is set, never a bare "AI: "
+    expect(dialog).toMatch(/suggestion\.summary\.trim\(\) \? t\("suggested", \{ summary: suggestion\.summary\.trim\(\) \}\) : t\("suggestedPlain"\)/);
+    expect(dialog).toMatch(/data-testid="clip-edit-suggested">\s+\{suggestedText\}/);
     expect(dialog).toMatch(/t\("suggestFailed", \{ error \}\)/);
     // the proposal lands through the same floors as the stored spec, and the Render button waits for it
     expect(dialog).toMatch(/setSpec\(parseClipEdit\(proposed\)\)/);
@@ -394,6 +398,8 @@ describe("the editor in the page and in the Windows app", () => {
     // persistence moved from "every spec change" into the user's own edits: no effect saves the spec any more
     expect(dialog).not.toMatch(/useEffect\(\(\) => saveClipEdit\(spec\)/);
     expect(dialog).toMatch(/const set = <K extends keyof ClipEditSpec>[\s\S]*?saveClipEdit\(next\);[\s\S]*?setSpec\(next\);/);
+    // --- cut-reedit --- a trim of a cut file (its neutral spec: no address, no crop-in) never becomes the user's look
+    expect(dialog).toMatch(/if \(!source\.cutFile\) saveClipEdit\(next\);/);
     expect(dialog).not.toMatch(/saveClipEdit\((?!next\))/);
     // closing the dialog drops a proposal still on its way
     expect(dialog).toMatch(/suggestAbortRef\.current\?\.abort\(\)/);
@@ -404,14 +410,74 @@ describe("the editor in the page and in the Windows app", () => {
     const library = read("src/components/simulator/desktop/LibraryPanel.tsx");
     expect(library).toMatch(/onSuggestCut\?: LibrarySuggestCut/);
     expect(library).toMatch(/export type LibrarySuggestCut = \(item: LibraryItem, input: \{ durationSec: number; current: ClipEditSpec; request\?: string; signal\?: AbortSignal \}\) => Promise<\{ spec: ClipEditSpec; summary: string \}>/);
-    // a master opens with its proposed cut whole; a cut file (queueJobId `<job>-cut`) only with the look it was made with
-    expect(library).toMatch(/<ClipEditorDialog source=\{editing\.source\} initialSpec=\{initialCut\(editing\.item\)\}/);
-    expect(library).toMatch(/queueJobId\?\.endsWith\("-cut"\)\) return \{ zoom: cut\.zoom, hook: cut\.hook, cardSec: cut\.cardSec \}/);
-    expect(library).not.toMatch(/url: cut\.url/); // the address stays the user's remembered one
+    // --- cut-reedit --- what it opens comes from libraryEditOpen (its cases are below): the item, the spec, whether it is a bare cut file
+    expect(library).toMatch(/const \{ item, spec, cutFile \} = libraryEditOpen\(clicked, items\);/);
+    expect(library).toMatch(/bridge\.library\.read\(item\.id\)[\s\S]{0,80}setEditing\(\{ source: \{ blob: file, name: item\.fileName, mode: item\.meta\.mode, seed: item\.meta\.seed, cutFile \}, item, spec \}\)/);
+    expect(library).toMatch(/<ClipEditorDialog source=\{editing\.source\} initialSpec=\{editing\.spec\}/);
+    expect(library).not.toMatch(/initialCut/);
+    expect(read("src/lib/clipEdit/propose.ts")).not.toMatch(/url: (cut|fitted)\.url/); // a master's address stays the user's remembered one
     expect(read("src/components/simulator/desktop/useRenderQueue.ts")).toMatch(/queueJobId: `\$\{job\.id\}-cut`/);
-    expect(library).toMatch(/suggest: onSuggestCut \? \(input\) => onSuggestCut\(editing\.item, input\) : undefined/);
+    // the AI is asked for a cut of the item opened, never of a bare cut file (it would put a second hook and card on it)
+    expect(library).toMatch(/suggest: onSuggestCut && !editing\.source\.cutFile \? \(input\) => onSuggestCut\(editing\.item, input\) : undefined/);
     // the Library's own words are Desktop keys only: the editor's live in ClipEditor
     expect(library).not.toMatch(/t\("suggest/);
+  });
+
+  // --- cut-reedit --- a cut file shows its crop-in, hook, address, end card and badge already: the look never goes on it twice
+  it("opens a queue cut's master with the cut's spec, and a cut with no master as it is, with nothing added", () => {
+    const look = { zoom: 1.25, hook: "Will it escape?", url: "burned.example", cardSec: 1.5 };
+    type Item = LibraryEditItem & { id: string };
+    const item = (id: string, queueJobId: string | null, durationSec: number | null, cut?: ClipEditSpec, exists = true): Item => ({ id, durationSec, exists, meta: { queueJobId, ...(cut ? { cut } : {}) } });
+    // the master carries the plan's proposal; the queue saved the cut with the spec it rendered (refitted to the master's file)
+    const proposal: ClipEditSpec = { startSec: 2.4, lengthSec: 10.6, ...look };
+    const master = item("m", "job-x", 14.2, proposal);
+    const cut = item("c", "job-x-cut", 12.1, { ...proposal });
+    const items = [cut, master];
+    // a master: its own proposal, the address left to the user's remembered spec
+    expect(libraryEditOpen(master, items)).toEqual({ item: master, spec: { startSec: 2.4, lengthSec: 10.6, zoom: 1.25, hook: "Will it escape?", cardSec: 1.5 }, cutFile: false });
+    // the queue's cut: its master, with the whole spec the cut was made with (start, length and look), never the burned address
+    const opened = libraryEditOpen(cut, items);
+    expect(opened.item).toBe(master);
+    expect(opened.cutFile).toBe(false);
+    expect(opened.spec).toEqual({ startSec: 2.4, lengthSec: 10.6, zoom: 1.25, hook: "Will it escape?", cardSec: 1.5 });
+    expect(opened.spec).not.toHaveProperty("url");
+    // refitted to the master as the queue refits: a master shorter than the cut's end keeps the length and ends with the file
+    const shortMaster = item("m2", "job-y", 12, proposal);
+    const shortCut = item("c2", "job-y-cut", 12.1, { ...proposal });
+    const refit = refitClipEdit(proposal, 13, 12);
+    expect(libraryEditOpen(shortCut, [shortCut, shortMaster]).spec).toEqual({ startSec: refit.startSec, lengthSec: refit.lengthSec, zoom: 1.25, hook: "Will it escape?", cardSec: 1.5 });
+    expect(refit).toMatchObject({ startSec: 1.4, lengthSec: 10.6 });
+    // a queue cut saved without its spec still opens its master, on the master's own proposal
+    expect(libraryEditOpen(item("c3", "job-x-cut", 12.1), items)).toMatchObject({ item: master, spec: { startSec: 2.4 }, cutFile: false });
+    // no master to open (the editor's own cut, a master forgotten or whose file is gone): the file as it is, nothing added
+    const neutral = { startSec: 0, lengthSec: 12.1, zoom: 1, hook: "", url: "", cardSec: 0 };
+    const editorCut = item("e", "edit-abc-cut", 12.1, { ...proposal });
+    expect(libraryEditOpen(editorCut, [editorCut, master])).toEqual({ item: editorCut, spec: neutral, cutFile: true });
+    expect(libraryEditOpen(cut, [cut])).toEqual({ item: cut, spec: neutral, cutFile: true });
+    expect(libraryEditOpen(cut, [cut, { ...master, exists: false }])).toEqual({ item: cut, spec: neutral, cutFile: true });
+    // the neutral spec wins over whatever the user remembered: no crop-in, no hook, no address, no card, the whole file
+    const remembered = { ...DEFAULT_CLIP_EDIT, url: "mine.example" };
+    const spec = parseClipEdit({ ...remembered, ...neutral }, remembered);
+    expect(spec).toEqual(neutral);
+    expect(fitClipEdit(spec, 12.13)).toMatchObject({ startSec: 0, lengthSec: 12.1 });
+    expect(clipTimeline(fitClipEdit(spec, 12.13)).cardSec).toBe(0);
+    // a cut file the Library could not measure: the editor's fit to the file it opens keeps the whole of it
+    const unmeasured = libraryEditOpen(item("u", "edit-def-cut", null), []);
+    expect(unmeasured.cutFile).toBe(true);
+    expect(fitClipEdit(parseClipEdit({ ...remembered, ...unmeasured.spec }, remembered), 12.13)).toEqual({ ...neutral, lengthSec: 12.1 });
+    // an item with no cut: nothing pre-filled
+    expect(libraryEditOpen(item("p", null, 9), [])).toEqual({ item: expect.objectContaining({ id: "p" }), spec: undefined, cutFile: false });
+  });
+
+  // --- ai-cut --- Make videos' two checkboxes explain themselves to a screen reader, not only in a mouse's hover title
+  it("gives the AI panel's cut and start checkboxes their tips as accessible descriptions", () => {
+    const panel = read("src/components/simulator/desktop/AiPanel.tsx");
+    for (const [id, tip, testId] of [["cutTipId", "aiCutTip", "ai-cut"], ["startTipId", "aiStartTip", "ai-start"]] as const) {
+      expect(panel).toContain(`const ${id} = useId();`);
+      expect(panel).toMatch(new RegExp(`<input type="checkbox"[^\\n]*aria-describedby=\\{${id}\\} data-testid="${testId}" />`));
+      // outside the label (inside, the words would join the checkbox's name)
+      expect(panel).toMatch(new RegExp(`</label>\\s+(\\{/\\*[^*]*\\*/\\}\\s+)?<span id=\\{${id}\\} className="sr-only">\\s+\\{t\\("${tip}"\\)\\}\\s+</span>`));
+    }
   });
 
   it("has its words in every language", () => {
@@ -538,6 +604,37 @@ describe("the editor's failures, progress and preview", () => {
     expect(dialog).toMatch(/const live = render\.status === "rendering" \? liveProgress\(render\.progress\) : null;/);
     expect(dialog).toMatch(/live\.phase === "frames" \? t\("framesLive", \{ percent: live\.percent \}\)/);
     for (const loc of ["en", "pl", "es"]) expect((JSON.parse(read(`messages/${loc}.json`)) as { ClipEditor: Record<string, string> }).ClipEditor.framesLive, loc).toContain("{percent}");
+  });
+
+  // --- clip-a11y --- Suggest with AI keeps a keyboard user's focus, and the AI's answer and the render's outcome are said
+  // through the one live region that is there from the start (a region inserted with its words already in it is often not read)
+  it("keeps the focus on Suggest while the AI is asked, and says its answer and the render's outcome in the mounted region", () => {
+    const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx").replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+    const at = dialog.indexOf('data-testid="clip-edit-suggest"');
+    const suggest = dialog.slice(dialog.lastIndexOf("<button", at), at); // (its click is an arrow: no [^>] match)
+    expect(suggest).toContain("aria-disabled={busy || undefined}");
+    expect(suggest).toContain("onClick={busy ? undefined : () => void suggest()}");
+    expect(suggest).not.toMatch(/\sdisabled=/);
+    expect(dialog).toMatch(/const busy = rendering \|\| suggesting;/);
+    // the region says the render's progress, the AI being asked, then the newest answer
+    expect(dialog).toMatch(/const liveText = rendering \? progressText : suggesting \? t\("suggesting"\) : latest === "suggest" \? suggestedText : doneText;/);
+    expect(dialog).toMatch(/setSuggestion\(\{ status: "running" \}\);\s+setLatest\("suggest"\);/);
+    expect(dialog).toMatch(/setLatest\("render"\);[^\n]*\n\s+setRender\(\{ status: "rendering"/);
+    // the visible lines show the same words without a role of their own: nothing is read twice, nothing is inserted live
+    for (const id of ["clip-edit-done", "clip-edit-suggested"]) {
+      const line = dialog.match(new RegExp(`<p[^>]*data-testid="${id}"[^>]*>`))?.[0] ?? "";
+      expect(line, id).not.toBe("");
+      expect(line, id).not.toMatch(/role=|aria-live/);
+    }
+    expect(dialog).toMatch(/data-testid="clip-edit-done">\s+\{doneText\}/);
+    expect(dialog.match(/role="status"/g)).toHaveLength(1);
+    // the fallback for a missing summary, in every language, plain and without a placeholder
+    for (const loc of ["en", "pl", "es"]) {
+      const editor = (JSON.parse(read(`messages/${loc}.json`)) as { ClipEditor: Record<string, string> }).ClipEditor;
+      expect(editor.suggestedPlain, loc).toMatch(/^\S[^{}]*\.$/);
+      expect(editor.suggestedPlain, loc).not.toMatch(/—| – |;/);
+    }
+    for (const loc of ["pl", "es"]) expect((JSON.parse(read(`messages/${loc}.json`)) as { ClipEditor: Record<string, string> }).ClipEditor.suggestedPlain).not.toBe("The AI set the cut.");
   });
 
   // --- clip-editor --- a seal that comes after the video (a licence renewal in flight) still draws the preview
