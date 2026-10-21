@@ -7,6 +7,15 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Website 1.14.1 · 2026-10-21
+
+Readable Fight League names and exact loops
+
+### Fixed
+
+- Fight League's noir stage keeps long ability names readable. A name too long for its column takes two lines instead of shrinking to tiny text.
+- A Fill and loop fast export always ends on a whole number of loops. Before, a clip could come out one frame short per loop.
+
 ## Website 1.14.0 · 2026-10-21
 
 Cut clips for TikTok, and a smooth Merge Ring

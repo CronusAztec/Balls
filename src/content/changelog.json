@@ -1,6 +1,35 @@
 {
   "releases": [
     {
+      "id": "site-1-14-1",
+      "product": "site",
+      "version": "1.14.1",
+      "date": "2026-10-21",
+      "headline": {
+        "en": "Readable Fight League names and exact loops",
+        "pl": "Czytelne nazwy w Fight League i dokładne pętle",
+        "es": "Nombres legibles en Fight League y bucles exactos"
+      },
+      "items": [
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "Fight League's noir stage keeps long ability names readable. A name too long for its column takes two lines instead of shrinking to tiny text.",
+            "pl": "Na scenie noir w Fight League długie nazwy umiejętności są czytelne. Nazwa za długa na swoją kolumnę zajmuje dwie linie zamiast maleć do drobnego tekstu.",
+            "es": "En el escenario noir de Fight League los nombres largos de habilidades se leen bien. Un nombre demasiado largo para su columna ocupa dos líneas en vez de encogerse."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "A Fill and loop fast export always ends on a whole number of loops. Before, a clip could come out one frame short per loop.",
+            "pl": "Szybki eksport Wypełnij i zapętl zawsze kończy się na pełnej liczbie pętli. Wcześniej klip mógł wyjść o jedną klatkę krótszy na każdą pętlę.",
+            "es": "Una exportación rápida de Llenar y repetir siempre termina en un número entero de bucles. Antes un clip podía salir un fotograma más corto por bucle."
+          }
+        }
+      ]
+    },
+    {
       "id": "site-1-14-0",
       "product": "site",
       "version": "1.14.0",
