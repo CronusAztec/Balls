@@ -221,6 +221,28 @@ describe("shouldPlanNow (the page's 15-minute check)", () => {
     expect(unpostedClips(library, queue, audit)[0]).toEqual({ id: "fresh", title: "fresh", caption: "c", hashtags: ["#a"], platform: "tiktok", durationSec: 10, createdAt: iso(NOW - 1000) });
     expect(sanitizeAutopilot({ channels: ["int-tt", "int-ig"] })).toEqual({ channels: ["int-tt", "int-ig"] });
   });
+
+  // --- ai-cut --- Make videos with cuts saves a master (`<job>`) and its TikTok cut (`<job>-cut`) with the same copy: one video
+  it("folds a master and its TikTok cut into one clip: one is offered, and either one queued or posted takes both", () => {
+    const item = (id: string, queueJobId: string | null, createdAt = NOW - 1000): LibraryItem => ({ id, path: `C:/${id}.mp4`, fileName: `${id}.mp4`, bytes: 1, durationSec: 10, width: 1080, height: 1920, createdAt, thumbnail: null, exists: true, encoder: null, meta: { title: "Glass smash", mode: "glass", seed: 1, link: "", platform: queueJobId?.endsWith("-cut") ? "tiktok" : "reels", hook: null, caption: "Which floor breaks first?", hashtags: ["#glass"], queueJobId } });
+    const library = [item("master", "job-1"), item("cut", "job-1-cut", NOW - 500), item("other", "job-2"), item("picked", null), item("edited", "edit-abc-cut")];
+    // one of the pair: the master for other channels, the cut when a TikTok channel is ticked; the rest stay as they are
+    expect(unpostedClips(library, [], []).map((c) => c.id)).toEqual(["master", "other", "picked", "edited"]);
+    expect(unpostedClips(library, [], [], { preferCut: true }).map((c) => c.id)).toEqual(["cut", "other", "picked", "edited"]);
+    // either one proposed (any status but skipped) or posted takes the other too, whichever kind the run prefers
+    for (const clipId of ["master", "cut"]) {
+      for (const preferCut of [false, true]) {
+        expect(unpostedClips(library, [queued({ clipId })], [], { preferCut }).map((c) => c.id), `${clipId} queued`).toEqual(["other", "picked", "edited"]);
+        expect(unpostedClips(library, [], [{ at: iso(NOW), action: "createPosts", channels: ["int-tt"], postIds: ["p1"], by: "user", clipId, when: "now" }], { preferCut }).map((c) => c.id), `${clipId} posted`).toEqual(["other", "picked", "edited"]);
+      }
+      expect(unpostedClips(library, [queued({ clipId, status: "skipped" })], []).map((c) => c.id)).toEqual(["master", "other", "picked", "edited"]);
+    }
+    // a pair whose preferred file is gone offers the other one
+    expect(unpostedClips([{ ...library[0] }, { ...library[1], exists: false }], [], [], { preferCut: true }).map((c) => c.id)).toEqual(["master"]);
+    // the planning run prefers the cut when a TikTok channel is among its channels
+    const planRun = fs.readFileSync(path.join(__dirname, "..", "src", "lib", "desktop", "ai", "planRun.ts"), "utf8");
+    expect(planRun).toMatch(/unpostedClips\(library, queue, audit, \{ preferCut: channels\.some\(\(c\) => c\.platform === "tiktok"\) \}\)/);
+  });
 });
 
 /* ------------------------------------------------------------------ one planning run over a fake bridge */

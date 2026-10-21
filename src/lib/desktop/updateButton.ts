@@ -1,10 +1,11 @@
-import type { UpdateStatus } from "./contract";
+import { UPDATE_MANUAL_NONE, type UpdateStatus } from "./contract";
 
 /*
  * --- manual-update --- What the Windows app's top bar update control shows for the updater's status (desktop/src/updater.ts):
- * Check for updates, Checking…, the download's percent, Restart and update (never while a clip renders or is cut: the update
- * then installs when the app quits), the result of a check, and the Download page when the check failed or this build cannot
- * update itself (the portable EXE, a development run). Pure, so tests/desktopUpdateButton.test.ts reads every state.
+ * Check for updates, Checking…, the download's percent, Restart and update (never while a clip renders or is cut, nor while the
+ * page's own fast export, recording or batch runs: the update then installs when the app quits), the result of a check, and
+ * the Download page when the check failed or this build cannot update itself (the portable EXE, a development run). Pure, so
+ * tests/desktopUpdateButton.test.ts reads every state.
  */
 
 /** How long "You have the latest version" stays beside the button after a check found nothing. */
@@ -27,22 +28,32 @@ export interface UpdateButtonModel {
 }
 
 export interface UpdateButtonContext {
-  /** A clip renders, encodes or is being cut: no restart now. */
+  /** A clip renders, encodes or is being cut, or the page makes a video of its own (pageMakesVideo): no restart now. */
   rendering?: boolean;
-  /** A check the user asked for just answered "none" (checkFoundNothing; the "latest version" note shows for UPDATE_LATEST_NOTE_MS). */
+  /** A manual check just answered "none" (checkFoundNothing; the "latest version" note shows for UPDATE_LATEST_NOTE_MS). */
   justChecked?: boolean;
   /** A click was sent and its answer has not come back yet (a second click must not start a second check). */
   asking?: boolean;
 }
 
 /**
- * Whether a check's own answer earns "You have the latest version": only the status the clicked check returned, never a
- * status change seen on the way. The quiet schedule's checks pass through "checking" too, and a failed one is put back to
- * the "none" it found (desktop/src/updater.ts), so a change from "checking" to "none" proves nothing about who asked or how
- * it went.
+ * --- manual-update --- Whether the page itself is making a video: its fast export, Record video or its batch (the render
+ * queue renders through the batch too). None of them is a queue job, and a restart now would lose it, so Restart and update
+ * waits for them like it waits for a queue job (DesktopSection's `rendering`). Find Simulation and the engine loading lose
+ * nothing and do not count.
  */
-export function checkFoundNothing(answer: UpdateStatus | null | undefined): boolean {
-  return answer?.state === "none";
+export function pageMakesVideo(page: { recording: boolean; fastExport: { status: string }; batchRun: { status: string } }): boolean {
+  return page.recording || page.fastExport.status === "running" || page.batchRun.status === "running" || page.batchRun.status === "stopping";
+}
+
+/**
+ * Whether a status earns "You have the latest version": the "none" a manual check ends in, which the updater marks with
+ * UPDATE_MANUAL_NONE (desktop/src/updater.ts), whichever control asked (the top bar's button, the Help menu, the GPU tab).
+ * Never a bare change from "checking" to "none": the quiet schedule's checks pass through "checking" too, and a failed one is
+ * put back to the "none" it found, so that change proves nothing about who asked or how it went.
+ */
+export function checkFoundNothing(status: UpdateStatus | null | undefined): boolean {
+  return status?.state === "none" && status.message === UPDATE_MANUAL_NONE;
 }
 
 /** A busy button (a check asked for, under way or downloading) keeps its focus: aria-disabled, never the native `disabled`. */

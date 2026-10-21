@@ -6,11 +6,12 @@ import Dialog from "@/components/ui/Dialog";
 import { btn, ghostBtn, inputClass, primaryBtn } from "@/components/simulator/desktop/ui";
 import type { DesktopApi, LibraryMeta } from "@/lib/desktop/contract";
 import { blobBytes } from "@/lib/desktop/bridge";
-import { FastRenderUnsupportedError, downloadExport } from "@/lib/recording/fastRender";
+import { downloadExport } from "@/lib/recording/fastRender";
 import { offerPublishClip } from "@/lib/publish/clips";
-import { sealWatermark } from "@/lib/watermark/seal";
+import type { LoopCaptionContext } from "@/lib/publish/loopCaption"; // --- low-findings ---
+import { sealWatermark, type WatermarkSeal } from "@/lib/watermark/seal";
 import { drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
-import { openSourceVideo, renderClipEdit, seekVideo, type ClipEditProgress, type ClipEditResult } from "@/lib/clipEdit/render";
+import { clipEditErrorKey, liveProgress, openSourceVideo, renderClipEdit, seekVideo, type ClipEditProgress, type ClipEditResult } from "@/lib/clipEdit/render";
 import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, clipTimeline, editFileName, fitClipEdit, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
 
 /*
@@ -30,6 +31,9 @@ export interface ClipEditorSource {
   name: string;
   mode?: string | null;
   seed?: number | null;
+  /** --- low-findings --- A Publish clip's viral bot clip id and "Loop style" words: the cut keeps the source's copy and run. */
+  botClipId?: string | null;
+  loopCaption?: LoopCaptionContext | null;
 }
 
 export interface ClipEditorDesktop {
@@ -45,6 +49,13 @@ type RenderState = { status: "idle" } | { status: "rendering"; progress: ClipEdi
 type SuggestState = { status: "idle" } | { status: "running" } | { status: "done"; summary: string } | { status: "error"; message: string };
 
 const HOOK_IDEAS = ["escape", "winner", "wait", "count"] as const;
+
+/** --- clip-locale --- A failure the editor expects (the browser, the file) in the page's language; any other as it came. */
+function failureText(err: unknown, t: (key: "unsupported" | "cannotOpen" | "cannotSeek") => string): string {
+  const key = clipEditErrorKey(err);
+  if (key) return t(key);
+  return err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") : String(err);
+}
 
 /** The preview canvas: a quarter of the output, drawn with the same compositor. */
 const PREVIEW_SCALE = 0.25;
@@ -63,12 +74,13 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const [suggestion, setSuggestion] = useState<SuggestState>({ status: "idle" });
   const suggestAbortRef = useRef<AbortController | null>(null);
   const [durationSec, setDurationSec] = useState<number | null>(null);
-  const [openError, setOpenError] = useState<string | null>(null);
+  const [openError, setOpenError] = useState<{ error: unknown } | null>(null); // --- clip-locale --- (worded at render, in the page's language)
   const [scrub, setScrub] = useState(0);
   const [render, setRender] = useState<RenderState>({ status: "idle" });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<{ video: HTMLVideoElement; release: () => void } | null>(null);
-  const sealRef = useRef<unknown>(null);
+  // the preview's seal: state, so a seal that comes after the video (a licence renewal still in flight) draws the frame then
+  const [seal, setSeal] = useState<WatermarkSeal | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const drawToken = useRef(0);
 
@@ -85,14 +97,14 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   // The source, opened once for the preview; the seal of the preview's frames (the file's run seals again).
   useEffect(() => {
     let live = true;
-    void sealWatermark().then((seal) => (sealRef.current = seal));
+    void sealWatermark().then((sealed) => live && setSeal(sealed));
     void openSourceVideo(source.blob)
       .then((opened) => {
         if (!live) return opened.release();
         videoRef.current = { video: opened.video, release: opened.release };
         setDurationSec(opened.durationSec);
       })
-      .catch((err: unknown) => live && setOpenError(err instanceof Error ? err.message : String(err)));
+      .catch((err: unknown) => live && setOpenError({ error: err }));
     return () => {
       live = false;
       videoRef.current?.release();
@@ -102,11 +114,11 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
     };
   }, [source.blob]);
 
-  // The preview frame at the scrub time (drawn after the seek lands; a newer request wins).
+  // The preview frame at the scrub time (drawn after the seek lands; a newer request wins), once the seal is there.
   useEffect(() => {
     const canvas = canvasRef.current;
     const opened = videoRef.current;
-    if (!canvas || !opened || durationSec === null || rendering) return;
+    if (!canvas || !opened || durationSec === null || rendering || !seal) return;
     const token = ++drawToken.current;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -114,12 +126,12 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
     void seekVideo(opened.video, sourceTimeAt(fitted, tSec))
       .catch(() => undefined)
       .then(() => {
-        if (token !== drawToken.current || !sealRef.current) return;
+        if (token !== drawToken.current) return;
         const { video } = opened;
-        drawEditFrame(ctx, { image: video, width: video.videoWidth || canvas.width, height: video.videoHeight || canvas.height }, canvas.width, canvas.height, fitted, timeline, tSec, card, { seal: sealRef.current, clipMs: tSec * 1000, fanMade });
+        drawEditFrame(ctx, { image: video, width: video.videoWidth || canvas.width, height: video.videoHeight || canvas.height }, canvas.width, canvas.height, fitted, timeline, tSec, card, { seal, clipMs: tSec * 1000, fanMade });
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrub, fitted.startSec, fitted.lengthSec, fitted.zoom, fitted.hook, fitted.url, fitted.cardSec, durationSec, rendering, card.title, card.note, fanMade]);
+  }, [scrub, fitted.startSec, fitted.lengthSec, fitted.zoom, fitted.hook, fitted.url, fitted.cardSec, durationSec, rendering, card.title, card.note, fanMade, seal]);
 
   // --- ai-cut --- the user's own edits are what is remembered (not the cut the dialog opened on, not the AI's proposal)
   const set = <K extends keyof ClipEditSpec>(key: K, value: ClipEditSpec[K]) => {
@@ -170,11 +182,10 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
         desktop.onSaved?.();
         where = "saved";
       } else downloadExport(result.blob, result.format.extension, name.replace(/\.[a-z0-9]+$/i, ""));
-      offerPublishClip({ blob: result.blob, name, source: "edit", durationSec: result.durationSec, mode: source.mode ?? null, seed: source.seed ?? null });
+      offerPublishClip({ blob: result.blob, name, source: "edit", durationSec: result.durationSec, mode: source.mode ?? null, seed: source.seed ?? null, botClipId: source.botClipId ?? null, loopCaption: source.loopCaption ?? null });
       setRender({ status: "done", result, where });
     } catch (err) {
-      const message = err instanceof FastRenderUnsupportedError ? t("unsupported") : err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") : String(err);
-      setRender({ status: "error", message });
+      setRender({ status: "error", message: failureText(err, t) });
     } finally {
       abortRef.current = null;
     }
@@ -199,6 +210,10 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const canRender = durationSec !== null && !openError && !rendering && !suggesting;
   // --- ai-cut --- the one error slot: a render that failed, else a proposal that did
   const errorMessage = render.status === "error" ? render.message : suggestion.status === "error" ? suggestion.message : null;
+  // --- clip-a11y --- the live region's words while it renders: the phase and the progress in quarters, never every frame
+  const live = render.status === "rendering" ? liveProgress(render.progress) : null;
+  const liveText = !live ? "" : live.phase === "frames" ? t("framesLive", { percent: live.percent }) : t(`phase.${live.phase}`, { frame: 0, frames: 0, percent: live.percent });
+  const percent = render.status === "rendering" ? Math.round(render.progress.progress * 100) : 0;
 
   return (
     <Dialog title={t("title")} closeLabel={t("close")} onClose={onClose} placement="center" id="clip-editor" bodyClassName="p-3 sm:p-4">
@@ -216,7 +231,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
           <p className="text-xs text-ink-3 leading-snug">{t("intro")}</p>
           {openError && (
             <p className="text-xs text-danger" role="alert">
-              {openError}
+              {failureText(openError.error, t)}
             </p>
           )}
           <div className="grid gap-3 sm:grid-cols-2">
@@ -241,14 +256,19 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
             <input type="text" value={spec.url} maxLength={CLIP_EDIT_TEXT_MAX} disabled={busy} onChange={(e) => set("url", e.target.value)} placeholder={DEFAULT_CLIP_EDIT.url} className={`${inputClass} w-full`} data-testid="clip-edit-url" />
           </label>
 
+          {/* --- clip-a11y --- the bar is a progressbar and its line changes every few frames, so neither is live: the region
+              below stays mounted and changes only with the phase or a quarter of the render */}
           {render.status === "rendering" && (
-            <div className="space-y-1" role="status">
-              <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden">
-                <div className="h-full bg-accent transition-[width]" style={{ width: `${Math.round(render.progress.progress * 100)}%` }} />
+            <div className="space-y-1">
+              <div className="h-1.5 rounded-full bg-surface-2 overflow-hidden" role="progressbar" aria-label={t("progressLabel")} aria-valuemin={0} aria-valuemax={100} aria-valuenow={percent} data-testid="clip-edit-progress">
+                <div className="h-full bg-accent transition-[width]" style={{ width: `${percent}%` }} />
               </div>
-              <p className="text-xs text-ink-3 tabular-nums">{t(`phase.${render.progress.phase}`, { frame: render.progress.frame, frames: render.progress.frames, percent: Math.round(render.progress.progress * 100) })}</p>
+              <p className="text-xs text-ink-3 tabular-nums">{t(`phase.${render.progress.phase}`, { frame: render.progress.frame, frames: render.progress.frames, percent })}</p>
             </div>
           )}
+          <p className="sr-only" role="status" aria-live="polite" data-testid="clip-edit-live">
+            {liveText}
+          </p>
           {render.status === "done" && (
             <p className="text-xs text-ink-2" role="status" data-testid="clip-edit-done">
               {t(render.where === "saved" ? "savedLibrary" : "downloaded", { sec: render.result.durationSec.toFixed(1), mb: (render.result.blob.size / 1048576).toFixed(1) })}

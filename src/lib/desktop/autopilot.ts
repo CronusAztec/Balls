@@ -155,13 +155,42 @@ export interface PlanClip {
   createdAt: string;
 }
 
-/** The Library's finished clips not yet posted (the audit log) or in the queue (any status but skipped). */
-export function unpostedClips(library: readonly LibraryItem[], queue: readonly SocialQueueItem[], audit: readonly SocialAuditEntry[]): PlanClip[] {
+/** --- ai-cut --- The suffix of a cut's `queueJobId`: the render queue saves a master as `<job>` and its TikTok cut as `<job>-cut`. */
+const CUT_JOB_SUFFIX = "-cut";
+
+/** --- ai-cut --- Whether a Library item is a cut file (the queue's or the Clip editor's). */
+function isCutItem(item: Pick<LibraryItem, "meta">): boolean {
+  return item.meta.queueJobId?.endsWith(CUT_JOB_SUFFIX) ?? false;
+}
+
+/** --- ai-cut --- The video a Library item shows: a master and its cut (`<job>`, `<job>-cut`) are one; any other item is its own. */
+function videoOf(item: Pick<LibraryItem, "id" | "meta">): string {
+  const job = item.meta.queueJobId;
+  return job ? `job:${isCutItem(item) ? job.slice(0, -CUT_JOB_SUFFIX.length) : job}` : `item:${item.id}`;
+}
+
+/**
+ * The Library's finished clips not yet posted (the audit log) or in the queue (any status but skipped). --- ai-cut --- A master
+ * and its TikTok cut are one video: either one queued or posted takes both, and only one of them is offered, the cut when
+ * `preferCut` (a TikTok channel is among the planner's) and the master otherwise, so one video never goes out twice.
+ */
+export function unpostedClips(library: readonly LibraryItem[], queue: readonly SocialQueueItem[], audit: readonly SocialAuditEntry[], options: { preferCut?: boolean } = {}): PlanClip[] {
+  const videoById = new Map(library.map((i) => [i.id, videoOf(i)]));
   const taken = new Set<string>();
-  for (const i of queue) if (i.status !== "skipped") taken.add(i.clipId);
-  for (const e of audit) if (e.action === "createPosts" && e.clipId) taken.add(e.clipId);
-  return library
-    .filter((i) => i.exists && !taken.has(i.id))
+  const take = (clipId: string) => taken.add(videoById.get(clipId) ?? `item:${clipId}`);
+  for (const i of queue) if (i.status !== "skipped") take(i.clipId);
+  for (const e of audit) if (e.action === "createPosts" && e.clipId) take(e.clipId);
+  const open = library.filter((i) => i.exists && !taken.has(videoOf(i)));
+  // one item a video: the preferred kind, then the newest
+  const rank = (i: LibraryItem) => (isCutItem(i) === (options.preferCut === true) ? 1 : 0);
+  const chosen = new Map<string, LibraryItem>();
+  for (const i of open) {
+    const video = videoOf(i);
+    const best = chosen.get(video);
+    if (!best || rank(i) > rank(best) || (rank(i) === rank(best) && i.createdAt > best.createdAt)) chosen.set(video, i);
+  }
+  return open
+    .filter((i) => chosen.get(videoOf(i)) === i)
     .map((i) => ({ id: i.id, title: i.meta.title || i.fileName, caption: i.meta.caption, hashtags: i.meta.hashtags, platform: i.meta.platform, durationSec: i.durationSec, createdAt: new Date(i.createdAt).toISOString() }));
 }
 

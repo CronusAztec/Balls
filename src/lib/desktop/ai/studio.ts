@@ -181,13 +181,26 @@ export interface MakeVideosResult {
   summary: string;
 }
 
+/** --- ai-cut --- The most clips one Make videos run plans and answers with (plan_clips' count, the answer's clips). */
+export const MAKE_VIDEOS_MAX_CLIPS = 10;
+/**
+ * --- ai-cut --- The answer's token budget, for the most clips it may hold: a reply cut off at the limit is unclosed JSON, and
+ * every retry has the same budget. Ten clips that keep the planned 160-character caption and 8 hashtags are ~1,500 tokens on
+ * Qwen2.5 and ~1,570 by the runner's estimate (desktop/src/ai/local.ts, 3.2 characters a token), so 1,800 (it was 1,500, right
+ * at the edge). A cut adds ~45 tokens a clip on a tokenizer that splits digits (four numbers and a hook of up to
+ * CLIP_EDIT_TEXT_MAX characters), more with the grammar's newlines and indents: 70 a clip.
+ */
+export const MAKE_VIDEOS_MAX_TOKENS = 1800;
+export const MAKE_VIDEOS_CUT_TOKENS_PER_CLIP = 70;
+export const makeVideosMaxTokens = (cut: boolean) => MAKE_VIDEOS_MAX_TOKENS + (cut ? MAKE_VIDEOS_CUT_TOKENS_PER_CLIP * MAKE_VIDEOS_MAX_CLIPS : 0);
+
 export const MAKE_VIDEOS_FINAL: JsonSchema = {
   type: "object",
   properties: {
     clips: {
       type: "array",
       minItems: 1,
-      maxItems: 10,
+      maxItems: MAKE_VIDEOS_MAX_CLIPS,
       items: {
         type: "object",
         properties: {
@@ -273,7 +286,7 @@ export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool
     args: {
       type: "object",
       properties: {
-        count: { type: "integer", minimum: 1, maximum: 10 },
+        count: { type: "integer", minimum: 1, maximum: MAKE_VIDEOS_MAX_CLIPS },
         platform: { enum: BOT_PLATFORMS },
         family: { enum: [...BOT_FAMILIES, "all"] },
         bucket: { enum: [...LENGTH_BUCKETS, "auto"] },
@@ -400,7 +413,7 @@ export function makeVideosTask(request: string, options: { copy: BotCopy; locale
     },
     maxSteps: 12,
     temperature: 0.4,
-    maxTokens: 1500,
+    maxTokens: makeVideosMaxTokens(cut), // --- ai-cut --- (ten clips with their cuts: the local context grows with it, desktop/src/ai/local.ts contextSizeFor)
     // --- desktop-ai-fix ---
     name: "videos",
     turn: () => makeVideosTurn(options.store, tools, cut),

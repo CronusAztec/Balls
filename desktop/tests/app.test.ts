@@ -11,7 +11,7 @@ import { RenderSaver } from "../src/render";
 import { bundledFfmpegPath } from "../src/ffmpeg/run";
 import { JSON_GBNF, checkLocalAi, jsonGrammar } from "../src/ai/local";
 import { createRequire } from "module";
-import type { EncoderProbe, RenderProgressEvent, SaveRenderRequest, UpdateStatus } from "@/lib/desktop/contract";
+import { UPDATE_MANUAL_NONE, type EncoderProbe, type RenderProgressEvent, type SaveRenderRequest, type UpdateStatus } from "@/lib/desktop/contract";
 
 /* --- desktop-exe --- preferences, window state, the updater (never fails offline), menu, media, library and saving renders */
 
@@ -284,6 +284,95 @@ describe("auto-update", () => {
     (d.u.handlers.get("update-downloaded") as (i: { version: string }) => void)({ version: "2.0.0" });
     await expect(c.check()).resolves.toMatchObject({ state: "ready" });
     expect(d.calls()).toBe(3);
+  });
+
+  // --- manual-update --- the Help menu's check answers in the page like the button's: the "none" it ends in carries the mark
+  it("marks the 'none' a manual check ends in, never a quiet check's, nor the status a failed quiet check puts back", async () => {
+    const seen: UpdateStatus[] = [];
+    const d = deferredUpdater();
+    const c = new UpdateController(d.u, { enabled: true, autoUpdate: () => true, packaged: true, portable: false, online: () => true, log: () => {}, emit: (s) => seen.push(s) });
+    const notFound = () => (d.u.handlers.get("update-not-available") as () => void)();
+    // the menu (main.ts runCommand "check-updates") and the GPU tab call the same check() as the button
+    const menu = c.check();
+    notFound();
+    d.finish();
+    await expect(menu).resolves.toEqual({ state: "none", version: null, progress: null, message: UPDATE_MANUAL_NONE });
+    expect(seen.map((s) => `${s.state}:${s.message}`)).toEqual(["checking:null", "none:null", `none:${UPDATE_MANUAL_NONE}`]);
+    // the schedule's check that finds nothing: a bare "none"
+    seen.length = 0;
+    const quiet = c.check({ quiet: true });
+    notFound();
+    d.finish();
+    await expect(quiet).resolves.toMatchObject({ state: "none", message: null });
+    expect(seen.map((s) => `${s.state}:${s.message}`)).toEqual(["checking:null", "none:null"]);
+    // a quiet check that fails after a manual one: put back to "none", without the manual check's mark
+    const manual = c.check();
+    notFound();
+    d.finish();
+    await expect(manual).resolves.toMatchObject({ message: UPDATE_MANUAL_NONE });
+    seen.length = 0;
+    const failing = c.check({ quiet: true });
+    d.finish(new Error("HttpError: 503"));
+    await expect(failing).resolves.toMatchObject({ state: "none", message: null });
+    expect(seen.map((s) => `${s.state}:${s.message}`)).toEqual(["checking:null", "none:null"]);
+    // the schedule's check the menu joins reports like a manual one
+    const scheduled = c.check({ quiet: true });
+    const joined = c.check();
+    notFound();
+    d.finish();
+    await expect(joined).resolves.toMatchObject({ state: "none", message: UPDATE_MANUAL_NONE });
+    await expect(scheduled).resolves.toMatchObject({ message: UPDATE_MANUAL_NONE });
+    const main = fs.readFileSync(path.join(__dirname, "..", "src", "main.ts"), "utf8");
+    expect(main).toMatch(/case "check-updates":\s+await updater\.check\(\);/);
+  });
+
+  // --- manual-update --- electron-updater resolves checkForUpdates() as soon as it finds the update and downloads afterwards:
+  // a failure of the download a quiet check started is quiet too, one a manual check started or adopted is said
+  it("keeps the failure of a download the schedule started out of the page, and says one the user asked for", async () => {
+    const logs: string[] = [];
+    const seen: UpdateStatus[] = [];
+    const d = deferredUpdater();
+    const c = new UpdateController(d.u, { enabled: true, autoUpdate: () => true, packaged: true, portable: false, online: () => true, log: (m) => logs.push(m), emit: (s) => seen.push(s) });
+    const available = () => (d.u.handlers.get("update-available") as (i: { version: string }) => void)({ version: "1.5.0" });
+    const progress = (percent: number) => (d.u.handlers.get("download-progress") as (p: { percent: number }) => void)({ percent });
+    const fail = () => (d.u.handlers.get("error") as (e: Error) => void)(new Error("net::ERR_INTERNET_DISCONNECTED"));
+    (d.u.handlers.get("update-not-available") as () => void)();
+    // the schedule finds 1.5.0; the check returns while the download runs; the Wi-Fi drops
+    const quiet = c.check({ quiet: true });
+    available();
+    d.finish();
+    await expect(quiet).resolves.toMatchObject({ state: "available", version: "1.5.0" });
+    progress(40);
+    fail();
+    expect(c.status).toEqual({ state: "none", version: null, progress: null, message: null });
+    expect(seen.some((s) => s.state === "error")).toBe(false);
+    expect(logs.some((l) => l.includes("ERR_INTERNET_DISCONNECTED"))).toBe(true);
+    // the next scheduled check tries again, and its download goes through
+    const again = c.check({ quiet: true });
+    expect(d.calls()).toBe(2);
+    available();
+    d.finish();
+    await again;
+    (d.u.handlers.get("update-downloaded") as (i: { version: string }) => void)({ version: "1.5.0" });
+    expect(c.status).toMatchObject({ state: "ready", version: "1.5.0" });
+    // a download a manual check started fails out loud
+    const m = new UpdateController(d.u, { enabled: true, autoUpdate: () => true, packaged: true, portable: false, online: () => true, log: () => {}, emit: () => {} });
+    const click = m.check();
+    available();
+    d.finish();
+    await click;
+    fail();
+    expect(m.status).toMatchObject({ state: "error", message: "net::ERR_INTERNET_DISCONNECTED" });
+    // and so does the schedule's once the user asks for it by hand (the menu during the download)
+    const q = new UpdateController(d.u, { enabled: true, autoUpdate: () => true, packaged: true, portable: false, online: () => true, log: () => {}, emit: () => {} });
+    const scheduled = q.check({ quiet: true });
+    available();
+    d.finish();
+    await scheduled;
+    progress(10);
+    await expect(q.check()).resolves.toMatchObject({ state: "downloading" });
+    fail();
+    expect(q.status).toMatchObject({ state: "error", message: "net::ERR_INTERNET_DISCONNECTED" });
   });
 
   it("says which builds cannot update themselves and never checks there", async () => {

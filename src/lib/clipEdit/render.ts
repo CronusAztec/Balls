@@ -46,8 +46,41 @@ export interface ClipEditResult {
 
 /** A seek that does not land within this long means the file cannot be stepped through (a recording without an index). */
 const SEEK_TIMEOUT_MS = 8000;
+
+/** --- clip-locale --- The browser cannot decode the source (a format or codec it lacks): the page says ClipEditor.cannotOpen. */
+export class ClipEditOpenError extends Error {
+  constructor() {
+    super("This video cannot be opened in the browser");
+    this.name = "ClipEditOpenError";
+  }
+}
+
+/** --- clip-locale --- A seek never landed (a recording without an index): the page says ClipEditor.cannotSeek. */
+export class ClipEditSeekError extends Error {
+  constructor() {
+    super("This video cannot be stepped through frame by frame: export it again from the studio and cut that file");
+    this.name = "ClipEditSeekError";
+  }
+}
+
+/** --- clip-locale --- The ClipEditor key that words a failure the editor expects (the browser, the file), null for any other. */
+export function clipEditErrorKey(err: unknown): "unsupported" | "cannotOpen" | "cannotSeek" | null {
+  if (err instanceof FastRenderUnsupportedError) return "unsupported";
+  if (err instanceof ClipEditOpenError) return "cannotOpen";
+  if (err instanceof ClipEditSeekError) return "cannotSeek";
+  return null;
+}
+
 /** A frame already within half a frame of its time is not sought again (a seek to the same time never fires `seeked`). */
 const SEEK_SLACK_SEC = 0.5 / CLIP_EDIT_OUTPUT.fps;
+
+/**
+ * --- clip-a11y --- What the dialog's live region says of a render: its phase, with the whole render's progress in quarters,
+ * so a screen reader hears a handful of updates and not one every few frames (the bar and its line show every step).
+ */
+export function liveProgress(p: Pick<ClipEditProgress, "phase" | "progress">): { phase: ClipEditPhase; percent: number } {
+  return { phase: p.phase, percent: Math.min(3, Math.floor(Math.min(1, Math.max(0, p.progress)) * 4)) * 25 };
+}
 
 function progressOf(phase: ClipEditPhase, fraction: number): number {
   const f = Math.min(1, Math.max(0, fraction));
@@ -71,15 +104,15 @@ export function openSourceVideo(source: Blob, signal?: AbortSignal): Promise<{ v
       URL.revokeObjectURL(url);
     };
     let settled = false;
-    const onAbort = () => fail("cancelled");
-    const fail = (why: string) => {
+    const onAbort = () => fail(new Error("cancelled"));
+    const fail = (err: Error) => {
       if (settled) return;
       settled = true;
       signal?.removeEventListener("abort", onAbort);
       release();
-      reject(new Error(why));
+      reject(err);
     };
-    video.onerror = () => fail("This video cannot be opened in the browser");
+    video.onerror = () => fail(new ClipEditOpenError());
     video.onloadedmetadata = () => {
       const settle = (durationSec: number) => {
         if (settled) return;
@@ -98,7 +131,7 @@ export function openSourceVideo(source: Blob, signal?: AbortSignal): Promise<{ v
         video.currentTime = 1e6;
       }
     };
-    if (signal?.aborted) return fail("cancelled");
+    if (signal?.aborted) return fail(new Error("cancelled"));
     signal?.addEventListener("abort", onAbort, { once: true });
     video.src = url;
   });
@@ -111,7 +144,7 @@ export function seekVideo(video: HTMLVideoElement, timeSec: number): Promise<voi
   return new Promise((resolve, reject) => {
     const timer = setTimeout(() => {
       video.onseeked = null;
-      reject(new Error("This video cannot be stepped through frame by frame: export it again from the studio and cut that file"));
+      reject(new ClipEditSeekError());
     }, SEEK_TIMEOUT_MS);
     video.onseeked = () => {
       clearTimeout(timer);
@@ -162,7 +195,7 @@ export function cutAudio(decoded: AudioBuffer | null, spec: ClipEditSpec, timeli
 
 /**
  * Renders the cut. Resolves with the file, or null when `signal` aborted it; throws `FastRenderUnsupportedError` when the
- * browser cannot encode any supported format.
+ * browser cannot encode any supported format, `ClipEditOpenError` or `ClipEditSeekError` when it cannot read the source.
  */
 export async function renderClipEdit(options: ClipEditOptions): Promise<ClipEditResult | null> {
   // --- free-watermark --- the stored licence, verified again now, decides whether this cut's frames get the mark

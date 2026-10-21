@@ -4101,6 +4101,7 @@ export default function Simulator() {
     cancelExport: cancelFastExport,
     fastExport,
     busy: isRecording || isSearching || fastRunning || batchRender.running || !engineReady || projectFiles.panel.busy === "import",
+    recording: isRecording, // --- manual-update ---
     selectMelody: onCustomSoundSelect,
     currentMelody: customSoundId,
     getWorld: () => splitRunnerRef.current?.canvasSize() ?? (engineRef.current ? { width: engineRef.current.config.width, height: engineRef.current.config.height } : null),

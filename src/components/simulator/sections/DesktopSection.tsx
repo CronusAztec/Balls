@@ -29,6 +29,8 @@ import PostizPostCard, { type CardPrefill } from "../desktop/PostizPostCard"; //
 import PostsPanel from "../desktop/PostsPanel";
 import WhatsNew from "../desktop/WhatsNew"; // --- changelog ---
 import UpdateButton from "../desktop/UpdateButton"; // --- manual-update --- the top bar's update control (every tab)
+import { pageMakesVideo } from "@/lib/desktop/updateButton"; // --- manual-update ---
+import { clipEditErrorKey } from "@/lib/clipEdit/render"; // --- clip-locale ---
 import { errorText, ghostBtn, primaryBtn } from "../desktop/ui"; // --- desktop-autorelease --- (the update banner's buttons)
 import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
 import type { PublishPlatform } from "@/lib/publish/platforms";
@@ -125,7 +127,11 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   const queue = useRenderQueue(bridge, pageRef, prefs?.outputFolder ?? "", refreshLibrary, {
     card: cutCard,
     fanMade: fl("canvasFanMade"),
-    onFailed: (job, error) => setNotice(t("jobCutFailed", { name: job.name, error })),
+    // --- clip-locale --- a file the editor cannot open or step through is said in the page's language, any other failure as it came
+    onFailed: (job, error, thrown) => {
+      const key = clipEditErrorKey(thrown);
+      setNotice(key ? t("jobCutFailedWhy", { name: job.name, reason: editor(key) }) : t("jobCutFailed", { name: job.name, error }));
+    },
     // a saved cut is said too, with the free run's mark named as the editor names it (a cut stamps the frames again)
     onCut: (job, result) => setNotice(result.watermarked ? `${t("jobCutSaved", { name: job.name })} ${editor("watermarked")}` : t("jobCutSaved", { name: job.name })),
   });
@@ -294,7 +300,9 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
 
   // --- desktop-autorelease --- no restart while a clip renders or encodes (the update then installs when the app quits)
   // --- ai-cut --- a cut in progress counts: its job is done already, but a restart now would lose the cut
-  const rendering = queue.state.jobs.some((j) => j.status === "rendering" || j.status === "encoding") || queue.cutting !== null;
+  const queueRendering = queue.state.jobs.some((j) => j.status === "rendering" || j.status === "encoding") || queue.cutting !== null;
+  // --- manual-update --- and the page's own fast export, Record video or batch: no queue job, but a restart would lose it too
+  const rendering = queueRendering || pageMakesVideo(page);
   const updateBanner = update?.state === "ready" && !!update.version && updateLater !== update.version;
 
   if (!prefs) return null;
@@ -318,7 +326,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
             >
               <span className="mr-1">{TAB_ICONS[id]}</span>
               {t(`tab.${id}`)}
-              {id === "queue" && (rendering || queue.state.jobs.some((j) => j.status === "queued")) && <span className="ml-1.5 text-xs text-accent-strong">●</span>}
+              {id === "queue" && (queueRendering || queue.state.jobs.some((j) => j.status === "queued")) && <span className="ml-1.5 text-xs text-accent-strong">●</span>}
             </button>
           ))}
         </nav>

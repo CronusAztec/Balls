@@ -23,6 +23,8 @@ export interface DesktopPageHooks {
   fastExport: FastExportState;
   /** Recording, searching, a batch or a project import is in progress. */
   busy: boolean;
+  /** --- manual-update --- Record video is running (the update controls wait for it, as for the fast export and a batch). */
+  recording: boolean;
   selectMelody: (id: string | null) => Promise<void> | void;
   currentMelody: string | null;
   getWorld: () => BotWorld | null;

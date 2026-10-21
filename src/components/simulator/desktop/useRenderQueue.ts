@@ -105,7 +105,8 @@ export interface RenderQueueCut {
   card: EditCardText;
   /** --- legal-audit --- The fan-made badge's line in the page's language (a Fight League job's cut carries it again). */
   fanMade: string;
-  onFailed?: (job: QueueJob, message: string) => void;
+  /** --- clip-locale --- `error` as thrown: the page words the failures the editor expects (clipEditErrorKey) in its language. */
+  onFailed?: (job: QueueJob, message: string, error: unknown) => void;
   /** The cut is in the Library (`watermarked`: a free run, stamped again at the output's size). */
   onCut?: (job: QueueJob, result: { watermarked: boolean }) => void;
 }
@@ -257,7 +258,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
             const message = err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, "") : String(err);
             setLastError(message);
             bridge.log("warn", `queue cut ${job.name}: ${message}`);
-            cutDeps.onFailed?.(job, message);
+            cutDeps.onFailed?.(job, message, err);
           } finally {
             cutRun.current = null;
             setCutting(null);

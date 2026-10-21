@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "fs";
+import path from "path";
 import { LOOP_CAPTION_BASE_TAGS, clipLoopCaptionContext, hasMentionOrCta, loopCaption, loopCaptionContext, loopHashtags, loopHook, stripCallsToAction, stripMentions } from "@/lib/publish/loopCaption";
 import { offerPublishClip } from "@/lib/publish/clips"; // --- low-findings ---
 import { defaultSettings } from "@/lib/settings";
@@ -105,5 +107,21 @@ describe("--- low-findings --- a clip's loop-style words", () => {
     const clip = offerPublishClip({ blob: new Blob(["x"], { type: "video/mp4" }), name: "c.mp4", source: "fast", durationSec: 38.53, mode: "grow", seed: 1, loopCaption: loopCaptionContext(growMultiply) });
     expect(clip.loopCaption).toEqual(loopCaptionContext(growMultiply));
     expect(offerPublishClip({ blob: new Blob(["x"], { type: "video/mp4" }), name: "d.mp4", source: "file" }).loopCaption).toBeNull();
+  });
+
+  // a cut from the Publish block ("Edit for TikTok") is the same run: it keeps the source clip's bot copy and loop words
+  it("goes with a cut made from a Publish clip, with the viral bot's clip id", () => {
+    const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const read = (f: string) => strip(fs.readFileSync(path.join(__dirname, "..", f), "utf8"));
+    const publish = read("src/components/simulator/sections/PublishSection.tsx");
+    expect(publish).toMatch(/<ClipEditorDialog source=\{\{ blob: editing\.blob, name: editing\.name, mode: editing\.mode, seed: editing\.seed, botClipId: editing\.botClipId, loopCaption: editing\.loopCaption\s*\}\}/);
+    const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx");
+    expect(dialog).toMatch(/botClipId\?: string \| null;\s+loopCaption\?: LoopCaptionContext \| null;/);
+    expect(dialog).toMatch(/offerPublishClip\(\{ blob: result\.blob, name, source: "edit", durationSec: result\.durationSec, mode: source\.mode \?\? null, seed: source\.seed \?\? null, botClipId: source\.botClipId \?\? null, loopCaption: source\.loopCaption \?\? null \}\)/);
+    // what the cut then offers: the source's words, its own length counted
+    const source = offerPublishClip({ blob: new Blob(["x"], { type: "video/mp4" }), name: "bot.mp4", source: "bot", durationSec: 38.53, mode: "classic", seed: 1, botClipId: "ep023-2-escape", loopCaption: loopCaptionContext(classic) });
+    const cut = offerPublishClip({ blob: new Blob(["y"], { type: "video/mp4" }), name: "bot-tiktok.mp4", source: "edit", durationSec: 14.2, mode: source.mode, seed: source.seed, botClipId: source.botClipId, loopCaption: source.loopCaption });
+    expect(cut).toMatchObject({ botClipId: "ep023-2-escape", loopCaption: loopCaptionContext(classic) });
+    expect(clipLoopCaptionContext(cut, loopCaptionContext(growMultiply))).toEqual({ mode: "classic", hookKey: "seconds", factKey: "", count: 14 });
   });
 });

@@ -6,7 +6,8 @@ import path from "path";
 import { CARD_FADE_SEC, CLIP_EDIT_OUTPUT, CLIP_EDIT_STORAGE_KEY, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, TEXT_MAX_SHARE, TEXT_MIN_SCALE, audioGainAt, cardAlphaAt, clipTimeline, cropRect, editFileName, fitClipEdit, fitTextLines, hookLayout, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
 import { drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
 import { BADGE_HEIGHT, BADGE_INSET } from "@/lib/watermark/layout";
-import { cutAudio } from "@/lib/clipEdit/render";
+import { ClipEditOpenError, ClipEditSeekError, clipEditErrorKey, cutAudio, liveProgress, openSourceVideo, seekVideo } from "@/lib/clipEdit/render";
+import { FastRenderUnsupportedError } from "@/lib/recording/fastRender";
 import { sealWatermark } from "@/lib/watermark/seal";
 import { fakeCanvas, fakeDocument, type FakeCall } from "./fakeCanvas";
 
@@ -446,7 +447,7 @@ describe("the editor in the page and in the Windows app", () => {
     const msgs = (loc: string) => JSON.parse(read(`messages/${loc}.json`)) as M;
     for (const loc of ["en", "pl", "es"]) {
       const m = msgs(loc);
-      for (const [key, value] of [["ClipEditor.intro", m.ClipEditor.intro as string], ["Desktop.aiCutTip", m.Desktop.aiCutTip]] as const) {
+      for (const [key, value] of [["ClipEditor.intro", m.ClipEditor.intro as string], ["Desktop.aiCutTip", m.Desktop.aiCutTip], ["Desktop.aiStartTip", m.Desktop.aiStartTip]] as const) {
         for (const sentence of value.split(/(?<=[.!?])\s+/)) expect(sentence.split(/\s+/).length, `${loc} ${key}: ${sentence}`).toBeLessThanOrEqual(18);
         expect(value, `${loc} ${key}`).not.toMatch(/—| – |;/);
         expect(value.split(",").length, `${loc} ${key}`).toBeLessThanOrEqual(3);
@@ -465,5 +466,88 @@ describe("the editor in the page and in the Windows app", () => {
       expect(es.Desktop[key], key).not.toMatch(/cola de render(?!izado)/);
     }
     expect(es.Desktop.aiCutLine).toContain("acercamiento {zoom} %");
+    // the hook in each language's own quotes, as the rest of its catalog writes them
+    expect(pl.Desktop.aiCutLine).toMatch(/ · „\{hook\}”$/);
+    expect(es.Desktop.aiCutLine).toMatch(/ · «\{hook\}»$/);
+    for (const m of [pl, es]) expect(m.Desktop.aiCutLine).not.toContain('"');
+  });
+});
+
+/* ------------------------------------------------------------------ --- clip-locale --- --- clip-a11y --- */
+
+describe("the editor's failures, progress and preview", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  // --- clip-locale --- the failures the editor expects are typed, so the page words them in its own language
+  it("throws typed errors for a file it cannot open or step through, and names their words", async () => {
+    const video = { muted: false, playsInline: false, preload: "", src: "", currentTime: 0, duration: 10, readyState: 4, onerror: null as null | (() => void), onseeked: null as null | (() => void), removeAttribute: () => {}, load: () => {} };
+    vi.stubGlobal("document", { createElement: () => video });
+    vi.stubGlobal("URL", { createObjectURL: () => "blob:x", revokeObjectURL: () => {} });
+    const opening = openSourceVideo(new Blob(["x"]));
+    video.onerror?.();
+    await expect(opening).rejects.toBeInstanceOf(ClipEditOpenError);
+    vi.useFakeTimers();
+    const seeking = seekVideo(video as unknown as HTMLVideoElement, 5);
+    const seen = expect(seeking).rejects.toBeInstanceOf(ClipEditSeekError);
+    await vi.advanceTimersByTimeAsync(8000);
+    await seen;
+    expect(clipEditErrorKey(new ClipEditOpenError())).toBe("cannotOpen");
+    expect(clipEditErrorKey(new ClipEditSeekError())).toBe("cannotSeek");
+    expect(clipEditErrorKey(new FastRenderUnsupportedError())).toBe("unsupported");
+    for (const other of [new Error("cancelled"), "x", null]) expect(clipEditErrorKey(other)).toBeNull();
+    // the dialog words both of its error slots with them, and the queue's cut notice too
+    const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx");
+    expect(dialog).toMatch(/const key = clipEditErrorKey\(err\);\s+if \(key\) return t\(key\);/);
+    expect(dialog).toMatch(/\.catch\(\(err: unknown\) => live && setOpenError\(\{ error: err \}\)\)/);
+    expect(dialog).toMatch(/\{failureText\(openError\.error, t\)\}/);
+    expect(dialog).toMatch(/setRender\(\{ status: "error", message: failureText\(err, t\) \}\)/);
+    expect(read("src/components/simulator/desktop/useRenderQueue.ts")).toMatch(/cutDeps\.onFailed\?\.\(job, message, err\)/);
+    expect(read("src/components/simulator/sections/DesktopSection.tsx")).toMatch(/const key = clipEditErrorKey\(thrown\);\s+setNotice\(key \? t\("jobCutFailedWhy", \{ name: job\.name, reason: editor\(key\) \}\) : t\("jobCutFailed", \{ name: job\.name, error \}\)\);/);
+    for (const loc of ["en", "pl", "es"]) {
+      const m = JSON.parse(read(`messages/${loc}.json`)) as { ClipEditor: Record<string, string>; Desktop: Record<string, string> };
+      for (const key of ["cannotOpen", "cannotSeek"]) {
+        expect(m.ClipEditor[key], `${loc}.${key}`).toMatch(/^\S.*\.$/);
+        expect(m.ClipEditor[key], `${loc}.${key}`).not.toMatch(/—| – |;|:/);
+      }
+      expect(m.Desktop.jobCutFailedWhy, loc).toMatch(/\{name\}[^{]*\. \{reason\} /);
+    }
+    const en = JSON.parse(read("messages/en.json")) as { ClipEditor: Record<string, string> };
+    for (const loc of ["pl", "es"]) {
+      const m = JSON.parse(read(`messages/${loc}.json`)) as { ClipEditor: Record<string, string> };
+      for (const key of ["cannotOpen", "cannotSeek", "framesLive", "progressLabel"]) expect(m.ClipEditor[key], `${loc}.${key}`).not.toBe(en.ClipEditor[key]);
+    }
+  });
+
+  // --- clip-a11y --- a render reports every few frames: only the phase and quarters of it reach the screen reader
+  it("says the render's phase and its quarters in a live region that stays mounted, and shows the rest in a progressbar", () => {
+    expect(liveProgress({ phase: "prepare", progress: 0.02 })).toEqual({ phase: "prepare", percent: 0 });
+    const frames = Array.from({ length: 450 }, (_, i) => liveProgress({ phase: "frames", progress: 0.05 + (0.8 * (i + 1)) / 450 }));
+    expect(new Set(frames.map((f) => f.percent))).toEqual(new Set([0, 25, 50, 75]));
+    expect(liveProgress({ phase: "audio", progress: 0.9 })).toEqual({ phase: "audio", percent: 75 });
+    expect(liveProgress({ phase: "finish", progress: 1 })).toEqual({ phase: "finish", percent: 75 });
+    const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx").replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+    // the old live region around the bar is gone; the bar is a progressbar
+    expect(dialog).not.toMatch(/<div className="space-y-1" role="status">/);
+    expect(dialog).toMatch(/role="progressbar" aria-label=\{t\("progressLabel"\)\} aria-valuemin=\{0\} aria-valuemax=\{100\} aria-valuenow=\{percent\}/);
+    // the live region is outside the rendering block, so it is there before its words are
+    const block = dialog.slice(dialog.indexOf('{render.status === "rendering" && ('), dialog.indexOf('{render.status === "done" && ('));
+    expect(block).toMatch(/\)\}\s+<p className="sr-only" role="status" aria-live="polite" data-testid="clip-edit-live">\s+\{liveText\}\s+<\/p>\s+$/);
+    expect(dialog).toMatch(/const live = render\.status === "rendering" \? liveProgress\(render\.progress\) : null;/);
+    expect(dialog).toMatch(/live\.phase === "frames" \? t\("framesLive", \{ percent: live\.percent \}\)/);
+    for (const loc of ["en", "pl", "es"]) expect((JSON.parse(read(`messages/${loc}.json`)) as { ClipEditor: Record<string, string> }).ClipEditor.framesLive, loc).toContain("{percent}");
+  });
+
+  // --- clip-editor --- a seal that comes after the video (a licence renewal in flight) still draws the preview
+  it("draws the preview once the seal is there, whichever comes first", () => {
+    const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx");
+    expect(dialog).not.toMatch(/sealRef/);
+    expect(dialog).toMatch(/const \[seal, setSeal\] = useState<WatermarkSeal \| null>\(null\);/);
+    expect(dialog).toMatch(/sealWatermark\(\)\.then\(\(sealed\) => live && setSeal\(sealed\)\)/);
+    expect(dialog).toMatch(/if \(!canvas \|\| !opened \|\| durationSec === null \|\| rendering \|\| !seal\) return;/);
+    expect(dialog).toMatch(/\}, \[scrub, [^\]]*\bseal\]\);/);
+    expect(dialog).toMatch(/\{ seal, clipMs: tSec \* 1000, fanMade \}/);
   });
 });

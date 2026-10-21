@@ -16,10 +16,10 @@ import { extractJson, validateJson, type JsonSchema } from "@/lib/desktop/ai/jso
 import { normaliseReply, replySchema, runAgent, type AgentEvent, type ChatModel, type AgentTool } from "@/lib/desktop/ai/agent";
 import { assistantSettings, changedKeys, changesSchema, invertPatch, isModeSettingKey, patchFromChanges, settingsCatalog, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import { MODE_IDS } from "@/lib/physics/types"; // --- low-findings-2 ---
-import { CLIP_CUT, PlanStore, clipCutSpec, clipEditTask, copyTask, ideasTask, makeVideosTask, makeVideosTools, planSummary, settingsTask, type ClipCutResult, type MakeVideosResult, type SettingsResult, type StudioPorts } from "@/lib/desktop/ai/studio";
+import { CLIP_CUT, MAKE_VIDEOS_MAX_CLIPS, PlanStore, clipCutSpec, clipEditTask, copyTask, ideasTask, makeVideosMaxTokens, makeVideosTask, makeVideosTools, planSummary, settingsTask, type ClipCutResult, type MakeVideosResult, type SettingsResult, type StudioPorts } from "@/lib/desktop/ai/studio";
 import { selectPlaybookContext, splitPlaybook } from "@/lib/desktop/ai/playbookContext";
 // --- ai-cut --- the cut task and Make videos' per-clip cut
-import { DEFAULT_CLIP_EDIT } from "@/lib/clipEdit/spec";
+import { CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT } from "@/lib/clipEdit/spec";
 import { ZOOM_STEPS, type ClipBeats } from "@/lib/clipEdit/propose";
 import { suggestCut } from "@/components/simulator/desktop/aiCut";
 
@@ -449,6 +449,39 @@ describe("--- ai-cut --- Make videos with cuts", () => {
     // a seamless loop is read only from the modes that play one (the flags are on by default everywhere): kept whole, no card
     expect(planSummary({ ...plan, mode: "doublePendulum", settings: { ...plan.settings, dpFan: true, dpPalindrome: true } })).toMatchObject({ loop: true, suggestedCut: { startSec: 0, lengthSec: 20, cardSec: 0 } });
     expect(planSummary({ ...plan, settings: { ...plan.settings, dpFan: true, dpPalindrome: true, hpReturn: true } }).loop).toBe(false);
+  });
+
+  // --- ai-cut --- the reply's budget: ten clips that keep their planned copy, each with a cut and a full-length hook, fit it
+  it("leaves room in the reply for ten clips with their cuts, by the local runner's own token estimate", () => {
+    const store = new PlanStore();
+    for (let i = 0; i < MAKE_VIDEOS_MAX_CLIPS; i++) {
+      const p = planClip(RECIPES[i % RECIPES.length], 1000 + i, "tiktok", { copy, search: false });
+      store.add({ ...p, id: `${p.id}-${i}` });
+    }
+    const withCut = makeVideosTask("ten clips", { copy, locale: "en", platform: "tiktok", store, ports: ports(), cut: true });
+    const without = makeVideosTask("ten clips", { copy, locale: "en", platform: "tiktok", store, ports: ports() });
+    const answer = (cut: boolean) => ({
+      action: "final",
+      note: "All ten clips are planned, here is the answer.",
+      result: {
+        summary: "Ten clips across the families, each with its hook, caption and hashtags, ready to render.",
+        clips: store.all().map((p, i) => {
+          const s = planSummary(p);
+          const clip = { planId: s.planId, name: `${s.recipe} ${i + 1}`, title: s.hook.slice(0, 100), hook: s.hook.slice(0, 120), caption: s.suggestedCaption, hashtags: s.suggestedHashtags.slice(0, 8), platform: s.platform };
+          return cut ? { ...clip, cut: { ...s.suggestedCut, hook: "Will the last ball get out before the ring shuts? ".repeat(2).slice(0, CLIP_EDIT_TEXT_MAX) } } : clip;
+        }),
+      },
+    });
+    expect(validateJson(replySchema(withCut.tools, withCut.turn?.()?.final ?? null), answer(true))).toEqual([]);
+    expect(validateJson(replySchema(without.tools, without.turn?.()?.final ?? null), answer(false))).toEqual([]);
+    // desktop/src/ai/local.ts counts ~3.2 characters a token before the model's own tokenizer is loaded
+    const tokens = (v: unknown) => Math.ceil(JSON.stringify(v).length / 3.2);
+    expect(without.maxTokens).toBe(makeVideosMaxTokens(false));
+    expect(withCut.maxTokens).toBe(makeVideosMaxTokens(true));
+    expect(tokens(answer(false))).toBeLessThanOrEqual(without.maxTokens as number);
+    expect(tokens(answer(true))).toBeLessThanOrEqual(withCut.maxTokens as number);
+    // what the cuts add fits what the budget adds for them
+    expect(tokens(answer(true)) - tokens(answer(false))).toBeLessThanOrEqual((withCut.maxTokens as number) - (without.maxTokens as number));
   });
 
   it("runs with cuts: a clip without one is refused by the schema, a cut past the payoff by the checks, the planned one is snapped", async () => {

@@ -775,6 +775,12 @@ export interface UpdateStatus {
   message: string | null;
 }
 
+/**
+ * --- manual-update --- The `message` of the "none" a manual check ends in (the top bar's button, the Help menu, the GPU tab):
+ * the top bar says "You have the latest version" for it, whichever of them asked. A quiet scheduled check's "none" has none.
+ */
+export const UPDATE_MANUAL_NONE = "manual";
+
 /* ------------------------------------------------------------------ the bridge */
 
 export interface DesktopEventMap {

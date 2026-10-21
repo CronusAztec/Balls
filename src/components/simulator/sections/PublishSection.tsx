@@ -75,7 +75,7 @@ function ClipCard({ s, clip, p, t }: { s: PublishSnapshot; clip: PublishClip | n
   const desktop = getDesktop();
   return (
     <div className="space-y-2">
-      {editing && <ClipEditorDialog source={{ blob: editing.blob, name: editing.name, mode: editing.mode, seed: editing.seed }} onClose={() => setEditing(null)} desktop={desktop ? { bridge: desktop } : null} />}
+      {editing && <ClipEditorDialog source={{ blob: editing.blob, name: editing.name, mode: editing.mode, seed: editing.seed, botClipId: editing.botClipId, loopCaption: editing.loopCaption /* --- low-findings --- the cut keeps the bot's copy and the run's loop words */ }} onClose={() => setEditing(null)} desktop={desktop ? { bridge: desktop } : null} />}
       {clip ? (
         <div className="flex gap-2.5 items-center rounded-lg bg-surface-2/50 border border-line-strong/40 p-2" data-publish-clip-source={clip.source} data-publish-clip-name={clip.name}>
           {thumb ? (

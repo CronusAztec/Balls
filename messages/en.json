@@ -4867,7 +4867,7 @@
     "privacyTitle": "Privacy",
     "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app sends us no usage data. It goes online to check for updates, to buy, restore or renew your Pro licence, to download a model you asked for, and for the account and publishing features you use. The privacy policy lists each one.",
     "updateLater": "Later",
-    "updateWaitRender": "A render is running. Wait for the queue to finish, or quit the app and the update installs as it closes.",
+    "updateWaitRender": "A video is still being made. Wait for it to finish, or quit the app and the update installs as it closes.",
     "updateButton": {
       "checking": "Checking…",
       "downloading": "Downloading {progress}%",
@@ -4903,8 +4903,9 @@
     "jobCut": "+ TikTok cut",
     "jobCutting": "Cutting for TikTok",
     "jobCutFailed": "The TikTok cut of {name} failed: {error}. The clip itself is in the Library.",
+    "jobCutFailedWhy": "The TikTok cut of {name} failed. {reason} The clip itself is in the Library.",
     "aiStart": "Start rendering right away",
-    "aiStartTip": "The clips go to the render queue and it starts at once: one prompt, then the files are in the Library.",
+    "aiStartTip": "The render queue starts as soon as the clips arrive. One prompt puts the files in the Library.",
     "aiClipsStarted": "Added to the render queue, rendering now.",
     "aiStartedNotice": "{count, plural, one {# clip} other {# clips}} from the AI added to the render queue and rendering.",
     "jobCutSaved": "The TikTok cut of {name} is in the Library."
@@ -6449,6 +6450,8 @@
       "audio": "Cutting the sound · {percent} %",
       "finish": "Writing the file…"
     },
+    "framesLive": "Rendering the frames · {percent} %",
+    "progressLabel": "Render progress",
     "renderDownload": "Render and download",
     "renderSave": "Render and save to Library",
     "downloadAgain": "Download again",
@@ -6457,6 +6460,8 @@
     "savedLibrary": "Saved to the Library: {sec} s, {mb} MB. The cut is in the Publish clips too.",
     "watermarked": "Free exports carry the watermark. Pro removes it.",
     "unsupported": "This browser cannot encode video. Chrome or Edge can, and so can the Windows app.",
+    "cannotOpen": "This video cannot be opened here. Try a file exported from the studio.",
+    "cannotSeek": "This video cannot be stepped through frame by frame. Export it again from the studio and cut that file.",
     "tip": "Start on motion, not on a still ring: most viewers decide in the first second. 8 to 15 seconds that loop cleanly do better than a long clip.",
     "suggest": "Suggest with AI",
     "suggesting": "Asking the AI…",

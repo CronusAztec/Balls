@@ -8,8 +8,8 @@ import { NextIntlClientProvider } from "next-intl";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
-import type { UpdateStatus } from "@/lib/desktop/contract";
-import { UPDATE_LATEST_NOTE_MS, checkFoundNothing, updateButtonBusy, updateButtonModel } from "@/lib/desktop/updateButton";
+import { UPDATE_MANUAL_NONE, type UpdateStatus } from "@/lib/desktop/contract";
+import { UPDATE_LATEST_NOTE_MS, checkFoundNothing, pageMakesVideo, updateButtonBusy, updateButtonModel } from "@/lib/desktop/updateButton";
 import { UpdateButtonView, type UpdateButtonViewProps } from "@/components/simulator/desktop/UpdateButton";
 import { pageUrl } from "@/lib/site";
 
@@ -114,6 +114,26 @@ describe("the update button's states", () => {
     expect(text(quiet, "desktop-update-note")).toBe("");
   });
 
+  // --- manual-update --- the page's own fast export, Record video and batch are no queue jobs: a restart would lose them too
+  it("waits for the page's own fast export, recording or batch, not for Find Simulation or the engine", () => {
+    const idle = { recording: false, fastExport: { status: "idle" }, batchRun: { status: "idle" } };
+    expect(pageMakesVideo(idle)).toBe(false);
+    expect(pageMakesVideo({ ...idle, recording: true })).toBe(true);
+    expect(pageMakesVideo({ ...idle, fastExport: { status: "running" } })).toBe(true);
+    for (const status of ["running", "stopping"]) expect(pageMakesVideo({ ...idle, batchRun: { status } }), status).toBe(true);
+    for (const status of ["done", "error", "cancelled", "fallback"]) expect(pageMakesVideo({ ...idle, fastExport: { status } }), status).toBe(false);
+    for (const status of ["finished", "stopped"]) expect(pageMakesVideo({ ...idle, batchRun: { status } }), status).toBe(false);
+    // the page hands its recording flag over; the section counts the page's work in the gate of every update control
+    const page = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "Simulator.tsx"), "utf8");
+    expect(page).toMatch(/const desktopPage: DesktopPageHooks = \{[\s\S]*?recording: isRecording,/);
+    const section = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "sections", "DesktopSection.tsx"), "utf8");
+    expect(section).toMatch(/const rendering = queueRendering \|\| pageMakesVideo\(page\);/);
+    // the queue tab's dot stays the queue's own
+    expect(section).toMatch(/id === "queue" && \(queueRendering \|\| queue\.state\.jobs\.some/);
+    // the wait note names no queue: the work may be the page's
+    for (const locale of ["en", "pl", "es"]) expect(LOCALES[locale].Desktop.updateWaitRender, locale).not.toMatch(/queue|kolejk|cola/i);
+  });
+
   it("does not let a second click start a second check while the first is asked for", () => {
     expect(updateButtonModel(status("idle"), { asking: true })).toMatchObject({ kind: "check", enabled: false });
     expect(updateButtonModel(null, { asking: true }).enabled).toBe(false);
@@ -139,18 +159,21 @@ describe("the update button's states", () => {
   });
 
   // --- manual-update --- the quiet schedule passes through "checking" too, and puts a failed check back to the "none" it found
-  // (desktop/tests/app.test.ts: none, checking, none): only the clicked check's own answer says "latest"
-  it("says it only for a check the user asked for, from that check's own answer", () => {
-    expect(checkFoundNothing(status("none"))).toBe(true);
-    for (const s of [status("checking"), status("available", { progress: 0 }), status("downloading", { progress: 0.2 }), status("ready", { progress: 1 }), status("error", { message: "offline" }), status("idle"), status("disabled"), null, undefined]) expect(checkFoundNothing(s), s?.state ?? String(s)).toBe(false);
+  // (desktop/tests/app.test.ts: none, checking, none): only the "none" the updater marks as a manual check's answer says
+  // "latest", whichever control asked (this button, the Help menu, the GPU tab), on whatever tab is open
+  it("says it for every manual check, the Help menu's included, and never for the schedule's", () => {
+    expect(UPDATE_MANUAL_NONE).toBe("manual");
+    expect(checkFoundNothing(status("none", { message: UPDATE_MANUAL_NONE }))).toBe(true);
+    for (const s of [status("none"), status("checking"), status("available", { progress: 0 }), status("downloading", { progress: 0.2 }), status("ready", { progress: 1 }), status("error", { message: "offline" }), status("error", { message: UPDATE_MANUAL_NONE }), status("idle"), status("disabled"), null, undefined]) expect(checkFoundNothing(s), `${s?.state ?? String(s)} ${s?.message ?? ""}`).toBe(false);
     // a "none" the page did not ask for (the schedule's, a failed quiet check put back) shows no note
     for (const s of [status("checking"), status("none")]) expect(text(render({ status: s }), "desktop-update-note")).toBe("");
     const component = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "UpdateButton.tsx"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
-    // no watching the status for a change from "checking" to "none": the note comes from the click's answer only
+    // no watching the status for a bare change from "checking" to "none": the note follows the updater's mark on the status
     expect(component).not.toMatch(/prevState|before === "checking"|state !== "none"/);
-    expect(component).toMatch(/bridge\.update\s+\.check\(\)\s+\.then\(\(answer\) => \{\s+if \(checkFoundNothing\(answer\)\) showLatest\(\);\s+\}\)/);
+    expect(component).toMatch(/useEffect\(\(\) => \{\s+if \(!checkFoundNothing\(update\)\) return;\s+setJustChecked\(true\);\s+const timer = setTimeout\(\(\) => setJustChecked\(false\), UPDATE_LATEST_NOTE_MS\);\s+return \(\) => \{\s+clearTimeout\(timer\);\s+setJustChecked\(false\);\s+\};\s+\}, \[update\]\);/);
     expect(component.match(/setJustChecked\(true\)/g)).toHaveLength(1);
-    expect(component).toMatch(/const showLatest = \(\) => \{[\s\S]*?setJustChecked\(true\);[\s\S]*?setTimeout\([\s\S]*?UPDATE_LATEST_NOTE_MS\)/);
+    // the click only asks: its answer comes back as the same marked status
+    expect(component).toMatch(/bridge\.update\s+\.check\(\)\s+\.catch\(\(\) => \{\}\)\s+\.finally\(\(\) => setAsking\(false\)\);/);
   });
 
   // --- manual-update --- the live region is mounted before its text: one inserted already filled is often not read out
