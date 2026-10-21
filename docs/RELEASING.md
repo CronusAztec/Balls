@@ -103,6 +103,9 @@ site has no `version.json`.
 What your users see: the installed app checks 8 seconds after it starts and then every 4 hours. It downloads the update in
 the background, shows a Windows notification and a banner with **Restart and update** and **Later**, and installs it when
 they click Restart or when they close the app. It never interrupts a render: Restart waits until the render queue is done.
+The update button in the top bar of the app's Desktop group checks by hand at any time, also with "Update automatically"
+turned off, and downloads what it finds. In the portable EXE it says that this build does not update itself and links the
+download page.
 
 - People on **1.0.2** must install the new version once by hand (its updater refuses unsigned updates). The download page
   and the release notes say so.

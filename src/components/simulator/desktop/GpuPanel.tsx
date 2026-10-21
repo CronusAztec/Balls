@@ -17,7 +17,7 @@ import { Card, errorText, ghostBtn, inputClass, primaryBtn } from "./ui";
  * is installed (a portable EXE does not update itself), copies those details for a support message and links the changelog.
  */
 
-export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bridge: DesktopApi; prefs: DesktopPrefs; info: DesktopInfo | null; update: UpdateStatus | null; onPrefs: (patch: Partial<DesktopPrefs>) => void }) {
+export default function GpuPanel({ bridge, prefs, info, update, rendering = false, onPrefs }: { bridge: DesktopApi; prefs: DesktopPrefs; info: DesktopInfo | null; update: UpdateStatus | null; rendering?: boolean; onPrefs: (patch: Partial<DesktopPrefs>) => void }) {
   const t = useTranslations("Desktop");
   const locale = useLocale();
   const [copied, setCopied] = useState(false); // --- build-identity ---
@@ -251,11 +251,12 @@ export default function GpuPanel({ bridge, prefs, info, update, onPrefs }: { bri
           <dd className="text-ink-2" data-testid="desktop-update">{update ? t(`update.${update.state}`, { version: update.version ?? "", progress: Math.round((update.progress ?? 0) * 100) }) : "…"}</dd>
         </dl>
         <div className="flex gap-2 flex-wrap">
-          <button type="button" className={ghostBtn} onClick={() => void bridge.update.check()}>
+          {/* --- manual-update --- the same rules as the top bar's button: one check at a time, no restart while a clip renders */}
+          <button type="button" className={ghostBtn} disabled={update?.state === "checking" || update?.state === "available" || update?.state === "downloading" || update?.state === "disabled"} onClick={() => void bridge.update.check()}>
             {t("appCheckUpdates")}
           </button>
           {update?.state === "ready" && (
-            <button type="button" className={primaryBtn} onClick={() => void bridge.update.install()}>
+            <button type="button" className={primaryBtn} disabled={rendering} title={rendering ? t("updateWaitRender") : undefined} onClick={() => void bridge.update.install()}>
               {t("appRestartUpdate")}
             </button>
           )}

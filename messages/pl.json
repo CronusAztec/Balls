@@ -4868,6 +4868,18 @@
     "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja nie wysyła nam danych o użyciu. Łączy się z internetem, żeby sprawdzić aktualizacje, kupić, przywrócić lub odnowić licencję Pro, pobrać model, o który poprosisz, oraz dla funkcji konta i publikowania, z których korzystasz. Polityka prywatności opisuje każdy z tych przypadków.",
     "updateLater": "Później",
     "updateWaitRender": "Trwa renderowanie. Poczekaj, aż kolejka się skończy, albo zamknij aplikację, a aktualizacja zainstaluje się przy zamykaniu.",
+    "updateButton": {
+      "checking": "Sprawdzanie…",
+      "downloading": "Pobieranie {progress}%",
+      "latest": "Masz najnowszą wersję",
+      "failed": "Nie udało się sprawdzić aktualizacji",
+      "offline": "Brak internetu",
+      "retry": "Spróbuj ponownie",
+      "website": "Strona pobierania",
+      "getLatest": "Pobierz najnowszą wersję",
+      "portable": "Wersja przenośna nie aktualizuje się sama",
+      "devBuild": "Ta wersja nie aktualizuje się sama"
+    },
     "appSite": "Wersja strony",
     "appInstall": "Instalacja",
     "appInstallSetup": "Instalator",

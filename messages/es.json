@@ -4868,6 +4868,18 @@
     "privacyBody": "Todo funciona en tu PC. La IA local funciona sin conexión. Una clave de la nube que introduzcas se guarda cifrada y solo se envía al proveedor que elegiste. La app no nos envía datos de uso. Se conecta para buscar actualizaciones, comprar, restaurar o renovar tu licencia Pro, descargar un modelo que pediste y para las funciones de cuenta y publicación que uses. La política de privacidad los detalla todos.",
     "updateLater": "Más tarde",
     "updateWaitRender": "Hay un renderizado en curso. Espera a que termine la cola o cierra la aplicación, y la actualización se instalará al cerrar.",
+    "updateButton": {
+      "checking": "Comprobando…",
+      "downloading": "Descargando {progress}%",
+      "latest": "Tienes la última versión",
+      "failed": "Error al buscar actualizaciones",
+      "offline": "Sin conexión a internet",
+      "retry": "Reintentar",
+      "website": "Página de descarga",
+      "getLatest": "Descargar la última versión",
+      "portable": "La versión portátil no se actualiza sola",
+      "devBuild": "Esta versión no se actualiza sola"
+    },
     "appSite": "Versión del sitio",
     "appInstall": "Instalación",
     "appInstallSetup": "Instalador",

@@ -115,9 +115,9 @@ describe("auto-update", () => {
     expect([...t2.intervals.values()].map((x) => x.ms)).toEqual([50]);
     c.stop();
     expect(t2.timeouts.size + t2.intervals.size).toBe(0);
-    // an inactive controller (portable, development build, auto-update off) schedules nothing
+    // an inactive controller (portable, development build, the smoke run) or auto-update off schedules nothing
     const t3 = fakeTimers();
-    for (const options of [{ portable: true, packaged: true, enabled: true }, { portable: false, packaged: false, enabled: true }, { portable: false, packaged: true, enabled: false }]) {
+    for (const options of [{ portable: true, packaged: true, enabled: true }, { portable: false, packaged: false, enabled: true }, { portable: false, packaged: true, enabled: false }, { portable: false, packaged: true, enabled: true, autoUpdate: () => false }]) {
       new UpdateController(fakeUpdater(async () => void checks++), { ...options, online: () => true, log: () => {}, emit: () => {} }).start(t3.timers);
     }
     new UpdateController(null, { enabled: true, packaged: true, portable: false, online: () => true, log: () => {}, emit: () => {} }).start(t3.timers);
@@ -191,6 +191,126 @@ describe("auto-update", () => {
     }
     expect(c.status).toMatchObject({ state: "ready", version: "2.0.0" });
     expect(calls).toBe(2);
+  });
+
+  // --- manual-update --- the top bar's update button: a manual check works with auto-update off, one check at a time
+  /** A check that waits until the test lets it finish (electron-updater's real check takes a round trip). */
+  function deferredUpdater() {
+    let calls = 0;
+    let finish: (fail?: Error) => void = () => {};
+    const u = fakeUpdater(
+      () =>
+        new Promise<unknown>((resolve, reject) => {
+          calls++;
+          (u.handlers.get("checking-for-update") as () => void)();
+          finish = (fail) => (fail ? reject(fail) : resolve({}));
+        }),
+    );
+    return { u, calls: () => calls, finish: (fail?: Error) => finish(fail) };
+  }
+
+  it("checks and downloads on a manual click with auto-update off, and schedules nothing by itself", async () => {
+    let auto = false;
+    const seen: UpdateStatus[] = [];
+    const installs: number[] = [];
+    const d = deferredUpdater();
+    d.u.quitAndInstall = () => void installs.push(1);
+    const c = new UpdateController(d.u, { enabled: true, autoUpdate: () => auto, packaged: true, portable: false, online: () => true, log: () => {}, emit: (s) => seen.push(s) });
+    // an installed build with auto-update off is not "disabled": the button offers Check for updates, and what it finds downloads
+    expect(c.active).toBe(true);
+    expect(c.status.state).toBe("idle");
+    expect(d.u.autoDownload).toBe(true);
+    expect(d.u.autoInstallOnAppQuit).toBe(true);
+    const t = fakeTimers();
+    c.start(t.timers);
+    expect(t.timeouts.size + t.intervals.size).toBe(0);
+    // the click: checking, found, downloading, ready, then Restart and update installs
+    const click = c.check();
+    expect(d.calls()).toBe(1);
+    expect(c.status.state).toBe("checking");
+    (d.u.handlers.get("update-available") as (i: { version: string }) => void)({ version: "1.5.0" });
+    d.finish();
+    await expect(click).resolves.toMatchObject({ state: "available", version: "1.5.0" });
+    c.install(); // not before the download is done
+    expect(installs).toEqual([]);
+    (d.u.handlers.get("download-progress") as (p: { percent: number }) => void)({ percent: 42 });
+    expect(c.status).toMatchObject({ state: "downloading", progress: 0.42 });
+    (d.u.handlers.get("update-downloaded") as (i: { version: string }) => void)({ version: "1.5.0" });
+    expect(seen.map((s) => s.state)).toEqual(["checking", "available", "downloading", "ready"]);
+    c.install();
+    expect(installs).toEqual([1]);
+    // turning auto-update on starts the quiet schedule (main.ts calls start() when the preference changes)
+    auto = true;
+    c.start(t.timers);
+    expect([...t.timeouts.values()].map((x) => x.ms)).toEqual([UPDATE_INITIAL_DELAY_MS]);
+    expect([...t.intervals.values()].map((x) => x.ms)).toEqual([UPDATE_INTERVAL_MS]);
+    c.stop();
+  });
+
+  it("runs one check at a time: a double click, the menu during the schedule's check, and a click during a download", async () => {
+    const seen: UpdateStatus[] = [];
+    const d = deferredUpdater();
+    const c = new UpdateController(d.u, { enabled: true, autoUpdate: () => false, packaged: true, portable: false, online: () => true, log: () => {}, emit: (s) => seen.push(s) });
+    // a double click: one check, both clicks get its answer
+    const first = c.check();
+    const second = c.check();
+    expect(d.calls()).toBe(1);
+    // the schedule while it runs: not asked again
+    await expect(c.check({ quiet: true })).resolves.toMatchObject({ state: "checking" });
+    expect(d.calls()).toBe(1);
+    (d.u.handlers.get("update-not-available") as () => void)();
+    d.finish();
+    await expect(first).resolves.toMatchObject({ state: "none" });
+    await expect(second).resolves.toMatchObject({ state: "none" });
+    // once it is over, the next click checks again
+    const again = c.check();
+    expect(d.calls()).toBe(2);
+    (d.u.handlers.get("update-not-available") as () => void)();
+    d.finish();
+    await again;
+    // a click during the schedule's check joins it, and its failure is then shown like a manual check's
+    const quiet = c.check({ quiet: true });
+    expect(d.calls()).toBe(3);
+    const joined = c.check();
+    expect(d.calls()).toBe(3);
+    d.finish(new Error("HttpError: 502"));
+    await expect(joined).resolves.toMatchObject({ state: "error", message: "HttpError: 502" });
+    await expect(quiet).resolves.toMatchObject({ state: "error" });
+    // during a download, or with the update downloaded, a click leaves it alone (Restart and update is next)
+    (d.u.handlers.get("update-available") as (i: { version: string }) => void)({ version: "2.0.0" });
+    await expect(c.check()).resolves.toMatchObject({ state: "available" });
+    (d.u.handlers.get("download-progress") as (p: { percent: number }) => void)({ percent: 10 });
+    await expect(c.check()).resolves.toMatchObject({ state: "downloading" });
+    (d.u.handlers.get("update-downloaded") as (i: { version: string }) => void)({ version: "2.0.0" });
+    await expect(c.check()).resolves.toMatchObject({ state: "ready" });
+    expect(d.calls()).toBe(3);
+  });
+
+  it("says which builds cannot update themselves and never checks there", async () => {
+    let calls = 0;
+    const make = (o: { enabled: boolean; packaged: boolean; portable: boolean }, updater: UpdaterLike | null = fakeUpdater(async () => void calls++)) =>
+      new UpdateController(updater, { ...o, autoUpdate: () => true, online: () => true, log: () => {}, emit: () => {} });
+    const portable = make({ enabled: true, packaged: true, portable: true });
+    const dev = make({ enabled: true, packaged: false, portable: false }, null);
+    const smoke = make({ enabled: false, packaged: true, portable: false });
+    expect(portable.status).toMatchObject({ state: "disabled", message: "portable" });
+    expect(dev.status).toMatchObject({ state: "disabled", message: "development build" });
+    expect(smoke.status).toMatchObject({ state: "disabled", message: "off" });
+    for (const c of [portable, dev, smoke]) {
+      expect(c.active).toBe(false);
+      await expect(c.check()).resolves.toMatchObject({ state: "disabled" });
+      c.install();
+    }
+    expect(calls).toBe(0);
+  });
+
+  it("is wired in main.ts: every installed build may check by hand, the preference drives the schedule", () => {
+    const main = fs.readFileSync(path.join(__dirname, "..", "src", "main.ts"), "utf8");
+    expect(main).toContain("enabled: !SMOKE,");
+    expect(main).toContain("autoUpdate: () => prefs().autoUpdate,");
+    expect(main).toMatch(/before\.autoUpdate !== after\.autoUpdate[\s\S]{0,120}updater\.start\(\);[\s\S]{0,40}updater\.stop\(\);/);
+    expect(main).toContain("[IPC.updateCheck]: () => updater.check(),");
+    expect(main).toMatch(/case "check-updates":\s+await updater\.check\(\);/);
   });
 });
 

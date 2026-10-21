@@ -236,7 +236,8 @@ function start() {
   });
   let updateNotified: string | null = null; // --- desktop-autorelease --- the version the Windows notification was shown for
   const updater = new UpdateController(electronUpdater.autoUpdater as unknown as ConstructorParameters<typeof UpdateController>[0], {
-    enabled: prefs().autoUpdate && !SMOKE,
+    enabled: !SMOKE,
+    autoUpdate: () => prefs().autoUpdate, // --- manual-update --- the quiet schedule only: off, a manual check still finds and downloads the update
     packaged: app.isPackaged,
     portable: portableDir !== null,
     online: () => net.isOnline(),
@@ -334,6 +335,11 @@ function start() {
       const after = prefs();
       if (before.ffmpegPath !== after.ffmpegPath || before.encoderOverride !== after.encoderOverride) probeCache = null;
       if (before.localModel !== after.localModel || before.aiGpu !== after.aiGpu) void local.unload();
+      // --- manual-update --- "Update automatically" takes effect now: on starts the quiet schedule, off stops it
+      if (before.autoUpdate !== after.autoUpdate) {
+        if (after.autoUpdate) updater.start();
+        else updater.stop();
+      }
       return after;
     },
     [IPC.gpuStatus]: () => gpuStatus(),

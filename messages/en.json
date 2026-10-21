@@ -4868,6 +4868,18 @@
     "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app sends us no usage data. It goes online to check for updates, to buy, restore or renew your Pro licence, to download a model you asked for, and for the account and publishing features you use. The privacy policy lists each one.",
     "updateLater": "Later",
     "updateWaitRender": "A render is running. Wait for the queue to finish, or quit the app and the update installs as it closes.",
+    "updateButton": {
+      "checking": "Checking…",
+      "downloading": "Downloading {progress}%",
+      "latest": "You have the latest version",
+      "failed": "Update check failed",
+      "offline": "You are offline",
+      "retry": "Try again",
+      "website": "Download page",
+      "getLatest": "Get the latest version",
+      "portable": "The portable app does not update itself",
+      "devBuild": "This build does not update itself"
+    },
     "appSite": "Website build",
     "appInstall": "Install",
     "appInstallSetup": "Installer",

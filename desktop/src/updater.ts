@@ -5,9 +5,11 @@ import type { UpdateStatus } from "@/lib/desktop/contract";
  * https://github.com/CronusAztec/jumpingballslive-windows/releases/latest/download – the address electron-builder wrote into the app's app-update.yml, see
  * desktop/electron-builder.config.cjs – downloads the new installer in the background and installs it when the app quits;
  * versions before 1.1.0 read GitHub Releases instead). It runs only in an
- * installed build with auto-update on; the portable EXE cannot replace itself, so it only links the download. Offline, or
+ * installed build; the portable EXE cannot replace itself, so it only links the download. Offline, or
  * whatever goes wrong, the status says "error" in the Help menu / GPU panel and the app carries on – an update check
- * never throws into the app.
+ * never throws into the app. --- manual-update --- The "Update automatically" preference drives the quiet schedule only:
+ * off, nothing checks by itself, but a manual check (the top bar's update button, the Help menu, the GPU panel) still finds
+ * the update and downloads it, so it always ends in "ready" and Restart and update.
  */
 
 /** --- desktop-autorelease --- The scheduled checks: 8 s after launch (the window is up, the page has loaded), then every 4 hours. */
@@ -15,6 +17,8 @@ export const UPDATE_INITIAL_DELAY_MS = 8000;
 export const UPDATE_INTERVAL_MS = 4 * 60 * 60 * 1000;
 /** --- desktop-autorelease --- The states a quiet (scheduled) check leaves alone: work under way, or an update waiting to install. */
 const QUIET_SKIP: ReadonlySet<UpdateStatus["state"]> = new Set(["checking", "available", "downloading", "ready"]);
+/** --- manual-update --- The states a manual check leaves alone too: the download is under way, or done (Restart and update is next). */
+const MANUAL_SKIP: ReadonlySet<UpdateStatus["state"]> = new Set(["available", "downloading", "ready"]);
 
 export interface UpdaterTimers {
   setTimeout: (fn: () => void, ms: number) => unknown;
@@ -33,9 +37,12 @@ export interface UpdaterLike {
 }
 
 export interface UpdaterOptions {
+  /** Whether this run may update at all (false: the smoke run). */
   enabled: boolean;
   packaged: boolean;
   portable: boolean;
+  /** --- manual-update --- The "Update automatically" preference (absent: on). Off, start() schedules nothing, manual checks still work. */
+  autoUpdate?: () => boolean;
   online: () => boolean;
   log: (message: string) => void;
   emit: (status: UpdateStatus) => void;
@@ -49,6 +56,9 @@ export class UpdateController {
   private intervalTimer: unknown = null;
   // --- desktop-autorelease --- the status a quiet check found, while it runs (its failure restores it instead of "error")
   private quietBefore: UpdateStatus | null = null;
+  // --- manual-update --- the check under way (one at a time) and whether it is still a quiet one
+  private running: Promise<UpdateStatus> | null = null;
+  private runningQuiet = false;
 
   constructor(private readonly updater: UpdaterLike | null, private readonly options: UpdaterOptions) {
     if (!this.active) {
@@ -72,8 +82,14 @@ export class UpdateController {
     });
   }
 
+  /** Whether this build can update itself (an installed build, not the portable EXE, not a development run or the smoke run). */
   get active(): boolean {
     return !!this.updater && this.options.enabled && this.options.packaged && !this.options.portable;
+  }
+
+  /** --- manual-update --- The "Update automatically" preference as it is now. */
+  private get auto(): boolean {
+    return this.options.autoUpdate?.() ?? true;
   }
 
   get status(): UpdateStatus {
@@ -87,12 +103,13 @@ export class UpdateController {
 
   /**
    * --- desktop-autorelease --- The scheduled checks: one `initialDelayMs` after the call, then one every `intervalMs` – quiet
-   * ones (see check()). Nothing happens for an inactive controller (portable, development build, auto-update off, the smoke
-   * run) or when it is already started. The download runs in the background (autoDownload); the page shows a banner and the
+   * ones (see check()). Nothing happens for an inactive controller (portable, development build, the smoke run), with
+   * auto-update off (--- manual-update --- main.ts starts it when the user turns it on and stops it when they turn it off) or
+   * when it is already started. The download runs in the background (autoDownload); the page shows a banner and the
    * main process one notification when it is ready; it installs on the user's click or when the app quits.
    */
   start(timers: UpdaterTimers = globalThis as unknown as UpdaterTimers, delays = { initialDelayMs: UPDATE_INITIAL_DELAY_MS, intervalMs: UPDATE_INTERVAL_MS }): void {
-    if (!this.active || this.timers) return;
+    if (!this.active || !this.auto || this.timers) return;
     this.timers = timers;
     const run = () => void this.check({ quiet: true });
     this.firstTimer = timers.setTimeout(() => {
@@ -118,28 +135,48 @@ export class UpdateController {
    * (the schedule's) does not disturb: while a check or a download is under way, or once an update is downloaded (it installs
    * on the next restart; asking again would only fetch the same files and flicker the banner), it returns the status as it is,
    * and offline or failing it only logs and leaves the status as it found it (no "error" in the GPU panel for a check nobody
-   * asked for – electron-updater's own "error" event included). A manual check (the Help menu, the GPU panel) behaves as before.
+   * asked for – electron-updater's own "error" event included). A manual check (the top bar's button, the Help menu, the GPU
+   * panel) says what happened. --- manual-update --- One check at a time: a second click, or the menu while the schedule's check
+   * runs, waits for the check under way (which then reports like a manual one), and a manual check during a download or once
+   * the update is downloaded returns the status as it is. A manual check downloads what it finds, auto-update on or off.
    */
   async check(options: { quiet?: boolean } = {}): Promise<UpdateStatus> {
     if (!this.active) return this.current;
     const quiet = options.quiet === true;
-    if (quiet && QUIET_SKIP.has(this.current.state)) return this.current;
+    if (this.running) {
+      if (quiet) return this.current;
+      this.runningQuiet = false;
+      this.quietBefore = null;
+      return this.running;
+    }
+    if ((quiet ? QUIET_SKIP : MANUAL_SKIP).has(this.current.state)) return this.current;
+    this.runningQuiet = quiet;
+    const run = this.run().finally(() => {
+      this.running = null;
+      this.runningQuiet = false;
+    });
+    this.running = run;
+    return run;
+  }
+
+  /** --- manual-update --- One check (check() makes sure there is never a second one at the same time). */
+  private async run(): Promise<UpdateStatus> {
     if (!this.options.online()) {
-      if (quiet) this.options.log("update check skipped: offline");
+      if (this.runningQuiet) this.options.log("update check skipped: offline");
       else this.set({ state: "error", version: null, progress: null, message: "offline" });
       return this.current;
     }
     const before = this.current;
-    if (quiet) this.quietBefore = before;
+    if (this.runningQuiet) this.quietBefore = before;
     try {
       await (this.updater as UpdaterLike).checkForUpdates();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.options.log(`update check failed: ${message}`);
-      if (!quiet) this.set({ state: "error", version: null, progress: null, message });
+      if (!this.runningQuiet) this.set({ state: "error", version: null, progress: null, message });
       else if (this.current !== before) this.set(before); // "checking" (electron-updater's event) back to what it was
     } finally {
-      if (quiet) this.quietBefore = null;
+      this.quietBefore = null;
     }
     return this.current;
   }

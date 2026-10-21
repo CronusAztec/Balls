@@ -3608,7 +3608,12 @@ Release `desktop-v<version>` with the same files and the changelog's notes for t
 it also checks that `…/releases/latest/download/latest.yml` names the version, because apps older than 1.1.0 read it). A
 release build is never cancelled by a newer push. electron-updater (the generic provider, `JBL_UPDATE_URL` at build time)
 reads `latest.yml` from the downloads repository's latest release. The app checks 8 s after launch and every 4 hours, downloads in the background,
-shows a banner (Restart and update / Later) and a Windows notification, installs on quit; the GPU tab keeps the manual check.
+shows a banner (Restart and update / Later) and a Windows notification, installs on quit. --- manual-update --- The Desktop group's top bar
+has an update button on every tab (`UpdateButton.tsx`, states in `src/lib/desktop/updateButton.ts`): Check for updates, Checking…, the
+download's percent, Restart and update (never while a clip renders), the result of the check, Try again with the Download page after an
+error, and for the portable EXE or a development run a note that it does not update itself with a link to the Download page. A manual
+check (that button, Help → Check for updates, the GPU tab) finds and downloads the update with "Update automatically" off too (the
+preference only drives the quiet schedule, and takes effect without a restart), one check at a time.
 The download page shows the build-time version (`DESKTOP_VERSION`, bumped by `npm run release:desktop` in the push that
 deploys the site). The owner's step-by-step guide, with the one-time downloads-repository setup and the order for making the repository private:
 [docs/RELEASING.md](docs/RELEASING.md).

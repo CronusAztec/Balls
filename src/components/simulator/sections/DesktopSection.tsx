@@ -28,6 +28,7 @@ import AccountsPanel from "../desktop/AccountsPanel"; // --- social-postiz --- t
 import PostizPostCard, { type CardPrefill } from "../desktop/PostizPostCard"; // --- social-postiz --- phase 2: the approval card and the Posts tab
 import PostsPanel from "../desktop/PostsPanel";
 import WhatsNew from "../desktop/WhatsNew"; // --- changelog ---
+import UpdateButton from "../desktop/UpdateButton"; // --- manual-update --- the top bar's update control (every tab)
 import { errorText, ghostBtn, primaryBtn } from "../desktop/ui"; // --- desktop-autorelease --- (the update banner's buttons)
 import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
 import type { PublishPlatform } from "@/lib/publish/platforms";
@@ -286,6 +287,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   // --- desktop-autorelease --- no restart while a clip renders or encodes (the update then installs when the app quits)
   // --- ai-cut --- a cut in progress counts: its job is done already, but a restart now would lose the cut
   const rendering = queue.state.jobs.some((j) => j.status === "rendering" || j.status === "encoding") || queue.cutting !== null;
+  const updateBanner = update?.state === "ready" && !!update.version && updateLater !== update.version;
 
   if (!prefs) return null;
   return (
@@ -312,7 +314,9 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
             </button>
           ))}
         </nav>
-        <div className="ml-auto flex gap-1.5">
+        <div className="ml-auto flex items-center gap-1.5 flex-wrap">
+          {/* --- manual-update --- always in sight: check, the download's percent, Restart and update, or the Download page */}
+          <UpdateButton bridge={bridge} update={update} rendering={rendering} waitHint={!updateBanner} />
           {(["song", "video", "project"] as const).map((kind) => (
             <button key={kind} type="button" onClick={() => pick(kind)} className="px-2.5 py-1 rounded-lg text-xs bg-surface-1 border border-line text-ink-2 hover:text-ink cursor-pointer">
               {t(`open.${kind}`)}
@@ -321,7 +325,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
         </div>
       </div>
       {/* --- desktop-autorelease --- an update is downloaded: Restart and update / Later (hidden for this version until the next launch) */}
-      {update?.state === "ready" && update.version && updateLater !== update.version && (
+      {updateBanner && update?.version && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-ink bg-accent/10 border border-accent-dim/60 rounded-lg px-3 py-2" data-testid="desktop-update-banner" role="status">
           <span className="flex-1">{t("update.ready", { version: update.version, progress: 100 })}</span>
           <button type="button" className={primaryBtn} disabled={rendering} onClick={() => void bridge.update.install()} data-testid="desktop-update-restart">
@@ -343,7 +347,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
       )}
       {/* --- social-postiz --- the approval card, above whatever tab is open (it stays while the user looks at the Library or the Posts tab) */}
       {postizCard && <PostizPostCard key={`${postizCard.item.id}:${postizCard.prefill?.queueItemId ?? (postizCard.prefill ? "retry" : "new")}`} bridge={bridge} item={postizCard.item} prefill={postizCard.prefill} onClose={() => setPostizCard(null)} />}
-      {tab === "gpu" && <GpuPanel bridge={bridge} prefs={prefs} info={info} update={update} onPrefs={changePrefs} />}
+      {tab === "gpu" && <GpuPanel bridge={bridge} prefs={prefs} info={info} update={update} rendering={rendering} onPrefs={changePrefs} />}
       {tab === "queue" && <QueuePanel bridge={bridge} queue={queue} page={page} folder={prefs.outputFolder} onFolder={(outputFolder) => changePrefs({ outputFolder })} />}
       {tab === "ai" && <AiPanel ai={ai} custom={custom} prefs={prefs} page={page} onQueueTab={() => show("queue")} bridge={bridge} /* --- desktop-ai-fix --- (the AI status panel) */ />}
       {tab === "library" && <LibraryPanel bridge={bridge} items={library} onRefresh={refreshLibrary} onRerender={(item) => void rerender(item)} onSuggestCut={ai.status?.ready ? suggestLibraryCut : undefined /* --- ai-cut --- */} />}
