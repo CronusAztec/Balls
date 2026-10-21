@@ -11,13 +11,17 @@ import { LIVE_WALL_LIMIT } from "@/lib/unlimited";
 import { RECIPES } from "@/lib/bot/playbook";
 import { planClip } from "@/lib/bot/planner";
 import type { BotCopy } from "@/lib/bot/copy";
-import type { AiMessage } from "@/lib/desktop/contract";
+import type { AiChatRequest, AiMessage, DesktopApi } from "@/lib/desktop/contract";
 import { extractJson, validateJson, type JsonSchema } from "@/lib/desktop/ai/jsonSchema";
-import { normaliseReply, replySchema, runAgent, type AgentEvent, type ChatModel } from "@/lib/desktop/ai/agent";
+import { normaliseReply, replySchema, runAgent, type AgentEvent, type ChatModel, type AgentTool } from "@/lib/desktop/ai/agent";
 import { assistantSettings, changedKeys, changesSchema, invertPatch, isModeSettingKey, patchFromChanges, settingsCatalog, validateSettingsPatch } from "@/lib/desktop/ai/settingsPatch";
 import { MODE_IDS } from "@/lib/physics/types"; // --- low-findings-2 ---
-import { PlanStore, copyTask, ideasTask, makeVideosTask, settingsTask, type MakeVideosResult, type SettingsResult, type StudioPorts } from "@/lib/desktop/ai/studio";
+import { CLIP_CUT, PlanStore, clipCutSpec, clipEditTask, copyTask, ideasTask, makeVideosTask, makeVideosTools, planSummary, settingsTask, type ClipCutResult, type MakeVideosResult, type SettingsResult, type StudioPorts } from "@/lib/desktop/ai/studio";
 import { selectPlaybookContext, splitPlaybook } from "@/lib/desktop/ai/playbookContext";
+// --- ai-cut --- the cut task and Make videos' per-clip cut
+import { DEFAULT_CLIP_EDIT } from "@/lib/clipEdit/spec";
+import { ZOOM_STEPS, type ClipBeats } from "@/lib/clipEdit/propose";
+import { suggestCut } from "@/components/simulator/desktop/aiCut";
 
 /* --- desktop-exe --- the AI studio: schema checks, the tool-call loop with a scripted model, settings patches, grounding */
 
@@ -322,6 +326,151 @@ describe("make videos", () => {
     expect(i.system).toMatch(/Spanish/);
     expect(i.system).toMatch(/Motion in frame one/);
     expect(i.system).toMatch(/ring-escape/);
+  });
+});
+
+// --- ai-cut --- the standalone cut task: a cut for one finished clip from its beats, on the same loop
+describe("--- ai-cut --- the cut task", () => {
+  const beats: ClipBeats = { durationSec: 16.2, mode: "glass", firstImpactSec: 0.8, payoffSec: 12.4, cutGapSec: null, ending: "resolved", seamlessLoop: false, hook: "Can it escape?" };
+  const ideas = ["Will it escape?", "Red or blue?", "Wait for the last bounce", "How many bounces?"];
+  const task = () => clipEditTask("", { locale: "en", beats, base: DEFAULT_CLIP_EDIT, ideas });
+
+  it("shows the beats, the rule-made default and the hook examples, asks for the answer in a line, and takes a valid one as it is", async () => {
+    const model = scripted(['{"action":"final","result":{"startSec":0.5,"lengthSec":13.4,"zoom":1.25,"hook":"Will it escape?","cardSec":1.5,"summary":"Starts on the first bounce."}}']);
+    const t = task();
+    const out = await runAgent<ClipCutResult>(model, t);
+    expect(out).toEqual({ ok: true, steps: 1, retries: 0, result: { startSec: 0.5, lengthSec: 13.4, zoom: 1.25, hook: "Will it escape?", cardSec: 1.5, summary: "Starts on the first bounce." } });
+    const system = model.calls[0][0].content;
+    expect(system).toContain("source 16.2 s, mode glass, motion from 0.8 s, payoff at 12.4 s (resolved), no loop");
+    expect(system).toContain('A sound default: {"startSec":0.5,"lengthSec":13.4,"zoom":1.25,"hook":"Can it escape?","cardSec":1.5}.'); // a breath before the first bounce, 1.5 s after the escape, no address
+    expect(system).toContain('Hook examples: "Will it escape?", "Red or blue?", "Wait for the last bounce", "How many bounces?". Write the hook and the summary in English.');
+    expect(system).toContain('"zoom":<1|1.15|1.25|1.4|1.6>'); // the answer's shape in a line (finalHint), not its schema
+    expect(system).not.toContain('"additionalProperties"');
+    expect(model.calls[0][1].content).toBe("Propose the cut.");
+    expect([t.name, t.maxSteps, t.temperature, t.maxTokens, t.tools.length]).toEqual(["cut", 3, 0.5, 400, 0]);
+    expect(t.final.required).toEqual(["startSec", "lengthSec", "zoom", "hook", "cardSec", "summary"]);
+    expect(t.final.properties?.zoom).toEqual({ enum: ZOOM_STEPS });
+    expect(CLIP_CUT.additionalProperties).toBe(false);
+    if (out.ok) expect(clipCutSpec(out.result, { ...DEFAULT_CLIP_EDIT, url: "mine" })).toEqual({ startSec: 0.5, lengthSec: 13.4, zoom: 1.25, hook: "Will it escape?", url: "mine", cardSec: 1.5 });
+    expect(clipEditTask("", { locale: "pl", beats, base: DEFAULT_CLIP_EDIT, ideas: [] }).system).toMatch(/\nWrite the hook and the summary in Polish\.$/);
+  });
+
+  it("fits what a small model answers – a length past the file, a zoom off the steps, a string number, a hook that runs long – without a retry", async () => {
+    const long = "Will it escape? ".repeat(6).trim(); // 95 characters
+    const model = scripted([`{"action":"final","result":{"startSec":"2","lengthSec":999,"zoom":1.3,"hook":"${long}","cardSec":1.5,"summary":"x"}}`]);
+    const out = await runAgent<ClipCutResult>(model, task());
+    expect(out).toMatchObject({ ok: true, retries: 0 });
+    if (!out.ok) return;
+    expect(out.result).toMatchObject({ startSec: 2, lengthSec: 14.2, zoom: 1.25, cardSec: 1.5, summary: "x" }); // the length fitted to the 16.2 s file
+    expect(out.result.hook.length).toBeLessThanOrEqual(60);
+    expect(out.result.hook).toMatch(/^Will it escape\? Will it escape\?/);
+    expect(out.result).not.toHaveProperty("url");
+  });
+
+  it("sends a cut that misses the payoff back once, naming the second it lands; an empty hook falls back to the clip's own", async () => {
+    const model = scripted(['{"action":"final","result":{"startSec":0,"lengthSec":8,"zoom":1,"hook":"","cardSec":0,"summary":"short"}}', '{"action":"final","result":{"startSec":4,"lengthSec":10,"zoom":1,"hook":"","cardSec":0,"summary":"to the escape"}}']);
+    const out = await runAgent<ClipCutResult>(model, task());
+    expect(out).toMatchObject({ ok: true, retries: 1, result: { startSec: 4, lengthSec: 10, hook: "Can it escape?" } });
+    const note = model.calls[1].at(-1) as AiMessage;
+    expect(note.role).toBe("system");
+    expect(note.content).toMatch(/the payoff lands at 12\.4 s: keep startSec <= 12\.4 <= startSec \+ lengthSec/);
+  });
+
+  it("suggests a cut for the editor over the bridge, the address the user's; the loop's failure is thrown", async () => {
+    const replies = ['{"action":"final","result":{"startSec":0.5,"lengthSec":12,"zoom":1.15,"hook":"Red or blue?","cardSec":1,"summary":"Up to the last pane."}}'];
+    const requests: AiChatRequest[] = [];
+    const bridge = {
+      ai: { chat: async (r: AiChatRequest) => (requests.push(r), { text: replies.shift() ?? "", provider: "local", model: "m", cancelled: false }), cancel: async () => {} },
+      on: () => () => {},
+    } as unknown as Pick<DesktopApi, "ai" | "on">;
+    const base = { ...DEFAULT_CLIP_EDIT, url: "my.site" };
+    await expect(suggestCut(bridge, "pl", beats, base, ideas)).resolves.toEqual({ spec: { startSec: 0.5, lengthSec: 12, zoom: 1.15, hook: "Red or blue?", url: "my.site", cardSec: 1 }, summary: "Up to the last pane." });
+    expect(requests[0].task).toBe("cut");
+    expect(requests[0].messages[0].content).toContain("Polish");
+    expect(JSON.stringify(requests[0].schema)).toContain('"cardSec":{"enum":[0,1,1.5,2]}');
+    await expect(suggestCut(bridge, "en", beats, base, ideas)).rejects.toThrow(/no final answer after 3 turns/);
+  });
+});
+
+// --- ai-cut --- Make videos with cuts: the cut required per clip, snapped and checked against its plan's beats
+describe("--- ai-cut --- Make videos with cuts", () => {
+  const base = planClip(RECIPES[0], 42, "reels", { copy, search: false });
+  // a measured plan: a 20 s clip, the first bounce at 0.8 s, the escape at 12 s, no seamless loop
+  const plan = { ...base, ending: "resolved" as const, payoff: { ...base.payoff, atSec: 12, cutGapSec: null }, timing: { ...base.timing, clipSec: 20, firstImpactSec: 0.8 }, settings: { ...base.settings, dpPalindrome: false, hpReturn: false } };
+  const ports = (): StudioPorts => ({
+    planClips: async (request) => Array.from({ length: request.count }, (_, i) => ({ ...plan, id: `${plan.id}-${i + 1}`, platform: request.platform })),
+    findSimulation: async () => ({ found: false, seed: 0, durationSec: 0 }),
+  });
+  const clip = (cut: string) => `{"planId":"${plan.id}-1","name":"glass escape","title":"Glass","hook":"Can it escape?","caption":"Which pane?","hashtags":["#physics","#asmr","#satisfying"],"platform":"reels"${cut}}`;
+
+  // --- ai-cut --- a new seed has its own payoff: the cut is suggested and checked against it, not the plan's old second
+  it("find_simulation refreshes the plan's beats for the new seed and hands back a current suggested cut", async () => {
+    const ctx = { signal: new AbortController().signal, progress: () => {} } as unknown as Parameters<AgentTool["run"]>[1];
+    const measured: StudioPorts = { ...ports(), findSimulation: async (_s, request) => ({ found: true, seed: 9, durationSec: request.targetSec, payoffSec: 13.5 }) };
+    const store = new PlanStore();
+    store.add({ ...plan, id: "p-1" });
+    const find = makeVideosTools(store, measured).find((tool) => tool.name === "find_simulation")!;
+    const out = (await find.run({ planId: "p-1", targetSec: 20, outcome: "escapes-at", atSec: 14 }, ctx)) as { suggestedCut: { startSec: number; lengthSec: number } };
+    const after = store.get("p-1")!;
+    expect(after.payoff).toMatchObject({ atSec: 13.5, cutGapSec: null }); // the finder's measured escape wins over the second asked for
+    expect(after.timing).toMatchObject({ clipSec: 20, found: true, firstImpactSec: null });
+    expect(out.suggestedCut.startSec + out.suggestedCut.lengthSec).toBeCloseTo(15, 5); // payoff + 1.5 s
+    expect(out.suggestedCut).not.toHaveProperty("url");
+    // no measured escape: the second asked for; a run searched by length or for never escaping has no payoff at all
+    const asked: StudioPorts = { ...ports(), findSimulation: async (_s, request) => ({ found: true, seed: 9, durationSec: request.targetSec }) };
+    const store2 = new PlanStore();
+    store2.add({ ...plan, id: "p-2" });
+    const find2 = makeVideosTools(store2, asked).find((tool) => tool.name === "find_simulation")!;
+    await find2.run({ planId: "p-2", targetSec: 20, outcome: "escapes-at", atSec: 14 }, ctx);
+    expect(store2.get("p-2")!.payoff.atSec).toBe(14);
+    await find2.run({ planId: "p-2", targetSec: 30, outcome: "duration" }, ctx);
+    expect(store2.get("p-2")!.payoff.atSec).toBeNull();
+  });
+
+  it("asks for a cut per clip only when the run wants cuts: required in the schema, its steps as enums, the plan's suggestedCut to start from", () => {
+    const store = new PlanStore();
+    store.add({ ...plan, id: "p-1" });
+    const withCut = makeVideosTask("x", { copy, locale: "en", platform: "reels", store, ports: ports(), cut: true });
+    const item = ((withCut.turn?.()?.final?.properties?.clips as JsonSchema).items as JsonSchema);
+    expect(item.required).toEqual(["planId", "name", "title", "hook", "caption", "hashtags", "platform", "cut"]);
+    expect(item.properties?.cut).toEqual(CLIP_CUT);
+    expect(JSON.stringify(replySchema(withCut.tools, withCut.turn?.()?.final ?? null))).toContain('"zoom":{"enum":[1,1.15,1.25,1.4,1.6]}');
+    expect(withCut.system).toMatch(/Start from the plan's suggestedCut/);
+    const without = makeVideosTask("x", { copy, locale: "en", platform: "reels", store, ports: ports() });
+    const plain = ((without.turn?.()?.final?.properties?.clips as JsonSchema).items as JsonSchema);
+    expect(plain.properties).not.toHaveProperty("cut");
+    expect(plain.required).not.toContain("cut");
+    expect(without.system).not.toMatch(/suggestedCut/);
+    // What the model sees of a plan: its beats and the cut the rules suggest (no address), the caption cut to 160.
+    const summary = planSummary(plan);
+    expect(summary).toMatchObject({ firstImpactSec: 0.8, cutGapSec: null, loop: false, suggestedCut: { startSec: 0.5, lengthSec: 13, zoom: 1.25, cardSec: 1.5 } });
+    expect(summary.suggestedCut).not.toHaveProperty("url");
+    expect(summary.suggestedCaption.length).toBeLessThanOrEqual(160);
+    // a seamless loop is read only from the modes that play one (the flags are on by default everywhere): kept whole, no card
+    expect(planSummary({ ...plan, mode: "doublePendulum", settings: { ...plan.settings, dpFan: true, dpPalindrome: true } })).toMatchObject({ loop: true, suggestedCut: { startSec: 0, lengthSec: 20, cardSec: 0 } });
+    expect(planSummary({ ...plan, settings: { ...plan.settings, dpFan: true, dpPalindrome: true, hpReturn: true } }).loop).toBe(false);
+  });
+
+  it("runs with cuts: a clip without one is refused by the schema, a cut past the payoff by the checks, the planned one is snapped", async () => {
+    const store = new PlanStore();
+    const model = scripted([
+      '{"action":"tool","tool":"plan_clips","args":{"count":1,"platform":"reels"}}',
+      `{"action":"final","result":{"summary":"one","clips":[${clip("")}]}}`,
+      `{"action":"final","result":{"summary":"one","clips":[${clip(',"cut":{"startSec":0,"lengthSec":8,"zoom":1.4,"hook":"","cardSec":1.5}')}]}}`,
+      `{"action":"final","result":{"summary":"one","clips":[${clip(',"cut":{"startSec":"1","lengthSec":40,"zoom":1.3,"hook":"","cardSec":1.5}')}]}}`,
+    ]);
+    const out = await runAgent<MakeVideosResult>(model, makeVideosTask("one clip", { copy, locale: "en", platform: "reels", store, ports: ports(), cut: true }));
+    expect(out).toMatchObject({ ok: true, retries: 2, steps: 4 });
+    if (!out.ok) return;
+    expect(out.result.clips[0].cut).toEqual({ startSec: 1, lengthSec: 19, zoom: 1.25, hook: "Can it escape?", cardSec: 1.5 }); // a string number, the length fitted to the 20 s clip, the zoom snapped, the clip's own hook
+    expect(model.calls[2].at(-1)?.content).toMatch(/missing "cut"/);
+    expect(model.calls[3].at(-1)?.content).toMatch(new RegExp(`${plan.id}-1: the payoff lands at 12 s`));
+    expect(clipCutSpec(out.result.clips[0].cut as NonNullable<MakeVideosResult["clips"][number]["cut"]>)).toEqual({ ...DEFAULT_CLIP_EDIT, startSec: 1, lengthSec: 19, zoom: 1.25, hook: "Can it escape?", cardSec: 1.5 });
+    // Without cuts the same answers go through as before (the clip's schema has no cut property then: a cloud model that wrote one anyway would be sent back once, the grammar keeps a local one from it).
+    const plain = scripted(['{"action":"tool","tool":"plan_clips","args":{"count":1,"platform":"reels"}}', `{"action":"final","result":{"summary":"one","clips":[${clip("")}]}}`]);
+    const before = await runAgent<MakeVideosResult>(plain, makeVideosTask("one clip", { copy, locale: "en", platform: "reels", store: new PlanStore(), ports: ports() }));
+    expect(before).toMatchObject({ ok: true, retries: 0 });
+    if (before.ok) expect(before.result.clips[0]).not.toHaveProperty("cut");
   });
 });
 

@@ -7,7 +7,7 @@
 import { SITE_SLUG } from "@/lib/site";
 import type { LoopCaptionContext } from "./loopCaption"; // --- low-findings ---
 
-export const CLIP_SOURCES = ["recording", "fast", "batch", "bot", "file"] as const;
+export const CLIP_SOURCES = ["recording", "fast", "batch", "bot", "file", "edit" /* --- clip-editor --- */] as const;
 export type ClipSource = (typeof CLIP_SOURCES)[number];
 
 export interface PublishClip {

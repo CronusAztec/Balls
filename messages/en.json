@@ -4211,7 +4211,8 @@
       "fast": "Fast export",
       "batch": "Batch",
       "bot": "Clip planner",
-      "file": "File"
+      "file": "File",
+      "edit": "Clip editor"
     },
     "seconds": "{sec} s",
     "megabytes": "{mb} MB",
@@ -4367,7 +4368,9 @@
     "loopStyleTip": "The loop clips' words: a lowercase hook led by a number and ending in 🔊, a plain fact, and #satisfying #oddlysatisfying with the topic's tags (your edits are replaced)",
     "accountSignedOut": "Create an account or sign in to keep your channels on every device.",
     "accountSignedIn": "Signed in as {name}. Your channels are below.",
-    "accountLink": "Account"
+    "accountLink": "Account",
+    "editClip": "Edit for TikTok",
+    "editClipTip": "Cut in on the action, add a hook and an end card, and render a vertical file"
   },
   "Unlimited": {
     "label": "Wide sliders",
@@ -4880,7 +4883,19 @@
     "privacyNoticesTitle": "Third-party software and sounds",
     "privacyNoticesFfmpeg": "ffmpeg, which the app uses to encode videos, is licensed under the GNU GPL version 3. It is the unmodified gyan.dev essentials build of FFmpeg 6.1.1, runs as a separate program and comes with its licence text. Its source code is available from the build's publisher and from the FFmpeg project, and we send it on request. The app lists every third-party component under Help, Third-party licences.",
     "privacyNoticesOther": "The app is also built on Electron, Chromium, node-llama-cpp and llama.cpp. The licence texts of ffmpeg, Electron, Chromium and node-llama-cpp are shipped with the app. AI models are separate downloads under their own licences, which the app shows before you download. The AI studio can run Llama 3.2. Built with Llama.",
-    "privacyAudio": "The built-in sounds are synthesised by us. The built-in melodies are public-domain tunes."
+    "privacyAudio": "The built-in sounds are synthesised by us. The built-in melodies are public-domain tunes.",
+    "libEdit": "Edit for TikTok",
+    "aiCut": "Also cut each clip for TikTok after rendering",
+    "aiCutTip": "The AI picks where the cut starts, how long it keeps, the crop-in, the hook on the frame and the end card. The cut is saved in the Library next to the clip.",
+    "aiCutLine": "Cut {start} to {end} s · crop-in {zoom} % · \"{hook}\"",
+    "jobCut": "+ TikTok cut",
+    "jobCutting": "Cutting for TikTok",
+    "jobCutFailed": "The TikTok cut of {name} failed: {error}. The clip itself is in the Library.",
+    "aiStart": "Start rendering right away",
+    "aiStartTip": "The clips go to the render queue and it starts at once: one prompt, then the files are in the Library.",
+    "aiClipsStarted": "Added to the render queue, rendering now.",
+    "aiStartedNotice": "{count, plural, one {# clip} other {# clips}} from the AI added to the render queue and rendering.",
+    "jobCutSaved": "The TikTok cut of {name} is in the Library."
   },
   "Territory": {
     "canvasVs": "VS",
@@ -6392,5 +6407,48 @@
       "withoutEmail": "For questions, quotes or corrections, use the <feedback>feedback page</feedback>.",
       "operator": "{siteName} is operated by {name}."
     }
+  },
+  "ClipEditor": {
+    "title": "Clip editor",
+    "close": "Close",
+    "intro": "Cut in where the action is, crop in on the ring, keep a question and your address on screen from the first frame, and end on a card that names the site. The preview shows the file frame for frame.",
+    "previewAlt": "Preview of the cut",
+    "scrub": "Preview time",
+    "seconds": "{sec} s",
+    "sourceLength": "source {sec} s",
+    "start": "Start in the source",
+    "length": "Length of action",
+    "zoom": "Crop in",
+    "card": "End card",
+    "hook": "Hook at the top",
+    "hookPlaceholder": "A question the viewer waits to see answered",
+    "url": "Address under the hook and on the card",
+    "ideas": {
+      "escape": "Will it escape?",
+      "winner": "Red or blue?",
+      "wait": "Wait for the last bounce",
+      "count": "How many bounces?"
+    },
+    "cardTitle": "Make your own",
+    "cardNote": "free, in your browser",
+    "phase": {
+      "prepare": "Opening the video…",
+      "frames": "Frame {frame} of {frames} · {percent} %",
+      "audio": "Cutting the sound · {percent} %",
+      "finish": "Writing the file…"
+    },
+    "renderDownload": "Render and download",
+    "renderSave": "Render and save to Library",
+    "downloadAgain": "Download again",
+    "cancel": "Cancel",
+    "downloaded": "Downloaded: {sec} s, {mb} MB. The cut is in the Publish clips too.",
+    "savedLibrary": "Saved to the Library: {sec} s, {mb} MB. The cut is in the Publish clips too.",
+    "watermarked": "Free exports carry the watermark. Pro removes it.",
+    "unsupported": "This browser cannot encode video. Chrome or Edge can, and so can the Windows app.",
+    "tip": "Start on motion, not on a still ring: most viewers decide in the first second. 8 to 15 seconds that loop cleanly do better than a long clip.",
+    "suggest": "Suggest with AI",
+    "suggesting": "Asking the AI…",
+    "suggested": "AI: {summary}",
+    "suggestFailed": "The AI could not propose a cut: {error}"
   }
 }

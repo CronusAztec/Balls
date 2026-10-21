@@ -79,7 +79,9 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
     }
   };
 
-  const statusText = (job: QueueJob) => t(`status.${job.status}`);
+  // --- ai-cut --- a done job whose TikTok cut is being made reads "Cutting for TikTok" and shows the cut's bar (no status of its own)
+  const cuttingJob = (job: QueueJob) => queue.cutting?.jobId === job.id;
+  const statusText = (job: QueueJob) => (cuttingJob(job) ? t("jobCutting") : t(`status.${job.status}`));
   return (
     <div className="grid grid-cols-1 xl:grid-cols-5 gap-4" data-testid="desktop-queue" data-queue-count={queue.state.jobs.length} data-queue-running={queue.state.running ? "true" : "false"}>
       <div className="xl:col-span-2 space-y-4">
@@ -192,7 +194,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
               <button type="button" className={ghostBtn} onClick={queue.clearDone}>
                 {t("queueClearFinished")}
               </button>
-              <button type="button" className={dangerBtn} disabled={summary.queued + summary.active === 0} onClick={queue.cancelAll}>
+              <button type="button" className={dangerBtn} disabled={summary.queued + summary.active === 0 && !queue.cutting /* --- ai-cut --- */} onClick={queue.cancelAll}>
                 {t("queueCancelAll")}
               </button>
             </>
@@ -223,9 +225,15 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
                     <span className="text-ink-3 whitespace-nowrap">
                       {job.preset === "native" ? `${job.resolution} · ${job.fps}` : t(`preset.${job.preset}`)} · {job.codec.toUpperCase()}
                     </span>
-                    <span className={`whitespace-nowrap ${job.status === "failed" ? "text-danger" : job.status === "done" ? "text-accent" : "text-ink-2"}`}>{statusText(job)}</span>
+                    {job.cut && (
+                      <span className="text-accent-strong whitespace-nowrap" data-testid="job-cut" /* --- ai-cut --- */>
+                        {t("jobCut")}
+                      </span>
+                    )}
+                    <span className={`whitespace-nowrap ${job.status === "failed" ? "text-danger" : job.status === "done" && !cuttingJob(job) ? "text-accent" : "text-ink-2"}`}>{statusText(job)}</span>
                   </div>
                   {(job.status === "rendering" || job.status === "encoding") && <Bar value={job.progress} tone={job.status === "encoding" ? "cyan" : "lime"} />}
+                  {cuttingJob(job) && <Bar value={queue.cutting?.progress ?? 0} tone="cyan" /* --- ai-cut --- */ />}
                   {job.error && <p className="text-xs text-danger break-words">{job.error}</p>}
                   {job.resumed && job.status === "queued" && <p className="text-xs text-accent-strong">{t("queueResumedJob")}</p>}
                   {job.output && (
@@ -235,7 +243,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
                     </p>
                   )}
                   <div className="flex gap-1.5">
-                    {(job.status === "queued" || job.status === "rendering" || job.status === "encoding") && (
+                    {(job.status === "queued" || job.status === "rendering" || job.status === "encoding" || cuttingJob(job) /* --- ai-cut --- stops the cut, the clip stays */) && (
                       <button type="button" className={`${ghostBtn} !py-0.5`} onClick={() => queue.cancel(job.id)}>
                         {t("jobCancel")}
                       </button>
@@ -255,7 +263,7 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
                         </button>
                       </>
                     )}
-                    {job.status !== "rendering" && job.status !== "encoding" && (
+                    {job.status !== "rendering" && job.status !== "encoding" && !cuttingJob(job) && (
                       <button type="button" className={`${ghostBtn} !py-0.5`} onClick={() => queue.remove(job.id)}>
                         {t("jobRemove")}
                       </button>

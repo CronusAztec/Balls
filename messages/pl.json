@@ -4211,7 +4211,8 @@
       "fast": "Szybki eksport",
       "batch": "Seria",
       "bot": "Planer klipów",
-      "file": "Plik"
+      "file": "Plik",
+      "edit": "Edytor klipów"
     },
     "seconds": "{sec} s",
     "megabytes": "{mb} MB",
@@ -4367,7 +4368,9 @@
     "loopStyleTip": "Słowa klipów z pętlą: hasło małymi literami zaczynające się od liczby i kończące 🔊, prosty fakt oraz #satisfying #oddlysatisfying z tagami tematu (twoje zmiany zostaną zastąpione)",
     "accountSignedOut": "Załóż konto lub zaloguj się, by mieć swoje kanały na każdym urządzeniu.",
     "accountSignedIn": "Zalogowano jako {name}. Twoje kanały są poniżej.",
-    "accountLink": "Konto"
+    "accountLink": "Konto",
+    "editClip": "Edytuj na TikToka",
+    "editClipTip": "Wejdź w akcję, dodaj hak i planszę końcową i wyrenderuj pionowy plik"
   },
   "Unlimited": {
     "label": "Szerokie suwaki",
@@ -4880,7 +4883,19 @@
     "privacyNoticesTitle": "Oprogramowanie i dźwięki innych autorów",
     "privacyNoticesFfmpeg": "ffmpeg, którego aplikacja używa do kodowania filmów, jest objęty licencją GNU GPL w wersji 3. To niezmieniona wersja essentials z gyan.dev, FFmpeg 6.1.1, uruchamiana jako osobny program, z dołączonym tekstem licencji. Jej kod źródłowy jest dostępny u wydawcy tej wersji i w projekcie FFmpeg, a na życzenie wysyłamy go sami. Aplikacja wymienia każdy komponent zewnętrzny w menu Pomoc, Licencje zewnętrzne.",
     "privacyNoticesOther": "Aplikacja korzysta też z Electron, Chromium, node-llama-cpp i llama.cpp. Teksty licencji ffmpeg, Electron, Chromium i node-llama-cpp są dołączone do aplikacji. Modele AI to osobne pobrania na ich własnych licencjach, które aplikacja pokazuje przed pobraniem. Studio AI może uruchamiać Llama 3.2. Built with Llama.",
-    "privacyAudio": "Wbudowane dźwięki zsyntetyzowaliśmy sami. Wbudowane melodie to utwory w domenie publicznej."
+    "privacyAudio": "Wbudowane dźwięki zsyntetyzowaliśmy sami. Wbudowane melodie to utwory w domenie publicznej.",
+    "libEdit": "Edytuj na TikToka",
+    "aiCut": "Po renderowaniu przytnij też każdy klip na TikToka",
+    "aiCutTip": "AI wybiera, gdzie zaczyna się cięcie, ile zostaje, przybliżenie, hak na klatce i planszę końcową. Cięcie trafia do Biblioteki obok klipu.",
+    "aiCutLine": "Cięcie od {start} do {end} s · przybliżenie {zoom} % · \"{hook}\"",
+    "jobCut": "+ cięcie TikTok",
+    "jobCutting": "Cięcie na TikToka",
+    "jobCutFailed": "Cięcie na TikToka klipu {name} nie powiodło się: {error}. Sam klip jest w Bibliotece.",
+    "aiStart": "Od razu zacznij renderować",
+    "aiStartTip": "Klipy trafiają do kolejki renderowania, która rusza od razu: jedno polecenie i pliki są w Bibliotece.",
+    "aiClipsStarted": "Dodano do kolejki renderowania, renderuje się teraz.",
+    "aiStartedNotice": "{count, plural, one {# klip} few {# klipy} other {# klipów}} od AI dodano do kolejki renderowania i renderuje się.",
+    "jobCutSaved": "Cięcie na TikToka klipu {name} jest w Bibliotece."
   },
   "Territory": {
     "canvasVs": "VS",
@@ -6392,5 +6407,48 @@
       "withoutEmail": "Z pytaniami, prośbami o wypowiedź lub sprostowaniami skorzystaj ze <feedback>strony opinii</feedback>.",
       "operator": "{siteName} prowadzi {name}."
     }
+  },
+  "ClipEditor": {
+    "title": "Edytor klipów",
+    "close": "Zamknij",
+    "intro": "Zacznij tam, gdzie jest akcja, przybliż pierścień, zostaw pytanie i swój adres na ekranie od pierwszej klatki i zakończ planszą z nazwą strony. Podgląd pokazuje plik klatka po klatce.",
+    "previewAlt": "Podgląd cięcia",
+    "scrub": "Czas podglądu",
+    "seconds": "{sec} s",
+    "sourceLength": "źródło {sec} s",
+    "start": "Początek w źródle",
+    "length": "Długość akcji",
+    "zoom": "Przybliżenie",
+    "card": "Plansza końcowa",
+    "hook": "Hak u góry",
+    "hookPlaceholder": "Pytanie, na którego odpowiedź widz czeka",
+    "url": "Adres pod hakiem i na planszy",
+    "ideas": {
+      "escape": "Czy ucieknie?",
+      "winner": "Czerwony czy niebieski?",
+      "wait": "Poczekaj na ostatnie odbicie",
+      "count": "Ile odbić?"
+    },
+    "cardTitle": "Zrób własny",
+    "cardNote": "za darmo, w przeglądarce",
+    "phase": {
+      "prepare": "Otwieranie wideo…",
+      "frames": "Klatka {frame} z {frames} · {percent} %",
+      "audio": "Cięcie dźwięku · {percent} %",
+      "finish": "Zapisywanie pliku…"
+    },
+    "renderDownload": "Renderuj i pobierz",
+    "renderSave": "Renderuj i zapisz w Bibliotece",
+    "downloadAgain": "Pobierz ponownie",
+    "cancel": "Anuluj",
+    "downloaded": "Pobrano: {sec} s, {mb} MB. Cięcie jest też wśród klipów w Publikuj.",
+    "savedLibrary": "Zapisano w Bibliotece: {sec} s, {mb} MB. Cięcie jest też wśród klipów w Publikuj.",
+    "watermarked": "Darmowe eksporty mają znak wodny. Pro go usuwa.",
+    "unsupported": "Ta przeglądarka nie koduje wideo. Chrome lub Edge potrafią, a także aplikacja na Windows.",
+    "tip": "Zacznij od ruchu, nie od nieruchomego pierścienia: większość widzów decyduje w pierwszej sekundzie. 8 do 15 sekund, które dobrze się zapętlają, działa lepiej niż długi klip.",
+    "suggest": "Zaproponuj z AI",
+    "suggesting": "Pytam AI…",
+    "suggested": "AI: {summary}",
+    "suggestFailed": "AI nie zaproponowało cięcia: {error}"
   }
 }

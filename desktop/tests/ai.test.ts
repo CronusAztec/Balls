@@ -6,7 +6,10 @@ import { planClip } from "@/lib/bot/planner";
 import type { BotCopy } from "@/lib/bot/copy";
 import type { AiChatRequest, DesktopPrefs } from "@/lib/desktop/contract";
 import { runAgent, type ChatModel } from "@/lib/desktop/ai/agent";
-import { PlanStore, makeVideosTask, settingsTask } from "@/lib/desktop/ai/studio";
+import { PlanStore, clipEditTask, makeVideosTask, settingsTask } from "@/lib/desktop/ai/studio";
+// --- ai-cut ---
+import { DEFAULT_CLIP_EDIT } from "@/lib/clipEdit/spec";
+import { beatsOfPlan } from "@/lib/clipEdit/propose";
 import { LocalModelRunner, toChatHistory, type LlamaModuleLike } from "../src/ai/local";
 import { toGrammarSchema } from "../src/ai/gbnf";
 import { AiService, DEFAULT_CLOUD, type CloudSettings } from "../src/ai/service";
@@ -114,6 +117,39 @@ describe("AI through the app", () => {
     expect(JSON.stringify(grammar)).not.toContain("pattern");
     expect(JSON.stringify(grammar)).toContain(`"planId":{"enum":["${plan.id}"]}`);
     expect((await svc.status()).local).toMatchObject({ loaded: true, backend: "vulkan", gpuLayers: 29 });
+  });
+
+  // --- ai-cut --- the cut rides the same channel: its schema reaches the grammar with its steps as enums, its bounds left to the page
+  it("cuts each clip with the local model: the cut's schema reaches the grammar with its enums and nothing the grammar cannot hold", async () => {
+    const base = planClip(RECIPES[0], 3, "reels", { copy, search: false });
+    const plan = { ...base, ending: "resolved" as const, payoff: { ...base.payoff, atSec: 12, cutGapSec: null }, timing: { ...base.timing, clipSec: 20, firstImpactSec: 0.8 }, settings: { ...base.settings, dpPalindrome: false, hpReturn: false } };
+    const store = new PlanStore();
+    const replies = [
+      '{"action":"tool","tool":"plan_clips","args":{"count":1,"platform":"reels"}}',
+      `{"action":"final","result":{"summary":"one clip","clips":[{"planId":"${plan.id}","name":"monday glass","title":"Glass","hook":"Can it escape?","caption":"Which ring?","hashtags":["#physics","#asmr","#satisfying"],"platform":"reels","cut":{"startSec":0.5,"lengthSec":13,"zoom":1.25,"hook":"Will it escape?","cardSec":1.5}}]}}`,
+    ];
+    const { svc, seen } = service(replies);
+    const ports = { planClips: async () => [plan], findSimulation: async () => ({ found: false, seed: 0, durationSec: 0 }) };
+    const out = await runAgent(viaService(svc), makeVideosTask("one clip for Monday", { copy, locale: "en", platform: "reels", store, ports, cut: true }));
+    expect(out).toMatchObject({ ok: true, retries: 0, result: { clips: [{ cut: { startSec: 0.5, lengthSec: 13, zoom: 1.25, hook: "Will it escape?", cardSec: 1.5 } }] } });
+    expect(seen.grammars).toHaveLength(2); // a planning turn and the answer: no new tool
+    const grammar = JSON.stringify(seen.grammars[1]);
+    expect(grammar).toContain('"cut":{"type":"object"');
+    expect(grammar).toContain('"zoom":{"enum":[1,1.15,1.25,1.4,1.6]}');
+    expect(grammar).toContain('"cardSec":{"enum":[0,1,1.5,2]}');
+    expect(grammar).toContain('"hook":{"type":"string","maxLength":60}');
+    expect(grammar).toContain('"required":["planId","name","title","hook","caption","hashtags","platform","cut"]');
+    expect(grammar).not.toContain("minimum");
+    expect(grammar).not.toContain("pattern");
+    expect(grammar).not.toContain('"additionalProperties":true');
+    // The standalone cut task over the same channel: one alternative, the answer, the summary with the five fields.
+    const { svc: cutSvc, seen: cutSeen } = service(['{"action":"final","result":{"startSec":1,"lengthSec":12,"zoom":1.4,"hook":"Which pane breaks?","cardSec":1,"summary":"ok"}}']);
+    const cut = await runAgent(viaService(cutSvc), clipEditTask("", { locale: "en", beats: beatsOfPlan(plan), base: DEFAULT_CLIP_EDIT, ideas: ["Will it escape?"] }));
+    expect(cut).toMatchObject({ ok: true, retries: 0, result: { startSec: 1, lengthSec: 12, zoom: 1.4, hook: "Which pane breaks?", cardSec: 1, summary: "ok" } });
+    const cutGrammar = cutSeen.grammars[0] as { properties: { action: { const: string }; result: { required: string[]; additionalProperties: boolean } } };
+    expect(cutGrammar.properties.action.const).toBe("final");
+    expect(cutGrammar.properties.result.required).toEqual(["startSec", "lengthSec", "zoom", "hook", "cardSec", "summary"]);
+    expect(cutGrammar.properties.result.additionalProperties).toBe(false);
   });
 
   it("checks a settings patch from the local model before the page may apply it", async () => {

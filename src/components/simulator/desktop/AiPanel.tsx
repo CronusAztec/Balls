@@ -22,6 +22,8 @@ import AiSetupCard, { needsSetup } from "./AiSetupCard";
  * --- desktop-ai-fix --- With the AI status panel on top, a first-run card while nothing can answer, "Reading the request…
  * N s" / "Writing… N s" during a run with a timing line per turn, a note when the model runs on the CPU and, after a
  * failure on the GPU, a switch to the CPU.
+ * --- ai-cut --- Make videos can also cut each clip for TikTok (a checkbox with the platforms; the render queue cuts the
+ * clip after its render, lib/clipEdit); the clips card shows the cut the AI proposed under each clip.
  */
 
 export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }: { ai: DesktopAiApi; custom: CustomContentApi; prefs: DesktopPrefs; page: DesktopPageHooks; onQueueTab: () => void; bridge?: DesktopApi }) {
@@ -32,6 +34,8 @@ export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }:
   const [prompt, setPrompt] = useState("");
   const [platforms, setPlatforms] = useState<BotPlatform[]>(["reels"]);
   const [existing, setExisting] = useState("");
+  const [cut, setCut] = useState(false); // --- ai-cut ---
+  const [autoStart, setAutoStart] = useState(true); // --- ai-cut --- one click: the queue starts as soon as the clips are added
   const [provider, setProvider] = useState<CloudProvider>("anthropic");
   const [baseUrl, setBaseUrl] = useState(CLOUD_DEFAULTS.anthropic.baseUrl);
   const [model, setModel] = useState(CLOUD_DEFAULTS.anthropic.model);
@@ -205,6 +209,19 @@ export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }:
                   {t(`preset.${p}`)}
                 </Chip>
               ))}
+              {/* --- ai-cut --- the TikTok cut per clip, after the render */}
+              {ai.task === "videos" && (
+                <label className="flex items-center gap-1.5 text-xs text-ink-2 cursor-pointer ml-1" title={t("aiCutTip")}>
+                  <input type="checkbox" checked={cut} onChange={(e) => setCut(e.target.checked)} className="w-4 h-4" style={{ accentColor: "#93d119" }} data-testid="ai-cut" />
+                  {t("aiCut")}
+                </label>
+              )}
+              {ai.task === "videos" && (
+                <label className="flex items-center gap-1.5 text-xs text-ink-2 cursor-pointer ml-1" title={t("aiStartTip")}>
+                  <input type="checkbox" checked={autoStart} onChange={(e) => setAutoStart(e.target.checked)} className="w-4 h-4" style={{ accentColor: "#93d119" }} data-testid="ai-start" />
+                  {t("aiStart")}
+                </label>
+              )}
             </div>
           )}
           {ai.task === "copy" && <textarea className={`${inputClass} w-full h-14`} value={existing} onChange={(e) => setExisting(e.target.value)} placeholder={t("aiExistingCopy")} aria-label={t("aiExistingCopy")} />}
@@ -214,7 +231,7 @@ export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }:
                 {t("aiStop")}
               </button>
             ) : (
-              <button type="button" className={primaryBtn} disabled={!canRun || (ai.task !== "copy" && ai.task !== "ideas" && ai.task !== "plan" /* --- social-autopilot --- */ && !prompt.trim())} onClick={() => ai.run(prompt.trim(), { platforms, existing })} data-testid="ai-run">
+              <button type="button" className={primaryBtn} disabled={!canRun || (ai.task !== "copy" && ai.task !== "ideas" && ai.task !== "plan" /* --- social-autopilot --- */ && !prompt.trim())} onClick={() => ai.run(prompt.trim(), { platforms, existing, cut, start: autoStart /* --- ai-cut --- */ })} data-testid="ai-run">
                 {t("aiRun")}
               </button>
             )}
@@ -252,7 +269,7 @@ export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }:
 
         {ai.result?.kind === "videos" && (
           <Card title={t("aiClipsTitle", { count: ai.result.result.clips.length })} actions={<button type="button" className={primaryBtn} onClick={onQueueTab}>{t("aiOpenQueue")}</button>}>
-            <p className="text-xs text-accent">{t("aiClipsQueued")}</p>
+            <p className="text-xs text-accent">{t(autoStart ? "aiClipsStarted" : "aiClipsQueued")}</p>
             {ai.result.result.summary && <p className="text-xs text-ink-2">{ai.result.result.summary}</p>}
             <ul className="space-y-2">
               {ai.result.result.clips.map((c) => (
@@ -264,6 +281,12 @@ export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }:
                   <p className="text-accent-strong">{c.hook}</p>
                   <p className="text-ink-2 whitespace-pre-wrap">{c.caption}</p>
                   <p className="text-ink-3">{c.hashtags.join(" ")}</p>
+                  {/* --- ai-cut --- the cut the AI proposed (the queue makes it after the render) */}
+                  {c.cut && (
+                    <p className="text-ink-3" data-testid="ai-cut-line">
+                      {t("aiCutLine", { start: c.cut.startSec.toFixed(1), end: (c.cut.startSec + c.cut.lengthSec).toFixed(1), zoom: Math.round((c.cut.zoom - 1) * 100), hook: c.cut.hook })}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { defaultSettings } from "@/lib/settings";
+import { DEFAULT_CLIP_EDIT, type ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut ---
+import { clipCutOf } from "@/lib/desktop/ai/normalise"; // --- ai-cut ---
 import {
   EMPTY_QUEUE,
   MAX_ATTEMPTS,
@@ -116,6 +118,8 @@ describe("render queue state machine", () => {
     expect(q.running).toBe(false);
     expect(q.jobs.every((j) => j.status === "cancelled")).toBe(true);
     expect(clearFinished(q).jobs).toEqual([]);
+    // --- ai-cut --- the done job whose TikTok cut still runs keeps its row (its bar and Cancel live there)
+    expect(clearFinished(q, q.jobs[0].id).jobs.map((j) => j.id)).toEqual([q.jobs[0].id]);
   });
 
   it("summarises the queue", () => {
@@ -213,6 +217,28 @@ describe("render journal", () => {
     const found = restoreQueue({ format: QUEUE_JOURNAL_FORMAT, version: 1, running: false, jobs: [{ id: "y", name: "found", status: "queued", seed: -5, settings: { mode: "classic" } }] }, 1).state.jobs[0];
     expect(found.seed).toBe(-5);
   });
+
+  // --- ai-cut --- a job's TikTok cut rides in the journal as it is (the field is additive: the version stays 1)
+  it("keeps a job's cut across a restart, floors junk numbers in it and drops anything that is not a cut", () => {
+    const cut: ClipEditSpec = { startSec: 2.5, lengthSec: 12, zoom: 1.4, hook: "Will it escape?", url: "jumpingballs.live", cardSec: 1 };
+    let q = enqueue(EMPTY_QUEUE, [{ ...spec("a"), cut }, spec("b")], 1, ids());
+    expect(q.jobs[0].cut).toEqual(cut);
+    expect(q.jobs[1].cut).toBeUndefined();
+    q = markRendering(startQueue(q), q.jobs[0].id, 2);
+    q = markDone(q, q.jobs[0].id, { path: "C:/v/a.mp4", bytes: 9, durationSec: 16, encoder: null }, 3);
+    const journal = JSON.parse(JSON.stringify(journalOf(q, 4)));
+    expect(journal.version).toBe(1);
+    const { state } = restoreQueue(journal, 100);
+    expect(state.jobs[0]).toMatchObject({ status: "done", cut });
+    expect(state.jobs[1].cut).toBeNull();
+    // Journals written by hand or by an older build: junk numbers are floored (parseClipEdit), a non-object is no cut.
+    const entry = (id: string, cut: unknown) => ({ id, name: id, status: "queued", seed: 1, settings: { mode: "classic" }, cut });
+    const restored = restoreQueue({ format: QUEUE_JOURNAL_FORMAT, version: 1, running: false, jobs: [entry("junk", { startSec: -4, lengthSec: 1, zoom: 0.5, hook: 7, cardSec: -1, url: 3 }), entry("text", "yes"), entry("list", [1, 2]), entry("none", undefined)] }, 1).state.jobs;
+    expect(restored[0].cut).toEqual({ startSec: 0, lengthSec: 3, zoom: 1, hook: DEFAULT_CLIP_EDIT.hook, url: DEFAULT_CLIP_EDIT.url, cardSec: 0 });
+    expect(restored[1].cut).toBeNull();
+    expect(restored[2].cut).toBeNull();
+    expect(restored[3].cut).toBeNull();
+  });
 });
 
 describe("queue sources", async () => {
@@ -234,5 +260,21 @@ describe("queue sources", async () => {
     const q = enqueue(EMPTY_QUEUE, specs, 1, ids());
     expect(q.jobs[0]).toMatchObject({ name: "Pip-Monday-shorts", preset: "shorts", source: { kind: "ai" } });
     expect(presetForPlatform(null)).toBe("native");
+  });
+
+  // --- ai-cut --- the cut the AI answered for a clip travels with it: source → every job of the batch → the queue
+  it("carries an AI clip's TikTok cut into its jobs", () => {
+    const cut: ClipEditSpec = { startSec: 3, lengthSec: 11.5, zoom: 1.25, hook: "Will Pip make it?", url: "jumpingballs.live", cardSec: 1.5 };
+    const made = { planId: plan.id, name: "Pip Monday", title: "Pip!", hook: "Day 1", caption: "Will Pip make it?", hashtags: ["#pip"], platform: "tiktok" as const };
+    expect(aiClipSource(made, plan).cut).toBeNull();
+    const answered = clipCutOf(cut); // the model answers five fields: the address is never its to write
+    const ai = aiClipSource({ ...made, cut: answered }, plan);
+    expect(ai.cut).toEqual({ ...cut, url: DEFAULT_CLIP_EDIT.url });
+    const specs = expandBatch([ai], { resolutions: ["1080x1920"], fps: [60], codecs: ["h264", "hevc"], presets: [presetForPlatform("tiktok")] });
+    expect(specs).toHaveLength(2);
+    expect(specs.every((s) => s.cut === ai.cut)).toBe(true);
+    expect(enqueue(EMPTY_QUEUE, specs, 1, ids()).jobs[1]).toMatchObject({ name: "Pip-Monday-hevc-tiktok", cut: ai.cut });
+    // A clip without one: no cut, never undefined (the journal and the page read `null`).
+    expect(expandBatch([planSource(plan)], { resolutions: ["1080x1920"], fps: [60], codecs: ["h264"], presets: ["native"] })[0].cut).toBeNull();
   });
 });

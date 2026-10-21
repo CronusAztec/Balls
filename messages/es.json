@@ -4211,7 +4211,8 @@
       "fast": "Exportación rápida",
       "batch": "Lote",
       "bot": "Planificador de clips",
-      "file": "Archivo"
+      "file": "Archivo",
+      "edit": "Editor de clips"
     },
     "seconds": "{sec} s",
     "megabytes": "{mb} MB",
@@ -4367,7 +4368,9 @@
     "loopStyleTip": "Las palabras de los clips en bucle: un gancho en minúsculas que empieza con un número y termina en 🔊, un dato sencillo y #satisfying #oddlysatisfying con las etiquetas del tema (tus cambios se sustituyen)",
     "accountSignedOut": "Crea una cuenta o inicia sesión para tener tus canales en cada dispositivo.",
     "accountSignedIn": "Sesión iniciada como {name}. Tus canales están abajo.",
-    "accountLink": "Cuenta"
+    "accountLink": "Cuenta",
+    "editClip": "Editar para TikTok",
+    "editClipTip": "Entra en la acción, añade un gancho y una tarjeta final y renderiza un archivo vertical"
   },
   "Unlimited": {
     "label": "Deslizadores amplios",
@@ -4880,7 +4883,19 @@
     "privacyNoticesTitle": "Software y sonidos de terceros",
     "privacyNoticesFfmpeg": "ffmpeg, que la app usa para codificar vídeos, tiene licencia GNU GPL versión 3. Es la compilación essentials de gyan.dev de FFmpeg 6.1.1 sin modificar, se ejecuta como un programa aparte y viene con el texto de su licencia. Su código fuente está disponible en el editor de la compilación y en el proyecto FFmpeg, y lo enviamos a petición. La app lista cada componente de terceros en Ayuda, Licencias de terceros.",
     "privacyNoticesOther": "La app también se basa en Electron, Chromium, node-llama-cpp y llama.cpp. Los textos de licencia de ffmpeg, Electron, Chromium y node-llama-cpp se incluyen con la app. Los modelos de IA son descargas aparte con sus propias licencias, que la app muestra antes de descargar. El estudio de IA puede ejecutar Llama 3.2. Built with Llama.",
-    "privacyAudio": "Los sonidos integrados los sintetizamos nosotros. Las melodías integradas son temas de dominio público."
+    "privacyAudio": "Los sonidos integrados los sintetizamos nosotros. Las melodías integradas son temas de dominio público.",
+    "libEdit": "Editar para TikTok",
+    "aiCut": "Cortar también cada clip para TikTok tras renderizar",
+    "aiCutTip": "La IA elige dónde empieza el corte, cuánto conserva, el acercamiento, el gancho en el fotograma y la tarjeta final. El corte se guarda en la Biblioteca junto al clip.",
+    "aiCutLine": "Corte de {start} a {end} s · acercar {zoom} % · \"{hook}\"",
+    "jobCut": "+ corte TikTok",
+    "jobCutting": "Cortando para TikTok",
+    "jobCutFailed": "El corte para TikTok de {name} falló: {error}. El clip en sí está en la Biblioteca.",
+    "aiStart": "Empezar a renderizar ya",
+    "aiStartTip": "Los clips van a la cola de render y esta arranca al momento: un mensaje y los archivos quedan en la Biblioteca.",
+    "aiClipsStarted": "Añadidos a la cola de render, renderizando ahora.",
+    "aiStartedNotice": "{count, plural, one {# clip} other {# clips}} de la IA añadidos a la cola de render y renderizando.",
+    "jobCutSaved": "El corte para TikTok de {name} está en la Biblioteca."
   },
   "Territory": {
     "canvasVs": "VS",
@@ -6392,5 +6407,48 @@
       "withoutEmail": "Para preguntas, declaraciones o correcciones, usa la <feedback>página de comentarios</feedback>.",
       "operator": "{siteName} está gestionado por {name}."
     }
+  },
+  "ClipEditor": {
+    "title": "Editor de clips",
+    "close": "Cerrar",
+    "intro": "Entra donde está la acción, acerca el anillo, deja una pregunta y tu dirección en pantalla desde el primer fotograma y termina con una tarjeta que nombra el sitio. La vista previa muestra el archivo fotograma a fotograma.",
+    "previewAlt": "Vista previa del corte",
+    "scrub": "Tiempo de la vista previa",
+    "seconds": "{sec} s",
+    "sourceLength": "origen {sec} s",
+    "start": "Inicio en el origen",
+    "length": "Duración de la acción",
+    "zoom": "Acercar",
+    "card": "Tarjeta final",
+    "hook": "Gancho arriba",
+    "hookPlaceholder": "Una pregunta que el espectador espera ver respondida",
+    "url": "Dirección bajo el gancho y en la tarjeta",
+    "ideas": {
+      "escape": "¿Escapará?",
+      "winner": "¿Rojo o azul?",
+      "wait": "Espera al último rebote",
+      "count": "¿Cuántos rebotes?"
+    },
+    "cardTitle": "Crea el tuyo",
+    "cardNote": "gratis, en tu navegador",
+    "phase": {
+      "prepare": "Abriendo el vídeo…",
+      "frames": "Fotograma {frame} de {frames} · {percent} %",
+      "audio": "Cortando el sonido · {percent} %",
+      "finish": "Escribiendo el archivo…"
+    },
+    "renderDownload": "Renderizar y descargar",
+    "renderSave": "Renderizar y guardar en la Biblioteca",
+    "downloadAgain": "Descargar de nuevo",
+    "cancel": "Cancelar",
+    "downloaded": "Descargado: {sec} s, {mb} MB. El corte también está en los clips de Publicar.",
+    "savedLibrary": "Guardado en la Biblioteca: {sec} s, {mb} MB. El corte también está en los clips de Publicar.",
+    "watermarked": "Las exportaciones gratuitas llevan la marca de agua. Pro la quita.",
+    "unsupported": "Este navegador no puede codificar vídeo. Chrome o Edge sí pueden, y también la aplicación de Windows.",
+    "tip": "Empieza con movimiento, no con un anillo quieto: la mayoría decide en el primer segundo. De 8 a 15 segundos que se repiten bien funcionan mejor que un clip largo.",
+    "suggest": "Sugerir con IA",
+    "suggesting": "Preguntando a la IA…",
+    "suggested": "IA: {summary}",
+    "suggestFailed": "La IA no pudo proponer un corte: {error}"
   }
 }

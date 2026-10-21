@@ -8,24 +8,56 @@ import { onPublishTargetsChange, postText, publishTargets, type PublishTarget } 
 import { Card, dangerBtn, errorText, formatBytes, formatSeconds, ghostBtn, primaryBtn } from "./ui";
 
 import { IconVideo } from "@/components/ui/icons"; // --- site-redesign ---
+import ClipEditorDialog, { type ClipEditorSource } from "../clipEditor/ClipEditorDialog"; // --- clip-editor ---
+import type { ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut ---
 /*
  * --- desktop-exe --- The Library: the clips the render queue saved, newest first – thumbnail, length, size, encoder, the
  * post copy – with Open, Show in folder, Re-render (the clip's simulator link and seed back into the queue), Copy post text,
  * Delete (from the list, or to the recycle bin) and one-click Publish through the Publish feature's targets (lib/desktop/publish.ts,
  * registered by lib/publish/desktopTargets.ts: the accounts ticked in the Publish block, and the quick share).
+ *
+ * --- ai-cut --- "Edit for TikTok" opens on the cut the item carries in its meta (the AI's proposal from Make videos, or the
+ * spec a cut was made with) and, when the Desktop group hands over `onSuggestCut` (the local AI is ready), the editor shows
+ * its "Suggest with AI" button, which asks for a cut of this very item.
  */
+
+/** --- ai-cut --- What the editor asks of the AI for one Library item, and what comes back: a cut and a one-line summary. */
+export type LibrarySuggestCut = (item: LibraryItem, input: { durationSec: number; current: ClipEditSpec; request?: string; signal?: AbortSignal }) => Promise<{ spec: ClipEditSpec; summary: string }>;
 
 const noTargets: PublishTarget[] = [];
 
-export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: { bridge: DesktopApi; items: LibraryItem[]; onRefresh: () => void; onRerender: (item: LibraryItem) => void }) {
+/**
+ * --- ai-cut --- What "Edit for TikTok" opens with: a master's proposed cut; a cut file (the queue and the editor name its
+ * `queueJobId` `<job>-cut`) only the look it was made with – its offsets were measured on the master, not on it. Never the
+ * address: that stays the user's remembered one (the editor's own spec), whatever the cut was burned with.
+ */
+function initialCut(item: LibraryItem): Partial<ClipEditSpec> | undefined {
+  const cut = item.meta.cut;
+  if (!cut) return undefined;
+  if (item.meta.queueJobId?.endsWith("-cut")) return { zoom: cut.zoom, hook: cut.hook, cardSec: cut.cardSec };
+  return { startSec: cut.startSec, lengthSec: cut.lengthSec, zoom: cut.zoom, hook: cut.hook, cardSec: cut.cardSec };
+}
+
+export default function LibraryPanel({ bridge, items, onRefresh, onRerender, onSuggestCut }: { bridge: DesktopApi; items: LibraryItem[]; onRefresh: () => void; onRerender: (item: LibraryItem) => void; onSuggestCut?: LibrarySuggestCut }) {
   const t = useTranslations("Desktop");
   const [status, setStatus] = useState<string | null>(null);
   // --- low-findings --- a publish under way (its outcome replaces the status) and how many have finished (a tool waits for the next)
   const [publishing, setPublishing] = useState(false);
   const [publishes, setPublishes] = useState(0);
   const [copied, setCopied] = useState<string | null>(null);
+  // --- clip-editor --- the clip being cut for TikTok (its file read through the bridge) and the Library entry it came from
+  const [editing, setEditing] = useState<{ source: ClipEditorSource; item: LibraryItem } | null>(null);
   const targets = useSyncExternalStore(onPublishTargetsChange, publishTargets, () => noTargets);
   useEffect(onRefresh, [onRefresh]);
+
+  const edit = async (item: LibraryItem) => {
+    try {
+      const file = pickedToFile(await bridge.library.read(item.id));
+      setEditing({ source: { blob: file, name: item.fileName, mode: item.meta.mode, seed: item.meta.seed }, item });
+    } catch (err) {
+      setStatus(errorText(err));
+    }
+  };
 
   const remove = (item: LibraryItem, deleteFile: boolean) => {
     if (deleteFile && !window.confirm(t("libDeleteConfirm", { name: item.fileName }))) return;
@@ -62,6 +94,8 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
         </>
       }
     >
+      {/* --- ai-cut --- the item's own cut pre-fills the editor; the AI's proposal, when the Desktop group offers it, is asked for this item */}
+      {editing && <ClipEditorDialog source={editing.source} initialSpec={initialCut(editing.item)} onClose={() => setEditing(null)} desktop={{ bridge, meta: { title: editing.item.meta.title, link: editing.item.meta.link, caption: editing.item.meta.caption, hashtags: editing.item.meta.hashtags }, onSaved: onRefresh, suggest: onSuggestCut ? (input) => onSuggestCut(editing.item, input) : undefined }} />}
       {/* --- low-findings --- the status line says whether a publish is under way and how many have finished, so a tool waits for an outcome */}
       {status && (
         <p className="text-xs text-ink-2" data-testid="desktop-library-status" data-library-publishing={publishing ? "1" : "0"} data-library-publishes={publishes} role="status">
@@ -103,6 +137,10 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender }: {
                   </button>
                   <button type="button" className={`${ghostBtn} !py-0.5`} onClick={() => onRerender(item)}>
                     {t("libRerender")}
+                  </button>
+                  {/* --- clip-editor --- */}
+                  <button type="button" className={`${ghostBtn} !py-0.5`} disabled={!item.exists} onClick={() => void edit(item)} data-testid="library-edit">
+                    {t("libEdit")}
                   </button>
                   <button
                     type="button"

@@ -7,8 +7,13 @@ import type { AgentTask, AgentTool, AgentTurn } from "./agent";
 import type { JsonSchema } from "./jsonSchema";
 import { CATALOG, changesSchema, describeSetting, patchFromChanges, validateSettingsPatch, type SettingChange } from "./settingsPatch";
 // --- desktop-ai-fix --- reply normalisers, placeholder-free recipe hooks and the settings that matter for a request
-import { CLIP_NAME_MAX, HASHTAG_MAX_CHARS, normaliseCopyResult, normaliseMakeVideosResult, withoutPlaceholders, type PlanFacts } from "./normalise";
+import { CLIP_NAME_MAX, HASHTAG_MAX_CHARS, clipCutOf, clipCutSpec, fitText, normaliseCopyResult, normaliseMakeVideosResult, withoutPlaceholders, type ClipCut, type PlanFacts } from "./normalise";
 import { relevantAssistantSettings } from "./settingsFilter";
+// --- ai-cut --- the cut of a clip: its beats, the sound default the model starts from, its answer snapped and checked (lib/clipEdit/propose.ts)
+import { CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, type ClipEditSpec } from "@/lib/clipEdit/spec";
+import { CARD_STEPS, ZOOM_STEPS, beatsOfPlan, cutProblems, describeBeats, snapClipEdit, suggestClipEdit, type ClipBeats } from "@/lib/clipEdit/propose";
+
+export { clipCutSpec, type ClipCut } from "./normalise"; // --- ai-cut --- (the page builds a clip's full spec from a made clip's cut with it)
 
 /*
  * --- desktop-exe --- The four jobs of the AI studio, as agent tasks (prompts, tools, answer schemas and checks):
@@ -29,6 +34,14 @@ import { relevantAssistantSettings } from "./settingsFilter";
  * answer before the checks (normalise.ts), the recipe hooks reach the prompt without "{placeholders}", the settings
  * assistant sees the settings that matter for the request (settingsFilter.ts) and set_clip_settings describes its
  * arguments in a line instead of a 2,000-token schema.
+ *
+ * --- ai-cut --- The AI also cuts clips for TikTok (the Clip editor's spec, lib/clipEdit/spec.ts), without seeing a frame:
+ * `clipEditTask` ("cut") proposes a cut for one finished clip from its beats – first impact, payoff, cliffhanger gap, loop –
+ * shown with the rule-made default of lib/clipEdit/propose.ts to adjust; and Make videos, when the run asks for cuts,
+ * answers a `cut` per clip in the same shape (`CLIP_CUT`, required in the clip's schema, so the grammar makes a local model
+ * write it). The model answers five fields; the address is never its (`ClipCut`, `clipCutSpec`). What it answers is snapped
+ * before the checks (snapClipEdit: floors, the steps, a 60-character hook, the file's length), so a slip costs no retry; only
+ * a cut that misses a known payoff is sent back. No new tool, no new IPC channel.
  */
 
 export interface PlanClipsRequest {
@@ -51,6 +64,8 @@ export interface FindAnswer {
   seed: number;
   durationSec: number;
   endless?: boolean;
+  /** --- ai-cut --- The found run's first escape (s) when the finder measured one: the new seed's payoff. */
+  payoffSec?: number | null;
 }
 
 export interface StudioPorts {
@@ -84,8 +99,9 @@ export class PlanStore {
   }
 }
 
-/** What the model sees of a plan. */
+/** What the model sees of a plan (--- ai-cut --- with its beats and the cut the rules suggest, to start from). */
 export function planSummary(plan: ClipPlan) {
+  const beats = beatsOfPlan(plan);
   return {
     planId: plan.id,
     recipe: plan.recipe,
@@ -98,8 +114,13 @@ export function planSummary(plan: ClipPlan) {
     ending: plan.ending,
     hook: plan.hook,
     payoffAtSec: plan.payoff.atSec,
+    // --- ai-cut ---
+    firstImpactSec: beats.firstImpactSec,
+    cutGapSec: beats.cutGapSec,
+    loop: beats.seamlessLoop,
+    suggestedCut: clipCutOf(suggestClipEdit(beats, DEFAULT_CLIP_EDIT)),
     score: plan.score,
-    suggestedCaption: plan.post.caption.slice(0, 300),
+    suggestedCaption: plan.post.caption.slice(0, 160), // --- ai-cut --- (was 300; a summary is ~800 characters with its beats and cut, so plan_clips has its own result budget, PLAN_CLIPS_RESULT_CHARS)
     suggestedHashtags: plan.post.hashtags,
   };
 }
@@ -111,6 +132,23 @@ const defaultSettingsForTools = defaultSettings("classic");
 const HASHTAG: JsonSchema = { type: "string", minLength: 2, maxLength: HASHTAG_MAX_CHARS + 1, pattern: "^#[^\\s#]{1,60}$" };
 /** --- desktop-ai-fix --- What a short "default" hashtag set falls back to (the copy task's niche keywords). */
 export const DEFAULT_HASHTAGS: readonly string[] = ["#physics", "#satisfying", "#bouncingball"];
+/**
+ * --- ai-cut --- A cut as the model answers it (lib/clipEdit/propose.ts `ClipBeats` → `snapClipEdit`). The app's grammar
+ * keeps the types, the enums, the hook's length and the five required keys and drops `minimum` (desktop/src/ai/gbnf.ts), so a
+ * local model can still write lengthSec 999 or startSec -2: `snapClipEdit` runs as the task's normaliser before the checks.
+ */
+export const CLIP_CUT: JsonSchema = {
+  type: "object",
+  properties: {
+    startSec: { type: "number", minimum: 0 },
+    lengthSec: { type: "number", minimum: 3 },
+    zoom: { enum: ZOOM_STEPS },
+    hook: { type: "string", maxLength: CLIP_EDIT_TEXT_MAX },
+    cardSec: { enum: CARD_STEPS },
+  },
+  required: ["startSec", "lengthSec", "zoom", "hook", "cardSec"],
+  additionalProperties: false,
+};
 
 /** The recipes for the prompt: id (family): name – hook. */
 export function recipeList(copy: BotCopy): string {
@@ -134,6 +172,8 @@ export interface MadeClip {
   caption: string;
   hashtags: string[];
   platform: BotPlatform;
+  /** --- ai-cut --- The clip's TikTok cut, when the run asked for cuts (`clipCutSpec` makes the editor's spec of it). */
+  cut?: ClipCut;
 }
 
 export interface MakeVideosResult {
@@ -171,18 +211,31 @@ export const MAKE_VIDEOS_FINAL: JsonSchema = {
 
 /**
  * --- desktop-ai-fix --- The answer once plans exist: a clip's planId is one of the run's plans (an enum, which the local
- * model's grammar enforces), its platform one of theirs.
+ * model's grammar enforces), its platform one of theirs. --- ai-cut --- With `cut` on, each clip's `cut` (CLIP_CUT) is
+ * required too – the grammar makes the local model write it, no optional-field ambiguity; off, the property does not exist.
  */
-export function makeVideosFinal(planIds: readonly string[], platforms: readonly BotPlatform[]): JsonSchema {
-  const clips = (MAKE_VIDEOS_FINAL.properties as Record<string, JsonSchema>).clips;
+export function makeVideosFinal(planIds: readonly string[], platforms: readonly BotPlatform[], cut = false): JsonSchema {
+  const base = cut ? withClipCut(MAKE_VIDEOS_FINAL) : MAKE_VIDEOS_FINAL;
+  const clips = (base.properties as Record<string, JsonSchema>).clips;
   const item = clips.items as JsonSchema;
+  const properties = { ...item.properties, planId: { enum: [...planIds] }, platform: { enum: [...new Set(platforms)] } };
   return {
-    ...MAKE_VIDEOS_FINAL,
+    ...base,
     properties: {
-      ...MAKE_VIDEOS_FINAL.properties,
-      clips: { ...clips, items: { ...item, properties: { ...item.properties, planId: { enum: [...planIds] }, platform: { enum: [...new Set(platforms)] } } } },
+      ...base.properties,
+      clips: { ...clips, items: { ...item, properties } },
     },
   };
+}
+
+/**
+ * --- ai-cut --- The Make videos answer with each clip's `cut` (CLIP_CUT) required. Both the prompt's schema and the turn's
+ * grammar are built from it: a cloud model sees only the prompt, so the schema it reads must ask for the cut too.
+ */
+export function withClipCut(schema: JsonSchema): JsonSchema {
+  const clips = (schema.properties as Record<string, JsonSchema>).clips;
+  const item = clips.items as JsonSchema;
+  return { ...schema, properties: { ...schema.properties, clips: { ...clips, items: { ...item, properties: { ...item.properties, cut: CLIP_CUT }, required: [...(item.required ?? []), "cut"] } } } };
 }
 
 /** --- desktop-ai-fix --- A tool whose planId must be one of `planIds` (the grammar then cannot name another). */
@@ -193,22 +246,25 @@ function withPlanIds(tool: AgentTool, planIds: readonly string[]): AgentTool {
 
 /** --- desktop-ai-fix --- What the normaliser needs of the run's plans (their order is plan_clips' order). */
 export function planFacts(store: PlanStore): PlanFacts[] {
-  return store.all().map((p) => ({ id: p.id, platform: p.platform, hashtags: p.post.hashtags, vars: { seconds: Math.round(p.timing.clipSec), episode: p.episode } }));
+  return store.all().map((p) => ({ id: p.id, platform: p.platform, hashtags: p.post.hashtags, vars: { seconds: Math.round(p.timing.clipSec), episode: p.episode }, beats: beatsOfPlan(p) /* --- ai-cut --- */ }));
 }
 
 /**
  * --- desktop-ai-fix --- Make videos' envelope for this turn: tool calls only until plan_clips has returned plans (1.0.2's
  * small models answered on turn 1 with planIds "1", "2", "3"), then the tools with planId enums and the answer.
  */
-export function makeVideosTurn(store: PlanStore, tools: readonly AgentTool[]): AgentTurn {
+export function makeVideosTurn(store: PlanStore, tools: readonly AgentTool[], cut = false /* --- ai-cut --- */): AgentTurn {
   const ids = store.all().map((p) => p.id);
   if (ids.length === 0) return { tools, final: null, hint: "Call plan_clips first: the answer may only name planIds that plan_clips returns." };
   return {
     tools: tools.map((t) => (t.name === "plan_clips" ? t : withPlanIds(t, ids))),
-    final: makeVideosFinal(ids, store.all().map((p) => p.platform)),
+    final: makeVideosFinal(ids, store.all().map((p) => p.platform), cut),
     hint: `planId must be one of: ${ids.join(", ")}.`,
   };
 }
+
+/** --- ai-cut --- plan_clips' result in the conversation: ten summaries of ~800 characters (beats and the suggested cut included) fit whole; the local context grows for it (desktop/src/ai/local.ts contextSizeFor). */
+export const PLAN_CLIPS_RESULT_CHARS = 10_000;
 
 export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool[] {
   const planClips: AgentTool = {
@@ -240,6 +296,7 @@ export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool
       for (const plan of plans) store.add(plan);
       return { clips: plans.map(planSummary) };
     },
+    maxResultChars: PLAN_CLIPS_RESULT_CHARS, // --- ai-cut ---
   };
   const findSimulation: AgentTool = {
     name: "find_simulation",
@@ -269,9 +326,14 @@ export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool
       const answer = await ports.findSimulation({ ...plan.settings, recordingDuration: Math.max(10, Math.min(120, targetSec)) }, request, ctx.signal, ctx.progress);
       if (answer.found) {
         const recordingDuration = Math.max(10, Math.min(120, Math.ceil(Math.max(targetSec, answer.durationSec || 0))));
-        store.update(plan.id, { seed: answer.seed, settings: { ...plan.settings, recordingDuration }, timing: { ...plan.timing, clipSec: answer.durationSec || targetSec, found: true } });
+        // --- ai-cut --- the new seed's beats: its escape second when the finder measured one (else the one asked for; none
+        // for a run searched by length or for never escaping), no cut before the result, an unmeasured first impact – so a
+        // cut is suggested and checked against this run, not the plan's old seed
+        const payoffSec = answer.payoffSec ?? (request.outcome === "escapes-at" ? request.atSec : null);
+        store.update(plan.id, { seed: answer.seed, settings: { ...plan.settings, recordingDuration }, timing: { ...plan.timing, clipSec: answer.durationSec || targetSec, found: true, firstImpactSec: null }, payoff: { ...plan.payoff, atSec: payoffSec, cutGapSec: null } });
       }
-      return { planId: plan.id, found: answer.found, seed: answer.found ? answer.seed : plan.seed, durationSec: answer.durationSec, endless: answer.endless ?? false };
+      const updated = store.get(plan.id) as ClipPlan;
+      return { planId: plan.id, found: answer.found, seed: answer.found ? answer.seed : plan.seed, durationSec: answer.durationSec, endless: answer.endless ?? false, suggestedCut: clipCutOf(suggestClipEdit(beatsOfPlan(updated), DEFAULT_CLIP_EDIT)) /* --- ai-cut --- */ };
     },
   };
   const setClipSettings: AgentTool = {
@@ -303,24 +365,37 @@ export function makeVideosTools(store: PlanStore, ports: StudioPorts): AgentTool
   return [planClips, findSimulation, setClipSettings];
 }
 
-export function makeVideosTask(request: string, options: { copy: BotCopy; locale: string; platform: BotPlatform; store: PlanStore; ports: StudioPorts }): AgentTask<MakeVideosResult> {
+/** --- ai-cut --- The rules of a cut, for the prompts (the standalone task's and Make videos' with cuts on). */
+const CUT_RULES = `startSec where the action starts (a breath before the first motion), lengthSec 8–15 s that end about a second after the payoff (a cliffhanger ends where the source ends), zoom the crop-in, hook of at most ${CLIP_EDIT_TEXT_MAX} characters asking what the viewer waits to see, cardSec the end card's seconds (0 for a cliffhanger)`;
+
+export function makeVideosTask(request: string, options: { copy: BotCopy; locale: string; platform: BotPlatform; store: PlanStore; ports: StudioPorts; cut?: boolean /* --- ai-cut --- */ }): AgentTask<MakeVideosResult> {
+  const cut = options.cut === true;
   const system = [
     "You are the video producer inside JumpingBallsLive, a satisfying ball-physics simulator that renders vertical clips for TikTok, Instagram Reels and YouTube Shorts.",
     "You plan clips with the tools, then answer with the clips to render. Never invent a planId: use the ids plan_clips returned.",
     "Workflow: 1) call plan_clips (count = how many clips the user wants, default 3; platform = the one the user names, else " + options.platform + "; recipe or family when the user names a kind of clip). 2) If the user asks for an exact length or outcome, call find_simulation for each clip. 3) Answer with every clip: a short file name, a title, a hook (the on-screen one-liner), a caption with a specific question and 5–10 hashtags for its platform.",
+    // --- ai-cut --- the cut per clip, from the plan's suggestedCut
+    cut ? `Every clip also gets its TikTok cut (cut): ${CUT_RULES}. Start from the plan's suggestedCut and change it only with a reason.` : "",
     `Write titles, hooks and captions in ${languageName(options.locale)}.`,
     "Recipes (id (family, modes): name – hook):",
     recipeList(options.copy),
-  ].join("\n");
+  ]
+    .filter(Boolean)
+    .join("\n");
   const tools = makeVideosTools(options.store, options.ports);
   return {
     system,
     user: request,
     tools,
-    final: MAKE_VIDEOS_FINAL,
+    final: cut ? withClipCut(MAKE_VIDEOS_FINAL) : MAKE_VIDEOS_FINAL, // --- ai-cut --- (the prompt's schema, which is all a cloud model sees)
     checkFinal: (result) => {
       const errors: string[] = [];
-      for (const clip of result.clips) if (!options.store.has(clip.planId)) errors.push(`unknown planId "${clip.planId}" – plan the clip first`);
+      for (const clip of result.clips) {
+        const plan = options.store.get(clip.planId);
+        if (!plan) errors.push(`unknown planId "${clip.planId}" – plan the clip first`);
+        // --- ai-cut --- a cut that misses the plan's payoff goes back (everything else was snapped)
+        else if (cut && clip.cut) errors.push(...cutProblems(clipCutSpec(clip.cut), beatsOfPlan(plan)).map((problem) => `${clip.planId}: ${problem}`));
+      }
       return errors;
     },
     maxSteps: 12,
@@ -328,8 +403,54 @@ export function makeVideosTask(request: string, options: { copy: BotCopy; locale
     maxTokens: 1500,
     // --- desktop-ai-fix ---
     name: "videos",
-    turn: () => makeVideosTurn(options.store, tools),
+    turn: () => makeVideosTurn(options.store, tools, cut),
     normaliseFinal: (result) => normaliseMakeVideosResult(result, planFacts(options.store)),
+  };
+}
+
+/* ------------------------------------------------------------------ --- ai-cut --- the cut of one finished clip */
+
+/** The cut task's answer: the five fields of a cut (`clipCutSpec` makes the editor's spec of them) and a line about it. */
+export interface ClipCutResult extends ClipCut {
+  summary: string;
+}
+
+export const CLIP_CUT_FINAL: JsonSchema = {
+  ...CLIP_CUT,
+  properties: { ...CLIP_CUT.properties, summary: { type: "string", maxLength: 200 } },
+  required: [...(CLIP_CUT.required ?? []), "summary"],
+};
+
+/**
+ * The standalone task ("Suggest with AI" in the Clip editor): a cut for one finished clip from its beats, the rule-made
+ * default shown to adjust, the hook examples the dialog offers. `base` is the user's remembered spec (its crop-in, card
+ * and address are the defaults; the address is never the model's). Normalised with snapClipEdit before the checks; only a
+ * cut that misses a known payoff is sent back. ~250 prompt tokens: the answer's shape goes in a line (finalHint).
+ */
+export function clipEditTask(request: string, options: { locale: string; beats: ClipBeats; base: ClipEditSpec; ideas: readonly string[] }): AgentTask<ClipCutResult> {
+  const suggested = clipCutOf(suggestClipEdit(options.beats, options.base));
+  const system = [
+    `You cut a finished JumpingBallsLive ball-physics clip for TikTok: ${CUT_RULES}.`,
+    `The clip: ${describeBeats(options.beats)}.`,
+    `A sound default: ${JSON.stringify(suggested)}. Change it only with a reason.`,
+    `${options.ideas.length ? `Hook examples: ${options.ideas.map((i) => `"${i}"`).join(", ")}. ` : ""}Write the hook and the summary in ${languageName(options.locale)}.`,
+  ].join("\n");
+  return {
+    system,
+    user: request || "Propose the cut.",
+    tools: [],
+    final: CLIP_CUT_FINAL,
+    finalHint: `{"startSec":<seconds>,"lengthSec":<seconds>,"zoom":<${ZOOM_STEPS.join("|")}>,"hook":"<at most ${CLIP_EDIT_TEXT_MAX} characters>","cardSec":<${CARD_STEPS.join("|")}>,"summary":"<one short sentence>"}`,
+    normaliseFinal: (result) => {
+      const r = (result && typeof result === "object" ? result : {}) as Record<string, unknown>;
+      const summary = typeof r.summary === "string" ? fitText(r.summary, 200) : "";
+      return { ...clipCutOf(snapClipEdit(r, options.beats, options.base)), summary };
+    },
+    checkFinal: (result) => cutProblems(clipCutSpec(result, options.base), options.beats),
+    name: "cut",
+    maxSteps: 3,
+    temperature: 0.5,
+    maxTokens: 400, // the envelope's note (up to 400 characters, which the local grammar does not make optional), the hook and the summary
   };
 }
 

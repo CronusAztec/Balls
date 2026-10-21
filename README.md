@@ -3660,6 +3660,31 @@ updates. Never commit certificates, keys, models or built binaries (`.gitignore`
   panel); CUDA / Vulkan offload in llama.cpp; DPAPI behind `safeStorage` (on this Linux box without a keyring the app
   correctly refuses to store a key); electron-updater against a real `desktop-v*` release; code signing and SmartScreen.
 
+### Windows app: the AI creates and cuts clips (ai-cut)
+
+Feature ai-cut, on top of the Clip editor (`src/lib/clipEdit`, feature clip-editor: a finished video cut for TikTok in the
+browser – start, length, crop-in, a hook and the site's address on the frame, an end card – rendered by the page with
+WebCodecs, every frame stamped again with the run's watermark seal). The Windows app's local AI drives it two ways:
+
+- **Make videos with cuts** – the AI panel's "Also cut each clip for TikTok after rendering" (`ai-cut`) makes Make videos
+  answer a `cut` per clip (`CLIP_CUT` in `src/lib/desktop/ai/studio.ts`: startSec, lengthSec, zoom and cardSec from fixed
+  steps, a hook of at most 60 characters; the grammar holds the keys, the enums and the length, `snapClipEdit` in
+  `src/lib/clipEdit/propose.ts` fits the numbers a grammar cannot bound). The cut travels with the queue job
+  (`QueueJobSpec.cut`, journal-additive) and, once the master is saved, `useRenderQueue` cuts the fast export still in memory
+  with the editor's renderer, refitted to the file's real length, and saves `<name>-tiktok` as a second Library item (the
+  master carries the proposal in `LibraryMeta.cut`, so "Edit for TikTok" opens pre-filled). A failed cut is a notice; the
+  master stays done.
+- **Suggest with AI** in the Library's Clip editor (`clip-edit-suggest`) – `clipEditTask` proposes a cut for one clip from
+  its beats (`beatsOfLibraryItem`: length, mode, hook) and the user's current spec, with the editor's hook ideas as examples.
+
+The AI never sees pixels: `suggestClipEdit` works the baseline out of the plan's beats (first impact, payoff second,
+cliffhanger gap, a seamless loop is kept whole) and the model adjusts it. Nothing changed in `desktop/src`, and the IPC
+contract only gained the optional `LibraryMeta.cut` type named above (a payload field `render.save` stores verbatim; no
+channel changed shape): the cut rides `ai:chat` like every task, and the app only saves the bytes it is handed. With
+"Start rendering right away" ticked, one prompt ends with the masters and their cuts in the Library. Tests:
+`tests/clipPropose.test.ts`, `tests/clipEdit.test.ts`, `tests/desktopAi.test.ts`, `tests/desktopAiFix.test.ts`,
+`tests/desktopQueue.test.ts`, `desktop/tests/ai.test.ts`.
+
 ### Windows app: AI fix and status panel
 
 Feature desktop-ai-fix, release **1.0.3** – the owner's "the exe ai doesnt work". A diagnosis of the shipped 1.0.2 (its own

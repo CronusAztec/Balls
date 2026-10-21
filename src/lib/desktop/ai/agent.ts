@@ -58,6 +58,8 @@ export interface AgentTool {
   argsHint?: string;
   /** --- desktop-ai-fix --- Fixes obvious slips in the arguments before they are checked. */
   normalise?: (args: Record<string, unknown>) => Record<string, unknown>;
+  /** --- ai-cut --- This tool's own cap on its result in the conversation (default MAX_TOOL_RESULT_CHARS): plan_clips' ten summaries with their beats and cuts need more. */
+  maxResultChars?: number;
 }
 
 /** --- desktop-ai-fix --- What the model may answer on one turn. */
@@ -256,7 +258,7 @@ export async function runAgent<F>(model: ChatModel, task: AgentTask<F>, hooks: {
       const result = await tool.run(args, { signal, progress: (text) => emit({ type: "progress", text }) });
       if (signal?.aborted) return cancelled();
       emit({ type: "toolResult", name: tool.name, result });
-      messages.push({ role: "user", content: `Result of ${tool.name}: ${clip(JSON.stringify(result), MAX_TOOL_RESULT_CHARS)}` });
+      messages.push({ role: "user", content: `Result of ${tool.name}: ${clip(JSON.stringify(result), tool.maxResultChars ?? MAX_TOOL_RESULT_CHARS)}` });
     } catch (err) {
       if (signal?.aborted) return cancelled();
       const message = err instanceof Error ? err.message : String(err);

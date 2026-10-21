@@ -350,7 +350,7 @@ export function pickExportFormat(width: number, height: number, fps: number): Pr
 }
 
 /** Lets the page breathe (progress bar, Cancel) without the clamping and background throttling of timers. */
-function yieldTask(): Promise<void> {
+export function yieldTask(): Promise<void> { // --- clip-editor --- (shared with lib/clipEdit/render.ts)
   return new Promise((resolve) => {
     const channel = new MessageChannel();
     channel.port1.onmessage = () => {
@@ -362,7 +362,7 @@ function yieldTask(): Promise<void> {
 }
 
 /** Waits until an encoder has at most `max` frames queued (backpressure, so memory stays flat). */
-function drainQueue(encoder: VideoEncoder | AudioEncoder, max: number): Promise<void> {
+export function drainQueue(encoder: VideoEncoder | AudioEncoder, max: number): Promise<void> {
   if (encoder.encodeQueueSize <= max || encoder.state !== "configured") return Promise.resolve();
   return new Promise((resolve) => {
     const check = () => {
@@ -381,14 +381,14 @@ function abortError(): DOMException {
 }
 
 /** The muxer of the chosen container, loaded on demand (the page does not carry it until an export starts). */
-interface ExportMuxer {
+export interface ExportMuxer {
   addVideoChunk(chunk: EncodedVideoChunk, meta?: EncodedVideoChunkMetadata): void;
   addAudioChunk(chunk: EncodedAudioChunk, meta?: EncodedAudioChunkMetadata): void;
   /** Writes the file and returns its bytes. */
   finalize(): ArrayBuffer;
 }
 
-async function createMuxer(format: ExportFormat, width: number, height: number, fps: number): Promise<ExportMuxer> {
+export async function createMuxer(format: ExportFormat, width: number, height: number, fps: number): Promise<ExportMuxer> {
   const audio = { numberOfChannels: EXPORT_CHANNELS, sampleRate: EXPORT_SAMPLE_RATE };
   if (format.container === "mp4") {
     const { Muxer, ArrayBufferTarget } = await import("mp4-muxer");
