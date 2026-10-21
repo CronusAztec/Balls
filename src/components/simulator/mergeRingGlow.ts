@@ -30,7 +30,21 @@ export interface PlainTransform {
 /** The context's transform when it only scales evenly and translates; null when it rotates, skews or stretches (or is unknown). */
 export function plainTransform(ctx: CanvasRenderingContext2D): PlainTransform | null {
   if (typeof ctx.getTransform !== "function") return null;
-  const m = ctx.getTransform();
+  return plainOf(ctx.getTransform());
+}
+
+/** A 2D transform as `getTransform()` reads it. */
+export interface Matrix2D {
+  a: number;
+  b: number;
+  c: number;
+  d: number;
+  e: number;
+  f: number;
+}
+
+/** `plainTransform()` of a transform already read (`getTransform()`). */
+export function plainOf(m: Matrix2D | null | undefined): PlainTransform | null {
   if (!m || !(m.a > 0) || Math.abs(m.b) > 1e-9 || Math.abs(m.c) > 1e-9 || Math.abs(m.a - m.d) > 1e-9 * m.a) return null;
   if (!Number.isFinite(m.e) || !Number.isFinite(m.f)) return null;
   return { k: m.a, e: m.e, f: m.f };

@@ -254,7 +254,10 @@ export function stampLiveFrame(frame: LiveFrame): void {
     ctx.globalCompositeOperation = "source-over";
     ctx.shadowColor = "rgba(0, 0, 0, 0)";
     ctx.shadowBlur = 0;
-    if (typeof (ctx as { filter?: unknown }).filter === "string") ctx.filter = "none";
+    // (only when it is not "none" already: Chrome resolves the canvas' font again on every filter set – a forced style update
+    // each frame, the costliest call of a frame's HUD on a slow phone)
+    const filter = (ctx as { filter?: unknown }).filter;
+    if (typeof filter === "string" && filter !== "none") ctx.filter = "none";
     ctx.drawImage(tiles.canvas, 0, 0);
     ctx.drawImage(sprite.canvas, spot.x - pad, spot.y - pad);
     ctx.restore();

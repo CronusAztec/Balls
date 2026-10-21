@@ -11,8 +11,10 @@ import {
   RIM_SEGMENTS,
   RimCache,
   RAINBOW_DEG_PER_SEC,
+  TextSprite,
   rimColor,
   rimHue,
+  trailStrokeUnderBody,
   trailUnderBody,
   type LadderSpec,
   type MergeRingRenderOptions,
@@ -103,6 +105,25 @@ function fakeCanvases() {
 }
 
 const count = (calls: Call[], name: string, pred: (c: Call) => boolean = () => true) => calls.filter((c) => c.name === name && pred(c)).length;
+
+/** True when the clearRect `c` (made under its transform, which only scales and translates) clears the whole `w` × `h` bitmap. */
+const clearsAll = (c: Call, w: number, h: number) => {
+  const [a, b, cc, d, e, f] = c.transform;
+  const [x, y, cw, ch] = c.args as number[];
+  if (b !== 0 || cc !== 0) return false;
+  const x0 = Math.min(e + a * x, e + a * (x + cw));
+  const x1 = Math.max(e + a * x, e + a * (x + cw));
+  const y0 = Math.min(f + d * y, f + d * (y + ch));
+  const y1 = Math.max(f + d * y, f + d * (y + ch));
+  return x0 <= 0 && y0 <= 0 && x1 >= w && y1 >= h;
+};
+
+/** The calls a bitmap's context got since its last full clear (what the bitmap now shows), without the clear itself. */
+const sinceClear = (calls: Call[], w: number, h: number) => {
+  let i = calls.length - 1;
+  while (i >= 0 && !(calls[i].name === "clearRect" && clearsAll(calls[i], w, h))) i--;
+  return calls.slice(i + 1);
+};
 
 function rimSpec(over: Partial<RimSpec> = {}): RimSpec {
   return { cx: 400, cy: 243, radius: 189, start: -Math.PI / 2 + 0.28, end: (3 * Math.PI) / 2 - 0.28, width: 2, blur: 12, rainbow: true, color: "", timeMs: 1000, ...over };
@@ -238,6 +259,37 @@ describe("the rim's bitmap", () => {
     expect(cache.builds).toBe(1);
   });
 
+  it("keeps within the hue lag at a low frame rate by refreshing the fifths it must, spread evenly, never all of them a frame", () => {
+    for (const fps of [50, 43, 30, 24, 15]) {
+      const { create, made } = fakeCanvases();
+      const cache = new RimCache(create);
+      const { ctx } = fakeContext();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      const frame = 1000 / fps;
+      cache.draw(ctx, rimSpec({ timeMs: 0 }));
+      cache.draw(ctx, rimSpec({ timeMs: 0 }));
+      const bitmap = made[0];
+      const fills = () => count(bitmap.calls, "fill");
+      let last = fills();
+      const perFrame: number[] = [];
+      for (let i = 1; i <= 120; i++) {
+        const t = i * frame;
+        cache.draw(ctx, rimSpec({ timeMs: t }));
+        perFrame.push((fills() - last) / (RIM_SEGMENTS / RIM_PHASES));
+        last = fills();
+        expect(cache.hueLagDeg(t), `${fps} fps, frame ${i}`).toBeLessThanOrEqual(RIM_HUE_LAG_DEG + 1e-6);
+      }
+      // a fifth refreshed every k frames, k the most frames a fifth may fall behind: 5 / k fifths a frame on average
+      const k = Math.floor((RIM_HUE_LAG_DEG * 1000) / (frame * RAINBOW_DEG_PER_SEC) + 1e-6) + 1;
+      const mean = perFrame.reduce((a, b) => a + b, 0) / perFrame.length;
+      expect(Math.max(...perFrame), `${fps} fps`).toBeLessThanOrEqual(Math.ceil(RIM_PHASES / k));
+      expect(Math.max(...perFrame), `${fps} fps`).toBeLessThan(RIM_PHASES);
+      expect(Math.min(...perFrame), `${fps} fps`).toBeGreaterThanOrEqual(1);
+      expect(mean, `${fps} fps`).toBeLessThanOrEqual(RIM_PHASES / k + 0.05);
+      expect(cache.builds).toBe(1);
+    }
+  });
+
   it("is rebuilt on a resize, a new scale, thickness, glow, rainbow or wall colour – once the change holds", () => {
     const { create } = fakeCanvases();
     const cache = new RimCache(create);
@@ -264,6 +316,57 @@ describe("the rim's bitmap", () => {
       expect(cache.draw(ctx, rimSpec(spec)), what).toBe(true);
       expect(cache.builds, what).toBe(builds);
     }
+  });
+
+  it("colours a bitmap rebuilt while the clock stands still (before Start, paused, a finished run)", () => {
+    const { create, made } = fakeCanvases();
+    const cache = new RimCache(create);
+    const { ctx } = fakeContext();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    const T = 4321;
+    // settled: every fifth coloured at T, nothing more to do
+    for (let i = 0; i < 2 + RIM_PHASES; i++) cache.draw(ctx, rimSpec({ timeMs: T }));
+    expect(cache.builds).toBe(1);
+    const bitmap = made[0];
+    const settled = cache.recolours;
+    cache.draw(ctx, rimSpec({ timeMs: T }));
+    expect(cache.recolours).toBe(settled);
+    // what the bitmap shows now: the white arcs of its last build, then every segment's colour over them
+    const shows = () => sinceClear(bitmap.calls, bitmap.canvas.width, bitmap.canvas.height);
+    const colouredAll = (what: string) => {
+      const since = shows();
+      const lastStroke = since.map((c) => c.name).lastIndexOf("stroke");
+      const fills = since.slice(lastStroke + 1).filter((c) => c.name === "fill" && c.composite === "source-atop");
+      expect(new Set(fills.map((c) => c.fillStyle)).size, what).toBeGreaterThan(RIM_SEGMENTS / 2);
+      expect(fills.length, what).toBeGreaterThanOrEqual(RIM_SEGMENTS);
+    };
+    colouredAll("settled");
+    const changes: [string, Partial<RimSpec>][] = [
+      ["a resize", { radius: 220, cx: 500 }],
+      ["the rainbow off", { radius: 220, cx: 500, rainbow: false, color: "rgba(255, 255, 255, 0.9)" }],
+      ["the rainbow back on", { radius: 220, cx: 500 }],
+      ["the wall thickness", { radius: 220, cx: 500, width: 4 }],
+    ];
+    let builds = 1;
+    for (const [what, spec] of changes) {
+      const before = cache.recolours;
+      cache.draw(ctx, rimSpec({ ...spec, timeMs: T })); // live (the change may still be going on)
+      cache.draw(ctx, rimSpec({ ...spec, timeMs: T })); // built
+      expect(cache.builds, what).toBe(++builds);
+      if (spec.rainbow === false) {
+        expect(cache.recolours, what).toBe(before);
+        continue;
+      }
+      expect(cache.recolours, what).toBe(before + 1);
+      colouredAll(what);
+      // and settled again: nothing more to colour
+      cache.draw(ctx, rimSpec({ ...spec, timeMs: T }));
+      expect(cache.recolours, what).toBe(before + 1);
+    }
+    // every clear of the bitmap is made in device px
+    const clears = bitmap.calls.filter((c) => c.name === "clearRect");
+    expect(clears.length).toBe(builds);
+    expect(clears.every((c) => c.transform.join() === "1,0,0,1,0,0")).toBe(true);
   });
 
   it("follows a camera sliding by a fraction of a pixel without rebuilding, and rebuilds where it rests", () => {
@@ -354,6 +457,119 @@ describe("the ladder's bitmap", () => {
     cache.draw(ctx, ladder({ topTier: 4, x: 650, tiers: 10 }));
     expect(cache.builds).toBe(5);
   });
+
+  it("clears the whole bitmap before it is redrawn: a restart shows only the tiers reached, the glows never pile up", () => {
+    const { create, made } = fakeCanvases();
+    const cache = new LadderCache(create);
+    const { ctx } = fakeContext();
+    // a translated, scaled view (the ladder hundreds of px to the right): the clear must not follow the ladder's transform
+    ctx.setTransform(2, 0, 0, 2, 37, 11);
+    for (let top = 1; top <= 6; top++) cache.draw(ctx, ladder({ topTier: top }));
+    cache.draw(ctx, ladder({ topTier: 1 })); // a restart
+    expect(cache.builds).toBe(7);
+    const bitmap = made[0];
+    const { width: w, height: h } = bitmap.canvas;
+    // the bitmap's size held (only the lit tiers changed), so each redraw cleared it – all of it, in device px
+    const clears = bitmap.calls.filter((c) => c.name === "clearRect");
+    expect(clears.length).toBeGreaterThanOrEqual(6);
+    expect(clears.every((c) => clearsAll(c, w, h))).toBe(true);
+    // what it shows is a fresh build's ladder at tier 1: the same calls, nothing of tier 6 left under it
+    const fresh = fakeCanvases();
+    new LadderCache(fresh.create).draw(ctx, ladder({ topTier: 1 }));
+    const strip = (calls: Call[]) => calls.filter((c) => c.name !== "clearRect").map((c) => JSON.stringify([c.name, c.args, c.shadowBlur, c.globalAlpha, c.transform]));
+    expect(strip(sinceClear(bitmap.calls, w, h))).toEqual(strip(fresh.made[0].calls));
+    expect(sinceClear(bitmap.calls, w, h).filter((c) => (c.name === "stroke" || c.name === "fill") && c.shadowBlur > 0).length).toBeLessThanOrEqual(2);
+    // a ladder that moves with the camera (same size, a new translation): cleared all the same
+    ctx.setTransform(2, 0, 0, 2, 37.5, 11);
+    cache.draw(ctx, ladder({ topTier: 1 }));
+    expect(cache.builds).toBe(8);
+    expect(clearsAll(bitmap.calls.filter((c) => c.name === "clearRect").at(-1)!, w, h)).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ the HUD's lines */
+
+describe("the HUD's lines from bitmaps", () => {
+  it("draws a line once at the canvas' scale and sub-pixel position, then blits it 1:1 at whole device px", () => {
+    const { create, made } = fakeCanvases();
+    const sprite = new TextSprite(create);
+    const { ctx, calls } = fakeContext();
+    ctx.setTransform(1.5, 0, 0, 1.5, 3.3, 7.25);
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    const M = ctx.getTransform();
+    expect(sprite.draw(ctx, M, "MERGES 7", "700 10.1px sans-serif", "#f472b6", 13, 401.7, 52.9)).toBe(true);
+    expect(sprite.builds).toBe(1);
+    const bitmap = made[0];
+    const text = bitmap.calls.filter((c) => c.name === "fillText");
+    expect(text.length).toBe(1);
+    expect(text[0].args).toEqual(["MERGES 7", 0, 0]);
+    expect(text[0].fillStyle).toBe("#f472b6");
+    expect(text[0].shadowBlur).toBe(0);
+    // the same scale, the anchor at the same fraction of a device px
+    const [a, , , d, e, f] = text[0].transform;
+    expect(a).toBe(1.5);
+    expect(d).toBe(1.5);
+    const X = 1.5 * 401.7 + 3.3;
+    const Y = 1.5 * 52.9 + 7.25;
+    expect(e - Math.floor(e)).toBeCloseTo(X - Math.floor(X), 12);
+    expect(f - Math.floor(f)).toBeCloseTo(Y - Math.floor(Y), 12);
+    // the blit: identity, whole px, the anchor landing on the canvas' own device position; the transform restored after it
+    const blit = calls.filter((c) => c.name === "drawImage");
+    expect(blit.length).toBe(1);
+    expect(blit[0].transform).toEqual([1, 0, 0, 1, 0, 0]);
+    expect(Number.isInteger(blit[0].args[1]) && Number.isInteger(blit[0].args[2])).toBe(true);
+    expect((blit[0].args[1] as number) + e).toBeCloseTo(X, 9);
+    expect((blit[0].args[2] as number) + f).toBeCloseTo(Y, 9);
+    expect(ctx.getTransform()).toEqual({ a: 1.5, b: 0, c: 0, d: 1.5, e: 3.3, f: 7.25 });
+    // the bitmap holds the ink round the anchor: the right-aligned line reaches left of it
+    expect(e).toBeGreaterThan(1.5 * 10);
+    expect(bitmap.canvas.width).toBeGreaterThan(e);
+    // the same line again: a blit, nothing drawn
+    sprite.draw(ctx, M, "MERGES 7", "700 10.1px sans-serif", "#f472b6", 13, 401.7, 52.9);
+    expect(sprite.builds).toBe(1);
+    // a new text, colour, font, alignment, scale or fraction: drawn again
+    const redraws: [string, () => boolean][] = [
+      ["text", () => sprite.draw(ctx, M, "MERGES 8", "700 10.1px sans-serif", "#f472b6", 13, 401.7, 52.9)],
+      ["colour", () => sprite.draw(ctx, M, "MERGES 8", "700 10.1px sans-serif", "#fb7185", 13, 401.7, 52.9)],
+      ["font", () => sprite.draw(ctx, M, "MERGES 8", "700 11px sans-serif", "#fb7185", 13, 401.7, 52.9)],
+      ["fraction", () => sprite.draw(ctx, M, "MERGES 8", "700 11px sans-serif", "#fb7185", 13, 401.9, 52.9)],
+      ["align", () => ((ctx.textAlign = "left"), sprite.draw(ctx, M, "MERGES 8", "700 11px sans-serif", "#fb7185", 13, 401.9, 52.9))],
+    ];
+    let builds = 1;
+    for (const [what, redraw] of redraws) {
+      expect(redraw(), what).toBe(true);
+      expect(sprite.builds, what).toBe(++builds);
+    }
+    // a whole device px further: the same bitmap, blitted a px over
+    const before = calls.filter((c) => c.name === "drawImage").at(-1)!.args[1] as number;
+    expect(sprite.draw(ctx, M, "MERGES 8", "700 11px sans-serif", "#fb7185", 13, 401.9 + 2 / 1.5, 52.9)).toBe(true);
+    expect(sprite.builds).toBe(builds);
+    expect(calls.filter((c) => c.name === "drawImage").at(-1)!.args[1]).toBe(before + 2);
+  });
+
+  it("leaves the line to the live text where it cannot help", () => {
+    const { create } = fakeCanvases();
+    const sprite = new TextSprite(create);
+    const { ctx } = fakeContext();
+    ctx.setTransform(2, 0, 0, 2, 0, 0);
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = "#fff";
+    expect(sprite.draw(ctx, ctx.getTransform(), "TOP", "800 9px sans-serif", "#fff", 11, 10, 10)).toBe(false);
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 2;
+    expect(sprite.draw(ctx, ctx.getTransform(), "TOP", "800 9px sans-serif", "#fff", 11, 10, 10)).toBe(false);
+    ctx.shadowOffsetY = 0;
+    ctx.globalCompositeOperation = "lighter";
+    expect(sprite.draw(ctx, ctx.getTransform(), "TOP", "800 9px sans-serif", "#fff", 11, 10, 10)).toBe(false);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.rotate(0.1);
+    expect(sprite.draw(ctx, ctx.getTransform(), "TOP", "800 9px sans-serif", "#fff", 11, 10, 10)).toBe(false);
+    expect(sprite.builds).toBe(0);
+    const none = new TextSprite(() => null);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    expect(none.draw(ctx, ctx.getTransform(), "TOP", "800 9px sans-serif", "#fff", 11, 10, 10)).toBe(false);
+  });
 });
 
 /* ------------------------------------------------------------------ the layer */
@@ -398,7 +614,8 @@ describe("the layer draws nothing blurred per frame", () => {
     // only the small halo's stroke keeps its blur
     expect(shadowed.length).toBe(1);
     expect(shadowed[0].shadowBlur).toBe(HALO_GLOW);
-    expect(count(calls, "drawImage")).toBe(2); // the rim and the ladder
+    expect(count(calls, "drawImage")).toBe(2 + 5); // the rim, the ladder and the HUD's five lines
+    expect(count(calls, "fillText")).toBe(0); // (no font switch a frame)
     expect(count(calls, "createRadialGradient")).toBe(1); // the big halo's glow
     // without the wall glow the rim is drawn live (no blur to save)
     calls.length = 0;
@@ -445,6 +662,32 @@ describe("the trails under the dark bodies", () => {
     const reach = 24 - 0.5 - Math.SQRT2 * 0.5 * 24 * 0.8 - 1.5 / 2;
     expect(trailUnderBody({ ...resting, trail: [{ x: 100 + reach - 1e-6, y: 100 }] }, 0.8, 2)).toBe(true);
     expect(trailUnderBody({ ...resting, trail: [{ x: 100 + reach + 1e-6, y: 100 }] }, 0.8, 2)).toBe(false);
+  });
+
+  it("skip a stroke of a moving ball's trail only when it lies under the opaque body", () => {
+    const ball = { x: 100, y: 100, radius: 24 };
+    const k = 2;
+    // the body's r − 0.5, less a square cap's reach (√2 · width / 2) and 1.5 device px
+    const reach = (w: number) => 24 - 0.5 - Math.SQRT2 * 0.5 * w - 1.5 / k;
+    // the newest, thickest stroke at the ball: hidden; an older one up the trail: drawn
+    expect(trailStrokeUnderBody(ball, 100, 96, 100, 100, 19.2, k)).toBe(true);
+    expect(trailStrokeUnderBody(ball, 100, 60, 100, 64, 8, k)).toBe(false);
+    // one end out: drawn
+    expect(trailStrokeUnderBody(ball, 100, 100, 100, 100 - reach(8) - 1e-6, 8, k)).toBe(false);
+    expect(trailStrokeUnderBody(ball, 100, 100, 100, 100 - reach(8) + 1e-6, 8, k)).toBe(true);
+    // a thinner stroke may reach further
+    expect(trailStrokeUnderBody(ball, 100, 100 - reach(4) + 1e-6, 100, 100, 4, k)).toBe(true);
+    expect(reach(4)).toBeGreaterThan(reach(8));
+    // no scale known, or a stroke too wide for the body: drawn
+    expect(trailStrokeUnderBody(ball, 100, 100, 100, 100, 8, 0)).toBe(false);
+    expect(trailStrokeUnderBody(ball, 100, 100, 100, 100, 40, k)).toBe(false);
+    // a trail wholly under the body (trailUnderBody) has every stroke under it
+    const resting = { ...ball, trail: Array.from({ length: 20 }, (_, i) => ({ x: 100 + 0.3 * Math.sin(i), y: 100 + 0.2 * Math.cos(i) })) };
+    expect(trailUnderBody(resting, 0.8, k)).toBe(true);
+    for (let i = 1; i < 20; i++) {
+      const w = 24 * 0.8 * (0.3 + (0.7 * i) / 20);
+      expect(trailStrokeUnderBody(ball, resting.trail[i - 1].x, resting.trail[i - 1].y, resting.trail[i].x, resting.trail[i].y, w, k)).toBe(true);
+    }
   });
 
   it("the rim's colour strings are the live rim's", () => {

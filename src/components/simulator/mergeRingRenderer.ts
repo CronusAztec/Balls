@@ -1,6 +1,6 @@
 import { FINAL_HOLD_MS, TIER_EMBLEMS, inChute, tierColor, tierEmblem, type MergeRingView, type TierEmblem } from "@/lib/physics/modes/mergeRing";
 import type { Ball } from "@/lib/physics/types";
-import { GLOW_REACH, defaultCanvasFactory, fillStrokeGlow, plainTransform, rgbOfHex, type CanvasFactory } from "./mergeRingGlow";
+import { GLOW_REACH, defaultCanvasFactory, fillStrokeGlow, plainOf, plainTransform, rgbOfHex, type CanvasFactory, type Matrix2D } from "./mergeRingGlow";
 
 /**
  * Canvas drawing of Merge Ring (feature merge-ring, lib/physics/modes/mergeRing.ts). The canvas calls, per frame:
@@ -16,7 +16,8 @@ import { GLOW_REACH, defaultCanvasFactory, fillStrokeGlow, plainTransform, rgbOf
  * halo the size of the pile, the ladder's lit tiers): the glowing rim is drawn once into an offscreen bitmap (`RimCache`:
  * its alpha with the glow, recoloured with the segments' own colours a fifth a frame), the ladder too
  * (`LadderCache`, redrawn when a tier lights up), and the halos and the final form's flash draw their glow as a gradient
- * annulus with the blur's profile (`fillStrokeGlow()` of mergeRingGlow.ts) – the same pixels within a few levels.
+ * annulus with the blur's profile (`fillStrokeGlow()` of mergeRingGlow.ts) – the same pixels within a few levels. The HUD's
+ * lines are bitmaps too (`TextSprite`: no font switch a frame).
  */
 
 export interface MergeRingRenderOptions {
@@ -282,8 +283,8 @@ export const RIM_CACHE_MAX_SIDE = 4096;
 /**
  * The glowing rim from an offscreen bitmap in device px. The bitmap is the live drawing made once – the rainbow's 90
  * shadowed arcs in white (their alpha with the glow, exactly as they overlap), or the one arc in the wall colour – and
- * the rainbow is recoloured with the segments' own colours (`recolour()`: a fifth of them a frame, the alpha kept), so a
- * frame costs 18 flat fills and one 1:1 blit instead of 90 blurs. It is rebuilt when the ring, the line, the glow, the
+ * the rainbow is recoloured with the segments' own colours (`recolour()`: the stalest fifth of them a frame at 50–60 fps,
+ * the alpha kept), so a frame costs 18 flat fills and one 1:1 blit instead of 90 blurs. It is rebuilt when the ring, the line, the glow, the
  * colour or the scale change – only once the change has held for a frame (a zoom or a resize in progress draws live) –
  * and when the ring has come to rest more than `RIM_SNAP_PX` off the bitmap's baked sub-pixel position (a camera that
  * slides it gets the bitmap at the nearest pixel meanwhile). `draw()` returns false where it cannot help (a rotated or
@@ -309,10 +310,10 @@ export class RimCache {
   private bFx = NaN;
   private bFy = NaN;
   private bHalf = 0;
-  /** The rainbow's clock as last coloured, the part (of `RIM_PHASES`) coloured next and when each part was coloured. */
+  /** The rainbow's clock as last coloured, when each fifth of its segments (of `RIM_PHASES`) was coloured, and the fifths owed. */
   private bTime = NaN;
-  private phase = 0;
   private readonly phaseMs: number[] = new Array(RIM_PHASES).fill(NaN);
+  private credit = 0;
   /** Last frame's request, the ring's centre in device px (a change is built only once it holds). */
   private lR = NaN;
   private lW = NaN;
@@ -404,8 +405,10 @@ export class RimCache {
     if (canvas.width !== size || canvas.height !== size) {
       canvas.width = size;
       canvas.height = size;
-    } else g.clearRect(0, 0, size, size);
+    }
+    // (cleared in device px: clearRect follows the transform)
     g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, size, size);
     g.globalCompositeOperation = "source-over";
     g.globalAlpha = 1;
     g.lineCap = "butt";
@@ -446,7 +449,11 @@ export class RimCache {
     this.bFx = fx;
     this.bFy = fy;
     this.bHalf = half;
+    // the new bitmap is white: every fifth is uncoloured, whatever the clock (a rebuild at a frozen clock – before Start,
+    // paused, a finished run – must colour it all the same)
     this.bTime = NaN;
+    this.phaseMs.fill(NaN);
+    this.credit = 0;
     this.builds++;
     return true;
   }
@@ -457,24 +464,43 @@ export class RimCache {
     return true;
   }
 
+  /** How far (degrees of hue) the stalest fifth of the rainbow is behind the clock at `timeMs` (Infinity when one is uncoloured; for the tests). */
+  hueLagDeg(timeMs: number): number {
+    let lag = 0;
+    for (let q = 0; q < RIM_PHASES; q++) lag = Math.max(lag, fifthLagDeg(this.phaseMs[q], timeMs));
+    return lag;
+  }
+
   /**
    * The rainbow's colours over the bitmap's alpha (`source-atop`: the colour taken, the alpha kept): every segment's sector
    * of the ring filled with its colour, from where its live arc starts (overdrawing the last one's end) to where the next one
    * starts, the first and the last reaching to the middle of the opening (each a pixel wider at its sides: no seams). The
-   * colours turn slowly (`RAINBOW_DEG_PER_SEC`), so a frame refreshes a fifth of the segments in turn (`RIM_PHASES`: each
-   * at most four frames, 1.6° of hue, behind the clock) – all of them on a build, after a jump of the clock, or when the
-   * clock runs fast enough that a fifth would fall more than `RIM_HUE_LAG_DEG` behind. (Every refresh costs the bitmap a
-   * copy and a raster when it is next drawn: fewer segments a frame is cheaper, more lag is not visible.)
+   * colours turn slowly (`RAINBOW_DEG_PER_SEC`), so a frame refreshes only the stalest fifths of the segments (`RIM_PHASES`,
+   * the fifths in turn) – as many a frame as keep every fifth within `RIM_HUE_LAG_DEG` of the clock at this frame's pace
+   * (a fifth may wait k frames while k steps of the hue stay within the lag: one fifth a frame at 50–60 fps, each at most
+   * four frames, 1.6°, behind; 5 / k a frame below, spread evenly) – and every one on a build, a jump back of the clock (a
+   * restart) or a clock running fast (a seek, 8x). (A fifth costs a raster of its sectors over the bitmap, `source-atop`
+   * along the thin slanted band: about the price of the blit itself on a software canvas, so a lower frame rate must not
+   * make a frame refresh everything.)
    */
   private recolour(spec: RimSpec): void {
     const t = spec.timeMs;
     const stale = this.phaseMs;
-    let all = !(t >= this.bTime) || !Number.isFinite(this.bTime);
-    if (!all) {
-      // the next fifth in turn; the stalest of the others after it must stay within the lag
-      let behind = 0;
-      for (let q = 0; q < RIM_PHASES; q++) if (q !== this.phase) behind = Math.max(behind, t - stale[q]);
-      all = !((behind * RAINBOW_DEG_PER_SEC) / 1000 <= RIM_HUE_LAG_DEG);
+    let pick = 0; // bit q: fifth q is refreshed
+    if (!(t >= this.bTime) || !Number.isFinite(this.bTime)) pick = (1 << RIM_PHASES) - 1;
+    else {
+      // this frame's step of the hue: a fifth may wait `wait` frames, so 5 / wait fifths are owed a frame (one at a standstill)
+      const stepDeg = ((t - this.bTime) * RAINBOW_DEG_PER_SEC) / 1000;
+      const wait = stepDeg > 0 ? Math.floor(RIM_HUE_LAG_DEG / stepDeg + LAG_EPS) + 1 : Infinity;
+      this.credit = Math.min(RIM_PHASES, this.credit + RIM_PHASES / wait);
+      // the stalest first (an uncoloured fifth before all), then any other already past the lag
+      for (let n = Math.max(1, Math.floor(this.credit)); n > 0; n--) {
+        let oldest = -1;
+        for (let q = 0; q < RIM_PHASES; q++) if (!(pick & (1 << q)) && (oldest < 0 || fifthLagDeg(stale[q], t) > fifthLagDeg(stale[oldest], t))) oldest = q;
+        if (oldest < 0) break;
+        pick |= 1 << oldest;
+      }
+      for (let q = 0; q < RIM_PHASES; q++) if (!(fifthLagDeg(stale[q], t) <= RIM_HUE_LAG_DEG + LAG_EPS)) pick |= 1 << q;
     }
     const g = this.g!;
     const ox = this.bHalf + this.bFx;
@@ -489,7 +515,7 @@ export class RimCache {
     g.save();
     g.globalCompositeOperation = "source-atop";
     for (let i = 0; i < RIM_SEGMENTS; i++) {
-      if (!all && i % RIM_PHASES !== this.phase) continue;
+      if (!(pick & (1 << (i % RIM_PHASES)))) continue;
       const a0 = i === 0 ? mid - TWO_PI : spec.start + i * step - 0.004;
       const a1 = i === RIM_SEGMENTS - 1 ? mid : spec.start + (i + 1) * step - 0.004;
       g.fillStyle = segmentColor(spec.start, step, i, t);
@@ -500,17 +526,27 @@ export class RimCache {
       g.fill();
     }
     g.restore();
-    if (all) stale.fill(t);
-    else stale[this.phase] = t;
-    this.phase = (this.phase + 1) % RIM_PHASES;
+    for (let q = 0; q < RIM_PHASES; q++) {
+      if (!(pick & (1 << q))) continue;
+      stale[q] = t;
+      this.credit = Math.max(0, this.credit - 1);
+    }
     this.bTime = t;
     this.recolours++;
   }
 }
 
-/** The rim's segments are recoloured a fifth a frame (each every fifth frame); the most of hue (degrees) a fifth may lag behind the clock. */
+/** The rim's segments are recoloured by fifths (segment i in fifth i mod 5), the stalest a frame; the most of hue (degrees) a fifth may show behind the clock. */
 export const RIM_PHASES = 5;
 export const RIM_HUE_LAG_DEG = 2;
+
+/** (A frame's rounding at the lag's edge: frame times are not exact, so neither are k steps of the hue.) */
+const LAG_EPS = 1e-6;
+
+/** Degrees of hue a fifth coloured at `colouredMs` is behind the clock at `timeMs` (Infinity when it is uncoloured). */
+function fifthLagDeg(colouredMs: number, timeMs: number): number {
+  return Number.isFinite(colouredMs) ? ((timeMs - colouredMs) * RAINBOW_DEG_PER_SEC) / 1000 : Infinity;
+}
 
 /** Device px a ring may move between two frames and still hold (the bitmap is then built there), and may sit off its bitmap's baked position before it is rebuilt. */
 export const RIM_HELD_PX = 0.01;
@@ -593,8 +629,12 @@ export class LadderCache {
       if (this.canvas.width !== w || this.canvas.height !== h) {
         this.canvas.width = w;
         this.canvas.height = h;
-      } else this.g!.clearRect(0, 0, w, h);
+      }
       const g = this.g!;
+      // cleared in device px (clearRect follows the transform: under the last build's, the clear would miss the bitmap and
+      // the new ladder would be drawn over the old one), then drawn in the page's units
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, w, h);
       g.setTransform(m.k, 0, 0, m.k, m.e - left, m.f - top);
       g.globalCompositeOperation = "source-over";
       g.lineJoin = "round";
@@ -613,6 +653,116 @@ export class LadderCache {
     ctx.shadowColor = "rgba(0, 0, 0, 0)";
     ctx.drawImage(this.canvas!, this.sx, this.sy);
     ctx.restore();
+    return true;
+  }
+}
+
+/**
+ * One line of the HUD from a bitmap in device px: the line drawn once with `fillText` at the device scale and the sub-pixel
+ * position the canvas would draw it at (the same glyphs, grey-scale anti-aliased as on the transparent canvas), blitted 1:1
+ * at whole device px; redrawn when the text, its font, colour, alignment, the scale or the position's fraction change.
+ * (Every `font` switch makes a canvas resolve the font again – the HUD's five fonts a frame cost the overlay more than all
+ * its drawing.) `draw()` returns false where it cannot help (a rotated or stretched view, a shadow, another composite, no
+ * offscreen canvas): the caller draws the text live.
+ */
+export class TextSprite {
+  builds = 0;
+  private canvas: HTMLCanvasElement | null = null;
+  private g: CanvasRenderingContext2D | null = null;
+  private unavailable = false;
+  private kText = "";
+  private kFont = "";
+  private kFill = "";
+  private kAlign = "";
+  private kBase = "";
+  private kK = NaN;
+  private kFx = NaN;
+  private kFy = NaN;
+  /** The anchor's whole device px in the bitmap. */
+  private ax = 0;
+  private ay = 0;
+
+  constructor(private readonly createCanvas: CanvasFactory = defaultCanvasFactory) {}
+
+  /** Draws `text` as `fillText(text, x, y)` would with `font` and `fill` (the context's alignment); `M` is its transform (`getTransform()`). */
+  draw(ctx: CanvasRenderingContext2D, M: Matrix2D | null, text: string, font: string, fill: string, size: number, x: number, y: number): boolean {
+    const m = plainOf(M);
+    if (!m || this.unavailable || !text) return false;
+    const shadow = ctx.shadowColor !== "rgba(0, 0, 0, 0)" && (ctx.shadowBlur > 0 || ctx.shadowOffsetX !== 0 || ctx.shadowOffsetY !== 0);
+    if (shadow || ctx.globalCompositeOperation !== "source-over") return false;
+    const X = m.k * x + m.e;
+    const Y = m.k * y + m.f;
+    const ix = Math.floor(X);
+    const iy = Math.floor(Y);
+    const fx = X - ix;
+    const fy = Y - iy;
+    const align = ctx.textAlign;
+    const base = ctx.textBaseline;
+    if (!this.canvas || text !== this.kText || font !== this.kFont || fill !== this.kFill || align !== this.kAlign || base !== this.kBase || m.k !== this.kK || fx !== this.kFx || fy !== this.kFy) {
+      if (!this.build(text, font, fill, align, base, size, m.k, fx, fy)) return false;
+    }
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.drawImage(this.canvas!, ix - this.ax, iy - this.ay);
+    ctx.setTransform(M!.a, M!.b, M!.c, M!.d, M!.e, M!.f);
+    return true;
+  }
+
+  private build(text: string, font: string, fill: string, align: CanvasTextAlign, base: CanvasTextBaseline, size: number, k: number, fx: number, fy: number): boolean {
+    if (!this.canvas) {
+      this.canvas = this.createCanvas(8, 8);
+      this.g = this.canvas?.getContext("2d") ?? null;
+      if (!this.canvas || !this.g) {
+        this.unavailable = true;
+        return false;
+      }
+    }
+    const canvas = this.canvas;
+    const g = this.g!;
+    const style = () => {
+      g.font = font;
+      g.textAlign = align;
+      g.textBaseline = base;
+    };
+    style();
+    // the ink's extent round the anchor (font px; generous where the browser does not measure it)
+    const mt = g.measureText(text);
+    const w = Number.isFinite(mt.width) ? mt.width : text.length * size;
+    const fit = (v: number | undefined, guess: number) => (Number.isFinite(v) ? Math.max(0, v!) : guess);
+    const left = fit(mt.actualBoundingBoxLeft, align === "right" || align === "end" ? w + size : align === "center" ? w / 2 + size : size);
+    const right = fit(mt.actualBoundingBoxRight, align === "right" || align === "end" ? size : align === "center" ? w / 2 + size : w + size);
+    const ascent = fit(mt.actualBoundingBoxAscent, 1.5 * size);
+    const descent = fit(mt.actualBoundingBoxDescent, 1.5 * size);
+    const pad = 3;
+    const ax = pad + Math.ceil(k * left);
+    const ay = pad + Math.ceil(k * ascent);
+    const bw = ax + Math.ceil(k * right) + pad + 1;
+    const bh = ay + Math.ceil(k * descent) + pad + 1;
+    if (!(bw > 0 && bh > 0) || bw > RIM_CACHE_MAX_SIDE || bh > RIM_CACHE_MAX_SIDE) return false;
+    if (canvas.width !== bw || canvas.height !== bh) {
+      canvas.width = bw;
+      canvas.height = bh;
+      style(); // (a new size resets the context)
+    } else {
+      g.setTransform(1, 0, 0, 1, 0, 0);
+      g.clearRect(0, 0, bw, bh);
+    }
+    g.globalAlpha = 1;
+    g.globalCompositeOperation = "source-over";
+    g.shadowBlur = 0;
+    g.fillStyle = fill;
+    g.setTransform(k, 0, 0, k, ax + fx, ay + fy);
+    g.fillText(text, 0, 0);
+    this.ax = ax;
+    this.ay = ay;
+    this.kText = text;
+    this.kFont = font;
+    this.kFill = fill;
+    this.kAlign = align;
+    this.kBase = base;
+    this.kK = k;
+    this.kFx = fx;
+    this.kFy = fy;
+    this.builds++;
     return true;
   }
 }
@@ -660,13 +810,15 @@ export class MergeRingLayer {
   private fontFs = -1;
   private fontCfs = -1;
   private readonly fonts = { title: "", merges: "", top: "", tier: "", caption: "" };
-  /** The glowing rim's and the ladder's bitmaps. */
+  /** The glowing rim's and the ladder's bitmaps, and the HUD's lines (title, merges, "TOP", the top tier, the caption). */
   readonly rim: RimCache;
   readonly ladder: LadderCache;
+  readonly texts: TextSprite[];
 
   constructor(createCanvas: CanvasFactory = defaultCanvasFactory) {
     this.rim = new RimCache(createCanvas);
     this.ladder = new LadderCache(createCanvas);
+    this.texts = [0, 1, 2, 3, 4].map(() => new TextSprite(createCanvas));
   }
 
   /** The rim (under the balls): the rainbow (or the wall colour), open at the chute, flashing white at the final form. */
@@ -826,30 +978,24 @@ export class MergeRingLayer {
     ctx.lineJoin = "round";
     const cfs = Math.max(11, 0.034 * side);
     const F = this.fontsFor(fs, cfs);
+    // (the lines from their bitmaps: no font switch a frame)
+    const M = typeof ctx.getTransform === "function" ? ctx.getTransform() : null;
     // The corners.
     ctx.textAlign = "left";
-    ctx.font = F.title;
-    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-    ctx.fillText(labels.title, L.left + pad, top + 0.5 * fs);
+    this.text(ctx, M, 0, labels.title, F.title, "rgba(255, 255, 255, 0.8)", fs, L.left + pad, top + 0.5 * fs);
     if (view.merges !== this.mergesKey) {
       this.mergesKey = view.merges;
       this.mergesText = labels.merges(view.merges);
     }
-    ctx.font = F.merges;
-    ctx.fillStyle = "#f472b6";
-    ctx.fillText(this.mergesText, L.left + pad, top + 1.6 * fs);
+    this.text(ctx, M, 1, this.mergesText, F.merges, "#f472b6", fs, L.left + pad, top + 1.6 * fs);
     ctx.textAlign = "right";
-    ctx.font = F.top;
-    ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-    ctx.fillText(labels.top, right - pad, top + 0.5 * fs);
+    this.text(ctx, M, 2, labels.top, F.top, "rgba(255, 255, 255, 0.8)", fs, right - pad, top + 0.5 * fs);
     const topTier = Math.max(1, view.topTier);
     if (topTier !== this.topKey) {
       this.topKey = topTier;
       this.topText = labels.tier(topTier);
     }
-    ctx.font = F.tier;
-    ctx.fillStyle = tierColor(topTier);
-    ctx.fillText(this.topText, right - pad, top + 1.7 * fs);
+    this.text(ctx, M, 3, this.topText, F.tier, tierColor(topTier), fs, right - pad, top + 1.7 * fs);
     // The ladder: tier 1 at the bottom, the final form at the top, the reached ones lit (from its bitmap: the glows blurred once).
     const tiers = Math.max(1, Math.min(TIER_EMBLEMS.length, view.settings.tiers));
     const size = Math.max(6, Math.min(0.032 * side, (1.6 * L.radius) / (tiers * 1.5)));
@@ -859,10 +1005,16 @@ export class MergeRingLayer {
     ctx.globalAlpha = 1;
     // The caption under the ring.
     ctx.textAlign = "center";
-    ctx.font = F.caption;
-    ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
-    ctx.fillText(labels.caption, L.cx, Math.min(L.top + side - 0.6 * cfs, L.cy + L.radius + 0.045 * side + 0.5 * cfs));
+    this.text(ctx, M, 4, labels.caption, F.caption, "rgba(255, 255, 255, 0.9)", cfs, L.cx, Math.min(L.top + side - 0.6 * cfs, L.cy + L.radius + 0.045 * side + 0.5 * cfs));
     ctx.restore();
+  }
+
+  /** One line of the HUD: from its bitmap (`TextSprite`), or live where the bitmap cannot help. */
+  private text(ctx: CanvasRenderingContext2D, M: Matrix2D | null, slot: number, text: string, font: string, fill: string, size: number, x: number, y: number) {
+    if (this.texts[slot].draw(ctx, M, text, font, fill, size, x, y)) return;
+    ctx.font = font;
+    ctx.fillStyle = fill;
+    ctx.fillText(text, x, y);
   }
 
   /** The HUD's fonts for the corner size `fs` and the caption size `cfs` (rebuilt when the layout changes). */
@@ -903,6 +1055,25 @@ export function trailUnderBody(ball: Pick<Ball, "x" | "y" | "radius" | "trail">,
     if (!(dx * dx + dy * dy <= reach2)) return false;
   }
   return true;
+}
+
+/**
+ * True when one stroke of a colour trail – the segment from (`ax`, `ay`) to (`bx`, `by`), `width` wide, any cap – lies
+ * wholly under the opaque dark body of `ball` (`k`: device px per unit), so drawing it would change nothing: the newest,
+ * thickest strokes of a moving ball's trail, all of a resting one's. (The stroke is within its ends' squares of half-size
+ * `width` / 2, so within √2 · `width` / 2 of an end; the body is convex.)
+ */
+export function trailStrokeUnderBody(ball: Pick<Ball, "x" | "y" | "radius">, ax: number, ay: number, bx: number, by: number, width: number, k: number): boolean {
+  if (!(k > 0)) return false;
+  const reach = ball.radius - 0.5 - Math.SQRT2 * 0.5 * width - 1.5 / k;
+  if (!(reach > 0)) return false;
+  const reach2 = reach * reach;
+  let dx = ax - ball.x;
+  let dy = ay - ball.y;
+  if (!(dx * dx + dy * dy <= reach2)) return false;
+  dx = bx - ball.x;
+  dy = by - ball.y;
+  return dx * dx + dy * dy <= reach2;
 }
 
 /** True when `ball` sits in the chute column above the ring's opening (the smoke test and the HUD read it from the view). */
