@@ -1,6 +1,96 @@
 {
   "releases": [
     {
+      "id": "site-1-14-0",
+      "product": "site",
+      "version": "1.14.0",
+      "date": "2026-10-21",
+      "headline": {
+        "en": "Cut clips for TikTok, and a smooth Merge Ring",
+        "pl": "Klipy przycięte na TikToka i płynny Pierścień fuzji",
+        "es": "Recorta clips para TikTok y un Anillo de fusión fluido"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "The new Clip editor cuts a finished video for TikTok. Pick the start and the length, crop in on the action and put a hook at the top.",
+            "pl": "Nowy Edytor klipów przycina gotowy film na TikToka. Wybierz początek i długość, przybliż akcję i dodaj haczyk u góry.",
+            "es": "El nuevo Editor de clips recorta un vídeo terminado para TikTok. Elige el inicio y la duración, acerca la acción y pon un gancho arriba."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Open it with Edit for TikTok on a clip in the Publish list. The cut ends on a Make your own card and downloads. Free cuts carry the watermark.",
+            "pl": "Otwórz go przyciskiem Edytuj na TikToka przy klipie na liście publikacji. Klip kończy się planszą Zrób własny i pobiera się. Darmowe klipy mają znak wodny.",
+            "es": "Ábrelo con Editar para TikTok en un clip de la lista de publicación. El corte termina con la tarjeta Crea el tuyo y se descarga. Los cortes gratis llevan la marca de agua."
+          }
+        },
+        {
+          "kind": "fixed",
+          "text": {
+            "en": "Merge Ring runs smoothly on phones and big screens. Its glowing rim, merge halos and tier ladder are drawn once instead of blurred again every frame.",
+            "pl": "Pierścień fuzji działa płynnie na telefonach i dużych ekranach. Świecąca obręcz, poświaty fuzji i drabinka poziomów są rysowane raz, a nie rozmywane w każdej klatce.",
+            "es": "Anillo de fusión va fluido en móviles y pantallas grandes. El borde brillante, los halos de fusión y la escala de niveles se dibujan una vez en lugar de difuminarse en cada fotograma."
+          }
+        }
+      ]
+    },
+    {
+      "id": "app-1-5-0",
+      "product": "app",
+      "version": "1.5.0",
+      "date": "2026-10-21",
+      "headline": {
+        "en": "An update button, and the AI cuts clips for TikTok",
+        "pl": "Przycisk aktualizacji, a AI przycina klipy na TikToka",
+        "es": "Botón de actualizar y la IA recorta clips para TikTok"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "The top bar has an update button on every tab. It checks, shows the download and offers Restart and update when the update is ready.",
+            "pl": "Na górnym pasku każdej zakładki jest przycisk aktualizacji. Sprawdza, pokazuje pobieranie i proponuje Uruchom ponownie i zaktualizuj, gdy aktualizacja jest gotowa.",
+            "es": "La barra superior tiene un botón de actualizar en cada pestaña. Busca, muestra la descarga y ofrece Reiniciar y actualizar cuando la actualización está lista."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "Check for updates now works with Update automatically off. A manual check downloads the update and you choose when to restart.",
+            "pl": "Sprawdź aktualizacje działa teraz także przy wyłączonym Aktualizuj automatycznie. Ręczne sprawdzenie pobiera aktualizację, a Ty wybierasz, kiedy uruchomić ponownie.",
+            "es": "Buscar actualizaciones ya funciona con Actualizar automáticamente desactivado. Una búsqueda manual descarga la actualización y tú eliges cuándo reiniciar."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Edit for TikTok in the Library opens the Clip editor and saves the cut next to the clip. Suggest with AI proposes a cut for you.",
+            "pl": "Edytuj na TikToka w Bibliotece otwiera Edytor klipów i zapisuje przycięty klip obok oryginału. Zaproponuj z AI podsuwa gotowe cięcie.",
+            "es": "Editar para TikTok en la Biblioteca abre el Editor de clips y guarda el corte junto al clip. Sugerir con IA te propone un corte."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Make videos can also cut each clip for TikTok after rendering. Tick Start rendering right away and one prompt fills the Library with clips and their cuts.",
+            "pl": "Twórz filmy może też przyciąć każdy klip na TikToka po renderowaniu. Zaznacz Od razu zacznij renderować, a jedno polecenie wypełni Bibliotekę klipami i ich wersjami na TikToka.",
+            "es": "Crear vídeos también puede recortar cada clip para TikTok tras renderizar. Marca Empezar a renderizar ya y una sola petición llena la Biblioteca de clips y sus cortes."
+          }
+        },
+        {
+          "kind": "improved",
+          "text": {
+            "en": "The portable app says it does not update itself and links to the download page for the latest version.",
+            "pl": "Wersja przenośna mówi, że nie aktualizuje się sama, i prowadzi do strony pobierania najnowszej wersji.",
+            "es": "La versión portátil indica que no se actualiza sola y enlaza a la página de descarga de la última versión."
+          }
+        }
+      ]
+    },
+    {
       "id": "site-1-13-0",
       "product": "site",
       "version": "1.13.0",

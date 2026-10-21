@@ -7,6 +7,34 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Website 1.14.0 · 2026-10-21
+
+Cut clips for TikTok, and a smooth Merge Ring
+
+### New
+
+- The new Clip editor cuts a finished video for TikTok. Pick the start and the length, crop in on the action and put a hook at the top.
+- Open it with Edit for TikTok on a clip in the Publish list. The cut ends on a Make your own card and downloads. Free cuts carry the watermark.
+
+### Fixed
+
+- Merge Ring runs smoothly on phones and big screens. Its glowing rim, merge halos and tier ladder are drawn once instead of blurred again every frame.
+
+## Windows app 1.5.0 · 2026-10-21
+
+An update button, and the AI cuts clips for TikTok
+
+### New
+
+- The top bar has an update button on every tab. It checks, shows the download and offers Restart and update when the update is ready.
+- Edit for TikTok in the Library opens the Clip editor and saves the cut next to the clip. Suggest with AI proposes a cut for you.
+- Make videos can also cut each clip for TikTok after rendering. Tick Start rendering right away and one prompt fills the Library with clips and their cuts.
+
+### Improved
+
+- Check for updates now works with Update automatically off. A manual check downloads the update and you choose when to restart.
+- The portable app says it does not update itself and links to the download page for the latest version.
+
 ## Website 1.13.0 · 2026-10-20
 
 Fight League's big hits freeze the frame
