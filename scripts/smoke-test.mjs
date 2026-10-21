@@ -17540,15 +17540,23 @@ await smokeBlock("go-live-kit", async () => {
   // --- legal-copy --- the privacy policy opens with who is responsible and says what the site does (no cookies, the rights, advertising,
   // the Windows app); the disclaimer carries the Fight League notice; the pricing page names no PayPal before payment and gives the
   // checkout line with a Terms link; the download page says what is free and links the Terms and the Privacy Policy under the buttons.
-  // The smoke build sets no SUPPORT_EMAIL / LEGAL_NAME, so the contact is the feedback form.
+  // The smoke build sets no SUPPORT_EMAIL / LEGAL_NAME / FEEDBACK_ENDPOINT / FEEDBACK_EMAIL, only NEXT_PUBLIC_GITHUB_REPO: its feedback
+  // form opens a public GitHub issue, so (--- legal-audit --- lib/operator.ts FEEDBACK_REACHES_OPERATOR, 1387514) the controller block
+  // and the rights section tell a visitor to write to the operator (Privacy.controller.useNone, Privacy.rights.requestNone) and link no
+  // feedback form; the Contact section keeps the form for questions about the policy. The disclaimer's takedown line still links it.
   for (const locale of ["en", "pl", "es"]) {
+    const privacyCopy = JSON.parse(fs.readFileSync(new URL(`../messages/${locale}.json`, import.meta.url), "utf8")).Privacy;
     await page.goto(`${BASE}/${locale}/privacy/`, { waitUntil: "domcontentloaded" });
     const privacy = await page.evaluate(() => {
       const section = (id) => document.getElementById(id);
+      const paras = (id) => [...(section(id)?.querySelectorAll("p") ?? [])].map((p) => p.textContent?.trim() ?? "");
       return {
         ids: [...document.querySelectorAll("main section[id]")].map((el) => el.id),
-        controllerHref: section("controller")?.querySelector('a[href*="/feedback"]')?.getAttribute("href") ?? "",
         controllerText: section("controller")?.textContent ?? "",
+        controllerReach: paras("controller").at(-1) ?? "",
+        rightsReach: paras("rights").at(-1) ?? "",
+        requestLinks: ["controller", "rights"].flatMap((id) => [...(section(id)?.querySelectorAll('a[href*="/feedback"], a[href*="github.com"]') ?? [])].map((a) => a.getAttribute("href") ?? "")),
+        contactHref: section("contact")?.querySelector('a[href*="/feedback"]')?.getAttribute("href") ?? "",
         h2: [...document.querySelectorAll("main section h2")].map((h) => h.textContent ?? ""),
         cookies: section("cookies")?.textContent ?? "",
         body: document.body.innerText,
@@ -17557,9 +17565,9 @@ await smokeBlock("go-live-kit", async () => {
     check(
       `legal-copy: the ${locale} privacy policy opens with who is responsible, numbers its sections and covers cookies, rights, advertising and the Windows app`,
       ["introduction", "controller", "information", "cookies", "rights", "advertising", "consent", "payments", "windowsApp"].every((id) => privacy.ids.includes(id)) &&
-        privacy.ids.indexOf("controller") === 1 && privacy.controllerHref.includes("/feedback") && privacy.controllerText.length > 40 &&
+        privacy.ids.indexOf("controller") === 1 && privacy.controllerText.length > 40 && privacy.controllerReach === privacyCopy.controller.useNone && privacy.rightsReach === privacyCopy.rights.requestNone && privacy.requestLinks.length === 0 && privacy.contactHref.includes("/feedback") &&
         privacy.h2[0].startsWith("1. ") && privacy.h2[1].startsWith("2. ") && privacy.cookies.length > 60 && !/AdSense|adsbygoogle/.test(privacy.body) && !/\{[a-zA-Z]+\}|<\/?(mail|link)>/.test(privacy.body),
-      `(${privacy.ids.join()}, controller "${privacy.controllerText.slice(0, 60)}", ${privacy.controllerHref})`,
+      `(${privacy.ids.join()}, controller "${privacy.controllerText.slice(0, 60)}", reach "${privacy.controllerReach.slice(0, 60)}", ${privacy.requestLinks.join() || "no form link"}, contact ${privacy.contactHref})`,
     );
     await page.goto(`${BASE}/${locale}/disclaimer/`, { waitUntil: "domcontentloaded" });
     const fanMade = await page.evaluate(() => ({ text: document.getElementById("fanMade")?.textContent ?? "", href: document.getElementById("fanMade")?.querySelector('a[href*="/feedback"]')?.getAttribute("href") ?? "" }));
