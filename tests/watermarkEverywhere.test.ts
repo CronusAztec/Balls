@@ -379,6 +379,36 @@ describe("the live painter: one sprite and one tile layer per canvas, two drawIm
     expect(badge.args[2]).toBe(Math.round(787 - liveMargin(787) - h) - pad);
   });
 
+  it("resets a filter the frame left behind, and leaves a filter that is none alone (a set makes Chrome resolve the font again)", async () => {
+    storeLicence(null);
+    vi.stubGlobal("document", fakeDocument());
+    const { live } = await fresh();
+    await live.primeLiveWatermark();
+    const canvas = fakeCanvas(1080, 1080);
+    let filter = "blur(2px)";
+    const sets: string[] = [];
+    const seen: string[] = [];
+    Object.defineProperty(canvas.ctx, "filter", {
+      get: () => filter,
+      set: (v: string) => {
+        sets.push(v);
+        filter = v;
+      },
+    });
+    const ctx = canvas.ctx as unknown as { drawImage: (...args: unknown[]) => void };
+    const drawImage = ctx.drawImage;
+    ctx.drawImage = (...args: unknown[]) => {
+      seen.push(filter);
+      drawImage(...args);
+    };
+    expect(draws(stamp(live, canvas, 0))).toHaveLength(2);
+    expect(sets).toEqual(["none"]);
+    expect(seen).toEqual(["none", "none"]);
+    for (let i = 1; i <= 3; i++) expect(draws(stamp(live, canvas, 16 * i))).toHaveLength(2);
+    expect(sets).toEqual(["none"]);
+    expect(seen.every((f) => f === "none")).toBe(true);
+  });
+
   it("builds the sprite and the tile layer once per canvas size, keeps separate caches per canvas, rebuilds on a resize", async () => {
     storeLicence(null);
     const doc = fakeDocument();

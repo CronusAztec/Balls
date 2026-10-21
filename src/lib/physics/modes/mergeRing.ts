@@ -24,6 +24,8 @@ import { atLeastMin, memoryCeiling } from "@/lib/uncap"; // --- uncap-all ---
  * and contact friction, so a drop lands on the pile with a thud and stays instead of ricocheting – and then fuses the
  * touching pairs of one tier. Balls may rest (`ballsMayRest`: no slow-ball boost), and a ball that touches the pile or
  * the rim loses a little speed each step (`CONTACT_DAMPING`), so the pile settles like a jar of fruit and keeps merging.
+ * A big pile is solved from a broadphase list of the pairs that can touch (`buildCandidates()`, `BROADPHASE_MARGIN`): the
+ * same pairs in the same order as the plain double loop, so a run is the same bit for bit, at a few checks a ball.
  *
  * Randomness: the spawn tiers and the launch jitter come from `ctx.random()` as the balls leave, so a seed replays
  * identically and Find Simulation can search a clip length (the seed decides when the final form or the overflow comes).
@@ -325,6 +327,25 @@ export const LAUNCH_JITTER = 0.8;
 export const MERGE_TOUCH = 0.02;
 /** Halos the view keeps (a ring buffer). */
 export const HALO_SLOTS = 12;
+/**
+ * The pair solver's broadphase margin, as a share of the Ball Size (at least `BROADPHASE_MIN_MARGIN` px): a pair farther
+ * apart than its radii (plus the merge touch) and this margin is left out of the sub-step's candidate list, and the list is
+ * rebuilt as soon as any ball has moved more than `BROADPHASE_REBUILD` of the margin since it was built – so a pair left out
+ * can never touch, and the solver sees exactly the pairs the full double loop would, in the same order.
+ */
+export const BROADPHASE_MARGIN = 0.5;
+export const BROADPHASE_MIN_MARGIN = 2;
+export const BROADPHASE_REBUILD = 0.45;
+/** Balls from which the solver lists its candidate pairs (fewer: the plain double loops are cheaper than building the list). */
+export const BROADPHASE_MIN_BALLS = 20;
+
+/** The pair solver's work since the mode was made (for the cost test and tools): distance checks, candidate list builds, pairs listed. */
+export interface MergeRingSolverStats {
+  pairChecks: number;
+  builds: number;
+  candidates: number;
+  subSteps: number;
+}
 
 /* ------------------------------------------------------------------ view */
 
@@ -414,6 +435,28 @@ export class MergeRingMode implements GameMode {
   /** Balls that stood on a ball under them during this step (a ball held up in the chute is an overflow). */
   private readonly supported = new Set<number>();
   private subSec = 0;
+  /**
+   * The broadphase (see `BROADPHASE_MARGIN`): the candidate pairs (i < j) of the sub-step grouped by i, every row's j
+   * ascending (`candStart[i]` … `candStart[i + 1]` index `candJ`), each ball's tier and where it was when the list was
+   * built. Off (`setBroadphase(false)`), the solver and the merge scan run the plain double loops.
+   */
+  private broadphase = true;
+  private broadphaseFrom = BROADPHASE_MIN_BALLS;
+  /** This sub-step's solver works from the list (the broadphase on and enough balls). */
+  private listed = false;
+  private candStart = new Int32Array(1);
+  private candFill = new Int32Array(1);
+  private candJ = new Int32Array(64);
+  private candTier = new Int32Array(16);
+  private candX = new Float64Array(16);
+  private candY = new Float64Array(16);
+  private candKey = new Float64Array(16);
+  private candOrder = new Int32Array(16);
+  private candOrderSize = -1;
+  private candPairs = new Int32Array(128);
+  private candMargin = 0;
+  private candDirty = true;
+  private readonly stats: MergeRingSolverStats = { pairChecks: 0, builds: 0, candidates: 0, subSteps: 0 };
 
   getSettings(): MergeRingSettings {
     return this.settings;
@@ -433,6 +476,19 @@ export class MergeRingMode implements GameMode {
   getProgress() {
     const v = this.view;
     return { spawned: v.spawned, balls: v.balls, merges: v.merges, topTier: v.topTier, tiers: v.settings.tiers, final: v.finalMs >= 0, overflow: v.overflowMs >= 0, finished: v.finished };
+  }
+  /**
+   * The pair solver's broadphase on (the default, from `minBalls` balls up) or off (the plain double loops): either way the
+   * same pairs in the same order, so a run is the same bit for bit – only the number of distance checks differs.
+   */
+  setBroadphase(on: boolean, minBalls = BROADPHASE_MIN_BALLS) {
+    this.broadphase = on;
+    this.broadphaseFrom = minBalls;
+    this.candDirty = true;
+  }
+  /** The solver's work so far (a live object: counters only grow). */
+  getSolverStats(): Readonly<MergeRingSolverStats> {
+    return this.stats;
   }
 
   init(ctx: ModeContext) {
@@ -585,15 +641,41 @@ export class MergeRingMode implements GameMode {
   private resolvePairs(ctx: ModeContext, balls: Ball[]) {
     const bounciness = ctx.getPhysicsExtras().wallBounciness;
     const e = Math.max(0, Math.min(1, PAIR_RESTITUTION * bounciness));
+    this.stats.subSteps++;
+    this.listed = this.broadphase && balls.length >= this.broadphaseFrom;
+    if (this.listed) this.buildCandidates(ctx, balls);
     for (let pass = 0; pass < PAIR_ITERATIONS; pass++) this.pairPass(ctx, balls, e, pass === 0);
   }
 
-  /** One pass of the pair solver (`first`: the pass that hears the landings). */
+  /**
+   * One pass of the pair solver (`first`: the pass that hears the landings): every pair (i < j) in the order of the double
+   * loop – with the broadphase on, only the listed ones (the others are too far apart to touch), the list rebuilt the
+   * moment a push carried a ball past the rebuild distance and the pass picking up at the next pair of the same row.
+   */
   private pairPass(ctx: ModeContext, balls: Ball[], e: number, first: boolean) {
+    const n = balls.length;
+    if (!this.listed) {
+      this.plainPass(ctx, balls, e, first);
+      return;
+    }
+    for (let i = 0; i < n; i++) {
+      for (let k = this.candStart[i]; k < this.candStart[i + 1]; k++) {
+        const j = this.candJ[k];
+        if (!this.solvePair(ctx, balls, i, j, e, first)) continue;
+        this.buildCandidates(ctx, balls);
+        k = this.rowAfter(i, j) - 1;
+      }
+    }
+  }
+
+  /** A pass of the plain double loop (a few balls: cheaper than building the list) – `solvePair()` written out, every pair checked. */
+  private plainPass(ctx: ModeContext, balls: Ball[], e: number, first: boolean) {
     const v = this.view;
-    for (let i = 0; i < balls.length; i++) {
+    const n = balls.length;
+    this.stats.pairChecks += (n * (n - 1)) / 2;
+    for (let i = 0; i < n; i++) {
       const a = balls[i];
-      for (let j = i + 1; j < balls.length; j++) {
+      for (let j = i + 1; j < n; j++) {
         const b = balls[j];
         const dx = b.x - a.x;
         const dy = b.y - a.y;
@@ -613,7 +695,6 @@ export class MergeRingMode implements GameMode {
         b.y += ny * push * ib;
         this.touching.add(a.id);
         this.touching.add(b.id);
-        // The upper of the two stands on the lower one.
         if (Math.abs(dy) > 0.3 * reach) this.supported.add(dy > 0 ? a.id : b.id);
         const rvx = b.vx - a.vx;
         const rvy = b.vy - a.vy;
@@ -624,7 +705,6 @@ export class MergeRingMode implements GameMode {
         a.vy -= jn * ny * ia;
         b.vx += jn * nx * ib;
         b.vy += jn * ny * ib;
-        // Friction along the touch, at most what stops the sliding.
         const tx = -ny;
         const ty = nx;
         const slide = rvx * tx + rvy * ty;
@@ -640,6 +720,173 @@ export class MergeRingMode implements GameMode {
         }
       }
     }
+  }
+
+  /** The pair (i, j): pushed apart, its approach speed and sliding taken, a landing heard; true when the broadphase must rebuild its list. */
+  private solvePair(ctx: ModeContext, balls: Ball[], i: number, j: number, e: number, first: boolean): boolean {
+    this.stats.pairChecks++;
+    const a = balls[i];
+    const b = balls[j];
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const reach = a.radius + b.radius;
+    const d2 = dx * dx + dy * dy;
+    if (d2 >= reach * reach) return false;
+    const d = Math.sqrt(d2);
+    const nx = d > 1e-9 ? dx / d : 0;
+    const ny = d > 1e-9 ? dy / d : 1;
+    const ia = 1 / (a.radius * a.radius);
+    const ib = 1 / (b.radius * b.radius);
+    const share = ia + ib;
+    const push = (Math.max(0, reach - d - PAIR_SLOP) * PAIR_CORRECTION) / share;
+    a.x -= nx * push * ia;
+    a.y -= ny * push * ia;
+    b.x += nx * push * ib;
+    b.y += ny * push * ib;
+    const rebuild = push > 0 && (this.movedFar(a, i) || this.movedFar(b, j));
+    this.touching.add(a.id);
+    this.touching.add(b.id);
+    // The upper of the two stands on the lower one.
+    if (Math.abs(dy) > 0.3 * reach) this.supported.add(dy > 0 ? a.id : b.id);
+    const rvx = b.vx - a.vx;
+    const rvy = b.vy - a.vy;
+    const rel = rvx * nx + rvy * ny;
+    if (rel >= 0) return rebuild;
+    const jn = (-(1 + e) * rel) / share;
+    a.vx -= jn * nx * ia;
+    a.vy -= jn * ny * ia;
+    b.vx += jn * nx * ib;
+    b.vy += jn * ny * ib;
+    // Friction along the touch, at most what stops the sliding.
+    const tx = -ny;
+    const ty = nx;
+    const slide = rvx * tx + rvy * ty;
+    const jt = Math.max(-PAIR_FRICTION * jn, Math.min(PAIR_FRICTION * jn, -slide / share));
+    a.vx -= jt * tx * ia;
+    a.vy -= jt * ty * ia;
+    b.vx += jt * tx * ib;
+    b.vy += jt * ty * ib;
+    if (first && -rel >= THUD_SPEED) {
+      ctx.noteCollide?.(a, b); // --- bounce-math --- a ball hit
+      const upper = a.y < b.y ? a : b;
+      this.thud(ctx, upper, this.view.tierOf.get(upper.id) ?? 1, -rel);
+    }
+    return rebuild;
+  }
+
+  /**
+   * The broadphase's candidate list from where the balls are now: a sort-and-sweep along x, then every pair closer than
+   * its radii (with the merge touch) plus the margin, grouped by its lower index with the higher ones ascending – the
+   * order of the double loop. A ball off the numbers (NaN) lists every pair, like the double loop would visit them.
+   */
+  private buildCandidates(ctx: ModeContext, balls: Ball[]) {
+    const n = balls.length;
+    this.stats.builds++;
+    this.candDirty = false;
+    if (this.candKey.length < n) {
+      this.candKey = new Float64Array(2 * n);
+      this.candTier = new Int32Array(2 * n);
+      this.candX = new Float64Array(2 * n);
+      this.candY = new Float64Array(2 * n);
+      this.candOrder = new Int32Array(2 * n);
+      this.candOrderSize = -1;
+    }
+    if (this.candStart.length < n + 1) {
+      this.candStart = new Int32Array(2 * n + 1);
+      this.candFill = new Int32Array(2 * n + 1);
+    }
+    const margin = Math.max(BROADPHASE_MIN_MARGIN, BROADPHASE_MARGIN * (ctx.config.ballRadius || 8));
+    this.candMargin = margin;
+    const half = 0.5 * margin;
+    const key = this.candKey;
+    const tier = this.candTier;
+    let finite = true;
+    for (let i = 0; i < n; i++) {
+      const b = balls[i];
+      key[i] = b.x - b.radius * (1 + MERGE_TOUCH) - half;
+      if (!Number.isFinite(key[i]) || !Number.isFinite(b.y)) finite = false;
+      tier[i] = this.view.tierOf.get(b.id) ?? -1;
+      this.candX[i] = b.x;
+      this.candY[i] = b.y;
+    }
+    // The balls by the left end of their reach: last sub-step's order re-sorted (nearly sorted already), anew when the count changed.
+    const order = this.candOrder;
+    if (this.candOrderSize !== n) {
+      for (let i = 0; i < n; i++) order[i] = i;
+      this.candOrderSize = n;
+    }
+    for (let s = 1; s < n; s++) {
+      const o = order[s];
+      const k = key[o];
+      let t = s - 1;
+      while (t >= 0 && key[order[t]] > k) {
+        order[t + 1] = order[t];
+        t--;
+      }
+      order[t + 1] = o;
+    }
+    let count = 0;
+    let pairs = this.candPairs;
+    for (let s = 0; s < n; s++) {
+      const i = order[s];
+      const a = balls[i];
+      const hi = a.x + a.radius * (1 + MERGE_TOUCH) + half;
+      for (let t = s + 1; t < n; t++) {
+        const j = order[t];
+        if (finite && key[j] > hi) break;
+        const b = balls[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const lim = (a.radius + b.radius) * (1 + MERGE_TOUCH) + margin;
+        if (finite && dx * dx + dy * dy >= lim * lim) continue;
+        if (2 * count + 2 > pairs.length) {
+          const grown = new Int32Array(2 * pairs.length + 2);
+          grown.set(pairs);
+          pairs = this.candPairs = grown;
+        }
+        pairs[2 * count] = i < j ? i : j;
+        pairs[2 * count + 1] = i < j ? j : i;
+        count++;
+      }
+    }
+    // Rows by the lower index (a counting sort), each row's higher indices ascending (rows hold a few neighbours).
+    const start = this.candStart;
+    start.fill(0, 0, n + 1);
+    for (let p = 0; p < count; p++) start[pairs[2 * p] + 1]++;
+    for (let i = 0; i < n; i++) start[i + 1] += start[i];
+    if (this.candJ.length < count) this.candJ = new Int32Array(2 * count);
+    const out = this.candJ;
+    const fill = this.candFill;
+    for (let i = 0; i < n; i++) fill[i] = start[i];
+    for (let p = 0; p < count; p++) out[fill[pairs[2 * p]]++] = pairs[2 * p + 1];
+    for (let i = 0; i < n; i++) {
+      for (let k = start[i] + 1; k < start[i + 1]; k++) {
+        const jv = out[k];
+        let m = k - 1;
+        while (m >= start[i] && out[m] > jv) {
+          out[m + 1] = out[m];
+          m--;
+        }
+        out[m + 1] = jv;
+      }
+    }
+    this.stats.candidates += count;
+  }
+
+  /** True when `ball` (at index `i`) has moved past the rebuild distance since the candidate list was built. */
+  private movedFar(ball: Ball, i: number): boolean {
+    const dx = ball.x - this.candX[i];
+    const dy = ball.y - this.candY[i];
+    const limit = BROADPHASE_REBUILD * this.candMargin;
+    return !(dx * dx + dy * dy <= limit * limit);
+  }
+
+  /** The first entry of row `i` of the candidate list whose partner comes after `j`. */
+  private rowAfter(i: number, j: number): number {
+    let k = this.candStart[i];
+    const end = this.candStart[i + 1];
+    while (k < end && this.candJ[k] <= j) k++;
+    return k;
   }
 
   /** The chute walls are silent (a glow, no note): the sounds of the mode are the merges and the thuds. */
@@ -665,7 +912,8 @@ export class MergeRingMode implements GameMode {
       }
       this.touching.clear();
     }
-    for (const ball of balls) {
+    for (let i = 0; i < balls.length; i++) {
+      const ball = balls[i];
       if (inChute(L, ball.x, ball.y, ball.radius)) continue;
       const dx = ball.x - L.cx;
       const dy = ball.y - L.cy;
@@ -674,20 +922,42 @@ export class MergeRingMode implements GameMode {
       if (d > limit && d > 0) {
         ball.x = L.cx + (dx / d) * limit;
         ball.y = L.cy + (dy / d) * limit;
+        // (the broadphase counts the move: past the rebuild distance the merge scan below gets a fresh list)
+        if (this.listed && this.movedFar(ball, i)) this.candDirty = true;
       }
     }
+    // Every touching pair of one tier, the lowest pair first (the broadphase's list holds every pair that can touch, in that order).
+    if (this.listed && this.candDirty) this.buildCandidates(ctx, balls);
     for (let i = 0; i < balls.length; i++) {
       const a = balls[i];
       const ta = v.tierOf.get(a.id);
       if (ta === undefined || ta >= top || a.y < L.openY) continue;
-      for (let j = i + 1; j < balls.length; j++) {
+      if (!this.listed) {
+        for (let j = i + 1; j < balls.length; j++) {
+          const b = balls[j];
+          if (v.tierOf.get(b.id) !== ta || b.y < L.openY) continue;
+          this.stats.pairChecks++;
+          const dx = b.x - a.x;
+          const dy = b.y - a.y;
+          const reach = a.radius + b.radius;
+          if (dx * dx + dy * dy > reach * reach * (1 + MERGE_TOUCH) * (1 + MERGE_TOUCH)) continue;
+          this.fuse(ctx, i, j, ta + 1);
+          break; // ball i is the merged one now, at a new size: the next pass judges its new contacts
+        }
+        continue;
+      }
+      for (let k = this.candStart[i]; k < this.candStart[i + 1]; k++) {
+        const j = this.candJ[k];
+        if (this.candTier[j] !== ta) continue;
         const b = balls[j];
-        if (v.tierOf.get(b.id) !== ta || b.y < L.openY) continue;
+        if (b.y < L.openY) continue;
+        this.stats.pairChecks++;
         const dx = b.x - a.x;
         const dy = b.y - a.y;
         const reach = a.radius + b.radius;
         if (dx * dx + dy * dy > reach * reach * (1 + MERGE_TOUCH) * (1 + MERGE_TOUCH)) continue;
         this.fuse(ctx, i, j, ta + 1);
+        this.buildCandidates(ctx, balls); // (a new size, a ball gone and the indices after it shifted)
         break; // ball i is the merged one now, at a new size: the next pass judges its new contacts
       }
     }
@@ -730,6 +1000,7 @@ export class MergeRingMode implements GameMode {
     this.thudAt.delete(b.id);
     this.restMs.set(a.id, 0);
     balls.splice(ib, 1);
+    this.candDirty = true; // (the broadphase's list: a new size, a ball gone)
     ctx.getLastWallLayer().delete(b.id);
     v.balls = balls.length;
     v.merges++;

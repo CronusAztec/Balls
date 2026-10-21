@@ -82,7 +82,8 @@ import { DEFAULT_JOURNEY_LABELS, JOURNEY_DATA_KEYS, JourneyLayer, writeJourneyDa
 // --- gerald-bullseye --- Bullseye: the target, the launcher, bumper rings, score popups, the HUD and BULLSEYE!
 import { BULLSEYE_DATA_KEYS, BullseyeDataset, BullseyeLayer, DEFAULT_BULLSEYE_LABELS, type BullseyeLabels, type BullseyeRenderOptions } from "./bullseyeRenderer";
 // --- merge-ring --- Merge Ring: the rainbow rim, the tier bodies and emblems, the halos, the ladder, the caption and the HUD
-import { DEFAULT_MERGE_RING_LABELS, MERGE_RING_DATA_KEYS, MergeRingDataset, MergeRingLayer, type MergeRingLabels, type MergeRingRenderOptions } from "./mergeRingRenderer";
+import { DEFAULT_MERGE_RING_LABELS, MERGE_RING_DATA_KEYS, MergeRingDataset, MergeRingLayer, trailStrokeUnderBody, trailUnderBody, type MergeRingLabels, type MergeRingRenderOptions } from "./mergeRingRenderer";
+import { plainTransform } from "./mergeRingGlow";
 // --- spiral-glass --- Spiral Glass: the glass tiles, the rainbow line, the shards, the pops, the badge, the caption and the HUD
 import { DEFAULT_SPIRAL_GLASS_LABELS, SPIRAL_GLASS_DATA_KEYS, SpiralGlassDataset, SpiralGlassLayer, clearedSeconds, type SpiralGlassLabels, type SpiralGlassRenderOptions } from "./spiralGlassRenderer";
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
@@ -2411,6 +2412,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const hasSprite = !!emojiCanvasRef.current || (imageLoadedRef.current && !!imageRef.current);
       teamLayer.beginFrame(engine, teamsRef.current); // --- teams ---
       const customImage = imageLoadedRef.current && !!imageRef.current; // --- teams --- a custom picture beats the team emoji
+      // --- merge-ring --- (the lag fix) Merge Ring paints an opaque dark body over every ball (drawBodies below): under it the
+      // ball is a plain disc in its colour (only its thin outer edge shows), and a trail that lies wholly under the body is not drawn
+      const mrUnderBodies = !!mergeRingView && mergeRingRender.darkBodies;
+      const mrScale = mrUnderBodies ? (plainTransform(ctx)?.k ?? 0) : 0;
       // Bouncing Shapes draws its own squares / circles / plates (with countdown numbers) instead of the balls.
       if (isBox) drawBoxShapes(ctx, balls, engine.getBoxView(), boxRender);
       else if (isPendulum) drawPendulumBobs(ctx, balls, engine.getPendulumView(), pendulumRender);
@@ -2466,16 +2471,23 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const at = (i: number) => ball.trail[(ball.trailIndex + i) % len];
           const themedTrail = p.colorTrail ? trailColorTable(themeLookRef.current.trailColors) : null; // --- themes: a theme's trail colours replace the rainbow hues
           if (themedTrail) drawThemedTrail(ctx, ball, themedTrail, p.trailThickness, time, index, intensity); // --- themes
+          else if (mrScale > 0 && mergeRingView!.tierOf.has(ball.id) && trailUnderBody(ball, p.trailThickness, mrScale)) { /* --- merge-ring --- hidden under the dark body */ }
           else if (p.colorTrail) {
+            // --- merge-ring --- (the lag fix) a stroke wholly under the ball's opaque dark body is not drawn (each stroke is its own path)
+            const mrHide = mrScale > 0 && mergeRingView!.tierOf.has(ball.id);
             for (let i = 1; i < len; i++) {
               const t = i / len;
+              const width = ball.radius * p.trailThickness * (0.3 + 0.7 * t);
+              const a = at(i - 1);
+              const b = at(i);
+              if (mrHide && trailStrokeUnderBody(ball, a.x, a.y, b.x, b.y, width, mrScale)) continue;
               const hue = Math.floor((0.1 * time + 15 * i + 60 * index) % 360);
               const alpha = Math.min(1, (0.1 + 0.5 * t) * intensity);
               ctx.strokeStyle = `hsla(${hue}, 100%, 60%, ${alpha})`;
-              ctx.lineWidth = ball.radius * p.trailThickness * (0.3 + 0.7 * t);
+              ctx.lineWidth = width;
               ctx.beginPath();
-              ctx.moveTo(at(i - 1).x, at(i - 1).y);
-              ctx.lineTo(at(i).x, at(i).y);
+              ctx.moveTo(a.x, a.y);
+              ctx.lineTo(b.x, b.y);
               ctx.stroke();
             }
           } else {
@@ -2535,7 +2547,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const bdSquashed = bdView ? bdLayer.pushBallSquash(ctx, ball, bdView) : false; // --- beat-drop --- squash on impact, stretch in flight
         faces.drawBehind(ctx, ball, color, hasSprite || !!teamSprite, index);
         // Body: emoji, image or shaded disc
-        if (teamSprite) {
+        if (mrUnderBodies && mergeRingView!.tierOf.has(ball.id)) {
+          // --- merge-ring --- under the dark body: a plain disc in the ball's colour (the sprite's shading would be painted over)
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(ball.x, ball.y, ball.radius, 0, TWO_PI);
+          ctx.fill();
+        } else if (teamSprite) {
           // --- teams --- the team's emoji, turned by the spin like the custom emoji
           ctx.save();
           ctx.translate(ball.x, ball.y);
