@@ -163,23 +163,35 @@ function isCutItem(item: Pick<LibraryItem, "meta">): boolean {
   return item.meta.queueJobId?.endsWith(CUT_JOB_SUFFIX) ?? false;
 }
 
-/** --- ai-cut --- The video a Library item shows: a master and its cut (`<job>`, `<job>-cut`) are one; any other item is its own. */
-function videoOf(item: Pick<LibraryItem, "id" | "meta">): string {
+/**
+ * --- ai-cut --- The video key a proposal and a post keep for a Library item with a job: a master and its cut (`<job>`,
+ * `<job>-cut`) are one video, `job:<job>`. Null for any other item, whose id says it.
+ */
+export function clipVideoKey(item: Pick<LibraryItem, "meta">): string | null {
   const job = item.meta.queueJobId;
-  return job ? `job:${isCutItem(item) ? job.slice(0, -CUT_JOB_SUFFIX.length) : job}` : `item:${item.id}`;
+  return job ? `job:${isCutItem(item) ? job.slice(0, -CUT_JOB_SUFFIX.length) : job}` : null;
+}
+
+/** --- ai-cut --- The video a Library item shows: a master and its cut are one; any other item is its own. */
+function videoOf(item: Pick<LibraryItem, "id" | "meta">): string {
+  return clipVideoKey(item) ?? `item:${item.id}`;
 }
 
 /**
  * The Library's finished clips not yet posted (the audit log) or in the queue (any status but skipped). --- ai-cut --- A master
  * and its TikTok cut are one video: either one queued or posted takes both, and only one of them is offered, the cut when
- * `preferCut` (a TikTok channel is among the planner's) and the master otherwise, so one video never goes out twice.
+ * `preferCut` (a TikTok channel is among the planner's) and the master otherwise, so one video never goes out twice. A
+ * proposal or a post keeps its video's key (`video`), so the pair stays taken once the Library forgets the file that went out.
  */
 export function unpostedClips(library: readonly LibraryItem[], queue: readonly SocialQueueItem[], audit: readonly SocialAuditEntry[], options: { preferCut?: boolean } = {}): PlanClip[] {
   const videoById = new Map(library.map((i) => [i.id, videoOf(i)]));
   const taken = new Set<string>();
-  const take = (clipId: string) => taken.add(videoById.get(clipId) ?? `item:${clipId}`);
-  for (const i of queue) if (i.status !== "skipped") take(i.clipId);
-  for (const e of audit) if (e.action === "createPosts" && e.clipId) take(e.clipId);
+  const take = (clipId: string, video: unknown) => {
+    taken.add(videoById.get(clipId) ?? `item:${clipId}`);
+    if (typeof video === "string" && video) taken.add(video);
+  };
+  for (const i of queue) if (i.status !== "skipped") take(i.clipId, i.video);
+  for (const e of audit) if (e.action === "createPosts" && e.clipId) take(e.clipId, e.video);
   const open = library.filter((i) => i.exists && !taken.has(videoOf(i)));
   // one item a video: the preferred kind, then the newest
   const rank = (i: LibraryItem) => (isCutItem(i) === (options.preferCut === true) ? 1 : 0);
@@ -220,13 +232,16 @@ export interface PlannedProposal {
   reason: string;
 }
 
-export function toQueueProposals(proposals: readonly PlannedProposal[], channels: readonly PostizChannel[]): SocialProposalInput[] {
+/** `library`: the Library the clips came from (--- ai-cut --- a proposal keeps its clip's video key, clipVideoKey()). */
+export function toQueueProposals(proposals: readonly PlannedProposal[], channels: readonly PostizChannel[], library: readonly Pick<LibraryItem, "id" | "meta">[] = []): SocialProposalInput[] {
   return proposals.flatMap((p) => {
     const picked = p.channels.flatMap((c) => {
       const channel = channels.find((ch) => ch.id === c.integrationId);
       return channel ? [{ integrationId: channel.id, platform: channel.platform, text: proposedText(c.text, c.hashtags), settings: proposedSettingsFor(channel.platform, c.title) }] : [];
     });
-    return picked.length ? [{ clipId: p.clipId, channels: picked, when: p.when, reason: p.reason.slice(0, 300) }] : [];
+    const item = library.find((i) => i.id === p.clipId);
+    const video = item ? clipVideoKey(item) : null;
+    return picked.length ? [{ clipId: p.clipId, channels: picked, when: p.when, reason: p.reason.slice(0, 300), ...(video ? { video } : {}) }] : [];
   });
 }
 

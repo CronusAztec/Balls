@@ -154,6 +154,29 @@ const CUT_SUFFIX = "-cut";
 /** A cut file's length when the Library could not measure it: longer than any clip, so the editor's fit keeps the whole file. */
 const WHOLE_FILE_SEC = 24 * 60 * 60;
 
+/** --- cut-reedit --- Whether a `queueJobId` names a cut file (the queue's `<job>-cut`, the editor's own). */
+export function isCutJob(queueJobId: string | null | undefined): boolean {
+  return queueJobId?.endsWith(CUT_SUFFIX) ?? false;
+}
+
+/**
+ * --- cut-reedit --- The spec a cut file opens on: the whole file (`durationSec`, else longer than any clip: the editor fits it
+ * to the file it opens), no crop-in, no words, no card. The editor only trims it.
+ */
+export function cutFileSpec(durationSec: number | null | undefined): Partial<ClipEditSpec> {
+  return { startSec: 0, lengthSec: durationSec !== null && durationSec !== undefined && Number.isFinite(durationSec) && durationSec > 0 ? durationSec : WHOLE_FILE_SEC, zoom: 1, hook: "", url: "", cardSec: 0 };
+}
+
+/**
+ * --- cut-reedit --- The `queueJobId` the editor saves a cut under, from the Library item it cut (`sourceJob`): a master `<job>`
+ * gives `<job>-cut` and a cut keeps its own, so the Library opens the master again and the autopilot takes them for one
+ * video. A source with no job (a picked file, a Publish clip) gets a cut of its own, `edit-<time>-cut`.
+ */
+export function editCutJobId(sourceJob: string | null | undefined, now: number = Date.now()): string {
+  if (!sourceJob) return `edit-${now.toString(36)}${CUT_SUFFIX}`;
+  return isCutJob(sourceJob) ? sourceJob : `${sourceJob}${CUT_SUFFIX}`;
+}
+
 /**
  * --- cut-reedit --- What "Edit for TikTok" opens for `item`, out of the Library's `items`. A master opens with the cut it
  * carries (the AI's proposal). A cut file (the queue and the editor name its `queueJobId` `<job>-cut`) already shows its
@@ -165,7 +188,7 @@ const WHOLE_FILE_SEC = 24 * 60 * 60;
  */
 export function libraryEditOpen<T extends LibraryEditItem>(item: T, items: readonly T[]): LibraryEditOpen<T> {
   const job = item.meta.queueJobId;
-  if (!job?.endsWith(CUT_SUFFIX)) {
+  if (!job || !isCutJob(job)) {
     const cut = item.meta.cut;
     return { item, spec: cut ? { startSec: cut.startSec, lengthSec: cut.lengthSec, zoom: cut.zoom, hook: cut.hook, cardSec: cut.cardSec } : undefined, cutFile: false };
   }
@@ -178,7 +201,7 @@ export function libraryEditOpen<T extends LibraryEditItem>(item: T, items: reado
     return { item: master, spec: { startSec: fitted.startSec, lengthSec: fitted.lengthSec, zoom: fitted.zoom, hook: fitted.hook, cardSec: fitted.cardSec }, cutFile: false };
   }
   // the whole file, no crop-in, no words, no card: the editor only trims it (it fits the length to the file it opens)
-  return { item, spec: { startSec: 0, lengthSec: item.durationSec ?? WHOLE_FILE_SEC, zoom: 1, hook: "", url: "", cardSec: 0 }, cutFile: true };
+  return { item, spec: cutFileSpec(item.durationSec), cutFile: true };
 }
 
 /** What is wrong with a cut, in words a model can act on ([] when nothing is). */

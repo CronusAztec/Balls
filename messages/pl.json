@@ -4868,6 +4868,7 @@
     "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja nie wysyła nam danych o użyciu. Łączy się z internetem, żeby sprawdzić aktualizacje, kupić, przywrócić lub odnowić licencję Pro, pobrać model, o który poprosisz, oraz dla funkcji konta i publikowania, z których korzystasz. Polityka prywatności opisuje każdy z tych przypadków.",
     "updateLater": "Później",
     "updateWaitRender": "Wideo jeszcze powstaje. Poczekaj, aż będzie gotowe, albo zamknij aplikację, a aktualizacja zainstaluje się przy zamykaniu.",
+    "updateWaitRenderManual": "Wideo jeszcze powstaje. Gdy będzie gotowe, kliknij Uruchom ponownie i zaktualizuj.",
     "updateButton": {
       "checking": "Sprawdzanie…",
       "downloading": "Pobieranie {progress}%",
@@ -6456,6 +6457,7 @@
     "renderSave": "Renderuj i zapisz w Bibliotece",
     "downloadAgain": "Pobierz ponownie",
     "cancel": "Anuluj",
+    "saving": "Zapisywanie…",
     "downloaded": "Pobrano: {sec} s, {mb} MB. Cięcie jest też wśród klipów w Publikuj.",
     "savedLibrary": "Zapisano w Bibliotece: {sec} s, {mb} MB. Cięcie jest też wśród klipów w Publikuj.",
     "watermarked": "Darmowe eksporty mają znak wodny. Pro go usuwa.",
@@ -6466,7 +6468,7 @@
     "suggest": "Zaproponuj z AI",
     "suggesting": "Pytam AI…",
     "suggested": "AI: {summary}",
-    "suggestedPlain": "AI ustawiło cięcie.",
-    "suggestFailed": "AI nie zaproponowało cięcia: {error}"
+    "suggestedPlain": "AI ustawiła cięcie.",
+    "suggestFailed": "AI nie zaproponowała cięcia: {error}"
   }
 }

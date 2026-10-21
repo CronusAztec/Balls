@@ -88,8 +88,9 @@ export default function LibraryPanel({ bridge, items, onRefresh, onRerender, onS
       }
     >
       {/* --- ai-cut --- the item's own cut pre-fills the editor; the AI's proposal, when the Desktop group offers it, is asked for
-          this item (--- cut-reedit --- never for a bare cut file: its hook and card are in its frames already) */}
-      {editing && <ClipEditorDialog source={editing.source} initialSpec={editing.spec} onClose={() => setEditing(null)} desktop={{ bridge, meta: { title: editing.item.meta.title, link: editing.item.meta.link, caption: editing.item.meta.caption, hashtags: editing.item.meta.hashtags }, onSaved: onRefresh, suggest: onSuggestCut && !editing.source.cutFile ? (input) => onSuggestCut(editing.item, input) : undefined }} />}
+          this item (--- cut-reedit --- never for a bare cut file: its hook and card are in its frames already). The item's job
+          goes along, so the new cut is saved as its `<job>-cut`: one video with the item for the Library and the autopilot */}
+      {editing && <ClipEditorDialog source={editing.source} initialSpec={editing.spec} onClose={() => setEditing(null)} desktop={{ bridge, meta: { title: editing.item.meta.title, link: editing.item.meta.link, caption: editing.item.meta.caption, hashtags: editing.item.meta.hashtags, queueJobId: editing.item.meta.queueJobId }, onSaved: onRefresh, suggest: onSuggestCut && !editing.source.cutFile ? (input) => onSuggestCut(editing.item, input) : undefined }} />}
       {/* --- low-findings --- the status line says whether a publish is under way and how many have finished, so a tool waits for an outcome */}
       {status && (
         <p className="text-xs text-ink-2" data-testid="desktop-library-status" data-library-publishing={publishing ? "1" : "0"} data-library-publishes={publishes} role="status">

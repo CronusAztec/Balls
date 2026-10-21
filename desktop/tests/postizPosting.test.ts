@@ -297,6 +297,20 @@ describe("ClipPoster.postClip", () => {
     expect(await audit.recent()).toEqual([{ at: "2026-10-18T12:00:00.000Z", action: "createPosts", channels: ["int-tt", "int-yt"], postIds: ["post-1", "post-2"], by: "user", clipId: "mp4", when: "2026-10-19T17:00:00.000Z" }]);
   });
 
+  // --- ai-cut --- a post of a clip with a job keeps the video's key (a master and its cut are one): the autopilot still knows it
+  // once the Library forgets the clip
+  it("keeps the video key of a clip with a job in the audit line", async () => {
+    const before = items.mp4.meta.queueJobId;
+    items.mp4.meta.queueJobId = "job-x-cut";
+    try {
+      const { poster: p, audit } = poster(postizServer());
+      await p.postClip(request({ when: "2026-10-19T17:00:00.000Z" }));
+      expect((await audit.recent())[0]).toMatchObject({ action: "createPosts", clipId: "mp4", video: "job:job-x" });
+    } finally {
+      items.mp4.meta.queueJobId = before;
+    }
+  });
+
   it("sends `now` and `draft` with the current time, a thumbnail position when chosen, and removes a transcoded temporary file afterwards", async () => {
     const server = postizServer();
     const { poster: p, removed, events } = poster(server);

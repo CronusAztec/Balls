@@ -4868,6 +4868,7 @@
     "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app sends us no usage data. It goes online to check for updates, to buy, restore or renew your Pro licence, to download a model you asked for, and for the account and publishing features you use. The privacy policy lists each one.",
     "updateLater": "Later",
     "updateWaitRender": "A video is still being made. Wait for it to finish, or quit the app and the update installs as it closes.",
+    "updateWaitRenderManual": "A video is still being made. Press Restart and update when it is done.",
     "updateButton": {
       "checking": "Checking…",
       "downloading": "Downloading {progress}%",
@@ -6456,6 +6457,7 @@
     "renderSave": "Render and save to Library",
     "downloadAgain": "Download again",
     "cancel": "Cancel",
+    "saving": "Saving…",
     "downloaded": "Downloaded: {sec} s, {mb} MB. The cut is in the Publish clips too.",
     "savedLibrary": "Saved to the Library: {sec} s, {mb} MB. The cut is in the Publish clips too.",
     "watermarked": "Free exports carry the watermark. Pro removes it.",

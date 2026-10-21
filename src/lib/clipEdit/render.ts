@@ -137,28 +137,50 @@ export function openSourceVideo(source: Blob, signal?: AbortSignal): Promise<{ v
   });
 }
 
-/** Shows `timeSec` in the video (resolves once the frame is there). */
+/**
+ * --- seek-supersede --- The seek under way on each video. A newer seek settles it at once (its caller's frame is stale by
+ * then) and stops its timer, so a seek's timeout never clears the handler of a seek that came after it.
+ */
+const pendingSeeks = new WeakMap<HTMLVideoElement, () => void>();
+
+/** --- hidden-render --- Whether the page is on screen: a hidden one runs no rendering steps and throttles its timers. */
+const pageVisible = () => typeof document === "undefined" || document.visibilityState !== "hidden";
+
+/**
+ * Shows `timeSec` in the video (resolves once the frame is there). A seek superseded by a newer one on the same video
+ * resolves at once, without its frame.
+ */
 export function seekVideo(video: HTMLVideoElement, timeSec: number): Promise<void> {
   const target = Math.max(0, Math.min(timeSec, Number.isFinite(video.duration) ? video.duration : timeSec));
-  if (Math.abs(video.currentTime - target) < SEEK_SLACK_SEC && video.readyState >= 2) return Promise.resolve();
+  pendingSeeks.get(video)?.();
+  if (!video.seeking && Math.abs(video.currentTime - target) < SEEK_SLACK_SEC && video.readyState >= 2) return Promise.resolve();
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      video.onseeked = null;
-      reject(new ClipEditSeekError());
-    }, SEEK_TIMEOUT_MS);
-    video.onseeked = () => {
+    let settled = false;
+    const settle = (err?: Error) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
-      video.onseeked = null;
-      // The frame is painted on the next tick, not at `seeked`: one callback later it is safe to draw.
-      if (typeof video.requestVideoFrameCallback === "function") {
-        let done = false;
-        video.requestVideoFrameCallback(() => {
-          done = true;
-          resolve();
-        });
-        setTimeout(() => !done && resolve(), 50);
-      } else resolve();
+      if (video.onseeked === onSeeked) video.onseeked = null; // only its own handler: a newer seek's stays
+      if (pendingSeeks.get(video) === supersede) pendingSeeks.delete(video);
+      if (err) reject(err);
+      else resolve();
     };
+    const supersede = () => settle();
+    const onSeeked = () => {
+      if (video.seeking) return; // a newer position is being sought: its own `seeked` comes next
+      clearTimeout(timer);
+      if (video.onseeked === onSeeked) video.onseeked = null;
+      // The frame is painted on the next tick, not at `seeked`: one callback later it is safe to draw. --- hidden-render --- A
+      // hidden page gets no video frame callbacks and its timers wake about once a second, so it waits one task instead, the
+      // way the fast export yields (a 375-frame cut would otherwise take minutes in a background tab).
+      if (typeof video.requestVideoFrameCallback === "function" && pageVisible()) {
+        video.requestVideoFrameCallback(() => settle());
+        setTimeout(() => settle(), 50);
+      } else void yieldTask().then(() => settle());
+    };
+    const timer = setTimeout(() => settle(new ClipEditSeekError()), SEEK_TIMEOUT_MS);
+    pendingSeeks.set(video, supersede);
+    video.onseeked = onSeeked;
     video.currentTime = target;
   });
 }
@@ -285,6 +307,7 @@ export async function renderClipEdit(options: ClipEditOptions): Promise<ClipEdit
     if (failure) throw failure;
     audioEncoder.close();
     audioEncoder = null;
+    if (signal?.aborted) return null; // --- cut-cancel --- cancelled while the sound was flushed: no file
 
     report("finish", 0, timeline.frames, timeline.frames);
     const blob = new Blob([muxer.finalize()], { type: format.mimeType });

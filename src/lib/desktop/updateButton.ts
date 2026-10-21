@@ -3,7 +3,8 @@ import { UPDATE_MANUAL_NONE, type UpdateStatus } from "./contract";
 /*
  * --- manual-update --- What the Windows app's top bar update control shows for the updater's status (desktop/src/updater.ts):
  * Check for updates, Checking…, the download's percent, Restart and update (never while a clip renders or is cut, nor while the
- * page's own fast export, recording or batch runs: the update then installs when the app quits), the result of a check, and
+ * page's own fast export, recording or batch runs: with auto-update on the update then installs when the app quits, off it
+ * waits for Restart and update), the result of a check, and
  * the Download page when the check failed or this build cannot update itself (the portable EXE, a development run). Pure, so
  * tests/desktopUpdateButton.test.ts reads every state.
  */
@@ -64,6 +65,15 @@ export function checkFoundNothing(status: UpdateStatus | null | undefined): bool
  */
 export function manualCheckAnswered(previous: UpdateStatus | null | undefined, next: UpdateStatus | null | undefined): boolean {
   return !!previous && !checkFoundNothing(previous) && checkFoundNothing(next);
+}
+
+/**
+ * --- manual-update --- The Desktop key of the note beside a Restart and update that waits for a render. Quitting installs a
+ * downloaded update only while "Update automatically" is on (desktop/src/updater.ts prepareQuit()), so only then may the note
+ * say so. Off, it points at Restart and update once the video is done.
+ */
+export function updateWaitKey(autoUpdate: boolean): "updateWaitRender" | "updateWaitRenderManual" {
+  return autoUpdate ? "updateWaitRender" : "updateWaitRenderManual";
 }
 
 /**

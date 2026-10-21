@@ -4,7 +4,7 @@ import os from "os";
 import path from "path";
 import { DEFAULT_PREFS, resolvePrefs, restoreWindowState, sanitizePrefs } from "../src/prefs";
 import { UPDATE_INITIAL_DELAY_MS, UPDATE_INTERVAL_MS, UpdateController, type UpdaterLike, type UpdaterTimers } from "../src/updater";
-import { MENU, MENU_LABELS, menuLanguage } from "../src/menu";
+import { MENU, MENU_LABELS, menuCheckAnswer, menuLanguage, updateReadyBody } from "../src/menu";
 import { MEDIA_EXTENSIONS, dialogFilters, filesInArgv, mediaKindOf, mimeOf } from "../src/media";
 import { Library, uniquePath } from "../src/library";
 import { RenderSaver } from "../src/render";
@@ -433,6 +433,41 @@ describe("auto-update", () => {
     expect(main).toMatch(/before\.autoUpdate !== after\.autoUpdate[\s\S]{0,120}updater\.start\(\);[\s\S]{0,40}updater\.stop\(\);/);
     expect(main).toContain("[IPC.updateCheck]: () => updater.check(),");
     expect(main).toMatch(/case "check-updates":\s+await updater\.check\(\);/);
+  });
+
+  // --- manual-update --- with "Update automatically" off prepareQuit() keeps a downloaded update from installing on quit, so the
+  // notification names Restart and update instead; Help > Check for updates answers in a box, where the user is
+  it("words the ready notification by the preference and answers the Help menu's check in a box of its own", async () => {
+    const pages = Object.fromEntries((["en", "pl", "es"] as const).map((l) => [l, JSON.parse(fs.readFileSync(path.join(__dirname, "..", "..", "messages", `${l}.json`), "utf8")) as { Desktop: Record<string, string> }]));
+    for (const lang of ["en", "pl", "es"] as const) {
+      const l = MENU_LABELS[lang];
+      expect(updateReadyBody(l, "1.5.0", true), lang).toBe(l.updateReadyBody.replace("{version}", "1.5.0"));
+      const manual = updateReadyBody(l, "1.5.0", false);
+      expect(manual, lang).toContain("1.5.0");
+      // the page's own label of the button, and no word of restarting or closing the app for it
+      expect(manual, lang).toContain(pages[lang].Desktop.appRestartUpdate);
+      expect(manual, lang).not.toMatch(/restart the app|quit|close|uruchom aplikację|zamknij|reinicia la aplicación|cierra/i);
+      expect(manual, lang).not.toMatch(/—| – |;/);
+      for (const key of ["updateLatest", "updateFailed", "updateOffline"]) {
+        expect(l[key], `${lang}.${key}`).toMatch(/^\S.*\.$/);
+        expect(l[key], `${lang}.${key}`).not.toMatch(/—| – |;/);
+      }
+    }
+    // the rule the body follows is prepareQuit's: the same preference decides whether quitting installs
+    const d = deferredUpdater();
+    const c = new UpdateController(d.u, { enabled: true, autoUpdate: () => false, packaged: true, portable: false, online: () => true, log: () => {}, emit: () => {} });
+    c.prepareQuit();
+    expect(d.u.autoInstallOnAppQuit).toBe(false);
+    const en = MENU_LABELS.en;
+    expect(menuCheckAnswer({ state: "none", message: UPDATE_MANUAL_NONE }, en)).toEqual({ message: en.updateLatest });
+    expect(menuCheckAnswer({ state: "error", message: "offline" }, en)).toEqual({ message: en.updateOffline });
+    expect(menuCheckAnswer({ state: "error", message: "HttpError: 502" }, en)).toEqual({ message: en.updateFailed, detail: "HttpError: 502" });
+    // a found update downloads and the notification says when it is ready; nothing to say for the rest either
+    for (const state of ["available", "downloading", "ready", "checking", "idle", "disabled"]) expect(menuCheckAnswer({ state, message: null }, en), state).toBeNull();
+    const main = fs.readFileSync(path.join(__dirname, "..", "src", "main.ts"), "utf8");
+    expect(main).toMatch(/case "check-updates":\s+await updater\.check\(\);\s+await showCheckAnswer\(\);/);
+    expect(main).toMatch(/const answer = menuCheckAnswer\(updater\.status, labels\);/);
+    expect(main).toContain("body: updateReadyBody(l, s.version, prefs().autoUpdate)");
   });
 });
 

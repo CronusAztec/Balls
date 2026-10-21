@@ -114,7 +114,7 @@ describe("--- low-findings --- a clip's loop-style words", () => {
     const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     const read = (f: string) => strip(fs.readFileSync(path.join(__dirname, "..", f), "utf8"));
     const publish = read("src/components/simulator/sections/PublishSection.tsx");
-    expect(publish).toMatch(/<ClipEditorDialog source=\{\{ blob: editing\.blob, name: editing\.name, mode: editing\.mode, seed: editing\.seed, botClipId: editing\.botClipId, loopCaption: editing\.loopCaption\s*\}\}/);
+    expect(publish).toMatch(/<ClipEditorDialog source=\{\{ blob: editing\.blob, name: editing\.name, mode: editing\.mode, seed: editing\.seed, botClipId: editing\.botClipId, loopCaption: editing\.loopCaption\s*, cutFile: editing\.cutFile \}\}/);
     const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx");
     expect(dialog).toMatch(/botClipId\?: string \| null;\s+loopCaption\?: LoopCaptionContext \| null;/);
     expect(dialog).toMatch(/offerPublishClip\(\{ blob: result\.blob, name, source: "edit", durationSec: result\.durationSec, mode: source\.mode \?\? null, seed: source\.seed \?\? null, botClipId: source\.botClipId \?\? null, loopCaption: source\.loopCaption \?\? null \}\)/);

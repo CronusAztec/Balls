@@ -30,6 +30,11 @@ export interface PublishClip {
    * picked file, the desktop Library's): the caption follows the clip, not the page's settings of the moment.
    */
   loopCaption: LoopCaptionContext | null;
+  /**
+   * --- cut-reedit --- The file is a cut with its look burned in (the Clip editor's or the queue's cut, a Library cut): its
+   * "Edit for TikTok" opens it as it is, with no second hook, crop-in, end card or badge.
+   */
+  cutFile: boolean;
   createdAt: number;
 }
 
@@ -44,6 +49,8 @@ export interface OfferClipInput {
   botClipId?: string | null;
   /** --- low-findings --- `loopCaptionContext()` of the settings the clip was made with. */
   loopCaption?: LoopCaptionContext | null;
+  /** --- cut-reedit --- The file is a cut (absent: a clip of the "edit" source is one, any other is not). */
+  cutFile?: boolean;
 }
 
 /** Clips kept (each can be tens of MB). */
@@ -97,6 +104,7 @@ export function offerPublishClip(input: OfferClipInput): PublishClip {
     seed: input.seed ?? null,
     botClipId: input.botClipId ?? null,
     loopCaption: input.loopCaption ?? null, // --- low-findings ---
+    cutFile: input.cutFile ?? input.source === "edit", // --- cut-reedit ---
     createdAt: Date.now(),
   };
   clips = [clip, ...clips].slice(0, MAX_CLIPS);

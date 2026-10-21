@@ -23,7 +23,7 @@ import { SecretBox } from "./ai/secrets";
 import { DEFAULT_CLOUD, type AiService, type CloudSettings } from "./ai/service";
 import { createModelServices } from "./ai/modelServices"; // --- review fix (desktop-ai-fix) --- a finished download selected before the page hears "ready"
 import { UpdateController } from "./updater";
-import { MENU, MENU_LABELS, menuLanguage } from "./menu";
+import { MENU, MENU_LABELS, menuCheckAnswer, menuLanguage, updateReadyBody } from "./menu";
 import { MAX_PICKED_BYTES, dialogFilters, filesInArgv, mediaKindOf, mimeOf } from "./media";
 import { registerHandlers, type HandlerTable } from "./handlers";
 // --- social-postiz --- the Postiz key (sealed like the cloud AI key) and the Accounts tab's channels and notices
@@ -248,7 +248,7 @@ function start() {
       if (s.state === "ready" && s.version && s.version !== updateNotified && Notification.isSupported()) {
         updateNotified = s.version;
         const l = MENU_LABELS[menuLanguage(app.getLocale())];
-        const n = new Notification({ title: l.updateReadyTitle, body: l.updateReadyBody.replace("{version}", s.version) });
+        const n = new Notification({ title: l.updateReadyTitle, body: updateReadyBody(l, s.version, prefs().autoUpdate) }); // --- manual-update --- off: names Restart and update
         n.on("click", () => {
           if (win) {
             if (!win.isVisible()) win.show();
@@ -492,6 +492,13 @@ function start() {
       return;
     }
   };
+  // --- manual-update --- Help > Check for updates: the outcome in a box (latest, failed, offline), over the window when it is shown
+  const showCheckAnswer = async () => {
+    const answer = menuCheckAnswer(updater.status, labels);
+    if (!answer) return;
+    const options = { type: updater.status.state === "error" ? ("warning" as const) : ("info" as const), title: APP_TITLE, message: answer.message, detail: answer.detail, buttons: [labels.aboutClose], noLink: true };
+    await (win && !win.isDestroyed() && win.isVisible() ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options));
+  };
   const runCommand = async (command: string) => {
     switch (command) {
       case "output-folder": {
@@ -505,6 +512,7 @@ function start() {
         return;
       case "check-updates":
         await updater.check();
+        await showCheckAnswer(); // --- manual-update --- the answer where the user is, not only in the page's off-screen top bar
         return;
       case "website":
         await shell.openExternal(`${SITE_URL}/`); // --- desktop-autorelease ---

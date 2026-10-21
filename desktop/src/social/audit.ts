@@ -46,6 +46,7 @@ export class SocialAudit {
       by: "user",
       clipId: input.clipId ?? null,
       when: input.when ?? null,
+      ...(input.video ? { video: input.video } : {}), // --- ai-cut --- the video the post showed (a master and its cut are one)
     };
     const list = [entry, ...(await this.entries())].slice(0, AUDIT_MAX_ENTRIES);
     this.cache = list;

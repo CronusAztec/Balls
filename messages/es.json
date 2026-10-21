@@ -4868,6 +4868,7 @@
     "privacyBody": "Todo funciona en tu PC. La IA local funciona sin conexión. Una clave de la nube que introduzcas se guarda cifrada y solo se envía al proveedor que elegiste. La app no nos envía datos de uso. Se conecta para buscar actualizaciones, comprar, restaurar o renovar tu licencia Pro, descargar un modelo que pediste y para las funciones de cuenta y publicación que uses. La política de privacidad los detalla todos.",
     "updateLater": "Más tarde",
     "updateWaitRender": "Todavía se está creando un vídeo. Espera a que esté listo o cierra la aplicación, y la actualización se instalará al cerrar.",
+    "updateWaitRenderManual": "Todavía se está creando un vídeo. Cuando esté listo, pulsa Reiniciar y actualizar.",
     "updateButton": {
       "checking": "Comprobando…",
       "downloading": "Descargando {progress}%",
@@ -6456,6 +6457,7 @@
     "renderSave": "Renderizar y guardar en la Biblioteca",
     "downloadAgain": "Descargar de nuevo",
     "cancel": "Cancelar",
+    "saving": "Guardando…",
     "downloaded": "Descargado: {sec} s, {mb} MB. El corte también está en los clips de Publicar.",
     "savedLibrary": "Guardado en la Biblioteca: {sec} s, {mb} MB. El corte también está en los clips de Publicar.",
     "watermarked": "Las exportaciones gratuitas llevan la marca de agua. Pro la quita.",

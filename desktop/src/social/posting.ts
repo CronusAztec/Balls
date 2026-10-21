@@ -18,6 +18,7 @@ import fs from "fs/promises";
 import path from "path";
 import { randomUUID } from "crypto";
 import type { EncoderProbe, SocialPostRequest, SocialPostResult, SocialPreparedClip, SocialProgressEvent, TranscodeSpec } from "@/lib/desktop/contract";
+import { clipVideoKey } from "@/lib/desktop/autopilot"; // --- ai-cut --- the video key a post keeps
 import { buildInfoArgs, buildTranscodeArgs, parseDuration, parseVideoSize } from "../ffmpeg/args";
 import type { runFfmpeg } from "../ffmpeg/run";
 import type { Library } from "../library";
@@ -216,6 +217,12 @@ export class ClipPoster {
       const client = this.deps.client();
       if (!client) throw new PostizError("unauthorized", "Paste the Postiz API key in the Accounts tab first");
       prepared = await this.prepareClip(request.clipId);
+      // --- ai-cut --- the video the post shows (a master and its cut are one), kept with the post: the autopilot still knows it
+      // once the Library forgets the clip
+      const video = await this.deps.library
+        .get(request.clipId)
+        .then((item) => (item ? clipVideoKey(item) : null))
+        .catch(() => null);
       this.deps.emit({ clipId: request.clipId, phase: "uploading", percent: 0 });
       const bytes = await this.files.readFile(prepared.path);
       const upload = await client.upload({ name: path.basename(prepared.path).replace(/^\./, ""), type: "video/mp4", bytes: new Uint8Array(bytes.buffer, bytes.byteOffset, bytes.byteLength) });
@@ -234,7 +241,7 @@ export class ClipPoster {
         created = await client.createPosts(body);
       }
       const postIds = created.filter((c) => c.postId).map((c) => ({ channelId: c.integration, postId: c.postId }));
-      await this.deps.audit.record({ action: "createPosts", channels: request.channels.map((c) => c.id), postIds: postIds.map((p) => p.postId), clipId: request.clipId, when: request.when });
+      await this.deps.audit.record({ action: "createPosts", channels: request.channels.map((c) => c.id), postIds: postIds.map((p) => p.postId), clipId: request.clipId, when: request.when, ...(video ? { video } : {}) });
       this.deps.log("info", `postiz: created ${postIds.length} post(s) for ${request.channels.length} channel(s), type ${body.type}, date ${body.date}`);
       this.deps.emit({ clipId: request.clipId, phase: "done", percent: 100 });
       return { postIds, group: created.find((c) => c.group)?.group ?? null };

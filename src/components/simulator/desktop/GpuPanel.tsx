@@ -8,6 +8,7 @@ import { aboutText, installKind, updatesMode } from "@/lib/desktop/aboutText"; /
 import { buildLabel } from "@/lib/buildInfo"; // --- build-identity ---
 import { SITE_NAME, pageUrl } from "@/lib/site"; // --- build-identity ---
 import { Card, errorText, ghostBtn, inputClass, primaryBtn } from "./ui";
+import { updateWaitKey } from "@/lib/desktop/updateButton"; // --- manual-update --- the wait note follows the preference
 
 /*
  * --- desktop-exe --- The GPU panel: the GPU Chromium runs on and what it accelerates (video encode / decode, WebGPU), the
@@ -259,7 +260,7 @@ export default function GpuPanel({ bridge, prefs, info, update, rendering = fals
             {t("appCheckUpdates")}
           </button>
           {update?.state === "ready" && (
-            <button type="button" className={primaryBtn} disabled={rendering} title={rendering ? t("updateWaitRender") : undefined} onClick={() => void bridge.update.install()}>
+            <button type="button" className={primaryBtn} disabled={rendering} title={rendering ? t(updateWaitKey(prefs.autoUpdate)) : undefined} onClick={() => void bridge.update.install()}>
               {t("appRestartUpdate")}
             </button>
           )}

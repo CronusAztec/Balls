@@ -29,7 +29,7 @@ import PostizPostCard, { type CardPrefill } from "../desktop/PostizPostCard"; //
 import PostsPanel from "../desktop/PostsPanel";
 import WhatsNew from "../desktop/WhatsNew"; // --- changelog ---
 import UpdateButton from "../desktop/UpdateButton"; // --- manual-update --- the top bar's update control (every tab)
-import { pageMakesVideo } from "@/lib/desktop/updateButton"; // --- manual-update ---
+import { pageMakesVideo, updateWaitKey } from "@/lib/desktop/updateButton"; // --- manual-update ---
 import { clipEditErrorKey } from "@/lib/clipEdit/render"; // --- clip-locale ---
 import { errorText, ghostBtn, primaryBtn } from "../desktop/ui"; // --- desktop-autorelease --- (the update banner's buttons)
 import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
@@ -332,7 +332,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
         </nav>
         <div className="ml-auto flex items-center gap-1.5 flex-wrap">
           {/* --- manual-update --- always in sight: check, the download's percent, Restart and update, or the Download page */}
-          <UpdateButton bridge={bridge} update={update} rendering={rendering} waitHint={!updateBanner} />
+          <UpdateButton bridge={bridge} update={update} rendering={rendering} waitHint={!updateBanner} autoUpdate={prefs.autoUpdate} />
           {(["song", "video", "project"] as const).map((kind) => (
             <button key={kind} type="button" onClick={() => pick(kind)} className="px-2.5 py-1 rounded-lg text-xs bg-surface-1 border border-line text-ink-2 hover:text-ink cursor-pointer">
               {t(`open.${kind}`)}
@@ -350,7 +350,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
           <button type="button" className={ghostBtn} onClick={() => setUpdateLater(update.version)} data-testid="desktop-update-later">
             {t("updateLater")}
           </button>
-          {rendering && <span className="basis-full text-ink-3">{t("updateWaitRender")}</span>}
+          {rendering && <span className="basis-full text-ink-3">{t(updateWaitKey(prefs.autoUpdate))}</span>}
         </div>
       )}
       {notice && (

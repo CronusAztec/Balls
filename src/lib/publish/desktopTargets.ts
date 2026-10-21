@@ -7,6 +7,7 @@ import { PUBLISH_PLATFORMS, type PublishPlatform } from "./platforms";
 import type { ShareEnv, ShareNavigator } from "./share";
 import { EntitlementRequiredError, requireEntitlement } from "@/lib/billing/guard"; // --- paywall-gate ---
 import { requestUnlock } from "@/lib/billing/unlock"; // --- paywall-gate ---
+import { isCutJob } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
 
 /*
  * --- desktop-exe --- The Publish feature's paths as one-click targets of the Windows app's Library (the extension point in
@@ -53,7 +54,8 @@ export function stageLibraryClip(controller: PublishController, clip: LibraryCli
     if (!controller.getSnapshot().drafts[staged]) controller.setDraft(staged, draftOfLibraryClip(clip));
     return staged;
   }
-  const offered = offerPublishClip({ blob: clip.file, name: clip.file.name, source: "file", durationSec: clip.item.durationSec, mode: clip.item.meta.mode || null, seed: Number.isFinite(clip.item.meta.seed) ? clip.item.meta.seed : null });
+  // --- cut-reedit --- a Library cut (`<job>-cut`) is a cut here too: "Edit for TikTok" in the block opens it as it is
+  const offered = offerPublishClip({ blob: clip.file, name: clip.file.name, source: "file", durationSec: clip.item.durationSec, mode: clip.item.meta.mode || null, seed: Number.isFinite(clip.item.meta.seed) ? clip.item.meta.seed : null, cutFile: isCutJob(clip.item.meta.queueJobId) });
   stagedClips.set(clip.item.id, offered.id);
   controller.selectClip(offered.id);
   controller.setDraft(offered.id, draftOfLibraryClip(clip));

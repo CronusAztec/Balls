@@ -10,7 +10,8 @@ import { downloadExport } from "@/lib/recording/fastRender";
 import { offerPublishClip } from "@/lib/publish/clips";
 import type { LoopCaptionContext } from "@/lib/publish/loopCaption"; // --- low-findings ---
 import { sealWatermark, type WatermarkSeal } from "@/lib/watermark/seal";
-import { drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
+import { cutFanMadeLine, drawEditFrame } from "@/lib/clipEdit/draw";
+import { editCutJobId } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
 import { clipEditErrorKey, liveProgress, openSourceVideo, renderClipEdit, seekVideo, type ClipEditProgress, type ClipEditResult } from "@/lib/clipEdit/render";
 import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, clipTimeline, editFileName, fitClipEdit, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
 
@@ -25,9 +26,13 @@ import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_ED
  * lands in the same sliders and the same preview, to be judged and rendered like any other cut. Only the user's own edits
  * are remembered (saved as they are made), so a proposal never overwrites the spec the user settled on.
  *
- * --- cut-reedit --- A cut file opened as it is (`source.cutFile`: the Library has no master for it) already shows its look:
- * the dialog draws no fan-made badge on it again and remembers none of the edits made on it (its spec is the neutral one,
- * no address included, which must not become the look of the user's next cut).
+ * --- cut-reedit --- A cut file opened as it is (`source.cutFile`: a Library cut with no master there, a Publish clip that is a
+ * cut) already shows its look: the dialog remembers none of the edits made on it (its spec is the neutral one, no address
+ * included, which must not become the look of the user's next cut), and it draws the fan-made badge again only when this cut
+ * can hide the burned one (a crop-in, an end card). A cut of a Library item is saved under that item's job (`<job>-cut`), so
+ * the Library and the autopilot know it for the same video.
+ *
+ * --- cut-cancel --- Cancel stops the render. Once the file is made it is being saved, so the button says so and does nothing.
  */
 
 export interface ClipEditorSource {
@@ -38,7 +43,7 @@ export interface ClipEditorSource {
   /** --- low-findings --- A Publish clip's viral bot clip id and "Loop style" words: the cut keeps the source's copy and run. */
   botClipId?: string | null;
   loopCaption?: LoopCaptionContext | null;
-  /** --- cut-reedit --- The file is a cut with its look burned in (lib/clipEdit/propose.ts `libraryEditOpen`). */
+  /** --- cut-reedit --- The file is a cut with its look burned in (lib/clipEdit/propose.ts `libraryEditOpen`, a Publish clip's `cutFile`). */
   cutFile?: boolean;
 }
 
@@ -85,6 +90,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const [openError, setOpenError] = useState<{ error: unknown } | null>(null); // --- clip-locale --- (worded at render, in the page's language)
   const [scrub, setScrub] = useState(0);
   const [render, setRender] = useState<RenderState>({ status: "idle" });
+  const [saving, setSaving] = useState(false); // --- cut-cancel --- the file is made and being saved: Cancel can no longer stop it
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<{ video: HTMLVideoElement; release: () => void } | null>(null);
   // the preview's seal: state, so a seal that comes after the video (a licence renewal still in flight) draws the frame then
@@ -96,8 +102,8 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const timeline = clipTimeline(fitted, CLIP_EDIT_OUTPUT.fps);
   const card = useMemo(() => ({ title: t("cardTitle"), note: t("cardNote") }), [t]);
   // --- legal-audit --- a Fight League source's cut carries the fan-made badge again, in the preview and in the file
-  // (--- cut-reedit --- a cut file has it in its frames already)
-  const fanMade = source.cutFile ? null : fanMadeLine(source.mode, fl("canvasFanMade"));
+  // (--- cut-reedit --- a cut file has it in its frames already, until a crop-in or an end card can hide that one)
+  const fanMade = cutFanMadeLine(source.mode, fl("canvasFanMade"), { cutFile: source.cutFile === true, zoom: fitted.zoom, cardSec: fitted.cardSec });
   const rendering = render.status === "rendering";
   const suggesting = suggestion.status === "running";
   // the spec is the user's or the AI's, never both at once: no edits while a suggestion is on its way
@@ -183,13 +189,16 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
     setRender({ status: "rendering", progress: { phase: "prepare", progress: 0, frame: 0, frames: 0 } });
     try {
       const result = await renderClipEdit({ source: source.blob, spec: fitted, card, fanMade, signal: controller.signal, onProgress: (progress) => setRender({ status: "rendering", progress }) });
-      if (!result) return setRender({ status: "idle" });
+      // --- cut-cancel --- a Cancel that came while the file was finished: nothing is saved, downloaded or offered
+      if (!result || controller.signal.aborted) return setRender({ status: "idle" });
+      setSaving(true);
       const name = editFileName(source.name, result.format.extension);
       let where: "downloaded" | "saved" = "downloaded";
       if (desktop) {
-        // a cut file, as the queue names them (`<job>-cut`): the Library opens it as it is (no master of it there), and keeps what it was cut with
+        // a cut file, as the queue names them (`<job>-cut`): a Library item's cut under its job, so the Library opens that
+        // master again and the autopilot takes them for one video; any other source's as its own (opened as it is)
         const jobId = `edit-${Date.now().toString(36)}-cut`;
-        const meta: LibraryMeta = { title: desktop.meta?.title ?? name, mode: desktop.meta?.mode ?? source.mode ?? "", seed: desktop.meta?.seed ?? source.seed ?? 0, link: desktop.meta?.link ?? "", platform: "tiktok", hook: fitted.hook, caption: desktop.meta?.caption ?? null, hashtags: desktop.meta?.hashtags ?? [], queueJobId: jobId, cut: result.spec };
+        const meta: LibraryMeta = { title: desktop.meta?.title ?? name, mode: desktop.meta?.mode ?? source.mode ?? "", seed: desktop.meta?.seed ?? source.seed ?? 0, link: desktop.meta?.link ?? "", platform: "tiktok", hook: fitted.hook, caption: desktop.meta?.caption ?? null, hashtags: desktop.meta?.hashtags ?? [], queueJobId: editCutJobId(desktop.meta?.queueJobId), cut: result.spec };
         await desktop.bridge.render.save({ jobId, folder: "", name: name.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta });
         desktop.onSaved?.();
         where = "saved";
@@ -200,6 +209,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
       setRender({ status: "error", message: failureText(err, t) });
     } finally {
       abortRef.current = null;
+      setSaving(false);
     }
   }, [source, fitted, card, fanMade, desktop, t]);
 
@@ -213,7 +223,8 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
           <span>{label}</span>
           <span className="tabular-nums text-ink">{format(fitted[key])}</span>
         </span>
-        <input type="range" min={range.min} max={top} step={range.step} value={fitted[key]} disabled={busy} onChange={(e) => set(key, Number(e.target.value))} className="w-full accent-accent" data-testid={`clip-edit-${key}`} />
+        {/* --- clip-a11y --- the name is the label alone (it does not change on every step) and the value is said as it is shown */}
+        <input type="range" min={range.min} max={top} step={range.step} value={fitted[key]} disabled={busy} onChange={(e) => set(key, Number(e.target.value))} aria-label={label} aria-valuetext={format(fitted[key])} className="w-full accent-accent" data-testid={`clip-edit-${key}`} />
       </label>
     );
   };
@@ -239,7 +250,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
       <div className="grid gap-4 sm:grid-cols-[auto_1fr]" data-testid="clip-editor" data-clip-editor={render.status}>
         <div className="space-y-2 mx-auto">
           <canvas ref={canvasRef} width={CLIP_EDIT_OUTPUT.width * PREVIEW_SCALE} height={CLIP_EDIT_OUTPUT.height * PREVIEW_SCALE} className="rounded-lg bg-black border border-line-strong w-[200px] sm:w-[270px] h-auto" aria-label={t("previewAlt")} />
-          <input type="range" min={0} max={timeline.totalSec} step={1 / CLIP_EDIT_OUTPUT.fps} value={Math.min(scrub, timeline.totalSec)} disabled={rendering || durationSec === null} onChange={(e) => setScrub(Number(e.target.value))} className="w-full accent-accent" aria-label={t("scrub")} data-testid="clip-edit-scrub" />
+          <input type="range" min={0} max={timeline.totalSec} step={1 / CLIP_EDIT_OUTPUT.fps} value={Math.min(scrub, timeline.totalSec)} disabled={rendering || durationSec === null} onChange={(e) => setScrub(Number(e.target.value))} className="w-full accent-accent" aria-label={t("scrub")} aria-valuetext={sec(Math.min(scrub, timeline.totalSec))} data-testid="clip-edit-scrub" />
           <p className="text-xs text-ink-3 text-center tabular-nums">
             {sec(Math.min(scrub, timeline.totalSec))} / {sec(timeline.totalSec)}
             {durationSec !== null && <span> · {t("sourceLength", { sec: durationSec.toFixed(1) })}</span>}
@@ -305,9 +316,10 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
           )}
 
           <div className="flex flex-wrap gap-2 pt-1">
+            {/* --- cut-cancel --- the same button while the file is saved (a keyboard user keeps the focus), aria-disabled, no click */}
             {rendering ? (
-              <button type="button" className={ghostBtn} onClick={() => abortRef.current?.abort()}>
-                {t("cancel")}
+              <button type="button" className={ghostBtn} aria-disabled={saving || undefined} onClick={saving ? undefined : () => abortRef.current?.abort()} data-testid="clip-edit-cancel">
+                {saving ? t("saving") : t("cancel")}
               </button>
             ) : (
               <button type="button" className={primaryBtn} disabled={!canRender} onClick={() => void start()} data-testid="clip-edit-render">

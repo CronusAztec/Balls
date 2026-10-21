@@ -14,7 +14,7 @@
  */
 
 import { randomUUID } from "crypto";
-import { SOCIAL_QUEUE_MAX, type SocialPostRequest, type SocialPostResult, type SocialProposalInput, type SocialQueueBy, type SocialQueueEdit, type SocialQueueItem, type SocialQueueStatus, tiktokUserOnlyKeysIn } from "@/lib/desktop/contract";
+import { SOCIAL_QUEUE_MAX, SOCIAL_VIDEO_KEY_MAX, type SocialPostRequest, type SocialPostResult, type SocialProposalInput, type SocialQueueBy, type SocialQueueEdit, type SocialQueueItem, type SocialQueueStatus, tiktokUserOnlyKeysIn } from "@/lib/desktop/contract";
 import { proposalExpired } from "@/lib/desktop/autopilot";
 import type { JsonFileStore } from "../journal";
 import type { ClipPoster } from "./posting";
@@ -65,6 +65,7 @@ export function sanitizeQueueItem(raw: unknown): SocialQueueItem | null {
     postIds: Array.isArray(r.postIds) ? r.postIds.filter((p): p is { channelId: string; postId: string } => !!p && typeof p === "object" && typeof (p as { postId?: unknown }).postId === "string" && typeof (p as { channelId?: unknown }).channelId === "string") : [],
     error: typeof r.error === "string" ? r.error : null,
     log: Array.isArray(r.log) ? r.log.filter((l): l is { at: string; text: string } => !!l && typeof l === "object" && typeof (l as { at?: unknown }).at === "string" && typeof (l as { text?: unknown }).text === "string").slice(-QUEUE_LOG_MAX) : [],
+    ...(typeof r.video === "string" && r.video ? { video: r.video.slice(0, SOCIAL_VIDEO_KEY_MAX) } : {}), // --- ai-cut ---
   };
 }
 
@@ -174,7 +175,7 @@ export class SocialQueue {
           return next && replace ? { ...c, text: next.text, settings: { ...c.settings, ...next.settings } } : c;
         });
         for (const n of channels) if (!merged.some((c) => c.integrationId === n.integrationId)) merged.push(n);
-        items[existingIndex] = this.withLog({ ...existing, channels: merged, when: replace ? p.when : existing.when, reason: replace ? p.reason : existing.reason }, `merged a new proposal (${channels.map((c) => c.platform).join(", ")})`);
+        items[existingIndex] = this.withLog({ ...existing, channels: merged, when: replace ? p.when : existing.when, reason: replace ? p.reason : existing.reason, ...(!existing.video && p.video ? { video: p.video } : {}) }, `merged a new proposal (${channels.map((c) => c.platform).join(", ")})`);
         this.deps.log?.("info", `queue: merged a proposal for clip ${p.clipId} into ${existing.id}`);
         continue;
       }
@@ -191,6 +192,7 @@ export class SocialQueue {
         postIds: [],
         error: null,
         log: [{ at: this.stamp(), text: `proposed by ${by}` }],
+        ...(p.video ? { video: p.video } : {}), // --- ai-cut --- the clip's video key: the autopilot still knows it once the Library forgets the clip
       };
       items.unshift(item);
       this.deps.log?.("info", `queue: proposed clip ${p.clipId} for ${channels.length} channel(s) by ${by}`);

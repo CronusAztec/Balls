@@ -3,11 +3,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import path from "path";
-import { CARD_FADE_SEC, CLIP_EDIT_OUTPUT, CLIP_EDIT_STORAGE_KEY, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, TEXT_MAX_SHARE, TEXT_MIN_SCALE, audioGainAt, cardAlphaAt, clipTimeline, cropRect, editFileName, fitClipEdit, fitTextLines, hookLayout, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
-import { drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
+import { CARD_FADE_SEC, CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_STORAGE_KEY, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, TEXT_MAX_SHARE, TEXT_MIN_SCALE, audioGainAt, cardAlphaAt, clipTimeline, cropRect, editFileName, fitClipEdit, fitTextLines, hookLayout, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
+import { cutFanMadeLine, drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
 import { BADGE_HEIGHT, BADGE_INSET } from "@/lib/watermark/layout";
 import { ClipEditOpenError, ClipEditSeekError, clipEditErrorKey, cutAudio, liveProgress, openSourceVideo, seekVideo } from "@/lib/clipEdit/render";
-import { libraryEditOpen, refitClipEdit, type LibraryEditItem } from "@/lib/clipEdit/propose";
+import { cutFileSpec, editCutJobId, isCutJob, libraryEditOpen, refitClipEdit, type LibraryEditItem } from "@/lib/clipEdit/propose";
+import { offerPublishClip, resetPublishClips } from "@/lib/publish/clips";
 import { FastRenderUnsupportedError } from "@/lib/recording/fastRender";
 import { sealWatermark } from "@/lib/watermark/seal";
 import { fakeCanvas, fakeDocument, type FakeCall } from "./fakeCanvas";
@@ -323,8 +324,9 @@ describe("the frame compositor", () => {
     expect(render).toMatch(/fanMade: string \| null;/);
     for (const c of render.match(/drawEditFrame\([^;]*\);/g) ?? []) expect(c).toMatch(/\{ seal, clipMs: t \* 1000, fanMade: options\.fanMade \}/);
     const dialog = strip(read("src/components/simulator/clipEditor/ClipEditorDialog.tsx"));
-    // (--- cut-reedit --- a cut file opened as it is has the badge in its frames already: not a second one)
-    expect(dialog).toMatch(/const fanMade = source\.cutFile \? null : fanMadeLine\(source\.mode, fl\("canvasFanMade"\)\);/);
+    // (--- cut-reedit --- a cut file opened as it is has the badge in its frames already: a second one only when this cut
+    // can hide that one, cutFanMadeLine below)
+    expect(dialog).toMatch(/const fanMade = cutFanMadeLine\(source\.mode, fl\("canvasFanMade"\), \{ cutFile: source\.cutFile === true, zoom: fitted\.zoom, cardSec: fitted\.cardSec \}\);/);
     expect(dialog).toMatch(/useTranslations\("FightLeague"\)/);
     for (const c of dialog.match(/drawEditFrame\([^;]*\);/g) ?? []) expect(c).toMatch(/fanMade \}\);$/);
     const queue = strip(read("src/components/simulator/desktop/useRenderQueue.ts"));
@@ -349,6 +351,34 @@ describe("the frame compositor", () => {
       }
     }
     expect(calls).toBe(2);
+  });
+
+  // --- cut-reedit --- a cut file's burned badge stays in sight only with no crop-in and no end card: otherwise it is drawn again
+  it("draws the badge again on a cut file once an end card or a crop-in can hide the burned one", async () => {
+    const badge = "Fan-made parody. Not affiliated.";
+    const cutFile = (zoom: number, cardSec: number) => cutFanMadeLine("fightLeague", badge, { cutFile: true, zoom, cardSec });
+    expect(cutFile(1, 0)).toBeNull(); // every pixel of the file, its own badge included
+    expect(cutFile(1, 1.5)).toBe(badge);
+    expect(cutFile(1.97, 0)).toBe(badge);
+    expect(cutFile(1.25, 1)).toBe(badge);
+    // not a cut file: the badge always, and never for another mode
+    expect(cutFanMadeLine("fightLeague", badge, { cutFile: false, zoom: 1, cardSec: 0 })).toBe(badge);
+    expect(cutFanMadeLine("glass", badge, { cutFile: true, zoom: 2, cardSec: 2 })).toBeNull();
+    // the card frames of a re-cut cut file carry it, over the card (it fills the frame over the burned one)
+    const spec: ClipEditSpec = { ...DEFAULT_CLIP_EDIT, startSec: 0, lengthSec: 10, zoom: 1, hook: "", url: "", cardSec: 1.5 };
+    for (const t of [10.2, 11]) {
+      const { lines } = await drawFull(t, spec, { fanMade: cutFile(spec.zoom, spec.cardSec) });
+      const card = lines.find((l) => l.text === "Make your own");
+      const drawn = lines.filter((l) => l.text === badge);
+      expect(card, `t=${t}`).toBeDefined();
+      expect(drawn, `t=${t}`).toHaveLength(1);
+      expect(drawn[0].index).toBeGreaterThan(card!.index);
+    }
+    // the full crop-in of the same file: rows 480 to 1440 only, the burned badge (centred about y 1445) is cut away, drawn again
+    const crop = cropRect(1080, 1920, CLIP_EDIT_RANGES.zoom.max);
+    expect(crop.sy + crop.sh).toBeLessThan(420 + 1080 * (1 - BADGE_INSET - BADGE_HEIGHT / 2));
+    const zoomed = await drawFull(2, { ...spec, zoom: CLIP_EDIT_RANGES.zoom.max, cardSec: 0 }, { fanMade: cutFile(CLIP_EDIT_RANGES.zoom.max, 0) });
+    expect(zoomed.lines.filter((l) => l.text === badge)).toHaveLength(1);
   });
 
   it("stamps the watermark of a free run last, over the card too", async () => {
@@ -469,6 +499,40 @@ describe("the editor in the page and in the Windows app", () => {
     expect(libraryEditOpen(item("p", null, 9), [])).toEqual({ item: expect.objectContaining({ id: "p" }), spec: undefined, cutFile: false });
   });
 
+  // --- cut-reedit --- the Publish block's cut (the editor's, the queue's, a Library cut) opens as it is too, and a cut of a
+  // Library item is saved under that item's job, so the Library opens the master again and the autopilot sees one video
+  it("opens a Publish cut as it is, and saves a Library item's cut under the item's job", () => {
+    const blob = new Blob(["x"], { type: "video/mp4" });
+    expect(offerPublishClip({ blob, name: "cut", source: "edit" }).cutFile).toBe(true);
+    for (const source of ["recording", "fast", "batch", "bot", "file"] as const) expect(offerPublishClip({ blob, name: "c", source }).cutFile, source).toBe(false);
+    expect(offerPublishClip({ blob, name: "lib", source: "file", cutFile: true }).cutFile).toBe(true);
+    resetPublishClips();
+    expect(isCutJob("job-1-cut")).toBe(true);
+    for (const job of ["job-1", null, undefined, ""]) expect(isCutJob(job), String(job)).toBe(false);
+    expect(cutFileSpec(12.1)).toEqual({ startSec: 0, lengthSec: 12.1, zoom: 1, hook: "", url: "", cardSec: 0 });
+    expect(fitClipEdit(parseClipEdit({ ...DEFAULT_CLIP_EDIT, ...cutFileSpec(null) }), 9.5)).toEqual({ startSec: 0, lengthSec: 9.5, zoom: 1, hook: "", url: "", cardSec: 0 });
+    const publish = read("src/components/simulator/sections/PublishSection.tsx");
+    expect(publish).toMatch(/cutFile: editing\.cutFile \}\} initialSpec=\{editing\.cutFile \? cutFileSpec\(editing\.durationSec\) : undefined\}/);
+    expect(read("src/lib/publish/desktopTargets.ts")).toMatch(/cutFile: isCutJob\(clip\.item\.meta\.queueJobId\)/);
+    // the job a cut is saved under: a master's `<job>-cut`, a cut's own, else a cut of its own
+    expect(editCutJobId("job-1")).toBe("job-1-cut");
+    expect(editCutJobId("job-1-cut")).toBe("job-1-cut");
+    expect(editCutJobId("edit-abc-cut")).toBe("edit-abc-cut");
+    expect(editCutJobId(null, 1_000_000)).toBe(`edit-${(1_000_000).toString(36)}-cut`);
+    expect(editCutJobId(undefined)).toMatch(/^edit-[0-9a-z]+-cut$/);
+    // the editor's cut of a master opens that master again, with what it was cut with
+    type Item = LibraryEditItem & { id: string };
+    const spec: ClipEditSpec = { startSec: 1, lengthSec: 9, zoom: 1.25, hook: "Will it escape?", url: "x.example", cardSec: 1 };
+    const master: Item = { id: "m", durationSec: 14, exists: true, meta: { queueJobId: "job-1" } };
+    const recut: Item = { id: "e", durationSec: 10, exists: true, meta: { queueJobId: editCutJobId(master.meta.queueJobId), cut: spec } };
+    expect(libraryEditOpen(recut, [recut, master])).toMatchObject({ item: master, cutFile: false, spec: { startSec: 1, lengthSec: 9, zoom: 1.25 } });
+    const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx");
+    expect(dialog).toMatch(/queueJobId: editCutJobId\(desktop\.meta\?\.queueJobId\), cut: result\.spec/);
+    expect(read("src/components/simulator/desktop/LibraryPanel.tsx")).toMatch(/hashtags: editing\.item\.meta\.hashtags, queueJobId: editing\.item\.meta\.queueJobId \}/);
+    // the Publish block hands no job: its cuts stay their own
+    expect(publish).not.toMatch(/queueJobId/);
+  });
+
   // --- ai-cut --- Make videos' two checkboxes explain themselves to a screen reader, not only in a mouse's hover title
   it("gives the AI panel's cut and start checkboxes their tips as accessible descriptions", () => {
     const panel = read("src/components/simulator/desktop/AiPanel.tsx");
@@ -587,6 +651,116 @@ describe("the editor's failures, progress and preview", () => {
     }
   });
 
+  /** A <video> that seeks only when told: `land()` fires its `seeked` (the browser's own handler slot, as seekVideo uses it). */
+  const seekable = (extra: Record<string, unknown> = {}) => {
+    const video = { currentTime: 0, duration: 30, readyState: 4, seeking: false, onseeked: null as null | (() => void), ...extra };
+    const land = () => video.onseeked?.();
+    return { video, land, el: video as unknown as HTMLVideoElement };
+  };
+  /** Lets a few tasks run (yieldTask is a MessageChannel task, which fake timers do not hold back). */
+  const tasks = async (n = 4) => {
+    for (let i = 0; i < n; i++) await new Promise<void>((r) => setImmediate(r));
+  };
+
+  // --- seek-supersede --- a newer seek settles the one it replaces: an old seek's timeout never clears a newer seek's handler
+  it("lets a newer seek supersede the one under way, so an old seek's timeout never freezes the preview", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const { video, land, el } = seekable();
+    const state: Record<string, string> = {};
+    const track = (name: string, p: Promise<void>) => void p.then(() => (state[name] = "resolved"), () => (state[name] = "rejected"));
+    // a drag: three seeks, the first two superseded at once
+    track("a", seekVideo(el, 1));
+    track("b", seekVideo(el, 2));
+    track("c", seekVideo(el, 3));
+    await tasks();
+    expect(state).toEqual({ a: "resolved", b: "resolved" });
+    land();
+    await tasks();
+    expect(state.c).toBe("resolved");
+    expect(video.onseeked).toBeNull();
+    // another drag 7 s later: the first seeks' 8 s timers are gone, so they cannot clear this seek's handler
+    await vi.advanceTimersByTimeAsync(7000);
+    track("d", seekVideo(el, 4));
+    await vi.advanceTimersByTimeAsync(1500);
+    expect(video.onseeked).not.toBeNull();
+    land();
+    await tasks();
+    expect(state.d).toBe("resolved");
+    // a `seeked` that lands while a newer position is being sought is the old seek's: the newer one waits for its own
+    track("e", seekVideo(el, 5));
+    video.seeking = true;
+    land();
+    await tasks();
+    expect(state.e).toBeUndefined();
+    video.seeking = false;
+    land();
+    await tasks();
+    expect(state.e).toBe("resolved");
+    // a seek that never lands still fails on its own timer
+    track("f", seekVideo(el, 6));
+    await vi.advanceTimersByTimeAsync(8000);
+    await tasks();
+    expect(state.f).toBe("rejected");
+  });
+
+  // --- hidden-render --- a hidden tab runs no video frame callbacks and throttles timers: the seek settles one task later
+  it("settles a seek one task after `seeked` on a hidden page, and waits for the frame callback on a shown one", async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const frameCallbacks: (() => void)[] = [];
+    const { land, el } = seekable({ requestVideoFrameCallback: (cb: () => void) => frameCallbacks.push(cb) });
+    const settled = (p: Promise<void>) => {
+      const s = { done: false };
+      void p.then(() => (s.done = true));
+      return s;
+    };
+    vi.stubGlobal("document", { visibilityState: "hidden" });
+    const hidden = settled(seekVideo(el, 2));
+    land();
+    await tasks();
+    expect(hidden.done).toBe(true); // no timer had to fire
+    expect(frameCallbacks).toHaveLength(0);
+    vi.stubGlobal("document", { visibilityState: "visible" });
+    const shown = settled(seekVideo(el, 4));
+    land();
+    await tasks();
+    expect(shown.done).toBe(false);
+    expect(frameCallbacks).toHaveLength(1);
+    frameCallbacks[0]();
+    await tasks();
+    expect(shown.done).toBe(true);
+    // a shown page whose frame callback never comes falls back to 50 ms
+    const late = settled(seekVideo(el, 6));
+    land();
+    await vi.advanceTimersByTimeAsync(50);
+    await tasks();
+    expect(late.done).toBe(true);
+  });
+
+  // --- cut-cancel --- Cancel after the frames: no file is saved or downloaded, and once it is saved the button says so
+  it("drops a render cancelled while its file is finished, and turns Cancel into Saving while the file is saved", () => {
+    const render = read("src/lib/clipEdit/render.ts");
+    expect(render).toMatch(/await audioEncoder\.flush\(\);\s+if \(failure\) throw failure;\s+audioEncoder\.close\(\);\s+audioEncoder = null;\s+if \(signal\?\.aborted\) return null;/);
+    const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx").replace(/\{\/\*[\s\S]*?\*\/\}/g, "");
+    const start = dialog.slice(dialog.indexOf("const start = useCallback"), dialog.indexOf("const number = "));
+    expect(start).toMatch(/if \(!result \|\| controller\.signal\.aborted\) return setRender\(\{ status: "idle" \}\);\s+setSaving\(true\);/);
+    // nothing is saved, downloaded or offered before that check
+    const check = start.indexOf("controller.signal.aborted");
+    for (const step of ["desktop.bridge.render.save(", "downloadExport(", "offerPublishClip("]) expect(start.indexOf(step), step).toBeGreaterThan(check);
+    expect(start).toMatch(/finally \{\s+abortRef\.current = null;\s+setSaving\(false\);/);
+    // the same button, so a keyboard user keeps the focus: aria-disabled with no click while the file is saved
+    expect(dialog).toMatch(/<button type="button" className=\{ghostBtn\} aria-disabled=\{saving \|\| undefined\} onClick=\{saving \? undefined : \(\) => abortRef\.current\?\.abort\(\)\} data-testid="clip-edit-cancel">\s+\{saving \? t\("saving"\) : t\("cancel"\)\}/);
+    for (const loc of ["en", "pl", "es"]) expect((JSON.parse(read(`messages/${loc}.json`)) as { ClipEditor: Record<string, string> }).ClipEditor.saving, loc).toMatch(/…$/);
+  });
+
+  // --- clip-a11y --- the sliders say their value as it is shown (25 %, 3.4 s), not the raw multiplier or a long decimal
+  it("gives every slider a value text as shown and a name that does not change with the value", () => {
+    const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx");
+    expect(dialog).toMatch(/<input type="range" min=\{range\.min\} max=\{top\}[^\n]*aria-label=\{label\} aria-valuetext=\{format\(fitted\[key\]\)\}/);
+    expect(dialog).toMatch(/data-testid="clip-edit-scrub"/);
+    expect(dialog).toMatch(/aria-label=\{t\("scrub"\)\} aria-valuetext=\{sec\(Math\.min\(scrub, timeline\.totalSec\)\)\}/);
+    expect(dialog).toMatch(/number\("zoom", t\("zoom"\), \(v\) => `\$\{Math\.round\(\(v - 1\) \* 100\)\} %`\)/);
+  });
+
   // --- clip-a11y --- a render reports every few frames: only the phase and quarters of it reach the screen reader
   it("says the render's phase and its quarters in a live region that stays mounted, and shows the rest in a progressbar", () => {
     expect(liveProgress({ phase: "prepare", progress: 0.02 })).toEqual({ phase: "prepare", percent: 0 });
@@ -635,6 +809,11 @@ describe("the editor's failures, progress and preview", () => {
       expect(editor.suggestedPlain, loc).not.toMatch(/—| – |;/);
     }
     for (const loc of ["pl", "es"]) expect((JSON.parse(read(`messages/${loc}.json`)) as { ClipEditor: Record<string, string> }).ClipEditor.suggestedPlain).not.toBe("The AI set the cut.");
+    // Polish: "AI" is feminine across the catalogue (Lokalna AI, wbudowana AI): the editor's lines agree with it
+    const plEditor = (JSON.parse(read("messages/pl.json")) as { ClipEditor: Record<string, string> }).ClipEditor;
+    for (const [key, value] of Object.entries(plEditor)) if (typeof value === "string") expect(value, key).not.toMatch(/\bAI (nie )?\p{L}+ło\b/u);
+    expect(plEditor.suggestedPlain).toBe("AI ustawiła cięcie.");
+    expect(plEditor.suggestFailed).toBe("AI nie zaproponowała cięcia: {error}");
   });
 
   // --- clip-editor --- a seal that comes after the video (a licence renewal in flight) still draws the preview

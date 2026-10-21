@@ -42,6 +42,26 @@ const request = (clipId = "clip-1"): SocialPostRequest => ({
 });
 
 describe("the proposal queue", () => {
+  // --- ai-cut --- a proposal keeps its clip's video key (a master and its cut are one), across a restart and a merge
+  it("keeps the proposal's video key, restored from the file and filled in by a merge", async () => {
+    const { q, store } = queue();
+    const [item] = await q.propose([{ ...proposal("clip-1"), video: "job:job-x" }], "ai");
+    expect(item.video).toBe("job:job-x");
+    const restored = queue({ store });
+    expect((await restored.q.load())[0].video).toBe("job:job-x");
+    // an item from before the key was kept gets it from the next proposal merged into it
+    const old = queue();
+    await old.q.propose([proposal("clip-2")], "ai");
+    expect((await old.q.list())[0]).not.toHaveProperty("video");
+    const merged = await old.q.propose([{ ...proposal("clip-2"), video: "job:job-y" }], "ai");
+    expect(merged).toHaveLength(1);
+    expect(merged[0].video).toBe("job:job-y");
+    // the file is trusted only for a string
+    const raw = { ...item, video: 7 };
+    expect(sanitizeQueueItem(raw)).not.toHaveProperty("video");
+    expect(sanitizeQueueItem({ ...item, video: "job:job-x" })?.video).toBe("job:job-x");
+  });
+
   it("proposes, persists, and restores on start (the whole list travels with every change)", async () => {
     const { q, store, events, postClip } = queue();
     const items = await q.propose([proposal("clip-1"), proposal("clip-2", [{ integrationId: "int-yt", platform: "youtube", text: "A glass drop", settings: { __type: "youtube", title: "Glass drop" } }], "now")], "ai");

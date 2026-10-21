@@ -46,6 +46,15 @@ export function fanMadeLine(mode: string | null | undefined, text: string): stri
   return mode && FAN_MADE_MODES.has(mode) && text.trim() ? text : null;
 }
 
+/**
+ * --- cut-reedit --- The badge a cut carries (`cut`: what the editor renders now). A cut file has its own badge burned in: it
+ * needs no second one while this cut shows every pixel of the file (no crop-in, no end card). A crop-in can cut the burned one
+ * away and an end card covers it, so then the badge is drawn again, like on any other cut.
+ */
+export function cutFanMadeLine(mode: string | null | undefined, text: string, cut: { cutFile: boolean; zoom: number; cardSec: number }): string | null {
+  return cut.cutFile && cut.zoom <= 1 && cut.cardSec <= 0 ? null : fanMadeLine(mode, text);
+}
+
 const fontOf = (size: number, weight = "bold") => `${weight} ${size}px Inter, system-ui, sans-serif`;
 
 function roundedBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {

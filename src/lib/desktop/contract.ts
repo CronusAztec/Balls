@@ -582,6 +582,8 @@ export interface SocialAuditEntry {
   by: "user";
   clipId: string | null;
   when: string | null;
+  /** --- ai-cut --- The video the post showed (lib/desktop/autopilot.ts clipVideoKey: a master and its cut are one), when it had a job. */
+  video?: string;
 }
 
 /** Postiz's next free slot for a channel. */
@@ -634,6 +636,8 @@ export const SOCIAL_PROPOSAL_MAX_AGE_DAYS = 14;
 export const SOCIAL_PROPOSALS_PER_CALL = 5;
 /** The longest reason a planner may give and the longest log line an item keeps. */
 export const SOCIAL_REASON_MAX = 300;
+/** --- ai-cut --- The longest video key a proposal may carry ("job:" and a queue job id). */
+export const SOCIAL_VIDEO_KEY_MAX = 600;
 /** TikTok's settings the user must choose every time: never proposed, never accepted from the AI path. */
 export const TIKTOK_USER_ONLY_KEYS: readonly string[] = ["privacy_level", "comment", "duet", "stitch"];
 
@@ -667,6 +671,8 @@ export interface SocialQueueItem {
   postIds: { channelId: string; postId: string }[];
   error: string | null;
   log: { at: string; text: string }[];
+  /** --- ai-cut --- The clip's video key (SocialProposalInput.video), kept when the Library forgets the clip. */
+  video?: string;
 }
 
 /** What `queue.propose` takes (from the planner or the AI panel's "Send to Posts tab"). */
@@ -675,6 +681,8 @@ export interface SocialProposalInput {
   channels: { integrationId: string; platform: string; text: string; settings?: Record<string, unknown> }[];
   when: "now" | "draft" | string | null;
   reason: string;
+  /** --- ai-cut --- The clip's video key (lib/desktop/autopilot.ts clipVideoKey), when the clip has a job. */
+  video?: string;
 }
 
 /** What `queue.edit` changes: the text or settings of some channels, and when. */
@@ -741,6 +749,7 @@ export function checkSocialProposals(value: unknown, by: unknown, now: number = 
     }
     if (!isQueueWhen(p.when, now)) return 'social.queue.propose: when must be "now", "draft", null or an ISO time in the future';
     if (typeof p.reason !== "string" || p.reason.length > SOCIAL_REASON_MAX) return `social.queue.propose: reason (at most ${SOCIAL_REASON_MAX} characters)`;
+    if (p.video !== undefined && (typeof p.video !== "string" || p.video.length === 0 || p.video.length > SOCIAL_VIDEO_KEY_MAX)) return `social.queue.propose: video (at most ${SOCIAL_VIDEO_KEY_MAX} characters)`;
   }
   return null;
 }

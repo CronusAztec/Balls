@@ -9,7 +9,7 @@ import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
 import { UPDATE_MANUAL_NONE, type UpdateStatus } from "@/lib/desktop/contract";
-import { UPDATE_LATEST_NOTE_MS, checkFoundNothing, manualCheckAnswered, pageMakesVideo, updateButtonBusy, updateButtonModel } from "@/lib/desktop/updateButton";
+import { UPDATE_LATEST_NOTE_MS, checkFoundNothing, manualCheckAnswered, pageMakesVideo, updateButtonBusy, updateButtonModel, updateWaitKey } from "@/lib/desktop/updateButton";
 import { UpdateButtonView, type UpdateButtonViewProps } from "@/components/simulator/desktop/UpdateButton";
 import { pageUrl } from "@/lib/site";
 
@@ -124,6 +124,35 @@ describe("the update button's states", () => {
     // its look dims the same way under aria-disabled
     const component = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "UpdateButton.tsx"), "utf8");
     expect(component).toMatch(/install: `[^`]*aria-disabled:opacity-40`/);
+  });
+
+  // --- manual-update --- quitting installs a downloaded update only while "Update automatically" is on (desktop/src/updater.ts
+  // prepareQuit()): with it off, no control may tell the user to quit for it
+  it("words the wait note by the preference: off, it points at Restart and update and never at quitting", () => {
+    expect(updateWaitKey(true)).toBe("updateWaitRender");
+    expect(updateWaitKey(false)).toBe("updateWaitRenderManual");
+    const ready = status("ready", { version: "1.5.0", progress: 1 });
+    for (const locale of ["en", "pl", "es"]) {
+      const d = LOCALES[locale].Desktop as Record<string, unknown>;
+      const manual = String(d.updateWaitRenderManual);
+      // the manual note names the button it waits for and says nothing of quitting or closing the app
+      expect(manual, locale).toContain(String(d.appRestartUpdate));
+      expect(manual, locale).not.toMatch(/quit|clos|zamk|cierr|cerr/i);
+      expect(manual, locale).not.toMatch(/—| – |;/);
+      expect(manual, locale).not.toMatch(/queue|kolejk|cola/i);
+      const html = render({ status: ready, rendering: true, autoUpdate: false }, locale);
+      expect(text(html, "desktop-update-note"), locale).toBe(manual);
+      expect(tag(html, B), locale).toContain(`title="${manual}"`);
+      // on, the note keeps the install as the app closes
+      expect(text(render({ status: ready, rendering: true }, locale), "desktop-update-note"), locale).toBe(String(d.updateWaitRender));
+    }
+    // the section hands the preference to the top bar, the banner and the GPU tab
+    const read = (...p: string[]) => fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", ...p), "utf8");
+    const section = read("sections", "DesktopSection.tsx");
+    expect(section).toMatch(/<UpdateButton [^>]*autoUpdate=\{prefs\.autoUpdate\} \/>/);
+    expect(section).toMatch(/\{rendering && <span className="basis-full text-ink-3">\{t\(updateWaitKey\(prefs\.autoUpdate\)\)\}<\/span>\}/);
+    expect(read("desktop", "GpuPanel.tsx")).toMatch(/title=\{rendering \? t\(updateWaitKey\(prefs\.autoUpdate\)\) : undefined\}/);
+    for (const file of [section, read("desktop", "GpuPanel.tsx"), read("desktop", "UpdateButton.tsx")]) expect(file).not.toMatch(/t\("updateWaitRender"\)/);
   });
 
   // --- manual-update --- the page's own fast export, Record video and batch are no queue jobs: a restart would lose them too
@@ -296,7 +325,7 @@ describe("the update button's place", () => {
   it("sits in the Desktop group's top bar, outside the tabs, with the live status and the render rule", () => {
     const section = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "sections", "DesktopSection.tsx"), "utf8");
     const top = section.slice(section.indexOf('role="tablist"'), section.indexOf("desktop-update-banner"));
-    expect(top).toContain("<UpdateButton bridge={bridge} update={update} rendering={rendering} waitHint={!updateBanner} />");
+    expect(top).toContain("<UpdateButton bridge={bridge} update={update} rendering={rendering} waitHint={!updateBanner} autoUpdate={prefs.autoUpdate} />");
     expect(top.indexOf("<UpdateButton")).toBeLessThan(top.indexOf("pick(kind)"));
     expect(section.slice(section.indexOf('{tab === "gpu"'))).not.toContain("<UpdateButton");
     // the GPU panel's App card keeps its own buttons, under the same rules

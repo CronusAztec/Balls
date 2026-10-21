@@ -45,5 +45,5 @@ export async function runPlanner(bridge: Pick<DesktopApi, "library" | "social" |
   const task = planTask({ locale: options.locale, language: settings.language, clips, channels, perDay: Math.min(settings.perDay, left), quietFrom: settings.quietFrom, quietTo: settings.quietTo, now, playbook, outcomes });
   const out = await runAgent(model, task, { onEvent: options.onEvent, signal: options.signal });
   if (!out.ok) return { ok: false, reason: "model", error: out.error };
-  return { ok: true, result: out.result, proposals: toQueueProposals(out.result.proposals, channels), channels };
+  return { ok: true, result: out.result, proposals: toQueueProposals(out.result.proposals, channels, library), channels };
 }

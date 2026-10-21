@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { DesktopApi, UpdateStatus } from "@/lib/desktop/contract";
-import { UPDATE_LATEST_NOTE_MS, manualCheckAnswered, updateButtonBusy, updateButtonModel, type UpdateButtonModel, type UpdateButtonNote } from "@/lib/desktop/updateButton";
+import { UPDATE_LATEST_NOTE_MS, manualCheckAnswered, updateButtonBusy, updateButtonModel, updateWaitKey, type UpdateButtonModel, type UpdateButtonNote } from "@/lib/desktop/updateButton";
 import { pageUrl } from "@/lib/site";
 import { IconCheck, IconDownload, IconReset, IconRestart, IconWarning } from "@/components/ui/icons";
 
@@ -37,13 +37,15 @@ export interface UpdateButtonViewProps {
   asking?: boolean;
   /** Whether the wait note shows beside a disabled Restart and update (the update banner shows it already while it is open). */
   waitHint?: boolean;
+  /** The "Update automatically" preference (absent: on): off, quitting does not install, so the wait note does not say it does. */
+  autoUpdate?: boolean;
   downloadUrl: string;
   onCheck: () => void;
   onInstall: () => void;
 }
 
 /** The control itself, from the status and what the page knows (pure: the tests render it). */
-export function UpdateButtonView({ status, rendering = false, justChecked = false, asking = false, waitHint = true, downloadUrl, onCheck, onInstall }: UpdateButtonViewProps) {
+export function UpdateButtonView({ status, rendering = false, justChecked = false, asking = false, waitHint = true, autoUpdate = true, downloadUrl, onCheck, onInstall }: UpdateButtonViewProps) {
   const t = useTranslations("Desktop");
   const m = updateButtonModel(status, { rendering, justChecked, asking });
   const label = (): string => {
@@ -60,7 +62,7 @@ export function UpdateButtonView({ status, rendering = false, justChecked = fals
     if (note === "failed") return t("updateButton.failed");
     if (note === "portable") return t("updateButton.portable");
     if (note === "devBuild") return t("updateButton.devBuild");
-    return t("updateWaitRender");
+    return t(updateWaitKey(autoUpdate));
   };
   const note = m.note === "waitRender" && !waitHint ? null : m.note;
   const busy = updateButtonBusy(m, asking);
@@ -77,7 +79,7 @@ export function UpdateButtonView({ status, rendering = false, justChecked = fals
     ) : (
       <IconDownload size={iconSize} />
     );
-  const readyTitle = status?.state === "ready" ? (rendering ? t("updateWaitRender") : t("update.ready", { version: status.version ?? "", progress: 100 })) : undefined;
+  const readyTitle = status?.state === "ready" ? (rendering ? t(updateWaitKey(autoUpdate)) : t("update.ready", { version: status.version ?? "", progress: 100 })) : undefined;
   return (
     <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label={t("appUpdate")} data-update-state={status?.state ?? "unknown"}>
       {m.kind === "unsupported" ? (
@@ -121,7 +123,7 @@ export function UpdateButtonView({ status, rendering = false, justChecked = fals
  * schedule's checks, which pass through "checking" too, and a failed one the updater puts back to "none", never show it.
  * Nor does the marked "none" the page reads when it mounts (manualCheckAnswered): that answer may be hours old.
  */
-export default function UpdateButton({ bridge, update, rendering, waitHint }: { bridge: DesktopApi; update: UpdateStatus | null; rendering: boolean; waitHint?: boolean }) {
+export default function UpdateButton({ bridge, update, rendering, waitHint, autoUpdate }: { bridge: DesktopApi; update: UpdateStatus | null; rendering: boolean; waitHint?: boolean; autoUpdate?: boolean }) {
   const locale = useLocale();
   const [asking, setAsking] = useState(false);
   const [justChecked, setJustChecked] = useState(false);
@@ -148,5 +150,5 @@ export default function UpdateButton({ bridge, update, rendering, waitHint }: { 
       .catch(() => {})
       .finally(() => setAsking(false));
   };
-  return <UpdateButtonView status={update} rendering={rendering} justChecked={justChecked} asking={asking} waitHint={waitHint} downloadUrl={pageUrl(locale, "/download")} onCheck={check} onInstall={() => void bridge.update.install()} />;
+  return <UpdateButtonView status={update} rendering={rendering} justChecked={justChecked} asking={asking} waitHint={waitHint} autoUpdate={autoUpdate} downloadUrl={pageUrl(locale, "/download")} onCheck={check} onInstall={() => void bridge.update.install()} />;
 }

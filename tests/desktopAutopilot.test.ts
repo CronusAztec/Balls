@@ -9,7 +9,8 @@ import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
 import { BRIDGE_METHODS, EVENT_CHANNELS, IPC, checkIpcArgs, checkSocialProposals, type AiMessage, type AutopilotSettings, type DesktopApi, type LibraryItem, type PostizChannel, type SocialAuditEntry, type SocialQueueItem } from "@/lib/desktop/contract";
-import { DEFAULT_AUTOPILOT, inQuietHours, inQuietMinutes, nextAllowedTime, planRefusal, proposalsLeftToday, proposalsToday, sanitizeAutopilot, shouldPlanNow, toQueueProposals, unpostedClips, type PlanClip } from "@/lib/desktop/autopilot";
+import { DEFAULT_AUTOPILOT, clipVideoKey, inQuietHours, inQuietMinutes, nextAllowedTime, planRefusal, proposalsLeftToday, proposalsToday, sanitizeAutopilot, shouldPlanNow, toQueueProposals, unpostedClips, type PlanClip } from "@/lib/desktop/autopilot";
+import { editCutJobId } from "@/lib/clipEdit/propose";
 import { validateJson } from "@/lib/desktop/ai/jsonSchema";
 import { runAgent, type ChatModel } from "@/lib/desktop/ai/agent";
 import { checkPlanResult, normalisePlanResult, planFinal, planTask, whenProblem, type PlanOptions, type PlanResult } from "@/lib/desktop/ai/plan";
@@ -242,6 +243,38 @@ describe("shouldPlanNow (the page's 15-minute check)", () => {
     // the planning run prefers the cut when a TikTok channel is among its channels
     const planRun = fs.readFileSync(path.join(__dirname, "..", "src", "lib", "desktop", "ai", "planRun.ts"), "utf8");
     expect(planRun).toMatch(/unpostedClips\(library, queue, audit, \{ preferCut: channels\.some\(\(c\) => c\.platform === "tiktok"\) \}\)/);
+    // --- ai-cut --- the Clip editor's cut of a master is saved as `<job>-cut` too (lib/clipEdit/propose.ts editCutJobId): one video
+    const editorCut = item("ecut", editCutJobId("job-2"), NOW - 200);
+    expect(unpostedClips([...library, editorCut], [], [], { preferCut: true }).map((c) => c.id)).toEqual(["cut", "picked", "edited", "ecut"]);
+    expect(unpostedClips([...library, editorCut], [], []).map((c) => c.id)).toEqual(["master", "other", "picked", "edited"]);
+    expect(unpostedClips([...library, editorCut], [queued({ clipId: "other" })], [], { preferCut: true }).map((c) => c.id)).toEqual(["cut", "picked", "edited"]);
+  });
+
+  // --- ai-cut --- a proposal and a post keep their video's key: the pair stays taken once the Library forgets the file that went out
+  it("keeps a master and its cut taken after the posted or queued file left the Library", () => {
+    const item = (id: string, queueJobId: string | null): LibraryItem => ({ id, path: `C:/${id}.mp4`, fileName: `${id}.mp4`, bytes: 1, durationSec: 10, width: 1080, height: 1920, createdAt: NOW - 1000, thumbnail: null, exists: true, encoder: null, meta: { title: id, mode: "glass", seed: 1, link: "", platform: null, hook: null, caption: null, hashtags: [], queueJobId } });
+    const master = item("master", "job-x");
+    const cut = item("cut", "job-x-cut");
+    expect(clipVideoKey(master)).toBe("job:job-x");
+    expect(clipVideoKey(cut)).toBe("job:job-x");
+    expect(clipVideoKey(item("picked", null))).toBeNull();
+    // the planner proposes the master (an Instagram channel only): the proposal carries the pair's key
+    const channels: PostizChannel[] = [{ id: "int-ig", platform: "instagram", name: "IG", picture: null, disabled: false, customer: null }];
+    const [proposal] = toQueueProposals([{ clipId: "master", channels: [{ integrationId: "int-ig", text: "Glass" }], when: "now", reason: "r" }], channels, [master, cut]);
+    expect(proposal.video).toBe("job:job-x");
+    expect(toQueueProposals([{ clipId: "master", channels: [{ integrationId: "int-ig", text: "Glass" }], when: "now", reason: "r" }], channels)[0]).not.toHaveProperty("video");
+    expect(checkSocialProposals([proposal], "ai")).toBeNull();
+    expect(checkSocialProposals([{ ...proposal, video: 5 as unknown as string }], "ai")).toMatch(/video/);
+    // posted, then the master is removed from the Library: its cut is not offered again, for any channel
+    const posted: SocialAuditEntry = { at: iso(NOW), action: "createPosts", channels: ["int-ig"], postIds: ["p1"], by: "user", clipId: "master", when: "now", video: "job:job-x" };
+    for (const preferCut of [false, true]) {
+      expect(unpostedClips([cut], [], [posted], { preferCut }).map((c) => c.id), `posted ${preferCut}`).toEqual([]);
+      expect(unpostedClips([cut], [queued({ clipId: "master", video: "job:job-x" })], [], { preferCut }).map((c) => c.id), `queued ${preferCut}`).toEqual([]);
+    }
+    // an entry from before the key was kept still takes only what the Library can still name
+    expect(unpostedClips([cut], [], [{ ...posted, video: undefined }]).map((c) => c.id)).toEqual(["cut"]);
+    // a skipped proposal frees the pair, key or not
+    expect(unpostedClips([cut], [queued({ clipId: "master", video: "job:job-x", status: "skipped" })], []).map((c) => c.id)).toEqual(["cut"]);
   });
 });
 

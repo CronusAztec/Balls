@@ -209,6 +209,18 @@ describe("the Library's Publish targets (desktop app)", () => {
     expect(c.getSnapshot().drafts[again]).toEqual(draftOfLibraryClip(clipOf(item("tiktok"))));
   });
 
+  // --- cut-reedit --- a Library cut staged in the block is a cut there too: its "Edit for TikTok" opens it as it is
+  it("stages a Library cut as a cut file and any other item as a plain clip", () => {
+    const c = controller(relayFetch(true).fetchImpl, null);
+    const master = stageLibraryClip(c, clipOf({ ...item("reels"), id: "lib-master", meta: { ...item("reels").meta, queueJobId: "job-1" } }));
+    const cut = stageLibraryClip(c, clipOf({ ...item("tiktok"), id: "lib-cut", meta: { ...item("tiktok").meta, queueJobId: "job-1-cut" } }));
+    const plain = stageLibraryClip(c, clipOf({ ...item(null), id: "lib-plain" }));
+    const byId = (id: string) => publishClips().find((x) => x.id === id);
+    expect(byId(master)?.cutFile).toBe(false);
+    expect(byId(cut)?.cutFile).toBe(true);
+    expect(byId(plain)?.cutFile).toBe(false);
+  });
+
   it("writes the AI's posts into the Publish block's draft, per platform – or says there is no clip yet", () => {
     const c = controller(relayFetch(true).fetchImpl, null);
     const items = [

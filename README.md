@@ -3608,7 +3608,9 @@ Release `desktop-v<version>` with the same files and the changelog's notes for t
 it also checks that `…/releases/latest/download/latest.yml` names the version, because apps older than 1.1.0 read it). A
 release build is never cancelled by a newer push. electron-updater (the generic provider, `JBL_UPDATE_URL` at build time)
 reads `latest.yml` from the downloads repository's latest release. The app checks 8 s after launch and every 4 hours, downloads in the background,
-shows a banner (Restart and update / Later) and a Windows notification, installs on quit. --- manual-update --- The Desktop group's top bar
+shows a banner (Restart and update / Later) and a Windows notification, installs on quit while "Update automatically" is on (off, a
+download a manual check made waits for Restart and update: `prepareQuit()`, and the wait note, the notification and Help → Check for
+updates' own answer box say so). --- manual-update --- The Desktop group's top bar
 has an update button on every tab (`UpdateButton.tsx`, states in `src/lib/desktop/updateButton.ts`): Check for updates, Checking…, the
 download's percent, Restart and update (never while a clip renders), the result of the check (from the clicked check's own answer:
 the quiet schedule's checks, a failed one put back to "none" included, never say "You have the latest version"), Try again with the
