@@ -23,7 +23,7 @@ import AiPanel from "../desktop/AiPanel";
 import LibraryPanel, { type LibrarySuggestCut } from "../desktop/LibraryPanel";
 import { suggestCut } from "../desktop/aiCut"; // --- ai-cut --- the local AI proposes a cut for a Library clip
 import { beatsOfLibraryItem } from "@/lib/clipEdit/propose"; // --- ai-cut ---
-import { loadClipEdit, parseClipEdit } from "@/lib/clipEdit/spec"; // --- ai-cut ---
+import { loadClipEdit, localClipEdit, parseClipEdit } from "@/lib/clipEdit/spec"; // --- ai-cut --- (--- clip-locale --- localClipEdit)
 import AccountsPanel from "../desktop/AccountsPanel"; // --- social-postiz --- the Postiz key and channels
 import PostizPostCard, { type CardPrefill } from "../desktop/PostizPostCard"; // --- social-postiz --- phase 2: the approval card and the Posts tab
 import PostsPanel from "../desktop/PostsPanel";
@@ -65,6 +65,7 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   const editor = useTranslations("ClipEditor");
   const cutCard = useMemo(() => ({ title: editor("cardTitle"), note: editor("cardNote") }), [editor]);
   const hookIdeas = useMemo(() => (["escape", "winner", "wait", "count"] as const).map((k) => editor(`ideas.${k}`)), [editor]);
+  const fl = useTranslations("FightLeague"); // --- legal-audit --- the fan-made badge a Fight League job's cut carries again
   const pageRef = useRef(page);
   pageRef.current = page;
   const rootRef = useRef<HTMLElement>(null);
@@ -123,26 +124,33 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   // --- ai-cut --- a job that carries a cut is cut after it is saved; a cut that fails is said here, the clip itself is in the Library
   const queue = useRenderQueue(bridge, pageRef, prefs?.outputFolder ?? "", refreshLibrary, {
     card: cutCard,
+    fanMade: fl("canvasFanMade"),
     onFailed: (job, error) => setNotice(t("jobCutFailed", { name: job.name, error })),
     // a saved cut is said too, with the free run's mark named as the editor names it (a cut stamps the frames again)
     onCut: (job, result) => setNotice(result.watermarked ? `${t("jobCutSaved", { name: job.name })} ${editor("watermarked")}` : t("jobCutSaved", { name: job.name })),
   });
   const addAiClips = useCallback(
-    (result: MakeVideosResult, plans: ClipPlan[], options: { start: boolean }) => {
-      const base = loadClipEdit(); // --- ai-cut --- the user's remembered spec: its address goes on every cut of this run
+    (result: MakeVideosResult, plans: ClipPlan[], options: { start: boolean }): boolean => {
+      // --- ai-cut --- the user's remembered spec: its address goes on every cut of this run (--- clip-locale --- none yet: the
+      // default with the hook in the page's language)
+      const base = loadClipEdit(undefined, localClipEdit(editor("ideas.escape")));
       const specs = result.clips.flatMap((clip) => {
         const plan = plans.find((p) => p.id === clip.planId);
         if (!plan) return [];
         return expandBatch([aiClipSource(clip, plan, base)], { resolutions: ["1080x1920"], fps: [60], codecs: ["h264"], presets: [presetForPlatform(clip.platform)] });
       });
       const added = queue.add(specs);
-      // --- ai-cut --- one click from the prompt to the files: the queue starts when the panel asked for it
+      // --- ai-cut --- one click from the prompt to the files: the queue starts when the panel asked for it (and the panel's
+      // card says what this run did, not what its checkbox says now)
       if (options.start && added > 0) {
         queue.start();
         setNotice(t("aiStartedNotice", { count: added }));
-      } else setNotice(t("aiQueuedNotice", { count: added }));
+        return true;
+      }
+      setNotice(t("aiQueuedNotice", { count: added }));
+      return false;
     },
-    [queue, t],
+    [queue, t, editor],
   );
   const reloadPrefs = useCallback(() => {
     bridge.prefs.get().then(setPrefs).catch(() => {});

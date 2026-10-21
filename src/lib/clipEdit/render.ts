@@ -5,7 +5,8 @@
  * the source's sound – decoded whole, cut, faded and padded under the end card – follows it. The website and the Windows
  * app, which runs the same page, share this renderer: the app only saves the bytes it is handed, as it does with every
  * export. --- free-watermark --- The run seals once and draw.ts stamps every frame with that seal: a cut of a watermarked
- * export comes out watermarked again, at the output's size, and never clean without a verified Pro licence.
+ * export comes out watermarked again, at the output's size, and never clean without a verified Pro licence. --- legal-audit ---
+ * So does a Fight League source's fan-made badge (`fanMade`): the crop-in would cut it away, the card would cover it.
  */
 import { FastRenderUnsupportedError, createMuxer, drainQueue, pickExportFormat, yieldTask } from "@/lib/recording/fastRender";
 import { AUDIO_BITRATE, EXPORT_CHANNELS, EXPORT_SAMPLE_RATE, audioChunks, audioTimestampUs, frameDurationUs, frameTimestampUs, isKeyFrame, videoBitrate, type ExportFormat } from "@/lib/recording/fastRenderPlan";
@@ -27,6 +28,8 @@ export interface ClipEditOptions {
   source: Blob;
   spec: ClipEditSpec;
   card: EditCardText;
+  /** --- legal-audit --- The fan-made badge every frame carries again (fanMadeLine(): a Fight League source's), or null. */
+  fanMade: string | null;
   signal?: AbortSignal;
   onProgress?: (p: ClipEditProgress) => void;
 }
@@ -207,7 +210,7 @@ export async function renderClipEdit(options: ClipEditOptions): Promise<ClipEdit
       const t = index / fps;
       // The card holds the action's last frame: no seeking past it.
       if (t <= timeline.actionSec) await seekVideo(video, sourceTimeAt(spec, t));
-      drawEditFrame(ctx, { image: video, ...sourceSize }, width, height, spec, timeline, t, options.card, { seal, clipMs: t * 1000 });
+      drawEditFrame(ctx, { image: video, ...sourceSize }, width, height, spec, timeline, t, options.card, { seal, clipMs: t * 1000, fanMade: options.fanMade });
       const frame = new VideoFrame(canvas, { timestamp: frameTimestampUs(index, fps), duration: frameDurationUs(index, fps) });
       videoEncoder.encode(frame, { keyFrame: isKeyFrame(index, fps) });
       frame.close();

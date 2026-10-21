@@ -39,7 +39,7 @@ export const AI_TASKS = ["videos", "copy", "settings", "ideas", "fighter", "mode
 export type AiTaskKind = (typeof AI_TASKS)[number];
 
 export type AiResult =
-  | { kind: "videos"; result: MakeVideosResult; plans: ClipPlan[] }
+  | { kind: "videos"; result: MakeVideosResult; plans: ClipPlan[]; started: boolean /* --- ai-cut --- whether this run started the queue */ }
   | { kind: "copy"; result: CopyResult }
   | { kind: "settings"; result: SettingsResult; changed: string[] }
   | { kind: "ideas"; result: IdeasResult }
@@ -107,7 +107,7 @@ export interface DesktopAiApi {
   sendToQueue: () => Promise<void>;
 }
 
-export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObject<DesktopPageHooks>, onClips: (result: MakeVideosResult, plans: ClipPlan[], options: { start: boolean } /* --- ai-cut --- */) => void, onPrefsChanged: () => void, custom?: CustomContentApi): DesktopAiApi {
+export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObject<DesktopPageHooks>, onClips: (result: MakeVideosResult, plans: ClipPlan[], options: { start: boolean } /* --- ai-cut --- */) => boolean /* --- ai-cut --- the queue started */, onPrefsChanged: () => void, custom?: CustomContentApi): DesktopAiApi {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [models, setModels] = useState<ModelEntry[]>([]);
   const [progress, setProgress] = useState<Record<string, ModelProgressEvent>>({});
@@ -244,8 +244,9 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
             const out = await runAgent(model, makeVideosTask(prompt, { copy: page.copy, locale: page.locale, platform, store, ports, cut: options.cut === true /* --- ai-cut --- */ }), { onEvent, signal: controller.signal });
             if (!out.ok) throw new Error(out.error);
             const plans = out.result.clips.map((c) => store.get(c.planId)).filter((p): p is ClipPlan => !!p);
-            setResult({ kind: "videos", result: out.result, plans });
-            onClips(out.result, plans, { start: options.start === true }); // --- ai-cut --- (one click: the queue starts when asked)
+            // --- ai-cut --- (one click: the queue starts when asked; the result keeps whether it did, for the clips card)
+            const started = onClips(out.result, plans, { start: options.start === true });
+            setResult({ kind: "videos", result: out.result, plans, started });
           } else if (task === "copy") {
             const out = await runAgent(model, copyTask(prompt, { locale: page.locale, platforms: options.platforms.length ? options.platforms : ["tiktok", "reels", "shorts"], settings: page.settings, existing: options.existing }), { onEvent, signal: controller.signal });
             if (!out.ok) throw new Error(out.error);

@@ -81,6 +81,8 @@ export default function GpuPanel({ bridge, prefs, info, update, rendering = fals
   };
 
   const last = lastVideoAcceleration();
+  // --- manual-update --- a check or a download under way: the Check for updates button waits (aria-disabled, focus kept)
+  const updateBusy = update?.state === "checking" || update?.state === "available" || update?.state === "downloading";
   const yes = (v: boolean) => (v ? t("gpuYes") : t("gpuNo"));
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-4" data-testid="desktop-gpu">
@@ -251,8 +253,9 @@ export default function GpuPanel({ bridge, prefs, info, update, rendering = fals
           <dd className="text-ink-2" data-testid="desktop-update">{update ? t(`update.${update.state}`, { version: update.version ?? "", progress: Math.round((update.progress ?? 0) * 100) }) : "…"}</dd>
         </dl>
         <div className="flex gap-2 flex-wrap">
-          {/* --- manual-update --- the same rules as the top bar's button: one check at a time, no restart while a clip renders */}
-          <button type="button" className={ghostBtn} disabled={update?.state === "checking" || update?.state === "available" || update?.state === "downloading" || update?.state === "disabled"} onClick={() => void bridge.update.check()}>
+          {/* --- manual-update --- the same rules as the top bar's button: one check at a time, no restart while a clip renders;
+              busy, it is aria-disabled and ignores the click, so a keyboard user's focus stays on it */}
+          <button type="button" className={ghostBtn} disabled={update?.state === "disabled"} aria-disabled={updateBusy || undefined} onClick={updateBusy ? undefined : () => void bridge.update.check()}>
             {t("appCheckUpdates")}
           </button>
           {update?.state === "ready" && (

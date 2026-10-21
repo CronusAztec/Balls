@@ -36,6 +36,14 @@ export const SHORTEST_CUT_SEC = CLIP_EDIT_RANGES.lengthSec.min;
 
 export const DEFAULT_CLIP_EDIT: ClipEditSpec = { startSec: 3, lengthSec: 11, zoom: 1.25, hook: "Will it escape?", url: SITE_DOMAIN, cardSec: 1.5 };
 
+/**
+ * --- clip-locale --- The default spec with the hook in the page's language (`hook`: the editor's first idea,
+ * ClipEditor.ideas.escape): what a first cut starts from before the user has stored one.
+ */
+export function localClipEdit(hook: string): ClipEditSpec {
+  return { ...DEFAULT_CLIP_EDIT, hook: hook.trim() ? hook.slice(0, CLIP_EDIT_TEXT_MAX) : DEFAULT_CLIP_EDIT.hook };
+}
+
 /** The file the editor writes: vertical, 30 fps – what TikTok, Reels and Shorts take. */
 export const CLIP_EDIT_OUTPUT = { width: 1080, height: 1920, fps: 30 } as const;
 
@@ -55,10 +63,9 @@ const atLeast = (v: unknown, floor: number, fallback: number): number => {
 };
 const text = (v: unknown, fallback: string): string => (typeof v === "string" ? v.slice(0, CLIP_EDIT_TEXT_MAX) : fallback);
 
-/** A spec from anything (storage, a form): numbers below their floor raised to it, missing fields defaulted. */
-export function parseClipEdit(raw: unknown): ClipEditSpec {
+/** A spec from anything (storage, a form): numbers below their floor raised to it, missing fields taken from `d`. */
+export function parseClipEdit(raw: unknown, d: ClipEditSpec = DEFAULT_CLIP_EDIT): ClipEditSpec {
   const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
-  const d = DEFAULT_CLIP_EDIT;
   return {
     startSec: atLeast(r.startSec, CLIP_EDIT_RANGES.startSec.min, d.startSec),
     lengthSec: atLeast(r.lengthSec, CLIP_EDIT_RANGES.lengthSec.min, d.lengthSec),
@@ -89,12 +96,13 @@ const defaultStorage = (): StorageLike | null => {
   }
 };
 
-export function loadClipEdit(storage: StorageLike | null = defaultStorage()): ClipEditSpec {
+/** The user's stored spec, else `fallback` (--- clip-locale --- the page hands localClipEdit(), so a first cut's hook is in its language). */
+export function loadClipEdit(storage: StorageLike | null = defaultStorage(), fallback: ClipEditSpec = DEFAULT_CLIP_EDIT): ClipEditSpec {
   try {
     const raw = storage?.getItem(CLIP_EDIT_STORAGE_KEY);
-    return raw ? parseClipEdit(JSON.parse(raw)) : { ...DEFAULT_CLIP_EDIT };
+    return raw ? parseClipEdit(JSON.parse(raw), fallback) : { ...fallback };
   } catch {
-    return { ...DEFAULT_CLIP_EDIT };
+    return { ...fallback };
   }
 }
 
@@ -182,6 +190,54 @@ export function hookLayout(w: number = CLIP_EDIT_OUTPUT.width, h: number = CLIP_
   const hookFont = Math.round(0.072 * w);
   const urlFont = Math.round(0.04 * w);
   return { hookFont, urlFont, hookY: Math.round(0.095 * h), urlY: Math.round(0.095 * h + 1.35 * hookFont + 0.55 * urlFont), padX: Math.round(0.4 * hookFont), padY: Math.round(0.3 * hookFont) };
+}
+
+// --- clip-fit --- the words on the frame fit it: a hook of the AI's 60 characters is about twice the frame's width on one
+// line at the hook's size, so it wraps and shrinks the way the bot's captions do (lib/bot/planner.ts captionLines)
+
+/** The widest a pill (the hook, the address) or a line of the end card may be, as a share of the frame's width. */
+export const TEXT_MAX_SHARE = 0.88;
+/** The smallest a fitted line is set, as a share of its own size: past it the line is squeezed to fit, never cut off. */
+export const TEXT_MIN_SCALE = 0.55;
+
+export interface FittedText {
+  lines: string[];
+  size: number;
+}
+
+/**
+ * `text` set to fit `maxWidth` px: its words wrapped onto at most `maxLines` lines at `size`, the size lowered step by step
+ * (to TEXT_MIN_SCALE of it) until they fit. Past that floor the last line keeps the rest of the words and the compositor
+ * squeezes any line still too wide to `maxWidth` (fillText's own maxWidth), so no line ever runs off the frame.
+ * `measure(line, size)` is the line's width in px at that size.
+ */
+export function fitTextLines(text: string, size: number, maxWidth: number, maxLines: number, measure: (line: string, size: number) => number): FittedText {
+  const words = text.split(/\s+/).filter(Boolean);
+  const most = Math.max(1, Math.floor(maxLines));
+  const wrap = (s: number): string[] => {
+    const lines: string[] = [];
+    let line = "";
+    for (const word of words) {
+      const candidate = line ? `${line} ${word}` : word;
+      if (!line || measure(candidate, s) <= maxWidth) line = candidate;
+      else {
+        lines.push(line);
+        line = word;
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  };
+  const fits = (lines: string[], s: number) => lines.length <= most && lines.every((l) => measure(l, s) <= maxWidth);
+  const floor = Math.max(1, Math.round(TEXT_MIN_SCALE * size));
+  let s = Math.max(1, Math.round(size));
+  let lines = wrap(s);
+  while (!fits(lines, s) && s > floor) {
+    s = Math.max(floor, Math.min(s - 1, Math.round(0.94 * s)));
+    lines = wrap(s);
+  }
+  if (lines.length > most) lines = [...lines.slice(0, most - 1), lines.slice(most - 1).join(" ")];
+  return { lines, size: s };
 }
 
 /** `<source base>-tiktok.mp4`: the edited file next to its source's name (`-cut` when the source is a TikTok render already named so). */

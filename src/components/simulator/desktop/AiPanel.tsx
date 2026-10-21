@@ -269,7 +269,7 @@ export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }:
 
         {ai.result?.kind === "videos" && (
           <Card title={t("aiClipsTitle", { count: ai.result.result.clips.length })} actions={<button type="button" className={primaryBtn} onClick={onQueueTab}>{t("aiOpenQueue")}</button>}>
-            <p className="text-xs text-accent">{t(autoStart ? "aiClipsStarted" : "aiClipsQueued")}</p>
+            <p className="text-xs text-accent" data-testid="ai-clips-queued">{t(ai.result.started ? "aiClipsStarted" : "aiClipsQueued") /* --- ai-cut --- what this run did, not the checkbox now */}</p>
             {ai.result.result.summary && <p className="text-xs text-ink-2">{ai.result.result.summary}</p>}
             <ul className="space-y-2">
               {ai.result.result.clips.map((c) => (

@@ -9,9 +9,9 @@ import { blobBytes } from "@/lib/desktop/bridge";
 import { FastRenderUnsupportedError, downloadExport } from "@/lib/recording/fastRender";
 import { offerPublishClip } from "@/lib/publish/clips";
 import { sealWatermark } from "@/lib/watermark/seal";
-import { drawEditFrame } from "@/lib/clipEdit/draw";
+import { drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
 import { openSourceVideo, renderClipEdit, seekVideo, type ClipEditProgress, type ClipEditResult } from "@/lib/clipEdit/render";
-import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, clipTimeline, editFileName, fitClipEdit, loadClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
+import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, clipTimeline, editFileName, fitClipEdit, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
 
 /*
  * --- clip-editor --- The Clip editor: a finished video (a fast export, a recording, a file, the Windows app's Library)
@@ -51,8 +51,13 @@ const PREVIEW_SCALE = 0.25;
 
 export default function ClipEditorDialog({ source, onClose, desktop, initialSpec }: { source: ClipEditorSource; onClose: () => void; desktop?: ClipEditorDesktop | null; initialSpec?: Partial<ClipEditSpec> }) {
   const t = useTranslations("ClipEditor");
-  // --- ai-cut --- the remembered spec, under the cut the source came with (a Library item's proposal) when there is one
-  const [spec, setSpec] = useState<ClipEditSpec>(() => parseClipEdit({ ...loadClipEdit(), ...initialSpec }));
+  const fl = useTranslations("FightLeague"); // --- legal-audit --- the fan-made badge's line
+  // --- ai-cut --- the remembered spec, under the cut the source came with (a Library item's proposal) when there is one;
+  // --- clip-locale --- nothing remembered yet: the default with the hook in the page's language
+  const [spec, setSpec] = useState<ClipEditSpec>(() => {
+    const defaults = localClipEdit(t("ideas.escape"));
+    return parseClipEdit({ ...loadClipEdit(undefined, defaults), ...initialSpec }, defaults);
+  });
   const specRef = useRef(spec);
   specRef.current = spec;
   const [suggestion, setSuggestion] = useState<SuggestState>({ status: "idle" });
@@ -70,6 +75,8 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const fitted = durationSec ? fitClipEdit(spec, durationSec) : spec;
   const timeline = clipTimeline(fitted, CLIP_EDIT_OUTPUT.fps);
   const card = useMemo(() => ({ title: t("cardTitle"), note: t("cardNote") }), [t]);
+  // --- legal-audit --- a Fight League source's cut carries the fan-made badge again, in the preview and in the file
+  const fanMade = fanMadeLine(source.mode, fl("canvasFanMade"));
   const rendering = render.status === "rendering";
   const suggesting = suggestion.status === "running";
   // the spec is the user's or the AI's, never both at once: no edits while a suggestion is on its way
@@ -109,10 +116,10 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
       .then(() => {
         if (token !== drawToken.current || !sealRef.current) return;
         const { video } = opened;
-        drawEditFrame(ctx, { image: video, width: video.videoWidth || canvas.width, height: video.videoHeight || canvas.height }, canvas.width, canvas.height, fitted, timeline, tSec, card, { seal: sealRef.current, clipMs: tSec * 1000 });
+        drawEditFrame(ctx, { image: video, width: video.videoWidth || canvas.width, height: video.videoHeight || canvas.height }, canvas.width, canvas.height, fitted, timeline, tSec, card, { seal: sealRef.current, clipMs: tSec * 1000, fanMade });
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrub, fitted.startSec, fitted.lengthSec, fitted.zoom, fitted.hook, fitted.url, fitted.cardSec, durationSec, rendering, card.title, card.note]);
+  }, [scrub, fitted.startSec, fitted.lengthSec, fitted.zoom, fitted.hook, fitted.url, fitted.cardSec, durationSec, rendering, card.title, card.note, fanMade]);
 
   // --- ai-cut --- the user's own edits are what is remembered (not the cut the dialog opened on, not the AI's proposal)
   const set = <K extends keyof ClipEditSpec>(key: K, value: ClipEditSpec[K]) => {
@@ -151,7 +158,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
     setSuggestion((s) => (s.status === "error" ? { status: "idle" } : s)); // the one error slot shows the newest failure
     setRender({ status: "rendering", progress: { phase: "prepare", progress: 0, frame: 0, frames: 0 } });
     try {
-      const result = await renderClipEdit({ source: source.blob, spec: fitted, card, signal: controller.signal, onProgress: (progress) => setRender({ status: "rendering", progress }) });
+      const result = await renderClipEdit({ source: source.blob, spec: fitted, card, fanMade, signal: controller.signal, onProgress: (progress) => setRender({ status: "rendering", progress }) });
       if (!result) return setRender({ status: "idle" });
       const name = editFileName(source.name, result.format.extension);
       let where: "downloaded" | "saved" = "downloaded";
@@ -171,7 +178,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
     } finally {
       abortRef.current = null;
     }
-  }, [source, fitted, card, desktop, t]);
+  }, [source, fitted, card, fanMade, desktop, t]);
 
   const number = (key: "startSec" | "lengthSec" | "zoom" | "cardSec", label: string, format: (v: number) => string, max?: number) => {
     const range = CLIP_EDIT_RANGES[key];

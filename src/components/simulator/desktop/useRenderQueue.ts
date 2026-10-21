@@ -38,7 +38,7 @@ import { settingsToSearchParams } from "@/lib/settings";
 import { SITE_URL } from "@/lib/site";
 import type { DesktopPageHooks } from "./pageHooks";
 // --- ai-cut --- the job's TikTok cut: the page's own editor (lib/clipEdit) cuts the just-rendered file and the app saves it next to the master
-import type { EditCardText } from "@/lib/clipEdit/draw";
+import { fanMadeLine, type EditCardText } from "@/lib/clipEdit/draw";
 import { renderClipEdit } from "@/lib/clipEdit/render";
 import { editFileName } from "@/lib/clipEdit/spec";
 import { refitClipEdit } from "@/lib/clipEdit/propose";
@@ -103,6 +103,8 @@ export interface RenderQueueApi {
 /** --- ai-cut --- What the cut step needs from the page: the end card's words, and where to report a cut that failed. */
 export interface RenderQueueCut {
   card: EditCardText;
+  /** --- legal-audit --- The fan-made badge's line in the page's language (a Fight League job's cut carries it again). */
+  fanMade: string;
   onFailed?: (job: QueueJob, message: string) => void;
   /** The cut is in the Library (`watermarked`: a free run, stamped again at the output's size). */
   onCut?: (job: QueueJob, result: { watermarked: boolean }) => void;
@@ -243,7 +245,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
             // The plan's cut was made against the planned length (its own end: a cut that ran to the planned end stays end-anchored
             // on a file that came out shorter); refitted to the file as rendered.
             const spec = refitClipEdit(job.cut, job.cut.startSec + job.cut.lengthSec, file.durationSec);
-            const result = await renderClipEdit({ source: file.blob, spec, card: cutDeps.card, signal: controller.signal, onProgress: (p) => setCutting({ jobId: job.id, progress: p.progress }) });
+            const result = await renderClipEdit({ source: file.blob, spec, card: cutDeps.card, fanMade: fanMadeLine(job.settings.mode, cutDeps.fanMade), signal: controller.signal, onProgress: (p) => setCutting({ jobId: job.id, progress: p.progress }) });
             if (result && !controller.signal.aborted) {
               const fileName = editFileName(job.name, result.format.extension);
               const cutMeta: LibraryMeta = { ...meta, platform: "tiktok", hook: result.spec.hook, queueJobId: `${job.id}-cut` /* the cut, not the master: the Library tells them apart */, cut: result.spec };

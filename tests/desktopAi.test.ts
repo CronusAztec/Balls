@@ -472,6 +472,22 @@ describe("--- ai-cut --- Make videos with cuts", () => {
     expect(before).toMatchObject({ ok: true, retries: 0 });
     if (before.ok) expect(before.result.clips[0]).not.toHaveProperty("cut");
   });
+
+  // --- ai-cut --- the clips card says what the run did: the checkbox can change under a result that stays on screen
+  it("words the clips card from whether the run started the queue, not from the checkbox as it is now", () => {
+    const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    const read = (f: string) => strip(fs.readFileSync(path.join(__dirname, "..", f), "utf8"));
+    const panel = read("src/components/simulator/desktop/AiPanel.tsx");
+    expect(panel).toMatch(/t\(ai\.result\.started \? "aiClipsStarted" : "aiClipsQueued"\)/);
+    expect(panel).not.toMatch(/t\(autoStart \?/);
+    const hook = read("src/components/simulator/desktop/useDesktopAi.ts");
+    expect(hook).toMatch(/\{ kind: "videos"; result: MakeVideosResult; plans: ClipPlan\[\]; started: boolean\s*\}/);
+    expect(hook).toMatch(/const started = onClips\(out\.result, plans, \{ start: options\.start === true \}\);\s+setResult\(\{ kind: "videos", result: out\.result, plans, started \}\);/);
+    // the section answers whether it started the queue: only when asked and something was added
+    const section = read("src/components/simulator/sections/DesktopSection.tsx");
+    expect(section).toMatch(/options: \{ start: boolean \}\): boolean => \{/);
+    expect(section).toMatch(/if \(options\.start && added > 0\) \{\s+queue\.start\(\);\s+setNotice\(t\("aiStartedNotice", \{ count: added \}\)\);\s+return true;\s+\}\s+setNotice\(t\("aiQueuedNotice", \{ count: added \}\)\);\s+return false;/);
+  });
 });
 
 describe("playbook grounding", () => {

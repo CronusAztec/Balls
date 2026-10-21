@@ -5,7 +5,7 @@ import { stripIpcPrefix } from "@/lib/desktop/errors"; // --- desktop-ai-fix ---
 
 /* --- desktop-exe --- Small building blocks of the Desktop group (dark theme, lime accent like the rest of the panel). */
 
-export const btn = "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed";
+export const btn = "px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed aria-disabled:opacity-40 aria-disabled:cursor-not-allowed";
 export const primaryBtn = `${btn} bg-accent text-accent-ink hover:bg-accent-strong`;
 export const ghostBtn = `${btn} bg-surface-2 text-ink hover:bg-surface-3 border border-line-strong`;
 export const dangerBtn = `${btn} bg-danger/80 text-ink hover:bg-danger`;

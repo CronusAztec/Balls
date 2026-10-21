@@ -9,7 +9,7 @@ import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
 import type { UpdateStatus } from "@/lib/desktop/contract";
-import { UPDATE_LATEST_NOTE_MS, updateButtonModel } from "@/lib/desktop/updateButton";
+import { UPDATE_LATEST_NOTE_MS, checkFoundNothing, updateButtonBusy, updateButtonModel } from "@/lib/desktop/updateButton";
 import { UpdateButtonView, type UpdateButtonViewProps } from "@/components/simulator/desktop/UpdateButton";
 import { pageUrl } from "@/lib/site";
 
@@ -38,6 +38,8 @@ const render = (props: Partial<UpdateButtonViewProps> & { status: UpdateStatus |
 const tag = (html: string, testId: string) => html.match(new RegExp(`<[^>]*data-testid="${testId}"[^>]*>`))?.[0] ?? "";
 const text = (html: string, testId: string) => html.match(new RegExp(`<([a-z]+)[^>]*data-testid="${testId}"[^>]*>([\\s\\S]*?)</\\1>`))?.[2].replace(/<[^>]+>/g, "") ?? "";
 const disabled = (t: string) => /\sdisabled(=""|\s|>)/.test(t);
+/** Busy: aria-disabled, not the native `disabled` (which drops a keyboard user's focus to the page). */
+const ariaDisabled = (t: string) => t.includes('aria-disabled="true"');
 const B = "desktop-update-button";
 
 describe("the update button's states", () => {
@@ -61,13 +63,17 @@ describe("the update button's states", () => {
   it("is busy while it checks and downloads, and offers Restart and update only once the update is downloaded", () => {
     for (const state of ["checking", "available", "downloading"] as const) {
       const html = render({ status: status(state, { progress: 0.5 }) });
-      expect(disabled(tag(html, B)), state).toBe(true);
+      // --- manual-update --- busy keeps the focus: aria-disabled, never the native disabled
+      expect(ariaDisabled(tag(html, B)), state).toBe(true);
+      expect(disabled(tag(html, B)), state).toBe(false);
       expect(tag(html, B)).toContain('aria-busy="true"');
+      expect(updateButtonBusy(updateButtonModel(status(state)))).toBe(true);
     }
     for (const state of ["idle", "none", "error"] as const) {
       const m = updateButtonModel(status(state));
       expect(m.kind === "install", state).toBe(false);
       expect(disabled(tag(render({ status: status(state) }), B)), state).toBe(false);
+      expect(ariaDisabled(tag(render({ status: status(state) }), B)), state).toBe(false);
     }
     const ready = status("ready", { version: "1.5.0", progress: 1 });
     expect(updateButtonModel(ready)).toMatchObject({ kind: "install", enabled: true, note: null });
@@ -88,6 +94,9 @@ describe("the update button's states", () => {
     click(status("ready", { version: "1.5.0", progress: 1 }));
     click(status("idle"));
     click(status("error", { message: "boom" }));
+    // a busy button keeps its focus and ignores the click
+    click(status("checking"));
+    click(status("downloading", { progress: 0.4 }));
     expect(calls).toEqual(["install", "check", "check"]);
   });
 
@@ -96,22 +105,26 @@ describe("the update button's states", () => {
     expect(updateButtonModel(ready, { rendering: true })).toMatchObject({ kind: "install", enabled: false, note: "waitRender" });
     const html = render({ status: ready, rendering: true });
     expect(disabled(tag(html, B))).toBe(true);
+    expect(updateButtonBusy(updateButtonModel(ready, { rendering: true }))).toBe(false); // waiting for a render is not busy
     expect(tag(html, B)).toContain(`title="${en.Desktop.updateWaitRender}"`);
     expect(text(html, "desktop-update-note")).toBe(en.Desktop.updateWaitRender);
     // the update banner shows the same note while it is open: the top bar then keeps it in the tooltip only
     const quiet = render({ status: ready, rendering: true, waitHint: false });
     expect(disabled(tag(quiet, B))).toBe(true);
-    expect(tag(quiet, "desktop-update-note")).toBe("");
+    expect(text(quiet, "desktop-update-note")).toBe("");
   });
 
   it("does not let a second click start a second check while the first is asked for", () => {
     expect(updateButtonModel(status("idle"), { asking: true })).toMatchObject({ kind: "check", enabled: false });
     expect(updateButtonModel(null, { asking: true }).enabled).toBe(false);
     expect(updateButtonModel(status("error"), { asking: true })).toMatchObject({ kind: "retry", enabled: false });
-    expect(disabled(tag(render({ status: status("idle"), asking: true }), B))).toBe(true);
+    const asked = tag(render({ status: status("idle"), asking: true }), B);
+    expect(ariaDisabled(asked)).toBe(true);
+    expect(disabled(asked)).toBe(false);
+    expect(updateButtonBusy(updateButtonModel(status("idle"), { asking: true }), true)).toBe(true);
     // the component itself: one check until the answer comes back
     const component = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "UpdateButton.tsx"), "utf8");
-    expect(component).toMatch(/if \(asking\) return;\s+setAsking\(true\);\s+bridge\.update\s+\.check\(\)/);
+    expect(component).toMatch(/if \(asking\) return;\s+setAsking\(true\);\s+setJustChecked\(false\);\s+bridge\.update\s+\.check\(\)/);
     expect(component).toContain(".finally(() => setAsking(false))");
   });
 
@@ -122,7 +135,37 @@ describe("the update button's states", () => {
     expect(text(html, "desktop-update-note")).toBe("You have the latest version");
     expect(text(html, B)).toBe(en.Desktop.appCheckUpdates);
     expect(disabled(tag(html, B))).toBe(false);
-    expect(tag(render({ status: status("none") }), "desktop-update-note")).toBe("");
+    expect(text(render({ status: status("none") }), "desktop-update-note")).toBe("");
+  });
+
+  // --- manual-update --- the quiet schedule passes through "checking" too, and puts a failed check back to the "none" it found
+  // (desktop/tests/app.test.ts: none, checking, none): only the clicked check's own answer says "latest"
+  it("says it only for a check the user asked for, from that check's own answer", () => {
+    expect(checkFoundNothing(status("none"))).toBe(true);
+    for (const s of [status("checking"), status("available", { progress: 0 }), status("downloading", { progress: 0.2 }), status("ready", { progress: 1 }), status("error", { message: "offline" }), status("idle"), status("disabled"), null, undefined]) expect(checkFoundNothing(s), s?.state ?? String(s)).toBe(false);
+    // a "none" the page did not ask for (the schedule's, a failed quiet check put back) shows no note
+    for (const s of [status("checking"), status("none")]) expect(text(render({ status: s }), "desktop-update-note")).toBe("");
+    const component = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "UpdateButton.tsx"), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+    // no watching the status for a change from "checking" to "none": the note comes from the click's answer only
+    expect(component).not.toMatch(/prevState|before === "checking"|state !== "none"/);
+    expect(component).toMatch(/bridge\.update\s+\.check\(\)\s+\.then\(\(answer\) => \{\s+if \(checkFoundNothing\(answer\)\) showLatest\(\);\s+\}\)/);
+    expect(component.match(/setJustChecked\(true\)/g)).toHaveLength(1);
+    expect(component).toMatch(/const showLatest = \(\) => \{[\s\S]*?setJustChecked\(true\);[\s\S]*?setTimeout\([\s\S]*?UPDATE_LATEST_NOTE_MS\)/);
+  });
+
+  // --- manual-update --- the live region is mounted before its text: one inserted already filled is often not read out
+  it("keeps the note's live region mounted, only its text changes", () => {
+    for (const s of [status("idle"), status("checking"), status("downloading", { progress: 0.3 }), status("none"), null]) {
+      const html = render({ status: s });
+      const note = tag(html, "desktop-update-note");
+      expect(note, s?.state ?? "null").toContain('role="status"');
+      expect(note).toContain('aria-live="polite"');
+      expect(note).not.toContain("data-note=");
+      expect(text(html, "desktop-update-note")).toBe("");
+    }
+    const latest = tag(render({ status: status("none"), justChecked: true }), "desktop-update-note");
+    expect(latest).toContain('role="status"');
+    expect(latest).toContain('data-note="latest"');
   });
 
   it("offers Try again and the Download page after an error", () => {
@@ -198,6 +241,10 @@ describe("the update button's place", () => {
     // the GPU panel's App card keeps its own buttons, under the same rules
     const gpu = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "GpuPanel.tsx"), "utf8");
     expect(gpu).toMatch(/disabled=\{rendering\}[^>]*onClick=\{\(\) => void bridge\.update\.install\(\)\}/);
+    // its Check for updates keeps a keyboard user's focus while busy too: aria-disabled and no click, native disabled only for a build that cannot update
+    expect(gpu).toMatch(/const updateBusy = update\?\.state === "checking" \|\| update\?\.state === "available" \|\| update\?\.state === "downloading";/);
+    expect(gpu).toMatch(/disabled=\{update\?\.state === "disabled"\} aria-disabled=\{updateBusy \|\| undefined\} onClick=\{updateBusy \? undefined : \(\) => void bridge\.update\.check\(\)\}/);
+    expect(fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "ui.tsx"), "utf8")).toMatch(/export const btn = "[^"]*aria-disabled:opacity-40 aria-disabled:cursor-not-allowed"/);
     expect(section).toContain("rendering={rendering} onPrefs={changePrefs}");
   });
 });

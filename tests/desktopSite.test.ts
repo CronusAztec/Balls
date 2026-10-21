@@ -170,7 +170,8 @@ describe("the desktop studio's update status", () => {
     expect(mount).toContain("bridge.update.status");
     expect(mount).not.toMatch(/update\.check\(/);
     expect(mount).toContain('bridge.on("update", setUpdate)');
-    expect(read("desktop/GpuPanel.tsx")).toMatch(/onClick=\{\(\) => void bridge\.update\.check\(\)\}/);
+    // (--- manual-update --- busy, the click does nothing: the button keeps its focus, aria-disabled)
+    expect(read("desktop/GpuPanel.tsx")).toMatch(/onClick=\{updateBusy \? undefined : \(\) => void bridge\.update\.check\(\)\}/);
     // and the status line of the update banner reads without a dash in every language
     for (const m of [en, pl, es]) for (const key of ["available", "ready"]) expect((m.Desktop.update as Record<string, string>)[key]).not.toMatch(/ – | — |;/);
   });

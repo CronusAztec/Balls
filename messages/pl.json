@@ -4370,7 +4370,7 @@
     "accountSignedIn": "Zalogowano jako {name}. Twoje kanały są poniżej.",
     "accountLink": "Konto",
     "editClip": "Edytuj na TikToka",
-    "editClipTip": "Wejdź w akcję, dodaj hak i planszę końcową i wyrenderuj pionowy plik"
+    "editClipTip": "Wejdź w akcję, dodaj haczyk i planszę końcową i wyrenderuj pionowy plik"
   },
   "Unlimited": {
     "label": "Szerokie suwaki",
@@ -4604,7 +4604,7 @@
     "aiNeedKey": "Najpierw zapisz klucz API dostawcy chmurowego.",
     "aiRetried": "nieprawidłowa odpowiedź, zapytano ponownie",
     "aiClipsTitle": "{count, plural, one {# zaplanowany klip} few {# zaplanowane klipy} many {# zaplanowanych klipów} other {# zaplanowanego klipu}}",
-    "aiClipsQueued": "Dodano do kolejki renderowania – naciśnij tam Start.",
+    "aiClipsQueued": "Dodano do kolejki renderowania. Naciśnij tam Start.",
     "aiQueuedNotice": "{count, plural, one {# klip} few {# klipy} many {# klipów} other {# klipu}} od AI w kolejce renderowania.",
     "aiOpenQueue": "Otwórz kolejkę",
     "aiCopyTitle": "Teksty do publikacji",
@@ -4898,15 +4898,15 @@
     "privacyAudio": "Wbudowane dźwięki zsyntetyzowaliśmy sami. Wbudowane melodie to utwory w domenie publicznej.",
     "libEdit": "Edytuj na TikToka",
     "aiCut": "Po renderowaniu przytnij też każdy klip na TikToka",
-    "aiCutTip": "AI wybiera, gdzie zaczyna się cięcie, ile zostaje, przybliżenie, hak na klatce i planszę końcową. Cięcie trafia do Biblioteki obok klipu.",
+    "aiCutTip": "AI wybiera początek, długość i haczyk. Cięcie trafia do Biblioteki obok klipu.",
     "aiCutLine": "Cięcie od {start} do {end} s · przybliżenie {zoom} % · \"{hook}\"",
     "jobCut": "+ cięcie TikTok",
     "jobCutting": "Cięcie na TikToka",
     "jobCutFailed": "Cięcie na TikToka klipu {name} nie powiodło się: {error}. Sam klip jest w Bibliotece.",
     "aiStart": "Od razu zacznij renderować",
     "aiStartTip": "Klipy trafiają do kolejki renderowania, która rusza od razu: jedno polecenie i pliki są w Bibliotece.",
-    "aiClipsStarted": "Dodano do kolejki renderowania, renderuje się teraz.",
-    "aiStartedNotice": "{count, plural, one {# klip} few {# klipy} other {# klipów}} od AI dodano do kolejki renderowania i renderuje się.",
+    "aiClipsStarted": "Dodano do kolejki renderowania. Renderowanie trwa.",
+    "aiStartedNotice": "{count, plural, one {# klip od AI trafił} few {# klipy od AI trafiły} many {# klipów od AI trafiło} other {# klipu od AI trafiło}} do kolejki renderowania. Renderowanie trwa.",
     "jobCutSaved": "Cięcie na TikToka klipu {name} jest w Bibliotece."
   },
   "Territory": {
@@ -6423,7 +6423,7 @@
   "ClipEditor": {
     "title": "Edytor klipów",
     "close": "Zamknij",
-    "intro": "Zacznij tam, gdzie jest akcja, przybliż pierścień, zostaw pytanie i swój adres na ekranie od pierwszej klatki i zakończ planszą z nazwą strony. Podgląd pokazuje plik klatka po klatce.",
+    "intro": "Zacznij tam, gdzie jest akcja. Dodaj pytanie u góry i planszę końcową. Podgląd pokazuje każdą klatkę pliku.",
     "previewAlt": "Podgląd cięcia",
     "scrub": "Czas podglądu",
     "seconds": "{sec} s",
@@ -6432,9 +6432,9 @@
     "length": "Długość akcji",
     "zoom": "Przybliżenie",
     "card": "Plansza końcowa",
-    "hook": "Hak u góry",
+    "hook": "Haczyk u góry",
     "hookPlaceholder": "Pytanie, na którego odpowiedź widz czeka",
-    "url": "Adres pod hakiem i na planszy",
+    "url": "Adres pod haczykiem i na planszy",
     "ideas": {
       "escape": "Czy ucieknie?",
       "winner": "Czerwony czy niebieski?",

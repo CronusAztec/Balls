@@ -3610,8 +3610,11 @@ release build is never cancelled by a newer push. electron-updater (the generic 
 reads `latest.yml` from the downloads repository's latest release. The app checks 8 s after launch and every 4 hours, downloads in the background,
 shows a banner (Restart and update / Later) and a Windows notification, installs on quit. --- manual-update --- The Desktop group's top bar
 has an update button on every tab (`UpdateButton.tsx`, states in `src/lib/desktop/updateButton.ts`): Check for updates, Checking…, the
-download's percent, Restart and update (never while a clip renders), the result of the check, Try again with the Download page after an
-error, and for the portable EXE or a development run a note that it does not update itself with a link to the Download page. A manual
+download's percent, Restart and update (never while a clip renders), the result of the check (from the clicked check's own answer:
+the quiet schedule's checks, a failed one put back to "none" included, never say "You have the latest version"), Try again with the
+Download page after an error, and for the portable EXE or a development run a note that it does not update itself with a link to the
+Download page. Busy, the button (and the GPU tab's) is aria-disabled and ignores clicks, so a keyboard user keeps the focus, and the
+note's live region stays mounted with only its text changing. A manual
 check (that button, Help → Check for updates, the GPU tab) finds and downloads the update with "Update automatically" off too (the
 preference only drives the quiet schedule, and takes effect without a restart), one check at a time.
 The download page shows the build-time version (`DESKTOP_VERSION`, bumped by `npm run release:desktop` in the push that
@@ -3669,7 +3672,10 @@ updates. Never commit certificates, keys, models or built binaries (`.gitignore`
 
 Feature ai-cut, on top of the Clip editor (`src/lib/clipEdit`, feature clip-editor: a finished video cut for TikTok in the
 browser – start, length, crop-in, a hook and the site's address on the frame, an end card – rendered by the page with
-WebCodecs, every frame stamped again with the run's watermark seal). The Windows app's local AI drives it two ways:
+WebCodecs, every frame stamped again with the run's watermark seal). The hook wraps onto two lines and shrinks, the address and
+the card's lines shrink, so a 60-character hook stays inside the frame (`fitTextLines`, the bot's caption rule); a Fight League
+source's cut draws the fan-made badge again, over the card too (`fanMadeLine`, --- legal-audit ---); a first cut's hook is in the
+page's language (`localClipEdit`). The Windows app's local AI drives it two ways:
 
 - **Make videos with cuts** – the AI panel's "Also cut each clip for TikTok after rendering" (`ai-cut`) makes Make videos
   answer a `cut` per clip (`CLIP_CUT` in `src/lib/desktop/ai/studio.ts`: startSec, lengthSec, zoom and cardSec from fixed

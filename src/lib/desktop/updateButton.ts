@@ -29,10 +29,25 @@ export interface UpdateButtonModel {
 export interface UpdateButtonContext {
   /** A clip renders, encodes or is being cut: no restart now. */
   rendering?: boolean;
-  /** A check just ended with "none" (the "latest version" note shows for UPDATE_LATEST_NOTE_MS). */
+  /** A check the user asked for just answered "none" (checkFoundNothing; the "latest version" note shows for UPDATE_LATEST_NOTE_MS). */
   justChecked?: boolean;
   /** A click was sent and its answer has not come back yet (a second click must not start a second check). */
   asking?: boolean;
+}
+
+/**
+ * Whether a check's own answer earns "You have the latest version": only the status the clicked check returned, never a
+ * status change seen on the way. The quiet schedule's checks pass through "checking" too, and a failed one is put back to
+ * the "none" it found (desktop/src/updater.ts), so a change from "checking" to "none" proves nothing about who asked or how
+ * it went.
+ */
+export function checkFoundNothing(answer: UpdateStatus | null | undefined): boolean {
+  return answer?.state === "none";
+}
+
+/** A busy button (a check asked for, under way or downloading) keeps its focus: aria-disabled, never the native `disabled`. */
+export function updateButtonBusy(m: UpdateButtonModel, asking = false): boolean {
+  return !m.enabled && (asking || m.kind === "checking" || m.kind === "downloading");
 }
 
 export function updateButtonModel(status: UpdateStatus | null, { rendering = false, justChecked = false, asking = false }: UpdateButtonContext = {}): UpdateButtonModel {
