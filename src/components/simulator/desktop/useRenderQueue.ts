@@ -12,6 +12,7 @@ import {
   cancelAll as cancelAllJobs,
   cancelJob,
   clearFinished,
+  cutsPending,
   enqueue,
   isActive,
   jobProgress,
@@ -99,6 +100,8 @@ export interface RenderQueueApi {
   lastError: string | null;
   /** --- ai-cut --- The done job whose TikTok cut is being made, with the cut's progress (0–1); null when none is. --- cut-cancel --- `saving`: the file is made and being saved, past a Cancel. */
   cutting: { jobId: string; progress: number; saving?: boolean } | null;
+  /** --- ai-cut --- The jobs whose master may be in the Library while their cut is still to come (cutsPending), read now. */
+  pendingCuts: () => string[];
 }
 
 /** --- ai-cut --- What the cut step needs from the page: the end card's words, and where to report a cut that failed. */
@@ -327,6 +330,8 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
     },
     [apply, bridge, pageRef],
   );
+  // --- ai-cut --- read from the refs the loop writes as it goes (the master's save, the cut's start), never a render behind
+  const pendingCuts = useCallback(() => cutsPending(stateRef.current, cutRun.current?.jobId), []);
   const cancelAll = useCallback(() => {
     const active = stateRef.current.jobs.find(isActive);
     if (active) {
@@ -358,5 +363,6 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
     dismissResume: () => setResumable(null),
     lastError,
     cutting, // --- ai-cut ---
+    pendingCuts,
   };
 }

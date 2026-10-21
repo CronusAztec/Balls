@@ -107,7 +107,7 @@ export interface DesktopAiApi {
   sendToQueue: () => Promise<void>;
 }
 
-export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObject<DesktopPageHooks>, onClips: (result: MakeVideosResult, plans: ClipPlan[], options: { start: boolean } /* --- ai-cut --- */) => boolean /* --- ai-cut --- the queue started */, onPrefsChanged: () => void, custom?: CustomContentApi): DesktopAiApi {
+export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObject<DesktopPageHooks>, onClips: (result: MakeVideosResult, plans: ClipPlan[], options: { start: boolean } /* --- ai-cut --- */) => boolean /* --- ai-cut --- the queue started */, onPrefsChanged: () => void, custom?: CustomContentApi, pendingCuts?: () => readonly string[] /* --- ai-cut --- the queue's cuts still being made */): DesktopAiApi {
   const [status, setStatus] = useState<AiStatus | null>(null);
   const [models, setModels] = useState<ModelEntry[]>([]);
   const [progress, setProgress] = useState<Record<string, ModelProgressEvent>>({});
@@ -298,7 +298,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
           } else if (task === "plan") {
             // --- social-autopilot --- the plan job: proposals only (the user sends them to the queue, and approves each on the card)
             if (playbookRef.current === null) playbookRef.current = await bridge.ai.playbook();
-            const out = await runPlanner(bridge, model, { locale: page.locale, playbook: playbookRef.current, onEvent, signal: controller.signal, ignoreBudget: true });
+            const out = await runPlanner(bridge, model, { locale: page.locale, playbook: playbookRef.current, onEvent, signal: controller.signal, ignoreBudget: true, pendingCuts: pendingCuts?.() });
             if (!out.ok) {
               if (out.reason === "model") throw new Error(out.error);
               throw new Error(out.reason === "noChannels" ? "Tick at least one channel in the Autopilot card of the Posts tab first." : out.reason === "noClips" ? "Every clip in the Library is posted or proposed already. Render a new one first." : "Today's proposals are all made.");
@@ -322,7 +322,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
         }
       })();
     },
-    [bridge, model, running, task, pageRef, onClips, refresh, custom, applyPatch],
+    [bridge, model, running, task, pageRef, onClips, refresh, custom, applyPatch, pendingCuts],
   );
 
   // --- social-autopilot --- "Send to Posts tab": the proposals become `proposed` items (by the AI); nothing is posted

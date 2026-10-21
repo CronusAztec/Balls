@@ -165,12 +165,13 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
     bridge.prefs.get().then(setPrefs).catch(() => {});
   }, [bridge]);
   const custom = useCustomContent(bridge); // --- custom-content --- the player's own fighters (they join the roster here) and modes
-  const ai = useDesktopAi(bridge, pageRef, addAiClips, reloadPrefs, custom);
+  const ai = useDesktopAi(bridge, pageRef, addAiClips, reloadPrefs, custom, queue.pendingCuts);
   // --- social-autopilot --- the trigger runs while the Desktop group is shown (whichever tab), only when the AI can answer and
   // no studio job is on; its proposals go to the queue, where the Posts tab's "Review and approve" opens the card
   const aiRef = useRef(ai);
   aiRef.current = ai;
-  const autopilot = useAutopilot(bridge, page.locale, useCallback(() => !!aiRef.current.status?.ready && !aiRef.current.running, []));
+  // --- ai-cut --- a master whose TikTok cut is still being made waits for a later run (its cut is then offered with it)
+  const autopilot = useAutopilot(bridge, page.locale, useCallback(() => !!aiRef.current.status?.ready && !aiRef.current.running, []), queue.pendingCuts);
   // --- ai-cut --- "Suggest with AI" in the Library's Clip editor: the clip's beats as far as a Library item knows them, the
   // user's current spec as the base, the editor's hook ideas as examples (offered only while the app's AI is ready)
   const suggestLibraryCut = useCallback<LibrarySuggestCut>((item, input) => suggestCut(bridge, pageRef.current.locale, beatsOfLibraryItem(item, input.durationSec), parseClipEdit(input.current), hookIdeas, input.request ?? "", input.signal), [bridge, hookIdeas]);

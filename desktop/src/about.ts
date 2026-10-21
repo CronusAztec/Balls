@@ -76,6 +76,7 @@ export function aboutLabelsOf(l: Record<string, string>): AboutLabels {
     safeMode: l.aboutSafeMode,
     updates: l.aboutUpdates,
     updatesAuto: l.aboutUpdatesAuto,
+    updatesOnRequest: l.aboutUpdatesOnRequest,
     updatesOff: l.aboutUpdatesOff,
     updatesManual: l.aboutUpdatesManual,
     data: l.aboutData,

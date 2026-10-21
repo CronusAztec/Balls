@@ -39,7 +39,8 @@ export interface AutopilotApi {
 /** --- the first check comes a minute after the group shows, then every 15 minutes */
 export const AUTOPILOT_FIRST_CHECK_MS = 60_000;
 
-export function useAutopilot(bridge: DesktopApi | null, locale: string, canPlan: () => boolean): AutopilotApi {
+/** `pendingCuts`: the render queue's jobs whose TikTok cut is still being made (useRenderQueue), left for a later run. */
+export function useAutopilot(bridge: DesktopApi | null, locale: string, canPlan: () => boolean, pendingCuts?: () => readonly string[]): AutopilotApi {
   const [settings, setSettingsState] = useState<AutopilotSettings | null>(null);
   const [queue, setQueue] = useState<SocialQueueItem[]>([]);
   const [library, setLibrary] = useState<LibraryItem[]>([]);
@@ -87,7 +88,7 @@ export function useAutopilot(bridge: DesktopApi | null, locale: string, canPlan:
       setError(null);
       try {
         if (playbookRef.current === null) playbookRef.current = await bridge.ai.playbook().catch(() => "");
-        const out: PlanRunOutcome = await runPlanner(bridge, model, { locale, playbook: playbookRef.current, settings: current, queue: queueRef.current, ignoreBudget });
+        const out: PlanRunOutcome = await runPlanner(bridge, model, { locale, playbook: playbookRef.current, settings: current, queue: queueRef.current, ignoreBudget, pendingCuts: pendingCuts?.() });
         if (out.ok) {
           if (out.proposals.length > 0) await bridge.social.queue.propose(out.proposals.slice(0, 5), "ai");
           setNote({ key: "proposed", count: out.proposals.length });
@@ -102,7 +103,7 @@ export function useAutopilot(bridge: DesktopApi | null, locale: string, canPlan:
         setPlanning(false);
       }
     },
-    [bridge, model, locale, canPlan],
+    [bridge, model, locale, canPlan, pendingCuts],
   );
 
   // the trigger: a minute after the group shows, then every 15 minutes, while the autopilot is on

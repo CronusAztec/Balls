@@ -231,7 +231,9 @@ export async function renderClipEdit(options: ClipEditOptions): Promise<ClipEdit
   const report = (phase: ClipEditPhase, fraction: number, frame: number, frames: number) => options.onProgress?.({ phase, progress: progressOf(phase, fraction), frame, frames });
   report("prepare", 0, 0, 0);
 
-  const format = await pickExportFormat(width, height, fps);
+  // --- cut-codec --- always the fast export's own formats (H.264 in an MP4 where it can), never the HEVC or AV1 a queue job
+  // under way has set for the page's export: TikTok and Instagram do not take AV1, and Windows may not play HEVC
+  const format = await pickExportFormat(width, height, fps, "h264");
   if (!format) throw new FastRenderUnsupportedError();
   if (signal?.aborted) return null;
 

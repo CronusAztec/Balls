@@ -239,6 +239,17 @@ export function queueSummary(state: QueueState): QueueSummary {
   return { total: state.jobs.length, queued, active, done: count("done"), failed: count("failed"), cancelled: count("cancelled"), progress, idle: active === 0 && (queued === 0 || !state.running) };
 }
 
+/**
+ * --- ai-cut --- The jobs whose TikTok cut is still to come: a job that carries a cut while it renders or is saved (its master
+ * reaches the Library before the save returns), and the done job whose cut is being made (`cuttingJobId`). Their master is in
+ * the Library alone for a while, so the autopilot's planner leaves it for a later run (autopilot.ts unpostedClips): offered
+ * now, it would go to TikTok uncut and its cut, one video with it, would never be offered.
+ */
+export function cutsPending(state: QueueState, cuttingJobId: string | null | undefined): string[] {
+  const ids = state.jobs.filter((j) => isActive(j) && j.cut).map((j) => j.id);
+  return cuttingJobId && !ids.includes(cuttingJobId) ? [...ids, cuttingJobId] : ids;
+}
+
 /* ------------------------------------------------------------------ batch expansion */
 
 export interface BatchClipSource {

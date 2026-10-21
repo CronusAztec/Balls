@@ -280,6 +280,52 @@ describe("the update button's states", () => {
     expect(section).toContain("updateAsking={updateCheck.asking} onCheckUpdates={updateCheck.check}");
   });
 
+  // --- manual-update --- an update already downloaded leaves nothing to check: the updater answers a check with the same
+  // "ready" and no change, so the GPU tab's Check for updates waits (aria-disabled, no click) and names the Updates row, which
+  // says how to install it, as its description. Nothing is pressed that answers with silence.
+  it("keeps the GPU tab's Check for updates waiting once an update is downloaded, described by the Updates row", () => {
+    const bridge = {} as React.ComponentProps<typeof GpuPanel>["bridge"];
+    const ready = status("ready", { version: "1.4.0" });
+    for (const [locale, autoUpdate] of [["en", true], ["en", false], ["pl", false], ["es", true]] as const) {
+      const prefs = { ffmpegPath: "", autoUpdate, closeToTray: false, encoderOverride: "", preferHardware: true } as unknown as React.ComponentProps<typeof GpuPanel>["prefs"];
+      const messages = LOCALES[locale];
+      const html = renderToStaticMarkup(
+        createElement(
+          NextIntlClientProvider,
+          { locale, messages, timeZone: "UTC" } as unknown as React.ComponentProps<typeof NextIntlClientProvider>,
+          createElement(GpuPanel, { bridge, prefs, info: null, update: ready, updateAsking: false, onCheckUpdates: () => {}, onPrefs: () => {} }),
+        ),
+      );
+      const label = messages.Desktop.appCheckUpdates;
+      const button = html.match(new RegExp(`<button[^>]*>${label}</button>`))?.[0] ?? "";
+      expect(button, locale).not.toBe("");
+      expect(ariaDisabled(button), locale).toBe(true);
+      expect(disabled(button), locale).toBe(false); // the focus stays on it
+      expect(button, locale).toContain('aria-describedby="desktop-update-row"');
+      const row = html.match(/<dd id="desktop-update-row"[^>]*>([^<]*)<\/dd>/)?.[1];
+      const line = (autoUpdate ? messages.Desktop.update.ready : messages.Desktop.update.readyManual).replace("{version}", "1.4.0");
+      expect(row, locale).toBe(line);
+    }
+    // the click does nothing while it waits
+    const prefs = { ffmpegPath: "", autoUpdate: false, closeToTray: false, encoderOverride: "", preferHardware: true } as unknown as React.ComponentProps<typeof GpuPanel>["prefs"];
+    const found: React.ReactElement<{ onClick?: unknown; children?: React.ReactNode }>[] = [];
+    const walk = (node: React.ReactNode) =>
+      React.Children.forEach(node, (child) => {
+        if (!React.isValidElement(child)) return;
+        const el = child as React.ReactElement<{ onClick?: unknown; children?: React.ReactNode }>;
+        if (el.type === "button" && React.Children.toArray(el.props.children).includes(en.Desktop.appCheckUpdates)) found.push(el);
+        walk(el.props.children);
+      });
+    walk(viewWithIntl(() => GpuPanel({ bridge, prefs, info: null, update: ready, updateAsking: false, onCheckUpdates: () => {}, onPrefs: () => {} })));
+    expect(found).toHaveLength(1);
+    expect(found[0].props.onClick).toBeUndefined();
+    // any other state leaves it with no description
+    for (const state of ["none", "error", "checking"] as const) {
+      const html = renderToStaticMarkup(createElement(NextIntlClientProvider, { locale: "en", messages: en, timeZone: "UTC" } as unknown as React.ComponentProps<typeof NextIntlClientProvider>, createElement(GpuPanel, { bridge, prefs, info: null, update: status(state), updateAsking: false, onCheckUpdates: () => {}, onPrefs: () => {} })));
+      expect(html.match(/<button[^>]*>Check for updates<\/button>/)?.[0], state).not.toContain("aria-describedby");
+    }
+  });
+
   // --- manual-update --- between two queue jobs nothing renders for a moment: the wait must not end and start again per clip
   it("keeps waiting between two queue jobs, and stops when the queue does", () => {
     const job = (status: string) => ({ status });
@@ -446,8 +492,8 @@ describe("the update button's place", () => {
       expect(file).not.toMatch(/disabled=\{rendering\}/);
     }
     // its Check for updates keeps a keyboard user's focus while busy too: aria-disabled and no click, native disabled only for a build that cannot update
-    expect(gpu).toMatch(/const updateBusy = updateAsking \|\| update\?\.state === "checking" \|\| update\?\.state === "available" \|\| update\?\.state === "downloading";/);
-    expect(gpu).toMatch(/disabled=\{update\?\.state === "disabled"\} aria-disabled=\{updateBusy \|\| undefined\} onClick=\{updateBusy \? undefined : onCheckUpdates\}/);
+    expect(gpu).toMatch(/const updateBusy = updateAsking \|\| update\?\.state === "checking" \|\| update\?\.state === "available" \|\| update\?\.state === "downloading" \|\| updateReady;/);
+    expect(gpu).toMatch(/disabled=\{update\?\.state === "disabled"\} aria-disabled=\{updateBusy \|\| undefined\} aria-describedby=\{updateReady \? "desktop-update-row" : undefined\} onClick=\{updateBusy \? undefined : onCheckUpdates\}/);
     expect(fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "ui.tsx"), "utf8")).toMatch(/export const btn = "[^"]*aria-disabled:opacity-40 aria-disabled:cursor-not-allowed"/);
     expect(section).toContain("rendering={rendering} updateAsking={updateCheck.asking} onCheckUpdates={updateCheck.check} onPrefs={changePrefs}");
   });

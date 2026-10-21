@@ -242,12 +242,26 @@ describe("shouldPlanNow (the page's 15-minute check)", () => {
     expect(unpostedClips([{ ...library[0] }, { ...library[1], exists: false }], [], [], { preferCut: true }).map((c) => c.id)).toEqual(["master"]);
     // the planning run prefers the cut when a TikTok channel is among its channels
     const planRun = fs.readFileSync(path.join(__dirname, "..", "src", "lib", "desktop", "ai", "planRun.ts"), "utf8");
-    expect(planRun).toMatch(/unpostedClips\(library, queue, audit, \{ preferCut: channels\.some\(\(c\) => c\.platform === "tiktok"\) \}\)/);
+    expect(planRun).toMatch(/unpostedClips\(library, queue, audit, \{ preferCut: channels\.some\(\(c\) => c\.platform === "tiktok"\), pendingCuts: options\.pendingCuts \}\)/);
     // --- ai-cut --- the Clip editor's cut of a master is saved as `<job>-cut` too (lib/clipEdit/propose.ts editCutJobId): one video
     const editorCut = item("ecut", editCutJobId("job-2"), NOW - 200);
     expect(unpostedClips([...library, editorCut], [], [], { preferCut: true }).map((c) => c.id)).toEqual(["cut", "picked", "edited", "ecut"]);
     expect(unpostedClips([...library, editorCut], [], []).map((c) => c.id)).toEqual(["master", "other", "picked", "edited"]);
     expect(unpostedClips([...library, editorCut], [queued({ clipId: "other" })], [], { preferCut: true }).map((c) => c.id)).toEqual(["cut", "picked", "edited"]);
+  });
+
+  // --- ai-cut --- the queue saves a master, then spends a while on its TikTok cut: a run that prefers the cut leaves that video
+  // for a later run, so the master never goes to TikTok uncut and its cut is offered once it is there
+  it("leaves a master whose cut is still being made for a later run when it would offer the cut", () => {
+    const item = (id: string, queueJobId: string | null): LibraryItem => ({ id, path: `C:/${id}.mp4`, fileName: `${id}.mp4`, bytes: 1, durationSec: 10, width: 1080, height: 1920, createdAt: NOW - 1000, thumbnail: null, exists: true, encoder: null, meta: { title: id, mode: "glass", seed: 1, link: "", platform: null, hook: null, caption: null, hashtags: [], queueJobId } });
+    const master = item("master", "job-1");
+    const other = item("other", "job-2");
+    expect(unpostedClips([master, other], [], [], { preferCut: true, pendingCuts: ["job-1"] }).map((c) => c.id)).toEqual(["other"]);
+    // the cut saved (no job pending any more): the cut is the one offered
+    const cut = item("cut", "job-1-cut");
+    expect(unpostedClips([master, cut, other], [], [], { preferCut: true, pendingCuts: [] }).map((c) => c.id)).toEqual(["cut", "other"]);
+    // a run with no TikTok channel offers the master, which is what it would offer anyway
+    expect(unpostedClips([master, other], [], [], { pendingCuts: ["job-1"] }).map((c) => c.id)).toEqual(["master", "other"]);
   });
 
   // --- ai-cut --- a proposal and a post keep their video's key: the pair stays taken once the Library forgets the file that went out
@@ -306,6 +320,24 @@ describe("runPlanner", () => {
     expect(await runPlanner(bridge({ queue: [queued()] }).api, model, { locale: "en", playbook: "", now: NOW })).toEqual({ ok: false, reason: "noClips", error: null });
     expect(await runPlanner(bridge({ queue: [queued({ clipId: "other" })] }).api, model, { locale: "en", playbook: "", now: NOW })).toEqual({ ok: false, reason: "dayFull", error: null });
     expect(model.calls).toEqual([]);
+  });
+
+  // --- ai-cut --- the trigger and Plan posts both hand the queue's pending cuts: a TikTok run never sees that master alone
+  it("does not offer a queue master for TikTok while its cut is still being made", async () => {
+    const master: LibraryItem = { ...library[0], id: "master", meta: { ...library[0].meta, queueJobId: "job-1" } };
+    const model = scripted([]);
+    expect(await runPlanner(bridge({ library: [master] }).api, model, { locale: "en", playbook: "", now: NOW, ignoreBudget: true, pendingCuts: ["job-1"] })).toEqual({ ok: false, reason: "noClips", error: null });
+    expect(model.calls).toEqual([]);
+    const answered = scripted([answer.replace("clip-1", "master")]);
+    const out = await runPlanner(bridge({ library: [master] }).api, answered, { locale: "en", playbook: "", now: NOW, ignoreBudget: true, pendingCuts: [] });
+    expect(out.ok && out.proposals.map((p) => p.clipId)).toEqual(["master"]);
+    const autopilot = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "useAutopilot.ts"), "utf8");
+    expect(autopilot).toMatch(/runPlanner\(bridge, model, \{[^}]*pendingCuts: pendingCuts\?\.\(\) \}\)/);
+    const ai = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "useDesktopAi.ts"), "utf8");
+    expect(ai).toMatch(/runPlanner\(bridge, model, \{[^}]*pendingCuts: pendingCuts\?\.\(\) \}\)/);
+    const section = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "sections", "DesktopSection.tsx"), "utf8");
+    expect(section).toContain("useDesktopAi(bridge, pageRef, addAiClips, reloadPrefs, custom, queue.pendingCuts)");
+    expect(section).toMatch(/useAutopilot\(bridge, page\.locale, [^\n]*, queue\.pendingCuts\)/);
   });
 
   it("runs the task on the model and answers with queue proposals (it never calls propose or post itself)", async () => {

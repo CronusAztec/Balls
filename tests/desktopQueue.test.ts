@@ -10,6 +10,7 @@ import {
   cancelAll,
   cancelJob,
   clearFinished,
+  cutsPending,
   enqueue,
   expandBatch,
   jobProgress,
@@ -146,6 +147,29 @@ describe("render queue state machine", () => {
     const platform = expandBatch(clips.slice(0, 1), { resolutions: ["1080x1920", "1920x1080"], fps: [30, 60], codecs: ["h264", "hevc"], presets: ["tiktok"] });
     expect(platform.map((s) => s.name)).toEqual(["ring-h264-tiktok", "ring-hevc-tiktok"]);
     expect(expandBatch(clips, { resolutions: ["999x1"], fps: [60], codecs: ["h264"], presets: ["native"] })).toEqual([]);
+  });
+
+  // --- ai-cut --- a job's master reaches the Library while the job renders or is saved, and its cut comes after it is done:
+  // the autopilot's planner is told which jobs still owe a cut, so it never offers their master alone for TikTok
+  it("names the jobs whose cut is still to come: one rendering or saved that carries a cut, and the done one being cut", () => {
+    const cut: ClipEditSpec = { ...DEFAULT_CLIP_EDIT, startSec: 1 };
+    let q = startQueue(enqueue(EMPTY_QUEUE, [{ ...spec("a"), cut }, spec("b"), { ...spec("c"), cut }], 1000, ids()));
+    const [a, b, c] = q.jobs.map((j) => j.id);
+    expect(cutsPending(q, null)).toEqual([]); // queued: no master yet
+    q = markRendering(q, a, 2000);
+    expect(cutsPending(q, null)).toEqual([a]);
+    q = markEncoding(q, a, 2100); // saved through ffmpeg: the master is in the Library before the save returns
+    expect(cutsPending(q, null)).toEqual([a]);
+    q = markDone(q, a, { path: "C:/v/a.mp4", bytes: 1, durationSec: 12, encoder: null }, 2200);
+    expect(cutsPending(q, null)).toEqual([]);
+    expect(cutsPending(q, a)).toEqual([a]); // its cut is being made
+    // a job without a cut owes none; the next one with a cut does while it renders
+    q = markRendering(q, b, 2300);
+    expect(cutsPending(q, a)).toEqual([a]);
+    q = markDone(q, b, { path: "C:/v/b.mp4", bytes: 1, durationSec: 12, encoder: null }, 2400);
+    q = markRendering(q, c, 2500);
+    expect(cutsPending(q, null)).toEqual([c]);
+    expect(cutsPending(q, c)).toEqual([c]);
   });
 });
 

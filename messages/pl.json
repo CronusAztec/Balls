@@ -6428,6 +6428,7 @@
     "title": "Edytor klipów",
     "close": "Zamknij",
     "intro": "Zacznij tam, gdzie jest akcja. Dodaj pytanie u góry i planszę końcową. Podgląd pokazuje każdą klatkę pliku.",
+    "cutFileNote": "To wideo jest już gotowym cięciem. Przybliżenie, haczyk i plansza końcowa są w obrazie. Tu możesz je tylko przyciąć.",
     "previewAlt": "Podgląd cięcia",
     "scrub": "Czas podglądu",
     "seconds": "{sec} s",

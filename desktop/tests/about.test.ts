@@ -172,9 +172,13 @@ describe("Help > About", () => {
     expect(installKind({ packaged: true, portable: true })).toBe("portable");
     expect(installKind({ packaged: false, portable: false })).toBe("development");
     expect(updatesMode({ packaged: true, portable: false, autoUpdate: true })).toBe("auto");
-    expect(updatesMode({ packaged: true, portable: false, autoUpdate: false })).toBe("off");
+    // --- manual-update --- automatic updates off, a check (the top bar, Help, the GPU tab) still finds and installs one
+    expect(updatesMode({ packaged: true, portable: false, autoUpdate: false })).toBe("onRequest");
+    expect(aboutLines({ ...facts, updates: updatesMode({ packaged: true, portable: false, autoUpdate: false }) }).join("\n")).toContain("Updates: when you check");
     expect(updatesMode({ packaged: false, portable: false, autoUpdate: true })).toBe("off");
+    expect(updatesMode({ packaged: false, portable: false, autoUpdate: false })).toBe("off");
     expect(updatesMode({ packaged: true, portable: true, autoUpdate: true })).toBe("manual");
+    expect(updatesMode({ packaged: true, portable: true, autoUpdate: false })).toBe("manual");
   });
 
   it("has every label in English, Polish and Spanish", () => {
@@ -188,6 +192,10 @@ describe("Help > About", () => {
     }
     expect(aboutLines(facts, aboutLabelsOf(MENU_LABELS.pl))[3]).toBe("Aktualizacje: automatyczne");
     expect(aboutLines(facts, aboutLabelsOf(MENU_LABELS.es))[3]).toBe("Actualizaciones: automáticas");
+    const onRequest = { ...facts, updates: "onRequest" as const };
+    expect(aboutLines(onRequest, aboutLabelsOf(MENU_LABELS.en))[3]).toBe("Updates: when you check");
+    expect(aboutLines(onRequest, aboutLabelsOf(MENU_LABELS.pl))[3]).toBe("Aktualizacje: gdy sprawdzisz");
+    expect(aboutLines(onRequest, aboutLabelsOf(MENU_LABELS.es))[3]).toBe("Actualizaciones: cuando las buscas");
     // and none of the new native texts breaks the copy rules: no em dash, no spaced en dash, no semicolon
     for (const lang of ["en", "pl", "es"] as const) for (const key of Object.keys(MENU_LABELS[lang]).filter((k) => /^(about|whatsNew)/.test(k))) expect(MENU_LABELS[lang][key], `${lang}.${key}`).not.toMatch(/—| – |;/);
   });

@@ -42,6 +42,7 @@ import {
 } from "./fastRenderPlan";
 import { EXPORT_FRAME_CEILING } from "@/lib/uncap"; // --- uncap-all ---
 import { hardwarePreferred, noteVideoAcceleration, pickDesktopFormat, resolveVideoConfig } from "@/lib/desktop/gpuEncode"; // --- desktop-exe ---
+import type { VideoCodec } from "@/lib/desktop/contract";
 import { prepareStamp, sealVerdict, sealWatermark } from "@/lib/watermark/seal"; // --- free-watermark ---
 import type { LiveHud } from "@/lib/watermark/liveLayout"; // --- low-findings ---
 
@@ -341,12 +342,15 @@ async function browserSupportsAudio(codec: string): Promise<boolean> {
   return support.supported === true;
 }
 
-/** The format the browser can write for this export size, or null. */
-export function pickExportFormat(width: number, height: number, fps: number): Promise<ExportFormat | null> {
+/**
+ * The format the browser can write for this export size, or null. `codec`: the video codec this export asks for itself
+ * (the Clip editor's cut is always H.264); left out, the desktop render queue's codec of the job under way.
+ */
+export function pickExportFormat(width: number, height: number, fps: number, codec?: VideoCodec): Promise<ExportFormat | null> {
   if (!fastRenderSupported()) return Promise.resolve(null);
-  const probe = { video: (codec: string) => browserSupportsVideo(codec, width, height, fps), audio: browserSupportsAudio };
+  const probe = { video: (c: string) => browserSupportsVideo(c, width, height, fps), audio: browserSupportsAudio };
   // --- desktop-exe --- the desktop render queue's HEVC / AV1 MP4 first when it asks for one (else the usual formats)
-  return pickDesktopFormat(width, height, fps, probe).then((desktop) => desktop ?? selectExportFormat(width, height, fps, probe));
+  return pickDesktopFormat(width, height, fps, probe, codec).then((desktop) => desktop ?? selectExportFormat(width, height, fps, probe));
 }
 
 /** Lets the page breathe (progress bar, Cancel) without the clamping and background throttling of timers. */

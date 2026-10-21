@@ -182,8 +182,10 @@ function videoOf(item: Pick<LibraryItem, "id" | "meta">): string {
  * and its TikTok cut are one video: either one queued or posted takes both, and only one of them is offered, the cut when
  * `preferCut` (a TikTok channel is among the planner's) and the master otherwise, so one video never goes out twice. A
  * proposal or a post keeps its video's key (`video`), so the pair stays taken once the Library forgets the file that went out.
+ * `pendingCuts`: the render queue's jobs whose cut is still being made (renderQueue.ts cutsPending). A run that prefers the
+ * cut leaves their video for a later run, so the master never goes to TikTok uncut while its cut is a few seconds away.
  */
-export function unpostedClips(library: readonly LibraryItem[], queue: readonly SocialQueueItem[], audit: readonly SocialAuditEntry[], options: { preferCut?: boolean } = {}): PlanClip[] {
+export function unpostedClips(library: readonly LibraryItem[], queue: readonly SocialQueueItem[], audit: readonly SocialAuditEntry[], options: { preferCut?: boolean; pendingCuts?: readonly string[] } = {}): PlanClip[] {
   const videoById = new Map(library.map((i) => [i.id, videoOf(i)]));
   const taken = new Set<string>();
   const take = (clipId: string, video: unknown) => {
@@ -192,6 +194,7 @@ export function unpostedClips(library: readonly LibraryItem[], queue: readonly S
   };
   for (const i of queue) if (i.status !== "skipped") take(i.clipId, i.video);
   for (const e of audit) if (e.action === "createPosts" && e.clipId) take(e.clipId, e.video);
+  if (options.preferCut) for (const job of options.pendingCuts ?? []) taken.add(`job:${job}`);
   const open = library.filter((i) => i.exists && !taken.has(videoOf(i)));
   // one item a video: the preferred kind, then the newest
   const rank = (i: LibraryItem) => (isCutItem(i) === (options.preferCut === true) ? 1 : 0);

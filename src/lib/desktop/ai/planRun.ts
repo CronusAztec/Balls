@@ -26,6 +26,8 @@ export interface PlanRunOptions {
   queue?: SocialQueueItem[];
   /** "Propose now" ignores today's budget being spent (at least one proposal is made). */
   ignoreBudget?: boolean;
+  /** --- ai-cut --- The render queue's jobs whose TikTok cut is still being made (renderQueue.ts cutsPending): their video waits. */
+  pendingCuts?: readonly string[];
 }
 
 export async function runPlanner(bridge: Pick<DesktopApi, "library" | "social" | "ai">, model: ChatModel, options: PlanRunOptions): Promise<PlanRunOutcome> {
@@ -34,7 +36,7 @@ export async function runPlanner(bridge: Pick<DesktopApi, "library" | "social" |
   const [library, queue, audit, allChannels, posts] = await Promise.all([bridge.library.list(), options.queue ?? bridge.social.queue.list(), bridge.social.audit(500), bridge.social.channels.list(), bridge.social.posts(14).catch(() => [])]);
   const channels = plannerChannels(settings, allChannels);
   if (channels.length === 0) return { ok: false, reason: "noChannels", error: null };
-  const clips = unpostedClips(library, queue, audit, { preferCut: channels.some((c) => c.platform === "tiktok") }); // --- ai-cut --- a master and its TikTok cut are one clip
+  const clips = unpostedClips(library, queue, audit, { preferCut: channels.some((c) => c.platform === "tiktok"), pendingCuts: options.pendingCuts }); // --- ai-cut --- a master and its TikTok cut are one clip
   if (clips.length === 0) return { ok: false, reason: "noClips", error: null };
   const left = options.ignoreBudget ? Math.max(1, proposalsLeftToday(settings, queue, now)) : proposalsLeftToday(settings, queue, now);
   if (left === 0) return { ok: false, reason: "dayFull", error: null };

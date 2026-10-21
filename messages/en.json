@@ -6428,6 +6428,7 @@
     "title": "Clip editor",
     "close": "Close",
     "intro": "Start where the action is. Add a question at the top and an end card. The preview shows every frame of the file.",
+    "cutFileNote": "This video is a cut already. Its crop-in, hook and end card are in the picture. Here you can only trim it.",
     "previewAlt": "Preview of the cut",
     "scrub": "Preview time",
     "seconds": "{sec} s",

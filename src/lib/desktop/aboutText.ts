@@ -6,7 +6,7 @@
  */
 
 export type InstallKind = "installer" | "portable" | "development";
-export type UpdatesMode = "auto" | "off" | "manual";
+export type UpdatesMode = "auto" | "onRequest" | "off" | "manual";
 
 export interface AboutFacts {
   name: string;
@@ -35,6 +35,7 @@ export interface AboutLabels {
   safeMode: string;
   updates: string;
   updatesAuto: string;
+  updatesOnRequest: string;
   updatesOff: string;
   updatesManual: string;
   data: string;
@@ -50,6 +51,7 @@ export const ABOUT_LABELS_EN: AboutLabels = {
   safeMode: "safe mode",
   updates: "Updates",
   updatesAuto: "automatic",
+  updatesOnRequest: "when you check",
   updatesOff: "off",
   updatesManual: "download new versions from the website",
   data: "Data",
@@ -63,10 +65,15 @@ export function installKind({ packaged, portable }: { packaged: boolean; portabl
   return portable ? "portable" : packaged ? "installer" : "development";
 }
 
-/** How the app gets new versions: the portable EXE never updates itself, the installer does unless the user turned it off. */
+/**
+ * How the app gets new versions: the portable EXE never updates itself. --- manual-update --- The installed app updates itself
+ * on its own while "Update automatically" is on, and with it off still finds, downloads and installs one when the user checks
+ * (the top bar's button, Help > Check for updates, the GPU tab). A development run never updates.
+ */
 export function updatesMode({ packaged, portable, autoUpdate }: { packaged: boolean; portable: boolean; autoUpdate: boolean }): UpdatesMode {
   if (portable) return "manual";
-  return packaged && autoUpdate ? "auto" : "off";
+  if (!packaged) return "off";
+  return autoUpdate ? "auto" : "onRequest";
 }
 
 /** "C:\Users\anna\AppData\Roaming\JumpingBallsLive" -> "C:\Users\~\AppData\Roaming\JumpingBallsLive": a pasted report names no person. */
@@ -78,7 +85,7 @@ export function withoutUserName(text: string): string {
 export function aboutLines(f: AboutFacts, labels: AboutLabels = ABOUT_LABELS_EN, { redact = false }: { redact?: boolean } = {}): string[] {
   const hide = redact ? withoutUserName : (s: string) => s;
   const kind = f.install === "portable" ? labels.portable : f.install === "installer" ? labels.installer : labels.development;
-  const updates = f.updates === "auto" ? labels.updatesAuto : f.updates === "manual" ? labels.updatesManual : labels.updatesOff;
+  const updates = f.updates === "auto" ? labels.updatesAuto : f.updates === "onRequest" ? labels.updatesOnRequest : f.updates === "manual" ? labels.updatesManual : labels.updatesOff;
   return [
     `${labels.app}: ${[f.version, kind, f.arch, ...(f.safeMode ? [labels.safeMode] : [])].join(SEP)}`,
     ...(f.siteLabel ? [`${labels.site}: ${f.siteLabel}`] : []),

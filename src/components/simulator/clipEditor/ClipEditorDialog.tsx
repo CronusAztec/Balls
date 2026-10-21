@@ -11,7 +11,7 @@ import { offerPublishClip, type PublishClipLibrary } from "@/lib/publish/clips";
 import type { LoopCaptionContext } from "@/lib/publish/loopCaption"; // --- low-findings ---
 import { sealWatermark, type WatermarkSeal } from "@/lib/watermark/seal";
 import { drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
-import { composeCutSpec, editCutJobId } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
+import { composeCutSpec, cutFileTrim, editCutJobId } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
 import { clipEditErrorKey, liveProgress, openSourceVideo, renderClipEdit, seekVideo, type ClipEditProgress, type ClipEditResult } from "@/lib/clipEdit/render";
 import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, clipTimeline, editFileName, fitClipEdit, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
 
@@ -27,10 +27,11 @@ import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_ED
  * are remembered (saved as they are made), so a proposal never overwrites the spec the user settled on.
  *
  * --- cut-reedit --- A cut file opened as it is (`source.cutFile`: a Library cut with no master there, a Publish clip that is a
- * cut) already shows its look: the dialog remembers none of the edits made on it (its spec is the neutral one, no address
- * included, which must not become the look of the user's next cut), and it draws the fan-made badge again only where this cut
- * can hide the burned one (a crop-in, the end card). A cut of a Library item is saved under that item's job (`<job>-cut`), so
- * the Library and the autopilot know it for the same video.
+ * cut) already shows its look: the dialog only trims it (start and length, cutFileTrim; the crop-in, hook, address and card
+ * controls are left out and a line says why), so its save as a cut of its master (composeCutSpec) is the video it shows, and
+ * its own fan-made badge stays the one badge. The dialog remembers none of the edits made on it (its spec is the neutral one,
+ * no address included, which must not become the look of the user's next cut). A cut of a Library item is saved under that
+ * item's job (`<job>-cut`), so the Library and the autopilot know it for the same video.
  *
  * --- cut-cancel --- Cancel stops the render. Once the file is made it is being saved, so the button says so and does nothing.
  */
@@ -104,14 +105,16 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const abortRef = useRef<AbortController | null>(null);
   const drawToken = useRef(0);
 
-  const fitted = durationSec ? fitClipEdit(spec, durationSec) : spec;
+  const cutFile = source.cutFile === true;
+  // --- cut-reedit --- a cut file is only trimmed, whatever the spec holds: its look is in its frames already
+  const own = cutFile ? cutFileTrim(spec) : spec;
+  const fitted = durationSec ? fitClipEdit(own, durationSec) : own;
   const timeline = clipTimeline(fitted, CLIP_EDIT_OUTPUT.fps);
   const card = useMemo(() => ({ title: t("cardTitle"), note: t("cardNote") }), [t]);
   // --- legal-audit --- a Fight League source's cut carries the fan-made badge again, in the preview and in the file, where the
   // source's own is cut away or covered (--- badge-once --- draw.ts decides frame by frame; a cut file's own counts only uncropped;
   // --- badge-safe --- a file not known to carry one gets it on every frame)
   const fanMade = fanMadeLine(source.mode, fl("canvasFanMade"));
-  const cutFile = source.cutFile === true;
   const fanMadeBurned = source.fanMadeBurned === true; // --- badge-safe ---
   const rendering = render.status === "rendering";
   const suggesting = suggestion.status === "running";
@@ -274,7 +277,9 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
         </div>
 
         <div className="space-y-3 min-w-0">
-          <p className="text-xs text-ink-3 leading-snug">{t("intro")}</p>
+          <p className="text-xs text-ink-3 leading-snug" data-testid="clip-edit-intro">
+            {cutFile ? t("cutFileNote") : t("intro")}
+          </p>
           {openError && (
             <p className="text-xs text-danger" role="alert">
               {failureText(openError.error, t)}
@@ -283,24 +288,29 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
           <div className="grid gap-3 sm:grid-cols-2">
             {number("startSec", t("start"), sec, durationSec ? Math.max(0, durationSec - 1) : undefined)}
             {number("lengthSec", t("length"), sec, durationSec ? Math.max(CLIP_EDIT_RANGES.lengthSec.min, durationSec - fitted.startSec) : undefined)}
-            {number("zoom", t("zoom"), (v) => `${Math.round((v - 1) * 100)} %`)}
-            {number("cardSec", t("card"), sec)}
+            {/* --- cut-reedit --- a cut file shows its crop-in and card already: only its start and length are set here */}
+            {!cutFile && number("zoom", t("zoom"), (v) => `${Math.round((v - 1) * 100)} %`)}
+            {!cutFile && number("cardSec", t("card"), sec)}
           </div>
-          <label className="block text-xs text-ink-2 space-y-1">
-            <span>{t("hook")}</span>
-            <input type="text" value={spec.hook} maxLength={CLIP_EDIT_TEXT_MAX} disabled={busy} onChange={(e) => set("hook", e.target.value)} placeholder={t("hookPlaceholder")} className={`${inputClass} w-full`} data-testid="clip-edit-hook" />
-          </label>
-          <div className="flex flex-wrap gap-1.5">
-            {HOOK_IDEAS.map((idea) => (
-              <button key={idea} type="button" disabled={busy} onClick={() => set("hook", t(`ideas.${idea}`))} className={`${btn} bg-surface-2 text-ink-2 hover:text-ink border border-line`}>
-                {t(`ideas.${idea}`)}
-              </button>
-            ))}
-          </div>
-          <label className="block text-xs text-ink-2 space-y-1">
-            <span>{t("url")}</span>
-            <input type="text" value={spec.url} maxLength={CLIP_EDIT_TEXT_MAX} disabled={busy} onChange={(e) => set("url", e.target.value)} placeholder={DEFAULT_CLIP_EDIT.url} className={`${inputClass} w-full`} data-testid="clip-edit-url" />
-          </label>
+          {!cutFile && (
+            <>
+              <label className="block text-xs text-ink-2 space-y-1">
+                <span>{t("hook")}</span>
+                <input type="text" value={spec.hook} maxLength={CLIP_EDIT_TEXT_MAX} disabled={busy} onChange={(e) => set("hook", e.target.value)} placeholder={t("hookPlaceholder")} className={`${inputClass} w-full`} data-testid="clip-edit-hook" />
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {HOOK_IDEAS.map((idea) => (
+                  <button key={idea} type="button" disabled={busy} onClick={() => set("hook", t(`ideas.${idea}`))} className={`${btn} bg-surface-2 text-ink-2 hover:text-ink border border-line`}>
+                    {t(`ideas.${idea}`)}
+                  </button>
+                ))}
+              </div>
+              <label className="block text-xs text-ink-2 space-y-1">
+                <span>{t("url")}</span>
+                <input type="text" value={spec.url} maxLength={CLIP_EDIT_TEXT_MAX} disabled={busy} onChange={(e) => set("url", e.target.value)} placeholder={DEFAULT_CLIP_EDIT.url} className={`${inputClass} w-full`} data-testid="clip-edit-url" />
+              </label>
+            </>
+          )}
 
           {/* --- clip-a11y --- the bar is a progressbar and its line changes every few frames, so neither is live: the region
               below stays mounted and changes only with the phase or a quarter of the render */}

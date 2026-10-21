@@ -3,18 +3,40 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import path from "path";
+import * as React from "react";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { NextIntlClientProvider } from "next-intl";
 import { CARD_FADE_SEC, CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_STORAGE_KEY, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, TEXT_MAX_SHARE, TEXT_MIN_SCALE, audioGainAt, cardAlphaAt, clipTimeline, cropRect, editFileName, fitClipEdit, fitTextLines, hookLayout, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
 import { burnedBadgeBox, burnedBadgeShows, drawEditFrame, fanMadeLine, fanMadeMode } from "@/lib/clipEdit/draw";
 import { BADGE_HEIGHT, BADGE_INSET, safeZone } from "@/lib/watermark/layout";
 import { ClipEditOpenError, ClipEditSeekError, clipEditErrorKey, cutAudio, liveProgress, openSourceVideo, seekVideo } from "@/lib/clipEdit/render";
-import { composeCutSpec, cutFileSpec, editCutJobId, isCutJob, libraryEditOpen, refitClipEdit, type LibraryEditItem } from "@/lib/clipEdit/propose";
+import { composeCutSpec, cutFileSpec, cutFileTrim, editCutJobId, isCutJob, libraryEditOpen, refitClipEdit, type LibraryEditItem } from "@/lib/clipEdit/propose";
 import { offerPublishClip, resetPublishClips } from "@/lib/publish/clips";
-import { FastRenderUnsupportedError } from "@/lib/recording/fastRender";
+import { FastRenderUnsupportedError, pickExportFormat } from "@/lib/recording/fastRender";
 import { sealWatermark } from "@/lib/watermark/seal";
 import { fakeCanvas, fakeDocument, type FakeCall } from "./fakeCanvas";
+import ClipEditorDialog, { type ClipEditorSource } from "@/components/simulator/clipEditor/ClipEditorDialog";
+import { setDesktopExportCodec } from "@/lib/desktop/gpuEncode";
+import { renderClipEdit } from "@/lib/clipEdit/render";
+
+(globalThis as { React?: unknown }).React = React; // (vitest compiles .tsx with the classic JSX runtime)
 
 const ROOT = path.join(__dirname, "..");
 const read = (f: string) => fs.readFileSync(path.join(ROOT, f), "utf8");
+
+/** --- clip-a11y --- The Clip editor as the server renders it in `locale` (no effects run: the source is not opened yet). */
+const renderEditor = (locale: "en" | "pl", source: ClipEditorSource, initialSpec?: Partial<ClipEditSpec>) =>
+  renderToStaticMarkup(
+    createElement(
+      NextIntlClientProvider,
+      { locale, messages: JSON.parse(read(`messages/${locale}.json`)), timeZone: "UTC" } as unknown as React.ComponentProps<typeof NextIntlClientProvider>,
+      createElement(ClipEditorDialog, { source, onClose: () => {}, initialSpec }),
+    ),
+  );
+/** A rendered element's opening tag by its `data-testid`, and one of its attributes (as the browser reads it). */
+const tagOf = (html: string, testId: string) => html.match(new RegExp(`<[^>]*data-testid="${testId}"[^>]*>`))?.[0] ?? "";
+const attrOf = (tag: string, name: string) => tag.match(new RegExp(`\\s${name}="([^"]*)"`))?.[1]?.replace(/&#x27;/g, "'").replace(/&amp;/g, "&");
 
 describe("the clip edit spec", () => {
   it("defaults, floors and trims whatever it is given, and never caps a number at its slider's end (uncap-all)", () => {
@@ -335,7 +357,8 @@ describe("the frame compositor", () => {
     for (const c of render.match(/drawEditFrame\([^;]*\);/g) ?? []) expect(c).toMatch(/\{ seal, clipMs: t \* 1000, fanMade: options\.fanMade, cutFile: options\.cutFile === true, fanMadeBurned: options\.fanMadeBurned === true \}/);
     const dialog = strip(read("src/components/simulator/clipEditor/ClipEditorDialog.tsx"));
     // (--- badge-once --- whether the source's own badge is still whole is decided frame by frame in draw.ts, a cut file's too)
-    expect(dialog).toMatch(/const fanMade = fanMadeLine\(source\.mode, fl\("canvasFanMade"\)\);\s+const cutFile = source\.cutFile === true;/);
+    expect(dialog).toMatch(/const fanMade = fanMadeLine\(source\.mode, fl\("canvasFanMade"\)\);/);
+    expect(dialog).toMatch(/const cutFile = source\.cutFile === true;/);
     expect(dialog).toMatch(/renderClipEdit\(\{ source: source\.blob, spec: fitted, card, fanMade, cutFile,/);
     expect(dialog).toMatch(/useTranslations\("FightLeague"\)/);
     for (const c of dialog.match(/drawEditFrame\([^;]*\);/g) ?? []) expect(c).toMatch(/fanMade, cutFile, fanMadeBurned \}\);$/);
@@ -484,10 +507,31 @@ describe("the frame compositor", () => {
       expect(drawn[0].index).toBeGreaterThan(card!.index);
       expect(drawn[0].alpha).toBe(1);
     }
-    // any crop-in of the same file: drawn on every frame (its own badge's spot is not known, so nothing is covered)
-    const zoomed = await drawFull(2, { ...trim, zoom: 1.25 }, { fanMade: badge, cutFile: true, fanMadeBurned: true });
-    expect(zoomed.lines.filter((l) => l.text === badge)).toHaveLength(1);
-    expect(zoomed.boxes.some((b) => b.fill === "#0b0b10")).toBe(false);
+    // any crop-in of the same file: drawn at the fixed spot on every frame, and the file's own one covered wherever this build
+    // put it: at the fixed spot of the file's frame (a cut that pushed its source's down) or its source's kept a little lower
+    // (a cut of a portrait export at a crop-in of 15 %), both moved down by the new crop-in. One badge, never two.
+    const safe = safeZone(1080, 1920);
+    for (const zoom of [1.05, 1.1, 1.25, 1.6]) {
+      const { lines, boxes } = await drawFull(2, { ...trim, zoom }, { fanMade: badge, cutFile: true, fanMadeBurned: true });
+      const drawn = lines.filter((l) => l.text === badge);
+      expect(drawn, String(zoom)).toHaveLength(1);
+      expect(drawn[0].y, String(zoom)).toBeCloseTo(420 + 1080 * (1 - BADGE_INSET - BADGE_HEIGHT / 2), 0); // the fixed spot
+      expect(drawn[0].y + drawn[0].size / 2, String(zoom)).toBeLessThanOrEqual(safe.y + safe.height);
+      const covers = boxes.filter((b) => b.fill === "#0b0b10");
+      expect(covers, String(zoom)).toHaveLength(1);
+      const cover = covers[0];
+      expect(cover.index, String(zoom)).toBeLessThan(drawn[0].index);
+      for (const own of [burnedBadgeBox(portrait, zoom, 1080, 1920)!, burnedBadgeBox(portrait, 1.15 * zoom, 1080, 1920)!]) {
+        const label = `${zoom}: own badge at ${Math.round(own.cy)}`;
+        expect(cover.y, label).toBeLessThanOrEqual(own.cy - own.size / 2);
+        expect(cover.y + cover.h, label).toBeGreaterThanOrEqual(own.cy + own.size / 2);
+        const line = 0.56 * badge.length * own.size;
+        expect(cover.x, label).toBeLessThanOrEqual(own.cx - line / 2);
+        expect(cover.x + cover.w, label).toBeGreaterThanOrEqual(own.cx + line / 2);
+      }
+      expect(cover.y + cover.h, String(zoom)).toBeLessThanOrEqual(1920);
+    }
+    expect(burnedBadgeShows(portrait, 1.15, 1080, 1920)).toBe(true); // that portrait cut did keep its source's badge
   });
 
   it("stamps the watermark of a free run last, over the card too", async () => {
@@ -734,7 +778,7 @@ describe("the editor in the page and in the Windows app", () => {
     const msgs = (loc: string) => JSON.parse(read(`messages/${loc}.json`)) as M;
     for (const loc of ["en", "pl", "es"]) {
       const m = msgs(loc);
-      for (const [key, value] of [["ClipEditor.intro", m.ClipEditor.intro as string], ["Desktop.aiCutTip", m.Desktop.aiCutTip], ["Desktop.aiStartTip", m.Desktop.aiStartTip]] as const) {
+      for (const [key, value] of [["ClipEditor.intro", m.ClipEditor.intro as string], ["ClipEditor.cutFileNote", m.ClipEditor.cutFileNote as string], ["Desktop.aiCutTip", m.Desktop.aiCutTip], ["Desktop.aiStartTip", m.Desktop.aiStartTip]] as const) {
         for (const sentence of value.split(/(?<=[.!?])\s+/)) expect(sentence.split(/\s+/).length, `${loc} ${key}: ${sentence}`).toBeLessThanOrEqual(18);
         expect(value, `${loc} ${key}`).not.toMatch(/—| – |;/);
         expect(value.split(",").length, `${loc} ${key}`).toBeLessThanOrEqual(3);
@@ -822,6 +866,36 @@ describe("the editor's failures, progress and preview", () => {
   };
 
   // --- seek-supersede --- a newer seek settles the one it replaces: an old seek's timeout never clears a newer seek's handler
+  // --- cut-codec --- a queue job sets HEVC or AV1 for the page's fast export for as long as it runs: a cut made meanwhile in the
+  // editor still asks for the fast export's own formats (H.264 in an MP4), which TikTok and Instagram take
+  it("encodes the cut in H.264 whatever codec a queue job has set for the page's fast export", async () => {
+    await sealWatermark(); // (the licence store settles before the page's globals are faked)
+    const probed: string[] = [];
+    vi.stubGlobal("window", {});
+    vi.stubGlobal("VideoEncoder", { isConfigSupported: async (config: { codec: string }) => (probed.push(config.codec), { supported: true }) });
+    vi.stubGlobal("AudioEncoder", { isConfigSupported: async () => ({ supported: true }) });
+    for (const name of ["VideoFrame", "AudioData", "OfflineAudioContext"]) vi.stubGlobal(name, class {});
+    const cancelled = new AbortController();
+    cancelled.abort();
+    try {
+      for (const codec of ["av1", "hevc"] as const) {
+        setDesktopExportCodec(codec);
+        probed.length = 0;
+        // the queue's own fast export writes that codec
+        expect((await pickExportFormat(1080, 1920, 30))?.videoTrackCodec, codec).toBe(codec);
+        // the editor's cut asks for H.264 (cancelled once its format is picked, before the source is opened)
+        probed.length = 0;
+        expect(await renderClipEdit({ source: new Blob([]), spec: DEFAULT_CLIP_EDIT, card: { title: "Make your own", note: "free" }, fanMade: null, signal: cancelled.signal })).toBeNull();
+        expect(probed.length, codec).toBeGreaterThan(0);
+        expect(probed.filter((c) => !c.startsWith("avc1")), codec).toEqual([]);
+        expect((await pickExportFormat(1080, 1920, 30, "h264"))?.videoTrackCodec, codec).toBe("avc");
+      }
+    } finally {
+      setDesktopExportCodec("h264");
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("lets a newer seek supersede the one under way, so an old seek's timeout never freezes the preview", async () => {
     vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     const { video, land, el } = seekable();
@@ -932,13 +1006,57 @@ describe("the editor's failures, progress and preview", () => {
     }
   });
 
-  // --- clip-a11y --- the sliders say their value as it is shown (25 %, 3.4 s), not the raw multiplier or a long decimal
+  // --- clip-a11y --- the sliders say their value as it is shown (25 %, 3.4 s), not the raw multiplier or a long decimal, and
+  // are named by their label alone: read off the dialog as it renders, in English and in Polish
   it("gives every slider a value text as shown and a name that does not change with the value", () => {
+    const source: ClipEditorSource = { blob: new Blob([]), name: "x.mp4" };
+    for (const locale of ["en", "pl"] as const) {
+      const editor = (JSON.parse(read(`messages/${locale}.json`)) as { ClipEditor: Record<string, string> }).ClipEditor;
+      const html = renderEditor(locale, source);
+      // the default cut: from 3 s, 11 s of action, a crop-in of 25 %, a 1.5 s card; the preview at its start
+      const sliders: [string, string, string][] = [
+        ["clip-edit-scrub", editor.scrub, "0.0 s"],
+        ["clip-edit-startSec", editor.start, "3.0 s"],
+        ["clip-edit-lengthSec", editor.length, "11.0 s"],
+        ["clip-edit-zoom", editor.zoom, "25 %"],
+        ["clip-edit-cardSec", editor.card, "1.5 s"],
+      ];
+      for (const [testId, name, value] of sliders) {
+        const tag = tagOf(html, testId);
+        expect(tag, `${locale} ${testId}`).toMatch(/^<input type="range"/);
+        expect(attrOf(tag, "aria-label"), `${locale} ${testId}`).toBe(name);
+        expect(attrOf(tag, "aria-valuetext"), `${locale} ${testId}`).toBe(value);
+      }
+      // the value shown beside each slider is the one said
+      for (const [, name, value] of sliders.slice(1)) expect(html, `${locale} ${name}`).toContain(`<span>${name}</span><span class="tabular-nums text-ink">${value}</span>`);
+    }
+  });
+
+  // --- cut-reedit --- a cut file shows its crop-in, hook, address and card already: the dialog only trims it, so what it saves
+  // as a cut of the master (composeCutSpec) is the video it shows, and the file's own fan-made badge stays the one badge
+  it("only trims a cut file: no crop-in, hook, address or card to set, and a line that says why", () => {
+    const cut: ClipEditorSource = { blob: new Blob([]), name: "x-tiktok.mp4", mode: "fightLeague", cutFile: true, fanMadeBurned: true };
+    for (const locale of ["en", "pl"] as const) {
+      const editor = (JSON.parse(read(`messages/${locale}.json`)) as { ClipEditor: Record<string, string> }).ClipEditor;
+      const html = renderEditor(locale, cut, cutFileSpec(12));
+      expect(attrOf(tagOf(html, "clip-edit-startSec"), "aria-valuetext"), locale).toBe("0.0 s");
+      expect(attrOf(tagOf(html, "clip-edit-lengthSec"), "aria-valuetext"), locale).toBe("12.0 s");
+      for (const testId of ["clip-edit-zoom", "clip-edit-cardSec", "clip-edit-hook", "clip-edit-url"]) expect(tagOf(html, testId), `${locale} ${testId}`).toBe("");
+      expect(html, locale).not.toContain((editor as unknown as { ideas: Record<string, string> }).ideas.escape);
+      expect(html, locale).toContain(`data-testid="clip-edit-intro">${editor.cutFileNote}</p>`);
+      expect(html, locale).not.toContain(editor.intro);
+      // any other source keeps every control and the usual intro
+      const master = renderEditor(locale, { ...cut, cutFile: false });
+      for (const testId of ["clip-edit-zoom", "clip-edit-cardSec", "clip-edit-hook", "clip-edit-url"]) expect(tagOf(master, testId), `${locale} ${testId}`).not.toBe("");
+      expect(master, locale).toContain(`data-testid="clip-edit-intro">${editor.intro}</p>`);
+    }
+    // whatever the spec holds (a remembered look, a proposal), a cut file renders and saves start and length only
+    const look: ClipEditSpec = { startSec: 2, lengthSec: 8, zoom: 1.3, hook: "Wait for it", url: "x.example", cardSec: 1.5 };
+    expect(cutFileTrim(look)).toEqual({ startSec: 2, lengthSec: 8, zoom: 1, hook: "", url: "", cardSec: 0 });
+    const parent: ClipEditSpec = { startSec: 6, lengthSec: 10, zoom: 1.3, hook: "Will it escape?", url: "x.example", cardSec: 1.5 };
+    expect(composeCutSpec(parent, cutFileTrim(look))).toEqual({ ...parent, startSec: 8, lengthSec: 8 });
     const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx");
-    expect(dialog).toMatch(/<input type="range" min=\{range\.min\} max=\{top\}[^\n]*aria-label=\{label\} aria-valuetext=\{format\(fitted\[key\]\)\}/);
-    expect(dialog).toMatch(/data-testid="clip-edit-scrub"/);
-    expect(dialog).toMatch(/aria-label=\{t\("scrub"\)\} aria-valuetext=\{sec\(Math\.min\(scrub, timeline\.totalSec\)\)\}/);
-    expect(dialog).toMatch(/number\("zoom", t\("zoom"\), \(v\) => `\$\{Math\.round\(\(v - 1\) \* 100\)\} %`\)/);
+    expect(dialog).toMatch(/const own = cutFile \? cutFileTrim\(spec\) : spec;\s+const fitted = durationSec \? fitClipEdit\(own, durationSec\) : own;/);
   });
 
   // --- clip-a11y --- a render reports every few frames: only the phase and quarters of it reach the screen reader
@@ -958,6 +1076,13 @@ describe("the editor's failures, progress and preview", () => {
     expect(dialog).toMatch(/const live = render\.status === "rendering" \? liveProgress\(render\.progress\) : null;/);
     expect(dialog).toMatch(/live\.phase === "frames" \? t\("framesLive", \{ percent: live\.percent \}\)/);
     for (const loc of ["en", "pl", "es"]) expect((JSON.parse(read(`messages/${loc}.json`)) as { ClipEditor: Record<string, string> }).ClipEditor.framesLive, loc).toContain("{percent}");
+    // the region is in the dialog from its first render, empty, and it is the only one; no progressbar before a render
+    for (const locale of ["en", "pl"] as const) {
+      const html = renderEditor(locale, { blob: new Blob([]), name: "x.mp4" });
+      expect(html, locale).toContain('<p class="sr-only" role="status" aria-live="polite" data-testid="clip-edit-live"></p>');
+      expect(html.match(/role="status"/g), locale).toHaveLength(1);
+      expect(html, locale).not.toContain('role="progressbar"');
+    }
   });
 
   // --- clip-a11y --- Suggest with AI keeps a keyboard user's focus, and the AI's answer and the render's outcome are said

@@ -8,7 +8,8 @@
  * source's own badge is still whole inside the platforms' safe zone it stays the one badge, and the drawn one fades in as
  * the card covers it. --- badge-safe --- A crop-in that pushes it down into the bottom strip TikTok, Reels and Shorts cover
  * with their caption gets the badge at its fixed spot, and the burned one, still in the frame there, is covered by a dark
- * pill: one badge, where it is read. A file not known to carry the badge (`fanMadeBurned` false: a clip made before the
+ * pill: one badge, where it is read. --- cut-reedit --- So is a cut file's own badge once a crop-in moves it (the editor only
+ * trims a cut file, so this is a guard). A file not known to carry the badge (`fanMadeBurned` false: a clip made before the
  * simulator burned it, a picked file) gets it on every frame.
  * --- free-watermark --- Last, over everything, the watermark of a run whose seal is not a verified Pro licence's: a cut
  * re-encodes the pixels of an export and crops into them, so the frame is stamped again here, at the output's size – the way
@@ -23,7 +24,7 @@ export interface EditFrameMark {
   clipMs: number;
   /** --- legal-audit --- The fan-made badge's line (fanMadeLine(): a Fight League source's), or null for none. */
   fanMade: string | null;
-  /** --- cut-reedit --- The source is a cut file: its own badge sits wherever its cut put it (burnedBadgeShows). */
+  /** --- cut-reedit --- The source is a cut file: its own badge sits where its cut put it (burnedBadgeShows, cutFileBadgeBottom). */
   cutFile?: boolean;
   /**
    * --- badge-safe --- The source's frames are known to carry the fan-made badge (a clip this build made, a Library item that
@@ -112,6 +113,18 @@ export function burnedBadgeShows(source: { width: number; height: number }, zoom
 /** --- badge-safe --- How much wider than the line in this page's language the cover is (the source may have burned another). */
 const COVER_SLACK = 1.25;
 
+/**
+ * --- cut-reedit --- How far down a cut file's own badge may reach in the cut's frame at crop-in `zoom` (frame px). This build
+ * puts a cut's badge at the fixed spot of its frame (where burnedBadgeBox(the file, zoom) lands, the file taken as the source),
+ * or keeps its source's one, which lies a little lower but always inside the file's safe zone: so never below that zone's
+ * bottom edge, moved by the crop-in.
+ */
+export function cutFileBadgeBottom(source: { width: number; height: number }, zoom: number, width: number, height: number): number {
+  const crop = cropRect(source.width, source.height, zoom, width, height);
+  const safe = safeZone(source.width, source.height);
+  return ((safe.y + safe.height - crop.sy) * height) / crop.sh;
+}
+
 const fontOf = (size: number, weight = "bold") => `${weight} ${size}px Inter, system-ui, sans-serif`;
 
 function roundedBox(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
@@ -169,19 +182,25 @@ export function drawEditFrame(ctx: CanvasRenderingContext2D, source: EditSource,
   ctx.drawImage(source.image, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, width, height);
 
   // --- badge-safe --- the source's own badge is the one badge only while the platforms leave it in sight; pushed down under
-  // their caption it is covered here (a dark pill, under the hook and the card) and drawn again at its fixed spot below
+  // their caption it is covered here (a dark pill, under the hook and the card) and drawn again at its fixed spot below.
+  // --- cut-reedit --- A cut file's own badge (the file is the source) sits at its frame's fixed spot or a little lower: a crop-in
+  // moves it, so the cover reaches from that spot down to the lowest the badge can be (cutFileBadgeBottom).
   const burned = !!mark.fanMade && mark.fanMadeBurned === true;
-  const burnedShows = burned && burnedBadgeShows(source, spec.zoom, width, height, mark.cutFile === true);
-  if (burned && !burnedShows && mark.cutFile !== true && mark.fanMade) {
+  const cutFile = mark.cutFile === true;
+  const burnedShows = burned && burnedBadgeShows(source, spec.zoom, width, height, cutFile);
+  if (burned && !burnedShows && mark.fanMade) {
     const box = burnedBadgeBox(source, spec.zoom, width, height);
-    if (box && box.cy - box.size / 2 < height && box.cy + box.size / 2 > 0) {
+    const bottom = box ? Math.max(box.cy + box.size / 2, cutFile ? cutFileBadgeBottom(source, spec.zoom, width, height) : 0) : 0;
+    if (box && box.cy - box.size / 2 < height && bottom > 0) {
       const size = Math.max(1, Math.round(box.size));
       ctx.font = fontOf(size, "600");
       const line = Math.min(box.maxWidth, COVER_SLACK * ctx.measureText(mark.fanMade).width);
       const padX = Math.round(0.6 * size);
       const padY = Math.round(0.35 * size);
+      const top = box.cy - size / 2 - padY;
+      const reach = cutFile ? bottom + padY : top + size + 2 * padY;
       ctx.fillStyle = CARD_BG;
-      roundedBox(ctx, box.cx - line / 2 - padX, box.cy - size / 2 - padY, line + 2 * padX, size + 2 * padY, Math.round(0.3 * size));
+      roundedBox(ctx, box.cx - line / 2 - padX, top, line + 2 * padX, reach - top, Math.round(0.3 * size));
     }
   }
 

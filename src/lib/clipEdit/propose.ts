@@ -168,6 +168,14 @@ export function cutFileSpec(durationSec: number | null | undefined): Partial<Cli
 }
 
 /**
+ * --- cut-reedit --- What the editor makes of a cut file: `spec`'s start and length, and the neutral look of cutFileSpec. Its
+ * crop-in, hook, address and card are in its frames already, and a trim is all composeCutSpec can save as a cut of its master.
+ */
+export function cutFileTrim(spec: ClipEditSpec): ClipEditSpec {
+  return { ...spec, zoom: 1, hook: "", url: "", cardSec: 0 };
+}
+
+/**
  * --- cut-reedit --- The `queueJobId` the editor saves a cut under, from the Library item it cut (`sourceJob`): a master `<job>`
  * gives `<job>-cut` and a cut keeps its own, so the Library opens the master again and the autopilot takes them for one
  * video. A source with no job (a picked file, a Publish clip) gets a cut of its own, `edit-<time>-cut`.

@@ -6428,6 +6428,7 @@
     "title": "Editor de clips",
     "close": "Cerrar",
     "intro": "Empieza donde está la acción. Añade una pregunta arriba y una tarjeta final. La vista previa muestra cada fotograma del archivo.",
+    "cutFileNote": "Este vídeo ya es un corte. El acercamiento, el gancho y la tarjeta final están en la imagen. Aquí solo puedes recortarlo.",
     "previewAlt": "Vista previa del corte",
     "scrub": "Tiempo de la vista previa",
     "seconds": "{sec} s",
