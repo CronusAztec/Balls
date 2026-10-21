@@ -249,6 +249,10 @@ export class FightLeagueLayer {
   get noirOn(): boolean {
     return this.fr.pal.noir;
   }
+  /** --- fl-noir-names --- The noir block's ability rows last frame: 1 (beside the meters), 2 (a name over two lines), 0 (none). */
+  get noirAbilityRows(): number {
+    return this.fr.pal.noir ? this.noir.abilityRows : 0;
+  }
   /** --- fl-heavy --- Whether the frame draws the noir ink flip (the lethal blow's FL_KO_FLIP_MS). */
   get flipOn(): boolean {
     return this.fr.flip;
@@ -671,8 +675,9 @@ export class FightLeagueLayer {
       this.boxRows = this.noir.abilitiesDrawn > 0 ? 1 : 0;
       this.boxNameMin = this.noir.abilityFsMin;
       this.bandNameMin = 0;
-      this.boxNameSqueeze = 1;
-      this.boxNamesCut = 0;
+      // --- fl-noir-names --- as drawn: the narrowest squeeze and the names ellipsised (the block fits them like the boxes)
+      this.boxNameSqueeze = this.noir.abilitySqueezeMin;
+      this.boxNamesCut = this.noir.abilitiesCut;
       if (view.show.kind === "boss") this.shows.drawBossBar(ctx, fr, view, L, lay, ox, oy);
     } else if (view.settings.hud) {
       hudBottom = this.hud.drawBand(ctx, fr, view, L, lay, ox, oy + frame.inset, this.bodies, this.shows);

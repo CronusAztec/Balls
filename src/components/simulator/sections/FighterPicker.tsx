@@ -20,7 +20,7 @@ import { flTypeAhead, searchFighters } from "@/lib/physics/modes/fightLeagueSear
  *   - division tabs grouped by conference with their counts ('All' first; fl-picker-tab-<division>, fl-picker-tab-all),
  *     opening on the slot's division,
  *   - a tile grid (3 columns on phones, 5 wider; fl-picker-tile-<value>): a 28 px ball, the name, the role and a NEW badge –
- *     and the random tiles writing the slot tokens ('Random · any' = random, 'Random · Marvel' = random:marvel, 'Random ·
+ *     and the random tiles writing the slot tokens ('Random · any' = random, 'Random · Comics A' = random:marvel, 'Random ·
  *     Anime' = random:anime),
  *   - a Recent row: the last 8 picks (localStorage, inside try/catch: without storage the row is simply empty).
  * Keys: the arrows move through the grid (the focus stays in the search box: aria-activedescendant), Enter picks, Esc closes;

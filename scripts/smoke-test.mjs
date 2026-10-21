@@ -11802,7 +11802,8 @@ await smokeBlock("fight-league", async () => {
 }
 {
   // The default match: Thor vs Loki, with the HUD inside the square – both names, both ability boxes and the VS card.
-  await page.goto(`${BASE}/en/simulator/?mode=fightLeague`, { waitUntil: "networkidle" });
+  // (--- fl-noir --- the default stage noir draws no VS card – the stage check below; the VS card is the lilac stage's: flSt=lilac)
+  await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flSt=lilac`, { waitUntil: "networkidle" });
   const preset = await page.getByTestId("fl-preset").inputValue();
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.waitForTimeout(700);
@@ -11810,7 +11811,7 @@ await smokeBlock("fight-league", async () => {
   await page.screenshot({ path: path.join(outDir, "sim-fight-league-vs.png") });
   check(
     "fight league: the default match is Thor vs Loki, with the names, the ability boxes and the VS card drawn",
-    preset === "thor-loki" && intro.flNames === "Thor,Loki" && intro.flIds === "thor,loki" && intro.flMatch === "1v1" && intro.flArena === "square" && intro.flHud === "1" && intro.flHudNames === "2" && intro.flBoxes === "2" && intro.flVs === "1" && intro.flFighters === "2" && Number(intro.flWeapons) >= 2 && intro.flAbilities === "Thunder Strike,Illusion",
+    preset === "thor-loki" && intro.flStage === "lilac" && intro.flNames === "Thor,Loki" && intro.flIds === "thor,loki" && intro.flMatch === "1v1" && intro.flArena === "square" && intro.flHud === "1" && intro.flHudNames === "2" && intro.flBoxes === "2" && intro.flVs === "1" && intro.flFighters === "2" && Number(intro.flWeapons) >= 2 && intro.flAbilities === "Thunder Strike,Illusion",
     `(preset ${preset}, ${JSON.stringify(Object.fromEntries(Object.entries(intro).filter(([k]) => k.startsWith("fl"))))})`,
   );
 }
@@ -11918,8 +11919,8 @@ await smokeBlock("fight-league", async () => {
   const callouts = (d.flCallouts || "").split(",");
   check(
     "fight league: that fight's first blood, callouts, banners, shakes and the KO blow's hit stop are on the canvas (data-fl-first-blood, -callouts, -banners, -shakes, -hitstops)",
-    (d.flNames || "").split(",").includes(d.flFirstBlood) && callouts.includes("cast") && ["vs", "count", "fight", "firstBlood", "win"].every((b) => banners.includes(b)) && Number(d.flShakes) > 0 && Number(d.flHitstops) >= 1 /* --- fl-heavy --- (the KO blow is a lethal EV_HEAVY: a 150 ms hit stop) */,
-    `(first blood ${d.flFirstBlood}, callouts "${d.flCallouts}", banners "${d.flBanners}", shakes ${d.flShakes}, hitstops ${d.flHitstops})`,
+    (d.flNames || "").split(",").includes(d.flFirstBlood) && callouts.includes("cast") && d.flStage === "noir" && ["fight", "firstBlood", "win"].every((b) => banners.includes(b)) && !banners.includes("vs") && !banners.includes("count") && Number(d.flShakes) > 0 && Number(d.flHitstops) >= 1 /* --- fl-heavy --- (the KO blow is a lethal EV_HEAVY: a 150 ms hit stop) */,
+    `(stage ${d.flStage}, first blood ${d.flFirstBlood}, callouts "${d.flCallouts}", banners "${d.flBanners}", shakes ${d.flShakes}, hitstops ${d.flHitstops})`,
   );
 }
 {
@@ -12122,7 +12123,7 @@ await smokeBlock("fight-league", async () => {
 }
 {
   // --- fl-overhaul --- (Stage 2) the fighter picker: 'pika' ranks Pikachu first and picking it writes fl1; the Pokémon tab
-  // lists its 7 fighters; 'Random · Marvel' on slot B writes the token fl2=random%3Amarvel.
+  // lists its 7 fighters; 'Random · Comics A' (the marvel division's label since 7dd5d1e) on slot B writes the token fl2=random%3Amarvel.
   await page.goto(`${BASE}/en/simulator/?mode=fightLeague`, { waitUntil: "networkidle" });
   const section = page.getByTestId("fight-league-section");
   const toggle = section.getByTestId("fl-picker-list-toggle");
@@ -12147,13 +12148,13 @@ await smokeBlock("fight-league", async () => {
   await section.getByTestId("fl-fighter-B").click();
   dialog = page.getByRole("dialog");
   await dialog.getByTestId("fl-picker-tab-marvel").click();
-  await dialog.getByRole("option", { name: "Random · Marvel" }).click();
+  await dialog.getByRole("option", { name: "Random · Comics A" }).click();
   await page.waitForTimeout(300);
   const query = page.url().split("?")[1] || "";
   const desc = await section.getByTestId("fl-fighter-desc-B").innerText().catch(() => "");
   check(
-    "fight league picker: 'pika' ranks Pikachu first and writes fl1, the Pokémon tab lists 7, Random · Marvel writes fl2=random%3Amarvel",
-    first === "fl-picker-tile-pikachu" && picked.get("fl1") === "pikachu" && chipA === "pikachu" && /Role: /.test(role) && pokemon === 7 && closed && /(^|&)fl2=random%3Amarvel(&|$)/.test(query) && /Marvel/.test(desc),
+    "fight league picker: 'pika' ranks Pikachu first and writes fl1, the Pokémon tab lists 7, Random · Comics A writes fl2=random%3Amarvel",
+    first === "fl-picker-tile-pikachu" && picked.get("fl1") === "pikachu" && chipA === "pikachu" && /Role: /.test(role) && pokemon === 7 && closed && /(^|&)fl2=random%3Amarvel(&|$)/.test(query) && /Comics A/.test(desc),
     `(first ${first}, fl1=${picked.get("fl1")}, chip ${chipA}, "${role}", Pokémon tiles ${pokemon}, closed by Esc ${closed}, ${query}, "${desc}")`,
   );
 }
@@ -12278,6 +12279,9 @@ await smokeBlock("fight-league", async () => {
     `(show ${d.flShow}, finished ${d.flFinished}, boss ${d.flBoss}, wave ${d.flWave}, boss HP ${d.flBossHp}, bar ${d.flBossBar}, banners "${d.flBanners}")`,
   );
 }
+// --- fl-noir-names --- The ability boxes' rows (data-fl-box-rows) a stage draws for four or six fighters: the noir stage (the default
+// since fl-noir) folds them into its stats block, a column each in one row (70fe37c); the other stages' boxes take `rows`.
+const flBoxRowsFor = (d, rows) => (d.flStage === "noir" ? "1" : rows);
 {
   // A 3v3 of six shooters at 1× (no time cap, 300 HP: everyone stands through the measurement) keeps 30+ fps.
   await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flM=3v3&fl1=ironman&fl2=doomslayer&fl3=legolas&fl4=jinx&fl5=masterchief&fl6=samus&flT=0&flHp=300&seed=1`, { waitUntil: "networkidle" });
@@ -12288,19 +12292,22 @@ await smokeBlock("fight-league", async () => {
   await page.screenshot({ path: path.join(outDir, "sim-fight-league-3v3.png") });
   // --- fl-overhaul --- (fl-overhaul fix) its six boxes in two rows of three, every ability name – Jinx's 'Super Mega Death
   // Rocket' among them – drawn at 26 px or more at the 1080 px square (data-fl-box-name-fs), condensed to 75 % at most
-  const boxNamesOk = (d) => d.flBoxRows === "2" && Number(d.flBoxNameFs) >= 26 && Number(d.flBoxNameSqueeze) >= 0.75;
+  // (--- fl-noir-names --- on the default noir stage the boxes are the stats block's columns, one row – a name too long for
+  // its column on two lines –, measured as drawn the same way)
+  const boxNamesOk = (d) => d.flBoxRows === flBoxRowsFor(d, "2") && Number(d.flBoxNameFs) >= 26 && Number(d.flBoxNameSqueeze) >= 0.75;
   await timingCheck(
-    "fight league: a 3v3 of six shooters keeps 30+ fps, its boxes in two rows with every ability name at 26 px or more (data-fl-box-rows, -box-name-fs)",
+    "fight league: a 3v3 of six shooters keeps 30+ fps, its boxes in two rows (on noir the stats block's six columns) with every ability name at 26 px or more (data-fl-box-rows, -box-name-fs)",
     data.flMatch === "3v3" && data.flFighters === "6" && data.flBoxes === "6" /* --- fl-overhaul --- (Stage 7) */ && Number(data.flShots) >= 20 && data.flFinished === "0" && boxNamesOk(data),
     fpsOk(fps, 5, 30),
-    `(fighters ${data.flFighters}, boxes ${data.flBoxes} in ${data.flBoxRows} rows, box names at ${data.flBoxNameFs} px of 1080 squeezed to ${data.flBoxNameSqueeze} (${data.flBoxNamesCut} cut), names ${data.flNames}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    `(stage ${data.flStage}, fighters ${data.flFighters}, boxes ${data.flBoxes} in ${data.flBoxRows} rows, box names at ${data.flBoxNameFs} px of 1080 squeezed to ${data.flBoxNameSqueeze} (${data.flBoxNamesCut} cut), names ${data.flNames}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, ${fpsNote(fps)}, floor 30${loadNote()})`,
     fpsRetry(3000, 5, 30),
   );
 }
 {
   // The VS card's win chance ('62 %' / '38 %'): shown at the defaults, hidden with a handicap (flD2=1.25), where BUFFED shows.
+  // (--- fl-noir --- on the lilac stage: the default noir stage draws no VS card)
   const vs = async (query) => {
-    await page.goto(`${BASE}/en/simulator/?mode=fightLeague&seed=5${query}`, { waitUntil: "networkidle" });
+    await page.goto(`${BASE}/en/simulator/?mode=fightLeague&flSt=lilac&seed=5${query}`, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: /Start Simulator/ }).click();
     await page.waitForFunction(() => Number(document.querySelector("main canvas")?.dataset.flTime) >= 0.9, null, { timeout: 20_000 }).catch(() => {});
     return canvasData();
@@ -12434,10 +12441,11 @@ const FL_HEAVY = "mode=fightLeague&flM=ffa4&fl1=venom&fl2=walterwhite&fl3=jonesy
   await timingCheck(
     "fight league: the heavy kit (Venom, Walter White, Jonesy, Jinx) keeps 30+ fps live with its walls, ground hazards and shots (data-fl-walls, -traps, -shots)",
     data.flIds === "venom,walterwhite,jonesy,jinx" && data.flFighters === "4" && Number(data.flWalls) > 0 && Number(data.flTraps) > 0 && Number(data.flShots) > 0 && data.flFinished === "0" &&
-      // --- fl-overhaul --- (fl-overhaul fix) two rows of two slim boxes, every ability name whole at 26 px or more
-      data.flBoxRows === "2" && Number(data.flBoxNameFs) >= 26 && Number(data.flBoxNameSqueeze) >= 0.75 && data.flBoxNamesCut === "0",
+      // --- fl-overhaul --- (fl-overhaul fix) two rows of two slim boxes, every ability name whole at 26 px or more (--- fl-noir-names
+      // --- noir: the stats block's four columns in one row, Jinx's name over two lines)
+      data.flBoxRows === flBoxRowsFor(data, "2") && Number(data.flBoxNameFs) >= 26 && Number(data.flBoxNameSqueeze) >= 0.75 && data.flBoxNamesCut === "0",
     fpsOk(fps, 5, 30),
-    `(ids ${data.flIds}, fighters ${data.flFighters}, walls ${data.flWalls}, ground hazards ${data.flTraps}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, boxes in ${data.flBoxRows} rows, box names at ${data.flBoxNameFs} px of 1080 squeezed to ${data.flBoxNameSqueeze} (${data.flBoxNamesCut} cut), at ${data.flTime} s, render ${data.flRenderMs} ms, ${fpsNote(fps)}, floor 30${loadNote()})`,
+    `(stage ${data.flStage}, ids ${data.flIds}, fighters ${data.flFighters}, walls ${data.flWalls}, ground hazards ${data.flTraps}, shots ${data.flShots}, projectiles drawn ${data.flProjectiles}, boxes in ${data.flBoxRows} rows, box names at ${data.flBoxNameFs} px of 1080 squeezed to ${data.flBoxNameSqueeze} (${data.flBoxNamesCut} cut), at ${data.flTime} s, render ${data.flRenderMs} ms, ${fpsNote(fps)}, floor 30${loadNote()})`,
     fpsRetry(3000, 5, 30),
   );
 }
@@ -12465,9 +12473,9 @@ const FL_HEAVY = "mode=fightLeague&flM=ffa4&fl1=venom&fl2=walterwhite&fl3=jonesy
   console.log(`  fight league render cost while recording 1080×1920: ${during.flRenderMs} ms a frame (the heavy kit; budget 4 ms)`);
   await timingCheck(
     "a 10 s 1080×1920 recording of the fight league heavy kit keeps 20+ fps and downloads, its 9:16 boxes' ability names at 26 px or more (data-fl-box-name-fs)",
-    size > 10000 && during.flFighters === "4" && during.flBoxRows === "2" && Number(during.flBoxNameFs) >= 26 && Number(during.flBoxNameSqueeze) >= 0.75 /* --- fl-overhaul --- (fl-overhaul fix) */,
+    size > 10000 && during.flFighters === "4" && during.flBoxRows === flBoxRowsFor(during, "2") && Number(during.flBoxNameFs) >= 26 && Number(during.flBoxNameSqueeze) >= 0.75 /* --- fl-overhaul --- (fl-overhaul fix) */,
     fpsOk(fps, 5, 20),
-    `(${size} bytes, fighters ${during.flFighters}, plates ${during.flPlates}, boxes in ${during.flBoxRows} rows, box names at ${during.flBoxNameFs} px of 1080 squeezed to ${during.flBoxNameSqueeze} (${during.flBoxNamesCut} cut), render ${during.flRenderMs} ms, ${fpsNote(fps)}, floor 20${loadNote()})`,
+    `(${size} bytes, stage ${during.flStage}, fighters ${during.flFighters}, plates ${during.flPlates}, boxes in ${during.flBoxRows} rows, box names at ${during.flBoxNameFs} px of 1080 squeezed to ${during.flBoxNameSqueeze} (${during.flBoxNamesCut} cut), render ${during.flRenderMs} ms, ${fpsNote(fps)}, floor 20${loadNote()})`,
     loadAwareRetry(recordingRetry(5, 20)), // --- low-findings-2 --- (a loaded host: once more after its load falls back)
   );
 }

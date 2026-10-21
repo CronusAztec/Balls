@@ -1,11 +1,11 @@
 import { EV_TURN, FL_EVENT_CAP, type FightLeagueView, type FlFighter } from "@/lib/physics/modes/fightLeague";
-import { FL_TRAIL_AT, flNameColor, type FlHudLayout } from "@/lib/physics/modes/fightLeagueFx";
+import { FL_BOX_NAME_MIN, FL_TRAIL_AT, flFitAbilityLines, flNameColor, type FlAbilityLines, type FlHudLayout } from "@/lib/physics/modes/fightLeagueFx";
 import { flShortName } from "@/lib/physics/modes/fightLeagueRoster";
 import type { FlFrame, FightLeagueLabels, FlStateLabels } from "./frame";
 import { GOLD, INK } from "./palette";
 import type { FlShowsPainter } from "./shows";
 import { SpriteCache, makeSprite, type Sprite } from "./sprites";
-import { NUM_TEXT, type FlTextStyle } from "./text";
+import { NUM_TEXT, flFontEpoch, type FlTextStyle } from "./text";
 import type { FlWeaponsPainter } from "./weapons";
 
 /**
@@ -17,6 +17,8 @@ import type { FlWeaponsPainter } from "./weapons";
  * ([NORMAL] | [KNOCKBACK] …, from the fighter's statuses) and the ability's name with its meter (the ability boxes folded in).
  * No names band, no HP bars, no lead bar: the HP number inside the disc is the bar. A match of three fighters or more gets a
  * column per fighter (its short name); a show's column (a series' score, a bracket's round) takes the icons' place.
+ * --- fl-noir-names --- The ability names keep the boxes' readability floor (FL_BOX_NAME_MIN, condensed to no less than 75 %):
+ * a name too long for its column beside the meter takes two lines – the block's five-row layout, FL_NOIR_WRAP_FS/_Y.
  */
 
 /** The pixel face: 5 × 7 cells a glyph ('#' lit), A–Z, 0–9 and the marks a name or a title needs. */
@@ -120,6 +122,18 @@ interface TitlePart {
   color: string;
 }
 
+/** --- fl-noir-names --- A slot's fitted ability name and what it was fitted for. */
+interface AbilityFitEntry {
+  name: string;
+  size: number;
+  min: number;
+  fullWidth: number;
+  besideWidth: number;
+  scale: number;
+  epoch: number;
+  fit: FlAbilityLines;
+}
+
 /** The English words of the state tags (the page hands in its translations). */
 export const DEFAULT_FL_STATE_LABELS: FlStateLabels = {
   normal: "NORMAL",
@@ -179,6 +193,14 @@ export const FL_NOIR_BLOCK_TOP = 0.813;
 /** The four lines' font sizes (the first the names and HP, then the damage, the tags, the ability) and their centre lines. */
 export const FL_NOIR_LINE_FS = [0.028, 0.025, 0.025, 0.025] as const;
 export const FL_NOIR_LINE_Y = [0.827, 0.8545, 0.881, 0.9075] as const;
+/**
+ * --- fl-noir-names --- The block when an ability name needs two lines (a free-for-all's or a 3v3's narrow columns): five rows –
+ * the names with their HP, the damage and the tags (at 0.02 S, over the stat lines' 20 px floor at the 1080 square), the
+ * ability's first line and its meter's line –, the rows closer, the first still from FL_NOIR_BLOCK_TOP, the last above the
+ * watermark badge's strip (its letters end by 0.921 S, as the other stages' boxes do).
+ */
+export const FL_NOIR_WRAP_FS = [0.028, 0.02, 0.02, 0.025, 0.025] as const;
+export const FL_NOIR_WRAP_Y = [0.8232, 0.8453, 0.8641, 0.8876, 0.91] as const;
 
 const SEP = "|";
 /** --- fl-heavy --- The new leader's name line is white for this long after a lead turn (EV_TURN). */
@@ -194,12 +216,34 @@ export class FlNoirHudPainter {
   namesDrawn = 0;
   abilitiesDrawn = 0;
   abilityFsMin = 0;
+  /** --- fl-noir-names --- The narrowest squeeze of an ability name, how many were ellipsised, and the ability's rows (1 or 2). */
+  abilitySqueezeMin = 1;
+  abilitiesCut = 0;
+  abilityRows = 0;
+  /** --- fl-noir-names --- Each slot's fitted ability name (refitted when the name, the sizes, the widths, the scale or the fonts change). */
+  private readonly abilityFits: (AbilityFitEntry | undefined)[] = [];
+  /** --- fl-noir-names --- This frame's fits, in the fighters' order. */
+  private readonly fitsNow: FlAbilityLines[] = [];
 
   begin(view: FightLeagueView) {
     if (view.generation !== this.generation) {
       this.generation = view.generation;
       this.timerSec = -1;
+      this.abilityFits.length = 0;
     }
+  }
+
+  /** --- fl-noir-names --- Slot `f`'s ability name fitted to its column (`flFitAbilityLines()`), cached. */
+  private abilityFit(fr: FlFrame, f: FlFighter, size: number, min: number, fullWidth: number, besideWidth: number): FlAbilityLines {
+    const name = f.row.ability.name;
+    const scale = fr.text.scale;
+    const epoch = flFontEpoch();
+    const e = this.abilityFits[f.slot];
+    if (e && e.name === name && e.size === size && e.min === min && e.fullWidth === fullWidth && e.besideWidth === besideWidth && e.scale === scale && e.epoch === epoch) return e.fit;
+    const style = this.mono("#ffffff");
+    const fit = flFitAbilityLines(fr.text.upperOf(name), size, min, fullWidth, besideWidth, (text, px) => fr.text.measureWidth(text, px, style));
+    this.abilityFits[f.slot] = { name, size, min, fullWidth, besideWidth, scale, epoch, fit };
+    return fit;
   }
 
   private mono(color: string): FlTextStyle {
@@ -318,13 +362,19 @@ export class FlNoirHudPainter {
 
   /**
    * The stats block under the arena: a column per fighter – line 1 "THOR: 92" in its colour, line 2 "DMG: 12" (damage dealt),
-   * line 3 "[NORMAL]", line 4 the ability's name with its meter – the columns parted by "|". Returns the block's top (screen y).
+   * line 3 "[NORMAL]", line 4 the ability's name with its meter – the columns parted by "|". --- fl-noir-names --- The name is
+   * fitted, never under FL_BOX_NAME_MIN (`flFitAbilityLines()`); when one doesn't fit beside its meter, the block takes five
+   * rows (FL_NOIR_WRAP_FS/_Y): such a name's start on a row of its own, the rest beside the meter, READY on the meter.
+   * Returns the block's top (screen y).
    */
   drawBlock(ctx: CanvasRenderingContext2D, fr: FlFrame, view: FightLeagueView, L: FightLeagueLabels, lay: FlHudLayout, ox: number, oy: number): number {
     const fighters = view.fighters;
     const S = lay.side;
     this.abilitiesDrawn = 0;
     this.abilityFsMin = 0;
+    this.abilitySqueezeMin = 1;
+    this.abilitiesCut = 0;
+    this.abilityRows = 0;
     if (fighters.length === 0) return Infinity;
     const now = fr.now;
     const n = fighters.length;
@@ -334,12 +384,27 @@ export class FlNoirHudPainter {
     const hud = fr.pal.hud;
     const states = L.states ?? DEFAULT_FL_STATE_LABELS;
     const short = n > 2;
-    const fs = FL_NOIR_LINE_FS.map((k) => k * S);
-    const ys = FL_NOIR_LINE_Y.map((k) => oy + k * S);
+    const pad = 0.014 * S;
+    const room = colW - 2 * pad;
+    // the ability's line: its name fitted beside the meter, or over two rows (the same for every column: 0.025 S, the floor)
+    const abilityFs = FL_NOIR_LINE_FS[3] * S;
+    const meterW = Math.min(0.09 * S, 0.3 * room);
+    const meterGap = 0.4 * abilityFs;
+    const nameRoom = room - meterW - meterGap;
+    let wrap = false;
+    const fits = this.fitsNow;
+    fits.length = n;
+    for (let i = 0; i < n; i++) {
+      fits[i] = this.abilityFit(fr, fighters[i], abilityFs, FL_BOX_NAME_MIN * S, room, nameRoom);
+      if (fits[i].top) wrap = true;
+    }
+    const fs = (wrap ? FL_NOIR_WRAP_FS : FL_NOIR_LINE_FS).map((k) => k * S);
+    const ys = (wrap ? FL_NOIR_WRAP_Y : FL_NOIR_LINE_Y).map((k) => oy + k * S);
+    const rows = ys.length;
+    const meterRow = rows - 1;
     // the separators between the columns, every line
     const sepStyle = this.mono(hud.muted);
-    for (let i = 1; i < n; i++) for (let line = 0; line < 4; line++) fr.text.draw(ctx, SEP, left + i * colW, ys[line], fs[line], sepStyle, "center", 0, 0.8);
-    const pad = 0.014 * S;
+    for (let i = 1; i < n; i++) for (let line = 0; line < rows; line++) fr.text.draw(ctx, SEP, left + i * colW, ys[line], fs[line], sepStyle, "center", 0, 0.8);
     // --- fl-heavy --- the lead turned (EV_TURN): the new leader's name line flashes white for 300 ms (the other stages flash
     // their lead bar from view.leadMs)
     let turnTeam = -1;
@@ -351,10 +416,10 @@ export class FlNoirHudPainter {
       const a = view.fighters[e.slot];
       if (a) turnTeam = a.team;
     }
+    let fsMin = Infinity;
     for (let i = 0; i < n; i++) {
       const f = fighters[i];
       const cx = left + (i + 0.5) * colW;
-      const room = colW - 2 * pad;
       const alpha = f.alive ? 1 : 0.55;
       const color = turnTeam >= 0 && f.team === turnTeam ? "#ffffff" : flNameColor(f.row.body, f.row.accent);
       // line 1: the name and the HP
@@ -367,33 +432,40 @@ export class FlNoirHudPainter {
       // line 3: the state tag
       const state = flStateOf(f, now);
       fr.text.draw(ctx, `[${fr.text.upperOf(states[state])}]`, cx, ys[2], fs[2], this.mono(STATE_COLORS[state]), "center", room, alpha);
-      // line 4: the ability's name (fitted) and its meter
-      const meterW = Math.min(0.09 * S, 0.3 * room);
+      // the ability's name (fitted: its start on a row of its own when it needs two) and its meter beside the last row
       const telegraph = f.telegraphUntil >= 0;
       const meter = telegraph ? 1 : Math.max(0, Math.min(1, f.meter));
       const blink = telegraph && Math.floor(now / 70) % 2 === 0;
       const ready = !telegraph && f.alive && meter >= 1 && !view.matchOver;
-      const nameRoom = room - meterW - 0.4 * fs[3];
-      const abilityName = fr.text.upperOf(f.row.ability.name);
       const style = this.mono(blink ? f.row.accent : ready ? "#ffffff" : hud.statText);
-      const tw = Math.min(nameRoom, fr.text.width(abilityName, fs[3], style));
-      const x0 = cx - (tw + 0.4 * fs[3] + meterW) / 2;
-      fr.text.draw(ctx, abilityName, x0, ys[3], fs[3], style, "left", nameRoom, alpha);
-      const mx = x0 + tw + 0.4 * fs[3];
+      const fit = fits[i];
+      if (fit.top) fr.text.drawCondensed(ctx, fit.top.text, cx, ys[meterRow - 1], fit.top.size, style, "center", fit.top.squeeze, alpha);
+      const beside = fit.beside;
+      const tw = beside ? Math.min(nameRoom, fr.text.measureWidth(beside.text, beside.size, style) * beside.squeeze) : 0;
+      const gap = beside ? meterGap : 0;
+      const x0 = cx - (tw + gap + meterW) / 2;
+      if (beside) fr.text.drawCondensed(ctx, beside.text, x0, ys[meterRow], beside.size, style, "left", beside.squeeze, alpha);
+      const mx = x0 + tw + gap;
+      const my = ys[meterRow];
       const mh = Math.max(3, 0.0065 * S);
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.fillStyle = hud.meterTrack;
-      ctx.fillRect(mx, ys[3] - mh / 2, meterW, mh);
+      ctx.fillRect(mx, my - mh / 2, meterW, mh);
       if (meter > 0) {
         ctx.fillStyle = meter >= 1 ? (blink || Math.floor(now / 140) % 2 === 0 ? "#ffffff" : f.row.accent) : f.row.accent;
-        ctx.fillRect(mx, ys[3] - mh / 2, Math.max(mh, meterW * meter), mh);
+        ctx.fillRect(mx, my - mh / 2, Math.max(mh, meterW * meter), mh);
       }
       ctx.restore();
-      if (ready) fr.text.draw(ctx, L.ready, mx + meterW / 2, ys[3] - mh - 0.35 * fs[3], 0.6 * fs[3], { role: "display", color: "#fde047", stroke: INK, strokeK: 0.14 }, "center", meterW, 0.75 + 0.25 * Math.sin(now / 90));
+      // READY over the meter (on it in the five-row block, where the row above holds a name's first line – as the boxes' READY)
+      if (ready) fr.text.draw(ctx, L.ready, mx + meterW / 2, wrap ? my : my - mh - 0.35 * abilityFs, 0.6 * abilityFs, { role: "display", color: "#fde047", stroke: INK, strokeK: 0.14 }, "center", meterW, 0.75 + 0.25 * Math.sin(now / 90));
       this.abilitiesDrawn++;
-      this.abilityFsMin = this.abilityFsMin === 0 ? fs[3] / S : Math.min(this.abilityFsMin, fs[3] / S);
+      fsMin = Math.min(fsMin, fit.size);
+      this.abilitySqueezeMin = Math.min(this.abilitySqueezeMin, fit.squeeze);
+      if (fit.cut) this.abilitiesCut++;
     }
+    this.abilityFsMin = fsMin < Infinity ? fsMin / S : 0;
+    this.abilityRows = wrap ? 2 : 1;
     return oy + FL_NOIR_BLOCK_TOP * S;
   }
 

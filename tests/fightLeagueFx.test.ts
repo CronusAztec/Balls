@@ -3,7 +3,7 @@ import path from "path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_FIGHT_LEAGUE_LABELS, FIGHT_LEAGUE_DATA_KEYS, FightLeagueDataset, FightLeagueLayer, flNameColor as layerNameColor, type FightLeagueRenderOptions } from "@/components/simulator/fightLeagueRenderer";
 import { FL_PARTICLE_CAP, FL_PRIM_FX } from "@/components/simulator/fightLeague/fx";
-import { DEFAULT_FL_STATE_LABELS, FL_NOIR_ARENA_FRAC, FL_NOIR_BLOCK_TOP, FlNoirHudPainter, flStateOf } from "@/components/simulator/fightLeague/noir"; // --- fl-noir ---
+import { DEFAULT_FL_STATE_LABELS, FL_NOIR_ARENA_FRAC, FL_NOIR_ARENA_TOP, FL_NOIR_BLOCK_TOP, FL_NOIR_LINE_FS, FL_NOIR_LINE_Y, FL_NOIR_WRAP_FS, FL_NOIR_WRAP_Y, FlNoirHudPainter, flStateOf } from "@/components/simulator/fightLeague/noir"; // --- fl-noir --- (--- fl-noir-names --- the block's rows)
 import { FL_NOIR_ACCENT_LUMINANCE, STAGE_PALETTES, TEAM_COLORS, flNoirAccent, luminance } from "@/components/simulator/fightLeague/palette";
 import { CinematicCamera } from "@/components/simulator/cameraRenderer"; // --- fl-heavy ---
 import { slowMoTimeScale } from "@/lib/simulation/camera"; // --- fl-heavy ---
@@ -56,9 +56,11 @@ import {
   bodyRimWidth,
   FL_BOX_NAME_MIN,
   FL_BOX_NAME_SQUEEZE,
+  FL_BOX_STAT_MIN, // --- fl-noir-names ---
   flBoxContentBottom,
   flContrast,
   flFitBoxName,
+  flFitAbilityLines, // --- fl-noir-names ---
   flEffectNow,
   flFfaChipRect,
   flFinaleScale,
@@ -93,7 +95,7 @@ import {
 } from "@/lib/physics/modes/fightLeagueFx";
 import { FL_ABILITY_PRIMITIVES, FL_BY_ID, FL_DIVISION_LABELS, FL_GUN_LOOKS, FL_HAMMER_LOOKS, FL_ROSTER, FL_SHAPES, FL_SUMMON_SHAPES, FL_SWORD_LOOKS, FL_WEAPON_KINDS, flHeavyAbility, type FlAbility, type FlShape, type FlWeaponSpec } from "@/lib/physics/modes/fightLeagueRoster";
 import { defaultSettings, engineSettingKeys, settingsFromSearchParams, settingsToSearchParams, uncappedEngaged, type SimulatorSettings } from "@/lib/settings";
-import { badgeMetrics, badgeRect, exportSquare, intersect, type FrameRect } from "@/lib/watermark/layout";
+import { BADGE_HEIGHT, BADGE_INSET, badgeMetrics, badgeRect, exportSquare, intersect, type FrameRect } from "@/lib/watermark/layout";
 import { fakeCanvas, fakeDocument, type FakeCanvas, type FakeContext } from "./fakeCanvas";
 import { PROBE_INTRO_MS, PROBE_STEP, dummyDuel, probeEngine, probeRun } from "./flProbes";
 
@@ -871,6 +873,44 @@ describe("the HUD at the 1080 px square, the watermark badge and the 9:16 plates
     }
   });
 
+  // --- fl-noir-names --- the noir stats block drew a long ability name squeezed uniformly into its column (Jinx's 'Super Mega
+  // Death Rocket' at 6 px in a 3v3, 10 px in a four-way): now it keeps the boxes' floor, over two lines when one is too narrow
+  it("fits a noir ability name over at most two lines without drawing it under the floor: beside its meter when it fits, else its start on a line of its own", () => {
+    const measure = (text: string, size: number) => 0.5 * text.length * size;
+    // fits beside the meter: one line, as flFitBoxName() sets it
+    expect(flFitAbilityLines("Unibeam", 30, 26, 300, 200, measure)).toEqual({ top: null, beside: { text: "Unibeam", size: 30, squeeze: 1, cut: false }, size: 30, squeeze: 1, cut: false });
+    // too long beside the meter: two lines at one size – the split with the widest squeeze ('Super Mega Death' 208 px at 26 in
+    // 200 px: 0.96; 'Rocket' beside it), every word whole
+    const two = flFitAbilityLines("Super Mega Death Rocket", 30, 26, 200, 120, measure);
+    expect([two.top?.text, two.beside?.text, two.size, two.cut]).toEqual(["Super Mega Death", "Rocket", 26, false]);
+    expect(two.squeeze).toBeCloseTo(200 / 208, 9);
+    // a split that keeps the set size wins over one at the floor ('Fulminated' over 'Mercury', both at 30)
+    expect(flFitAbilityLines("Fulminated Mercury", 30, 26, 160, 110, measure)).toMatchObject({ top: { text: "Fulminated", size: 30, squeeze: 1 }, beside: { text: "Mercury", size: 30, squeeze: 1 }, size: 30, cut: false });
+    // one long word: on its own line, the meter alone under it
+    expect(flFitAbilityLines("Kamehameha", 30, 26, 150, 80, measure)).toMatchObject({ top: { text: "Kamehameha", cut: false }, beside: null, cut: false });
+    // nothing fits whole: the name's end is cut, not its middle ('Super Mega' over 'Death…', never 'Super Mega…' over 'Rocket')
+    const cut = flFitAbilityLines("Super Mega Death Rocket", 30, 26, 120, 70, measure);
+    expect([cut.top?.text, cut.beside?.text, cut.cut]).toEqual(["Super Mega", "Death…", true]);
+    // every width: never under the floor, never narrower than 75 %, never wider than its line; whole names read whole
+    for (let full = 60; full <= 420; full += 9) {
+      for (const k of [0.45, 0.6, 0.75]) {
+        const beside = k * full;
+        for (const n of ["Super Mega Death Rocket", "Electric Wind God Fist", "Gum-Gum Gatling", "BFG", "Unibeam", "Petrificus Totalus"]) {
+          const fit = flFitAbilityLines(n, 30, 26, full, beside, measure);
+          const label = `${n} in ${full}/${Math.round(beside)}`;
+          const lines = [fit.top, fit.beside].filter((l): l is NonNullable<typeof l> => l !== null);
+          for (const [line, width] of [[fit.top, full], [fit.beside, beside]] as const) {
+            if (!line) continue;
+            expect([label, line.size, line.size >= 26, line.squeeze >= FL_BOX_NAME_SQUEEZE - 1e-9, measure(line.text, line.size) * line.squeeze <= width + 1e-6]).toEqual([label, fit.size, true, true, true]);
+          }
+          expect([label, fit.cut, fit.squeeze]).toEqual([label, lines.some((l) => l.cut), Math.min(...lines.map((l) => l.squeeze))]);
+          if (!fit.cut) expect([label, lines.map((l) => l.text).join(" ")]).toEqual([label, n]);
+          else expect([label, n.startsWith(lines.map((l) => l.text).join(" ").slice(0, -1))]).toEqual([label, true]);
+        }
+      }
+    }
+  });
+
   it("draws every box's ability name at 26 px or more at the 1080 px square – the roster's longest names in a duel, free-for-alls of 3 and 4, a 2v2 and a 3v3, square and 9:16 – condensed to no less than 75 %", { timeout: 60_000 }, () => {
     stubDocument();
     const floor = FL_BOX_NAME_MIN * 1080;
@@ -1216,6 +1256,98 @@ describe("the noir stage: the reel layout and the hit particles (--- fl-noir ---
     expect(flStateOf({ ...f, alive: true, frozenUntil: -Infinity, heldBy: -1, pinUntil: -Infinity, telegraphUntil: -1, invulnUntil: view.timeMs + 100 } as typeof f, view.timeMs)).toBe("shielded");
     expect(flStateOf({ ...f, alive: true, frozenUntil: -Infinity, heldBy: -1, pinUntil: -Infinity, telegraphUntil: -1, invulnUntil: -Infinity, reflectUntil: -Infinity, hitMs: view.timeMs - 100, vx: 50 * f.cruise, vy: 0 } as typeof f, view.timeMs)).toBe("knockback");
     for (const code of Object.keys(DEFAULT_FL_STATE_LABELS)) expect(typeof DEFAULT_FL_STATE_LABELS[code as keyof typeof DEFAULT_FL_STATE_LABELS]).toBe("string");
+  });
+
+  // --- fl-noir-names --- the block's ability names kept to the boxes' readability floor (README: box names ≥ 26 px as drawn)
+  it("draws every ability name in the stats block at 26 px or more at the 1080 px square – the roster's longest names in a duel, free-for-alls of 3 and 4, a 2v2 and a 3v3, square and 9:16 – condensed to no less than 75 %, inside its column and above the badge's strip", { timeout: 60_000 }, () => {
+    stubDocument();
+    const floor = FL_BOX_NAME_MIN * 1080;
+    const longest = [...FL_ROSTER].sort((a, b) => b.ability.name.length - a.ability.name.length || a.id.localeCompare(b.id)).slice(0, 6);
+    expect(longest[0].ability.name).toBe("Super Mega Death Rocket");
+    const cases: [string, number][] = [
+      ["1v1", 2],
+      ["ffa3", 3],
+      ["ffa4", 4],
+      ["2v2", 4],
+      ["3v3", 6],
+    ];
+    for (const portrait of [false, true]) {
+      for (const [match, n] of cases) {
+        const label = `noir ${match}${portrait ? " 9:16" : ""}`;
+        const engine = probeEngine({ fighters: longest.map((r) => r.id), match: match as FightLeagueSettings["match"], hp: 300, timeCap: 0, stage: "noir" }, 1);
+        const view = probeRun(engine, 2500);
+        const width = 1080;
+        const height = portrait ? 1920 : 1080;
+        const S = 1080;
+        const layer = new FightLeagueLayer();
+        const main = fakeCanvas(width, height).ctx;
+        layer.drawOverlay(asCtx(main), view, OPTS, { width, height, inset: 0, portrait });
+        expect([label, layer.noirOn, layer.boxesDrawn, layer.boxRows]).toEqual([label, true, n, 1]);
+        const lay = layer.hudLayout(view, S, portrait);
+        const oy = (height - S) / 2;
+        const colW = (lay.right - lay.left) / n;
+        const pad = 0.014 * S;
+        const badgeTop = oy + (1 - BADGE_INSET - BADGE_HEIGHT) * S;
+        // the sprites under the arena, each line a fillText on its own canvas
+        const lines = main.calls
+          .filter((c) => c.name === "drawImage")
+          .map((c) => {
+            const sprite = c.args[0] as FakeCanvas;
+            const text = sprite.ctx?.calls.find((k) => k.name === "fillText")?.args[0];
+            const fontPx = Number(/(\d+(?:\.\d+)?)px/.exec(sprite.ctx?.font ?? "")?.[1]);
+            const [dx, dy, dw, dh] = c.args.slice(1) as number[];
+            const ky = dh / sprite.height;
+            const kx = dw / sprite.width;
+            return { text: typeof text === "string" ? text : "", size: fontPx * ky, squeeze: kx / ky, left: dx + 2 * kx, right: dx + (2 + 0.56 * String(text).length * fontPx) * kx, cy: dy + dh / 2 };
+          })
+          .filter((l) => l.cy > oy + 0.85 * S && l.text.length > 0);
+        let cut = 0;
+        for (const f of view.fighters) {
+          const name = f.row.ability.name.toUpperCase();
+          const col = lay.left + f.slot * colW;
+          // its lines: a part of its name (or a part's start ellipsised), inside its column
+          const mine = lines.filter((l) => name.includes(l.text.replace(/…$/u, "")) && l.left >= col + pad - 0.5 && l.right <= col + colW - pad + 0.5).sort((a, b) => a.cy - b.cy);
+          const text = mine.map((l) => l.text).join(" ");
+          // the name whole, or its start ellipsised (the end cut, at least ten letters kept)
+          const whole = text === name;
+          if (!whole) cut++;
+          expect([label, name, mine.length >= 1 && mine.length <= 2, whole || (text.endsWith("…") && name.startsWith(text.slice(0, -1)) && text.replace(/[\s…]/g, "").length >= 10)]).toEqual([label, name, true, true]);
+          for (const l of mine) expect([label, l.text, l.size >= floor - 1e-6, l.squeeze >= FL_BOX_NAME_SQUEEZE - 1e-6, l.cy + 0.4 * l.size <= badgeTop]).toEqual([label, l.text, true, true, true]);
+        }
+        // what the layer reports (data-fl-box-name-fs, -squeeze, -names-cut)
+        expect([label, layer.boxNameMin * 1080 >= floor - 1e-6, layer.boxNameSqueeze >= FL_BOX_NAME_SQUEEZE - 1e-6, layer.boxNamesCut]).toEqual([label, true, true, cut]);
+        // up to four fighters every name reads whole, square and 9:16
+        if (n <= 4) expect([label, cut]).toEqual([label, 0]);
+      }
+    }
+  });
+
+  it("keeps the four-line block when every ability name fits beside its meter (the default Thor vs Loki), and takes five rows – the first and the last where the four lines' are, every row clear of the arena and the badge's strip – when one needs two lines", { timeout: 60_000 }, () => {
+    stubDocument();
+    const rowsOf = (fl: Partial<FightLeagueSettings>) => {
+      const view = probeRun(probeEngine({ ...fl, stage: "noir" }, 1), 2500);
+      const layer = new FightLeagueLayer();
+      layer.drawOverlay(asCtx(fakeCanvas(1080, 1080).ctx), view, OPTS, { width: 1080, height: 1080, inset: 0 });
+      return layer.noirAbilityRows;
+    };
+    expect(rowsOf({ fighters: ["thor", "loki"], match: "1v1" })).toBe(1);
+    expect(rowsOf({ fighters: ["venom", "walterwhite", "jonesy", "jinx"], match: "ffa4", hp: 300, timeCap: 0 })).toBe(2);
+    // both layouts' rows: from the block's top to the badge's strip (its letters end by 0.921 S, as the boxes'), each row's
+    // capitals (0.73 em, centred 0.04 em under the row's line: the text sprites' middle baseline) clear of the next
+    const caps = (y: number, fs: number) => [y + 0.04 * fs - 0.365 * fs, y + 0.04 * fs + 0.365 * fs];
+    const arenaBottom = FL_NOIR_ARENA_TOP + FL_NOIR_ARENA_FRAC;
+    for (const [fsRows, yRows] of [
+      [FL_NOIR_LINE_FS, FL_NOIR_LINE_Y],
+      [FL_NOIR_WRAP_FS, FL_NOIR_WRAP_Y],
+    ] as const) {
+      const rows = yRows.map((y, i) => caps(y, fsRows[i]));
+      expect(rows[0][0]).toBeGreaterThanOrEqual(Math.max(arenaBottom, FL_NOIR_BLOCK_TOP));
+      expect(rows[rows.length - 1][1]).toBeLessThanOrEqual(1 - BADGE_INSET - BADGE_HEIGHT - 0.002);
+      for (let i = 1; i < rows.length; i++) expect([i, rows[i][0] - rows[i - 1][1] >= 0.004]).toEqual([i, true]);
+    }
+    // the five-row block's stat rows keep the stat lines' floor; its ability rows the boxes' nominal size
+    expect(Math.min(FL_NOIR_WRAP_FS[1], FL_NOIR_WRAP_FS[2])).toBeGreaterThanOrEqual(FL_BOX_STAT_MIN);
+    expect(FL_NOIR_WRAP_FS[3]).toBe(FL_NOIR_LINE_FS[3]);
   });
 
   it("keeps the render contract in a portrait layout with the heavy kits, with four and six fighters (a column each) and a show's column", { timeout: 180_000 }, () => {

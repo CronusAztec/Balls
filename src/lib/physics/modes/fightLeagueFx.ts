@@ -715,6 +715,59 @@ export function flFitBoxName(name: string, size: number, minSize: number, maxWid
   return { text, size: fs, squeeze, cut: text !== name };
 }
 
+/** --- fl-noir-names --- An ability name in the noir stats block: one line beside its meter, or two lines. */
+export interface FlAbilityLines {
+  /** The line above the meter's line (null: the name fits beside the meter). */
+  top: FlNameFit | null;
+  /** The meter's line (null: the whole name is on the top line, the meter alone under it). */
+  beside: FlNameFit | null;
+  /** The lines' shared size, the narrowest squeeze, and whether either line was ellipsised. */
+  size: number;
+  squeeze: number;
+  cut: boolean;
+}
+
+/**
+ * --- fl-noir-names --- Fits an ability name into a noir stats column WITHOUT drawing it under the readability floor: whole
+ * on the meter's line (`besideWidth`, `flFitBoxName()`) when it fits there; else split at a space over two lines, its start
+ * on a line of its own (`fullWidth`, the column's width) and the rest beside the meter (none: the meter alone). Of the
+ * splits the first that keeps the most lines whole wins, then the one that cuts no word in the middle of the name (a
+ * first line ellipsised with words after it), shows the most letters, keeps the larger size, then the wider squeeze. Both
+ * lines are set at one size.
+ */
+export function flFitAbilityLines(name: string, size: number, minSize: number, fullWidth: number, besideWidth: number, measure: (text: string, size: number) => number, minSqueeze: number = FL_BOX_NAME_SQUEEZE): FlAbilityLines {
+  const one = flFitBoxName(name, size, minSize, besideWidth, measure, minSqueeze);
+  if (!one.cut) return { top: null, beside: one, size: one.size, squeeze: one.squeeze, cut: false };
+  const words = name.split(" ").filter((w) => w.length > 0);
+  const letters = (fit: FlNameFit | null) => (fit ? fit.text.replace(/[\s…]/gu, "").length : 0);
+  let best: FlAbilityLines = { top: null, beside: one, size: one.size, squeeze: one.squeeze, cut: true };
+  let bestScore = [1, 0, -letters(one), -one.size, -one.squeeze];
+  for (let k = 1; k <= words.length; k++) {
+    const first = words.slice(0, k).join(" ");
+    const rest = words.slice(k).join(" ");
+    const t0 = flFitBoxName(first, size, minSize, fullWidth, measure, minSqueeze);
+    const b0 = rest ? flFitBoxName(rest, size, minSize, besideWidth, measure, minSqueeze) : null;
+    // one size for both lines: the smaller fit's (the other refitted at it fits at least as well)
+    const s = Math.min(t0.size, b0 ? b0.size : Infinity);
+    const top = t0.size === s ? t0 : flFitBoxName(first, s, minSize, fullWidth, measure, minSqueeze);
+    const beside = b0 === null ? null : b0.size === s ? b0 : flFitBoxName(rest, s, minSize, besideWidth, measure, minSqueeze);
+    const cuts = (top.cut ? 1 : 0) + (beside?.cut ? 1 : 0);
+    const squeeze = Math.min(top.squeeze, beside ? beside.squeeze : 1);
+    const score = [cuts, top.cut && rest ? 1 : 0, -(letters(top) + letters(beside)), -s, -squeeze];
+    let better = false;
+    for (let i = 0; i < score.length; i++) {
+      if (Math.abs(score[i] - bestScore[i]) < 1e-9) continue;
+      better = score[i] < bestScore[i];
+      break;
+    }
+    if (better) {
+      best = { top, beside, size: s, squeeze, cut: cuts > 0 };
+      bestScore = score;
+    }
+  }
+  return best;
+}
+
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 /**
