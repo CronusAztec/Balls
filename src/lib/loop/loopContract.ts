@@ -51,7 +51,12 @@ export class WholeLoopCut {
   /** When the last seam came (s into the recording; 0 = the start). */
   private lastSeamSec = 0;
   private limit: number;
-  /** Whole cycles the clip holds so far, and the last one's length (s, on the recording's clock; 0 before the first seam). */
+  /**
+   * Whole cycles the clip holds so far, and their mean length (s, on the recording's clock: the last seam's time over the
+   * cycles; 0 before the first seam). A cycle that is not a whole number of frames shows its seams on the frame at or after
+   * them, so one cycle measured alone can be a frame short or long – a frame per loop off the clip; the cycles times the mean
+   * add up to the clip within a frame.
+   */
   cycles = 0;
   cycleSec = 0;
   /** True once the clip was cut on a seam (it loops); false while it runs, and for a clip cut at its set length. */
@@ -90,7 +95,7 @@ export class WholeLoopCut {
       const cycle = recordSec - this.lastSeamSec;
       this.lastSeamSec = recordSec;
       this.cycles++;
-      this.cycleSec = cycle;
+      this.cycleSec = recordSec / this.cycles; // (the recording starts on a seam; `cycle`, the last one alone, decides the cut below)
       if (recordSec + cycle > this.durationSec + this.frameSec + 1e-9) {
         this.cutOnSeam = true;
         return "stop";

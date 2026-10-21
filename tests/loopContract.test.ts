@@ -92,6 +92,16 @@ describe("the loop contract: whole cycles", () => {
       expect(wholeLoopError(seconds, cycle), `${duration} s at ${fps} fps: ${seconds} s, cycle ${cycle}`).toBeLessThanOrEqual(1 / fps + 1e-6);
       expect(Math.round(seconds / cycle)).toBe(Math.floor((duration + 1 / fps) / cycle + 1e-9));
     }
+    // three loops of a cycle that is not a whole number of simulation frames (seeds 27 and 37: seams at frames 1044, 2088, 3131
+    // and 918, 1836, 2753 – the last cycle a frame short of the others): the cycle reported is the clip's mean, so the loops add
+    // up to the clip within a frame at 30 fps (the last cycle alone was 0.05 s short of it – the smoke's Fill and loop fast export)
+    for (const seed of [27, 37]) {
+      const { seconds, cut, engine } = cutRun(53, 30, seed);
+      expect(cut.cycles, `seed ${seed}`).toBe(3);
+      expect(cut.cutOnSeam, `seed ${seed}`).toBe(true);
+      expect(Math.abs(engine.getCycleSeconds()! - cut.cycleSec), `seed ${seed}`).toBeLessThanOrEqual(1 / 60 + 1e-6);
+      expect(wholeLoopError(seconds, cut.cycleSec), `seed ${seed}: ${seconds} s, cycle ${cut.cycleSec}`).toBeLessThanOrEqual(1 / 30 + 1e-6);
+    }
     // a run that does not loop is not cut (the classic Grow, Finish)
     for (const grow of [{}, { ...FILL_LOOP, onFill: "finish" as const }]) {
       const engine = createEngineForSettings(config, "grow", { ...modeSettings, grow }, 5);

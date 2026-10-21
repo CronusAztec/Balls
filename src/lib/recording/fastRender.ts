@@ -207,7 +207,7 @@ export interface FastRenderResult {
   /** --- free-watermark --- True when the frames carry the watermark (no verified Pro licence when the export started). */
   watermarked: boolean;
   // --- loop-foundation ---
-  /** A whole-loop export: the cycles the clip holds and the last one's length (s); absent for a run that does not loop. */
+  /** A whole-loop export: the cycles the clip holds and their mean length (s); absent for a run that does not loop. */
   loopCycles?: number;
   loopCycleSec?: number;
   /** The mix's loudness before and the gain the normaliser applied (dB) – BS.1770, −14 LUFS, true peak ≤ −1 dBTP. */

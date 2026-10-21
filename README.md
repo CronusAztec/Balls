@@ -2522,7 +2522,9 @@ The shared pieces every loop-family simulation builds on (feature loop-foundatio
   (the canvas' `data-loop-record-start-ms` is the run's time at that first frame: 0). The fast export's done line says what it
   did besides: "Cut to 3 whole loops of 12.85 s, so it loops seamlessly." and the normaliser's gain, "Sound levelled to −14 LUFS
   (+1.1 dB)." (`FastExport.doneLoops` / `doneGain` in en / pl / es, `fastExportDoneDetail()`; a gain that rounds to nothing is
-  left out).
+  left out). The loop length it names (`data-fast-loop-cycle`) is the clip's mean cycle, the last seam's time over the loops: a
+  cycle that is not a whole number of simulation frames shows its seams a frame apart from it, so the last cycle alone could be a
+  frame short and the loops a frame per loop short of the clip.
 - **The loop HUD** (`src/lib/loop/hud.ts`, the Recording section's **Loop HUD**, `loopHud`, URL `lh`, off by default): a bold
   lowercase title at about 16 % of the frame, an optional grey subtitle under a thin rule, and one amber counter (`#f2c46a`,
   grey on a light page) at about 85 % – drawn into every export frame by the compositor (`drawRecordingFrame()`), so the
