@@ -6,9 +6,17 @@
  */
 import { SITE_SLUG } from "@/lib/site";
 import type { LoopCaptionContext } from "./loopCaption"; // --- low-findings ---
+import type { LibraryMeta } from "@/lib/desktop/contract"; // --- cut-reedit --- (a type only)
 
 export const CLIP_SOURCES = ["recording", "fast", "batch", "bot", "file", "edit" /* --- clip-editor --- */] as const;
 export type ClipSource = (typeof CLIP_SOURCES)[number];
+
+/**
+ * --- cut-reedit --- The Windows app's Library item a clip is (a Library clip staged in the block, the queue's or the editor's
+ * cut as saved): its job and its post copy. "Edit for TikTok" in the block hands them to the editor, so a cut of it is saved
+ * as `<job>-cut` with that copy, the way the Library's own Edit for TikTok saves it, and the autopilot sees one video.
+ */
+export type PublishClipLibrary = Partial<Pick<LibraryMeta, "title" | "link" | "caption" | "hashtags" | "queueJobId">>;
 
 export interface PublishClip {
   id: string;
@@ -35,6 +43,8 @@ export interface PublishClip {
    * "Edit for TikTok" opens it as it is, with no second hook, crop-in, end card or badge.
    */
   cutFile: boolean;
+  /** --- cut-reedit --- The Library item the clip is, in the Windows app (null: none, a recording, a picked file, the website). */
+  library: PublishClipLibrary | null;
   createdAt: number;
 }
 
@@ -51,6 +61,8 @@ export interface OfferClipInput {
   loopCaption?: LoopCaptionContext | null;
   /** --- cut-reedit --- The file is a cut (absent: a clip of the "edit" source is one, any other is not). */
   cutFile?: boolean;
+  /** --- cut-reedit --- The Library item's job and copy (absent: none). */
+  library?: PublishClipLibrary | null;
 }
 
 /** Clips kept (each can be tens of MB). */
@@ -105,6 +117,7 @@ export function offerPublishClip(input: OfferClipInput): PublishClip {
     botClipId: input.botClipId ?? null,
     loopCaption: input.loopCaption ?? null, // --- low-findings ---
     cutFile: input.cutFile ?? input.source === "edit", // --- cut-reedit ---
+    library: input.library ?? null, // --- cut-reedit ---
     createdAt: Date.now(),
   };
   clips = [clip, ...clips].slice(0, MAX_CLIPS);

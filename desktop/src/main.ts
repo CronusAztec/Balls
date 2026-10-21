@@ -6,7 +6,7 @@ import { fileURLToPath } from "url";
 import Store from "electron-store";
 import electronUpdater from "electron-updater";
 import ffmpegStatic from "ffmpeg-static";
-import { DESKTOP_EVENTS, IPC, type BenchmarkResult, type DesktopInfo, type DesktopPrefs, type EncoderProbe, type GpuStatus, type MediaKind, type MenuAction, type PickedFile, type VideoCodec } from "@/lib/desktop/contract";
+import { DESKTOP_EVENTS, IPC, type BenchmarkResult, type DesktopInfo, type DesktopPrefs, type EncoderProbe, type GpuStatus, type MediaKind, type MenuAction, type PickedFile, type UpdateStatus, type VideoCodec } from "@/lib/desktop/contract";
 import { appLocations } from "./paths";
 import { APP_HOST, APP_ORIGIN, APP_SCHEME, contentType, isAppUrl, isExternalWebUrl, popupMayNavigate, resolveSiteRequest, startUrl, windowOpenAction } from "./protocol";
 import { gpuStatusOf, gpuSwitches, preferredVendor } from "./gpu";
@@ -235,6 +235,8 @@ function start() {
     log: (level, message) => logger.write(level, message),
   });
   let updateNotified: string | null = null; // --- desktop-autorelease --- the version the Windows notification was shown for
+  // --- manual-update --- Help > Check for updates found an update: how its download ends is answered in a box too
+  let menuAsked = false;
   const updater = new UpdateController(electronUpdater.autoUpdater as unknown as ConstructorParameters<typeof UpdateController>[0], {
     enabled: !SMOKE,
     autoUpdate: () => prefs().autoUpdate, // --- manual-update --- the quiet schedule only: off, a manual check still finds and downloads the update
@@ -244,9 +246,11 @@ function start() {
     log: logger.warn,
     emit: (s) => {
       send(DESKTOP_EVENTS.update, s);
+      let notified = false;
       // --- desktop-autorelease --- one Windows notification per downloaded version; the banner in the page offers Restart / Later
       if (s.state === "ready" && s.version && s.version !== updateNotified && Notification.isSupported()) {
         updateNotified = s.version;
+        notified = true;
         const l = MENU_LABELS[menuLanguage(app.getLocale())];
         const n = new Notification({ title: l.updateReadyTitle, body: updateReadyBody(l, s.version, prefs().autoUpdate) }); // --- manual-update --- off: names Restart and update
         n.on("click", () => {
@@ -256,6 +260,12 @@ function start() {
           }
         });
         n.show();
+      }
+      // --- manual-update --- the download the menu's check found has ended: a failure is said in a box like the check's own
+      // answer, and so is a finished download when no notification says it (shown once per version, or not supported)
+      if (menuAsked && s.state !== "available" && s.state !== "downloading") {
+        menuAsked = false;
+        if (s.state === "error" || (s.state === "ready" && !notified)) void showCheckAnswer(s);
       }
     },
   });
@@ -492,12 +502,15 @@ function start() {
       return;
     }
   };
-  // --- manual-update --- Help > Check for updates: the outcome in a box (latest, failed, offline), over the window when it is shown
-  const showCheckAnswer = async () => {
-    const answer = menuCheckAnswer(updater.status, labels);
+  // --- manual-update --- Help > Check for updates: the outcome in a box (every state has a line, menuCheckAnswer), over the
+  // window when it is shown; a build that does not update itself offers the Download page
+  const showCheckAnswer = async (status: UpdateStatus = updater.status) => {
+    const answer = menuCheckAnswer(status, labels);
     if (!answer) return;
-    const options = { type: updater.status.state === "error" ? ("warning" as const) : ("info" as const), title: APP_TITLE, message: answer.message, detail: answer.detail, buttons: [labels.aboutClose], noLink: true };
-    await (win && !win.isDestroyed() && win.isVisible() ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options));
+    const buttons = answer.download ? [labels.downloadPage, labels.aboutClose] : [labels.aboutClose];
+    const options = { type: status.state === "error" ? ("warning" as const) : ("info" as const), title: APP_TITLE, message: answer.message, detail: answer.detail, buttons, defaultId: buttons.length - 1, cancelId: buttons.length - 1, noLink: true };
+    const { response } = await (win && !win.isDestroyed() && win.isVisible() ? dialog.showMessageBox(win, options) : dialog.showMessageBox(options));
+    if (answer.download && response === 0) await shell.openExternal(`${SITE_URL}/en/download/`);
   };
   const runCommand = async (command: string) => {
     switch (command) {
@@ -510,10 +523,13 @@ function start() {
       case "open-logs":
         await shell.openPath(locations.logsDir);
         return;
-      case "check-updates":
-        await updater.check();
+      case "check-updates": {
+        const found = await updater.check();
+        // --- manual-update --- a found update downloads now: how that ends is answered too (the updater's emit above)
+        menuAsked = found.state === "available" || found.state === "downloading";
         await showCheckAnswer(); // --- manual-update --- the answer where the user is, not only in the page's off-screen top bar
         return;
+      }
       case "website":
         await shell.openExternal(`${SITE_URL}/`); // --- desktop-autorelease ---
         return;

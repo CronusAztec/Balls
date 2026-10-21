@@ -105,9 +105,9 @@ the background, shows a Windows notification and a banner with **Restart and upd
 they click Restart or when they close the app. It never interrupts a render: Restart waits until the render queue is done.
 The update button in the top bar of the app's Desktop group checks by hand at any time, also with "Update automatically"
 turned off, and downloads what it finds. With "Update automatically" off, closing the app does not install it: the update
-waits for **Restart and update**, and the notification and the wait note say so. **Help → Check for updates** answers in a
-box of its own (latest, failed, offline). In the portable EXE it says that this build does not update itself and links the
-download page.
+waits for **Restart and update**, and the notification, the banner and the wait note say so. **Help → Check for updates**
+answers in a box of its own: latest, failed, offline, downloading (and again if that download fails) or downloaded. In the
+portable EXE it says that this build does not update itself and offers the download page.
 
 - People on **1.0.2** must install the new version once by hand (its updater refuses unsigned updates). The download page
   and the release notes say so.

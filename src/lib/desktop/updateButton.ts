@@ -77,6 +77,14 @@ export function updateWaitKey(autoUpdate: boolean): "updateWaitRender" | "update
 }
 
 /**
+ * --- manual-update --- The Desktop key of the "update ready" line (the banner, the GPU tab, the button's tooltip). With
+ * "Update automatically" off quitting does not install (prepareQuit()), so the line names Restart and update instead.
+ */
+export function updateReadyKey(autoUpdate: boolean): "update.ready" | "update.readyManual" {
+  return autoUpdate ? "update.ready" : "update.readyManual";
+}
+
+/**
  * A button that cannot be clicked for now keeps its focus: aria-disabled, never the native `disabled` (which drops a
  * keyboard user's focus to the page). That is a check asked for, under way or downloading, and Restart and update waiting
  * for a render: the download can end while a keyboard user waits on the button.
@@ -85,7 +93,17 @@ export function updateButtonBusy(m: UpdateButtonModel, asking = false): boolean 
   return !m.enabled && (asking || m.kind === "checking" || m.kind === "downloading" || m.kind === "install");
 }
 
-export function updateButtonModel(status: UpdateStatus | null, { rendering = false, justChecked = false, asking = false }: UpdateButtonContext = {}): UpdateButtonModel {
+/**
+ * The button and its note for the updater's status. --- manual-update --- A check just asked for has no note yet: the live
+ * region empties and fills again with the answer, so Try again while still offline is said again (the updater answers it
+ * with the same "offline" without passing through "checking").
+ */
+export function updateButtonModel(status: UpdateStatus | null, context: UpdateButtonContext = {}): UpdateButtonModel {
+  const m = modelOf(status, context);
+  return context.asking && m.note !== null ? { ...m, note: null } : m;
+}
+
+function modelOf(status: UpdateStatus | null, { rendering = false, justChecked = false, asking = false }: UpdateButtonContext): UpdateButtonModel {
   const base: UpdateButtonModel = { kind: "check", enabled: !asking, progress: null, note: null, downloadLink: false };
   if (!status) return base;
   switch (status.state) {

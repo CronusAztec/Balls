@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import fs from "fs";
 import path from "path";
 import { CARD_FADE_SEC, CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_STORAGE_KEY, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, TEXT_MAX_SHARE, TEXT_MIN_SCALE, audioGainAt, cardAlphaAt, clipTimeline, cropRect, editFileName, fitClipEdit, fitTextLines, hookLayout, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
-import { cutFanMadeLine, drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
+import { burnedBadgeShows, drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
 import { BADGE_HEIGHT, BADGE_INSET } from "@/lib/watermark/layout";
 import { ClipEditOpenError, ClipEditSeekError, clipEditErrorKey, cutAudio, liveProgress, openSourceVideo, seekVideo } from "@/lib/clipEdit/render";
 import { cutFileSpec, editCutJobId, isCutJob, libraryEditOpen, refitClipEdit, type LibraryEditItem } from "@/lib/clipEdit/propose";
@@ -186,21 +186,21 @@ describe("the frame geometry", () => {
 describe("the frame compositor", () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  const drawFull = async (tSec: number, spec: ClipEditSpec = DEFAULT_CLIP_EDIT, options: { fanMade?: string | null; source?: { width: number; height: number }; card?: { title: string; note: string } } = {}) => {
+  const drawFull = async (tSec: number, spec: ClipEditSpec = DEFAULT_CLIP_EDIT, options: { fanMade?: string | null; cutFile?: boolean; source?: { width: number; height: number }; card?: { title: string; note: string } } = {}) => {
     vi.stubGlobal("document", fakeDocument());
     const seal = await sealWatermark();
     const canvas = fakeCanvas(1080, 1920);
     const src = options.source ?? { width: 1080, height: 1920 };
     const source = fakeCanvas(src.width, src.height);
     // every line as drawn: its text, where, the font size it was set at and the squeeze limit it was given
-    const lines: { text: string; x: number; y: number; size: number; maxWidth: number | undefined; index: number }[] = [];
+    const lines: { text: string; x: number; y: number; size: number; maxWidth: number | undefined; index: number; alpha: number }[] = [];
     const fill = canvas.ctx.fillText as (...args: unknown[]) => void;
     canvas.ctx.fillText = (...args: unknown[]) => {
-      lines.push({ text: String(args[0]), x: Number(args[1]), y: Number(args[2]), size: Number(/(\d+(?:\.\d+)?)px/.exec(canvas.ctx.font)?.[1]), maxWidth: args[3] as number | undefined, index: canvas.ctx.calls.length });
+      lines.push({ text: String(args[0]), x: Number(args[1]), y: Number(args[2]), size: Number(/(\d+(?:\.\d+)?)px/.exec(canvas.ctx.font)?.[1]), maxWidth: args[3] as number | undefined, index: canvas.ctx.calls.length, alpha: canvas.ctx.globalAlpha });
       fill(...args);
     };
     const tl = clipTimeline(spec, 30);
-    drawEditFrame(canvas.ctx as unknown as CanvasRenderingContext2D, { image: source as unknown as CanvasImageSource, ...src }, 1080, 1920, spec, tl, tSec, options.card ?? { title: "Make your own", note: "free" }, { seal, clipMs: tSec * 1000, fanMade: options.fanMade ?? null });
+    drawEditFrame(canvas.ctx as unknown as CanvasRenderingContext2D, { image: source as unknown as CanvasImageSource, ...src }, 1080, 1920, spec, tl, tSec, options.card ?? { title: "Make your own", note: "free" }, { seal, clipMs: tSec * 1000, fanMade: options.fanMade ?? null, cutFile: options.cutFile });
     return { calls: canvas.ctx.calls, lines };
   };
   const draw = async (tSec: number, spec: ClipEditSpec = DEFAULT_CLIP_EDIT) => (await drawFull(tSec, spec)).calls;
@@ -318,17 +318,17 @@ describe("the frame compositor", () => {
     const strip = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
     const draw = strip(read("src/lib/clipEdit/draw.ts"));
     // drawn after the card, then the stamp last
-    expect(draw.indexOf("if (mark.fanMade)")).toBeGreaterThan(draw.indexOf("cardAlphaAt(timeline, tSec)"));
-    expect(draw.indexOf("if (mark.fanMade)")).toBeLessThan(draw.indexOf("stampFrame(ctx, mark.seal"));
+    expect(draw.indexOf("if (mark.fanMade && badgeAlpha > 0)")).toBeGreaterThan(draw.indexOf("cardAlphaAt(timeline, tSec)"));
+    expect(draw.indexOf("if (mark.fanMade && badgeAlpha > 0)")).toBeLessThan(draw.indexOf("stampFrame(ctx, mark.seal"));
     const render = strip(read("src/lib/clipEdit/render.ts"));
     expect(render).toMatch(/fanMade: string \| null;/);
-    for (const c of render.match(/drawEditFrame\([^;]*\);/g) ?? []) expect(c).toMatch(/\{ seal, clipMs: t \* 1000, fanMade: options\.fanMade \}/);
+    for (const c of render.match(/drawEditFrame\([^;]*\);/g) ?? []) expect(c).toMatch(/\{ seal, clipMs: t \* 1000, fanMade: options\.fanMade, cutFile: options\.cutFile === true \}/);
     const dialog = strip(read("src/components/simulator/clipEditor/ClipEditorDialog.tsx"));
-    // (--- cut-reedit --- a cut file opened as it is has the badge in its frames already: a second one only when this cut
-    // can hide that one, cutFanMadeLine below)
-    expect(dialog).toMatch(/const fanMade = cutFanMadeLine\(source\.mode, fl\("canvasFanMade"\), \{ cutFile: source\.cutFile === true, zoom: fitted\.zoom, cardSec: fitted\.cardSec \}\);/);
+    // (--- badge-once --- whether the source's own badge is still whole is decided frame by frame in draw.ts, a cut file's too)
+    expect(dialog).toMatch(/const fanMade = fanMadeLine\(source\.mode, fl\("canvasFanMade"\)\);\s+const cutFile = source\.cutFile === true;/);
+    expect(dialog).toMatch(/renderClipEdit\(\{ source: source\.blob, spec: fitted, card, fanMade, cutFile,/);
     expect(dialog).toMatch(/useTranslations\("FightLeague"\)/);
-    for (const c of dialog.match(/drawEditFrame\([^;]*\);/g) ?? []) expect(c).toMatch(/fanMade \}\);$/);
+    for (const c of dialog.match(/drawEditFrame\([^;]*\);/g) ?? []) expect(c).toMatch(/fanMade, cutFile \}\);$/);
     const queue = strip(read("src/components/simulator/desktop/useRenderQueue.ts"));
     expect(queue).toMatch(/fanMade: fanMadeLine\(job\.settings\.mode, cutDeps\.fanMade\)/);
     expect(strip(read("src/components/simulator/sections/DesktopSection.tsx"))).toMatch(/fanMade: fl\("canvasFanMade"\)/);
@@ -353,31 +353,63 @@ describe("the frame compositor", () => {
     expect(calls).toBe(2);
   });
 
-  // --- cut-reedit --- a cut file's burned badge stays in sight only with no crop-in and no end card: otherwise it is drawn again
-  it("draws the badge again on a cut file once an end card or a crop-in can hide the burned one", async () => {
+  // --- badge-once --- a portrait export keeps its own badge through every crop-in the AI picks (it lands at 960 + 485 × zoom,
+  // inside the 1920 rows up to about 1.95): no second one on the action, one that fades in over the card as it covers the first
+  it("draws no second badge while a 1080 × 1920 Fight League source's own stays whole, and one over the card", async () => {
     const badge = "Fan-made parody. Not affiliated.";
-    const cutFile = (zoom: number, cardSec: number) => cutFanMadeLine("fightLeague", badge, { cutFile: true, zoom, cardSec });
-    expect(cutFile(1, 0)).toBeNull(); // every pixel of the file, its own badge included
-    expect(cutFile(1, 1.5)).toBe(badge);
-    expect(cutFile(1.97, 0)).toBe(badge);
-    expect(cutFile(1.25, 1)).toBe(badge);
-    // not a cut file: the badge always, and never for another mode
-    expect(cutFanMadeLine("fightLeague", badge, { cutFile: false, zoom: 1, cardSec: 0 })).toBe(badge);
-    expect(cutFanMadeLine("glass", badge, { cutFile: true, zoom: 2, cardSec: 2 })).toBeNull();
+    const portrait = { width: 1080, height: 1920 };
+    const spec: ClipEditSpec = { ...DEFAULT_CLIP_EDIT, zoom: 1.25 };
+    // where the crop-in puts the burned one: 960 + 485 × 1.25 ≈ 1566, whole inside the frame
+    const crop = cropRect(portrait.width, portrait.height, spec.zoom);
+    const burned = ((420 + 1080 * (1 - BADGE_INSET - BADGE_HEIGHT / 2) - crop.sy) * 1920) / crop.sh;
+    expect(burned).toBeCloseTo(1566, 0);
+    for (const zoom of [1, 1.15, 1.25, 1.4, 1.6, 1.9]) expect(burnedBadgeShows(portrait, zoom, 1080, 1920), String(zoom)).toBe(true);
+    for (const zoom of [1.97, 2]) expect(burnedBadgeShows(portrait, zoom, 1080, 1920), String(zoom)).toBe(false);
+    // a landscape export loses it to any crop-in past about 9 %
+    expect(burnedBadgeShows({ width: 1920, height: 1080 }, 1, 1080, 1920)).toBe(true);
+    expect(burnedBadgeShows({ width: 1920, height: 1080 }, 1.15, 1080, 1920)).toBe(false);
+    // the action: the burned badge is the one badge (nothing is drawn over it)
+    for (const t of [0, 2, spec.lengthSec - CARD_FADE_SEC - 0.05]) expect((await drawFull(t, spec, { fanMade: badge })).lines.filter((l) => l.text === badge), `t=${t}`).toHaveLength(0);
+    // the card's fade: drawn as strongly as the card covers the burned one, then fully on the card
+    const fade = (await drawFull(spec.lengthSec - CARD_FADE_SEC / 2, spec, { fanMade: badge })).lines.filter((l) => l.text === badge);
+    expect(fade).toHaveLength(1);
+    expect(fade[0].alpha).toBeCloseTo(0.5, 5);
+    const onCard = (await drawFull(spec.lengthSec + 0.5, spec, { fanMade: badge })).lines;
+    const drawn = onCard.filter((l) => l.text === badge);
+    expect(drawn).toHaveLength(1);
+    expect(drawn[0].alpha).toBe(1);
+    expect(drawn[0].index).toBeGreaterThan(onCard.find((l) => l.text === "Make your own")!.index);
+    // past the frame's edge (the full crop-in) it is drawn again on every frame
+    const full = { ...spec, zoom: CLIP_EDIT_RANGES.zoom.max };
+    const zoomed = (await drawFull(2, full, { fanMade: badge })).lines.filter((l) => l.text === badge);
+    expect(zoomed).toHaveLength(1);
+    expect(zoomed[0].alpha).toBe(1);
+  });
+
+  // --- cut-reedit --- a cut file's own badge sits wherever its cut put it (lower down and larger after a crop-in), so it is
+  // sure to be whole only with no crop-in: then it is the badge, and the drawn one only fades in over a card
+  it("draws the badge again on a cut file once a crop-in can push its own out, and over its card", async () => {
+    const badge = "Fan-made parody. Not affiliated.";
+    const portrait = { width: 1080, height: 1920 };
+    expect(burnedBadgeShows(portrait, 1, 1080, 1920, true)).toBe(true); // every pixel of the file, its own badge included
+    for (const zoom of [1.05, 1.25, 1.97]) expect(burnedBadgeShows(portrait, zoom, 1080, 1920, true), String(zoom)).toBe(false);
+    // a trim of the cut file: no second badge
+    const trim: ClipEditSpec = { ...DEFAULT_CLIP_EDIT, startSec: 0, lengthSec: 10, zoom: 1, hook: "", url: "", cardSec: 0 };
+    for (const t of [0, 5, 9.9]) expect((await drawFull(t, trim, { fanMade: badge, cutFile: true })).lines.some((l) => l.text === badge), `t=${t}`).toBe(false);
     // the card frames of a re-cut cut file carry it, over the card (it fills the frame over the burned one)
-    const spec: ClipEditSpec = { ...DEFAULT_CLIP_EDIT, startSec: 0, lengthSec: 10, zoom: 1, hook: "", url: "", cardSec: 1.5 };
+    const spec: ClipEditSpec = { ...trim, cardSec: 1.5 };
+    expect((await drawFull(5, spec, { fanMade: badge, cutFile: true })).lines.some((l) => l.text === badge)).toBe(false);
     for (const t of [10.2, 11]) {
-      const { lines } = await drawFull(t, spec, { fanMade: cutFile(spec.zoom, spec.cardSec) });
+      const { lines } = await drawFull(t, spec, { fanMade: badge, cutFile: true });
       const card = lines.find((l) => l.text === "Make your own");
       const drawn = lines.filter((l) => l.text === badge);
       expect(card, `t=${t}`).toBeDefined();
       expect(drawn, `t=${t}`).toHaveLength(1);
       expect(drawn[0].index).toBeGreaterThan(card!.index);
+      expect(drawn[0].alpha).toBe(1);
     }
-    // the full crop-in of the same file: rows 480 to 1440 only, the burned badge (centred about y 1445) is cut away, drawn again
-    const crop = cropRect(1080, 1920, CLIP_EDIT_RANGES.zoom.max);
-    expect(crop.sy + crop.sh).toBeLessThan(420 + 1080 * (1 - BADGE_INSET - BADGE_HEIGHT / 2));
-    const zoomed = await drawFull(2, { ...spec, zoom: CLIP_EDIT_RANGES.zoom.max, cardSec: 0 }, { fanMade: cutFile(CLIP_EDIT_RANGES.zoom.max, 0) });
+    // any crop-in of the same file: drawn on every frame
+    const zoomed = await drawFull(2, { ...trim, zoom: 1.25 }, { fanMade: badge, cutFile: true });
     expect(zoomed.lines.filter((l) => l.text === badge)).toHaveLength(1);
   });
 
@@ -513,7 +545,7 @@ describe("the editor in the page and in the Windows app", () => {
     expect(fitClipEdit(parseClipEdit({ ...DEFAULT_CLIP_EDIT, ...cutFileSpec(null) }), 9.5)).toEqual({ startSec: 0, lengthSec: 9.5, zoom: 1, hook: "", url: "", cardSec: 0 });
     const publish = read("src/components/simulator/sections/PublishSection.tsx");
     expect(publish).toMatch(/cutFile: editing\.cutFile \}\} initialSpec=\{editing\.cutFile \? cutFileSpec\(editing\.durationSec\) : undefined\}/);
-    expect(read("src/lib/publish/desktopTargets.ts")).toMatch(/cutFile: isCutJob\(clip\.item\.meta\.queueJobId\)/);
+    expect(read("src/lib/publish/desktopTargets.ts")).toMatch(/cutFile: isCutJob\(meta\.queueJobId\), library \}\);/);
     // the job a cut is saved under: a master's `<job>-cut`, a cut's own, else a cut of its own
     expect(editCutJobId("job-1")).toBe("job-1-cut");
     expect(editCutJobId("job-1-cut")).toBe("job-1-cut");
@@ -596,6 +628,8 @@ describe("the editor in the page and in the Windows app", () => {
       expect(es.Desktop[key], key).not.toMatch(/cola de render(?!izado)/);
     }
     expect(es.Desktop.aiCutLine).toContain("acercamiento {zoom} %");
+    // the editor's slider names the same setting with the same noun (not the View menu's verb "Acercar")
+    expect(es.ClipEditor.zoom).toBe("Acercamiento");
     // the hook in each language's own quotes, as the rest of its catalog writes them
     expect(pl.Desktop.aiCutLine).toMatch(/ · „\{hook\}”$/);
     expect(es.Desktop.aiCutLine).toMatch(/ · «\{hook\}»$/);
@@ -752,6 +786,27 @@ describe("the editor's failures, progress and preview", () => {
     for (const loc of ["en", "pl", "es"]) expect((JSON.parse(read(`messages/${loc}.json`)) as { ClipEditor: Record<string, string> }).ClipEditor.saving, loc).toMatch(/…$/);
   });
 
+  // --- cut-cancel --- the queue's own cut: once its file is made it is saved, offered and announced, so its row's Cancel and
+  // Cancel all leave it be, and the row says "Saving…" in the same aria-disabled button
+  it("keeps the queue's cut once its file is made, and its row says Saving instead of a Cancel that would do nothing", () => {
+    const queue = read("src/components/simulator/desktop/useRenderQueue.ts");
+    const cut = queue.slice(queue.indexOf("if (result && !controller.signal.aborted) {"), queue.indexOf("} catch (err) {", queue.indexOf("if (result && !controller.signal.aborted) {")));
+    expect(cut).toMatch(/^if \(result && !controller\.signal\.aborted\) \{\s+(\/\/[^\n]*\s+)?run\.saving = true;\s+setCutting\(\{ jobId: job\.id, progress: 1, saving: true \}\);/);
+    // the save, the Publish offer and the announcement all come after the mark
+    for (const step of ["bridge.render.save(", "offerPublishClip(", "cutDeps.onCut?.("]) expect(cut.indexOf(step), step).toBeGreaterThan(cut.indexOf("run.saving = true"));
+    // a Cancel (the row's, or Cancel all) stops a cut only while it renders
+    expect(queue).toMatch(/if \(cutRun\.current\?\.jobId === id && !cutRun\.current\.saving\) cutRun\.current\.controller\.abort\(\);/);
+    expect(queue).toMatch(/if \(cutRun\.current && !cutRun\.current\.saving\) cutRun\.current\.controller\.abort\(\);/);
+    expect(queue.match(/controller\.abort\(\)/g)).toHaveLength(2);
+    const panel = read("src/components/simulator/desktop/QueuePanel.tsx");
+    expect(panel).toMatch(/aria-disabled=\{\(cuttingJob\(job\) && queue\.cutting\?\.saving\) \|\| undefined\} onClick=\{cuttingJob\(job\) && queue\.cutting\?\.saving \? undefined : \(\) => queue\.cancel\(job\.id\)\}/);
+    expect(panel).toMatch(/\{cuttingJob\(job\) && queue\.cutting\?\.saving \? t\("jobSaving"\) : t\("jobCancel"\)\}/);
+    for (const loc of ["en", "pl", "es"]) {
+      const d = (JSON.parse(read(`messages/${loc}.json`)) as { Desktop: Record<string, string>; ClipEditor: Record<string, string> });
+      expect(d.Desktop.jobSaving, loc).toBe(d.ClipEditor.saving);
+    }
+  });
+
   // --- clip-a11y --- the sliders say their value as it is shown (25 %, 3.4 s), not the raw multiplier or a long decimal
   it("gives every slider a value text as shown and a name that does not change with the value", () => {
     const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx");
@@ -824,6 +879,6 @@ describe("the editor's failures, progress and preview", () => {
     expect(dialog).toMatch(/sealWatermark\(\)\.then\(\(sealed\) => live && setSeal\(sealed\)\)/);
     expect(dialog).toMatch(/if \(!canvas \|\| !opened \|\| durationSec === null \|\| rendering \|\| !seal\) return;/);
     expect(dialog).toMatch(/\}, \[scrub, [^\]]*\bseal\]\);/);
-    expect(dialog).toMatch(/\{ seal, clipMs: tSec \* 1000, fanMade \}/);
+    expect(dialog).toMatch(/\{ seal, clipMs: tSec \* 1000, fanMade, cutFile \}/);
   });
 });

@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import fs from "fs";
+import path from "path";
 import type { LibraryItem } from "@/lib/desktop/contract";
+import { clipVideoKey } from "@/lib/desktop/autopilot"; // --- cut-reedit ---
+import { editCutJobId } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
 import { publishTargets, type PublishClip as LibraryClip } from "@/lib/desktop/publish";
 import { publishClips, resetPublishClips } from "@/lib/publish/clips";
 import { PublishController, type ControllerDeps } from "@/lib/publish/controller";
@@ -219,6 +223,33 @@ describe("the Library's Publish targets (desktop app)", () => {
     expect(byId(master)?.cutFile).toBe(false);
     expect(byId(cut)?.cutFile).toBe(true);
     expect(byId(plain)?.cutFile).toBe(false);
+  });
+
+  // --- cut-reedit --- "Edit for TikTok" in the block hands the editor the staged item's job and copy (PublishSection's
+  // `meta: editing.library`): the cut is saved as `<job>-cut` with the master's words, so the autopilot sees one video
+  it("stages a Library clip with its job and copy, so a cut made in the block is the master's cut", () => {
+    const c = controller(relayFetch(true).fetchImpl, null);
+    const masterItem = { ...item("reels"), id: "lib-master-x", meta: { ...item("reels").meta, queueJobId: "job-x" } } as LibraryItem;
+    const masterId = stageLibraryClip(c, clipOf(masterItem));
+    const master = publishClips().find((x) => x.id === masterId);
+    expect(master?.library).toEqual({ title: "Glass smash", link: "https://x/en/simulator/?mode=glass", caption: "Which floor breaks first?", hashtags: ["#glass", "#asmr"], queueJobId: "job-x" });
+    // the editor's job rule on that meta: the master's cut, under the master's video key
+    const cutJob = editCutJobId(master?.library?.queueJobId);
+    expect(cutJob).toBe("job-x-cut");
+    expect(clipVideoKey({ meta: { ...masterItem.meta, queueJobId: cutJob } })).toBe(clipVideoKey(masterItem));
+    // a staged cut keeps its own job (a trim of it stays that cut), and a picked file has none
+    const cutId = stageLibraryClip(c, clipOf({ ...masterItem, id: "lib-cut-x", meta: { ...masterItem.meta, queueJobId: "job-x-cut" } }));
+    const cut = publishClips().find((x) => x.id === cutId);
+    expect(editCutJobId(cut?.library?.queueJobId)).toBe("job-x-cut");
+    c.addFile(new File([new Uint8Array([9])], "other.mp4", { type: "video/mp4" }));
+    expect(publishClips().find((x) => x.name === "other.mp4")?.library).toBeNull();
+    // the block's editor gets it, and the queue's and the editor's own cuts are offered with theirs
+    const read = (f: string) => fs.readFileSync(path.join(__dirname, "..", f), "utf8");
+    expect(read("src/components/simulator/sections/PublishSection.tsx")).toContain("desktop={desktop ? { bridge: desktop, meta: editing.library ?? undefined } : null}");
+    expect(read("src/components/simulator/desktop/useRenderQueue.ts")).toMatch(/source: "edit",[^\n]*library: \{ title: cutMeta\.title, link: cutMeta\.link, caption: cutMeta\.caption, hashtags: cutMeta\.hashtags, queueJobId: cutMeta\.queueJobId \} \}\);/);
+    const dialog = read("src/components/simulator/clipEditor/ClipEditorDialog.tsx");
+    expect(dialog).toContain("library = { title: meta.title, link: meta.link, caption: meta.caption, hashtags: meta.hashtags, queueJobId: meta.queueJobId };");
+    expect(dialog).toMatch(/source: "edit",[^\n]*, library \}\);/);
   });
 
   it("writes the AI's posts into the Publish block's draft, per platform – or says there is no clip yet", () => {

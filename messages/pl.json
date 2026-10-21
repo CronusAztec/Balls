@@ -4475,6 +4475,7 @@
       "none": "aktualna",
       "downloading": "pobieranie {progress}%",
       "ready": "wersja {version} gotowa. Uruchom ponownie, aby zainstalować.",
+      "readyManual": "wersja {version} gotowa. Aby ją zainstalować, kliknij Uruchom ponownie i zaktualizuj.",
       "error": "nie udało się sprawdzić (brak internetu?)"
     },
     "queueAddTitle": "Dodaj klipy",
@@ -4903,6 +4904,7 @@
     "aiCutLine": "Cięcie od {start} do {end} s · przybliżenie {zoom} % · „{hook}”",
     "jobCut": "+ cięcie TikTok",
     "jobCutting": "Cięcie na TikToka",
+    "jobSaving": "Zapisywanie…",
     "jobCutFailed": "Cięcie na TikToka klipu {name} nie powiodło się: {error}. Sam klip jest w Bibliotece.",
     "jobCutFailedWhy": "Cięcie na TikToka klipu {name} nie powiodło się. {reason} Sam klip jest w Bibliotece.",
     "aiStart": "Od razu zacznij renderować",

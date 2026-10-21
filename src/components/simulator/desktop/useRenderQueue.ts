@@ -57,7 +57,8 @@ import { offerPublishClip } from "@/lib/publish/clips";
  * length, and the app saves the result as a second Library item (`<name>-tiktok`, platform tiktok, the cut in its meta). The
  * master is done before the cut starts and stays done whatever the cut does: a failed cut is logged and reported through
  * `onFailed`, a cancelled one is dropped, and a restart mid-cut re-renders nothing. The cut's progress travels as
- * `cutting` next to the state (a done job has no bar of its own); the loop waits for it like for a render.
+ * `cutting` next to the state (a done job has no bar of its own); the loop waits for it like for a render. --- cut-cancel ---
+ * Once the cut's file is made it is being saved (`cutting.saving`): a Cancel no longer stops it, so the row says "Saving…".
  */
 
 const PROGRESS_SAVE_MS = 2000;
@@ -96,8 +97,8 @@ export interface RenderQueueApi {
   clearDone: () => void;
   dismissResume: () => void;
   lastError: string | null;
-  /** --- ai-cut --- The done job whose TikTok cut is being made, with the cut's progress (0–1); null when none is. */
-  cutting: { jobId: string; progress: number } | null;
+  /** --- ai-cut --- The done job whose TikTok cut is being made, with the cut's progress (0–1); null when none is. --- cut-cancel --- `saving`: the file is made and being saved, past a Cancel. */
+  cutting: { jobId: string; progress: number; saving?: boolean } | null;
 }
 
 /** --- ai-cut --- What the cut step needs from the page: the end card's words, and where to report a cut that failed. */
@@ -123,7 +124,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
   // --- ai-cut --- the cut step's words and callback (a ref: a new object per render must not restart the loop), the cut in progress
   const cutRef = useRef(cut);
   cutRef.current = cut;
-  const cutRun = useRef<{ jobId: string; controller: AbortController } | null>(null);
+  const cutRun = useRef<{ jobId: string; controller: AbortController; saving: boolean } | null>(null);
   const [cutting, setCutting] = useState<RenderQueueApi["cutting"]>(null);
 
   /** Applies a transition; `persist` writes the journal now (status changes), else at most every 2 s (progress). */
@@ -240,7 +241,8 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
         const cutDeps = cutRef.current;
         if (job.cut && cutDeps) {
           const controller = new AbortController();
-          cutRun.current = { jobId: job.id, controller };
+          const run = { jobId: job.id, controller, saving: false };
+          cutRun.current = run;
           setCutting({ jobId: job.id, progress: 0 });
           try {
             // The plan's cut was made against the planned length (its own end: a cut that ran to the planned end stays end-anchored
@@ -248,10 +250,14 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
             const spec = refitClipEdit(job.cut, job.cut.startSec + job.cut.lengthSec, file.durationSec);
             const result = await renderClipEdit({ source: file.blob, spec, card: cutDeps.card, fanMade: fanMadeLine(job.settings.mode, cutDeps.fanMade), signal: controller.signal, onProgress: (p) => setCutting({ jobId: job.id, progress: p.progress }) });
             if (result && !controller.signal.aborted) {
+              // --- cut-cancel --- the file is made: from here it is saved, offered and announced, so no Cancel stops it now
+              run.saving = true;
+              setCutting({ jobId: job.id, progress: 1, saving: true });
               const fileName = editFileName(job.name, result.format.extension);
               const cutMeta: LibraryMeta = { ...meta, platform: "tiktok", hook: result.spec.hook, queueJobId: `${job.id}-cut` /* the cut, not the master: the Library tells them apart */, cut: result.spec };
               await bridge.render.save({ jobId: `${job.id}-cut`, folder, name: fileName.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta: cutMeta });
-              offerPublishClip({ blob: result.blob, name: fileName, source: "edit", durationSec: result.durationSec, mode: job.settings.mode, seed: job.seed });
+              // --- cut-reedit --- the Publish clip is the cut's Library item: a trim of it in the block stays under `<job>-cut`
+              offerPublishClip({ blob: result.blob, name: fileName, source: "edit", durationSec: result.durationSec, mode: job.settings.mode, seed: job.seed, library: { title: cutMeta.title, link: cutMeta.link, caption: cutMeta.caption, hashtags: cutMeta.hashtags, queueJobId: cutMeta.queueJobId } });
               cutDeps.onCut?.(job, { watermarked: result.watermarked });
             }
           } catch (err) {
@@ -311,7 +317,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
         pageRef.current.cancelExport();
         void bridge?.render.cancel(id);
       }
-      if (cutRun.current?.jobId === id) cutRun.current.controller.abort(); // --- ai-cut --- a done job's cut in progress: only the cut stops
+      if (cutRun.current?.jobId === id && !cutRun.current.saving) cutRun.current.controller.abort(); // --- ai-cut --- a done job's cut in progress: only the cut stops (--- cut-cancel --- not once it is saved)
       apply((s) => cancelJob(s, id, Date.now()));
     },
     [apply, bridge, pageRef],
@@ -323,7 +329,7 @@ export function useRenderQueue(bridge: DesktopApi | null, pageRef: MutableRefObj
       pageRef.current.cancelExport();
       void bridge?.render.cancel(active.id);
     }
-    cutRun.current?.controller.abort(); // --- ai-cut ---
+    if (cutRun.current && !cutRun.current.saving) cutRun.current.controller.abort(); // --- ai-cut --- (--- cut-cancel --- a cut being saved is kept)
     apply((s) => cancelAllJobs(s, Date.now()));
   }, [apply, bridge, pageRef]);
 

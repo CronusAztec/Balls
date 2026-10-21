@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import type { DesktopApi, UpdateStatus } from "@/lib/desktop/contract";
-import { UPDATE_LATEST_NOTE_MS, manualCheckAnswered, updateButtonBusy, updateButtonModel, updateWaitKey, type UpdateButtonModel, type UpdateButtonNote } from "@/lib/desktop/updateButton";
+import { UPDATE_LATEST_NOTE_MS, manualCheckAnswered, updateButtonBusy, updateButtonModel, updateReadyKey, updateWaitKey, type UpdateButtonModel, type UpdateButtonNote } from "@/lib/desktop/updateButton";
 import { pageUrl } from "@/lib/site";
 import { IconCheck, IconDownload, IconReset, IconRestart, IconWarning } from "@/components/ui/icons";
 
@@ -79,7 +79,8 @@ export function UpdateButtonView({ status, rendering = false, justChecked = fals
     ) : (
       <IconDownload size={iconSize} />
     );
-  const readyTitle = status?.state === "ready" ? (rendering ? t(updateWaitKey(autoUpdate)) : t("update.ready", { version: status.version ?? "", progress: 100 })) : undefined;
+  // --- manual-update --- the ready line follows the preference too: off, quitting does not install, so it names Restart and update
+  const readyTitle = status?.state === "ready" ? (rendering ? t(updateWaitKey(autoUpdate)) : t(updateReadyKey(autoUpdate), { version: status.version ?? "", progress: 100 })) : undefined;
   return (
     <div className="flex items-center gap-1.5 flex-wrap" role="group" aria-label={t("appUpdate")} data-update-state={status?.state ?? "unknown"}>
       {m.kind === "unsupported" ? (

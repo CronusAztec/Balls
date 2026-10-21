@@ -4475,6 +4475,7 @@
       "none": "up to date",
       "downloading": "downloading {progress}%",
       "ready": "version {version} ready. Restart to install.",
+      "readyManual": "version {version} ready. Press Restart and update to install it.",
       "error": "couldn't check (offline?)"
     },
     "queueAddTitle": "Add clips",
@@ -4903,6 +4904,7 @@
     "aiCutLine": "Cut {start} to {end} s · crop-in {zoom} % · \"{hook}\"",
     "jobCut": "+ TikTok cut",
     "jobCutting": "Cutting for TikTok",
+    "jobSaving": "Saving…",
     "jobCutFailed": "The TikTok cut of {name} failed: {error}. The clip itself is in the Library.",
     "jobCutFailedWhy": "The TikTok cut of {name} failed. {reason} The clip itself is in the Library.",
     "aiStart": "Start rendering right away",

@@ -8,7 +8,7 @@ import { aboutText, installKind, updatesMode } from "@/lib/desktop/aboutText"; /
 import { buildLabel } from "@/lib/buildInfo"; // --- build-identity ---
 import { SITE_NAME, pageUrl } from "@/lib/site"; // --- build-identity ---
 import { Card, errorText, ghostBtn, inputClass, primaryBtn } from "./ui";
-import { updateWaitKey } from "@/lib/desktop/updateButton"; // --- manual-update --- the wait note follows the preference
+import { updateReadyKey, updateWaitKey } from "@/lib/desktop/updateButton"; // --- manual-update --- the wait note and the ready line follow the preference
 
 /*
  * --- desktop-exe --- The GPU panel: the GPU Chromium runs on and what it accelerates (video encode / decode, WebGPU), the
@@ -251,16 +251,17 @@ export default function GpuPanel({ bridge, prefs, info, update, rendering = fals
           <dt className="text-ink-3">{t("appData")}</dt>
           <dd className="text-ink-2 break-all">{info?.dataDir ?? "…"}</dd>
           <dt className="text-ink-3">{t("appUpdate")}</dt>
-          <dd className="text-ink-2" data-testid="desktop-update">{update ? t(`update.${update.state}`, { version: update.version ?? "", progress: Math.round((update.progress ?? 0) * 100) }) : "…"}</dd>
+          <dd className="text-ink-2" data-testid="desktop-update">{update ? t(update.state === "ready" ? updateReadyKey(prefs.autoUpdate) : `update.${update.state}`, { version: update.version ?? "", progress: Math.round((update.progress ?? 0) * 100) }) : "…"}</dd>
         </dl>
         <div className="flex gap-2 flex-wrap">
           {/* --- manual-update --- the same rules as the top bar's button: one check at a time, no restart while a clip renders;
-              busy, it is aria-disabled and ignores the click, so a keyboard user's focus stays on it */}
+              busy or waiting, it is aria-disabled and ignores the click, so a keyboard user's focus stays on it, and the wait
+              note is a line of its own that the button names as its description */}
           <button type="button" className={ghostBtn} disabled={update?.state === "disabled"} aria-disabled={updateBusy || undefined} onClick={updateBusy ? undefined : () => void bridge.update.check()}>
             {t("appCheckUpdates")}
           </button>
           {update?.state === "ready" && (
-            <button type="button" className={primaryBtn} disabled={rendering} title={rendering ? t(updateWaitKey(prefs.autoUpdate)) : undefined} onClick={() => void bridge.update.install()}>
+            <button type="button" className={primaryBtn} aria-disabled={rendering || undefined} aria-describedby={rendering ? "desktop-update-wait-gpu" : undefined} onClick={rendering ? undefined : () => void bridge.update.install()} data-testid="desktop-gpu-restart">
               {t("appRestartUpdate")}
             </button>
           )}
@@ -275,6 +276,11 @@ export default function GpuPanel({ bridge, prefs, info, update, rendering = fals
             {t("appWhatsNew")}
           </a>
         </div>
+        {update?.state === "ready" && rendering && (
+          <p id="desktop-update-wait-gpu" className="text-xs text-ink-3" data-testid="desktop-gpu-update-wait">
+            {t(updateWaitKey(prefs.autoUpdate))}
+          </p>
+        )}
         <label className="flex items-center gap-2 text-xs text-ink-2 cursor-pointer">
           <input type="checkbox" checked={prefs.autoUpdate} onChange={(e) => onPrefs({ autoUpdate: e.target.checked })} className="w-4 h-4" style={{ accentColor: "#93d119" }} />
           {t("appAutoUpdate")}

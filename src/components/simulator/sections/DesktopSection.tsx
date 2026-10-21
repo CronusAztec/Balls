@@ -29,7 +29,7 @@ import PostizPostCard, { type CardPrefill } from "../desktop/PostizPostCard"; //
 import PostsPanel from "../desktop/PostsPanel";
 import WhatsNew from "../desktop/WhatsNew"; // --- changelog ---
 import UpdateButton from "../desktop/UpdateButton"; // --- manual-update --- the top bar's update control (every tab)
-import { pageMakesVideo, updateWaitKey } from "@/lib/desktop/updateButton"; // --- manual-update ---
+import { pageMakesVideo, updateReadyKey, updateWaitKey } from "@/lib/desktop/updateButton"; // --- manual-update ---
 import { clipEditErrorKey } from "@/lib/clipEdit/render"; // --- clip-locale ---
 import { errorText, ghostBtn, primaryBtn } from "../desktop/ui"; // --- desktop-autorelease --- (the update banner's buttons)
 import { registerDesktopPublishTargets } from "@/lib/publish/desktopTargets"; // --- desktop-exe --- the Library's Publish buttons
@@ -343,14 +343,15 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
       {/* --- desktop-autorelease --- an update is downloaded: Restart and update / Later (hidden for this version until the next launch) */}
       {updateBanner && update?.version && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-ink bg-accent/10 border border-accent-dim/60 rounded-lg px-3 py-2" data-testid="desktop-update-banner" role="status">
-          <span className="flex-1">{t("update.ready", { version: update.version, progress: 100 })}</span>
-          <button type="button" className={primaryBtn} disabled={rendering} onClick={() => void bridge.update.install()} data-testid="desktop-update-restart">
+          <span className="flex-1">{t(updateReadyKey(prefs.autoUpdate), { version: update.version, progress: 100 })}</span>
+          {/* --- manual-update --- waiting for a render, the button keeps a keyboard user's focus: aria-disabled with no click, as the top bar's */}
+          <button type="button" className={primaryBtn} aria-disabled={rendering || undefined} aria-describedby={rendering ? "desktop-update-wait-banner" : undefined} onClick={rendering ? undefined : () => void bridge.update.install()} data-testid="desktop-update-restart">
             {t("appRestartUpdate")}
           </button>
           <button type="button" className={ghostBtn} onClick={() => setUpdateLater(update.version)} data-testid="desktop-update-later">
             {t("updateLater")}
           </button>
-          {rendering && <span className="basis-full text-ink-3">{t(updateWaitKey(prefs.autoUpdate))}</span>}
+          {rendering && <span id="desktop-update-wait-banner" className="basis-full text-ink-3">{t(updateWaitKey(prefs.autoUpdate))}</span>}
         </div>
       )}
       {notice && (

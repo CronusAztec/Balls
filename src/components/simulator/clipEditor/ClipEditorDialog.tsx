@@ -7,10 +7,10 @@ import { btn, ghostBtn, inputClass, primaryBtn } from "@/components/simulator/de
 import type { DesktopApi, LibraryMeta } from "@/lib/desktop/contract";
 import { blobBytes } from "@/lib/desktop/bridge";
 import { downloadExport } from "@/lib/recording/fastRender";
-import { offerPublishClip } from "@/lib/publish/clips";
+import { offerPublishClip, type PublishClipLibrary } from "@/lib/publish/clips";
 import type { LoopCaptionContext } from "@/lib/publish/loopCaption"; // --- low-findings ---
 import { sealWatermark, type WatermarkSeal } from "@/lib/watermark/seal";
-import { cutFanMadeLine, drawEditFrame } from "@/lib/clipEdit/draw";
+import { drawEditFrame, fanMadeLine } from "@/lib/clipEdit/draw";
 import { editCutJobId } from "@/lib/clipEdit/propose"; // --- cut-reedit ---
 import { clipEditErrorKey, liveProgress, openSourceVideo, renderClipEdit, seekVideo, type ClipEditProgress, type ClipEditResult } from "@/lib/clipEdit/render";
 import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_EDIT, clipTimeline, editFileName, fitClipEdit, loadClipEdit, localClipEdit, parseClipEdit, saveClipEdit, sourceTimeAt, type ClipEditSpec } from "@/lib/clipEdit/spec";
@@ -28,8 +28,8 @@ import { CLIP_EDIT_OUTPUT, CLIP_EDIT_RANGES, CLIP_EDIT_TEXT_MAX, DEFAULT_CLIP_ED
  *
  * --- cut-reedit --- A cut file opened as it is (`source.cutFile`: a Library cut with no master there, a Publish clip that is a
  * cut) already shows its look: the dialog remembers none of the edits made on it (its spec is the neutral one, no address
- * included, which must not become the look of the user's next cut), and it draws the fan-made badge again only when this cut
- * can hide the burned one (a crop-in, an end card). A cut of a Library item is saved under that item's job (`<job>-cut`), so
+ * included, which must not become the look of the user's next cut), and it draws the fan-made badge again only where this cut
+ * can hide the burned one (a crop-in, the end card). A cut of a Library item is saved under that item's job (`<job>-cut`), so
  * the Library and the autopilot know it for the same video.
  *
  * --- cut-cancel --- Cancel stops the render. Once the file is made it is being saved, so the button says so and does nothing.
@@ -101,9 +101,10 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
   const fitted = durationSec ? fitClipEdit(spec, durationSec) : spec;
   const timeline = clipTimeline(fitted, CLIP_EDIT_OUTPUT.fps);
   const card = useMemo(() => ({ title: t("cardTitle"), note: t("cardNote") }), [t]);
-  // --- legal-audit --- a Fight League source's cut carries the fan-made badge again, in the preview and in the file
-  // (--- cut-reedit --- a cut file has it in its frames already, until a crop-in or an end card can hide that one)
-  const fanMade = cutFanMadeLine(source.mode, fl("canvasFanMade"), { cutFile: source.cutFile === true, zoom: fitted.zoom, cardSec: fitted.cardSec });
+  // --- legal-audit --- a Fight League source's cut carries the fan-made badge again, in the preview and in the file, where the
+  // source's own is cut away or covered (--- badge-once --- draw.ts decides frame by frame; a cut file's own counts only uncropped)
+  const fanMade = fanMadeLine(source.mode, fl("canvasFanMade"));
+  const cutFile = source.cutFile === true;
   const rendering = render.status === "rendering";
   const suggesting = suggestion.status === "running";
   // the spec is the user's or the AI's, never both at once: no edits while a suggestion is on its way
@@ -143,10 +144,10 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
       .then(() => {
         if (token !== drawToken.current) return;
         const { video } = opened;
-        drawEditFrame(ctx, { image: video, width: video.videoWidth || canvas.width, height: video.videoHeight || canvas.height }, canvas.width, canvas.height, fitted, timeline, tSec, card, { seal, clipMs: tSec * 1000, fanMade });
+        drawEditFrame(ctx, { image: video, width: video.videoWidth || canvas.width, height: video.videoHeight || canvas.height }, canvas.width, canvas.height, fitted, timeline, tSec, card, { seal, clipMs: tSec * 1000, fanMade, cutFile });
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrub, fitted.startSec, fitted.lengthSec, fitted.zoom, fitted.hook, fitted.url, fitted.cardSec, durationSec, rendering, card.title, card.note, fanMade, seal]);
+  }, [scrub, fitted.startSec, fitted.lengthSec, fitted.zoom, fitted.hook, fitted.url, fitted.cardSec, durationSec, rendering, card.title, card.note, fanMade, cutFile, seal]);
 
   // --- ai-cut --- the user's own edits are what is remembered (not the cut the dialog opened on, not the AI's proposal;
   // --- cut-reedit --- nor a trim of a cut file, made on its neutral spec)
@@ -188,12 +189,13 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
     setLatest("render"); // --- clip-a11y --- the live region says this outcome next
     setRender({ status: "rendering", progress: { phase: "prepare", progress: 0, frame: 0, frames: 0 } });
     try {
-      const result = await renderClipEdit({ source: source.blob, spec: fitted, card, fanMade, signal: controller.signal, onProgress: (progress) => setRender({ status: "rendering", progress }) });
+      const result = await renderClipEdit({ source: source.blob, spec: fitted, card, fanMade, cutFile, signal: controller.signal, onProgress: (progress) => setRender({ status: "rendering", progress }) });
       // --- cut-cancel --- a Cancel that came while the file was finished: nothing is saved, downloaded or offered
       if (!result || controller.signal.aborted) return setRender({ status: "idle" });
       setSaving(true);
       const name = editFileName(source.name, result.format.extension);
       let where: "downloaded" | "saved" = "downloaded";
+      let library: PublishClipLibrary | null = null;
       if (desktop) {
         // a cut file, as the queue names them (`<job>-cut`): a Library item's cut under its job, so the Library opens that
         // master again and the autopilot takes them for one video; any other source's as its own (opened as it is)
@@ -202,8 +204,10 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
         await desktop.bridge.render.save({ jobId, folder: "", name: name.replace(/\.[a-z0-9]+$/i, ""), extension: result.format.extension, data: await blobBytes(result.blob), durationSec: result.durationSec, transcode: null, meta });
         desktop.onSaved?.();
         where = "saved";
+        // --- cut-reedit --- the Publish clip is that Library item: a cut of it in the block stays under the same job
+        library = { title: meta.title, link: meta.link, caption: meta.caption, hashtags: meta.hashtags, queueJobId: meta.queueJobId };
       } else downloadExport(result.blob, result.format.extension, name.replace(/\.[a-z0-9]+$/i, ""));
-      offerPublishClip({ blob: result.blob, name, source: "edit", durationSec: result.durationSec, mode: source.mode ?? null, seed: source.seed ?? null, botClipId: source.botClipId ?? null, loopCaption: source.loopCaption ?? null });
+      offerPublishClip({ blob: result.blob, name, source: "edit", durationSec: result.durationSec, mode: source.mode ?? null, seed: source.seed ?? null, botClipId: source.botClipId ?? null, loopCaption: source.loopCaption ?? null, library });
       setRender({ status: "done", result, where });
     } catch (err) {
       setRender({ status: "error", message: failureText(err, t) });
@@ -211,7 +215,7 @@ export default function ClipEditorDialog({ source, onClose, desktop, initialSpec
       abortRef.current = null;
       setSaving(false);
     }
-  }, [source, fitted, card, fanMade, desktop, t]);
+  }, [source, fitted, card, fanMade, cutFile, desktop, t]);
 
   const number = (key: "startSec" | "lengthSec" | "zoom" | "cardSec", label: string, format: (v: number) => string, max?: number) => {
     const range = CLIP_EDIT_RANGES[key];

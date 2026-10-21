@@ -9,7 +9,7 @@ import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
 import { UPDATE_MANUAL_NONE, type UpdateStatus } from "@/lib/desktop/contract";
-import { UPDATE_LATEST_NOTE_MS, checkFoundNothing, manualCheckAnswered, pageMakesVideo, updateButtonBusy, updateButtonModel, updateWaitKey } from "@/lib/desktop/updateButton";
+import { UPDATE_LATEST_NOTE_MS, checkFoundNothing, manualCheckAnswered, pageMakesVideo, updateButtonBusy, updateButtonModel, updateReadyKey, updateWaitKey } from "@/lib/desktop/updateButton";
 import { UpdateButtonView, type UpdateButtonViewProps } from "@/components/simulator/desktop/UpdateButton";
 import { pageUrl } from "@/lib/site";
 
@@ -150,9 +150,33 @@ describe("the update button's states", () => {
     const read = (...p: string[]) => fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", ...p), "utf8");
     const section = read("sections", "DesktopSection.tsx");
     expect(section).toMatch(/<UpdateButton [^>]*autoUpdate=\{prefs\.autoUpdate\} \/>/);
-    expect(section).toMatch(/\{rendering && <span className="basis-full text-ink-3">\{t\(updateWaitKey\(prefs\.autoUpdate\)\)\}<\/span>\}/);
-    expect(read("desktop", "GpuPanel.tsx")).toMatch(/title=\{rendering \? t\(updateWaitKey\(prefs\.autoUpdate\)\) : undefined\}/);
+    expect(section).toMatch(/\{rendering && <span id="desktop-update-wait-banner" className="basis-full text-ink-3">\{t\(updateWaitKey\(prefs\.autoUpdate\)\)\}<\/span>\}/);
+    expect(read("desktop", "GpuPanel.tsx")).toMatch(/\{update\?\.state === "ready" && rendering && \(\s+<p id="desktop-update-wait-gpu" className="text-xs text-ink-3" data-testid="desktop-gpu-update-wait">\s+\{t\(updateWaitKey\(prefs\.autoUpdate\)\)\}/);
     for (const file of [section, read("desktop", "GpuPanel.tsx"), read("desktop", "UpdateButton.tsx")]) expect(file).not.toMatch(/t\("updateWaitRender"\)/);
+  });
+
+  // --- manual-update --- the "update ready" line (the banner, the GPU tab, the button's tooltip) follows the same rule: with the
+  // preference off, quitting does not install, so it names Restart and update and never says to restart or quit the app
+  it("words the update ready line by the preference: off, it names Restart and update", () => {
+    expect(updateReadyKey(true)).toBe("update.ready");
+    expect(updateReadyKey(false)).toBe("update.readyManual");
+    const ready = status("ready", { version: "1.5.0", progress: 1 });
+    for (const locale of ["en", "pl", "es"]) {
+      const d = LOCALES[locale].Desktop as unknown as { appRestartUpdate: string; update: Record<string, string> };
+      const manual = d.update.readyManual;
+      expect(manual, locale).toContain("{version}");
+      expect(manual, locale).toContain(d.appRestartUpdate);
+      expect(manual.replace(d.appRestartUpdate, ""), locale).not.toMatch(/restart|quit|clos|uruchom|zamk|reinicia|cierr|cerr/i);
+      expect(manual, locale).not.toMatch(/—| – |;/);
+      expect(tag(render({ status: ready, autoUpdate: false }, locale), B), locale).toContain(`title="${manual.replace("{version}", "1.5.0")}"`);
+      expect(tag(render({ status: ready }, locale), B), locale).toContain(`title="${d.update.ready.replace("{version}", "1.5.0")}"`);
+    }
+    expect(Object.keys(pl.Desktop.update).sort()).toEqual(Object.keys(en.Desktop.update).sort());
+    expect(Object.keys(es.Desktop.update).sort()).toEqual(Object.keys(en.Desktop.update).sort());
+    const read = (...p: string[]) => fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", ...p), "utf8");
+    expect(read("sections", "DesktopSection.tsx")).toContain("{t(updateReadyKey(prefs.autoUpdate), { version: update.version, progress: 100 })}");
+    expect(read("desktop", "GpuPanel.tsx")).toContain('t(update.state === "ready" ? updateReadyKey(prefs.autoUpdate) : `update.${update.state}`,');
+    for (const file of [read("sections", "DesktopSection.tsx"), read("desktop", "GpuPanel.tsx"), read("desktop", "UpdateButton.tsx")]) expect(file).not.toMatch(/t\("update\.ready"/);
   });
 
   // --- manual-update --- the page's own fast export, Record video and batch are no queue jobs: a restart would lose them too
@@ -179,6 +203,14 @@ describe("the update button's states", () => {
     expect(updateButtonModel(status("idle"), { asking: true })).toMatchObject({ kind: "check", enabled: false });
     expect(updateButtonModel(null, { asking: true }).enabled).toBe(false);
     expect(updateButtonModel(status("error"), { asking: true })).toMatchObject({ kind: "retry", enabled: false });
+    // --- manual-update --- Try again while still offline: the updater answers with the same "offline" at once, so the note
+    // empties while the click is asked and fills again with the answer, and the live region says it again
+    const offline = status("error", { message: "offline" });
+    expect(updateButtonModel(offline, { asking: true })).toMatchObject({ kind: "retry", enabled: false, note: null, downloadLink: true });
+    expect(text(render({ status: offline, asking: true }), "desktop-update-note")).toBe("");
+    expect(tag(render({ status: offline, asking: true }), "desktop-update-note")).toContain('aria-live="polite"');
+    expect(text(render({ status: offline }), "desktop-update-note")).toBe("You are offline");
+    expect(updateButtonModel(status("error", { message: "HttpError: 502" }), { asking: true }).note).toBeNull();
     const asked = tag(render({ status: status("idle"), asking: true }), B);
     expect(ariaDisabled(asked)).toBe(true);
     expect(disabled(asked)).toBe(false);
@@ -330,7 +362,12 @@ describe("the update button's place", () => {
     expect(section.slice(section.indexOf('{tab === "gpu"'))).not.toContain("<UpdateButton");
     // the GPU panel's App card keeps its own buttons, under the same rules
     const gpu = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "desktop", "GpuPanel.tsx"), "utf8");
-    expect(gpu).toMatch(/disabled=\{rendering\}[^>]*onClick=\{\(\) => void bridge\.update\.install\(\)\}/);
+    // --- manual-update --- its Restart and update, and the banner's, wait for a render the top bar's way: aria-disabled and no
+    // click, never the native disabled (a keyboard user waiting on it keeps the focus), the wait note a visible line it names
+    for (const [file, id] of [[gpu, "desktop-update-wait-gpu"], [section, "desktop-update-wait-banner"]] as const) {
+      expect(file).toMatch(new RegExp(`className=\\{primaryBtn\\} aria-disabled=\\{rendering \\|\\| undefined\\} aria-describedby=\\{rendering \\? "${id}" : undefined\\} onClick=\\{rendering \\? undefined : \\(\\) => void bridge\\.update\\.install\\(\\)\\}`));
+      expect(file).not.toMatch(/disabled=\{rendering\}/);
+    }
     // its Check for updates keeps a keyboard user's focus while busy too: aria-disabled and no click, native disabled only for a build that cannot update
     expect(gpu).toMatch(/const updateBusy = update\?\.state === "checking" \|\| update\?\.state === "available" \|\| update\?\.state === "downloading";/);
     expect(gpu).toMatch(/disabled=\{update\?\.state === "disabled"\} aria-disabled=\{updateBusy \|\| undefined\} onClick=\{updateBusy \? undefined : \(\) => void bridge\.update\.check\(\)\}/);

@@ -356,7 +356,7 @@ describe("auto-update", () => {
     await expect(joined).resolves.toMatchObject({ state: "none", message: UPDATE_MANUAL_NONE });
     await expect(scheduled).resolves.toMatchObject({ message: UPDATE_MANUAL_NONE });
     const main = fs.readFileSync(path.join(__dirname, "..", "src", "main.ts"), "utf8");
-    expect(main).toMatch(/case "check-updates":\s+await updater\.check\(\);/);
+    expect(main).toMatch(/case "check-updates": \{\s+const found = await updater\.check\(\);/);
   });
 
   // --- manual-update --- electron-updater resolves checkForUpdates() as soon as it finds the update and downloads afterwards:
@@ -432,7 +432,7 @@ describe("auto-update", () => {
     expect(main).toContain("autoUpdate: () => prefs().autoUpdate,");
     expect(main).toMatch(/before\.autoUpdate !== after\.autoUpdate[\s\S]{0,120}updater\.start\(\);[\s\S]{0,40}updater\.stop\(\);/);
     expect(main).toContain("[IPC.updateCheck]: () => updater.check(),");
-    expect(main).toMatch(/case "check-updates":\s+await updater\.check\(\);/);
+    expect(main).toMatch(/case "check-updates": \{\s+const found = await updater\.check\(\);/);
   });
 
   // --- manual-update --- with "Update automatically" off prepareQuit() keeps a downloaded update from installing on quit, so the
@@ -448,10 +448,17 @@ describe("auto-update", () => {
       expect(manual, lang).toContain(pages[lang].Desktop.appRestartUpdate);
       expect(manual, lang).not.toMatch(/restart the app|quit|close|uruchom aplikację|zamknij|reinicia la aplicación|cierra/i);
       expect(manual, lang).not.toMatch(/—| – |;/);
-      for (const key of ["updateLatest", "updateFailed", "updateOffline"]) {
+      for (const key of ["updateLatest", "updateFailed", "updateOffline", "updateDownloading", "updateDownloaded", "updatePortable", "updateDevBuild"]) {
         expect(l[key], `${lang}.${key}`).toMatch(/^\S.*\.$/);
         expect(l[key], `${lang}.${key}`).not.toMatch(/—| – |;/);
       }
+      // the downloaded line names the page's own button, works with the preference on or off, and never says to quit for it
+      expect(l.updateDownloaded, lang).toContain(pages[lang].Desktop.appRestartUpdate);
+      expect(l.updateDownloaded, lang).not.toMatch(/restart the app|quit|close|uruchom aplikację|zamknij|reinicia la aplicación|cierra/i);
+      for (const key of ["updateDownloading", "updateDownloaded"]) expect(l[key], `${lang}.${key}`).toContain(" {version}");
+      // the two builds that do not update themselves say it as the top bar says it
+      expect(l.updatePortable.startsWith(`${(pages[lang].Desktop as unknown as { updateButton: Record<string, string> }).updateButton.portable}.`), lang).toBe(true);
+      expect(l.updateDevBuild.startsWith(`${(pages[lang].Desktop as unknown as { updateButton: Record<string, string> }).updateButton.devBuild}.`), lang).toBe(true);
     }
     // the rule the body follows is prepareQuit's: the same preference decides whether quitting installs
     const d = deferredUpdater();
@@ -462,11 +469,24 @@ describe("auto-update", () => {
     expect(menuCheckAnswer({ state: "none", message: UPDATE_MANUAL_NONE }, en)).toEqual({ message: en.updateLatest });
     expect(menuCheckAnswer({ state: "error", message: "offline" }, en)).toEqual({ message: en.updateOffline });
     expect(menuCheckAnswer({ state: "error", message: "HttpError: 502" }, en)).toEqual({ message: en.updateFailed, detail: "HttpError: 502" });
-    // a found update downloads and the notification says when it is ready; nothing to say for the rest either
-    for (const state of ["available", "downloading", "ready", "checking", "idle", "disabled"]) expect(menuCheckAnswer({ state, message: null }, en), state).toBeNull();
+    // --- manual-update --- every other outcome has its line too: a found update downloading, one downloaded and waiting, and
+    // a build that does not update itself, with the Download page
+    expect(menuCheckAnswer({ state: "available", version: "1.5.0", message: null }, en)).toEqual({ message: "The new version 1.5.0 is downloading. The app tells you when it is ready." });
+    expect(menuCheckAnswer({ state: "downloading", version: "1.5.0", message: null }, en)).toEqual({ message: "The new version 1.5.0 is downloading. The app tells you when it is ready." });
+    expect(menuCheckAnswer({ state: "available", version: null, message: null }, en)).toEqual({ message: "The new version is downloading. The app tells you when it is ready." });
+    expect(menuCheckAnswer({ state: "ready", version: "1.5.0", message: null }, en)).toEqual({ message: "The new version 1.5.0 is downloaded. Press Restart and update in the app to install it." });
+    expect(menuCheckAnswer({ state: "disabled", message: "portable" }, en)).toEqual({ message: en.updatePortable, download: true });
+    for (const message of ["development build", "off"]) expect(menuCheckAnswer({ state: "disabled", message }, en), message).toEqual({ message: en.updateDevBuild, download: true });
+    for (const lang of ["pl", "es"] as const) expect(menuCheckAnswer({ state: "ready", version: "1.5.0", message: null }, MENU_LABELS[lang])?.message, lang).toContain("1.5.0");
+    // only a check that has not answered yet gets no box
+    for (const state of ["checking", "idle"]) expect(menuCheckAnswer({ state, message: null }, en), state).toBeNull();
     const main = fs.readFileSync(path.join(__dirname, "..", "src", "main.ts"), "utf8");
-    expect(main).toMatch(/case "check-updates":\s+await updater\.check\(\);\s+await showCheckAnswer\(\);/);
-    expect(main).toMatch(/const answer = menuCheckAnswer\(updater\.status, labels\);/);
+    expect(main).toMatch(/case "check-updates": \{\s+const found = await updater\.check\(\);[\s\S]{0,160}menuAsked = found\.state === "available" \|\| found\.state === "downloading";\s+await showCheckAnswer\(\);/);
+    expect(main).toMatch(/const answer = menuCheckAnswer\(status, labels\);/);
+    // the Download page button, and the download the menu's check found: its failure, or a "ready" no notification says, gets a box
+    expect(main).toMatch(/const buttons = answer\.download \? \[labels\.downloadPage, labels\.aboutClose\] : \[labels\.aboutClose\];/);
+    expect(main).toMatch(/if \(answer\.download && response === 0\) await shell\.openExternal\(`\$\{SITE_URL\}\/en\/download\/`\);/);
+    expect(main).toMatch(/if \(menuAsked && s\.state !== "available" && s\.state !== "downloading"\) \{\s+menuAsked = false;\s+if \(s\.state === "error" \|\| \(s\.state === "ready" && !notified\)\) void showCheckAnswer\(s\);/);
     expect(main).toContain("body: updateReadyBody(l, s.version, prefs().autoUpdate)");
   });
 });

@@ -244,8 +244,9 @@ export default function QueuePanel({ bridge, queue, page, folder, onFolder }: { 
                   )}
                   <div className="flex gap-1.5">
                     {(job.status === "queued" || job.status === "rendering" || job.status === "encoding" || cuttingJob(job) /* --- ai-cut --- stops the cut, the clip stays */) && (
-                      <button type="button" className={`${ghostBtn} !py-0.5`} onClick={() => queue.cancel(job.id)}>
-                        {t("jobCancel")}
+                      // --- cut-cancel --- the cut's file is made and being saved: the same button says so, aria-disabled with no click (the focus stays)
+                      <button type="button" className={`${ghostBtn} !py-0.5`} aria-disabled={(cuttingJob(job) && queue.cutting?.saving) || undefined} onClick={cuttingJob(job) && queue.cutting?.saving ? undefined : () => queue.cancel(job.id)} data-testid="job-cancel">
+                        {cuttingJob(job) && queue.cutting?.saving ? t("jobSaving") : t("jobCancel")}
                       </button>
                     )}
                     {(job.status === "failed" || job.status === "cancelled") && (

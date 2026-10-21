@@ -4,10 +4,11 @@
  * over the last moments. --- clip-fit --- Every line is fitted to the frame (spec.ts fitTextLines): a long hook wraps onto
  * two lines and shrinks, an address or a card line shrinks, so nothing runs off its edges. --- legal-audit --- A cut of a
  * Fight League clip carries the permanent fan-made badge again, at the output's size and over the card too: the crop-in
- * and the card would otherwise cut away or cover the one the simulator drew. --- free-watermark --- Last, over everything,
- * the watermark of a run whose seal is not a verified Pro licence's: a cut re-encodes the pixels of an export and crops
- * into them, so the frame is stamped again here, at the output's size – the way every compositor of the site stamps its own
- * frames (lib/recording/recorder.ts).
+ * and the card would otherwise cut away or cover the one the simulator drew. --- badge-once --- Only then: while the
+ * source's own badge is still whole in the frame it stays the one badge, and the drawn one fades in as the card covers it.
+ * --- free-watermark --- Last, over everything, the watermark of a run whose seal is not a verified Pro licence's: a cut
+ * re-encodes the pixels of an export and crops into them, so the frame is stamped again here, at the output's size – the way
+ * every compositor of the site stamps its own frames (lib/recording/recorder.ts).
  */
 import { stampFrame } from "@/lib/watermark/seal";
 import { BADGE_HEIGHT, BADGE_INSET, exportSquare } from "@/lib/watermark/layout";
@@ -18,6 +19,8 @@ export interface EditFrameMark {
   clipMs: number;
   /** --- legal-audit --- The fan-made badge's line (fanMadeLine(): a Fight League source's), or null for none. */
   fanMade: string | null;
+  /** --- cut-reedit --- The source is a cut file: its own badge sits wherever its cut put it (burnedBadgeShows). */
+  cutFile?: boolean;
 }
 
 /** The end card's words (the page hands them in its language). */
@@ -46,13 +49,25 @@ export function fanMadeLine(mode: string | null | undefined, text: string): stri
   return mode && FAN_MADE_MODES.has(mode) && text.trim() ? text : null;
 }
 
+/** --- badge-once --- The fan-made line's size, a share of the export square's side (the simulator burns it at this size too). */
+const FAN_MADE_SIZE = 0.016;
+
 /**
- * --- cut-reedit --- The badge a cut carries (`cut`: what the editor renders now). A cut file has its own badge burned in: it
- * needs no second one while this cut shows every pixel of the file (no crop-in, no end card). A crop-in can cut the burned one
- * away and an end card covers it, so then the badge is drawn again, like on any other cut.
+ * --- badge-once --- Whether the fan-made badge burned into the `source` frames stays whole in a cut's `width` × `height` frame
+ * at crop-in `zoom`. The simulator burns it centred in the strip at the bottom of the export's square (fightLeagueRenderer), and
+ * the centred crop-in pushes it down past the frame's lower edge: a 1080 × 1920 export keeps it up to a crop-in of about 95 %,
+ * a 1920 × 1080 one loses it from about 10 %. A cut file's own badge sits wherever its own cut put it (lower down, larger, or
+ * at the fixed spot), so it is sure to stay whole only while every pixel of the file shows (`cutFile`: no crop-in).
  */
-export function cutFanMadeLine(mode: string | null | undefined, text: string, cut: { cutFile: boolean; zoom: number; cardSec: number }): string | null {
-  return cut.cutFile && cut.zoom <= 1 && cut.cardSec <= 0 ? null : fanMadeLine(mode, text);
+export function burnedBadgeShows(source: { width: number; height: number }, zoom: number, width: number, height: number, cutFile = false): boolean {
+  if (cutFile) return zoom <= 1;
+  if (!(source.width > 0 && source.height > 0 && width > 0 && height > 0)) return false;
+  const square = exportSquare(source.width, source.height);
+  const crop = cropRect(source.width, source.height, zoom, width, height);
+  const scale = height / crop.sh;
+  const y = (square.y + square.width * (1 - BADGE_INSET - BADGE_HEIGHT / 2) - crop.sy) * scale;
+  const half = (FAN_MADE_SIZE / 2) * square.width * scale;
+  return y - half >= 0 && y + half <= height;
 }
 
 const fontOf = (size: number, weight = "bold") => `${weight} ${size}px Inter, system-ui, sans-serif`;
@@ -144,14 +159,19 @@ export function drawEditFrame(ctx: CanvasRenderingContext2D, source: EditSource,
   }
 
   // --- legal-audit --- the fan-made badge where the simulator puts it (centred in the watermark strip at the bottom of the
-  // exported square, 1.6 % of its side), on a small dark pill so it reads over any stage, after the card so it shows on it too
-  if (mark.fanMade) {
+  // exported square, 1.6 % of its side), on a small dark pill so it reads over any stage, after the card so it shows on it too.
+  // --- badge-once --- Only where the source's own one is gone: cut away by the crop-in (always drawn), or covered by the card
+  // (drawn as strongly as the card covers it, so one takes over from the other). No second badge on the action.
+  const badgeAlpha = mark.fanMade ? (burnedBadgeShows(source, spec.zoom, width, height, mark.cutFile === true) ? alpha : 1) : 0;
+  if (mark.fanMade && badgeAlpha > 0) {
     const square = exportSquare(width, height);
     const side = square.width;
-    const size = Math.max(4, Math.round(0.016 * side));
+    const size = Math.max(4, Math.round(FAN_MADE_SIZE * side));
     const padY = Math.round(0.35 * size);
     const centre = square.y + side * (1 - BADGE_INSET - BADGE_HEIGHT / 2);
+    ctx.globalAlpha = badgeAlpha;
     pill(ctx, mark.fanMade, cx, centre - size / 2 - padY, size, Math.round(0.6 * size), padY, 0.45, "rgba(255, 255, 255, 0.85)", 0.5 * side, 1, "600");
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
   // --- free-watermark --- the frame's pixels get the mark here, in the compositor's own canvas, after everything else
