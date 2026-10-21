@@ -17,10 +17,14 @@ import {
   trailStrokeUnderBody,
   trailUnderBody,
   type LadderSpec,
+  type MergeRingLabels,
   type MergeRingRenderOptions,
   type RimSpec,
 } from "@/components/simulator/mergeRingRenderer";
 import { GLOW_REACH, GLOW_STOPS, fillStrokeGlow, glowProfile, normalCdf, plainTransform, rgbOfHex, strokeShadowAlpha, type CanvasFactory } from "@/components/simulator/mergeRingGlow";
+import { noteTitleBlock } from "@/components/simulator/liveMarkHud";
+import { badgeMetrics, exportSquare } from "@/lib/watermark/layout";
+import { LiveHud, liveBadgeBox, mapLiveHud, placeLiveBadge, placeVideoBadge } from "@/lib/watermark/liveLayout";
 
 /**
  * Merge Ring's drawing without per-frame blurs (feature merge-ring, the lag fix): the glow's profile, the cached rim (built
@@ -693,5 +697,98 @@ describe("the trails under the dark bodies", () => {
   it("the rim's colour strings are the live rim's", () => {
     for (const h of [0, 12.34, 99.95, 180, 359.94, 359.96]) expect(rimColor(h)).toBe(`hsl(${(Math.round(h * 10) % 3600 / 10).toFixed(1)}, 100%, 62%)`);
     expect(rimColor(42.3)).toBe(`hsl(${(42.3).toFixed(1)}, 100%, 62%)`);
+  });
+});
+
+/* ------------------------------------------------------------------ the HUD clear of itself and of the live watermark */
+
+describe("the HUD: the tier name clear of the ladder, the caption clear of the watermark badge", () => {
+  // Polish (messages/pl.json MergeRing): the longest tier name and caption the page shows
+  const PL: MergeRingLabels = { ...DEFAULT_MERGE_RING_LABELS, top: "SZCZYT", tier: () => "Nieskończoność", caption: "Czy połączy się w ostateczną formę?" };
+
+  /** The overlay drawn live (no offscreen canvas: the lines' fillText and the ladder's arcs land on the context). */
+  function drawn(width: number, height: number, inset: number, tiers: number, labels: MergeRingLabels = PL) {
+    const layer = new MergeRingLayer(() => null);
+    const { ctx, calls } = fakeContext();
+    const v = new MergeRingMode().getView();
+    v.layout = buildMergeRingLayout(width, height, 8);
+    v.settings = { ...v.settings, tiers };
+    v.topTier = 5;
+    layer.drawOverlay(ctx, v, labels, inset);
+    const L = v.layout;
+    const fs = Math.max(11, 0.03 * L.side);
+    const cfs = Math.max(11, 0.034 * L.side);
+    const line = (text: string) => calls.find((c) => c.name === "fillText" && c.args[0] === text)!.args as [string, number, number];
+    // the ladder's rings: the arcs drawn round the tiers at the context's own transform (the emblems' are translated)
+    const rings = calls.filter((c) => c.name === "arc" && c.transform.join() === "1,0,0,1,0,0").map((c) => c.args as number[]);
+    return { layer, L, fs, cfs, tier: line("Nieskończoność"), caption: line(labels.caption), rings };
+  }
+
+  it("the top emblem starts below the tier name live under the page's buttons, and the ladder is the old one while recording", () => {
+    for (const [w, h] of [[320, 560], [390, 640], [500, 760], [640, 900]]) {
+      for (const tiers of [4, 7, 10]) {
+        const { L, fs, tier, rings } = drawn(w, h, 52, tiers);
+        expect(rings.length).toBe(tiers);
+        const ys = rings.map((r) => r[1]).sort((a, b) => a - b);
+        const r = rings[0][2];
+        // the name (right-aligned on the ladder's column) ends above the top ring
+        expect(tier[2] + 0.6 * 1.05 * fs, `${w}×${h} ${tiers} tiers`).toBeLessThanOrEqual(ys[0] - r - 1);
+        // the rings keep apart, and the ladder still runs down to its old bottom
+        for (let i = 1; i < ys.length; i++) expect(ys[i] - ys[i - 1]).toBeGreaterThanOrEqual(2 * r - 1e-9);
+        expect(ys[ys.length - 1]).toBeCloseTo(L.cy + 0.8 * L.radius, 9);
+      }
+    }
+    // recording (no inset) and a wide stage: the ladder as it always was
+    for (const [w, h] of [[390, 640], [1280, 900]]) {
+      const { L, rings } = drawn(w, h, 0, 7);
+      const ys = rings.map((r) => r[1]).sort((a, b) => a - b);
+      expect(ys[0]).toBeCloseTo(L.cy - 0.8 * L.radius, 9);
+      expect(rings[0][2]).toBeCloseTo(0.95 * Math.max(6, Math.min(0.032 * L.side, (1.6 * L.radius) / (7 * 1.5))), 9);
+    }
+  });
+
+  it("reports the caption and the ladder: the live badge goes above the caption, off the ladder, in a corner the HUD leaves free", () => {
+    for (const [w, h] of [[390, 640], [1280, 900]]) {
+      for (const inset of [52, 0]) {
+        const { layer, L, cfs, caption, rings } = drawn(w, h, inset, 10);
+        const sq = { x0: L.left, y0: L.top, side: L.side };
+        const hud = new LiveHud().reset(1);
+        noteTitleBlock(hud, sq, inset, 2, "both");
+        layer.noteHud(hud);
+        const box = liveBadgeBox({ area: { x: L.left, y: L.top, width: L.side, height: L.side } });
+        for (const t of [1000, 7000, 13000, 19000]) {
+          const p = placeLiveBadge(box, Math.round(4.2 * box.height), box.height, t, hud, { x: 0, y: 0, width: 0, height: 0, corner: "bottom-left", free: true });
+          expect(p.free, `${w}×${h} inset ${inset} at ${t}`).toBe(true); // (clear of the corners' lines too)
+          // above the caption's glyphs, whatever its width
+          expect(p.y + p.height).toBeLessThanOrEqual(caption[2] - 0.5 * cfs);
+          // off every tier of the ladder
+          for (const [x, y, r] of rings) expect(p.x > x + r || p.x + p.width < x - r || p.y > y + r || p.y + p.height < y - r).toBe(true);
+        }
+      }
+    }
+    // nothing drawn (no layout yet): nothing reported
+    const layer = new MergeRingLayer(() => null);
+    const v = new MergeRingMode().getView();
+    layer.drawOverlay(fakeContext().ctx, v, PL);
+    const hud = new LiveHud().reset(1);
+    layer.noteHud(hud);
+    expect([hud.count, hud.bottom]).toEqual([0, Number.POSITIVE_INFINITY]);
+  });
+
+  it("a portrait export keeps its badge above the caption and still changes side", () => {
+    const { layer, L, cfs, caption } = drawn(1080, 1920, 0, 10);
+    const src = new LiveHud().reset(1);
+    noteTitleBlock(src, { x0: L.left, y0: L.top, side: L.side }, 0, 2, "both");
+    layer.noteHud(src);
+    const square = exportSquare(1080, 1920);
+    const hud = mapLiveHud(src, { x: L.left, y: L.top, side: L.side }, square, new LiveHud());
+    const m = badgeMetrics(square.width);
+    const corners = [1000, 7000].map((t) => {
+      const p = placeVideoBadge(1080, 1920, square, { width: Math.round(4.2 * m.height), height: m.height, inset: m.inset }, t, hud, { x: 0, y: 0, width: 0, height: 0, corner: "bottom-left", free: true });
+      expect(p.free).toBe(true);
+      expect(p.y + p.height).toBeLessThanOrEqual(square.y + (caption[2] - 0.5 * cfs - L.top) * (square.width / L.side));
+      return p.corner;
+    });
+    expect(corners).toEqual(["bottom-left", "bottom-right"]);
   });
 });

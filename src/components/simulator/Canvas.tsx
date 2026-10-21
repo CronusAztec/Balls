@@ -3870,7 +3870,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         if (vortexView || bdView) noteTitleBlock(hud, liveSquare, titleInset, bdView ? 4 : 2, "left");
         if (conveyorView) noteTitleBlock(hud, liveSquare, titleInset, 3, "right");
         if (bullseyeView) noteTitleBlock(hud, liveSquare, titleInset, 2, "both");
-        if (mergeRingView) noteTitleBlock(hud, liveSquare, titleInset, 2, "both"); // --- merge-ring ---
+        if (mergeRingView) {
+          // --- merge-ring --- the corners, and the caption under the ring and the ladder as the layer drew them this frame
+          noteTitleBlock(hud, liveSquare, titleInset, 2, "both");
+          mergeRingLayer.noteHud(hud);
+        }
         if (spiralGlassView) noteTitleBlock(hud, liveSquare, titleInset, 2, "both"); // --- spiral-glass ---
         if (rrView) noteRhythmBand(hud, liveSquare, !recording && (size.width - sq) / 2 < 170 ? 40 : 0, "runner");
         if (pdView) noteRhythmBand(hud, liveSquare, 0, "paddle");

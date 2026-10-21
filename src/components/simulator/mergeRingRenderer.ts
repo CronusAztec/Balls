@@ -1,5 +1,6 @@
 import { FINAL_HOLD_MS, TIER_EMBLEMS, inChute, tierColor, tierEmblem, type MergeRingView, type TierEmblem } from "@/lib/physics/modes/mergeRing";
 import type { Ball } from "@/lib/physics/types";
+import type { LiveHud } from "@/lib/watermark/liveLayout";
 import { GLOW_REACH, defaultCanvasFactory, fillStrokeGlow, plainOf, plainTransform, rgbOfHex, type CanvasFactory, type Matrix2D } from "./mergeRingGlow";
 
 /**
@@ -814,6 +815,11 @@ export class MergeRingLayer {
   readonly rim: RimCache;
   readonly ladder: LadderCache;
   readonly texts: TextSprite[];
+  /**
+   * What the last `drawOverlay()` drew that the live watermark keeps clear of (screen space, `noteHud()`): the top of the
+   * caption's glyphs and the ladder's box (w 0: nothing drawn).
+   */
+  readonly hudBox = { captionTop: Infinity, ladderX: 0, ladderY: 0, ladderW: 0, ladderH: 0 };
 
   constructor(createCanvas: CanvasFactory = defaultCanvasFactory) {
     this.rim = new RimCache(createCanvas);
@@ -966,6 +972,9 @@ export class MergeRingLayer {
    */
   drawOverlay(ctx: CanvasRenderingContext2D, view: MergeRingView, labels: MergeRingLabels, inset = 0) {
     const L = view.layout;
+    const box = this.hudBox;
+    box.captionTop = Infinity;
+    box.ladderW = 0;
     if (!L) return;
     const side = L.side;
     const fs = Math.max(11, 0.03 * side);
@@ -997,16 +1006,41 @@ export class MergeRingLayer {
     }
     this.text(ctx, M, 3, this.topText, F.tier, tierColor(topTier), fs, right - pad, top + 1.7 * fs);
     // The ladder: tier 1 at the bottom, the final form at the top, the reached ones lit (from its bitmap: the glows blurred once).
+    // Its column is centred on the corners' right edge, so its final form starts below the tier name (live, on a narrow canvas,
+    // the corners sit `inset` lower, under the page's buttons, and the name would run into the top emblem); the emblems then
+    // shrink to keep apart on the shorter ladder.
     const tiers = Math.max(1, Math.min(TIER_EMBLEMS.length, view.settings.tiers));
-    const size = Math.max(6, Math.min(0.032 * side, (1.6 * L.radius) / (tiers * 1.5)));
+    let size = Math.max(6, Math.min(0.032 * side, (1.6 * L.radius) / (tiers * 1.5)));
     const x = L.cx + L.radius + 0.5 * (right - (L.cx + L.radius));
-    const ladder: LadderSpec = { x, y0: L.cy - 0.8 * L.radius, y1: L.cy + 0.8 * L.radius, size, tiers, topTier: view.topTier };
+    const nameBottom = top + 1.7 * fs + 0.6 * 1.05 * fs;
+    const y1 = L.cy + 0.8 * L.radius;
+    const y0 = Math.min(L.cy, Math.max(L.cy - 0.8 * L.radius, nameBottom + Math.max(2, 0.01 * side) + 0.95 * size));
+    if (tiers > 1) size = Math.min(size, (y1 - y0) / (2 * (tiers - 1)));
+    const ladder: LadderSpec = { x, y0, y1, size, tiers, topTier: view.topTier };
     if (!this.ladder.draw(ctx, ladder)) drawLadder(ctx, ladder);
     ctx.globalAlpha = 1;
+    const reach = 1.1 * size + 1;
+    box.ladderX = x - reach;
+    box.ladderY = y0 - reach;
+    box.ladderW = 2 * reach;
+    box.ladderH = y1 - y0 + 2 * reach;
     // The caption under the ring.
     ctx.textAlign = "center";
-    this.text(ctx, M, 4, labels.caption, F.caption, "rgba(255, 255, 255, 0.9)", cfs, L.cx, Math.min(L.top + side - 0.6 * cfs, L.cy + L.radius + 0.045 * side + 0.5 * cfs));
+    const captionY = Math.min(L.top + side - 0.6 * cfs, L.cy + L.radius + 0.045 * side + 0.5 * cfs);
+    this.text(ctx, M, 4, labels.caption, F.caption, "rgba(255, 255, 255, 0.9)", cfs, L.cx, captionY);
+    box.captionTop = captionY - 0.6 * cfs;
     ctx.restore();
+  }
+
+  /**
+   * Tells the live watermark (lib/watermark/liveLayout.ts) about the HUD the last `drawOverlay()` drew besides its corners
+   * (the canvas reports those, liveMarkHud.ts `noteTitleBlock()`): the caption across the bottom of the square (a band: the
+   * badge goes above it, not over its first or last words) and the ladder (a block: the badge keeps off its lowest tiers).
+   */
+  noteHud(hud: LiveHud) {
+    const box = this.hudBox;
+    if (box.ladderW > 0) hud.block(box.ladderX, box.ladderY, box.ladderW, box.ladderH);
+    hud.bottomBand(box.captionTop);
   }
 
   /** One line of the HUD: from its bitmap (`TextSprite`), or live where the bitmap cannot help. */
