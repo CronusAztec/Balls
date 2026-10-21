@@ -1,5 +1,6 @@
 import { FINAL_HOLD_MS, TIER_EMBLEMS, inChute, tierColor, tierEmblem, type MergeRingView, type TierEmblem } from "@/lib/physics/modes/mergeRing";
 import type { Ball } from "@/lib/physics/types";
+import { GLOW_REACH, defaultCanvasFactory, fillStrokeGlow, plainTransform, rgbOfHex, type CanvasFactory } from "./mergeRingGlow";
 
 /**
  * Canvas drawing of Merge Ring (feature merge-ring, lib/physics/modes/mergeRing.ts). The canvas calls, per frame:
@@ -10,6 +11,12 @@ import type { Ball } from "@/lib/physics/types";
  * expanding out of every merge) and `drawOverlay()` in screen space (the tier ladder along the right side with the
  * reached tiers lit, the caption under the ring, the merge counter and the top tier). Everything animates on the mode's
  * clock (`view.timeMs`), so a pause freezes it and a recording replays it; nothing is allocated per frame (strings cached).
+ *
+ * Nothing is blurred per frame (the lag fix: a `shadowBlur` draw blurs its whole bounding box – the rim's 90 glowing arcs, a
+ * halo the size of the pile, the ladder's lit tiers): the glowing rim is drawn once into an offscreen bitmap (`RimCache`:
+ * its alpha with the glow, recoloured with the segments' own colours a fifth a frame), the ladder too
+ * (`LadderCache`, redrawn when a tier lights up), and the halos and the final form's flash draw their glow as a gradient
+ * annulus with the blur's profile (`fillStrokeGlow()` of mergeRingGlow.ts) – the same pixels within a few levels.
  */
 
 export interface MergeRingRenderOptions {
@@ -83,6 +90,18 @@ export function pulseScale(ageMs: number): number {
   return 1 + 0.08 * Math.abs(Math.sin((ageMs / PULSE_MS) * Math.PI));
 }
 
+/** The colour of the rim at hue `hue` (degrees), as the rim strokes it – one string per tenth of a degree, cached. */
+const rimColorCache: string[] = [];
+export function rimColor(hue: number): string {
+  const tenth = ((Math.round(hue * 10) % 3600) + 3600) % 3600;
+  return (rimColorCache[tenth] ??= `hsl(${(tenth / 10).toFixed(1)}, 100%, 62%)`);
+}
+
+/** The colour of the rim's segment `i` (of `RIM_SEGMENTS` from `start`, `step` radians each) at `timeMs`. */
+function segmentColor(start: number, step: number, i: number, timeMs: number): string {
+  return rimColor(rimHue(start + i * step + step / 2, timeMs));
+}
+
 /** The points of a regular polygon (or a star, with `inner` < 1) of `n` points and radius `r`, the first point straight up. */
 export function polygonPoints(n: number, r: number, inner = 1): number[] {
   const out: number[] = [];
@@ -95,14 +114,19 @@ export function polygonPoints(n: number, r: number, inner = 1): number[] {
   return out;
 }
 
-function path(ctx: CanvasRenderingContext2D, pts: number[]) {
+function path(ctx: CanvasRenderingContext2D, pts: readonly number[], r = 1) {
   ctx.beginPath();
   for (let i = 0; i < pts.length; i += 2) {
-    if (i === 0) ctx.moveTo(pts[0], pts[1]);
-    else ctx.lineTo(pts[i], pts[i + 1]);
+    if (i === 0) ctx.moveTo(r * pts[0], r * pts[1]);
+    else ctx.lineTo(r * pts[i], r * pts[i + 1]);
   }
   ctx.closePath();
 }
+
+/** The emblems' polygons at radius 1 (scaled as they are drawn: no arrays a frame). */
+const UNIT_TRIANGLE = polygonPoints(3, 1);
+const UNIT_STAR = polygonPoints(5, 1, 0.45);
+const UNIT_HEXAGON = polygonPoints(6, 1);
 
 /** Draws the emblem `kind` centred on (x, y), `size` px across (its half-size is the mark's reach), in `color`. */
 export function drawEmblem(ctx: CanvasRenderingContext2D, kind: TierEmblem, x: number, y: number, size: number, color: string) {
@@ -127,7 +151,7 @@ export function drawEmblem(ctx: CanvasRenderingContext2D, kind: TierEmblem, x: n
       ctx.stroke();
       break;
     case "triangle":
-      path(ctx, polygonPoints(3, r));
+      path(ctx, UNIT_TRIANGLE, r);
       ctx.fill();
       break;
     case "diamond": {
@@ -149,14 +173,14 @@ export function drawEmblem(ctx: CanvasRenderingContext2D, kind: TierEmblem, x: n
       break;
     }
     case "star":
-      path(ctx, polygonPoints(5, r, 0.45));
+      path(ctx, UNIT_STAR, r);
       ctx.fill();
       break;
     case "hexagon":
-      path(ctx, polygonPoints(6, r));
+      path(ctx, UNIT_HEXAGON, r);
       ctx.fill();
       ctx.fillStyle = "rgba(0, 0, 0, 0.45)";
-      path(ctx, polygonPoints(6, 0.45 * r));
+      path(ctx, UNIT_HEXAGON, 0.45 * r);
       ctx.fill();
       break;
     case "crown": {
@@ -235,6 +259,396 @@ export function drawEmblem(ctx: CanvasRenderingContext2D, kind: TierEmblem, x: n
   ctx.restore();
 }
 
+/** The glowing rim as `RimCache` draws it: the ring (world units), its arc, the line, the glow (device px) and the colours. */
+export interface RimSpec {
+  cx: number;
+  cy: number;
+  radius: number;
+  /** The arc (radians, clockwise): the opening is from `end` round to `start` + 2π. */
+  start: number;
+  end: number;
+  width: number;
+  /** The glow's `shadowBlur` (device px, > 0). */
+  blur: number;
+  /** The turning rainbow (`RIM_SEGMENTS` arcs of `rimHue()`), or one arc in `color`. */
+  rainbow: boolean;
+  color: string;
+  timeMs: number;
+}
+
+/** Largest bitmap side the rim cache keeps (a huge zoom draws the rim live). */
+export const RIM_CACHE_MAX_SIDE = 4096;
+
+/**
+ * The glowing rim from an offscreen bitmap in device px. The bitmap is the live drawing made once – the rainbow's 90
+ * shadowed arcs in white (their alpha with the glow, exactly as they overlap), or the one arc in the wall colour – and
+ * the rainbow is recoloured with the segments' own colours (`recolour()`: a fifth of them a frame, the alpha kept), so a
+ * frame costs 18 flat fills and one 1:1 blit instead of 90 blurs. It is rebuilt when the ring, the line, the glow, the
+ * colour or the scale change – only once the change has held for a frame (a zoom or a resize in progress draws live) –
+ * and when the ring has come to rest more than `RIM_SNAP_PX` off the bitmap's baked sub-pixel position (a camera that
+ * slides it gets the bitmap at the nearest pixel meanwhile). `draw()` returns false where it cannot help (a rotated or
+ * stretched view, no offscreen canvas, a bitmap too big): the caller draws the rim live.
+ */
+export class RimCache {
+  /** Bitmaps built, rainbow recolourings and blits so far (for the tests). */
+  builds = 0;
+  recolours = 0;
+  blits = 0;
+  private canvas: HTMLCanvasElement | null = null;
+  private g: CanvasRenderingContext2D | null = null;
+  private unavailable = false;
+  /** What the bitmap holds: the geometry, the sub-pixel position of the centre, its half size and the rainbow's clock. */
+  private built = false;
+  private bR = NaN;
+  private bW = NaN;
+  private bBlur = NaN;
+  private bStart = NaN;
+  private bEnd = NaN;
+  private bRainbow = false;
+  private bColor = "";
+  private bFx = NaN;
+  private bFy = NaN;
+  private bHalf = 0;
+  /** The rainbow's clock as last coloured, the part (of `RIM_PHASES`) coloured next and when each part was coloured. */
+  private bTime = NaN;
+  private phase = 0;
+  private readonly phaseMs: number[] = new Array(RIM_PHASES).fill(NaN);
+  /** Last frame's request, the ring's centre in device px (a change is built only once it holds). */
+  private lR = NaN;
+  private lW = NaN;
+  private lBlur = NaN;
+  private lStart = NaN;
+  private lEnd = NaN;
+  private lRainbow = false;
+  private lColor = "";
+  private lCx = NaN;
+  private lCy = NaN;
+
+  constructor(private readonly createCanvas: CanvasFactory = defaultCanvasFactory) {}
+
+  /** Draws the rim from the bitmap; false when it did not (the caller draws it live). */
+  draw(ctx: CanvasRenderingContext2D, spec: RimSpec): boolean {
+    const m = plainTransform(ctx);
+    if (!m || this.unavailable) return false;
+    const devR = m.k * spec.radius;
+    const devW = m.k * spec.width;
+    const devCx = m.k * spec.cx + m.e;
+    const devCy = m.k * spec.cy + m.f;
+    const ix = Math.floor(devCx);
+    const iy = Math.floor(devCy);
+    const fx = devCx - ix;
+    const fy = devCy - iy;
+    const color = spec.rainbow ? "" : spec.color;
+    const held =
+      devR === this.lR &&
+      devW === this.lW &&
+      spec.blur === this.lBlur &&
+      spec.start === this.lStart &&
+      spec.end === this.lEnd &&
+      spec.rainbow === this.lRainbow &&
+      color === this.lColor &&
+      Math.abs(devCx - this.lCx) < RIM_HELD_PX &&
+      Math.abs(devCy - this.lCy) < RIM_HELD_PX;
+    this.lR = devR;
+    this.lW = devW;
+    this.lBlur = spec.blur;
+    this.lStart = spec.start;
+    this.lEnd = spec.end;
+    this.lRainbow = spec.rainbow;
+    this.lColor = color;
+    this.lCx = devCx;
+    this.lCy = devCy;
+    const sameRing = this.built && devR === this.bR && devW === this.bW && spec.blur === this.bBlur && spec.start === this.bStart && spec.end === this.bEnd && spec.rainbow === this.bRainbow && color === this.bColor;
+    // the bitmap's centre sits at a whole pixel + its baked fraction: at the nearest pixel to where the ring is now
+    let bx = Math.round(devCx - this.bFx);
+    let by = Math.round(devCy - this.bFy);
+    const off = Math.max(Math.abs(devCx - this.bFx - bx), Math.abs(devCy - this.bFy - by));
+    if (!sameRing || (off > RIM_SNAP_PX && held)) {
+      // a new ring once it holds (a zoom or a resize in progress draws live), or a ring that came to rest off the bitmap's
+      // fraction (a camera slid it): built where it is; sliding, it is blitted at the nearest pixel
+      if (held && this.build(spec, devR, devW, fx, fy, color)) {
+        bx = ix;
+        by = iy;
+      } else if (!sameRing) return false;
+    }
+    bx -= this.bHalf;
+    by -= this.bHalf;
+    if (spec.rainbow && !this.coloured(spec.timeMs)) this.recolour(spec);
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "rgba(0, 0, 0, 0)";
+    ctx.drawImage(this.canvas!, bx, by);
+    ctx.restore();
+    this.blits++;
+    return true;
+  }
+
+  /** The bitmap for this ring: the live drawing in device px, the centre at its sub-pixel position (`fx`, `fy`). */
+  private build(spec: RimSpec, devR: number, devW: number, fx: number, fy: number, color: string): boolean {
+    const pad = Math.ceil(devW / 2 + 2 * spec.blur + 3);
+    const half = Math.ceil(devR + pad) + 1;
+    const size = 2 * half + 2;
+    if (size > RIM_CACHE_MAX_SIDE) return false;
+    if (!this.canvas) {
+      this.canvas = this.createCanvas(size, size);
+      this.g = this.canvas?.getContext("2d") ?? null;
+      if (!this.canvas || !this.g) {
+        this.unavailable = true;
+        return false;
+      }
+    }
+    const canvas = this.canvas;
+    const g = this.g!;
+    if (canvas.width !== size || canvas.height !== size) {
+      canvas.width = size;
+      canvas.height = size;
+    } else g.clearRect(0, 0, size, size);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = "source-over";
+    g.globalAlpha = 1;
+    g.lineCap = "butt";
+    g.lineWidth = devW;
+    g.shadowOffsetX = 0;
+    g.shadowOffsetY = 0;
+    g.shadowBlur = spec.blur;
+    const ox = half + fx;
+    const oy = half + fy;
+    if (spec.rainbow) {
+      // the segments as the live rim strokes them, in white: the alpha of their strokes and overlapping glows
+      g.strokeStyle = "#ffffff";
+      g.shadowColor = "#ffffff";
+      const step = (spec.end - spec.start) / RIM_SEGMENTS;
+      for (let i = 0; i < RIM_SEGMENTS; i++) {
+        const a0 = spec.start + i * step;
+        g.beginPath();
+        g.arc(ox, oy, devR, a0 - 0.004, a0 + step + 0.004);
+        g.stroke();
+      }
+    } else {
+      g.strokeStyle = color;
+      g.shadowColor = color;
+      g.beginPath();
+      g.arc(ox, oy, devR, spec.start, spec.end);
+      g.stroke();
+    }
+    g.shadowBlur = 0;
+    g.shadowColor = "rgba(0, 0, 0, 0)";
+    this.built = true;
+    this.bR = devR;
+    this.bW = devW;
+    this.bBlur = spec.blur;
+    this.bStart = spec.start;
+    this.bEnd = spec.end;
+    this.bRainbow = spec.rainbow;
+    this.bColor = color;
+    this.bFx = fx;
+    this.bFy = fy;
+    this.bHalf = half;
+    this.bTime = NaN;
+    this.builds++;
+    return true;
+  }
+
+  /** True when every fifth of the rainbow holds the colours of `timeMs`. */
+  private coloured(timeMs: number): boolean {
+    for (let q = 0; q < RIM_PHASES; q++) if (this.phaseMs[q] !== timeMs) return false;
+    return true;
+  }
+
+  /**
+   * The rainbow's colours over the bitmap's alpha (`source-atop`: the colour taken, the alpha kept): every segment's sector
+   * of the ring filled with its colour, from where its live arc starts (overdrawing the last one's end) to where the next one
+   * starts, the first and the last reaching to the middle of the opening (each a pixel wider at its sides: no seams). The
+   * colours turn slowly (`RAINBOW_DEG_PER_SEC`), so a frame refreshes a fifth of the segments in turn (`RIM_PHASES`: each
+   * at most four frames, 1.6° of hue, behind the clock) – all of them on a build, after a jump of the clock, or when the
+   * clock runs fast enough that a fifth would fall more than `RIM_HUE_LAG_DEG` behind. (Every refresh costs the bitmap a
+   * copy and a raster when it is next drawn: fewer segments a frame is cheaper, more lag is not visible.)
+   */
+  private recolour(spec: RimSpec): void {
+    const t = spec.timeMs;
+    const stale = this.phaseMs;
+    let all = !(t >= this.bTime) || !Number.isFinite(this.bTime);
+    if (!all) {
+      // the next fifth in turn; the stalest of the others after it must stay within the lag
+      let behind = 0;
+      for (let q = 0; q < RIM_PHASES; q++) if (q !== this.phase) behind = Math.max(behind, t - stale[q]);
+      all = !((behind * RAINBOW_DEG_PER_SEC) / 1000 <= RIM_HUE_LAG_DEG);
+    }
+    const g = this.g!;
+    const ox = this.bHalf + this.bFx;
+    const oy = this.bHalf + this.bFy;
+    const step = (spec.end - spec.start) / RIM_SEGMENTS;
+    const mid = (spec.start + spec.end) / 2 + Math.PI; // the middle of the opening
+    // (the band the line and its glow cover: the blur reaches GLOW_REACH σ past the line's edge, σ = blur / 2)
+    const band = this.bW / 2 + (GLOW_REACH * spec.blur) / 2 + 2;
+    const r1 = this.bR + band;
+    const r0 = Math.max(0, this.bR - band);
+    const seam = 1 / Math.max(1, this.bR);
+    g.save();
+    g.globalCompositeOperation = "source-atop";
+    for (let i = 0; i < RIM_SEGMENTS; i++) {
+      if (!all && i % RIM_PHASES !== this.phase) continue;
+      const a0 = i === 0 ? mid - TWO_PI : spec.start + i * step - 0.004;
+      const a1 = i === RIM_SEGMENTS - 1 ? mid : spec.start + (i + 1) * step - 0.004;
+      g.fillStyle = segmentColor(spec.start, step, i, t);
+      g.beginPath();
+      g.arc(ox, oy, r1, a0 - seam, a1 + seam);
+      g.arc(ox, oy, r0, a1 + seam, a0 - seam, true);
+      g.closePath();
+      g.fill();
+    }
+    g.restore();
+    if (all) stale.fill(t);
+    else stale[this.phase] = t;
+    this.phase = (this.phase + 1) % RIM_PHASES;
+    this.bTime = t;
+    this.recolours++;
+  }
+}
+
+/** The rim's segments are recoloured a fifth a frame (each every fifth frame); the most of hue (degrees) a fifth may lag behind the clock. */
+export const RIM_PHASES = 5;
+export const RIM_HUE_LAG_DEG = 2;
+
+/** Device px a ring may move between two frames and still hold (the bitmap is then built there), and may sit off its bitmap's baked position before it is rebuilt. */
+export const RIM_HELD_PX = 0.01;
+export const RIM_SNAP_PX = 0.1;
+
+/** The tier ladder as `LadderCache` draws it. */
+export interface LadderSpec {
+  x: number;
+  y0: number;
+  y1: number;
+  size: number;
+  tiers: number;
+  topTier: number;
+}
+
+/** The ladder's lit tiers glow with this `shadowBlur` (device px). */
+export const LADDER_GLOW = 10;
+
+/** Draws the tier ladder: tier 1 at `y1`, the final form at `y0`, the reached ones lit (with a glow). */
+export function drawLadder(ctx: CanvasRenderingContext2D, spec: LadderSpec) {
+  const { x, y0, y1, size, tiers } = spec;
+  for (let k = 1; k <= tiers; k++) {
+    const y = tiers > 1 ? y1 + ((y0 - y1) * (k - 1)) / (tiers - 1) : (y0 + y1) / 2;
+    const lit = k <= spec.topTier;
+    ctx.globalAlpha = lit ? 1 : 0.28;
+    const color = lit ? tierColor(k) : "#9ca3af";
+    if (lit) {
+      ctx.shadowColor = color;
+      ctx.shadowBlur = LADDER_GLOW;
+    }
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(x, y, 0.95 * size, 0, TWO_PI);
+    ctx.stroke();
+    drawEmblem(ctx, tierEmblem(k), x, y, 1.1 * size, color);
+    ctx.shadowBlur = 0;
+  }
+  ctx.globalAlpha = 1;
+}
+
+/**
+ * The tier ladder from a bitmap in device px (its lit tiers' glows blurred once), redrawn when a tier lights up or the
+ * ladder moves or scales; false where it cannot help (the caller draws it live).
+ */
+export class LadderCache {
+  builds = 0;
+  private canvas: HTMLCanvasElement | null = null;
+  private g: CanvasRenderingContext2D | null = null;
+  private unavailable = false;
+  private key: number[] = [];
+  private sx = 0;
+  private sy = 0;
+
+  constructor(private readonly createCanvas: CanvasFactory = defaultCanvasFactory) {}
+
+  draw(ctx: CanvasRenderingContext2D, spec: LadderSpec): boolean {
+    const m = plainTransform(ctx);
+    if (!m || this.unavailable) return false;
+    const lit = Math.max(0, Math.min(spec.tiers, Math.floor(spec.topTier)));
+    const key = [m.k, m.e, m.f, spec.x, spec.y0, spec.y1, spec.size, spec.tiers, lit];
+    if (!this.canvas || key.some((v, i) => v !== this.key[i])) {
+      const reach = 1.1 * spec.size + 1;
+      const glow = 2 * LADDER_GLOW + 3;
+      const left = Math.floor(m.k * (spec.x - reach) + m.e - glow);
+      const top = Math.floor(m.k * (Math.min(spec.y0, spec.y1) - reach) + m.f - glow);
+      const right = Math.ceil(m.k * (spec.x + reach) + m.e + glow);
+      const bottom = Math.ceil(m.k * (Math.max(spec.y0, spec.y1) + reach) + m.f + glow);
+      const w = right - left;
+      const h = bottom - top;
+      if (!(w > 0 && h > 0) || w > RIM_CACHE_MAX_SIDE || h > RIM_CACHE_MAX_SIDE) return false;
+      if (!this.canvas) {
+        this.canvas = this.createCanvas(w, h);
+        this.g = this.canvas?.getContext("2d") ?? null;
+        if (!this.canvas || !this.g) {
+          this.unavailable = true;
+          return false;
+        }
+      }
+      if (this.canvas.width !== w || this.canvas.height !== h) {
+        this.canvas.width = w;
+        this.canvas.height = h;
+      } else this.g!.clearRect(0, 0, w, h);
+      const g = this.g!;
+      g.setTransform(m.k, 0, 0, m.k, m.e - left, m.f - top);
+      g.globalCompositeOperation = "source-over";
+      g.lineJoin = "round";
+      g.shadowOffsetX = 0;
+      g.shadowOffsetY = 0;
+      drawLadder(g, { ...spec, topTier: lit });
+      this.key = key;
+      this.sx = left;
+      this.sy = top;
+      this.builds++;
+    }
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 0;
+    ctx.shadowColor = "rgba(0, 0, 0, 0)";
+    ctx.drawImage(this.canvas!, this.sx, this.sy);
+    ctx.restore();
+    return true;
+  }
+}
+
+/** The halos' glow (`shadowBlur`, device px), and the radius (device px) from which it is drawn as a gradient (below it the blur's box is small: cheaper blurred). */
+export const HALO_GLOW = 12;
+export const HALO_GRADIENT_FROM = 96;
+
+/** Device px a shadow-only draw moves its shape out of the canvas by (its shadow is offset back by as much). */
+const SHADOW_ONLY_SHIFT = 32768;
+
+/**
+ * The glow round one end of the flashing rim: the real shadow of the arc's last piece (`a0` … `a1`, as far back as the blur
+ * reaches), the piece itself drawn far off the canvas (only its shadow lands), inside the wedge from `w0` to `w1` – where
+ * the glow along the arc stops and the opening begins. Its blur's box is small: a piece, not the whole ring.
+ */
+function flashEndGlow(ctx: CanvasRenderingContext2D, k: number, cx: number, cy: number, r: number, reach: number, stroke: string, lw: number, blur: number, a0: number, a1: number, w0: number, w1: number) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.arc(cx, cy, reach, w0, w1);
+  ctx.closePath();
+  ctx.clip();
+  ctx.strokeStyle = stroke;
+  ctx.lineWidth = lw;
+  ctx.lineCap = "butt";
+  ctx.shadowColor = "#ffffff";
+  ctx.shadowBlur = blur;
+  ctx.shadowOffsetX = SHADOW_ONLY_SHIFT;
+  ctx.shadowOffsetY = 0;
+  ctx.beginPath();
+  ctx.arc(cx - SHADOW_ONLY_SHIFT / k, cy, r, a0, a1);
+  ctx.stroke();
+  ctx.restore();
+}
+
 export class MergeRingLayer {
   /** "MERGES 7" by count, so a frame builds none. */
   private mergesKey = -1;
@@ -242,6 +656,18 @@ export class MergeRingLayer {
   private topKey = -1;
   private topText = "";
   private readonly tierText: string[] = [];
+  /** The HUD's fonts for a font size, so a frame builds none. */
+  private fontFs = -1;
+  private fontCfs = -1;
+  private readonly fonts = { title: "", merges: "", top: "", tier: "", caption: "" };
+  /** The glowing rim's and the ladder's bitmaps. */
+  readonly rim: RimCache;
+  readonly ladder: LadderCache;
+
+  constructor(createCanvas: CanvasFactory = defaultCanvasFactory) {
+    this.rim = new RimCache(createCanvas);
+    this.ladder = new LadderCache(createCanvas);
+  }
 
   /** The rim (under the balls): the rainbow (or the wall colour), open at the chute, flashing white at the final form. */
   drawWorld(ctx: CanvasRenderingContext2D, view: MergeRingView, opts: MergeRingRenderOptions) {
@@ -254,42 +680,66 @@ export class MergeRingLayer {
     const start = -Math.PI / 2 + half;
     const end = -Math.PI / 2 - half + TWO_PI;
     const width = Math.max(1.5, opts.wallThickness);
+    const rainbow = view.settings.rainbow;
     ctx.save();
     ctx.globalAlpha = 1;
     ctx.lineCap = "butt";
     ctx.lineWidth = width;
-    if (opts.showWallGlow) {
-      ctx.shadowBlur = 3 * width + 6;
-    }
-    if (view.settings.rainbow) {
-      const step = (end - start) / RIM_SEGMENTS;
-      for (let i = 0; i < RIM_SEGMENTS; i++) {
-        const a0 = start + i * step;
-        const a1 = a0 + step;
-        const color = `hsl(${rimHue(a0 + step / 2, now).toFixed(1)}, 100%, 62%)`;
+    // The glowing rim from its bitmap (the glow is blurred once, not every frame); live without the glow or where the bitmap cannot help.
+    const cached = opts.showWallGlow && this.rim.draw(ctx, { cx: L.cx, cy: L.cy, radius: R, start, end, width, blur: 3 * width + 6, rainbow, color: rainbow ? "" : opts.wallAlpha(0.9), timeMs: now });
+    if (!cached) {
+      if (opts.showWallGlow) {
+        ctx.shadowBlur = 3 * width + 6;
+      }
+      if (rainbow) {
+        const step = (end - start) / RIM_SEGMENTS;
+        for (let i = 0; i < RIM_SEGMENTS; i++) {
+          const a0 = start + i * step;
+          const a1 = a0 + step;
+          const color = segmentColor(start, step, i, now);
+          ctx.strokeStyle = color;
+          ctx.shadowColor = color;
+          ctx.beginPath();
+          ctx.arc(L.cx, L.cy, R, a0 - 0.004, a1 + 0.004);
+          ctx.stroke();
+        }
+      } else {
+        const color = opts.wallAlpha(0.9);
         ctx.strokeStyle = color;
         ctx.shadowColor = color;
         ctx.beginPath();
-        ctx.arc(L.cx, L.cy, R, a0 - 0.004, a1 + 0.004);
+        ctx.arc(L.cx, L.cy, R, start, end);
         ctx.stroke();
       }
-    } else {
-      const color = opts.wallAlpha(0.9);
-      ctx.strokeStyle = color;
-      ctx.shadowColor = color;
-      ctx.beginPath();
-      ctx.arc(L.cx, L.cy, R, start, end);
-      ctx.stroke();
+      ctx.shadowBlur = 0;
     }
-    ctx.shadowBlur = 0;
-    // The final form: the rim flashes white and fades back.
+    // The final form: the rim flashes white and fades back – its glow a gradient with the blur's profile along the arc and
+    // the blur itself only round the arc's two ends (where it wraps into the opening), under the stroke.
     const fAge = now - view.finalMs;
     if (view.finalMs >= 0 && fAge >= 0 && fAge < FLASH_MS) {
       const f = 1 - fAge / FLASH_MS;
-      ctx.strokeStyle = `rgba(255, 255, 255, ${(0.95 * f).toFixed(3)})`;
-      ctx.lineWidth = width + 6 * f;
+      const lw = width + 6 * f;
+      const blur = opts.showWallGlow ? 24 * f : 0;
+      const stroke = `rgba(255, 255, 255, ${(0.95 * f).toFixed(3)})`;
+      const m = blur > 0 ? plainTransform(ctx) : null;
+      let glowDrawn = false;
+      if (m) {
+        // the ends' share: as far along the arc as the blur reaches
+        const cap = Math.min(0.25 * (end - start), (GLOW_REACH * blur) / 2 / m.k / R);
+        ctx.globalAlpha = 0.95 * f;
+        glowDrawn = fillStrokeGlow(ctx, m.k, L.cx, L.cy, R, lw, blur, "255, 255, 255", start + cap, end - cap);
+        ctx.globalAlpha = 1;
+        if (glowDrawn) {
+          const gap = (start + TWO_PI - end) / 2;
+          const reach = R + lw + (2 * blur) / m.k;
+          flashEndGlow(ctx, m.k, L.cx, L.cy, R, reach, stroke, lw, blur, end - 2 * cap, end, end - cap, end + gap);
+          flashEndGlow(ctx, m.k, L.cx, L.cy, R, reach, stroke, lw, blur, start, start + 2 * cap, start - gap, start + cap);
+        }
+      }
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = lw;
       ctx.shadowColor = "#ffffff";
-      ctx.shadowBlur = opts.showWallGlow ? 24 * f : 0;
+      ctx.shadowBlur = glowDrawn ? 0 : blur;
       ctx.beginPath();
       ctx.arc(L.cx, L.cy, R, start, end);
       ctx.stroke();
@@ -328,23 +778,31 @@ export class MergeRingLayer {
     ctx.restore();
   }
 
-  /** Over the balls: the halos of the merges. */
+  /** Over the balls: the halos of the merges (a big one's glow a gradient with the blur's profile, a small one's the shadow itself). */
   drawEffects(ctx: CanvasRenderingContext2D, view: MergeRingView) {
     const L = view.layout;
     if (!L) return;
     const now = view.timeMs;
+    let m: ReturnType<typeof plainTransform> | undefined;
     ctx.save();
-    ctx.lineWidth = Math.max(1.5, 0.004 * L.side);
+    const lw = Math.max(1.5, 0.004 * L.side);
     for (let i = 0; i < view.haloMs.length; i++) {
       const h = haloAt(now - view.haloMs[i]);
       if (!h) continue;
       const color = tierColor(view.haloTier[i]);
+      const x = view.haloX[i];
+      const y = view.haloY[i];
+      const r = view.haloR[i] * h.scale;
       ctx.globalAlpha = h.alpha;
+      if (m === undefined) m = plainTransform(ctx);
+      const rgb = m ? rgbOfHex(color) : null;
+      const glowDrawn = !!m && !!rgb && fillStrokeGlow(ctx, m.k, x, y, r, lw, HALO_GLOW, rgb, 0, TWO_PI, HALO_GRADIENT_FROM);
+      ctx.lineWidth = lw;
       ctx.strokeStyle = color;
       ctx.shadowColor = color;
-      ctx.shadowBlur = 12;
+      ctx.shadowBlur = glowDrawn ? 0 : HALO_GLOW;
       ctx.beginPath();
-      ctx.arc(view.haloX[i], view.haloY[i], view.haloR[i] * h.scale, 0, TWO_PI);
+      ctx.arc(x, y, r, 0, TWO_PI);
       ctx.stroke();
     }
     ctx.restore();
@@ -366,20 +824,22 @@ export class MergeRingLayer {
     ctx.globalAlpha = 1;
     ctx.textBaseline = "middle";
     ctx.lineJoin = "round";
+    const cfs = Math.max(11, 0.034 * side);
+    const F = this.fontsFor(fs, cfs);
     // The corners.
     ctx.textAlign = "left";
-    ctx.font = `800 ${(0.8 * fs).toFixed(1)}px sans-serif`;
+    ctx.font = F.title;
     ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
     ctx.fillText(labels.title, L.left + pad, top + 0.5 * fs);
     if (view.merges !== this.mergesKey) {
       this.mergesKey = view.merges;
       this.mergesText = labels.merges(view.merges);
     }
-    ctx.font = `700 ${(0.75 * fs).toFixed(1)}px sans-serif`;
+    ctx.font = F.merges;
     ctx.fillStyle = "#f472b6";
     ctx.fillText(this.mergesText, L.left + pad, top + 1.6 * fs);
     ctx.textAlign = "right";
-    ctx.font = `800 ${(0.7 * fs).toFixed(1)}px sans-serif`;
+    ctx.font = F.top;
     ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
     ctx.fillText(labels.top, right - pad, top + 0.5 * fs);
     const topTier = Math.max(1, view.topTier);
@@ -387,46 +847,62 @@ export class MergeRingLayer {
       this.topKey = topTier;
       this.topText = labels.tier(topTier);
     }
-    ctx.font = `900 ${(1.05 * fs).toFixed(1)}px sans-serif`;
+    ctx.font = F.tier;
     ctx.fillStyle = tierColor(topTier);
     ctx.fillText(this.topText, right - pad, top + 1.7 * fs);
-    // The ladder: tier 1 at the bottom, the final form at the top, the reached ones lit.
+    // The ladder: tier 1 at the bottom, the final form at the top, the reached ones lit (from its bitmap: the glows blurred once).
     const tiers = Math.max(1, Math.min(TIER_EMBLEMS.length, view.settings.tiers));
     const size = Math.max(6, Math.min(0.032 * side, (1.6 * L.radius) / (tiers * 1.5)));
     const x = L.cx + L.radius + 0.5 * (right - (L.cx + L.radius));
-    const y1 = L.cy + 0.8 * L.radius;
-    const y0 = L.cy - 0.8 * L.radius;
-    for (let k = 1; k <= tiers; k++) {
-      const y = tiers > 1 ? y1 + ((y0 - y1) * (k - 1)) / (tiers - 1) : (y0 + y1) / 2;
-      const lit = k <= view.topTier;
-      ctx.globalAlpha = lit ? 1 : 0.28;
-      const color = lit ? tierColor(k) : "#9ca3af";
-      if (lit) {
-        ctx.shadowColor = color;
-        ctx.shadowBlur = 10;
-      }
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(x, y, 0.95 * size, 0, TWO_PI);
-      ctx.stroke();
-      drawEmblem(ctx, tierEmblem(k), x, y, 1.1 * size, color);
-      ctx.shadowBlur = 0;
-    }
+    const ladder: LadderSpec = { x, y0: L.cy - 0.8 * L.radius, y1: L.cy + 0.8 * L.radius, size, tiers, topTier: view.topTier };
+    if (!this.ladder.draw(ctx, ladder)) drawLadder(ctx, ladder);
     ctx.globalAlpha = 1;
     // The caption under the ring.
-    const cfs = Math.max(11, 0.034 * side);
     ctx.textAlign = "center";
-    ctx.font = `600 ${cfs.toFixed(1)}px sans-serif`;
+    ctx.font = F.caption;
     ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
     ctx.fillText(labels.caption, L.cx, Math.min(L.top + side - 0.6 * cfs, L.cy + L.radius + 0.045 * side + 0.5 * cfs));
     ctx.restore();
+  }
+
+  /** The HUD's fonts for the corner size `fs` and the caption size `cfs` (rebuilt when the layout changes). */
+  private fontsFor(fs: number, cfs: number) {
+    if (fs !== this.fontFs || cfs !== this.fontCfs) {
+      this.fontFs = fs;
+      this.fontCfs = cfs;
+      this.fonts.title = `800 ${(0.8 * fs).toFixed(1)}px sans-serif`;
+      this.fonts.merges = `700 ${(0.75 * fs).toFixed(1)}px sans-serif`;
+      this.fonts.top = `800 ${(0.7 * fs).toFixed(1)}px sans-serif`;
+      this.fonts.tier = `900 ${(1.05 * fs).toFixed(1)}px sans-serif`;
+      this.fonts.caption = `600 ${cfs.toFixed(1)}px sans-serif`;
+    }
+    return this.fonts;
   }
 
   /** The names of the tiers as the labels give them, cached. */
   tierName(labels: MergeRingLabels, k: number): string {
     return (this.tierText[k] ??= labels.tier(k));
   }
+}
+
+/**
+ * True when the canvas' colour trail of `ball` (strokes up to `trailThickness` × its radius wide, ending at the trail's points)
+ * lies wholly under the opaque dark body `drawBodies()` paints over it – every pixel it touches fully covered (`k`: device px
+ * per unit) – so drawing it would change nothing: a ball resting in the pile.
+ */
+export function trailUnderBody(ball: Pick<Ball, "x" | "y" | "radius" | "trail">, trailThickness: number, k: number): boolean {
+  if (!(k > 0) || ball.trail.length === 0) return false;
+  // the dark body's radius (r − 0.5; the final form's pulse only grows it), less a stroke's reach past its points (a square
+  // cap's corner) and a pixel and a half of anti-aliasing
+  const reach = ball.radius - 0.5 - Math.SQRT2 * 0.5 * ball.radius * trailThickness - 1.5 / k;
+  if (!(reach > 0)) return false;
+  const reach2 = reach * reach;
+  for (const p of ball.trail) {
+    const dx = p.x - ball.x;
+    const dy = p.y - ball.y;
+    if (!(dx * dx + dy * dy <= reach2)) return false;
+  }
+  return true;
 }
 
 /** True when `ball` sits in the chute column above the ring's opening (the smoke test and the HUD read it from the view). */
