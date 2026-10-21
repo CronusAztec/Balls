@@ -4868,6 +4868,9 @@
     "privacyTitle": "Privacidad",
     "privacyBody": "Todo funciona en tu PC. La IA local funciona sin conexión. Una clave de la nube que introduzcas se guarda cifrada y solo se envía al proveedor que elegiste. La app no nos envía datos de uso. Se conecta para buscar actualizaciones, comprar, restaurar o renovar tu licencia Pro, descargar un modelo que pediste y para las funciones de cuenta y publicación que uses. La política de privacidad los detalla todos.",
     "updateLater": "Más tarde",
+    "needsNewerAppTitle": "Hace falta una app más reciente",
+    "needsNewerApp": "Esto necesita la versión {version} de la app de Windows o una más reciente. Actualiza la app con el botón de la parte superior de este grupo.",
+    "groupFailed": "El estudio de escritorio se detuvo por un error ({error}). El simulador sigue funcionando. Reinicia la app para volver a intentarlo.",
     "updateWaitRender": "Todavía se está creando un vídeo. Espera a que esté listo o cierra la aplicación, y la actualización se instalará al cerrar.",
     "updateWaitRenderManual": "Todavía se está creando un vídeo. Cuando esté listo, pulsa Reiniciar y actualizar.",
     "updateButton": {

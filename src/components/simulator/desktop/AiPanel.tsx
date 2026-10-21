@@ -4,7 +4,7 @@ import { useEffect, useId, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CLOUD_DEFAULTS, type CloudProvider, type DesktopApi, type DesktopPrefs } from "@/lib/desktop/contract";
 import { BOT_PLATFORMS, type BotPlatform } from "@/lib/bot/playbook";
-import { AI_TASKS, type DesktopAiApi } from "./useDesktopAi";
+import type { DesktopAiApi } from "./useDesktopAi";
 import type { CustomContentApi } from "./useCustomContent"; // --- custom-content ---
 import { weaponLabel } from "@/lib/physics/modes/fightLeagueRoster";
 import type { DesktopPageHooks } from "./pageHooks";
@@ -197,7 +197,8 @@ export default function AiPanel({ ai, custom, prefs, page, onQueueTab, bridge }:
       <div className="xl:col-span-3 space-y-4">
         <Card title={t("aiStudioTitle")}>
           <div className="flex gap-2 flex-wrap">
-            {AI_TASKS.map((k) => (
+            {/* --- old-bridge --- the jobs this app can do */}
+            {ai.tasks.map((k) => (
               <Chip key={k} on={ai.task === k} onClick={() => ai.setTask(k)} testId={`ai-task-${k}`}>
                 {t(`aiTask.${k}`)}
               </Chip>

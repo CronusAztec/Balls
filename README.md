@@ -3455,6 +3455,14 @@ src/app/[locale]/download/     the download page (en / pl / es, in the sitemap, 
   the `window.desktop` method table (`BRIDGE_METHODS`); the preload builds the bridge from it, the main process registers a
   handler for every channel (a `Record` over the channels, so a missing one does not compile) and `guarded()` refuses calls
   that do not come from the app's page or whose arguments fail `checkIpcArgs()`.
+- **Older apps** (old-bridge) – a new channel does not bump `DESKTOP_API_VERSION`, so the page may meet a bridge without what
+  came after app 1.0.1. `src/lib/desktop/capabilities.ts` finds each later feature by its methods (`diagnose` 1.0.3,
+  `updateStatus` 1.1.0, `custom` 1.2.0, `social` 1.4.0: Postiz, the proposal queue and the autopilot) and subscribes to an
+  event only when the app sends it (`onDesktop`: the preload's `on` throws for an unknown event). `DesktopApi` has those members
+  optional, so the compiler holds every use to a check. In an older app Accounts and Posts name the version they need, the AI
+  studio offers only the jobs the app can do, and an error boundary keeps a failing Desktop group from taking the simulator
+  down. `tests/desktopCapabilities.test.ts` checks every released app's method table; the smoke's `desktop-exe` stand-in is
+  an older app and `desktop-current` runs the current bridge (Accounts, Post with Postiz, Posts, the update button).
 - **GPU video** – the app launches with `ignore-gpu-blocklist`, GPU rasterisation, zero-copy, the high-performance GPU,
   WebGPU and hardware video features (`gpuSwitches()`; `--safe-mode` turns the GPU off for a broken driver). In the app the
   fast export asks WebCodecs for the GPU first (`resolveVideoConfig()` in `gpuEncode.ts`: every probed and configured video

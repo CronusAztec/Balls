@@ -8703,8 +8703,13 @@ await smokeBlock("desktop-exe", async () => {
   await page.waitForTimeout(800);
   check("desktop-exe: no Desktop group on the website", (await page.locator("[data-desktop-group]").count()) === 0);
 
+  // --- old-bridge --- This stand-in is an older app: its bridge has no ai.diagnose, no custom content and no Postiz (social),
+  // as before Windows app 1.4.0, and its `on` throws for an event that app does not send, as the preload does
+  // (desktop/src/preload.ts). The page must work with it: what came later is asked of lib/desktop/capabilities.ts first.
+  // (desktop-current below runs the current app's bridge.)
   const FAKE_BRIDGE = `(() => {
     const listeners = {};
+    const EVENTS = ["menu", "openFile", "aiToken", "modelProgress", "renderProgress", "update"];
     // --- review fix (uncap-all) --- the first reply is invalid by being below the minimum: a speed past the slider (5,000)
     // is a valid change now, whatever the Wide sliders switch
     const replies = [
@@ -8754,7 +8759,11 @@ await smokeBlock("desktop-exe", async () => {
         cancel: async () => {}, setCloud: async () => ({}), clearCloudKey: async () => ({}), playbook: async () => "## 3. The recipe\\nMotion in frame one.",
       },
       update: { check: async () => ({ state: "none", version: null, progress: null, message: null }), install: async () => {}, status: async () => ({ state: "none", version: null, progress: null, message: null }) },
-      on: (event, l) => { (listeners[event] ||= []).push(l); return () => { listeners[event] = listeners[event].filter((x) => x !== l); }; },
+      on: (event, l) => {
+        if (!EVENTS.includes(event)) throw new Error("Unknown desktop event " + event);
+        (listeners[event] ||= []).push(l);
+        return () => { listeners[event] = listeners[event].filter((x) => x !== l); };
+      },
     };
     // The app sends web pages to the system browser (main.ts setWindowOpenHandler); here they are only noted.
     window.open = (url) => (state.opened.push(String(url)), null);
@@ -8774,6 +8783,28 @@ await smokeBlock("desktop-exe", async () => {
     const chosen = await dp.locator('[data-encoder="h264"]').innerText().catch(() => "");
     const version = await dp.getByTestId("desktop-version").innerText().catch(() => "");
     check("desktop-exe: with window.desktop the Desktop group shows the GPU, the chosen encoders and the app version", shown && gpuName.includes("NVIDIA GeForce RTX 4090") && chosen === "h264_nvenc" && version.startsWith("9.9.9"), `(shown ${shown}, encoder ${chosen}, version ${version})`);
+
+    // --- old-bridge --- the older app's bridge: the group mounts beside the simulator, Accounts and Posts name the app version
+    // that brings them (nothing of Postiz is drawn), and the AI studio offers only the jobs this app can do (New fighter and New
+    // mode need custom content, Plan posts needs Postiz)
+    {
+      const canvases = await dp.locator("canvas").count();
+      const needsUpdate = dp.getByTestId("desktop-needs-update");
+      await dp.getByTestId("desktop-tab-accounts").click().catch(() => {});
+      const accountsNote = await needsUpdate.innerText({ timeout: 5000 }).catch(() => "");
+      await dp.getByTestId("desktop-tab-posts").click().catch(() => {});
+      const postsNote = await needsUpdate.innerText({ timeout: 5000 }).catch(() => "");
+      const postizShown = await dp.locator('[data-testid^="postiz-"]').count();
+      await dp.getByTestId("desktop-tab-ai").click().catch(() => {});
+      await dp.getByTestId("ai-task-videos").waitFor({ timeout: 5000 }).catch(() => {});
+      const tasks = await dp.locator('[data-testid^="ai-task-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid").slice("ai-task-".length))).catch(() => []);
+      await dp.getByTestId("desktop-tab-gpu").click().catch(() => {});
+      check(
+        "desktop-exe: with an older app's bridge (no Postiz, custom content or AI checks) the group mounts beside the simulator, Accounts and Posts name the app version they need and the AI studio offers only what the app can do",
+        shown && canvases > 0 && accountsNote.includes("1.4.0") && postsNote.includes("1.4.0") && postizShown === 0 && tasks.join(",") === "videos,copy,settings,ideas",
+        `(shown ${shown}, canvases ${canvases}, accounts "${accountsNote.replace(/\s+/g, " ")}", posts "${postsNote.replace(/\s+/g, " ")}", Postiz elements ${postizShown}, AI jobs ${tasks.join(",")})`,
+      );
+    }
 
     // --- build-identity --- the App card names the website build (the label /version.json describes), how the app is installed, and
     // "Copy details" puts the About text on the clipboard (a stand-in clipboard here: English, the Windows user name hidden)
@@ -8918,6 +8949,177 @@ await smokeBlock("desktop-exe", async () => {
   check("desktop-exe: no page errors in the Desktop group", desktopErrors.length === 0, desktopErrors.length ? `\n   ${desktopErrors.slice(0, 5).join("\n   ")}` : "");
 }
 // --- end desktop-exe ---
+});
+
+await smokeBlock("desktop-current", async () => {
+// --- old-bridge --- The Desktop group with the current app's bridge (Windows app 1.5.0: Postiz with the proposal queue and the
+// autopilot, custom content, the AI checks and the updater's status, and an `on` that knows socialProgress and socialQueue):
+// the AI studio offers every job, Accounts lists the Postiz channels, the Library's "Post with Postiz" and the Posts tab's
+// Review open the approval card (nothing is posted: the card is only opened), Posts shows the Proposed group and the
+// Autopilot card, and the top bar's update button answers a manual check with "You have the latest version" and a downloaded
+// update with Restart and update. (desktop-exe's stand-in is an older app.)
+{
+  const CURRENT_BRIDGE = `(() => {
+    const listeners = {};
+    const EVENTS = ["menu", "openFile", "aiToken", "modelProgress", "renderProgress", "update", "socialProgress", "socialQueue"];
+    const now = Date.now();
+    const none = { state: "none", version: null, progress: null, message: null };
+    const channels = [
+      { id: "int-tt", name: "Smoke TikTok", platform: "tiktok", picture: null, disabled: false, customer: null },
+      { id: "int-yt", name: "Smoke Shorts", platform: "youtube", picture: null, disabled: false, customer: null },
+    ];
+    const state = {
+      prefs: { outputFolder: "D:/Clips", preferHardware: true, ffmpegPath: "", encoderOverride: "", closeToTray: true, autoUpdate: true, aiProvider: "local", localModel: "llama-3.2-3b-instruct-q4km", aiGpu: "auto" },
+      library: [{ id: "lib-1", path: "D:/Clips/earlier.mp4", fileName: "earlier.mp4", bytes: 2400000, durationSec: 12.5, width: 1080, height: 1920, createdAt: now - 60000, thumbnail: null, exists: true, encoder: "h264_nvenc", meta: { title: "Earlier", mode: "classic", seed: 7, link: "/en/simulator/?mode=classic&seed=7", platform: "tiktok", hook: "Can it escape?", caption: "Which ring?", hashtags: ["#physics"], queueJobId: null } }],
+      queue: [{ id: "q-1", clipId: "lib-1", channels: [{ integrationId: "int-tt", platform: "tiktok", text: "Can it escape? #physics", settings: {} }], when: null, status: "proposed", by: "ai", origin: "ai", reason: "The escape hook fits TikTok tonight.", createdAt: new Date(now - 3600000).toISOString(), postIds: [], error: null, log: [] }],
+      autopilot: { enabled: false, channels: ["int-tt"], perDay: 2, quietFrom: "22:00", quietTo: "08:00", language: "en", proposeHours: 6, lastPlannedAt: null },
+      checks: 0, installs: 0, posted: [], prepared: [], logs: [], opened: [],
+    };
+    const emit = (event, payload) => (listeners[event] || []).forEach((l) => l(payload));
+    const refuse = async (request) => { state.posted.push(request); throw new Error("the smoke never posts"); };
+    window.desktop = {
+      apiVersion: 1,
+      info: async () => ({ appName: "JumpingBallsLive", version: "1.5.0", electron: "44.5.1", chrome: "146.0", platform: "win32", arch: "x64", packaged: true, dataDir: "C:/Users/smoke/AppData/Roaming/JumpingBallsLive", logFile: "main.log", smoke: false }),
+      log: (level, message) => state.logs.push(level + ": " + message),
+      openLogs: async () => {},
+      prefs: { get: async () => state.prefs, set: async (p) => (state.prefs = { ...state.prefs, ...p }) },
+      gpu: {
+        status: async () => ({ devices: [{ vendor: "nvidia", vendorId: 4318, deviceId: 9860, name: "NVIDIA GeForce RTX 4090", driver: "560.94", active: true }], features: { video_encode: "enabled" }, hardwareVideoEncode: true, hardwareVideoDecode: true, webgpu: true, switches: [], disabled: false }),
+        probeEncoders: async () => ({ ffmpeg: { path: "ffmpeg.exe", version: "7.1", bundled: true }, encoders: [{ id: "h264_nvenc", codec: "h264", kind: "nvenc", listed: true, works: true }], chosen: { h264: "h264_nvenc", hevc: null, av1: null }, error: null }),
+        benchmark: async () => [],
+      },
+      dialogs: { pickFolder: async () => "D:/Clips", pickMedia: async () => null },
+      render: { save: async () => { throw new Error("no render in this block"); }, cancel: async () => {} },
+      journal: { load: async () => null, save: async () => {} },
+      custom: { load: async () => null, save: async () => {} },
+      library: { list: async () => state.library, remove: async () => state.library, reveal: async () => {}, open: async () => {}, openFolder: async () => {}, read: async () => { throw new Error("no clip bytes in this block"); } },
+      ai: {
+        status: async () => ({ provider: "local", ready: true, local: { model: "llama-3.2-3b-instruct-q4km", loaded: true, backend: "vulkan", gpuLayers: 29, error: null }, cloud: { provider: "anthropic", baseUrl: "https://api.anthropic.com", model: "claude-opus-5-5", hasKey: false, encryption: true } }),
+        models: async () => [{ id: "llama-3.2-3b-instruct-q4km", name: "Llama 3.2 3B Instruct (Q4_K_M)", size: 2019377696, sha256: "x", licence: "Llama 3.2 Community License", licenceUrl: "https://www.llama.com/llama3_2/license/", url: "https://huggingface.co/x.gguf", state: "ready", downloaded: 2019377696, path: "C:/m.gguf", custom: false, selected: true }],
+        downloadModel: async () => [], cancelDownload: async () => {}, importModel: async () => [], selectModel: async () => ({}), removeModel: async () => [],
+        chat: async () => { throw new Error("no model in this block"); }, cancel: async () => {}, setCloud: async () => ({}), clearCloudKey: async () => ({}), playbook: async () => "",
+        diagnose: async () => ({ at: new Date().toISOString(), deep: false, checks: [], report: {} }),
+      },
+      update: {
+        // the app's updater: "checking", then a manual check's "none" (marked "manual") through the update event
+        check: async () => {
+          state.checks++;
+          emit("update", { ...none, state: "checking" });
+          await new Promise((r) => setTimeout(r, 100));
+          const answer = { ...none, message: "manual" };
+          emit("update", answer);
+          return answer;
+        },
+        install: async () => void state.installs++,
+        status: async () => none,
+      },
+      social: {
+        key: { status: async () => ({ configured: true, baseUrl: "https://api.postiz.com", encryption: true }), set: refuse, forget: async () => ({ configured: true, baseUrl: "https://api.postiz.com", encryption: true }) },
+        channels: { list: async () => channels },
+        notices: { list: async () => [] },
+        prepare: async (clipId) => (state.prepared.push(clipId), { path: "D:/Clips/earlier.mp4", bytes: 2400000, type: "video/mp4", durationSec: 12.5, width: 1080, height: 1920, transcoded: false }),
+        post: refuse,
+        posts: async () => [],
+        postDelete: async () => {},
+        audit: async () => [],
+        channelSettings: async () => ({}),
+        slot: async () => ({ date: new Date(now + 3600000).toISOString() }),
+        queue: { list: async () => state.queue, propose: async () => state.queue, approve: async (id, request) => refuse(request), edit: async () => state.queue, skip: async () => state.queue, remove: async () => state.queue },
+        autopilot: { get: async () => state.autopilot, set: async (p) => (state.autopilot = { ...state.autopilot, ...p }) },
+      },
+      on: (event, l) => {
+        if (!EVENTS.includes(event)) throw new Error("Unknown desktop event " + event);
+        (listeners[event] ||= []).push(l);
+        return () => { listeners[event] = listeners[event].filter((x) => x !== l); };
+      },
+    };
+    window.open = (url) => (state.opened.push(String(url)), null);
+    window.__fakeDesktop = { state, emit };
+  })();`;
+  const cctx = await browser.newContext({ viewport: { width: 1400, height: 1000 } });
+  await cctx.addInitScript(CURRENT_BRIDGE);
+  const cp = await cctx.newPage();
+  const currentErrors = [];
+  cp.on("pageerror", (e) => currentErrors.push(e.message));
+  cp.on("console", (m) => m.type() === "error" && !/favicon|Failed to load resource/.test(m.text()) && currentErrors.push(m.text()));
+  try {
+    await cp.goto(`${BASE}/en/simulator/`, { waitUntil: "networkidle" });
+    const shown = await cp.locator("[data-desktop-group]").waitFor({ timeout: 20000 }).then(() => true).catch(() => false);
+    const card = cp.getByTestId("postiz-post-card");
+
+    // every AI job, and Accounts with the channels Postiz has
+    await cp.getByTestId("desktop-tab-ai").click().catch(() => {});
+    await cp.getByTestId("ai-task-videos").waitFor({ timeout: 5000 }).catch(() => {});
+    const tasks = await cp.locator('[data-testid^="ai-task-"]').evaluateAll((els) => els.map((e) => e.getAttribute("data-testid").slice("ai-task-".length))).catch(() => []);
+    await cp.getByTestId("desktop-tab-accounts").click().catch(() => {});
+    await cp.getByTestId("postiz-channel").first().waitFor({ timeout: 5000 }).catch(() => {});
+    const channelNames = await cp.getByTestId("postiz-channel").allInnerTexts().catch(() => []);
+    const needsUpdate = await cp.getByTestId("desktop-needs-update").count();
+    check(
+      "desktop-current: with the current app's bridge the AI studio offers every job and Accounts lists the channels connected in Postiz",
+      shown && tasks.join(",") === "videos,copy,settings,ideas,fighter,mode,plan" && channelNames.length === 2 && channelNames.some((n) => n.includes("Smoke TikTok")) && channelNames.some((n) => n.includes("Smoke Shorts")) && needsUpdate === 0,
+      `(shown ${shown}, AI jobs ${tasks.join(",")}, channels ${JSON.stringify(channelNames.map((n) => n.replace(/\s+/g, " ")))}, needs-update notes ${needsUpdate})`,
+    );
+
+    // the Library's "Post with Postiz" (the key is stored) opens the approval card for the clip
+    await cp.getByTestId("desktop-tab-library").click().catch(() => {});
+    const postizTarget = cp.locator("[data-library-item]").first().getByTestId("library-target-postiz");
+    const targetShown = await postizTarget.waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+    await postizTarget.click().catch(() => {});
+    const cardShown = await card.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    const cardChannels = await cp.getByTestId("postiz-card-channel").count();
+    await cp.waitForFunction(() => window.__fakeDesktop.state.prepared.length > 0, null, { timeout: 5000 }).catch(() => {});
+    const prepared = await cp.evaluate(() => window.__fakeDesktop.state.prepared.slice());
+    await cp.getByTestId("postiz-card-close").click().catch(() => {});
+    const cardClosed = await card.waitFor({ state: "detached", timeout: 3000 }).then(() => true).catch(() => false);
+    check(
+      "desktop-current: the Library's Post with Postiz opens the approval card with the channels and the clip as Postiz takes it",
+      targetShown && cardShown && cardChannels === 2 && prepared.includes("lib-1") && cardClosed,
+      `(target ${targetShown}, card ${cardShown}, channels ${cardChannels}, prepared ${JSON.stringify(prepared)}, closed ${cardClosed})`,
+    );
+
+    // Posts: the Proposed group with the autopilot's proposal and the Autopilot card; Review opens the card with its reason
+    await cp.getByTestId("desktop-tab-posts").click().catch(() => {});
+    const proposal = cp.getByTestId("postiz-proposal");
+    const proposalShown = await proposal.first().waitFor({ timeout: 5000 }).then(() => true).catch(() => false);
+    const proposals = await proposal.count();
+    const autopilotCard = await cp.getByTestId("postiz-autopilot").isVisible().catch(() => false);
+    await proposal.first().getByTestId("postiz-proposal-review").click().catch(() => {});
+    const reviewShown = await card.waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+    const reason = await cp.getByTestId("postiz-card-reason").innerText().catch(() => "");
+    await cp.getByTestId("postiz-card-close").click().catch(() => {});
+    const posted = await cp.evaluate(() => window.__fakeDesktop.state.posted.length);
+    check(
+      "desktop-current: Posts shows the Proposed group and the Autopilot card, and Review opens the card with the planner's reason (nothing is posted)",
+      proposalShown && proposals === 1 && autopilotCard && reviewShown && reason.includes("The escape hook fits TikTok tonight.") && posted === 0,
+      `(proposals ${proposals}, autopilot card ${autopilotCard}, review card ${reviewShown}, reason "${reason.replace(/\s+/g, " ")}", posted ${posted})`,
+    );
+
+    // the top bar's update button: a manual check answers "You have the latest version"; a downloaded update is Restart and update
+    const button = cp.getByTestId("desktop-update-button");
+    const note = cp.getByTestId("desktop-update-note");
+    const firstKind = await button.getAttribute("data-update-kind").catch(() => null);
+    await button.click().catch(() => {});
+    const latest = await cp.waitForFunction(() => document.querySelector('[data-testid="desktop-update-note"]')?.getAttribute("data-note") === "latest", null, { timeout: 5000 }).then(() => true).catch(() => false);
+    const latestText = await note.innerText().catch(() => "");
+    await cp.evaluate(() => window.__fakeDesktop.emit("update", { state: "ready", version: "1.5.1", progress: 1, message: null }));
+    const installKind = await cp.waitForFunction(() => document.querySelector('[data-testid="desktop-update-button"]')?.getAttribute("data-update-kind") === "install", null, { timeout: 5000 }).then(() => true).catch(() => false);
+    const installText = await button.innerText().catch(() => "");
+    await button.click().catch(() => {});
+    await cp.waitForFunction(() => window.__fakeDesktop.state.installs > 0, null, { timeout: 3000 }).catch(() => {});
+    const { checks, installs } = await cp.evaluate(() => ({ checks: window.__fakeDesktop.state.checks, installs: window.__fakeDesktop.state.installs }));
+    check(
+      "desktop-current: the top bar's update button checks on a click, says You have the latest version, and offers Restart and update for a downloaded update",
+      firstKind === "check" && checks === 1 && latest && latestText.includes("You have the latest version") && installKind && installText.includes("Restart and update") && installs === 1,
+      `(kind ${firstKind}, checks ${checks}, note ${latest} "${latestText}", install ${installKind} "${installText.replace(/\s+/g, " ")}", installs ${installs})`,
+    );
+    await cp.screenshot({ path: path.join(outDir, "desktop-current.png") });
+  } finally {
+    await cctx.close().catch(() => {});
+  }
+  check("desktop-current: no page errors in the Desktop group", currentErrors.length === 0, currentErrors.length ? `\n   ${currentErrors.slice(0, 5).join("\n   ")}` : "");
+}
+// --- end desktop-current ---
 });
 
 await smokeBlock("review-fix-ui-i18n", async () => {

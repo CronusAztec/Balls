@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import type { DesktopApi, DesktopInfo, DesktopPrefs, LibraryItem, MediaKind, UpdateStatus } from "@/lib/desktop/contract";
 import { getDesktop, pickedToFile } from "@/lib/desktop/bridge";
+import { hasSocial } from "@/lib/desktop/capabilities"; // --- old-bridge --- what the app the page runs in can do
 import { setHardwarePreferred } from "@/lib/desktop/gpuEncode";
 import { mediaKindOfName } from "@/lib/desktop/mediaKinds";
 import { aiClipSource, presetForPlatform, seedSource } from "@/lib/desktop/queueSources";
@@ -27,6 +28,7 @@ import { loadClipEdit, localClipEdit, parseClipEdit } from "@/lib/clipEdit/spec"
 import AccountsPanel from "../desktop/AccountsPanel"; // --- social-postiz --- the Postiz key and channels
 import PostizPostCard, { type CardPrefill } from "../desktop/PostizPostCard"; // --- social-postiz --- phase 2: the approval card and the Posts tab
 import PostsPanel from "../desktop/PostsPanel";
+import NeedsNewerApp from "../desktop/NeedsNewerApp"; // --- old-bridge --- a tab whose feature this app does not have yet
 import WhatsNew from "../desktop/WhatsNew"; // --- changelog ---
 import UpdateButton, { useUpdateCheck } from "../desktop/UpdateButton"; // --- manual-update --- the top bar's update control (every tab)
 import { pageMakesVideo, queueMakesVideo, updateReadyKey, updateWaitKey } from "@/lib/desktop/updateButton"; // --- manual-update ---
@@ -42,6 +44,10 @@ import { IconClose } from "@/components/ui/icons"; // --- site-redesign ---
  * `window.desktop`), under the simulator – GPU, Render queue, AI studio and Library. It also answers the app's menu, tray and
  * shortcuts, and opens media dropped on the window, picked in the native dialogs or passed to the app with the page's own
  * upload handlers. On the website it renders nothing and changes nothing.
+ *
+ * --- old-bridge --- The app may be older than the page (its bridge keeps apiVersion 1 while channels are added): what came
+ * later is asked of lib/desktop/capabilities.ts first, a tab whose feature the app lacks says which version brings it, and an
+ * error in the group stops the group only (without a boundary React unmounts the whole page, the simulator with it).
  */
 
 export const DESKTOP_TABS = ["gpu", "queue", "ai", "library", "accounts" /* --- social-postiz --- */, "posts" /* --- social-postiz --- phase 2: what became of the posts ("queue" is the render queue) */] as const;
@@ -56,9 +62,38 @@ export default function DesktopSection({ page }: { page: DesktopPageHooks }) {
   if (!bridge) return null;
   return (
     <>
-      <DesktopStudio bridge={bridge} page={page} />
+      <DesktopBoundary bridge={bridge}>
+        <DesktopStudio bridge={bridge} page={page} />
+      </DesktopBoundary>
       <WhatsNew /* --- changelog --- the notice after an update (fixed on the screen, so it takes no place in the grid) */ />
     </>
+  );
+}
+
+/** --- old-bridge --- An error in the Desktop group stops the group, not the page: it says so, and the app's log gets it. */
+class DesktopBoundary extends Component<{ bridge: DesktopApi; children: ReactNode }, { error: string | null }> {
+  state: { error: string | null } = { error: null };
+  static getDerivedStateFromError(err: unknown) {
+    return { error: errorText(err) };
+  }
+  componentDidCatch(err: unknown) {
+    try {
+      this.props.bridge.log("error", `Desktop group stopped: ${errorText(err)}`);
+    } catch {
+      // the log is a courtesy: the group's note says it already
+    }
+  }
+  render() {
+    return this.state.error === null ? this.props.children : <DesktopFailed error={this.state.error} />;
+  }
+}
+
+function DesktopFailed({ error }: { error: string }) {
+  const t = useTranslations("Desktop");
+  return (
+    <section className="lg:col-span-3 bg-bg/70 border border-danger/60 rounded-xl p-3 sm:p-4 text-xs text-ink-2" data-desktop-failed="" role="alert" aria-label={t("groupTitle")}>
+      {t("groupFailed", { error })}
+    </section>
   );
 }
 
@@ -82,6 +117,8 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   // --- social-postiz --- phase 2: whether a Postiz key is stored (the Library's "Post with Postiz" needs one) and the open card
   const [postizConfigured, setPostizConfigured] = useState(false);
   const [postizCard, setPostizCard] = useState<{ item: LibraryItem; prefill?: CardPrefill } | null>(null);
+  // --- old-bridge --- the bridge with Postiz, the queue and the autopilot (app 1.4.0), or null in an older app
+  const socialBridge = useMemo(() => (hasSocial(bridge) ? bridge : null), [bridge]);
 
   useEffect(() => {
     bridge.prefs
@@ -116,15 +153,16 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
   useEffect(() => onLibraryChanged(refreshLibrary), [refreshLibrary]);
   // --- social-postiz --- the key's status, read again whenever the tab changes (a key saved or forgotten in Accounts)
   useEffect(() => {
+    if (!socialBridge) return; // --- old-bridge --- an app without Postiz: no key, no "Post with Postiz"
     let gone = false;
-    bridge.social.key
+    socialBridge.social.key
       .status()
       .then((s) => !gone && setPostizConfigured(s.configured))
       .catch(() => {});
     return () => {
       gone = true;
     };
-  }, [bridge, tab]);
+  }, [socialBridge, tab]);
 
   // --- ai-cut --- a job that carries a cut is cut after it is saved; a cut that fails is said here, the clip itself is in the Library
   const queue = useRenderQueue(bridge, pageRef, prefs?.outputFolder ?? "", refreshLibrary, {
@@ -370,15 +408,17 @@ function DesktopStudio({ bridge, page }: { bridge: DesktopApi; page: DesktopPage
         </div>
       )}
       {/* --- social-postiz --- the approval card, above whatever tab is open (it stays while the user looks at the Library or the Posts tab) */}
-      {postizCard && <PostizPostCard key={`${postizCard.item.id}:${postizCard.prefill?.queueItemId ?? (postizCard.prefill ? "retry" : "new")}`} bridge={bridge} item={postizCard.item} prefill={postizCard.prefill} onClose={() => setPostizCard(null)} />}
+      {postizCard && socialBridge && <PostizPostCard key={`${postizCard.item.id}:${postizCard.prefill?.queueItemId ?? (postizCard.prefill ? "retry" : "new")}`} bridge={socialBridge} item={postizCard.item} prefill={postizCard.prefill} onClose={() => setPostizCard(null)} />}
       {tab === "gpu" && <GpuPanel bridge={bridge} prefs={prefs} info={info} update={update} rendering={rendering} updateAsking={updateCheck.asking} onCheckUpdates={updateCheck.check} onPrefs={changePrefs} />}
       {tab === "queue" && <QueuePanel bridge={bridge} queue={queue} page={page} folder={prefs.outputFolder} onFolder={(outputFolder) => changePrefs({ outputFolder })} />}
       {tab === "ai" && <AiPanel ai={ai} custom={custom} prefs={prefs} page={page} onQueueTab={() => show("queue")} bridge={bridge} /* --- desktop-ai-fix --- (the AI status panel) */ />}
       {tab === "library" && <LibraryPanel bridge={bridge} items={library} onRefresh={refreshLibrary} onRerender={(item) => void rerender(item)} onSuggestCut={ai.status?.ready ? suggestLibraryCut : undefined /* --- ai-cut --- */} />}
-      {tab === "accounts" && <AccountsPanel bridge={bridge} /* --- social-postiz --- */ />}
-      {tab === "posts" && (
+      {/* --- old-bridge --- Accounts and Posts in an app older than Postiz: the version that brings them */}
+      {tab === "accounts" && (socialBridge ? <AccountsPanel bridge={socialBridge} /* --- social-postiz --- */ /> : <NeedsNewerApp capability="social" />)}
+      {tab === "posts" && !socialBridge && <NeedsNewerApp capability="social" />}
+      {tab === "posts" && socialBridge && (
         <PostsPanel
-          bridge={bridge}
+          bridge={socialBridge}
           onRetry={(item, prefill) => setPostizCard({ item, prefill })}
           onAccounts={() => show("accounts")}
           /* --- social-postiz --- phase 2 */

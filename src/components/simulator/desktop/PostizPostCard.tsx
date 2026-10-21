@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import type { DesktopApi, LibraryItem, PostizChannel, SocialChannelSettings, SocialPostOutcome, SocialPostResult, SocialPreparedClip, SocialProgressEvent } from "@/lib/desktop/contract";
+import type { LibraryItem, PostizChannel, SocialChannelSettings, SocialPostOutcome, SocialPostResult, SocialPreparedClip, SocialProgressEvent } from "@/lib/desktop/contract";
+import type { SocialBridge } from "@/lib/desktop/capabilities"; // --- old-bridge --- (opened only with an app that has Postiz)
 import {
   TIKTOK_INTERACTIONS,
   TIKTOK_PRIVACY,
@@ -95,7 +96,7 @@ export function initialCardState(item: LibraryItem, prefill?: CardPrefill): Post
   return { channels: null, schemas: {}, draft: { clipId: item.id, channels: [], when: prefill?.when !== undefined ? prefilledWhen(prefill.when) : { kind: "now" } }, prepared: null, busy: false, progress: null, result: null, outcomes: {}, polling: false, error: null, slotBusy: false };
 }
 
-export default function PostizPostCard({ bridge, item, prefill, onClose, onPosted }: { bridge: DesktopApi; item: LibraryItem; prefill?: CardPrefill; onClose: () => void; onPosted?: () => void }) {
+export default function PostizPostCard({ bridge, item, prefill, onClose, onPosted }: { bridge: SocialBridge; item: LibraryItem; prefill?: CardPrefill; onClose: () => void; onPosted?: () => void }) {
   const [state, setState] = useState<PostCardState>(() => initialCardState(item, prefill));
   const patch = useCallback((p: Partial<PostCardState> | ((s: PostCardState) => Partial<PostCardState>)) => setState((s) => ({ ...s, ...(typeof p === "function" ? p(s) : p) })), []);
   const pollTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

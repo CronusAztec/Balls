@@ -9,7 +9,11 @@
  */
 import type { ClipEditSpec } from "@/lib/clipEdit/spec"; // --- ai-cut --- (a type only: the main process never loads the page's modules)
 
-/** Bumped when a channel changes shape; the page ignores a bridge of another major version (`getDesktop()`). */
+/**
+ * Bumped when a channel changes shape; the page ignores a bridge of another major version (`getDesktop()`). A new channel does not
+ * bump it: --- old-bridge --- the page finds out what the app it runs in offers (lib/desktop/capabilities.ts), so the
+ * namespaces and methods added after the first release (Windows app 1.0.1) are optional in `DesktopApi` below.
+ */
 export const DESKTOP_API_VERSION = 1;
 
 /** Request / response channels (`ipcRenderer.invoke` ↔ `ipcMain.handle`). */
@@ -809,7 +813,11 @@ export interface DesktopEventMap {
 }
 export type DesktopEventName = keyof DesktopEventMap;
 
-/** What `window.desktop` offers the page (desktop/src/preload.ts implements it). */
+/**
+ * What `window.desktop` offers the page (desktop/src/preload.ts implements it). --- old-bridge --- What came after the first
+ * release (Windows app 1.0.1) is optional, with the version that brought it: an older app's bridge has the same apiVersion
+ * without it, so the page asks lib/desktop/capabilities.ts before it uses one (the compiler holds every use to that).
+ */
 export interface DesktopApi {
   apiVersion: number;
   info(): Promise<DesktopInfo>;
@@ -836,8 +844,8 @@ export interface DesktopApi {
     load(): Promise<unknown>;
     save(journal: unknown): Promise<void>;
   };
-  /** --- custom-content --- The player's own fighters and modes, as one document (src/lib/desktop/custom.ts); null until something is saved. */
-  custom: {
+  /** --- custom-content --- The player's own fighters and modes, as one document (src/lib/desktop/custom.ts); null until something is saved. Since app 1.2.0. */
+  custom?: {
     load(): Promise<unknown>;
     save(content: unknown): Promise<void>;
   };
@@ -863,17 +871,20 @@ export interface DesktopApi {
     setCloud(config: CloudConfigInput): Promise<AiStatus>;
     clearCloudKey(): Promise<AiStatus>;
     playbook(): Promise<string>;
-    /** --- desktop-ai-fix --- The AI status panel's checks (and its copyable report). */
-    diagnose(options?: AiDiagnoseOptions): Promise<AiDiagnosis>;
+    /** --- desktop-ai-fix --- The AI status panel's checks (and its copyable report). Since app 1.0.3. */
+    diagnose?(options?: AiDiagnoseOptions): Promise<AiDiagnosis>;
   };
   update: {
     check(): Promise<UpdateStatus>;
     install(): Promise<void>;
-    /** --- low-findings-2 --- The updater's status as it is, without a check (the page's mount: the quiet schedule does the checking). */
-    status(): Promise<UpdateStatus>;
+    /** --- low-findings-2 --- The updater's status as it is, without a check (the page's mount: the quiet schedule does the checking). Since app 1.1.0. */
+    status?(): Promise<UpdateStatus>;
   };
-  /** --- social-postiz --- The Accounts tab: the Postiz key (stored sealed on this PC), the channels connected in Postiz and its notices. */
-  social: {
+  /**
+   * --- social-postiz --- The Accounts tab: the Postiz key (stored sealed on this PC), the channels connected in Postiz and its notices.
+   * Since app 1.4.0 (with its events socialProgress and socialQueue), with the proposal queue and the autopilot.
+   */
+  social?: {
     key: {
       status(): Promise<PostizKeyStatus>;
       /** Checks the key with Postiz and keeps it; a refused key throws and the previous key stays. */

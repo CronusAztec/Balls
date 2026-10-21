@@ -1,4 +1,5 @@
-import type { AutopilotSettings, DesktopApi, PostizChannel, SocialProposalInput, SocialQueueItem } from "../contract";
+import type { AutopilotSettings, PostizChannel, SocialProposalInput, SocialQueueItem } from "../contract";
+import type { SocialBridge } from "../capabilities"; // --- old-bridge --- (an app with Postiz, the queue and the autopilot)
 import { plannerChannels, proposalsLeftToday, toQueueProposals, unpostedClips } from "../autopilot";
 import { runAgent, type AgentEvent, type ChatModel } from "./agent";
 import { planTask, type PlanOutcome, type PlanResult } from "./plan";
@@ -30,7 +31,7 @@ export interface PlanRunOptions {
   pendingCuts?: readonly string[];
 }
 
-export async function runPlanner(bridge: Pick<DesktopApi, "library" | "social" | "ai">, model: ChatModel, options: PlanRunOptions): Promise<PlanRunOutcome> {
+export async function runPlanner(bridge: Pick<SocialBridge, "library" | "social" | "ai">, model: ChatModel, options: PlanRunOptions): Promise<PlanRunOutcome> {
   const now = options.now ?? Date.now();
   const settings = options.settings ?? (await bridge.social.autopilot.get());
   const [library, queue, audit, allChannels, posts] = await Promise.all([bridge.library.list(), options.queue ?? bridge.social.queue.list(), bridge.social.audit(500), bridge.social.channels.list(), bridge.social.posts(14).catch(() => [])]);

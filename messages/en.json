@@ -4868,6 +4868,9 @@
     "privacyTitle": "Privacy",
     "privacyBody": "Everything runs on your PC. The local AI works offline. A cloud key you enter is stored encrypted and only sent to the provider you chose. The app sends us no usage data. It goes online to check for updates, to buy, restore or renew your Pro licence, to download a model you asked for, and for the account and publishing features you use. The privacy policy lists each one.",
     "updateLater": "Later",
+    "needsNewerAppTitle": "Needs a newer app",
+    "needsNewerApp": "This needs version {version} of the Windows app or newer. Update the app with the button at the top of this group.",
+    "groupFailed": "The desktop studio stopped because of an error ({error}). The simulator still works. Restart the app to try again.",
     "updateWaitRender": "A video is still being made. Wait for it to finish, or quit the app and the update installs as it closes.",
     "updateWaitRenderManual": "A video is still being made. Press Restart and update when it is done.",
     "updateButton": {

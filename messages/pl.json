@@ -4868,6 +4868,9 @@
     "privacyTitle": "Prywatność",
     "privacyBody": "Wszystko działa na Twoim komputerze. Lokalna AI działa offline. Wpisany klucz do chmury jest zapisany w postaci zaszyfrowanej i wysyłany tylko do wybranego dostawcy. Aplikacja nie wysyła nam danych o użyciu. Łączy się z internetem, żeby sprawdzić aktualizacje, kupić, przywrócić lub odnowić licencję Pro, pobrać model, o który poprosisz, oraz dla funkcji konta i publikowania, z których korzystasz. Polityka prywatności opisuje każdy z tych przypadków.",
     "updateLater": "Później",
+    "needsNewerAppTitle": "Potrzebna nowsza aplikacja",
+    "needsNewerApp": "To wymaga aplikacji na Windows w wersji {version} lub nowszej. Zaktualizuj aplikację przyciskiem u góry tej grupy.",
+    "groupFailed": "Studio desktopowe zatrzymało się z powodu błędu ({error}). Symulator nadal działa. Uruchom aplikację ponownie, żeby spróbować jeszcze raz.",
     "updateWaitRender": "Wideo jeszcze powstaje. Poczekaj, aż będzie gotowe, albo zamknij aplikację, a aktualizacja zainstaluje się przy zamykaniu.",
     "updateWaitRenderManual": "Wideo jeszcze powstaje. Gdy będzie gotowe, kliknij Uruchom ponownie i zaktualizuj.",
     "updateButton": {

@@ -2,9 +2,10 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
-import { POSTIZ_DEFAULT_URL, type DesktopApi, type PostizChannel, type PostizConnection, type PostizKeyInput, type PostizKeyStatus, type PostizNotice } from "@/lib/desktop/contract";
+import { POSTIZ_DEFAULT_URL, type PostizChannel, type PostizConnection, type PostizKeyInput, type PostizKeyStatus, type PostizNotice } from "@/lib/desktop/contract";
 import { EntitlementRequiredError, requireEntitlement, type EntitlementDecision, type EntitlementRefusal } from "@/lib/billing/guard";
 import { requestUnlock } from "@/lib/billing/unlock";
+import type { SocialBridge } from "@/lib/desktop/capabilities"; // --- old-bridge --- (the section shows this tab only with an app that has Postiz)
 import { Card, dangerBtn, errorText, ghostBtn, inputClass, primaryBtn } from "./ui";
 
 /*
@@ -56,7 +57,7 @@ export interface SaveKeyDeps {
  * Saves a key through the bridge – after the Pro guard: a refusal opens the Unlock dialog and throws, and nothing reaches the
  * main process (the tests hand in their own guard and dialog).
  */
-export async function savePostizKey(bridge: Pick<DesktopApi, "social">, input: PostizKeyInput, deps: SaveKeyDeps = {}): Promise<PostizConnection> {
+export async function savePostizKey(bridge: Pick<SocialBridge, "social">, input: PostizKeyInput, deps: SaveKeyDeps = {}): Promise<PostizConnection> {
   const decision = await (deps.require ?? requireEntitlement)("publish");
   if (!decision.ok) {
     (deps.unlock ?? requestUnlock)(decision);
@@ -77,7 +78,7 @@ export interface AccountsViewState {
   busy: boolean;
 }
 
-export default function AccountsPanel({ bridge }: { bridge: DesktopApi }) {
+export default function AccountsPanel({ bridge }: { bridge: SocialBridge }) {
   const t = useTranslations("Desktop");
   const [state, setState] = useState<AccountsViewState>({ status: null, channels: [], notices: [], error: null, message: null, busy: false });
   const patch = useCallback((p: Partial<AccountsViewState>) => setState((s) => ({ ...s, ...p })), []);

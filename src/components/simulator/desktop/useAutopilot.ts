@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AutopilotSettings, DesktopApi, LibraryItem, PostizChannel, SocialQueueItem } from "@/lib/desktop/contract";
 import { AUTOPILOT_CHECK_MS, DEFAULT_AUTOPILOT, shouldPlanNow } from "@/lib/desktop/autopilot";
+import { hasSocial, onDesktop } from "@/lib/desktop/capabilities"; // --- old-bridge ---
 import { bridgeChatModel } from "@/lib/desktop/ai/bridgeModel";
 import { runPlanner, type PlanRunOutcome } from "@/lib/desktop/ai/planRun";
 import { aiErrorText } from "./useDesktopAi";
@@ -15,6 +16,7 @@ import { aiErrorText } from "./useDesktopAi";
  * `perDay` proposals today) and, when it says so and the AI can answer, runs the planner on the app's model and puts its
  * proposals in the queue as the AI's. The planner only proposes: posting happens on the approval card, nowhere else.
  * The hook lives in the Desktop group's section, so it runs whenever the group is shown, whichever tab is open.
+ * --- old-bridge --- With an app older than the queue (before 1.4.0) it stays empty and never asks the bridge.
  */
 
 export interface AutopilotApi {
@@ -40,7 +42,8 @@ export interface AutopilotApi {
 export const AUTOPILOT_FIRST_CHECK_MS = 60_000;
 
 /** `pendingCuts`: the render queue's jobs whose TikTok cut is still being made (useRenderQueue), left for a later run. */
-export function useAutopilot(bridge: DesktopApi | null, locale: string, canPlan: () => boolean, pendingCuts?: () => readonly string[]): AutopilotApi {
+export function useAutopilot(appBridge: DesktopApi | null, locale: string, canPlan: () => boolean, pendingCuts?: () => readonly string[]): AutopilotApi {
+  const bridge = useMemo(() => (hasSocial(appBridge) ? appBridge : null), [appBridge]); // --- old-bridge ---
   const [settings, setSettingsState] = useState<AutopilotSettings | null>(null);
   const [queue, setQueue] = useState<SocialQueueItem[]>([]);
   const [library, setLibrary] = useState<LibraryItem[]>([]);
@@ -67,7 +70,7 @@ export function useAutopilot(bridge: DesktopApi | null, locale: string, canPlan:
   useEffect(refresh, [refresh]);
   useEffect(() => {
     if (!bridge) return;
-    return bridge.on("socialQueue", (items) => {
+    return onDesktop(bridge, "socialQueue", (items) => {
       setQueue(items);
       void bridge.library.list().then(setLibrary).catch(() => {});
     });

@@ -8,13 +8,14 @@ import { NextIntlClientProvider } from "next-intl";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
-import { BRIDGE_METHODS, EVENT_CHANNELS, IPC, checkIpcArgs, checkSocialProposals, type AiMessage, type AutopilotSettings, type DesktopApi, type LibraryItem, type PostizChannel, type SocialAuditEntry, type SocialQueueItem } from "@/lib/desktop/contract";
+import { BRIDGE_METHODS, EVENT_CHANNELS, IPC, checkIpcArgs, checkSocialProposals, type AiMessage, type AutopilotSettings, type LibraryItem, type PostizChannel, type SocialAuditEntry, type SocialQueueItem } from "@/lib/desktop/contract";
 import { DEFAULT_AUTOPILOT, clipVideoKey, inQuietHours, inQuietMinutes, nextAllowedTime, planRefusal, proposalsLeftToday, proposalsToday, sanitizeAutopilot, shouldPlanNow, toQueueProposals, unpostedClips, type PlanClip } from "@/lib/desktop/autopilot";
 import { editCutJobId } from "@/lib/clipEdit/propose";
 import { validateJson } from "@/lib/desktop/ai/jsonSchema";
 import { runAgent, type ChatModel } from "@/lib/desktop/ai/agent";
 import { checkPlanResult, normalisePlanResult, planFinal, planTask, whenProblem, type PlanOptions, type PlanResult } from "@/lib/desktop/ai/plan";
 import { runPlanner } from "@/lib/desktop/ai/planRun";
+import type { SocialBridge } from "@/lib/desktop/capabilities";
 import { AI_TASKS } from "@/components/simulator/desktop/useDesktopAi";
 import { AutopilotView, ProposedView, prefillOfProposal, proposedItems } from "@/components/simulator/desktop/PostsPanel";
 import { PostizPostCardView, initialCardState, prefilledSettings, prefilledWhen, type PostCardState } from "@/components/simulator/desktop/PostizPostCard";
@@ -308,7 +309,7 @@ describe("runPlanner", () => {
         channels: { list: async () => channels },
         posts: async () => [{ id: "p1", channel: { id: "int-tt", name: "Gerald on TikTok", platform: "tiktok", picture: null }, state: "PUBLISHED" as const, publishDate: iso(NOW - 86_400_000), releaseUrl: null, error: null, content: "Yesterday" }],
       },
-    } as unknown as Pick<DesktopApi, "library" | "social" | "ai">;
+    } as unknown as Pick<SocialBridge, "library" | "social" | "ai">;
     return { api, proposed };
   };
   const answer = JSON.stringify({ action: "final", result: { proposals: [{ clipId: "clip-1", channels: [{ integrationId: "int-tt", text: "Which floor breaks first?", hashtags: ["#glass"] }], when: "now", reason: "Lunchtime did well." }] } });

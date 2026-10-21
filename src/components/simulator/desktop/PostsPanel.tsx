@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { AUTOPILOT_LANGUAGES, type AutopilotSettings, type DesktopApi, type LibraryItem, type PostizChannel, type PostizNotice, type SocialAuditEntry, type SocialPostOutcome, type SocialQueueItem } from "@/lib/desktop/contract";
+import { AUTOPILOT_LANGUAGES, type AutopilotSettings, type LibraryItem, type PostizChannel, type PostizNotice, type SocialAuditEntry, type SocialPostOutcome, type SocialQueueItem } from "@/lib/desktop/contract";
 import { AUTOPILOT_PER_DAY_MAX, AUTOPILOT_PER_DAY_MIN } from "@/lib/desktop/autopilot"; // --- social-autopilot ---
+import type { SocialBridge } from "@/lib/desktop/capabilities"; // --- old-bridge --- (the section shows this tab only with an app that has Postiz)
 import type { CardPrefill } from "./PostizPostCard";
 import type { AutopilotApi } from "./useAutopilot"; // --- social-autopilot ---
 import { platformLabel } from "./AccountsPanel";
@@ -59,7 +60,7 @@ export function proposedItems(queue: readonly SocialQueueItem[]): SocialQueueIte
   return queue.filter((i) => i.status === "proposed" || i.status === "approved" || i.status === "failed");
 }
 
-export default function PostsPanel({ bridge, onRetry, onAccounts, autopilot, onReview }: { bridge: DesktopApi; onRetry: (item: LibraryItem, prefill: CardPrefill) => void; onAccounts: () => void; autopilot?: AutopilotApi; onReview?: (item: LibraryItem, prefill: CardPrefill) => void }) {
+export default function PostsPanel({ bridge, onRetry, onAccounts, autopilot, onReview }: { bridge: SocialBridge; onRetry: (item: LibraryItem, prefill: CardPrefill) => void; onAccounts: () => void; autopilot?: AutopilotApi; onReview?: (item: LibraryItem, prefill: CardPrefill) => void }) {
   const t = useTranslations("Desktop");
   const [state, setState] = useState<PostsViewState>({ configured: null, posts: [], notices: [], error: null, message: null, busy: false });
   const patch = useCallback((p: Partial<PostsViewState>) => setState((s) => ({ ...s, ...p })), []);

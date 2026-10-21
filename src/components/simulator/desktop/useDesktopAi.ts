@@ -23,6 +23,7 @@ import { messageOf, stripIpcPrefix } from "@/lib/desktop/errors"; // --- desktop
 import { runPlanner } from "@/lib/desktop/ai/planRun";
 import type { PlanResult } from "@/lib/desktop/ai/plan";
 import type { PostizChannel, SocialProposalInput } from "@/lib/desktop/contract";
+import { desktopCapabilities, hasCustom, hasSocial, type DesktopCapabilities } from "@/lib/desktop/capabilities"; // --- old-bridge ---
 
 /*
  * --- desktop-exe --- The AI panel's state: the model manager (catalog, downloads with progress, a picked GGUF, the cloud
@@ -37,6 +38,15 @@ import type { PostizChannel, SocialProposalInput } from "@/lib/desktop/contract"
 
 export const AI_TASKS = ["videos", "copy", "settings", "ideas", "fighter", "mode", "plan" /* --- social-autopilot --- proposals for the Posts tab */] as const; // --- custom-content --- (fighter, mode: the player's own, kept on this computer)
 export type AiTaskKind = (typeof AI_TASKS)[number];
+
+/**
+ * --- old-bridge --- The jobs the app the page runs in can do: "New fighter" and "New mode" keep what they make in the app
+ * (custom content, app 1.2.0), "Plan posts" reads Postiz and fills the proposal queue (app 1.4.0). An older app is not offered
+ * them (the model would run for minutes and the result could not be kept).
+ */
+export function aiTasksFor(caps: Pick<DesktopCapabilities, "custom" | "social">): AiTaskKind[] {
+  return AI_TASKS.filter((k) => (k === "fighter" || k === "mode" ? caps.custom : k === "plan" ? caps.social : true));
+}
 
 export type AiResult =
   | { kind: "videos"; result: MakeVideosResult; plans: ClipPlan[]; started: boolean /* --- ai-cut --- whether this run started the queue */ }
@@ -74,6 +84,8 @@ export interface DesktopAiApi {
   progress: Record<string, ModelProgressEvent>;
   task: AiTaskKind;
   setTask: (task: AiTaskKind) => void;
+  /** --- old-bridge --- The jobs this app can do (aiTasksFor), in AI_TASKS order. */
+  tasks: readonly AiTaskKind[];
   running: boolean;
   stream: string;
   log: AiLogLine[];
@@ -131,6 +143,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
   const abortRef = useRef<AbortController | null>(null);
   const playbookRef = useRef<string | null>(null);
   const model = useMemo(() => (bridge ? bridgeChatModel(bridge) : null), [bridge]);
+  const tasks = useMemo(() => aiTasksFor(desktopCapabilities(bridge)), [bridge]); // --- old-bridge ---
 
   const refresh = useCallback(() => {
     if (!bridge) return;
@@ -197,7 +210,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
 
   const run = useCallback(
     (prompt: string, options: { platforms: BotPlatform[]; existing: string; cut?: boolean; start?: boolean }) => {
-      if (!bridge || !model || running) return;
+      if (!bridge || !model || running || !tasks.includes(task)) return; // --- old-bridge --- (a job this app cannot do is not offered)
       const page = pageRef.current;
       const controller = new AbortController();
       abortRef.current = controller;
@@ -268,7 +281,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
             } else pageRef.current.update(rest);
             setResult({ kind: "settings", result: out.result, changed });
           } else if (task === "fighter") {
-            if (!custom) throw new Error("This computer cannot keep custom fighters here.");
+            if (!custom || !hasCustom(bridge)) throw new Error("This computer cannot keep custom fighters here."); // --- old-bridge --- (the app keeps them since 1.2.0)
             if (custom.content.fighters.length >= MAX_CUSTOM_FIGHTERS) throw new Error(`You have ${MAX_CUSTOM_FIGHTERS} custom fighters: delete one to make another.`);
             const taken = new Set(FL_BY_ID.keys());
             const out = await runAgent(model, customFighterTask(prompt, page.locale, taken), { onEvent, signal: controller.signal });
@@ -286,7 +299,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
             if (!(await custom.addFighter(final.spec))) throw new Error("The fighter could not be saved on this computer.");
             setResult({ kind: "fighter", row: final.row, notes: built.notes, winRate: balanced.after });
           } else if (task === "mode") {
-            if (!custom) throw new Error("This computer cannot keep custom modes here.");
+            if (!custom || !hasCustom(bridge)) throw new Error("This computer cannot keep custom modes here.");
             const before = pageRef.current.settings;
             const out = await runAgent(model, customModeTask(prompt, before, page.locale), { onEvent, signal: controller.signal });
             if (!out.ok) throw new Error(out.error);
@@ -297,6 +310,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
             setResult({ kind: "mode", spec, result: out.result, changed });
           } else if (task === "plan") {
             // --- social-autopilot --- the plan job: proposals only (the user sends them to the queue, and approves each on the card)
+            if (!hasSocial(bridge)) throw new Error("This version of the app cannot plan posts. Update it first."); // --- old-bridge --- (app 1.4.0)
             if (playbookRef.current === null) playbookRef.current = await bridge.ai.playbook();
             const out = await runPlanner(bridge, model, { locale: page.locale, playbook: playbookRef.current, onEvent, signal: controller.signal, ignoreBudget: true, pendingCuts: pendingCuts?.() });
             if (!out.ok) {
@@ -322,13 +336,13 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
         }
       })();
     },
-    [bridge, model, running, task, pageRef, onClips, refresh, custom, applyPatch, pendingCuts],
+    [bridge, model, running, task, tasks, pageRef, onClips, refresh, custom, applyPatch, pendingCuts],
   );
 
   // --- social-autopilot --- "Send to Posts tab": the proposals become `proposed` items (by the AI); nothing is posted
   const sendToQueue = useCallback(async () => {
     const r = result;
-    if (!bridge || !r || r.kind !== "plan" || r.sent || r.proposals.length === 0) return;
+    if (!hasSocial(bridge) || !r || r.kind !== "plan" || r.sent || r.proposals.length === 0) return; // --- old-bridge ---
     setMessage(null);
     try {
       await bridge.social.queue.propose(r.proposals.slice(0, 5), "ai");
@@ -363,6 +377,7 @@ export function useDesktopAi(bridge: DesktopApi | null, pageRef: MutableRefObjec
     progress,
     task,
     setTask,
+    tasks, // --- old-bridge ---
     running,
     stream,
     log,

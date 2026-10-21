@@ -8,12 +8,13 @@ import { NextIntlClientProvider } from "next-intl";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
 import es from "../messages/es.json";
-import { BRIDGE_METHODS, EVENT_CHANNELS, IPC, POSTIZ_DEFAULT_URL, checkIpcArgs, type DesktopApi, type LibraryItem, type PostizChannel, type PostizConnection, type PostizKeyStatus, type PostizNotice, type SocialPostOutcome } from "@/lib/desktop/contract";
+import { BRIDGE_METHODS, EVENT_CHANNELS, IPC, POSTIZ_DEFAULT_URL, checkIpcArgs, type LibraryItem, type PostizChannel, type PostizConnection, type PostizKeyStatus, type PostizNotice, type SocialPostOutcome } from "@/lib/desktop/contract";
 import { AccountsView, POSTIZ_PLATFORM_NAMES, platformLabel, savePostizKey, type AccountsViewState } from "@/components/simulator/desktop/AccountsPanel";
 import { PostizPostCardView, initialCardState, type PostCardState } from "@/components/simulator/desktop/PostizPostCard";
 import { PostsView, clipOfPost, groupOf, type PostsViewState } from "@/components/simulator/desktop/PostsPanel";
 import { approveLabelKey, cardChannelOf, cardProblems, defaultSettingsFor, defaultTextFor, genericFieldsOf, isoToLocal, localToIso, toRequest, type CardChannel, type CardDraft, type TikTokSettings, type YouTubeSettings } from "@/lib/desktop/socialCard";
 import { EntitlementRequiredError, type EntitlementDecision } from "@/lib/billing/guard";
+import type { SocialBridge } from "@/lib/desktop/capabilities";
 
 /*
  * --- social-postiz --- The page's side of phase 1 (docs/SOCIAL-AUTOPILOT.md): the Accounts tab in every state it shows (no key,
@@ -53,7 +54,8 @@ describe("the Accounts tab", () => {
     const section = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "sections", "DesktopSection.tsx"), "utf8");
     expect(section).toMatch(/export const DESKTOP_TABS = \["gpu", "queue", "ai", "library", "accounts"/);
     expect(section).toContain("`desktop-tab-${id}`");
-    expect(section).toMatch(/tab === "accounts" && <AccountsPanel/);
+    // --- old-bridge --- (in an app older than Postiz the tab says which version brings it)
+    expect(section).toMatch(/tab === "accounts" && \(socialBridge \? <AccountsPanel bridge=\{socialBridge\}[^\n]*: <NeedsNewerApp capability="social" \/>\)/);
   });
 
   it("without a key: the paste card with the default address, a password field, the explanation, and no channel list", () => {
@@ -150,7 +152,7 @@ describe("saving a Postiz key is Pro", () => {
   const connection: PostizConnection = { organization: { id: "org-1", name: "Gerald Studio" }, channels };
   const bridge = () => {
     const set = vi.fn(async () => connection);
-    return { bridge: { social: { key: { set, status: vi.fn(), forget: vi.fn() }, channels: { list: vi.fn() }, notices: { list: vi.fn() } } } as unknown as Pick<DesktopApi, "social">, set };
+    return { bridge: { social: { key: { set, status: vi.fn(), forget: vi.fn() }, channels: { list: vi.fn() }, notices: { list: vi.fn() } } } as unknown as Pick<SocialBridge, "social">, set };
   };
 
   it("refuses without an entitlement: the Unlock dialog opens and nothing reaches the bridge", async () => {
@@ -290,8 +292,9 @@ describe("the Postiz approval card", () => {
   it("is opened from the Library's target and sits above the tabs; the Posts tab is the sixth", () => {
     const section = fs.readFileSync(path.join(__dirname, "..", "src", "components", "simulator", "sections", "DesktopSection.tsx"), "utf8");
     expect(section).toMatch(/export const DESKTOP_TABS = \["gpu", "queue", "ai", "library", "accounts"[^,\]]*, "posts"/);
-    expect(section).toMatch(/tab === "posts" && \(\s*<PostsPanel/); // --- social-autopilot --- (the panel takes the autopilot and Review now)
-    expect(section).toMatch(/postizCard && <PostizPostCard/);
+    expect(section).toMatch(/tab === "posts" && socialBridge && \(\s*<PostsPanel\s+bridge=\{socialBridge\}/); // --- social-autopilot --- (the panel takes the autopilot and Review now)
+    expect(section).toContain('{tab === "posts" && !socialBridge && <NeedsNewerApp capability="social" />}'); // --- old-bridge ---
+    expect(section).toMatch(/postizCard && socialBridge && <PostizPostCard/);
     expect(section).toContain("onOpenPostizCard: (item) =>");
   });
 
