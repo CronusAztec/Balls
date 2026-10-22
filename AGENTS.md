@@ -49,6 +49,9 @@ zone together with the core functions it touches (`zones`).
 
 Never report a subset as the whole check. If you could not run a tier, say so.
 
+If the guard fails `tests/perfGuards.test.ts` with "./out was built from <commit>", the git-ignored `out/` holds an export
+of another commit. Rebuild it (`npm run build`), remove it, or point `PERF_GUARD_OUT` at a fresh export.
+
 ## Architecture
 
 - **The site** is a static export (`next.config.ts`, `output: "export"`), finished by `scripts/postexport.mjs` (service
