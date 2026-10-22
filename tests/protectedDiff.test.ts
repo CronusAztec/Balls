@@ -154,7 +154,10 @@ describe("the fingerprint lock on the real tree (scripts/agent/protected.json)",
 
   it("sees one changed digit of the real BASELINE as exactly that mode's change", () => {
     const src = read("tests/extras.test.ts");
-    const head = src.replace("classic: { samples: [[468595,", "classic: { samples: [[468596,");
+    // the first digit of classic's first sample, whatever it is today, one up
+    const at = src.indexOf("classic: { samples: [[") + "classic: { samples: [[".length;
+    expect(at).toBeGreaterThan(30);
+    const head = `${src.slice(0, at)}${(Number(src[at]) + 1) % 10}${src.slice(at + 1)}`;
     expect(head).not.toBe(src);
     const changes = fingerprintChanges(PROTECTED.fingerprints, files({ "tests/extras.test.ts": [src, head] }), none);
     expect(changes.map((c) => `${c.mode} ${c.kind} ${c.acknowledged}`)).toEqual(["classic changed false"]);

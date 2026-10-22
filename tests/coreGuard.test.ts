@@ -250,7 +250,8 @@ describe("the verdict and the report", () => {
 
   it("writes the report with every lane, its duration and the findings (guard.mjs --plan --json, nothing executed)", () => {
     const r = spawnSync(process.execPath, [path.join(ROOT, "scripts/agent/guard.mjs"), "--plan", "--json", "--base", "HEAD"], { cwd: ROOT, encoding: "utf8", timeout: 60_000, env: { ...process.env, JBL_GUARD_CACHE: path.join(ROOT, ".agent-out", "cache", "test-plan") } });
-    expect(r.status, r.stderr).toBe(0);
+    // (exit 1 when the working tree itself holds an unacknowledged fingerprint change or a weakened test: the plan still reports)
+    expect([0, 1], r.stderr).toContain(r.status);
     const report = JSON.parse(r.stdout) as Record<string, unknown> & { plannedLanes: { id: string; steps: { id: string }[] }[]; mode: string; reportFile: string };
     for (const key of REPORT_KEYS) expect(report, key).toHaveProperty(key);
     expect(report.mode).toBe("plan");
