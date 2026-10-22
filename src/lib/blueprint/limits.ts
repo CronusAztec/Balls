@@ -56,6 +56,8 @@ export const BLUEPRINT_LIMITS = {
   actionsPerRule: 4,
   finishConditions: 3,
   hud: 2,
+  /** Sliders a spec offers (`params`, Mode Lab's panel and the `blv` link key). */
+  params: 4,
   palette: 6,
   teams: 6,
   /** Rings of a "rings" arena. */

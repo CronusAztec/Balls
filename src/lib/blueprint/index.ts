@@ -1,7 +1,8 @@
 /*
  * --- blueprint --- The Blueprint language v1: game modes as validated JSON data, run by one sandboxed interpreter. The
- * public face of src/lib/blueprint/ – the agent toolbox (src/lib/agentKit/blueprintKit.ts) and, from Mode Lab on, the
- * blueprint mode import it from here. docs/agents/BLUEPRINTS.md is the guide.
+ * public face of src/lib/blueprint/ – the agent toolbox (src/lib/agentKit/blueprintKit.ts), the tests and the page's panel
+ * import it from here; the blueprint mode (lib/physics/modes/blueprint.ts) imports the files it needs directly, since this
+ * index reaches the engine (the check plays specs on it). docs/agents/BLUEPRINTS.md is the guide.
  */
 export * from "./schema";
 export * from "./limits";
@@ -14,5 +15,8 @@ export { blueprintVocabulary, describeBlueprint, estimateTokens } from "./descri
 export * from "./check";
 export { BLUEPRINT_DOCS_FILE, renderBlueprintDocs } from "./docs";
 export { BLUEPRINT_CATALOG, BLUEPRINT_CATALOG_IDS, catalogBlueprint, isBlueprintCatalogId, type BlueprintCatalogId } from "./catalog";
-export { BlueprintRun, mulberry32, runBlueprint, type FinishReason, type RunOptions, type RunResult, type RunStats } from "./runtime/run";
-export { BlueprintWorld, FIXED_STEP_SEC, MIN_HIT_SPEED, GRAZE_RATIO, clockToAngle, type WorldBall, type WorldEvents } from "./runtime/world";
+export { applyBlueprintParams, formatParamValues, paramValue, parseParamValues } from "./params";
+export { BlueprintRun, blueprintMidi, blueprintSoundEvent, mulberry32, type FinishReason, type RunOptions, type RunResult, type RunStats } from "./runtime/run";
+export { BlueprintWorld, FIXED_STEP_SEC, MIN_HIT_SPEED, GRAZE_RATIO, clockToAngle, type WorldBall } from "./runtime/world";
+export type { WorldEvents } from "./runtime/events";
+export { BLUEPRINT_RUN_CONFIG, HeadlessBlueprint, runBlueprint, type HeadlessOptions } from "./headless";

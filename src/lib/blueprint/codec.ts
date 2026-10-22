@@ -93,6 +93,7 @@ export function compactBlueprint(bp: Blueprint): Record<string, unknown> {
   const ownVoices = withoutDefaults(voices, DEFAULT_VOICES);
   if (nonEmpty(ownVoices)) sound.voices = ownVoices;
   if (nonEmpty(sound)) out.sound = sound;
+  if (bp.params.length) out.params = bp.params.map((q) => withoutDefaults(q as unknown as Record<string, unknown>, { step: 1 }, ["id", "label", "at", "min", "max"]));
   return out;
 }
 

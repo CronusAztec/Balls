@@ -22,6 +22,7 @@ import {
   FORMULA_NAMES,
   OBSTACLE_DEFAULTS,
   OBSTACLE_KINDS,
+  PARAM_SECTIONS,
   TRIGGER_DOCS,
   TRIGGERS,
   WINNER_DOCS,
@@ -68,9 +69,10 @@ export function renderBlueprintDocs(): string {
     "link cannot freeze a tab.",
   );
   p(
-    "The language and its checks live in `src/lib/blueprint/` (pure: no DOM, no engine). The site plays Blueprints in the",
-    "`blueprint` mode (Mode Lab) once that mode is registered; until then the agent toolbox runs them headless with the same",
-    "interpreter (`src/lib/blueprint/runtime/`).",
+    "The language and its checks live in `src/lib/blueprint/` (pure data: no DOM, no engine). The site plays Blueprints in the",
+    "`blueprint` mode, Mode Lab (`src/lib/physics/modes/blueprint.ts`): the interpreter (`src/lib/blueprint/runtime/`) is hosted",
+    "by the engine, so live play, the fast export, the finder and the Windows app's queue all play a spec the same way. The",
+    "playability check and the agent toolbox run the same engine headless (`src/lib/blueprint/headless.ts`).",
   );
   p(
     "## Write one in four steps",
@@ -81,6 +83,10 @@ export function renderBlueprintDocs(): string {
     "3. Play it headless on four seeds: `npm run -s agent -- bp-check --json '{\"spec\":{…}}'`. Fix what the feedback says until",
     "   the verdict is `playable`.",
     "4. Get its link: `npm run -s agent -- bp-link --json '{\"spec\":{…}}'` (`?mode=blueprint&bls=b1.…`).",
+  );
+  p(
+    "A link keeps three keys: `blp` (a catalog id below), `bls` (a spec's code, played instead of the catalog entry) and `blv`",
+    "(the sliders' values, see Sliders). A code that cannot be read plays the catalog entry, with a note in Mode Lab's panel.",
   );
   p(
     "Every tool also takes `code` (a `b1.` code or a link holding one), `catalog` (an id below) or `lite` (the Lite form) instead",
@@ -117,6 +123,16 @@ export function renderBlueprintDocs(): string {
     ),
   );
   p(
+    "## Sliders (`params`, up to " + L.params + ")",
+    "",
+    "A spec may offer sliders, each `{ id, label, at, min, max, step }`: `at` is the path of one number of the resolved spec",
+    "(for example `arena.rings.count`, `tiles.hp`, `spawners[0].speed`), in one of these sections:",
+    `${PARAM_SECTIONS.map(code).join(", ")}.`,
+    "Mode Lab shows one slider each, and a link carries their values as `blv`, comma-separated (an empty place keeps the spec's",
+    "own value). A value past a slider's ends plays as typed: the spec is sanitized again, so only a structural ceiling or a",
+    "design domain puts it back in range, exactly as in a spec written that way.",
+  );
+  p(
     "## Formulas",
     "",
     "A number slot (a spawner's `count` and `speed`, an action's `count`, `speed`, `into`, `by`, `scale`, `amount`, `value`) also",
@@ -139,7 +155,8 @@ export function renderBlueprintDocs(): string {
   p(
     "## The playability check",
     "",
-    "`bp-check` runs the spec on seeds 1-4 and judges it on deterministic counts only (never wall time, so every machine agrees):",
+    "`bp-check` plays the spec in the engine on seeds 1-4, exactly as the page plays it, and judges it on deterministic counts",
+    "only (never wall time, so every machine agrees). Mode Lab's Check playability button runs the same check:",
     "",
     `- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between ${PLAYABLE_MIN_SEC} s and the timeout; no seed has a fault, a ball gone NaN, dropped events or firings, or ARENA FULL; the median seed plays at least ${PLAYABLE_MIN_SOUNDS} sounds; something moves within ${PLAYABLE_FIRST_MOTION_SEC} s;`,
     "- **endless:** every seed runs into the timeout;",

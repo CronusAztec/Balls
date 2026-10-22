@@ -65,6 +65,8 @@ import { BULLSEYE_RANGES, defaultBullseyeFields, readBullseyeParams, resolveBull
 import { MERGE_RING_RANGES, defaultMergeRingFields, mergeRingModeDefaults, readMergeRingParams, resolveMergeRingFields, writeMergeRingParams, type MergeRingFields } from "@/lib/physics/modes/mergeRing";
 // --- spiral-glass --- the Spiral Glass mode
 import { SPIRAL_GLASS_RANGES, defaultSpiralGlassFields, readSpiralGlassParams, resolveSpiralGlassFields, spiralGlassModeDefaults, writeSpiralGlassParams, type SpiralGlassFields } from "@/lib/physics/modes/spiralGlass";
+// --- blueprint --- Mode Lab: a game mode as data (a Blueprint)
+import { BLUEPRINT_ENGINE_KEYS, BLUEPRINT_RANGES, blueprintModeDefaults, defaultBlueprintFields, readBlueprintParams, resolveBlueprintFields, writeBlueprintParams, type BlueprintFields } from "@/lib/physics/modes/blueprint";
 // --- beat-drop --- the Beat Drop mode
 import { BEAT_DROP_RANGES, beatDropModeDefaults, defaultBeatDropFields, readBeatDropParams, resolveBeatDropFields, writeBeatDropParams, type BeatDropColorMode, type BeatDropSound } from "@/lib/physics/modes/beatDrop";
 import type { BeatDropScroll } from "@/lib/simulation/beatDropPlan";
@@ -790,6 +792,14 @@ export interface SimulatorSettings {
   /** Seconds of contact per hit point chipped, 0.1–1 (URL `sgc`). */
   sgChipEvery: number;
   // --- end spiral-glass ---
+  // --- blueprint --- Mode Lab (lib/physics/modes/blueprint.ts): a game mode described as data, played by one sandboxed interpreter
+  /** The catalog entry played when there is no spec of a link (lib/blueprint/catalog; URL `blp`). */
+  blPreset: string;
+  /** A Blueprint from a link or a share code, its `b1.` code; "" plays the catalog entry (URL `bls`). */
+  blSpec: string;
+  /** The values of the spec's sliders, comma-separated, an empty place keeping the spec's own (URL `blv`). */
+  blParams: string;
+  // --- end blueprint ---
   // --- beat-drop --- Beat Drop (lib/physics/modes/beatDrop.ts): a ball lands on obstructions that fly in on the beat
   /** The obstructions in the mix, a comma list of plank, block, spring, wedge, spinner, drum (URL `bdk`). */
   bdKinds: string;
@@ -1418,12 +1428,15 @@ export function defaultSettings(mode: ModeId = "classic"): SimulatorSettings {
     // --- spiral-glass --- the feature's fields, and the mode's own ball size (radius 11) in Spiral Glass only (out here too)
     ...defaultSpiralGlassFields(),
     ...spiralGlassModeDefaults(mode),
+    // --- blueprint --- the feature's fields (out here too; a Blueprint sizes and colours its own balls)
+    ...defaultBlueprintFields(),
+    ...blueprintModeDefaults(mode),
   };
 }
 
 
 /** The core of defaultSettings() – one object literal, kept under about 550 properties (see above). --- ring-escape --- */
-function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */> {
+function coreDefaultSettings(mode: ModeId): Omit<SimulatorSettings, keyof RingEscapeFields | keyof BrickRebuildFields /* --- brick-rebuild --- */ | keyof PerfectFitFields /* --- perfect-fit --- */ | keyof WaveTankFields /* --- wave-tank --- */ | keyof DrawingMachineFields /* --- drawing-machine --- */ | keyof MergeRingFields /* --- merge-ring --- */ | keyof SpiralGlassFields /* --- spiral-glass --- */ | keyof BlueprintFields /* --- blueprint --- */> {
   return {
     mode,
     gravity: 300,
@@ -1635,6 +1648,7 @@ export const RANGES = {
   ...BULLSEYE_RANGES, // --- gerald-bullseye ---
   ...MERGE_RING_RANGES, // --- merge-ring ---
   ...SPIRAL_GLASS_RANGES, // --- spiral-glass ---
+  ...BLUEPRINT_RANGES, // --- blueprint --- (none: a Blueprint's sliders are the spec's own)
   ...BEAT_DROP_RANGES, // --- beat-drop ---
   ...VIDEO_BEATS_RANGES, // --- video-beats ---
   ...TERRITORY_RANGES, // --- odd-territory ---
@@ -1902,6 +1916,7 @@ export function settingsToSearchParams(settings: SimulatorSettings): URLSearchPa
   writeBullseyeParams(settings, base, params); // --- gerald-bullseye ---: bys, byi, byc, byr, bym, byp
   writeMergeRingParams(settings, base, params); // --- merge-ring ---: mrt, mri, mrs, mrg, mrr
   writeSpiralGlassParams(settings, base, params); // --- spiral-glass ---: sgt, sgh, sgv, sgm, sgc, sgr
+  writeBlueprintParams(settings, base, params); // --- blueprint ---: blp, bls, blv
   writeBeatDropParams(settings, base, params); // --- beat-drop ---: bdk, bdd, bds, bdh, bda, bdsn, bdc, bdt
   writeVideoBeatsParams(settings, base, params); // --- video-beats ---: bsrc, bm, bdb, onbeat, obr, vbg, vbgo
   writeTerritoryParams(settings, base, params); // --- odd-territory ---: tyc, tyt, tyb, typ, tye, tyr, tyd, typg, tybg, tyh
@@ -2080,6 +2095,7 @@ export function settingsFromSearchParams(params: URLSearchParams): SimulatorSett
   readBullseyeParams(params, settings); // --- gerald-bullseye --- (clamped onto the sliders; bad values fall back)
   readMergeRingParams(params, settings); // --- merge-ring --- (clamped onto the sliders; bad values fall back)
   readSpiralGlassParams(params, settings); // --- spiral-glass --- (clamped onto the sliders; bad values fall back)
+  readBlueprintParams(params, settings); // --- blueprint --- (a known catalog id, a plausible code, clean slider values)
   readBeatDropParams(params, settings); // --- beat-drop --- (clamped onto the sliders; unknown kinds and options fall back)
   readVideoBeatsParams(params, settings); // --- video-beats --- (known source, markers re-encoded, clamped numbers)
   readTerritoryParams(params, settings); // --- odd-territory --- (valid numbers kept, no maximum; unknown powers fall back)
@@ -2313,6 +2329,7 @@ const MODE_ENGINE_KEYS: Readonly<Record<ModeId, readonly string[]>> = {
   bullseye: rangeKeys(BULLSEYE_RANGES),
   mergeRing: rangeKeys(MERGE_RING_RANGES), // --- merge-ring --- (the tiers, the interval, the spawn tiers and the gravity; the rainbow rim is the picture's)
   spiralGlass: rangeKeys(SPIRAL_GLASS_RANGES), // --- spiral-glass --- (the turns, the hit points, the speed, the ball cap and the chip time; the rainbow line is the picture's)
+  blueprint: [...BLUEPRINT_ENGINE_KEYS], // --- blueprint --- (the catalog entry, the link's spec and its slider values: every one is the run's)
   beatDrop: rangeKeys(BEAT_DROP_RANGES),
   territory: rangeKeys(TERRITORY_RANGES), // --- odd-territory ---
   maze: rangeKeys(MAZE_RANGES), // --- odd-maze ---
@@ -2565,6 +2582,7 @@ export function presetToSettings(preset: Partial<SimulatorSettings>): SimulatorS
   Object.assign(merged, resolveBullseyeFields(merged)); // --- gerald-bullseye --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveMergeRingFields(merged)); // --- merge-ring --- clamped numbers on their steps, a real boolean
   Object.assign(merged, resolveSpiralGlassFields(merged)); // --- spiral-glass --- clamped numbers on their steps, a real boolean
+  Object.assign(merged, resolveBlueprintFields(merged)); // --- blueprint --- a known catalog id, a plausible code, clean slider values
   Object.assign(merged, resolveBeatDropFields(merged)); // --- beat-drop --- a clean mix, clamped numbers, known options, a real boolean
   Object.assign(merged, resolveVideoBeatsFields(merged)); // --- video-beats --- known source, markers re-encoded, clamped numbers, real booleans
   Object.assign(merged, resolveTerritoryFields(merged)); // --- odd-territory --- valid numbers (no maximum), 2 or 4 teams, known powers, real booleans

@@ -153,6 +153,8 @@ MODE_CARD_ORDER.push("journey");
   const at = MODE_CARD_ORDER.indexOf("mergeRing");
   MODE_CARD_ORDER.splice(at >= 0 ? at + 1 : MODE_CARD_ORDER.length, 0, "spiralGlass");
 }
+// --- blueprint --- Mode Lab opens its own family, the lab (new games made of data), after every other card
+MODE_CARD_ORDER.push("blueprint");
 
 /**
  * The families of modes, each under its own heading on the mode cards (`CATEGORY_HEADINGS` in
@@ -160,9 +162,10 @@ MODE_CARD_ORDER.push("journey");
  * - "escape": the ring formats (a ball working its way out of concentric walls) plus Power Layers and the Multipliers board;
  * - "rhythm": the project.jdm and Gerald sound-first formats, where every hit is a note and the physics writes a polyrhythm;
  * - "battle": the oddplayground duels, last ball standing;
- * - "journey": multi-stage runs home.
+ * - "journey": multi-stage runs home;
+ * - "lab": Mode Lab, new games made of data (Blueprints), after every other family.
  */
-export const MODE_CATEGORY_IDS = ["escape", "rhythm", "battle", "journey"] as const; // --- odd-string-battle --- ("battle": the oddplayground duels, last ball standing) --- gerald-journey --- ("journey": multi-stage runs home)
+export const MODE_CATEGORY_IDS = ["escape", "rhythm", "battle", "journey", "lab"] as const; // --- odd-string-battle --- ("battle": the oddplayground duels, last ball standing) --- gerald-journey --- ("journey": multi-stage runs home) --- blueprint --- ("lab": Mode Lab)
 export type ModeCategory = (typeof MODE_CATEGORY_IDS)[number];
 
 export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
@@ -247,6 +250,8 @@ export const MODE_CATEGORIES: Record<ModeId, ModeCategory> = {
   mergeRing: "rhythm",
   // --- spiral-glass --- every chip a pentatonic note climbing inward, every lap the multiplier's arpeggio, the clear a chord: the sound-first family
   spiralGlass: "rhythm",
+  // --- blueprint --- every Blueprint is a game of its own (escapes, merges, races, battles): its own family, the lab
+  blueprint: "lab",
 };
 
 /** The modes of a category in card order. */

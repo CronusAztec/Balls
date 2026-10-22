@@ -4,7 +4,7 @@ import {
   BLUEPRINT_CATALOG,
   BLUEPRINT_CATALOG_IDS,
   BLUEPRINT_CEILINGS,
-  BlueprintRun,
+  HeadlessBlueprint,
   FINISH_KINDS,
   OBSTACLE_KINDS,
   TRIGGERS,
@@ -151,7 +151,7 @@ describe("blueprint fuzz: 2,000 seeded adversarial specs", () => {
       expect(blueprintBytes(bp) <= BLUEPRINT_CEILINGS.specBytes, `case ${c}: bytes`).toBe(true);
       // every 20th survivor also runs: the interpreter never throws on a sanitized spec
       if (c % 20 === 0) {
-        const run = new BlueprintRun(bp, { seed: c });
+        const run = new HeadlessBlueprint(bp, { seed: c });
         for (let s = 0; s < 90 && !run.finished; s++) run.step();
         expect(run.stats.faults, `case ${c}: fault`).toBe(0);
         ran++;

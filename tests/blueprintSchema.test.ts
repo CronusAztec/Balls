@@ -279,20 +279,45 @@ describe("blueprint: isolation and purity", () => {
     return out;
   }
 
-  it("is imported by no page, component or engine file yet (only the agent toolbox reads it until Mode Lab)", () => {
+  /** What a file imports, resolved to a path under the repository ("" for a package). */
+  function importsOf(file: string): { spec: string; target: string }[] {
+    const source = fs.readFileSync(file, "utf8");
+    return [...source.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => {
+      const spec = m[1];
+      const target = spec.startsWith("@/") ? path.join(ROOT, "src", spec.slice(2)) : spec.startsWith(".") ? path.resolve(path.dirname(file), spec) : "";
+      return { spec, target: target && path.relative(ROOT, target).split(path.sep).join("/") };
+    });
+  }
+
+  it("is imported only by Mode Lab's own files: the engine and the mode, the renderer, the panel and the page", () => {
+    // --- blueprint --- (P4) until Mode Lab only the agent toolbox read it; now the mode plays it, exactly these files
     const importers = files(path.join(ROOT, "src"))
       .filter((f) => !f.includes(`${path.sep}lib${path.sep}blueprint${path.sep}`) && !f.includes(`${path.sep}lib${path.sep}agentKit${path.sep}`))
-      .filter((f) => /from\s+["'](?:@\/lib\/blueprint|[./]+\/blueprint)(?:\/[^"']*)?["']/.test(fs.readFileSync(f, "utf8")));
-    expect(importers.map((f) => path.relative(ROOT, f))).toEqual([]);
+      .filter((f) => importsOf(f).some((i) => i.target === "src/lib/blueprint" || i.target.startsWith("src/lib/blueprint/")))
+      .map((f) => path.relative(ROOT, f).split(path.sep).join("/"))
+      .sort();
+    expect(importers).toEqual([
+      "src/components/simulator/Simulator.tsx",
+      "src/components/simulator/blueprintRenderer.ts",
+      "src/components/simulator/sections/BlueprintSection.tsx",
+      "src/lib/physics/engine.ts",
+      "src/lib/physics/modes/blueprint.ts",
+    ]);
   });
 
-  it("imports no DOM, React, engine, settings or page module", () => {
+  it("imports no DOM, React, settings or page module, and only the runtime reaches the engine", () => {
+    // --- blueprint --- (P4) the runtime is hosted by the engine (its balls, sub-steps and tiles) and the headless runner
+    // builds one; the language itself – the schema, the sanitizer, the codec, the formulas, the catalog – stays pure data
+    const ENGINE_SIDE = /^src\/lib\/blueprint\/(runtime\/|headless\.ts$)/;
     for (const f of files(path.join(ROOT, "src", "lib", "blueprint"))) {
+      const rel = path.relative(ROOT, f).split(path.sep).join("/");
       const source = fs.readFileSync(f, "utf8");
-      const imports = [...source.matchAll(/from\s+["']([^"']+)["']/g)].map((m) => m[1]);
-      for (const i of imports) expect(i, path.relative(ROOT, f)).toMatch(/^(\.{1,2}\/|@\/lib\/(uncap|base64|simulation\/bounceMath|simulation\/world|desktop\/ai\/jsonSchema)$)/);
+      for (const { spec } of importsOf(f)) {
+        expect(spec, rel).toMatch(/^(\.{1,2}\/|@\/lib\/(uncap|base64|simulation\/bounceMath|simulation\/world|desktop\/ai\/jsonSchema|physics\/(types|tiles|engine))$)/);
+        if (/^@\/lib\/physics\//.test(spec)) expect([rel, ENGINE_SIDE.test(rel)]).toEqual([rel, true]);
+      }
       const code = source.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, ""); // (comments may name what the code never calls)
-      expect(code, path.relative(ROOT, f)).not.toMatch(/\beval\s*\(|new\s+Function\b|Math\.random|Date\.now|performance\.now/);
+      expect(code, rel).not.toMatch(/\beval\s*\(|new\s+Function\b|Math\.random|Date\.now|performance\.now/);
     }
   });
 });

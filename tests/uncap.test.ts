@@ -7,6 +7,7 @@ import { CORE_COMFORT, MAX_SAFE_SPEED, coreBeyondComfort, uncapConfigOf } from "
 import { MAX_EFFECTIVE_BOUNCE, MULTIPLIER_CEILING } from "@/lib/physics/multipliers";
 import { ENGINE_CEILINGS, LIVE_WALL_LIMIT, CROWD_LIMIT } from "@/lib/unlimited";
 import {
+  BLUEPRINT_CEILINGS,
   BOUNCIER_ON,
   CROWD_BALL_CEILING,
   IDLE_FIELD,
@@ -916,5 +917,41 @@ describe("uncap-all: the guard", () => {
     const deep = settingsFromSearchParams(new URLSearchParams("mode=illusion&ilt=nested&ild=40"));
     const deepEngine = createEngineForSettings(physicsConfigOfSettings(deep), "illusion", modeSettingsOfSettings(deep), 7);
     expect([deepEngine.getIllusionView().count, pastAnyMemoryCeiling(deep)]).toEqual([40, false]);
+  });
+});
+
+// --- blueprint ---
+describe("uncap-all: Mode Lab (a Blueprint's numbers, and the sandbox ceilings that are the owner's one exception)", () => {
+  it("keeps Mode Lab's own settings out of RANGES: a Blueprint's numbers are its own, and a link carries them as text", () => {
+    for (const key of ["blPreset", "blSpec", "blParams"]) expect([key, ranges[key]]).toEqual([key, undefined]);
+    expect(unlimitedSettingKeys().filter((k) => k.startsWith("bl"))).toEqual([]);
+  });
+
+  it("plays a Blueprint slider's value past the slider's end as typed, from a link", () => {
+    // Ring Breaker's spin slider ends at 120 degrees a second, Glass Hatchery's ball speed at 600 px/s
+    const rings = settingsFromSearchParams(new URLSearchParams("mode=blueprint&blp=ringBreaker&blv=,,1000"));
+    expect([rings.mode, rings.blParams]).toEqual(["blueprint", ",,1000"]);
+    const ringEngine = createEngineForSettings(physicsConfigOfSettings(rings), "blueprint", modeSettingsOfSettings(rings), 3);
+    expect(ringEngine.getBlueprintView().bp!.arena.rings!.spinDegPerSec).toBe(1000);
+    const fast = settingsFromSearchParams(new URLSearchParams("mode=blueprint&blp=hatchery&blv=,,5000"));
+    const fastEngine = createEngineForSettings(physicsConfigOfSettings(fast), "blueprint", modeSettingsOfSettings(fast), 3);
+    const ball = fastEngine.getBalls()[0];
+    expect(Math.hypot(ball.vx, ball.vy)).toBeCloseTo(5000, 6);
+    for (let i = 0; i < 120; i++) fastEngine.update(1000 / 60, 0);
+    for (const b of fastEngine.getBalls()) expect(Number.isFinite(b.x) && Number.isFinite(b.y)).toBe(true);
+  });
+
+  it("stops a Blueprint's structure only at BLUEPRINT_CEILINGS: its tiles, its balls and its length", () => {
+    const layers = settingsFromSearchParams(new URLSearchParams("mode=blueprint&blp=hatchery&blv=1000000"));
+    const engine = createEngineForSettings(physicsConfigOfSettings(layers), "blueprint", modeSettingsOfSettings(layers), 3);
+    const view = engine.getBlueprintView();
+    expect(view.world!.tileCount).toBeGreaterThan(0);
+    expect(view.world!.tileCount).toBeLessThanOrEqual(BLUEPRINT_CEILINGS.tiles);
+    for (let i = 0; i < 60 * 30 && !engine.isSimulationFinished(); i++) {
+      engine.update(1000 / 60, 0);
+      engine.consumeSoundEvents();
+      expect(engine.getBalls().length).toBeLessThanOrEqual(BLUEPRINT_CEILINGS.balls);
+    }
+    expect(engine.getBlueprintView().timeoutSec).toBeLessThanOrEqual(BLUEPRINT_CEILINGS.timeoutSec);
   });
 });

@@ -1,7 +1,8 @@
 /*
- * --- blueprint --- The playability check: does a spec make a clip? It runs the spec headless on a few seeds (runtime/run.ts,
- * the same interpreter and world the blueprint mode steps) and judges it on deterministic counts only – never on wall-clock
- * time, so the verdict is the same on every machine and every run (a caller may time it and add an advisory "slow").
+ * --- blueprint --- The playability check: does a spec make a clip? It plays the spec on a few seeds on the real runtime –
+ * the engine in the blueprint mode, as the page, the fast export and the finder play it (headless.ts) – and judges it on
+ * deterministic counts only, never on wall-clock time, so the verdict is the same on every machine and every run (a caller
+ * may time it and add an advisory "slow").
  *
  *  - playable: at least 3 of 4 seeds end by a finish condition; the median end is between 6 s and the timeout; no seed has a
  *    fault, a ball gone non-finite, dropped events or rule firings, or an arena full of balls (the ceiling); the median seed
@@ -13,7 +14,8 @@
  */
 import { BLUEPRINT_BALL_CEILING, BLUEPRINT_STEP_BUDGETS } from "./limits";
 import { DEFAULT_SAY, type Blueprint } from "./schema";
-import { runBlueprint, type FinishReason } from "./runtime/run";
+import { runBlueprint } from "./headless";
+import type { FinishReason } from "./runtime/run";
 
 export const PLAYABLE_MIN_SEC = 6;
 export const PLAYABLE_MIN_SOUNDS = 5;
@@ -103,7 +105,11 @@ export function checkSeed(bp: Blueprint, seed: number, faultOnRule?: number): Se
 /** The verdict on a resolved spec (sanitizeBlueprint's output) over a few seeds, with plain feedback. */
 export function playabilityCheck(bp: Blueprint, options: CheckOptions = {}): PlayabilityReport {
   const seeds = (options.seeds ?? DEFAULT_CHECK_SEEDS).slice(0, 16);
-  const reports = seeds.map((s) => checkSeed(bp, s, options.faultOnRule));
+  return judgeSeeds(bp, seeds.map((s) => checkSeed(bp, s, options.faultOnRule)));
+}
+
+/** The verdict on the seeds' reports (a page runs `checkSeed()` one seed a frame, then judges them here). */
+export function judgeSeeds(bp: Blueprint, reports: SeedReport[]): PlayabilityReport {
   const n = reports.length;
   const byCondition = reports.filter((r) => r.reason === "condition");
   const med = round(median(reports.map((r) => (r.reason === "condition" ? r.timeSec : bp.finish.timeoutSec))), 2);

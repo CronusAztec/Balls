@@ -12,12 +12,12 @@ import { cx } from "@/components/ui/cx";
 import PosterCard from "./PosterCard";
 
 /** Heading key (Headings namespace) of each mode family; a family without one falls back to its chip label. */
-const CATEGORY_HEADINGS = { escape: "modesEscape", rhythm: "modesRhythm", battle: "modesBattle" /* --- odd-string-battle --- */, journey: "modesJourney" /* --- gerald-journey --- */ } as const;
+const CATEGORY_HEADINGS = { escape: "modesEscape", rhythm: "modesRhythm", battle: "modesBattle" /* --- odd-string-battle --- */, journey: "modesJourney" /* --- gerald-journey --- */, lab: "modesLab" /* --- blueprint --- */ } as const;
 const HEADING_KEYS: Readonly<Record<string, string>> = CATEGORY_HEADINGS;
 
 /*
- * The modes wall. --- site-redesign --- Every mode as a poster card under its family's heading (escape, rhythm, battle and
- * journey modes – see MODE_CATEGORY_IDS in lib/modes.ts), with filter chips for the families (derived from the mode
+ * The modes wall. --- site-redesign --- Every mode as a poster card under its family's heading (escape, rhythm, battle,
+ * journey and lab modes – see MODE_CATEGORY_IDS in lib/modes.ts), with filter chips for the families (derived from the mode
  * registry, lib/siteDesign.ts). On the landing page a card links to the studio with that mode; inside the studio's mode
  * picker (`interactive`) a card dispatches the DOM event the simulator listens to, so the mode switches in place, and
  * `onPicked` closes the picker. The section keeps id="modes" either way.

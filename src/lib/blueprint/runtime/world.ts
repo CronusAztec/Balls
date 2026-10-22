@@ -1,25 +1,32 @@
 /*
- * --- blueprint --- The physics of a Blueprint run: one deterministic world (fixed 60 Hz steps of at least 4 sub-steps, like
- * the engine's) with the arena – a circle with exits, a box, or concentric rings with gaps –, obstacles, a field of
- * destructible tiles and full-physics balls that bounce off each other. It knows nothing of rules: it moves the balls,
- * resolves every contact and reports what happened (a wall hit, a tile broken, an escape…) to the interpreter
- * (runtime/run.ts), which decides what it means.
+ * --- blueprint --- The physics of a Blueprint run inside the engine: the arena – a circle with exits, a box, or concentric
+ * rings with gaps –, obstacles, a field of destructible tiles (lib/physics/tiles.ts TileField) and full-physics balls that
+ * bounce off each other. The balls are the engine's own (they move, trail, draw, record and take bounce math like every
+ * mode's); the world keeps each one's Blueprint slots (`WorldBall`: body, tier, team, hit points, palette colour) and
+ * resolves everything the engine leaves to a mode that owns its playfield (box.ts, mergeRing.ts do the same):
  *
- * Determinism: no clock and no randomness of its own (the interpreter hands it nothing random either – positions come
- * from the spec and the seeded draws the interpreter makes); balls are kept in creation order and every loop walks them in
- * it. Work: a static grid holds the tiles, pegs and bars; a grid rebuilt each sub-step finds the ball pairs; both stop at
- * the sandbox's ceilings (lib/uncap.ts BLUEPRINT_CEILINGS), so a step's work is bounded whatever the spec says.
+ *  - `ballStep()` (the mode's onBallStep, right after the engine moved the ball): tiles first – TileField sweeps the move, so
+ *    nothing tunnels –, then pegs, bars and spinners, then the arena (rim, exits, box walls, rings, escapes), then the spec's
+ *    gravity (the engine's is off for these balls: gravityScale 0);
+ *  - `collidePairs()` (onPostSubStep): every touching pair, by mass (area), through a grid rebuilt each sub-step;
+ *  - `advance()` (once a step): the rim, the rings' gaps and the spinners turn.
  *
- * Geometry: the world is WORLD_SIDE (450 px) square, the arena centred in it with a radius of `size` × 225 px. Spec
- * positions are arena units (−1…1, 1 = the rim); clock degrees (0 = top, clockwise) become screen angles (0 = right,
- * clockwise, y down) here.
+ * It knows nothing of rules: it reports what happened (a wall hit, a tile broken, an escape…) to the interpreter
+ * (runtime/run.ts), which decides what it means. Determinism: no clock and no randomness of its own; balls are kept in
+ * creation order and every loop walks them in it. Work: a static grid holds the pegs and bars, TileField its own; the pair
+ * grid is rebuilt each sub-step; all of it stops at the sandbox's ceilings (lib/uncap.ts BLUEPRINT_CEILINGS).
+ *
+ * Geometry: the arena is centred in the engine's world with a radius of `size` × half its shorter side (WORLD_SIDE 450 px:
+ * 225 px × size, whatever the frame's shape). Spec positions are arena units (−1…1, 1 = the rim); clock degrees (0 = top,
+ * clockwise) become screen angles (0 = right, clockwise, y down) here.
  */
-import { WORLD_SIDE } from "@/lib/simulation/world";
-import { BLUEPRINT_MAX_SUBSTEPS } from "../limits";
+import type { Ball, ModeContext, NewBall } from "@/lib/physics/types";
+import { TileField } from "@/lib/physics/tiles";
+import { BLUEPRINT_TILE_CEILING } from "../limits";
 import type { Blueprint } from "../schema";
+import type { WorldEvents } from "./events";
 
 export const FIXED_STEP_SEC = 1 / 60;
-const MIN_SUBSTEPS = 4;
 /** Approach speed (px/s) below which a contact is a touch, not a hit: no event, no damage, no sound (a ball resting on the floor). */
 export const MIN_HIT_SPEED = 15;
 /**
@@ -33,14 +40,15 @@ export function isHit(impact: number, speed: number): boolean {
   return impact >= MIN_HIT_SPEED && impact >= GRAZE_RATIO * speed;
 }
 /** Half the thickness of the rim, the rings and an exit's edges (px). */
-const WALL_HALF = 2;
+export const WALL_HALF = 2;
 /** The static grid's and the pair grid's cell (px). */
 const CELL = 32;
 const TAU = Math.PI * 2;
+/** How long an escaped ball keeps flying out of the frame (ms; the canvas fades it), before the engine drops it. */
+export const ESCAPE_GHOST_MS = 1000;
 
-/** A ball of the world: its physics and the Blueprint's slots (body index, tier, team, HP, palette colour). */
-export interface WorldBall {
-  id: number;
+/** What a new ball of the world is: where and how it moves, and its Blueprint slots. */
+export interface NewWorldBall {
   x: number;
   y: number;
   vx: number;
@@ -55,37 +63,96 @@ export interface WorldBall {
   team: number;
   hp: number;
   color: number;
-  /** False once it escaped, popped or was removed (the step sweeps it out). */
-  alive: boolean;
-  /** Distance from the centre at the start of the sub-step (ring passes). */
-  pd: number;
-  /** The step of its last wall hit (one wall hit a step). */
-  lastWall: number;
 }
 
-/** What the world reports while it steps (the interpreter queues these as events). */
-export interface WorldEvents {
-  wallHit(ball: WorldBall, impact: number): void;
-  obstacleHit(ball: WorldBall, obstacle: number, impact: number): void;
-  tileHit(ball: WorldBall, tile: number, broke: boolean, impact: number): void;
-  ballHit(a: WorldBall, b: WorldBall, impact: number): void;
-  ringPass(ball: WorldBall, ring: number): void;
-  escape(ball: WorldBall): void;
-}
-
-export interface NewWorldBall {
-  x: number;
-  y: number;
-  vx: number;
-  vy: number;
-  r: number;
-  gs: number;
-  pass: boolean;
+/**
+ * A ball of the world: the engine's ball (`ball`, which the engine moves and the canvas draws) and the Blueprint's slots.
+ * Its position, velocity and radius are the engine ball's (the accessors read and write it), so the interpreter's code
+ * reads `b.x`, `b.r` whatever holds them.
+ */
+export class WorldBall {
+  readonly ball: Ball;
+  readonly id: number;
   body: number;
   tier: number;
-  team: number;
   hp: number;
-  color: number;
+  pass: boolean;
+  gs: number;
+  /** False once it escaped, popped or was removed (the step sweeps it out). */
+  alive = true;
+  /** It left through an exit or past the last ring: it flies on out of the frame as a fading ghost. */
+  escaped = false;
+  /** Distance from the centre where the sub-step began (ring passes). */
+  pd = 0;
+  /** The step of its last wall hit (one wall hit a step). */
+  lastWall = -1;
+  private teamSlot: number;
+  private colorSlot: number;
+  private readonly palette: readonly string[];
+
+  constructor(ball: Ball, nb: NewWorldBall, palette: readonly string[]) {
+    this.ball = ball;
+    this.id = ball.id;
+    this.body = nb.body;
+    this.tier = nb.tier;
+    this.hp = nb.hp;
+    this.pass = nb.pass;
+    this.gs = nb.gs;
+    this.palette = palette;
+    this.teamSlot = nb.team;
+    this.colorSlot = nb.color;
+    ball.team = nb.team;
+  }
+
+  get x() {
+    return this.ball.x;
+  }
+  set x(v: number) {
+    this.ball.x = v;
+  }
+  get y() {
+    return this.ball.y;
+  }
+  set y(v: number) {
+    this.ball.y = v;
+  }
+  get vx() {
+    return this.ball.vx;
+  }
+  set vx(v: number) {
+    this.ball.vx = v;
+  }
+  get vy() {
+    return this.ball.vy;
+  }
+  set vy(v: number) {
+    this.ball.vy = v;
+  }
+  get r() {
+    return this.ball.radius;
+  }
+  set r(v: number) {
+    this.ball.radius = v;
+  }
+  get team() {
+    return this.teamSlot;
+  }
+  set team(t: number) {
+    this.teamSlot = t;
+    this.ball.team = t;
+  }
+  /** The palette index (the engine ball's colour follows it). */
+  get color() {
+    return this.colorSlot;
+  }
+  set color(c: number) {
+    this.colorSlot = c;
+    this.ball.color = this.palette[c] ?? this.palette[0] ?? "#ffffff";
+  }
+  /** Paints the engine ball back in its palette colour (the page's Ball Color repaints every ball). */
+  repaint() {
+    this.ball.color = this.palette[this.colorSlot] ?? this.palette[0] ?? "#ffffff";
+  }
 }
 
 /** Clock degrees (0 = top, clockwise) → a screen angle in radians (0 = right, clockwise with y down). */
@@ -102,27 +169,30 @@ function angleDiff(a: number, b: number): number {
 const enum Kind {
   Peg = 0,
   Bar = 1,
-  Tile = 2,
 }
 
 export class BlueprintWorld {
-  readonly width = WORLD_SIDE;
-  readonly height = WORLD_SIDE;
-  readonly cx = WORLD_SIDE / 2;
-  readonly cy = WORLD_SIDE / 2;
-  readonly R: number;
+  readonly bp: Blueprint;
+  width = 0;
+  height = 0;
+  cx = 0;
+  cy = 0;
+  R = 0;
   readonly shape: Blueprint["arena"]["shape"];
   readonly restitution: number;
   readonly gx: number;
   readonly gy: number;
+  /** The wall bounciness extra (the page's physics extras), applied to every rebound off the arena and its obstacles. */
+  wallBounciness = 1;
 
   /* the rim's exits (circle): centre angle at rotation 0 and half width, radians */
-  private readonly exitAt: number[] = [];
-  private readonly exitHalf: number[] = [];
+  readonly exitAt: number[] = [];
+  readonly exitHalf: number[] = [];
   private readonly rimSpin: number;
   rimAngle = 0;
 
-  /* rings */
+  /* rings: radius factors (of R) and radii, life, gap angle (now) and spin */
+  private readonly ringF: number[] = [];
   readonly ringR: number[] = [];
   readonly ringAlive: boolean[] = [];
   readonly ringGapAt: number[] = [];
@@ -130,6 +200,8 @@ export class BlueprintWorld {
   readonly ringGapHalf: number = 0;
   /** A ring breaks when a ball passes outward through its gap. */
   readonly ringBreak: boolean = false;
+  /** When each ring broke (s of the run; −1: standing) – the renderer's shatter. */
+  readonly ringBrokeAt: number[] = [];
 
   /* pegs and bumpers */
   readonly pegX: number[] = [];
@@ -138,6 +210,8 @@ export class BlueprintWorld {
   readonly pegKick: number[] = [];
   /** The spec's obstacle pattern each peg came from (obstacleHit reports the pattern's index). */
   readonly pegOf: number[] = [];
+  /** When each peg was last hit (s of the run): the renderer's glow. */
+  readonly pegHitAt: number[] = [];
   /* bars (static) and spinners (turning) */
   readonly barAx: number[] = [];
   readonly barAy: number[] = [];
@@ -153,34 +227,27 @@ export class BlueprintWorld {
   readonly spinHalf: number[] = [];
   readonly spinOf: number[] = [];
 
-  /* tiles: rect (x0,y0,x1,y1) or annular sector (r0,r1,a0,a1) */
-  readonly tileSector: boolean;
-  readonly tileA: Float64Array;
-  readonly tileB: Float64Array;
-  readonly tileC: Float64Array;
-  readonly tileD: Float64Array;
-  readonly tileHp: Int32Array;
-  readonly tileMaxHp: Int32Array;
-  readonly tileRow: Int32Array;
-  readonly tileCol: Int32Array;
-  readonly tileX: Float64Array;
-  readonly tileY: Float64Array;
+  /* tiles: the shared primitive, sized once by the spec (never past the tile ceiling) */
+  readonly tiles: TileField;
   readonly tilePierce: boolean;
-  tilesAlive = 0;
-  readonly tileCount: number;
+  /** Tiles laid out (alive or broken). */
+  tileCount = 0;
 
-  /* the static grid */
-  private readonly gridCols: number;
-  private readonly gridRows: number;
-  private readonly cellStart: Int32Array;
-  private readonly cellItems: Int32Array;
-  private readonly staticStamp: Int32Array;
+  /* the static grid (pegs and bars) */
+  private gridCols = 1;
+  private gridRows = 1;
+  private cellStart = new Int32Array(2);
+  private cellItems = new Int32Array(0);
+  private staticStamp = new Int32Array(1);
   private stampSerial = 0;
 
-  /* the balls */
+  /* the balls, in creation order */
   balls: WorldBall[] = [];
-  private nextId = 1;
+  readonly byId = new Map<number, WorldBall>();
+  /** The interpreter's step (one wall hit a ball a step). */
   step = 0;
+  /** The run's clock (s), for the glows. */
+  timeSec = 0;
   /** Balls that went non-finite (NaN / ±Infinity) and were taken out. */
   nanBalls = 0;
   /** Pair checks and contact tests of the run (a work count, deterministic). */
@@ -196,9 +263,9 @@ export class BlueprintWorld {
   private pairSeen = new Int32Array(0);
   private readonly pairKeys = new Set<number>();
 
-  constructor(bp: Blueprint) {
+  constructor(bp: Blueprint, width: number, height: number) {
+    this.bp = bp;
     const a = bp.arena;
-    this.R = (a.size * Math.min(this.width, this.height)) / 2;
     this.shape = a.shape;
     this.restitution = a.restitution;
     this.gx = a.gravity.x;
@@ -214,20 +281,42 @@ export class BlueprintWorld {
       this.ringGapHalf = ((rg.gapDeg / 2) * Math.PI) / 180;
       this.ringBreak = rg.breakOnPass;
       for (let k = 0; k < rg.count; k++) {
-        const f = rg.count === 1 ? 1 : rg.inner + ((1 - rg.inner) * k) / (rg.count - 1);
-        this.ringR.push(this.R * f);
+        this.ringF.push(rg.count === 1 ? 1 : rg.inner + ((1 - rg.inner) * k) / (rg.count - 1));
+        this.ringR.push(0);
         this.ringAlive.push(true);
+        this.ringBrokeAt.push(-1);
         // gaps staggered by the golden angle, so a straight line never runs through them all
         this.ringGapAt.push(clockToAngle(k * 137.508));
         const spin = (rg.spinDegPerSec * Math.PI) / 180;
         this.ringSpin.push(rg.alternate && k % 2 === 1 ? -spin : spin);
       }
     }
-    // obstacles (arena units → px)
+    const t = bp.tiles;
+    this.tilePierce = t?.pierce ?? false;
+    this.tiles = new TileField(Math.max(1, t ? Math.min(t.rows * t.cols, BLUEPRINT_TILE_CEILING) : 1));
+    this.layout(width, height);
+  }
+
+  /* ------------------------------------------------------------------ geometry */
+
+  /** Lays the arena, its obstacles and its tiles out for a world of `width` × `height` px (a resize keeps every tile's damage). */
+  layout(width: number, height: number) {
+    const fresh = this.width === 0;
+    this.width = width;
+    this.height = height;
+    this.cx = width / 2;
+    this.cy = height / 2;
+    this.R = (this.bp.arena.size * Math.min(width, height)) / 2;
     const R = this.R;
+    for (let k = 0; k < this.ringF.length; k++) this.ringR[k] = R * this.ringF[k];
+    // obstacles (arena units → px)
     const px = (u: number) => this.cx + u * R;
     const py = (u: number) => this.cy + u * R;
-    bp.obstacles.forEach((o, oi) => {
+    for (const arr of [this.pegX, this.pegY, this.pegR, this.pegKick, this.pegOf, this.barAx, this.barAy, this.barBx, this.barBy, this.barHalf, this.barOf, this.spinX, this.spinY, this.spinLen, this.spinHalf, this.spinOf]) arr.length = 0;
+    const spinAngles = this.spinAngle.slice();
+    this.spinAngle.length = 0;
+    this.spinOmega.length = 0;
+    this.bp.obstacles.forEach((o, oi) => {
       switch (o.kind) {
         case "peg":
         case "bumper":
@@ -264,73 +353,105 @@ export class BlueprintWorld {
           this.spinX.push(px(o.x));
           this.spinY.push(py(o.y));
           this.spinLen.push((o.len * R) / 2);
-          this.spinAngle.push(clockToAngle(o.angleDeg + 90));
+          this.spinAngle.push(spinAngles[this.spinAngle.length] ?? clockToAngle(o.angleDeg + 90));
           this.spinOmega.push((o.spinDegPerSec * Math.PI) / 180);
           this.spinHalf.push((o.thick * R) / 2);
           this.spinOf.push(oi);
           break;
       }
     });
-    // tiles
-    const t = bp.tiles;
-    const rects: number[][] = [];
-    this.tileSector = t?.layout === "ring";
-    this.tilePierce = t?.pierce ?? false;
-    if (t) {
-      for (let row = 0; row < t.rows; row++)
-        for (let col = 0; col < t.cols; col++) {
-          const hp = t.hp + row * t.hpStep;
-          if (t.layout === "grid") {
-            const w = (t.area.w * R) / t.cols;
-            const h = (t.area.h * R) / t.rows;
-            const x0 = px(t.area.x) + col * w + 1;
-            const y0 = py(t.area.y) + row * h + 1;
-            const x1 = x0 + w - 2;
-            const y1 = y0 + h - 2;
-            if (x1 <= x0 || y1 <= y0) continue;
-            const mx = (x0 + x1) / 2;
-            const my = (y0 + y1) / 2;
-            // a tile outside the arena could never be reached: it is not built (tilesCleared stays reachable)
-            if (!this.insideArena(mx, my)) continue;
-            rects.push([x0, y0, x1, y1, hp, row, col, mx, my]);
-          } else {
-            const dr = ((t.outer - t.inner) * R) / t.rows;
-            const r0 = t.inner * R + row * dr + 1;
-            const r1 = r0 + dr - 2;
-            const span = TAU / t.cols;
-            const a0 = clockToAngle(0) + col * span + 0.5 / Math.max(r0, 1);
-            const a1 = a0 + span - 1 / Math.max(r0, 1);
-            if (r1 <= r0 || a1 <= a0) continue;
-            const am = (a0 + a1) / 2;
-            const rm = (r0 + r1) / 2;
-            rects.push([r0, r1, a0, a1, hp, row, col, this.cx + rm * Math.cos(am), this.cy + rm * Math.sin(am)]);
-          }
-        }
+    while (this.pegHitAt.length < this.pegX.length) this.pegHitAt.push(-Infinity);
+    this.layoutTiles(fresh);
+    this.buildStaticGrid();
+  }
+
+  private layoutTiles(fresh: boolean) {
+    const t = this.bp.tiles;
+    const field = this.tiles;
+    if (!t) {
+      field.clear();
+      field.build();
+      this.tileCount = 0;
+      return;
     }
-    const n = rects.length;
-    this.tileCount = n;
-    this.tileA = new Float64Array(n);
-    this.tileB = new Float64Array(n);
-    this.tileC = new Float64Array(n);
-    this.tileD = new Float64Array(n);
-    this.tileHp = new Int32Array(n);
-    this.tileMaxHp = new Int32Array(n);
-    this.tileRow = new Int32Array(n);
-    this.tileCol = new Int32Array(n);
-    this.tileX = new Float64Array(n);
-    this.tileY = new Float64Array(n);
-    rects.forEach((q, i) => {
-      [this.tileA[i], this.tileB[i], this.tileC[i], this.tileD[i]] = q;
-      this.tileHp[i] = this.tileMaxHp[i] = Math.min(q[4], 0x7fffffff);
-      this.tileRow[i] = q[5];
-      this.tileCol[i] = q[6];
-      this.tileX[i] = q[7];
-      this.tileY[i] = q[8];
-    });
-    this.tilesAlive = n;
-    // the static grid: pegs, bars and tiles, each in every cell its box touches
-    this.gridCols = Math.ceil(this.width / CELL);
-    this.gridRows = Math.ceil(this.height / CELL);
+    // a resize: every tile keeps its hit points and its life (the layout is the same tiles in the same order)
+    const n = field.count;
+    const keepHp = fresh ? null : field.hp.slice(0, n);
+    const keepAlive = fresh ? null : field.alive.slice(0, n);
+    const keepHit = fresh ? null : field.hitMs.slice(0, n);
+    const keepBroke = fresh ? null : field.brokeMs.slice(0, n);
+    field.clear();
+    const R = this.R;
+    const cap = field.capacity;
+    for (let row = 0; row < t.rows && field.count < cap; row++)
+      for (let col = 0; col < t.cols && field.count < cap; col++) {
+        const hp = t.hp + row * t.hpStep;
+        if (t.layout === "grid") {
+          const w = (t.area.w * R) / t.cols;
+          const h = (t.area.h * R) / t.rows;
+          const x0 = this.cx + t.area.x * R + col * w + 1;
+          const y0 = this.cy + t.area.y * R + row * h + 1;
+          const x1 = x0 + w - 2;
+          const y1 = y0 + h - 2;
+          if (!(x1 > x0 && y1 > y0)) continue;
+          // a tile outside the arena could never be reached: it is not built (tilesCleared stays reachable)
+          if (!this.insideArena((x0 + x1) / 2, (y0 + y1) / 2)) continue;
+          field.addRect(x0, y0, x1, y1, hp, row, col);
+        } else {
+          const dr = ((t.outer - t.inner) * R) / t.rows;
+          const r0 = t.inner * R + row * dr + 1;
+          const r1 = r0 + dr - 2;
+          const span = TAU / t.cols;
+          const pad = 1 / Math.max(r0, 1);
+          const a0 = clockToAngle(0) + col * span + pad / 2;
+          if (!(r1 > r0 && span - pad > 0)) continue;
+          field.addSector(this.cx, this.cy, r0, r1, a0, span - pad, hp, row, col);
+        }
+      }
+    field.build();
+    this.tileCount = field.count;
+    if (keepHp && keepAlive && keepHit && keepBroke && field.count === n) {
+      let alive = 0;
+      let left = 0;
+      for (let i = 0; i < n; i++) {
+        field.hp[i] = keepHp[i];
+        field.alive[i] = keepAlive[i];
+        field.hitMs[i] = keepHit[i];
+        field.brokeMs[i] = keepBroke[i];
+        if (keepAlive[i]) {
+          alive++;
+          left += keepHp[i];
+        }
+      }
+      field.breaks = n - alive;
+      field.aliveTotal = alive;
+      field.hpLeft = left;
+      field.version++;
+    }
+  }
+
+  private addPeg(x: number, y: number, r: number, kick: number, of: number) {
+    this.pegX.push(x);
+    this.pegY.push(y);
+    this.pegR.push(r);
+    this.pegKick.push(kick);
+    this.pegOf.push(of);
+  }
+
+  private cellX(x: number) {
+    const c = Math.floor(x / CELL);
+    return c < 0 ? 0 : c >= this.gridCols ? this.gridCols - 1 : c;
+  }
+
+  private cellY(y: number) {
+    const c = Math.floor(y / CELL);
+    return c < 0 ? 0 : c >= this.gridRows ? this.gridRows - 1 : c;
+  }
+
+  /** The static grid: pegs and bars, each in every cell its box touches. */
+  private buildStaticGrid() {
+    this.gridCols = Math.max(1, Math.ceil(this.width / CELL));
+    this.gridRows = Math.max(1, Math.ceil(this.height / CELL));
     const cells = this.gridCols * this.gridRows;
     const boxes: [number, number, number, number, number][] = [];
     for (let i = 0; i < this.pegX.length; i++) boxes.push([this.pegX[i] - this.pegR[i], this.pegY[i] - this.pegR[i], this.pegX[i] + this.pegR[i], this.pegY[i] + this.pegR[i], (Kind.Peg << 24) | i]);
@@ -338,7 +459,6 @@ export class BlueprintWorld {
       const h = this.barHalf[i];
       boxes.push([Math.min(this.barAx[i], this.barBx[i]) - h, Math.min(this.barAy[i], this.barBy[i]) - h, Math.max(this.barAx[i], this.barBx[i]) + h, Math.max(this.barAy[i], this.barBy[i]) + h, (Kind.Bar << 24) | i]);
     }
-    for (let i = 0; i < n; i++) boxes.push([...this.tileBox(i), (Kind.Tile << 24) | i]);
     const counts = new Int32Array(cells + 1);
     const span = (b: [number, number, number, number, number]) => [this.cellX(b[0]), this.cellY(b[1]), this.cellX(b[2]), this.cellY(b[3])];
     for (const b of boxes) {
@@ -353,47 +473,7 @@ export class BlueprintWorld {
       const [c0, r0, c1, r1] = span(b);
       for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) this.cellItems[fill[r * this.gridCols + c]++] = b[4];
     }
-    this.staticStamp = new Int32Array(this.pegX.length + this.barAx.length + n + 1);
-  }
-
-  private addPeg(x: number, y: number, r: number, kick: number, of: number) {
-    this.pegX.push(x);
-    this.pegY.push(y);
-    this.pegR.push(r);
-    this.pegKick.push(kick);
-    this.pegOf.push(of);
-  }
-
-  private cellX(x: number) {
-    return Math.max(0, Math.min(this.gridCols - 1, Math.floor(x / CELL)));
-  }
-
-  private cellY(y: number) {
-    return Math.max(0, Math.min(this.gridRows - 1, Math.floor(y / CELL)));
-  }
-
-  private tileBox(i: number): [number, number, number, number] {
-    if (!this.tileSector) return [this.tileA[i], this.tileB[i], this.tileC[i], this.tileD[i]];
-    const r0 = this.tileA[i];
-    const r1 = this.tileB[i];
-    const a0 = this.tileC[i];
-    const a1 = this.tileD[i];
-    let x0 = Infinity;
-    let y0 = Infinity;
-    let x1 = -Infinity;
-    let y1 = -Infinity;
-    for (let k = 0; k <= 32; k++) {
-      const a = a0 + ((a1 - a0) * k) / 32;
-      for (const rr of [r0, r1]) {
-        const x = this.cx + rr * Math.cos(a);
-        const y = this.cy + rr * Math.sin(a);
-        x0 = Math.min(x0, x);
-        y0 = Math.min(y0, y);
-        x1 = Math.max(x1, x);
-        y1 = Math.max(y1, y);
-      }
-    }
-    return [x0 - 2, y0 - 2, x1 + 2, y1 + 2];
+    this.staticStamp = new Int32Array(this.pegX.length + this.barAx.length + 1);
   }
 
   /** Whether a point lies inside the arena (the rim, the box or the outer ring). */
@@ -407,16 +487,38 @@ export class BlueprintWorld {
     return [this.cx + ux * this.R, this.cy + uy * this.R];
   }
 
-  addBall(b: NewWorldBall): WorldBall {
-    const ball: WorldBall = { id: this.nextId++, ...b, alive: true, pd: Math.hypot(b.x - this.cx, b.y - this.cy), lastWall: -1 };
-    this.balls.push(ball);
-    return ball;
+  /* ------------------------------------------------------------------ the balls */
+
+  /** Adds a ball to the engine (through `ctx`) and to the world. The engine ball's gravity is off: the world applies the spec's. */
+  addBall(ctx: ModeContext, nb: NewWorldBall): WorldBall {
+    const engineBalls = ctx.getBalls();
+    const fresh: NewBall = { x: nb.x, y: nb.y, vx: nb.vx, vy: nb.vy, radius: nb.r, color: this.bp.look.palette[nb.color] ?? "#ffffff", gravityScale: 0, team: nb.team };
+    ctx.addBall(fresh);
+    const ball = ctx.getBalls()[ctx.getBalls().length - 1] ?? engineBalls[engineBalls.length - 1];
+    const wb = new WorldBall(ball, nb, this.bp.look.palette);
+    wb.pd = Math.hypot(nb.x - this.cx, nb.y - this.cy);
+    this.balls.push(wb);
+    this.byId.set(wb.id, wb);
+    return wb;
+  }
+
+  /** Adopts a ball the engine made itself (a split of the "split" ball interaction) with `parent`'s slots. */
+  adopt(ball: Ball, parent: WorldBall): WorldBall {
+    ball.gravityScale = 0;
+    const wb = new WorldBall(ball, { x: ball.x, y: ball.y, vx: ball.vx, vy: ball.vy, r: ball.radius, gs: parent.gs, pass: parent.pass, body: parent.body, tier: parent.tier, team: parent.team, hp: parent.hp, color: parent.color }, this.bp.look.palette);
+    this.balls.push(wb);
+    this.byId.set(wb.id, wb);
+    return wb;
   }
 
   aliveCount(): number {
     let n = 0;
     for (const b of this.balls) if (b.alive) n++;
     return n;
+  }
+
+  get tilesAlive(): number {
+    return this.tiles.aliveTotal;
   }
 
   ringsAlive(): number {
@@ -427,80 +529,109 @@ export class BlueprintWorld {
 
   /** Takes `amount` HP off a tile: true when this broke it. */
   damageTile(i: number, amount: number): boolean {
-    if (i < 0 || i >= this.tileCount || this.tileHp[i] <= 0 || !(amount > 0)) return false;
-    const left = this.tileHp[i] - amount;
-    this.tileHp[i] = left > 0 ? Math.ceil(left) : 0;
-    if (this.tileHp[i] > 0) return false;
-    this.tilesAlive--;
-    return true;
+    return this.tiles.damage(i, amount);
   }
 
-  /** Drops the balls that are no longer alive (creation order kept). */
-  sweep() {
-    if (this.balls.every((b) => b.alive)) return;
-    this.balls = this.balls.filter((b) => b.alive);
-  }
-
-  /** The sub-steps a step needs: one sub-step moves no ball more than half the smallest radius (4 to BLUEPRINT_MAX_SUBSTEPS). */
-  private substeps(dt: number): number {
-    let vmax = 0;
-    let rmin = Infinity;
-    for (const b of this.balls) {
-      if (!b.alive) continue;
-      const v = Math.hypot(b.vx, b.vy);
-      if (v > vmax || !Number.isFinite(v)) vmax = v;
-      if (b.r < rmin) rmin = b.r;
-    }
-    if (!Number.isFinite(vmax)) return BLUEPRINT_MAX_SUBSTEPS;
-    const need = Math.ceil((vmax * dt) / Math.max(0.5, 0.5 * Math.min(rmin, 1e9)));
-    return Math.max(MIN_SUBSTEPS, Math.min(BLUEPRINT_MAX_SUBSTEPS, need));
-  }
-
-  /** One fixed step: every sub-step moves, collides and reports. */
-  advance(dt: number, events: WorldEvents) {
-    this.step++;
-    this.pairKeys.clear();
-    const n = this.substeps(dt);
-    const h = dt / n;
-    for (let s = 0; s < n; s++) {
-      this.rimAngle += this.rimSpin * h;
-      for (let k = 0; k < this.ringSpin.length; k++) this.ringGapAt[k] += this.ringSpin[k] * h;
-      for (let k = 0; k < this.spinAngle.length; k++) this.spinAngle[k] += this.spinOmega[k] * h;
-      for (const b of this.balls) {
-        if (!b.alive) continue;
-        b.pd = Math.hypot(b.x - this.cx, b.y - this.cy);
-        b.vx += this.gx * b.gs * h;
-        b.vy += this.gy * b.gs * h;
-        b.x += b.vx * h;
-        b.y += b.vy * h;
-        if (!(Number.isFinite(b.x) && Number.isFinite(b.y) && Number.isFinite(b.vx) && Number.isFinite(b.vy) && Number.isFinite(b.r))) {
-          b.alive = false;
-          this.nanBalls++;
-          continue;
-        }
-        this.collideStatic(b, events);
-        if (b.alive) this.collideArena(b, events);
+  /**
+   * Drops the balls that are no longer alive from the world and from the engine (creation order kept). An escaped ball
+   * stays in the engine as a ghost: it flies on out of the frame and fades (`lifetime`), touching nothing. Any other ball the
+   * engine holds that the world does not know (its default first ball) goes too: the Blueprint places every ball itself.
+   */
+  sweep(ctx: ModeContext) {
+    let dead = false;
+    for (const b of this.balls)
+      if (!b.alive) {
+        dead = true;
+        break;
       }
-      this.collidePairs(events);
+    const engineBalls = ctx.getBalls();
+    let foreign = false;
+    if (!dead) {
+      if (engineBalls.length === this.balls.length) return;
+      for (const ball of engineBalls)
+        if (!this.byId.has(ball.id) && ball.lifetime === undefined) {
+          foreign = true;
+          break;
+        }
+      if (!foreign) return;
+    }
+    if (dead) {
+      for (const b of this.balls)
+        if (!b.alive) {
+          this.byId.delete(b.id);
+          if (b.escaped) b.ball.lifetime = ESCAPE_GHOST_MS;
+        }
+      this.balls = this.balls.filter((b) => b.alive);
+    }
+    let w = 0;
+    for (let i = 0; i < engineBalls.length; i++) {
+      const ball = engineBalls[i];
+      if (this.byId.has(ball.id) || ball.lifetime !== undefined) engineBalls[w++] = ball;
+    }
+    engineBalls.length = w;
+  }
+
+  /** The rim, the rings' gaps and the spinners turn by one step (`sec`). */
+  advance(sec: number) {
+    this.rimAngle += this.rimSpin * sec;
+    if (Math.abs(this.rimAngle) > TAU) this.rimAngle %= TAU;
+    for (let k = 0; k < this.ringSpin.length; k++) {
+      this.ringGapAt[k] += this.ringSpin[k] * sec;
+      if (Math.abs(this.ringGapAt[k]) > TAU) this.ringGapAt[k] %= TAU;
+    }
+    for (let k = 0; k < this.spinAngle.length; k++) {
+      this.spinAngle[k] += this.spinOmega[k] * sec;
+      if (Math.abs(this.spinAngle[k]) > TAU) this.spinAngle[k] %= TAU;
+    }
+  }
+
+  /**
+   * One ball's sub-step, right after the engine moved it by its velocity × `h`: a non-finite ball is taken out; tiles, pegs,
+   * bars and spinners, then the arena; last the spec's gravity.
+   */
+  ballStep(b: WorldBall, h: number, events: WorldEvents) {
+    if (!b.alive) return;
+    const ball = b.ball;
+    if (!(Number.isFinite(ball.x) && Number.isFinite(ball.y) && Number.isFinite(ball.vx) && Number.isFinite(ball.vy) && Number.isFinite(ball.radius))) {
+      b.alive = false;
+      this.nanBalls++;
+      return;
+    }
+    // where it was when the sub-step began (the engine has just moved it): the ring pass judges by it
+    b.pd = Math.hypot(ball.x - ball.vx * h - this.cx, ball.y - ball.vy * h - this.cy);
+    if (this.tiles.aliveTotal > 0) this.collideTiles(b, h, events);
+    if (!b.alive) return;
+    this.collideStatic(b, events);
+    if (b.alive) this.collideArena(b, events);
+    if (b.alive && b.gs !== 0) {
+      ball.vx += this.gx * b.gs * h;
+      ball.vy += this.gy * b.gs * h;
     }
   }
 
   /* ------------------------------------------------------------------ contacts */
+
+  /** The restitution of a rebound off the arena or an obstacle: the spec's, × the wall bounciness extra, × the ball's bounce-math bounciness. */
+  private bounceOf(b: WorldBall): number {
+    const own = b.ball.restitution;
+    return this.restitution * this.wallBounciness * (own !== undefined && own > 0 ? own : own !== undefined ? 0 : 1);
+  }
 
   /**
    * Resolves a contact along the unit normal (nx, ny) – pointing from the surface to the ball – with `pen` px of overlap and
    * the surface moving at (sx, sy): the ball is pushed out and, when it approaches, reflected with `e`. The approach speed.
    */
   private resolve(b: WorldBall, nx: number, ny: number, pen: number, e: number, sx = 0, sy = 0): number {
-    b.x += nx * pen;
-    b.y += ny * pen;
-    const rvx = b.vx - sx;
-    const rvy = b.vy - sy;
+    const ball = b.ball;
+    ball.x += nx * pen;
+    ball.y += ny * pen;
+    const rvx = ball.vx - sx;
+    const rvy = ball.vy - sy;
     this.lastSpeed = Math.hypot(rvx, rvy);
     const vn = rvx * nx + rvy * ny;
     if (vn >= 0) return 0;
-    b.vx -= (1 + e) * vn * nx;
-    b.vy -= (1 + e) * vn * ny;
+    ball.vx -= (1 + e) * vn * nx;
+    ball.vy -= (1 + e) * vn * ny;
     return -vn;
   }
 
@@ -511,7 +642,7 @@ export class BlueprintWorld {
     const d = Math.hypot(dx, dy);
     const reach = b.r + WALL_HALF;
     if (d >= reach || d === 0) return false;
-    const impact = this.resolve(b, dx / d, dy / d, reach - d, this.restitution);
+    const impact = this.resolve(b, dx / d, dy / d, reach - d, this.bounceOf(b));
     this.reportWall(b, impact, events);
     return true;
   }
@@ -523,17 +654,53 @@ export class BlueprintWorld {
     }
   }
 
+  /**
+   * Tiles: TileField sweeps the ball's move and rebounds it off the first tile it meets (with the arena's restitution: the
+   * field's cap is lifted through the bounciness factor, so a glass shell never slows a ball down). Every contact that is a
+   * hit chips 1 HP; a piercing ball that breaks the first tile it meets flies on as if the tile had not been there.
+   */
+  private collideTiles(b: WorldBall, h: number, events: WorldEvents) {
+    const ball = b.ball;
+    const field = this.tiles;
+    const sx = ball.x;
+    const sy = ball.y;
+    const svx = ball.vx;
+    const svy = ball.vy;
+    const speed = Math.hypot(svx, svy);
+    const e = this.bounceOf(b);
+    // rebound() caps a restitution at 0.98 (MAX_OBSTACLE_RESTITUTION); the ball's factor carries the rest, exactly
+    const first = field.collide(ball, h, 0.98, 0, e / 0.98);
+    this.work++;
+    if (first < 0) return;
+    const contacts = field.contactCount;
+    for (let k = 0; k < contacts; k++) {
+      const tile = field.contactTile[k];
+      const impact = field.contactImpact[k];
+      if (!isHit(impact, speed)) continue;
+      const broke = field.damage(tile, 1);
+      events.tileHit(b, tile, broke, impact);
+      if (!b.alive) return;
+      if (k === 0 && broke && this.tilePierce) {
+        ball.x = sx;
+        ball.y = sy;
+        ball.vx = svx;
+        ball.vy = svy;
+        return;
+      }
+    }
+  }
+
   private collideArena(b: WorldBall, events: WorldEvents) {
     const R = this.R;
     if (this.shape === "box") {
-      const e = this.restitution;
+      const e = this.bounceOf(b);
       let impact = 0;
       if (b.x - b.r < this.cx - R) impact = Math.max(impact, this.resolve(b, 1, 0, this.cx - R - (b.x - b.r), e));
       if (b.x + b.r > this.cx + R) impact = Math.max(impact, this.resolve(b, -1, 0, b.x + b.r - (this.cx + R), e));
       if (b.y - b.r < this.cy - R) impact = Math.max(impact, this.resolve(b, 0, 1, this.cy - R - (b.y - b.r), e));
       if (b.y + b.r > this.cy + R) impact = Math.max(impact, this.resolve(b, 0, -1, b.y + b.r - (this.cy + R), e));
       // (a ball bigger than the box sits in its middle)
-      if (2 * b.r >= 2 * R) {
+      if (b.r >= R) {
         b.x = this.cx;
         b.y = this.cy;
       }
@@ -550,7 +717,10 @@ export class BlueprintWorld {
         const rk = this.ringR[k];
         // passed outward through the gap this sub-step (a breaking ring is gone for every ball at once)
         if (b.pd < rk && d >= rk) {
-          if (this.ringBreak) this.ringAlive[k] = false;
+          if (this.ringBreak) {
+            this.ringAlive[k] = false;
+            this.ringBrokeAt[k] = this.timeSec;
+          }
           events.ringPass(b, k);
           if (!this.ringAlive[k]) continue;
         }
@@ -561,7 +731,7 @@ export class BlueprintWorld {
         if (off <= half - angular) continue; // inside the gap
         if (off < half + angular) {
           // at the gap's edges
-          for (const side of [-1, 1]) {
+          for (let side = -1; side <= 1; side += 2) {
             const ea = this.ringGapAt[k] + side * half;
             this.hitPoint(b, this.cx + rk * Math.cos(ea), this.cy + rk * Math.sin(ea), events);
           }
@@ -571,7 +741,7 @@ export class BlueprintWorld {
         const ux = d > 0 ? dx / d : 1;
         const uy = d > 0 ? dy / d : 0;
         const pen = inside ? d + b.r + WALL_HALF - rk : rk + WALL_HALF + b.r - d;
-        const impact = this.resolve(b, inside ? -ux : ux, inside ? -uy : uy, pen, this.restitution);
+        const impact = this.resolve(b, inside ? -ux : ux, inside ? -uy : uy, pen, this.bounceOf(b));
         this.reportWall(b, impact, events);
       }
       if (d - b.r > R + WALL_HALF) this.escapeBall(b, events);
@@ -586,7 +756,7 @@ export class BlueprintWorld {
     }
     if (exit >= 0) {
       const a0 = this.exitAt[exit] + this.rimAngle;
-      for (const side of [-1, 1]) {
+      for (let side = -1; side <= 1; side += 2) {
         const ea = a0 + side * this.exitHalf[exit];
         this.hitPoint(b, this.cx + R * Math.cos(ea), this.cy + R * Math.sin(ea), events);
       }
@@ -615,7 +785,7 @@ export class BlueprintWorld {
     }
     const ux = d > 0 ? dx / d : 1;
     const uy = d > 0 ? dy / d : 0;
-    const impact = this.resolve(b, -ux, -uy, d + b.r + WALL_HALF - R, this.restitution);
+    const impact = this.resolve(b, -ux, -uy, d + b.r + WALL_HALF - R, this.bounceOf(b));
     this.reportWall(b, impact, events);
   }
 
@@ -632,6 +802,7 @@ export class BlueprintWorld {
   private escapeBall(b: WorldBall, events: WorldEvents) {
     if (!b.alive) return;
     b.alive = false;
+    b.escaped = true;
     events.escape(b);
   }
 
@@ -649,7 +820,6 @@ export class BlueprintWorld {
     const r0 = this.cellY(b.y - b.r);
     const r1 = this.cellY(b.y + b.r);
     const pegs = this.pegX.length;
-    const bars = this.barAx.length;
     for (let r = r0; r <= r1; r++)
       for (let c = c0; c <= c1; c++) {
         const cell = r * this.gridCols + c;
@@ -657,13 +827,12 @@ export class BlueprintWorld {
           const item = this.cellItems[q];
           const kind = item >>> 24;
           const i = item & 0xffffff;
-          const slot = kind === Kind.Peg ? i : kind === Kind.Bar ? pegs + i : pegs + bars + i;
+          const slot = kind === Kind.Peg ? i : pegs + i;
           if (this.staticStamp[slot] === serial) continue;
           this.staticStamp[slot] = serial;
           this.work++;
           if (kind === Kind.Peg) this.hitPeg(b, i, events);
-          else if (kind === Kind.Bar) this.hitSegment(b, this.barAx[i], this.barAy[i], this.barBx[i], this.barBy[i], this.barHalf[i], this.barOf[i], events, -1);
-          else if (this.tileHp[i] > 0) this.hitTile(b, i, events);
+          else this.hitSegment(b, this.barAx[i], this.barAy[i], this.barBx[i], this.barBy[i], this.barHalf[i], this.barOf[i], events, -1);
           if (!b.alive) return;
         }
       }
@@ -677,12 +846,15 @@ export class BlueprintWorld {
     if (d >= reach) return;
     const nx = d > 0 ? dx / d : 0;
     const ny = d > 0 ? dy / d : -1;
-    const impact = this.resolve(b, nx, ny, reach - d, this.restitution);
+    const impact = this.resolve(b, nx, ny, reach - d, this.bounceOf(b));
     if (this.pegKick[i] !== 0 && impact > 0) {
       b.vx += nx * this.pegKick[i];
       b.vy += ny * this.pegKick[i];
     }
-    if (isHit(impact, this.lastSpeed)) events.obstacleHit(b, this.pegOf[i], impact);
+    if (isHit(impact, this.lastSpeed)) {
+      this.pegHitAt[i] = this.timeSec;
+      events.obstacleHit(b, this.pegOf[i], impact);
+    }
   }
 
   private hitSegment(b: WorldBall, ax: number, ay: number, bx: number, by: number, half: number, of: number, events: WorldEvents, spinner: number) {
@@ -713,105 +885,12 @@ export class BlueprintWorld {
       sx = -w * (qy - this.spinY[spinner]);
       sy = w * (qx - this.spinX[spinner]);
     }
-    const impact = this.resolve(b, nx, ny, reach - d, this.restitution, sx, sy);
+    const impact = this.resolve(b, nx, ny, reach - d, this.bounceOf(b), sx, sy);
     if (isHit(impact, this.lastSpeed)) events.obstacleHit(b, of, impact);
   }
 
-  /** The closest point of tile i's outline to (x, y) and whether (x, y) is inside the tile. */
-  private tileClosest(i: number, x: number, y: number): [number, number, boolean] {
-    if (!this.tileSector) {
-      const x0 = this.tileA[i];
-      const y0 = this.tileB[i];
-      const x1 = this.tileC[i];
-      const y1 = this.tileD[i];
-      const inside = x > x0 && x < x1 && y > y0 && y < y1;
-      if (!inside) return [x < x0 ? x0 : x > x1 ? x1 : x, y < y0 ? y0 : y > y1 ? y1 : y, false];
-      // inside: the nearest face
-      const dl = x - x0;
-      const dr = x1 - x;
-      const dt = y - y0;
-      const db = y1 - y;
-      const m = Math.min(dl, dr, dt, db);
-      if (m === dl) return [x0, y, true];
-      if (m === dr) return [x1, y, true];
-      if (m === dt) return [x, y0, true];
-      return [x, y1, true];
-    }
-    const r0 = this.tileA[i];
-    const r1 = this.tileB[i];
-    const a0 = this.tileC[i];
-    const a1 = this.tileD[i];
-    const dx = x - this.cx;
-    const dy = y - this.cy;
-    const d = Math.hypot(dx, dy);
-    const ang = Math.atan2(dy, dx);
-    const span = a1 - a0;
-    let rel = (ang - a0) % TAU;
-    if (rel < 0) rel += TAU;
-    const within = rel <= span;
-    const inside = within && d > r0 && d < r1;
-    const candidates: [number, number][] = [];
-    const arcPoint = (rr: number): [number, number] => {
-      const a = within ? ang : rel - span < TAU - rel ? a1 : a0;
-      return [this.cx + rr * Math.cos(a), this.cy + rr * Math.sin(a)];
-    };
-    candidates.push(arcPoint(r0), arcPoint(r1));
-    for (const a of [a0, a1]) {
-      const ux = Math.cos(a);
-      const uy = Math.sin(a);
-      let s = dx * ux + dy * uy;
-      s = s < r0 ? r0 : s > r1 ? r1 : s;
-      candidates.push([this.cx + s * ux, this.cy + s * uy]);
-    }
-    let best = candidates[0];
-    let bestD = Infinity;
-    for (const c of candidates) {
-      const dd = (c[0] - x) * (c[0] - x) + (c[1] - y) * (c[1] - y);
-      if (dd < bestD) {
-        bestD = dd;
-        best = c;
-      }
-    }
-    return [best[0], best[1], inside];
-  }
-
-  private hitTile(b: WorldBall, i: number, events: WorldEvents) {
-    const [qx, qy, inside] = this.tileClosest(i, b.x, b.y);
-    let dx = b.x - qx;
-    let dy = b.y - qy;
-    let d = Math.hypot(dx, dy);
-    if (!inside && d >= b.r) return;
-    if (inside) {
-      // the centre is inside: out through the nearest face
-      dx = -dx;
-      dy = -dy;
-    }
-    if (d === 0) {
-      dx = b.x - this.tileX[i];
-      dy = b.y - this.tileY[i];
-      d = Math.hypot(dx, dy) || 1;
-    }
-    const nx = dx / d;
-    const ny = dy / d;
-    const pen = inside ? b.r + d : b.r - d;
-    // approach speed first: a touch or a graze chips nothing
-    const vn = b.vx * nx + b.vy * ny;
-    if (!isHit(-vn, Math.hypot(b.vx, b.vy))) {
-      b.x += nx * pen;
-      b.y += ny * pen;
-      if (vn < 0) {
-        b.vx -= (1 + this.restitution) * vn * nx;
-        b.vy -= (1 + this.restitution) * vn * ny;
-      }
-      return;
-    }
-    const broke = this.damageTile(i, 1);
-    if (!(broke && this.tilePierce)) this.resolve(b, nx, ny, pen, this.restitution);
-    events.tileHit(b, i, broke, -vn);
-  }
-
   /** Ball pairs: a grid rebuilt each sub-step; each touching pair bounces (unless one passes) and is reported once a step. */
-  private collidePairs(events: WorldEvents) {
+  collidePairs(events: WorldEvents) {
     const balls = this.balls;
     const n = balls.length;
     if (n < 2) return;
@@ -873,9 +952,17 @@ export class BlueprintWorld {
             if (!b.alive) continue;
             this.work++;
             this.touch(a, b, events);
+            if (!a.alive) break;
           }
         }
     }
+  }
+
+  /** A new step: the pairs reported this step are forgotten. */
+  beginStep(step: number, timeSec: number) {
+    this.step = step;
+    this.timeSec = timeSec;
+    this.pairKeys.clear();
   }
 
   private touch(a: WorldBall, b: WorldBall, events: WorldEvents) {

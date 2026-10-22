@@ -10,7 +10,8 @@ import { BLUEPRINT_CATALOG_IDS, catalogBlueprint, decodeBlueprint, encodeBluepri
 /*
  * --- blueprint --- The agent toolbox's Blueprint tools end to end (`npm run -s agent -- bp-… --json '{…}'`): one JSON result a
  * call, one Blueprint a call (spec, code, catalog or lite), deterministic answers, strict errors with paths, and a bundle that
- * holds the Blueprint library but none of the engine, the settings or the modes – nor does the tool core gain any of it.
+ * holds the Blueprint library and the engine it plays on (bp-check runs the real runtime) but none of a page, the settings or
+ * the finder – nor does the tool core gain any of it.
  */
 
 const ROOT = path.resolve(__dirname, "..");
@@ -45,13 +46,15 @@ describe("blueprint tools: the table", () => {
     expect(blueprintInput({ code: `https://example.org/en/simulator/?mode=blueprint&bls=${code}` })).toMatchObject({ ok: true, source: "code" });
   });
 
-  it("bundles the Blueprint library without the engine, and leaves the tool core as small as it was", async () => {
+  it("bundles the Blueprint library with the engine it plays on, but no page, settings or finder, and leaves the tool core as small as it was", async () => {
+    // --- blueprint --- (P4) bp-check plays a spec on the real runtime – the engine in the blueprint mode, as the page, the
+    // export and the finder play it – so the kit holds the engine and its modes now; still nothing of a page or the settings.
     const esbuild = await import("esbuild");
     const inputsOf = async (entry: string) =>
       Object.keys((await esbuild.build({ entryPoints: [entry], bundle: true, platform: "node", format: "esm", write: false, metafile: true, alias: { "@": path.join(ROOT, "src") }, logLevel: "silent", absWorkingDir: ROOT })).metafile.inputs);
     const kit = await inputsOf(BLUEPRINTKIT_ENTRY);
-    expect(kit.some((f) => f.includes("src/lib/blueprint/runtime/run.ts"))).toBe(true);
-    expect(kit.filter((f) => /physics|settings|modes|components|finder/.test(f))).toEqual([]);
+    for (const file of ["src/lib/blueprint/runtime/run.ts", "src/lib/blueprint/headless.ts", "src/lib/physics/engine.ts", "src/lib/physics/modes/blueprint.ts"]) expect(kit, file).toContain(file);
+    expect(kit.filter((f) => /^src\/(components|app|i18n)\/|^src\/lib\/settings\.ts$|simulation\/finder|node_modules\/(react|react-dom|next)\//.test(f))).toEqual([]);
     expect((await inputsOf(TOOLCORE_ENTRY)).filter((f) => /blueprint/.test(f))).toEqual([]);
   });
 });

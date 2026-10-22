@@ -27,7 +27,7 @@ import { SCOREBOARD_POSITIONS } from "@/lib/teams"; // --- low-findings-2 ---
 type Settings = Record<string, unknown>;
 
 /** Settings the assistant may not touch: lists, uploads and the per-arena overrides. */
-export const PATCH_EXCLUDED = new Set(["teams", "obstacles", "captions", "keyframes", "arenas", "wallBreakSound", "hitSampleId", "beatMarkers", "journeyStages", "bdKinds", "pickupTypes", "mpGateMix", "prCustom"]);
+export const PATCH_EXCLUDED = new Set(["teams", "obstacles", "captions", "keyframes", "arenas", "wallBreakSound", "hitSampleId", "beatMarkers", "journeyStages", "bdKinds", "pickupTypes", "mpGateMix", "prCustom", "blSpec" /* --- blueprint --- a whole spec in a link code: written by the Blueprint tools, validated, never patched */]);
 /** At most this many settings in one patch. */
 export const MAX_PATCH_KEYS = 40;
 
@@ -186,6 +186,7 @@ const MODE_PREFIXES: Partial<Record<SimulatorSettings["mode"], string>> = {
   bullseye: "by",
   mergeRing: "mr", // --- merge-ring ---
   spiralGlass: "sg", // --- spiral-glass ---
+  blueprint: "bl", // --- blueprint --- (the catalog entry and the slider values; a spec is the Blueprint tools', never a patch's: PATCH_EXCLUDED)
   beatDrop: "bd",
   territory: "ty", // --- odd-territory ---
   maze: "mz", // --- odd-maze ---

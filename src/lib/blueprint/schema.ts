@@ -354,6 +354,20 @@ export interface BlueprintSound {
   voices: Record<VoiceTrigger, Voice | "none">;
 }
 
+/**
+ * A slider the spec offers (Mode Lab's panel, the `blv` link key): it sets one number of the resolved spec – `at` is its path,
+ * such as `tiles.rows`, `spawners[0].count` or `finish.any[0].atLeast` – and the result is sanitized again, so a value past
+ * a ceiling or a design domain is put back in range there (the slider's `min` and `max` only shape the slider).
+ */
+export interface BlueprintParam {
+  id: string;
+  label: string;
+  at: string;
+  min: number;
+  max: number;
+  step: number;
+}
+
 /** A resolved Blueprint v1: every field present (sanitizeBlueprint's output; codec.ts compacts it for links). */
 export interface Blueprint {
   v: 1;
@@ -369,6 +383,7 @@ export interface Blueprint {
   hud: BlueprintHud[];
   look: BlueprintLook;
   sound: BlueprintSound;
+  params: BlueprintParam[];
 }
 
 /* ------------------------------------------------------------------ defaults (what a compact spec leaves out) */
@@ -455,4 +470,57 @@ export function obstacleCount(o: BlueprintObstacle): number {
   if (o.kind === "pegGrid") return o.rows * o.cols;
   if (o.kind === "pegRing") return o.count;
   return 1;
+}
+
+/* ------------------------------------------------------------------ parameter paths */
+
+/** A parameter's path: up to four dotted fields, each with an optional list index (`rules[2].do[0].by`). */
+export const PARAM_PATH = /^[a-z][a-zA-Z]{0,15}(?:\[\d{1,2}\])?(?:\.[a-z][a-zA-Z]{0,15}(?:\[\d{1,2}\])?){0,4}$/;
+/** The sections a parameter may set a number of (never `v`, `meta` or the parameters themselves). */
+export const PARAM_SECTIONS = ["arena", "bodies", "tiles", "obstacles", "vars", "spawners", "rules", "finish", "look", "sound"] as const;
+
+/** A path's steps: field names and list indexes, in order (null for a path PARAM_PATH refuses). */
+export function paramPathSteps(path: string): (string | number)[] | null {
+  if (typeof path !== "string" || !PARAM_PATH.test(path)) return null;
+  const steps: (string | number)[] = [];
+  for (const part of path.split(".")) {
+    const m = /^([a-zA-Z]+)(?:\[(\d+)\])?$/.exec(part);
+    if (!m) return null;
+    steps.push(m[1]);
+    if (m[2] !== undefined) steps.push(Number(m[2]));
+  }
+  return (PARAM_SECTIONS as readonly string[]).includes(steps[0] as string) ? steps : null;
+}
+
+/** The container a path's last step is in and that step (own properties only; null when the path does not reach). */
+function paramSlot(root: unknown, path: string): { holder: Record<string, unknown> | unknown[]; key: string | number } | null {
+  const steps = paramPathSteps(path);
+  if (!steps) return null;
+  let at: unknown = root;
+  for (let i = 0; i < steps.length - 1; i++) {
+    const k = steps[i];
+    if (typeof k === "number") at = Array.isArray(at) && k < at.length ? at[k] : undefined;
+    else at = typeof at === "object" && at !== null && !Array.isArray(at) && Object.hasOwn(at, k) ? (at as Record<string, unknown>)[k] : undefined;
+    if (at === undefined || at === null) return null;
+  }
+  const key = steps[steps.length - 1];
+  if (typeof key === "number") return Array.isArray(at) && key < at.length ? { holder: at, key } : null;
+  return typeof at === "object" && at !== null && !Array.isArray(at) && Object.hasOwn(at, key) ? { holder: at as Record<string, unknown>, key } : null;
+}
+
+/** The number a path names in a spec, or undefined (a path that does not reach, or a value that is not a finite number). */
+export function numberAt(spec: unknown, path: string): number | undefined {
+  const slot = paramSlot(spec, path);
+  if (!slot) return undefined;
+  const v = typeof slot.key === "number" ? (slot.holder as unknown[])[slot.key] : (slot.holder as Record<string, unknown>)[slot.key];
+  return typeof v === "number" && Number.isFinite(v) ? v : undefined;
+}
+
+/** Sets the number a path names (only where a number already is); true when it did. */
+export function setNumberAt(spec: unknown, path: string, value: number): boolean {
+  if (numberAt(spec, path) === undefined || !Number.isFinite(value)) return false;
+  const slot = paramSlot(spec, path)!;
+  if (typeof slot.key === "number") (slot.holder as unknown[])[slot.key] = value;
+  else (slot.holder as Record<string, unknown>)[slot.key] = value;
+  return true;
 }

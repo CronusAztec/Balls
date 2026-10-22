@@ -6,7 +6,8 @@
     "faq": "Preguntas frecuentes",
     "howItWorks": "Cómo funciona",
     "modesBattle": "Modos de batalla",
-    "modesJourney": "Modos de viaje"
+    "modesJourney": "Modos de viaje",
+    "modesLab": "Modos de laboratorio"
   },
   "Navbar": {
     "simulator": "Simulador",
@@ -1500,6 +1501,20 @@
     "sgRainbow": "Línea arcoíris",
     "sgRainbowTip": "La línea de la espiral recorre despacio los tonos y el cristal toma un leve tinte. Apagada se dibuja en el color de la pared.",
     "sgRunInfo": "{turns} vueltas, {tiles} losetas. La semilla decide cuándo se abren las bandas y cómo encajan las vueltas, así que Buscar simulación puede dar con la duración de tu clip.",
+    "modeBlueprint": "Laboratorio de modos",
+    "blTitle": "Laboratorio de modos",
+    "blDesc": "Cada juego aquí es un Blueprint: una arena, sus bolas y las reglas que las hacen romperse, fusionarse, multiplicarse o competir. Elige un juego y ajusta sus deslizadores. Un enlace de Blueprint también se abre aquí.",
+    "blPreset": "Juego",
+    "blFromLink": "De un enlace",
+    "blLinkNote": "Este juego llegó con un enlace. Elige uno de la lista para volver a los juegos incluidos.",
+    "blRepaired": "Valores corregidos al cargar: {count}",
+    "blCheck": "Comprobar si se puede jugar",
+    "blChecking": "Comprobando…",
+    "blCheckPlayable": "Se puede jugar. Termina tras unos {seconds} s en {ended} de {seeds} semillas.",
+    "blCheckEndless": "Nunca termina sola. Cada tirada llegó al límite de {seconds} s.",
+    "blCheckBroken": "Aún no se puede jugar. Problemas encontrados: {problems}.",
+    "blCopyLink": "Copiar enlace",
+    "blCopied": "Copiado",
     "bounceMath": "Matemáticas del rebote",
     "bounceMathTip": "Reglas que cambian un valor con un paso matemático cada vez que pasa algo: la pelota rebota más, va más rápido o crece en cada rebote, la gravedad se invierte en cada compás, la pelota late al ritmo. Las reglas se aplican en el orden de la lista y no hay límite superior salvo que pongas un máximo.",
     "bounceMathRules": "Reglas de matemáticas del rebote",
@@ -2537,6 +2552,10 @@
     "spiralGlass": {
       "name": "Espiral de cristal",
       "description": "Las bolas giran por una espiral de cristal y la rompen de fuera hacia dentro. Cada vuelta añade una bola. ¿Se multiplicará la bola?"
+    },
+    "blueprint": {
+      "name": "Laboratorio de modos",
+      "description": "Juegos nuevos hechos de reglas, como cristal que hace nacer bolas o anillos que las duplican. Elige uno y juega."
     },
     "beatDrop": {
       "name": "Caída al ritmo",
@@ -4060,6 +4079,99 @@
     "canvasTimeout": "SE ACABÓ EL TIEMPO",
     "canvasTimeoutSub": "Quedan [tiles] losetas"
   },
+  "Blueprint": {
+    "canvasArenaFull": "ARENA LLENA",
+    "canvasTimeLeft": "[min]:[sec]",
+    "canvasEndedAt": "en [seconds] s",
+    "canvasNobody": "NADIE",
+    "team": {
+      "red": "ROJO",
+      "blue": "AZUL",
+      "green": "VERDE",
+      "gold": "ORO",
+      "purple": "MORADO",
+      "cyan": "CIAN"
+    }
+  },
+  "Blueprints": {
+    "hatchery": {
+      "name": "Criadero de cristal",
+      "description": "Cada loseta de cristal que rompe una bola hace nacer otra bola. Una bola se vuelve un enjambre antes de que caiga la cáscara.",
+      "hud0": "losetas",
+      "hud1": "bolas",
+      "say0": "CÁSCARA ROTA",
+      "timeoutSay": "AÚN EN LA CÁSCARA",
+      "params": {
+        "layers": "Capas",
+        "glass": "Dureza del cristal",
+        "speed": "Velocidad de la bola"
+      }
+    },
+    "ringBreaker": {
+      "name": "Rompeanillos",
+      "description": "Cada anillo que cruza una bola se rompe y duplica todas las bolas. Rompe los ocho.",
+      "hud0": "anillos",
+      "hud1": "bolas",
+      "say0": "TODOS LOS ANILLOS ROTOS",
+      "timeoutSay": "QUEDAN [rings] ANILLOS",
+      "params": {
+        "rings": "Anillos",
+        "gap": "Hueco",
+        "spin": "Giro de los anillos"
+      }
+    },
+    "conquer": {
+      "name": "Conquista de colores",
+      "description": "Cuatro colores chocan y la bola más rápida convierte a la más lenta. Gana el último color en pie.",
+      "hud0": "colores en juego",
+      "hud1": "tiempo",
+      "say0": "GANA [winner]",
+      "timeoutSay": "[winner] VA EN CABEZA",
+      "params": {
+        "per": "Bolas por color",
+        "boost": "Acelera cada"
+      }
+    },
+    "tierClimb": {
+      "name": "Escalada de niveles",
+      "description": "Llueven orbes y dos del mismo nivel se fusionan en el siguiente. El primer orbe en llegar al nivel 8 termina.",
+      "hud0": "nivel máximo",
+      "hud1": "orbes",
+      "say0": "NIVEL [tier] ALCANZADO",
+      "timeoutSay": "NIVEL MÁXIMO [tier]",
+      "params": {
+        "target": "Nivel objetivo",
+        "rain": "Segundos por orbe",
+        "gravity": "Gravedad"
+      }
+    },
+    "plinkoRace": {
+      "name": "Carrera de clavos",
+      "description": "Cuatro bolas caen entre clavos y persiguen una salida que gira. Gana la primera en salir.",
+      "hud0": "tiempo",
+      "say0": "[winner] GANA LA CARRERA",
+      "timeoutSay": "NADIE SALIÓ",
+      "params": {
+        "exit": "Ancho de la salida",
+        "spin": "Giro de la salida",
+        "rows": "Filas de clavos"
+      }
+    },
+    "growEscape": {
+      "name": "Crece o escapa",
+      "description": "Cada rebote agranda la bola. ¿Encontrará el hueco antes de dejar de caber?",
+      "hud0": "rebotes",
+      "hud1": "tiempo",
+      "say0": "ESCAPÓ TRAS [bounces] REBOTES",
+      "say1": "DEMASIADO GRANDE PARA ESCAPAR",
+      "timeoutSay": "SE ACABÓ EL TIEMPO",
+      "params": {
+        "grow": "Crecimiento por rebote",
+        "exit": "Ancho de la salida",
+        "limit": "Rebotes para perder"
+      }
+    }
+  },
   "Daily": {
     "cardBadge": "Reto diario",
     "cardTitle": "Hoy: {mode}",
@@ -4953,7 +5065,8 @@
       "escape": "Escape",
       "rhythm": "Ritmo",
       "battle": "Batalla",
-      "journey": "Viaje"
+      "journey": "Viaje",
+      "lab": "Laboratorio"
     },
     "hero": {
       "eyebrow": "Estudio de física de pelotas",

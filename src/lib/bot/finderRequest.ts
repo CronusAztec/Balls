@@ -18,6 +18,7 @@ import { stringBattleSettingsOf } from "@/lib/physics/modes/stringBattle";
 import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye";
 import { mergeRingSettingsOf } from "@/lib/physics/modes/mergeRing"; // --- merge-ring ---
 import { spiralGlassSettingsOf } from "@/lib/physics/modes/spiralGlass"; // --- spiral-glass ---
+import { blueprintSettingsOf } from "@/lib/physics/modes/blueprint"; // --- blueprint ---
 import { journeySettingsOf } from "@/lib/physics/modes/journey";
 import { vortexSettingsOf } from "@/lib/physics/modes/vortex";
 import { beatDropSettingsOf } from "@/lib/physics/modes/beatDrop"; // --- beat-drop ---
@@ -159,6 +160,7 @@ export function modeSettingsOfSettings(s: SimulatorSettings): ModeSettings {
     bullseye: bullseyeSettingsOf(s), // --- gerald-bullseye ---
     mergeRing: mergeRingSettingsOf(s), // --- merge-ring ---
     spiralGlass: spiralGlassSettingsOf(s), // --- spiral-glass ---
+    blueprint: blueprintSettingsOf(s), // --- blueprint ---
     beatDrop: beatDropSettingsOf(s, markerBeat), // --- beat-drop --- (the bot plans without a loaded song)
     onBeat: onBeatConfigOfSettings(s), // --- video-beats --- On beat on the BPM or the hand-placed markers (no song without a page)
     territory: territorySettingsOf(s), // --- odd-territory ---

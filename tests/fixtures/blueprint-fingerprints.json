@@ -1,0 +1,247 @@
+{
+  "recipe": "HeadlessBlueprint(catalogBlueprint(id), { seed: 1 }): the first two engine balls' [x, y] × 1000 every 150 steps of the first 600, then the run to its end",
+  "catalog": {
+    "hatchery": {
+      "digest": "1fcd12b7",
+      "samples": [
+        [
+          194145,
+          366033
+        ],
+        [
+          226027,
+          395376
+        ],
+        [
+          172856,
+          435984
+        ],
+        [
+          145734,
+          412240
+        ],
+        [
+          197996,
+          427640
+        ],
+        [
+          152265,
+          364813
+        ],
+        [
+          155652,
+          373635
+        ],
+        [
+          246333,
+          414015
+        ]
+      ],
+      "reason": "condition",
+      "condition": 0,
+      "steps": 992,
+      "result": "SHELL CLEARED",
+      "winner": -1,
+      "spawned": 121,
+      "escaped": 0,
+      "tilesBroken": 120,
+      "sounds": 1140,
+      "peakBalls": 121
+    },
+    "ringBreaker": {
+      "digest": "2e7e2b2e",
+      "samples": [
+        [
+          212426,
+          397180
+        ],
+        [
+          204875,
+          383273
+        ],
+        [
+          185587,
+          376250
+        ],
+        [
+          161836,
+          447246
+        ]
+      ],
+      "reason": "condition",
+      "condition": 0,
+      "steps": 381,
+      "result": "ALL RINGS DOWN",
+      "winner": -1,
+      "spawned": 136,
+      "escaped": 0,
+      "tilesBroken": 0,
+      "sounds": 348,
+      "peakBalls": 136
+    },
+    "conquer": {
+      "digest": "77f29a49",
+      "samples": [
+        [
+          197574,
+          427398
+        ],
+        [
+          190329,
+          449791
+        ],
+        [
+          52184,
+          402015
+        ],
+        [
+          97686,
+          395535
+        ],
+        [
+          84871,
+          523476
+        ],
+        [
+          134702,
+          335222
+        ],
+        [
+          318677,
+          522190
+        ],
+        [
+          240271,
+          493792
+        ]
+      ],
+      "reason": "condition",
+      "condition": 0,
+      "steps": 2504,
+      "result": "GOLD WINS",
+      "winner": 3,
+      "spawned": 24,
+      "escaped": 0,
+      "tilesBroken": 0,
+      "sounds": 2579,
+      "peakBalls": 24
+    },
+    "tierClimb": {
+      "digest": "ae9e02fd",
+      "samples": [
+        [
+          211954,
+          581604
+        ],
+        [
+          251924,
+          587345
+        ],
+        [
+          186275,
+          578271
+        ],
+        [
+          300132,
+          568513
+        ],
+        [
+          168092,
+          568249
+        ],
+        [
+          360647,
+          534694
+        ],
+        [
+          151196,
+          562334
+        ],
+        [
+          209242,
+          595492
+        ]
+      ],
+      "reason": "condition",
+      "condition": 0,
+      "steps": 1154,
+      "result": "TIER 8 REACHED",
+      "winner": -1,
+      "spawned": 241,
+      "escaped": 0,
+      "tilesBroken": 0,
+      "sounds": 215,
+      "peakBalls": 34
+    },
+    "plinkoRace": {
+      "digest": "ad34af37",
+      "samples": [
+        [
+          121569,
+          387783
+        ],
+        [
+          246764,
+          384542
+        ],
+        [
+          180482,
+          553980
+        ],
+        [
+          361177,
+          464932
+        ],
+        [
+          219656,
+          508555
+        ],
+        [
+          202895,
+          574501
+        ]
+      ],
+      "reason": "condition",
+      "condition": 0,
+      "steps": 512,
+      "result": "GREEN WINS THE RACE",
+      "winner": 2,
+      "spawned": 4,
+      "escaped": 1,
+      "tilesBroken": 0,
+      "sounds": 124,
+      "peakBalls": 4
+    },
+    "growEscape": {
+      "digest": "02f95ef7",
+      "samples": [
+        [
+          159651,
+          419519
+        ],
+        [
+          262947,
+          433164
+        ],
+        [
+          197635,
+          308329
+        ],
+        [
+          168968,
+          537391
+        ]
+      ],
+      "reason": "condition",
+      "condition": 1,
+      "steps": 1279,
+      "result": "TOO BIG TO ESCAPE",
+      "winner": -1,
+      "spawned": 1,
+      "escaped": 0,
+      "tilesBroken": 0,
+      "sounds": 67,
+      "peakBalls": 1
+    }
+  }
+}

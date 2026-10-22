@@ -17,7 +17,7 @@ import { cx } from "@/components/ui/cx";
  * Language (this page in the other languages) – then the wordmark line with the keyboard shortcuts.
  */
 
-const FAMILY_HEADINGS: Record<string, string> = { escape: "modesEscape", rhythm: "modesRhythm", battle: "modesBattle", journey: "modesJourney" };
+const FAMILY_HEADINGS: Record<string, string> = { escape: "modesEscape", rhythm: "modesRhythm", battle: "modesBattle", journey: "modesJourney", lab: "modesLab" /* --- blueprint --- */ };
 
 export default function Footer() {
   const t = useTranslations("Footer");

@@ -61,7 +61,7 @@ The simulator page opens, Start runs the engine at a fixed 60 Hz step, and the c
 
 ### 3. Every mode steps deterministically (`modes-deterministic`)
 
-All 47 modes boot, stay finite and replay exactly from a seed. The proofs are the `BASELINE` fingerprints of
+All 48 modes boot, stay finite and replay exactly from a seed. The proofs are the `BASELINE` fingerprints of
 `tests/extras.test.ts`, no `Math.random` or clock in a mode, and an `init()` that resets every field.
 
 - **Code:** `src/lib/physics/**`.

@@ -1,7 +1,7 @@
 # Adding a coded mode: the exact checklist
 
 A coded mode is the last resort. Read the decision tree in `AGENTS.md` first: settings, presets and the data-driven blocks
-cover a lot, and so does a Blueprint, a mechanic as data (`docs/agents/BLUEPRINTS.md`; the site plays them once Mode Lab lands).
+cover a lot, and so does a Blueprint, a mechanic as data (`docs/agents/BLUEPRINTS.md`; the site plays any of them in Mode Lab).
 When a coded mode really is the answer, it has to be wired by hand into every place below. Two recent modes did exactly
 this: Merge Ring (`mergeRing`) and Spiral Glass (`spiralGlass`). Copy them, and still go through every row: neither has
 every optional point (Spiral Glass reports its HUD through `noteTitleBlock` alone, row 39).
@@ -91,7 +91,7 @@ has to be added here by hand: the test proves the list true, not complete.
 | # | File | Look for | Add | Caught by |
 | --- | --- | --- | --- | --- |
 | 46 | `src/lib/modes.ts` | `MODE_CARD_ORDER`, `0, "<id>")` | The card, spliced in after its neighbour. | **tested**: `tests/siteStatic.test.ts` (every id), `tests/bullseye.test.ts` (the neighbours) |
-| 47 | `src/lib/modes.ts` | `MODE_CATEGORIES` | The family: `escape`, `rhythm`, `battle` or `journey`. A new family needs more (README "Add a game mode", step 4). | **typed** |
+| 47 | `src/lib/modes.ts` | `MODE_CATEGORIES` | The family: `escape`, `rhythm`, `battle`, `journey` or `lab`. A new family needs more (README "Add a game mode", step 4). | **typed** |
 | 48 | `src/lib/thumbnails/heroMoments.ts` | `HERO_MOMENTS` | The card picture's moment, query, seed and second. | **typed**, and `tests/modeThumbnails.test.ts` |
 | 49 | `public/modes/<id>.webp` | | The card picture: `MODES=<id> npm run previews` against the served build. | **tested**: `tests/modeThumbnails.test.ts` |
 | 50 | `messages/en.json` | `"mode<Name>"`, `"<Name>": {` | `Controls.mode<Name>`, the section's `<px>Title`, `<px>Desc`, field labels and tips, `Modes.<id>.name` and `.description`, and a `<Name>` namespace for the canvas. Follow `docs/COPY-STYLE.md`. | **tested**: `tests/i18nParity.test.ts`, `tests/copyStyle.test.ts` |

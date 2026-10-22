@@ -101,7 +101,7 @@ Every changed file lands in one zone, listed in the guard report and defined in 
 
 - **Determinism.** A mode takes randomness only from `ctx.random()`, and `init()` resets every field, so a seed replays
   exactly. No `Math.random`, `Date.now`, `performance.now`, `new Date` or `eval` in `src/lib/physics/modes/`
-  (`tests/physicsPurity.test.ts`). Every one of the 47 modes has a fingerprint in the `BASELINE` of `tests/extras.test.ts`.
+  (`tests/physicsPurity.test.ts`). Every one of the 48 modes has a fingerprint in the `BASELINE` of `tests/extras.test.ts`.
 - **Uncapped.** No user number is clamped to a slider's maximum. The only ceilings are the memory and work ceilings,
   `MEMORY_CEILINGS` in `src/lib/uncap.ts` (`tests/uncap.test.ts`).
 - **Watermarked.** Every free frame and every free video carries the watermark (`src/lib/watermark/`,
@@ -120,8 +120,9 @@ Every changed file lands in one zone, listed in the guard report and defined in 
    settings patch (`src/lib/desktop/ai/customMode.ts`).
 2. **A Blueprint.** A mechanic as data run by one sandboxed interpreter: write a spec in the vocabulary of
    `docs/agents/BLUEPRINTS.md` and check it with `bp-validate` and `bp-check` until it is `playable`. The language lives in
-   `src/lib/blueprint/`; the site plays specs once the `blueprint` mode (Mode Lab) is registered, until then they run
-   headless. A gap in the vocabulary gets one trigger or action with a scenario in `tests/blueprintRuntime.test.ts`.
+   `src/lib/blueprint/`; the site plays any spec in the `blueprint` mode (Mode Lab, `?mode=blueprint&bls=<code>`), with no
+   engine, canvas or page change. A gap in the vocabulary gets one trigger or action with a scenario in
+   `tests/blueprintRuntime.test.ts`.
 3. **Only then a coded mode.** Follow `docs/agents/MODES.md` exactly: it lists every registration point, with its file, its
    symbol and whether a type, a test or nothing catches it when it is missed.
 
@@ -150,7 +151,7 @@ failed) or 2 (a usage error). `npm run -s agent -- --help` lists every tool with
 
 | Tool | Use it to |
 | --- | --- |
-| `modes` | List the 47 modes, or one mode's fields with defaults, ranges and link keys |
+| `modes` | List the 48 modes, or one mode's fields with defaults, ranges and link keys |
 | `simulate` | Run one seed of a link or mode headlessly, exactly as the seed finder does (deterministic) |
 | `fingerprint` | Compare a mode's fingerprint with the `BASELINE` of `tests/extras.test.ts` |
 | `preview` | Get a watermarked PNG contact sheet of a link from a local export of your working tree |

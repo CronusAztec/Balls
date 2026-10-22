@@ -86,6 +86,8 @@ import { DEFAULT_MERGE_RING_LABELS, MERGE_RING_DATA_KEYS, MergeRingDataset, Merg
 import { plainTransform } from "./mergeRingGlow";
 // --- spiral-glass --- Spiral Glass: the glass tiles, the rainbow line, the shards, the pops, the badge, the caption and the HUD
 import { DEFAULT_SPIRAL_GLASS_LABELS, SPIRAL_GLASS_DATA_KEYS, SpiralGlassDataset, SpiralGlassLayer, clearedSeconds, type SpiralGlassLabels, type SpiralGlassRenderOptions } from "./spiralGlassRenderer";
+// --- blueprint --- Mode Lab: a Blueprint's arena, tiles, obstacles, ball labels, HUD and end banner
+import { BLUEPRINT_DATA_KEYS, BlueprintDataset, BlueprintLayer, DEFAULT_BLUEPRINT_LABELS, endColor as blueprintEndColor, endSub as blueprintEndSub, endTitle as blueprintEndTitle, type BlueprintLabels, type BlueprintRenderOptions } from "./blueprintRenderer";
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
 import { BOUNCE_MATH_DATA_KEYS, BounceMathLayer, DEFAULT_BOUNCE_MATH_LABELS, writeBounceMathDataset, type BounceMathHudLabels } from "./bounceMathRenderer"; // --- bounce-math ---
@@ -229,6 +231,9 @@ export interface CanvasLabels {
   // --- spiral-glass ---
   /** Spiral Glass: the HUD title, the tiles left, the badge, the caption and the end banners. */
   spiralGlass?: SpiralGlassLabels;
+  // --- blueprint ---
+  /** Mode Lab: ARENA FULL, the clock, the banner's subline, the team names and the catalog entries' own texts. */
+  blueprint?: BlueprintLabels;
   // --- beat-drop ---
   /** Beat Drop: the HUD title, the tempo, the landing counter and the banner on the last landing. */
   beatDrop?: BeatDropLabels;
@@ -472,6 +477,7 @@ const DEFAULT_LABELS: CanvasLabels = {
   bullseye: DEFAULT_BULLSEYE_LABELS, // --- gerald-bullseye ---
   mergeRing: DEFAULT_MERGE_RING_LABELS, // --- merge-ring ---
   spiralGlass: DEFAULT_SPIRAL_GLASS_LABELS, // --- spiral-glass ---
+  blueprint: DEFAULT_BLUEPRINT_LABELS, // --- blueprint ---
   beatDrop: DEFAULT_BEAT_DROP_LABELS, // --- beat-drop ---
   unlimited: DEFAULT_UNLIMITED_LABELS, // --- unlimited ---
   uncap: DEFAULT_UNCAP_LABELS, // --- uncap-all ---
@@ -1014,6 +1020,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
     const spiralGlassLayer = new SpiralGlassLayer();
     const spiralGlassRender: SpiralGlassRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
     const spiralGlassData = new SpiralGlassDataset();
+    // --- blueprint --- the Mode Lab layer, its per-frame options and the data-blueprint-* writer
+    const blueprintLayer = new BlueprintLayer();
+    const blueprintRender: BlueprintRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
+    const blueprintData = new BlueprintDataset();
     // --- gerald-conveyor --- the Conveyor Belt's layer, its per-frame options and the data-cv-* writer
     const conveyorLayer = new ConveyorLayer();
     const conveyorRender: ConveyorRenderOptions = { wallAlpha: () => "#fff", wallThickness: 2, showWallGlow: true };
@@ -1461,6 +1471,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       const bullseyeView = engine.isBullseyeMode() ? engine.getBullseyeView() : null; // --- gerald-bullseye ---
       const mergeRingView = engine.isMergeRingMode() ? engine.getMergeRingView() : null; // --- merge-ring ---
       const spiralGlassView = engine.isSpiralGlassMode() ? engine.getSpiralGlassView() : null; // --- spiral-glass ---
+      const blueprintView = engine.isBlueprintMode() ? engine.getBlueprintView() : null; // --- blueprint ---
       const conveyorView = engine.isConveyorMode() ? engine.getConveyorView() : null; // --- gerald-conveyor ---
       const orbView = engine.isOrbGridMode() ? engine.getOrbGridView() : null; // --- orb-grid ---
       // --- orb-rhythm --- the frame's simulation time: what the page has fed the engine, a step behind (the step that made the sound)
@@ -1948,6 +1959,13 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         spiralGlassRender.wallThickness = p.wallThickness;
         spiralGlassRender.showWallGlow = p.showWallGlow;
         spiralGlassLayer.drawWorld(ctx, spiralGlassView, spiralGlassRender);
+      }
+      // --- blueprint --- Mode Lab: the arena's floor, the tiles, the obstacles, the rings and the rim under the balls.
+      if (blueprintView) {
+        blueprintRender.wallAlpha = circleAlpha;
+        blueprintRender.wallThickness = p.wallThickness;
+        blueprintRender.showWallGlow = p.showWallGlow;
+        blueprintLayer.drawWorld(ctx, blueprintView, blueprintRender);
       }
       // --- gerald-conveyor --- Conveyor Belt: the belts, the hatch, the loading tube, the bowl's glass and the bins under the balls.
       if (conveyorView) {
@@ -2688,6 +2706,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (bullseyeView) bullseyeLayer.drawEffects(ctx, bullseyeView, (labelsRef.current ?? DEFAULT_LABELS).bullseye ?? DEFAULT_BULLSEYE_LABELS); // --- gerald-bullseye --- score popups and the bullseye's starburst
       if (mergeRingView) mergeRingLayer.drawEffects(ctx, mergeRingView); // --- merge-ring --- the halos of the merges
       if (spiralGlassView) spiralGlassLayer.drawEffects(ctx, spiralGlassView, (labelsRef.current ?? DEFAULT_LABELS).spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS); // --- spiral-glass --- the shards, the pops and the badge over the balls
+      if (blueprintView) blueprintLayer.drawEffects(ctx, blueprintView); // --- blueprint --- the balls' tiers or hit points, the spec's flash
       if (bdView) bdLayer.drawEffects(ctx, bdView, drawnBalls[0]?.radius ?? engine.config.ballRadius, bdRender); // --- beat-drop --- ripples and puffs of the landings
       if (conveyorView) conveyorLayer.drawEffects(ctx, conveyorView); // --- gerald-conveyor --- the frost on the frozen balls
 
@@ -2814,6 +2833,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (mergeRingView) mergeRingLayer.drawOverlay(ctx, mergeRingView, (labelsRef.current ?? DEFAULT_LABELS).mergeRing ?? DEFAULT_MERGE_RING_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- spiral-glass --- Spiral Glass: the tiles left, the progress ring and the caption (screen space, part of the recording).
       if (spiralGlassView) spiralGlassLayer.drawOverlay(ctx, spiralGlassView, (labelsRef.current ?? DEFAULT_LABELS).spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
+      // --- blueprint --- Mode Lab: the title, the HUD counters, the clock and ARENA FULL (screen space, part of the recording).
+      if (blueprintView) blueprintLayer.drawOverlay(ctx, blueprintView, (labelsRef.current ?? DEFAULT_LABELS).blueprint ?? DEFAULT_BLUEPRINT_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- gerald-conveyor --- Conveyor Belt: the title and the counter (screen space, part of the recording).
       if (conveyorView) conveyorLayer.drawOverlay(ctx, conveyorView, (labelsRef.current ?? DEFAULT_LABELS).conveyor ?? DEFAULT_CONVEYOR_LABELS, size.width, size.height, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- beat-drop --- Beat Drop: the title, the tempo, the landings and the bar's beats (screen space, part of the recording)
@@ -3149,6 +3170,11 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           const SG = L.spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS;
           if (spiralGlassView.clearedMs >= 0) bigBanner(SG.clearedTitle, SG.clearedSub(spiralGlassView.count, clearedSeconds(spiralGlassView)), "#f8fafc");
           else bigBanner(SG.timeoutTitle, SG.timeoutSub(spiralGlassView.tilesLeft), "#fb7185");
+        }
+        // --- blueprint --- Mode Lab: the result line (a catalog entry's in the page's language) from the end, through the hold
+        if (blueprintView && blueprintView.result.finished) {
+          const BL = L.blueprint ?? DEFAULT_BLUEPRINT_LABELS;
+          bigBanner(blueprintEndTitle(blueprintView, BL), blueprintEndSub(blueprintView, BL), blueprintEndColor(blueprintView));
         }
         // --- gerald-conveyor --- Conveyor Belt: every ball out (or frozen) / the arena settled (through the hold before the end)
         if (conveyorView && conveyorView.allDone) {
@@ -3778,6 +3804,9 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- spiral-glass --- count, balls, tiles, hp, chips, shatters, notes, cleared, timeout, finished (data-spiral-*)
       if (spiralGlassView) spiralGlassData.write(spiralGlassView, setCanvasData);
       else if (canvas.dataset.spiralCount !== undefined) for (const key of SPIRAL_GLASS_DATA_KEYS) delete canvas.dataset[key];
+      // --- blueprint --- name, catalog, finished, reason, result, balls, tiles, time, steps, dropped, fault, escaped (data-blueprint-*)
+      if (blueprintView) blueprintData.write(blueprintView, setCanvasData);
+      else if (canvas.dataset.blueprintFinished !== undefined) for (const key of BLUEPRINT_DATA_KEYS) delete canvas.dataset[key];
       // --- gerald-conveyor --- arena, balls, loaded, escaped / overflow / landed, frozen, carried, passes, notes, drops, the end (data-cv-*)
       if (conveyorView) conveyorData.write(conveyorView, setCanvasData);
       else if (canvas.dataset.cvArena !== undefined) for (const key of CONVEYOR_DATA_KEYS) delete canvas.dataset[key];
@@ -3876,6 +3905,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           mergeRingLayer.noteHud(hud);
         }
         if (spiralGlassView) noteTitleBlock(hud, liveSquare, titleInset, 2, "both"); // --- spiral-glass ---
+        if (blueprintView) blueprintLayer.noteHud(hud, liveSquare, titleInset); // --- blueprint --- (the title, the HUD counters, the clock and ARENA FULL)
         if (rrView) noteRhythmBand(hud, liveSquare, !recording && (size.width - sq) / 2 < 170 ? 40 : 0, "runner");
         if (pdView) noteRhythmBand(hud, liveSquare, 0, "paddle");
         if (captionLayer.usesTop) hud.topBand(captionLayer.stackEdges.top);

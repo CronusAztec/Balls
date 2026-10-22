@@ -45,6 +45,7 @@ import type { JourneySettings } from "@/lib/physics/modes/journey"; // --- geral
 import type { BullseyeSettings } from "@/lib/physics/modes/bullseye"; // --- gerald-bullseye ---
 import type { MergeRingSettings } from "@/lib/physics/modes/mergeRing"; // --- merge-ring ---
 import type { SpiralGlassSettings } from "@/lib/physics/modes/spiralGlass"; // --- spiral-glass ---
+import type { BlueprintSettings } from "@/lib/physics/modes/blueprint"; // --- blueprint ---
 // --- beat-drop ---
 import type { BeatDropSettings } from "@/lib/physics/modes/beatDrop";
 import type { OnBeatConfig } from "@/lib/physics/onBeat"; // --- video-beats ---
@@ -180,6 +181,9 @@ export interface ModeSettings {
   // --- spiral-glass ---
   /** Spiral Glass: turns, hit points, speed, ball cap, rainbow line and chip time (see modes/spiralGlass.ts); the defaults when left out. Every run ends with GLASS CLEARED or a TIMEOUT, and the seed moves when the bands break open and the laps line up, so the finder searches it. */
   spiralGlass?: Partial<SpiralGlassSettings>;
+  // --- blueprint ---
+  /** Mode Lab: the catalog entry, a link's spec and its slider values (see modes/blueprint.ts); the defaults when left out. Every Blueprint ends by a finish condition or its timeout (180 s at most), and the seed moves its spawns, draws and chances, so the finder searches it. */
+  blueprint?: Partial<BlueprintSettings>;
   // --- beat-drop ---
   /**
    * Beat Drop: the mix, drift, scroll, bounce, anticipation, the beat it follows and the clip length (see modes/beatDrop.ts);
@@ -624,6 +628,7 @@ export function createEngineForSettings(config: PhysicsConfig, mode: ModeId, set
   if (mode === "bullseye") engine.setBullseyeSettings(settings.bullseye ?? {}); // --- gerald-bullseye ---
   if (mode === "mergeRing") engine.setMergeRingSettings(settings.mergeRing ?? {}); // --- merge-ring ---
   if (mode === "spiralGlass") engine.setSpiralGlassSettings(settings.spiralGlass ?? {}); // --- spiral-glass ---
+  if (mode === "blueprint") engine.setBlueprintSettings(settings.blueprint ?? {}); // --- blueprint ---
   if (mode === "beatDrop") engine.setBeatDropSettings(settings.beatDrop ?? {}); // --- beat-drop ---
   if (mode === "territory") engine.setTerritorySettings(settings.territory ?? {}); // --- odd-territory ---
   if (mode === "maze") engine.setMazeSettings(settings.maze ?? {}); // --- odd-maze ---

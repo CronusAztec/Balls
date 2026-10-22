@@ -6,7 +6,8 @@
     "faq": "Frequently Asked Questions",
     "howItWorks": "How It Works",
     "modesBattle": "Battle modes",
-    "modesJourney": "Journey modes"
+    "modesJourney": "Journey modes",
+    "modesLab": "Lab modes"
   },
   "Navbar": {
     "simulator": "Simulator",
@@ -1500,6 +1501,20 @@
     "sgRainbow": "Rainbow Line",
     "sgRainbowTip": "The spiral line cycles slowly through the hues and the glass takes a faint tint of it. Off draws it in the wall colour.",
     "sgRunInfo": "{turns} turns, {tiles} tiles. The seed decides when the bands break open and how the laps line up, so Find Simulation can hit your clip length.",
+    "modeBlueprint": "Mode Lab",
+    "blTitle": "Mode Lab",
+    "blDesc": "Each game here is a Blueprint: an arena, its balls and the rules that make them break, merge, multiply or race. Pick a game and tune its sliders. A Blueprint link opens here too.",
+    "blPreset": "Game",
+    "blFromLink": "From a link",
+    "blLinkNote": "This game came with a link. Pick one from the list to go back to the built-in games.",
+    "blRepaired": "Values fixed on load: {count}",
+    "blCheck": "Check playability",
+    "blChecking": "Checking…",
+    "blCheckPlayable": "Playable. It ends after about {seconds} s on {ended} of {seeds} seeds.",
+    "blCheckEndless": "It never ends by itself. Every run reached the {seconds} s limit.",
+    "blCheckBroken": "Not playable yet. Problems found: {problems}.",
+    "blCopyLink": "Copy link",
+    "blCopied": "Copied",
     "bounceMath": "Bounce math",
     "bounceMathTip": "Rules that change a value by a mathematical step every time something happens – the ball gets bouncier, faster or bigger on every bounce, gravity flips every bar, the ball pumps on the beat. Rules apply in list order, and there is no upper limit unless you set a max.",
     "bounceMathRules": "Bounce math rules",
@@ -2537,6 +2552,10 @@
     "spiralGlass": {
       "name": "Spiral Glass",
       "description": "Balls circle a glass spiral and chip it away from the outside in. Every lap adds a ball. Will it multiply?"
+    },
+    "blueprint": {
+      "name": "Mode Lab",
+      "description": "New games built from rules, like glass that hatches balls or rings that double them. Pick one and play."
     },
     "beatDrop": {
       "name": "Beat Drop",
@@ -4060,6 +4079,99 @@
     "canvasTimeout": "TIME'S UP",
     "canvasTimeoutSub": "[tiles] tiles left"
   },
+  "Blueprint": {
+    "canvasArenaFull": "ARENA FULL",
+    "canvasTimeLeft": "[min]:[sec]",
+    "canvasEndedAt": "in [seconds] s",
+    "canvasNobody": "NOBODY",
+    "team": {
+      "red": "RED",
+      "blue": "BLUE",
+      "green": "GREEN",
+      "gold": "GOLD",
+      "purple": "PURPLE",
+      "cyan": "CYAN"
+    }
+  },
+  "Blueprints": {
+    "hatchery": {
+      "name": "Glass Hatchery",
+      "description": "Every glass tile a ball breaks hatches a new ball. One ball becomes a swarm before the shell is gone.",
+      "hud0": "tiles",
+      "hud1": "balls",
+      "say0": "SHELL CLEARED",
+      "timeoutSay": "STILL IN THE SHELL",
+      "params": {
+        "layers": "Layers",
+        "glass": "Glass strength",
+        "speed": "Ball speed"
+      }
+    },
+    "ringBreaker": {
+      "name": "Ring Breaker",
+      "description": "Every ring a ball gets through shatters and doubles every ball. Break all eight.",
+      "hud0": "rings",
+      "hud1": "balls",
+      "say0": "ALL RINGS DOWN",
+      "timeoutSay": "[rings] RINGS LEFT",
+      "params": {
+        "rings": "Rings",
+        "gap": "Gap",
+        "spin": "Ring spin"
+      }
+    },
+    "conquer": {
+      "name": "Colour Conquest",
+      "description": "Four colours collide and the faster ball converts the slower one. The last colour standing wins.",
+      "hud0": "colours left",
+      "hud1": "time",
+      "say0": "[winner] WINS",
+      "timeoutSay": "[winner] LEADS",
+      "params": {
+        "per": "Balls per colour",
+        "boost": "Speed-up every"
+      }
+    },
+    "tierClimb": {
+      "name": "Tier Climb",
+      "description": "Orbs rain down and two of a tier merge into the next. The first orb to reach tier 8 ends it.",
+      "hud0": "top tier",
+      "hud1": "orbs",
+      "say0": "TIER [tier] REACHED",
+      "timeoutSay": "TOP TIER [tier]",
+      "params": {
+        "target": "Target tier",
+        "rain": "Seconds per orb",
+        "gravity": "Gravity"
+      }
+    },
+    "plinkoRace": {
+      "name": "Peg Race",
+      "description": "Four balls fall through the pegs and chase a turning exit. The first one out wins.",
+      "hud0": "time",
+      "say0": "[winner] WINS THE RACE",
+      "timeoutSay": "NOBODY GOT OUT",
+      "params": {
+        "exit": "Exit width",
+        "spin": "Exit spin",
+        "rows": "Peg rows"
+      }
+    },
+    "growEscape": {
+      "name": "Grow or Go",
+      "description": "Every bounce makes the ball bigger. Can it find the gap before it no longer fits?",
+      "hud0": "bounces",
+      "hud1": "time",
+      "say0": "ESCAPED AFTER [bounces] BOUNCES",
+      "say1": "TOO BIG TO ESCAPE",
+      "timeoutSay": "TIME UP",
+      "params": {
+        "grow": "Growth per bounce",
+        "exit": "Exit width",
+        "limit": "Bounces to lose"
+      }
+    }
+  },
   "Daily": {
     "cardBadge": "Daily challenge",
     "cardTitle": "Today: {mode}",
@@ -4953,7 +5065,8 @@
       "escape": "Escape",
       "rhythm": "Rhythm",
       "battle": "Battle",
-      "journey": "Journey"
+      "journey": "Journey",
+      "lab": "Lab"
     },
     "hero": {
       "eyebrow": "Ball physics studio",

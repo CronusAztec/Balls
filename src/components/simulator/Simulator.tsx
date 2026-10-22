@@ -148,6 +148,8 @@ import { journeySettingsOf } from "@/lib/physics/modes/journey"; // --- gerald-j
 import { bullseyeSettingsOf } from "@/lib/physics/modes/bullseye"; // --- gerald-bullseye ---
 import { mergeRingSettingsOf } from "@/lib/physics/modes/mergeRing"; // --- merge-ring ---
 import { spiralGlassSettingsOf } from "@/lib/physics/modes/spiralGlass"; // --- spiral-glass ---
+import { blueprintSettingsOf } from "@/lib/physics/modes/blueprint"; // --- blueprint ---
+import { BLUEPRINT_CATALOG_IDS } from "@/lib/blueprint/catalog"; // --- blueprint --- (the catalog entries' canvas texts)
 // --- gerald-conveyor --- the Conveyor Belt mode and the respawn timer of Classic and Multiply
 import { conveyorSettingsOf } from "@/lib/physics/modes/conveyor";
 // --- orb-grid --- Bouncing Orbs (thousands of varied bouncing orbs forming a 3D wave)
@@ -426,6 +428,7 @@ export default function Simulator() {
     engine.setBullseyeSettings(bullseyeSettingsOf(s)); // --- gerald-bullseye ---
     engine.setMergeRingSettings(mergeRingSettingsOf(s)); // --- merge-ring ---
     engine.setSpiralGlassSettings(spiralGlassSettingsOf(s)); // --- spiral-glass ---
+    engine.setBlueprintSettings(blueprintSettingsOf(s)); // --- blueprint ---
     engine.setBeatDropSettings(beatDropSettingsOf(s, rhythmBeatRef.current)); // --- beat-drop ---
     engine.setTerritorySettings(territorySettingsOf(s)); // --- odd-territory ---
     engine.setMazeSettings(mazeSettingsOf(s)); // --- odd-maze ---
@@ -1590,6 +1593,22 @@ export default function Simulator() {
     engineRef.current?.setSpiralGlassSettings({ rainbow: s.sgRainbow });
   }, [s.sgRainbow]);
   // --- end spiral-glass ---
+  // --- blueprint --- Mode Lab: another catalog entry, a link's spec or a slider value restarts the run and drops a found seed
+  // (every setting of a Blueprint is its run's; nothing follows live).
+  useEffect(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    engine.setBlueprintSettings(blueprintSettingsOf(s));
+    if (s.mode === "blueprint" && engine.getCurrentModeName() === "blueprint") {
+      engine.initBlueprint();
+      setFinished(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [s.blPreset, s.blSpec, s.blParams]);
+  useEffect(() => {
+    engineRef.current?.setSeed(null);
+  }, [s.blPreset, s.blSpec, s.blParams]);
+  // --- end blueprint ---
   // --- gerald-conveyor --- Conveyor Belt: a change of the interval, the ball count, the arena, the freeze or the variety restarts
   // the run and drops a found seed; the Sound section's scale and root (the peg, bowl and ring-pass notes) follow live. The
   // respawn timer of Classic and Multiply travels in the physics config (so the finder and the exports run it); a new period
@@ -2064,6 +2083,7 @@ export default function Simulator() {
         engine.setBullseyeSettings(bullseyeSettingsOf(arena)); // --- gerald-bullseye --- (the scale and root follow live; the rest waits for a restart)
         engine.setMergeRingSettings({ rainbow: arena.mrRainbow }); // --- merge-ring --- (the rainbow rim follows live; the rest waits for a restart)
         engine.setSpiralGlassSettings({ rainbow: arena.sgRainbow }); // --- spiral-glass --- (the rainbow line follows live; the rest waits for a restart)
+        engine.setBlueprintSettings(blueprintSettingsOf(arena)); // --- blueprint --- (an arena's Blueprint applies at its next restart: nothing of a Blueprint is live)
         engine.setBeatDropSettings({ sound: arena.bdSound, colorMode: arena.bdColorMode, trail: arena.bdTrail, clipSec: arena.recordingDuration, scale: arena.scale, rootNote: arena.rootNote }); // --- beat-drop --- (what a landing plays, the colours, the trail, the clip and the scale follow live; the plan waits for a restart)
         const bounceMath = engineRef.current?.config.bounceMath; // --- bounce-math --- the page's rules follow live
         if (bounceMath && engine.config.bounceMath !== bounceMath) engine.setConfig({ bounceMath });
@@ -3431,6 +3451,7 @@ export default function Simulator() {
           bullseye: bullseyeSettingsOf(settings), // --- gerald-bullseye ---
           mergeRing: mergeRingSettingsOf(settings), // --- merge-ring --- (every run ends with the final form or an overflow)
           spiralGlass: spiralGlassSettingsOf(settings), // --- spiral-glass --- (every run ends with the glass cleared or a timeout)
+          blueprint: blueprintSettingsOf(settings), // --- blueprint --- (every Blueprint ends by a finish condition or its timeout)
           beatDrop: beatDropSettingsOf(settings, rhythmBeatRef.current), // --- beat-drop --- (it cannot fail: the clip covers the target's beats)
           territory: territorySettingsOf(settings), // --- odd-territory --- (every run lasts its countdown: the finder searches its winner)
           maze: mazeSettingsOf(settings), // --- odd-maze ---
@@ -3787,6 +3808,22 @@ export default function Simulator() {
         clearedSub: (count, seconds) => fill("SpiralGlass.canvasClearedSub", { count, seconds }),
         timeoutTitle: t("SpiralGlass.canvasTimeout"),
         timeoutSub: (tiles) => fill("SpiralGlass.canvasTimeoutSub", { tiles }),
+      },
+      // --- blueprint --- Mode Lab: the badges, the clock, the team names and every catalog entry's own texts (a spec of a
+      // link speaks its author's words)
+      blueprint: {
+        arenaFull: t("Blueprint.canvasArenaFull"),
+        timeLeft: (s) => fill("Blueprint.canvasTimeLeft", { min: Math.floor(s / 60), sec: String(s % 60).padStart(2, "0") }),
+        endedAt: (seconds) => fill("Blueprint.canvasEndedAt", { seconds }),
+        teamNames: ["red", "blue", "green", "gold", "purple", "cyan"].map((c) => t(`Blueprint.team.${c}`)),
+        nobody: t("Blueprint.canvasNobody"),
+        catalog: Object.fromEntries(
+          BLUEPRINT_CATALOG_IDS.map((id) => {
+            const has = (k: string) => t.has(`Blueprints.${id}.${k}`);
+            const list = (k: string) => [0, 1, 2].filter((i) => has(`${k}${i}`)).map((i) => t(`Blueprints.${id}.${k}${i}`));
+            return [id, { name: t(`Blueprints.${id}.name`), hud: list("hud"), says: list("say"), timeoutSay: has("timeoutSay") ? t(`Blueprints.${id}.timeoutSay`) : undefined }];
+          }),
+        ),
       },
       // --- gerald-conveyor ---
       conveyor: {

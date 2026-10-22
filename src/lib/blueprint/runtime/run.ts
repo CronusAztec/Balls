@@ -1,29 +1,34 @@
 /*
- * --- blueprint --- One run of a Blueprint: the interpreter. Each fixed 60 Hz step:
+ * --- blueprint --- One run of a Blueprint inside the engine: the interpreter the blueprint mode (Mode Lab,
+ * lib/physics/modes/blueprint.ts) steps through its GameMode hooks. Each fixed 60 Hz step:
  *
- *  1. the clock: `start` (first step), `beat` / `bar` (sound.bpm), each `timer` rule; then the spawners;
- *  2. the world steps (runtime/world.ts) and reports its events – each one counted at once (escapes, the first ball out,
- *     its voice), then queued for the rules up to BLUEPRINT_EVENTS_PER_STEP (the rest are dropped and counted);
- *  3. the rules run, the one place they run: event by event, rule by rule in list order, each firing its actions, up to
- *     BLUEPRINT_RULE_FIRINGS_PER_STEP. An event an action causes (a tile a `damage` breaks) waits for the NEXT step's queue,
- *     so a chain of rules can never recurse inside a step. `countReached` rules check their counts after the events;
- *  4. removals are swept, and queued balls (spawns, splits) join – BLUEPRINT_SPAWNS_PER_STEP a step, never past
- *     BLUEPRINT_BALL_CEILING (past it: ARENA FULL, counted);
- *  5. the finish: the first condition met (after it was once unmet), else the timeout.
+ *  1. `preStep()` (onPreUpdate): the clock – `start` (the first step), `beat` / `bar` (sound.bpm), each `timer` rule –, the
+ *     spawners (their balls are queued), and the rim, the rings and the spinners turn;
+ *  2. the engine moves every ball; `ballStep()` (onBallStep) and `subStep()` (onPostSubStep) let the world resolve the
+ *     contacts (runtime/world.ts). Those callbacks only RECORD: each event is counted at once (escapes, the first ball out,
+ *     its voice) and queued for the rules up to BLUEPRINT_EVENTS_PER_STEP (the rest are dropped and counted);
+ *  3. `postStep()` (onPostUpdate) runs the rules, the one place they run (runtime/rules.ts), up to
+ *     BLUEPRINT_RULE_FIRINGS_PER_STEP firings; an event an action causes waits for the NEXT step's queue, so a chain of rules
+ *     can never recurse inside a step. Then removals are swept, queued balls join the engine (BLUEPRINT_SPAWNS_PER_STEP a
+ *     step, never past BLUEPRINT_BALL_CEILING: ARENA FULL, counted), the finish is checked (runtime/finish.ts), and the
+ *     step's sounds and effects go to the engine.
  *
- * Fault containment: only the rule dispatch is wrapped – should it ever throw, the rules stop and the run ends 1 s later
- * with reason "fault". Randomness: only the run's seeded generator (Mulberry32 of the seed, or the engine's ctx.random()
- * when a mode hands it in), drawn only where the spec asks for it (a `chance` below 1, `r` in a formula, a random place,
- * direction or colour). No clock: a seed replays exactly, on any machine.
- *
- * This is the runtime the blueprint mode (Mode Lab, lib/physics/modes/blueprint.ts) steps inside the engine, and what
- * playabilityCheck (check.ts) runs headless.
+ * Fault containment: only the rule dispatch is wrapped – should it ever throw, the rules stop and the run ends 1 s later with
+ * reason "fault"; nothing is ever thrown out of the engine. Randomness: only the run's own seeded generator (the mode seeds
+ * it from ctx.random() once, so the engine's other draws – the cinematic director's – never shift it), drawn only where the
+ * spec asks for it. No clock: a seed replays exactly. A finished run keeps its world turning (the balls still bounce under
+ * the end banner) but records, plays and fires nothing more.
  */
 import { BLUEPRINT_LIMITS as L, BLUEPRINT_STEP_BUDGETS as BUDGET, BLUEPRINT_BALL_CEILING } from "../limits";
 import { evaluateBlueprintFormula, SLOT } from "../formula";
-import { DEFAULT_SAY, type Blueprint, type BlueprintFinishCondition, type Direction, type FxKind, type ImpulseDirection, type SpawnAt, type Trigger, type Voice } from "../schema";
-import { compileBlueprint, type CompiledAction, type CompiledBlueprint, type CompiledNum, type CompiledRule } from "./compile";
-import { BlueprintWorld, FIXED_STEP_SEC, MIN_HIT_SPEED, type NewWorldBall, type WorldBall, type WorldEvents } from "./world";
+import type { Blueprint, FxKind, Trigger, Voice, VoiceTrigger } from "../schema";
+import { compileBlueprint, type CompiledBlueprint, type CompiledNum } from "./compile";
+import { EventQueue, type WorldEvents } from "./events";
+import { checkFinish } from "./finish";
+import { countRules, dispatch } from "./rules";
+import { placeBalls } from "./actions";
+import { BlueprintWorld, MIN_HIT_SPEED, type NewWorldBall, type WorldBall } from "./world";
+import type { Ball, ModeContext } from "@/lib/physics/types";
 
 export type FinishReason = "condition" | "timeout" | "fault";
 
@@ -72,9 +77,8 @@ export interface RunResult {
 }
 
 export interface RunOptions {
-  seed: number;
-  /** The run's random numbers in [0, 1) (default: Mulberry32 of the seed; the mode hands in the engine's ctx.random()). */
-  random?: () => number;
+  /** The run's random numbers in [0, 1): a seeded generator (the mode's is Mulberry32 of a seed drawn from ctx.random()). */
+  random: () => number;
   /** Conformance tests only: firing rule i throws, to prove fault containment. */
   faultOnRule?: number;
 }
@@ -91,21 +95,33 @@ export function mulberry32(seed: number): () => number {
   };
 }
 
-interface QueuedEvent {
-  trigger: Trigger;
-  self: WorldBall | null;
-  other: WorldBall | null;
-  tile: number;
-  rule: number;
+/** A sound of the step: a voice and a scale degree. */
+export interface StepSound {
+  voice: Voice;
+  pitch: number;
 }
 
-const TAU = Math.PI * 2;
+/** A visual effect of the step, where it happened: the spec's fx kinds and the interpreter's own (a merge, a split, a pop). */
+export type EffectKind = FxKind | "merge" | "split" | "pop";
+export interface StepEffect {
+  kind: EffectKind;
+  x: number;
+  y: number;
+  color: number;
+  r: number;
+}
+
+/** The up-and-down walk of scale degrees the wall hits play by default, one step a hit (a run of bounces is a tune, not one note). */
+const WALL_WALK = [0, 1, 2, 3, 4, 5, 6, 7, 6, 5, 4, 3, 2, 1] as const;
 
 export class BlueprintRun implements WorldEvents {
   readonly bp: Blueprint;
+  readonly ctx: ModeContext;
   readonly world: BlueprintWorld;
   readonly compiled: CompiledBlueprint;
   readonly vars: Float64Array;
+  readonly random: () => number;
+  readonly faultOnRule: number;
   readonly stats: RunStats = {
     steps: 0,
     peakBalls: 0,
@@ -129,53 +145,60 @@ export class BlueprintRun implements WorldEvents {
   };
   timeSec = 0;
   beats = 0;
-  /** This step's sounds, in order (the blueprint mode turns them into the engine's SoundEvents; the check counts them). */
-  readonly stepSounds: { voice: Voice; pitch: number }[] = [];
+  /** This step's sounds, in order (turned into the engine's SoundEvents at the end of the step; the check counts them). */
+  readonly stepSounds: StepSound[] = [];
   /** This step's visual effects, where they happened (world px). */
-  readonly stepEffects: { kind: FxKind; x: number; y: number }[] = [];
-  private readonly random: () => number;
+  readonly stepEffects: StepEffect[] = [];
+  /* (the interpreter's modules – rules.ts, actions.ts, finish.ts – read and write the fields below) */
+  queue = new EventQueue(BUDGET.events);
+  pending = new EventQueue(BUDGET.events);
+  firingsThisStep = 0;
+  readonly ruleMatches: Float64Array;
+  readonly ruleFires: Float64Array;
+  readonly ruleLast: Float64Array;
+  readonly ruleTimerFired: Float64Array;
+  readonly countWas: Uint8Array;
+  readonly finishArmed: Uint8Array;
+  firstOutTeam = -1;
+  lastOutTeam = -1;
+  rulesOff = false;
+  faultAt = -1;
+  faultStep = -1;
+  teamsSeen = 0;
+  done: RunResult = { finished: false, reason: null, condition: -1, timeSec: 0, winner: -1, result: "" };
+  /** When the arena last refused a ball (s; −Infinity: never) – the ARENA FULL badge. */
+  arenaFullAtSec = -Infinity;
+  /** When the last flash and shake effects fired (s). */
+  flashAtSec = -Infinity;
   private readonly slots: Float64Array;
-  private queue: QueuedEvent[] = [];
-  private pending: QueuedEvent[] = [];
-  private spawnQueue: NewWorldBall[] = [];
-  private firingsThisStep = 0;
+  private readonly spawnQueue: NewWorldBall[] = [];
   private soundsThisStep = 0;
-  private readonly ruleMatches: number[];
-  private readonly ruleFires: number[];
-  private readonly ruleLast: number[];
-  private readonly ruleTimerFired: number[];
-  private readonly countWas: boolean[];
-  private readonly finishArmed: boolean[];
+  private wallHits = 0;
   private readonly spawnerFired: number[];
   private readonly spawnerMade: number[];
   private readonly escapedByBody: number[];
-  private firstOutTeam = -1;
-  private lastOutTeam = -1;
-  private rulesOff = false;
-  private faultAt = -1;
-  private readonly faultOnRule: number;
-  private teamsSeen = 0;
-  private done: RunResult = { finished: false, reason: null, condition: -1, timeSec: 0, winner: -1, result: "" };
+  private readonly finishSounds: Voice[] = [];
 
-  constructor(bp: Blueprint, options: RunOptions) {
+  constructor(bp: Blueprint, ctx: ModeContext, options: RunOptions) {
     this.bp = bp;
-    this.world = new BlueprintWorld(bp);
+    this.ctx = ctx;
+    this.world = new BlueprintWorld(bp, ctx.config.width, ctx.config.height);
     this.compiled = compileBlueprint(bp);
-    this.random = options.random ?? mulberry32(options.seed);
+    this.random = options.random;
     this.faultOnRule = options.faultOnRule ?? -1;
     this.vars = Float64Array.from(bp.vars.map((v) => v.start));
     this.slots = new Float64Array(SLOT.firstVar + bp.vars.length);
     const n = bp.rules.length;
-    this.ruleMatches = new Array(n).fill(0);
-    this.ruleFires = new Array(n).fill(0);
-    this.ruleLast = new Array(n).fill(-Infinity);
-    this.ruleTimerFired = new Array(n).fill(0);
-    this.countWas = new Array(n).fill(false);
-    this.finishArmed = new Array(bp.finish.any.length).fill(false);
+    this.ruleMatches = new Float64Array(n);
+    this.ruleFires = new Float64Array(n);
+    this.ruleLast = new Float64Array(n).fill(-Infinity);
+    this.ruleTimerFired = new Float64Array(n);
+    this.countWas = new Uint8Array(n);
+    this.finishArmed = new Uint8Array(bp.finish.any.length);
     this.spawnerFired = new Array(bp.spawners.length).fill(0);
     this.spawnerMade = new Array(bp.spawners.length).fill(0);
     this.escapedByBody = new Array(bp.bodies.length).fill(0);
-    // the first balls: every spawner due at 0 s places its balls at once
+    // the first balls: every spawner due at 0 s places its balls at once (so the engine adds no default ball of its own)
     this.runSpawners(true);
     this.drainSpawns(Infinity);
     this.noteBalls();
@@ -189,88 +212,126 @@ export class BlueprintRun implements WorldEvents {
     return { ...this.done };
   }
 
-  /* ------------------------------------------------------------------ the step */
+  /* ------------------------------------------------------------------ the engine's hooks */
 
-  /** One fixed step (1/60 s). Does nothing once the run has finished. */
-  step(): void {
-    if (this.done.finished) return;
-    const dt = FIXED_STEP_SEC;
+  /** onPreUpdate: the clock, the spawners, the turning parts. */
+  preStep(dtMs: number): void {
+    const dt = dtMs / 1000;
     this.timeSec += dt;
+    this.world.advance(dt);
+    this.world.wallBounciness = this.ctx.getPhysicsExtras().wallBounciness;
+    this.world.tiles.clockMs = this.timeSec * 1000;
+    if (this.done.finished) {
+      this.world.beginStep(this.stats.steps, this.timeSec);
+      return;
+    }
     this.stats.steps++;
+    this.world.beginStep(this.stats.steps, this.timeSec);
     this.firingsThisStep = 0;
     this.soundsThisStep = 0;
     this.stepSounds.length = 0;
     this.stepEffects.length = 0;
     // the events actions caused last step come first
-    this.queue = this.pending;
-    this.pending = [];
-    if (this.stats.steps === 1) this.push({ trigger: "start", self: null, other: null, tile: -1, rule: -1 });
+    const next = this.pending;
+    this.pending = this.queue;
+    this.queue = next;
+    this.pending.clear();
+    this.stats.events += this.queue.length;
+    if (this.stats.steps === 1) {
+      this.world.sweep(this.ctx); // (the engine's own first ball, added when no spawner starts at 0 s)
+      this.push("start", null, null, -1, -1);
+    }
     this.clockEvents();
     this.runSpawners(false);
-    this.world.advance(dt, this);
+  }
+
+  /** onBallStep: one engine ball's contacts in this sub-step (a ball the world does not know – a ghost – is left alone). */
+  ballStep(ball: Ball, dtSec: number): void {
+    const wb = this.world.byId.get(ball.id);
+    if (wb) this.world.ballStep(wb, dtSec, this);
+  }
+
+  /** onPostSubStep: the balls against each other. */
+  subStep(): void {
+    this.world.collidePairs(this);
+  }
+
+  /** onPostUpdate: the rules, the sweep, the new balls, the finish, the sounds. */
+  postStep(): void {
+    if (this.done.finished) {
+      this.world.sweep(this.ctx);
+      return;
+    }
     if (!this.rulesOff) {
       try {
-        this.dispatch();
-        this.countRules();
+        dispatch(this);
+        countRules(this);
       } catch {
         this.stats.faults++;
         this.rulesOff = true;
         this.faultAt = this.timeSec;
+        this.faultStep = this.stats.steps;
       }
     }
-    this.world.sweep();
+    this.queue.clear();
+    this.world.sweep(this.ctx);
     this.drainSpawns(BUDGET.spawns);
     this.noteBalls();
     this.stats.nanBalls = this.world.nanBalls;
     this.stats.contacts = this.world.work;
-    this.checkFinish();
+    checkFinish(this);
+    this.flush();
   }
 
-  /** Steps until the run finishes or `maxSec` of run time passed. */
-  runToEnd(maxSec = this.bp.finish.timeoutSec + 2): RunResult {
-    const steps = Math.ceil(maxSec / FIXED_STEP_SEC);
-    for (let i = 0; i < steps && !this.done.finished; i++) this.step();
-    return this.result();
+  /** Called by finish.ts when the run ends: the payoff chord (or a minor one on a timeout). */
+  onFinish(): void {
+    this.finishSounds.length = 0;
+    this.finishSounds.push(this.done.reason === "condition" ? "merge" : "hit");
   }
 
-  private noteBalls() {
-    const balls = this.world.balls;
-    let alive = 0;
-    let moving = false;
-    for (const b of balls) {
+  /** The fastest speed of a ball in play (px/s), or 0 when the engine's own sub-steps are enough (stepSpeedBound). */
+  fastestBall(stepSec: number): number {
+    let vmax = 0;
+    let rmin = Infinity;
+    for (const b of this.world.balls) {
       if (!b.alive) continue;
-      alive++;
-      if (!moving && b.vx * b.vx + b.vy * b.vy > 1) moving = true;
+      const v = Math.hypot(b.vx, b.vy);
+      if (!(v <= 1e5)) return 0; // (a ball gone wild: the world takes it out; planning sub-steps for it would only freeze the step)
+      if (v > vmax) vmax = v;
+      if (b.r < rmin) rmin = b.r;
     }
-    const teams = this.teamsLeft();
-    if (alive > this.stats.peakBalls) this.stats.peakBalls = alive;
-    if (teams > this.teamsSeen) this.teamsSeen = teams;
-    if (moving && this.stats.firstMotionSec === null) this.stats.firstMotionSec = this.timeSec;
-  }
-
-  private payoff() {
-    if (this.stats.payoffSec === null) this.stats.payoffSec = this.timeSec;
+    if (vmax === 0) return 0;
+    const move = Math.max(0.25, Math.min(rmin / 2, 4));
+    return (1.25 * vmax * stepSec) / move > 4 ? vmax : 0;
   }
 
   /* ------------------------------------------------------------------ the clock and the spawners */
+
+  private push(trigger: Trigger, self: WorldBall | null, other: WorldBall | null, tile: number, rule: number) {
+    if (!this.queue.push(trigger, self, other, tile, rule)) {
+      this.stats.droppedEvents++;
+      return;
+    }
+    this.stats.events++;
+  }
 
   private clockEvents() {
     const t = this.timeSec;
     const bpm = this.bp.sound.bpm;
     const beatSec = 60 / bpm;
-    const beats = Number.isFinite(beatSec) && beatSec > 0 ? Math.floor(t / beatSec) : 0;
+    const beats = Number.isFinite(beatSec) && beatSec > 0 ? Math.floor(t / beatSec + 1e-9) : 0;
     if (beats > this.beats) {
       const barNow = Math.floor(beats / 4) > Math.floor(this.beats / 4);
       this.beats = beats;
-      this.push({ trigger: "beat", self: null, other: null, tile: -1, rule: -1 });
-      if (barNow) this.push({ trigger: "bar", self: null, other: null, tile: -1, rule: -1 });
+      this.push("beat", null, null, -1, -1);
+      if (barNow) this.push("bar", null, null, -1, -1);
     }
     for (const i of this.compiled.byTrigger.timer) {
       const sec = this.compiled.rules[i].spec.sec;
-      const due = Math.floor(t / sec);
+      const due = Math.floor(t / sec + 1e-9);
       if (due > this.ruleTimerFired[i]) {
         this.ruleTimerFired[i] = due;
-        this.push({ trigger: "timer", self: null, other: null, tile: -1, rule: i });
+        this.push("timer", null, null, -1, i);
       }
     }
   }
@@ -302,130 +363,23 @@ export class BlueprintRun implements WorldEvents {
         return;
       }
       this.spawnerMade[i] += count;
-      this.placeBalls(s.body, count, spec.at, null, -1, speed, spec.dir);
+      placeBalls(this, s.body, count, spec.at, null, -1, speed, spec.dir);
     });
   }
 
-  /** Queues `count` balls of a body at a place, moving at `speed` towards `dir`. */
-  private placeBalls(body: number, count: number, at: SpawnAt | "self" | "tile", self: WorldBall | null, tile: number, speed: number, dir: Direction) {
-    const b = this.bp.bodies[body];
-    const w = this.world;
-    const R = w.R;
-    const ring = count > 1 ? b.radius * Math.max(1.2, count * 0.45) : 0;
-    const start = count > 1 ? this.random() * TAU : 0;
-    for (let k = 0; k < count; k++) {
-      let x = w.cx;
-      let y = w.cy;
-      switch (at) {
-        case "self":
-          // (a ball that just escaped is outside: its new balls start at the centre, not out there)
-          if (self && w.insideArena(self.x, self.y)) {
-            x = self.x;
-            y = self.y;
-          }
-          break;
-        case "tile":
-          if (tile >= 0 && tile < w.tileCount) {
-            x = w.tileX[tile];
-            y = w.tileY[tile];
-          } else if (self) {
-            x = self.x;
-            y = self.y;
-          }
-          break;
-        case "top":
-        case "bottom":
-          x = w.cx + (this.random() * 2 - 1) * 0.35 * R;
-          y = w.cy + (at === "top" ? -0.7 : 0.7) * R;
-          break;
-        case "left":
-        case "right":
-          x = w.cx + (at === "left" ? -0.7 : 0.7) * R;
-          y = w.cy + (this.random() * 2 - 1) * 0.35 * R;
-          break;
-        case "random": {
-          if (w.shape === "box") {
-            x = w.cx + (this.random() * 2 - 1) * 0.75 * R;
-            y = w.cy + (this.random() * 2 - 1) * 0.75 * R;
-          } else {
-            const rr = 0.75 * R * Math.sqrt(this.random());
-            const a = this.random() * TAU;
-            x = w.cx + rr * Math.cos(a);
-            y = w.cy + rr * Math.sin(a);
-          }
-          break;
-        }
-        case "rim": {
-          const a = this.random() * TAU;
-          const rr = Math.max(0, 0.85 * R - b.radius);
-          x = w.cx + rr * Math.cos(a);
-          y = w.cy + rr * Math.sin(a);
-          break;
-        }
-        default:
-          break;
-      }
-      if (ring > 0 && (at === "center" || at === "self" || at === "tile")) {
-        const a = start + (k / count) * TAU;
-        x += ring * Math.cos(a);
-        y += ring * Math.sin(a);
-      }
-      const [vx, vy] = this.velocity(dir, speed, x, y);
-      this.queueBall({ x, y, vx, vy, r: b.radius, gs: b.gravityScale, pass: b.collide === "pass", body, tier: b.tier, team: b.team, hp: b.hp, color: b.color });
-    }
-    this.voice("spawn", 0);
-  }
-
-  private velocity(dir: Direction | ImpulseDirection, speed: number, x: number, y: number, from?: WorldBall | null): [number, number] {
-    let ux = 0;
-    let uy = 0;
-    const w = this.world;
-    switch (dir) {
-      case "up":
-        uy = -1;
-        break;
-      case "down":
-        uy = 1;
-        break;
-      case "left":
-        ux = -1;
-        break;
-      case "right":
-        ux = 1;
-        break;
-      case "out":
-      case "in":
-      case "away": {
-        const ox = dir === "away" && from ? from.x : w.cx;
-        const oy = dir === "away" && from ? from.y : w.cy;
-        const dx = x - ox;
-        const dy = y - oy;
-        const d = Math.hypot(dx, dy);
-        if (d > 1e-6) {
-          ux = (dir === "in" ? -dx : dx) / d;
-          uy = (dir === "in" ? -dy : dy) / d;
-          break;
-        }
-        const a = this.random() * TAU;
-        ux = Math.cos(a);
-        uy = Math.sin(a);
-        break;
-      }
-      default: {
-        const a = this.random() * TAU;
-        ux = Math.cos(a);
-        uy = Math.sin(a);
-      }
-    }
-    return [ux * speed, uy * speed];
-  }
-
-  private queueBall(ball: NewWorldBall) {
+  /** Queues a new ball (it joins at the end of the step); a queue as long as the ball ceiling refuses it (ARENA FULL). */
+  queueBall(ball: NewWorldBall) {
     if (this.spawnQueue.length >= BLUEPRINT_BALL_CEILING) {
-      this.stats.arenaFull++;
+      this.noteArenaFull();
       return;
     }
     this.spawnQueue.push(ball);
+  }
+
+  private noteArenaFull() {
+    this.stats.arenaFull++;
+    this.arenaFullAtSec = this.timeSec;
+    this.ctx.noteArenaFull?.();
   }
 
   /** Queued balls join the world in order: at most `budget` this step, never past the ball ceiling. */
@@ -433,84 +387,118 @@ export class BlueprintRun implements WorldEvents {
     if (!this.spawnQueue.length) return;
     let alive = this.world.aliveCount();
     let added = 0;
-    while (this.spawnQueue.length && added < budget) {
-      const next = this.spawnQueue.shift()!;
+    let taken = 0;
+    while (taken < this.spawnQueue.length && added < budget) {
+      const next = this.spawnQueue[taken++];
       if (alive >= BLUEPRINT_BALL_CEILING) {
-        this.stats.arenaFull++;
+        this.noteArenaFull();
         continue;
       }
-      this.world.addBall(next);
+      this.world.addBall(this.ctx, next);
       alive++;
       added++;
       this.stats.spawned++;
     }
+    this.spawnQueue.splice(0, taken);
   }
 
-  /* ------------------------------------------------------------------ the world's events */
-
-  private push(ev: QueuedEvent) {
-    if (this.queue.length >= BUDGET.events) {
-      this.stats.droppedEvents++;
-      return;
+  private noteBalls() {
+    let alive = 0;
+    let moving = false;
+    for (const b of this.world.balls) {
+      if (!b.alive) continue;
+      alive++;
+      if (!moving && b.vx * b.vx + b.vy * b.vy > 1) moving = true;
     }
-    this.queue.push(ev);
-    this.stats.events++;
+    const teams = this.teamsLeft();
+    if (alive > this.stats.peakBalls) this.stats.peakBalls = alive;
+    if (teams > this.teamsSeen) this.teamsSeen = teams;
+    if (moving && this.stats.firstMotionSec === null) this.stats.firstMotionSec = this.timeSec;
   }
+
+  payoff() {
+    if (this.stats.payoffSec === null) this.stats.payoffSec = this.timeSec;
+  }
+
+  /* ------------------------------------------------------------------ the world's events (recorded only) */
 
   wallHit(ball: WorldBall, impact: number): void {
-    this.voice("wallHit", 0, impact);
-    this.push({ trigger: "wallHit", self: ball, other: null, tile: -1, rule: -1 });
+    if (this.done.finished) return;
+    this.ctx.noteBounce?.(ball.ball); // --- bounce-math --- a rebound off the rim, a box wall or a ring is a bounce
+    this.voice("wallHit", WALL_WALK[this.wallHits++ % WALL_WALK.length] + ball.tier - 1, impact);
+    this.push("wallHit", ball, null, -1, -1);
   }
 
   obstacleHit(ball: WorldBall, _obstacle: number, impact: number): void {
-    this.voice("obstacleHit", 0, impact);
-    this.push({ trigger: "obstacleHit", self: ball, other: null, tile: -1, rule: -1 });
+    if (this.done.finished) return;
+    this.ctx.noteBounce?.(ball.ball); // --- bounce-math --- (the engine notes its own obstacles' hits the same way)
+    // higher on the board, higher the note: a ball falling through pegs plays a descending run
+    const w = this.world;
+    const height = Math.round(((w.cy + w.R - ball.y) / Math.max(1, 2 * w.R)) * 9);
+    this.voice("obstacleHit", height < 0 ? 0 : height, impact);
+    this.push("obstacleHit", ball, null, -1, -1);
   }
 
   tileHit(ball: WorldBall, tile: number, broke: boolean, impact: number): void {
-    const pitch = this.bp.tiles?.pitchBy === "row" ? this.world.tileRow[tile] : this.bp.tiles?.pitchBy === "col" ? this.world.tileCol[tile] : 0;
+    if (this.done.finished) return;
+    const by = this.bp.tiles?.pitchBy ?? "none";
+    const f = this.world.tiles;
+    const pitch = by === "row" ? f.row[tile] : by === "col" ? f.col[tile] : 0;
+    this.ctx.noteBounce?.(ball.ball);
     if (broke) {
       this.stats.tilesBroken++;
       this.payoff();
+      this.ctx.creditWallBreak?.(ball.ball); // --- bounce-math --- a tile broken is a break
       this.voice("tileBroken", pitch);
     } else this.voice("tileHit", pitch, impact);
-    this.push({ trigger: "tileHit", self: ball, other: null, tile, rule: -1 });
-    if (broke) this.push({ trigger: "tileBroken", self: ball, other: null, tile, rule: -1 });
+    this.push("tileHit", ball, null, tile, -1);
+    if (broke) this.push("tileBroken", ball, null, tile, -1);
   }
 
   ballHit(a: WorldBall, b: WorldBall, impact: number): void {
-    if (impact >= MIN_HIT_SPEED) this.voice("ballHit", 0, impact);
+    if (this.done.finished) return;
+    if (impact >= MIN_HIT_SPEED) {
+      this.ctx.noteCollide?.(a.ball, b.ball); // --- bounce-math --- a ball-to-ball hit
+      this.voice("ballHit", Math.max(a.tier, b.tier) - 1, impact);
+    }
     // the faster ball is self (ties: the older one)
     const sa = a.vx * a.vx + a.vy * a.vy;
     const sb = b.vx * b.vx + b.vy * b.vy;
     const aFirst = sa > sb || (sa === sb && a.id < b.id);
-    this.push({ trigger: "ballHit", self: aFirst ? a : b, other: aFirst ? b : a, tile: -1, rule: -1 });
+    this.push("ballHit", aFirst ? a : b, aFirst ? b : a, -1, -1);
   }
 
   ringPass(ball: WorldBall, ring: number): void {
+    if (this.done.finished) return;
     this.payoff();
+    this.ctx.notePass?.(ball.ball, ring); // --- bounce-math --- a gap passed
+    if (!this.world.ringAlive[ring]) this.ctx.creditWallBreak?.(ball.ball); // --- bounce-math --- and a ring broken
     this.voice("ringPass", ring);
-    this.push({ trigger: "ringPass", self: ball, other: null, tile: -1, rule: -1 });
+    if (!this.world.ringAlive[ring]) this.effect("burst", ball.x, ball.y, ball.color, this.world.ringR[ring] * 0.1);
+    this.push("ringPass", ball, null, -1, -1);
   }
 
   escape(ball: WorldBall): void {
+    if (this.done.finished) return;
     this.stats.escaped++;
     this.escapedByBody[ball.body]++;
     if (this.firstOutTeam < 0) this.firstOutTeam = ball.team;
     this.lastOutTeam = ball.team;
     this.payoff();
-    this.voice("escape", 0);
-    this.push({ trigger: "escape", self: ball, other: null, tile: -1, rule: -1 });
+    this.ctx.notePass?.(ball.ball, this.world.ringR.length); // --- bounce-math --- out through an exit or past the last ring
+    this.ctx.creditEscape?.(ball.ball);
+    this.voice("escape", this.stats.escaped - 1);
+    this.push("escape", ball, null, -1, -1);
   }
 
   /** A sound: a world event's voice (when the spec gives it one and the hit is a hit) or an action's. */
-  private voice(trigger: keyof Blueprint["sound"]["voices"], pitch: number, impact = Infinity) {
+  voice(trigger: VoiceTrigger, pitch: number, impact = Infinity) {
     const v = this.bp.sound.voices[trigger];
     if (v === "none" || impact < MIN_HIT_SPEED) return;
     this.sound(v, pitch);
   }
 
-  private sound(voice: Voice, pitch: number) {
+  sound(voice: Voice, pitch: number) {
     if (this.soundsThisStep >= BUDGET.sounds) {
       this.stats.soundsCapped++;
       return;
@@ -520,272 +508,49 @@ export class BlueprintRun implements WorldEvents {
     this.stepSounds.push({ voice, pitch });
   }
 
-  /* ------------------------------------------------------------------ the rules */
+  /** A visual effect (recorded for the renderer, and the engine's particles and camera moments where it has them). */
+  effect(kind: EffectKind, x: number, y: number, color: number, r: number) {
+    if (this.stepEffects.length < 32) this.stepEffects.push({ kind, x, y, color, r });
+    if (kind === "flash") this.flashAtSec = this.timeSec;
+  }
 
-  private dispatch() {
-    const rules = this.compiled.rules;
-    for (let q = 0; q < this.queue.length; q++) {
-      const ev = this.queue[q];
-      const ids = ev.trigger === "timer" ? [ev.rule] : this.compiled.byTrigger[ev.trigger];
-      for (const i of ids) {
-        const rule = rules[i];
-        if (ev.trigger === "ballHit") {
-          const a = ev.self!;
-          const b = ev.other!;
-          if (!a.alive || !b.alive) break; // (a merge or a removal earlier this step)
-          if (this.matches(rule, a, b)) this.consider(rule, a, b, ev.tile);
-          else if (this.matches(rule, b, a)) this.consider(rule, b, a, ev.tile);
-          continue;
-        }
-        const self = ev.self;
-        if (self && !self.alive && ev.trigger !== "escape") break;
-        // (`of` filters the event's ball; a trigger without one acts on every ball of `of` – targets())
-        if (rule.of >= 0 && self && self.body !== rule.of) continue;
-        this.consider(rule, self, null, ev.tile);
+  /** The step's sounds and effects go to the engine. */
+  private flush() {
+    const ctx = this.ctx;
+    const palette = this.bp.look.palette;
+    for (const e of this.stepEffects) {
+      const color = palette[e.color] ?? palette[0];
+      switch (e.kind) {
+        case "burst":
+        case "merge":
+        case "split":
+        case "pop":
+          ctx.spawnMergeBurst?.(e.x, e.y, color, Math.max(6, e.r));
+          break;
+        case "confetti":
+          ctx.spawnConfetti(e.x, e.y);
+          break;
+        case "shake":
+          ctx.noteImpact?.();
+          break;
+        case "slowmo":
+          ctx.noteNearMiss?.();
+          break;
+        default:
+          break;
       }
     }
-  }
-
-  private matches(rule: CompiledRule, self: WorldBall, other: WorldBall): boolean {
-    if (rule.of >= 0 && self.body !== rule.of) return false;
-    if (rule.withBody >= 0) return other.body === rule.withBody;
-    switch (rule.relation) {
-      case "same":
-        return other.body === self.body;
-      case "sameTier":
-        return other.tier === self.tier;
-      case "sameTeam":
-        return other.team === self.team;
-      case "otherTeam":
-        return other.team !== self.team;
-      default:
-        return true;
-    }
-  }
-
-  /** A matching event: the rule's filters (every, chance, cooldown, maxFires), the step's budget, then its actions. */
-  private consider(rule: CompiledRule, self: WorldBall | null, other: WorldBall | null, tile: number) {
-    const spec = rule.spec;
-    const i = rule.index;
-    this.ruleMatches[i]++;
-    if (this.ruleMatches[i] % spec.every !== 0) return;
-    if (spec.maxFires > 0 && this.ruleFires[i] >= spec.maxFires) return;
-    if (spec.cooldownSec > 0 && this.timeSec - this.ruleLast[i] < spec.cooldownSec) return;
-    if (spec.chance < 1 && !(this.random() < spec.chance)) return;
-    if (this.firingsThisStep >= BUDGET.ruleFirings) {
-      this.stats.droppedFirings++;
-      return;
-    }
-    this.firingsThisStep++;
-    this.stats.firings++;
-    this.ruleFires[i]++;
-    this.ruleLast[i] = this.timeSec;
-    if (i === this.faultOnRule) throw new Error("injected fault");
-    for (const action of rule.actions) this.act(rule, action, self, other, tile);
-  }
-
-  /** countReached rules: each fires when its count crosses its bound (again only after it went back). */
-  private countRules() {
-    for (const i of this.compiled.byTrigger.countReached) {
-      const rule = this.compiled.rules[i];
-      const spec = rule.spec;
-      const v = rule.whatVar >= 0 ? this.vars[rule.whatVar] : this.count(spec.what, rule.of);
-      const met = (spec.atLeast !== null && v >= spec.atLeast) || (spec.atMost !== null && v <= spec.atMost);
-      const was = this.countWas[i];
-      this.countWas[i] = met;
-      if (met && !was) this.consider(rule, null, null, -1);
-    }
-  }
-
-  /* ------------------------------------------------------------------ the actions */
-
-  /** The balls an action changes: self, other, or every ball (of the rule's body) – every ball when a global trigger says self. */
-  private targets(rule: CompiledRule, target: string, self: WorldBall | null, other: WorldBall | null): WorldBall[] {
-    if (target === "other") return other && other.alive ? [other] : [];
-    if (target === "self" && self) return self.alive ? [self] : [];
-    if (target === "self" && rule.spec.when === "escape") return [];
-    return this.world.balls.filter((b) => b.alive && (rule.of < 0 || b.body === rule.of));
-  }
-
-  private act(rule: CompiledRule, action: CompiledAction, self: WorldBall | null, other: WorldBall | null, tile: number) {
-    const a = action.spec;
-    const n = this.ruleFires[rule.index];
-    const refuse = () => {
-      this.stats.refusedActions++;
-    };
-    switch (a.act) {
-      case "spawn": {
-        const count = this.countOf(action.nums.count, n, self, L.perSpawn, 0);
-        const speed = this.valueOf(action.nums.speed, n, self);
-        if (count <= 0 || !Number.isFinite(speed)) return refuse();
-        this.placeBalls(action.body, count, a.at, self, tile, speed, a.dir);
-        return;
-      }
-      case "split": {
-        const balls = this.targets(rule, a.target, self, other);
-        if (!balls.length) return refuse();
-        for (const b of balls) {
-          const into = Math.max(2, this.countOf(action.nums.into, n, b, L.perSpawn, 2));
-          b.r *= a.scale;
-          const speed = Math.hypot(b.vx, b.vy);
-          const heading = speed > 0 ? Math.atan2(b.vy, b.vx) : this.random() * TAU;
-          for (let k = 1; k < into; k++) {
-            const h = heading + (k / into) * TAU;
-            const ux = Math.cos(h);
-            const uy = Math.sin(h);
-            this.queueBall({ x: b.x + ux * b.r, y: b.y + uy * b.r, vx: ux * speed, vy: uy * speed, r: b.r, gs: b.gs, pass: b.pass, body: b.body, tier: b.tier, team: b.team, hp: b.hp, color: b.color });
-          }
-        }
-        this.payoff();
-        this.sound("split", 0);
-        return;
-      }
-      case "merge": {
-        if (!self || !other || !self.alive || !other.alive || self === other) return refuse();
-        const ma = self.r * self.r;
-        const mb = other.r * other.r;
-        const m = ma + mb;
-        self.x = (self.x * ma + other.x * mb) / m;
-        self.y = (self.y * ma + other.y * mb) / m;
-        self.vx = (self.vx * ma + other.vx * mb) / m;
-        self.vy = (self.vy * ma + other.vy * mb) / m;
-        self.r = a.scale > 0 ? Math.max(self.r, other.r) * a.scale : Math.sqrt(m);
-        self.tier = Math.min(L.maxTier, Math.max(self.tier, other.tier) + 1);
-        other.alive = false;
-        this.payoff();
-        this.sound("merge", self.tier);
-        return;
-      }
-      case "remove": {
-        const balls = this.targets(rule, a.target, self, other);
-        if (!balls.length) return refuse();
-        for (const b of balls) b.alive = false;
-        return;
-      }
-      case "grow": {
-        const balls = this.targets(rule, a.target, self, other);
-        if (!balls.length) return refuse();
-        for (const b of balls) {
-          const by = this.valueOf(action.nums.by, n, b);
-          if (!Number.isFinite(by)) {
-            refuse();
-            continue;
-          }
-          b.r += by;
-          if (!(b.r >= 1)) b.alive = false; // (shrunk away: it pops)
-        }
-        return;
-      }
-      case "speed": {
-        const balls = this.targets(rule, a.target, self, other);
-        if (!balls.length) return refuse();
-        for (const b of balls) {
-          const s = this.valueOf(action.nums.scale, n, b);
-          if (!Number.isFinite(s)) {
-            refuse();
-            continue;
-          }
-          b.vx *= s;
-          b.vy *= s;
-        }
-        return;
-      }
-      case "recolor": {
-        const balls = this.targets(rule, a.target, self, other);
-        if (!balls.length) return refuse();
-        const size = this.bp.look.palette.length;
-        for (const b of balls) {
-          if (typeof a.color === "number") b.color = a.color % size;
-          else if (a.color === "next") b.color = (b.color + 1) % size;
-          else if (a.color === "random") b.color = Math.floor(this.random() * size) % size;
-          else if (a.color === "team") b.color = b.team % size;
-          else b.color = (b.tier - 1) % size;
-        }
-        return;
-      }
-      case "tier": {
-        const balls = this.targets(rule, a.target, self, other);
-        if (!balls.length) return refuse();
-        for (const b of balls) {
-          const by = this.valueOf(action.nums.by, n, b);
-          if (!Number.isFinite(by)) {
-            refuse();
-            continue;
-          }
-          b.tier = Math.max(1, Math.min(L.maxTier, b.tier + Math.round(by)));
-        }
-        return;
-      }
-      case "team": {
-        const balls = this.targets(rule, a.target, self, other);
-        if (!balls.length) return refuse();
-        for (const b of balls) {
-          if (typeof a.to === "number") b.team = a.to;
-          else if (a.to === "self") b.team = self ? self.team : b.team;
-          else if (a.to === "other") b.team = other ? other.team : b.team;
-          else b.team = (b.team + 1) % L.teams;
-        }
-        this.payoff();
-        return;
-      }
-      case "damage": {
-        const amount = this.valueOf(action.nums.amount, n, self);
-        if (!Number.isFinite(amount) || amount <= 0) return refuse();
-        if (a.target === "tile") {
-          if (tile < 0) return refuse();
-          if (this.world.damageTile(tile, amount)) {
-            this.stats.tilesBroken++;
-            this.payoff();
-            this.pending.push({ trigger: "tileBroken", self, other: null, tile, rule: -1 });
-          }
-          return;
-        }
-        const balls = this.targets(rule, a.target, self, other);
-        for (const b of balls) {
-          if (b.hp <= 0) continue;
-          b.hp -= amount;
-          if (b.hp <= 0) b.alive = false;
-        }
-        return;
-      }
-      case "var": {
-        if (action.varIndex < 0) return refuse();
-        const value = this.valueOf(action.nums.value, n, self);
-        const cur = this.vars[action.varIndex];
-        const next = a.op === "add" ? cur + value : a.op === "mul" ? cur * value : value;
-        if (!Number.isFinite(next)) return refuse();
-        this.vars[action.varIndex] = next;
-        return;
-      }
-      case "impulse": {
-        const balls = this.targets(rule, a.target, self, other);
-        if (!balls.length) return refuse();
-        for (const b of balls) {
-          const amount = this.valueOf(action.nums.amount, n, b);
-          if (!Number.isFinite(amount)) {
-            refuse();
-            continue;
-          }
-          const [vx, vy] = this.velocity(a.dir, amount, b.x, b.y, b === self ? other : self);
-          b.vx += vx;
-          b.vy += vy;
-        }
-        return;
-      }
-      case "fx":
-        this.stats.effects++;
-        this.stepEffects.push({ kind: a.kind, x: self ? self.x : this.world.cx, y: self ? self.y : this.world.cy });
-        return;
-      case "sound":
-        this.sound(a.voice, a.pitch);
-        return;
+    for (const s of this.stepSounds) ctx.addPendingSoundEvent(blueprintSoundEvent(this.bp, s.voice, s.pitch));
+    if (this.done.finished && this.finishSounds.length) {
+      ctx.addPendingSoundEvent(blueprintFinishSound(this.bp, this.done.reason === "condition"));
+      this.finishSounds.length = 0;
     }
   }
 
   /* ------------------------------------------------------------------ numbers and counts */
 
   /** A number slot's value: the constant, or the formula over the run's slots (self: the ball it is about). */
-  private valueOf(num: CompiledNum | undefined, n: number, self: WorldBall | null): number {
+  valueOf(num: CompiledNum | undefined, n: number, self: WorldBall | null): number {
     if (num === undefined) return NaN;
     if (typeof num === "number") return num;
     const s = this.slots;
@@ -804,7 +569,7 @@ export class BlueprintRun implements WorldEvents {
   }
 
   /** A count slot: whole, from 0 to `max` (a meaningless result: `fallback`). */
-  private countOf(num: CompiledNum | undefined, n: number, self: WorldBall | null, max: number, fallback: number): number {
+  countOf(num: CompiledNum | undefined, n: number, self: WorldBall | null, max: number, fallback: number): number {
     const v = this.valueOf(num, n, self);
     if (!Number.isFinite(v)) return fallback;
     const k = Math.round(v);
@@ -856,104 +621,52 @@ export class BlueprintRun implements WorldEvents {
     for (const b of this.world.balls) if (b.alive) m.set(b.team, (m.get(b.team) ?? 0) + 1);
     return new Map([...m].sort((x, y) => x[0] - y[0]));
   }
+}
 
-  /* ------------------------------------------------------------------ the finish */
+/* ------------------------------------------------------------------ sounds */
 
-  private met(c: BlueprintFinishCondition, i: number): boolean {
-    switch (c.when) {
-      case "escaped":
-        return this.count("escaped", this.compiled.finishOf[i]) >= (c.atLeast ?? 1);
-      case "tilesCleared":
-        return this.world.tileCount > 0 && this.world.tilesAlive === 0;
-      case "ringsCleared":
-        return this.world.ringR.length > 0 && this.world.ringsAlive() === 0;
-      case "count": {
-        const v = this.compiled.finishVar[i] >= 0 ? this.vars[this.compiled.finishVar[i]] : this.count(c.what, this.compiled.finishOf[i]);
-        return (c.atLeast !== null && v >= c.atLeast) || (c.atMost !== null && v <= c.atMost);
-      }
-      case "tier":
-        return this.count("tier") >= (c.atLeast ?? 2);
-      case "teamsLeft":
-        return this.teamsSeen > (c.atMost ?? 1) && this.teamsLeft() <= (c.atMost ?? 1);
-    }
-  }
+/** The scale degree's MIDI note on the spec's root (C4 + root), wrapping after two octaves, as the tiles' notes do. */
+export function blueprintMidi(bp: Blueprint, degree: number): number {
+  const scale = BLUEPRINT_SCALES[bp.sound.scale] ?? BLUEPRINT_SCALES.major;
+  const n = scale.length;
+  const wrap = n * 2;
+  const d0 = Number.isFinite(degree) ? Math.round(degree) : 0;
+  const d = ((d0 % wrap) + wrap) % wrap;
+  const octave = Math.floor(d / n);
+  return 60 + bp.sound.root + 12 * octave + scale[d - octave * n];
+}
 
-  private checkFinish() {
-    if (this.faultAt >= 0) {
-      if (this.timeSec >= this.faultAt + 1) this.finish("fault", -1);
-      return;
-    }
-    const conds = this.bp.finish.any;
-    for (let i = 0; i < conds.length; i++) {
-      const m = this.met(conds[i], i);
-      if (!this.finishArmed[i]) {
-        // a condition finishes the run only after it was once unmet (balls not spawned yet never "cleared" anything)
-        if (!m) this.finishArmed[i] = true;
-        continue;
-      }
-      if (m) return this.finish("condition", i);
-    }
-    if (this.timeSec >= this.bp.finish.timeoutSec - 1e-9) this.finish("timeout", -1);
-  }
+const BLUEPRINT_SCALES: Readonly<Record<Blueprint["sound"]["scale"], readonly number[]>> = {
+  chromatic: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+  major: [0, 2, 4, 5, 7, 9, 11],
+  minor: [0, 2, 3, 5, 7, 8, 10],
+  pentatonic: [0, 2, 4, 7, 9],
+  blues: [0, 3, 5, 6, 7, 10],
+  wholeTone: [0, 2, 4, 6, 8, 10],
+};
 
-  private winnerTeam(): number {
-    switch (this.bp.finish.winner) {
-      case "firstOut":
-        return this.firstOutTeam;
-      case "lastOut":
-        return this.lastOutTeam;
-      case "mostBalls": {
-        let best = -1;
-        let most = 0;
-        for (const [team, k] of this.teamCounts()) if (k > most) [best, most] = [team, k];
-        return best;
-      }
-      case "highestTier": {
-        let best: WorldBall | null = null;
-        for (const b of this.world.balls) if (b.alive && (!best || b.tier > best.tier)) best = b;
-        return best ? best.team : -1;
-      }
-      case "lastBall": {
-        const alive = this.world.balls.filter((b) => b.alive);
-        return alive.length === 1 ? alive[0].team : -1;
-      }
-      default:
-        return -1;
-    }
-  }
+const hz = (midi: number) => 440 * Math.pow(2, (midi - 69) / 12);
 
-  private finish(reason: FinishReason, condition: number) {
-    const winner = this.winnerTeam();
-    const template = reason === "condition" ? this.bp.finish.any[condition].say || DEFAULT_SAY[this.bp.finish.any[condition].when] : reason === "timeout" ? this.bp.finish.timeoutSay : "STOPPED";
-    this.done = { finished: true, reason, condition, timeSec: this.timeSec, winner, result: this.fill(template, winner) };
-  }
-
-  /** A result line with its placeholders filled. */
-  fill(template: string, winner: number): string {
-    const num = (v: number) => (Number.isInteger(v) ? String(v) : v.toFixed(1));
-    const names = this.bp.look.teamNames;
-    return template.replace(/\{([a-z][a-z0-9]{0,7})\}/g, (whole, key: string) => {
-      switch (key) {
-        case "winner":
-          return winner >= 0 ? (names[winner] ?? `Team ${winner + 1}`) : "Nobody";
-        case "time":
-          return `${this.timeSec.toFixed(1)} s`;
-        case "balls":
-        case "escaped":
-        case "tier":
-        case "tiles":
-        case "rings":
-          return num(this.count(key));
-        default:
-          return this.compiled.varIndex.has(key) ? num(this.count(key)) : whole;
-      }
-    });
+/**
+ * A voice as the engine's generic SoundEvent (so the page, the fast export, the batch render and the bot play it with no new
+ * tone code): hit – the bounce instrument, a note of the tune; gap – a bell chime; merge – a tuned bar an octave down;
+ * split – a bright pluck an octave up. The loop voices accompany (`melody: false`).
+ */
+export function blueprintSoundEvent(bp: Blueprint, voice: Voice, pitch: number) {
+  const f = hz(blueprintMidi(bp, pitch));
+  switch (voice) {
+    case "gap":
+      return { type: "hit" as const, wallIndex: 0, loop: "chime" as const, frequency: f, level: 0.75, melody: false as const };
+    case "merge":
+      return { type: "hit" as const, wallIndex: 0, loop: "bar" as const, frequency: f / 2, level: 0.9, melody: false as const };
+    case "split":
+      return { type: "hit" as const, wallIndex: 0, loop: "pluck" as const, frequency: f * 2, level: 0.7, loopBright: true, melody: false as const };
+    default:
+      return { type: "hit" as const, wallIndex: 0, frequency: f, level: 0.8 };
   }
 }
 
-/** Runs a spec headless from a seed to its end (or `maxSec`): the result and the counts. */
-export function runBlueprint(bp: Blueprint, options: RunOptions & { maxSec?: number }): { result: RunResult; stats: RunStats; run: BlueprintRun } {
-  const run = new BlueprintRun(bp, options);
-  const result = run.runToEnd(options.maxSec);
-  return { result, stats: { ...run.stats }, run };
+/** The end of a run: the completion chord on the spec's root (minor when it ran out of time). */
+export function blueprintFinishSound(bp: Blueprint, won: boolean) {
+  return { type: "hit" as const, wallIndex: 0, loop: "chord" as const, frequency: hz(48 + bp.sound.root), level: 0.9, melody: false as const, ...(won ? {} : { loopMinor: true }) };
 }

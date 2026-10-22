@@ -6,7 +6,8 @@
     "faq": "Najczęściej zadawane pytania",
     "howItWorks": "Jak to działa",
     "modesBattle": "Tryby bitewne",
-    "modesJourney": "Tryby podróży"
+    "modesJourney": "Tryby podróży",
+    "modesLab": "Tryby z laboratorium"
   },
   "Navbar": {
     "simulator": "Symulator",
@@ -1500,6 +1501,20 @@
     "sgRainbow": "Tęczowa linia",
     "sgRainbowTip": "Linia spirali powoli przechodzi przez odcienie, a szkło przejmuje ich lekki odcień. Wyłączona rysuje ją w kolorze ściany.",
     "sgRunInfo": "{turns} zwojów, {tiles} płytek. Ziarno decyduje, kiedy pękają pasy i jak układają się okrążenia, więc Znajdź symulację może trafić w długość klipu.",
+    "modeBlueprint": "Laboratorium trybów",
+    "blTitle": "Laboratorium trybów",
+    "blDesc": "Każda gra tutaj to Blueprint: arena, jej kulki i reguły, przez które pękają, łączą się, mnożą albo ścigają. Wybierz grę i ustaw jej suwaki. Link do Blueprintu też otwiera się tutaj.",
+    "blPreset": "Gra",
+    "blFromLink": "Z linku",
+    "blLinkNote": "Ta gra przyszła z linkiem. Wybierz grę z listy, żeby wrócić do wbudowanych.",
+    "blRepaired": "Wartości poprawione przy wczytaniu: {count}",
+    "blCheck": "Sprawdź, czy da się grać",
+    "blChecking": "Sprawdzam…",
+    "blCheckPlayable": "Da się grać. Kończy się po około {seconds} s w {ended} z {seeds} prób.",
+    "blCheckEndless": "Nie kończy się sama. Każdy bieg doszedł do limitu {seconds} s.",
+    "blCheckBroken": "Jeszcze nie da się grać. Znalezione problemy: {problems}.",
+    "blCopyLink": "Kopiuj link",
+    "blCopied": "Skopiowano",
     "bounceMath": "Matematyka odbić",
     "bounceMathTip": "Reguły, które zmieniają wartość o matematyczny krok za każdym razem, gdy coś się dzieje – piłka staje się sprężystsza, szybsza albo większa przy każdym odbiciu, grawitacja odwraca się co takt, piłka pulsuje w rytm muzyki. Reguły działają w kolejności listy i nie ma górnej granicy, dopóki nie ustawisz maksimum.",
     "bounceMathRules": "Reguły matematyki odbić",
@@ -2537,6 +2552,10 @@
     "spiralGlass": {
       "name": "Szklana spirala",
       "description": "Kulki krążą po szklanej spirali i wykruszają ją od zewnątrz. Każde okrążenie dodaje kulkę. Czy kulka się pomnoży?"
+    },
+    "blueprint": {
+      "name": "Laboratorium trybów",
+      "description": "Nowe gry zbudowane z reguł, jak szkło, z którego wykluwają się kulki, albo pierścienie, które je podwajają. Wybierz i graj."
     },
     "beatDrop": {
       "name": "Spadanie w rytm",
@@ -4060,6 +4079,99 @@
     "canvasTimeout": "KONIEC CZASU",
     "canvasTimeoutSub": "Zostało płytek: [tiles]"
   },
+  "Blueprint": {
+    "canvasArenaFull": "ARENA PEŁNA",
+    "canvasTimeLeft": "[min]:[sec]",
+    "canvasEndedAt": "w [seconds] s",
+    "canvasNobody": "NIKT",
+    "team": {
+      "red": "CZERWONY",
+      "blue": "NIEBIESKI",
+      "green": "ZIELONY",
+      "gold": "ZŁOTY",
+      "purple": "FIOLETOWY",
+      "cyan": "TURKUSOWY"
+    }
+  },
+  "Blueprints": {
+    "hatchery": {
+      "name": "Szklany wylęg",
+      "description": "Każda szklana płytka rozbita przez kulkę wykluwa nową kulkę. Jedna kulka staje się rojem, zanim zniknie skorupa.",
+      "hud0": "płytki",
+      "hud1": "kulki",
+      "say0": "SKORUPA ROZBITA",
+      "timeoutSay": "WCIĄŻ W SKORUPIE",
+      "params": {
+        "layers": "Warstwy",
+        "glass": "Wytrzymałość szkła",
+        "speed": "Prędkość kulki"
+      }
+    },
+    "ringBreaker": {
+      "name": "Łamacz pierścieni",
+      "description": "Każdy pierścień, przez który przejdzie kulka, pęka i podwaja wszystkie kulki. Rozbij wszystkie osiem.",
+      "hud0": "pierścienie",
+      "hud1": "kulki",
+      "say0": "WSZYSTKIE PIERŚCIENIE PADŁY",
+      "timeoutSay": "ZOSTAŁO PIERŚCIENI: [rings]",
+      "params": {
+        "rings": "Pierścienie",
+        "gap": "Przerwa",
+        "spin": "Obrót pierścieni"
+      }
+    },
+    "conquer": {
+      "name": "Podbój kolorów",
+      "description": "Cztery kolory się zderzają, a szybsza kulka przejmuje wolniejszą. Wygrywa ostatni kolor na placu.",
+      "hud0": "zostało kolorów",
+      "hud1": "czas",
+      "say0": "[winner] WYGRYWA",
+      "timeoutSay": "[winner] PROWADZI",
+      "params": {
+        "per": "Kulki na kolor",
+        "boost": "Przyspieszenie co"
+      }
+    },
+    "tierClimb": {
+      "name": "Wspinaczka poziomów",
+      "description": "Kule spadają, a dwie z tego samego poziomu łączą się w następny. Pierwsza kula na poziomie 8 kończy grę.",
+      "hud0": "najwyższy poziom",
+      "hud1": "kule",
+      "say0": "OSIĄGNIĘTO POZIOM [tier]",
+      "timeoutSay": "NAJWYŻSZY POZIOM [tier]",
+      "params": {
+        "target": "Poziom docelowy",
+        "rain": "Sekundy na kulę",
+        "gravity": "Grawitacja"
+      }
+    },
+    "plinkoRace": {
+      "name": "Wyścig kołków",
+      "description": "Cztery kulki spadają przez kołki i gonią obracające się wyjście. Wygrywa pierwsza, która wyjdzie.",
+      "hud0": "czas",
+      "say0": "[winner] WYGRYWA WYŚCIG",
+      "timeoutSay": "NIKT NIE WYSZEDŁ",
+      "params": {
+        "exit": "Szerokość wyjścia",
+        "spin": "Obrót wyjścia",
+        "rows": "Rzędy kołków"
+      }
+    },
+    "growEscape": {
+      "name": "Rośnij albo uciekaj",
+      "description": "Każde odbicie powiększa kulkę. Czy znajdzie szczelinę, zanim przestanie się w niej mieścić?",
+      "hud0": "odbicia",
+      "hud1": "czas",
+      "say0": "UCIECZKA PO [bounces] ODBICIACH",
+      "say1": "ZA DUŻA, ŻEBY UCIEC",
+      "timeoutSay": "KONIEC CZASU",
+      "params": {
+        "grow": "Wzrost na odbicie",
+        "exit": "Szerokość wyjścia",
+        "limit": "Odbicia do porażki"
+      }
+    }
+  },
   "Daily": {
     "cardBadge": "Wyzwanie dnia",
     "cardTitle": "Dziś: {mode}",
@@ -4953,7 +5065,8 @@
       "escape": "Ucieczka",
       "rhythm": "Rytm",
       "battle": "Bitwa",
-      "journey": "Podróż"
+      "journey": "Podróż",
+      "lab": "Laboratorium"
     },
     "hero": {
       "eyebrow": "Studio fizyki piłek",

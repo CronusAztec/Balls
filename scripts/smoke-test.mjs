@@ -19283,6 +19283,104 @@ await smokeBlock("spiral-glass", async () => {
 // --- end spiral-glass ---
 });
 
+await smokeBlock("blueprint", async () => {
+// --- blueprint ---
+// 51. Mode Lab (Blueprints: games made of rules): the preview image and the card under the lab heading; a catalog link → the
+// Mode Lab block of the Mode row (the game picker, the game's own sliders) and the canvas' data-blueprint-* switching with the
+// game; a slider → the URL, kept by a reload; the search box finds the picker; a Blueprint link (bls) and a share code (?c=)
+// each open the same game; a fast run at 8× ends by its finish condition under the banner (no dropped work, no fault).
+{
+  const res = await page.request.get(`${BASE}/modes/blueprint.webp`);
+  check("asset /modes/blueprint.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
+  await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
+  check("the Mode Lab card is on the landing page", (await page.locator('img[src$="/modes/blueprint.webp"]').count()) === 1);
+}
+{
+  const block = page.getByTestId("blueprint");
+  const picker = page.getByTestId("blueprint-catalog");
+  const blSlider = (label) => block.locator(`input[type="range"][aria-label="${label}"]`);
+  const waitData = async (key, want, ms = 8000) => {
+    const deadline = Date.now() + ms;
+    let data = await canvasData();
+    while (Date.now() < deadline && data[key] !== want) {
+      await page.waitForTimeout(150);
+      data = await canvasData();
+    }
+    return data;
+  };
+  await page.goto(`${BASE}/en/simulator/?mode=blueprint&blp=ringBreaker&blv=5`, { waitUntil: "networkidle" });
+  {
+    const game = await picker.inputValue();
+    const rings = await blSlider("Rings").inputValue();
+    const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    const data = await waitData("blueprintCatalog", "ringBreaker");
+    check("mode lab loads a catalog game and its slider from the URL", game === "ringBreaker" && rings === "5" && noRingControls && data.blueprintCatalog === "ringBreaker" && data.blueprintName === "Ring Breaker", `(game=${game}, rings=${rings}, no ring controls=${noRingControls}, ${data.blueprintCatalog} "${data.blueprintName}")`);
+  }
+  await picker.selectOption("tierClimb");
+  {
+    const data = await waitData("blueprintCatalog", "tierClimb");
+    const query = page.url().split("?")[1] || "";
+    check("switching the game switches the canvas' data-blueprint-* values", data.blueprintCatalog === "tierClimb" && data.blueprintName === "Tier Climb" && /(^|&)blp=tierClimb(&|$)/.test(query) && !/(^|&)blv=/.test(query), `(${data.blueprintCatalog} "${data.blueprintName}", ${query})`);
+  }
+  await blSlider("Target tier").evaluate(setRangeValue, "6");
+  await page.waitForTimeout(300);
+  {
+    const query = page.url().split("?")[1] || "";
+    await page.reload({ waitUntil: "networkidle" });
+    const kept = await blSlider("Target tier").inputValue();
+    check("a mode lab slider mirrors into the URL and a reload keeps it", /(^|&)blv=6(&|$)/.test(query) && kept === "6" && (await picker.inputValue()) === "tierClimb", `(${query}, after the reload ${kept})`);
+  }
+  await page.getByPlaceholder("Search settings...").fill("game");
+  const found = await picker.isVisible();
+  await page.getByPlaceholder("Search settings...").fill("");
+  check("search finds the mode lab game picker", found);
+}
+{
+  // A Blueprint of a link, and the same link as a share code: one box, three balls, done after 3 s.
+  const spec = { v: 1, meta: { name: "Smoke Box" }, arena: { shape: "box", size: 0.8 }, bodies: [{ id: "ball", radius: 10 }], spawners: [{ body: "ball", count: 3, speed: 400 }], finish: { timeoutSec: 6, any: [{ when: "count", what: "time", atLeast: 3, say: "SMOKE DONE" }] } };
+  const code = `b1.${Buffer.from(JSON.stringify(spec)).toString("base64url")}`;
+  const opened = async (query) => {
+    await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: /Start Simulator/ }).click();
+    const deadline = Date.now() + 8000;
+    let data = await canvasData();
+    while (Date.now() < deadline && data.blueprintName !== "Smoke Box") {
+      await page.waitForTimeout(150);
+      data = await canvasData();
+    }
+    return { data, game: await page.getByTestId("blueprint-catalog").inputValue(), link: await page.getByTestId("blueprint").getAttribute("data-blueprint-link"), url: page.url() };
+  };
+  const byLink = await opened(`mode=blueprint&bls=${code}`);
+  check("a Blueprint link (bls) opens its game", byLink.data.blueprintName === "Smoke Box" && byLink.data.blueprintCatalog === "" && byLink.game === "" && byLink.link === "1", `(${JSON.stringify({ name: byLink.data.blueprintName, catalog: byLink.data.blueprintCatalog, game: byLink.game, link: byLink.link })})`);
+  const { deflateRawSync } = await import("zlib");
+  const shareCode = deflateRawSync(Buffer.from(JSON.stringify({ mode: "blueprint", bls: code }))).toString("base64url");
+  const byShare = await opened(`c=${shareCode}`);
+  check("a share code (?c=) of a Blueprint opens the same game", byShare.data.blueprintName === "Smoke Box" && byShare.link === "1" && byShare.url.includes(`bls=${code}`), `(${byShare.data.blueprintName}, ${byShare.url.slice(0, 120)})`);
+}
+{
+  // A fast run at 8×: Ring Breaker with three rings is over within the budget, ALL RINGS DOWN.
+  await page.goto(`${BASE}/en/simulator/?mode=blueprint&blp=ringBreaker&blv=3`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /Start Simulator/ }).click();
+  await page.getByRole("button", { name: "8x", exact: true }).click();
+  const deadline = Date.now() + 90_000;
+  let data = await canvasData();
+  while (Date.now() < deadline) {
+    data = await canvasData();
+    if (data.blueprintFinished === "1") break;
+    await page.waitForTimeout(250);
+  }
+  await page.screenshot({ path: path.join(outDir, "sim-blueprint.png") });
+  const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
+  check(
+    "mode lab: a fast run ends by its finish condition (ALL RINGS DOWN), with no dropped work and no fault",
+    done && data.blueprintFinished === "1" && data.blueprintReason === "condition" && data.blueprintResult === "ALL RINGS DOWN" && data.blueprintDropped === "0" && data.blueprintFault === "0" && Number(data.blueprintTime) > 0 && Number(data.blueprintSteps) > 0,
+    `(finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("blueprint"))))})`,
+  );
+}
+// --- end blueprint ---
+});
+
 // --- smoke-sharding --- The end of the blocks (a new block goes above this line). The checks below and the report are every
 // run's, a shard's too.
 smoke.endBlocks();

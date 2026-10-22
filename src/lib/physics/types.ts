@@ -97,6 +97,8 @@ export const MODE_IDS = [
   "mergeRing",
   // --- spiral-glass --- Spiral Glass (balls circle a glass spiral and chip it away from the outside in, multiplying every lap)
   "spiralGlass",
+  // --- blueprint --- Mode Lab (a game mode described as data – a Blueprint – played by one sandboxed interpreter)
+  "blueprint",
 ] as const;
 
 export type ModeId = (typeof MODE_IDS)[number];
@@ -668,6 +670,8 @@ export interface ModeContext {
   noteBounce?(ball: Ball, rebound?: boolean): void;
   /** A mode that resolves its own ball-to-ball contacts reports a hit of `a` and `b` (bounce math's "ball hit" trigger). */
   noteCollide?(a: Ball, b: Ball): void;
+  /** --- blueprint --- A mode that resolves its own gaps reports `ball` passing gap `wallIndex` (bounce math's "pass" trigger, once per pass). */
+  notePass?(ball: Ball, wallIndex: number): void;
   // --- end bounce-math ---
   // --- unlimited ---
   /** With No limits on, how many more full-physics balls the run may hold; null while the switch is off (the modes' own caps apply). */

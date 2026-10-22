@@ -53,7 +53,9 @@ import {
   VOICES,
   WINNERS,
   WITH_RELATIONS,
+  numberAt,
   obstacleCount,
+  paramPathSteps,
   type ActionKind,
   type Blueprint,
   type BlueprintAction,
@@ -65,6 +67,7 @@ import {
   type BlueprintLook,
   type BlueprintMeta,
   type BlueprintObstacle,
+  type BlueprintParam,
   type BlueprintRule,
   type BlueprintSound,
   type BlueprintSpawner,
@@ -820,6 +823,46 @@ function readSound(rd: Reader, raw: unknown): BlueprintSound {
   };
 }
 
+/**
+ * The sliders a spec offers: each names a number of the resolved spec (`at`), read after every other section so the path
+ * is checked against what the spec really holds; a path that reaches no number is refused (tolerant: the slider is dropped).
+ */
+function readParams(rd: Reader, raw: unknown, bp: Omit<Blueprint, "params">): BlueprintParam[] {
+  const ids: string[] = [];
+  const paths: string[] = [];
+  return readList(rd, "params", raw, L.params, (v, p) => {
+    const r = readRecord(rd, p, v, true);
+    if (!r) return null;
+    unknownFields(rd, p, r, ["id", "label", "at", "min", "max", "step"]);
+    const id = newId(rd, join(p, "id"), own(r, "id"), ids, new Set<string>(), `p${ids.length + 1}`);
+    if (id === null) return null;
+    const at = own(r, "at");
+    if (typeof at !== "string" || paramPathSteps(at) === null) {
+      issue(rd, join(p, "at"), `must be the path of a number of the spec, such as "tiles.rows" or "spawners[0].count", got ${kindOf(at)}`);
+      return null;
+    }
+    if (numberAt(bp, at) === undefined) {
+      issue(rd, join(p, "at"), `"${at}" names no number of this spec (a field it has, holding a number – not a formula)`);
+      return null;
+    }
+    if (paths.includes(at)) {
+      issue(rd, join(p, "at"), `"${at}" has a slider already`);
+      return null;
+    }
+    let min = num(rd, join(p, "min"), own(r, "min"), { def: 0, required: true });
+    let max = num(rd, join(p, "max"), own(r, "max"), { def: 1, required: true });
+    if (!(max > min)) {
+      issue(rd, join(p, "max"), `must be above min (${min}), got ${max}`);
+      if (rd.strict) return null;
+      [min, max] = max < min ? [max, min] : [min, min + 1];
+    }
+    const step = num(rd, join(p, "step"), own(r, "step"), { def: 1, min: 0, above: true });
+    ids.push(id);
+    paths.push(at);
+    return { id, label: text(rd, join(p, "label"), own(r, "label"), L.labelChars, id) || id, at, min, max, step };
+  });
+}
+
 /** Palette indexes past the palette (a body's colour, a recolor): reported, and folded onto it. */
 function checkPaletteRefs(rd: Reader, bp: Blueprint) {
   const n = bp.look.palette.length;
@@ -841,7 +884,7 @@ function checkPaletteRefs(rd: Reader, bp: Blueprint) {
 
 /* ------------------------------------------------------------------ the walk */
 
-const TOP_FIELDS = ["v", "meta", "arena", "bodies", "tiles", "obstacles", "vars", "spawners", "rules", "finish", "hud", "look", "sound"] as const;
+const TOP_FIELDS = ["v", "meta", "arena", "bodies", "tiles", "obstacles", "vars", "spawners", "rules", "finish", "hud", "look", "sound", "params"] as const;
 
 function walk(raw: unknown, strict: boolean): { blueprint: Blueprint; issues: string[]; newer: string[] } {
   const rd: Reader = { strict, issues: [], bodies: [], vars: [], shape: "circle", hasTiles: false, paletteSize: DEFAULT_PALETTE.length };
@@ -862,8 +905,9 @@ function walk(raw: unknown, strict: boolean): { blueprint: Blueprint; issues: st
   const look = readLook(rd, own(root, "look"));
   const sound = readSound(rd, own(root, "sound"));
   const { newer, ...metaOut } = meta;
-  const blueprint: Blueprint = { v: 1, meta: metaOut, arena, bodies, tiles, obstacles, vars, spawners, rules, finish, hud, look, sound };
+  const blueprint: Blueprint = { v: 1, meta: metaOut, arena, bodies, tiles, obstacles, vars, spawners, rules, finish, hud, look, sound, params: [] };
   checkPaletteRefs(rd, blueprint);
+  blueprint.params = readParams(rd, own(root, "params"), blueprint);
   return { blueprint, issues: rd.issues, newer };
 }
 
@@ -874,6 +918,7 @@ function fitBytes(bp: Blueprint, notes: string[]): Blueprint {
   notes.push(`$: the spec is ${bytes} bytes of JSON (at most ${L.specBytes}): trimmed from the end`);
   const steps: (() => boolean)[] = [
     () => (bp.meta.description ? ((bp.meta.description = ""), true) : false),
+    () => (bp.params.length ? (bp.params.pop(), true) : false),
     () => (bp.rules.length ? (bp.rules.pop(), true) : false),
     () => (bp.obstacles.length ? (bp.obstacles.pop(), true) : false),
     () => (bp.hud.length ? (bp.hud.pop(), true) : false),

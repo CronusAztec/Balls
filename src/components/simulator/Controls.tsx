@@ -77,6 +77,7 @@ import JourneySection, { JOURNEY_KEYS } from "./sections/JourneySection"; // ---
 import BullseyeSection, { BULLSEYE_KEYS } from "./sections/BullseyeSection"; // --- gerald-bullseye --- the Bullseye block of the Mode row
 import MergeRingSection, { MERGE_RING_KEYS } from "./sections/MergeRingSection"; // --- merge-ring --- the Merge Ring block of the Mode row
 import SpiralGlassSection, { SPIRAL_GLASS_KEYS } from "./sections/SpiralGlassSection"; // --- spiral-glass --- the Spiral Glass block of the Mode row
+import BlueprintSection, { BLUEPRINT_KEYS } from "./sections/BlueprintSection"; // --- blueprint --- the Mode Lab block of the Mode row
 import BeatDropSection, { BEAT_DROP_KEYS } from "./sections/BeatDropSection"; // --- beat-drop --- the Beat Drop block of the Mode row
 import TerritorySection, { TERRITORY_KEYS } from "./sections/TerritorySection"; // --- odd-territory --- the Territory block of the Mode row
 import MazeSection, { MAZE_KEYS } from "./sections/MazeSection"; // --- odd-maze --- the Maze block of the Mode row
@@ -273,6 +274,8 @@ SECTION_KEYS.ball.push(...BULLSEYE_KEYS);
 SECTION_KEYS.ball.push(...MERGE_RING_KEYS);
 // --- spiral-glass --- the Spiral Glass block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...SPIRAL_GLASS_KEYS);
+// --- blueprint --- the Mode Lab block of the Mode row is searched with the Ball section too.
+SECTION_KEYS.ball.push(...BLUEPRINT_KEYS);
 // --- beat-drop --- the Beat Drop block of the Mode row is searched with the Ball section too.
 SECTION_KEYS.ball.push(...BEAT_DROP_KEYS);
 // --- odd-territory --- the Territory block of the Mode row is searched with the Ball section too.
@@ -438,6 +441,8 @@ export default function Controls(props: ControlsProps) {
     mergeRing: t("modeMergeRing"),
     // --- spiral-glass ---
     spiralGlass: t("modeSpiralGlass"),
+    // --- blueprint ---
+    blueprint: t("modeBlueprint"),
     // --- beat-drop ---
     beatDrop: t("modeBeatDrop"),
     // --- odd-territory ---
@@ -560,6 +565,8 @@ export default function Controls(props: ControlsProps) {
       {s.mode === "mergeRing" && !!search && <MergeRingSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- spiral-glass --- */}
       {s.mode === "spiralGlass" && !!search && <SpiralGlassSection t={t} search={search} matches={matches} settings={s} update={update} />}
+      {/* --- blueprint --- */}
+      {s.mode === "blueprint" && !!search && <BlueprintSection t={t} search={search} matches={matches} settings={s} update={update} />}
       {/* --- beat-drop --- */}
       {s.mode === "beatDrop" && !!search && <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} beatSource={props.videoBeats?.effective} />}
       {/* --- odd-territory --- */}
@@ -1430,6 +1437,9 @@ export default function Controls(props: ControlsProps) {
       // --- spiral-glass ---
       case "spiralGlass":
         return <SpiralGlassSection t={t} search={search} matches={matches} settings={s} update={update} />;
+      // --- blueprint ---
+      case "blueprint":
+        return <BlueprintSection t={t} search={search} matches={matches} settings={s} update={update} />;
       // --- beat-drop ---
       case "beatDrop":
         return <BeatDropSection t={t} search={search} matches={matches} settings={s} update={update} beat={props.paintBeat} beatSource={props.videoBeats?.effective} /* --- video-beats --- */ />;

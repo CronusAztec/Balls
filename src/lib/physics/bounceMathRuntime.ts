@@ -105,6 +105,13 @@ export const BOUNCE_MATH_BREAK_MODES: readonly ModeId[] = [...OBSTACLE_EDITOR_MO
 (BOUNCE_MATH_COLLIDE_MODES as ModeId[]).push("mergeRing");
 // --- spiral-glass --- Spiral Glass: every tile shattered plays the wall-break sound (no pair pass: the balls queue, never hit)
 (BOUNCE_MATH_BREAK_MODES as ModeId[]).push("spiralGlass");
+// --- blueprint --- Mode Lab: its balls are engine balls (bounciness, speed and size act on them – its world reads the ball's
+// own bounciness), they hit each other (ctx.noteCollide()), pass the rings' gaps and the exits (ctx.notePass()) and break
+// tiles and rings (ctx.creditWallBreak())
+(BOUNCE_MATH_BALL_MODES as ModeId[]).push("blueprint");
+(BOUNCE_MATH_COLLIDE_MODES as ModeId[]).push("blueprint");
+(BOUNCE_MATH_PASS_MODES as ModeId[]).push("blueprint");
+(BOUNCE_MATH_BREAK_MODES as ModeId[]).push("blueprint");
 (BOUNCE_MATH_BREAK_MODES as ModeId[]).push("territory");
 // --- odd-maze --- the Maze's winner breaks out through the exit with the wall-break sound
 (BOUNCE_MATH_BREAK_MODES as ModeId[]).push("maze");

@@ -158,6 +158,7 @@ const BASELINE: Record<ModeId, Fingerprint> = {
   mergeRing: { samples: [[404137,564439],[404070,533069],[399687,561280],[431084,565605],[412736,557573],[437661,565076],[426720,556389],[452090,562375]], broken: [], walls: [] },
   // --- spiral-glass --- Spiral Glass: its own spiral and glass, no rings; recorded when the mode was added (seed 12345, defaults: 6 turns, 2 hit points, speed 0.8, 40 balls, a chip every 0.25 s; one ball for the first 10 s, boring the outer band).
   spiralGlass: { samples: [[243369,453872],[264453,162907],[541556,182777],[522899,446019]], broken: [], walls: [] },
+  blueprint: { samples: [[394490,303176],[481193,271520],[419904,300489],[366487,328487],[417803,261907],[327124,346154],[511348,206452],[322460,392447]], broken: [], walls: [] }, // --- blueprint --- (Mode Lab's default: Glass Hatchery)
 };
 
 function fingerprint(engine: PhysicsEngine, frames = 600): Fingerprint {

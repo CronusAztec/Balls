@@ -53,6 +53,9 @@ import { BullseyeMode, type BullseyeSettings, type BullseyeView } from "./modes/
 import { MergeRingMode, type MergeRingSettings, type MergeRingView } from "./modes/mergeRing";
 // --- spiral-glass --- Spiral Glass (balls circling a glass spiral, chipping it away from the outside in)
 import { SpiralGlassMode, type SpiralGlassSettings, type SpiralGlassView } from "./modes/spiralGlass";
+// --- blueprint --- Mode Lab (a game mode as data, played by the Blueprint interpreter)
+import { BlueprintMode, type BlueprintProgress, type BlueprintSettings, type ResolvedBlueprint } from "./modes/blueprint";
+import type { BlueprintView } from "@/lib/blueprint/runtime/view";
 // --- beat-drop --- Beat Drop (obstructions that fly in on the beat)
 import { BeatDropMode, type BeatDropSettings, type BeatDropView } from "./modes/beatDrop";
 import { OnBeatController, type OnBeatConfig, type OnBeatStats, type OnBeatWorld } from "./onBeat"; // --- video-beats ---
@@ -320,6 +323,8 @@ export class PhysicsEngine {
   readonly mergeRingMode = new MergeRingMode();
   // --- spiral-glass ---
   readonly spiralGlassMode = new SpiralGlassMode();
+  // --- blueprint ---
+  readonly blueprintMode = new BlueprintMode();
   // --- beat-drop ---
   readonly beatDropMode = new BeatDropMode();
   // --- odd-territory --- Territory: pong-wars teams painting a tile map
@@ -497,6 +502,9 @@ export class PhysicsEngine {
       },
       noteCollide: (a: Ball, b: Ball) => {
         if (this.bounceMath.on) this.bounceMath.note(BM_COLLIDE, a, b);
+      },
+      notePass: (ball: Ball, wallIndex: number) => {
+        if (this.bounceMath.on) this.bounceMath.notePass(ball, wallIndex, this._elapsedMs); // --- blueprint --- (a mode's own gaps)
       },
     });
     // --- end bounce-math ---
@@ -728,6 +736,10 @@ export class PhysicsEngine {
   initSpiralGlass() {
     this.activateMode(this.spiralGlassMode, "none");
   }
+  // --- blueprint --- the Blueprint's world owns its arena, obstacles and tiles (no engine rings, no obstacles)
+  initBlueprint() {
+    this.activateMode(this.blueprintMode, "none");
+  }
   // --- beat-drop --- the mode owns its scene (no rings)
   initBeatDrop() {
     this.activateMode(this.beatDropMode, "none");
@@ -874,6 +886,9 @@ export class PhysicsEngine {
       // --- spiral-glass ---
       case "spiralGlass":
         return this.initSpiralGlass();
+      // --- blueprint ---
+      case "blueprint":
+        return this.initBlueprint();
       // --- beat-drop ---
       case "beatDrop":
         return this.initBeatDrop();
@@ -1852,6 +1867,29 @@ export class PhysicsEngine {
     return this.spiralGlassMode.getProgress();
   }
   // --- end spiral-glass ---
+  // --- blueprint ---
+  isBlueprintMode() {
+    return this.currentMode === this.blueprintMode;
+  }
+  getBlueprintSettings(): BlueprintSettings {
+    return this.blueprintMode.getSettings();
+  }
+  /** The catalog entry, the link's spec and the slider values apply on the next `initBlueprint()`. */
+  setBlueprintSettings(settings: Partial<BlueprintSettings>) {
+    this.blueprintMode.setSettings(settings);
+  }
+  /** Live Mode Lab state (the spec, its world, the HUD, the clock, the result) for the canvas and the dataset; the same object every call. */
+  getBlueprintView(): BlueprintView {
+    return this.blueprintMode.getView();
+  }
+  getBlueprintProgress(): BlueprintProgress {
+    return this.blueprintMode.getProgress();
+  }
+  /** The spec the settings play (sanitized, the sliders applied), what was repaired, and the catalog id. */
+  getBlueprintResolved(): ResolvedBlueprint {
+    return this.blueprintMode.getResolved();
+  }
+  // --- end blueprint ---
   // --- beat-drop ---
   isBeatDropMode() {
     return this.currentMode === this.beatDropMode;

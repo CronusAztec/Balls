@@ -8,9 +8,10 @@ touches `src/lib/physics/engine.ts`, `src/components/simulator/Canvas.tsx` or `s
 No code is generated or run: a spec is data, checked by one validator and bounded by fixed work ceilings, so a stranger's
 link cannot freeze a tab.
 
-The language and its checks live in `src/lib/blueprint/` (pure: no DOM, no engine). The site plays Blueprints in the
-`blueprint` mode (Mode Lab) once that mode is registered; until then the agent toolbox runs them headless with the same
-interpreter (`src/lib/blueprint/runtime/`).
+The language and its checks live in `src/lib/blueprint/` (pure data: no DOM, no engine). The site plays Blueprints in the
+`blueprint` mode, Mode Lab (`src/lib/physics/modes/blueprint.ts`): the interpreter (`src/lib/blueprint/runtime/`) is hosted
+by the engine, so live play, the fast export, the finder and the Windows app's queue all play a spec the same way. The
+playability check and the agent toolbox run the same engine headless (`src/lib/blueprint/headless.ts`).
 
 ## Write one in four steps
 
@@ -20,6 +21,9 @@ interpreter (`src/lib/blueprint/runtime/`).
 3. Play it headless on four seeds: `npm run -s agent -- bp-check --json '{"spec":{…}}'`. Fix what the feedback says until
    the verdict is `playable`.
 4. Get its link: `npm run -s agent -- bp-link --json '{"spec":{…}}'` (`?mode=blueprint&bls=b1.…`).
+
+A link keeps three keys: `blp` (a catalog id below), `bls` (a spec's code, played instead of the catalog entry) and `blv`
+(the sliders' values, see Sliders). A code that cannot be read plays the catalog entry, with a note in Mode Lab's panel.
 
 Every tool also takes `code` (a `b1.` code or a link holding one), `catalog` (an id below) or `lite` (the Lite form) instead
 of `spec`. A new built-in entry is a file in `src/lib/blueprint/catalog/` plus its id in `BLUEPRINT_CATALOG_IDS`; it must
@@ -143,6 +147,15 @@ A variable's id (`vars`) is a count too.
 | `bar` | x 0, y 0, len 0.4, angleDeg 0, thick 0.03 |
 | `spinner` | x 0, y 0, len 0.5, angleDeg 0, spinDegPerSec 90, thick 0.03 |
 
+## Sliders (`params`, up to 4)
+
+A spec may offer sliders, each `{ id, label, at, min, max, step }`: `at` is the path of one number of the resolved spec
+(for example `arena.rings.count`, `tiles.hp`, `spawners[0].speed`), in one of these sections:
+`arena`, `bodies`, `tiles`, `obstacles`, `vars`, `spawners`, `rules`, `finish`, `look`, `sound`.
+Mode Lab shows one slider each, and a link carries their values as `blv`, comma-separated (an empty place keeps the spec's
+own value). A value past a slider's ends plays as typed: the spec is sanitized again, so only a structural ceiling or a
+design domain puts it back in range, exactly as in a spec written that way.
+
 ## Formulas
 
 A number slot (a spawner's `count` and `speed`, an action's `count`, `speed`, `into`, `by`, `scale`, `amount`, `value`) also
@@ -185,7 +198,8 @@ The shape of a spec (`BLUEPRINT_LIMITS` in `src/lib/blueprint/limits.ts`): 4 bod
 
 ## The playability check
 
-`bp-check` runs the spec on seeds 1-4 and judges it on deterministic counts only (never wall time, so every machine agrees):
+`bp-check` plays the spec in the engine on seeds 1-4, exactly as the page plays it, and judges it on deterministic counts
+only (never wall time, so every machine agrees). Mode Lab's Check playability button runs the same check:
 
 - **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between 6 s and the timeout; no seed has a fault, a ball gone NaN, dropped events or firings, or ARENA FULL; the median seed plays at least 5 sounds; something moves within 1 s;
 - **endless:** every seed runs into the timeout;
@@ -216,14 +230,14 @@ The built-in Blueprints, each `playable`. Their specs are the best examples of t
 
 Every glass tile a ball breaks hatches a new ball. One ball becomes a swarm before the shell is gone.
 
-Link: `?mode=blueprint&blp=hatchery` · digest `421cab05` · check: playable, median end 8.38 s, outcomes "SHELL CLEARED".
+Link: `?mode=blueprint&blp=hatchery` · digest `1fcd12b7` · check: playable, median end 17.18 s, outcomes "SHELL CLEARED".
 
 ```text
 "Glass Hatchery": "Every glass tile a ball breaks hatches a new ball. One ball becomes a swarm before the shell is gone."
 Arena: a circle, no gravity, bounce 1.
 Bodies: ball (8 px).
-Tiles: 6 × 24 glass tiles in a ring, 1 HP (+2 a row).
-Start: 1 ball at the center at 260 px/s.
+Tiles: 6 × 20 glass tiles in a ring, 2 HP (+3 a row).
+Start: 1 ball at the center at 240 px/s.
 Rule: when a ball breaks a tile: spawn 1 ball at the tile, then recolour it (random).
 Ends: when every tile is broken "SHELL CLEARED"; after 60 s at the latest "STILL IN THE SHELL".
 ```
@@ -269,6 +283,30 @@ Ends: when every tile is broken "SHELL CLEARED"; after 60 s at the latest "STILL
   "description": "Every glass tile a ball breaks hatches a new ball. One ball becomes a swarm before the shell is gone.",
   "name": "Glass Hatchery"
  },
+ "params": [
+  {
+   "at": "tiles.rows",
+   "id": "layers",
+   "label": "layers",
+   "max": 10,
+   "min": 2
+  },
+  {
+   "at": "tiles.hp",
+   "id": "glass",
+   "label": "glass strength",
+   "max": 6,
+   "min": 1
+  },
+  {
+   "at": "spawners[0].speed",
+   "id": "speed",
+   "label": "ball speed",
+   "max": 600,
+   "min": 100,
+   "step": 10
+  }
+ ],
  "rules": [
   {
    "do": [
@@ -288,17 +326,22 @@ Ends: when every tile is broken "SHELL CLEARED"; after 60 s at the latest "STILL
  ],
  "sound": {
   "root": 2,
-  "scale": "pentatonic"
+  "scale": "pentatonic",
+  "voices": {
+   "ballHit": "none",
+   "wallHit": "none"
+  }
  },
  "spawners": [
   {
    "body": "ball",
-   "speed": 260
+   "speed": 240
   }
  ],
  "tiles": {
-  "cols": 24,
-  "hpStep": 2,
+  "cols": 20,
+  "hp": 2,
+  "hpStep": 3,
   "inner": 0.3,
   "layout": "ring",
   "outer": 0.88,
@@ -311,15 +354,16 @@ Ends: when every tile is broken "SHELL CLEARED"; after 60 s at the latest "STILL
 
 ### Ring Breaker (`ringBreaker`)
 
-Every ring a ball gets through shatters and doubles every ball. Break all seven.
+Every ring a ball gets through shatters and doubles every ball. Break all eight.
 
-Link: `?mode=blueprint&blp=ringBreaker` · digest `14bd1bbc` · check: playable, median end 13.68 s, outcomes "ALL RINGS DOWN".
+Link: `?mode=blueprint&blp=ringBreaker` · digest `2e7e2b2e` · check: playable, median end 7.99 s, outcomes "ALL RINGS DOWN".
 
 ```text
-"Ring Breaker": "Every ring a ball gets through shatters and doubles every ball. Break all seven."
-Arena: 7 spinning rings with 32° gaps that break when a ball gets through, no gravity, bounce 1.
+"Ring Breaker": "Every ring a ball gets through shatters and doubles every ball. Break all eight."
+Arena: 8 spinning rings with 28° gaps that break when a ball gets through, no gravity, bounce 1.
 Bodies: ball (7 px).
-Start: 1 ball at the center at 300 px/s.
+Start: 1 ball at the center at (260 + 80 * r) px/s.
+Rule: at the start: push every ball right at (15 + 25 * r) px/s.
 Rule: when a ball passes a ring: split every ball into 2, then recolour it (next), then a burst.
 Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rings} RINGS LEFT".
 ```
@@ -328,10 +372,9 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rin
 {
  "arena": {
   "rings": {
-   "count": 7,
-   "gapDeg": 32,
-   "inner": 0.24,
-   "spinDegPerSec": 45
+   "count": 8,
+   "gapDeg": 28,
+   "inner": 0.2
   },
   "shape": "rings",
   "size": 0.92
@@ -369,10 +412,45 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rin
  },
  "meta": {
   "author": "builtin",
-  "description": "Every ring a ball gets through shatters and doubles every ball. Break all seven.",
+  "description": "Every ring a ball gets through shatters and doubles every ball. Break all eight.",
   "name": "Ring Breaker"
  },
+ "params": [
+  {
+   "at": "arena.rings.count",
+   "id": "rings",
+   "label": "rings",
+   "max": 8,
+   "min": 3
+  },
+  {
+   "at": "arena.rings.gapDeg",
+   "id": "gap",
+   "label": "gap",
+   "max": 60,
+   "min": 15
+  },
+  {
+   "at": "arena.rings.spinDegPerSec",
+   "id": "spin",
+   "label": "ring spin",
+   "max": 120,
+   "min": 0,
+   "step": 5
+  }
+ ],
  "rules": [
+  {
+   "do": [
+    {
+     "act": "impulse",
+     "amount": "15 + 25 * r",
+     "dir": "right",
+     "target": "all"
+    }
+   ],
+   "when": "start"
+  },
   {
    "do": [
     {
@@ -395,7 +473,9 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rin
  },
  "spawners": [
   {
-   "body": "ball"
+   "body": "ball",
+   "dir": "up",
+   "speed": "260 + 80 * r"
   }
  ],
  "v": 1
@@ -406,13 +486,13 @@ Ends: when every ring is broken "ALL RINGS DOWN"; after 60 s at the latest "{rin
 
 Four colours collide: the faster ball converts the slower one. The last colour standing wins.
 
-Link: `?mode=blueprint&blp=conquer` · digest `a8cf634f` · check: playable, median end 23.17 s, outcomes "BLUE WINS", "GREEN WINS", "RED WINS".
+Link: `?mode=blueprint&blp=conquer` · digest `77f29a49` · check: playable, median end 12.21 s, outcomes "GOLD WINS", "RED WINS", "GREEN WINS".
 
 ```text
 "Colour Conquest": "Four colours collide: the faster ball converts the slower one. The last colour standing wins."
 Arena: a circle, no gravity, bounce 1.
 Bodies: red (11 px), blue (11 px, team 1), green (11 px, team 2), gold (11 px, team 3).
-Start: 6 reds at random places at 230 px/s; 6 blues at random places at 230 px/s; 6 greens at random places at 230 px/s; 6 golds at random places at 230 px/s.
+Start: (per) reds at random places at 230 px/s; (per) blues at random places at 230 px/s; (per) greens at random places at 230 px/s; (per) golds at random places at 230 px/s.
 Rule: when a ball touches a ball of another team: the other ball joins its team, then recolour the other ball (team), then a merge note.
 Rule: every 6 s: speed every ball × 1.12.
 Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{winner} LEADS"; the winner is mostBalls.
@@ -485,6 +565,22 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
   "family": "battle",
   "name": "Colour Conquest"
  },
+ "params": [
+  {
+   "at": "vars[0].start",
+   "id": "per",
+   "label": "balls per colour",
+   "max": 8,
+   "min": 2
+  },
+  {
+   "at": "rules[1].sec",
+   "id": "boost",
+   "label": "speed-up every",
+   "max": 20,
+   "min": 2
+  }
+ ],
  "rules": [
   {
    "do": [
@@ -520,35 +616,44 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
  ],
  "sound": {
   "root": 9,
-  "scale": "minor"
+  "scale": "minor",
+  "voices": {
+   "wallHit": "none"
+  }
  },
  "spawners": [
   {
    "at": "random",
    "body": "red",
-   "count": 6,
+   "count": "per",
    "speed": 230
   },
   {
    "at": "random",
    "body": "blue",
-   "count": 6,
+   "count": "per",
    "speed": 230
   },
   {
    "at": "random",
    "body": "green",
-   "count": 6,
+   "count": "per",
    "speed": 230
   },
   {
    "at": "random",
    "body": "gold",
-   "count": 6,
+   "count": "per",
    "speed": 230
   }
  ],
- "v": 1
+ "v": 1,
+ "vars": [
+  {
+   "id": "per",
+   "start": 6
+  }
+ ]
 }
 ```
 
@@ -556,15 +661,15 @@ Ends: when 1 team or fewer are left "{winner} WINS"; after 90 s at the latest "{
 
 Orbs rain down and two of a tier merge into the next. First to tier 8 ends it.
 
-Link: `?mode=blueprint&blp=tierClimb` · digest `c7199244` · check: playable, median end 29.53 s, outcomes "TIER 8 REACHED".
+Link: `?mode=blueprint&blp=tierClimb` · digest `ae9e02fd` · check: playable, median end 23.18 s, outcomes "TIER 8 REACHED".
 
 ```text
 "Tier Climb": "Orbs rain down and two of a tier merge into the next. First to tier 8 ends it."
 Arena: a circle, gravity 0, 520 px/s², bounce 0.55.
 Bodies: orb (9 px).
-Start: 1 orb at the top at 80 px/s, again every 0.12 s (up to 400).
+Start: 1 orb at the top at 80 px/s, again every 0.08 s (up to 400).
 Rule: when a ball touches a ball of its tier: merge the two into one of the next tier, then recolour it (tier).
-Ends: when a ball reaches tier 8 "TIER 8 REACHED"; after 120 s at the latest "TOP TIER {tier}".
+Ends: when a ball reaches tier 8 "TIER {tier} REACHED"; after 120 s at the latest "TOP TIER {tier}".
 ```
 
 ```json
@@ -587,7 +692,7 @@ Ends: when a ball reaches tier 8 "TIER 8 REACHED"; after 120 s at the latest "TO
   "any": [
    {
     "atLeast": 8,
-    "say": "TIER 8 REACHED",
+    "say": "TIER {tier} REACHED",
     "when": "tier"
    }
   ],
@@ -620,6 +725,31 @@ Ends: when a ball reaches tier 8 "TIER 8 REACHED"; after 120 s at the latest "TO
   "family": "rhythm",
   "name": "Tier Climb"
  },
+ "params": [
+  {
+   "at": "finish.any[0].atLeast",
+   "id": "target",
+   "label": "target tier",
+   "max": 10,
+   "min": 4
+  },
+  {
+   "at": "spawners[0].everySec",
+   "id": "rain",
+   "label": "seconds per orb",
+   "max": 0.5,
+   "min": 0.04,
+   "step": 0.01
+  },
+  {
+   "at": "arena.gravity.y",
+   "id": "gravity",
+   "label": "gravity",
+   "max": 1200,
+   "min": 100,
+   "step": 20
+  }
+ ],
  "rules": [
   {
    "do": [
@@ -649,7 +779,7 @@ Ends: when a ball reaches tier 8 "TIER 8 REACHED"; after 120 s at the latest "TO
    "at": "top",
    "body": "orb",
    "dir": "down",
-   "everySec": 0.12,
+   "everySec": 0.08,
    "maxTotal": 400,
    "speed": 80
   }
@@ -662,7 +792,7 @@ Ends: when a ball reaches tier 8 "TIER 8 REACHED"; after 120 s at the latest "TO
 
 Four balls fall through the pegs and chase a turning exit. First one out wins.
 
-Link: `?mode=blueprint&blp=plinkoRace` · digest `8ecaec18` · check: playable, median end 6.74 s, outcomes "GOLD WINS THE RACE", "BLUE WINS THE RACE", "GREEN WINS THE RACE".
+Link: `?mode=blueprint&blp=plinkoRace` · digest `ad34af37` · check: playable, median end 8.87 s, outcomes "GREEN WINS THE RACE", "GOLD WINS THE RACE".
 
 ```text
 "Peg Race": "Four balls fall through the pegs and chase a turning exit. First one out wins."
@@ -679,7 +809,7 @@ Ends: when 1 ball escaped "{winner} WINS THE RACE"; after 60 s at the latest "NO
   "exits": [
    {
     "atDeg": 270,
-    "widthDeg": 18
+    "widthDeg": 14
    }
   ],
   "gravity": {
@@ -688,7 +818,7 @@ Ends: when 1 ball escaped "{winner} WINS THE RACE"; after 60 s at the latest "NO
   },
   "restitution": 0.9,
   "size": 0.92,
-  "spinDegPerSec": 40
+  "spinDegPerSec": 30
  },
  "bodies": [
   {
@@ -760,6 +890,30 @@ Ends: when 1 ball escaped "{winner} WINS THE RACE"; after 60 s at the latest "NO
    "y": 0.1
   }
  ],
+ "params": [
+  {
+   "at": "arena.exits[0].widthDeg",
+   "id": "exit",
+   "label": "exit width",
+   "max": 40,
+   "min": 8
+  },
+  {
+   "at": "arena.spinDegPerSec",
+   "id": "spin",
+   "label": "exit spin",
+   "max": 90,
+   "min": 0,
+   "step": 5
+  },
+  {
+   "at": "obstacles[0].rows",
+   "id": "rows",
+   "label": "peg rows",
+   "max": 6,
+   "min": 2
+  }
+ ],
  "sound": {
   "root": 7
  },
@@ -793,7 +947,7 @@ Ends: when 1 ball escaped "{winner} WINS THE RACE"; after 60 s at the latest "NO
 
 Every bounce makes the ball bigger. Can it find the gap before it no longer fits?
 
-Link: `?mode=blueprint&blp=growEscape` · digest `47d80f56` · check: playable, median end 17.69 s, outcomes "TOO BIG TO ESCAPE", "ESCAPED AFTER 4 BOUNCES".
+Link: `?mode=blueprint&blp=growEscape` · digest `02f95ef7` · check: playable, median end 20.27 s, outcomes "TOO BIG TO ESCAPE".
 
 ```text
 "Grow or Go": "Every bounce makes the ball bigger. Can it find the gap before it no longer fits?"
@@ -802,7 +956,7 @@ Bodies: ball (9 px).
 Start: 1 ball at the top at 420 px/s.
 Rule: when a ball hits a wall: grow it by 1 px, then speed it × 1.015, then bounces + 1.
 Rule: on every beat: a gap note.
-Ends: when 1 ball escaped "ESCAPED AFTER {bounces} BOUNCES", or when bounces reaches 26 "TOO BIG TO ESCAPE"; after 60 s at the latest "TIME UP".
+Ends: when 1 ball escaped "ESCAPED AFTER {bounces} BOUNCES", or when bounces reaches 32 "TOO BIG TO ESCAPE"; after 60 s at the latest "TIME UP".
 ```
 
 ```json
@@ -810,12 +964,12 @@ Ends: when 1 ball escaped "ESCAPED AFTER {bounces} BOUNCES", or when bounces rea
  "arena": {
   "exits": [
    {
-    "atDeg": 60,
-    "widthDeg": 18
+    "atDeg": 200,
+    "widthDeg": 15
    }
   ],
   "size": 0.92,
-  "spinDegPerSec": 30
+  "spinDegPerSec": 25
  },
  "bodies": [
   {
@@ -832,7 +986,7 @@ Ends: when 1 ball escaped "ESCAPED AFTER {bounces} BOUNCES", or when bounces rea
     "when": "escaped"
    },
    {
-    "atLeast": 26,
+    "atLeast": 32,
     "say": "TOO BIG TO ESCAPE",
     "what": "bounces",
     "when": "count"
@@ -859,6 +1013,30 @@ Ends: when 1 ball escaped "ESCAPED AFTER {bounces} BOUNCES", or when bounces rea
   "description": "Every bounce makes the ball bigger. Can it find the gap before it no longer fits?",
   "name": "Grow or Go"
  },
+ "params": [
+  {
+   "at": "rules[0].do[0].by",
+   "id": "grow",
+   "label": "grow per bounce",
+   "max": 3,
+   "min": 0.2,
+   "step": 0.1
+  },
+  {
+   "at": "arena.exits[0].widthDeg",
+   "id": "exit",
+   "label": "exit width",
+   "max": 40,
+   "min": 8
+  },
+  {
+   "at": "finish.any[1].atLeast",
+   "id": "limit",
+   "label": "bounces to lose",
+   "max": 60,
+   "min": 10
+  }
+ ],
  "rules": [
   {
    "do": [

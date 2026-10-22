@@ -71,6 +71,9 @@ export type { MergeRingSettings, MergeRingLayout, MergeRingView } from "./mergeR
 // --- spiral-glass ---
 export { SpiralGlassMode } from "./spiralGlass";
 export type { SpiralGlassSettings, SpiralGlassLayout, SpiralGlassView } from "./spiralGlass";
+// --- blueprint ---
+export { BlueprintMode } from "./blueprint";
+export type { BlueprintSettings, BlueprintFields, BlueprintProgress, ResolvedBlueprint } from "./blueprint";
 // --- beat-drop ---
 export { BeatDropMode } from "./beatDrop";
 export type { BeatDropSettings, BeatDropView, BeatDropField, BeatDropSound, BeatDropColorMode } from "./beatDrop";

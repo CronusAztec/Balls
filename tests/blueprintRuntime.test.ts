@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BlueprintRun, TRIGGERS, ACTIONS, sanitizeBlueprint, validateBlueprint, type Blueprint } from "@/lib/blueprint";
+import { HeadlessBlueprint, TRIGGERS, ACTIONS, sanitizeBlueprint, validateBlueprint, type Blueprint } from "@/lib/blueprint";
 
 /*
  * --- blueprint --- The interpreter (src/lib/blueprint/runtime/): one scenario per trigger and per action, each with a
@@ -14,8 +14,8 @@ function spec(raw: Record<string, unknown>): Blueprint {
   return sanitizeBlueprint(full).blueprint;
 }
 
-function run(bp: Blueprint, seconds: number, seed = 1): BlueprintRun {
-  const r = new BlueprintRun(bp, { seed });
+function run(bp: Blueprint, seconds: number, seed = 1): HeadlessBlueprint {
+  const r = new HeadlessBlueprint(bp, { seed });
   for (let i = 0; i < Math.round(seconds * 60) && !r.finished; i++) r.step();
   return r;
 }
@@ -52,8 +52,8 @@ describe("blueprint runtime: every trigger fires where it should", () => {
 describe("blueprint runtime: every action does what it says", () => {
   /** The ball after one wall hit fired the action (the ball goes right at 300 px/s: its first wall hit is at about 0.7 s). */
   const onWall = (action: Record<string, unknown>, extra: Record<string, unknown> = {}) => spec({ bodies: [ball], spawners: [{ body: "ball", dir: "right", speed: 300 }], rules: [{ when: "wallHit", maxFires: 1, do: [action] }], ...extra });
-  const first = (r: BlueprintRun) => r.world.balls.find((b) => b.alive)!;
-  const speedOf = (r: BlueprintRun) => Math.hypot(first(r).vx, first(r).vy);
+  const first = (r: HeadlessBlueprint) => r.world.balls.find((b) => b.alive)!;
+  const speedOf = (r: HeadlessBlueprint) => Math.hypot(first(r).vx, first(r).vy);
 
   const checks: Record<(typeof ACTIONS)[number], () => void> = {
     spawn: () => expect(run(onWall({ act: "spawn", body: "ball", count: 3 }), 1.2).world.aliveCount()).toBe(4),
@@ -114,7 +114,7 @@ describe("blueprint runtime: every action does what it says", () => {
 
 describe("blueprint runtime: its contracts", () => {
   const busy = () => spec({ bodies: [ball, { id: "red", radius: 9, team: 1 }], spawners: [{ body: "ball", at: "random", count: 6 }, { body: "red", at: "random", count: 6 }], rules: [{ when: "ballHit", with: "otherTeam", chance: 0.5, do: [{ act: "team", target: "other", to: "self" }] }], finish: { timeoutSec: 30, any: [{ when: "teamsLeft", atMost: 1 }] } });
-  const snapshot = (r: BlueprintRun) => JSON.stringify({ balls: r.world.balls.map((b) => [b.id, b.x, b.y, b.vx, b.vy, b.r, b.team]), stats: r.stats, result: r.result() });
+  const snapshot = (r: HeadlessBlueprint) => JSON.stringify({ balls: r.world.balls.map((b) => [b.id, b.x, b.y, b.vx, b.vy, b.r, b.team]), stats: r.stats, result: r.result() });
 
   it("replays a seed exactly, and another seed differs", () => {
     expect(snapshot(run(busy(), 8, 11))).toBe(snapshot(run(busy(), 8, 11)));
@@ -128,7 +128,7 @@ describe("blueprint runtime: its contracts", () => {
 
   it("stops at the ball ceiling with ARENA FULL, adds at most 8 balls a step, and never throws", () => {
     const bomb = spec({ bodies: [{ id: "ball", radius: 3 }], spawners: [{ body: "ball", count: 8, speed: 400 }], rules: [{ when: "wallHit", do: [{ act: "split", into: 8 }] }, { when: "timer", sec: 0.02, do: [{ act: "spawn", body: "ball", count: 8, at: "random" }] }] });
-    const r = new BlueprintRun(bomb, { seed: 3 });
+    const r = new HeadlessBlueprint(bomb, { seed: 3 });
     let last = r.world.aliveCount();
     for (let i = 0; i < 600; i++) {
       r.step();
@@ -151,7 +151,7 @@ describe("blueprint runtime: its contracts", () => {
   });
 
   it("contains a fault: the rules stop and the run ends 1 s later with reason fault", () => {
-    const r = new BlueprintRun(busy(), { seed: 2, faultOnRule: 0 });
+    const r = new HeadlessBlueprint(busy(), { seed: 2, faultOnRule: 0 });
     for (let i = 0; i < 60 * 30 && !r.finished; i++) r.step();
     const result = r.result();
     expect(result.reason).toBe("fault");
