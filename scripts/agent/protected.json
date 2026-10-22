@@ -93,6 +93,10 @@
     {
       "glob": "scripts/smoke/shards.mjs",
       "why": "which smoke blocks exist and which shard runs each (the guard's tier-1 list and CI's four shards)"
+    },
+    {
+      "glob": "src/lib/blueprint/limits.ts",
+      "why": "the Blueprint sandbox's shape and work ceilings: what a stranger's link may cost a visitor's tab"
     }
   ],
   "regions": [
@@ -110,6 +114,11 @@
       "file": "src/lib/uncap.ts",
       "const": "MEMORY_CEILINGS",
       "why": "the only ceilings left on user numbers (memory safety)"
+    },
+    {
+      "file": "src/lib/uncap.ts",
+      "const": "BLUEPRINT_CEILINGS",
+      "why": "the Blueprint sandbox's work and memory ceilings (the owner's one exception to uncapped)"
     },
     {
       "file": "src/lib/billing/guard.ts",

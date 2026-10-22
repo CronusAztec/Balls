@@ -1,0 +1,26 @@
+/*
+ * --- blueprint --- Catalog: Peg Race (race). Four coloured balls drop through a field of pegs into a bowl whose only exit
+ * keeps turning; the first ball out wins.
+ */
+export const plinkoRace = {
+  v: 1,
+  meta: { name: "Peg Race", description: "Four balls fall through the pegs and chase a turning exit. First one out wins.", family: "rhythm", author: "builtin" },
+  arena: { shape: "circle", size: 0.92, restitution: 0.9, gravity: { x: 0, y: 380 }, spinDegPerSec: 40, exits: [{ atDeg: 270, widthDeg: 18 }] },
+  bodies: [
+    { id: "red", radius: 8, color: 0, team: 0 },
+    { id: "blue", radius: 8, color: 1, team: 1 },
+    { id: "green", radius: 8, color: 2, team: 2 },
+    { id: "gold", radius: 8, color: 3, team: 3 },
+  ],
+  obstacles: [{ kind: "pegGrid", x: 0, y: 0.1, w: 1.3, h: 0.9, rows: 6, cols: 7, r: 0.028, stagger: true }],
+  spawners: [
+    { body: "red", at: "top", count: 1, speed: 60 },
+    { body: "blue", at: "top", count: 1, speed: 60 },
+    { body: "green", at: "top", count: 1, speed: 60 },
+    { body: "gold", at: "top", count: 1, speed: 60 },
+  ],
+  finish: { any: [{ when: "escaped", say: "{winner} WINS THE RACE" }], winner: "firstOut", timeoutSec: 60, timeoutSay: "NOBODY GOT OUT" },
+  hud: [{ show: "time", label: "time" }],
+  look: { teamNames: ["RED", "BLUE", "GREEN", "GOLD", "PURPLE", "CYAN"], rim: 4 },
+  sound: { scale: "major", root: 7 },
+} as const;
