@@ -38,7 +38,7 @@ import es from "../messages/es.json";
  * same at any frame rate; the resolver's order (flSoundResolve.ts), the mixer (flMixer.ts), the ToneGenerator's cue path and
  * its offline twin, the one dispatch (flDispatch.ts) on the page, in the fast export and in the other arenas; the custom clips
  * (flClips.ts: refusals, a fake IndexedDB, the set's ZIP round trip); the settings, the messages and the repository's audio.
- * Rendered peaks are checked in Chromium when it can start (skipped otherwise). No dependency beyond the repo's (fakeAudio.ts).
+ * Rendered peaks are checked in Chromium when it can start (skipped otherwise; a failure with JBL_REQUIRE_BROWSER=1). No dependency beyond the repo's (fakeAudio.ts).
  */
 
 const ROOT = path.resolve(__dirname, "..");
@@ -988,6 +988,8 @@ describe("fight league sound rendered in Chromium", () => {
       expect(rows.filter((r) => !(r.ratio > 0.9 && r.ratio < 1.1)).map((r) => `${r.where}: ${r.ratio.toFixed(3)}`)).toEqual([]);
     } catch (err) {
       if (!browser) {
+        // --- ai-guard --- JBL_REQUIRE_BROWSER=1 (the core guard sets it) makes a missing Chromium a failure, never a silent skip
+        if (process.env.JBL_REQUIRE_BROWSER === "1") throw new Error(`JBL_REQUIRE_BROWSER=1: Chromium did not start for the rendered fight sound checks: ${String(err)}`);
         console.warn("Chromium is not available – the rendered fight sound checks are skipped:", err);
         return ctx.skip();
       }

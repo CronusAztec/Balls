@@ -7,7 +7,8 @@ import { LIMITER_RATIO, LIMITER_THRESHOLD_DB, SOFT_CLIP_KNEE, SameTimeVoices, co
  * --- review fix (audio) --- The master bus (masterBus.ts): the limiter's makeup-gain maths, the soft clip, the same-time
  * voice table – and, rendered for real in Chromium's OfflineAudioContext (src/lib/audio bundled with esbuild), that a pile-up
  * of hits no longer clips while a single bounce keeps its level, that a stolen hit-sample voice fades out from its own level
- * in a fast export, and that soft notes decay like loud ones. The rendered checks are skipped when Chromium cannot start.
+ * in a fast export, and that soft notes decay like loud ones. The rendered checks are skipped when Chromium cannot start (a failure
+ * with JBL_REQUIRE_BROWSER=1).
  */
 
 const ROOT = path.resolve(__dirname, "..");
@@ -87,6 +88,8 @@ describe("master bus rendered in Chromium", () => {
       await page.setContent("<!doctype html><html><body></body></html>");
       await page.addScriptTag({ content: code });
     } catch (err) {
+      // --- ai-guard --- JBL_REQUIRE_BROWSER=1 (the core guard sets it) makes a missing Chromium a failure, never a silent skip
+      if (process.env.JBL_REQUIRE_BROWSER === "1") throw new Error(`JBL_REQUIRE_BROWSER=1: Chromium did not start for the rendered master-bus checks: ${String(err)}`);
       console.warn("Chromium is not available – the rendered master-bus checks are skipped:", err);
       await browser?.close().catch(() => undefined);
       browser = null;

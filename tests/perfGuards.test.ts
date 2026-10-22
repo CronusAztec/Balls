@@ -1,3 +1,4 @@
+import { execFileSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { describe, expect, it, vi } from "vitest";
@@ -200,7 +201,27 @@ describe("small fixes of the perf pass", () => {
 
 const OUT = path.resolve(process.env.PERF_GUARD_OUT || path.join(ROOT, "out"));
 // an old ./out (built before the critical/deferred split, so its worker has no "critical" list) is not this tree's export: skipped too
-const hasExport = fs.existsSync(path.join(OUT, "en", "index.html")) && fs.existsSync(path.join(OUT, "sw.js")) && /"critical": \[/.test(fs.readFileSync(path.join(OUT, "sw.js"), "utf8"));
+const builtExport = fs.existsSync(path.join(OUT, "en", "index.html")) && fs.existsSync(path.join(OUT, "sw.js")) && /"critical": \[/.test(fs.readFileSync(path.join(OUT, "sw.js"), "utf8"));
+// --- ai-guard --- ./out must also be built from HEAD: out/version.json names the commit it was built from, and an export of an older
+// commit checks yesterday's site (PERF_GUARD_OUT names an export on purpose, so it is taken as it is). A stale export is skipped with
+// the reason; under the core guard (JBL_GUARD=1) it fails instead.
+const exportCommit = (() => {
+  try {
+    return String((JSON.parse(fs.readFileSync(path.join(OUT, "version.json"), "utf8")) as { commit?: unknown }).commit ?? "");
+  } catch {
+    return "";
+  }
+})();
+const headCommit = (() => {
+  try {
+    return execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim();
+  } catch {
+    return "";
+  }
+})();
+const staleExport = builtExport && !process.env.PERF_GUARD_OUT && (exportCommit === "" || exportCommit !== headCommit);
+const hasExport = builtExport && !staleExport;
+const staleReason = `./out was built from ${exportCommit ? exportCommit.slice(0, 7) : "an unknown commit (no out/version.json)"}, HEAD is ${headCommit ? headCommit.slice(0, 7) : "unknown"} – rebuild it (\`npm run build\`) or set PERF_GUARD_OUT=<export folder>`;
 /** The marketing pages a paid visitor lands on. */
 const LANDING_PAGES = ["en", "pl", "es", "en/download", "en/pricing", "en/account", "en/feedback", "en/about", "en/gallery"];
 /** One initial script, unpacked: the largest today is the framework's 170 KB (the 1.2 MB all-modes chunk this guards against is 7 times that). */
@@ -208,7 +229,17 @@ const MAX_INITIAL_SCRIPT_BYTES = 600 * 1024;
 /** All initial scripts of a page, unpacked (579 KB on the landing today). */
 const MAX_INITIAL_SCRIPTS_TOTAL_BYTES = 1500 * 1024;
 
-describe.skipIf(!hasExport)(`built export (skipped: no export built by this tree in ${process.env.PERF_GUARD_OUT ? "PERF_GUARD_OUT" : "./out"} – run \`npm run build\` or set PERF_GUARD_OUT=<export folder>)`, () => {
+describe.runIf(staleExport && process.env.JBL_GUARD === "1")("built export freshness (the core guard)", () => {
+  it("is built from HEAD, not an older commit", () => {
+    expect(exportCommit, staleReason).toBe(headCommit);
+  });
+});
+
+describe.skipIf(!hasExport)(
+  staleExport
+    ? `built export (skipped: stale export – ${staleReason})`
+    : `built export (skipped: no export built by this tree in ${process.env.PERF_GUARD_OUT ? "PERF_GUARD_OUT" : "./out"} – run \`npm run build\` or set PERF_GUARD_OUT=<export folder>)`,
+  () => {
   const initialScripts = (page: string) => {
     const html = fs.readFileSync(path.join(OUT, page, "index.html"), "utf8");
     return [...html.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)].map((m) => decodeURIComponent(m[1]).replace(/^\//, "").split("?")[0]);
