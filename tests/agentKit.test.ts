@@ -133,7 +133,7 @@ describe("mode catalog (--- agent-cli ---)", () => {
     expect(list.map((m) => m.id)).toEqual([...MODE_IDS]);
     for (const m of list) {
       expect(m.name, m.id).toBe((en.Modes as unknown as Record<string, { name: string }>)[m.id].name);
-      expect(["escape", "rhythm", "battle", "journey"]).toContain(m.family);
+      expect(["escape", "rhythm", "battle", "journey", "lab"]).toContain(m.family); // --- blueprint --- (Mode Lab's family)
       expect(m.engineKeys).toBeGreaterThan(0);
     }
     const prefixes = list.map((m) => m.prefix).filter(Boolean);
