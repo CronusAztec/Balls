@@ -12,6 +12,7 @@ export { compileBlueprintFormula, formulaNames, formulaErrorText, SLOT } from ".
 export { blueprintJsonSchema } from "./jsonSchema";
 export * from "./lite";
 export { blueprintVocabulary, describeBlueprint, estimateTokens } from "./describe";
+export { isSummaryPhrase, sayPhrase, summarizeBlueprint, summaryKeys, type SummaryLine, type SummaryOptions, type SummaryPhrase, type SummaryValue } from "./summary";
 export * from "./check";
 export { BLUEPRINT_DOCS_FILE, renderBlueprintDocs } from "./docs";
 export { BLUEPRINT_CATALOG, BLUEPRINT_CATALOG_IDS, catalogBlueprint, isBlueprintCatalogId, type BlueprintCatalogId } from "./catalog";

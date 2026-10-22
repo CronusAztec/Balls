@@ -87,7 +87,7 @@ import { plainTransform } from "./mergeRingGlow";
 // --- spiral-glass --- Spiral Glass: the glass tiles, the rainbow line, the shards, the pops, the badge, the caption and the HUD
 import { DEFAULT_SPIRAL_GLASS_LABELS, SPIRAL_GLASS_DATA_KEYS, SpiralGlassDataset, SpiralGlassLayer, clearedSeconds, type SpiralGlassLabels, type SpiralGlassRenderOptions } from "./spiralGlassRenderer";
 // --- blueprint --- Mode Lab: a Blueprint's arena, tiles, obstacles, ball labels, HUD and end banner
-import { BLUEPRINT_DATA_KEYS, BlueprintDataset, BlueprintLayer, DEFAULT_BLUEPRINT_LABELS, endColor as blueprintEndColor, endSub as blueprintEndSub, endTitle as blueprintEndTitle, type BlueprintLabels, type BlueprintRenderOptions } from "./blueprintRenderer";
+import { BLUEPRINT_DATA_KEYS, BlueprintDataset, BlueprintLayer, DEFAULT_BLUEPRINT_LABELS, type BlueprintLabels, type BlueprintRenderOptions } from "./blueprintRenderer";
 // --- beat-drop --- Beat Drop: the dark scene, the obstructions, the ball's squash and trail, the landing effects and the HUD
 import { BEAT_DROP_DATA_KEYS, BeatDropLayer, DEFAULT_BEAT_DROP_LABELS, writeBeatDropDataset, type BeatDropLabels, type BeatDropRenderOptions } from "./beatDropRenderer";
 import { BOUNCE_MATH_DATA_KEYS, BounceMathLayer, DEFAULT_BOUNCE_MATH_LABELS, writeBounceMathDataset, type BounceMathHudLabels } from "./bounceMathRenderer"; // --- bounce-math ---
@@ -2483,7 +2483,10 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
         const teamSprite = isColorMatch || customImage ? null : teamLayer.spriteOf(ball);
         const color = isColorMatch && matchColor ? matchColor : teamColor ?? (p.rainbowBall ? rainbowColors[index] : ball.color);
         // Trail
-        if (p.showTrails && index < 30 && ball.trail.length > 1) {
+        // --- blueprint --- Mode Lab: a Blueprint's look decides (look.trail): a streak in the ball's own colour, never the rainbow
+        if (blueprintView) {
+          if (p.showTrails && index < 30 && blueprintView.bp?.look.trail) blueprintLayer.drawTrail(ctx, ball, color, p.trailThickness);
+        } else if (p.showTrails && index < 30 && ball.trail.length > 1) {
           const intensity = personality.trailIntensity;
           const len = ball.trail.length;
           const at = (i: number) => ball.trail[(ball.trailIndex + i) % len];
@@ -2833,7 +2836,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       if (mergeRingView) mergeRingLayer.drawOverlay(ctx, mergeRingView, (labelsRef.current ?? DEFAULT_LABELS).mergeRing ?? DEFAULT_MERGE_RING_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- spiral-glass --- Spiral Glass: the tiles left, the progress ring and the caption (screen space, part of the recording).
       if (spiralGlassView) spiralGlassLayer.drawOverlay(ctx, spiralGlassView, (labelsRef.current ?? DEFAULT_LABELS).spiralGlass ?? DEFAULT_SPIRAL_GLASS_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
-      // --- blueprint --- Mode Lab: the title, the HUD counters, the clock and ARENA FULL (screen space, part of the recording).
+      // --- blueprint --- Mode Lab: the title, the HUD counters, the clock, ARENA FULL and the end banner (screen space, part of the recording).
       if (blueprintView) blueprintLayer.drawOverlay(ctx, blueprintView, (labelsRef.current ?? DEFAULT_LABELS).blueprint ?? DEFAULT_BLUEPRINT_LABELS, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
       // --- gerald-conveyor --- Conveyor Belt: the title and the counter (screen space, part of the recording).
       if (conveyorView) conveyorLayer.drawOverlay(ctx, conveyorView, (labelsRef.current ?? DEFAULT_LABELS).conveyor ?? DEFAULT_CONVEYOR_LABELS, size.width, size.height, !recordingRef.current && (size.width - Math.min(size.width, size.height)) / 2 < 170 ? 52 : 0);
@@ -3171,11 +3174,7 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
           if (spiralGlassView.clearedMs >= 0) bigBanner(SG.clearedTitle, SG.clearedSub(spiralGlassView.count, clearedSeconds(spiralGlassView)), "#f8fafc");
           else bigBanner(SG.timeoutTitle, SG.timeoutSub(spiralGlassView.tilesLeft), "#fb7185");
         }
-        // --- blueprint --- Mode Lab: the result line (a catalog entry's in the page's language) from the end, through the hold
-        if (blueprintView && blueprintView.result.finished) {
-          const BL = L.blueprint ?? DEFAULT_BLUEPRINT_LABELS;
-          bigBanner(blueprintEndTitle(blueprintView, BL), blueprintEndSub(blueprintView, BL), blueprintEndColor(blueprintView));
-        }
+        // --- blueprint --- (Mode Lab's end banner is its overlay's: blueprintLayer.drawOverlay(), opaque, on a dark band)
         // --- gerald-conveyor --- Conveyor Belt: every ball out (or frozen) / the arena settled (through the hold before the end)
         if (conveyorView && conveyorView.allDone) {
           const CV = conveyorBanner(conveyorView, L.conveyor ?? DEFAULT_CONVEYOR_LABELS);
@@ -3804,8 +3803,8 @@ const Canvas = forwardRef<CanvasHandle, CanvasProps>(function Canvas(
       // --- spiral-glass --- count, balls, tiles, hp, chips, shatters, notes, cleared, timeout, finished (data-spiral-*)
       if (spiralGlassView) spiralGlassData.write(spiralGlassView, setCanvasData);
       else if (canvas.dataset.spiralCount !== undefined) for (const key of SPIRAL_GLASS_DATA_KEYS) delete canvas.dataset[key];
-      // --- blueprint --- name, catalog, finished, reason, result, balls, tiles, time, steps, dropped, fault, escaped (data-blueprint-*)
-      if (blueprintView) blueprintData.write(blueprintView, setCanvasData);
+      // --- blueprint --- name, catalog, finished, reason, result, banner, HUD, balls, tiles, time, steps, dropped, fault, escaped (data-blueprint-*)
+      if (blueprintView) blueprintData.write(blueprintView, setCanvasData, (labelsRef.current ?? DEFAULT_LABELS).blueprint ?? DEFAULT_BLUEPRINT_LABELS);
       else if (canvas.dataset.blueprintFinished !== undefined) for (const key of BLUEPRINT_DATA_KEYS) delete canvas.dataset[key];
       // --- gerald-conveyor --- arena, balls, loaded, escaped / overflow / landed, frozen, carried, passes, notes, drops, the end (data-cv-*)
       if (conveyorView) conveyorData.write(conveyorView, setCanvasData);

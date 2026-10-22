@@ -23,6 +23,8 @@ export interface BlueprintView {
   /** The catalog id it came from ("" for a spec from a link or a share code). */
   catalogId: string;
   timeSec: number;
+  /** The run's clock, which keeps going through the hold after the finish (the end banner's pop-in reads it). */
+  clockSec: number;
   timeoutSec: number;
   hud: BlueprintHudValue[];
   balls: number;
@@ -53,6 +55,7 @@ export function createBlueprintView(): BlueprintView {
     world: null,
     catalogId: "",
     timeSec: 0,
+    clockSec: 0,
     timeoutSec: 0,
     hud: [],
     balls: 0,
@@ -98,6 +101,7 @@ export function attachBlueprintView(view: BlueprintView, run: BlueprintRun, cata
 /** Copies the run's numbers into the view (end of every step). */
 export function refreshBlueprintView(view: BlueprintView, run: BlueprintRun) {
   view.timeSec = run.done.finished ? run.done.timeSec : run.timeSec;
+  view.clockSec = run.timeSec;
   for (const h of view.hud) h.value = hudText(h.show, run.count(h.show));
   view.balls = run.world.aliveCount();
   view.tiles = run.world.tilesAlive;

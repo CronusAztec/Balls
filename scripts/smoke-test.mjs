@@ -19286,42 +19286,59 @@ await smokeBlock("spiral-glass", async () => {
 await smokeBlock("blueprint", async () => {
 // --- blueprint ---
 // 51. Mode Lab (Blueprints: games made of rules): the preview image and the card under the lab heading; a catalog link → the
-// Mode Lab block of the Mode row (the game picker, the game's own sliders) and the canvas' data-blueprint-* switching with the
-// game; a slider → the URL, kept by a reload; the search box finds the picker; a Blueprint link (bls) and a share code (?c=)
-// each open the same game; a fast run at 8× ends by its finish condition under the banner (no dropped work, no fault).
+// Mode Lab block of the Mode row (every game with its one-line pitch, the game's own sliders, How it plays) and the canvas'
+// data-blueprint-* switching with the game; a slider → the URL, kept by a reload; the search box finds the picker; a
+// Blueprint link (bls) and a share code (?c=) each open the same game; Copy link round-trips a catalog game with its sliders
+// and a Blueprint of a link; every catalog game (BLUEPRINT_CATALOG_IDS, read from the catalog, so a new one is covered the day
+// it lands), opened by its link, runs at 8× to its finish – its HUD counting in its own words, the banner one of its own
+// result lines, no dropped work, no fault; Mode Lab follows the paywall like every mode: a free visitor's canvas, fast export
+// and recording carry the watermark (the badge in the pixels, bottom left then bottom right), the video buttons wear the
+// watermark tag, and a Pro licence's export of the same seed carries none.
 {
   const res = await page.request.get(`${BASE}/modes/blueprint.webp`);
   check("asset /modes/blueprint.webp", res.ok(), `(${res.status()}, ${res.headers()["content-type"]})`);
   await page.goto(`${BASE}/en/`, { waitUntil: "networkidle" });
   check("the Mode Lab card is on the landing page", (await page.locator('img[src$="/modes/blueprint.webp"]').count()) === 1);
 }
+const bpCatalogIds = [...(/BLUEPRINT_CATALOG_IDS = \[([^\]]*)\]/.exec(fs.readFileSync(new URL("../src/lib/blueprint/catalog/index.ts", import.meta.url), "utf8"))?.[1] ?? "").matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]);
+const bpMessages = JSON.parse(fs.readFileSync(new URL("../messages/en.json", import.meta.url), "utf8")).Blueprints;
+const bpWaitData = async (p, key, want, ms = 8000) => {
+  const read = () => p.evaluate(() => ({ ...(document.querySelector("main canvas")?.dataset ?? {}) }));
+  const deadline = Date.now() + ms;
+  let data = await read();
+  while (Date.now() < deadline && (typeof want === "function" ? !want(data[key]) : data[key] !== want)) {
+    await p.waitForTimeout(150);
+    data = await read();
+  }
+  return data;
+};
 {
   const block = page.getByTestId("blueprint");
   const picker = page.getByTestId("blueprint-catalog");
   const blSlider = (label) => block.locator(`input[type="range"][aria-label="${label}"]`);
-  const waitData = async (key, want, ms = 8000) => {
-    const deadline = Date.now() + ms;
-    let data = await canvasData();
-    while (Date.now() < deadline && data[key] !== want) {
-      await page.waitForTimeout(150);
-      data = await canvasData();
-    }
-    return data;
-  };
+  const selected = () => picker.getAttribute("data-value");
   await page.goto(`${BASE}/en/simulator/?mode=blueprint&blp=ringBreaker&blv=5`, { waitUntil: "networkidle" });
   {
-    const game = await picker.inputValue();
+    const game = await selected();
     const rings = await blSlider("Rings").inputValue();
     const noRingControls = (await page.locator('input[aria-label="Wall Count"]').count()) === 0 && (await page.locator('input[aria-label="Gap Size"]').count()) === 0;
+    const games = await picker.locator("button[data-testid^='blueprint-game-']").count();
+    const pitch = await page.getByTestId("blueprint-game-ringBreaker").innerText();
+    const how = await page.getByTestId("blueprint-how").locator("li").allInnerTexts();
     await page.getByRole("button", { name: /Start Simulator/ }).click();
-    const data = await waitData("blueprintCatalog", "ringBreaker");
+    const data = await bpWaitData(page, "blueprintCatalog", "ringBreaker");
     check("mode lab loads a catalog game and its slider from the URL", game === "ringBreaker" && rings === "5" && noRingControls && data.blueprintCatalog === "ringBreaker" && data.blueprintName === "Ring Breaker", `(game=${game}, rings=${rings}, no ring controls=${noRingControls}, ${data.blueprintCatalog} "${data.blueprintName}")`);
+    check(
+      "mode lab lists every game with its one-line pitch and says how the game plays, the slider's value included",
+      games === bpCatalogIds.length && pitch.includes(bpMessages.ringBreaker.line) && how.length >= 4 && how[0].startsWith("Arena: 5 spinning rings") && how.some((l) => l.startsWith("When a ball gets through a ring:")) && how[how.length - 1].startsWith("End:"),
+      `(${games} games, pitch "${pitch.replace(/\s+/g, " ")}", ${JSON.stringify(how)})`,
+    );
   }
-  await picker.selectOption("tierClimb");
+  await page.getByTestId("blueprint-game-tierClimb").click();
   {
-    const data = await waitData("blueprintCatalog", "tierClimb");
+    const data = await bpWaitData(page, "blueprintCatalog", "tierClimb");
     const query = page.url().split("?")[1] || "";
-    check("switching the game switches the canvas' data-blueprint-* values", data.blueprintCatalog === "tierClimb" && data.blueprintName === "Tier Climb" && /(^|&)blp=tierClimb(&|$)/.test(query) && !/(^|&)blv=/.test(query), `(${data.blueprintCatalog} "${data.blueprintName}", ${query})`);
+    check("switching the game switches the canvas' data-blueprint-* values", data.blueprintCatalog === "tierClimb" && data.blueprintName === "Tier Climb" && /(^|&)blp=tierClimb(&|$)/.test(query) && !/(^|&)blv=/.test(query) && (await selected()) === "tierClimb", `(${data.blueprintCatalog} "${data.blueprintName}", ${query})`);
   }
   await blSlider("Target tier").evaluate(setRangeValue, "6");
   await page.waitForTimeout(300);
@@ -19329,52 +19346,336 @@ await smokeBlock("blueprint", async () => {
     const query = page.url().split("?")[1] || "";
     await page.reload({ waitUntil: "networkidle" });
     const kept = await blSlider("Target tier").inputValue();
-    check("a mode lab slider mirrors into the URL and a reload keeps it", /(^|&)blv=6(&|$)/.test(query) && kept === "6" && (await picker.inputValue()) === "tierClimb", `(${query}, after the reload ${kept})`);
+    const how = await page.getByTestId("blueprint-how").locator("li").allInnerTexts();
+    check("a mode lab slider mirrors into the URL and a reload keeps it", /(^|&)blv=6(&|$)/.test(query) && kept === "6" && (await selected()) === "tierClimb" && how.some((l) => l.includes("a ball reaches tier 6")), `(${query}, after the reload ${kept}, ${JSON.stringify(how.slice(-1))})`);
   }
   await page.getByPlaceholder("Search settings...").fill("game");
   const found = await picker.isVisible();
   await page.getByPlaceholder("Search settings...").fill("");
   check("search finds the mode lab game picker", found);
 }
+// A Blueprint of a link, and the same link as a share code: one box, three balls, done after 3 s.
+const bpSpec = { v: 1, meta: { name: "Smoke Box" }, arena: { shape: "box", size: 0.8 }, bodies: [{ id: "ball", radius: 10 }], spawners: [{ body: "ball", count: 3, speed: 400 }], finish: { timeoutSec: 6, any: [{ when: "count", what: "time", atLeast: 3, say: "SMOKE DONE" }] } };
+const bpCode = `b1.${Buffer.from(JSON.stringify(bpSpec)).toString("base64url")}`;
 {
-  // A Blueprint of a link, and the same link as a share code: one box, three balls, done after 3 s.
-  const spec = { v: 1, meta: { name: "Smoke Box" }, arena: { shape: "box", size: 0.8 }, bodies: [{ id: "ball", radius: 10 }], spawners: [{ body: "ball", count: 3, speed: 400 }], finish: { timeoutSec: 6, any: [{ when: "count", what: "time", atLeast: 3, say: "SMOKE DONE" }] } };
-  const code = `b1.${Buffer.from(JSON.stringify(spec)).toString("base64url")}`;
   const opened = async (query) => {
     await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
     await page.getByRole("button", { name: /Start Simulator/ }).click();
-    const deadline = Date.now() + 8000;
-    let data = await canvasData();
-    while (Date.now() < deadline && data.blueprintName !== "Smoke Box") {
-      await page.waitForTimeout(150);
-      data = await canvasData();
-    }
-    return { data, game: await page.getByTestId("blueprint-catalog").inputValue(), link: await page.getByTestId("blueprint").getAttribute("data-blueprint-link"), url: page.url() };
+    const data = await bpWaitData(page, "blueprintName", "Smoke Box");
+    return { data, game: await page.getByTestId("blueprint-catalog").getAttribute("data-value"), link: await page.getByTestId("blueprint").getAttribute("data-blueprint-link"), url: page.url(), shown: await page.getByTestId("blueprint-game-link").isVisible().catch(() => false) };
   };
-  const byLink = await opened(`mode=blueprint&bls=${code}`);
-  check("a Blueprint link (bls) opens its game", byLink.data.blueprintName === "Smoke Box" && byLink.data.blueprintCatalog === "" && byLink.game === "" && byLink.link === "1", `(${JSON.stringify({ name: byLink.data.blueprintName, catalog: byLink.data.blueprintCatalog, game: byLink.game, link: byLink.link })})`);
+  const byLink = await opened(`mode=blueprint&bls=${bpCode}`);
+  check("a Blueprint link (bls) opens its game", byLink.data.blueprintName === "Smoke Box" && byLink.data.blueprintCatalog === "" && byLink.game === "" && byLink.link === "1" && byLink.shown, `(${JSON.stringify({ name: byLink.data.blueprintName, catalog: byLink.data.blueprintCatalog, game: byLink.game, link: byLink.link, shown: byLink.shown })})`);
   const { deflateRawSync } = await import("zlib");
-  const shareCode = deflateRawSync(Buffer.from(JSON.stringify({ mode: "blueprint", bls: code }))).toString("base64url");
+  const shareCode = deflateRawSync(Buffer.from(JSON.stringify({ mode: "blueprint", bls: bpCode }))).toString("base64url");
   const byShare = await opened(`c=${shareCode}`);
-  check("a share code (?c=) of a Blueprint opens the same game", byShare.data.blueprintName === "Smoke Box" && byShare.link === "1" && byShare.url.includes(`bls=${code}`), `(${byShare.data.blueprintName}, ${byShare.url.slice(0, 120)})`);
+  check("a share code (?c=) of a Blueprint opens the same game", byShare.data.blueprintName === "Smoke Box" && byShare.link === "1" && byShare.url.includes(`bls=${bpCode}`), `(${byShare.data.blueprintName}, ${byShare.url.slice(0, 120)})`);
+}
+{
+  // Copy link: the copied link opens the same game with the same sliders in a fresh page; a Blueprint of a link copies its spec.
+  await ctx.grantPermissions(["clipboard-read", "clipboard-write"], { origin: ORIGIN });
+  const copyFrom = async (query) => {
+    await page.goto(`${BASE}/en/simulator/?${query}`, { waitUntil: "networkidle" });
+    await page.evaluate(() => navigator.clipboard.writeText("")).catch(() => {});
+    await page.getByTestId("blueprint-copy").click();
+    const label = await page.getByTestId("blueprint-copy").getByText("Copied", { exact: true }).waitFor({ timeout: 1200 }).then(() => "Copied").catch(() => "Copy link");
+    return { label, link: await page.evaluate(() => navigator.clipboard.readText()).catch(() => "") };
+  };
+  const opened = async (link) => {
+    const p = await ctx.newPage();
+    try {
+      await p.goto(link, { waitUntil: "networkidle" });
+      await p.getByRole("button", { name: /Start Simulator/ }).click();
+      const data = await bpWaitData(p, "blueprintName", (v) => !!v);
+      const sliders = await p.getByTestId("blueprint").locator('input[type="range"]').evaluateAll((els) => els.map((el) => `${el.getAttribute("aria-label")}=${el.value}`));
+      return { data, game: await p.getByTestId("blueprint-catalog").getAttribute("data-value"), linked: await p.getByTestId("blueprint").getAttribute("data-blueprint-link"), sliders };
+    } finally {
+      await p.close();
+    }
+  };
+  const a = await copyFrom("mode=blueprint&blp=growEscape&blv=1.5,20");
+  const aOpen = a.link ? await opened(a.link) : null;
+  check(
+    "mode lab: Copy link copies a link that opens the same game with the same sliders",
+    a.label === "Copied" && /[?&]blp=growEscape(&|$)/.test(a.link) && /[?&]blv=1\.5%2C20(&|$)|[?&]blv=1\.5,20(&|$)/.test(a.link) && aOpen?.game === "growEscape" && aOpen.data.blueprintName === "Grow or Go" && aOpen.sliders.includes("Growth per bounce=1.5") && aOpen.sliders.includes("Exit width=20"),
+    `(${a.label}, ${a.link.slice(0, 160)}, ${JSON.stringify(aOpen && { game: aOpen.game, name: aOpen.data.blueprintName, sliders: aOpen.sliders })})`,
+  );
+  const b = await copyFrom(`mode=blueprint&bls=${bpCode}`);
+  const bOpen = b.link ? await opened(b.link) : null;
+  check("mode lab: Copy link of a Blueprint of a link carries its spec, and the copy opens it", b.link.includes(`bls=${bpCode}`) && bOpen?.linked === "1" && bOpen.data.blueprintName === "Smoke Box", `(${b.link.slice(0, 120)}, ${JSON.stringify(bOpen && { linked: bOpen.linked, name: bOpen.data.blueprintName })})`);
+}
+{
+  // Every catalog game by its link, at 8× to its finish: the HUD in the game's own words while it runs, the banner one of its
+  // result lines (a placeholder filled in), no dropped work and no fault.
+  const lineRe = (template) => new RegExp(`^${template.toUpperCase().replace(/[.*+?^${}()|\\]/g, "\\$&").replace(/\\?\[[A-Z0-9]+\\?\]|\[[A-Z0-9]+\]/g, ".+")}$`);
+  for (const id of bpCatalogIds) {
+    const m = bpMessages[id] ?? {};
+    const labels = [0, 1].map((i) => m[`hud${i}`]).filter(Boolean);
+    const lines = [0, 1, 2].map((i) => m[`say${i}`]).filter(Boolean).concat(m.timeoutSay ? [m.timeoutSay] : []);
+    let row = { id };
+    try {
+      await page.goto(`${BASE}/en/simulator/?mode=blueprint&blp=${id}&seed=1`, { waitUntil: "networkidle" });
+      await page.getByRole("button", { name: /Start Simulator/ }).click();
+      const early = await bpWaitData(page, "blueprintTime", (v) => Number(v) >= 0.5);
+      await page.getByRole("button", { name: "8x", exact: true }).click();
+      const data = await bpWaitData(page, "blueprintFinished", "1", 100_000);
+      await page.screenshot({ path: path.join(outDir, `sim-blueprint-${id}.png`) });
+      const hudParts = (early.blueprintHud ?? "").split("|");
+      row = {
+        id,
+        hud: early.blueprintHud,
+        hudOk: hudParts.length === labels.length && hudParts.every((part, i) => new RegExp(`^${labels[i].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} \\d+( s)?$`).test(part)),
+        finished: data.blueprintFinished,
+        reason: data.blueprintReason,
+        banner: data.blueprintBanner,
+        bannerOk: !!data.blueprintBanner && !/[[\]{}]/.test(data.blueprintBanner) && lines.some((l) => lineRe(l).test(data.blueprintBanner)),
+        clean: data.blueprintDropped === "0" && data.blueprintFault === "0",
+        time: data.blueprintTime,
+      };
+    } catch (e) {
+      row.error = String(e).split("\n")[0];
+    }
+    check(`mode lab: ${id} by its link runs to its finish, its HUD and its banner its own`, !row.error && row.hudOk && row.finished === "1" && (row.reason === "condition" || row.reason === "timeout") && row.bannerOk && row.clean, `(${JSON.stringify(row)})`);
+  }
+}
+{
+  // The paywall and the watermark, as in every mode (free-watermark, watermark-everywhere): a free visitor's live canvas
+  // carries the badge (the test licence toggled on a paused frame: what changes is the mark), the free fast export and the free
+  // recording carry it in their pixels (bottom left before 6 s, bottom right after, in Grow or Go's 9:16 frame), and the Pro
+  // export of the same seed carries none. The video buttons wear the watermark tag
+  // for the free visitor only.
+  const bpContexts = [];
+  const bpOpen = async (license) => {
+    const c = await browser.newContext({ viewport: { width: 1400, height: 900 }, acceptDownloads: true, license });
+    bpContexts.push(c);
+    return c.newPage();
+  };
+  const proLicence = signTestLicense({ sub: "modelab@example.com", plan: "yearly", provider: "stripe", days: 30 });
+  /** Where the video badge is in a W × H frame (lib/watermark/layout.ts, as free-watermark measures it). */
+  const regionsSrc = `(W, H) => {
+    const side = Math.min(W, H);
+    const sq = { x: (W - side) / 2, y: (H - side) / 2 };
+    const zone = H > W
+      ? { x: Math.max(0.06 * W, sq.x), b: Math.min(0.8 * H, sq.y + side), r: Math.min(0.875 * W, sq.x + side) }
+      : { x: Math.max(0.05 * W, sq.x), b: Math.min(0.95 * H, sq.y + side), r: Math.min(0.95 * W, sq.x + side) };
+    const bh = Math.max(18, Math.round(0.052 * side));
+    const inset = Math.round(0.025 * side);
+    const bw = Math.round(0.2 * side);
+    const y = zone.b - inset - bh;
+    return { left: { x: zone.x + inset, y, w: bw, h: bh }, right: { x: zone.r - inset - bw, y, w: bw, h: bh } };
+  }`;
+  /** Plays a downloaded video in a page of the site and measures the badge regions at `times` (s): their bright and lime shares. */
+  const decode = async (p, file, times) => {
+    const url = `${ORIGIN}${BASE_PATH}/__blueprint-clip/${encodeURIComponent(path.basename(file))}`;
+    await p.route(url, (route) => route.fulfill({ path: file, contentType: file.endsWith(".mp4") ? "video/mp4" : "video/webm" }));
+    await p.goto(`${BASE}/en/privacy/`, { waitUntil: "domcontentloaded" });
+    return p
+      .evaluate(
+        async ({ url, times, regionsSrc }) => {
+          const regionsFor = new Function(`return (${regionsSrc})`)();
+          const v = document.createElement("video");
+          v.muted = true;
+          v.preload = "auto";
+          v.src = url;
+          await new Promise((res, rej) => {
+            v.onloadeddata = res;
+            v.onerror = () => rej(new Error("the video does not decode"));
+          });
+          const c = document.createElement("canvas");
+          c.width = v.videoWidth;
+          c.height = v.videoHeight;
+          const g = c.getContext("2d", { willReadFrequently: true });
+          const stats = (r) => {
+            const d = g.getImageData(Math.round(r.x), Math.round(r.y), Math.max(1, Math.round(r.w)), Math.max(1, Math.round(r.h))).data;
+            let bright = 0;
+            let lime = 0;
+            for (let i = 0; i < d.length; i += 4) {
+              if (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2] > 150) bright++;
+              if (d[i + 1] > 140 && d[i] < 210 && d[i + 2] < 120 && d[i + 1] - d[i + 2] > 60) lime++;
+            }
+            const n = d.length / 4;
+            return { bright: +(bright / n).toFixed(4), lime: +(lime / n).toFixed(4) };
+          };
+          const frames = [];
+          const targets = [...times].sort((a, b) => a - b);
+          await new Promise((resolve) => {
+            const timer = setTimeout(resolve, 60000);
+            const done = () => {
+              clearTimeout(timer);
+              resolve();
+            };
+            const step = (_now, meta) => {
+              while (targets.length && meta.mediaTime >= targets[0]) {
+                targets.shift();
+                g.drawImage(v, 0, 0);
+                const regions = regionsFor(c.width, c.height);
+                frames.push({ t: +meta.mediaTime.toFixed(2), left: stats(regions.left), right: stats(regions.right) });
+              }
+              if (targets.length && !v.ended) v.requestVideoFrameCallback(step);
+              else done();
+            };
+            v.requestVideoFrameCallback(step);
+            v.onended = done;
+            v.playbackRate = 2;
+            v.play().catch(done);
+          });
+          return { width: c.width, height: c.height, frames };
+        },
+        { url, times, regionsSrc },
+      )
+      .catch((e) => ({ width: 0, height: 0, frames: [], error: String(e).split("\n")[0] }));
+  };
+  // the badge: bright text and its lime rim; a corner without it has no lime (the arena's rim may cross a corner's inner
+  // edge – bright, never lime: Grow or Go's one ball is gold)
+  const badge = (r) => !!r && r.bright >= 0.015 && r.lime >= 0.008;
+  const noBadge = (r) => !!r && r.lime < 0.004;
+  const at = (decoded, t) => decoded.frames.find((f) => Math.abs(f.t - t) < 0.6);
+  const marked = (decoded, early, late) => badge(at(decoded, early)?.left) && noBadge(at(decoded, early)?.right) && badge(at(decoded, late)?.right) && noBadge(at(decoded, late)?.left);
+  const clean = (decoded, times) => decoded.frames.length >= times.length && times.every((t) => noBadge(at(decoded, t)?.left) && noBadge(at(decoded, t)?.right));
+  const brief = (decoded) => JSON.stringify(decoded.error ? decoded : { size: `${decoded.width}×${decoded.height}`, frames: decoded.frames.map((f) => ({ t: f.t, L: [f.left.bright, f.left.lime], R: [f.right.bright, f.right.lime] })) });
+  const save = async (download, name) => {
+    if (!download) return null;
+    const file = path.join(outDir, `blueprint-${name}-${download.suggestedFilename()}`);
+    await download.saveAs(file);
+    return fs.statSync(file).size > 10000 ? file : null;
+  };
+  try {
+    // (a) the live canvas of a free visitor: pause, look, install the licence (another tab's way: localStorage + the storage
+    // event), look again – the difference is the badge, in one corner of the exported square, 4–5 % of it tall; removing the
+    // licence brings it back in the same corner
+    const free = await bpOpen(null);
+    await free.goto(`${BASE}/en/simulator/?mode=blueprint&blp=hatchery&seed=1`, { waitUntil: "networkidle" });
+    await free.getByRole("button", { name: /Start Simulator/ }).click();
+    await free.waitForTimeout(900);
+    await free.getByRole("button", { name: "Pause", exact: true }).first().click({ timeout: 5000 }).catch(() => {});
+    await free.waitForTimeout(300);
+    const live = await free.evaluate(
+      async ({ key, token }) => {
+        const c = document.querySelector("main canvas");
+        const frames = async (n) => {
+          for (let i = 0; i < n; i++) await new Promise((r) => requestAnimationFrame(() => r()));
+        };
+        const grab = () => c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+        const licence = (t) => {
+          if (t) localStorage.setItem(key, t);
+          else localStorage.removeItem(key);
+          window.dispatchEvent(new StorageEvent("storage", { key }));
+        };
+        const W = c.width;
+        const H = c.height;
+        const side = Math.min(W, H);
+        const x0 = (W - side) / 2;
+        const y0 = (H - side) / 2;
+        const zones = { "top-left": [0, 0], "top-right": [1, 0], "bottom-left": [0, 1], "bottom-right": [1, 1] };
+        // the changed pixels (more than 60 luma levels) per corner zone of the square: their count and the box round them
+        const diff = (a, b) => {
+          const out = {};
+          for (const [name, [zx, zy]] of Object.entries(zones)) {
+            const xs = Math.floor(x0 + zx * 0.58 * side);
+            const ys = Math.floor(y0 + zy * 0.5 * side);
+            const xe = Math.floor(xs + 0.42 * side);
+            const ye = Math.floor(ys + 0.5 * side);
+            let n = 0;
+            let minX = Infinity;
+            let maxX = -Infinity;
+            let minY = Infinity;
+            let maxY = -Infinity;
+            for (let y = ys; y < ye; y++) {
+              for (let x = xs; x < xe; x++) {
+                const i = 4 * (y * W + x);
+                const la = 0.2126 * a[i] + 0.7152 * a[i + 1] + 0.0722 * a[i + 2];
+                const lb = 0.2126 * b[i] + 0.7152 * b[i + 1] + 0.0722 * b[i + 2];
+                if (Math.abs(la - lb) > 60) {
+                  n++;
+                  if (x < minX) minX = x;
+                  if (x > maxX) maxX = x;
+                  if (y < minY) minY = y;
+                  if (y > maxY) maxY = y;
+                }
+              }
+            }
+            out[name] = { n, h: n ? maxY - minY + 1 : 0, w: n ? maxX - minX + 1 : 0 };
+          }
+          return out;
+        };
+        await frames(3);
+        const a = grab();
+        licence(token);
+        await frames(45);
+        const b = grab();
+        licence(null);
+        await frames(20);
+        const back = grab();
+        return { side, mark: diff(a, b), back: diff(back, b) };
+      },
+      { key: LICENSE_STORAGE_KEY, token: proLicence },
+    );
+    const corner = (zones) => {
+      const found = Object.entries(zones).filter(([, z]) => z.n >= 0.15 * Math.pow(0.045 * live.side, 2) && z.h >= 0.03 * live.side && z.h <= 0.07 * live.side && z.w >= 0.06 * live.side);
+      return found.length === 1 ? found[0][0] : null;
+    };
+    const liveCorner = corner(live.mark);
+    check("mode lab: a free visitor's live canvas carries the watermark badge in a corner of the square, and it comes back without the licence", !!liveCorner && corner(live.back) === liveCorner, `(${liveCorner}, ${JSON.stringify(live)})`);
+
+    // the tag on the video buttons: the free visitor's Record Video and Fast export wear it, a Pro licence's do not
+    const tagCount = async (p) => (await p.getByRole("button", { name: /Record Video/ }).first().locator("[data-watermark-tag]").count()) + (await p.getByRole("button", { name: /Fast export/ }).first().locator("[data-watermark-tag]").count());
+    const pro = await bpOpen(proLicence);
+    const exportQuery = "mode=blueprint&blp=growEscape&seed=1&dur=8&res=1080x1920&xfps=30";
+    await pro.goto(`${BASE}/en/simulator/?${exportQuery}`, { waitUntil: "networkidle" });
+    await free.goto(`${BASE}/en/simulator/?${exportQuery}`, { waitUntil: "networkidle" });
+    await free.waitForTimeout(800);
+    await pro.waitForTimeout(800);
+    const tags = { free: await tagCount(free), pro: await tagCount(pro) };
+    check("mode lab: the video buttons wear the watermark tag for a free visitor and not for Pro", tags.free === 2 && tags.pro === 0, `(${JSON.stringify(tags)})`);
+
+    // (b) the fast export, free and Pro, of the same seed
+    const webCodecs = await free.evaluate(() => typeof VideoEncoder !== "undefined" && typeof AudioEncoder !== "undefined");
+    if (webCodecs) {
+      const fastOf = async (p, name) => {
+        const download = await Promise.all([p.waitForEvent("download", { timeout: 240000 }).catch(() => null), p.getByRole("button", { name: /Fast export/ }).first().click()]).then(([d]) => d);
+        return save(download, name);
+      };
+      const freeFile = await fastOf(free, "fast-free");
+      const proFile = await fastOf(pro, "fast-pro");
+      const freeDecoded = freeFile ? await decode(free, freeFile, [2.5, 6.6]) : { frames: [] };
+      const proDecoded = proFile ? await decode(pro, proFile, [2.5, 6.6]) : { frames: [] };
+      check(
+        "mode lab: a free fast export carries the watermark (badge bottom left, then bottom right) and the Pro export of the same seed none",
+        !!freeFile && freeDecoded.width === 1080 && freeDecoded.height === 1920 && marked(freeDecoded, 2.5, 6.6) && !!proFile && clean(proDecoded, [2.5, 6.6]),
+        `(free ${freeFile ? path.basename(freeFile) : "none"} ${brief(freeDecoded)}; pro ${proFile ? path.basename(proFile) : "none"} ${brief(proDecoded)})`,
+      );
+    } else check("mode lab: a free fast export carries the watermark and a Pro export none – skipped (no WebCodecs in this browser)", true);
+
+    // (c) a free recording (Record Video, stopped by hand after 7.6 s)
+    await free.goto(`${BASE}/en/simulator/?mode=blueprint&blp=growEscape&seed=1&dur=10`, { waitUntil: "networkidle" });
+    await free.waitForTimeout(800);
+    const recorded = await Promise.all([
+      free.waitForEvent("download", { timeout: 90000 }).catch(() => null),
+      (async () => {
+        await free.getByRole("button", { name: /Record Video/ }).first().click();
+        await free.getByRole("button", { name: /Stop & Export/ }).waitFor({ timeout: 10000 }).catch(() => {});
+        await free.waitForTimeout(7600);
+        await free.getByRole("button", { name: /Stop & Export/ }).click({ timeout: 5000 }).catch(() => {});
+      })(),
+    ]).then(([d]) => d);
+    const recFile = await save(recorded, "record-free");
+    const recDecoded = recFile ? await decode(free, recFile, [2.5, 6.9]) : { frames: [] };
+    check("mode lab: a free recording carries the watermark in its pixels (bottom left, then bottom right)", !!recFile && recDecoded.height > recDecoded.width && marked(recDecoded, 2.5, 6.9), `(${recFile ? path.basename(recFile) : "none"} ${brief(recDecoded)})`);
+  } finally {
+    for (const c of bpContexts) await c.close().catch(() => {});
+  }
 }
 {
   // A fast run at 8×: Ring Breaker with three rings is over within the budget, ALL RINGS DOWN.
   await page.goto(`${BASE}/en/simulator/?mode=blueprint&blp=ringBreaker&blv=3`, { waitUntil: "networkidle" });
   await page.getByRole("button", { name: /Start Simulator/ }).click();
   await page.getByRole("button", { name: "8x", exact: true }).click();
-  const deadline = Date.now() + 90_000;
-  let data = await canvasData();
-  while (Date.now() < deadline) {
-    data = await canvasData();
-    if (data.blueprintFinished === "1") break;
-    await page.waitForTimeout(250);
-  }
+  const data = await bpWaitData(page, "blueprintFinished", "1", 90_000);
   await page.screenshot({ path: path.join(outDir, "sim-blueprint.png") });
   const done = await page.getByRole("button", { name: /Restart Simulation/ }).waitFor({ timeout: 10000 }).then(() => true).catch(() => false);
   check(
     "mode lab: a fast run ends by its finish condition (ALL RINGS DOWN), with no dropped work and no fault",
-    done && data.blueprintFinished === "1" && data.blueprintReason === "condition" && data.blueprintResult === "ALL RINGS DOWN" && data.blueprintDropped === "0" && data.blueprintFault === "0" && Number(data.blueprintTime) > 0 && Number(data.blueprintSteps) > 0,
+    done && data.blueprintFinished === "1" && data.blueprintReason === "condition" && data.blueprintResult === "ALL RINGS DOWN" && data.blueprintBanner === "ALL RINGS DOWN" && data.blueprintDropped === "0" && data.blueprintFault === "0" && Number(data.blueprintTime) > 0 && Number(data.blueprintSteps) > 0,
     `(finished=${done}, ${JSON.stringify(Object.fromEntries(Object.entries(data).filter(([k]) => k.startsWith("blueprint"))))})`,
   );
 }

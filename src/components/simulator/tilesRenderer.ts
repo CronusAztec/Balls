@@ -7,10 +7,12 @@ import { TILE_RECT, type TileView } from "@/lib/physics/tiles";
  *  - brick: solid blocks in the row's colour, darker as they crack, with dark mortar lines;
  *  - neon: faint fills with a glowing outline in the row's colour, dimmer as they crack.
  * A tile's damage shows in `TILE_HP_SHADES` steps, so a frame batches its tiles into one path per colour and shade (at most
- * six colours × four shades) instead of one per tile; a tile hit in the last `TILE_FLASH_MS` flashes white and a broken one
- * leaves a fading outline for `TILE_BREAK_MS`. Everything animates on the field's clock (`view.clockMs`, simulated time),
- * so a pause freezes it and a recording replays it; nothing is allocated per frame (the colour strings are cached when the
- * palette or the style changes).
+ * six colours × four shades) instead of one per tile; a damaged tile also cracks (`traceCracks()`: one more crack per shade,
+ * the same cracks every frame, all of them one stroke); a tile hit in the last `TILE_FLASH_MS` flashes white and a broken
+ * one leaves a fading outline for `TILE_BREAK_MS`. Everything animates on the field's clock (`view.clockMs`, simulated
+ * time), so a pause freezes it and a recording replays it; nothing is allocated per frame (the colour strings are cached
+ * when the palette or the style changes). `draw()` is `drawStanding()` (what changes only when a tile is hit: a caller may
+ * keep it in a bitmap keyed by `view.version`) then `drawTransients()` (the flashes and the break outlines).
  */
 
 export const TILE_STYLES = ["glass", "brick", "neon"] as const;
@@ -68,8 +70,8 @@ export function tileFill(style: TileStyle, color: string, shade: number): string
     return rgba(r * k, g * k, b * k, 1);
   }
   if (style === "neon") return rgba(r, g, b, 0.12 - 0.02 * s);
-  // glass: a frost lighter than the colour, thinner as it cracks
-  return rgba(r + (255 - r) * 0.35, g + (255 - g) * 0.35, b + (255 - b) * 0.35, 0.46 - 0.08 * s);
+  // glass: a tinted pane a little lighter than the colour, thinner as it cracks
+  return rgba(r + (255 - r) * 0.22, g + (255 - g) * 0.22, b + (255 - b) * 0.22, 0.62 - 0.1 * s);
 }
 
 /** The outline of a tile of colour `color` at damage step `shade` in `style` (neon's bright line; glass and brick share one rim colour). */
@@ -130,6 +132,57 @@ export function traceTile(ctx: CanvasRenderingContext2D, view: TileView, i: numb
   ctx.closePath();
 }
 
+/** The stroke of the cracks of a damaged tile in `style` (glass and neon: white hairlines; brick: dark ones). */
+export function crackStroke(style: TileStyle): string {
+  return style === "brick" ? "rgba(24, 14, 10, 0.7)" : style === "neon" ? "rgba(255, 255, 255, 0.55)" : "rgba(255, 255, 255, 0.8)";
+}
+
+/** A fixed pseudo-random number in [0, 1) for tile `i`'s crack `j`, point `k` (the same every frame: no random source). */
+export function crackHash(i: number, j: number, k: number): number {
+  const v = Math.sin(i * 12.9898 + j * 78.233 + k * 37.719) * 43758.5453;
+  return v - Math.floor(v);
+}
+
+/**
+ * Adds tile `i`'s cracks to the current path: `shade` cracks (one per damage step), each a jagged line of three segments
+ * from a point near the tile's centre out towards its edge, inside the tile (a rect: its half size; a sector: its radial
+ * depth and its arc, at the middle radius).
+ */
+export function traceCracks(ctx: CanvasRenderingContext2D, view: TileView, i: number, shade: number): void {
+  if (shade <= 0) return;
+  let ox: number;
+  let oy: number;
+  let reach: number;
+  if (view.kind[i] === TILE_RECT) {
+    ox = (view.x0[i] + view.x1[i]) / 2;
+    oy = (view.y0[i] + view.y1[i]) / 2;
+    reach = 0.5 * Math.min(view.x1[i] - view.x0[i], view.y1[i] - view.y0[i]);
+  } else {
+    const rm = (view.r0[i] + view.r1[i]) / 2;
+    const mid = view.a0[i] + view.span[i] / 2;
+    ox = view.cx[i] + rm * Math.cos(mid);
+    oy = view.cy[i] + rm * Math.sin(mid);
+    reach = 0.5 * Math.min(view.r1[i] - view.r0[i], Math.min(view.span[i], Math.PI) * rm);
+  }
+  if (!(reach > 1)) return;
+  // the cracks start together at a point near the centre (where the tile gave first)
+  const sx = ox + (crackHash(i, 9, 0) - 0.5) * 0.5 * reach;
+  const sy = oy + (crackHash(i, 9, 1) - 0.5) * 0.5 * reach;
+  for (let j = 0; j < shade; j++) {
+    let a = TWO_PI * (j / shade + 0.6 * crackHash(i, j, 0));
+    let x = sx;
+    let y = sy;
+    ctx.moveTo(x, y);
+    for (let k = 0; k < 3; k++) {
+      const len = reach * (0.28 + 0.12 * crackHash(i, j, k + 1));
+      a += (crackHash(i, j, k + 4) - 0.5) * 1.2;
+      x += len * Math.cos(a);
+      y += len * Math.sin(a);
+      ctx.lineTo(x, y);
+    }
+  }
+}
+
 export class TilesLayer {
   private palette: readonly string[] | null = null;
   private style: TileStyle | null = null;
@@ -167,6 +220,13 @@ export class TilesLayer {
 
   /** Under the balls: every standing tile (batched), the flashes of the recent hits, the outlines of the recent breaks. */
   draw(ctx: CanvasRenderingContext2D, view: TileView, opts: TilesRenderOptions): void {
+    if (view.count === 0) return;
+    this.drawStanding(ctx, view, opts);
+    this.drawTransients(ctx, view, opts);
+  }
+
+  /** Every standing tile, batched by colour and shade, with its rim and its cracks: what changes only when a tile is hit or breaks (`view.version`). */
+  drawStanding(ctx: CanvasRenderingContext2D, view: TileView, opts: TilesRenderOptions): void {
     const n = view.count;
     if (n === 0) return;
     const palette = opts.palette && opts.palette.length > 0 ? opts.palette : DEFAULT_TILE_PALETTE;
@@ -223,6 +283,33 @@ export class TilesLayer {
         ctx.stroke();
       }
     }
+    // the cracks of the damaged tiles: one stroke for all of them
+    let cracked = false;
+    for (let i = 0; i < n; i++) {
+      const g = group[i];
+      if (g < 0 || g % TILE_HP_SHADES === 0) continue;
+      if (!cracked) ctx.beginPath();
+      cracked = true;
+      traceCracks(ctx, view, i, g % TILE_HP_SHADES);
+    }
+    if (cracked) {
+      ctx.strokeStyle = crackStroke(style);
+      ctx.lineWidth = Math.max(0.8, width * 0.7);
+      ctx.lineCap = "round";
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  /** The flashes of the tiles hit in the last `TILE_FLASH_MS` and the fading outlines of the ones broken in the last `TILE_BREAK_MS`. */
+  drawTransients(ctx: CanvasRenderingContext2D, view: TileView, opts: TilesRenderOptions): void {
+    const n = view.count;
+    if (n === 0) return;
+    const palette = opts.palette && opts.palette.length > 0 ? opts.palette : DEFAULT_TILE_PALETTE;
+    this.prepare(opts.style, palette);
+    const width = opts.lineWidth && opts.lineWidth > 0 ? opts.lineWidth : 1.5;
+    ctx.save();
+    ctx.lineJoin = "round";
     // the recent hits flash white; the recent breaks leave a growing, fading outline
     const now = view.clockMs;
     for (let i = 0; i < n; i++) {
