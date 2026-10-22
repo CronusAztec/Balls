@@ -634,6 +634,82 @@ for (const mode of MODES) {
 }
 });
 
+await smokeBlock("core-every-mode", async () => {
+// --- ai-guard --- Every mode starts, steps and draws: for each id of MODE_IDS (read from src/lib/physics/types.ts, so a new mode
+// is covered the day it is added) one of four pages at once opens /en/simulator/?mode=<id>, presses Start Simulator and, about
+// 1.5 s later, checks that the stage strip's elapsed time moved, that it names the mode (Modes.<id>.name), that the canvas has
+// ink (pixels that differ from its background colour, read with getImageData) and that the page raised no error, logged no
+// console error and got no failed same-origin response. The core guard's tier 1 (`npm run guard:browser`) runs this block.
+{
+  const typesSource = fs.readFileSync(new URL("../src/lib/physics/types.ts", import.meta.url), "utf8");
+  const modeIds = [...(/export const MODE_IDS = \[([\s\S]*?)\] as const;/.exec(typesSource)?.[1] ?? "").matchAll(/"([A-Za-z]+)"/g)].map((m) => m[1]);
+  const names = JSON.parse(fs.readFileSync(new URL("../messages/en.json", import.meta.url), "utf8")).Modes;
+  check("core-every-mode: the mode list is read from MODE_IDS", modeIds.length >= 40 && modeIds.every((id) => names[id]?.name), `(${modeIds.length} modes)`);
+  const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  const results = new Map();
+  const queue = [...modeIds];
+  const worker = async () => {
+    const p = await context.newPage();
+    const seen = { errors: [] };
+    p.on("pageerror", (e) => seen.errors.push(`pageerror: ${e.message}`));
+    p.on("console", (m) => m.type() === "error" && !IGNORED_CONSOLE.test(m.text()) && seen.errors.push(`console: ${m.text()}`));
+    p.on("response", (r) => {
+      const u = new URL(r.url());
+      if (u.origin === ORIGIN && r.status() >= 400) seen.errors.push(`${r.status()} ${u.pathname}`);
+    });
+    for (let mode = queue.shift(); mode !== undefined; mode = queue.shift()) {
+      seen.errors = [];
+      let detail = "";
+      let ok = false;
+      try {
+        await p.goto(`${BASE}/en/simulator/?mode=${mode}`, { waitUntil: "networkidle" });
+        await p.getByRole("button", { name: /Start Simulator/ }).click({ timeout: 15000 });
+        await p.waitForTimeout(1500);
+        const strip = p.getByTestId("stage-strip");
+        const time = await strip.locator("span.tabular-nums").first().innerText().catch(() => "");
+        const label = await strip.getByRole("button").first().locator("span.font-medium").first().innerText().catch(() => "");
+        const ink = await p.evaluate(() => {
+          const c = document.querySelector("main canvas");
+          if (!c || !(c.width > 0) || !(c.height > 0)) return { inked: 0, sampled: 0, why: "no canvas" };
+          const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+          // the background is the commonest colour of a sparse grid; ink is every sample more than 32 levels from it
+          const counts = new Map();
+          const step = 4;
+          for (let y = 0; y < c.height; y += step) for (let x = 0; x < c.width; x += step) {
+            const i = 4 * (y * c.width + x);
+            const key = ((d[i] >> 4) << 12) | ((d[i + 1] >> 4) << 8) | ((d[i + 2] >> 4) << 4) | (d[i + 3] >> 4);
+            counts.set(key, (counts.get(key) ?? 0) + 1);
+          }
+          let bg = 0;
+          let best = -1;
+          for (const [key, n] of counts) if (n > best) [bg, best] = [key, n];
+          const ref = [(bg >> 12) & 15, (bg >> 8) & 15, (bg >> 4) & 15, bg & 15].map((v) => v * 16 + 8);
+          let inked = 0;
+          let sampled = 0;
+          for (let y = 0; y < c.height; y += step) for (let x = 0; x < c.width; x += step) {
+            const i = 4 * (y * c.width + x);
+            sampled++;
+            if (Math.max(Math.abs(d[i] - ref[0]), Math.abs(d[i + 1] - ref[1]), Math.abs(d[i + 2] - ref[2]), Math.abs(d[i + 3] - ref[3])) > 32) inked++;
+          }
+          return { inked, sampled, why: "" };
+        });
+        const seconds = Number.parseFloat(time);
+        ok = seconds > 0 && label === names[mode]?.name && ink.inked >= 10 && seen.errors.length === 0;
+        detail = `(elapsed ${time || "?"}, label "${label}"${label === names[mode]?.name ? "" : `, expected "${names[mode]?.name}"`}, ink ${ink.inked}/${ink.sampled}${ink.why ? ` ${ink.why}` : ""}${seen.errors.length ? `, errors: ${seen.errors.slice(0, 3).join(" | ")}` : ""})`;
+        if (!ok) await p.screenshot({ path: path.join(outDir, `core-every-mode-${mode}.png`) }).catch(() => {});
+      } catch (e) {
+        detail = `(${String(e).split("\n")[0]})`;
+      }
+      results.set(mode, { ok, detail });
+    }
+    await p.close();
+  };
+  await Promise.all(Array.from({ length: 4 }, () => worker()));
+  await context.close();
+  for (const mode of modeIds) check(`core-every-mode: ${mode} starts, steps and draws`, results.get(mode)?.ok === true, results.get(mode)?.detail ?? "(never ran)");
+}
+});
+
 await smokeBlock("studio-basics", async () => {
 // 3. Pause / restart shortcuts
 await page.goto(`${BASE}/en/simulator/?mode=classic`, { waitUntil: "networkidle" });
