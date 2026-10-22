@@ -99,6 +99,83 @@ describe("deploy.yml: the website", () => {
   });
 });
 
+// --- ai-guard --- the desktop app's and the billing Worker's checks in the build job, and the type-check knob
+/** The steps of a job, in order: each from its `      - name:` line to the next. */
+const stepsOf = (section: string) => section.split("\n      - name: ").slice(1).map((s) => `      - name: ${s}`);
+/** The jobs a job needs (`needs: build` or `needs: [build, smoke]`). */
+const needsOf = (section: string) => (/\n {4}needs: \[?([^\]\n]+)\]?\n/.exec(section)?.[1] ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+/** Whether a step sets the knob (an env entry or an assignment in its script; a comment that names it does not count). */
+const setsKnob = (step: string) => step.split("\n").some((l) => !/^\s*#/.test(l) && /JBL_BUILD_SKIP_TYPECHECK\s*[:=]/.test(l));
+/** A step that runs `npm run typecheck` on every run of its job (no `if:` of its own). */
+const typeChecks = (step: string) => /\n {8}run: npm run typecheck\n/.test(`${step}\n`) && !/\n {8}if: /.test(step);
+
+describe("deploy.yml: the desktop app and the billing Worker in the build job", () => {
+  const build = jobSection(read(".github/workflows/deploy.yml"), "build");
+
+  it("installs both without Electron's binary, then type-checks and tests each, where it deploys, before the site is built", () => {
+    const steps = stepsOf(build);
+    const at = (name: string) => steps.findIndex((s) => s.startsWith(`      - name: ${name}\n`));
+    const install = steps[at("Install the desktop app's and the billing Worker's dependencies")];
+    const desktop = steps[at("Desktop app type check and tests")];
+    const billing = steps[at("Billing Worker type check and tests")];
+    for (const step of [install, desktop, billing]) expect(step).toContain("        if: env.DEPLOY == 'true'\n");
+    expect(install).toContain('          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"\n');
+    expect(install).toContain("          npm ci --prefix desktop\n          npm ci --prefix billing\n");
+    expect(desktop).toContain("        working-directory: desktop\n        run: |\n          npm run typecheck\n          npm test\n");
+    expect(billing).toContain("        working-directory: billing\n        run: |\n          npm run check\n          npm test\n");
+    const order = ["Unit tests", "Install the desktop app's and the billing Worker's dependencies", "Desktop app type check and tests", "Billing Worker type check and tests", "Build static site"].map(at);
+    expect(order.every((i) => i > -1)).toBe(true);
+    expect([...order].sort((x, y) => x - y)).toEqual(order);
+    // the scripts they call exist
+    expect(JSON.parse(read("desktop/package.json")).scripts).toMatchObject({ typecheck: expect.any(String), test: "vitest run" });
+    expect(JSON.parse(read("billing/package.json")).scripts).toMatchObject({ check: "tsc --noEmit", test: "vitest run" });
+  });
+});
+
+describe("the type-check knob (JBL_BUILD_SKIP_TYPECHECK, next.config.ts)", () => {
+  it("is Next's ignoreBuildErrors only when the variable is exactly 1, and no npm script sets it", () => {
+    expect(read("next.config.ts")).toContain('typescript: { ignoreBuildErrors: process.env.JBL_BUILD_SKIP_TYPECHECK === "1" },');
+    for (const [name, script] of Object.entries((JSON.parse(read("package.json")) as { scripts: Record<string, string> }).scripts)) expect(script, name).not.toContain("JBL_BUILD_SKIP_TYPECHECK");
+  });
+
+  it("is set only by a step that comes after an `npm run typecheck` step of its job, or of a job it needs", () => {
+    let setters = 0;
+    for (const file of fs.readdirSync(path.join(ROOT, ".github/workflows")).map((f) => `.github/workflows/${f}`)) {
+      const workflow = read(file);
+      const jobs = [...workflow.matchAll(/^ {2}([\w-]+):\s*$/gm)].map((m) => m[1]).filter((name) => workflow.indexOf(`\n  ${name}:`) > workflow.indexOf("\njobs:"));
+      for (const job of jobs) {
+        const steps = stepsOf(jobSection(workflow, job));
+        steps.forEach((step, i) => {
+          if (!setsKnob(step)) return;
+          setters++;
+          const before = steps.slice(0, i).some(typeChecks);
+          const needed = needsOf(jobSection(workflow, job)).some((need) => jobs.includes(need) && stepsOf(jobSection(workflow, need)).some(typeChecks));
+          expect(before || needed, `${file} ${job}: ${step.split("\n")[0].trim()} skips Next's type check with no type check before it`).toBe(true);
+        });
+      }
+    }
+    // the build job's site build and the smoke shards' builds (the smoke job needs build)
+    expect(setters).toBe(2);
+    expect(stepsOf(jobSection(read(".github/workflows/deploy.yml"), "build")).find((s) => s.startsWith("      - name: Build static site\n"))).toContain('          JBL_BUILD_SKIP_TYPECHECK: "1"\n');
+    expect(needsOf(jobSection(read(".github/workflows/deploy.yml"), "smoke"))).toEqual(["build"]);
+  });
+
+  it("is never set by the VPS deployer: its build type-checks as before", () => {
+    expect(read("deploy/vps/jbl-deploy.sh")).not.toContain("JBL_BUILD_SKIP_TYPECHECK");
+  });
+
+  it("fails a step that sets it without a type check before it (the rule above on a synthetic workflow)", () => {
+    const workflow = "jobs:\n  a:\n    runs-on: x\n    steps:\n      - name: Build\n        run: npx next build\n        env:\n          JBL_BUILD_SKIP_TYPECHECK: \"1\"\n      - name: Type-check\n        run: npm run typecheck\n";
+    const steps = stepsOf(jobSection(workflow, "a"));
+    expect(setsKnob(steps[0])).toBe(true);
+    expect(setsKnob("      - name: Build\n        # JBL_BUILD_SKIP_TYPECHECK: named in a comment\n        run: npx next build")).toBe(false);
+    expect(setsKnob("      - name: Build\n        run: JBL_BUILD_SKIP_TYPECHECK=1 npx next build")).toBe(true);
+    expect(steps.slice(0, 0).some(typeChecks)).toBe(false);
+    expect(steps.slice(0, 2).some(typeChecks)).toBe(true);
+    expect(typeChecks("      - name: Type-check\n        if: env.DEPLOY == 'true'\n        run: npm run typecheck")).toBe(false);
+  });
+});
+
 describe("the live billing values both workflows build in", () => {
   const key = (text: string) => /\n {2}LICENSE_PUBLIC_KEY: \$\{\{ vars\.LICENSE_PUBLIC_KEY \|\| '([^']+)' \}\}\n/.exec(text)?.[1] ?? "";
   const url = (text: string) => /\n {2}BILLING_API_URL: \$\{\{ vars\.BILLING_API_URL \|\| '([^']+)' \}\}\n/.exec(text)?.[1] ?? "";

@@ -46,6 +46,11 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          # --- ai-guard --- the desktop app's and the billing Worker's installs below share npm's cache
+          cache-dependency-path: |
+            package-lock.json
+            desktop/package-lock.json
+            billing/package-lock.json
 
       - name: Install dependencies
         run: npm ci
@@ -61,6 +66,33 @@ jobs:
       - name: Unit tests
         if: env.DEPLOY == 'true'
         run: npm run test:ci
+
+      # --- ai-guard --- the Windows app shares src/lib/desktop/** with the site (the IPC contract, the render queue, the AI loop)
+      # and the billing Worker verifies the licences the site's paywall reads: their type checks and tests run with every
+      # product-branch build too, not only on desktop.yml's and billing-deploy.yml's own triggers (the VPS deployer reads this
+      # job). No Electron or model download: the tests never start the app.
+      - name: Install the desktop app's and the billing Worker's dependencies
+        if: env.DEPLOY == 'true'
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+          NODE_LLAMA_CPP_SKIP_DOWNLOAD: "true"
+        run: |
+          npm ci --prefix desktop
+          npm ci --prefix billing
+
+      - name: Desktop app type check and tests
+        if: env.DEPLOY == 'true'
+        working-directory: desktop
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Billing Worker type check and tests
+        if: env.DEPLOY == 'true'
+        working-directory: billing
+        run: |
+          npm run check
+          npm test
 
       - name: Work out the public URL and base path
         id: site
@@ -88,11 +120,13 @@ jobs:
         if: env.DEPLOY == 'true'
         run: echo "SITEMAP_LASTMOD=$(git log -1 --format=%cI)" >> "$GITHUB_ENV"
 
-      # `npm run build` without next's own lint pass: the Lint step above already ran ESLint on the whole repository.
+      # `npm run build` without next's own lint pass: the Lint step above already ran ESLint on the whole repository, and
+      # (--- ai-guard --- JBL_BUILD_SKIP_TYPECHECK, next.config.ts) without its own type check: the Type-check step above ran it.
       - name: Build static site
         if: env.DEPLOY == 'true'
         run: npx next build --no-lint && node scripts/postexport.mjs
         env:
+          JBL_BUILD_SKIP_TYPECHECK: "1"
           NEXT_PUBLIC_SITE_URL: ${{ steps.site.outputs.url }}
           NEXT_PUBLIC_BASE_PATH: ${{ steps.site.outputs.base }}
           # Feedback form: by default it opens issues on this repository, but only where visitors can (a public repository with
@@ -215,9 +249,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-nextjs-smoke-${{ hashFiles('package-lock.json') }}-
 
+      # --- ai-guard --- no type check of Next's own (JBL_BUILD_SKIP_TYPECHECK, next.config.ts): this job needs `build`, whose
+      # Type-check step checked the same commit.
       - name: Build static site under a base path
         run: npx next build --no-lint && node scripts/postexport.mjs
         env:
+          JBL_BUILD_SKIP_TYPECHECK: "1"
           NEXT_PUBLIC_SITE_URL: http://localhost:3000/smoke
           NEXT_PUBLIC_BASE_PATH: /smoke
           NEXT_PUBLIC_GITHUB_REPO: ${{ github.repository }}
