@@ -1,0 +1,229 @@
+import { validateJson, type JsonSchema } from "@/lib/desktop/ai/jsonSchema";
+
+/*
+ * --- agent-cli --- The fixed tool table of the agent toolbox: one entry per command of `npm run agent -- <tool> --json '{…}'`
+ * (scripts/agent/cli.mjs) with its input schema (the JSON-schema subset of lib/desktop/ai/jsonSchema.ts, also valid JSON
+ * Schema for the MCP wrapper's tools/list) and what it may touch. The CLI checks every call against it before anything runs;
+ * scripts/agent/mcp.mjs lists exactly the entries marked `mcp`. Nothing here runs anything.
+ *
+ * What a tool may touch:
+ *  - writes: "none", or ".agent-out" (files only under <repo>/.agent-out/; the local export it builds lives in the agent cache
+ *    in the OS temp folder, never in the repository);
+ *  - network: "none", "localhost" (the CLI's own static server for the local export; the browser is fenced to it), or
+ *    "owner" (the owner's own Plausible / Umami / Postiz host from the environment – owner-run commands only, never MCP).
+ */
+
+export type ToolWrites = "none" | ".agent-out";
+export type ToolNetwork = "none" | "localhost" | "owner";
+
+export interface AgentToolSpec {
+  name: string;
+  title: string;
+  description: string;
+  input: JsonSchema;
+  writes: ToolWrites;
+  network: ToolNetwork;
+  /** Listed by the MCP wrapper (the owner-run commands are CLI only). */
+  mcp: boolean;
+  /** How long a call may run before the MCP wrapper stops it (ms). */
+  timeoutMs: number;
+}
+
+const link: JsonSchema = { type: "string", minLength: 1, maxLength: 8000, description: "A share link of the simulator (https://…/simulator/?mode=…&seed=…, a ?c= short link, or just its query string). Never fetched: only its parameters are read." };
+const mode: JsonSchema = { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z]+$", description: "A mode id (see the modes tool); its default settings. Give link or mode, not both." };
+const seed: JsonSchema = { type: "integer", minimum: -2147483648, maximum: 4294967295, description: "The run's seed (default: the link's seed=, else 1)." };
+const out: JsonSchema = { type: "string", minLength: 1, maxLength: 80, pattern: "^[A-Za-z0-9][A-Za-z0-9._-]*$", description: "A folder name under .agent-out/<tool>/ for the files (default: one named after the request)." };
+const build: JsonSchema = { type: "string", enum: ["auto", "reuse", "force"], description: "The local export: auto (default) rebuilds when the working tree changed since the last build, reuse takes the last build as it is, force always rebuilds." };
+const world: JsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["width", "height"],
+  properties: { width: { type: "number", minimum: 100, maximum: 4000 }, height: { type: "number", minimum: 100, maximum: 4000 } },
+  description: "The world in CSS px (default 800 × 600, the finder's nominal world; the page's canvas is usually another size, so a seed found there may play differently here).",
+};
+
+export const AGENT_TOOLS: readonly AgentToolSpec[] = [
+  {
+    name: "modes",
+    title: "Mode catalog",
+    description: "Every mode: id, family, English name, settings prefix and field count. With {mode}: that mode's fields with default, slider range, share-link key and whether the engine reads it.",
+    input: { type: "object", additionalProperties: false, properties: { mode } },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 60_000,
+  },
+  {
+    name: "simulate",
+    title: "Simulate a seed headlessly",
+    description: "Runs one seed of a share link (or a mode's defaults) in Node exactly as the seed finder does and returns finished / finishSec (the finder's time), balls per second, sound events per type, the mode's state, view and progress (JSON-safe), a NaN flag and work counts. Deterministic.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        link,
+        mode,
+        seed,
+        seconds: { type: "number", minimum: 0.1, maximum: 600, description: "Simulated seconds at most (default 30); the run stops at its finish unless continueAfterFinish." },
+        world,
+        continueAfterFinish: { type: "boolean", description: "Keep stepping after the run finished (default false)." },
+      },
+    },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 120_000,
+  },
+  {
+    name: "fingerprint",
+    title: "Determinism fingerprint",
+    description: "A mode's fingerprint by the tests/extras.test.ts recipe (seed 12345, 600 frames) and its diff against that file's BASELINE entry. Without {mode}: every mode, equal or not. A moved fingerprint is a behaviour change to fix, never a number to re-record.",
+    input: { type: "object", additionalProperties: false, properties: { mode } },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 120_000,
+  },
+  {
+    name: "preview",
+    title: "Preview contact sheet",
+    description: "A PNG contact sheet of a link (or mode) at the given seconds, rendered by the real page's still camera in headless Chromium from a local export of the working tree. Watermarked like any free visitor's picture.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        link,
+        mode,
+        seed,
+        times: { type: "array", minItems: 1, maxItems: 12, items: { type: "number", minimum: 0, maximum: 600 }, description: "Seconds of the run, one picture each (default [1, 3, 5])." },
+        size: { type: "integer", minimum: 64, maximum: 640, description: "Side of each picture in px (default 320)." },
+        camera: { type: "object", additionalProperties: false, properties: { x: { type: "number" }, y: { type: "number" }, zoom: { type: "number", minimum: 0.1, maximum: 20 } }, description: "The still camera (default: the whole world)." },
+        out,
+        build,
+      },
+    },
+    writes: ".agent-out",
+    network: "localhost",
+    mcp: true,
+    timeoutMs: 15 * 60_000,
+  },
+  {
+    name: "render",
+    title: "Render a clip",
+    description: "A short clip of a link (or mode) through the page's own fast export (the batch path of window.__jumpingBallsBot.renderLink), with its export digest and render result. Watermarked like a free render. WebM from a browser without H.264 is also converted to MP4 when ffmpeg is present.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        link,
+        mode,
+        seed,
+        seconds: { type: "number", minimum: 10, maximum: 60, description: "Clip length in seconds (default 10: the site's shortest clip; at most 60 here)." },
+        mp4: { type: "boolean", description: "Convert a WebM clip to MP4 with ffmpeg when present (default true)." },
+        out,
+        build,
+      },
+    },
+    writes: ".agent-out",
+    network: "localhost",
+    mcp: true,
+    timeoutMs: 20 * 60_000,
+  },
+  {
+    name: "site-shot",
+    title: "Website screenshots",
+    description: "PNG screenshots of pages of the local export of the working tree at the given widths, so an agent sees the website it edits.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        pages: { type: "array", minItems: 1, maxItems: 12, items: { type: "string", minLength: 1, maxLength: 200, pattern: "^/[A-Za-z0-9/_.-]*$" }, description: "Site paths (default [\"/en/\"])." },
+        widths: { type: "array", minItems: 1, maxItems: 4, items: { type: "integer", minimum: 320, maximum: 2560 }, description: "Viewport widths in px (default [390, 1280])." },
+        fullPage: { type: "boolean", description: "The whole page, not only the first screen (default true)." },
+        out,
+        build,
+      },
+    },
+    writes: ".agent-out",
+    network: "localhost",
+    mcp: true,
+    timeoutMs: 15 * 60_000,
+  },
+  {
+    name: "analyse",
+    title: "Analyse a local video file",
+    description: "Numeric features of a local video file inside the repository (duration, fps, size, scene cuts, motion, colour, loudness, tempo) with ffmpeg (the Windows app's bundled one, else the system's). Local files only: URLs and data: are refused, nothing is uploaded, the file is not kept or copied.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      required: ["path"],
+      properties: {
+        path: { type: "string", minLength: 1, maxLength: 1000, description: "The file, relative to the repository root or absolute inside it (e.g. .agent-out/inbox/clip.mp4)." },
+        sampleHz: { type: "number", minimum: 0.5, maximum: 10, description: "Picture samples per second for motion and colour (default 2, the rate clip features compare at)." },
+        maxSec: { type: "number", minimum: 1, maximum: 300, description: "Seconds analysed from the start at most (default 300)." },
+      },
+    },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 10 * 60_000,
+  },
+  {
+    name: "guard",
+    title: "Core guard",
+    description: "Runs the core guard (npm run guard: types, lint, the core tests, the fingerprint lock and the protected-path report) and returns its exit code, report and the end of its output.",
+    input: { type: "object", additionalProperties: false, properties: { browser: { type: "boolean", description: "Also the browser tier (guard --browser)." }, baseline: { type: "boolean", description: "Record the failures the untouched tree already has (guard --baseline)." } } },
+    writes: ".agent-out",
+    network: "none",
+    mcp: true,
+    timeoutMs: 30 * 60_000,
+  },
+  {
+    name: "explain",
+    title: "Explain a failure",
+    description: "Sorts a failure (vitest, tsc, eslint or smoke output) into a source pin, a behaviour change, a fingerprint, a timeout, a type or lint error, and says which fix is legitimate and what never to do.",
+    input: { type: "object", additionalProperties: false, required: ["failure"], properties: { failure: { type: "string", minLength: 1, maxLength: 200_000 } } },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 60_000,
+  },
+  {
+    name: "site-stats",
+    title: "Website statistics (owner-run)",
+    description: "Aggregate website numbers from the owner's own Plausible (Stats API v2) or Umami, with the owner's key from the environment. Without a key: 'not configured'.",
+    input: { type: "object", additionalProperties: false, properties: { days: { type: "integer", minimum: 1, maximum: 365, description: "The period (default 30 days)." } } },
+    writes: "none",
+    network: "owner",
+    mcp: false,
+    timeoutMs: 60_000,
+  },
+  {
+    name: "postiz-probe",
+    title: "Postiz analytics probe (owner-run)",
+    description: "Which analytics series the owner's Postiz returns per channel and for recent posts: labels and point counts only, no numbers. POSTIZ_URL and POSTIZ_API_KEY from the environment; without them: 'not configured'.",
+    input: { type: "object", additionalProperties: false, properties: { days: { type: "integer", enum: [7, 30, 90], description: "The period (default 30)." }, posts: { type: "integer", minimum: 0, maximum: 20, description: "Recent posts probed (default 5)." } } },
+    writes: "none",
+    network: "owner",
+    mcp: false,
+    timeoutMs: 120_000,
+  },
+];
+
+export function toolSpec(name: string): AgentToolSpec | null {
+  return AGENT_TOOLS.find((t) => t.name === name) ?? null;
+}
+
+export type ToolArgsCheck = { ok: true; args: Record<string, unknown> } | { ok: false; errors: string[] };
+
+/** The call's arguments checked against the tool's schema (plus the link-or-mode rule of the tools that take either). */
+export function checkToolArgs(name: string, args: unknown): ToolArgsCheck {
+  const spec = toolSpec(name);
+  if (!spec) return { ok: false, errors: [`Unknown tool "${name}" (the tools: ${AGENT_TOOLS.map((t) => t.name).join(", ")})`] };
+  const value = args === undefined || args === null ? {} : args;
+  const errors = validateJson(spec.input, value);
+  if (errors.length) return { ok: false, errors };
+  const a = value as Record<string, unknown>;
+  if ("link" in (spec.input.properties ?? {}) && a.link !== undefined && a.mode !== undefined) return { ok: false, errors: ["Give link or mode, not both"] };
+  return { ok: true, args: a };
+}

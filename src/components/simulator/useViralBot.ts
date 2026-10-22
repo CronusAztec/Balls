@@ -17,6 +17,9 @@ import { scrollBehavior } from "@/lib/reducedMotion"; // --- review fix (ui-i18n
 // --- paywall-gate --- the CLI reads the licence's state through the page's handle (--- free-watermark --- the bot renders for
 // everyone; without a Pro licence its clips carry the watermark, which the fast export's own seal decides)
 import { getEntitlementStore, type EntitlementStatus } from "@/lib/billing/entitlement";
+import { linkSeed, resolveLinkSettings } from "@/lib/recording/batch"; // --- agent-cli ---
+import { presetToSettings } from "@/lib/settings"; // --- agent-cli ---
+import type { FastRenderResult } from "@/lib/recording/fastRender"; // --- agent-cli ---
 
 /*
  * --- viral-bot --- The page's side of the viral video bot (the Bot block of the Recording section, sections/BotSection.tsx):
@@ -114,9 +117,26 @@ interface BotCliPlanRequest {
   maxSeeds?: number;
 }
 
+// --- agent-cli --- One link, one clip, for the agent toolbox (scripts/agent/browser.mjs, `npm run agent -- render`)
+/** What `renderLink()` takes: the clip's length (s; default the link's own) and a seed when the link names none. */
+export interface BotLinkRenderRequest {
+  seconds?: number;
+  seed?: number;
+}
+
+/** What `renderLink()` gives back: the clip (in the page) with the fast export's result, or why there is none. */
+export type BotLinkRenderResult =
+  | { status: "done"; file: string; blob: Blob; durationSec: number; seed: number; mode: string; result: Omit<FastRenderResult, "blob"> | null }
+  | { status: "failed"; error: string };
+
+/** Longest clip renderLink() makes (s): a short check, not a production render. */
+export const LINK_RENDER_MAX_SEC = 60;
+// --- end agent-cli ---
+
 declare global {
   interface Window {
     __jumpingBallsBot?: {
+      /** 1: plan, render, textFiles, world, licence; --- agent-cli --- 2: also renderLink. */
       version: number;
       plan: (request?: BotCliPlanRequest) => Promise<ClipPlan[]>;
       render: (request?: { download?: "each" | "zip" }) => Promise<RenderedClip[]>;
@@ -124,6 +144,12 @@ declare global {
       world: () => BotWorld | null;
       /** --- paywall-gate --- The page's licence: the CLI waits for "free" or "pro" before it renders (--- free-watermark --- Free: watermarked clips). */
       licence?: () => { status: EntitlementStatus; plan: string | null; expiresAt: number | null; testMode: boolean };
+      /**
+       * --- agent-cli --- (version 2) Renders one share link (long or `?c=` short) through the same batch path as `render()` –
+       * the page's own fast export, so the clip carries the watermark exactly when a free visitor's would (the export's seal
+       * decides) – and hands back the clip and its render result. Nothing is downloaded.
+       */
+      renderLink?: (link: string, request?: BotLinkRenderRequest) => Promise<BotLinkRenderResult>;
     };
   }
 }
@@ -291,10 +317,26 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
   const onRenderAll = useCallback(() => void renderAll("zip"), [renderAll]);
   const onStop = useCallback(() => latest.current.stopBatch(), []);
 
+  // --- agent-cli --- one link through the batch (as render() does for a plan): its settings, its seed, its clip
+  const renderLink = useCallback(async (link: string, request?: BotLinkRenderRequest): Promise<BotLinkRenderResult> => {
+    const l = latest.current;
+    if (l.disabled || abortRef.current) return { status: "failed", error: "busy" };
+    const read = await resolveLinkSettings(link);
+    if (!read.ok) return { status: "failed", error: `link: ${read.error}` };
+    const seconds = request?.seconds;
+    const settings = typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0 ? presetToSettings({ ...read.settings, recordingDuration: Math.min(LINK_RENDER_MAX_SEC, seconds) }) : read.settings;
+    const seed = linkSeed(link) ?? (typeof request?.seed === "number" && Number.isFinite(request.seed) ? Math.trunc(request.seed) : 1);
+    const files = await l.runJobs([{ seed, settings, name: `${SITE_SLUG}-${settings.mode}-${seed}`, download: false }]);
+    const f = files[0];
+    if (!f) return { status: "failed", error: "render" };
+    const result = f.result ? (Object.fromEntries(Object.entries(f.result).filter(([key]) => key !== "blob")) as Omit<FastRenderResult, "blob">) : null;
+    return { status: "done", file: f.name, blob: f.blob, durationSec: f.durationSec, seed, mode: settings.mode, result };
+  }, []);
+
   /* ---------------------------------------------------------- the CLI's handle */
   useEffect(() => {
     window.__jumpingBallsBot = {
-      version: 1,
+      version: 2, // --- agent-cli --- (renderLink)
       plan: (request) => planWith("today", { family: "all", bucket: "auto", ending: "auto", ...request }),
       render: (request) => renderAll(request?.download ?? "each"),
       textFiles: () => {
@@ -310,11 +352,12 @@ export function useViralBot(o: UseViralBotOptions): BotPanelProps {
         const e = store.getSnapshot();
         return { status: e.status, plan: e.plan, expiresAt: e.expiresAt, testMode: e.testMode };
       },
+      renderLink, // --- agent-cli ---
     };
     return () => {
       delete window.__jumpingBallsBot;
     };
-  }, [planWith, renderAll]);
+  }, [planWith, renderAll, renderLink]);
 
   const world = o.getWorld();
   const planWorld = state.plan?.clips[0]?.world;

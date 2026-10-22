@@ -181,6 +181,8 @@ export interface CustomBatchFile {
   extension: string;
   blob: Blob;
   durationSec: number;
+  /** --- agent-cli --- The fast export's own result for the clip (its digest, frames, watermark verdict, loudness). */
+  result?: FastRenderResult;
 }
 // --- end viral-bot ---
 
@@ -246,7 +248,7 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
   const runningRef = useRef(false);
   const stopRef = useRef(false);
   const mounted = useRef(true);
-  const files = useRef(new Map<number, { name: string; extension: string; blob: Blob; durationSec?: number /* --- viral-bot --- */ }>());
+  const files = useRef(new Map<number, { name: string; extension: string; blob: Blob; durationSec?: number /* --- viral-bot --- */; result?: FastRenderResult /* --- agent-cli --- */ }>());
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -371,7 +373,7 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
           const { result } = outcome;
           const extension = result.format.extension;
           const base = uniqueFileBase(customJob ? customJob.name : batchFileBase({ mode, seed: job.seed, durationSec: result.durationSec, variant: job.variant }), extension, used); // --- viral-bot --- (its own name)
-          files.current.set(job.id, { name: `${base}.${extension}`, extension, blob: result.blob, durationSec: result.durationSec });
+          files.current.set(job.id, { name: `${base}.${extension}`, extension, blob: result.blob, durationSec: result.durationSec, result /* --- agent-cli --- */ });
           offerPublishClip({ blob: result.blob, name: `${base}.${extension}`, source: customJob ? "bot" : "batch", durationSec: result.durationSec, mode, seed: job.seed, botClipId: customJob ? customJob.name : null, loopCaption: loopCaptionContext(s) /* --- low-findings --- (the job's own settings) */, library: customJob?.library ?? null /* --- cut-reedit --- */ }); // --- social-publish --- (a bot clip's copy comes from its plan)
           if (customJob ? customJob.download : definitionRef.current.downloadEach) downloadExport(result.blob, extension, base);
           patchJob(job.id, { status: "done", wallMs, durationSec: result.durationSec, bytes: result.blob.size, fileName: `${base}.${extension}` });
@@ -398,7 +400,7 @@ export function useBatchRender(options: UseBatchRenderOptions): { panel: BatchPa
       if (mounted.current) setRun((r) => ({ ...r, status: stopped ? "stopped" : "finished", finishedAt: Date.now(), interrupted }));
     }
     // --- viral-bot --- the files of the batch, in job order
-    return [...files.current.entries()].sort((a, b) => a[0] - b[0]).map(([id, f]) => ({ index: id, name: f.name, extension: f.extension, blob: f.blob, durationSec: f.durationSec ?? 0 }));
+    return [...files.current.entries()].sort((a, b) => a[0] - b[0]).map(([id, f]) => ({ index: id, name: f.name, extension: f.extension, blob: f.blob, durationSec: f.durationSec ?? 0, result: f.result /* --- agent-cli --- */ }));
   }, [patchJob, settle, nextCommit]);
 
   const onStart = useCallback(() => void start(), [start]);
