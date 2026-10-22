@@ -251,10 +251,16 @@ class FormulaParser {
   private depth = 0;
   maxDepth = 0;
   usesR = false;
+  /** --- blueprint-formula --- Bit i set: the formula reads slot i (`names[i]`). */
+  slotMask = 0;
   readonly code: number[] = [];
   readonly consts: number[] = [];
 
-  constructor(private readonly text: string) {}
+  /** `names`: the variables in the order of their slot (bounce math's FORMULA_VARIABLES unless a caller names its own). */
+  constructor(
+    private readonly text: string,
+    private readonly names: readonly string[] = FORMULA_VARIABLES,
+  ) {}
 
   parse() {
     this.skip();
@@ -356,9 +362,10 @@ class FormulaParser {
         this.call(name, start);
         return;
       }
-      const slot = (FORMULA_VARIABLES as readonly string[]).indexOf(name);
+      const slot = this.names.indexOf(name);
       if (slot >= 0) {
         if (name === "r") this.usesR = true;
+        this.slotMask |= 1 << slot;
         this.emit(OP_VAR, slot, 1);
         return;
       }
@@ -537,6 +544,135 @@ export function evaluateFormula(formula: CompiledFormula, vars: FormulaVars): nu
   }
   return sp === 1 ? st[0] : NaN;
 }
+
+// --- blueprint-formula --- (additive: compileFormula and evaluateFormula above run exactly the instructions they ran before)
+
+/** Most variable slots a formula with its own names may have (a slot mask fits in 31 bits; Blueprints use 11). */
+export const MAX_FORMULA_SLOTS = 16;
+/** What a slot name looks like: a lower-case letter, then up to 7 letters or digits. */
+export const FORMULA_SLOT_NAME = /^[a-z][a-z0-9]{0,7}$/;
+
+/** A formula compiled with its own variable names: the same program as `CompiledFormula`, plus which slots it reads. */
+export interface SlotFormula extends CompiledFormula {
+  /** The variable names, in the order of their slot (`evaluateFormulaSlots` reads `slots[i]` for `names[i]`). */
+  readonly names: readonly string[];
+  /** Bit i set: the formula reads slot i. */
+  readonly slotMask: number;
+}
+
+export type SlotFormulaResult = { ok: true; formula: SlotFormula } | { ok: false; error: FormulaError };
+
+/**
+ * Why a list of slot names cannot name a formula's variables, or null when it can: each matches `FORMULA_SLOT_NAME`, none
+ * repeats, none is a function (sin … max, clamp) or a constant (pi, e), and there are at most `MAX_FORMULA_SLOTS`.
+ */
+export function formulaSlotNamesProblem(names: readonly string[]): string | null {
+  if (!Array.isArray(names) || names.length > MAX_FORMULA_SLOTS) return `at most ${MAX_FORMULA_SLOTS} variable names`;
+  const reserved = new Set<string>([...FORMULA_FUNCTIONS_1, ...FORMULA_FUNCTIONS_2, "clamp", ...Object.keys(CONSTANTS)]);
+  const seen = new Set<string>();
+  for (const name of names) {
+    if (typeof name !== "string" || !FORMULA_SLOT_NAME.test(name)) return `"${String(name)}" is not a variable name (a-z, then up to 7 letters or digits)`;
+    if (reserved.has(name)) return `"${name}" is a function or a constant`;
+    if (seen.has(name)) return `"${name}" is named twice`;
+    seen.add(name);
+  }
+  return null;
+}
+
+/**
+ * Compiles a formula whose variables are `names` (slot i is `names[i]`) – the same parser, operators, functions and length
+ * limit as `compileFormula`, which is this with bounce math's FORMULA_VARIABLES (the programs are identical). Never evaluates
+ * the text as code. The names are the caller's fixed vocabulary, never a visitor's text: a bad list is a programming error
+ * and throws (`formulaSlotNamesProblem`).
+ */
+export function compileFormulaWith(text: string, names: readonly string[]): SlotFormulaResult {
+  const problem = formulaSlotNamesProblem(names);
+  if (problem) throw new RangeError(`compileFormulaWith: ${problem}`);
+  const source = typeof text === "string" ? text : "";
+  if (source.length > MAX_FORMULA_LENGTH) return { ok: false, error: { code: "tooLong", at: MAX_FORMULA_LENGTH } };
+  const own = Object.freeze([...names]);
+  const parser = new FormulaParser(source, own);
+  try {
+    parser.parse();
+  } catch (err) {
+    if (err instanceof FormulaSyntaxError) return { ok: false, error: err.error };
+    throw err;
+  }
+  return {
+    ok: true,
+    formula: {
+      source,
+      code: Int32Array.from(parser.code),
+      consts: Float64Array.from(parser.consts),
+      stack: new Float64Array(Math.max(1, parser.maxDepth)),
+      usesR: parser.usesR,
+      names: own,
+      slotMask: parser.slotMask,
+    },
+  };
+}
+
+/**
+ * Runs a compiled formula on its own stack with its variables read from `slots` (slot i = `slots[i]`; a slot past the array
+ * reads NaN). No allocation. NaN / ±Infinity come back as they are: the caller decides what a meaningless result means.
+ */
+export function evaluateFormulaSlots(formula: CompiledFormula, slots: Float64Array): number {
+  const code = formula.code;
+  const st = formula.stack;
+  const consts = formula.consts;
+  let sp = 0;
+  for (let i = 0; i < code.length; i += 2) {
+    const arg = code[i + 1];
+    switch (code[i]) {
+      case OP_CONST:
+        st[sp++] = consts[arg];
+        break;
+      case OP_VAR:
+        st[sp++] = arg < slots.length ? slots[arg] : NaN;
+        break;
+      case OP_NEG:
+        st[sp - 1] = -st[sp - 1];
+        break;
+      case OP_ADD:
+        sp--;
+        st[sp - 1] += st[sp];
+        break;
+      case OP_SUB:
+        sp--;
+        st[sp - 1] -= st[sp];
+        break;
+      case OP_MUL:
+        sp--;
+        st[sp - 1] *= st[sp];
+        break;
+      case OP_DIV:
+        sp--;
+        st[sp - 1] /= st[sp];
+        break;
+      case OP_POW:
+        sp--;
+        st[sp - 1] = Math.pow(st[sp - 1], st[sp]);
+        break;
+      case OP_FN1:
+        st[sp - 1] = fn1(arg, st[sp - 1]);
+        break;
+      case OP_FN2:
+        sp--;
+        st[sp - 1] = fn2(arg, st[sp - 1], st[sp]);
+        break;
+      case OP_CLAMP: {
+        sp -= 2;
+        const x = st[sp - 1];
+        const lo = st[sp];
+        const hi = st[sp + 1];
+        st[sp - 1] = Math.min(Math.max(x, lo), hi);
+        break;
+      }
+    }
+  }
+  return sp === 1 ? st[0] : NaN;
+}
+// --- end blueprint-formula ---
 
 /* ------------------------------------------------------------------ applying a rule */
 
