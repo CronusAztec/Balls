@@ -29,7 +29,9 @@ import { SCALE_INTERVALS, midiToFrequency, type ScaleId } from "@/lib/audio/scal
  * Broadphase: a uniform grid over the tiles, built once by `build()` (the layouts call it) in compressed rows of typed
  * arrays; a query visits the cells the ball's sweep covers and tests each alive tile once (a stamp per tile). The answer
  * is the same tile, bit for bit, as testing every tile in index order (ties go to the lower index, so the order the grid
- * hands tiles over never matters – tests/tiles.test.ts checks it against brute force).
+ * hands tiles over never matters – tests/tiles.test.ts checks it against brute force). Tiles never move: the grid is
+ * built once per layout, so a ring of tiles that turns with a spinning arena needs a polar broadphase first (a later
+ * addition, with its own equivalence test), not a rebuild every step.
  *
  * Pure and deterministic: no randomness, no clock (physicsPurity scans this file), and nothing is allocated per step –
  * the narrow phase writes its answers into scratch fields, and the contacts into preallocated arrays. The field is also
