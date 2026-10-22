@@ -10,8 +10,8 @@
  *            --json (print the report instead of the summary), --port <n> (tier 1's server, default 3101), --help
  *
  * Lane A: the incremental type check. Lane B: ESLint (cached), `node --check` on the scripts, the desktop app's and the
- * billing Worker's type checks and tests. Lane C: the core vitest list (scripts/agent/core.json), the tests related to the
- * changed files (minus the slow ones, capped), the changelog check and the smoke suite's --list. Before them, the static
+ * billing Worker's type checks and tests. Lane C: one vitest run of the core list (scripts/agent/core.json) and the tests
+ * related to the changed files (minus the slow ones, capped), the changelog check and the smoke suite's --list. Before them, the static
  * checks: the fingerprint lock (Fingerprint-Change trailer), the protected-path report (owner review, a warning) and the
  * test-weakening detector (Test-Change trailer). The plan is src/lib/agentKit/guardPlan.ts and protectedDiff.ts (pure,
  * unit-tested), bundled here with esbuild.

@@ -159,7 +159,7 @@ describe("the lanes", () => {
     expect(lanes.map((l) => [l.id, l.steps.map((s) => s.id)])).toEqual([
       ["A", ["tsc"]],
       ["B", ["eslint", "node-check", "desktop-tsc", "desktop-vitest", "billing-tsc", "billing-vitest"]],
-      ["C", ["vitest-core", "vitest-related", "changelog", "smoke-list"]],
+      ["C", ["vitest", "changelog", "smoke-list"]],
     ]);
   });
 
@@ -170,16 +170,16 @@ describe("the lanes", () => {
     expect(step("billing-vitest")).toMatchObject({ cwd: "billing", requires: { path: "billing/node_modules" } });
   });
 
-  it("runs vitest with .only refused, two workers, no silent browser skips and a fresh-export check", () => {
-    for (const id of ["vitest-core", "vitest-related", "desktop-vitest", "billing-vitest"]) {
+  it("runs vitest with .only refused, core.json's workers, no silent browser skips and a fresh-export check", () => {
+    for (const id of ["vitest", "desktop-vitest", "billing-vitest"]) {
       const s = step(id);
       expect(s.argv, id).toContain("--allowOnly=false");
       expect(s.env, id).toMatchObject({ JBL_REQUIRE_BROWSER: "1", JBL_GUARD: "1" });
-      expect(s.jsonReport, id).toMatch(/^\/cache\/jbl-guard\/vitest-/);
+      expect(s.jsonReport, id).toMatch(/^\/cache\/jbl-guard\/vitest[-.]/);
     }
-    expect(step("vitest-core").argv).toContain(`--maxWorkers=${CORE.vitest.maxWorkers}`);
-    expect(step("vitest-core").argv.slice(-CORE.vitest.core.length)).toEqual(CORE.vitest.core.map((t) => t.file));
-    expect(step("vitest-related").argv.slice(-2)).toEqual(["tests/maze.test.ts", "tests/mergeRing.test.ts"]); // (zip is in the core list)
+    expect(step("vitest").argv).toContain(`--maxWorkers=${CORE.vitest.maxWorkers}`);
+    // one run: the core list in its order, then the related tests (zip is in the core list already)
+    expect(step("vitest").argv.slice(-CORE.vitest.core.length - 2)).toEqual([...CORE.vitest.core.map((t) => t.file), "tests/maze.test.ts", "tests/mergeRing.test.ts"]);
     expect(step("changelog").argv).toEqual(["node", "scripts/changelog.mjs", "--check"]);
     expect(step("smoke-list").argv).toEqual(["node", "scripts/smoke-test.mjs", "--list"]);
   });

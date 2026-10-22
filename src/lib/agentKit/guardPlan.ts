@@ -6,8 +6,8 @@
  *
  * The tiers:
  *  - tier 0 (default, no build): lane A the incremental type check; lane B ESLint (cached), `node --check` on the scripts,
- *    the desktop app's and the billing Worker's type checks and tests; lane C the core vitest list, then the tests related
- *    to the changed files (minus the slow ones, capped), the changelog check and the smoke suite's `--list`;
+ *    the desktop app's and the billing Worker's type checks and tests; lane C the core vitest list and the tests related to
+ *    the changed files (minus the slow ones, capped) in one vitest run, the changelog check and the smoke suite's `--list`;
  *  - tier 1 (`--browser`): a /smoke-base build without Next's own type check (lane A already ran it), the export served
  *    locally and the core smoke blocks plus the changed features' blocks;
  *  - tier 2: the whole CI run (`npm run test:ci` and the four smoke shards), printed, never run here.
@@ -334,28 +334,20 @@ export function planTier0(input: { config: CoreConfig; vitest: VitestPlan; cache
   const cache = (name: string) => `${cacheDir.replace(/\/+$/, "")}/${name}`;
   const desktopFix = "npm ci --prefix desktop (with ELECTRON_SKIP_BINARY_DOWNLOAD=1)";
   const billingFix = "npm ci --prefix billing";
+  // one vitest run for the core list and the related tests: one start-up, and the workers stay busy across both lists
+  // (measured warm on 4 CPUs: 70 s against 40 s + 49 s run one after the other)
+  const files = [...vitest.core, ...vitest.related];
   const laneC: GuardStep[] = [
     {
-      id: "vitest-core",
-      title: `vitest: the core list (${vitest.core.length} files)`,
-      argv: vitestArgv("node_modules/vitest/vitest.mjs", vitest.core, config.vitest.maxWorkers, cache("vitest-core.json")),
+      id: "vitest",
+      title: `vitest: the core list (${vitest.core.length} files)${vitest.related.length ? ` and ${vitest.related.length} related to the change` : ""}`,
+      argv: vitestArgv("node_modules/vitest/vitest.mjs", files, config.vitest.maxWorkers, cache("vitest.json")),
       cwd: "",
       env: { ...GUARD_TEST_ENV },
       parser: "vitest",
-      jsonReport: cache("vitest-core.json"),
+      jsonReport: cache("vitest.json"),
     },
   ];
-  if (vitest.related.length) {
-    laneC.push({
-      id: "vitest-related",
-      title: `vitest: tests related to the change (${vitest.related.length} files)`,
-      argv: vitestArgv("node_modules/vitest/vitest.mjs", vitest.related, config.vitest.maxWorkers, cache("vitest-related.json")),
-      cwd: "",
-      env: { ...GUARD_TEST_ENV },
-      parser: "vitest",
-      jsonReport: cache("vitest-related.json"),
-    });
-  }
   laneC.push(
     { id: "changelog", title: "changelog: CHANGELOG.md matches src/content/changelog.json", argv: ["node", "scripts/changelog.mjs", "--check"], cwd: "", parser: "plain" },
     { id: "smoke-list", title: "smoke suite: every block parses and has a shard (--list, no browser)", argv: ["node", "scripts/smoke-test.mjs", "--list"], cwd: "", env: { SMOKE_SHARD: "", SMOKE_ONLY: "" }, parser: "plain" },
@@ -462,7 +454,7 @@ export function estimateTier0(config: CoreConfig, plan: VitestPlan, warm: boolea
   const vitestWall = (files: readonly string[]) => (files.length ? m.vitestStartup + testTime(files) / workers : 0);
   const A = warm ? m.tscWarm : m.tscCold;
   const B = (warm ? m.eslintWarm : m.eslintCold) + m.nodeCheck + m.desktop + m.billing;
-  const C = vitestWall(plan.core) + vitestWall(plan.related) + m.smallChecks;
+  const C = vitestWall([...plan.core, ...plan.related]) + m.smallChecks;
   return { A, B, C, total: Math.max(A, B, C) };
 }
 
