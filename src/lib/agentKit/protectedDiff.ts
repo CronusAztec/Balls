@@ -4,17 +4,21 @@ import { globToRegExp, matchesAny } from "./guardPlan";
  * --- ai-guard --- The core guard's static checks of a change (base ref → working tree), pure over file texts so
  * tests/protectedDiff.test.ts can feed them fixture diffs:
  *  - the fingerprint lock: the BASELINE literal of tests/extras.test.ts (one entry per mode) and the per-mode fingerprint
- *    literals scripts/agent/protected.json lists. An added entry passes; a changed or removed one fails unless a commit in the
- *    range carries `Fingerprint-Change: <mode> - <reason>`;
- *  - the protected-path report: files and regions (a const, a message namespace) that need the owner's review. Reported,
- *    never a failure (owner decision for P0);
+ *    literals scripts/agent/protected.json lists. An added entry (a new mode, a new row of a pinned table) passes; a changed
+ *    or removed one fails unless a commit in the range carries `Fingerprint-Change: <mode> - <reason>` – and so does an edit
+ *    of the code outside the literal that mentions it (a write after it, a decoy declaration, a changed comparison);
+ *  - the protected-path report: files and regions (a const with the code that mentions it, a message namespace) that need
+ *    the owner's review. Reported, never a failure (owner decision for P0);
  *  - the test-weakening detector: a test file with fewer expect( calls than at the base (unless the statements it lost were
- *    added to another test file of the change that the runners still execute: a move), added .skip / .only / .skipIf /
- *    .runIf / .todo / .fails on a test call or a skip through a test's context (in new test files too), raised timeouts (a
- *    test's own, a const it names, vi.setConfig's, the vitest configs'), deleted test files (not a renamed or split one: its
- *    every expect reappears in a file that still runs), deleted smoke checks (by name, check by check), new entries in the
- *    allow lists (the uncap ALLOWED list) and core tests of the base that are gone. A finding fails unless a commit carries
- *    `Test-Change: <file> - <reason>` for it; an added .only on a test call always fails.
+ *    added to another test file of the change that the runners still execute: a move), an expect statement rewritten in
+ *    place (the count holds, the assertion does not), added .skip / .only / .skipIf / .runIf / .todo / .fails on a test call
+ *    (`it["skip"]`, an alias of `it`, a cast and a destructured modifier included) or a skip through a test's context (in new
+ *    test files too), raised timeouts (a test's own, a const it names, vi.setConfig's, the vitest configs'), deleted test
+ *    files (not a renamed or split one: its every expect reappears in a file that still runs), deleted smoke checks (by name,
+ *    check by check), new entries in the allow lists (the uncap ALLOWED list) or an edit of the code that mentions them, core
+ *    tests of the base that are gone, and – after the tests ran – skips the run shows that the source does not
+ *    (runtimeSkipFindings). A finding fails unless a commit carries `Test-Change: <file> - <reason>` for it; an added .only
+ *    on a test call always fails.
  * Comments, strings and whitespace never count: the sources are read through a small JavaScript tokenizer.
  */
 
@@ -146,8 +150,15 @@ export function tokenize(src: string): Token[] {
   return out;
 }
 
-/** Tokens as one comparable string: comments, whitespace and the line breaks gone. */
-export const normalizeTokens = (tokens: readonly Token[]) => tokens.map((t) => t.text).join(" ");
+/**
+ * Tokens as one comparable string: comments, whitespace and the line breaks gone, and a trailing comma before a closing
+ * bracket too (a formatter adds it to a call split over lines; it changes nothing).
+ */
+export const normalizeTokens = (tokens: readonly Token[]) =>
+  tokens
+    .filter((t, i) => !(t.type === "punct" && t.text === "," && (tokens[i + 1]?.text === ")" || tokens[i + 1]?.text === "]" || tokens[i + 1]?.text === "}")))
+    .map((t) => t.text)
+    .join(" ");
 
 /** A source's comparable form (comments and whitespace do not count). */
 export const normalizeSource = (src: string) => normalizeTokens(tokenize(src));
@@ -173,12 +184,42 @@ function closingIndex(tokens: readonly Token[], open: number): number {
   return tokens.length;
 }
 
-/**
- * The initializer of the first `const|let|var <name>` in a source: its tokens, from after the `=` to the end of the
- * declaration (`;` or `,` at its own depth, or a new line after a complete value). Null when there is no such declaration.
- */
-export function extractConst(src: string, name: string): Token[] | null {
-  const tokens = tokenize(src);
+/** The index of the token that opens the bracket closing at `close` (-1 when it never opens). */
+function openingIndex(tokens: readonly Token[], close: number): number {
+  let depth = 0;
+  for (let k = close; k >= 0; k--) {
+    const t = tokens[k];
+    if (t.type !== "punct") continue;
+    if (CLOSE.has(t.text)) depth++;
+    else if (OPEN[t.text]) {
+      depth--;
+      if (depth === 0) return k;
+    }
+  }
+  return -1;
+}
+
+/** Where a declaration's value ends (exclusive): `;` or `,` at its own depth, a closing bracket, or a new line after a complete value. */
+function valueEnd(tokens: readonly Token[], from: number): number {
+  let prev: Token | undefined;
+  for (let m = from; m < tokens.length; m++) {
+    const t = tokens[m];
+    if (t.type === "punct" && OPEN[t.text]) {
+      m = closingIndex(tokens, m);
+      prev = tokens[m];
+      continue;
+    }
+    if (t.type === "punct" && (t.text === ";" || t.text === "," || CLOSE.has(t.text))) return m;
+    const complete = prev && (prev.type !== "punct" || CLOSE.has(prev.text));
+    const startsValue = t.type !== "punct" || OPEN[t.text] !== undefined;
+    if (prev && complete && startsValue && t.line > prev.line && !(t.type === "ident" && ["as", "satisfies"].includes(t.text))) return m;
+    prev = t;
+  }
+  return tokens.length;
+}
+
+/** The first `const|let|var <name> = …` of a token list: the declaration's first token and its value's [from, to) range. */
+function constSpan(tokens: readonly Token[], name: string): { decl: number; from: number; to: number } | null {
   for (let k = 0; k + 1 < tokens.length; k++) {
     if (tokens[k].type !== "ident" || !["const", "let", "var"].includes(tokens[k].text) || tokens[k + 1].text !== name || tokens[k + 1].type !== "ident") continue;
     // the type annotation (generics, function types) up to the `=` at depth 0
@@ -193,27 +234,97 @@ export function extractConst(src: string, name: string): Token[] | null {
       else if (depth === 0 && (t.text === ";" || t.text === ",")) return null;
     }
     if (j >= tokens.length) return null;
-    const from = j + 1;
-    const value: Token[] = [];
-    for (let m = from; m < tokens.length; m++) {
-      const t = tokens[m];
-      if (t.type === "punct" && OPEN[t.text]) {
-        const close = closingIndex(tokens, m);
-        value.push(...tokens.slice(m, close + 1));
-        m = close;
-        continue;
-      }
-      if (t.type === "punct" && (t.text === ";" || t.text === "," || CLOSE.has(t.text))) break;
-      const prev = value[value.length - 1];
-      const complete = prev && (prev.type !== "punct" || CLOSE.has(prev.text));
-      const startsValue = t.type !== "punct" || OPEN[t.text] !== undefined;
-      if (prev && complete && startsValue && t.line > prev.line && !(t.type === "ident" && ["as", "satisfies"].includes(t.text))) break;
-      value.push(t);
-    }
-    return value;
+    return { decl: k, from: j + 1, to: valueEnd(tokens, j + 1) };
   }
   return null;
 }
+
+/**
+ * The initializer of the first `const|let|var <name>` in a source: its tokens, from after the `=` to the end of the
+ * declaration (`;` or `,` at its own depth, or a new line after a complete value). Null when there is no such declaration.
+ */
+export function extractConst(src: string, name: string): Token[] | null {
+  const tokens = tokenize(src);
+  const span = constSpan(tokens, name);
+  return span ? tokens.slice(span.from, span.to) : null;
+}
+
+/** Tokens after which a new line does not start a statement (the expression goes on: `}\n.then(…)`, `}\nelse {`). */
+const CONTINUES = new Set([".", "?.", ",", ")", "]", "}", ":", "?", "=", "=>", "==", "===", "!=", "!==", "<", ">", "<=", "+", "-", "*", "/", "%", "**", "&&", "||", "??", "&", "|", "^", "+=", "-=", "*=", "/=", "&&=", "||=", "??="]);
+const CONTINUES_WORDS = new Set(["as", "satisfies", "instanceof", "in", "of", "else", "catch", "finally", "while"]);
+const startsStatement = (t: Token | undefined) => !!t && (t.type === "punct" ? !CONTINUES.has(t.text) : !(t.type === "ident" && CONTINUES_WORDS.has(t.text)));
+
+/**
+ * The token range [from, to) of the statement that holds token k: back to a `;` or an unclosed `{` (or a block that ended on
+ * an earlier line), forward to a `;`, an unclosed `}` or a block that ends its line. A call or a literal the token sits in
+ * belongs to it whole (`expect(x).toEqual(BASELINE[mode]);`, `for (const f of FORMATS) { … }` with its body).
+ */
+function statementAround(t: readonly Token[], k: number): [number, number] {
+  let a = k;
+  const closers: string[] = [];
+  for (; a > 0; a--) {
+    const p = t[a - 1];
+    if (p.type !== "punct") continue;
+    if (CLOSE.has(p.text)) {
+      if (!closers.length && p.text === "}" && t[a].line > p.line && startsStatement(t[a])) break;
+      closers.push(p.text);
+    } else if (OPEN[p.text]) {
+      if (closers.length) closers.pop();
+      else if (p.text === "{") break;
+    } else if (p.text === ";" && !closers.length) break;
+  }
+  let b = k + 1;
+  const openers: string[] = [];
+  for (; b < t.length; b++) {
+    const p = t[b];
+    if (p.type !== "punct") continue;
+    if (OPEN[p.text]) openers.push(p.text);
+    else if (CLOSE.has(p.text)) {
+      if (openers.length) {
+        const was = openers.pop();
+        if (!openers.length && was === "{" && t[b + 1] && t[b + 1].line > p.line && startsStatement(t[b + 1])) {
+          b++;
+          break;
+        }
+      } else if (p.text === "}") break;
+    } else if (p.text === ";" && !openers.length) {
+      b++;
+      break;
+    }
+  }
+  return [a, b];
+}
+
+/**
+ * --- ai-guard --- Every statement of a source, outside the first `const <name>` declaration, that mentions `name` (not as a
+ * property: `x.name`), normalized and sorted: the writes a locked literal could be changed by after its initializer
+ * (`BASELINE.conveyor = …`, `Object.assign(BASELINE, …)`, `(ALLOWED as T[]).push(…)`, a second declaration, an alias) and
+ * the reads that compare with it. A statement added, changed or removed between two versions is a change of the literal.
+ */
+export function constUses(src: string, name: string): string[] {
+  const t = tokenize(src);
+  const span = constSpan(t, name);
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (let k = 0; k < t.length; k++) {
+    if (t[k].type !== "ident" || t[k].text !== name) continue;
+    if (span && k >= span.decl && k < span.to) continue;
+    if (t[k - 1]?.text === "." || t[k - 1]?.text === "?.") continue;
+    const [a, b] = statementAround(t, k);
+    if (seen.has(`${a}:${b}`)) continue;
+    seen.add(`${a}:${b}`);
+    out.push(normalizeTokens(t.slice(a, b)));
+  }
+  return out.sort();
+}
+
+/** The statements of `after` that `before` does not have, and those it lost (as multisets). */
+function usesDiff(before: readonly string[], after: readonly string[]): { added: string[]; gone: string[] } {
+  return { added: bagMinus(after, before), gone: bagMinus(before, after) };
+}
+
+/** A statement for a finding's text: at most `max` characters. */
+const clip = (s: string, max = 120) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
 
 /** The top-level `key: value` entries of an object literal's tokens (`{ … }`): key → its value's normalized text. */
 export function objectEntries(tokens: readonly Token[]): Map<string, string> {
@@ -385,8 +496,64 @@ export interface FingerprintChange {
   where: string;
   acknowledged: boolean;
   reasons: string[];
+  /** What changed, when the entry alone does not say: an edit outside the literal, the rows of a pinned table. */
+  detail?: string;
 }
 
+/**
+ * --- ai-guard --- A literal's comparable parts: its entries (an object's keys, an array's elements in order, else the whole
+ * value) and its tail – what follows the brackets in the initializer (`[…].slice(0, 0)`, `{…} && {}`), which changes the
+ * value without changing an entry.
+ */
+interface LiteralParts {
+  shape: "object" | "array" | "scalar";
+  keys: Map<string, string>;
+  items: string[];
+  tail: string;
+}
+
+function literalParts(value: readonly Token[]): LiteralParts {
+  const first = value[0]?.text;
+  if (first === "{" || first === "[") {
+    const tail = normalizeTokens(value.slice(closingIndex(value, 0) + 1));
+    return first === "{" ? { shape: "object", keys: objectEntries(value), items: [], tail } : { shape: "array", keys: new Map(), items: arrayElements(value), tail };
+  }
+  return { shape: "scalar", keys: new Map(), items: [normalizeTokens(value)], tail: "" };
+}
+
+/** Whether `small`'s items occur in `big` in the same order (others may come between and after them). */
+function isSubsequence(small: readonly string[], big: readonly string[]): boolean {
+  let i = 0;
+  for (const x of big) if (i < small.length && x === small[i]) i++;
+  return i === small.length;
+}
+
+/**
+ * --- ai-guard --- How a locked value changed, element by element: rows added to a pinned table (in an array, its old rows
+ * still there in their order; in an object, new keys) are "added"; a row changed, reordered or gone is "changed" or
+ * "removed"; a scalar compares whole. Null: unchanged.
+ */
+function valueChange(before: LiteralParts | null, after: LiteralParts | null): { kind: FingerprintChange["kind"]; detail?: string } | null {
+  if (!before && !after) return null;
+  if (!before) return { kind: "added" };
+  if (!after) return { kind: "removed" };
+  if (before.shape !== after.shape || before.tail !== after.tail) return { kind: "changed", detail: before.tail !== after.tail ? "the code after the literal changed" : undefined };
+  if (before.shape === "object") {
+    const gone = [...before.keys.keys()].filter((k) => !after.keys.has(k));
+    const changed = [...before.keys].filter(([k, v]) => after.keys.has(k) && after.keys.get(k) !== v).map(([k]) => k);
+    const added = [...after.keys.keys()].filter((k) => !before.keys.has(k));
+    if (changed.length || gone.length) return { kind: changed.length ? "changed" : "removed", detail: `${[...changed, ...gone].slice(0, 6).join(", ")}` };
+    return added.length ? { kind: "added", detail: `${added.length} new entr${added.length === 1 ? "y" : "ies"}` } : null;
+  }
+  const a = before.items;
+  const b = after.items;
+  if (a.length === b.length && a.every((x, i) => x === b[i])) return null;
+  if (isSubsequence(a, b)) return { kind: "added", detail: `${b.length - a.length} new row${b.length - a.length === 1 ? "" : "s"}` };
+  if (isSubsequence(b, a)) return { kind: "removed", detail: `${a.length - b.length} row${a.length - b.length === 1 ? "" : "s"} gone` };
+  return { kind: "changed", detail: before.shape === "array" ? "rows changed or reordered" : undefined };
+}
+
+/** The entries of a JSON or a lines locator (a const's literal is literalParts' business). */
 function lockedEntries(locator: FingerprintLocator, src: string | null): Map<string, string> | null {
   if (src === null) return null;
   if (locator.kind === "json") {
@@ -403,15 +570,18 @@ function lockedEntries(locator: FingerprintLocator, src: string | null): Map<str
     for (const lineText of src.split("\n")) if (re.test(lineText)) lines.set(normalizeSource(lineText), normalizeSource(lineText));
     return lines;
   }
-  const value = extractConst(src, locator.const ?? "");
-  if (value === null) return null;
-  if (locator.kind === "record") return objectEntries(value);
-  return new Map([[locator.mode ?? locator.const ?? "?", normalizeTokens(value)]]);
+  return null;
 }
 
 /**
  * The fingerprint lock over the listed literals: every changed, removed and added entry, the first two acknowledged when a
  * `Fingerprint-Change:` trailer names their mode. `files` maps a path to its two versions.
+ *
+ * --- ai-guard --- A const's literal is judged with the code around it: a statement outside the initializer that mentions the
+ * const (a write after it, `Object.assign(BASELINE, …)`, a cast and a push, an earlier decoy declaration, an alias, a changed
+ * comparison) added, changed or removed is a change of the literal, keyed by the locator's mode (by the const's name for a
+ * record: the trailer `Fingerprint-Change: BASELINE - <reason>`). A value locator (a pinned table) compares row by row:
+ * an added row passes, a changed or removed one fails.
  */
 export function fingerprintChanges(locators: readonly FingerprintLocator[], files: ReadonlyMap<string, FileVersions>, trailers: ReadonlyMap<string, string[]>): FingerprintChange[] {
   const out: FingerprintChange[] = [];
@@ -419,15 +589,45 @@ export function fingerprintChanges(locators: readonly FingerprintLocator[], file
     const versions = files.get(locator.file);
     if (!versions) continue;
     const where = locator.kind === "lines" ? `lines /${locator.pattern}/` : locator.kind === "json" ? "the file" : (locator.const ?? "?");
+    const modeOf = (key: string) => (locator.kind === "record" || locator.kind === "json" ? key : (locator.mode ?? key));
+    const push = (key: string, kind: FingerprintChange["kind"], detail?: string, at = where) => {
+      const mode = modeOf(key);
+      const reasons = trailers.get(mode) ?? [];
+      out.push({ file: locator.file, mode, kind, where: at, acknowledged: kind === "added" || reasons.length > 0, reasons, ...(detail ? { detail } : {}) });
+    };
+    if (locator.kind === "value" || locator.kind === "record") {
+      const name = locator.const ?? "";
+      const valueOf = (src: string | null) => {
+        const v = src === null ? null : extractConst(src, name);
+        return v === null ? null : literalParts(v);
+      };
+      const before = valueOf(versions.base);
+      const after = valueOf(versions.head);
+      if (locator.kind === "value") {
+        const change = valueChange(before, after);
+        if (change) push(locator.mode ?? name, change.kind, change.detail);
+      } else {
+        const a = before?.keys ?? new Map<string, string>();
+        const b = after?.keys ?? new Map<string, string>();
+        for (const [key, value] of a) {
+          if (!b.has(key)) push(key, "removed");
+          else if (b.get(key) !== value) push(key, "changed");
+        }
+        for (const key of b.keys()) if (!a.has(key)) push(key, "added");
+        // the literal's shape or what follows it (`{ … } && {}`): every entry may have changed
+        if (before && after && (before.shape !== after.shape || before.tail !== after.tail)) push(name, "changed", "the code after the literal changed", `${name} (as a whole)`);
+      }
+      // the code outside the literal that mentions it
+      const uses = usesDiff(versions.base === null ? [] : constUses(versions.base, name), versions.head === null ? [] : constUses(versions.head, name));
+      if ((before || after) && (uses.added.length || uses.gone.length)) {
+        const shown = [...uses.added.map((s) => `+ ${clip(s)}`), ...uses.gone.map((s) => `- ${clip(s)}`)].slice(0, 3).join(" | ");
+        push(locator.kind === "record" ? name : (locator.mode ?? name), "changed", `code outside the literal that mentions ${name}: ${shown}`, `${name} (outside the literal)`);
+      }
+      continue;
+    }
     const before = lockedEntries(locator, versions.base);
     const after = lockedEntries(locator, versions.head);
     if (before === null && after === null) continue;
-    const modeOf = (key: string) => (locator.kind === "record" || locator.kind === "json" ? key : (locator.mode ?? key));
-    const push = (key: string, kind: FingerprintChange["kind"]) => {
-      const mode = modeOf(key);
-      const reasons = trailers.get(mode) ?? [];
-      out.push({ file: locator.file, mode, kind, where, acknowledged: kind === "added" || reasons.length > 0, reasons });
-    };
     if (locator.kind === "lines") {
       // a pinned line that is gone: changed (or removed); the lines are not keyed, so one entry per locator
       const gone = [...(before ?? new Map()).keys()].filter((k) => !(after ?? new Map()).has(k));
@@ -486,7 +686,11 @@ export function protectedFindings(config: Pick<ProtectedConfig, "paths" | "regio
         const a = v.base === null ? null : extractConst(v.base, region.const);
         const b = v.head === null ? null : extractConst(v.head, region.const);
         const same = (a === null && b === null) || (a !== null && b !== null && normalizeTokens(a) === normalizeTokens(b));
+        // --- ai-guard --- and the code outside the literal that mentions it (a push after it, an alias, a decoy declaration)
+        const uses = usesDiff(v.base === null ? [] : constUses(v.base, region.const), v.head === null ? [] : constUses(v.head, region.const));
+        const around = (a !== null || b !== null) && (uses.added.length > 0 || uses.gone.length > 0);
         if (!same) out.push({ path: file, rule: region.const, why: region.why });
+        else if (around) out.push({ path: file, rule: region.const, why: `${region.why} (an edit of the code outside the literal that mentions ${region.const})` });
       } else if (region.namespace) {
         const ns = region.namespace;
         const pick = (text: string | null) => {
@@ -511,6 +715,8 @@ export interface WeakeningFinding {
    *  not move to a test of the core list. */
   kind:
     | "expect-drop"
+    | "expect-changed"
+    | "skip-runtime"
     | "only-added"
     | "skip-added"
     | "skipIf-added"
@@ -593,6 +799,17 @@ function take(pool: Map<string, number>, items: readonly string[], limit = Numbe
   return n;
 }
 
+/** Takes each of `items` out of the multiset `pool` where it has it; the items it did not find. */
+function takeEach(pool: Map<string, number>, items: readonly string[]): string[] {
+  const missing: string[] = [];
+  for (const x of items) {
+    const c = pool.get(x) ?? 0;
+    if (c > 0) pool.set(x, c - 1);
+    else missing.push(x);
+  }
+  return missing;
+}
+
 /** The token indices of the smoke suite's check(…) and timingCheck(…) calls (not their definitions). */
 function checkCalls(t: readonly Token[]): number[] {
   const out: number[] = [];
@@ -629,28 +846,130 @@ export function checkNames(src: string): string[] {
 const FOCUSABLE_CALLS = new Set(["it", "test", "describe", "suite", "bench"]);
 const HOOKS = new Set(["beforeAll", "afterAll", "beforeEach", "afterEach"]);
 
-/** The test calls of a source: vitest's own and the ones `test.extend(…)` makes (`const myTest = test.extend({ … })`). */
-function testCallNames(t: readonly Token[]): Set<string> {
-  const names = new Set(FOCUSABLE_CALLS);
-  for (let pass = 0; pass < 2; pass++) {
-    // (twice: an extension of an extension)
-    for (let k = 0; k + 5 < t.length; k++) {
-      if (!["const", "let", "var"].includes(t[k].text) || t[k + 1].type !== "ident" || t[k + 2].text !== "=") continue;
-      if (names.has(t[k + 3].text) && t[k + 4].text === "." && t[k + 5].text === "extend") names.add(t[k + 1].text);
+/** A string token's or a plain template token's text (`"skip"`, `'skip'`, `` `skip` `` → skip), null for anything else. */
+const literalText = (t: Token | undefined) => (t && (t.type === "string" || (t.type === "template" && !t.text.includes("${"))) ? t.text.slice(1, -1) : null);
+
+/**
+ * --- ai-guard --- The name at the root of the expression that ends at token j, through `.x`, `?.x`, `["x"]`, a non-null `!`
+ * and a cast in brackets: `it.concurrent["skip"]`, `(test as T).only` and `check.skip` lead to `it`, `test` and `check`.
+ * Null for a call's result (`it.skipIf(c)`) or anything else.
+ */
+function chainRoot(t: readonly Token[], j: number): string | null {
+  for (let guard = 0; j >= 0 && guard < 64; guard++) {
+    const tok = t[j];
+    if (tok.type === "ident") {
+      const before = t[j - 1]?.text;
+      if (before === "." || before === "?.") {
+        j -= 2;
+        continue;
+      }
+      return tok.text;
     }
+    if (tok.text === "!") {
+      j--;
+      continue;
+    }
+    if (tok.text === "]") {
+      const open = openingIndex(t, j);
+      if (open !== j - 2 || literalText(t[j - 1]) === null) return null;
+      j = open - 1;
+      continue;
+    }
+    if (tok.text === ")") {
+      const open = openingIndex(t, j);
+      const before = t[open - 1];
+      // a call's result, not a bracketed expression
+      if (open < 0 || (before && ((before.type === "ident" && !KEYWORDS_BEFORE_REGEX.has(before.text)) || before.text === ")" || before.text === "]"))) return null;
+      let end = j - 1;
+      for (let m = open + 1; m < j; m++) {
+        if (t[m].type === "punct" && OPEN[t[m].text]) {
+          m = closingIndex(t, m);
+          continue;
+        }
+        if (t[m].type === "ident" && (t[m].text === "as" || t[m].text === "satisfies")) {
+          end = m - 1;
+          break;
+        }
+      }
+      j = end;
+      continue;
+    }
+    return null;
   }
-  return names;
+  return null;
 }
 
-/** Whether the modifier at token k ends a dotted chain rooted at a test call (`it.only`, `describe.concurrent.skip`), not a property (`filter.only`, `queue.skip`). */
-function onTestCall(t: readonly Token[], k: number, calls: ReadonlySet<string> = FOCUSABLE_CALLS): boolean {
-  let j = k - 1; // the "." before the modifier
-  while (t[j]?.text === "." && t[j - 1]?.type === "ident") {
-    j -= 2;
-    if (t[j]?.text !== ".") return calls.has(t[j + 1].text);
-  }
-  return false;
+/** The modifier a member access at token k names (`.skip`, `?.only`, `["skip"]`) and where its receiver ends; null when it names none. */
+function modifierAt(t: readonly Token[], k: number): { name: keyof ModifierCounts; receiverEnd: number } | null {
+  const tok = t[k];
+  if (tok.type === "ident" && MODIFIERS.has(tok.text) && (t[k - 1]?.text === "." || t[k - 1]?.text === "?.")) return { name: tok.text as keyof ModifierCounts, receiverEnd: k - 2 };
+  const text = literalText(tok);
+  if (text !== null && MODIFIERS.has(text) && t[k - 1]?.text === "[" && t[k + 1]?.text === "]") return { name: text as keyof ModifierCounts, receiverEnd: k - 2 };
+  return null;
 }
+
+/**
+ * The test calls of a source and its aliases of modifiers: vitest's own calls, the ones `test.extend(…)` makes (`const
+ * myTest = test.extend({ … })`), any name a test call is assigned to (`const check = it`, `const t = (it as any)`,
+ * `const c = it.concurrent`, `const { each } = it`), and the names a modifier is assigned to (`const s = it.skip`,
+ * `const { skip } = it`, `const o = test["only"]`).
+ */
+function testAliases(t: readonly Token[]): { calls: Set<string>; mods: Map<string, keyof ModifierCounts> } {
+  const calls = new Set(FOCUSABLE_CALLS);
+  const mods = new Map<string, keyof ModifierCounts>();
+  for (let pass = 0; pass < 3; pass++) {
+    // (more than once: an alias of an alias)
+    for (let k = 0; k + 3 < t.length; k++) {
+      if (!["const", "let", "var"].includes(t[k].text) || t[k].type !== "ident") continue;
+      if (t[k + 1].type === "ident" && t[k + 2].text === "=") {
+        const name = t[k + 1].text;
+        if (calls.has(t[k + 3].text) && t[k + 4]?.text === "." && t[k + 5]?.text === "extend") {
+          calls.add(name);
+          continue;
+        }
+        // the value up to its end, before a top-level `as` / `satisfies`
+        const end = valueEnd(t, k + 3);
+        let last = end - 1;
+        for (let m = k + 3; m < end; m++) {
+          if (t[m].type === "punct" && OPEN[t[m].text]) {
+            m = closingIndex(t, m);
+            continue;
+          }
+          if (t[m].type === "ident" && (t[m].text === "as" || t[m].text === "satisfies")) {
+            last = m - 1;
+            break;
+          }
+        }
+        if (last < k + 3) continue;
+        const mod = modifierAt(t, last);
+        if (mod) {
+          const root = chainRoot(t, mod.receiverEnd);
+          if (root !== null && calls.has(root)) mods.set(name, mod.name);
+          continue;
+        }
+        const root = chainRoot(t, last);
+        if (root !== null && calls.has(root)) calls.add(name);
+      } else if (t[k + 1].text === "{") {
+        // a destructuring of a test call: `const { skip, only: o, concurrent } = it`
+        const close = closingIndex(t, k + 1);
+        if (t[close + 1]?.text !== "=") continue;
+        const end = valueEnd(t, close + 2);
+        const root = chainRoot(t, end - 1);
+        if (root === null || !calls.has(root)) continue;
+        for (let m = k + 2; m < close; m++) {
+          if (t[m].type !== "ident" || (t[m - 1].text !== "{" && t[m - 1].text !== ",")) continue;
+          const local = t[m + 1]?.text === ":" && t[m + 2]?.type === "ident" ? t[m + 2].text : t[m].text;
+          if (MODIFIERS.has(t[m].text)) mods.set(local, t[m].text as keyof ModifierCounts);
+          else calls.add(local);
+        }
+      }
+    }
+  }
+  return { calls, mods };
+}
+
+/** The test calls of a source (testAliases' `calls`). */
+const testCallNames = (t: readonly Token[]): Set<string> => testAliases(t).calls;
 
 /** The index of the `(` that opens a test call's own arguments: past its modifiers (`it.concurrent.skipIf(c)(…)`, `.each(table)(…)`); -1 when it is not a call. */
 function testCallOpen(t: readonly Token[], k: number): number {
@@ -738,18 +1057,23 @@ const NO_MODIFIERS: ModifierCounts = { only: 0, skip: 0, skipIf: 0, runIf: 0, to
  */
 export function modifierCounts(src: string): ModifierCounts {
   const t = tokenize(src);
-  const calls = testCallNames(t);
+  const { calls, mods } = testAliases(t);
   const ctx = testContexts(t, calls);
   const out: ModifierCounts = { ...NO_MODIFIERS };
   for (let k = 1; k < t.length; k++) {
     const tok = t[k];
-    if (tok.type !== "ident") continue;
-    const dot = t[k - 1].text === "." || t[k - 1].text === "?.";
-    if (dot && MODIFIERS.has(tok.text)) {
-      const name = tok.text as keyof ModifierCounts;
-      if (t[k - 1].text === "." && onTestCall(t, k, calls)) out[name]++;
-      else if (name === "skip" && t[k - 2]?.type === "ident" && ctx.receivers.has(t[k - 2].text) && t[k - 3]?.text !== "." && t[k - 3]?.text !== "?.") out.skip++;
-    } else if (!dot && ctx.bare.has(tok.text) && t[k + 1]?.text === "(" && t[k - 1].text !== "function") out.skip++;
+    // --- ai-guard --- `it.skip`, `it?.skip`, `it["skip"]`, `(it as any).skip`, an alias's `check.skip`
+    const mod = modifierAt(t, k);
+    if (mod) {
+      const root = chainRoot(t, mod.receiverEnd);
+      if (root !== null && calls.has(root)) out[mod.name]++;
+      else if (mod.name === "skip" && t[mod.receiverEnd]?.type === "ident" && ctx.receivers.has(t[mod.receiverEnd].text) && t[mod.receiverEnd - 1]?.text !== "." && t[mod.receiverEnd - 1]?.text !== "?.") out.skip++;
+      continue;
+    }
+    if (tok.type !== "ident" || t[k - 1].text === "." || t[k - 1].text === "?." || t[k - 1].text === "function") continue;
+    // a skip through a test's destructured context, or a modifier's alias called (`const s = it.skip; s("x", …)`)
+    if (ctx.bare.has(tok.text) && t[k + 1]?.text === "(") out.skip++;
+    else if (mods.has(tok.text) && (t[k + 1]?.text === "(" || t[k + 1]?.text === ".")) out[mods.get(tok.text)!]++;
   }
   return out;
 }
@@ -969,14 +1293,24 @@ export function weakeningFindings(
     const v = files.get(file)!;
     if (v.base === null) continue;
     const deficit = before.length - after.length;
-    if (v.head !== null && deficit <= 0) continue;
+    const removed = bagMinus(before, after);
+    // (nothing the file had is gone: no expect dropped or rewritten)
+    if (v.head !== null && !removed.length) continue;
     // a deleted helper with no assertion and no test of its own (merged into another helper): nothing weakened
     if (v.head === null && !before.length && !testCallCount(v.base)) continue;
-    const removed = bagMinus(before, after);
     const trial = new Map(pool);
-    const matched = take(trial, removed, Math.max(0, deficit));
+    // every statement the file lost that the change added to a file that still runs: moved, not lost
+    const unmatched = takeEach(trial, removed);
+    const matched = removed.length - unmatched.length;
     const kept = matched >= deficit;
-    if (kept) pool = trial;
+    // --- ai-guard --- of the rest, those the count does not miss were rewritten in place (`expect(f(x)).toBe(1)` →
+    // `expect(1).toBe(1)`): the file lost them and gained others (a deleted file gains none)
+    const rewritten = unmatched.length - Math.max(0, deficit - matched);
+    if (kept && !rewritten) pool = trial;
+    if (rewritten > 0) {
+      const gone = unmatched.slice(0, 2).map((s) => clip(s, 100));
+      add("expect-changed", file, `${rewritten} expect statement${rewritten === 1 ? "" : "s"} rewritten in place (the count holds, the assertion does not; added to no other test file of the change that still runs): ${gone.join(" | ")}${unmatched.length > 2 ? " …" : ""}`);
+    }
     if (v.head === null) {
       // a deleted file moved when its every expect is in a file that still runs (one without any: when such a file holds its
       // very source – a new one by itself, or an existing one it was merged into)
@@ -1044,12 +1378,22 @@ export function weakeningFindings(
     const v = files.get(list.file);
     // (a new file brings a new guard with its exceptions: nothing was widened)
     if (!v || !changed.includes(list.file) || v.head === null || v.base === null) continue;
-    const a = arrayElements(extractConst(v.base, list.const) ?? []);
-    const b = arrayElements(extractConst(v.head, list.const) ?? []);
+    const a = listItems(extractConst(v.base, list.const) ?? []);
+    const b = listItems(extractConst(v.head, list.const) ?? []);
     const added = b.filter((e) => !a.includes(e));
     if (added.length) add("allow-list-widened", list.file, `${list.const}: ${added.length} new entr${added.length === 1 ? "y" : "ies"} – ${added.map((e) => e.slice(0, 120)).join(" | ")}`);
+    // --- ai-guard --- the code outside the literal that mentions the list: a push after it, a decoy declaration, an alias, a
+    // changed check that reads it (one only removed narrows nothing)
+    const uses = usesDiff(constUses(v.base, list.const), constUses(v.head, list.const));
+    if (uses.added.length) add("allow-list-widened", list.file, `${list.const}: code outside the literal that mentions it changed – ${uses.added.slice(0, 3).map((s) => clip(s)).join(" | ")}`);
   }
   return out;
+}
+
+/** An allow list's entries: an array's elements, or an object's `key: value` entries (`SIZES_NOTHING`). */
+function listItems(tokens: readonly Token[]): string[] {
+  if (tokens[0]?.text === "{") return [...objectEntries(tokens)].map(([k, v]) => `${k}: ${v}`);
+  return arrayElements(tokens);
 }
 
 /**
@@ -1066,6 +1410,44 @@ export function coreTestFindings(input: { baseCore: readonly string[]; core: rea
     const reasons = testAck(file, input.trailers);
     const detail = moved?.target ? `a core test moved to ${moved.target}, which is not on the core list: tier 0 no longer runs it` : "a core test of the base commit is gone: tier 0 no longer runs it";
     out.push({ kind: "core-test-dropped", file, detail, acknowledged: reasons.length > 0, reasons });
+  }
+  return out;
+}
+
+/** A test file's counts in one run of vitest (its JSON report): every test, and those skipped or left to do. */
+export interface RuntimeCounts {
+  tests: number;
+  skipped: number;
+  todo: number;
+}
+
+/**
+ * --- ai-guard --- The skips the tests' run shows that the source does not: for each changed test file the run executed,
+ *  - against the baseline's counts of the same file (`base`: a baseline recorded on the base commit, in the guard's
+ *    environment), more tests skipped or left to do than there;
+ *  - without them, tests skipped or left to do while the file's source has no modifier the static detector reads (`.skip`,
+ *    `.skipIf`, `.runIf`, `.todo`, a context's skip): a skip it cannot see (a computed member, an alias it does not follow).
+ * Each is a `skip-runtime` finding, acknowledged by a `Test-Change:` trailer that names the file.
+ */
+export function runtimeSkipFindings(input: { changed: readonly string[]; tests: readonly string[]; now: ReadonlyMap<string, RuntimeCounts>; base: ReadonlyMap<string, RuntimeCounts> | null; heads: ReadonlyMap<string, string | null>; trailers: ReadonlyMap<string, string[]> }): WeakeningFinding[] {
+  const out: WeakeningFinding[] = [];
+  for (const file of input.changed) {
+    const now = input.now.get(file);
+    if (!now || !matchesAny(file, input.tests)) continue;
+    const idle = now.skipped + now.todo;
+    const was = input.base?.get(file);
+    let detail: string | null = null;
+    if (was) {
+      const before = was.skipped + was.todo;
+      if (idle > before) detail = `skipped or todo tests at run time ${before} → ${idle} of ${now.tests} (against the baseline of the base commit)`;
+    } else if (idle > 0) {
+      const head = input.heads.get(file) ?? null;
+      const m = head === null ? NO_MODIFIERS : modifierCounts(head);
+      if (m.skip + m.skipIf + m.runIf + m.todo === 0) detail = `${idle} of ${now.tests} tests skipped or todo at run time, and the source has no skip the detector reads (no baseline of the base commit to compare with)`;
+    }
+    if (detail === null) continue;
+    const reasons = testAck(file, input.trailers);
+    out.push({ kind: "skip-runtime", file, detail, acknowledged: reasons.length > 0, reasons });
   }
   return out;
 }

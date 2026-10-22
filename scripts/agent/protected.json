@@ -89,6 +89,10 @@
     {
       "glob": "scripts/smoke/verdict.mjs",
       "why": "how the smoke suite decides pass or fail"
+    },
+    {
+      "glob": "scripts/smoke/shards.mjs",
+      "why": "which smoke blocks exist and which shard runs each (the guard's tier-1 list and CI's four shards)"
     }
   ],
   "regions": [
@@ -96,6 +100,11 @@
       "file": "tests/uncap.test.ts",
       "const": "ALLOWED",
       "why": "the uncap guard's exceptions: places a slider maximum may still bound a value"
+    },
+    {
+      "file": "tests/uncap.test.ts",
+      "const": "SIZES_NOTHING",
+      "why": "the step-1 settings that size no allocation: one listed here has no memory ceiling"
     },
     {
       "file": "src/lib/uncap.ts",
@@ -273,6 +282,11 @@
         "file": "tests/uncap.test.ts",
         "const": "ALLOWED",
         "why": "a new entry lets a slider maximum bound a user's number again"
+      },
+      {
+        "file": "tests/uncap.test.ts",
+        "const": "SIZES_NOTHING",
+        "why": "a new entry takes a whole-number setting out of MEMORY_CEILINGS: no ceiling on what it allocates"
       },
       {
         "file": "tests/physicsPurity.test.ts",

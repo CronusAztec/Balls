@@ -8,6 +8,7 @@ import {
   arrayElements,
   checkNames,
   configTimeouts,
+  constUses,
   coreTestFindings,
   countChecks,
   countExpects,
@@ -21,6 +22,7 @@ import {
   objectEntries,
   parseTrailers,
   protectedFindings,
+  runtimeSkipFindings,
   testTimeouts,
   tokenize,
   weakeningFindings,
@@ -321,8 +323,8 @@ describe("thing", () => {
     // the same with the 3 new expects in another existing test
     const other = weakeningFindings(W, ["tests/other.test.ts", "tests/thing.test.ts"], files({ "tests/thing.test.ts": [TEST, existing], "tests/other.test.ts": ["expect(1);", `expect(1);\n${fresh}`] }), none);
     expect(other.map((f) => `${f.kind} ${f.file}`)).toEqual(["expect-drop tests/thing.test.ts"]);
-    // an expect whose expected value changed is not a dropped one
-    expect(weak(TEST.replace("expect(4).toBe(4)", "expect(4).toBe(5)"))).toEqual([]);
+    // an expect whose expected value changed is not a dropped one: it was rewritten in place (round three: expect-changed)
+    expect(weak(TEST.replace("expect(4).toBe(4)", "expect(4).toBe(5)")).map((f) => f.kind)).toEqual(["expect-changed"]);
     // the removed statement copied into a new file: moved, not dropped
     const movedOut = weakeningFindings(W, ["tests/new.test.ts", "tests/thing.test.ts"], files({ "tests/thing.test.ts": [TEST, existing], "tests/new.test.ts": [null, `${fresh}expect.soft(2 + 2).toBe(4);\n`] }), none);
     expect(movedOut).toEqual([]);
@@ -428,7 +430,8 @@ describe("the test-weakening detector, round two (--- ai-guard ---)", () => {
     expect(find({ "tests/freeWatermark.test.ts": [gate, gate.replace('describe("the gate"', 'describe.runIf(ok)("the gate"')] }, ack)).toEqual(["runIf-added tests/freeWatermark.test.ts (acknowledged)"]);
     // a property or a method of that name is not a modifier; one the base already had is no change
     expect(modifierCounts("expect(result.fails).toBe(0); job.runIf(x); const f = it.fails; describe.runIf(a)('x', f);")).toMatchObject({ runIf: 1, fails: 1 });
-    expect(find({ "tests/a.test.ts": [gate.replace("  it(", "  it.runIf(ok)("), gate.replace("  it(", "  it.runIf(ok)(").replace("0.04", "0.045")] })).toEqual([]);
+    // (the bound edited beside it is an expect rewritten in place, not a new .runIf)
+    expect(find({ "tests/a.test.ts": [gate.replace("  it(", "  it.runIf(ok)("), gate.replace("  it(", "  it.runIf(ok)(").replace("0.04", "0.045")] })).toEqual(["expect-changed tests/a.test.ts"]);
   });
 
   it("counts .skip on a test call or through a test's context, never a method named skip", () => {
@@ -513,5 +516,137 @@ describe("the test-weakening detector, round two (--- ai-guard ---)", () => {
     expect(weakeningFindings(W, own, files(Object.fromEntries(own.map((f) => [f, [read(f), read(f)]]))), none)).toEqual([]);
     // the real uncap test's file-wide timeout is read
     expect(testTimeouts(read("tests/uncap.test.ts")).get("vi.setConfig testTimeout")).toBe(120000);
+  });
+});
+
+describe("the static checks, round three (--- ai-guard ---)", () => {
+  const W = PROTECTED.weakening;
+  const find = (entries: Record<string, [string | null, string | null]>, trailers = none) =>
+    weakeningFindings(W, Object.keys(entries), files(entries), trailers).map((f) => `${f.kind} ${f.file}${f.acknowledged ? " (acknowledged)" : ""}`);
+  const READS = `${BASELINE_SRC}it("plays every mode as pinned", () => {\n  for (const mode of MODES) expect(fingerprint(run(mode)), mode).toEqual(BASELINE[mode]);\n});\n`;
+  const CONVEYOR = "BASELINE.conveyor = { samples: [[389752, 290821]], broken: [], walls: [] };\n";
+
+  it("fails a write to a locked literal after its initializer, an Object.assign, a cast and a push, and a decoy declaration", () => {
+    const outside = (head: string, trailers = none) => fingerprintChanges(LOCK, files({ "tests/extras.test.ts": [READS, head] }), trailers).map((c) => `${c.mode} ${c.kind} ${c.acknowledged} ${c.where}`);
+    expect(outside(READS)).toEqual([]);
+    expect(outside(`${READS}${CONVEYOR}`)).toEqual(["BASELINE changed false BASELINE (outside the literal)"]);
+    expect(outside(`${READS}Object.assign(BASELINE, { drop: { samples: [], broken: [], walls: [] } });\n`)).toEqual(["BASELINE changed false BASELINE (outside the literal)"]);
+    expect(outside(`${READS}(BASELINE as unknown as Record<string, unknown>)["classic"] = {};\n`)).toEqual(["BASELINE changed false BASELINE (outside the literal)"]);
+    // an earlier copy of the literal is read first; the real one, edited, is code outside it
+    const decoy = `function unused() {\n${BASELINE_SRC.slice(BASELINE_SRC.indexOf("const BASELINE"), BASELINE_SRC.indexOf("const OTHER"))}}\n${READS.replace("468595", "468596")}`;
+    expect(outside(decoy)).toEqual(["BASELINE changed false BASELINE (outside the literal)"]);
+    // a comparison changed so it no longer compares
+    expect(outside(READS.replace("toEqual(BASELINE[mode])", "toEqual(BASELINE[mode] ?? fingerprint(run(mode)))"))).toEqual(["BASELINE changed false BASELINE (outside the literal)"]);
+    // comments, whitespace and moving a read do not count; the trailer names the const
+    expect(outside(READS.replace("  for (const mode of MODES)", "  // every mode\n  for (const mode of MODES)\n   "))).toEqual([]);
+    expect(outside(`${READS}${CONVEYOR}`, parseTrailers(["Fingerprint-Change: BASELINE - conveyor's belt is faster"], "Fingerprint-Change"))).toEqual(["BASELINE changed true BASELINE (outside the literal)"]);
+    // the detail says what changed
+    const [c] = fingerprintChanges(LOCK, files({ "tests/extras.test.ts": [READS, `${READS}${CONVEYOR}`] }), none);
+    expect(c.detail).toMatch(/^code outside the literal that mentions BASELINE: \+ BASELINE \. conveyor = /);
+    // the code after the brackets is part of the value
+    expect(outside(READS.replace("};\nconst OTHER", "} && ({} as typeof BASELINE);\nconst OTHER")).map((x) => x.split(" ")[0])).toContain("BASELINE");
+  });
+
+  it("finds the same on the real tree: tests/extras.test.ts with one line after BASELINE, physicsPurity's ALLOWED with a push", () => {
+    const extras = read("tests/extras.test.ts");
+    const changes = fingerprintChanges(PROTECTED.fingerprints, files({ "tests/extras.test.ts": [extras, `${extras}\n${CONVEYOR}`] }), none);
+    expect(changes.map((x) => `${x.mode} ${x.kind} ${x.acknowledged}`)).toEqual(["BASELINE changed false"]);
+    const purity = read("tests/physicsPurity.test.ts");
+    const pushed = purity.replace(/\n(const isAllowed)/, '\n(ALLOWED as { file: string; snippet: string; why: string }[]).push({ file: "src/lib/physics/modes/box.ts", snippet: "sparkle: Math.random()", why: "x" });\n$1');
+    expect(pushed).not.toBe(purity);
+    expect(find({ "tests/physicsPurity.test.ts": [purity, pushed] })).toEqual(["allow-list-widened tests/physicsPurity.test.ts"]);
+    expect(protectedFindings(PROTECTED, ["tests/physicsPurity.test.ts"], files({ "tests/physicsPurity.test.ts": [purity, pushed] })).map((f) => f.rule)).toEqual(["ALLOWED"]);
+    // the real files compared with themselves: nothing
+    for (const l of PROTECTED.fingerprints.filter((x) => x.const && fs.existsSync(path.join(ROOT, x.file)))) {
+      const src = read(l.file);
+      expect(fingerprintChanges([l], files({ [l.file]: [src, src] }), none), l.file).toEqual([]);
+      expect(constUses(src, l.const!).length, `${l.file} ${l.const}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("reads a pinned table row by row: an added row passes, a changed, reordered or removed one fails", () => {
+    const hoops = read("tests/hoops.test.ts");
+    const lastRow = '      [{}, 30, 7, { state: 1509423324, balls: 723169975, sounds: 2003062712, counts: "8,8,17,1,0", order: "" }],\n';
+    expect(hoops).toContain(lastRow);
+    const lock = (head: string) => fingerprintChanges(PROTECTED.fingerprints, files({ "tests/hoops.test.ts": [hoops, head] }), none).map((c) => `${c.mode} ${c.kind} ${c.acknowledged}`);
+    expect(lock(hoops.replace(lastRow, `${lastRow}${lastRow.replace("30, 7,", "30, 9,").replace("1509423324", "123")}`))).toEqual(["hoops added true"]);
+    expect(lock(hoops.replace(lastRow, lastRow.replace("1509423324", "1509423325")))).toEqual(["hoops changed false"]);
+    expect(lock(hoops.replace(lastRow, ""))).toEqual(["hoops removed false"]);
+    const value = (base: string, head: string) => fingerprintChanges([{ file: "a.test.ts", kind: "value", const: "PIN", mode: "m" }], files({ "a.test.ts": [base, head] }), none).map((c) => `${c.kind} ${c.acknowledged}`);
+    expect(value("const PIN = [[1, 2], [3, 4]];", "const PIN = [[3, 4], [1, 2]];")).toEqual(["changed false"]); // a sequence's order counts
+    expect(value("const PIN = [[1, 2], [3, 4]];", "const PIN = [[0, 0], [1, 2], [3, 4]];")).toEqual(["added true"]);
+    expect(value("const PIN = [[1, 2], [3, 4]];", "const PIN = [[1, 2], [3, 4]].slice(0, 0);")).toEqual(["changed false"]);
+    expect(value("const PIN = { 7: 'a', 42: 'b' };", "const PIN = { 7: 'a', 42: 'b', 99: 'c' };")).toEqual(["added true"]);
+    expect(value("const PIN = { 7: 'a', 42: 'b' };", "const PIN = { 7: 'a', 42: 'c' };")).toEqual(["changed false"]);
+  });
+
+  it("counts a skip through bracket access, an alias of it, a cast and a destructured modifier", () => {
+    expect(modifierCounts('it["skip"]("a", f); it[\'only\']("b", f); it[`todo`]("c"); describe.concurrent["skip"]("d", f);')).toMatchObject({ skip: 2, only: 1, todo: 1 });
+    expect(modifierCounts('const check = it;\ncheck.skip("a", f);')).toMatchObject({ skip: 1 });
+    expect(modifierCounts('const t = (it as any);\nt.only("a", f);\n(test as unknown as typeof it).skip("b", f);')).toMatchObject({ only: 1, skip: 1 });
+    expect(modifierCounts('const { skip } = it;\nskip("a", f);\nconst { only: focus } = test;\nfocus("b", f);')).toMatchObject({ skip: 1, only: 1 });
+    expect(modifierCounts('const s = it.skip;\ns("a", f);\ns("b", f);')).toMatchObject({ skip: 3 });
+    expect(modifierCounts('const c = it.concurrent;\nc.skip("a", f);')).toMatchObject({ skip: 1 });
+    // a string or a property that is no test call's: nothing
+    expect(modifierCounts('const keys = ["skip", "only"];\nopts["only"] = true;\nconst { skip } = queue;\nskip("q1");\nfoo(it)["skip"];')).toEqual({ only: 0, skip: 0, skipIf: 0, runIf: 0, todo: 0, fails: 0 });
+    // the finding's own case: tests/shareCode.test.ts
+    const share = read("tests/shareCode.test.ts");
+    expect(share).toContain('  it("refuse what is not base64", () => {');
+    expect(find({ "tests/shareCode.test.ts": [share, share.replace('  it("refuse what is not base64"', '  it["skip"]("refuse what is not base64"')] })).toEqual(["skip-added tests/shareCode.test.ts"]);
+    expect(find({ "tests/shareCode.test.ts": [share, share.replace('  it("refuse what is not base64"', '  const check = it;\n  check.skip("refuse what is not base64"')] })).toEqual(["skip-added tests/shareCode.test.ts"]);
+  });
+
+  it("fails an expect rewritten in place, even when the count holds; a move, a reformat or a trailer passes", () => {
+    const wm = read("tests/freeWatermark.test.ts");
+    const rewritten = wm.replace('expect(watermarkDecision(null, now)).toBe("marked")', 'expect("marked").toBe("marked")').replace('expect(watermarkDecision(undefined, now)).toBe("marked")', "expect(true).toBe(true)");
+    expect(rewritten).not.toBe(wm);
+    const found = weakeningFindings(W, ["tests/freeWatermark.test.ts"], files({ "tests/freeWatermark.test.ts": [wm, rewritten] }), none);
+    expect(found.map((f) => `${f.kind} ${f.acknowledged}`)).toEqual(["expect-changed false"]);
+    expect(found[0].detail).toMatch(/^2 expect statements rewritten in place/);
+    expect(found[0].detail).toContain("watermarkDecision ( null , now )");
+    expect(find({ "tests/freeWatermark.test.ts": [wm, rewritten] }, parseTrailers(["Test-Change: tests/freeWatermark.test.ts - the decision moved to the seal"], "Test-Change"))).toEqual(["expect-changed tests/freeWatermark.test.ts (acknowledged)"]);
+    // reformatted, or moved into another test file that runs: nothing
+    expect(find({ "tests/freeWatermark.test.ts": [wm, wm.replace('expect(watermarkDecision(null, now)).toBe("marked")', 'expect(\n      watermarkDecision(null, now),\n    ).toBe("marked")')] })).toEqual([]);
+    const moved = wm.replace('    expect(watermarkDecision(null, now)).toBe("marked");\n', "");
+    expect(find({ "tests/freeWatermark.test.ts": [wm, moved], "tests/sealDecision.test.ts": [null, 'it("x", () => {\n  expect(watermarkDecision(null, now)).toBe("marked");\n});\n'] })).toEqual([]);
+    // a rewrite and a drop in one file: both
+    const both = rewritten.replace("    expect(true).toBe(true);\n", "");
+    expect(find({ "tests/freeWatermark.test.ts": [wm, both] })).toEqual(["expect-changed tests/freeWatermark.test.ts", "expect-drop tests/freeWatermark.test.ts"]);
+  });
+
+  it("reads SIZES_NOTHING's entries as an allow list: a new key widens it", () => {
+    const uncap = read("tests/uncap.test.ts");
+    expect(W.allowLists.map((l) => `${l.file} ${l.const}`)).toContain("tests/uncap.test.ts SIZES_NOTHING");
+    expect(PROTECTED.regions).toContainEqual(expect.objectContaining({ file: "tests/uncap.test.ts", const: "SIZES_NOTHING" }));
+    const widened = uncap.replace('    ballRadius: "a size in px",\n', '    ballRadius: "a size in px",\n    tierBallCount: "a count",\n');
+    expect(widened).not.toBe(uncap);
+    expect(find({ "tests/uncap.test.ts": [uncap, widened] })).toEqual(["allow-list-widened tests/uncap.test.ts"]);
+    expect(protectedFindings(PROTECTED, ["tests/uncap.test.ts"], files({ "tests/uncap.test.ts": [uncap, widened] })).map((f) => f.rule)).toEqual(["SIZES_NOTHING"]);
+    expect(find({ "tests/uncap.test.ts": [uncap, widened.replace('    tierBallCount: "a count",\n', "")] })).toEqual([]);
+  });
+
+  it("flags a skip the run shows and the source does not, against the baseline's counts or without them", () => {
+    const changed = ["tests/shareCode.test.ts", "tests/other.test.ts", "src/lib/a.ts"];
+    const plain = 'it("a", () => {\n  expect(1).toBe(1);\n});\n';
+    const skipping = 'it.skipIf(!ok)("a", () => {\n  expect(1).toBe(1);\n});\n';
+    const run = (now: Record<string, [number, number]>, base: Record<string, [number, number]> | null, heads: Record<string, string>, trailers = none) =>
+      runtimeSkipFindings({
+        changed,
+        tests: W.tests,
+        now: new Map(Object.entries(now).map(([f, [tests, skipped]]) => [f, { tests, skipped, todo: 0 }])),
+        base: base && new Map(Object.entries(base).map(([f, [tests, skipped]]) => [f, { tests, skipped, todo: 0 }])),
+        heads: new Map(Object.entries(heads)),
+        trailers,
+      }).map((f) => `${f.kind} ${f.file} ${f.acknowledged}`);
+    // against the baseline: a rise fails, the same count passes
+    expect(run({ "tests/shareCode.test.ts": [11, 1] }, { "tests/shareCode.test.ts": [11, 0] }, { "tests/shareCode.test.ts": plain })).toEqual(["skip-runtime tests/shareCode.test.ts false"]);
+    expect(run({ "tests/shareCode.test.ts": [11, 1] }, { "tests/shareCode.test.ts": [11, 1] }, { "tests/shareCode.test.ts": plain })).toEqual([]);
+    // without one: a skip the source cannot explain fails, one a modifier explains passes
+    expect(run({ "tests/shareCode.test.ts": [11, 1] }, null, { "tests/shareCode.test.ts": plain })).toEqual(["skip-runtime tests/shareCode.test.ts false"]);
+    expect(run({ "tests/shareCode.test.ts": [11, 1] }, null, { "tests/shareCode.test.ts": skipping })).toEqual([]);
+    expect(run({ "tests/shareCode.test.ts": [11, 0] }, null, { "tests/shareCode.test.ts": plain })).toEqual([]);
+    // a file the change did not touch, or did not run: nothing; a trailer acknowledges
+    expect(run({ "tests/untouched.test.ts": [3, 3] }, null, {})).toEqual([]);
+    expect(run({ "tests/shareCode.test.ts": [11, 1] }, null, { "tests/shareCode.test.ts": plain }, parseTrailers(["Test-Change: tests/shareCode.test.ts - parked until the codec lands"], "Test-Change"))).toEqual(["skip-runtime tests/shareCode.test.ts true"]);
   });
 });
