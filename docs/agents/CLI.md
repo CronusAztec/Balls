@@ -40,11 +40,18 @@ page can play differently here. `preview` and `render` run in the page and use i
 
 ## The rules every tool keeps
 
-- **It writes only under `.agent-out/`.** That folder holds its own `.gitignore` (`*`), so nothing a tool writes ever shows in
-  `git status`. The bundled toolbox and the local export live in the agent cache outside the repository:
-  `JBL_AGENT_CACHE`, else `<OS temp>/jbl-agent-<hash>`.
+- **It writes its results only under `.agent-out/`.** That folder holds its own `.gitignore` (`*`), so nothing a tool
+  writes ever shows in `git status`. Every file is written under a fresh name and renamed into place, so a symbolic link at
+  the target (a checkout can carry one) is replaced, never written through, and a linked `.agent-out` is refused.
+- **Its caches live elsewhere.** The bundled toolbox and the local export are in the agent cache outside the repository:
+  `JBL_AGENT_CACHE`, else `<OS temp>/jbl-agent-<user>-<hash>`. The CLI runs code from it, so it is private: created 0700,
+  and refused when it is a link, belongs to another user or others may write to it. The `guard` tool's state is the
+  guard's own (`node_modules/.cache/jbl-guard`), and with `browser` the guard rebuilds the repository's `.next/` and `out/`.
 - **Every path argument must resolve inside the repository**, symbolic links included. URLs (`http:`, `https:`, `data:`,
-  `file:`…) are refused, never opened. To analyse a file from elsewhere, copy it to `.agent-out/inbox/` first.
+  `file:`…) are refused, never opened. To analyse a file from elsewhere, copy it to `.agent-out/inbox/` first. `explain`
+  reads only test files inside `tests/`.
+- **Arguments match their schema exactly.** An unknown field is refused, a field named after a JavaScript built-in such as
+  `constructor` or `__proto__` too. `--json -` reads the arguments from stdin, at any length.
 - **No shell.** Child processes (ffmpeg, git, next, the guard) get argument arrays.
 - **No network** except the CLI's own static server on 127.0.0.1 for the browser tools. The browser is fenced to that
   server: every other request is aborted and reported as `blockedRequests`, and service workers are blocked. The two
@@ -90,11 +97,17 @@ TikTok, Instagram or YouTube, and no agent may do that with it.
 
 `guard` runs the core guard, `scripts/agent/guard.mjs`, through `package.json`'s `guard` script (a plain `node <file>`
 command, so no shell and no npm in between). Its arguments map onto the guard's flags: `browser` (`--browser`),
-`baseline` (`--baseline`), `plan` (`--plan`: the static checks alone, in about a second), `withSlow` (`--with-slow`) and
-`base` (`--base <ref>`). It returns the exit code (0 green, 1 failed, 2 green but a higher tier is required), the
-guard's own report (`.agent-out/guard-report.json`) and the end of its output. In the guard, a protected-path change is
-reported for the owner's review, and only a fingerprint change without a `Fingerprint-Change: <mode> - <reason>` commit
-trailer fails it. AGENTS.md has the order to run it in.
+`baseline` (`--baseline`, CLI only), `plan` (`--plan`: the static checks alone, in about a second), `withSlow`
+(`--with-slow`) and `base` (`--base <ref>`). It returns the exit code (0 green, 1 failed, 2 green but a higher tier is
+required), the guard's own report (`.agent-out/guard-report.json`) and the end of its output. A verdict that is green only
+because the baseline excused failures says so.
+
+In the guard, a protected-path change is only reported, for the owner's review. Of the static checks, the fingerprint lock
+(a changed fingerprint without a `Fingerprint-Change: <mode> - <reason>` commit trailer) and the test-weakening detector (a
+finding without `Test-Change: <file or glob> - <reason>`; an added `.only` always) fail it. Both read their rules from
+`protected.json` at the base commit and in the working tree, so a change cannot switch off the check it would fail. A
+baseline is refused on a changed tree, and used only by a run measured from its commit or a later one. AGENTS.md has the
+order to run it in.
 
 `explain` measures which source files a failing test reads as text (16 tests read `Simulator.tsx`, `Canvas.tsx` or
 `Controls.tsx`). A text assertion in such a test is a source pin: keep the pinned contract in the source. Never re-record a
@@ -123,18 +136,25 @@ The keys never appear in any output.
 `scripts/agent/mcp.mjs` is a hand-written MCP server: JSON-RPC 2.0 over stdio, one message per line, with no SDK and no new
 dependency. It implements `initialize`, `ping`, `tools/list` and `tools/call`, plus the `initialized` and `cancelled`
 notifications. `.mcp.json` registers it for Claude Code as `jumpingballs-agent`, and Claude Code asks each user to approve
-a project server before it starts. Run it by hand with `npm run agent:mcp`.
+a project server before it starts. Its entry is a one-line launcher that walks up from the session's folder to the
+repository, so a session opened in `desktop/` starts it too. Run it by hand with `npm run agent:mcp`.
 
-It offers the CLI's tools with their JSON Schemas, but not the owner-run commands. A call runs the CLI itself as a child
-process, so a result is exactly the CLI's and every rule above holds. There is no exec, shell or file-write tool. A result
-is at most 200 KB of text, and pictures and clips come back as repository paths.
+It offers the CLI's tools with their JSON Schemas, but not the owner-run commands and not the guard's `baseline`, which is
+CLI only. A call is checked against the schema first, then runs the CLI itself as a child process with the arguments on
+its stdin, so a result is exactly the CLI's, a long `explain` fits, and every rule above holds. The child runs in a process
+group of its own: a cancelled or timed-out call, or a stopped server, ends it with everything it started (the guard's
+lanes and vitest workers, `next build`, ffmpeg). There is no exec, shell or file-write tool. A result is at most 200 KB of
+text, and pictures and clips come back as repository paths.
 
-## Decisions for this batch
+## Decisions for the agent platform (October 2026: the guard, the toolbox, the guide)
 
 - The MCP server is a small hand-written stdio wrapper with no new npm dependency, registered in a project `.mcp.json`. It
-  exposes only the CLI's tools: no arbitrary shell, no writes outside the repository, and no network except what a tool
-  needs and documents.
-- The guard reports protected-path changes, and only a fingerprint change without a `Fingerprint-Change:` trailer fails it.
-- The VPS deployer's gating and the deploy job are unchanged.
-- Nothing visitors see changed, and there is no version bump. The page's bot handle gained `renderLink` (version 2) for
+  exposes only the CLI's tools: no arbitrary shell, and no network except what a tool needs and documents. Results go to
+  `.agent-out/`; the caches are the ones listed above (owner review: the decision first said "no writes outside the
+  repository", which the temp-folder cache and the browser tier never met).
+- The guard only reports protected-path changes. Of its static checks, the fingerprint lock (without its
+  `Fingerprint-Change:` trailer) and the test-weakening detector (without `Test-Change:`; an added `.only` always) fail it.
+- The VPS deployer's gating and the deploy job are unchanged; the guard's static checks run in the build job as
+  annotations only.
+- That batch changed nothing visitors see and bumped no version. The page's bot handle gained `renderLink` (version 2) for
   `render`, and the batch renderer now hands back each clip's render result.

@@ -22,8 +22,8 @@ trust it over the source.
 
 | Command | What it does |
 | --- | --- |
-| `npm run guard` | The core guard, tier 0: type check, lint, the core tests and the tests your change touches, plus the static checks. No build. Exit 0 green, 1 failed, 2 green but a higher tier is required. About a minute warm, 3 minutes cold |
-| `npm run guard -- --baseline` | Tier 0 on the untouched tree: records the failures that already exist, so later runs mark them pre-existing |
+| `npm run guard` | The core guard, tier 0: type check, lint, the core tests and the tests your change touches, plus the static checks. No build. Exit 0 green, 1 failed, 2 green but a higher tier is required. On 4 CPUs: about 40 s warm with nothing changed, under a minute warm with a full set of related tests or after a one-file edit, under 3 minutes cold |
+| `npm run guard -- --baseline` | Tier 0 on the untouched tree (refused on a tree with any change): records the failures that already exist, so later runs measured from that commit mark them pre-existing |
 | `npm run guard -- --plan` | What would run, plus the static checks' findings, in about a second. Nothing runs |
 | `npm run guard:browser` | Tier 1: tier 0, then a `/smoke` build, the export served on port 3101 and the core smoke blocks plus your change's |
 | `npm run typecheck`, `npm run lint` | `tsc --noEmit` and ESLint for the site (`scripts/`, `desktop/` and `billing/` are outside both) |
@@ -39,7 +39,9 @@ zone together with the core functions it touches (`zones`).
 
 ## The verification protocol
 
-1. Run `npm run guard -- --baseline` on the untouched tree.
+1. Run `npm run guard -- --baseline` on the untouched tree. It records the failures of that commit, and a later run uses it
+   only when it measures from that commit or a later one: a baseline recorded after the base would excuse your own
+   failures. On a branch already ahead of `origin/main`, measure from where you started with `--base <that commit>`.
 2. Make the change.
 3. Run `npm run guard` until it exits 0. If it exits 2, run what `required` lists.
 4. Run `npm run guard:browser` when you touched page, canvas, recording, export or desktop page code. It adds the smoke
@@ -86,7 +88,8 @@ Every changed file lands in one zone, listed in the guard report and defined in 
 - **guarded**: a hub file (`hubFiles` in `core.json`, for example `src/lib/physics/engine.ts`, `src/lib/settings.ts`,
   `src/components/simulator/Canvas.tsx` and `messages/*.json`). Most of the suite imports these, so a change needs tier 2.
 - **protected**: a path or region in `scripts/agent/protected.json`. It needs owner review. The guard reports it as a
-  warning (an annotation in CI) and never fails on it. Say so when you hand the change over.
+  warning, and as a GitHub annotation on every push (the build job of `deploy.yml` runs the guard's static checks), and
+  never fails on it. Name every protected path when you hand the change over.
 
 ## Invariants
 
@@ -108,9 +111,11 @@ Every changed file lands in one zone, listed in the guard report and defined in 
 
 1. **Data first.** Try the data-driven blocks a mode already reads: bounce math, obstacles, timeline keyframes, captions
    and teams, set through settings, links and presets. The app's AI makes a "custom mode" the same way: a base mode plus a
-   settings patch (`src/lib/desktop/ai/customMode.ts`). Once the Blueprint mode of phase P4 lands, a new mechanic is a
-   Blueprint: data run by one sandboxed interpreter.
-2. **A gap in the vocabulary.** Add one trigger or action, with a conformance scenario, rather than a mode (from P4).
+   settings patch (`src/lib/desktop/ai/customMode.ts`).
+2. **A Blueprint.** Not available yet: this repository has no Blueprint mode and no vocabulary of triggers and actions
+   (there is no src/lib/blueprint folder). Until one exists, go from 1 to 3. Once it lands, a new mechanic is a Blueprint
+   (data run by one sandboxed interpreter), and a gap in its vocabulary gets one trigger or action with a conformance
+   scenario.
 3. **Only then a coded mode.** Follow `docs/agents/MODES.md` exactly: it lists every registration point, with its file, its
    symbol and whether a type, a test or nothing catches it when it is missed.
 
@@ -121,6 +126,7 @@ Every changed file lands in one zone, listed in the guard report and defined in 
 - Never widen an allow list: the uncap `ALLOWED`, the physics-purity `ALLOWED` or the i18n `KNOWN` list.
 - Never relax a budget or raise a timeout, delete an `expect(`, or add `.skip`, `.skipIf`, `.todo` or `.only`. A legitimate
   test edit that the weakening detector flags needs `Test-Change: <file or glob> - <reason>`. An added `.only` always fails.
+  Moving, renaming or splitting a test file is no finding, as long as its very `expect(` statements reappear.
 - Never use the TEST licence (`tests/fixtures/license-test-key.json`, `scripts/lib/test-license.mjs`) outside the unit tests
   and the smoke harness. No tool may produce an unwatermarked clip.
 - Never fetch, download, scrape or screen-capture other creators' videos from TikTok, Instagram or YouTube.
@@ -147,17 +153,21 @@ failed) or 2 (a usage error). `npm run -s agent -- --help` lists every tool with
 | `site-stats` | Owner-run only: aggregate numbers from the owner's own Plausible or Umami |
 | `postiz-probe` | Owner-run only: which analytics series the owner's Postiz returns |
 
-Every tool writes only under `.agent-out/`, refuses paths outside the repository and URLs, starts no shell, and uses no
-network except its own 127.0.0.1 server. The two owner-run tools call only the owner's own host, with the owner's key.
+Every tool writes its results only under `.agent-out/`, refuses paths outside the repository and URLs, starts no shell, and
+uses no network except its own 127.0.0.1 server. The two owner-run tools call only the owner's own host, with the owner's
+key. The caches live elsewhere: the toolbox's bundle and local export in a private folder of the OS temp directory
+(`JBL_AGENT_CACHE` overrides), the guard's state in `node_modules/.cache/jbl-guard`, and `guard` with `browser` rebuilds the
+repository's `.next/` and `out/`.
 
 **MCP.** The MCP server exposes 9 tools: `modes`, `simulate`, `fingerprint`, `preview`, `render`, `site-shot`, `analyse`,
 `guard` and `explain`, each with its JSON Schema. It does not offer the owner-run tools. It is `scripts/agent/mcp.mjs`, a
 hand-written JSON-RPC 2.0 server over stdio with no SDK and no new dependency. A call runs the CLI as a child process, so the
 result is exactly the CLI's and every rule above holds. There is no exec, shell or file-write tool, and a result is at most
-200 KB.
+200 KB. The guard's `baseline` is CLI-only, and a cancelled or timed-out call stops everything it started.
 
-- **Claude Code:** the project's `.mcp.json` registers the server as `jumpingballs-agent`. Claude Code asks you to approve a
-  project server the first time. Approve it, or run `/mcp` to see its state.
+- **Claude Code:** the project's `.mcp.json` registers the server as `jumpingballs-agent`, with a launcher that finds the
+  repository from any folder of it (a session opened in `desktop/` too). Claude Code asks you to approve a project server
+  the first time. Approve it, or run `/mcp` to see its state.
 - **Another MCP client:** start `node scripts/agent/mcp.mjs` with the repository root as the working folder, over stdio.
   `npm run agent:mcp` does the same by hand.
 - **No MCP:** any agent with a shell uses the CLI directly. It is the primary interface.
@@ -173,15 +183,18 @@ result is exactly the CLI's and every rule above holds. There is no exec, shell 
 - Keep the guide true. A renamed script, file, smoke block or tool fails `tests/agentDocs.test.ts` until this file,
   `CLAUDE.md` and `docs/agents/` follow.
 
-## Decisions the owner made for this batch
+## Decisions the owner made for the agent platform (October 2026: the guard, the toolbox, this guide)
 
 - The MCP server is a small hand-written stdio wrapper with no new npm dependency, registered in a project `.mcp.json`. It
-  exposes only the CLI's tools: no arbitrary shell, no writes outside the repository, and no network except what a tool
-  needs and documents.
-- Protected-path changes are reported (a warning, an annotation in CI). Only a fingerprint change without its
-  `Fingerprint-Change:` trailer fails the guard.
-- The VPS deployer's gating and the deploy job are unchanged.
-- Nothing visitors see changed, and there is no version bump.
+  exposes only the CLI's tools: no arbitrary shell, and no network except what a tool needs and documents. Its results go
+  to `.agent-out/`; its caches are the ones named above (owner review: the decision first said "no writes outside the
+  repository", which the toolbox's temp-folder cache and the browser tier's `.next/` and `out/` never met).
+- A protected-path change is only reported, never a failure: a warning in the guard's output and report, and an annotation
+  on every push. Of the static checks, the fingerprint lock (a change without its `Fingerprint-Change:` trailer) and the
+  test-weakening detector (a finding without `Test-Change:`; an added `.only` always) fail the guard.
+- The guard's static checks run in CI as annotations only (`continue-on-error`): they block no build and no deploy. Making
+  them a gate is the owner's call. The VPS deployer's gating and the deploy job are unchanged.
+- That batch changed nothing visitors see and bumped no version.
 
 ## Read next
 

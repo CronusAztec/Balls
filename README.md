@@ -351,10 +351,10 @@ another): the changed files are `git diff --name-only <base>` plus untracked fil
 
 | Command | What runs |
 | --- | --- |
-| `npm run guard` | **tier 0**, no build, three lanes at once – A: `tsc --noEmit --incremental` (90 s cold, about 6 s warm); B: ESLint with its cache, `node --check` on `scripts/**/*.mjs`, `relay/*.mjs` and `worker/*.mjs`, the desktop app's type check and tests, the billing Worker's; C: one vitest run (three workers, `--allowOnly=false`) of the core list of `core.json` and the tests that import a changed file (through the import graph, nearest first, minus the slow files, at most 25), then `changelog --check` and `smoke-test.mjs --list`. Under 3 minutes cold and about a minute warm on 4 CPUs |
+| `npm run guard` | **tier 0**, no build, three lanes at once – A: an incremental `tsc` that emits declarations into the guard's cache instead of `--noEmit`, so a body-only edit re-checks no dependents (about 145 s cold, 10 s warm, 6–12 s after a body-only edit, against 111 s with `--noEmit`; errors only declaration emit raises do not count, as `npm run typecheck` never sees them); B: ESLint with its cache, `node --check` on `scripts/**/*.mjs`, `relay/*.mjs` and `worker/*.mjs`, the desktop app's type check and tests, the billing Worker's; C: one vitest run (three workers, `--allowOnly=false`) of the core list of `core.json` and the tests that import a changed file (through the import graph, nearest first, minus the slow files, at most 10: the rest are listed as required), then `changelog --check` and `smoke-test.mjs --list`. On 4 CPUs: under 3 minutes cold; warm, about 40 s with nothing changed and under a minute with a full set of related tests (measured 53 s) |
 | `npm run guard:browser` | **tier 1**: tier 0, then (once lane A passed) `next build` under `/smoke` without Next's own type check (`JBL_BUILD_SKIP_TYPECHECK=1`) and without obfuscation, the export served on port 3101 and the core smoke blocks of `core.json` (`core-every-mode` among them) plus the blocks of the features the change touched. About 5–6 minutes |
 | tier 2 | printed, never run: `npm run test:ci` and the four smoke shards – what `deploy.yml` runs on the product branch |
-| `npm run guard -- --baseline` | tier 0 on the untouched tree: records the failures that already exist, so a later run marks them `pre-existing` instead of blaming the change |
+| `npm run guard -- --baseline` | tier 0 on the untouched tree (refused on a tree with any change, untracked files included): records the failures that already exist, so a later run marks them `pre-existing` instead of blaming the change – only a run measured from that commit or a later one (a baseline recorded after the base would excuse the change's own failures), and its verdict says so ("green with N pre-existing failures excused by the baseline") |
 | `npm run guard -- --plan` | what would run and the static checks' findings, without running anything (`--json` prints the report) |
 
 - **Exit codes**: 0 green; 1 failed (a step, an unacknowledged fingerprint change, a weakened test); 2 green, but the change
@@ -368,6 +368,11 @@ another): the changed files are `git diff --name-only <base>` plus untracked fil
   findings and the budget estimate. --- agent-guide --- `zones` puts every changed file in its edit zone (free, core,
   guarded, protected) and names the core functions of `core.json`'s `coreFunctions` the change touches
   ([docs/agents/CORE.md](docs/agents/CORE.md)); `guard:browser` adds those functions' smoke blocks.
+- **The rules come from the base too**: the static checks read `protected.json` at the base commit and in the working tree,
+  joined – a rule the change adds applies at once, one it removes or narrows still applies until it is merged – and the core
+  list and hub files of `core.json` likewise. So a change cannot switch off the check it would fail; its edit of those
+  files is reported for the owner's review. The guard's own code (`guard.mjs`, `guardPlan.ts`, `protectedDiff.ts`,
+  `scripts/test-ci.mjs`, `vitest.config.ts`, `scripts/smoke/verdict.mjs`) is a protected path.
 - **The fingerprint lock**: the `BASELINE` literal of `tests/extras.test.ts` (one entry per mode) and the per-mode fingerprint
   literals `protected.json` lists (and `tests/fixtures/blueprint-fingerprints.json` once it exists) are compared at the base
   and in the working tree, comments and whitespace aside. An added entry passes; a changed or removed one fails unless a commit
@@ -376,23 +381,33 @@ another): the changed files are `git diff --name-only <base>` plus untracked fil
 - **The protected-path report** (owner decision for this release: reported, never a failure): changes to the watermark, billing
   and `PRO_FEATURES`, the TEST licence key and its signer, the `Privacy.*` and `Terms.*` messages and `legalDates.ts`, the
   workflows, `deploy/`, `wrangler.toml`, the uncap `ALLOWED` list and `MEMORY_CEILINGS`, the guard's own data files and the agent
-  guide are listed as *owner review required* (GitHub annotations when the guard runs in Actions).
-- **The test-weakening detector**: a net drop in `expect(` calls over the changed test files, an added `.skip`, `.skipIf` or
-  `.todo`, a raised timeout of an existing test, a deleted test file, a deleted smoke `check(` and a new entry in an allow list
-  (uncap `ALLOWED`, the physics-purity `ALLOWED`, the i18n `KNOWN` list) fail the guard unless a commit carries
-  `Test-Change: <file or glob> - <reason>`. An added `.only` always fails.
+  guide are listed as *owner review required* – GitHub annotations on every push, from the build job's guard step (see CI).
+- **The test-weakening detector**: a test file with fewer `expect(` calls than at the base (unless the very statements it lost,
+  by their tokens, were added to another test file of the change: a move – so an expect added elsewhere never offsets one
+  removed here), an added `.skip`, `.skipIf` or `.todo` (a new test file counts from none), a raised timeout of an existing
+  test, a deleted test file (a renamed or split one whose every expect reappears is a `test-moved` note, and the new file is
+  compared with the old), a deleted smoke `check(` and a new entry in an allow list (uncap `ALLOWED`, the physics-purity
+  `ALLOWED`, the i18n `KNOWN` list) fail the guard unless a commit carries `Test-Change: <file or glob> - <reason>`. An added
+  `.only` on a test call (`it.only`, `describe.only.each`; a property named `only` is not one) always fails.
 - **No silent skips**: the guard's tests run with `JBL_REQUIRE_BROWSER=1` (a Chromium that does not start fails
   `masterBus.test.ts` and `fightLeagueSound.test.ts` instead of skipping their rendered checks) and `JBL_GUARD=1` (perfGuards'
   built-export checks fail on an `out/` that `out/version.json` says was built from another commit; outside the guard such an
   export is skipped with the reason).
-- **Read-only**: the guard writes only its cache (`node_modules/.cache/jbl-guard`; `.agent-out/cache/jbl-guard` in a worktree
-  whose `node_modules` links to another checkout; `JBL_GUARD_CACHE` overrides) and the report – tier 1 also the build output. It
-  never updates snapshots, fingerprints or `scripts/smoke-timing.json`.
+- **Read-only**: the guard writes only its cache (`node_modules/.cache/jbl-guard`, the type check's declarations included;
+  `.agent-out/cache/jbl-guard` in a worktree whose `node_modules` links to another checkout, never through a link out of it;
+  `JBL_GUARD_CACHE` overrides) and the report (written under a fresh name and renamed into place, so a link there is replaced,
+  never followed) – tier 1 also the build output, with Next's telemetry off. It never updates snapshots, fingerprints or
+  `scripts/smoke-timing.json`.
 - **CI**: `deploy.yml`'s build job now also installs, type-checks and tests the desktop app and the billing Worker (product
   branch only), and its site build and the smoke shards' builds set `JBL_BUILD_SKIP_TYPECHECK=1` after the Type-check step
   (`tests/releaseWorkflows.test.ts` pins that every step setting it follows a type check, and that `deploy/vps/jbl-deploy.sh`
-  never sets it: the VPS build type-checks as before). The VPS deployer's gate and the deploy job are unchanged, and the guard
-  does not run on feature-branch pushes – both are owner decisions.
+  never sets it: the VPS build type-checks as before). On every push, on every branch, its **Core guard (static checks)**
+  step runs `guard.mjs --plan` against the commit before the push (the whole history is checked out; a new branch or a manual
+  run measures from the merge base with `origin/main`, and the guard refuses to measure nothing in Actions): owner-review
+  findings become warning annotations and violations error annotations. It is `continue-on-error` – it blocks no build and
+  no deploy; making it a gate is the owner's call. The unit tests get Playwright's Chromium (the smoke job's cached install)
+  and `JBL_REQUIRE_BROWSER=1`, so the rendered checks of `masterBus.test.ts` and `fightLeagueSound.test.ts` run in CI, or
+  fail. The VPS deployer's gate and the deploy job are unchanged (owner decisions).
 
 ### How the static export works
 

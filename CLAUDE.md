@@ -9,11 +9,14 @@ The guide above is the whole contract. What a Claude Code session must not skip:
 - Install all three packages: `npm ci`, then `ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --prefix desktop`, then
   `npm ci --prefix billing`. Without the last two, the guard's lane B fails.
 - `graphify-out/` is git-ignored and stale. Read the source.
-- Run `npm run guard -- --baseline` on the untouched tree, so later runs tell old failures from yours.
+- Run `npm run guard -- --baseline` on the untouched tree, so later runs tell old failures from yours. It is refused on a
+  changed tree. On a branch already ahead of `origin/main`, later runs use it only with `--base <commit>`, the commit you
+  started from.
 
 ## Must run before you hand over
 
-- `npm run guard`: exit 0, or exit 2 with every command its report's `required` lists.
+- `npm run guard`: exit 0, or exit 2 with every command its report's `required` lists (a hub file always exits 2: say you
+  ran tier 2, the guard cannot see it).
 - `npm run guard:browser` when page, canvas, recording, export or desktop page code changed.
 - `npm run typecheck` and `npm run lint` if the guard could not run.
 - Say what you did not run and why.
