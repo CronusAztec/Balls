@@ -591,8 +591,10 @@ async function main(argv) {
     fs.writeFileSync(baselineFile, `${JSON.stringify({ head: state.head, dirty: state.dirty, recordedAt: new Date().toISOString(), signatures }, null, 2)}\n`);
   }
   if (opts.json) console.log(JSON.stringify(report, null, 2));
-  else printSummary(report);
-  annotate(report);
+  else {
+    printSummary(report);
+    annotate(report); // (not with --json: stdout is the report alone)
+  }
   return code;
 }
 
