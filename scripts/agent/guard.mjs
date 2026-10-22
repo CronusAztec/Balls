@@ -5,8 +5,9 @@
  *   npm run guard                      tier 0: the three lanes below at once, no build (under 3 min cold; about 40 s warm
  *                                      with nothing changed, under a minute with a full set of related tests)
  *   npm run guard:browser              tier 1: tier 0, then a /smoke build, the export served and the core smoke blocks
- *   npm run guard -- --baseline        tier 0 on the untouched tree: records the failures that already exist (refused on a
- *                                      tree with any change; a later run uses it only when its base is that commit or after it)
+ *   npm run guard -- --baseline        tier 0 on the untouched tree: records the failures that already exist and every test
+ *                                      file's skip counts (refused on a tree with any change; a later run uses it only when it
+ *                                      measures from that very commit)
  *   npm run guard -- --plan            what would run and the static checks' findings, nothing executed (with --json: the report)
  *   options: --base <ref> (default: the merge base with JBL_GUARD_BASE when set, else origin/main, else main; a note says
  *            when it is not origin/main), --with-slow (the slow tests a change pulls in), --json (print the report instead of the summary),
@@ -23,7 +24,8 @@
  * src/lib/agentKit/guardPlan.ts and protectedDiff.ts (pure, unit-tested), bundled here with esbuild. When the change edits
  * those two files, the base commit's versions are bundled as well and the static checks, the baseline verdicts and the
  * exit code are the stricter of the two: a change cannot rewrite the checks that judge it (CI runs the base commit's whole
- * guard for that reason). In GitHub Actions a missing base ref is an error (a shallow checkout would measure nothing), the
+ * guard for that reason). Nothing else of the tree it judges runs inside the guard: no module of it is imported. After the
+ * lanes, the skips the tests' run shows are compared with the baseline's (or, without one, with the source). In GitHub Actions a missing base ref is an error (a shallow checkout would measure nothing), the
  * findings become annotations (errors first, one warning per rule) and the step summary lists them all.
  *
  * Read-only toward the source: it writes only its cache (node_modules/.cache/jbl-guard, or .agent-out/cache/jbl-guard when
@@ -426,7 +428,12 @@ function eslintSignatures(stdout) {
   }
 }
 
-function vitestSignatures(jsonFile, cwd) {
+/**
+ * A vitest JSON report's failures (one signature per failed test), the files that ran, and each file's runtime counts.
+ * @param {string} jsonFile
+ * @param {string} cwd
+ */
+export function vitestSignatures(jsonFile, cwd) {
   let data;
   try {
     data = JSON.parse(fs.readFileSync(jsonFile, "utf8"));
@@ -435,17 +442,69 @@ function vitestSignatures(jsonFile, cwd) {
   }
   const sigs = new Set();
   const ran = new Set();
+  /** --- ai-guard --- per file: its tests, and those skipped or todo at run time (runtimeSkipFindings) */
+  const counts = {};
   for (const file of data.testResults ?? []) {
     const name = rel(path.resolve(cwd, file.name));
     ran.add(name);
-    const failed = (file.assertionResults ?? []).filter((a) => a.status === "failed");
+    const results = file.assertionResults ?? [];
+    const failed = results.filter((a) => a.status === "failed");
     for (const a of failed) sigs.add(`vitest ${name} > ${a.fullName ?? a.title}`);
     if (file.status === "failed" && !failed.length) sigs.add(`vitest ${name}: ${String(file.message ?? "failed").split("\n")[0].slice(0, 200)}`);
+    counts[name] = { tests: results.length, skipped: results.filter((a) => RUNTIME_SKIPPED.has(a.status)).length, todo: results.filter((a) => a.status === "todo").length };
   }
-  return { sigs: [...sigs], ran, success: data.success !== false, total: data.numTotalTests ?? 0 };
+  return { sigs: [...sigs], ran, counts, success: data.success !== false, total: data.numTotalTests ?? 0 };
 }
 
-let onlyWorkerTimeout = () => false;
+/*
+ * --- ai-guard --- Two helpers the guard used to import from the tree it judges (scripts/test-ci.mjs, scripts/smoke/shards.mjs):
+ * a change to either ran inside the guard before any check, in CI too. They are copies here, kept equal to the originals by
+ * tests/coreGuard.test.ts; the guard imports no module of the working tree but its bundled plan (and, when the change edits
+ * that, the base commit's too).
+ */
+
+/** "138 passed | 1 skipped (139)" → { passed: 138, skipped: 1, total: 139 }; null when it does not parse (test-ci.mjs). */
+function parseCounts(segment) {
+  const total = /\((\d+)\)\s*$/.exec(segment.trim());
+  if (!total) return null;
+  const counts = { passed: 0, failed: 0, skipped: 0, todo: 0, total: Number(total[1]) };
+  for (const m of segment.matchAll(/(\d+) (passed|failed|skipped|todo)\b/g)) counts[m[2]] += Number(m[1]);
+  return counts;
+}
+
+/**
+ * Whether a failed `vitest run` was only vitest's "Timeout calling onTaskUpdate" on a busy machine: every test file and test
+ * accounted for as passed or skipped, none failed, and every unhandled error that timeout (scripts/test-ci.mjs's rule).
+ * @param {string} output
+ * @returns {boolean}
+ */
+export function onlyWorkerTimeout(output) {
+  const text = String(output).replace(ANSI, "");
+  const files = /^[ \t]*Test Files[ \t]+(.+)$/m.exec(text)?.[1];
+  const tests = /^[ \t]*Tests[ \t]+(.+)$/m.exec(text)?.[1];
+  if (!files || !tests) return false;
+  for (const segment of [files, tests]) {
+    const c = parseCounts(segment);
+    if (!c || c.failed > 0 || c.passed + c.skipped + c.todo !== c.total || c.passed === 0) return false;
+  }
+  const caught = Number(/Vitest caught (\d+) unhandled errors?/.exec(text)?.[1] ?? 0);
+  const timeouts = (text.match(/\[vitest-worker\]: Timeout calling "onTaskUpdate"/g) ?? []).length;
+  return caught > 0 && timeouts === caught;
+}
+
+/**
+ * The smoke suite's block titles, in order: every plain `await smokeBlock("title", …` line (scripts/smoke/shards.mjs's rule).
+ * @param {string} source
+ * @returns {string[]}
+ */
+export function findBlockTitles(source) {
+  const titles = [];
+  for (const m of String(source).matchAll(/^await smokeBlock\(\s*"((?:[^"\\\n]|\\.)*)"\s*,/gm)) titles.push(JSON.parse(`"${m[1]}"`));
+  return titles;
+}
+
+/** A test file's runtime counts from vitest's JSON report: its tests, and those skipped or left to do. */
+const RUNTIME_SKIPPED = new Set(["skipped", "pending", "disabled"]);
 
 async function runStep(step, ctx) {
   const t0 = Date.now();
@@ -495,6 +554,7 @@ async function runStep(step, ctx) {
   }
   if (step.parser === "vitest") {
     const parsed = vitestSignatures(path.resolve(ROOT, step.jsonReport), cwd);
+    for (const [file, c] of Object.entries(parsed?.counts ?? {})) ctx.runtime?.set(file, c);
     const sigs = parsed?.sigs ?? [];
     // every file asked for ran (a renamed or deleted core test is a failure, not a smaller run)
     const asked = step.argv.slice(step.argv.findIndex((a) => a.startsWith("--outputFile.json=")) + 1);
@@ -504,7 +564,18 @@ async function runStep(step, ctx) {
     const bad = failed || missing.length > 0;
     return done(bad, bad ? (sigs.length ? sigs : [`${step.id}: exit ${r.code}`]) : [], bad ? { tail: tailOf(output, 40) } : { note: parsed ? `${parsed.total} tests` : undefined });
   }
-  return done(failed, failed ? [`${step.id}: exit ${r.code}`] : [], failed ? { tail: tailOf(output) } : {});
+  // --- ai-guard --- the smoke run: one signature per failed check, so a baseline excuses only the checks it recorded; a run
+  // that did not finish (a block threw) or failed without a check is the whole step's failure, never excused
+  if (step.parser === "smoke") {
+    const { signatures, finished } = ctx.kit.smokeSignatures ? ctx.kit.smokeSignatures(output) : { signatures: [], finished: false };
+    if (!failed) return done(false, []);
+    const whole = !finished || !signatures.length;
+    const sigs = whole ? [...signatures, `${step.id}: exit ${r.code}${finished ? "" : " (the run did not finish)"}`] : signatures;
+    return done(true, sigs, { tail: tailOf(output) }, !whole);
+  }
+  // one signature for the whole step (`changelog: exit 1`): a baseline that has it would excuse every later failure of the
+  // step, so it never does
+  return done(failed, failed ? [`${step.id}: exit ${r.code}`] : [], failed ? { tail: tailOf(output) } : {}, false);
 }
 
 /* ------------------------------------------------------------------------------------------------ tier 1's server */
@@ -538,7 +609,26 @@ function httpOk(url) {
 
 /* ------------------------------------------------------------------------------------------------ output */
 
-function summaryText(report) {
+/**
+ * --- ai-guard --- One line of the human summary as it may reach stdout: a line break inside a value (a timeout's text, an
+ * allow-list entry, a test's output) shown as ⏎, and a line that would start a workflow command (`::stop-commands::…`,
+ * `##[…]`, after any leading space: the Actions runner trims it) broken up – so the change being judged can never hide the
+ * annotations that follow, or issue a command of its own.
+ * @param {string} line
+ * @returns {string}
+ */
+export function safeLine(line) {
+  return String(line)
+    .replace(/\r\n|\r|\n/g, " ⏎ ")
+    .replace(/^(\s*)(::|##\[)/, (_, space, cmd) => `${space}${cmd === "::" ? ": :" : "# #["}`);
+}
+
+/**
+ * The human summary of a report (stdout without --json): every line through safeLine.
+ * @param {any} report
+ * @returns {string}
+ */
+export function summaryText(report) {
   const lines = [];
   const pad = (s, n) => (s.length >= n ? s : s + " ".repeat(n - s.length));
   lines.push(`JBL core guard · tier ${report.tier} · base ${report.base.ref} (${report.base.commit.slice(0, 7)}) · ${report.changed.count} changed file${report.changed.count === 1 ? "" : "s"}`);
@@ -551,7 +641,7 @@ function summaryText(report) {
   const f = report.fingerprints;
   const w = report.weakening;
   lines.push(`  static: fingerprints ${f.violations ? `FAIL (${f.violations})` : "ok"} · weakening ${w.violations ? `FAIL (${w.violations})` : "ok"} · protected: ${report.protected.findings.length ? `${report.protected.findings.length} for owner review` : "none"}`);
-  for (const c of f.changes.filter((x) => !x.acknowledged)) lines.push(`       x fingerprint ${c.kind}: ${c.mode} in ${c.file} (${c.where}) – needs a commit trailer "Fingerprint-Change: ${c.mode} - <reason>" and owner review`);
+  for (const c of f.changes.filter((x) => !x.acknowledged)) lines.push(`       x fingerprint ${c.kind}: ${c.mode} in ${c.file} (${c.where})${c.detail ? ` – ${c.detail}` : ""} – needs a commit trailer "Fingerprint-Change: ${c.mode} - <reason>" and owner review`);
   for (const c of f.changes.filter((x) => x.acknowledged && x.kind !== "added")) lines.push(`       - fingerprint ${c.kind}: ${c.mode} (${c.file}) – acknowledged: ${c.reasons.join("; ")}`);
   for (const x of w.findings) lines.push(`       ${x.acknowledged ? "-" : "x"} ${x.kind}: ${x.file} – ${x.detail}${x.acknowledged ? ` (acknowledged: ${x.reasons.join("; ")})` : x.kind === "only-added" ? " (remove the .only)" : ` – needs "Test-Change: ${x.file} - <reason>" and owner review`}`);
   for (const p of report.protected.findings) lines.push(`       ! owner review required: ${p.path} (${p.rule}) – ${p.why}${p.keys ? `: ${p.keys.slice(0, 6).join(", ")}${p.keys.length > 6 ? ", …" : ""}` : ""}`);
@@ -574,7 +664,7 @@ function summaryText(report) {
   }
   if (report.notes.length) for (const n of report.notes) lines.push(`Note: ${n}`);
   lines.push(`${report.verdict.toUpperCase()} (exit ${report.exitCode}) in ${report.seconds.toFixed(1)} s · report ${report.reportFile}`);
-  return `${lines.join("\n")}\n`;
+  return `${lines.map(safeLine).join("\n")}\n`;
 }
 
 /**
@@ -632,7 +722,7 @@ export function annotations(report, env = process.env) {
   const esc = (s) => String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
   const prop = (s) => esc(s).replace(/:/g, "%3A").replace(/,/g, "%2C");
   const errors = [
-    ...report.fingerprints.changes.filter((x) => !x.acknowledged).map((c) => ({ file: c.file, title: `Fingerprint ${c.kind} without a trailer`, text: `${c.mode}: add "Fingerprint-Change: ${c.mode} - <reason>" to the commit` })),
+    ...report.fingerprints.changes.filter((x) => !x.acknowledged).map((c) => ({ file: c.file, title: `Fingerprint ${c.kind} without a trailer`, text: `${c.mode}${c.detail ? ` (${c.detail})` : ""}: add "Fingerprint-Change: ${c.mode} - <reason>" to the commit` })),
     ...report.weakening.findings.filter((y) => !y.acknowledged).map((x) => ({ file: x.file, title: `Test weakened (${x.kind})`, text: x.detail })),
   ];
   const byRule = new Map();
@@ -654,7 +744,7 @@ export function annotations(report, env = process.env) {
 export function stepSummary(report) {
   const cell = (s) => String(s).replace(/\|/g, "\\|").replace(/\n/g, " ");
   const out = [`### Core guard (static checks): base ${report.base.ref} (${report.base.commit.slice(0, 7)}), ${report.changed.count} changed files`, ""];
-  const bad = [...report.fingerprints.changes.filter((x) => !x.acknowledged).map((c) => [`fingerprint ${c.kind}`, c.file, `${c.mode} (${c.where}): needs "Fingerprint-Change: ${c.mode} - <reason>"`]), ...report.weakening.findings.filter((x) => !x.acknowledged).map((x) => [x.kind, x.file, x.detail])];
+  const bad = [...report.fingerprints.changes.filter((x) => !x.acknowledged).map((c) => [`fingerprint ${c.kind}`, c.file, `${c.mode} (${c.where})${c.detail ? `: ${c.detail}` : ""}: needs "Fingerprint-Change: ${c.mode} - <reason>"`]), ...report.weakening.findings.filter((x) => !x.acknowledged).map((x) => [x.kind, x.file, x.detail])];
   out.push(bad.length ? `**${bad.length} violation${bad.length === 1 ? "" : "s"}**` : "No violations.", "");
   if (bad.length) out.push("| Finding | File | Detail |", "| --- | --- | --- |", ...bad.map((r) => `| ${r.map(cell).join(" | ")} |`), "");
   const notes = [...report.fingerprints.changes.filter((x) => x.acknowledged && x.kind !== "added").map((c) => [`fingerprint ${c.kind}`, c.file, `acknowledged: ${c.reasons.join("; ")}`]), ...report.weakening.findings.filter((x) => x.acknowledged).map((x) => [x.kind, x.file, `${x.detail} (acknowledged: ${x.reasons.join("; ")})`])];
@@ -738,8 +828,6 @@ async function main(argv) {
   fs.rmSync(logDir, { recursive: true, force: true });
   fs.mkdirSync(logDir, { recursive: true });
   const kit = await loadKit(cacheDir);
-  ({ onlyWorkerTimeout } = await import(pathToFileURL(path.join(ROOT, "scripts/test-ci.mjs")).href));
-  const { findBlockTitles } = await import(pathToFileURL(path.join(ROOT, "scripts/smoke/shards.mjs")).href);
 
   const notes = [];
   const state = gitState(opts.base);
@@ -834,8 +922,10 @@ async function main(argv) {
   if (opts.baseline && state.head !== state.base.commit) notes.push(`the baseline is recorded at HEAD (${state.head.slice(0, 7)}), after the base (${state.base.commit.slice(0, 7)}): a run measured from that base ignores it (its failures may be this branch's own); a run with --base ${state.head.slice(0, 7)} uses it`);
 
   const laneResults = [];
+  /** --- ai-guard --- every test file's runtime counts (tests, skipped, todo) from the vitest reports of this run */
+  const runtime = new Map();
   if (!opts.plan) {
-    const ctxBase = { kit, baseKit, logDir, baseline, onStep: opts.json ? null : (r) => process.stderr.write(`  ${r.lane} ${r.status === "passed" ? "ok  " : r.status === "failed" ? "FAIL" : r.status} ${r.title} (${r.seconds.toFixed(1)} s)\n`) };
+    const ctxBase = { kit, baseKit, logDir, baseline, runtime, onStep: opts.json ? null : (r) => process.stderr.write(`  ${r.lane} ${r.status === "passed" ? "ok  " : r.status === "failed" ? "FAIL" : r.status} ${r.title} (${r.seconds.toFixed(1)} s)\n`) };
     const runLane = async (lane) => {
       const t0 = Date.now();
       const steps = [];
@@ -874,6 +964,24 @@ async function main(argv) {
       }
       laneResults.push({ id: "T1", title: t1.title, seconds: (Date.now() - t0) / 1000, steps });
     }
+  }
+
+  // --- ai-guard --- the skips the run shows that the static checks cannot see (`it["skip"]`, an alias they do not follow):
+  // against the baseline's counts of the base commit, else against the source's own modifiers; the base commit's rule as
+  // well when the change edits protectedDiff.ts (the stricter counts)
+  if (!opts.plan && !opts.baseline && runtime.size) {
+    const heads = new Map(changed.filter((f) => runtime.has(f)).map((f) => [f, read.get(f)?.head ?? (exists(f) ? fs.readFileSync(path.join(ROOT, f), "utf8") : null)]));
+    const input = { changed, tests: prot.weakening.tests, now: runtime, base: baseline?.counts ? new Map(Object.entries(baseline.counts)) : null, heads, trailers: testTrailers };
+    const mine = kit.runtimeSkipFindings ? kit.runtimeSkipFindings(input) : [];
+    let others = null;
+    try {
+      others = baseKit?.runtimeSkipFindings ? baseKit.runtimeSkipFindings(input) : null;
+    } catch {
+      others = null;
+    }
+    weakening.push(...stricterStatics({ fpChanges: [], protectedFound: [], weakening: mine }, others ? { fpChanges: [], protectedFound: [], weakening: others } : null).weakening);
+    statics.weakeningViolations = weakening.filter((w) => !w.acknowledged).length;
+    if (!input.base && changed.some((f) => runtime.has(f) && kit.matchesAny(f, prot.weakening.tests))) notes.push("the runtime skip counts of the changed test files were compared with their source alone: no baseline of the base commit (npm run guard -- --baseline on it) to compare with");
   }
 
   const allSteps = laneResults.flatMap((l) => l.steps);
@@ -924,12 +1032,14 @@ async function main(argv) {
     const signatures = Object.fromEntries(allSteps.filter((s) => s.signatures.length && !s.environment).map((s) => [s.id, s.signatures]));
     // (the tree was checked untouched before the lanes ran; a change made while they ran makes it dirty after all)
     const dirty = state.dirty || uncommittedChanges().length > 0;
-    fs.writeFileSync(baselineFile, `${JSON.stringify({ head: state.head, dirty, base: state.base, recordedAt: new Date().toISOString(), signatures }, null, 2)}\n`);
+    // (with every test file's runtime counts: a later run compares its skips with them)
+    fs.writeFileSync(baselineFile, `${JSON.stringify({ head: state.head, dirty, base: state.base, recordedAt: new Date().toISOString(), signatures, counts: Object.fromEntries(runtime) }, null, 2)}\n`);
   }
   if (opts.json) await print(`${JSON.stringify(report, null, 2)}\n`);
   else await print(summaryText(report) + annotations(report)); // (not with --json: stdout is the report alone)
-  // --- ai-guard --- in Actions, every finding in the step summary (the annotations above are capped at 10 of a kind)
-  if (process.env.GITHUB_ACTIONS === "true" && process.env.GITHUB_STEP_SUMMARY) {
+  // --- ai-guard --- in Actions, every finding in the step summary (the annotations above are capped at 10 of a kind); not
+  // with --json, as the annotations: a caller that takes the report (a test, the agent CLI) adds nothing to the job's page
+  if (!opts.json && process.env.GITHUB_ACTIONS === "true" && process.env.GITHUB_STEP_SUMMARY) {
     try {
       fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, stepSummary(report));
     } catch {
@@ -939,7 +1049,24 @@ async function main(argv) {
   return code;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+/**
+ * --- ai-guard --- Whether `metaUrl` is the module Node started (`argv1`): their real paths compared, so a start through a
+ * symbolic link (macOS's /tmp, a linked home or workspace) runs the guard instead of exiting 0 having done nothing.
+ * @param {string} metaUrl
+ * @param {string | undefined} [argv1]
+ * @returns {boolean}
+ */
+export function isMainModule(metaUrl, argv1 = process.argv[1]) {
+  if (!argv1) return false;
+  const self = fileURLToPath(metaUrl);
+  try {
+    return fs.realpathSync(path.resolve(argv1)) === fs.realpathSync(self);
+  } catch {
+    return path.resolve(argv1) === self;
+  }
+}
+
+if (isMainModule(import.meta.url)) {
   main(process.argv.slice(2))
     .then((code) => process.exit(code))
     .catch((err) => {

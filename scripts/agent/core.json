@@ -767,7 +767,7 @@
       ]
     },
     "core": {
-      "why": "a file a core function owns (coreFunctions[].code): tier 0, plus that function's smoke blocks in npm run guard:browser"
+      "why": "a file a core function owns: its code (coreFunctions[].code) or a unit test that proves it (coreFunctions[].tests). Tier 0, plus that function's smoke blocks in npm run guard:browser: tier 0 alone exits 2 until they run"
     },
     "guarded": {
       "from": "hubFiles",

@@ -220,6 +220,8 @@ export interface EscalationItem {
   tier: 1 | 2;
   tests: string[];
   smoke: string[];
+  /** --- agent-guide --- Tier 1 is required even when `smoke` is empty: a core function whose blocks are all on browser.smoke. */
+  browser?: boolean;
 }
 
 export interface Escalation {
@@ -234,7 +236,9 @@ export interface Escalation {
 
 /**
  * The escalation of a change, from core.json's table: hub files require tier 2; the table's rows add their tests and smoke
- * blocks; a mode's file adds tests/<id>*.test.ts and the mode's smoke block. Smoke blocks the suite does not have are left out.
+ * blocks; a mode's file adds tests/<id>*.test.ts and the mode's smoke block; a file of a core function (its code, or a
+ * test that proves it: AGENTS.md's core zone) requires tier 1 with the function's smoke blocks – those beyond
+ * browser.smoke listed, the rest run by tier 1 in any case. Smoke blocks the suite does not have are left out.
  */
 export function planEscalation(input: { changed: readonly string[]; config: CoreConfig; modeIds: readonly string[]; smokeBlocks: readonly string[]; testFiles: readonly string[] }): Escalation {
   const { changed, config, modeIds, smokeBlocks, testFiles } = input;
@@ -266,9 +270,17 @@ export function planEscalation(input: { changed: readonly string[]; config: Core
       smoke: modeSmokeBlocks(mode, smokeBlocks, config),
     });
   }
+  // --- agent-guide --- a core function's file: tier 0 and its smoke blocks (tier 0 runs no smoke block at all)
+  for (const f of config.coreFunctions ?? []) {
+    const files = changed.filter((c) => matchesAny(c, f.code) || f.tests.includes(c));
+    const blocks = f.smoke.filter((b) => smokeBlocks.includes(b));
+    if (!files.length || !blocks.length) continue;
+    const smoke = blocks.filter((b) => !config.browser.smoke.includes(b));
+    items.push({ id: `core:${f.id}`, reason: `a file of the core function "${f.title}" changed: its smoke blocks (${blocks.join(", ")}) prove it`, files, tier: 1, tests: [], smoke, browser: true });
+  }
   const requiredTier = items.reduce<0 | 1 | 2>((t, i) => (i.tier > t ? i.tier : t), 0);
-  // A tier-1 item with no smoke block and every test runnable in tier 0 asks for nothing beyond tier 0.
-  const needsMore = items.some((i) => i.tier === 2 || i.smoke.length > 0);
+  // A tier-1 item with no smoke block and every test runnable in tier 0 asks for nothing beyond tier 0 (a core function's always does).
+  const needsMore = items.some((i) => i.tier === 2 || i.smoke.length > 0 || i.browser === true);
   return {
     items,
     requiredTier: needsMore ? requiredTier : 0,
@@ -321,8 +333,12 @@ export interface GuardStep {
   env?: Record<string, string>;
   /** A folder that must exist first (an install), with what to run when it does not. */
   requires?: { path: string; fix: string };
-  /** How guard.mjs reads the output: failure signatures and details. */
-  parser: "tsc" | "eslint" | "vitest" | "plain" | "node-check";
+  /**
+   * How guard.mjs reads the output: failure signatures and details. "plain" has one signature for the whole step (`<id>:
+   * exit <code>`), which a baseline never excuses (it would hide every later failure of the step); "smoke" one per failed
+   * check (`❌` lines).
+   */
+  parser: "tsc" | "eslint" | "vitest" | "plain" | "node-check" | "smoke";
   /** For the vitest parser: the JSON report it writes (repository-relative or absolute). */
   jsonReport?: string;
   /** For node-check: the files (resolved by guard.mjs from config.nodeCheck). */
@@ -479,7 +495,7 @@ export function planTier1(input: { config: CoreConfig; smoke: readonly string[];
         argv: ["node", "scripts/smoke-test.mjs"],
         cwd: "",
         env: { BASE_URL: url, SMOKE_ONLY: input.smoke.join(","), SMOKE_SHARD: "", OUT_DIR: input.outDir, OBFUSCATE: "0" },
-        parser: "plain",
+        parser: "smoke",
       },
     ],
   };
@@ -546,6 +562,24 @@ export function againstBaseline(failed: boolean, signatures: readonly string[], 
   return { status: pre.length === signatures.length ? "pre-existing" : "failed", preExisting: pre };
 }
 
+/**
+ * --- ai-guard --- The smoke suite's failures, one signature per failed check: each `❌ <check> <detail>` line with the
+ * indented lines that continue it (the failed URLs of "no failed same-origin requests"), numbers made `#` (timings and sizes
+ * vary from run to run, the check and what failed do not). `finished`: the run printed its final count – a block that
+ * threw ends the run without one, and that is no check a baseline may excuse.
+ */
+export function smokeSignatures(output: string): { signatures: string[]; finished: boolean } {
+  const lines = output.replace(/\u001B\[[0-9;]*[A-Za-z]/g, "").split("\n");
+  const out = new Set<string>();
+  for (let i = 0; i < lines.length; i++) {
+    if (!lines[i].startsWith("❌ ")) continue;
+    const parts = [lines[i].slice(2).trim()];
+    while (i + 1 < lines.length && /^\s{2,}\S/.test(lines[i + 1]) && !lines[i + 1].trim().startsWith("✅") && !lines[i + 1].trim().startsWith("❌")) parts.push(lines[++i].trim());
+    out.add(`smoke ${parts.join(" ⏎ ").replace(/\d+(?:\.\d+)?/g, "#").replace(/\s+/g, " ").slice(0, 400)}`);
+  }
+  return { signatures: [...out], finished: lines.some((l) => /^\d+\/\d+ checks passed/.test(l.trim())) };
+}
+
 /** The static checks' verdicts (protectedDiff.ts): whether each one fails the guard. */
 export interface StaticVerdicts {
   /** A changed or removed fingerprint without its Fingerprint-Change trailer. */
@@ -570,15 +604,19 @@ export interface BaselineRecord {
 }
 
 /**
- * Whether a recorded baseline may mark this run's failures pre-existing: only one recorded on a clean tree at the run's base
- * commit or before it. A baseline recorded after the base (the change's own commits included) or on a changed tree would
- * excuse the change's own failures, so it is ignored, and the reason is noted. `isAncestor(a, b)`: a is b or before it.
+ * Whether a recorded baseline may mark this run's failures pre-existing: only one recorded on a clean tree at the run's very
+ * base commit. One recorded after the base (the change's own commits included) or on a changed tree would excuse the
+ * change's own failures; one recorded before it (--- ai-guard ---) would excuse a failure the base has since fixed, which
+ * the change may have brought back. Either is ignored, and the reason is noted. (`isAncestor` is kept for the reason's wording.)
  */
 export function baselineUsable(b: Partial<BaselineRecord> | null, run: { baseCommit: string; isAncestor: (a: string, b: string) => boolean }): { ok: true } | { ok: false; why: string } {
   if (!b || typeof b.head !== "string" || !b.signatures) return { ok: false, why: "the baseline file is unreadable: ignored" };
   if (b.dirty !== false) return { ok: false, why: `the baseline (${b.head.slice(0, 7)}) was recorded on a tree with uncommitted or untracked changes: ignored` };
-  if (b.head === run.baseCommit || run.isAncestor(b.head, run.baseCommit)) return { ok: true };
-  return { ok: false, why: `the baseline (${b.head.slice(0, 7)}) was recorded after the base (${run.baseCommit.slice(0, 7)}): its failures may be the change's own, so it is ignored – record it on the base commit, or measure from it (--base ${b.head.slice(0, 7)})` };
+  if (b.head === run.baseCommit) return { ok: true };
+  const at = b.head.slice(0, 7);
+  const base = run.baseCommit.slice(0, 7);
+  if (run.isAncestor(b.head, run.baseCommit)) return { ok: false, why: `the baseline (${at}) was recorded before the base (${base}): a failure fixed since then would be excused if the change brought it back, so it is ignored – record it again on the base commit` };
+  return { ok: false, why: `the baseline (${at}) was recorded after the base (${base}): its failures may be the change's own, so it is ignored – record it on the base commit, or measure from it (--base ${at})` };
 }
 
 /** 0 green, 1 failed, 2 green but a higher tier is required (or required tests were left out). */
@@ -661,6 +699,10 @@ export function requiredCommands(input: { escalation: Escalation; vitest: Vitest
   const left = [...input.vitest.slowSkipped, ...input.vitest.capped];
   if (left.length) out.push(`npx vitest run ${left.join(" ")}`);
   if (input.tier < 1 && input.escalation.smoke.length) out.push(`npm run guard:browser   # adds SMOKE_ONLY=${input.escalation.smoke.join(",")}`);
+  else if (input.tier < 1 && input.escalation.requiredTier === 1) {
+    const core = input.escalation.items.filter((i) => i.browser).map((i) => i.id.replace(/^core:/, ""));
+    out.push(`npm run guard:browser   # the smoke blocks of ${core.length ? `the core function${core.length === 1 ? "" : "s"} ${core.join(", ")}` : "the change"} (on browser.smoke)`);
+  }
   return out;
 }
 
@@ -678,18 +720,20 @@ export interface ZoneReport {
 /**
  * Where each changed file lands (AGENTS.md's edit zones) and the core functions it touches. `protectedFiles` are the files
  * the protected-path report flagged (a protected path, or a change inside a protected region: an edit of messages/en.json
- * outside Privacy.* and Terms.* is a hub edit, not a protected one); a core function owns the files its `code` globs match.
+ * outside Privacy.* and Terms.* is a hub edit, not a protected one); a core function owns the files its `code` globs match
+ * and the tests that prove it (--- ai-guard --- its own proof file is never "free").
  */
 export function editZones(input: { changed: readonly string[]; config: Pick<CoreConfig, "hubFiles" | "coreFunctions">; protectedFiles: readonly string[] }): ZoneReport {
   const functions = input.config.coreFunctions ?? [];
+  const owns = (c: CoreFunction, f: string) => matchesAny(f, c.code) || c.tests.includes(f);
   const flagged = new Set(input.protectedFiles);
   const files: Record<EditZone, string[]> = { free: [], core: [], guarded: [], protected: [] };
   for (const f of input.changed) {
-    const zone: EditZone = flagged.has(f) ? "protected" : matchesAny(f, input.config.hubFiles) ? "guarded" : functions.some((c) => matchesAny(f, c.code)) ? "core" : "free";
+    const zone: EditZone = flagged.has(f) ? "protected" : matchesAny(f, input.config.hubFiles) ? "guarded" : functions.some((c) => owns(c, f)) ? "core" : "free";
     files[zone].push(f);
   }
   const coreFunctions = functions
-    .map((c) => ({ id: c.id, title: c.title, files: input.changed.filter((f) => matchesAny(f, c.code)), tests: [...c.tests], smoke: [...c.smoke] }))
+    .map((c) => ({ id: c.id, title: c.title, files: input.changed.filter((f) => owns(c, f)), tests: [...c.tests], smoke: [...c.smoke] }))
     .filter((c) => c.files.length > 0);
   return { files, coreFunctions };
 }

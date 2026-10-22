@@ -25,6 +25,7 @@ import {
   planVitest,
   relatedTests,
   requiredCommands,
+  smokeSignatures,
   tier1SmokeBlocks,
   type CoreConfig,
   type StepResult,
@@ -36,16 +37,23 @@ import {
   annotations,
   baseCandidates,
   baseNote,
+  findBlockTitles as guardBlockTitles,
   importGraph,
+  isMainModule,
+  onlyWorkerTimeout as guardWorkerTimeout,
   reachedFromRunners,
   reportFileFor,
+  safeLine,
   stepSummary,
   strictest,
   stricterStatics,
+  summaryText,
   textReads,
   uncommittedChanges,
+  vitestSignatures,
   walk,
 } from "../scripts/agent/guard.mjs";
+import { onlyWorkerTimeout } from "../scripts/test-ci.mjs";
 import os from "os";
 
 /*
@@ -64,6 +72,8 @@ const TEST_FILES = fs
   .filter((f) => f.endsWith(".test.ts"))
   .sort();
 const exists = (file: string) => fs.existsSync(path.join(ROOT, file));
+/** The environment of a guard this test starts: never GitHub Actions' (annotations, the job summary), whatever runs the test. */
+const NOT_IN_ACTIONS = { GITHUB_ACTIONS: "", GITHUB_STEP_SUMMARY: "" };
 const allFiles = (dir: string): string[] =>
   fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap((e) => (e.name === "node_modules" ? [] : e.isDirectory() ? allFiles(`${dir}/${e.name}`) : [`${dir}/${e.name}`]));
 
@@ -115,7 +125,8 @@ describe("the escalation table", () => {
 
   it("requires the balance files and the fight-league block for Fight League", () => {
     const e = escalate(["src/lib/physics/modes/fightLeagueRoster.ts"]);
-    expect(e.items.map((i) => i.id)).toEqual(["fight-league", "mode:fightLeague"]);
+    // (and the core function that owns src/lib/physics/**: its block, core-every-mode, is on browser.smoke already)
+    expect(e.items.map((i) => i.id)).toEqual(["fight-league", "mode:fightLeague", "core:modes-deterministic"]);
     expect(e.tests).toEqual(expect.arrayContaining(["tests/fightLeagueBalanceGames.test.ts", "tests/fightLeagueBalanceMovies.test.ts", "tests/fightLeagueBalanceComicsAnimeShows.test.ts", "tests/fightLeague.test.ts"]));
     expect(e.smoke).toEqual(["fight-league"]);
     expect(e.requiredTier).toBe(1);
@@ -128,9 +139,9 @@ describe("the escalation table", () => {
 
   it("maps a mode's file to tests/<id>*.test.ts and its smoke block", () => {
     const e = escalate(["src/lib/physics/modes/mergeRing.ts"]);
-    expect(e.items).toEqual([expect.objectContaining({ id: "mode:mergeRing", tier: 1, smoke: ["merge-ring"] })]);
+    expect(e.items).toEqual([expect.objectContaining({ id: "mode:mergeRing", tier: 1, smoke: ["merge-ring"] }), expect.objectContaining({ id: "core:modes-deterministic", tier: 1, smoke: [], browser: true })]);
     expect(e.tests).toEqual(TEST_FILES.filter((f) => f.startsWith("tests/mergeRing")));
-    expect(escalate(["src/components/simulator/sections/FightLeagueSection.tsx"]).items.map((i) => i.id)).toEqual(["fight-league", "mode:fightLeague"]);
+    expect(escalate(["src/components/simulator/sections/FightLeagueSection.tsx"]).items.map((i) => i.id)).toEqual(["fight-league", "mode:fightLeague", "core:start-a-run"]);
     expect(escalate(["src/lib/physics/modes/box.ts"]).smoke).toEqual(["modes", "box-arena", "box-dvd-corner", "box-finder"]);
     expect(modeOfFile("src/lib/physics/modes/glass.ts", MODE_IDS, CORE.modeFileGlobs)).toBe("glass");
     expect(modeOfFile("src/lib/physics/modes/spiralGlass.ts", MODE_IDS, CORE.modeFileGlobs)).toBe("spiralGlass");
@@ -140,7 +151,8 @@ describe("the escalation table", () => {
   });
 
   it("asks for nothing beyond tier 0 for docs, a test or a plain library file", () => {
-    for (const f of ["README.md", "tests/zip.test.ts", "src/lib/recordingHelpers/none.ts", "docs/RELEASING.md"]) expect(escalate([f]).requiredTier, f).toBe(0);
+    // (a test outside the core functions: a core function's own proof test is in the core zone, below)
+    for (const f of ["README.md", "tests/daily.test.ts", "src/lib/recordingHelpers/none.ts", "docs/RELEASING.md"]) expect(escalate([f]).requiredTier, f).toBe(0);
   });
 });
 
@@ -299,7 +311,10 @@ describe("the verdict and the report", () => {
     const isAncestor = (a: string, b: string) => order.indexOf(a) >= 0 && order.indexOf(a) <= order.indexOf(b);
     const rec = (at: string, dirty = false) => ({ head: at, dirty, signatures: { vitest: ["vitest tests/zip.test.ts > crc"] } });
     expect(baselineUsable(rec(base), { baseCommit: base, isAncestor })).toEqual({ ok: true });
-    expect(baselineUsable(rec(older), { baseCommit: base, isAncestor })).toEqual({ ok: true });
+    // --- ai-guard --- one recorded before the base: ignored (a test fixed since then, broken again by the change, would pass)
+    const before = baselineUsable(rec(older), { baseCommit: base, isAncestor });
+    expect(before.ok).toBe(false);
+    expect(!before.ok && before.why).toMatch(/recorded before the base/);
     // baseline at HEAD with the range non-empty: ignored (a regression committed, then --baseline, then guard: never green)
     const atHead = baselineUsable(rec(head), { baseCommit: base, isAncestor });
     expect(atHead.ok).toBe(false);
@@ -454,7 +469,8 @@ describe("the verdict and the report", () => {
     // tier 1 adds the blocks of the core functions a change touches (go-live-kit for the analytics code, which tier 1 leaves to tier 2 otherwise)
     const analytics = editZones({ changed: ["src/lib/analytics/track.ts"], config: CORE, protectedFiles: [] });
     const none = planEscalation({ changed: ["src/lib/analytics/track.ts"], config: CORE, modeIds: MODE_IDS, smokeBlocks: BLOCKS, testFiles: TEST_FILES });
-    expect(tier1SmokeBlocks(CORE, none, BLOCKS)).not.toContain("go-live-kit");
+    // (--- ai-guard --- the escalation itself asks for it now: a core-zone file requires tier 1 with its function's blocks)
+    expect(tier1SmokeBlocks(CORE, none, BLOCKS)).toContain("go-live-kit");
     expect(tier1SmokeBlocks(CORE, none, BLOCKS, analytics.coreFunctions.flatMap((c) => c.smoke))).toContain("go-live-kit");
   });
 
@@ -464,7 +480,8 @@ describe("the verdict and the report", () => {
     const cache = path.join(ROOT, ".agent-out", "cache", "test-plan");
     const own = path.join(ROOT, ".agent-out", "guard-report.json");
     const before = fs.existsSync(own) ? fs.readFileSync(own, "utf8") : null;
-    const r = spawnSync(process.execPath, [path.join(ROOT, "scripts/agent/guard.mjs"), "--plan", "--json", "--base", "HEAD", "--report", path.join(cache, "guard-report.json")], { cwd: ROOT, encoding: "utf8", timeout: 60_000, env: { ...process.env, JBL_GUARD_CACHE: cache } });
+    // (--- ai-guard --- never with the Actions variables of a CI run this test may be part of: its job summary is the real guard's)
+    const r = spawnSync(process.execPath, [path.join(ROOT, "scripts/agent/guard.mjs"), "--plan", "--json", "--base", "HEAD", "--report", path.join(cache, "guard-report.json")], { cwd: ROOT, encoding: "utf8", timeout: 60_000, env: { ...process.env, ...NOT_IN_ACTIONS, JBL_GUARD_CACHE: cache } });
     // (exit 1 when the working tree itself holds an unacknowledged fingerprint change or a weakened test: the plan still reports)
     expect([0, 1], r.stderr).toContain(r.status);
     const report = JSON.parse(r.stdout) as Record<string, unknown> & { plannedLanes: { id: string; steps: { id: string }[] }[]; mode: string; reportFile: string };
@@ -475,7 +492,7 @@ describe("the verdict and the report", () => {
     expect(JSON.parse(fs.readFileSync(path.join(cache, "guard-report.json"), "utf8")).mode).toBe("plan");
     expect(fs.existsSync(own) ? fs.readFileSync(own, "utf8") : null).toBe(before);
     // a report anywhere but .agent-out/ or the cache is refused before anything runs
-    const outside = spawnSync(process.execPath, [path.join(ROOT, "scripts/agent/guard.mjs"), "--plan", "--report", "README.md"], { cwd: ROOT, encoding: "utf8", timeout: 60_000, env: { ...process.env, JBL_GUARD_CACHE: cache } });
+    const outside = spawnSync(process.execPath, [path.join(ROOT, "scripts/agent/guard.mjs"), "--plan", "--report", "README.md"], { cwd: ROOT, encoding: "utf8", timeout: 60_000, env: { ...process.env, ...NOT_IN_ACTIONS, JBL_GUARD_CACHE: cache } });
     expect(outside.status).toBe(1);
     expect(outside.stderr).toMatch(/--report README\.md: the report goes under \.agent-out\/ or the guard's cache/);
     expect(reportFileFor(null, cache).file).toBe(own);
@@ -568,5 +585,155 @@ describe("the verdict and the report", () => {
     // the guard bundles its plan with esbuild and the parity test parses ICU: both declared, exact
     expect(pkg.devDependencies.esbuild).toMatch(/^\d+\.\d+\.\d+$/);
     expect(pkg.devDependencies["@formatjs/icu-messageformat-parser"]).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+});
+
+describe("the guard, round three (--- ai-guard ---)", () => {
+  const escalate = (changed: string[]) => planEscalation({ changed, config: CORE, modeIds: MODE_IDS, smokeBlocks: BLOCKS, testFiles: TEST_FILES });
+  const vitest = planVitest({ config: CORE, related: [], escalated: [] });
+  const passed: StepResult = { id: "x", title: "x", lane: "C", status: "passed", seconds: 1, signatures: [] };
+  const quiet = { fingerprintViolations: 0, weakeningViolations: 0, protectedFindings: 0 };
+
+  it("requires a core function's smoke blocks for a file it owns, its proof tests included: tier 0 alone exits 2", () => {
+    const cases: Record<string, string> = {
+      "src/components/site/StatsOptOut.tsx": "go-live-kit",
+      "src/lib/analytics/attribution.ts": "go-live-kit",
+      "src/components/simulator/shareLinks.tsx": "project-files",
+      "src/components/simulator/ringLod.ts": "uncap-all",
+      "src/components/simulator/liveMarkHud.ts": "free-watermark",
+      "scripts/serve-static.mjs": "static-hosting",
+      "tests/zip.test.ts": "recording",
+    };
+    for (const [file, block] of Object.entries(cases)) {
+      const e = escalate([file]);
+      expect(e.requiredTier, file).toBe(1);
+      expect(exitCode({ steps: [passed], statics: quiet, escalation: e, tier: 0, vitest }), file).toBe(2);
+      expect(exitCode({ steps: [passed], statics: quiet, escalation: e, tier: 1, vitest }), file).toBe(0);
+      expect(requiredCommands({ escalation: e, vitest, tier: 0, config: CORE })[0], file).toMatch(/^npm run guard:browser\b/);
+      expect(tier1SmokeBlocks(CORE, e, BLOCKS), file).toContain(block);
+    }
+    // blocks tier 1 runs anyway are not listed again, and the command still says why it is needed
+    expect(escalate(["scripts/serve-static.mjs"]).smoke).toEqual([]);
+    expect(requiredCommands({ escalation: escalate(["scripts/serve-static.mjs"]), vitest, tier: 0, config: CORE })).toEqual(["npm run guard:browser   # the smoke blocks of the core function site-serves (on browser.smoke)"]);
+    expect(requiredCommands({ escalation: escalate(["src/lib/analytics/attribution.ts"]), vitest, tier: 0, config: CORE })).toEqual(["npm run guard:browser   # adds SMOKE_ONLY=go-live-kit"]);
+    // a core function's own proof test is in the core zone, not free
+    expect(editZones({ changed: ["tests/freeWatermark.test.ts", "tests/daily.test.ts"], config: CORE, protectedFiles: [] }).files).toMatchObject({ core: ["tests/freeWatermark.test.ts"], free: ["tests/daily.test.ts"] });
+    expect(editZones({ changed: ["tests/freeWatermark.test.ts"], config: CORE, protectedFiles: [] }).coreFunctions.map((c) => c.id)).toEqual(["watermark"]);
+  });
+
+  it("uses a baseline only of the very base commit", () => {
+    const rec = (head: string) => ({ head, dirty: false, signatures: {} });
+    const isAncestor = () => true;
+    expect(baselineUsable(rec("b".repeat(40)), { baseCommit: "b".repeat(40), isAncestor })).toEqual({ ok: true });
+    expect(baselineUsable(rec("a".repeat(40)), { baseCommit: "b".repeat(40), isAncestor }).ok).toBe(false);
+    expect(baselineUsable(rec("a".repeat(40)), { baseCommit: "b".repeat(40), isAncestor: () => false }).ok).toBe(false);
+  });
+
+  it("reads the smoke run check by check: a baseline of one failed check excuses no other", () => {
+    const run = (lines: string[], end = "41/42 checks passed") => ["Smoke run: 1 of 120 blocks", ...lines, "✅ pages render", "", end].join("\n");
+    const base = smokeSignatures(run(["❌ asset /hitSounds/kick.wav (404) 1.25 s"]));
+    expect(base).toEqual({ signatures: ["smoke asset /hitSounds/kick.wav (#) # s"], finished: true });
+    // the same check with other numbers: the same signature, excused
+    const again = smokeSignatures(run(["❌ asset /hitSounds/kick.wav (404) 3.5 s"]));
+    expect(againstBaseline(true, again.signatures, base.signatures).status).toBe("pre-existing");
+    // a new failure beside it: failed
+    const more = smokeSignatures(run(["❌ asset /hitSounds/kick.wav (404) 1 s", "❌ asset /wallBreak/pop.wav (404) 1 s"]));
+    expect(againstBaseline(true, more.signatures, base.signatures).status).toBe("failed");
+    // a check's indented lines are part of it: another failed URL is another failure
+    const urls = (u: string) => smokeSignatures(run([`❌ no failed same-origin requests `, `   404 ${u}`]));
+    expect(urls("/smoke/hitSounds/kick.wav").signatures).not.toEqual(urls("/smoke/wallBreak/pop.wav").signatures);
+    // a run that never printed its count did not finish (a block threw)
+    expect(smokeSignatures(run(["❌ asset /a.wav (404)"], "TypeError: x is undefined")).finished).toBe(false);
+    // guard.mjs: the plain steps and an unfinished smoke run are never excused
+    const script = read("scripts/agent/guard.mjs");
+    expect(script).toMatch(/return done\(failed, failed \? \[`\$\{step\.id\}: exit \$\{r\.code\}`\] : \[\], failed \? \{ tail: tailOf\(output\) \} : \{\}, false\);/);
+    expect(script).toMatch(/return done\(true, sigs, \{ tail: tailOf\(output\) \}, !whole\);/);
+    expect(planTier1({ config: CORE, smoke: ["pages"], port: 1, outDir: "x" }).steps.map((s) => s.parser)).toEqual(["plain", "plain", "smoke"]);
+  });
+
+  it("imports nothing of the tree it judges: its copies of the shard and the CI helpers equal the originals", () => {
+    const script = read("scripts/agent/guard.mjs");
+    const statics = [...script.matchAll(/^import\s[^;]*?from\s+"([^"]+)";/gm)].map((m) => m[1]);
+    expect(statics.length).toBeGreaterThan(3);
+    for (const m of statics) expect(m, m).toMatch(/^node:/);
+    // the dynamic imports: esbuild, and the plan it bundled into the cache
+    expect(script.match(/\bimport\(/g)).toHaveLength(2);
+    expect(script).toContain('await import("esbuild")');
+    expect(script).toContain("return import(`${pathToFileURL(outfile).href}?t=${Date.now()}`)");
+    expect(script).not.toMatch(/scripts\/(test-ci|smoke\/shards)\.mjs"\)/);
+    const suite = read("scripts/smoke-test.mjs");
+    expect(guardBlockTitles(suite)).toEqual(findBlockTitles(suite));
+    expect(guardBlockTitles('await smokeBlock("a \\"q\\"", async () => {});\nawait  smokeBlock("x", f);')).toEqual(findBlockTitles('await smokeBlock("a \\"q\\"", async () => {});\nawait  smokeBlock("x", f);'));
+    const tail = (files: string, tests: string, caught: string) => ` Test Files  ${files}\n      Tests  ${tests}\nVitest caught ${caught}\nError: [vitest-worker]: Timeout calling "onTaskUpdate"\n`;
+    for (const t of [tail("137 passed | 1 skipped (138)", "3179 passed | 22 skipped (3201)", "1 unhandled error"), tail("1 failed | 137 passed (138)", "3179 passed (3179)", "1 unhandled error"), tail("138 passed (138)", "3179 passed (3179)", "2 unhandled errors"), ""]) {
+      expect(guardWorkerTimeout(t), t).toBe(onlyWorkerTimeout(t));
+    }
+    // scripts/smoke/shards.mjs decides which blocks exist and which shard runs each: owner review
+    expect(matchesAny("scripts/smoke/shards.mjs", (JSON.parse(read("scripts/agent/protected.json")) as { paths: { glob: string }[] }).paths.map((p) => p.glob))).toBe(true);
+  });
+
+  it("prints no line a change could turn into a workflow command, and escapes line breaks in what it reports", () => {
+    expect(safeLine("plain")).toBe("plain");
+    expect(safeLine("      ::stop-commands::hidden")).toBe("      : :stop-commands::hidden");
+    expect(safeLine("##[group]x")).toBe("# #[group]x");
+    expect(safeLine("a\r\nb\nc")).toBe("a ⏎ b ⏎ c");
+    const report = {
+      tier: 0,
+      base: { ref: "HEAD", commit: "e36c1e2bd3b6" },
+      changed: { count: 1 },
+      lanes: [],
+      fingerprints: { violations: 1, changes: [{ file: "tests/extras.test.ts", mode: "mergeRing", kind: "changed", where: "BASELINE", acknowledged: false, reasons: [] }] },
+      weakening: { violations: 1, findings: [{ kind: "timeout-raised", file: "tests/shareCode.test.ts", detail: 'it "x": 5000 (the default) → `parseInt ( `6000\n::stop-commands::hidden` )` ms', acknowledged: false, reasons: [] }] },
+      protected: { findings: [] },
+      zones: { files: { free: [], core: [], guarded: [], protected: [] }, coreFunctions: [] },
+      failures: [{ lane: "C", step: "vitest", signatures: ["x"], tail: ["::warning::from a test's output"] }],
+      escalation: { items: [] },
+      required: [],
+      notes: [],
+      verdict: "failed",
+      exitCode: 1,
+      seconds: 1,
+      reportFile: ".agent-out/guard-report.json",
+    };
+    const out = summaryText(report) + annotations(report, { GITHUB_ACTIONS: "true" });
+    const commands = out.split("\n").filter((l) => /^\s*(::|##\[)/.test(l));
+    // only the guard's own annotations, after the summary: nothing stops them
+    expect(commands.map((l) => l.slice(0, 8))).toEqual(["::error ", "::error "]);
+    expect(out).toContain("`6000 ⏎ ::stop-commands::hidden`");
+  });
+
+  it("adds nothing to the Actions job summary when it prints its report as JSON", () => {
+    const cache = path.join(ROOT, ".agent-out", "cache", "test-plan-actions");
+    fs.mkdirSync(cache, { recursive: true });
+    const summary = path.join(cache, "step-summary.md");
+    fs.writeFileSync(summary, "");
+    const env = { ...process.env, GITHUB_ACTIONS: "true", GITHUB_STEP_SUMMARY: summary, JBL_GUARD_CACHE: cache };
+    const json = spawnSync(process.execPath, [path.join(ROOT, "scripts/agent/guard.mjs"), "--plan", "--json", "--base", "HEAD", "--report", path.join(cache, "r.json")], { cwd: ROOT, encoding: "utf8", timeout: 60_000, env });
+    expect(JSON.parse(json.stdout).mode).toBe("plan");
+    expect(fs.readFileSync(summary, "utf8")).toBe("");
+    const text = spawnSync(process.execPath, [path.join(ROOT, "scripts/agent/guard.mjs"), "--plan", "--base", "HEAD", "--report", path.join(cache, "r.json")], { cwd: ROOT, encoding: "utf8", timeout: 60_000, env });
+    expect(text.stdout).toMatch(/PLANNED \(NOTHING RAN\)/);
+    expect(fs.readFileSync(summary, "utf8")).toMatch(/^### Core guard \(static checks\)/);
+  });
+
+  it("runs when started through a symbolic link to the repository, and reads each test file's runtime counts", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-guard-link-"));
+    try {
+      const link = path.join(dir, "balls-link");
+      fs.symlinkSync(ROOT, link);
+      expect(isMainModule(`file://${path.join(ROOT, "scripts/agent/guard.mjs")}`, path.join(link, "scripts/agent/guard.mjs"))).toBe(true);
+      expect(isMainModule(`file://${path.join(ROOT, "scripts/agent/guard.mjs")}`, path.join(link, "scripts/agent/cli.mjs"))).toBe(false);
+      expect(isMainModule(`file://${path.join(ROOT, "scripts/agent/guard.mjs")}`, undefined)).toBe(false);
+      const cache = path.join(ROOT, ".agent-out", "cache", "test-plan-link");
+      const r = spawnSync(process.execPath, [path.join(link, "scripts/agent/guard.mjs"), "--plan", "--json", "--base", "HEAD", "--report", path.join(cache, "r.json")], { cwd: dir, encoding: "utf8", timeout: 60_000, env: { ...process.env, ...NOT_IN_ACTIONS, JBL_GUARD_CACHE: cache } });
+      expect(r.stdout.length, r.stderr).toBeGreaterThan(100);
+      expect(JSON.parse(r.stdout).mode).toBe("plan");
+      // the vitest report's counts per file: tests, skipped (pending, disabled) and todo
+      const report = path.join(dir, "vitest.json");
+      fs.writeFileSync(report, JSON.stringify({ success: true, numTotalTests: 4, testResults: [{ name: path.join(ROOT, "tests/a.test.ts"), status: "passed", assertionResults: [{ status: "passed" }, { status: "skipped" }, { status: "pending" }, { status: "todo" }] }] }));
+      expect(vitestSignatures(report, ROOT)?.counts).toEqual({ "tests/a.test.ts": { tests: 4, skipped: 2, todo: 1 } });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
