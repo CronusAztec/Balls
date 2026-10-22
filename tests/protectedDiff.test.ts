@@ -435,13 +435,13 @@ describe("the test-weakening detector, round two (--- ai-guard ---)", () => {
     const queue = 'it("skips a queued post", async () => {\n  await q.add("q1");\n  expect(await q.list()).toHaveLength(1);\n});\n';
     // a new assertion on the queue's own skip(): no finding
     expect(find({ "desktop/tests/socialQueue.test.ts": [queue, queue.replace("});\n", '  await expect(q.skip("q1")).rejects.toThrow(/already skipped/);\n  await bridge.social.queue.skip("q2");\n});\n')] })).toEqual([]);
-    expect(modifierCounts('q.skip("q1"); queue.skip(); this.skip;').skip).toBe(0);
+    expect(modifierCounts('q.skip("q1"); queue.skip(); this.skip;')).toMatchObject({ skip: 0 });
     // a skip through the test's context, named or destructured, and a fixture's .skip
-    expect(modifierCounts('it("a", async (ctx) => { if (!page) return ctx.skip(); });').skip).toBe(1);
-    expect(modifierCounts('it("a", async function (context) { context?.skip(); });').skip).toBe(1);
-    expect(modifierCounts('it("a", ({ skip }) => { skip(); });\ntest("b", ({ skip: pass }) => { pass(); });').skip).toBe(2);
-    expect(modifierCounts("beforeEach((ctx) => { ctx.skip(); });").skip).toBe(1);
-    expect(modifierCounts('const page = test.extend({ page: async ({}, use) => use(1) });\npage.skip("a", () => {});\npage.concurrent.only("b", () => {});').skip).toBe(1);
+    expect(modifierCounts('it("a", async (ctx) => { if (!page) return ctx.skip(); });')).toMatchObject({ skip: 1 });
+    expect(modifierCounts('it("a", async function (context) { context?.skip(); });')).toMatchObject({ skip: 1 });
+    expect(modifierCounts('it("a", ({ skip }) => { skip(); });\ntest("b", ({ skip: pass }) => { pass(); });')).toMatchObject({ skip: 2 });
+    expect(modifierCounts("beforeEach((ctx) => { ctx.skip(); });")).toMatchObject({ skip: 1 });
+    expect(modifierCounts('const page = test.extend({ page: async ({}, use) => use(1) });\npage.skip("a", () => {});\npage.concurrent.only("b", () => {});')).toMatchObject({ skip: 1 });
     expect(modifierCounts('const page = test.extend({});\npage.concurrent.only("b", () => {});').only).toBe(1);
     expect(find({ "tests/masterBus.test.ts": [queue, queue.replace("async () => {\n", "async (ctx) => {\n  ctx.skip();\n")] })).toEqual(["skip-added tests/masterBus.test.ts"]);
   });
