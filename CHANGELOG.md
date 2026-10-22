@@ -7,6 +7,16 @@ The site shows the same list, in English, Polish and Spanish, at `/changelog`.
 This file is generated from `src/content/changelog.json`. Do not edit it by hand: change the entry there, then run `npm run changelog`.
 `npm run changelog:check` fails when this file is out of date.
 
+## Website 1.15.0 · 2026-10-22
+
+Mode Lab and six new games built from rules
+
+### New
+
+- Mode Lab brings six new games built from rules. Glass that hatches balls, rings that double every ball and a race through pegs. Every game ends by itself.
+- Every game has its own sliders, like how many rings or how strong the glass is. Check playability tells you whether your version still plays to an ending.
+- Copy link shares the game with your settings. Playing and sharing are free, and free videos carry the watermark as always.
+
 ## Website 1.14.1 · 2026-10-21
 
 Readable Fight League names and exact loops

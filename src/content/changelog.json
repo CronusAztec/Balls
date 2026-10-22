@@ -1,6 +1,43 @@
 {
   "releases": [
     {
+      "id": "site-1-15-0",
+      "product": "site",
+      "version": "1.15.0",
+      "date": "2026-10-22",
+      "headline": {
+        "en": "Mode Lab and six new games built from rules",
+        "pl": "Laboratorium trybów i sześć nowych gier z reguł",
+        "es": "Laboratorio de modos y seis juegos nuevos hechos de reglas"
+      },
+      "items": [
+        {
+          "kind": "new",
+          "text": {
+            "en": "Mode Lab brings six new games built from rules. Glass that hatches balls, rings that double every ball and a race through pegs. Every game ends by itself.",
+            "pl": "Laboratorium trybów to sześć nowych gier zbudowanych z reguł. Szkło, z którego wykluwają się kulki, pierścienie, które podwajają każdą kulkę, i wyścig przez kołki. Każda gra kończy się sama.",
+            "es": "Laboratorio de modos trae seis juegos nuevos hechos de reglas. Cristal que hace nacer bolas, anillos que duplican cada bola y una carrera entre clavos. Cada juego termina solo."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Every game has its own sliders, like how many rings or how strong the glass is. Check playability tells you whether your version still plays to an ending.",
+            "pl": "Każda gra ma własne suwaki, na przykład liczbę pierścieni albo wytrzymałość szkła. Przycisk Sprawdź, czy da się grać mówi, czy twoja wersja nadal dochodzi do końca.",
+            "es": "Cada juego tiene sus propios controles, como cuántos anillos hay o lo fuerte que es el cristal. Comprobar si se puede jugar te dice si tu versión sigue llegando a un final."
+          }
+        },
+        {
+          "kind": "new",
+          "text": {
+            "en": "Copy link shares the game with your settings. Playing and sharing are free, and free videos carry the watermark as always.",
+            "pl": "Kopiuj link udostępnia grę z twoimi ustawieniami. Granie i udostępnianie są darmowe, a darmowe filmy jak zawsze mają znak wodny.",
+            "es": "Copiar enlace comparte el juego con tus ajustes. Jugar y compartir es gratis, y los vídeos gratis llevan la marca de agua como siempre."
+          }
+        }
+      ]
+    },
+    {
       "id": "site-1-14-1",
       "product": "site",
       "version": "1.14.1",
