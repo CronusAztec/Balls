@@ -60,3 +60,6 @@ fight-sounds/
 
 # graphify output (generated; rebuild with: graphify update .)
 /graphify-out/
+
+# --- ai-guard --- the core guard's report (.agent-out/guard-report.json) and, in a worktree whose node_modules is a link, its caches
+/.agent-out/

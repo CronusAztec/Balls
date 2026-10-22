@@ -223,6 +223,8 @@ node scripts/lib/test-license.mjs          # --- paywall-gate --- prints a Pro l
 node scripts/owner-license.mjs --email you@example.com --key private.json  # --- paywall-gate --- the owner's Pro licence, signed locally with the production key (live site)
 npm run go-live                            # --- go-live-kit --- the launch wizard: pastes the payment keys into the Worker and the public settings into GitHub (docs/GO-LIVE.md)
 npm run go-live:check                      # --- go-live-kit --- proves the site, the billing Worker, the providers and GitHub agree (PASS/FAIL per check)
+npm run guard                              # --- ai-guard --- the core guard: type check, lint, the core unit tests, desktop and billing, the fingerprint lock (see "Core guard")
+npm run guard:browser                      # --- ai-guard --- the same, then a /smoke build and the core smoke blocks (core-every-mode included)
 ```
 
 ## Deploying (Cloudflare, jumpingballslive.com)
@@ -338,6 +340,57 @@ run runs:
 - **Rebalancing**: the summary also writes `smoke-timing.merged.json` into the merged artifact – every block's time on the CI
   runners, as a ready baseline. Copy it over `scripts/smoke-timing.json` (or run the suite locally with `--write-timing`) when
   the shards drift apart; a few new blocks at the median weight do not need it.
+
+### Core guard (`npm run guard`)
+
+--- ai-guard --- One command that says whether a change kept the core functions working, for people and for the AI agents
+that edit the app (`scripts/agent/guard.mjs`; its plan is `src/lib/agentKit/guardPlan.ts` and `protectedDiff.ts`, pure and
+proven by `tests/coreGuard.test.ts` and `tests/protectedDiff.test.ts`; its data is `scripts/agent/core.json` and
+`scripts/agent/protected.json`). It measures the change against the merge base with `origin/main` (`--base <ref>` for
+another): the changed files are `git diff --name-only <base>` plus untracked files.
+
+| Command | What runs |
+| --- | --- |
+| `npm run guard` | **tier 0**, no build, three lanes at once – A: `tsc --noEmit --incremental` (90 s cold, about 6 s warm); B: ESLint with its cache, `node --check` on `scripts/**/*.mjs`, `relay/*.mjs` and `worker/*.mjs`, the desktop app's type check and tests, the billing Worker's; C: the core vitest list of `core.json` (three workers, `--allowOnly=false`), then the tests that import a changed file (through the import graph, nearest first, minus the slow files, at most 25), `changelog --check` and `smoke-test.mjs --list`. Under 3 minutes cold and about a minute warm on 4 CPUs |
+| `npm run guard:browser` | **tier 1**: tier 0, then (once lane A passed) `next build` under `/smoke` without Next's own type check (`JBL_BUILD_SKIP_TYPECHECK=1`) and without obfuscation, the export served on port 3101 and the core smoke blocks of `core.json` (`core-every-mode` among them) plus the blocks of the features the change touched. About 5–6 minutes |
+| tier 2 | printed, never run: `npm run test:ci` and the four smoke shards – what `deploy.yml` runs on the product branch |
+| `npm run guard -- --baseline` | tier 0 on the untouched tree: records the failures that already exist, so a later run marks them `pre-existing` instead of blaming the change |
+| `npm run guard -- --plan` | what would run and the static checks' findings, without running anything (`--json` prints the report) |
+
+- **Exit codes**: 0 green; 1 failed (a step, an unacknowledged fingerprint change, a weakened test); 2 green, but the change
+  needs more than this run did. The report's `required` names the commands: a hub file (`engine.ts`, `types.ts`, `extras.ts`,
+  `limits.ts`, `finder.ts`, `settings.ts`, `Canvas.tsx`, `Simulator.tsx`, `messages/*.json`) requires tier 2; Fight League files
+  the three balance files and the `fight-league` block; billing, the watermark or recording the paywall and watermark blocks;
+  the desktop bridge the desktop blocks; a mode's file `tests/<id>*.test.ts` and its block. Slow tests a change pulls in
+  (`--with-slow` runs them) and related tests past the cap are listed too – the guard never passes a subset off as the whole check.
+- **The report**: `.agent-out/guard-report.json` (git-ignored) – every lane and step with its duration, the failures (stable
+  signatures and the output's last lines; full logs in the cache), the escalation, the fingerprint, protected and weakening
+  findings and the budget estimate.
+- **The fingerprint lock**: the `BASELINE` literal of `tests/extras.test.ts` (one entry per mode) and the per-mode fingerprint
+  literals `protected.json` lists (and `tests/fixtures/blueprint-fingerprints.json` once it exists) are compared at the base
+  and in the working tree, comments and whitespace aside. An added entry passes; a changed or removed one fails unless a commit
+  in the range carries the trailer `Fingerprint-Change: <mode> - <reason>` (several modes comma-separated). Re-recording a
+  fingerprint is a statement that the mode now plays differently, made on purpose and reviewed.
+- **The protected-path report** (owner decision for this release: reported, never a failure): changes to the watermark, billing
+  and `PRO_FEATURES`, the TEST licence key and its signer, the `Privacy.*` and `Terms.*` messages and `legalDates.ts`, the
+  workflows, `deploy/`, `wrangler.toml`, the uncap `ALLOWED` list and `MEMORY_CEILINGS`, the guard's own data files and the agent
+  guide are listed as *owner review required* (GitHub annotations when the guard runs in Actions).
+- **The test-weakening detector**: a net drop in `expect(` calls over the changed test files, an added `.skip`, `.skipIf` or
+  `.todo`, a raised timeout of an existing test, a deleted test file, a deleted smoke `check(` and a new entry in an allow list
+  (uncap `ALLOWED`, the physics-purity `ALLOWED`, the i18n `KNOWN` list) fail the guard unless a commit carries
+  `Test-Change: <file or glob> - <reason>`. An added `.only` always fails.
+- **No silent skips**: the guard's tests run with `JBL_REQUIRE_BROWSER=1` (a Chromium that does not start fails
+  `masterBus.test.ts` and `fightLeagueSound.test.ts` instead of skipping their rendered checks) and `JBL_GUARD=1` (perfGuards'
+  built-export checks fail on an `out/` that `out/version.json` says was built from another commit; outside the guard such an
+  export is skipped with the reason).
+- **Read-only**: the guard writes only its cache (`node_modules/.cache/jbl-guard`; `.agent-out/cache/jbl-guard` in a worktree
+  whose `node_modules` links to another checkout; `JBL_GUARD_CACHE` overrides) and the report – tier 1 also the build output. It
+  never updates snapshots, fingerprints or `scripts/smoke-timing.json`.
+- **CI**: `deploy.yml`'s build job now also installs, type-checks and tests the desktop app and the billing Worker (product
+  branch only), and its site build and the smoke shards' builds set `JBL_BUILD_SKIP_TYPECHECK=1` after the Type-check step
+  (`tests/releaseWorkflows.test.ts` pins that every step setting it follows a type check, and that `deploy/vps/jbl-deploy.sh`
+  never sets it: the VPS build type-checks as before). The VPS deployer's gate and the deploy job are unchanged, and the guard
+  does not run on feature-branch pushes – both are owner decisions.
 
 ### How the static export works
 

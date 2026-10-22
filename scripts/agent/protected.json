@@ -1,0 +1,242 @@
+{
+  "schema": 1,
+  "about": "--- ai-guard --- What the core guard protects (scripts/agent/guard.mjs, src/lib/agentKit/protectedDiff.ts; README 'Core guard'). paths and regions: a change is reported as 'owner review required' (a warning, an annotation in CI; never a failure). fingerprints: a changed or removed entry fails the guard unless a commit in the range carries 'Fingerprint-Change: <mode> - <reason>'. weakening: a finding fails unless a commit carries 'Test-Change: <file> - <reason>' (an added .only always fails). This file is protected itself.",
+  "paths": [
+    {
+      "glob": "src/lib/watermark/**",
+      "why": "every free frame and free video carries the watermark"
+    },
+    {
+      "glob": "src/lib/billing/**",
+      "why": "the paywall, the licences and PRO_FEATURES"
+    },
+    {
+      "glob": "tests/fixtures/license-test-key.json",
+      "why": "the TEST licence key pair: unit tests and the smoke harness only"
+    },
+    {
+      "glob": "scripts/lib/test-license.mjs",
+      "why": "signs TEST licences; it stays inside the smoke harness"
+    },
+    {
+      "glob": "src/lib/legalDates.ts",
+      "why": "the dates the terms and the privacy policy state"
+    },
+    {
+      "glob": ".github/workflows/**",
+      "why": "CI and the deploy gates"
+    },
+    {
+      "glob": ".github/actions/**",
+      "why": "the site address every build bakes in"
+    },
+    {
+      "glob": "deploy/**",
+      "why": "the VPS deployer and its gate"
+    },
+    {
+      "glob": "wrangler.toml",
+      "why": "the Worker that serves the live site"
+    },
+    {
+      "glob": "scripts/agent/core.json",
+      "why": "the guard's core test list, budget and escalation table"
+    },
+    {
+      "glob": "scripts/agent/protected.json",
+      "why": "this list: protected paths, fingerprint literals, weakening rules"
+    },
+    {
+      "glob": "AGENTS.md",
+      "why": "the agent guide's invariants and never-do list"
+    },
+    {
+      "glob": "CLAUDE.md",
+      "why": "the agent guide for Claude Code"
+    }
+  ],
+  "regions": [
+    {
+      "file": "tests/uncap.test.ts",
+      "const": "ALLOWED",
+      "why": "the uncap guard's exceptions: places a slider maximum may still bound a value"
+    },
+    {
+      "file": "src/lib/uncap.ts",
+      "const": "MEMORY_CEILINGS",
+      "why": "the only ceilings left on user numbers (memory safety)"
+    },
+    {
+      "file": "src/lib/billing/guard.ts",
+      "const": "PRO_FEATURES",
+      "why": "what the paywall gates"
+    },
+    {
+      "file": "tests/physicsPurity.test.ts",
+      "const": "ALLOWED",
+      "why": "the impure calls a mode may make"
+    },
+    {
+      "file": "tests/i18nParity.test.ts",
+      "const": "KNOWN",
+      "why": "the catalog problems tolerated (the list only shrinks)"
+    },
+    {
+      "file": "messages/*.json",
+      "namespace": "Privacy",
+      "why": "the privacy policy (legal copy; docs/COPY-STYLE.md, tests/legalCopy.test.ts)"
+    },
+    {
+      "file": "messages/*.json",
+      "namespace": "Terms",
+      "why": "the terms (legal copy; docs/COPY-STYLE.md, tests/legalCopy.test.ts)"
+    }
+  ],
+  "fingerprints": [
+    {
+      "file": "tests/extras.test.ts",
+      "kind": "record",
+      "const": "BASELINE",
+      "why": "every mode's determinism fingerprint (seed 12345, 600 frames)"
+    },
+    {
+      "file": "tests/grow.test.ts",
+      "kind": "value",
+      "const": "CLASSIC_FINGERPRINT",
+      "mode": "grow"
+    },
+    {
+      "file": "tests/colourSort.test.ts",
+      "kind": "value",
+      "const": "FINGERPRINT",
+      "mode": "colourSort"
+    },
+    {
+      "file": "tests/colourSort.test.ts",
+      "kind": "value",
+      "const": "GHOST_FINGERPRINT",
+      "mode": "colourSort"
+    },
+    {
+      "file": "tests/fightLeague.test.ts",
+      "kind": "value",
+      "const": "GOLDEN",
+      "mode": "fightLeague"
+    },
+    {
+      "file": "tests/fightLeagueMatches.test.ts",
+      "kind": "value",
+      "const": "FORMATS",
+      "mode": "fightLeague"
+    },
+    {
+      "file": "tests/stringBattleAlive.test.ts",
+      "kind": "value",
+      "const": "FINGERPRINT",
+      "mode": "stringBattle"
+    },
+    {
+      "file": "tests/stringCircle.test.ts",
+      "kind": "value",
+      "const": "PIN_DEFAULT",
+      "mode": "stringBattle"
+    },
+    {
+      "file": "tests/stringCircle.test.ts",
+      "kind": "value",
+      "const": "PIN_HEXAGON",
+      "mode": "stringBattle"
+    },
+    {
+      "file": "tests/hoops.test.ts",
+      "kind": "value",
+      "const": "pinned",
+      "mode": "hoops"
+    },
+    {
+      "file": "tests/landClaim.test.ts",
+      "kind": "value",
+      "const": "pinned",
+      "mode": "landClaim"
+    },
+    {
+      "file": "tests/landClaimPyramid.test.ts",
+      "kind": "value",
+      "const": "pinned",
+      "mode": "landClaim"
+    },
+    {
+      "file": "tests/landClaimPyramid.test.ts",
+      "kind": "value",
+      "const": "PINNED_SOLO",
+      "mode": "landClaim"
+    },
+    {
+      "file": "tests/landClaimPyramid.test.ts",
+      "kind": "value",
+      "const": "PINNED_TRIO",
+      "mode": "landClaim"
+    },
+    {
+      "file": "tests/orbGrid.test.ts",
+      "kind": "value",
+      "const": "baseline",
+      "mode": "orbGrid"
+    },
+    {
+      "file": "tests/starChords.test.ts",
+      "kind": "value",
+      "const": "STAR_CHORDS_STATE_PRINT",
+      "mode": "starChords"
+    },
+    {
+      "file": "tests/starChords.test.ts",
+      "kind": "value",
+      "const": "STAR_CHORDS_SOUND_PRINT",
+      "mode": "starChords"
+    },
+    {
+      "file": "tests/territory.test.ts",
+      "kind": "lines",
+      "pattern": "expect\\(fingerprint\\(",
+      "mode": "territory"
+    },
+    {
+      "file": "tests/bot.test.ts",
+      "kind": "value",
+      "const": "PINNED",
+      "mode": "bot"
+    },
+    {
+      "file": "tests/fixtures/blueprint-fingerprints.json",
+      "kind": "json",
+      "why": "the Blueprint catalog's fingerprints (P3 and later); locked as soon as the file exists"
+    }
+  ],
+  "weakening": {
+    "tests": [
+      "tests/**/*.ts",
+      "desktop/tests/**/*.ts",
+      "billing/tests/**/*.ts",
+      "relay/**/*.test.mjs"
+    ],
+    "smokeFile": "scripts/smoke-test.mjs",
+    "allowLists": [
+      {
+        "file": "tests/uncap.test.ts",
+        "const": "ALLOWED",
+        "why": "a new entry lets a slider maximum bound a user's number again"
+      },
+      {
+        "file": "tests/physicsPurity.test.ts",
+        "const": "ALLOWED",
+        "why": "a new entry lets a mode read the machine's clock or randomness"
+      },
+      {
+        "file": "tests/i18nParity.test.ts",
+        "const": "KNOWN",
+        "why": "a new entry tolerates a new catalog problem"
+      }
+    ]
+  }
+}

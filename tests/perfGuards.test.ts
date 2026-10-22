@@ -221,7 +221,7 @@ const headCommit = (() => {
 })();
 const staleExport = builtExport && !process.env.PERF_GUARD_OUT && (exportCommit === "" || exportCommit !== headCommit);
 const hasExport = builtExport && !staleExport;
-const staleReason = `./out was built from ${exportCommit ? exportCommit.slice(0, 7) : "an unknown commit (no out/version.json)"}, HEAD is ${headCommit ? headCommit.slice(0, 7) : "unknown"} – rebuild it (\`npm run build\`) or set PERF_GUARD_OUT=<export folder>`;
+const staleReason = `./out was built from ${exportCommit ? exportCommit.slice(0, 7) : "an unknown commit (no out/version.json)"}, HEAD is ${headCommit ? headCommit.slice(0, 7) : "unknown"} – rebuild it (\`npm run build\`), remove it, or set PERF_GUARD_OUT=<export folder>`;
 /** The marketing pages a paid visitor lands on. */
 const LANDING_PAGES = ["en", "pl", "es", "en/download", "en/pricing", "en/account", "en/feedback", "en/about", "en/gallery"];
 /** One initial script, unpacked: the largest today is the framework's 170 KB (the 1.2 MB all-modes chunk this guards against is 7 times that). */

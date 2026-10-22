@@ -21,7 +21,9 @@
     "launch:check": "node scripts/launch-check.mjs",
     "release:desktop": "node scripts/release/desktop-version.mjs",
     "changelog": "node scripts/changelog.mjs --write",
-    "changelog:check": "node scripts/changelog.mjs --check"
+    "changelog:check": "node scripts/changelog.mjs --check",
+    "guard": "node scripts/agent/guard.mjs",
+    "guard:browser": "node scripts/agent/guard.mjs --browser"
   },
   "dependencies": {
     "mp4-muxer": "^5.2.2",
