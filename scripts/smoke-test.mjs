@@ -14481,7 +14481,9 @@ await smokeBlock("watermark-everywhere", async () => {
   const extraViews = [
     ["a split-screen race", "mode=classic&ac=2"],
     ["a share link", `c=${shareCode}`],
-    ["the daily challenge", "daily=1"],
+    // A pinned day, not daily=1: today's challenge changes every day, and a run that ends before the second look (Shatter on
+    // 2026-10-22 ends at about 4 s) leaves no Pause button for pausedSnap. 2026-10-21's Target runs past 30 s.
+    ["the daily challenge", "daily=2026-10-21"],
   ];
   try {
     // (a) A free visitor: the badge within 1 s of the start, then on the other side within 7 s; and the licence toggled mid-run.
