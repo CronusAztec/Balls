@@ -132,6 +132,44 @@ describe("deploy.yml: the desktop app and the billing Worker in the build job", 
   });
 });
 
+describe("deploy.yml: the core guard and the browser checks in the build job (--- ai-guard ---)", () => {
+  const build = jobSection(read(".github/workflows/deploy.yml"), "build");
+  const steps = stepsOf(build);
+  const at = (name: string) => steps.findIndex((s) => s.startsWith(`      - name: ${name}\n`));
+
+  it("runs the guard's static checks on every push against the commit before it, with the whole history, never as a gate", () => {
+    expect(steps[at("Check out")]).toContain("        with:\n          fetch-depth: 0\n");
+    const guard = steps[at("Core guard (static checks)")];
+    expect(guard, "the guard step").toBeDefined();
+    expect(guard).not.toMatch(/\n {8}if: /); // every branch: about a second
+    expect(guard).toContain("        continue-on-error: true\n"); // annotations, not a gate (the owner's call)
+    expect(guard).toContain("          BEFORE: ${{ github.event.before }}\n");
+    expect(guard).toContain('node scripts/agent/guard.mjs --plan --base "$BEFORE"');
+    expect(guard).toContain('[ -n "${BEFORE//0/}" ]'); // a new branch's all-zero "before": the guard's own default base
+    expect(guard).toContain("          else\n            node scripts/agent/guard.mjs --plan\n");
+    // after the install (the guard bundles its plan with esbuild), before anything that can fail the job first
+    expect(at("Install dependencies")).toBeLessThan(at("Core guard (static checks)"));
+    expect(at("Core guard (static checks)")).toBeLessThan(at("Lint"));
+  });
+
+  it("gives the unit tests Chromium and JBL_REQUIRE_BROWSER=1, so the rendered checks fail rather than skip", () => {
+    const unit = steps[at("Unit tests")];
+    expect(unit).toContain('        env:\n          JBL_REQUIRE_BROWSER: "1"\n');
+    for (const name of ["Read the Playwright version", "Cache Playwright's Chromium", "Install Chromium for Playwright", "Install Chromium's system libraries"]) {
+      expect(at(name), name).toBeGreaterThan(-1);
+      expect(at(name), name).toBeLessThan(at("Unit tests"));
+      expect(steps[at(name)], name).toMatch(/\n {8}if: env\.DEPLOY == 'true'/);
+    }
+    // the smoke job's own cache key and install, so both jobs share one cached Chromium
+    const smoke = jobSection(read(".github/workflows/deploy.yml"), "smoke");
+    expect(steps[at("Cache Playwright's Chromium")]).toContain("          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}\n");
+    expect(smoke).toContain("          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}\n");
+    expect(steps[at("Install Chromium for Playwright")]).toContain("run: npx playwright install --with-deps chromium\n");
+    // the two tests that launch Chromium honour the variable
+    for (const file of ["tests/masterBus.test.ts", "tests/fightLeagueSound.test.ts"]) expect(read(file), file).toContain('process.env.JBL_REQUIRE_BROWSER === "1"');
+  });
+});
+
 describe("the type-check knob (JBL_BUILD_SKIP_TYPECHECK, next.config.ts)", () => {
   it("is Next's ignoreBuildErrors only when the variable is exactly 1, and no npm script sets it", () => {
     expect(read("next.config.ts")).toContain('typescript: { ignoreBuildErrors: process.env.JBL_BUILD_SKIP_TYPECHECK === "1" },');

@@ -38,8 +38,12 @@ jobs:
       group: build-${{ github.ref }}
       cancel-in-progress: true
     steps:
+      # --- ai-guard --- the whole history: the core guard's static checks below compare this push with the commit before it
+      # (a shallow checkout has nothing to compare with, and the guard refuses to measure nothing in CI)
       - name: Check out
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v5
@@ -55,17 +59,61 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # --- ai-guard --- the core guard's static checks (scripts/agent/guard.mjs --plan, about a second, nothing runs) on what
+      # this push changed: the fingerprint lock (a changed fingerprint without a "Fingerprint-Change: <mode> - <reason>"
+      # trailer), the test-weakening detector (without "Test-Change: <file> - <reason>") and the protected-path report, as
+      # annotations on the run: owner review required (a warning), a violation (an error). Every push, on every branch. It
+      # does not block the build or the deploy (continue-on-error): making it a gate is the owner's call (AGENTS.md). The
+      # base is the commit before the push, else (a new branch, a manual run, a force-push) the guard's own default, the
+      # merge base with origin/main.
+      - name: Core guard (static checks)
+        continue-on-error: true
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ -n "$BEFORE" ] && [ -n "${BEFORE//0/}" ] && git cat-file -e "$BEFORE^{commit}" 2> /dev/null; then
+            node scripts/agent/guard.mjs --plan --base "$BEFORE"
+          else
+            node scripts/agent/guard.mjs --plan
+          fi
+
       - name: Lint
         run: npm run lint
 
       - name: Type-check
         run: npm run typecheck
 
+      # --- ai-guard --- Chromium for the unit tests that render in a browser (the master limiter's and Fight League's peak
+      # checks in tests/masterBus.test.ts and tests/fightLeagueSound.test.ts): the smoke job's cached install. With
+      # JBL_REQUIRE_BROWSER=1 below, a Chromium that does not start fails those tests instead of skipping them silently.
+      - name: Read the Playwright version
+        if: env.DEPLOY == 'true'
+        id: playwright
+        run: echo "version=$(node -p "require('./package-lock.json').packages['node_modules/playwright'].version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright's Chromium
+        if: env.DEPLOY == 'true'
+        id: playwright-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium for Playwright
+        if: env.DEPLOY == 'true' && steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Chromium's system libraries
+        if: env.DEPLOY == 'true' && steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
       # scripts/test-ci.mjs is `vitest run`, except that it does not fail a run in which every test passed and the only error is
       # vitest's own "Timeout calling onTaskUpdate" (a heavy simulation test starved its reporting channel on a busy runner).
       - name: Unit tests
         if: env.DEPLOY == 'true'
         run: npm run test:ci
+        env:
+          JBL_REQUIRE_BROWSER: "1"
 
       # --- ai-guard --- the Windows app shares src/lib/desktop/** with the site (the IPC contract, the render queue, the AI loop)
       # and the billing Worker verifies the licences the site's paywall reads: their type checks and tests run with every
