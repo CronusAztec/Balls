@@ -8,9 +8,11 @@ import { globToRegExp, matchesAny } from "./guardPlan";
  *    range carries `Fingerprint-Change: <mode> - <reason>`;
  *  - the protected-path report: files and regions (a const, a message namespace) that need the owner's review. Reported,
  *    never a failure (owner decision for P0);
- *  - the test-weakening detector: a net drop in expect( calls, added .skip / .only / skipIf / todo, raised timeouts, deleted
- *    test files, deleted smoke check( calls and new entries in the allow lists (the uncap ALLOWED list). A finding fails unless
- *    a commit carries `Test-Change: <file> - <reason>` for it; an added .only always fails.
+ *  - the test-weakening detector: a test file with fewer expect( calls than at the base (unless the statements it lost were
+ *    added to another test file of the change: a move), added .skip / .only / skipIf / todo (in new test files too), raised
+ *    timeouts, deleted test files (not a renamed or split one: its every expect reappears elsewhere), deleted smoke check(
+ *    calls and new entries in the allow lists (the uncap ALLOWED list). A finding fails unless a commit carries
+ *    `Test-Change: <file> - <reason>` for it; an added .only on a test call always fails.
  * Comments, strings and whitespace never count: the sources are read through a small JavaScript tokenizer.
  */
 
@@ -320,6 +322,36 @@ export interface ProtectedConfig {
   };
 }
 
+/**
+ * The rules a change is checked with: the base commit's protected.json joined with the working tree's. A rule the change adds
+ * applies at once; one it removes or narrows (a fingerprint locator, a protected path or region, a weakening glob, an allow
+ * list) still applies until the change is merged, so a change cannot switch off the check it would fail – its edit of
+ * protected.json is reported for the owner's review. Where the two name a different smoke file, the base's holds.
+ */
+export function mergeProtectedConfigs(base: ProtectedConfig | null, head: ProtectedConfig): ProtectedConfig {
+  if (!base) return head;
+  const union = <T>(a: readonly T[] | undefined, b: readonly T[] | undefined, key: (x: T) => string): T[] => {
+    const seen = new Set<string>();
+    return [...(a ?? []), ...(b ?? [])].filter((x) => {
+      const k = key(x);
+      if (seen.has(k)) return false;
+      seen.add(k);
+      return true;
+    });
+  };
+  return {
+    ...head,
+    paths: union(head.paths, base.paths, (p) => p.glob),
+    regions: union(head.regions, base.regions, (r) => `${r.file}\0${r.const ?? ""}\0${r.namespace ?? ""}`),
+    fingerprints: union(head.fingerprints, base.fingerprints, (l) => `${l.file}\0${l.kind}\0${l.const ?? ""}\0${l.pattern ?? ""}\0${l.mode ?? ""}`),
+    weakening: {
+      tests: union(head.weakening.tests, base.weakening?.tests, (g) => g),
+      smokeFile: base.weakening?.smokeFile ?? head.weakening.smokeFile,
+      allowLists: union(head.weakening.allowLists, base.weakening?.allowLists, (l) => `${l.file}\0${l.const}`),
+    },
+  };
+}
+
 /** A file's text at the base ref and in the working tree (null: absent there). */
 export interface FileVersions {
   base: string | null;
@@ -458,7 +490,9 @@ export function protectedFindings(config: Pick<ProtectedConfig, "paths" | "regio
 /* ------------------------------------------------------------------------------------------------ the weakening detector */
 
 export interface WeakeningFinding {
-  kind: "expect-drop" | "only-added" | "skip-added" | "skipIf-added" | "todo-added" | "timeout-raised" | "test-deleted" | "check-drop" | "allow-list-widened";
+  /** test-moved: a deleted test file whose every expect reappears in the change's other test files (a rename, a split, a
+   *  merge) – a note, acknowledged by itself. */
+  kind: "expect-drop" | "only-added" | "skip-added" | "skipIf-added" | "todo-added" | "timeout-raised" | "test-deleted" | "test-moved" | "check-drop" | "allow-list-widened";
   file: string;
   detail: string;
   /** A `Test-Change:` trailer names the file (never for an added .only). */
@@ -466,14 +500,63 @@ export interface WeakeningFinding {
   reasons: string[];
 }
 
-/** expect(…), expect.soft(…), expect.poll(…) and expectTypeOf(…) calls: the test's assertions. */
-export function countExpects(src: string): number {
+/**
+ * The assertions of a source, each as its normalized statement: expect(…), expect.soft(…), expect.poll(…) and
+ * expectTypeOf(…) with the matcher chain after it (`expect ( a ) . not . toBe ( 1 )`) – the unit a moved expect is matched by.
+ */
+export function expectStatements(src: string): string[] {
   const t = tokenize(src);
-  let n = 0;
+  const out: string[] = [];
   for (let k = 0; k < t.length; k++) {
     if (t[k].type !== "ident" || (t[k].text !== "expect" && t[k].text !== "expectTypeOf") || t[k - 1]?.text === ".") continue;
-    if (t[k + 1]?.text === "(") n++;
-    else if (t[k + 1]?.text === "." && t[k + 2]?.type === "ident" && t[k + 3]?.text === "(" && ["soft", "poll"].includes(t[k + 2].text)) n++;
+    let end: number;
+    if (t[k + 1]?.text === "(") end = closingIndex(t, k + 1);
+    else if (t[k + 1]?.text === "." && t[k + 2]?.type === "ident" && t[k + 3]?.text === "(" && ["soft", "poll"].includes(t[k + 2].text)) end = closingIndex(t, k + 3);
+    else continue;
+    // the matcher chain: `.not`, `.resolves`, `.toBe(…)`, `[key]`
+    while (end + 1 < t.length) {
+      const next = t[end + 1];
+      if ((next.text === "." || next.text === "?.") && t[end + 2]?.type === "ident") end += 2;
+      else if (next.text === "(" || next.text === "[") end = closingIndex(t, end + 1);
+      else break;
+    }
+    out.push(normalizeTokens(t.slice(k, Math.min(end, t.length - 1) + 1)));
+  }
+  return out;
+}
+
+/** expect(…), expect.soft(…), expect.poll(…) and expectTypeOf(…) calls: the test's assertions. */
+export const countExpects = (src: string): number => expectStatements(src).length;
+
+/** A multiset of strings (statement → how often). */
+function bag(items: readonly string[]): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const x of items) out.set(x, (out.get(x) ?? 0) + 1);
+  return out;
+}
+
+/** The items of `a` that `b` does not have (as multisets): the statements a file lost. */
+function bagMinus(a: readonly string[], b: readonly string[]): string[] {
+  const left = bag(b);
+  const out: string[] = [];
+  for (const x of a) {
+    const n = left.get(x) ?? 0;
+    if (n > 0) left.set(x, n - 1);
+    else out.push(x);
+  }
+  return out;
+}
+
+/** Takes `items` (at most `limit` of them) out of the multiset `pool` where it has them; how many it took. */
+function take(pool: Map<string, number>, items: readonly string[], limit = Number.POSITIVE_INFINITY): number {
+  let n = 0;
+  for (const x of items) {
+    if (n >= limit) break;
+    const c = pool.get(x) ?? 0;
+    if (c > 0) {
+      pool.set(x, c - 1);
+      n++;
+    }
   }
   return n;
 }
@@ -491,19 +574,37 @@ export function countChecks(src: string): number {
   return n;
 }
 
-/** How often each skipping or narrowing modifier occurs: `.only`, `.skip` (ctx.skip() too), `.skipIf`, `.todo`. */
+/** The calls a test file declares tests and suites with (the root of `it.only`, `describe.skip.each`, `test.concurrent.only`). */
+const FOCUSABLE_CALLS = new Set(["it", "test", "describe", "suite", "bench"]);
+
+/** Whether the `.only` at token k ends a dotted chain rooted at a test call (`it.only`, `describe.concurrent.only`), not a property (`filter.only`). */
+function onTestCall(t: readonly Token[], k: number): boolean {
+  let j = k - 1; // the "." before `only`
+  while (t[j]?.text === "." && t[j - 1]?.type === "ident") {
+    j -= 2;
+    if (t[j]?.text !== ".") return FOCUSABLE_CALLS.has(t[j + 1].text);
+  }
+  return false;
+}
+
+/**
+ * How often each skipping or narrowing modifier occurs: `.only` on a test call (`it.only`, `describe.only.each`; a property
+ * named `only` is not one), `.skip` (ctx.skip() too), `.skipIf`, `.todo`.
+ */
 export function modifierCounts(src: string): Record<"only" | "skip" | "skipIf" | "todo", number> {
   const t = tokenize(src);
   const out = { only: 0, skip: 0, skipIf: 0, todo: 0 };
   for (let k = 1; k < t.length; k++) {
     if (t[k - 1].text !== "." || t[k].type !== "ident") continue;
     const name = t[k].text as keyof typeof out;
-    if (name in out) out[name]++;
+    if (!(name in out)) continue;
+    if (name === "only" && !onTestCall(t, k)) continue;
+    out[name]++;
   }
   return out;
 }
 
-const TEST_CALLS = new Set(["it", "test", "describe", "suite", "bench", "beforeAll", "afterAll", "beforeEach", "afterEach"]);
+const TEST_CALLS = new Set([...FOCUSABLE_CALLS, "beforeAll", "afterAll", "beforeEach", "afterEach"]);
 const VITEST_DEFAULT_TIMEOUT_MS = 5000;
 
 /**
@@ -563,40 +664,79 @@ function testAck(file: string, trailers: ReadonlyMap<string, string[]>): string[
 
 /**
  * The weakening findings of a change: `files` holds both versions of every changed path, `changed` the paths.
+ *
+ * The expect( count is judged per file: a test file that has fewer expect calls than at the base dropped some, unless the
+ * very statements it lost (their normalized tokens) were added to another test file of the change – a test moved, renamed,
+ * split or merged. So an expect added anywhere else (a new file, another test) never offsets one removed here. A deleted
+ * test file whose every expect reappears elsewhere is a move (a `test-moved` note, no failure); a new file it moved to is
+ * compared with it, as a modified file would be. Any other new test file is checked for .only / .skip / .skipIf / .todo
+ * against none.
  */
 export function weakeningFindings(config: ProtectedConfig["weakening"], changed: readonly string[], files: ReadonlyMap<string, FileVersions>, trailers: ReadonlyMap<string, string[]>): WeakeningFinding[] {
   const out: WeakeningFinding[] = [];
-  const add = (kind: WeakeningFinding["kind"], file: string, detail: string) => {
-    const reasons = kind === "only-added" ? [] : testAck(file, trailers);
+  const add = (kind: WeakeningFinding["kind"], file: string, detail: string, acknowledged?: string[]) => {
+    const reasons = acknowledged ?? (kind === "only-added" ? [] : testAck(file, trailers));
     out.push({ kind, file, detail, acknowledged: reasons.length > 0, reasons });
   };
   const testFiles = changed.filter((f) => matchesAny(f, config.tests)).sort();
-  let net = 0;
-  const drops: [string, number, number][] = [];
+  const statements = new Map<string, { before: string[]; after: string[]; added: string[] }>();
   for (const file of testFiles) {
     const v = files.get(file);
-    if (!v) continue;
-    const before = v.base === null ? 0 : countExpects(v.base);
-    const after = v.head === null ? 0 : countExpects(v.head);
-    net += after - before;
-    if (after < before) drops.push([file, before, after]);
-    if (v.base !== null && v.head === null) add("test-deleted", file, `deleted (${before} expect calls)`);
-    if (v.base === null || v.head === null) continue;
-    const a = modifierCounts(v.base);
+    if (!v || (v.base === null && v.head === null)) continue;
+    const before = v.base === null ? [] : expectStatements(v.base);
+    const after = v.head === null ? [] : expectStatements(v.head);
+    statements.set(file, { before, after, added: bagMinus(after, before) });
+  }
+  const isNew = (f: string) => files.get(f)!.base === null;
+  // every statement the change adds to a test file: where a removed one may have moved
+  let pool = bag([...statements.values()].flatMap((x) => x.added));
+  const pairedWith = new Map<string, string>();
+  for (const [file, { before, after }] of statements) {
+    const v = files.get(file)!;
+    if (v.base === null) continue;
+    const deficit = before.length - after.length;
+    if (v.head !== null && deficit <= 0) continue;
+    const removed = bagMinus(before, after);
+    const trial = new Map(pool);
+    const matched = take(trial, removed, Math.max(0, deficit));
+    const kept = matched >= deficit;
+    if (kept) pool = trial;
+    if (v.head === null) {
+      // a deleted file moved when its every expect is elsewhere (a helper without any: when a new file has its very source)
+      const base = normalizeSource(v.base);
+      const same = [...statements.keys()].find((f) => isNew(f) && !pairedWith.has(f) && normalizeSource(files.get(f)!.head!) === base);
+      const score = (f: string) => take(bag(statements.get(f)!.added), removed);
+      const target = same ?? (before.length && kept ? [...statements.keys()].filter((f) => f !== file && score(f) > 0).sort((a, b) => score(b) - score(a) || a.localeCompare(b))[0] : undefined);
+      if (target) {
+        if (isNew(target)) pairedWith.set(target, file);
+        add("test-moved", file, `moved to ${target} (${before.length} expect calls)`, [`its ${before.length} expect calls are all in the change's other test files`]);
+        continue;
+      }
+      add("test-deleted", file, `deleted (${before.length} expect calls)`);
+    }
+    if (!kept) add("expect-drop", file, `expect calls ${before.length} → ${after.length} (${deficit - matched} removed and added to no other test file of the change)`);
+  }
+  for (const file of statements.keys()) {
+    const v = files.get(file)!;
+    if (v.head === null) continue;
+    // a new file is compared with the file it was moved from, else with nothing
+    const baseSrc = v.base ?? (pairedWith.has(file) ? files.get(pairedWith.get(file)!)!.base : null);
+    const a = baseSrc === null ? { only: 0, skip: 0, skipIf: 0, todo: 0 } : modifierCounts(baseSrc);
     const b = modifierCounts(v.head);
-    if (b.only > a.only) add("only-added", file, `.only ${a.only} → ${b.only}`);
-    if (b.skip > a.skip) add("skip-added", file, `.skip ${a.skip} → ${b.skip}`);
-    if (b.skipIf > a.skipIf) add("skipIf-added", file, `.skipIf ${a.skipIf} → ${b.skipIf}`);
-    if (b.todo > a.todo) add("todo-added", file, `.todo ${a.todo} → ${b.todo}`);
+    const was = v.base === null ? (baseSrc === null ? " (a new file)" : ` (moved from ${pairedWith.get(file)})`) : "";
+    if (b.only > a.only) add("only-added", file, `.only ${a.only} → ${b.only}${was}`);
+    if (b.skip > a.skip) add("skip-added", file, `.skip ${a.skip} → ${b.skip}${was}`);
+    if (b.skipIf > a.skipIf) add("skipIf-added", file, `.skipIf ${a.skipIf} → ${b.skipIf}${was}`);
+    if (b.todo > a.todo) add("todo-added", file, `.todo ${a.todo} → ${b.todo}${was}`);
+    if (baseSrc === null) continue;
     // a raised timeout: a test (or hook) that existed before now waits longer (a new test may bring its own)
-    const ta = testTimeouts(v.base);
+    const ta = testTimeouts(baseSrc);
     for (const [key, ms] of testTimeouts(v.head)) {
       if (!ta.has(key) || ms === null) continue;
       const old = ta.get(key) ?? VITEST_DEFAULT_TIMEOUT_MS;
       if (ms > old) add("timeout-raised", file, `${key}: ${ta.get(key) ?? `${VITEST_DEFAULT_TIMEOUT_MS} (the default)`} → ${ms} ms`);
     }
   }
-  if (net < 0) for (const [file, before, after] of drops) add("expect-drop", file, `expect calls ${before} → ${after} (net ${net} over the changed test files)`);
   const smoke = files.get(config.smokeFile);
   if (smoke && changed.includes(config.smokeFile)) {
     const before = smoke.base === null ? 0 : countChecks(smoke.base);

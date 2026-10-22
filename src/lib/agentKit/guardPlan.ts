@@ -40,16 +40,22 @@ export interface EscalationRule {
 export interface CoreConfig {
   schema: 1;
   budget: { coldSeconds: number; warmSeconds: number };
-  /** Measured once on a 4-CPU machine (seconds), for the speed budget. */
+  /** Wall times measured once on a 4-CPU machine (seconds), for the speed budget; warm = nothing changed since the last run. */
   measured: {
     tscCold: number;
     tscWarm: number;
+    /** Lane A after a body-only edit of a source file (declarations to the cache: dependents are not re-checked). */
+    tscEdit: number;
     eslintCold: number;
     eslintWarm: number;
     nodeCheck: number;
     desktop: number;
     billing: number;
     vitestStartup: number;
+    /** What one test file costs beyond its run duration: transform, collect, environment (per file, before the workers split it). */
+    vitestPerFile: number;
+    /** The mean run duration of a related test file outside the core list (core.json knows the core list's own). */
+    relatedFile: number;
     smallChecks: number;
   };
   vitest: {
@@ -321,6 +327,17 @@ export interface GuardStep {
   jsonReport?: string;
   /** For node-check: the files (resolved by guard.mjs from config.nodeCheck). */
   files?: string[];
+  /** For the tsc parser: the step emits declarations, so the errors only declaration emit raises do not count. */
+  declarationEmit?: boolean;
+}
+
+/**
+ * Whether a tsc failure signature (`tsc <file>: TS<code> <message>`) is one only declaration emit raises – a name a
+ * declaration cannot reach, a type too large to write out – and no type error: `tsc --noEmit` (`npm run typecheck`, CI)
+ * never reports it.
+ */
+export function declarationEmitOnly(signature: string): boolean {
+  return /: TS\d+ .*(?:has or is using (?:private )?name|cannot be named without a reference|Declaration emit for this file requires|cannot be serialized|exceeds the maximum length the compiler will serialize|references an inaccessible|of exported anonymous class type may not be private or protected)/.test(signature);
 }
 
 export interface GuardLane {
@@ -376,7 +393,19 @@ export function planTier0(input: { config: CoreConfig; vitest: VitestPlan; cache
     {
       id: "A",
       title: "type check (site)",
-      steps: [{ id: "tsc", title: "tsc --noEmit (incremental)", argv: ["node", "node_modules/typescript/bin/tsc", "--noEmit", "--incremental", "--tsBuildInfoFile", cache("site.tsbuildinfo")], cwd: "", parser: "tsc" }],
+      // Declarations emitted into the cache, not --noEmit: tsc then re-checks a file's dependents only when its declaration
+      // changed, so a body-only edit costs seconds, not a full re-check (measured on 4 CPUs: 6 s against 111 s). The errors
+      // only declaration emit raises are no type errors (`npm run typecheck` never sees them): declarationEmitOnly() below.
+      steps: [
+        {
+          id: "tsc",
+          title: "tsc (incremental, declarations to the cache)",
+          argv: ["node", "node_modules/typescript/bin/tsc", "--noEmit", "false", "--declaration", "--emitDeclarationOnly", "--outDir", cache("tsc-dts"), "--incremental", "--tsBuildInfoFile", cache("site-dts.tsbuildinfo")],
+          cwd: "",
+          parser: "tsc",
+          declarationEmit: true,
+        },
+      ],
     },
     {
       id: "B",
@@ -436,7 +465,8 @@ export function tier1SmokeBlocks(config: CoreConfig, escalation: Escalation, blo
 export function planTier1(input: { config: CoreConfig; smoke: readonly string[]; port: number; outDir: string }): GuardLane {
   const base = input.config.browser.basePath;
   const url = `http://localhost:${input.port}${base}`;
-  const buildEnv = { NEXT_PUBLIC_BASE_PATH: base, NEXT_PUBLIC_SITE_URL: url, JBL_BUILD_SKIP_TYPECHECK: "1", OBFUSCATE: "0" };
+  // (Next's telemetry off: the guard uses no network but its own 127.0.0.1 server)
+  const buildEnv = { NEXT_PUBLIC_BASE_PATH: base, NEXT_PUBLIC_SITE_URL: url, JBL_BUILD_SKIP_TYPECHECK: "1", OBFUSCATE: "0", NEXT_TELEMETRY_DISABLED: "1" };
   return {
     id: "T1",
     title: "browser: build, serve, core smoke blocks",
@@ -465,18 +495,18 @@ export interface LaneEstimate {
   total: number;
 }
 
-/** The expected wall time of tier 0 from core.json's measurements: cold (no caches) or warm (caches, nothing changed). */
-export function estimateTier0(config: CoreConfig, plan: VitestPlan, warm: boolean): LaneEstimate {
+/**
+ * The expected wall time of tier 0 from core.json's measurements: cold (no caches), warm (caches, nothing changed since the
+ * last run) or edit (warm, after a body-only edit of a source file). Lane C is vitest's start-up plus, split over the
+ * workers, every file's run duration (core.json's for the core list, the related mean for the others) and its per-file cost.
+ */
+export function estimateTier0(config: CoreConfig, plan: VitestPlan, warm: boolean | "edit"): LaneEstimate {
   const m = config.measured;
   const seconds = new Map(config.vitest.core.map((t) => [t.file, t.seconds]));
-  const median = (() => {
-    const s = config.vitest.core.map((t) => t.seconds).sort((a, b) => a - b);
-    return s.length ? s[Math.floor(s.length / 2)] : 1;
-  })();
-  const testTime = (files: readonly string[]) => files.reduce((sum, f) => sum + (seconds.get(f) ?? median), 0);
+  const testTime = (files: readonly string[]) => files.reduce((sum, f) => sum + (seconds.get(f) ?? m.relatedFile), 0);
   const workers = Math.max(1, config.vitest.maxWorkers);
-  const vitestWall = (files: readonly string[]) => (files.length ? m.vitestStartup + testTime(files) / workers : 0);
-  const A = warm ? m.tscWarm : m.tscCold;
+  const vitestWall = (files: readonly string[]) => (files.length ? m.vitestStartup + (testTime(files) + files.length * m.vitestPerFile) / workers : 0);
+  const A = warm === "edit" ? m.tscEdit : warm ? m.tscWarm : m.tscCold;
   const B = (warm ? m.eslintWarm : m.eslintCold) + m.nodeCheck + m.desktop + m.billing;
   const C = vitestWall([...plan.core, ...plan.related]) + m.smallChecks;
   return { A, B, C, total: Math.max(A, B, C) };
@@ -524,6 +554,31 @@ export interface StaticVerdicts {
   protectedFindings: number;
 }
 
+/* ------------------------------------------------------------------------------------------------ the baseline */
+
+/** node_modules/.cache/jbl-guard/baseline.json: the failures `--baseline` found on a clean tree at `head`. */
+export interface BaselineRecord {
+  head: string;
+  /** The tree had uncommitted or untracked changes (a baseline of a changed tree excuses nothing). */
+  dirty: boolean;
+  /** The base the recording run measured against (informational). */
+  base?: { ref: string; commit: string };
+  recordedAt?: string;
+  signatures: Record<string, string[]>;
+}
+
+/**
+ * Whether a recorded baseline may mark this run's failures pre-existing: only one recorded on a clean tree at the run's base
+ * commit or before it. A baseline recorded after the base (the change's own commits included) or on a changed tree would
+ * excuse the change's own failures, so it is ignored, and the reason is noted. `isAncestor(a, b)`: a is b or before it.
+ */
+export function baselineUsable(b: Partial<BaselineRecord> | null, run: { baseCommit: string; isAncestor: (a: string, b: string) => boolean }): { ok: true } | { ok: false; why: string } {
+  if (!b || typeof b.head !== "string" || !b.signatures) return { ok: false, why: "the baseline file is unreadable: ignored" };
+  if (b.dirty !== false) return { ok: false, why: `the baseline (${b.head.slice(0, 7)}) was recorded on a tree with uncommitted or untracked changes: ignored` };
+  if (b.head === run.baseCommit || run.isAncestor(b.head, run.baseCommit)) return { ok: true };
+  return { ok: false, why: `the baseline (${b.head.slice(0, 7)}) was recorded after the base (${run.baseCommit.slice(0, 7)}): its failures may be the change's own, so it is ignored – record it on the base commit, or measure from it (--base ${b.head.slice(0, 7)})` };
+}
+
 /** 0 green, 1 failed, 2 green but a higher tier is required (or required tests were left out). */
 export function exitCode(input: { steps: readonly StepResult[]; statics: StaticVerdicts; escalation: Escalation; tier: 0 | 1; vitest: VitestPlan; baselineRun?: boolean }): 0 | 1 | 2 {
   if (input.baselineRun) return 0;
@@ -537,6 +592,26 @@ export function exitCode(input: { steps: readonly StepResult[]; statics: StaticV
 }
 
 export const VERDICTS = { 0: "green", 1: "failed", 2: "green, higher tier required" } as const;
+
+/** The verdict, saying when it is green only because the baseline excused failures (never a plain "green" then). */
+export function verdictOf(code: 0 | 1 | 2, steps: readonly StepResult[]): string {
+  const excused = steps.reduce((n, s) => n + (s.status === "pre-existing" ? (s.preExisting?.length ?? 1) : 0), 0);
+  if (code === 1 || !excused) return VERDICTS[code];
+  return `${VERDICTS[code]} with ${excused} pre-existing failure${excused === 1 ? "" : "s"} excused by the baseline`;
+}
+
+/**
+ * The core.json a change is checked with: the working tree's, plus what the base commit's had that the change took out (its
+ * core tests that still exist, its hub files). So dropping a failing test from the core list, or a hub file from hubFiles,
+ * cannot turn a run green before the owner has reviewed it (core.json is a protected path).
+ */
+export function mergeCoreConfigs(base: CoreConfig | null, head: CoreConfig, exists: (file: string) => boolean): CoreConfig {
+  if (!base) return head;
+  const listed = new Set(head.vitest.core.map((t) => t.file));
+  const kept = (base.vitest?.core ?? []).filter((t) => !listed.has(t.file) && exists(t.file));
+  const hubs = [...head.hubFiles, ...(base.hubFiles ?? []).filter((g) => !head.hubFiles.includes(g))];
+  return { ...head, hubFiles: hubs, vitest: { ...head.vitest, core: [...head.vitest.core, ...kept] } };
+}
 
 /** The commands a reader runs next for what this run did not cover. */
 export function requiredCommands(input: { escalation: Escalation; vitest: VitestPlan; tier: 0 | 1; config: CoreConfig }): string[] {

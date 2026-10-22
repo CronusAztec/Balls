@@ -6,9 +6,11 @@ import {
   arrayElements,
   countChecks,
   countExpects,
+  expectStatements,
   extractConst,
   filesToRead,
   fingerprintChanges,
+  mergeProtectedConfigs,
   modifierCounts,
   normalizeSource,
   objectEntries,
@@ -24,8 +26,9 @@ import {
 
 /*
  * --- ai-guard --- The core guard's static checks (src/lib/agentKit/protectedDiff.ts) on fixture diffs: the fingerprint lock
- * and its Fingerprint-Change trailer, the protected-path report, the test-weakening detector and its Test-Change trailer –
- * and on the real tree: every locked literal of scripts/agent/protected.json resolves, and BASELINE has one entry per mode.
+ * and its Fingerprint-Change trailer, the protected-path report, the test-weakening detector and its Test-Change trailer, the
+ * rules joined from the base commit and the working tree – and on the real tree: every locked literal of
+ * scripts/agent/protected.json resolves, and BASELINE has one entry per mode.
  */
 
 const ROOT = path.resolve(__dirname, "..");
@@ -165,6 +168,42 @@ describe("the fingerprint lock on the real tree (scripts/agent/protected.json)",
   });
 });
 
+describe("the rules a change is checked with: protected.json at the base joined with the working tree's", () => {
+  const golden = 'const GOLDEN = "bc8d863e";\n';
+  const goldenLock: FingerprintLocator = { file: "tests/fightLeague.test.ts", kind: "value", const: "GOLDEN", mode: "fightLeague" };
+  const narrowed: ProtectedConfig = { ...PROTECTED, fingerprints: PROTECTED.fingerprints.filter((l) => l.const !== "GOLDEN"), weakening: { ...PROTECTED.weakening, tests: ["tests/none/**/*.ts"], allowLists: [] } };
+
+  it("keeps a removed fingerprint locator in force: a re-record plus its locator's removal still fails", () => {
+    expect(PROTECTED.fingerprints).toContainEqual(goldenLock);
+    const versions = files({ "tests/fightLeague.test.ts": [golden, golden.replace("bc8d863e", "bc8d863f")] });
+    expect(fingerprintChanges(narrowed.fingerprints, versions, none)).toEqual([]); // what the working tree's rules alone would say
+    const merged = mergeProtectedConfigs(PROTECTED, narrowed);
+    expect(fingerprintChanges(merged.fingerprints, versions, none).map((c) => `${c.mode} ${c.kind} ${c.acknowledged}`)).toEqual(["fightLeague changed false"]);
+  });
+
+  it("keeps the weakening rules in force: a narrowed test glob or a dropped allow list does not hide a removed expect", () => {
+    const merged = mergeProtectedConfigs(PROTECTED, narrowed);
+    expect(merged.weakening.tests).toEqual(expect.arrayContaining(PROTECTED.weakening.tests));
+    expect(merged.weakening.allowLists).toEqual(PROTECTED.weakening.allowLists);
+    const src = "it('x', () => { expect(1).toBe(1); expect(2).toBe(2); });";
+    const versions = files({ "tests/engine.test.ts": [src, src.replace(" expect(2).toBe(2);", "")] });
+    expect(weakeningFindings(narrowed.weakening, ["tests/engine.test.ts"], versions, none)).toEqual([]);
+    expect(weakeningFindings(merged.weakening, ["tests/engine.test.ts"], versions, none).map((f) => f.kind)).toEqual(["expect-drop"]);
+    // the protected paths and regions too
+    const noPaths: ProtectedConfig = { ...PROTECTED, paths: [], regions: [] };
+    expect(protectedFindings(mergeProtectedConfigs(PROTECTED, noPaths), ["deploy/vps/jbl-deploy.sh"], new Map()).map((f) => f.rule)).toEqual(["deploy/**"]);
+  });
+
+  it("applies a rule the change adds at once, and the working tree's alone when the base has none", () => {
+    const extra: FingerprintLocator = { file: "tests/newMode.test.ts", kind: "value", const: "PIN", mode: "newMode" };
+    const added = mergeProtectedConfigs(PROTECTED, { ...PROTECTED, fingerprints: [...PROTECTED.fingerprints, extra] });
+    expect(added.fingerprints).toContainEqual(extra);
+    expect(added.fingerprints).toHaveLength(PROTECTED.fingerprints.length + 1);
+    expect(mergeProtectedConfigs(null, narrowed)).toBe(narrowed);
+    expect(mergeProtectedConfigs(PROTECTED, PROTECTED)).toEqual(PROTECTED);
+  });
+});
+
 describe("the protected-path report", () => {
   const config = { paths: PROTECTED.paths, regions: PROTECTED.regions };
   const privacyBase = JSON.stringify({ Privacy: { title: "Privacy", cookies: "No cookies." }, Home: { title: "Home" } });
@@ -257,6 +296,67 @@ describe("thing", () => {
     expect(kinds(head, parseTrailers(["Test-Change: tests/thing.test.ts - the plain case moved to thing2"], "Test-Change"))).toEqual(["skip-added (acknowledged)"]);
     expect(kinds(head, parseTrailers(["Test-Change: tests/thing*.test.ts - covered elsewhere now"], "Test-Change"))).toEqual(["skip-added (acknowledged)"]);
     expect(kinds(head, parseTrailers(["Test-Change: tests/other.test.ts - not this file"], "Test-Change"))).toEqual(["skip-added"]);
+  });
+
+  it("reads each expect statement with its matcher chain, the unit a move is matched by", () => {
+    expect(expectStatements("expect(a.b()).not.toEqual(c[0]); expect.soft(x)?.toBe(1);\nexpectTypeOf(y).toBeNumber(); foo.expect(z);")).toEqual([
+      "expect ( a . b ( ) ) . not . toEqual ( c [ 0 ] )",
+      "expect . soft ( x ) ?. toBe ( 1 )",
+      "expectTypeOf ( y ) . toBeNumber ( )",
+    ]);
+    expect(countExpects(TEST)).toBe(expectStatements(TEST).length);
+  });
+
+  it("never lets an expect added elsewhere offset one removed here: a new test file, or another test's new expects", () => {
+    // one new file with 3 expects, and 1 expect removed from an existing file
+    const existing = TEST.replace("    expect.soft(2 + 2).toBe(4);\n", "");
+    const fresh = 'it("x", () => {\n  expect(7).toBe(7);\n  expect(8).toBe(8);\n  expect(9).toBe(9);\n});\n';
+    const withNew = weakeningFindings(W, ["tests/new.test.ts", "tests/thing.test.ts"], files({ "tests/thing.test.ts": [TEST, existing], "tests/new.test.ts": [null, fresh] }), none);
+    expect(withNew.map((f) => `${f.kind} ${f.file} ${f.acknowledged}`)).toEqual(["expect-drop tests/thing.test.ts false"]);
+    // the same with the 3 new expects in another existing test
+    const other = weakeningFindings(W, ["tests/other.test.ts", "tests/thing.test.ts"], files({ "tests/thing.test.ts": [TEST, existing], "tests/other.test.ts": ["expect(1);", `expect(1);\n${fresh}`] }), none);
+    expect(other.map((f) => `${f.kind} ${f.file}`)).toEqual(["expect-drop tests/thing.test.ts"]);
+    // an expect whose expected value changed is not a dropped one
+    expect(weak(TEST.replace("expect(4).toBe(4)", "expect(4).toBe(5)"))).toEqual([]);
+    // the removed statement copied into a new file: moved, not dropped
+    const movedOut = weakeningFindings(W, ["tests/new.test.ts", "tests/thing.test.ts"], files({ "tests/thing.test.ts": [TEST, existing], "tests/new.test.ts": [null, `${fresh}expect.soft(2 + 2).toBe(4);\n`] }), none);
+    expect(movedOut).toEqual([]);
+  });
+
+  it("treats a renamed or split test file as a move, and compares the new file with the old one", () => {
+    // git mv with no content change: a note, no failure
+    const renamed = weakeningFindings(W, ["tests/thing.test.ts", "tests/thingRenamed.test.ts"], files({ "tests/thing.test.ts": [TEST, null], "tests/thingRenamed.test.ts": [null, TEST] }), none);
+    expect(renamed.map((f) => [f.kind, f.file, f.acknowledged])).toEqual([["test-moved", "tests/thing.test.ts", true]]);
+    expect(renamed[0].detail).toContain("tests/thingRenamed.test.ts");
+    // split into two new files
+    const [first, second] = [TEST.slice(0, TEST.indexOf('  it("runs every mode"')) + "});\n", `describe("thing 2", () => {\n${TEST.slice(TEST.indexOf('  it("runs every mode"'))}`];
+    const split = weakeningFindings(W, ["tests/thing.test.ts", "tests/thingA.test.ts", "tests/thingB.test.ts"], files({ "tests/thing.test.ts": [TEST, null], "tests/thingA.test.ts": [null, first], "tests/thingB.test.ts": [null, second] }), none);
+    expect(split.map((f) => f.kind)).toEqual(["test-moved"]);
+    // renamed with a .skip, or a raised timeout, added on the way: caught on the new file
+    const skipped = weakeningFindings(W, ["tests/thing.test.ts", "tests/thingRenamed.test.ts"], files({ "tests/thing.test.ts": [TEST, null], "tests/thingRenamed.test.ts": [null, TEST.replace('it("plain"', 'it.skip("plain"').replace("{ timeout: 20_000 }", "{ timeout: 90_000 }")] }), none);
+    expect(skipped.map((f) => `${f.kind} ${f.file}`)).toEqual(["test-moved tests/thing.test.ts", "skip-added tests/thingRenamed.test.ts", "timeout-raised tests/thingRenamed.test.ts"]);
+    // a .skip the old file already had moves with it
+    const SKIPPING = TEST.replace('it("plain"', 'it.skip("plain"');
+    expect(weakeningFindings(W, ["tests/a.test.ts", "tests/b.test.ts"], files({ "tests/a.test.ts": [SKIPPING, null], "tests/b.test.ts": [null, SKIPPING] }), none).map((f) => f.kind)).toEqual(["test-moved"]);
+    // deleted, and only part of it went anywhere: deleted
+    const partly = weakeningFindings(W, ["tests/thing.test.ts", "tests/thingA.test.ts"], files({ "tests/thing.test.ts": [TEST, null], "tests/thingA.test.ts": [null, first] }), none);
+    expect(partly.map((f) => f.kind)).toEqual(["test-deleted", "expect-drop"]);
+  });
+
+  it("checks a new test file's modifiers against none: a file of describe.skip is flagged", () => {
+    const fresh = 'describe.skip("later", () => {\n  it("a", () => {\n    expect(1).toBe(1);\n  });\n});\nit.todo("b");\n';
+    const found = weakeningFindings(W, ["tests/fresh.test.ts"], files({ "tests/fresh.test.ts": [null, fresh] }), none);
+    expect(found.map((f) => `${f.kind} ${f.acknowledged}`)).toEqual(["skip-added false", "todo-added false"]);
+    expect(found[0].detail).toContain("a new file");
+    expect(weakeningFindings(W, ["tests/fresh.test.ts"], files({ "tests/fresh.test.ts": [null, fresh] }), parseTrailers(["Test-Change: tests/fresh.test.ts - parked until the API lands"], "Test-Change")).every((f) => f.acknowledged)).toBe(true);
+    expect(weakeningFindings(W, ["tests/fresh.test.ts"], files({ "tests/fresh.test.ts": [null, 'it("a", () => {\n  expect(1).toBe(1);\n});\n'] }), none)).toEqual([]);
+  });
+
+  it("counts .only on a test call only, never a property named only", () => {
+    expect(modifierCounts("it.only('a', f); test.concurrent.only('b', f); describe.only.each([1])('c', f); suite.only('d', f); bench.only('e', f);").only).toBe(5);
+    expect(modifierCounts("const keep = filter.only; opts.only = true; foo.it.only('x'); this.only;").only).toBe(0);
+    const reading = TEST.replace('  it("plain"', '  it("reads the block filter", () => {\n    expect(parse("a,b").only).toEqual(["a", "b"]);\n  });\n  it("plain"');
+    expect(weak(reading)).toEqual([]);
   });
 
   it("fails a deleted test file, a deleted smoke check( and a widened allow list", () => {

@@ -1,24 +1,27 @@
 {
   "schema": 1,
-  "about": "--- ai-guard --- The core guard's data (scripts/agent/guard.mjs, src/lib/agentKit/guardPlan.ts; README 'Core guard'). Protected: a change here is reported for owner review, and dropping a test from the core list is such a change. 'seconds' are vitest's measured per-file durations on a 4-CPU machine; tests/coreGuard.test.ts checks the lane plan against the budget with them.",
+  "about": "--- ai-guard --- The core guard's data (scripts/agent/guard.mjs, src/lib/agentKit/guardPlan.ts; README 'Core guard'). Protected: a change here is reported for owner review, and dropping a test from the core list is such a change (the guard keeps the base commit's core tests and hub files in force until it is merged). 'seconds' are vitest's measured per-file run durations on a 4-CPU machine; 'measured' are wall times there, warm meaning nothing changed since the last run: vitestPerFile is what a test file costs beyond its run duration (transform, collect, setup: 75 files took 71.7 s against 7 + (131.3 + 75 x 0.84) / 3), relatedFile the mean run duration of a related test outside the core list (4.1 s for the twelve nearest of a broad change, 3.3 s for 25), tscEdit lane A after a body-only edit (declarations to the cache: 6 s, against 111 s for --noEmit). relatedCap is what keeps a full set of related tests within the warm budget (12 took 61 s, 25 took 72 s); the related tests past it are listed as required (exit 2), never dropped. tests/coreGuard.test.ts checks the lane plan against the budget with them, a full set of related tests included.",
   "budget": {
     "coldSeconds": 180,
     "warmSeconds": 60
   },
   "measured": {
-    "tscCold": 90,
-    "tscWarm": 6,
-    "eslintCold": 35,
-    "eslintWarm": 8,
+    "tscCold": 145,
+    "tscWarm": 10,
+    "tscEdit": 12,
+    "eslintCold": 65,
+    "eslintWarm": 3,
     "nodeCheck": 2,
-    "desktop": 15,
-    "billing": 9,
-    "vitestStartup": 5,
-    "smallChecks": 2
+    "desktop": 23,
+    "billing": 13,
+    "vitestStartup": 7,
+    "vitestPerFile": 0.84,
+    "relatedFile": 4.1,
+    "smallChecks": 1
   },
   "vitest": {
     "maxWorkers": 3,
-    "relatedCap": 25,
+    "relatedCap": 10,
     "core": [
       {
         "file": "tests/engine.test.ts",
@@ -407,7 +410,7 @@
   },
   "tier2": [
     "npm run test:ci",
-    "NEXT_PUBLIC_SITE_URL=http://localhost:3000/smoke NEXT_PUBLIC_BASE_PATH=/smoke npx next build --no-lint && node scripts/postexport.mjs",
+    "NEXT_TELEMETRY_DISABLED=1 NEXT_PUBLIC_SITE_URL=http://localhost:3000/smoke NEXT_PUBLIC_BASE_PATH=/smoke npx next build --no-lint && node scripts/postexport.mjs",
     "node scripts/serve-static.mjs --port 3000 --base /smoke &",
     "for i in 1 2 3 4; do BASE_URL=http://localhost:3000/smoke SMOKE_SHARD=$i/4 OUT_DIR=smoke-output/shard-$i npm run smoke; done   # or push to the product branch: deploy.yml runs exactly this"
   ],

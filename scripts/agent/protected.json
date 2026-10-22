@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "about": "--- ai-guard --- What the core guard protects (scripts/agent/guard.mjs, src/lib/agentKit/protectedDiff.ts; README 'Core guard'). paths and regions: a change is reported as 'owner review required' (a warning, an annotation in CI; never a failure). fingerprints: a changed or removed entry fails the guard unless a commit in the range carries 'Fingerprint-Change: <mode> - <reason>'. weakening: a finding fails unless a commit carries 'Test-Change: <file> - <reason>' (an added .only always fails). This file is protected itself.",
+  "about": "--- ai-guard --- What the core guard protects (scripts/agent/guard.mjs, src/lib/agentKit/protectedDiff.ts; README 'Core guard'). paths and regions: a change is reported as 'owner review required' (a warning, and a GitHub annotation where the guard runs in Actions; never a failure). fingerprints: a changed or removed entry fails the guard unless a commit in the range carries 'Fingerprint-Change: <mode> - <reason>'. weakening: a finding fails unless a commit carries 'Test-Change: <file> - <reason>' (an added .only always fails). This file is protected itself, and the guard reads it at the base commit too: a rule a change removes or narrows still applies until the change is merged.",
   "paths": [
     {
       "glob": "src/lib/watermark/**",
@@ -57,6 +57,30 @@
     {
       "glob": ".mcp.json",
       "why": "the MCP servers Claude Code offers to start in this project"
+    },
+    {
+      "glob": "scripts/agent/guard.mjs",
+      "why": "the guard itself: what it runs, which rules it reads and what it lets pass"
+    },
+    {
+      "glob": "src/lib/agentKit/guardPlan.ts",
+      "why": "the guard's plan: its lanes, escalation, baseline rule and exit codes"
+    },
+    {
+      "glob": "src/lib/agentKit/protectedDiff.ts",
+      "why": "the guard's static checks: the fingerprint lock, this report and the test-weakening detector"
+    },
+    {
+      "glob": "scripts/test-ci.mjs",
+      "why": "how CI runs the whole vitest suite (tier 2), and which worker error the guard forgives"
+    },
+    {
+      "glob": "vitest.config.ts",
+      "why": "which test files run and how (include, exclude, timeouts)"
+    },
+    {
+      "glob": "scripts/smoke/verdict.mjs",
+      "why": "how the smoke suite decides pass or fail"
     }
   ],
   "regions": [

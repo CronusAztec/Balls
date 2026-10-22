@@ -2,19 +2,24 @@
 /**
  * --- ai-guard --- The core guard: one command that says whether a change kept the core functions working.
  *
- *   npm run guard                      tier 0: the three lanes below at once, no build (under 3 min cold, about 1 min warm)
+ *   npm run guard                      tier 0: the three lanes below at once, no build (under 3 min cold; about 40 s warm
+ *                                      with nothing changed, under a minute with a full set of related tests)
  *   npm run guard:browser              tier 1: tier 0, then a /smoke build, the export served and the core smoke blocks
- *   npm run guard -- --baseline        tier 0 on the untouched tree: records the failures that already exist
+ *   npm run guard -- --baseline        tier 0 on the untouched tree: records the failures that already exist (refused on a
+ *                                      tree with any change; a later run uses it only when its base is that commit or after it)
  *   npm run guard -- --plan            what would run and the static checks' findings, nothing executed (with --json: the report)
  *   options: --base <ref> (default: the merge base with origin/main), --with-slow (the slow tests a change pulls in),
  *            --json (print the report instead of the summary), --port <n> (tier 1's server, default 3101), --help
  *
- * Lane A: the incremental type check. Lane B: ESLint (cached), `node --check` on the scripts, the desktop app's and the
- * billing Worker's type checks and tests. Lane C: one vitest run of the core list (scripts/agent/core.json) and the tests
- * related to the changed files (minus the slow ones, capped), the changelog check and the smoke suite's --list. Before them, the static
- * checks: the fingerprint lock (Fingerprint-Change trailer), the protected-path report (owner review, a warning) and the
- * test-weakening detector (Test-Change trailer). The plan is src/lib/agentKit/guardPlan.ts and protectedDiff.ts (pure,
- * unit-tested), bundled here with esbuild.
+ * Lane A: the incremental type check (declarations emitted into the cache: a body-only edit re-checks in seconds). Lane B:
+ * ESLint (cached), `node --check` on the scripts, the desktop app's and the billing Worker's type checks and tests. Lane C:
+ * one vitest run of the core list (scripts/agent/core.json) and the tests related to the changed files (minus the slow ones,
+ * capped), the changelog check and the smoke suite's --list. Before them, the static checks: the fingerprint lock
+ * (Fingerprint-Change trailer), the protected-path report (owner review, a warning) and the test-weakening detector
+ * (Test-Change trailer), with the rules of scripts/agent/protected.json at the base commit joined with the working tree's
+ * (a change cannot switch off the check it would fail; core.json's core list and hub files likewise). The plan is
+ * src/lib/agentKit/guardPlan.ts and protectedDiff.ts (pure, unit-tested), bundled here with esbuild. In GitHub Actions a
+ * missing base ref is an error (a shallow checkout would measure nothing) and the findings become annotations.
  *
  * Read-only toward the source: it writes only its cache (node_modules/.cache/jbl-guard, or .agent-out/cache/jbl-guard when
  * node_modules is a link into another checkout; JBL_GUARD_CACHE overrides) and .agent-out/guard-report.json; tier 1 also
@@ -117,11 +122,36 @@ function gitState(requested) {
     }
     if (requested) throw new Error(`guard: --base ${requested}: no merge base with HEAD`);
   }
+  // in CI a missing base means a shallow checkout: measuring against HEAD would pass every change unseen
+  if (!base && process.env.GITHUB_ACTIONS === "true") throw new Error("guard: no base ref (origin/main, main) in this checkout – fetch the history (actions/checkout with fetch-depth: 0) or pass --base <ref>");
   const note = base ? null : "no base ref found (origin/main, main): the change is measured against HEAD";
   if (!base) base = { ref: "HEAD", commit: head };
-  const dirty = (tryGit(["status", "--porcelain", "--untracked-files=no"]) ?? "") !== "";
+  const dirty = uncommittedChanges().length > 0;
   return { head, base, dirty, note };
 }
+
+/** Every change of the working tree against HEAD – staged, unstaged and untracked (not ignored) – as `git status` lines. */
+export function uncommittedChanges(cwd = ROOT) {
+  const out = execFileSync("git", ["status", "--porcelain=v1", "--untracked-files=all"], { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 64 * 1024 * 1024 });
+  return out.split("\n").filter((l) => l.trim() && !/(^|\/)node_modules(\/|$)/.test(l.slice(3)));
+}
+
+/** A file at a commit (null: absent there, or not a git checkout). */
+const atCommit = (commit, file) => {
+  try {
+    return git(["show", `${commit}:${file}`]);
+  } catch {
+    return null;
+  }
+};
+
+const parseOrNull = (text) => {
+  try {
+    return text === null ? null : JSON.parse(text);
+  } catch {
+    return null;
+  }
+};
 
 /** The changed paths: tracked files that differ from the base commit (the working tree, staged or not) plus untracked ones. */
 function changedFiles(baseCommit) {
@@ -140,12 +170,7 @@ function commitMessages(baseCommit) {
 function versions(baseCommit, files) {
   const out = new Map();
   for (const file of files) {
-    let base = null;
-    try {
-      base = git(["show", `${baseCommit}:${file}`]);
-    } catch {
-      base = null;
-    }
+    const base = atCommit(baseCommit, file);
     let head = null;
     try {
       head = fs.readFileSync(path.join(ROOT, file), "utf8");
@@ -235,10 +260,6 @@ const killAll = () => {
     }
   }
 };
-process.on("SIGINT", () => {
-  killAll();
-  process.exit(130);
-});
 
 function run(argv, { cwd, env, log }) {
   return new Promise((resolve) => {
@@ -342,7 +363,10 @@ async function runStep(step, ctx) {
   const output = `${r.stdout}\n${r.stderr}`;
   const failed = r.code !== 0;
   if (step.parser === "tsc") {
-    const sigs = tscSignatures(output, cwd);
+    const all = tscSignatures(output, cwd);
+    // a declaration-emitting check fails only on real type errors (the emit-only ones: a note)
+    const sigs = step.declarationEmit ? all.filter((x) => !ctx.kit.declarationEmitOnly(x)) : all;
+    if (failed && all.length && !sigs.length) return done(false, [], { note: `declaration emit only, no type error: ${all.slice(0, 3).join(" | ")}` });
     return done(failed, failed ? (sigs.length ? sigs : [`${step.id}: exit ${r.code}`]) : [], failed ? { tail: tailOf(output) } : {});
   }
   if (step.parser === "eslint") {
@@ -394,7 +418,7 @@ function httpOk(url) {
 
 /* ------------------------------------------------------------------------------------------------ output */
 
-function printSummary(report) {
+function summaryText(report) {
   const lines = [];
   const pad = (s, n) => (s.length >= n ? s : s + " ".repeat(n - s.length));
   lines.push(`JBL core guard · tier ${report.tier} · base ${report.base.ref} (${report.base.commit.slice(0, 7)}) · ${report.changed.count} changed file${report.changed.count === 1 ? "" : "s"}`);
@@ -430,17 +454,45 @@ function printSummary(report) {
   }
   if (report.notes.length) for (const n of report.notes) lines.push(`Note: ${n}`);
   lines.push(`${report.verdict.toUpperCase()} (exit ${report.exitCode}) in ${report.seconds.toFixed(1)} s · report ${report.reportFile}`);
-  console.log(lines.join("\n"));
+  return `${lines.join("\n")}\n`;
 }
 
 /** In GitHub Actions: the owner-review findings as warnings (annotations), the violations as errors. */
-function annotate(report) {
-  if (process.env.GITHUB_ACTIONS !== "true") return;
+function annotations(report) {
+  if (process.env.GITHUB_ACTIONS !== "true") return "";
   const esc = (s) => String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
-  for (const p of report.protected.findings) console.log(`::warning file=${p.path},title=Owner review required (${esc(p.rule)})::${esc(p.why)}`);
-  for (const c of report.fingerprints.changes.filter((x) => !x.acknowledged)) console.log(`::error file=${c.file},title=Fingerprint ${c.kind} without a trailer::${esc(`${c.mode}: add "Fingerprint-Change: ${c.mode} - <reason>" to the commit`)}`);
-  for (const x of report.weakening.findings.filter((y) => !y.acknowledged)) console.log(`::error file=${x.file},title=Test weakened (${x.kind})::${esc(x.detail)}`);
+  const lines = [];
+  for (const p of report.protected.findings) lines.push(`::warning file=${p.path},title=Owner review required (${esc(p.rule)})::${esc(p.why)}`);
+  for (const c of report.fingerprints.changes.filter((x) => !x.acknowledged)) lines.push(`::error file=${c.file},title=Fingerprint ${c.kind} without a trailer::${esc(`${c.mode}: add "Fingerprint-Change: ${c.mode} - <reason>" to the commit`)}`);
+  for (const x of report.weakening.findings.filter((y) => !y.acknowledged)) lines.push(`::error file=${x.file},title=Test weakened (${x.kind})::${esc(x.detail)}`);
+  return lines.map((l) => `${l}\n`).join("");
 }
+
+/** Throws unless `p` (or, while it does not exist yet, its nearest existing folder) really is inside the repository, links resolved. */
+function assertInsideRepo(p) {
+  let at = path.resolve(p);
+  while (!fs.existsSync(at) && path.dirname(at) !== at) at = path.dirname(at);
+  const r = path.relative(fs.realpathSync(ROOT), fs.realpathSync(at));
+  if (r.startsWith("..") || path.isAbsolute(r)) throw new Error(`guard: ${rel(p)} leads outside the repository (a symbolic link): remove the link`);
+}
+
+/**
+ * Writes a file under .agent-out/ without following a link: the folder must lead to a folder inside the repository, and the
+ * file is written under a fresh name and renamed over the target, which replaces a symbolic link there instead of writing
+ * through it (a checkout may carry one; the report must never land outside the repository).
+ */
+function writeOutFile(file, text) {
+  const dir = path.dirname(file);
+  assertInsideRepo(dir);
+  fs.mkdirSync(dir, { recursive: true });
+  assertInsideRepo(dir);
+  const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.tmp`);
+  fs.writeFileSync(tmp, text, { flag: "wx" });
+  fs.renameSync(tmp, file);
+}
+
+/** Writes to stdout and waits until it is flushed (a pipe is asynchronous: an exit right after a write would cut it at 64 KB). */
+const print = (text) => new Promise((resolve) => process.stdout.write(text, () => resolve()));
 
 /* ------------------------------------------------------------------------------------------------ main */
 
@@ -454,7 +506,15 @@ async function main(argv) {
     return 0;
   }
   if (!fs.existsSync(path.join(ROOT, "node_modules"))) throw new Error("guard: node_modules is missing – run `npm ci` (and npm ci --prefix desktop with ELECTRON_SKIP_BINARY_DOWNLOAD=1, npm ci --prefix billing)");
+  // a stopped guard stops its lanes (tsc, eslint, vitest and its workers, next build) with it
+  for (const [signal, code] of [["SIGINT", 130], ["SIGTERM", 143]]) {
+    process.on(signal, () => {
+      killAll();
+      process.exit(code);
+    });
+  }
   const cacheDir = cacheDirFor(ROOT);
+  if (!process.env.JBL_GUARD_CACHE) assertInsideRepo(cacheDir); // (.agent-out/cache in a worktree: never through a link out of it)
   const logDir = path.join(cacheDir, "logs");
   fs.rmSync(logDir, { recursive: true, force: true });
   fs.mkdirSync(logDir, { recursive: true });
@@ -462,11 +522,19 @@ async function main(argv) {
   ({ onlyWorkerTimeout } = await import(pathToFileURL(path.join(ROOT, "scripts/test-ci.mjs")).href));
   const { findBlockTitles } = await import(pathToFileURL(path.join(ROOT, "scripts/smoke/shards.mjs")).href);
 
-  const core = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts/agent/core.json"), "utf8"));
-  const prot = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts/agent/protected.json"), "utf8"));
   const notes = [];
   const state = gitState(opts.base);
   if (state.note) notes.push(state.note);
+  // a baseline is recorded only on an untouched tree: its failures must be the base's, never the change's own
+  if (opts.baseline && !opts.plan) {
+    const pending = uncommittedChanges();
+    if (pending.length) throw new Error(`guard: --baseline needs an untouched tree, and this one has ${pending.length} change${pending.length === 1 ? "" : "s"} (${pending.slice(0, 5).map((l) => l.slice(3)).join(", ")}${pending.length > 5 ? ", …" : ""}). Commit, stash (git stash -u) or remove them first.`);
+  }
+  // the rules come from the base commit too: a rule the change removes still applies until the owner merges it
+  const headCore = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts/agent/core.json"), "utf8"));
+  const headProt = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts/agent/protected.json"), "utf8"));
+  const core = kit.mergeCoreConfigs(parseOrNull(atCommit(state.base.commit, "scripts/agent/core.json")), headCore, (f) => fs.existsSync(path.join(ROOT, f)));
+  const prot = kit.mergeProtectedConfigs(parseOrNull(atCommit(state.base.commit, "scripts/agent/protected.json")), headProt);
   const changed = changedFiles(state.base.commit);
   const messages = commitMessages(state.base.commit);
   const tree = walk("");
@@ -502,15 +570,12 @@ async function main(argv) {
   const baselineFile = path.join(cacheDir, "baseline.json");
   let baseline = null;
   if (!opts.baseline && fs.existsSync(baselineFile)) {
-    try {
-      const b = JSON.parse(fs.readFileSync(baselineFile, "utf8"));
-      const ancestor = b.head === state.head || tryGit(["merge-base", "--is-ancestor", b.head, "HEAD"]) !== null;
-      if (ancestor) baseline = b;
-      else notes.push(`the baseline (${String(b.head).slice(0, 7)}) is not an ancestor of HEAD: ignored`);
-    } catch {
-      notes.push("the baseline file is unreadable: ignored");
-    }
+    const b = parseOrNull(fs.readFileSync(baselineFile, "utf8"));
+    const usable = kit.baselineUsable(b, { baseCommit: state.base.commit, isAncestor: (a, c) => /^[0-9a-f]{7,64}$/.test(a) && tryGit(["merge-base", "--is-ancestor", a, c]) !== null });
+    if (usable.ok) baseline = b;
+    else notes.push(usable.why);
   }
+  if (opts.baseline && state.head !== state.base.commit) notes.push(`the baseline is recorded at HEAD (${state.head.slice(0, 7)}), after the base (${state.base.commit.slice(0, 7)}): a run measured from that base ignores it (its failures may be this branch's own); a run with --base ${state.head.slice(0, 7)} uses it`);
 
   const laneResults = [];
   if (!opts.plan) {
@@ -558,13 +623,13 @@ async function main(argv) {
   const allSteps = laneResults.flatMap((l) => l.steps);
   const code = opts.plan ? (statics.fingerprintViolations || statics.weakeningViolations ? 1 : 0) : kit.exitCode({ steps: allSteps, statics, escalation, tier, vitest, baselineRun: opts.baseline });
   const reportFile = path.join(ROOT, ".agent-out", "guard-report.json");
-  const estimate = { cold: kit.estimateTier0(core, vitest, false), warm: kit.estimateTier0(core, vitest, true) };
+  const estimate = { cold: kit.estimateTier0(core, vitest, false), warm: kit.estimateTier0(core, vitest, true), edit: kit.estimateTier0(core, vitest, "edit") };
   const report = {
     schema: 1,
     tool: "jbl-guard",
     tier,
     mode: opts.plan ? "plan" : opts.baseline ? "baseline" : "check",
-    verdict: opts.baseline ? "baseline recorded" : opts.plan ? "planned (nothing ran)" : kit.VERDICTS[code],
+    verdict: opts.plan ? "planned (nothing ran)" : opts.baseline ? "baseline recorded" : kit.verdictOf(code, allSteps),
     exitCode: code,
     startedAt: new Date(started).toISOString(),
     seconds: (Date.now() - started) / 1000,
@@ -578,28 +643,25 @@ async function main(argv) {
     required: kit.requiredCommands({ escalation, vitest, tier, config: core }),
     vitest: { core: vitest.core.length, related: vitest.related, slowSkipped: vitest.slowSkipped, capped: vitest.capped },
     fingerprints: { violations: statics.fingerprintViolations, changes: fpChanges, trailers: Object.fromEntries(fpTrailers) },
-    protected: { note: "owner review required; reported, never a failure (CI shows them as annotations)", findings: protectedFound },
+    protected: { note: "owner review required; reported, never a failure (a warning annotation where the guard runs in GitHub Actions)", findings: protectedFound },
     weakening: { violations: statics.weakeningViolations, findings: weakening, trailers: Object.fromEntries(testTrailers) },
     static: { seconds: staticSeconds },
     budget: { coldSeconds: core.budget.coldSeconds, warmSeconds: core.budget.warmSeconds, estimate },
-    baseline: opts.baseline ? { recorded: true, file: rel(baselineFile) } : baseline ? { used: true, head: baseline.head, recordedAt: baseline.recordedAt } : { used: false },
+    baseline: opts.baseline && !opts.plan ? { recorded: true, file: rel(baselineFile), head: state.head } : baseline ? { used: true, head: baseline.head, recordedAt: baseline.recordedAt } : { used: false },
     zones,
     notes,
     reportFile: rel(reportFile),
   };
-  if (opts.baseline && state.dirty) notes.push("the baseline was recorded on a tree with uncommitted changes");
-  fs.mkdirSync(path.dirname(reportFile), { recursive: true });
   fs.writeFileSync(path.join(cacheDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
-  fs.copyFileSync(path.join(cacheDir, "report.json"), reportFile);
-  if (opts.baseline) {
+  writeOutFile(reportFile, `${JSON.stringify(report, null, 2)}\n`);
+  if (opts.baseline && !opts.plan) {
     const signatures = Object.fromEntries(allSteps.filter((s) => s.signatures.length).map((s) => [s.id, s.signatures]));
-    fs.writeFileSync(baselineFile, `${JSON.stringify({ head: state.head, dirty: state.dirty, recordedAt: new Date().toISOString(), signatures }, null, 2)}\n`);
+    // (the tree was checked untouched before the lanes ran; a change made while they ran makes it dirty after all)
+    const dirty = state.dirty || uncommittedChanges().length > 0;
+    fs.writeFileSync(baselineFile, `${JSON.stringify({ head: state.head, dirty, base: state.base, recordedAt: new Date().toISOString(), signatures }, null, 2)}\n`);
   }
-  if (opts.json) console.log(JSON.stringify(report, null, 2));
-  else {
-    printSummary(report);
-    annotate(report); // (not with --json: stdout is the report alone)
-  }
+  if (opts.json) await print(`${JSON.stringify(report, null, 2)}\n`);
+  else await print(summaryText(report) + annotations(report)); // (not with --json: stdout is the report alone)
   return code;
 }
 

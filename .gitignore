@@ -63,3 +63,6 @@ fight-sounds/
 
 # --- ai-guard --- the core guard's report (.agent-out/guard-report.json) and, in a worktree whose node_modules is a link, its caches
 /.agent-out/
+
+# --- ai-guard --- Claude Code's personal settings for this checkout (never shared; the guard's --baseline needs an untouched tree)
+/.claude/settings.local.json
