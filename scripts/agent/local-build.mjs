@@ -12,7 +12,8 @@
  *  3. scripts/postexport.mjs finishes the export there with OBFUSCATE=0.
  * The build's key is HEAD plus the content of every changed or new file; `auto` rebuilds only when it differs from the last
  * build's (<cache>/site/stamp.json), `reuse` takes the last build as it is, `force` always rebuilds. One build at a time
- * (a lock folder); the build's output goes to <cache>/site/build.log, never to the CLI's stdout.
+ * (a lock folder naming the CLI's pid and its build steps'); the build's output goes to <cache>/site/build.log, never to the
+ * CLI's stdout.
  */
 import { spawn, spawnSync } from "child_process";
 import crypto from "crypto";
@@ -101,29 +102,45 @@ function pidAlive(pid) {
   }
 }
 
-/** Holds <cache>/site/build.lock while `fn` runs (a lock left by a process that is gone is taken over). */
+/** The processes a lock names (one pid per line): the CLI that took it and each build step it started. */
+export function lockPids(text) {
+  return String(text ?? "")
+    .split("\n")
+    .map((l) => Number(l.trim()))
+    .filter((n) => Number.isInteger(n) && n > 0);
+}
+
+/**
+ * Holds <cache>/site/build.lock while `fn(hold)` runs. The lock names the CLI's pid and, through `hold(pid)`, each build
+ * step's (next build, postexport): it is taken over only when none of them is alive, so a build that outlived its CLI (a
+ * killed call) still holds the tree it is writing into.
+ */
 async function withLock(dir, fn) {
   const lock = path.join(dir, "build.lock");
+  const pidFile = path.join(lock, "pid");
   const started = Date.now();
   for (;;) {
     try {
       fs.mkdirSync(lock);
-      fs.writeFileSync(path.join(lock, "pid"), String(process.pid));
+      fs.writeFileSync(pidFile, `${process.pid}\n`);
       break;
     } catch {
-      let pid = 0;
+      let pids = [];
       try {
-        pid = Number(fs.readFileSync(path.join(lock, "pid"), "utf8")) || 0;
+        pids = lockPids(fs.readFileSync(pidFile, "utf8"));
       } catch {
-        pid = 0; // released meanwhile, or not written yet: try again
+        pids = []; // released meanwhile, or not written yet: try again
       }
-      if (pid && !pidAlive(pid)) fs.rmSync(lock, { recursive: true, force: true });
+      if (pids.length && !pids.some(pidAlive)) fs.rmSync(lock, { recursive: true, force: true });
       else if (Date.now() - started > LOCK_WAIT_MS) throw new Error("Another local export build has held its lock for 20 minutes");
       else await sleep(1000);
     }
   }
+  const hold = (pid) => {
+    if (pid) fs.appendFileSync(pidFile, `${pid}\n`);
+  };
   try {
-    return await fn();
+    return await fn(hold);
   } finally {
     fs.rmSync(lock, { recursive: true, force: true });
   }
@@ -171,9 +188,10 @@ export function buildEnv(env, head) {
   return { ...out, NEXT_PUBLIC_BASE_PATH: "", NEXT_TELEMETRY_DISABLED: "1", OBFUSCATE: "0", JBL_BUILD_SKIP_TYPECHECK: "1", JBL_BUILD_SHA: head, NODE_ENV: "production" };
 }
 
-function run(file, args, { cwd, env, log }) {
+function run(file, args, { cwd, env, log, hold }) {
   return new Promise((resolve, reject) => {
     const child = spawn(file, args, { cwd, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    hold?.(child.pid);
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
       reject(new Error(`${path.basename(args[0] ?? file)} took longer than ${BUILD_TIMEOUT_MS / 60000} minutes`));
@@ -217,7 +235,7 @@ export async function ensureLocalExport(mode = "auto", note = (m) => process.std
   const have = current();
   if (mode === "reuse" && have) return { dir: outDir, key: have.key, head: have.head, dirty: have.dirty, rebuilt: false };
   if (mode !== "force" && have && have.key === key) return { dir: outDir, key, head, dirty, rebuilt: false };
-  return withLock(site, async () => {
+  return withLock(site, async (hold) => {
     const again = current(); // a parallel call may have built it while this one waited
     if (mode !== "force" && again && again.key === key) return { dir: outDir, key, head, dirty, rebuilt: false };
     const started = Date.now();
@@ -232,9 +250,9 @@ export async function ensureLocalExport(mode = "auto", note = (m) => process.std
     else fs.appendFileSync(log, "next.config.ts changed form: building with Next's own type check (slower)\n");
     const env = buildEnv(process.env, head);
     const nextBin = path.join(ROOT, "node_modules", "next", "dist", "bin", "next");
-    const buildCode = await run(process.execPath, [nextBin, "build", "--no-lint"], { cwd: tree, env, log });
+    const buildCode = await run(process.execPath, [nextBin, "build", "--no-lint"], { cwd: tree, env, log, hold });
     if (buildCode !== 0) throw new Error(`The local export did not build (next build exit ${buildCode}; ${count} files). The end of ${log}:\n${tail(log)}`);
-    const postCode = await run(process.execPath, [path.join(tree, "scripts", "postexport.mjs")], { cwd: tree, env, log });
+    const postCode = await run(process.execPath, [path.join(tree, "scripts", "postexport.mjs")], { cwd: tree, env, log, hold });
     if (postCode !== 0 || !ready()) throw new Error(`The local export did not finish (postexport exit ${postCode}). The end of ${log}:\n${tail(log)}`);
     const buildSec = Math.round((Date.now() - started) / 1000);
     fs.writeFileSync(stampFile, JSON.stringify({ key, head, dirty, files: count, buildSec }));

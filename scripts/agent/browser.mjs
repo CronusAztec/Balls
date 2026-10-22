@@ -9,14 +9,15 @@
  *  - No licence is installed: the page treats the browser as a free visitor, so the still camera stamps its pictures and the
  *    fast export seals its clips with the watermark, exactly as for anyone without Pro (the committed TEST licence stays
  *    inside the smoke harness). A picture or a clip the page reports as not watermarked is refused, never written.
- *  - Files go to .agent-out/<tool>/<name>/ only (paths.mjs outputDir).
+ *  - Files go to .agent-out/<tool>/<name>/ only (paths.mjs outputDir), each written under a fresh name and renamed into place
+ *    (paths.mjs writeFileSafe), so a symbolic link at the target is replaced, never written through.
  */
 import fs from "fs";
 import http from "http";
 import path from "path";
 import { spawnSync } from "child_process";
 import { ensureLocalExport } from "./local-build.mjs";
-import { defaultOutName, outputDir, repoRelative } from "./paths.mjs";
+import { defaultOutName, freshSibling, outputDir, repoRelative, writeFileSafe } from "./paths.mjs";
 import { resolveFfmpeg } from "./analyse.mjs";
 
 const TYPES = {
@@ -157,7 +158,7 @@ async function withLocalSite(build, fn) {
 
 const writeDataUrl = (file, dataUrl) => {
   const buf = Buffer.from(dataUrl.slice(dataUrl.indexOf(",") + 1), "base64");
-  fs.writeFileSync(file, buf);
+  writeFileSafe(file, buf);
   return buf.length;
 };
 
@@ -274,7 +275,7 @@ export async function renderTool(tb, args) {
       if (result.watermarked !== true) throw new Error("The page rendered the clip without the watermark: agent renders must carry it (is a licence stored in this browser?) – nothing written");
       const ext = result.format?.extension ?? (path.extname(out.file).slice(1) || "webm");
       const clip = path.join(dir, `clip.${ext}`);
-      fs.writeFileSync(clip, Buffer.from(out.base64, "base64"));
+      writeFileSafe(clip, Buffer.from(out.base64, "base64"));
       let mp4 = ext === "mp4" ? clip : null;
       let mp4Note = null;
       if (!mp4 && args.mp4 !== false) {
@@ -282,9 +283,16 @@ export async function renderTool(tb, args) {
         if (!ffmpeg) mp4Note = "The browser wrote WebM (no H.264 encoder) and no ffmpeg was found to convert it to MP4.";
         else {
           const dst = path.join(dir, "clip.mp4");
-          const r = spawnSync(ffmpeg.path, mp4Args(clip, dst), { encoding: "utf8", timeout: 300_000, windowsHide: true });
-          if (r.status === 0 && fs.existsSync(dst) && fs.statSync(dst).size > 0) mp4 = dst;
-          else mp4Note = `ffmpeg could not convert the clip to MP4 (${(r.stderr || r.error?.message || "").trim().split("\n").pop()})`;
+          // ffmpeg writes a fresh name (it would follow a link at clip.mp4), renamed into place once complete
+          const tmp = freshSibling(dst);
+          const r = spawnSync(ffmpeg.path, mp4Args(clip, tmp), { encoding: "utf8", timeout: 300_000, windowsHide: true });
+          if (r.status === 0 && fs.existsSync(tmp) && fs.statSync(tmp).size > 0) {
+            fs.renameSync(tmp, dst);
+            mp4 = dst;
+          } else {
+            fs.rmSync(tmp, { force: true });
+            mp4Note = `ffmpeg could not convert the clip to MP4 (${(r.stderr || r.error?.message || "").trim().split("\n").pop()})`;
+          }
         }
       }
       return {
@@ -328,7 +336,7 @@ export async function siteShotTool(_tb, args) {
           const res = await page.goto(`${origin}${p}`, { waitUntil: "networkidle", timeout: 120_000 });
           await page.evaluate(() => document.fonts?.ready).catch(() => {});
           const file = path.join(dir, `${slugOf(p)}-${width}.png`);
-          await page.screenshot({ path: file, fullPage, animations: "disabled" });
+          writeFileSafe(file, await page.screenshot({ fullPage, animations: "disabled" }));
           const size = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight }));
           shots.push({ page: p, width, status: res ? res.status() : null, file: repoRelative(file), pageSize: size, horizontalScroll: size.width > width, pageErrors: errors });
           await page.close();

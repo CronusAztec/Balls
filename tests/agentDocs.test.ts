@@ -6,13 +6,15 @@ import { MODE_IDS } from "@/lib/physics/types";
 import { defaultSettings } from "@/lib/settings";
 import { AGENT_TOOLS } from "@/lib/agentKit/tools";
 import { globToRegExp, kebabCase, matchesAny, type CoreConfig } from "@/lib/agentKit/guardPlan";
-import type { ProtectedConfig } from "@/lib/agentKit/protectedDiff";
+import { parseTrailers, type ProtectedConfig } from "@/lib/agentKit/protectedDiff";
 import { findBlockTitles } from "../scripts/smoke/shards.mjs";
+import { parseArgs as parseGuardArgs } from "../scripts/agent/guard.mjs";
 import en from "../messages/en.json";
 
 /*
  * --- agent-guide --- The agent guide stays true (AGENTS.md, CLAUDE.md, docs/agents/*.md, scripts/agent/core.json): every
- * npm script, agent tool, file path and smoke block it names exists; the counts it states are the code's; the 13 core
+ * npm script, agent tool, file path and smoke block it names exists; every guard flag, commit trailer, environment variable
+ * and port it tells an agent to use is the code's; the counts it states are the code's; the 13 core
  * functions of core.json each own real files, are proven by tests on the guard's core list and have their section in
  * CORE.md; every registration point of MODES.md, filled in with Merge Ring's names, is in its file; the line budgets hold.
  * A rename anywhere fails here until the guide follows.
@@ -48,8 +50,12 @@ function codeSpans(text: string): string[] {
   return out;
 }
 
-/** Folders and files that are generated or git-ignored: named in the guide, never required to exist. */
-const GENERATED = /^(\.agent-out|graphify-out|node_modules|out|\.next|smoke-output)(\/|$)/;
+/**
+ * Folders and files that are generated or git-ignored: named in the guide, never required to exist. An install
+ * (`node_modules`) at any depth: `desktop/node_modules/…` exists only after `npm ci --prefix desktop`, which CI runs after
+ * the unit tests.
+ */
+const GENERATED = /(^|\/)node_modules(\/|$)|^(\.agent-out|graphify-out|out|\.next|smoke-output)(\/|$)/;
 
 /**
  * Whether a code span names a repository path: a file (by its extension), or a folder or glob under a top-level entry of
@@ -104,7 +110,7 @@ describe("the agent guide names only things that exist (--- agent-guide ---)", (
     for (const t of AGENT_TOOLS.filter((x) => !x.mcp)) expect(TEXT["AGENTS.md"]).toContain(`| \`${t.name}\` | Owner-run only`);
     const registered = JSON.parse(read(".mcp.json")) as { mcpServers: Record<string, { command: string; args: string[] }> };
     expect(Object.keys(registered.mcpServers)).toEqual(["jumpingballs-agent"]);
-    expect(registered.mcpServers["jumpingballs-agent"]).toMatchObject({ command: "node", args: ["scripts/agent/mcp.mjs"] });
+    expect(registered.mcpServers["jumpingballs-agent"]).toMatchObject({ command: "node", args: ["--input-type=module", "-e", expect.stringContaining("scripts/agent/mcp.mjs")] });
     for (const point of ["`.mcp.json`", "`jumpingballs-agent`", "`node scripts/agent/mcp.mjs`", "`npm run agent:mcp`"]) expect(TEXT["AGENTS.md"], point).toContain(point);
     expect(SCRIPTS["agent:mcp"]).toBe("node scripts/agent/mcp.mjs");
   });
@@ -118,6 +124,69 @@ describe("the agent guide names only things that exist (--- agent-guide ---)", (
     // the parser itself: it takes paths and globs, and leaves code, flags and placeholders alone
     expect(["src/lib/settings.ts", "messages/*.json", ".mcp.json", "desktop/", "package.json"].every(isPathSpan)).toBe(true);
     expect(["ctx.random()", "--plan", "tests/<id>.test.ts", ".only", "npm run guard", "/smoke", ".agent-out/guard-report.json", "tools/list"].some(isPathSpan)).toBe(false);
+    // an install at any depth is generated: the docs may name a package inside one before `npm ci` has run there
+    expect(["node_modules/x", "desktop/node_modules/x", "desktop/node_modules/ffmpeg-static", "billing/node_modules/.bin/wrangler"].some(isPathSpan)).toBe(false);
+  });
+
+  it("every guard flag, commit trailer, environment variable and port it tells an agent to use is the code's", () => {
+    // the guard's flags: each `--flag` after `npm run guard[:browser] --` or `guard.mjs` is one parseArgs accepts
+    const guardSpans = Object.entries(TEXT).flatMap(([file, text]) => codeSpans(text).filter((s) => /npm run guard\b|guard\.mjs\b/.test(s)).map((s) => [file, s] as const));
+    expect(guardSpans.length).toBeGreaterThan(3);
+    let flags = 0;
+    for (const [file, span] of guardSpans) {
+      const after = span.replace(/^[\s\S]*?(?:npm run guard(?::browser)?(?: --)?|guard\.mjs)/, "");
+      for (const flag of after.match(/(?<![\w-])--?[a-z][\w-]*/g) ?? []) {
+        flags++;
+        let message = "";
+        try {
+          parseGuardArgs([flag]);
+        } catch (e) {
+          message = e instanceof Error ? e.message : String(e);
+        }
+        expect(message, `${file}: \`${span}\` – ${flag}`).not.toMatch(/unknown argument/);
+      }
+    }
+    expect(flags).toBeGreaterThan(2);
+    // the commit trailers: each `Name: …` is one the guard reads, and the guide's own example parses as one
+    const guard = read("scripts/agent/guard.mjs");
+    const trailers = new Set([...guard.matchAll(/parseTrailers\(\s*\w+\s*,\s*"([\w-]+)"\s*\)/g)].map((m) => m[1]));
+    expect([...trailers].sort()).toEqual(["Fingerprint-Change", "Test-Change"]);
+    let examples = 0;
+    for (const [file, text] of Object.entries(TEXT)) {
+      for (const span of codeSpans(text)) {
+        const m = /^([A-Z][a-z]+(?:-[A-Z][a-z]+)+):/.exec(span);
+        if (!m) continue;
+        expect([...trailers], `${file}: \`${span}\``).toContain(m[1]);
+        if (!span.includes(" - ")) continue;
+        examples++;
+        const example = span.replace(/<[^>]+> - <[^>]+>$/, "classic - the reason it moved").replace(/<[^>]+>/g, "tests/x.test.ts");
+        expect([...parseTrailers([example], m[1]).keys()].length, `${file}: \`${span}\` parses`).toBeGreaterThan(0);
+      }
+    }
+    expect(examples).toBeGreaterThan(1);
+    // the environment variables and constants (`ALL_CAPS_NAMES`): each occurs in the code (this test aside)
+    const CODE = /^(src|scripts|tests|desktop\/src|billing\/src|relay|worker|\.github)\/.+\.(ts|tsx|mjs|cjs|js|json|ya?ml|sh)$/;
+    const words = new Set<string>();
+    for (const f of TREE) if (CODE.test(f) && f !== "tests/agentDocs.test.ts") for (const w of read(f).match(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g) ?? []) words.add(w);
+    const known = (name: string) => (name.endsWith("_") ? [...words].some((w) => w.startsWith(name)) : words.has(name));
+    let names = 0;
+    for (const [file, text] of Object.entries(TEXT)) {
+      for (const span of codeSpans(text)) {
+        const m = /^([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*_?)(?:\*|=\S*)?(?:\s|$)/.exec(span);
+        if (!m || !m[1].includes("_") || span.includes("<")) continue;
+        if (file === "docs/agents/MODES.md" && m[1] === "MERGE_RING") continue; // the `<NAME>` placeholder's example value
+        names++;
+        expect(known(m[1]), `${file}: \`${span}\``).toBe(true);
+      }
+    }
+    expect(names).toBeGreaterThan(10);
+    // the browser tier's port
+    for (const [file, text] of Object.entries(TEXT)) for (const m of text.matchAll(/\bport (\d{2,5})\b/g)) expect(Number(m[1]), `${file}: ${m[0]}`).toBe(CORE.browser.port);
+    // the parsers themselves: a renamed flag, trailer or variable is caught
+    expect(() => parseGuardArgs(["--record-baseline"])).toThrow(/unknown argument/);
+    expect(known("PERF_GUARD_OUT")).toBe(true);
+    expect(known("PERF_OUT_DIR")).toBe(false);
+    expect(known("NEXT_PUBLIC_")).toBe(true);
   });
 
   it("every smoke block it names is a block of the suite", () => {
@@ -146,9 +215,11 @@ describe("the agent guide names only things that exist (--- agent-guide ---)", (
     expect(section(read("README.md"), "### Add a game mode")).toContain("docs/agents/MODES.md");
   });
 
-  it("protects itself: AGENTS.md, CLAUDE.md, core.json, protected.json and .mcp.json need owner review", () => {
+  it("protects itself: AGENTS.md, CLAUDE.md, core.json, protected.json, .mcp.json and the guard's own code need owner review", () => {
     const globs = PROTECTED.paths.map((p) => p.glob);
     for (const f of ["AGENTS.md", "CLAUDE.md", "scripts/agent/core.json", "scripts/agent/protected.json", ".mcp.json"]) expect(matchesAny(f, globs), f).toBe(true);
+    // what decides the guard's verdict: the guard, its plan and static checks, the CI test runner, vitest's config, the smoke verdict
+    for (const f of ["scripts/agent/guard.mjs", "src/lib/agentKit/guardPlan.ts", "src/lib/agentKit/protectedDiff.ts", "scripts/test-ci.mjs", "vitest.config.ts", "scripts/smoke/verdict.mjs"]) expect(matchesAny(f, globs), f).toBe(true);
     // every protected path and region names real files (a stale entry protects nothing)
     for (const p of PROTECTED.paths) expect(TREE.some((f) => globToRegExp(p.glob).test(f)), p.glob).toBe(true);
     for (const r of PROTECTED.regions) expect(TREE.some((f) => globToRegExp(r.file).test(f)), r.file).toBe(true);

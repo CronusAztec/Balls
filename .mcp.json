@@ -3,7 +3,11 @@
     "jumpingballs-agent": {
       "type": "stdio",
       "command": "node",
-      "args": ["scripts/agent/mcp.mjs"],
+      "args": [
+        "--input-type=module",
+        "-e",
+        "import fs from 'node:fs'; import path from 'node:path'; import url from 'node:url'; let dir = process.cwd(); while (!fs.existsSync(path.join(dir, 'scripts/agent/mcp.mjs')) && path.dirname(dir) !== dir) dir = path.dirname(dir); await (await import(url.pathToFileURL(path.join(dir, 'scripts/agent/mcp.mjs')).href)).startServer();"
+      ],
       "env": {}
     }
   }

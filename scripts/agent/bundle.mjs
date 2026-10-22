@@ -2,8 +2,9 @@
  * --- agent-cli --- Bundles the agent toolbox's pure TypeScript (src/lib/agentKit/toolbox.ts and what it imports: the engine,
  * the finder, the settings, the video analysis helpers) for Node with esbuild – a dev dependency already (vitest's), with @
  * aliased to src, exactly as scripts/viral-bot.mjs bundles the bot – and imports it. The bundle is cached in the agent cache
- * (paths.mjs CACHE_DIR) with esbuild's list of its inputs; it is rebuilt only when an input's size or time changed, a file
- * was added to src/lib/agentKit or src/lib/videoAnalysis, or esbuild is another version. Nothing is written to the repository.
+ * (paths.mjs CACHE_DIR, a private folder) with esbuild's list of its inputs; it is rebuilt only when an input's size or time
+ * changed, a file was added to src/lib/agentKit or src/lib/videoAnalysis, or esbuild is another version – and whenever the
+ * list of inputs is empty or lacks the entry. Nothing is written to the repository.
  */
 import fs from "fs";
 import path from "path";
@@ -32,12 +33,19 @@ async function esbuildModule() {
   }
 }
 
-/** True when the cached bundle was built from these very inputs. */
-function fresh(meta, version) {
-  if (!meta || meta.esbuild !== version || meta.entry !== ENTRY) return false;
-  if (JSON.stringify(meta.listing) !== JSON.stringify(listing())) return false;
-  return Object.entries(meta.inputs).every(([file, s]) => stamp(file) === s);
+/**
+ * True when the cached bundle was built from these very inputs: the same esbuild, entry and folder listing, and an inputs map
+ * that holds the entry itself with every input's size and time unchanged (an empty map proves nothing: never fresh).
+ */
+export function fresh(meta, version, now = listing()) {
+  if (!meta || typeof meta !== "object" || meta.esbuild !== version || meta.entry !== ENTRY) return false;
+  if (JSON.stringify(meta.listing) !== JSON.stringify(now)) return false;
+  const inputs = meta.inputs && typeof meta.inputs === "object" ? Object.entries(meta.inputs) : [];
+  if (!inputs.length || !Object.hasOwn(meta.inputs, ENTRY)) return false;
+  return inputs.every(([file, s]) => stamp(file) === s);
 }
+
+export { ENTRY as TOOLBOX_ENTRY, listing as toolboxListing };
 
 let loaded = null;
 

@@ -7,8 +7,8 @@ import { validateJson, type JsonSchema } from "@/lib/desktop/ai/jsonSchema";
  * scripts/agent/mcp.mjs lists exactly the entries marked `mcp`. Nothing here runs anything.
  *
  * What a tool may touch:
- *  - writes: "none", or ".agent-out" (files only under <repo>/.agent-out/; the local export it builds lives in the agent cache
- *    in the OS temp folder, never in the repository);
+ *  - writes: "none", or ".agent-out" (its results only under <repo>/.agent-out/), plus what `alsoWrites` names: the caches
+ *    outside it (every call keeps the bundled toolbox in the agent cache, a private folder of the OS temp directory);
  *  - network: "none", "localhost" (the CLI's own static server for the local export; the browser is fenced to it), or
  *    "owner" (the owner's own Plausible / Umami / Postiz host from the environment – owner-run commands only, never MCP).
  */
@@ -25,6 +25,10 @@ export interface AgentToolSpec {
   network: ToolNetwork;
   /** Listed by the MCP wrapper (the owner-run commands are CLI only). */
   mcp: boolean;
+  /** Arguments the MCP wrapper leaves out of the tool's schema and refuses: CLI only (a person runs them on purpose). */
+  cliOnly?: readonly string[];
+  /** What it writes besides its results: caches and build output, outside .agent-out/ (listed by --help). */
+  alsoWrites?: readonly string[];
   /** How long a call may run before the MCP wrapper stops it (ms). */
   timeoutMs: number;
 }
@@ -104,6 +108,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     },
     writes: ".agent-out",
     network: "localhost",
+    alsoWrites: ["the agent cache in the OS temp folder: the local export of the working tree (JBL_AGENT_CACHE)"],
     mcp: true,
     timeoutMs: 15 * 60_000,
   },
@@ -126,6 +131,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     },
     writes: ".agent-out",
     network: "localhost",
+    alsoWrites: ["the agent cache in the OS temp folder: the local export of the working tree (JBL_AGENT_CACHE)"],
     mcp: true,
     timeoutMs: 20 * 60_000,
   },
@@ -146,6 +152,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     },
     writes: ".agent-out",
     network: "localhost",
+    alsoWrites: ["the agent cache in the OS temp folder: the local export of the working tree (JBL_AGENT_CACHE)"],
     mcp: true,
     timeoutMs: 15 * 60_000,
   },
@@ -177,15 +184,18 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
       additionalProperties: false,
       properties: {
         browser: { type: "boolean", description: "Also the browser tier (guard --browser)." },
-        baseline: { type: "boolean", description: "Record the failures the untouched tree already has (guard --baseline)." },
+        baseline: { type: "boolean", description: "Record the failures the untouched tree already has (guard --baseline; refused on a tree with any change). CLI only: not offered over MCP." },
         plan: { type: "boolean", description: "Plan only (guard --plan): what would run and the static checks' findings (fingerprint lock, protected-path report, test weakening) in about a second; nothing runs." },
         withSlow: { type: "boolean", description: "Also the slow tests the change pulls in (guard --with-slow)." },
         base: { type: "string", minLength: 1, maxLength: 100, pattern: "^[A-Za-z0-9][A-Za-z0-9._/-]*$", description: "The git ref the change is measured against (guard --base; default the merge base with origin/main)." },
       },
     },
     writes: ".agent-out",
+    alsoWrites: ["node_modules/.cache/jbl-guard: the guard's state (type-check, ESLint and vitest caches, logs, the baseline)", ".next/ and out/ of the repository, with browser: the /smoke build tier 1 serves"],
     network: "none",
     mcp: true,
+    // --- ai-guard --- a baseline excuses failures: recording one is a person's step on an untouched tree, not a tool call
+    cliOnly: ["baseline"],
     timeoutMs: 30 * 60_000,
   },
   {

@@ -4,9 +4,13 @@
  *    inside it; URLs (http:, https:, data:, file: …) are refused, never opened.
  *  - OUT_DIR: <repo>/.agent-out/, the only place a tool writes files (PNG, MP4, JSON reports). It ignores itself (it holds a
  *    .gitignore of "*"), so nothing a tool writes ever shows in `git status`.
- *  - CACHE_DIR: the agent cache outside the repository – JBL_AGENT_CACHE, else <OS temp>/jbl-agent-<hash of ROOT>: the bundled
- *    toolbox and the local export (a copy of the working tree, built there). Outside the repository on purpose: a source copy
- *    inside it would be type-checked and linted with the real one, and one under node_modules/ is not compiled by Next.
+ *  - CACHE_DIR: the agent cache outside the repository – JBL_AGENT_CACHE, else <OS temp>/jbl-agent-<user>-<hash of ROOT>: the
+ *    bundled toolbox and the local export (a copy of the working tree, built there). Outside the repository on purpose: a
+ *    source copy inside it would be type-checked and linted with the real one, and one under node_modules/ is not compiled by
+ *    Next. The CLI imports and runs code from it, so it is private: created 0700, and refused – never used – when it is a
+ *    link, or (on Linux and macOS, where the temp folder is shared) not this user's or writable by anyone else.
+ * Files are written through writeFileSafe: under a fresh name, then renamed over the target, so a symbolic link a checkout
+ * carries at .agent-out/… is replaced, never written through.
  */
 import crypto from "crypto";
 import fs from "fs";
@@ -16,11 +20,70 @@ import { fileURLToPath } from "url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const OUT_DIR = path.join(ROOT, ".agent-out");
-export const CACHE_DIR = process.env.JBL_AGENT_CACHE ? path.resolve(process.env.JBL_AGENT_CACHE) : path.join(os.tmpdir(), `jbl-agent-${crypto.createHash("sha1").update(ROOT).digest("hex").slice(0, 10)}`);
+/** This user, for the cache folder's name (the uid on Linux and macOS). */
+const userTag = () => (typeof process.getuid === "function" ? String(process.getuid()) : crypto.createHash("sha1").update(os.userInfo().username).digest("hex").slice(0, 8));
+
+export const CACHE_DIR = process.env.JBL_AGENT_CACHE ? path.resolve(process.env.JBL_AGENT_CACHE) : path.join(os.tmpdir(), `jbl-agent-${userTag()}-${crypto.createHash("sha1").update(ROOT).digest("hex").slice(0, 10)}`);
 
 export class PathError extends Error {}
 
 const realRoot = () => fs.realpathSync(ROOT);
+
+/** Throws unless `p` – or, while it does not exist yet, its nearest existing folder – really is inside `parent` (links resolved). */
+function assertLeadsInside(parent, p, what) {
+  let at = path.resolve(p);
+  while (!fs.existsSync(at) && path.dirname(at) !== at) at = path.dirname(at);
+  if (!isInside(fs.realpathSync(parent), fs.realpathSync(at))) throw new PathError(`${what} leads outside ${path.relative(ROOT, parent) || "the repository"} (a symbolic link): remove the link`);
+}
+
+/**
+ * Whether a cache folder may be trusted (null) or why not: a real folder (not a link), and on POSIX owned by this user and
+ * writable by no one else. `stat` is fs.lstatSync's answer.
+ */
+export function untrustedCacheReason(stat, uid = typeof process.getuid === "function" ? process.getuid() : null) {
+  if (stat.isSymbolicLink()) return "it is a symbolic link";
+  if (!stat.isDirectory()) return "it is not a folder";
+  if (uid === null) return null; // Windows: the temp folder is the user's own
+  if (stat.uid !== uid) return `it belongs to another user (uid ${stat.uid})`;
+  if ((stat.mode & 0o022) !== 0) return `others may write to it (mode ${(stat.mode & 0o777).toString(8)})`;
+  return null;
+}
+
+let cacheChecked = false;
+
+/** The cache folder itself: created private, else checked before anything in it is read or run. */
+function cacheRoot() {
+  if (cacheChecked) return CACHE_DIR;
+  fs.mkdirSync(path.dirname(CACHE_DIR), { recursive: true });
+  try {
+    fs.mkdirSync(CACHE_DIR, { mode: 0o700 });
+  } catch (e) {
+    if (e?.code !== "EEXIST") throw e;
+  }
+  const why = untrustedCacheReason(fs.lstatSync(CACHE_DIR));
+  if (why) throw new PathError(`The agent cache ${CACHE_DIR} is not safe to use: ${why}. Remove it, or point JBL_AGENT_CACHE at a private folder.`);
+  cacheChecked = true;
+  return CACHE_DIR;
+}
+
+/**
+ * Writes `data` to `file` without following a link there: under a fresh name in the same folder, then renamed over the target
+ * (a rename replaces a link instead of writing through it). The folder must lead inside .agent-out/ or the agent cache.
+ */
+export function writeFileSafe(file, data) {
+  const dir = path.dirname(path.resolve(file));
+  const realDir = fs.realpathSync(dir);
+  if (!isInside(fs.realpathSync(ensureOutDir()), realDir) && !isInside(fs.realpathSync(cacheRoot()), realDir)) throw new PathError(`${file} is outside .agent-out/ and the agent cache`);
+  const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`);
+  fs.writeFileSync(tmp, data, { flag: "wx" });
+  fs.renameSync(tmp, file);
+  return file;
+}
+
+/** A fresh name beside `file` for a program that writes the file itself (ffmpeg): rename it over `file` once written. */
+export function freshSibling(file) {
+  return path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${crypto.randomBytes(4).toString("hex")}${path.extname(file)}`);
+}
 
 /** True when `child` is `parent` or inside it (both absolute, already resolved). */
 export function isInside(parent, child) {
@@ -51,12 +114,23 @@ export function resolveInputFile(input) {
   return real;
 }
 
-/** <repo>/.agent-out/, created with its own .gitignore ("*") the first time. */
+/** <repo>/.agent-out/, created with its own .gitignore ("*") the first time – checked to lead inside the repository first. */
 export function ensureOutDir() {
+  assertLeadsInside(ROOT, OUT_DIR, ".agent-out");
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const ignore = path.join(OUT_DIR, ".gitignore");
-  if (!fs.existsSync(ignore)) fs.writeFileSync(ignore, "# --- agent-cli --- the agent toolbox's output (scripts/agent): never committed\n*\n");
   if (!isInside(realRoot(), fs.realpathSync(OUT_DIR))) throw new PathError(".agent-out leads outside the repository (a symbolic link): remove it");
+  const ignore = path.join(OUT_DIR, ".gitignore");
+  let ok = false;
+  try {
+    ok = fs.lstatSync(ignore).isFile();
+  } catch {
+    ok = false;
+  }
+  if (!ok) {
+    const tmp = path.join(OUT_DIR, `.gitignore.${process.pid}.${crypto.randomBytes(4).toString("hex")}.tmp`);
+    fs.writeFileSync(tmp, "# --- agent-cli --- the agent toolbox's output (scripts/agent): never committed\n*\n", { flag: "wx" });
+    fs.renameSync(tmp, ignore);
+  }
   return OUT_DIR;
 }
 
@@ -66,6 +140,7 @@ export function outputDir(tool, name) {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) || name.includes("..")) throw new PathError(`The out name "${name}" must be a bare folder name (letters, digits, . _ -)`);
   const dir = path.join(ensureOutDir(), tool, name);
   if (!isInside(OUT_DIR, dir)) throw new PathError("The output folder must stay inside .agent-out/");
+  assertLeadsInside(OUT_DIR, dir, `.agent-out/${tool}/${name}`); // (before mkdir: a linked .agent-out/<tool> would take it elsewhere)
   fs.mkdirSync(dir, { recursive: true });
   if (!isInside(fs.realpathSync(OUT_DIR), fs.realpathSync(dir))) throw new PathError("The output folder leads outside .agent-out/ (a symbolic link)");
   return dir;
@@ -76,10 +151,11 @@ export function repoRelative(file) {
   return path.relative(ROOT, file).split(path.sep).join("/");
 }
 
-/** The agent cache folder (created). */
+/** A folder of the agent cache (created; the cache itself checked private first). */
 export function cacheDir(...parts) {
-  const dir = path.join(CACHE_DIR, ...parts);
-  fs.mkdirSync(dir, { recursive: true });
+  const dir = path.join(cacheRoot(), ...parts);
+  if (!isInside(CACHE_DIR, dir)) throw new PathError("A cache folder must stay inside the agent cache");
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
   return dir;
 }
 

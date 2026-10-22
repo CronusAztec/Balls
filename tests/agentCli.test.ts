@@ -2,9 +2,11 @@ import { spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { GUARD_SCRIPT, guardCommand, guardFlags, parseArgv } from "../scripts/agent/cli.mjs";
+import { GUARD_SCRIPT, guardCommand, guardFlags, parseArgv, testSourceOf } from "../scripts/agent/cli.mjs";
 import { parseArgs as parseGuardArgs } from "../scripts/agent/guard.mjs";
-import { PathError, defaultOutName, hasScheme, isInside, outputDir, resolveInputFile } from "../scripts/agent/paths.mjs";
+import { PathError, defaultOutName, hasScheme, isInside, outputDir, resolveInputFile, untrustedCacheReason, writeFileSafe } from "../scripts/agent/paths.mjs";
+import { TOOLBOX_ENTRY, fresh, toolboxListing } from "../scripts/agent/bundle.mjs";
+import os from "os";
 import { buildEnv, patchNextConfig, siteFile } from "../scripts/agent/local-build.mjs";
 import { siteStatsTool } from "../scripts/agent/site-stats.mjs";
 import { postizProbeTool } from "../scripts/agent/postiz-probe.mjs";
@@ -116,6 +118,120 @@ describe("paths (--- agent-cli ---)", () => {
     fs.rmSync(dir, { recursive: true, force: true });
     expect(defaultOutName("classic-1", { a: 1 })).toMatch(/^classic-1-[0-9a-f]{8}$/);
     expect(defaultOutName("classic-1", { a: 1 })).toBe(defaultOutName("classic-1", { a: 1 }));
+  });
+});
+
+describe("what the toolbox trusts and where it writes (--- agent-cli ---)", () => {
+  const scratch = () => fs.mkdtempSync(path.join(os.tmpdir(), "jbl-agent-test-"));
+  const stat = (o: { link?: boolean; dir?: boolean; uid?: number; mode?: number }) => ({ isSymbolicLink: () => !!o.link, isDirectory: () => o.dir !== false, uid: o.uid ?? 1000, mode: o.mode ?? 0o40700 }) as unknown as fs.Stats;
+
+  it("uses only a private cache: a real folder of this user that no one else may write to", () => {
+    expect(untrustedCacheReason(stat({}), 1000)).toBeNull();
+    expect(untrustedCacheReason(stat({ link: true }), 1000)).toMatch(/symbolic link/);
+    expect(untrustedCacheReason(stat({ dir: false }), 1000)).toMatch(/not a folder/);
+    expect(untrustedCacheReason(stat({ uid: 65534 }), 1000)).toMatch(/another user/);
+    expect(untrustedCacheReason(stat({ mode: 0o40777 }), 1000)).toMatch(/others may write/);
+    expect(untrustedCacheReason(stat({ mode: 0o40720 }), 1000)).toMatch(/others may write/);
+    expect(untrustedCacheReason(stat({ uid: 65534 }), null)).toBeNull(); // Windows: the temp folder is the user's own
+    // the CLI refuses an unsafe cache with its one JSON line, before it imports anything from it
+    const dir = scratch();
+    try {
+      const shared = path.join(dir, "shared");
+      fs.mkdirSync(shared);
+      fs.chmodSync(shared, 0o777);
+      const r = spawnSync(process.execPath, [CLI, "modes"], { cwd: ROOT, encoding: "utf8", timeout: 60_000, env: { ...process.env, JBL_AGENT_CACHE: shared } });
+      expect(r.status).toBe(1);
+      expect(r.stdout.trim().split("\n")).toHaveLength(1);
+      expect(JSON.parse(r.stdout)).toMatchObject({ ok: false, error: expect.stringMatching(/not safe to use: others may write/) });
+      expect(fs.readdirSync(shared)).toEqual([]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("never takes a bundle whose list of inputs is empty or lacks the entry for a fresh one", () => {
+    const version = "0.0.0-test";
+    const listing = toolboxListing();
+    const entryStamp = (() => {
+      const s = fs.statSync(TOOLBOX_ENTRY);
+      return `${s.size}:${Math.floor(s.mtimeMs)}`;
+    })();
+    const good = { esbuild: version, entry: TOOLBOX_ENTRY, listing, inputs: { [TOOLBOX_ENTRY]: entryStamp } };
+    expect(fresh(good, version, listing)).toBe(true);
+    expect(fresh({ ...good, inputs: {} }, version, listing)).toBe(false);
+    expect(fresh({ ...good, inputs: { [path.join(ROOT, "package.json")]: "1:1" } }, version, listing)).toBe(false);
+    expect(fresh({ ...good, inputs: undefined }, version, listing)).toBe(false);
+    expect(fresh({ ...good, inputs: { [TOOLBOX_ENTRY]: "0:0" } }, version, listing)).toBe(false);
+  });
+
+  it("replaces a symbolic link at an output file instead of writing through it, and never makes a folder through one", () => {
+    const outside = scratch();
+    const name = `test-link-${process.pid}`;
+    const dir = outputDir("preview", name);
+    try {
+      const victim = path.join(outside, "victim.txt");
+      fs.writeFileSync(victim, "victim\n");
+      const target = path.join(dir, "sheet.png");
+      fs.symlinkSync(victim, target);
+      writeFileSafe(target, Buffer.from("png"));
+      expect(fs.readFileSync(victim, "utf8")).toBe("victim\n");
+      expect(fs.lstatSync(target).isSymbolicLink()).toBe(false);
+      expect(fs.readFileSync(target, "utf8")).toBe("png");
+      expect(fs.readdirSync(dir)).toEqual(["sheet.png"]); // (no temporary file left)
+      expect(() => writeFileSafe(path.join(outside, "x.png"), "x")).toThrow(PathError);
+      // a linked .agent-out/<tool> folder: refused before anything is created on the other side
+      const linkedTool = path.join(ROOT, ".agent-out", "linkprobe");
+      fs.rmSync(linkedTool, { force: true });
+      fs.symlinkSync(outside, linkedTool);
+      try {
+        expect(() => outputDir("linkprobe", "x")).toThrow(PathError);
+        expect(fs.existsSync(path.join(outside, "x"))).toBe(false);
+      } finally {
+        fs.rmSync(linkedTool, { force: true });
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+      fs.rmSync(outside, { recursive: true, force: true });
+    }
+  });
+
+  it("reads a failing test's source only inside tests/: no `..`, no link that leads out", () => {
+    expect(toolbox.testFilesIn("FAIL tests/../../../../tmp/x/outside/tests/x.test.ts > something")).toEqual([]);
+    expect(toolbox.testFilesIn("FAIL tests/freeWatermark.test.ts > x")).toEqual(["tests/freeWatermark.test.ts"]);
+    const root = scratch();
+    try {
+      fs.mkdirSync(path.join(root, "tests"));
+      fs.mkdirSync(path.join(root, "elsewhere"));
+      fs.writeFileSync(path.join(root, "elsewhere", "secret.test.ts"), 'readFileSync("src/SECRET_leaked.ts")');
+      fs.writeFileSync(path.join(root, "tests", "own.test.ts"), 'readFileSync("src/components/simulator/Canvas.tsx")');
+      fs.symlinkSync(path.join(root, "elsewhere", "secret.test.ts"), path.join(root, "tests", "linked.test.ts"));
+      expect(testSourceOf("tests/own.test.ts", root)).toContain("Canvas.tsx");
+      expect(testSourceOf("tests/linked.test.ts", root)).toBe("");
+      expect(testSourceOf("tests/../elsewhere/secret.test.ts", root)).toBe("");
+      expect(testSourceOf("tests/missing.test.ts", root)).toBe("");
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+    // end to end: the leak the CLI had
+    const r = agent(["explain", "--json", JSON.stringify({ failure: "FAIL tests/../package.json.test.ts > x\nexpected 'a' to match /b/" })]);
+    expect(r.json.result.files).toEqual([]);
+  });
+
+  it("names every place a tool writes besides .agent-out/: the local export's cache, the guard's state and build output", () => {
+    const also = (name: string) => toolbox.AGENT_TOOLS.find((t) => t.name === name)?.alsoWrites ?? [];
+    for (const name of ["preview", "render", "site-shot"]) expect(also(name).join(" "), name).toMatch(/agent cache in the OS temp folder/);
+    expect(also("guard").join(" ")).toMatch(/node_modules\/\.cache\/jbl-guard/);
+    expect(also("guard").join(" ")).toMatch(/\.next\/ and out\//);
+    for (const t of toolbox.AGENT_TOOLS.filter((x) => x.writes === "none")) expect(t.alsoWrites, t.name).toBeUndefined();
+  });
+
+  it("refuses arguments named after Object.prototype's members like any unknown one", () => {
+    for (const args of ['{"constructor":1}', '{"toString":"x"}', '{"__proto__":{"mode":"classic"}}', '{"hasOwnProperty":[1,2]}']) {
+      const r = agent(["modes", "--json", args]);
+      expect(r.code, args).toBe(2);
+      expect(r.json.error, args).toMatch(/unknown field/);
+    }
+    expect(agent(["simulate", "--json", JSON.stringify({ mode: "classic", seconds: 1, world: { width: 800, height: 600, valueOf: "zz" } })]).code).toBe(2);
   });
 });
 

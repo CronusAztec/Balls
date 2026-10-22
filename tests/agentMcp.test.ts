@@ -2,8 +2,8 @@ import { spawn, spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { ERR, MAX_RESULT_CHARS, PROTOCOL_VERSIONS, SERVER_NAME, createMcpHandler, toolResult } from "../scripts/agent/mcp.mjs";
-import { AGENT_TOOLS } from "@/lib/agentKit/tools";
+import { ERR, MAX_RESULT_CHARS, PROTOCOL_VERSIONS, SERVER_NAME, createMcpHandler, stopTree, toolResult } from "../scripts/agent/mcp.mjs";
+import { AGENT_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
 
 // --- agent-cli --- The MCP wrapper (scripts/agent/mcp.mjs): JSON-RPC 2.0 over stdio, initialize / tools/list / tools/call /
 // ping, the CLI's tools with their schemas (never the owner-run commands), a call's answer equal to the CLI's own.
@@ -14,10 +14,13 @@ const CLI = path.join(ROOT, "scripts", "agent", "cli.mjs");
 
 type Message = { jsonrpc: string; id?: number | string | null; result?: Record<string, unknown>; error?: { code: number; message: string } };
 
+/** The server as .mcp.json starts it (Claude Code spawns it in the session's folder, which may be a subfolder). */
+const REGISTERED = (JSON.parse(fs.readFileSync(path.join(ROOT, ".mcp.json"), "utf8")) as { mcpServers: Record<string, { command: string; args: string[] }> }).mcpServers[SERVER_NAME];
+
 /** Starts the server, writes `lines`, and resolves with every reply once `expected` replies (or a timeout) came back. */
-function talk(lines: string[], expected: number, timeoutMs = 60_000): Promise<{ replies: Message[]; stderr: string }> {
+function talk(lines: string[], expected: number, timeoutMs = 60_000, start: { args: string[]; cwd: string } = { args: [MCP], cwd: ROOT }): Promise<{ replies: Message[]; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [MCP], { cwd: ROOT, stdio: ["pipe", "pipe", "pipe"] });
+    const child = spawn(process.execPath, start.args, { cwd: start.cwd, stdio: ["pipe", "pipe", "pipe"] });
     const replies: Message[] = [];
     let out = "";
     let stderr = "";
@@ -85,6 +88,64 @@ describe("the MCP wrapper over stdio (--- agent-cli ---)", () => {
   }, 120_000);
 });
 
+describe("the MCP wrapper's limits and its children (--- agent-cli ---)", () => {
+  it("passes long arguments on stdin: an explain call far past a command line's limit answers, never spawn E2BIG", async () => {
+    const long = `FAIL tests/zip.test.ts > crc\n${"x".repeat(140_000)}`;
+    const wide = `FAIL tests/zip.test.ts > crc\n${"é".repeat(70_000)}`;
+    const { replies } = await talk(
+      [
+        JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "explain", arguments: { failure: long } } }),
+        JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "explain", arguments: { failure: wide } } }),
+        JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "explain", arguments: { failure: "y".repeat(200_001) } } }),
+      ],
+      3,
+    );
+    const byId = new Map(replies.map((r) => [r.id, r]));
+    for (const id of [1, 2]) {
+      expect(byId.get(id)?.error, `call ${id}`).toBeUndefined();
+      expect(byId.get(id)?.result, `call ${id}`).toMatchObject({ isError: false, structuredContent: { files: [expect.objectContaining({ file: "tests/zip.test.ts" })] } });
+    }
+    // past the schema's own limit: refused before anything starts, as an error result
+    expect(byId.get(3)?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/at most 200000 characters/) }] });
+  }, 120_000);
+
+  it("refuses arguments the schema does not allow before it starts the CLI", async () => {
+    const started: string[] = [];
+    const h = createMcpHandler({ tools: [...AGENT_TOOLS], check: checkToolArgs, run: async (name: string) => (started.push(name), { ok: true, result: {} }) });
+    const bad = await h.handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "simulate", arguments: { mode: "classic", constructor: 1 } } });
+    expect(bad?.result).toMatchObject({ isError: true, content: [{ text: expect.stringMatching(/unknown field "constructor"/) }] });
+    expect(started).toEqual([]);
+  });
+
+  it("stops a call's whole process group: the CLI and everything it started", async () => {
+    // a stand-in CLI that starts a grandchild and ignores SIGTERM, as a busy guard lane might
+    const script = 'const { spawn } = require("child_process"); process.on("SIGTERM", () => {}); const g = spawn(process.execPath, ["-e", "process.on(\'SIGTERM\', () => {}); setInterval(() => {}, 1000)"], { stdio: "ignore" }); console.log(g.pid); setInterval(() => {}, 1000);';
+    const child = spawn(process.execPath, ["-e", script], { stdio: ["ignore", "pipe", "ignore"], detached: true });
+    const grandchild = await new Promise<number>((resolve) => child.stdout.once("data", (d) => resolve(Number(String(d).trim()))));
+    const alive = (pid: number) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    expect(alive(child.pid!) && alive(grandchild)).toBe(true);
+    stopTree(child, 200);
+    const until = Date.now() + 10_000;
+    while ((alive(child.pid!) || alive(grandchild)) && Date.now() < until) await new Promise((r) => setTimeout(r, 100));
+    expect(alive(grandchild), "the grandchild").toBe(false);
+    expect(alive(child.pid!), "the CLI").toBe(false);
+  }, 20_000);
+
+  it("starts from a subfolder of the repository, as Claude Code does in a session opened in desktop/", async () => {
+    expect(REGISTERED.command).toBe("node");
+    const { replies, stderr } = await talk([JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } })], 1, 60_000, { args: REGISTERED.args, cwd: path.join(ROOT, "desktop") });
+    expect(replies[0]?.result).toMatchObject({ serverInfo: { name: SERVER_NAME } });
+    expect(stderr).toMatch(/9 tools on stdio/);
+  }, 60_000);
+});
+
 describe("the MCP protocol handler (--- agent-cli ---)", () => {
   const tools = [...AGENT_TOOLS];
 
@@ -120,6 +181,20 @@ describe("the MCP protocol handler (--- agent-cli ---)", () => {
     expect((await next)?.result).toEqual({ content: [{ type: "text", text: '{"done":true}' }], structuredContent: { done: true }, isError: false });
   });
 
+  it("never offers or runs the guard's baseline: recording one is a person's step on an untouched tree, CLI only", async () => {
+    const seen: unknown[] = [];
+    const h = createMcpHandler({ tools, run: async (_name: string, args: unknown) => (seen.push(args), { ok: true, result: {} }) });
+    const listed = ((await h.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" }))?.result?.tools ?? []) as { name: string; inputSchema: { properties: Record<string, unknown> } }[];
+    const guard = listed.find((t) => t.name === "guard")!;
+    expect(Object.keys(guard.inputSchema.properties).sort()).toEqual(["base", "browser", "plan", "withSlow"]);
+    expect(AGENT_TOOLS.find((t) => t.name === "guard")?.input.properties).toHaveProperty("baseline"); // the CLI keeps it
+    const refused = await h.handle({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "guard", arguments: { baseline: true } } });
+    expect(refused?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/baseline: CLI only/) }] });
+    expect(seen).toEqual([]);
+    await h.handle({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "guard", arguments: { plan: true } } });
+    expect(seen).toEqual([{ plan: true }]);
+  });
+
   it("keeps a result under 200 KB and marks a failed call as an error result", () => {
     const big = toolResult({ ok: true, result: { text: "x".repeat(MAX_RESULT_CHARS + 10) } });
     expect(big.content[0].text.length).toBeLessThan(MAX_RESULT_CHARS + 200);
@@ -132,7 +207,10 @@ describe("the MCP protocol handler (--- agent-cli ---)", () => {
 describe("registration (--- agent-cli ---)", () => {
   it("is the project's MCP server for Claude Code and an npm script, next to the CLI; the guide names every tool", () => {
     const mcp = JSON.parse(fs.readFileSync(path.join(ROOT, ".mcp.json"), "utf8"));
-    expect(mcp.mcpServers[SERVER_NAME]).toEqual({ type: "stdio", command: "node", args: ["scripts/agent/mcp.mjs"], env: {} });
+    // a launcher that finds the repository from any folder of it (no cwd-relative script path), then the server's startServer()
+    expect(mcp.mcpServers[SERVER_NAME]).toEqual({ type: "stdio", command: "node", args: ["--input-type=module", "-e", expect.stringContaining("scripts/agent/mcp.mjs")], env: {} });
+    expect(mcp.mcpServers[SERVER_NAME].args[2]).toMatch(/process\.cwd\(\)[\s\S]*path\.dirname\(dir\)[\s\S]*\.startServer\(\)/);
+    expect(mcp.mcpServers[SERVER_NAME].args[2]).not.toMatch(/["`$]/); // (no shell, no quoting, nothing Claude Code would expand)
     const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
     expect(pkg.scripts.agent).toBe("node scripts/agent/cli.mjs");
     expect(pkg.scripts["agent:mcp"]).toBe("node scripts/agent/mcp.mjs");

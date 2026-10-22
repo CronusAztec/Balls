@@ -60,6 +60,15 @@ describe("json schema subset", () => {
     expect(validateJson(schema, {})).toEqual(['$: missing "n"']);
     expect(validateJson({ oneOf: [{ type: "string" }, { type: "number" }] }, true)[0]).toMatch(/must be/);
   });
+  it("refuses keys named after Object.prototype's members, and never takes an inherited one for present", () => {
+    // (JSON.parse makes "__proto__" an own key; a plain lookup would find Object.prototype's members and wave them through)
+    for (const key of ["constructor", "toString", "valueOf", "hasOwnProperty", "__proto__"]) {
+      const value = JSON.parse(`{"n": 3, ${JSON.stringify(key)}: 1}`);
+      expect(validateJson(schema, value), key).toEqual([`$: unknown field "${key}"`]);
+    }
+    expect(validateJson(schema, JSON.parse('{"n": 3, "__proto__": {"kind": "a"}}'))).toEqual(['$: unknown field "__proto__"']);
+    expect(validateJson({ type: "object", required: ["toString"] }, {})).toEqual(['$: missing "toString"']);
+  });
   it("finds the JSON object in a chatty reply", () => {
     expect(extractJson('Sure! ```json\n{"a": {"b": "}"}}\n``` done')).toEqual({ ok: true, value: { a: { b: "}" } } });
     expect(extractJson("no json here").ok).toBe(false);

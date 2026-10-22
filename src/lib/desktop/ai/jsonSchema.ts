@@ -78,9 +78,11 @@ export function validateJson(schema: JsonSchema, value: unknown, path = "$", lim
   }
   if (value && typeof value === "object" && !Array.isArray(value)) {
     const obj = value as Record<string, unknown>;
-    for (const key of schema.required ?? []) if (!(key in obj)) add(`missing "${key}"`);
+    // own keys only: `constructor`, `toString` or `__proto__` (an own key from JSON.parse) must not find Object.prototype's
+    for (const key of schema.required ?? []) if (!Object.hasOwn(obj, key)) add(`missing "${key}"`);
+    const properties = schema.properties ?? {};
     for (const [key, v] of Object.entries(obj)) {
-      const sub = schema.properties?.[key];
+      const sub = Object.hasOwn(properties, key) ? properties[key] : undefined;
       if (sub) errors.push(...validateJson(sub, v, `${path}.${key}`, limit - errors.length));
       else if (schema.additionalProperties === false) add(`unknown field "${key}"`);
     }

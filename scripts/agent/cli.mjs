@@ -3,6 +3,7 @@
  * --- agent-cli --- The agent toolbox: eyes and hands for coding agents (and people) working on this repository.
  *
  *   npm run agent -- <tool> [--json '{…}'] [--pretty]
+ *   npm run agent -- <tool> --json -        the arguments from stdin (any length; the MCP server calls it so)
  *   npm run agent -- --help                 the tools and their input schemas
  *
  * Prints exactly one JSON object on stdout – {"ok":true,"tool":…,"result":…} or {"ok":false,"tool":…,"error":…} – and
@@ -21,8 +22,9 @@
  *   site-stats   owner-run: aggregate numbers from the owner's Plausible or Umami (needs their key)
  *   postiz-probe owner-run: which analytics series the owner's Postiz returns (needs their key)
  *
- * Rules every tool keeps (scripts/agent/paths.mjs): it writes only under .agent-out/ (and the agent cache outside the
- * repository); every path argument must resolve inside the repository; it never starts a shell (child processes get
+ * Rules every tool keeps (scripts/agent/paths.mjs): it writes its results only under .agent-out/ (its caches: the private
+ * agent cache in the OS temp folder, and for the guard its own, see tools.ts alsoWrites); every path argument must resolve
+ * inside the repository; it never starts a shell (child processes get
  * argument arrays); it uses no network except the CLI's own localhost server for the browser tools – the browser is
  * fenced to it – and, for the two owner-run commands, the owner's own host they document. Pictures and clips carry the
  * watermark a free visitor's do: no tool installs a licence. docs/agents/CLI.md is the guide.
@@ -32,12 +34,27 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { loadToolbox } from "./bundle.mjs";
-import { OUT_DIR, ROOT, ensureOutDir, repoRelative } from "./paths.mjs";
+import { OUT_DIR, ROOT, ensureOutDir, isInside, repoRelative } from "./paths.mjs";
 
 export class UsageError extends Error {}
 export class ToolError extends Error {}
 
-/** `<tool> [--json '{…}' | --json={…}] [--pretty]` → { tool, args, pretty, help }. */
+/** The arguments' JSON text as an object, or a UsageError. */
+export function parseArgsJson(text) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch (e) {
+    throw new UsageError(`--json is not valid JSON (${e.message})`);
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new UsageError("--json must be a JSON object");
+  return value;
+}
+
+/**
+ * `<tool> [--json '{…}' | --json={…} | --json -] [--pretty]` → { tool, args, pretty, help } (and stdin: true). `--json -`
+ * reads the object from stdin (the MCP server's way: no command-line length limit), which main() does before the call.
+ */
 export function parseArgv(argv) {
   const out = { tool: null, args: {}, pretty: false, help: false };
   for (let i = 0; i < argv.length; i++) {
@@ -47,14 +64,8 @@ export function parseArgv(argv) {
     else if (a === "--json" || a.startsWith("--json=")) {
       const text = a === "--json" ? argv[++i] : a.slice("--json=".length);
       if (text === undefined) throw new UsageError("--json needs a JSON object");
-      let value;
-      try {
-        value = JSON.parse(text);
-      } catch (e) {
-        throw new UsageError(`--json is not valid JSON (${e.message})`);
-      }
-      if (!value || typeof value !== "object" || Array.isArray(value)) throw new UsageError("--json must be a JSON object");
-      out.args = value;
+      if (text === "-") out.stdin = true;
+      else out.args = parseArgsJson(text);
     } else if (a.startsWith("-")) throw new UsageError(`Unknown option ${a}`);
     else if (out.tool === null) out.tool = a;
     else throw new UsageError(`One tool at a time (got ${out.tool} and ${a})`);
@@ -101,12 +112,21 @@ async function fingerprintTool(tb, args) {
   return { recipe, allEqual: modes.every((m) => m.equal), moved: modes.filter((m) => !m.equal).map((m) => m.mode), modes };
 }
 
+/**
+ * The source of a test file a failure names, or "" when it is not a file inside tests/ – links resolved (a name with `..`
+ * or a link that leads out of tests/ is never read: the CLI reads only inside the repository).
+ */
+export function testSourceOf(file, root = ROOT) {
+  const testsDir = path.join(root, "tests");
+  const full = path.resolve(root, file);
+  if (!isInside(testsDir, full) || !fs.existsSync(full)) return "";
+  const real = fs.realpathSync(full);
+  if (!isInside(fs.realpathSync(testsDir), real) || !fs.statSync(real).isFile()) return "";
+  return fs.readFileSync(real, "utf8");
+}
+
 async function explainTool(tb, args) {
-  const facts = tb.testFilesIn(args.failure).map((file) => {
-    const full = path.join(ROOT, file);
-    const source = fs.existsSync(full) ? fs.readFileSync(full, "utf8") : "";
-    return { file, readsAsText: tb.textReadsOf(source) };
-  });
+  const facts = tb.testFilesIn(args.failure).map((file) => ({ file, readsAsText: tb.textReadsOf(testSourceOf(file)) }));
   return tb.explainFailure(args.failure, facts);
 }
 
@@ -214,24 +234,38 @@ export async function runTool(name, rawArgs) {
 function helpText(tb) {
   return {
     usage: "npm run agent -- <tool> [--json '{…}'] [--pretty]",
-    tools: tb.AGENT_TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, writes: t.writes, network: t.network, input: t.input })),
+    tools: tb.AGENT_TOOLS.map((t) => ({ name: t.name, title: t.title, description: t.description, writes: t.writes, ...(t.alsoWrites ? { alsoWrites: t.alsoWrites } : {}), network: t.network, input: t.input })),
     guide: "docs/agents/CLI.md",
   };
+}
+
+/** All of stdin as text. */
+async function readStdin() {
+  let text = "";
+  process.stdin.setEncoding("utf8");
+  for await (const chunk of process.stdin) text += chunk;
+  return text;
 }
 
 async function main() {
   let parsed;
   try {
     parsed = parseArgv(process.argv.slice(2));
+    if (parsed.stdin) parsed.args = parseArgsJson(await readStdin());
   } catch (e) {
     process.stdout.write(`${JSON.stringify({ ok: false, tool: null, error: e.message, usage: true })}\n`, () => process.exit(2));
     return;
   }
   // The one line of JSON, then exit (a browser or a child the tool left behind never keeps the process alive).
   const finish = (value, code) => process.stdout.write(`${parsed.pretty ? JSON.stringify(value, null, 2) : JSON.stringify(value)}\n`, () => process.exit(code));
-  if (parsed.help || !parsed.tool) return finish({ ok: true, tool: null, result: helpText(await loadToolbox()) }, 0);
-  // .agent-out/ (and its own .gitignore) exists before a tool that writes there runs – the guard writes its report into it
-  if ((await loadToolbox()).toolSpec(parsed.tool)?.writes === ".agent-out") ensureOutDir();
+  try {
+    if (parsed.help || !parsed.tool) return finish({ ok: true, tool: null, result: helpText(await loadToolbox()) }, 0);
+    // .agent-out/ (and its own .gitignore) exists before a tool that writes there runs – the guard writes its report into it
+    if ((await loadToolbox()).toolSpec(parsed.tool)?.writes === ".agent-out") ensureOutDir();
+  } catch (e) {
+    // (an unsafe agent cache, a linked .agent-out: still the one JSON line, never a stack trace)
+    return finish({ ok: false, tool: parsed.tool, error: e instanceof Error ? e.message : String(e) }, 1);
+  }
   const out = await runTool(parsed.tool, parsed.args);
   finish(out, out.ok ? 0 : out.usage ? 2 : 1);
 }

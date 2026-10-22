@@ -63,9 +63,9 @@ const FIXES: Record<FailureKind, string[]> = {
 
 const TEST_FILE = /tests\/[\w./-]+?\.test\.(?:ts|mjs)/g;
 
-/** The test files a failure text names, in order of first mention. */
+/** The test files a failure text names, in order of first mention (a name with a `..` segment is no test file of tests/). */
 export function testFilesIn(text: string): string[] {
-  return [...new Set(text.match(TEST_FILE) ?? [])];
+  return [...new Set(text.match(TEST_FILE) ?? [])].filter((f) => !f.split("/").includes(".."));
 }
 
 function kindOfText(text: string): FailureKind | null {
