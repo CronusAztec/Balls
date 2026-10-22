@@ -534,11 +534,13 @@ export interface StepResult {
 
 /**
  * A step's status against the baseline: failed when it has a failure signature the baseline does not, "pre-existing" when
- * every one of its failures was recorded by `--baseline` (the change did not cause it).
+ * every one of its failures was recorded by `--baseline` (the change did not cause it). `excusable` false: a failure that
+ * describes the machine, not the code (a missing install, `requires`), is never excused – it would hide every later
+ * failure of that step.
  */
-export function againstBaseline(failed: boolean, signatures: readonly string[], baseline: readonly string[] | undefined): { status: StepStatus; preExisting: string[] } {
+export function againstBaseline(failed: boolean, signatures: readonly string[], baseline: readonly string[] | undefined, excusable = true): { status: StepStatus; preExisting: string[] } {
   if (!failed) return { status: "passed", preExisting: [] };
-  if (!baseline || !signatures.length) return { status: "failed", preExisting: [] };
+  if (!excusable || !baseline || !signatures.length) return { status: "failed", preExisting: [] };
   const known = new Set(baseline);
   const pre = signatures.filter((s) => known.has(s));
   return { status: pre.length === signatures.length ? "pre-existing" : "failed", preExisting: pre };
@@ -601,16 +603,54 @@ export function verdictOf(code: 0 | 1 | 2, steps: readonly StepResult[]): string
 }
 
 /**
- * The core.json a change is checked with: the working tree's, plus what the base commit's had that the change took out (its
- * core tests that still exist, its hub files). So dropping a failing test from the core list, or a hub file from hubFiles,
- * cannot turn a run green before the owner has reviewed it (core.json is a protected path).
+ * The core.json a change is checked with: the working tree's, plus what the base commit's had that the change took out – its
+ * core tests that still exist (one that is gone is protectedDiff's coreTestFindings: a failure), its hub files, `node
+ * --check` globs, escalation rows (by id, with their tests and smoke blocks), tier-1 smoke blocks, mode globs and mode
+ * blocks, core functions' files and blocks, and tier-2 commands; the larger related-test cap; and as slow only the globs
+ * both call slow (a test the change newly marks slow would leave tier 0). So switching a check off in core.json cannot turn
+ * a run green before the owner has reviewed it (core.json is a protected path).
  */
 export function mergeCoreConfigs(base: CoreConfig | null, head: CoreConfig, exists: (file: string) => boolean): CoreConfig {
   if (!base) return head;
+  const union = <T>(a: readonly T[] | undefined, b: readonly T[] | undefined): T[] | undefined => (a === undefined && b === undefined ? undefined : [...(a ?? []), ...(b ?? []).filter((x) => !(a ?? []).includes(x))]);
   const listed = new Set(head.vitest.core.map((t) => t.file));
   const kept = (base.vitest?.core ?? []).filter((t) => !listed.has(t.file) && exists(t.file));
-  const hubs = [...head.hubFiles, ...(base.hubFiles ?? []).filter((g) => !head.hubFiles.includes(g))];
-  return { ...head, hubFiles: hubs, vitest: { ...head.vitest, core: [...head.vitest.core, ...kept] } };
+  const rows = new Map(head.escalation.map((r) => [r.id, r]));
+  for (const r of base.escalation ?? []) {
+    const h = rows.get(r.id);
+    rows.set(r.id, h ? { ...h, when: union(h.when, r.when)!, tests: union(h.tests, r.tests), smoke: union(h.smoke, r.smoke), ...(h.tier2 || r.tier2 ? { tier2: true } : {}) } : r);
+  }
+  const modeSmoke = { ...head.modeSmoke };
+  for (const [mode, list] of Object.entries(base.modeSmoke ?? {})) modeSmoke[mode] = union(modeSmoke[mode], list)!;
+  const functions = head.coreFunctions?.map((f) => {
+    const b = base.coreFunctions?.find((x) => x.id === f.id);
+    return b ? { ...f, code: union(f.code, b.code)!, tests: union(f.tests, b.tests)!, smoke: union(f.smoke, b.smoke)! } : f;
+  });
+  const goneFunctions = (base.coreFunctions ?? []).filter((b) => !head.coreFunctions?.some((f) => f.id === b.id));
+  return {
+    ...head,
+    hubFiles: union(head.hubFiles, base.hubFiles)!,
+    nodeCheck: union(head.nodeCheck, base.nodeCheck)!,
+    escalation: [...rows.values()],
+    modeFileGlobs: union(head.modeFileGlobs, base.modeFileGlobs)!,
+    modeSmoke,
+    browser: { ...head.browser, smoke: union(head.browser.smoke, base.browser?.smoke)! },
+    tier2: union(head.tier2, base.tier2)!,
+    ...(functions || goneFunctions.length ? { coreFunctions: [...(functions ?? []), ...goneFunctions] } : {}),
+    vitest: {
+      ...head.vitest,
+      core: [...head.vitest.core, ...kept],
+      slow: base.vitest?.slow ? head.vitest.slow.filter((g) => base.vitest.slow.includes(g)) : head.vitest.slow,
+      relatedCap: Math.max(head.vitest.relatedCap, base.vitest?.relatedCap ?? 0),
+    },
+  };
+}
+
+/** --- ai-guard --- The installs the lanes need that are missing (`requires`), each once: a baseline is refused without them. */
+export function missingInstalls(lanes: readonly GuardLane[], exists: (path: string) => boolean): { path: string; fix: string }[] {
+  const out = new Map<string, string>();
+  for (const step of lanes.flatMap((l) => l.steps)) if (step.requires && !exists(step.requires.path)) out.set(step.requires.path, step.requires.fix);
+  return [...out].map(([p, fix]) => ({ path: p, fix }));
 }
 
 /** The commands a reader runs next for what this run did not cover. */

@@ -62,20 +62,40 @@ jobs:
       # --- ai-guard --- the core guard's static checks (scripts/agent/guard.mjs --plan, about a second, nothing runs) on what
       # this push changed: the fingerprint lock (a changed fingerprint without a "Fingerprint-Change: <mode> - <reason>"
       # trailer), the test-weakening detector (without "Test-Change: <file> - <reason>") and the protected-path report, as
-      # annotations on the run: owner review required (a warning), a violation (an error). Every push, on every branch. It
-      # does not block the build or the deploy (continue-on-error): making it a gate is the owner's call (AGENTS.md). The
-      # base is the commit before the push, else (a new branch, a manual run, a force-push) the guard's own default, the
-      # merge base with origin/main.
+      # annotations on the run: owner review required (a warning, one per rule), a violation (an error); the step summary lists
+      # every finding. Every push, on every branch. It does not block the build or the deploy (continue-on-error): making it a
+      # gate is the owner's call (AGENTS.md). The base is the commit before the push, else (a new branch, a manual run, a
+      # force-push) the merge base with origin/main. A push that changes the guard's own code (guard.mjs, guardPlan.ts,
+      # protectedDiff.ts) is judged by the base commit's guard instead: git alone lists those files and warns about each, and
+      # the base's versions run in a worktree of this commit, so pushed code never decides what the checks that judge it do.
       - name: Core guard (static checks)
         continue-on-error: true
         env:
           BEFORE: ${{ github.event.before }}
         run: |
           if [ -n "$BEFORE" ] && [ -n "${BEFORE//0/}" ] && git cat-file -e "$BEFORE^{commit}" 2> /dev/null; then
-            node scripts/agent/guard.mjs --plan --base "$BEFORE"
+            BASE="$BEFORE"
           else
-            node scripts/agent/guard.mjs --plan
+            BASE="$(git merge-base HEAD origin/main 2> /dev/null || true)"
           fi
+          if [ -z "$BASE" ]; then
+            exec node scripts/agent/guard.mjs --plan
+          fi
+          KIT="$(git diff --name-only "$BASE" HEAD -- scripts/agent/guard.mjs src/lib/agentKit/guardPlan.ts src/lib/agentKit/protectedDiff.ts)"
+          if [ -z "$KIT" ]; then
+            exec node scripts/agent/guard.mjs --plan --base "$BASE"
+          fi
+          for f in $KIT; do
+            echo "::warning file=$f,title=Owner review required (the guard's own code)::this push changes the guard; its static checks ran with the base commit's version of $f"
+          done
+          TREE="${RUNNER_TEMP:-/tmp}/guard-base"
+          git worktree add --detach "$TREE" HEAD > /dev/null
+          for f in $KIT; do
+            if git cat-file -e "$BASE:$f" 2> /dev/null; then git show "$BASE:$f" > "$TREE/$f"; fi
+          done
+          ln -s "${GITHUB_WORKSPACE:-$PWD}/node_modules" "$TREE/node_modules"
+          cd "$TREE"
+          exec node scripts/agent/guard.mjs --plan --base "$BASE"
 
       - name: Lint
         run: npm run lint

@@ -11,7 +11,7 @@ section here, and every test, smoke block and file named exists.
 | --- | --- | --- | --- |
 | 0 | `npm run guard` | Lane A: the incremental type check (declarations to the guard's cache: a body-only edit re-checks no dependents). Lane B: ESLint (cached), `node --check` on the scripts, the desktop app's and the billing Worker's type checks and tests. Lane C: one vitest run of the core list plus the tests that import a changed file, then `changelog --check` and `smoke-test.mjs --list`. Before the lanes: the fingerprint lock, the protected-path report and the test-weakening detector | About 40 s warm with nothing changed, under 1 min with a full set of related tests, under 3 min cold |
 | 1 | `npm run guard:browser` | Tier 0, then a `/smoke` build without Next's own type check, the export served on port 3101, and the smoke blocks: `core.json`'s `browser.smoke` list, the escalated feature blocks, and the blocks of every core function the change touches | 5 to 6 min |
-| 2 | printed, never run by the guard | `npm run test:ci` and the four smoke shards, which is what `.github/workflows/deploy.yml` runs on the product branch | About an hour of CI |
+| 2 | printed, never run by the guard | `JBL_REQUIRE_BROWSER=1 npm run test:ci`, a `/smoke` build and the four smoke shards: the commands `.github/workflows/deploy.yml` runs on the product branch, to run locally | About an hour of CI time |
 
 Every unit test named below is on the core list (`vitest.core` in `core.json`), so tier 0 runs it on every change.
 "Always in tier 1" means the block is on `browser.smoke`. "Tier 1 when touched" means `guard:browser` adds the block when
@@ -25,8 +25,8 @@ functions the change touches:
 - **free**: a file no core function owns, no hub file and nothing protected: new files, catalog data, docs. Tier 0.
 - **core**: a file one of the functions below owns. Tier 0, plus the function's smoke blocks in tier 1.
 - **guarded**: a hub file (`hubFiles` in `core.json`). Tier 2 is required: the guard exits 2 for any hub change and prints
-  the tier-2 commands. Run them (or let `deploy.yml` run them on the product branch) and say so in your hand-over; the guard
-  cannot see that they ran.
+  the tier-2 commands. Run them locally and say so in your hand-over, or say that tier 2 did not run so the owner can decide
+  (never push to have CI run them: a push to the product branch deploys the site); the guard cannot see that they ran.
 - **protected**: a file the protected-path report flagged (`scripts/agent/protected.json`). Owner review is required. It is
   reported, never a failure: a warning in the report, and a GitHub annotation on every push. The guard's rules come from
   `protected.json` at the base commit and in the working tree, so a rule a change removes still applies until it is merged.

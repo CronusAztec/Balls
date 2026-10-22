@@ -11,6 +11,7 @@ import {
   exitCode,
   againstBaseline,
   mergeCoreConfigs,
+  missingInstalls,
   verdictOf,
   globToRegExp,
   kebabCase,
@@ -29,7 +30,22 @@ import {
   type StepResult,
 } from "@/lib/agentKit/guardPlan";
 import { findBlockTitles } from "../scripts/smoke/shards.mjs";
-import { uncommittedChanges } from "../scripts/agent/guard.mjs";
+import {
+  ANNOTATIONS_PER_KIND,
+  KIT_FILES,
+  annotations,
+  baseCandidates,
+  baseNote,
+  importGraph,
+  reachedFromRunners,
+  reportFileFor,
+  stepSummary,
+  strictest,
+  stricterStatics,
+  textReads,
+  uncommittedChanges,
+  walk,
+} from "../scripts/agent/guard.mjs";
 import os from "os";
 
 /*
@@ -325,11 +341,61 @@ describe("the verdict and the report", () => {
     const merged = mergeCoreConfigs(CORE, head, exists);
     expect(merged.vitest.core.map((t) => t.file)).toContain("tests/zip.test.ts");
     expect(merged.hubFiles).toContain("src/lib/settings.ts");
-    // a core test that is gone is the weakening detector's (test-deleted), not a run that cannot start
+    // a core test that is gone is the weakening detector's (test-deleted, core-test-dropped: failures), not a run that cannot start
     const gone = mergeCoreConfigs({ ...CORE, vitest: { ...CORE.vitest, core: [...CORE.vitest.core, { file: "tests/removed.test.ts", seconds: 1 }] } }, CORE, exists);
     expect(gone.vitest.core.map((t) => t.file)).not.toContain("tests/removed.test.ts");
     expect(mergeCoreConfigs(null, head, exists)).toBe(head);
     expect(mergeCoreConfigs(CORE, CORE, exists)).toEqual(CORE);
+  });
+
+  it("keeps the base's node --check globs, escalation rows, smoke blocks, mode globs, tier-2 commands and slow list in force", () => {
+    const paywall = CORE.escalation.find((r) => r.id === "paywall-watermark")!;
+    const head: CoreConfig = {
+      ...CORE,
+      nodeCheck: [],
+      escalation: CORE.escalation.filter((r) => r.id !== "paywall-watermark").map((r) => (r.id === "desktop" ? { ...r, smoke: [] } : r)),
+      browser: { ...CORE.browser, smoke: ["pages"] },
+      modeFileGlobs: [],
+      modeSmoke: { ...CORE.modeSmoke, box: [] },
+      tier2: [],
+      coreFunctions: CORE.coreFunctions!.slice(1).map((f) => ({ ...f, smoke: [] })),
+      vitest: { ...CORE.vitest, relatedCap: 0, slow: [...CORE.vitest.slow, "tests/freeWatermark.test.ts", "tests/goLiveKit.test.ts"] },
+    };
+    const merged = mergeCoreConfigs(CORE, head, exists);
+    expect(merged.nodeCheck).toEqual(CORE.nodeCheck);
+    expect(merged.escalation.find((r) => r.id === "paywall-watermark")).toEqual(paywall);
+    expect(merged.escalation.find((r) => r.id === "desktop")?.smoke).toEqual(CORE.escalation.find((r) => r.id === "desktop")!.smoke);
+    expect(merged.browser.smoke).toEqual(expect.arrayContaining(CORE.browser.smoke));
+    expect(merged.modeFileGlobs).toEqual(CORE.modeFileGlobs);
+    expect(merged.modeSmoke.box).toEqual(CORE.modeSmoke.box);
+    expect(merged.tier2).toEqual(CORE.tier2);
+    expect(merged.coreFunctions!.map((f) => f.id).sort()).toEqual(CORE.coreFunctions!.map((f) => f.id).sort());
+    for (const f of merged.coreFunctions!) expect(f.smoke, f.id).toEqual(CORE.coreFunctions!.find((c) => c.id === f.id)!.smoke);
+    expect(merged.vitest.relatedCap).toBe(CORE.vitest.relatedCap);
+    expect(merged.vitest.slow).toEqual(CORE.vitest.slow); // a test the change newly calls slow stays in tier 0
+    // so the watermark edit of the finding still asks for the paywall and watermark blocks (exit 2, not 0)
+    const e = planEscalation({ changed: ["src/lib/watermark/layout.ts"], config: merged, modeIds: MODE_IDS, smokeBlocks: BLOCKS, testFiles: TEST_FILES });
+    expect(e.smoke).toEqual(["paywall-gate", "free-watermark", "watermark-everywhere"]);
+    expect(e.requiredTier).toBe(1);
+    // what the change adds applies at once
+    const extra = mergeCoreConfigs(CORE, { ...CORE, nodeCheck: [...CORE.nodeCheck, "tools/*.mjs"], vitest: { ...CORE.vitest, relatedCap: 20 } }, exists);
+    expect(extra.nodeCheck).toContain("tools/*.mjs");
+    expect(extra.vitest.relatedCap).toBe(20);
+  });
+
+  it("never excuses a missing install with a baseline, and refuses to record one without the installs", () => {
+    // the signature of a missing install describes the machine: a baseline that has it excuses nothing
+    expect(againstBaseline(true, ["desktop-tsc: desktop/node_modules is missing"], ["desktop-tsc: desktop/node_modules is missing"], false)).toEqual({ status: "failed", preExisting: [] });
+    expect(againstBaseline(true, ["desktop-tsc: desktop/node_modules is missing"], ["desktop-tsc: desktop/node_modules is missing"]).status).toBe("pre-existing");
+    const lanes = planTier0({ config: CORE, vitest: planVitest({ config: CORE, related: [], escalated: [] }), cacheDir: "/c", nodeCheckFiles: [] });
+    expect(missingInstalls(lanes, (p) => p !== "desktop/node_modules")).toEqual([{ path: "desktop/node_modules", fix: "npm ci --prefix desktop (with ELECTRON_SKIP_BINARY_DOWNLOAD=1)" }]);
+    expect(missingInstalls(lanes, () => true)).toEqual([]);
+    expect(missingInstalls(lanes, () => false).map((m) => m.path)).toEqual(["desktop/node_modules", "billing/node_modules"]);
+    // guard.mjs: the requires branch is not excusable and is never written into a baseline
+    const script = read("scripts/agent/guard.mjs");
+    expect(script).toMatch(/is missing`\], \{ note: [^\n]*environment: true \}, false\);/);
+    expect(script).toContain("allSteps.filter((s) => s.signatures.length && !s.environment)");
+    expect(script).toMatch(/--baseline needs every install the lanes use/);
   });
 
   it("tells a failure the baseline recorded from a new one", () => {
@@ -343,7 +409,33 @@ describe("the verdict and the report", () => {
     expect(requiredCommands({ escalation: hub, vitest, tier: 0, config: CORE })).toEqual(CORE.tier2);
     expect(requiredCommands({ escalation: mode, vitest, tier: 0, config: CORE })).toEqual(["npm run guard:browser   # adds SMOKE_ONLY=merge-ring"]);
     expect(requiredCommands({ escalation: mode, vitest, tier: 1, config: CORE })).toEqual([]);
-    expect(CORE.tier2[0]).toBe("npm run test:ci");
+    expect(CORE.tier2[0]).toBe("JBL_REQUIRE_BROWSER=1 npm run test:ci");
+  });
+
+  it("prints tier-2 commands that do what CI does: no silent browser skips, a server that is up, every shard gating", () => {
+    const deploy = read(".github/workflows/deploy.yml");
+    // CI's unit tests run with JBL_REQUIRE_BROWSER=1, and so does the printed command
+    expect(deploy).toMatch(/run: npm run test:ci\n {8}env:\n {10}JBL_REQUIRE_BROWSER: "1"/);
+    expect(CORE.tier2[0]).toMatch(/^JBL_REQUIRE_BROWSER=1 npm run test:ci$/);
+    // never "push to the product branch": that push deploys to production (AGENTS.md: never push or deploy unless asked)
+    for (const c of CORE.tier2) expect(c).not.toMatch(/push|product branch|deploy\.yml runs/i);
+    // the shard line: the server answers before the first shard, a failed shard fails the line, the server is stopped
+    const shards = CORE.tier2.find((c) => c.includes("SMOKE_SHARD"))!;
+    expect(shards).toContain("for i in $(seq 1 30); do curl -sf http://localhost:3000/smoke/en/ > /dev/null && break; sleep 1; done");
+    const run = (smoke: string) => {
+      const line = shards
+        .replace("node scripts/serve-static.mjs --port 3000 --base /smoke", "sleep 30")
+        .replace("curl -sf http://localhost:3000/smoke/en/ > /dev/null", "true")
+        .replace("npm run smoke", "fake_smoke")
+        .replace(/\s+#.*$/, "");
+      return spawnSync("bash", ["-c", `ran=""; fake_smoke() { ${smoke}; }; ${line}; s=$?; echo "ran:$ran"; exit $s`], { encoding: "utf8", timeout: 20_000 });
+    };
+    const shard2Fails = run('ran="$ran$i"; [ "$i" != 2 ]');
+    expect(shard2Fails.status, shard2Fails.stderr).not.toBe(0); // (a plain for loop would exit with shard 4's status: 0)
+    expect(shard2Fails.stdout).toContain("ran:1234"); // every shard still runs
+    const allPass = run('ran="$ran$i"; true');
+    expect(allPass.status).toBe(0);
+    expect(allPass.stdout).toContain("ran:1234");
   });
 
   it("--- agent-guide --- puts every changed file in its edit zone and names the core functions a change touches", () => {
@@ -367,15 +459,105 @@ describe("the verdict and the report", () => {
   });
 
   it("writes the report with every lane, its duration and the findings (guard.mjs --plan --json, nothing executed)", () => {
-    const r = spawnSync(process.execPath, [path.join(ROOT, "scripts/agent/guard.mjs"), "--plan", "--json", "--base", "HEAD"], { cwd: ROOT, encoding: "utf8", timeout: 60_000, env: { ...process.env, JBL_GUARD_CACHE: path.join(ROOT, ".agent-out", "cache", "test-plan") } });
+    // --- ai-guard --- into its own cache (--report): the repository's .agent-out/guard-report.json is the guard run's this
+    // test may be part of (lane C, npm run test:ci), and stays as it was
+    const cache = path.join(ROOT, ".agent-out", "cache", "test-plan");
+    const own = path.join(ROOT, ".agent-out", "guard-report.json");
+    const before = fs.existsSync(own) ? fs.readFileSync(own, "utf8") : null;
+    const r = spawnSync(process.execPath, [path.join(ROOT, "scripts/agent/guard.mjs"), "--plan", "--json", "--base", "HEAD", "--report", path.join(cache, "guard-report.json")], { cwd: ROOT, encoding: "utf8", timeout: 60_000, env: { ...process.env, JBL_GUARD_CACHE: cache } });
     // (exit 1 when the working tree itself holds an unacknowledged fingerprint change or a weakened test: the plan still reports)
     expect([0, 1], r.stderr).toContain(r.status);
     const report = JSON.parse(r.stdout) as Record<string, unknown> & { plannedLanes: { id: string; steps: { id: string }[] }[]; mode: string; reportFile: string };
     for (const key of REPORT_KEYS) expect(report, key).toHaveProperty(key);
     expect(report.mode).toBe("plan");
     expect(report.plannedLanes.map((l) => l.id)).toEqual(["A", "B", "C"]);
-    expect(report.reportFile).toBe(".agent-out/guard-report.json");
-    expect(JSON.parse(read(".agent-out/guard-report.json")).mode).toBe("plan");
+    expect(report.reportFile).toBe(".agent-out/cache/test-plan/guard-report.json");
+    expect(JSON.parse(fs.readFileSync(path.join(cache, "guard-report.json"), "utf8")).mode).toBe("plan");
+    expect(fs.existsSync(own) ? fs.readFileSync(own, "utf8") : null).toBe(before);
+    // a report anywhere but .agent-out/ or the cache is refused before anything runs
+    const outside = spawnSync(process.execPath, [path.join(ROOT, "scripts/agent/guard.mjs"), "--plan", "--report", "README.md"], { cwd: ROOT, encoding: "utf8", timeout: 60_000, env: { ...process.env, JBL_GUARD_CACHE: cache } });
+    expect(outside.status).toBe(1);
+    expect(outside.stderr).toMatch(/--report README\.md: the report goes under \.agent-out\/ or the guard's cache/);
+    expect(reportFileFor(null, cache).file).toBe(own);
+    expect(reportFileFor(".agent-out/x/r.json", "/elsewhere").file).toBe(path.join(ROOT, ".agent-out", "x", "r.json"));
+    expect(reportFileFor("/elsewhere/r.json", "/elsewhere")).toEqual({ file: "/elsewhere/r.json", root: "/elsewhere" });
+  });
+
+  it("relates the tests that read a source through path.join segments, ../ literals or a root file's name", () => {
+    const tree = walk("");
+    const { graph, imports } = importGraph(tree);
+    const testFiles = tree.filter((f) => /^tests\/.+\.test\.ts$/.test(f));
+    // desktopUpdateButton reads DesktopSection.tsx as path.join(__dirname, "..", "src", "components", …, "DesktopSection.tsx")
+    expect(relatedTests(["src/components/simulator/sections/DesktopSection.tsx"], graph, testFiles)).toEqual(expect.arrayContaining(["tests/desktopUpdateButton.test.ts", "tests/desktopSocial.test.ts", "tests/desktopAutopilot.test.ts"]));
+    expect(relatedTests([".mcp.json"], graph, testFiles)).toContain("tests/agentMcp.test.ts");
+    expect(relatedTests(["next.config.ts"], graph, testFiles)).toContain("tests/agentCli.test.ts");
+    // the rules on their own
+    const exists = new Set(["src/a/B.tsx", "next.config.ts", ".mcp.json", "scripts/x.mjs", "tests/helper.ts"]);
+    expect(textReads("tests/t.test.ts", 'path.join(__dirname, "..", "src", "a", "B.tsx"); read("next.config.ts"); "../scripts/x.mjs"; path.join(ROOT, \'.mcp.json\'); "src/a/missing.ts"', exists)).toEqual([".mcp.json", "next.config.ts", "scripts/x.mjs", "src/a/B.tsx"]);
+    expect(textReads("tests/deep/t.test.ts", 'path.resolve(__dirname, "../helper.ts")', exists)).toEqual(["tests/helper.ts"]);
+    // a text read is no import: the weakening detector's "a helper a runner imports" follows imports alone
+    expect(imports["tests/desktopUpdateButton.test.ts"]).not.toContain("src/components/simulator/sections/DesktopSection.tsx");
+    const reached = reachedFromRunners(imports, testFiles);
+    expect(reached.has("tests/fakeCanvas.ts")).toBe(true);
+    expect(reached.has("src/lib/physics/engine.ts")).toBe(true);
+  });
+
+  it("measures from JBL_GUARD_BASE, origin/main or main, says when it is not origin/main, and names no session branch", () => {
+    expect(baseCandidates(null, {})).toEqual(["origin/main", "main"]);
+    expect(baseCandidates(null, { JBL_GUARD_BASE: "origin/release" })).toEqual(["origin/release", "origin/main", "main"]);
+    expect(baseCandidates("abc123", { JBL_GUARD_BASE: "x" })).toEqual(["abc123"]);
+    expect(baseNote("origin/main", null)).toBeNull();
+    expect(baseNote("HEAD~3", "HEAD~3")).toBeNull();
+    expect(baseNote("main", null)).toMatch(/measured from main, not origin\/main/);
+    expect(baseNote("origin/release", null)).toMatch(/JBL_GUARD_BASE, origin\/main, main/);
+    expect(baseNote("HEAD", null)).toMatch(/pass --base <ref>/);
+    expect(read("scripts/agent/guard.mjs")).not.toMatch(/origin\/claude\//);
+  });
+
+  it("annotates errors before warnings, one warning per rule, at most 10 of a kind, and lists everything in the step summary", () => {
+    const paths = ["AGENTS.md", "CLAUDE.md", ".mcp.json", "scripts/agent/core.json", "scripts/agent/guard.mjs", "scripts/agent/protected.json", "src/lib/agentKit/guardPlan.ts", "src/lib/agentKit/protectedDiff.ts", ".github/workflows/deploy.yml", "deploy/vps/jbl-deploy.sh", "wrangler.toml"];
+    const protectedFindings = [...paths.map((p) => ({ path: p, rule: p, why: `why ${p}` })), { path: "messages/en.json", rule: "Privacy.*", why: "legal", keys: ["Privacy.a"] }, { path: "messages/pl.json", rule: "Privacy.*", why: "legal", keys: ["Privacy.a"] }];
+    const report = {
+      base: { ref: "origin/main", commit: "cebc1510000" },
+      changed: { count: 40 },
+      fingerprints: { changes: [{ file: "tests/extras.test.ts", mode: "classic", kind: "changed", where: "BASELINE", acknowledged: false, reasons: [] }] },
+      weakening: { findings: [{ kind: "expect-drop", file: "tests/uncap.test.ts", detail: "expect calls 222 → 221", acknowledged: false, reasons: [] }, { kind: "test-moved", file: "tests/a.test.ts", detail: "moved to tests/b.test.ts", acknowledged: true, reasons: ["moved"] }] },
+      protected: { findings: protectedFindings },
+      notes: ["a note"],
+    };
+    expect(annotations(report, {})).toBe("");
+    const lines = annotations(report, { GITHUB_ACTIONS: "true" }).trimEnd().split("\n");
+    const errors = lines.filter((l) => l.startsWith("::error "));
+    const warnings = lines.filter((l) => l.startsWith("::warning "));
+    expect(lines.slice(0, errors.length)).toEqual(errors); // errors first
+    expect(errors).toHaveLength(2);
+    expect(warnings).toHaveLength(ANNOTATIONS_PER_KIND); // 12 rules: 9 of them, then "3 more"
+    expect(warnings[warnings.length - 1]).toMatch(/3 more owner-review rules.*the step summary lists every finding/);
+    expect(warnings.filter((w) => w.includes("Privacy.*"))).toHaveLength(0); // (the twelfth rule went into "more")
+    const grouped = annotations({ ...report, protected: { findings: protectedFindings.slice(-2) } }, { GITHUB_ACTIONS: "true" }).trimEnd().split("\n");
+    expect(grouped.filter((l) => l.startsWith("::warning "))).toEqual(["::warning file=messages/en.json,title=Owner review required (Privacy.*)::legal: messages/en.json, messages/pl.json"]);
+    const summary = stepSummary(report);
+    for (const p of paths) expect(summary, p).toContain(p);
+    expect(summary).toContain("**2 violations**");
+    expect(summary).toContain("| expect-drop | tests/uncap.test.ts | expect calls 222 → 221 |");
+    expect(summary).toContain("moved to tests/b.test.ts (acknowledged: moved)");
+    expect(summary).toContain("Privacy.*: Privacy.a");
+  });
+
+  it("joins the base commit's static checks with this run's when the change edits them: the stricter result counts", () => {
+    const own = { fpChanges: [], protectedFound: [{ path: "a", rule: "a", why: "x" }], weakening: [{ kind: "test-moved", file: "tests/g.test.ts", detail: "", acknowledged: true, reasons: ["m"] }] };
+    const theirs = {
+      fpChanges: [{ file: "tests/extras.test.ts", mode: "classic", kind: "changed", where: "BASELINE", acknowledged: false, reasons: [] }],
+      protectedFound: [{ path: "src/lib/agentKit/protectedDiff.ts", rule: "src/lib/agentKit/protectedDiff.ts", why: "y" }],
+      weakening: [{ kind: "test-moved", file: "tests/g.test.ts", detail: "", acknowledged: false, reasons: [] }],
+    };
+    const joined = stricterStatics(own, theirs);
+    expect(joined.fpChanges).toEqual([expect.objectContaining({ mode: "classic", acknowledged: false, by: "the base commit's checks" })]);
+    expect(joined.protectedFound.map((p) => p.path)).toEqual(["a", "src/lib/agentKit/protectedDiff.ts"]);
+    expect(joined.weakening).toEqual([expect.objectContaining({ kind: "test-moved", acknowledged: false })]);
+    expect(stricterStatics(own, null)).toEqual(own);
+    expect([strictest(0, 0), strictest(0, 2), strictest(2, 1), strictest(0, 1)]).toEqual([0, 2, 1, 1]);
+    expect(KIT_FILES).toEqual(["src/lib/agentKit/guardPlan.ts", "src/lib/agentKit/protectedDiff.ts"]);
   });
 
   it("has the npm scripts and keeps its output out of git", () => {

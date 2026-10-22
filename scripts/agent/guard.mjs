@@ -8,8 +8,10 @@
  *   npm run guard -- --baseline        tier 0 on the untouched tree: records the failures that already exist (refused on a
  *                                      tree with any change; a later run uses it only when its base is that commit or after it)
  *   npm run guard -- --plan            what would run and the static checks' findings, nothing executed (with --json: the report)
- *   options: --base <ref> (default: the merge base with origin/main), --with-slow (the slow tests a change pulls in),
- *            --json (print the report instead of the summary), --port <n> (tier 1's server, default 3101), --help
+ *   options: --base <ref> (default: the merge base with JBL_GUARD_BASE when set, else origin/main, else main; a note says
+ *            when it is not origin/main), --with-slow (the slow tests a change pulls in), --json (print the report instead of the summary),
+ *            --report <file> (where the report goes, under .agent-out/ or the cache; JBL_GUARD_REPORT likewise; default
+ *            .agent-out/guard-report.json), --port <n> (tier 1's server, default 3101), --help
  *
  * Lane A: the incremental type check (declarations emitted into the cache: a body-only edit re-checks in seconds). Lane B:
  * ESLint (cached), `node --check` on the scripts, the desktop app's and the billing Worker's type checks and tests. Lane C:
@@ -17,9 +19,12 @@
  * capped), the changelog check and the smoke suite's --list. Before them, the static checks: the fingerprint lock
  * (Fingerprint-Change trailer), the protected-path report (owner review, a warning) and the test-weakening detector
  * (Test-Change trailer), with the rules of scripts/agent/protected.json at the base commit joined with the working tree's
- * (a change cannot switch off the check it would fail; core.json's core list and hub files likewise). The plan is
- * src/lib/agentKit/guardPlan.ts and protectedDiff.ts (pure, unit-tested), bundled here with esbuild. In GitHub Actions a
- * missing base ref is an error (a shallow checkout would measure nothing) and the findings become annotations.
+ * (a change cannot switch off the check it would fail; core.json's lists likewise). The plan is
+ * src/lib/agentKit/guardPlan.ts and protectedDiff.ts (pure, unit-tested), bundled here with esbuild. When the change edits
+ * those two files, the base commit's versions are bundled as well and the static checks, the baseline verdicts and the
+ * exit code are the stricter of the two: a change cannot rewrite the checks that judge it (CI runs the base commit's whole
+ * guard for that reason). In GitHub Actions a missing base ref is an error (a shallow checkout would measure nothing), the
+ * findings become annotations (errors first, one warning per rule) and the step summary lists them all.
  *
  * Read-only toward the source: it writes only its cache (node_modules/.cache/jbl-guard, or .agent-out/cache/jbl-guard when
  * node_modules is a link into another checkout; JBL_GUARD_CACHE overrides) and .agent-out/guard-report.json; tier 1 also
@@ -40,7 +45,7 @@ const started = Date.now();
 /* ------------------------------------------------------------------------------------------------ arguments */
 
 export function parseArgs(argv) {
-  const opts = { browser: false, baseline: false, plan: false, json: false, withSlow: false, base: null, port: null, help: false };
+  const opts = { browser: false, baseline: false, plan: false, json: false, withSlow: false, base: null, port: null, report: null, help: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--browser") opts.browser = true;
@@ -49,12 +54,13 @@ export function parseArgs(argv) {
     else if (a === "--json") opts.json = true;
     else if (a === "--with-slow") opts.withSlow = true;
     else if (a === "--help" || a === "-h") opts.help = true;
-    else if (a === "--base" || a === "--port") {
+    else if (a === "--base" || a === "--port" || a === "--report") {
       if (i + 1 >= argv.length) throw new Error(`guard: ${a} needs a value`);
       opts[a.slice(2)] = argv[++i];
     } else if (a.startsWith("--base=")) opts.base = a.slice(7);
     else if (a.startsWith("--port=")) opts.port = a.slice(7);
-    else throw new Error(`guard: unknown argument "${a}" (--browser, --baseline, --plan, --json, --with-slow, --base <ref>, --port <n>, --help)`);
+    else if (a.startsWith("--report=")) opts.report = a.slice(9);
+    else throw new Error(`guard: unknown argument "${a}" (--browser, --baseline, --plan, --json, --with-slow, --base <ref>, --report <file>, --port <n>, --help)`);
   }
   if (opts.port !== null && !/^\d+$/.test(String(opts.port))) throw new Error("guard: --port needs a number");
   return opts;
@@ -76,25 +82,69 @@ export function cacheDirFor(root, env = process.env) {
   return own ? path.join(nm, ".cache", "jbl-guard") : path.join(root, ".agent-out", "cache", "jbl-guard");
 }
 
-async function loadKit(cacheDir) {
+/** The guard's own plan and static checks: what a change to them could turn into a pass, so the base's versions judge too. */
+export const KIT_FILES = ["src/lib/agentKit/guardPlan.ts", "src/lib/agentKit/protectedDiff.ts"];
+
+/** Bundles guardPlan.ts and protectedDiff.ts from the folder `from` (the repository, or a copy of the base commit's) and imports them. */
+async function loadKit(cacheDir, { from = ROOT, name = "agentKit" } = {}) {
   let esbuild;
   try {
     esbuild = await import("esbuild");
   } catch {
     throw new Error("guard: esbuild is not installed – run `npm ci` (it is a dev dependency).");
   }
-  const outfile = path.join(cacheDir, "agentKit.mjs");
+  const outfile = path.join(cacheDir, `${name}.mjs`);
   await esbuild.build({
-    stdin: { contents: 'export * from "./src/lib/agentKit/guardPlan.ts";\nexport * from "./src/lib/agentKit/protectedDiff.ts";\n', resolveDir: ROOT, loader: "ts" },
+    stdin: { contents: KIT_FILES.map((f) => `export * from "./${f}";\n`).join(""), resolveDir: from, loader: "ts" },
     bundle: true,
     platform: "node",
     format: "esm",
     target: "node20",
     outfile,
-    alias: { "@": path.join(ROOT, "src") },
+    alias: { "@": path.join(from, "src") },
     logLevel: "error",
   });
   return import(`${pathToFileURL(outfile).href}?t=${Date.now()}`);
+}
+
+/**
+ * --- ai-guard --- The base commit's plan and static checks, when the change edits them (null when it does not, or the base
+ * has none): copied out of git into the cache and bundled from there. Their verdicts join this run's, the stricter one
+ * counting, so a change to protectedDiff.ts cannot switch off the fingerprint lock it is judged by.
+ */
+async function loadBaseKit(cacheDir, baseCommit, changed) {
+  if (!KIT_FILES.some((f) => changed.includes(f))) return null;
+  const dir = path.join(cacheDir, "base-kit");
+  fs.rmSync(dir, { recursive: true, force: true });
+  for (const f of KIT_FILES) {
+    const text = atCommit(baseCommit, f);
+    if (text === null) return null;
+    fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+    fs.writeFileSync(path.join(dir, f), text);
+  }
+  return loadKit(cacheDir, { from: dir, name: "agentKit-base" });
+}
+
+/**
+ * --- ai-guard --- The refs tried for the base, in order, when no --base is given: JBL_GUARD_BASE (an override), origin/main, main.
+ * @param {string | null} requested
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {string[]}
+ */
+export function baseCandidates(requested, env = process.env) {
+  return requested ? [requested] : [env.JBL_GUARD_BASE, "origin/main", "main"].filter(Boolean);
+}
+
+/**
+ * The note a run measured from another ref than origin/main carries (null for origin/main or a requested --base).
+ * @param {string} ref
+ * @param {string | null} requested
+ * @returns {string | null}
+ */
+export function baseNote(ref, requested) {
+  if (requested || ref === "origin/main") return null;
+  if (ref === "HEAD") return "no base ref found (JBL_GUARD_BASE, origin/main, main): the change is measured against HEAD, so nothing committed is checked – pass --base <ref>";
+  return `the change is measured from ${ref}, not origin/main (the order is JBL_GUARD_BASE, origin/main, main) – pass --base <ref> if that is not the branch this one goes into`;
 }
 
 /* ------------------------------------------------------------------------------------------------ git */
@@ -112,9 +162,8 @@ const tryGit = (args) => {
 function gitState(requested) {
   const head = tryGit(["rev-parse", "HEAD"]);
   if (!head) throw new Error("guard: not a git checkout (git rev-parse HEAD failed)");
-  const candidates = requested ? [requested] : [process.env.JBL_GUARD_BASE, "origin/main", "main", "origin/claude/optimistic-johnson-46x3qg"].filter(Boolean);
   let base = null;
-  for (const ref of candidates) {
+  for (const ref of baseCandidates(requested)) {
     const commit = tryGit(["merge-base", "HEAD", ref]);
     if (commit) {
       base = { ref, commit };
@@ -123,9 +172,9 @@ function gitState(requested) {
     if (requested) throw new Error(`guard: --base ${requested}: no merge base with HEAD`);
   }
   // in CI a missing base means a shallow checkout: measuring against HEAD would pass every change unseen
-  if (!base && process.env.GITHUB_ACTIONS === "true") throw new Error("guard: no base ref (origin/main, main) in this checkout – fetch the history (actions/checkout with fetch-depth: 0) or pass --base <ref>");
-  const note = base ? null : "no base ref found (origin/main, main): the change is measured against HEAD";
+  if (!base && process.env.GITHUB_ACTIONS === "true") throw new Error("guard: no base ref (JBL_GUARD_BASE, origin/main, main) in this checkout – fetch the history (actions/checkout with fetch-depth: 0) or pass --base <ref>");
   if (!base) base = { ref: "HEAD", commit: head };
+  const note = baseNote(base.ref, requested);
   const dirty = uncommittedChanges().length > 0;
   return { head, base, dirty, note };
 }
@@ -188,7 +237,8 @@ function versions(baseCommit, files) {
 const SKIP_NAMES = new Set(["node_modules", ".git", ".next"]);
 const SKIP_PATHS = new Set(["out", ".agent-out", "smoke-output", "bot-output", "graphify-out", ".wrangler", "relay-data", "scripts/out", "desktop/dist", "desktop/release", "relay/relay-data", "relay/deploy/data", "billing/.wrangler"]);
 
-function walk(dir, out = []) {
+/** The repository's files, installs and build or run output aside (repository-relative, `/` separators). */
+export function walk(dir, out = []) {
   let entries = [];
   try {
     entries = fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true });
@@ -218,17 +268,65 @@ function resolveImport(from, spec, exists) {
 }
 
 const IMPORT_RES = [/\b(?:import|export)\s[^;'"`]*?\bfrom\s*["']([^"']+)["']/g, /\bimport\s*["']([^"']+)["']/g, /\bimport\(\s*["']([^"']+)["']\s*\)/g, /\brequire\(\s*["']([^"']+)["']\s*\)/g, /\bvi\.mock\(\s*["']([^"']+)["']/g];
-const PATH_LITERAL = /["'`]((?:src|scripts|messages|docs|public|deploy|desktop|billing|relay|worker|\.github)\/[\w./@-]+\.\w+|README\.md|CHANGELOG\.md|package\.json)["'`]/g;
+/** A string literal without escapes or `${…}` on one line. */
+const STRING_LITERAL = /"([^"\\\n]+)"|'([^'\\\n]+)'|`([^`\\$\n]+)`/g;
+/** path.join / path.resolve of a folder variable and string segments: `path.join(__dirname, "..", "src", "x.tsx")`, `path.join(ROOT, "next.config.ts")`. */
+const PATH_CALL = /\bpath\.(?:join|resolve)\(\s*([A-Za-z_$][\w$]*)\s*((?:,\s*(?:"[^"\\\n]*"|'[^'\\\n]*'))+)\s*,?\s*\)/g;
+/** The folders whose sources the graph reads (desktop/tests and billing/tests for the weakening detector's runners). */
+const GRAPH_DIRS = ["src/", "tests/", "scripts/", "relay/", "worker/", "desktop/tests/", "billing/tests/"];
 
-/** file → the repository files it imports (and, for a test, the files it names as paths: the source-pinning tests read them). */
-function importGraph(files) {
+/**
+ * --- ai-guard --- The repository files a test names as text, so the source-pinning tests count as related to them: any
+ * string literal that is an existing file (root files included: `.mcp.json`, `next.config.ts`, `package.json`), a literal
+ * starting with `./` or `../` from the test's folder, and the segments of a `path.join` / `path.resolve` of `__dirname`
+ * (from the test's folder) or of a root variable such as `ROOT`.
+ * @param {string} file
+ * @param {string} text
+ * @param {ReadonlySet<string>} exists
+ * @returns {string[]}
+ */
+export function textReads(file, text, exists) {
+  const dir = path.posix.dirname(file);
+  const out = new Set();
+  const named = (p) => {
+    const clean = path.posix.normalize(p);
+    if (!clean.startsWith("../") && clean !== file && exists.has(clean)) out.add(clean);
+  };
+  for (const m of text.matchAll(STRING_LITERAL)) {
+    const lit = m[1] ?? m[2] ?? m[3];
+    if (lit.startsWith("./") || lit.startsWith("../")) named(path.posix.join(dir, lit));
+    else named(lit);
+  }
+  for (const m of text.matchAll(PATH_CALL)) {
+    const segments = [...m[2].matchAll(/"([^"\\\n]*)"|'([^'\\\n]*)'/g)].map((s) => s[1] ?? s[2]);
+    const joined = path.posix.join(...segments);
+    if (m[1] === "__dirname") named(path.posix.join(dir, joined));
+    else {
+      named(joined); // ROOT, root, repoRoot …: the repository
+      named(path.posix.join(dir, joined));
+    }
+  }
+  return [...out].sort();
+}
+
+/**
+ * file → the repository files it imports (`imports`), and the same plus, for a test, the files it names as text (`graph`:
+ * the source-pinning tests read them; textReads above).
+ * @param {readonly string[]} files
+ * @param {string} [root]
+ * @returns {{ graph: Record<string, string[]>, imports: Record<string, string[]> }}
+ */
+export function importGraph(files, root = ROOT) {
   const exists = new Set(files);
+  /** @type {Record<string, string[]>} */
   const graph = {};
+  /** @type {Record<string, string[]>} */
+  const imports = {};
   for (const file of files) {
-    if (!/\.(ts|tsx|mjs|js|cjs)$/.test(file) || !(file.startsWith("src/") || file.startsWith("tests/") || file.startsWith("scripts/") || file.startsWith("relay/") || file.startsWith("worker/"))) continue;
+    if (!/\.(ts|tsx|mjs|js|cjs)$/.test(file) || !GRAPH_DIRS.some((d) => file.startsWith(d))) continue;
     let text;
     try {
-      text = fs.readFileSync(path.join(ROOT, file), "utf8");
+      text = fs.readFileSync(path.join(root, file), "utf8");
     } catch {
       continue;
     }
@@ -237,10 +335,28 @@ function importGraph(files) {
       const target = resolveImport(file, m[1], exists);
       if (target) deps.add(target);
     }
-    if (file.startsWith("tests/")) for (const m of text.matchAll(PATH_LITERAL)) if (exists.has(m[1])) deps.add(m[1]);
+    imports[file] = [...deps];
+    if (file.startsWith("tests/") || /\.test\.(ts|mjs)$/.test(file)) for (const f of textReads(file, text, exists)) deps.add(f);
     graph[file] = [...deps];
   }
-  return graph;
+  return { graph, imports };
+}
+
+/**
+ * --- ai-guard --- Every file the test files the runners execute import, directly or through other files (a helper that still runs).
+ * @param {Readonly<Record<string, readonly string[]>>} imports
+ * @param {readonly string[]} runners
+ * @returns {Set<string>}
+ */
+export function reachedFromRunners(imports, runners) {
+  const reached = new Set();
+  let frontier = [...runners];
+  while (frontier.length) {
+    const next = [];
+    for (const f of frontier) for (const d of imports[f] ?? []) if (!reached.has(d)) (reached.add(d), next.push(d));
+    frontier = next;
+  }
+  return reached;
 }
 
 function modeIds() {
@@ -337,14 +453,18 @@ async function runStep(step, ctx) {
   const log = path.join(ctx.logDir, `${step.id}.log`);
   fs.writeFileSync(log, `$ (cd ${step.cwd || "."} && ${step.argv.join(" ")})\n`);
   const result = { id: step.id, title: step.title, lane: ctx.lane, status: "passed", seconds: 0, signatures: [], log: rel(log) };
-  const done = (failed, signatures, extra = {}) => {
-    const verdict = ctx.kit.againstBaseline(failed, signatures, ctx.baseline?.signatures?.[step.id]);
+  const done = (failed, signatures, extra = {}, excusable = true) => {
+    const prior = ctx.baseline?.signatures?.[step.id];
+    let verdict = ctx.kit.againstBaseline(failed, signatures, prior, excusable);
+    // (the base commit's baseline rule, when the change edits guardPlan.ts: the stricter verdict counts)
+    if (ctx.baseKit?.againstBaseline?.(failed, signatures, prior, excusable)?.status === "failed") verdict = { status: "failed", preExisting: [] };
     Object.assign(result, { status: verdict.status, signatures, ...(verdict.preExisting.length ? { preExisting: verdict.preExisting } : {}), seconds: (Date.now() - t0) / 1000, ...extra });
     ctx.onStep?.(result);
     return result;
   };
+  // --- ai-guard --- a missing install says nothing about the code: never excused by a baseline, never recorded in one
   if (step.requires && !fs.existsSync(path.join(ROOT, step.requires.path))) {
-    return done(true, [`${step.id}: ${step.requires.path} is missing`], { note: `${step.requires.path} is missing – run ${step.requires.fix}` });
+    return done(true, [`${step.id}: ${step.requires.path} is missing`], { note: `${step.requires.path} is missing – run ${step.requires.fix}`, environment: true }, false);
   }
   if (step.parser === "node-check") {
     const bad = [];
@@ -457,35 +577,133 @@ function summaryText(report) {
   return `${lines.join("\n")}\n`;
 }
 
-/** In GitHub Actions: the owner-review findings as warnings (annotations), the violations as errors. */
-function annotations(report) {
-  if (process.env.GITHUB_ACTIONS !== "true") return "";
-  const esc = (s) => String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
-  const lines = [];
-  for (const p of report.protected.findings) lines.push(`::warning file=${p.path},title=Owner review required (${esc(p.rule)})::${esc(p.why)}`);
-  for (const c of report.fingerprints.changes.filter((x) => !x.acknowledged)) lines.push(`::error file=${c.file},title=Fingerprint ${c.kind} without a trailer::${esc(`${c.mode}: add "Fingerprint-Change: ${c.mode} - <reason>" to the commit`)}`);
-  for (const x of report.weakening.findings.filter((y) => !y.acknowledged)) lines.push(`::error file=${x.file},title=Test weakened (${x.kind})::${esc(x.detail)}`);
-  return lines.map((l) => `${l}\n`).join("");
+/**
+ * --- ai-guard --- The stricter of exit codes: 1 (failed) over 2 (a higher tier is required) over 0 (green).
+ * @param {...number} codes
+ * @returns {0 | 1 | 2}
+ */
+export const strictest = (...codes) => (codes.includes(1) ? 1 : codes.includes(2) ? 2 : 0);
+
+/**
+ * --- ai-guard --- This run's static findings joined with the base commit's checks' (`theirs`; null when the change leaves
+ * guardPlan.ts and protectedDiff.ts alone): a finding only one of them makes counts, and one both make is acknowledged only
+ * when both say so – so editing the checks can add findings, never take one away.
+ * @param {{ fpChanges: any[], protectedFound: any[], weakening: any[] }} own
+ * @param {{ fpChanges: any[], protectedFound: any[], weakening: any[] } | null} theirs
+ * @returns {{ fpChanges: any[], protectedFound: any[], weakening: any[] }}
+ */
+export function stricterStatics(own, theirs) {
+  if (!theirs) return { fpChanges: own.fpChanges, protectedFound: own.protectedFound, weakening: own.weakening };
+  const join = (mine, other, key) => {
+    const out = mine.map((x) => ({ ...x }));
+    for (const y of other) {
+      const at = out.find((x) => key(x) === key(y));
+      if (!at) out.push({ ...y, by: "the base commit's checks" });
+      else if (at.acknowledged === true && y.acknowledged === false) Object.assign(at, { acknowledged: false, reasons: [] });
+    }
+    return out;
+  };
+  return {
+    fpChanges: join(own.fpChanges, theirs.fpChanges, (c) => `${c.file}\0${c.mode}\0${c.kind}\0${c.where}`),
+    protectedFound: join(own.protectedFound, theirs.protectedFound, (p) => `${p.path}\0${p.rule}`),
+    weakening: join(own.weakening, theirs.weakening, (w) => `${w.kind}\0${w.file}`),
+  };
 }
 
-/** Throws unless `p` (or, while it does not exist yet, its nearest existing folder) really is inside the repository, links resolved. */
-function assertInsideRepo(p) {
-  let at = path.resolve(p);
-  while (!fs.existsSync(at) && path.dirname(at) !== at) at = path.dirname(at);
-  const r = path.relative(fs.realpathSync(ROOT), fs.realpathSync(at));
-  if (r.startsWith("..") || path.isAbsolute(r)) throw new Error(`guard: ${rel(p)} leads outside the repository (a symbolic link): remove the link`);
+/** Whether a path is inside the repository (by its name; links are writeOutFile's business). */
+const isInsideRoot = (file) => {
+  const r = path.relative(ROOT, file);
+  return !r.startsWith("..") && !path.isAbsolute(r);
+};
+
+/** GitHub keeps at most this many annotations of one kind (error, warning) per step. */
+export const ANNOTATIONS_PER_KIND = 10;
+
+/**
+ * --- ai-guard --- In GitHub Actions: the violations as errors first, then the owner-review findings as warnings, one per
+ * rule naming its files – each kind capped at what GitHub keeps for a step, the last one saying how many more the step
+ * summary lists (stepSummary below).
+ * @param {any} report
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {string}
+ */
+export function annotations(report, env = process.env) {
+  if (env.GITHUB_ACTIONS !== "true") return "";
+  const esc = (s) => String(s).replace(/%/g, "%25").replace(/\r/g, "%0D").replace(/\n/g, "%0A");
+  const prop = (s) => esc(s).replace(/:/g, "%3A").replace(/,/g, "%2C");
+  const errors = [
+    ...report.fingerprints.changes.filter((x) => !x.acknowledged).map((c) => ({ file: c.file, title: `Fingerprint ${c.kind} without a trailer`, text: `${c.mode}: add "Fingerprint-Change: ${c.mode} - <reason>" to the commit` })),
+    ...report.weakening.findings.filter((y) => !y.acknowledged).map((x) => ({ file: x.file, title: `Test weakened (${x.kind})`, text: x.detail })),
+  ];
+  const byRule = new Map();
+  for (const p of report.protected.findings) {
+    if (!byRule.has(p.rule)) byRule.set(p.rule, { why: p.why, files: [] });
+    if (!byRule.get(p.rule).files.includes(p.path)) byRule.get(p.rule).files.push(p.path);
+  }
+  const warnings = [...byRule].map(([rule, g]) => ({ file: g.files[0], title: `Owner review required (${rule})`, text: `${g.why}: ${g.files.join(", ")}` }));
+  const capped = (list, what) => (list.length <= ANNOTATIONS_PER_KIND ? list : [...list.slice(0, ANNOTATIONS_PER_KIND - 1), { title: `${list.length - ANNOTATIONS_PER_KIND + 1} more ${what}`, text: `and ${list.length - ANNOTATIONS_PER_KIND + 1} more ${what}: the step summary lists every finding` }]);
+  const line = (kind, a) => `::${kind} ${a.file ? `file=${prop(a.file)},` : ""}title=${prop(a.title)}::${esc(a.text)}\n`;
+  return [...capped(errors, "violations").map((a) => line("error", a)), ...capped(warnings, "owner-review rules").map((a) => line("warning", a))].join("");
 }
 
 /**
- * Writes a file under .agent-out/ without following a link: the folder must lead to a folder inside the repository, and the
- * file is written under a fresh name and renamed over the target, which replaces a symbolic link there instead of writing
- * through it (a checkout may carry one; the report must never land outside the repository).
+ * --- ai-guard --- Every static finding of a report as Markdown, for $GITHUB_STEP_SUMMARY (the annotations are capped; this is not).
+ * @param {any} report
+ * @returns {string}
  */
-function writeOutFile(file, text) {
+export function stepSummary(report) {
+  const cell = (s) => String(s).replace(/\|/g, "\\|").replace(/\n/g, " ");
+  const out = [`### Core guard (static checks): base ${report.base.ref} (${report.base.commit.slice(0, 7)}), ${report.changed.count} changed files`, ""];
+  const bad = [...report.fingerprints.changes.filter((x) => !x.acknowledged).map((c) => [`fingerprint ${c.kind}`, c.file, `${c.mode} (${c.where}): needs "Fingerprint-Change: ${c.mode} - <reason>"`]), ...report.weakening.findings.filter((x) => !x.acknowledged).map((x) => [x.kind, x.file, x.detail])];
+  out.push(bad.length ? `**${bad.length} violation${bad.length === 1 ? "" : "s"}**` : "No violations.", "");
+  if (bad.length) out.push("| Finding | File | Detail |", "| --- | --- | --- |", ...bad.map((r) => `| ${r.map(cell).join(" | ")} |`), "");
+  const notes = [...report.fingerprints.changes.filter((x) => x.acknowledged && x.kind !== "added").map((c) => [`fingerprint ${c.kind}`, c.file, `acknowledged: ${c.reasons.join("; ")}`]), ...report.weakening.findings.filter((x) => x.acknowledged).map((x) => [x.kind, x.file, `${x.detail} (acknowledged: ${x.reasons.join("; ")})`])];
+  if (notes.length) out.push("| Acknowledged | File | Detail |", "| --- | --- | --- |", ...notes.map((r) => `| ${r.map(cell).join(" | ")} |`), "");
+  const own = report.protected.findings;
+  out.push(own.length ? `**Owner review required: ${own.length} finding${own.length === 1 ? "" : "s"}**` : "Nothing for owner review.", "");
+  if (own.length) out.push("| File | Rule | Why |", "| --- | --- | --- |", ...own.map((p) => `| ${[p.path, p.keys ? `${p.rule}: ${p.keys.join(", ")}` : p.rule, p.why].map(cell).join(" | ")} |`), "");
+  for (const n of report.notes ?? []) out.push(`- ${cell(n)}`);
+  return `${out.join("\n")}\n`;
+}
+
+/** Throws unless `p` (or, while it does not exist yet, its nearest existing folder) really is inside `root` (the repository by default), links resolved. */
+function assertInsideRepo(p, root = ROOT) {
+  let at = path.resolve(p);
+  while (!fs.existsSync(at) && path.dirname(at) !== at) at = path.dirname(at);
+  const r = path.relative(fs.realpathSync(root), fs.realpathSync(at));
+  if (r.startsWith("..") || path.isAbsolute(r)) throw new Error(`guard: ${rel(p)} leads outside ${root === ROOT ? "the repository" : rel(root)} (a symbolic link): remove the link`);
+}
+
+/**
+ * --- ai-guard --- Where the report goes: --report, else JBL_GUARD_REPORT, else .agent-out/guard-report.json – only under
+ * .agent-out/ or the guard's cache (a test's run never replaces the report of the guard run it is part of).
+ * @param {string | null} wanted
+ * @param {string} cacheDir
+ * @returns {{ file: string, root: string }}
+ */
+export function reportFileFor(wanted, cacheDir) {
+  const fallback = path.join(ROOT, ".agent-out", "guard-report.json");
+  if (!wanted) return { file: fallback, root: ROOT };
+  const file = path.resolve(ROOT, wanted);
+  const under = (dir) => {
+    const r = path.relative(dir, file);
+    return r !== "" && !r.startsWith("..") && !path.isAbsolute(r);
+  };
+  if (under(path.join(ROOT, ".agent-out"))) return { file, root: ROOT };
+  if (under(cacheDir)) return { file, root: cacheDir };
+  throw new Error(`guard: --report ${wanted}: the report goes under .agent-out/ or the guard's cache (${rel(cacheDir)})`);
+}
+
+/**
+ * Writes a file under .agent-out/ (or the cache) without following a link: the folder must lead to a folder inside `root`,
+ * and the file is written under a fresh name and renamed over the target, which replaces a symbolic link there instead of
+ * writing through it (a checkout may carry one; the report must never land outside the repository).
+ */
+function writeOutFile(file, text, root = ROOT) {
   const dir = path.dirname(file);
-  assertInsideRepo(dir);
+  assertInsideRepo(dir, root);
   fs.mkdirSync(dir, { recursive: true });
-  assertInsideRepo(dir);
+  assertInsideRepo(dir, root);
   const tmp = path.join(dir, `.${path.basename(file)}.${process.pid}.tmp`);
   fs.writeFileSync(tmp, text, { flag: "wx" });
   fs.renameSync(tmp, file);
@@ -515,6 +733,7 @@ async function main(argv) {
   }
   const cacheDir = cacheDirFor(ROOT);
   if (!process.env.JBL_GUARD_CACHE) assertInsideRepo(cacheDir); // (.agent-out/cache in a worktree: never through a link out of it)
+  const report_ = reportFileFor(opts.report ?? process.env.JBL_GUARD_REPORT ?? null, cacheDir);
   const logDir = path.join(cacheDir, "logs");
   fs.rmSync(logDir, { recursive: true, force: true });
   fs.mkdirSync(logDir, { recursive: true });
@@ -530,26 +749,59 @@ async function main(argv) {
     const pending = uncommittedChanges();
     if (pending.length) throw new Error(`guard: --baseline needs an untouched tree, and this one has ${pending.length} change${pending.length === 1 ? "" : "s"} (${pending.slice(0, 5).map((l) => l.slice(3)).join(", ")}${pending.length > 5 ? ", …" : ""}). Commit, stash (git stash -u) or remove them first.`);
   }
+  const exists = (f) => fs.existsSync(path.join(ROOT, f));
   // the rules come from the base commit too: a rule the change removes still applies until the owner merges it
   const headCore = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts/agent/core.json"), "utf8"));
   const headProt = JSON.parse(fs.readFileSync(path.join(ROOT, "scripts/agent/protected.json"), "utf8"));
-  const core = kit.mergeCoreConfigs(parseOrNull(atCommit(state.base.commit, "scripts/agent/core.json")), headCore, (f) => fs.existsSync(path.join(ROOT, f)));
-  const prot = kit.mergeProtectedConfigs(parseOrNull(atCommit(state.base.commit, "scripts/agent/protected.json")), headProt);
+  const baseCore = parseOrNull(atCommit(state.base.commit, "scripts/agent/core.json"));
+  const baseProt = parseOrNull(atCommit(state.base.commit, "scripts/agent/protected.json"));
+  const core = kit.mergeCoreConfigs(baseCore, headCore, exists);
+  const prot = kit.mergeProtectedConfigs(baseProt, headProt);
   const changed = changedFiles(state.base.commit);
   const messages = commitMessages(state.base.commit);
+  // --- ai-guard --- a change to the guard's own checks is judged by the base commit's checks as well (the stricter counts)
+  let baseKit = null;
+  try {
+    baseKit = await loadBaseKit(cacheDir, state.base.commit, changed);
+  } catch (e) {
+    notes.push(`the base commit's guardPlan.ts and protectedDiff.ts did not load (${e instanceof Error ? e.message.split("\n")[0] : e}): only the working tree's judged`);
+  }
+  if (baseKit) notes.push(`this change edits ${KIT_FILES.filter((f) => changed.includes(f)).join(" and ")}: the static checks, the baseline verdicts and the exit code also ran with the base commit's version, and the stricter result counts`);
+  if (changed.includes("scripts/agent/guard.mjs")) notes.push("scripts/agent/guard.mjs differs from the base: this run's verdict comes from the changed guard (owner review); CI judges a push with the base commit's guard");
   const tree = walk("");
   const testFiles = tree.filter((f) => /^tests\/.+\.test\.ts$/.test(f) || /^relay\/.+\.test\.mjs$/.test(f)).sort();
   const ids = modeIds();
   const blocks = findBlockTitles(fs.readFileSync(path.join(ROOT, "scripts/smoke-test.mjs"), "utf8"));
+  const { graph, imports } = importGraph(tree);
 
   // static checks
   const s0 = Date.now();
-  const files = versions(state.base.commit, kit.filesToRead(prot, changed));
-  const fpTrailers = kit.parseTrailers(messages, "Fingerprint-Change");
-  const testTrailers = kit.parseTrailers(messages, "Test-Change");
-  const fpChanges = kit.fingerprintChanges(prot.fingerprints, files, fpTrailers);
-  const protectedFound = kit.protectedFindings(prot, changed, files);
-  const weakening = kit.weakeningFindings(prot.weakening, changed, files, testTrailers);
+  const read = new Map();
+  const filesOf = (list) => {
+    for (const [f, v] of versions(state.base.commit, list.filter((f) => !read.has(f)))) read.set(f, v);
+    return new Map(list.map((f) => [f, read.get(f)]));
+  };
+  const runners = reachedFromRunners(imports, tree.filter((f) => kit.matchesAny(f, prot.weakening.runs ?? [])));
+  const statics_ = (k) => {
+    const rules = k.mergeProtectedConfigs(baseProt, headProt);
+    const files = filesOf(k.filesToRead(rules, changed));
+    const fpTrailers = k.parseTrailers(messages, "Fingerprint-Change");
+    const testTrailers = k.parseTrailers(messages, "Test-Change");
+    const weakening = k.weakeningFindings(rules.weakening, changed, files, testTrailers, { imported: (f) => runners.has(f) });
+    if (k.coreTestFindings) weakening.push(...k.coreTestFindings({ baseCore: (baseCore?.vitest?.core ?? []).map((t) => t.file), core: core.vitest.core.map((t) => t.file), exists, weakening, trailers: testTrailers }));
+    return { fpTrailers, testTrailers, fpChanges: k.fingerprintChanges(rules.fingerprints, files, fpTrailers), protectedFound: k.protectedFindings(rules, changed, files), weakening };
+  };
+  const own = statics_(kit);
+  let theirs = null;
+  if (baseKit) {
+    try {
+      theirs = statics_(baseKit);
+    } catch (e) {
+      notes.push(`the base commit's static checks failed on this change (${e instanceof Error ? e.message : e}): only the working tree's judged`);
+    }
+  }
+  const { fpChanges, protectedFound, weakening } = stricterStatics(own, theirs);
+  const { fpTrailers, testTrailers } = own;
   const statics = {
     fingerprintViolations: fpChanges.filter((c) => !c.acknowledged).length,
     weakeningViolations: weakening.filter((w) => !w.acknowledged).length,
@@ -558,7 +810,6 @@ async function main(argv) {
   const staticSeconds = (Date.now() - s0) / 1000;
 
   // the plan
-  const graph = importGraph(tree);
   const related = kit.relatedTests(changed, graph, testFiles);
   const escalation = kit.planEscalation({ changed, config: core, modeIds: ids, smokeBlocks: blocks, testFiles });
   const vitest = kit.planVitest({ config: core, related, escalated: escalation.tests.filter((f) => testFiles.includes(f)), withSlow: opts.withSlow });
@@ -566,6 +817,11 @@ async function main(argv) {
   const zones = kit.editZones({ changed, config: core, protectedFiles: protectedFound.map((x) => x.path) });
   const nodeCheckFiles = tree.filter((f) => kit.matchesAny(f, core.nodeCheck)).sort();
   const lanes = kit.planTier0({ config: core, vitest, cacheDir, nodeCheckFiles }); // (absolute: the desktop and billing steps run in their own folders)
+  // --- ai-guard --- a baseline of a missing install would excuse every later failure of its checks: refused
+  if (opts.baseline && !opts.plan) {
+    const missing = kit.missingInstalls ? kit.missingInstalls(lanes, exists) : [];
+    if (missing.length) throw new Error(`guard: --baseline needs every install the lanes use, and ${missing.map((m) => m.path).join(" and ")} ${missing.length === 1 ? "is" : "are"} missing – run ${missing.map((m) => m.fix).join(" and ")} first`);
+  }
   const tier = opts.browser ? 1 : 0;
   const baselineFile = path.join(cacheDir, "baseline.json");
   let baseline = null;
@@ -579,7 +835,7 @@ async function main(argv) {
 
   const laneResults = [];
   if (!opts.plan) {
-    const ctxBase = { kit, logDir, baseline, onStep: opts.json ? null : (r) => process.stderr.write(`  ${r.lane} ${r.status === "passed" ? "ok  " : r.status === "failed" ? "FAIL" : r.status} ${r.title} (${r.seconds.toFixed(1)} s)\n`) };
+    const ctxBase = { kit, baseKit, logDir, baseline, onStep: opts.json ? null : (r) => process.stderr.write(`  ${r.lane} ${r.status === "passed" ? "ok  " : r.status === "failed" ? "FAIL" : r.status} ${r.title} (${r.seconds.toFixed(1)} s)\n`) };
     const runLane = async (lane) => {
       const t0 = Date.now();
       const steps = [];
@@ -621,8 +877,16 @@ async function main(argv) {
   }
 
   const allSteps = laneResults.flatMap((l) => l.steps);
-  const code = opts.plan ? (statics.fingerprintViolations || statics.weakeningViolations ? 1 : 0) : kit.exitCode({ steps: allSteps, statics, escalation, tier, vitest, baselineRun: opts.baseline });
-  const reportFile = path.join(ROOT, ".agent-out", "guard-report.json");
+  const verdictInput = { steps: allSteps, statics, escalation, tier, vitest, baselineRun: opts.baseline };
+  let code = opts.plan ? (statics.fingerprintViolations || statics.weakeningViolations ? 1 : 0) : kit.exitCode(verdictInput);
+  if (baseKit && !opts.plan) {
+    try {
+      code = strictest(code, baseKit.exitCode(verdictInput));
+    } catch {
+      /* an older base without it: this run's code */
+    }
+  }
+  const reportFile = report_.file;
   const estimate = { cold: kit.estimateTier0(core, vitest, false), warm: kit.estimateTier0(core, vitest, true), edit: kit.estimateTier0(core, vitest, "edit") };
   const report = {
     schema: 1,
@@ -650,18 +914,28 @@ async function main(argv) {
     baseline: opts.baseline && !opts.plan ? { recorded: true, file: rel(baselineFile), head: state.head } : baseline ? { used: true, head: baseline.head, recordedAt: baseline.recordedAt } : { used: false },
     zones,
     notes,
-    reportFile: rel(reportFile),
+    reportFile: isInsideRoot(reportFile) ? rel(reportFile) : reportFile,
+    ...(process.env.JBL_GUARD_RUN_ID ? { runId: process.env.JBL_GUARD_RUN_ID } : {}),
   };
   fs.writeFileSync(path.join(cacheDir, "report.json"), `${JSON.stringify(report, null, 2)}\n`);
-  writeOutFile(reportFile, `${JSON.stringify(report, null, 2)}\n`);
+  writeOutFile(reportFile, `${JSON.stringify(report, null, 2)}\n`, report_.root);
   if (opts.baseline && !opts.plan) {
-    const signatures = Object.fromEntries(allSteps.filter((s) => s.signatures.length).map((s) => [s.id, s.signatures]));
+    // (a missing install describes the machine, not the code: never recorded, so it can never be excused)
+    const signatures = Object.fromEntries(allSteps.filter((s) => s.signatures.length && !s.environment).map((s) => [s.id, s.signatures]));
     // (the tree was checked untouched before the lanes ran; a change made while they ran makes it dirty after all)
     const dirty = state.dirty || uncommittedChanges().length > 0;
     fs.writeFileSync(baselineFile, `${JSON.stringify({ head: state.head, dirty, base: state.base, recordedAt: new Date().toISOString(), signatures }, null, 2)}\n`);
   }
   if (opts.json) await print(`${JSON.stringify(report, null, 2)}\n`);
   else await print(summaryText(report) + annotations(report)); // (not with --json: stdout is the report alone)
+  // --- ai-guard --- in Actions, every finding in the step summary (the annotations above are capped at 10 of a kind)
+  if (process.env.GITHUB_ACTIONS === "true" && process.env.GITHUB_STEP_SUMMARY) {
+    try {
+      fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, stepSummary(report));
+    } catch {
+      /* no summary file: the annotations stand */
+    }
+  }
   return code;
 }
 

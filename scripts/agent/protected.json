@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "about": "--- ai-guard --- What the core guard protects (scripts/agent/guard.mjs, src/lib/agentKit/protectedDiff.ts; README 'Core guard'). paths and regions: a change is reported as 'owner review required' (a warning, and a GitHub annotation where the guard runs in Actions; never a failure). fingerprints: a changed or removed entry fails the guard unless a commit in the range carries 'Fingerprint-Change: <mode> - <reason>'. weakening: a finding fails unless a commit carries 'Test-Change: <file> - <reason>' (an added .only always fails). This file is protected itself, and the guard reads it at the base commit too: a rule a change removes or narrows still applies until the change is merged.",
+  "about": "--- ai-guard --- What the core guard protects (scripts/agent/guard.mjs, src/lib/agentKit/protectedDiff.ts; README 'Core guard'). paths and regions: a change is reported as 'owner review required' (a warning, and a GitHub annotation where the guard runs in Actions; never a failure). fingerprints: a changed or removed entry fails the guard unless a commit in the range carries 'Fingerprint-Change: <mode> - <reason>'. weakening: a finding fails unless a commit carries 'Test-Change: <file> - <reason>' (an added .only always fails); 'runs' are the test files the runners execute (vitest's include lists and the relay's), the only files an expect may move into besides a helper one of them imports, and 'configs' the vitest configs whose testTimeout and hookTimeout must not rise. This file is protected itself, and the guard reads it at the base commit too: a rule a change removes or narrows still applies until the change is merged.",
   "paths": [
     {
       "glob": "src/lib/watermark/**",
@@ -77,6 +77,14 @@
     {
       "glob": "vitest.config.ts",
       "why": "which test files run and how (include, exclude, timeouts)"
+    },
+    {
+      "glob": "desktop/vitest.config.ts",
+      "why": "which of the desktop app's test files run and how (include, timeouts)"
+    },
+    {
+      "glob": "billing/vitest.config.ts",
+      "why": "which of the billing Worker's test files run and how (include, timeouts)"
     },
     {
       "glob": "scripts/smoke/verdict.mjs",
@@ -247,6 +255,17 @@
       "desktop/tests/**/*.ts",
       "billing/tests/**/*.ts",
       "relay/**/*.test.mjs"
+    ],
+    "runs": [
+      "tests/**/*.test.ts",
+      "relay/**/*.test.mjs",
+      "desktop/tests/**/*.test.ts",
+      "billing/tests/**/*.test.ts"
+    ],
+    "configs": [
+      "vitest.config.ts",
+      "desktop/vitest.config.ts",
+      "billing/vitest.config.ts"
     ],
     "smokeFile": "scripts/smoke-test.mjs",
     "allowLists": [

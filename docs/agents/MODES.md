@@ -108,7 +108,7 @@ has to be added here by hand: the test proves the list true, not complete.
 | 56 | `tests/beatDrop.test.ts` | `"<id>"` | The modes whose default ball size is not 8. Update the list, never loosen the check. | **tested** |
 | 57 | `tests/powerLayers.test.ts` | `"<id>"` | The same default ball size list. | **tested** |
 | 58 | `scripts/smoke-test.mjs` | `smokeBlock("<kebab>"` | The mode's block: the card picture, the card, link to controls, controls to link, the search, and a fast run to the end through the dataset. | **tested**: `tests/docsConsistency.test.ts`, `tests/coreGuard.test.ts` |
-| 59 | `scripts/smoke-timing.json` | `"<kebab>"` | The block's time, written in CI with `--write-timing`. Until then the block counts at the median. | **none** |
+| 59 | `scripts/smoke-timing.json` | `"<kebab>"` | The block's time. No workflow writes it: copy the merged timing file that `scripts/smoke/summary.mjs` puts into a CI run's smoke-screenshots artifact over it, or run the block locally with `SMOKE_ONLY=<kebab> npm run smoke -- --write-timing`. Until then the block counts at the median. | **none** |
 | 60 | `scripts/agent/core.json` | `modeSmoke` | Only when the mode's smoke block is not named `<kebab>` or `*-<kebab>`. Protected: owner review. | **tested**: `tests/coreGuard.test.ts` |
 | 61 | `README.md` | `\| **<Title>** \|`, `### <Title>`, `` \| `<id>` \| `` | The Game modes row, the mode's section, and its row in the hero-moments table. | **tested**: `tests/docsConsistency.test.ts`, `tests/modeThumbnails.test.ts` |
 | 62 | `src/content/changelog.json` | `"items"` | The release entry. Bump the version in `package.json` and run `npm run changelog` for `CHANGELOG.md`, all in one commit (`docs/RELEASING.md`). | **tested**: `tests/changelog.test.ts` |

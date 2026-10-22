@@ -144,9 +144,19 @@ describe("deploy.yml: the core guard and the browser checks in the build job (--
     expect(guard).not.toMatch(/\n {8}if: /); // every branch: about a second
     expect(guard).toContain("        continue-on-error: true\n"); // annotations, not a gate (the owner's call)
     expect(guard).toContain("          BEFORE: ${{ github.event.before }}\n");
-    expect(guard).toContain('node scripts/agent/guard.mjs --plan --base "$BEFORE"');
-    expect(guard).toContain('[ -n "${BEFORE//0/}" ]'); // a new branch's all-zero "before": the guard's own default base
-    expect(guard).toContain("          else\n            node scripts/agent/guard.mjs --plan\n");
+    expect(guard).toContain('            BASE="$BEFORE"\n');
+    expect(guard).toContain('[ -n "${BEFORE//0/}" ]'); // a new branch's all-zero "before": the merge base with origin/main
+    expect(guard).toContain('            BASE="$(git merge-base HEAD origin/main 2> /dev/null || true)"\n');
+    expect(guard).toContain('exec node scripts/agent/guard.mjs --plan --base "$BASE"\n');
+    // --- ai-guard --- a push that edits the guard's own code is judged by the base commit's: git lists those files before
+    // any pushed code runs, warns about each, and the base's versions run in a worktree of the pushed commit
+    const listed = guard.indexOf('KIT="$(git diff --name-only "$BASE" HEAD -- scripts/agent/guard.mjs src/lib/agentKit/guardPlan.ts src/lib/agentKit/protectedDiff.ts)"');
+    expect(listed).toBeGreaterThan(-1);
+    expect(guard.indexOf('exec node scripts/agent/guard.mjs --plan --base "$BASE"')).toBeGreaterThan(listed);
+    expect(guard).toContain("::warning file=$f,title=Owner review required (the guard's own code)::");
+    expect(guard).toContain('git worktree add --detach "$TREE" HEAD');
+    expect(guard).toContain('git show "$BASE:$f" > "$TREE/$f"');
+    expect(guard.lastIndexOf('exec node scripts/agent/guard.mjs --plan --base "$BASE"')).toBeGreaterThan(guard.indexOf('cd "$TREE"'));
     // after the install (the guard bundles its plan with esbuild), before anything that can fail the job first
     expect(at("Install dependencies")).toBeLessThan(at("Core guard (static checks)"));
     expect(at("Core guard (static checks)")).toBeLessThan(at("Lint"));

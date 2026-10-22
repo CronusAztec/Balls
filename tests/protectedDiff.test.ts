@@ -1,9 +1,14 @@
+import { spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import { MODE_IDS } from "@/lib/physics/types";
+import { globToRegExp } from "@/lib/agentKit/guardPlan";
 import {
   arrayElements,
+  checkNames,
+  configTimeouts,
+  coreTestFindings,
   countChecks,
   countExpects,
   expectStatements,
@@ -256,7 +261,7 @@ describe("thing", () => {
   it("counts expectations, modifiers, timeouts and smoke checks outside comments and strings", () => {
     expect(countExpects(TEST)).toBe(5);
     expect(countExpects('// expect(1)\nconst s = "expect(2)";\nexpect(3).toBe(3); expect.poll(() => 1); expectTypeOf(x).toBeNumber(); foo.expect(4);')).toBe(3);
-    expect(modifierCounts("it.only('x', f); describe.skip('y', f); ctx.skip(); it.skipIf(a)('z', f); it.todo('w'); // it.only")).toEqual({ only: 1, skip: 2, skipIf: 1, todo: 1 });
+    expect(modifierCounts("it.only('x', f); describe.skip('y', f); it('c', (ctx) => { ctx.skip(); }); it.skipIf(a)('z', f); it.todo('w'); // it.only")).toEqual({ only: 1, skip: 2, skipIf: 1, runIf: 0, todo: 1, fails: 0 });
     expect([...testTimeouts(TEST)]).toEqual([
       ['describe "thing"', null],
       ['it "adds"', null],
@@ -371,11 +376,142 @@ describe("thing", () => {
   });
 
   it("reads only the files the checks need", () => {
-    expect(filesToRead(PROTECTED, ["README.md", "tests/extras.test.ts", "scripts/smoke-test.mjs", "messages/en.json", "src/lib/uncap.ts", "src/lib/physics/box.ts"])).toEqual([
+    expect(filesToRead(PROTECTED, ["README.md", "tests/extras.test.ts", "scripts/smoke-test.mjs", "messages/en.json", "src/lib/uncap.ts", "src/lib/physics/box.ts", "desktop/vitest.config.ts"])).toEqual([
+      "desktop/vitest.config.ts",
       "messages/en.json",
       "scripts/smoke-test.mjs",
       "src/lib/uncap.ts",
       "tests/extras.test.ts",
     ]);
+  });
+});
+
+describe("the test-weakening detector, round two (--- ai-guard ---)", () => {
+  const W = PROTECTED.weakening;
+  const LIVE = 'import { describe, expect, it } from "vitest";\ndescribe("go live", () => {\n  it("checks", () => {\n    expect(1).toBe(1);\n    expect(2).toBe(2);\n  });\n});\n';
+  const find = (entries: Record<string, [string | null, string | null]>, trailers = none, options = {}) =>
+    weakeningFindings(W, Object.keys(entries), files(entries), trailers, options).map((f) => `${f.kind} ${f.file}${f.acknowledged ? " (acknowledged)" : ""}`);
+
+  it("counts a move only into a file the runners execute, or a helper one of them imports", () => {
+    expect(W.runs).toEqual(["tests/**/*.test.ts", "relay/**/*.test.mjs", "desktop/tests/**/*.test.ts", "billing/tests/**/*.test.ts"]);
+    // git mv tests/goLiveKit.test.ts tests/goLiveKit.ts: vitest's include no longer matches it
+    expect(find({ "tests/goLiveKit.test.ts": [LIVE, null], "tests/goLiveKit.ts": [null, LIVE] })).toEqual(["test-deleted tests/goLiveKit.test.ts", "expect-drop tests/goLiveKit.test.ts"]);
+    // … unless a test file the runners execute imports it (its tests then run inside that file)
+    expect(find({ "tests/goLiveKit.test.ts": [LIVE, null], "tests/goLiveKit.ts": [null, LIVE] }, none, { imported: (f: string) => f === "tests/goLiveKit.ts" })).toEqual(["test-moved tests/goLiveKit.test.ts (acknowledged)"]);
+    // renamed to another test file: a move, with its target
+    const moved = weakeningFindings(W, ["tests/goLiveKit.test.ts", "tests/goLive.test.ts"], files({ "tests/goLiveKit.test.ts": [LIVE, null], "tests/goLive.test.ts": [null, LIVE] }), none);
+    expect(moved).toEqual([expect.objectContaining({ kind: "test-moved", file: "tests/goLiveKit.test.ts", target: "tests/goLive.test.ts", acknowledged: true })]);
+    // an expect moved out of a test into a fixture that no test imports: dropped
+    const shrunk = LIVE.replace("    expect(2).toBe(2);\n", "");
+    expect(find({ "tests/goLiveKit.test.ts": [LIVE, shrunk], "tests/fixtures/liveChecks.ts": [null, "export const more = () => {\n  expect(2).toBe(2);\n};\n"] })).toEqual(["expect-drop tests/goLiveKit.test.ts"]);
+    expect(find({ "tests/goLiveKit.test.ts": [LIVE, shrunk], "tests/fixtures/liveChecks.ts": [null, "export const more = () => {\n  expect(2).toBe(2);\n};\n"] }, none, { imported: () => true })).toEqual([]);
+    // the desktop app's and the relay's own test files are runners too
+    expect(find({ "desktop/tests/a.test.ts": [LIVE, null], "desktop/tests/b.test.ts": [null, LIVE] })).toEqual(["test-moved desktop/tests/a.test.ts (acknowledged)"]);
+  });
+
+  it("finds nothing to weaken in a deleted helper without expects or tests, and follows a test file merged into another", () => {
+    const fakeAudio = "export class FakeAudioContext {\n  createGain() {\n    return { gain: { value: 1 } };\n  }\n}\n";
+    const fakeCanvas = "export class FakeCanvas {}\n";
+    expect(find({ "tests/fakeAudio.ts": [fakeAudio, null], "tests/fakeCanvas.ts": [fakeCanvas, `${fakeCanvas}${fakeAudio}`] })).toEqual([]);
+    // a test file without expect( calls (its tests throw) merged into another test file: moved; deleted outright: deleted
+    const throwing = 'import { it } from "vitest";\nit("parses", () => {\n  parse("a");\n});\n';
+    expect(find({ "tests/parse.test.ts": [throwing, null], "tests/all.test.ts": [LIVE, `${LIVE}${throwing}`] })).toEqual(["test-moved tests/parse.test.ts (acknowledged)"]);
+    expect(find({ "tests/parse.test.ts": [throwing, null] })).toEqual(["test-deleted tests/parse.test.ts"]);
+  });
+
+  it("fails an added .runIf or .fails on a test call, and passes them with a Test-Change trailer", () => {
+    const gate = 'describe("the gate", () => {\n  it("is 4–5 % of the side tall", () => {\n    expect(h).toBeGreaterThan(0.04);\n  });\n});\n';
+    expect(find({ "tests/freeWatermark.test.ts": [gate, gate.replace('describe("the gate"', 'describe.runIf(false)("the gate"')] })).toEqual(["runIf-added tests/freeWatermark.test.ts"]);
+    expect(find({ "tests/watermarkEverywhere.test.ts": [gate, gate.replace('  it("is 4', '  it.fails("is 4')] })).toEqual(["fails-added tests/watermarkEverywhere.test.ts"]);
+    expect(find({ "tests/a.test.ts": [gate, gate.replace("  it(", "  test.concurrent.fails(")] })).toEqual(["fails-added tests/a.test.ts"]);
+    const ack = parseTrailers(["Test-Change: tests/freeWatermark.test.ts - the gate runs only where Chromium starts"], "Test-Change");
+    expect(find({ "tests/freeWatermark.test.ts": [gate, gate.replace('describe("the gate"', 'describe.runIf(ok)("the gate"')] }, ack)).toEqual(["runIf-added tests/freeWatermark.test.ts (acknowledged)"]);
+    // a property or a method of that name is not a modifier; one the base already had is no change
+    expect(modifierCounts("expect(result.fails).toBe(0); job.runIf(x); const f = it.fails; describe.runIf(a)('x', f);")).toMatchObject({ runIf: 1, fails: 1 });
+    expect(find({ "tests/a.test.ts": [gate.replace("  it(", "  it.runIf(ok)("), gate.replace("  it(", "  it.runIf(ok)(").replace("0.04", "0.045")] })).toEqual([]);
+  });
+
+  it("counts .skip on a test call or through a test's context, never a method named skip", () => {
+    const queue = 'it("skips a queued post", async () => {\n  await q.add("q1");\n  expect(await q.list()).toHaveLength(1);\n});\n';
+    // a new assertion on the queue's own skip(): no finding
+    expect(find({ "desktop/tests/socialQueue.test.ts": [queue, queue.replace("});\n", '  await expect(q.skip("q1")).rejects.toThrow(/already skipped/);\n  await bridge.social.queue.skip("q2");\n});\n')] })).toEqual([]);
+    expect(modifierCounts('q.skip("q1"); queue.skip(); this.skip;').skip).toBe(0);
+    // a skip through the test's context, named or destructured, and a fixture's .skip
+    expect(modifierCounts('it("a", async (ctx) => { if (!page) return ctx.skip(); });').skip).toBe(1);
+    expect(modifierCounts('it("a", async function (context) { context?.skip(); });').skip).toBe(1);
+    expect(modifierCounts('it("a", ({ skip }) => { skip(); });\ntest("b", ({ skip: pass }) => { pass(); });').skip).toBe(2);
+    expect(modifierCounts("beforeEach((ctx) => { ctx.skip(); });").skip).toBe(1);
+    expect(modifierCounts('const page = test.extend({ page: async ({}, use) => use(1) });\npage.skip("a", () => {});\npage.concurrent.only("b", () => {});').skip).toBe(1);
+    expect(modifierCounts('const page = test.extend({});\npage.concurrent.only("b", () => {});').only).toBe(1);
+    expect(find({ "tests/masterBus.test.ts": [queue, queue.replace("async () => {\n", "async (ctx) => {\n  ctx.skip();\n")] })).toEqual(["skip-added tests/masterBus.test.ts"]);
+  });
+
+  it("judges the smoke suite check by check: a deleted check is not offset by one added in another block", () => {
+    const smoke = 'await smokeBlock("end", async () => {\n  check("the end screen waits for the escape replay", ok);\n  check(`mode ${m} plays`, ok);\n});\nawait smokeBlock("camera", async () => {\n  check("the camera opens", true);\n});\n';
+    const swapped = smoke.replace('  check("the end screen waits for the escape replay", ok);\n', "  // gone\n").replace('  check("the camera opens", true);\n', '  check("the camera opens", true);\n  check("the camera search box exists", true);\n');
+    const found = weakeningFindings(W, [W.smokeFile], files({ [W.smokeFile]: [smoke, swapped] }), none);
+    expect(found.map((f) => f.kind)).toEqual(["check-drop"]);
+    expect(found[0].detail).toContain("the end screen waits for the escape replay");
+    expect(checkNames(smoke)).toEqual(['check "the end screen waits for the escape replay"', "check `mode ${m} plays`", 'check "the camera opens"']);
+    // moved to another block, its condition edited, its quotes changed: still there
+    const reworked = smoke.replace('  check("the end screen waits for the escape replay", ok);\n', "").replace('  check("the camera opens", true);\n', "  check('the camera opens', page.ok());\n  check(\"the end screen waits for the escape replay\", ok && replay);\n");
+    expect(weakeningFindings(W, [W.smokeFile], files({ [W.smokeFile]: [smoke, reworked] }), none)).toEqual([]);
+    expect(weakeningFindings(W, [W.smokeFile], files({ [W.smokeFile]: [smoke, swapped] }), parseTrailers(["Test-Change: scripts/smoke-test.mjs - the end screen block moved to its own test"], "Test-Change"))[0].acknowledged).toBe(true);
+  });
+
+  it("finds a raised timeout through a const, arithmetic, vi.setConfig and the vitest configs", () => {
+    const slow = 'const SLOW = 30_000;\nit("deploys", async () => {\n  expect(1).toBe(1);\n}, SLOW);\nit("waits", { timeout: SLOW * 2 }, () => {\n  expect(2).toBe(2);\n});\n';
+    expect(testTimeouts(slow)).toEqual(new Map([['it "deploys"', 30000], ['it "waits"', 60000]]));
+    expect(find({ "tests/vpsDeploy.test.ts": [slow, slow.replace("30_000", "900_000")] })).toEqual(["timeout-raised tests/vpsDeploy.test.ts", "timeout-raised tests/vpsDeploy.test.ts"]);
+    expect(find({ "tests/vpsDeploy.test.ts": [slow, slow.replace("30_000", "20_000")] })).toEqual([]);
+    // a timeout the detector cannot read counts when its text changes
+    expect(find({ "tests/vpsDeploy.test.ts": [slow, slow.replace("const SLOW = 30_000;", "const SLOW = process.env.CI ? 900_000 : 30_000;")] })).toEqual(["timeout-raised tests/vpsDeploy.test.ts", "timeout-raised tests/vpsDeploy.test.ts"]);
+    // a callback passed by name is no timeout
+    expect(testTimeouts('const run = () => {};\nit("a", run);\nbeforeAll(setup);\nafterAll(teardown, 2_000);')).toEqual(new Map([['it "a"', null], ["beforeAll #", null], ["afterAll #", 2000]]));
+    // the file-wide default: raised, or set where the base had none
+    const wide = 'vi.setConfig({ testTimeout: 120_000 });\nit("x", () => {\n  expect(1).toBe(1);\n});\n';
+    expect(testTimeouts(wide).get("vi.setConfig testTimeout")).toBe(120000);
+    expect(find({ "tests/uncap.test.ts": [wide, wide.replace("120_000", "900_000")] })).toEqual(["timeout-raised tests/uncap.test.ts"]);
+    expect(find({ "tests/uncap.test.ts": [wide.slice(wide.indexOf("\n") + 1), wide] })).toEqual(["timeout-raised tests/uncap.test.ts"]);
+    expect(find({ "tests/uncap.test.ts": [wide, wide.replace("120_000", "60_000")] })).toEqual([]);
+    // the vitest configs' testTimeout and hookTimeout
+    const desktop = 'export default defineConfig({\n  test: { include: ["tests/**/*.test.ts"], environment: "node", testTimeout: 20000 },\n});\n';
+    expect(configTimeouts(desktop)).toEqual(new Map([["testTimeout", 20000]]));
+    expect(find({ "desktop/vitest.config.ts": [desktop, desktop.replace("20000", "600000")] })).toEqual(["timeout-raised desktop/vitest.config.ts"]);
+    expect(find({ "vitest.config.ts": [desktop.replace(", testTimeout: 20000", ""), desktop.replace("testTimeout: 20000", "hookTimeout: 60_000")] })).toEqual(["timeout-raised vitest.config.ts"]);
+    expect(find({ "desktop/vitest.config.ts": [desktop, desktop.replace("20000", "10000")] })).toEqual([]);
+  });
+
+  it("fails a core test of the base that is gone, unless it moved to a test on the core list or a trailer names it", () => {
+    const baseCore = ["tests/goLiveKit.test.ts", "tests/zip.test.ts"];
+    const exists = (f: string) => f === "tests/zip.test.ts";
+    const moved = [{ kind: "test-moved" as const, file: "tests/goLiveKit.test.ts", target: "tests/goLive.test.ts", detail: "", acknowledged: true, reasons: [] }];
+    expect(coreTestFindings({ baseCore, core: ["tests/zip.test.ts"], exists, weakening: [], trailers: none }).map((f) => `${f.kind} ${f.file} ${f.acknowledged}`)).toEqual(["core-test-dropped tests/goLiveKit.test.ts false"]);
+    expect(coreTestFindings({ baseCore, core: ["tests/zip.test.ts"], exists, weakening: moved, trailers: none })[0].detail).toMatch(/moved to tests\/goLive\.test\.ts, which is not on the core list/);
+    expect(coreTestFindings({ baseCore, core: ["tests/zip.test.ts", "tests/goLive.test.ts"], exists, weakening: moved, trailers: none })).toEqual([]);
+    const ack = parseTrailers(["Test-Change: tests/goLiveKit.test.ts - the go-live kit is retired"], "Test-Change");
+    expect(coreTestFindings({ baseCore, core: [], exists, weakening: [], trailers: ack })[0].acknowledged).toBe(true);
+  });
+
+  it("joins the runners' globs from the base and the working tree: a glob the change adds is no move target yet", () => {
+    const wider: ProtectedConfig = { ...PROTECTED, weakening: { ...PROTECTED.weakening, runs: [...PROTECTED.weakening.runs!, "tests/**/*.ts"], configs: [] } };
+    const merged = mergeProtectedConfigs(PROTECTED, wider);
+    expect(merged.weakening.runs).toEqual(PROTECTED.weakening.runs);
+    expect(merged.weakening.configs).toEqual(PROTECTED.weakening.configs);
+    expect(weakeningFindings(merged.weakening, ["tests/goLiveKit.test.ts", "tests/goLiveKit.ts"], files({ "tests/goLiveKit.test.ts": [LIVE, null], "tests/goLiveKit.ts": [null, LIVE] }), none).map((f) => f.kind)).toEqual(["test-deleted", "expect-drop"]);
+    // an older base without the field: the working tree's list
+    const older: ProtectedConfig["weakening"] = { ...PROTECTED.weakening };
+    delete older.runs;
+    expect(mergeProtectedConfigs({ ...PROTECTED, weakening: older }, PROTECTED).weakening.runs).toEqual(PROTECTED.weakening.runs);
+  });
+
+  it("names runner globs and vitest configs the tree has, and leaves the tree's own tests unflagged against themselves", () => {
+    const tracked = spawnSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).stdout.split("\n").filter(Boolean);
+    for (const g of W.runs!) expect(tracked.some((f) => globToRegExp(g).test(f)), g).toBe(true);
+    for (const c of W.configs!) expect(fs.existsSync(path.join(ROOT, c)), c).toBe(true);
+    const own = ["tests/masterBus.test.ts", "tests/fightLeagueSound.test.ts", "tests/perfGuards.test.ts", "tests/unlimited.test.ts", "desktop/tests/socialQueue.test.ts", "tests/uncap.test.ts"];
+    expect(weakeningFindings(W, own, files(Object.fromEntries(own.map((f) => [f, [read(f), read(f)]]))), none)).toEqual([]);
+    // the real uncap test's file-wide timeout is read
+    expect(testTimeouts(read("tests/uncap.test.ts")).get("vi.setConfig testTimeout")).toBe(120000);
   });
 });
