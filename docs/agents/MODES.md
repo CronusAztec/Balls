@@ -1,7 +1,7 @@
 # Adding a coded mode: the exact checklist
 
 A coded mode is the last resort. Read the decision tree in `AGENTS.md` first: settings, presets and the data-driven blocks
-cover a lot. (A Blueprint, a mechanic as data, is planned but not in this repository yet: there is no src/lib/blueprint folder.)
+cover a lot, and so does a Blueprint, a mechanic as data (`docs/agents/BLUEPRINTS.md`; the site plays them once Mode Lab lands).
 When a coded mode really is the answer, it has to be wired by hand into every place below. Two recent modes did exactly
 this: Merge Ring (`mergeRing`) and Spiral Glass (`spiralGlass`). Copy them, and still go through every row: neither has
 every optional point (Spiral Glass reports its HUD through `noteTitleBlock` alone, row 39).

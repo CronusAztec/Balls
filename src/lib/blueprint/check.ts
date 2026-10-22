@@ -151,8 +151,8 @@ export function playabilityCheck(bp: Blueprint, options: CheckOptions = {}): Pla
     verdict = broken || fewEnd || short || long ? "broken" : "playable";
   }
   if (verdict === "playable") {
-    const c = bp.finish.any[byCondition[0].condition];
-    feedback.unshift(`Playable: it ends by "${c.say || DEFAULT_SAY[c.when]}" (${c.when}) after a median ${med} s, on ${byCondition.length} of ${n} seeds.`);
+    const ends = [...new Set(byCondition.map((r) => r.condition))].map((i) => `"${bp.finish.any[i].say || DEFAULT_SAY[bp.finish.any[i].when]}" (${bp.finish.any[i].when})`);
+    feedback.unshift(`Playable: it ends by ${ends.join(" or ")} after a median ${med} s, on ${byCondition.length} of ${n} seeds.`);
   }
   return { verdict, feedback, seeds: reports, finishedByCondition: byCondition.length, medianFinishSec: med };
 }

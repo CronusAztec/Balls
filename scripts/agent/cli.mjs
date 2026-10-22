@@ -19,6 +19,11 @@
  *   analyse      numeric features of a local video file (ffmpeg)
  *   guard        the core guard (npm run guard; {"plan":true} for the static checks alone)
  *   explain      which fix a failure allows (source pin, behaviour, fingerprint…)
+ *   bp-schema    the Blueprint language: its JSON Schema (full or Lite), the vocabulary for prompts, the ceilings
+ *   bp-validate  a Blueprint checked strictly (`path: sentence` errors), sanitized, summarised, sized
+ *   bp-check     a Blueprint played headless on four seeds: playable, endless or broken, with feedback   (deterministic)
+ *   bp-link      a Blueprint's link code, simulator link and share code
+ *   bp-docs      docs/agents/BLUEPRINTS.md as the code generates it, and whether the committed one is current
  *   site-stats   owner-run: aggregate numbers from the owner's Plausible or Umami (needs their key)
  *   postiz-probe owner-run: which analytics series the owner's Postiz returns (needs their key)
  *
@@ -33,7 +38,7 @@ import { spawn } from "child_process";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { loadToolCore, loadToolbox } from "./bundle.mjs";
+import { loadBlueprintKit, loadToolCore, loadToolbox } from "./bundle.mjs";
 import { OUT_DIR, ROOT, ensureOutDir, isInside, isMainModule, repoRelative } from "./paths.mjs";
 
 export class UsageError extends Error {}
@@ -128,6 +133,107 @@ export function testSourceOf(file, root = ROOT) {
 async function explainTool(tb, args) {
   const facts = tb.testFilesIn(args.failure).map((file) => ({ file, readsAsText: tb.textReadsOf(testSourceOf(file)) }));
   return tb.explainFailure(args.failure, facts);
+}
+
+/* ------------------------------------------------------------------ blueprints */
+
+// --- blueprint --- the five bp-* tools: the Blueprint library alone (bundle.mjs loadBlueprintKit), no engine, no browser
+
+/** A call's Blueprint, sanitized, with the strict validator's errors (a ToolError when it names none it can read). */
+function blueprintOf(bk, args) {
+  const input = bk.blueprintInput(args);
+  if (!input.ok) throw new ToolError(input.error);
+  const errors = bk.validateBlueprint(input.raw);
+  const { blueprint, notes, newer } = bk.sanitizeBlueprint(input.raw);
+  return { source: input.source, blueprint, errors, notes, newer };
+}
+
+async function bpSchemaTool(bk, args) {
+  const lite = args.form === "lite";
+  return {
+    form: lite ? "lite" : "full",
+    schema: lite ? bk.liteSchema() : bk.blueprintJsonSchema(),
+    ...(lite ? {} : { vocabulary: bk.blueprintVocabulary() }),
+    ceilings: bk.BLUEPRINT_CEILINGS,
+    limits: bk.BLUEPRINT_LIMITS,
+    catalog: [...bk.BLUEPRINT_CATALOG_IDS],
+    guide: bk.BLUEPRINT_DOCS_FILE,
+  };
+}
+
+async function bpValidateTool(bk, args) {
+  const { source, blueprint, errors, notes, newer } = blueprintOf(bk, args);
+  return {
+    valid: errors.length === 0,
+    source,
+    errors,
+    sanitizerNotes: notes,
+    newer,
+    summary: bk.describeBlueprint(blueprint),
+    bytes: bk.blueprintBytes(blueprint),
+    maxBytes: bk.BLUEPRINT_CEILINGS.specBytes,
+    digest: bk.blueprintDigest(blueprint),
+    code: bk.encodeBlueprint(blueprint),
+    compact: bk.compactBlueprint(blueprint),
+  };
+}
+
+/** A check slower than this (wall time) is flagged "slow": an advisory, never part of the verdict. */
+export const BP_CHECK_SLOW_MS = 20_000;
+
+async function bpCheckTool(bk, args) {
+  const { source, blueprint, errors, notes } = blueprintOf(bk, args);
+  const started = Date.now();
+  const report = bk.playabilityCheck(blueprint, args.seeds ? { seeds: args.seeds } : {});
+  const wallMs = Date.now() - started;
+  return {
+    verdict: report.verdict,
+    feedback: report.feedback,
+    source,
+    ...(errors.length ? { validationErrors: errors, checked: "the sanitized spec (validation errors above)", sanitizerNotes: notes } : {}),
+    digest: bk.blueprintDigest(blueprint),
+    medianFinishSec: report.medianFinishSec,
+    finishedByCondition: report.finishedByCondition,
+    seeds: report.seeds,
+    advisory: { wallMs, slow: wallMs > BP_CHECK_SLOW_MS },
+  };
+}
+
+async function bpLinkTool(bk, args) {
+  const { source, blueprint, errors } = blueprintOf(bk, args);
+  const code = bk.encodeBlueprint(blueprint);
+  const query = args.catalog !== undefined ? bk.catalogQuery(args.catalog) : bk.blueprintQuery(blueprint);
+  const link = bk.simulatorLink(query, args.locale ?? "en");
+  const shareCode = await bk.encodeShareCode(new URLSearchParams(query));
+  return {
+    source,
+    ...(errors.length ? { validationErrors: errors } : {}),
+    code,
+    codeChars: code.length,
+    query,
+    link,
+    linkChars: link.length,
+    ...(shareCode ? { shareLink: bk.simulatorLink(`c=${shareCode}`, args.locale ?? "en"), shareCodeChars: shareCode.length, shareCodeMax: bk.SHARE_CODE_MAX_LENGTH } : {}),
+    digest: bk.blueprintDigest(blueprint),
+    note: "The blueprint mode (Mode Lab) reads these links; a site without it opens the default mode.",
+  };
+}
+
+async function bpDocsTool(bk, args) {
+  const markdown = bk.renderBlueprintDocs();
+  let committed = null;
+  try {
+    committed = fs.readFileSync(path.join(ROOT, bk.BLUEPRINT_DOCS_FILE), "utf8");
+  } catch {
+    committed = null;
+  }
+  return {
+    file: bk.BLUEPRINT_DOCS_FILE,
+    current: committed === markdown,
+    ...(committed === markdown ? {} : { fix: "npm run blueprints:docs rewrites it from the code" }),
+    chars: markdown.length,
+    ...(args.markdown === false ? {} : { markdown }),
+  };
 }
 
 /* ------------------------------------------------------------------ guard */
@@ -240,10 +346,17 @@ const TOOLS = {
   analyse: async (tb, args) => (await import("./analyse.mjs")).analyseTool(tb, args),
   "site-stats": async (tb, args) => (await import("./site-stats.mjs")).siteStatsTool(tb, args),
   "postiz-probe": async (tb, args) => (await import("./postiz-probe.mjs")).postizProbeTool(tb, args),
+  "bp-schema": bpSchemaTool,
+  "bp-validate": bpValidateTool,
+  "bp-check": bpCheckTool,
+  "bp-link": bpLinkTool,
+  "bp-docs": bpDocsTool,
 };
 
 /** --- agent-cli --- The tools that need the engine (the whole toolbox bundle); the others run on the tool core alone. */
 export const ENGINE_TOOLS = new Set(["modes", "simulate", "fingerprint", "preview", "render"]);
+/** --- blueprint --- The tools that need the Blueprint kit (the language, its runtime and catalog; no engine). */
+export const BLUEPRINT_TOOLS = new Set(["bp-schema", "bp-validate", "bp-check", "bp-link", "bp-docs"]);
 
 /** Runs one tool call: { ok, tool, result } or { ok: false, tool, error, usage? }. */
 export async function runTool(name, rawArgs) {
@@ -258,8 +371,9 @@ export async function runTool(name, rawArgs) {
   const impl = TOOLS[name];
   if (!impl) return { ok: false, tool: name, error: `The tool ${name} has no runner in this CLI`, usage: true };
   try {
-    // (a broken mode or engine fails these five only: guard, explain and analyse never load it)
-    const tb = ENGINE_TOOLS.has(name) ? await loadToolbox() : core;
+    // (a broken mode or engine fails these five only: guard, explain and analyse never load it; the bp-* tools load the
+    // Blueprint kit alone)
+    const tb = ENGINE_TOOLS.has(name) ? await loadToolbox() : BLUEPRINT_TOOLS.has(name) ? await loadBlueprintKit() : core;
     return { ok: true, tool: name, result: await impl(tb, check.args) };
   } catch (e) {
     return { ok: false, tool: name, error: e instanceof Error ? e.message : String(e) };

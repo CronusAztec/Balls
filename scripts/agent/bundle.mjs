@@ -1,12 +1,14 @@
 /**
  * --- agent-cli --- Bundles the agent toolbox's pure TypeScript for Node with esbuild – a dev dependency already (vitest's),
- * with @ aliased to src, exactly as scripts/viral-bot.mjs bundles the bot – and imports it. Two bundles:
+ * with @ aliased to src, exactly as scripts/viral-bot.mjs bundles the bot – and imports it. Three bundles:
  *  - the tool core (src/lib/agentKit/toolCore.ts: the tool table and its argument checks, explain, the video analyser's
  *    pure halves; 4 source files): every call and the MCP server load it, so they work while an edit has broken the engine;
  *  - the toolbox (src/lib/agentKit/toolbox.ts: the core plus the engine, the finder, the settings and every mode): only the
- *    engine's tools load it (modes, simulate, fingerprint, preview, render).
+ *    engine's tools load it (modes, simulate, fingerprint, preview, render);
+ *  - --- blueprint --- the Blueprint kit (src/lib/agentKit/blueprintKit.ts: the Blueprint language, its interpreter and
+ *    catalog, no engine): only the bp-* tools load it.
  * Each is cached in the agent cache (paths.mjs CACHE_DIR, a private folder) with esbuild's list of its inputs; it is rebuilt
- * only when an input's size or time changed, a file was added to src/lib/agentKit or src/lib/videoAnalysis, or esbuild is
+ * only when an input's size or time changed, a file was added to src/lib/agentKit, src/lib/videoAnalysis or src/lib/blueprint, or esbuild is
  * another version – and whenever the list of inputs is empty or lacks the entry. The list is kept only when every input
  * was saved before the build began (a file saved while esbuild read it would be stamped new beside its old code): otherwise
  * the next call builds again. Nothing is written to the repository.
@@ -18,7 +20,9 @@ import { ROOT, cacheDir } from "./paths.mjs";
 
 const ENTRY = path.join(ROOT, "src", "lib", "agentKit", "toolbox.ts");
 const CORE_ENTRY = path.join(ROOT, "src", "lib", "agentKit", "toolCore.ts");
-const WATCHED_DIRS = [path.join(ROOT, "src", "lib", "agentKit"), path.join(ROOT, "src", "lib", "videoAnalysis")];
+// --- blueprint --- the Blueprint library and its catalog, for the five bp-* tools only
+const BLUEPRINT_ENTRY = path.join(ROOT, "src", "lib", "agentKit", "blueprintKit.ts");
+const WATCHED_DIRS = [path.join(ROOT, "src", "lib", "agentKit"), path.join(ROOT, "src", "lib", "videoAnalysis"), path.join(ROOT, "src", "lib", "blueprint"), path.join(ROOT, "src", "lib", "blueprint", "catalog")];
 
 function stamp(file) {
   try {
@@ -74,7 +78,7 @@ export function settled(files, started, mtimeOf = (f) => {
   });
 }
 
-export { ENTRY as TOOLBOX_ENTRY, CORE_ENTRY as TOOLCORE_ENTRY, listing as toolboxListing };
+export { ENTRY as TOOLBOX_ENTRY, CORE_ENTRY as TOOLCORE_ENTRY, BLUEPRINT_ENTRY as BLUEPRINTKIT_ENTRY, listing as toolboxListing };
 
 /** Builds (or takes from the cache) the bundle of `entry` named `name`, and imports it. */
 async function load(entry, name) {
@@ -124,6 +128,7 @@ async function load(entry, name) {
 
 let core = null;
 let full = null;
+let blueprint = null;
 
 /** The tool core (tool table, argument checks, explain, video analysis): every call loads it. */
 export async function loadToolCore() {
@@ -135,4 +140,10 @@ export async function loadToolCore() {
 export async function loadToolbox() {
   full ??= await load(ENTRY, "toolbox");
   return full;
+}
+
+/** --- blueprint --- The Blueprint kit (src/lib/agentKit/blueprintKit.ts: the language, its runtime and catalog): only the bp-* tools load it. */
+export async function loadBlueprintKit() {
+  blueprint ??= await load(BLUEPRINT_ENTRY, "blueprintkit");
+  return blueprint;
 }

@@ -39,7 +39,8 @@ export const MAX_RESULT_CHARS = 200_000;
 const CLI = path.join(path.dirname(fileURLToPath(import.meta.url)), "cli.mjs");
 
 const INSTRUCTIONS =
-  "JumpingBallsLive's agent toolbox: modes, simulate, fingerprint, preview, render, site-shot, analyse, guard, explain. " +
+  "JumpingBallsLive's agent toolbox: modes, simulate, fingerprint, preview, render, site-shot, analyse, guard, explain, " +
+  "and the Blueprint tools bp-schema, bp-validate, bp-check, bp-link, bp-docs (new modes as data: docs/agents/BLUEPRINTS.md). " +
   "Results are JSON; pictures and clips are written under .agent-out/ and returned as paths. Read AGENTS.md first; " +
   "never re-record a fingerprint (a moved one is a behaviour change to fix).";
 

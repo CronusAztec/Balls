@@ -28,6 +28,11 @@ stderr. The schemas live in `src/lib/agentKit/tools.ts`.
 | `analyse` | Numeric features of a local video file: duration, fps, size, scene cuts, motion, colour, loop seam, loudness, tempo. | `{"path":".agent-out/inbox/clip.mp4"}` |
 | `guard` | Runs the core guard (`npm run guard`) and returns its exit code, its report and the end of its output. | `{"plan":true}`, `{"browser":true}` |
 | `explain` | Sorts a failure into a source pin, a behaviour change, a moved fingerprint, a timeout, a type or a lint error, or one of the guard's own: a weakened test, a stale export, a missing install or browser. It says which fix is legitimate and what never to do. | `{"failure":"<vitest output>"}` |
+| `bp-schema` | The Blueprint language: its JSON Schema (`form`: `full` or `lite`), the vocabulary block for prompts and the sandbox ceilings. | `{"form":"lite"}` |
+| `bp-validate` | A Blueprint checked strictly: every problem as `path: sentence`, plus what the sanitizer would change, a plain summary, its size, digest and link code. | `{"spec":{…}}`, `{"catalog":"hatchery"}` |
+| `bp-check` | A Blueprint played headless on seeds 1-4: `playable`, `endless` or `broken`, with plain feedback and each seed's counts. Deterministic; the wall time is an advisory. | `{"catalog":"conquer"}` |
+| `bp-link` | A Blueprint's link code (`b1.…`), simulator link (`?mode=blueprint&bls=…`) and short share code, with their lengths. | `{"code":"b1.…","locale":"pl"}` |
+| `bp-docs` | `docs/agents/BLUEPRINTS.md` as the code generates it, and whether the committed file is current. | `{"markdown":false}` |
 | `site-stats` | Owner-run. Aggregate website numbers from the owner's own Plausible or Umami. | `{"days":30}` |
 | `postiz-probe` | Owner-run. Which analytics series the owner's Postiz returns: labels and point counts only. | `{"days":30,"posts":5}` |
 
@@ -121,6 +126,21 @@ them. A text assertion in such a test is a source pin: keep the pinned contract 
 own failures: a weakening finding (restore the test, or a `Test-Change:` trailer and owner review), a stale `out/` (rebuild
 it) and a missing install or browser (install it, and change no code). Never re-record a fingerprint, delete or rewrite an
 `expect(`, add `.skip` or `.only`, or raise a timeout to make a test pass.
+
+## Blueprints (bp-schema, bp-validate, bp-check, bp-link, bp-docs)
+
+A Blueprint is a game mode as a JSON spec, run by one sandboxed interpreter (`src/lib/blueprint/`); the language, its
+ceilings and the catalog are in `docs/agents/BLUEPRINTS.md`. The tools take one Blueprint a call: `spec` (the object),
+`code` (a `b1.` code, or a link or query string holding `bls=`; never fetched), `catalog` (a built-in id) or `lite` (the
+enum-only Lite form). They load the Blueprint library alone, not the engine, and write nothing.
+
+- `bp-validate` is strict: an unknown field, a value past its domain, a dangling reference or a formula that does not compile
+  is an error with its path. It also returns the tolerant sanitizer's notes: what it would drop or change to play the spec.
+- `bp-check` plays the sanitized spec on seeds 1-4 and judges it on counts only (finish condition, median end, faults,
+  NaN, dropped events, ARENA FULL, sounds, first motion), so its verdict and report are identical on every machine. It
+  reports validation errors too, when there are any.
+- `bp-docs` never writes the guide; `npm run blueprints:docs` does, and `npm run -s blueprints:docs -- --check` exits 1 while
+  it is stale.
 
 ## Owner-run commands
 

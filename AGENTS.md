@@ -118,10 +118,10 @@ Every changed file lands in one zone, listed in the guard report and defined in 
 1. **Data first.** Try the data-driven blocks a mode already reads: bounce math, obstacles, timeline keyframes, captions
    and teams, set through settings, links and presets. The app's AI makes a "custom mode" the same way: a base mode plus a
    settings patch (`src/lib/desktop/ai/customMode.ts`).
-2. **A Blueprint.** Not available yet: this repository has no Blueprint mode and no vocabulary of triggers and actions
-   (there is no src/lib/blueprint folder). Until one exists, go from 1 to 3. Once it lands, a new mechanic is a Blueprint
-   (data run by one sandboxed interpreter), and a gap in its vocabulary gets one trigger or action with a conformance
-   scenario.
+2. **A Blueprint.** A mechanic as data run by one sandboxed interpreter: write a spec in the vocabulary of
+   `docs/agents/BLUEPRINTS.md` and check it with `bp-validate` and `bp-check` until it is `playable`. The language lives in
+   `src/lib/blueprint/`; the site plays specs once the `blueprint` mode (Mode Lab) is registered, until then they run
+   headless. A gap in the vocabulary gets one trigger or action with a scenario in `tests/blueprintRuntime.test.ts`.
 3. **Only then a coded mode.** Follow `docs/agents/MODES.md` exactly: it lists every registration point, with its file, its
    symbol and whether a type, a test or nothing catches it when it is missed.
 
@@ -159,6 +159,11 @@ failed) or 2 (a usage error). `npm run -s agent -- --help` lists every tool with
 | `analyse` | Measure a local video file inside the repository (cuts, motion, colour, loudness, tempo) |
 | `guard` | Run the core guard and return its report (`{"plan":true}` for the static checks alone) |
 | `explain` | Sort a failure into a source pin, a behaviour change, a fingerprint and so on, with the legitimate fix |
+| `bp-schema` | Get the Blueprint language: its JSON Schema (full or Lite), the prompt vocabulary and the ceilings |
+| `bp-validate` | Check a Blueprint strictly (`path: sentence` errors) and see what the sanitizer changes |
+| `bp-check` | Play a Blueprint headless on four seeds: playable, endless or broken, with feedback (deterministic) |
+| `bp-link` | Get a Blueprint's link code, simulator link and share code |
+| `bp-docs` | Regenerate `docs/agents/BLUEPRINTS.md` in memory and say whether the committed one is current |
 | `site-stats` | Owner-run only: aggregate numbers from the owner's own Plausible or Umami |
 | `postiz-probe` | Owner-run only: which analytics series the owner's Postiz returns |
 
@@ -168,8 +173,8 @@ key. The caches live elsewhere: the toolbox's bundle and local export in a priva
 (`~/.cache/jbl-agent`; `JBL_AGENT_CACHE` overrides), the guard's state in `node_modules/.cache/jbl-guard`, and `guard` with `browser` rebuilds the
 repository's `.next/` and `out/`.
 
-**MCP.** The MCP server exposes 9 tools: `modes`, `simulate`, `fingerprint`, `preview`, `render`, `site-shot`, `analyse`,
-`guard` and `explain`, each with its JSON Schema. It does not offer the owner-run tools. It is `scripts/agent/mcp.mjs`, a
+**MCP.** The MCP server exposes 14 tools: `modes`, `simulate`, `fingerprint`, `preview`, `render`, `site-shot`, `analyse`,
+`guard`, `explain`, `bp-schema`, `bp-validate`, `bp-check`, `bp-link` and `bp-docs`, each with its JSON Schema. It does not offer the owner-run tools. It is `scripts/agent/mcp.mjs`, a
 hand-written JSON-RPC 2.0 server over stdio with no SDK and no new dependency. A call runs the CLI as a child process, so the
 result is exactly the CLI's and every rule above holds. There is no exec, shell or file-write tool, and a result is at most
 200 KB. The guard's `baseline` and `base` are CLI-only (a baseline excuses failures, a later base hides committed ones), and
@@ -212,5 +217,6 @@ starts and runs `guard`, `explain` and `analyse` while an edit has broken a mode
 
 - `docs/agents/CORE.md`: the 13 core functions, the files each owns, and how the guard proves each one.
 - `docs/agents/MODES.md`: the checklist for a coded mode.
+- `docs/agents/BLUEPRINTS.md`: the Blueprint language, its ceilings and the catalog (generated: `npm run blueprints:docs`).
 - `docs/agents/CLI.md`: the agent toolbox and the MCP server.
 - `README.md`: "How to extend it" and "Core guard". `docs/RELEASING.md` covers releases.

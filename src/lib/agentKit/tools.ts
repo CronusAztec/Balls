@@ -46,6 +46,15 @@ const world: JsonSchema = {
   description: "The world in CSS px (default 800 × 600, the finder's nominal world; the page's canvas is usually another size, so a seed found there may play differently here).",
 };
 
+// --- blueprint --- a Blueprint, given one way: a spec (the JSON object), a link code, a catalog id or the Lite form
+const bpSpec: JsonSchema = { type: "object", description: "A Blueprint v1 spec (the JSON object; docs/agents/BLUEPRINTS.md). Give spec, code, catalog or lite: exactly one." };
+const bpCode: JsonSchema = { type: "string", minLength: 3, maxLength: 20_000, description: "A Blueprint link code (b1.…) or a link / query string holding bls=b1.… (never fetched)." };
+const bpCatalog: JsonSchema = { type: "string", minLength: 1, maxLength: 40, pattern: "^[A-Za-z]+$", description: "A built-in Blueprint's id (hatchery, ringBreaker, conquer, tierClimb, plinkoRace, growEscape)." };
+const bpLite: JsonSchema = { type: "object", description: "A Blueprint in the Lite form (enum words only: the app's small local model writes it)." };
+const bpInput = { spec: bpSpec, code: bpCode, catalog: bpCatalog, lite: bpLite };
+/** The tools that take a Blueprint (exactly one of spec, code, catalog, lite). */
+export const BLUEPRINT_INPUT_TOOLS: ReadonlySet<string> = new Set(["bp-validate", "bp-check", "bp-link"]);
+
 export const AGENT_TOOLS: readonly AgentToolSpec[] = [
   {
     name: "modes",
@@ -209,6 +218,61 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     mcp: true,
     timeoutMs: 60_000,
   },
+  // --- blueprint --- the Blueprint language's tools (src/lib/blueprint/, docs/agents/BLUEPRINTS.md): pure, no browser, no files
+  {
+    name: "bp-schema",
+    title: "Blueprint schema",
+    description: "The Blueprint v1 language: its JSON Schema (full form, or the enum-only Lite form), the whole vocabulary in under 500 tokens, and the sandbox's ceilings.",
+    input: { type: "object", additionalProperties: false, properties: { form: { type: "string", enum: ["full", "lite"], description: "Which form (default full)." } } },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 60_000,
+  },
+  {
+    name: "bp-validate",
+    title: "Validate a Blueprint",
+    description: "Checks a Blueprint strictly: every problem as `path: sentence`. Also returns what the tolerant sanitizer would change, the plain-language summary, its canonical size, digest and link code.",
+    input: { type: "object", additionalProperties: false, properties: bpInput },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 60_000,
+  },
+  {
+    name: "bp-check",
+    title: "Playability check",
+    description: "Plays a Blueprint headless on seeds 1-4 (or the given ones) with the Blueprint interpreter (src/lib/blueprint/runtime/), and judges it playable, endless or broken on deterministic counts, with plain feedback per problem. Deterministic; the wall time is only an advisory.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      properties: { ...bpInput, seeds: { type: "array", minItems: 1, maxItems: 8, items: { type: "integer", minimum: 0, maximum: 4294967295 }, description: "The seeds (default [1, 2, 3, 4]: the verdict's own)." } },
+    },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 5 * 60_000,
+  },
+  {
+    name: "bp-link",
+    title: "Blueprint link",
+    description: "The link code (b1.…), the simulator link (?mode=blueprint&bls=…, the blueprint mode's link key) and the site's short share code (?c=…) of a Blueprint, with their lengths.",
+    input: { type: "object", additionalProperties: false, properties: { ...bpInput, locale: { type: "string", enum: ["en", "pl", "es"], description: "The link's locale (default en)." } } },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 60_000,
+  },
+  {
+    name: "bp-docs",
+    title: "Blueprint guide",
+    description: "docs/agents/BLUEPRINTS.md as the code generates it, and whether the committed file is current (npm run blueprints:docs rewrites it).",
+    input: { type: "object", additionalProperties: false, properties: { markdown: { type: "boolean", description: "Include the generated Markdown (default true)." } } },
+    writes: "none",
+    network: "none",
+    mcp: true,
+    timeoutMs: 120_000,
+  },
   {
     name: "site-stats",
     title: "Website statistics (owner-run)",
@@ -246,5 +310,7 @@ export function checkToolArgs(name: string, args: unknown): ToolArgsCheck {
   if (errors.length) return { ok: false, errors };
   const a = value as Record<string, unknown>;
   if ("link" in (spec.input.properties ?? {}) && a.link !== undefined && a.mode !== undefined) return { ok: false, errors: ["Give link or mode, not both"] };
+  // --- blueprint --- one Blueprint a call
+  if (BLUEPRINT_INPUT_TOOLS.has(name) && ["spec", "code", "catalog", "lite"].filter((k) => a[k] !== undefined).length !== 1) return { ok: false, errors: ["Give exactly one of spec, code, catalog or lite"] };
   return { ok: true, args: a };
 }
