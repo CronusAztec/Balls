@@ -26,7 +26,7 @@ stderr. The schemas live in `src/lib/agentKit/tools.ts`.
 | `render` | A clip of a link through the page's own fast export, with its export digest and render result. WebM is also converted to MP4 when ffmpeg is present. | `{"mode":"classic","seed":42,"seconds":10}` |
 | `site-shot` | PNG screenshots of site pages at the given widths, with page errors and a horizontal-scroll flag. | `{"pages":["/en/","/en/pricing/"],"widths":[390,1280]}` |
 | `analyse` | Numeric features of a local video file: duration, fps, size, scene cuts, motion, colour, loop seam, loudness, tempo. | `{"path":".agent-out/inbox/clip.mp4"}` |
-| `guard` | Runs the core guard (`npm run guard`) and returns its exit code, its report and the end of its output. | `{"browser":true}` |
+| `guard` | Runs the core guard (`npm run guard`) and returns its exit code, its report and the end of its output. | `{"plan":true}`, `{"browser":true}` |
 | `explain` | Sorts a failure into a source pin, a behaviour change, a moved fingerprint, a timeout, a type or a lint error. It says which fix is legitimate and what never to do. | `{"failure":"<vitest output>"}` |
 | `site-stats` | Owner-run. Aggregate website numbers from the owner's own Plausible or Umami. | `{"days":30}` |
 | `postiz-probe` | Owner-run. Which analytics series the owner's Postiz returns: labels and point counts only. | `{"days":30,"posts":5}` |
@@ -62,7 +62,8 @@ on 4 CPUs.
 
 - The build runs at the root path in test mode, with no statistics script and no `NEXT_PUBLIC_*` setting from the shell.
   Next's telemetry is off and obfuscation is skipped.
-- Next's own type check is skipped in the copy's `next.config.ts` only. Types are `npm run typecheck`'s and the guard's job.
+- Next's own type check is skipped through the guard's `JBL_BUILD_SKIP_TYPECHECK=1` knob in the build's environment; the
+  repository's `next.config.ts` is not touched. Types are `npm run typecheck`'s and the guard's job.
 - `build: "auto"` (the default) rebuilds when HEAD or any changed site file differs from the last build. `reuse` takes the
   last build as it is, and `force` always rebuilds.
 - `render` needs the page's bot handle version 2 (`window.__jumpingBallsBot.renderLink`). An older export says so. The
@@ -87,10 +88,13 @@ TikTok, Instagram or YouTube, and no agent may do that with it.
 
 ## guard and explain
 
-`guard` runs the core guard. It uses `package.json`'s `guard` script when that is a plain `node <file>` command, else npm
-when the CLI was started by npm, else `scripts/agent/guard.mjs` once it exists. Until the guard lands, it says so and
-names the checks to run by hand. In the guard, a protected-path change is reported for the owner's review, and only a
-fingerprint change without a `Fingerprint-Change: <mode> - <reason>` commit trailer fails it.
+`guard` runs the core guard, `scripts/agent/guard.mjs`, through `package.json`'s `guard` script (a plain `node <file>`
+command, so no shell and no npm in between). Its arguments map onto the guard's flags: `browser` (`--browser`),
+`baseline` (`--baseline`), `plan` (`--plan`: the static checks alone, in about a second), `withSlow` (`--with-slow`) and
+`base` (`--base <ref>`). It returns the exit code (0 green, 1 failed, 2 green but a higher tier is required), the
+guard's own report (`.agent-out/guard-report.json`) and the end of its output. In the guard, a protected-path change is
+reported for the owner's review, and only a fingerprint change without a `Fingerprint-Change: <mode> - <reason>` commit
+trailer fails it. AGENTS.md has the order to run it in.
 
 `explain` measures which source files a failing test reads as text (16 tests read `Simulator.tsx`, `Canvas.tsx` or
 `Controls.tsx`). A text assertion in such a test is a source pin: keep the pinned contract in the source. Never re-record a

@@ -171,8 +171,18 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
   {
     name: "guard",
     title: "Core guard",
-    description: "Runs the core guard (npm run guard: types, lint, the core tests, the fingerprint lock and the protected-path report) and returns its exit code, report and the end of its output.",
-    input: { type: "object", additionalProperties: false, properties: { browser: { type: "boolean", description: "Also the browser tier (guard --browser)." }, baseline: { type: "boolean", description: "Record the failures the untouched tree already has (guard --baseline)." } } },
+    description: "Runs the core guard (npm run guard: types, lint, the core tests, the fingerprint lock and the protected-path report) and returns its exit code (0 green, 1 failed, 2 green but a higher tier is required), report and the end of its output.",
+    input: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        browser: { type: "boolean", description: "Also the browser tier (guard --browser)." },
+        baseline: { type: "boolean", description: "Record the failures the untouched tree already has (guard --baseline)." },
+        plan: { type: "boolean", description: "Plan only (guard --plan): what would run and the static checks' findings (fingerprint lock, protected-path report, test weakening) in about a second; nothing runs." },
+        withSlow: { type: "boolean", description: "Also the slow tests the change pulls in (guard --with-slow)." },
+        base: { type: "string", minLength: 1, maxLength: 100, pattern: "^[A-Za-z0-9][A-Za-z0-9._/-]*$", description: "The git ref the change is measured against (guard --base; default the merge base with origin/main)." },
+      },
+    },
     writes: ".agent-out",
     network: "none",
     mcp: true,

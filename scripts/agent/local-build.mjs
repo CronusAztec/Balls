@@ -7,8 +7,8 @@
  *     which the site does not build from (SKIPPED) –
  *     and node_modules is linked in;
  *  2. `next build --no-lint` runs there with a clean environment: no NEXT_PUBLIC_* or analytics variables from the shell (a
- *     test-mode build at the root path, no statistics script), Next's telemetry off, and – in the copy's next.config.ts only
- *     – Next's own type check skipped (`npm run typecheck` / the guard check types; this build is for looking);
+ *     test-mode build at the root path, no statistics script), Next's telemetry off, and Next's own type check skipped through
+ *     the guard's JBL_BUILD_SKIP_TYPECHECK knob (`npm run typecheck` / the guard check types; this build is for looking);
  *  3. scripts/postexport.mjs finishes the export there with OBFUSCATE=0.
  * The build's key is HEAD plus the content of every changed or new file; `auto` rebuilds only when it differs from the last
  * build's (<cache>/site/stamp.json), `reuse` takes the last build as it is, `force` always rebuilds. One build at a time
@@ -147,21 +147,28 @@ function syncTree(tree) {
   return files.length;
 }
 
-/** The copy's next.config.ts without Next's own type check and lint (the copy only; false when the config changed form). */
+/**
+ * The copy's next.config.ts without Next's own type check and lint (the copy only; null when the config changed form).
+ * A config that already reads the guard's JBL_BUILD_SKIP_TYPECHECK knob (buildEnv sets it) needs no patch: it comes back as is.
+ */
 export function patchNextConfig(source) {
+  if (/ignoreBuildErrors:\s*process\.env\.JBL_BUILD_SKIP_TYPECHECK === "1"/.test(source)) return source;
   const at = /const nextConfig: NextConfig = \{\n/;
   if (!at.test(source)) return null;
   return source.replace(at, (m) => `${m}  // --- agent-cli --- the agent's local export (scripts/agent/local-build.mjs): types and lint are checked by npm run typecheck / lint\n  typescript: { ignoreBuildErrors: true },\n  eslint: { ignoreDuringBuilds: true },\n`);
 }
 
-/** The build's environment: the shell's, minus the site's public and statistics settings; a test-mode build at "/". */
+/**
+ * The build's environment: the shell's, minus the site's public and statistics settings; a test-mode build at "/", without
+ * Next's own type check (the guard's knob, next.config.ts: types are npm run typecheck's and the guard's lane A's job).
+ */
 export function buildEnv(env, head) {
   const out = {};
   for (const [k, v] of Object.entries(env)) {
     if (k.startsWith("NEXT_PUBLIC_") || k.startsWith("JBL_ANALYTICS_") || k === "BASE_URL") continue;
     out[k] = v;
   }
-  return { ...out, NEXT_PUBLIC_BASE_PATH: "", NEXT_TELEMETRY_DISABLED: "1", OBFUSCATE: "0", JBL_BUILD_SHA: head, NODE_ENV: "production" };
+  return { ...out, NEXT_PUBLIC_BASE_PATH: "", NEXT_TELEMETRY_DISABLED: "1", OBFUSCATE: "0", JBL_BUILD_SKIP_TYPECHECK: "1", JBL_BUILD_SHA: head, NODE_ENV: "production" };
 }
 
 function run(file, args, { cwd, env, log }) {

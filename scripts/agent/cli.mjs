@@ -16,7 +16,7 @@
  *   render       a watermarked clip of a link through the page's own fast export           (Chromium)
  *   site-shot    PNG screenshots of site pages from the local export                       (Chromium)
  *   analyse      numeric features of a local video file (ffmpeg)
- *   guard        the core guard (npm run guard)
+ *   guard        the core guard (npm run guard; {"plan":true} for the static checks alone)
  *   explain      which fix a failure allows (source pin, behaviour, fingerprint…)
  *   site-stats   owner-run: aggregate numbers from the owner's Plausible or Umami (needs their key)
  *   postiz-probe owner-run: which analytics series the owner's Postiz returns (needs their key)
@@ -138,13 +138,23 @@ export function guardCommand(pkg, extra, { exists = (f) => fs.existsSync(path.jo
 
 const TAIL_CHARS = 6000;
 
+/** The guard's own flags for the tool's arguments (every one is a flag scripts/agent/guard.mjs parses). */
+export function guardFlags(args) {
+  return [
+    ...(args.browser ? ["--browser"] : []),
+    ...(args.baseline ? ["--baseline"] : []),
+    ...(args.plan ? ["--plan"] : []),
+    ...(args.withSlow ? ["--with-slow"] : []),
+    ...(typeof args.base === "string" ? ["--base", args.base] : []),
+  ];
+}
+
 async function guardTool(_tb, args) {
-  const extra = [...(args.browser ? ["--browser"] : []), ...(args.baseline ? ["--baseline"] : [])];
-  const cmd = guardCommand(readJson("package.json"), extra);
+  const cmd = guardCommand(readJson("package.json"), guardFlags(args));
   if (!cmd)
     return {
       available: false,
-      message: `The core guard is not in this checkout yet: it lands as ${GUARD_SCRIPT} (npm run guard). Until then run npm run typecheck, npm run lint and the vitest files you touched.`,
+      message: `No core guard in this checkout: package.json has no plain \`guard\` script and ${GUARD_SCRIPT} is missing. Run npm run typecheck, npm run lint and the vitest files you touched.`,
     };
   const started = Date.now();
   process.stderr.write(`agent guard: ${cmd.shown}\n`);
@@ -166,7 +176,8 @@ async function guardTool(_tb, args) {
   } catch {
     report = null;
   }
-  const verdict = code === 0 ? "green" : code === 2 ? "green, a higher tier is required" : "failed";
+  // the report's own verdict when it is this run's (it knows a plan or a baseline run), else one from the exit code
+  const verdict = typeof report?.verdict === "string" ? report.verdict : code === 0 ? "green" : code === 2 ? "green, a higher tier is required" : "failed";
   return { available: true, command: cmd.shown, exitCode: code, verdict, report, reportFile: report ? repoRelative(reportFile) : null, outputTail: output.slice(-TAIL_CHARS) };
 }
 

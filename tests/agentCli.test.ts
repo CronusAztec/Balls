@@ -2,7 +2,8 @@ import { spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { GUARD_SCRIPT, guardCommand, parseArgv } from "../scripts/agent/cli.mjs";
+import { GUARD_SCRIPT, guardCommand, guardFlags, parseArgv } from "../scripts/agent/cli.mjs";
+import { parseArgs as parseGuardArgs } from "../scripts/agent/guard.mjs";
 import { PathError, defaultOutName, hasScheme, isInside, outputDir, resolveInputFile } from "../scripts/agent/paths.mjs";
 import { buildEnv, patchNextConfig, siteFile } from "../scripts/agent/local-build.mjs";
 import { siteStatsTool } from "../scripts/agent/site-stats.mjs";
@@ -125,14 +126,20 @@ describe("the local export (--- agent-cli ---)", () => {
     expect(siteFile("desktop/package.json")).toBe(true);
     for (const f of ["desktop/src/main.ts", "tests/x.test.ts", "scripts/agent/cli.mjs", "docs/a.md", "README.md", "billing/src/app.ts"]) expect(siteFile(f), f).toBe(false);
     const env = buildEnv({ PATH: "/bin", NEXT_PUBLIC_ANALYTICS_SCRIPT_URL: "https://stats.example/s.js", NEXT_PUBLIC_LICENSE_PUBLIC_KEY: "k", JBL_ANALYTICS_SITE_ID: "x", NEXT_PUBLIC_BASE_PATH: "/Balls" }, "abc");
-    expect(env).toEqual({ PATH: "/bin", NEXT_PUBLIC_BASE_PATH: "", NEXT_TELEMETRY_DISABLED: "1", OBFUSCATE: "0", JBL_BUILD_SHA: "abc", NODE_ENV: "production" });
+    expect(env).toEqual({ PATH: "/bin", NEXT_PUBLIC_BASE_PATH: "", NEXT_TELEMETRY_DISABLED: "1", OBFUSCATE: "0", JBL_BUILD_SKIP_TYPECHECK: "1", JBL_BUILD_SHA: "abc", NODE_ENV: "production" });
   });
 
-  it("skips Next's own type check in the copy's next.config.ts only (the repository's file is the real one)", () => {
+  it("skips Next's own type check in its own build only (the guard's knob in its environment; the repository's file is the real one)", () => {
     const real = fs.readFileSync(path.join(ROOT, "next.config.ts"), "utf8");
-    const patched = patchNextConfig(real);
+    // the repository's config skips it only under JBL_BUILD_SKIP_TYPECHECK=1 (set by buildEnv above), never unconditionally
+    expect(real).toContain('ignoreBuildErrors: process.env.JBL_BUILD_SKIP_TYPECHECK === "1"');
+    expect(real).not.toContain("ignoreBuildErrors: true");
+    expect(patchNextConfig(real)).toBe(real); // (the knob is there: no patch)
+    // a config without the knob gets the copy-only patch
+    const older = real.replace(/\n {2}\/\/ --- ai-guard --- JBL_BUILD_SKIP_TYPECHECK[\s\S]*?ignoreBuildErrors:[^\n]*\n/, "\n");
+    expect(older).not.toContain("ignoreBuildErrors");
+    const patched = patchNextConfig(older);
     expect(patched).toContain("typescript: { ignoreBuildErrors: true },");
-    expect(real).not.toContain("ignoreBuildErrors");
     expect(patchNextConfig("export default {}")).toBeNull();
   });
 });
@@ -146,6 +153,31 @@ describe("guard (--- agent-cli ---)", () => {
     expect(guardCommand({ scripts: { guard: "x && y" } }, [], { npmExecPath: null })).toBeNull();
     expect(guardCommand({ scripts: {} }, ["--baseline"], { exists: (f) => f === GUARD_SCRIPT })).toMatchObject({ args: [GUARD_SCRIPT, "--baseline"] });
     expect(guardCommand({ scripts: {} }, [], { exists: () => false })).toBeNull();
+  });
+
+  it("runs the merged guard: package.json's guard script is scripts/agent/guard.mjs, and it accepts every flag the tool passes", () => {
+    const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8"));
+    const all = guardFlags({ browser: true, baseline: true, plan: true, withSlow: true, base: "origin/main" });
+    expect(all).toEqual(["--browser", "--baseline", "--plan", "--with-slow", "--base", "origin/main"]);
+    expect(guardCommand(pkg, all)).toEqual({ file: process.execPath, args: [GUARD_SCRIPT, ...all], shown: `npm run guard -- ${all.join(" ")}` });
+    expect(parseGuardArgs(all)).toMatchObject({ browser: true, baseline: true, plan: true, withSlow: true, base: "origin/main" });
+    expect(guardFlags({})).toEqual([]);
+    expect(toolbox.checkToolArgs("guard", { base: "--upload-pack=x" })).toMatchObject({ ok: false });
+  });
+
+  it("returns the guard's own report for a plan call (guard --plan: nothing runs)", () => {
+    const r = spawnSync(process.execPath, [CLI, "guard", "--json", JSON.stringify({ plan: true, base: "HEAD" })], {
+      cwd: ROOT,
+      encoding: "utf8",
+      timeout: 120_000,
+      env: { ...process.env, JBL_GUARD_CACHE: path.join(ROOT, ".agent-out", "cache", "test-cli-plan") }, // (never the cache of a guard run this test may be inside)
+    });
+    const out = JSON.parse(r.stdout.trim().split("\n").pop() || "null");
+    expect(out).toMatchObject({ ok: true, tool: "guard", result: { available: true, command: "npm run guard -- --plan --base HEAD", reportFile: ".agent-out/guard-report.json" } });
+    // (exit 1 when the working tree itself holds an unacknowledged fingerprint change or a weakened test: the plan still reports)
+    expect([0, 1]).toContain(out.result.exitCode);
+    expect(out.result.report).toMatchObject({ tool: "jbl-guard", mode: "plan", verdict: "planned (nothing ran)", base: { ref: "HEAD" } });
+    expect(out.result.verdict).toBe("planned (nothing ran)");
   });
 
   it("parses its command line", () => {
