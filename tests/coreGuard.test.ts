@@ -13,6 +13,7 @@ import {
   matchesAny,
   modeOfFile,
   modeSmokeBlocks,
+  editZones,
   planEscalation,
   planTier0,
   planTier1,
@@ -246,6 +247,26 @@ describe("the verdict and the report", () => {
     expect(requiredCommands({ escalation: mode, vitest, tier: 0, config: CORE })).toEqual(["npm run guard:browser   # adds SMOKE_ONLY=merge-ring"]);
     expect(requiredCommands({ escalation: mode, vitest, tier: 1, config: CORE })).toEqual([]);
     expect(CORE.tier2[0]).toBe("npm run test:ci");
+  });
+
+  it("--- agent-guide --- puts every changed file in its edit zone and names the core functions a change touches", () => {
+    const changed = ["docs/agents/MODES.md", "src/lib/recording/fastRender.ts", "src/lib/physics/engine.ts", "src/lib/watermark/seal.ts", "messages/en.json", "src/content/gallery.ts"];
+    const z = editZones({ changed, config: CORE, protectedFiles: ["src/lib/watermark/seal.ts"] });
+    expect(z.files).toEqual({
+      free: ["docs/agents/MODES.md", "src/content/gallery.ts"],
+      core: ["src/lib/recording/fastRender.ts"],
+      guarded: ["src/lib/physics/engine.ts", "messages/en.json"], // (an edit outside Privacy.* and Terms.*: the report did not flag it)
+      protected: ["src/lib/watermark/seal.ts"],
+    });
+    const ids = z.coreFunctions.map((c) => c.id);
+    expect(ids).toEqual(["start-a-run", "modes-deterministic", "record-export-batch", "watermark", "i18n"]);
+    expect(z.coreFunctions.find((c) => c.id === "watermark")).toEqual({ id: "watermark", title: "Watermark", files: ["src/lib/watermark/seal.ts"], tests: CORE.coreFunctions!.find((c) => c.id === "watermark")!.tests, smoke: ["free-watermark", "watermark-everywhere"] });
+    expect(editZones({ changed: [], config: CORE, protectedFiles: [] })).toEqual({ files: { free: [], core: [], guarded: [], protected: [] }, coreFunctions: [] });
+    // tier 1 adds the blocks of the core functions a change touches (go-live-kit for the analytics code, which tier 1 leaves to tier 2 otherwise)
+    const analytics = editZones({ changed: ["src/lib/analytics/track.ts"], config: CORE, protectedFiles: [] });
+    const none = planEscalation({ changed: ["src/lib/analytics/track.ts"], config: CORE, modeIds: MODE_IDS, smokeBlocks: BLOCKS, testFiles: TEST_FILES });
+    expect(tier1SmokeBlocks(CORE, none, BLOCKS)).not.toContain("go-live-kit");
+    expect(tier1SmokeBlocks(CORE, none, BLOCKS, analytics.coreFunctions.flatMap((c) => c.smoke))).toContain("go-live-kit");
   });
 
   it("writes the report with every lane, its duration and the findings (guard.mjs --plan --json, nothing executed)", () => {

@@ -365,7 +365,9 @@ another): the changed files are `git diff --name-only <base>` plus untracked fil
   (`--with-slow` runs them) and related tests past the cap are listed too – the guard never passes a subset off as the whole check.
 - **The report**: `.agent-out/guard-report.json` (git-ignored) – every lane and step with its duration, the failures (stable
   signatures and the output's last lines; full logs in the cache), the escalation, the fingerprint, protected and weakening
-  findings and the budget estimate.
+  findings and the budget estimate. --- agent-guide --- `zones` puts every changed file in its edit zone (free, core,
+  guarded, protected) and names the core functions of `core.json`'s `coreFunctions` the change touches
+  ([docs/agents/CORE.md](docs/agents/CORE.md)); `guard:browser` adds those functions' smoke blocks.
 - **The fingerprint lock**: the `BASELINE` literal of `tests/extras.test.ts` (one entry per mode) and the per-mode fingerprint
   literals `protected.json` lists (and `tests/fixtures/blueprint-fingerprints.json` once it exists) are compared at the base
   and in the working tree, comments and whitespace aside. An added entry passes; a changed or removed one fails unless a commit
@@ -505,6 +507,8 @@ src/
 5. Apply it: either read it in `Canvas.tsx` (visual) or hand it to the engine (physics). A physics value goes into `PhysicsConfig` (so the page's `setConfig()` effects, the finder's `physicsConfig` and the fast export's `page.config` all carry it), or into its mode's settings object, which `Simulator.tsx` must apply both in an effect and in `initEngineForMode()` (the fast export, the batch render and every mode init build their engine through it) and pass to the finder through `ModeSettings` / `createEngineForSettings()`. A value forwarded only by an effect through an engine setter of its own is missing from exported clips and from the finder's runs.
 
 ### Add a game mode
+--- agent-guide --- The full checklist, every registration point with its file, the symbol to grep for and what catches a miss (a type, a test or nothing), is [docs/agents/MODES.md](docs/agents/MODES.md); [AGENTS.md](AGENTS.md) says when a coded mode is the right answer at all.
+
 1. Create `src/lib/physics/modes/<name>.ts` implementing `GameMode` (see `types.ts`; `classic.ts` is the minimal example, `portal.ts` a complete one, `drop.ts` a mode without rings built out of obstacles, `box.ts` a mode that owns its playfield entirely and folds the balls back in `onBallStep()`, `pendulum.ts` one whose motion is analytic – it overwrites every ball's position from the simulation clock in `onBallStep()` and solves its sound events inside each step). Use `ctx.random()` for randomness so the seed finder stays deterministic. Optional flags: `ballsMayRest` (no slow-ball boost), `ballsPassThrough` (no ball-to-ball collisions).
 2. Register it: add the id to `MODE_IDS` in `types.ts`, export the class from `src/lib/physics/modes/index.ts`, instantiate it in `engine.ts` and add a case to `initMode()` (`activateMode()` takes the ring layout: `"classic"`, `"single-gap"`, `"solid"`, or `"none"` for a mode that builds its own playfield), add its name to `modeNames` in `Controls.tsx` (and its block of the Mode group to `modeSpecific()` there, with the block's search keys in `MODE_BLOCK_KEYS` of `src/components/simulator/panelKeys.ts`, so the command palette offers them in this mode only) and, if it has settings, its `set<Mode>Settings()` call to `initEngineForMode()` in `Simulator.tsx` (every mode init, the fast export and the batch render go through it).
 3. Draw anything mode-specific in `Canvas.tsx` (segments, overlays, HUD counters); obstacles are drawn for every mode. A mode that draws its own entities gets a small module next to the canvas (see `boxRenderer.ts`) and a branch in the ball pass.

@@ -53,6 +53,10 @@
     {
       "glob": "CLAUDE.md",
       "why": "the agent guide for Claude Code"
+    },
+    {
+      "glob": ".mcp.json",
+      "why": "the MCP servers Claude Code offers to start in this project"
     }
   ],
   "regions": [

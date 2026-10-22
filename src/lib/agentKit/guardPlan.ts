@@ -71,6 +71,26 @@ export interface CoreConfig {
   modeSmoke: Record<string, string[]>;
   browser: { basePath: string; port: number; smoke: string[] };
   tier2: string[];
+  /** --- agent-guide --- The 13 core functions (docs/agents/CORE.md): what each owns and what proves it. */
+  coreFunctions?: CoreFunction[];
+  /** --- agent-guide --- Where an edit lands (AGENTS.md): free, core, guarded (hubFiles) or protected (protected.json). */
+  editZones?: Record<EditZone, { why: string; from?: string; examples?: string[] }> & { about?: string };
+}
+
+/** --- agent-guide --- A core function of the product (scripts/agent/core.json coreFunctions, docs/agents/CORE.md). */
+export interface CoreFunction {
+  id: string;
+  title: string;
+  /** What must keep working, in a sentence. */
+  what: string;
+  /** Globs of the files it owns. */
+  code: string[];
+  /** Unit tests that prove it; every one is on the core list, so tier 0 runs them. */
+  tests: string[];
+  /** Smoke blocks that prove it in a browser (tier 1 when on browser.smoke or escalated, else tier 2). */
+  smoke: string[];
+  /** The other checks of the guard that cover it (lanes, static checks, escalation), in words. */
+  also?: string[];
 }
 
 /* ------------------------------------------------------------------------------------------------ paths and globs */
@@ -399,9 +419,13 @@ export function planTier0(input: { config: CoreConfig; vitest: VitestPlan; cache
   ];
 }
 
-/** Tier 1's smoke blocks: core.json's browser list plus the change's feature blocks, in the suite's order, each once. */
-export function tier1SmokeBlocks(config: CoreConfig, escalation: Escalation, blocks: readonly string[]): string[] {
-  const wanted = new Set([...config.browser.smoke, ...escalation.smoke]);
+/**
+ * Tier 1's smoke blocks: core.json's browser list plus the change's feature blocks, in the suite's order, each once.
+ * `touched` (--- agent-guide ---) adds the blocks of the core functions the change touches (editZones): Consent and
+ * analytics' go-live-kit, say, which the browser list leaves to tier 2.
+ */
+export function tier1SmokeBlocks(config: CoreConfig, escalation: Escalation, blocks: readonly string[], touched: readonly string[] = []): string[] {
+  const wanted = new Set([...config.browser.smoke, ...escalation.smoke, ...touched]);
   return blocks.filter((b) => wanted.has(b));
 }
 
@@ -525,6 +549,36 @@ export function requiredCommands(input: { escalation: Escalation; vitest: Vitest
   return out;
 }
 
+/* ------------------------------------------------------------------------------------------------ edit zones (--- agent-guide ---) */
+
+export type EditZone = "free" | "core" | "guarded" | "protected";
+
+export interface ZoneReport {
+  /** Each changed file in its strictest zone: protected, then guarded (a hub file), then core, then free. */
+  files: Record<EditZone, string[]>;
+  /** The core functions whose code a change touches, with the changed files and what proves them. */
+  coreFunctions: { id: string; title: string; files: string[]; tests: string[]; smoke: string[] }[];
+}
+
+/**
+ * Where each changed file lands (AGENTS.md's edit zones) and the core functions it touches. `protectedFiles` are the files
+ * the protected-path report flagged (a protected path, or a change inside a protected region: an edit of messages/en.json
+ * outside Privacy.* and Terms.* is a hub edit, not a protected one); a core function owns the files its `code` globs match.
+ */
+export function editZones(input: { changed: readonly string[]; config: Pick<CoreConfig, "hubFiles" | "coreFunctions">; protectedFiles: readonly string[] }): ZoneReport {
+  const functions = input.config.coreFunctions ?? [];
+  const flagged = new Set(input.protectedFiles);
+  const files: Record<EditZone, string[]> = { free: [], core: [], guarded: [], protected: [] };
+  for (const f of input.changed) {
+    const zone: EditZone = flagged.has(f) ? "protected" : matchesAny(f, input.config.hubFiles) ? "guarded" : functions.some((c) => matchesAny(f, c.code)) ? "core" : "free";
+    files[zone].push(f);
+  }
+  const coreFunctions = functions
+    .map((c) => ({ id: c.id, title: c.title, files: input.changed.filter((f) => matchesAny(f, c.code)), tests: [...c.tests], smoke: [...c.smoke] }))
+    .filter((c) => c.files.length > 0);
+  return { files, coreFunctions };
+}
+
 /** The report's top-level keys (report.json, .agent-out/guard-report.json); tests/coreGuard.test.ts pins them. */
 export const REPORT_KEYS = [
   "schema",
@@ -547,4 +601,5 @@ export const REPORT_KEYS = [
   "weakening",
   "budget",
   "baseline",
+  "zones",
 ] as const;

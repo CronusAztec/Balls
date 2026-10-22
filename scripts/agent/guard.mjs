@@ -411,6 +411,8 @@ function printSummary(report) {
   for (const c of f.changes.filter((x) => x.acknowledged && x.kind !== "added")) lines.push(`       - fingerprint ${c.kind}: ${c.mode} (${c.file}) – acknowledged: ${c.reasons.join("; ")}`);
   for (const x of w.findings) lines.push(`       ${x.acknowledged ? "-" : "x"} ${x.kind}: ${x.file} – ${x.detail}${x.acknowledged ? ` (acknowledged: ${x.reasons.join("; ")})` : x.kind === "only-added" ? " (remove the .only)" : ` – needs "Test-Change: ${x.file} - <reason>" and owner review`}`);
   for (const p of report.protected.findings) lines.push(`       ! owner review required: ${p.path} (${p.rule}) – ${p.why}${p.keys ? `: ${p.keys.slice(0, 6).join(", ")}${p.keys.length > 6 ? ", …" : ""}` : ""}`);
+  const z = report.zones.files;
+  lines.push(`  zones: ${z.free.length} free · ${z.core.length} core · ${z.guarded.length} guarded · ${z.protected.length} protected${report.zones.coreFunctions.length ? ` · core functions: ${report.zones.coreFunctions.map((c) => c.id).join(", ")}` : ""}`);
   if (report.failures.length) {
     lines.push("Failures:");
     for (const fl of report.failures.slice(0, 12)) {
@@ -492,6 +494,8 @@ async function main(argv) {
   const related = kit.relatedTests(changed, graph, testFiles);
   const escalation = kit.planEscalation({ changed, config: core, modeIds: ids, smokeBlocks: blocks, testFiles });
   const vitest = kit.planVitest({ config: core, related, escalated: escalation.tests.filter((f) => testFiles.includes(f)), withSlow: opts.withSlow });
+  // --- agent-guide --- each changed file's edit zone and the core functions it touches (AGENTS.md, docs/agents/CORE.md)
+  const zones = kit.editZones({ changed, config: core, protectedFiles: protectedFound.map((x) => x.path) });
   const nodeCheckFiles = tree.filter((f) => kit.matchesAny(f, core.nodeCheck)).sort();
   const lanes = kit.planTier0({ config: core, vitest, cacheDir, nodeCheckFiles }); // (absolute: the desktop and billing steps run in their own folders)
   const tier = opts.browser ? 1 : 0;
@@ -521,7 +525,7 @@ async function main(argv) {
     laneResults.push(...(await Promise.all(lanes.map(runLane))));
     if (opts.browser) {
       const laneA = laneResults.find((l) => l.id === "A");
-      const smoke = kit.tier1SmokeBlocks(core, escalation, blocks);
+      const smoke = kit.tier1SmokeBlocks(core, escalation, blocks, zones.coreFunctions.flatMap((c) => c.smoke));
       const port = await pickPort(opts.port ? Number(opts.port) : core.browser.port);
       const t1 = kit.planTier1({ config: core, smoke, port, outDir: rel(path.join(cacheDir, "smoke-output")) });
       const t0 = Date.now();
@@ -579,6 +583,7 @@ async function main(argv) {
     static: { seconds: staticSeconds },
     budget: { coldSeconds: core.budget.coldSeconds, warmSeconds: core.budget.warmSeconds, estimate },
     baseline: opts.baseline ? { recorded: true, file: rel(baselineFile) } : baseline ? { used: true, head: baseline.head, recordedAt: baseline.recordedAt } : { used: false },
+    zones,
     notes,
     reportFile: rel(reportFile),
   };

@@ -215,6 +215,10 @@
       {
         "file": "tests/protectedDiff.test.ts",
         "seconds": 0.6
+      },
+      {
+        "file": "tests/agentDocs.test.ts",
+        "seconds": 0.49
       }
     ],
     "slow": [
@@ -406,5 +410,370 @@
     "NEXT_PUBLIC_SITE_URL=http://localhost:3000/smoke NEXT_PUBLIC_BASE_PATH=/smoke npx next build --no-lint && node scripts/postexport.mjs",
     "node scripts/serve-static.mjs --port 3000 --base /smoke &",
     "for i in 1 2 3 4; do BASE_URL=http://localhost:3000/smoke SMOKE_SHARD=$i/4 OUT_DIR=smoke-output/shard-$i npm run smoke; done   # or push to the product branch: deploy.yml runs exactly this"
-  ]
+  ],
+  "coreFunctions": [
+    {
+      "id": "site-serves",
+      "title": "The site serves",
+      "what": "The static export builds every page in every locale, the Worker answers with https, the bare domain and the security headers, and the build names its commit.",
+      "code": [
+        "next.config.ts",
+        "src/app/**",
+        "src/components/site/**",
+        "src/i18n/**",
+        "worker/**",
+        "wrangler.toml",
+        "public/_headers",
+        "scripts/postexport.mjs",
+        "scripts/serve-static.mjs",
+        "scripts/obfuscate.mjs",
+        "scripts/lib/build-info.cjs"
+      ],
+      "tests": [
+        "tests/siteStatic.test.ts",
+        "tests/staticHeaders.test.ts",
+        "tests/workerRedirects.test.ts",
+        "tests/obfuscate.test.ts",
+        "tests/buildInfo.test.ts",
+        "tests/clientMessages.test.ts"
+      ],
+      "smoke": [
+        "static-hosting",
+        "pages"
+      ],
+      "also": [
+        "lane A: the type check",
+        "lane B: node --check on scripts/**/*.mjs and worker/*.mjs"
+      ]
+    },
+    {
+      "id": "start-a-run",
+      "title": "Start a run",
+      "what": "The simulator page opens, Start runs the engine at a fixed 60 Hz step, and the controls and the search apply settings to it.",
+      "code": [
+        "src/components/simulator/Simulator.tsx",
+        "src/components/simulator/Controls.tsx",
+        "src/components/simulator/ControlPrimitives.tsx",
+        "src/components/simulator/panelKeys.ts",
+        "src/components/simulator/sections/**",
+        "src/lib/physics/engine.ts",
+        "src/lib/physics/types.ts"
+      ],
+      "tests": [
+        "tests/engine.test.ts",
+        "tests/engineCore.test.ts",
+        "tests/docsConsistency.test.ts",
+        "tests/uiI18nReview.test.ts"
+      ],
+      "smoke": [
+        "studio-basics",
+        "modes",
+        "mode-card"
+      ],
+      "also": [
+        "lane A: the type check (Record<ModeId, …> tables)"
+      ]
+    },
+    {
+      "id": "modes-deterministic",
+      "title": "Every mode steps deterministically",
+      "what": "All 47 modes boot, stay finite and replay exactly from a seed: the extras.test BASELINE fingerprints, no Math.random or clock in a mode, init() resets every field.",
+      "code": [
+        "src/lib/physics/**"
+      ],
+      "tests": [
+        "tests/extras.test.ts",
+        "tests/engine.test.ts",
+        "tests/physicsPurity.test.ts",
+        "tests/modeThumbnails.test.ts"
+      ],
+      "smoke": [
+        "core-every-mode"
+      ],
+      "also": [
+        "static: the fingerprint lock (Fingerprint-Change trailer)",
+        "escalation: a mode's file runs tests/<id>*.test.ts and its smoke block"
+      ]
+    },
+    {
+      "id": "find-simulation",
+      "title": "Find Simulation",
+      "what": "The seed finder builds the same engine the page does (createEngineForSettings), finds a seed that ends at the asked time, and says endless or fixed when no seed can.",
+      "code": [
+        "src/lib/simulation/**",
+        "src/lib/bot/finderRequest.ts"
+      ],
+      "tests": [
+        "tests/engine.test.ts",
+        "tests/engineCore.test.ts",
+        "tests/extras.test.ts",
+        "tests/softCeilings.test.ts",
+        "tests/desktopAi.test.ts"
+      ],
+      "smoke": [
+        "find-simulation"
+      ],
+      "also": [
+        "finder.ts is a hub file: a change there requires tier 2 (finderDepth.test and the finder-depth block)"
+      ]
+    },
+    {
+      "id": "links-round-trip",
+      "title": "Link, preset, project file and share-code round trip",
+      "what": "settingsToSearchParams and settingsFromSearchParams round-trip every setting; presetToSettings is the final word for links, presets, project files and share codes alike; values stay uncapped.",
+      "code": [
+        "src/lib/settings.ts",
+        "src/lib/shareCode.ts",
+        "src/lib/project.ts",
+        "src/components/simulator/useProjectFiles.ts",
+        "src/components/simulator/shareLinks.tsx"
+      ],
+      "tests": [
+        "tests/settings.test.ts",
+        "tests/uncap.test.ts",
+        "tests/shareCode.test.ts",
+        "tests/project.test.ts",
+        "tests/fastExportProject.test.ts"
+      ],
+      "smoke": [
+        "project-files"
+      ],
+      "also": [
+        "settings.ts is a hub file: a change there requires tier 2"
+      ]
+    },
+    {
+      "id": "record-export-batch",
+      "title": "Record, fast export and batch",
+      "what": "Record Video, the fast export and the batch render all draw through Canvas.tsx and end where the run ends; the clip's frames and sound match the live run.",
+      "code": [
+        "src/lib/recording/**",
+        "src/components/simulator/fastRenderCanvas.tsx",
+        "src/components/simulator/useBatchRender.ts",
+        "src/components/simulator/renderBudget.ts",
+        "src/components/simulator/Canvas.tsx"
+      ],
+      "tests": [
+        "tests/recorder.test.ts",
+        "tests/fastRender.test.ts",
+        "tests/fastExportProject.test.ts",
+        "tests/batch.test.ts",
+        "tests/zip.test.ts",
+        "tests/renderBudget.test.ts"
+      ],
+      "smoke": [
+        "recording",
+        "fast-render"
+      ],
+      "also": [
+        "escalation: src/lib/recording/** runs the paywall-gate, free-watermark and watermark-everywhere blocks",
+        "the batch-render block runs in tier 2"
+      ]
+    },
+    {
+      "id": "watermark",
+      "title": "Watermark",
+      "what": "Every free frame and every free video carries the watermark: the export seals it (seal.ts), the live canvas stamps it as its last pass (live.ts).",
+      "code": [
+        "src/lib/watermark/**",
+        "src/components/simulator/liveMarkHud.ts",
+        "src/components/simulator/splitScreenCanvas.tsx"
+      ],
+      "tests": [
+        "tests/freeWatermark.test.ts",
+        "tests/watermarkEverywhere.test.ts",
+        "tests/recorder.test.ts"
+      ],
+      "smoke": [
+        "free-watermark",
+        "watermark-everywhere"
+      ],
+      "also": [
+        "protected: src/lib/watermark/** is reported for owner review",
+        "escalation: the watermark blocks run in guard:browser when it changed"
+      ]
+    },
+    {
+      "id": "paywall-licence",
+      "title": "Paywall and licence",
+      "what": "PRO_FEATURES are gated by an ES256 licence verified against the build's public key; the TEST key stays in the tests and the smoke harness.",
+      "code": [
+        "src/lib/billing/**",
+        "src/lib/account/**",
+        "billing/src/**"
+      ],
+      "tests": [
+        "tests/billingEntitlement.test.ts",
+        "tests/billingLicense.test.ts",
+        "tests/billingPlans.test.ts",
+        "tests/ownerLicense.test.ts",
+        "tests/account.test.ts"
+      ],
+      "smoke": [
+        "paywall-gate"
+      ],
+      "also": [
+        "lane B: the billing Worker's type check and tests",
+        "protected: src/lib/billing/** and PRO_FEATURES are reported for owner review"
+      ]
+    },
+    {
+      "id": "desktop-bridge",
+      "title": "Desktop bridge",
+      "what": "The Windows app and the page agree on the bridge (contract.ts), the page detects each feature by capability (capabilities.ts, one capability with a 'since' version per feature), and an older app keeps working.",
+      "code": [
+        "src/lib/desktop/**",
+        "src/components/simulator/desktop/**",
+        "desktop/src/**"
+      ],
+      "tests": [
+        "tests/desktopCapabilities.test.ts",
+        "tests/desktopSite.test.ts",
+        "tests/desktopQueue.test.ts",
+        "tests/desktopAi.test.ts",
+        "tests/desktopAiFix.test.ts",
+        "tests/customContent.test.ts",
+        "tests/desktopPublish.test.ts",
+        "tests/desktopEncode.test.ts"
+      ],
+      "smoke": [
+        "desktop-exe",
+        "desktop-current",
+        "desktop-ai-fix"
+      ],
+      "also": [
+        "lane B: the desktop app's type check and tests",
+        "escalation: the desktop blocks run in guard:browser when it changed"
+      ]
+    },
+    {
+      "id": "i18n",
+      "title": "i18n",
+      "what": "en, pl and es hold the same keys with the same ICU arguments, every message compiles, and the copy keeps the docs/COPY-STYLE.md budgets.",
+      "code": [
+        "messages/*.json",
+        "src/i18n/**"
+      ],
+      "tests": [
+        "tests/i18nParity.test.ts",
+        "tests/copyStyle.test.ts",
+        "tests/clientMessages.test.ts",
+        "tests/uiI18nReview.test.ts",
+        "tests/legalCopy.test.ts"
+      ],
+      "smoke": [
+        "language-switcher"
+      ],
+      "also": [
+        "messages/*.json are hub files: a change there requires tier 2",
+        "protected: the Privacy.* and Terms.* namespaces are reported for owner review"
+      ]
+    },
+    {
+      "id": "consent-analytics",
+      "title": "Consent and analytics",
+      "what": "No cookies, no ad tags, no telemetry; the optional statistics script runs only behind its gates (Do Not Track, Global Privacy Control, the opt-out switch, never in the Windows app), and the privacy copy says only what the code does.",
+      "code": [
+        "src/lib/analytics/**",
+        "src/components/site/Analytics.tsx",
+        "src/components/site/StatsOptOut.tsx",
+        "src/lib/legalDates.ts"
+      ],
+      "tests": [
+        "tests/analytics.test.ts",
+        "tests/legalCopy.test.ts"
+      ],
+      "smoke": [
+        "go-live-kit"
+      ],
+      "also": [
+        "protected: legalDates.ts and the Privacy.* and Terms.* messages are reported for owner review"
+      ]
+    },
+    {
+      "id": "no-freeze-uncapped",
+      "title": "No freeze, uncapped",
+      "what": "No user number is clamped to a slider maximum (only the memory ceilings of uncap.ts), and a huge value keeps the page responsive through soft ceilings and the frame budgets.",
+      "code": [
+        "src/lib/uncap.ts",
+        "src/lib/unlimited.ts",
+        "src/lib/physics/softCeilings.ts",
+        "src/lib/physics/limits.ts",
+        "src/components/simulator/ringLod.ts",
+        "src/components/simulator/renderBudget.ts"
+      ],
+      "tests": [
+        "tests/uncap.test.ts",
+        "tests/softCeilings.test.ts",
+        "tests/renderBudget.test.ts"
+      ],
+      "smoke": [
+        "uncap-all"
+      ],
+      "also": [
+        "protected: the uncap ALLOWED list and MEMORY_CEILINGS are reported for owner review",
+        "the slow tests/unlimited.test.ts runs with --with-slow and in tier 2"
+      ]
+    },
+    {
+      "id": "release-integrity",
+      "title": "Release integrity",
+      "what": "The changelog entry, the version and CHANGELOG.md agree; the workflows deploy only what they should; the smoke shards stay balanced; the guard and the agent guide stay true.",
+      "code": [
+        "src/content/changelog.json",
+        "CHANGELOG.md",
+        "package.json",
+        "scripts/changelog.mjs",
+        "scripts/test-ci.mjs",
+        "scripts/smoke-test.mjs",
+        "scripts/smoke-timing.json",
+        "scripts/smoke/**",
+        "vitest.config.ts",
+        ".github/workflows/**",
+        "scripts/agent/**",
+        "src/lib/agentKit/**",
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "tests": [
+        "tests/changelog.test.ts",
+        "tests/releaseWorkflows.test.ts",
+        "tests/testCi.test.ts",
+        "tests/smokeShards.test.ts",
+        "tests/docsConsistency.test.ts",
+        "tests/coreGuard.test.ts",
+        "tests/protectedDiff.test.ts",
+        "tests/agentDocs.test.ts"
+      ],
+      "smoke": [
+        "changelog"
+      ],
+      "also": [
+        "lane C: node scripts/changelog.mjs --check and node scripts/smoke-test.mjs --list",
+        "static: the test-weakening detector and the protected-path report"
+      ]
+    }
+  ],
+  "editZones": {
+    "about": "Where an edit lands decides what proves it (AGENTS.md, docs/agents/CORE.md). The guard's report lists every changed file's zone and the core functions it touches.",
+    "free": {
+      "why": "new files, catalog data and docs: no core function owns them, tier 0 is enough",
+      "examples": [
+        "docs/**",
+        "src/content/gallery.ts",
+        "public/modes/*.webp"
+      ]
+    },
+    "core": {
+      "why": "a file a core function owns (coreFunctions[].code): tier 0, plus that function's smoke blocks in npm run guard:browser"
+    },
+    "guarded": {
+      "from": "hubFiles",
+      "why": "most of the suite imports these: a change requires tier 2 (npm run test:ci and the four smoke shards)"
+    },
+    "protected": {
+      "from": "scripts/agent/protected.json",
+      "why": "owner review required: reported (a warning, an annotation in CI), never a failure"
+    }
+  }
 }
