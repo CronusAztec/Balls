@@ -17,6 +17,7 @@
     "og:cards": "node scripts/generate-og-cards.mjs",
     "bot": "node scripts/viral-bot.mjs",
     "agent": "node scripts/agent/cli.mjs",
+    "agent:mcp": "node scripts/agent/mcp.mjs",
     "go-live": "node scripts/go-live.mjs",
     "go-live:check": "node scripts/go-live-check.mjs",
     "launch:check": "node scripts/launch-check.mjs",

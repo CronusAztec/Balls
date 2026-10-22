@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "jumpingballs-agent": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["scripts/agent/mcp.mjs"],
+      "env": {}
+    }
+  }
+}
