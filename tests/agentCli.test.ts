@@ -7,7 +7,7 @@ import { parseArgs as parseGuardArgs } from "../scripts/agent/guard.mjs";
 import { PathError, defaultOutName, hasScheme, isInside, outputDir, resolveInputFile, untrustedCacheReason, writeFileSafe } from "../scripts/agent/paths.mjs";
 import { TOOLBOX_ENTRY, fresh, toolboxListing } from "../scripts/agent/bundle.mjs";
 import os from "os";
-import { buildEnv, patchNextConfig, siteFile } from "../scripts/agent/local-build.mjs";
+import { buildEnv, lockPids, patchNextConfig, siteFile } from "../scripts/agent/local-build.mjs";
 import { siteStatsTool } from "../scripts/agent/site-stats.mjs";
 import { postizProbeTool } from "../scripts/agent/postiz-probe.mjs";
 import * as toolbox from "@/lib/agentKit/toolbox";
@@ -236,6 +236,17 @@ describe("what the toolbox trusts and where it writes (--- agent-cli ---)", () =
 });
 
 describe("the local export (--- agent-cli ---)", () => {
+  it("keeps its build lock while the CLI or any build step it started lives (a killed call's next build still holds it)", () => {
+    // the lock names the CLI's pid, then each build step's: it is taken over only when none of them is alive
+    expect(lockPids("4100\n4123\n4188\n")).toEqual([4100, 4123, 4188]);
+    expect(lockPids("4100\n")).toEqual([4100]);
+    expect(lockPids("")).toEqual([]);
+    expect(lockPids("x\n-3\n0\n12.5\n77")).toEqual([77]);
+    const src = fs.readFileSync(path.join(ROOT, "scripts", "agent", "local-build.mjs"), "utf8");
+    expect(src).toMatch(/if \(pids\.length && !pids\.some\(pidAlive\)\)/);
+    expect(src).toMatch(/hold\?\.\(child\.pid\)/);
+  });
+
   it("copies only what the site builds from, builds at the root path without the shell's public or statistics settings", () => {
     expect(siteFile("src/app/page.tsx")).toBe(true);
     expect(siteFile("scripts/postexport.mjs")).toBe(true);
