@@ -216,7 +216,7 @@ describe("the tool table (--- agent-cli ---)", () => {
   it("names every tool once with an object schema; only owner-run commands touch the network beyond localhost, and MCP never offers them", () => {
     const names = AGENT_TOOLS.map((t) => t.name);
     expect(new Set(names).size).toBe(names.length);
-    expect(names).toEqual(["modes", "simulate", "fingerprint", "preview", "render", "site-shot", "analyse", "guard", "explain", "site-stats", "postiz-probe"]);
+    expect(names).toEqual(["modes", "simulate", "fingerprint", "preview", "render", "site-shot", "analyse", "guard", "explain", "bp-schema", "bp-validate", "bp-check", "bp-link", "bp-docs", "site-stats", "postiz-probe"]);
     for (const t of AGENT_TOOLS) {
       expect(t.input.type, t.name).toBe("object");
       expect(t.input.additionalProperties, t.name).toBe(false);

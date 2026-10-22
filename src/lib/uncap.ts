@@ -97,6 +97,50 @@ export const CAPTION_CEILING = 1_000;
  */
 export const BOUNCE_RULE_CEILING = 1_000;
 
+// --- blueprint ---
+/**
+ * The Blueprint sandbox's memory and work ceilings (lib/blueprint/: a mode described as JSON data, run by one interpreter).
+ * A Blueprint arrives from a stranger's link or share code, so – unlike a slider, which only a visitor's own hand moves – its
+ * structure carries fixed ceilings, each at a value a browser tab runs comfortably at 60 steps a second. They are the one
+ * deliberate exception to "uncapped" (the owner's decision for the Blueprint batch), and they bound only what a spec
+ * allocates and how much work a step may do: the physics scalars of a Blueprint (speeds, sizes, gravity, bounciness) take any
+ * finite value, as every other setting does. Past a ceiling the run says ARENA FULL (balls), keeps its first entries (tiles,
+ * obstacles, rules) or defers the rest to the next step (spawns), never freezes.
+ */
+export const BLUEPRINT_CEILINGS = {
+  /** Balls alive at once (full-physics balls: every pair is tested each sub-step through a spatial hash). */
+  balls: 400,
+  /** Tiles of the one tiles block (rows × columns): each a few typed numbers, a cell of the static broadphase and a pane drawn. */
+  tiles: 600,
+  /** Obstacles after the patterns expand (peg grids, peg rings): each resolved against nearby balls every sub-step. */
+  obstacles: 48,
+  /** Rules of one spec: every event runs through the rules of its trigger, in order. */
+  rules: 16,
+  /** The longest run (seconds): every Blueprint ends by itself, so the finder, the export and a stranger's link always stop. */
+  timeoutSec: 180,
+  /** The canonical JSON of one spec (UTF-8 bytes): about 8,000 base64url characters, half a share code's 16,000. */
+  specBytes: 6_000,
+  /** Physics events one step records (hits, breaks, escapes…); past it they are dropped and counted. */
+  eventsPerStep: 512,
+  /** Rule firings one step runs; past it they are dropped and counted (a rule ping-pong cannot spin a step). */
+  ruleFiringsPerStep: 64,
+  /** Balls one step adds (spawns and splits); the rest wait for the next steps, in order. */
+  spawnsPerStep: 8,
+  /** Sounds one step plays (the hit voices and the sound actions); the rest of the step's are silent. */
+  soundsPerStep: 6,
+} as const;
+export const BLUEPRINT_BALL_CEILING = BLUEPRINT_CEILINGS.balls;
+export const BLUEPRINT_TILE_CEILING = BLUEPRINT_CEILINGS.tiles;
+export const BLUEPRINT_OBSTACLE_CEILING = BLUEPRINT_CEILINGS.obstacles;
+export const BLUEPRINT_RULE_CEILING = BLUEPRINT_CEILINGS.rules;
+export const BLUEPRINT_TIMEOUT_CEILING_SEC = BLUEPRINT_CEILINGS.timeoutSec;
+export const BLUEPRINT_JSON_MAX_BYTES = BLUEPRINT_CEILINGS.specBytes;
+export const BLUEPRINT_EVENTS_PER_STEP = BLUEPRINT_CEILINGS.eventsPerStep;
+export const BLUEPRINT_RULE_FIRINGS_PER_STEP = BLUEPRINT_CEILINGS.ruleFiringsPerStep;
+export const BLUEPRINT_SPAWNS_PER_STEP = BLUEPRINT_CEILINGS.spawnsPerStep;
+export const BLUEPRINT_SOUNDS_PER_STEP = BLUEPRINT_CEILINGS.soundsPerStep;
+// --- end blueprint ---
+
 // --- orb-grid ---
 /**
  * Bouncing Orbs: the orbs one run builds (columns × rows; lib/physics/modes/orbGrid.ts). An orb is ~70 bytes of typed state
