@@ -31,6 +31,11 @@ const nextConfig: NextConfig = {
     // Static export has no image optimiser; the mode previews are plain WebP files anyway.
     unoptimized: true,
   },
+  // --- ai-guard --- JBL_BUILD_SKIP_TYPECHECK=1 skips Next's own type check (about 95 of a build's 130 s) for a build whose
+  // commit an explicit `npm run typecheck` (or the core guard's lane A) has just checked: the CI build and smoke-shard steps
+  // and `npm run guard:browser`. Unset – `npm run build`, the VPS deployer – the build type-checks exactly as before.
+  // tests/releaseWorkflows.test.ts pins where it may be set.
+  typescript: { ignoreBuildErrors: process.env.JBL_BUILD_SKIP_TYPECHECK === "1" },
 };
 
 export default withNextIntl(nextConfig);

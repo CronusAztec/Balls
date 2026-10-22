@@ -922,6 +922,12 @@ export class PhysicsEngine {
       // --- perfect-fit ---
       case "perfectFit":
         return this.initPerfectFit();
+      // --- ai-guard --- every ModeId has a case: a new id without one fails the type check here (not only engine.test's
+      // 'boots every mode' at run time). Unreachable for a ModeId; settingsFromSearchParams and presetToSettings map an unknown id to classic first.
+      default: {
+        const unhandled: never = mode;
+        throw new Error(`initMode: no case for mode "${String(unhandled)}"`);
+      }
     }
   }
 

@@ -1,0 +1,410 @@
+{
+  "schema": 1,
+  "about": "--- ai-guard --- The core guard's data (scripts/agent/guard.mjs, src/lib/agentKit/guardPlan.ts; README 'Core guard'). Protected: a change here is reported for owner review, and dropping a test from the core list is such a change. 'seconds' are vitest's measured per-file durations on a 4-CPU machine; tests/coreGuard.test.ts checks the lane plan against the budget with them.",
+  "budget": {
+    "coldSeconds": 180,
+    "warmSeconds": 60
+  },
+  "measured": {
+    "tscCold": 90,
+    "tscWarm": 6,
+    "eslintCold": 35,
+    "eslintWarm": 8,
+    "nodeCheck": 2,
+    "desktop": 15,
+    "billing": 9,
+    "vitestStartup": 5,
+    "smallChecks": 2
+  },
+  "vitest": {
+    "maxWorkers": 3,
+    "relatedCap": 25,
+    "core": [
+      {
+        "file": "tests/engine.test.ts",
+        "seconds": 1.84
+      },
+      {
+        "file": "tests/engineCore.test.ts",
+        "seconds": 1.48
+      },
+      {
+        "file": "tests/extras.test.ts",
+        "seconds": 8.29
+      },
+      {
+        "file": "tests/modeThumbnails.test.ts",
+        "seconds": 1.4
+      },
+      {
+        "file": "tests/docsConsistency.test.ts",
+        "seconds": 2.21
+      },
+      {
+        "file": "tests/settings.test.ts",
+        "seconds": 8.56
+      },
+      {
+        "file": "tests/uncap.test.ts",
+        "seconds": 5.0
+      },
+      {
+        "file": "tests/shareCode.test.ts",
+        "seconds": 0.3
+      },
+      {
+        "file": "tests/project.test.ts",
+        "seconds": 0.21
+      },
+      {
+        "file": "tests/softCeilings.test.ts",
+        "seconds": 0.88
+      },
+      {
+        "file": "tests/recorder.test.ts",
+        "seconds": 0.02
+      },
+      {
+        "file": "tests/fastRender.test.ts",
+        "seconds": 0.11
+      },
+      {
+        "file": "tests/fastExportProject.test.ts",
+        "seconds": 0.14
+      },
+      {
+        "file": "tests/batch.test.ts",
+        "seconds": 0.53
+      },
+      {
+        "file": "tests/zip.test.ts",
+        "seconds": 0.14
+      },
+      {
+        "file": "tests/renderBudget.test.ts",
+        "seconds": 0.21
+      },
+      {
+        "file": "tests/freeWatermark.test.ts",
+        "seconds": 0.33
+      },
+      {
+        "file": "tests/watermarkEverywhere.test.ts",
+        "seconds": 0.36
+      },
+      {
+        "file": "tests/billingEntitlement.test.ts",
+        "seconds": 0.2
+      },
+      {
+        "file": "tests/billingLicense.test.ts",
+        "seconds": 0.06
+      },
+      {
+        "file": "tests/billingPlans.test.ts",
+        "seconds": 0.11
+      },
+      {
+        "file": "tests/ownerLicense.test.ts",
+        "seconds": 0.01
+      },
+      {
+        "file": "tests/account.test.ts",
+        "seconds": 0.04
+      },
+      {
+        "file": "tests/obfuscate.test.ts",
+        "seconds": 0.22
+      },
+      {
+        "file": "tests/desktopCapabilities.test.ts",
+        "seconds": 0.05
+      },
+      {
+        "file": "tests/desktopSite.test.ts",
+        "seconds": 0.02
+      },
+      {
+        "file": "tests/desktopQueue.test.ts",
+        "seconds": 0.15
+      },
+      {
+        "file": "tests/desktopAi.test.ts",
+        "seconds": 0.34
+      },
+      {
+        "file": "tests/desktopAiFix.test.ts",
+        "seconds": 0.15
+      },
+      {
+        "file": "tests/customContent.test.ts",
+        "seconds": 8.43
+      },
+      {
+        "file": "tests/desktopPublish.test.ts",
+        "seconds": 0.2
+      },
+      {
+        "file": "tests/desktopEncode.test.ts",
+        "seconds": 0.01
+      },
+      {
+        "file": "tests/copyStyle.test.ts",
+        "seconds": 0.42
+      },
+      {
+        "file": "tests/clientMessages.test.ts",
+        "seconds": 0.08
+      },
+      {
+        "file": "tests/uiI18nReview.test.ts",
+        "seconds": 0.38
+      },
+      {
+        "file": "tests/legalCopy.test.ts",
+        "seconds": 0.32
+      },
+      {
+        "file": "tests/changelog.test.ts",
+        "seconds": 0.42
+      },
+      {
+        "file": "tests/siteStatic.test.ts",
+        "seconds": 0.88
+      },
+      {
+        "file": "tests/staticHeaders.test.ts",
+        "seconds": 0.09
+      },
+      {
+        "file": "tests/workerRedirects.test.ts",
+        "seconds": 0.01
+      },
+      {
+        "file": "tests/smokeShards.test.ts",
+        "seconds": 1.11
+      },
+      {
+        "file": "tests/releaseWorkflows.test.ts",
+        "seconds": 0.02
+      },
+      {
+        "file": "tests/testCi.test.ts",
+        "seconds": 0.01
+      },
+      {
+        "file": "tests/buildInfo.test.ts",
+        "seconds": 0.37
+      },
+      {
+        "file": "tests/analytics.test.ts",
+        "seconds": 0.65
+      },
+      {
+        "file": "tests/physicsPurity.test.ts",
+        "seconds": 0.2
+      },
+      {
+        "file": "tests/i18nParity.test.ts",
+        "seconds": 0.6
+      },
+      {
+        "file": "tests/coreGuard.test.ts",
+        "seconds": 0.6
+      },
+      {
+        "file": "tests/protectedDiff.test.ts",
+        "seconds": 0.6
+      }
+    ],
+    "slow": [
+      "tests/fightLeagueBalance*.test.ts",
+      "tests/fightLeagueWeapons.test.ts",
+      "tests/colourSort.test.ts",
+      "tests/unlimited.test.ts",
+      "tests/rigged.test.ts",
+      "tests/multipliersMode.test.ts",
+      "tests/vpsDeploy.test.ts",
+      "tests/bot.test.ts",
+      "tests/tools/**"
+    ]
+  },
+  "nodeCheck": [
+    "scripts/**/*.mjs",
+    "relay/*.mjs",
+    "worker/*.mjs"
+  ],
+  "hubFiles": [
+    "src/lib/physics/engine.ts",
+    "src/lib/physics/types.ts",
+    "src/lib/physics/extras.ts",
+    "src/lib/physics/limits.ts",
+    "src/lib/simulation/finder.ts",
+    "src/lib/settings.ts",
+    "src/components/simulator/Canvas.tsx",
+    "src/components/simulator/Simulator.tsx",
+    "messages/*.json"
+  ],
+  "escalation": [
+    {
+      "id": "fight-league",
+      "when": [
+        "src/**/fightLeague*",
+        "src/**/FightLeague*",
+        "src/**/fightLeague/**",
+        "src/lib/physics/modes/fightLeagueRows/**",
+        "tests/flBalance.ts",
+        "tests/flProbes.ts"
+      ],
+      "reason": "Fight League changed: the three balance files (every fighter 25-75 %, the median fight 12-25 s) and its smoke block",
+      "tests": [
+        "tests/fightLeagueBalanceGames.test.ts",
+        "tests/fightLeagueBalanceMovies.test.ts",
+        "tests/fightLeagueBalanceComicsAnimeShows.test.ts"
+      ],
+      "smoke": [
+        "fight-league"
+      ]
+    },
+    {
+      "id": "paywall-watermark",
+      "when": [
+        "src/lib/billing/**",
+        "src/lib/watermark/**",
+        "src/lib/recording/**"
+      ],
+      "reason": "billing, the watermark or recording changed: the paywall and watermark smoke blocks",
+      "smoke": [
+        "paywall-gate",
+        "free-watermark",
+        "watermark-everywhere"
+      ]
+    },
+    {
+      "id": "desktop",
+      "when": [
+        "src/lib/desktop/**",
+        "desktop/**",
+        "src/components/simulator/desktop/**"
+      ],
+      "reason": "the desktop bridge or app changed: the desktop smoke blocks",
+      "smoke": [
+        "desktop-exe",
+        "desktop-current",
+        "desktop-ai-fix"
+      ]
+    }
+  ],
+  "modeFileGlobs": [
+    "src/lib/physics/modes/**",
+    "src/lib/physics/*.ts",
+    "src/components/simulator/*Renderer.ts",
+    "src/components/simulator/sections/*.tsx"
+  ],
+  "modeSmoke": {
+    "classic": [
+      "modes"
+    ],
+    "accumulation": [
+      "modes"
+    ],
+    "multiply": [
+      "modes"
+    ],
+    "lines": [
+      "modes"
+    ],
+    "paint": [
+      "modes"
+    ],
+    "target": [
+      "modes"
+    ],
+    "portal": [
+      "modes"
+    ],
+    "shatter": [
+      "modes"
+    ],
+    "colorMatch": [
+      "modes"
+    ],
+    "grow": [
+      "modes",
+      "loop-foundation"
+    ],
+    "drop": [
+      "modes",
+      "ball-drop",
+      "ball-drop-overfull"
+    ],
+    "box": [
+      "modes",
+      "box-arena",
+      "box-dvd-corner",
+      "box-finder"
+    ],
+    "pendulum": [
+      "modes",
+      "pendulum-wave"
+    ],
+    "collide": [
+      "jdm-collisions"
+    ],
+    "glass": [
+      "gerald-glass"
+    ],
+    "illusion": [
+      "jdm-illusions"
+    ],
+    "stringBattle": [
+      "odd-string-battle",
+      "string-battle-alive",
+      "string-circle"
+    ],
+    "battle": [
+      "jdm-arena-games"
+    ],
+    "ctf": [
+      "jdm-arena-games"
+    ],
+    "paddle": [
+      "jdm-rhythm-runner"
+    ],
+    "orbGrid": [
+      "orb-grid",
+      "orb-rhythm"
+    ],
+    "landClaim": [
+      "land-claim",
+      "land-claim-pyramid"
+    ],
+    "starChords": [
+      "chord-stars"
+    ]
+  },
+  "browser": {
+    "basePath": "/smoke",
+    "port": 3101,
+    "smoke": [
+      "static-hosting",
+      "pages",
+      "modes",
+      "studio-basics",
+      "recording",
+      "find-simulation",
+      "language-switcher",
+      "mode-card",
+      "project-files",
+      "fast-render",
+      "desktop-exe",
+      "core-every-mode"
+    ]
+  },
+  "tier2": [
+    "npm run test:ci",
+    "NEXT_PUBLIC_SITE_URL=http://localhost:3000/smoke NEXT_PUBLIC_BASE_PATH=/smoke npx next build --no-lint && node scripts/postexport.mjs",
+    "node scripts/serve-static.mjs --port 3000 --base /smoke &",
+    "for i in 1 2 3 4; do BASE_URL=http://localhost:3000/smoke SMOKE_SHARD=$i/4 OUT_DIR=smoke-output/shard-$i npm run smoke; done   # or push to the product branch: deploy.yml runs exactly this"
+  ]
+}
