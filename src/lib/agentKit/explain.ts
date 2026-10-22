@@ -7,11 +7,15 @@
  *    line that no longer exists for a good reason – updates the pin to the new form of the SAME contract, never deletes it;
  *  - a behaviour failure: the code does something else now; fix the code;
  *  - a determinism fingerprint (tests/extras.test.ts BASELINE or a mode's own pinned numbers): a moved trajectory, fixed in
- *    the code; a deliberate change needs a `Fingerprint-Change: <mode> - <reason>` trailer and the owner's review.
+ *    the code; a deliberate change needs a `Fingerprint-Change: <mode> - <reason>` trailer and the owner's review;
+ *  - --- ai-guard --- the guard's own findings and failures, in its report's and summary's words: a weakened test
+ *    (expect-drop, expect-changed, skip-added, test-deleted …: restore it, or a `Test-Change:` trailer and the owner's
+ *    review), a stale export (perfGuards' "./out was built from": rebuild it) and a missing install or browser (the machine,
+ *    not the code: install it).
  * Which tests read which files as text is measured by the CLI (it scans tests/), not kept in a list here.
  */
 
-export type FailureKind = "fingerprint" | "source-pin" | "behaviour" | "timeout" | "typecheck" | "lint" | "smoke" | "unknown";
+export type FailureKind = "weakening" | "fingerprint" | "environment" | "stale-export" | "source-pin" | "behaviour" | "timeout" | "typecheck" | "lint" | "smoke" | "unknown";
 
 export interface TestFileFacts {
   /** "tests/freeWatermark.test.ts". */
@@ -45,6 +49,17 @@ const NEVER_DO = [
 ];
 
 const FIXES: Record<FailureKind, string[]> = {
+  weakening: [
+    "the guard's test-weakening detector flagged a test the change made weaker (an expect removed or rewritten in place, a .skip / .only / .todo / .runIf / .fails added, a raised timeout, a deleted test or smoke check, a widened allow list): restore the test as it was – never make the test pass by weakening it",
+    "if the edit of the test is legitimate (the behaviour it checks changed on purpose, a test moved): keep it only with a commit trailer `Test-Change: <file> - <reason>` and ask the owner to review it (an added .only always fails)",
+  ],
+  environment: [
+    "the machine, not the code: install what is missing – `npm ci`, `ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --prefix desktop`, `npm ci --prefix billing`, or Chromium for Playwright (`npx playwright install chromium`, or PLAYWRIGHT_BROWSERS_PATH) – then run the guard again",
+    "change no code or test for it, and never record a baseline while it is missing",
+  ],
+  "stale-export": [
+    "the git-ignored out/ holds an export of another commit: rebuild it (`npm run build`), remove it, or point PERF_GUARD_OUT at a fresh export – no code or test change",
+  ],
   fingerprint: [
     "find the change that moved the trajectory (git diff on src/lib/physics, src/lib/simulation, settings.ts) and restore the old behaviour for the default path",
     "if the change is deliberate: keep the new numbers only with a commit trailer `Fingerprint-Change: <mode> - <reason>` and ask the owner to review it",
@@ -68,7 +83,14 @@ export function testFilesIn(text: string): string[] {
   return [...new Set(text.match(TEST_FILE) ?? [])].filter((f) => !f.split("/").includes(".."));
 }
 
+/** --- ai-guard --- The weakening detector's finding kinds, as its report and summary name them. */
+const WEAKENING_KINDS = /\b(?:expect-drop(?:ped)?|expect-changed|skip-runtime|only-added|skip-added|skipIf-added|runIf-added|todo-added|fails-added|timeout-raised|test-deleted|check-drop|allow-list-widened|core-test-dropped)\b|needs "Test-Change:|Test weakened \(/;
+
 function kindOfText(text: string): FailureKind | null {
+  if (WEAKENING_KINDS.test(text)) return "weakening";
+  if (/\.\/out was built from [0-9a-f]{7,}|built export freshness|out\/version\.json names/i.test(text)) return "stale-export";
+  if (/\bis missing\b[^\n]*\b(?:npm ci|run npm)|node_modules is missing|JBL_REQUIRE_BROWSER=1: Chromium did not start|Executable doesn't exist|npx playwright install/i.test(text)) return "environment";
+  if (/\bfingerprint (?:changed|removed)\b|Fingerprint-Change:|Fingerprint (?:changed|removed) without a trailer/.test(text)) return "fingerprint";
   if (/\bBASELINE\b|Fingerprint|leaves every mode's trajectory|fingerprint/i.test(text) && /extras\.test|samples|walls|broken/.test(text)) return "fingerprint";
   if (/Test timed out in \d+ms|timed out after/i.test(text)) return "timeout";
   if (/error TS\d{3,5}/.test(text)) return "typecheck";
@@ -89,10 +111,11 @@ export function explainFailure(text: string, facts: readonly TestFileFacts[]): E
     const readsAsText = byFile.get(file)?.readsAsText ?? [];
     let kind: FailureKind = general ?? "behaviour";
     if (kind === "behaviour" && readsAsText.length > 0 && textAssertion) kind = "source-pin";
-    if (file === "tests/extras.test.ts" && /trajectory|BASELINE|samples/.test(text)) kind = "fingerprint";
+    if (file === "tests/extras.test.ts" && /trajectory|BASELINE|samples/.test(text) && kind !== "weakening" && kind !== "environment" && kind !== "stale-export") kind = "fingerprint";
     return { file, kind, readsAsText };
   });
-  const order: FailureKind[] = ["fingerprint", "source-pin", "timeout", "typecheck", "lint", "smoke", "behaviour"];
+  // (the guard's own verdicts first: a weakened test is never "fixed" by changing the code, a missing install never by either)
+  const order: FailureKind[] = ["weakening", "fingerprint", "environment", "stale-export", "source-pin", "timeout", "typecheck", "lint", "smoke", "behaviour"];
   const kind = files.length > 0 ? (order.find((k) => files.some((f) => f.kind === k)) ?? "behaviour") : (general ?? (text.trim() ? "behaviour" : "unknown"));
   const pinned = files.filter((f) => f.kind === "source-pin");
   const summary =
@@ -100,7 +123,13 @@ export function explainFailure(text: string, facts: readonly TestFileFacts[]): E
       ? `${pinned.map((f) => f.file).join(", ")} ${pinned.length === 1 ? "reads" : "read"} ${[...new Set(pinned.flatMap((f) => f.readsAsText))].join(", ")} as text: a source pin – keep the pinned contract in the source.`
       : kind === "fingerprint"
         ? "A pinned determinism fingerprint moved: a behaviour change in a mode's run, to be fixed in the code."
-        : kind === "unknown"
+        : kind === "weakening"
+          ? `The guard's test-weakening detector flagged ${files.length ? files.map((f) => f.file).join(", ") : "a test"}: restore the test, or justify the edit with a Test-Change trailer for the owner's review.`
+          : kind === "environment"
+            ? "An install or a browser is missing: the machine, not the code."
+            : kind === "stale-export"
+              ? "The built export in out/ is of another commit: rebuild or remove it."
+              : kind === "unknown"
           ? "No failure text to explain."
           : `A ${kind} failure${files.length ? ` in ${files.map((f) => f.file).join(", ")}` : ""}.`;
   return { kind, summary, files, legitimateFix: FIXES[kind], neverDo: NEVER_DO };

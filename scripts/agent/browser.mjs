@@ -319,6 +319,16 @@ export async function renderTool(tb, args) {
 
 const slugOf = (page) => page.replace(/^\/+|\/+$/g, "").replace(/[^A-Za-z0-9._-]+/g, "_") || "root";
 
+/**
+ * --- agent-cli --- A screenshot's file name: the page's place in the list first (01-…), so two pages whose slugs agree
+ * (`/en/` and `/en`, `/en/a_b/` and `/en/a/b/`) never write one file, and each shot keeps its own.
+ * @param {number} index the page's position in `pages` (0-based)
+ * @param {string} page
+ * @param {number} width
+ * @returns {string}
+ */
+export const shotFileName = (index, page, width) => `${String(index + 1).padStart(2, "0")}-${slugOf(page)}-${width}.png`;
+
 export async function siteShotTool(_tb, args) {
   const pages = args.pages ?? ["/en/"];
   const widths = args.widths ?? [390, 1280];
@@ -329,13 +339,13 @@ export async function siteShotTool(_tb, args) {
     withFencedBrowser(origin, async (context, blocked) => {
       const shots = [];
       for (const width of widths) {
-        for (const p of pages) {
+        for (const [index, p] of pages.entries()) {
           const page = await context.newPage();
           await page.setViewportSize({ width, height: width <= 480 ? 844 : 800 });
           const errors = watchErrors(page, origin);
           const res = await page.goto(`${origin}${p}`, { waitUntil: "networkidle", timeout: 120_000 });
           await page.evaluate(() => document.fonts?.ready).catch(() => {});
-          const file = path.join(dir, `${slugOf(p)}-${width}.png`);
+          const file = path.join(dir, shotFileName(index, p, width));
           writeFileSafe(file, await page.screenshot({ fullPage, animations: "disabled" }));
           const size = await page.evaluate(() => ({ width: document.documentElement.scrollWidth, height: document.documentElement.scrollHeight }));
           shots.push({ page: p, width, status: res ? res.status() : null, file: repoRelative(file), pageSize: size, horizontalScroll: size.width > width, pageErrors: errors });

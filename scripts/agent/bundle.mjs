@@ -7,7 +7,9 @@
  *    engine's tools load it (modes, simulate, fingerprint, preview, render).
  * Each is cached in the agent cache (paths.mjs CACHE_DIR, a private folder) with esbuild's list of its inputs; it is rebuilt
  * only when an input's size or time changed, a file was added to src/lib/agentKit or src/lib/videoAnalysis, or esbuild is
- * another version – and whenever the list of inputs is empty or lacks the entry. Nothing is written to the repository.
+ * another version – and whenever the list of inputs is empty or lacks the entry. The list is kept only when every input
+ * was saved before the build began (a file saved while esbuild read it would be stamped new beside its old code): otherwise
+ * the next call builds again. Nothing is written to the repository.
  */
 import fs from "fs";
 import path from "path";
@@ -49,6 +51,29 @@ export function fresh(meta, version, now = listing(), entry = ENTRY) {
   return inputs.every(([file, s]) => stamp(file) === s);
 }
 
+/** How close to a build's start an input's time may be and still count as saved during it (coarse file-system clocks). */
+export const SETTLE_MS = 2000;
+
+/**
+ * Whether every input was last written before the build started (with SETTLE_MS of slack): only then do the stamps the meta
+ * records describe the code esbuild bundled. A missing input is no settled one.
+ * @param {string[]} files
+ * @param {number} started Date.now() before esbuild ran
+ * @param {(file: string) => number | null} [mtimeOf]
+ */
+export function settled(files, started, mtimeOf = (f) => {
+  try {
+    return fs.statSync(f).mtimeMs;
+  } catch {
+    return null;
+  }
+}) {
+  return files.every((f) => {
+    const t = mtimeOf(f);
+    return t !== null && t < started - SETTLE_MS;
+  });
+}
+
 export { ENTRY as TOOLBOX_ENTRY, CORE_ENTRY as TOOLCORE_ENTRY, listing as toolboxListing };
 
 /** Builds (or takes from the cache) the bundle of `entry` named `name`, and imports it. */
@@ -65,6 +90,9 @@ async function load(entry, name) {
   }
   if (!fs.existsSync(outfile) || !fresh(meta, esbuild.version, listing(), entry)) {
     const tmp = `${outfile}.${process.pid}.tmp.mjs`;
+    // --- agent-cli --- what the build started from: the folder listing, and the time before esbuild read a file
+    const before = listing();
+    const started = Date.now();
     let result;
     try {
       result = await esbuild.build({
@@ -84,13 +112,12 @@ async function load(entry, name) {
       const errors = Array.isArray(e?.errors) ? e.errors.map((x) => `${x.location ? `${x.location.file}:${x.location.line}:${x.location.column}: ` : ""}${x.text}`) : [e instanceof Error ? e.message : String(e)];
       throw new Error(`the agent toolbox (${path.relative(ROOT, entry)}) did not build: ${errors.slice(0, 5).join("; ")}`);
     }
-    const inputs = {};
-    for (const rel of Object.keys(result.metafile.inputs)) {
-      const file = path.resolve(ROOT, rel);
-      inputs[file] = stamp(file);
-    }
+    const files = Object.keys(result.metafile.inputs).map((rel) => path.resolve(ROOT, rel));
     fs.renameSync(tmp, outfile); // atomic: a parallel call imports either the old bundle or the new one, never half of one
-    fs.writeFileSync(metaFile, JSON.stringify({ esbuild: esbuild.version, entry, listing: listing(), inputs }));
+    // --- agent-cli --- an input saved while esbuild read it (its time at or after the build's start, give or take the
+    // file system's clock) may be in the bundle in its old form with its new stamp: no meta then, so the next call rebuilds
+    if (settled(files, started)) fs.writeFileSync(metaFile, JSON.stringify({ esbuild: esbuild.version, entry, listing: before, inputs: Object.fromEntries(files.map((f) => [f, stamp(f)])) }));
+    else fs.rmSync(metaFile, { force: true });
   }
   return import(`${pathToFileURL(outfile).href}?v=${encodeURIComponent(stamp(outfile))}`);
 }

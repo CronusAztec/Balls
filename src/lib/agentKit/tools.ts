@@ -8,7 +8,7 @@ import { validateJson, type JsonSchema } from "@/lib/desktop/ai/jsonSchema";
  *
  * What a tool may touch:
  *  - writes: "none", or ".agent-out" (its results only under <repo>/.agent-out/), plus what `alsoWrites` names: the caches
- *    outside it (every call keeps the bundled toolbox in the agent cache, a private folder of the OS temp directory);
+ *    outside it (every call keeps the bundled toolbox in the agent cache, a private folder of this user's cache folder);
  *  - network: "none", "localhost" (the CLI's own static server for the local export; the browser is fenced to it), or
  *    "owner" (the owner's own Plausible / Umami / Postiz host from the environment – owner-run commands only, never MCP).
  */
@@ -108,7 +108,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     },
     writes: ".agent-out",
     network: "localhost",
-    alsoWrites: ["the agent cache in the OS temp folder: the local export of the working tree (JBL_AGENT_CACHE)"],
+    alsoWrites: ["the agent cache in this user's cache folder (~/.cache/jbl-agent): the local export of the working tree (JBL_AGENT_CACHE)"],
     mcp: true,
     timeoutMs: 15 * 60_000,
   },
@@ -131,7 +131,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     },
     writes: ".agent-out",
     network: "localhost",
-    alsoWrites: ["the agent cache in the OS temp folder: the local export of the working tree (JBL_AGENT_CACHE)"],
+    alsoWrites: ["the agent cache in this user's cache folder (~/.cache/jbl-agent): the local export of the working tree (JBL_AGENT_CACHE)"],
     mcp: true,
     timeoutMs: 20 * 60_000,
   },
@@ -152,7 +152,7 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
     },
     writes: ".agent-out",
     network: "localhost",
-    alsoWrites: ["the agent cache in the OS temp folder: the local export of the working tree (JBL_AGENT_CACHE)"],
+    alsoWrites: ["the agent cache in this user's cache folder (~/.cache/jbl-agent): the local export of the working tree (JBL_AGENT_CACHE)"],
     mcp: true,
     timeoutMs: 15 * 60_000,
   },

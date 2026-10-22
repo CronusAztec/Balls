@@ -31,7 +31,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import { loadToolCore } from "./bundle.mjs";
-import { ROOT, cacheDir } from "./paths.mjs";
+import { ROOT, cacheDir, isMainModule } from "./paths.mjs";
 
 export const SERVER_NAME = "jumpingballs-agent";
 export const PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -376,7 +376,9 @@ export async function startServer() {
   process.stdin.on("end", async () => {
     reader.end();
     await Promise.allSettled([...pending]);
-    process.exit(0);
+    // --- agent-cli --- once stdout is flushed: a pipe is written asynchronously, and an exit right away cuts an answer
+    // past its first 64 KB
+    process.stdout.write("", () => process.exit(0));
   });
   const stop = () => {
     server.cancelAll();
@@ -388,5 +390,5 @@ export async function startServer() {
   process.stderr.write(`${SERVER_NAME} ${version}: ${server.offered.length} tools on stdio${table.error ? ` (the tool core did not build: ${table.error})` : ""}\n`);
 }
 
-const invoked = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const invoked = isMainModule(import.meta.url); // (--- agent-cli --- real paths: a start through a symbolic link runs too)
 if (invoked) await startServer();

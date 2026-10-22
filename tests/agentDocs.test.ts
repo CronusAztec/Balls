@@ -214,6 +214,30 @@ describe("the agent guide names only things that exist (--- agent-guide ---)", (
     expect(known("NEXT_PUBLIC_")).toBe(true);
   });
 
+  it("--- agent-guide --- every flag span on its own (`--base <ref>`, `--report <file>`) is the guard's, or a named other command's", () => {
+    // vitest's worker flags (the small-machine rule) and the agent CLI's --json: every other flag the guide writes alone is the guard's
+    const OTHERS = new Set(["--maxWorkers", "--minWorkers", "--json"]);
+    const checked = new Set<string>();
+    for (const [file, text] of Object.entries(TEXT)) {
+      for (const span of codeSpans(text).filter((s) => /^--[a-z]/.test(s))) {
+        for (const flag of span.match(/(?<![\w-])--[a-z][\w-]*/g) ?? []) {
+          if (OTHERS.has(flag)) continue;
+          let message = "";
+          try {
+            parseGuardArgs([flag]);
+          } catch (e) {
+            message = e instanceof Error ? e.message : String(e);
+          }
+          expect(message, `${file}: \`${span}\``).not.toMatch(/unknown argument/);
+          checked.add(flag);
+        }
+      }
+    }
+    // the protocol's own flags are among them, so renaming one in parseArgs fails here
+    expect([...checked]).toEqual(expect.arrayContaining(["--base", "--report", "--baseline", "--browser", "--plan", "--with-slow"]));
+    expect(() => parseGuardArgs(["--from"])).toThrow(/unknown argument/);
+  });
+
   it("every smoke block it names is a block of the suite", () => {
     const wildcard = (b: string) => (b.includes("*") ? BLOCKS.some((x) => globToRegExp(b).test(x)) : BLOCKS.includes(b));
     for (const [file, text] of Object.entries(TEXT)) for (const m of text.matchAll(/SMOKE_ONLY=([\w*,-]+)/g)) for (const b of m[1].split(",")) expect(wildcard(b), `${file}: ${b}`).toBe(true);

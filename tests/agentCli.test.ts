@@ -1,11 +1,12 @@
 import { spawnSync } from "child_process";
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
 import { ENGINE_TOOLS, GUARD_SCRIPT, guardCommand, guardFlags, guardReportFile, parseArgv, runCaptured, testSourceOf } from "../scripts/agent/cli.mjs";
 import { parseArgs as parseGuardArgs } from "../scripts/agent/guard.mjs";
-import { PathError, defaultOutName, hasScheme, isInside, outputDir, resolveInputFile, untrustedCacheReason, writeFileSafe } from "../scripts/agent/paths.mjs";
-import { TOOLBOX_ENTRY, TOOLCORE_ENTRY, fresh, toolboxListing } from "../scripts/agent/bundle.mjs";
+import { CACHE_DIR, PathError, cacheDirFor, defaultOutName, hasScheme, isInside, isMainModule, outputDir, resolveInputFile, untrustedCacheReason, userCacheBase, writeFileSafe } from "../scripts/agent/paths.mjs";
+import { SETTLE_MS, TOOLBOX_ENTRY, TOOLCORE_ENTRY, fresh, settled, toolboxListing } from "../scripts/agent/bundle.mjs";
 import os from "os";
 import { buildEnv, lockPids, patchNextConfig, siteFile } from "../scripts/agent/local-build.mjs";
 import { siteStatsTool } from "../scripts/agent/site-stats.mjs";
@@ -149,6 +150,68 @@ describe("what the toolbox trusts and where it writes (--- agent-cli ---)", () =
     }
   });
 
+  it("--- agent-cli --- keeps its cache in this user's own cache folder, never the shared temp folder another user could squat", () => {
+    expect(cacheDirFor("/repo", {}, "linux", "/home/u")).toMatch(/^\/home\/u\/\.cache\/jbl-agent\/[0-9a-f]{10}$/);
+    expect(cacheDirFor("/repo", { XDG_CACHE_HOME: "/xdg" }, "linux", "/home/u")).toMatch(/^\/xdg\/jbl-agent\//);
+    expect(cacheDirFor("/repo", { XDG_CACHE_HOME: "relative" }, "linux", "/home/u")).toMatch(/^\/home\/u\/\.cache\//);
+    expect(userCacheBase({}, "darwin", "/Users/u")).toBe("/Users/u/Library/Caches");
+    expect(userCacheBase({ LOCALAPPDATA: "C:\\Users\\u\\AppData\\Local" }, "win32", "C:\\Users\\u")).toBe("C:\\Users\\u\\AppData\\Local");
+    expect(userCacheBase({}, "win32", "C:\\Users\\u")).toBe("C:\\Users\\u\\AppData\\Local");
+    expect(cacheDirFor("/repo", { JBL_AGENT_CACHE: "/private/x" }, "linux", "/home/u")).toBe(path.resolve("/private/x"));
+    expect(cacheDirFor("/repo", {}, "linux", "/h")).not.toBe(cacheDirFor("/other", {}, "linux", "/h"));
+    // the real one: not in the temp folder (unless JBL_AGENT_CACHE says so)
+    if (!process.env.JBL_AGENT_CACHE) expect(isInside(os.tmpdir(), CACHE_DIR)).toBe(false);
+    // the finding's case: another user's folder at the old predictable temp name (uid and hash of the checkout) no longer
+    // stops a tool (as root, the folder really is another user's)
+    const squatted = path.join(os.tmpdir(), `jbl-agent-${process.getuid?.() ?? 0}-${crypto.createHash("sha1").update(ROOT).digest("hex").slice(0, 10)}`);
+    const made = !fs.existsSync(squatted);
+    if (made) fs.mkdirSync(squatted);
+    if (made && process.getuid?.() === 0) fs.chownSync(squatted, 1234, 1234);
+    try {
+      const r = spawnSync(process.execPath, [CLI, "explain", "--json", JSON.stringify({ failure: " FAIL  tests/a.test.ts > x\nError: Test timed out in 5000ms." })], { cwd: ROOT, encoding: "utf8", timeout: 60_000 });
+      expect(r.status, r.stdout).toBe(0);
+      expect(JSON.parse(r.stdout)).toMatchObject({ ok: true, result: { kind: "timeout" } });
+    } finally {
+      if (made) fs.rmSync(squatted, { recursive: true, force: true });
+    }
+  });
+
+  it("--- agent-cli --- keeps a bundle's list of inputs only when every input was saved before the build began", () => {
+    const now = 1_000_000;
+    const at = (t: number | null) => () => t;
+    expect(settled(["a"], now, at(now - SETTLE_MS - 1))).toBe(true);
+    expect(settled(["a"], now, at(now - 10))).toBe(false); // saved while esbuild read it (or within the file system's clock)
+    expect(settled(["a"], now, at(now + 50))).toBe(false);
+    expect(settled(["a"], now, at(null))).toBe(false);
+    expect(settled([], now, at(null))).toBe(true);
+    const bundle = fs.readFileSync(path.join(ROOT, "scripts/agent/bundle.mjs"), "utf8");
+    expect(bundle).toMatch(/const started = Date\.now\(\);[\s\S]*?esbuild\.build\(/);
+    expect(bundle).toMatch(/if \(settled\(files, started\)\) fs\.writeFileSync\(metaFile[\s\S]*?else fs\.rmSync\(metaFile/);
+  });
+
+  it("--- agent-cli --- runs when started through a symbolic link to the repository", () => {
+    const dir = scratch();
+    try {
+      const link = path.join(dir, "balls-link");
+      fs.symlinkSync(ROOT, link);
+      expect(isMainModule(`file://${CLI}`, path.join(link, "scripts", "agent", "cli.mjs"))).toBe(true);
+      expect(isMainModule(`file://${CLI}`, path.join(link, "scripts", "agent", "mcp.mjs"))).toBe(false);
+      const r = spawnSync(process.execPath, [path.join(link, "scripts", "agent", "cli.mjs"), "explain", "--json", JSON.stringify({ failure: "error TS2322: Type 'string' is not assignable" })], { cwd: dir, encoding: "utf8", timeout: 60_000 });
+      expect(r.status, r.stderr).toBe(0);
+      expect(JSON.parse(r.stdout)).toMatchObject({ ok: true, tool: "explain", result: { kind: "typecheck" } });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("--- agent-cli --- gives every site-shot its own file, even for pages whose names agree", async () => {
+    const { shotFileName } = await import("../scripts/agent/browser.mjs");
+    const pages = ["/en/", "/en", "/en/a_b/", "/en/a/b/", "/"];
+    const names = pages.map((p, i) => shotFileName(i, p, 390));
+    expect(names).toEqual(["01-en-390.png", "02-en-390.png", "03-en_a_b-390.png", "04-en_a_b-390.png", "05-root-390.png"]);
+    expect(new Set(names).size).toBe(pages.length);
+  });
+
   it("never takes a bundle whose list of inputs is empty or lacks the entry for a fresh one", () => {
     const version = "0.0.0-test";
     const listing = toolboxListing();
@@ -219,7 +282,8 @@ describe("what the toolbox trusts and where it writes (--- agent-cli ---)", () =
 
   it("names every place a tool writes besides .agent-out/: the local export's cache, the guard's state and build output", () => {
     const also = (name: string) => toolbox.AGENT_TOOLS.find((t) => t.name === name)?.alsoWrites ?? [];
-    for (const name of ["preview", "render", "site-shot"]) expect(also(name).join(" "), name).toMatch(/agent cache in the OS temp folder/);
+    // (--- agent-cli --- this user's own cache folder, never the shared temp folder another user could take the name in)
+    for (const name of ["preview", "render", "site-shot"]) expect(also(name).join(" "), name).toMatch(/agent cache in this user's cache folder/);
     expect(also("guard").join(" ")).toMatch(/node_modules\/\.cache\/jbl-guard/);
     expect(also("guard").join(" ")).toMatch(/\.next\/ and out\//);
     for (const t of toolbox.AGENT_TOOLS.filter((x) => x.writes === "none")) expect(t.alsoWrites, t.name).toBeUndefined();
@@ -296,7 +360,8 @@ describe("guard (--- agent-cli ---)", () => {
     const cache = path.join(ROOT, ".agent-out", "cache", "test-cli-plan");
     const own = path.join(ROOT, ".agent-out", "guard-report.json");
     const before = fs.existsSync(own) ? fs.readFileSync(own, "utf8") : null;
-    const env = { ...process.env, JBL_GUARD_CACHE: cache, JBL_GUARD_REPORT: path.join(cache, "guard-report.json") }; // (never the cache or the report of a guard run this test may be inside)
+    // (never the cache or the report of a guard run this test may be inside, nor the Actions job summary of a CI run)
+    const env = { ...process.env, GITHUB_ACTIONS: "", GITHUB_STEP_SUMMARY: "", JBL_GUARD_CACHE: cache, JBL_GUARD_REPORT: path.join(cache, "guard-report.json") };
     const r = spawnSync(process.execPath, [CLI, "guard", "--json", JSON.stringify({ plan: true, base: "HEAD" })], { cwd: ROOT, encoding: "utf8", timeout: 120_000, env });
     const out = JSON.parse(r.stdout.trim().split("\n").pop() || "null");
     expect(out).toMatchObject({ ok: true, tool: "guard", result: { available: true, command: "npm run guard -- --plan --base HEAD", reportFile: ".agent-out/cache/test-cli-plan/guard-report.json" } });

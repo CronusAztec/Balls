@@ -34,7 +34,7 @@ has to be added here by hand: the test proves the list true, not complete.
 | 7 | `src/lib/physics/engine.ts` | `is<Name>Mode()`, `get<Name>Settings()`, `set<Name>Settings(`, `get<Name>View()`, `get<Name>Progress()` | The accessor block. The canvas reads the view through it. | **partly**: `tests/docsConsistency.test.ts` checks each setter is applied in `initEngineForMode` |
 | 8 | `src/lib/physics/bounceMathRuntime.ts` | `BOUNCE_MATH_BALL_MODES`, `BOUNCE_MATH_COLLIDE_MODES`, `BOUNCE_MATH_PASS_MODES`, `BOUNCE_MATH_BREAK_MODES` | The lists the mode's contacts belong to. A mode that resolves its own contacts calls `ctx.noteBounce?.(ball)` and `ctx.noteCollide?.(a, b)`. | **partly**: `tests/bounceMath.test.ts` checks the bounce trigger only. The hit, pass and break lists: none |
 | 9 | `src/lib/uncap.ts` | `MEMORY_CEILINGS` | A ceiling for each whole-number setting that sizes an allocation, such as a tier or ball count. Every other step-1 setting goes in row 10 instead: each needs exactly one of the two. Protected: owner review. | **tested**: `tests/uncap.test.ts` (missed in both recent modes, fixed later in 916a3bb) |
-| 10 | `tests/uncap.test.ts` | `SIZES_NOTHING` | Each whole-number setting (a step-1 range) that sizes nothing, with what it counts, such as `mrSpawnTiers` or `sgGlassHp`. | **tested**: `tests/uncap.test.ts` (missed in both recent modes, fixed later in 916a3bb) |
+| 10 | `tests/uncap.test.ts` | `SIZES_NOTHING` | Each whole-number setting (a step-1 range) that sizes nothing, with what it counts, such as `mrSpawnTiers` or `sgGlassHp`. Never a count that sizes an allocation (a ball or tier count): it would lose its memory ceiling. Protected: owner review. | **tested**: `tests/uncap.test.ts` (missed in both recent modes, fixed later in 916a3bb) |
 | 11 | `src/lib/audio/songs.ts` | `MODE_WALL_BREAK_SOUNDS` | Optional: the wall-break clip of a mode that shatters something. | **none** |
 
 ## Settings and links (`src/lib/settings.ts`)
@@ -118,7 +118,9 @@ has to be added here by hand: the test proves the list true, not complete.
 ## Checking the mode as you go
 
 - `npm run -s agent -- modes --json '{"mode":"<id>"}'` lists the fields with their defaults, ranges, link keys and whether
-  the engine reads them, so a field missing from rows 14 to 20 shows.
+  the engine reads them (row 19). It also writes another value of each field into a link and reads it back (`roundTrip`:
+  rows 17 and 18), and hands `presetToSettings` a value of the wrong type (`resolved`: row 20); `linkProblems` names every
+  field that fails either. Rows 14 to 16 are typed.
 - `npm run -s agent -- simulate --json '{"mode":"<id>","seed":1,"seconds":30}'` runs a seed as the finder does. Run it
   twice: the output must be byte-identical.
 - `npm run -s agent -- fingerprint --json '{"mode":"<id>"}'` prints the fingerprint to put in `BASELINE`, once the mode

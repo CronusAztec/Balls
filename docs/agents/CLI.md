@@ -19,15 +19,15 @@ stderr. The schemas live in `src/lib/agentKit/tools.ts`.
 
 | Tool | What it returns | Example |
 | --- | --- | --- |
-| `modes` | Every mode: id, family, English name, settings prefix, field count. With `mode`: each field's default, slider range, link key and whether the engine reads it. | `{"mode":"mergeRing"}` |
+| `modes` | Every mode: id, family, English name, settings prefix, field count. With `mode`: each field's default, slider range, link key, whether the engine reads it, whether a link keeps it (`roundTrip`) and whether `presetToSettings` resolves it (`resolved`). | `{"mode":"mergeRing"}` |
 | `simulate` | One seed of a link or a mode, run in Node exactly as the seed finder runs it. It returns `finished` and `finishSec` (the finder's own time), balls per second, sound events per type, the mode's state, view and progress (JSON-safe), a NaN flag and work counts. | `{"mode":"spiralGlass","seed":12345,"seconds":10}` |
 | `fingerprint` | A mode's fingerprint by the `tests/extras.test.ts` recipe (seed 12345, 600 frames) and its diff against that file's BASELINE entry. Without `mode`: every mode, equal or not. | `{"mode":"classic"}` |
 | `preview` | A PNG contact sheet of a link at the given seconds, from the real page's still camera. | `{"link":"?mode=box&seed=3","times":[1,3,5]}` |
 | `render` | A clip of a link through the page's own fast export, with its export digest and render result. WebM is also converted to MP4 when ffmpeg is present. | `{"mode":"classic","seed":42,"seconds":10}` |
-| `site-shot` | PNG screenshots of site pages at the given widths, with page errors and a horizontal-scroll flag. | `{"pages":["/en/","/en/pricing/"],"widths":[390,1280]}` |
+| `site-shot` | PNG screenshots of site pages at the given widths (one file per page and width, numbered in the list's order), with page errors and a horizontal-scroll flag. | `{"pages":["/en/","/en/pricing/"],"widths":[390,1280]}` |
 | `analyse` | Numeric features of a local video file: duration, fps, size, scene cuts, motion, colour, loop seam, loudness, tempo. | `{"path":".agent-out/inbox/clip.mp4"}` |
 | `guard` | Runs the core guard (`npm run guard`) and returns its exit code, its report and the end of its output. | `{"plan":true}`, `{"browser":true}` |
-| `explain` | Sorts a failure into a source pin, a behaviour change, a moved fingerprint, a timeout, a type or a lint error. It says which fix is legitimate and what never to do. | `{"failure":"<vitest output>"}` |
+| `explain` | Sorts a failure into a source pin, a behaviour change, a moved fingerprint, a timeout, a type or a lint error, or one of the guard's own: a weakened test, a stale export, a missing install or browser. It says which fix is legitimate and what never to do. | `{"failure":"<vitest output>"}` |
 | `site-stats` | Owner-run. Aggregate website numbers from the owner's own Plausible or Umami. | `{"days":30}` |
 | `postiz-probe` | Owner-run. Which analytics series the owner's Postiz returns: labels and point counts only. | `{"days":30,"posts":5}` |
 
@@ -44,8 +44,10 @@ page can play differently here. `preview` and `render` run in the page and use i
   writes ever shows in `git status`. Every file is written under a fresh name and renamed into place, so a symbolic link at
   the target (a checkout can carry one) is replaced, never written through, and a linked `.agent-out` is refused.
 - **Its caches live elsewhere.** The bundled toolbox and the local export are in the agent cache outside the repository:
-  `JBL_AGENT_CACHE`, else `<OS temp>/jbl-agent-<user>-<hash>`. The CLI runs code from it, so it is private: created 0700,
-  and refused when it is a link, belongs to another user or others may write to it. The `guard` tool's state is the
+  `JBL_AGENT_CACHE`, else `jbl-agent/<hash>` in your own cache folder (`XDG_CACHE_HOME` or `~/.cache` on Linux,
+  `~/Library/Caches` on macOS, `%LOCALAPPDATA%` on Windows), never the shared temp folder, where another user could take the
+  name first. The CLI runs code from it, so it is private: created 0700, and refused when it is a link, belongs to another
+  user or others may write to it. The `guard` tool's state is the
   guard's own (`node_modules/.cache/jbl-guard`), and with `browser` the guard rebuilds the repository's `.next/` and `out/`.
 - **Every path argument must resolve inside the repository**, symbolic links included. URLs (`http:`, `https:`, `data:`,
   `file:`…) are refused, never opened. To analyse a file from elsewhere, copy it to `.agent-out/inbox/` first. `explain`
@@ -111,12 +113,14 @@ In the guard, a protected-path change is only reported, for the owner's review. 
 (a changed fingerprint without a `Fingerprint-Change: <mode> - <reason>` commit trailer) and the test-weakening detector (a
 finding without `Test-Change: <file or glob> - <reason>`; an added `.only` always) fail it. Both read their rules from
 `protected.json` at the base commit and in the working tree, so a change cannot switch off the check it would fail. A
-baseline is refused on a changed tree, and used only by a run measured from its commit or a later one. AGENTS.md has the
-order to run it in.
+baseline is refused on a changed tree, and used only by a run measured from that very commit. AGENTS.md has the order to
+run it in.
 
 `explain` measures which source files a failing test reads as text, `Simulator.tsx`, `Canvas.tsx` and `Controls.tsx` among
-them. A text assertion in such a test is a source pin: keep the pinned contract in the source. Never re-record a
-fingerprint, delete an `expect(`, add `.skip` or `.only`, or raise a timeout to make a test pass.
+them. A text assertion in such a test is a source pin: keep the pinned contract in the source. It also knows the guard's
+own failures: a weakening finding (restore the test, or a `Test-Change:` trailer and owner review), a stale `out/` (rebuild
+it) and a missing install or browser (install it, and change no code). Never re-record a fingerprint, delete or rewrite an
+`expect(`, add `.skip` or `.only`, or raise a timeout to make a test pass.
 
 ## Owner-run commands
 

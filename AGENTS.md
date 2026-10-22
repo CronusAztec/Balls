@@ -14,8 +14,9 @@ ELECTRON_SKIP_BINARY_DOWNLOAD=1 npm ci --prefix desktop   # the Windows app's te
 npm ci --prefix billing                                   # the billing Worker's tests and type check
 ```
 
-Chromium for Playwright (the browser smoke suite and the agent toolbox's browser tools) comes from `npx playwright install
-chromium`, or from `PLAYWRIGHT_BROWSERS_PATH` when one is installed already. `graphify-out/` is git-ignored and stale: never
+Chromium for Playwright comes from `npx playwright install chromium`, or from `PLAYWRIGHT_BROWSERS_PATH` when one is
+installed already. `npm run guard` needs it too, not only the smoke suite and the toolbox's browser tools: tier 0 runs vitest
+with `JBL_REQUIRE_BROWSER=1`, so `tests/masterBus.test.ts` and `tests/fightLeagueSound.test.ts` fail without it. `graphify-out/` is git-ignored and stale: never
 trust it over the source.
 
 ## Commands
@@ -23,7 +24,7 @@ trust it over the source.
 | Command | What it does |
 | --- | --- |
 | `npm run guard` | The core guard, tier 0: type check, lint, the core tests and the tests your change touches, plus the static checks. No build. Exit 0 green, 1 failed, 2 green but a higher tier is required. On 4 CPUs: about 40 s warm with nothing changed, under a minute warm with a full set of related tests or after a one-file edit, under 3 minutes cold |
-| `npm run guard -- --baseline` | Tier 0 on the untouched tree (refused on a tree with any change): records the failures that already exist, so later runs measured from that commit mark them pre-existing |
+| `npm run guard -- --baseline` | Tier 0 on the untouched tree (refused on a tree with any change): records the failures that already exist, so later runs measured from that very commit mark them pre-existing |
 | `npm run guard -- --plan` | What would run, plus the static checks' findings, in about a second. Nothing runs |
 | `npm run guard:browser` | Tier 1: tier 0, then a `/smoke` build, the export served on port 3101 and the core smoke blocks plus your change's |
 | `npm run typecheck`, `npm run lint` | `tsc --noEmit` and ESLint for the site (`scripts/`, `desktop/` and `billing/` are outside both) |
@@ -42,12 +43,13 @@ the change from the merge base with `origin/main`. `JBL_GUARD_BASE` overrides th
 ## The verification protocol
 
 1. Run `npm run guard -- --baseline` on the untouched tree. It records the failures of that commit, and a later run uses it
-   only when it measures from that commit or a later one: a baseline recorded after the base would excuse your own
-   failures. On a branch already ahead of `origin/main`, measure from where you started with `--base <that commit>`.
+   only when it measures from that very commit: one recorded after the base would excuse your own failures, one before it
+   a failure the base has fixed since. On a branch already ahead of `origin/main`, measure from where you started with
+   `--base <that commit>`.
 2. Make the change.
 3. Run `npm run guard` until it exits 0. If it exits 2, run what `required` lists.
-4. Run `npm run guard:browser` when you touched page, canvas, recording, export or desktop page code. It adds the smoke
-   blocks of the core functions your change touches.
+4. Run `npm run guard:browser` when you touched page, canvas, recording, export or desktop page code, or a core-zone file
+   (step 3's `required` then lists it). It adds the smoke blocks of the core functions your change touches.
 5. A hub file (exit 2, "tier 2 required") needs the whole CI run: `JBL_REQUIRE_BROWSER=1 npm run test:ci`, a `/smoke` build
    and the four smoke shards, the same commands `.github/workflows/deploy.yml` runs on the product branch. The guard prints
    them. Run them yourself, or say in your hand-over that tier 2 did not run, so the owner can decide. Never push to have CI
@@ -87,8 +89,8 @@ of another commit. Rebuild it (`npm run build`), remove it, or point `PERF_GUARD
 Every changed file lands in one zone, listed in the guard report and defined in `scripts/agent/core.json` (`editZones`):
 
 - **free**: new files, catalog data and docs that no core function owns. Tier 0 is enough.
-- **core**: a file one of the 13 core functions owns (`docs/agents/CORE.md`). Tier 0, plus that function's smoke blocks in
-  `npm run guard:browser`.
+- **core**: a file one of the 13 core functions owns (`docs/agents/CORE.md`): its code, or a test that proves it. Tier 0,
+  plus that function's smoke blocks in `npm run guard:browser`: tier 0 alone exits 2 until they run.
 - **guarded**: a hub file (`hubFiles` in `core.json`, for example `src/lib/physics/engine.ts`, `src/lib/settings.ts`,
   `src/components/simulator/Canvas.tsx` and `messages/*.json`). Most of the suite imports these, so a change needs tier 2.
 - **protected**: a path or region in `scripts/agent/protected.json`. It needs owner review. The guard reports it as a
@@ -125,11 +127,14 @@ Every changed file lands in one zone, listed in the guard report and defined in 
 
 ## Never do
 
-- Never re-record a fingerprint to make a test pass. A moved fingerprint means the mode now plays differently: find out
-  why. A deliberate change needs the commit trailer `Fingerprint-Change: <mode> - <reason>` and owner review.
-- Never widen an allow list: the uncap `ALLOWED`, the physics-purity `ALLOWED` or the i18n `KNOWN` list.
-- Never relax a budget or raise a timeout, delete an `expect(`, or add `.skip`, `.skipIf`, `.todo` or `.only`. A legitimate
-  test edit that the weakening detector flags needs `Test-Change: <file or glob> - <reason>`. An added `.only` always fails.
+- Never re-record a fingerprint to make a test pass, in its literal or in code after it. A moved fingerprint means the mode
+  now plays differently: find out why. A deliberate change needs the commit trailer `Fingerprint-Change: <mode> - <reason>`
+  and owner review. A new row of a pinned table passes without one.
+- Never widen an allow list: the uncap `ALLOWED` and `SIZES_NOTHING`, the physics-purity `ALLOWED` or the i18n `KNOWN`
+  list. An edit of the code around one (a push after it, a second declaration) counts as widening it.
+- Never relax a budget or raise a timeout, delete or rewrite an `expect(`, or add `.skip`, `.skipIf`, `.todo` or `.only` (in
+  any spelling: `it["skip"]`, an alias of `it`). A legitimate test edit that the weakening detector flags, an assertion
+  changed on purpose included, needs `Test-Change: <file or glob> - <reason>`. An added `.only` always fails.
   Moving, renaming or splitting a test file is no finding, as long as its very `expect(` statements reappear.
 - Never use the TEST licence (`tests/fixtures/license-test-key.json`, `scripts/lib/test-license.mjs`) outside the unit tests
   and the smoke harness. No tool may produce an unwatermarked clip.
@@ -159,8 +164,8 @@ failed) or 2 (a usage error). `npm run -s agent -- --help` lists every tool with
 
 Every tool writes its results only under `.agent-out/`, refuses paths outside the repository and URLs, starts no shell, and
 uses no network except its own 127.0.0.1 server. The two owner-run tools call only the owner's own host, with the owner's
-key. The caches live elsewhere: the toolbox's bundle and local export in a private folder of the OS temp directory
-(`JBL_AGENT_CACHE` overrides), the guard's state in `node_modules/.cache/jbl-guard`, and `guard` with `browser` rebuilds the
+key. The caches live elsewhere: the toolbox's bundle and local export in a private folder of your own cache folder
+(`~/.cache/jbl-agent`; `JBL_AGENT_CACHE` overrides), the guard's state in `node_modules/.cache/jbl-guard`, and `guard` with `browser` rebuilds the
 repository's `.next/` and `out/`.
 
 **MCP.** The MCP server exposes 9 tools: `modes`, `simulate`, `fingerprint`, `preview`, `render`, `site-shot`, `analyse`,

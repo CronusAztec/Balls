@@ -4,11 +4,13 @@
  *    inside it; URLs (http:, https:, data:, file: …) are refused, never opened.
  *  - OUT_DIR: <repo>/.agent-out/, the only place a tool writes files (PNG, MP4, JSON reports). It ignores itself (it holds a
  *    .gitignore of "*"), so nothing a tool writes ever shows in `git status`.
- *  - CACHE_DIR: the agent cache outside the repository – JBL_AGENT_CACHE, else <OS temp>/jbl-agent-<user>-<hash of ROOT>: the
- *    bundled toolbox and the local export (a copy of the working tree, built there). Outside the repository on purpose: a
- *    source copy inside it would be type-checked and linted with the real one, and one under node_modules/ is not compiled by
- *    Next. The CLI imports and runs code from it, so it is private: created 0700, and refused – never used – when it is a
- *    link, or (on Linux and macOS, where the temp folder is shared) not this user's or writable by anyone else.
+ *  - CACHE_DIR: the agent cache outside the repository – JBL_AGENT_CACHE, else jbl-agent/<hash of ROOT> in this user's own
+ *    cache folder (XDG_CACHE_HOME or ~/.cache on Linux, ~/Library/Caches on macOS, %LOCALAPPDATA% on Windows): the bundled
+ *    toolbox and the local export (a copy of the working tree, built there). Outside the repository on purpose: a source
+ *    copy inside it would be type-checked and linted with the real one, and one under node_modules/ is not compiled by Next.
+ *    Not in the shared temp folder (--- agent-cli ---): there another user could create the predictable folder first, and the
+ *    toolbox would refuse it for good. The CLI imports and runs code from it, so it is private: created 0700, and refused –
+ *    never used – when it is a link, or (on Linux and macOS) not this user's or writable by anyone else.
  * Files are written through writeFileSafe: under a fresh name, then renamed over the target, so a symbolic link a checkout
  * carries at .agent-out/… is replaced, never written through.
  */
@@ -20,10 +22,52 @@ import { fileURLToPath } from "url";
 
 export const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const OUT_DIR = path.join(ROOT, ".agent-out");
-/** This user, for the cache folder's name (the uid on Linux and macOS). */
-const userTag = () => (typeof process.getuid === "function" ? String(process.getuid()) : crypto.createHash("sha1").update(os.userInfo().username).digest("hex").slice(0, 8));
 
-export const CACHE_DIR = process.env.JBL_AGENT_CACHE ? path.resolve(process.env.JBL_AGENT_CACHE) : path.join(os.tmpdir(), `jbl-agent-${userTag()}-${crypto.createHash("sha1").update(ROOT).digest("hex").slice(0, 10)}`);
+/**
+ * --- agent-cli --- This user's own cache folder: %LOCALAPPDATA% on Windows, ~/Library/Caches on macOS, XDG_CACHE_HOME (when
+ * absolute) or ~/.cache elsewhere – a folder no other user can create entries in, unlike the shared temp folder.
+ * @param {Record<string, string | undefined>} [env]
+ * @param {string} [platform]
+ * @param {string} [home]
+ * @returns {string}
+ */
+export function userCacheBase(env = process.env, platform = process.platform, home = os.homedir()) {
+  if (platform === "win32") return env.LOCALAPPDATA && path.win32.isAbsolute(env.LOCALAPPDATA) ? env.LOCALAPPDATA : path.win32.join(home, "AppData", "Local");
+  if (platform === "darwin") return path.posix.join(home, "Library", "Caches");
+  return env.XDG_CACHE_HOME && path.posix.isAbsolute(env.XDG_CACHE_HOME) ? env.XDG_CACHE_HOME : path.posix.join(home, ".cache");
+}
+
+/**
+ * The agent cache of the checkout at `root`: JBL_AGENT_CACHE, else jbl-agent/<hash of the checkout> in userCacheBase().
+ * @param {string} root
+ * @param {Record<string, string | undefined>} [env]
+ * @param {string} [platform]
+ * @param {string} [home]
+ * @returns {string}
+ */
+export function cacheDirFor(root, env = process.env, platform = process.platform, home = os.homedir()) {
+  if (env.JBL_AGENT_CACHE) return path.resolve(env.JBL_AGENT_CACHE);
+  return path.join(userCacheBase(env, platform, home), "jbl-agent", crypto.createHash("sha1").update(root).digest("hex").slice(0, 10));
+}
+
+export const CACHE_DIR = cacheDirFor(ROOT);
+
+/**
+ * --- agent-cli --- Whether `metaUrl` is the module Node started (`argv1`): their real paths compared, so a start through a
+ * symbolic link (macOS's /tmp, a linked home or workspace) runs the tool instead of exiting 0 having done nothing.
+ * @param {string} metaUrl
+ * @param {string | undefined} [argv1]
+ * @returns {boolean}
+ */
+export function isMainModule(metaUrl, argv1 = process.argv[1]) {
+  if (!argv1) return false;
+  const self = fileURLToPath(metaUrl);
+  try {
+    return fs.realpathSync(path.resolve(argv1)) === fs.realpathSync(self);
+  } catch {
+    return path.resolve(argv1) === self;
+  }
+}
 
 export class PathError extends Error {}
 
@@ -43,7 +87,7 @@ function assertLeadsInside(parent, p, what) {
 export function untrustedCacheReason(stat, uid = typeof process.getuid === "function" ? process.getuid() : null) {
   if (stat.isSymbolicLink()) return "it is a symbolic link";
   if (!stat.isDirectory()) return "it is not a folder";
-  if (uid === null) return null; // Windows: the temp folder is the user's own
+  if (uid === null) return null; // Windows: the cache folder is the user's own
   if (stat.uid !== uid) return `it belongs to another user (uid ${stat.uid})`;
   if ((stat.mode & 0o022) !== 0) return `others may write to it (mode ${(stat.mode & 0o777).toString(8)})`;
   return null;
@@ -54,7 +98,8 @@ let cacheChecked = false;
 /** The cache folder itself: created private, else checked before anything in it is read or run. */
 function cacheRoot() {
   if (cacheChecked) return CACHE_DIR;
-  fs.mkdirSync(path.dirname(CACHE_DIR), { recursive: true });
+  // (the folders above it this user's own, and private when created here: ~/.cache/jbl-agent)
+  fs.mkdirSync(path.dirname(CACHE_DIR), { recursive: true, mode: 0o700 });
   try {
     fs.mkdirSync(CACHE_DIR, { mode: 0o700 });
   } catch (e) {

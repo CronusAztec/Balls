@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { jsonView, roundNumber } from "@/lib/agentKit/jsonView";
 import { simulate } from "@/lib/agentKit/simulate";
 import { BASELINE_FILE, diffFingerprint, fingerprintOf, parseBaselineLiteral } from "@/lib/agentKit/fingerprint";
-import { commonPrefix, modeCatalog, modeDetail } from "@/lib/agentKit/modeCatalog";
+import { commonPrefix, linkChecks, modeCatalog, modeDetail, type LinkIo } from "@/lib/agentKit/modeCatalog";
 import { explainFailure, testFilesIn, textReadsOf } from "@/lib/agentKit/explain";
 import { AGENT_TOOLS, checkToolArgs, toolSpec } from "@/lib/agentKit/tools";
 import { DEFAULT_SEED, normaliseLink, resolveRun } from "@/lib/agentKit/runRequest";
@@ -12,7 +12,7 @@ import { postizConfigFromEnv, seriesShapes, statsConfigFromEnv, statsOrigin, sta
 import { finderRequestOfSettings } from "@/lib/bot/finderRequest";
 import { simulateSeed } from "@/lib/simulation/finder";
 import { MODE_IDS } from "@/lib/physics/types";
-import { defaultSettings } from "@/lib/settings";
+import { defaultSettings, presetToSettings, settingsFromSearchParams, settingsToSearchParams } from "@/lib/settings";
 import en from "../messages/en.json";
 
 // --- agent-cli --- The agent toolbox's pure helpers (src/lib/agentKit): what `npm run agent -- <tool>` computes. The CLI and
@@ -143,7 +143,7 @@ describe("mode catalog (--- agent-cli ---)", () => {
   it("gives a mode's fields with defaults, ranges and link keys read from the site's own link writer", () => {
     const mr = modeDetail("mergeRing", en);
     expect(mr?.prefix).toBe("mr");
-    expect(mr?.fieldList.find((f) => f.key === "mrTiers")).toEqual({ key: "mrTiers", default: 7, range: { min: 5, max: 10, step: 1 }, url: "mrt", engine: true });
+    expect(mr?.fieldList.find((f) => f.key === "mrTiers")).toEqual({ key: "mrTiers", default: 7, range: { min: 5, max: 10, step: 1 }, url: "mrt", engine: true, roundTrip: true, resolved: true });
     expect(modeDetail("target", en)?.fieldList.find((f) => f.key === "targetCount")?.url).toBe("tc");
     expect(modeDetail("nope", en)).toBeNull();
     expect(commonPrefix(["sgTurns", "sgTilt"])).toBe("sg");
@@ -160,6 +160,41 @@ describe("explain (--- agent-cli ---)", () => {
     // the brittle neighbours of the hub files are measured, not listed: at least the watermark scans read them
     const pinned = fs.readdirSync(path.join(ROOT, "tests")).filter((f) => f.endsWith(".test.ts") && textReadsOf(read(`tests/${f}`)).some((r) => /(Simulator|Canvas|Controls)\.tsx$/.test(r)));
     expect(pinned).toEqual(expect.arrayContaining(["freeWatermark.test.ts", "watermarkEverywhere.test.ts", "docsConsistency.test.ts"]));
+  });
+
+  it("--- agent-cli --- shows a field a share link loses or presetToSettings() leaves unresolved (MODES.md rows 17, 18 and 20)", () => {
+    const mr = modeDetail("mergeRing", en)!;
+    expect(mr.linkProblems).toEqual([]);
+    expect(mr.fieldList.every((f) => f.roundTrip === true && f.resolved === true)).toBe(true);
+    const site: LinkIo = { write: settingsToSearchParams, read: settingsFromSearchParams, preset: presetToSettings };
+    // the link reader without readMergeRingParams: every field a link sets comes back as the default
+    const noReader: LinkIo = { ...site, read: (params) => settingsFromSearchParams(new URLSearchParams([...params].filter(([k]) => !k.startsWith("mr")))) };
+    expect(modeDetail("mergeRing", en, noReader)!.fieldList.map((f) => [f.key, f.roundTrip])).toEqual(mr.fieldList.map((f) => [f.key, false]));
+    // presetToSettings without resolveMergeRingFields: a wrong-typed value stays
+    const noResolver: LinkIo = { ...site, preset: (p) => ({ ...defaultSettings(p.mode ?? "classic"), ...p }) as ReturnType<typeof presetToSettings> };
+    const unresolved = modeDetail("mergeRing", en, noResolver)!;
+    expect(unresolved.fieldList.every((f) => f.resolved === false)).toBe(true);
+    expect(unresolved.linkProblems).toContain("mrTiers: presetToSettings() does not resolve it");
+    // a value the resolver folds back onto the default is no round trip to try: the pendulum's 1-sided polygon is the circle
+    expect(linkChecks(defaultSettings("pendulum"), "pwPolygon")).toEqual({ roundTrip: true, resolved: true });
+  });
+
+  it("sorts the guard's own findings: a weakened test, a stale export, a missing install or browser", () => {
+    const weak = explainFailure('       x expect-drop: tests/freeWatermark.test.ts – expect calls 12 → 11 (1 removed and added to no other test file of the change that still runs) – needs "Test-Change: tests/freeWatermark.test.ts - <reason>" and owner review', []);
+    expect(weak.kind).toBe("weakening");
+    expect(weak.legitimateFix.join(" ")).toMatch(/restore the test/);
+    expect(weak.legitimateFix.join(" ")).toMatch(/Test-Change: <file> - <reason>/);
+    expect(weak.legitimateFix.join(" ")).not.toMatch(/fix the code/);
+    expect(explainFailure("       x expect-changed: tests/freeWatermark.test.ts – 2 expect statements rewritten in place", []).kind).toBe("weakening");
+    expect(explainFailure("       x skip-added: tests/shareCode.test.ts – .skip 0 → 1", []).kind).toBe("weakening");
+    const stale = explainFailure("  [C vitest] vitest tests/perfGuards.test.ts > built export freshness (the core guard) is built from HEAD, not an older commit\nAssertionError: ./out was built from a402977, HEAD is e36c1e2 – rebuild it", []);
+    expect(stale.kind).toBe("stale-export");
+    expect(stale.legitimateFix.join(" ")).toMatch(/npm run build.*PERF_GUARD_OUT/);
+    const env = explainFailure("       x desktop: tsc --noEmit -p tsconfig.json: failed – desktop/node_modules is missing – run npm ci --prefix desktop (with ELECTRON_SKIP_BINARY_DOWNLOAD=1)", []);
+    expect(env.kind).toBe("environment");
+    expect(env.legitimateFix.join(" ")).toMatch(/npm ci --prefix desktop/);
+    expect(explainFailure(" FAIL  tests/masterBus.test.ts > peaks\nError: JBL_REQUIRE_BROWSER=1: Chromium did not start for the rendered master-bus checks: browserType.launch: Executable doesn't exist", []).kind).toBe("environment");
+    expect(explainFailure("       x fingerprint changed: hoops in tests/hoops.test.ts (pinned) – needs a commit trailer \"Fingerprint-Change: hoops - <reason>\" and owner review", []).kind).toBe("fingerprint");
   });
 
   it("sorts a source pin, a fingerprint, a behaviour change, a timeout and a type error", () => {

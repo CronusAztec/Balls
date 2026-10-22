@@ -355,14 +355,15 @@ changed files are `git diff --name-only <base>` plus untracked files.
 | `npm run guard` | **tier 0**, no build, three lanes at once – A: an incremental `tsc` that emits declarations into the guard's cache instead of `--noEmit`, so a body-only edit re-checks no dependents (about 145 s cold, 10 s warm, 6–12 s after a body-only edit, against 111 s with `--noEmit`; errors only declaration emit raises do not count, as `npm run typecheck` never sees them); B: ESLint with its cache, `node --check` on `scripts/**/*.mjs`, `relay/*.mjs` and `worker/*.mjs`, the desktop app's type check and tests, the billing Worker's; C: one vitest run (three workers, `--allowOnly=false`) of the core list of `core.json` and the tests that import a changed file (through the import graph, nearest first, minus the slow files, at most 10: the rest are listed as required), then `changelog --check` and `smoke-test.mjs --list`. On 4 CPUs: under 3 minutes cold; warm, about 40 s with nothing changed and under a minute with a full set of related tests (measured 53 s) |
 | `npm run guard:browser` | **tier 1**: tier 0, then (once lane A passed) `next build` under `/smoke` without Next's own type check (`JBL_BUILD_SKIP_TYPECHECK=1`) and without obfuscation, the export served on port 3101 and the core smoke blocks of `core.json` (`core-every-mode` among them) plus the blocks of the features the change touched. About 5–6 minutes |
 | tier 2 | printed, never run: `JBL_REQUIRE_BROWSER=1 npm run test:ci`, a `/smoke` build and the four smoke shards (a readiness wait, every shard run, the line failing when any shard failed) – the commands `deploy.yml` runs on the product branch, to run locally; a push to the product branch deploys, so it is never the way to run them |
-| `npm run guard -- --baseline` | tier 0 on the untouched tree (refused on a tree with any change, untracked files included): records the failures that already exist, so a later run marks them `pre-existing` instead of blaming the change – only a run measured from that commit or a later one (a baseline recorded after the base would excuse the change's own failures), and its verdict says so ("green with N pre-existing failures excused by the baseline"). Refused while the desktop or billing install is missing: a missing install is never recorded or excused |
+| `npm run guard -- --baseline` | tier 0 on the untouched tree (refused on a tree with any change, untracked files included): records the failures that already exist, so a later run marks them `pre-existing` instead of blaming the change – only a run measured from that very commit (one recorded after the base would excuse the change's own failures, one before it a failure the base has fixed since), and its verdict says so. It also records every test file's skip counts, which a later run compares its own with; a smoke failure is recorded check by check, and a step with one signature for its whole output (`next build`, the changelog check) is never excused ("green with N pre-existing failures excused by the baseline"). Refused while the desktop or billing install is missing: a missing install is never recorded or excused |
 | `npm run guard -- --plan` | what would run and the static checks' findings, without running anything (`--json` prints the report) |
 
 - **Exit codes**: 0 green; 1 failed (a step, an unacknowledged fingerprint change, a weakened test); 2 green, but the change
   needs more than this run did. The report's `required` names the commands: a hub file (`engine.ts`, `types.ts`, `extras.ts`,
   `limits.ts`, `finder.ts`, `settings.ts`, `Canvas.tsx`, `Simulator.tsx`, `messages/*.json`) requires tier 2; Fight League files
   the three balance files and the `fight-league` block; billing, the watermark or recording the paywall and watermark blocks;
-  the desktop bridge the desktop blocks; a mode's file `tests/<id>*.test.ts` and its block. Slow tests a change pulls in
+  the desktop bridge the desktop blocks; a mode's file `tests/<id>*.test.ts` and its block; a core function's file (its code,
+  or a unit test that proves it) that function's smoke blocks, so tier 0 alone exits 2. Slow tests a change pulls in
   (`--with-slow` runs them) and related tests past the cap are listed too – the guard never passes a subset off as the whole check.
 - **The report**: `.agent-out/guard-report.json` (git-ignored; `--report <file>` or `JBL_GUARD_REPORT` put it elsewhere under
   `.agent-out/` or the cache, as the guard's own tests do) – every lane and step with its duration, the failures (stable
@@ -378,27 +379,33 @@ changed files are `git diff --name-only <base>` plus untracked files.
   `guardPlan.ts` or `protectedDiff.ts`, the base commit's versions run as well and the stricter static findings, baseline
   verdicts and exit code count; CI judges a push that edits the guard's code with the base commit's guard. The guard's own
   code (`guard.mjs`, `guardPlan.ts`, `protectedDiff.ts`, `scripts/test-ci.mjs`, the three `vitest.config.ts`,
-  `scripts/smoke/verdict.mjs`) is a protected path.
+  `scripts/smoke/verdict.mjs`, `scripts/smoke/shards.mjs`) is a protected path, and the guard imports no module of the tree
+  it judges but its bundled plan.
 - **The fingerprint lock**: the `BASELINE` literal of `tests/extras.test.ts` (one entry per mode) and the per-mode fingerprint
   literals `protected.json` lists (and `tests/fixtures/blueprint-fingerprints.json` once it exists) are compared at the base
-  and in the working tree, comments and whitespace aside. An added entry passes; a changed or removed one fails unless a commit
-  in the range carries the trailer `Fingerprint-Change: <mode> - <reason>` (several modes comma-separated). Re-recording a
+  and in the working tree, comments and whitespace aside – with the code outside the literal that mentions it (a write after
+  it, `Object.assign`, a cast and a push, a decoy declaration, a changed comparison). An added entry passes, a new row of a
+  pinned table too; a changed or removed one fails unless a commit in the range carries the trailer
+  `Fingerprint-Change: <mode> - <reason>` (several modes comma-separated). Re-recording a
   fingerprint is a statement that the mode now plays differently, made on purpose and reviewed.
 - **The protected-path report** (owner decision for this release: reported, never a failure): changes to the watermark, billing
   and `PRO_FEATURES`, the TEST licence key and its signer, the `Privacy.*` and `Terms.*` messages and `legalDates.ts`, the
-  workflows, `deploy/`, `wrangler.toml`, the uncap `ALLOWED` list and `MEMORY_CEILINGS`, the guard's own data files and the agent
+  workflows, `deploy/`, `wrangler.toml`, the uncap `ALLOWED` and `SIZES_NOTHING` lists and `MEMORY_CEILINGS`, the guard's own data files and the agent
   guide are listed as *owner review required* – GitHub annotations on every push, from the build job's guard step (see CI).
 - **The test-weakening detector**: a test file with fewer `expect(` calls than at the base (unless the very statements it lost,
   by their tokens, were added to another test file of the change that still runs – a file vitest's include lists or the
   relay's tests name, or a helper one of them imports: a move – so an expect added elsewhere, or moved into `tests/x.ts` or a
-  fixture nothing imports, never offsets one removed here), an added `.skip`, `.skipIf`, `.runIf`, `.todo` or `.fails` on a
-  test call or a skip through a test's context (`ctx.skip()`; a method named `skip`, such as the social queue's, is not one;
+  fixture nothing imports, never offsets one removed here), an `expect(` rewritten in place (the count holds, the assertion
+  does not), an added `.skip`, `.skipIf`, `.runIf`, `.todo` or `.fails` on a test call (`it["skip"]`, an alias of `it`, a cast
+  and a destructured modifier included) or a skip through a test's context (`ctx.skip()`; a method named `skip`, such as the social queue's, is not one;
   a new test file counts from none), a raised timeout of an existing test (its own number, a const it names, arithmetic on
   them, `vi.setConfig({ testTimeout })`, the vitest configs' `testTimeout` and `hookTimeout`), a deleted test file (a renamed
   or split one whose every expect reappears in a file that still runs is a `test-moved` note, and the new file is compared
   with the old; a deleted helper without expects or tests is nothing), a deleted smoke check (judged check by check, by its
-  name: one added in another block offsets nothing), a core test of the base that is gone and a new entry in an allow list
-  (uncap `ALLOWED`, the physics-purity `ALLOWED`, the i18n `KNOWN` list) fail the guard unless a commit carries
+  name: one added in another block offsets nothing), a core test of the base that is gone, a new entry in an allow list
+  (uncap `ALLOWED` and `SIZES_NOTHING`, the physics-purity `ALLOWED`, the i18n `KNOWN` list) or an edit of the code around
+  one, and – after the tests ran – more skipped or todo tests in a changed test file than the baseline of the base commit had
+  (without one: a skip the file's source does not show) fail the guard unless a commit carries
   `Test-Change: <file or glob> - <reason>`. An added `.only` on a test call (`it.only`, `describe.only.each`; a property
   named `only` is not one) always fails.
 - **No silent skips**: the guard's tests run with `JBL_REQUIRE_BROWSER=1` (a Chromium that does not start fails

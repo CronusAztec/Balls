@@ -15,7 +15,8 @@ section here, and every test, smoke block and file named exists.
 
 Every unit test named below is on the core list (`vitest.core` in `core.json`), so tier 0 runs it on every change.
 "Always in tier 1" means the block is on `browser.smoke`. "Tier 1 when touched" means `guard:browser` adds the block when
-the change touches that function's code, and tier 2 runs it in any case.
+the change touches that function's code, and tier 2 runs it in any case. Either way, a change to a function's code or to one
+of its unit tests requires tier 1: tier 0 alone exits 2, and its `required` lists `npm run guard:browser`.
 
 ## Edit zones
 
@@ -23,7 +24,8 @@ The guard report (`.agent-out/guard-report.json`, key `zones`) puts every change
 functions the change touches:
 
 - **free**: a file no core function owns, no hub file and nothing protected: new files, catalog data, docs. Tier 0.
-- **core**: a file one of the functions below owns. Tier 0, plus the function's smoke blocks in tier 1.
+- **core**: a file one of the functions below owns: its code, or one of its unit tests. Tier 0, plus the function's smoke
+  blocks in tier 1: the guard exits 2 until `npm run guard:browser` ran them.
 - **guarded**: a hub file (`hubFiles` in `core.json`). Tier 2 is required: the guard exits 2 for any hub change and prints
   the tier-2 commands. Run them locally and say so in your hand-over, or say that tier 2 did not run so the owner can decide
   (never push to have CI run them: a push to the product branch deploys the site); the guard cannot see that they ran.

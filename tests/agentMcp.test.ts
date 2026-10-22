@@ -348,3 +348,38 @@ describe("registration (--- agent-cli ---)", () => {
     for (const t of AGENT_TOOLS) expect(guide, t.name).toContain(`| \`${t.name}\` |`);
   });
 });
+
+describe("the server's end and start (--- agent-cli ---)", () => {
+  it("delivers every answer when stdin ends before a slow reader drained stdout (no cut past 64 KB)", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-mcp-flush-"));
+    try {
+      const requests = [{ jsonrpc: "2.0", id: 0, method: "initialize", params: { protocolVersion: PROTOCOL_VERSIONS[0], capabilities: {}, clientInfo: { name: "t", version: "1" } } }, ...Array.from({ length: 40 }, (_, i) => ({ jsonrpc: "2.0", id: i + 1, method: "tools/list" }))];
+      const req = path.join(dir, "req.txt");
+      const out = path.join(dir, "out.txt");
+      fs.writeFileSync(req, requests.map((r) => JSON.stringify(r)).join("\n") + "\n");
+      // the requests, then stdin closed; the reader starts only after a pause, so the pipe is full when the server is done
+      const r = spawnSync("bash", ["-c", `"${process.execPath}" "${MCP}" < "${req}" 2> /dev/null | (sleep 2; cat > "${out}")`], { cwd: ROOT, encoding: "utf8", timeout: 60_000 });
+      expect(r.status).toBe(0);
+      const text = fs.readFileSync(out, "utf8");
+      expect(text.length).toBeGreaterThan(64 * 1024);
+      const replies = text.trimEnd().split("\n").map((l) => JSON.parse(l) as Message);
+      expect(replies.map((m) => m.id).sort((a, b) => Number(a) - Number(b))).toEqual(requests.map((q) => q.id));
+      const script = fs.readFileSync(MCP, "utf8");
+      expect(script).toContain('process.stdout.write("", () => process.exit(0));');
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("answers when started through a symbolic link to the repository", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-mcp-link-"));
+    try {
+      const link = path.join(dir, "balls-link");
+      fs.symlinkSync(ROOT, link);
+      const { replies } = await talk([JSON.stringify({ jsonrpc: "2.0", id: 7, method: "ping" })], 1, 60_000, { args: [path.join(link, "scripts", "agent", "mcp.mjs")], cwd: dir });
+      expect(replies).toEqual([{ jsonrpc: "2.0", id: 7, result: {} }]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

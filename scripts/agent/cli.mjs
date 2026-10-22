@@ -23,7 +23,7 @@
  *   postiz-probe owner-run: which analytics series the owner's Postiz returns (needs their key)
  *
  * Rules every tool keeps (scripts/agent/paths.mjs): it writes its results only under .agent-out/ (its caches: the private
- * agent cache in the OS temp folder, and for the guard its own, see tools.ts alsoWrites); every path argument must resolve
+ * agent cache in this user's cache folder, and for the guard its own, see tools.ts alsoWrites); every path argument must resolve
  * inside the repository; it never starts a shell (child processes get
  * argument arrays); it uses no network except the CLI's own localhost server for the browser tools – the browser is
  * fenced to it – and, for the two owner-run commands, the owner's own host they document. Pictures and clips carry the
@@ -33,9 +33,8 @@ import { spawn } from "child_process";
 import crypto from "crypto";
 import fs from "fs";
 import path from "path";
-import { fileURLToPath } from "url";
 import { loadToolCore, loadToolbox } from "./bundle.mjs";
-import { OUT_DIR, ROOT, ensureOutDir, isInside, repoRelative } from "./paths.mjs";
+import { OUT_DIR, ROOT, ensureOutDir, isInside, isMainModule, repoRelative } from "./paths.mjs";
 
 export class UsageError extends Error {}
 export class ToolError extends Error {}
@@ -306,5 +305,5 @@ async function main() {
   finish(out, out.ok ? 0 : out.usage ? 2 : 1);
 }
 
-const invoked = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const invoked = isMainModule(import.meta.url); // (--- agent-cli --- real paths: a start through a symbolic link runs too)
 if (invoked) await main();
