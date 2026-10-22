@@ -318,7 +318,8 @@ export class BlueprintRun implements WorldEvents {
       let y = w.cy;
       switch (at) {
         case "self":
-          if (self) {
+          // (a ball that just escaped is outside: its new balls start at the centre, not out there)
+          if (self && w.insideArena(self.x, self.y)) {
             x = self.x;
             y = self.y;
           }

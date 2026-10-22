@@ -166,6 +166,14 @@ describe("blueprint runtime: its contracts", () => {
     expect(r.world.balls.every((b) => Number.isFinite(b.x) && Number.isFinite(b.vy))).toBe(true);
   });
 
+  it("starts the balls an escape spawns inside the arena, not where the escaped ball went", () => {
+    const bp = spec({ bodies: [ball], spawners: [{ body: "ball", dir: "up", speed: 300 }], arena: { exits: [{ atDeg: 0, widthDeg: 60 }] }, rules: [{ when: "escape", maxFires: 1, do: [{ act: "spawn", body: "ball", count: 2, at: "self", speed: 0 }] }] });
+    const r = run(bp, 2);
+    expect(r.stats.escaped).toBe(1);
+    expect(r.world.aliveCount()).toBe(2);
+    for (const b of r.world.balls) expect(r.world.insideArena(b.x, b.y)).toBe(true);
+  });
+
   it("ends by the first condition met, fills the result line, and names the winner", () => {
     const bp = spec({ bodies: [ball], spawners: [{ body: "ball", dir: "up", speed: 300 }], arena: { exits: [{ atDeg: 0, widthDeg: 60 }] }, look: { teamNames: ["ORANGE"] }, finish: { timeoutSec: 30, winner: "firstOut", any: [{ when: "escaped", say: "{winner} OUT IN {time}" }] } });
     const r = run(bp, 3);
