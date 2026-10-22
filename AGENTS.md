@@ -28,14 +28,16 @@ trust it over the source.
 | `npm run guard:browser` | Tier 1: tier 0, then a `/smoke` build, the export served on port 3101 and the core smoke blocks plus your change's |
 | `npm run typecheck`, `npm run lint` | `tsc --noEmit` and ESLint for the site (`scripts/`, `desktop/` and `billing/` are outside both) |
 | `npx vitest run tests/<file>.test.ts` | One test file. On a small machine add `--maxWorkers=1 --minWorkers=1` |
-| `npm run test:ci` | The whole vitest suite as CI runs it (tier 2, with the four smoke shards) |
+| `npm run test:ci` | The whole vitest suite (tier 2, with the four smoke shards; CI runs it with `JBL_REQUIRE_BROWSER=1`) |
 | `npm run changelog:check` | The changelog data, `CHANGELOG.md` and the version agree |
 | `npm run smoke` | The browser smoke suite against a served build. `SMOKE_ONLY=core-every-mode` runs one block |
 | `npm run -s agent -- <tool> --json '{…}'` | The agent toolbox: one JSON result per call (see below) |
 
-The guard writes `.agent-out/guard-report.json`. It lists every lane with its duration, the failures, what the change
-requires beyond this run (`required`), the fingerprint, protected and weakening findings, and each changed file's edit
-zone together with the core functions it touches (`zones`).
+The guard writes `.agent-out/guard-report.json` (`--report <file>` puts it elsewhere under `.agent-out/`). It lists every
+lane with its duration, the failures, what the change requires beyond this run (`required`), the fingerprint, protected and
+weakening findings, and each changed file's edit zone together with the core functions it touches (`zones`). It measures
+the change from the merge base with `origin/main`. `JBL_GUARD_BASE` overrides that; without `origin/main` it falls back to
+`main`, and the report notes any base but `origin/main`. With none of them, pass `--base <ref>`.
 
 ## The verification protocol
 
@@ -46,8 +48,10 @@ zone together with the core functions it touches (`zones`).
 3. Run `npm run guard` until it exits 0. If it exits 2, run what `required` lists.
 4. Run `npm run guard:browser` when you touched page, canvas, recording, export or desktop page code. It adds the smoke
    blocks of the core functions your change touches.
-5. A hub file (exit 2, "tier 2 required") needs `npm run test:ci` and the four smoke shards. The commands are printed, and
-   `.github/workflows/deploy.yml` runs exactly them on the product branch.
+5. A hub file (exit 2, "tier 2 required") needs the whole CI run: `JBL_REQUIRE_BROWSER=1 npm run test:ci`, a `/smoke` build
+   and the four smoke shards, the same commands `.github/workflows/deploy.yml` runs on the product branch. The guard prints
+   them. Run them yourself, or say in your hand-over that tier 2 did not run, so the owner can decide. Never push to have CI
+   run them: a push to the product branch deploys the site.
 
 Never report a subset as the whole check. If you could not run a tier, say so.
 
@@ -163,13 +167,16 @@ repository's `.next/` and `out/`.
 `guard` and `explain`, each with its JSON Schema. It does not offer the owner-run tools. It is `scripts/agent/mcp.mjs`, a
 hand-written JSON-RPC 2.0 server over stdio with no SDK and no new dependency. A call runs the CLI as a child process, so the
 result is exactly the CLI's and every rule above holds. There is no exec, shell or file-write tool, and a result is at most
-200 KB. The guard's `baseline` is CLI-only, and a cancelled or timed-out call stops everything it started.
+200 KB. The guard's `baseline` and `base` are CLI-only (a baseline excuses failures, a later base hides committed ones), and
+a cancelled or timed-out call stops everything it started. The server loads only the tool table, not the engine, so it
+starts and runs `guard`, `explain` and `analyse` while an edit has broken a mode.
 
 - **Claude Code:** the project's `.mcp.json` registers the server as `jumpingballs-agent`, with a launcher that finds the
   repository from any folder of it (a session opened in `desktop/` too). Claude Code asks you to approve a project server
   the first time. Approve it, or run `/mcp` to see its state.
 - **Another MCP client:** start `node scripts/agent/mcp.mjs` with the repository root as the working folder, over stdio.
-  `npm run agent:mcp` does the same by hand.
+  That is the client's command. `npm run -s agent:mcp` does the same by hand; without `-s`, npm prints its banner on stdout
+  before the first message.
 - **No MCP:** any agent with a shell uses the CLI directly. It is the primary interface.
 
 ## House rules

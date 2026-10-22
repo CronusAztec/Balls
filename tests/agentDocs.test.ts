@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { MODE_IDS } from "@/lib/physics/types";
 import { defaultSettings } from "@/lib/settings";
 import { AGENT_TOOLS } from "@/lib/agentKit/tools";
+import { textReadsOf } from "@/lib/agentKit/explain";
 import { globToRegExp, kebabCase, matchesAny, type CoreConfig } from "@/lib/agentKit/guardPlan";
 import { parseTrailers, type ProtectedConfig } from "@/lib/agentKit/protectedDiff";
 import { findBlockTitles } from "../scripts/smoke/shards.mjs";
@@ -111,8 +112,32 @@ describe("the agent guide names only things that exist (--- agent-guide ---)", (
     const registered = JSON.parse(read(".mcp.json")) as { mcpServers: Record<string, { command: string; args: string[] }> };
     expect(Object.keys(registered.mcpServers)).toEqual(["jumpingballs-agent"]);
     expect(registered.mcpServers["jumpingballs-agent"]).toMatchObject({ command: "node", args: ["--input-type=module", "-e", expect.stringContaining("scripts/agent/mcp.mjs")] });
-    for (const point of ["`.mcp.json`", "`jumpingballs-agent`", "`node scripts/agent/mcp.mjs`", "`npm run agent:mcp`"]) expect(TEXT["AGENTS.md"], point).toContain(point);
+    for (const point of ["`.mcp.json`", "`jumpingballs-agent`", "`node scripts/agent/mcp.mjs`", "`npm run -s agent:mcp`"]) expect(TEXT["AGENTS.md"], point).toContain(point);
     expect(SCRIPTS["agent:mcp"]).toBe("node scripts/agent/mcp.mjs");
+  });
+
+  it("names only server commands whose stdout starts with a JSON-RPC message (npm's banner would come first without -s)", () => {
+    // the bare npm form prints "> jumpingballslive@… agent:mcp" on stdout: no guide names it as a command
+    for (const [file, text] of Object.entries(TEXT)) expect(text, file).not.toMatch(/`npm run agent:mcp`/);
+    const named = new Set(Object.values(TEXT).flatMap((t) => codeSpans(t).filter((x) => /^(?:node scripts\/agent\/mcp\.mjs|npm run -s agent:mcp)$/.test(x))));
+    expect([...named].sort()).toEqual(["node scripts/agent/mcp.mjs", "npm run -s agent:mcp"]);
+    const ping = `${JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" })}\n`;
+    for (const command of named) {
+      const [cmd, ...args] = command.split(" ");
+      const r = spawnSync(cmd === "node" ? process.execPath : cmd, args, { cwd: ROOT, input: ping, encoding: "utf8", timeout: 60_000 });
+      const first = r.stdout.split("\n")[0];
+      expect(() => JSON.parse(first), `${command}: ${JSON.stringify(r.stdout.slice(0, 120))}`).not.toThrow();
+      expect(JSON.parse(first), command).toEqual({ jsonrpc: "2.0", id: 1, result: {} });
+    }
+  }, 120_000);
+
+  it("never offers a push as the way to run tier 2: a push to the product branch deploys", () => {
+    for (const c of CORE.tier2) expect(c).not.toMatch(/\bpush\b|product branch/i);
+    for (const [file, text] of Object.entries(TEXT)) {
+      expect(text, file).not.toMatch(/\(or let `?deploy\.yml`? run them|or push to the product branch|deploy\.yml` runs exactly them/i);
+      if (/tier.2/i.test(text) && /product branch/.test(text)) expect(text, file).toMatch(/[Nn]ever push to have CI\s+run them/);
+    }
+    expect(CORE.tier2[0]).toBe("JBL_REQUIRE_BROWSER=1 npm run test:ci");
   });
 
   it("every file, folder and glob it names exists (generated folders aside)", () => {
@@ -195,10 +220,17 @@ describe("the agent guide names only things that exist (--- agent-guide ---)", (
     expect(BLOCKS).toContain("core-every-mode");
   });
 
-  it("states the code's counts: the modes, the core functions, the locales", () => {
-    for (const [file, text] of Object.entries(TEXT)) {
+  it("states the code's counts: the modes, the core functions, the locales, the tests that read the hub components", () => {
+    // the tests that read Simulator.tsx, Canvas.tsx or Controls.tsx as text, by explain's own rule (textReadsOf over tests/)
+    const hubReaders = fs
+      .readdirSync(path.join(ROOT, "tests"))
+      .filter((f) => f.endsWith(".test.ts"))
+      .filter((f) => textReadsOf(read(`tests/${f}`)).some((x) => /(?:Simulator|Canvas|Controls)\.tsx$/.test(x))).length;
+    expect(hubReaders).toBeGreaterThan(5);
+    for (const [file, text] of Object.entries({ ...TEXT, "src/lib/agentKit/explain.ts": read("src/lib/agentKit/explain.ts") })) {
       for (const m of text.matchAll(/\b(\d+) modes\b/g)) expect(Number(m[1]), `${file}: ${m[0]}`).toBe(MODE_IDS.length);
       for (const m of text.matchAll(/\b(\d+) core functions\b/g)) expect(Number(m[1]), `${file}: ${m[0]}`).toBe(CORE.coreFunctions!.length);
+      for (const m of text.matchAll(/\b(\d+) (?:test files|tests) (?:read|pin)\b/g)) expect(Number(m[1]), `${file}: ${m[0]}`).toBe(hubReaders);
     }
     expect(TEXT["AGENTS.md"]).toContain(`${MODE_IDS.length} modes`);
     const locales = fs.readdirSync(path.join(ROOT, "messages")).filter((f) => f.endsWith(".json")).sort();

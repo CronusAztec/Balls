@@ -30,10 +30,11 @@
  * watermark a free visitor's do: no tool installs a licence. docs/agents/CLI.md is the guide.
  */
 import { spawn } from "child_process";
+import crypto from "crypto";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { loadToolbox } from "./bundle.mjs";
+import { loadToolCore, loadToolbox } from "./bundle.mjs";
 import { OUT_DIR, ROOT, ensureOutDir, isInside, repoRelative } from "./paths.mjs";
 
 export class UsageError extends Error {}
@@ -169,6 +170,38 @@ export function guardFlags(args) {
   ];
 }
 
+/**
+ * Runs a command and keeps the end of its stdout and stderr as text: each stream decoded as UTF-8 across its chunks (a
+ * character split at a 64 KB pipe boundary stays whole, never U+FFFD).
+ *
+ * @param {string} file
+ * @param {string[]} args
+ * @param {{ env?: NodeJS.ProcessEnv, keepChars?: number }} [options]
+ * @returns {Promise<{ code: number | null, output: string }>}
+ */
+export function runCaptured(file, args, { env = process.env, keepChars = 4 * TAIL_CHARS } = {}) {
+  return new Promise((resolve) => {
+    const child = spawn(file, args, { cwd: ROOT, env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
+    let text = "";
+    const keep = (chunk) => {
+      text = (text + chunk).slice(-keepChars);
+    };
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", keep);
+    child.stderr.on("data", keep);
+    child.on("error", (e) => resolve({ code: null, output: `${text}\n${e.message}` }));
+    child.on("close", (c) => resolve({ code: c, output: text }));
+  });
+}
+
+/**
+ * Where the guard writes its report: JBL_GUARD_REPORT (as the guard reads it), else .agent-out/guard-report.json.
+ * @param {Record<string, string | undefined>} [env]
+ * @returns {string}
+ */
+export const guardReportFile = (env = process.env) => (env.JBL_GUARD_REPORT ? path.resolve(ROOT, env.JBL_GUARD_REPORT) : path.join(OUT_DIR, "guard-report.json"));
+
 async function guardTool(_tb, args) {
   const cmd = guardCommand(readJson("package.json"), guardFlags(args));
   if (!cmd)
@@ -176,23 +209,16 @@ async function guardTool(_tb, args) {
       available: false,
       message: `No core guard in this checkout: package.json has no plain \`guard\` script and ${GUARD_SCRIPT} is missing. Run npm run typecheck, npm run lint and the vitest files you touched.`,
     };
-  const started = Date.now();
   process.stderr.write(`agent guard: ${cmd.shown}\n`);
-  const { code, output } = await new Promise((resolve) => {
-    const child = spawn(cmd.file, cmd.args, { cwd: ROOT, env: process.env, stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
-    let text = "";
-    const keep = (chunk) => {
-      text = (text + chunk.toString("utf8")).slice(-4 * TAIL_CHARS);
-    };
-    child.stdout.on("data", keep);
-    child.stderr.on("data", keep);
-    child.on("error", (e) => resolve({ code: null, output: `${text}\n${e.message}` }));
-    child.on("close", (c) => resolve({ code: c, output: text }));
-  });
-  const reportFile = path.join(OUT_DIR, "guard-report.json");
+  // --- agent-cli --- the run's own id, which the guard writes into its report: an older report (a run that died before
+  // writing one, a test's plan) is never returned as this run's
+  const runId = crypto.randomUUID();
+  const { code, output } = await runCaptured(cmd.file, cmd.args, { env: { ...process.env, JBL_GUARD_RUN_ID: runId } });
+  const reportFile = guardReportFile();
   let report = null;
   try {
-    if (fs.statSync(reportFile).mtimeMs >= started - 1000) report = JSON.parse(fs.readFileSync(reportFile, "utf8"));
+    report = JSON.parse(fs.readFileSync(reportFile, "utf8"));
+    if (report?.runId !== runId) report = null;
   } catch {
     report = null;
   }
@@ -217,14 +243,24 @@ const TOOLS = {
   "postiz-probe": async (tb, args) => (await import("./postiz-probe.mjs")).postizProbeTool(tb, args),
 };
 
+/** --- agent-cli --- The tools that need the engine (the whole toolbox bundle); the others run on the tool core alone. */
+export const ENGINE_TOOLS = new Set(["modes", "simulate", "fingerprint", "preview", "render"]);
+
 /** Runs one tool call: { ok, tool, result } or { ok: false, tool, error, usage? }. */
 export async function runTool(name, rawArgs) {
-  const tb = await loadToolbox();
-  const check = tb.checkToolArgs(name, rawArgs);
+  let core;
+  try {
+    core = await loadToolCore();
+  } catch (e) {
+    return { ok: false, tool: name, error: e instanceof Error ? e.message : String(e) };
+  }
+  const check = core.checkToolArgs(name, rawArgs);
   if (!check.ok) return { ok: false, tool: name, error: check.errors.join("; "), usage: true };
   const impl = TOOLS[name];
   if (!impl) return { ok: false, tool: name, error: `The tool ${name} has no runner in this CLI`, usage: true };
   try {
+    // (a broken mode or engine fails these five only: guard, explain and analyse never load it)
+    const tb = ENGINE_TOOLS.has(name) ? await loadToolbox() : core;
     return { ok: true, tool: name, result: await impl(tb, check.args) };
   } catch (e) {
     return { ok: false, tool: name, error: e instanceof Error ? e.message : String(e) };
@@ -259,9 +295,9 @@ async function main() {
   // The one line of JSON, then exit (a browser or a child the tool left behind never keeps the process alive).
   const finish = (value, code) => process.stdout.write(`${parsed.pretty ? JSON.stringify(value, null, 2) : JSON.stringify(value)}\n`, () => process.exit(code));
   try {
-    if (parsed.help || !parsed.tool) return finish({ ok: true, tool: null, result: helpText(await loadToolbox()) }, 0);
+    if (parsed.help || !parsed.tool) return finish({ ok: true, tool: null, result: helpText(await loadToolCore()) }, 0);
     // .agent-out/ (and its own .gitignore) exists before a tool that writes there runs – the guard writes its report into it
-    if ((await loadToolbox()).toolSpec(parsed.tool)?.writes === ".agent-out") ensureOutDir();
+    if ((await loadToolCore()).toolSpec(parsed.tool)?.writes === ".agent-out") ensureOutDir();
   } catch (e) {
     // (an unsafe agent cache, a linked .agent-out: still the one JSON line, never a stack trace)
     return finish({ ok: false, tool: parsed.tool, error: e instanceof Error ? e.message : String(e) }, 1);

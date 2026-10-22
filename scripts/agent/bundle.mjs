@@ -1,10 +1,13 @@
 /**
- * --- agent-cli --- Bundles the agent toolbox's pure TypeScript (src/lib/agentKit/toolbox.ts and what it imports: the engine,
- * the finder, the settings, the video analysis helpers) for Node with esbuild – a dev dependency already (vitest's), with @
- * aliased to src, exactly as scripts/viral-bot.mjs bundles the bot – and imports it. The bundle is cached in the agent cache
- * (paths.mjs CACHE_DIR, a private folder) with esbuild's list of its inputs; it is rebuilt only when an input's size or time
- * changed, a file was added to src/lib/agentKit or src/lib/videoAnalysis, or esbuild is another version – and whenever the
- * list of inputs is empty or lacks the entry. Nothing is written to the repository.
+ * --- agent-cli --- Bundles the agent toolbox's pure TypeScript for Node with esbuild – a dev dependency already (vitest's),
+ * with @ aliased to src, exactly as scripts/viral-bot.mjs bundles the bot – and imports it. Two bundles:
+ *  - the tool core (src/lib/agentKit/toolCore.ts: the tool table and its argument checks, explain, the video analyser's
+ *    pure halves; 4 source files): every call and the MCP server load it, so they work while an edit has broken the engine;
+ *  - the toolbox (src/lib/agentKit/toolbox.ts: the core plus the engine, the finder, the settings and every mode): only the
+ *    engine's tools load it (modes, simulate, fingerprint, preview, render).
+ * Each is cached in the agent cache (paths.mjs CACHE_DIR, a private folder) with esbuild's list of its inputs; it is rebuilt
+ * only when an input's size or time changed, a file was added to src/lib/agentKit or src/lib/videoAnalysis, or esbuild is
+ * another version – and whenever the list of inputs is empty or lacks the entry. Nothing is written to the repository.
  */
 import fs from "fs";
 import path from "path";
@@ -12,6 +15,7 @@ import { pathToFileURL } from "url";
 import { ROOT, cacheDir } from "./paths.mjs";
 
 const ENTRY = path.join(ROOT, "src", "lib", "agentKit", "toolbox.ts");
+const CORE_ENTRY = path.join(ROOT, "src", "lib", "agentKit", "toolCore.ts");
 const WATCHED_DIRS = [path.join(ROOT, "src", "lib", "agentKit"), path.join(ROOT, "src", "lib", "videoAnalysis")];
 
 function stamp(file) {
@@ -37,53 +41,71 @@ async function esbuildModule() {
  * True when the cached bundle was built from these very inputs: the same esbuild, entry and folder listing, and an inputs map
  * that holds the entry itself with every input's size and time unchanged (an empty map proves nothing: never fresh).
  */
-export function fresh(meta, version, now = listing()) {
-  if (!meta || typeof meta !== "object" || meta.esbuild !== version || meta.entry !== ENTRY) return false;
+export function fresh(meta, version, now = listing(), entry = ENTRY) {
+  if (!meta || typeof meta !== "object" || meta.esbuild !== version || meta.entry !== entry) return false;
   if (JSON.stringify(meta.listing) !== JSON.stringify(now)) return false;
   const inputs = meta.inputs && typeof meta.inputs === "object" ? Object.entries(meta.inputs) : [];
-  if (!inputs.length || !Object.hasOwn(meta.inputs, ENTRY)) return false;
+  if (!inputs.length || !Object.hasOwn(meta.inputs, entry)) return false;
   return inputs.every(([file, s]) => stamp(file) === s);
 }
 
-export { ENTRY as TOOLBOX_ENTRY, listing as toolboxListing };
+export { ENTRY as TOOLBOX_ENTRY, CORE_ENTRY as TOOLCORE_ENTRY, listing as toolboxListing };
 
-let loaded = null;
-
-/** The bundled toolbox module (built or taken from the cache). */
-export async function loadToolbox() {
-  if (loaded) return loaded;
+/** Builds (or takes from the cache) the bundle of `entry` named `name`, and imports it. */
+async function load(entry, name) {
   const esbuild = await esbuildModule();
   const dir = cacheDir("bundle");
-  const outfile = path.join(dir, "toolbox.mjs");
-  const metaFile = path.join(dir, "toolbox.meta.json");
+  const outfile = path.join(dir, `${name}.mjs`);
+  const metaFile = path.join(dir, `${name}.meta.json`);
   let meta = null;
   try {
     meta = JSON.parse(fs.readFileSync(metaFile, "utf8"));
   } catch {
     meta = null;
   }
-  if (!fs.existsSync(outfile) || !fresh(meta, esbuild.version)) {
+  if (!fs.existsSync(outfile) || !fresh(meta, esbuild.version, listing(), entry)) {
     const tmp = `${outfile}.${process.pid}.tmp.mjs`;
-    const result = await esbuild.build({
-      entryPoints: [ENTRY],
-      bundle: true,
-      platform: "node",
-      format: "esm",
-      target: "node20",
-      outfile: tmp,
-      alias: { "@": path.join(ROOT, "src") },
-      logLevel: "error",
-      metafile: true,
-      absWorkingDir: ROOT,
-    });
+    let result;
+    try {
+      result = await esbuild.build({
+        entryPoints: [entry],
+        bundle: true,
+        platform: "node",
+        format: "esm",
+        target: "node20",
+        outfile: tmp,
+        alias: { "@": path.join(ROOT, "src") },
+        logLevel: "silent",
+        metafile: true,
+        absWorkingDir: ROOT,
+      });
+    } catch (e) {
+      // one line per error (file:line:column: message), never esbuild's stack trace
+      const errors = Array.isArray(e?.errors) ? e.errors.map((x) => `${x.location ? `${x.location.file}:${x.location.line}:${x.location.column}: ` : ""}${x.text}`) : [e instanceof Error ? e.message : String(e)];
+      throw new Error(`the agent toolbox (${path.relative(ROOT, entry)}) did not build: ${errors.slice(0, 5).join("; ")}`);
+    }
     const inputs = {};
     for (const rel of Object.keys(result.metafile.inputs)) {
       const file = path.resolve(ROOT, rel);
       inputs[file] = stamp(file);
     }
     fs.renameSync(tmp, outfile); // atomic: a parallel call imports either the old bundle or the new one, never half of one
-    fs.writeFileSync(metaFile, JSON.stringify({ esbuild: esbuild.version, entry: ENTRY, listing: listing(), inputs }));
+    fs.writeFileSync(metaFile, JSON.stringify({ esbuild: esbuild.version, entry, listing: listing(), inputs }));
   }
-  loaded = await import(`${pathToFileURL(outfile).href}?v=${encodeURIComponent(stamp(outfile))}`);
-  return loaded;
+  return import(`${pathToFileURL(outfile).href}?v=${encodeURIComponent(stamp(outfile))}`);
+}
+
+let core = null;
+let full = null;
+
+/** The tool core (tool table, argument checks, explain, video analysis): every call loads it. */
+export async function loadToolCore() {
+  core ??= await load(CORE_ENTRY, "toolcore");
+  return core;
+}
+
+/** The whole toolbox (the core plus the engine's tools): only modes, simulate, fingerprint, preview and render load it. */
+export async function loadToolbox() {
+  full ??= await load(ENTRY, "toolbox");
+  return full;
 }

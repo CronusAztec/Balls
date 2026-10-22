@@ -98,9 +98,14 @@ TikTok, Instagram or YouTube, and no agent may do that with it.
 `guard` runs the core guard, `scripts/agent/guard.mjs`, through `package.json`'s `guard` script (a plain `node <file>`
 command, so no shell and no npm in between). Its arguments map onto the guard's flags: `browser` (`--browser`),
 `baseline` (`--baseline`, CLI only), `plan` (`--plan`: the static checks alone, in about a second), `withSlow`
-(`--with-slow`) and `base` (`--base <ref>`). It returns the exit code (0 green, 1 failed, 2 green but a higher tier is
-required), the guard's own report (`.agent-out/guard-report.json`) and the end of its output. A verdict that is green only
-because the baseline excused failures says so.
+(`--with-slow`) and `base` (`--base <ref>`, CLI only: a later base hides the change's committed commits). It returns the
+exit code (0 green, 1 failed, 2 green but a higher tier is required), the guard's own report (`.agent-out/guard-report.json`,
+or `JBL_GUARD_REPORT`; only the report this run wrote, by the run id the tool hands the guard) and the end of its output. A
+verdict that is green only because the baseline excused failures says so.
+
+The guard measures from the merge base with `origin/main`. `JBL_GUARD_BASE` overrides that; without `origin/main` it falls
+back to `main`, and its report notes any base but `origin/main`. With none of them it measures against HEAD, says so, and
+asks for `--base <ref>`.
 
 In the guard, a protected-path change is only reported, for the owner's review. Of the static checks, the fingerprint lock
 (a changed fingerprint without a `Fingerprint-Change: <mode> - <reason>` commit trailer) and the test-weakening detector (a
@@ -109,8 +114,8 @@ finding without `Test-Change: <file or glob> - <reason>`; an added `.only` alway
 baseline is refused on a changed tree, and used only by a run measured from its commit or a later one. AGENTS.md has the
 order to run it in.
 
-`explain` measures which source files a failing test reads as text (16 tests read `Simulator.tsx`, `Canvas.tsx` or
-`Controls.tsx`). A text assertion in such a test is a source pin: keep the pinned contract in the source. Never re-record a
+`explain` measures which source files a failing test reads as text, `Simulator.tsx`, `Canvas.tsx` and `Controls.tsx` among
+them. A text assertion in such a test is a source pin: keep the pinned contract in the source. Never re-record a
 fingerprint, delete an `expect(`, add `.skip` or `.only`, or raise a timeout to make a test pass.
 
 ## Owner-run commands
@@ -137,10 +142,16 @@ The keys never appear in any output.
 dependency. It implements `initialize`, `ping`, `tools/list` and `tools/call`, plus the `initialized` and `cancelled`
 notifications. `.mcp.json` registers it for Claude Code as `jumpingballs-agent`, and Claude Code asks each user to approve
 a project server before it starts. Its entry is a one-line launcher that walks up from the session's folder to the
-repository, so a session opened in `desktop/` starts it too. Run it by hand with `npm run agent:mcp`.
+repository, so a session opened in `desktop/` starts it too. A client's command is `node scripts/agent/mcp.mjs` (or that
+launcher). Run it by hand with `npm run -s agent:mcp`: without `-s`, npm prints its banner on stdout before the first
+message, which a client cannot parse.
 
-It offers the CLI's tools with their JSON Schemas, but not the owner-run commands and not the guard's `baseline`, which is
-CLI only. A call is checked against the schema first, then runs the CLI itself as a child process with the arguments on
+It offers the CLI's tools with their JSON Schemas, but not the owner-run commands and not the guard's `baseline` and `base`,
+which are CLI only. It loads only the tool core (the tool table, the argument checks, `explain`, the video analyser; not the
+engine), so it starts, lists its tools and runs `guard`, `explain` and `analyse` while an edit has broken a mode; the
+engine's tools answer with the build error then. Should the tool core itself not build, it still answers `initialize` and
+`tools/list` (with the last table that built), and each call says why it cannot run. A message line longer than the largest
+arguments (1 MB of JSON and its envelope) is dropped unread with an error. A call is checked against the schema first, then runs the CLI itself as a child process with the arguments on
 its stdin, so a result is exactly the CLI's, a long `explain` fits, and every rule above holds. The child runs in a process
 group of its own: a cancelled or timed-out call, or a stopped server, ends it with everything it started (the guard's
 lanes and vitest workers, `next build`, ffmpeg). There is no exec, shell or file-write tool. A result is at most 200 KB of

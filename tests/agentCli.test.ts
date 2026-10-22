@@ -2,10 +2,10 @@ import { spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { GUARD_SCRIPT, guardCommand, guardFlags, parseArgv, testSourceOf } from "../scripts/agent/cli.mjs";
+import { ENGINE_TOOLS, GUARD_SCRIPT, guardCommand, guardFlags, guardReportFile, parseArgv, runCaptured, testSourceOf } from "../scripts/agent/cli.mjs";
 import { parseArgs as parseGuardArgs } from "../scripts/agent/guard.mjs";
 import { PathError, defaultOutName, hasScheme, isInside, outputDir, resolveInputFile, untrustedCacheReason, writeFileSafe } from "../scripts/agent/paths.mjs";
-import { TOOLBOX_ENTRY, fresh, toolboxListing } from "../scripts/agent/bundle.mjs";
+import { TOOLBOX_ENTRY, TOOLCORE_ENTRY, fresh, toolboxListing } from "../scripts/agent/bundle.mjs";
 import os from "os";
 import { buildEnv, lockPids, patchNextConfig, siteFile } from "../scripts/agent/local-build.mjs";
 import { siteStatsTool } from "../scripts/agent/site-stats.mjs";
@@ -292,19 +292,48 @@ describe("guard (--- agent-cli ---)", () => {
     expect(toolbox.checkToolArgs("guard", { base: "--upload-pack=x" })).toMatchObject({ ok: false });
   });
 
-  it("returns the guard's own report for a plan call (guard --plan: nothing runs)", () => {
-    const r = spawnSync(process.execPath, [CLI, "guard", "--json", JSON.stringify({ plan: true, base: "HEAD" })], {
-      cwd: ROOT,
-      encoding: "utf8",
-      timeout: 120_000,
-      env: { ...process.env, JBL_GUARD_CACHE: path.join(ROOT, ".agent-out", "cache", "test-cli-plan") }, // (never the cache of a guard run this test may be inside)
-    });
+  it("returns the guard's own report for a plan call (guard --plan: nothing runs), never an older one", () => {
+    const cache = path.join(ROOT, ".agent-out", "cache", "test-cli-plan");
+    const own = path.join(ROOT, ".agent-out", "guard-report.json");
+    const before = fs.existsSync(own) ? fs.readFileSync(own, "utf8") : null;
+    const env = { ...process.env, JBL_GUARD_CACHE: cache, JBL_GUARD_REPORT: path.join(cache, "guard-report.json") }; // (never the cache or the report of a guard run this test may be inside)
+    const r = spawnSync(process.execPath, [CLI, "guard", "--json", JSON.stringify({ plan: true, base: "HEAD" })], { cwd: ROOT, encoding: "utf8", timeout: 120_000, env });
     const out = JSON.parse(r.stdout.trim().split("\n").pop() || "null");
-    expect(out).toMatchObject({ ok: true, tool: "guard", result: { available: true, command: "npm run guard -- --plan --base HEAD", reportFile: ".agent-out/guard-report.json" } });
+    expect(out).toMatchObject({ ok: true, tool: "guard", result: { available: true, command: "npm run guard -- --plan --base HEAD", reportFile: ".agent-out/cache/test-cli-plan/guard-report.json" } });
     // (exit 1 when the working tree itself holds an unacknowledged fingerprint change or a weakened test: the plan still reports)
     expect([0, 1]).toContain(out.result.exitCode);
-    expect(out.result.report).toMatchObject({ tool: "jbl-guard", mode: "plan", verdict: "planned (nothing ran)", base: { ref: "HEAD" } });
+    expect(out.result.report).toMatchObject({ tool: "jbl-guard", mode: "plan", verdict: "planned (nothing ran)", base: { ref: "HEAD" }, runId: expect.stringMatching(/^[0-9a-f-]{36}$/) });
     expect(out.result.verdict).toBe("planned (nothing ran)");
+    expect(fs.existsSync(own) ? fs.readFileSync(own, "utf8") : null).toBe(before);
+    expect(guardReportFile({})).toBe(own);
+    // a guard that dies before it writes a report: the last one on disk is another run's, and is not returned as this one's
+    const stale = path.join(cache, "stale-report.json");
+    fs.mkdirSync(cache, { recursive: true });
+    fs.writeFileSync(stale, JSON.stringify({ tool: "jbl-guard", mode: "plan", verdict: "green", runId: "an-older-run" }));
+    const died = spawnSync(process.execPath, [CLI, "guard", "--json", JSON.stringify({ plan: true, base: "no-such-ref-at-all" })], { cwd: ROOT, encoding: "utf8", timeout: 120_000, env: { ...env, JBL_GUARD_REPORT: stale } });
+    const dead = JSON.parse(died.stdout.trim().split("\n").pop() || "null");
+    expect(dead.result).toMatchObject({ exitCode: 1, verdict: "failed", report: null, reportFile: null });
+  });
+
+  it("keeps a multi-byte character whole when the guard's output crosses a pipe read", async () => {
+    const stub = "process.stdout.write('x'.repeat(65535) + '–'.repeat(30000) + '❯');";
+    const { code, output } = await runCaptured(process.execPath, ["-e", stub], { keepChars: 200_000 });
+    expect(code).toBe(0);
+    expect(output).not.toContain("\uFFFD");
+    expect(output.endsWith(`${"–".repeat(30000)}❯`)).toBe(true);
+  });
+
+  it("loads the engine only for the engine's tools: the tool core bundle holds no physics, settings or modes", async () => {
+    expect([...ENGINE_TOOLS].sort()).toEqual(["fingerprint", "modes", "preview", "render", "simulate"]);
+    const esbuild = await import("esbuild");
+    const built = await esbuild.build({ entryPoints: [TOOLCORE_ENTRY], bundle: true, platform: "node", format: "esm", write: false, metafile: true, alias: { "@": path.join(ROOT, "src") }, logLevel: "silent", absWorkingDir: ROOT });
+    const inputs = Object.keys(built.metafile.inputs);
+    expect(inputs.filter((f) => /physics|settings|simulation|modes/.test(f))).toEqual([]);
+    expect(inputs.length).toBeLessThan(12);
+    // every name the CLI's non-engine tools and the MCP server take from it is there
+    for (const name of ["AGENT_TOOLS", "checkToolArgs", "toolSpec", "explainFailure", "testFilesIn", "textReadsOf", "buildVideoFeatures", "parseMediaInfo", "infoArgs"]) expect(toolbox, name).toHaveProperty(name);
+    const specifiers = [...fs.readFileSync(TOOLCORE_ENTRY, "utf8").matchAll(/\bfrom "([^"]+)"/g)].map((m) => m[1]);
+    expect(specifiers.filter((x) => /physics|settings|runRequest|simulate|fingerprint/.test(x))).toEqual([]);
   });
 
   it("parses its command line", () => {

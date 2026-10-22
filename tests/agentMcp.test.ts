@@ -2,7 +2,8 @@ import { spawn, spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { describe, expect, it } from "vitest";
-import { ERR, MAX_RESULT_CHARS, PROTOCOL_VERSIONS, SERVER_NAME, createMcpHandler, stopTree, toolResult } from "../scripts/agent/mcp.mjs";
+import os from "os";
+import { ERR, MAX_LINE_CHARS, MAX_RESULT_CHARS, PROTOCOL_VERSIONS, SERVER_NAME, createLineReader, createMcpHandler, runCliTool, stopTree, toolResult } from "../scripts/agent/mcp.mjs";
 import { AGENT_TOOLS, checkToolArgs } from "@/lib/agentKit/tools";
 
 // --- agent-cli --- The MCP wrapper (scripts/agent/mcp.mjs): JSON-RPC 2.0 over stdio, initialize / tools/list / tools/call /
@@ -186,13 +187,25 @@ describe("the MCP protocol handler (--- agent-cli ---)", () => {
     const h = createMcpHandler({ tools, run: async (_name: string, args: unknown) => (seen.push(args), { ok: true, result: {} }) });
     const listed = ((await h.handle({ jsonrpc: "2.0", id: 1, method: "tools/list" }))?.result?.tools ?? []) as { name: string; inputSchema: { properties: Record<string, unknown> } }[];
     const guard = listed.find((t) => t.name === "guard")!;
-    expect(Object.keys(guard.inputSchema.properties).sort()).toEqual(["base", "browser", "plan", "withSlow"]);
+    expect(Object.keys(guard.inputSchema.properties).sort()).toEqual(["browser", "plan", "withSlow"]);
     expect(AGENT_TOOLS.find((t) => t.name === "guard")?.input.properties).toHaveProperty("baseline"); // the CLI keeps it
     const refused = await h.handle({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "guard", arguments: { baseline: true } } });
     expect(refused?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/baseline: CLI only/) }] });
     expect(seen).toEqual([]);
     await h.handle({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "guard", arguments: { plan: true } } });
     expect(seen).toEqual([{ plan: true }]);
+  });
+
+  it("never offers or runs the guard's base either: base HEAD would hide every committed weakened test and re-recorded fingerprint", async () => {
+    const seen: unknown[] = [];
+    const h = createMcpHandler({ tools, check: checkToolArgs, run: async (_name: string, args: unknown) => (seen.push(args), { ok: true, result: {} }) });
+    for (const args of [{ plan: true, base: "HEAD" }, { base: "main" }]) {
+      const refused = await h.handle({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "guard", arguments: args } });
+      expect(refused?.result, JSON.stringify(args)).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/base: CLI only, not offered over MCP/) }] });
+    }
+    expect(seen).toEqual([]);
+    expect(AGENT_TOOLS.find((t) => t.name === "guard")?.cliOnly).toEqual(["baseline", "base"]);
+    expect(checkToolArgs("guard", { plan: true, base: "HEAD" }).ok).toBe(true); // (the CLI keeps it, for a person)
   });
 
   it("keeps a result under 200 KB and marks a failed call as an error result", () => {
@@ -203,6 +216,121 @@ describe("the MCP protocol handler (--- agent-cli ---)", () => {
     expect(toolResult({ ok: false, error: "no ffmpeg" })).toEqual({ content: [{ type: "text", text: "no ffmpeg" }], isError: true });
   });
 });
+
+describe("the MCP wrapper's transport (--- agent-cli ---)", () => {
+  it("splits stdin into lines without rescanning, and drops a line past the limit unread, the next lines still read", () => {
+    const lines: string[] = [];
+    const big: number[] = [];
+    const r = createLineReader({ maxChars: 10, onLine: (l) => lines.push(l), onOversize: (n) => big.push(n) });
+    r.push('{"a"');
+    r.push(":1}\n{}\n");
+    r.push("x".repeat(8));
+    r.push("y".repeat(8)); // past 10 characters: dropped as it arrives, reported once
+    r.push("z".repeat(50));
+    r.push('zz\n{"b":2}\n0123456789AB\n');
+    r.push("tail");
+    r.end();
+    expect(lines).toEqual(['{"a":1}', "{}", '{"b":2}', "tail"]);
+    expect(big).toEqual([16, 12]);
+    expect(MAX_LINE_CHARS).toBeGreaterThan(1_000_000);
+  });
+
+  it("answers a message past the limit with an error, without parsing it, and keeps answering the next ones", async () => {
+    const huge = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "explain", arguments: { failure: "x".repeat(MAX_LINE_CHARS) } } });
+    const t0 = Date.now();
+    const { replies } = await talk([huge, JSON.stringify({ jsonrpc: "2.0", id: 2, method: "ping" })], 2);
+    expect(replies[0]).toMatchObject({ id: null, error: { code: ERR.invalidRequest, message: expect.stringMatching(/message too large/) } });
+    expect(replies[1]).toEqual({ jsonrpc: "2.0", id: 2, result: {} });
+    expect(Date.now() - t0).toBeLessThan(30_000);
+  }, 60_000);
+
+  it("decodes the CLI's output as one UTF-8 stream: a character split between two 64 KB pipe reads stays whole", async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-mcp-utf8-"));
+    try {
+      // a stand-in CLI: one result line of 1.6 MB of en dashes, crosses and arrows (3 bytes each), after an odd prefix
+      const stub = path.join(dir, "cli.mjs");
+      fs.writeFileSync(stub, 'const notes = Array.from({ length: 20000 }, (_, i) => `note ${i} – the lane × failed ❯ “quoted”`);\nprocess.stdout.write(JSON.stringify({ ok: true, result: { pad: "a", notes } }) + "\\n");\n');
+      const answer = await runCliTool("guard", {}, { cli: stub, timeoutMs: 60_000 });
+      expect(answer.ok).toBe(true);
+      const text = JSON.stringify(answer.result);
+      expect(text.length).toBeGreaterThan(64 * 1024 * 10);
+      expect(text).not.toContain("\uFFFD");
+      expect(answer.result.notes[12475]).toBe("note 12475 – the lane × failed ❯ “quoted”");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it("starts, lists its tools and runs explain while the engine does not build; says why the engine's tools cannot run", async () => {
+    // a copy of the toolbox without src/lib/physics (as when an edit breaks the engine or a mode): the full toolbox cannot
+    // build, the tool core can
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-mcp-broken-"));
+    const cache = fs.mkdtempSync(path.join(os.tmpdir(), "jbl-mcp-cache-"));
+    try {
+      for (const d of ["scripts/agent", "src/lib/agentKit", "src/lib/videoAnalysis"]) fs.cpSync(path.join(ROOT, d), path.join(dir, d), { recursive: true });
+      for (const f of ["package.json", "src/lib/desktop/ai/jsonSchema.ts", "src/lib/audio/beats.ts"]) {
+        fs.mkdirSync(path.dirname(path.join(dir, f)), { recursive: true });
+        fs.copyFileSync(path.join(ROOT, f), path.join(dir, f));
+      }
+      fs.mkdirSync(path.join(dir, "tests"));
+      fs.symlinkSync(path.join(ROOT, "node_modules"), path.join(dir, "node_modules"));
+      const env = { ...process.env, JBL_AGENT_CACHE: cache };
+      const lines = [
+        JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18" } }),
+        JSON.stringify({ jsonrpc: "2.0", id: 2, method: "tools/list" }),
+        JSON.stringify({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "explain", arguments: { failure: "FAIL tests/zip.test.ts > crc\nexpected 1 to be 2" } } }),
+        JSON.stringify({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "simulate", arguments: { mode: "classic", seconds: 1 } } }),
+      ];
+      const first = await serve(path.join(dir, "scripts/agent/mcp.mjs"), dir, env, lines, 4);
+      const byId = new Map(first.map((r) => [r.id, r]));
+      expect(byId.get(1)?.result).toMatchObject({ serverInfo: { name: SERVER_NAME } });
+      expect(((byId.get(2)?.result?.tools ?? []) as unknown[]).length).toBe(9);
+      expect(byId.get(3)?.result).toMatchObject({ isError: false, structuredContent: { kind: "behaviour" } });
+      expect(byId.get(4)?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/did not build/) }] });
+      // the tool core itself broken: initialize and tools/list (the last table that built) still answer, a call says why
+      fs.appendFileSync(path.join(dir, "src/lib/agentKit/tools.ts"), "\nexport const broken = ;\n");
+      const second = await serve(path.join(dir, "scripts/agent/mcp.mjs"), dir, env, lines, 4);
+      const again = new Map(second.map((r) => [r.id, r]));
+      expect(again.get(1)?.result).toMatchObject({ serverInfo: { name: SERVER_NAME }, instructions: expect.stringMatching(/tool core did not build/) });
+      expect(((again.get(2)?.result?.tools ?? []) as unknown[]).length).toBe(9);
+      expect(again.get(3)?.result).toMatchObject({ isError: true, content: [{ type: "text", text: expect.stringMatching(/tools\.ts:\d+:\d+/) }] });
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+      fs.rmSync(cache, { recursive: true, force: true });
+    }
+  }, 120_000);
+});
+
+/** Starts a server script with its own folder and environment, writes `lines`, resolves with `expected` replies. */
+function serve(script: string, cwd: string, env: NodeJS.ProcessEnv, lines: string[], expected: number): Promise<Message[]> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [script], { cwd, env, stdio: ["pipe", "pipe", "pipe"] });
+    const replies: Message[] = [];
+    let out = "";
+    let err = "";
+    const timer = setTimeout(() => {
+      child.kill();
+      reject(new Error(`only ${replies.length} of ${expected} replies: ${out} ${err}`));
+    }, 100_000);
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (c) => {
+      out += c;
+      let at;
+      while ((at = out.indexOf("\n")) >= 0) {
+        replies.push(JSON.parse(out.slice(0, at)));
+        out = out.slice(at + 1);
+      }
+      if (replies.length >= expected) {
+        clearTimeout(timer);
+        child.stdin.end();
+        child.kill();
+        resolve(replies);
+      }
+    });
+    child.stderr.on("data", (c) => (err += c));
+    for (const line of lines) child.stdin.write(`${line}\n`);
+  });
+}
 
 describe("registration (--- agent-cli ---)", () => {
   it("is the project's MCP server for Claude Code and an npm script, next to the CLI; the guide names every tool", () => {

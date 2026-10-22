@@ -18,14 +18,20 @@
  * or file-write tool. A result is at most 200 KB of text; pictures and clips are returned as repository paths.
  *
  * .mcp.json starts it from whatever folder the session opened (desktop/, say): a one-line launcher finds the repository by
- * walking up to scripts/agent/mcp.mjs and calls startServer().
+ * walking up to scripts/agent/mcp.mjs and calls startServer(). Only `node scripts/agent/mcp.mjs` (or that launcher) is a
+ * client's command: `npm run agent:mcp` without `-s` prints npm's banner on stdout first.
+ *
+ * It loads only the tool core (bundle.mjs: the tool table and the argument checks, not the engine), so it starts while an
+ * edit has broken a mode; should the tool core itself not build, it still answers initialize and tools/list (with the last
+ * table that built) and every call says why it cannot run, until the file is fixed. A message line longer than the largest
+ * arguments a call may pass is dropped unread, with an error, and stdin is split into lines without rescanning.
  */
 import { spawn, spawnSync } from "child_process";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { loadToolbox } from "./bundle.mjs";
-import { ROOT } from "./paths.mjs";
+import { loadToolCore } from "./bundle.mjs";
+import { ROOT, cacheDir } from "./paths.mjs";
 
 export const SERVER_NAME = "jumpingballs-agent";
 export const PROTOCOL_VERSIONS = ["2025-06-18", "2025-03-26", "2024-11-05"];
@@ -48,6 +54,8 @@ export const ERR = { parse: -32700, invalidRequest: -32600, methodNotFound: -326
 
 /** The largest arguments a call may pass (JSON characters): explain's 200 000-character failure with room to spare. */
 export const MAX_ARGS_CHARS = 1_000_000;
+/** The longest message line read (characters): the largest arguments and the JSON-RPC envelope around them. */
+export const MAX_LINE_CHARS = MAX_ARGS_CHARS + 64 * 1024;
 /** How long a stopped call's process group has to end after SIGTERM before SIGKILL. */
 const KILL_GRACE_MS = 3000;
 
@@ -97,17 +105,17 @@ export function stopAll() {
 /**
  * @param {string} name
  * @param {any} args
- * @param {{ timeoutMs?: number, signal?: AbortSignal }} [options]
+ * @param {{ timeoutMs?: number, signal?: AbortSignal, cli?: string }} [options] (`cli`: another CLI script, for tests)
  * @returns {Promise<{ ok: boolean, result?: any, error?: string }>}
  */
-export function runCliTool(name, args, { timeoutMs, signal } = {}) {
+export function runCliTool(name, args, { timeoutMs, signal, cli = CLI } = {}) {
   return new Promise((resolve) => {
     const json = JSON.stringify(args ?? {});
     if (json.length > MAX_ARGS_CHARS) return resolve({ ok: false, error: `the arguments are ${json.length} characters of JSON; at most ${MAX_ARGS_CHARS}` });
     let child;
     try {
       // its own process group (POSIX), so stopping it stops what it started; the arguments go on stdin, never the command line
-      child = spawn(process.execPath, [CLI, name, "--json", "-"], { cwd: ROOT, env: process.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, detached: process.platform !== "win32" });
+      child = spawn(process.execPath, [cli, name, "--json", "-"], { cwd: ROOT, env: process.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true, detached: process.platform !== "win32" });
     } catch (e) {
       return resolve({ ok: false, error: `the tool could not start: ${e instanceof Error ? e.message : String(e)}` });
     }
@@ -136,11 +144,14 @@ export function runCliTool(name, args, { timeoutMs, signal } = {}) {
       finish({ ok: false, error: `the tool took longer than ${Math.round(timeoutMs / 1000)} s and was stopped` });
     }, timeoutMs ?? 120_000);
     signal?.addEventListener("abort", onAbort);
+    // one UTF-8 decoder per stream: a character split between two 64 KB pipe reads stays whole (never U+FFFD)
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
     child.stdout.on("data", (c) => {
-      if (out.length < 64 * 1024 * 1024) out += c.toString("utf8");
+      if (out.length < 64 * 1024 * 1024) out += c;
     });
     child.stderr.on("data", (c) => {
-      err = (err + c.toString("utf8")).slice(-4000);
+      err = (err + c).slice(-4000);
     });
     child.on("error", (e) => finish({ ok: false, error: e.message }));
     child.on("close", () => {
@@ -173,10 +184,10 @@ export function toolResult(answer) {
  * toolbox's checkToolArgs) refuses arguments the schema does not allow before anything starts.
  */
 /**
- * @param {{ tools: readonly { name: string, title: string, description: string, input: any, writes: string, mcp: boolean, cliOnly?: readonly string[], timeoutMs: number }[], version?: string, run?: (name: string, args: any, options: { timeoutMs: number, signal: AbortSignal }) => Promise<any>, check?: (name: string, args: any) => { ok: boolean, errors?: string[] } }} options
+ * @param {{ tools: readonly { name: string, title: string, description: string, input: any, writes: string, mcp: boolean, cliOnly?: readonly string[], timeoutMs: number }[], version?: string, run?: (name: string, args: any, options: { timeoutMs: number, signal: AbortSignal }) => Promise<any>, check?: (name: string, args: any) => { ok: boolean, errors?: string[] }, notice?: string }} options
  * @returns {{ handle: (msg: any) => Promise<any>, offered: any[], cancelAll: () => void }}
  */
-export function createMcpHandler({ tools, version = "0.0.0", run = runCliTool, check }) {
+export function createMcpHandler({ tools, version = "0.0.0", run = runCliTool, check, notice }) {
   const offered = tools.filter((t) => t.mcp);
   const byName = new Map(offered.map((t) => [t.name, t]));
   const running = new Map();
@@ -200,7 +211,7 @@ export function createMcpHandler({ tools, version = "0.0.0", run = runCliTool, c
           protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: SERVER_NAME, version },
-          instructions: INSTRUCTIONS,
+          instructions: notice ? `${INSTRUCTIONS} ${notice}` : INSTRUCTIONS,
         });
       }
       case "ping":
@@ -221,7 +232,7 @@ export function createMcpHandler({ tools, version = "0.0.0", run = runCliTool, c
         const args = params.arguments ?? {};
         if (!args || typeof args !== "object" || Array.isArray(args)) return fail(msg.id, ERR.invalidParams, "arguments must be an object");
         const cliOnly = (spec.cliOnly ?? []).filter((k) => Object.hasOwn(args, k));
-        if (cliOnly.length) return reply(msg.id, toolResult({ ok: false, error: `${cliOnly.join(", ")}: CLI only, not offered over MCP (run \`npm run ${spec.name} -- --${cliOnly[0]}\` yourself, on an untouched tree)` }));
+        if (cliOnly.length) return reply(msg.id, toolResult({ ok: false, error: `${cliOnly.join(", ")}: CLI only, not offered over MCP (a person runs \`npm run ${spec.name} -- --${cliOnly[0]}\` on purpose)` }));
         const checked = check?.(spec.name, args);
         if (checked && !checked.ok) return reply(msg.id, toolResult({ ok: false, error: (checked.errors ?? ["the arguments do not match the tool's schema"]).join("; ") }));
         const controller = new AbortController();
@@ -242,16 +253,104 @@ export function createMcpHandler({ tools, version = "0.0.0", run = runCliTool, c
   return { handle, offered, cancelAll: () => [...running.values()].forEach((c) => c.abort()) };
 }
 
+/**
+ * --- agent-cli --- Splits a text stream into lines without rescanning it: each chunk is searched for "\n" once and the pieces
+ * of an unfinished line are kept in a list (joined once, at its end). A line longer than `maxChars` is dropped as it arrives –
+ * up to its newline, never held whole or parsed – and reported once with `onOversize`.
+ *
+ * @param {{ maxChars: number, onLine: (line: string) => void, onOversize: (chars: number) => void }} options
+ * @returns {{ push: (chunk: string) => void, end: () => void }}
+ */
+export function createLineReader({ maxChars, onLine, onOversize }) {
+  let parts = [];
+  let size = 0;
+  let dropping = false;
+  const reset = () => {
+    parts = [];
+    size = 0;
+  };
+  return {
+    push(chunk) {
+      let from = 0;
+      for (let at = chunk.indexOf("\n"); at >= 0; at = chunk.indexOf("\n", from)) {
+        const piece = chunk.slice(from, at);
+        if (dropping) dropping = false;
+        else if (size + piece.length > maxChars) onOversize(size + piece.length);
+        else onLine(parts.length ? parts.join("") + piece : piece);
+        reset();
+        from = at + 1;
+      }
+      const rest = chunk.slice(from);
+      if (!rest || dropping) return;
+      if (size + rest.length > maxChars) {
+        dropping = true;
+        onOversize(size + rest.length);
+        reset();
+        return;
+      }
+      parts.push(rest);
+      size += rest.length;
+    },
+    end() {
+      if (!dropping && size) onLine(parts.join(""));
+      dropping = false;
+      reset();
+    },
+  };
+}
+
+/** The last tool table that built, in the agent cache: what tools/list offers while the tool core itself does not build. */
+function lastToolTable(tools) {
+  try {
+    const file = path.join(cacheDir("bundle"), "tools.json");
+    if (tools) fs.writeFileSync(file, JSON.stringify(tools));
+    else return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    /* no cache (yet), or an unsafe one: nothing to offer from it */
+  }
+  return tools ?? [];
+}
+
+/** The tool core, or why it did not build (with the last table that did). */
+async function toolTable() {
+  try {
+    const core = await loadToolCore();
+    return { core, tools: lastToolTable(core.AGENT_TOOLS), error: null };
+  } catch (e) {
+    return { core: null, tools: lastToolTable(null), error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 /** The stdio transport: a line in, a line out (the .mcp.json launcher calls this; so does `node scripts/agent/mcp.mjs`). */
 export async function startServer() {
-  const tb = await loadToolbox();
-  const version = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
-  const server = createMcpHandler({ tools: tb.AGENT_TOOLS, version, check: tb.checkToolArgs });
+  let version = "0.0.0";
+  try {
+    version = JSON.parse(fs.readFileSync(path.join(ROOT, "package.json"), "utf8")).version;
+  } catch {
+    /* (a broken package.json: the server still answers) */
+  }
+  let table = await toolTable();
+  const server = createMcpHandler({
+    tools: table.tools,
+    version,
+    notice: table.error ? `The tool core did not build, so every call answers with its error until it does: ${table.error}` : undefined,
+    check: (name, args) => (table.core ? table.core.checkToolArgs(name, args) : { ok: true }),
+    run: async (name, args, options) => {
+      if (!table.core) {
+        // (the agent may have fixed the file since the server started)
+        const again = await toolTable();
+        if (!again.core) return { ok: false, error: again.error };
+        table = again;
+        const checked = table.core.checkToolArgs(name, args);
+        if (!checked.ok) return { ok: false, error: checked.errors.join("; ") };
+      }
+      return runCliTool(name, args, options);
+    },
+  });
   const send = (message) => {
     if (message) process.stdout.write(`${JSON.stringify(message)}\n`);
   };
   const pending = new Set();
-  let buffer = "";
   const onLine = (line) => {
     if (!line.trim()) return;
     let msg;
@@ -267,18 +366,15 @@ export async function startServer() {
     pending.add(work);
     work.finally(() => pending.delete(work));
   };
-  process.stdin.setEncoding("utf8");
-  process.stdin.on("data", (chunk) => {
-    buffer += chunk;
-    let at;
-    while ((at = buffer.indexOf("\n")) >= 0) {
-      const line = buffer.slice(0, at);
-      buffer = buffer.slice(at + 1);
-      onLine(line);
-    }
+  const reader = createLineReader({
+    maxChars: MAX_LINE_CHARS,
+    onLine,
+    onOversize: (chars) => send({ jsonrpc: "2.0", id: null, error: { code: ERR.invalidRequest, message: `message too large: more than ${MAX_LINE_CHARS} characters (${chars} so far), dropped unread` } }),
   });
+  process.stdin.setEncoding("utf8");
+  process.stdin.on("data", (chunk) => reader.push(chunk));
   process.stdin.on("end", async () => {
-    if (buffer.trim()) onLine(buffer);
+    reader.end();
     await Promise.allSettled([...pending]);
     process.exit(0);
   });
@@ -289,7 +385,7 @@ export async function startServer() {
   process.on("exit", stopAll); // whichever way the server ends: the calls' process groups end with it
   process.on("SIGINT", stop);
   process.on("SIGTERM", stop);
-  process.stderr.write(`${SERVER_NAME} ${version}: ${server.offered.length} tools on stdio\n`);
+  process.stderr.write(`${SERVER_NAME} ${version}: ${server.offered.length} tools on stdio${table.error ? ` (the tool core did not build: ${table.error})` : ""}\n`);
 }
 
 const invoked = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);

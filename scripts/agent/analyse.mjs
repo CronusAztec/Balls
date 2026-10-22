@@ -58,8 +58,9 @@ export function runFfmpeg(ffmpeg, args, { cwd, timeoutMs = PASS_TIMEOUT_MS } = {
       if (outBytes > MAX_STDOUT) stop(new Error("ffmpeg's output is larger than the analyser reads"));
       else out.push(c);
     });
+    child.stderr.setEncoding("utf8"); // (one decoder for the stream: a character split between two reads stays whole)
     child.stderr.on("data", (c) => {
-      if (err.length < MAX_STDERR) err += c.toString("utf8");
+      if (err.length < MAX_STDERR) err += c;
     });
     child.on("error", (e) => stop(e));
     child.on("close", (code) => {

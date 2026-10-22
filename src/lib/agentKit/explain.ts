@@ -34,7 +34,7 @@ export interface Explanation {
   neverDo: string[];
 }
 
-/** Hub sources whose text 16 test files pin (the brittle ones a refactor turns red). */
+/** Hub sources whose text test files pin (the brittle ones a refactor turns red; textReadsOf measures which tests). */
 export const PINNED_HUB_FILES = ["Simulator.tsx", "Canvas.tsx", "Controls.tsx"] as const;
 
 const NEVER_DO = [

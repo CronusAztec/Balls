@@ -187,15 +187,16 @@ export const AGENT_TOOLS: readonly AgentToolSpec[] = [
         baseline: { type: "boolean", description: "Record the failures the untouched tree already has (guard --baseline; refused on a tree with any change). CLI only: not offered over MCP." },
         plan: { type: "boolean", description: "Plan only (guard --plan): what would run and the static checks' findings (fingerprint lock, protected-path report, test weakening) in about a second; nothing runs." },
         withSlow: { type: "boolean", description: "Also the slow tests the change pulls in (guard --with-slow)." },
-        base: { type: "string", minLength: 1, maxLength: 100, pattern: "^[A-Za-z0-9][A-Za-z0-9._/-]*$", description: "The git ref the change is measured against (guard --base; default the merge base with origin/main)." },
+        base: { type: "string", minLength: 1, maxLength: 100, pattern: "^[A-Za-z0-9][A-Za-z0-9._/-]*$", description: "The git ref the change is measured against (guard --base; default the merge base with origin/main). CLI only: not offered over MCP (a later base hides the change's committed commits from the static checks)." },
       },
     },
     writes: ".agent-out",
     alsoWrites: ["node_modules/.cache/jbl-guard: the guard's state (type-check, ESLint and vitest caches, logs, the baseline)", ".next/ and out/ of the repository, with browser: the /smoke build tier 1 serves"],
     network: "none",
     mcp: true,
-    // --- ai-guard --- a baseline excuses failures: recording one is a person's step on an untouched tree, not a tool call
-    cliOnly: ["baseline"],
+    // --- ai-guard --- a baseline excuses failures: recording one is a person's step on an untouched tree, not a tool call;
+    // and a base narrows what is measured (base "HEAD" hides every committed weakened test and re-recorded fingerprint)
+    cliOnly: ["baseline", "base"],
     timeoutMs: 30 * 60_000,
   },
   {
