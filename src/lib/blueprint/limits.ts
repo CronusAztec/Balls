@@ -15,6 +15,7 @@ import {
   BLUEPRINT_JSON_MAX_BYTES,
   BLUEPRINT_OBSTACLE_CEILING,
   BLUEPRINT_PAIR_TESTS_PER_STEP,
+  BLUEPRINT_PAIR_VISITS_PER_STEP,
   BLUEPRINT_RADIUS_CEILING,
   BLUEPRINT_RULE_CEILING,
   BLUEPRINT_RULE_FIRINGS_PER_STEP,
@@ -34,6 +35,7 @@ export {
   BLUEPRINT_JSON_MAX_BYTES,
   BLUEPRINT_OBSTACLE_CEILING,
   BLUEPRINT_PAIR_TESTS_PER_STEP,
+  BLUEPRINT_PAIR_VISITS_PER_STEP,
   BLUEPRINT_RADIUS_CEILING,
   BLUEPRINT_RULE_CEILING,
   BLUEPRINT_RULE_FIRINGS_PER_STEP,
@@ -103,6 +105,8 @@ export const BLUEPRINT_STEP_BUDGETS = {
   sounds: BLUEPRINT_SOUNDS_PER_STEP,
   /** Ball-pair tests a step, shared out over its sub-steps (past it a sub-step's remaining pairs are skipped and counted). */
   pairTests: BLUEPRINT_PAIR_TESTS_PER_STEP,
+  /** --- review fix (blueprint) --- Pair-grid entries a step walks to find them, shared out the same way (past it the same). */
+  pairVisits: BLUEPRINT_PAIR_VISITS_PER_STEP,
   /** Balls the actions of a step change (past it the step's further actions are dropped and counted). */
   actionBalls: BLUEPRINT_ACTION_BALLS_PER_STEP,
 } as const;

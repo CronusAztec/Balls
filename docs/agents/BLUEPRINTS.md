@@ -196,7 +196,8 @@ Fixed work and memory ceilings (`BLUEPRINT_CEILINGS` in `src/lib/uncap.ts`, the 
 | `ballRadius` | 225 | a ball's radius in px (a body, a grow, a merge or a split stops there) |
 | `ballSpeed` | 100000 | a ball's speed in px/s (a faster ball is taken out and counted) |
 | `subStepsPerStep` | 16 | sub-steps of one step (slow motion beyond) |
-| `pairTestsPerStep` | 64000 | ball-pair tests one step makes (the rest of a sub-step's are skipped and counted) |
+| `pairTestsPerStep` | 64000 | ball pairs one step tests for a contact (the rest of a sub-step's are skipped and counted) |
+| `pairVisitsPerStep` | 160000 | pair-grid entries one step walks to find those pairs (the rest of a sub-step's are skipped and counted) |
 | `actionBallsPerStep` | 4096 | balls the rules' actions change in one step (further actions are dropped and counted) |
 
 The shape of a spec (`BLUEPRINT_LIMITS` in `src/lib/blueprint/limits.ts`): 4 bodies, 4 exits, 8 obstacle patterns, 4 variables, 6 spawners, 4 actions a rule, 3 finish conditions, 2 HUD counters, 6 colours, 6 teams, 8 rings, 8 balls a spawn, names of 28 and descriptions of 160 characters. A step has 4 to 16 sub-steps: the engine plans enough that no ball moves more than half its radius in one, and past 16 the run plays in slow motion instead.
@@ -210,7 +211,7 @@ only (never wall time, so every machine agrees). Mode Lab's Check playability bu
 - **endless:** every seed runs into the timeout;
 - **broken:** anything else. The feedback says what to change, in plain sentences.
 
-A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than 60000 work units a step on average (ball sub-steps, contact and pair tests, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size).
+A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than 60000 work units a step on average (ball sub-steps, contact and pair tests, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size), **crowded** when 30 of a second's 60 steps skip ball pairs past the pair budgets (balls that overlap so much that the sandbox only bounds them).
 
 ## The Lite form (small local models)
 

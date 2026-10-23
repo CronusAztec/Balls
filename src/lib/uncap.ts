@@ -147,11 +147,18 @@ export const BLUEPRINT_CEILINGS = {
    */
   subStepsPerStep: 16,
   /**
-   * --- review fix (blueprint) --- Ball-pair tests one step makes (shared out over its sub-steps): a crowd of 400 small balls
-   * piled in a bowl needs a tenth of it. Past it the rest of the sub-step's pairs are skipped and counted (droppedPairs), so
-   * balls that all overlap cannot make a step quadratic.
+   * --- review fix (blueprint) --- Ball pairs one step tests for a contact (shared out over its sub-steps): 400 balls of
+   * 12 px – more than the arena holds – heaped in a bowl test at most a third of it. Past it the rest of the sub-step's pairs
+   * are skipped and counted (droppedPairs), so balls that all overlap cannot make a step quadratic.
    */
   pairTestsPerStep: 64_000,
+  /**
+   * --- review fix (blueprint) --- Pair-grid entries one step walks to find those pairs (a ball is listed in every cell it
+   * covers, so a pair sharing cells is met once a cell): 400 balls of 10 px filling the arena walk a third of it, that heap
+   * of 12 px balls under half. Past it the rest of the sub-step's pairs are skipped and counted, as past the pair tests:
+   * medium balls heaped in the same cells cannot make the walk quadratic either.
+   */
+  pairVisitsPerStep: 160_000,
   /**
    * --- review fix (blueprint) --- Balls the rules' actions change in one step (an action with target "all" changes every
    * ball, and each runs its formula): past it the step's further actions are dropped and counted, like rule firings past
@@ -173,6 +180,7 @@ export const BLUEPRINT_RADIUS_CEILING = BLUEPRINT_CEILINGS.ballRadius;
 export const BLUEPRINT_SPEED_CEILING = BLUEPRINT_CEILINGS.ballSpeed;
 export const BLUEPRINT_SUBSTEP_CEILING = BLUEPRINT_CEILINGS.subStepsPerStep;
 export const BLUEPRINT_PAIR_TESTS_PER_STEP = BLUEPRINT_CEILINGS.pairTestsPerStep;
+export const BLUEPRINT_PAIR_VISITS_PER_STEP = BLUEPRINT_CEILINGS.pairVisitsPerStep;
 export const BLUEPRINT_ACTION_BALLS_PER_STEP = BLUEPRINT_CEILINGS.actionBallsPerStep;
 // --- end blueprint ---
 

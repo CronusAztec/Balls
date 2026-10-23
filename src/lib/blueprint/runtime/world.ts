@@ -10,7 +10,8 @@
  *    gravity (the engine's is off for these balls: gravityScale 0);
  *  - `collidePairs()` (onPostSubStep): every touching pair, by mass (area), through a grid rebuilt each sub-step – a ball
  *    that covers more than BIG_CELLS cells is tested directly against the others instead, and a sub-step tests at most its
- *    share of BLUEPRINT_PAIR_TESTS_PER_STEP (the rest are skipped and counted: `droppedPairs`);
+ *    share of BLUEPRINT_PAIR_TESTS_PER_STEP pairs and walks at most its share of BLUEPRINT_PAIR_VISITS_PER_STEP grid
+ *    entries (the rest are skipped and counted: `droppedPairs`);
  *  - `cull()` (end of each step): a ball gone non-finite or past BLUEPRINT_SPEED_CEILING is taken out (counted), so the
  *    canvas never draws one and no sub-step plan has to follow one;
  *  - `advance()` (once a step): the rim, the rings' gaps and the spinners turn.
@@ -26,7 +27,7 @@
  */
 import type { Ball, ModeContext, NewBall } from "@/lib/physics/types";
 import { TileField } from "@/lib/physics/tiles";
-import { BLUEPRINT_PAIR_TESTS_PER_STEP, BLUEPRINT_SPEED_CEILING, BLUEPRINT_TILE_CEILING } from "../limits";
+import { BLUEPRINT_PAIR_TESTS_PER_STEP, BLUEPRINT_PAIR_VISITS_PER_STEP, BLUEPRINT_SPEED_CEILING, BLUEPRINT_TILE_CEILING } from "../limits";
 import { RINGS_RIM_OUTER, type Blueprint } from "../schema";
 import type { WorldEvents } from "./events";
 
@@ -962,8 +963,11 @@ export class BlueprintWorld {
    * Ball pairs: a grid rebuilt each sub-step; each touching pair bounces (unless one passes) and is reported once a step.
    * --- review fix (blueprint) --- Work is bounded, not only the count: a big ball (more than BIG_CELLS cells) is tested
    * directly against every other ball, never through every cell it covers, and a sub-step makes at most its share of
-   * BLUEPRINT_PAIR_TESTS_PER_STEP pair tests – past it the rest of its pairs are skipped and the sub-step is counted
-   * (`droppedPairs`). Small balls are tested in exactly the order they always were.
+   * BLUEPRINT_PAIR_TESTS_PER_STEP pair tests (`work`: the pairs looked at for a contact) and walks at most its share of
+   * BLUEPRINT_PAIR_VISITS_PER_STEP grid entries (`pairVisits`: a ball's cells list the pairs it meets in each, and every
+   * shared cell again) – past either the rest of its pairs are skipped and the sub-step is counted (`droppedPairs`). The two
+   * are apart so a full arena of 400 small balls, which walks about three entries a pair it tests, keeps its headroom.
+   * Small balls are tested in exactly the order they always were.
    */
   collidePairs(events: WorldEvents) {
     const balls = this.balls;
@@ -1020,9 +1024,12 @@ export class BlueprintWorld {
       const r1 = this.cellY(b.y + b.r);
       for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) this.pairItems[count[r * cols + c]++] = i;
     }
-    // this sub-step's share of the step's pair tests (every item a ball's cells hold is one)
-    const budget = Math.ceil(BLUEPRINT_PAIR_TESTS_PER_STEP * Math.min(1, this.subSec / Math.max(this.stepSec, 1e-9)));
-    let spent = 0;
+    // this sub-step's share of the step's pair tests and grid entries walked
+    const share = Math.min(1, this.subSec / Math.max(this.stepSec, 1e-9));
+    const testBudget = Math.ceil(BLUEPRINT_PAIR_TESTS_PER_STEP * share);
+    const visitBudget = Math.ceil(BLUEPRINT_PAIR_VISITS_PER_STEP * share);
+    let tests = 0;
+    let visits = 0;
     const seen = this.pairSeen;
     seen.fill(-1, 0, n);
     for (let i = 0; i < n; i++) {
@@ -1036,11 +1043,11 @@ export class BlueprintWorld {
         for (let c = c0; c <= c1; c++) {
           const cell = r * cols + c;
           const end = start[cell + 1];
-          if (spent + (end - start[cell]) > budget) {
+          if (visits + (end - start[cell]) > visitBudget) {
             this.droppedPairs++;
             return;
           }
-          spent += end - start[cell];
+          visits += end - start[cell];
           this.pairVisits += end - start[cell];
           for (let q = start[cell]; q < end; q++) {
             const j = this.pairItems[q];
@@ -1048,6 +1055,11 @@ export class BlueprintWorld {
             seen[j] = i;
             const b = balls[j];
             if (!b.alive) continue;
+            if (tests >= testBudget) {
+              this.droppedPairs++;
+              return;
+            }
+            tests++;
             this.work++;
             this.touch(a, b, events);
             if (!a.alive) break;
@@ -1057,11 +1069,12 @@ export class BlueprintWorld {
     // the big balls: each against every other ball (a pair of big ones once)
     for (const i of big) {
       const a = balls[i];
-      if (spent + n > budget) {
+      if (tests + n > testBudget || visits + n > visitBudget) {
         this.droppedPairs++;
         return;
       }
-      spent += n;
+      tests += n;
+      visits += n;
       this.pairVisits += n;
       for (let j = 0; j < n; j++) {
         if (j === i || (isBig[j] && j < i)) continue;

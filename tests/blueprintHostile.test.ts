@@ -7,8 +7,10 @@ import {
   BLUEPRINT_ACTION_BALLS_PER_STEP,
   BLUEPRINT_MAX_SUBSTEPS,
   BLUEPRINT_PAIR_TESTS_PER_STEP,
+  BLUEPRINT_PAIR_VISITS_PER_STEP,
   BLUEPRINT_RADIUS_CEILING,
   BLUEPRINT_RUN_CONFIG,
+  CHECK_CROWDED_STEPS,
   CHECK_HEAVY_STEP_COST,
   HeadlessBlueprint,
   PlayabilityRun,
@@ -108,6 +110,43 @@ describe("blueprint sandbox: a step's work is bounded, not only its ball count",
       visits = h.world.pairVisits;
       // (each sub-step's share is rounded up, at most one ball's worth over)
       expect(step, `step ${i}`).toBeLessThanOrEqual(BLUEPRINT_PAIR_TESTS_PER_STEP + 4 * 400);
+    }
+    expect(h.world.aliveCount()).toBe(400);
+    expect(h.stats.droppedPairs).toBeGreaterThan(0);
+    expect(h.stats.cost / h.stats.steps).toBeLessThan(CHECK_HEAVY_STEP_COST * 2);
+  });
+
+  it("leaves a crowd of 400 balls heaped in a bowl every pair: both pair budgets keep their headroom", () => {
+    // 400 balls of 12 px – more than the arena holds – heaped under gravity: on seeds 2 to 4 one budget of grid entries walked
+    // ran out within 3 s and the heap's later balls skipped their contacts. (No tiles or obstacles: `work` is pair tests.)
+    const bp = spec({ bodies: [{ id: "b", radius: 12 }], arena: { gravity: { x: 0, y: 300 } }, spawners: [{ body: "b", count: 8, everySec: 0.05, maxTotal: 400, at: "random" }], finish: { timeoutSec: 180 } });
+    for (const seed of [2, 3, 4]) {
+      const h = new HeadlessBlueprint(bp, { seed });
+      let tests = 0;
+      let visits = 0;
+      for (let i = 0; i < 240; i++) {
+        h.step();
+        expect(h.world.work - tests, `seed ${seed}, step ${i}: pairs tested`).toBeLessThanOrEqual(BLUEPRINT_PAIR_TESTS_PER_STEP / 2);
+        expect(h.world.pairVisits - visits, `seed ${seed}, step ${i}: grid entries walked`).toBeLessThanOrEqual(BLUEPRINT_PAIR_VISITS_PER_STEP / 2);
+        tests = h.world.work;
+        visits = h.world.pairVisits;
+      }
+      expect([seed, h.world.aliveCount(), h.stats.droppedPairs]).toEqual([seed, 400, 0]);
+    }
+  });
+
+  it("bounds a heap of medium balls in the same cells by the grid entries it walks and the pairs it tests", () => {
+    const bp = spec({ bodies: [{ id: "b", radius: 40 }], arena: { gravity: { x: 0, y: 600 } }, spawners: [{ body: "b", count: 8, everySec: 0.0001, maxTotal: 400, at: "center" }], finish: { timeoutSec: 180 } });
+    const h = new HeadlessBlueprint(bp, { seed: 1 });
+    let tests = 0;
+    let visits = 0;
+    for (let i = 0; i < 120; i++) {
+      h.step();
+      // (each sub-step's shares are rounded up: at most one a sub-step over)
+      expect(h.world.work - tests, `step ${i}: pairs tested`).toBeLessThanOrEqual(BLUEPRINT_PAIR_TESTS_PER_STEP + BLUEPRINT_MAX_SUBSTEPS);
+      expect(h.world.pairVisits - visits, `step ${i}: grid entries walked`).toBeLessThanOrEqual(BLUEPRINT_PAIR_VISITS_PER_STEP + BLUEPRINT_MAX_SUBSTEPS);
+      tests = h.world.work;
+      visits = h.world.pairVisits;
     }
     expect(h.world.aliveCount()).toBe(400);
     expect(h.stats.droppedPairs).toBeGreaterThan(0);
@@ -281,6 +320,20 @@ describe("blueprint check: a seed a tab could not play stops early, and a slowed
     expect(report.verdict).toBe("broken");
     expect(report.problems).toContain("crowded");
     expect(report.feedback.join("\n")).toMatch(/fewer or smaller balls/);
+  });
+
+  it("stops every seed of 400 balls the size of the arena as crowded within a second or two, and says the check stopped it", () => {
+    // (the sandbox only bounds such a spec – its pair budget runs out every sub-step – so the verdict is broken from the start)
+    const bp = spec({ bodies: [{ id: "big", radius: BLUEPRINT_RADIUS_CEILING }], spawners: [{ body: "big", count: 8, everySec: 0.0001, maxTotal: 400 }], finish: { timeoutSec: 180 } });
+    const report = playabilityCheck(bp);
+    expect(report.seeds.map((r) => r.reason)).toEqual(["crowded", "crowded", "crowded", "crowded"]);
+    for (const r of report.seeds) expect(r.steps, `seed ${r.seed}`).toBeLessThanOrEqual(60 + CHECK_CROWDED_STEPS);
+    expect(report.verdict).toBe("broken");
+    expect(report.problems).toContain("crowded");
+    expect(report.feedback.join("\n")).toMatch(/so the check stopped it\)\. Use fewer or smaller balls/);
+    // (no seed reached the timeout, and the feedback never says one did)
+    expect(report.feedback.join("\n")).toMatch(/Only 0 of 4 seeds end by a finish condition \(at least 3 should\): the check stopped the others early/);
+    expect(report.feedback.join("\n")).not.toMatch(/timeout/);
   });
 
   it("plays the check in slices that each stop on the caller's clock, with the verdict playabilityCheck() gives", () => {

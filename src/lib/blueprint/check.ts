@@ -17,9 +17,11 @@
  * counts alone, when a tab could not play it: "heavy" – a second of steps costs more than CHECK_HEAVY_STEP_COST work units
  * a step on average (ball sub-steps, contact and pair tests, rule work) – or "slow" – five seconds of steps advanced the
  * run's clock by less than half that (the engine slows time to follow balls too fast for their size). Neither is ever
- * reported as a timeout.
+ * reported as a timeout. "crowded" – half the steps of a second skipped ball pairs past the step's pair budgets – stops a
+ * seed whose balls overlap so much that the sandbox only bounds it (a link of 400 balls the size of the arena): the verdict
+ * is broken from there on, so the check says so at once instead of playing it to its end.
  */
-import { BLUEPRINT_ACTION_BALLS_PER_STEP, BLUEPRINT_BALL_CEILING, BLUEPRINT_PAIR_TESTS_PER_STEP, BLUEPRINT_SPEED_CEILING, BLUEPRINT_STEP_BUDGETS } from "./limits";
+import { BLUEPRINT_ACTION_BALLS_PER_STEP, BLUEPRINT_BALL_CEILING, BLUEPRINT_PAIR_TESTS_PER_STEP, BLUEPRINT_PAIR_VISITS_PER_STEP, BLUEPRINT_SPEED_CEILING, BLUEPRINT_STEP_BUDGETS } from "./limits";
 import { DEFAULT_SAY, type Blueprint } from "./schema";
 import { HeadlessBlueprint, blueprintStepBound } from "./headless";
 import type { FinishReason } from "./runtime/run";
@@ -37,11 +39,13 @@ export const CHECK_HEAVY_STEP_COST = 60_000;
 /** Steps the "slow" judgement looks back over (five seconds), and the least share of them the run's clock must advance. */
 export const CHECK_SLOW_WINDOW_STEPS = 300;
 export const CHECK_SLOW_MIN_SPEED = 0.5;
+/** --- review fix (blueprint) --- Steps of the last second (of 60) that skipped ball pairs before the check stops a seed as crowded. */
+export const CHECK_CROWDED_STEPS = 30;
 
 export type PlayabilityVerdict = "playable" | "endless" | "broken";
 
-/** How a seed's check ended: the run's own end, or the check stopped it – too heavy for a tab, or slow motion. */
-export type SeedEnd = FinishReason | "heavy" | "slow";
+/** How a seed's check ended: the run's own end, or the check stopped it – too heavy for a tab, slow motion, or crowded. */
+export type SeedEnd = FinishReason | "heavy" | "slow" | "crowded";
 
 export interface SeedReport {
   seed: number;
@@ -119,6 +123,10 @@ export class SeedCheck {
   /** Each step's cost and clock, over the last CHECK_SLOW_WINDOW_STEPS steps (rings). */
   private readonly costs = new Float64Array(60);
   private readonly clocks = new Float64Array(CHECK_SLOW_WINDOW_STEPS);
+  /** Whether each of the last 60 steps skipped ball pairs (a ring), and how many of them did. */
+  private readonly crowdedSteps = new Uint8Array(60);
+  private windowCrowded = 0;
+  private lastDroppedPairs = 0;
   private windowCost = 0;
   private peakWindowCost = 0;
   private lastCost = 0;
@@ -151,18 +159,23 @@ export class SeedCheck {
       this.windowCost += cost - this.costs[k % 60];
       this.costs[k % 60] = cost;
       this.clocks[k % CHECK_SLOW_WINDOW_STEPS] = h.run.timeSec;
+      const crowded = h.stats.droppedPairs > this.lastDroppedPairs ? 1 : 0;
+      this.lastDroppedPairs = h.stats.droppedPairs;
+      this.windowCrowded += crowded - this.crowdedSteps[k % 60];
+      this.crowdedSteps[k % 60] = crowded;
       if (h.finished) return this.end(null);
       if (this.steps >= 60) {
         if (this.windowCost > this.peakWindowCost) this.peakWindowCost = this.windowCost;
         if (this.windowCost > 60 * CHECK_HEAVY_STEP_COST) return this.end("heavy");
       }
+      if (this.windowCrowded >= CHECK_CROWDED_STEPS) return this.end("crowded");
       // five seconds of steps moved the run's clock less than half that: slow motion
       if (this.steps > CHECK_SLOW_WINDOW_STEPS && h.run.timeSec - clockWas < (CHECK_SLOW_MIN_SPEED * CHECK_SLOW_WINDOW_STEPS) / 60) return this.end("slow");
     }
     return null;
   }
 
-  private end(stopped: "heavy" | "slow" | null): SeedReport {
+  private end(stopped: "heavy" | "slow" | "crowded" | null): SeedReport {
     const h = this.h;
     const result = h.result();
     const stats = h.stats;
@@ -255,8 +268,12 @@ export function judgeSeeds(bp: Blueprint, reports: SeedReport[]): PlayabilityRep
     problem("slow", `It plays in slow motion on seed ${seedList(slow)}: balls move too fast for their size, so the engine slows time to follow them and the run's clock barely moves. Slow the balls down, make them bigger, or stop a speed-up sooner.`);
   if (fast.length)
     problem("fast", `A ball got faster than ${BLUEPRINT_SPEED_CEILING} px/s and was taken out on seed ${seedList(fast)}. Bound the speed-up: a scale closer to 1, a maxFires on the rule, or min() in its formula.`);
+  const crowdedStopped = reports.filter((r) => r.reason === "crowded");
   if (crowded.length)
-    problem("crowded", `Too many balls touch at once on seed ${seedList(crowded)}: ball-pair tests past the ${BLUEPRINT_PAIR_TESTS_PER_STEP} a step were skipped. Use fewer or smaller balls.`);
+    problem(
+      "crowded",
+      `Too many balls touch at once on seed ${seedList(crowded)}: ball pairs past the ${BLUEPRINT_PAIR_TESTS_PER_STEP} tests (or the ${BLUEPRINT_PAIR_VISITS_PER_STEP} grid entries walked) a step were skipped${crowdedStopped.length ? ` (on seed ${seedList(crowdedStopped)} in half the steps of a second, so the check stopped it)` : ""}. Use fewer or smaller balls.`,
+    );
   if (busy.length)
     problem("busy", `Rules change too many balls at once on seed ${seedList(busy)}: actions past the ${BLUEPRINT_ACTION_BALLS_PER_STEP} balls a step were dropped. Give the busiest rule a cooldownSec or an every, or target self instead of all.`);
   if (quiet.length) problem("quiet", `It is too quiet: the median seed plays fewer than ${PLAYABLE_MIN_SOUNDS} sounds (seed ${seedList(quiet)}). Give the hits a voice (sound.voices) or add sound actions.`);
@@ -281,7 +298,10 @@ export function judgeSeeds(bp: Blueprint, reports: SeedReport[]): PlayabilityRep
       problem(
         "fewEnd",
 
-        `Only ${byCondition.length} of ${n} seeds end by a finish condition (at least ${need} should): the others ran into the ${bp.finish.timeoutSec} s timeout. Make the finish easier to reach, or give it more time.`,
+        // (a seed the check stopped never reached the timeout: the sentence says so, the fix is the stop's, above)
+        heavy.length + slow.length + crowdedStopped.length === n - byCondition.length
+          ? `Only ${byCondition.length} of ${n} seeds end by a finish condition (at least ${need} should): the check stopped the others early, for the reason above.`
+          : `Only ${byCondition.length} of ${n} seeds end by a finish condition (at least ${need} should): the others ran into the ${bp.finish.timeoutSec} s timeout${heavy.length + slow.length + crowdedStopped.length ? " or the check stopped them early" : ""}. Make the finish easier to reach, or give it more time.`,
       );
     if (short) problem("short", `It ends after a median ${med} s: too quick for a clip. Aim for ${PLAYABLE_MIN_SEC} s or more – slower balls, more tiles, a narrower exit, a higher count.`);
     if (long && !fewEnd) problem("long", `The median end (${med} s) is at the timeout: most runs only just make it. Make the finish a little easier to reach.`);

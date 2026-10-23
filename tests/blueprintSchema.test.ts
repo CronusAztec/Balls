@@ -240,10 +240,12 @@ describe("blueprint: the compact form, the code and the digest", () => {
 
 describe("blueprint: the sandbox ceilings (lib/uncap.ts)", () => {
   it("are the owner's fixed work and memory ceilings, re-exported unchanged by the library", () => {
-    expect(uncap.BLUEPRINT_CEILINGS).toEqual({ balls: 400, tiles: 600, obstacles: 48, rules: 16, timeoutSec: 180, specBytes: 6000, eventsPerStep: 512, ruleFiringsPerStep: 64, spawnsPerStep: 8, soundsPerStep: 6, ballRadius: 225, ballSpeed: 100_000, subStepsPerStep: 16, pairTestsPerStep: 64_000, actionBallsPerStep: 4_096 });
+    expect(uncap.BLUEPRINT_CEILINGS).toEqual({ balls: 400, tiles: 600, obstacles: 48, rules: 16, timeoutSec: 180, specBytes: 6000, eventsPerStep: 512, ruleFiringsPerStep: 64, spawnsPerStep: 8, soundsPerStep: 6, ballRadius: 225, ballSpeed: 100_000, subStepsPerStep: 16, pairTestsPerStep: 64_000, pairVisitsPerStep: 160_000, actionBallsPerStep: 4_096 });
     // --- review fix (blueprint) --- the work ceilings on one ball and one step, re-exported as the runtime reads them
     expect([uncap.BLUEPRINT_RADIUS_CEILING, uncap.BLUEPRINT_SPEED_CEILING, uncap.BLUEPRINT_SUBSTEP_CEILING, uncap.BLUEPRINT_PAIR_TESTS_PER_STEP, uncap.BLUEPRINT_ACTION_BALLS_PER_STEP]).toEqual([225, 100_000, 16, 64_000, 4_096]);
     expect([BLUEPRINT_MAX_SUBSTEPS, BLUEPRINT_STEP_BUDGETS.pairTests, BLUEPRINT_STEP_BUDGETS.actionBalls]).toEqual([16, 64_000, 4_096]);
+    // (the pair-grid entries a step walks have a ceiling of their own, apart from the pairs it tests)
+    expect([uncap.BLUEPRINT_PAIR_VISITS_PER_STEP, BLUEPRINT_STEP_BUDGETS.pairVisits]).toEqual([160_000, 160_000]);
     expect(BLUEPRINT_CEILINGS).toBe(uncap.BLUEPRINT_CEILINGS);
     expect([uncap.BLUEPRINT_BALL_CEILING, uncap.BLUEPRINT_TILE_CEILING, uncap.BLUEPRINT_OBSTACLE_CEILING, uncap.BLUEPRINT_RULE_CEILING, uncap.BLUEPRINT_TIMEOUT_CEILING_SEC, uncap.BLUEPRINT_JSON_MAX_BYTES]).toEqual([400, 600, 48, 16, 180, 6000]);
     expect([BLUEPRINT_LIMITS.balls, BLUEPRINT_LIMITS.tiles, BLUEPRINT_LIMITS.obstacles, BLUEPRINT_LIMITS.rules, BLUEPRINT_LIMITS.maxTimeoutSec, BLUEPRINT_LIMITS.specBytes]).toEqual([400, 600, 48, 16, 180, 6000]);
