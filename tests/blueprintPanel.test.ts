@@ -3,7 +3,7 @@ import * as React from "react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider, createTranslator } from "next-intl";
-import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, catalogBlueprint, paramUnit, paramValue, sanitizeBlueprint, type BlueprintCatalogId, type ParamUnit } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, catalogBlueprint, encodeBlueprint, paramUnit, paramValue, sanitizeBlueprint, type BlueprintCatalogId, type ParamUnit } from "@/lib/blueprint";
 import BlueprintSection, { CHECK_SLICE_MS, blueprintParamDisplay, copyGameLink } from "@/components/simulator/sections/BlueprintSection";
 import type { Translate } from "@/components/simulator/ControlPrimitives";
 import { defaultSettings, type SimulatorSettings } from "@/lib/settings";
@@ -78,6 +78,20 @@ describe("blueprint panel: a slider says its unit", () => {
     expect(html).toContain(pl.Blueprints.conquer.params.boost);
     expect(html).toMatch(/>6 s</);
     expect(render({ blPreset: "ringBreaker" }, "en")).toMatch(/>\d+°\/s</);
+  });
+});
+
+// --- review fix (blueprint) --- a link's tiles.hp of 1e300 printed about 400 characters of digits that ran 2,000 px past the panel
+describe("blueprint panel: How it plays says a stranger's huge numbers short and wraps within the panel", () => {
+  it("says 1e300 as 1E300 in every language, and lets every line of the list break anywhere", () => {
+    const code = encodeBlueprint(sanitizeBlueprint({ v: 1, meta: { name: "Huge" }, bodies: [{ id: "b", hp: 1e300 }], tiles: { rows: 2, cols: 6, hp: 1e300 }, spawners: [{ body: "b", speed: 300 }], finish: { timeoutSec: 30 } }).blueprint);
+    for (const locale of ["en", "pl", "es"] as const) {
+      const html = render({ blSpec: code }, locale);
+      const how = html.slice(html.indexOf('data-testid="blueprint-how"'));
+      expect(how, locale).toMatch(/<ul class="[^"]*\bwrap-anywhere\b[^"]*">/);
+      expect(how, locale).toContain("1E300");
+      expect(how.slice(0, how.indexOf("</ul>")), locale).not.toMatch(/\d[\d.,\s\u00a0\u202f]{12,}\d/);
+    }
   });
 });
 

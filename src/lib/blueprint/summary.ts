@@ -7,6 +7,7 @@
  * nothing else, and a recolouring the rule's merge or team change already implies. A value is a number, a plain string
  * (an id the spec's author chose), or another phrase to say first. Pure data: no DOM, no messages, no engine.
  */
+import { BLUEPRINT_LIMITS as L } from "./limits";
 import { BALL_TRIGGERS, type Blueprint, type BlueprintAction, type BlueprintRule, type Num } from "./schema";
 
 /** One message (`Blueprint.how.<key>`) with its values; a phrase value is said first and put in its place. */
@@ -32,8 +33,16 @@ export function isSummaryPhrase(value: SummaryValue): value is SummaryPhrase {
 }
 
 const p = (key: string, values?: Record<string, SummaryValue>): SummaryPhrase => (values ? { key, values } : { key });
-/** A number as the summary shows it: whole, or with at most two decimals. */
-const shown = (n: number) => Math.round(n * 100) / 100;
+/**
+ * --- review fix (blueprint) --- From this size on a number is said short (`summaryNumberFormat()`: 2.5M, 1E300): sayPhrase()
+ * hands it to the page's formatter whole or not, and a count that can reach it takes its "…Big" phrase, which says it as is
+ * instead of through a plural rule (a plural's # would print every digit of a stranger's 1e300).
+ */
+export const SUMMARY_BIG = 1e6;
+/** A number as the summary shows it: whole, or with at most two decimals (a big one as it is). */
+const shown = (n: number) => (Math.abs(n) >= SUMMARY_BIG ? n : Math.round(n * 100) / 100);
+/** --- review fix (blueprint) --- A count of balls one spawner, spawn or split makes at once, as the runtime takes it: whole, 0 to perSpawn. */
+const perSpawn = (n: number) => Math.min(L.perSpawn, Math.max(0, Math.round(n)));
 const KNOWN_COUNTS = ["balls", "tiles", "rings", "escaped", "teams", "tier", "time"];
 
 /** What summarizing one spec needs: the spec and how its variables are called. */
@@ -90,10 +99,10 @@ function ruleHead(c: Ctx, r: BlueprintRule): SummaryPhrase {
       head = p(`when.${r.when}`, { who: who(c, r.of) });
   }
   const filters: SummaryPhrase[] = [];
-  if (r.every > 1) filters.push(p("every", { n: r.every }));
+  if (r.every > 1) filters.push(p(r.every >= SUMMARY_BIG ? "everyBig" : "every", { n: r.every }));
   if (r.chance < 1) filters.push(p("chance", { pct: Math.round(r.chance * 100) }));
   if (r.cooldownSec > 0) filters.push(p("cooldown", { sec: shown(r.cooldownSec) }));
-  if (r.maxFires > 0) filters.push(p("maxFires", { n: r.maxFires }));
+  if (r.maxFires > 0) filters.push(p(r.maxFires >= SUMMARY_BIG ? "maxFiresBig" : "maxFires", { n: r.maxFires }));
   for (const f of filters) head = p("withFilter", { a: head, b: f });
   return head;
 }
@@ -111,11 +120,11 @@ function action(c: Ctx, r: BlueprintRule, a: BlueprintAction, merged: boolean): 
   switch (a.act) {
     case "spawn": {
       const n = plain(c, a.count);
-      return n !== null && n >= 1 ? p("act.spawn", { count: Math.round(n), place: place(a.at) }) : p("act.spawnSome", { place: place(a.at) });
+      return n !== null && n >= 1 ? p("act.spawn", { count: perSpawn(n), place: place(a.at) }) : p("act.spawnSome", { place: place(a.at) });
     }
     case "split": {
       const n = plain(c, a.into);
-      return n !== null ? p("act.split", { who: who(a.target), n: Math.round(n) }) : p("act.splitSome", { who: who(a.target) });
+      return n !== null ? p("act.split", { who: who(a.target), n: perSpawn(n) }) : p("act.splitSome", { who: who(a.target) });
     }
     case "merge":
       return p("act.merge");
@@ -181,7 +190,7 @@ function arenaLine(c: Ctx): SummaryLine {
     parts.push(p(style, { count: t.rows * t.cols, layers: p(t.layout === "ring" ? "tileLayers" : "tileRows", { rows: t.rows }) }));
     const first = Math.max(1, Math.round(t.hp));
     const last = Math.max(1, Math.round(t.hp + t.hpStep * (t.rows - 1)));
-    parts.push(last !== first ? p("tileHitsRange", { from: Math.min(first, last), to: Math.max(first, last) }) : p("tileHits", { hp: first }));
+    parts.push(last !== first ? p("tileHitsRange", { from: Math.min(first, last), to: Math.max(first, last) }) : p(first >= SUMMARY_BIG ? "tileHitsBig" : "tileHits", { hp: first }));
   }
   const counts = { pegs: 0, bumpers: 0, bars: 0, spinners: 0 };
   for (const o of c.bp.obstacles) {
@@ -206,7 +215,7 @@ function startLine(c: Ctx): SummaryLine {
     if (s.startSec > 0) continue;
     const n = plain(c, s.count);
     if (n === null) some = true;
-    else first += Math.max(0, Math.round(n));
+    else first += perSpawn(n);
     places.add(s.at);
   }
   if (some && first === 0) parts.push(p("startSome"));
@@ -226,7 +235,7 @@ function endLine(c: Ctx): SummaryLine {
   for (const f of c.bp.finish.any) {
     switch (f.when) {
       case "escaped":
-        conds.push(p("end.escaped", { count: Math.max(1, Math.round(f.atLeast ?? 1)) }));
+        conds.push(((count) => p(count >= SUMMARY_BIG ? "end.escapedBig" : "end.escaped", { count }))(Math.max(1, Math.round(f.atLeast ?? 1))));
         break;
       case "tilesCleared":
       case "ringsCleared":
@@ -293,10 +302,27 @@ export function summaryKeys(lines: SummaryLine[]): string[] {
 
 /**
  * Says a phrase with a message function (`say(key, values)`): its phrase values first. A fractional number is handed to
- * `num` (the page formats it for its language: 0,08 in Polish); whole numbers stay numbers, for the plural rules.
+ * `num` (the page formats it for its language: 0,08 in Polish), and so is a big one (SUMMARY_BIG on: the page says it
+ * short); other whole numbers stay numbers, for the plural rules.
  */
 export function sayPhrase(ph: SummaryPhrase, say: (key: string, values: Record<string, string | number>) => string, num: (n: number) => string = String): string {
   const values: Record<string, string | number> = {};
-  for (const [k, v] of Object.entries(ph.values ?? {})) values[k] = isSummaryPhrase(v) ? sayPhrase(v, say, num) : typeof v === "number" && !Number.isInteger(v) ? num(v) : v;
+  for (const [k, v] of Object.entries(ph.values ?? {})) values[k] = isSummaryPhrase(v) ? sayPhrase(v, say, num) : typeof v === "number" && (!Number.isInteger(v) || Math.abs(v) >= SUMMARY_BIG) ? num(v) : v;
   return say(ph.key, values);
+}
+
+/**
+ * --- review fix (blueprint) --- How the page says a summary's number in its language: as Intl.NumberFormat does below
+ * SUMMARY_BIG, short below a thousand trillion (2.5M, 2,5 mln), in exponent form beyond (1E300) – so a stranger's 1e300
+ * never runs four hundred digits across the panel.
+ */
+export function summaryNumberFormat(locale: string): (n: number) => string {
+  const plain = new Intl.NumberFormat(locale);
+  const compact = new Intl.NumberFormat(locale, { notation: "compact", maximumFractionDigits: 1 });
+  const exponent = new Intl.NumberFormat(locale, { notation: "scientific", maximumFractionDigits: 2 });
+  return (n) => {
+    const a = Math.abs(n);
+    if (!Number.isFinite(n)) return String(n);
+    return a < SUMMARY_BIG ? plain.format(n) : a < 1e15 ? compact.format(n) : exponent.format(n);
+  };
 }

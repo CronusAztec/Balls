@@ -4123,6 +4123,7 @@
       "tileLayers": "w {rows, plural, one {# warstwie} few {# warstwach} many {# warstwach} other {# warstwach}}",
       "tileRows": "w {rows, plural, one {# rzędzie} few {# rzędach} many {# rzędach} other {# rzędach}}",
       "tileHits": "{hp, plural, one {płytka pęka po jednym uderzeniu} few {płytka pęka po # uderzeniach} many {płytka pęka po # uderzeniach} other {płytka pęka po # uderzeniach}}",
+      "tileHitsBig": "płytka pęka po {hp} uderzeń",
       "tileHitsRange": "płytka pęka po {from}–{to} uderzeniach",
       "pegs": "{count, plural, one {# kołek} few {# kołki} many {# kołków} other {# kołka}}",
       "bumpers": "{count, plural, one {# odbijacz} few {# odbijacze} many {# odbijaczy} other {# odbijacza}}",
@@ -4168,9 +4169,11 @@
         "countAtMost": "Gdy {what} spadnie do {n}"
       },
       "every": "co {n}. raz",
+      "everyBig": "raz na {n} razy",
       "chance": "w {pct}% przypadków",
       "cooldown": "najwyżej co {sec} s",
       "maxFires": "{n, plural, one {tylko raz} few {najwyżej # razy} many {najwyżej # razy} other {najwyżej # razy}}",
+      "maxFiresBig": "najwyżej {n} razy",
       "withFilter": "{a}, {b}",
       "count": {
         "balls": "liczba kulek",
@@ -4218,6 +4221,7 @@
       },
       "end": {
         "escaped": "{count, plural, one {kulka ucieknie} few {# kulki uciekną} many {# kulek ucieknie} other {# kulki ucieknie}}",
+        "escapedBig": "{count} kulek ucieknie",
         "tilesCleared": "wszystkie płytki są rozbite",
         "ringsCleared": "wszystkie pierścienie są rozbite",
         "countAtLeast": "{what} dojdzie do {n}",
@@ -4238,6 +4242,7 @@
     },
     "problem": {
       "fault": "Reguła zawiodła w trakcie gry. Uprość regułę, która działa ostatnia.",
+      "crash": "Gra stanęła z powodu błędu. Użyj mniejszych prędkości, słabszego odbicia albo słabszej grawitacji.",
       "nan": "Kulki wyleciały poza zakres. Użyj mniejszych prędkości albo słabszej grawitacji.",
       "droppedEvents": "Za dużo dzieje się naraz. Niech mniej kulek się ze sobą styka.",
       "droppedFirings": "Reguły działają za często. Daj najczęstszej regule przerwę.",

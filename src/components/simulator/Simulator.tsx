@@ -557,11 +557,15 @@ export default function Simulator() {
       wallCount: s.wallCount,
       gapSize: s.gapSize,
       ballColor: s.ballColor,
-      ballRadius: s.ballRadius,
       twoBalls: s.twoBalls,
       ballColor2: s.ballColor2,
     });
-  }, [s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.wallCount, s.gapSize, s.ballColor, s.ballRadius, s.twoBalls, s.ballColor2]);
+  }, [s.gravity, s.bounce, s.ballSpeed, s.rotationSpeed, s.rotationEnabled, s.wallCount, s.gapSize, s.ballColor, s.twoBalls, s.ballColor2]);
+  // --- review fix (blueprint) --- the Ball Size goes to the engine only when it changes: sent with every theme or gravity
+  // change, it set every ball back to it (a grown ball, a Blueprint's orbs of every size)
+  useEffect(() => {
+    engineRef.current?.setConfig({ ballRadius: s.ballRadius });
+  }, [s.ballRadius]);
   // Physics extras (drag, wind, spin, bounciness, breathing walls, rotating gravity) travel in the same config.
   useEffect(() => {
     engineRef.current?.setConfig(physicsExtrasOf(s));

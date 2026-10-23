@@ -169,7 +169,9 @@ export function decodeBlueprint(text: string): BlueprintDecodeResult {
   try {
     return { ok: true, raw: JSON.parse(json) as unknown };
   } catch (e) {
-    return { ok: false, error: `the code is not JSON (${e instanceof Error ? e.message : String(e)})` };
+    // --- review fix (blueprint) --- never the parser's own message: it quotes the text it failed on, a stranger's words
+    const at = e instanceof Error ? /position (\d+)/.exec(e.message) : null;
+    return { ok: false, error: `the code is not JSON${at ? ` (at character ${at[1]})` : ""}` };
   }
 }
 

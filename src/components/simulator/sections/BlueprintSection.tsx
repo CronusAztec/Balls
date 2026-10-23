@@ -4,7 +4,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Searchable, Slider, type Matcher, type Translate } from "../ControlPrimitives";
 import { settingsToSearchParams, type SimulatorSettings } from "@/lib/settings";
-import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, formatParamValues, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, type Blueprint, type CheckProblem, type ParamUnit, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
+import { BLUEPRINT_CATALOG_IDS, PlayabilityRun, formatParamValues, paramUnit, paramValue, parseParamValues, sayPhrase, summarizeBlueprint, summaryNumberFormat, type Blueprint, type CheckProblem, type ParamUnit, type PlayabilityReport, type SummaryPhrase } from "@/lib/blueprint";
 import { blueprintSettingsOf, resolveBlueprintSpec, type ResolvedBlueprint } from "@/lib/physics/modes/blueprint";
 
 export interface BlueprintSectionProps {
@@ -128,8 +128,8 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
       const i = bp.hud.findIndex((h) => h.show === v);
       return (id && i >= 0 && b.has(`${id}.hud${i}`) ? b(`${id}.hud${i}`) : null) ?? (i >= 0 && bp.hud[i].label ? bp.hud[i].label : v);
     };
-    const nf = new Intl.NumberFormat(locale);
-    const say = (ph: SummaryPhrase) => sayPhrase(ph, (key, v) => how(key, v), (n) => nf.format(n));
+    const nf = summaryNumberFormat(locale); // --- review fix (blueprint) --- (a stranger's 1e300 said short: 1E300, not 400 digits)
+    const say = (ph: SummaryPhrase) => sayPhrase(ph, (key, v) => how(key, v), nf);
     return summarizeBlueprint(bp, { varName }).map((line) => ({ head: say(line.head), body: line.parts.map(say).join(", ") }));
   }, [resolved, b, how, locale]);
 
@@ -162,7 +162,13 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
     setRunning({ n: 1, total });
     const tick = () => {
       if (token.current !== mine) return;
-      const done = run.slice(CHECK_SLICE_MS, () => performance.now());
+      // --- review fix (blueprint) --- a slice that throws after all ends the check with a fault: it never hangs on "Checking run n of 4"
+      let done: PlayabilityReport | null;
+      try {
+        done = run.slice(CHECK_SLICE_MS, () => performance.now());
+      } catch {
+        done = run.abort();
+      }
       if (done) {
         setReport(done);
         setRunning(null);
@@ -278,7 +284,7 @@ export default function BlueprintSection({ t, search, matches, settings: s, upda
       {!search && (
         <div className="space-y-1" data-testid="blueprint-how">
           <p className="text-xs font-bold uppercase tracking-wider text-ink-2">{t("blHow")}</p>
-          <ul className="space-y-1">
+          <ul className="space-y-1 wrap-anywhere">
             {summary.map((line, i) => (
               <li key={i} className="text-xs text-ink-2 leading-relaxed">
                 <span className="font-semibold text-ink">{line.head}:</span> {line.body}

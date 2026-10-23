@@ -55,6 +55,7 @@ const CEILING_WHY: Record<keyof typeof BLUEPRINT_CEILINGS, string> = {
   subStepsPerStep: "sub-steps of one step (slow motion beyond)",
   pairTestsPerStep: "ball pairs one step tests for a contact (the rest of a sub-step's are skipped and counted)",
   pairVisitsPerStep: "pair-grid entries one step walks to find those pairs (the rest of a sub-step's are skipped and counted)",
+  tileTestsPerStep: "tiles one step's sweeps look at and test, and tile-grid cells they visit (past it a ball's tile sweep is skipped and counted)",
   actionBallsPerStep: "balls the rules' actions change in one step (further actions are dropped and counted)",
 };
 
@@ -164,11 +165,11 @@ export function renderBlueprintDocs(): string {
     "`bp-check` plays the spec in the engine on seeds 1-4, exactly as the page plays it, and judges it on deterministic counts",
     "only (never wall time, so every machine agrees). Mode Lab's Check playability button runs the same check:",
     "",
-    `- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between ${PLAYABLE_MIN_SEC} s and the timeout; no seed has a fault, a ball gone NaN or past the speed ceiling, dropped events, firings, pair tests or actions, or ARENA FULL; the median seed plays at least ${PLAYABLE_MIN_SOUNDS} sounds; something moves within ${PLAYABLE_FIRST_MOTION_SEC} s;`,
+    `- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between ${PLAYABLE_MIN_SEC} s and the timeout; no seed has a fault (a rule's or a crash the sandbox caught), a ball gone NaN or past the speed ceiling, dropped events, firings, pair tests, tile sweeps or actions, or ARENA FULL; the median seed plays at least ${PLAYABLE_MIN_SOUNDS} sounds; something moves within ${PLAYABLE_FIRST_MOTION_SEC} s;`,
     "- **endless:** every seed runs into the timeout;",
     "- **broken:** anything else. The feedback says what to change, in plain sentences.",
     "",
-    `A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than ${CHECK_HEAVY_STEP_COST} work units a step on average (ball sub-steps, contact and pair tests, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size), **crowded** when ${CHECK_CROWDED_STEPS} of a second's 60 steps skip ball pairs past the pair budgets (balls that overlap so much that the sandbox only bounds them).`,
+    `A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than ${CHECK_HEAVY_STEP_COST} work units a step on average (ball sub-steps, contact and pair tests, tile work, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size), **crowded** when ${CHECK_CROWDED_STEPS} of a second's 60 steps skip ball pairs past the pair budgets or tile sweeps past the tile budget (balls that overlap so much, or cover so many tiles, that the sandbox only bounds them).`,
   );
   p(
     "## The Lite form (small local models)",

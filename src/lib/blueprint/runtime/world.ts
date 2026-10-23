@@ -6,14 +6,18 @@
  * resolves everything the engine leaves to a mode that owns its playfield (box.ts, mergeRing.ts do the same):
  *
  *  - `ballStep()` (the mode's onBallStep, right after the engine moved the ball): tiles first – TileField sweeps the move, so
- *    nothing tunnels –, then pegs, bars and spinners, then the arena (rim, exits, box walls, rings, escapes), then the spec's
- *    gravity (the engine's is off for these balls: gravityScale 0);
+ *    nothing tunnels, within the step's share of BLUEPRINT_TILE_TESTS_PER_STEP (past it the sweep is skipped and counted:
+ *    `droppedTiles`) –, then pegs, bars and spinners, then the arena (rim, exits, box walls, rings, escapes), then the spec's
+ *    gravity (the engine's is off for these balls: gravityScale 0). A ball whose numbers are not ones the world can move –
+ *    not finite, or past BLUEPRINT_SPEED_CEILING – is taken out (counted) before its contacts and again after them, so a
+ *    restitution of 1e300 never carries an infinite ball into the pair pass or out through an exit;
  *  - `collidePairs()` (onPostSubStep): every touching pair, by mass (area), through a grid rebuilt each sub-step – a ball
  *    that covers more than BIG_CELLS cells is tested directly against the others instead, and a sub-step tests at most its
  *    share of BLUEPRINT_PAIR_TESTS_PER_STEP pairs and walks at most its share of BLUEPRINT_PAIR_VISITS_PER_STEP grid
  *    entries (the rest are skipped and counted: `droppedPairs`);
  *  - `cull()` (end of each step): a ball gone non-finite or past BLUEPRINT_SPEED_CEILING is taken out (counted), so the
- *    canvas never draws one and no sub-step plan has to follow one;
+ *    canvas never draws one and no sub-step plan has to follow one; a radius past BLUEPRINT_RADIUS_CEILING stops at it,
+ *    whatever set it; `sweep()` drops an escaped ball's ghost whose numbers went non-finite;
  *  - `advance()` (once a step): the rim, the rings' gaps and the spinners turn.
  *
  * It knows nothing of rules: it reports what happened (a wall hit, a tile broken, an escape…) to the interpreter
@@ -27,7 +31,7 @@
  */
 import type { Ball, ModeContext, NewBall } from "@/lib/physics/types";
 import { TileField } from "@/lib/physics/tiles";
-import { BLUEPRINT_PAIR_TESTS_PER_STEP, BLUEPRINT_PAIR_VISITS_PER_STEP, BLUEPRINT_SPEED_CEILING, BLUEPRINT_TILE_CEILING } from "../limits";
+import { BLUEPRINT_PAIR_TESTS_PER_STEP, BLUEPRINT_PAIR_VISITS_PER_STEP, BLUEPRINT_RADIUS_CEILING, BLUEPRINT_SPEED_CEILING, BLUEPRINT_TILE_CEILING, BLUEPRINT_TILE_TESTS_PER_STEP } from "../limits";
 import { RINGS_RIM_OUTER, type Blueprint } from "../schema";
 import type { WorldEvents } from "./events";
 
@@ -193,6 +197,11 @@ const enum Kind {
   Bar = 1,
 }
 
+/** --- review fix (blueprint) --- Whether an escaped ball's ghost is still a ball the canvas can draw (finite, a radius within the ceiling). */
+function ghostInRange(ball: Ball): boolean {
+  return Number.isFinite(ball.x) && Number.isFinite(ball.y) && Number.isFinite(ball.vx) && Number.isFinite(ball.vy) && ball.radius > 0 && ball.radius <= BLUEPRINT_RADIUS_CEILING;
+}
+
 export class BlueprintWorld {
   readonly bp: Blueprint;
   width = 0;
@@ -286,6 +295,11 @@ export class BlueprintWorld {
   pairVisits = 0;
   /** --- review fix (blueprint) --- Pair tests that found the two balls overlapping (each resolves and reports: the costly kind). */
   overlaps = 0;
+  /** --- review fix (blueprint) --- Ball sub-steps that skipped their tile sweep: the step's share of BLUEPRINT_TILE_TESTS_PER_STEP was spent. */
+  droppedTiles = 0;
+  /** --- review fix (blueprint) --- The tile work (tileTests()) when the step began, and the length of its sub-steps done so far (s). */
+  private tileStepStart = 0;
+  private subDone = 0;
   /** The step's length (s) and the last sub-step's (the pair budget's share). */
   private stepSec = FIXED_STEP_SEC;
   private subSec = FIXED_STEP_SEC / 4;
@@ -576,8 +590,9 @@ export class BlueprintWorld {
 
   /**
    * Drops the balls that are no longer alive from the world and from the engine (creation order kept). An escaped ball
-   * stays in the engine as a ghost: it flies on out of the frame and fades (`lifetime`), touching nothing. Any other ball the
-   * engine holds that the world does not know (its default first ball) goes too: the Blueprint places every ball itself.
+   * stays in the engine as a ghost: it flies on out of the frame and fades (`lifetime`), touching nothing – --- review fix
+   * (blueprint) --- unless its numbers went out of range (the canvas never draws one). Any other ball the engine holds that
+   * the world does not know (its default first ball) goes too: the Blueprint places every ball itself.
    */
   sweep(ctx: ModeContext) {
     let dead = false;
@@ -591,7 +606,7 @@ export class BlueprintWorld {
     if (!dead) {
       if (engineBalls.length === this.balls.length) return;
       for (const ball of engineBalls)
-        if (!this.byId.has(ball.id) && ball.lifetime === undefined) {
+        if (!this.byId.has(ball.id) && (ball.lifetime === undefined || !ghostInRange(ball))) {
           foreign = true;
           break;
         }
@@ -608,7 +623,7 @@ export class BlueprintWorld {
     let w = 0;
     for (let i = 0; i < engineBalls.length; i++) {
       const ball = engineBalls[i];
-      if (this.byId.has(ball.id) || ball.lifetime !== undefined) engineBalls[w++] = ball;
+      if (this.byId.has(ball.id) || (ball.lifetime !== undefined && ghostInRange(ball))) engineBalls[w++] = ball;
     }
     engineBalls.length = w;
   }
@@ -633,23 +648,57 @@ export class BlueprintWorld {
    */
   ballStep(b: WorldBall, h: number, events: WorldEvents) {
     this.subSec = h;
-    if (!b.alive) return;
+    if (!b.alive || !this.keep(b)) return;
     const ball = b.ball;
-    if (!(Number.isFinite(ball.x) && Number.isFinite(ball.y) && Number.isFinite(ball.vx) && Number.isFinite(ball.vy) && Number.isFinite(ball.radius))) {
-      b.alive = false;
-      this.nanBalls++;
-      return;
-    }
     // where it was when the sub-step began (the engine has just moved it): the ring pass judges by it
     b.pd = Math.hypot(ball.x - ball.vx * h - this.cx, ball.y - ball.vy * h - this.cy);
-    if (this.tiles.aliveTotal > 0) this.collideTiles(b, h, events);
+    if (this.tiles.aliveTotal > 0) {
+      // --- review fix (blueprint) --- within the step's tile budget (the sub-steps so far and this one's share)
+      if (this.tileTests() - this.tileStepStart < BLUEPRINT_TILE_TESTS_PER_STEP * Math.min(1, (this.subDone + h) / Math.max(this.stepSec, 1e-9))) this.collideTiles(b, h, events);
+      else this.droppedTiles++;
+    }
     if (!b.alive) return;
     this.collideStatic(b, events);
     if (b.alive) this.collideArena(b, events);
-    if (b.alive && b.gs !== 0) {
+    // --- review fix (blueprint) --- a contact may have sent it out of range (a restitution of 1e300): out before it moves on
+    if (!b.alive || !this.keep(b)) return;
+    if (b.gs !== 0) {
       ball.vx += this.gx * b.gs * h;
       ball.vy += this.gy * b.gs * h;
     }
+  }
+
+  /**
+   * --- review fix (blueprint) --- Whether a ball's numbers are ones the world can move: its position, velocity and radius
+   * finite, a radius above 0, a speed within BLUEPRINT_SPEED_CEILING. One that is not is taken out and counted (nanBalls,
+   * fastBalls) – never left for the pair pass, an exit or the canvas; a radius past BLUEPRINT_RADIUS_CEILING stops at it,
+   * whatever set it (an action, the page's Ball Size).
+   */
+  private keep(b: WorldBall): boolean {
+    const ball = b.ball;
+    if (!(Number.isFinite(ball.x) && Number.isFinite(ball.y) && Number.isFinite(ball.vx) && Number.isFinite(ball.vy) && Number.isFinite(ball.radius) && ball.radius > 0)) {
+      b.alive = false;
+      this.nanBalls++;
+      return false;
+    }
+    if (ball.vx * ball.vx + ball.vy * ball.vy > BLUEPRINT_SPEED_CEILING * BLUEPRINT_SPEED_CEILING) {
+      b.alive = false;
+      this.fastBalls++;
+      return false;
+    }
+    if (ball.radius > BLUEPRINT_RADIUS_CEILING) ball.radius = BLUEPRINT_RADIUS_CEILING;
+    return true;
+  }
+
+  /** --- review fix (blueprint) --- The tile work of the run so far: tiles looked at and tested, tile-grid cells visited (TileField.stats). */
+  tileTests(): number {
+    const st = this.tiles.stats;
+    return st.candidates + st.narrowTests + st.cellVisits;
+  }
+
+  /** --- review fix (blueprint) --- The end of a sub-step (onPostSubStep): its length counts toward the step's tile budget. */
+  endSubStep() {
+    this.subDone += this.subSec;
   }
 
   /**
@@ -658,17 +707,7 @@ export class BlueprintWorld {
    * canvas draws it – an action may have made one this step, and the engine's next move would carry it on.
    */
   cull() {
-    for (const b of this.balls) {
-      if (!b.alive) continue;
-      const ball = b.ball;
-      if (!(Number.isFinite(ball.x) && Number.isFinite(ball.y) && Number.isFinite(ball.vx) && Number.isFinite(ball.vy) && Number.isFinite(ball.radius) && ball.radius > 0)) {
-        b.alive = false;
-        this.nanBalls++;
-      } else if (ball.vx * ball.vx + ball.vy * ball.vy > BLUEPRINT_SPEED_CEILING * BLUEPRINT_SPEED_CEILING) {
-        b.alive = false;
-        this.fastBalls++;
-      }
-    }
+    for (const b of this.balls) if (b.alive) this.keep(b);
   }
 
   /* ------------------------------------------------------------------ contacts */
@@ -870,7 +909,8 @@ export class BlueprintWorld {
   }
 
   private escapeBall(b: WorldBall, events: WorldEvents) {
-    if (!b.alive) return;
+    // --- review fix (blueprint) --- a ball out of range is taken out and counted, never an escape (nor a ghost flying on)
+    if (!b.alive || !this.keep(b)) return;
     b.alive = false;
     b.escaped = true;
     events.escape(b);
@@ -992,7 +1032,9 @@ export class BlueprintWorld {
     for (let i = 0; i < n; i++) {
       const b = balls[i];
       isBig[i] = 0;
-      if (!b.alive) continue;
+      // --- review fix (blueprint) --- (a ball out of range is taken out here: a NaN cell would never be counted, and the grid
+      // filled past its length)
+      if (!b.alive || !this.keep(b)) continue;
       const c0 = this.cellX(b.x - b.r);
       const c1 = this.cellX(b.x + b.r);
       const r0 = this.cellY(b.y - b.r);
@@ -1087,12 +1129,14 @@ export class BlueprintWorld {
     }
   }
 
-  /** A new step: the pairs reported this step are forgotten; `stepSec` is its length (the pair budget is shared over its sub-steps). */
+  /** A new step: the pairs reported this step are forgotten; `stepSec` is its length (the pair and tile budgets are shared over its sub-steps). */
   beginStep(step: number, timeSec: number, stepSec = FIXED_STEP_SEC) {
     this.step = step;
     this.timeSec = timeSec;
     this.stepSec = stepSec;
     this.pairKeys.clear();
+    this.tileStepStart = this.tileTests();
+    this.subDone = 0;
   }
 
   private touch(a: WorldBall, b: WorldBall, events: WorldEvents) {

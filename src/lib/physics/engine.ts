@@ -2583,8 +2583,9 @@ export class PhysicsEngine {
     if (patch.ballColor !== undefined) for (const b of this.balls) if (!b.team) b.color = patch.ballColor;
     if (patch.ballColor2 !== undefined) for (const b of this.balls) if (b.team === 1) b.color = patch.ballColor2;
     if (patch.ballColor !== undefined) this.currentMode?.onBallColorChange?.(this.ctx); // --- colour-sort --- (a mode that colours its balls itself paints them back)
-    // Balls with a size spread (Ball Drop) keep their ratio to the configured radius; the others take it as is.
-    if (patch.ballRadius !== undefined) for (const b of this.balls) b.radius = patch.ballRadius * (b.radiusScale ?? 1);
+    // Balls with a size spread (Ball Drop) keep their ratio to the configured radius; the others take it as is. --- review
+    // fix (blueprint) --- A mode that sizes its balls itself (ownsBallSize: Mode Lab) keeps their radii.
+    if (patch.ballRadius !== undefined && !this.currentMode?.ownsBallSize) for (const b of this.balls) b.radius = patch.ballRadius * (b.radiusScale ?? 1);
     const sizeChanged =
       (patch.width !== undefined && patch.width !== oldW) || (patch.height !== undefined && patch.height !== oldH);
     if (sizeChanged && oldW > 0 && oldH > 0) {

@@ -4123,6 +4123,7 @@
       "tileLayers": "en {rows, plural, one {# capa} other {# capas}}",
       "tileRows": "en {rows, plural, one {# fila} other {# filas}}",
       "tileHits": "{hp, plural, one {un golpe rompe una loseta} other {# golpes rompen una loseta}}",
+      "tileHitsBig": "{hp} golpes rompen una loseta",
       "tileHitsRange": "de {from} a {to} golpes rompen una loseta",
       "pegs": "{count, plural, one {# clavo} other {# clavos}}",
       "bumpers": "{count, plural, one {# rebotador} other {# rebotadores}}",
@@ -4168,9 +4169,11 @@
         "countAtMost": "Cuando {what} baja a {n}"
       },
       "every": "una de cada {n} veces",
+      "everyBig": "una de cada {n} veces",
       "chance": "el {pct}% de las veces",
       "cooldown": "como mucho cada {sec} s",
       "maxFires": "{n, plural, one {solo una vez} other {hasta # veces}}",
+      "maxFiresBig": "hasta {n} veces",
       "withFilter": "{a}, {b}",
       "count": {
         "balls": "el número de bolas",
@@ -4218,6 +4221,7 @@
       },
       "end": {
         "escaped": "{count, plural, one {escapa una bola} other {escapan # bolas}}",
+        "escapedBig": "escapan {count} bolas",
         "tilesCleared": "todas las losetas están rotas",
         "ringsCleared": "todos los anillos están rotos",
         "countAtLeast": "{what} llega a {n}",
@@ -4238,6 +4242,7 @@
     },
     "problem": {
       "fault": "Una regla falló durante la partida. Simplifica la regla que actúa al final.",
+      "crash": "El juego se detuvo por un error. Usa velocidades, rebote o gravedad más bajos.",
       "nan": "Las bolas se salieron de rango. Usa velocidades o gravedad más bajas.",
       "droppedEvents": "Pasan demasiadas cosas a la vez. Haz que se toquen menos bolas.",
       "droppedFirings": "Las reglas actúan demasiado a menudo. Dale una pausa a la regla más activa.",

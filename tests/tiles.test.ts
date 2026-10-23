@@ -355,6 +355,22 @@ describe("TileField: collide() reflects off rects and sectors", () => {
     expect(c.vx).toBeCloseTo(60, 9);
   });
 
+  // --- review fix (tiles) --- a bounciness of 1e300 (a stranger's restitution) sends a rebound past any speed
+  it("never writes a position that is not finite: a rebound to an infinite speed leaves the ball where the engine moved it", () => {
+    const f = new TileField(4);
+    f.addRect(0, 100, 200, 120, 1); // a floor
+    f.addRect(0, 60, 200, 87, 1); // and a ceiling: a 13 px slot for a 12 px ball
+    f.build();
+    const b = ball(50, 93.5, 0, 3000);
+    b.x += b.vx * SUB;
+    b.y += b.vy * SUB;
+    const moved = [b.x, b.y];
+    expect(f.collide(b, SUB, 1, 0, 1e300)).toBe(0);
+    expect(f.contactCount).toBeGreaterThan(1);
+    expect(Number.isFinite(b.vy)).toBe(false);
+    expect([b.x, b.y]).toEqual(moved);
+  });
+
   it("bounces off a rect's side and off a corner along the corner's normal", () => {
     const f = new TileField(4);
     f.addRect(100, 100, 140, 140, 1);

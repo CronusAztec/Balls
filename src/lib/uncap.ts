@@ -160,6 +160,14 @@ export const BLUEPRINT_CEILINGS = {
    */
   pairVisitsPerStep: 160_000,
   /**
+   * --- review fix (blueprint) --- Tile work one step does, shared out over its sub-steps: the tiles the balls' sweeps look
+   * at and test, and the tile-grid cells they visit (lib/physics/tiles.ts TileField.stats: candidates, narrowTests,
+   * cellVisits). A ball the size of the arena sweeps most of the tiles up to four times a sub-step: 60 of them over 600 tiles
+   * did 630,000 a step (14 ms), while the catalog does about 2,000. Past it a ball's sub-step skips its tile sweep and is
+   * counted (droppedTiles), so balls that cover the field cannot make a step cost tiles × balls.
+   */
+  tileTestsPerStep: 40_000,
+  /**
    * --- review fix (blueprint) --- Balls the rules' actions change in one step (an action with target "all" changes every
    * ball, and each runs its formula): past it the step's further actions are dropped and counted, like rule firings past
    * theirs (64 firings × 4 actions × 400 balls would be 100,000 formula runs a step).
@@ -181,6 +189,7 @@ export const BLUEPRINT_SPEED_CEILING = BLUEPRINT_CEILINGS.ballSpeed;
 export const BLUEPRINT_SUBSTEP_CEILING = BLUEPRINT_CEILINGS.subStepsPerStep;
 export const BLUEPRINT_PAIR_TESTS_PER_STEP = BLUEPRINT_CEILINGS.pairTestsPerStep;
 export const BLUEPRINT_PAIR_VISITS_PER_STEP = BLUEPRINT_CEILINGS.pairVisitsPerStep;
+export const BLUEPRINT_TILE_TESTS_PER_STEP = BLUEPRINT_CEILINGS.tileTestsPerStep;
 export const BLUEPRINT_ACTION_BALLS_PER_STEP = BLUEPRINT_CEILINGS.actionBallsPerStep;
 // --- end blueprint ---
 

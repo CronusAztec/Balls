@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { IntlMessageFormat } from "intl-messageformat";
 import { BLUEPRINT_CATALOG_IDS, catalogBlueprint, sanitizeBlueprint } from "@/lib/blueprint";
-import { sayPhrase, summarizeBlueprint, summaryKeys, type SummaryLine } from "@/lib/blueprint/summary";
+import { SUMMARY_BIG, sayPhrase, summarizeBlueprint, summaryKeys, summaryNumberFormat, type SummaryLine } from "@/lib/blueprint/summary";
 import { ACTIONS, FINISH_KINDS, TRIGGERS, WITH_RELATIONS } from "@/lib/blueprint/schema";
 import en from "../messages/en.json";
 import pl from "../messages/pl.json";
@@ -160,6 +160,50 @@ describe("blueprint summary: How it plays", () => {
     expect(lines).toContain("When the ball count reaches 20: every ball moves up a tier, “score” is multiplied by 2");
     expect(lines).toContain("When a ball called red touches a ball called blue: the faster ball shrinks, “score” becomes 0");
     expect(lines[lines.length - 1]).toBe("End: when 2 balls escape or “score” reaches 30 or one team is left, or after 90 s");
+  });
+
+  // --- review fix (blueprint) --- a stranger's 1e300 printed every digit: about 400 characters with no break across the panel
+  it("says a stranger's huge numbers short in every language, with no run of digits and no plural of 1e300", () => {
+    const huge = sanitizeBlueprint({
+      v: 1,
+      meta: { name: "Huge" },
+      bodies: [{ id: "b" }],
+      vars: [{ id: "score", start: 1e300 }],
+      tiles: { rows: 2, cols: 6, hp: 1e300 },
+      spawners: [{ body: "b", count: "score", everySec: 2.5e6 }],
+      rules: [
+        { when: "timer", sec: 1e300, every: 1e300, maxFires: 1e300, cooldownSec: 2.5e9, do: [{ act: "spawn", body: "b", count: "score" }, { act: "var", id: "score", op: "add", value: 1e300 }] },
+        { when: "wallHit", every: 3e6, do: [{ act: "split", into: "score" }] },
+      ],
+      finish: { timeoutSec: 60, any: [{ when: "escaped", atLeast: 1e300 }, { when: "count", what: "score", atLeast: 1.7e308 }] },
+    }).blueprint;
+    const lines = summarizeBlueprint(huge);
+    const keys = summaryKeys(lines);
+    expect(keys).toEqual(expect.arrayContaining(["tileHitsBig", "everyBig", "maxFiresBig", "end.escapedBig"]));
+    for (const locale of Object.keys(LOCALES) as Locale[]) {
+      for (const k of keys) expect(message(locale, k), `${locale} ${k}`).toBeTypeOf("string");
+      const num = summaryNumberFormat(locale);
+      const fmt = (key: string, values: Record<string, string | number>) => String(new IntlMessageFormat(message(locale, key)!, locale).format(values));
+      for (const line of lines.map((l) => `${sayPhrase(l.head, fmt, num)}: ${l.parts.map((ph) => sayPhrase(ph, fmt, num)).join(", ")}`)) {
+        expect(line, locale).not.toMatch(/[{}]|<missing|undefined|NaN|Infinity/);
+        expect(line, locale).not.toMatch(/\d[\d.,\s\u00a0\u202f]{12,}\d/);
+        expect(line.length, `${locale} ${line}`).toBeLessThan(260);
+      }
+    }
+    const said = (locale: Locale) => {
+      const num = summaryNumberFormat(locale);
+      const fmt = (key: string, values: Record<string, string | number>) => String(new IntlMessageFormat(message(locale, key)!, locale).format(values));
+      return lines.map((l) => `${sayPhrase(l.head, fmt, num)}: ${l.parts.map((ph) => sayPhrase(ph, fmt, num)).join(", ")}`).join("\n");
+    };
+    expect(said("en")).toContain("12 glass tiles in 2 rows, 1E300 hits break a tile");
+    expect(said("en")).toContain("Start: 8 balls in the centre, one more every 2.5M s");
+    expect(said("en")).toContain("Every 1E300 s, once every 1E300 times, at most every 2.5B s, up to 1E300 times: 8 new balls appear at the ball, “score” goes up by 1E300");
+    expect(said("en")).toContain("When a ball hits the wall, once every 3M times: the ball splits into 8");
+    expect(said("en")).toContain("End: when 1E300 balls escape or “score” reaches 1.7E308, or after 60 s");
+    expect(said("pl")).toContain("płytka pęka po 1E300 uderzeń");
+    expect(said("es")).toContain("1E300 golpes rompen una loseta");
+    // (below SUMMARY_BIG a number is the locale's plain one, and a count still takes its plural)
+    expect([summaryNumberFormat("pl")(999_999.5), summaryNumberFormat("en")(SUMMARY_BIG), summaryNumberFormat("pl")(2.5e6).replace(/\s/g, " ")]).toEqual([new Intl.NumberFormat("pl").format(999_999.5), "1M", "2,5 mln"]);
   });
 
   it("follows a slider: Ring Breaker's ring count shows in its arena line", () => {

@@ -700,6 +700,12 @@ export interface GameMode {
    * engine's own plan, exactly as before.
    */
   readonly subStepCeiling?: number;
+  /**
+   * --- review fix (blueprint) --- The mode sizes every ball itself (Mode Lab: a Blueprint's bodies, grows and merges): a
+   * config patch's `ballRadius` (the page's Ball Size, sent again whenever a theme or the gravity changes) leaves its balls'
+   * radii alone. Unset: every ball takes the configured radius × its `radiusScale`, exactly as before.
+   */
+  readonly ownsBallSize?: boolean;
   init(ctx: ModeContext): void;
   onPreUpdate(ctx: ModeContext, dtMs: number): void;
   onBallStep(ctx: ModeContext, ball: Ball, dtSec: number): void;

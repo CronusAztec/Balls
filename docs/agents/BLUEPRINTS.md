@@ -198,6 +198,7 @@ Fixed work and memory ceilings (`BLUEPRINT_CEILINGS` in `src/lib/uncap.ts`, the 
 | `subStepsPerStep` | 16 | sub-steps of one step (slow motion beyond) |
 | `pairTestsPerStep` | 64000 | ball pairs one step tests for a contact (the rest of a sub-step's are skipped and counted) |
 | `pairVisitsPerStep` | 160000 | pair-grid entries one step walks to find those pairs (the rest of a sub-step's are skipped and counted) |
+| `tileTestsPerStep` | 40000 | tiles one step's sweeps look at and test, and tile-grid cells they visit (past it a ball's tile sweep is skipped and counted) |
 | `actionBallsPerStep` | 4096 | balls the rules' actions change in one step (further actions are dropped and counted) |
 
 The shape of a spec (`BLUEPRINT_LIMITS` in `src/lib/blueprint/limits.ts`): 4 bodies, 4 exits, 8 obstacle patterns, 4 variables, 6 spawners, 4 actions a rule, 3 finish conditions, 2 HUD counters, 6 colours, 6 teams, 8 rings, 8 balls a spawn, names of 28 and descriptions of 160 characters. A step has 4 to 16 sub-steps: the engine plans enough that no ball moves more than half its radius in one, and past 16 the run plays in slow motion instead.
@@ -207,11 +208,11 @@ The shape of a spec (`BLUEPRINT_LIMITS` in `src/lib/blueprint/limits.ts`): 4 bod
 `bp-check` plays the spec in the engine on seeds 1-4, exactly as the page plays it, and judges it on deterministic counts
 only (never wall time, so every machine agrees). Mode Lab's Check playability button runs the same check:
 
-- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between 6 s and the timeout; no seed has a fault, a ball gone NaN or past the speed ceiling, dropped events, firings, pair tests or actions, or ARENA FULL; the median seed plays at least 5 sounds; something moves within 1 s;
+- **playable:** at least 3 of 4 seeds end by a finish condition; the median end is between 6 s and the timeout; no seed has a fault (a rule's or a crash the sandbox caught), a ball gone NaN or past the speed ceiling, dropped events, firings, pair tests, tile sweeps or actions, or ARENA FULL; the median seed plays at least 5 sounds; something moves within 1 s;
 - **endless:** every seed runs into the timeout;
 - **broken:** anything else. The feedback says what to change, in plain sentences.
 
-A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than 60000 work units a step on average (ball sub-steps, contact and pair tests, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size), **crowded** when 30 of a second's 60 steps skip ball pairs past the pair budgets (balls that overlap so much that the sandbox only bounds them).
+A seed a browser tab could not play is stopped early and broken, on counts alone: **heavy** when a second of steps costs more than 60000 work units a step on average (ball sub-steps, contact and pair tests, tile work, rule firings and the balls their actions change), **slow** when five seconds of steps move the run's clock less than half that (slow motion: balls too fast for their size), **crowded** when 30 of a second's 60 steps skip ball pairs past the pair budgets or tile sweeps past the tile budget (balls that overlap so much, or cover so many tiles, that the sandbox only bounds them).
 
 ## The Lite form (small local models)
 

@@ -197,6 +197,8 @@ export class BlueprintMode implements GameMode {
   readonly ballsPassThrough = true;
   /** --- review fix (blueprint) --- A planned step takes at most this many sub-steps (the sandbox's work ceiling); slow motion beyond. */
   readonly subStepCeiling = BLUEPRINT_MAX_SUBSTEPS;
+  /** --- review fix (blueprint) --- A Blueprint sizes every ball itself: the page's Ball Size (re-sent by a theme) never resizes them. */
+  readonly ownsBallSize = true;
   private settings: BlueprintSettings = { ...DEFAULT_BLUEPRINT_SETTINGS };
   private resolved: ResolvedBlueprint | null = null;
   private resolvedKey = "";
