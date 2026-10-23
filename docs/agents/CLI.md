@@ -19,7 +19,7 @@ stderr. The schemas live in `src/lib/agentKit/tools.ts`.
 
 | Tool | What it returns | Example |
 | --- | --- | --- |
-| `modes` | Every mode: id, family, English name, settings prefix, field count. With `mode`: each field's default, slider range, link key, whether the engine reads it, whether a link keeps it (`roundTrip`) and whether `presetToSettings` resolves it (`resolved`). | `{"mode":"mergeRing"}` |
+| `modes` | Every mode: id, family, English name, settings prefix, field count. With `mode`: each field's default, slider range, link key, whether the engine reads it, whether a link keeps it (`roundTrip`) and whether `presetToSettings` resolves it (`resolved`). A field only a link sets, never a slider or a patch, is listed too and marked `linkOnly` (Mode Lab's `blSpec`, link key `bls`). | `{"mode":"mergeRing"}` |
 | `simulate` | One seed of a link or a mode, run in Node exactly as the seed finder runs it. It returns `finished` and `finishSec` (the finder's own time), balls per second, sound events per type, the mode's state, view and progress (JSON-safe), a NaN flag and work counts. | `{"mode":"spiralGlass","seed":12345,"seconds":10}` |
 | `fingerprint` | A mode's fingerprint by the `tests/extras.test.ts` recipe (seed 12345, 600 frames) and its diff against that file's BASELINE entry. Without `mode`: every mode, equal or not. | `{"mode":"classic"}` |
 | `preview` | A PNG contact sheet of a link at the given seconds, from the real page's still camera. | `{"link":"?mode=box&seed=3","times":[1,3,5]}` |
